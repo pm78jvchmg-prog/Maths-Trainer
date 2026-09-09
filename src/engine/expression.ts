@@ -1,0 +1,148 @@
+/**
+ * A thin, typed layer over mathjs: parse user input, work out which symbols are
+ * genuinely free variables, and evaluate safely over the reals or the complex plane.
+ */
+import { create, all, type MathNode } from 'mathjs';
+import type { Rng } from './rng';
+
+export const math = create(all, {});
+
+/**
+ * Symbols mathjs resolves on its own. Critically this includes `i`: without
+ * excluding it, `3+4i` looks like it has a free variable named `i` and the
+ * checker would start assigning it random values.
+ */
+const BUILTIN_SYMBOLS = new Set([
+  'i', 'e', 'E', 'pi', 'PI', 'tau', 'phi', 'Infinity', 'NaN', 'true', 'false', 'null',
+]);
+
+/** A scalar mathjs can hand back from a numeric expression. */
+export type Scalar = number | { re: number; im: number; isComplex?: boolean };
+
+export interface ParseOk {
+  ok: true;
+  node: MathNode;
+  /** Free variables, excluding built-in constants and declared arbitrary constants. */
+  variables: string[];
+}
+export interface ParseFail {
+  ok: false;
+  /** Human-facing, shown as "that isn't a complete expression" rather than "wrong". */
+  error: string;
+}
+export type ParseResult = ParseOk | ParseFail;
+
+/**
+ * Parse an expression string.
+ *
+ * `arbitraryConstants` names symbols that stand for an unknown constant rather
+ * than a variable — `C` in an indefinite integral. They are excluded from the
+ * free-variable list and bound to 0 at evaluation time, so `x^2/2` and
+ * `x^2/2 + C` probe identically.
+ */
+export function parseExpression(
+  input: string,
+  arbitraryConstants: readonly string[] = [],
+): ParseResult {
+  const trimmed = input.trim();
+  if (trimmed === '') return { ok: false, error: 'Enter an answer.' };
+
+  const ignored = new Set([...BUILTIN_SYMBOLS, ...arbitraryConstants]);
+
+  let node: MathNode;
+  try {
+    node = math.parse(trimmed);
+  } catch (err) {
+    return { ok: false, error: describeParseError(err) };
+  }
+
+  const variables = new Set<string>();
+  node.traverse((child, path, parent) => {
+    if (child.type !== 'SymbolNode') return;
+    // `sin` in `sin(x)` parses as a SymbolNode too, but at path 'fn' under a
+    // FunctionNode. It is a function name, not a variable.
+    const isFunctionName = parent?.type === 'FunctionNode' && path === 'fn';
+    const { name } = child as unknown as { name: string };
+    if (!isFunctionName && !ignored.has(name)) variables.add(name);
+  });
+
+  return { ok: true, node, variables: [...variables].sort() };
+}
+
+function describeParseError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/Unexpected end of expression/i.test(raw)) return "That expression isn't finished.";
+  if (/Parenthesis \) expected/i.test(raw)) return 'There is a bracket left open.';
+  if (/Value expected/i.test(raw)) return 'Something is missing from that expression.';
+  return 'That expression could not be read.';
+}
+
+/** True for anything we must not compare against: NaN, ±Infinity, non-scalars. */
+export function isInvalidScalar(value: unknown): boolean {
+  if (typeof value === 'number') return !Number.isFinite(value);
+  if (typeof value === 'object' && value !== null && 're' in value && 'im' in value) {
+    const c = value as { re: number; im: number };
+    return !Number.isFinite(c.re) || !Number.isFinite(c.im);
+  }
+  return true;
+}
+
+/** Evaluate at a point. Returns `undefined` for a domain hole rather than throwing. */
+export function evaluateAt(
+  node: MathNode,
+  scope: Record<string, unknown>,
+): Scalar | undefined {
+  try {
+    const value = node.evaluate(scope);
+    return isInvalidScalar(value) ? undefined : (value as Scalar);
+  } catch {
+    return undefined;
+  }
+}
+
+/** |a − b|, treating reals and complex numbers uniformly. */
+export function distance(a: Scalar, b: Scalar): number {
+  const ar = typeof a === 'number' ? a : a.re;
+  const ai = typeof a === 'number' ? 0 : a.im;
+  const br = typeof b === 'number' ? b : b.re;
+  const bi = typeof b === 'number' ? 0 : b.im;
+  return Math.hypot(ar - br, ai - bi);
+}
+
+/** |a|, for scaling a relative tolerance. */
+export function magnitude(a: Scalar): number {
+  return typeof a === 'number' ? Math.abs(a) : Math.hypot(a.re, a.im);
+}
+
+/**
+ * Draw one sample point for each variable.
+ *
+ * Two deliberate choices:
+ *
+ * 1. Values avoid 0, ±1 and small integers. At x = 1 the expressions x, x^2 and
+ *    sqrt(x) all agree, so integer-heavy sampling invents false matches.
+ * 2. Over the complex domain, |Im| is held clear of zero so no point lands on
+ *    the negative real axis — the branch cut of `log` and `sqrt`, where those
+ *    functions are discontinuous and evaluation either side of it is unstable.
+ *    This avoids sampling *at* the discontinuity. It does not paper over
+ *    identities that genuinely fail off the principal branch: log(z^2) and
+ *    2log(z) differ over half the plane, and are correctly marked different.
+ */
+export function samplePoint(
+  rng: Rng,
+  variables: readonly string[],
+  domain: 'real' | 'complex',
+): Record<string, unknown> {
+  const scope: Record<string, unknown> = {};
+  for (const name of variables) {
+    if (domain === 'complex') {
+      const re = rng.float(0.35, 2.4) * rng.sign();
+      const im = rng.float(0.4, 2.2) * rng.sign();
+      // Keep |im| clear of 0 so a negative `re` never lands on the cut itself.
+      scope[name] = math.complex(re, im);
+    } else {
+      scope[name] = rng.float(0.35, 2.6) * rng.sign();
+    }
+  }
+  return scope;
+}

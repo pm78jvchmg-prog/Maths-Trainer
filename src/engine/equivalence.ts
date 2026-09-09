@@ -61,50 +61,37 @@ export interface ProbePolicy {
 }
 
 /**
- * The accuracy dial for the whole app.
+ * The accuracy dial for the whole app: every answer check routes through this.
  *
- * TODO(human): return the four numbers below.
+ * - `sampleCount: 24` — enough that a wrong answer matching at every point is
+ *   not a realistic worry, while a full check still costs well under a
+ *   millisecond. Cost is linear and the check runs once per tap, so there is no
+ *   reason to be stingy.
  *
- * What each one trades off:
+ * - `minValidPoints: 8` — a third of the draws. Points where either side hits a
+ *   domain hole (1/x at 0, log of a negative) are discarded, so a check can end
+ *   up with far fewer usable points than it drew. Below this floor we return
+ *   `indeterminate` rather than let a verdict rest on two lucky points.
  *
- * - `sampleCount` — more points make a coincidental match less likely, at a
- *   linear cost in evaluation time. Checking happens once per tap, so anything
- *   up to a few dozen is imperceptible. Somewhere in 12–40 is sensible.
+ * - `agreementThreshold: 0.9` — squeezed from both sides. It permits two
+ *   outliers in 24, which absorbs the floating-point noise near poles and
+ *   removable singularities: (x^2-1)/(x-1) is algebraically x+1, but sampled
+ *   very close to x = 1 the subtraction cancels nearly every significant digit.
+ *   Going lower gets dangerous fast — |x| and x agree at about half of all real
+ *   points, so anything at or below 0.5 would mark |x| correct for x.
  *
- * - `minValidPoints` — expressions have domain holes (1/x at 0, log of a
- *   negative). Points where either side fails to evaluate are discarded, so a
- *   check can end up with far fewer usable points than it drew. Below this
- *   floor we return `indeterminate` rather than guess. Too high and legitimate
- *   answers on narrow domains become unanswerable; too low and a verdict can
- *   rest on two lucky points. Roughly a third of `sampleCount` is a reasonable
- *   starting instinct.
- *
- * - `agreementThreshold` — the interesting one, and squeezed from both sides.
- *
- *   Below 1.0 you tolerate the occasional disagreeing point. That matters
- *   because floating point misbehaves near poles and removable singularities:
- *   (x^2-1)/(x-1) is algebraically x+1, but sampled very close to x = 1 the
- *   subtraction cancels almost every significant digit and the two sides can
- *   differ by far more than the tolerance. One unlucky point should not fail an
- *   otherwise perfect answer.
- *
- *   Set it too low, though, and you accept expressions that agree on only part
- *   of the domain: |x| and x agree at about half of all real points, so
- *   anything at or under 0.5 marks |x| correct for x. Think 0.85–0.95.
- *
- * - `relativeTolerance` — doubles carry ~15 significant digits, and a chain of
- *   trig or exponential operations loses several. Too tight and correct answers
- *   fail on rounding alone; too loose and genuinely different expressions look
- *   equal. Something around 1e-9 to 1e-6 is the usual range.
- *
- * Once you have filled this in, `npm test` reports what your choice accepts and
- * rejects — including a deliberately awkward |x| vs x case, and complex
- * identities that hold on the principal branch alongside ones that do not.
+ * - `relativeTolerance: 1e-8` — doubles carry ~15 significant digits and a
+ *   chain of trig or exponential operations burns several. This leaves roughly
+ *   seven digits of headroom for accumulated error while staying far tighter
+ *   than any genuine difference between two expressions a learner would type.
  */
 export function probePolicy(): ProbePolicy {
-  throw new Error(
-    'probePolicy() is not implemented yet — fill in the marked section in src/engine/equivalence.ts',
-  );
+  return {
+    sampleCount: 24,
+    minValidPoints: 8,
+    agreementThreshold: 0.9,
+    relativeTolerance: 1e-8,
+  };
 }
 
 /** Are two scalars equal to within the policy's relative tolerance? */

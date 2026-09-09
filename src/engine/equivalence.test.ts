@@ -155,3 +155,37 @@ describe('rng', () => {
     expect([...out].sort()).toEqual(source);
   });
 });
+
+describe('calculus-shaped answers', () => {
+  const real = (user: string, expected: string) =>
+    checkAnswer(user, expected, { seed: SEED }).status;
+
+  it('accepts equivalent forms of a derivative', () => {
+    expect(real('6x', '3*2*x')).toBe('correct');
+    expect(real('2x + 3', '3 + 2x')).toBe('correct');
+    expect(real('-2/x^3', '-2x^(-3)')).toBe('correct');
+    expect(real('1/(2sqrt(x))', '0.5*x^(-1/2)')).toBe('correct');
+  });
+
+  it('accepts ln as a spelling of the natural logarithm', () => {
+    expect(real('ln(x)', 'log(x)')).toBe('correct');
+    expect(real('1/x', 'ln(x)')).toBe('incorrect');
+  });
+
+  it('accepts trigonometric identities a learner might reach for', () => {
+    expect(real('sec(x)^2', '1/cos(x)^2')).toBe('correct');
+    expect(real('2sin(x)cos(x)', 'sin(2x)')).toBe('correct');
+  });
+
+  it('rejects the classic power-rule slips', () => {
+    // Forgetting to decrement the exponent, and forgetting to multiply down.
+    expect(real('3x^3', '3x^2')).toBe('incorrect');
+    expect(real('x^2', '3x^2')).toBe('incorrect');
+  });
+
+  it('reports an unknown function as invalid rather than wrong', () => {
+    const verdict = checkAnswer('tg(x)', 'tan(x)', { seed: SEED });
+    expect(verdict.status).toBe('invalid');
+    if (verdict.status === 'invalid') expect(verdict.message).toMatch(/no function called tg/);
+  });
+});

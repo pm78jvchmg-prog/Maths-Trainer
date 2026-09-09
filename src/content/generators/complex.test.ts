@@ -11,9 +11,9 @@ import { describe, it, expect } from 'vitest';
 import katex from 'katex';
 import { makeRng } from '../../engine/rng';
 import { checkAnswer } from '../../engine/equivalence';
-import { parseExpression } from '../../engine/expression';
+import { parseExpression, math } from '../../engine/expression';
 import { allGenerators, registry } from '../registry';
-import { complexNumbers } from '../courses/complexNumbers';
+import { courses } from '../courses';
 import { TRIPLES } from './complexPlane';
 import type { Generator } from '../types';
 
@@ -94,6 +94,29 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
     }
   });
 
+  it("matches an independent symbolic derivative, where the generator declares its source", () => {
+    // The other property tests only prove a generator agrees with itself: they
+    // would happily pass a question whose stated answer is the wrong
+    // derivative. This differentiates the source function with mathjs — an
+    // oracle written by someone else — and checks the generator's answer
+    // against it. A sign slip or a missed chain-rule factor fails here.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.source) continue;
+
+      const oracle = math.derivative(slide.source, 'x').toString();
+      const verdict = checkAnswer(slide.answer, oracle, {
+        domain: slide.domain,
+        mode: slide.mode,
+        seed,
+      });
+      expect(
+        verdict.status,
+        `seed ${seed}: d/dx(${slide.source}) is ${oracle}, generator claims ${slide.answer}`,
+      ).toBe('correct');
+    }
+  });
+
   it('always offers a worked solution', () => {
     for (const { params } of cases) {
       const steps = (generator as Generator<unknown>).solution(params);
@@ -122,7 +145,10 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
 });
 
 describe('course integrity', () => {
-  const lessons = complexNumbers.levels.flatMap((level) => level.lessons);
+  // Every course, so a new one cannot skip these checks by existing.
+  const lessons = courses.flatMap((course) =>
+    course.levels.flatMap((level) => level.lessons),
+  );
 
   it('references only generators that exist', () => {
     for (const lesson of lessons) {
@@ -158,33 +184,38 @@ describe('course integrity', () => {
     }
   });
 
-  it('renders every authored TeX fragment without error', () => {
-    // A denylist of command names only catches the commands someone remembered
-    // to list. Handing each fragment to KaTeX in strict mode asks the real
-    // question — is this valid TeX — and covers every command, now and later.
-    // The failure this guards: '\\quad' in source reaching runtime as '\quad',
-    // because JavaScript collapses an unrecognised escape and KaTeX then sees
-    // the bare word "quad".
-    const fragments: { tex: string; where: string }[] = [];
+  /**
+   * Every authored TeX fragment: display blocks, plus the $...$ segments inside
+   * prose. Ordinary English is deliberately excluded — a sentence containing
+   * the word "times" is not a broken \times command.
+   */
+  const texFragments = (): { tex: string; where: string }[] => {
+    const out: { tex: string; where: string }[] = [];
     for (const lesson of lessons) {
       for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
         if (ref.type !== 'literal') continue;
         const blocks = ref.slide.kind === 'teach' ? ref.slide.body : ref.slide.prompt;
         for (const block of blocks) {
           if (block.kind === 'display') {
-            fragments.push({ tex: block.tex, where: `${lesson.id} display` });
+            out.push({ tex: block.tex, where: `${lesson.id} display` });
           }
           if (block.kind === 'prose') {
             // Odd indices of a split on $...$ are the inline maths segments.
             block.text
               .split(/\$([^$]+)\$/g)
               .filter((_, idx) => idx % 2 === 1)
-              .forEach((tex) => fragments.push({ tex, where: `${lesson.id} prose` }));
+              .forEach((tex) => out.push({ tex, where: `${lesson.id} inline` }));
           }
         }
       }
     }
+    return out;
+  };
 
+  it('renders every authored TeX fragment without error', () => {
+    // Asks the real question — is this valid TeX — so it covers every command,
+    // present and future, rather than a list someone must remember to extend.
+    const fragments = texFragments();
     expect(fragments.length).toBeGreaterThan(0);
     for (const { tex, where } of fragments) {
       expect(
@@ -195,30 +226,22 @@ describe('course integrity', () => {
   });
 
   it('never lets a TeX command lose its backslash', () => {
-    // Kept alongside the KaTeX check above, which does NOT cover this: a
-    // backslash-stripped command like "overline{3 + 4i}" is perfectly valid
-    // TeX — it renders the literal letters — so KaTeX raises nothing and the
-    // learner just sees a wrong slide. Only a name check catches it.
+    // Kept alongside the KaTeX check, which does NOT cover this: a
+    // backslash-stripped command like "overline{3 + 4i}" is perfectly valid TeX
+    // — it renders the literal letters — so KaTeX raises nothing and the learner
+    // just sees a wrong slide. Only a name check catches it, and it is applied
+    // to TeX fragments alone so English prose is never scanned.
     const COMMANDS =
-      /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|frac|sqrt|cdot|times|pm|geq|leq|rightarrow|arg|pi|text)\b/;
+      /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|frac|sqrt|cdot|times|pm|geq|leq|rightarrow|implies|arg|sin|cos|tan|ln|pi|text|left|right)\b/;
 
-    for (const lesson of lessons) {
-      for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
-        if (ref.type !== 'literal') continue;
-        const blocks = ref.slide.kind === 'teach' ? ref.slide.body : ref.slide.prompt;
-        for (const block of blocks) {
-          const text = block.kind === 'display' ? block.tex
-            : block.kind === 'prose' ? block.text
-            : '';
-          expect(COMMANDS.test(text), `bare TeX command in: ${text}`).toBe(false);
-        }
-      }
+    for (const { tex, where } of texFragments()) {
+      expect(COMMANDS.test(tex), `${where}: bare TeX command in ${tex}`).toBe(false);
     }
   });
 
   it('never leaves a raw escape sequence in prose', () => {
     // The sibling failure, outside TeX: '\\u2019' in source reaches the reader
-    // as the literal text "\u2019" rather than an apostrophe.
+    // as the literal text "’" rather than an apostrophe.
     for (const lesson of lessons) {
       for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
         if (ref.type !== 'literal') continue;

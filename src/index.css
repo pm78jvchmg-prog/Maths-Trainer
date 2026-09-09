@@ -576,3 +576,67 @@ button {
 .plot-hits.locked circle {
   cursor: default;
 }
+
+/* ---------- Course list ---------- */
+
+.home-title {
+  font-size: 30px;
+  font-weight: 700;
+  margin: 8px 0 24px;
+}
+
+.course-card {
+  width: 100%;
+  text-align: left;
+  padding: 20px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.course-card:hover {
+  border-color: var(--accent);
+}
+
+.course-card-title {
+  font-size: 21px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.course-card-blurb {
+  color: var(--text-dim);
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.course-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.progress-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.pip {
+  width: 18px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+}
+
+.pip.done {
+  background: var(--accent);
+}
+
+.back-link {
+  padding: 10px 0;
+  color: var(--text-dim);
+  font-size: 16px;
+}

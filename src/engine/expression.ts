@@ -8,6 +8,14 @@ import type { Rng } from './rng';
 export const math = create(all, {});
 
 /**
+ * `ln` is how a maths student writes the natural logarithm; mathjs spells it
+ * `log`. Without this alias `ln(x)` parses (it looks like a call) and then
+ * fails at every sample point, so the learner is told their answer could not
+ * be checked rather than that it was fine.
+ */
+math.import({ ln: math.log }, { silent: true });
+
+/**
  * Symbols mathjs resolves on its own. Critically this includes `i`: without
  * excluding it, `3+4i` looks like it has a free variable named `i` and the
  * checker would start assigning it random values.
@@ -54,6 +62,20 @@ export function parseExpression(
     node = math.parse(trimmed);
   } catch (err) {
     return { ok: false, error: describeParseError(err) };
+  }
+
+  // A misspelled function parses happily as a call and only fails at
+  // evaluation, where it looks like an unverifiable answer rather than a typo.
+  const unknown: string[] = [];
+  node.traverse((child) => {
+    if (child.type !== 'FunctionNode') return;
+    const name = (child as unknown as { fn: { name: string } }).fn?.name;
+    if (name && typeof (math as unknown as Record<string, unknown>)[name] !== 'function') {
+      unknown.push(name);
+    }
+  });
+  if (unknown.length > 0) {
+    return { ok: false, error: `There is no function called ${unknown[0]}.` };
   }
 
   const variables = new Set<string>();

@@ -53,6 +53,13 @@ export type Slide =
       keypad: KeypadKey[];
       /** The canonical answer; anything equivalent to it is accepted. */
       answer: string;
+      /**
+       * The function the question is about, in mathjs syntax, where the answer
+       * is its derivative. Never displayed: it exists so a test can
+       * differentiate it independently and confirm the generator's own answer
+       * is genuinely correct, rather than merely self-consistent.
+       */
+      source?: string;
       domain: 'real' | 'complex';
       mode: 'exact' | 'upToConstant';
     })

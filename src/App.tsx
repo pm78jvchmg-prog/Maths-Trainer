@@ -1,25 +1,77 @@
 /**
- * App shell.
+ * App shell: course list, course map, lesson player.
  *
- * Two screens, held in component state rather than the URL. That is deliberate:
+ * Screens are held in component state rather than the URL. That is deliberate:
  * routing a lesson through the address bar would hand the browser's back
  * gesture a way into the guided slides during a skill check, which is exactly
  * what the skill check is meant to prevent.
  */
 import { useState } from 'react';
-import { complexNumbers } from './content/courses/complexNumbers';
+import { courses, lessonCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
 import { useProgress } from './store/progress';
-import type { Lesson } from './content/types';
+import type { Course, Lesson } from './content/types';
 
-function CourseMap({ onOpen }: { onOpen: (lesson: Lesson) => void }) {
-  const lessons = useProgress((state) => state.lessons);
-  const course = complexNumbers;
+function CourseList({ onOpen }: { onOpen: (course: Course) => void }) {
+  const records = useProgress((state) => state.lessons);
 
   return (
     <div className="app">
       <div className="map">
+        <h1 className="home-title">Practice</h1>
+
+        {courses.map((course) => {
+          const lessons = course.levels.flatMap((level) => level.lessons);
+          const done = lessons.filter((lesson) => records[lesson.id]).length;
+
+          return (
+            <button
+              key={course.id}
+              type="button"
+              className="course-card"
+              onClick={() => onOpen(course)}
+            >
+              <div className="course-card-title">{course.title}</div>
+              <div className="course-card-blurb">{course.blurb}</div>
+              <div className="course-progress">
+                <span className="progress-pips">
+                  {lessons.map((lesson) => (
+                    <span
+                      key={lesson.id}
+                      className={`pip${records[lesson.id] ? ' done' : ''}`}
+                    />
+                  ))}
+                </span>
+                <span>
+                  {done}/{lessonCount(course)}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CourseMap({
+  course,
+  onOpen,
+  onBack,
+}: {
+  course: Course;
+  onOpen: (lesson: Lesson) => void;
+  onBack: () => void;
+}) {
+  const records = useProgress((state) => state.lessons);
+
+  return (
+    <div className="app">
+      <div className="map">
+        <button type="button" className="back-link" onClick={onBack}>
+          &#8249; All courses
+        </button>
         <h1 className="course-title">{course.title}</h1>
         <p className="course-blurb">{course.blurb}</p>
 
@@ -31,7 +83,7 @@ function CourseMap({ onOpen }: { onOpen: (lesson: Lesson) => void }) {
             </div>
 
             {level.lessons.map((lesson) => {
-              const record = lessons[lesson.id];
+              const record = records[lesson.id];
               return (
                 <button
                   key={lesson.id}
@@ -60,22 +112,29 @@ function CourseMap({ onOpen }: { onOpen: (lesson: Lesson) => void }) {
 }
 
 export default function App() {
+  const [course, setCourse] = useState<Course | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const recordCompletion = useProgress((state) => state.recordCompletion);
 
-  if (!lesson) return <CourseMap onOpen={setLesson} />;
+  if (lesson) {
+    return (
+      <LessonPlayer
+        // Remount on lesson change so no session state survives between lessons.
+        key={lesson.id}
+        lesson={lesson}
+        registry={registry}
+        onExit={() => setLesson(null)}
+        onComplete={(score) => {
+          recordCompletion(lesson.id, score);
+          setLesson(null);
+        }}
+      />
+    );
+  }
 
-  return (
-    <LessonPlayer
-      // Remount on lesson change so no session state survives between lessons.
-      key={lesson.id}
-      lesson={lesson}
-      registry={registry}
-      onExit={() => setLesson(null)}
-      onComplete={(score) => {
-        recordCompletion(lesson.id, score);
-        setLesson(null);
-      }}
-    />
-  );
+  if (course) {
+    return <CourseMap course={course} onOpen={setLesson} onBack={() => setCourse(null)} />;
+  }
+
+  return <CourseList onOpen={setCourse} />;
 }

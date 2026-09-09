@@ -1,0 +1,301 @@
+import { describe, it, expect } from 'vitest';
+import {
+  startSession,
+  reduce,
+  currentSlide,
+  canGoBack,
+  canReveal,
+  skillCheckScore,
+  type Session,
+  type Action,
+} from './session';
+import type { Lesson, GeneratorRegistry, Generator } from '../content/types';
+
+/** A generator whose answer depends on its drawn parameters, so we can prove
+ *  that "try again" re-presents the same question rather than a fresh one. */
+const addImaginary: Generator<{ a: number; b: number }> = {
+  id: 'add-imaginary',
+  sample: (rng) => ({ a: rng.int(2, 9), b: rng.int(2, 9) }),
+  render: ({ a, b }) => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `What is $${a}i + ${b}i$?` }],
+    lead: `${a}i + ${b}i =`,
+    keypad: [{ insert: 'i', tex: true }],
+    answer: `${a + b}i`,
+    domain: 'complex',
+    mode: 'exact',
+  }),
+  solution: ({ a, b }) => [
+    { text: 'Add the coefficients.', tex: `${a}i + ${b}i = ${a + b}i` },
+  ],
+};
+
+const registry: GeneratorRegistry = {
+  'add-imaginary': addImaginary as unknown as Generator<never>,
+};
+
+const lesson: Lesson = {
+  id: 'demo',
+  title: 'Demo',
+  slides: [
+    { type: 'literal', slide: { kind: 'teach', body: [{ kind: 'prose', text: 'i squared is minus one.' }] } },
+    { type: 'generated', generatorId: 'add-imaginary' },
+    {
+      type: 'literal',
+      slide: {
+        kind: 'choice',
+        prompt: [{ kind: 'prose', text: 'Does $x^2 = -1$ have real solutions?' }],
+        options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }],
+        correctId: 'no',
+      },
+      solution: [{ text: 'No real number squares to a negative.' }],
+    },
+  ],
+  skillCheck: [
+    { type: 'generated', generatorId: 'add-imaginary' },
+    { type: 'generated', generatorId: 'add-imaginary' },
+  ],
+};
+
+const SEED = 1234;
+const start = () => startSession(lesson, registry, SEED);
+const run = (session: Session, actions: Action[]) => actions.reduce(reduce, session);
+
+/** Advance past the teaching slide at index 0. */
+const pastTeach = (session: Session) => reduce(session, { type: 'continue' });
+
+describe('session setup', () => {
+  it('resolves every slide up front', () => {
+    const s = start();
+    expect(s.guided).toHaveLength(3);
+    expect(s.skillCheck).toHaveLength(2);
+    expect(s.phase).toBe('guided');
+    expect(s.index).toBe(0);
+  });
+
+  it('rebuilds identically from the same seed', () => {
+    const a = startSession(lesson, registry, 99);
+    const b = startSession(lesson, registry, 99);
+    expect(a.guided[1].slide).toEqual(b.guided[1].slide);
+  });
+
+  it('draws different questions for a different seed', () => {
+    // Two seeds chosen so the generated slides genuinely differ.
+    const a = startSession(lesson, registry, 1);
+    const b = startSession(lesson, registry, 7);
+    expect(a.guided[1].slide).not.toEqual(b.guided[1].slide);
+  });
+
+  it('throws on an unknown generator rather than silently skipping it', () => {
+    const broken: Lesson = { ...lesson, slides: [{ type: 'generated', generatorId: 'nope' }] };
+    expect(() => startSession(broken, registry, SEED)).toThrow(/Unknown generator/);
+  });
+});
+
+describe('a wrong answer never discloses the answer', () => {
+  it('stays on incorrect until the learner explicitly asks', () => {
+    let s = pastTeach(start());
+    s = reduce(s, { type: 'submit', answer: '999i' });
+
+    expect(s.feedback.kind).toBe('incorrect');
+    // Nothing in the feedback carries the answer.
+    expect(JSON.stringify(s.feedback)).not.toMatch(/tex|steps/);
+    expect(s.states[s.guided[1].id].revealed).toBe(false);
+  });
+
+  it('offers the reveal only after a wrong answer', () => {
+    let s = pastTeach(start());
+    expect(canReveal(s)).toBe(false); // nothing submitted yet
+
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    expect(canReveal(s)).toBe(true);
+
+    s = reduce(s, { type: 'reveal' });
+    expect(s.feedback.kind).toBe('revealed');
+    if (s.feedback.kind === 'revealed') expect(s.feedback.steps.length).toBeGreaterThan(0);
+    expect(s.states[s.guided[1].id].revealed).toBe(true);
+  });
+
+  it('ignores a reveal that was not preceded by a wrong answer', () => {
+    const s = pastTeach(start());
+    expect(reduce(s, { type: 'reveal' })).toEqual(s);
+  });
+
+  it('reveals the worked solution for the actual generated numbers', () => {
+    let s = pastTeach(start());
+    const slide = currentSlide(s)!;
+    const expected = slide.slide.kind === 'expression' ? slide.slide.answer : '';
+
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    s = reduce(s, { type: 'reveal' });
+
+    if (s.feedback.kind !== 'revealed') throw new Error('expected revealed');
+    const text = s.feedback.steps.map((step) => step.tex ?? step.text ?? '').join(' ');
+    expect(text).toContain(expected);
+  });
+});
+
+describe('answering', () => {
+  it('accepts a correct answer and awards first-try credit', () => {
+    let s = pastTeach(start());
+    const slide = currentSlide(s)!;
+    const answer = slide.slide.kind === 'expression' ? slide.slide.answer : '';
+
+    s = reduce(s, { type: 'submit', answer });
+    expect(s.feedback.kind).toBe('correct');
+    expect(s.states[slide.id]).toMatchObject({ solved: true, firstTry: true, attempts: 1 });
+  });
+
+  it('accepts an equivalent form, not just the canonical string', () => {
+    let s = pastTeach(start());
+    const slide = currentSlide(s)!;
+    if (slide.slide.kind !== 'expression') throw new Error('expected expression slide');
+    // "10i" written as a sum of two terms.
+    const coefficient = Number(slide.slide.answer.replace('i', ''));
+    s = reduce(s, { type: 'submit', answer: `${coefficient - 3}i + 3i` });
+    expect(s.feedback.kind).toBe('correct');
+  });
+
+  it('withholds first-try credit after a wrong attempt', () => {
+    let s = pastTeach(start());
+    const slide = currentSlide(s)!;
+    const answer = slide.slide.kind === 'expression' ? slide.slide.answer : '';
+
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    s = reduce(s, { type: 'tryAgain' });
+    s = reduce(s, { type: 'submit', answer });
+
+    expect(s.feedback.kind).toBe('correct');
+    expect(s.states[slide.id]).toMatchObject({ solved: true, firstTry: false, attempts: 2 });
+  });
+
+  it('treats unreadable input as invalid, not as a failed attempt', () => {
+    let s = pastTeach(start());
+    const slide = currentSlide(s)!;
+
+    s = reduce(s, { type: 'submit', answer: '3i +' });
+    expect(s.feedback.kind).toBe('invalid');
+    expect(s.states[slide.id].attempts).toBe(0);
+
+    // First-try credit survives a typo.
+    const answer = slide.slide.kind === 'expression' ? slide.slide.answer : '';
+    s = reduce(s, { type: 'submit', answer });
+    expect(s.states[slide.id].firstTry).toBe(true);
+  });
+
+  it('grades multiple choice', () => {
+    let s = run(start(), [{ type: 'continue' }]);
+    s = reduce(s, { type: 'submit', answer: currentSlide(s)!.slide.kind === 'expression'
+      ? (currentSlide(s)!.slide as { answer: string }).answer : '' });
+    s = reduce(s, { type: 'continue' }); // now on the choice slide
+
+    expect(currentSlide(s)!.slide.kind).toBe('choice');
+    expect(reduce(s, { type: 'submit', answer: 'yes' }).feedback.kind).toBe('incorrect');
+    expect(reduce(s, { type: 'submit', answer: 'no' }).feedback.kind).toBe('correct');
+  });
+});
+
+describe('try again re-presents the same question', () => {
+  it('keeps the generated parameters across an attempt', () => {
+    let s = pastTeach(start());
+    const before = currentSlide(s)!.slide;
+
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    s = reduce(s, { type: 'tryAgain' });
+
+    expect(currentSlide(s)!.slide).toEqual(before);
+    expect(s.feedback.kind).toBe('idle');
+  });
+});
+
+describe('advancing', () => {
+  it('refuses to advance past a wrong answer', () => {
+    let s = pastTeach(start());
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    expect(reduce(s, { type: 'continue' }).index).toBe(s.index);
+  });
+
+  it('allows advancing once the answer has been revealed', () => {
+    let s = pastTeach(start());
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    s = reduce(s, { type: 'reveal' });
+    expect(reduce(s, { type: 'continue' }).index).toBe(s.index + 1);
+  });
+
+  it('advances freely through a teaching slide', () => {
+    const s = start();
+    expect(currentSlide(s)!.slide.kind).toBe('teach');
+    expect(reduce(s, { type: 'continue' }).index).toBe(1);
+  });
+});
+
+describe('the skill check is sealed', () => {
+  /** Answer every guided slide correctly and cross into the skill check. */
+  const reachSkillCheck = (): Session => {
+    let s = start();
+    for (let guard = 0; guard < 20 && s.phase === 'guided'; guard++) {
+      const slide = currentSlide(s)!;
+      if (slide.slide.kind === 'teach') {
+        s = reduce(s, { type: 'continue' });
+        continue;
+      }
+      const answer =
+        slide.slide.kind === 'expression' ? slide.slide.answer
+        : slide.slide.kind === 'choice' ? slide.slide.correctId
+        : '';
+      s = reduce(s, { type: 'submit', answer });
+      s = reduce(s, { type: 'continue' });
+    }
+    return s;
+  };
+
+  it('enters the skill check after the last guided slide', () => {
+    const s = reachSkillCheck();
+    expect(s.phase).toBe('skillCheck');
+    expect(s.index).toBe(0);
+  });
+
+  it('permits review during the guided phase', () => {
+    const s = reduce(start(), { type: 'continue' });
+    expect(canGoBack(s)).toBe(true);
+    expect(reduce(s, { type: 'back' }).index).toBe(0);
+  });
+
+  it('refuses to go back once the skill check has started', () => {
+    let s = reachSkillCheck();
+    expect(canGoBack(s)).toBe(false);
+
+    // Even on a later question, there is no route backwards.
+    const slide = currentSlide(s)!;
+    const answer = slide.slide.kind === 'expression' ? slide.slide.answer : '';
+    s = reduce(s, { type: 'submit', answer });
+    s = reduce(s, { type: 'continue' });
+    expect(s.index).toBe(1);
+    expect(canGoBack(s)).toBe(false);
+    expect(reduce(s, { type: 'back' })).toEqual(s);
+  });
+
+  it('finishes into a summary and scores first-try answers only', () => {
+    let s = reachSkillCheck();
+
+    // First question right first time; second only after a wrong attempt.
+    const first = currentSlide(s)!;
+    s = reduce(s, {
+      type: 'submit',
+      answer: first.slide.kind === 'expression' ? first.slide.answer : '',
+    });
+    s = reduce(s, { type: 'continue' });
+
+    const second = currentSlide(s)!;
+    s = reduce(s, { type: 'submit', answer: '999i' });
+    s = reduce(s, { type: 'tryAgain' });
+    s = reduce(s, {
+      type: 'submit',
+      answer: second.slide.kind === 'expression' ? second.slide.answer : '',
+    });
+    s = reduce(s, { type: 'continue' });
+
+    expect(s.phase).toBe('summary');
+    expect(skillCheckScore(s)).toEqual({ correct: 1, total: 2 });
+  });
+});

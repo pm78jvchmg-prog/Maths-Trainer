@@ -1,0 +1,18 @@
+{
+  // Cloudflare Workers static-assets deployment. There is no Worker script:
+  // this serves the built site straight from ./dist.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "maths-trainer",
+  "compatibility_date": "2026-09-09",
+  "assets": {
+    // Must match Vite's build output. The Cloudflare "Root directory" setting
+    // stays at "/" — that is where the build runs; this is where it lands.
+    "directory": "./dist",
+
+    // Any unknown path serves index.html rather than a 404. The app holds its
+    // screens in component state rather than the URL, so every route is "/",
+    // but this also means a stale Home Screen icon pointing at an old path
+    // still opens the app instead of breaking.
+    "not_found_handling": "single-page-application"
+  }
+}

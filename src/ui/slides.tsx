@@ -8,6 +8,12 @@
 import { useState, useEffect } from 'react';
 import { Tex, Blocks } from './Math';
 import type { Slide, KeypadKey } from '../content/types';
+import {
+  complexPlaneSvg,
+  PLANE_SIZE,
+  PLANE_MARGIN,
+  projectToPlane,
+} from '../content/generators/plane';
 import type { Answer, Feedback } from '../engine/session';
 
 export interface SlideProps {
@@ -236,6 +242,68 @@ export function TilesSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
   );
 }
 
+/* ---------- Plot: tap a point on the complex plane ---------- */
+
+export function PlotSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+  if (slide.kind !== 'plot') return null;
+  const locked = isLocked(feedback);
+  const { range } = slide;
+
+  // The draft answer is "re,im" so it stays a plain string like every other
+  // widget, and the reducer can grade it without a special case for objects.
+  const [re, im] = typeof answer === 'string' && answer.includes(',')
+    ? answer.split(',').map(Number)
+    : [NaN, NaN];
+  const chosen = Number.isFinite(re) && Number.isFinite(im);
+
+  const points = chosen ? [{ re, im, highlight: true }] : [];
+  const step = PLANE_SIZE / (2 * range);
+
+  const targets: { re: number; im: number }[] = [];
+  for (let x = -range; x <= range; x++) {
+    for (let y = -range; y <= range; y++) targets.push({ re: x, im: y });
+  }
+
+  return (
+    <>
+      <div className="prompt">
+        <Blocks blocks={slide.prompt} />
+      </div>
+
+      <div className={frameClass(feedback)}>
+        <div className="plot-wrap">
+          <div dangerouslySetInnerHTML={{ __html: complexPlaneSvg(range, points) }} />
+          {/* Tap targets sit above the SVG. They are sized to the grid spacing
+              so every lattice point is comfortably hittable with a thumb. */}
+          {/* Same viewBox as the drawn plane, so tap targets stay aligned. */}
+          <svg
+            className="plot-hits"
+            viewBox={`${-PLANE_MARGIN} ${-PLANE_MARGIN} ${PLANE_SIZE + PLANE_MARGIN * 2} ${
+              PLANE_SIZE + PLANE_MARGIN * 2
+            }`}
+          >
+            {targets.map((point) => (
+              <circle
+                key={`${point.re},${point.im}`}
+                cx={projectToPlane(point.re, range)}
+                cy={PLANE_SIZE - projectToPlane(point.im, range)}
+                r={Math.max(9, step / 2)}
+                fill="transparent"
+                style={{ cursor: locked ? 'default' : 'pointer' }}
+                onClick={() => !locked && onAnswer(`${point.re},${point.im}`)}
+              />
+            ))}
+          </svg>
+        </div>
+      </div>
+
+      <p className="plot-readout">
+        {chosen ? <Tex tex={`${re}${im < 0 ? ' - ' : ' + '}${Math.abs(im)}i`} /> : 'Tap a point'}
+      </p>
+    </>
+  );
+}
+
 /* ---------- Dispatcher ---------- */
 
 export function SlideView(props: SlideProps) {
@@ -261,12 +329,17 @@ export function SlideView(props: SlideProps) {
       return <ExpressionSlide {...props} />;
     case 'tiles':
       return <TilesSlide {...props} />;
+    case 'plot':
+      return <PlotSlide {...props} />;
   }
 }
 
 /** Whether the current draft is complete enough to submit. */
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
+  if (slide.kind === 'plot') {
+    return typeof answer === 'string' && answer.includes(',');
+  }
   if (slide.kind === 'tiles') {
     return Array.isArray(answer) && answer.length > 0 && answer.every((t) => t !== '');
   }

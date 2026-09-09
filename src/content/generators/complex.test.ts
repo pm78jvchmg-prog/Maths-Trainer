@@ -49,6 +49,14 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
         }
       }
 
+      if (slide.kind === 'plot') {
+        expect(Number.isInteger(slide.answer.re)).toBe(true);
+        expect(Number.isInteger(slide.answer.im)).toBe(true);
+        // The target must be reachable on the grid the widget draws.
+        expect(Math.abs(slide.answer.re)).toBeLessThanOrEqual(slide.range);
+        expect(Math.abs(slide.answer.im)).toBeLessThanOrEqual(slide.range);
+      }
+
       if (slide.kind === 'expression') {
         expect(parseExpression(slide.answer).ok, `unparseable answer: ${slide.answer}`).toBe(true);
         expect(slide.lead).toBeTruthy();
@@ -145,6 +153,32 @@ describe('course integrity', () => {
       for (const ref of lesson.skillCheck) {
         if (ref.type === 'literal') expect(ref.slide.kind).not.toBe('teach');
       }
+    }
+  });
+
+  it('never lets a TeX command lose its backslash', () => {
+    // '\\quad' in source becomes '\quad' at runtime. If a level of escaping is
+    // dropped, JavaScript collapses '\q' to 'q' and KaTeX renders the literal
+    // word "quad" into the slide. This catches that silently-wrong output.
+    const COMMANDS =
+      /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|sqrt|cdot|times|pm|geq|leq|rightarrow|arg)\b/;
+
+    const texts: string[] = [];
+    for (const lesson of lessons) {
+      for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
+        if (ref.type !== 'literal') continue;
+        const { slide } = ref;
+        const blocks = slide.kind === 'teach' ? slide.body : slide.prompt;
+        for (const block of blocks) {
+          if (block.kind === 'display') texts.push(block.tex);
+          if (block.kind === 'prose') texts.push(block.text);
+        }
+      }
+    }
+
+    expect(texts.length).toBeGreaterThan(0);
+    for (const text of texts) {
+      expect(COMMANDS.test(text), `bare TeX command in: ${text}`).toBe(false);
     }
   });
 

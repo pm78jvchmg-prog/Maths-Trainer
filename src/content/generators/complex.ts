@@ -7,23 +7,12 @@
  * steps always describe the question actually on screen.
  */
 import type { Generator, KeypadKey } from '../types';
+import { coeffTex, complexTex } from './format';
 
 /** The imaginary unit, offered as a key on every keypad in this course. */
 const I_KEY: KeypadKey[] = [{ insert: 'i', tex: true }];
 
-/** Renders a signed coefficient the way it would be written by hand. */
-const coeff = (n: number, unit = 'i'): string => {
-  if (n === 1) return unit;
-  if (n === -1) return `-${unit}`;
-  return `${n}${unit}`;
-};
-
-/** "a + bi", collapsing the sign so we never print "3 + -2i". */
-const complexTex = (a: number, b: number): string => {
-  if (b === 0) return `${a}`;
-  if (a === 0) return coeff(b);
-  return b > 0 ? `${a} + ${coeff(b)}` : `${a} - ${coeff(Math.abs(b))}`;
-};
+const coeff = coeffTex;
 
 /* ---------- i squared ---------- */
 

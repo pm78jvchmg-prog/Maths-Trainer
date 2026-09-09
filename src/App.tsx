@@ -1,122 +1,81 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+/**
+ * App shell.
+ *
+ * Two screens, held in component state rather than the URL. That is deliberate:
+ * routing a lesson through the address bar would hand the browser's back
+ * gesture a way into the guided slides during a skill check, which is exactly
+ * what the skill check is meant to prevent.
+ */
+import { useState } from 'react';
+import { complexNumbers } from './content/courses/complexNumbers';
+import { registry } from './content/registry';
+import { LessonPlayer } from './ui/LessonPlayer';
+import { useProgress } from './store/progress';
+import type { Lesson } from './content/types';
 
-function App() {
-  const [count, setCount] = useState(0)
+function CourseMap({ onOpen }: { onOpen: (lesson: Lesson) => void }) {
+  const lessons = useProgress((state) => state.lessons);
+  const course = complexNumbers;
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
+      <div className="map">
+        <h1 className="course-title">{course.title}</h1>
+        <p className="course-blurb">{course.blurb}</p>
 
-      <div className="ticks"></div>
+        {course.levels.map((level, levelIndex) => (
+          <section key={level.id}>
+            <div className="level-banner">
+              <div className="level-tag">LEVEL {levelIndex + 1}</div>
+              <div className="level-name">{level.title}</div>
+            </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
+            {level.lessons.map((lesson) => {
+              const record = lessons[lesson.id];
+              return (
+                <button
+                  key={lesson.id}
+                  type="button"
+                  className="lesson-row"
+                  onClick={() => onOpen(lesson)}
                 >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+                  <span className={`node${record ? ' done' : ''}`}>{record ? '✓' : ''}</span>
+                  <span>
+                    <span className="lesson-name">{lesson.title}</span>
+                    <br />
+                    <span className="lesson-meta">
+                      {record
+                        ? `Best ${record.bestCorrect}/${record.total} · played ${record.timesPlayed}×`
+                        : `${lesson.slides.length} slides · 3 skill checks`}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default function App() {
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const recordCompletion = useProgress((state) => state.recordCompletion);
+
+  if (!lesson) return <CourseMap onOpen={setLesson} />;
+
+  return (
+    <LessonPlayer
+      // Remount on lesson change so no session state survives between lessons.
+      key={lesson.id}
+      lesson={lesson}
+      registry={registry}
+      onExit={() => setLesson(null)}
+      onComplete={(score) => {
+        recordCompletion(lesson.id, score);
+        setLesson(null);
+      }}
+    />
+  );
+}

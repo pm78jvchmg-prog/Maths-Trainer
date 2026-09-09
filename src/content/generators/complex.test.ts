@@ -8,11 +8,13 @@
  * accepted by the checker that will grade it.
  */
 import { describe, it, expect } from 'vitest';
+import katex from 'katex';
 import { makeRng } from '../../engine/rng';
 import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression } from '../../engine/expression';
 import { allGenerators, registry } from '../registry';
 import { complexNumbers } from '../courses/complexNumbers';
+import { TRIPLES } from './complexPlane';
 import type { Generator } from '../types';
 
 const SEEDS = 200;
@@ -156,29 +158,86 @@ describe('course integrity', () => {
     }
   });
 
-  it('never lets a TeX command lose its backslash', () => {
-    // '\\quad' in source becomes '\quad' at runtime. If a level of escaping is
-    // dropped, JavaScript collapses '\q' to 'q' and KaTeX renders the literal
-    // word "quad" into the slide. This catches that silently-wrong output.
-    const COMMANDS =
-      /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|sqrt|cdot|times|pm|geq|leq|rightarrow|arg)\b/;
-
-    const texts: string[] = [];
+  it('renders every authored TeX fragment without error', () => {
+    // A denylist of command names only catches the commands someone remembered
+    // to list. Handing each fragment to KaTeX in strict mode asks the real
+    // question — is this valid TeX — and covers every command, now and later.
+    // The failure this guards: '\\quad' in source reaching runtime as '\quad',
+    // because JavaScript collapses an unrecognised escape and KaTeX then sees
+    // the bare word "quad".
+    const fragments: { tex: string; where: string }[] = [];
     for (const lesson of lessons) {
       for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
         if (ref.type !== 'literal') continue;
-        const { slide } = ref;
-        const blocks = slide.kind === 'teach' ? slide.body : slide.prompt;
+        const blocks = ref.slide.kind === 'teach' ? ref.slide.body : ref.slide.prompt;
         for (const block of blocks) {
-          if (block.kind === 'display') texts.push(block.tex);
-          if (block.kind === 'prose') texts.push(block.text);
+          if (block.kind === 'display') {
+            fragments.push({ tex: block.tex, where: `${lesson.id} display` });
+          }
+          if (block.kind === 'prose') {
+            // Odd indices of a split on $...$ are the inline maths segments.
+            block.text
+              .split(/\$([^$]+)\$/g)
+              .filter((_, idx) => idx % 2 === 1)
+              .forEach((tex) => fragments.push({ tex, where: `${lesson.id} prose` }));
+          }
         }
       }
     }
 
-    expect(texts.length).toBeGreaterThan(0);
-    for (const text of texts) {
-      expect(COMMANDS.test(text), `bare TeX command in: ${text}`).toBe(false);
+    expect(fragments.length).toBeGreaterThan(0);
+    for (const { tex, where } of fragments) {
+      expect(
+        () => katex.renderToString(tex, { throwOnError: true, strict: 'error' }),
+        `${where}: ${tex}`,
+      ).not.toThrow();
+    }
+  });
+
+  it('never lets a TeX command lose its backslash', () => {
+    // Kept alongside the KaTeX check above, which does NOT cover this: a
+    // backslash-stripped command like "overline{3 + 4i}" is perfectly valid
+    // TeX — it renders the literal letters — so KaTeX raises nothing and the
+    // learner just sees a wrong slide. Only a name check catches it.
+    const COMMANDS =
+      /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|frac|sqrt|cdot|times|pm|geq|leq|rightarrow|arg|pi|text)\b/;
+
+    for (const lesson of lessons) {
+      for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
+        if (ref.type !== 'literal') continue;
+        const blocks = ref.slide.kind === 'teach' ? ref.slide.body : ref.slide.prompt;
+        for (const block of blocks) {
+          const text = block.kind === 'display' ? block.tex
+            : block.kind === 'prose' ? block.text
+            : '';
+          expect(COMMANDS.test(text), `bare TeX command in: ${text}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('never leaves a raw escape sequence in prose', () => {
+    // The sibling failure, outside TeX: '\\u2019' in source reaches the reader
+    // as the literal text "\u2019" rather than an apostrophe.
+    for (const lesson of lessons) {
+      for (const ref of [...lesson.slides, ...lesson.skillCheck]) {
+        if (ref.type !== 'literal') continue;
+        const blocks = ref.slide.kind === 'teach' ? ref.slide.body : ref.slide.prompt;
+        for (const block of blocks) {
+          if (block.kind !== 'prose') continue;
+          expect(block.text, lesson.id).not.toMatch(/\\u[0-9a-fA-F]{4}/);
+        }
+      }
+    }
+  });
+
+  it('holds a genuine Pythagorean triple in every modulus row', () => {
+    // The modulus generator reads its answer straight from this table instead
+    // of rounding Math.hypot. That is only safe while the table is honest, so
+    // the invariant is asserted rather than assumed.
+    expect(TRIPLES.length).toBeGreaterThan(0);
+    for (const [a, b, c] of TRIPLES) {
+      expect(a * a + b * b, `${a},${b},${c} is not a triple`).toBe(c * c);
     }
   });
 

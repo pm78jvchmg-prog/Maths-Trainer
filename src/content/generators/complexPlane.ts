@@ -2,10 +2,28 @@
  * Complex Numbers, Levels 3 and 4: the plane, modulus, argument and powers.
  */
 import type { Generator, KeypadKey } from '../types';
-import { complexTex, complexAnswer, bracketedTex } from './format';
-import { complexPlaneSvg } from './plane';
+import type { Rng } from '../../engine/rng';
+import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf } from './format';
+import { complexPlaneSvg, rangeFor } from './plane';
 
-const I_KEY: KeypadKey[] = [{ insert: 'i', tex: true }];
+/** The grid every plane question is drawn on. */
+const RANGE = 4;
+
+/**
+ * A lattice point that is never the origin, and — below difficulty 2 — never on
+ * an axis either, so both components are genuinely being read off the diagram.
+ */
+function samplePlanePoint(rng: Rng, difficulty: number): { re: number; im: number } {
+  const draw = () =>
+    difficulty < 2 ? rng.int(1, RANGE) * rng.sign() : rng.int(-RANGE, RANGE);
+  let re = draw();
+  let im = draw();
+  while (re === 0 && im === 0) {
+    re = draw();
+    im = draw();
+  }
+  return { re, im };
+}
 /** Arguments come out as fractions of pi, so those keys are needed. */
 const ANGLE_KEYS: KeypadKey[] = [
   { insert: '/' },
@@ -18,27 +36,16 @@ const SQRT_KEYS: KeypadKey[] = [
 
 /* ---------- Read a point off the plane ---------- */
 
-interface IdentifyParams { re: number; im: number; range: number }
+interface PointParams { re: number; im: number }
 
-export const identifyPoint: Generator<IdentifyParams> = {
+export const identifyPoint: Generator<PointParams> = {
   id: 'identify-point',
-  sample: (rng, difficulty) => {
-    const range = 4;
-    // Avoid the origin, and at low difficulty keep off the axes so both
-    // components are genuinely being read.
-    let re = 0, im = 0;
-    while (re === 0 && im === 0) {
-      re = rng.int(-range, range);
-      im = rng.int(-range, range);
-      if (difficulty < 2 && (re === 0 || im === 0)) { re = 0; im = 0; }
-    }
-    return { re, im, range };
-  },
-  render: ({ re, im, range }) => ({
+  sample: samplePlanePoint,
+  render: ({ re, im }) => ({
     kind: 'expression',
     prompt: [
       { kind: 'prose', text: 'Which complex number is marked here?' },
-      { kind: 'diagram', svg: complexPlaneSvg(range, [{ re, im, highlight: true }]) },
+      { kind: 'diagram', svg: complexPlaneSvg(RANGE, [{ re, im, highlight: true }]) },
     ],
     lead: 'z =',
     keypad: I_KEY,
@@ -57,24 +64,13 @@ export const identifyPoint: Generator<IdentifyParams> = {
 
 /* ---------- Place a point on the plane ---------- */
 
-interface PlotParams { re: number; im: number; range: number }
-
-export const plotPoint: Generator<PlotParams> = {
+export const plotPoint: Generator<PointParams> = {
   id: 'plot-point',
-  sample: (rng, difficulty) => {
-    const range = 4;
-    let re = 0, im = 0;
-    while (re === 0 && im === 0) {
-      re = rng.int(-range, range);
-      im = rng.int(-range, range);
-      if (difficulty < 2 && (re === 0 || im === 0)) { re = 0; im = 0; }
-    }
-    return { re, im, range };
-  },
-  render: ({ re, im, range }) => ({
+  sample: samplePlanePoint,
+  render: ({ re, im }) => ({
     kind: 'plot',
     prompt: [{ kind: 'prose', text: `Plot $${complexTex(re, im)}$ on the complex plane.` }],
-    range,
+    range: RANGE,
     answer: { re, im },
   }),
   solution: ({ re, im }) => [
@@ -87,49 +83,51 @@ export const plotPoint: Generator<PlotParams> = {
 
 /* ---------- Modulus ---------- */
 
-/** Pythagorean pairs, so the modulus is a whole number. */
-const TRIPLES: [number, number][] = [
-  [3, 4], [4, 3], [6, 8], [8, 6], [5, 12], [12, 5],
-  [8, 15], [15, 8], [7, 24], [9, 12], [20, 21],
+/**
+ * Pythagorean triples as [leg, leg, hypotenuse], so the modulus is a whole
+ * number the table states outright. Deriving it with Math.hypot would mean
+ * rounding a float back to the integer we already know, and would let a
+ * mistyped row produce a plausible wrong answer instead of failing a test.
+ */
+export const TRIPLES: [number, number, number][] = [
+  [3, 4, 5], [4, 3, 5], [6, 8, 10], [8, 6, 10], [5, 12, 13], [12, 5, 13],
+  [8, 15, 17], [15, 8, 17], [7, 24, 25], [9, 12, 15], [20, 21, 29],
 ];
 
-interface ModulusParams { a: number; b: number }
+interface ModulusParams { a: number; b: number; hypotenuse: number }
 
 export const modulus: Generator<ModulusParams> = {
   id: 'modulus',
   sample: (rng, difficulty) => {
-    const [x, y] = rng.pick(TRIPLES);
+    const [x, y, hypotenuse] = rng.pick(TRIPLES);
     // Signs vary so the learner cannot assume both parts are positive.
     return difficulty >= 2
-      ? { a: x * rng.sign(), b: y * rng.sign() }
-      : { a: x, b: y };
+      ? { a: x * rng.sign(), b: y * rng.sign(), hypotenuse }
+      : { a: x, b: y, hypotenuse };
   },
-  render: ({ a, b }) => ({
+  render: ({ a, b, hypotenuse }) => ({
     kind: 'expression',
     prompt: [
       { kind: 'prose', text: `What is $|${complexTex(a, b)}|$?` },
       {
         kind: 'diagram',
-        svg: complexPlaneSvg(
-          Math.max(5, Math.ceil(Math.max(Math.abs(a), Math.abs(b)) / 5) * 5),
-          [{ re: a, im: b, highlight: true }],
-        ),
+        svg: complexPlaneSvg(rangeFor(a, b), [{ re: a, im: b, highlight: true }]),
       },
     ],
     lead: `|${complexTex(a, b)}| =`,
     keypad: SQRT_KEYS,
-    answer: `${Math.round(Math.hypot(a, b))}`,
+    answer: `${hypotenuse}`,
     domain: 'real',
     mode: 'exact',
   }),
-  solution: ({ a, b }) => [
+  solution: ({ a, b, hypotenuse }) => [
     {
       text: 'The modulus is the distance from the origin, so it is Pythagoras on the two parts.',
       tex: `|${complexTex(a, b)}| = \\sqrt{${a}^2 + ${b}^2}`,
     },
     {
       text: 'Signs disappear when squared, which is why the modulus is never negative.',
-      tex: `= \\sqrt{${a * a} + ${b * b}} = \\sqrt{${a * a + b * b}} = ${Math.round(Math.hypot(a, b))}`,
+      tex: `= \\sqrt{${a * a} + ${b * b}} = \\sqrt{${a * a + b * b}} = ${hypotenuse}`,
     },
   ],
 };
@@ -168,7 +166,7 @@ export const argument: Generator<ArgParams> = {
           kind: 'prose',
           text: `What is $\\arg(${complexTex(re, im)})$, in radians between $-\\pi$ and $\\pi$?`,
         },
-        { kind: 'diagram', svg: complexPlaneSvg(5, [{ re, im, highlight: true }]) },
+        { kind: 'diagram', svg: complexPlaneSvg(rangeFor(re, im), [{ re, im, highlight: true }]) },
       ],
       lead: `\\arg(${complexTex(re, im)}) =`,
       keypad: ANGLE_KEYS,
@@ -206,11 +204,8 @@ export const complexPower: Generator<PowerParams> = {
     return { ...base, n: rng.int(2, difficulty >= 2 ? 6 : 4) };
   },
   render: ({ re, im, n }) => {
-    // Repeated multiplication, which is exact for these integer bases.
-    let ar = 1, ai = 0;
-    for (let k = 0; k < n; k++) {
-      [ar, ai] = [ar * re - ai * im, ar * im + ai * re];
-    }
+    // Repeated multiplication, exact for these integer bases.
+    const [ar, ai] = powersOf(re, im, n)[n - 1];
     return {
       kind: 'expression',
       prompt: [{ kind: 'prose', text: `What is $${bracketedTex(re, im)}^{${n}}$?` }],
@@ -221,22 +216,16 @@ export const complexPower: Generator<PowerParams> = {
       mode: 'exact',
     };
   },
-  solution: ({ re, im, n }) => {
-    const steps: { text?: string; tex?: string }[] = [
-      {
-        text: 'Multiply out step by step, replacing $i^2$ with $-1$ each time.',
-      },
-    ];
-    let ar = 1, ai = 0;
-    for (let k = 1; k <= n; k++) {
-      [ar, ai] = [ar * re - ai * im, ar * im + ai * re];
-      // Only the first few steps are worth showing; the pattern is clear by then.
-      if (k <= 3 || k === n) {
-        steps.push({ tex: `${bracketedTex(re, im)}^{${k}} = ${complexTex(ar, ai)}` });
-      }
-    }
-    return steps;
-  },
+  solution: ({ re, im, n }) => [
+    { text: 'Multiply out step by step, replacing $i^2$ with $-1$ each time.' },
+    // Only the first few steps are worth showing; the pattern is clear by then.
+    ...powersOf(re, im, n)
+      .map(([ar, ai], idx) => ({ ar, ai, power: idx + 1 }))
+      .filter(({ power }) => power <= 3 || power === n)
+      .map(({ ar, ai, power }) => ({
+        tex: `${bracketedTex(re, im)}^{${power}} = ${complexTex(ar, ai)}`,
+      })),
+  ],
 };
 
 export const planeGenerators = [

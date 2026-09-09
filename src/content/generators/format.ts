@@ -1,5 +1,5 @@
 /**
- * Shared formatting for complex-number content.
+ * Shared helpers for complex-number content.
  *
  * Two audiences, deliberately kept apart:
  *
@@ -7,6 +7,11 @@
  * - `*Answer` helpers produce what mathjs parses. These are never displayed,
  *   so they can be unambiguous rather than pretty.
  */
+import type { KeypadKey } from '../types';
+import type { Rng } from '../../engine/rng';
+
+/** The imaginary unit. Every keypad in this course offers it. */
+export const I_KEY: KeypadKey[] = [{ insert: 'i', tex: true }];
 
 /** A signed coefficient as written by hand: 1i becomes i, -1i becomes -i. */
 export function coeffTex(n: number, unit = 'i'): string {
@@ -31,4 +36,32 @@ export function complexAnswer(a: number, b: number): string {
 /** Wraps a complex number in brackets when it needs them, e.g. before a power. */
 export function bracketedTex(a: number, b: number): string {
   return b === 0 ? `${a}` : `(${complexTex(a, b)})`;
+}
+
+/**
+ * (a + bi)(c + di) = (ac - bd) + (ad + bc)i.
+ *
+ * Multiplication underpins expansion, division (numerator = quotient x divisor)
+ * and powers, so it lives here rather than being spelled out at each site —
+ * where a generator's `render` and `solution` would each need their own copy
+ * and could drift apart.
+ */
+export function mulComplex(a: number, b: number, c: number, d: number): [number, number] {
+  return [a * c - b * d, a * d + b * c];
+}
+
+/** Successive powers of a complex number: index 0 is the first power. */
+export function powersOf(re: number, im: number, n: number): [number, number][] {
+  const out: [number, number][] = [];
+  let current: [number, number] = [1, 0];
+  for (let k = 0; k < n; k++) {
+    current = mulComplex(current[0], current[1], re, im);
+    out.push(current);
+  }
+  return out;
+}
+
+/** A non-zero magnitude with a random sign. */
+export function nonZero(rng: Rng, max: number): number {
+  return rng.int(1, max) * rng.sign();
 }

@@ -6,13 +6,9 @@
  * is hard-coded, so replaying a lesson gives fresh numbers, and the "Show me"
  * steps always describe the question actually on screen.
  */
-import type { Generator, KeypadKey } from '../types';
-import { coeffTex, complexTex } from './format';
+import type { Generator } from '../types';
+import { I_KEY, coeffTex, complexTex, complexAnswer } from './format';
 
-/** The imaginary unit, offered as a key on every keypad in this course. */
-const I_KEY: KeypadKey[] = [{ insert: 'i', tex: true }];
-
-const coeff = coeffTex;
 
 /* ---------- i squared ---------- */
 
@@ -57,7 +53,7 @@ export const imaginarySum: Generator<SumParams> = {
       prompt: [{ kind: 'prose', text: `What is $${a}i ${op} ${b}i$?` }],
       lead: `${a}i ${op} ${b}i =`,
       keypad: I_KEY,
-      answer: total === 0 ? '0' : coeff(total),
+      answer: total === 0 ? '0' : coeffTex(total),
       domain: 'complex',
       mode: 'exact',
     };
@@ -70,7 +66,7 @@ export const imaginarySum: Generator<SumParams> = {
         text: 'Imaginary terms combine like terms in algebra: the $i$ comes along for the ride.',
         tex: `${a}i ${op} ${b}i = (${a} ${op} ${b})i`,
       },
-      { text: 'Work out the coefficient.', tex: `(${a} ${op} ${b})i = ${total === 0 ? '0' : coeff(total)}` },
+      { text: 'Work out the coefficient.', tex: `(${a} ${op} ${b})i = ${total === 0 ? '0' : coeffTex(total)}` },
     ];
   },
 };
@@ -226,7 +222,7 @@ export const complexAdd: Generator<AddParams> = {
     ],
     lead: `(${complexTex(a, b)}) + (${complexTex(c, d)}) =`,
     keypad: I_KEY,
-    answer: `${a + c} + (${b + d})*i`,
+    answer: complexAnswer(a + c, b + d),
     domain: 'complex',
     mode: 'exact',
   }),

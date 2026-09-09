@@ -308,7 +308,7 @@ export const complexNumbers: Course = {
             teach(
               { kind: 'prose', text: 'Seen in polar terms the pattern is simpler than the algebra suggests: powers multiply the modulus and add the argument.' },
               { kind: 'display', tex: '|z^n| = |z|^n \\qquad \\arg(z^n) = n\\arg(z)' },
-              { kind: 'prose', text: 'This is De Moivre\\u2019s theorem, and it turns a messy expansion into one multiplication and one addition.' },
+              { kind: 'prose', text: 'This is De Moivre’s theorem, and it turns a messy expansion into one multiplication and one addition.' },
             ),
             ask('complex-power', 2),
             ask('complex-power', 2),

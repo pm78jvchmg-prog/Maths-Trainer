@@ -2,14 +2,10 @@
  * Complex Numbers, Level 2: multiplication, conjugates and division.
  */
 import type { Generator, KeypadKey } from '../types';
-import { coeffTex, complexTex, complexAnswer } from './format';
+import { I_KEY, coeffTex, complexTex, complexAnswer, mulComplex, nonZero } from './format';
 
-const I_KEY: KeypadKey[] = [{ insert: 'i', tex: true }];
 /** Division answers are fractions, so the learner needs a divide key. */
-const DIVIDE_KEYS: KeypadKey[] = [{ insert: '/' }, { insert: 'i', tex: true }];
-
-const nonZero = (rng: { int: (a: number, b: number) => number; sign: () => number }, max: number) =>
-  rng.int(1, max) * rng.sign();
+const DIVIDE_KEYS: KeypadKey[] = [{ insert: '/' }, ...I_KEY];
 
 /* ---------- Multiplication by FOIL ---------- */
 
@@ -31,7 +27,7 @@ export const complexMultiply: Generator<MulParams> = {
     ],
     lead: `(${complexTex(a, b)})(${complexTex(c, d)}) =`,
     keypad: I_KEY,
-    answer: complexAnswer(a * c - b * d, a * d + b * c),
+    answer: complexAnswer(...mulComplex(a, b, c, d)),
     domain: 'complex',
     mode: 'exact',
   }),
@@ -46,7 +42,7 @@ export const complexMultiply: Generator<MulParams> = {
     },
     {
       text: 'Collect the real and imaginary parts.',
-      tex: complexTex(a * c - b * d, a * d + b * c),
+      tex: complexTex(...mulComplex(a, b, c, d)),
     },
   ],
 };
@@ -114,6 +110,9 @@ export const complexConjugate: Generator<ConjParams> = {
 
 interface DivParams { p: number; q: number; c: number; d: number }
 
+/** numerator = quotient x divisor, so the division comes out exact. */
+const numeratorOf = ({ p, q, c, d }: DivParams): [number, number] => mulComplex(p, q, c, d);
+
 export const complexDivide: Generator<DivParams> = {
   id: 'complex-divide',
   sample: (rng, difficulty) => {
@@ -128,10 +127,9 @@ export const complexDivide: Generator<DivParams> = {
       d: nonZero(rng, 3),
     };
   },
-  render: ({ p, q, c, d }) => {
-    // numerator = quotient x divisor, so the division comes out exact.
-    const a = p * c - q * d;
-    const b = p * d + q * c;
+  render: (params) => {
+    const { p, q, c, d } = params;
+    const [a, b] = numeratorOf(params);
     return {
       kind: 'expression',
       prompt: [
@@ -147,9 +145,9 @@ export const complexDivide: Generator<DivParams> = {
       mode: 'exact',
     };
   },
-  solution: ({ p, q, c, d }) => {
-    const a = p * c - q * d;
-    const b = p * d + q * c;
+  solution: (params) => {
+    const { p, q, c, d } = params;
+    const [a, b] = numeratorOf(params);
     const modulus = c * c + d * d;
     return [
       {

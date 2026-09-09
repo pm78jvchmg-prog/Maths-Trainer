@@ -9,12 +9,14 @@ import { useState, useEffect } from 'react';
 import { Tex, Blocks } from './Math';
 import type { Slide, KeypadKey } from '../content/types';
 import {
-  complexPlaneSvg,
-  PLANE_SIZE,
-  PLANE_MARGIN,
-  projectToPlane,
+  planeGridSvg,
+  latticePoints,
+  pointPosition,
+  PLANE_VIEWBOX,
 } from '../content/generators/plane';
 import type { Answer, Feedback } from '../engine/session';
+import { isPlotAnswer } from '../engine/session';
+import { complexTex } from '../content/generators/format';
 
 export interface SlideProps {
   slide: Slide;
@@ -248,21 +250,7 @@ export function PlotSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
   if (slide.kind !== 'plot') return null;
   const locked = isLocked(feedback);
   const { range } = slide;
-
-  // The draft answer is "re,im" so it stays a plain string like every other
-  // widget, and the reducer can grade it without a special case for objects.
-  const [re, im] = typeof answer === 'string' && answer.includes(',')
-    ? answer.split(',').map(Number)
-    : [NaN, NaN];
-  const chosen = Number.isFinite(re) && Number.isFinite(im);
-
-  const points = chosen ? [{ re, im, highlight: true }] : [];
-  const step = PLANE_SIZE / (2 * range);
-
-  const targets: { re: number; im: number }[] = [];
-  for (let x = -range; x <= range; x++) {
-    for (let y = -range; y <= range; y++) targets.push({ re: x, im: y });
-  }
+  const chosen = isPlotAnswer(answer) ? answer : null;
 
   return (
     <>
@@ -272,33 +260,44 @@ export function PlotSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
 
       <div className={frameClass(feedback)}>
         <div className="plot-wrap">
-          <div dangerouslySetInnerHTML={{ __html: complexPlaneSvg(range, points) }} />
-          {/* Tap targets sit above the SVG. They are sized to the grid spacing
-              so every lattice point is comfortably hittable with a thumb. */}
-          {/* Same viewBox as the drawn plane, so tap targets stay aligned. */}
+          {/* The grid depends only on `range`, so it is generated once and
+              cached. Only the chosen dot below it changes as you tap. */}
+          <div dangerouslySetInnerHTML={{ __html: planeGridSvg(range) }} />
+
+          {/* Tap targets and the plotted dot share the plane's own viewBox, so
+              alignment cannot drift if the frame changes. */}
           <svg
-            className="plot-hits"
-            viewBox={`${-PLANE_MARGIN} ${-PLANE_MARGIN} ${PLANE_SIZE + PLANE_MARGIN * 2} ${
-              PLANE_SIZE + PLANE_MARGIN * 2
-            }`}
+            className={`plot-hits${locked ? ' locked' : ''}`}
+            viewBox={PLANE_VIEWBOX}
           >
-            {targets.map((point) => (
+            {latticePoints(range).map((point) => {
+              const { x, y } = pointPosition(point, range);
+              return (
+                <circle
+                  key={`${point.re},${point.im}`}
+                  cx={x}
+                  cy={y}
+                  r={11}
+                  fill="transparent"
+                  onClick={() => !locked && onAnswer({ re: point.re, im: point.im })}
+                />
+              );
+            })}
+            {chosen && (
               <circle
-                key={`${point.re},${point.im}`}
-                cx={projectToPlane(point.re, range)}
-                cy={PLANE_SIZE - projectToPlane(point.im, range)}
-                r={Math.max(9, step / 2)}
-                fill="transparent"
-                style={{ cursor: locked ? 'default' : 'pointer' }}
-                onClick={() => !locked && onAnswer(`${point.re},${point.im}`)}
+                cx={pointPosition(chosen, range).x}
+                cy={pointPosition(chosen, range).y}
+                r={5}
+                fill="var(--accent)"
+                pointerEvents="none"
               />
-            ))}
+            )}
           </svg>
         </div>
       </div>
 
       <p className="plot-readout">
-        {chosen ? <Tex tex={`${re}${im < 0 ? ' - ' : ' + '}${Math.abs(im)}i`} /> : 'Tap a point'}
+        {chosen ? <Tex tex={complexTex(chosen.re, chosen.im)} /> : 'Tap a point'}
       </p>
     </>
   );
@@ -337,9 +336,7 @@ export function SlideView(props: SlideProps) {
 /** Whether the current draft is complete enough to submit. */
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
-  if (slide.kind === 'plot') {
-    return typeof answer === 'string' && answer.includes(',');
-  }
+  if (slide.kind === 'plot') return isPlotAnswer(answer);
   if (slide.kind === 'tiles') {
     return Array.isArray(answer) && answer.length > 0 && answer.every((t) => t !== '');
   }

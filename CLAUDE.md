@@ -153,6 +153,12 @@ derivative. Expression slides may declare `source`, the function the question is
 about; the test differentiates it with `mathjs.derivative` and compares against
 the generator's answer. Populate `source` on any new calculus generator.
 
+The oracle test carries an explicit 60s timeout. It is the slowest test by far
+— symbolic differentiation plus 24 probes per draw — and overruns vitest's 5s
+default once the other files compete for CPU, which shows up as an intermittent
+failure that passes when the file is run alone. If you add a slow sweep here,
+give it a budget rather than trimming its sample count.
+
 When adding a guard test, **verify it can fail** — reintroduce the bug, watch it
 go red, then restore. Several guards here were confirmed that way, and one
 proposed replacement was rejected precisely because it turned out not to fire.

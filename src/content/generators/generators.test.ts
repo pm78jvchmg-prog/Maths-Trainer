@@ -120,7 +120,13 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
         `seed ${seed}: d/dx(${slide.source}) is ${oracle}, generator claims ${slide.answer}`,
       ).toBe('correct');
     }
-  });
+    // Symbolically differentiating every draw and then probing both sides at 24
+    // points genuinely takes several seconds, which overruns vitest's 5s
+    // default once the other files are competing for the CPU. The budget is
+    // raised rather than the sample count cut: this is the only test that
+    // checks the calculus is actually right, so coverage is the wrong thing to
+    // trade away.
+  }, 60_000);
 
   it('always offers a worked solution', () => {
     for (const { params } of cases) {

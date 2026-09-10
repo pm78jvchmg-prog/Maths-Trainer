@@ -68,6 +68,44 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
         expect(parseExpression(slide.answer).ok, `unparseable answer: ${slide.answer}`).toBe(true);
         expect(slide.lead).toBeTruthy();
       }
+
+      if (slide.kind === 'steps') {
+        // Replay the reductions the way the widget does. A span that runs off
+        // the end of the line, or a bank missing its own answer, is a question
+        // that cannot be finished — and it would only show up mid-lesson.
+        let line = slide.start;
+        expect(slide.reductions.length).toBeGreaterThan(0);
+        for (const [idx, step] of slide.reductions.entries()) {
+          const [from, to] = step.span;
+          expect(from, `step ${idx} span start`).toBeGreaterThanOrEqual(0);
+          expect(to, `step ${idx} span end`).toBeGreaterThan(from);
+          expect(to, `step ${idx} span past end of line`).toBeLessThanOrEqual(line.length);
+          expect(step.bank, `step ${idx} bank lacks its own value`).toContain(step.value);
+          // Distractors only help if they are distinct from each other.
+          expect(new Set(step.bank).size).toBe(step.bank.length);
+          line = [...line.slice(0, from), step.value, ...line.slice(to)];
+        }
+        // Reducing everything should end with a single value, not a fragment.
+        expect(line.length, 'working does not reduce to one term').toBe(1);
+      }
+
+      if (slide.kind === 'tree') {
+        expect(slide.answer.length).toBe(slide.nodes.length);
+        const seen = new Set<string>();
+        for (const node of slide.nodes) {
+          // Evaluation order, so the layout can be derived in one pass.
+          for (const id of node.from) {
+            expect(seen.has(id), `node ${node.id} feeds from later node ${id}`).toBe(true);
+          }
+          seen.add(node.id);
+        }
+        const bank = [...slide.bank];
+        for (const value of slide.answer) {
+          const at = bank.indexOf(value);
+          expect(at, `value ${value} missing from bank`).toBeGreaterThanOrEqual(0);
+          bank.splice(at, 1);
+        }
+      }
     }
   });
 

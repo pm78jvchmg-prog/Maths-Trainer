@@ -1,6 +1,7 @@
 import type { Category, Course } from '../types';
 import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
+import { trigonometricFunctions } from './trigonometricFunctions';
 
 /**
  * Courses grouped into the tabs on the home screen.
@@ -10,6 +11,12 @@ import { differentiation } from './differentiation';
  * levels, not two entries competing for the same name.
  */
 export const categories: Category[] = [
+  {
+    id: 'advanced-algebra',
+    title: 'Advanced Algebra',
+    blurb: 'The functions and graphs of later school maths.',
+    courses: [trigonometricFunctions],
+  },
   {
     id: 'advanced-maths',
     title: 'Advanced Maths',

@@ -211,9 +211,13 @@ button {
   min-height: 68px;
 }
 
-/* Working slides stack their lines instead of running them along a row. */
+/* Working slides stack their lines instead of running them along a row.
+   `nowrap` matters: the base frame wraps, and a wrapping *column* overflows
+   sideways into a second column rather than growing downwards, which silently
+   moved the last row of a tree to the right of the others. */
 .answer-frame.column {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 14px;
   position: relative;
@@ -817,6 +821,7 @@ button {
 
 .answer-frame.tree {
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 26px;
   position: relative;

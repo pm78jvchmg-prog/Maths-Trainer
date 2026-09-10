@@ -74,6 +74,14 @@ export type Feedback =
 export interface Session {
   lessonId: string;
   seed: number;
+  /**
+   * One attempt per question, no worked solutions, scored as a percentage.
+   *
+   * Enforced here rather than in the feedback bar for the same reason as the
+   * other two rules: a level check that could be retried by routing around a
+   * component would not be an assessment.
+   */
+  assessment: boolean;
   phase: Phase;
   index: number;
   guided: ResolvedSlide[];
@@ -136,6 +144,7 @@ export function startSession(
   return {
     lessonId: lesson.id,
     seed,
+    assessment: lesson.assessment === true,
     // A level check has no guided slides at all, and starting it in the guided
     // phase would strand it on an empty deck. Entering sealed straight away is
     // also the honest signal: there is nothing here to review.
@@ -166,7 +175,30 @@ export function canGoBack(session: Session): boolean {
 
 /** Whether the reveal affordance should be offered right now. */
 export function canReveal(session: Session): boolean {
-  return session.feedback.kind === 'incorrect';
+  // An assessment never shows working, so there is nothing to reveal.
+  return !session.assessment && session.feedback.kind === 'incorrect';
+}
+
+/**
+ * Whether the learner may still change their answer to this question.
+ *
+ * False throughout an assessment, where a submitted answer is final. The
+ * widgets read this rather than deciding for themselves, so "one attempt"
+ * cannot be undone by a component that forgets.
+ */
+export function canRetry(session: Session): boolean {
+  return !session.assessment;
+}
+
+/**
+ * Score as a percentage, which is how an assessment reports.
+ *
+ * Rounded to a whole number; an empty assessment scores zero rather than
+ * dividing by nothing.
+ */
+export function scorePercent(session: Session): number {
+  const { correct, total } = skillCheckScore(session);
+  return total === 0 ? 0 : Math.round((correct / total) * 100);
 }
 
 /** Correct-first-time count for the skill check. */
@@ -296,13 +328,16 @@ export function reduce(session: Session, action: Action): Session {
       // the only thing it does is return to `idle`.
       if (!slide) return session;
       const { kind } = session.feedback;
-      if (kind !== 'incorrect' && kind !== 'invalid') return session;
+      // Unreadable input is always editable: nothing was graded, so refusing
+      // it here would strand the learner on a typo they cannot correct.
+      if (kind === 'invalid') return { ...session, feedback: { kind: 'idle' } };
+      if (kind !== 'incorrect' || !canRetry(session)) return session;
       return { ...session, feedback: { kind: 'idle' } };
     }
 
     case 'tryAgain': {
       // Returns to the same slide with the same generated parameters.
-      if (!slide) return session;
+      if (!slide || !canRetry(session)) return session;
       return { ...session, feedback: { kind: 'idle' } };
     }
 
@@ -324,7 +359,13 @@ export function reduce(session: Session, action: Action): Session {
       const { kind } = session.feedback;
       const isTeach = slide.slide.kind === 'teach';
       // A wrong answer does not let you move on: try again, or ask to see it.
-      const mayAdvance = isTeach || kind === 'correct' || kind === 'revealed';
+      // In an assessment there is no second attempt, so a wrong answer is a
+      // finished question and the deck advances past it.
+      const mayAdvance =
+        isTeach ||
+        kind === 'correct' ||
+        kind === 'revealed' ||
+        (session.assessment && kind === 'incorrect');
       if (!mayAdvance) return session;
 
       const deck = currentDeck(session);

@@ -146,6 +146,15 @@ export type SlideRef =
 export interface Lesson {
   id: string;
   title: string;
+  /**
+   * Assessment flow: one attempt per question, no worked solutions, scored as
+   * a percentage.
+   *
+   * Set by `levelCheckLesson`. It is a property of the lesson rather than of
+   * the phase because the seal has to hold from the very first question, and
+   * the reducer is the only thing that reads it.
+   */
+  assessment?: boolean;
   /** Roughly ten slides: teach, practise x3, teach, practise x2-3. */
   slides: SlideRef[];
   /** Three sealed questions. Guided slides cannot be reviewed from here. */
@@ -198,6 +207,7 @@ export function levelCheckLesson(level: Level): Lesson | undefined {
   return {
     id: `${level.id}:check`,
     title: `${level.title} — Level Check`,
+    assessment: true,
     slides: [],
     skillCheck: level.levelCheck,
   };

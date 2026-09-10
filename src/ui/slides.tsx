@@ -25,6 +25,13 @@ export interface SlideProps {
   /** Current draft answer, lifted so the player can enable/disable Check. */
   answer: Answer;
   onAnswer: (answer: Answer) => void;
+  /**
+   * False during an assessment, where a submitted answer is final.
+   *
+   * Comes from the reducer rather than being inferred here, so "one attempt"
+   * does not depend on every widget remembering to check.
+   */
+  canEdit: boolean;
 }
 
 /**
@@ -35,8 +42,10 @@ export interface SlideProps {
  * reducer clears the wrong verdict on `edit`. It still locks once the slide is
  * passed or the solution has been shown, since there is nothing left to try.
  */
-const isLocked = (feedback: Feedback) =>
-  feedback.kind === 'correct' || feedback.kind === 'revealed';
+export const isLocked = (feedback: Feedback, canEdit: boolean) =>
+  feedback.kind === 'correct' ||
+  feedback.kind === 'revealed' ||
+  (!canEdit && feedback.kind === 'incorrect');
 
 function frameClass(feedback: Feedback): string {
   if (feedback.kind === 'correct') return 'answer-frame correct';
@@ -52,9 +61,9 @@ export function TeachSlide({ slide }: { slide: Extract<Slide, { kind: 'teach' }>
 
 /* ---------- Choice ---------- */
 
-export function ChoiceSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function ChoiceSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'choice') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const graded = feedback.kind !== 'idle' && feedback.kind !== 'invalid';
 
   return (
@@ -95,9 +104,9 @@ const BASE_KEYS: KeypadKey[] = [
   { insert: '+' }, { insert: '-', label: '−' },
 ];
 
-export function ExpressionSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function ExpressionSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'expression') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const text = typeof answer === 'string' ? answer : '';
   // Topic-specific keys come last, so `i` sits where the screenshots put it.
   const keys = [...BASE_KEYS, ...slide.keypad];
@@ -159,9 +168,9 @@ export function ExpressionSlide({ slide, feedback, answer, onAnswer }: SlideProp
 
 /* ---------- Tiles ---------- */
 
-export function TilesSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function TilesSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'tiles') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const filled = Array.isArray(answer) ? answer : [];
 
   const blanks = slide.answer.length;
@@ -254,9 +263,9 @@ export function TilesSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
 
 /* ---------- Plot: tap a point on the complex plane ---------- */
 
-export function PlotSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'plot') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const { range } = slide;
   const chosen = isPlotAnswer(answer) ? answer : null;
 

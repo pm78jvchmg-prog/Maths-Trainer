@@ -13,7 +13,9 @@ import {
   currentSlide,
   currentDeck,
   canGoBack,
+  canRetry,
   skillCheckScore,
+  scorePercent,
 } from '../engine/session';
 import type { Answer } from '../engine/session';
 import type { Lesson, GeneratorRegistry } from '../content/types';
@@ -50,9 +52,13 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         <div className="summary">
           <p className="lesson-meta">{lesson.title}</p>
           <div className="summary-score">
-            {score.correct}/{score.total}
+            {session.assessment ? `${scorePercent(session)}%` : `${score.correct}/${score.total}`}
           </div>
-          <p className="lesson-meta">correct first time in the skill check</p>
+          <p className="lesson-meta">
+            {session.assessment
+              ? `${score.correct} of ${score.total} correct`
+              : 'correct first time in the skill check'}
+          </p>
         </div>
         <div className="footer">
           <button
@@ -148,6 +154,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
           feedback={session.feedback}
           answer={answer}
           onAnswer={changeAnswer}
+          canEdit={canRetry(session)}
         />
       </main>
 
@@ -156,6 +163,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         isTeach={isTeach}
         canSubmit={hasAnswer(slide.slide, answer)}
         isLastQuestion={isLastQuestion}
+        assessment={session.assessment}
         onSubmit={() => act({ type: 'submit', answer })}
         onTryAgain={() => act({ type: 'tryAgain' })}
         onReveal={() => act({ type: 'reveal' })}

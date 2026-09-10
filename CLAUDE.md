@@ -40,7 +40,7 @@ npx vitest run -t 'branch'                    # -t takes a REGEX, not a literal
 esbuild, which strips types without checking them; a file can have real type
 errors and a green suite. Run the typecheck separately before committing.
 
-## Two invariants that must not regress
+## Three invariants that must not regress
 
 Both are enforced in `src/engine/session.ts`, deliberately *not* in components,
 so that a UI change cannot quietly break them. Anything that routes around the
@@ -58,6 +58,14 @@ reducer is a bug.
    the DOM rather than disabling it. **There is no router, by design** — routing
    lessons through the URL would hand the browser back gesture a way into the
    guided slides mid-assessment.
+3. **A level check is one attempt per question.** A lesson with
+   `assessment: true` refuses `tryAgain`, refuses `edit` on a graded answer,
+   never reveals working, advances past a wrong answer instead of blocking on
+   it, and reports a percentage. Widgets read `canRetry(session)` through the
+   `canEdit` prop rather than deciding for themselves, so a component that
+   forgets cannot hand back a second attempt. The one thing still editable is
+   `invalid` input — nothing was graded, so refusing it would strand the
+   learner on a typo.
 
 A third property falls out of the design: slides are resolved **once**, at
 `startSession`. *Try again* therefore re-presents the identical question rather
@@ -105,11 +113,17 @@ Category[] → Course[] → Level[] → Lesson[] → { slides: SlideRef[~10], sk
 topic met at both A level and degree level is **one course with more levels**,
 not two courses fighting over the same name.
 
-A `levelCheck` is a questions-only assessment closing a level. It is played
-through the same `LessonPlayer` as everything else: `levelCheckLesson()` wraps
-it as a `Lesson` with an empty guided deck, and `startSession` opens any lesson
-with no guided slides straight into the sealed phase. There is no second code
-path, which is what stops the seal from being weaker here than in a lesson.
+A `levelCheck` is a questions-only assessment closing a level, 10-15 questions
+drawn across the level. It is played through the same `LessonPlayer` as
+everything else: `levelCheckLesson()` wraps it as a `Lesson` with an empty
+guided deck and `assessment: true`, and `startSession` opens any lesson with no
+guided slides straight into the sealed phase. There is no second code path,
+which is what stops the seal from being weaker here than in a lesson.
+
+The lesson-end skill check and the level check are different things and should
+stay that way: the skill check is three questions you may retry, closing a
+lesson you have just been taught; the level check is a graded assessment of a
+whole level with no retries and no worked solutions.
 
 Lesson rhythm: teach → practise ×3 → teach → practise ×2-3, then three sealed
 skill-check questions.

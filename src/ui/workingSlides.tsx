@@ -9,7 +9,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
-import type { SlideProps } from './slides';
+import { isLocked, type SlideProps } from './slides';
 
 /* ---------- Steps: reduce an expression one operation at a time ---------- */
 
@@ -90,8 +90,9 @@ function StepsBody({
   feedback,
   answer,
   onAnswer,
+  canEdit,
 }: SlideProps & { slide: StepsSlide }) {
-  const locked = feedback.kind === 'correct' || feedback.kind === 'revealed';
+  const locked = isLocked(feedback, canEdit);
   const chosen = Array.isArray(answer) ? answer : [];
 
   // Which sub-expression the learner has tapped and is now choosing a value
@@ -215,8 +216,9 @@ function TreeBody({
   feedback,
   answer,
   onAnswer,
+  canEdit,
 }: SlideProps & { slide: TreeSlide }) {
-  const locked = feedback.kind === 'correct' || feedback.kind === 'revealed';
+  const locked = isLocked(feedback, canEdit);
   const filled = Array.isArray(answer) ? answer : [];
 
   const rows = treeRows(slide.nodes);

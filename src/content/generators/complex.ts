@@ -16,7 +16,7 @@ interface SquareParams { k: number }
 
 export const imaginarySquare: Generator<SquareParams> = {
   id: 'imaginary-square',
-  sample: (rng, difficulty) => ({ k: rng.int(2, difficulty >= 2 ? 12 : 6) }),
+  sample: (rng, difficulty) => ({ k: rng.int(2, difficulty >= 2 ? 40 : 30) }),
   render: ({ k }) => ({
     kind: 'expression',
     prompt: [{ kind: 'prose', text: `If $i = \\sqrt{-1}$, what is $${k}i^2$?` }],
@@ -78,8 +78,8 @@ interface ProductParams { a: number; b: number }
 export const imaginaryProduct: Generator<ProductParams> = {
   id: 'imaginary-product',
   sample: (rng, difficulty) => ({
-    a: rng.int(2, difficulty >= 2 ? 9 : 5),
-    b: rng.int(2, difficulty >= 2 ? 9 : 5),
+    a: rng.int(2, difficulty >= 2 ? 12 : 9),
+    b: rng.int(2, difficulty >= 2 ? 12 : 9),
   }),
   render: ({ a, b }) => ({
     kind: 'expression',
@@ -108,7 +108,7 @@ interface RootParams { n: number }
 
 export const sqrtNegative: Generator<RootParams> = {
   id: 'sqrt-negative',
-  sample: (rng, difficulty) => ({ n: rng.int(2, difficulty >= 2 ? 12 : 7) }),
+  sample: (rng, difficulty) => ({ n: rng.int(2, difficulty >= 2 ? 30 : 27) }),
   render: ({ n }) => ({
     kind: 'expression',
     prompt: [{ kind: 'prose', text: `What is $\\sqrt{-${n * n}}$?` }],
@@ -134,7 +134,7 @@ export const realSolutions: Generator<RealParams> = {
     // Mix in positives so the answer is not always "no" — otherwise the pattern
     // can be learned without the idea behind it.
     const hasReal = rng.chance(0.4);
-    const magnitude = rng.int(1, 9);
+    const magnitude = rng.int(1, 24);
     return { value: hasReal ? magnitude : -magnitude, hasReal };
   },
   render: ({ value }) => ({

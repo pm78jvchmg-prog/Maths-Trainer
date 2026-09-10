@@ -174,7 +174,7 @@ const I_CYCLE = ['1', 'i', '-1', '-i'];
 
 export const powersOfI: Generator<PowerParams> = {
   id: 'powers-of-i',
-  sample: (rng, difficulty) => ({ n: rng.int(2, difficulty >= 2 ? 40 : 12) }),
+  sample: (rng, difficulty) => ({ n: rng.int(2, difficulty >= 2 ? 80 : 34) }),
   render: ({ n }) => ({
     kind: 'expression',
     prompt: [{ kind: 'prose', text: `What is $i^{${n}}$?` }],

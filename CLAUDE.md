@@ -40,7 +40,7 @@ npx vitest run -t 'branch'                    # -t takes a REGEX, not a literal
 esbuild, which strips types without checking them; a file can have real type
 errors and a green suite. Run the typecheck separately before committing.
 
-## Two invariants that must not regress
+## Three invariants that must not regress
 
 Both are enforced in `src/engine/session.ts`, deliberately *not* in components,
 so that a UI change cannot quietly break them. Anything that routes around the
@@ -50,18 +50,48 @@ reducer is a bug.
    `incorrect`; reaching `revealed` requires a separate explicit `reveal`
    action. The feedback bar offers *Try again* and an opt-in *Show me*. In
    `ChoiceSlide`, only the chosen option is ever styled — never the correct one.
+   The `edit` action is deliberately narrow for the same reason: it clears
+   `incorrect` and `invalid` and nothing else, so changing an answer is a free
+   retry but can neither undo a pass nor disclose anything.
 2. **The skill check is sealed.** `back` is refused outside the guided phase and
    the phase transition is one-way. `LessonPlayer` removes the back control from
    the DOM rather than disabling it. **There is no router, by design** — routing
    lessons through the URL would hand the browser back gesture a way into the
    guided slides mid-assessment.
+3. **A level check is one attempt per question.** A lesson with
+   `assessment: true` refuses `tryAgain`, refuses `edit` on a graded answer,
+   never reveals working, advances past a wrong answer instead of blocking on
+   it, and reports a percentage. Widgets read `canRetry(session)` through the
+   `canEdit` prop rather than deciding for themselves, so a component that
+   forgets cannot hand back a second attempt. The one thing still editable is
+   `invalid` input — nothing was graded, so refusing it would strand the
+   learner on a typo.
 
 A third property falls out of the design: slides are resolved **once**, at
 `startSession`. *Try again* therefore re-presents the identical question rather
 than redrawing parameters.
 
+Resolution also **de-duplicates within a deck**. A generator draws from a finite
+pool and a lesson may ask it eight or ten times, so the birthday problem makes a
+repeat likely long before the pool runs out — ten draws from forty variants
+collide almost every time, and five identical questions in one lesson shipped
+before this was fixed. `resolveDeck` re-draws a generated slide that renders
+identically to one already in the deck, bumping a salt on the per-slide seed so
+the escape stays deterministic. Guided and skill check are de-duplicated
+separately: a skill-check question matching a guided one is the assessment doing
+its job.
+
+Re-drawing only works while the generator has another question to give, so
+`generators.test.ts` also holds a floor of **25 distinct questions per generator
+per difficulty**. Widening a range is nearly always the right fix; where the
+stem is fixed and the pool is a word list, vary the phrasing too — otherwise a
+lesson reads as the same question five times even when no two are identical.
+
 This is a single-player personal tool. It deliberately has no XP, streaks,
-leagues, or multiplayer — do not add engagement mechanics.
+leagues, or multiplayer — do not add engagement mechanics. The reference app
+shows a running XP total on almost every screen; that is the one part of it
+which is deliberately **not** copied. A per-lesson score is fine, a persistent
+points total is not.
 
 ## Answer checking
 
@@ -91,8 +121,25 @@ Consequences worth knowing before changing anything here:
 ## Content model
 
 ```
-Course → Level[] → Lesson[] → { slides: SlideRef[~10], skillCheck: SlideRef[3] }
+Category[] → Course[] → Level[] → Lesson[] → { slides: SlideRef[~10], skillCheck: SlideRef[3] }
+                                  └─ levelCheck?: SlideRef[]
 ```
+
+`Category` is the difficulty banding and the tab strip on the home screen. A
+topic met at both A level and degree level is **one course with more levels**,
+not two courses fighting over the same name.
+
+A `levelCheck` is a questions-only assessment closing a level, 10-15 questions
+drawn across the level. It is played through the same `LessonPlayer` as
+everything else: `levelCheckLesson()` wraps it as a `Lesson` with an empty
+guided deck and `assessment: true`, and `startSession` opens any lesson with no
+guided slides straight into the sealed phase. There is no second code path,
+which is what stops the seal from being weaker here than in a lesson.
+
+The lesson-end skill check and the level check are different things and should
+stay that way: the skill check is three questions you may retry, closing a
+lesson you have just been taught; the level check is a graded assessment of a
+whole level with no retries and no worked solutions.
 
 Lesson rhythm: teach → practise ×3 → teach → practise ×2-3, then three sealed
 skill-check questions.
@@ -112,6 +159,26 @@ content bug:
 
 `src/content/generators/format.ts` (complex) and `calculus.ts` (differentiation)
 own the shared formatters. Check them before writing a new one.
+
+### Slide kinds
+
+`teach`, `choice`, `expression`, `plot` and `tiles` are the originals. Two more
+show *working* rather than a final answer, and both live in
+`src/ui/workingSlides.tsx`:
+
+- **`steps`** reduces an expression one operation at a time. The line is held as
+  an array of TeX fragments rather than one string, because each fragment is an
+  independent tap target and KaTeX offers no handle on a sub-expression once it
+  has rendered a whole formula. Only the *next* reduction's span is offered, so
+  the slide grades evaluation rather than choice of order — which operation
+  comes first is a different skill, and a `choice` slide asks it directly.
+- **`tree`** fills in the intermediate values of an evaluation tree. Nodes are
+  listed in evaluation order naming the nodes that feed them; rows and
+  connectors fall out of that, so no content author positions anything. The
+  connectors are measured from the laid-out DOM rather than a fixed grid, so a
+  row that wraps on a narrow screen still joins up.
+
+Both answer as `string[]` and are graded by `gradeSequence` in the reducer.
 
 ## TeX escaping — the recurring hazard
 
@@ -182,3 +249,30 @@ never in the dashboard).
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add
 runtime network dependencies.
+
+
+## Subagents and cost
+
+Subagents default to Sonnet, set in `.claude/settings.json`:
+
+```json
+{ "env": { "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet" } }
+```
+
+`.claude/settings.json` is committed (the rest of `.claude/` is not) so that
+cloud sessions pick the policy up — a remote container has no `~/.claude` to
+read a user-level setting from, and remote sessions are where the cost actually
+lands.
+
+Escalate deliberately rather than starting high: raise **effort** first, then
+the model, then effort again on the new model. Per-agent overrides go in
+`.claude/agents/<name>.md` frontmatter (`model:`, `effort:`), and a single call
+can be overridden with the Agent tool's `model` parameter.
+
+Note two things about the env var:
+
+- It does **not** reach the built-in `Explore` and `Plan` agents, which inherit
+  the main conversation's model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` would
+  catch those too, but it also overrides per-agent frontmatter and per-call
+  choices — which is the whole escalation ladder — so it is left off.
+- Values in an `env` block apply only once the folder is trusted.

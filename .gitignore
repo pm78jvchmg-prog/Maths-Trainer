@@ -23,5 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local preview launch config
-.claude/
+# Claude Code config. The shared settings file is committed so that cloud
+# sessions pick up the subagent model policy; everything else here is local.
+.claude/*
+!.claude/settings.json
+.claude/settings.local.json

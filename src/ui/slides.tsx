@@ -17,6 +17,7 @@ import {
 import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
+import { StepsSlide, TreeSlide } from './workingSlides';
 
 export interface SlideProps {
   slide: Slide;
@@ -24,11 +25,27 @@ export interface SlideProps {
   /** Current draft answer, lifted so the player can enable/disable Check. */
   answer: Answer;
   onAnswer: (answer: Answer) => void;
+  /**
+   * False during an assessment, where a submitted answer is final.
+   *
+   * Comes from the reducer rather than being inferred here, so "one attempt"
+   * does not depend on every widget remembering to check.
+   */
+  canEdit: boolean;
 }
 
-/** Once graded, the widget locks until the learner chooses to try again. */
-const isLocked = (feedback: Feedback) =>
-  feedback.kind === 'correct' || feedback.kind === 'incorrect' || feedback.kind === 'revealed';
+/**
+ * Whether the widget is finished with.
+ *
+ * Deliberately excludes `incorrect`: after a wrong answer the controls stay
+ * live, so changing the answer *is* the retry and costs no extra tap. The
+ * reducer clears the wrong verdict on `edit`. It still locks once the slide is
+ * passed or the solution has been shown, since there is nothing left to try.
+ */
+export const isLocked = (feedback: Feedback, canEdit: boolean) =>
+  feedback.kind === 'correct' ||
+  feedback.kind === 'revealed' ||
+  (!canEdit && feedback.kind === 'incorrect');
 
 function frameClass(feedback: Feedback): string {
   if (feedback.kind === 'correct') return 'answer-frame correct';
@@ -44,9 +61,9 @@ export function TeachSlide({ slide }: { slide: Extract<Slide, { kind: 'teach' }>
 
 /* ---------- Choice ---------- */
 
-export function ChoiceSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function ChoiceSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'choice') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const graded = feedback.kind !== 'idle' && feedback.kind !== 'invalid';
 
   return (
@@ -87,9 +104,9 @@ const BASE_KEYS: KeypadKey[] = [
   { insert: '+' }, { insert: '-', label: '−' },
 ];
 
-export function ExpressionSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function ExpressionSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'expression') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const text = typeof answer === 'string' ? answer : '';
   // Topic-specific keys come last, so `i` sits where the screenshots put it.
   const keys = [...BASE_KEYS, ...slide.keypad];
@@ -151,9 +168,9 @@ export function ExpressionSlide({ slide, feedback, answer, onAnswer }: SlideProp
 
 /* ---------- Tiles ---------- */
 
-export function TilesSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function TilesSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'tiles') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const filled = Array.isArray(answer) ? answer : [];
 
   const blanks = slide.answer.length;
@@ -246,9 +263,9 @@ export function TilesSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
 
 /* ---------- Plot: tap a point on the complex plane ---------- */
 
-export function PlotSlide({ slide, feedback, answer, onAnswer }: SlideProps) {
+export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'plot') return null;
-  const locked = isLocked(feedback);
+  const locked = isLocked(feedback, canEdit);
   const { range } = slide;
   const chosen = isPlotAnswer(answer) ? answer : null;
 
@@ -313,6 +330,10 @@ export function SlideView(props: SlideProps) {
   useEffect(() => {
     if (slide.kind === 'tiles') {
       onAnswer(Array.from({ length: slide.answer.length }, () => ''));
+    } else if (slide.kind === 'tree') {
+      onAnswer(Array.from({ length: slide.nodes.length }, () => ''));
+    } else if (slide.kind === 'steps') {
+      onAnswer([]);
     } else {
       onAnswer('');
     }
@@ -330,6 +351,10 @@ export function SlideView(props: SlideProps) {
       return <TilesSlide {...props} />;
     case 'plot':
       return <PlotSlide {...props} />;
+    case 'steps':
+      return <StepsSlide {...props} />;
+    case 'tree':
+      return <TreeSlide {...props} />;
   }
 }
 
@@ -337,8 +362,18 @@ export function SlideView(props: SlideProps) {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles') {
-    return Array.isArray(answer) && answer.length > 0 && answer.every((t) => t !== '');
+  if (slide.kind === 'tiles' || slide.kind === 'tree') {
+    const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
+    return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
+  }
+  // Steps is only answerable once every reduction has been worked through, so
+  // Check stays disabled while there is still an operation left on the line.
+  if (slide.kind === 'steps') {
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.reductions.length &&
+      answer.every((t) => t !== '')
+    );
   }
   return typeof answer === 'string' && answer.trim() !== '';
 }

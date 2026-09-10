@@ -141,10 +141,53 @@ button {
   flex-direction: column;
 }
 
-/* Teaching slides sit low on the screen; questions pin to the top so the
-   answer area stays put as you work. */
-.slide.centred {
-  justify-content: center;
+/* Content sits low on the screen, within thumb reach, rather than stranding
+   the answer area above a screen-height gap. Working slides are the exception:
+   they gain a line per step, so they anchor to the top and grow downwards.
+   
+   Auto margins rather than `justify-content: center`, deliberately. Centring a
+   flex container that scrolls clips the overflow at the *top*, where there is
+   no way to scroll back to it — so a teaching slide longer than the screen
+   would lose its opening lines with no sign that it had. Auto margins collapse
+   to zero once the content no longer fits, which degrades to top-aligned and
+   fully scrollable. */
+.slide > :first-child {
+  margin-top: auto;
+}
+
+.slide > :last-child {
+  margin-bottom: auto;
+}
+
+.slide.grow > :first-child,
+.slide.grow > :last-child {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* One slide replacing another is the single most-used transition in the app,
+   and swapping it instantly reads as a glitch rather than a step forward. The
+   incoming slide enters from the side the deck moved. */
+.slide.enter-forward {
+  animation: slide-in 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.slide.enter-back {
+  animation: slide-in-back 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+}
+
+@keyframes slide-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
 }
 
 .prompt {
@@ -169,14 +212,29 @@ button {
 .answer-frame {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 26px 18px;
+  padding: 16px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   font-size: 21px;
-  min-height: 96px;
+  /* Tall enough to hold a fraction or a surd without jumping, and no taller:
+     at 96px an empty slot floated in the middle of a large blank panel. */
+  min-height: 68px;
+}
+
+/* Working slides stack their lines instead of running them along a row.
+   `nowrap` matters: the base frame wraps, and a wrapping *column* overflows
+   sideways into a second column rather than growing downwards, which silently
+   moved the last row of a tree to the right of the others. */
+.answer-frame.column {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 14px;
+  position: relative;
+  padding-top: 22px;
 }
 
 .answer-frame.correct {
@@ -188,13 +246,18 @@ button {
 }
 
 .answer-slot {
-  min-width: 66px;
-  min-height: 46px;
+  min-width: 54px;
+  min-height: 44px;
   padding: 4px 12px;
   border: 2px solid var(--border);
   border-radius: 10px;
-  display: inline-grid;
-  place-items: center;
+  /* A row, not a grid: as a single-column grid the caret became a second row
+     under the text and the slot grew to roughly three times its needed height,
+     which read as a large empty panel rather than an input. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   background: var(--bg);
 }
 
@@ -236,6 +299,10 @@ button {
   }
   .progress-fill {
     transition: none;
+  }
+  .slide.enter-forward,
+  .slide.enter-back {
+    animation: none;
   }
 }
 
@@ -639,4 +706,163 @@ button {
   padding: 10px 0;
   color: var(--text-dim);
   font-size: 16px;
+}
+
+/* ---------- Category tabs ---------- */
+
+/* Scrolls sideways rather than wrapping, so the strip stays one line tall
+   however many categories are added later. */
+.tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -20px 20px;
+  padding: 0 20px 2px;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tab.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.category-head {
+  margin-bottom: 8px;
+}
+
+.category-head .home-title {
+  margin-bottom: 6px;
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.course-card.complete {
+  border-color: var(--correct);
+}
+
+/* The level check closes a level, so it is set apart from the lessons above
+   it rather than reading as one more of them. */
+.check-row {
+  margin-top: 6px;
+}
+
+.node.check {
+  border-style: dashed;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.node.check.done {
+  border-style: solid;
+  background: var(--correct);
+  border-color: var(--correct);
+  color: #fff;
+}
+
+/* ---------- Working slides: steps and tree ---------- */
+
+.step-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 21px;
+  padding: 6px 0;
+}
+
+/* Lines above the card are settled working, so they read as history. */
+.slide > .step-line {
+  color: var(--text-dim);
+  font-size: 19px;
+}
+
+/* The sub-expression this step collapses. It is a tap target, so it carries a
+   surface of its own rather than relying on colour alone. */
+.step-target {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  transition: background-color 120ms ease;
+}
+
+.step-target.armed {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.step-target:disabled {
+  background: none;
+}
+
+.undo-button {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 20px;
+}
+
+.answer-frame.tree {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 26px;
+  position: relative;
+  padding: 20px 14px;
+}
+
+.tree-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Connectors are painted behind the nodes from measured positions, so a row
+   that wraps on a narrow screen still joins up. */
+.tree-wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tree-wires path {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
 }

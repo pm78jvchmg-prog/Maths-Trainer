@@ -18,6 +18,13 @@ interface Props {
   canSubmit: boolean;
   /** Hidden on the final skill-check question, where the button says Finish. */
   isLastQuestion: boolean;
+  /**
+   * One attempt per question, no worked solutions.
+   *
+   * A wrong answer here is a finished question, so the bar offers only the way
+   * onwards — there is deliberately no Try again and no Show me to hunt for.
+   */
+  assessment: boolean;
   onSubmit: () => void;
   onTryAgain: () => void;
   onReveal: () => void;
@@ -49,6 +56,7 @@ export function FeedbackBar({
   isTeach,
   canSubmit,
   isLastQuestion,
+  assessment,
   onSubmit,
   onTryAgain,
   onReveal,
@@ -110,6 +118,18 @@ export function FeedbackBar({
       );
 
     case 'incorrect':
+      if (assessment) {
+        return (
+          <div className="footer wrong">
+            <div className="footer-head">
+              <span className="footer-title">Not quite.</span>
+            </div>
+            <button type="button" className="primary-button" onClick={onContinue}>
+              {advanceLabel}
+            </button>
+          </div>
+        );
+      }
       return (
         <div className="footer wrong">
           <div className="footer-head">

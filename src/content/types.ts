@@ -80,6 +80,47 @@ export type Slide =
       answer: string[];
       /** When true the blanks may be filled in any order (e.g. "x = a or x = b"). */
       unordered?: boolean;
+    })
+  /**
+   * Reduce an expression one operation at a time.
+   *
+   * The line is held as TeX fragments rather than one string because each
+   * fragment is an independent tap target; KaTeX gives no handle on a
+   * sub-expression once it has rendered a whole formula.
+   *
+   * Only the next reduction's span is offered, so the slide grades *evaluation*
+   * rather than choice of order. Which operation comes first is a different
+   * skill, and a `choice` slide asks it directly.
+   */
+  | ({ kind: 'steps' } & Prompted & {
+      /** Tokens of the opening line, each rendered as its own TeX fragment. */
+      start: string[];
+      /** Reductions in the order they must be performed. */
+      reductions: {
+        /** Half-open range of the current line that this step collapses. */
+        span: [number, number];
+        /** What that span becomes. */
+        value: string;
+        /** Values offered for this step, including distractors. */
+        bank: string[];
+      }[];
+    })
+  /**
+   * Fill the intermediate values of an evaluation tree.
+   *
+   * Nodes are listed in evaluation order and each names the nodes feeding it,
+   * which is enough to lay out rows and draw the connectors without the content
+   * author positioning anything by hand.
+   */
+  | ({ kind: 'tree' } & Prompted & {
+      /** The expression the tree evaluates. TeX. */
+      expression: string;
+      /** In evaluation order. `from` holds ids of nodes feeding this one. */
+      nodes: { id: string; from: string[] }[];
+      /** Values offered, including distractors. */
+      bank: string[];
+      /** Expected value per node, in `nodes` order. */
+      answer: string[];
     });
 
 /**
@@ -105,6 +146,15 @@ export type SlideRef =
 export interface Lesson {
   id: string;
   title: string;
+  /**
+   * Assessment flow: one attempt per question, no worked solutions, scored as
+   * a percentage.
+   *
+   * Set by `levelCheckLesson`. It is a property of the lesson rather than of
+   * the phase because the seal has to hold from the very first question, and
+   * the reducer is the only thing that reads it.
+   */
+  assessment?: boolean;
   /** Roughly ten slides: teach, practise x3, teach, practise x2-3. */
   slides: SlideRef[];
   /** Three sealed questions. Guided slides cannot be reviewed from here. */
@@ -115,6 +165,14 @@ export interface Level {
   id: string;
   title: string;
   lessons: Lesson[];
+  /**
+   * The assessment closing the level: questions only, no teaching slides.
+   *
+   * It reuses `Lesson` rather than inventing a second shape — a level check is
+   * a lesson whose guided deck is empty, which the session reducer already
+   * treats as sealed from the first question.
+   */
+  levelCheck?: SlideRef[];
 }
 
 export interface Course {
@@ -122,4 +180,35 @@ export interface Course {
   title: string;
   blurb: string;
   levels: Level[];
+}
+
+/**
+ * A group of related courses, shown as one tab on the home screen.
+ *
+ * Categories carry the difficulty banding — Foundations through Advanced — so a
+ * course does not have to name its own level, and a topic studied at both A
+ * level and undergraduate simply has more levels rather than two entries.
+ */
+export interface Category {
+  id: string;
+  title: string;
+  blurb: string;
+  courses: Course[];
+}
+
+/**
+ * The level check as a playable lesson.
+ *
+ * Returns undefined when the level has no check, so the caller can leave the
+ * row out rather than offering an empty assessment.
+ */
+export function levelCheckLesson(level: Level): Lesson | undefined {
+  if (!level.levelCheck || level.levelCheck.length === 0) return undefined;
+  return {
+    id: `${level.id}:check`,
+    title: `${level.title} — Level Check`,
+    assessment: true,
+    slides: [],
+    skillCheck: level.levelCheck,
+  };
 }

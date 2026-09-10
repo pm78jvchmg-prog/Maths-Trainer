@@ -5,6 +5,8 @@ import {
   currentSlide,
   canGoBack,
   canReveal,
+  canRetry,
+  scorePercent,
   skillCheckScore,
   type Session,
   type Action,
@@ -297,5 +299,226 @@ describe('the skill check is sealed', () => {
 
     expect(s.phase).toBe('summary');
     expect(skillCheckScore(s)).toEqual({ correct: 1, total: 2 });
+  });
+});
+
+describe('editing an answer is the retry', () => {
+  const wrong = (session: Session) =>
+    run(pastTeach(session), [{ type: 'submit', answer: '1i' }]);
+
+  it('clears a wrong verdict so a second attempt costs no extra tap', () => {
+    const after = reduce(wrong(start()), { type: 'edit' });
+    expect(after.feedback.kind).toBe('idle');
+  });
+
+  it('keeps the attempt on the record, so first-try credit is still lost', () => {
+    const session = reduce(wrong(start()), { type: 'edit' });
+    const slide = currentSlide(session)!;
+    expect(session.states[slide.id].attempts).toBe(1);
+
+    const answered = reduce(session, {
+      type: 'submit',
+      answer: (slide.slide as { answer: string }).answer,
+    });
+    expect(answered.feedback.kind).toBe('correct');
+    expect(answered.states[slide.id].firstTry).toBe(false);
+  });
+
+  it('clears unreadable input too', () => {
+    const invalid = run(pastTeach(start()), [{ type: 'submit', answer: '3i +' }]);
+    expect(invalid.feedback.kind).toBe('invalid');
+    expect(reduce(invalid, { type: 'edit' }).feedback.kind).toBe('idle');
+  });
+
+  it('cannot undo a pass', () => {
+    const slide = currentSlide(pastTeach(start()))!;
+    const passed = run(pastTeach(start()), [
+      { type: 'submit', answer: (slide.slide as { answer: string }).answer },
+    ]);
+    expect(passed.feedback.kind).toBe('correct');
+    expect(reduce(passed, { type: 'edit' }).feedback.kind).toBe('correct');
+  });
+
+  it('leaves the worked solution on screen once it has been shown', () => {
+    const revealed = run(wrong(start()), [{ type: 'reveal' }]);
+    expect(revealed.feedback.kind).toBe('revealed');
+    // Editing must not silently drop the steps the learner just asked for.
+    expect(reduce(revealed, { type: 'edit' }).feedback.kind).toBe('revealed');
+  });
+});
+
+describe('working slides', () => {
+  const stepsLesson: Lesson = {
+    id: 'steps-demo',
+    title: 'Steps',
+    slides: [],
+    skillCheck: [
+      {
+        type: 'literal',
+        slide: {
+          kind: 'steps',
+          prompt: [{ kind: 'prose', text: 'Evaluate.' }],
+          start: ['2^3', '+', '5'],
+          reductions: [
+            { span: [0, 1], value: '8', bank: ['6', '8', '9'] },
+            { span: [0, 3], value: '13', bank: ['13', '15'] },
+          ],
+        },
+      },
+    ],
+  };
+
+  const treeLesson: Lesson = {
+    id: 'tree-demo',
+    title: 'Tree',
+    slides: [],
+    skillCheck: [
+      {
+        type: 'literal',
+        slide: {
+          kind: 'tree',
+          prompt: [{ kind: 'prose', text: 'Fill the tree.' }],
+          expression: '2^3 + 5',
+          nodes: [
+            { id: 'a', from: [] },
+            { id: 'b', from: ['a'] },
+          ],
+          bank: ['8', '13', '6'],
+          answer: ['8', '13'],
+        },
+      },
+    ],
+  };
+
+  const grade = (lesson: Lesson, answer: string[]) =>
+    reduce(startSession(lesson, registry, SEED), { type: 'submit', answer }).feedback.kind;
+
+  it('accepts the right sequence of reductions', () => {
+    expect(grade(stepsLesson, ['8', '13'])).toBe('correct');
+  });
+
+  it('rejects a right answer reached by wrong working', () => {
+    expect(grade(stepsLesson, ['6', '13'])).toBe('incorrect');
+  });
+
+  it('rejects working that stops short', () => {
+    expect(grade(stepsLesson, ['8'])).toBe('incorrect');
+    expect(grade(stepsLesson, ['8', ''])).toBe('incorrect');
+  });
+
+  it('grades a filled tree', () => {
+    expect(grade(treeLesson, ['8', '13'])).toBe('correct');
+    expect(grade(treeLesson, ['13', '8'])).toBe('incorrect');
+  });
+});
+
+describe('a level check is sealed from the first question', () => {
+  const levelCheck: Lesson = {
+    id: 'lc',
+    title: 'Level Check',
+    slides: [],
+    skillCheck: [
+      { type: 'generated', generatorId: 'add-imaginary' },
+      { type: 'generated', generatorId: 'add-imaginary' },
+    ],
+  };
+
+  it('opens straight into the skill check rather than an empty guided deck', () => {
+    const session = startSession(levelCheck, registry, SEED);
+    expect(session.phase).toBe('skillCheck');
+    expect(currentSlide(session)).toBeDefined();
+  });
+
+  it('offers no way back at any point', () => {
+    let session = startSession(levelCheck, registry, SEED);
+    expect(canGoBack(session)).toBe(false);
+    const slide = currentSlide(session)!;
+    session = run(session, [
+      { type: 'submit', answer: (slide.slide as { answer: string }).answer },
+      { type: 'continue' },
+    ]);
+    expect(canGoBack(session)).toBe(false);
+    expect(reduce(session, { type: 'back' })).toBe(session);
+  });
+
+  it('still scores out of the number of questions asked', () => {
+    let session = startSession(levelCheck, registry, SEED);
+    for (let i = 0; i < 2; i += 1) {
+      const slide = currentSlide(session)!;
+      session = run(session, [
+        { type: 'submit', answer: (slide.slide as { answer: string }).answer },
+        { type: 'continue' },
+      ]);
+    }
+    expect(session.phase).toBe('summary');
+    expect(skillCheckScore(session)).toEqual({ correct: 2, total: 2 });
+  });
+});
+
+describe('a level check is an assessment, not a lesson', () => {
+  const assessment: Lesson = {
+    id: 'lc-assess',
+    title: 'Level Check',
+    assessment: true,
+    slides: [],
+    skillCheck: [
+      { type: 'generated', generatorId: 'add-imaginary' },
+      { type: 'generated', generatorId: 'add-imaginary' },
+      { type: 'generated', generatorId: 'add-imaginary' },
+      { type: 'generated', generatorId: 'add-imaginary' },
+    ],
+  };
+
+  const open = () => startSession(assessment, registry, SEED);
+  const right = (session: Session) =>
+    (currentSlide(session)!.slide as { answer: string }).answer;
+
+  it('refuses a second attempt at a question already answered', () => {
+    const wrong = reduce(open(), { type: 'submit', answer: '1i' });
+    expect(wrong.feedback.kind).toBe('incorrect');
+    expect(canRetry(wrong)).toBe(false);
+    expect(reduce(wrong, { type: 'tryAgain' })).toBe(wrong);
+    expect(reduce(wrong, { type: 'edit' })).toBe(wrong);
+  });
+
+  it('never offers the worked solution', () => {
+    const wrong = reduce(open(), { type: 'submit', answer: '1i' });
+    expect(canReveal(wrong)).toBe(false);
+    expect(reduce(wrong, { type: 'reveal' })).toBe(wrong);
+  });
+
+  it('moves on from a wrong answer rather than blocking the deck', () => {
+    const wrong = reduce(open(), { type: 'submit', answer: '1i' });
+    const next = reduce(wrong, { type: 'continue' });
+    expect(next.index).toBe(1);
+    expect(next.feedback.kind).toBe('idle');
+  });
+
+  it('still lets a typo be corrected, since nothing was graded', () => {
+    const invalid = reduce(open(), { type: 'submit', answer: '3i +' });
+    expect(invalid.feedback.kind).toBe('invalid');
+    expect(reduce(invalid, { type: 'edit' }).feedback.kind).toBe('idle');
+  });
+
+  it('scores as a percentage of the questions asked', () => {
+    let session = open();
+    // Two right, two wrong, out of four.
+    for (let i = 0; i < 4; i += 1) {
+      session = run(session, [
+        { type: 'submit', answer: i < 2 ? right(session) : '1i' },
+        { type: 'continue' },
+      ]);
+    }
+    expect(session.phase).toBe('summary');
+    expect(skillCheckScore(session)).toEqual({ correct: 2, total: 4 });
+    expect(scorePercent(session)).toBe(50);
+  });
+
+  it('leaves an ordinary lesson retryable', () => {
+    const wrong = run(pastTeach(start()), [{ type: 'submit', answer: '1i' }]);
+    expect(canRetry(wrong)).toBe(true);
+    expect(canReveal(wrong)).toBe(true);
+    // And a wrong answer still blocks the deck outside an assessment.
+    expect(reduce(wrong, { type: 'continue' })).toBe(wrong);
   });
 });

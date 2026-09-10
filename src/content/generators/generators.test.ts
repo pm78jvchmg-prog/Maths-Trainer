@@ -1,11 +1,16 @@
 /**
- * Property tests for the generators.
+ * Property tests for every generator, and integrity checks for every course.
+ *
+ * Both sweeps are generic: generators come from the registry and courses from
+ * the course index, so a new one is covered the moment it is exported — there
+ * is nothing to wire up here.
  *
  * A generator is a small program that writes questions, so a bug in one does
- * not show up as a crash — it shows up as a question that is impossible to
- * answer correctly, halfway through a lesson on a train. These run every
- * generator across many seeds and assert that the answer it claims is genuinely
- * accepted by the checker that will grade it.
+ * not surface as a crash. It surfaces as a question that cannot be answered
+ * correctly, halfway through a lesson on a train. These run every generator
+ * across many seeds and assert that the answer it claims is the answer the
+ * checker will accept — and, where a generator declares its source function,
+ * that the answer is genuinely correct rather than merely self-consistent.
  */
 import { describe, it, expect } from 'vitest';
 import katex from 'katex';

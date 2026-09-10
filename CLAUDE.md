@@ -123,7 +123,7 @@ slide. This has bitten twice.
 Do **not** author TeX through nested escaping layers — a Python heredoc or an
 intermediate script will eat a level silently. Write the file directly.
 
-Three guards in `src/content/generators/complex.test.ts` cover this, and they are
+Three guards in `src/content/generators/generators.test.ts` cover this, and they are
 complementary rather than redundant:
 
 - KaTeX strict-mode rendering catches genuinely invalid TeX.
@@ -135,10 +135,10 @@ complementary rather than redundant:
 
 ## Testing strategy
 
-`src/content/generators/complex.test.ts` is misleadingly named: it holds the
-**generic** generator property tests and course-integrity checks for *every*
-course, not just complex numbers. New generators and courses are picked up
-automatically via `src/content/registry.ts` and `src/content/courses/index.ts`.
+`src/content/generators/generators.test.ts` holds the **generic** generator
+property tests and course-integrity checks for *every* course. New generators
+and courses are picked up automatically via `src/content/registry.ts` and
+`src/content/courses/index.ts` — there is nothing to register in the test file.
 
 Per generator, across 200 seeds × 2 difficulties:
 

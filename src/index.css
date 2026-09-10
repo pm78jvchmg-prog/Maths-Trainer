@@ -143,13 +143,26 @@ button {
 
 /* Content sits low on the screen, within thumb reach, rather than stranding
    the answer area above a screen-height gap. Working slides are the exception:
-   they gain a line per step, so they anchor to the top and grow downwards. */
-.slide {
-  justify-content: center;
+   they gain a line per step, so they anchor to the top and grow downwards.
+   
+   Auto margins rather than `justify-content: center`, deliberately. Centring a
+   flex container that scrolls clips the overflow at the *top*, where there is
+   no way to scroll back to it — so a teaching slide longer than the screen
+   would lose its opening lines with no sign that it had. Auto margins collapse
+   to zero once the content no longer fits, which degrades to top-aligned and
+   fully scrollable. */
+.slide > :first-child {
+  margin-top: auto;
 }
 
-.slide.grow {
-  justify-content: flex-start;
+.slide > :last-child {
+  margin-bottom: auto;
+}
+
+.slide.grow > :first-child,
+.slide.grow > :last-child {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* One slide replacing another is the single most-used transition in the app,

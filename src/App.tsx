@@ -1,5 +1,5 @@
 /**
- * App shell: course list, course map, lesson player.
+ * App shell: category tabs, course map, lesson player.
  *
  * Screens are held in component state rather than the URL. That is deliberate:
  * routing a lesson through the address bar would hand the browser's back
@@ -7,49 +7,85 @@
  * what the skill check is meant to prevent.
  */
 import { useState } from 'react';
-import { courses, lessonCount } from './content/courses';
+import { categories, lessonCount, checkCount } from './content/courses';
 import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
 import { useProgress } from './store/progress';
-import type { Course, Lesson } from './content/types';
+import { levelCheckLesson } from './content/types';
+import type { Category, Course, Lesson } from './content/types';
 
-function CourseList({ onOpen }: { onOpen: (course: Course) => void }) {
+/** Lessons plus level checks, which is what the progress count is out of. */
+function playableIds(course: Course): string[] {
+  return course.levels.flatMap((level) => {
+    const check = levelCheckLesson(level);
+    return [...level.lessons.map((lesson) => lesson.id), ...(check ? [check.id] : [])];
+  });
+}
+
+function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
   const records = useProgress((state) => state.lessons);
+  const [openId, setOpenId] = useState(categories[0]?.id);
+  const category: Category | undefined =
+    categories.find((entry) => entry.id === openId) ?? categories[0];
 
   return (
     <div className="app">
       <div className="map">
-        <h1 className="home-title">Practice</h1>
-
-        {courses.map((course) => {
-          const lessons = course.levels.flatMap((level) => level.lessons);
-          const done = lessons.filter((lesson) => records[lesson.id]).length;
-
-          return (
+        {/* One tab per category. Scrolls horizontally rather than wrapping, so
+            the row stays one line tall however many categories exist. */}
+        <div className="tabs" role="tablist">
+          {categories.map((entry) => (
             <button
-              key={course.id}
+              key={entry.id}
               type="button"
-              className="course-card"
-              onClick={() => onOpen(course)}
+              role="tab"
+              aria-selected={entry.id === category?.id}
+              className={`tab${entry.id === category?.id ? ' active' : ''}`}
+              onClick={() => setOpenId(entry.id)}
             >
-              <div className="course-card-title">{course.title}</div>
-              <div className="course-card-blurb">{course.blurb}</div>
-              <div className="course-progress">
-                <span className="progress-pips">
-                  {lessons.map((lesson) => (
-                    <span
-                      key={lesson.id}
-                      className={`pip${records[lesson.id] ? ' done' : ''}`}
-                    />
-                  ))}
-                </span>
-                <span>
-                  {done}/{lessonCount(course)}
-                </span>
-              </div>
+              {entry.title}
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        {category && (
+          <>
+            <header className="category-head">
+              <h1 className="home-title">{category.title}</h1>
+              <p className="course-blurb">{category.blurb}</p>
+            </header>
+
+            <div className="course-list">
+              {category.courses.map((course) => {
+                const ids = playableIds(course);
+                const done = ids.filter((id) => records[id]).length;
+                const total = lessonCount(course) + checkCount(course);
+
+                return (
+                  <button
+                    key={course.id}
+                    type="button"
+                    className={`course-card${done === total ? ' complete' : ''}`}
+                    onClick={() => onOpen(course)}
+                  >
+                    <div className="course-card-title">{course.title}</div>
+                    <div className="course-card-blurb">{course.blurb}</div>
+                    <div className="course-progress">
+                      <span className="progress-pips">
+                        {ids.map((id) => (
+                          <span key={id} className={`pip${records[id] ? ' done' : ''}`} />
+                        ))}
+                      </span>
+                      <span>
+                        {done}/{total}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -75,37 +111,62 @@ function CourseMap({
         <h1 className="course-title">{course.title}</h1>
         <p className="course-blurb">{course.blurb}</p>
 
-        {course.levels.map((level, levelIndex) => (
-          <section key={level.id}>
-            <div className="level-banner">
-              <div className="level-tag">LEVEL {levelIndex + 1}</div>
-              <div className="level-name">{level.title}</div>
-            </div>
+        {course.levels.map((level, levelIndex) => {
+          const check = levelCheckLesson(level);
 
-            {level.lessons.map((lesson) => {
-              const record = records[lesson.id];
-              return (
+          return (
+            <section key={level.id}>
+              <div className="level-banner">
+                <div className="level-tag">LEVEL {levelIndex + 1}</div>
+                <div className="level-name">{level.title}</div>
+              </div>
+
+              {level.lessons.map((lesson) => {
+                const record = records[lesson.id];
+                return (
+                  <button
+                    key={lesson.id}
+                    type="button"
+                    className="lesson-row"
+                    onClick={() => onOpen(lesson)}
+                  >
+                    <span className={`node${record ? ' done' : ''}`}>{record ? '✓' : ''}</span>
+                    <span>
+                      <span className="lesson-name">{lesson.title}</span>
+                      <br />
+                      <span className="lesson-meta">
+                        {record
+                          ? `Best ${record.bestCorrect}/${record.total} · played ${record.timesPlayed}×`
+                          : `${lesson.slides.length} slides · 3 skill checks`}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+
+              {check && (
                 <button
-                  key={lesson.id}
                   type="button"
-                  className="lesson-row"
-                  onClick={() => onOpen(lesson)}
+                  className="lesson-row check-row"
+                  onClick={() => onOpen(check)}
                 >
-                  <span className={`node${record ? ' done' : ''}`}>{record ? '✓' : ''}</span>
+                  <span className={`node check${records[check.id] ? ' done' : ''}`}>
+                    {records[check.id] ? '✓' : ''}
+                  </span>
                   <span>
-                    <span className="lesson-name">{lesson.title}</span>
+                    <span className="lesson-name">Level Check</span>
                     <br />
                     <span className="lesson-meta">
-                      {record
-                        ? `Best ${record.bestCorrect}/${record.total} · played ${record.timesPlayed}×`
-                        : `${lesson.slides.length} slides · 3 skill checks`}
+                      {records[check.id]
+                        ? `Best ${records[check.id].bestCorrect}/${records[check.id].total}`
+                        : `${check.skillCheck.length} questions · no worked examples`}
                     </span>
                   </span>
                 </button>
-              );
-            })}
-          </section>
-        ))}
+              )}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
@@ -136,5 +197,5 @@ export default function App() {
     return <CourseMap course={course} onOpen={setLesson} onBack={() => setCourse(null)} />;
   }
 
-  return <CourseList onOpen={setCourse} />;
+  return <Catalogue onOpen={setCourse} />;
 }

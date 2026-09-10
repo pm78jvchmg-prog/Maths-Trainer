@@ -17,6 +17,7 @@ import {
 import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
+import { StepsSlide, TreeSlide } from './workingSlides';
 
 export interface SlideProps {
   slide: Slide;
@@ -26,9 +27,16 @@ export interface SlideProps {
   onAnswer: (answer: Answer) => void;
 }
 
-/** Once graded, the widget locks until the learner chooses to try again. */
+/**
+ * Whether the widget is finished with.
+ *
+ * Deliberately excludes `incorrect`: after a wrong answer the controls stay
+ * live, so changing the answer *is* the retry and costs no extra tap. The
+ * reducer clears the wrong verdict on `edit`. It still locks once the slide is
+ * passed or the solution has been shown, since there is nothing left to try.
+ */
 const isLocked = (feedback: Feedback) =>
-  feedback.kind === 'correct' || feedback.kind === 'incorrect' || feedback.kind === 'revealed';
+  feedback.kind === 'correct' || feedback.kind === 'revealed';
 
 function frameClass(feedback: Feedback): string {
   if (feedback.kind === 'correct') return 'answer-frame correct';
@@ -313,6 +321,10 @@ export function SlideView(props: SlideProps) {
   useEffect(() => {
     if (slide.kind === 'tiles') {
       onAnswer(Array.from({ length: slide.answer.length }, () => ''));
+    } else if (slide.kind === 'tree') {
+      onAnswer(Array.from({ length: slide.nodes.length }, () => ''));
+    } else if (slide.kind === 'steps') {
+      onAnswer([]);
     } else {
       onAnswer('');
     }
@@ -330,6 +342,10 @@ export function SlideView(props: SlideProps) {
       return <TilesSlide {...props} />;
     case 'plot':
       return <PlotSlide {...props} />;
+    case 'steps':
+      return <StepsSlide {...props} />;
+    case 'tree':
+      return <TreeSlide {...props} />;
   }
 }
 
@@ -337,8 +353,18 @@ export function SlideView(props: SlideProps) {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles') {
-    return Array.isArray(answer) && answer.length > 0 && answer.every((t) => t !== '');
+  if (slide.kind === 'tiles' || slide.kind === 'tree') {
+    const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
+    return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
+  }
+  // Steps is only answerable once every reduction has been worked through, so
+  // Check stays disabled while there is still an operation left on the line.
+  if (slide.kind === 'steps') {
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.reductions.length &&
+      answer.every((t) => t !== '')
+    );
   }
   return typeof answer === 'string' && answer.trim() !== '';
 }

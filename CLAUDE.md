@@ -50,6 +50,9 @@ reducer is a bug.
    `incorrect`; reaching `revealed` requires a separate explicit `reveal`
    action. The feedback bar offers *Try again* and an opt-in *Show me*. In
    `ChoiceSlide`, only the chosen option is ever styled — never the correct one.
+   The `edit` action is deliberately narrow for the same reason: it clears
+   `incorrect` and `invalid` and nothing else, so changing an answer is a free
+   retry but can neither undo a pass nor disclose anything.
 2. **The skill check is sealed.** `back` is refused outside the guided phase and
    the phase transition is one-way. `LessonPlayer` removes the back control from
    the DOM rather than disabling it. **There is no router, by design** — routing
@@ -61,7 +64,10 @@ A third property falls out of the design: slides are resolved **once**, at
 than redrawing parameters.
 
 This is a single-player personal tool. It deliberately has no XP, streaks,
-leagues, or multiplayer — do not add engagement mechanics.
+leagues, or multiplayer — do not add engagement mechanics. The reference app
+shows a running XP total on almost every screen; that is the one part of it
+which is deliberately **not** copied. A per-lesson score is fine, a persistent
+points total is not.
 
 ## Answer checking
 
@@ -91,8 +97,19 @@ Consequences worth knowing before changing anything here:
 ## Content model
 
 ```
-Course → Level[] → Lesson[] → { slides: SlideRef[~10], skillCheck: SlideRef[3] }
+Category[] → Course[] → Level[] → Lesson[] → { slides: SlideRef[~10], skillCheck: SlideRef[3] }
+                                  └─ levelCheck?: SlideRef[]
 ```
+
+`Category` is the difficulty banding and the tab strip on the home screen. A
+topic met at both A level and degree level is **one course with more levels**,
+not two courses fighting over the same name.
+
+A `levelCheck` is a questions-only assessment closing a level. It is played
+through the same `LessonPlayer` as everything else: `levelCheckLesson()` wraps
+it as a `Lesson` with an empty guided deck, and `startSession` opens any lesson
+with no guided slides straight into the sealed phase. There is no second code
+path, which is what stops the seal from being weaker here than in a lesson.
 
 Lesson rhythm: teach → practise ×3 → teach → practise ×2-3, then three sealed
 skill-check questions.
@@ -112,6 +129,26 @@ content bug:
 
 `src/content/generators/format.ts` (complex) and `calculus.ts` (differentiation)
 own the shared formatters. Check them before writing a new one.
+
+### Slide kinds
+
+`teach`, `choice`, `expression`, `plot` and `tiles` are the originals. Two more
+show *working* rather than a final answer, and both live in
+`src/ui/workingSlides.tsx`:
+
+- **`steps`** reduces an expression one operation at a time. The line is held as
+  an array of TeX fragments rather than one string, because each fragment is an
+  independent tap target and KaTeX offers no handle on a sub-expression once it
+  has rendered a whole formula. Only the *next* reduction's span is offered, so
+  the slide grades evaluation rather than choice of order — which operation
+  comes first is a different skill, and a `choice` slide asks it directly.
+- **`tree`** fills in the intermediate values of an evaluation tree. Nodes are
+  listed in evaluation order naming the nodes that feed them; rows and
+  connectors fall out of that, so no content author positions anything. The
+  connectors are measured from the laid-out DOM rather than a fixed grid, so a
+  row that wraps on a narrow screen still joins up.
+
+Both answer as `string[]` and are graded by `gradeSequence` in the reducer.
 
 ## TeX escaping — the recurring hazard
 
@@ -182,3 +219,30 @@ never in the dashboard).
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add
 runtime network dependencies.
+
+
+## Subagents and cost
+
+Subagents default to Sonnet, set in `.claude/settings.json`:
+
+```json
+{ "env": { "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet" } }
+```
+
+`.claude/settings.json` is committed (the rest of `.claude/` is not) so that
+cloud sessions pick the policy up — a remote container has no `~/.claude` to
+read a user-level setting from, and remote sessions are where the cost actually
+lands.
+
+Escalate deliberately rather than starting high: raise **effort** first, then
+the model, then effort again on the new model. Per-agent overrides go in
+`.claude/agents/<name>.md` frontmatter (`model:`, `effort:`), and a single call
+can be overridden with the Agent tool's `model` parameter.
+
+Note two things about the env var:
+
+- It does **not** reach the built-in `Explore` and `Plan` agents, which inherit
+  the main conversation's model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` would
+  catch those too, but it also overrides per-agent frontmatter and per-call
+  choices — which is the whole escalation ladder — so it is left off.
+- Values in an `env` block apply only once the folder is trusted.

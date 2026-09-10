@@ -36,6 +36,9 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
     () => startSession(lesson, registry, seed),
   );
   const [answer, setAnswer] = useState<Answer>('');
+  // Which way the deck last moved, so the incoming slide animates from the
+  // side it came from rather than always from the right.
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
 
   const slide = currentSlide(session);
   const deck = currentDeck(session);
@@ -66,14 +69,27 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
 
   const isSkillCheck = session.phase === 'skillCheck';
   const isTeach = slide.slide.kind === 'teach';
+  // Working slides grow a line at a time, so they anchor to the top; anything
+  // else sits low on the screen, within thumb reach.
+  const grows = slide.slide.kind === 'steps' || slide.slide.kind === 'tree';
   const isLastQuestion = isSkillCheck && session.index === deck.length - 1;
   const progress = ((session.index + 1) / deck.length) * 100;
 
   const act = (action: Parameters<typeof reduce>[1]) => {
     dispatch(action);
+    if (action.type === 'continue' || action.type === 'back') {
+      setDirection(action.type === 'back' ? 'back' : 'forward');
+    }
     if (action.type === 'continue' || action.type === 'back' || action.type === 'tryAgain') {
       setAnswer('');
     }
+  };
+
+  // Every answer change is also an edit, which is what lets a second attempt
+  // start by simply changing the answer instead of pressing Try again.
+  const changeAnswer = (next: Answer) => {
+    dispatch({ type: 'edit' });
+    setAnswer(next);
   };
 
   return (
@@ -123,12 +139,15 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
 
       {/* Keying on the slide id remounts the widget between questions, so no
           draft answer or keypad state can leak from one slide to the next. */}
-      <main className={`slide${isTeach ? ' centred' : ''}`} key={slide.id}>
+      <main
+        className={`slide enter-${direction}${grows ? ' grow' : ''}`}
+        key={slide.id}
+      >
         <SlideView
           slide={slide.slide}
           feedback={session.feedback}
           answer={answer}
-          onAnswer={setAnswer}
+          onAnswer={changeAnswer}
         />
       </main>
 

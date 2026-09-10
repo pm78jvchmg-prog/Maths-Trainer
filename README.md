@@ -7,7 +7,9 @@ Two behaviours are deliberate and enforced in the session reducer rather than th
 UI, so no component can break them by accident:
 
 - **A wrong answer never reveals the answer.** The bar offers *Try again* and an
-  opt-in *Show me*. Nothing is disclosed unless you ask for it.
+  opt-in *Show me*. Nothing is disclosed unless you ask for it. Changing your
+  answer is itself a retry — the wrong verdict clears as you edit — but that
+  cannot undo a pass or bring back a solution you never asked to see.
 - **The skill check is sealed.** The last three questions run with no route back
   to the guided examples. The back control is absent from the DOM, not merely
   disabled.
@@ -36,6 +38,10 @@ src/content/    slide types, question generators, course definitions
 src/ui/         slide widgets, feedback bar, lesson player
 src/store/      progress, persisted to localStorage
 ```
+
+Courses are grouped into categories, which are the tabs on the home screen. Each
+level ends with an optional **level check**: an assessment with no teaching
+slides, sealed from the first question rather than only after the guided ones.
 
 **Answer checking** (`src/engine/equivalence.ts`) evaluates both the learner's
 expression and the expected one at 24 randomised points and compares the results,

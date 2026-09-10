@@ -84,6 +84,8 @@ export interface Session {
 
 export type Action =
   | { type: 'submit'; answer: Answer }
+  /** The learner changed their answer, which clears a wrong verdict. */
+  | { type: 'edit' }
   | { type: 'tryAgain' }
   | { type: 'reveal' }
   | { type: 'continue' }
@@ -134,7 +136,10 @@ export function startSession(
   return {
     lessonId: lesson.id,
     seed,
-    phase: 'guided',
+    // A level check has no guided slides at all, and starting it in the guided
+    // phase would strand it on an empty deck. Entering sealed straight away is
+    // also the honest signal: there is nothing here to review.
+    phase: guided.length > 0 ? 'guided' : 'skillCheck',
     index: 0,
     guided,
     skillCheck,
@@ -169,6 +174,22 @@ export function skillCheckScore(session: Session): { correct: number; total: num
   const total = session.skillCheck.length;
   const correct = session.skillCheck.filter((s) => session.states[s.id]?.firstTry).length;
   return { correct, total };
+}
+
+/**
+ * Exact, ordered comparison of one chosen token per position.
+ *
+ * Shared by the slide kinds whose answer is a sequence of picks from a bank.
+ * A short answer is wrong rather than incomplete: the widget refuses to submit
+ * until every position is filled, so a gap reaching here is not a valid answer.
+ */
+function gradeSequence(answer: Answer, expected: string[]): Feedback {
+  if (!Array.isArray(answer)) return { kind: 'incorrect' };
+  if (answer.length !== expected.length) return { kind: 'incorrect' };
+  if (answer.some((token) => token === '')) return { kind: 'incorrect' };
+  return answer.every((token, idx) => token === expected[idx])
+    ? { kind: 'correct' }
+    : { kind: 'incorrect' };
 }
 
 function grade(slide: Slide, answer: Answer, seed: number): Feedback {
@@ -222,6 +243,12 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
       const same = given.every((token, idx) => token === slide.answer[idx]);
       return same ? { kind: 'correct' } : { kind: 'incorrect' };
     }
+
+    case 'steps':
+      return gradeSequence(answer, slide.reductions.map((step) => step.value));
+
+    case 'tree':
+      return gradeSequence(answer, slide.answer);
   }
 }
 
@@ -259,6 +286,18 @@ export function reduce(session: Session, action: Action): Session {
           },
         },
       };
+    }
+
+    case 'edit': {
+      // Touching the answer after a wrong verdict clears it, so a second
+      // attempt costs no extra tap. Deliberately narrow: it cannot clear
+      // `correct` (already passed) or `revealed` (the worked steps stay on
+      // screen while you redo it), and it can never disclose anything, since
+      // the only thing it does is return to `idle`.
+      if (!slide) return session;
+      const { kind } = session.feedback;
+      if (kind !== 'incorrect' && kind !== 'invalid') return session;
+      return { ...session, feedback: { kind: 'idle' } };
     }
 
     case 'tryAgain': {

@@ -1,10 +1,31 @@
-import type { Course } from '../types';
+import type { Category, Course } from '../types';
 import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
 
-/** Every course, in the order they appear on the home screen. */
-export const courses: Course[] = [complexNumbers, differentiation];
+/**
+ * Courses grouped into the tabs on the home screen.
+ *
+ * The category carries the difficulty banding rather than the course, so a
+ * topic met first at A level and again at degree level is one course with more
+ * levels, not two entries competing for the same name.
+ */
+export const categories: Category[] = [
+  {
+    id: 'advanced-maths',
+    title: 'Advanced Maths',
+    blurb: 'Derivatives, complex numbers, and the machinery behind them.',
+    courses: [complexNumbers, differentiation],
+  },
+];
+
+/** Every course, flattened, in the order the categories list them. */
+export const courses: Course[] = categories.flatMap((category) => category.courses);
 
 export function lessonCount(course: Course): number {
   return course.levels.reduce((total, level) => total + level.lessons.length, 0);
+}
+
+/** Level checks are playable too, so they count towards a course being finished. */
+export function checkCount(course: Course): number {
+  return course.levels.filter((level) => (level.levelCheck?.length ?? 0) > 0).length;
 }

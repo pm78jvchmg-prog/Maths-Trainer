@@ -234,8 +234,13 @@ button {
   padding: 4px 12px;
   border: 2px solid var(--border);
   border-radius: 10px;
-  display: inline-grid;
-  place-items: center;
+  /* A row, not a grid: as a single-column grid the caret became a second row
+     under the text and the slot grew to roughly three times its needed height,
+     which read as a large empty panel rather than an input. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   background: var(--bg);
 }
 

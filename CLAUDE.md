@@ -71,6 +71,22 @@ A third property falls out of the design: slides are resolved **once**, at
 `startSession`. *Try again* therefore re-presents the identical question rather
 than redrawing parameters.
 
+Resolution also **de-duplicates within a deck**. A generator draws from a finite
+pool and a lesson may ask it eight or ten times, so the birthday problem makes a
+repeat likely long before the pool runs out — ten draws from forty variants
+collide almost every time, and five identical questions in one lesson shipped
+before this was fixed. `resolveDeck` re-draws a generated slide that renders
+identically to one already in the deck, bumping a salt on the per-slide seed so
+the escape stays deterministic. Guided and skill check are de-duplicated
+separately: a skill-check question matching a guided one is the assessment doing
+its job.
+
+Re-drawing only works while the generator has another question to give, so
+`generators.test.ts` also holds a floor of **25 distinct questions per generator
+per difficulty**. Widening a range is nearly always the right fix; where the
+stem is fixed and the pool is a word list, vary the phrasing too — otherwise a
+lesson reads as the same question five times even when no two are identical.
+
 This is a single-player personal tool. It deliberately has no XP, streaks,
 leagues, or multiplayer — do not add engagement mechanics. The reference app
 shows a running XP total on almost every screen; that is the one part of it

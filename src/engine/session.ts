@@ -106,6 +106,7 @@ function resolveRef(
   id: string,
   seed: number,
   registry: GeneratorRegistry,
+  salt: number,
 ): ResolvedSlide {
   if (ref.type === 'literal') {
     const steps = ref.solution ?? NO_SOLUTION;
@@ -116,7 +117,9 @@ function resolveRef(
   if (!generator) throw new Error(`Unknown generator: ${ref.generatorId}`);
 
   // Seeded per slide, so the same session seed always rebuilds the same lesson.
-  const rng = makeRng(hashSeed(`${seed}:${id}`));
+  // The salt is bumped only to escape a duplicate draw, and is part of the key
+  // so the escape is itself deterministic.
+  const rng = makeRng(hashSeed(`${seed}:${id}:${salt}`));
   const params = generator.sample(rng, ref.difficulty ?? 1) as never;
   return {
     id,
@@ -125,16 +128,66 @@ function resolveRef(
   };
 }
 
+/**
+ * How many times to re-draw a slide that duplicates one already in the deck.
+ *
+ * A generator draws from a finite pool, and a lesson may ask it eight or ten
+ * times, so the birthday problem makes a repeat likely long before the pool is
+ * exhausted — at ten draws from forty variants a collision is near-certain.
+ * Widening every pool enough to make luck sufficient is not achievable for
+ * questions like "what is i squared"; re-drawing on collision is, and it also
+ * covers generators nobody has written yet.
+ */
+const REDRAW_LIMIT = 24;
+
+/**
+ * Resolves a deck, re-drawing any generated slide that comes out identical to
+ * one already in it.
+ *
+ * Gives up after `REDRAW_LIMIT` attempts rather than looping: a generator with
+ * fewer distinct questions than the lesson asks for cannot satisfy this, and
+ * repeating one is better than hanging. The property tests hold the pools wide
+ * enough that the limit is not reached in practice.
+ */
+function resolveDeck(
+  refs: SlideRef[],
+  lessonId: string,
+  tag: string,
+  seed: number,
+  registry: GeneratorRegistry,
+): ResolvedSlide[] {
+  const out: ResolvedSlide[] = [];
+  const seen = new Set<string>();
+
+  refs.forEach((ref, idx) => {
+    // The id is the key for per-slide state, so it never changes with the salt.
+    const id = `${lessonId}:${tag}${idx}`;
+    let resolved = resolveRef(ref, id, seed, registry, 0);
+
+    if (ref.type === 'generated') {
+      for (let salt = 1; salt <= REDRAW_LIMIT; salt += 1) {
+        if (!seen.has(JSON.stringify(resolved.slide))) break;
+        resolved = resolveRef(ref, id, seed, registry, salt);
+      }
+    }
+
+    seen.add(JSON.stringify(resolved.slide));
+    out.push(resolved);
+  });
+
+  return out;
+}
+
 export function startSession(
   lesson: Lesson,
   registry: GeneratorRegistry,
   seed: number = Date.now(),
 ): Session {
-  const resolve = (refs: SlideRef[], tag: string) =>
-    refs.map((ref, idx) => resolveRef(ref, `${lesson.id}:${tag}${idx}`, seed, registry));
-
-  const guided = resolve(lesson.slides, 'g');
-  const skillCheck = resolve(lesson.skillCheck, 's');
+  // Guided and skill check are deduplicated separately: a skill-check question
+  // matching one from the lesson is the assessment doing its job, where two
+  // identical guided slides are just a wasted slide.
+  const guided = resolveDeck(lesson.slides, lesson.id, 'g', seed, registry);
+  const skillCheck = resolveDeck(lesson.skillCheck, lesson.id, 's', seed, registry);
 
   const states: Record<string, SlideState> = {};
   for (const resolved of [...guided, ...skillCheck]) {

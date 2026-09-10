@@ -62,7 +62,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-is-periodic'),
             ask('trig-is-periodic'),
-            ask('trig-is-periodic'),
+            ask('trig-cycle-count'),
             teach(
               prose(
                 'The test to apply is: does it come back to where it was, and does it take the same time every time? Both halves matter.',
@@ -88,13 +88,13 @@ export const trigonometricFunctions: Course = {
                 'This is why the period is the natural unit for anything that repeats: it converts an awkward stretch of time into a plain count.',
               ),
             ),
-            ask('trig-cycle-count'),
+            ask('trig-is-periodic'),
             ask('trig-cycle-count'),
           ],
           skillCheck: [
             ask('trig-is-periodic', 2),
             ask('trig-cycle-count', 2),
-            ask('trig-cycle-count', 2),
+            ask('trig-is-periodic', 2),
           ],
         },
         {

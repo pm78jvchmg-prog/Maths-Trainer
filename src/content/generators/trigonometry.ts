@@ -43,13 +43,28 @@ const COSINE_ANGLES: { degrees: number; twiceCosine: number }[] = [
   { degrees: 300, twiceCosine: 1 },
 ];
 
-/** Everyday quantities that genuinely repeat, for the opening lesson. */
+/**
+ * Everyday quantities that genuinely repeat, for the opening lesson.
+ *
+ * Kept long deliberately. This generator's question stem never changes, so the
+ * only thing distinguishing one draw from the next is the pair of options —
+ * with a short list the lesson reads as the same question asked five times.
+ */
 const PERIODIC: string[] = [
   'the height of a seat on a turning Ferris wheel',
   'the depth of water at a harbour wall through the tide',
   'the height of a valve on a rolling bicycle wheel',
   'the length of the day through the year',
   'the position of a swinging pendulum',
+  'the angle of a clock hand',
+  'the voltage in a mains socket',
+  'the phase of the moon',
+  'the height of a bouncing spring',
+  'the air pressure at your ear during a steady note',
+  'the position of a piston in a running engine',
+  'the brightness of a lighthouse beam from the shore',
+  'the temperature in a room with a thermostat cycling',
+  'the day of the week',
 ];
 
 /** Quantities that change but never return, used as distractors. */
@@ -58,6 +73,26 @@ const NOT_PERIODIC: string[] = [
   'the height of a child as they grow',
   'the number of people who have ever lived',
   'the reading on an electricity meter',
+  'the age of a tree',
+  'the total rainfall recorded since January',
+  'the number of words in a book you are writing',
+  'the mileage on an odometer',
+  'the balance of a savings account that only receives deposits',
+  'the amount of sand that has fallen through an hourglass',
+];
+
+/**
+ * Phrasings of the same question.
+ *
+ * The stem is otherwise fixed, and a lesson asking it three times with the
+ * identical opening line reads as a bug even when the options differ.
+ */
+const PERIODIC_STEMS: string[] = [
+  'Which of these is periodic?',
+  'Which of these repeats?',
+  'Which of these has a period?',
+  'Which of these returns to the same value again and again?',
+  'Which of these could be drawn as a repeating graph?',
 ];
 
 /**
@@ -83,6 +118,7 @@ interface PeriodicParams {
   yes: string;
   no: string;
   yesFirst: boolean;
+  stem: string;
 }
 
 /** Which of two described quantities repeats. */
@@ -92,15 +128,16 @@ const isPeriodic: Generator<PeriodicParams> = {
     yes: rng.pick(PERIODIC),
     no: rng.pick(NOT_PERIODIC),
     yesFirst: rng.chance(0.5),
+    stem: rng.pick(PERIODIC_STEMS),
   }),
-  render: ({ yes, no, yesFirst }) => {
+  render: ({ yes, no, yesFirst, stem }) => {
     const options = [
       { id: 'yes', label: yes },
       { id: 'no', label: no },
     ];
     return {
       kind: 'choice',
-      prompt: [{ kind: 'prose', text: 'Which of these is periodic?' }],
+      prompt: [{ kind: 'prose', text: stem }],
       options: yesFirst ? options : [options[1], options[0]],
       correctId: 'yes',
     };
@@ -124,8 +161,8 @@ interface PeaksParams {
 const periodFromPeaks: Generator<PeaksParams> = {
   id: 'trig-period-from-peaks',
   sample: (rng, difficulty) => ({
-    first: rng.int(1, difficulty > 1 ? 9 : 4),
-    period: rng.int(2, difficulty > 1 ? 9 : 6),
+    first: rng.int(1, difficulty > 1 ? 12 : 8),
+    period: rng.int(2, difficulty > 1 ? 11 : 8),
   }),
   render: ({ first, period }) => ({
     kind: 'expression',
@@ -161,8 +198,8 @@ interface CyclesParams {
 const cycleCount: Generator<CyclesParams> = {
   id: 'trig-cycle-count',
   sample: (rng, difficulty) => ({
-    period: rng.int(2, difficulty > 1 ? 8 : 5),
-    cycles: rng.int(3, difficulty > 1 ? 12 : 8),
+    period: rng.int(2, difficulty > 1 ? 9 : 7),
+    cycles: rng.int(3, difficulty > 1 ? 14 : 11),
   }),
   render: ({ period, cycles }) => ({
     kind: 'expression',
@@ -395,8 +432,8 @@ interface SpeedParams {
 const periodFromSpeed: Generator<SpeedParams> = {
   id: 'trig-period-from-speed',
   sample: (rng, difficulty) => ({
-    turns: rng.int(2, difficulty > 1 ? 9 : 5),
-    seconds: rng.int(1, difficulty > 1 ? 4 : 1) * rng.int(2, 6),
+    turns: rng.int(2, difficulty > 1 ? 12 : 8),
+    seconds: rng.int(1, difficulty > 1 ? 5 : 3) * rng.int(2, 7),
   }),
   render: ({ turns, seconds }) => ({
     kind: 'expression',

@@ -19,6 +19,8 @@ import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression, math } from '../../engine/expression';
 import { allGenerators, registry } from '../registry';
 import { courses } from '../courses';
+import { startSession } from '../../engine/session';
+import { levelCheckLesson } from '../types';
 import { TRIPLES } from './complexPlane';
 import type { Generator } from '../types';
 
@@ -166,6 +168,25 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
     // trade away.
   }, 60_000);
 
+  it('can ask more distinct questions than a lesson has slides', () => {
+    // The reducer re-draws a slide that duplicates one already in the deck, but
+    // it can only do that while the generator has another question left to
+    // give. A pool smaller than a lesson's appetite exhausts that budget and
+    // the duplicate reaches the learner anyway — which is how five identical
+    // questions once shipped in one lesson.
+    for (const difficulty of DIFFICULTIES) {
+      const seen = new Set<string>();
+      for (let seed = 0; seed < 600; seed += 1) {
+        const params = (generator as Generator<unknown>).sample(makeRng(seed), difficulty);
+        seen.add(JSON.stringify((generator as Generator<unknown>).render(params)));
+      }
+      // A lesson asks one generator at most ten times, and a level check
+      // twelve. Twenty-five leaves the re-draw room to work with.
+      expect(seen.size, `difficulty ${difficulty} offers only ${seen.size} questions`)
+        .toBeGreaterThanOrEqual(25);
+    }
+  });
+
   it('always offers a worked solution', () => {
     for (const { params } of cases) {
       const steps = (generator as Generator<unknown>).solution(params);
@@ -311,6 +332,63 @@ describe('course integrity', () => {
     for (const [a, b, c] of TRIPLES) {
       expect(a * a + b * b, `${a},${b},${c} is not a triple`).toBe(c * c);
     }
+  });
+
+  /**
+   * What the learner actually sees, for one seed.
+   *
+   * Compares the rendered slide rather than the generator id, because the same
+   * generator asked twice is fine when it draws different numbers and only a
+   * problem when it does not.
+   */
+  const renderedDecks = (lesson: (typeof lessons)[number], seed: number) => {
+    const session = startSession(lesson, registry, seed);
+    const shape = (deck: typeof session.guided) =>
+      deck.map((resolved) => ({ id: resolved.id, signature: JSON.stringify(resolved.slide) }));
+    // Checked separately: a skill-check question matching a guided one is the
+    // assessment doing its job, where two identical guided slides are a bug.
+    return [shape(session.guided), shape(session.skillCheck)];
+  };
+
+  /** Every deck that repeats a question, across a sweep of seeds. */
+  const duplicatesIn = (decks: (typeof lessons)[number][]) => {
+    const offenders = new Map<string, number>();
+    for (const deck of decks) {
+      for (let seed = 0; seed < 40; seed += 1) {
+        for (const rendered of renderedDecks(deck, seed)) {
+          const seen = new Set<string>();
+          for (const { signature } of rendered) {
+            if (seen.has(signature)) {
+              offenders.set(deck.id, (offenders.get(deck.id) ?? 0) + 1);
+            }
+            seen.add(signature);
+          }
+        }
+      }
+    }
+    // Sorted worst-first so a failure names the deck most worth fixing.
+    return [...offenders.entries()].sort((a, b) => b[1] - a[1]);
+  };
+
+  it('never asks the same question twice in one sitting', () => {
+    // A lesson leaning on one generator is fine — that is what practice is.
+    // Drawing the *same question* twice is not: it reads as a bug, and it
+    // wastes one of the ten slides a lesson gets. Reported across every
+    // lesson at once, because fixing these one failure at a time is slow.
+    const offenders = duplicatesIn(lessons);
+    expect(
+      offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
+    ).toBe('');
+  });
+
+  it('never repeats a question inside a level check', () => {
+    const checks = courses.flatMap((course) =>
+      course.levels.map(levelCheckLesson).filter((l) => l !== undefined),
+    );
+    const offenders = duplicatesIn(checks);
+    expect(
+      offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
+    ).toBe('');
   });
 
   it('uses unique lesson ids', () => {

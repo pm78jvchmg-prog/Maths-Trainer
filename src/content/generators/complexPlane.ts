@@ -91,7 +91,11 @@ export const plotPoint: Generator<PointParams> = {
  */
 export const TRIPLES: [number, number, number][] = [
   [3, 4, 5], [4, 3, 5], [6, 8, 10], [8, 6, 10], [5, 12, 13], [12, 5, 13],
-  [8, 15, 17], [15, 8, 17], [7, 24, 25], [9, 12, 15], [20, 21, 29],
+  [8, 15, 17], [15, 8, 17], [7, 24, 25], [24, 7, 25], [9, 12, 15], [12, 9, 15],
+  [20, 21, 29], [21, 20, 29], [10, 24, 26], [24, 10, 26], [12, 16, 20],
+  [16, 12, 20], [15, 20, 25], [20, 15, 25], [9, 40, 41], [40, 9, 41],
+  [16, 30, 34], [30, 16, 34], [18, 24, 30], [24, 18, 30], [12, 35, 37],
+  [35, 12, 37], [11, 60, 61], [28, 45, 53],
 ];
 
 interface ModulusParams { a: number; b: number; hypotenuse: number }
@@ -153,7 +157,7 @@ export const argument: Generator<ArgParams> = {
   sample: (rng, difficulty) => ({
     index: rng.int(0, ANGLES.length - 1),
     // Scaling changes the number without changing the angle, which is the point.
-    scale: difficulty >= 2 ? rng.int(1, 4) : 1,
+    scale: difficulty >= 2 ? rng.int(1, 8) : rng.int(1, 5),
   }),
   render: ({ index, scale }) => {
     const angle = ANGLES[index];
@@ -198,10 +202,11 @@ export const complexPower: Generator<PowerParams> = {
   sample: (rng, difficulty) => {
     // Bases whose powers stay small enough to type comfortably.
     const base = rng.pick([
-      { re: 1, im: 1 }, { re: 1, im: -1 }, { re: -1, im: 1 },
-      { re: 2, im: 0 }, { re: 0, im: 2 }, { re: 1, im: 0 },
+      { re: 1, im: 1 }, { re: 1, im: -1 }, { re: -1, im: 1 }, { re: -1, im: -1 },
+      { re: 2, im: 0 }, { re: 0, im: 2 }, { re: 1, im: 0 }, { re: 0, im: 1 },
+      { re: -2, im: 0 }, { re: 0, im: -2 }, { re: -1, im: 0 }, { re: 3, im: 0 },
     ]);
-    return { ...base, n: rng.int(2, difficulty >= 2 ? 6 : 4) };
+    return { ...base, n: rng.int(2, difficulty >= 2 ? 7 : 5) };
   },
   render: ({ re, im, n }) => {
     // Repeated multiplication, exact for these integer bases.

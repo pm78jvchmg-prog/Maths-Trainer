@@ -27,9 +27,9 @@ interface PowerParams { coefficient: number; power: number }
 export const powerRule: Generator<PowerParams> = {
   id: 'power-rule',
   sample: (rng, difficulty) => ({
-    coefficient: rng.int(2, difficulty >= 2 ? 9 : 5),
+    coefficient: rng.int(2, difficulty >= 2 ? 12 : 9),
     // Difficulty 2 admits negative powers, where the exponent gets more negative.
-    power: difficulty >= 2 ? rng.pick([-3, -2, 4, 5, 6]) : rng.int(2, 4),
+    power: difficulty >= 2 ? rng.pick([-4, -3, -2, 4, 5, 6, 7]) : rng.int(2, 7),
   }),
   render: ({ coefficient, power }) => ({
     kind: 'expression',
@@ -171,8 +171,8 @@ export const trigDerivative: Generator<TrigParams> = {
     // Level 2 is harder in structure, not size: a coefficient outside and a
     // constant inside, so the learner must separate the two multipliers and
     // notice the constant contributes nothing to du/dx.
-    outer: difficulty >= 2 ? rng.int(2, 6) : 1,
-    inner: difficulty >= 2 ? rng.int(2, 5) : rng.int(2, 6),
+    outer: difficulty >= 2 ? rng.int(2, 8) : rng.int(1, 4),
+    inner: difficulty >= 2 ? rng.int(2, 7) : rng.int(2, 9),
     shift: difficulty >= 2 ? rng.sign() * rng.int(1, 6) : 0,
   }),
   render: ({ fn, outer, inner, shift }) => {
@@ -433,8 +433,8 @@ export const expLogDerivative: Generator<ExpLogParams> = {
     form: difficulty >= 2
       ? rng.pick(['exp', 'lnScaled', 'lnInner'] as const)
       : rng.pick(['exp', 'lnScaled'] as const),
-    a: difficulty >= 2 ? rng.int(2, 6) : 1,
-    k: difficulty >= 2 ? rng.int(2, 5) : rng.int(1, 3),
+    a: difficulty >= 2 ? rng.int(2, 9) : rng.int(1, 4),
+    k: difficulty >= 2 ? rng.int(2, 8) : rng.int(1, 6),
   }),
   render: ({ form, a, k }) => {
     const outer = a === 1 ? '' : `${a}`;

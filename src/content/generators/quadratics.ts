@@ -713,6 +713,51 @@ const lineOfSymmetry: Generator<SymmetryParams> = {
   ],
 };
 
+/**
+ * The line of symmetry, found by dragging rather than by writing.
+ *
+ * Same sampling as `quad-symmetry` at difficulty 1, so the axis is always a
+ * whole number in range — a slider whose answer sits between two steps is
+ * unanswerable, not hard.
+ *
+ * The point of the shape is that it asks a different question from its typed
+ * sibling. `quad-symmetry` asks the learner to evaluate -b/2a; this asks them
+ * to say where the line *is*, which is the thing the formula is for and the
+ * thing a learner who has only memorised the formula cannot do.
+ */
+const symmetrySlider: Generator<FormulaParams> = {
+  id: 'quad-symmetry-slider',
+  sample: (rng) => ({
+    a: 1,
+    b: 2 * nonZero(rng.int(-4, 4), 3),
+    c: nonZero(rng.int(-9, 9), -2),
+  }),
+  render: ({ a, b, c }): Slide => ({
+    kind: 'slider',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Slide to the line of symmetry of $y = ${quadraticTex(a, b, c)}$.`,
+      },
+    ],
+    min: -5,
+    max: 5,
+    step: 1,
+    answer: -b / (2 * a),
+    readout: 'x = {v}',
+  }),
+  solution: ({ a, b }) => [
+    {
+      text: 'The line of symmetry runs vertically through the turning point, and its position depends only on $a$ and $b$ — moving $c$ slides the whole curve up or down without moving the line.',
+    },
+    { tex: 'x = -\\frac{b}{2a}' },
+    { tex: `x = -\\frac{${b}}{2 \\times ${a}} = ${-b / (2 * a)}` },
+    {
+      text: `Here $b = ${b}$, so the line sits at $x = ${-b / (2 * a)}$. A negative $b$ puts it on the positive side, which is the sign slip to watch for.`,
+    },
+  ],
+};
+
 /** Building a quadratic from its roots. */
 const fromRoots: Generator<RootParams> = {
   id: 'quad-from-roots',
@@ -763,5 +808,6 @@ export const quadraticsGenerators = [
   rootCount,
   turningPoint,
   lineOfSymmetry,
+  symmetrySlider,
   fromRoots,
 ] as unknown as Generator<unknown>[];

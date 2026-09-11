@@ -514,7 +514,7 @@ export const quadratics: Course = {
                 'The sign of $b$ goes into the formula attached to the term. A negative $b$ gives a positive line of symmetry, and that double negative is where this goes wrong.',
               ),
             ),
-            ask('quad-symmetry'),
+            ask('quad-symmetry-slider'),
             ask('quad-symmetry'),
             ask('quad-symmetry+choice'),
             teach(
@@ -529,7 +529,7 @@ export const quadratics: Course = {
                 'It works in the other direction too: one root plus the line of symmetry gives the other root immediately, with no factorising at all.',
               ),
             ),
-            ask('quad-symmetry'),
+            ask('quad-symmetry-slider'),
             ask('quad-symmetry'),
             teach(
               prose(

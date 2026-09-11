@@ -460,6 +460,57 @@ export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
   );
 }
 
+/* ---------- Slider ---------- */
+
+/**
+ * Drag to a value.
+ *
+ * The readout sits above the track rather than beside the handle: a value that
+ * moves with the thumb is unreadable on a phone at the moment it matters, when
+ * a thumb is covering it.
+ *
+ * There is no "nothing chosen yet" state. A range input always has a position,
+ * so pretending otherwise would mean drawing a handle somewhere and claiming it
+ * means nothing. The midpoint is seeded as the answer instead, which makes
+ * *Check* live immediately — correct for a widget whose whole gesture is
+ * adjustment rather than entry.
+ */
+export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
+  if (slide.kind !== 'slider') return null;
+  const locked = isLocked(feedback, canEdit);
+  const value =
+    typeof answer === 'string' && answer !== '' ? Number(answer) : (slide.min + slide.max) / 2;
+
+  return (
+    <>
+      <div className="prompt">
+        <Blocks blocks={slide.prompt} />
+      </div>
+
+      <div className={frameClass(feedback)}>
+        <Tex tex={slide.readout.replace('{v}', String(value))} />
+      </div>
+
+      <input
+        type="range"
+        className="slider-input"
+        min={slide.min}
+        max={slide.max}
+        step={slide.step}
+        value={value}
+        disabled={locked}
+        aria-label="Choose a value"
+        onChange={(event) => onAnswer(event.target.value)}
+      />
+
+      <div className="slider-scale">
+        <span>{slide.min}</span>
+        <span>{slide.max}</span>
+      </div>
+    </>
+  );
+}
+
 /* ---------- Dispatcher ---------- */
 
 export function SlideView(props: SlideProps) {
@@ -474,6 +525,11 @@ export function SlideView(props: SlideProps) {
       onAnswer(Array.from({ length: slide.nodes.length }, () => ''));
     } else if (slide.kind === 'steps') {
       onAnswer([]);
+    } else if (slide.kind === 'slider') {
+      // A range input has a position whether or not anyone has touched it, so
+      // the session is told where the handle actually is rather than left
+      // holding '' while the learner looks at a handle sitting mid-track.
+      onAnswer(String((slide.min + slide.max) / 2));
     } else {
       onAnswer('');
     }
@@ -495,6 +551,8 @@ export function SlideView(props: SlideProps) {
       return <StepsSlide {...props} />;
     case 'tree':
       return <TreeSlide {...props} />;
+    case 'slider':
+      return <SliderSlide {...props} />;
   }
 }
 

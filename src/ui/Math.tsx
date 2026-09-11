@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '../content/types';
+import { Traversal } from './figures';
 
 function render(tex: string, displayMode: boolean, trust: boolean): string {
   try {
@@ -73,6 +74,16 @@ export function Blocks({ blocks }: { blocks: Block[] }) {
               key={idx}
               className="diagram"
               dangerouslySetInnerHTML={{ __html: block.svg }}
+            />
+          );
+        }
+        if (block.kind === 'traversal') {
+          return (
+            <Traversal
+              key={idx}
+              svg={block.svg}
+              pathId={block.pathId}
+              durationMs={block.durationMs}
             />
           );
         }

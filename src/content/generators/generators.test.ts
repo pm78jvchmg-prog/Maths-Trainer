@@ -84,6 +84,18 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         ).toBeGreaterThanOrEqual(1);
       }
 
+      if (slide.kind === 'slider') {
+        // A slider whose answer sits between two steps cannot be reached by
+        // dragging, so it is unanswerable rather than hard.
+        expect(slide.min).toBeLessThan(slide.max);
+        expect(slide.step).toBeGreaterThan(0);
+        expect(slide.answer).toBeGreaterThanOrEqual(slide.min);
+        expect(slide.answer).toBeLessThanOrEqual(slide.max);
+        const steps = (slide.answer - slide.min) / slide.step;
+        expect(Math.abs(steps - Math.round(steps)), `answer ${slide.answer} is off-step`).toBeLessThan(1e-9);
+        expect(slide.readout).toContain('{v}');
+      }
+
       if (slide.kind === 'plot') {
         expect(Number.isInteger(slide.answer.re)).toBe(true);
         expect(Number.isInteger(slide.answer.im)).toBe(true);
@@ -452,6 +464,29 @@ describe('course integrity', () => {
         expect(level.levelCheck.length, `${course.id}/${level.id}`).toBeLessThanOrEqual(15);
       }
     }
+  });
+
+  it('gives every traversal figure a path and a dot its animation can find', () => {
+    // The dot is placed by querying these ids out of the rendered SVG. A typo
+    // in either degrades silently to a still frame, which looks like a figure
+    // that simply does not move — the hardest kind of fault to notice.
+    let checked = 0;
+    for (const lesson of lessons) {
+      for (const ref of lesson.slides) {
+        if (ref.type !== 'literal' || ref.slide.kind !== 'teach') continue;
+        for (const block of ref.slide.body) {
+          if (block.kind !== 'traversal') continue;
+          checked += 1;
+          expect(block.svg, `${lesson.id}: no path #${block.pathId}`).toContain(
+            `id="${block.pathId}"`,
+          );
+          expect(block.svg, `${lesson.id}: no traversal dot`).toContain('id="traversal-dot"');
+          expect(block.durationMs, `${lesson.id}: duration`).toBeGreaterThan(0);
+        }
+      }
+    }
+    // Otherwise this passes loudly while checking nothing.
+    expect(checked, 'no traversal figures found to check').toBeGreaterThan(0);
   });
 
   it('opens each lesson by teaching before asking', () => {

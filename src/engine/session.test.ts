@@ -522,3 +522,73 @@ describe('a level check is an assessment, not a lesson', () => {
     expect(reduce(wrong, { type: 'continue' })).toBe(wrong);
   });
 });
+
+/**
+ * The slider.
+ *
+ * Its answer is a number the learner lands on rather than one they write, so
+ * the grading question is what counts as landing on it. The handle cannot stop
+ * between steps, so half a step accepts the step the learner actually reached
+ * and nothing beyond it.
+ */
+describe('slider grading', () => {
+  const sliderSlide = {
+    kind: 'slider' as const,
+    prompt: [{ kind: 'prose' as const, text: 'Slide to the line of symmetry.' }],
+    min: -5,
+    max: 5,
+    step: 1,
+    answer: 4,
+    readout: 'x = {v}',
+  };
+
+  const sliderLesson: Lesson = {
+    id: 'slider-demo',
+    title: 'Slider',
+    slides: [],
+    skillCheck: [{ type: 'literal', slide: sliderSlide }],
+  };
+
+  const sealedLesson: Lesson = { ...sliderLesson, id: 'slider-sealed', assessment: true };
+
+  const answerWith = (value: string, lesson: Lesson = sliderLesson) =>
+    reduce(startSession(lesson, registry, SEED), { type: 'submit', answer: value });
+
+  it('accepts the value under the handle', () => {
+    expect(answerWith('4').feedback.kind).toBe('correct');
+  });
+
+  it('rejects a different step', () => {
+    expect(answerWith('6').feedback.kind).toBe('incorrect');
+    expect(answerWith('-4').feedback.kind).toBe('incorrect');
+  });
+
+  it('allows half a step of float drift', () => {
+    // A range input reports its value as a string and can hand back 4.4 for a
+    // handle the learner sees sitting on 4.
+    expect(answerWith('4.4').feedback.kind).toBe('correct');
+    expect(answerWith('4.6').feedback.kind).toBe('incorrect');
+  });
+
+  it('treats anything that did not come from the input as wrong', () => {
+    expect(answerWith('').feedback.kind).toBe('incorrect');
+    expect(answerWith('four').feedback.kind).toBe('incorrect');
+  });
+
+  it('honours an explicit tolerance', () => {
+    const loose: Lesson = {
+      ...sliderLesson,
+      id: 'slider-loose',
+      skillCheck: [{ type: 'literal', slide: { ...sliderSlide, tolerance: 2 } }],
+    };
+    expect(answerWith('6', loose).feedback.kind).toBe('correct');
+    expect(answerWith('7', loose).feedback.kind).toBe('incorrect');
+  });
+
+  it('refuses a second attempt inside an assessment', () => {
+    const wrong = answerWith('6', sealedLesson);
+    expect(wrong.feedback.kind).toBe('incorrect');
+    expect(canRetry(wrong)).toBe(false);
+    expect(reduce(wrong, { type: 'tryAgain' })).toBe(wrong);
+  });
+});

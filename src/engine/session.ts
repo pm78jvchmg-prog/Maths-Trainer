@@ -317,6 +317,19 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
         : { kind: 'incorrect' };
     }
 
+    case 'slider': {
+      // The range input hands back a string; anything else did not come from it.
+      if (typeof answer !== 'string') return { kind: 'incorrect' };
+      const value = Number(answer);
+      if (!Number.isFinite(value)) return { kind: 'incorrect' };
+      // Half a step by default: the handle cannot stop between steps, so this
+      // accepts the step the learner actually landed on and nothing further.
+      const tolerance = slide.tolerance ?? slide.step / 2;
+      return Math.abs(value - slide.answer) <= tolerance
+        ? { kind: 'correct' }
+        : { kind: 'incorrect' };
+    }
+
     case 'tiles': {
       // Tiles always arrive as an array of tokens; anything else is not an answer.
       if (!Array.isArray(answer)) return { kind: 'incorrect' };

@@ -33,6 +33,66 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/**
+ * One cycle of a sine wave, as an SVG the traversal block animates.
+ *
+ * Sampled rather than drawn with Bezier arcs because the dot follows the path
+ * with `getPointAtLength`, and a sampled polyline is exactly as long as the
+ * curve it draws — an approximating arc would put the dot slightly off the
+ * line it is supposed to be tracing.
+ *
+ * The dot starts at the left-hand end so the still frame, which is what a
+ * browser refusing to animate shows, is the beginning of the story rather than
+ * a point stranded in the middle of it.
+ */
+function periodicTraversalSvg(): string {
+  const width = 260;
+  const height = 120;
+  const midline = height / 2;
+  const amplitude = 40;
+  const samples = 120;
+  // The curve is inset by the dot's radius at both ends, or the dot is cut in
+  // half by the viewBox edge exactly when it arrives — at the end of the
+  // journey the figure exists to show.
+  const inset = 7;
+  const span = width - inset * 2;
+
+  const points = Array.from({ length: samples + 1 }, (_, i) => {
+    const x = inset + (i / samples) * span;
+    const y = midline - amplitude * Math.sin((i / samples) * 2 * Math.PI);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+
+  return [
+    `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="One cycle of a repeating quantity">`,
+    `<line x1="0" y1="${midline}" x2="${width}" y2="${midline}" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity="0.5" />`,
+    `<line id="traversal-drop" class="traversal-drop" x1="${inset}" y1="${midline}" x2="${inset}" y2="${midline}" stroke-width="1" />`,
+    `<path id="tf-periodic-path" fill="none" stroke="currentColor" stroke-width="1.5" d="M ${points.join(' L ')}" />`,
+    `<circle id="traversal-dot" class="traversal-dot" r="5" cx="${inset}" cy="${midline}" />`,
+    `</svg>`,
+  ].join('');
+}
+
+/** The figure as a teaching slide. The local `teach` helper takes only prose and display. */
+const periodicFigure: SlideRef = {
+  type: 'literal',
+  slide: {
+    kind: 'teach',
+    body: [
+      {
+        kind: 'prose',
+        text: 'Watch one full cycle. The height rises, falls, and returns to exactly where it started — and the next cycle will take just as long as this one. Press Replay to watch it again.',
+      },
+      {
+        kind: 'traversal',
+        svg: periodicTraversalSvg(),
+        pathId: 'tf-periodic-path',
+        durationMs: 2600,
+      },
+    ],
+  },
+};
+
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
@@ -60,6 +120,7 @@ export const trigonometricFunctions: Course = {
                 'That is a stronger condition than simply going up and down. A share price rises and falls, but it never repeats on a fixed interval, so it has no period.',
               ),
             ),
+            periodicFigure,
             ask('trig-is-periodic'),
             ask('trig-is-periodic'),
             ask('trig-cycle-count'),

@@ -11,7 +11,7 @@
  * one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { parabolaSvg, type ParabolaOptions } from '../generators/quadratics';
+import { parabolaSvg } from '../figures';
 
 type TeachBlock = Block;
 
@@ -36,7 +36,12 @@ const prose = (text: string): Block => ({ kind: 'prose', text });
  * vertical axis — and described a picture that was never drawn. Words about a
  * graph are not a graph.
  */
-const graph = (a: number, b: number, c: number, opts: ParabolaOptions): Block => ({
+const graph = (
+  a: number,
+  b: number,
+  c: number,
+  opts: Parameters<typeof parabolaSvg>[3],
+): Block => ({
   kind: 'diagram',
   svg: parabolaSvg(a, b, c, opts),
 });
@@ -512,7 +517,7 @@ export const quadratics: Course = {
               ),
               // y = x^2 - 4x + 1, turning point at x = 2. Fold the picture along
               // the dashed line and the two halves land on each other.
-              graph(1, -4, 1, { xMin: -2, xMax: 6, axis: 2, marks: [{ x: 2, y: -3 }] }),
+              graph(1, -4, 1, { xMin: -2, xMax: 6, verticals: [{ x: 2 }], marks: [{ x: 2, y: -3 }] }),
               prose(
                 'Fold the picture along that line and the two halves land exactly on top of each other. Everything else about the curve follows from where the line is.',
               ),
@@ -539,7 +544,7 @@ export const quadratics: Course = {
               graph(1, -8, 7, {
                 xMin: -1,
                 xMax: 9,
-                axis: 4,
+                verticals: [{ x: 4 }],
                 marks: [
                   { x: 1, y: 0 },
                   { x: 7, y: 0 },

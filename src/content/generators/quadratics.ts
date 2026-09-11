@@ -21,6 +21,7 @@
  * Hence `x^2` and plain parentheses. Both forms render identically.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS } from './calculus';
 
@@ -712,88 +713,6 @@ const lineOfSymmetry: Generator<SymmetryParams> = {
     },
   ],
 };
-
-/* ---------- drawing a parabola ---------- */
-
-export interface ParabolaOptions {
-  /** Horizontal span the drawing covers. */
-  xMin: number;
-  xMax: number;
-  /** Points to ring on the curve — roots, an intercept, a turning point. */
-  marks?: { x: number; y: number }[];
-  /** A dashed vertical line, for a line of symmetry the slide is explaining. */
-  axis?: number;
-}
-
-/**
- * The curve y = ax^2 + bx + c, drawn to fit whatever it does over the window.
- *
- * The vertical scale is computed from the sampled curve rather than fixed,
- * because these coefficients put the vertex anywhere from y = 9 to y = -25 and
- * a fixed scale would either flatten the shallow ones into a straight line or
- * push the deep ones off the bottom of the picture.
- *
- * Only the x-axis is drawn. A y-axis and a grid would be four more things to
- * read on a phone, and every question this serves is about a position along the
- * bottom — the curve's shape and where it sits left to right is the whole
- * content of the picture.
- */
-export function parabolaSvg(a: number, b: number, c: number, opts: ParabolaOptions): string {
-  const { xMin, xMax, marks = [], axis } = opts;
-  const width = 280;
-  const height = 150;
-  const pad = 10;
-  const samples = 160;
-
-  const at = (x: number) => a * x * x + b * x + c;
-
-  // The vertical window is built around the vertex, not around what the curve
-  // does across the whole x range. y = x^2 - 6x + 4 reaches 59 at x = -5, and
-  // scaling to fit that flattens the vertex — the one feature every question
-  // here is about — into the bottom edge. The arms are allowed to run off the
-  // top instead; the viewBox clips them, and a parabola leaving the picture
-  // still reads as a parabola.
-  const vertexX = -b / (2 * a);
-  const vertexY = at(vertexX);
-  // Roughly three units of curve either side of the vertex, which is what makes
-  // the drawn arc look like the shape rather than like a corner or a line.
-  const reach = Math.abs(a) * 9;
-  const lo = Math.min(0, vertexY, a > 0 ? vertexY : vertexY - reach) - Math.abs(a);
-  const hi = Math.max(0, vertexY, a > 0 ? vertexY + reach : vertexY) + Math.abs(a);
-  const span = hi - lo || 1;
-
-  const px = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * (width - pad * 2);
-  const py = (y: number) => pad + ((hi - y) / span) * (height - pad * 2);
-
-  const points = Array.from({ length: samples + 1 }, (_, i) => {
-    const x = xMin + ((xMax - xMin) * i) / samples;
-    return `${px(x).toFixed(1)},${py(at(x)).toFixed(1)}`;
-  });
-
-  const parts = [
-    `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="The curve y = ${quadraticTex(a, b, c)}">`,
-    `<line x1="${pad}" y1="${py(0).toFixed(1)}" x2="${width - pad}" y2="${py(0).toFixed(1)}" stroke="currentColor" stroke-width="1" opacity="0.5" />`,
-  ];
-
-  if (axis !== undefined) {
-    parts.push(
-      `<line x1="${px(axis).toFixed(1)}" y1="${pad}" x2="${px(axis).toFixed(1)}" y2="${height - pad}" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />`,
-    );
-  }
-
-  parts.push(
-    `<path fill="none" stroke="currentColor" stroke-width="2" d="M ${points.join(' L ')}" />`,
-  );
-
-  for (const mark of marks) {
-    parts.push(
-      `<circle cx="${px(mark.x).toFixed(1)}" cy="${py(mark.y).toFixed(1)}" r="4" fill="currentColor" />`,
-    );
-  }
-
-  parts.push('</svg>');
-  return parts.join('');
-}
 
 /**
  * The line of symmetry, found by dragging rather than by writing.

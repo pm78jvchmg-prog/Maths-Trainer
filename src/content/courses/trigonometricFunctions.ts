@@ -11,20 +11,12 @@
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { plotSvg, wave } from '../figures';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
@@ -93,8 +85,26 @@ const periodicFigure: SlideRef = {
   },
 };
 
-const prose = (text: string) => ({ kind: 'prose' as const, text });
-const maths = (tex: string) => ({ kind: 'display' as const, tex });
+const prose = (text: string): Block => ({ kind: 'prose', text });
+const maths = (tex: string): Block => ({ kind: 'display', tex });
+
+/**
+ * The wave a slide is talking about.
+ *
+ * This course teaches reading a graph — period, shift, midline, amplitude —
+ * and described every one of those in words alone. A sentence about where the
+ * peaks sit is not a picture of peaks.
+ *
+ * Defaults suit the level-1 lessons: one quantity oscillating about a midline,
+ * drawn over about two cycles so "the next time it happens" is visible in the
+ * same frame as the first time.
+ */
+const graph = (
+  opts: Omit<Parameters<typeof plotSvg>[0], 'label'> & { label?: string },
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({ label: 'A repeating quantity', ...opts }),
+});
 
 export const trigonometricFunctions: Course = {
   id: 'trigonometric-functions',
@@ -169,6 +179,19 @@ export const trigonometricFunctions: Course = {
               prose(
                 'Peaks are the easiest feature to spot. If consecutive peaks sit at $t = 2$ and $t = 9$, the period is $9 - 2 = 7$.',
               ),
+              // Peak at t = 2, period 7, so the next peak is at t = 9 — the two
+              // ringed points are the two the sentence above names.
+              graph({
+                xMin: -1,
+                xMax: 17,
+                curves: [{ f: wave(0, 1, 7, 0.25) }],
+                marks: [
+                  { x: 2, y: 1 },
+                  { x: 9, y: 1 },
+                ],
+                verticals: [{ x: 2 }, { x: 9 }],
+                label: 'A wave with consecutive peaks at t = 2 and t = 9',
+              }),
               maths('\\text{period} = t_{\\text{next peak}} - t_{\\text{this peak}}'),
               prose(
                 'They must be *consecutive*. Two peaks with another peak between them are two periods apart, not one.',
@@ -183,6 +206,22 @@ export const trigonometricFunctions: Course = {
               ),
               prose(
                 'Two troughs work. So do two consecutive upward crossings of the midline. What does *not* work is pairing an upward crossing with a downward one — the curve is at the same height, but it is going the other way, so that is only half a period.',
+              ),
+              // The two hollow rings are an upward and a downward crossing: the
+              // same height, half a period apart, which is the trap.
+              graph({
+                xMin: -1,
+                xMax: 17,
+                curves: [{ f: wave(0, 1, 7, 0.25) }],
+                marks: [
+                  { x: 0.25, y: 0, hollow: true },
+                  { x: 3.75, y: 0, hollow: true },
+                  { x: 7.25, y: 0 },
+                ],
+                label: 'Upward and downward crossings of the midline half a period apart',
+              }),
+              prose(
+                'The filled ring is the next *upward* crossing, a full period from the first. The hollow one between them is the downward crossing at the same height — half a period, and the wrong pair to measure.',
               ),
               prose(
                 'This is the most common error in reading a period off a graph, and it gives an answer exactly half the true one.',
@@ -217,6 +256,24 @@ export const trigonometricFunctions: Course = {
                 'Replacing $t$ with $t - c$ inside a function slides its graph sideways, without changing its shape at all.',
               ),
               maths('y = f(t) \\quad \\longrightarrow \\quad y = f(t - 3)'),
+              // The dashed curve is the original, the solid one is it shifted
+              // right by 3. Same shape, same height, different starting place.
+              graph({
+                xMin: -1,
+                xMax: 15,
+                curves: [
+                  { f: wave(0, 1, 6, 0), dashed: true },
+                  { f: wave(0, 1, 6, 3), accent: true },
+                ],
+                marks: [
+                  { x: 1.5, y: 1, hollow: true },
+                  { x: 4.5, y: 1 },
+                ],
+                label: 'A wave and the same wave shifted three to the right',
+              }),
+              prose(
+                'The dashed curve is the original and the solid one is $f(t - 3)$. The peak that was at $1.5$ now arrives at $4.5$ — the shape has not changed at all, only when it happens.',
+              ),
               prose(
                 'Subtracting shifts right. That reads backwards to most people the first time, and it is worth being clear about why.',
               ),
@@ -267,6 +324,23 @@ export const trigonometricFunctions: Course = {
               prose(
                 'If the tide runs between $9$ m and $3$ m, the midline is $\\frac{9 + 3}{2} = 6$ m.',
               ),
+              // The tide itself: max 9, min 3, so midline 6 and amplitude 3.
+              graph({
+                xMin: 0,
+                xMax: 26,
+                curves: [{ f: wave(6, 3, 12, 3) }],
+                horizontals: [6],
+                marks: [
+                  { x: 6, y: 9 },
+                  { x: 12, y: 3 },
+                ],
+                yMin: 0,
+                yMax: 11,
+                label: 'A tide between 9 and 3 metres, with its midline at 6',
+              }),
+              prose(
+                'The dashed line is the midline. The curve spends as long above it as below, and the two ringed points are the highest and lowest the tide reaches.',
+              ),
             ),
             ask('trig-midline'),
             ask('trig-midline'),
@@ -316,6 +390,25 @@ export const trigonometricFunctions: Course = {
               maths('\\text{amplitude} = \\frac{\\text{max} - \\text{min}}{2}'),
               prose(
                 'For a tide between $9$ m and $3$ m, the full swing is $6$ m and the amplitude is $3$ m.',
+              ),
+              // The same tide as the midline lesson, so the two slides describe
+              // one quantity rather than two unrelated examples.
+              graph({
+                xMin: 0,
+                xMax: 26,
+                curves: [{ f: wave(6, 3, 12, 3) }],
+                horizontals: [6],
+                marks: [
+                  { x: 6, y: 9 },
+                  { x: 6, y: 6 },
+                  { x: 12, y: 3 },
+                ],
+                yMin: 0,
+                yMax: 11,
+                label: 'A tide swinging three metres either side of a midline at six',
+              }),
+              prose(
+                'The amplitude is the gap from the dashed midline up to the peak — from $6$ to $9$, so $3$. The gap from trough to peak, $3$ up to $9$, is twice that.',
               ),
               prose(
                 'Giving the full swing instead of half of it is by far the most common mistake here. Amplitude is measured from the middle, not from the bottom.',
@@ -560,6 +653,23 @@ export const trigonometricFunctions: Course = {
                 'Everything from Level 1 now attaches to a formula. In $y = a\\sin(t) + d$, the $a$ is the amplitude and the $d$ is the midline.',
               ),
               maths('y = a\\sin(t) + d'),
+              // sin(t) dashed against y = 2sin(t) + 3, so a and d are visible
+              // as the stretch and the lift rather than as two letters.
+              graph({
+                xMin: 0,
+                xMax: 13,
+                curves: [
+                  { f: wave(0, 1, 2 * Math.PI, 0), dashed: true },
+                  { f: wave(3, 2, 2 * Math.PI, 0), accent: true },
+                ],
+                horizontals: [3],
+                yMin: -2,
+                yMax: 6,
+                label: 'sin t dashed, and 2 sin t + 3 stretched and lifted above it',
+              }),
+              prose(
+                'The dashed curve is $\\sin(t)$ and the solid one is $2\\sin(t) + 3$. The $2$ stretched it to twice the height; the $3$ lifted the whole thing so it now swings about the dashed line at $3$ instead of about zero.',
+              ),
               prose(
                 'Since $\\sin(t)$ runs between $-1$ and $1$, multiplying by $a$ makes it run between $-a$ and $a$, and adding $d$ lifts that to between $d - a$ and $d + a$.',
               ),

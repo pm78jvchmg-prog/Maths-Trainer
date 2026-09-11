@@ -1069,3 +1069,13 @@ button {
   background: var(--accent);
   pointer-events: none;
 }
+
+/* Plotted figures: the shaded region and an emphasised curve. */
+.plot-shade {
+  fill: var(--accent);
+  opacity: 0.18;
+}
+
+.plot-accent {
+  color: var(--accent);
+}

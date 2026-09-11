@@ -198,7 +198,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-period-from-peaks'),
-            ask('trig-period-from-peaks'),
+            ask('trig-read-graph'),
             ask('trig-period-from-peaks+choice'),
             teach(
               prose(
@@ -343,7 +343,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-midline'),
-            ask('trig-midline'),
+            ask('trig-read-graph'),
             ask('trig-midline+choice'),
             teach(
               prose(
@@ -415,7 +415,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-amplitude'),
-            ask('trig-amplitude'),
+            ask('trig-read-graph'),
             ask('trig-amplitude+choice'),
             teach(
               prose(

@@ -16,6 +16,7 @@
 import type { Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
+import { plotSvg, wave } from '../figures';
 
 /** Plain number entry. The base keypad already supplies digits and signs. */
 const NUMBER_KEYS: KeypadKey[] = [{ insert: '.' }, { insert: '/' }];
@@ -666,6 +667,137 @@ const evaluateWave: Generator<EvaluateParams> = {
   ],
 };
 
+
+interface WaveSliderParams {
+  midline: number;
+  amplitude: number;
+  period: number;
+  shift: number;
+  /** Which feature of the wave the question is about. */
+  asks: 'period' | 'amplitude' | 'midline';
+}
+
+/**
+ * Read a feature off a drawn wave by dragging to it.
+ *
+ * Every other question in this course describes a wave in words and asks for a
+ * number. This draws the wave and asks *where* — which is the thing the words
+ * were describing all along, and a different skill from arithmetic on two peak
+ * times. A learner who has memorised "period is the gap between peaks" still
+ * has to find the peaks.
+ *
+ * The marker tracks the handle across the same figure the teaching slides use,
+ * so the answer is checked against the picture rather than against a formula.
+ */
+const waveSlider: Generator<WaveSliderParams> = {
+  id: 'trig-read-graph',
+  sample: (rng, difficulty) => ({
+    midline: rng.int(difficulty > 1 ? -4 : 0, difficulty > 1 ? 6 : 5),
+    amplitude: rng.int(1, difficulty > 1 ? 5 : 4),
+    period: rng.int(2, difficulty > 1 ? 10 : 8),
+    shift: rng.int(0, difficulty > 1 ? 4 : 2),
+    asks: rng.pick(['period', 'amplitude', 'midline'] as const),
+  }),
+  render: ({ midline, amplitude, period, shift, asks }): Slide => {
+    const f = wave(midline, amplitude, period, shift);
+    // Two and a bit cycles, so "the next time it happens" is on screen with the
+    // first time — which is what makes a period readable at all.
+    const xMax = Math.max(period * 2.2, 8);
+    const top = midline + amplitude;
+    const bottom = midline - amplitude;
+
+    const svg = plotSvg({
+      xMin: 0,
+      xMax,
+      curves: [{ f }],
+      horizontals: asks === 'midline' ? [] : [midline],
+      yMin: bottom - 1.5,
+      yMax: top + 1.5,
+      label: 'A repeating quantity',
+      marks:
+        asks === 'period'
+          ? [
+              { x: shift + period / 4, y: top },
+              { x: shift + period / 4 + period, y: top },
+            ]
+          : asks === 'amplitude'
+            ? [{ x: shift + period / 4, y: top }]
+            : [],
+    });
+
+    const answer = asks === 'period' ? period : asks === 'amplitude' ? amplitude : midline;
+    // Where the marker measures from, so that dragging to the answer lands it
+    // on the feature rather than at an arbitrary point on the axis.
+    const firstPeak = shift + period / 4;
+    const yLow = bottom - 1.5;
+    const yHigh = top + 1.5;
+    const prompt =
+      asks === 'period'
+        ? 'The two ringed points are consecutive peaks. Slide to the **period** of this wave.'
+        : asks === 'amplitude'
+          ? 'The dashed line is the midline and the ringed point is a peak. Slide to the **amplitude**.'
+          : 'Slide to the **midline** of this wave — the level it swings evenly either side of.';
+
+    // The slider spans what the question could sensibly be, not what it is: a
+    // range that stopped at the answer would give it away at the end stop.
+    const min = asks === 'midline' ? -6 : 0;
+    const max = asks === 'period' ? 12 : asks === 'amplitude' ? 6 : 8;
+
+    return {
+      kind: 'slider',
+      prompt: [{ kind: 'prose', text: prompt }],
+      min,
+      max,
+      step: 1,
+      answer,
+      readout: asks === 'period' ? '\\text{period} = {v}' : asks === 'amplitude' ? 'a = {v}' : 'y = {v}',
+      figure:
+        asks === 'period'
+          ? // Measured from the first ringed peak: drag until the line reaches
+            // the second one, and the gap you have spanned is the period.
+            { svg, xMin: 0, xMax, origin: firstPeak }
+          : asks === 'amplitude'
+            ? // Measured up from the midline, so the line meets the peak.
+              { svg, xMin: yLow, xMax: yHigh, axis: 'y', origin: midline }
+            : // A height, read straight off the vertical scale.
+              { svg, xMin: yLow, xMax: yHigh, axis: 'y' },
+    };
+  },
+  solution: ({ midline, amplitude, period, asks }) => {
+    if (asks === 'period') {
+      return [
+        {
+          text: 'The period is the gap along the bottom between one feature and the very next time it happens — here, between the two ringed peaks.',
+        },
+        { tex: `\\text{period} = ${period}` },
+        {
+          text: 'Pairing a peak with a trough instead would give half of that. The two points have to be at the same place in the cycle, not just the same height.',
+        },
+      ];
+    }
+    if (asks === 'amplitude') {
+      return [
+        {
+          text: 'The amplitude is measured from the midline up to a peak, not from the bottom of the wave to the top.',
+        },
+        { tex: `${midline + amplitude} - ${midline} = ${amplitude}` },
+        {
+          text: `The full swing from trough to peak is $${2 * amplitude}$, which is twice the amplitude and the most common wrong answer here.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: 'The midline sits halfway between the highest and lowest the wave reaches, so the curve spends as long above it as below.',
+      },
+      { tex: `\\frac{${midline + amplitude} + ${midline - amplitude}}{2} = ${midline}` },
+      {
+        text: 'It is not where the curve starts, and it is not zero unless the wave happens to be centred there.',
+      },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -680,4 +812,5 @@ export const trigonometryGenerators = [
   waveRange,
   readParameters,
   evaluateWave,
+  waveSlider,
 ] as unknown as Generator<unknown>[];

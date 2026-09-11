@@ -126,7 +126,30 @@ export type Slide =
        * They need not match `min`/`max` — a graph usually shows more than the
        * answer can range over.
        */
-      figure?: { svg: string; xMin: number; xMax: number };
+      figure?: {
+        svg: string;
+        /** The span the drawing covers along the marker's axis. */
+        xMin: number;
+        xMax: number;
+        /**
+         * Which way the marker lies. `x` is a vertical line at a position along
+         * the bottom; `y` is a horizontal line at a height.
+         *
+         * Both are needed because a slider's answer is not always a position. A
+         * midline is a height, so a vertical marker would be the wrong axis
+         * entirely; a period is a duration, so a marker at the value alone
+         * points at nothing — it has to start from a peak.
+         */
+        axis?: 'x' | 'y';
+        /**
+         * Where the value is measured from, in the figure's own units.
+         *
+         * A period slid to 6 puts the marker 6 *after the first peak*, so the
+         * learner drags until it lands on the next one. Without this the line
+         * sits at 6 on the axis and means nothing.
+         */
+        origin?: number;
+      };
     })
   /** Drop tokens from a bank into blanks in an equation. */
   | ({ kind: 'tiles' } & Prompted & {

@@ -7,6 +7,20 @@
  */
 import { useState, useEffect } from 'react';
 import { Tex, Blocks } from './Math';
+import {
+  EMPTY_DOC,
+  MathSlot,
+  deleteBack,
+  docFromAnswer,
+  insertAtom,
+  insertFraction,
+  insertRoot,
+  isFilled,
+  moveLeft,
+  moveRight,
+  toAnswer,
+  type Doc,
+} from './mathInput';
 import type { Slide, KeypadKey } from '../content/types';
 import {
   planeGridSvg,
@@ -21,6 +35,8 @@ import { StepsSlide, TreeSlide } from './workingSlides';
 
 export interface SlideProps {
   slide: Slide;
+  /** The resolved slide's id, used to key the answer editor's draft. */
+  id: string;
   feedback: Feedback;
   /** Current draft answer, lifted so the player can enable/disable Check. */
   answer: Answer;
@@ -102,17 +118,95 @@ const BASE_KEYS: KeypadKey[] = [
   { insert: '1' }, { insert: '2' }, { insert: '3' }, { insert: '4' }, { insert: '5' },
   { insert: '6' }, { insert: '7' }, { insert: '8' }, { insert: '9' }, { insert: '0' },
   { insert: '+' }, { insert: '-', label: '−' },
+  // A decimal point was reachable only on the trigonometry slides, which added
+  // it to their own keypad; everywhere else 2.5 was untypeable.
+  { insert: '.' },
+  { insert: '=' },
 ];
 
-export function ExpressionSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
-  if (slide.kind !== 'expression') return null;
+/** Keys whose two audiences differ: this one reads as × and parses as *. */
+const ATOM_TEX: Record<string, string> = {
+  '*': '\\times',
+  'ln(': '\\ln(',
+  'sin(': '\\sin(',
+  'cos(': '\\cos(',
+  'log(': '\\log(',
+};
+
+/**
+ * How a keypad key becomes an edit.
+ *
+ * Two keys the generators already declare are templates rather than characters
+ * now, so a fraction is stacked and a root has a bar over it while it is being
+ * typed. Mapping them here rather than changing every generator means no
+ * content file has to know the editor exists.
+ */
+function applyKey(doc: Doc, key: KeypadKey): Doc {
+  if (key.insert === '/') return insertFraction(doc);
+  if (key.insert === 'sqrt(') return insertRoot(doc);
+  return insertAtom(doc, ATOM_TEX[key.insert] ?? key.insert, key.insert);
+}
+
+/**
+ * The editor's tree, kept out of the session.
+ *
+ * The session stores what gets graded — the mathjs string — and nothing else,
+ * so the reducer, the invariants and every test are untouched by this. Which
+ * slot the caret sits in is no more the session's business than which key was
+ * pressed last.
+ *
+ * Keyed by slide id because the player remounts the whole slide subtree on
+ * every move, so stepping back and forward through the guided deck would
+ * otherwise show an empty slot beside an answer the session still holds.
+ */
+const drafts = new Map<string, Doc>();
+
+export function ExpressionSlide({ slide, id, feedback, answer, onAnswer, canEdit }: SlideProps) {
   const locked = isLocked(feedback, canEdit);
-  const text = typeof answer === 'string' ? answer : '';
+  const current = typeof answer === 'string' ? answer : '';
+
+  // The draft is trusted only while it still serialises to the answer the
+  // session holds. Anything else — a fresh slide, or an answer cleared from
+  // outside the editor — rebuilds from the string, one atom per character.
+  const [doc, setDoc] = useState<Doc>(() => {
+    const cached = drafts.get(id);
+    if (cached && toAnswer(cached.nodes) === current) return cached;
+    return docFromAnswer(current);
+  });
+
+  if (slide.kind !== 'expression') return null;
+
   // Topic-specific keys come last, so `i` sits where the screenshots put it.
   const keys = [...BASE_KEYS, ...slide.keypad];
 
-  const press = (key: KeypadKey) => !locked && onAnswer(text + key.insert);
-  const backspace = () => !locked && onAnswer(text.slice(0, -1));
+  const apply = (next: Doc) => {
+    if (locked) return;
+    drafts.set(id, next);
+    setDoc(next);
+    onAnswer(toAnswer(next.nodes));
+  };
+
+  // Moving the caret changes nothing that gets graded, so it does not go
+  // through onAnswer — which would clear an `incorrect` verdict merely because
+  // the learner looked at the middle of their own answer.
+  const move = (next: Doc) => {
+    if (locked) return;
+    drafts.set(id, next);
+    setDoc(next);
+  };
+
+  const filled = isFilled(doc.nodes);
+
+  const keyFace = (key: KeypadKey) => {
+    // Braces, not quotes. A JSX attribute is not a JavaScript string literal:
+    // tex="\\tfrac" hands KaTeX a literal backslash-backslash followed by the
+    // letters "tfrac", which it renders as a line break and five italic letters.
+    // Inside braces it is a real string and the escape collapses as intended.
+    if (key.insert === '/') return <Tex tex={'\\tfrac{\\square}{\\square}'} />;
+    if (key.insert === 'sqrt(') return <Tex tex={'\\sqrt{\\square}'} />;
+    if (key.tex) return <Tex tex={key.insert} />;
+    return key.label ?? key.insert;
+  };
 
   return (
     <>
@@ -122,43 +216,60 @@ export function ExpressionSlide({ slide, feedback, answer, onAnswer, canEdit }: 
 
       <div className={frameClass(feedback)}>
         {slide.lead && <Tex tex={slide.lead} />}
-        <span className={`answer-slot${text ? ' filled' : ''}${locked ? '' : ' focus'}`}>
-          {/* Rendered as maths so a typed `i` italicises and spacing matches
-              the question above. Half-finished input is not valid TeX, so Tex
-              falls back to the raw string rather than throwing. */}
-          {text ? <Tex tex={text} /> : ' '}
-          {!locked && <span className="caret" />}
-        </span>
+        <MathSlot doc={doc} showCaret={!locked} filled={filled} />
       </div>
 
       <div className="keypad">
-        {keys.map((key, idx) => (
+        <div className="keypad-keys">
+          {keys.map((key, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="key"
+              disabled={locked}
+              onClick={() => apply(applyKey(doc, key))}
+            >
+              {keyFace(key)}
+            </button>
+          ))}
+        </div>
+
+        <div className="keypad-utilities">
           <button
-            key={idx}
             type="button"
-            className="key"
+            className="key utility"
+            aria-label="Move left"
             disabled={locked}
-            onClick={() => press(key)}
+            onClick={() => move(moveLeft(doc))}
           >
-            {key.tex ? <Tex tex={key.insert} /> : (key.label ?? key.insert)}
+            &#8249;
           </button>
-        ))}
-        <button
-          type="button"
-          className="key utility"
-          aria-label="Delete"
-          disabled={locked}
-          onClick={backspace}
-        >
-          &#9003;
-        </button>
+          <button
+            type="button"
+            className="key utility"
+            aria-label="Move right"
+            disabled={locked}
+            onClick={() => move(moveRight(doc))}
+          >
+            &#8250;
+          </button>
+          <button
+            type="button"
+            className="key utility"
+            aria-label="Delete"
+            disabled={locked}
+            onClick={() => apply(deleteBack(doc))}
+          >
+            &#9003;
+          </button>
+        </div>
       </div>
 
       <button
         type="button"
         className="text-button"
-        disabled={locked || text === ''}
-        onClick={() => onAnswer('')}
+        disabled={locked || !filled}
+        onClick={() => apply(EMPTY_DOC)}
       >
         &#8635; Start over
       </button>

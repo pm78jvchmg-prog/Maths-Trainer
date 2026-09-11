@@ -9,12 +9,13 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { Block } from '../content/types';
 
-function render(tex: string, displayMode: boolean): string {
+function render(tex: string, displayMode: boolean, trust: boolean): string {
   try {
     return katex.renderToString(tex, {
       displayMode,
       throwOnError: false,
       strict: false,
+      trust,
     });
   } catch {
     // Never let a malformed expression blank the screen mid-lesson.
@@ -22,8 +23,24 @@ function render(tex: string, displayMode: boolean): string {
   }
 }
 
-export function Tex({ tex, display = false }: { tex: string; display?: boolean }) {
-  const html = useMemo(() => render(tex, display), [tex, display]);
+/**
+ * `trust` enables the commands KaTeX withholds by default, of which this app
+ * uses exactly one: \htmlClass, so the answer editor can hand a class to the
+ * caret it draws inside the formula. It is opt-in per call rather than on
+ * globally, and the only caller is the answer slot, whose content is built from
+ * keypad presses — there is no free-text input anywhere in the app, so the set
+ * of commands that can reach it is the set this code puts there.
+ */
+export function Tex({
+  tex,
+  display = false,
+  trust = false,
+}: {
+  tex: string;
+  display?: boolean;
+  trust?: boolean;
+}) {
+  const html = useMemo(() => render(tex, display, trust), [tex, display, trust]);
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

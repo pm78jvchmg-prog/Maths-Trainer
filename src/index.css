@@ -287,6 +287,25 @@ button {
   vertical-align: middle;
 }
 
+/* The answer editor's caret, drawn *inside* the rendered formula rather than
+   after it: KaTeX emits this class where \htmlClass asked for it, which is the
+   only way to mark a position between two characters of a formula it has
+   already laid out. The strut it wraps has height and no width, so the border
+   is the whole of what shows. */
+.mi-caret {
+  display: inline-block;
+  border-left: 2px solid var(--accent);
+  margin: 0 -1px;
+  animation: blink 1.1s step-end infinite;
+}
+
+/* An empty fraction slot. Dimmed so it reads as somewhere to type rather than
+   as part of the answer. */
+.answer-slot .mord .mord.amsrm,
+.answer-slot .katex .mspace + .mord.amsrm {
+  opacity: 0.35;
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
@@ -294,7 +313,8 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .caret {
+  .caret,
+  .mi-caret {
     animation: none;
   }
   .progress-fill {
@@ -379,8 +399,24 @@ button {
   padding: 10px;
   background: var(--accent-dim);
   border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keypad-keys {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+/* Editing controls sit on their own row rather than trailing the characters,
+   so the cursor keys are always in the same place however many topic keys a
+   slide adds. Left and right are wider than backspace because they are the
+   ones pressed repeatedly. */
+.keypad-utilities {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr;
   gap: 8px;
 }
 

@@ -16,6 +16,7 @@
  */
 import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
+import { isSolved, type Move } from '../content/expr';
 import type {
   Lesson,
   Slide,
@@ -277,6 +278,21 @@ export function skillCheckScore(session: Session): { correct: number; total: num
  * A short answer is wrong rather than incomplete: the widget refuses to submit
  * until every position is filled, so a gap reaching here is not a valid answer.
  */
+/**
+ * One reduction, as the widget stores it: `<node path>=<value>`.
+ *
+ * A single string because `Answer` already carries `string[]`, so recording
+ * both halves of a move this way needs no new shape in the session — and the
+ * value and the ordering are then graded together rather than separately.
+ */
+function parseMove(token: string): Move | undefined {
+  const at = token.lastIndexOf('=');
+  if (at < 1) return undefined;
+  const value = Number(token.slice(at + 1));
+  if (!Number.isFinite(value)) return undefined;
+  return { path: token.slice(0, at), value };
+}
+
 function gradeSequence(answer: Answer, expected: string[]): Feedback {
   if (!Array.isArray(answer)) return { kind: 'incorrect' };
   if (answer.length !== expected.length) return { kind: 'incorrect' };
@@ -356,6 +372,20 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
 
     case 'tree':
       return gradeSequence(answer, slide.answer);
+
+    /**
+     * Re-walk the learner's reductions over the original expression.
+     *
+     * The whole grade is the replay: nothing is compared against an expected
+     * sequence, so any order precedence allows passes, and a reduction taken
+     * before its operands were settled fails whatever value came with it.
+     */
+    case 'reduce': {
+      if (!Array.isArray(answer)) return { kind: 'incorrect' };
+      const moves = answer.map(parseMove).filter((move): move is Move => move !== undefined);
+      if (moves.length !== answer.length) return { kind: 'incorrect' };
+      return isSolved(slide.expr, moves) ? { kind: 'correct' } : { kind: 'incorrect' };
+    }
 
     // The path taken, fork by fork. A learner who turns the wrong way early
     // ends up somewhere else entirely, and `gradeSequence` refusing a

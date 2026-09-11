@@ -161,7 +161,10 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         key={slide.id}
         onClick={retryOnTap ? () => act({ type: 'tryAgain' }) : undefined}
       >
-        {session.states[slide.id]?.solved && (
+        {/* Only when stepping *back* onto a solved slide. While the verdict for
+            this answer is still on screen, saying it was already solved reads
+            as a comment on the answer just given rather than on the history. */}
+        {session.states[slide.id]?.solved && session.feedback.kind === 'idle' && (
           <p className="lesson-meta">Already solved — answer again or continue.</p>
         )}
         <SlideView

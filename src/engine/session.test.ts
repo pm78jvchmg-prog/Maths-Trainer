@@ -12,6 +12,7 @@ import {
   type Action,
 } from './session';
 import type { Lesson, GeneratorRegistry, Generator } from '../content/types';
+import { bin, num, pow, root } from '../content/expr';
 
 /** A generator whose answer depends on its drawn parameters, so we can prove
  *  that "try again" re-presents the same question rather than a fresh one. */
@@ -660,5 +661,85 @@ describe('decision tree grading', () => {
     expect(wrong.feedback.kind).toBe('incorrect');
     expect(canRetry(wrong)).toBe(false);
     expect(reduce(wrong, { type: 'tryAgain' })).toBe(wrong);
+  });
+});
+
+/**
+ * Reducing an expression.
+ *
+ * Graded by replaying the moves over the original tree, so there is no expected
+ * sequence and every order precedence allows passes equally. What fails is a
+ * piece taken before its operands were settled — which is the order mistake,
+ * and it fails whatever value came with it.
+ */
+describe('reduce grading', () => {
+  // 2^3 + (5 - 3)^2 x sqrt(9) = 20, the expression from the reference app.
+  const expr = bin(
+    '+',
+    pow(num(2), num(3)),
+    bin('*', pow(bin('-', num(5), num(3)), num(2)), root(num(9))),
+  );
+
+  const reduceLesson: Lesson = {
+    id: 'reduce-demo',
+    title: 'Reduce',
+    slides: [],
+    skillCheck: [
+      {
+        type: 'literal',
+        slide: {
+          kind: 'reduce',
+          prompt: [{ kind: 'prose', text: 'Evaluate.' }],
+          expr,
+          banks: {},
+        },
+      },
+    ],
+  };
+
+  const walk = (moves: string[], lesson: Lesson = reduceLesson) =>
+    reduce(startSession(lesson, registry, SEED), { type: 'submit', answer: moves });
+
+  const shown = ['r.l=8', 'r.r.l.b=2', 'r.r.l=4', 'r.r.r=3', 'r.r=12', 'r=20'];
+
+  it('accepts the route the reference app takes', () => {
+    expect(walk(shown).feedback.kind).toBe('correct');
+  });
+
+  it('accepts any other route precedence allows', () => {
+    expect(
+      walk(['r.r.r=3', 'r.r.l.b=2', 'r.l=8', 'r.r.l=4', 'r.r=12', 'r=20']).feedback.kind,
+    ).toBe('correct');
+  });
+
+  it('refuses the addition taken before the multiplication', () => {
+    // Every value here is right; only the order is wrong.
+    expect(walk(['r.l=8', 'r.r.l.b=2', 'r.r.l=4', 'r.r.r=3', 'r=20']).feedback.kind).toBe(
+      'incorrect',
+    );
+  });
+
+  it('refuses a piece whose operands are not settled, however right the value', () => {
+    expect(walk(['r=20']).feedback.kind).toBe('incorrect');
+  });
+
+  it('refuses a wrong value on a legal piece', () => {
+    expect(walk(['r.l=6']).feedback.kind).toBe('incorrect');
+  });
+
+  it('refuses an unfinished walk', () => {
+    expect(walk(shown.slice(0, 4)).feedback.kind).toBe('incorrect');
+  });
+
+  it('refuses a malformed move rather than reading it as something else', () => {
+    expect(walk(['nonsense']).feedback.kind).toBe('incorrect');
+    expect(walk(['r.l=']).feedback.kind).toBe('incorrect');
+  });
+
+  it('refuses a second attempt inside an assessment', () => {
+    const sealed: Lesson = { ...reduceLesson, id: 'reduce-sealed', assessment: true };
+    const wrong = walk(['r=20'], sealed);
+    expect(wrong.feedback.kind).toBe('incorrect');
+    expect(canRetry(wrong)).toBe(false);
   });
 });

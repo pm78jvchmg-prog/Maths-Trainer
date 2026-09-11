@@ -210,6 +210,7 @@ button {
 /* ---------- Answer widgets ---------- */
 
 .answer-frame {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 14px;
@@ -1153,4 +1154,83 @@ button {
   font-size: 17px;
   font-weight: 600;
   text-align: center;
+}
+
+/*
+ * Reducing an expression one piece at a time.
+ *
+ * Settled lines are plain and sit above the card; only the live line is inside
+ * it. The learner's reasoning is the artefact here, so nothing above scrolls
+ * away or fades — a wrong turn five lines up has to still be visible when the
+ * answer comes out wrong.
+ */
+.reduce-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  /* Tight, because every bracket and operand is its own element: at a
+     comfortable paragraph gap the pieces read as separate terms and a five-part
+     expression wraps onto two rows on a phone. */
+  gap: 4px;
+  padding: 8px 0;
+  font-size: 18px;
+}
+
+.reduce-piece {
+  padding: 2px 0;
+}
+
+/* Every operator is a tap target, whether or not its operands are settled. */
+.reduce-handle {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 3px 7px;
+  border-radius: 9px;
+  border: none;
+  background: var(--surface-raised);
+  color: inherit;
+  font-size: 18px;
+}
+
+.reduce-handle.lit,
+.reduce-piece.lit {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 4px 8px;
+}
+
+/* The value a line introduced, once the whole walk is graded right. */
+.reduce-piece.settled {
+  background: var(--correct);
+  color: #04150b;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+
+/*
+ * The arrow from the tapped piece down to the blank it becomes.
+ *
+ * Positioned from the laid-out button rather than by a rule, because where the
+ * piece sits depends on how the line wrapped on this particular screen.
+ */
+.reduce-arrow {
+  position: absolute;
+  width: 2px;
+  height: 26px;
+  margin-top: -4px;
+  background: var(--accent);
+  transform: translateX(-1px);
+}
+
+.reduce-arrow::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: -4px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--accent);
 }

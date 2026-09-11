@@ -19,6 +19,7 @@ import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression, math } from '../../engine/expression';
 import { registeredGenerators, registry } from '../registry';
 import { courses } from '../courses';
+import { valueOf, type Expr } from '../expr';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX } from '../choiceVariant';
@@ -82,6 +83,39 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           bank.length,
           `bank for answer ${JSON.stringify(slide.answer)} has no real distractor left over`,
         ).toBeGreaterThanOrEqual(1);
+      }
+
+      if (slide.kind === 'reduce') {
+        // Every node the learner can tap needs a bank, including the operators
+        // they may take too early — a wrong turn with nothing to choose from is
+        // a dead end, and the whole point is that it produces a believable line.
+        const walk = (node: Expr, path: string): void => {
+          if (node.kind === 'num') return;
+          const bank = slide.banks[path];
+          expect(bank, `no bank for ${path}`).toBeDefined();
+          expect(bank.length, `bank for ${path} is too small`).toBeGreaterThanOrEqual(4);
+          expect(new Set(bank).size, `bank for ${path} repeats a value`).toBe(bank.length);
+          expect(bank, `bank for ${path} omits its own value`).toContain(String(valueOf(node)));
+          if (node.kind === 'binary') {
+            walk(node.left, `${path}.l`);
+            walk(node.right, `${path}.r`);
+          } else if (node.kind === 'power') {
+            walk(node.base, `${path}.b`);
+            walk(node.exponent, `${path}.e`);
+          } else {
+            walk(node.arg, `${path}.a`);
+          }
+        };
+        walk(slide.expr, 'r');
+
+        // Every value in the expression and every bank entry must be a whole
+        // number: a stray third of a unit turns an order question into an
+        // arithmetic-with-fractions question, which is a different lesson.
+        for (const bank of Object.values(slide.banks)) {
+          for (const value of bank) {
+            expect(Number.isInteger(Number(value)), `bank value ${value} is not whole`).toBe(true);
+          }
+        }
       }
 
       if (slide.kind === 'steps') {

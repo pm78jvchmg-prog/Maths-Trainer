@@ -7,6 +7,7 @@
  * the worked examples.
  */
 import type { Rng } from '../engine/rng';
+import type { Expr } from './expr';
 
 /** A unit of rendered content. Prose may embed inline maths between $ signs. */
 export type Block =
@@ -209,6 +210,37 @@ export type Slide =
    * which is enough to lay out rows and draw the connectors without the content
    * author positioning anything by hand.
    */
+  /**
+   * Evaluate an expression by reducing one piece at a time, choosing both
+   * *which* piece comes next and what it comes to.
+   *
+   * The difference from `steps` is the first of those. `steps` offers the one
+   * correct sub-expression and asks only for its value, so it grades arithmetic
+   * and takes the ordering for granted — and its flat token spans cannot do
+   * otherwise, because which pieces may go next is a fact about the
+   * expression's shape rather than about where its characters sit.
+   *
+   * So the question is carried as a tree (`src/content/expr.ts`), and what may
+   * be tapped is computed from it. Operators are always offered, whether or not
+   * their operands are settled, which is what makes taking `8 + 4` before
+   * `4 x 3` possible — a mistake that cannot be made cannot be taught. Powers
+   * and roots are offered only once reducible.
+   *
+   * There is no expected sequence. A walk is right when every reduction was
+   * legal at the moment it was made, every value was correct, and nothing is
+   * left, so every order precedence allows is accepted equally.
+   */
+  | ({ kind: 'reduce' } & Prompted & {
+      expr: Expr;
+      /**
+       * Values offered when a given node is tapped, keyed by its path.
+       *
+       * Paths are stable as the tree collapses — reducing one node leaves every
+       * other node's address alone — so one map authored up front serves every
+       * stage, including the stages reached by a wrong turn.
+       */
+      banks: Record<string, string[]>;
+    })
   /**
    * A decision tree: which method does this problem call for?
    *

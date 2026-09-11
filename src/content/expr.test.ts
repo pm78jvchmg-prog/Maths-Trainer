@@ -1,0 +1,141 @@
+import { describe, expect, it } from 'vitest';
+import {
+  ROOT,
+  bin,
+  isSolved,
+  num,
+  pow,
+  reduceAt,
+  renderExpr,
+  replay,
+  root,
+  targets,
+  toTex,
+  valueOf,
+  type Move,
+} from './expr';
+
+/** The expression from the reference app: 2^3 + (5 - 3)^2 x sqrt(9) = 20. */
+const sample = bin(
+  '+',
+  pow(num(2), num(3)),
+  bin('*', pow(bin('-', num(5), num(3)), num(2)), root(num(9))),
+);
+
+describe('what the learner may tap', () => {
+  it('offers exactly the pieces the reference app offers', () => {
+    // 2^3, +, -, x, sqrt(9). The (5-3)^2 power is NOT offered: its base is
+    // still an unevaluated bracket, and collapsing it in one tap would skip
+    // the bracket rather than get it wrong.
+    const handles = targets(sample).map((t) => `${t.path}${t.legal ? '' : '!'}`);
+    expect(handles).toEqual(['r.l', 'r!', 'r.r.l.b', 'r.r!', 'r.r.r']);
+  });
+
+  it('offers an operator whose operands are not settled, marked illegal', () => {
+    // This is what makes taking 8 + 4 before 4 x 3 possible at all.
+    const line = bin('+', num(8), bin('*', num(4), num(3)));
+    expect(targets(line)).toEqual([
+      { path: 'r', legal: false },
+      { path: 'r.r', legal: true },
+    ]);
+  });
+
+  it('starts offering a power once its base is a number', () => {
+    const before = pow(bin('-', num(5), num(3)), num(2));
+    expect(targets(before).some((t) => t.path === ROOT)).toBe(false);
+    const after = pow(num(2), num(2));
+    expect(targets(after)).toEqual([{ path: ROOT, legal: true }]);
+  });
+});
+
+describe('rendering', () => {
+  it('brackets only where precedence needs it', () => {
+    expect(toTex(sample)).toBe('2^{3} + \\left(5 - 3\\right)^{2} \\times \\sqrt{9}');
+  });
+
+  it('marks every piece with the nodes it sits inside', () => {
+    // Tapping the x in 8 + 4 x 3 must light all three of 4 x 3, which falls
+    // out of ownership rather than from computing where the span starts.
+    const line = bin('+', num(8), bin('*', num(4), num(3)));
+    const lit = renderExpr(line)
+      .filter((fragment) => fragment.owners.includes('r.r'))
+      .map((fragment) => fragment.tex);
+    expect(lit).toEqual(['4', '\\times', '3']);
+  });
+
+  it('splits brackets into plain fragments KaTeX can render one at a time', () => {
+    // `\\left(` alone is not valid TeX, and each fragment is its own KaTeX call.
+    const pieces = renderExpr(pow(bin('-', num(5), num(3)), num(2))).map((f) => f.tex);
+    expect(pieces).toEqual(['(', '5', '-', '3', ')^{2}']);
+    expect(pieces.some((piece) => piece.includes('left') || piece.includes('right'))).toBe(false);
+  });
+
+  it('keeps a power tappable as one piece only once it is reducible', () => {
+    const reducible = renderExpr(pow(num(2), num(2)));
+    expect(reducible).toHaveLength(1);
+    expect(reducible[0].handle).toBe(ROOT);
+
+    const notYet = renderExpr(pow(bin('-', num(5), num(3)), num(2)));
+    expect(notYet.some((fragment) => fragment.handle === ROOT)).toBe(false);
+    // The inner subtraction stays tappable underneath.
+    expect(notYet.some((fragment) => fragment.handle === 'r.b')).toBe(true);
+  });
+});
+
+describe('grading a walk', () => {
+  const solve = (moves: Move[]) => replay(sample, moves);
+
+  /** The order the reference app's screenshots took. */
+  const asShown: Move[] = [
+    { path: 'r.l', value: 8 },
+    { path: 'r.r.l.b', value: 2 },
+    { path: 'r.r.l', value: 4 },
+    { path: 'r.r.r', value: 3 },
+    { path: 'r.r', value: 12 },
+    { path: 'r', value: 20 },
+  ];
+
+  it('accepts the walk the screenshots show', () => {
+    expect(solve(asShown).fault).toBeUndefined();
+    expect(isSolved(sample, asShown)).toBe(true);
+  });
+
+  it('accepts a different but equally legal order', () => {
+    // Root first, then the bracket, then the power — precedence permits all of
+    // these, so privileging one would teach a superstition.
+    const other: Move[] = [
+      { path: 'r.r.r', value: 3 },
+      { path: 'r.r.l.b', value: 2 },
+      { path: 'r.l', value: 8 },
+      { path: 'r.r.l', value: 4 },
+      { path: 'r.r', value: 12 },
+      { path: 'r', value: 20 },
+    ];
+    expect(isSolved(sample, other)).toBe(true);
+  });
+
+  it('refuses the addition before the multiplication', () => {
+    const line = bin('+', num(8), bin('*', num(4), num(3)));
+    const early = replay(line, [{ path: ROOT, value: 20 }]);
+    expect(early.fault).toBe('out-of-order');
+  });
+
+  it('refuses a right value for a piece taken too early', () => {
+    // 2^3 + ... is worth 20, and taking the whole thing in one tap is still
+    // wrong: the value is right and the order is not.
+    expect(solve([{ path: ROOT, value: 20 }]).fault).toBe('out-of-order');
+  });
+
+  it('refuses a wrong value for a legal piece', () => {
+    expect(solve([{ path: 'r.l', value: 6 }]).fault).toBe('wrong-value');
+  });
+
+  it('does not count an unfinished walk as solved', () => {
+    expect(isSolved(sample, asShown.slice(0, 3))).toBe(false);
+  });
+
+  it('evaluates to twenty, whatever route is taken', () => {
+    expect(valueOf(sample)).toBe(20);
+    expect(valueOf(reduceAt(sample, 'r.l', 8))).toBe(20);
+  });
+});

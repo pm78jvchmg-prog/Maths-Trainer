@@ -1,0 +1,284 @@
+/**
+ * Evaluate an expression one piece at a time.
+ *
+ * The working stacks downward: every line already settled stays on screen in
+ * plain type, and only the last sits in a card with the undo control. That is
+ * the whole point of the widget — the learner's reasoning is the artefact, not
+ * just the number at the end, so a wrong turn five lines up is still visible
+ * when the answer comes out wrong.
+ *
+ * Choosing happens in two taps, and both are graded. First a piece of the line:
+ * every operator is offered whether or not its operands are settled, because
+ * taking `8 + 4` before `4 x 3` has to be *possible* for the order to be worth
+ * asking about. Then its value, from a bank. The reduction is committed only
+ * once both are chosen, so nothing about the tap tells the learner whether it
+ * was the right piece — being stopped at the moment of the mistake would give
+ * the answer away, and that is the first invariant.
+ *
+ * State lives entirely in the session's answer, a list of `<path>=<value>`
+ * moves. Every line on screen is replayed from it, so stepping back cannot
+ * leave the picture and the grade disagreeing.
+ */
+import { useLayoutEffect, useRef, useState } from 'react';
+import { Tex, Blocks } from './Math';
+import { frameClass, isLocked, type SlideProps } from './slides';
+import type { Slide } from '../content/types';
+import {
+  isReducible,
+  nodeAt,
+  reduceAt,
+  renderExpr,
+  targets,
+  type Expr,
+  type Fragment,
+  type Move,
+  type Path,
+} from '../content/expr';
+
+function parseMove(token: string): Move | undefined {
+  const at = token.lastIndexOf('=');
+  if (at < 1) return undefined;
+  const value = Number(token.slice(at + 1));
+  if (!Number.isFinite(value)) return undefined;
+  return { path: token.slice(0, at), value };
+}
+
+const moveToken = (path: Path, value: number) => `${path}=${value}`;
+
+/** Every line of working the moves produce, with the node each one collapsed. */
+function lines(expr: Expr, moves: Move[]): { expr: Expr; filled?: Path }[] {
+  const out: { expr: Expr; filled?: Path }[] = [{ expr }];
+  let current = expr;
+  for (const move of moves) {
+    const node = nodeAt(current, move.path);
+    // A move that no longer applies — the content changed under a stored answer
+    // — stops the replay rather than throwing.
+    if (!node || node.kind === 'num') break;
+    current = reduceAt(current, move.path, move.value);
+    out.push({ expr: current, filled: move.path });
+  }
+  return out;
+}
+
+/**
+ * One rendered line.
+ *
+ * `lit` is the node being replaced, if any: every fragment owned by it is
+ * highlighted, which is how tapping the `x` in `8 + 4 x 3` lights all three of
+ * `4 x 3` without anyone computing where that sub-expression begins.
+ */
+function Line({
+  expr,
+  taps,
+  lit,
+  filled,
+  correct,
+  blankAt,
+  onTap,
+  refFor,
+}: {
+  expr: Expr;
+  taps?: { path: Path }[];
+  lit?: Path;
+  filled?: Path;
+  correct?: boolean;
+  blankAt?: Path;
+  onTap?: (path: Path) => void;
+  refFor?: (path: Path, el: HTMLElement | null) => void;
+}) {
+  const fragments = renderExpr(expr);
+  const parts: React.ReactNode[] = [];
+
+  for (let i = 0; i < fragments.length; i += 1) {
+    const fragment: Fragment = fragments[i];
+
+    // The blank stands in for the node about to be replaced, so the rest of the
+    // line is shown exactly as it will be once the value lands.
+    if (blankAt && fragment.owners.includes(blankAt)) {
+      if (fragments.findIndex((f) => f.owners.includes(blankAt)) === i) {
+        parts.push(<span key={i} className="answer-slot focus" />);
+      }
+      continue;
+    }
+
+    const isLit = lit !== undefined && fragment.owners.includes(lit);
+    // The value this line introduced, ringed green once the walk is graded right.
+    const isFilled = filled !== undefined && fragment.owners[fragment.owners.length - 1] === filled;
+    const tap = taps?.find((t) => t.path === fragment.handle);
+
+    if (tap && onTap) {
+      parts.push(
+        <button
+          key={i}
+          type="button"
+          ref={(el) => refFor?.(tap.path, el)}
+          className={`reduce-handle${isLit ? ' lit' : ''}`}
+          onClick={() => onTap(tap.path)}
+        >
+          <Tex tex={fragment.tex} />
+        </button>,
+      );
+      continue;
+    }
+
+    parts.push(
+      <span
+        key={i}
+        className={`reduce-piece${isLit ? ' lit' : ''}${isFilled && correct ? ' settled' : ''}`}
+      >
+        <Tex tex={fragment.tex} />
+      </span>,
+    );
+  }
+
+  return <div className="reduce-line">{parts}</div>;
+}
+
+export function ReduceSlide(props: SlideProps) {
+  // Narrowed here so the body's hooks are never behind a conditional return.
+  if (props.slide.kind !== 'reduce') return null;
+  return <ReduceBody {...props} slide={props.slide} />;
+}
+
+type ReduceSlideType = Extract<Slide, { kind: 'reduce' }>;
+
+function ReduceBody({
+  slide,
+  feedback,
+  answer,
+  onAnswer,
+  canEdit,
+}: SlideProps & { slide: ReduceSlideType }) {
+  const locked = isLocked(feedback, canEdit);
+  const tokens = Array.isArray(answer) ? answer : [];
+  const moves = tokens.map(parseMove).filter((move): move is Move => move !== undefined);
+
+  /** Which piece is chosen and waiting for a value. */
+  const [armed, setArmed] = useState<Path | null>(null);
+
+  const worked = lines(slide.expr, moves);
+  const live = worked[worked.length - 1].expr;
+  const done = live.kind === 'num';
+  const offered = done || locked ? [] : targets(live);
+
+  // The arrow is measured from the laid-out button rather than positioned by a
+  // rule, because where the tapped piece sits depends on how the line wrapped.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const handles = useRef(new Map<Path, HTMLElement | null>());
+  const [arrowX, setArrowX] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (!armed) {
+      setArrowX(null);
+      return;
+    }
+    const el = handles.current.get(armed);
+    const card = cardRef.current;
+    if (!el || !card) return;
+    const a = el.getBoundingClientRect();
+    const b = card.getBoundingClientRect();
+    setArrowX(a.left - b.left + a.width / 2);
+  }, [armed, tokens.length]);
+
+  const commit = (value: string) => {
+    if (!armed || locked) return;
+    setArmed(null);
+    onAnswer([...tokens, moveToken(armed, Number(value))]);
+  };
+
+  const undo = () => {
+    if (locked || tokens.length === 0) return;
+    setArmed(null);
+    onAnswer(tokens.slice(0, -1));
+  };
+
+  const bank = armed ? (slide.banks[armed] ?? []) : [];
+  const correct = feedback.kind === 'correct';
+
+  return (
+    <>
+      <div className="prompt">
+        <Blocks blocks={slide.prompt} />
+      </div>
+
+      {/* Settled working. Plain, because it is history. */}
+      {worked.slice(0, -1).map((line, idx) => (
+        <Line key={idx} expr={line.expr} filled={line.filled} correct={correct} />
+      ))}
+
+      <div className={`${frameClass(feedback)} column`} ref={cardRef}>
+        {tokens.length > 0 && !locked && (
+          <button type="button" className="undo-button" aria-label="Undo last step" onClick={undo}>
+            &#8630;
+          </button>
+        )}
+
+        <Line
+          expr={live}
+          taps={offered}
+          lit={armed ?? undefined}
+          filled={worked[worked.length - 1].filled}
+          correct={correct}
+          onTap={locked ? undefined : (path) => setArmed(path)}
+          refFor={(path, el) => handles.current.set(path, el)}
+        />
+
+        {armed && (
+          <>
+            {arrowX !== null && (
+              <span className="reduce-arrow" style={{ left: `${arrowX}px` }} aria-hidden="true" />
+            )}
+            <Line expr={live} blankAt={armed} />
+          </>
+        )}
+      </div>
+
+      {armed && bank.length > 0 && (
+        <div className="tile-bank">
+          {bank.map((value, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="tile"
+              disabled={locked}
+              onClick={() => commit(value)}
+            >
+              <Tex tex={value} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="text-button"
+        disabled={locked || tokens.length === 0}
+        onClick={() => {
+          setArmed(null);
+          onAnswer([]);
+        }}
+      >
+        &#8635; Start over
+      </button>
+    </>
+  );
+}
+
+/** True once the expression is a single number, so *Check* may go live. */
+export function reduceComplete(expr: Expr, answer: unknown): boolean {
+  if (!Array.isArray(answer)) return false;
+  const moves = answer.map(parseMove).filter((move): move is Move => move !== undefined);
+  let current = expr;
+  for (const move of moves) {
+    const node = nodeAt(current, move.path);
+    if (!node || node.kind === 'num' || !isReducible(node)) {
+      // An illegal move still settles the line it was made on: the learner has
+      // committed to it, and Check must be reachable so they can find out.
+      if (!node || node.kind === 'num') break;
+      current = reduceAt(current, move.path, move.value);
+      continue;
+    }
+    current = reduceAt(current, move.path, move.value);
+  }
+  return current.kind === 'num';
+}

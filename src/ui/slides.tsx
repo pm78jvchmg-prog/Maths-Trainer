@@ -23,6 +23,7 @@ import {
   type Doc,
 } from './mathInput';
 import { walkFlow } from './flow';
+import { ReduceSlide, reduceComplete } from './reduceSlide';
 import type { Slide, KeypadKey } from '../content/types';
 import {
   planeGridSvg,
@@ -524,7 +525,7 @@ export function SlideView(props: SlideProps) {
       onAnswer(Array.from({ length: slide.answer.length }, () => ''));
     } else if (slide.kind === 'tree') {
       onAnswer(Array.from({ length: slide.nodes.length }, () => ''));
-    } else if (slide.kind === 'steps' || slide.kind === 'flow') {
+    } else if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') {
       // Both start at nothing chosen and grow as the learner works.
       onAnswer([]);
     } else if (slide.kind === 'slider') {
@@ -557,6 +558,8 @@ export function SlideView(props: SlideProps) {
       return <SliderSlide {...props} />;
     case 'flow':
       return <FlowSlide {...props} />;
+    case 'reduce':
+      return <ReduceSlide {...props} />;
   }
 }
 
@@ -568,6 +571,10 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
     const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
+  // Answerable once the expression is a single number, however it got there:
+  // an illegal reduction still settles its line, and Check has to be reachable
+  // or the learner could never find out that it was illegal.
+  if (slide.kind === 'reduce') return reduceComplete(slide.expr, answer);
   // A decision tree is answerable once the walk has reached a leaf. Mid-walk
   // the learner has chosen something, but not an answer.
   if (slide.kind === 'flow') return walkFlow(slide, Array.isArray(answer) ? answer : []).outcome !== undefined;

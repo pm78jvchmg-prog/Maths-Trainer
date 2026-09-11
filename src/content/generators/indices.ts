@@ -17,6 +17,7 @@
  * happens to be how the topic is taught.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { bin, num, pow, root } from '../expr';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import type { Rng } from '../../engine/rng';
@@ -855,6 +856,135 @@ const orderOfOperations: Generator<OrderParams> = {
   },
 };
 
+
+/* ---------- evaluating an expression in the right order ---------- */
+
+interface EvaluateParams {
+  /** The power term: base^exponent. */
+  base: number;
+  exponent: number;
+  /** The bracket: left - right, then squared. */
+  left: number;
+  right: number;
+  /** The number under the root; a perfect square. */
+  radicand: number;
+}
+
+/**
+ * Evaluate an expression, choosing the order as well as the arithmetic.
+ *
+ * The shape is fixed — a power, a squared bracket, and a root, joined by a plus
+ * and a times — because what varies has to be the *numbers*, not the reasoning.
+ * Every draw asks the same four questions in whatever order the learner picks:
+ * which pieces are ready to go, what each comes to, and at the end, that the
+ * multiplication is taken before the addition.
+ *
+ * `banks` is keyed by node path, which stays fixed as the tree collapses. Every
+ * node gets one, including the two operators a learner may take too early: the
+ * value offered there is what that sub-expression is genuinely worth, so a
+ * wrong turn produces a believable line rather than an obviously rejected one.
+ */
+const evaluateInOrder: Generator<EvaluateParams> = {
+  id: 'idx-evaluate-order',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 5 : 3);
+    const exponent = rng.int(2, base > 3 ? 2 : 3);
+    // The bracket squares, so keep its difference small or the line grows huge.
+    const right = rng.int(1, difficulty > 1 ? 6 : 4);
+    return {
+      base,
+      exponent,
+      left: right + rng.int(1, difficulty > 1 ? 4 : 3),
+      right,
+      radicand: rng.pick(difficulty > 1 ? [4, 9, 16, 25, 36, 49] : [4, 9, 16, 25]),
+    };
+  },
+  render: ({ base, exponent, left, right, radicand }): Slide => {
+    const expr = bin(
+      '+',
+      pow(num(base), num(exponent)),
+      bin('*', pow(bin('-', num(left), num(right)), num(2)), root(num(radicand))),
+    );
+
+    const power = Math.pow(base, exponent);
+    const gap = left - right;
+    const squared = gap * gap;
+    const rooted = Math.sqrt(radicand);
+    const product = squared * rooted;
+    const total = power + product;
+
+    /** Six values: the right one, then the slips these numbers invite. */
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set<number>([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (value === correct || seen.has(value) || !Number.isFinite(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      // Pad from just above the answer rather than at random, so a learner
+      // cannot find the right one by noticing it is the odd number out.
+      for (let step = 1; out.length < 6; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 6) break;
+          if (candidate <= 0 || seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((a, b) => a - b).map(String);
+    };
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work this out one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr,
+      banks: {
+        // The power: multiplying the two numbers instead of raising is the slip.
+        'r.l': offer(power, base * exponent, base + exponent, exponent),
+        // The bracket, and adding instead of subtracting.
+        'r.r.l.b': offer(gap, left + right, right - left, left * right),
+        // The square, and doubling instead.
+        'r.r.l': offer(squared, gap * 2, gap, squared + gap),
+        // The root: giving the number back unrooted, or halving it, are the
+        // two slips — but half of an odd square is not a whole number, and a
+        // fraction in the bank turns this into a question about fractions.
+        'r.r.r': offer(rooted, radicand, rooted * 2, radicand - rooted),
+        // The multiplication, which is the one that must come before the plus.
+        'r.r': offer(product, squared + rooted, product + power),
+        // The addition, last.
+        r: offer(total, power * product, total - power),
+      },
+    };
+  },
+  solution: ({ base, exponent, left, right, radicand }) => {
+    const power = Math.pow(base, exponent);
+    const gap = left - right;
+    const squared = gap * gap;
+    const rooted = Math.sqrt(radicand);
+    const product = squared * rooted;
+    const total = power + product;
+
+    return [
+      {
+        text: 'Brackets first, then powers and roots, then multiplication, and addition last. Within that, anything already sitting on plain numbers can go in any order — there is no single correct route, only routes that respect precedence.',
+      },
+      {
+        tex: `${base}^{${exponent}} = ${power} \\qquad \\left(${left} - ${right}\\right)^{2} = ${squared} \\qquad \\sqrt{${radicand}} = ${rooted}`,
+      },
+      { tex: `${power} + ${squared} \\times ${rooted} = ${power} + ${product} = ${total}` },
+      {
+        text: `The last two steps are where order decides the answer. Taking the addition first would give $${(power + squared) * rooted}$ rather than $${total}$, and every individual sum along the way would have been right.`,
+      },
+    ];
+  },
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -869,4 +999,5 @@ export const indicesGenerators = [
   rationalise,
   indexEquation,
   orderOfOperations,
+  evaluateInOrder,
 ] as unknown as Generator<unknown>[];

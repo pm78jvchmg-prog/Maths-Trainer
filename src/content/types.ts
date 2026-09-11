@@ -74,7 +74,7 @@ export type Slide =
       integrand?: string;
       /** Limits of a definite integral, as [lower, upper]. */
       limits?: [number, number];
-      domain: 'real' | 'complex';
+      domain: 'real' | 'complex' | 'positive';
       mode: 'exact' | 'upToConstant';
     })
   /** Tap a lattice point on the complex plane. */

@@ -149,11 +149,20 @@ export function magnitude(a: Scalar): number {
  *    This avoids sampling *at* the discontinuity. It does not paper over
  *    identities that genuinely fail off the principal branch: log(z^2) and
  *    2log(z) differ over half the plane, and are correctly marked different.
+ * 3. The `positive` domain drops the sign flip, and is for questions whose
+ *    subject is only defined for a positive base. `sqrt(x^3)` and `x^(3/2)`
+ *    are the same function for x ≥ 0 and every textbook writes them as equal,
+ *    but mathjs reads both through the principal branch at negative x and they
+ *    come out different for three powers in every four — so probing over the
+ *    whole real line marks a correct answer wrong. It is deliberately narrower
+ *    than `real` and must be opted into per slide: it also accepts answers that
+ *    differ only where x < 0, `sqrt(x^2)` for `x` among them, which is right
+ *    for a question about indices and wrong for most other questions.
  */
 export function samplePoint(
   rng: Rng,
   variables: readonly string[],
-  domain: 'real' | 'complex',
+  domain: 'real' | 'complex' | 'positive',
 ): Record<string, unknown> {
   const scope: Record<string, unknown> = {};
   for (const name of variables) {
@@ -163,7 +172,7 @@ export function samplePoint(
       // Keep |im| clear of 0 so a negative `re` never lands on the cut itself.
       scope[name] = math.complex(re, im);
     } else {
-      scope[name] = rng.float(0.35, 2.6) * rng.sign();
+      scope[name] = rng.float(0.35, 2.6) * (domain === 'positive' ? 1 : rng.sign());
     }
   }
   return scope;

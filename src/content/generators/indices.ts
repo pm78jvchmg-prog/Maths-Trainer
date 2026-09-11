@@ -565,6 +565,165 @@ const indexEquation: Generator<IndexEquationParams> = {
   ],
 };
 
+/**
+ * A fractional index as it is written inside an exponent.
+ *
+ * The sign sits outside the fraction — `-\frac{3}{2}`, never `\frac{-3}{2}` —
+ * and a fraction that is really a whole number is written as one.
+ */
+function fracIndexTex(n: number, d: number): string {
+  const { n: num, d: den } = reduceFraction(n, d);
+  if (den === 1) return `${num}`;
+  return `${num < 0 ? '-' : ''}\\frac{${Math.abs(num)}}{${den}}`;
+}
+
+/** A fraction in lowest terms, with the sign carried by the numerator. */
+function reduceFraction(num: number, den: number): { n: number; d: number } {
+  const sign = den < 0 ? -1 : 1;
+  const g = gcd(Math.abs(num), Math.abs(den)) || 1;
+  return { n: (sign * num) / g, d: (sign * den) / g };
+}
+
+/* ---------- Level 2: index form ---------- */
+
+interface IndexFormParams {
+  /** Numerator of the index — the power under (or over) the root. */
+  p: number;
+  /** Denominator of the index — which root it is. */
+  q: number;
+  /** Which of the three ways the same index gets written. */
+  form: 0 | 1 | 2;
+}
+
+/**
+ * Indices in lowest terms, so the fraction the learner writes is the fraction
+ * the question shows. `p/q` cancelling to a whole number would make the answer
+ * `x^{2}` for a question that looks like it wants a fraction.
+ */
+function indexPairs(maxQ: number, maxP: number): { p: number; q: number }[] {
+  const out: { p: number; q: number }[] = [];
+  for (let q = 2; q <= maxQ; q += 1) {
+    for (let p = 1; p <= maxP; p += 1) {
+      if (gcd(p, q) === 1) out.push({ p, q });
+    }
+  }
+  return out;
+}
+
+const INDEX_EASY = indexPairs(3, 9);
+const INDEX_HARD = indexPairs(5, 9);
+
+/**
+ * The radical the question shows, in each of the three forms.
+ *
+ * `x^{1}` is written as `x`, because a power of one under a root reads as a
+ * typo rather than as part of the question.
+ */
+function radicalTex(p: number, q: number, form: number): string {
+  const inner = p === 1 ? 'x' : `x^{${p}}`;
+  const root = q === 2 ? `\\sqrt{${inner}}` : `\\sqrt[${q}]{${inner}}`;
+  if (form === 0) return root;
+  if (form === 1) return `\\frac{1}{${root}}`;
+  const bare = q === 2 ? '\\sqrt{x}' : `\\sqrt[${q}]{x}`;
+  return `\\left(${bare}\\right)^{${p}}`;
+}
+
+/**
+ * Writing a root as a fractional index.
+ *
+ * Two things make this question possible, and both are recent.
+ *
+ * The answer is `x^{p/q}`, which needs a fraction *inside an exponent* — typed
+ * flat as `x^1/2` that parses as `(x^1)/2`, so before the answer editor there
+ * was no way for a learner to write it at all.
+ *
+ * And it grades over `positive`. The identity is the textbook one, true for
+ * x ≥ 0, but mathjs reads both sides through the principal branch and they
+ * disagree at negative x for three powers in every four — probing the whole
+ * real line would mark a correct answer wrong for `\sqrt{x^3}` and accept it
+ * for `\sqrt{x^5}`, which is worse than not asking.
+ *
+ * The keypad withholds the root key, which is what stops the question being its
+ * own answer: the two sides are equal in value, so a checker that probes values
+ * would accept `\sqrt{x^3}` typed straight back. It cannot be typed. This is
+ * the same reason `idx-fractional` leaves the keypad bare, and the reason
+ * `rad-rationalise` is a choice question rather than this one's sibling —
+ * writing its answer needs the root key, and so does writing its question.
+ */
+const indexForm: Generator<IndexFormParams> = {
+  id: 'idx-index-form',
+  choices: ({ p, q, form }) => {
+    const sign = form === 1 ? -1 : 1;
+    return options(
+      { tex: `x^{${fracIndexTex(sign * p, q)}}`, answer: `x^((${sign * p})/(${q}))` },
+      { tex: `x^{${fracIndexTex(sign * q, p)}}`, answer: `x^((${sign * q})/(${p}))` },
+      { tex: `x^{${sign * p * q}}`, answer: `x^(${sign * p * q})` },
+      { tex: `x^{${fracIndexTex(-sign * p, q)}}`, answer: `x^((${-sign * p})/(${q}))` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const { p, q } = rng.pick(difficulty > 1 ? INDEX_HARD : INDEX_EASY);
+    // Form 2 raises the root to the power, and a power of one makes it the same
+    // question as form 0 written more elaborately.
+    return { p, q, form: rng.int(0, p === 1 ? 1 : 2) as 0 | 1 | 2 };
+  },
+  render: ({ p, q, form }) => {
+    const sign = form === 1 ? -1 : 1;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Write this as a single power of $x$. Use a fractional index.' },
+      ],
+      lead: `${radicalTex(p, q, form)} =`,
+      // No root key: the answer is equal in value to the question, so a learner
+      // able to type the question back would be marked correct for copying it.
+      keypad: ALGEBRA_KEYS,
+      answer: `x^((${sign * p})/(${q}))`,
+      // Fractional indices are defined for a positive base; see samplePoint.
+      domain: 'positive',
+      mode: 'exact',
+    };
+  },
+  solution: ({ p, q, form }) => {
+    const name = q === 2 ? 'square root' : q === 3 ? 'cube root' : `${q}th root`;
+    const base = [
+      {
+        text: `The root tells you the bottom of the index and the power tells you the top. A ${name} is an index of $\\frac{1}{${q}}$.`,
+      },
+      { tex: `\\sqrt[${q}]{x} = x^{\\frac{1}{${q}}}` },
+    ];
+    if (form === 1) {
+      return [
+        ...base,
+        { tex: `${radicalTex(p, q, 0)} = x^{\\frac{${p}}{${q}}}` },
+        {
+          text: 'One over a power is the same power with a negative index, so the fraction keeps its size and changes sign.',
+        },
+        { tex: `\\frac{1}{x^{\\frac{${p}}{${q}}}} = x^{-\\frac{${p}}{${q}}}` },
+      ];
+    }
+    if (form === 2) {
+      return [
+        ...base,
+        {
+          text: `Raising that to a power multiplies the indices, which is the same $\\frac{${p}}{${q}}$ you get by putting the power under the root first.`,
+        },
+        { tex: `\\left(x^{\\frac{1}{${q}}}\\right)^{${p}} = x^{\\frac{${p}}{${q}}}` },
+        {
+          text: 'Root first or power first gives the same answer. Root first keeps the numbers smaller, which is why it is the usual habit.',
+        },
+      ];
+    }
+    return [
+      ...base,
+      { tex: `${radicalTex(p, q, 0)} = x^{\\frac{${p}}{${q}}}` },
+      {
+        text: `The $${p}$ is the power inside the root, so it goes on top; the $${q}$ says which root, so it goes underneath. Swapping them is the slip to watch for.`,
+      },
+    ];
+  },
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -572,6 +731,7 @@ export const indicesGenerators = [
   multiplyTerms,
   negativeIndex,
   fractionalIndex,
+  indexForm,
   simplifySurd,
   multiplySurds,
   addSurds,

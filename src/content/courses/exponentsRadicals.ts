@@ -370,7 +370,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-fractional', 2),
-            ask('idx-fractional', 2),
+            ask('idx-index-form'),
             ask('idx-fractional+choice', 2),
             teach(
               prose(
@@ -384,7 +384,7 @@ export const exponentsRadicals: Course = {
                 'Swapping the two numbers is the mistake to guard against: $\\frac{3}{4}$ means a fourth root and a cube, not a cube root and a fourth power.',
               ),
             ),
-            ask('idx-fractional', 2),
+            ask('idx-index-form'),
             ask('idx-fractional', 2),
             teach(
               prose(
@@ -395,12 +395,12 @@ export const exponentsRadicals: Course = {
                 'Deal with the minus sign first and what is left is the work just practised. Nothing new is required, which is the payoff for defining the negative and fractional cases so that the original laws survive intact.',
               ),
             ),
-            ask('idx-fractional+choice', 2),
-            ask('idx-fractional', 2),
+            ask('idx-index-form+choice', 2),
+            ask('idx-index-form', 2),
           ],
           skillCheck: [
             ask('idx-fractional', 2),
-            ask('idx-fractional', 2),
+            ask('idx-index-form', 2),
             ask('idx-fractional', 2),
           ],
         },
@@ -453,16 +453,16 @@ export const exponentsRadicals: Course = {
       levelCheck: [
         ask('idx-fractional', 2),
         ask('idx-equation', 2),
-        ask('idx-fractional', 2),
+        ask('idx-index-form', 2),
         ask('idx-equation', 2),
         ask('idx-fractional', 2),
-        ask('idx-equation', 2),
+        ask('idx-index-form+choice', 2),
         ask('idx-fractional', 2),
         ask('idx-equation', 2),
-        ask('idx-fractional', 2),
+        ask('idx-index-form', 2),
         ask('idx-equation', 2),
         ask('idx-fractional', 2),
-        ask('idx-fractional', 2),
+        ask('idx-index-form', 2),
       ],
     },
     {

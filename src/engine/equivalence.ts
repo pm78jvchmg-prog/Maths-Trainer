@@ -41,8 +41,16 @@ export interface CheckOptions {
    *                  one still fails.
    */
   mode?: 'exact' | 'upToConstant';
-  /** Sample over the reals or the complex plane. Complex courses need `complex`. */
-  domain?: 'real' | 'complex';
+  /**
+   * Sample over the reals, the complex plane, or the positive reals.
+   *
+   * Complex courses need `complex`. `positive` is for questions whose subject is
+   * only defined for a positive base — fractional indices, where `sqrt(x^3)`
+   * and `x^(3/2)` are equal for x ≥ 0 but disagree under mathjs's principal
+   * branch at negative x. It accepts a little more than `real` does, so it is
+   * opted into per slide rather than being the default anywhere.
+   */
+  domain?: 'real' | 'complex' | 'positive';
   /** Symbols standing for an arbitrary constant. Bound to 0 when probing. */
   arbitraryConstants?: readonly string[];
   /** Fix the seed so a check is reproducible. Tests rely on this. */

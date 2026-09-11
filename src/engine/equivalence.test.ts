@@ -189,3 +189,46 @@ describe('calculus-shaped answers', () => {
     if (verdict.status === 'invalid') expect(verdict.message).toMatch(/no function called tg/);
   });
 });
+
+/**
+ * The positive domain.
+ *
+ * Fractional indices are the reason it exists. `sqrt(x^3)` and `x^(3/2)` are
+ * the same function for x >= 0 and every textbook writes them as equal, but
+ * mathjs reads both through the principal branch, and at negative x they come
+ * out different for three powers in every four. Probing the whole real line
+ * therefore marks a correct answer wrong — and, worse, marks it right for the
+ * other power in four, so the fault would look like flakiness rather than a
+ * bug. The first two cases below are `incorrect` over `real`.
+ */
+describe('the positive domain', () => {
+  const positive = (user: string, expected: string) =>
+    check(user, expected, { domain: 'positive' });
+  const real = (user: string, expected: string) => check(user, expected, { domain: 'real' });
+
+  it('accepts a root written as a fractional index', () => {
+    expect(positive('x^((3)/(2))', 'sqrt(x^3)')).toBe('correct');
+    expect(positive('x^((2)/(3))', '(x^2)^(1/3)')).toBe('correct');
+    expect(positive('x^((-1)/(4))', '1/(x^(1/4))')).toBe('correct');
+  });
+
+  it('is doing something the real domain cannot', () => {
+    // If these ever start passing over `real`, the domain has stopped earning
+    // its keep — check what changed in mathjs before deleting it.
+    expect(real('x^((3)/(2))', 'sqrt(x^3)')).toBe('incorrect');
+    expect(real('x^((2)/(3))', '(x^2)^(1/3)')).toBe('incorrect');
+  });
+
+  it('still rejects an index that is genuinely wrong', () => {
+    expect(positive('x^((1)/(3))', 'sqrt(x)')).toBe('incorrect');
+    expect(positive('x^((2)/(3))', 'x^((3)/(2))')).toBe('incorrect');
+    expect(positive('x^((-3)/(2))', 'sqrt(x^3)')).toBe('incorrect');
+  });
+
+  it('is narrower than the real domain, which is why it is opt-in', () => {
+    // True only for x >= 0. A question about indices wants this accepted; most
+    // other questions do not, so no slide gets `positive` by default.
+    expect(positive('sqrt(x^2)', 'x')).toBe('correct');
+    expect(real('sqrt(x^2)', 'x')).toBe('incorrect');
+  });
+});

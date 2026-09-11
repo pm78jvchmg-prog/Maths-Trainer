@@ -259,10 +259,21 @@ Subagents default to Sonnet, set in `.claude/settings.json`:
 { "env": { "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet" } }
 ```
 
-`.claude/settings.json` is committed (the rest of `.claude/` is not) so that
+`.claude/settings.json` is committed (most of `.claude/` is not) so that
 cloud sessions pick the policy up — a remote container has no `~/.claude` to
 read a user-level setting from, and remote sessions are where the cost actually
 lands.
+
+`.claude/skills/` is committed for the same reason, and the `.gitignore` carries
+a negation for each. It currently holds one vendored skill:
+
+- **`i-have-adhd`** — an output-style skill from
+  [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT), vendored at
+  upstream commit `6f1f982`. `SKILL.md` is a byte-for-byte copy, so re-vendoring
+  is a straight overwrite from `skills/i-have-adhd/SKILL.md` upstream. Its
+  frontmatter sets `disable-model-invocation: true`, so it does nothing until
+  invoked with `/i-have-adhd`, and stays on until "stop adhd mode". Only the
+  skill is vendored — the upstream plugin's opt-in `SessionStart` hook is not.
 
 Escalate deliberately rather than starting high: raise **effort** first, then
 the model, then effort again on the new model. Per-agent overrides go in

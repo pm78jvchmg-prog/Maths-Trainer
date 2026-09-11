@@ -27,6 +27,7 @@
  * formatted for the other slot.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { bin, num, pow, root } from '../expr';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS } from './calculus';
 
@@ -279,6 +280,144 @@ const magnitude: Generator<VectorParams> = {
       },
       {
         text: 'Both components are squared, so both signs disappear. A magnitude can never be negative, which is a useful check on the arithmetic.',
+      },
+    ];
+  },
+};
+
+interface MagnitudeStepsParams {
+  a: number;
+  b: number;
+  c: number;
+}
+
+/**
+ * Legs of Pythagorean triples, both orders, so the magnitude under the root
+ * always comes out whole. The same primitive-and-multiple family as
+ * `modulus`'s table in the complex numbers course
+ * (`src/content/generators/complexPlane.ts`) — two unrelated topics, the same
+ * underlying arithmetic.
+ */
+const MAGNITUDE_TRIPLES: [number, number, number][] = [
+  [3, 4, 5], [4, 3, 5], [6, 8, 10], [8, 6, 10], [5, 12, 13], [12, 5, 13],
+  [8, 15, 17], [15, 8, 17], [7, 24, 25], [24, 7, 25], [9, 12, 15], [12, 9, 15],
+  [20, 21, 29], [21, 20, 29], [10, 24, 26], [24, 10, 26], [12, 16, 20],
+  [16, 12, 20], [15, 20, 25], [20, 15, 25], [9, 40, 41], [40, 9, 41],
+  [12, 35, 37], [35, 12, 37], [16, 30, 34], [30, 16, 34],
+];
+
+/**
+ * The magnitude, reduced one piece at a time.
+ *
+ * A root is a bracket: everything underneath it has to be settled before the
+ * root itself can be taken, and the usual slip is rooting the two squares
+ * separately — $\sqrt{a^2} + \sqrt{b^2} = a + b$ — which looks entirely
+ * reasonable right up until it is checked against the real answer. The tree
+ * makes that slip impossible to reach by tapping: the root node is only
+ * offered once its argument has collapsed to a single number, so there is no
+ * button that takes a root before the sum underneath it is settled.
+ *
+ * Legs are kept positive so a squared leaf never needs a negative base:
+ * `toTex` renders a numeric power's base bare, with no bracket, so a base of
+ * $-3$ would come out as the literal TeX `-3^{2}`, which reads as $-9$.
+ */
+const magnitudeSteps: Generator<MagnitudeStepsParams> = {
+  id: 'vec-magnitude-steps',
+  // The same three slips as a learner might make with no working at all:
+  // rooting separately, forgetting the root, and doubling the sum instead of
+  // squaring each part.
+  choices: ({ a, b, c }) => {
+    const wrong = [a + b, a * a + b * b, 2 * (a + b)];
+    const seen = new Set([c]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [c + step, c - step]) {
+        if (picked.length === 3) break;
+        if (candidate <= 0 || seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${c}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  sample: (rng) => {
+    const [a, b, c] = rng.pick(MAGNITUDE_TRIPLES);
+    return { a, b, c };
+  },
+  render: ({ a, b, c }): Slide => {
+    const expr = root(bin('+', pow(num(a), num(2)), pow(num(b), num(2))));
+    const aSq = a * a;
+    const bSq = b * b;
+    const sum = aSq + bSq;
+
+    /** Four whole-number options: the right one, then the nearest slips. */
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set<number>([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 4) break;
+        if (!Number.isInteger(value) || value < 0 || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 4; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 4) break;
+          if (candidate < 0 || seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the magnitude, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+        { kind: 'display', tex: `\\left| \\begin{pmatrix} ${a} \\\\ ${b} \\end{pmatrix} \\right|` },
+      ],
+      expr,
+      banks: {
+        // a^2: doubling instead of squaring is the slip.
+        'r.a.l': offer(aSq, 2 * a, a, aSq + 2),
+        // b^2, the same slip on the other component.
+        'r.a.r': offer(bSq, 2 * b, b, bSq + 2),
+        // The sum under the root: squaring the sum instead of summing the
+        // squares, and the difference of the two squares.
+        'r.a': offer(sum, (a + b) * (a + b), a + b, Math.abs(aSq - bSq)),
+        // The root itself: rooting the two squares separately, or forgetting
+        // the root altogether.
+        r: offer(c, a + b, sum, 2 * (a + b)),
+      },
+    };
+  },
+  solution: ({ a, b, c }) => {
+    const aSq = a * a;
+    const bSq = b * b;
+    const sum = aSq + bSq;
+    return [
+      {
+        text: 'A root is a bracket: everything underneath it has to be settled before the root itself can be taken.',
+      },
+      {
+        tex: `\\left| \\begin{pmatrix} ${a} \\\\ ${b} \\end{pmatrix} \\right| = \\sqrt{${a}^{2} + ${b}^{2}} = \\sqrt{${aSq} + ${bSq}}`,
+      },
+      { tex: `= \\sqrt{${sum}} = ${c}` },
+      {
+        text: `Rooting the two squares separately and adding would give $${a} + ${b} = ${a + b}$ — close enough to look plausible, and wrong, because $\\sqrt{x} + \\sqrt{y}$ is not $\\sqrt{x + y}$.`,
       },
     ];
   },
@@ -992,6 +1131,7 @@ export const vectorGenerators = [
   addVectors,
   combineVectors,
   magnitude,
+  magnitudeSteps,
   dotProduct,
   perpendicular,
   parallel,

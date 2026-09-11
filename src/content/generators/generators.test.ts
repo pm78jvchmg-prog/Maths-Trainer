@@ -19,7 +19,7 @@ import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression, math } from '../../engine/expression';
 import { registeredGenerators, registry } from '../registry';
 import { courses } from '../courses';
-import { valueOf, type Expr } from '../expr';
+import { renderExpr, valueOf, type Expr } from '../expr';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX } from '../choiceVariant';
@@ -303,6 +303,39 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       }
 
       if (slide.kind === 'expression' && slide.lead) check(slide.lead, 'lead');
+
+      // Three kinds arrived after this sweep was written, and every string
+      // below reaches the learner: a branch label, an option, a bank value or
+      // the line of working itself.
+      if (slide.kind === 'flow') {
+        check(slide.subject, 'flow subject');
+        const inline = (text: string, where: string) =>
+          text
+            .split(/\$([^$]+)\$/g)
+            .filter((_, idx) => idx % 2 === 1)
+            .forEach((tex) => check(tex, where));
+        for (const step of slide.steps) {
+          inline(step.ask, `flow ${step.id} ask`);
+          for (const branch of step.branches) {
+            inline(branch.label, `flow ${step.id} label`);
+            if (branch.outcome) inline(branch.outcome, `flow ${step.id} outcome`);
+          }
+        }
+      }
+
+      if (slide.kind === 'evaluate') {
+        // Rendered the way the widget renders it: fragment by fragment, so a
+        // \left with no matching \right in the same fragment is caught.
+        for (const fragment of renderExpr(slide.expr)) check(fragment.tex, 'evaluate fragment');
+        for (const option of slide.options) check(option, 'evaluate option');
+      }
+
+      if (slide.kind === 'reduce') {
+        for (const fragment of renderExpr(slide.expr)) check(fragment.tex, 'reduce fragment');
+        for (const [path, bank] of Object.entries(slide.banks)) {
+          for (const value of bank) check(value, `reduce bank ${path}`);
+        }
+      }
 
       if (slide.kind === 'choice') {
         for (const option of slide.options) {

@@ -139,3 +139,21 @@ describe('grading a walk', () => {
     expect(valueOf(reduceAt(sample, 'r.l', 8))).toBe(20);
   });
 });
+
+describe('a negative base', () => {
+  it('is bracketed, because the minus would otherwise escape the power', () => {
+    // -3^{2} is minus three squared, which is -9. The square of -3 is 9.
+    expect(toTex(pow(num(-3), num(2)))).toBe('\\left(-3\\right)^{2}');
+    expect(valueOf(pow(num(-3), num(2)))).toBe(9);
+  });
+
+  it('leaves a positive base bare', () => {
+    expect(toTex(pow(num(3), num(2)))).toBe('3^{2}');
+  });
+
+  it('brackets it in the fragments too, not only in the whole-string form', () => {
+    const pieces = renderExpr(bin('+', pow(num(-3), num(2)), num(1))).map((f) => f.tex);
+    expect(pieces.join('')).toContain('-3');
+    expect(pieces.join('')).not.toMatch(/(^|[^(])-3\^/);
+  });
+});

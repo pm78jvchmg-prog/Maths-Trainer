@@ -805,7 +805,10 @@ export const integration: Course = {
               ),
             ),
             ask('int-by-parts+choice'),
-            ask('int-substitution'),
+            // The last slide of the level: every technique has now been
+            // taught, so the last question is choosing between them rather
+            // than running one that has already been named.
+            ask('int-choose-method'),
           ],
           skillCheck: [ask('int-by-parts', 2), ask('int-by-parts', 2), ask('int-by-parts', 2)],
         },

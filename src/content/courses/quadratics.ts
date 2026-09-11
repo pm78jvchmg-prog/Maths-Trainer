@@ -457,8 +457,8 @@ export const quadratics: Course = {
                 'So the discriminant answers "how many roots" without ever finding them, which is often all a question wants.',
               ),
             ),
-            ask('quad-discriminant'),
-            ask('quad-discriminant'),
+            ask('quad-discriminant-steps'),
+            ask('quad-discriminant-steps+choice'),
             ask('quad-root-count'),
             teach(
               prose('Each case has a graphical meaning, and it is worth holding both pictures at once.'),

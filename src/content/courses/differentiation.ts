@@ -617,7 +617,10 @@ export const differentiation: Course = {
                 text: 'Differentiating is mechanical in a way that integrating is not: follow the structure and the answer comes out. That reliability is what makes it worth drilling until it is automatic.',
               },
             ),
-            ask('exp-log-derivative+choice', 2),
+            // The last slide of the course: every rule has now been taught,
+            // so the last question is choosing between them rather than
+            // running one that has already been named.
+            ask('df-choose-rule'),
           ],
           skillCheck: [
             ask('exp-log-derivative', 2),

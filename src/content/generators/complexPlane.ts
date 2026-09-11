@@ -1,8 +1,9 @@
 /**
  * Complex Numbers, Levels 3 and 4: the plane, modulus, argument and powers.
  */
-import type { Generator, KeypadKey } from '../types';
+import type { Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
+import { bin, num, pow, root } from '../expr';
 import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf } from './format';
 import { complexPlaneSvg, rangeFor } from './plane';
 import { options } from '../choiceVariant';
@@ -146,6 +147,123 @@ export const modulus: Generator<ModulusParams> = {
   ],
 };
 
+interface ModulusStepsParams { a: number; b: number; c: number }
+
+/** Every row of `TRIPLES`, so the answer is the same whole number it would be there. */
+const MODULUS_STEPS_TRIPLES: ModulusStepsParams[] = TRIPLES.map(([a, b, c]) => ({ a, b, c }));
+
+/**
+ * The modulus, reduced one piece at a time.
+ *
+ * The same shape as `vec-magnitude-steps` in the vectors course: a root is a
+ * bracket, so everything underneath — both squares and their sum — has to be
+ * settled before the root itself can be taken. The usual slip is rooting the
+ * two squares separately and adding, $\sqrt{a^2} + \sqrt{b^2} = a + b$, which
+ * the tree makes impossible to reach by accident, because the root node is
+ * only offered once its argument has collapsed to a single number.
+ *
+ * `TRIPLES` rows are always positive, and that is relied on here: `toTex`
+ * renders a numeric power's base bare, with no bracket, so a negative base
+ * would come out as the literal TeX `-3^{2}`, which reads as $-9$.
+ */
+const modulusSteps: Generator<ModulusStepsParams> = {
+  id: 'modulus-steps',
+  // The same slips as with no working shown: rooting separately, forgetting
+  // the root, and doubling the sum instead of squaring each part.
+  choices: ({ a, b, c }) => {
+    const wrong = [a + b, a * a + b * b, 2 * (a + b)];
+    const seen = new Set([c]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [c + step, c - step]) {
+        if (picked.length === 3) break;
+        if (candidate <= 0 || seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${c}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  sample: (rng) => rng.pick(MODULUS_STEPS_TRIPLES),
+  render: ({ a, b, c }): Slide => {
+    const expr = root(bin('+', pow(num(a), num(2)), pow(num(b), num(2))));
+    const aSq = a * a;
+    const bSq = b * b;
+    const sum = aSq + bSq;
+
+    /** Four whole-number options: the right one, then the nearest slips. */
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set<number>([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 4) break;
+        if (!Number.isInteger(value) || value < 0 || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 4; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 4) break;
+          if (candidate < 0 || seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the modulus, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+        { kind: 'display', tex: `\\left| ${complexTex(a, b)} \\right|` },
+      ],
+      expr,
+      banks: {
+        // a^2: doubling instead of squaring is the slip.
+        'r.a.l': offer(aSq, 2 * a, a, aSq + 2),
+        // b^2, the same slip on the other component.
+        'r.a.r': offer(bSq, 2 * b, b, bSq + 2),
+        // The sum under the root: squaring the sum instead of summing the
+        // squares, and the difference of the two squares.
+        'r.a': offer(sum, (a + b) * (a + b), a + b, Math.abs(aSq - bSq)),
+        // The root itself: rooting the two squares separately, or forgetting
+        // the root altogether.
+        r: offer(c, a + b, sum, 2 * (a + b)),
+      },
+    };
+  },
+  solution: ({ a, b, c }) => {
+    const aSq = a * a;
+    const bSq = b * b;
+    const sum = aSq + bSq;
+    return [
+      {
+        text: 'A root is a bracket: everything underneath it has to be settled before the root itself can be taken.',
+      },
+      {
+        tex: `\\left| ${complexTex(a, b)} \\right| = \\sqrt{${a}^{2} + ${b}^{2}} = \\sqrt{${aSq} + ${bSq}}`,
+      },
+      { tex: `= \\sqrt{${sum}} = ${c}` },
+      {
+        text: `Rooting the two squares separately and adding would give $${a} + ${b} = ${a + b}$ — close enough to look plausible, and wrong, because $\\sqrt{x} + \\sqrt{y}$ is not $\\sqrt{x + y}$.`,
+      },
+    ];
+  },
+};
+
 /* ---------- Argument ---------- */
 
 /** Points whose argument is a clean multiple of pi/4, plus the axes. */
@@ -266,6 +384,7 @@ export const planeGenerators = [
   identifyPoint,
   plotPoint,
   modulus,
+  modulusSteps,
   argument,
   complexPower,
 ];

@@ -213,10 +213,13 @@ export function renderExpr(
       out.push({ tex: toTex(expr), owners: mine, handle: path });
       return out;
     }
+
     // Otherwise the base is still being worked on and must stay tappable, so
     // the exponent is pinned to the closing bracket instead.
     const base = expr.base;
-    const needsBrackets = base.kind !== 'num';
+    // As in `toTex`: a negative base is bracketed too, or the minus escapes the
+    // power and the line says the opposite of what it means.
+    const needsBrackets = base.kind !== 'num' || base.value < 0;
     // Plain brackets, never `\left(` and `\right)`. Each fragment is rendered
     // by its own KaTeX call, and a `\left` with no matching `\right` in the
     // same call fails — printing the command as literal text rather than
@@ -256,7 +259,10 @@ export function toTex(expr: Expr): string {
   if (expr.kind === 'num') return `${expr.value}`;
   if (expr.kind === 'root') return rootTex(expr);
   if (expr.kind === 'power') {
-    const base = expr.base.kind === 'num' ? toTex(expr.base) : `\\left(${toTex(expr.base)}\\right)`;
+    // A negative number needs the bracket as much as a sub-expression does:
+    // `-3^{2}` is minus three squared, which is -9, and the square of -3 is 9.
+    const bare = expr.base.kind === 'num' && expr.base.value >= 0;
+    const base = bare ? toTex(expr.base) : `\\left(${toTex(expr.base)}\\right)`;
     return `${base}^{${toTex(expr.exponent)}}`;
   }
   const side = (child: Expr) =>

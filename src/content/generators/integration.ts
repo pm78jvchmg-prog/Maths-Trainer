@@ -976,6 +976,214 @@ const byParts: Generator<PartsParams> = {
   },
 };
 
+/* ---------- Choosing a method ---------- */
+
+interface MethodParams {
+  route: 'standard' | 'bracket' | 'substitution' | 'parts';
+  /** Which standard result, when `route === 'standard'`. */
+  kind: 'power' | 'exp' | 'sin' | 'cos';
+  /** Which factor accompanies $x$, when `route === 'parts'`. */
+  form: 'exp' | 'sin' | 'cos';
+  a: number;
+  b: number;
+  power: number;
+}
+
+/**
+ * Which technique does this integral call for?
+ *
+ * Every other generator in this course asks the learner to *run* a technique
+ * after being told which one applies. Recognising which one a fresh integrand
+ * needs is the skill the rest of the course assumes and none of it tests —
+ * a `choice` slide asking "which method?" would be a one-in-four guess.
+ * Walking the tree makes the learner commit to a reason at each fork: is it
+ * a standard result outright; a linear bracket that only needs adjusting for;
+ * an inner function whose derivative is already sitting in the integrand, so
+ * substitution applies; or, failing all of that, a product of two unrelated
+ * things, which is what by parts is for.
+ *
+ * The four routes are ordered by how little work they are, which is the order
+ * worth building as a habit: recognise it on sight before reaching for either
+ * technique.
+ */
+const chooseMethod: Generator<MethodParams> = {
+  id: 'int-choose-method',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['standard', 'bracket', 'substitution', 'parts'] as const);
+    if (route === 'standard') {
+      const kind = rng.pick(['power', 'exp', 'sin', 'cos'] as const);
+      if (kind === 'power') {
+        return {
+          route,
+          kind,
+          form: 'exp' as const,
+          a: rng.int(1, 9),
+          b: 0,
+          power: rng.int(1, difficulty > 1 ? 8 : 5),
+        };
+      }
+      if (kind === 'exp') {
+        return {
+          route,
+          kind,
+          form: 'exp' as const,
+          a: rng.int(1, 9),
+          b: nonZero(rng.int(-6, 6), 2),
+          power: 0,
+        };
+      }
+      // sin or cos, with a coefficient of x inside.
+      return {
+        route,
+        kind,
+        form: 'exp' as const,
+        a: rng.int(1, 9),
+        b: rng.int(2, difficulty > 1 ? 9 : 6),
+        power: 0,
+      };
+    }
+    if (route === 'bracket') {
+      // A coefficient of at least 2 inside the bracket, so the second
+      // division — the one the tree is asking about — is never invisible.
+      return {
+        route,
+        kind: 'power' as const,
+        form: 'exp' as const,
+        a: rng.int(2, difficulty > 1 ? 7 : 5),
+        b: nonZero(rng.int(-6, 6), 4),
+        power: rng.int(2, difficulty > 1 ? 7 : 5),
+      };
+    }
+    if (route === 'substitution') {
+      // a * x * (x^2 + b)^n: the x outside is, up to a constant, the
+      // derivative of the bracket inside.
+      return {
+        route,
+        kind: 'power' as const,
+        form: 'exp' as const,
+        a: rng.int(2, difficulty > 1 ? 9 : 6),
+        b: nonZero(rng.int(difficulty > 1 ? -5 : 1, 6), 2),
+        power: rng.int(2, difficulty > 1 ? 7 : 5),
+      };
+    }
+    // parts: x times an exponential or trig function, neither the
+    // derivative of the other.
+    const form = rng.pick(['exp', 'sin', 'cos'] as const);
+    return {
+      route,
+      kind: 'power' as const,
+      form,
+      a: rng.int(1, difficulty > 1 ? 6 : 4),
+      b: nonZero(rng.int(difficulty > 1 ? -5 : 2, difficulty > 1 ? 5 : 7), 3),
+      power: 0,
+    };
+  },
+  render: ({ route, kind, form, a, b, power }): Slide => {
+    const integrand =
+      route === 'standard'
+        ? kind === 'power'
+          ? termTex(a, power)
+          : kind === 'exp'
+            ? `${a === 1 ? '' : a}e^{${termTex(b, 1)}}`
+            : `${a === 1 ? '' : a}\\${kind}\\left(${termTex(b, 1)}\\right)`
+        : route === 'bracket'
+          ? `\\left(${linearTex(a, b)}\\right)^{${power}}`
+          : route === 'substitution'
+            ? `${termTex(a, 1)}\\left(x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)^{${power}}`
+            : `${a === 1 ? '' : a}x${form === 'exp' ? `e^{${termTex(b, 1)}}` : `\\${form}\\left(${termTex(b, 1)}\\right)`}`;
+
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to decide how you would integrate this. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: integralTex(integrand),
+      steps: [
+        {
+          id: 'standard',
+          ask: 'Is this a standard result you already know outright — a power of $x$, $e^{kx}$, $\\sin(kx)$ or $\\cos(kx)$?',
+          branches: [
+            { label: 'Yes', outcome: 'Apply the standard result directly.' },
+            { label: 'No', to: 'bracket' },
+          ],
+        },
+        {
+          id: 'bracket',
+          ask: 'Is the whole integrand one linear bracket raised to a power, like $(ax + b)^{n}$?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: 'Integrate as though the bracket were $x$, then divide by the coefficient of $x$ inside it.',
+            },
+            { label: 'No', to: 'inner' },
+          ],
+        },
+        {
+          id: 'inner',
+          ask: "Does the integrand contain a function of $x$ alongside (a multiple of) that function's derivative?",
+          branches: [
+            { label: 'Yes', outcome: 'Substitute $u$ for the inner function.' },
+            { label: 'No', outcome: 'Integrate by parts.' },
+          ],
+        },
+      ],
+      answer:
+        route === 'standard'
+          ? ['Yes']
+          : route === 'bracket'
+            ? ['No', 'Yes']
+            : route === 'substitution'
+              ? ['No', 'No', 'Yes']
+              : ['No', 'No', 'No'],
+    };
+  },
+  solution: ({ route, kind, form, a, b, power }) => {
+    if (route === 'standard') {
+      const label =
+        kind === 'power' ? `$${termTex(a, power)}$, a power of $x$` : kind === 'exp' ? 'an exponential' : `a $\\${kind}$`;
+      return [
+        {
+          text: `This is ${label} — one of the standard results, so no technique is needed beyond recalling it.`,
+        },
+        {
+          text: 'Reaching for substitution or parts here would still work eventually, but it is far more machinery than the question needs.',
+        },
+      ];
+    }
+    if (route === 'bracket') {
+      return [
+        {
+          text: `The whole integrand is a single linear bracket raised to a power, so this is the reverse chain rule: raise the index by one, divide by the new index, then divide again by the coefficient of $x$ inside the bracket — here $${a}$.`,
+        },
+        {
+          text: 'Substitution would also work, with $u$ equal to the bracket, but for a linear bracket that is more machinery than the shortcut needs.',
+        },
+      ];
+    }
+    if (route === 'substitution') {
+      return [
+        {
+          text: `Differentiating $x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$ gives $2x$, and there is an $x$ sitting outside the bracket — up to the constant $${a}$, that is exactly the derivative of what is inside.`,
+        },
+        {
+          text: 'That pairing is what makes substitution work: put $u$ equal to the inner function and the remaining $x$ is absorbed into $du$.',
+        },
+      ];
+    }
+    return [
+      {
+        text: `$x$ and ${form === 'exp' ? 'an exponential' : `a $\\${form}$`} are unrelated functions here — neither is the derivative of the other, so there is nothing to substitute.`,
+      },
+      {
+        text: 'That is exactly the case by parts is for: differentiating the polynomial factor eventually turns it into a constant, which is what makes the method terminate.',
+      },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -990,4 +1198,5 @@ export const integrationGenerators = [
   linearBracket,
   substitution,
   byParts,
+  chooseMethod,
 ] as unknown as Generator<unknown>[];

@@ -8,7 +8,7 @@
  * Throughout, `*Tex` values are what the learner reads and `answer` is what
  * mathjs grades — the two are never the same string.
  */
-import type { Generator, SolutionStep } from '../types';
+import type { Generator, Slide, SolutionStep } from '../types';
 import { options } from '../choiceVariant';
 import {
   ALGEBRA_KEYS,
@@ -669,6 +669,264 @@ export const evaluateDerivative: Generator<EvaluateParams> = {
   },
 };
 
+/* ---------- Choosing a rule ---------- */
+
+interface RuleParams {
+  route: 'power' | 'sum' | 'chain' | 'product' | 'quotient';
+  /** Which shape of chain, when `route === 'chain'`. */
+  chainForm: 'bracket' | 'trig';
+  /** Which trig function, when `chainForm === 'trig'`. */
+  fn: 'sin' | 'cos';
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  power: number;
+  /** The second term's power in a sum; the inner power in a bracket chain. */
+  innerPower: number;
+}
+
+/**
+ * Which rule does this derivative call for?
+ *
+ * Every other generator in this course asks the learner to *run* a rule
+ * after being told which one applies. Recognising which rule a fresh
+ * expression needs is the skill the rest of the course assumes and none of
+ * it tests — a `choice` slide asking "which rule?" would be a one-in-five
+ * guess. Walking the tree makes the learner commit to a reason at each fork:
+ * is it a single term; a sum of terms with nothing multiplying between them;
+ * a function of a function; or, failing both of those, a product or a
+ * quotient of two.
+ */
+const chooseRule: Generator<RuleParams> = {
+  id: 'df-choose-rule',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['power', 'sum', 'chain', 'product', 'quotient'] as const);
+    const hard = difficulty >= 2;
+    if (route === 'power') {
+      return {
+        route,
+        chainForm: 'bracket' as const,
+        fn: 'sin' as const,
+        a: rng.int(2, hard ? 12 : 9),
+        b: 0,
+        c: 0,
+        d: 0,
+        power: hard ? rng.pick([-4, -3, -2, 4, 5, 6, 7]) : rng.int(2, 7),
+        innerPower: 1,
+      };
+    }
+    if (route === 'sum') {
+      // A gap between the two powers, at difficulty 2, so the answer cannot
+      // be read off by pattern-matching adjacent terms.
+      const highPower = hard ? rng.pick([3, 4, 5]) : rng.pick([2, 3]);
+      const lowPower = hard ? rng.pick([1, 2]) : rng.int(1, highPower - 1);
+      const negateHigh = hard && rng.chance(0.4);
+      return {
+        route,
+        chainForm: 'bracket' as const,
+        fn: 'sin' as const,
+        a: rng.int(2, hard ? 9 : 6) * (negateHigh ? -1 : 1),
+        b: rng.int(2, hard ? 9 : 6) * (hard && !negateHigh ? -1 : 1),
+        c: hard ? rng.int(2, 9) * rng.sign() : 0,
+        d: 0,
+        power: highPower,
+        innerPower: lowPower,
+      };
+    }
+    if (route === 'chain') {
+      const chainForm = rng.pick(['bracket', 'trig'] as const);
+      if (chainForm === 'bracket') {
+        return {
+          route,
+          chainForm,
+          fn: 'sin' as const,
+          a: hard ? 1 : rng.int(2, 5),
+          b: rng.int(1, 6) * (hard ? rng.sign() : 1),
+          c: 0,
+          d: 0,
+          power: hard ? rng.pick([3, 4, -2]) : rng.int(2, 4),
+          // Difficulty 2 puts a quadratic inside, so the inner derivative is
+          // itself a function of x rather than a bare constant.
+          innerPower: hard ? 2 : 1,
+        };
+      }
+      return {
+        route,
+        chainForm,
+        fn: rng.pick(['sin', 'cos'] as const),
+        a: 0,
+        b: hard ? rng.int(2, 7) : rng.int(2, 9),
+        c: hard ? rng.sign() * rng.int(1, 6) : 0,
+        d: 0,
+        power: 0,
+        innerPower: 1,
+      };
+    }
+    if (route === 'product') {
+      return {
+        route,
+        chainForm: 'bracket' as const,
+        fn: 'sin' as const,
+        a: rng.int(2, hard ? 5 : 3),
+        b: rng.int(1, 5) * (hard ? rng.sign() : 1),
+        c: rng.int(1, hard ? 4 : 2),
+        d: rng.int(1, 6) * (hard ? rng.sign() : 1),
+        power: 0,
+        innerPower: 1,
+      };
+    }
+    // quotient: a genuine fraction, never one that collapses to a constant.
+    for (;;) {
+      const a = rng.int(1, hard ? 5 : 3);
+      const b = rng.int(1, 6) * (hard ? rng.sign() : 1);
+      const c = rng.int(1, hard ? 4 : 2);
+      const d = rng.int(1, 6) * (hard ? rng.sign() : 1);
+      if (a * d - b * c !== 0) {
+        return { route, chainForm: 'bracket' as const, fn: 'sin' as const, a, b, c, d, power: 0, innerPower: 1 };
+      }
+    }
+  },
+  render: ({ route, chainForm, fn, a, b, c, d, power, innerPower }): Slide => {
+    const subject =
+      route === 'power'
+        ? termTex(a, power)
+        : route === 'sum'
+          ? sumTex([termTex(a, power), termTex(b, innerPower), termTex(c, 0)])
+          : route === 'chain'
+            ? chainForm === 'bracket'
+              ? `\\left(${sumTex([termTex(a, innerPower), termTex(b, 0)])}\\right)^{${power}}`
+              : `\\${fn}\\left(${sumTex([termTex(b, 1), termTex(c, 0)])}\\right)`
+            : route === 'product'
+              ? `\\left(${sumTex([termTex(a, 1), termTex(b, 0)])}\\right)\\left(${sumTex([termTex(c, 2), termTex(d, 0)])}\\right)`
+              : `\\frac{${sumTex([termTex(a, 1), termTex(b, 0)])}}{${sumTex([termTex(c, 1), termTex(d, 0)])}}`;
+
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to decide how you would differentiate this. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: `y = ${subject}`,
+      steps: [
+        {
+          id: 'power',
+          ask: 'Is it a single power of $x$ — one term, however it is written?',
+          branches: [
+            { label: 'Yes', outcome: 'Power rule: bring the power down as a multiplier, then reduce the power by one.' },
+            { label: 'No', to: 'sum' },
+          ],
+        },
+        {
+          id: 'sum',
+          ask: 'Is it several such terms added or subtracted, with no multiplying or dividing between them?',
+          branches: [
+            { label: 'Yes', outcome: 'Differentiate term by term and add the results.' },
+            { label: 'No', to: 'composed' },
+          ],
+        },
+        {
+          id: 'composed',
+          ask: 'Is it one function wrapped around another — like $(3x + 1)^{5}$ or $\\sin(2x)$ — rather than two separate factors?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: 'Chain rule: differentiate the outside, then multiply by the derivative of the inside.',
+            },
+            { label: 'No', to: 'combine' },
+          ],
+        },
+        {
+          id: 'combine',
+          ask: 'Are the two factors multiplied together, rather than one divided by the other?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: 'Product rule: differentiate each factor in turn, keeping the other intact, and add.',
+            },
+            {
+              label: 'No',
+              outcome:
+                "Quotient rule: derivative of the top times the bottom, minus the top times the derivative of the bottom, all over the bottom squared.",
+            },
+          ],
+        },
+      ],
+      answer:
+        route === 'power'
+          ? ['Yes']
+          : route === 'sum'
+            ? ['No', 'Yes']
+            : route === 'chain'
+              ? ['No', 'No', 'Yes']
+              : route === 'product'
+                ? ['No', 'No', 'No', 'Yes']
+                : ['No', 'No', 'No', 'No'],
+    };
+  },
+  solution: ({ route, chainForm, fn, a, b, c, d, power, innerPower }) => {
+    if (route === 'power') {
+      return [
+        {
+          text: `$${termTex(a, power)}$ is a single power of $x$ — nothing more elaborate is going on, so this is a job for the power rule alone.`,
+        },
+        {
+          text: 'Reaching for the product or chain rule here would still land on the right answer eventually, but only after unnecessary work.',
+        },
+      ];
+    }
+    if (route === 'sum') {
+      return [
+        {
+          text: `The expression is $${sumTex([termTex(a, power), termTex(b, innerPower), termTex(c, 0)])}$ — power terms added or subtracted, with nothing multiplying or dividing between them.`,
+        },
+        {
+          text: 'That independence is exactly what the sum rule needs: each term is differentiated on its own and the results are added.',
+        },
+      ];
+    }
+    if (route === 'chain') {
+      return chainForm === 'bracket'
+        ? [
+            {
+              text: `The bracket $\\left(${sumTex([termTex(a, innerPower), termTex(b, 0)])}\\right)$ is raised to a power, so this is one function — a power — wrapped around another.`,
+            },
+            {
+              text: 'A function of a function is what the chain rule is for: differentiate the outside, then multiply by the derivative of what is inside.',
+            },
+          ]
+        : [
+            {
+              text: `$\\${fn}$ is wrapped around $${sumTex([termTex(b, 1), termTex(c, 0)])}$ rather than plain $x$, so this is a function of a function.`,
+            },
+            {
+              text: 'The chain rule applies: differentiate the trig function as usual, then multiply by the derivative of the inside.',
+            },
+          ];
+    }
+    if (route === 'product') {
+      return [
+        {
+          text: `Two factors, $${sumTex([termTex(a, 1), termTex(b, 0)])}$ and $${sumTex([termTex(c, 2), termTex(d, 0)])}$, are multiplied together rather than added.`,
+        },
+        {
+          text: 'That is the product rule: differentiate each factor in turn, keeping the other intact, and add the two results.',
+        },
+      ];
+    }
+    return [
+      {
+        text: `One expression, $${sumTex([termTex(a, 1), termTex(b, 0)])}$, sits over another, $${sumTex([termTex(c, 1), termTex(d, 0)])}$ — a quotient, not a product.`,
+      },
+      {
+        text: 'Order matters here in a way it does not for the product rule: derivative of the top times the bottom, minus the top times the derivative of the bottom, all over the bottom squared.',
+      },
+    ];
+  },
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -678,4 +936,5 @@ export const differentiationGenerators = [
   trigDerivative,
   expLogDerivative,
   evaluateDerivative,
+  chooseRule,
 ];

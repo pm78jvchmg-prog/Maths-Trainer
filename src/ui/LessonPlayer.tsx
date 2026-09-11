@@ -149,6 +149,9 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         className={`slide enter-${direction}${grows ? ' grow' : ''}`}
         key={slide.id}
       >
+        {session.states[slide.id]?.solved && (
+          <p className="lesson-meta">Already solved — answer again or continue.</p>
+        )}
         <SlideView
           slide={slide.slide}
           id={slide.id}
@@ -156,6 +159,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
           answer={answer}
           onAnswer={changeAnswer}
           canEdit={canRetry(session)}
+          onTryAgain={() => act({ type: 'tryAgain' })}
         />
       </main>
 

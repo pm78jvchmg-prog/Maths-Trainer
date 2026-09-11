@@ -15,6 +15,7 @@ import {
   insertAtom,
   insertFraction,
   insertRoot,
+  insertSup,
   isFilled,
   moveLeft,
   moveRight,
@@ -48,6 +49,7 @@ export interface SlideProps {
    * does not depend on every widget remembering to check.
    */
   canEdit: boolean;
+  onTryAgain: () => void;
 }
 
 /**
@@ -144,6 +146,7 @@ const ATOM_TEX: Record<string, string> = {
 function applyKey(doc: Doc, key: KeypadKey): Doc {
   if (key.insert === '/') return insertFraction(doc);
   if (key.insert === 'sqrt(') return insertRoot(doc);
+  if (key.insert === '^') return insertSup(doc);
   return insertAtom(doc, ATOM_TEX[key.insert] ?? key.insert, key.insert);
 }
 
@@ -161,7 +164,15 @@ function applyKey(doc: Doc, key: KeypadKey): Doc {
  */
 const drafts = new Map<string, Doc>();
 
-export function ExpressionSlide({ slide, id, feedback, answer, onAnswer, canEdit }: SlideProps) {
+export function ExpressionSlide({
+  slide,
+  id,
+  feedback,
+  answer,
+  onAnswer,
+  canEdit,
+  onTryAgain,
+}: SlideProps) {
   const locked = isLocked(feedback, canEdit);
   const current = typeof answer === 'string' ? answer : '';
 
@@ -204,6 +215,7 @@ export function ExpressionSlide({ slide, id, feedback, answer, onAnswer, canEdit
     // Inside braces it is a real string and the escape collapses as intended.
     if (key.insert === '/') return <Tex tex={'\\tfrac{\\square}{\\square}'} />;
     if (key.insert === 'sqrt(') return <Tex tex={'\\sqrt{\\square}'} />;
+    if (key.insert === '^') return <Tex tex={'x^{\\square}'} />;
     if (key.tex) return <Tex tex={key.insert} />;
     return key.label ?? key.insert;
   };
@@ -217,6 +229,11 @@ export function ExpressionSlide({ slide, id, feedback, answer, onAnswer, canEdit
       <div className={frameClass(feedback)}>
         {slide.lead && <Tex tex={slide.lead} />}
         <MathSlot doc={doc} showCaret={!locked} filled={filled} />
+        {canEdit && feedback.kind === 'incorrect' && (
+          <button type="button" className="retry-pill" onClick={onTryAgain}>
+            &#8635; Try again
+          </button>
+        )}
       </div>
 
       <div className="keypad">
@@ -279,7 +296,14 @@ export function ExpressionSlide({ slide, id, feedback, answer, onAnswer, canEdit
 
 /* ---------- Tiles ---------- */
 
-export function TilesSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
+export function TilesSlide({
+  slide,
+  feedback,
+  answer,
+  onAnswer,
+  canEdit,
+  onTryAgain,
+}: SlideProps) {
   if (slide.kind !== 'tiles') return null;
   const locked = isLocked(feedback, canEdit);
   const filled = Array.isArray(answer) ? answer : [];
@@ -336,6 +360,11 @@ export function TilesSlide({ slide, feedback, answer, onAnswer, canEdit }: Slide
             </button>
           );
         })}
+        {canEdit && feedback.kind === 'incorrect' && (
+          <button type="button" className="retry-pill" onClick={onTryAgain}>
+            &#8635; Try again
+          </button>
+        )}
       </div>
 
       <div className="tile-bank">

@@ -35,7 +35,8 @@ import { Tex } from './Math';
 export type Node =
   | { kind: 'atom'; tex: string; ans: string }
   | { kind: 'frac'; num: Node[]; den: Node[] }
-  | { kind: 'root'; arg: Node[] };
+  | { kind: 'root'; arg: Node[] }
+  | { kind: 'sup'; arg: Node[] };
 
 /** One step down into a node's slot, naming which slot. */
 export interface Step {
@@ -55,7 +56,7 @@ export const EMPTY_CARET: Caret = { steps: [], index: 0 };
 
 function slotOf(node: Node, slot: Step['slot']): Node[] {
   if (node.kind === 'frac') return slot === 'num' ? node.num : node.den;
-  if (node.kind === 'root') return node.arg;
+  if (node.kind === 'root' || node.kind === 'sup') return node.arg;
   return [];
 }
 
@@ -63,7 +64,7 @@ function withSlot(node: Node, slot: Step['slot'], next: Node[]): Node {
   if (node.kind === 'frac') {
     return slot === 'num' ? { ...node, num: next } : { ...node, den: next };
   }
-  if (node.kind === 'root') return { ...node, arg: next };
+  if (node.kind === 'root' || node.kind === 'sup') return { ...node, arg: next };
   return node;
 }
 
@@ -124,6 +125,29 @@ export function insertRoot(doc: Doc): Doc {
 }
 
 /**
+ * Raise to a power.
+ *
+ * A second `^` pressed straight after an exponent nests inside it rather than
+ * becoming a sibling. Two reasons, and they agree:
+ *
+ * - `x^{2}^{3}` is a KaTeX "double superscript" error, so the learner would see
+ *   a red parse error where their answer should be.
+ * - mathjs reads `x^2^3` right-associatively, as x^(2^3), which is the ordinary
+ *   convention. Nesting is what makes the displayed formula and the graded
+ *   string mean the same thing, which is the whole point of this key.
+ */
+export function insertSup(doc: Doc): Doc {
+  const list = listAt(doc.nodes, doc.caret.steps);
+  const before = doc.caret.index > 0 ? list[doc.caret.index - 1] : undefined;
+  if (before && before.kind === 'sup') {
+    const steps = [...doc.caret.steps, { node: doc.caret.index - 1, slot: 'arg' as const }];
+    const inside: Doc = { nodes: doc.nodes, caret: { steps, index: before.arg.length } };
+    return insert(inside, { kind: 'sup', arg: [] }, 'arg');
+  }
+  return insert(doc, { kind: 'sup', arg: [] }, 'arg');
+}
+
+/**
  * Backspace.
  *
  * At the start of a slot it steps out rather than deleting the node it is
@@ -159,7 +183,7 @@ export function deleteBack(doc: Doc): Doc {
 /** The slots of a node, in the order the caret should visit them. */
 function slotsOf(node: Node): Step['slot'][] {
   if (node.kind === 'frac') return ['num', 'den'];
-  if (node.kind === 'root') return ['arg'];
+  if (node.kind === 'root' || node.kind === 'sup') return ['arg'];
   return [];
 }
 
@@ -250,9 +274,12 @@ export function toTex(nodes: Node[], caret?: Caret, steps: Step[] = []): string 
       const num = toTex(node.num, caret, [...steps, { node: idx, slot: 'num' }]);
       const den = toTex(node.den, caret, [...steps, { node: idx, slot: 'den' }]);
       pieces.push(`\\frac{${num || PLACEHOLDER}}{${den || PLACEHOLDER}}`);
-    } else {
+    } else if (node.kind === 'root') {
       const arg = toTex(node.arg, caret, [...steps, { node: idx, slot: 'arg' }]);
       pieces.push(`\\sqrt{${arg || PLACEHOLDER}}`);
+    } else {
+      const arg = toTex(node.arg, caret, [...steps, { node: idx, slot: 'arg' }]);
+      pieces.push(`^{${arg || PLACEHOLDER}}`);
     }
   });
 
@@ -282,7 +309,8 @@ export function toAnswer(nodes: Node[]): string {
     .map((node) => {
       if (node.kind === 'atom') return node.ans;
       if (node.kind === 'frac') return `((${toAnswer(node.num) || '0'})/(${toAnswer(node.den) || '1'}))`;
-      return `sqrt(${toAnswer(node.arg) || '0'})`;
+      if (node.kind === 'root') return `sqrt(${toAnswer(node.arg) || '0'})`;
+      return `^(${toAnswer(node.arg) || '1'})`;
     })
     .join('');
 }

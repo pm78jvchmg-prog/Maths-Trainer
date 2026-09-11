@@ -137,7 +137,7 @@ function CourseMap({
                       <span className="lesson-meta">
                         {record
                           ? `Best ${record.bestCorrect}/${record.total} · played ${record.timesPlayed}×`
-                          : `${lesson.slides.length} slides · 3 skill checks`}
+                          : `${lesson.slides.length} slides · ${lesson.skillCheck.length} skill check${lesson.skillCheck.length === 1 ? '' : 's'}`}
                       </span>
                     </span>
                   </button>

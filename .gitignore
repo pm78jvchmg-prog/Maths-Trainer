@@ -30,3 +30,6 @@ dist-ssr
 !.claude/settings.json
 !.claude/skills/
 .claude/settings.local.json
+
+# Local reference screenshots/video, duplicated under docs/inspiration/
+/Game Inspiration/

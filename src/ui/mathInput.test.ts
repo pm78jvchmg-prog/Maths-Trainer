@@ -7,6 +7,7 @@
  * string — they push it through the real checker against the answer a generator
  * would state.
  */
+import katex from 'katex';
 import { describe, expect, it } from 'vitest';
 import { checkAnswer } from '../engine/equivalence';
 import {
@@ -16,6 +17,7 @@ import {
   insertAtom,
   insertFraction,
   insertRoot,
+  insertSup,
   isFilled,
   moveLeft,
   moveRight,
@@ -143,5 +145,83 @@ describe('grading a typed fraction', () => {
     doc = moveRight(type(doc, '4'));
     doc = type(doc, 'x^3');
     expect(grade(toAnswer(doc.nodes), '2x^3', 'upToConstant')).toBe('incorrect');
+  });
+});
+
+/**
+ * The exponent key used to let `^` through as a flat atom, so `x^14` rendered
+ * as x superscript 1, followed by a baseline 4 — KaTeX only stacks the single
+ * character straight after `^`. A regression back to that reads `x` then
+ * `insertSup` then `12` as `toTex === 'x^12'` (unbraced) rather than the
+ * `'x^{12}'` asserted below.
+ */
+describe('the exponent key is a superscript template', () => {
+  it('stacks a multi-digit exponent, both as read and as graded', () => {
+    let doc = type(EMPTY_DOC, 'x');
+    doc = insertSup(doc);
+    doc = type(doc, '12');
+    expect(toTex(doc.nodes)).toBe('x^{12}');
+    expect(toAnswer(doc.nodes)).toBe('x^(12)');
+  });
+
+  it('stacks a negative exponent', () => {
+    let doc = type(EMPTY_DOC, 'x');
+    doc = insertSup(doc);
+    doc = type(doc, '-3');
+    expect(toTex(doc.nodes)).toBe('x^{-3}');
+    expect(toAnswer(doc.nodes)).toBe('x^(-3)');
+  });
+
+  it('accepts a fraction typed inside the exponent', () => {
+    let doc = type(EMPTY_DOC, 'x');
+    doc = insertSup(doc);
+    doc = insertFraction(doc);
+    doc = type(doc, '1');
+    doc = moveRight(doc);
+    doc = type(doc, '2');
+    expect(toAnswer(doc.nodes)).toBe('x^(((1)/(2)))');
+    expect(
+      checkAnswer(toAnswer(doc.nodes), 'x^(1/2)', { domain: 'positive' }).status,
+    ).toBe('correct');
+  });
+
+  it('grades the same as the unbraced form mathjs would have parsed anyway', () => {
+    expect(checkAnswer('x^(12)', 'x^12').status).toBe('correct');
+  });
+});
+
+/**
+ * `x^{2}^{3}` is a KaTeX "double superscript" error, so a second tap on the
+ * exponent key used to replace the learner's answer with a red parse message.
+ * It nests instead, which is also how mathjs reads `x^2^3`.
+ */
+describe('a second exponent', () => {
+  const typeInto = (doc: Doc, text: string): Doc =>
+    [...text].reduce((acc, ch) => insertAtom(acc, ch, ch), doc);
+
+  it('nests inside the first rather than sitting beside it', () => {
+    let doc = typeInto(EMPTY_DOC, 'x');
+    doc = typeInto(insertSup(doc), '2');
+    doc = moveRight(doc); // out of the exponent, back to the top level
+    doc = typeInto(insertSup(doc), '3');
+    expect(toTex(doc.nodes)).toBe('x^{2^{3}}');
+    expect(toAnswer(doc.nodes)).toBe('x^(2^(3))');
+  });
+
+  it('renders as TeX KaTeX accepts', () => {
+    let doc = typeInto(EMPTY_DOC, 'x');
+    doc = typeInto(insertSup(doc), '2');
+    doc = moveRight(doc);
+    doc = typeInto(insertSup(doc), '3');
+    expect(() => katex.renderToString(toTex(doc.nodes), { throwOnError: true, strict: false })).not.toThrow();
+  });
+
+  it('grades as the power tower mathjs reads', () => {
+    let doc = typeInto(EMPTY_DOC, 'x');
+    doc = typeInto(insertSup(doc), '2');
+    doc = moveRight(doc);
+    doc = typeInto(insertSup(doc), '3');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x^8', { domain: 'positive' }).status).toBe('correct');
+    expect(checkAnswer(toAnswer(doc.nodes), 'x^6', { domain: 'positive' }).status).toBe('incorrect');
   });
 });

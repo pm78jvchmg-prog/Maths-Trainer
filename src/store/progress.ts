@@ -35,8 +35,11 @@ export const useProgress = create<ProgressState>()(
               [lessonId]: {
                 completedAt: Date.now(),
                 // Keep the best run, so replaying for practice can never make
-                // your record look worse.
-                bestCorrect: Math.max(previous?.bestCorrect ?? 0, score.correct),
+                // your record look worse. Clamped to the current total so a
+                // record set before content was edited (a skill check or
+                // level check that shrank) can never read as more correct
+                // than there are questions.
+                bestCorrect: Math.min(score.total, Math.max(previous?.bestCorrect ?? 0, score.correct)),
                 total: score.total,
                 timesPlayed: (previous?.timesPlayed ?? 0) + 1,
               },

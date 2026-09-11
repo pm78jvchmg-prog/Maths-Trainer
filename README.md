@@ -3,8 +3,8 @@
 Single-player maths practice with Brilliant's lesson shape: short guided slides,
 one idea at a time, immediate feedback. No XP, no streaks, no leagues.
 
-Two behaviours are deliberate and enforced in the session reducer rather than the
-UI, so no component can break them by accident:
+Three behaviours are deliberate and enforced in the session reducer rather than
+the UI, so no component can break them by accident:
 
 - **A wrong answer never reveals the answer.** The bar offers *Try again* and an
   opt-in *Show me*. Nothing is disclosed unless you ask for it. Changing your
@@ -13,6 +13,9 @@ UI, so no component can break them by accident:
 - **The skill check is sealed.** The last three questions run with no route back
   to the guided examples. The back control is absent from the DOM, not merely
   disabled.
+- **A level check is one attempt per question.** An assessment lesson never
+  offers *Try again*, never reveals working, and advances past a wrong answer
+  instead of blocking on it.
 
 ## Running it
 
@@ -63,7 +66,8 @@ identical question rather than quietly swapping in a different one.
 
 ## Tests
 
-`npm test` runs 100 checks. The generator suite is the important one: it runs
+`npm test` runs the session reducer, equivalence engine, math input and
+generator property suites. The generator suite is the important one: it runs
 every generator across 200 seeds at two difficulties and asserts that the checker
 accepts the answer the generator claims, rejects a perturbed one, and that tile
 banks actually contain the tokens their answers need. A generator bug otherwise

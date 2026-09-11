@@ -21,7 +21,7 @@ reaching for a package manager.
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Vite dev server on http://localhost:5173 |
-| `npm test` | Full suite (~220 tests) |
+| `npm test` | Full suite (session reducer, equivalence, math input, generator properties) |
 | `npm run build` | `tsc -b` then Vite build into `dist/`, including the service worker |
 | `npm run lint` | oxlint |
 | `npx tsc --noEmit -p tsconfig.app.json` | Typecheck alone |
@@ -42,7 +42,7 @@ errors and a green suite. Run the typecheck separately before committing.
 
 ## Three invariants that must not regress
 
-Both are enforced in `src/engine/session.ts`, deliberately *not* in components,
+All three are enforced in `src/engine/session.ts`, deliberately *not* in components,
 so that a UI change cannot quietly break them. Anything that routes around the
 reducer is a bug.
 
@@ -245,6 +245,11 @@ to https://maths-trainer.pm78jvchmg.workers.dev. Dashboard settings: build
 command `npm run build`, deploy command `npx wrangler deploy`, **root directory
 `/`** (that is where the build runs; the output path lives in `wrangler.jsonc`,
 never in the dashboard).
+
+Because every push to `main` deploys straight to production, land changes
+through a branch and a pull request rather than committing to `main` directly.
+There is no branch-protection backstop (the repo is private on a plan where
+GitHub's branch-protection API returns 403), so this is enforced by habit.
 
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add

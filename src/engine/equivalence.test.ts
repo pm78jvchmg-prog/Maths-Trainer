@@ -232,3 +232,25 @@ describe('the positive domain', () => {
     expect(real('sqrt(x^2)', 'x')).toBe('incorrect');
   });
 });
+
+/**
+ * The `=` key is on every expression keypad, and mathjs reads `x=0` as an
+ * assignment rather than an equation: evaluating it writes into the scope and
+ * returns the right-hand side. Both sides were probed against one shared scope
+ * object, so a learner's assignment rebound the variable for the expected side
+ * as well and any answer vanishing at that value was graded correct.
+ */
+describe('an equals sign cannot leak into the other side', () => {
+  it('rejects an assignment that would make both sides agree', () => {
+    expect(check('x=0', '2x')).toBe('incorrect');
+    expect(check('x=0', '14x')).toBe('incorrect');
+    expect(check('x=1', 'x^2')).toBe('incorrect');
+    expect(check('x = 3', 'x')).toBe('incorrect');
+    expect(check('x=5', 'x^3+x', { mode: 'upToConstant' })).toBe('incorrect');
+  });
+
+  it('leaves a genuinely correct answer alone', () => {
+    expect(check('x=3', '3')).toBe('correct');
+    expect(check('y=2x', '2x')).toBe('correct');
+  });
+});

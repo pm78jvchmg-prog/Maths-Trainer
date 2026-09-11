@@ -164,8 +164,14 @@ export function checkAnswer(
 
   for (let attempt = 0; attempt < policy.sampleCount; attempt++) {
     const scope = { ...zeroed, ...samplePoint(rng, variables, domain) };
-    const a = evaluateAt(user.node, scope);
-    const b = evaluateAt(target.node, scope);
+    // Each side gets its own copy of the point. `=` is on every expression
+    // keypad and mathjs parses `x=0` as an assignment, which *writes into* the
+    // scope it is evaluated with and returns the right-hand side: sharing one
+    // object let a learner's `x=0` rebind x for the expected side too, so
+    // `x=0` was graded correct against `2x`, `14x`, and every other answer
+    // vanishing at 0.
+    const a = evaluateAt(user.node, { ...scope });
+    const b = evaluateAt(target.node, { ...scope });
     if (a === undefined || b === undefined) continue; // domain hole
     valid++;
 

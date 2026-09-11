@@ -7,9 +7,10 @@
  * wrong, and only the reducer knows which.
  */
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Tex, Blocks } from './Math';
+import { Tex, Blocks, Inline } from './Math';
 import type { Slide } from '../content/types';
-import { isLocked, type SlideProps } from './slides';
+import { frameClass, isLocked, type SlideProps } from './slides';
+import { walkFlow } from './flow';
 
 /* ---------- Steps: reduce an expression one operation at a time ---------- */
 
@@ -355,6 +356,99 @@ function TreeBody({
       >
         &#8635; Start over
       </button>
+    </>
+  );
+}
+
+/* ---------- Flow: a decision tree ---------- */
+
+/**
+ * Walk a decision tree to an outcome.
+ *
+ * Opposite in every respect to `TreeSlide` above, which is worth stating
+ * because the names sit next to each other: that one fills in numbers and is
+ * assembled bottom-up from the inputs, this one answers questions and is walked
+ * top-down from the root. Here the learner's choices decide what they are asked
+ * next, so no two attempts need see the same questions.
+ *
+ * One question is on screen at a time, with the trail of forks already taken
+ * listed above it. Tapping an entry in the trail rewinds to that fork — a
+ * flowchart where a wrong turn cannot be undone is a maze, and the point is to
+ * make the reasoning visible rather than to punish a misread.
+ *
+ * The answer is the labels chosen, in order. The reducer compares that to the
+ * expected path and refuses a length mismatch, so stopping early at the wrong
+ * outcome is wrong rather than a prefix of right.
+ */
+export function FlowSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
+  if (slide.kind !== 'flow') return null;
+  const locked = isLocked(feedback, canEdit);
+  const taken = Array.isArray(answer) ? answer : [];
+
+  // Where the learner stands, derived from the path rather than stored beside
+  // it — the same walk `hasAnswer` uses, so Check cannot light up on a walk the
+  // widget still considers unfinished.
+  const { trail, step, outcome } = walkFlow(slide, taken);
+
+  const choose = (label: string) => {
+    if (locked) return;
+    onAnswer([...taken, label]);
+  };
+
+  const rewindTo = (depth: number) => {
+    if (locked) return;
+    onAnswer(taken.slice(0, depth));
+  };
+
+  return (
+    <>
+      <div className="prompt">
+        <Blocks blocks={slide.prompt} />
+      </div>
+
+      <div className={frameClass(feedback)}>
+        <Tex tex={slide.subject} />
+      </div>
+
+      {trail.length > 0 && (
+        <ol className="flow-trail">
+          {trail.map((entry, idx) => (
+            <li key={idx}>
+              <button type="button" className="flow-step" disabled={locked} onClick={() => rewindTo(idx)}>
+                <span className="flow-ask">
+                  <Inline text={entry.ask} />
+                </span>
+                <span className="flow-label">
+                  <Inline text={entry.label} />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {outcome !== undefined ? (
+        <p className="flow-outcome">
+          <Inline text={outcome} />
+        </p>
+      ) : step ? (
+        <div className="flow-fork">
+          <p className="flow-question">
+            <Inline text={step.ask} />
+          </p>
+          {step.branches.map((branch) => (
+            <button
+              key={branch.label}
+              type="button"
+              className="flow-branch"
+              disabled={locked}
+              onClick={() => choose(branch.label)}
+            >
+              <Inline text={branch.label} />
+            </button>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

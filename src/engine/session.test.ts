@@ -592,3 +592,73 @@ describe('slider grading', () => {
     expect(reduce(wrong, { type: 'tryAgain' })).toBe(wrong);
   });
 });
+
+/**
+ * The decision tree.
+ *
+ * Graded on the path, not on a value — which is the whole difference from the
+ * evaluation tree above it. A learner who turns the wrong way at the first fork
+ * is asked different questions from then on and arrives somewhere else, so a
+ * wrong path is not a near-miss of the right one.
+ */
+describe('decision tree grading', () => {
+  const flowSlide = {
+    kind: 'flow' as const,
+    prompt: [{ kind: 'prose' as const, text: 'Decide how to solve it.' }],
+    subject: 'x^2 - 9 = 0',
+    steps: [
+      {
+        id: 'squares',
+        ask: 'A difference of two squares?',
+        branches: [
+          { label: 'Yes', outcome: 'Factorise as (x - k)(x + k).' },
+          { label: 'No', to: 'factors' },
+        ],
+      },
+      {
+        id: 'factors',
+        ask: 'Whole-number factors?',
+        branches: [
+          { label: 'Yes', outcome: 'Factorise into brackets.' },
+          { label: 'No', outcome: 'Use the formula.' },
+        ],
+      },
+    ],
+    answer: ['No', 'Yes'],
+  };
+
+  const flowLesson: Lesson = {
+    id: 'flow-demo',
+    title: 'Flow',
+    slides: [],
+    skillCheck: [{ type: 'literal', slide: flowSlide }],
+  };
+
+  const walk = (path: string[], lesson: Lesson = flowLesson) =>
+    reduce(startSession(lesson, registry, SEED), { type: 'submit', answer: path });
+
+  it('accepts the path that reaches the right outcome', () => {
+    expect(walk(['No', 'Yes']).feedback.kind).toBe('correct');
+  });
+
+  it('rejects a different route to a different outcome', () => {
+    expect(walk(['No', 'No']).feedback.kind).toBe('incorrect');
+  });
+
+  it('rejects a wrong turn at the first fork', () => {
+    expect(walk(['Yes']).feedback.kind).toBe('incorrect');
+  });
+
+  it('treats an unfinished walk as wrong, not as a partial credit', () => {
+    expect(walk(['No']).feedback.kind).toBe('incorrect');
+    expect(walk([]).feedback.kind).toBe('incorrect');
+  });
+
+  it('refuses a second walk inside an assessment', () => {
+    const sealed: Lesson = { ...flowLesson, id: 'flow-sealed', assessment: true };
+    const wrong = walk(['Yes'], sealed);
+    expect(wrong.feedback.kind).toBe('incorrect');
+    expect(canRetry(wrong)).toBe(false);
+    expect(reduce(wrong, { type: 'tryAgain' })).toBe(wrong);
+  });
+});

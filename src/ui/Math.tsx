@@ -64,10 +64,17 @@ export function Tex({
  * One alternation, bold before italic so `**` is claimed by the bold branch
  * rather than being read as an empty italic followed by a stray asterisk.
  */
-export function Prose({ text }: { text: string }) {
+/**
+ * The markup, without a paragraph around it.
+ *
+ * Split out because a decision tree's branch labels carry maths too, and they
+ * live inside buttons — where a `<p>` is not valid content. Anything that needs
+ * the inline markup in a non-paragraph context uses this.
+ */
+export function Inline({ text }: { text: string }) {
   const parts = useMemo(() => text.split(/(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*)/g), [text]);
   return (
-    <p className="prose">
+    <>
       {parts.map((part, idx) => {
         if (part.startsWith('$') && part.endsWith('$')) {
           return <Tex key={idx} tex={part.slice(1, -1)} />;
@@ -80,6 +87,14 @@ export function Prose({ text }: { text: string }) {
         }
         return <span key={idx}>{part}</span>;
       })}
+    </>
+  );
+}
+
+export function Prose({ text }: { text: string }) {
+  return (
+    <p className="prose">
+      <Inline text={text} />
     </p>
   );
 }

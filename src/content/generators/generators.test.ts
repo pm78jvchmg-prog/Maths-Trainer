@@ -84,6 +84,48 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         ).toBeGreaterThanOrEqual(1);
       }
 
+      if (slide.kind === 'flow') {
+        // Every branch goes exactly one place: on to another step, or to an
+        // outcome. A branch with both would make the path ambiguous; one with
+        // neither is a dead end the learner cannot leave.
+        const ids = new Set(slide.steps.map((step) => step.id));
+        expect(slide.steps.length, 'a flow needs at least one fork').toBeGreaterThan(0);
+        for (const step of slide.steps) {
+          expect(step.branches.length, `${step.id}: a fork needs two ways out`).toBeGreaterThan(1);
+          const labels = step.branches.map((branch) => branch.label);
+          expect(new Set(labels).size, `${step.id}: duplicate branch label`).toBe(labels.length);
+          for (const branch of step.branches) {
+            const onward = branch.to !== undefined;
+            const ends = branch.outcome !== undefined;
+            expect(onward !== ends, `${step.id}/${branch.label}: needs exactly one of to/outcome`).toBe(true);
+            if (onward) expect(ids.has(branch.to!), `${step.id}: no step ${branch.to}`).toBe(true);
+          }
+        }
+
+        // Walking the stated answer must actually reach an outcome. An answer
+        // naming a label that is not on offer at that fork would be unreachable
+        // by any amount of tapping, and the slide unanswerable.
+        type FlowStep = (typeof slide.steps)[number];
+        type FlowBranch = FlowStep['branches'][number];
+        const byId = (id: string | undefined): FlowStep | undefined =>
+          slide.steps.find((candidate) => candidate.id === id);
+
+        let step: FlowStep | undefined = slide.steps[0];
+        let reached = false;
+        for (const label of slide.answer) {
+          expect(step, 'answer runs past the end of the tree').toBeDefined();
+          const branch: FlowBranch | undefined = step!.branches.find((b) => b.label === label);
+          expect(branch, `${step!.id}: answer picks a branch that is not offered: ${label}`).toBeDefined();
+          if (branch!.outcome !== undefined) {
+            reached = true;
+            step = undefined;
+          } else {
+            step = byId(branch!.to);
+          }
+        }
+        expect(reached, 'the stated answer does not reach an outcome').toBe(true);
+      }
+
       if (slide.kind === 'slider') {
         // A slider whose answer sits between two steps cannot be reached by
         // dragging, so it is unanswerable rather than hard.

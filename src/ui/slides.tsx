@@ -22,6 +22,7 @@ import {
   toAnswer,
   type Doc,
 } from './mathInput';
+import { walkFlow } from './flow';
 import type { Slide, KeypadKey } from '../content/types';
 import {
   planeGridSvg,
@@ -32,7 +33,7 @@ import {
 import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
-import { StepsSlide, TreeSlide } from './workingSlides';
+import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 
 export interface SlideProps {
   slide: Slide;
@@ -64,7 +65,7 @@ export const isLocked = (feedback: Feedback, canEdit: boolean) =>
   feedback.kind === 'revealed' ||
   (!canEdit && feedback.kind === 'incorrect');
 
-function frameClass(feedback: Feedback): string {
+export function frameClass(feedback: Feedback): string {
   if (feedback.kind === 'correct') return 'answer-frame correct';
   if (feedback.kind === 'incorrect' || feedback.kind === 'revealed') return 'answer-frame wrong';
   return 'answer-frame';
@@ -523,7 +524,8 @@ export function SlideView(props: SlideProps) {
       onAnswer(Array.from({ length: slide.answer.length }, () => ''));
     } else if (slide.kind === 'tree') {
       onAnswer(Array.from({ length: slide.nodes.length }, () => ''));
-    } else if (slide.kind === 'steps') {
+    } else if (slide.kind === 'steps' || slide.kind === 'flow') {
+      // Both start at nothing chosen and grow as the learner works.
       onAnswer([]);
     } else if (slide.kind === 'slider') {
       // A range input has a position whether or not anyone has touched it, so
@@ -553,6 +555,8 @@ export function SlideView(props: SlideProps) {
       return <TreeSlide {...props} />;
     case 'slider':
       return <SliderSlide {...props} />;
+    case 'flow':
+      return <FlowSlide {...props} />;
   }
 }
 
@@ -564,6 +568,9 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
     const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
+  // A decision tree is answerable once the walk has reached a leaf. Mid-walk
+  // the learner has chosen something, but not an answer.
+  if (slide.kind === 'flow') return walkFlow(slide, Array.isArray(answer) ? answer : []).outcome !== undefined;
   // Steps is only answerable once every reduction has been worked through, so
   // Check stays disabled while there is still an operation left on the line.
   if (slide.kind === 'steps') {

@@ -10,20 +10,12 @@
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { plotSvg } from '../figures';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
@@ -40,23 +32,28 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
  * learner has to carry over. Plain `ask` stays the default — a question that
  * needs no setting up should not be given one.
  */
-const askAfter = (
-  lead: { kind: 'prose' | 'display'; text?: string; tex?: string }[],
-  generatorId: string,
-  difficulty = 1,
-): SlideRef => ({
+const askAfter = (lead: Block[], generatorId: string, difficulty = 1): SlideRef => ({
   type: 'generated',
   generatorId,
   difficulty,
-  leadIn: lead.map((b) =>
-    b.kind === 'prose'
-      ? ({ kind: 'prose', text: b.text ?? '' } as const)
-      : ({ kind: 'display', tex: b.tex ?? '' } as const),
-  ),
+  leadIn: lead,
 });
 
-const prose = (text: string) => ({ kind: 'prose' as const, text });
-const maths = (tex: string) => ({ kind: 'display' as const, tex });
+const prose = (text: string): Block => ({ kind: 'prose', text });
+const maths = (tex: string): Block => ({ kind: 'display', tex });
+
+/**
+ * The region a slide is talking about, shaded where the area is the point.
+ *
+ * Integration is the one course with a direct visual payoff — an area — and
+ * `plotSvg`'s `shade` option exists for exactly this.
+ */
+const graph = (
+  opts: Omit<Parameters<typeof plotSvg>[0], 'label'> & { label?: string },
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({ label: 'A region under a curve', ...opts }),
+});
 
 export const integration: Course = {
   id: 'integration',
@@ -468,6 +465,17 @@ export const integration: Course = {
             teach(
               prose('The method in order: write the integral, integrate, evaluate at both limits, subtract.'),
               maths('\\int_{0}^{3} 3x^{2} \\, dx = \\left[x^{3}\\right]_{0}^{3} = 27 - 0 = 27'),
+              // The area this integral computes: y = 3x^2, shaded from x = 0
+              // to x = 3.
+              graph({
+                xMin: -0.3,
+                xMax: 3.3,
+                curves: [{ f: (x) => 3 * x * x }],
+                shade: { f: (x) => 3 * x * x, from: 0, to: 3 },
+                yMin: 0,
+                yMax: 28,
+                label: 'The area under y = 3x^2 between x = 0 and x = 3',
+              }),
               prose(
                 'With a lower limit of 0 the second term usually vanishes, which is why so many worked answers look short. Write the subtraction down anyway — skipping it is the habit that fails as soon as the lower limit moves.',
               ),
@@ -557,6 +565,17 @@ export const integration: Course = {
               prose(
                 'An area of $-2$ is meaningless, because area is a measurement. What the integral gives is a **signed** total, counting anything below the axis as negative.',
               ),
+              // y = x - 2 runs from -2 at x = 0 to 0 at x = 2: the whole
+              // shaded region sits below the axis.
+              graph({
+                xMin: -0.3,
+                xMax: 2.6,
+                curves: [{ f: (x) => x - 2 }],
+                shade: { f: (x) => x - 2, from: 0, to: 2 },
+                yMin: -2.4,
+                yMax: 0.6,
+                label: 'The region between y = x - 2 and the axis, from x = 0 to x = 2, lying below it',
+              }),
               prose('So for an area, take the size of the integral and drop the sign: here it is 2.'),
             ),
             ask('int-signed-area'),
@@ -567,6 +586,17 @@ export const integration: Course = {
                 'The real trap is a curve that crosses the axis inside the interval. Integrating straight through lets the positive and negative parts cancel.',
               ),
               maths('\\int_{-2}^{2} x^{3} \\, dx = 0'),
+              // y = x^3 from -2 to 2: one lobe below the axis, one above,
+              // matched in size — the cancellation the next line names.
+              graph({
+                xMin: -2.3,
+                xMax: 2.3,
+                curves: [{ f: (x) => x * x * x }],
+                shade: { f: (x) => x * x * x, from: -2, to: 2 },
+                yMin: -9,
+                yMax: 9,
+                label: 'y = x^3 shaded from x = -2 to x = 2: equal lobes above and below the axis',
+              }),
               prose(
                 'That zero is correct as a signed total and useless as an area: the two halves are equal in size and opposite in sign.',
               ),

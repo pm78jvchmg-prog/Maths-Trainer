@@ -800,6 +800,137 @@ const fromRoots: Generator<RootParams> = {
   ],
 };
 
+
+/* ---------- choosing a method ---------- */
+
+interface MethodParams {
+  b: number;
+  c: number;
+  /** Which route through the tree this quadratic actually calls for. */
+  route: 'squares' | 'factorise' | 'formula';
+}
+
+/**
+ * Which method does this quadratic call for?
+ *
+ * Every other generator here asks the learner to *run* a method after being
+ * told which one. Choosing is the separate skill, and it is the one that
+ * decides whether any of the others get used correctly outside a lesson
+ * labelled with the answer.
+ *
+ * A `choice` slide could ask the same question and would be a one-in-four
+ * guess. Walking the tree makes the learner commit to a reason at every fork,
+ * and a wrong turn early leads somewhere visibly different rather than to a
+ * near-miss.
+ *
+ * The three routes are ordered by how little work they are, which is the order
+ * worth building as a habit: spot a difference of two squares, try whole-number
+ * factors, and reach for the formula when neither works.
+ */
+const chooseMethod: Generator<MethodParams> = {
+  id: 'quad-choose-method',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['squares', 'factorise', 'formula'] as const);
+    if (route === 'squares') {
+      // x^2 - k^2, with no x term at all.
+      const k = rng.int(2, difficulty > 1 ? 12 : 8);
+      return { b: 0, c: -k * k, route };
+    }
+    if (route === 'factorise') {
+      // Whole-number roots, so the factors are found by inspection.
+      const p = nonZero(rng.int(-9, 9), 3);
+      const q = nonZero(rng.int(-9, 9), -4);
+      return { b: -(p + q), c: p * q, route };
+    }
+    // Neither: a discriminant that is positive but not a perfect square, so
+    // there are real roots and no whole-number pair reaches them.
+    for (let tries = 0; tries < 80; tries += 1) {
+      const b = nonZero(rng.int(-9, 9), 3);
+      const c = nonZero(rng.int(-9, 9), -1);
+      const disc = b * b - 4 * c;
+      if (disc > 0 && !isPerfectSquare(disc)) return { b, c, route };
+    }
+    return { b: 1, c: -1, route };
+  },
+  render: ({ b, c, route }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Work down the questions to decide how you would solve this. Each answer chooses what gets asked next.',
+      },
+    ],
+    subject: `${quadraticTex(1, b, c)} = 0`,
+    steps: [
+      {
+        id: 'squares',
+        ask: 'Is it a difference of two squares?',
+        branches: [
+          { label: 'Yes — no $x$ term, and a square taken away', outcome: 'Factorise as $(x - k)(x + k)$.' },
+          { label: 'No', to: 'factors' },
+        ],
+      },
+      {
+        id: 'factors',
+        ask: 'Are there two whole numbers that multiply to the constant and add to the middle coefficient?',
+        branches: [
+          { label: 'Yes', outcome: 'Factorise into two brackets and read the roots off.' },
+          { label: 'No', to: 'discriminant' },
+        ],
+      },
+      {
+        id: 'discriminant',
+        ask: 'Is the discriminant $b^{2} - 4ac$ negative?',
+        branches: [
+          { label: 'Yes', outcome: 'No real roots — stop, there is nothing to find.' },
+          { label: 'No', outcome: 'Use the quadratic formula.' },
+        ],
+      },
+    ],
+    answer:
+      route === 'squares'
+        ? ['Yes — no $x$ term, and a square taken away']
+        : route === 'factorise'
+          ? ['No', 'Yes']
+          : ['No', 'No', 'No'],
+  }),
+  solution: ({ b, c, route }) => {
+    const disc = b * b - 4 * c;
+    if (route === 'squares') {
+      const k = Math.round(Math.sqrt(-c));
+      return [
+        {
+          text: 'There is no $x$ term, and the constant is a square being taken away. That is the difference of two squares, and it factorises on sight.',
+        },
+        { tex: `${quadraticTex(1, 0, c)} = \\left(x - ${k}\\right)\\left(x + ${k}\\right)` },
+        {
+          text: `So the roots are $${k}$ and $-${k}$. Reaching for the formula here would give the same answer after four times the work.`,
+        },
+      ];
+    }
+    if (route === 'factorise') {
+      return [
+        {
+          text: `Look for two whole numbers multiplying to $${c}$ and adding to $${b}$. They exist here, so the brackets can be written down directly.`,
+        },
+        { tex: `b^{2} - 4ac = ${b}^{2} - 4 \\times ${c} = ${disc}` },
+        {
+          text: `The discriminant is $${disc}$, a perfect square, which is exactly the condition for whole-number factors to exist. Spotting them by eye is quicker, but this is the check when they will not come.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: `No pair of whole numbers multiplies to $${c}$ and adds to $${b}$, so the brackets will not come out by inspection.`,
+      },
+      { tex: `b^{2} - 4ac = ${b}^{2} - 4 \\times ${c} = ${disc}` },
+      {
+        text: `The discriminant is $${disc}$ — positive, so there are two real roots, but not a perfect square, so they are irrational. That is precisely the case the formula exists for.`,
+      },
+    ];
+  },
+};
+
 export const quadraticsGenerators = [
   expandBrackets,
   factorise,
@@ -814,4 +945,5 @@ export const quadraticsGenerators = [
   lineOfSymmetry,
   symmetrySlider,
   fromRoots,
+  chooseMethod,
 ] as unknown as Generator<unknown>[];

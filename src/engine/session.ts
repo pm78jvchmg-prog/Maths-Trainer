@@ -356,6 +356,13 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
 
     case 'tree':
       return gradeSequence(answer, slide.answer);
+
+    // The path taken, fork by fork. A learner who turns the wrong way early
+    // ends up somewhere else entirely, and `gradeSequence` refusing a
+    // length mismatch is what makes a short wrong path wrong rather than a
+    // prefix of a right one.
+    case 'flow':
+      return gradeSequence(answer, slide.answer);
   }
 }
 

@@ -180,6 +180,35 @@ export type Slide =
    * which is enough to lay out rows and draw the connectors without the content
    * author positioning anything by hand.
    */
+  /**
+   * A decision tree: which method does this problem call for?
+   *
+   * The opposite direction of travel from `tree`, and the two are easy to
+   * confuse. `tree` is about *computing* — its nodes hold numbers, it is built
+   * bottom-up from the inputs, and the route through it is fixed by the
+   * expression. This is about *choosing* — its nodes hold questions, it runs
+   * top-down, and the learner's answers decide which branch is taken. What gets
+   * graded is the path, not a value.
+   *
+   * It exists because picking the right method is a skill the other widgets
+   * cannot ask about. A `choice` slide can ask "which method?" and get a lucky
+   * guess from four options; walking the tree makes the learner say *why* at
+   * every fork, and a wrong turn early leads somewhere visibly different.
+   */
+  | ({ kind: 'flow' } & Prompted & {
+      /** What is being decided about, shown above the first question. TeX. */
+      subject: string;
+      /** Every question. The first is where the learner starts. */
+      steps: {
+        id: string;
+        /** The question this fork asks. Plain prose. */
+        ask: string;
+        /** Exactly one of `to` (another step) or `outcome` (a leaf) per branch. */
+        branches: { label: string; to?: string; outcome?: string }[];
+      }[];
+      /** The branch labels along the correct path, in order. */
+      answer: string[];
+    })
   | ({ kind: 'tree' } & Prompted & {
       /** The expression the tree evaluates. TeX. */
       expression: string;

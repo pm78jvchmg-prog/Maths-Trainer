@@ -5,24 +5,34 @@
  * times; a second technique is taught, then practised two or three times. Three
  * sealed skill-check questions close the lesson.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { complexPlaneSvg, rangeFor, type PlanePoint } from '../generators/plane';
 
-const teach = (...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   type: 'generated',
   generatorId,
   difficulty,
+});
+
+/**
+ * A specific complex number or two, plotted on the plane.
+ *
+ * This course spends four levels describing points, corners and circles on
+ * the complex plane in words. `complexPlaneSvg` already draws the grid and
+ * both axes, so it is used directly rather than composing a plotter of our
+ * own — `plotSvg` has no notion of this plane at all.
+ */
+const plane = (points: PlanePoint[]): Block => ({
+  kind: 'diagram',
+  svg: complexPlaneSvg(
+    rangeFor(...points.flatMap((p) => [p.re, p.im])),
+    points,
+  ),
 });
 
 export const complexNumbers: Course = {
@@ -128,6 +138,8 @@ export const complexNumbers: Course = {
             teach(
               { kind: 'prose', text: 'Because the parts stay separate, a complex number behaves like a point with two coordinates — which is exactly how it is drawn on the complex plane, real part across and imaginary part up.' },
               { kind: 'display', tex: '3 + 4i \\quad \\longleftrightarrow \\quad (3, 4)' },
+              plane([{ re: 3, im: 4, highlight: true }]),
+              { kind: 'prose', text: 'Three across, four up — the dot sits where those two rulings meet.' },
               { kind: 'prose', text: 'Adding complex numbers is then the same operation as adding vectors: add the across-parts, add the up-parts. That correspondence is why complex numbers turn up wherever rotation and oscillation do.' },
               { kind: 'prose', text: 'One thing the picture takes away. Points in a plane cannot be put in order, so there is no sensible way to say one complex number is larger than another. $3 + 4i < 5 + 2i$ is not false — it is meaningless.' },
             ),
@@ -295,6 +307,11 @@ export const complexNumbers: Course = {
               { kind: 'display', tex: '-2 + 3i \\quad \\longleftrightarrow \\quad (-2, 3)' },
               { kind: 'prose', text: 'So $-2 + 3i$ means two to the left and three up. The order of the two moves does not matter for the destination, but doing the real part first keeps the habit consistent with how the number is written.' },
               { kind: 'prose', text: 'Watch the signs on both axes. $-2 + 3i$ and $2 - 3i$ sit in opposite corners of the plane, and they are easy to confuse when reading quickly.' },
+              plane([
+                { re: -2, im: 3, highlight: true },
+                { re: 2, im: -3 },
+              ]),
+              { kind: 'prose', text: 'The highlighted dot is $-2 + 3i$; the other is $2 - 3i$, straight through the origin from it.' },
             ),
             ask('plot-point'),
             ask('identify-point'),
@@ -329,6 +346,12 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Because both parts get squared, the signs disappear. A number and its conjugate have the same modulus, and the modulus is never negative.' },
               { kind: 'display', tex: '|3 + 4i| = |3 - 4i| = |-3 + 4i| = 5' },
               { kind: 'prose', text: 'All four numbers with parts $\\pm 3$ and $\\pm 4$ sit on the same circle about the origin. The modulus says how far out a number is and nothing whatever about which direction.' },
+              plane([
+                { re: 3, im: 4, highlight: true },
+                { re: 3, im: -4 },
+                { re: -3, im: 4 },
+                { re: -3, im: -4 },
+              ]),
               { kind: 'prose', text: 'Only $0$ has modulus $0$. Everything else is a genuine distance from the origin, which is what lets you divide by any non-zero complex number.' },
             ),
             ask('modulus', 2),
@@ -373,6 +396,8 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'The modulus gives the distance. The argument gives the direction: the angle from the positive real axis, measured anticlockwise in radians.' },
               { kind: 'display', tex: '\\arg(1 + i) = \\tfrac{\\pi}{4}' },
               { kind: 'prose', text: 'That one is a quarter of the way to the top, because $1 + i$ is equally far across and up, so it sits on the diagonal at $45^{\\circ}$.' },
+              plane([{ re: 1, im: 1, highlight: true }]),
+              { kind: 'prose', text: 'Equally far across and up: the dot sits exactly on the diagonal running out of the origin.' },
               { kind: 'prose', text: 'In general $\\tan(\\arg z) = \\frac{b}{a}$, but do not reach straight for a calculator: the inverse tangent cannot tell $-2 - 2i$ from $2 + 2i$, since both give the same ratio. Sketch the point first and check which quadrant the answer belongs in.' },
             ),
             ask('argument'),

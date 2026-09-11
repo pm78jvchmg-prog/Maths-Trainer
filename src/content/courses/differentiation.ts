@@ -5,26 +5,33 @@
  * three times; a second technique is taught, then practised two or three
  * times. Three sealed skill-check questions close each lesson.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { plotSvg, quadratic } from '../figures';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   type: 'generated',
   generatorId,
   difficulty,
+});
+
+/**
+ * The curve a slide is talking about — a tangent, a gradient, a rate.
+ *
+ * This course teaches differentiation almost entirely in symbols: "the
+ * tangent there has gradient 6" and "its gradient equals its height" both
+ * describe a picture that was never drawn. Defaults suit a single curve with
+ * a tangent line picked out.
+ */
+const graph = (
+  opts: Omit<Parameters<typeof plotSvg>[0], 'label'> & { label?: string },
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({ label: 'A curve and its tangent', ...opts }),
 });
 
 export const differentiation: Course = {
@@ -160,6 +167,24 @@ export const differentiation: Course = {
               {
                 kind: 'prose',
                 text: 'Read the answer as a rate: at $x = 3$ the curve $y = x^{2}$ is climbing six units of height for every one across. The tangent there has gradient $6$, and a moment later the gradient is something else.',
+              },
+              // f(x) = x^2, tangent at x = 3 has gradient 6 — the exact
+              // numbers the paragraph above just computed.
+              graph({
+                xMin: -2,
+                xMax: 5,
+                curves: [
+                  { f: quadratic(1, 0, 0) },
+                  { f: (x) => 6 * x - 9, dashed: true, accent: true },
+                ],
+                marks: [{ x: 3, y: 9 }],
+                yMin: -6,
+                yMax: 18,
+                label: 'y = x^2 with its tangent line at x = 3',
+              }),
+              {
+                kind: 'prose',
+                text: 'The dashed line is that tangent, touching the curve only at the ringed point $(3, 9)$ — its slope is the $6$ just calculated.',
               },
               {
                 kind: 'prose',
@@ -449,6 +474,28 @@ export const differentiation: Course = {
                 kind: 'prose',
                 text: 'If the sign will not stay in memory, sketch the curve and read the gradient off it. That takes a few seconds and is more reliable than a mnemonic.',
               },
+              // cos peaks at x = 0; sin passes through 0 there with gradient
+              // cos(0) = 1, its steepest — the two claims just made.
+              graph({
+                xMin: -3.2,
+                xMax: 4.2,
+                curves: [
+                  { f: Math.cos, accent: true },
+                  { f: Math.sin, dashed: true },
+                ],
+                verticals: [{ x: 0 }],
+                marks: [
+                  { x: 0, y: 1 },
+                  { x: 0, y: 0 },
+                ],
+                yMin: -1.3,
+                yMax: 1.3,
+                label: 'cos x and sin x near x = 0',
+              }),
+              {
+                kind: 'prose',
+                text: 'The solid curve is $\\cos x$, at its peak exactly at $x = 0$. The dashed curve is $\\sin x$, crossing $0$ there as steeply as it ever climbs.',
+              },
             ),
             ask('trig-derivative'),
             ask('trig-derivative'),
@@ -500,6 +547,28 @@ export const differentiation: Course = {
                 text: '$e^{x}$ is the function that is its own derivative. Its gradient at every point equals its height at that point, which is what makes $e$ the natural base.',
               },
               { kind: 'display', tex: '\\frac{d}{dx}e^{x} = e^{x}' },
+              // Tangents at x = 0 and x = 1: slope matches height at both,
+              // which is the claim the paragraph above just made.
+              graph({
+                xMin: -2,
+                xMax: 1.8,
+                curves: [
+                  { f: Math.exp },
+                  { f: (x) => x + 1, dashed: true, accent: true },
+                  { f: (x) => Math.E * x, dashed: true, accent: true },
+                ],
+                marks: [
+                  { x: 0, y: 1 },
+                  { x: 1, y: Math.E },
+                ],
+                yMin: -1,
+                yMax: 6,
+                label: 'y = e^x with tangents at x = 0 and x = 1',
+              }),
+              {
+                kind: 'prose',
+                text: 'At $x = 0$ the curve has height $1$ and the tangent there has slope $1$; at $x = 1$ the height is $e \\approx 2.72$ and so is the slope. Height and gradient never separate.',
+              },
               {
                 kind: 'prose',
                 text: 'That property is what $e$ is *for*. Other bases very nearly work: $2^{x}$ differentiates to about $0.69 \\times 2^{x}$, and $3^{x}$ to about $1.10 \\times 3^{x}$. Somewhere between $2$ and $3$ the stray constant is exactly $1$, and that number is $e$.',

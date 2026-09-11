@@ -428,9 +428,15 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-formula+choice'),
-            ask('quad-formula'),
+            // Directly after the slide saying to try factorising first: the
+            // decision that advice describes, made rather than read.
+            ask('quad-choose-method'),
           ],
-          skillCheck: [ask('quad-formula', 2), ask('quad-formula', 2), ask('quad-formula', 2)],
+          skillCheck: [
+            ask('quad-formula', 2),
+            ask('quad-choose-method', 2),
+            ask('quad-formula', 2),
+          ],
         },
         {
           id: 'qd-l2-discriminant',

@@ -246,16 +246,6 @@ button {
   border-color: var(--wrong);
 }
 
-.retry-pill {
-  border: 1px solid var(--wrong);
-  color: var(--wrong);
-  background: transparent;
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  min-height: 36px;
-}
 
 .answer-slot {
   min-width: 54px;
@@ -1028,4 +1018,17 @@ button {
 .traversal-drop {
   stroke: var(--border);
   stroke-dasharray: 3 3;
+}
+
+/*
+ * A question showing a wrong verdict that can still be changed.
+ *
+ * The whole area is the retry target, so it gets a pointer on anything that
+ * has one and suppresses the tap-highlight iOS would otherwise flash across
+ * the entire slide — a grey rectangle the size of the question reads as a
+ * rendering fault rather than as feedback.
+ */
+.slide.retryable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }

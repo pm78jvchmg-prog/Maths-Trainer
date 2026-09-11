@@ -49,7 +49,6 @@ export interface SlideProps {
    * does not depend on every widget remembering to check.
    */
   canEdit: boolean;
-  onTryAgain: () => void;
 }
 
 /**
@@ -171,8 +170,7 @@ export function ExpressionSlide({
   answer,
   onAnswer,
   canEdit,
-  onTryAgain,
-}: SlideProps) {
+  }: SlideProps) {
   const locked = isLocked(feedback, canEdit);
   const current = typeof answer === 'string' ? answer : '';
 
@@ -229,11 +227,6 @@ export function ExpressionSlide({
       <div className={frameClass(feedback)}>
         {slide.lead && <Tex tex={slide.lead} />}
         <MathSlot doc={doc} showCaret={!locked} filled={filled} />
-        {canEdit && feedback.kind === 'incorrect' && (
-          <button type="button" className="retry-pill" onClick={onTryAgain}>
-            &#8635; Try again
-          </button>
-        )}
       </div>
 
       <div className="keypad">
@@ -302,8 +295,7 @@ export function TilesSlide({
   answer,
   onAnswer,
   canEdit,
-  onTryAgain,
-}: SlideProps) {
+  }: SlideProps) {
   if (slide.kind !== 'tiles') return null;
   const locked = isLocked(feedback, canEdit);
   const filled = Array.isArray(answer) ? answer : [];
@@ -360,11 +352,6 @@ export function TilesSlide({
             </button>
           );
         })}
-        {canEdit && feedback.kind === 'incorrect' && (
-          <button type="button" className="retry-pill" onClick={onTryAgain}>
-            &#8635; Try again
-          </button>
-        )}
       </div>
 
       <div className="tile-bank">

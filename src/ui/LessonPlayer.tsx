@@ -78,6 +78,10 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   // Working slides grow a line at a time, so they anchor to the top; anything
   // else sits low on the screen, within thumb reach.
   const grows = slide.slide.kind === 'steps' || slide.slide.kind === 'tree';
+  // A wrong answer the learner is still allowed to change. `canRetry` is the
+  // same gate the widgets read, so a level check cannot pick up a second
+  // attempt through this route either.
+  const retryOnTap = session.feedback.kind === 'incorrect' && canRetry(session);
   const isLastQuestion = isSkillCheck && session.index === deck.length - 1;
   const progress = ((session.index + 1) / deck.length) * 100;
 
@@ -144,10 +148,18 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
       </header>
 
       {/* Keying on the slide id remounts the widget between questions, so no
-          draft answer or keypad state can leak from one slide to the next. */}
+          draft answer or keypad state can leak from one slide to the next.
+
+          The whole question area clears a wrong verdict when tapped. Reaching
+          the feedback bar to retry means moving your thumb to the bottom of the
+          screen and back for every slip, when the thing you want to change is
+          already under your finger — so any tap on the question counts as
+          "let me have another go". It is guarded by `canRetry`, so inside a
+          level check the tap does nothing and the one-attempt rule stands. */}
       <main
-        className={`slide enter-${direction}${grows ? ' grow' : ''}`}
+        className={`slide enter-${direction}${grows ? ' grow' : ''}${retryOnTap ? ' retryable' : ''}`}
         key={slide.id}
+        onClick={retryOnTap ? () => act({ type: 'tryAgain' }) : undefined}
       >
         {session.states[slide.id]?.solved && (
           <p className="lesson-meta">Already solved — answer again or continue.</p>
@@ -159,7 +171,6 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
           answer={answer}
           onAnswer={changeAnswer}
           canEdit={canRetry(session)}
-          onTryAgain={() => act({ type: 'tryAgain' })}
         />
       </main>
 

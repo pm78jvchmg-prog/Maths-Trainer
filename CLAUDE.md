@@ -246,10 +246,17 @@ command `npm run build`, deploy command `npx wrangler deploy`, **root directory
 `/`** (that is where the build runs; the output path lives in `wrangler.jsonc`,
 never in the dashboard).
 
-Because every push to `main` deploys straight to production, land changes
-through a branch and a pull request rather than committing to `main` directly.
-There is no branch-protection backstop (the repo is private on a plan where
-GitHub's branch-protection API returns 403), so this is enforced by habit.
+Every push to `main` deploys straight to production, and that is deliberate:
+the owner wants a change on their phone a couple of minutes after it is made,
+so commits land on `main` directly rather than going through a pull request.
+There is no branch-protection backstop either (the repo is private on a plan
+where GitHub's branch-protection API returns 403).
+
+The cost of that choice is that nothing catches a bad change before the learner
+meets it, so the checks have to happen before the push, not after: typecheck,
+full suite, lint, and — for anything with a visible surface — the change
+actually exercised in a browser. A test suite cannot tell you that a dot is
+clipped in half by the edge of its viewBox.
 
 The app is installed to an iPhone Home Screen and must work offline — the
 service worker precaches everything including KaTeX fonts and mathjs. Do not add

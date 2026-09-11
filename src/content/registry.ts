@@ -3,6 +3,7 @@ import { complexGenerators } from './generators/complex';
 import { arithmeticGenerators } from './generators/complexArithmetic';
 import { planeGenerators } from './generators/complexPlane';
 import { differentiationGenerators } from './generators/differentiation';
+import { indicesGenerators } from './generators/indices';
 import { trigonometryGenerators } from './generators/trigonometry';
 
 export const allGenerators = [
@@ -10,6 +11,7 @@ export const allGenerators = [
   ...arithmeticGenerators,
   ...planeGenerators,
   ...differentiationGenerators,
+  ...indicesGenerators,
   ...trigonometryGenerators,
 ];
 

@@ -1,6 +1,7 @@
 import type { Category, Course } from '../types';
 import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
+import { exponentsRadicals } from './exponentsRadicals';
 import { trigonometricFunctions } from './trigonometricFunctions';
 
 /**
@@ -11,6 +12,12 @@ import { trigonometricFunctions } from './trigonometricFunctions';
  * levels, not two entries competing for the same name.
  */
 export const categories: Category[] = [
+  {
+    id: 'algebra-fundamentals',
+    title: 'Algebra Fundamentals',
+    blurb: 'The rules everything later is built on.',
+    courses: [exponentsRadicals],
+  },
   {
     id: 'advanced-algebra',
     title: 'Advanced Algebra',

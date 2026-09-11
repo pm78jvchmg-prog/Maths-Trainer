@@ -10,20 +10,14 @@
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { parabolaSvg, type ParabolaOptions } from '../generators/quadratics';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+type TeachBlock = Block;
+
+const teach = (...blocks: TeachBlock[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
@@ -32,7 +26,20 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
-const prose = (text: string) => ({ kind: 'prose' as const, text });
+const prose = (text: string): Block => ({ kind: 'prose', text });
+
+/**
+ * The curve a teaching slide is talking about.
+ *
+ * Every slide in "The Line of Symmetry" describes a picture — a line through
+ * the turning point, roots either side of it, where the curve crosses the
+ * vertical axis — and described a picture that was never drawn. Words about a
+ * graph are not a graph.
+ */
+const graph = (a: number, b: number, c: number, opts: ParabolaOptions): Block => ({
+  kind: 'diagram',
+  svg: parabolaSvg(a, b, c, opts),
+});
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
 export const quadratics: Course = {
@@ -503,6 +510,12 @@ export const quadratics: Course = {
               prose(
                 'The graph of a quadratic is a **parabola**, and every parabola is symmetric about a vertical line through its turning point.',
               ),
+              // y = x^2 - 4x + 1, turning point at x = 2. Fold the picture along
+              // the dashed line and the two halves land on each other.
+              graph(1, -4, 1, { xMin: -2, xMax: 6, axis: 2, marks: [{ x: 2, y: -3 }] }),
+              prose(
+                'Fold the picture along that line and the two halves land exactly on top of each other. Everything else about the curve follows from where the line is.',
+              ),
               maths('x = -\\frac{b}{2a}'),
               prose(
                 'That formula is the completed-square result read off directly: completing the square on $ax^{2} + bx + c$ puts $\\frac{b}{2a}$ inside the bracket, and the line of symmetry is where the bracket is zero.',
@@ -521,6 +534,20 @@ export const quadratics: Course = {
               prose(
                 'The symmetry is genuinely useful rather than decorative: the two roots sit at equal distances either side of the line.',
               ),
+              // y = x^2 - 8x + 7 crosses at 1 and 7; the line sits at 4, three
+              // from each, which is the claim the slide is making.
+              graph(1, -8, 7, {
+                xMin: -1,
+                xMax: 9,
+                axis: 4,
+                marks: [
+                  { x: 1, y: 0 },
+                  { x: 7, y: 0 },
+                ],
+              }),
+              prose(
+                'Here the curve crosses at $1$ and at $7$. Each is three units from the dashed line, so the line is at $4$ — halfway between them.',
+              ),
               maths('x = 1 \\quad x = 7 \\quad \\longrightarrow \\quad x = 4'),
               prose(
                 'So the line of symmetry is the average of the two roots, which is often the fastest way to find it when the roots are already known.',
@@ -535,6 +562,8 @@ export const quadratics: Course = {
               prose(
                 'The $y$-intercept needs no work at all. Setting $x = 0$ leaves only the constant term.',
               ),
+              // The ringed point is where x = 0, sitting at the constant.
+              graph(1, 6, 11, { xMin: -7, xMax: 1, marks: [{ x: 0, y: 11 }] }),
               maths('y = x^{2} + 6x + 11 \\implies y = 11 \\text{ when } x = 0'),
               prose(
                 'So the constant is always where the curve crosses the vertical axis. Two features of the graph are therefore free on sight: the constant gives the $y$-intercept, and the sign of the $x^{2}$ coefficient gives the direction.',

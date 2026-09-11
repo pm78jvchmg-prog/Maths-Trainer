@@ -115,6 +115,17 @@ export type Slide =
        * for its blanks.
        */
       readout: string;
+      /**
+       * A picture the handle moves a marker across.
+       *
+       * Without one a slider is only a different way to type a number. The
+       * marker is drawn by the widget rather than baked into the SVG, so the
+       * figure stays a static string: `xMin`/`xMax` say what horizontal span
+       * the drawing covers, and the widget maps the current value onto it.
+       * They need not match `min`/`max` — a graph usually shows more than the
+       * answer can range over.
+       */
+      figure?: { svg: string; xMin: number; xMax: number };
     })
   /** Drop tokens from a bank into blanks in an equation. */
   | ({ kind: 'tiles' } & Prompted & {

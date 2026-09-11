@@ -48,7 +48,10 @@ reducer is a bug.
 
 1. **A wrong answer never reveals the answer.** `submit` can only ever produce
    `incorrect`; reaching `revealed` requires a separate explicit `reveal`
-   action. The feedback bar offers *Try again* and an opt-in *Show me*. In
+   action. After a wrong answer the feedback bar offers only an opt-in
+   *Show me*; retrying is a tap anywhere on the question, gated on the same
+   `canRetry` the widgets read, so a level check cannot pick up a second
+   attempt through it. In
    `ChoiceSlide`, only the chosen option is ever styled — never the correct one.
    The `edit` action is deliberately narrow for the same reason: it clears
    `incorrect` and `invalid` and nothing else, so changing an answer is a free

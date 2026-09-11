@@ -51,13 +51,35 @@ export function Tex({
  * Splitting on a capturing group keeps the delimiters in the array, so odd
  * indices are always the maths segments.
  */
+/**
+ * One paragraph of teaching text.
+ *
+ * Three inline markups are understood: `$maths$`, `**bold**` and `*italic*`.
+ * All three were written into the content from the start; only the maths was
+ * ever rendered, because this split on the dollar signs alone. A slide
+ * introducing a term showed the learner `**parabola**`, and one stressing a
+ * word showed `*periodic*` — 34 bold spans and dozens of italic ones reading
+ * as stray punctuation.
+ *
+ * One alternation, bold before italic so `**` is claimed by the bold branch
+ * rather than being read as an empty italic followed by a stray asterisk.
+ */
 export function Prose({ text }: { text: string }) {
-  const parts = useMemo(() => text.split(/\$([^$]+)\$/g), [text]);
+  const parts = useMemo(() => text.split(/(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*)/g), [text]);
   return (
     <p className="prose">
-      {parts.map((part, idx) =>
-        idx % 2 === 1 ? <Tex key={idx} tex={part} /> : <span key={idx}>{part}</span>,
-      )}
+      {parts.map((part, idx) => {
+        if (part.startsWith('$') && part.endsWith('$')) {
+          return <Tex key={idx} tex={part.slice(1, -1)} />;
+        }
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={idx}>{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+          return <em key={idx}>{part.slice(1, -1)}</em>;
+        }
+        return <span key={idx}>{part}</span>;
+      })}
     </p>
   );
 }

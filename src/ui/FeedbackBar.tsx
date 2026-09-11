@@ -130,6 +130,10 @@ export function FeedbackBar({
           </div>
         );
       }
+      // No Try again button here: the whole question is the retry target, and a
+      // button repeating that is a second control for one action — the reach to
+      // the bottom of the screen this was meant to remove. The line replacing it
+      // says the gesture exists, which a bare tap target cannot.
       return (
         <div className="footer wrong">
           <div className="footer-head">
@@ -138,9 +142,7 @@ export function FeedbackBar({
               Show me
             </button>
           </div>
-          <button type="button" className="primary-button" onClick={onTryAgain}>
-            Try again
-          </button>
+          <p className="footer-hint">Tap the question to try again.</p>
         </div>
       );
 

@@ -466,6 +466,34 @@ describe('course integrity', () => {
     }
   });
 
+  it('leaves no inline markup the reader would see as punctuation', () => {
+    // `**bold**` and `$maths$` are the only two markups Prose understands. An
+    // odd number of either delimiter means one is unclosed, and an unclosed
+    // marker reaches the learner as literal asterisks or swallows the rest of
+    // the paragraph into a formula.
+    const offenders: string[] = [];
+    const scan = (where: string, text: string) => {
+      const stars = (text.match(/\*\*/g) ?? []).length;
+      if (stars % 2 !== 0) offenders.push(`${where}: unclosed ** in ${JSON.stringify(text)}`);
+      const dollars = (text.match(/\$/g) ?? []).length;
+      if (dollars % 2 !== 0) offenders.push(`${where}: unclosed $ in ${JSON.stringify(text)}`);
+      // Every asterisk must belong to a pair. An odd one out reaches the
+      // learner as punctuation, or eats the rest of the paragraph into an
+      // emphasis that never closes.
+      const singles = (text.replace(/\*\*[^*]+\*\*/g, '').match(/\*/g) ?? []).length;
+      if (singles % 2 !== 0) offenders.push(`${where}: unclosed * in ${JSON.stringify(text)}`);
+    };
+    for (const lesson of lessons) {
+      for (const ref of lesson.slides) {
+        if (ref.type !== 'literal' || ref.slide.kind !== 'teach') continue;
+        for (const block of ref.slide.body) {
+          if (block.kind === 'prose') scan(lesson.id, block.text);
+        }
+      }
+    }
+    expect(offenders.join('\n')).toBe('');
+  });
+
   it('gives every traversal figure a path and a dot its animation can find', () => {
     // The dot is placed by querying these ids out of the rendered SVG. A typo
     // in either degrades silently to a still frame, which looks like a figure

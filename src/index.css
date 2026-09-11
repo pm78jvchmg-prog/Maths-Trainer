@@ -1032,3 +1032,40 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Says the tap-to-retry gesture exists. A tap target with no label cannot. */
+.footer-hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/*
+ * The figure a slider moves a marker across.
+ *
+ * The marker is a positioned element rather than part of the SVG so the figure
+ * itself stays a static string the content can generate once. Percentage
+ * positioning means it stays aligned with the drawing at any width, which
+ * matters because the svg scales to the phone.
+ */
+.slider-figure {
+  position: relative;
+  margin: 8px 0 0;
+}
+
+.slider-figure svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  color: var(--text-dim);
+}
+
+.slider-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}

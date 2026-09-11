@@ -86,7 +86,18 @@ export type Slide =
     })
   /** Drop tokens from a bank into blanks in an equation. */
   | ({ kind: 'tiles' } & Prompted & {
-      /** TeX with {0}, {1}, … marking the blanks. */
+      /**
+       * TeX with {0}, {1}, … marking the blanks.
+       *
+       * The widget splits on those markers and renders each literal piece
+       * between them as TeX on its own, which forbids two things. Braces round
+       * a digit anywhere — `x^{2}` has its `{2}` taken for a blank marker, and
+       * `\log_{10}` likewise — so write `x^2`, or keep the subscript to a
+       * single character. And no `\left` or `\right` spanning a blank, since
+       * each half is then unmatched; plain parentheses render the same and are
+       * valid on their own. A test renders every fragment, so a mistake here
+       * fails rather than reaching the learner as red error text.
+       */
       template: string;
       /** Tokens offered, including distractors. */
       bank: string[];

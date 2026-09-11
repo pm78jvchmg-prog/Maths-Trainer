@@ -368,7 +368,12 @@ interface CombineParams {
 const combineLogs: Generator<CombineParams> = {
   id: 'log-combine',
   sample: (rng, difficulty) => ({
-    base: rng.pick(difficulty > 1 ? [2, 3, 4, 5, 7, 10] : [2, 3, 5, 10]),
+    // Single-digit bases only, unlike every other generator here. This is the
+    // one that answers through a tiles template, and a template is split on
+    // `{n}`: the `{10}` of `\log_{10}` would be taken for a blank marker,
+    // leaving `\log_` to render as an error. Base 10 still appears throughout
+    // the other generators and the teaching slides, which use display blocks.
+    base: rng.pick(difficulty > 1 ? [2, 3, 4, 5, 7, 9] : [2, 3, 5, 7]),
     m: rng.int(2, difficulty > 1 ? 9 : 7),
     t: rng.int(2, difficulty > 1 ? 9 : 7),
     k: rng.int(2, difficulty > 1 ? 5 : 4),
@@ -382,7 +387,7 @@ const combineLogs: Generator<CombineParams> = {
           { kind: 'prose', text: 'Write as a single logarithm.' },
           { kind: 'display', tex: `${logTex(base, `${m}`)} + ${logTex(base, `${t}`)}` },
         ],
-        template: `\\log_{${base}}\\left({0}\\right)`,
+        template: `\\log_${base}({0})`,
         bank: bankOf([`${m * t}`], [`${m + t}`, `${m - t}`, `${m}^{${t}}`, `${base * m * t}`]),
         answer: [`${m * t}`],
       };
@@ -397,7 +402,7 @@ const combineLogs: Generator<CombineParams> = {
           { kind: 'prose', text: 'Write as a single logarithm.' },
           { kind: 'display', tex: `${logTex(base, `${big}`)} - ${logTex(base, `${t}`)}` },
         ],
-        template: `\\log_{${base}}\\left({0}\\right)`,
+        template: `\\log_${base}({0})`,
         bank: bankOf([`${m}`], [`${big - t}`, `${big * t}`, `${big + t}`, `${t}`]),
         answer: [`${m}`],
       };
@@ -408,7 +413,7 @@ const combineLogs: Generator<CombineParams> = {
         { kind: 'prose', text: 'Write as a single logarithm.' },
         { kind: 'display', tex: `${k}${logTex(base, `${m}`)}` },
       ],
-      template: `\\log_{${base}}\\left({0}\\right)`,
+      template: `\\log_${base}({0})`,
       bank: bankOf([`${m}^{${k}}`], [`${k}^{${m}}`, `${k * m}`, `${m + k}`, `${m}`]),
       answer: [`${m}^{${k}}`],
     };

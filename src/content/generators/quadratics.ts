@@ -12,6 +12,13 @@
  * numbers that had to be worked out, and the bank holds the standard wrong
  * answers alongside the right ones. Where an answer genuinely is a new number —
  * a discriminant, a root, a line of symmetry — a typed slide is used.
+ *
+ * Note what the templates here do *not* contain. A tiles template is split on
+ * `{n}` and each literal piece between the blanks is rendered as TeX on its
+ * own, so two things are forbidden: braces around a digit anywhere — `x^{2}`
+ * would have its `{2}` taken for a blank marker — and `\left` or `\right`
+ * spanning a blank, which leaves each half unmatched and renders as an error.
+ * Hence `x^2` and plain parentheses. Both forms render identically.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import { ALGEBRA_KEYS } from './calculus';
@@ -95,7 +102,7 @@ const expandBrackets: Generator<PairParams> = {
       { kind: 'prose', text: 'Expand and simplify.' },
       { kind: 'display', tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q)}\\right)` },
     ],
-    template: `x^{2} {0} {1}`,
+    template: `x^2 {0} {1}`,
     // The distractors are the two standard slips — adding where you should
     // multiply and the reverse — plus both sign flips.
     bank: bankOf([signedTile(p + q, 'x'), signedTile(p * q)], [
@@ -135,7 +142,7 @@ const factorise: Generator<PairParams> = {
       { kind: 'prose', text: 'Factorise.' },
       { kind: 'display', tex: quadraticTex(1, p + q, p * q) },
     ],
-    template: `\\left(x {0}\\right)\\left(x {1}\\right)`,
+    template: `(x {0})(x {1})`,
     bank: bankOf([signedTile(p), signedTile(q)], [
       signedTile(-p),
       signedTile(-q),
@@ -185,7 +192,7 @@ const differenceOfSquares: Generator<DifferenceParams> = {
         { kind: 'prose', text: 'Factorise.' },
         { kind: 'display', tex: `${lead} - ${m * m}` },
       ],
-      template: `\\left({0}\\right)\\left({1}\\right)`,
+      template: `({0})({1})`,
       bank: bankOf([factorTile(k, -m), factorTile(k, m)], [
         factorTile(k, -(m * m)),
         factorTile(k, m * m),
@@ -242,7 +249,7 @@ const factoriseWithCoefficient: Generator<CoefficientParams> = {
         { kind: 'prose', text: 'Factorise.' },
         { kind: 'display', tex: quadraticTex(a, b, c) },
       ],
-      template: `\\left({0}\\right)\\left({1}\\right)`,
+      template: `({0})({1})`,
       bank: bankOf([factorTile(p, q), factorTile(1, s)], [
         factorTile(p, s),
         factorTile(1, q),
@@ -338,7 +345,7 @@ const completeSquare: Generator<SquareParams> = {
         { kind: 'prose', text: 'Write in completed-square form.' },
         { kind: 'display', tex: quadraticTex(1, b, c) },
       ],
-      template: `\\left(x {0}\\right)^{2} {1}`,
+      template: `(x {0})^2 {1}`,
       bank: bankOf([signedTile(p), signedTile(q)], [
         signedTile(b),
         signedTile(-p),
@@ -557,7 +564,7 @@ const turningPoint: Generator<VertexParams> = {
           text: `Give the coordinates of the turning point of $y = ${quadraticTex(1, b, c)}$.`,
         },
       ],
-      template: `\\left({0}, {1}\\right)`,
+      template: `({0}, {1})`,
       bank: bankOf([`${-p}`, `${q}`], [`${p}`, `${-q}`, `${c}`, `${b}`]),
       answer: [`${-p}`, `${q}`],
     };

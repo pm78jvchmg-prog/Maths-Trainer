@@ -121,6 +121,72 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
     }
   });
 
+  it('renders every piece of TeX it emits', () => {
+    // The course-integrity sweep below checks authored TeX on literal slides.
+    // Nothing checked *generated* TeX until now, and one slide kind is
+    // genuinely fragile: a tiles template is split into independent fragments,
+    // one per literal segment between the blanks, and each is rendered alone.
+    // A \begin{pmatrix} opening before a blank and closing after it is two
+    // invalid fragments — and the Tex component runs with throwOnError: false,
+    // so the learner sees red error text mid-lesson rather than a crash.
+    //
+    // Rendered the way the app renders it: lenient about strictness, strict
+    // about validity, which is exactly the line between "looks fine" and
+    // "shows an error to the learner".
+    const check = (tex: string, where: string) => {
+      expect(
+        () => katex.renderToString(tex, { throwOnError: true, strict: false }),
+        `${where}: ${tex}`,
+      ).not.toThrow();
+    };
+
+    for (const { params } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+
+      if (slide.kind !== 'teach') {
+        for (const block of slide.prompt) {
+          if (block.kind === 'display') check(block.tex, 'prompt display');
+          if (block.kind === 'prose') {
+            block.text
+              .split(/\$([^$]+)\$/g)
+              .filter((_, idx) => idx % 2 === 1)
+              .forEach((tex) => check(tex, 'prompt inline'));
+          }
+        }
+      }
+
+      if (slide.kind === 'expression' && slide.lead) check(slide.lead, 'lead');
+
+      if (slide.kind === 'choice') {
+        for (const option of slide.options) {
+          if (option.tex) check(option.label, 'option');
+        }
+      }
+
+      if (slide.kind === 'tiles') {
+        // Even indices are the literal TeX between the blanks.
+        slide.template
+          .split(/\{(\d+)\}/g)
+          .filter((_, idx) => idx % 2 === 0)
+          .filter((segment) => segment.trim() !== '')
+          .forEach((segment) => check(segment, 'template fragment'));
+        for (const token of slide.bank) check(token, 'tile');
+      }
+
+      if (slide.kind === 'steps') {
+        for (const token of slide.start) check(token, 'step token');
+        for (const step of slide.reductions) {
+          for (const token of step.bank) check(token, 'step bank');
+        }
+      }
+
+      if (slide.kind === 'tree') {
+        check(slide.expression, 'tree expression');
+        for (const token of slide.bank) check(token, 'tree bank');
+      }
+    }
+  });
+
   it('produces an answer its own checker accepts', () => {
     for (const { params, seed } of cases) {
       const slide = (generator as Generator<unknown>).render(params);

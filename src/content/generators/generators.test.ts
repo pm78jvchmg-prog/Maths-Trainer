@@ -130,7 +130,14 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
       const slide = (generator as Generator<unknown>).render(params);
       if (slide.kind !== 'expression') continue;
 
-      const verdict = checkAnswer(`(${slide.answer}) + 1`, slide.answer, {
+      // An indefinite integral is only defined up to a constant, so adding 1 to
+      // it is *supposed* to pass there and would prove nothing. Perturb by x
+      // instead, which no valid antiderivative can absorb — and which still
+      // fails a constant answer, since the expected side does not vary.
+      const perturbed =
+        slide.mode === 'upToConstant' ? `(${slide.answer}) + x` : `(${slide.answer}) + 1`;
+
+      const verdict = checkAnswer(perturbed, slide.answer, {
         domain: slide.domain,
         mode: slide.mode,
         seed,
@@ -167,6 +174,66 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
     // checks the calculus is actually right, so coverage is the wrong thing to
     // trade away.
   }, 60_000);
+
+  it('differentiates back to the integrand, where the generator declares one', () => {
+    // The integration counterpart of the oracle above, and it has to run this
+    // way round: mathjs differentiates our answer and the result must be the
+    // integrand. Asking mathjs to integrate instead would be marking our
+    // homework with the same kind of machinery that produced it — and its
+    // symbolic integration is far weaker than its differentiation.
+    //
+    // Compared in `exact` mode deliberately, not the slide's own
+    // `upToConstant`: a derivative has no arbitrary constant left in it, so the
+    // looser comparison would let a genuinely wrong answer through whenever it
+    // differed from the integrand by a constant.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.integrand || slide.limits) continue;
+
+      const oracle = math.derivative(slide.answer, 'x').toString();
+      const verdict = checkAnswer(oracle, slide.integrand, {
+        domain: slide.domain,
+        mode: 'exact',
+        seed,
+      });
+      expect(
+        verdict.status,
+        `seed ${seed}: d/dx(${slide.answer}) is ${oracle}, integrand is ${slide.integrand}`,
+      ).toBe('correct');
+    }
+  }, 60_000);
+
+  it('agrees with quadrature, where the generator declares limits', () => {
+    // A definite integral answers with a number, so the oracle is numerical:
+    // Simpson's rule over the stated interval, which knows nothing about how
+    // the generator arrived at its value. On the polynomials these questions
+    // use it is exact to well inside the tolerance.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.integrand || !slide.limits) continue;
+
+      const [lower, upper] = slide.limits;
+      const parsed = parseExpression(slide.integrand);
+      expect(parsed.ok, `unparseable integrand: ${slide.integrand}`).toBe(true);
+      if (!parsed.ok) continue;
+
+      const steps = 1000; // even, as Simpson's rule requires
+      const h = (upper - lower) / steps;
+      let total = 0;
+      for (let i = 0; i <= steps; i += 1) {
+        const weight = i === 0 || i === steps ? 1 : i % 2 === 1 ? 4 : 2;
+        total += weight * (parsed.node.evaluate({ x: lower + i * h }) as number);
+      }
+      const quadrature = (total * h) / 3;
+      const claimed = Number(slide.answer);
+
+      expect(Number.isNaN(claimed), `non-numeric answer with limits: ${slide.answer}`).toBe(false);
+      expect(
+        Math.abs(quadrature - claimed),
+        `seed ${seed}: quadrature gives ${quadrature}, generator claims ${claimed}`,
+      ).toBeLessThan(1e-6 * Math.max(1, Math.abs(claimed)));
+    }
+  });
 
   it('can ask more distinct questions than a lesson has slides', () => {
     // The reducer re-draws a slide that duplicates one already in the deck, but

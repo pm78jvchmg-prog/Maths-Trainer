@@ -2,6 +2,7 @@ import type { Category, Course } from '../types';
 import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
 import { exponentsRadicals } from './exponentsRadicals';
+import { integration } from './integration';
 import { trigonometricFunctions } from './trigonometricFunctions';
 
 /**
@@ -28,7 +29,7 @@ export const categories: Category[] = [
     id: 'advanced-maths',
     title: 'Advanced Maths',
     blurb: 'Derivatives, complex numbers, and the machinery behind them.',
-    courses: [complexNumbers, differentiation],
+    courses: [complexNumbers, differentiation, integration],
   },
 ];
 

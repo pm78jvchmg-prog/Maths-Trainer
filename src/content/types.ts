@@ -60,6 +60,20 @@ export type Slide =
        * is genuinely correct, rather than merely self-consistent.
        */
       source?: string;
+      /**
+       * The dual of `source`, for integration: the function being integrated,
+       * where the answer is one of its antiderivatives.
+       *
+       * Declaring the integrand rather than reusing `source` keeps the oracle
+       * pointing the same way it always has — mathjs differentiates, we check —
+       * which is the only direction a test can be independent in, since
+       * symbolic integration is the thing we would be marking its own homework
+       * with. With `limits` the answer is a number instead, and the oracle
+       * becomes quadrature over that interval.
+       */
+      integrand?: string;
+      /** Limits of a definite integral, as [lower, upper]. */
+      limits?: [number, number];
       domain: 'real' | 'complex';
       mode: 'exact' | 'upToConstant';
     })

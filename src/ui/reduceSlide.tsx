@@ -282,3 +282,60 @@ export function reduceComplete(expr: Expr, answer: unknown): boolean {
   }
   return current.kind === 'num';
 }
+
+/**
+ * Evaluate the whole expression from four options.
+ *
+ * Deliberately the same subject as `ReduceSlide` above with every support
+ * removed: nothing is tappable, there is no line of working, and the four
+ * numbers on offer include what the plausible wrong orders produce — so
+ * arriving at one of them feels like success right until it is marked.
+ *
+ * The blank sits inside the equation rather than the options being listed under
+ * a question, because what is being asked is what goes *there*. A list of four
+ * rows reads as a quiz about the expression; a slot in it reads as finishing
+ * the line.
+ */
+export function EvaluateSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
+  if (slide.kind !== 'evaluate') return null;
+  const locked = isLocked(feedback, canEdit);
+  const chosen = typeof answer === 'string' ? answer : '';
+
+  return (
+    <>
+      <div className="prompt">
+        <Blocks blocks={slide.prompt} />
+      </div>
+
+      <div className={frameClass(feedback)}>
+        <div className="reduce-line">
+          {renderExpr(slide.expr).map((fragment, idx) => (
+            <span key={idx} className="reduce-piece">
+              <Tex tex={fragment.tex} />
+            </span>
+          ))}
+          <span className="reduce-piece">
+            <Tex tex="=" />
+          </span>
+          <span className={`answer-slot${chosen ? ' filled' : ''}`}>
+            {chosen ? <Tex tex={chosen} /> : ' '}
+          </span>
+        </div>
+      </div>
+
+      <div className="tile-bank">
+        {slide.options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={`tile${chosen === option ? ' used' : ''}`}
+            disabled={locked}
+            onClick={() => onAnswer(chosen === option ? '' : option)}
+          >
+            <Tex tex={option} />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}

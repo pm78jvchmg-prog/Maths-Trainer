@@ -726,137 +726,6 @@ const indexForm: Generator<IndexFormParams> = {
 };
 
 
-/* ---------- order of operations ---------- */
-
-interface OrderParams {
-  a: number;
-  b: number;
-  c: number;
-  /** Which way round the two operations sit on the line. */
-  shape: 'add-times' | 'times-add' | 'sub-times' | 'times-sub';
-  op: '\\times' | '\\div';
-}
-
-/**
- * Evaluate an expression where the order is the point.
- *
- * Every other `steps` question hands the learner the operation to do next and
- * asks only what it comes to. That grades arithmetic and quietly assumes the
- * harder half: knowing that in `8 + 4 \times 3` the multiplication happens
- * first, and that doing the addition first gives 36 rather than 20 — an answer
- * that is wrong for a reason no amount of careful adding would catch.
- *
- * So both sub-expressions are offered, and the value comes from a bank holding
- * the right answer, the answer the wrong order gives, and slips of the kind
- * that come from the numbers themselves. Choosing the wrong operation collapses
- * it for real: the learner then looks at their own wrong line rather than being
- * stopped at the moment of the mistake, which would give the answer away.
- */
-const orderOfOperations: Generator<OrderParams> = {
-  id: 'idx-order-of-operations',
-  sample: (rng, difficulty) => {
-    const top = difficulty > 1 ? 12 : 9;
-    const c = rng.int(2, difficulty > 1 ? 9 : 5);
-    const b = rng.int(2, top);
-    return {
-      a: rng.int(2, difficulty > 1 ? 40 : 20),
-      b,
-      c,
-      shape: rng.pick(['add-times', 'times-add', 'sub-times', 'times-sub'] as const),
-      // Division only where it comes out whole, so the working stays in
-      // integers and the question is about order rather than about fractions.
-      op: difficulty > 1 && b % c === 0 ? rng.pick(['\\times', '\\div'] as const) : '\\times',
-    };
-  },
-  render: ({ a, b, c, shape, op }): Slide => {
-    const product = op === '\\div' ? b / c : b * c;
-    const leading = shape === 'times-add' || shape === 'times-sub';
-    const plus = shape === 'add-times' || shape === 'times-add';
-    const sign = plus ? '+' : '-';
-
-    // The multiplication sits either after the loose term or before it. Its
-    // three tokens collapse to one, and so do the loose term's three, which is
-    // what keeps the second line the same length either way round.
-    const start = leading
-      ? [`${b}`, op, `${c}`, sign, `${a}`]
-      : [`${a}`, sign, `${b}`, op, `${c}`];
-    // Operator positions: the multiplication sign and the loose +/- sign.
-    const productSpan: [number, number] = leading ? [0, 3] : [2, 5];
-    const looseSpan: [number, number] = leading ? [2, 5] : [0, 3];
-    const productOp = leading ? 1 : 3;
-    const looseOp = leading ? 3 : 1;
-
-    // What the wrong order would produce at this stage, so the bank contains
-    // the answer a learner who reaches for the loose operation would want.
-    const loose = leading ? (plus ? c + a : c - a) : plus ? a + b : a - b;
-    const total = leading
-      ? plus
-        ? product + a
-        : product - a
-      : plus
-        ? a + product
-        : a - product;
-
-    return {
-      kind: 'steps',
-      prompt: [
-        {
-          kind: 'prose',
-          text: 'Evaluate this one operation at a time. Tap the part you would do **first**, then choose what it comes to.',
-        },
-      ],
-      start,
-      reductions: [
-        {
-          span: productSpan,
-          operator: productOp,
-          value: `${product}`,
-          decoys: [{ operator: looseOp, span: looseSpan }],
-          bank: [...new Set([`${product}`, `${loose}`, `${total}`, `${b + c}`, `${a + b + c}`, `${Math.abs(b - c)}`])],
-        },
-        {
-          span: [0, 3],
-          // The sign between the two remaining numbers, not the first of them.
-          operator: 1,
-          value: `${total}`,
-          bank: [...new Set([`${total}`, `${loose}`, `${product}`, `${a + product + 1}`, `${Math.abs(a - product)}`])],
-        },
-      ],
-    };
-  },
-  solution: ({ a, b, c, shape, op }) => {
-    const product = op === '\\div' ? b / c : b * c;
-    const leading = shape === 'times-add' || shape === 'times-sub';
-    const plus = shape === 'add-times' || shape === 'times-add';
-    const sign = plus ? '+' : '-';
-    const opName = op === '\\div' ? 'division' : 'multiplication';
-    const total = leading
-      ? plus
-        ? product + a
-        : product - a
-      : plus
-        ? a + product
-        : a - product;
-    const wrongOrder = leading ? (plus ? c + a : c - a) : plus ? a + b : a - b;
-    const wrongTotal = leading ? b * wrongOrder : wrongOrder * c;
-
-    return [
-      {
-        text: `The ${opName} binds tighter than the ${plus ? 'addition' : 'subtraction'}, so it happens first no matter which side of the expression it sits on.`,
-      },
-      {
-        tex: leading
-          ? `${b} ${op} ${c} ${sign} ${a} = ${product} ${sign} ${a} = ${total}`
-          : `${a} ${sign} ${b} ${op} ${c} = ${a} ${sign} ${product} = ${total}`,
-      },
-      {
-        text: `Taking the ${plus ? 'addition' : 'subtraction'} first would give $${wrongTotal}$ instead of $${total}$. Nothing about the arithmetic would look wrong along the way, which is exactly why the order has to be decided before any of it is done.`,
-      },
-    ];
-  },
-};
-
-
 /* ---------- evaluating an expression in the right order ---------- */
 
 interface EvaluateParams {
@@ -886,6 +755,54 @@ interface EvaluateParams {
  */
 const evaluateInOrder: Generator<EvaluateParams> = {
   id: 'idx-evaluate-order',
+  /**
+   * The same expression with no working at all: four options, worked out in
+   * the head. Much harder than the reduction, and harder in the right way —
+   * the distractors are the answers the three plausible wrong orders give, so
+   * arriving at one of them feels like success right up to the moment it is
+   * marked wrong.
+   */
+  choices: ({ base, exponent, left, right, radicand }) => {
+    const power = Math.pow(base, exponent);
+    const squared = (left - right) * (left - right);
+    const rooted = Math.sqrt(radicand);
+    const correct = power + squared * rooted;
+
+    // The three wrong orders worth offering, then anything near enough to be
+    // worth a second look. Two of these coincide for some draws — and options
+    // that collide are dropped, so without padding a question could end up
+    // offering two numbers.
+    const wrong = [
+      (power + squared) * rooted, // addition taken before the multiplication
+      power + (left * left - right * right) * rooted, // squares subtracted, not the bracket
+      power + squared * radicand, // the root left unrooted
+      power * squared * rooted, // the plus read as a times
+      correct - power,
+      correct + power,
+    ];
+
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (candidate <= 0 || seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+
+    return options(
+      { tex: `${correct}` },
+      ...picked.sort((a, b) => a - b).map((value) => ({ tex: `${value}` })),
+    );
+  },
   sample: (rng, difficulty) => {
     const base = rng.int(2, difficulty > 1 ? 5 : 3);
     const exponent = rng.int(2, base > 3 ? 2 : 3);
@@ -985,6 +902,147 @@ const evaluateInOrder: Generator<EvaluateParams> = {
   },
 };
 
+
+interface SurdEvalParams {
+  /** sqrt(a^2 x b) — a perfect square times something that also roots whole. */
+  a: number;
+  b: number;
+  /** The power term added on. */
+  base: number;
+  exponent: number;
+  /** The cube root taken away. */
+  cube: number;
+}
+
+/**
+ * A second shape, with a root over a product and a cube root.
+ *
+ * The first shape puts its difficulty in the ordering. This one puts it in the
+ * roots: `\sqrt{3^2 \times 4}` has to be worked from the inside out, and a cube
+ * root sits where a learner's hand reaches for a square one. Same widget, same
+ * two forms — walked through a piece at a time, or held in the head.
+ */
+const evaluateWithRoots: Generator<SurdEvalParams> = {
+  id: 'idx-evaluate-roots',
+  choices: ({ a, b, base, exponent, cube }) => {
+    const rooted = a * Math.round(Math.sqrt(b));
+    const power = Math.pow(base, exponent);
+    const cubed = Math.round(Math.cbrt(cube));
+    const correct = rooted + power - cubed;
+
+    const wrong = [
+      a * a * b + power - cubed, // the root ignored altogether
+      rooted + base * exponent - cubed, // the power multiplied instead
+      rooted + power - cube, // the cube root ignored
+      rooted + power + cubed, // the sign of the last term
+    ];
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (candidate <= 0 || seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  sample: (rng, difficulty) => ({
+    a: rng.int(2, difficulty > 1 ? 6 : 4),
+    // b is itself a square, so the whole root comes out whole.
+    b: rng.pick(difficulty > 1 ? [4, 9, 16, 25] : [4, 9, 16]),
+    base: rng.int(2, 3),
+    exponent: 2,
+    cube: rng.pick(difficulty > 1 ? [8, 27, 64, 125] : [8, 27]),
+  }),
+  render: ({ a, b, base, exponent, cube }): Slide => {
+    const expr = bin(
+      '-',
+      bin('+', root(bin('*', pow(num(a), num(2)), num(b))), pow(num(base), num(exponent))),
+      root(num(cube), 3),
+    );
+
+    const inner = a * a * b;
+    const rooted = a * Math.round(Math.sqrt(b));
+    const power = Math.pow(base, exponent);
+    const cubed = Math.round(Math.cbrt(cube));
+    const sum = rooted + power;
+
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 6) break;
+        if (!Number.isInteger(value) || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 6; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 6) break;
+          if (candidate <= 0 || seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work this out one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr,
+      banks: {
+        // a^2, inside the root.
+        'r.l.l.a.l': offer(a * a, a * 2, a + 2),
+        // The product under the root.
+        'r.l.l.a': offer(inner, a * a + b, a * b),
+        // The root itself.
+        'r.l.l': offer(rooted, inner, rooted * 2),
+        // The power term.
+        'r.l.r': offer(power, base * exponent, base + exponent),
+        // The addition.
+        'r.l': offer(sum, rooted * power, Math.abs(rooted - power)),
+        // The cube root, where reaching for a square root is the slip.
+        'r.r': offer(cubed, cube, Math.round(Math.sqrt(cube))),
+        // The subtraction, last.
+        r: offer(sum - cubed, sum + cubed, cubed - sum),
+      },
+    };
+  },
+  solution: ({ a, b, base, exponent, cube }) => {
+    const inner = a * a * b;
+    const rooted = a * Math.round(Math.sqrt(b));
+    const power = Math.pow(base, exponent);
+    const cubed = Math.round(Math.cbrt(cube));
+    return [
+      {
+        text: 'A root is a bracket: everything underneath it has to be settled before the root itself can be taken.',
+      },
+      { tex: `\\sqrt{${a}^{2} \\times ${b}} = \\sqrt{${inner}} = ${rooted}` },
+      {
+        text: `The small ${3} on the last root makes it a cube root, not a square one. $\\sqrt[3]{${cube}} = ${cubed}$, because $${cubed}^{3} = ${cube}$.`,
+      },
+      { tex: `${rooted} + ${power} - ${cubed} = ${rooted + power - cubed}` },
+    ];
+  },
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -998,6 +1056,6 @@ export const indicesGenerators = [
   addSurds,
   rationalise,
   indexEquation,
-  orderOfOperations,
   evaluateInOrder,
+  evaluateWithRoots,
 ] as unknown as Generator<unknown>[];

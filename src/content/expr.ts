@@ -27,7 +27,8 @@ export type Expr =
   | { kind: 'num'; value: number }
   | { kind: 'binary'; op: '+' | '-' | '*' | '/'; left: Expr; right: Expr }
   | { kind: 'power'; base: Expr; exponent: Expr }
-  | { kind: 'root'; arg: Expr };
+  /** `degree` defaults to 2; 3 draws a cube root, and so on. */
+  | { kind: 'root'; arg: Expr; degree?: number };
 
 /** Convenience builders, so content reads like the expression it describes. */
 export const num = (value: number): Expr => ({ kind: 'num', value });
@@ -38,7 +39,7 @@ export const bin = (op: Extract<Expr, { kind: 'binary' }>['op'], left: Expr, rig
   right,
 });
 export const pow = (base: Expr, exponent: Expr): Expr => ({ kind: 'power', base, exponent });
-export const root = (arg: Expr): Expr => ({ kind: 'root', arg });
+export const root = (arg: Expr, degree?: number): Expr => ({ kind: 'root', arg, degree });
 
 /**
  * A node's address: the path taken from the root to reach it.
@@ -69,7 +70,17 @@ export function nodeAt(expr: Expr, path: Path): Expr | undefined {
 /** The value of a whole sub-expression. */
 export function valueOf(expr: Expr): number {
   if (expr.kind === 'num') return expr.value;
-  if (expr.kind === 'root') return Math.sqrt(valueOf(expr.arg));
+  if (expr.kind === 'root') {
+    const inner = valueOf(expr.arg);
+    const degree = expr.degree ?? 2;
+    // Math.pow(x, 1/3) is NaN for a negative x, and a cube root of a negative
+    // is perfectly ordinary, so the sign is taken out and put back.
+    const size = Math.pow(Math.abs(inner), 1 / degree);
+    const rooted = inner < 0 ? -size : size;
+    // Roots of exact powers land a hair off an integer through the float, and
+    // every value in these questions is meant to be whole.
+    return Math.abs(rooted - Math.round(rooted)) < 1e-9 ? Math.round(rooted) : rooted;
+  }
   if (expr.kind === 'power') return Math.pow(valueOf(expr.base), valueOf(expr.exponent));
   const left = valueOf(expr.left);
   const right = valueOf(expr.right);
@@ -192,7 +203,7 @@ export function renderExpr(
   if (expr.kind === 'root') {
     // The whole root is one fragment: its bar has to span its argument, and
     // KaTeX gives no handle inside a rendered formula to hang that on.
-    out.push({ tex: `\\sqrt{${toTex(expr.arg)}}`, owners: mine, handle: path });
+    out.push({ tex: rootTex(expr), owners: mine, handle: path });
     return out;
   }
 
@@ -234,9 +245,16 @@ export function renderExpr(
 }
 
 /** The whole expression as one TeX string, for a fragment that cannot be split. */
+/** A root, with its degree written above the sign when it is not a square. */
+function rootTex(expr: Extract<Expr, { kind: 'root' }>): string {
+  const degree = expr.degree ?? 2;
+  const index = degree === 2 ? '' : `[${degree}]`;
+  return `\\sqrt${index}{${toTex(expr.arg)}}`;
+}
+
 export function toTex(expr: Expr): string {
   if (expr.kind === 'num') return `${expr.value}`;
-  if (expr.kind === 'root') return `\\sqrt{${toTex(expr.arg)}}`;
+  if (expr.kind === 'root') return rootTex(expr);
   if (expr.kind === 'power') {
     const base = expr.base.kind === 'num' ? toTex(expr.base) : `\\left(${toTex(expr.base)}\\right)`;
     return `${base}^{${toTex(expr.exponent)}}`;

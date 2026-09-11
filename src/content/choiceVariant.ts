@@ -31,6 +31,12 @@ export function choiceId(generatorId: string): string {
  * question could then appear twice in one lesson with the options moved around.
  * Hashing the labels keeps the answer off the first row without that cost.
  */
+/** The options, turned so the answer is not always in the same place. */
+function rotate(options: ChoiceOption[]): ChoiceOption[] {
+  const turn = rotation(options);
+  return [...options.slice(turn), ...options.slice(0, turn)];
+}
+
 function rotation(options: ChoiceOption[]): number {
   let hash = 0;
   for (const option of options) {
@@ -74,8 +80,24 @@ export function choiceVariant<P>(generator: Generator<P>): Generator<P> | undefi
     sample: (rng, difficulty) => generator.sample(rng, difficulty),
     render: (params): Slide => {
       const options = choices.call(generator, params);
-      const turn = rotation(options);
-      const ordered = [...options.slice(turn), ...options.slice(0, turn)];
+      const base = generator.render(params);
+
+      /**
+       * A reduction's pick-one form is an `evaluate` slide, not a list of
+       * options under a question: what is being asked is what goes in the
+       * blank at the end of the line, and a slot in the equation says that
+       * where four rows underneath would read as a quiz about it.
+       */
+      if (base.kind === 'reduce') {
+        return {
+          kind: 'evaluate',
+          prompt: [{ kind: 'prose', text: 'Evaluate the expression.' }],
+          expr: base.expr,
+          options: rotate(options).map((option) => option.tex),
+        };
+      }
+
+      const ordered = rotate(options);
       const correct = ordered.findIndex((option) => option.correct);
 
       return {

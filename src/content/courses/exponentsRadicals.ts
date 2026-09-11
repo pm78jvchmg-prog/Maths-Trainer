@@ -63,6 +63,7 @@ export const exponentsRadicals: Course = {
             ),
             ask('idx-multiply'),
             ask('idx-evaluate-order'),
+            ask('idx-evaluate-order+choice'),
             ask('idx-multiply+choice'),
             teach(
               prose(
@@ -487,7 +488,7 @@ export const exponentsRadicals: Course = {
               maths('\\sqrt{72} = \\sqrt{36 \\times 2} = \\sqrt{36} \\times \\sqrt{2} = 6\\sqrt{2}'),
             ),
             ask('rad-simplify'),
-            ask('rad-simplify'),
+            ask('idx-evaluate-roots'),
             ask('rad-simplify+choice'),
             teach(
               prose(
@@ -501,7 +502,7 @@ export const exponentsRadicals: Course = {
                 'The squares worth scanning for are 4, 9, 16, 25, 36, 49, 64, 81 and 100. Checking them from the largest downwards finds the answer in one pass.',
               ),
             ),
-            ask('rad-simplify'),
+            ask('idx-evaluate-roots+choice'),
             ask('rad-simplify', 2),
             teach(
               prose(

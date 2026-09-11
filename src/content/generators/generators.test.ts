@@ -85,6 +85,21 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         ).toBeGreaterThanOrEqual(1);
       }
 
+      if (slide.kind === 'evaluate') {
+        // Exactly one option right, and every option a whole number: a
+        // near-miss the learner cannot tell apart from the answer by shape is
+        // the only kind worth offering.
+        const value = valueOf(slide.expr);
+        expect(Number.isInteger(value), `value ${value} is not whole`).toBe(true);
+        expect(slide.options.length, 'too few options').toBeGreaterThanOrEqual(3);
+        expect(new Set(slide.options).size, 'options repeat').toBe(slide.options.length);
+        const right = slide.options.filter((option) => Number(option) === value);
+        expect(right.length, `options must hold exactly one ${value}`).toBe(1);
+        for (const option of slide.options) {
+          expect(Number.isInteger(Number(option)), `option ${option} is not whole`).toBe(true);
+        }
+      }
+
       if (slide.kind === 'reduce') {
         // Every node the learner can tap needs a bank, including the operators
         // they may take too early — a wrong turn with nothing to choose from is

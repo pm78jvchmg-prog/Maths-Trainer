@@ -187,6 +187,12 @@ export type Slide =
          * Other operations offered at this stage, none of them the one
          * precedence says to do next.
          *
+         * No content uses this now: the `reduce` slide asks the same question
+         * from an expression tree, which can offer every piece rather than an
+         * authored pair. Kept because the widget and its guards are tested and
+         * a linear reduction with one wrong turn is still a reasonable thing to
+         * author; delete it with `steps` if that stops being true.
+         *
          * Without these the slide hands the learner the correct operation and
          * only asks what it evaluates to — it grades arithmetic and takes the
          * ordering for granted. With them the learner has to say *which*
@@ -210,6 +216,23 @@ export type Slide =
    * which is enough to lay out rows and draw the connectors without the content
    * author positioning anything by hand.
    */
+  /**
+   * Evaluate a whole expression in the head, from four options.
+   *
+   * The same subject as `reduce` with every support taken away: no pieces to
+   * tap, no line of working, no bank narrowed to one stage. The learner has to
+   * hold the order in their head and arrive at a number, which is what doing
+   * this on paper actually asks of them.
+   *
+   * It is a pick-one rather than a typed answer because the point is the
+   * reasoning, not the typing — and because a wrong order lands on one of the
+   * offered numbers, so choosing it feels like success until it is marked.
+   */
+  | ({ kind: 'evaluate' } & Prompted & {
+      expr: Expr;
+      /** Exactly one of these equals the expression's value. */
+      options: string[];
+    })
   /**
    * Evaluate an expression by reducing one piece at a time, choosing both
    * *which* piece comes next and what it comes to.

@@ -16,7 +16,7 @@
  */
 import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
-import { isSolved, type Move } from '../content/expr';
+import { isSolved, valueOf, type Move } from '../content/expr';
 import type {
   Lesson,
   Slide,
@@ -372,6 +372,19 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
 
     case 'tree':
       return gradeSequence(answer, slide.answer);
+
+    /**
+     * One number, held against what the expression comes to.
+     *
+     * No working to inspect, so there is nothing to grade but the answer — the
+     * whole difficulty is that the learner had to get there unaided.
+     */
+    case 'evaluate': {
+      if (typeof answer !== 'string' || answer.trim() === '') return { kind: 'incorrect' };
+      return Math.abs(Number(answer) - valueOf(slide.expr)) < 1e-9
+        ? { kind: 'correct' }
+        : { kind: 'incorrect' };
+    }
 
     /**
      * Re-walk the learner's reductions over the original expression.

@@ -23,7 +23,7 @@ import {
   type Doc,
 } from './mathInput';
 import { walkFlow } from './flow';
-import { ReduceSlide, reduceComplete } from './reduceSlide';
+import { EvaluateSlide, ReduceSlide, reduceComplete } from './reduceSlide';
 import type { Slide, KeypadKey } from '../content/types';
 import {
   planeGridSvg,
@@ -560,6 +560,8 @@ export function SlideView(props: SlideProps) {
       return <FlowSlide {...props} />;
     case 'reduce':
       return <ReduceSlide {...props} />;
+    case 'evaluate':
+      return <EvaluateSlide {...props} />;
   }
 }
 
@@ -571,6 +573,8 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
     const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
+  // One tile chosen is the whole answer.
+  if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:
   // an illegal reduction still settles its line, and Check has to be reachable
   // or the learner could never find out that it was illegal.

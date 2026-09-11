@@ -161,7 +161,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-horizontal-shift'),
-            ask('trig-horizontal-shift'),
+            ask('trig-period-from-peaks'),
             ask('trig-horizontal-shift'),
             teach(
               prose(

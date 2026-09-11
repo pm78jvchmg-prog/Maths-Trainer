@@ -54,6 +54,10 @@ function promptFrom(slide: Slide): Block[] {
   if (slide.kind === 'teach') return slide.body;
   if (slide.kind !== 'expression' || !slide.lead) return slide.prompt;
   const lead = slide.lead.replace(/\s*=\s*$/, '').trim();
+  // A lead of just "x =" strips down to a bare letter, which displays above
+  // four options that already read "x = ...": a display block with nothing
+  // in it. quad-symmetry is the only generator this affects today.
+  if (/^[A-Za-z]$/.test(lead)) return slide.prompt;
   return [...slide.prompt, { kind: 'display', tex: lead }];
 }
 

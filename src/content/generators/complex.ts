@@ -138,11 +138,11 @@ interface RealParams { value: number; hasReal: boolean }
 
 export const realSolutions: Generator<RealParams> = {
   id: 'real-solutions',
-  sample: (rng) => {
+  sample: (rng, difficulty) => {
     // Mix in positives so the answer is not always "no" — otherwise the pattern
     // can be learned without the idea behind it.
     const hasReal = rng.chance(0.4);
-    const magnitude = rng.int(1, 24);
+    const magnitude = rng.int(1, difficulty >= 2 ? 40 : 24);
     return { value: hasReal ? magnitude : -magnitude, hasReal };
   },
   render: ({ value }) => ({
@@ -180,8 +180,8 @@ interface RootsParams { n: number; bank: string[] }
 
 export const bothRoots: Generator<RootsParams> = {
   id: 'both-roots',
-  sample: (rng) => {
-    const n = rng.int(2, 6);
+  sample: (rng, difficulty) => {
+    const n = rng.int(2, difficulty >= 2 ? 9 : 6);
     const distractors = [1, 2, 3, 4, 5, 6, 7]
       .filter((d) => d !== n)
       .slice(0, 4)
@@ -249,9 +249,9 @@ interface PartParams { a: number; b: number; wantReal: boolean; options: number[
 
 export const complexPart: Generator<PartParams> = {
   id: 'complex-part',
-  sample: (rng) => {
-    const a = rng.int(1, 9) * rng.sign();
-    const b = rng.int(1, 9) * rng.sign();
+  sample: (rng, difficulty) => {
+    const a = rng.int(1, difficulty >= 2 ? 15 : 9) * rng.sign();
+    const b = rng.int(1, difficulty >= 2 ? 15 : 9) * rng.sign();
     const wantReal = rng.chance(0.5);
     const target = wantReal ? a : b;
 

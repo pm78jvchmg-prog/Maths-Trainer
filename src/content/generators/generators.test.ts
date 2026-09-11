@@ -21,11 +21,20 @@ import { registeredGenerators, registry } from '../registry';
 import { courses } from '../courses';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
+import { CHOICE_SUFFIX } from '../choiceVariant';
 import { TRIPLES } from './complexPlane';
 import type { Generator } from '../types';
 
 const SEEDS = 200;
 const DIFFICULTIES = [1, 2];
+
+// A backslash-stripped command like "overline{3 + 4i}" is perfectly valid TeX
+// — it renders the literal letters — so KaTeX raises nothing and the learner
+// just sees a wrong slide. Only a name check catches it. Shared between the
+// authored-content sweep (literal slides) and the generator sweep (generated
+// TeX), so a stripped backslash cannot hide in either source.
+const BARE_TEX_COMMAND =
+  /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|frac|sqrt|cdot|times|pm|geq|leq|rightarrow|implies|arg|sin|cos|tan|ln|pi|text|left|right)\b/;
 
 // Derived choice generators are swept exactly like the ones written by hand:
 // they are what a lesson actually asks, so "derived" is no reason to trust them.
@@ -68,6 +77,11 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           expect(at, `token ${token} missing from bank`).toBeGreaterThanOrEqual(0);
           bank.splice(at, 1);
         }
+        // A bank with nothing left over is the answer with no wrong option to place.
+        expect(
+          bank.length,
+          `bank for answer ${JSON.stringify(slide.answer)} has no real distractor left over`,
+        ).toBeGreaterThanOrEqual(1);
       }
 
       if (slide.kind === 'plot') {
@@ -140,6 +154,7 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         () => katex.renderToString(tex, { throwOnError: true, strict: false }),
         `${where}: ${tex}`,
       ).not.toThrow();
+      expect(BARE_TEX_COMMAND.test(tex), `${where}: bare TeX command in ${tex}`).toBe(false);
     };
 
     for (const { params } of cases) {
@@ -216,6 +231,21 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           verdict.status,
           `seed ${seed}: distractor ${option.tex} (${option.answer}) is not wrong against ${right}`,
         ).toBe('incorrect');
+      }
+    }
+  });
+
+  it('never shows a bare single-letter display in a derived choice prompt', () => {
+    // promptFrom lifts an expression slide's lead, minus its trailing "=",
+    // into a display block. A lead like "x =" strips down to a bare "x" —
+    // meaningless above four options that already read "x = ...".
+    if (!_id.endsWith(CHOICE_SUFFIX)) return;
+    const g = generator as Generator<unknown>;
+    const slide = g.render(g.sample(makeRng(1), 1));
+    if (slide.kind === 'teach') return;
+    for (const block of slide.prompt) {
+      if (block.kind === 'display') {
+        expect(block.tex.trim(), `${_id}: bare single-letter display`).not.toMatch(/^[A-Za-z]$/);
       }
     }
   });
@@ -414,6 +444,16 @@ describe('course integrity', () => {
     }
   });
 
+  it('gives every level check 10 to 15 questions', () => {
+    for (const course of courses) {
+      for (const level of course.levels) {
+        if (level.levelCheck === undefined) continue;
+        expect(level.levelCheck.length, `${course.id}/${level.id}`).toBeGreaterThanOrEqual(10);
+        expect(level.levelCheck.length, `${course.id}/${level.id}`).toBeLessThanOrEqual(15);
+      }
+    }
+  });
+
   it('opens each lesson by teaching before asking', () => {
     for (const lesson of lessons) {
       const first = lesson.slides[0];
@@ -477,11 +517,8 @@ describe('course integrity', () => {
     // — it renders the literal letters — so KaTeX raises nothing and the learner
     // just sees a wrong slide. Only a name check catches it, and it is applied
     // to TeX fragments alone so English prose is never scanned.
-    const COMMANDS =
-      /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|frac|sqrt|cdot|times|pm|geq|leq|rightarrow|implies|arg|sin|cos|tan|ln|pi|text|left|right)\b/;
-
     for (const { tex, where } of texFragments()) {
-      expect(COMMANDS.test(tex), `${where}: bare TeX command in ${tex}`).toBe(false);
+      expect(BARE_TEX_COMMAND.test(tex), `${where}: bare TeX command in ${tex}`).toBe(false);
     }
   });
 
@@ -596,6 +633,29 @@ describe('course integrity', () => {
       }
     }
 
+    expect(offenders.join('\n')).toBe('');
+  });
+
+  it('never runs 3 or more identical-shape questions between teach slides', () => {
+    const shapeOf = (id: string) => {
+      const g = registry[id] as unknown as Generator<unknown>;
+      return g.render(g.sample(makeRng(1), 1)).kind;
+    };
+    const offenders: string[] = [];
+    for (const lesson of lessons) {
+      const runs: string[][] = [[]];
+      for (const ref of lesson.slides) {
+        if (ref.type === 'literal') runs.push([]);
+        else runs[runs.length - 1].push(ref.generatorId);
+      }
+      for (const run of runs) {
+        if (run.length < 3) continue;
+        const shapes = new Set(run.map(shapeOf));
+        if (shapes.size < 2) {
+          offenders.push(`${lesson.id}: run of ${run.length} questions, all ${[...shapes][0]}`);
+        }
+      }
+    }
     expect(offenders.join('\n')).toBe('');
   });
 

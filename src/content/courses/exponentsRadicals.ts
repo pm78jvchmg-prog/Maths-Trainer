@@ -628,7 +628,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-rationalise'),
-            ask('rad-rationalise'),
+            ask('rad-multiply'),
             ask('rad-rationalise'),
             teach(
               prose('With a number on top, it comes along unchanged.'),

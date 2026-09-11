@@ -620,7 +620,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-from-roots'),
-            ask('quad-from-roots'),
+            ask('quad-root-count'),
             ask('quad-from-roots'),
             teach(
               prose(

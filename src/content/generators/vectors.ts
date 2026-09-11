@@ -40,7 +40,19 @@ function nonZero(value: number, fallback: number): number {
 /** A tile bank keeping its answers with multiplicity. See quadratics.ts. */
 function bankOf(answer: string[], distractors: string[]): string[] {
   const needed = new Set(answer);
-  return [...answer, ...[...new Set(distractors)].filter((t) => !needed.has(t))].sort();
+  const extras = [...new Set(distractors)].filter((t) => !needed.has(t));
+  // Distractors are computed from the question's own numbers and can all
+  // collide with the answer; pad with numeric near-misses so a bank is never
+  // just the answer laid out in a different order.
+  for (let offset = 1; extras.length < 2 && offset <= 20; offset += 1) {
+    for (const token of answer) {
+      const n = Number(token);
+      if (Number.isNaN(n)) continue;
+      const candidate = `${n + offset}`;
+      if (!needed.has(candidate) && !extras.includes(candidate)) extras.push(candidate);
+    }
+  }
+  return [...answer, ...extras].sort();
 }
 
 /** Choice options with no two rendering the same label. */

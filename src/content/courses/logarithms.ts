@@ -64,7 +64,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-to-index'),
-            ask('log-to-index'),
+            ask('log-evaluate'),
             ask('log-to-index'),
             teach(
               prose(
@@ -211,7 +211,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-domain'),
-            ask('log-domain'),
+            ask('log-evaluate'),
             ask('log-domain'),
             teach(
               prose('The base has restrictions too: it must be positive, and it must not be 1.'),
@@ -280,7 +280,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-arithmetic'),
-            ask('log-arithmetic'),
+            ask('log-combine'),
             ask('log-arithmetic'),
             teach(
               prose('Dividing powers subtracts their indices, which gives the second law.'),
@@ -329,7 +329,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-power-rule'),
-            ask('log-power-rule'),
+            ask('log-combine'),
             ask('log-power-rule'),
             teach(
               prose('The index becomes a multiplier, not a power of the logarithm.'),
@@ -429,7 +429,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-laws-equation'),
-            ask('log-laws-equation'),
+            ask('log-combine'),
             ask('log-laws-equation'),
             teach(
               prose(

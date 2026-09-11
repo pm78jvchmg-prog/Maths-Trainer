@@ -88,7 +88,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'The step people skip is the second one. Stopping at $6i^2$ leaves the answer unsimplified; writing $6i$ loses the squaring altogether. Take the coefficients first, then deal with the $i^2$ as a separate move.' },
             ),
             ask('imaginary-product'),
-            ask('imaginary-product'),
+            ask('imaginary-sum+choice'),
             ask('imaginary-product', 2),
             teach(
               { kind: 'prose', text: 'Watch the pattern: adding imaginary numbers keeps them imaginary, multiplying two of them makes them real. Addition stays in the imaginary world, multiplication steps out of it.' },
@@ -113,7 +113,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Two complex numbers are equal only when both parts match. $a + bi = c + di$ means $a = c$ *and* $b = d$, which turns one complex equation into two real ones — a trick worth remembering.' },
             ),
             ask('complex-part'),
-            ask('complex-part'),
+            ask('complex-add'),
             ask('complex-part'),
             teach(
               { kind: 'prose', text: 'Complex numbers add component by component: real with real, imaginary with imaginary. The two parts never mix.' },
@@ -123,7 +123,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Dropping the sign on the second part of the bracket is the most common slip in the whole topic. Expand the bracket before combining anything and it cannot happen.' },
             ),
             ask('complex-add'),
-            ask('complex-add'),
+            ask('complex-part'),
             ask('complex-add', 2),
             teach(
               { kind: 'prose', text: 'Because the parts stay separate, a complex number behaves like a point with two coordinates — which is exactly how it is drawn on the complex plane, real part across and imaginary part up.' },
@@ -165,7 +165,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'A remainder of $0$ means the power lands exactly on the end of a cycle, giving $1$ rather than $i$. That is the case people get wrong most often, because $i^0$ and $i^4$ both being $1$ feels like one case too few.' },
             ),
             ask('powers-of-i'),
-            ask('powers-of-i'),
+            ask('complex-multiply+choice'),
             ask('powers-of-i', 2),
             teach(
               { kind: 'prose', text: 'Notice what multiplication does geometrically: it scales and rotates. Multiplying by $i$ alone is a quarter turn anticlockwise, which is why four of them return you to the start.' },
@@ -260,7 +260,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Both coordinates are real numbers. The vertical axis is labelled with $i$, but the number you read off it is $b$, not $bi$.' },
             ),
             ask('identify-point'),
-            ask('identify-point'),
+            ask('plot-point'),
             ask('identify-point'),
             teach(
               { kind: 'prose', text: 'It works the other way too: given a number, you can place it. Move along the real axis first, then up or down the imaginary axis.' },
@@ -269,7 +269,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Watch the signs on both axes. $-2 + 3i$ and $2 - 3i$ sit in opposite corners of the plane, and they are easy to confuse when reading quickly.' },
             ),
             ask('plot-point'),
-            ask('plot-point'),
+            ask('identify-point'),
             ask('plot-point', 2),
             teach(
               { kind: 'prose', text: 'Adding complex numbers is now easy to picture: it shifts a point by the amount of the other, exactly like adding vectors.' },

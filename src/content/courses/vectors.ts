@@ -116,7 +116,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('vec-scalar-combine'),
-            ask('vec-scalar-combine'),
+            ask('vec-parallel'),
             ask('vec-scalar-combine'),
             teach(
               prose(
@@ -227,7 +227,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('vec-dot'),
-            ask('vec-dot'),
+            ask('vec-parallel'),
             ask('vec-dot'),
             teach(
               prose('The sign of the scalar product describes the angle between the vectors.'),

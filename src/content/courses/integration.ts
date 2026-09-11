@@ -90,7 +90,7 @@ export const integration: Course = {
               [prose('Start with the family itself. Three of these are the same curve moved up or down; one is a different curve altogether.')],
               'int-antiderivative-family',
             ),
-            ask('int-antiderivative-family'),
+            ask('int-power'),
             ask('int-antiderivative-family'),
             teach(
               prose(
@@ -512,7 +512,7 @@ export const integration: Course = {
               maths('\\int_{a}^{a} f(x) \\, dx = 0'),
             ),
             ask('int-properties'),
-            ask('int-properties'),
+            ask('int-definite-sum'),
             ask('int-properties'),
             teach(
               prose('The second property splits an interval at any point inside it.'),
@@ -560,7 +560,7 @@ export const integration: Course = {
               prose('So for an area, take the size of the integral and drop the sign: here it is 2.'),
             ),
             ask('int-signed-area'),
-            ask('int-signed-area'),
+            ask('int-definite-sum'),
             ask('int-signed-area'),
             teach(
               prose(

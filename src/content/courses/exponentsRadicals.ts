@@ -62,7 +62,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply'),
-            ask('idx-multiply'),
+            ask('idx-order-of-operations'),
             ask('idx-multiply+choice'),
             teach(
               prose(

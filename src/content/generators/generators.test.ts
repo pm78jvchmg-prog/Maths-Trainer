@@ -84,6 +84,33 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         ).toBeGreaterThanOrEqual(1);
       }
 
+      if (slide.kind === 'steps') {
+        for (const [i, reduction] of slide.reductions.entries()) {
+          const correctOp = reduction.operator ?? reduction.span[0];
+          const seen = new Set([correctOp]);
+          for (const decoy of reduction.decoys ?? []) {
+            // A decoy collapses for real when chosen, so it has to leave the
+            // line the same length the correct span would. Otherwise every
+            // later span is off by the difference and the working falls apart
+            // in a way no learner could recover from.
+            const width = reduction.span[1] - reduction.span[0];
+            expect(
+              decoy.span[1] - decoy.span[0],
+              `reduction ${i}: decoy ${decoy.span} covers a different number of tokens from ${reduction.span}`,
+            ).toBe(width);
+            // Two choices on the same token would draw one button and silently
+            // lose the other.
+            expect(seen.has(decoy.operator), `reduction ${i}: two choices tap token ${decoy.operator}`).toBe(false);
+            seen.add(decoy.operator);
+            expect(decoy.operator).toBeGreaterThanOrEqual(decoy.span[0]);
+            expect(decoy.operator).toBeLessThan(decoy.span[1]);
+          }
+          // The bank has to hold what the wrong turn produces as well as the
+          // right one, or picking the decoy leaves nothing sensible to choose.
+          expect(reduction.bank).toContain(reduction.value);
+        }
+      }
+
       if (slide.kind === 'flow') {
         // Every branch goes exactly one place: on to another step, or to an
         // outcome. A branch with both would make the path ambiguous; one with

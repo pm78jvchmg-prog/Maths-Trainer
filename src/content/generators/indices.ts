@@ -16,7 +16,7 @@
  * expression is a constant and all twenty-four points are usable. It also
  * happens to be how the topic is taught.
  */
-import type { Generator, KeypadKey } from '../types';
+import type { Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import type { Rng } from '../../engine/rng';
@@ -724,6 +724,137 @@ const indexForm: Generator<IndexFormParams> = {
   },
 };
 
+
+/* ---------- order of operations ---------- */
+
+interface OrderParams {
+  a: number;
+  b: number;
+  c: number;
+  /** Which way round the two operations sit on the line. */
+  shape: 'add-times' | 'times-add' | 'sub-times' | 'times-sub';
+  op: '\\times' | '\\div';
+}
+
+/**
+ * Evaluate an expression where the order is the point.
+ *
+ * Every other `steps` question hands the learner the operation to do next and
+ * asks only what it comes to. That grades arithmetic and quietly assumes the
+ * harder half: knowing that in `8 + 4 \times 3` the multiplication happens
+ * first, and that doing the addition first gives 36 rather than 20 — an answer
+ * that is wrong for a reason no amount of careful adding would catch.
+ *
+ * So both sub-expressions are offered, and the value comes from a bank holding
+ * the right answer, the answer the wrong order gives, and slips of the kind
+ * that come from the numbers themselves. Choosing the wrong operation collapses
+ * it for real: the learner then looks at their own wrong line rather than being
+ * stopped at the moment of the mistake, which would give the answer away.
+ */
+const orderOfOperations: Generator<OrderParams> = {
+  id: 'idx-order-of-operations',
+  sample: (rng, difficulty) => {
+    const top = difficulty > 1 ? 12 : 9;
+    const c = rng.int(2, difficulty > 1 ? 9 : 5);
+    const b = rng.int(2, top);
+    return {
+      a: rng.int(2, difficulty > 1 ? 40 : 20),
+      b,
+      c,
+      shape: rng.pick(['add-times', 'times-add', 'sub-times', 'times-sub'] as const),
+      // Division only where it comes out whole, so the working stays in
+      // integers and the question is about order rather than about fractions.
+      op: difficulty > 1 && b % c === 0 ? rng.pick(['\\times', '\\div'] as const) : '\\times',
+    };
+  },
+  render: ({ a, b, c, shape, op }): Slide => {
+    const product = op === '\\div' ? b / c : b * c;
+    const leading = shape === 'times-add' || shape === 'times-sub';
+    const plus = shape === 'add-times' || shape === 'times-add';
+    const sign = plus ? '+' : '-';
+
+    // The multiplication sits either after the loose term or before it. Its
+    // three tokens collapse to one, and so do the loose term's three, which is
+    // what keeps the second line the same length either way round.
+    const start = leading
+      ? [`${b}`, op, `${c}`, sign, `${a}`]
+      : [`${a}`, sign, `${b}`, op, `${c}`];
+    // Operator positions: the multiplication sign and the loose +/- sign.
+    const productSpan: [number, number] = leading ? [0, 3] : [2, 5];
+    const looseSpan: [number, number] = leading ? [2, 5] : [0, 3];
+    const productOp = leading ? 1 : 3;
+    const looseOp = leading ? 3 : 1;
+
+    // What the wrong order would produce at this stage, so the bank contains
+    // the answer a learner who reaches for the loose operation would want.
+    const loose = leading ? (plus ? c + a : c - a) : plus ? a + b : a - b;
+    const total = leading
+      ? plus
+        ? product + a
+        : product - a
+      : plus
+        ? a + product
+        : a - product;
+
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Evaluate this one operation at a time. Tap the part you would do **first**, then choose what it comes to.',
+        },
+      ],
+      start,
+      reductions: [
+        {
+          span: productSpan,
+          operator: productOp,
+          value: `${product}`,
+          decoys: [{ operator: looseOp, span: looseSpan }],
+          bank: [...new Set([`${product}`, `${loose}`, `${total}`, `${b + c}`, `${a + b + c}`, `${Math.abs(b - c)}`])],
+        },
+        {
+          span: [0, 3],
+          // The sign between the two remaining numbers, not the first of them.
+          operator: 1,
+          value: `${total}`,
+          bank: [...new Set([`${total}`, `${loose}`, `${product}`, `${a + product + 1}`, `${Math.abs(a - product)}`])],
+        },
+      ],
+    };
+  },
+  solution: ({ a, b, c, shape, op }) => {
+    const product = op === '\\div' ? b / c : b * c;
+    const leading = shape === 'times-add' || shape === 'times-sub';
+    const plus = shape === 'add-times' || shape === 'times-add';
+    const sign = plus ? '+' : '-';
+    const opName = op === '\\div' ? 'division' : 'multiplication';
+    const total = leading
+      ? plus
+        ? product + a
+        : product - a
+      : plus
+        ? a + product
+        : a - product;
+    const wrongOrder = leading ? (plus ? c + a : c - a) : plus ? a + b : a - b;
+    const wrongTotal = leading ? b * wrongOrder : wrongOrder * c;
+
+    return [
+      {
+        text: `The ${opName} binds tighter than the ${plus ? 'addition' : 'subtraction'}, so it happens first no matter which side of the expression it sits on.`,
+      },
+      {
+        tex: leading
+          ? `${b} ${op} ${c} ${sign} ${a} = ${product} ${sign} ${a} = ${total}`
+          : `${a} ${sign} ${b} ${op} ${c} = ${a} ${sign} ${product} = ${total}`,
+      },
+      {
+        text: `Taking the ${plus ? 'addition' : 'subtraction'} first would give $${wrongTotal}$ instead of $${total}$. Nothing about the arithmetic would look wrong along the way, which is exactly why the order has to be decided before any of it is done.`,
+      },
+    ];
+  },
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -737,4 +868,5 @@ export const indicesGenerators = [
   addSurds,
   rationalise,
   indexEquation,
+  orderOfOperations,
 ] as unknown as Generator<unknown>[];

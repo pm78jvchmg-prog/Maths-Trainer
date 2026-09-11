@@ -23,55 +23,141 @@ type StepsSlide = Extract<Slide, { kind: 'steps' }>;
  * currently being worked on. Spans index the line they act on, so this has to
  * be applied in order rather than computed per step.
  */
+/**
+ * One answered stage: which sub-expression was collapsed, and into what.
+ *
+ * A stage where the learner also chose the operation is stored as `from-to|value`
+ * so the reducer can keep comparing plain strings — picking the right value for
+ * the wrong operation has to be as wrong as picking the wrong value, and one
+ * token holding both is what makes that fall out of `gradeSequence` unchanged.
+ * A stage with no ordering decision is still just the value.
+ */
+export function parseStep(token: string): { span?: [number, number]; value: string } {
+  const bar = token.indexOf('|');
+  if (bar < 0) return { value: token };
+  const [from, to] = token.slice(0, bar).split('-').map(Number);
+  return { span: [from, to], value: token.slice(bar + 1) };
+}
+
+export function stepToken(span: [number, number] | undefined, value: string): string {
+  return span ? `${span[0]}-${span[1]}|${value}` : value;
+}
+
+/**
+ * The working so far, one line per stage.
+ *
+ * The span that collapses is the one the *learner* chose, not the one the
+ * author expected. That matters the moment ordering is being graded: a learner
+ * who takes `8 + 4` before `4 x 3` must see `12 x 3` — their own wrong line —
+ * rather than being quietly corrected or stopped, either of which would tell
+ * them they were wrong before they had committed to an answer.
+ *
+ * Because the line then differs from the one the remaining reductions were
+ * written against, a later span can fall outside it. That is not recoverable
+ * content, so the walk simply stops there and the short answer grades wrong.
+ */
 export function stepLines(slide: StepsSlide, chosen: string[]): string[][] {
   const lines: string[][] = [slide.start];
   for (let i = 0; i < slide.reductions.length; i += 1) {
-    const value = chosen[i];
-    if (!value) break;
-    const [from, to] = slide.reductions[i].span;
+    const token = chosen[i];
+    if (!token) break;
+    const { span, value } = parseStep(token);
+    const [from, to] = span ?? slide.reductions[i].span;
     const previous = lines[lines.length - 1];
+    if (from < 0 || to > previous.length || from >= to) break;
     lines.push([...previous.slice(0, from), value, ...previous.slice(to)]);
   }
   return lines;
 }
 
+export interface Target {
+  /** The operator token that is tapped. */
+  operator: number;
+  /** What collapses if it is chosen. */
+  span: [number, number];
+}
+
+/**
+ * The operations on offer at a stage, in the order they sit on the line.
+ *
+ * Left to right rather than correct-first, because a fixed position would give
+ * the answer away after two questions.
+ */
+export function offeredOps(slide: StepsSlide, index: number): Target[] {
+  const reduction = slide.reductions[index];
+  if (!reduction) return [];
+  const correct: Target = {
+    operator: reduction.operator ?? reduction.span[0],
+    span: reduction.span,
+  };
+  return [correct, ...(reduction.decoys ?? [])].sort((a, b) => a.operator - b.operator);
+}
+
+/**
+ * One line of working, with its operations as tap targets.
+ *
+ * The operator is what gets tapped, not the whole sub-expression: in
+ * `8 + 4 x 3` the two candidate operations share the 4, so their spans overlap
+ * and no two overlapping regions can both be buttons. Tapping the sign is also
+ * what a person does when asked which operation comes first.
+ *
+ * Offering more than one at a time is the whole of the ordering question. When
+ * only the next correct operation is tappable, the slide has already told the
+ * learner which one comes first and all that is left to grade is the arithmetic.
+ */
 function Line({
   tokens,
-  span,
+  targets = [],
   armed,
   onArm,
   blank,
 }: {
   tokens: string[];
-  /** The range this line's pending reduction covers, if it has one. */
-  span?: [number, number];
-  armed?: boolean;
-  onArm?: () => void;
-  /** Render the span as an empty slot rather than its tokens. */
+  /** Operations that can be tapped on this line, left to right. */
+  targets?: Target[];
+  /** The span currently armed, if any. */
+  armed?: [number, number] | null;
+  onArm?: (span: [number, number]) => void;
+  /** Render the armed span as an empty slot rather than its tokens. */
   blank?: boolean;
 }) {
   const parts: React.ReactNode[] = [];
+  const isArmed = (span: [number, number]) =>
+    armed != null && armed[0] === span[0] && armed[1] === span[1];
+
   for (let i = 0; i < tokens.length; i += 1) {
-    if (span && i === span[0]) {
-      const inner = tokens.slice(span[0], span[1]);
-      if (blank) {
-        parts.push(<span key={i} className="answer-slot focus" />);
-      } else {
-        parts.push(
-          <button
-            key={i}
-            type="button"
-            className={`step-target${armed ? ' armed' : ''}`}
-            disabled={!onArm}
-            onClick={onArm}
-          >
-            {inner.map((token, j) => (
-              <Tex key={j} tex={token} />
-            ))}
-          </button>,
-        );
-      }
-      i = span[1] - 1;
+    // While a choice is armed the whole of it is blanked, so that the learner
+    // sees the shape of what they are replacing rather than one lone sign.
+    const armedHere = blank && armed && i === armed[0];
+    if (armedHere) {
+      parts.push(<span key={i} className="answer-slot focus" />);
+      i = armed[1] - 1;
+      continue;
+    }
+
+    // With one operation on offer there is no ambiguity, so the button covers
+    // the whole sub-expression as it always did. With several, their spans
+    // overlap — `8 + 4 x 3` shares the 4 — and only the operators are disjoint.
+    const sole = targets.length === 1;
+    const target = targets.find((candidate) =>
+      sole ? candidate.span[0] === i : candidate.operator === i,
+    );
+    if (target && !blank) {
+      const inner = sole ? tokens.slice(target.span[0], target.span[1]) : [tokens[i]];
+      parts.push(
+        <button
+          key={i}
+          type="button"
+          className={`step-target${isArmed(target.span) ? ' armed' : ''}`}
+          disabled={!onArm}
+          onClick={onArm ? () => onArm(target.span) : undefined}
+        >
+          {inner.map((token, j) => (
+            <Tex key={j} tex={token} />
+          ))}
+        </button>,
+      );
+      if (sole) i = target.span[1] - 1;
       continue;
     }
     parts.push(<Tex key={i} tex={tokens[i]} />);
@@ -99,24 +185,36 @@ function StepsBody({
   // Which sub-expression the learner has tapped and is now choosing a value
   // for. Purely presentational: it is the "you are working on this bit" state
   // the reference app uses, and it never affects grading.
-  const [armed, setArmed] = useState(false);
+  // Which sub-expression is armed, as a span. Null means none yet.
+  const [armed, setArmed] = useState<[number, number] | null>(null);
 
   const lines = stepLines(slide, chosen);
   const stepIndex = lines.length - 1;
   const reduction = slide.reductions[stepIndex];
   const done = reduction === undefined;
+  const targets = offeredOps(slide, stepIndex);
+  // Ordering is only being asked about where the author offered a wrong turn.
+  const picksOrder = (reduction?.decoys?.length ?? 0) > 0;
+  // Every offered span must fit the line the learner has actually built; after
+  // a wrong turn earlier it may not, and there is nothing sensible to offer.
+  const usable = targets.filter(
+    ({ operator, span }) =>
+      span[0] >= 0 && span[1] <= lines[stepIndex].length && span[0] < span[1] &&
+      operator >= 0 && operator < lines[stepIndex].length,
+  );
 
   const pick = (value: string) => {
+    if (!armed) return;
     const next = [...chosen];
     while (next.length < stepIndex) next.push('');
-    next[stepIndex] = value;
-    setArmed(false);
+    next[stepIndex] = stepToken(picksOrder ? armed : undefined, value);
+    setArmed(null);
     onAnswer(next.slice(0, slide.reductions.length));
   };
 
   const undo = () => {
     if (stepIndex === 0) return;
-    setArmed(false);
+    setArmed(null);
     onAnswer(chosen.slice(0, stepIndex - 1));
   };
 
@@ -140,13 +238,18 @@ function StepsBody({
 
         <Line
           tokens={lines[stepIndex]}
-          span={reduction?.span}
+          targets={done || locked ? [] : usable}
           armed={armed}
-          onArm={done || locked ? undefined : () => setArmed(true)}
+          onArm={done || locked ? undefined : (span) => setArmed(span)}
         />
 
-        {armed && reduction && (
-          <Line tokens={lines[stepIndex]} span={reduction.span} blank />
+        {armed && (
+          <Line
+            tokens={lines[stepIndex]}
+            targets={[{ operator: armed[0], span: armed }]}
+            armed={armed}
+            blank
+          />
         )}
       </div>
 
@@ -171,7 +274,7 @@ function StepsBody({
         className="text-button"
         disabled={locked || stepIndex === 0}
         onClick={() => {
-          setArmed(false);
+          setArmed(null);
           onAnswer([]);
         }}
       >

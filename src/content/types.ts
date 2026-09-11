@@ -171,6 +171,35 @@ export type Slide =
         value: string;
         /** Values offered for this step, including distractors. */
         bank: string[];
+        /**
+         * Index of the operator token the learner taps to choose this
+         * reduction. Defaults to the start of the span.
+         *
+         * The operator rather than the whole sub-expression, because in
+         * `8 + 4 x 3` the two candidate operations *share the 4* — their spans
+         * overlap, and no two overlapping regions can both be tap targets.
+         * Pointing at the sign is also what a person does when asked which
+         * operation comes first.
+         */
+        operator?: number;
+        /**
+         * Other operations offered at this stage, none of them the one
+         * precedence says to do next.
+         *
+         * Without these the slide hands the learner the correct operation and
+         * only asks what it evaluates to — it grades arithmetic and takes the
+         * ordering for granted. With them the learner has to say *which*
+         * operation comes next as well as what it makes, and reaching for
+         * `8 + 4` before `4 x 3` is an error in its own right even when the
+         * addition is carried out perfectly.
+         *
+         * A decoy is collapsed for real when chosen: the learner's own wrong
+         * line is what they then look at, rather than being stopped at the
+         * moment of the mistake, which would give the answer away. It must
+         * therefore cover as many tokens as the correct span, or every later
+         * span is off by the difference — there is a test for that.
+         */
+        decoys?: { operator: number; span: [number, number] }[];
       }[];
     })
   /**

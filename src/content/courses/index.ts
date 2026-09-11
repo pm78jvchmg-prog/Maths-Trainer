@@ -3,6 +3,7 @@ import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
 import { exponentsRadicals } from './exponentsRadicals';
 import { integration } from './integration';
+import { logarithms } from './logarithms';
 import { quadratics } from './quadratics';
 import { trigonometricFunctions } from './trigonometricFunctions';
 
@@ -24,7 +25,7 @@ export const categories: Category[] = [
     id: 'advanced-algebra',
     title: 'Advanced Algebra',
     blurb: 'The functions and graphs of later school maths.',
-    courses: [trigonometricFunctions],
+    courses: [trigonometricFunctions, logarithms],
   },
   {
     id: 'advanced-maths',

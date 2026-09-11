@@ -5,6 +5,7 @@ import { planeGenerators } from './generators/complexPlane';
 import { differentiationGenerators } from './generators/differentiation';
 import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
+import { logarithmGenerators } from './generators/logarithms';
 import { quadraticsGenerators } from './generators/quadratics';
 import { trigonometryGenerators } from './generators/trigonometry';
 
@@ -15,6 +16,7 @@ export const allGenerators = [
   ...differentiationGenerators,
   ...indicesGenerators,
   ...integrationGenerators,
+  ...logarithmGenerators,
   ...quadraticsGenerators,
   ...trigonometryGenerators,
 ];

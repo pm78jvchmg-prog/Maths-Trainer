@@ -45,6 +45,16 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
         expect(ids).toContain(slide.correctId);
         // Duplicate options would let a learner pick "the right one" twice.
         expect(new Set(ids).size).toBe(ids.length);
+        // And the *labels* must differ too, which the ids cannot tell you.
+        // Distractors computed arithmetically collide: a split integral whose
+        // two parts are -2 and 2 has `first - second` equal to
+        // `first * second`, and the slide then offers the same number twice
+        // under two different ids. Found exactly that way.
+        const labels = slide.options.map((o) => o.label);
+        expect(
+          new Set(labels).size,
+          `duplicate option label in ${labels.join(' | ')}`,
+        ).toBe(labels.length);
       }
 
       if (slide.kind === 'tiles') {

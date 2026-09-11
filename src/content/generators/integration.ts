@@ -77,6 +77,23 @@ function nonZero(value: number, fallback: number): number {
   return value === 0 ? fallback : value;
 }
 
+/**
+ * Choice options with no two rendering the same label.
+ *
+ * Distractors computed arithmetically can collide with each other: for a split
+ * integral, `first - second` equals `first * second` whenever second is 2 and
+ * first is -2, and the slide then offers the same number twice. The correct
+ * option is passed first so it always survives the de-duplication.
+ */
+function distinctOptions<T extends { label: string }>(options: T[]): T[] {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    if (seen.has(option.label)) return false;
+    seen.add(option.label);
+    return true;
+  });
+}
+
 /* ---------- Level 1: reversing differentiation ---------- */
 
 interface FamilyParams {
@@ -532,12 +549,12 @@ const integralProperties: Generator<PropertyParams> = {
   },
   render: ({ form, lower, middle, upper, first, second }): Slide => {
     if (form === 'reverse') {
-      const options = [
+      const options = distinctOptions([
         { id: 'negated', label: `${-first}`, tex: true },
         { id: 'same', label: `${first}`, tex: true },
         { id: 'zero', label: '0', tex: true },
         { id: 'doubled', label: `${2 * first}`, tex: true },
-      ];
+      ]);
       const turn = (lower + Math.abs(first)) % options.length;
       return {
         kind: 'choice',
@@ -551,12 +568,12 @@ const integralProperties: Generator<PropertyParams> = {
         correctId: 'negated',
       };
     }
-    const options = [
+    const options = distinctOptions([
       { id: 'sum', label: `${first + second}`, tex: true },
       { id: 'difference', label: `${first - second}`, tex: true },
       { id: 'product', label: `${first * second}`, tex: true },
       { id: 'first-only', label: `${first}`, tex: true },
-    ];
+    ]);
     const turn = (middle + Math.abs(second)) % options.length;
     return {
       kind: 'choice',
@@ -609,12 +626,12 @@ const areaBelowAxis: Generator<BelowAxisParams> = {
   }),
   render: ({ scale, root }) => {
     const area = (scale * root * root) / 2;
-    const options = [
+    const options = distinctOptions([
       { id: 'area', label: `${area}`, tex: true },
       { id: 'signed', label: `${-area}`, tex: true },
       { id: 'zero', label: '0', tex: true },
       { id: 'doubled', label: `${2 * area}`, tex: true },
-    ];
+    ]);
     const turn = (scale + root) % options.length;
     return {
       kind: 'choice',

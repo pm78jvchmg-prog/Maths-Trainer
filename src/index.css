@@ -686,16 +686,32 @@ button {
   color: var(--text-dim);
 }
 
+/* The pips shrink to whatever the count label leaves, rather than sitting at a
+   fixed width. At 18px each a sixteen-lesson course needs 348px of pips, which
+   is wider than the card on a phone — so the row overflowed and pushed "1/16"
+   off the edge. Capped at 18px so a two-lesson course does not stretch them
+   into bars. */
 .progress-pips {
   display: flex;
   gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 .pip {
-  width: 18px;
+  flex: 1 1 0;
+  max-width: 18px;
+  min-width: 3px;
   height: 5px;
   border-radius: 999px;
   background: var(--surface-raised);
+}
+
+/* Never shrinks and never wraps: the count is the part that must stay readable
+   when the pips run out of room. */
+.progress-count {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .pip.done {

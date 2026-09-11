@@ -76,7 +76,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                           <span key={id} className={`pip${records[id] ? ' done' : ''}`} />
                         ))}
                       </span>
-                      <span>
+                      <span className="progress-count">
                         {done}/{total}
                       </span>
                     </div>

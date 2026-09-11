@@ -61,7 +61,7 @@ export const quadratics: Course = {
             ),
             ask('quad-expand'),
             ask('quad-expand'),
-            ask('quad-expand'),
+            ask('quad-expand+choice'),
             teach(
               prose(
                 'Look at where the two final numbers went. The 3 and the 5 added to give the middle coefficient, and multiplied to give the constant.',
@@ -86,7 +86,7 @@ export const quadratics: Course = {
                 'A negative constant always means the two numbers had opposite signs. That is a useful check here, and the first thing to notice when factorising later.',
               ),
             ),
-            ask('quad-expand'),
+            ask('quad-expand+choice'),
             ask('quad-expand'),
           ],
           skillCheck: [ask('quad-expand', 2), ask('quad-expand', 2), ask('quad-expand', 2)],
@@ -112,7 +112,7 @@ export const quadratics: Course = {
             ),
             ask('quad-factorise'),
             ask('quad-factorise'),
-            ask('quad-factorise'),
+            ask('quad-factorise+choice'),
             teach(
               prose('The signs can be settled before any searching, which removes most of the work.'),
               prose(
@@ -137,7 +137,7 @@ export const quadratics: Course = {
                 'Check by expanding, always. It takes seconds and catches a sign slip immediately.',
               ),
             ),
-            ask('quad-factorise'),
+            ask('quad-factorise+choice'),
             ask('quad-factorise'),
           ],
           skillCheck: [ask('quad-factorise', 2), ask('quad-factorise', 2), ask('quad-factorise', 2)],
@@ -161,7 +161,7 @@ export const quadratics: Course = {
             ),
             ask('quad-difference-squares'),
             ask('quad-difference-squares'),
-            ask('quad-difference-squares'),
+            ask('quad-difference-squares+choice'),
             teach(
               prose('Both factors carry the square *root*, not the original number.'),
               maths('x^{2} - 49 = \\left(x - 7\\right)\\left(x + 7\\right)'),
@@ -185,7 +185,7 @@ export const quadratics: Course = {
                 'Expanding the right-hand side gives $x^{2} + 14x + 49$, which has a middle term the original does not.',
               ),
             ),
-            ask('quad-difference-squares', 2),
+            ask('quad-difference-squares+choice', 2),
             ask('quad-difference-squares', 2),
           ],
           skillCheck: [
@@ -213,7 +213,7 @@ export const quadratics: Course = {
             ),
             ask('quad-factorise-coefficient'),
             ask('quad-factorise-coefficient'),
-            ask('quad-factorise-coefficient'),
+            ask('quad-factorise-coefficient+choice'),
             teach(
               prose('That means the order of the two constants matters, which is the extra difficulty.'),
               maths('\\left(3x + 3\\right)\\left(x + 2\\right) = 3x^{2} + 9x + 6'),
@@ -237,7 +237,7 @@ export const quadratics: Course = {
                 'The 2 came out and left a quadratic with a leading coefficient of 1 — back to the simple case. Checking for a common factor costs nothing and often removes the difficulty entirely.',
               ),
             ),
-            ask('quad-factorise-coefficient'),
+            ask('quad-factorise-coefficient+choice'),
             ask('quad-factorise-coefficient'),
           ],
           skillCheck: [
@@ -285,7 +285,7 @@ export const quadratics: Course = {
             ),
             ask('quad-solve-factorise'),
             ask('quad-solve-factorise'),
-            ask('quad-solve-factorise'),
+            ask('quad-solve-factorise+choice'),
             teach(
               prose(
                 'The signs flip between the bracket and the root, and this is the single most common place to go wrong.',
@@ -312,7 +312,7 @@ export const quadratics: Course = {
                 'So rearrange first, every time. Skipping that step is what produces confidently wrong answers.',
               ),
             ),
-            ask('quad-solve-factorise'),
+            ask('quad-solve-factorise+choice'),
             ask('quad-solve-factorise'),
           ],
           skillCheck: [
@@ -338,7 +338,7 @@ export const quadratics: Course = {
             ),
             ask('quad-complete-square'),
             ask('quad-complete-square'),
-            ask('quad-complete-square'),
+            ask('quad-complete-square+choice'),
             teach(
               prose('So the method is two steps: halve the middle coefficient, then correct the constant.'),
               maths(
@@ -361,7 +361,7 @@ export const quadratics: Course = {
                 'It also solves the equation directly with no factorising: set it to zero, move the constant across, and take the square root of both sides.',
               ),
             ),
-            ask('quad-complete-square'),
+            ask('quad-complete-square+choice'),
             ask('quad-complete-square'),
           ],
           skillCheck: [
@@ -389,7 +389,7 @@ export const quadratics: Course = {
             ),
             ask('quad-formula'),
             ask('quad-formula'),
-            ask('quad-formula'),
+            ask('quad-formula+choice'),
             teach(
               prose('Work out the part under the root first, on its own, and then substitute.'),
               maths('x^{2} + 3x - 5 = 0 \\implies b^{2} - 4ac = 9 + 20 = 29'),
@@ -415,7 +415,7 @@ export const quadratics: Course = {
                 'Try factorising first. When it works it is faster, and when it does not, the formula is waiting.',
               ),
             ),
-            ask('quad-formula'),
+            ask('quad-formula+choice'),
             ask('quad-formula'),
           ],
           skillCheck: [ask('quad-formula', 2), ask('quad-formula', 2), ask('quad-formula', 2)],
@@ -516,7 +516,7 @@ export const quadratics: Course = {
             ),
             ask('quad-symmetry'),
             ask('quad-symmetry'),
-            ask('quad-symmetry'),
+            ask('quad-symmetry+choice'),
             teach(
               prose(
                 'The symmetry is genuinely useful rather than decorative: the two roots sit at equal distances either side of the line.',
@@ -540,7 +540,7 @@ export const quadratics: Course = {
                 'So the constant is always where the curve crosses the vertical axis. Two features of the graph are therefore free on sight: the constant gives the $y$-intercept, and the sign of the $x^{2}$ coefficient gives the direction.',
               ),
             ),
-            ask('quad-symmetry'),
+            ask('quad-symmetry+choice'),
             ask('quad-symmetry'),
           ],
           skillCheck: [ask('quad-symmetry', 2), ask('quad-symmetry', 2), ask('quad-symmetry', 2)],
@@ -566,7 +566,7 @@ export const quadratics: Course = {
             ),
             ask('quad-turning-point'),
             ask('quad-turning-point'),
-            ask('quad-turning-point'),
+            ask('quad-turning-point+choice'),
             teach(
               prose('So the completed-square form can be read directly as a position.'),
               maths('y = \\left(x - p\\right)^{2} + q \\quad \\longrightarrow \\quad \\left(p, q\\right)'),
@@ -589,7 +589,7 @@ export const quadratics: Course = {
                 'The same reading gives the point either way. Only the word — maximum or minimum — depends on the sign out front.',
               ),
             ),
-            ask('quad-turning-point'),
+            ask('quad-turning-point+choice'),
             ask('quad-turning-point'),
           ],
           skillCheck: [

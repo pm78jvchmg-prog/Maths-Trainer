@@ -15,6 +15,7 @@
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
+import { options } from '../choiceVariant';
 
 /** Plain number entry. The base keypad already supplies digits and signs. */
 const NUMBER_KEYS: KeypadKey[] = [{ insert: '.' }, { insert: '/' }];
@@ -160,6 +161,13 @@ interface PeaksParams {
 /** The period, read off two consecutive peaks. */
 const periodFromPeaks: Generator<PeaksParams> = {
   id: 'trig-period-from-peaks',
+  choices: ({ first, period }) =>
+    options(
+      { tex: `${period}`, answer: `${period}` },
+      { tex: `${first}`, answer: `${first}` },
+      { tex: `${first + period}`, answer: `${first + period}` },
+      { tex: `${2 * period}`, answer: `${2 * period}` },
+    ),
   sample: (rng, difficulty) => ({
     first: rng.int(1, difficulty > 1 ? 12 : 8),
     period: rng.int(2, difficulty > 1 ? 11 : 8),
@@ -232,6 +240,13 @@ interface MidlineParams {
 /** The midline, halfway between the highest and lowest values. */
 const midline: Generator<MidlineParams> = {
   id: 'trig-midline',
+  choices: ({ max, min }) =>
+    options(
+      { tex: `${(max + min) / 2}`, answer: `${(max + min) / 2}` },
+      { tex: `${(max - min) / 2}`, answer: `${(max - min) / 2}` },
+      { tex: `${max + min}`, answer: `${max + min}` },
+      { tex: `${(max + min) / 2 + 1}`, answer: `${(max + min) / 2 + 1}` },
+    ),
   sample: (rng, difficulty) => {
     // Both bounds share a parity so their mean is a whole number.
     const half = rng.int(1, difficulty > 1 ? 9 : 5);
@@ -266,6 +281,14 @@ const midline: Generator<MidlineParams> = {
 /** The amplitude, half the peak-to-trough distance. */
 const amplitude: Generator<MidlineParams> = {
   id: 'trig-amplitude',
+  // Half the gap, not the whole gap: the distinction the lesson turns on.
+  choices: ({ max, min }) =>
+    options(
+      { tex: `${(max - min) / 2}`, answer: `${(max - min) / 2}` },
+      { tex: `${max - min}`, answer: `${max - min}` },
+      { tex: `${(max + min) / 2}`, answer: `${(max + min) / 2}` },
+      { tex: `${(max - min) / 2 + 1}`, answer: `${(max - min) / 2 + 1}` },
+    ),
   sample: (rng, difficulty) => {
     const half = rng.int(1, difficulty > 1 ? 9 : 6);
     const centre = rng.int(difficulty > 1 ? -5 : 0, difficulty > 1 ? 9 : 6);
@@ -347,6 +370,13 @@ interface CircleParams {
 /** Height of a point on a turning circle: r sin(theta). */
 const sineFromCircle: Generator<CircleParams> = {
   id: 'trig-sine-from-circle',
+  choices: ({ radius, twice }) =>
+    options(
+      { tex: `${(radius * twice) / 2}`, answer: `${(radius * twice) / 2}` },
+      { tex: `${radius}`, answer: `${radius}` },
+      { tex: `${radius * twice}`, answer: `${radius * twice}` },
+      { tex: `${-(radius * twice) / 2}`, answer: `${-(radius * twice) / 2}` },
+    ),
   sample: (rng, difficulty) => {
     const angle = rng.pick(SINE_ANGLES);
     return {
@@ -388,6 +418,13 @@ const sineFromCircle: Generator<CircleParams> = {
 /** Horizontal displacement of the same point: r cos(theta). */
 const cosineFromCircle: Generator<CircleParams> = {
   id: 'trig-cosine-from-circle',
+  choices: ({ radius, twice }) =>
+    options(
+      { tex: `${(radius * twice) / 2}`, answer: `${(radius * twice) / 2}` },
+      { tex: `${radius}`, answer: `${radius}` },
+      { tex: `${radius * twice}`, answer: `${radius * twice}` },
+      { tex: `${-(radius * twice) / 2}`, answer: `${-(radius * twice) / 2}` },
+    ),
   sample: (rng, difficulty) => {
     const angle = rng.pick(COSINE_ANGLES);
     return {

@@ -160,13 +160,64 @@ export interface Generator<P = unknown> {
   sample(rng: Rng, difficulty: number): P;
   render(params: P): Slide;
   solution(params: P): SolutionStep[];
+  /**
+   * The same question, asked as multiple choice.
+   *
+   * Optional, and where it exists the registry derives a second generator from
+   * it automatically under the id `<id>+choice`, which a lesson references like
+   * any other. That is what keeps a lesson from asking seven questions through
+   * one widget: the same skill, a different shape, with no second generator to
+   * write and keep in step.
+   *
+   * Return the correct option flagged and the rest as distractors. Order does
+   * not matter — the wrapper rotates them by the question's own numbers, so the
+   * answer is not always first yet one question still renders one way.
+   *
+   * Every label is TeX the learner reads, so it follows the same rule as the
+   * rest of the displayed strings: written by hand, not derived from `answer`.
+   * A test renders each one and checks every distractor is genuinely wrong.
+   */
+  choices?(params: P): ChoiceOption[];
+}
+
+/** One option of a generator's multiple-choice form. */
+export interface ChoiceOption {
+  /** What the learner reads. TeX. */
+  tex: string;
+  /** Exactly one option per question sets this. */
+  correct?: boolean;
+  /**
+   * The same value in mathjs syntax, where the option is an expression.
+   *
+   * Only used by the test that proves a distractor is really wrong; it is never
+   * displayed. Leave it off for an option that is not an expression at all — a
+   * count, a yes/no, a coordinate pair — and the check is skipped.
+   */
+  answer?: string;
 }
 
 export type GeneratorRegistry = Record<string, Generator<never>>;
 
 export type SlideRef =
   | { type: 'literal'; slide: Slide; solution?: SolutionStep[] }
-  | { type: 'generated'; generatorId: string; difficulty?: number };
+  | {
+      type: 'generated';
+      generatorId: string;
+      difficulty?: number;
+      /**
+       * Teaching prose shown above the generated question, on the same slide.
+       *
+       * A lesson reads as one thread rather than a teaching block followed by a
+       * quiz block: "Let's think about what we just did in reverse" belongs with
+       * the question it sets up, not on a slide of its own the learner has to
+       * remember across a tap.
+       *
+       * It is a property of the *reference* rather than the generator because
+       * the continuity belongs to the lesson: the same generator is set up
+       * differently depending on what came before it.
+       */
+      leadIn?: Block[];
+    };
 
 export interface Lesson {
   id: string;

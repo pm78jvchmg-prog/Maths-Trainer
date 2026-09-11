@@ -32,6 +32,29 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
   difficulty,
 });
 
+/**
+ * A generated question with teaching prose above it, on the same slide.
+ *
+ * Used where the thread would otherwise break across a tap: the sentence that
+ * sets a question up belongs with the question, not on a slide of its own the
+ * learner has to carry over. Plain `ask` stays the default — a question that
+ * needs no setting up should not be given one.
+ */
+const askAfter = (
+  lead: { kind: 'prose' | 'display'; text?: string; tex?: string }[],
+  generatorId: string,
+  difficulty = 1,
+): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: lead.map((b) =>
+    b.kind === 'prose'
+      ? ({ kind: 'prose', text: b.text ?? '' } as const)
+      : ({ kind: 'display', tex: b.tex ?? '' } as const),
+  ),
+});
+
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
@@ -63,7 +86,10 @@ export const integration: Course = {
                 'The question therefore has infinitely many answers, all differing only by a constant. The **indefinite integral** names them all at once, by writing an unknown constant into the answer.',
               ),
             ),
-            ask('int-antiderivative-family'),
+            askAfter(
+              [prose('Start with the family itself. Three of these are the same curve moved up or down; one is a different curve altogether.')],
+              'int-antiderivative-family',
+            ),
             ask('int-antiderivative-family'),
             ask('int-antiderivative-family'),
             teach(
@@ -78,7 +104,10 @@ export const integration: Course = {
                 'Leaving the $C$ out claims there is exactly one antiderivative, which is false. It is the single most commonly dropped mark in the topic.',
               ),
             ),
-            ask('int-antiderivative-family'),
+            askAfter(
+              [prose('The same question again, now that the notation has a name.')],
+              'int-antiderivative-family',
+            ),
             ask('int-antiderivative-family'),
             teach(
               prose(
@@ -91,7 +120,10 @@ export const integration: Course = {
                 'Most of mathematics offers no such check. Use it on every question in this course until the rules are automatic.',
               ),
             ),
-            ask('int-power'),
+            askAfter(
+              [prose('Here is one to try that on. Work out the integral, then differentiate your answer in your head before you tap Check.')],
+              'int-power',
+            ),
             ask('int-power'),
           ],
           skillCheck: [
@@ -119,7 +151,7 @@ export const integration: Course = {
             ),
             ask('int-power'),
             ask('int-power'),
-            ask('int-power'),
+            ask('int-power+choice'),
             teach(
               prose(
                 'A coefficient comes along for the ride, because a constant factor can be taken outside an integral.',
@@ -141,7 +173,7 @@ export const integration: Course = {
                 'Both are just the rule with $n = 0$ and $n = 1$. Nothing is special about them except how often they turn up.',
               ),
             ),
-            ask('int-power'),
+            ask('int-power+choice'),
             ask('int-power'),
           ],
           skillCheck: [ask('int-power'), ask('int-power'), ask('int-power')],
@@ -163,7 +195,7 @@ export const integration: Course = {
             ),
             ask('int-sum'),
             ask('int-sum'),
-            ask('int-sum'),
+            ask('int-sum+choice'),
             teach(
               prose('Subtraction behaves identically, since subtracting is adding a negative.'),
               maths('\\int \\left(10x^{4} - 3x^{2}\\right) \\, dx = 2x^{5} - x^{3} + C'),
@@ -185,7 +217,7 @@ export const integration: Course = {
                 'The way through is to simplify first: $x \\times x^{2}$ is $x^{3}$, and then the power rule applies. Multiply out, cancel, or rewrite until the integrand is a sum of powers.',
               ),
             ),
-            ask('int-sum'),
+            ask('int-sum+choice'),
             ask('int-power'),
           ],
           skillCheck: [ask('int-sum', 2), ask('int-sum', 2), ask('int-sum', 2)],
@@ -211,7 +243,7 @@ export const integration: Course = {
             ),
             ask('int-power', 2),
             ask('int-power', 2),
-            ask('int-power', 2),
+            ask('int-power+choice', 2),
             teach(
               prose(
                 'There is exactly one index the rule cannot reach. Adding one to $-1$ gives zero, and the rule would divide by zero.',
@@ -238,7 +270,7 @@ export const integration: Course = {
                 'Noticing that an index is $-1$ before starting saves a wasted attempt, so it is the first thing to check whenever an index is negative.',
               ),
             ),
-            ask('int-power', 2),
+            ask('int-power+choice', 2),
             ask('int-power', 2),
           ],
           skillCheck: [ask('int-power', 2), ask('int-power', 2), ask('int-power', 2)],
@@ -260,7 +292,7 @@ export const integration: Course = {
             ),
             ask('int-exponential'),
             ask('int-exponential'),
-            ask('int-exponential'),
+            ask('int-exponential+choice'),
             teach(
               prose(
                 'The trigonometric pair needs its signs kept straight, because they run opposite to the derivative pair.',
@@ -327,7 +359,7 @@ export const integration: Course = {
             ),
             ask('int-definite-power'),
             ask('int-definite-power'),
-            ask('int-definite-power'),
+            ask('int-definite-power+choice'),
             teach(
               prose(
                 'The constant of integration disappears, and not by being forgotten. Whatever $C$ is, it is added at the top and subtracted at the bottom.',
@@ -349,7 +381,7 @@ export const integration: Course = {
                 'Without the bracket the minus sign attaches to only part of the expression, and the answer comes out wrong by exactly twice the lower value. Writing the bracket costs nothing and removes the risk.',
               ),
             ),
-            ask('int-definite-power'),
+            ask('int-definite-power+choice'),
             ask('int-definite-power'),
           ],
           skillCheck: [
@@ -378,7 +410,7 @@ export const integration: Course = {
             ),
             ask('int-definite-sum'),
             ask('int-definite-sum'),
-            ask('int-definite-sum'),
+            ask('int-definite-sum+choice'),
             teach(
               prose('Negative limits and negative results are both perfectly ordinary here.'),
               maths(
@@ -402,7 +434,7 @@ export const integration: Course = {
                 'The triangle has base 4 and height $2 \\times 4 = 8$. Agreement between the two methods is good evidence the limits were handled correctly.',
               ),
             ),
-            ask('int-definite-sum'),
+            ask('int-definite-sum+choice'),
             ask('int-definite-power'),
           ],
           skillCheck: [
@@ -432,7 +464,7 @@ export const integration: Course = {
             ),
             ask('int-area-under'),
             ask('int-area-under'),
-            ask('int-area-under'),
+            ask('int-area-under+choice'),
             teach(
               prose('The method in order: write the integral, integrate, evaluate at both limits, subtract.'),
               maths('\\int_{0}^{3} 3x^{2} \\, dx = \\left[x^{3}\\right]_{0}^{3} = 27 - 0 = 27'),
@@ -457,7 +489,7 @@ export const integration: Course = {
                 'It is the same idea applied twice: integrate the upper curve, integrate the lower one, and the difference is what lies between them.',
               ),
             ),
-            ask('int-area-under'),
+            ask('int-area-under+choice'),
             ask('int-definite-power'),
           ],
           skillCheck: [ask('int-area-under', 2), ask('int-area-under', 2), ask('int-area-under', 2)],
@@ -603,7 +635,7 @@ export const integration: Course = {
             ),
             ask('int-linear-bracket'),
             ask('int-linear-bracket'),
-            ask('int-linear-bracket'),
+            ask('int-linear-bracket+choice'),
             teach(
               prose('Differentiating the answer shows exactly why both divisions are needed.'),
               maths(
@@ -629,7 +661,7 @@ export const integration: Course = {
                 'There is no fix by adjusting the coefficient. Either multiply the bracket out, or use the substitution of the next lesson, when the rest of the integrand happens to supply the missing $x$.',
               ),
             ),
-            ask('int-linear-bracket'),
+            ask('int-linear-bracket+choice'),
             ask('int-linear-bracket'),
           ],
           skillCheck: [
@@ -659,7 +691,7 @@ export const integration: Course = {
             ),
             ask('int-substitution'),
             ask('int-substitution'),
-            ask('int-substitution'),
+            ask('int-substitution+choice'),
             teach(
               prose('The last step is to convert back, because the original question was about $x$.'),
               maths('\\frac{3u^{4}}{4} + C = \\frac{3\\left(x^{2} + 1\\right)^{4}}{4} + C'),
@@ -686,7 +718,7 @@ export const integration: Course = {
                 'With practice the bracket-and-its-derivative shape becomes recognisable on sight, and the working compresses to a single line.',
               ),
             ),
-            ask('int-substitution'),
+            ask('int-substitution+choice'),
             ask('int-linear-bracket'),
           ],
           skillCheck: [
@@ -713,7 +745,7 @@ export const integration: Course = {
             ),
             ask('int-by-parts'),
             ask('int-by-parts'),
-            ask('int-by-parts'),
+            ask('int-by-parts+choice'),
             teach(
               prose(
                 'For $\\int xe^{2x} \\, dx$, differentiating $x$ gives 1, which removes the $x$ from the second integral entirely. So $u = x$.',
@@ -742,7 +774,7 @@ export const integration: Course = {
                 '\\int x\\sin(3x) \\, dx = -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C',
               ),
             ),
-            ask('int-by-parts'),
+            ask('int-by-parts+choice'),
             ask('int-substitution'),
           ],
           skillCheck: [ask('int-by-parts', 2), ask('int-by-parts', 2), ask('int-by-parts', 2)],

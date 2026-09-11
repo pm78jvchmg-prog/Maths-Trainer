@@ -9,6 +9,7 @@
  * mathjs grades — the two are never the same string.
  */
 import type { Generator, SolutionStep } from '../types';
+import { options } from '../choiceVariant';
 import {
   ALGEBRA_KEYS,
   TRIG_KEYS,
@@ -26,6 +27,15 @@ interface PowerParams { coefficient: number; power: number }
 
 export const powerRule: Generator<PowerParams> = {
   id: 'power-rule',
+  // Dropping the index without multiplying by it, and multiplying without
+  // dropping it: the two halves of the rule, each forgotten on its own.
+  choices: ({ coefficient, power }) =>
+    options(
+      { tex: termTex(coefficient * power, power - 1), answer: termAnswer(coefficient * power, power - 1) },
+      { tex: termTex(coefficient, power - 1), answer: termAnswer(coefficient, power - 1) },
+      { tex: termTex(coefficient * power, power), answer: termAnswer(coefficient * power, power) },
+      { tex: termTex(coefficient * (power - 1), power - 1), answer: termAnswer(coefficient * (power - 1), power - 1) },
+    ),
   sample: (rng, difficulty) => ({
     coefficient: rng.int(2, difficulty >= 2 ? 12 : 9),
     // Difficulty 2 admits negative powers, where the exponent gets more negative.
@@ -66,6 +76,23 @@ interface SumRuleParams {
 
 export const sumRule: Generator<SumRuleParams> = {
   id: 'sum-rule',
+  choices: ({ terms }) => {
+    const right = terms.map((t) => [t.coefficient * t.power, t.power - 1] as const);
+    const tex = (pairs: readonly (readonly [number, number])[]) =>
+      sumTex(pairs.map(([c, p]) => termTex(c, p)));
+    const ans = (pairs: readonly (readonly [number, number])[]) =>
+      sumAnswer(pairs.map(([c, p]) => termAnswer(c, p)));
+    return options(
+      { tex: tex(right), answer: ans(right) },
+      { tex: tex(terms.map((t) => [t.coefficient, t.power - 1] as const)), answer: ans(terms.map((t) => [t.coefficient, t.power - 1] as const)) },
+      { tex: tex(terms.map((t) => [t.coefficient * t.power, t.power] as const)), answer: ans(terms.map((t) => [t.coefficient * t.power, t.power] as const)) },
+      // One term's sign flipped, which is what a dropped minus looks like.
+      ...[right.map(([c, p], i) => [i === 0 ? c : -c, p] as const)].map((flipped) => ({
+        tex: tex(flipped),
+        answer: ans(flipped),
+      })),
+    );
+  },
   sample: (rng, difficulty) => {
     const hard = difficulty >= 2;
     // Level 2 leaves a gap between the powers (x^5 and x, say) so the learner
@@ -166,6 +193,19 @@ interface TrigParams {
 
 export const trigDerivative: Generator<TrigParams> = {
   id: 'trig-derivative',
+  // Sine and cosine trade places under differentiation and one of them gains a
+  // minus; the option with the sign the other way round is the standard slip.
+  choices: ({ fn, outer, inner, shift }) => {
+    const arg = sumTex([termTex(inner, 1), termTex(shift, 0)]);
+    const argAnswer = sumAnswer([termAnswer(inner, 1), termAnswer(shift, 0)]);
+    const other = fn === 'sin' ? 'cos' : 'sin';
+    const co = fn === 'sin' ? outer * inner : -outer * inner;
+    const opt = (coefficient: number, name: string) => ({
+      tex: `${coefficient === 1 ? '' : coefficient === -1 ? '-' : coefficient}\\${name}\\left(${arg}\\right)`,
+      answer: `(${coefficient}) * ${name}(${argAnswer})`,
+    });
+    return options(opt(co, other), opt(-co, other), opt(co, fn), opt(outer, other));
+  },
   sample: (rng, difficulty) => ({
     fn: rng.pick(['sin', 'cos'] as const),
     // Level 2 is harder in structure, not size: a coefficient outside and a
@@ -244,6 +284,24 @@ interface ProductParams { a: number; b: number; c: number; d: number }
 
 export const productRule: Generator<ProductParams> = {
   id: 'product-rule',
+  // Differentiating the two factors separately and multiplying the results is
+  // the classic wrong move, so it is always on offer.
+  choices: ({ a, b, c, d }) => {
+    const right = sumAnswer([termAnswer(3 * a * c, 2), termAnswer(2 * b * c, 1), termAnswer(a * d, 0)]);
+    const rightTex = sumTex([termTex(3 * a * c, 2), termTex(2 * b * c, 1), termTex(a * d, 0)]);
+    return options(
+      { tex: rightTex, answer: right },
+      { tex: termTex(2 * a * c, 1), answer: termAnswer(2 * a * c, 1) },
+      {
+        tex: sumTex([termTex(a * c, 2), termTex(2 * b * c, 1), termTex(a * d, 0)]),
+        answer: sumAnswer([termAnswer(a * c, 2), termAnswer(2 * b * c, 1), termAnswer(a * d, 0)]),
+      },
+      {
+        tex: sumTex([termTex(3 * a * c, 2), termTex(b * c, 1), termTex(a * d, 0)]),
+        answer: sumAnswer([termAnswer(3 * a * c, 2), termAnswer(b * c, 1), termAnswer(a * d, 0)]),
+      },
+    );
+  },
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty >= 2 ? 5 : 3),
     b: rng.int(1, 5) * (difficulty >= 2 ? rng.sign() : 1),
@@ -311,6 +369,19 @@ interface QuotientParams { a: number; b: number; c: number; d: number }
 
 export const quotientRule: Generator<QuotientParams> = {
   id: 'quotient-rule',
+  // Reversing the numerator is the error the quotient rule invites, since the
+  // product rule it resembles is symmetric and this one is not.
+  choices: ({ a, b, c, d }) => {
+    const den = `\\left(${sumTex([termTex(c, 1), termTex(d, 0)])}\\right)^{2}`;
+    const denAnswer = `(${sumAnswer([termAnswer(c, 1), termAnswer(d, 0)])})^2`;
+    const top = a * d - b * c;
+    return options(
+      { tex: `\\frac{${top}}{${den}}`, answer: `(${top}) / ${denAnswer}` },
+      { tex: `\\frac{${-top}}{${den}}`, answer: `(${-top}) / ${denAnswer}` },
+      { tex: `\\frac{${a * d + b * c}}{${den}}`, answer: `(${a * d + b * c}) / ${denAnswer}` },
+      { tex: `\\frac{${top}}{${sumTex([termTex(c, 1), termTex(d, 0)])}}`, answer: `(${top}) / (${sumAnswer([termAnswer(c, 1), termAnswer(d, 0)])})` },
+    );
+  },
   sample: (rng, difficulty) => {
     // ad - bc must be non-zero, or the function is constant and the derivative
     // collapses to 0 — a question with nothing in it to get right.
@@ -371,6 +442,20 @@ interface ChainParams { a: number; b: number; power: number; innerPower: number 
 
 export const chainRule: Generator<ChainParams> = {
   id: 'chain-rule',
+  // Forgetting the inner derivative is the whole point of the rule, so the
+  // answer without it is always among the options.
+  choices: ({ a, b, power, innerPower }) => {
+    const inner = sumTex([termTex(a, innerPower), termTex(b, 0)]);
+    const innerAnswer = sumAnswer([termAnswer(a, innerPower), termAnswer(b, 0)]);
+    const bracket = `\\left(${inner}\\right)^{${power - 1}}`;
+    const bracketAnswer = `((${innerAnswer})^(${power - 1}))`;
+    return options(
+      { tex: `${power}${bracket}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `(${power}) * ${bracketAnswer} * (${termAnswer(a * innerPower, innerPower - 1)})` },
+      { tex: `${power}${bracket}`, answer: `(${power}) * ${bracketAnswer}` },
+      { tex: `${bracket}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `${bracketAnswer} * (${termAnswer(a * innerPower, innerPower - 1)})` },
+      { tex: `${power}\\left(${inner}\\right)^{${power}}\\left(${termTex(a * innerPower, innerPower - 1)}\\right)`, answer: `(${power}) * ((${innerAnswer})^(${power})) * (${termAnswer(a * innerPower, innerPower - 1)})` },
+    );
+  },
   sample: (rng, difficulty) => ({
     a: difficulty >= 2 ? 1 : rng.int(2, 5),
     b: rng.int(1, 6) * (difficulty >= 2 ? rng.sign() : 1),
@@ -428,6 +513,28 @@ interface ExpLogParams { form: 'exp' | 'lnScaled' | 'lnInner'; a: number; k: num
 
 export const expLogDerivative: Generator<ExpLogParams> = {
   id: 'exp-log-derivative',
+  choices: ({ form, a, k }) => {
+    if (form === 'exp') {
+      const exponent = k === 1 ? 'x' : termTex(k, 1);
+      const opt = (c: number) => ({ tex: `${c === 1 ? '' : c}e^{${exponent}}`, answer: `(${c}) * e^((${k}) * x)` });
+      return options(opt(a * k), opt(a), opt(a * k * k), opt(a + k));
+    }
+    // Both logarithm forms differentiate to a/x: the inner constant cancels,
+    // which is exactly what the distractors get wrong.
+    const opt = (num: number, den: string, answer: string) => ({ tex: `\\frac{${num}}{${den}}`, answer });
+    return options(
+      opt(a, 'x', `(${a}) / x`),
+      // Squaring the denominator is wrong at every k and every a, which keeps a
+      // distractor on the slide when the others drop out below.
+      { tex: `\\frac{${a}}{x^{2}}`, answer: `(${a}) / x^2` },
+      // At k = 1 the inner constant is invisible, so "kept the k" and "left it
+      // downstairs" are both just the right answer written differently.
+      ...(k === 1
+        ? []
+        : [opt(a * k, 'x', `(${a * k}) / x`), opt(a, `${k}x`, `(${a}) / ((${k}) * x)`)]),
+      ...(a === 1 ? [] : [opt(1, 'x', `1 / x`)]),
+    );
+  },
   sample: (rng, difficulty) => ({
     // lnInner is the instructive case: ln(kx) differentiates to 1/x whatever k is.
     form: difficulty >= 2

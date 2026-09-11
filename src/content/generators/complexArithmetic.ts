@@ -3,6 +3,7 @@
  */
 import type { Generator, KeypadKey } from '../types';
 import { I_KEY, coeffTex, complexTex, complexAnswer, mulComplex, nonZero } from './format';
+import { options } from '../choiceVariant';
 
 /** Division answers are fractions, so the learner needs a divide key. */
 const DIVIDE_KEYS: KeypadKey[] = [{ insert: '/' }, ...I_KEY];
@@ -13,6 +14,18 @@ interface MulParams { a: number; b: number; c: number; d: number }
 
 export const complexMultiply: Generator<MulParams> = {
   id: 'complex-multiply',
+  // Forgetting that i^2 = -1 turns the subtraction back into an addition,
+  // which is the error this question is for.
+  choices: ({ a, b, c, d }) => {
+    const [re, im] = mulComplex(a, b, c, d);
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(
+      opt(re, im),
+      opt(a * c + b * d, im),
+      opt(re, a * d - b * c),
+      opt(a * c, b * d),
+    );
+  },
   sample: (rng, difficulty) => {
     const span = difficulty >= 2 ? 7 : 4;
     return {
@@ -53,6 +66,18 @@ interface ConjParams { a: number; b: number; askProduct: boolean }
 
 export const complexConjugate: Generator<ConjParams> = {
   id: 'complex-conjugate',
+  choices: ({ a, b, askProduct }) => {
+    if (askProduct) {
+      return options(
+        { tex: `${a * a + b * b}`, answer: `${a * a + b * b}` },
+        { tex: `${a * a - b * b}`, answer: `${a * a - b * b}` },
+        { tex: complexTex(a * a, 2 * a * b), answer: complexAnswer(a * a, 2 * a * b) },
+        { tex: `${2 * (a * a + b * b)}`, answer: `${2 * (a * a + b * b)}` },
+      );
+    }
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(a, -b), opt(-a, b), opt(-a, -b), opt(b, a));
+  },
   sample: (rng, difficulty) => ({
     a: nonZero(rng, difficulty >= 2 ? 8 : 5),
     b: nonZero(rng, difficulty >= 2 ? 8 : 5),
@@ -115,6 +140,10 @@ const numeratorOf = ({ p, q, c, d }: DivParams): [number, number] => mulComplex(
 
 export const complexDivide: Generator<DivParams> = {
   id: 'complex-divide',
+  choices: ({ p, q }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(p, q), opt(q, p), opt(p, -q), opt(-p, q));
+  },
   sample: (rng, difficulty) => {
     // Choose the *quotient* first, then build a numerator that divides exactly.
     // Sampling a numerator instead would usually give an ugly fraction, which

@@ -61,7 +61,7 @@ export const differentiation: Course = {
             ),
             ask('power-rule'),
             ask('power-rule'),
-            ask('power-rule'),
+            ask('power-rule+choice'),
             teach(
               {
                 kind: 'prose',
@@ -99,7 +99,7 @@ export const differentiation: Course = {
                 text: 'Neither is a rule to memorise separately — they are the power rule applied to $x^{1}$ and $x^{0}$. Whenever a case looks special, check whether writing it as a power makes it ordinary.',
               },
             ),
-            ask('power-rule'),
+            ask('power-rule+choice'),
             ask('power-rule', 2),
           ],
           skillCheck: [ask('power-rule', 2), ask('power-rule'), ask('power-rule', 2)],
@@ -129,7 +129,7 @@ export const differentiation: Course = {
             ),
             ask('sum-rule'),
             ask('sum-rule'),
-            ask('sum-rule'),
+            ask('sum-rule+choice'),
             teach(
               {
                 kind: 'prose',
@@ -200,7 +200,7 @@ export const differentiation: Course = {
             ),
             ask('product-rule'),
             ask('product-rule'),
-            ask('product-rule'),
+            ask('product-rule+choice'),
             teach(
               {
                 kind: 'prose',
@@ -236,7 +236,7 @@ export const differentiation: Course = {
                 text: 'Expanding is not always possible and rarely stays quicker. Three factors, a fractional power, or anything transcendental and the product rule is the only route — so it is worth being fluent in it even where a shortcut exists.',
               },
             ),
-            ask('product-rule', 2),
+            ask('product-rule+choice', 2),
           ],
           skillCheck: [ask('product-rule', 2), ask('product-rule'), ask('sum-rule', 2)],
         },
@@ -266,7 +266,7 @@ export const differentiation: Course = {
             ),
             ask('quotient-rule'),
             ask('quotient-rule'),
-            ask('quotient-rule'),
+            ask('quotient-rule+choice'),
             teach(
               {
                 kind: 'prose',
@@ -302,7 +302,7 @@ export const differentiation: Course = {
                 text: 'Which route to take is a matter of what the answer is for. The quotient rule lands directly in the tidy single-fraction form; the product route often leaves something easier to differentiate again.',
               },
             ),
-            ask('quotient-rule', 2),
+            ask('quotient-rule+choice', 2),
           ],
           skillCheck: [ask('quotient-rule', 2), ask('quotient-rule'), ask('product-rule', 2)],
         },
@@ -335,7 +335,7 @@ export const differentiation: Course = {
             ),
             ask('chain-rule'),
             ask('chain-rule'),
-            ask('chain-rule'),
+            ask('chain-rule+choice'),
             teach(
               {
                 kind: 'prose',
@@ -371,7 +371,7 @@ export const differentiation: Course = {
                 text: 'Layers can nest more than two deep, and then the factors simply keep multiplying — one for each layer, working inwards. Peel them one at a time rather than trying to see the whole answer at once.',
               },
             ),
-            ask('chain-rule', 2),
+            ask('chain-rule+choice', 2),
           ],
           skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('product-rule', 2)],
         },
@@ -410,7 +410,7 @@ export const differentiation: Course = {
             ),
             ask('trig-derivative'),
             ask('trig-derivative'),
-            ask('trig-derivative'),
+            ask('trig-derivative+choice'),
             teach(
               {
                 kind: 'prose',
@@ -443,7 +443,7 @@ export const differentiation: Course = {
                 text: 'Compare it with $e^{x}$, which returns to itself after *one* step and therefore grows rather than oscillates. The length of the cycle is what decides the behaviour.',
               },
             ),
-            ask('trig-derivative', 2),
+            ask('trig-derivative+choice', 2),
           ],
           skillCheck: [ask('trig-derivative', 2), ask('trig-derivative'), ask('chain-rule', 2)],
         },
@@ -473,7 +473,7 @@ export const differentiation: Course = {
             ),
             ask('exp-log-derivative'),
             ask('exp-log-derivative'),
-            ask('exp-log-derivative'),
+            ask('exp-log-derivative+choice'),
             teach(
               {
                 kind: 'prose',
@@ -506,7 +506,7 @@ export const differentiation: Course = {
                 text: 'Differentiating is mechanical in a way that integrating is not: follow the structure and the answer comes out. That reliability is what makes it worth drilling until it is automatic.',
               },
             ),
-            ask('exp-log-derivative', 2),
+            ask('exp-log-derivative+choice', 2),
           ],
           skillCheck: [
             ask('exp-log-derivative', 2),

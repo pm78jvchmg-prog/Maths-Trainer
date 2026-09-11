@@ -65,7 +65,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('vec-add'),
             ask('vec-add'),
-            ask('vec-add'),
+            ask('vec-add+choice'),
             teach(
               prose(
                 'Vectors add component by component. The across-parts combine with each other and the up-parts with each other, and the two calculations never interact.',
@@ -94,7 +94,7 @@ export const vectorsAndMatrices: Course = {
                 'So "destination minus start" is worth remembering. Nearly every vector geometry question begins with it.',
               ),
             ),
-            ask('vec-add'),
+            ask('vec-add+choice'),
             ask('vec-add'),
           ],
           skillCheck: [ask('vec-add', 2), ask('vec-add', 2), ask('vec-add', 2)],
@@ -176,7 +176,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('vec-magnitude'),
             ask('vec-magnitude'),
-            ask('vec-magnitude'),
+            ask('vec-magnitude+choice'),
             teach(
               prose(
                 'A vector of magnitude 1 is called a **unit vector**, and dividing any vector by its own magnitude produces one pointing the same way.',
@@ -203,7 +203,7 @@ export const vectorsAndMatrices: Course = {
                 'What does *not* work is adding magnitudes. $\\left| \\mathbf{a} + \\mathbf{b} \\right|$ is almost never $\\left| \\mathbf{a} \\right| + \\left| \\mathbf{b} \\right|$ — they are equal only when the two vectors point the same way.',
               ),
             ),
-            ask('vec-magnitude'),
+            ask('vec-magnitude+choice'),
             ask('vec-magnitude'),
           ],
           skillCheck: [ask('vec-magnitude', 2), ask('vec-magnitude', 2), ask('vec-magnitude', 2)],
@@ -305,7 +305,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-add'),
             ask('mat-add'),
-            ask('mat-add'),
+            ask('mat-add+choice'),
             teach(
               prose('So addition is four small sums that never interact.'),
               maths(
@@ -332,7 +332,7 @@ export const vectorsAndMatrices: Course = {
                 'The matrix of all zeros plays the part of zero: adding it changes nothing. It is written $\\mathbf{0}$ and is the additive identity.',
               ),
             ),
-            ask('mat-add'),
+            ask('mat-add+choice'),
             ask('mat-add'),
           ],
           skillCheck: [ask('mat-add', 2), ask('mat-add', 2), ask('mat-add', 2)],
@@ -357,7 +357,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-combine'),
             ask('mat-combine'),
-            ask('mat-combine'),
+            ask('mat-combine+choice'),
             teach(
               prose('So a combination like $2\\mathbf{A} - 3\\mathbf{B}$ is done in two stages.'),
               maths(
@@ -382,7 +382,7 @@ export const vectorsAndMatrices: Course = {
                 'Everything so far has been entry-by-entry. The next lesson is the operation that is not, and it is unlike anything in ordinary arithmetic.',
               ),
             ),
-            ask('mat-combine'),
+            ask('mat-combine+choice'),
             ask('mat-add'),
           ],
           skillCheck: [ask('mat-combine', 2), ask('mat-combine', 2), ask('mat-combine', 2)],
@@ -410,7 +410,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-multiply'),
             ask('mat-multiply'),
-            ask('mat-multiply'),
+            ask('mat-multiply+choice'),
             teach(
               prose('Working through all four entries of that example:'),
               maths(
@@ -438,7 +438,7 @@ export const vectorsAndMatrices: Course = {
               ),
               maths('\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}'),
             ),
-            ask('mat-multiply'),
+            ask('mat-multiply+choice'),
             ask('mat-multiply'),
           ],
           skillCheck: [ask('mat-multiply', 2), ask('mat-multiply', 2), ask('mat-multiply', 2)],
@@ -463,7 +463,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-vector'),
             ask('mat-vector'),
-            ask('mat-vector'),
+            ask('mat-vector+choice'),
             teach(
               prose(
                 'This is the operation that gives matrices their meaning. A matrix acting on a vector is a **transformation** of the plane: it moves every point at once, and the matrix is a complete description of how.',
@@ -492,7 +492,7 @@ export const vectorsAndMatrices: Course = {
                 'It also explains why matrices are written to the left of the vector: they act in from the left, the nearest one first.',
               ),
             ),
-            ask('mat-vector'),
+            ask('mat-vector+choice'),
             ask('mat-multiply'),
           ],
           skillCheck: [ask('mat-vector', 2), ask('mat-vector', 2), ask('mat-multiply', 2)],
@@ -540,7 +540,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-determinant'),
             ask('mat-determinant'),
-            ask('mat-determinant'),
+            ask('mat-determinant+choice'),
             teach(
               prose(
                 'The determinant has a meaning: it is the factor by which the matrix scales area.',
@@ -565,7 +565,7 @@ export const vectorsAndMatrices: Course = {
                 'Note that there is no such rule for sums. $\\det\\left(\\mathbf{A} + \\mathbf{B}\\right)$ has nothing to do with the two separate determinants, and assuming otherwise is a common and costly mistake.',
               ),
             ),
-            ask('mat-determinant'),
+            ask('mat-determinant+choice'),
             ask('mat-determinant'),
           ],
           skillCheck: [
@@ -592,7 +592,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-singular-k'),
             ask('mat-singular-k'),
-            ask('mat-singular-k'),
+            ask('mat-singular-k+choice'),
             teach(
               prose(
                 'So "find the value that makes this matrix singular" is the instruction to set the determinant to zero and solve.',
@@ -619,7 +619,7 @@ export const vectorsAndMatrices: Course = {
                 'Checking the determinant first is therefore worth doing before attempting to solve anything: it tells you whether there is an answer to find.',
               ),
             ),
-            ask('mat-singular-k'),
+            ask('mat-singular-k+choice'),
             ask('mat-singular-k'),
           ],
           skillCheck: [
@@ -649,7 +649,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-inverse'),
             ask('mat-inverse'),
-            ask('mat-inverse'),
+            ask('mat-inverse+choice'),
             teach(
               prose('Worked through on a real matrix:'),
               maths(
@@ -676,7 +676,7 @@ export const vectorsAndMatrices: Course = {
                 'Putting a coat on over a jumper and then taking them off is the same idea: the last thing on is the first thing off.',
               ),
             ),
-            ask('mat-inverse'),
+            ask('mat-inverse+choice'),
             ask('mat-inverse'),
           ],
           skillCheck: [ask('mat-inverse', 2), ask('mat-inverse', 2), ask('mat-inverse', 2)],
@@ -702,7 +702,7 @@ export const vectorsAndMatrices: Course = {
             ),
             ask('mat-solve'),
             ask('mat-solve'),
-            ask('mat-solve'),
+            ask('mat-solve+choice'),
             teach(
               prose('So the method is: find the determinant, write the inverse, multiply.'),
               maths('\\det = \\left(2\\right)\\left(-2\\right) - \\left(3\\right)\\left(1\\right) = -7'),
@@ -730,7 +730,7 @@ export const vectorsAndMatrices: Course = {
               ),
               maths('\\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}'),
             ),
-            ask('mat-solve'),
+            ask('mat-solve+choice'),
             ask('mat-inverse'),
           ],
           skillCheck: [ask('mat-solve', 2), ask('mat-solve', 2), ask('mat-inverse', 2)],

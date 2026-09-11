@@ -21,6 +21,7 @@
  * Hence `x^2` and plain parentheses. Both forms render identically.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS } from './calculus';
 
 /** Roots can be surds, so the formula questions need a root key. */
@@ -92,6 +93,14 @@ interface PairParams {
 /** Expanding (x + p)(x + q). */
 const expandBrackets: Generator<PairParams> = {
   id: 'quad-expand',
+  // Swapping the sum and the product is the slip this question exists to catch.
+  choices: ({ p, q }) =>
+    options(
+      { tex: quadraticTex(1, p + q, p * q), answer: `x^2 + (${p + q})*x + (${p * q})` },
+      { tex: quadraticTex(1, p * q, p + q), answer: `x^2 + (${p * q})*x + (${p + q})` },
+      { tex: quadraticTex(1, p + q, -p * q), answer: `x^2 + (${p + q})*x + (${-p * q})` },
+      { tex: quadraticTex(1, -(p + q), p * q), answer: `x^2 + (${-(p + q)})*x + (${p * q})` },
+    ),
   sample: (rng, difficulty) => ({
     p: nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), 3),
     q: nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), -4),
@@ -132,6 +141,17 @@ const expandBrackets: Generator<PairParams> = {
 /** Factorising x^2 + bx + c, the reverse of the above. */
 const factorise: Generator<PairParams> = {
   id: 'quad-factorise',
+  choices: ({ p, q }) =>
+    options(
+      { tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q)}\\right)`, answer: `(x + (${p})) * (x + (${q}))` },
+      { tex: `\\left(x ${signedTile(p)}\\right)\\left(x ${signedTile(q + 1)}\\right)`, answer: `(x + (${p})) * (x + (${q + 1}))` },
+      { tex: `\\left(x ${signedTile(p + q)}\\right)\\left(x ${signedTile(p * q)}\\right)`, answer: `(x + (${p + q})) * (x + (${p * q}))` },
+      // Flipping both signs only changes the factorisation while the two roots
+      // are not each other's negatives; at q = -p it is the same pair commuted.
+      ...(q === -p
+        ? []
+        : [{ tex: `\\left(x ${signedTile(-p)}\\right)\\left(x ${signedTile(-q)}\\right)`, answer: `(x + (${-p})) * (x + (${-q}))` }]),
+    ),
   sample: (rng, difficulty) => ({
     p: nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), 2),
     q: nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), -5),
@@ -180,6 +200,13 @@ interface DifferenceParams {
 /** The difference of two squares. */
 const differenceOfSquares: Generator<DifferenceParams> = {
   id: 'quad-difference-squares',
+  choices: ({ k, m }) =>
+    options(
+      { tex: `\\left(${factorTile(k, -m)}\\right)\\left(${factorTile(k, m)}\\right)`, answer: `((${k})*x + (${-m})) * ((${k})*x + (${m}))` },
+      { tex: `\\left(${factorTile(k, -(m * m))}\\right)\\left(${factorTile(k, m * m)}\\right)`, answer: `((${k})*x + (${-(m * m)})) * ((${k})*x + (${m * m}))` },
+      { tex: `\\left(${factorTile(k, -m)}\\right)^{2}`, answer: `((${k})*x + (${-m}))^2` },
+      { tex: `\\left(${factorTile(k * k, -m)}\\right)\\left(${factorTile(k * k, m)}\\right)`, answer: `((${k * k})*x + (${-m})) * ((${k * k})*x + (${m}))` },
+    ),
   sample: (rng, difficulty) => ({
     k: difficulty > 1 ? rng.int(2, 6) : rng.int(1, 3),
     m: rng.int(2, difficulty > 1 ? 12 : 11),
@@ -233,6 +260,22 @@ interface CoefficientParams {
 /** Factorising ax^2 + bx + c, where a is greater than 1. */
 const factoriseWithCoefficient: Generator<CoefficientParams> = {
   id: 'quad-factorise-coefficient',
+  choices: ({ p, q, s }) =>
+    options(
+      { tex: `\\left(${factorTile(p, q)}\\right)\\left(${factorTile(1, s)}\\right)`, answer: `((${p})*x + (${q})) * (x + (${s}))` },
+      { tex: `\\left(${factorTile(p, s)}\\right)\\left(${factorTile(1, q)}\\right)`, answer: `((${p})*x + (${s})) * (x + (${q}))` },
+      // Flipping both constants gives the same product whenever the middle
+      // coefficient ps + q is zero: (px + q)(x + s) then equals (px - q)(x - s).
+      ...(p * s + q === 0
+        ? []
+        : [{ tex: `\\left(${factorTile(p, -q)}\\right)\\left(${factorTile(1, -s)}\\right)`, answer: `((${p})*x + (${-q})) * (x + (${-s}))` }]),
+      { tex: `\\left(${factorTile(p, q)}\\right)\\left(${factorTile(1, s + 1)}\\right)`, answer: `((${p})*x + (${q})) * (x + (${s + 1}))` },
+      // Moving the coefficient to the other bracket changes the product only
+      // while the two constants differ; at q = s it is the same product.
+      ...(q === s
+        ? []
+        : [{ tex: `\\left(${factorTile(1, q)}\\right)\\left(${factorTile(p, s)}\\right)`, answer: `(x + (${q})) * ((${p})*x + (${s}))` }]),
+    ),
   sample: (rng, difficulty) => ({
     p: rng.int(2, difficulty > 1 ? 6 : 4),
     q: nonZero(rng.int(difficulty > 1 ? -7 : -5, difficulty > 1 ? 7 : 5), 3),
@@ -290,6 +333,13 @@ interface RootParams {
 /** Solving by factorising. */
 const solveByFactorising: Generator<RootParams> = {
   id: 'quad-solve-factorise',
+  choices: ({ r, t }) =>
+    options(
+      { tex: `x = ${r} \\quad \\text{or} \\quad x = ${t}` },
+      { tex: `x = ${-r} \\quad \\text{or} \\quad x = ${-t}` },
+      { tex: `x = ${r} \\quad \\text{or} \\quad x = ${-t}` },
+      { tex: `x = ${r + t} \\quad \\text{or} \\quad x = ${r * t}` },
+    ),
   sample: (rng, difficulty) => {
     const r = nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), 2);
     let t = nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), -3);
@@ -332,6 +382,13 @@ interface SquareParams {
 /** Completing the square. */
 const completeSquare: Generator<SquareParams> = {
   id: 'quad-complete-square',
+  choices: ({ p, q }) =>
+    options(
+      { tex: `\\left(x ${signedTile(p)}\\right)^{2} ${signedTile(q)}`, answer: `(x + (${p}))^2 + (${q})` },
+      { tex: `\\left(x ${signedTile(2 * p)}\\right)^{2} ${signedTile(q)}`, answer: `(x + (${2 * p}))^2 + (${q})` },
+      { tex: `\\left(x ${signedTile(p)}\\right)^{2} ${signedTile(p * p + q)}`, answer: `(x + (${p}))^2 + (${p * p + q})` },
+      { tex: `\\left(x ${signedTile(-p)}\\right)^{2} ${signedTile(q)}`, answer: `(x + (${-p}))^2 + (${q})` },
+    ),
   sample: (rng, difficulty) => ({
     p: nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), 3),
     q: nonZero(rng.int(difficulty > 1 ? -9 : -9, 9), -4),
@@ -390,6 +447,15 @@ interface FormulaParams {
  */
 const quadraticFormula: Generator<FormulaParams> = {
   id: 'quad-formula',
+  choices: ({ a, b, c }) => {
+    const d = b * b - 4 * a * c;
+    return options(
+      { tex: `\\frac{${-b} + \\sqrt{${d}}}{${2 * a}}`, answer: `((${-b}) + sqrt(${d})) / (2 * (${a}))` },
+      { tex: `\\frac{${b} + \\sqrt{${d}}}{${2 * a}}`, answer: `((${b}) + sqrt(${d})) / (2 * (${a}))` },
+      { tex: `\\frac{${-b} - \\sqrt{${d}}}{${2 * a}}`, answer: `((${-b}) - sqrt(${d})) / (2 * (${a}))` },
+      { tex: `${-b} + \\frac{\\sqrt{${d}}}{${2 * a}}`, answer: `(${-b}) + sqrt(${d}) / (2 * (${a}))` },
+    );
+  },
   sample: (rng, difficulty) => {
     for (let tries = 0; tries < 60; tries += 1) {
       const a = difficulty > 1 ? rng.int(2, 4) : 1;
@@ -549,6 +615,13 @@ interface VertexParams {
 /** The turning point, which means completing the square first. */
 const turningPoint: Generator<VertexParams> = {
   id: 'quad-turning-point',
+  choices: ({ p, q }) =>
+    options(
+      { tex: `\\left(${-p}, ${q}\\right)` },
+      { tex: `\\left(${p}, ${q}\\right)` },
+      { tex: `\\left(${-p}, ${-q}\\right)` },
+      { tex: `\\left(${q}, ${-p}\\right)` },
+    ),
   sample: (rng, difficulty) => ({
     p: nonZero(rng.int(difficulty > 1 ? -8 : -6, difficulty > 1 ? 8 : 6), 2),
     q: nonZero(rng.int(-9, 9), -5),
@@ -595,6 +668,17 @@ interface SymmetryParams {
 /** The line of symmetry. */
 const lineOfSymmetry: Generator<SymmetryParams> = {
   id: 'quad-symmetry',
+  choices: ({ a, b }) =>
+    options(
+      { tex: `x = \\frac{${-b}}{${2 * a}}`, answer: `(${-b}) / (2 * (${a}))` },
+      { tex: `x = \\frac{${b}}{${2 * a}}`, answer: `(${b}) / (2 * (${a}))` },
+      { tex: `x = \\frac{${-b}}{${a}}`, answer: `(${-b}) / (${a})` },
+      { tex: `x = \\frac{${b}}{${a}}`, answer: `(${b}) / (${a})` },
+      // Inverting the fraction lands back on the answer whenever b = ±2a.
+      ...(b * b === 4 * a * a
+        ? []
+        : [{ tex: `x = \\frac{${-2 * a}}{${b}}`, answer: `(${-2 * a}) / (${b})` }]),
+    ),
   sample: (rng, difficulty) => ({
     a: difficulty > 1 ? rng.int(2, 5) : 1,
     b: difficulty > 1 ? nonZero(rng.int(-9, 9), 4) : 2 * nonZero(rng.int(-4, 4), 3),

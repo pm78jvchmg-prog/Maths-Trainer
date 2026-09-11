@@ -8,6 +8,7 @@
  */
 import type { Generator } from '../types';
 import { I_KEY, coeffTex, complexTex, complexAnswer } from './format';
+import { options } from '../choiceVariant';
 
 
 /* ---------- i squared ---------- */
@@ -38,6 +39,13 @@ interface SumParams { a: number; b: number; subtract: boolean }
 
 export const imaginarySum: Generator<SumParams> = {
   id: 'imaginary-sum',
+  // The other operation, which is the only thing this question can get wrong.
+  choices: ({ a, b, subtract }) => {
+    const total = subtract ? a - b : a + b;
+    const other = subtract ? a + b : a - b;
+    const opt = (n: number) => ({ tex: n === 0 ? '0' : coeffTex(n), answer: n === 0 ? '0' : coeffTex(n) });
+    return options(opt(total), opt(other), opt(-total), opt(total + 1));
+  },
   sample: (rng, difficulty) => {
     const top = difficulty >= 2 ? 14 : 9;
     const a = rng.int(2, top);

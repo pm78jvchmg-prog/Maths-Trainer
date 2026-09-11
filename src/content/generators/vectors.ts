@@ -27,6 +27,7 @@
  * formatted for the other slot.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS } from './calculus';
 
 /** Magnitudes are surds. */
@@ -86,6 +87,19 @@ interface TwoVectorParams {
 /** Adding or subtracting two vectors, component by component. */
 const addVectors: Generator<TwoVectorParams> = {
   id: 'vec-add',
+  // A vector is not a scalar, so these options carry no `answer` and the
+  // wrongness check is skipped; each distractor is a different vector by
+  // construction, since no sampled component is ever zero.
+  choices: ({ ax, ay, bx, by, subtract }) => {
+    const x = subtract ? ax - bx : ax + bx;
+    const y = subtract ? ay - by : ay + by;
+    return options(
+      { tex: columnTex(x, y) },
+      { tex: columnTex(subtract ? ax + bx : ax - bx, subtract ? ay + by : ay - by) },
+      { tex: columnTex(y, x) },
+      { tex: columnTex(x, subtract ? ay + by : ay - by) },
+    );
+  },
   sample: (rng, difficulty) => {
     const span = difficulty > 1 ? 12 : 8;
     return {
@@ -207,6 +221,15 @@ interface VectorParams {
 /** The magnitude, by Pythagoras. */
 const magnitude: Generator<VectorParams> = {
   id: 'vec-magnitude',
+  choices: ({ x, y }) => {
+    const sq = x * x + y * y;
+    return options(
+      { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
+      { tex: `${Math.abs(x) + Math.abs(y)}`, answer: `${Math.abs(x) + Math.abs(y)}` },
+      { tex: `${sq}`, answer: `${sq}` },
+      { tex: `\\sqrt{${Math.abs(x * x - y * y)}}`, answer: `sqrt(${Math.abs(x * x - y * y)})` },
+    );
+  },
   sample: (rng, difficulty) => ({
     x: nonZero(rng.int(difficulty > 1 ? -12 : -9, difficulty > 1 ? 12 : 9), 3),
     y: nonZero(rng.int(difficulty > 1 ? -12 : -9, difficulty > 1 ? 12 : 9), 4),
@@ -439,6 +462,15 @@ function sampleMatrixPair(
 /** Adding or subtracting two 2x2 matrices. */
 const addMatrices: Generator<MatrixPairParams> = {
   id: 'mat-add',
+  choices: (p) => {
+    const sign = p.subtract ? -1 : 1;
+    return options(
+      { tex: matrixTex(p.a + sign * p.e, p.b + sign * p.f, p.c + sign * p.g, p.d + sign * p.h) },
+      { tex: matrixTex(p.a - sign * p.e, p.b - sign * p.f, p.c - sign * p.g, p.d - sign * p.h) },
+      { tex: matrixTex(p.a * p.e, p.b * p.f, p.c * p.g, p.d * p.h) },
+      { tex: matrixTex(p.a + sign * p.e, p.b + sign * p.f, p.c - sign * p.g, p.d - sign * p.h) },
+    );
+  },
   sample: (rng, difficulty) => sampleMatrixPair(rng, difficulty > 1 ? 12 : 8),
   render: (p) => {
     const sign = p.subtract ? -1 : 1;
@@ -496,6 +528,13 @@ interface MatrixCombineParams extends MatrixPairParams {
 /** A scalar combination of two matrices. */
 const combineMatrices: Generator<MatrixCombineParams> = {
   id: 'mat-combine',
+  choices: (m) =>
+    options(
+      { tex: matrixTex(m.p * m.a + m.q * m.e, m.p * m.b + m.q * m.f, m.p * m.c + m.q * m.g, m.p * m.d + m.q * m.h) },
+      { tex: matrixTex(m.a + m.e, m.b + m.f, m.c + m.g, m.d + m.h) },
+      { tex: matrixTex(m.p * m.a + m.e, m.p * m.b + m.f, m.p * m.c + m.g, m.p * m.d + m.h) },
+      { tex: matrixTex(m.p * m.a + m.q * m.e, m.p * m.b + m.q * m.f, m.c, m.d) },
+    ),
   sample: (rng, difficulty) => ({
     ...sampleMatrixPair(rng, difficulty > 1 ? 8 : 6),
     p: nonZero(rng.int(difficulty > 1 ? -5 : 2, 5), 2),
@@ -544,6 +583,15 @@ const combineMatrices: Generator<MatrixCombineParams> = {
 /** Multiplying two 2x2 matrices. */
 const multiplyMatrices: Generator<MatrixPairParams> = {
   id: 'mat-multiply',
+  choices: (p) =>
+    options(
+      { tex: matrixTex(p.a * p.e + p.b * p.g, p.a * p.f + p.b * p.h, p.c * p.e + p.d * p.g, p.c * p.f + p.d * p.h) },
+      // Entry by entry, which is the error this lesson exists to remove.
+      { tex: matrixTex(p.a * p.e, p.b * p.f, p.c * p.g, p.d * p.h) },
+      // Columns of the first paired with rows of the second.
+      { tex: matrixTex(p.a * p.e + p.c * p.f, p.b * p.e + p.d * p.f, p.a * p.g + p.c * p.h, p.b * p.g + p.d * p.h) },
+      { tex: matrixTex(p.e * p.a + p.f * p.c, p.e * p.b + p.f * p.d, p.g * p.a + p.h * p.c, p.g * p.b + p.h * p.d) },
+    ),
   sample: (rng, difficulty) => sampleMatrixPair(rng, difficulty > 1 ? 8 : 5),
   render: (p) => {
     const entries = [
@@ -611,6 +659,13 @@ interface MatrixVectorParams {
 /** A matrix acting on a vector. */
 const matrixTimesVector: Generator<MatrixVectorParams> = {
   id: 'mat-vector',
+  choices: ({ a, b, c, d, x, y }) =>
+    options(
+      { tex: columnTex(a * x + b * y, c * x + d * y) },
+      { tex: columnTex(a * x + c * y, b * x + d * y) },
+      { tex: columnTex(a * x, d * y) },
+      { tex: columnTex(c * x + d * y, a * x + b * y) },
+    ),
   sample: (rng, difficulty) => {
     const span = difficulty > 1 ? 9 : 6;
     return {
@@ -668,6 +723,13 @@ interface SquareParams {
 /** The determinant of a 2x2 matrix. */
 const determinant: Generator<SquareParams> = {
   id: 'mat-determinant',
+  choices: ({ a, b, c, d }) =>
+    options(
+      { tex: `${a * d - b * c}`, answer: `${a * d - b * c}` },
+      { tex: `${b * c - a * d}`, answer: `${b * c - a * d}` },
+      { tex: `${a * d + b * c}`, answer: `${a * d + b * c}` },
+      { tex: `${a * b - c * d}`, answer: `${a * b - c * d}` },
+    ),
   sample: (rng, difficulty) => {
     const span = difficulty > 1 ? 11 : 8;
     return {
@@ -712,6 +774,16 @@ interface SingularParams {
 /** Finding the value that makes a matrix singular. */
 const singular: Generator<SingularParams> = {
   id: 'mat-singular-k',
+  choices: ({ c, d, t }) => {
+    const b = d * t;
+    const k = c * t;
+    return options(
+      { tex: `${k}`, answer: `${k}` },
+      { tex: `${-k}`, answer: `${-k}` },
+      { tex: `${b * c}`, answer: `${b * c}` },
+      { tex: `${k + d}`, answer: `${k + d}` },
+    );
+  },
   sample: (rng, difficulty) => ({
     c: nonZero(rng.int(difficulty > 1 ? -9 : 1, 9), 2),
     d: rng.int(1, difficulty > 1 ? 9 : 6),
@@ -764,6 +836,15 @@ const singular: Generator<SingularParams> = {
  */
 const inverse: Generator<SquareParams> = {
   id: 'mat-inverse',
+  choices: ({ a, b, c, d }) =>
+    options(
+      { tex: matrixTex(d, -b, -c, a) },
+      // All four swapped, and the diagonal negated instead: the two ways the
+      // recipe is misremembered.
+      { tex: matrixTex(a, -b, -c, d) },
+      { tex: matrixTex(-d, b, c, -a) },
+      { tex: matrixTex(d, b, c, a) },
+    ),
   sample: (rng, difficulty) => {
     const span = difficulty > 1 ? 9 : 6;
     for (let tries = 0; tries < 40; tries += 1) {
@@ -824,6 +905,16 @@ interface SystemParams {
 /** Solving a pair of linear equations, which is a matrix equation. */
 const solveSystem: Generator<SystemParams> = {
   id: 'mat-solve',
+  choices: ({ a, b, c, d, x, y }) => {
+    const p = a * x + b * y;
+    const q = c * x + d * y;
+    return options(
+      { tex: `x = ${x} \\quad y = ${y}` },
+      { tex: `x = ${y} \\quad y = ${x}` },
+      { tex: `x = ${-x} \\quad y = ${-y}` },
+      { tex: `x = ${p} \\quad y = ${q}` },
+    );
+  },
   sample: (rng, difficulty) => {
     const span = difficulty > 1 ? 7 : 5;
     for (let tries = 0; tries < 40; tries += 1) {

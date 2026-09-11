@@ -5,6 +5,7 @@ import type { Generator, KeypadKey } from '../types';
 import type { Rng } from '../../engine/rng';
 import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf } from './format';
 import { complexPlaneSvg, rangeFor } from './plane';
+import { options } from '../choiceVariant';
 
 /** The grid every plane question is drawn on. */
 const RANGE = 4;
@@ -102,6 +103,15 @@ interface ModulusParams { a: number; b: number; hypotenuse: number }
 
 export const modulus: Generator<ModulusParams> = {
   id: 'modulus',
+  // The sum of the parts, and the square that was never rooted: the two ways
+  // a modulus is misread.
+  choices: ({ a, b, hypotenuse }) =>
+    options(
+      { tex: `${hypotenuse}`, answer: `${hypotenuse}` },
+      { tex: `${Math.abs(a) + Math.abs(b)}`, answer: `${Math.abs(a) + Math.abs(b)}` },
+      { tex: `${a * a + b * b}`, answer: `${a * a + b * b}` },
+      { tex: `${hypotenuse + 1}`, answer: `${hypotenuse + 1}` },
+    ),
   sample: (rng, difficulty) => {
     const [x, y, hypotenuse] = rng.pick(TRIPLES);
     // Signs vary so the learner cannot assume both parts are positive.
@@ -154,6 +164,15 @@ interface ArgParams { index: number; scale: number }
 
 export const argument: Generator<ArgParams> = {
   id: 'argument',
+  // Every distractor is another angle from the same table, so all four options
+  // read as plausible arguments rather than as arithmetic slips.
+  choices: ({ index }) => {
+    const opt = (i: number) => {
+      const angle = ANGLES[((i % ANGLES.length) + ANGLES.length) % ANGLES.length];
+      return { tex: angle.tex, answer: angle.value };
+    };
+    return options(opt(index), opt(index + 2), opt(index + 4), opt(index + 6));
+  },
   sample: (rng, difficulty) => ({
     index: rng.int(0, ANGLES.length - 1),
     // Scaling changes the number without changing the angle, which is the point.
@@ -199,6 +218,16 @@ interface PowerParams { re: number; im: number; n: number }
 
 export const complexPower: Generator<PowerParams> = {
   id: 'complex-power',
+  choices: ({ re, im, n }) => {
+    const [ar, ai] = powersOf(re, im, n)[n - 1];
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(
+      opt(ar, ai),
+      opt(Math.pow(re, n), Math.pow(im, n)),
+      opt(ar, -ai),
+      opt(-ar, ai),
+    );
+  },
   sample: (rng, difficulty) => {
     // Bases whose powers stay small enough to type comfortably.
     const base = rng.pick([

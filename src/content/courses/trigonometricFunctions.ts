@@ -115,7 +115,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-period-from-peaks'),
             ask('trig-period-from-peaks'),
-            ask('trig-period-from-peaks'),
+            ask('trig-period-from-peaks+choice'),
             teach(
               prose(
                 'Peaks are convenient but not special. Any pair of matching points does, as long as they are at the same point in the cycle.',
@@ -138,7 +138,7 @@ export const trigonometricFunctions: Course = {
                 'Working backwards is just as valid: $n = -1$ gives a peak at $t = -5$. A periodic function has no start, which is what makes it worth studying as a whole rather than point by point.',
               ),
             ),
-            ask('trig-period-from-peaks', 2),
+            ask('trig-period-from-peaks+choice', 2),
             ask('trig-cycle-count', 2),
           ],
           skillCheck: [
@@ -209,7 +209,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-midline'),
             ask('trig-midline'),
-            ask('trig-midline'),
+            ask('trig-midline+choice'),
             teach(
               prose(
                 'Adding a constant to a function raises the whole graph, midline included. Subtracting lowers it.',
@@ -235,7 +235,7 @@ export const trigonometricFunctions: Course = {
                 'The definition to hold on to is the geometric one: the midline is the horizontal line the graph is symmetric about.',
               ),
             ),
-            ask('trig-midline', 2),
+            ask('trig-midline+choice', 2),
             ask('trig-midline', 2),
           ],
           skillCheck: [
@@ -262,7 +262,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-amplitude'),
             ask('trig-amplitude'),
-            ask('trig-amplitude'),
+            ask('trig-amplitude+choice'),
             teach(
               prose(
                 'Midline and amplitude together fix the whole vertical picture, and either pair determines the other.',
@@ -285,7 +285,7 @@ export const trigonometricFunctions: Course = {
                 'Watch the double negative in that subtraction; it is where sign errors creep in. Later, a negative multiplier in front of a sine will flip the curve upside down, but even then the amplitude is its size, taken positive.',
               ),
             ),
-            ask('trig-amplitude', 2),
+            ask('trig-amplitude+choice', 2),
             ask('trig-amplitude', 2),
           ],
           skillCheck: [
@@ -332,7 +332,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-sine-from-circle'),
             ask('trig-sine-from-circle'),
-            ask('trig-sine-from-circle'),
+            ask('trig-sine-from-circle+choice'),
             teach(
               prose(
                 'Defining it this way costs nothing for the angles you already know and gains everything for the ones you do not.',
@@ -359,7 +359,7 @@ export const trigonometricFunctions: Course = {
                 'Plotting height against angle gives the sine curve. Its period is one full turn, because that is when the point is back where it started.',
               ),
             ),
-            ask('trig-sine-from-circle', 2),
+            ask('trig-sine-from-circle+choice', 2),
             ask('trig-amplitude', 2),
           ],
           skillCheck: [
@@ -383,7 +383,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-cosine-from-circle'),
             ask('trig-cosine-from-circle'),
-            ask('trig-cosine-from-circle'),
+            ask('trig-cosine-from-circle+choice'),
             teach(
               prose(
                 'Sine and cosine describe the same motion, measured in two directions. That is why their graphs have the same shape and the same period, and differ only in where they start.',
@@ -410,7 +410,7 @@ export const trigonometricFunctions: Course = {
                 'It also says the two cannot both be large. If the sine is $1$, the cosine must be $0$: the point is at the top of the circle, and it cannot be far to the right at the same time.',
               ),
             ),
-            ask('trig-cosine-from-circle', 2),
+            ask('trig-cosine-from-circle+choice', 2),
             ask('trig-sine-from-circle', 2),
           ],
           skillCheck: [

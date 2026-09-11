@@ -17,6 +17,7 @@
  * happens to be how the topic is taught.
  */
 import type { Generator, KeypadKey } from '../types';
+import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import type { Rng } from '../../engine/rng';
 
@@ -86,6 +87,14 @@ interface PairParams {
 /** x^a times x^b: add the powers. */
 const multiplyPowers: Generator<PairParams> = {
   id: 'idx-multiply',
+  // Multiplying the exponents instead of adding is the slip this asks about.
+  choices: ({ a, b }) =>
+    options(
+      { tex: powerTex(a + b), answer: powerAnswer(a + b) },
+      { tex: powerTex(a * b), answer: powerAnswer(a * b) },
+      { tex: powerTex(a + b + 1), answer: powerAnswer(a + b + 1) },
+      { tex: `${powerTex(a + b)}${powerTex(a + b)}`, answer: powerAnswer(2 * (a + b)) },
+    ),
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty > 1 ? 12 : 9),
     b: rng.int(2, difficulty > 1 ? 12 : 9),
@@ -113,6 +122,13 @@ const multiplyPowers: Generator<PairParams> = {
 /** x^a over x^b: subtract the powers. */
 const dividePowers: Generator<PairParams> = {
   id: 'idx-divide',
+  choices: ({ a, b }) =>
+    options(
+      { tex: a === b ? '1' : powerTex(a - b), answer: a === b ? '1' : powerAnswer(a - b) },
+      { tex: b === a ? '1' : powerTex(b - a), answer: b === a ? '1' : powerAnswer(b - a) },
+      { tex: powerTex(a + b), answer: powerAnswer(a + b) },
+      { tex: a * b === 0 ? '1' : powerTex(a * b), answer: powerAnswer(a * b) },
+    ),
   sample: (rng, difficulty) => {
     const b = rng.int(2, difficulty > 1 ? 9 : 7);
     // Difficulty 2 allows the result to go negative, which is the real test.
@@ -143,6 +159,13 @@ const dividePowers: Generator<PairParams> = {
 /** (x^a)^b: multiply the powers. */
 const powerOfPower: Generator<PairParams> = {
   id: 'idx-power-of-power',
+  choices: ({ a, b }) =>
+    options(
+      { tex: powerTex(a * b), answer: powerAnswer(a * b) },
+      { tex: powerTex(a + b), answer: powerAnswer(a + b) },
+      { tex: powerTex(a * b + 1), answer: powerAnswer(a * b + 1) },
+      { tex: powerTex(Math.abs(a - b) || a * b + 2), answer: powerAnswer(Math.abs(a - b) || a * b + 2) },
+    ),
   sample: (rng, difficulty) => ({
     a: nonZeroInt(rng, difficulty > 1 ? -6 : 2, difficulty > 1 ? 8 : 9),
     b: rng.int(2, difficulty > 1 ? 7 : 5),
@@ -177,6 +200,13 @@ interface CoefficientParams {
 /** Coefficients multiply while the powers add. */
 const multiplyTerms: Generator<CoefficientParams> = {
   id: 'idx-multiply-terms',
+  choices: ({ c, d, a, b }) =>
+    options(
+      { tex: termTex(c * d, a + b), answer: `(${c * d}) * x^(${a + b})` },
+      { tex: termTex(c + d, a + b), answer: `(${c + d}) * x^(${a + b})` },
+      { tex: termTex(c * d, a * b), answer: `(${c * d}) * x^(${a * b})` },
+      { tex: termTex(c + d, a * b), answer: `(${c + d}) * x^(${a * b})` },
+    ),
   sample: (rng, difficulty) => ({
     c: rng.int(2, difficulty > 1 ? 9 : 6),
     d: rng.int(2, difficulty > 1 ? 9 : 6),
@@ -209,6 +239,18 @@ const multiplyTerms: Generator<CoefficientParams> = {
 /** A negative index means a reciprocal. */
 const negativeIndex: Generator<{ a: number; c: number }> = {
   id: 'idx-negative',
+  // The "dragged the coefficient down with the x" slip is only a slip when
+  // there is a coefficient: at c = 1 it *is* the right answer, so it is offered
+  // only above 1. Forgetting the reciprocal altogether works at every c.
+  choices: ({ a, c }) =>
+    options(
+      { tex: `\\frac{${c}}{x^{${a}}}`, answer: `(${c}) / x^(${a})` },
+      { tex: termTex(c, a), answer: `(${c}) * x^(${a})` },
+      { tex: `\\frac{${c}}{x^{${a + 1}}}`, answer: `(${c}) / x^(${a + 1})` },
+      ...(c === 1
+        ? [{ tex: `-\\frac{1}{x^{${a}}}`, answer: `-1 / x^(${a})` }]
+        : [{ tex: `\\frac{1}{${c}x^{${a}}}`, answer: `1 / ((${c}) * x^(${a}))` }]),
+    ),
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty > 1 ? 9 : 7),
     c: rng.int(1, difficulty > 1 ? 9 : 6),
@@ -255,6 +297,13 @@ interface FractionalParams {
  */
 const fractionalIndex: Generator<FractionalParams> = {
   id: 'idx-fractional',
+  choices: ({ base, num, den, root, value }) =>
+    options(
+      { tex: `${value}`, answer: `${value}` },
+      { tex: `${root}`, answer: `${root}` },
+      { tex: `${base * num}`, answer: `${base * num}` },
+      { tex: `${Math.round(base / den)}`, answer: `${Math.round(base / den)}` },
+    ),
   sample: (rng, difficulty) => {
     const simple = FRACTIONAL.filter((f) => f.num === 1);
     return rng.pick(difficulty > 1 ? FRACTIONAL : simple);
@@ -294,6 +343,13 @@ interface SurdParams {
 /** Simplifying a surd by pulling out the largest square factor. */
 const simplifySurd: Generator<SurdParams> = {
   id: 'rad-simplify',
+  choices: ({ k, m }) =>
+    options(
+      { tex: `${k}\\sqrt{${m}}`, answer: `(${k}) * sqrt(${m})` },
+      { tex: `${k * k}\\sqrt{${m}}`, answer: `(${k * k}) * sqrt(${m})` },
+      { tex: `${k}\\sqrt{${k * m}}`, answer: `(${k}) * sqrt(${k * m})` },
+      { tex: `${m}\\sqrt{${k}}`, answer: `(${m}) * sqrt(${k})` },
+    ),
   sample: (rng, difficulty) => ({
     k: rng.int(2, difficulty > 1 ? 9 : 6),
     m: rng.pick(difficulty > 1 ? SURD_FREE : SURD_FREE.slice(0, 8)),
@@ -323,6 +379,13 @@ const simplifySurd: Generator<SurdParams> = {
 /** Multiplying two surds and simplifying the result. */
 const multiplySurds: Generator<{ a: number; b: number }> = {
   id: 'rad-multiply',
+  choices: ({ a, b }) =>
+    options(
+      { tex: `\\sqrt{${a * b}}`, answer: `sqrt(${a * b})` },
+      { tex: `\\sqrt{${a + b}}`, answer: `sqrt(${a + b})` },
+      { tex: `${a * b}`, answer: `${a * b}` },
+      { tex: `2\\sqrt{${a * b}}`, answer: `2 * sqrt(${a * b})` },
+    ),
   sample: (rng, difficulty) => {
     const pool = difficulty > 1 ? [2, 3, 5, 6, 7, 8, 10, 12, 14, 15, 18, 20] : [2, 3, 5, 6, 7, 8];
     return { a: rng.pick(pool), b: rng.pick(pool) };
@@ -356,6 +419,13 @@ interface SurdSumParams {
 /** Surds with the same root add like terms. */
 const addSurds: Generator<SurdSumParams> = {
   id: 'rad-add',
+  choices: ({ p, q, m }) =>
+    options(
+      { tex: `${p + q}\\sqrt{${m}}`, answer: `(${p + q}) * sqrt(${m})` },
+      { tex: `${p + q}\\sqrt{${2 * m}}`, answer: `(${p + q}) * sqrt(${2 * m})` },
+      { tex: `${p * q}\\sqrt{${m}}`, answer: `(${p * q}) * sqrt(${m})` },
+      { tex: `\\sqrt{${m}}`, answer: `sqrt(${m})` },
+    ),
   sample: (rng, difficulty) => ({
     p: rng.int(2, difficulty > 1 ? 12 : 9),
     q: rng.int(2, difficulty > 1 ? 12 : 9),
@@ -462,6 +532,13 @@ const EQUATION_HARD = equationPairs([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 200_00
 /** Solving b^n = value by matching powers. */
 const indexEquation: Generator<IndexEquationParams> = {
   id: 'idx-equation',
+  choices: ({ base, power }) =>
+    options(
+      { tex: `${power}`, answer: `${power}` },
+      { tex: `${Math.pow(base, power)}`, answer: `${Math.pow(base, power)}` },
+      { tex: `${power + 1}`, answer: `${power + 1}` },
+      { tex: `${base * power}`, answer: `${base * power}` },
+    ),
   sample: (rng, difficulty) => rng.pick(difficulty > 1 ? EQUATION_HARD : EQUATION_EASY),
   render: ({ base, power }) => ({
     kind: 'expression',

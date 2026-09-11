@@ -121,9 +121,18 @@ function resolveRef(
   // so the escape is itself deterministic.
   const rng = makeRng(hashSeed(`${seed}:${id}:${salt}`));
   const params = generator.sample(rng, ref.difficulty ?? 1) as never;
+  const slide = generator.render(params);
+
   return {
     id,
-    slide: generator.render(params),
+    // A lead-in is prepended to the prompt rather than given a slide of its
+    // own, which is what fuses the teaching with the question it sets up. Teach
+    // slides have no prompt to prepend to, and a generator never produces one,
+    // so the guard is for the type rather than for a real case.
+    slide:
+      ref.leadIn && ref.leadIn.length > 0 && slide.kind !== 'teach'
+        ? { ...slide, prompt: [...ref.leadIn, ...slide.prompt] }
+        : slide,
     solution: () => generator.solution(params),
   };
 }

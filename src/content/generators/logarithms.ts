@@ -23,6 +23,7 @@
  * examined anyway.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { options } from '../choiceVariant';
 import { EXP_KEYS } from './calculus';
 
 /** Solving for an index needs a logarithm key. */
@@ -71,6 +72,17 @@ interface PairParams {
 /** Evaluating a logarithm, which means asking what index produced the argument. */
 const evaluateLog: Generator<PairParams> = {
   id: 'log-evaluate',
+  // Reading the argument back instead of the index is the slip named in the
+  // worked solution.
+  choices: ({ base, index }) => {
+    const value = Math.pow(base, index);
+    return options(
+      { tex: `${index}`, answer: `${index}` },
+      { tex: `${value}`, answer: `${value}` },
+      { tex: `${base}`, answer: `${base}` },
+      { tex: `${index + 1}`, answer: `${index + 1}` },
+    );
+  },
   sample: (rng, difficulty) => rng.pick(difficulty > 1 ? HARD_PAIRS : EASY_PAIRS),
   render: ({ base, index }) => ({
     kind: 'expression',
@@ -152,6 +164,13 @@ const logToIndex: Generator<PairParams> = {
 /** Solving log_b(x) = n by converting to index form. */
 const solveSimple: Generator<PairParams> = {
   id: 'log-solve-simple',
+  choices: ({ base, index }) =>
+    options(
+      { tex: `${Math.pow(base, index)}`, answer: `${Math.pow(base, index)}` },
+      { tex: `${Math.pow(index, base)}`, answer: `${Math.pow(index, base)}` },
+      { tex: `${base * index}`, answer: `${base * index}` },
+      { tex: `${Math.pow(base, index + 1)}`, answer: `${Math.pow(base, index + 1)}` },
+    ),
   sample: (rng, difficulty) => {
     const pool = (difficulty > 1 ? HARD_PAIRS : EASY_PAIRS).filter((p) => p.index >= 1);
     return rng.pick(pool);
@@ -367,6 +386,32 @@ interface CombineParams {
  */
 const combineLogs: Generator<CombineParams> = {
   id: 'log-combine',
+  // Every argument stays strictly positive: m and t are at least 2, so no
+  // distractor is ever the logarithm of zero or a negative, which would come
+  // back indeterminate rather than wrong.
+  choices: ({ base, m, t, k, form }) => {
+    const lg = (arg: number) => ({ tex: logTex(base, `${arg}`), answer: `log(${arg})/log(${base})` });
+    // Filtered by the argument's value, not by how it is written: 4^2 and 2^4
+    // are the same number spelt two ways, and a distractor equal to the answer
+    // is a second right answer. The "+ 1" option can never collide, so there is
+    // always a distractor left however many of the others drop out.
+    const against = (right: number, ...wrong: number[]) =>
+      wrong.filter((v) => v !== right && v > 0).map(lg);
+
+    if (form === 'sum') {
+      return options(lg(m * t), ...against(m * t, m + t, base * m * t), lg(m * t + 1));
+    }
+    if (form === 'difference') {
+      const big = m * t;
+      return options(lg(m), ...against(m, big - t + 1, big * t, big + t), lg(m + 1));
+    }
+    const value = Math.pow(m, k);
+    return options(
+      { tex: logTex(base, `${m}^{${k}}`), answer: `log(${value})/log(${base})` },
+      ...against(value, k * m, m + k, Math.pow(k, m)),
+      lg(value + 1),
+    );
+  },
   sample: (rng, difficulty) => ({
     // Single-digit bases only, unlike every other generator here. This is the
     // one that answers through a tiles template, and a template is split on
@@ -509,6 +554,13 @@ interface ExponentialParams {
  */
 const solveExponential: Generator<ExponentialParams> = {
   id: 'log-solve-exponential',
+  choices: ({ base, target }) =>
+    options(
+      { tex: `\\frac{\\ln\\left(${target}\\right)}{\\ln\\left(${base}\\right)}`, answer: `log(${target}) / log(${base})` },
+      { tex: `\\frac{\\ln\\left(${base}\\right)}{\\ln\\left(${target}\\right)}`, answer: `log(${base}) / log(${target})` },
+      { tex: `\\ln\\left(\\frac{${target}}{${base}}\\right)`, answer: `log(${target} / ${base})` },
+      { tex: `\\ln\\left(${target}\\right) - \\ln\\left(${base}\\right)`, answer: `log(${target}) - log(${base})` },
+    ),
   sample: (rng, difficulty) => {
     for (let tries = 0; tries < 40; tries += 1) {
       const base = rng.int(2, difficulty > 1 ? 9 : 6);
@@ -556,6 +608,29 @@ interface NaturalParams {
 /** Solving e^(kx) = c with natural logarithms. */
 const naturalLog: Generator<NaturalParams> = {
   id: 'log-natural',
+  // ln(t)/k and ln(t/k) are the same number whenever the k-th root of t is t/k
+  // — at t = 4, k = 2 both are ln 2 — so each distractor is checked against the
+  // answer's value before it is offered. Dividing by k + 1 never collides,
+  // which keeps at least one distractor on every draw.
+  choices: ({ k, target }) => {
+    const right = Math.log(target) / k;
+    const apart = (value: number) => Math.abs(value - right) > 1e-9;
+    return options(
+      { tex: `\\frac{\\ln\\left(${target}\\right)}{${k}}`, answer: `log(${target}) / (${k})` },
+      ...(apart(Math.log(target / k))
+        ? [{ tex: `\\ln\\left(\\frac{${target}}{${k}}\\right)`, answer: `log(${target} / (${k}))` }]
+        : []),
+      ...(apart(k * Math.log(target))
+        ? [{ tex: `${k}\\ln\\left(${target}\\right)`, answer: `(${k}) * log(${target})` }]
+        : []),
+      // Stepped away from zero, not toward it: at k = -1 a step of +1 would
+      // divide by zero, which comes back indeterminate rather than wrong.
+      ...[k > 0 ? k + 1 : k - 1].map((alt) => ({
+        tex: `\\frac{\\ln\\left(${target}\\right)}{${alt}}`,
+        answer: `log(${target}) / (${alt})`,
+      })),
+    );
+  },
   sample: (rng, difficulty) => ({
     k: nonZero(rng.int(difficulty > 1 ? -6 : 2, difficulty > 1 ? 6 : 7), 3),
     target: rng.int(2, difficulty > 1 ? 40 : 25),
@@ -599,6 +674,18 @@ interface GrowthParams {
 /** How many whole steps before a growing quantity passes a threshold. */
 const growth: Generator<GrowthParams> = {
   id: 'log-growth',
+  // Rounding the wrong way is the characteristic error, so the whole number
+  // below is always on offer.
+  choices: ({ start, multiplier, target }) => {
+    const exact = Math.log(target / start) / Math.log(multiplier);
+    const steps = Math.ceil(exact);
+    return options(
+      { tex: `${steps}`, answer: `${steps}` },
+      { tex: `${steps - 1}`, answer: `${steps - 1}` },
+      { tex: `${steps + 1}`, answer: `${steps + 1}` },
+      { tex: `${Math.round(target / start)}`, answer: `${Math.round(target / start)}` },
+    );
+  },
   sample: (rng, difficulty) => {
     const starts = [10, 20, 25, 50, 100, 200, 500];
     const targets = difficulty > 1 ? [5_000, 20_000, 50_000, 250_000] : [1_000, 2_000, 5_000, 10_000];

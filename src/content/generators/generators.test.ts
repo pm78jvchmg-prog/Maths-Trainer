@@ -17,7 +17,7 @@ import katex from 'katex';
 import { makeRng } from '../../engine/rng';
 import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression, math } from '../../engine/expression';
-import { allGenerators, registry } from '../registry';
+import { registeredGenerators, registry } from '../registry';
 import { courses } from '../courses';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
@@ -27,7 +27,9 @@ import type { Generator } from '../types';
 const SEEDS = 200;
 const DIFFICULTIES = [1, 2];
 
-describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generator) => {
+// Derived choice generators are swept exactly like the ones written by hand:
+// they are what a lesson actually asks, so "derived" is no reason to trust them.
+describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, generator) => {
   const cases = DIFFICULTIES.flatMap((difficulty) =>
     Array.from({ length: SEEDS }, (_, seed) => {
       const params = (generator as Generator<unknown>).sample(makeRng(seed), difficulty);
@@ -183,6 +185,37 @@ describe.each(allGenerators.map((g) => [g.id, g] as const))('%s', (_id, generato
       if (slide.kind === 'tree') {
         check(slide.expression, 'tree expression');
         for (const token of slide.bank) check(token, 'tree bank');
+      }
+    }
+  });
+
+  it('offers exactly one correct option, and distractors that are really wrong', () => {
+    // The multiple-choice form of a generator. A distractor that is silently
+    // equal to the answer makes a question with two right answers, and only the
+    // checker can tell — the two are written differently by construction, so
+    // comparing the strings proves nothing.
+    const base = generator as Generator<unknown>;
+    if (!base.choices) return;
+
+    for (const { params, seed } of cases) {
+      const options = base.choices(params);
+      expect(options.length, 'a choice needs at least two options').toBeGreaterThanOrEqual(2);
+
+      const correct = options.filter((o) => o.correct);
+      expect(correct.length, `seed ${seed}: exactly one option must be correct`).toBe(1);
+
+      const labels = options.map((o) => o.tex);
+      expect(new Set(labels).size, `seed ${seed}: ${labels.join(' | ')}`).toBe(labels.length);
+
+      const right = correct[0].answer;
+      if (!right) continue;
+      for (const option of options) {
+        if (option.correct || !option.answer) continue;
+        const verdict = checkAnswer(option.answer, right, { seed });
+        expect(
+          verdict.status,
+          `seed ${seed}: distractor ${option.tex} (${option.answer}) is not wrong against ${right}`,
+        ).toBe('incorrect');
       }
     }
   });
@@ -532,6 +565,38 @@ describe('course integrity', () => {
     expect(
       offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
     ).toBe('');
+  });
+
+  it('varies the shape of the questions inside a lesson', () => {
+    // Seven questions through one widget reads as the same question seven
+    // times, even when no two draws are alike — which is exactly what a learner
+    // reported after the duplicate-question fix had already landed. The
+    // de-duplicator stops a deck repeating a *question*; nothing stopped it
+    // repeating a *shape*.
+    //
+    // Measured by the widget the learner actually taps, not by the generator
+    // id: two generators that both render an expression slide feel the same,
+    // and one generator asked through its typed and its multiple-choice form
+    // feels like two.
+    const shapeOf = (id: string) => {
+      const g = registry[id] as unknown as Generator<unknown>;
+      return g.render(g.sample(makeRng(1), 1)).kind;
+    };
+
+    const offenders: string[] = [];
+    for (const lesson of lessons) {
+      const asked = lesson.slides
+        .filter((ref) => ref.type === 'generated')
+        .map((ref) => (ref.type === 'generated' ? ref.generatorId : ''));
+      if (asked.length < 4) continue;
+
+      const shapes = new Set(asked.map(shapeOf));
+      if (shapes.size < 2) {
+        offenders.push(`${lesson.id}: ${asked.length} questions, all ${[...shapes][0]}`);
+      }
+    }
+
+    expect(offenders.join('\n')).toBe('');
   });
 
   it('uses unique lesson ids', () => {

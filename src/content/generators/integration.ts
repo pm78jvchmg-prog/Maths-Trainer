@@ -18,6 +18,7 @@
  *   the new index rather than from rounding anything.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 
 /** The algebra keys plus the constant of integration. */
@@ -172,6 +173,17 @@ interface PowerParams {
  */
 const integratePower: Generator<PowerParams> = {
   id: 'int-power',
+  // Dividing by the old index instead of the new one, and forgetting to divide
+  // at all: the two slips the worked solution names.
+  choices: ({ coefficient, power }) => {
+    const n = power + 1;
+    return options(
+      { tex: `${fracTermTex(coefficient, n, n)} + C`, answer: fracTermAnswer(coefficient, n, n) },
+      { tex: `${fracTermTex(coefficient, power, n)} + C`, answer: fracTermAnswer(coefficient, power, n) },
+      { tex: `${termTex(coefficient, n)} + C`, answer: termAnswer(coefficient, n) },
+      { tex: `${fracTermTex(coefficient, n, power)} + C`, answer: fracTermAnswer(coefficient, n, power) },
+    );
+  },
   sample: (rng, difficulty) => {
     if (difficulty > 1) {
       const power = nonZero(rng.int(-7, -2), -3);
@@ -219,6 +231,25 @@ interface SumParams {
 /** Integrating term by term. */
 const integrateSum: Generator<SumParams> = {
   id: 'int-sum',
+  choices: ({ a, m, b, n }) =>
+    options(
+      {
+        tex: `${sumTex([fracTermTex(a, m + 1, m + 1), fracTermTex(b, n + 1, n + 1)])} + C`,
+        answer: sumAnswer([fracTermAnswer(a, m + 1, m + 1), fracTermAnswer(b, n + 1, n + 1)]),
+      },
+      {
+        tex: `${sumTex([termTex(a, m + 1), termTex(b, n + 1)])} + C`,
+        answer: sumAnswer([termAnswer(a, m + 1), termAnswer(b, n + 1)]),
+      },
+      {
+        tex: `${sumTex([fracTermTex(a, m, m + 1), fracTermTex(b, n === 0 ? 1 : n, n + 1)])} + C`,
+        answer: sumAnswer([fracTermAnswer(a, m, m + 1), fracTermAnswer(b, n === 0 ? 1 : n, n + 1)]),
+      },
+      {
+        tex: `${sumTex([fracTermTex(a, m + 1, m + 1), termTex(b, n)])} + C`,
+        answer: sumAnswer([fracTermAnswer(a, m + 1, m + 1), termAnswer(b, n)]),
+      },
+    ),
   sample: (rng, difficulty) => {
     const m = rng.int(2, difficulty > 1 ? 7 : 5);
     let n = rng.int(0, m - 1);
@@ -266,6 +297,16 @@ interface ExponentialParams {
 /** Integrating a e^(kx). */
 const integrateExponential: Generator<ExponentialParams> = {
   id: 'int-exponential',
+  choices: ({ a, k }) => {
+    const kx = termTex(k, 1);
+    const co = (num: number, den: number) => fracTermTex(num, den, 0);
+    return options(
+      { tex: `${co(a, k)}e^{${kx}} + C`, answer: `((${a})/(${k})) * e^((${k}) * x)` },
+      { tex: `${termTex(a, 0)}e^{${kx}} + C`, answer: `(${a}) * e^((${k}) * x)` },
+      { tex: `${termTex(a * k, 0)}e^{${kx}} + C`, answer: `(${a * k}) * e^((${k}) * x)` },
+      { tex: `${co(a, k)}e^{${termTex(k, 1)}} \\times x + C`, answer: `((${a})/(${k})) * x * e^((${k}) * x)` },
+    );
+  },
   sample: (rng, difficulty) => ({
     a: rng.int(1, difficulty > 1 ? 9 : 6),
     k: nonZero(rng.int(-6, 6), 2) * (difficulty > 1 ? 1 : 1),
@@ -365,6 +406,17 @@ interface DefinitePowerParams {
 /** A definite integral of a single power. */
 const definitePower: Generator<DefinitePowerParams> = {
   id: 'int-definite-power',
+  choices: ({ multiple, power, lower, upper }) => {
+    const n = power + 1;
+    const at = (t: number) => multiple * Math.pow(t, n);
+    const value = at(upper) - at(lower);
+    return options(
+      { tex: `${value}`, answer: `${value}` },
+      { tex: `${-value}`, answer: `${-value}` },
+      { tex: `${at(upper)}`, answer: `${at(upper)}` },
+      { tex: `${at(upper) + at(lower)}`, answer: `${at(upper) + at(lower)}` },
+    );
+  },
   sample: (rng, difficulty) => {
     const lower = rng.int(0, difficulty > 1 ? 3 : 2);
     return {
@@ -423,6 +475,22 @@ interface DefiniteLineParams {
 /** A definite integral of a straight line, which may well come out negative. */
 const definiteLine: Generator<DefiniteLineParams> = {
   id: 'int-definite-sum',
+  // Unlike the other definite integrals this one can evaluate to zero, and
+  // then every distractor built by negating or halving it collapses onto the
+  // answer and the slide is left with one option. The last two are offset by
+  // sampled values that are never zero, so at least one distractor always
+  // survives whatever the integral comes to.
+  choices: ({ slope, intercept, lower, upper }) => {
+    const at = (t: number) => (slope * t * t) / 2 + intercept * t;
+    const value = at(upper) - at(lower);
+    return options(
+      { tex: `${value}`, answer: `${value}` },
+      { tex: `${-value}`, answer: `${-value}` },
+      { tex: `${at(upper)}`, answer: `${at(upper)}` },
+      { tex: `${value + slope}`, answer: `${value + slope}` },
+      { tex: `${value - intercept}`, answer: `${value - intercept}` },
+    );
+  },
   sample: (rng, difficulty) => {
     const lower = rng.int(difficulty > 1 ? -3 : -1, 2);
     return {
@@ -479,6 +547,16 @@ interface AreaParams {
 /** Area under a curve, from the origin. */
 const areaUnder: Generator<AreaParams> = {
   id: 'int-area-under',
+  choices: ({ multiple, power, upper }) => {
+    const n = power + 1;
+    const value = multiple * Math.pow(upper, n);
+    return options(
+      { tex: `${value}`, answer: `${value}` },
+      { tex: `${multiple * n * Math.pow(upper, power)}`, answer: `${multiple * n * Math.pow(upper, power)}` },
+      { tex: `${value * n}`, answer: `${value * n}` },
+      { tex: `${-value}`, answer: `${-value}` },
+    );
+  },
   sample: (rng, difficulty) => ({
     multiple: rng.int(1, difficulty > 1 ? 6 : 4),
     power: rng.int(1, difficulty > 1 ? 4 : 3),
@@ -673,6 +751,16 @@ interface BracketParams {
 /** Integrating (ax + b)^n, the reverse chain rule in its simplest form. */
 const linearBracket: Generator<BracketParams> = {
   id: 'int-linear-bracket',
+  choices: ({ a, b, power }) => {
+    const n = power + 1;
+    const bracket = `\\left(${linearTex(a, b)}\\right)`;
+    return options(
+      { tex: `\\frac{${bracket}^{${n}}}{${a * n}} + C`, answer: `(${linearAnswer(a, b)})^(${n}) / (${a * n})` },
+      { tex: `\\frac{${bracket}^{${n}}}{${n}} + C`, answer: `(${linearAnswer(a, b)})^(${n}) / (${n})` },
+      { tex: `\\frac{${bracket}^{${n}}}{${a}} + C`, answer: `(${linearAnswer(a, b)})^(${n}) / (${a})` },
+      { tex: `${bracket}^{${n}} + C`, answer: `(${linearAnswer(a, b)})^(${n})` },
+    );
+  },
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty > 1 ? 6 : 5),
     b: nonZero(rng.int(-6, 6), 4),
@@ -720,6 +808,17 @@ interface SubstitutionParams {
 /** Integration by substitution, in the form a x (x^2 + b)^n. */
 const substitution: Generator<SubstitutionParams> = {
   id: 'int-substitution',
+  choices: ({ a, b, power }) => {
+    const n = power + 1;
+    const bracket = `\\left(x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)`;
+    const inner = `(x^2 + (${b}))`;
+    return options(
+      { tex: `${fracTermTex(a, 2 * n, 0)}${bracket}^{${n}} + C`, answer: `((${a})/(2 * (${n}))) * ${inner}^(${n})` },
+      { tex: `${fracTermTex(a, n, 0)}${bracket}^{${n}} + C`, answer: `((${a})/(${n})) * ${inner}^(${n})` },
+      { tex: `${fracTermTex(a, 2, 0)}${bracket}^{${n}} + C`, answer: `((${a})/2) * ${inner}^(${n})` },
+      { tex: `${fracTermTex(a, 2 * n, 0)}${bracket}^{${power}} + C`, answer: `((${a})/(2 * (${n}))) * ${inner}^(${power})` },
+    );
+  },
   sample: (rng, difficulty) => ({
     a: rng.int(2, difficulty > 1 ? 9 : 6),
     b: nonZero(rng.int(difficulty > 1 ? -5 : 1, 6), 2),
@@ -772,6 +871,52 @@ interface PartsParams {
 /** Integration by parts, for x times an exponential or a trigonometric function. */
 const byParts: Generator<PartsParams> = {
   id: 'int-by-parts',
+  choices: ({ a, k, form }) => {
+    const kx = termTex(k, 1);
+    const sq = k * k;
+    const inner = `(${k}) * x`;
+    if (form === 'exp') {
+      return options(
+        { tex: `\\frac{${a}e^{${kx}}\\left(${kx} - 1\\right)}{${sq}} + C`, answer: `((${a})/((${k})^2)) * e^(${inner}) * ((${k}) * x - 1)` },
+        { tex: `\\frac{${a}e^{${kx}}\\left(${kx} + 1\\right)}{${sq}} + C`, answer: `((${a})/((${k})^2)) * e^(${inner}) * ((${k}) * x + 1)` },
+        { tex: `\\frac{${a}xe^{${kx}}}{${k}} + C`, answer: `((${a})/(${k})) * x * e^(${inner})` },
+        // Choosing u the other way round, which the worked solution warns about.
+        { tex: `\\frac{${a}x^{2}e^{${kx}}}{2} + C`, answer: `((${a})/2) * x^2 * e^(${inner})` },
+        // Only a slip when there is something to divide by: at |k| = 1 this is
+        // the correct answer, not a distractor.
+        ...(Math.abs(k) === 1
+          ? []
+          : [{ tex: `${a}e^{${kx}}\\left(${kx} - 1\\right) + C`, answer: `(${a}) * e^(${inner}) * ((${k}) * x - 1)` }]),
+      );
+    }
+    const fn = form;
+    const other = form === 'sin' ? 'cos' : 'sin';
+    const sign = form === 'sin' ? '-' : '+';
+    return options(
+      {
+        tex: `\\frac{${a}\\left(\\${fn}\\left(${kx}\\right) ${sign} ${kx}\\${other}\\left(${kx}\\right)\\right)}{${sq}} + C`,
+        answer:
+          form === 'sin'
+            ? `((${a})/((${k})^2)) * (sin(${inner}) - (${k}) * x * cos(${inner}))`
+            : `((${a})/((${k})^2)) * (cos(${inner}) + (${k}) * x * sin(${inner}))`,
+      },
+      {
+        tex: `\\frac{${a}\\left(\\${fn}\\left(${kx}\\right) ${sign === '-' ? '+' : '-'} ${kx}\\${other}\\left(${kx}\\right)\\right)}{${sq}} + C`,
+        answer:
+          form === 'sin'
+            ? `((${a})/((${k})^2)) * (sin(${inner}) + (${k}) * x * cos(${inner}))`
+            : `((${a})/((${k})^2)) * (cos(${inner}) - (${k}) * x * sin(${inner}))`,
+      },
+      {
+        tex: `\\frac{${a}x\\${other}\\left(${kx}\\right)}{${k}} + C`,
+        answer: `((${a})/(${k})) * x * ${other}(${inner})`,
+      },
+      {
+        tex: `${a}\\${fn}\\left(${kx}\\right) + C`,
+        answer: `(${a}) * ${fn}(${inner})`,
+      },
+    );
+  },
   sample: (rng, difficulty) => ({
     a: rng.int(1, difficulty > 1 ? 6 : 6),
     k: nonZero(rng.int(difficulty > 1 ? -5 : 2, difficulty > 1 ? 5 : 7), 3),

@@ -1,4 +1,5 @@
 import type { Generator, GeneratorRegistry } from './types';
+import { choiceVariants } from './choiceVariant';
 import { complexGenerators } from './generators/complex';
 import { arithmeticGenerators } from './generators/complexArithmetic';
 import { planeGenerators } from './generators/complexPlane';
@@ -10,6 +11,11 @@ import { quadraticsGenerators } from './generators/quadratics';
 import { vectorGenerators } from './generators/vectors';
 import { trigonometryGenerators } from './generators/trigonometry';
 
+/**
+ * Every generator that declares a multiple-choice form also gets that form
+ * registered, under `<id>+choice`. Derived rather than written out so a lesson
+ * can vary its question shape without anyone maintaining a parallel generator.
+ */
 export const allGenerators = [
   ...complexGenerators,
   ...arithmeticGenerators,
@@ -23,7 +29,13 @@ export const allGenerators = [
   ...trigonometryGenerators,
 ];
 
+/** The base generators plus the choice form of every one that declares it. */
+export const registeredGenerators = [
+  ...allGenerators,
+  ...choiceVariants(allGenerators as unknown as Generator<unknown>[]),
+];
+
 /** Every generator the app knows about, keyed by id. */
 export const registry: GeneratorRegistry = Object.fromEntries(
-  allGenerators.map((generator) => [generator.id, generator as unknown as Generator<never>]),
+  registeredGenerators.map((generator) => [generator.id, generator as unknown as Generator<never>]),
 );

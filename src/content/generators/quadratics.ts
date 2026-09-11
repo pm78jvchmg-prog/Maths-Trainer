@@ -24,6 +24,7 @@ import type { Generator, KeypadKey, Slide } from '../types';
 import { parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS } from './calculus';
+import { bin, num, pow } from '../expr';
 
 /** Roots can be surds, so the formula questions need a root key. */
 const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
@@ -542,6 +543,154 @@ const discriminant: Generator<FormulaParams> = {
   ],
 };
 
+/** Four whole-number options, the correct one first, deduplicated and padded. */
+function offer(correct: number, ...near: number[]): string[] {
+  const seen = new Set<number>([correct]);
+  const out = [correct];
+  for (const value of near) {
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  // Pad from just beside the answer rather than at random, so a learner cannot
+  // find the right one by spotting it as the odd number out.
+  for (let step = 1; out.length < 4; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (out.length >= 4) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out.sort((x, y) => x - y).map(String);
+}
+
+/**
+ * The discriminant, worked out one piece at a time.
+ *
+ * `b` is kept positive so that `b^{2}` can be built with `pow` and rendered
+ * straight through `toTex` — a negative literal base would print as
+ * `-6^{2}`, which KaTeX reads as $-\left(6^{2}\right)$ rather than
+ * $\left(-6\right)^{2}$, a rendering bug rather than a teaching point. The
+ * sign that genuinely trips this calculation up is `c`'s: with `c` negative,
+ * `4ac` comes out negative, and subtracting a negative *adds* it back on —
+ * two sign changes in a row, right where a learner expects one.
+ *
+ * `4ac` is built as `(4 \times a) \times c` rather than `4 \times (a \times
+ * c)`, so the tap that introduces the sign trouble — multiplying the already
+ * positive `4a` by `c` — is its own step with its own bank, separate from the
+ * plain positive multiplication that produces `4a`.
+ */
+const discriminantSteps: Generator<FormulaParams> = {
+  id: 'quad-discriminant-steps',
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, difficulty > 1 ? 5 : 3),
+    b: rng.int(2, difficulty > 1 ? 12 : 9),
+    c: nonZero(rng.int(-9, 9), -3),
+  }),
+  /**
+   * The same question with no working shown: four whole-number totals, the
+   * three distractors being the slips real working produces — dropping the
+   * subtraction, dropping the sign of `c`, and squaring `2b` instead of `b`.
+   * Computed distractors collide for some draws (dropping the sign of `c`
+   * changes nothing when `c` is already positive), so they are padded from
+   * numbers near the answer exactly as `idx-evaluate-order` does.
+   */
+  choices: ({ a, b, c }) => {
+    const bSquared = b * b;
+    const product = 4 * a * c;
+    const correct = bSquared - product;
+
+    const wrong = [
+      bSquared + product, // b^2 + 4ac: the subtraction read as addition
+      bSquared - 4 * a * Math.abs(c), // 4a|c|: the sign of c dropped
+      (2 * b) * (2 * b) - product, // (2b)^2 - 4ac: 2b squared instead of b
+    ];
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+
+    return options(
+      { tex: `${correct}`, answer: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}`, answer: `${value}` })),
+    );
+  },
+  render: ({ a, b, c }): Slide => {
+    const expr = bin(
+      '-',
+      pow(num(b), num(2)),
+      bin('*', bin('*', num(4), num(a)), num(c)),
+    );
+
+    const bSquared = b * b;
+    const fourA = 4 * a;
+    const product = fourA * c;
+    const total = bSquared - product;
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the discriminant $b^{2} - 4ac$, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+        { kind: 'display', tex: `${quadraticTex(a, b, c)} = 0` },
+      ],
+      expr,
+      banks: {
+        // b^2: doubling instead of squaring, forgetting to square at all, and
+        // squaring 2b instead of b are the three slips worth offering.
+        'r.l': offer(bSquared, 2 * b, b, (2 * b) * (2 * b)),
+        // 4a, still positive whatever a is — dropping the 4, adding instead of
+        // multiplying, and halving the 4 to 2.
+        'r.r.l': offer(fourA, a, 4 + a, 2 * a),
+        // 4a times c: dropping the sign of c, or dropping the 4 altogether.
+        'r.r': offer(product, fourA * Math.abs(c), a * c, 4 * (a + c)),
+        // The subtraction, last: reading it as addition, subtracting the wrong
+        // way round, and the 2b slip carried all the way through.
+        r: offer(total, bSquared + product, product - bSquared, (2 * b) * (2 * b) - product),
+      },
+    };
+  },
+  solution: ({ a, b, c }) => {
+    const bSquared = b * b;
+    const fourA = 4 * a;
+    const product = fourA * c;
+    const total = bSquared - product;
+    return [
+      {
+        text: 'Work the two halves out separately: $b^{2}$ first, then $4ac$, before combining them.',
+      },
+      {
+        tex: `b^{2} = ${b}^{2} = ${bSquared} \\qquad 4ac = 4 \\times ${a} \\times \\left(${c}\\right) = ${product}`,
+      },
+      {
+        text:
+          c < 0
+            ? `$c$ is negative here, so $4ac$ comes out negative — and subtracting a negative number adds it back on. Two sign changes in a row is where this goes wrong.`
+            : 'Subtract $4ac$ as a single quantity, working out its sign before subtracting rather than during.',
+      },
+      { tex: `b^{2} - 4ac = ${bSquared} - \\left(${product}\\right) = ${total}` },
+      {
+        text: `Squaring $${2 * b}$ instead of $b$ gives $${(2 * b) * (2 * b)}$, not $${bSquared}$ — a different number from a different mistake, worth telling apart from the sign one above.`,
+      },
+    ];
+  },
+};
+
 interface RootCountParams {
   a: number;
   b: number;
@@ -940,6 +1089,7 @@ export const quadraticsGenerators = [
   completeSquare,
   quadraticFormula,
   discriminant,
+  discriminantSteps,
   rootCount,
   turningPoint,
   lineOfSymmetry,

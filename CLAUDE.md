@@ -183,6 +183,46 @@ show *working* rather than a final answer, and both live in
 
 Both answer as `string[]` and are graded by `gradeSequence` in the reducer.
 
+Four more came later. `slider` is a drag-to-a-value widget with an optional
+figure the marker tracks; `flow` walks a decision tree one branch at a time.
+The other two share `src/content/expr.ts`, an arithmetic expression held as a
+tree, and both live in `src/ui/reduceSlide.tsx`:
+
+- **`reduce`** evaluates an expression one piece at a time, in two graded taps:
+  a piece of the line, then its value from a bank. **Every operator is offered
+  whether or not its operands are settled** — taking `8 + 4` before `4 x 3` has
+  to be possible, or the order is not being asked about. Nothing about the tap
+  says whether it was the right piece; that is the first invariant. Grading is
+  `replay`, which needs no authored answer sequence: a walk is right when every
+  reduction was legal *at the moment it was made*. Any order precedence permits
+  is therefore accepted.
+- **`evaluate`** is the same expression with every support removed: four
+  options, no working, no tap targets. Derived automatically by
+  `choiceVariant` from any `reduce` generator that declares `choices()`, under
+  the usual `<id>+choice`.
+
+Two rendering rules in `expr.ts` are load-bearing and were each arrived at the
+hard way:
+
+- **A `reduce` line is a list of independent fragments, one KaTeX call each.**
+  So `\left(` with no `\right)` *in the same fragment* prints as literal text
+  rather than raising — use plain brackets. And a node that renders as one
+  fragment has nothing inside it tappable, which is why an unsettled root is
+  written as `(x)^{1/2}` rather than as a radical, and an unsettled logarithm
+  splits into `\log_{b}(`, its argument, and `)`. A test walks each slide the
+  way the widget does and fails if the line cannot be finished; it caught three
+  shipped generators that were dead ends.
+- **An `evaluate` line is one whole string**, since nothing on it is tappable.
+  That is what lets it keep a proper radical where the tappable form cannot.
+
+The tree's nodes are `num`, `binary`, `power`, `root`, `log` and `trig`. Adding
+one means touching `nodeAt`, `valueOf`, `isReducible`, `targets`, `reduceAt`,
+`renderExpr` and `toTex` — and `valueOf` must round, because `sin(180)` and
+`log_2(8)` both come back a hair off a whole number through floats. **Every
+value in these questions is whole**, banks included; a bank of halves turns an
+order question into an arithmetic-with-fractions question, and there is a test
+for it.
+
 ## TeX escaping — the recurring hazard
 
 TeX lives inside JavaScript string literals, so **every backslash must be

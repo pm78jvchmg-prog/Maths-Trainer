@@ -500,7 +500,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-sine-from-circle', 2),
-            ask('trig-sine-from-circle', 2),
+            ask('trig-evaluate-exact'),
             teach(
               prose(
                 'On a circle of radius $r$ the whole picture scales. Every height is $r$ times what it was on the unit circle.',
@@ -514,7 +514,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-sine-from-circle+choice', 2),
-            ask('trig-amplitude', 2),
+            ask('trig-evaluate-exact+choice'),
           ],
           skillCheck: [
             ask('trig-sine-from-circle', 2),
@@ -551,7 +551,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-cosine-from-circle', 2),
-            ask('trig-cosine-from-circle', 2),
+            ask('trig-evaluate-exact'),
             teach(
               prose(
                 'The point sits on a circle of radius $1$, so its two coordinates obey Pythagoras.',
@@ -565,7 +565,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-cosine-from-circle+choice', 2),
-            ask('trig-sine-from-circle', 2),
+            ask('trig-evaluate-exact+choice'),
           ],
           skillCheck: [
             ask('trig-cosine-from-circle', 2),
@@ -676,7 +676,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-read-parameters'),
             ask('trig-wave-range'),
-            ask('trig-wave-range'),
+            ask('trig-evaluate-exact'),
             teach(
               prose(
                 'Reading the numbers back out is a matter of noticing where they sit. The multiplier in front is the amplitude; the number added on the end is the midline.',
@@ -703,7 +703,7 @@ export const trigonometricFunctions: Course = {
             ask('trig-wave-range', 2),
           ],
           skillCheck: [
-            ask('trig-wave-range', 2),
+            ask('trig-evaluate-exact+choice', 2),
             ask('trig-read-parameters', 2),
             ask('trig-wave-range', 2),
           ],
@@ -789,8 +789,8 @@ export const trigonometricFunctions: Course = {
                 'Adding before multiplying is the usual slip and gives $4 \\times 5.5 = 22$, which is not even within reach of the curve — its maximum is $9$.',
               ),
             ),
-            ask('trig-evaluate-wave'),
-            ask('trig-evaluate-wave', 2),
+            ask('trig-evaluate-exact'),
+            ask('trig-evaluate-exact+choice', 2),
             teach(
               prose(
                 'A useful check: the answer must lie between $d - a$ and $d + a$. Sine never leaves $[-1, 1]$, so the curve never leaves that band.',
@@ -803,7 +803,7 @@ export const trigonometricFunctions: Course = {
             ask('trig-wave-range', 2),
           ],
           skillCheck: [
-            ask('trig-evaluate-wave', 2),
+            ask('trig-evaluate-exact', 2),
             ask('trig-wave-range', 2),
             ask('trig-read-parameters', 2),
           ],
@@ -812,12 +812,12 @@ export const trigonometricFunctions: Course = {
       levelCheck: [
         ask('trig-read-parameters', 2),
         ask('trig-wave-range', 2),
-        ask('trig-evaluate-wave', 2),
+        ask('trig-evaluate-exact', 2),
         ask('trig-horizontal-shift', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-wave-range', 2),
         ask('trig-read-parameters', 2),
-        ask('trig-evaluate-wave', 2),
+        ask('trig-evaluate-exact+choice', 2),
         ask('trig-amplitude', 2),
         ask('trig-midline', 2),
         ask('trig-wave-range', 2),

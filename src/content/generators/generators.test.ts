@@ -117,7 +117,11 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           } else if (node.kind === 'power') {
             walk(node.base, `${path}.b`);
             walk(node.exponent, `${path}.e`);
+          } else if (node.kind === 'log') {
+            walk(node.base, `${path}.g`);
+            walk(node.arg, `${path}.v`);
           } else {
+            // A root or a trig node: one child, reached by `a`.
             walk(node.arg, `${path}.a`);
           }
         };

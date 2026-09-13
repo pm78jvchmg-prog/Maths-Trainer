@@ -17,6 +17,7 @@ import type { Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { plotSvg, wave } from '../figures';
+import { bin, num, trig, valueOf, type Expr } from '../expr';
 
 /** Plain number entry. The base keypad already supplies digits and signs. */
 const NUMBER_KEYS: KeypadKey[] = [{ insert: '.' }, { insert: '/' }];
@@ -798,6 +799,178 @@ const waveSlider: Generator<WaveSliderParams> = {
   },
 };
 
+
+/* ---------- evaluating an exact-value expression ---------- */
+
+/** Angles whose sine and cosine are both whole: 0, ±1. */
+const QUADRANT_ANGLES = [0, 90, 180, 270];
+
+interface ExactTrigParams {
+  /** Coefficient of the first term. */
+  a: number;
+  fn: 'sin' | 'cos';
+  degrees: number;
+  /** The second term's coefficient, or the vertical shift on the `wave` shape. */
+  b: number;
+  fn2: 'sin' | 'cos';
+  degrees2: number;
+  shape: 'wave' | 'pair';
+}
+
+/** The tree for a shape, so the render and the value agree by construction. */
+function exactTrigExpr(p: ExactTrigParams): Expr {
+  const first = bin('*', num(p.a), trig(p.fn, num(p.degrees)));
+  if (p.shape === 'wave') return bin('+', first, num(p.b));
+  return bin('-', first, bin('*', num(p.b), trig(p.fn2, num(p.degrees2))));
+}
+
+const exactValue = (fn: 'sin' | 'cos', degrees: number) => valueOf(trig(fn, num(degrees)));
+
+/**
+ * Evaluate an expression with exact trig values in it, one piece at a time.
+ *
+ * `trig-evaluate-wave` asks the same arithmetic as a `steps` slide, which hands
+ * the learner the order: each reduction is offered in turn and there is no way
+ * to take the addition first. Here the order is the question. Tapping the `+`
+ * in $a\sin(\theta) + d$ before the multiplication is possible, and it is the
+ * mistake the lesson is about — $2\sin(90^{\circ}) + 3$ is 5, not $2\sin(93)$.
+ *
+ * Angles are the quadrantal ones only, so every sine and cosine on screen is 0,
+ * 1 or -1. Half values would put a bank of halves in front of the learner and
+ * turn a question about order into a question about fractions.
+ */
+const evaluateExactTrig: Generator<ExactTrigParams> = {
+  id: 'trig-evaluate-exact',
+  sample: (rng, difficulty) => ({
+    a: rng.int(2, difficulty > 1 ? 9 : 6),
+    fn: rng.pick(['sin', 'cos'] as const),
+    degrees: rng.pick(QUADRANT_ANGLES),
+    b: rng.int(2, difficulty > 1 ? 9 : 6),
+    fn2: rng.pick(['sin', 'cos'] as const),
+    degrees2: rng.pick(QUADRANT_ANGLES),
+    shape: difficulty > 1 ? rng.pick(['wave', 'pair'] as const) : 'wave',
+  }),
+  render: (params): Slide => {
+    const expr = exactTrigExpr(params);
+
+    /** Six whole options around the right one, nearest first, negatives allowed. */
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 6) break;
+        if (!Number.isInteger(value) || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 6; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 6) break;
+          if (seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    const banks: Record<string, string[]> = {};
+    const walk = (node: Expr, path: string): void => {
+      if (node.kind === 'num') return;
+      if (node.kind === 'binary') {
+        walk(node.left, `${path}.l`);
+        walk(node.right, `${path}.r`);
+        const l = valueOf(node.left);
+        const r = valueOf(node.right);
+        banks[path] = offer(valueOf(node), l + r, l - r, l * r, r - l);
+        return;
+      }
+      // Nothing else appears in these expressions, and a silent fall-through
+      // would leave a node without a bank rather than say so.
+      if (node.kind !== 'trig') throw new Error(`unexpected ${node.kind} node`);
+      // The other function's value at the same angle is the slip worth
+      // offering: sine and cosine swap 0 and 1 a quarter turn apart.
+      const other = exactValue(node.fn === 'sin' ? 'cos' : 'sin', valueOf(node.arg));
+      banks[path] = offer(valueOf(node), other, 0, 1, -1);
+      walk(node.arg, `${path}.a`);
+    };
+    walk(expr, 'r');
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work this out one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr,
+      banks,
+    };
+  },
+  choices: (params) => {
+    const correct = valueOf(exactTrigExpr(params));
+    const { a, b, fn, degrees, fn2, degrees2, shape } = params;
+    const v1 = exactValue(fn, degrees);
+    const v2 = exactValue(fn2, degrees2);
+    const other = exactValue(fn === 'sin' ? 'cos' : 'sin', degrees);
+    const wrong =
+      shape === 'wave'
+        ? [a * (v1 + b), a * other + b, a * v1 - b, a + v1 + b]
+        : [a * v1 + b * v2, a * v1 - b * other, (a - b) * v1, a * other - b * v2];
+
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  solution: (params) => {
+    const { a, b, fn, degrees, fn2, degrees2, shape } = params;
+    const v1 = exactValue(fn, degrees);
+    const total = valueOf(exactTrigExpr(params));
+    if (shape === 'wave') {
+      return [
+        {
+          text: 'A sine or cosine is a number, so take it first. At a quarter turn and its multiples the value is always 0, 1 or -1.',
+        },
+        { tex: `\\${fn}\\left(${degrees}^{\\circ}\\right) = ${v1}` },
+        { tex: `${a} \\times ${v1} + ${b} = ${a * v1} + ${b} = ${total}` },
+        {
+          text: `The multiplication has to happen before the addition, so this is $${total}$ and not $${a * (v1 + b)}$. The $${b}$ sits outside the $\\${fn}$, which is what makes it a shift rather than part of the angle.`,
+        },
+      ];
+    }
+    const v2 = exactValue(fn2, degrees2);
+    return [
+      {
+        text: 'Both trig values first — each one is 0, 1 or -1 at these angles — and only then the two multiplications.',
+      },
+      {
+        tex: `\\${fn}\\left(${degrees}^{\\circ}\\right) = ${v1} \\qquad \\${fn2}\\left(${degrees2}^{\\circ}\\right) = ${v2}`,
+      },
+      { tex: `${a} \\times ${v1} - ${b} \\times ${v2} = ${a * v1} - ${b * v2} = ${total}` },
+      {
+        text: `Taking the subtraction first would leave $${a * v1 - b}$ multiplied by something, which is a different number. Each product is settled before the minus can touch it.`,
+      },
+    ];
+  },
+};
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -813,4 +986,5 @@ export const trigonometryGenerators = [
   readParameters,
   evaluateWave,
   waveSlider,
+  evaluateExactTrig,
 ] as unknown as Generator<unknown>[];

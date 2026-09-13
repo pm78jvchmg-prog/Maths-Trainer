@@ -30,7 +30,16 @@ export type Expr =
   /** `degree` defaults to 2; 3 draws a cube root, and so on. */
   | { kind: 'root'; arg: Expr; degree?: number }
   /** A logarithm to a stated base, written `\log_{base} arg`. */
-  | { kind: 'log'; base: Expr; arg: Expr };
+  | { kind: 'log'; base: Expr; arg: Expr }
+  /**
+   * A trigonometric function of an angle in **degrees**.
+   *
+   * Degrees rather than radians because the angle is a number the learner reads
+   * and picks a value for, and `\sin(\pi)` would put an irrational number in a
+   * bank of whole ones. The child is named `arg` so it addresses exactly as a
+   * root's does, by `a`.
+   */
+  | { kind: 'trig'; fn: 'sin' | 'cos' | 'tan'; arg: Expr };
 
 /** Convenience builders, so content reads like the expression it describes. */
 export const num = (value: number): Expr => ({ kind: 'num', value });
@@ -43,6 +52,11 @@ export const bin = (op: Extract<Expr, { kind: 'binary' }>['op'], left: Expr, rig
 export const pow = (base: Expr, exponent: Expr): Expr => ({ kind: 'power', base, exponent });
 export const root = (arg: Expr, degree?: number): Expr => ({ kind: 'root', arg, degree });
 export const log = (base: Expr, arg: Expr): Expr => ({ kind: 'log', base, arg });
+export const trig = (fn: Extract<Expr, { kind: 'trig' }>['fn'], arg: Expr): Expr => ({
+  kind: 'trig',
+  fn,
+  arg,
+});
 
 /**
  * A node's address: the path taken from the root to reach it.
@@ -64,7 +78,8 @@ export function nodeAt(expr: Expr, path: Path): Expr | undefined {
     if (!node) return undefined;
     if (node.kind === 'binary') node = part === 'l' ? node.left : part === 'r' ? node.right : undefined;
     else if (node.kind === 'power') node = part === 'b' ? node.base : part === 'e' ? node.exponent : undefined;
-    else if (node.kind === 'root') node = part === 'a' ? node.arg : undefined;
+    else if (node.kind === 'root' || node.kind === 'trig')
+      node = part === 'a' ? node.arg : undefined;
     else if (node.kind === 'log') node = part === 'g' ? node.base : part === 'v' ? node.arg : undefined;
     else return undefined;
   }
@@ -85,6 +100,18 @@ export function valueOf(expr: Expr): number {
     // every value in these questions is meant to be whole.
     return Math.abs(rooted - Math.round(rooted)) < 1e-9 ? Math.round(rooted) : rooted;
   }
+  if (expr.kind === 'trig') {
+    const radians = (valueOf(expr.arg) * Math.PI) / 180;
+    const exact =
+      expr.fn === 'sin'
+        ? Math.sin(radians)
+        : expr.fn === 'cos'
+          ? Math.cos(radians)
+          : Math.tan(radians);
+    // Rounded for the same reason roots and logs are: sin(180) through floats
+    // is 1.2e-16, and every value in these questions is meant to be whole.
+    return Math.abs(exact - Math.round(exact)) < 1e-9 ? Math.round(exact) : exact;
+  }
   if (expr.kind === 'power') return Math.pow(valueOf(expr.base), valueOf(expr.exponent));
   if (expr.kind === 'log') {
     // Rounded for the same reason roots are: log_2(8) through floats is
@@ -103,7 +130,7 @@ export function valueOf(expr: Expr): number {
 /** True when every child is already a plain number. */
 export function isReducible(expr: Expr): boolean {
   if (expr.kind === 'num') return false;
-  if (expr.kind === 'root') return expr.arg.kind === 'num';
+  if (expr.kind === 'root' || expr.kind === 'trig') return expr.arg.kind === 'num';
   if (expr.kind === 'power') return expr.base.kind === 'num' && expr.exponent.kind === 'num';
   if (expr.kind === 'log') return expr.base.kind === 'num' && expr.arg.kind === 'num';
   return expr.left.kind === 'num' && expr.right.kind === 'num';
@@ -167,7 +194,9 @@ export function reduceAt(expr: Expr, path: Path, value: number): Expr {
         ? { ...node, base: rebuild(node.base, depth + 1) }
         : { ...node, exponent: rebuild(node.exponent, depth + 1) };
     }
-    if (node.kind === 'root') return { ...node, arg: rebuild(node.arg, depth + 1) };
+    if (node.kind === 'root' || node.kind === 'trig') {
+      return { ...node, arg: rebuild(node.arg, depth + 1) };
+    }
     if (node.kind === 'log') {
       return part === 'g'
         ? { ...node, base: rebuild(node.base, depth + 1) }
@@ -228,6 +257,14 @@ export function renderExpr(
     // The whole root is one fragment: its bar has to span its argument, and
     // KaTeX gives no handle inside a rendered formula to hang that on.
     out.push({ tex: rootTex(expr), owners: mine, handle: path });
+    return out;
+  }
+
+  if (expr.kind === 'trig') {
+    // One fragment as well. The angle is a number by the time the learner sees
+    // it, and splitting `sin` from its bracket would offer a tap target that is
+    // not a sub-expression.
+    out.push({ tex: toTex(expr), owners: mine, handle: path });
     return out;
   }
 
@@ -299,6 +336,9 @@ export function toTex(expr: Expr): string {
   }
   if (expr.kind === 'log') {
     return `\\log_{${toTex(expr.base)}}\\left(${toTex(expr.arg)}\\right)`;
+  }
+  if (expr.kind === 'trig') {
+    return `\\${expr.fn}\\left(${toTex(expr.arg)}^{\\circ}\\right)`;
   }
   const side = (child: Expr) =>
     precedence(child) < precedence(expr) ? `\\left(${toTex(child)}\\right)` : toTex(child);

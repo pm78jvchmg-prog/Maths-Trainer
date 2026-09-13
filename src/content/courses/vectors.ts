@@ -717,7 +717,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('mat-solve'),
-            ask('mat-solve'),
+            ask('mat-determinant-steps'),
             teach(
               prose(
                 'The method needs a non-zero determinant, and what happens otherwise is exactly what the singular case predicted.',
@@ -731,7 +731,7 @@ export const vectorsAndMatrices: Course = {
               maths('\\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}'),
             ),
             ask('mat-solve+choice'),
-            ask('mat-inverse'),
+            ask('mat-determinant-steps+choice'),
           ],
           skillCheck: [ask('mat-solve', 2), ask('mat-solve', 2), ask('mat-inverse', 2)],
         },

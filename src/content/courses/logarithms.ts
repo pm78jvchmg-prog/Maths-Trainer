@@ -171,7 +171,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-solve-simple'),
-            ask('log-solve-simple'),
+            ask('log-chain-steps'),
             teach(
               prose('Always check the answer keeps the logarithm defined.'),
               prose(
@@ -183,7 +183,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-solve-simple+choice'),
-            ask('log-solve-simple'),
+            ask('log-chain-steps+choice'),
           ],
           skillCheck: [
             ask('log-solve-simple', 2),
@@ -429,7 +429,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-laws-equation'),
-            ask('log-combine'),
+            ask('log-power-steps'),
             ask('log-laws-equation'),
             teach(
               prose(
@@ -458,7 +458,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-laws-equation'),
-            ask('log-combine'),
+            ask('log-power-steps+choice'),
           ],
           skillCheck: [
             ask('log-laws-equation', 2),

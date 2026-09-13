@@ -421,7 +421,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-sum'),
-            ask('int-definite-sum'),
+            ask('int-definite-steps'),
             teach(
               prose(
                 'Whenever the integrand is a straight line a sanity check is available, because the region is a triangle or a trapezium and its area can be found without calculus.',
@@ -432,7 +432,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-sum+choice'),
-            ask('int-definite-power'),
+            ask('int-definite-steps+choice'),
           ],
           skillCheck: [
             ask('int-definite-sum', 2),

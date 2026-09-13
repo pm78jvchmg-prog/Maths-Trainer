@@ -378,8 +378,8 @@ export const integration: Course = {
                 'Without the bracket the minus sign attaches to only part of the expression, and the answer comes out wrong by exactly twice the lower value. Writing the bracket costs nothing and removes the risk.',
               ),
             ),
-            ask('int-definite-power+choice'),
-            ask('int-definite-power'),
+            ask('int-definite-steps'),
+            ask('int-definite-steps+choice'),
           ],
           skillCheck: [
             ask('int-definite-power', 2),

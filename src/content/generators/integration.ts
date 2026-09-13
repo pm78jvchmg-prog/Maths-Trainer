@@ -20,6 +20,7 @@
 import type { Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
+import { bin, num, pow } from '../expr';
 
 /** The algebra keys plus the constant of integration. */
 const INTEGRAL_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'C' }];
@@ -459,6 +460,168 @@ const definitePower: Generator<DefinitePowerParams> = {
       },
       {
         text: `Upper minus lower, in that order. Reversing them gives $${at(lower) - at(upper)}$ — the right size with the wrong sign, which is the most common error here.`,
+      },
+    ];
+  },
+};
+
+/** Four whole-number bank entries: the correct value, then near ones, padded to stay distinct. */
+function bank4(correct: number, ...near: number[]): string[] {
+  const seen = new Set<number>([correct]);
+  const out = [correct];
+  for (const value of near) {
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  // Pad from just beside the answer rather than at random, so a learner cannot
+  // find the right one by spotting it as the odd number out.
+  for (let step = 1; out.length < 4; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (out.length >= 4) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out.map(String);
+}
+
+interface DefiniteStepsParams {
+  coefficient: number;
+  power: number;
+  lower: number;
+  upper: number;
+}
+
+/**
+ * Evaluating a definite integral once the antiderivative F is already known:
+ * substitute the two limits and subtract, one piece at a time.
+ *
+ * Built as a tree of powers and products subtracted, rather than as a typed
+ * expression, because the skill being isolated here is arithmetic, not
+ * calculus — the antiderivative is handed over already integrated, so nothing
+ * about integration is being tested. What is being tested is the substitution
+ * itself, and in particular the subtraction at the end: `lower` may be
+ * negative, which makes `F(lower)` itself negative, and "upper minus a
+ * negative" is exactly where the sign gets dropped. No existing question
+ * isolates that single step — `int-definite-power` asks it as one typed
+ * answer, with the power, the multiplication and the subtraction all bundled
+ * together.
+ *
+ * The tree mirrors the order a learner should actually work in: the power
+ * first (`upper^power`, `lower^power`), then each multiplication by the
+ * coefficient, then the final subtraction — exactly the order `isReducible`
+ * enforces, since a multiplication needs its power already resolved and the
+ * subtraction needs both multiplications done.
+ */
+const definiteSteps: Generator<DefiniteStepsParams> = {
+  id: 'int-definite-steps',
+  sample: (rng, difficulty) => {
+    const power = difficulty > 1 ? rng.pick([2, 3, 4]) : rng.pick([2, 3]);
+    const coefficient = rng.int(1, difficulty > 1 ? 6 : 4);
+    const lower = difficulty > 1 ? nonZero(rng.int(-5, 4), -2) : nonZero(rng.int(-3, 3), -1);
+    const upper = lower + rng.int(1, difficulty > 1 ? 5 : 4);
+    return { coefficient, power, lower, upper };
+  },
+  /**
+   * The no-working form: four whole-number totals, the three distractors
+   * being the slips real working produces — reading the subtraction as an
+   * addition (which is what happens when the dropped lower term is itself
+   * negative), subtracting the wrong way round, and dropping the lower term
+   * altogether. Padded exactly as `quad-discriminant-steps` pads, since these
+   * collide for some draws (a lower limit of 0 makes its own term vanish, so
+   * "add it" and "drop it" are the same thing).
+   */
+  choices: ({ coefficient, power, lower, upper }) => {
+    const upperTerm = coefficient * Math.pow(upper, power);
+    const lowerTerm = coefficient * Math.pow(lower, power);
+    const correct = upperTerm - lowerTerm;
+
+    const wrong = [upperTerm + lowerTerm, lowerTerm - upperTerm, upperTerm];
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+
+    return options(
+      { tex: `${correct}`, answer: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}`, answer: `${value}` })),
+    );
+  },
+  render: ({ coefficient, power, lower, upper }): Slide => {
+    const expr = bin(
+      '-',
+      bin('*', num(coefficient), pow(num(upper), num(power))),
+      bin('*', num(coefficient), pow(num(lower), num(power))),
+    );
+
+    const upperPow = Math.pow(upper, power);
+    const lowerPow = Math.pow(lower, power);
+    const upperTerm = coefficient * upperPow;
+    const lowerTerm = coefficient * lowerPow;
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The antiderivative is already known. Substitute the two limits and subtract, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+        { kind: 'display', tex: `\\left[${termTex(coefficient, power)}\\right]_{${lower}}^{${upper}}` },
+      ],
+      expr,
+      banks: {
+        // upper^power: multiplying by the power instead of raising to it,
+        // forgetting to raise it at all, and raising it one power too far.
+        'r.l.r': bank4(upperPow, power * upper, upper, Math.pow(upper, power + 1)),
+        // lower^power, the same three slips against the lower limit.
+        'r.r.r': bank4(lowerPow, power * lower, lower, Math.pow(lower, power + 1)),
+        // coefficient x upper^power: forgetting the coefficient, adding it
+        // instead of multiplying, and multiplying the coefficient by the
+        // limit rather than by the limit's power.
+        'r.l': bank4(upperTerm, upperPow, coefficient + upperPow, coefficient * upper),
+        'r.r': bank4(lowerTerm, lowerPow, coefficient + lowerPow, coefficient * lower),
+        // The final subtraction: reading it as addition, subtracting the
+        // wrong way round, and dropping the lower term altogether.
+        r: bank4(upperTerm - lowerTerm, upperTerm + lowerTerm, lowerTerm - upperTerm, upperTerm),
+      },
+    };
+  },
+  solution: ({ coefficient, power, lower, upper }) => {
+    const upperPow = Math.pow(upper, power);
+    const lowerPow = Math.pow(lower, power);
+    const upperTerm = coefficient * upperPow;
+    const lowerTerm = coefficient * lowerPow;
+    const total = upperTerm - lowerTerm;
+    return [
+      {
+        text: 'Substitute the upper limit into the antiderivative, then the lower limit, before subtracting anything.',
+      },
+      {
+        tex: `\\left[${termTex(coefficient, power)}\\right]_{${lower}}^{${upper}} = ${termTex(coefficient, power).replace(/x/, `\\left(${upper}\\right)`)} - ${termTex(coefficient, power).replace(/x/, `\\left(${lower}\\right)`)}`,
+      },
+      { tex: `= ${upperTerm} - \\left(${lowerTerm}\\right) = ${total}` },
+      {
+        text:
+          lowerTerm < 0
+            ? `The lower value comes out negative here, so the subtraction becomes "minus a negative" — the value at the lower limit is added back on rather than taken away. Dropping that bracket is exactly how the sign gets lost.`
+            : 'Bracket the lower value before subtracting it. It costs nothing when the value is positive and saves the sign when it is not.',
+      },
+      {
+        text: `Reversing the order gives $${lowerTerm} - \\left(${upperTerm}\\right) = ${lowerTerm - upperTerm}$ — the right size with the wrong sign, and the most common slip in this step.`,
       },
     ];
   },
@@ -1191,6 +1354,7 @@ export const integrationGenerators = [
   integrateExponential,
   integrateTrig,
   definitePower,
+  definiteSteps,
   definiteLine,
   areaUnder,
   integralProperties,

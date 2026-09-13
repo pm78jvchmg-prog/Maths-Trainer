@@ -20,6 +20,34 @@ import {
   sumAnswer,
   ddx,
 } from './calculus';
+import { bin, num, pow } from '../expr';
+
+/** A non-zero integer, for sampling where 0 would make a degenerate question. */
+function nonZero(value: number, fallback: number): number {
+  return value === 0 ? fallback : value;
+}
+
+/** Four whole-number bank entries: the correct value, then near ones, padded to stay distinct. */
+function bank4(correct: number, ...near: number[]): string[] {
+  const seen = new Set<number>([correct]);
+  const out = [correct];
+  for (const value of near) {
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  // Pad from just beside the answer rather than at random, so a learner cannot
+  // find the right one by spotting it as the odd number out.
+  for (let step = 1; out.length < 4; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (out.length >= 4) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out.map(String);
+}
 
 /* ---------- Power rule ---------- */
 
@@ -669,6 +697,134 @@ export const evaluateDerivative: Generator<EvaluateParams> = {
   },
 };
 
+/* ---------- Evaluating a derivative, one piece at a time ---------- */
+
+interface EvaluateStepsParams {
+  /** Coefficient of x^3 in f(x). */
+  a: number;
+  /** Coefficient of x in f(x). */
+  b: number;
+  /** The point the derivative is evaluated at. */
+  at: number;
+}
+
+/**
+ * Substituting a value into a derivative, worked one piece at a time.
+ *
+ * `evaluate-derivative` asks the same underlying question but as one typed
+ * number, so a learner who squares before multiplying and one who multiplies
+ * before squaring both just type the same correct total — the order is
+ * invisible in the answer. Here it is the whole question: the power has to be
+ * taken before the multiplication, and the multiplication before the
+ * addition, and a tree is what lets that be graded rather than assumed.
+ *
+ * f(x) is kept to two terms — a cube and a linear term — so f'(x) = 3ax^2 + b
+ * is itself only two pieces: a power, then a multiplication, then an
+ * addition, with nothing left over to obscure which step is which.
+ */
+const evaluateSteps: Generator<EvaluateStepsParams> = {
+  id: 'df-evaluate-steps',
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, difficulty > 1 ? 5 : 3),
+    b: nonZero(rng.int(difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6), 4),
+    at: difficulty > 1 ? nonZero(rng.int(-4, 4), -2) : rng.int(1, 4),
+  }),
+  /**
+   * The no-working form: four whole-number totals. The distractors are the
+   * slips real substitution produces — dropping the added term, subtracting
+   * it instead of adding, and dropping the coefficient of the squared term.
+   * Padded exactly as `quad-discriminant-steps` pads, since these collide for
+   * some draws (a coefficient of 1 makes "keep it" and "drop it" the same
+   * multiplication).
+   */
+  choices: ({ a, b, at }) => {
+    const coefficient = 3 * a;
+    const square = at * at;
+    const correct = coefficient * square + b;
+
+    const wrong = [coefficient * square - b, coefficient * square, square + b];
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+
+    return options(
+      { tex: `${correct}`, answer: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}`, answer: `${value}` })),
+    );
+  },
+  render: ({ a, b, at }): Slide => {
+    const coefficient = 3 * a;
+    const expr = bin('+', bin('*', num(coefficient), pow(num(at), num(2))), num(b));
+
+    const square = at * at;
+    const product = coefficient * square;
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Substitute $x = ${at}$ into the derivative, one piece at a time. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+        {
+          kind: 'display',
+          tex: `f(x) = ${sumTex([termTex(a, 3), termTex(b, 1)])} \\quad \\implies \\quad f'(x) = ${sumTex([termTex(coefficient, 2), termTex(b, 0)])}`,
+        },
+      ],
+      expr,
+      banks: {
+        // at^2: doubling instead of squaring, forgetting to square at all, and
+        // squaring but losing the sign — the distinctive slip when `at` is
+        // negative, where the square should come out positive.
+        'r.l.r': bank4(square, 2 * at, at, -square),
+        // coefficient x at^2: forgetting the coefficient, adding it instead of
+        // multiplying, and multiplying by `a` rather than by `3a` — the power
+        // rule's own multiplier left off before this step ever starts.
+        'r.l': bank4(product, square, coefficient + square, a * square),
+        // The final addition: subtracting the constant instead of adding it,
+        // and dropping it altogether.
+        r: bank4(product + b, product - b, product, square + b),
+      },
+    };
+  },
+  solution: ({ a, b, at }) => {
+    const coefficient = 3 * a;
+    const square = at * at;
+    const product = coefficient * square;
+    const total = product + b;
+    return [
+      {
+        text: 'Differentiate first, leaving the answer as a function of $x$. Only then substitute the number in.',
+        tex: `f'(x) = ${sumTex([termTex(coefficient, 2), termTex(b, 0)])}`,
+      },
+      {
+        text: `Work the power out before the multiplication: $x = ${at}$ is squared first, then multiplied by $${coefficient}$.`,
+        tex: `f'(${at}) = ${coefficient}\\left(${at}\\right)^{2} + ${b} = ${coefficient} \\times ${square} + ${b}`,
+      },
+      { tex: `= ${product} + ${b} = ${total}` },
+      {
+        text:
+          at < 0
+            ? `$${at}$ is negative here, but $\\left(${at}\\right)^{2}$ still comes out positive — squaring a negative number always does. Writing down $-${square}$ instead is the sign that gets carried through by mistake, not squared away.`
+            : `Squaring before multiplying is not a matter of taste: multiplying the coefficient in first would square it too, giving $\\left(${coefficient} \\times ${at}\\right)^{2} = ${(coefficient * at) ** 2}$ instead of $${product}$.`,
+      },
+    ];
+  },
+};
+
 /* ---------- Choosing a rule ---------- */
 
 interface RuleParams {
@@ -936,5 +1092,6 @@ export const differentiationGenerators = [
   trigDerivative,
   expLogDerivative,
   evaluateDerivative,
+  evaluateSteps,
   chooseRule,
 ];

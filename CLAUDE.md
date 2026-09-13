@@ -192,10 +192,23 @@ tree, and both live in `src/ui/reduceSlide.tsx`:
   a piece of the line, then its value from a bank. **Every operator is offered
   whether or not its operands are settled** — taking `8 + 4` before `4 x 3` has
   to be possible, or the order is not being asked about. Nothing about the tap
-  says whether it was the right piece; that is the first invariant. Grading is
-  `replay`, which needs no authored answer sequence: a walk is right when every
-  reduction was legal *at the moment it was made*. Any order precedence permits
-  is therefore accepted.
+  says whether it was the right piece; that is the first invariant.
+
+  Grading is `replay`, and **the value is the only test**. A move is wrong when
+  the number given is not what the piece comes to, and that is enough: taking
+  `8 + 4 x 3` left to right produces 36 rather than 20, so the order mistake is
+  already in the answer. Refusing a move for being out of order as well — which
+  is what this used to do — marked correct arithmetic wrong, because a learner
+  who settles a chunk in one tap and gets it right has not made a mistake.
+
+  A `+`/`-` operator whose left child is another `+` offers its **pair** — the
+  two terms either side of it — rather than its whole sub-tree, addressed as
+  `<path>~`. `a + b - c` parses as `(a + b) - c`, so the `-` owns the entire
+  line, and tapping it used to blank the lot; `b - c` first is ordinary
+  arithmetic and is now its own step. Not offered where the left child is a
+  `-`, since `a - b + c` regroups as `a - (b - c)` and flips the operator the
+  learner just tapped. A pair is not a node, so no generator authors a bank for
+  one — `bankFor` derives it from the shape.
 - **`evaluate`** is the same expression with every support removed: four
   options, no working, no tap targets. Derived automatically by
   `choiceVariant` from any `reduce` generator that declares `choices()`, under

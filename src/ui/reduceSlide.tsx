@@ -24,10 +24,14 @@ import { Tex, Blocks } from './Math';
 import { frameClass, isLocked, type SlideProps } from './slides';
 import type { Slide } from '../content/types';
 import {
-  isReducible,
-  nodeAt,
+  bankFor,
+  coveredBy,
+  isPairPath,
+  landingOf,
+  pairOwner,
   reduceAt,
   renderExpr,
+  targetAt,
   targets,
   toTex,
   type Expr,
@@ -51,12 +55,12 @@ function lines(expr: Expr, moves: Move[]): { expr: Expr; filled?: Path }[] {
   const out: { expr: Expr; filled?: Path }[] = [{ expr }];
   let current = expr;
   for (const move of moves) {
-    const node = nodeAt(current, move.path);
+    const node = targetAt(current, move.path);
     // A move that no longer applies — the content changed under a stored answer
     // — stops the replay rather than throwing.
     if (!node || node.kind === 'num') break;
     current = reduceAt(current, move.path, move.value);
-    out.push({ expr: current, filled: move.path });
+    out.push({ expr: current, filled: landingOf(move.path) });
   }
   return out;
 }
@@ -64,7 +68,7 @@ function lines(expr: Expr, moves: Move[]): { expr: Expr; filled?: Path }[] {
 /**
  * One rendered line.
  *
- * `lit` is the node being replaced, if any: every fragment owned by it is
+ * `lit` is the target being replaced, if any: every fragment it covers is
  * highlighted, which is how tapping the `x` in `8 + 4 x 3` lights all three of
  * `4 x 3` without anyone computing where that sub-expression begins.
  */
@@ -89,23 +93,29 @@ function Line({
 }) {
   const fragments = renderExpr(expr);
   const parts: React.ReactNode[] = [];
+  const blanked = blankAt ? coveredBy(fragments, blankAt) : [];
+  const highlighted = new Set(lit !== undefined ? coveredBy(fragments, lit) : []);
 
   for (let i = 0; i < fragments.length; i += 1) {
     const fragment: Fragment = fragments[i];
 
-    // The blank stands in for the node about to be replaced, so the rest of the
-    // line is shown exactly as it will be once the value lands.
-    if (blankAt && fragment.owners.includes(blankAt)) {
-      if (fragments.findIndex((f) => f.owners.includes(blankAt)) === i) {
-        parts.push(<span key={i} className="answer-slot focus" />);
-      }
+    // The blank stands in for the target about to be replaced, so the rest of
+    // the line is shown exactly as it will be once the value lands.
+    if (blanked.includes(i)) {
+      if (blanked[0] === i) parts.push(<span key={i} className="answer-slot focus" />);
       continue;
     }
 
-    const isLit = lit !== undefined && fragment.owners.includes(lit);
+    const isLit = highlighted.has(i);
     // The value this line introduced, ringed green once the walk is graded right.
     const isFilled = filled !== undefined && fragment.owners[fragment.owners.length - 1] === filled;
-    const tap = taps?.find((t) => t.path === fragment.handle);
+    // A pair hangs off its operator, so the operator's own handle answers for
+    // it: `r~` is offered where the fragment says `r`.
+    const tap = taps?.find(
+      (t) =>
+        t.path === fragment.handle ||
+        (isPairPath(t.path) && pairOwner(t.path) === fragment.handle),
+    );
 
     if (tap && onTap) {
       parts.push(
@@ -193,7 +203,9 @@ function ReduceBody({
     onAnswer(tokens.slice(0, -1));
   };
 
-  const bank = armed ? (slide.banks[armed] ?? []) : [];
+  const armedNode = armed ? targetAt(live, armed) : undefined;
+  // Authored banks win; a pair has none, so one is derived from the shape.
+  const bank = armed ? (slide.banks[armed] ?? (armedNode ? bankFor(armedNode) : [])) : [];
   const correct = feedback.kind === 'correct';
 
   return (
@@ -271,14 +283,10 @@ export function reduceComplete(expr: Expr, answer: unknown): boolean {
   const moves = answer.map(parseMove).filter((move): move is Move => move !== undefined);
   let current = expr;
   for (const move of moves) {
-    const node = nodeAt(current, move.path);
-    if (!node || node.kind === 'num' || !isReducible(node)) {
-      // An illegal move still settles the line it was made on: the learner has
-      // committed to it, and Check must be reachable so they can find out.
-      if (!node || node.kind === 'num') break;
-      current = reduceAt(current, move.path, move.value);
-      continue;
-    }
+    const node = targetAt(current, move.path);
+    // A move that no longer applies stops the walk; a wrong value does not, so
+    // Check stays reachable and the learner finds out by checking.
+    if (!node || node.kind === 'num') break;
     current = reduceAt(current, move.path, move.value);
   }
   return current.kind === 'num';

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ROOT,
   bin,
+  coveredBy,
   isSolved,
   log,
   num,
@@ -115,16 +116,20 @@ describe('grading a walk', () => {
     expect(isSolved(sample, other)).toBe(true);
   });
 
-  it('refuses the addition before the multiplication', () => {
+  it('catches the wrong order by the number it produces, not by refusing it', () => {
     const line = bin('+', num(8), bin('*', num(4), num(3)));
-    const early = replay(line, [{ path: ROOT, value: 20 }]);
-    expect(early.fault).toBe('out-of-order');
+    // Taken left to right the line gives 12 then 36, so the order mistake is
+    // already in the value and needs no rule of its own.
+    expect(replay(line, [{ path: ROOT, value: 36 }]).fault).toBe('wrong-value');
+    // The same tap with the right number is right, because it is right.
+    expect(isSolved(line, [{ path: ROOT, value: 20 }])).toBe(true);
   });
 
-  it('refuses a right value for a piece taken too early', () => {
-    // 2^3 + ... is worth 20, and taking the whole thing in one tap is still
-    // wrong: the value is right and the order is not.
-    expect(solve([{ path: ROOT, value: 20 }]).fault).toBe('out-of-order');
+  it('accepts a piece taken early when its value is right', () => {
+    // Refusing this used to fail a learner who had done the arithmetic
+    // correctly and simply done it in fewer taps.
+    expect(solve([{ path: ROOT, value: 20 }]).fault).toBeUndefined();
+    expect(solve([{ path: ROOT, value: 21 }]).fault).toBe('wrong-value');
   });
 
   it('refuses a wrong value for a legal piece', () => {
@@ -159,6 +164,52 @@ describe('a negative base', () => {
   });
 });
 
+describe('two terms of a chain', () => {
+  /**
+   * `sqrt(36) + 4 - 3`, the shape that sent a learner down a dead end.
+   *
+   * The chain parses left to right, so the minus owns the whole line and
+   * tapping it used to ask for the value of everything — with the root still
+   * unopened. `4 - 3` is ordinary arithmetic and is now its own step.
+   */
+  const chain = bin('-', bin('+', root(num(36)), num(4)), num(3));
+
+  it('offers the right-hand pair in place of the whole sub-tree', () => {
+    expect(targets(chain).map((t) => `${t.path}${t.legal ? '' : '!'}`)).toEqual([
+      'r.l.l',
+      'r.l!',
+      'r~',
+    ]);
+  });
+
+  it('lights the operator and the two terms either side of it', () => {
+    const fragments = renderExpr(chain);
+    expect(coveredBy(fragments, 'r~').map((i) => fragments[i].tex)).toEqual(['4', '-', '3']);
+  });
+
+  it('replaces only those two terms, leaving the rest of the line alone', () => {
+    expect(toTex(reduceAt(chain, 'r~', 1))).toBe('\\sqrt{36} + 1');
+  });
+
+  it('grades a walk that takes the pair first', () => {
+    expect(
+      isSolved(chain, [
+        { path: 'r~', value: 1 },
+        { path: 'r.l', value: 6 },
+        { path: 'r', value: 7 },
+      ]),
+    ).toBe(true);
+  });
+
+  it('offers no pair where regrouping would flip a sign', () => {
+    // `a - b + c` is not `a - (b + c)`, so the two right-hand terms are not
+    // offered together; `a - b` first costs nothing and keeps every sign as
+    // the learner sees it.
+    const minusFirst = bin('+', bin('-', num(10), num(3)), num(5));
+    expect(targets(minusFirst).map((t) => t.path)).toEqual(['r.l', 'r']);
+  });
+});
+
 describe('logarithms', () => {
   it('evaluates to a whole number, floats notwithstanding', () => {
     // log(8)/log(2) through floats is 2.9999999999999996.
@@ -187,7 +238,10 @@ describe('logarithms', () => {
       { path: 'r.r', value: 3 },
       { path: 'r', value: 2 },
     ])).toBe(true);
-    // The subtraction taken before either log is settled.
-    expect(replay(expr, [{ path: 'r', value: 2 }]).fault).toBe('out-of-order');
+    // The subtraction taken before either log is settled: accepted, because 2
+    // is what it comes to. A learner who had not taken both logs would not
+    // have arrived at 2.
+    expect(replay(expr, [{ path: 'r', value: 2 }]).fault).toBeUndefined();
+    expect(replay(expr, [{ path: 'r', value: 5 }]).fault).toBe('wrong-value');
   });
 });

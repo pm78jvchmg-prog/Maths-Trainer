@@ -70,6 +70,44 @@ export type Path = string;
 export const ROOT: Path = 'r';
 const step = (path: Path, branch: string): Path => `${path}.${branch}`;
 
+/**
+ * The suffix marking a **pair** path: the right-hand two terms of a `+`/`-`
+ * node, taken together.
+ *
+ * `a + b - c` parses left to right, so the `-` node owns the whole line and
+ * tapping it used to mean "collapse everything". That is not what the line
+ * looks like, and worse, it is not the only valid order: `b - c` first is
+ * ordinary arithmetic, and refusing it taught a superstition. There is no node
+ * for `b - c`, though — it is two terms of a chain, not a sub-tree — so it is
+ * addressed as the parent's path with this suffix, and `pairOf` builds the
+ * expression it stands for.
+ *
+ * Only when the left child is a `+` node, deliberately. In `a - b + c` the two
+ * right-hand terms regroup as `a - (b - c)`, which flips the operator the
+ * learner just tapped; taking `a - b` first instead costs nothing and keeps
+ * every sign on screen honest.
+ */
+export const PAIR = '~';
+
+export const isPairPath = (path: Path): boolean => path.endsWith(PAIR);
+
+/** The node a pair path hangs off. */
+export const pairOwner = (path: Path): Path => path.slice(0, -PAIR.length);
+
+/** The expression a node's pair path stands for, if it has one. */
+export function pairOf(expr: Expr): Expr | undefined {
+  if (expr.kind !== 'binary' || (expr.op !== '+' && expr.op !== '-')) return undefined;
+  if (expr.left.kind !== 'binary' || expr.left.op !== '+') return undefined;
+  return bin(expr.op, expr.left.right, expr.right);
+}
+
+/** What a path names: a node, or the pair a `~` path stands for. */
+export function targetAt(expr: Expr, path: Path): Expr | undefined {
+  if (!isPairPath(path)) return nodeAt(expr, path);
+  const owner = nodeAt(expr, pairOwner(path));
+  return owner ? pairOf(owner) : undefined;
+}
+
 export function nodeAt(expr: Expr, path: Path): Expr | undefined {
   if (path === ROOT) return expr;
   const parts = path.split('.').slice(1);
@@ -144,6 +182,12 @@ export function isReducible(expr: Expr): boolean {
  * be made is a mistake that cannot be taught. A power or a root is offered only
  * once it is reducible, because `(5 - 3)^2` collapsing in one tap would skip
  * the bracket rather than get it wrong.
+ *
+ * A `+`/`-` operator sitting on top of another `+` offers its **pair** instead
+ * of its whole sub-tree, so the `-` in `a + b - c` asks for `b - c` rather than
+ * for the entire line. That is what the line looks like, and the chain still
+ * finishes: once the pair collapses, the node's left is no longer a `+` and the
+ * operator means the whole of what is left of it again.
  */
 export interface Target {
   path: Path;
@@ -155,7 +199,9 @@ export function targets(expr: Expr, path: Path = ROOT, out: Target[] = []): Targ
   if (expr.kind === 'num') return out;
   if (expr.kind === 'binary') {
     targets(expr.left, step(path, 'l'), out);
-    out.push({ path, legal: isReducible(expr) });
+    const pair = pairOf(expr);
+    if (pair) out.push({ path: `${path}${PAIR}`, legal: isReducible(pair) });
+    else out.push({ path, legal: isReducible(expr) });
     targets(expr.right, step(path, 'r'), out);
     return out;
   }
@@ -176,13 +222,30 @@ export function targets(expr: Expr, path: Path = ROOT, out: Target[] = []): Targ
   return out;
 }
 
-/** The tree with one sub-expression replaced by a number. */
+/**
+ * The tree with one sub-expression replaced by a number.
+ *
+ * A pair path replaces the two right-hand terms rather than the node, so
+ * `a + b - c` with `b - c` settled becomes `a + <value>` and keeps `a` intact.
+ */
 export function reduceAt(expr: Expr, path: Path, value: number): Expr {
-  if (path === ROOT) return num(value);
+  if (isPairPath(path)) {
+    return replaceAt(expr, pairOwner(path), (node) =>
+      node.kind === 'binary' && node.left.kind === 'binary'
+        ? bin('+', node.left.left, num(value))
+        : num(value),
+    );
+  }
+  return replaceAt(expr, path, () => num(value));
+}
+
+/** The tree with the node at `path` swapped for whatever `make` returns. */
+function replaceAt(expr: Expr, path: Path, make: (node: Expr) => Expr): Expr {
+  if (path === ROOT) return make(expr);
   const parts = path.split('.').slice(1);
 
   const rebuild = (node: Expr, depth: number): Expr => {
-    if (depth === parts.length) return num(value);
+    if (depth === parts.length) return make(node);
     const part = parts[depth];
     if (node.kind === 'binary') {
       return part === 'l'
@@ -378,6 +441,73 @@ export function toTex(expr: Expr): string {
   return `${side(expr.left, false)} ${OP_TEX[expr.op]} ${side(expr.right, true)}`;
 }
 
+/**
+ * Which rendered fragments a target covers, by index.
+ *
+ * Highlighting is by ownership rather than by position, so the widget never
+ * computes where a sub-expression starts and ends. A pair covers the two terms
+ * either side of its operator and the operator itself, which is contiguous
+ * because that is the order `renderExpr` emits them in.
+ */
+export function coveredBy(fragments: readonly Fragment[], path: Path): number[] {
+  if (!isPairPath(path)) {
+    return fragments.flatMap((fragment, idx) => (fragment.owners.includes(path) ? [idx] : []));
+  }
+  const owner = pairOwner(path);
+  const left = `${owner}.l.r`;
+  const right = `${owner}.r`;
+  return fragments.flatMap((fragment, idx) =>
+    fragment.handle === owner ||
+    fragment.owners.includes(left) ||
+    fragment.owners.includes(right)
+      ? [idx]
+      : [],
+  );
+}
+
+/** Where the number a move introduces ends up, for ringing it green. */
+export const landingOf = (path: Path): Path =>
+  isPairPath(path) ? `${pairOwner(path)}.r` : path;
+
+/**
+ * A bank for a target the content did not author one for.
+ *
+ * Generators key their banks by node path and write their own distractors, and
+ * those stay authoritative. A pair is not a node, so it has none — and rather
+ * than make every generator enumerate the pairs of its own chain, one is built
+ * from the slips the shape itself invites: the other three ways two numbers
+ * combine, then near misses to fill.
+ */
+export function bankFor(node: Expr): string[] {
+  const correct = valueOf(node);
+  const near: number[] =
+    node.kind === 'binary'
+      ? [
+          valueOf(node.left) + valueOf(node.right),
+          valueOf(node.left) - valueOf(node.right),
+          valueOf(node.right) - valueOf(node.left),
+          valueOf(node.left) * valueOf(node.right),
+        ]
+      : [];
+  const seen = new Set([correct]);
+  const out = [correct];
+  for (const value of near) {
+    if (out.length >= 6) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  for (let gap = 1; out.length < 6; gap += 1) {
+    for (const candidate of [correct + gap, correct - gap]) {
+      if (out.length >= 6) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out.sort((x, y) => x - y).map(String);
+}
+
 /* ---------- grading ---------- */
 
 /** One reduction the learner made: which node, and what they said it was worth. */
@@ -392,24 +522,29 @@ export interface Replay {
   /** Moves applied before something went wrong, or all of them. */
   applied: number;
   /** The first fault found, if any. */
-  fault?: 'missing' | 'out-of-order' | 'wrong-value';
+  fault?: 'missing' | 'wrong-value';
 }
 
 /**
  * Re-walk the learner's moves over the original expression.
  *
  * This is the whole grader. A move is faulty when it names a node that is not
- * there, when that node was not yet reducible — the order mistake — or when the
- * value given is not what it comes to. Nothing here consults an expected
- * sequence, so every order precedence allows is accepted and no particular one
- * is privileged.
+ * there, or when the value given is not what that node comes to. Nothing here
+ * consults an expected sequence, so every order precedence allows is accepted
+ * and no particular one is privileged.
+ *
+ * The value is the only test, and it is enough. Taking an operator before its
+ * operands are settled is not refused: the learner has committed to what the
+ * whole of it comes to, and if they reached for it in the wrong order they will
+ * have the wrong number — `8 + 4 x 3` taken left to right gives 36, not 20.
+ * Refusing the move instead would mark correct arithmetic wrong, which is what
+ * it used to do.
  */
 export function replay(expr: Expr, moves: readonly Move[]): Replay {
   let current = expr;
   for (const [index, move] of moves.entries()) {
-    const node = nodeAt(current, move.path);
+    const node = targetAt(current, move.path);
     if (!node || node.kind === 'num') return { expr: current, applied: index, fault: 'missing' };
-    if (!isReducible(node)) return { expr: current, applied: index, fault: 'out-of-order' };
     if (!Number.isFinite(move.value) || Math.abs(valueOf(node) - move.value) > 1e-9) {
       return { expr: current, applied: index, fault: 'wrong-value' };
     }

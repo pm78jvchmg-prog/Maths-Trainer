@@ -712,15 +712,18 @@ describe('reduce grading', () => {
     ).toBe('correct');
   });
 
-  it('refuses the addition taken before the multiplication', () => {
-    // Every value here is right; only the order is wrong.
-    expect(walk(['r.l=8', 'r.r.l.b=2', 'r.r.l=4', 'r.r.r=3', 'r=20']).feedback.kind).toBe(
-      'incorrect',
-    );
+  it('catches the addition taken before the multiplication by its value', () => {
+    // The last tap settles `8 + 4 x 3` in one go. Left to right that gives 36,
+    // which is the order mistake and is marked wrong; 20 is right arithmetic
+    // in fewer taps and is marked right.
+    const upTo = ['r.l=8', 'r.r.l.b=2', 'r.r.l=4', 'r.r.r=3'];
+    expect(walk([...upTo, 'r=36']).feedback.kind).toBe('incorrect');
+    expect(walk([...upTo, 'r=20']).feedback.kind).toBe('correct');
   });
 
-  it('refuses a piece whose operands are not settled, however right the value', () => {
-    expect(walk(['r=20']).feedback.kind).toBe('incorrect');
+  it('accepts the whole line in one tap, and refuses a wrong number for it', () => {
+    expect(walk(['r=20']).feedback.kind).toBe('correct');
+    expect(walk(['r=36']).feedback.kind).toBe('incorrect');
   });
 
   it('refuses a wrong value on a legal piece', () => {
@@ -738,7 +741,7 @@ describe('reduce grading', () => {
 
   it('refuses a second attempt inside an assessment', () => {
     const sealed: Lesson = { ...reduceLesson, id: 'reduce-sealed', assessment: true };
-    const wrong = walk(['r=20'], sealed);
+    const wrong = walk(['r=36'], sealed);
     expect(wrong.feedback.kind).toBe('incorrect');
     expect(canRetry(wrong)).toBe(false);
   });

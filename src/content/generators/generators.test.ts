@@ -19,7 +19,17 @@ import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression, math } from '../../engine/expression';
 import { registeredGenerators, registry } from '../registry';
 import { courses } from '../courses';
-import { nodeAt, reduceAt, renderExpr, targets, toTex, valueOf, type Expr } from '../expr';
+import {
+  isPairPath,
+  pairOwner,
+  reduceAt,
+  renderExpr,
+  targetAt,
+  targets,
+  toTex,
+  valueOf,
+  type Expr,
+} from '../expr';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX } from '../choiceVariant';
@@ -140,9 +150,14 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
               .map((fragment) => fragment.handle)
               .filter((handle): handle is string => handle !== undefined),
           );
-          const next = targets(live).find((target) => target.legal && handles.has(target.path));
+          // A pair is offered on its operator's handle, as the widget reads it.
+          const next = targets(live).find(
+            (target) =>
+              target.legal &&
+              handles.has(isPairPath(target.path) ? pairOwner(target.path) : target.path),
+          );
           expect(next, `nothing legal is tappable in ${toTex(live)}`).toBeDefined();
-          const node = nodeAt(live, next!.path);
+          const node = targetAt(live, next!.path);
           live = reduceAt(live, next!.path, valueOf(node!));
         }
 

@@ -17,7 +17,7 @@
  * happens to be how the topic is taught.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
-import { bin, num, pow, root } from '../expr';
+import { bin, num, pow, root, valueOf, type Expr } from '../expr';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import type { Rng } from '../../engine/rng';
@@ -1043,6 +1043,227 @@ const evaluateWithRoots: Generator<SurdEvalParams> = {
   },
 };
 
+
+interface LawEvalParams {
+  base: number;
+  /** First index. */
+  m: number;
+  /** Second index, or the outer power. */
+  n: number;
+  /** The loose number added or taken away. */
+  k: number;
+  /** Which index law the line is built around. */
+  shape: 'power-of-power' | 'coefficient' | 'divide' | 'multiply';
+}
+
+/**
+ * Evaluate a line built around one index law.
+ *
+ * `idx-evaluate-order` asks about precedence with a fixed shape. This asks the
+ * same *kind* of question — tap a piece, choose its value — but the shape
+ * follows whichever law the lesson has just taught, so the reduction is
+ * practice of that law rather than of arithmetic in general.
+ *
+ * Four shapes, one per lesson that wants one. Each keeps every intermediate
+ * value whole: the division has its indices ordered so the quotient is a whole
+ * power, and nothing here produces a negative index, because `2^{-3}` is an
+ * eighth and a bank of eighths is a question about fractions.
+ */
+const lawBase: Omit<Generator<LawEvalParams>, 'id' | 'sample'> = {
+  choices: ({ base, m, n, k, shape }) => {
+    const correct = lawValue(base, m, n, k, shape);
+    const wrong = lawSlips(base, m, n, k, shape);
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (candidate <= 0 || seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  render: (params): Slide => {
+    const { base, m, n, k, shape } = params;
+    const expr = lawExpr(base, m, n, k, shape);
+
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 6) break;
+        if (!Number.isInteger(value) || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 6; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 6) break;
+          if (candidate <= 0 || seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    const banks: Record<string, string[]> = {};
+    const fill = (path: string, node: Expr, ...near: number[]) => {
+      banks[path] = offer(valueOf(node), ...near);
+    };
+
+    // Every node gets a bank, keyed by the path it sits at in this shape.
+    const walk = (node: Expr, path: string): void => {
+      if (node.kind === 'num') return;
+      if (node.kind === 'binary') {
+        walk(node.left, `${path}.l`);
+        walk(node.right, `${path}.r`);
+        const l = valueOf(node.left);
+        const r = valueOf(node.right);
+        fill(path, node, l + r, l - r, l * r, Math.abs(l - r));
+        return;
+      }
+      if (node.kind === 'power') {
+        walk(node.base, `${path}.b`);
+        walk(node.exponent, `${path}.e`);
+        const b = valueOf(node.base);
+        const e = valueOf(node.exponent);
+        // Multiplying instead of raising is the slip that never goes away.
+        fill(path, node, b * e, b + e, b);
+        return;
+      }
+      walk(node.arg, `${path}.a`);
+      fill(path, node, valueOf(node.arg));
+    };
+    walk(expr, 'r');
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work this out one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr,
+      banks,
+    };
+  },
+  solution: ({ base, m, n, k, shape }) => {
+    const total = lawValue(base, m, n, k, shape);
+    if (shape === 'power-of-power') {
+      return [
+        { text: 'A power raised to a power multiplies the indices. Work the inside out first and the line becomes arithmetic.' },
+        { tex: `\\left(${base}^{${m}}\\right)^{${n}} = ${base}^{${m * n}} = ${Math.pow(base, m * n)}` },
+        { tex: `${Math.pow(base, m * n)} - ${k} = ${total}` },
+      ];
+    }
+    if (shape === 'divide') {
+      return [
+        { text: 'Dividing powers of the same base subtracts the indices, and the subtraction of the loose number waits until that is done.' },
+        { tex: `${base}^{${m}} \\div ${base}^{${n}} = ${base}^{${m - n}} = ${Math.pow(base, m - n)}` },
+        { tex: `${Math.pow(base, m - n)} + ${k} = ${total}` },
+      ];
+    }
+    if (shape === 'coefficient') {
+      return [
+        { text: 'The index belongs to the base alone, never to the number in front of it. Take the power first, then multiply.' },
+        { tex: `${k} \\times ${base}^{${m}} = ${k} \\times ${Math.pow(base, m)} = ${k * Math.pow(base, m)}` },
+        { text: `Multiplying first would give $${Math.pow(k * base, m)}$, which is a different number entirely.` },
+      ];
+    }
+    return [
+      { text: 'Multiplying powers of the same base adds the indices, and that has to happen before anything is added on the end.' },
+      { tex: `${base}^{${m}} \\times ${base}^{${n}} = ${base}^{${m + n}} = ${Math.pow(base, m + n)}` },
+      { tex: `${Math.pow(base, m + n)} + ${k} = ${total}` },
+    ];
+  },
+};
+
+/** The tree for each shape, so render and the value agree by construction. */
+function lawExpr(base: number, m: number, n: number, k: number, shape: LawEvalParams['shape']): Expr {
+  if (shape === 'power-of-power') {
+    return bin('-', pow(pow(num(base), num(m)), num(n)), num(k));
+  }
+  if (shape === 'divide') {
+    return bin('+', bin('/', pow(num(base), num(m)), pow(num(base), num(n))), num(k));
+  }
+  if (shape === 'coefficient') {
+    return bin('*', num(k), pow(num(base), num(m)));
+  }
+  return bin('+', bin('*', pow(num(base), num(m)), pow(num(base), num(n))), num(k));
+}
+
+function lawValue(base: number, m: number, n: number, k: number, shape: LawEvalParams['shape']): number {
+  return valueOf(lawExpr(base, m, n, k, shape));
+}
+
+/** The numbers the usual mistakes produce, offered alongside the answer. */
+function lawSlips(base: number, m: number, n: number, k: number, shape: LawEvalParams['shape']): number[] {
+  if (shape === 'power-of-power') {
+    return [Math.pow(base, m + n) - k, Math.pow(base, m * n) + k, Math.pow(base, m) * n - k];
+  }
+  if (shape === 'divide') {
+    return [Math.pow(base, m / n) + k, Math.pow(base, m - n) - k, Math.pow(base, m) - Math.pow(base, n) + k];
+  }
+  if (shape === 'coefficient') {
+    return [Math.pow(k * base, m), k * base * m, Math.pow(base, m) + k];
+  }
+  return [Math.pow(base, m * n) + k, Math.pow(base, m + n) - k, Math.pow(base, m) + Math.pow(base, n) + k];
+}
+
+
+/** Numbers for one shape, chosen so every intermediate value stays whole. */
+function sampleLaw(rng: Rng, difficulty: number, shape: LawEvalParams['shape']): LawEvalParams {
+  const base = rng.int(2, difficulty > 1 ? 5 : 3);
+  if (shape === 'divide') {
+    // The larger index first, so the quotient is a whole power.
+    const n = rng.int(1, 3);
+    return { base, m: n + rng.int(1, difficulty > 1 ? 4 : 3), n, k: rng.int(2, 9), shape };
+  }
+  if (shape === 'power-of-power') {
+    // The product of the two indices is what gets raised, so keep it small.
+    return { base: rng.int(2, 3), m: rng.int(2, 3), n: 2, k: rng.int(2, 9), shape };
+  }
+  return {
+    base,
+    m: rng.int(2, difficulty > 1 ? 5 : 4),
+    n: rng.int(2, difficulty > 1 ? 4 : 3),
+    k: rng.int(2, difficulty > 1 ? 12 : 9),
+    shape,
+  };
+}
+
+/**
+ * One generator per law, sharing everything but the shape.
+ *
+ * A lesson asks for the law it has just taught, so the line a learner reduces
+ * is built on that law rather than on whichever of the four a draw happened to
+ * land on. Everything else — the banks, the distractors, the worked solution —
+ * already branches on `shape`, so there is nothing to duplicate.
+ */
+const lawReduction = (shape: LawEvalParams['shape'], id: string): Generator<LawEvalParams> => ({
+  ...lawBase,
+  id,
+  sample: (rng, difficulty) => sampleLaw(rng, difficulty, shape),
+});
+
+const evaluateMultiplyLaw = lawReduction('multiply', 'idx-evaluate-multiply');
+const evaluateDivideLaw = lawReduction('divide', 'idx-evaluate-divide');
+const evaluatePowerLaw = lawReduction('power-of-power', 'idx-evaluate-power');
+const evaluateCoefficientLaw = lawReduction('coefficient', 'idx-evaluate-coefficient');
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -1058,4 +1279,8 @@ export const indicesGenerators = [
   indexEquation,
   evaluateInOrder,
   evaluateWithRoots,
+  evaluateMultiplyLaw,
+  evaluateDivideLaw,
+  evaluatePowerLaw,
+  evaluateCoefficientLaw,
 ] as unknown as Generator<unknown>[];

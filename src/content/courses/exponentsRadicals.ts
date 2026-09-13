@@ -123,7 +123,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-divide'),
-            ask('idx-divide'),
+            ask('idx-evaluate-divide'),
             teach(
               prose(
                 'The two laws so far are a pair. Multiplying adds, dividing subtracts, and both insist on the same base.',
@@ -134,7 +134,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-divide+choice'),
-            ask('idx-divide'),
+            ask('idx-evaluate-divide+choice'),
           ],
           skillCheck: [ask('idx-divide', 2), ask('idx-divide', 2), ask('idx-divide', 2)],
         },
@@ -169,7 +169,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply'),
-            ask('idx-power-of-power'),
+            ask('idx-evaluate-power'),
             teach(
               prose(
                 'Negative exponents need no special treatment here — multiply them as they stand and keep the sign.',
@@ -180,7 +180,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-power-of-power+choice'),
-            ask('idx-power-of-power'),
+            ask('idx-evaluate-power+choice'),
           ],
           skillCheck: [
             ask('idx-power-of-power', 2),
@@ -221,7 +221,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply-terms'),
-            ask('idx-multiply-terms'),
+            ask('idx-evaluate-coefficient'),
             teach(
               prose(
                 'Addition is the odd one out. $3x^{2} + 4x^{2}$ is $7x^{2}$, because those are like terms — same base, same index — so the coefficients simply count them.',
@@ -232,7 +232,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply-terms+choice'),
-            ask('idx-multiply-terms'),
+            ask('idx-evaluate-coefficient+choice'),
           ],
           skillCheck: [
             ask('idx-multiply-terms', 2),
@@ -270,7 +270,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-negative'),
-            ask('idx-negative'),
+            ask('idx-evaluate-divide+choice'),
             teach(
               prose('Negative indices obey every law already met, with no special cases.'),
               maths('x^{-2} \\times x^{-3} = x^{-5} \\qquad \\frac{x^{-2}}{x^{3}} = x^{-5}'),
@@ -279,7 +279,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-negative+choice'),
-            ask('idx-divide'),
+            ask('idx-evaluate-divide'),
           ],
           skillCheck: [ask('idx-negative', 2), ask('idx-negative', 2), ask('idx-negative', 2)],
         },
@@ -334,7 +334,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-fractional'),
-            ask('idx-fractional'),
+            ask('idx-evaluate-roots'),
             teach(
               prose(
                 'The same reading handles a root of a root, because the laws are still the laws.',
@@ -347,7 +347,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-fractional+choice'),
-            ask('idx-fractional'),
+            ask('idx-evaluate-roots+choice'),
           ],
           // Difficulty 1 here, deliberately: difficulty 2 brings in a numerator
           // above 1, which is the next lesson's material.

@@ -28,7 +28,9 @@ export type Expr =
   | { kind: 'binary'; op: '+' | '-' | '*' | '/'; left: Expr; right: Expr }
   | { kind: 'power'; base: Expr; exponent: Expr }
   /** `degree` defaults to 2; 3 draws a cube root, and so on. */
-  | { kind: 'root'; arg: Expr; degree?: number };
+  | { kind: 'root'; arg: Expr; degree?: number }
+  /** A logarithm to a stated base, written `\log_{base} arg`. */
+  | { kind: 'log'; base: Expr; arg: Expr };
 
 /** Convenience builders, so content reads like the expression it describes. */
 export const num = (value: number): Expr => ({ kind: 'num', value });
@@ -40,6 +42,7 @@ export const bin = (op: Extract<Expr, { kind: 'binary' }>['op'], left: Expr, rig
 });
 export const pow = (base: Expr, exponent: Expr): Expr => ({ kind: 'power', base, exponent });
 export const root = (arg: Expr, degree?: number): Expr => ({ kind: 'root', arg, degree });
+export const log = (base: Expr, arg: Expr): Expr => ({ kind: 'log', base, arg });
 
 /**
  * A node's address: the path taken from the root to reach it.
@@ -62,6 +65,7 @@ export function nodeAt(expr: Expr, path: Path): Expr | undefined {
     if (node.kind === 'binary') node = part === 'l' ? node.left : part === 'r' ? node.right : undefined;
     else if (node.kind === 'power') node = part === 'b' ? node.base : part === 'e' ? node.exponent : undefined;
     else if (node.kind === 'root') node = part === 'a' ? node.arg : undefined;
+    else if (node.kind === 'log') node = part === 'g' ? node.base : part === 'v' ? node.arg : undefined;
     else return undefined;
   }
   return node;
@@ -82,6 +86,12 @@ export function valueOf(expr: Expr): number {
     return Math.abs(rooted - Math.round(rooted)) < 1e-9 ? Math.round(rooted) : rooted;
   }
   if (expr.kind === 'power') return Math.pow(valueOf(expr.base), valueOf(expr.exponent));
+  if (expr.kind === 'log') {
+    // Rounded for the same reason roots are: log_2(8) through floats is
+    // 2.9999999999999996, and every value in these questions is whole.
+    const exact = Math.log(valueOf(expr.arg)) / Math.log(valueOf(expr.base));
+    return Math.abs(exact - Math.round(exact)) < 1e-9 ? Math.round(exact) : exact;
+  }
   const left = valueOf(expr.left);
   const right = valueOf(expr.right);
   if (expr.op === '+') return left + right;
@@ -95,6 +105,7 @@ export function isReducible(expr: Expr): boolean {
   if (expr.kind === 'num') return false;
   if (expr.kind === 'root') return expr.arg.kind === 'num';
   if (expr.kind === 'power') return expr.base.kind === 'num' && expr.exponent.kind === 'num';
+  if (expr.kind === 'log') return expr.base.kind === 'num' && expr.arg.kind === 'num';
   return expr.left.kind === 'num' && expr.right.kind === 'num';
 }
 
@@ -127,6 +138,12 @@ export function targets(expr: Expr, path: Path = ROOT, out: Target[] = []): Targ
     if (isReducible(expr)) out.push({ path, legal: true });
     return out;
   }
+  if (expr.kind === 'log') {
+    targets(expr.base, step(path, 'g'), out);
+    targets(expr.arg, step(path, 'v'), out);
+    if (isReducible(expr)) out.push({ path, legal: true });
+    return out;
+  }
   targets(expr.arg, step(path, 'a'), out);
   if (isReducible(expr)) out.push({ path, legal: true });
   return out;
@@ -151,6 +168,11 @@ export function reduceAt(expr: Expr, path: Path, value: number): Expr {
         : { ...node, exponent: rebuild(node.exponent, depth + 1) };
     }
     if (node.kind === 'root') return { ...node, arg: rebuild(node.arg, depth + 1) };
+    if (node.kind === 'log') {
+      return part === 'g'
+        ? { ...node, base: rebuild(node.base, depth + 1) }
+        : { ...node, arg: rebuild(node.arg, depth + 1) };
+    }
     return node;
   };
 
@@ -177,6 +199,8 @@ export interface Fragment {
 /** Binding strength, for deciding where brackets are needed. */
 function precedence(expr: Expr): number {
   if (expr.kind === 'binary') return expr.op === '+' || expr.op === '-' ? 1 : 2;
+  // A log, a power and a root all bind tighter than any operator, so none of
+  // them ever needs bracketing as an operand.
   return 3;
 }
 
@@ -233,6 +257,14 @@ export function renderExpr(
     return out;
   }
 
+  if (expr.kind === 'log') {
+    // Always one fragment: the base is set under the word `log`, and KaTeX
+    // offers no handle inside a rendered subscript to make it tappable
+    // separately. Every log these questions ask has numeric parts anyway.
+    out.push({ tex: toTex(expr), owners: mine, handle: isReducible(expr) ? path : undefined });
+    return out;
+  }
+
   const wrap = (child: Expr, branch: 'l' | 'r') => {
     const tighter = precedence(child) < precedence(expr);
     // Plain brackets again, for the same reason: they are separate fragments.
@@ -264,6 +296,9 @@ export function toTex(expr: Expr): string {
     const bare = expr.base.kind === 'num' && expr.base.value >= 0;
     const base = bare ? toTex(expr.base) : `\\left(${toTex(expr.base)}\\right)`;
     return `${base}^{${toTex(expr.exponent)}}`;
+  }
+  if (expr.kind === 'log') {
+    return `\\log_{${toTex(expr.base)}}\\left(${toTex(expr.arg)}\\right)`;
   }
   const side = (child: Expr) =>
     precedence(child) < precedence(expr) ? `\\left(${toTex(child)}\\right)` : toTex(child);

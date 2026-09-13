@@ -24,6 +24,7 @@
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
+import { bin, log, num } from '../expr';
 import { EXP_KEYS } from './calculus';
 
 /** Solving for an index needs a logarithm key. */
@@ -740,6 +741,155 @@ const growth: Generator<GrowthParams> = {
   },
 };
 
+
+/* ---------- evaluating a chain of logarithms ---------- */
+
+interface LogChainParams {
+  /** First log: base^index. */
+  aBase: number;
+  aIndex: number;
+  /** Second log, subtracted. */
+  bBase: number;
+  bIndex: number;
+  /** The whole number added on at the end. */
+  extra: number;
+}
+
+/**
+ * Evaluate a chain of logarithms, one piece at a time.
+ *
+ * Every other question in this course asks for one logarithm, so a learner can
+ * answer the lot without ever deciding what happens first. Here the two logs
+ * have to be settled before the subtraction can happen, and the multiplication
+ * before the addition — the same precedence question the indices course asks,
+ * but with `\log_{2}(32)` standing where a plain number would.
+ *
+ * That substitution is the point. A logarithm *is* a number; treating it as one
+ * is most of what makes the laws usable, and a learner who hesitates at
+ * `\log_{2}(32) - \log_{3}(27)` has not yet made that leap.
+ */
+const logChain: Generator<LogChainParams> = {
+  id: 'log-chain-steps',
+  choices: ({ aBase, aIndex, bBase, bIndex, extra }) => {
+    const correct = (aIndex - bIndex) * extra;
+    const wrong = [
+      aIndex - bIndex * extra, // the multiplication taken before the bracket
+      (aIndex + bIndex) * extra, // subtraction read as addition
+      aIndex - bIndex + extra, // the times read as a plus
+      Math.pow(aBase, aIndex) - Math.pow(bBase, bIndex), // the logs not taken at all
+    ];
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const pool = difficulty > 1 ? HARD_PAIRS : EASY_PAIRS;
+    // Indices of at least 2, and the first strictly larger than the second, so
+    // the bracket is positive and the question is about order rather than
+    // about handling a negative through a multiplication.
+    const usable = pool.filter((pair) => pair.index >= 2 && pair.index <= 6);
+    const a = rng.pick(usable);
+    const smaller = usable.filter((pair) => pair.index < a.index);
+    const b = smaller.length > 0 ? rng.pick(smaller) : { base: 2, index: 2 };
+    return {
+      aBase: a.base,
+      aIndex: a.index,
+      bBase: b.base,
+      bIndex: b.index,
+      extra: rng.int(2, difficulty > 1 ? 9 : 5),
+    };
+  },
+  render: ({ aBase, aIndex, bBase, bIndex, extra }): Slide => {
+    const aArg = Math.pow(aBase, aIndex);
+    const bArg = Math.pow(bBase, bIndex);
+    // (log_a - log_b) x extra. The bracket is explicit, so the question is
+    // which of the two logs to take first rather than a precedence trap.
+    const expr = bin(
+      '*',
+      bin('-', log(num(aBase), num(aArg)), log(num(bBase), num(bArg))),
+      num(extra),
+    );
+    const gap = aIndex - bIndex;
+    const total = gap * extra;
+
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 6) break;
+        if (!Number.isInteger(value) || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 6; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 6) break;
+          if (seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work this out one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr,
+      banks: {
+        // The first log. Reading it as the argument divided by the base is the
+        // slip that never quite goes away.
+        'r.l.l': offer(aIndex, aArg / aBase, aArg, aBase),
+        // The second.
+        'r.l.r': offer(bIndex, bArg / bBase, bArg, bBase),
+        // The bracket.
+        'r.l': offer(gap, aIndex + bIndex, bIndex - aIndex, aIndex * bIndex),
+        // The multiplication, last.
+        r: offer(total, gap + extra, gap, extra),
+      },
+    };
+  },
+  solution: ({ aBase, aIndex, bBase, bIndex, extra }) => {
+    const aArg = Math.pow(aBase, aIndex);
+    const bArg = Math.pow(bBase, bIndex);
+    const gap = aIndex - bIndex;
+    return [
+      {
+        text: 'A logarithm asks what power the base has to be raised to. Answer each one and the line becomes ordinary arithmetic.',
+      },
+      {
+        tex: `\\log_{${aBase}}\\left(${aArg}\\right) = ${aIndex} \\qquad \\log_{${bBase}}\\left(${bArg}\\right) = ${bIndex}`,
+      },
+      { tex: `\\left(${aIndex} - ${bIndex}\\right) \\times ${extra} = ${gap} \\times ${extra} = ${gap * extra}` },
+      {
+        text: `The bracket has to be settled before the multiplication, so this is $${gap * extra}$ and not $${aIndex - bIndex * extra}$. Both logs also have to be taken first — neither is a number until it is.`,
+      },
+    ];
+  },
+};
+
 export const logarithmGenerators = [
   evaluateLog,
   logToIndex,
@@ -752,4 +902,5 @@ export const logarithmGenerators = [
   solveExponential,
   naturalLog,
   growth,
+  logChain,
 ] as unknown as Generator<unknown>[];

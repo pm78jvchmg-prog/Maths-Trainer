@@ -3,6 +3,7 @@ import {
   ROOT,
   bin,
   isSolved,
+  log,
   num,
   pow,
   reduceAt,
@@ -155,5 +156,38 @@ describe('a negative base', () => {
     const pieces = renderExpr(bin('+', pow(num(-3), num(2)), num(1))).map((f) => f.tex);
     expect(pieces.join('')).toContain('-3');
     expect(pieces.join('')).not.toMatch(/(^|[^(])-3\^/);
+  });
+});
+
+describe('logarithms', () => {
+  it('evaluates to a whole number, floats notwithstanding', () => {
+    // log(8)/log(2) through floats is 2.9999999999999996.
+    expect(valueOf(log(num(2), num(8)))).toBe(3);
+    expect(valueOf(log(num(3), num(81)))).toBe(4);
+  });
+
+  it('is one tap target, offered once its parts are numbers', () => {
+    expect(targets(log(num(2), num(8)))).toEqual([{ path: ROOT, legal: true }]);
+    // A log is a named function like a root, so it is offered only once its
+    // parts are numbers — the same rule that keeps `(5 - 3)^2` untappable
+    // until the bracket resolves. Only the multiplication inside is offered.
+    const inner = log(num(2), bin('*', num(4), num(2)));
+    expect(targets(inner).map((t) => t.path)).toEqual(['r.v']);
+  });
+
+  it('writes its base as a subscript', () => {
+    expect(toTex(log(num(2), num(8)))).toBe('\\log_{2}\\left(8\\right)');
+  });
+
+  it('reduces, and grades a walk that takes the inside first', () => {
+    const expr = bin('-', log(num(2), num(32)), log(num(3), num(27)));
+    expect(valueOf(expr)).toBe(2);
+    expect(isSolved(expr, [
+      { path: 'r.l', value: 5 },
+      { path: 'r.r', value: 3 },
+      { path: 'r', value: 2 },
+    ])).toBe(true);
+    // The subtraction taken before either log is settled.
+    expect(replay(expr, [{ path: 'r', value: 2 }]).fault).toBe('out-of-order');
   });
 });

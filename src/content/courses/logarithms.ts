@@ -294,7 +294,7 @@ export const logarithms: Course = {
                 'Adding the arguments is the error to guard against. $\\log\\left(8\\right) + \\log\\left(4\\right)$ is $\\log\\left(32\\right)$, not $\\log\\left(12\\right)$ — the logarithms add, and that is exactly why the arguments multiply.',
               ),
             ),
-            ask('log-arithmetic'),
+            ask('log-chain-steps'),
             ask('log-combine'),
             teach(
               prose('Both laws need the *same base* on every term. Without that nothing can be combined.'),
@@ -307,7 +307,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-combine'),
-            ask('log-arithmetic'),
+            ask('log-chain-steps+choice'),
           ],
           skillCheck: [ask('log-arithmetic', 2), ask('log-arithmetic', 2), ask('log-combine', 2)],
         },

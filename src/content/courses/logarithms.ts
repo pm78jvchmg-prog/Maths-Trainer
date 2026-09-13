@@ -342,7 +342,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-power-rule'),
-            ask('log-power-rule'),
+            ask('log-power-steps'),
             teach(
               prose('Two useful consequences fall out at once.'),
               maths(
@@ -355,7 +355,7 @@ export const logarithms: Course = {
                 'Recognising roots and reciprocals as indices before starting is what makes these questions short.',
               ),
             ),
-            ask('log-power-rule'),
+            ask('log-power-steps+choice'),
             ask('log-combine'),
           ],
           skillCheck: [ask('log-power-rule', 2), ask('log-power-rule', 2), ask('log-combine', 2)],
@@ -469,7 +469,7 @@ export const logarithms: Course = {
       ],
       levelCheck: [
         ask('log-arithmetic', 2),
-        ask('log-power-rule', 2),
+        ask('log-power-steps', 2),
         ask('log-combine', 2),
         ask('log-laws-equation', 2),
         ask('log-arithmetic', 2),

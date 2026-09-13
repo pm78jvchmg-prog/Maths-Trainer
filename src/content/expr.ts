@@ -249,14 +249,33 @@ export function renderExpr(
   const mine = [...owners, path];
 
   if (expr.kind === 'num') {
-    out.push({ tex: `${expr.value}`, owners: mine });
+    // A negative number is bracketed unless it opens the line, so a reduction
+    // that lands one mid-expression reads as `4 + (-3)` rather than `4 + -3`.
+    // Position rather than shape decides it, and the walk is left to right, so
+    // an empty `out` is exactly "this is the first thing on the line".
+    const bare = expr.value >= 0 || out.length === 0;
+    out.push({ tex: bare ? `${expr.value}` : `(${expr.value})`, owners: mine });
     return out;
   }
 
   if (expr.kind === 'root') {
-    // The whole root is one fragment: its bar has to span its argument, and
+    // Settled: one fragment, because the bar has to span the argument and
     // KaTeX gives no handle inside a rendered formula to hang that on.
-    out.push({ tex: rootTex(expr), owners: mine, handle: path });
+    if (isReducible(expr)) {
+      out.push({ tex: rootTex(expr), owners: mine, handle: path });
+      return out;
+    }
+
+    // Unsettled, and a radical cannot be split across fragments — `\sqrt{` on
+    // its own is not valid TeX, and every fragment is its own KaTeX call. So a
+    // root whose inside is still being worked is written as the index it is,
+    // and turns back into a radical the moment the inside is a number. The
+    // alternative was one fragment with nothing inside it tappable, which is
+    // what this branch existed as until a solvability test caught it.
+    const degree = expr.degree ?? 2;
+    out.push({ tex: '(', owners: mine });
+    renderExpr(expr.arg, step(path, 'a'), mine, out);
+    out.push({ tex: `)^{1/${degree}}`, owners: mine });
     return out;
   }
 
@@ -295,10 +314,20 @@ export function renderExpr(
   }
 
   if (expr.kind === 'log') {
-    // Always one fragment: the base is set under the word `log`, and KaTeX
-    // offers no handle inside a rendered subscript to make it tappable
-    // separately. Every log these questions ask has numeric parts anyway.
-    out.push({ tex: toTex(expr), owners: mine, handle: isReducible(expr) ? path : undefined });
+    // One fragment once it is reducible: the base is set under the word `log`,
+    // and KaTeX offers no handle inside a rendered subscript to make it
+    // tappable separately.
+    if (isReducible(expr)) {
+      out.push({ tex: toTex(expr), owners: mine, handle: path });
+      return out;
+    }
+
+    // Otherwise the argument is still being worked on and has to stay tappable,
+    // so `log` and its bracket are pinned around it. Plain brackets, never
+    // `\left(`, since each fragment is its own KaTeX call.
+    out.push({ tex: `\\log_{${toTex(expr.base)}}(`, owners: mine });
+    renderExpr(expr.arg, step(path, 'v'), mine, out);
+    out.push({ tex: ')', owners: mine });
     return out;
   }
 
@@ -340,9 +369,13 @@ export function toTex(expr: Expr): string {
   if (expr.kind === 'trig') {
     return `\\${expr.fn}\\left(${toTex(expr.arg)}^{\\circ}\\right)`;
   }
-  const side = (child: Expr) =>
-    precedence(child) < precedence(expr) ? `\\left(${toTex(child)}\\right)` : toTex(child);
-  return `${side(expr.left)} ${OP_TEX[expr.op]} ${side(expr.right)}`;
+  // A negative right-hand operand is bracketed for the same reason it is in
+  // `renderExpr`: `4 \times -3` reads as a subtraction at a glance.
+  const side = (child: Expr, right: boolean) =>
+    precedence(child) < precedence(expr) || (right && child.kind === 'num' && child.value < 0)
+      ? `\\left(${toTex(child)}\\right)`
+      : toTex(child);
+  return `${side(expr.left, false)} ${OP_TEX[expr.op]} ${side(expr.right, true)}`;
 }
 
 /* ---------- grading ---------- */

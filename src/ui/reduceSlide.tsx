@@ -29,6 +29,7 @@ import {
   reduceAt,
   renderExpr,
   targets,
+  toTex,
   type Expr,
   type Fragment,
   type Move,
@@ -309,11 +310,13 @@ export function EvaluateSlide({ slide, feedback, answer, onAnswer, canEdit }: Sl
 
       <div className={frameClass(feedback)}>
         <div className="reduce-line">
-          {renderExpr(slide.expr).map((fragment, idx) => (
-            <span key={idx} className="reduce-piece">
-              <Tex tex={fragment.tex} />
-            </span>
-          ))}
+          {/* One render, not fragments: nothing here is tappable, so the line
+              can be set as a whole — which is how a root keeps its radical
+              rather than falling back to the index form the tappable version
+              needs. */}
+          <span className="reduce-piece">
+            <Tex tex={toTex(slide.expr)} />
+          </span>
           <span className="reduce-piece">
             <Tex tex="=" />
           </span>

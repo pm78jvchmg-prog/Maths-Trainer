@@ -19,7 +19,7 @@ import { checkAnswer } from '../../engine/equivalence';
 import { parseExpression, math } from '../../engine/expression';
 import { registeredGenerators, registry } from '../registry';
 import { courses } from '../courses';
-import { renderExpr, valueOf, type Expr } from '../expr';
+import { nodeAt, reduceAt, renderExpr, targets, toTex, valueOf, type Expr } from '../expr';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX } from '../choiceVariant';
@@ -126,6 +126,25 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           }
         };
         walk(slide.expr, 'r');
+
+        // The slide has to be finishable by tapping. Every legal target must
+        // also be a handle on some rendered fragment, or the learner is looking
+        // at the piece that comes next with no way to choose it — which is what
+        // happened to a power nested inside a logarithm, where the whole log
+        // rendered as one untappable fragment.
+        let live = slide.expr;
+        for (let taps = 0; live.kind !== 'num'; taps += 1) {
+          expect(taps, 'reduce slide does not finish').toBeLessThan(12);
+          const handles = new Set(
+            renderExpr(live)
+              .map((fragment) => fragment.handle)
+              .filter((handle): handle is string => handle !== undefined),
+          );
+          const next = targets(live).find((target) => target.legal && handles.has(target.path));
+          expect(next, `nothing legal is tappable in ${toTex(live)}`).toBeDefined();
+          const node = nodeAt(live, next!.path);
+          live = reduceAt(live, next!.path, valueOf(node!));
+        }
 
         // Every value in the expression and every bank entry must be a whole
         // number: a stray third of a unit turns an order question into an
@@ -328,9 +347,9 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       }
 
       if (slide.kind === 'evaluate') {
-        // Rendered the way the widget renders it: fragment by fragment, so a
-        // \left with no matching \right in the same fragment is caught.
-        for (const fragment of renderExpr(slide.expr)) check(fragment.tex, 'evaluate fragment');
+        // Rendered the way the widget renders it: one whole string, since
+        // nothing on this slide is tappable and it needs no fragments.
+        check(toTex(slide.expr), 'evaluate expression');
         for (const option of slide.options) check(option, 'evaluate option');
       }
 

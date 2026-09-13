@@ -1127,6 +1127,212 @@ const solveSystem: Generator<SystemParams> = {
   },
 };
 
+
+/* ---------- two products before one sum ---------- */
+
+/**
+ * Six whole options around the right one, negatives allowed.
+ *
+ * Separate from the magnitude slide's `offer`, which filters negatives out: a
+ * dot product and a determinant are both routinely negative, and a bank that
+ * quietly dropped every negative candidate would leak the sign of the answer.
+ */
+function signedOffer(correct: number, ...near: number[]): string[] {
+  const seen = new Set([correct]);
+  const out = [correct];
+  for (const value of near) {
+    if (out.length >= 6) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  for (let step = 1; out.length < 6; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (out.length >= 6) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out.sort((x, y) => x - y).map(String);
+}
+
+/** Three options beside the right one, from the slips a formula invites. */
+function signedChoices(correct: number, wrong: number[]) {
+  const seen = new Set([correct]);
+  const picked: number[] = [];
+  for (const value of wrong) {
+    if (picked.length === 3) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    picked.push(value);
+  }
+  for (let step = 1; picked.length < 3; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (picked.length === 3) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      picked.push(candidate);
+    }
+  }
+  return options(
+    { tex: `${correct}` },
+    ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+  );
+}
+
+interface DotStepsParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+/**
+ * A scalar product, one piece at a time.
+ *
+ * `vec-dot` asks for the number and grades it; this asks for the order, and the
+ * order is the whole of what goes wrong. $a_x b_x + a_y b_y$ has two
+ * multiplications and one addition, and a learner who adds first has not made
+ * an arithmetic mistake — they have read the formula as though the sum bound
+ * tighter than the products.
+ *
+ * Components are allowed to be negative, because a dot product that is never
+ * negative teaches that two vectors always point roughly the same way.
+ */
+const dotSteps: Generator<DotStepsParams> = {
+  id: 'vec-dot-steps',
+  choices: ({ ax, ay, bx, by }) =>
+    signedChoices(ax * bx + ay * by, [
+      // The two components added before either product is taken.
+      (ax + ay) * (bx + by),
+      // The products subtracted, as a determinant would.
+      ax * bx - ay * by,
+      // The components added pairwise instead of multiplied.
+      ax + bx + ay + by,
+    ]),
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 7 : 5;
+    const draw = () => nonZero(rng.int(-span, span), rng.int(1, span));
+    return { ax: draw(), ay: draw(), bx: draw(), by: draw() };
+  },
+  render: ({ ax, ay, bx, by }): Slide => {
+    const expr = bin('+', bin('*', num(ax), num(bx)), bin('*', num(ay), num(by)));
+    const first = ax * bx;
+    const second = ay * by;
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the scalar product, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+        {
+          kind: 'display',
+          tex: `${columnTex(ax, ay)} \\cdot ${columnTex(bx, by)}`,
+        },
+      ],
+      expr,
+      banks: {
+        // The first product. Adding the pair instead of multiplying it, and
+        // dropping the sign, are the two slips worth offering together.
+        'r.l': signedOffer(first, ax + bx, -first, Math.abs(first)),
+        'r.r': signedOffer(second, ay + by, -second, Math.abs(second)),
+        // The sum. Subtracting is what a determinant does, and the two are
+        // written similarly enough to be confused.
+        r: signedOffer(first + second, first - second, second - first, first * second),
+      },
+    };
+  },
+  solution: ({ ax, ay, bx, by }) => {
+    const first = ax * bx;
+    const second = ay * by;
+    return [
+      {
+        text: 'Multiply the matching components, then add. Both products are settled before the addition can touch either of them.',
+      },
+      {
+        tex: `${columnTex(ax, ay)} \\cdot ${columnTex(bx, by)} = \\left(${ax}\\right)\\left(${bx}\\right) + \\left(${ay}\\right)\\left(${by}\\right)`,
+      },
+      { tex: `= ${first} + \\left(${second}\\right) = ${first + second}` },
+      {
+        text: `The result is a number, not a vector — that is what "scalar" product means. Adding the components first would give $${(ax + ay) * (bx + by)}$, which is a different quantity altogether.`,
+      },
+    ];
+  },
+};
+
+interface DeterminantStepsParams {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+/**
+ * A determinant, one piece at a time.
+ *
+ * The same shape as the scalar product with a minus in the middle, and that is
+ * exactly why it is worth asking separately: $ad - bc$ read carelessly becomes
+ * $ad - b$ times $c$, or the diagonals taken the wrong way round. Both are
+ * order mistakes rather than arithmetic ones, and neither is visible in an
+ * answer box.
+ */
+const determinantSteps: Generator<DeterminantStepsParams> = {
+  id: 'mat-determinant-steps',
+  choices: ({ a, b, c, d }) =>
+    signedChoices(a * d - b * c, [
+      // The diagonals swapped.
+      b * c - a * d,
+      // The minus read as a plus.
+      a * d + b * c,
+      // The rows multiplied instead of the diagonals.
+      a * b - c * d,
+    ]),
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 7 : 5;
+    const draw = () => nonZero(rng.int(-span, span), rng.int(1, span));
+    return { a: draw(), b: draw(), c: draw(), d: draw() };
+  },
+  render: ({ a, b, c, d }): Slide => {
+    const expr = bin('-', bin('*', num(a), num(d)), bin('*', num(b), num(c)));
+    const leading = a * d;
+    const other = b * c;
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the determinant, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+        { kind: 'display', tex: `\\det ${matrixTex(a, b, c, d)}` },
+      ],
+      expr,
+      banks: {
+        'r.l': signedOffer(leading, a + d, -leading, Math.abs(leading)),
+        'r.r': signedOffer(other, b + c, -other, Math.abs(other)),
+        // The subtraction. Taking it the other way round flips the sign, which
+        // matters: the sign of a determinant is what says whether the
+        // transformation flips the plane over.
+        r: signedOffer(leading - other, other - leading, leading + other, leading * other),
+      },
+    };
+  },
+  solution: ({ a, b, c, d }) => {
+    const leading = a * d;
+    const other = b * c;
+    return [
+      {
+        text: 'Multiply along each diagonal first, then subtract. Leading diagonal minus the other, in that order.',
+      },
+      { tex: `\\det ${matrixTex(a, b, c, d)} = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right)` },
+      { tex: `= ${leading} - \\left(${other}\\right) = ${leading - other}` },
+      {
+        text: `Taking the diagonals the other way round gives $${other - leading}$, the same size with the opposite sign — and the sign is the part that says whether the transformation turns the plane over.`,
+      },
+    ];
+  },
+};
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -1143,4 +1349,6 @@ export const vectorGenerators = [
   singular,
   inverse,
   solveSystem,
+  dotSteps,
+  determinantSteps,
 ] as unknown as Generator<unknown>[];

@@ -227,7 +227,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('vec-dot'),
-            ask('vec-parallel'),
+            ask('vec-dot-steps'),
             ask('vec-dot'),
             teach(
               prose('The sign of the scalar product describes the angle between the vectors.'),
@@ -255,7 +255,7 @@ export const vectorsAndMatrices: Course = {
                 'Check the answer by substituting it back. $24 + 4\\left(-6\\right) = 0$, so the two vectors really are at right angles.',
               ),
             ),
-            ask('vec-perpendicular-k'),
+            ask('vec-dot-steps+choice'),
             ask('vec-parallel'),
           ],
           skillCheck: [
@@ -423,7 +423,7 @@ export const vectorsAndMatrices: Course = {
                 'Multiplying the matching entries together instead — 1 times 5, 2 times 6, and so on — is the error this lesson exists to remove. It gives a plausible-looking answer that is wrong throughout.',
               ),
             ),
-            ask('mat-multiply'),
+            ask('vec-dot-steps'),
             ask('mat-multiply'),
             teach(
               prose(
@@ -438,7 +438,7 @@ export const vectorsAndMatrices: Course = {
               ),
               maths('\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}'),
             ),
-            ask('mat-multiply+choice'),
+            ask('vec-dot-steps+choice'),
             ask('mat-multiply'),
           ],
           skillCheck: [ask('mat-multiply', 2), ask('mat-multiply', 2), ask('mat-multiply', 2)],
@@ -478,7 +478,7 @@ export const vectorsAndMatrices: Course = {
                 'The columns of a matrix are where $\\mathbf{i}$ and $\\mathbf{j}$ end up, which is the quickest way to read a transformation off a matrix or write one down.',
               ),
             ),
-            ask('mat-vector'),
+            ask('vec-dot-steps'),
             ask('mat-vector'),
             teach(
               prose(
@@ -493,7 +493,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('mat-vector+choice'),
-            ask('mat-multiply'),
+            ask('vec-dot-steps+choice'),
           ],
           skillCheck: [ask('mat-vector', 2), ask('mat-vector', 2), ask('mat-multiply', 2)],
         },
@@ -554,7 +554,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('mat-determinant'),
-            ask('mat-determinant'),
+            ask('mat-determinant-steps'),
             teach(
               prose('Determinants interact with products in a way that is worth knowing.'),
               maths('\\det\\left(\\mathbf{AB}\\right) = \\det\\mathbf{A} \\times \\det\\mathbf{B}'),
@@ -565,7 +565,7 @@ export const vectorsAndMatrices: Course = {
                 'Note that there is no such rule for sums. $\\det\\left(\\mathbf{A} + \\mathbf{B}\\right)$ has nothing to do with the two separate determinants, and assuming otherwise is a common and costly mistake.',
               ),
             ),
-            ask('mat-determinant+choice'),
+            ask('mat-determinant-steps+choice'),
             ask('mat-determinant'),
           ],
           skillCheck: [
@@ -606,7 +606,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('mat-singular-k'),
-            ask('mat-determinant'),
+            ask('mat-determinant-steps'),
             teach(
               prose(
                 'The same idea decides whether a pair of simultaneous equations has a unique solution.',
@@ -663,7 +663,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('mat-inverse'),
-            ask('mat-inverse'),
+            ask('mat-determinant-steps'),
             teach(
               prose(
                 'The recipe fails exactly when the determinant is zero, since it would divide by zero. That is the singular case again, from a different direction.',
@@ -676,7 +676,7 @@ export const vectorsAndMatrices: Course = {
                 'Putting a coat on over a jumper and then taking them off is the same idea: the last thing on is the first thing off.',
               ),
             ),
-            ask('mat-inverse+choice'),
+            ask('mat-determinant-steps+choice'),
             ask('mat-inverse'),
           ],
           skillCheck: [ask('mat-inverse', 2), ask('mat-inverse', 2), ask('mat-inverse', 2)],

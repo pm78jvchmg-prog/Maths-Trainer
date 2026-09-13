@@ -24,7 +24,7 @@
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
-import { bin, log, num } from '../expr';
+import { bin, log, num, pow } from '../expr';
 import { EXP_KEYS } from './calculus';
 
 /** Solving for an index needs a logarithm key. */
@@ -890,6 +890,136 @@ const logChain: Generator<LogChainParams> = {
   },
 };
 
+
+/* ---------- a power inside a logarithm ---------- */
+
+interface LogPowerParams {
+  /** The base of the logarithm. */
+  base: number;
+  /** The argument is `base^inner`, raised again to `outer`. */
+  inner: number;
+  outer: number;
+  /** The whole number added on at the end. */
+  extra: number;
+}
+
+/**
+ * Evaluate a logarithm of a power, one piece at a time.
+ *
+ * The power law says $\log_b(a^n) = n\log_b a$, and the usual way it is
+ * practised — rewrite the left side as the right — never makes the learner
+ * commit to an order. Here they do. The logarithm is not a number until its
+ * argument is one, so the power has to go first; the addition on the end is
+ * offered from the start and is the tap that gets it wrong.
+ *
+ * Working it the long way round is the point rather than a detour. Seeing
+ * $\log_{3}(9^{2})$ come out as 4 through $9^{2} = 81$ is what makes
+ * $2 \times \log_{3}9$ believable, and the worked solution puts the two side by
+ * side.
+ */
+const logPower: Generator<LogPowerParams> = {
+  id: 'log-power-steps',
+  choices: ({ base, inner, outer, extra }) => {
+    const correct = inner * outer + extra;
+    const wrong = [
+      inner * (outer + extra), // the addition taken before the logarithm
+      inner + outer + extra, // the indices added rather than multiplied
+      Math.pow(base, inner) * outer + extra, // the logarithm never taken
+      inner * outer - extra,
+    ];
+    const seen = new Set([correct]);
+    const picked: number[] = [];
+    for (const value of wrong) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    for (let step = 1; picked.length < 3; step += 1) {
+      for (const candidate of [correct + step, correct - step]) {
+        if (picked.length === 3) break;
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        picked.push(candidate);
+      }
+    }
+    return options(
+      { tex: `${correct}` },
+      ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
+    );
+  },
+  sample: (rng, difficulty) => {
+    // The argument is base^(inner x outer) once the power is taken, so the
+    // product of the two indices is capped rather than each one separately —
+    // 3^6 is 729, which is a bank of four-figure near-misses.
+    const base = rng.pick(difficulty > 1 ? [2, 3, 5, 7] : [2, 3, 5]);
+    const ceiling = base === 2 ? 7 : base === 3 ? 5 : 4;
+    const inner = rng.int(2, 3);
+    const outer = rng.int(2, Math.max(2, Math.floor(ceiling / inner)));
+    return { base, inner, outer, extra: rng.int(2, difficulty > 1 ? 12 : 8) };
+  },
+  render: ({ base, inner, outer, extra }): Slide => {
+    const argument = Math.pow(base, inner);
+    const raised = Math.pow(argument, outer);
+    const logValue = inner * outer;
+    const expr = bin('+', log(num(base), pow(num(argument), num(outer))), num(extra));
+
+    const offer = (correct: number, ...near: number[]) => {
+      const seen = new Set([correct]);
+      const out = [correct];
+      for (const value of near) {
+        if (out.length >= 6) break;
+        if (!Number.isInteger(value) || seen.has(value)) continue;
+        seen.add(value);
+        out.push(value);
+      }
+      for (let step = 1; out.length < 6; step += 1) {
+        for (const candidate of [correct + step, correct - step]) {
+          if (out.length >= 6) break;
+          if (seen.has(candidate)) continue;
+          seen.add(candidate);
+          out.push(candidate);
+        }
+      }
+      return out.sort((x, y) => x - y).map(String);
+    };
+
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work this out one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr,
+      banks: {
+        // The power inside the logarithm. Multiplying instead of raising is the
+        // slip that never quite goes away.
+        'r.l.v': offer(raised, argument * outer, argument + outer, argument),
+        // The logarithm itself, once its argument is a number.
+        'r.l': offer(logValue, inner + outer, raised / base, inner),
+        // The addition, last.
+        r: offer(logValue + extra, logValue * extra, logValue - extra, extra),
+      },
+    };
+  },
+  solution: ({ base, inner, outer, extra }) => {
+    const argument = Math.pow(base, inner);
+    const raised = Math.pow(argument, outer);
+    const logValue = inner * outer;
+    return [
+      {
+        text: 'A logarithm is not a number until its argument is one, so the power inside goes first.',
+      },
+      { tex: `\\left(${argument}\\right)^{${outer}} = ${raised} \\qquad \\log_{${base}}\\left(${raised}\\right) = ${logValue}` },
+      { tex: `${logValue} + ${extra} = ${logValue + extra}` },
+      {
+        text: `The power law gets there without the large number: $\\log_{${base}}\\left(${argument}^{${outer}}\\right) = ${outer} \\times \\log_{${base}}${argument} = ${outer} \\times ${inner} = ${logValue}$. Both routes agree, which is the argument for the law.`,
+      },
+    ];
+  },
+};
 export const logarithmGenerators = [
   evaluateLog,
   logToIndex,
@@ -903,4 +1033,5 @@ export const logarithmGenerators = [
   naturalLog,
   growth,
   logChain,
+  logPower,
 ] as unknown as Generator<unknown>[];

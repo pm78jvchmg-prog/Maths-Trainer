@@ -90,7 +90,7 @@ export const differentiation: Course = {
               },
             ),
             ask('power-rule', 2),
-            ask('power-rule', 2),
+            ask('df-evaluate-steps'),
             teach(
               {
                 kind: 'prose',
@@ -107,7 +107,7 @@ export const differentiation: Course = {
               },
             ),
             ask('power-rule+choice'),
-            ask('power-rule', 2),
+            ask('df-evaluate-steps+choice'),
           ],
           skillCheck: [ask('power-rule', 2), ask('power-rule'), ask('power-rule', 2)],
         },

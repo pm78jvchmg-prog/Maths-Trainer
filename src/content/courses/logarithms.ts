@@ -128,7 +128,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-evaluate'),
-            ask('log-evaluate'),
+            ask('log-chain-steps'),
             teach(
               prose('Negative answers happen whenever the argument is smaller than 1.'),
               maths('\\log_{2}\\left(\\frac{1}{8}\\right) = -3'),
@@ -140,7 +140,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-evaluate+choice'),
-            ask('log-evaluate'),
+            ask('log-chain-steps+choice'),
           ],
           skillCheck: [ask('log-evaluate', 2), ask('log-evaluate', 2), ask('log-evaluate', 2)],
         },

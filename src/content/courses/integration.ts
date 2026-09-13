@@ -484,7 +484,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-area-under'),
-            ask('int-area-under'),
+            ask('int-definite-steps'),
             teach(
               prose(
                 'Two warnings before the next lesson. First, this works only while the curve stays above the axis.',
@@ -498,7 +498,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-area-under+choice'),
-            ask('int-definite-power'),
+            ask('int-definite-steps+choice'),
           ],
           skillCheck: [ask('int-area-under', 2), ask('int-area-under', 2), ask('int-area-under', 2)],
         },
@@ -535,7 +535,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-properties'),
-            ask('int-properties'),
+            ask('int-definite-steps'),
             teach(
               prose('Constants come out of an integral, and sums split into separate integrals.'),
               maths('\\int_{a}^{b} k f(x) \\, dx = k \\int_{a}^{b} f(x) \\, dx'),
@@ -547,7 +547,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-properties'),
-            ask('int-definite-sum'),
+            ask('int-definite-steps+choice'),
           ],
           skillCheck: [ask('int-properties', 2), ask('int-properties', 2), ask('int-properties', 2)],
         },
@@ -605,7 +605,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-signed-area'),
-            ask('int-definite-sum'),
+            ask('int-definite-steps'),
             teach(
               prose(
                 'The full method for a total area: find where the curve meets the axis, split the interval there, integrate each piece, take the size of each result, add.',
@@ -618,7 +618,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-signed-area'),
-            ask('int-signed-area'),
+            ask('int-definite-steps+choice'),
           ],
           skillCheck: [ask('int-signed-area', 2), ask('int-signed-area', 2), ask('int-signed-area', 2)],
         },

@@ -413,7 +413,7 @@ export const quadratics: Course = {
                 '29 is not a perfect square, so the roots are irrational. Leaving the surd in place keeps the answer exact; turning it into a decimal rounds it.',
               ),
             ),
-            ask('quad-formula'),
+            ask('quad-discriminant-steps'),
             ask('quad-formula'),
             teach(
               prose('The larger root always comes from the plus branch, provided $a$ is positive.'),
@@ -433,7 +433,7 @@ export const quadratics: Course = {
             ask('quad-choose-method'),
           ],
           skillCheck: [
-            ask('quad-formula', 2),
+            ask('quad-discriminant-steps+choice', 2),
             ask('quad-choose-method', 2),
             ask('quad-formula', 2),
           ],
@@ -677,7 +677,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-from-roots'),
-            ask('quad-root-count'),
+            ask('quad-discriminant-steps'),
             teach(
               prose('The discriminant and the graph agree, as they must.'),
               prose(
@@ -689,7 +689,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-from-roots'),
-            ask('quad-root-count'),
+            ask('quad-discriminant-steps+choice'),
           ],
           skillCheck: [ask('quad-from-roots', 2), ask('quad-from-roots', 2), ask('quad-root-count', 2)],
         },

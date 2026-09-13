@@ -385,8 +385,8 @@ export const exponentsRadicals: Course = {
                 'Swapping the two numbers is the mistake to guard against: $\\frac{3}{4}$ means a fourth root and a cube, not a cube root and a fourth power.',
               ),
             ),
-            ask('idx-index-form'),
-            ask('idx-fractional', 2),
+            ask('idx-evaluate-roots'),
+            ask('idx-evaluate-roots+choice'),
             teach(
               prose(
                 'A negative fractional index combines both of the extensions — take the reciprocal, and read the fraction as a root and a power.',
@@ -549,7 +549,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-multiply'),
-            ask('rad-multiply', 2),
+            ask('idx-evaluate-roots'),
             teach(
               prose(
                 'Multiply first and simplify afterwards. It is usually less work than simplifying each factor on the way in.',
@@ -560,7 +560,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-multiply+choice', 2),
-            ask('rad-simplify'),
+            ask('idx-evaluate-roots+choice'),
           ],
           skillCheck: [ask('rad-multiply', 2), ask('rad-multiply', 2), ask('rad-multiply', 2)],
         },

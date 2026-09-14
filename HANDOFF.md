@@ -1,7 +1,13 @@
 # HANDOFF
 
 Orientation for someone picking this repository up cold. Facts and procedures
-only. `CLAUDE.md` carries the design reasoning; this file carries the map.
+only.
+
+- `CLAUDE.md` — how to work in the repo, and the design reasoning
+- `HANDOFF.md` — this file: what the system is and where things live
+- `DECISIONS.md` — every non-obvious choice, with the alternative it beat
+- `PITFALLS.md` — **read before your first change**: what the tests do not
+  cover, and the obvious fixes that are wrong
 
 Baseline at the time of writing: commit `afc9853`, **2583 tests in 6 files**,
 about 83 seconds. 8 courses, 89 lessons, ~127 question generators.

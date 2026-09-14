@@ -12,16 +12,48 @@ passes on its own base is void; all eight were checked.
 
 ## Running it
 
-```bash
-E=/tmp/claude-0/eval
-git worktree add --detach $E/t1 <base>          # per the table below
-ln -s "$PWD/node_modules" $E/t1/node_modules    # package.json is unchanged across all bases
+**One session per task, rooted at that task's own base commit.** This is not a
+convenience — it is the only arrangement that keeps the measurement honest:
+
+```
+create_session(
+  source_url      = <this repo>,
+  source_revision = <the task's base commit>,
+  model           = claude-opus-5,
+  outcome_branch  = eval/tN,
+  prompt          = <the owner's bug report, verbatim>,
+)
 ```
 
-Give the agent the prompt verbatim and the worktree path. Do **not** give it the
-pass criterion. Constrain it to that directory, and tell it not to read git
-history beyond `HEAD` — future commits are not ancestors of a detached base, so
-plain `git log` is safe, but `git log --all` would leak the answer.
+Rooting each session at its own base gives it exactly the `CLAUDE.md` a real
+executor had at that moment, and none of the documents written later. Score by
+fetching `eval/tN` afterwards.
+
+### Two leaks that voided the first attempt
+
+Both were harness faults, not task faults. Guard against them on every rerun.
+
+1. **Project instructions come from the *session's* root, not the working
+   directory.** In-process subagents launched from a checkout at `HEAD` receive
+   the `HEAD` copy of `CLAUDE.md` regardless of which worktree they are told to
+   work in — and this repo's `CLAUDE.md` documents the answers to T2 ("an
+   unsettled root is written as `(x)^{1/2}`"), T3 ("offers its **pair**", "the
+   value is the only test") and T4 ("a 60s timeout… give it a budget rather
+   than trimming its sample count"). Those three tasks were unmeasurable before
+   they began. A separate session per base commit is the fix; local worktrees
+   under a `HEAD` checkout are not.
+
+2. **Never leave a scorer in the tree the agent can see.** Validating that a
+   scorer fails on its base leaves the file behind; the T1 agent ran
+   `cat src/engine/t1.equivalence.test.ts` before it touched any source. The
+   scorer states the acceptance criteria, including the non-obvious half (that
+   `check('x=3', '3')` must stay **correct**, which rules out "reject any
+   answer containing `=`"). Copy a scorer in at scoring time and delete it
+   again; never before the run.
+
+Do **not** give the agent the pass criterion. Tell it the current checkout is
+the only source of truth: `git log` on a detached base shows ancestors only,
+but `git log --all` and `origin/main` would leak everything.
 
 Score afterwards by copying the scorer in and running it, plus `npm test`
 (suite green) and `npx tsc --noEmit -p tsconfig.app.json` (silent). **All three

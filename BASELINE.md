@@ -230,6 +230,41 @@ threshold.
 
 ---
 
+## Result: Opus-solo, 6/8 (2026-09-14)
+
+One remote session per task, each rooted at its own base commit, `claude-opus-5`.
+
+| Task | Result | What happened |
+| --- | --- | --- |
+| T1 equals-sign scope leak | **FAIL** | Deleted the `=` key and made assignments `invalid`. `check('x=0','2x')` returns invalid not incorrect; `check('x=3','3')` returns invalid not correct. The scope leak is routed around, not fixed — and in this app `invalid` costs no first-try credit, so a wrong answer is treated as a typo. |
+| T2 un-tappable reduce | PASS | Solved it differently from the original: kept the radical by emitting `\sqrt{\,}` as its own fragment, then the argument as separate tappable fragments. |
+| T3 chain pair + value grading | **FAIL** | Delivered the value-only grading half. `targets()` still returns no pair target, so tapping the `-` in `sqrt(36) + 4 - 3` collapses the whole line. |
+| T4 intermittent oracle | PASS | Better than the original fix: `math.derivative(..., {simplify: false})` removes ~7s of pointless simplification instead of raising the budget. Suite 3.7s. |
+| T5 card overflow | PASS | `flex-shrink` + `min-width: 0` + `overflow: hidden`. Verified in-browser at 393px. |
+| T6 negative base | PASS | Centralised the formatter in a new `src/content/tex.ts`. |
+| T7 multi-digit exponent | PASS | Named the export `insertPower`, not `insertSup`. |
+| T8 fractional indices | PASS | Introduced `domain: 'realValued'` with an off-domain retry factor, rather than `'positive'` — arguably more general, since it keeps sampling the whole real line and discards only non-real points. |
+
+### The scorers were less neutral than intended
+
+T7 and T8 both failed their scorers on **naming alone** and were re-scored
+behaviourally. The historical-test scorers carry the original solution's API —
+`insertSup`, `domain: 'positive'` — so a correct fix under another name reads as
+a failure. Two of eight, which is a high enough rate to plan for.
+
+When a scorer fails, check whether it is testing behaviour or vocabulary before
+recording a fail. The neutral ones held up: T3's tries every legal target and
+every value in a range and passes if any produces the expected line, and its
+failure was confirmed genuine by dumping `targets()`.
+
+### Rate limits, not tasks, are the binding constraint
+
+Eight concurrent Opus sessions exhausted a five-hour window; four completed and
+four were killed mid-work having each spent $2-4. Run four at a time, and note
+that a killed remote session **cannot be resumed** — this toolset has
+`create_session` but no message-delivery tool, so a retry is a fresh run and the
+partial work is lost.
+
 ## Scoring
 
 Per task: **1** if all three checks pass, **0** otherwise. No partial credit.

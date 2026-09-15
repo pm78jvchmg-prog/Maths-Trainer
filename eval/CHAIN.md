@@ -12,25 +12,33 @@ The arm is **arm B**. Its reps are **arm B rep 1, 2, 3**. The branch suffixes
 
 ## Where the chain is
 
-| Step | Done when | Next action |
-| --- | --- | --- |
-| 1 | `eval/REPB-C1.md` exists | score rep 1 (below) |
-| 2 | 8 × `origin/eval/tN-c2` exist | launch rep 2 (below) |
-| 3 | `eval/REPB-C2.md` exists | score rep 2 |
-| 4 | 8 × `origin/eval/tN-c3` exist | launch rep 3 |
-| 5 | `eval/REPB-C3.md` exists | score rep 3 |
-| 6 | `eval/COMPARISON.md` exists | write the comparison (spec at the end) |
-
-Check with:
-
 ```bash
 git fetch origin 'refs/heads/eval/*:refs/remotes/origin/eval/*'
-git branch -r | grep -c -- '-c2'      # 8 means rep 2 has fully landed
-ls eval/REPB-C*.md eval/COMPARISON.md 2>/dev/null
+git branch -r | grep -c -- '-c2'                 # 8 = rep 2 has fully landed
+ls eval/LAUNCHED-c*.md eval/REPB-C*.md eval/COMPARISON.md 2>/dev/null
 ```
 
-A rep is ready to score only when **all eight** branches are pushed. If some
-are missing, check those sessions and resume them — see *Stalls*.
+| Step | Skip it when | Otherwise do |
+| --- | --- | --- |
+| 1 | `eval/REPB-C1.md` exists | score rep 1 |
+| 2 | `eval/LAUNCHED-c2.md` exists | launch rep 2, **then write that marker** |
+| 3 | `eval/REPB-C2.md` exists | score rep 2 — but only once all 8 `-c2` branches are pushed |
+| 4 | `eval/LAUNCHED-c3.md` exists | launch rep 3, **then write that marker** |
+| 5 | `eval/REPB-C3.md` exists | score rep 3 — only once all 8 `-c3` branches are pushed |
+| 6 | `eval/COMPARISON.md` exists | write the comparison (spec at the end) |
+
+**The launch marker is not optional.** Branch count alone cannot tell "rep not
+launched yet" from "rep launched and still running" — both show zero branches.
+Without the marker a wake-up an hour into a running rep would launch it a second
+time, doubling spend and producing two sets of sessions racing for the same
+branch names. On launching a rep, immediately commit
+`eval/LAUNCHED-cN.md` listing the eight session ids and the launch time, and
+push it before doing anything else.
+
+A rep is ready to score only when **all eight** branches are pushed. If the
+marker exists but branches are missing, the rep is still running: check those
+sessions, resume any that are blocked (see *Stalls*), and otherwise stop and let
+the next wake-up look again. Do not relaunch.
 
 ## Session ids
 
@@ -132,6 +140,17 @@ Runs all eight in parallel, about 4½ minutes. Then, by hand:
 - **Per-task cost** from `get_session`.
 
 Write `eval/REPB-CN.md` and push to `main`.
+
+## Record usage every rep
+
+The owner is judging whether this approach is economically viable, so every rep
+file must carry, per task, the `cost_usd` from that session's `get_session`
+record, and an arm total. Also note the five-hour window each rep ran in and
+whether `rate_limit_info.status` was ever anything but `allowed`. Without those
+numbers the comparison cannot answer the question that prompted it.
+
+Known so far: arm A rep 2 $42.11, rep 3 $43.93 (Opus-solo). Arm B rep 1 $24.91
+(Sonnet + Opus advisor) for an identical 6/8.
 
 ## Freeze
 

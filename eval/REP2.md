@@ -1,4 +1,4 @@
-# Arm A (Opus-solo), rep 2 — scored against freeze `2a557fa`
+# Arm A (Opus-solo), rep 2 — scored against freeze `b6662db`
 
 Run 2026-09-15. Bases and scorers unchanged from rep 1; the frozen instrument
 is byte-identical (verified: every file under `eval/scorers/` and the verbatim

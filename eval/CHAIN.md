@@ -1,3 +1,18 @@
+# STOPPED — do not run this chain
+
+The comparison this chain served is void. See `eval/README.md` § Isolation.
+
+Summary: the leak was never closed, every rep that ran after the scorers were
+committed is unverifiable, and the task set had no discriminating power anyway.
+Arm B rep 2 was interrupted mid-run; rep 3 was never launched; the hourly Routine
+is deleted.
+
+Nothing below should be executed. It is kept because the launch parameters and
+the scoring procedure are reusable once the instrument is rebuilt, under a
+git-enforced clone and against a task set with headroom.
+
+---
+
 # Overnight chain runbook — arm B reps 1 to 3, then the comparison
 
 Read this first on every wake-up. It is the state machine: work out where the

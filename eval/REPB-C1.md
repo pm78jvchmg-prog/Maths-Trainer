@@ -1,5 +1,9 @@
 # Arm B rep 1 (Sonnet executor, Opus advisor) — scored against freeze `6338653`
 
+> **VOID.** Unverifiable: the scorers were fetchable from every task clone and
+> compliance cannot be audited in this environment. See `eval/README.md`
+> § Isolation. Kept as a record, not as a result.
+
 Launched 13:33Z on 2026-09-15, all eight together; last branch landed 14:09Z.
 Bases, task text and scorers identical to arm A. Two differences from arm A, and
 only two: the model is `claude-sonnet-5` with an Opus advisor, and **there is no

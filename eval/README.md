@@ -78,30 +78,77 @@ states the same behavioural precondition, so a missing action reports as
 cascading as `power is not a function` — a `not a function` failure would mean
 the scorer was testing vocabulary.
 
-## Isolation
+## Isolation — RETRACTED, and the instrument is void
 
-The boundary is the harness's clone, not the preamble. A remote session given
-`source_revision: eval-base-tN` receives a **single-branch** clone: that
-branch's history and nothing else. Probed 2026-09-15 against `eval-base-t4`
-(session `session_01Jkzo3usgWEXZFQVgcG8Ruz`, Haiku, throwaway):
-`git rev-list --count HEAD` and `git log --oneline --all | wc -l` both report
-11 — the base's own history — the repository is not shallow, and
-`git cat-file -t` on an object from the freeze commit reports it **missing**.
-`main` is never fetched, so the scorers, the protocol and every other
-`eval-base-*` and `eval/tN-*` branch are absent from the clone as objects, not
-merely absent from the checked-out tree. Verified against the local repo: the
-freeze commit `2a557fa` is not an ancestor of any base, and `eval/scorers/`
-first appears in `8b756d6`, which is likewise not an ancestor.
+**What this section used to say was wrong.** It claimed the harness gives a
+single-branch clone, that `main` is never fetched, and that the boundary was
+therefore closed by the harness with no agent compliance involved. That claim
+was built on one probe, and the probe never tested the thing that mattered.
 
-`PROMPT_PREAMBLE.md` holds the block every task prompt opens with, which strips
-the remote and the non-base refs. Given the above it is **defence-in-depth**,
-not the mitigation: it removes a remote that carries nothing the agent could
-fetch, and deletes refs the clone does not have. It stays in the instrument
-because it is frozen — removing it would invalidate the reps before it — and
-because it costs one command and would catch a harness change back to a
-full-mirror clone.
+### The reasoning error
 
-One thing to watch rather than assume: the probe ran with no `outcome_branch`.
-If the harness fetches an existing outcome branch, a rep whose branch name
-collides with a completed rep's could see it. Rep 2 and rep 3 use fresh
-suffixes (`-r2`, `-r3`), so no outcome branch exists at clone time.
+The first probe (2026-09-15, `eval-base-t4`, no `outcome_branch`) reported 11
+commits, no sibling branches, and the freeze commit's objects **missing**. I read
+that as "the remote is restricted". It is not what it shows. A fresh clone simply
+has not fetched anything else *yet*. Absence of objects in a working copy is not
+inability to obtain them, and I never ran `git fetch origin main` to find out.
+
+A second probe with arm B's exact configuration (`eval-base-t1`, `outcome_branch`
+set) reported 26 commits and 20 `eval/*` branches. That is not a contradiction of
+the first — it is the same remote, seen after more had been fetched. Both probes
+are consistent with an ordinary, fully reachable remote.
+
+So `git fetch origin main` followed by `git show FETCH_HEAD:eval/scorers/...`
+was available to every task session, in both arms, the whole time.
+
+### What follows
+
+The preamble was never defence-in-depth. It was the **only** mitigation, and it
+was always compliance-based — an instruction the agent under test could ignore,
+with no way to check afterwards whether it had. Removing it from arm B removed
+the only thing standing between an agent and the answer key.
+
+And compliance cannot be audited here: this environment exposes no transcript
+reader for `create_session` children. `get_session` returns a self-written
+one-line summary, not a log. So "did this session fetch the scorers?" is
+**unobservable**, in both arms.
+
+Capability proven, behaviour unobservable: every rep that ran after the scorers
+were committed is void by default. Not because it leaked — because it cannot be
+shown not to have.
+
+| | Ran | Scorers existed? | Verdict |
+| --- | --- | --- | --- |
+| Arm A rep 1 | 2026-09-14 | **no** — `8b756d6` is dated 2026-09-15 | **survives** |
+| Arm A rep 2 | 2026-09-15 | yes | void |
+| Arm A rep 3 | 2026-09-15 | yes | void |
+| Arm B (voided attempt) | 2026-09-15 | yes | void, already |
+| Arm B rep 1 | 2026-09-15 | yes | void |
+
+Arm A rep 1 survives on a different basis from the others: not compliance, but
+**absence of a target**. Nothing readable from its clone contained an answer key,
+because the key did not exist yet. Verified: `8b756d6`, the commit that first
+adds `eval/scorers/`, is not an ancestor of any rep 1 solution branch, and its
+commit date is a day later than the branches.
+
+One surviving rep decides nothing. The comparison has no result.
+
+### The fix, and why it is not mine to apply
+
+Enforce the boundary with git rather than with instructions: clone
+`--single-branch --branch eval-base-tN`, or pin
+`remote.origin.fetch` to that one ref, so a bare `git fetch` reaches nothing
+else. That is a property of the repository and the clone, not of the agent's
+willingness to comply, and it retires the preamble properly.
+
+`create_session` exposes no clone flags, so this cannot be set harness-side from
+here. The available route is a **separate private subject repository that never
+contained the scorers**, with `source_url` pointed at it. `create_repository`
+returns `403 Resource not accessible by integration` to this integration, so
+that is a human's step. Everything downstream is blocked on it.
+
+**One thing to get right when building it:** `outcome_branch` pushes land in the
+source repository. If solution branches accumulate in the subject repo, rep 2 can
+fetch rep 1's answers and the same hole reopens one rep later. Either move the
+outcome branches out of the subject repo between reps, or give each rep its own
+subject repo.

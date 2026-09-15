@@ -1,5 +1,9 @@
 # Arm A (Opus-solo), rep 2 — scored against freeze `6338653` (T3 re-scored; originally `2a557fa`)
 
+> **VOID.** Unverifiable: the scorers were fetchable from every task clone and
+> compliance cannot be audited in this environment. See `eval/README.md`
+> § Isolation. Kept as a record, not as a result.
+
 Run 2026-09-15. Bases and scorers unchanged from rep 1; the frozen instrument
 is byte-identical (verified: every file under `eval/scorers/` and the verbatim
 block in `PROMPT_PREAMBLE.md` match `2a557fa`). Prompts are identical to rep 1

@@ -126,54 +126,35 @@ remote, or restrict the fetch refspec to that base. Otherwise later
 reps measure retrieval rather than capability, and they will score
 higher for it.
 
-**Closed by the harness, measured 2026-09-15.** `create_session` exposes no
-clone flags, so this was assumed to be a full mirror and the isolation was
-written as the first instruction of every task prompt
-(`eval/PROMPT_PREAMBLE.md`) — compliance by the agent under test rather than a
-boundary around it. A throwaway probe session cloned at `eval-base-t4` shows
-otherwise: the clone is **single-branch**. It holds that base's 11 commits and
-nothing else, `main` is never fetched, and an object from the freeze commit
-`2a557fa` reports as missing rather than merely unchecked-out. Neither the
-scorers nor any prior rep's solution branch is reachable, with or without the
-preamble.
+**RETRACTED. The leak was never closed, and the instrument is void.**
+This section previously claimed the harness's clone was single-branch and the
+boundary therefore harness-enforced. It was wrong: the probe it rested on never
+attempted a fetch, and absence of objects in a fresh clone is not inability to
+obtain them. `git fetch origin main` was available to every task session in both
+arms throughout. See `eval/README.md` § Isolation for the full retraction and the
+per-rep verdicts.
 
-So the preamble is defence-in-depth: kept because it is frozen, and because it
-is the one thing that would still bite if the harness changed to a full mirror.
-An agent that runs it and reports a non-empty ref list is the signal to stop
-and re-probe. Results no longer need the instruction-level caveat; the separate
-subject repository, which `create_repository` refused with `403 Resource not
-accessible by integration`, is no longer needed.
+Consequences, applied to this document's own rules rather than argued around:
 
-**Re-frozen 2026-09-15, after rep 2.** `eval/scorers/t8.fractional.scorer.ts`
-was found to assert a *spelling* of the answer it discovers — one optional open
-paren, against a house style that deliberately over-brackets `answer` — so a
-correct rep 2 generator was invisible to it. Widened and re-checked both
-directions. Re-running both arms was not needed: arm B had not started, and the
-existing branches were simply re-scored, which changed rep 2's T8 from FAIL to
-PASS and left every other verdict in both reps untouched. Reps 1 and 2 are both
-recorded against the new hash.
+- **Rule 2 was broken twice.** Once by editing frozen scorers mid-run (recorded
+  below, three times over), and once by removing the frozen preamble for arm B
+  while arm A had run with it. Either alone invalidates the reps before it.
+- **Rule 3 was broken.** The same session that launched arm B scored it, reviewed
+  its test deletions knowing the arm, and granted T8's appeal. Scoring was neither
+  disinterested nor blind, and appeals were heard in one direction only.
+- **Rule 0 was re-read after seeing data.** The frozen rule switches only on a
+  gap of 4 or more task-trials out of 24. The gap is 0. Cost is a constraint on
+  switching, not a reason for it; presenting 0.57x cost as the finding was
+  exactly the post-hoc re-reading Rule 0 exists to prevent. **Keep arm A.**
+- **The task set has no resolving power.** The same six passed and the same two
+  failed in every rep of both arms. T1 failed identically five times; T3 states
+  two requirements no trial has ever met together. A set with zero discriminating
+  tasks cannot separate the arms no matter how many reps are run.
 
-This is the second Rule 1 miss in the same scorer. The first asserted a
-`domain` name; the second asserted bracketing. The lesson is narrower than
-"avoid names": a discovery predicate should match on **behaviour the task
-requires**, and every character of syntax it pins is a way for a correct answer
-to disappear.
-
-**Re-frozen again 2026-09-15, after rep 3.** `eval/scorers/t3.pair.scorer.ts`
-applied every candidate tap through `reduceAt(expr, path, value)`. Rep 3 added a
-`Run` for a partial-chain tap and applies it with `applyRun(expr, run, value)`,
-met the requirement, and was invisible to the scorer. Rewritten to test
-reachability through any exported applier, in either shape. Re-checked on the
-base and all three reps: no verdict moved, so arm A stands at 18/24. The fix is
-for arm B's benefit.
-
-That is the third Rule 1 miss in this instrument — a **name** (`domain:
-'positive'`), a **bracketing** (`x^((3)/(2))`), and now a **signature**
-(`reduceAt` vs `applyRun`). Each was caught only because a later rep wrote the
-code differently from the one before; a scorer can be wrong in a way no single
-rep reveals. When writing one, assert the end state the task describes and
-discover everything else — and assume the next correct answer will reach that
-state by a route you did not think of.
+Nothing here is repairable by another rep. The instrument needs rebuilding: fix
+or drop T1 and T3, add tasks arm A actually fails so the set has headroom,
+re-freeze under a new hash, and re-run both arms from scratch under a
+git-enforced clone.
 
 ## Rule 2b — Run discipline: what wasted the time
 

@@ -126,15 +126,23 @@ remote, or restrict the fetch refspec to that base. Otherwise later
 reps measure retrieval rather than capability, and they will score
 higher for it.
 
-**Implemented 2026-09-15 as far as the tooling allows.** `create_session`
-clones the whole repository and exposes no clone flags, so the isolation is
-the first instruction of every task prompt — see `eval/PROMPT_PREAMBLE.md`,
-which strips the remote, deletes every ref but the checked-out base, and
-prunes. That is compliance by the agent under test, not a boundary around it.
-The boundary needs the subject trees in a repository that never held the
-scorers; `create_repository` returned `403 Resource not accessible by
-integration`, so that step is a human's to take. Report any result produced
-under instruction-level isolation as exactly that.
+**Closed by the harness, measured 2026-09-15.** `create_session` exposes no
+clone flags, so this was assumed to be a full mirror and the isolation was
+written as the first instruction of every task prompt
+(`eval/PROMPT_PREAMBLE.md`) — compliance by the agent under test rather than a
+boundary around it. A throwaway probe session cloned at `eval-base-t4` shows
+otherwise: the clone is **single-branch**. It holds that base's 11 commits and
+nothing else, `main` is never fetched, and an object from the freeze commit
+`2a557fa` reports as missing rather than merely unchecked-out. Neither the
+scorers nor any prior rep's solution branch is reachable, with or without the
+preamble.
+
+So the preamble is defence-in-depth: kept because it is frozen, and because it
+is the one thing that would still bite if the harness changed to a full mirror.
+An agent that runs it and reports a non-empty ref list is the signal to stop
+and re-probe. Results no longer need the instruction-level caveat; the separate
+subject repository, which `create_repository` refused with `403 Resource not
+accessible by integration`, is no longer needed.
 
 ## Rule 3 — Adjudication is symmetric and disinterested
 

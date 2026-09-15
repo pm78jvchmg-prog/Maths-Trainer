@@ -75,8 +75,28 @@ the scorer was testing vocabulary.
 
 ## Isolation
 
-`PROMPT_PREAMBLE.md` holds the block every task prompt opens with. It strips
-the clone's remote and every ref but the base, because this repository also
-holds the scorers and, from rep 2, earlier solutions. It is instruction-level:
-the boundary version needs a separate subject repo, and `create_repository` is
-refused to this integration. Rep 1 predates the scorers being committed.
+The boundary is the harness's clone, not the preamble. A remote session given
+`source_revision: eval-base-tN` receives a **single-branch** clone: that
+branch's history and nothing else. Probed 2026-09-15 against `eval-base-t4`
+(session `session_01Jkzo3usgWEXZFQVgcG8Ruz`, Haiku, throwaway):
+`git rev-list --count HEAD` and `git log --oneline --all | wc -l` both report
+11 — the base's own history — the repository is not shallow, and
+`git cat-file -t` on an object from the freeze commit reports it **missing**.
+`main` is never fetched, so the scorers, the protocol and every other
+`eval-base-*` and `eval/tN-*` branch are absent from the clone as objects, not
+merely absent from the checked-out tree. Verified against the local repo: the
+freeze commit `2a557fa` is not an ancestor of any base, and `eval/scorers/`
+first appears in `8b756d6`, which is likewise not an ancestor.
+
+`PROMPT_PREAMBLE.md` holds the block every task prompt opens with, which strips
+the remote and the non-base refs. Given the above it is **defence-in-depth**,
+not the mitigation: it removes a remote that carries nothing the agent could
+fetch, and deletes refs the clone does not have. It stays in the instrument
+because it is frozen — removing it would invalidate the reps before it — and
+because it costs one command and would catch a harness change back to a
+full-mirror clone.
+
+One thing to watch rather than assume: the probe ran with no `outcome_branch`.
+If the harness fetches an existing outcome branch, a rep whose branch name
+collides with a completed rep's could see it. Rep 2 and rep 3 use fresh
+suffixes (`-r2`, `-r3`), so no outcome branch exists at clone time.

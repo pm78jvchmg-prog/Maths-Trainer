@@ -16,36 +16,40 @@ Do not restore the remote. Do not run `git log --all`. Treat the working tree
 as the only source of truth: no other branch, no non-ancestor commit.
 ```
 
-## Why
+## Why it is in the instrument
 
-The repository this is cloned from also holds the scorers that grade this work
-(`eval/scorers/`), the protocol, and — from rep 2 onward — the solution
-branches of earlier reps. A standard clone fetches all of it, so
-`git show <ref>:<path>` reaches the answer key even though it is absent from
-the checked-out tree. Without this block, later reps measure retrieval rather
-than capability, and they score higher for it.
+This repository also holds the scorers that grade this work (`eval/scorers/`),
+the protocol, and the solution branches of earlier reps. A full-mirror clone
+would fetch all of it, and `git show <ref>:<path>` would then reach the answer
+key even though it is absent from the checked-out tree.
+
+The harness does not do that. Probed 2026-09-15 (see `README.md` § Isolation):
+a remote session cloned at `source_revision: eval-base-tN` gets that branch's
+history alone — 11 commits, no `main`, no sibling branches, and objects from
+the freeze commit report as missing. The leak this block was written against
+does not exist at the harness level.
 
 ## What this does and does not close
 
 | | Status |
 | --- | --- |
-| Scorers readable from the clone | Closed by the preamble, if it is run |
-| Prior reps' solution branches | Closed by the preamble, if it is run |
-| Enforcement independent of the agent | **Not closed** |
+| Scorers readable from the clone | Closed by the harness: never fetched |
+| Prior reps' solution branches | Closed by the harness: never fetched |
+| Enforcement independent of the agent | **Closed** — the clone is the boundary |
+| Harness reverting to a full-mirror clone | Caught by this preamble |
 
-The preamble is executed by the agent under test, so it is compliance, not a
-boundary. Closing it properly needs the subject trees in a repository that
-never contained the scorers — attempted 2026-09-15 and refused with
-`403 Resource not accessible by integration`; `create_repository` is outside
-this integration's permissions. That step is available to a human with repo
-rights: create a private repo, push the eight base commits to it as branches,
-and point `source_url` at it. Until then, treat the isolation as
-instruction-level and say so when reporting a result.
+So the block is defence-in-depth rather than the mitigation. It is kept for two
+reasons: it is frozen, and changing a frozen artefact invalidates the reps
+before it; and it is the only thing that would still bite if the harness's
+clone behaviour changed under us. It is cheap — it deletes a remote that
+carries nothing fetchable and refs the clone does not hold.
+
+An agent that skips it therefore no longer voids the rep. An agent that runs it
+and reports a *non-empty* ref list is the signal to stop: that means the clone
+carried more than its base, and the probe's finding no longer holds.
 
 ## Rep 1 is unaffected
 
 Arm A rep 1 ran on 2026-09-14, before any scorer was committed to this
 repository — they lived in a scratch directory at the time. Nothing readable
-from that clone contained an answer key. Rep 1's isolation from `main` was
-nonetheless instruction-level too, which is the asymmetry to keep in mind when
-comparing it with reps run under this preamble.
+from that clone contained an answer key, under either account of the clone.

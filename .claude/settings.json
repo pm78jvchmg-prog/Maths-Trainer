@@ -20,7 +20,6 @@
       "Bash(npx oxlint:*)"
     ],
     "deny": [
-      "Bash(git fetch:*)",
       "Bash(git remote:*)",
       "Bash(git ls-remote:*)",
       "Bash(git clone:*)",

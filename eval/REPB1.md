@@ -1,8 +1,12 @@
 # Arm B rep 1 — **VOID**
 
 Not a result. Kept as the record of why arm B was re-run, and of what the
-isolation preamble does to a Sonnet executor. The corrected run is arm B′,
-branches `eval/tN-c1`, `-c2`, `-c3`; see the end of this file.
+isolation preamble does to a Sonnet executor.
+
+**Naming.** The arm is still called **arm B** throughout. Its three reps are
+arm B rep 1, 2 and 3. The branch suffixes are `-c1`, `-c2`, `-c3` only because
+`-b1` is already taken by this voided run and the git proxy refuses branch
+deletion; `c` is a branch-name detail, not a fourth arm.
 
 Scored against freeze `6338653`.
 
@@ -131,14 +135,14 @@ conditions; arm B's did not, and the difference is caused entirely by an
 instruction `eval/README.md` § Isolation already establishes is unnecessary.
 
 
-## Voided 2026-09-15, and re-run as arm B′
+## Voided 2026-09-15, and re-run as arm B
 
 Voided because every session in it met different conditions from every session
 in arm A, and the pokes that unblocked them were ad hoc. The verdicts below are
 real — the scorers ran, the code is on the branches — but they are not
 comparable with arm A's, which is the only thing they were for.
 
-Arm B′ changes exactly two things and nothing else:
+Arm B changes exactly two things and nothing else:
 
 1. **No isolation preamble.** The boundary is the harness's single-branch
    clone, established by probe on 2026-09-15 (`README.md` § Isolation). The
@@ -154,7 +158,7 @@ Arm B′ changes exactly two things and nothing else:
 
 Bases, task text, scorers and the `6338653` freeze are untouched.
 
-### Why arm B′ was not run as subagents in the driving session
+### Why arm B was not run as subagents in the driving session
 
 Asked whether the eight could run in-process here rather than as separate
 remote sessions. They cannot. A probe subagent spawned in the driving session,
@@ -174,7 +178,7 @@ the working directory.
 A remote session gets a single-branch clone at the base commit, which carries
 none of it. That is why the eight stay remote.
 
-### Arm B′ rep 1 sessions
+### Arm B rep 1 sessions
 
 | | Session | Branch |
 | --- | --- | --- |

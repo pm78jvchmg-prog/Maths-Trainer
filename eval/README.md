@@ -26,8 +26,12 @@ skipping or weakening an existing test is an automatic fail — check with
 `git diff eval-base-tN -- '*.test.ts'`.
 
 T4 has no scorer file; its criterion is run discipline (three consecutive clean
-suites, `SEEDS` still 200, no test removed). T5's scorer is a Playwright script
-run against a dev server at 393x852.
+suites, `SEEDS` still 200, no test removed).
+
+T5's scorer is a Playwright script run against a dev server at 393x852. Node
+resolves its `playwright-core` import from the script's own location, so copy
+it next to an installed `playwright-core` and run it from there — running it by
+absolute path out of this directory fails module resolution, not the check.
 
 ## Rule 1b audit (2026-09-15)
 

@@ -358,7 +358,16 @@ read a user-level setting from, and remote sessions are where the cost actually
 lands.
 
 `.claude/skills/` is committed for the same reason, and the `.gitignore` carries
-a negation for each. It currently holds one vendored skill:
+a negation for each. It currently holds two skills:
+
+- **`eval-checker`** — an adversarial reviewer for model-comparison experiments,
+  written from the defects that voided the first comparison in this repo. It
+  audits scorers, isolation boundaries, adjudication and freeze discipline, and
+  its organising question is which *direction* a defect biases: one that inflates
+  the baseline is conservative and can be logged, one that inflates the
+  challenger is fatal. Invoke it before launching an eval run, before recording a
+  verdict, and before acting on a comparison.
+
 
 - **`i-have-adhd`** — an output-style skill from
   [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT), vendored at

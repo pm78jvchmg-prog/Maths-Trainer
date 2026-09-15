@@ -4,17 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Toolchain
 
-Node and the GitHub CLI are user-local installs, not on the default PATH in a
-non-interactive shell. Prefix any command that needs `node`, `npm`, `npx` or `gh`:
+**This differs between the owner's machine and a cloud container. Check which
+you are on before assuming either.**
+
+*On the owner's machine*, Node and the GitHub CLI are user-local installs and
+are not on the default PATH in a non-interactive shell. Prefix any command that
+needs `node`, `npm`, `npx` or `gh`:
 
 ```bash
 export PATH="$HOME/.local/node/bin:$HOME/.local/gh/bin:$PATH"
 ```
 
 Without it you get `command not found: node`, which looks like a missing install
-rather than a PATH problem. There is no Homebrew, system Node, or Xcode on this
-machine; install further tools the same way (user-local tarball) rather than
-reaching for a package manager.
+rather than a PATH problem. There is no Homebrew, system Node, or Xcode there;
+install further tools the same way (user-local tarball) rather than reaching for
+a package manager.
+
+*In a Claude Code cloud container*, none of that holds. Node lives at
+`/opt/node22/bin` and is already on PATH, `$HOME/.local/node` does not exist,
+and the export above is a harmless no-op. `gh` is absent entirely — GitHub work
+goes through the MCP tools (`mcp__github__*`), not the CLI.
+
+One line settles it:
+
+```bash
+command -v node || export PATH="$HOME/.local/node/bin:$HOME/.local/gh/bin:$PATH"
+```
 
 ## Commands
 
@@ -35,6 +50,16 @@ npx vitest run -t 'branch'                    # -t takes a REGEX, not a literal
 
 `-t` patterns are regular expressions, so a test name containing `|` (e.g. "the
 |x| trap") will alternate rather than match — quote a distinctive substring instead.
+
+**Never stop a dev server with `pkill -f vite` (or any `pkill -f` matching a
+command you yourself ran).** The pattern matches the agent's own shell process
+and kills the session's command mid-flight, losing whatever it was doing. This
+has happened twice. Kill it by port instead, or leave it running — the container
+is torn down anyway:
+
+```bash
+fuser -k 5199/tcp 2>/dev/null || true
+```
 
 **`npm test` passing is not sufficient.** Vitest transforms TypeScript with
 esbuild, which strips types without checking them; a file can have real type

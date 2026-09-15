@@ -18,6 +18,17 @@
       "Bash(npx vitest:*)",
       "Bash(npx tsc:*)",
       "Bash(npx oxlint:*)"
+    ],
+    "deny": [
+      "Bash(git fetch:*)",
+      "Bash(git remote:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git clone:*)",
+      "Bash(git archive:*)",
+      "Bash(git pull:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(gh:*)"
     ]
   }
 }

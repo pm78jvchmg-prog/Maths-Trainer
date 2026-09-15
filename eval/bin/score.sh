@@ -100,3 +100,18 @@ for t in t1 t2 t3a t3b t4 t5 t6 t7 t8; do
   IFS='|' read -r a b c d e < "$WORK/$t.result"
   printf '%-5s %-34s %-24s %-11s %s\n' "$a" "$b" "$c" "$d" "$e"
 done
+
+# T3a and T3b are two runs of ONE task. T3 split only because its two
+# requirements were unsatisfiable together; the task count must not inherit the
+# split, or the denominator moves from 24 to 27 and Rule 0's threshold silently
+# loosens from 16.7% to 14.8%. Scored as one: T3 passes only if both halves do.
+a3=$(cut -d'|' -f2 < "$WORK/t3a.result")
+b3=$(cut -d'|' -f2 < "$WORK/t3b.result")
+case "$a3$b3" in
+  *INCONCLUSIVE*) t3='INCONCLUSIVE (a half was inconclusive)' ;;
+  greengreen)     t3='PASS' ;;
+  *)              t3='FAIL' ;;
+esac
+printf '\n%-5s %s\n' 'T3' "$t3  <- t3a AND t3b, counted as one task of eight"
+echo
+echo 'Task count for Rule 0: EIGHT (t1 t2 T3 t4 t5 t6 t7 t8) = 24 trials over three reps.'

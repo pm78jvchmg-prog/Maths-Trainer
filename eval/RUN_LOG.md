@@ -316,3 +316,33 @@ Not on arm A and arm B happening to use different repositories. That held only
 because of how the Routine was written, and a boundary that depends on reading
 the configuration correctly is the kind that has failed here repeatedly. One
 repo per (arm, rep) has no cross-visibility by construction.
+
+## Denominator restored to 24 — the accounting fix, not a reinterpretation
+
+T3a and T3b are two runs of **one task**. Scored as one, passing only if both
+pass. Eight tasks over three reps is 24 trials, and `EVAL_PROTOCOL.md` Rule 0
+applies exactly as frozen: **≥4 of 24 and cost ≤ 1.2×**.
+
+This replaces two restatements of mine, both of which loosened the rule toward
+switching: carrying "4" across to a 27 denominator dropped the threshold from
+16.7% to 14.8%, and "cost is not in the switch condition" removed a conjunct that
+has to be satisfied as well as the gap.
+
+### The cost clause, stated before the numbers land
+
+Arm B ran at **0.57×** arm A in the voided comparison. If anything close to that
+holds, `cost ≤ 1.2×` is satisfied comfortably and never binds — the decision then
+rests entirely on the ≥4 gap. Recording that now so the clause cannot later be
+discovered to have been load-bearing, or quietly treated as the thing that
+carried the verdict.
+
+### A risk this creates
+
+T3 is currently INCONCLUSIVE, and inconclusive trials are dropped from both arms'
+denominators. If T3a's scorer stays broken across all three reps, T3 drops out
+entirely: seven tasks, 21 trials, and Rule 0's "4 of 24" is ambiguous again —
+exactly the situation the collapse was meant to end.
+
+The fix is to make T3a scoreable, not to rescale the rule. If it is still
+inconclusive after rep 2, that is the point to stop and repair the scorer rather
+than run rep 3 into the same hole.

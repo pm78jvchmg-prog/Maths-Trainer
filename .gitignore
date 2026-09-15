@@ -33,3 +33,4 @@ dist-ssr
 
 # Local reference screenshots/video, duplicated under docs/inspiration/
 /Game Inspiration/
+eval/scorers/

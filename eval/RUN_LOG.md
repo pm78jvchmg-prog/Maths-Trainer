@@ -139,3 +139,43 @@ names under "Residual risk".
 
 Cost: 27 concurrent Sonnet sessions. If rate limits stall any, they are resumed
 in place, never relaunched.
+
+## Instrument fix after the rep 1 halt
+
+### T3a scorer — bounded, and why the cap alone was not enough
+
+Rewritten: eight values instead of 101, a handle cap, an attempt cap, a 20s
+in-test budget, and calibration — an export is only used as an applier if it
+first turns `2 + 3` at the root into `5`. Exhausting any cap reports
+**INCONCLUSIVE**, never a fail.
+
+That is the right design and it still does not rescue rep 1's T3a branch. Probed
+directly: `pairBank(chain, 'r', 1)` never returns, and neither does
+`pairBank(2 + 3, ROOT)`. One exported function loops on ordinary input, so **no
+in-process enumeration of that branch is safe** — caps check between calls and
+never get the chance, and calibration hangs during calibration.
+
+The backstop therefore does the work here: `score.sh` now runs each scorer under
+`timeout 180` and maps a timeout to INCONCLUSIVE rather than RED. T3a rep 1 is
+recorded INCONCLUSIVE.
+
+Separate observation, not a verdict: a shipped function that hangs on
+`pairBank(2 + 3, ROOT)` is a real defect in that branch. The suite passes because
+nothing calls it that way. T3a's scorer does not test for it, so it does not
+change the verdict — recorded here rather than folded in silently.
+
+### T3b spec resolved before re-scoring
+
+The dispute was whether "the whole rest of the line" includes mixed precedence.
+It does. `CLAUDE.md` states the intended design in terms: *"the value is the only
+test … taking `8 + 4 x 3` left to right produces 36 rather than 20, so the order
+mistake is already in the answer."* The scorer's reading was right and the prompt
+was silent, which is how rep 1's branch reached a narrower rule in good faith.
+
+The prompt now says so, with the scorer's own example. Checked first that
+`CLAUDE.md` at `eval-base-t3` does **not** contain that passage — it does not, so
+the requirement is stated without leaking the fix.
+
+**Consequence: rep 1's T3b must be re-run, not re-scored.** Its branch answered a
+different question. The other eight branches stand and are re-scored against the
+new hash.

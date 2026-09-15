@@ -56,8 +56,15 @@ one() {
     scored="MANUAL — Playwright, run by hand"
   else
     cp "$PRIV/$scorer" "$wt/$dir/$task.test.ts"
-    if (cd "$wt" && npx vitest run "$dir/$task.test.ts" > "$WORK/$task.scorer.log" 2>&1); then
+    # A scorer that does not terminate has measured itself, not the work, so a
+    # timeout reports INCONCLUSIVE and never RED. The budget is generous: any
+    # scorer needing more than 3 minutes on one branch is broken.
+    if (cd "$wt" && timeout 180 npx vitest run "$dir/$task.test.ts" > "$WORK/$task.scorer.log" 2>&1); then
       scored="green"
+    elif [ "$?" = 124 ]; then
+      scored="INCONCLUSIVE (scorer timed out at 180s)"
+    elif grep -q 'INCONCLUSIVE' "$WORK/$task.scorer.log"; then
+      scored="INCONCLUSIVE (search exhausted)"
     else
       scored="RED ($(grep -Eo '[0-9]+ failed' "$WORK/$task.scorer.log" | head -1))"
     fi

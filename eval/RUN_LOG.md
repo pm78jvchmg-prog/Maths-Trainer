@@ -402,3 +402,52 @@ repository did.
 The retracted harness-clone claim has also been removed from that file. It
 still asserted that the harness closes the leak, citing the probe that
 `README.md` § Isolation retracts.
+
+## 2026-09-15 22:02 — the preamble's commands are refused by the platform, uniformly
+
+First wake after launching arm A rep 2. All nine sessions RUNNING, none stalled,
+0 of 9 outcome branches (5 minutes in). But eight of the nine report having hit
+the same wall: the sessions run under `permission_mode: auto`, and the platform's
+permission classifier **refuses the preamble's destructive git commands** —
+`git remote remove origin`, `git update-ref -d`, `git reflog expire`,
+`git gc --prune=now`. Two sessions name it in their own summaries
+("isolation denied; proceeding with fix", "isolation commands blocked by
+permission classifier").
+
+This is not the bases' doing: `.claude/settings.json` on `eval-base-t3` carries
+only the subagent-model env var, no deny list. It is the harness, and it applies
+to every session in every arm.
+
+### What it means, and what it does not
+
+Isolation is **instruction-level in practice**, in both arms, in every rep —
+the same footing arm A rep 1 ran on. The enforcement the block was supposed to
+add does not exist at this layer and never did.
+
+**This does not void rep 2.** `PROMPT_PREAMBLE.md` says, in text committed
+before this was observed: *"An agent that skips it does not void the rep."*
+That sentence is now doing real work rather than describing a hypothetical.
+The boundary that is actually enforced is the per-(arm, rep) subject repository,
+which contains nothing but the eight bases — there is no answer key to reach
+whatever the agent runs.
+
+Direction of bias: **none**. The refusal is a property of the harness, applied
+identically to arm A and arm B, so it cannot move the gap between them.
+
+### Two consequences to carry forward
+
+1. **The preamble stays unchanged.** Changing it now would split rep 2 from
+   reps 3-6 on prompt text, for no gain: the block is defence-in-depth over a
+   boundary that already holds. It is kept for its one live function — a
+   session that reports a non-empty ref list is the signal that its clone
+   carried more than its base.
+2. **The restore step is a no-op and the push is safe.** Since the removal is
+   refused, `origin` survives, so `git push -u origin HEAD:armA-rep2-tN` works
+   without it. The one case to watch is a session that *did* get the removal
+   through, which would then be refused `git remote add` and could not push.
+   `armA-rep2-t3b` reports a null current branch and is the candidate; checked
+   next wake.
+
+No session is to be messaged about this. Eight have already routed around it
+unaided, which is what the preamble licenses, and telling them otherwise is
+what voided arm B rep 1.

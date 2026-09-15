@@ -1,4 +1,10 @@
-# Arm B rep 1 (Sonnet executor, Opus advisor) — scored against freeze `6338653`
+# Arm B rep 1 — **VOID**
+
+Not a result. Kept as the record of why arm B was re-run, and of what the
+isolation preamble does to a Sonnet executor. The corrected run is arm B′,
+branches `eval/tN-c1`, `-c2`, `-c3`; see the end of this file.
+
+Scored against freeze `6338653`.
 
 Launched 12:31Z on 2026-09-15, all eight together. Bases, task prompts, scorers
 and the isolation preamble identical to arm A; the only additions are the model
@@ -123,3 +129,60 @@ unblocked them were not part of the instrument and differed per session.
 That is not a small caveat. Arm A's agents all did the task under the same
 conditions; arm B's did not, and the difference is caused entirely by an
 instruction `eval/README.md` § Isolation already establishes is unnecessary.
+
+
+## Voided 2026-09-15, and re-run as arm B′
+
+Voided because every session in it met different conditions from every session
+in arm A, and the pokes that unblocked them were ad hoc. The verdicts below are
+real — the scorers ran, the code is on the branches — but they are not
+comparable with arm A's, which is the only thing they were for.
+
+Arm B′ changes exactly two things and nothing else:
+
+1. **No isolation preamble.** The boundary is the harness's single-branch
+   clone, established by probe on 2026-09-15 (`README.md` § Isolation). The
+   preamble was defence-in-depth against a leak that does not exist, and it cost
+   one whole task and most of three others. The closing instruction now says to
+   commit *and push*, and says permission is granted, which is what every arm A
+   session had to be told by hand anyway.
+2. **The advisor logs itself.** Each executor appends every consultation — the
+   question and a summary of the answer — to `eval-advisor.log` at the
+   repository root and commits it. Arm B rep 1 could not be verified as arm B at
+   all; a session that skipped the advisor can now be excluded rather than
+   silently counted.
+
+Bases, task text, scorers and the `6338653` freeze are untouched.
+
+### Why arm B′ was not run as subagents in the driving session
+
+Asked whether the eight could run in-process here rather than as separate
+remote sessions. They cannot. A probe subagent spawned in the driving session,
+told only to report what was already in its context, quoted back from this
+repository's `CLAUDE.md`:
+
+- *"an unsettled root is written as `(x)^{1/2}` rather than as a radical"* — **T2's answer**
+- *"Refusing a move for being out of order as well … marked correct arithmetic wrong"* — **T3's answer**
+- *"give it a budget rather than trimming its sample count"* — **T4's answer**
+
+Three of eight tasks handed over before the agent reads a line of code. This is
+the same channel that voided the first baseline attempt on 2026-09-14, and it is
+worse now: an in-process agent shares the driving session's filesystem, so
+`PITFALLS.md`, `DECISIONS.md` and `eval/scorers/` are one `cat` away whatever
+the working directory.
+
+A remote session gets a single-branch clone at the base commit, which carries
+none of it. That is why the eight stay remote.
+
+### Arm B′ rep 1 sessions
+
+| | Session | Branch |
+| --- | --- | --- |
+| T1 | `session_01VDSkok4VuHRtXmptYjZ2cx` | `eval/t1-c1` |
+| T2 | `session_01Mu77Y4ms3ySzJ7HtX6dWJM` | `eval/t2-c1` |
+| T3 | `session_01Ryh8nKts7gi32xs57a9kYA` | `eval/t3-c1` |
+| T4 | `session_01SL85jN3uJ4MsLHZcc441Md` | `eval/t4-c1` |
+| T5 | `session_01KGs2RzyvgCg5zY4nx2zaqo` | `eval/t5-c1` |
+| T6 | `session_01QRxZuvYCf7yjjnUR4Nr2hv` | `eval/t6-c1` |
+| T7 | `session_01XyKX97dCU6SBxmPNn4D6Tf` | `eval/t7-c1` |
+| T8 | `session_01U2TU8eDqmd9w7fD94zSxLe` | `eval/t8-c1` |

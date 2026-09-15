@@ -451,3 +451,64 @@ identically to arm A and arm B, so it cannot move the gap between them.
 No session is to be messaged about this. Eight have already routed around it
 unaided, which is what the preamble licenses, and telling them otherwise is
 what voided arm B rep 1.
+
+## 2026-09-15 22:45 — arm A rep 2 scored: 8 PASS of 8
+
+Manual fire of the Routine at the owner's request, 40 minutes after launch. All
+nine branches pushed; all nine sessions reached `completed`. Freeze verified `OK`
+immediately before scoring and the T5 scorer's hash checked at the point of use.
+
+Full table in `ARM_A.md`. Headline: **8 PASS, 0 FAIL, 0 INCONCLUSIVE**, at
+**$47.04**.
+
+### T3 came back scoreable without the scorer being touched
+
+`t3a.pair.scorer.ts` is byte-identical to the one that hit the 180s timeout on
+rep 1 — same hash, verified. It terminates against rep 2's branch. So rep 1's
+INCONCLUSIVE was a defect in *that branch's* `pairBank`, exactly as the defect
+register records, and nothing about the instrument is retracted by this.
+
+Consequence for the denominator: T3 is live again. The risk flagged earlier —
+T3 dropping out of all three reps and leaving Rule 0 ambiguous over 21 trials —
+has not materialised, and the standing instruction to repair the scorer rather
+than rescale the rule was not needed.
+
+### Deletion counts overstate; every line was read
+
+t3a's six "deletions" are the bank assertions lifted into a `needsBank` helper
+and then applied to pair banks as well — stronger than the base. t3b's 32 are
+its licensed rewrite, with the wrong-value guards rebuilt as value tests
+(`value: 36 -> wrong-value`) rather than dropped. t2, t4 and t6 are one line
+each: two import rewrites and the oracle call. No branch has fewer `it(` blocks
+than its base.
+
+### Defect register — no new entries
+
+No hang, non-terminating export or unhandled throw on ordinary input found while
+scoring rep 2. Arm A running total: **1** (`pairBank` on `armA-rep1-t3a`).
+
+### Blinding: this rep was not blind, and the exposure is named
+
+Scored in the session that launched it. The eight scorers are deterministic
+programs, so their verdicts carry no bias from that. The constraint checks are
+judgement and were made knowing the arm — real exposure, though every one came
+out clean and none was close. No disputes, so nothing is queued for
+adjudication. Close calls in either arm go to a blind pass over both arms
+together rather than being settled arm-by-arm.
+
+### The permission refusal, now with cost attached
+
+`armA-rep2-t3a` ended `blocked`, asking to be allowed to run the preamble's
+refused git commands — **after** it had finished the task and pushed. Its
+$11.52 is the highest of the nine and part of that tail is the block, not the
+work. Arm B meets the identical refusal, so this does not move the A-vs-B gap,
+but it inflates both arms' absolute cost. Worth remembering when Rule 0's
+`cost <= 1.2x` clause is applied: the clause is a ratio, and a constant overhead
+on both arms pushes the ratio toward 1, which makes the clause *easier* to
+satisfy. That direction favours switching, so it is logged rather than left
+implicit.
+
+### Gate standing
+
+Rep 1 and rep 2 agree on seven of eight tasks; T3 differs (INCONCLUSIVE, PASS).
+One disagreement, tolerance is 2. Rep 3 next.

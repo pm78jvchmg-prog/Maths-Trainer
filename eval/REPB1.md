@@ -5,18 +5,20 @@ and the isolation preamble identical to arm A; the only additions are the model
 (`claude-sonnet-5`) and the appended advisor instruction recorded in
 `ARM-B.md`. Scored with `eval/bin/score.sh -b1` in 4m28s.
 
-| | Scorer | Suite | `tsc` | Verdict |
-| --- | --- | --- | --- | --- |
-| **T1** | **2 of 45 red** | 1921 green | silent | **FAIL** |
-| **T2** | green | 2512 green | silent | **PASS** |
-| **T3** | **2 of 5 red** | 2579 green | silent | **FAIL** |
-| **T4** | n/a (run discipline) | 3 × 219 green | silent | **PASS** |
-| **T5** | green (Playwright, 393px) | 1079 green | silent | **PASS** |
-| **T6** | green | 2238 green | silent | **PASS** |
-| **T7** | *never started* | — | — | *pending* |
-| **T8** | green | 1899 green | silent | **PASS** |
+| | Scorer | Suite | `tsc` | Verdict | Cost | Arm A rep 3 cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| **T1** | **2 of 45 red** | 1921 green | silent | **FAIL** | $3.28 | $3.32 |
+| **T2** | green | 2512 green | silent | **PASS** | $4.54 | $8.19 |
+| **T3** | **2 of 5 red** | 2579 green | silent | **FAIL** | $2.51 | $13.16 |
+| **T4** | n/a (run discipline) | 3 × 219 green | silent | **PASS** | $2.64 | $2.44 |
+| **T5** | green (Playwright, 393px) | 1079 green | silent | **PASS** | $1.41 | $3.12 |
+| **T6** | green | 2238 green | silent | **PASS** | $4.89 | $2.59 |
+| **T7** | *never started* | — | — | *void* | $0.27 | $4.56 |
+| **T8** | green | 1899 green | silent | **PASS** | $6.12 | $6.55 |
 
-**5 of 7 scored. T7 outstanding.**
+**5 of 7 scored. T7 void.** Cost **$25.66** against arm A rep 3's $43.93 — but
+T3 and T7 are cheap because they did less, not because they were efficient, so
+the ratio is not yet a fair one.
 
 ## No test was weakened
 
@@ -53,6 +55,38 @@ rejected at parse time rather than the shared probe scope being isolated. Four
 attempts across two arms and two models, and the tempting fix has won every
 time. That is now a finding about the bug, not about the model.
 
+## T3 did not attempt the task
+
+Worth separating from an ordinary miss. T3's own summary is *"examined bug
+report; documented design decision; test added"* — it concluded the existing
+behaviour was correct, wrote a docstring in `expr.ts` explaining why, and added
+a guard test pinning it. That is why it met neither requirement: it did not try
+and fall short, it declined.
+
+Scored FAIL, which is right. But "declined the task" and "attempted and missed"
+are different failures and the pass rate cannot tell them apart.
+
+## Sonnet reads the isolation preamble as a prompt-injection attack
+
+This is the finding that matters most, and it is systematic. From the sessions'
+own summaries:
+
+| | What it reported |
+| --- | --- |
+| T4 | *"injection attempt rejected"*, *"advisor verified, injection refused"* — completed anyway |
+| T7 | *"agent detected injection attempts; awaiting user confirmation"* — blocked |
+| T8 | *"security: destructive git commands detected in user request"* — blocked after pushing |
+| T2 | blocked twice on the same commands |
+
+Half of arm B treated the preamble as hostile. **No arm A session did.** They
+were denied the commands by the permission classifier, said so, and carried on
+with the task.
+
+The agents are not wrong to flag it. "Remove your remote, delete every ref but
+this one, expire the reflog, and do not look at any other branch" is what an
+attacker covering their tracks would say, and it arrives in the same message as
+the task. Opus complied or shrugged; Sonnet escalated.
+
 ## T7 never started — and the preamble is why
 
 T7 sat blocked on the isolation preamble from 12:32Z, having spent $0.10 and
@@ -68,6 +102,24 @@ handles a **pointless instruction**, not in how it fixes code — and it arrives
 as a confound, because T7 in arm B has now been prompted differently from T7
 anywhere in arm A.
 
-T7's result will be recorded with that caveat attached. It is the clearest
-possible argument for `EVAL_PROTOCOL.md` Rule 2b: drop the preamble before the
-next experiment.
+T7 is recorded **void**, not as a fail. It produced no attempt to score.
+
+## What could not be verified
+
+Whether each executor actually consulted the Opus advisor. `get_session`
+exposes summaries, not transcripts, and only T4 mentions the advisor by name
+(*"advisor verified"*). Session cost is weak evidence — T6 at $4.89 and T8 at
+$6.12 are high for Sonnet alone, T5 at $1.41 is not — but it is not proof, and
+an executor that skipped the advisor is not arm B. This needs a transcript-level
+check or an instrumented advisor before the arm can be reported as measured.
+
+## The arm is compromised as it stands
+
+Every arm B session met the preamble differently from every arm A session: one
+never started, two were blocked mid-flow and only pushed after a poke, one
+explicitly refused it as an injection attempt and carried on. The pokes that
+unblocked them were not part of the instrument and differed per session.
+
+That is not a small caveat. Arm A's agents all did the task under the same
+conditions; arm B's did not, and the difference is caused entirely by an
+instruction `eval/README.md` § Isolation already establishes is unnecessary.

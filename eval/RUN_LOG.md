@@ -346,3 +346,59 @@ exactly the situation the collapse was meant to end.
 The fix is to make T3a scoreable, not to rescale the rule. If it is still
 inconclusive after rep 2, that is the point to stop and repair the scorer rather
 than run rep 3 into the same hole.
+
+## 2026-09-15 — the five subject repos exist and are verified; gate open
+
+All five per-(arm, rep) repositories now hold **exactly** the eight
+`eval-base-t*` branches, at the SHAs in `bases.tsv`, verified with
+`mcp__github__list_branches` rather than assumed:
+
+| Repo | Branches |
+| --- | --- |
+| `...-eval-subject-armA-rep2` | 8, correct SHAs |
+| `...-eval-subject-armA-rep3` | 8, correct SHAs |
+| `...-eval-subject-armB-rep1` | 8, correct SHAs |
+| `...-eval-subject-armB-rep2` | 8, correct SHAs |
+| `...-eval-subject-armB-rep3` | 8, correct SHAs |
+
+The original `maths-trainer-eval-subject` also now lists eight and no more —
+`delete-me` has been removed at the owner's end, so the branch-deletion
+limitation is on this side of the proxy only.
+
+Each repository had to be attached to the session with `add_repo` before a
+push would authorise. The 403 seen first was the proxy declining to inject a
+credential for a repository outside the session's set — **not** evidence that
+the repository was missing. Recorded because the earlier version of that
+mistake (declaring a repository non-existent from a proxy error) is in this log
+already.
+
+Freeze re-verified immediately before launch: all 8 scorers and all 9 task
+files `OK` against `INSTRUMENT.sha256`.
+
+## Instrument amendment — the preamble could not push
+
+Blocking defect found while assembling the rep 2 prompts, not a judgement call:
+`PROMPT_PREAMBLE.md` instructed the session to `git remote remove origin` and
+then "Do not restore the remote", while every task prompt closes with
+`git push -u origin <branch>`. Both cannot be obeyed. Under the unamended text
+a rep cannot complete — which is exactly what happened to arm B rep 1, whose
+sessions stalled on the block and were told to skip it, and which is void for
+that reason.
+
+Amended: the prohibition is scoped to the working window and a restore step is
+added after the commit. The isolation window is unchanged — no remote during
+diagnosis, implementation or testing.
+
+**This invalidates nothing.** No valid rep has run under the preamble: arm A
+rep 1 predates the file and used instruction-level isolation; arm B rep 1 and
+arm C are void. Arm A rep 2 is the first rep under it, and runs under the
+amended text, so all three reps of both arms will share one preamble.
+
+`eval/PROMPT_PREAMBLE.md` is now hashed in `INSTRUMENT.sha256`. It was not
+before — "frozen" rested on a sentence inside the file rather than on the
+manifest, which is the same class of gap as the scorers living in the
+repository did.
+
+The retracted harness-clone claim has also been removed from that file. It
+still asserted that the harness closes the leak, citing the probe that
+`README.md` § Isolation retracts.

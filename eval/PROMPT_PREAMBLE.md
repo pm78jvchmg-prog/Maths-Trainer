@@ -12,44 +12,67 @@ report their output:
     git reflog expire --expire=now --all && git gc --prune=now --quiet
 
 That leaves the commit you were given and its ancestors, and nothing else.
-Do not restore the remote. Do not run `git log --all`. Treat the working tree
-as the only source of truth: no other branch, no non-ancestor commit.
+While you work, do not restore the remote and do not run `git log --all`.
+Treat the working tree as the only source of truth: no other branch, no
+non-ancestor commit.
+
+Once the work is finished, tested and committed — and only then — restore the
+remote so you can push. The URL and branch are given at the end of this task.
 ```
 
-## Why it is in the instrument
+## Amended 2026-09-15: the block had no way to push
 
-This repository also holds the scorers that grade this work (`eval/scorers/`),
-the protocol, and the solution branches of earlier reps. A full-mirror clone
-would fetch all of it, and `git show <ref>:<path>` would then reach the answer
-key even though it is absent from the checked-out tree.
+As first written the block removed `origin` and said "Do not restore the
+remote", while every task prompt ends with `git push -u origin <branch>`. Those
+cannot both be obeyed. It is not a matter of strictness — the instrument as
+written could not complete a rep, and the sessions that met it stalled asking
+what to do, which is how arm B rep 1 came to be told to skip the block at all
+(and so came to be void).
 
-The harness does not do that. Probed 2026-09-15 (see `README.md` § Isolation):
-a remote session cloned at `source_revision: eval-base-tN` gets that branch's
-history alone — 11 commits, no `main`, no sibling branches, and objects from
-the freeze commit report as missing. The leak this block was written against
-does not exist at the harness level.
+The amendment adds the restore step and scopes the prohibition to the working
+window. The isolation window itself is unchanged: the remote is absent for the
+whole of diagnosis, implementation and testing, and returns only after the
+commit is made.
 
-## What this does and does not close
+**Nothing is invalidated by this change.** No valid rep has ever run under this
+block. Arm A rep 1 ran on 2026-09-14 under instruction-level isolation, before
+this file existed. Arm B rep 1 is void. Arm C is void. The first rep to run
+under the preamble will be arm A rep 2, under the amended text.
 
-| | Status |
-| --- | --- |
-| Scorers readable from the clone | Closed by the harness: never fetched |
-| Prior reps' solution branches | Closed by the harness: never fetched |
-| Enforcement independent of the agent | **Closed** — the clone is the boundary |
-| Harness reverting to a full-mirror clone | Caught by this preamble |
+To stop it drifting again, `eval/PROMPT_PREAMBLE.md` is from now on hashed in
+`eval/INSTRUMENT.sha256` alongside the scorers and the task files. It was not
+before, which is why "frozen" rested on nothing but this sentence.
 
-So the block is defence-in-depth rather than the mitigation. It is kept for two
-reasons: it is frozen, and changing a frozen artefact invalidates the reps
-before it; and it is the only thing that would still bite if the harness's
-clone behaviour changed under us. It is cheap — it deletes a remote that
-carries nothing fetchable and refs the clone does not hold.
+## What the block is for, and what actually closes the leak
 
-An agent that skips it therefore no longer voids the rep. An agent that runs it
-and reports a *non-empty* ref list is the signal to stop: that means the clone
-carried more than its base, and the probe's finding no longer holds.
+This repository also holds the protocol and the run logs, and earlier reps'
+solution branches live in whatever repository that rep was run from. If a task
+session could reach them, it could read an answer key that is absent from its
+own checked-out tree.
+
+**The mitigation is the subject repository, not this block.** Each (arm, rep)
+gets its own repository containing only the eight `eval-base-t*` branches:
+there is nothing else in it to reach, whatever the clone does and whatever the
+agent runs. That is enforced by construction rather than by instruction.
+
+An earlier version of this file claimed the harness itself closes the leak,
+citing a probe that found a session's clone held its base branch alone. That
+claim is **retracted** — see `README.md` § Isolation. The probe never attempted
+a fetch, and absence of objects in a fresh shallow clone is not an inability to
+fetch them; `git fetch origin main` overrides a `--single-branch` refspec. The
+retraction is why the per-(arm, rep) repositories exist.
+
+So the block is defence-in-depth, and cheap. It is kept for two reasons: it
+costs nothing when the repository is already bare of anything worth reading,
+and an agent that runs it and reports a **non-empty** ref list is a signal
+worth having — that would mean the clone carried more than its base.
+
+An agent that skips it does not void the rep. An agent that reports extra refs
+is the signal to stop and look.
 
 ## Rep 1 is unaffected
 
-Arm A rep 1 ran on 2026-09-14, before any scorer was committed to this
-repository — they lived in a scratch directory at the time. Nothing readable
-from that clone contained an answer key, under either account of the clone.
+Arm A rep 1 ran before any scorer was committed to this repository — they lived
+in a scratch directory at the time, and now live outside the repository
+entirely at `/home/user/eval-private/scorers/`. Nothing readable from that
+clone contained an answer key, under either account of the clone.

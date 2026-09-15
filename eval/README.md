@@ -64,7 +64,12 @@ The rewrites discover rather than name:
   `applyKey(doc, key)`. Every name it does assert is present at the base.
 - **t8** finds the generator the task asked for by what its slide *answers*
   (an expression slide whose answer carries a fractional index), then uses that
-  slide's own declared `domain` rather than naming a value.
+  slide's own declared `domain` rather than naming a value. **Widened again on
+  2026-09-15**: the first version matched one optional open paren, and the house
+  style over-brackets `answer` because mathjs parses it and nobody reads it —
+  `x^((3)/(2))`. Rep 2's generator was invisible to it and scored a false FAIL.
+  The predicate now tolerates any bracketing. Re-checked in both directions:
+  red on base `96cf78e`, green on rep 1 and rep 2.
 
 Both were confirmed to fail on their untouched bases and to pass on the
 branches from arm A rep 1 (Rule 1c, both directions). Every assertion in t7

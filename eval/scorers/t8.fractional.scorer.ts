@@ -15,7 +15,17 @@ import { makeRng } from './rng';
 import { registry } from '../content/registry';
 import type { Generator } from '../content/types';
 
-const FRACTIONAL_INDEX = /\^\s*\(?\s*-?\d+\s*\/\s*\d+/;
+/**
+ * A fractional index in an answer string, tolerant of how it is bracketed.
+ *
+ * `answer` is parsed by mathjs and never displayed, so the house style is to
+ * over-bracket it for unambiguity — `x^((3)/(2))`, not `x^(3/2)`. The first
+ * version of this allowed a single optional open paren and so could not see
+ * the repo's own convention: rep 2's generator was invisible to it and the
+ * task scored a false FAIL. Rule 1 again, one level down from naming — the
+ * predicate was asserting a spelling.
+ */
+const FRACTIONAL_INDEX = /\^\s*\(*\s*-?\s*\(*\s*-?\d+\s*\)*\s*\/\s*\(*\s*\d+/;
 
 /** The slide the task asked for, found by what it asks rather than by its id. */
 function fractionalIndexSlide() {

@@ -144,6 +144,21 @@ and re-probe. Results no longer need the instruction-level caveat; the separate
 subject repository, which `create_repository` refused with `403 Resource not
 accessible by integration`, is no longer needed.
 
+**Re-frozen 2026-09-15, after rep 2.** `eval/scorers/t8.fractional.scorer.ts`
+was found to assert a *spelling* of the answer it discovers — one optional open
+paren, against a house style that deliberately over-brackets `answer` — so a
+correct rep 2 generator was invisible to it. Widened and re-checked both
+directions. Re-running both arms was not needed: arm B had not started, and the
+existing branches were simply re-scored, which changed rep 2's T8 from FAIL to
+PASS and left every other verdict in both reps untouched. Reps 1 and 2 are both
+recorded against the new hash.
+
+This is the second Rule 1 miss in the same scorer. The first asserted a
+`domain` name; the second asserted bracketing. The lesson is narrower than
+"avoid names": a discovery predicate should match on **behaviour the task
+requires**, and every character of syntax it pins is a way for a correct answer
+to disappear.
+
 ## Rule 3 — Adjudication is symmetric and disinterested
 
 - Appeals are heard on **passes and fails alike**, or on neither.

@@ -20,7 +20,41 @@ single-branch and carries neither the scorers nor rep 1's branches.
 | **T3** | `c44605e` | **1 of 5 red** | 2595 green | silent | **FAIL** | $11.40 |
 | **T4** | `2236ed9` | n/a (run discipline) | 3 × 219 green | silent | **PASS** | $2.80 |
 
-Batch 1: **2 / 4**. Batch 2 (T5–T8) launched 10:29Z, pending.
+Batch 1: **2 / 4**.
+
+## Batch 2 — T5 to T8
+
+| | Head | Scorer | Suite | `tsc` | Verdict | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| **T5** | `23ea2d3` | green (Playwright, 393px) | 1079 green | silent | **PASS** | $2.94 |
+| **T6** | `62b2e3c` | green | 2237 green | silent | **PASS** | $2.64 |
+| **T7** | `36ac78b` | green | 1928 green | silent | **PASS** | $3.94 |
+| **T8** | `35f04e3` | green **after a scorer fix** | 1915 green | silent | **PASS** | $6.89 |
+
+No test was deleted, skipped or `.only`'d on any of the eight branches; every
+`git diff eval-base-tN -- '*.test.ts'` is additions only, bar T3's rewrite of
+the solvability walk and T4's `simplify: false` line, both read in full.
+
+## Rep 2 total: 6 / 8
+
+| | Rep 1 | Rep 2 |
+| --- | --- | --- |
+| T1 | FAIL | FAIL |
+| T2 | PASS | PASS |
+| T3 | FAIL | FAIL |
+| T4 | PASS | PASS |
+| T5 | PASS | PASS |
+| T6 | PASS | PASS |
+| T7 | PASS | PASS |
+| T8 | PASS | PASS |
+
+**Eight of eight agree.** Rule 4's stability bar (reps disagreeing on more than
+2 of 8 means the tasks are wrong) is met with room to spare. T1 and T3 failing
+identically twice is the stronger result: both are tasks stating two
+requirements, and both times the agent satisfied one and stopped.
+
+Rep 2 cost **$42.11** across the eight sessions, from $2.64 (T6) to $11.40
+(T3).
 
 ## Why T1 failed
 
@@ -71,6 +105,42 @@ difficulties still sweep, no test was deleted, skipped or `.only`'d, and the
 oracle is still a real symbolic derivative. Worth noting because the criterion
 was written expecting the timeout fix, and a narrower one phrased as "the
 timeout is raised" would have marked a better answer wrong.
+
+## T8 exposed a second Rule 1 failure in the instrument
+
+T8 first scored FAIL: `fractionalIndexSlide()` returned `undefined`, so four of
+its five assertions died on `Cannot destructure property 'slide' of 'found'`.
+
+The generator was there. `idx-root-as-index` answers `x^((3)/(2))`, and the
+discovery regex was
+
+```
+/\^\s*\(?\s*-?\d+\s*\/\s*\d+/
+```
+
+— one optional open paren, where the answer has two. The repo's own convention
+is the reason: `answer` is parsed by mathjs and never displayed, so it is
+deliberately over-bracketed for unambiguity (CLAUDE.md, "Two string
+audiences"). The scorer was asserting a *spelling* of the answer, which is the
+same mistake as rep 1's `domain: 'positive'` one level down — naming was fixed,
+bracketing was not.
+
+Widened to `/\^\s*\(*\s*-?\s*\(*\s*-?\d+\s*\)*\s*\/\s*\(*\s*\d+/`
+and re-checked in both directions (Rule 1c):
+
+| | Verdict |
+| --- | --- |
+| Base `96cf78e` | **red** — on "accepts a root written as an index", which is the bug |
+| Arm A rep 1 `eval/t8` | green, 5 of 5 — **verdict unchanged** |
+| Arm A rep 2 `eval/t8-r2` | green, 5 of 5 — FAIL → **PASS** |
+
+Rule 2 requires a mid-run scorer fix to re-run both arms. Arm B has not
+started, and re-scoring is not re-running: the branches already exist, so both
+arm A reps were re-scored against the fixed scorer at no compute cost. Rep 1's
+six other verdicts are untouched — the change is confined to `t8`'s own file.
+
+The freeze is re-hashed accordingly. Rep 1 and rep 2 are both scored against
+the new hash.
 
 ## Operational note
 

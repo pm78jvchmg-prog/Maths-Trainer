@@ -268,3 +268,51 @@ Housekeeping: that repo now also carries a stray `delete-me` branch, created
 while testing whether deletion works. It is a copy of `eval-base-t1`, so it holds
 no scorers, but it should be binned, and its presence is why the gate checks for
 "only the eight bases" rather than "at least the eight bases".
+
+## Isolation corrected to one repo per (arm, rep) — five needed, arm A halted too
+
+Three repos, one per rep, was wrong. Shared between arms, rep N's repo would put
+**arm A's solution branches in arm B's clone for the same tasks** — inflating the
+challenger, the direction that makes switching look justified, and the exact
+failure two days went into closing.
+
+Verified before changing anything, rather than reasoning from the design:
+
+- arm A rep 1's ten branches are in **Maths-Trainer**, not a subject repo
+- the subject repo holds only the eight bases, plus a stray `delete-me`
+
+So the cross-arm leak was not live — arm A and arm B do not currently share a
+repo. But checking turned up a different one that was, and was 40 minutes away:
+
+**Arm A rep 2 would clone `Maths-Trainer`, which now contains arm A rep 1's ten
+solution branches.** Rep 1 was clean of this by circumstance — nothing prior
+existed to fetch. Reps 2 and 3 would not be. Direction: inflates arm A, the
+baseline, so conservative and survivable with a caveat — but it is a leak, and
+separation closes it for free.
+
+Arm A reps 2 and 3 are therefore halted too, and move to their own repos. Five
+are needed, not three:
+
+| Repo | For |
+| --- | --- |
+| `...-eval-subject-armA-rep2` | arm A rep 2 |
+| `...-eval-subject-armA-rep3` | arm A rep 3 |
+| `...-eval-subject-armB-rep1` | arm B rep 1 |
+| `...-eval-subject-armB-rep2` | arm B rep 2 |
+| `...-eval-subject-armB-rep3` | arm B rep 3 |
+
+Arm A rep 1 needs none: it has already run, and ran with nothing to leak from.
+
+Each must hold **only** the eight `eval-base-t*` branches at the SHAs in
+`bases.tsv`. The gate verifies all five by listing branches, not by assuming.
+
+The existing `maths-trainer-eval-subject` is now superseded and would fail that
+check anyway — nine branches, because testing whether deletion works left a
+`delete-me` copy of `eval-base-t1` that this side cannot remove.
+
+### What this rests on
+
+Not on arm A and arm B happening to use different repositories. That held only
+because of how the Routine was written, and a boundary that depends on reading
+the configuration correctly is the kind that has failed here repeatedly. One
+repo per (arm, rep) has no cross-visibility by construction.

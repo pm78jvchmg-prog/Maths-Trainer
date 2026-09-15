@@ -10,7 +10,7 @@ OK). Arm and rep labels stripped at scoring time — scored by branch.
 | --- | --- | --- | --- | --- |
 | **T1** | green | 1920 | silent | **PASS** |
 | **T2** | green | 2509 | silent | **PASS** |
-| **T3a** | *running — see dispute 1* | — | — | *pending* |
+| **T3a** | **scorer does not terminate** | — | — | **INCOMPLETE** |
 | **T3b** | **1 of 4 red** | 2583 | silent | **FAIL** |
 | **T4** | green (3/3, SEEDS 200) | 219 | silent | **PASS** |
 | **T5** | green (Playwright, 393px) | 1079 | silent | **PASS** |
@@ -18,7 +18,7 @@ OK). Arm and rep labels stripped at scoring time — scored by branch.
 | **T7** | green | 1922 | silent | **PASS** |
 | **T8** | green | 1914 | silent | **PASS** |
 
-**7 PASS, 1 FAIL, 1 pending.**
+**7 PASS, 1 FAIL, 1 INCOMPLETE — and the run is HALTED. See below.**
 
 ## T1 passes for the first time
 
@@ -48,10 +48,11 @@ The cost is combinatorial in the number of exports, and this branch adds eight
 `--testTimeout=20000` — the timeout does not fire because the work is
 synchronous and vitest cannot interrupt it. Re-running with a 30-minute budget.
 
-This is a defect in the instrument, not in the work under test. If it resolves,
-the verdict stands as measured. If it cannot be scored, T3a is recorded
-**incomplete**, not failed — scoring a task red for a scorer that cannot finish
-would measure the scorer.
+It did not resolve. Given a 30-minute test budget it ran **57 minutes** without
+completing and was killed. T3a is recorded **INCOMPLETE**, not failed: scoring a
+task red because the scorer cannot finish would measure the scorer.
+
+This is a defect in the instrument, not in the work under test.
 
 ### Dispute 2 — T3b implemented a narrower rule than the scorer tests
 
@@ -79,3 +80,49 @@ for adjudication after the run, by someone who did not produce the work.
 | T4 | the oracle line, replaced by the `{ simplify: false }` form | the same fix reached independently again |
 
 No other branch deletes a test line. Nothing weakened.
+
+
+## HALTED after rep 1 — Rule 2
+
+Rule 2: *"If a scorer is found broken mid-run, stop, fix, and re-run **both**
+arms from scratch. Partial re-runs are not comparable."*
+
+The T3a scorer is broken. Not slow — unusable: 57 minutes on one assertion, and
+unbounded in the number of exports a solution happens to add, so a *better*
+solution makes it slower. Rep 2 and rep 3 would reproduce the same gap, and the
+gate and the ≥4-of-27 comparison both assume nine scored tasks.
+
+The autorun Routine is deleted. Reps 2 and 3 were not launched. Rep 1's nine
+branches stand and are re-scoreable once the scorer is fixed.
+
+### How the defect got in
+
+It is the third Rule 1 failure in the same family, and it was caused by fixing
+the second.
+
+1. The original scorer applied every candidate tap through `reduceAt`, pinning a
+   signature. A correct solution using its own applier was invisible.
+2. Fixed by widening to *reachability*: try every exported function of `expr.ts`
+   in two argument shapes, against every legal target, over 101 values.
+3. That cost is `exports x object-returning-exports x values x targets`. This
+   branch adds eight exports, and the product stopped terminating.
+
+Widening a predicate to avoid asserting a signature made it unbounded. The
+lesson is narrower than "do not pin names": a discovery predicate needs a
+**bounded** search whose cost does not grow with the solution's shape.
+
+### Options, none taken
+
+1. **Bound the search.** Run each candidate application in a subprocess with a
+   hard wall-clock limit; exhaustion reports *inconclusive*, never *fail*. Sound,
+   because a synchronous loop cannot be interrupted in-process — which is why
+   `--testTimeout` did nothing here. Slowest to write.
+2. **Ask the widget's question instead.** T3a is about what a learner can tap, so
+   drive the same path `reduceSlide.tsx` drives — `targets` plus the one applier
+   the component actually calls — rather than enumerating the module. Narrow and
+   fast, and it tests the real surface, but it re-couples the scorer to the UI.
+3. **Drop T3a.** The pair step is already covered incidentally by the solvability
+   sweep in `generators.test.ts`. Eight tasks, threshold becomes ≥4 of 24.
+
+Whichever is chosen: it changes the instrument, so the freeze re-hashes and rep
+1 is re-scored against the new hash before reps 2 and 3 run.

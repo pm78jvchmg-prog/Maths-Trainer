@@ -1,5 +1,7 @@
 # Arm A run log
 
+**Freeze: `0abf01e`** — 8 scorers + 9 task files, hashed in `eval/INSTRUMENT.sha256`. Re-verify before every scoring run.
+
 ## Step A — precheck
 
 All eight bases pass: `8b756d6` (first commit adding `eval/scorers/`) is not an

@@ -159,6 +159,22 @@ This is the second Rule 1 miss in the same scorer. The first asserted a
 requires**, and every character of syntax it pins is a way for a correct answer
 to disappear.
 
+**Re-frozen again 2026-09-15, after rep 3.** `eval/scorers/t3.pair.scorer.ts`
+applied every candidate tap through `reduceAt(expr, path, value)`. Rep 3 added a
+`Run` for a partial-chain tap and applies it with `applyRun(expr, run, value)`,
+met the requirement, and was invisible to the scorer. Rewritten to test
+reachability through any exported applier, in either shape. Re-checked on the
+base and all three reps: no verdict moved, so arm A stands at 18/24. The fix is
+for arm B's benefit.
+
+That is the third Rule 1 miss in this instrument — a **name** (`domain:
+'positive'`), a **bracketing** (`x^((3)/(2))`), and now a **signature**
+(`reduceAt` vs `applyRun`). Each was caught only because a later rep wrote the
+code differently from the one before; a scorer can be wrong in a way no single
+rep reveals. When writing one, assert the end state the task describes and
+discover everything else — and assume the next correct answer will reach that
+state by a route you did not think of.
+
 ## Rule 3 — Adjudication is symmetric and disinterested
 
 - Appeals are heard on **passes and fails alike**, or on neither.

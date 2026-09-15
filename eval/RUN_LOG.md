@@ -218,3 +218,53 @@ The freeze is the **content of `eval/INSTRUMENT.sha256`** — eight scorers and
 nine task files — not the commit that happens to carry it. Appending to this run
 log or to `ARM_A.md` moves the commit and changes nothing in the manifest.
 Re-verify with `sha256sum -c`, not with `git rev-parse`.
+
+## Arm B: two-condition gate, consecutive reps, and a blocker
+
+### Concurrency reversed
+
+Arm B was going to launch all 27 sessions at once, to stop a later rep fetching
+an earlier rep's solution branches from the shared subject repo. That trades one
+risk for a worse one: a killed session cannot be resumed, so 27 at once puts the
+whole arm on a single session-limit window. Arm A runs 9 at a time for exactly
+that reason, and arm B now does the same — **one rep at a time, nine sessions,
+waiting for all nine branches**.
+
+### Which means the inter-rep leak needs closing another way
+
+Tested rather than assumed: `git push --delete` against the subject repo fails
+the same way it does against `Maths-Trainer` — the proxy refuses branch deletion
+everywhere, not just on the original. So outcome branches cannot be cleared
+between reps.
+
+That leaves one sound option: **a separate subject repo per rep.**
+
+- `maths-trainer-eval-subject-rep1`
+- `maths-trainer-eval-subject-rep2`
+- `maths-trainer-eval-subject-rep3`
+
+each containing only the eight `eval-base-t*` branches. `create_repository`
+returns 403 to this integration, so this is the owner's step.
+
+Not acceptable as substitutes, and the Routine is instructed to refuse both:
+running all three reps from one repo (rep 2 reads rep 1), or reverting to
+concurrent launch (risks the arm). Either would inflate arm B, which biases
+toward switching — the direction a previous run was already voided over.
+
+### The gate now has two conditions
+
+Arm B runs only if **both** pass:
+
+1. the three arm A reps agree within 2 of 9, and
+2. all three subject repos exist and carry only the eight bases, verified by
+   listing their branches — not assumed from the fact that one was built earlier.
+
+The second condition exists because an autonomous 03:00 wake-up should not infer
+a boundary from memory. Checked at the time of writing: the single existing
+`maths-trainer-eval-subject` does hold exactly the eight bases with SHAs matching
+`eval/bases.tsv`.
+
+Housekeeping: that repo now also carries a stray `delete-me` branch, created
+while testing whether deletion works. It is a copy of `eval-base-t1`, so it holds
+no scorers, but it should be binned, and its presence is why the gate checks for
+"only the eight bases" rather than "at least the eight bases".

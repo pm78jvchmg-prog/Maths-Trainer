@@ -87,3 +87,23 @@ arm B must clear and therefore biases against switching.
 
 Also removed `maths-trainer-eval-subject` from the repo root, a stray four-line
 text file created by the web editor during subject-repo setup.
+
+## Step E — arm A rep 1 launched
+
+15:38–15:40Z, nine tasks concurrently, Opus, no advisor. Freeze `0abf01e`.
+
+| | Session | Branch |
+| --- | --- | --- |
+| T1 | `session_01GLoi1ugbjZ1JKvpV9pvDvC` | `armA-rep1-t1` |
+| T2 | `session_01AZ9zuDuFUHQsz4TXAotQRJ` | `armA-rep1-t2` |
+| T3a | `session_01VmeBw7JaKMFXVHyx7yXyqU` | `armA-rep1-t3a` |
+| T3b | `session_01Bh43xsTTeuycBn4TfpFrEB` | `armA-rep1-t3b` |
+| T4 | `session_01XEQKinqixc2sdtreQzthYq` | `armA-rep1-t4` |
+| T5 | `session_018hktM3ke4aotDyXPAXpHuH` | `armA-rep1-t5` |
+| T6 | `session_01Qiq2fsiNgj5QH1573iYYnk` | `armA-rep1-t6` |
+| T7 | `session_01NZsWoQgwhMzqB3UZ6NXZAB` | `armA-rep1-t7` |
+| T8 | `session_01Mp7Jh6d6HG8ux78v7w7YFM` | `armA-rep1-t8` |
+
+T3b's closing instruction omits "do not delete, skip or weaken any existing
+test", because the task requires changing one named test. The other eight carry
+it verbatim.

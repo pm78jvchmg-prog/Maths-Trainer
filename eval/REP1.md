@@ -1,4 +1,4 @@
-# Arm A (Opus-solo), rep 1 — scored against freeze `b6662db` (re-scored; originally `2a557fa`)
+# Arm A (Opus-solo), rep 1 — scored against freeze `6338653` (re-scored; originally `2a557fa`)
 
 Ran 2026-09-14 as eight remote sessions, one per task, each rooted at its own
 base commit. Re-scored 2026-09-15 under the frozen scorers. The earlier 6/8 is

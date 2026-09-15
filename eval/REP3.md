@@ -1,4 +1,4 @@
-# Arm A (Opus-solo), rep 3 — scored against freeze `b6662db`
+# Arm A (Opus-solo), rep 3 — scored against freeze `6338653`
 
 Run 2026-09-15, all eight launched together at 11:10Z. Prompts byte-identical
 to reps 1 and 2, including the isolation preamble. Scorers unchanged from the

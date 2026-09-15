@@ -1,0 +1,189 @@
+# Eval protocol — model-swap comparisons
+
+Applies to any comparison of two model configurations on this repo
+(Opus-solo vs Sonnet+advisor, and every swap after it).
+
+Written after the first Opus-solo run scored 6/8, where two FAILs were
+overturned on appeal by the same agent that produced the work and no
+PASS was re-examined. Everything below exists to stop that recurring.
+
+---
+
+## Rule 0 — Pre-register the decision before arm 1 runs
+
+Fill this in and commit it **before** any arm executes. If the decision
+rule is written after the numbers are in, the numbers will be read to
+fit whatever you already wanted.
+
+**Filled and frozen 2026-09-15, before arm A rep 2.** Arm A rep 1 exists as
+eight branches but has not been re-scored under the frozen scorers; no number
+from it is carried forward.
+
+| Field | Value |
+| --- | --- |
+| Question | Does Sonnet-executor + Opus-advisor (B) beat Opus-solo (A) enough to switch? |
+| Primary metric | Task pass rate across 3 reps — 24 task-trials per arm |
+| Secondary metric | Total USD per task, summed over all attempts including killed ones |
+| Switch if | B exceeds A by **≥ 4 task-trials out of 24** and cost ≤ 1.2× A |
+| Keep A if | Gap < 4 task-trials, whatever the cost |
+| Abandon if | Adjudication disputes exceed 20% of trials — more than 4 of 24 in either arm |
+
+X = 4 task-trials, taken from the convention below rather than computed. It is
+the smallest gap this instrument is trusted to show: one task flipping in all
+three reps, or two tasks flipping in two.
+
+X is a convention, not a statistic. At 8 tasks × 3 reps, treat a gap
+below 4 task-trials as unreadable and do not switch on it.
+
+### Arm C
+
+Arm C (Opus executor + Opus advisor) is run only if B clears the switch bar.
+It answers a different question — whether the advisor or the executor
+downgrade did the work — and is not needed if B does not beat A.
+
+---
+
+## Rule 1 — Scorers assert behaviour, never vocabulary
+
+A scorer that names a function, a key, or a string value from the
+original solution is testing whether the model rediscovered your
+wording. Two of eight did this on the first run.
+
+Test through the public surface, on observable state:
+
+- **Bad:** `expect(typeof ed.insertSup).toBe('function')`
+- **Good:** enter `2^10`, assert the rendered exponent reads `10` and
+  is a single tappable fragment
+
+- **Bad:** `expect(cfg.domain).toBe('positive')`
+- **Good:** sample the function over the reals, assert no non-real
+  point is ever plotted
+
+If a scorer can only be satisfied by one implementation, it is
+underspecified. Rewrite it before the run, not during.
+
+## Rule 1b — Author scorers against the task's base commit
+
+A scorer written from `main` can assert identifiers that do not exist
+in the tree the model was handed. Nothing passes it except by
+coincidence, and the run records a model failure that never happened.
+
+Observed on the first run:
+
+| Task | Base | Scorer asserted | Present at base? |
+| --- | --- | --- | --- |
+| T7 | `c3e90b5` | `insertSup` | No — added in `8754637` |
+| T8 | `96cf78e` | `domain: 'positive'` | No — predates the value |
+
+Both were logged as model failures. Neither was. T7 wrote the same
+function as `insertPower`; T8 built a third domain, `realValued`, from
+nothing.
+
+Before freezing: for each task, list every identifier its scorer
+asserts and confirm each resolves at that task's base commit.
+`git grep <identifier> <base>` per assertion. Anything that doesn't
+resolve is a defect in the scorer, not a finding about the model.
+
+The blast radius is narrow but invisible without the check — it bites
+only where a task's subject overlaps an API that changed after its
+base. T4 (`0de320a`) and T5 (`933009c`) share T7's pre-`8754637`
+chronology and were unaffected only because their scorers never touch
+the exponent API. That is luck, not design.
+
+## Rule 2 — Freeze before arm 1
+
+Commit and record the hash of: task prompts, scorers, the appeals
+policy, and the Rule 0 table. No edits to any of them once arm 1
+starts. A mid-run scorer fix invalidates every trial before it.
+
+If a scorer is found broken mid-run, stop, fix, and re-run **both**
+arms from scratch. Partial re-runs are not comparable.
+
+## Rule 3 — Adjudication is symmetric and disinterested
+
+- Appeals are heard on **passes and fails alike**, or on neither.
+  Reviewing only failures is a one-directional search that can only
+  move the score up.
+- The adjudicator is not the agent that produced the work. A separate
+  session with the diff, the scorer, and the task prompt — and no
+  knowledge of which arm produced it — is sufficient.
+- Every appeal is logged: task, original verdict, argument, outcome.
+  Count them. A high dispute rate means the scorers are wrong, and
+  that is a finding about the instrument, not about the model.
+
+## Rule 4 — Repeat rather than expand
+
+3 runs per task per arm. Report pass rate, not pass/fail. Agent runs
+are non-deterministic; a single run of 8 tasks cannot separate a model
+difference from a coin flip.
+
+Adding new tasks costs authoring effort and adds new scorer risk.
+Repetition costs only compute.
+
+## Rule 5 — Record cost per task, both arms
+
+USD and tokens, per task, per rep. Cost is half the decision and was
+absent from the first run's table. Include failed and abandoned
+attempts — a config that burns $3 before failing is not free.
+
+---
+
+## Arms
+
+Hold constant: repo state, task prompts, scorers, tool access, budget
+per task, and the system prompt except where the arm is defined by it.
+
+| | Executor | Advisor |
+| --- | --- | --- |
+| A (baseline) | Opus | none |
+| B | Sonnet | Opus |
+| C (optional) | Opus | Opus |
+
+Arm C is worth including. It isolates the advisor's contribution from
+the executor downgrade, and it is the cheaper path to "more quality"
+if the downgrade turns out to cost more than the advisor adds.
+
+---
+
+## Operational constraints
+
+Learned the hard way; these shape the design, not just the running.
+
+- **A killed remote session cannot be resumed.** No `send_message`,
+  no reachable agents, only create/get/list/interrupt/archive. Plan
+  concurrency to fit inside one session-limit window, or accept that
+  an interruption discards the work and the spend.
+- **Session limits are the real budget unit**, not dollars. Size each
+  arm so a full arm completes within one window.
+- **The proxy 403s on branch deletion and tag pushes.** Clean up
+  `eval-*` branches through the GitHub UI; don't script it.
+- **Scheduled retry triggers outlive the run.** Cancel them explicitly
+  when an arm completes.
+
+---
+
+## Re-scoring the existing Opus data
+
+The first run's raw material is still good; only the adjudication is
+unsound. Recover it without re-running:
+
+1. Rewrite the T7 and T8 scorers behaviourally per Rule 1. **Done
+   2026-09-15** — see `eval/README.md`. Both confirmed failing on their
+   untouched bases and passing on the rep-1 branches.
+2. Re-run all eight scorers against the eight existing branches. **Not yet
+   done.** This costs no model calls: the branches exist and the scorers run
+   locally.
+3. Accept whatever number comes out, including if it is lower than 6.
+4. That becomes arm A rep 1. Two more reps still needed.
+
+Do not carry the 6/8 forward. It was produced under a policy that no
+longer applies.
+
+---
+
+## Stop condition
+
+If, after fixing the scorers, arm A's own three reps disagree with each
+other by more than 2 tasks, the task set is too noisy to answer the
+question. Fix the tasks or abandon the comparison — do not run arm B
+into an instrument that cannot hold still.

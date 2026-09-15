@@ -1,0 +1,9 @@
+task	base	scorer	copy_to
+t1	b4c0d91	t1.equivalence.scorer.ts	src/engine/
+t2	f6c6b38	t2.solvable.scorer.ts	src/content/
+t3	8554acb	t3.pair.scorer.ts	src/content/
+t4	0de320a	(run discipline: 3 clean suites, SEEDS=200, no test removed)	-
+t5	933009c	t5.overflow.mjs	(playwright, 393x852)
+t6	1ebb945	t6.negbase.scorer.ts	src/content/
+t7	c3e90b5	t7.exponent.scorer.ts	src/ui/
+t8	96cf78e	t8.fractional.scorer.ts	src/engine/

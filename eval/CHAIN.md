@@ -32,6 +32,26 @@ ls eval/REPB-C*.md eval/COMPARISON.md 2>/dev/null
 A rep is ready to score only when **all eight** branches are pushed. If some
 are missing, check those sessions and resume them — see *Stalls*.
 
+## Session ids
+
+So a fresh session can drive this chain without the original conversation.
+
+**Arm B rep 1** (branches `eval/tN-c1`), launched 13:33Z 2026-09-15:
+
+| | Session |
+| --- | --- |
+| T1 | `session_01VDSkok4VuHRtXmptYjZ2cx` |
+| T2 | `session_01Mu77Y4ms3ySzJ7HtX6dWJM` |
+| T3 | `session_01Ryh8nKts7gi32xs57a9kYA` |
+| T4 | `session_01SL85jN3uJ4MsLHZcc441Md` |
+| T5 | `session_01KGs2RzyvgCg5zY4nx2zaqo` |
+| T6 | `session_01QRxZuvYCf7yjjnUR4Nr2hv` |
+| T7 | `session_01XyKX97dCU6SBxmPNn4D6Tf` |
+| T8 | `session_01U2TU8eDqmd9w7fD94zSxLe` |
+
+Record reps 2 and 3 the same way here as they are launched, so a stall can be
+resumed by any session, not only the one that started it.
+
 ## Stalls: resume, never recreate
 
 If a session stops — usage limit, a permission prompt, a question — **resume

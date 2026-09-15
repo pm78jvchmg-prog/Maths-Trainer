@@ -175,6 +175,84 @@ rep reveals. When writing one, assert the end state the task describes and
 discover everything else — and assume the next correct answer will reach that
 state by a route you did not think of.
 
+## Rule 2b — Run discipline: what wasted the time
+
+Measured over arm A reps 2 and 3 and arm B rep 1, on 2026-09-15. Arm A rep 3
+took 70 minutes of wall clock. The agents were not the bottleneck: seven of the
+eight finished in 7–25 minutes, all concurrent.
+
+| Where it went | Cost |
+| --- | --- |
+| Sessions stalling on a permission prompt | ~15 poke round-trips across three reps |
+| T3 alone | 66 min, blocked three separate times |
+| Scoring, run serially | ~25 min |
+
+Four changes, none of which touch the frozen instrument. They apply to the
+**next** experiment, not a running one — see the warning at the end.
+
+### 1. Drop the isolation preamble from the task prompt
+
+This is the largest single win and the least obvious. The preamble's
+`git remote remove origin` trips the permission classifier; once an agent has
+had a command denied it moves into ask-first mode and then stalls again before
+committing and pushing. Arm B's T7 sat idle for twenty minutes at the very
+first step, $0.10 spent, having never started the task.
+
+The preamble is now defence-in-depth only — the harness's single-branch clone
+is the real boundary (`eval/README.md` § Isolation) — so it buys nothing it
+costs. Two further reasons to drop it rather than merely permit it:
+
+- It is an **uncontrolled variable as things stand**. It was denied for T7 and
+  T8 in arm A rep 2 and for T3 in rep 3, and allowed elsewhere. Sessions in the
+  same rep were not running the same experiment.
+- An agent that stalls before starting has not failed the task, but it looks
+  identical to one that has until you read the transcript.
+
+### 2. Say "commit and push", and say permission is granted
+
+The closing instruction reads "commit everything on the branch you are on". It
+never mentions pushing, so every agent asked. Make it explicit — *commit and
+push to the branch you are on; you already have permission, do not ask* — and
+pass `extra_allowed_tools: ["Bash(git push:*)"]` on `create_session` as a
+backstop.
+
+### 3. Score in parallel
+
+`eval/bin/score.sh <suffix>` builds a worktree per task, shares this repo's
+`node_modules` by symlink, and runs every scorer, suite and typecheck
+concurrently. It copies each scorer in, runs it, and **deletes it before the
+full suite**, so the suite never counts the scorer's own assertions. It also
+counts deleted test lines per branch, which is the check that is easiest to
+forget.
+
+Validated against arm A rep 3, where every verdict was already known by hand:
+identical results, **4m33s against roughly 25 minutes serially**.
+
+T5 is left to run by hand — it needs a dev server and resolves `playwright-core`
+from the script's own directory.
+
+### 4. Collect when they idle, not on a timer
+
+Scheduled check-ins were armed 45 minutes out and the sessions were routinely
+finished twenty minutes before one fired. Poll `get_session` once the fastest
+task would plausibly be done, and poke the blocked ones immediately.
+
+### T3 should probably be two tasks
+
+It is 3–5× the cost of anything else in every rep ($11.40, $13.16) and it is
+the one task nobody has passed. It states two requirements — the pair step and
+value-only grading — and every rep delivered exactly one. As a single pass/fail
+that reads as "hard"; split in two it would show that both halves are solvable
+and no agent does both.
+
+### Do not change any of this mid-experiment
+
+A permission setting changes whether an agent stalls, not what it writes — but
+an agent in ask-first mode behaves differently for the rest of its run, so it
+is not neutral. Changing prompts, permissions or the preamble between reps of
+the same arm is worse than leaving a known flaw in place for all of them. Fix
+it between experiments.
+
 ## Rule 3 — Adjudication is symmetric and disinterested
 
 - Appeals are heard on **passes and fails alike**, or on neither.

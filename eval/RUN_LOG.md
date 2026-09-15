@@ -179,3 +179,42 @@ the requirement is stated without leaking the fix.
 **Consequence: rep 1's T3b must be re-run, not re-scored.** Its branch answered a
 different question. The other eight branches stand and are re-scored against the
 new hash.
+
+## INCONCLUSIVE — the rule, fixed now, before it recurs
+
+An INCONCLUSIVE task-trial is neither a pass nor a fail and does not belong in
+the ≥4-of-27 arithmetic. Committed in advance of knowing how often it fires:
+
+1. **An INCONCLUSIVE trial is dropped from both arms' denominators**, not counted
+   either way. If T3a rep 1 is inconclusive in arm A, T3a rep 1 is excluded from
+   arm B's count too, so the arms are always compared over the same trials. The
+   threshold scales with the denominator: ≥4 of 27 becomes the same proportion of
+   whatever remains.
+2. **More than 3 inconclusive trials of 27 in either arm stops the comparison.**
+   That is an instrument too fragile to decide anything, and the honest report is
+   that it could not measure, not a number with an asterisk.
+
+Fixing this now costs nothing. Fixing it after seeing the counts would be Rule 0
+all over again.
+
+## Defect register — found by the eval, not by scoring
+
+Defects the eval surfaces that no task asked for and no scorer tests. Kept apart
+from pass/fail on purpose: a verdict answers the question the task set, and this
+does not. But if one arm's branches hang and the other's do not, that is a
+quality difference no pass/fail table will ever show, and it has to have been
+recorded from rep 1 to be worth anything at the end.
+
+| Branch | Defect |
+| --- | --- |
+| `armA-rep1-t3a` | `pairBank` never returns — not on `pairBank(chain, 'r', 1)`, and not on `pairBank(2 + 3, ROOT)` either. A shipped export that hangs on ordinary input. The suite is green because nothing calls it that way. Found only because the scorer enumerated exports; T3a does not test for it, so it does not change that verdict. |
+
+Record every hang, unhandled throw on ordinary input, or non-terminating export
+found while scoring either arm, and tally them per arm in the comparison.
+
+## Note on the freeze and this log
+
+The freeze is the **content of `eval/INSTRUMENT.sha256`** — eight scorers and
+nine task files — not the commit that happens to carry it. Appending to this run
+log or to `ARM_A.md` moves the commit and changes nothing in the manifest.
+Re-verify with `sha256sum -c`, not with `git rev-parse`.

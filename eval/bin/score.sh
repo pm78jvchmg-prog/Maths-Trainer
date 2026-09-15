@@ -31,6 +31,13 @@ one() {
   local task="$1" base="$2" scorer="$3" dir="$4"
   local out="$WORK/$task.result" wt="$WORK/$task" br="origin/$PREFIX-$task"
 
+  # T3b's prompt was corrected after rep 1, so rep 1's re-run lands on a
+  # separate branch — the original name cannot be reused (the proxy refuses
+  # branch deletion). Prefer the re-run where one exists.
+  if git -C "$REPO" rev-parse --verify --quiet "origin/$PREFIX-${task}v2" >/dev/null; then
+    br="origin/$PREFIX-${task}v2"
+  fi
+
   git -C "$REPO" rev-parse --verify --quiet "$br" >/dev/null \
     || { echo "$task|NOT PUSHED|-|-|-" > "$out"; return; }
 

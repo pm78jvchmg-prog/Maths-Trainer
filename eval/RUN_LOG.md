@@ -107,3 +107,35 @@ text file created by the web editor during subject-repo setup.
 T3b's closing instruction omits "do not delete, skip or weaken any existing
 test", because the task requires changing one named test. The other eight carry
 it verbatim.
+
+## Arm B pre-authorised
+
+The owner pre-authorised arm B conditional on the gate: if the three arm A reps
+agree within 2 of 9, arm B runs without further approval. If they disagree on
+more than 2, the run stops and arm B is not worth running.
+
+Arm B runs against the **subject repo**
+(`pm78jvchmg-prog/maths-trainer-eval-subject`), which holds the eight base
+branches and nothing else — no `main`, no scorers. Verified: `git fetch origin
+main` there returns `couldn't find remote ref main`, and
+`git log --all -- eval/scorers` returns 0 after an explicit all-refs fetch.
+
+Nine tasks need only eight bases: t3a and t3b both branch from `eval-base-t3`.
+No further push to the subject repo is required.
+
+### Arm B launches all 27 sessions at once
+
+Decided rather than asked, on the runbook's own residual-risk guidance.
+
+Arm B's outcome branches land in the subject repo, so under sequential reps a
+later rep could `git fetch` an earlier rep's solution branch. That contamination
+**inflates arm B**, which biases *toward* switching — the non-conservative
+direction. Arm A's equivalent exposure was accepted precisely because it biases
+the other way; the same reasoning forbids accepting it here.
+
+Launching all three reps concurrently means no rep precedes another, so there is
+nothing for a later rep to find. This is the first of the two options the runbook
+names under "Residual risk".
+
+Cost: 27 concurrent Sonnet sessions. If rate limits stall any, they are resumed
+in place, never relaunched.

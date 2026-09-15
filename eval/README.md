@@ -52,12 +52,27 @@ base — both were logged as model failures and neither was one.
 The rewrites discover rather than name:
 
 - **t7** imports the editor as a namespace and finds the exponent action by
-  behaviour — any unary `Doc -> Doc` export after which typed characters stack
-  as one exponent. Every name it does assert is present at the base.
+  behaviour. The predicate is deliberately wide (Rule 1c corollary): every
+  exported function is tried under three call shapes — `f(doc)`, `f(doc, '^')`,
+  `f(doc, {insert: '^'})` — alongside the no-new-export case of typing `^`
+  through the existing insert path. Filtering by arity, as the first version
+  did, asserts a signature and would miss a correct fix shaped as
+  `applyKey(doc, key)`. Every name it does assert is present at the base.
 - **t8** finds the generator the task asked for by what its slide *answers*
   (an expression slide whose answer carries a fractional index), then uses that
   slide's own declared `domain` rather than naming a value.
 
-Both were confirmed to fail on their untouched bases — `no export turns typed
-digits into a stacked exponent` and `no expression slide answers with a
-fractional index` — and to pass on the branches from arm A rep 1.
+Both were confirmed to fail on their untouched bases and to pass on the
+branches from arm A rep 1 (Rule 1c, both directions). Every assertion in t7
+states the same behavioural precondition, so a missing action reports as
+`nothing in the editor turns typed digits into a stacked exponent` rather than
+cascading as `power is not a function` — a `not a function` failure would mean
+the scorer was testing vocabulary.
+
+## Isolation
+
+`PROMPT_PREAMBLE.md` holds the block every task prompt opens with. It strips
+the clone's remote and every ref but the base, because this repository also
+holds the scorers and, from rep 2, earlier solutions. It is instruction-level:
+the boundary version needs a separate subject repo, and `create_repository` is
+refused to this integration. Rep 1 predates the scorers being committed.

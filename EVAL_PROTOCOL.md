@@ -16,8 +16,8 @@ rule is written after the numbers are in, the numbers will be read to
 fit whatever you already wanted.
 
 **Filled and frozen 2026-09-15, before arm A rep 2.** Arm A rep 1 exists as
-eight branches but has not been re-scored under the frozen scorers; no number
-from it is carried forward.
+eight branches; no number from it is carried forward until it is re-scored
+under the frozen scorers.
 
 | Field | Value |
 | --- | --- |
@@ -28,18 +28,15 @@ from it is carried forward.
 | Keep A if | Gap < 4 task-trials, whatever the cost |
 | Abandon if | Adjudication disputes exceed 20% of trials — more than 4 of 24 in either arm |
 
-X = 4 task-trials, taken from the convention below rather than computed. It is
-the smallest gap this instrument is trusted to show: one task flipping in all
+X = 4 task-trials, taken from the convention below rather than computed: the
+smallest gap this instrument is trusted to show — one task flipping in all
 three reps, or two tasks flipping in two.
+
+Arm C (Opus + Opus advisor) runs only if B clears the bar. It answers a
+different question — advisor or executor downgrade — and is moot if B loses.
 
 X is a convention, not a statistic. At 8 tasks × 3 reps, treat a gap
 below 4 task-trials as unreadable and do not switch on it.
-
-### Arm C
-
-Arm C (Opus executor + Opus advisor) is run only if B clears the switch bar.
-It answers a different question — whether the advisor or the executor
-downgrade did the work — and is not needed if B does not beat A.
 
 ---
 
@@ -90,6 +87,27 @@ base. T4 (`0de320a`) and T5 (`933009c`) share T7's pre-`8754637`
 chronology and were unaffected only because their scorers never touch
 the exponent API. That is luck, not design.
 
+## Rule 1c — Every scorer must fail on the untouched base
+
+A scorer is only an instrument if it can return both answers. Run it
+against the task's base commit before the run: it must go **red**,
+with a message describing the missing behaviour rather than a missing
+name. Then run it against a known-good fix: it must go green.
+
+A scorer that passes on base measures nothing and will pass anything.
+A scorer that fails on base for a `not a function` reason is testing
+vocabulary and has failed Rule 1.
+
+This check subsumes most of Rule 1 and Rule 1b in practice, and it is
+the one the first run's scorers never received.
+
+Corollary for discovery-style scorers: naming is not the only coupling
+surface. A scorer that locates a function by trying exports of a given
+arity and type is asserting a **signature**. A correct implementation
+with different shape — extra parameter, class method, reducer case —
+will be invisible to it. Make the discovery predicate as wide as the
+behaviour allows.
+
 ## Rule 2 — Freeze before arm 1
 
 Commit and record the hash of: task prompts, scorers, the appeals
@@ -98,6 +116,25 @@ starts. A mid-run scorer fix invalidates every trial before it.
 
 If a scorer is found broken mid-run, stop, fix, and re-run **both**
 arms from scratch. Partial re-runs are not comparable.
+
+**Committing the scorers creates a leakage surface.** Freezing requires
+them in version control, but that puts them where an evaluated agent
+can read them — via `git show <freeze-hash>:<path>` even when they are
+absent from its own tree, and via prior reps' solution branches once
+those accumulate. Run each task from a clean clone at its base with no
+remote, or restrict the fetch refspec to that base. Otherwise later
+reps measure retrieval rather than capability, and they will score
+higher for it.
+
+**Implemented 2026-09-15 as far as the tooling allows.** `create_session`
+clones the whole repository and exposes no clone flags, so the isolation is
+the first instruction of every task prompt — see `eval/PROMPT_PREAMBLE.md`,
+which strips the remote, deletes every ref but the checked-out base, and
+prunes. That is compliance by the agent under test, not a boundary around it.
+The boundary needs the subject trees in a repository that never held the
+scorers; `create_repository` returned `403 Resource not accessible by
+integration`, so that step is a human's to take. Report any result produced
+under instruction-level isolation as exactly that.
 
 ## Rule 3 — Adjudication is symmetric and disinterested
 
@@ -168,11 +205,12 @@ The first run's raw material is still good; only the adjudication is
 unsound. Recover it without re-running:
 
 1. Rewrite the T7 and T8 scorers behaviourally per Rule 1. **Done
-   2026-09-15** — see `eval/README.md`. Both confirmed failing on their
-   untouched bases and passing on the rep-1 branches.
-2. Re-run all eight scorers against the eight existing branches. **Not yet
-   done.** This costs no model calls: the branches exist and the scorers run
-   locally.
+   2026-09-15.** Both fail on their untouched bases with a behavioural
+   message and pass on the rep-1 branches; T7's discovery predicate was
+   widened per the Rule 1c corollary. See `eval/README.md`.
+2. Re-run all eight scorers against the eight existing branches. Rep 1 ran
+   before any scorer was committed, so it is unaffected by the leakage
+   surface above.
 3. Accept whatever number comes out, including if it is lower than 6.
 4. That becomes arm A rep 1. Two more reps still needed.
 

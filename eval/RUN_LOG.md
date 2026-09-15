@@ -68,3 +68,20 @@ otherwise" cannot have intended.
 Freeze manifest built (`eval/INSTRUMENT.sha256`, 8 scorers + 9 tasks) but the
 freeze commit is deliberately NOT made, because the deny list is part of the
 tree being frozen and is the open question.
+
+## Step D resolved
+
+`Bash(git fetch:*)` dropped from the deny list on the owner's instruction. The
+other eight entries stand and are the boundary actually in force for arm A:
+
+```
+git remote, git ls-remote, git clone, git archive, git pull, curl, wget, gh
+```
+
+Harness-enforced, not agent compliance. Weaker than a repo boundary — a task
+session can still `git fetch origin main` and reach the scorers in history —
+and that exposure is accepted for arm A only, because it inflates the baseline
+arm B must clear and therefore biases against switching.
+
+Also removed `maths-trainer-eval-subject` from the repo root, a stray four-line
+text file created by the web editor during subject-repo setup.

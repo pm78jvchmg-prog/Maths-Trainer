@@ -486,6 +486,51 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
     }
   });
 
+  it('accepts every other writing it promises', () => {
+    // A teach slide or solution step that says "either form is accepted" is a
+    // promise about the checker, and the checker keeps it only through fields
+    // like `domain` sitting elsewhere in the generator — `-a/(2*sqrt(x^3))`
+    // agrees with `x^(-3/2)` for positive x and disagrees on the wider real
+    // line, so a generator that changes `domain` without changing its prose
+    // would silently break a promise nothing here used to check. `invalid` is
+    // a failure too: a writing mathjs cannot parse is a promise nobody could
+    // ever keep, whatever the domain.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.alsoAccepts) continue;
+
+      for (const writing of slide.alsoAccepts) {
+        // The reducer's own argument order (session.ts:315): the learner's
+        // text first, the expected answer second.
+        const verdict = checkAnswer(writing, slide.answer, {
+          domain: slide.domain,
+          mode: slide.mode,
+          seed,
+        });
+        expect(
+          verdict.status,
+          `seed ${seed}: promised writing ${writing} is not accepted against ${slide.answer} over ${slide.domain}`,
+        ).toBe('correct');
+
+        // Negative control on the same writing: the probe has to be live on
+        // it, or a declaration that passes trivially (in the limit,
+        // `alsoAccepts: [slide.answer]`) would sail through the check above.
+        // Perturb it and require a rejection, exactly as "rejects a
+        // perturbed answer" does for `answer` itself.
+        const perturbed =
+          slide.mode === 'upToConstant' ? `(${writing}) + x` : `(${writing}) + 1`;
+        expect(
+          checkAnswer(perturbed, slide.answer, {
+            domain: slide.domain,
+            mode: slide.mode,
+            seed,
+          }).status,
+          `seed ${seed}: perturbed writing ${perturbed} was not rejected`,
+        ).toBe('incorrect');
+      }
+    }
+  });
+
   it("matches an independent symbolic derivative, where the generator declares its source", () => {
     // The other property tests only prove a generator agrees with itself: they
     // would happily pass a question whose stated answer is the wrong

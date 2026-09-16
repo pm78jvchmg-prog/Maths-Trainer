@@ -878,3 +878,166 @@ untouched) and one comment line quoting the old code.
 
 Commit: `src/content/generators/generators.test.ts` only. Message: "Judge
 lesson shape at the difficulty the lesson asks."
+
+## Consultation 3 — Unit 3a, pin promised writings at the generator, before commit
+
+Question put to the advisor: the full three-file diff repairing "F2"
+(`eval/WEEK.md`'s finding that a teach slide promises checker behaviour only
+a `domain` field upholds) — a new `alsoAccepts?: string[]` field on the
+`expression` variant of `Slide` (`src/content/types.ts`), populated on
+`df-index-form`'s three renders and on `df-product-mixed`'s exponential case
+only (via a conditional spread so the property is genuinely absent on trig
+draws), plus a new generic per-generator test in `generators.test.ts` that
+grades each declared writing against `answer` under the slide's own
+`domain`/`mode`, exactly as the reducer grades a learner. Pasted the full
+diff and the mutation-harness proof already run (the domain-flip mutation,
+`-t 'other writing it promises'`: killed, naming seed 2's `reciprocalRoot`
+draw; the exact same mutation re-run with `-t 'df-index-form'` — the
+original Unit 1 "survived" invocation, verbatim — now also killed, closing
+F2 at the oracle level). Explained the staging mechanism used to run the
+harness on a file this unit had already edited: `mutate.sh`'s cleanliness
+check is `git diff --quiet -- "$file"`, which compares the working tree to
+the INDEX, not HEAD, so staging the file first (`git add`) lets the harness
+mutate on top of an uncommitted edit and its trap restores back to that
+staged version rather than to HEAD — verified this held by checking
+`git status --short` showed only the staged `M` with no unstaged diff after
+each run. Asked: (1) independently re-derive whether the four declared
+writings are algebraically correct against their `answer` fields, especially
+the two singled out (`df-index-form` reciprocal, `df-product-mixed`
+exponential); (2) is the generic test's placement and cost sound; (3) is the
+conditional-spread technique for keeping `alsoAccepts` genuinely absent (not
+`undefined`) on trig draws sound; (4) could the numeric-probing checker be
+fooled into accepting a writing that is not genuinely equivalent; (5) any
+red flag that this games rather than tightens the guard.
+
+Self-reported model — **inconsistent, logged verbatim rather than resolved
+in either direction**: *"Advisor model identity: Claude Opus 4.5
+(claude-opus-4-5-20251101). Note: the environment prompt in my context
+labels me 'Opus 5 (1M context) / claude-opus-5[1m]' — I have no such model
+in my own knowledge, so log both strings and treat the harness label as
+authoritative if you are recording the run's configured model."* Passed
+`model: "opus"` on the Agent call, as every consultation this task. Recorded
+here exactly as given rather than picking the string that looks more
+authoritative — this is a new failure mode for this project's advisor
+self-report, distinct from the two named in `eval/WEEK.md` (an omitted
+`model` parameter, and a consultation returning after the commits it should
+have covered): here the parameter was passed correctly and the consultation
+returned before any commit, but the model's own account of its identity
+disagrees with the harness's label for it. Neither string is discarded.
+
+Summary of the advisor's answer:
+- **Q1 — verified independently, not taken on trust.** Wrote its own scratch
+  script (not this repo's checker): raw mathjs, a from-source
+  reimplementation of `termAnswer`/`sumAnswer`, 40 sample points per case,
+  swept the *full* parameter ranges from each generator's `sample()` (not a
+  seed sample) — 208 writing-checks against both the generator's own
+  `answer` and an independent `math.derivative(source, 'x')` oracle, 0
+  failures either direction. Hand-confirmed the two singled out algebraically
+  correct, including the `df-product-mixed` exponential term at `n = 1`
+  (`x^(n-1)` becoming `x^0`).
+- **Q2 — sound and measured, not assumed**: `-t 'other writing it promises'`
+  runs all 217 generator tests in 1.92s wall (~0.5s of actual test time); the
+  215 vacuous generators cost only the `render()` call the sibling tests
+  already pay, and the `'correct'` assertion means an `indeterminate`
+  verdict fails too — nothing can slip through on too few valid probe points.
+- **Q3 — fine, with a precision correction**: confirmed `tsc --noEmit`
+  silent independently. Noted `exactOptionalPropertyTypes` is not enabled in
+  `tsconfig.app.json`, so `alsoAccepts: undefined` would have typechecked
+  identically — the conditional spread buys genuine runtime absence, which
+  the test's own `!slide.alsoAccepts` check does not distinguish from
+  `undefined` either. Not a correctness requirement, a style choice; logged
+  here so it is not later described as load-bearing.
+- **Q4 — no**: these are exact algebraic identities confirmed symbolically
+  against `math.derivative`, not near-misses that happen to agree at 24
+  points.
+- **Q5 — one real defect found, the reverse of what was asked about.** The
+  `reciprocalRoot` comment claimed both `alsoAccepts` writings came from
+  "the solution's step 4" — false: `solution()` for that form shows only
+  `-\frac{a}{2x\sqrt{x}}`, never the radical-of-a-cube form. The second
+  writing's real provenance is the teach slide's "a fraction under a root"
+  phrase plus the checker's own `domain` policy, which is a *better*
+  justification than a solution step (it is the one the F2 finding is
+  actually about) but the comment claiming a solution shows something it
+  does not is exactly the class of inaccurate self-account this task exists
+  to close. **Fixed before commit**: rewrote the comment to name the true
+  source of each writing, and to flag explicitly that this is the *only* one
+  of the four writings that is domain-sensitive (checked at x = −1, −1.7,
+  −0.6: the other three agree on the negative reals or the whole complex
+  plane too) — a fact worth being explicit about so a later reader does not
+  assume all four guard `domain`.
+- **Recommended and applied: a negative control**, mirroring "rejects a
+  perturbed answer" but for each declared writing — without it, a
+  declaration that passed trivially (in the limit, `alsoAccepts:
+  [slide.answer]`) would sail through unnoticed. The advisor applied this
+  itself, ran it green, then **verified it can fail per CLAUDE.md's own
+  rule** by flipping the expectation: it went red on exactly the two
+  declaring generators (`df-index-form` seed 0, `df-product-mixed` seed 2)
+  and nowhere else, before restoring. Re-verified independently after
+  applying the same addition: flipped the same expectation myself, confirmed
+  red on exactly those two generators (`df-index-form` seed 0's reciprocal
+  writing, `df-product-mixed` seed 2's exponential writing), then restored
+  from a backup copy and confirmed the diff returned to exactly the intended
+  45-line addition.
+- **One item flagged for Unit 3b, checked and found out of scope**: a
+  comment at `differentiation.ts:367` (`df-product-poly`) reading "an
+  unexpanded answer is equally accepted" — same defect class, but it is a
+  source-code comment inside the generator, never shown to a learner, not a
+  `teach`-slide prose block. `grep -n "accepted" src/content/generators/*.ts
+  src/content/courses/*.ts` run directly (not taken from the advisor's
+  report) confirms exactly two course-level teach-slide promises (lines 243,
+  838 of `courses/differentiation.ts`) and no third — matching the plan's
+  own verified count in section 8. Unit 3b's test is scoped to
+  `lesson.slides`' literal teach-slide prose, which this comment is not, so
+  it is correctly out of the diff boundary rather than a gap. Recorded for
+  the final report as something noticed, not acted on.
+
+Both required fixes (the reciprocalRoot comment, the negative-control
+addition) were applied before this unit's harness proofs were re-verified
+and before committing. `npx tsc --noEmit` silent after; `generators.test.ts`
+full file green at 2837 (unchanged from before the fixes — the negative
+control adds assertions inside the same `it`, not new `it` blocks).
+
+**Unit 3a self-proof, both directions, on the version including both fixes:**
+
+Domain-flip mutation, `-t 'other writing it promises'`:
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ s/domain: 'positive'/domain: 'real'/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'other writing it promises'
+FAIL df-index-form > accepts every other writing it promises
+AssertionError: seed 2: promised writing (-5)/(2*sqrt(x^3)) is not accepted
+against ((-5)/2) * x^(-3/2) over real: expected 'incorrect' to be 'correct'
+ Tests  1 failed | 216 passed | 2620 skipped (2837)
+mutant killed: the command exited 1
+```
+
+Same mutation, re-run with the original Unit 1 "survived" filter verbatim
+(`-t 'df-index-form'`) — F2 closed at the oracle level:
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ s/domain: 'positive'/domain: 'real'/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'
+FAIL df-index-form > accepts every other writing it promises
+AssertionError: seed 2: promised writing (-5)/(2*sqrt(x^3)) is not accepted
+against ((-5)/2) * x^(-3/2) over real: expected 'incorrect' to be 'correct'
+ Tests  1 failed | 25 passed | 2811 skipped (2837)
+mutant killed: the command exited 1
+```
+
+Negative-control self-check (not a mutate.sh run — a direct flip of the new
+test's own expectation, restored from a backup afterward): red on exactly
+`df-index-form` seed 0 and `df-product-mixed` seed 2, confirming the control
+is live rather than vacuous.
+
+`git status --short` empty except the intended staged edits after every
+harness run (`differentiation.ts` re-staged after the comment fix so the
+cleanliness check passed against the updated index each time).
+
+`npm test` 2994 (was 2777, +217 — one new test per registered generator,
+matching the plan's prediction exactly), `tsc` silent, `npm run build`
+succeeds (required since `types.ts` changed), lint 0 errors / 25 warnings
+(unchanged).
+
+Commit: `src/content/types.ts`, `src/content/generators/differentiation.ts`,
+`src/content/generators/generators.test.ts`. Message: "Pin promised
+alternative writings to the checker."

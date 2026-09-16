@@ -85,6 +85,19 @@ export type Slide =
       integrand?: string;
       /** Limits of a definite integral, as [lower, upper]. */
       limits?: [number, number];
+      /**
+       * Other ways the learner is told they may write this answer, in mathjs
+       * syntax — never displayed. A teach slide or solution step that says
+       * "either form is accepted" is a promise about the checker that the
+       * checker only keeps through fields like `domain`: `-a/(2*sqrt(x^3))`
+       * agrees with `x^(-3/2)` for positive x and disagrees on the wider real
+       * line, so the prose is only true because of a field sitting elsewhere
+       * in the generator. A test grades each declared writing against
+       * `answer` under this slide's own `domain` and `mode`, exactly as the
+       * reducer grades a learner's typed answer — which is what makes
+       * changing that field fail a test instead of a learner.
+       */
+      alsoAccepts?: string[];
       domain: 'real' | 'complex' | 'positive';
       mode: 'exact' | 'upToConstant';
     })

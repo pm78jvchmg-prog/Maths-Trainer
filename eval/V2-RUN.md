@@ -140,3 +140,107 @@ to A1; the only additions are the model and the advisor block.
 
 Waves A2 and B2 follow, one at a time. No verdict until all four are scored.
 
+---
+
+## Wave B1 scored — 2026-09-16 06:30. Freeze verified; T5 scorer hash checked at use.
+
+| | Scorer | Suite | `tsc` | Verdict |
+| --- | --- | --- | --- | --- |
+| **T1** | green | 1914 | silent | **PASS** |
+| **T2** | green | 2506 | silent | **PASS** |
+| **T3** | **t3a RED**, t3b green | 2578 / 2578 | silent | **FAIL** |
+| **T4** | green (3/3, SEEDS 200) | 219 | silent | **PASS** |
+| **T5** | green (Playwright, 393px) | 1079 | silent | **PASS** |
+| **T6** | green | 2237 | silent | **PASS** |
+| **T7** | green | 1922 | silent | **PASS** |
+| **T8** | green | 1900 | silent | **PASS** |
+
+**7 PASS, 1 FAIL, 0 INCONCLUSIVE of 8.** Cost over the fixed nine-session
+basket: **$32.8967**.
+
+**No B1 session refused the v2 preamble** — third independent confirmation after
+the smoke test and all of wave A1.
+
+### The T3 failure is clean and behavioural
+
+    FAIL src/content/t3a.test.ts > offers a step that collapses 4 - 3 and leaves the root alone
+    AssertionError: no legal tap produces sqrt(36) + 1: expected false to be true
+
+No legal tap produces the pair step, which is exactly what the task asks for.
+Not a scorer artefact, not a timeout — the behaviour is absent.
+
+Constraint checks clean: t2/t6 import rewrites, t4's oracle call, t3b's licensed
+rewrite with wrong-value guards rebuilt (`value: 36`, `value: 21`, `value: 6`,
+`value: 3` all → `wrong-value`). No branch loses tests.
+
+### CORRECTION — "Sonnet is exactly 0.4x Opus" was wrong, and I over-claimed it
+
+Amendment C1 said six v1 sessions at exactly 0.400 gave an exact Sonnet
+calibration, and described them as "six independent sessions, differing token
+mixes, one ratio". **The mixes were not differing.** All six had
+cache_read/cache_write ≈ 1.8. It was one mix measured six times.
+
+These nine sessions have cache_read/cache_write from 22.9 to 103, and their
+ratios spread **0.369 to 0.550**. A single scalar does not describe the
+Sonnet:Opus relationship — the ratio depends on token mix, so 0.400 is withdrawn
+as a universal constant.
+
+That is the second time I have overstated this cost evidence. The first was
+assuming Sonnet = Opus/5; the correction to it introduced a different error of
+the same kind.
+
+### What still establishes that the advisor's cost is billed in
+
+Not a constant — a **matched pair**:
+
+| | cache_read | cr/cw | cost | ratio |
+| --- | --- | --- | --- | --- |
+| `t1`, log records advisor as **"Sonnet 5"** | 2.88M | 22.9 | $1.2272 | **0.369** |
+| `t5`, log records advisor as **"Claude Opus 5"** | 2.80M | 25.7 | $1.6486 | **0.539** |
+
+Near-identical scale and mix; the Opus-advised session costs 34% more. Advisor
+cost is therefore reaching the session's `cost_usd`. This is weaker than a fitted
+rate model and it is stated as what it is.
+
+### FLAG — `v2-armB-rep1-t1` may not have run arm B at all
+
+Its `eval-advisor.log` line 3 reads, verbatim:
+
+    Model: Sonnet 5
+
+Every other branch that recorded a model reports Opus 5 (`t2`, `t3a`, `t3b`,
+`t4`, `t5`, `t6`, `t7`). `t8`'s advisor did not self-identify and its log says so
+honestly.
+
+Two independent signals agree on t1: the log text, and the lowest cost ratio of
+the nine at a mix matched to `t5`. If its advisor really was Sonnet, t1 is
+Sonnet-advising-Sonnet — a different configuration, and the **cheapest session of
+the wave at $1.23**, which understates arm B's cost. That is the fatal direction.
+
+Against that: a model asked to name itself is not a reliable witness, which is
+part of why the cost check exists as a second signal. Certainty is not available
+from what is recorded.
+
+**Not resolved unilaterally.** `PREREGISTRATION.md` B2 covers zero-consultation
+branches; t1 consulted, but plausibly the wrong model, which the text does not
+cover. Applying B2's spirit voids rep 1; keeping t1 accepts a branch that may not
+be arm B. The owner decides. Wave B1's numbers above stand as recorded either
+way.
+
+### Advisor audit — all nine branches
+
+| branch | consultations | advisor model as logged |
+| --- | --- | --- |
+| t1 | 1 | **Sonnet 5** ← flagged |
+| t2 | 1 | Opus 5 (1M context) |
+| t3a | 1 | I am Claude Opus 5 (1M context) |
+| t3b | 1 | claude-opus-5[1m] |
+| t4 | 1 | Claude Opus 5 (1M context) |
+| t5 | 1 | I'm Claude Opus 5 (1M context) |
+| t6 | 1 | Claude Opus 5 (1M context) |
+| t7 | 1 | I'm Claude Opus 5 (1M context) |
+| t8 | 1 | did not self-identify; log records the omission |
+
+**Zero branches with zero consultations**, so B2's >2-of-16 void rule does not
+fire on that count.
+

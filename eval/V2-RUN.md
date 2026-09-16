@@ -662,3 +662,71 @@ It decides two things that matter more than the verdict does:
 
 Both readings were fixed before this wave launched.
 
+---
+
+## Correction: the cost clause is NOT decided. Only quality is.
+
+I wrote above that "B1 alone is already over it". True, and misleading — D2
+compares **arm B's mean over two reps**, not B1 alone. The mean is not yet known.
+
+    arm B mean <= $29.6769  requires  B2 <= $26.4571
+
+A2 came in **19.9% below** A1. The same proportional drop applied to B1 gives
+B2 ≈ $26.34 — **just under the line.** The cost clause is genuinely live and
+could land either side of it by a few dollars.
+
+What is decided is quality, and only quality: arm A finished both reps at zero
+failures, arm B has one, D1 fails. That alone fixes the verdict.
+
+## The precision problem in D2, stated before B2 lands
+
+The 0.8 constant was frozen before any v2 number existed, so this is not a rules
+problem. It is a **precision** problem, and it is arm A's variance that creates
+it.
+
+| | Arm A mean | Threshold | B1 $32.8967 |
+| --- | --- | --- | --- |
+| **Actual** (A1 $41.2024, A2 $32.9899) | $37.0961 | $29.6769 | **10.8% over** |
+| **Counterfactual**, had A2 matched A1 | $41.2024 | $32.9619 | **passes by $0.0652** |
+
+Arm A got 19.9% cheaper between its own two reps, and *that movement* is what
+pulled the threshold below arm B. Had A2 repeated A1's cost, B1 would clear the
+cost clause **by six pence**.
+
+So: **both clauses fail, and both fail on thin samples, for different reasons.**
+Quality rests on one task at n=2. Cost rests on a threshold set by a baseline
+with n=2 and 20% spread between its own reps. Neither is a rules failure; both
+are sample-size failures, and naming that is what separates an honest verdict
+from a lucky one.
+
+That the two clauses fail *independently* is the strongest thing the verdict has.
+A no-switch resting only on t3a would be indefensible. A no-switch where cost
+also misses — against a formula fixed in advance — does not depend on the task
+everybody distrusts. But the independence is the strength; the precision of
+either clause alone is not.
+
+## Two more fixed requirements for `COMPARISON.md`
+
+### What the verdict licenses, stated in those words
+
+Not *"Sonnet with an Opus advisor is worse."* The licensed claim is:
+
+> On eight tasks Opus solves reliably, the cheaper configuration failed one,
+> cost more than 0.8× of a two-rep baseline, and read one task differently.
+
+It does **not** extend to harder work, because the task set contains none. The
+ceiling that made non-inferiority measurable is the same ceiling that bounds what
+the answer covers.
+
+### Cost figures travel with their calibration history
+
+Two withdrawn scalars sit behind every dollar amount in this run:
+Sonnet-is-Opus/5, assumed; then Sonnet-is-exactly-0.4×-Opus, from six sessions
+that shared one token mix.
+
+**The final figures do not come from either.** They are `cost_usd` read from
+session telemetry. That is why they survive the withdrawals — but a reader who
+does not know the history will trust them more than they should, and one who
+discovers it afterwards will trust them less. The history goes next to the
+numbers, not in an appendix.
+

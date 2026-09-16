@@ -1217,3 +1217,494 @@ warnings (unchanged).
 
 Commit: `src/content/generators/generators.test.ts` only. Message: "Require
 a declaration behind every \"accepted\" promise."
+
+---
+
+## Task 4 — pre-flight consultation (before unit A)
+
+**Question put to the advisor** (general-purpose agent, model: opus): sanity-check
+the overall approach for task 4 (four trig generators/lessons per
+eval/plans/TASK4-PLAN.md, one unit at a time, per-unit oracle + mutation proof +
+advisor consult + commit + push) before starting; flag anything that
+contradicts PREFLIGHT.md or looks like the "obvious fix is wrong" traps in
+PITFALLS.md; flag anything to double-check in the plan's exact literals before
+transcribing.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Summary of its answer:**
+1. Approach (literal, one unit at a time, A→B→C→D, never stopping mid-unit) is
+   sound — proceed.
+2. Real risk: `mutate.sh` reports "killed" on *any* non-zero exit, so a scratch
+   oracle that crashes (import error, vite-node resolution failure, typo) also
+   reads as "killed" and the oracle proof is then unearned — the bias is
+   fatal, not conservative. Mitigation: before running any mutation against an
+   oracle, first confirm on the clean tree that the oracle prints `0 failures`
+   AND exits 0, and separately confirm it exits non-zero when a wrong
+   assertion is deliberately introduced. Flagged that plan section 3 (around
+   its "risk 8a" table, the line about "a check that only prints") has this
+   backwards — an always-exit-0 oracle reads as SURVIVED (safe direction);
+   the dangerous case is an oracle that is always non-zero regardless of
+   truth. Not relying on that line.
+3. Distinguish `mutate.sh` exit 2 (harness error — sed matched nothing, e.g.
+   from a transcription line-wrap) from exit 1 (survived) and exit 0
+   (killed); log the exit code for every mutation run. Rewording a sed
+   expression to match the actual source formatting is fine; rewording it
+   until it kills is not.
+4. Section 2's honesty burden: units A, C, D's shape mutations are not
+   evidence about the task-3 shape-guard repair (the old rule would have
+   caught them too); only M-B is a differential. Advised empirically checking
+   M-B's differential in the scratchpad (sample the mutated tf-l2-symmetry
+   run over the 40-seed duplicate sweep and confirm no single sitting
+   actually lands three same-kind slides) rather than asserting it from the
+   plan's prose alone.
+5. Transcribe generator/lesson code with Write/Edit directly, never a heredoc
+   or intermediate script (an escaping layer eats a backslash silently, and
+   `sin`/`cos`/`frac`/`pi`/`quad` are denylisted, so a stripped backslash is a
+   guard failure). Verify each `+choice` id only exists where the base
+   generator declares `choices()`.
+6. If `npm test` counts diverge from 3021/3034/3060/3086, investigate the
+   delta and report it rather than adjusting content to hit the number.
+7. This consultation does not cover any of the four units' diffs — each unit
+   still needs its own consult on `git diff` (that unit only), returned
+   before its commit, with the advisor's self-reported model logged verbatim
+   each time. A repair commit after a surviving mutant needs its own short
+   consult. Unit D's mutation outputs need a final log-append commit even if
+   budget ends right after D's push.
+
+No code written yet at this point; `git status --short` was empty.
+
+---
+
+## Task 4 — Unit A consultation (trig-period-from-b, tf-l3-period-formula)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only (/tmp scratchpad diff of the two content files vs
+origin/main) against plan section 3.1, for transcription bugs (TeX escaping,
+`alsoAccepts` construction, the `lead: 'b ='` bare-letter fallback, sign/parity
+edge cases), whether the lesson prose and level check match the spec, and
+whether the PROMISE sentence is exactly as specified and backed by
+`alsoAccepts` on both forms it names.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), exact model ID `claude-opus-5[1m]`."
+
+**Verdict: no CONFIRMED bugs. The unit matches section 3.1 field by field.**
+
+Checked and found correct: `FULL_TURN`/`B_VALUES`/`unsimplified` verbatim,
+`FULL_TURN` on its own line (so M-A-oracle's sed anchor matches);
+`scaledWaveTex` character-for-character, every backslash doubled; `sample`'s
+draw order and the difficulty-1 gate on `direction`; `alsoAccepts` on both
+forms, each on its own line, values correct (every `b` in `B_VALUES` divides
+360 exactly) — independently re-ran the real checker: `360/3` vs `120` and
+`360/120` vs `3` both correct, including the widget's `((360)/(3))`
+serialisation, and the `+1` perturbations both incorrect; the PROMISE sentence
+is byte-identical to the plan and both writings it names are backed;
+distractors distinct in both forms (period form collapses to three only at
+`b = 2`, matching the plan); `lead: 'b ='` correctly falls back to the prompt
+via `promptFrom`'s bare-letter rule; lesson slide count/block counts/ordering
+and the level check's 15 entries all match the plan exactly; all four
+mutation sed expressions will match the text as written.
+
+**Three non-blocking notes, carried into the final report:**
+1. Plan section 2b's "400 writings for `trig-period-from-b+choice`" does not
+   happen — the `+choice` variant renders `kind: 'choice'`, so the
+   `alsoAccepts` test's `slide.kind !== 'expression'` guard skips it. Coverage
+   is 400 writings on the base id only.
+2. The PROMISE sentence contains the word "accepted" twice, not once as
+   section 2 states; harmless, since the guard counts per prose block
+   (`promises += 1` fires once for the block). `grep -n accepted` on the
+   course file still shows exactly one *line*.
+3. `choiceVariant.ts:63-65`'s comment ("quad-symmetry is the only generator
+   this affects today") is now stale — `trig-period-from-b`'s findB form also
+   hits the bare-letter fallback. Out of this unit's file boundary (the plan
+   forbids editing `choiceVariant.ts`), left as-is; flagged for the owner.
+
+**Gates already green before this consult:** `-t 'trig-period-from-b'` → 26
+passed; full suite 3021 passed (was 2995, +26 exactly as predicted); `tsc`
+silent; lint 0 errors / 25 warnings (unchanged); `git diff --stat origin/main`
+→ exactly `eval-advisor.log`, `src/content/courses/trigonometricFunctions.ts`,
+`src/content/generators/trigonometry.ts`, insertions only. Scratch oracle A
+(`oracle-a.ts`, scratchpad only): 400 draws, 0 failures, exit 0; separately
+confirmed the same oracle exits 1 when a deliberate `P + 1` bug is injected
+into it, so it is a live check.
+
+Commit next: `src/content/generators/trigonometry.ts`,
+`src/content/courses/trigonometricFunctions.ts`. Message: "Read the period of
+a sine or cosine from its formula". Mutation proofs (M-A-oracle, M-A-writing,
+M-A-promise, M-A-residual, M-A-shape) run after this commit and before the
+push, per section 6 of the plan.
+
+---
+
+## Task 4 — Unit B consultation (trig-related-angle, tf-l2-symmetry)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only against plan section 3.2 (and section 2a, the shape-guard
+differential this unit exists to exercise), for the KEEPS_SIGN table's trig
+correctness, the deterministic rotation logic, whether the lesson prose/graph/
+level-check match the spec, and whether the kind sets are really `{choice}@1`
+/ `{choice, expression}@2` as section 2a claims.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Verdict: no confirmed bugs.**
+
+1. `KEEPS_SIGN`/`relatedAngle` correct against the trig identities for all 8
+   cells; independently re-verified with 400 draws (200 seeds × 2
+   difficulties) against raw `Math.sin`/`Math.cos`, 0 failures. Rows are
+   one-line, so M-B-oracle's sed will match.
+2. Rotation is `turn = (base / 5) % 4` then slice-concat, deterministic (no
+   `rng.shuffle`, per PITFALLS 3.10); all four option labels distinct on every
+   draw; no distractor numerically equal to the truth. Minor non-bug: the
+   correct option's slot distribution is mildly uneven across the 14 base
+   angles (only 2 of 14 give turn = 1) — noted, not fixed, out of scope.
+3. Generator placement, sample order, prompt/lead/answer/domain/mode, no
+   `alsoAccepts`, all four `how` strings, solution shape, and all three teach
+   slides match section 3.2 verbatim. No `choices` field (comment present
+   explaining why); `trig-related-angle+choice` absent from the registry, as
+   intended. Level check 15 entries in the specified order. Still exactly one
+   line matching "accepted" (unit A's).
+4. Section 2a's kind-set claim confirmed by direct measurement: `{choice}` at
+   difficulty 1 (relations limited to the first three, form always symbolic),
+   `{choice, expression}` at difficulty 2. 84 distinct draws at difficulty 1,
+   195 at difficulty 2 over 400 seeds (plan predicted 214; both comfortably
+   above the 25 floor). The differential argument for M-B holds.
+5. Two non-blocking notes: (a) section 3's general "exactly 10 guided slides"
+   line is inconsistent with its own per-unit layouts (11 in both units A and
+   B, and in the pre-existing `tf-l1-periodic`) — a spec-internal
+   inconsistency, not a defect in this unit; (b) T1's "The last two lessons
+   said $\sin(150^\circ)$..." is only true of `tf-l2-sine`, not
+   `tf-l2-cosine` — inherited verbatim from the plan's own prose, not a
+   transcription slip.
+
+**Departure from the plan, applied after this consult:** reworded T1's
+opening clause from "The last two lessons said" to "An earlier lesson said",
+per the advisor's note 5b, to make the factual reference accurate (only one
+prior lesson makes that claim). No `$…$` fragment or other wording changed.
+Re-ran the full suite after the edit: still 3034 passed, unchanged. This is a
+one-clause prose fix with no effect on any test, so it was not sent back
+through a second consultation; logged here as the departure it is.
+
+**Gates green before this consult:** `-t 'trig-related-angle'` → 13 passed (no
+`+choice`, as intended); full suite 3034 passed (was 3021, +13 exactly as
+predicted); `tsc` silent; lint 0 errors / 25 warnings; diff scoped to the two
+content files, insertions only on top of unit A. Scratch oracle B
+(`oracle-b.ts`, scratchpad only): 400 draws (92 numeric), 0 failures, exit 0;
+confirmed exits 1 with a deliberate +0.01 bug injected.
+
+Commit next: the two content files. Message: "Relate the sine and cosine of
+an angle to those of its reflections". Mutations M-B-oracle and M-B run after
+this commit and before the push.
+
+---
+
+## Task 4 — Unit C consultation (trig-solve-height, tf-l2-solve)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only against plan section 3.3, for `HALF_VALUE_ANGLES`
+correctness and `solveHeightRows`'s indexing, whether the six-tile bank is
+genuinely 6 distinct tokens across all 8 (fn, sign, range) combinations,
+whether the `solveHeightExplanation` editorial resolution of the plan's
+elliptical cos/positive/signed text is coherent and correct, and whether the
+lesson/level check match section 3.3.
+
+**Advisor's self-reported model, quoted verbatim:** "Opus 5 (1M context),
+model ID `claude-opus-5[1m]`."
+
+**Verdict: no confirmed bugs.**
+
+1. `HALF_VALUE_ANGLES` correct against real trig for all 8 rows; each pair is
+   the complete solution set in its stated range (verified by brute-forcing
+   every integer degree, all 8 combinations at radius 6, 0 mismatches — same
+   check as the oracle, run independently). `solveHeightRows`'s `otherFn`
+   confirmed to index the other function at the *same* sign on the *same*
+   range row, verified by printed banks rather than by reading alone.
+2. Six-tile bank genuinely 6 distinct tokens in all 8 combinations, verified
+   programmatically. Noted the lexicographic `.sort()` makes a full-range
+   bank read in a visually odd order (`150 210 30 300 330 60`) — cosmetic
+   only, and the point of the sort (PITFALLS 3.10) is determinism, not
+   visual order.
+3. The `solveHeightExplanation` cos/positive/signed resolution (appending the
+   continuation to the full sentence rather than treating it as a standalone
+   fragment) is correct and reads as one coherent, factually accurate
+   sentence — confirmed 300° and −60° name the same point. Advisor would
+   keep it as written.
+4. Lesson placement, slide order/difficulties, skill check, all three
+   `maths()` blocks and all prose match section 3.3. Level check is 15
+   entries in the exact specified order.
+5. All TeX (three tiles-template fragments, all 32 choice labels, all
+   solution `tex`) renders under KaTeX `throwOnError: true, strict: true`.
+   `unordered: true` confirmed correct for this slide (the reducer compares
+   element-wise after sorting). No run of 3 identical-shape questions in the
+   lesson (guided sequence checked kind by kind). Non-blocking notes: the
+   `sortedBank` helper duplicates the same pattern already local to three
+   other generator files (logarithms/quadratics/vectors) — consistent with
+   existing practice, left as-is; and T2's "a displacement of $\tfrac{1}{2}$"
+   is loosely worded (means cos θ = ½) but is the plan's verbatim text and is
+   disambiguated by the following `maths()` line.
+
+**Gates green before this consult:** `-t 'trig-solve-height'` → 26 passed;
+full suite 3060 passed (was 3034, +26 exactly as predicted); `tsc` silent;
+lint 0 errors / 25 warnings; `git diff HEAD` → exactly the two content files.
+Scratch oracle C (`oracle-c.ts`, scratchpad only): 400 draws, 0 failures,
+exit 0; confirmed exits 1 with a deliberate wrong-target-value bug injected.
+
+Commit next: the two content files. Message: "Find both angles at which a
+point reaches a given height". Mutations M-C-oracle and M-C-shape run after
+this commit and before the push.
+
+---
+
+## Task 4 — Unit D consultation (trig-pythagorean, tf-l2-identity)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only against plan section 3.4, for `IDENTITY_TRIPLES`/
+`positiveIn`/`QUADRANT_RANGE` correctness, whether the four choice
+distractors are genuinely distinct across all 12 (triple, leg) pairs, whether
+the lesson/level check match section 3.4, and specifically to review a
+deliberate deviation: hoisting the plan's per-method inline `fracTex(positive,
+n)` closure (which implicitly closes over `h` and, taken literally, can't
+compile identically across three separate method closures) into a module-level
+`fracTex(positive, n, h)` taking `h` explicitly.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Verdict: no CONFIRMED bugs. Ship it.**
+
+1. All 6 `IDENTITY_TRIPLES` satisfy x²+y²=h² (checked directly); `positiveIn`
+   and `QUADRANT_RANGE` correct for all 4 quadrants. Ran an exhaustive sweep
+   of all 96 (index, givenLeg, given, quadrant) combinations (not sampled) —
+   independently located θ by a 0.0005° scan and compared the other
+   function's value against `math.evaluate(slide.answer)`: 0 failures.
+   Confirmed 48/96 distinct draws at difficulty 1/2, all 6 triples reachable.
+2. Distractor distinctness claim verified directly by enumerating all 12
+   (triple, leg) pairs: `h - givenNum` is never equal to `askedNum`, and
+   never equal to `givenNum` either (h is odd throughout). Across all 96
+   draws, `choices` always returns exactly 4 distinct-tex options with
+   exactly one correct by value.
+3. Lesson correctly inserted between `tf-l2-solve` and `tf-l2-speed`; 11
+   guided slides, teach-first, 3 skill-check; all prose and all four
+   `maths()` blocks match section 3.4 verbatim, arithmetic checked (16/25;
+   5/13 in Q4 → −12/13; 25/169+144/169=1). T3's `\left(...\right)` confirmed
+   safe (a single non-fragmented `display` block, not a tiles/reduce
+   fragment, so PITFALLS 3.6 doesn't apply). Level check is the plan's
+   15-entry list exactly. No run of 3 identical-shape questions.
+4. The `fracTex` hoisting is the right call: all five call sites destructure
+   `h` from the same draw's params, so output is byte-identical to the
+   plan's intent; the plan's literal inline-closure description cannot
+   compile as written across three sibling object methods. No existing
+   shared formatter duplicated, no naming collision.
+5. No `alsoAccepts`/promise on this generator (correct — no writing is true
+   for every draw, per the plan's own reasoning in section 3.4). One
+   non-blocking nit: three of the "subtracted" distractors reduce to `1/h`
+   on leg-1 draws, which is a plausible-looking but still-wrong value.
+
+**Gates green before this consult:** `-t 'trig-pythagorean'` → 26 passed;
+full suite 3086 passed (was 3060, +26 exactly as predicted, and 3086 matches
+the plan's final total across all four units); `tsc` silent; lint 0 errors /
+25 warnings; `git diff HEAD` → exactly the two content files; `grep -n
+accepted src/content/courses/trigonometricFunctions.ts` → exactly one line
+(unit A's), none introduced by this unit. Scratch oracle D (`oracle-d.ts`,
+scratchpad only): 400 draws, 0 failures, exit 0; confirmed exits 1 with a
+deliberate +0.01 bug injected.
+
+Commit next: the two content files. Message: "Find the cosine from the sine
+with the Pythagorean identity". Mutations M-D-oracle and M-D-shape run after
+this commit and before the push. This is the last of the four units; a final
+short commit follows to append the four units' mutation outputs to this log.
+
+---
+
+## Task 4 — mutation proofs, all four units (verbatim harness output)
+
+Per plan step 10, this is the deliberate final append: each unit's own
+consultation entry above was written and logged *before* that unit's
+mutation proofs ran (mutations run after commit, before push, per section 6),
+so the actual `eval/bin/mutate.sh` output for every mutation is recorded here
+instead, once, after the last unit's push. All ten required mutations plus
+the one expected survivor ran from the repository root, each followed by a
+clean `git status --short`.
+
+### Unit A (5 mutations)
+
+**M-A-oracle** — `eval/bin/mutate.sh src/content/generators/trigonometry.ts
+"s/^const FULL_TURN = 360;$/const FULL_TURN = 180;/" -- npx vite-node
+<scratchpad>/oracle-a.ts`:
+```
+400 draws, 400 failures
+mutant killed: the command exited 1
+```
+
+**M-A-writing** — `... "s/unsimplified(FULL_TURN, b)/unsimplified(180,
+b)/" -- npx vitest run ... -t 'other writing it promises'`:
+```
+AssertionError: seed 0: promised writing 180/2 is not accepted against 180
+over real: expected 'incorrect' to be 'correct'
+ Tests  1 failed | 218 passed | 2645 skipped (2864)
+mutant killed: the command exited 1
+```
+
+**M-A-promise** — `... "/^ *alsoAccepts: \[unsimplified/d" -- npx vitest
+run ... -t 'another writing'`:
+```
+AssertionError: tf-l3-period-formula says "You do not have to simplify. If
+the period is $360^{\circ} \div 3$, typing $\frac{360}{3}$ is accepted just
+as $120$ is, because the checker compares the value rather than how it is
+written. The same holds the other way round: for $b$, typing
+$\frac{360}{120}$ is accepted as $3$." but none of trig-period-from-b@1,
+trig-period-from-b+choice@1, trig-period-from-b@1, trig-period-from-b@2,
+trig-period-from-speed@2, trig-period-from-b+choice@2, trig-period-from-b@2,
+trig-wave-range@2 declares alsoAccepts on any draw: expected false to be true
+ Tests  1 failed | 2863 skipped (2864)
+mutant killed: the command exited 1
+```
+
+**M-A-residual** (expected to SURVIVE) — `... "/alsoAccepts:
+\[unsimplified(FULL_TURN, b)\]/d" -- npx vitest run ... -t 'another
+writing'`:
+```diff
+-        alsoAccepts: [unsimplified(FULL_TURN, b)],
+```
+(the findB form's `alsoAccepts: [unsimplified(FULL_TURN, p)],` line
+untouched — real diff, not a paraphrase)
+```
+ Tests  1 passed | 2863 skipped (2864)
+MUTANT SURVIVED: the command passed with
+src/content/generators/trigonometry.ts mutated
+```
+Recorded as survived, per the plan, and not fixed — the promise sentence
+names both forms and is satisfied by either declaration still standing. This
+is task 5's work.
+
+**M-A-shape** — `eval/bin/mutate.sh
+src/content/courses/trigonometricFunctions.ts "/id: 'tf-l3-period-formula'/,
+/skillCheck: \[/ s/ask('trig-period-from-b+choice'),$/ask('trig-period-from-b'),/"
+-- npx vitest run ... -t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l3-period-formula: run of 3 questi…' to be ''
++ tf-l3-period-formula: run of 3 questions can all be expression
+  (trig-period-from-b@1, trig-period-from-b@1, trig-period-from-b@1)
+mutant killed: the command exited 1
+```
+
+### Unit B (2 mutations)
+
+**M-B-oracle** — `... "s/sin: { supplement: true,/sin: { supplement:
+false,/" -- npx vite-node <scratchpad>/oracle-b.ts`:
+```
+seed 159 difficulty 2: symbolic fn=sin base=30 relation=supplement
+  claimed=-0.49999999999999994 actual=0.49999999999999994
+400 draws (92 numeric), 45 failures
+mutant killed: the command exited 1
+```
+
+**M-B** — `... "/id: 'tf-l2-symmetry'/,/skillCheck: \[/ { s/ask('trig-cosine
+-from-circle+choice', 2),/ask('trig-sine-from-circle', 2),/; s/ask('trig-
+evaluate-exact'),/ask('trig-related-angle', 2),/ }" -- npx vitest run ...
+-t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l2-symmetry: run of 3 questions ca…' to be ''
++ tf-l2-symmetry: run of 3 questions can all be expression
+  (trig-related-angle@2, trig-sine-from-circle@2, trig-related-angle@2)
+mutant killed: the command exited 1
+```
+This is the one differential in the whole task (section 2a): the old,
+pre-task-3 one-seed-at-difficulty-1 shape guard would have read this run as
+`choice, expression, choice` and passed it. The repaired guard, reading the
+kind set each generator can render at the difficulty actually asked, catches
+it.
+
+### Unit C (2 mutations)
+
+**M-C-oracle** — `... "s/positive: \[30, 150\]/positive: [30, 120]/" --
+npx vite-node <scratchpad>/oracle-c.ts`:
+```
+seed 198 difficulty 2: fn=cos positive=true signedRange=false
+  claimed=60,300 expected=
+400 draws, 90 failures
+mutant killed: the command exited 1
+```
+
+**M-C-shape** — `... "/id: 'tf-l2-solve'/,/skillCheck: \[/
+s/ask('trig-solve-height+choice', 2),$/ask('trig-solve-height', 2),/" --
+npx vitest run ... -t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l2-solve: run of 3 questions can a…' to be ''
++ tf-l2-solve: run of 3 questions can all be tiles (trig-solve-height@2,
+  trig-solve-height@2, trig-solve-height@2)
+mutant killed: the command exited 1
+```
+
+### Unit D (2 mutations)
+
+**M-D-oracle** — `... "s/quadrant === 1 || quadrant === 4/quadrant === 1
+|| quadrant === 3/" -- npx vite-node <scratchpad>/oracle-d.ts`:
+```
+seed 197 difficulty 2: no theta found for cos(theta) = -0.38461538461538464
+  in quadrant 4
+400 draws, 108 failures
+mutant killed: the command exited 1
+```
+
+**M-D-shape** — `... "/id: 'tf-l2-identity'/,/skillCheck: \[/
+s/ask('trig-pythagorean+choice'),$/ask('trig-pythagorean'),/" -- npx
+vitest run ... -t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l2-identity: run of 3 questions ca…' to be ''
++ tf-l2-identity: run of 3 questions can all be expression
+  (trig-pythagorean@1, trig-pythagorean@1, trig-pythagorean@1)
+mutant killed: the command exited 1
+```
+
+### Summary
+
+10 of 11 mutations killed; M-A-residual survived exactly as the plan
+predicted and required. `git status --short` was empty after every run
+(`mutate.sh`'s EXIT trap restored the mutated file each time). Section 2's
+three guard reports, in full: 2a — shape guards green on the unmutated tree
+for all four lessons, M-A/M-C/M-D-shape killed but not evidence about the
+task-3 repair (kind-fixed generators, the old rule would have caught them
+too), M-B killed and *is* the repair's differential (message quoted above).
+2b — `alsoAccepts` test graded 400 writings correct / 400 perturbations
+incorrect for `trig-period-from-b` (and its `+choice`, though the `+choice`
+render is `kind: 'choice'` so the test's `slide.kind !== 'expression'` guard
+skips it — 400 writings covered on the base id only, per the advisor's note
+on unit A); skipped (no declaration) for units B, C, D, reported as a skip,
+not a pass. 2c — 3 promises found (2 pre-existing in `differentiation.ts`,
+1 new here), all backed; M-A-promise killed; M-A-residual survived as the
+known per-generator limitation, not fixed.
+
+---
+
+## Task 4 — consultation on the mutation-proof append itself
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+the append above (the one directly preceding this entry) for insertions-only
+scope, whether the transcribed mutation output looks like faithful real
+output rather than cherry-picked or rewritten, whether its summary paragraph
+is internally consistent with what it transcribes, and whether anything in
+it reads as inflating the task's result.
+
+**Advisor's self-reported model, quoted verbatim:** "I am Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Verdict: clean, honest append; one wording slip found and fixed before this
+commit.** Confirmed insertions-only (single hunk, 0 deletions besides the
+diff header). Transcribed kill/survive strings match `mutate.sh`'s own
+literal output; vitest pass/fail/skip counts are internally self-consistent;
+oracle lines carry unflattering detail (partial-failure counts, ugly floats)
+rather than tidy round numbers, which reads as genuine rather than curated.
+Summary's 10 killed + 1 survived matches the 11 transcribed entries;
+M-A-residual is explicitly marked expected/not-fixed; M-B is correctly the
+only entry credited as the shape-guard differential, with A/C/D-shape
+explicitly denied that credit. No sample dressed as a sweep, no check unable
+to fail. Two cosmetic issues found and corrected before this commit: the
+preamble said "nine" required mutations where the plan specifies and the
+summary itself says ten (A:4 gate mutations + B/C/D:2 each = 10, plus the one
+expected survivor = 11 total runs) — fixed to "ten"; and the M-A-residual
+entry's diff snippet was a paraphrase under a "verbatim" heading — replaced
+with the actual one-line diff mutate.sh printed.

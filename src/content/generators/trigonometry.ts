@@ -971,6 +971,459 @@ const evaluateExactTrig: Generator<ExactTrigParams> = {
     ];
   },
 };
+
+/* ---------- Level 3: reading the period out of the formula ---------- */
+
+/** Degrees in one full turn: the period of sin(t) and cos(t) when t is in degrees. */
+const FULL_TURN = 360;
+/** Values of b that divide a full turn, so every period is a whole number of degrees. */
+const B_VALUES = [2, 3, 4, 5, 6, 8, 9, 10, 12];
+/** An unsimplified fraction in mathjs syntax: a writing the lesson promises is accepted. Never displayed. */
+const unsimplified = (numerator: number, denominator: number): string => `${numerator}/${denominator}`;
+
+/** The wave written with its multiplier and shift, e.g. "2\\sin(3t) + 4". */
+function scaledWaveTex(a: number, fn: 'sin' | 'cos', inner: string, d: number): string {
+  return `${a === 1 ? '' : a}\\${fn}(${inner})${d === 0 ? '' : ` ${signedTex(d)}`}`;
+}
+
+interface PeriodFromBParams {
+  a: number;
+  b: number;
+  d: number;
+  fn: 'sin' | 'cos';
+  direction: 'period' | 'findB';
+}
+
+/** Reading the period of sin(bt) or cos(bt) from b, and the reverse. */
+const periodFromB: Generator<PeriodFromBParams> = {
+  id: 'trig-period-from-b',
+  sample: (rng, difficulty) => {
+    const a = rng.int(1, difficulty > 1 ? 6 : 3);
+    const b = rng.pick(B_VALUES);
+    const d = difficulty > 1 ? nonZeroInt(rng, -6, 8) : 0;
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const direction = difficulty > 1 && rng.chance(0.5) ? 'findB' : 'period';
+    return { a, b, d, fn, direction };
+  },
+  choices: ({ b, direction }) => {
+    const p = FULL_TURN / b;
+    if (direction === 'period') {
+      return options(
+        { tex: `${p}`, answer: `${p}` },
+        { tex: `${2 * p}`, answer: `${2 * p}` },
+        { tex: `${b}`, answer: `${b}` },
+        { tex: `${FULL_TURN}`, answer: `${FULL_TURN}` },
+      );
+    }
+    return options(
+      { tex: `${b}`, answer: `${b}` },
+      { tex: `${p}`, answer: `${p}` },
+      { tex: `${2 * b}`, answer: `${2 * b}` },
+      { tex: `${FULL_TURN}`, answer: `${FULL_TURN}` },
+    );
+  },
+  render: ({ a, b, d, fn, direction }): Slide => {
+    const p = FULL_TURN / b;
+    if (direction === 'period') {
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `What is the period of $y = ${scaledWaveTex(a, fn, `${b}t`, d)}$? Here $t$ is in degrees.`,
+          },
+        ],
+        lead: '\\text{period} =',
+        keypad: NUMBER_KEYS,
+        answer: `${p}`,
+        alsoAccepts: [unsimplified(FULL_TURN, b)],
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve $y = ${scaledWaveTex(a, fn, 'bt', d)}$ has period $${p}^{\\circ}$. What is $b$?`,
+        },
+      ],
+      lead: 'b =',
+      keypad: NUMBER_KEYS,
+      answer: `${b}`,
+      alsoAccepts: [unsimplified(FULL_TURN, p)],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ b, direction }) => {
+    const p = FULL_TURN / b;
+    if (direction === 'period') {
+      return [
+        {
+          text: `The $b$ inside the bracket is how many cycles fit into one turn. Sine and cosine repeat every $360^{\\circ}$, so $${b}$ cycles of this curve fit into $360^{\\circ}$.`,
+        },
+        { tex: `\\text{period} = \\frac{360^{\\circ}}{${b}} = ${p}^{\\circ}` },
+        {
+          text: 'The multiplier in front sets the height and anything added on the end moves the curve up or down; neither touches the period. Only what is inside the bracket does.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Period and $b$ are reciprocals across a full turn: the period is $360^{\\circ}$ divided by $b$, so $b$ is $360^{\\circ}$ divided by the period.',
+      },
+      { tex: `b = \\frac{360^{\\circ}}{${p}^{\\circ}} = ${b}` },
+      {
+        text: `So the curve completes $${b}$ full cycles between $0^{\\circ}$ and $360^{\\circ}$. A larger $b$ means a shorter period — the reversal that comes with living inside the bracket.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 2: symmetries of the circle ---------- */
+
+/** Base angles for the symmetry questions. 45 is left out: its sine and cosine coincide, so the cofunction distractor would equal the answer. */
+const BASE_ANGLES = [10, 15, 20, 25, 30, 35, 40, 50, 55, 60, 65, 70, 75, 80];
+type Relation = 'supplement' | 'halfTurn' | 'reflex' | 'negative';
+const RELATIONS: Relation[] = ['supplement', 'halfTurn', 'reflex', 'negative'];
+
+/** The related angle: 180 - a, 180 + a, 360 - a, -a. */
+function relatedAngle(base: number, relation: Relation): number {
+  switch (relation) {
+    case 'supplement':
+      return 180 - base;
+    case 'halfTurn':
+      return 180 + base;
+    case 'reflex':
+      return 360 - base;
+    case 'negative':
+      return -base;
+  }
+}
+
+/**
+ * Whether the function keeps its sign at the related angle, read off the circle:
+ * sine is the height (positive above the centre), cosine the displacement (positive to the right).
+ */
+const KEEPS_SIGN: Record<'sin' | 'cos', Record<Relation, boolean>> = {
+  sin: { supplement: true, halfTurn: false, reflex: false, negative: false },
+  cos: { supplement: false, halfTurn: false, reflex: true, negative: true },
+};
+
+interface RelatedAngleParams {
+  base: number;
+  fn: 'sin' | 'cos';
+  relation: Relation;
+  form: 'symbolic' | 'numeric';
+}
+
+/**
+ * The sine or cosine of an angle, related to that of a base angle by a
+ * symmetry of the circle: a reflection or a half turn.
+ *
+ * No `choices()` on this generator: its symbolic form already renders as a
+ * native `choice`, and a derived `+choice` form would render the same
+ * question twice.
+ */
+const relatedAngleGenerator: Generator<RelatedAngleParams> = {
+  id: 'trig-related-angle',
+  sample: (rng, difficulty) => {
+    const base = rng.pick(BASE_ANGLES);
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const relation = rng.pick(difficulty > 1 ? RELATIONS : RELATIONS.slice(0, 3));
+    const form = difficulty > 1 && rng.chance(0.5) ? 'numeric' : 'symbolic';
+    return { base, fn, relation, form };
+  },
+  render: (params): Slide => {
+    const { base, fn, relation, form } = params;
+    const angle = relatedAngle(base, relation);
+    const keeps = KEEPS_SIGN[fn][relation];
+    const co = fn === 'sin' ? 'cos' : 'sin';
+
+    if (form === 'symbolic') {
+      const opts = [
+        { id: 'same', label: `\\${fn}(${base}^{\\circ})`, tex: true },
+        { id: 'negated', label: `-\\${fn}(${base}^{\\circ})`, tex: true },
+        { id: 'co', label: `\\${co}(${base}^{\\circ})`, tex: true },
+        { id: 'coNegated', label: `-\\${co}(${base}^{\\circ})`, tex: true },
+      ];
+      const turn = (base / 5) % 4;
+      const turned = [...opts.slice(turn), ...opts.slice(0, turn)];
+      return {
+        kind: 'choice',
+        prompt: [{ kind: 'prose', text: `Which of these is equal to $\\${fn}(${angle}^{\\circ})$?` }],
+        options: turned,
+        correctId: keeps ? 'same' : 'negated',
+      };
+    }
+
+    const shown = Math.abs((fn === 'sin' ? Math.sin : Math.cos)((base * Math.PI) / 180)).toFixed(3);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Given that $\\${fn}(${base}^{\\circ}) \\approx ${shown}$, what is $\\${fn}(${angle}^{\\circ})$? Give it to three decimal places, with its sign.`,
+        },
+      ],
+      lead: `\\${fn}(${angle}^{\\circ}) \\approx`,
+      keypad: NUMBER_KEYS,
+      answer: `${keeps ? '' : '-'}${shown}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ base, fn, relation, form }) => {
+    const angle = relatedAngle(base, relation);
+    const keeps = KEEPS_SIGN[fn][relation];
+    const how: Record<Relation, string> = {
+      supplement:
+        'they are reflections of each other in the vertical axis, so the point is at the same height on the other side.',
+      halfTurn:
+        'the point is diametrically opposite, so both the height and the displacement change sign.',
+      reflex:
+        'they are reflections in the horizontal axis, so the displacement is the same and the height is flipped.',
+      negative: 'a clockwise turn reflects the point in the horizontal axis: same displacement, flipped height.',
+    };
+    const core = `\\${fn}(${angle}^{\\circ}) = ${keeps ? '' : '-'}\\${fn}(${base}^{\\circ})`;
+    const shown = Math.abs((fn === 'sin' ? Math.sin : Math.cos)((base * Math.PI) / 180)).toFixed(3);
+    const tex = form === 'numeric' ? `${core} \\approx ${keeps ? '' : '-'}${shown}` : core;
+    return [
+      { text: `On the circle, $${angle}^{\\circ}$ and $${base}^{\\circ}$ are related by a symmetry: ${how[relation]}` },
+      { tex },
+      {
+        text:
+          fn === 'sin'
+            ? 'Sine is the height, so it keeps its sign across the vertical axis and flips it across the horizontal one.'
+            : 'Cosine is the displacement, so it keeps its sign across the horizontal axis and flips it across the vertical one.',
+      },
+    ];
+  },
+};
+
+/* ---------- Level 2: solving for the angle ---------- */
+
+/** The angles at which sine or cosine is +1/2 or -1/2, in [0, 360) and in (-180, 180]. */
+const HALF_VALUE_ANGLES = {
+  full: { sin: { positive: [30, 150], negative: [210, 330] }, cos: { positive: [60, 300], negative: [120, 240] } },
+  signed: { sin: { positive: [30, 150], negative: [-30, -150] }, cos: { positive: [60, -60], negative: [120, -120] } },
+} as const;
+
+/** The bank, answer tokens first, sorted so one question renders one way (PITFALLS 3.10). */
+const sortedBank = (answer: string[], distractors: string[]): string[] =>
+  [...answer, ...distractors.filter((t) => !answer.includes(t))].sort();
+
+interface SolveHeightParams {
+  radius: number;
+  fn: 'sin' | 'cos';
+  positive: boolean;
+  form: 'circle' | 'equation';
+  signedRange: boolean;
+}
+
+/** The three pairs of angles a draw offers: the true solutions, the wrong-sign pair, and the other function's pair. */
+function solveHeightRows(
+  params: SolveHeightParams,
+): { solutions: readonly number[]; wrongSign: readonly number[]; otherFn: readonly number[] } {
+  const { fn, positive, signedRange } = params;
+  const row = HALF_VALUE_ANGLES[signedRange ? 'signed' : 'full'];
+  const solutions = row[fn][positive ? 'positive' : 'negative'];
+  const wrongSign = row[fn][positive ? 'negative' : 'positive'];
+  const otherFn = row[fn === 'sin' ? 'cos' : 'sin'][positive ? 'positive' : 'negative'];
+  return { solutions, wrongSign, otherFn };
+}
+
+/** The explanatory third solution step, one per (fn, sign, range) combination. */
+function solveHeightExplanation(fn: 'sin' | 'cos', positive: boolean, signedRange: boolean): string {
+  if (fn === 'sin' && positive) {
+    return 'Sine is $\\tfrac{1}{2}$ at the reference angle $30^{\\circ}$; above the centre the other angle is its reflection in the vertical axis, $180^{\\circ} - 30^{\\circ} = 150^{\\circ}$.';
+  }
+  if (fn === 'sin') {
+    return signedRange
+      ? 'Below the centre, named by clockwise turns, they are $-30^{\\circ}$ and $-150^{\\circ}$: the reflections of $30^{\\circ}$ and $150^{\\circ}$ in the horizontal axis.'
+      : 'Below the centre the two angles are $180^{\\circ} + 30^{\\circ} = 210^{\\circ}$ and $360^{\\circ} - 30^{\\circ} = 330^{\\circ}$.';
+  }
+  if (positive) {
+    return signedRange
+      ? 'Cosine is $\\tfrac{1}{2}$ at $60^{\\circ}$; to the right of the centre the other angle is its reflection in the horizontal axis, $360^{\\circ} - 60^{\\circ} = 300^{\\circ}$, which is $-60^{\\circ}$ when the lower half is named by clockwise turns.'
+      : 'Cosine is $\\tfrac{1}{2}$ at $60^{\\circ}$; to the right of the centre the other angle is its reflection in the horizontal axis, $360^{\\circ} - 60^{\\circ} = 300^{\\circ}$.';
+  }
+  return signedRange
+    ? 'To the left of the centre they are $120^{\\circ}$ and $-120^{\\circ}$, reflections of each other in the horizontal axis.'
+    : 'To the left of the centre the two angles are $180^{\\circ} - 60^{\\circ} = 120^{\\circ}$ and $180^{\\circ} + 60^{\\circ} = 240^{\\circ}$.';
+}
+
+/** Given a height (or displacement) reached, find both angles on the turn. */
+const solveHeight: Generator<SolveHeightParams> = {
+  id: 'trig-solve-height',
+  sample: (rng, difficulty) => {
+    const radius = rng.int(1, 8) * 2;
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const positive = rng.chance(0.5);
+    const form = rng.pick(['circle', 'equation'] as const);
+    const signedRange = difficulty > 1 && rng.chance(0.5);
+    return { radius, fn, positive, form, signedRange };
+  },
+  choices: (params) => {
+    const { solutions, wrongSign, otherFn } = solveHeightRows(params);
+    const pair = (p: readonly number[]) => ({ tex: `${p[0]}^{\\circ} \\text{ and } ${p[1]}^{\\circ}` });
+    return options(pair(solutions), pair(wrongSign), pair(otherFn), pair([solutions[0], wrongSign[0]]));
+  },
+  render: (params): Slide => {
+    const { radius, fn, positive, form, signedRange } = params;
+    const half = radius / 2;
+    const value = positive ? half : -half;
+    const { solutions, wrongSign, otherFn } = solveHeightRows(params);
+    const rangeTex = signedRange ? '-180^{\\circ} < \\theta \\le 180^{\\circ}' : '0^{\\circ} \\le \\theta < 360^{\\circ}';
+    const where =
+      fn === 'sin' ? (positive ? 'above' : 'below') : positive ? 'to the right of' : 'to the left of';
+    const prompt =
+      form === 'circle'
+        ? `A point starts at the far right of a circle of radius $${radius}$ centred at the origin and turns anticlockwise through an angle $\\theta$. Find both values of $\\theta$ with $${rangeTex}$ at which the point is $${half}$ ${where} the centre.`
+        : `Find both solutions of $${radius}\\${fn}(\\theta) = ${value}$ with $${rangeTex}$.`;
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: prompt }],
+      template: '\\theta = {0}^{\\circ} \\quad \\text{or} \\quad \\theta = {1}^{\\circ}',
+      bank: sortedBank(solutions.map(String), [...wrongSign, ...otherFn].map(String)),
+      answer: solutions.map(String),
+      unordered: true,
+    };
+  },
+  solution: (params) => {
+    const { radius, fn, positive, form, signedRange } = params;
+    const half = radius / 2;
+    const value = positive ? half : -half;
+    const { solutions } = solveHeightRows(params);
+    const heightWord = fn === 'sin' ? 'height' : 'displacement';
+    const step1 =
+      form === 'circle'
+        ? `The ${heightWord} is $${radius}\\${fn}(\\theta)$, so $${radius}\\${fn}(\\theta) = ${value}$. Dividing by $${radius}$ leaves $\\${fn}(\\theta) = ${positive ? '' : '-'}\\tfrac{1}{2}$.`
+        : `Dividing by $${radius}$ leaves $\\${fn}(\\theta) = ${positive ? '' : '-'}\\tfrac{1}{2}$.`;
+    return [
+      { text: step1 },
+      {
+        tex: `\\${fn}(\\theta) = ${positive ? '' : '-'}\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = ${solutions[0]}^{\\circ} \\text{ or } ${solutions[1]}^{\\circ}`,
+      },
+      { text: solveHeightExplanation(fn, positive, signedRange) },
+    ];
+  },
+};
+
+/* ---------- Level 2: the Pythagorean identity ---------- */
+
+/** Pythagorean triples, so a sine given as a fraction has a cosine that is also a fraction. Exported for the scratch oracle. */
+export const IDENTITY_TRIPLES: [number, number, number][] = [
+  [3, 4, 5],
+  [5, 12, 13],
+  [8, 15, 17],
+  [7, 24, 25],
+  [20, 21, 29],
+  [9, 40, 41],
+];
+
+/** Sine is the height, positive in the upper half; cosine the displacement, positive on the right. */
+const positiveIn = (fn: 'sin' | 'cos', quadrant: number): boolean =>
+  fn === 'sin' ? quadrant <= 2 : quadrant === 1 || quadrant === 4;
+
+const QUADRANT_RANGE = [
+  '0^{\\circ} < \\theta < 90^{\\circ}',
+  '90^{\\circ} < \\theta < 180^{\\circ}',
+  '180^{\\circ} < \\theta < 270^{\\circ}',
+  '270^{\\circ} < \\theta < 360^{\\circ}',
+];
+
+interface IdentityParams {
+  index: number;
+  givenLeg: 0 | 1;
+  given: 'sin' | 'cos';
+  quadrant: number;
+}
+
+/** A signed fraction n/h, in mathjs-displayable TeX. */
+const fracTex = (positive: boolean, n: number, h: number): string =>
+  `${positive ? '' : '-'}\\tfrac{${n}}{${h}}`;
+
+/** Find the cosine from the sine (or the reverse) with the Pythagorean identity. */
+const pythagorean: Generator<IdentityParams> = {
+  id: 'trig-pythagorean',
+  sample: (rng, difficulty) => {
+    const index = rng.int(0, 5);
+    const givenLeg = rng.int(0, 1) as 0 | 1;
+    const given = rng.pick(['sin', 'cos'] as const);
+    const quadrant = rng.int(1, difficulty > 1 ? 4 : 2);
+    return { index, givenLeg, given, quadrant };
+  },
+  choices: (params) => {
+    const { index, givenLeg, given, quadrant } = params;
+    const [x, y, h] = IDENTITY_TRIPLES[index];
+    const givenNum = givenLeg === 0 ? x : y;
+    const askedNum = givenLeg === 0 ? y : x;
+    const asked = given === 'sin' ? 'cos' : 'sin';
+    const gs = positiveIn(given, quadrant);
+    const as = positiveIn(asked, quadrant);
+    const frac = (positive: boolean, n: number) => ({
+      tex: fracTex(positive, n, h),
+      answer: `${positive ? '' : '-'}${n}/${h}`,
+    });
+    return options(frac(as, askedNum), frac(!as, askedNum), frac(gs, givenNum), frac(as, h - givenNum));
+  },
+  render: (params): Slide => {
+    const { index, givenLeg, given, quadrant } = params;
+    const [x, y, h] = IDENTITY_TRIPLES[index];
+    const givenNum = givenLeg === 0 ? x : y;
+    const askedNum = givenLeg === 0 ? y : x;
+    const asked = given === 'sin' ? 'cos' : 'sin';
+    const gs = positiveIn(given, quadrant);
+    const as = positiveIn(asked, quadrant);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\${given}(\\theta) = ${fracTex(gs, givenNum, h)}$ and $${QUADRANT_RANGE[quadrant - 1]}$. What is $\\${asked}(\\theta)$? Give it as a fraction.`,
+        },
+      ],
+      lead: `\\${asked}(\\theta) =`,
+      keypad: NUMBER_KEYS,
+      answer: `${as ? '' : '-'}${askedNum}/${h}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { index, givenLeg, given, quadrant } = params;
+    const [x, y, h] = IDENTITY_TRIPLES[index];
+    const givenNum = givenLeg === 0 ? x : y;
+    const askedNum = givenLeg === 0 ? y : x;
+    const asked = given === 'sin' ? 'cos' : 'sin';
+    const gs = positiveIn(given, quadrant);
+    const as = positiveIn(asked, quadrant);
+    const where =
+      asked === 'sin'
+        ? as
+          ? 'above the centre'
+          : 'below the centre'
+        : as
+          ? 'to the right of the centre'
+          : 'to the left of the centre';
+    return [
+      {
+        text: 'The point is on a circle of radius $1$, so its two coordinates satisfy $\\cos^2(\\theta) + \\sin^2(\\theta) = 1$. Square the value you have and subtract it from $1$.',
+      },
+      {
+        tex: `\\${asked}^2(\\theta) = 1 - \\left(${fracTex(gs, givenNum, h)}\\right)^2 = 1 - \\tfrac{${givenNum * givenNum}}{${h * h}} = \\tfrac{${askedNum * askedNum}}{${h * h}}`,
+      },
+      {
+        text: `Taking the square root gives $\\tfrac{${askedNum}}{${h}}$ up to sign, and the quadrant decides the sign: with $${QUADRANT_RANGE[quadrant - 1]}$ the point is ${where}, so $\\${asked}(\\theta)$ is ${as ? 'positive' : 'negative'}.`,
+      },
+      { tex: `\\${asked}(\\theta) = ${fracTex(as, askedNum, h)}` },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -987,4 +1440,8 @@ export const trigonometryGenerators = [
   evaluateWave,
   waveSlider,
   evaluateExactTrig,
+  periodFromB,
+  relatedAngleGenerator,
+  solveHeight,
+  pythagorean,
 ] as unknown as Generator<unknown>[];

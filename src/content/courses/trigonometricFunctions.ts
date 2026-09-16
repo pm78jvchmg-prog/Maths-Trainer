@@ -574,6 +574,189 @@ export const trigonometricFunctions: Course = {
           ],
         },
         {
+          id: 'tf-l2-symmetry',
+          title: 'Angles with the Same Sine',
+          slides: [
+            teach(
+              prose(
+                'An earlier lesson said $\\sin(150^{\\circ})$ equals $\\sin(30^{\\circ})$; that is not a coincidence about one pair of angles but a symmetry of the circle, and it comes in three kinds.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [{ f: wave(0, 1, 360, 0) }],
+                marks: [
+                  { x: 40, y: Math.sin((40 * Math.PI) / 180) },
+                  { x: 140, y: Math.sin((40 * Math.PI) / 180) },
+                ],
+                verticals: [{ x: 40 }, { x: 140 }],
+                yMin: -1.4,
+                yMax: 1.4,
+                label: 'The sine curve, with the equal heights at 40 and 140 degrees ringed',
+              }),
+              prose(
+                'The ringed points are $\\sin(40^{\\circ})$ and $\\sin(140^{\\circ})$, the same height because $40^{\\circ}$ and $140^{\\circ}$ are the same distance either side of the top of the circle at $90^{\\circ}$ — reflections of each other in the vertical axis.',
+              ),
+              maths('\\sin(180^{\\circ} - \\theta) = \\sin(\\theta) \\qquad \\cos(180^{\\circ} - \\theta) = -\\cos(\\theta)'),
+              prose(
+                'The reflection keeps the height and flips the displacement, so the sine is unchanged and the cosine changes sign.',
+              ),
+            ),
+            ask('trig-related-angle'),
+            ask('trig-sine-from-circle', 2),
+            ask('trig-related-angle'),
+            teach(
+              prose(
+                'A half turn takes the point to the diametrically opposite side, so both coordinates change sign.',
+              ),
+              maths('\\sin(180^{\\circ} + \\theta) = -\\sin(\\theta) \\qquad \\cos(180^{\\circ} + \\theta) = -\\cos(\\theta)'),
+              prose(
+                'The third symmetry is reflection in the horizontal axis: $360^{\\circ} - \\theta$ sits just below the starting point rather than just above it, and a negative angle, a clockwise turn, lands in exactly the same place; same displacement, flipped height.',
+              ),
+              maths(
+                '\\sin(360^{\\circ} - \\theta) = \\sin(-\\theta) = -\\sin(\\theta) \\qquad \\cos(360^{\\circ} - \\theta) = \\cos(-\\theta) = \\cos(\\theta)',
+              ),
+              prose(
+                'Given a value, the same rules hand over the answer: if $\\sin(40^{\\circ}) \\approx 0.643$ then $\\sin(220^{\\circ}) \\approx -0.643$; the digits are the same and only the sign needs deciding.',
+              ),
+            ),
+            ask('trig-related-angle', 2),
+            ask('trig-cosine-from-circle+choice', 2),
+            ask('trig-evaluate-exact'),
+            teach(
+              prose(
+                'Rather than memorising six rules, picture the point: sine is the height, so ask whether the reflected point is above or below the centre; cosine is the displacement, so ask whether it is left or right.',
+              ),
+              maths('\\sin(220^{\\circ}) = -\\sin(40^{\\circ}) \\approx -0.643'),
+              prose(
+                'These symmetries are what make a table of values from $0^{\\circ}$ to $90^{\\circ}$ enough for every angle there is; the sine of $140^{\\circ}$, $220^{\\circ}$, $320^{\\circ}$ and $-40^{\\circ}$ are all $0.643$ in size, with the sign read off the circle.',
+              ),
+            ),
+            ask('trig-related-angle', 2),
+            ask('trig-related-angle', 2),
+          ],
+          skillCheck: [
+            ask('trig-related-angle', 2),
+            ask('trig-related-angle', 2),
+            ask('trig-sine-from-circle', 2),
+          ],
+        },
+        {
+          id: 'tf-l2-solve',
+          title: 'Solving for the Angle',
+          slides: [
+            teach(
+              prose(
+                'So far the angle was given and the height asked for; turn it round: at which angles is a point on a circle of radius $6$ exactly $3$ above the centre?',
+              ),
+              maths('6\\sin(\\theta) = 3 \\quad \\Rightarrow \\quad \\sin(\\theta) = \\tfrac{3}{6} = \\tfrac{1}{2}'),
+              prose(
+                'Dividing by the radius turns a question about a height into one about the sine alone; one answer is $30^{\\circ}$ from the table of exact values, but the previous lesson says $\\sin(150^{\\circ})$ is also $\\tfrac{1}{2}$, so there are two.',
+              ),
+              maths('\\sin(\\theta) = \\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = 30^{\\circ} \\text{ or } 150^{\\circ}'),
+              prose(
+                'Two, because the point passes every height twice in a turn, once going up and once coming down; giving only one is the standard slip.',
+              ),
+            ),
+            ask('trig-solve-height'),
+            ask('trig-related-angle', 2),
+            ask('trig-solve-height'),
+            teach(
+              prose(
+                'Cosine works the same way with the other axis: a displacement of $\\tfrac{1}{2}$ happens at $60^{\\circ}$ and again at its reflection in the horizontal axis, $300^{\\circ}$.',
+              ),
+              maths('\\cos(\\theta) = \\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = 60^{\\circ} \\text{ or } 300^{\\circ}'),
+              prose(
+                'A negative value moves both answers to the other half of the circle: for $\\sin(\\theta) = -\\tfrac{1}{2}$ the point is below the centre, at $210^{\\circ}$ and $330^{\\circ}$; for $\\cos(\\theta) = -\\tfrac{1}{2}$ it is to the left, at $120^{\\circ}$ and $240^{\\circ}$.',
+              ),
+              prose(
+                'The range matters: between $0^{\\circ}$ and $360^{\\circ}$ every angle is an anticlockwise turn, but between $-180^{\\circ}$ and $180^{\\circ}$ the lower half of the circle is named by clockwise turns instead.',
+              ),
+              maths(
+                '\\sin(\\theta) = -\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\qquad (-180^{\\circ} < \\theta \\le 180^{\\circ})',
+              ),
+            ),
+            ask('trig-solve-height', 2),
+            ask('trig-solve-height+choice', 2),
+            ask('trig-solve-height', 2),
+            teach(
+              prose(
+                'The method is always the same: find the reference angle in the table, decide from the sign which half of the circle the point is in, and take the two angles there by symmetry.',
+              ),
+              prose(
+                'Same two points, different labels: $-30^{\\circ}$ is $330^{\\circ}$ and $-150^{\\circ}$ is $210^{\\circ}$; always read the range before writing the answer.',
+              ),
+              prose(
+                'Check each answer by substituting it back: $6\\sin(330^{\\circ})$ is $-3$, so $330^{\\circ}$ answers the question about $-3$ and not the one about $3$; pairing $30^{\\circ}$ with $210^{\\circ}$ is the slip that check catches.',
+              ),
+            ),
+            ask('trig-solve-height', 2),
+            ask('trig-sine-from-circle', 2),
+          ],
+          skillCheck: [
+            ask('trig-solve-height', 2),
+            ask('trig-solve-height+choice', 2),
+            ask('trig-solve-height', 2),
+          ],
+        },
+        {
+          id: 'tf-l2-identity',
+          title: 'The Pythagorean Identity',
+          slides: [
+            teach(
+              prose(
+                'The cosine lesson ended with $\\cos^2(\\theta) + \\sin^2(\\theta) = 1$, the circle equation with the coordinates renamed; it means knowing one of sine and cosine nearly pins down the other.',
+              ),
+              maths('\\cos^2(\\theta) = 1 - \\sin^2(\\theta) = 1 - \\tfrac{9}{25} = \\tfrac{16}{25}'),
+              prose(
+                'If $\\sin(\\theta) = \\tfrac{3}{5}$ then $\\cos(\\theta)$ is $\\tfrac{4}{5}$ or $-\\tfrac{4}{5}$: the square root leaves the sign open, and the sign comes from where the point is — sine is the height, positive in the upper half of the circle; cosine is the displacement, positive on the right.',
+              ),
+              maths(
+                '\\sin(\\theta) = \\tfrac{3}{5}, \\quad 90^{\\circ} < \\theta < 180^{\\circ} \\quad \\Rightarrow \\quad \\cos(\\theta) = -\\tfrac{4}{5}',
+              ),
+              prose(
+                'Between $90^{\\circ}$ and $180^{\\circ}$ the point is above the centre and to its left, so the sine is positive and the cosine negative; the quarter of the circle the angle lies in is the only extra information needed.',
+              ),
+            ),
+            ask('trig-pythagorean'),
+            ask('trig-pythagorean+choice'),
+            ask('trig-pythagorean'),
+            teach(
+              prose(
+                'The lower half works the same way: between $180^{\\circ}$ and $270^{\\circ}$ the point is below and to the left, so both are negative; between $270^{\\circ}$ and $360^{\\circ}$ it is below and to the right.',
+              ),
+              maths(
+                '\\cos(\\theta) = \\tfrac{5}{13}, \\quad 270^{\\circ} < \\theta < 360^{\\circ} \\quad \\Rightarrow \\quad \\sin(\\theta) = -\\tfrac{12}{13}',
+              ),
+              prose(
+                'The fractions stay tidy because $5$, $12$ and $13$ are the sides of a right-angled triangle, like $3$, $4$ and $5$; every question here uses such a triple, so the arithmetic is never the hard part.',
+              ),
+              prose(
+                'Give the answer as a fraction, with its sign; the fraction is the exact value, and a decimal read off a calculator usually is not.',
+              ),
+            ),
+            ask('trig-pythagorean', 2),
+            ask('trig-cosine-from-circle', 2),
+            ask('trig-pythagorean+choice', 2),
+            teach(
+              prose(
+                'The identity is a check as well as a tool: any pair of values claimed for the sine and cosine of one angle must have squares adding to $1$, and if they do not, one of them is wrong.',
+              ),
+              maths('\\left(\\tfrac{5}{13}\\right)^2 + \\left(\\tfrac{12}{13}\\right)^2 = \\tfrac{25}{169} + \\tfrac{144}{169} = 1'),
+              prose(
+                'It also says neither value can exceed $1$ in size and the two cannot both be large: when one is $1$ the other is $0$, the point at the top of the circle or the far right, never both.',
+              ),
+            ),
+            ask('trig-pythagorean', 2),
+            ask('trig-evaluate-exact+choice', 2),
+          ],
+          skillCheck: [
+            ask('trig-pythagorean', 2),
+            ask('trig-pythagorean+choice', 2),
+            ask('trig-pythagorean', 2),
+          ],
+        },
+        {
           id: 'tf-l2-speed',
           title: 'Period and Speed',
           slides: [
@@ -628,16 +811,19 @@ export const trigonometricFunctions: Course = {
       levelCheck: [
         ask('trig-sine-from-circle', 2),
         ask('trig-cosine-from-circle', 2),
+        ask('trig-related-angle', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-sine-from-circle', 2),
         ask('trig-speed-comparison'),
-        ask('trig-cosine-from-circle', 2),
+        ask('trig-pythagorean', 2),
         ask('trig-period-from-speed', 2),
-        ask('trig-sine-from-circle', 2),
+        ask('trig-related-angle', 2),
+        ask('trig-solve-height', 2),
         ask('trig-cosine-from-circle', 2),
         ask('trig-amplitude', 2),
-        ask('trig-period-from-speed', 2),
-        ask('trig-speed-comparison'),
+        ask('trig-pythagorean', 2),
+        ask('trig-solve-height', 2),
+        ask('trig-related-angle', 2),
       ],
     },
     {
@@ -759,6 +945,66 @@ export const trigonometricFunctions: Course = {
           ],
         },
         {
+          id: 'tf-l3-period-formula',
+          title: 'Reading the Period from the Formula',
+          slides: [
+            teach(
+              prose(
+                'The previous lesson said $b$ divides the period; with $t$ in degrees the arithmetic is concrete. $\\sin(t)$ repeats every $360^{\\circ}$, so $\\sin(bt)$ repeats every $360^{\\circ}$ divided by $b$.',
+              ),
+              maths('\\text{period of } \\sin(bt) = \\frac{360^{\\circ}}{b}'),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [
+                  { f: wave(0, 1, 360, 0), dashed: true },
+                  { f: wave(0, 1, 120, 0), accent: true },
+                ],
+                verticals: [{ x: 120 }, { x: 240 }],
+                label: 'sin t dashed against sin 3t, which fits three cycles into one turn',
+              }),
+              prose(
+                'The dashed curve is $\\sin(t)$ and the solid one is $\\sin(3t)$; three complete cycles of the solid curve fit into one cycle of the dashed one, so each is a third as long: $360^{\\circ} \\div 3 = 120^{\\circ}$, and the dashed verticals mark where each cycle ends.',
+              ),
+              prose('Read $b$ as a count: how many cycles fit into one turn.'),
+            ),
+            ask('trig-period-from-b'),
+            ask('trig-period-from-b+choice'),
+            ask('trig-period-from-b'),
+            teach(
+              prose(
+                'Only what is inside the bracket changes the period; in $y = 4\\sin(3t) + 2$ the $4$ sets the height and the $2$ lifts the curve, but the period is still $120^{\\circ}$.',
+              ),
+              prose(
+                'The formula runs backwards just as easily: a curve known to repeat every $90^{\\circ}$ fits four cycles into a turn, so $b = 4$.',
+              ),
+              maths('b = \\frac{360^{\\circ}}{\\text{period}} = \\frac{360^{\\circ}}{90^{\\circ}} = 4'),
+              prose(
+                'You do not have to simplify. If the period is $360^{\\circ} \\div 3$, typing $\\frac{360}{3}$ is accepted just as $120$ is, because the checker compares the value rather than how it is written. The same holds the other way round: for $b$, typing $\\frac{360}{120}$ is accepted as $3$.',
+              ),
+            ),
+            ask('trig-period-from-b', 2),
+            ask('trig-period-from-speed', 2),
+            ask('trig-period-from-b+choice', 2),
+            teach(
+              prose(
+                'This is the wheel from Level 2 in a new coat: a wheel making more turns per second has a shorter period, and $b$ counts cycles per turn in exactly the same way.',
+              ),
+              maths('b \\times \\text{period} = 360^{\\circ}'),
+              prose(
+                'That product is a check worth a second: if $b$ and the period do not multiply to a full turn, one of them has been misread; and $\\sin(2t)$ is still not $2\\sin(t)$ — the first repeats twice as often, the second is twice as tall.',
+              ),
+            ),
+            ask('trig-period-from-b', 2),
+            ask('trig-wave-range', 2),
+          ],
+          skillCheck: [
+            ask('trig-period-from-b', 2),
+            ask('trig-period-from-b+choice', 2),
+            ask('trig-read-parameters', 2),
+          ],
+        },
+        {
           id: 'tf-l3-together',
           title: 'Putting It Together',
           slides: [
@@ -815,13 +1061,16 @@ export const trigonometricFunctions: Course = {
         ask('trig-evaluate-exact', 2),
         ask('trig-horizontal-shift', 2),
         ask('trig-period-from-speed', 2),
+        ask('trig-period-from-b', 2),
         ask('trig-wave-range', 2),
         ask('trig-read-parameters', 2),
         ask('trig-evaluate-exact+choice', 2),
+        ask('trig-period-from-b+choice', 2),
         ask('trig-amplitude', 2),
         ask('trig-midline', 2),
         ask('trig-wave-range', 2),
         ask('trig-evaluate-wave', 2),
+        ask('trig-period-from-b', 2),
       ],
     },
   ],

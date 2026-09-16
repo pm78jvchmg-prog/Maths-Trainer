@@ -834,6 +834,38 @@ describe('course integrity', () => {
     }
   });
 
+  it('backs every promise that another writing is accepted', () => {
+    // "Accepted" is the marker rather than a field an author must remember to
+    // set, because forgetting the field is exactly the failure this guards
+    // against. A teach slide can say "either form is accepted" about a
+    // generator that declares nothing in `alsoAccepts` — the sentence would
+    // then be true only by luck, exactly the shape of the F2 finding this
+    // task repairs (see the generic "accepts every other writing it
+    // promises" test above, which pins the declaration to the checker; this
+    // one pins the *sentence* to a declaration existing at all). Move the
+    // sentence to a lesson whose generators declare nothing and it goes
+    // unbacked again with a green suite unless something reads the prose.
+    let promises = 0;
+    for (const lesson of lessons) {
+      const asked = lesson.slides.filter((ref): ref is GeneratedRef => ref.type === 'generated');
+      for (const ref of lesson.slides) {
+        if (ref.type !== 'literal' || ref.slide.kind !== 'teach') continue;
+        for (const block of ref.slide.body) {
+          if (block.kind !== 'prose' || !/\baccepted\b/i.test(block.text)) continue;
+          promises += 1;
+          const declared = asked.some(declaresAlsoAccepts);
+          expect(
+            declared,
+            `${lesson.id} says "${block.text}" but none of ${describeRefs(asked)} declares alsoAccepts on any draw`,
+          ).toBe(true);
+        }
+      }
+    }
+    // Otherwise this passes loudly while checking nothing — the same
+    // loud-pass guard the traversal-figure test above already uses.
+    expect(promises, 'no promise found to check').toBeGreaterThan(0);
+  });
+
   it('holds a genuine Pythagorean triple in every modulus row', () => {
     // The modulus generator reads its answer straight from this table instead
     // of rounding Math.hypot. That is only safe while the table is honest, so
@@ -920,6 +952,32 @@ describe('course integrity', () => {
   /** Names a run of references for a failure message, e.g. `polar-form@2, argument@2`. */
   const describeRefs = (refs: GeneratedRef[]): string =>
     refs.map((ref) => `${ref.generatorId}@${ref.difficulty ?? 1}`).join(', ');
+
+  /**
+   * Whether a reference's generator ever renders an `expression` slide
+   * declaring `alsoAccepts`, over `SEEDS` seeds at the difficulty it is
+   * asked. Cached per `${generatorId}@${difficulty}`, the same key `shapesOf`
+   * uses, since both are the same question — what can this reference render —
+   * asked about a different property of the result.
+   */
+  const declaresCache = new Map<string, boolean>();
+  const declaresAlsoAccepts = (ref: GeneratedRef): boolean => {
+    const difficulty = ref.difficulty ?? 1;
+    const key = `${ref.generatorId}@${difficulty}`;
+    const cached = declaresCache.get(key);
+    if (cached !== undefined) return cached;
+    const g = registry[ref.generatorId] as unknown as Generator<unknown>;
+    let declares = false;
+    for (let seed = 0; seed < SEEDS; seed += 1) {
+      const slide = g.render(g.sample(makeRng(seed), difficulty));
+      if (slide.kind === 'expression' && slide.alsoAccepts && slide.alsoAccepts.length > 0) {
+        declares = true;
+        break;
+      }
+    }
+    declaresCache.set(key, declares);
+    return declares;
+  };
 
   /** Every deck that repeats a question, across a sweep of seeds. */
   const duplicatesIn = (decks: (typeof lessons)[number][]) => {

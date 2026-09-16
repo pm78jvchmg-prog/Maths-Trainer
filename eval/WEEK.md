@@ -133,7 +133,7 @@ Filled as tasks complete. Empty now.
 
 | # | Task | Session | Cost | Abandoned→Opus | Interventions | Files touched |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | *running* | — | — | *pending* |
+| 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -234,3 +234,81 @@ A short verdict section appended here: the cost distribution, both counts, and
 the adversarial read's findings. Plus the one thing this week can say that the
 eval could not — whether the cheaper configuration is usable on the work that
 actually matters, stated with its sample size attached.
+
+#### Task 1 complete — four lessons, four generators, four commits
+
+All four pairs landed on `week/task1-differentiation`, in the planned order:
+
+| Commit | Lesson | Generator |
+| --- | --- | --- |
+| `8fd4b57` | `df-l1-index` — Roots and Fractions | `df-index-form` |
+| `a35d9f0` | `df-l3-roots` — Roots and Reciprocals of Brackets | `df-chain-root` |
+| `25bfff7` | `df-l4-combine` — Combining the Rules | `df-product-mixed` |
+| `586bfcc` | `df-l1-tangent` — The Equation of a Tangent | `df-tangent-line` |
+
+Differentiation is now 11 lessons; level checks 15 / 12 / 14 / 15. `+1263 − 7`
+across four files. Nothing outside the plan's boundary was touched.
+
+**Gates, run here rather than taken from the session's report** — a fresh worktree
+of the branch head, this repo's `node_modules`:
+
+| | |
+| --- | --- |
+| `npm test` | **2679 passed**, 6 files, 142 s, exit 0 |
+| `npx tsc --noEmit -p tsconfig.app.json` | silent, exit 0 |
+| `npm run lint` | 0 errors, **25 warnings — the same 25 as `main`**, so none are new |
+
+**Interventions: 1.** The mid-task amendment (three points, session interrupted and
+resumed in place). **Abandoned → Opus: 0.**
+
+**Two process defects, neither fatal:**
+
+- The session drafted all four lessons before committing any, against the plan's
+  one-pair-at-a-time loop. Corrected on the intervention; it then pushed pair B and
+  rebuilt C and D one at a time.
+- **Its own final summary misnames its work** — "df-reciprocal, df-quotient,
+  df-product". The code carries the planned ids. A post-turn summary is a
+  paraphrase, and this is the second time in this project one has been treated as
+  a verdict when it was not. Read the diff.
+- Whether pair A's commit had the gates run against it on the branch before pair B
+  began is **not evidenced** either way in the artefacts. The question is now moot
+  for correctness — pair A's code is in the tree I ran the gates on above — but it
+  is recorded rather than quietly dropped.
+
+#### The adversarial read — "what does this change that no test asserts?"
+
+All four commits read. Two findings.
+
+**F1 — Level-check bests now mix two different assessments.** This change grows
+three level checks (L1 12→15, L3 →14, L4 →15). Progress is keyed by lesson id
+(`df-l1:check`), so an existing record survives the edit, and `bestCorrect` is
+clamped only *downward* against the current total
+(`src/store/progress.ts:41`). A learner who scored 12/12 on the old L1 check and
+replays the new one scoring 9 stores `bestCorrect: 12, total: 15`, and the home
+screen renders **"Best 12/15"** (`src/App.tsx:161`) — a score never achieved on this
+check, and a 100% run redisplayed as 80%. `progress.test.ts` has two clamp tests
+and **both are about the total shrinking**; growth is untested, which is why the
+suite is green. The clamp's own comment anticipates "a skill check or level check
+that shrank" and not one that grew.
+
+**F2 — A teach slide now promises checker behaviour that only a `domain` field
+keeps.** `df-l1-index`'s third teach slide tells the learner: *"Either the
+index-form answer or the answer written back as a fraction under a root is
+accepted — the checker compares values, not the shape they are written in."* That
+is true only because `root` and `reciprocalRoot` carry `domain: 'positive'`. Flip
+either to `'real'` and the sentence is false for a learner writing
+`-a/(2\sqrt{x^{3}})`, **with every test still green**: the distractor test probes
+without a domain, and the oracle checks the generator's own `answer`, not the
+learner's alternative writings. Nothing ties the prose to the field. This is the
+`pairBank` shape exactly — tests pass, behaviour moved, the learner meets it.
+
+**The drift the read was told to hunt is not present.** `reciprocalRoot`'s
+solution step 4 writes the answer as `-\frac{a}{2x\sqrt{x}}`, **not**
+`-\frac{a}{2\sqrt{x^{3}}}`. Those two forms differ precisely where the probe said
+they would: `1/(x*sqrt(x))` agrees with `x^(-3/2)` at negative x and
+`1/sqrt(x^3)` does not. So the shipped teaching text is the form that grades
+correct on either domain. Whether that was chosen or lucky cannot be told from the
+diff — which is what F2 is about.
+
+Neither finding blocks the branch. Both are recorded against the week's question,
+not against this task.

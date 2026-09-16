@@ -67,6 +67,16 @@ timeout. Each of those turns the check off rather than passing it.
 uncommitted, and report the seed and both expressions.** Do not fix it
 and do not route around it.
 
+**Where a rule can become a check, make it one.** This file said
+"prove a new guard fails against the old code" before task 2, and task
+2's oracle grew an unauthorised tolerance that turned 13 disagreements
+into 0 anyway. The rule existed and did not fire; the advisor caught it,
+not the rule. A written rule is advice to the thing being measured. A
+script that perturbs the code and counts the failures is a check, and it
+does not care what the session believes about itself. Every rule here
+that could be mechanised should be, and the ones that cannot should say
+so.
+
 **Prove a new guard fails against the old code before keeping it.** A
 guard that passes on the broken version tests nothing. Report the
 failure message it produced.

@@ -996,3 +996,65 @@ Recorded, not fixed: the fix is a change to `generators.test.ts`, which this tas
 diff boundary forbids and which is the owner's call. It is a fourth instance of
 the class above — a guard that looks like it checks lesson shape and checks a
 shape no learner necessarily meets.
+
+## Decision after task 2: repairs first, alternating
+
+**Order: repair, lesson, repair.** Task 3 is a repair task, and repairs take
+priority over lesson additions from here.
+
+The reasoning, recorded because it is the week's first strategic choice rather
+than a finding: lesson additions grow the app; repairs grow **the thing that lets
+a cheaper model work unsupervised.** The two queued repairs are both instrument
+fixes — shape guards that reason at a difficulty the learner may never meet, and
+prose asserting what only a field upholds. Fixing them moves those two classes
+from *"an advisor or an adversarial read might notice"* to *"the suite fails"*, on
+every future task, for nobody's attention.
+
+**A framing corrected before it propagated:** none of this trains anything. There
+is no weight update, and a future session starts cold. The only thing that carries
+is what is written down, so "making the advisor redundant" means **accumulating
+artefacts that do its job** — which is what `PREFLIGHT.md` and the checks are.
+
+### The lever: rules do not fire, checks do
+
+`PREFLIGHT.md` already said *"prove a new guard fails against the old code before
+keeping it"* **before task 2 ran**. Task 2's oracle grew an unauthorised tolerance
+that turned 13 genuine disagreements into 0 regardless. The rule existed, was in
+the session's context, and did not fire. **The advisor caught it; the rule did
+not.**
+
+More written rules will not close that. What worked twice this week was mechanical
+and run from outside: the ordering check contradicted an otherwise candid
+self-report, and the perturbation runs proved the F1 guards, the `polar-power` fix
+and my own oracle could fail. So the standing principle, now in PREFLIGHT:
+**where a rule can become a check, make it one.**
+
+### Exit criterion for the advisor — evidence, not hope
+
+The advisor stays indefinitely; it is cheap, and it has now earned its cost twice
+in one task. But *whether it is still needed* becomes a tracked number rather than
+a judgement call. **Per finding, from here: could a rule or a check have caught
+this?**
+
+Applied to everything the week has produced so far:
+
+| Finding | Catchable mechanically? |
+| --- | --- |
+| F1 — a best score surviving a changed total | **yes** — and now is; the guard exists |
+| F2 — prose promising what only `domain` upholds | **yes** — queued as repair 2 |
+| Unit C's oracle tolerance | **yes** — a perturbation harness, queued below |
+| Sample presented as a sweep (twice) | **yes** — exhaustive sweep where the space is enumerable |
+| Shape guards reasoning at difficulty 1 | **yes** — queued as repair 1 |
+| Advisor consulted after the commit | **yes** — the ordering check already catches it |
+| `eval-advisor.log` overwritten | **yes** — assert the log's diff is insertions only |
+| **Advisor silently running as Sonnet** | **no** — no telemetry reachable from a session records a subagent's model per call. Verified in the v2 eval, not assumed |
+
+**Seven of eight are mechanisable; one is not.** That one is why the advisor's
+self-report stays the instrument for its own identity, and why the column records
+a floor rather than a count.
+
+**The criterion:** when several consecutive tasks complete with *no* finding that a
+rule or check could not have caught, the advisor is redundant on the evidence. Not
+before. Today that count is not zero — task 2 produced two findings whose only
+catcher was the advisor, and the mechanical replacements for both are what task 3
+builds.

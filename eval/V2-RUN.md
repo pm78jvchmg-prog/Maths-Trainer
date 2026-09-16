@@ -381,3 +381,28 @@ the name. So the most likely outcome is a correct verdict resting on very thin
 evidence — one task, n=2 — and that has to be said in the conclusion rather than
 smoothed over with the eight-task denominator.
 
+---
+
+## Wave A2 — launched 2026-09-16 07:53
+
+Nine Opus sessions, no advisor block, into `...-v2-armA-rep2`, verified at launch
+to hold exactly the eight bases. Freeze verified `OK` at the same point. Prompts
+byte-identical to A1.
+
+| Task | Branch | Session |
+| --- | --- | --- |
+| t1 | `v2-armA-rep2-t1` | `session_01K4qGGSj11Mw64396Fvcs5G` |
+| t2 | `v2-armA-rep2-t2` | `session_01EV8KBPH3tGi8eQpLxx1Bpm` |
+| t3a | `v2-armA-rep2-t3a` | `session_01L1HEkoQPqZZFVDXh6NfvEH` |
+| t3b | `v2-armA-rep2-t3b` | `session_01TTxCLGzey1skqyAb2JwKsQ` |
+| t4 | `v2-armA-rep2-t4` | `session_01QRE6ER3quCJzegCHZt8H3h` |
+| t5 | `v2-armA-rep2-t5` | `session_01Eqcr4Rg8VA94gazfLap3AV` |
+| t6 | `v2-armA-rep2-t6` | `session_01PJVSfu5DTWw9fw7pUsqnHy` |
+| t7 | `v2-armA-rep2-t7` | `session_01NDZo74XLt2UhYqb5ZzqwVM` |
+| t8 | `v2-armA-rep2-t8` | `session_01Saf3NDp2hpCTYsqSPUtVMT` |
+
+`t3a` here is the trial that decides which row of the pre-committed table above
+applies. That reading was fixed before this wave launched.
+
+One wave left after this: B2 into `...-v2-armB-rep2`.
+

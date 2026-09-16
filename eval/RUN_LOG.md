@@ -512,3 +512,73 @@ implicit.
 
 Rep 1 and rep 2 agree on seven of eight tasks; T3 differs (INCONCLUSIVE, PASS).
 One disagreement, tolerance is 2. Rep 3 next.
+
+## 2026-09-16 00:00 — arm A closed at 22/22; the comparison is halted before arm B
+
+Rep 3 scored: 7 PASS, 0 FAIL, 1 INCONCLUSIVE, $41.67. Arm A over three reps:
+**22 PASS, 0 FAIL, 2 INCONCLUSIVE of 24.** Full tables in `ARM_A.md`.
+
+Halted by the owner before arm B ran, on an argument that is arithmetic rather
+than judgement, and that I should have made myself two reps ago.
+
+### The arithmetic
+
+Rule 0 needs arm B to exceed arm A by ≥4 task-trials of 24. Inconclusive trials
+drop from both denominators, so the live comparison is 22 trials and arm A took
+**22 of 22**. Arm B's ceiling is 22. `B − A ≤ 0` — arm B cannot exceed arm A by
+one trial, never mind four. Counting both inconclusives as passes for A does not
+help: A = 24, B ≤ 24, same conclusion.
+
+So the test returns "no switch" for **every** possible arm B, including one that
+is strictly better. Nine sessions and a night would have bought a number with no
+information in it.
+
+### Where I got this wrong
+
+I recorded the ceiling as a *write-up caveat* when rep 2 came in at 8/8 — a note
+for the final comparison so a null result would not be misread. That was the
+wrong category. It was already decisive at that point, and the honest move was to
+stop and say the experiment could no longer answer its question, not to schedule
+rep 3 and arm B and flag it in the appendix. Arm A rep 1 plus rep 2 was 15 of 16
+with zero failures; the margin was unreachable from there.
+
+The report of a halted comparison is **"these tasks could not resolve it"**, and
+never "the configurations are equivalent". Nothing in this run licenses any claim
+about Sonnet-plus-Opus-advisor.
+
+### The finding that outlasts the comparison
+
+Two prompts flipped from persistent failure to pass on one added sentence:
+
+- **T1** failed six times, then passed once the prompt said an answer containing
+  `=` must still be graded rather than rejected.
+- **T3b** failed, then passed once the prompt said `8 + 4 x 3` settled in one tap
+  as 20 must be accepted and as 36 must not.
+
+Neither sentence revealed a mechanism; each stated a requirement the task had
+always had and never said. **The original 6/8 was substantially measuring prompt
+defects, not model capability.** That is worth more than the comparison was ever
+going to be, and it is the one result here that generalises.
+
+### The defect register is the only place attempts differed
+
+`pairBank` non-terminating on `armA-rep1-t3a` and again on `armA-rep3-t3a`: two
+of three attempts at one task shipped a non-terminating export, each with a green
+suite and a silent typecheck. Rep 2's did not. Arm A defect tally: **2**.
+
+Binary pass/fail discarded this as INCONCLUSIVE. It is the only signal in the run
+that distinguished one attempt from another, and it is about quality rather than
+correctness — all three branches pass their tests.
+
+### Rep agreement, repurposed
+
+Reps 1 and 3 identical, rep 2 differs on T3 alone: agreement within 1 task of 8.
+The gate existed to decide whether arm B could run. Arm B is not running, so this
+figure now measures something narrower and still worth having — the harness is
+reliable and the scoring reproduces. The instrument was not the problem.
+
+### State
+
+The Routine is deleted. No automation is armed. Arm B's three subject repos exist
+and are untouched, holding the eight bases only, if the question is re-posed.
+Nothing has been written to `COMPARISON.md`; there is no comparison to record.

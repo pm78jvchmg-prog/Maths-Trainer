@@ -150,3 +150,85 @@ arm I happen to be looking at.
 Seven of eight tasks agree outright. T3 differs: INCONCLUSIVE then PASS. One
 disagreement of eight, inside the tolerance of 2. The gate needs rep 3 before it
 can be called.
+
+## Rep 3 — scored 2026-09-16 00:00, freeze verified immediately before
+
+| | Scorer | Suite | `tsc` | Deletions read | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| **T1** | green | 1915 | silent | 0 | **PASS** |
+| **T2** | green | 2510 | silent | import rewrite only | **PASS** |
+| **T3** | t3a **timed out at 180s**, t3b green | 2593 / 2581 | silent | rewrites, net +15 / +3 | **INCONCLUSIVE** |
+| **T4** | green (3/3, SEEDS 200) | 219 | silent | oracle call only | **PASS** |
+| **T5** | green (Playwright, 393px) | 1079 | silent | 0 | **PASS** |
+| **T6** | green | 2238 | silent | 0 | **PASS** |
+| **T7** | green | 1919 | silent | 0 | **PASS** |
+| **T8** | green | 1943 | silent | 0 | **PASS** |
+
+**7 PASS, 0 FAIL, 1 INCONCLUSIVE of 8.** Cost **$41.67**:
+
+| t1 | t2 | t3a | t3b | t4 | t5 | t6 | t7 | t8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| $2.05 | $7.13 | $8.35 | $4.20 | $2.53 | $3.03 | $4.65 | $2.38 | $7.36 |
+
+Constraint checks clean. t3a's twelve deleted lines are the solvability walk
+rewritten (`it(` count 163→178); t3b's thirty-three are its licensed rewrite
+with the wrong-value guards rebuilt as value assertions (`value: 36 →
+wrong-value`, plus `isSolved(...) === false`), same shape as rep 2. No branch
+ends with fewer tests than its base.
+
+---
+
+# Arm A is closed. 22 PASS, 0 FAIL, 2 INCONCLUSIVE of 24.
+
+| | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| rep 1 | PASS | PASS | INCONC | PASS | PASS | PASS | PASS | PASS | 7/8 |
+| rep 2 | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 8/8 |
+| rep 3 | PASS | PASS | INCONC | PASS | PASS | PASS | PASS | PASS | 7/8 |
+
+**Zero failures in the entire arm.**
+
+## The comparison cannot run, and this is arithmetic rather than judgement
+
+Rule 0 requires arm B to exceed arm A by **≥4 task-trials of 24**. Inconclusive
+trials drop from *both* denominators, so the live comparison is 22 trials, and
+arm A scored **22 of 22**.
+
+Arm B's maximum is 22. So `B − A ≤ 0`. Arm B cannot exceed arm A by a single
+trial, let alone four. The margin is not narrowly missed — it is unreachable by
+construction, and it stays unreachable on the most generous reading available
+(count both inconclusives as passes for A: A = 24, B ≤ 24, `B − A ≤ 0`).
+
+The superiority test therefore returns **"no switch" for every possible arm B**,
+including an arm B that is strictly better than arm A. Running it would have
+produced a number with no information in it. Nine sessions were not spent
+finding that out.
+
+**This is a ceiling effect, not a finding about the configurations.** The
+correct report is *these tasks could not resolve the question*, never *the
+configurations are equivalent*. Nothing here licenses a claim about Sonnet with
+an Opus advisor.
+
+## What the rep agreement actually measured
+
+Reps 1 and 3 are identical; rep 2 differs on T3 alone. Agreement within **1 task
+of 8** across three reps. The gate existed to decide whether arm B could run, and
+arm B is not running — so this figure now says something narrower and still
+useful: **the harness is reliable and the scoring reproduces.** The instrument
+was never the problem. The task set was.
+
+## The defect register is the one place a difference showed up
+
+`pairBank` failed to terminate on `armA-rep1-t3a` and again on `armA-rep3-t3a` —
+**two of three attempts at the same task shipped a non-terminating export**,
+with a green suite and a silent typecheck each time. Rep 2's attempt did not.
+
+Binary pass/fail threw that away as INCONCLUSIVE. It is the only signal in the
+entire run that separated one attempt from another, and it is a *quality*
+signal, not a correctness one: all three branches pass their tests.
+
+## Cost recorded
+
+Rep 2 $47.04, rep 3 $41.67. Rep 1 partially unrecorded. Arm A runs at roughly
+**$45 per rep of eight tasks**, around $5 per task.
+

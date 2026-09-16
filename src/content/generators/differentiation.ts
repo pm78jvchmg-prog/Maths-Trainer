@@ -1399,6 +1399,136 @@ const chainRoot: Generator<ChainRootParams> = {
   },
 };
 
+/* ---------- Product rule with a chain-ruled trig or exponential factor ---------- */
+
+interface ProductMixedParams {
+  fn: 'sin' | 'cos' | 'exp';
+  a: number;
+  n: number;
+  k: number;
+}
+
+/** A coefficient in front of a function-call factor, eliding $1$ and $-1$. */
+function coeffFactorTex(coefficient: number, power: number, factorTex: string): string {
+  if (power !== 0) return `${termTex(coefficient, power)}${factorTex}`;
+  return `${coefficient === 1 ? '' : coefficient === -1 ? '-' : coefficient}${factorTex}`;
+}
+
+/**
+ * The product rule where one factor is a power of $x$ and the other needs the
+ * chain rule of its own — $ax^{n} \sin(kx)$, $\cos(kx)$ or $e^{kx}$. Every
+ * other product-rule question in this course multiplies two polynomials;
+ * this is the shape that shows up once the chain rule and the product rule
+ * have both been taught, and it needs both at once.
+ */
+const productMixed: Generator<ProductMixedParams> = {
+  id: 'df-product-mixed',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos', 'exp'] as const);
+    if (difficulty >= 2) {
+      return { fn, a: rng.int(2, 5), n: rng.int(2, 4), k: rng.int(2, 6) };
+    }
+    return { fn, a: 1, n: rng.int(1, 3), k: rng.int(2, 5) };
+  },
+  choices: ({ fn, a, n, k }) => {
+    const kx = termTex(k, 1);
+    const inner = `(${k}) * x`;
+    const factorTex = fn === 'exp' ? `e^{${kx}}` : `\\${fn}\\left(${kx}\\right)`;
+    const derivFn = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'exp';
+    const otherFactorTex = fn === 'exp' ? `e^{${kx}}` : `\\${derivFn}\\left(${kx}\\right)`;
+    const s = fn === 'cos' ? -1 : 1;
+    const fAnswer = fn === 'exp' ? `e^(${inner})` : `${fn}(${inner})`;
+    const fdAnswer = fn === 'exp' ? `e^(${inner})` : `${derivFn}(${inner})`;
+
+    const pair = (c1: number, c2: number) => ({
+      tex: sumTex([coeffFactorTex(c1, n - 1, factorTex), coeffFactorTex(c2, n, otherFactorTex)]),
+      answer: sumAnswer([`${termAnswer(c1, n - 1)} * ${fAnswer}`, `${termAnswer(c2, n)} * ${fdAnswer}`]),
+    });
+
+    return options(
+      pair(a * n, s * a * k),
+      // The product of the two derivatives, as a single term rather than a sum.
+      {
+        tex: coeffFactorTex(s * a * n * k, n - 1, otherFactorTex),
+        answer: `${termAnswer(s * a * n * k, n - 1)} * ${fdAnswer}`,
+      },
+      // Forgot the chain rule factor k on the second term.
+      pair(a * n, s * a),
+      // Sign slip on the second term.
+      pair(a * n, -s * a * k),
+    );
+  },
+  render: ({ fn, a, n, k }) => {
+    const kx = termTex(k, 1);
+    const inner = `(${k}) * x`;
+    const factorTex = fn === 'exp' ? `e^{${kx}}` : `\\${fn}\\left(${kx}\\right)`;
+    const derivFn = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'exp';
+    const s = fn === 'cos' ? -1 : 1;
+    const fAnswer = fn === 'exp' ? `e^(${inner})` : `${fn}(${inner})`;
+    const fdAnswer = fn === 'exp' ? `e^(${inner})` : `${derivFn}(${inner})`;
+
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+        { kind: 'display', tex: `y = ${termTex(a, n)}${factorTex}` },
+      ],
+      lead: '\\frac{dy}{dx} =',
+      keypad: fn === 'exp' ? EXP_KEYS : TRIG_KEYS,
+      answer: sumAnswer([`${termAnswer(a * n, n - 1)} * ${fAnswer}`, `${termAnswer(s * a * k, n)} * ${fdAnswer}`]),
+      source: `${termAnswer(a, n)} * ${fAnswer}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ fn, a, n, k }) => {
+    const kx = termTex(k, 1);
+    const factorTex = fn === 'exp' ? `e^{${kx}}` : `\\${fn}\\left(${kx}\\right)`;
+    const derivFn = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'exp';
+    const otherFactorTex = fn === 'exp' ? `e^{${kx}}` : `\\${derivFn}\\left(${kx}\\right)`;
+    const s = fn === 'cos' ? -1 : 1;
+    const uTex = termTex(a, n);
+    const uPrimeTex = termTex(a * n, n - 1);
+    const vPrimeTex = coeffFactorTex(s * k, 0, otherFactorTex);
+
+    const steps: SolutionStep[] = [
+      {
+        text: 'Two factors are multiplied together, so this needs the product rule.',
+        tex: "\\frac{d}{dx}(uv) = u'v + uv'",
+      },
+      {
+        text: "The second factor is not just $x$, so its own derivative needs the chain rule too — that is where the chain rule factor already sits, inside $v'$.",
+        tex: `u = ${uTex}, \\quad v = ${factorTex}, \\quad u' = ${uPrimeTex}, \\quad v' = ${vPrimeTex}`,
+      },
+      {
+        text: 'Substitute into the rule.',
+        tex: `\\frac{dy}{dx} = ${coeffFactorTex(a * n, n - 1, factorTex)} + ${uTex}\\left(${vPrimeTex}\\right)`,
+      },
+      {
+        text: 'Collecting the two terms gives:',
+        tex: `\\frac{dy}{dx} = ${sumTex([coeffFactorTex(a * n, n - 1, factorTex), coeffFactorTex(s * a * k, n, otherFactorTex)])}`,
+      },
+    ];
+
+    if (fn === 'exp') {
+      steps.push({
+        text: 'Both terms share the same exponential, so the answer factorises — either form is accepted.',
+        tex: `\\frac{dy}{dx} = ${coeffFactorTex(a, n - 1, `e^{${kx}}\\left(${n} + ${kx}\\right)`)}`,
+      });
+    } else if (fn === 'cos') {
+      steps.push({
+        text: 'The minus sign lands on the second term, where cosine differentiated into sine.',
+      });
+    } else {
+      steps.push({
+        text: 'Sine differentiated into cosine on the second term, with no sign change to track.',
+      });
+    }
+
+    return steps;
+  },
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -1412,4 +1542,5 @@ export const differentiationGenerators = [
   chooseRule,
   indexForm,
   chainRoot,
+  productMixed,
 ];

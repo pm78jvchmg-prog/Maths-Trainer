@@ -728,7 +728,7 @@ export const differentiation: Course = {
                 text: 'Differentiating is mechanical in a way that integrating is not: follow the structure and the answer comes out. That reliability is what makes it worth drilling until it is automatic.',
               },
             ),
-            // The last slide of the course: every rule has now been taught,
+            // The last slide of the lesson: every rule has now been taught,
             // so the last question is choosing between them rather than
             // running one that has already been named.
             ask('df-choose-rule'),
@@ -739,20 +739,78 @@ export const differentiation: Course = {
             ask('evaluate-derivative'),
           ],
         },
+
+        {
+          id: 'df-l4-combine',
+          title: 'Combining the Rules',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'Most real expressions need more than one rule. The first step is naming the outermost structure: is it a product, a quotient, or one function wrapped around another?',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(x^{2}\\sin 3x\\right) = 2x\\sin 3x + 3x^{2}\\cos 3x' },
+              {
+                kind: 'prose',
+                text: '$x^{2}\\sin 3x$ is a product of two factors, so it needs the product rule at the outer level. Its second factor is not just $x$, so differentiating *it* needs the chain rule. Write $u$, $v$, $u\'$ and $v\'$ down first, with the chain rule factor already sitting inside $v\'$, then assemble as usual.',
+              },
+            ),
+            ask('df-product-mixed'),
+            ask('df-product-mixed'),
+            ask('df-product-mixed+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'When the chain-ruled factor is $e^{kx}$, both terms of the product-rule answer share the same exponential, so the result can be factorised back down.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\left(x^{3}e^{2x}\\right) = 3x^{2}e^{2x} + 2x^{3}e^{2x} = x^{2}e^{2x}\\left(3 + 2x\\right)',
+              },
+              {
+                kind: 'prose',
+                text: 'Either the expanded or the factorised form is accepted — the checker compares values, not the shape they are written in. With cosine instead, the same assembly puts the minus sign on the second term only, exactly where cosine was differentiated.',
+              },
+            ),
+            ask('df-product-mixed', 2),
+            ask('df-product-mixed', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'A quick structural check catches most slips here without redoing the algebra: exactly one factor is differentiated in each term, and $k$ appears as an extra *multiplier* only in the term where the trig or exponential factor was the one differentiated — it is of course still inside every $\\sin(kx)$, $\\cos(kx)$ or $e^{kx}$ regardless.',
+              },
+              {
+                kind: 'prose',
+                text: '"The product of the two derivatives" is always wrong — but not because it is a single term; a factorised answer is one too, and is still correct. It is wrong because that is not what the product rule says to do: each real term keeps one factor undifferentiated, and multiplying two derivatives together does neither.',
+              },
+              {
+                kind: 'prose',
+                text: 'With every rule now taught, the skill left to practise is recognising which one — or which combination — a fresh expression calls for.',
+              },
+              { kind: 'display', tex: "\\frac{d}{dx}(uv) = u'v + uv'" },
+            ),
+            ask('df-product-mixed+choice', 2),
+            ask('df-choose-rule', 2),
+          ],
+          skillCheck: [ask('df-product-mixed', 2), ask('df-product-mixed'), ask('product-rule', 2)],
+        },
       ],
       levelCheck: [
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
-        ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
       ],
     },
   ],

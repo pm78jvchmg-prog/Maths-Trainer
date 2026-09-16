@@ -232,3 +232,109 @@ the exact expected count for lessons 1+2 together — no regression),
 `npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors), and
 `git diff --stat` confirmed the isolated commit touches only the two
 generator/course files.
+
+## Mid-session correction: an amended plan and a process fix
+
+Between consultations 3 and 4 the session was interrupted by a scheduled
+check-in relaying three corrections the owner made to the plan (now on
+`main` at commit `a5af680`, this branch's own copy at `9d6cdcb` predates
+it): (1) the `domain: 'positive'` re-verification for generator A was
+re-derived more precisely but the conclusion and the code were already
+right, no change needed; (2) the "push to the branch, never `main`" rule,
+which this session was already following; (3) a "when a gate goes red"
+rule — read the failure, fix sampling/a filter, never turn a check off,
+and if the test itself looks wrong stop and say so rather than route
+around it. I verified the amended plan actually exists on `origin/main`
+(`git fetch` + `git show`) before treating the notification as authoritative,
+per the instruction to verify anything surprising against primary sources
+rather than act on an unverified claim relayed through a notification
+channel.
+
+The interruption also caught a real process deviation: I had drafted
+generators C and D plus lessons 2 and 4 all into the working tree before
+committing B, running gates and iterating fixes on all four together rather
+than one pair at a time as the plan's working loop specifies. Nothing was
+lost — pair A (`8fd4b57`) was already correctly landed, and pair B was
+committed locally but not yet pushed — but the drafting-ahead practice
+itself was wrong, since a session that ran out of room partway through
+would have left a half-drafted lesson in the tree rather than whole lessons
+behind. Corrected: pushed B (`a35d9f0`), re-confirmed `npm test` and
+`npx tsc --noEmit` on the pushed branch state per the notification's
+explicit instruction not to assume a paused session's commit was still
+green, then rebuilt pair C from a clean `git checkout HEAD` of both files
+(discarding the pre-drafted C+D content from the working tree, though I
+kept the already-advisor-reviewed and already-fixed C code from a scratch
+backup rather than rewriting it from scratch) and proceeded one pair at a
+time from there.
+
+## Consultation 4 — before committing Lesson 4 (df-l4-combine / df-product-mixed)
+
+Question put to the advisor: same shape as consultations 2 and 3 — verify
+the maths for `y = a*x^n * fn(kx)` (fn = sin, cos or exp) independently;
+check specifically whether the `coeffFactorTex` helper I added *this time*,
+proactively, to avoid the exact elision-bug class the last two reviews each
+caught once, was applied everywhere it needed to be (rather than wait for
+the advisor to find a missed spot again); check lesson prose for the same
+"overclaims a general rule" and "leaks the sampling policy" patterns the
+last two reviews caught; check lesson structure, the level check (already
+landing in its final 15-entry form), and the `df-l4-exp` stale-comment fix.
+Passed `model: "opus"` again.
+
+Summary of the advisor's answer: not safe to push as-is, three real defects
+(two prose, one solution-step promise the TeX didn't keep) plus two optional
+polish items; the maths and the elision-avoidance were both verified clean.
+- Independently re-derived the product-rule formula from scratch (not from
+  reading my generator) and swept the *entire* reachable parameter space —
+  all 216 combinations across both difficulties, not a seed sample — cross-
+  checking `answer` against both its own rebuild and `math.derivative`, and
+  additionally checked something the repo's own tests do not cover: that
+  the generator's `source` field (used only by the oracle test) actually
+  matches the question `y = ...` the learner is shown, by back-translating
+  the display TeX. All held.
+- Explicitly hunted for a missed `coeffFactorTex` application the way it had
+  found one in each of the last two rounds, found none, and proved the
+  guard actually matters by reverting the helper and watching the check go
+  red on 100+ fragments (then restoring the file byte-identical) — the
+  "verify it can fail" discipline CLAUDE.md asks of a new guard test,
+  applied here to my own fix rather than a repo test.
+- Found a lesson prose defect: T3 claimed "the chain rule constant $k$ only
+  ever appears in the term where the trig or exponential factor was
+  differentiated", which is literally false — `k` sits inside every
+  `sin(kx)`/`cos(kx)`/`e^{kx}`, so it is in *both* terms; the intended claim
+  was that it appears as an extra *multiplier* only in one term. A learner
+  applying the stated check to their own correct answer would conclude they
+  had got it wrong. Fixed by naming the multiplier explicitly.
+- Found a second prose defect: T3 said "the product of the two derivatives
+  is always wrong" *because* it is a single term rather than two added —
+  but T2, two slides earlier, shows exactly that generator's own factorised
+  single-term answer as correct ("either form is accepted"), so the lesson
+  taught a test that would reject an answer it had just called right. The
+  conclusion (that distractor is always wrong) is correct; the stated
+  reason was not. Reworded to give the true reason: the product rule is not
+  "differentiate both factors and multiply".
+- Found a solution-step defect: step 3's text promised "substitute into the
+  rule **and collect the two terms**", but for the sin/cos branches the TeX
+  only substituted, leaving an uncollected `+ (negative coefficient)` line
+  that never matched the tidy form the choice options and lesson prose
+  describe. Fixed by splitting into a genuine "substitute" step followed by
+  a "collect" step whose TeX is built from the same `coeffFactorTex`/
+  `sumTex` pipeline the correct choice option already uses, matching the
+  pattern the file's own `product-rule` generator (substitute, then
+  "Expanding and collecting like terms gives:") already establishes.
+- Two flagged as optional/"your call": T1's "the chain rule factor already
+  sitting inside $v'$" states a positional convention (this generator
+  always differentiates the power-of-x factor as $u$) as if it were a
+  general method — left as-is, since the parallel line inside the
+  worked-solution text (which describes the actual question rather than a
+  general rule) is fine and CLAUDE.md's own idiom elsewhere states things
+  this way for a specific generator's convention; and T1's worked example
+  duplicating the previous lesson's closing example near-verbatim — left
+  as-is since the plan itself specifies that exact display and changing it
+  would depart from the plan without a correctness reason to justify it.
+
+Applied all three required fixes. Verified afterward: `npx vitest run ...
+-t 'df-product-mixed'` (24/24), `-t 'course integrity'` (16/16), full
+`npm test` (2655/2655, the exact expected count for lessons 1+2+3 — no
+regression), `npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0
+errors), and `git diff --stat` confirmed the isolated commit touches only
+the two generator/course files.

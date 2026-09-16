@@ -419,3 +419,44 @@ arm B running before arm A's mean is known creates no freedom to choose.
 
 Concurrency is nine in both arms, matching v1 arm A exactly.
 
+---
+
+# Amendment E1 — the smoke-test reading, written down late and said so
+
+**A smoke test passes if and only if the session works the task and pushes its
+branch. Everything else is a fail, including unclear-but-not-refusing.**
+
+This is **not** pre-registration for the 2026-09-16 smoke test — that test had
+already completed when this was written, so the honest description is that the
+rule is being recorded after the fact and binds every future smoke test. It
+changed nothing here: `smoke-v2-t7` passes on the strict reading, having pushed
+a branch with 1919 tests green.
+
+Recording it because I had already left the hatch open. Before the outcome I
+wrote that an unclear-but-not-refusing result would be "a genuinely awkward
+middle result" to bring to the owner. Deferring the call is better than
+inventing a pass, but a gate built to stop a prediction costing 36 sessions is
+spent the moment a third category exists to put an inconvenient outcome in.
+
+Also verified, since the replacement preamble is pure constraint with no
+commands and a session reporting "task unclear" would be the expected symptom of
+a truncated prompt: **the task body was delivered intact.** The smoke session's
+`eval-advisor.log` quotes the task's first sentence back verbatim and treats its
+second sentence as a constraint to satisfy, and its diff is t7-specific
+(`mathInput.tsx`, `slides.tsx`, a new test file). Wave A1 confirms the assembly
+independently. The "task unclear" summary was a first-turn paraphrase, not a
+report about the prompt.
+
+## Noted for scoring, not acted on: a possible false premise in t7
+
+The smoke session's advisor, reading the code, reported that t7's second
+sentence — "The graded string is wrong in the same way" — is **not true at
+base**: it verified against the project's mathjs that `x^14` already parses as
+`pow(x, 14)`, because mathjs consumes the whole numeric literal after `^`.
+
+If that holds, t7 asserts a second bug that does not exist. Both arms receive it
+identically so it carries no directional bias, and t7's scorer went green three
+times in v1 arm A, so it is testing something real. But this is the same class of
+defect that made T1 and T3b fail persistently until a sentence was corrected, and
+it is recorded here rather than discovered in the write-up.
+

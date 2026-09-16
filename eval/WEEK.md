@@ -697,3 +697,57 @@ the branch, from the artefacts, rather than waiting for a note to admit it.
 
 So from task 2 on, the column carries both: what the log claims, and what the
 ordering can be made to prove independently of the claim.
+
+### Independent oracle run at 15:40Z — before the executor's report existed
+
+Run against `week/task2-complex-numbers` at `ec83ba9`, while the session was still
+working. **Deliberately before reading anything of theirs**: once you have seen
+their script, yours checks the same ground, and the cases their approach cannot
+see are precisely the ones yours should cover.
+
+Script: `/tmp/claude-0/audit/oracle.ts`, written 15:09Z. It imports `registry`,
+`makeRng` and `math` and **nothing else** — no `polarAnswer`, `angleAnswer`,
+`principal`, `angleTex` or `complexAnswer`. Every expected value is obtained by
+parsing the rendered TeX the learner sees and evaluating it with mathjs.
+
+```
+draws per generator: {"complex-quadratic":400,"polar-form":400,"polar-power":400,"complex-sqrt":400}
+failures: 0
+```
+
+**It can fail, and that was proved rather than assumed.** Flipping the sign of
+`polar-form`'s imaginary part (`complexAnswer(re, im)` → `complexAnswer(re, -im)`)
+produced **254 failures**, naming the question and both values:
+
+```
+polar-form: answer != r(cos T + i sin T) read off the screen:
+  z = 4\left(\cos \tfrac{\pi}{2} + i\sin \tfrac{\pi}{2}\right)
+  -> expected 2.449e-16+4i, answer (0) + (-4)*i
+```
+
+Restored; tracked tree clean.
+
+**Two defects in my own oracle, found by running it, worth recording because both
+would have read as a pass:**
+
+1. **It imported by absolute path**, so the first run loaded `main`'s registry
+   rather than the branch's and found none of the four generators. It reported
+   `NOT PRESENT in the registry` as four failures rather than quietly measuring
+   nothing — which is the only reason it was caught. A version that had counted
+   zero draws and printed "0 failures" would have been indistinguishable from
+   success.
+2. **Its TeX parser broke on nested braces:** `\tfrac{1}{\sqrt{2}}` needs
+   `\sqrt` resolved before `\tfrac`, since a `[^{}]` class cannot see past the
+   inner braces. 185 throws, all in the solution's cos/sin check.
+
+Then one true negative: every remaining failure was `polar-power` reporting `\pi`
+where mathjs's `arg` said `-\pi`. **The generator is right and mathjs is the
+imprecise one** — the `(-\pi, \pi]` convention the question states makes `\pi`
+correct, and mathjs returns `-\pi` whenever float error leaves a hair of negative
+imaginary part on a point that lands on the negative real axis. Fixed by comparing
+angles mod 2π, not by touching the generator.
+
+**What this run does not cover, stated rather than left implied:** it checks that
+each stated answer is right and that `polar-form`'s worked solution quotes true
+values of `\cosθ` and `\sinθ`. It says nothing about distractors, lesson prose,
+or anything the adversarial read is for.

@@ -1278,3 +1278,83 @@ reproduces it.
 **Two of three are mechanisable and one already is.** The one that is not is the
 advisor's own identity — now failing in three different ways, all invisible to
 anything but the log.
+
+## Evidence against the "rules don't fire" position — recorded as such
+
+The claim made after task 2, and built into `PREFLIGHT.md`'s
+rule-to-check principle, was: **a written rule is advice to the thing being
+measured; only a mechanical check fires.** Its evidence was that PREFLIGHT said
+*"prove a new guard fails against the old code"* before task 2 ran, and task 2's
+oracle grew an unauthorised tolerance regardless.
+
+**Task 3 is evidence against that claim.** One added sentence —
+
+> *"A consultation must return before the commit it covers."*
+
+— took the ordering measure from **1 of 5** to **4 of 4**, with no check
+involved. The ordering check exists, but it is run *afterwards by the
+orchestrator*; nothing mechanical stopped the executor committing early. It
+simply did not.
+
+**This is logged as counter-evidence rather than explained away**, because the
+exit criterion depends on knowing which interventions actually work, and a
+position that survives every result by absorbing it is not doing any work.
+
+**A hypothesis for the difference, offered as a hypothesis and not as a rescue:**
+the sentence that fired was in the **appended system prompt**, present on every
+turn, and stated a condition the executor could evaluate about its own next action
+("has this returned yet?"). The rule that did not fire was in a **file read once at
+the start**, and stated a general principle needing application at a moment it did
+not announce itself. If that distinction is real, the lesson is not
+*rules don't work* but **where a rule lives, and whether it names a checkable
+moment, decides whether it fires.** Two data points; not enough to act on; worth
+watching in tasks 4 and 5, when there will be a third and fourth.
+
+## The advisor-verified column has no reliable instrument — stated plainly
+
+Three tasks, three distinct mechanisms by which the identity measure fails, and
+the third is not a process fault at all:
+
+1. The `model` parameter was omitted — fixable by an instruction, and it was fixed.
+2. The consultation returned after the commits it covered — fixable, and fixed.
+3. **The model's self-report contradicted its own environment label.** Parameter
+   passed, consultation returned before the commit, everything procedurally
+   correct — and the answer still cannot be read off.
+
+**No process change can fix the third**, because it is the instrument disagreeing
+with itself, and there is no reachable telemetry to appeal to. So the honest
+summary of that column, wherever it is quoted:
+
+> **It measures what the log says, not what ran.**
+
+Logging both strings verbatim is the right posture and the executor took it. It
+does not make the number more reliable — it makes the number's unreliability
+visible, which is the most that is available here.
+
+## The first instance of the class caught by the thing being measured
+
+Every prior instance was caught by the advisor, by the adversarial read, or by the
+orchestrator. **Task 3 has the first caught by the executor itself, unprompted, in
+its own work, before shipping it**: the plan specified `git diff --quiet` as
+`mutate.sh`'s cleanliness check, and `git diff --quiet` exits 0 for a nonexistent
+or untracked path — so a mistyped path would have passed the check and had the
+EXIT trap write a 0-byte file over it. The executor added `[ -f ]` and
+`git ls-files --error-unmatch`, with the reasoning in a comment.
+
+**This is the behaviour that would have to become routine before the advisor stops
+being load-bearing** — not the absence of defects, but the thing being measured
+finding this class in its own output. One instance. It is the right one, and it is
+one.
+
+## Cost, with the caveat attached
+
+| | Cost | Interventions | Advisor consultations |
+| --- | --- | --- | --- |
+| Task 1 | $29.8693 | 1 | 5 |
+| Task 2 | $14.0271 | 1 | 2 |
+| Task 3 | **$15.1065** | **0** | 4 |
+
+**Task 3 is the first task the configuration under test ran unsupervised end to
+end** — no mid-run message, no correction, no unsticking. That is the fact worth
+recording. Three points is not a trend, the tasks are different work, and the week
+was pre-registered to make no cost finding; none is made here.

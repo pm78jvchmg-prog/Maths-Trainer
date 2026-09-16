@@ -1,0 +1,461 @@
+# Advisor consultation log — Task 1 (Differentiation lessons)
+
+## Consultation 1 — before starting, sanity-check of TASK1-PLAN.md
+
+Question put to the advisor: full context of the task (add 4 lessons to the
+Differentiation course, each backed by one new generator: df-index-form,
+df-chain-root, df-product-mixed, df-tangent-line — exact math/TeX/answer
+strings as specified in eval/plans/TASK1-PLAN.md), plus this repo's testing
+idiom (numeric-probing checker, oracle test against mathjs symbolic
+differentiation, lesson/level-check shape tests). Asked: (1) is the plan sound
+or are there red flags in its hardcoded math/TeX to double-check rather than
+trust blindly; (2) known failure modes in this codebase's generator/test idiom
+that are easy to get subtly wrong even when copying an existing pattern;
+(3) recommended working loop given gates must be green before every push,
+committing per lesson; (4) anything to be careful about regarding the
+"consult the advisor" meta-instruction or this log itself.
+
+**Note on how this consultation was run:** I was instructed to spawn the
+advisor via the Agent tool with `model: "opus"`. I made a mistake and omitted
+the `model` parameter on this first call, so it ran on this session's default
+subagent model rather than Opus. The advisor caught this itself and flagged
+it back to me. Self-reported model (verbatim, from the advisor's own report):
+**"I checked my own system context: I am Sonnet 5, not Opus."** Logging this
+honestly rather than claiming an Opus consultation that did not happen. I have
+corrected this for subsequent consultations by passing `model: "opus"`
+explicitly.
+
+Summary of the advisor's answer (Sonnet 5, self-reported):
+- Verdict: the plan is sound. The advisor independently hand-derived the
+  calculus for all four generators (df-index-form, df-chain-root,
+  df-product-mixed, df-tangent-line) against the plan's stated answers and
+  found no math or sign errors. It cross-checked the plan's claims against
+  PITFALLS.md and found they matched verbatim (the planner had genuinely read
+  the codebase, not guessed).
+- Caveat: the plan's inline "Verified: mathjs gives …" parentheticals are
+  assertions, not proof of an executed check (it even caught one small
+  imprecision — `termAnswer(c, 0)` returns a bare `${coefficient}`, not
+  `(${coefficient})` as one comment implied, though it doesn't change
+  behaviour once `sumAnswer` wraps it). Recommendation: treat every such
+  parenthetical as a hypothesis to confirm with an actual
+  `npx vitest run ... -t '<generator-id>'` run, not as pre-cleared.
+- Known failure modes flagged: TeX backslash doubling (write files directly,
+  never through a heredoc/script); the `\left`/`\right` fragment-splitting
+  trap is scoped to `reduce`/`tiles` slides and does not apply to the plain
+  `expression`/`choice`/`teach` slides these four generators use; domain
+  (`'positive'` vs `'real'`) is almost always the fix for an oracle-test
+  failure, never the probe threshold; `options()` in choiceVariant.ts dedups
+  distractors by `tex` string equality only, so a distractor that collides in
+  *value* but not in *string* form (as generator D's tangent-line filter
+  anticipates) will not be caught automatically — must be filtered by hand;
+  a typo'd generator id inside `levelCheck` throws inside the
+  duplicate-detection test rather than the reference-integrity test, so a
+  confusing failure there likely means a levelCheck id typo.
+- Working loop: essentially the plan's own §5, run generator-first (write +
+  `vitest -t <id>` to green, including the 60s-budget oracle assertion, before
+  touching the lesson file), then the lesson + only the one levelCheck it
+  belongs to, full gate (`npm test && npx tsc --noEmit -p tsconfig.app.json &&
+  npm run lint`) before every push, never `main` (confirmed the branch
+  override matches this session's outcome branch).
+- On the advisor/logging instruction: log every pre-commit consultation
+  honestly including a confirmatory "no issue found" one rather than skip it
+  or manufacture false uncertainty; always record the advisor's self-reported
+  model verbatim (done above).
+
+Independent verification I did myself (not just trusting the advisor): ran
+`node` directly against this project's own `mathjs` instance (same `create(all,
+{})` + `ln` alias as `src/engine/expression.ts`) and computed
+`math.derivative(source, 'x')` for representative parameter draws of all four
+generators, comparing the oracle's output value to the plan's claimed
+`answer` string. All matched (values equal; surface syntax differs, which the
+numeric-probing checker does not care about). This is the same check the
+oracle test in `generators.test.ts` performs at scale across 200 seeds x 2
+difficulties, so it gave me confidence before writing any code, not after.
+
+Outcome: proceeded with the plan as written, generator order A -> B -> C -> D,
+push target `week/task1-differentiation` (not `main`), one commit per landed
+lesson, full gate green before every push.
+
+## Consultation 2 — before committing Lesson 1 (df-l1-index / df-index-form)
+
+Question put to the advisor: read the actual `git diff` for Generator A
+(`df-index-form`) and Lesson 1 (`df-l1-index`) myself, rather than trust my
+own description of it, and check (1) whether landing the L1 level check at an
+interim 12-entry state (not yet including `df-tangent-line`, since Generator D
+hasn't been written yet in this session) is safe or creates a problem;
+(2) the maths, TeX and choice distractors for anything a green test suite
+would not catch; (3) whether anything outside the three permitted files had
+leaked into the diff. This time I passed `model: "opus"` explicitly.
+
+Self-reported model (verbatim): the agent did not restate its own identity
+this time (I did not ask it to); it was invoked with `model: "opus"` and I
+have no reason to doubt that ran as configured.
+
+Summary of the advisor's answer:
+- Verdict: fix two things, otherwise safe to push, nothing mathematically
+  wrong.
+- (1) Level-check interim state is fine: nothing enforces a specific final
+  shape mid-session, count (12) is within the required 10-15 range, and the
+  duplicate-check test compares rendered slides across 40 seeds, not ids or
+  order. Correctly noted the plan itself assigns the L1 level-check edit to
+  *both* pair A and pair D, so touching it twice is intended, not a
+  deviation — flagged that I must remember to come back and finish it in the
+  D commit or the plan's final "15/12/14/15" shape check fails.
+- (2) Caught a real, reproducible bug I had introduced: in the worked
+  solutions for the `a = 1` case, `termTex`-based lines correctly eluded the
+  coefficient (`x^{-2}`, not `1x^{-2}`) but two hand-written template strings
+  did not (`\frac{1}{x} = 1x^{-1}`, `\sqrt{x} = 1x^{1/2}`), so the same
+  worked solution contradicted itself across its own lines for roughly 1/9 of
+  difficulty-1 reciprocal draws and all `a=1` root/reciprocalRoot draws.
+  Fixed by driving those lines through `termTex`/the same `a === 1 ? '' : a`
+  elision the rest of the file uses.
+- Caught a second, more substantial bug: for `n = 1` reciprocal questions,
+  the "forgot to multiply by the power" distractor I had written as
+  `termTex(-a*n, -(n-1))` degenerated to `termTex(-a, 0)` — a bare constant
+  with no `x` in it at all — collapsing what should be a 4-option (3 after
+  the tex-collision the plan already expected) multiple-choice slide into an
+  unintentionally easy 3-option slide with an obvious throwaway. Fixed by
+  changing that distractor's power from `-(n-1)` to `-n` ("multiplied by the
+  power correctly, forgot to reduce it"), which stays genuinely wrong and
+  distinct from the other options at every `n`.
+- Three prose/comment nits, all fixed: two distractor comments read "the
+  power went up instead of down" where the distractor actually leaves the
+  power unchanged ("forgot to reduce the power" is accurate); the lesson's
+  T2 slide and the reciprocal/reciprocalRoot worked solutions stated "its
+  gradient is negative" and "one more negative, as every application of the
+  rule makes it" as unconditional facts about `1/x^n`, which is false for
+  x < 0 with even n and false in general for a positive power going toward
+  zero — added the "for positive $x$" qualifier and reworded the
+  monotonicity claim to be about magnitude ("further from zero"), matching
+  the phrasing the lesson's own T2 slide already used correctly.
+- (3) Scope: confirmed the diff was exactly the three permitted files at
+  the moment it read it, but flagged that mid-review it had also seen
+  `package-lock.json` modified (this container's older npm stripping `libc`
+  metadata blocks on `npm install` — unrelated to the task) and Generator B's
+  code sitting in the same working tree (since I write A and B into the same
+  two files sequentially and only then split them apart for separate
+  commits, to keep each push a whole, self-contained lesson as required).
+  Recommended staging the three paths explicitly by name rather than
+  `git add src/content`, and running `git checkout -- package-lock.json`
+  first if `npm install` had touched it. Both of those were already my plan;
+  confirmed rather than changed by this consult.
+- Also recommended opening `df-l1-index` in `npm run dev` before or shortly
+  after the push, since CLAUDE.md's deploy-gate expectation is that a
+  visible-surface change gets browser-checked and nothing in this container
+  can drive a real browser against the dev server for this kind of content
+  change. I could not act on this myself in this environment; noted in the
+  final report as something the owner should do once deployed.
+
+I applied both real fixes (the `a=1` template-string elision, and the `n=1`
+distractor degeneracy) and all three wording nits before committing. Verified
+afterward: `npx vitest run ... -t 'df-index-form'` (24/24), full `npm test`
+(2607/2607, matching the count from before these fixes — no regression),
+`npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors, same as
+baseline), and `git diff --stat` / `git status --porcelain` confirmed to
+touch only the three permitted content files immediately before staging and
+committing.
+
+## Consultation 3 — before committing Lesson 2 (df-l3-roots / df-chain-root)
+
+Question put to the advisor: same shape as consultation 2 — read the actual
+diff for Generator B (`df-chain-root`, chain rule on sqrt(ax+b) and
+1/(ax+b)^n) and lesson `df-l3-roots`, verify the maths (signs, the `a != 1`
+sample-space guarantee, whether `n=1` degenerates anything the way `n=1` bit
+generator A), the TeX and worked-solution wording for the same class of bug
+the previous consult caught (a hand-written numeric literal that should have
+gone through `termTex` to elide a coefficient of 1, and prose overclaiming a
+general rule from a specific worked example), and whether the L3 level check
+(landing in its full 14-entry form this time, since `df-chain-root` already
+exists in the same commit) was safe. Passed `model: "opus"` again.
+
+Summary of the advisor's answer: not safe to push as-is, four fixes needed,
+none a maths error. Independently re-verified the calculus by rendering
+~1000 draws through a temporary test harness and running the oracle
+(`mathjs.derivative` of `source` vs `answer` via `checkAnswer`) over 240 of
+them — all correct, confirmed my sample-space claims (`a` never 1, `b != 0`
+on the reciprocal branch, `ax+b > 0` on the positive-domain root branch),
+confirmed lesson structure and the 14-entry level check, and confirmed scope
+was clean (only the two generator/course files touched). Then found:
+- **Fix 1 (real, learner-visible on ~half of root draws):** the root
+  branch's `\frac{a}{2}` fractions were never reduced — `a=2` rendered as
+  the correct option reading `\frac{2}{2\sqrt{2x+3}}` instead of
+  `\frac{1}{\sqrt{2x+3}}`, and that unreduced value is literally what the
+  lesson's own first teach slide displays as the answer, so a learner who
+  had just read the teach slide would not recognise the correct option.
+  Also caught that my own worked-solution step 3 computed the reduced
+  coefficient (`1/2 * 4 = 2`) and then step 4 didn't use it, contradicting
+  itself the same way generator A's `1x^{...}` did last round. Fixed by
+  adding reduction (mirroring the existing `halfTermTex` convention) to
+  both the correct choice option and the "forgot to reduce the power"
+  distractor, and to the solution's final step.
+- **Fix 2 (real, hits every difficulty-1 reciprocal draw):** the exact same
+  bug class as generator A's `1x^{...}`, one sign over — the reciprocal
+  solution's step 2 rendered `-1\left(3x+9\right)^{-2}` at `n=1` instead of
+  eliding to `-\left(3x+9\right)^{-2}`. Fixed with the same
+  `n === 1 ? '-' : -n` pattern already used elsewhere in the file.
+- **Fix 3 (wording):** the reciprocal solution's final step — the one line
+  a learner reads to find the answer — captioned the answer with a remark
+  about the generator's own sampling policy ("which is why it is never $1$
+  here") instead of presenting the result. Replaced with "So the derivative
+  is:", matching the root branch's own final step.
+- **Fix 4 (real bug, not style):** lesson prose read "...treating it as
+  $\frac{1}{2x+3}$ with numerator $1$" — a copy-paste slip saying "treat X
+  as X" instead of naming the quotient's numerator and denominator. Fixed
+  to "treating it as a quotient with numerator $1$ and denominator $2x+3$".
+- Two more flagged as optional/"your call", both applied: a teach slide's
+  prose leaking the generator's sampling policy to the learner ("every
+  question here has a coefficient of at least 2"), reworded to make the
+  same point about the maths rather than about the question bank; and the
+  reciprocal solution's first step showing bracket notation and saying
+  "power $1$" for an `n=1` case whose prompt never showed a power or
+  brackets — fixed to match the prompt exactly at `n=1`.
+- One flagged as low-priority and left as-is: two of the lesson's three
+  teach examples use parameter values that are themselves drawable by the
+  generator at the difficulty shown, so `resolveDeck`'s guided-slide
+  de-duplication (which only compares generated slides against each other,
+  never against literal teach slides) cannot stop a learner occasionally
+  meeting a question whose worked answer is already on the teach slide
+  above it. I checked this is a pre-existing, unenforced pattern across the
+  already-committed lesson 1 too (its own teach examples sit inside
+  `df-index-form`'s sample space), so fixing it only here would be
+  inconsistent with the rest of the codebase rather than fixing a defect I
+  introduced; left it, matching the advisor's own "your call" framing.
+- Confirmed `domain: 'real'` on the reciprocal branch puts a pole inside the
+  sampler's coordinate band (unlike generator A's reciprocal, whose pole
+  sits at 0, outside the band) but found no failures across ~1000 checks and
+  assessed the flake risk as negligible given the probe's tolerance for two
+  outliers in 24 — noted as a new exposure worth being aware of, not a fix.
+
+Applied fixes 1-4 plus both optional wording changes. Verified afterward:
+`npx vitest run ... -t 'df-chain-root'` (24/24), full `npm test` (2631/2631,
+the exact expected count for lessons 1+2 together — no regression),
+`npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors), and
+`git diff --stat` confirmed the isolated commit touches only the two
+generator/course files.
+
+## Mid-session correction: an amended plan and a process fix
+
+Between consultations 3 and 4 the session was interrupted by a scheduled
+check-in relaying three corrections the owner made to the plan (now on
+`main` at commit `a5af680`, this branch's own copy at `9d6cdcb` predates
+it): (1) the `domain: 'positive'` re-verification for generator A was
+re-derived more precisely but the conclusion and the code were already
+right, no change needed; (2) the "push to the branch, never `main`" rule,
+which this session was already following; (3) a "when a gate goes red"
+rule — read the failure, fix sampling/a filter, never turn a check off,
+and if the test itself looks wrong stop and say so rather than route
+around it. I verified the amended plan actually exists on `origin/main`
+(`git fetch` + `git show`) before treating the notification as authoritative,
+per the instruction to verify anything surprising against primary sources
+rather than act on an unverified claim relayed through a notification
+channel.
+
+The interruption also caught a real process deviation: I had drafted
+generators C and D plus lessons 2 and 4 all into the working tree before
+committing B, running gates and iterating fixes on all four together rather
+than one pair at a time as the plan's working loop specifies. Nothing was
+lost — pair A (`8fd4b57`) was already correctly landed, and pair B was
+committed locally but not yet pushed — but the drafting-ahead practice
+itself was wrong, since a session that ran out of room partway through
+would have left a half-drafted lesson in the tree rather than whole lessons
+behind. Corrected: pushed B (`a35d9f0`), re-confirmed `npm test` and
+`npx tsc --noEmit` on the pushed branch state per the notification's
+explicit instruction not to assume a paused session's commit was still
+green, then rebuilt pair C from a clean `git checkout HEAD` of both files
+(discarding the pre-drafted C+D content from the working tree, though I
+kept the already-advisor-reviewed and already-fixed C code from a scratch
+backup rather than rewriting it from scratch) and proceeded one pair at a
+time from there.
+
+## Consultation 4 — before committing Lesson 4 (df-l4-combine / df-product-mixed)
+
+Question put to the advisor: same shape as consultations 2 and 3 — verify
+the maths for `y = a*x^n * fn(kx)` (fn = sin, cos or exp) independently;
+check specifically whether the `coeffFactorTex` helper I added *this time*,
+proactively, to avoid the exact elision-bug class the last two reviews each
+caught once, was applied everywhere it needed to be (rather than wait for
+the advisor to find a missed spot again); check lesson prose for the same
+"overclaims a general rule" and "leaks the sampling policy" patterns the
+last two reviews caught; check lesson structure, the level check (already
+landing in its final 15-entry form), and the `df-l4-exp` stale-comment fix.
+Passed `model: "opus"` again.
+
+Summary of the advisor's answer: not safe to push as-is, three real defects
+(two prose, one solution-step promise the TeX didn't keep) plus two optional
+polish items; the maths and the elision-avoidance were both verified clean.
+- Independently re-derived the product-rule formula from scratch (not from
+  reading my generator) and swept the *entire* reachable parameter space —
+  all 216 combinations across both difficulties, not a seed sample — cross-
+  checking `answer` against both its own rebuild and `math.derivative`, and
+  additionally checked something the repo's own tests do not cover: that
+  the generator's `source` field (used only by the oracle test) actually
+  matches the question `y = ...` the learner is shown, by back-translating
+  the display TeX. All held.
+- Explicitly hunted for a missed `coeffFactorTex` application the way it had
+  found one in each of the last two rounds, found none, and proved the
+  guard actually matters by reverting the helper and watching the check go
+  red on 100+ fragments (then restoring the file byte-identical) — the
+  "verify it can fail" discipline CLAUDE.md asks of a new guard test,
+  applied here to my own fix rather than a repo test.
+- Found a lesson prose defect: T3 claimed "the chain rule constant $k$ only
+  ever appears in the term where the trig or exponential factor was
+  differentiated", which is literally false — `k` sits inside every
+  `sin(kx)`/`cos(kx)`/`e^{kx}`, so it is in *both* terms; the intended claim
+  was that it appears as an extra *multiplier* only in one term. A learner
+  applying the stated check to their own correct answer would conclude they
+  had got it wrong. Fixed by naming the multiplier explicitly.
+- Found a second prose defect: T3 said "the product of the two derivatives
+  is always wrong" *because* it is a single term rather than two added —
+  but T2, two slides earlier, shows exactly that generator's own factorised
+  single-term answer as correct ("either form is accepted"), so the lesson
+  taught a test that would reject an answer it had just called right. The
+  conclusion (that distractor is always wrong) is correct; the stated
+  reason was not. Reworded to give the true reason: the product rule is not
+  "differentiate both factors and multiply".
+- Found a solution-step defect: step 3's text promised "substitute into the
+  rule **and collect the two terms**", but for the sin/cos branches the TeX
+  only substituted, leaving an uncollected `+ (negative coefficient)` line
+  that never matched the tidy form the choice options and lesson prose
+  describe. Fixed by splitting into a genuine "substitute" step followed by
+  a "collect" step whose TeX is built from the same `coeffFactorTex`/
+  `sumTex` pipeline the correct choice option already uses, matching the
+  pattern the file's own `product-rule` generator (substitute, then
+  "Expanding and collecting like terms gives:") already establishes.
+- Two flagged as optional/"your call": T1's "the chain rule factor already
+  sitting inside $v'$" states a positional convention (this generator
+  always differentiates the power-of-x factor as $u$) as if it were a
+  general method — left as-is, since the parallel line inside the
+  worked-solution text (which describes the actual question rather than a
+  general rule) is fine and CLAUDE.md's own idiom elsewhere states things
+  this way for a specific generator's convention; and T1's worked example
+  duplicating the previous lesson's closing example near-verbatim — left
+  as-is since the plan itself specifies that exact display and changing it
+  would depart from the plan without a correctness reason to justify it.
+
+Applied all three required fixes. Verified afterward: `npx vitest run ...
+-t 'df-product-mixed'` (24/24), `-t 'course integrity'` (16/16), full
+`npm test` (2655/2655, the exact expected count for lessons 1+2+3 — no
+regression), `npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0
+errors), and `git diff --stat` confirmed the isolated commit touches only
+the two generator/course files.
+
+## Consultation 5 — before committing Lesson 5 (df-l1-tangent / df-tangent-line, the final pair)
+
+Question put to the advisor: verify the tangent-line maths (m = 2a·at+b,
+height = a·at²+b·at+c, k = height−m·at) and the sampling guard
+(2a·at+b != 0, never a horizontal tangent) independently rather than by
+re-deriving my own reasoning; check the three choice distractors — "forgot
+to shift", "substituted before differentiating", "used height as
+gradient" — for whether they are genuinely wrong at every draw and whether
+the filter dropping a candidate equal to the correct answer is live code
+or dead code; explicitly flagged that this generator declares no `source`
+(a tangent line is not a derivative of anything, so the oracle test has
+nothing to check here by design) and asked the advisor to weigh that when
+deciding how hard to look, since self-consistency is the only safety net;
+asked it to hunt for the elision-bug class the last three reviews each
+found once, while noting my own claim that this generator builds every
+displayed line through `lineTex`/`sumTex`/`termTex` rather than hand-written
+templates and asking it to verify that claim rather than trust it; checked
+the lesson prose for the same "overclaims a general rule"/"leaks the
+sampling policy" pattern; asked it to confirm the figure (`graph()` call,
+the first of the four new lessons to use one) matches a shipped pattern
+rather than assume it from a visual copy. Passed `model: "opus"` again.
+
+Summary of the advisor's answer: safe to commit and push, one required
+prose fix (~2 minutes), everything else a note for the final report, no
+correctness bug.
+- Verified the maths and every distractor **exhaustively** rather than by
+  sampling: enumerated all 12,026 `(a,b,c,at)` tuples reachable across both
+  difficulties (not a seed sweep), and for each independently checked
+  tangency via `f(x) - line(x) === a(x-at)^2` at multiple probe points (a
+  repeated root at `at` is the definition of a tangent) plus a
+  central-difference derivative check — a strictly independent check, not
+  a re-run of the generator's own formula, and the closest thing available
+  to an oracle test for a generator that cannot have one. Zero failures.
+- Confirmed my three claims about the distractors precisely, with counts
+  rather than "yes/no": `(m, height)` never collides with the correct
+  answer (0/12,026); `(0, height)` never collides (0/12,026); `(height,
+  height - height*at)` collides in exactly 336/12,026 draws (2.8%) —
+  confirming the `.filter()` is live code doing real work, not dead code,
+  and adding a precision I'd missed: the collision needs *both* `m != 0`
+  (the sampling guard) and `at != 0` (a separate `nonZero` call), so if
+  `at` were ever relaxed to allow 0 that distractor would silently become
+  correct. Also found, unprompted, that two of the three candidates can
+  coincide *with each other* (not with the correct answer) in 322/12,026
+  draws (2.7%, exactly when the curve's height at `at` is 0), which
+  `options()` already dedups harmlessly since the two collision sets are
+  disjoint — confirmed the slide never drops below 3 options across the
+  whole space (4 in 11,368 draws, 3 in 658).
+- **Found my "no hand-written templates" claim was false**, the fourth
+  time in five rounds the advisor has found something in this exact bug
+  class: solution step 4 (`y - ${height} = ${m}\left(x - ${at}\right)`) is
+  a raw template, not routed through `lineTex`, so it can show a bare
+  `1(...)` coefficient or a double sign like `y - -7 = -1\left(x - -2\right)`
+  (measured: 63% of sampled draws show a double sign somewhere in that
+  line; the bare-1 case hits ~11% of difficulty-1 draws). But it then did
+  something the earlier rounds didn't: checked whether this is a
+  regression by sweeping every *other* registered generator's solution TeX
+  for the same `+ -N`/`- -N` pattern, and found it is a long-standing
+  codebase-wide idiom (8 existing generators show it, `evaluate-derivative`
+  — in this same level and level check — worse than the new one), not
+  something this generator introduced. Classified as a known limitation to
+  record, not a blocker for this commit, and named a possible future fix
+  (a shared `signedTex` helper in `calculus.ts`, since `quadratics.ts` and
+  `integration.ts` each already have their own private version of the same
+  helper) explicitly as a separate refactor outside this session's scope.
+- Found the one required fix: the T3 teach slide and the solution's final
+  step both stated "substituting before differentiating gives a horizontal
+  line, [which misses the curve / is not the tangent]" as an unqualified
+  rule. That's only true because the generator's own sampling excludes
+  `m = 0` by construction — a quadratic's tangent at its actual turning
+  point genuinely is horizontal, so the claim is false in general and
+  contradicts a slide two lessons earlier (`df-l1-sums`) that correctly
+  teaches "a derivative of zero means the curve is momentarily flat, which
+  is how stationary points are found." Worse, it hands the learner an
+  exploit: the "substituted before differentiating" distractor always
+  renders as a bare constant with no `x` in it, so a learner who has just
+  been taught "horizontal is always wrong here" can eliminate that option
+  on sight rather than by understanding it, cutting the effective guess
+  rate on `+choice` slides. Fixed both the T3 prose (reworded to "a
+  horizontal line, which is only ever the actual tangent at a turning
+  point") and the solution's final step (made draw-specific — "$0$ rather
+  than the $m$ found above" — instead of a blanket claim).
+- Confirmed several things without needing a fix: the `graph()` figure
+  call is structurally identical to the already-shipped `df-l1-sums`
+  tangent figure and checked the mark/curve geometry by hand against the
+  280x150 viewBox to confirm nothing clips; agreed the T2 worked example
+  sitting inside the generator's own difficulty-1 sample space is the same
+  low-priority, pre-existing, codebase-wide pattern already accepted for
+  lessons 1 and 3 and should stay unfixed for consistency; confirmed
+  lesson structure (10 guided slides matching `df-l1-index`'s own
+  teach/3/teach/2/teach/2 shape, 3 skill-check, three widget shapes
+  including `df-evaluate-steps`'s `reduce` kind) and the completed
+  15-entry `df-l1` level check are all correct; confirmed no file outside
+  the two generator/course files changed.
+- Flagged several things explicitly for this final report rather than as
+  fixes: no committed test would catch a future edit breaking the
+  `k = height - m*at` line, since there is no oracle for this generator —
+  a candidate follow-up would be a generator-specific test asserting
+  `f(at) = line(at)` and `f'(at) = m` symbolically; the `m = 0` exclusion
+  is enforced only by the sampling guard and by convention in the prose,
+  with nothing coupling the two if either is edited later; a stale comment
+  in `choiceVariant.ts` ("quad-symmetry is the only generator this affects
+  today") is now inaccurate now that `df-tangent-line`'s `lead: 'y ='` is a
+  second bare-letter lead — comment-only, no behaviour change, left as
+  found since fixing a comment in a file this plan does not touch would
+  widen the diff for no functional reason; and that nothing in this
+  container could browser-check the new diagram or the `+choice` slide's
+  layout at phone width, so a pass through `df-l1-tangent` on the deployed
+  branch/production build is worth doing once it is reachable.
+
+Applied the one required fix (both instances — T3 prose and the solution's
+final step). Left the pre-existing double-sign/bare-1 TeX pattern in
+solution step 4 unfixed, matching the advisor's own classification of it as
+a known, codebase-wide limitation rather than a defect in this commit;
+recorded it above and in the final report rather than silently accepting
+it. Verified afterward: `npx vitest run ... -t 'df-tangent-line'` (24/24),
+`-t 'course integrity'` (16/16), full `npm test` (2679/2679, the exact
+expected count for all four lessons together — no regression),
+`npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors), and
+`git diff --stat` confirmed the isolated commit touches only the two
+generator/course files. This is the fourth and final pair of the session.

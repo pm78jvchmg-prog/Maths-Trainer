@@ -196,20 +196,138 @@ export const differentiation: Course = {
           ],
           skillCheck: [ask('sum-rule', 2), ask('evaluate-derivative'), ask('sum-rule')],
         },
+
+        {
+          id: 'df-l1-index',
+          title: 'Roots and Fractions',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'A fraction with $x$ underneath, and a root, are both powers of $x$ in disguise. The power rule already covers them — it just needs the expression rewritten first.',
+              },
+              { kind: 'display', tex: '\\frac{1}{x^{3}} = x^{-3} \\qquad \\sqrt{x} = x^{1/2}' },
+              {
+                kind: 'prose',
+                text: 'Rewrite in index form, apply the rule, then write the result back the way it started. Skipping the first step is where most of these questions go wrong.',
+              },
+              {
+                kind: 'prose',
+                text: 'For example, $\\frac{4}{x^{3}} = 4x^{-3}$ differentiates to $-12x^{-4}$, which is $-\\frac{12}{x^{4}}$ written back as a fraction.',
+              },
+            ),
+            ask('df-index-form'),
+            ask('df-index-form'),
+            ask('df-index-form+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Watch the sign on a reciprocal. A negative power comes down as a negative multiplier, and the power itself becomes *more* negative, not less.',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(\\frac{2}{x^{3}}\\right) = -6x^{-4} = -\\frac{6}{x^{4}}' },
+              {
+                kind: 'prose',
+                text: 'The power goes from $-3$ to $-4$, never to $-2$ — reducing by one always moves further from zero here. A positive answer for a reciprocal is wrong on sight: for positive $x$, $\\frac{1}{x^{n}}$ falls as $x$ grows, so its gradient there is negative.',
+              },
+            ),
+            ask('df-index-form', 2),
+            ask('df-index-form+choice', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Roots work the same way once rewritten. $\\sqrt{x} = x^{1/2}$ gives $\\tfrac{1}{2}x^{-1/2}$; $\\frac{1}{\\sqrt{x}} = x^{-1/2}$ gives $-\\tfrac{1}{2}x^{-3/2}$.',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(4\\sqrt{x}\\right) = 2x^{-1/2} = \\frac{2}{\\sqrt{x}}' },
+              {
+                kind: 'prose',
+                text: 'Either the index-form answer or the answer written back as a fraction under a root is accepted — the checker compares values, not the shape they are written in.',
+              },
+            ),
+            ask('df-index-form', 2),
+            ask('power-rule', 2),
+          ],
+          skillCheck: [ask('df-index-form', 2), ask('df-index-form'), ask('power-rule', 2)],
+        },
+
+        {
+          id: 'df-l1-tangent',
+          title: 'The Equation of a Tangent',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'A tangent is a straight line, and a straight line is fixed by a gradient and a point on it. The derivative supplies the gradient; the curve itself supplies the point.',
+              },
+              { kind: 'display', tex: 'y - y_{1} = m\\left(x - x_{1}\\right)' },
+              {
+                kind: 'prose',
+                text: 'Three steps, always in this order: differentiate to get the gradient function, substitute the given $x$-value into it for $m$, then substitute the same value into the original curve for the point.',
+              },
+            ),
+            ask('evaluate-derivative'),
+            ask('df-tangent-line'),
+            ask('df-tangent-line+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Worked in full: for $f(x) = x^{2} + 1$ at $x = 2$, the derivative is $f\'(x) = 2x$, so $m = 4$. The point is $f(2) = 5$, giving $(2, 5)$.',
+              },
+              {
+                kind: 'display',
+                tex: 'y - 5 = 4\\left(x - 2\\right) \\implies y = 4x - 3',
+              },
+              graph({
+                xMin: -1,
+                xMax: 4,
+                curves: [
+                  { f: quadratic(1, 0, 1) },
+                  { f: (x) => 4 * x - 3, dashed: true, accent: true },
+                ],
+                marks: [{ x: 2, y: 5 }],
+                yMin: -4,
+                yMax: 12,
+                label: 'y = x^2 + 1 with its tangent line at x = 2',
+              }),
+              {
+                kind: 'prose',
+                text: 'The dashed line is that tangent, touching the curve only at the ringed point $(2, 5)$.',
+              },
+            ),
+            ask('df-tangent-line'),
+            ask('df-tangent-line', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Two traps produce a plausible-looking wrong line. Substituting the point into the curve *before* differentiating gives a constant, whose derivative is $0$ — a horizontal line, which is only ever the actual tangent at a turning point.',
+              },
+              {
+                kind: 'prose',
+                text: 'The other is using the curve\'s height as if it were the gradient. A quick check catches both: the point you found must actually satisfy the line you write down.',
+              },
+              { kind: 'display', tex: "m = f'(x_{1}) \\qquad c = f(x_{1}) - m x_{1}" },
+            ),
+            ask('df-tangent-line+choice', 2),
+            ask('df-evaluate-steps'),
+          ],
+          skillCheck: [ask('df-tangent-line', 2), ask('df-tangent-line'), ask('evaluate-derivative', 2)],
+        },
       ],
       levelCheck: [
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
+        ask('df-index-form', 2),
+        ask('df-tangent-line', 2),
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
+        ask('df-index-form', 2),
+        ask('df-tangent-line', 2),
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
-        ask('power-rule', 2),
-        ask('sum-rule', 2),
-        ask('evaluate-derivative', 2),
+        ask('df-index-form', 2),
+        ask('df-tangent-line', 2),
       ],
     },
 
@@ -428,20 +546,79 @@ export const differentiation: Course = {
           ],
           skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('product-rule', 2)],
         },
+
+        {
+          id: 'df-l3-roots',
+          title: 'Roots and Reciprocals of Brackets',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'A root of a bracket is that bracket to the power $\\tfrac{1}{2}$, so the chain rule applies exactly as it does anywhere else.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\sqrt{2x + 3} = \\tfrac{1}{2}\\left(2x + 3\\right)^{-1/2} \\times 2 = \\frac{1}{\\sqrt{2x + 3}}',
+              },
+              {
+                kind: 'prose',
+                text: 'Two things have to appear: the $\\tfrac{1}{2}$ from differentiating the outer power, and the $2$ that is the derivative of what is inside. Dropping either one is the error to watch for.',
+              },
+            ),
+            ask('df-chain-root'),
+            ask('df-chain-root'),
+            ask('df-chain-root+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'A reciprocal of a bracket to a power $n$ is that bracket to the power $-n$, so it differentiates the same way a negative power always has.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\left(\\frac{1}{\\left(3x - 1\\right)^{2}}\\right) = -2\\left(3x - 1\\right)^{-3} \\times 3 = -\\frac{6}{\\left(3x - 1\\right)^{3}}',
+              },
+              {
+                kind: 'prose',
+                text: 'Watch two things: the minus sign that comes down with the power, and the power in the denominator, which goes *up* by one rather than down.',
+              },
+            ),
+            ask('df-chain-root', 2),
+            ask('df-chain-root', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'If the coefficient inside the bracket were $1$, the chain rule factor would be $1$ too, and the step would look as though it were not there — which is why it is worth writing down even when it changes nothing.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\left(\\frac{1}{2x + 3}\\right) = -\\frac{2}{\\left(2x + 3\\right)^{2}}',
+              },
+              {
+                kind: 'prose',
+                text: '$\\frac{1}{2x+3}$ can also be differentiated with the quotient rule, treating it as a quotient with numerator $1$ and denominator $2x+3$. The two routes must agree, and checking that they do is a good way to catch a slip.',
+              },
+            ),
+            ask('df-chain-root+choice', 2),
+            ask('chain-rule', 2),
+          ],
+          skillCheck: [ask('df-chain-root', 2), ask('df-chain-root'), ask('chain-rule', 2)],
+        },
       ],
       levelCheck: [
         ask('chain-rule', 2),
+        ask('df-chain-root', 2),
         ask('product-rule', 2),
         ask('quotient-rule', 2),
         ask('chain-rule', 2),
+        ask('df-chain-root', 2),
         ask('product-rule', 2),
         ask('quotient-rule', 2),
         ask('chain-rule', 2),
+        ask('df-chain-root', 2),
         ask('product-rule', 2),
         ask('quotient-rule', 2),
         ask('chain-rule', 2),
-        ask('product-rule', 2),
-        ask('quotient-rule', 2),
+        ask('df-chain-root', 2),
       ],
     },
 
@@ -617,7 +794,7 @@ export const differentiation: Course = {
                 text: 'Differentiating is mechanical in a way that integrating is not: follow the structure and the answer comes out. That reliability is what makes it worth drilling until it is automatic.',
               },
             ),
-            // The last slide of the course: every rule has now been taught,
+            // The last slide of the lesson: every rule has now been taught,
             // so the last question is choosing between them rather than
             // running one that has already been named.
             ask('df-choose-rule'),
@@ -628,20 +805,78 @@ export const differentiation: Course = {
             ask('evaluate-derivative'),
           ],
         },
+
+        {
+          id: 'df-l4-combine',
+          title: 'Combining the Rules',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'Most real expressions need more than one rule. The first step is naming the outermost structure: is it a product, a quotient, or one function wrapped around another?',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(x^{2}\\sin 3x\\right) = 2x\\sin 3x + 3x^{2}\\cos 3x' },
+              {
+                kind: 'prose',
+                text: '$x^{2}\\sin 3x$ is a product of two factors, so it needs the product rule at the outer level. Its second factor is not just $x$, so differentiating *it* needs the chain rule. Write $u$, $v$, $u\'$ and $v\'$ down first, with the chain rule factor already sitting inside $v\'$, then assemble as usual.',
+              },
+            ),
+            ask('df-product-mixed'),
+            ask('df-product-mixed'),
+            ask('df-product-mixed+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'When the chain-ruled factor is $e^{kx}$, both terms of the product-rule answer share the same exponential, so the result can be factorised back down.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\left(x^{3}e^{2x}\\right) = 3x^{2}e^{2x} + 2x^{3}e^{2x} = x^{2}e^{2x}\\left(3 + 2x\\right)',
+              },
+              {
+                kind: 'prose',
+                text: 'Either the expanded or the factorised form is accepted — the checker compares values, not the shape they are written in. With cosine instead, the same assembly puts the minus sign on the second term only, exactly where cosine was differentiated.',
+              },
+            ),
+            ask('df-product-mixed', 2),
+            ask('df-product-mixed', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'A quick structural check catches most slips here without redoing the algebra: exactly one factor is differentiated in each term, and $k$ appears as an extra *multiplier* only in the term where the trig or exponential factor was the one differentiated — it is of course still inside every $\\sin(kx)$, $\\cos(kx)$ or $e^{kx}$ regardless.',
+              },
+              {
+                kind: 'prose',
+                text: '"The product of the two derivatives" is always wrong — but not because it is a single term; a factorised answer is one too, and is still correct. It is wrong because that is not what the product rule says to do: each real term keeps one factor undifferentiated, and multiplying two derivatives together does neither.',
+              },
+              {
+                kind: 'prose',
+                text: 'With every rule now taught, the skill left to practise is recognising which one — or which combination — a fresh expression calls for.',
+              },
+              { kind: 'display', tex: "\\frac{d}{dx}(uv) = u'v + uv'" },
+            ),
+            ask('df-product-mixed+choice', 2),
+            ask('df-choose-rule', 2),
+          ],
+          skillCheck: [ask('df-product-mixed', 2), ask('df-product-mixed'), ask('product-rule', 2)],
+        },
       ],
       levelCheck: [
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
-        ask('chain-rule', 2),
+        ask('df-product-mixed', 2),
       ],
     },
   ],

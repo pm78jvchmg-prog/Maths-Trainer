@@ -14,6 +14,7 @@ import {
   ALGEBRA_KEYS,
   TRIG_KEYS,
   EXP_KEYS,
+  ROOT_KEYS,
   termTex,
   termAnswer,
   sumTex,
@@ -47,6 +48,21 @@ function bank4(correct: number, ...near: number[]): string[] {
     }
   }
   return out.map(String);
+}
+
+/** c/2 · x^{power} with `power` a TeX exponent such as '-1/2'; whole halves lose the fraction. */
+function halfTermTex(c: number, power: string): string {
+  if (c % 2 === 0) {
+    const h = c / 2;
+    return `${h === 1 ? '' : h === -1 ? '-' : h}x^{${power}}`;
+  }
+  return `${c < 0 ? '-' : ''}\\frac{${Math.abs(c)}}{2}x^{${power}}`;
+}
+
+/** A straight line as the learner reads it; never the empty string. */
+function lineTex(gradient: number, intercept: number): string {
+  const tex = sumTex([termTex(gradient, 1), termTex(intercept, 0)]);
+  return tex === '' ? '0' : tex;
 }
 
 /* ---------- Power rule ---------- */
@@ -1083,6 +1099,544 @@ const chooseRule: Generator<RuleParams> = {
   },
 };
 
+/* ---------- Roots and fractions, by index form ---------- */
+
+interface IndexFormParams {
+  form: 'reciprocal' | 'root' | 'reciprocalRoot';
+  a: number;
+  n: number;
+}
+
+/**
+ * A fraction with $x$ underneath, or a root, differentiated by first
+ * rewriting it as a power of $x$ — the move the power rule itself does not
+ * teach, since it only ever meets whole positive powers.
+ */
+const indexForm: Generator<IndexFormParams> = {
+  id: 'df-index-form',
+  sample: (rng, difficulty) => {
+    if (difficulty >= 2) {
+      return {
+        form: rng.pick(['reciprocal', 'root', 'reciprocalRoot'] as const),
+        a: rng.int(2, 12),
+        n: rng.int(2, 6),
+      };
+    }
+    return {
+      form: rng.pick(['reciprocal', 'reciprocal', 'root'] as const),
+      a: rng.int(1, 9),
+      n: rng.int(1, 4),
+    };
+  },
+  choices: ({ form, a, n }) => {
+    if (form === 'reciprocal') {
+      return options(
+        { tex: termTex(-a * n, -(n + 1)), answer: termAnswer(-a * n, -(n + 1)) },
+        // Dropped the sign.
+        { tex: termTex(a * n, -(n + 1)), answer: termAnswer(a * n, -(n + 1)) },
+        // Multiplied by the power but forgot to reduce it.
+        { tex: termTex(-a * n, -n), answer: termAnswer(-a * n, -n) },
+        // Forgot to multiply by the power.
+        { tex: termTex(-a, -(n + 1)), answer: termAnswer(-a, -(n + 1)) },
+      );
+    }
+    if (form === 'root') {
+      return options(
+        { tex: halfTermTex(a, '-1/2'), answer: `((${a})/2) * x^(-1/2)` },
+        // Forgot to reduce the power.
+        { tex: halfTermTex(a, '1/2'), answer: `((${a})/2) * x^(1/2)` },
+        // Forgot the half.
+        { tex: `${a === 1 ? '' : a}x^{-1/2}`, answer: `(${a}) * x^(-1/2)` },
+        // Sign dropped in.
+        { tex: halfTermTex(-a, '-1/2'), answer: `((${-a})/2) * x^(-1/2)` },
+      );
+    }
+    return options(
+      { tex: halfTermTex(-a, '-3/2'), answer: `((${-a})/2) * x^(-3/2)` },
+      // Sign dropped.
+      { tex: halfTermTex(a, '-3/2'), answer: `((${a})/2) * x^(-3/2)` },
+      // Forgot to reduce the power.
+      { tex: halfTermTex(-a, '-1/2'), answer: `((${-a})/2) * x^(-1/2)` },
+      // Forgot the half.
+      { tex: `-${a === 1 ? '' : a}x^{-3/2}`, answer: `(${-a}) * x^(-3/2)` },
+    );
+  },
+  render: ({ form, a, n }) => {
+    if (form === 'reciprocal') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+          { kind: 'display', tex: `y = ${n === 1 ? `\\frac{${a}}{x}` : `\\frac{${a}}{x^{${n}}}`}` },
+        ],
+        lead: '\\frac{dy}{dx} =',
+        keypad: ALGEBRA_KEYS,
+        answer: termAnswer(-a * n, -(n + 1)),
+        source: termAnswer(a, -n),
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    if (form === 'root') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+          { kind: 'display', tex: `y = ${a === 1 ? '' : a}\\sqrt{x}` },
+        ],
+        lead: '\\frac{dy}{dx} =',
+        keypad: ROOT_KEYS,
+        answer: `((${a})/2) * x^(-1/2)`,
+        source: `(${a}) * x^(1/2)`,
+        domain: 'positive',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+        { kind: 'display', tex: `y = \\frac{${a}}{\\sqrt{x}}` },
+      ],
+      lead: '\\frac{dy}{dx} =',
+      keypad: ROOT_KEYS,
+      answer: `((${-a})/2) * x^(-3/2)`,
+      source: `(${a}) * x^(-1/2)`,
+      domain: 'positive',
+      mode: 'exact',
+    };
+  },
+  solution: ({ form, a, n }) => {
+    if (form === 'reciprocal') {
+      const rewritten = `\\frac{${a}}{${n === 1 ? 'x' : `x^{${n}}`}} = ${termTex(a, -n)}`;
+      return [
+        {
+          text: 'A fraction with $x$ underneath is a negative power. Rewrite it in index form before differentiating.',
+          tex: rewritten,
+        },
+        {
+          text: `Now the power rule applies as usual: multiply by the power $${-n}$, then reduce it by one.`,
+          tex: `${a} \\times (${-n}) = ${-a * n}, \\; ${-n} - 1 = ${-(n + 1)}`,
+        },
+        { text: 'So the derivative in index form is:', tex: termTex(-a * n, -(n + 1)) },
+        {
+          text: 'Written back as a fraction, the power became *more* negative than it started. The coefficient $-an$ is negative, so for positive $x$ the gradient is negative — right, since $1/x^n$ falls as $x$ grows there.',
+          tex: `\\frac{dy}{dx} = -\\frac{${a * n}}{x^{${n + 1}}}`,
+        },
+      ];
+    }
+    if (form === 'root') {
+      return [
+        {
+          text: 'A root is a fractional power. Rewrite it in index form before differentiating.',
+          tex: `${a === 1 ? '' : a}\\sqrt{x} = ${a === 1 ? '' : a}x^{1/2}`,
+        },
+        {
+          text: 'The power rule applies exactly as before: multiply by the power $\\tfrac{1}{2}$, then reduce it by one.',
+          tex: `${a} \\times \\tfrac{1}{2} = ${a % 2 === 0 ? a / 2 : `\\tfrac{${a}}{2}`}, \\; \\tfrac{1}{2} - 1 = -\\tfrac{1}{2}`,
+        },
+        { text: 'So the derivative in index form is:', tex: halfTermTex(a, '-1/2') },
+        {
+          text: 'Either that, or written back as a fraction under a root — both are accepted.',
+          tex: `\\frac{dy}{dx} = \\frac{${a}}{2\\sqrt{x}}`,
+        },
+      ];
+    }
+    return [
+      {
+        text: 'A root underneath a fraction is a negative fractional power. Rewrite it in index form before differentiating.',
+        tex: `\\frac{${a}}{\\sqrt{x}} = ${a === 1 ? '' : a}x^{-1/2}`,
+      },
+      {
+        text: 'Multiply by the power $-\\tfrac{1}{2}$, then reduce it by one.',
+        tex: `${a} \\times \\left(-\\tfrac{1}{2}\\right) = -${a % 2 === 0 ? a / 2 : `\\tfrac{${a}}{2}`}, \\; -\\tfrac{1}{2} - 1 = -\\tfrac{3}{2}`,
+      },
+      { text: 'So the derivative in index form is:', tex: halfTermTex(-a, '-3/2') },
+      {
+        text: 'Written back as a fraction, the power went from $-\\tfrac{1}{2}$ to $-\\tfrac{3}{2}$, further from zero — reducing a negative power by one always moves it further from zero, never closer.',
+        tex: `\\frac{dy}{dx} = -\\frac{${a}}{2x\\sqrt{x}}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Chain rule on roots and reciprocals of a bracket ---------- */
+
+interface ChainRootParams {
+  form: 'root' | 'reciprocal';
+  a: number;
+  b: number;
+  n: number;
+}
+
+/**
+ * The chain rule applied to $\sqrt{ax+b}$ and $\frac{1}{(ax+b)^{n}}$ — the
+ * same two shapes as `df-index-form`, but with a linear bracket in place of
+ * plain $x$, so the chain rule's inner factor is now genuinely part of the
+ * question rather than always being $1$.
+ */
+const chainRoot: Generator<ChainRootParams> = {
+  id: 'df-chain-root',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(['root', 'reciprocal'] as const);
+    // `a` is never 1, so the chain factor is always visible: a distractor
+    // that forgets it is then wrong at every draw, not just some.
+    const a = rng.int(2, difficulty >= 2 ? 7 : 5);
+    const b =
+      form === 'root'
+        ? rng.int(1, 9)
+        : nonZero(rng.int(-9, 9), difficulty >= 2 ? -4 : 3);
+    const n = difficulty >= 2 ? rng.pick([2, 3] as const) : 1;
+    return { form, a, b, n };
+  },
+  choices: ({ form, a, b, n }) => {
+    const linear = sumTex([termTex(a, 1), termTex(b, 0)]);
+    const linearAnswer = sumAnswer([termAnswer(a, 1), termAnswer(b, 0)]);
+    if (form === 'root') {
+      // c/2, reduced to a whole number whenever c is even — an unreduced
+      // \frac{2}{2} or \frac{4}{2} is a fraction that has not been simplified.
+      const half = (c: number) => {
+        if (c % 2 !== 0) return `\\frac{${c}}{2}`;
+        const h = c / 2;
+        return h === 1 ? '' : `${h}`;
+      };
+      return options(
+        {
+          tex: a % 2 === 0 ? `\\frac{${a / 2}}{\\sqrt{${linear}}}` : `\\frac{${a}}{2\\sqrt{${linear}}}`,
+          answer: `((${a})/2) * (${linearAnswer})^(-1/2)`,
+        },
+        // Forgot the chain rule factor.
+        { tex: `\\frac{1}{2\\sqrt{${linear}}}`, answer: `(1/2) * (${linearAnswer})^(-1/2)` },
+        // Forgot the half.
+        { tex: `\\frac{${a}}{\\sqrt{${linear}}}`, answer: `(${a}) * (${linearAnswer})^(-1/2)` },
+        // Forgot to reduce the power.
+        { tex: `${half(a)}\\sqrt{${linear}}`, answer: `((${a})/2) * (${linearAnswer})^(1/2)` },
+      );
+    }
+    const bracket = (p: number) =>
+      p === 1 ? `\\left(${linear}\\right)` : `\\left(${linear}\\right)^{${p}}`;
+    return options(
+      { tex: `-\\frac{${a * n}}{${bracket(n + 1)}}`, answer: `(${-a * n}) * (${linearAnswer})^(${-(n + 1)})` },
+      // Sign dropped.
+      { tex: `\\frac{${a * n}}{${bracket(n + 1)}}`, answer: `(${a * n}) * (${linearAnswer})^(${-(n + 1)})` },
+      // Forgot the chain rule factor.
+      { tex: `-\\frac{${n}}{${bracket(n + 1)}}`, answer: `(${-n}) * (${linearAnswer})^(${-(n + 1)})` },
+      // The power was not increased by one.
+      { tex: `-\\frac{${a * n}}{${bracket(n)}}`, answer: `(${-a * n}) * (${linearAnswer})^(${-n})` },
+    );
+  },
+  render: ({ form, a, b, n }) => {
+    const linear = sumTex([termTex(a, 1), termTex(b, 0)]);
+    const linearAnswer = sumAnswer([termAnswer(a, 1), termAnswer(b, 0)]);
+    if (form === 'root') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+          { kind: 'display', tex: `y = \\sqrt{${linear}}` },
+        ],
+        lead: '\\frac{dy}{dx} =',
+        keypad: ROOT_KEYS,
+        answer: `((${a})/2) * (${linearAnswer})^(-1/2)`,
+        source: `(${linearAnswer})^(1/2)`,
+        domain: 'positive',
+        mode: 'exact',
+      };
+    }
+    const bracket = (p: number) =>
+      p === 1 ? `\\left(${linear}\\right)` : `\\left(${linear}\\right)^{${p}}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+        { kind: 'display', tex: `y = \\frac{1}{${n === 1 ? linear : bracket(n)}}` },
+      ],
+      lead: '\\frac{dy}{dx} =',
+      keypad: ALGEBRA_KEYS,
+      answer: `(${-a * n}) * (${linearAnswer})^(${-(n + 1)})`,
+      source: `(${linearAnswer})^(${-n})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ form, a, b, n }) => {
+    const linear = sumTex([termTex(a, 1), termTex(b, 0)]);
+    if (form === 'root') {
+      return [
+        {
+          text: 'A root of a bracket is that bracket raised to the power $\\tfrac{1}{2}$.',
+          tex: `\\sqrt{${linear}} = \\left(${linear}\\right)^{1/2}`,
+        },
+        {
+          text: 'Differentiate the outside as usual, then multiply by the derivative of the inside.',
+          tex: `\\tfrac{1}{2}\\left(${linear}\\right)^{-1/2} \\times \\frac{du}{dx}, \\quad u = ${linear}, \\; \\frac{du}{dx} = ${a}`,
+        },
+        {
+          text: `The $\\tfrac{1}{2}$ is the outer derivative; the $${a}$ is the chain rule factor from the bracket. Both must appear.`,
+          tex: `\\tfrac{1}{2} \\times ${a} = ${a % 2 === 0 ? a / 2 : `\\tfrac{${a}}{2}`}`,
+        },
+        {
+          text: 'So the derivative is:',
+          tex: `\\frac{dy}{dx} = ${a % 2 === 0 ? `\\frac{${a / 2}}{\\sqrt{${linear}}}` : `\\frac{${a}}{2\\sqrt{${linear}}}`}`,
+        },
+      ];
+    }
+    return [
+      {
+        text:
+          n === 1
+            ? 'A reciprocal is that bracket to the power $-1$.'
+            : `A reciprocal of a bracket to the power $${n}$ is that bracket to the power $${-n}$.`,
+        tex: `\\frac{1}{${n === 1 ? linear : `\\left(${linear}\\right)^{${n}}`}} = \\left(${linear}\\right)^{${-n}}`,
+      },
+      {
+        text: 'Differentiate the outside as usual, then multiply by the derivative of the inside.',
+        tex: `${n === 1 ? '-' : -n}\\left(${linear}\\right)^{${-n - 1}} \\times \\frac{du}{dx}, \\quad u = ${linear}, \\; \\frac{du}{dx} = ${a}`,
+      },
+      {
+        text: `Collect the two multipliers: the power $${-n}$ times the chain rule factor $${a}$.`,
+        tex: `${-n} \\times ${a} = ${-a * n}`,
+      },
+      {
+        text: 'So the derivative is:',
+        tex: `\\frac{dy}{dx} = -\\frac{${a * n}}{\\left(${linear}\\right)^{${n + 1}}}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Product rule with a chain-ruled trig or exponential factor ---------- */
+
+interface ProductMixedParams {
+  fn: 'sin' | 'cos' | 'exp';
+  a: number;
+  n: number;
+  k: number;
+}
+
+/** A coefficient in front of a function-call factor, eliding $1$ and $-1$. */
+function coeffFactorTex(coefficient: number, power: number, factorTex: string): string {
+  if (power !== 0) return `${termTex(coefficient, power)}${factorTex}`;
+  return `${coefficient === 1 ? '' : coefficient === -1 ? '-' : coefficient}${factorTex}`;
+}
+
+/**
+ * The product rule where one factor is a power of $x$ and the other needs the
+ * chain rule of its own — $ax^{n} \sin(kx)$, $\cos(kx)$ or $e^{kx}$. Every
+ * other product-rule question in this course multiplies two polynomials;
+ * this is the shape that shows up once the chain rule and the product rule
+ * have both been taught, and it needs both at once.
+ */
+const productMixed: Generator<ProductMixedParams> = {
+  id: 'df-product-mixed',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos', 'exp'] as const);
+    if (difficulty >= 2) {
+      return { fn, a: rng.int(2, 5), n: rng.int(2, 4), k: rng.int(2, 6) };
+    }
+    return { fn, a: 1, n: rng.int(1, 3), k: rng.int(2, 5) };
+  },
+  choices: ({ fn, a, n, k }) => {
+    const kx = termTex(k, 1);
+    const inner = `(${k}) * x`;
+    const factorTex = fn === 'exp' ? `e^{${kx}}` : `\\${fn}\\left(${kx}\\right)`;
+    const derivFn = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'exp';
+    const otherFactorTex = fn === 'exp' ? `e^{${kx}}` : `\\${derivFn}\\left(${kx}\\right)`;
+    const s = fn === 'cos' ? -1 : 1;
+    const fAnswer = fn === 'exp' ? `e^(${inner})` : `${fn}(${inner})`;
+    const fdAnswer = fn === 'exp' ? `e^(${inner})` : `${derivFn}(${inner})`;
+
+    const pair = (c1: number, c2: number) => ({
+      tex: sumTex([coeffFactorTex(c1, n - 1, factorTex), coeffFactorTex(c2, n, otherFactorTex)]),
+      answer: sumAnswer([`${termAnswer(c1, n - 1)} * ${fAnswer}`, `${termAnswer(c2, n)} * ${fdAnswer}`]),
+    });
+
+    return options(
+      pair(a * n, s * a * k),
+      // The product of the two derivatives, as a single term rather than a sum.
+      {
+        tex: coeffFactorTex(s * a * n * k, n - 1, otherFactorTex),
+        answer: `${termAnswer(s * a * n * k, n - 1)} * ${fdAnswer}`,
+      },
+      // Forgot the chain rule factor k on the second term.
+      pair(a * n, s * a),
+      // Sign slip on the second term.
+      pair(a * n, -s * a * k),
+    );
+  },
+  render: ({ fn, a, n, k }) => {
+    const kx = termTex(k, 1);
+    const inner = `(${k}) * x`;
+    const factorTex = fn === 'exp' ? `e^{${kx}}` : `\\${fn}\\left(${kx}\\right)`;
+    const derivFn = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'exp';
+    const s = fn === 'cos' ? -1 : 1;
+    const fAnswer = fn === 'exp' ? `e^(${inner})` : `${fn}(${inner})`;
+    const fdAnswer = fn === 'exp' ? `e^(${inner})` : `${derivFn}(${inner})`;
+
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+        { kind: 'display', tex: `y = ${termTex(a, n)}${factorTex}` },
+      ],
+      lead: '\\frac{dy}{dx} =',
+      keypad: fn === 'exp' ? EXP_KEYS : TRIG_KEYS,
+      answer: sumAnswer([`${termAnswer(a * n, n - 1)} * ${fAnswer}`, `${termAnswer(s * a * k, n)} * ${fdAnswer}`]),
+      source: `${termAnswer(a, n)} * ${fAnswer}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ fn, a, n, k }) => {
+    const kx = termTex(k, 1);
+    const factorTex = fn === 'exp' ? `e^{${kx}}` : `\\${fn}\\left(${kx}\\right)`;
+    const derivFn = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'exp';
+    const otherFactorTex = fn === 'exp' ? `e^{${kx}}` : `\\${derivFn}\\left(${kx}\\right)`;
+    const s = fn === 'cos' ? -1 : 1;
+    const uTex = termTex(a, n);
+    const uPrimeTex = termTex(a * n, n - 1);
+    const vPrimeTex = coeffFactorTex(s * k, 0, otherFactorTex);
+
+    const steps: SolutionStep[] = [
+      {
+        text: 'Two factors are multiplied together, so this needs the product rule.',
+        tex: "\\frac{d}{dx}(uv) = u'v + uv'",
+      },
+      {
+        text: "The second factor is not just $x$, so its own derivative needs the chain rule too — that is where the chain rule factor already sits, inside $v'$.",
+        tex: `u = ${uTex}, \\quad v = ${factorTex}, \\quad u' = ${uPrimeTex}, \\quad v' = ${vPrimeTex}`,
+      },
+      {
+        text: 'Substitute into the rule.',
+        tex: `\\frac{dy}{dx} = ${coeffFactorTex(a * n, n - 1, factorTex)} + ${uTex}\\left(${vPrimeTex}\\right)`,
+      },
+      {
+        text: 'Collecting the two terms gives:',
+        tex: `\\frac{dy}{dx} = ${sumTex([coeffFactorTex(a * n, n - 1, factorTex), coeffFactorTex(s * a * k, n, otherFactorTex)])}`,
+      },
+    ];
+
+    if (fn === 'exp') {
+      steps.push({
+        text: 'Both terms share the same exponential, so the answer factorises — either form is accepted.',
+        tex: `\\frac{dy}{dx} = ${coeffFactorTex(a, n - 1, `e^{${kx}}\\left(${n} + ${kx}\\right)`)}`,
+      });
+    } else if (fn === 'cos') {
+      steps.push({
+        text: 'The minus sign lands on the second term, where cosine differentiated into sine.',
+      });
+    } else {
+      steps.push({
+        text: 'Sine differentiated into cosine on the second term, with no sign change to track.',
+      });
+    }
+
+    return steps;
+  },
+};
+
+/* ---------- The tangent to a curve at a point ---------- */
+
+interface TangentParams {
+  a: number;
+  b: number;
+  c: number;
+  at: number;
+}
+
+/**
+ * The equation of the tangent to $y = ax^{2} + bx + c$ at $x = at$: the
+ * derivative supplies the gradient, the curve itself supplies the point, and
+ * the two are assembled with point-gradient form. Unlike every other
+ * generator in this course, the answer here is not a derivative of anything
+ * — it is a line built *from* one — so this generator declares no `source`
+ * and the oracle test correctly has nothing to check.
+ */
+const tangentLine: Generator<TangentParams> = {
+  id: 'df-tangent-line',
+  sample: (rng, difficulty) => {
+    // A horizontal tangent (m = 0) makes the "forgot to shift" distractor
+    // equal to the correct answer, so it is excluded rather than sampled.
+    for (;;) {
+      const a = difficulty >= 2 ? nonZero(rng.int(-3, 3), 2) : 1;
+      const b = difficulty >= 2 ? rng.int(-6, 6) : rng.int(-4, 4);
+      const c = difficulty >= 2 ? rng.int(-9, 9) : rng.int(-5, 5);
+      const at = difficulty >= 2 ? nonZero(rng.int(-4, 4), -2) : nonZero(rng.int(-3, 3), 2);
+      if (2 * a * at + b !== 0) return { a, b, c, at };
+    }
+  },
+  choices: ({ a, b, c, at }) => {
+    const m = 2 * a * at + b;
+    const height = a * at * at + b * at + c;
+    const k = height - m * at;
+    const pair = (gradient: number, intercept: number) => ({
+      tex: lineTex(gradient, intercept),
+      answer: sumAnswer([termAnswer(gradient, 1), termAnswer(intercept, 0)]),
+    });
+    // Candidates that happen to land on the correct (gradient, intercept)
+    // pair for this draw are dropped rather than offered as if wrong.
+    const candidates = [
+      // The right gradient, but never shifted onto the point — the
+      // constant term is left as the curve's height rather than reduced.
+      [m, height],
+      // Substituted the point into the curve before differentiating,
+      // which gives a constant and so a gradient of 0.
+      [0, height],
+      // Used the height as if it were the gradient.
+      [height, height - height * at],
+    ].filter(([g, i]) => !(g === m && i === k));
+    return options(pair(m, k), ...candidates.map(([g, i]) => pair(g, i)));
+  },
+  render: ({ a, b, c, at }) => {
+    const m = 2 * a * at + b;
+    const height = a * at * at + b * at + c;
+    const k = height - m * at;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the equation of the tangent to the curve at $x = ${at}$. Give the answer as an expression in $x$.`,
+        },
+        { kind: 'display', tex: `y = ${sumTex([termTex(a, 2), termTex(b, 1), termTex(c, 0)])}` },
+      ],
+      lead: 'y =',
+      keypad: ALGEBRA_KEYS,
+      answer: sumAnswer([termAnswer(m, 1), termAnswer(k, 0)]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, c, at }) => {
+    const m = 2 * a * at + b;
+    const height = a * at * at + b * at + c;
+    const k = height - m * at;
+    const derivative = sumTex([termTex(2 * a, 1), termTex(b, 0)]);
+    return [
+      {
+        text: 'Differentiate first, to get the gradient function.',
+        tex: `f'(x) = ${derivative}`,
+      },
+      {
+        text: `Substitute $x = ${at}$ into the gradient function to find the gradient at that point.`,
+        tex: `m = f'(${at}) = ${m}`,
+      },
+      {
+        text: `Substitute $x = ${at}$ into the original curve to find the point it touches.`,
+        tex: `f(${at}) = ${height}`,
+      },
+      {
+        text: 'A tangent is a straight line through that point with that gradient. Start from point-gradient form and rearrange.',
+        tex: `y - ${height} = ${m}\\left(x - ${at}\\right)`,
+      },
+      {
+        text: `The order matters the same way it always has: substituting into the curve before differentiating would give a constant, whose gradient is $0$ rather than the $${m}$ found above.`,
+        tex: `y = ${lineTex(m, k)}`,
+      },
+    ];
+  },
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -1094,4 +1648,8 @@ export const differentiationGenerators = [
   evaluateDerivative,
   evaluateSteps,
   chooseRule,
+  indexForm,
+  chainRoot,
+  productMixed,
+  tangentLine,
 ];

@@ -172,6 +172,62 @@ Two caveats about the planning step, recorded because they weaken it:
 Branch: `week/task1-differentiation`. The plan's step 6 pushes to `main`; an
 override appended to the plan file forbids it, per the frozen configuration above.
 
+#### Amended mid-task, 12:47–12:56 UTC — counts as an intervention
+
+The owner read the plan and raised three points, so the session was interrupted
+(after pair A had landed), the plan was corrected by the same planner at high
+effort, and the session was resumed in place rather than replaced. The three:
+
+1. **Verify the `domain: 'positive'` claim in this container**, not on the word of
+   another one. It was verified and it holds — but its stated example was wrong.
+   `sqrt(x)`, `1/sqrt(x)` and `1/(x*sqrt(x))` all agree with their index forms at
+   negative x, so `3/(2*sqrt(x))` never needed it. The case that does is the
+   `reciprocalRoot` answer written back as `-3/(2*sqrt(x^3))`, and a second
+   disagreeing pair the plan missed, `1/sqrt(x^3)` vs `x^(-3/2)`, is the one the
+   generators actually meet. Right rule, wrong reason.
+2. **The plan said push to `main` and an appended override said not to.** A
+   contradictory instruction is what stalled seven sessions in the v1 eval, so the
+   override was folded into step 6 and the plan now names one destination.
+3. **A red gate is read before anything is changed.** New block listing six ways
+   to turn a check off rather than pass it — deleting a distractor's `answer`,
+   dropping `source`, widening `domain`, touching `src/engine/`, editing
+   `generators.test.ts`, trimming a budget — and the instruction to stop and report
+   a test believed wrong rather than route around it.
+
+Plan amendments are `a5af680` and `1f880e1` on `main`.
+
+#### Advisor audit — consultation 1 ran on Sonnet, and 2–5 are unverified
+
+Read from `eval-advisor.log` on the branch. **Five consultations.** The frozen
+configuration requires each entry to record the advisor's self-reported model.
+One entry does.
+
+| # | `model: "opus"` passed | Self-reported model |
+| --- | --- | --- |
+| 1 | **no — parameter omitted** | *"I checked my own system context: I am Sonnet 5, not Opus."* |
+| 2 | yes | not recorded — *"the agent did not restate its own identity this time (I did not ask it to)"* |
+| 3–5 | yes | not recorded |
+
+So the pre-planning consultation — the one the advisor block puts most weight on,
+*"before you plan, consult it"* — was **Sonnet advising Sonnet**, and the four
+that followed are Opus by configuration but not by evidence.
+
+Two things to say plainly about this:
+
+- **The executor caught and logged it against itself**, unprompted: *"Logging this
+  honestly rather than claiming an Opus consultation that did not happen."* That
+  is the behaviour the logging requirement was written to produce, and it worked.
+- **It is the v2 `t1` question again, and this time the answer is not benign.**
+  There the log said Sonnet and the advisor was Opus; here the advisor really was
+  Sonnet, by an omitted parameter, and nothing but the log would have shown it.
+  The lesson carried forward from that adjudication — that a per-call `model`
+  override beats the env var — is intact; what failed is that the call has to
+  actually pass one.
+
+Recorded as a **configuration deviation, not a void**: the week is a usability
+log, not a controlled arm, and there is nothing here to void. But when the
+verdict is written, task 1's plan was sanity-checked by Sonnet, not Opus.
+
 ## What gets written at the end
 
 A short verdict section appended here: the cost distribution, both counts, and

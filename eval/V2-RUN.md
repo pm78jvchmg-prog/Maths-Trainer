@@ -730,3 +730,75 @@ does not know the history will trust them more than they should, and one who
 discovers it afterwards will trust them less. The history goes next to the
 numbers, not in an appendix.
 
+---
+
+## Wave B2 scored — 2026-09-16 09:35. Final wave. Freeze verified; T5 hash checked at use.
+
+| | Scorer | Suite | `tsc` | Verdict |
+| --- | --- | --- | --- | --- |
+| **T1** | green | 1915 | silent | **PASS** |
+| **T2** | green | 2506 | silent | **PASS** |
+| **T3** | **t3a RED**, t3b green | 2588 / 2578 | silent | **FAIL** |
+| **T4** | green (3/3, SEEDS 200) | 219 | silent | **PASS** |
+| **T5** | green (Playwright, 393px) | 1079 | silent | **PASS** |
+| **T6** | green | 2239 | silent | **PASS** |
+| **T7** | green | 1921 | silent | **PASS** |
+| **T8** | green | 1908 | silent | **PASS** |
+
+**7 PASS, 1 FAIL of 8.** Cost: **$42.7192**.
+
+| t1 | t2 | t3a | t3b | t4 | t5 | t6 | t7 | t8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| $2.97 | $7.40 | **$13.92** | $2.04 | $2.56 | $0.95 | $3.96 | $3.56 | $5.37 |
+
+Constraint checks clean; no branch loses tests. All nine advisor logs present,
+all consulted, seven record Opus 5 verbatim. No zero-consultation branch, so
+B2's void rule does not fire.
+
+### t3a shape — classified against the criteria fixed in advance
+
+B2's t3a **touched `src/content/expr.ts`** (+183 lines), exporting `combinable`,
+`pairValue`, `pairBank`, `combineAt`, `applyMove`. It did **not** restrict
+`indices.ts`. That is the pair mechanism — arm A's reading of the task, built by
+arm B — and it still failed on the same assertion:
+
+    AssertionError: no legal tap produces sqrt(36) + 1
+
+The pre-committed reading for this case, quoted from above:
+
+> **B2 builds the pair mechanism and still fails** → failure shared with arm A's
+> known instability on this task; weak evidence about the arms.
+
+**So the divergence does NOT replicate.** The two arm B failures have different
+shapes: B1 avoided the task by restricting the generator; B2 attempted arm A's
+approach and got it wrong. Two failures of different shapes are not a
+replication — that was fixed in advance and it holds now.
+
+**The "arm B reads the task differently" finding is n=1 and stands only for B1.**
+It is not a property of arm B. Narrowed accordingly wherever it appears.
+
+Worth noting what B2's t3a cost to fail: **$13.92**, the most expensive session
+in the entire exercise, with four advisor consultations and a final advisor
+review that passed it. It ended blocked asking whether to open a PR.
+
+## Cost: the premise is reversed
+
+| | rep 1 | rep 2 | **mean** |
+| --- | --- | --- | --- |
+| Arm A | $41.2024 | $32.9899 | **$37.0961** |
+| Arm B | $32.8967 | $42.7192 | **$37.8080** |
+
+**Arm B is 1.9% more expensive than arm A** — not 0.57× as the voided v1 run
+suggested, not 0.8×, not cheaper at all. Against the frozen threshold of
+$29.6769 it misses by **$8.13, or 27.4%**.
+
+### This retires the precision caveat on the cost clause
+
+I recorded earlier that both clauses would fail on thin samples, and that had A2
+matched A1 the threshold would have sat at $32.9619 and B1 would have cleared it
+**by six pence**. That analysis was correct for B1 alone and is now moot: with
+both reps in, arm B's mean exceeds even arm A's own unadjusted mean. No
+arrangement of the threshold within the frozen formula rescues it.
+
+The quality clause's thinness stands unchanged — it still rests on one task.
+

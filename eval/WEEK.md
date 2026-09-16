@@ -442,3 +442,52 @@ The check that matters is thirty seconds and is precisely F2's: open
 `df-l1-index`, reach a `\frac{a}{\sqrt{x}}` question, and write the answer back
 as a radical rather than in index form. The teach slide promises that is accepted.
 Only `domain: 'positive'` makes it true, and no test ties the two together.
+
+#### Headless pre-merge check — F2's claim tested rather than reasoned about
+
+Run in this container against the branch head, since there is no preview deploy.
+Chromium at 393×852, the dev server on the branch, and a probe against the repo's
+own checker. **This is not the phone**: real iPhone rendering, touch targets and
+offline behaviour remain unchecked, and that check is still worth doing — it need
+not gate the merge.
+
+**1. The claim, at engine level: 300 draws × 4 writings = 1200 checks, 0 failures.**
+Every `df-index-form` draw across both difficulties, with four ways a learner might
+write the same answer each time — index form, as a fraction, and two radical
+writings. Draws by form: 156 reciprocal, 94 root, **50 reciprocalRoot**. The teach
+slide's promise, *"the checker compares values, not the shape they are written
+in"*, holds **as written**, not narrowly.
+
+**2. The counterfactual, which is the point of F2.** The same reciprocal-root
+answer written as a radical of a cube, graded over `domain: 'real'` instead of
+`'positive'`:
+
+```
+checkAnswer('-3/(2*sqrt(x^3))', '((-3)/2) * x^(-3/2)', { domain: 'real' })
+  -> incorrect
+```
+
+So the lesson's promise rests entirely on one field in one generator, and nothing
+in the repository connects the two. That is F2, demonstrated rather than asserted.
+
+**3. In the real widget: 16 of 16 typed writings accepted.** Driven through the
+keypad as a learner would — no direct calls — across repeated sessions of
+`df-l1-index`: reciprocal answers entered both in index form (`-24x^{-4}`) and as
+a fraction (`\frac{-24}{x^{5}}`), and root answers entered as a radical
+(`\frac{5}{2\times\sqrt{x}}`). Every one graded **Correct**.
+
+**Not reached in the widget: `reciprocalRoot`.** It is a difficulty-2 draw that
+appears later in the lesson than the automated walker reliably gets, so the
+radical-of-a-cube writing is covered at engine level (50 draws × 4 writings) but
+was never typed by hand. **Stated rather than glossed** — it is the single case
+the whole domain question turns on.
+
+**4. Render health, all four new lessons:** KaTeX errors **0**, horizontal
+overflow **0 px** at phone width, on every slide captured. The keypad offers
+`√` on root questions and not on integer-power ones, which is `ROOT_KEYS` versus
+`ALGEBRA_KEYS` behaving as intended.
+
+One artefact worth recording because it looked like an app fault and was not: the
+first run reported dozens of 403s on KaTeX font files. That was the scratch
+worktree's symlinked `node_modules` tripping Vite's `server.fs.allow`, not the
+app. Fixed in the throwaway checkout; nothing in the repository changed.

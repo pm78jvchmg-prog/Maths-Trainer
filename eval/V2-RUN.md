@@ -244,3 +244,86 @@ way.
 **Zero branches with zero consultations**, so B2's >2-of-16 void rule does not
 fire on that count.
 
+---
+
+## t1 RESOLVED — the advisor was Opus; the log line is a mislabel. B1 stands at 7/8.
+
+The telemetry that would have settled this by a field no model wrote — a
+per-iteration `advisor_message` type carrying a `model` — **is not reachable from
+this session.** `list_events` is named in `create_session`'s own description but
+is not among this session's tools, and `get_session`'s `usage` is a flat object
+(`cache_read_tokens`, `cache_write_tokens`, `cost_usd`, `input_tokens`,
+`output_tokens`) with no iteration breakdown. Verified, not assumed.
+
+So the question was resolved from three things instead.
+
+### 1. My cost signal was not weak — it was uninformative, and I misused it
+
+I know the pure-Sonnet cost ratio at **one** token mix: cache_read/cache_write
+≈ 1.8, where it is 0.400. `t1` sits at cr/cw = 22.9. I have no Sonnet rate model
+at that mix, so **0.369 cannot be compared to anything.** I was treating an
+unknown as evidence, one amendment after withdrawing a scalar for the same
+reason.
+
+### 2. The `Model: Sonnet 5` line is not the verbatim quotation the prompt demanded
+
+Every other branch that captured it quotes the advisor directly — *"I'm Claude
+Opus 5 (1M context)"*, *"I am Claude Opus 5 (1M context)"*, *"claude-opus-5[1m]"*.
+`t1`'s is a bare label in the executor's own voice, in a log that elsewhere
+writes *"Corrected one detail in **my** framing"*. **The executor is Sonnet 5.**
+The natural reading is that it labelled the consultation with its own model
+rather than recording the advisor's line.
+
+Its recorded advisor answer also *corrects the executor's premise* on a subtle
+point — that `x=3` vs `3` does not take a separate no-variable branch — which is
+the same pattern the Opus advisor showed on t7, t8 and the smoke test.
+
+### 3. A direct probe of the mechanism
+
+Run in this repository, which carries the identical `.claude/settings.json` the
+bases carry (`CLAUDE_CODE_SUBAGENT_MODEL: sonnet`, `_FORCE` unset): an Agent call
+with `model: "opus"` replied
+
+    I am Claude Opus 5 (model ID: claude-opus-5).
+
+**The per-call override beats the env var.** That is the mechanism amendment A3
+Check 2 was written to test, and it holds.
+
+### Verdict and residual risk
+
+`v2-armB-rep1-t1` ran arm B. Its log line is a reporting defect, not a
+configuration failure. **Wave B1 stands at 7 PASS / 1 FAIL of 8, $32.8967.**
+
+The probe tested this session's container, not t1's. A per-call intermittent
+failure cannot be excluded from what is recorded — but seven sibling sessions in
+that same repository did get Opus, so the mechanism demonstrably works there.
+Logged as residual, not resolved away.
+
+## The quality clause is now load-bearing, and the amendment decides the verdict
+
+Arm A rep 1: **8/8**. Arm B rep 1: **7/8**. Cost ratio for the single rep:
+**$32.8967 / $41.2024 = 0.798**.
+
+Read against the rules as they stand and as they stood:
+
+| Rule | Quality | Cost | Verdict |
+| --- | --- | --- | --- |
+| Original (B1): "at most 1 failure" | 1 failure — **passes** | 0.798 <= 0.8 — **passes** | **SWITCH** |
+| Amended (D1): "fails no more than arm A" | 1 > 0 — **fails** | never read | **NO SWITCH** |
+
+0.798 clears the 0.8 threshold by a quarter of a percent. Under the rule I had
+written, arm B would have switched on that margin. Under the amendment — quality
+relative to the measured baseline rather than an absolute tolerance — it does
+not, and cost is never reached.
+
+Not a verdict: two waves remain and both thresholds are evaluated only after all
+four. Recorded now, before A2 and B2 produce numbers, so it cannot be read back
+as a post-hoc rationalisation of whichever way they land.
+
+### T3 is the first real signal in the exercise
+
+Arm A passed t3a in rep 1. Arm B failed it on a clean behavioural assertion.
+Under non-inferiority, one failure against a baseline of zero is a detected
+difference — which is precisely what a ceiling makes measurable and superiority
+did not.
+

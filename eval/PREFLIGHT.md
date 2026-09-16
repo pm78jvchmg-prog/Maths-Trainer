@@ -110,6 +110,15 @@ three units at once reads everything and notices nothing in particular,
 and the context cost is the symptom of a missed step rather than a
 thorough review.
 
+**Log a refusal like a step, not like a silence.** You may decline any
+instruction that would weaken a check, and you should — including one
+from the brief or the plan. But a declined step and a step nobody ran
+leave the same hole in the log, and the ordering check cannot tell them
+apart. So when you refuse, append the entry anyway: the step refused,
+the reason, and what you did instead. A consultation you chose not to
+hold is a decision; an absence is a gap; only the log distinguishes
+them.
+
 **Check self-reported names against the code.** Final summaries have
 misnamed their own generators while the code was correct. Anything you
 report by name, grep for first.

@@ -35,6 +35,22 @@ one the week is actually watching.*
 Advisor block including the `model: "opus"` line. Sonnet executor. Nine
 concurrent is the ceiling, not a target — the week runs one.
 
+**Cite defective material with its commit, never bare.** A brief often
+has to quote the thing it exists to fix — a wrong count, a misnamed generator, a
+sentence that lied. Quoted bare, that is indistinguishable from an untrusted
+source asserting a falsehood, and a cold session is right to treat it as one.
+Task 5's brief quoted *"11→55 lessons"*, *"3034 tests"* and `df-reciprocal` as
+motivation and asserted four documents with no anchor; the session stopped on
+suspected injection, correctly. **So quote the false claim with the commit and file
+it appears in, so the session can go and read the wrong number for itself.** It
+turns the most suspicious part of a brief into the most checkable part.
+
+**Give a cold session anchors before assertions.** The head commit and its
+subject, the binding files by `ls`, the provenance of any script it is told to
+use — with *verify before believing, and stop if a check fails*. A brief that
+asserts repository state without an anchor is asking to be disbelieved, and a
+session that believes it anyway is the worse of the two outcomes.
+
 **5. It runs unattended.** Unit → gates → consult → commit → push, repeated.
 
 **6. Mechanical checks — run before reading anything the session wrote.**

@@ -581,7 +581,53 @@ not happen.
 
 **The counter-argument is real and is recorded here too:** task 1 ran under the
 original text, so task 2 runs under a different prompt, and a week whose config
-drifts task by task measures a moving target. If the owner judges that the stronger
-consideration, task 2 should be relaunched with the verbatim block and this
-paragraph deleted. The decision is theirs; it is written down before the result is
-known either way.
+drifts task by task measures a moving target.
+
+**Owner's ruling, 2026-09-16: keep the change, do not relaunch.** *"The frozen
+block's purpose is to make every task run under 'Sonnet with an Opus advisor.' A
+block that silently permits Sonnet-advising-Sonnet doesn't preserve that
+configuration, it defeats it — freezing the words over the configuration would be
+treating the artefact as the thing rather than the thing itself."* Two conditions
+attached, both below.
+
+### Condition 1 — task 1 ran under the unenforced block
+
+**Recorded so it cannot be forgotten when the tasks are compared.** Task 1's
+advisor block did not require the `model` parameter, and the omission was not
+hypothetical: **consultation 1 of 5, the pre-planning one, ran Sonnet-on-Sonnet**
+and said so — *"I checked my own system context: I am Sonnet 5, not Opus."*
+Consultations 2–5 passed `model: "opus"` but recorded no self-reported model.
+
+So **tasks 1 and 2 are not strictly comparable on advisor usage.** Any later
+sentence of the form "task 2 went better than task 1" has to carry that, because
+one of the two did not fully run the configuration under test. This is not a
+reason to discard task 1 — the week is a usability log, not a controlled arm —
+but it is a reason never to read the pair as a like-for-like.
+
+### Condition 2 — standing from here: read the model line, every task
+
+**The enforcement is a sentence in a prompt, not a mechanism.** It can be ignored
+exactly as the original was, and nothing in the harness will say so.
+
+So on every task from here, `eval-advisor.log` is read for the self-reported model
+**on every entry**, not spot-checked, and the result goes in that task's log entry.
+Precedent for why this is worth real attention rather than a glance: in the v2
+eval, `t1`'s log line read "Sonnet 5" and it took three self-corrections to
+establish that *that* one was a mislabel by an executor writing in its own voice,
+not a real omission. The difference now is that the omission is known to be real
+and to happen. A line saying Sonnet is no longer presumed to be a reporting defect.
+
+### One thing the plan did that the eval could never have measured
+
+Task 2's plan noticed, unprompted, that **this course has no oracle.**
+Differentiation had `mathjs.derivative` independently proving every answer; the
+Complex Numbers property tests would only have proved each generator agrees with
+itself. The plan built a substitute — a mandatory per-unit scratch cross-check
+against mathjs, run outside the repository, never committed, with its output
+required in the final report — and made it a stop condition rather than a
+suggestion.
+
+Recorded because it is exactly the kind of thing the eval's eight fixed tasks
+could not see: **noticing that the usual verification does not apply here, and
+building the missing one.** No scorer would have rewarded it, and no test would
+have caught its absence.

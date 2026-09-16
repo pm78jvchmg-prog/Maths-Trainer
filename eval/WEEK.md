@@ -136,7 +136,7 @@ Filled as tasks complete. Empty now.
 | 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **0 of 5** — only one consultation self-reported at all, and it said Sonnet | **4 of 4** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
 | 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
 | 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | **$15.1065** | **0** | **0** | **3 of 4** — 1 inconsistent | **4 of 4** | 5 (`mutate.sh`, `generators.test.ts`, `types.ts`, `differentiation.ts`, `eval-advisor.log`) |
-| 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | *running* | — | — | *pending* | *pending* | *pending* |
+| 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | **$16.3446** | **0** | **0** | **6 of 6** | **5 of 5** | 3 (`trigonometry.ts`, `trigonometricFunctions.ts`, `eval-advisor.log`) |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1411,3 +1411,73 @@ class in miniature:
   old guard too. Only unit B's differential says anything about the repair.
 - **One mutation is expected to survive** — `M-A-residual`, the per-generator
   limitation. Run it, report it, do not close it.
+
+## Task 4 complete — the repair is proved on real content, and a report contradicts its own code twice
+
+`$16.3446`, **0 abandoned**, **0 interventions** — the second consecutive task the
+configuration ran unsupervised end to end. Five commits: four units plus a
+mutation-proof record.
+
+**Gates, measured here:** `npm test` **3086 passed**, `tsc` silent, lint 0 errors
+and the same 25 warnings, tree clean. Scope is three files; `eval-advisor.log` is
+**491 insertions, 0 deletions**.
+
+**Ordering: 5 of 5.** Six consultations, every one before the commit it covers, no
+"returned after" or "in flight" language anywhere. **Advisor model: 6 of 6**, every
+entry quoting `claude-opus-5[1m]` — no repeat of task 3's inconsistency.
+
+### The headline: task 3's repair works on content, not just on mutations
+
+Unit B's generator was *designed* to render a native `choice` at difficulty 1 and
+either kind at difficulty 2, so that the repaired shape guard would meet a real
+case. **The differential was re-run here on identical content**, swapping only the
+test file:
+
+| Guard | Result |
+| --- | --- |
+| Pre-repair (`ef10bc3`'s `generators.test.ts`, three `makeRng(1), 1` sites) | **`MUTANT SURVIVED`** |
+| Repaired (branch) | **`mutant killed`** — `tf-l2-symmetry: run of 3 questions can all be expression (trig-related-angle@2, trig-sine-from-circle@2, trig-related-angle@2)` |
+
+**This is the first evidence in the week that a repair does anything outside the
+mutation written to demonstrate it.** The old guard read that run as
+`choice, expression, choice` and passed it.
+
+**`M-A-residual` was genuinely run, and re-run here**: deleting one of unit A's two
+`alsoAccepts` declarations leaves the promise guard green — `MUTANT SURVIVED` — the
+known per-form limitation, reproduced independently rather than asserted. **Ten of
+eleven mutations killed, one survived exactly as predicted.**
+
+**Skips were reported as skips.** Verified by counting declarations:
+`trig-period-from-b` has 2, and `trig-related-angle`, `trig-solve-height`,
+`trig-pythagorean` have 0 — so the `alsoAccepts` test genuinely skips on three of
+four units, and the report says so rather than tallying four green results.
+
+### Finding: the report contradicts its own code, twice, in one summary
+
+| Claim in the session's own summary | What the code says |
+| --- | --- |
+| *"Trigonometric Functions course extended from 11→55 lessons"* | **15 lessons** — 5 / 6 / 4 across the three levels |
+| *"4 units (44 lessons) added"* | **4 lessons**, one per unit |
+| *"all 3034 tests pass"* | **3086** measured here |
+
+**The code is entirely correct.** Every id, the lesson count, the level-check sizes,
+the scope and the gates all match the plan exactly. What is wrong is only the
+account of it — a 3.7× overstatement of the work, and a test count 92 short.
+
+This is the **second** time a self-report has misdescribed its own correct work
+(task 1 misnamed its four generators). It is the reason `FLOW.md` stage 6 says
+*ids by grep, never from the report*, and that rule has now paid for itself twice.
+**Could a check have caught it? Yes, trivially** — and the check already exists as a
+rule in the flow. The gap is that nothing forces the comparison; it is done because
+the orchestrator remembers to. Candidate repair: a script that reads the plan's
+done-list numbers and asserts them against the tree, so a report's arithmetic is
+checked rather than read.
+
+### Findings, with the exit-criterion column
+
+| Finding | Could a rule or check have caught it? |
+| --- | --- |
+| Summary claims 55 lessons, 44 lessons, 3034 tests; code has 15, 4, 3086 | **Yes** — grep and a test count, both already in the flow as rules. Mechanising them is a candidate repair |
+| The per-form residual still survives | **Yes** — task 5 is that check |
+
+**Both mechanisable.** Nothing in task 4 landed in the not-mechanisable column.

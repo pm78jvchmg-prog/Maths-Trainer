@@ -131,10 +131,10 @@ sample and says so.
 
 Filled as tasks complete. Empty now.
 
-| # | Task | Session | Cost | Abandoned→Opus | Interventions | **Advisor in the loop** | Files touched |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **4 of 5 consultations** — 1 ran Sonnet-on-Sonnet | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
-| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | *running* | — | — | *pending* | *pending* |
+| # | Task | Session | Cost | Abandoned→Opus | Interventions | **Advisor: model verified** | **Advisor: commits covered** | Files touched |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **0 of 5** — only one consultation self-reported at all, and it said Sonnet | **4 of 4** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
+| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | *pending* | 0 | *pending* | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -839,3 +839,55 @@ Three defects of judgement down to one of transcription, with the planner runnin
 at the effort setting task 1 asked for and did not get. One task is not a trend,
 and two is barely one — but this is the axis the week exists to watch, so it gets
 recorded each time rather than reconstructed at the end.
+
+### Correcting my own number: `4 of 5` was measuring something else
+
+Before the two tasks sit in one column they have to be the same quantity, and
+they were not. **This is my error, not a definitional subtlety.**
+
+`4 of 5` for task 1 was *consultations that used an Opus advisor*. `1 of 5` for
+task 2 is *commits with a completed consultation behind them*. They share a
+denominator by coincidence. Read as one series they show a collapse that never
+happened.
+
+And `4 of 5` was loose on its own terms too: it counted "the call passed
+`model: \"opus\"`" as verification. Only **one** of task 1's five consultations
+recorded a self-reported model at all, and that one said *"I am Sonnet 5, not
+Opus."* The other four state plainly that the advisor *"did not restate its own
+identity this time"*. So nothing about task 1's advisor model was verified.
+
+**Two measures, both axes, both tasks — the ordering check re-run against task 1
+under the strict definition:**
+
+| | Consultations with a **verified** Opus advisor | Unit commits with a **completed** consultation before them |
+| --- | --- | --- |
+| **Task 1** | **0 of 5** — one self-reported, and it was Sonnet | **4 of 4** — each of `8fd4b57`, `a35d9f0`, `25bfff7`, `586bfcc` has a consultation before it, and task 1's log contains no "returned after" language anywhere |
+| **Task 2** | **2 of 2** — both quote `claude-opus-5[1m]` | **1 of 5** — only `ec83ba9` |
+
+**The two tasks did not decline or improve. They traded.** Task 2 fixed the model
+problem completely — the added prompt line worked, and every consultation now
+carries a quoted identity — and regressed on timing, shipping four units before
+any review returned. Task 1 was the mirror image: reviewed before every commit, by
+an advisor whose identity was never established once.
+
+Reported as a single number in either direction, that is a false story. It is the
+clearest argument in the week so far for the rule that a bare count needs its
+definition attached.
+
+### Two sessions running, two claims checked over less ground than they cover
+
+`polar-power`'s survival claim is *"at least three options survive every draw"*.
+The session swept **225** combinations and reported 0 collapses after its fix; the
+parameter space is **375**, and the exhaustive run here confirms the fix holds
+across all of it. No defect resulted — but the check was narrower than the claim,
+and that is now the second instance:
+
+| | The claim | What was checked |
+| --- | --- | --- |
+| Task 1's widget evidence | "the checker compares values, not shapes" | 16 typed writings, **all of them forms that pass on either domain** — the one writing that needed `domain: 'positive'` was never typed |
+| Task 2's option survival | "≥3 options survive every draw" | 225 of 375 combinations |
+
+Both were caught, and neither turned out to hide a defect. The pattern is worth
+naming before a third: **a sample is not a sweep, and when the claim is universal
+the check should be exhaustive if the space is small enough to enumerate** — 375
+combinations take under a second.

@@ -406,3 +406,95 @@ applies. That reading was fixed before this wave launched.
 
 One wave left after this: B2 into `...-v2-armB-rep2`.
 
+---
+
+## t3a shape register — the route out of n=2
+
+The pre-committed table treats t3a as binary. The register below records *how*
+each attempt behaved, because a replicated mechanism is worth more than a
+replicated coin flip. Compiled while A2 was still running, so nothing here is
+fitted to an outcome.
+
+| Attempt | Verdict | Shape |
+| --- | --- | --- |
+| v1 armA rep1 | INCONCLUSIVE | pair mechanism built in `expr.ts` (`pairOf`, `isPairPath`, `basePath`, `beforeRegroup`), +187 lines. **`pairBank` never returns** — scorer hung, green suite throughout |
+| v1 armA rep2 | PASS | pair mechanism in `expr.ts` (`PAIR_MARK`, `pairPath`, `pairTarget`), +159 lines. Terminates |
+| v1 armA rep3 | INCONCLUSIVE | pair mechanism in `expr.ts` (`pairOf`, `PAIR_MARK`, plus `bin`/`apply` helpers), +257 lines. Scorer timed out at 180s |
+| v2 armA rep1 | PASS | pair mechanism in `expr.ts` (`PAIR`, `pairPath`, `handleOf`, `filledPath`), +140 lines. Terminates |
+| **v2 armB rep1** | **FAIL** | **`expr.ts` untouched.** Changed the *generator* (`indices.ts`, 29 lines) so the problematic tree shape never arises, and added a `generators.test.ts` guard forbidding same-precedence nesting |
+
+### The arm B failure is not a weaker version of the arm A attempts — it is a different reading of the task
+
+All four arm A attempts converge on the same mechanism: give the pair an
+address in `expr.ts` (a `~` marker on the chain's path) so `4 - 3` becomes a
+takeable step. Four independent sessions, two prompt versions, same design.
+
+Arm B never touched `expr.ts`. It restricted `idx-evaluate-roots` so the
+left-associative `(A + B) - C` shape is not generated, and added a guard test
+asserting no binary node nests another at the same precedence.
+
+That reasoning is **not bad engineering** — its own comment identifies a real
+latent trap (a same-precedence right child prints unbracketed but evaluates
+nested, so `10 - (4 + 3)` would render as `10 - 4 + 3` and come to 3), and the
+guard it added is a genuine improvement the arm A branches do not have.
+
+But the task says *"Fix it so I can take those two terms as a step."* Arm B made
+the step unnecessary instead of making it possible. The scorer's assertion — *no
+legal tap produces `sqrt(36) + 1`* — is exactly right: with the shape removed,
+there is no such tap because there is no such question.
+
+**Avoidance rather than implementation.** That is a named, checkable shape.
+
+### Pre-committed: how B2's t3a gets classified
+
+Recorded before B2 runs, alongside the outcome table:
+
+- **B2 changes the generator / restricts the shape rather than adding a pair step** → same shape as B1. A **replicated mechanism**, not a repeated coin flip, and the most informative result the whole exercise can produce at n=2.
+- **B2 builds the pair mechanism in `expr.ts` and passes** → B1's failure is a one-off, and the T3 signal is a single unreplicated trial on the least stable task.
+- **B2 builds the pair mechanism and still fails** → failure shared with arm A's known instability on this task; weak evidence about the arms.
+- **B2 fails some third way** → recorded as such; two failures of different shapes are not a replication.
+
+This classification does **not** feed the D1 verdict, which stays a count over
+trials. It is the difference between *"arm B failed a flaky task twice"* and
+*"arm B avoided the task the same way twice"*, and only the second is worth
+writing down.
+
+---
+
+## The write-up must not be organised around the verdict
+
+Standing instruction for `COMPARISON.md`, recorded now so the verdict does not
+set the shape of the document.
+
+The switch decision is one section. It will rest on one task at n=2 and it will
+say so. The findings below came out of **building** the instrument, not running
+it, and they outlast whichever way the verdict lands. They get their own section,
+first:
+
+1. **Two tasks flipped from persistent failure to pass on one clarifying sentence
+   each.** T1 failed six times, then passed once the prompt said an answer
+   containing `=` must still be graded. T3b failed, then passed once the prompt
+   said `8 + 4 x 3` settled as 20 must be accepted and as 36 must not. Neither
+   sentence revealed a mechanism; each stated a requirement the task always had
+   and had never said. The original 6/8 was substantially measuring prompt
+   defects, not model capability.
+2. **`pairBank` failed to terminate on two of three v1 attempts, with a green
+   suite and a silent typecheck every time.** Three passing test runs never
+   caught a non-terminating export. Binary pass/fail discarded it as
+   INCONCLUSIVE; it was the only signal in the entire v1 run that separated one
+   attempt from another.
+3. **A 22-of-22 ceiling made superiority arithmetically unmeasurable and
+   non-inferiority possible.** Rule 0 needed arm B to beat 22/22 by four trials
+   of a maximum it already held. The ceiling that destroyed the original question
+   is exactly what makes a detected difference visible at all — any arm B failure
+   against a perfect baseline is a signal.
+4. **The same frozen preamble produced opposite behaviour in the two arms.**
+   Commands refused by the permission classifier in all 27 v1 arm A sessions,
+   and read as a prompt-injection attempt by seven of nine v1 arm B sessions,
+   six of which stopped before consulting their advisor at all. A text that was
+   inert in one arm and disabling in the other, achieving nothing in either.
+5. **Two withdrawn cost calibrations.** Sonnet-is-Opus/5, assumed. Then
+   Sonnet-is-exactly-0.4x-Opus, from six sessions that shared one token mix. What
+   survives is a matched pair, and the Opus rate model fitted exactly from 18
+   sessions. Recorded because the error recurred once after being corrected.
+

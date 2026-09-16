@@ -1203,6 +1203,115 @@ const relatedAngleGenerator: Generator<RelatedAngleParams> = {
   },
 };
 
+/* ---------- Level 2: solving for the angle ---------- */
+
+/** The angles at which sine or cosine is +1/2 or -1/2, in [0, 360) and in (-180, 180]. */
+const HALF_VALUE_ANGLES = {
+  full: { sin: { positive: [30, 150], negative: [210, 330] }, cos: { positive: [60, 300], negative: [120, 240] } },
+  signed: { sin: { positive: [30, 150], negative: [-30, -150] }, cos: { positive: [60, -60], negative: [120, -120] } },
+} as const;
+
+/** The bank, answer tokens first, sorted so one question renders one way (PITFALLS 3.10). */
+const sortedBank = (answer: string[], distractors: string[]): string[] =>
+  [...answer, ...distractors.filter((t) => !answer.includes(t))].sort();
+
+interface SolveHeightParams {
+  radius: number;
+  fn: 'sin' | 'cos';
+  positive: boolean;
+  form: 'circle' | 'equation';
+  signedRange: boolean;
+}
+
+/** The three pairs of angles a draw offers: the true solutions, the wrong-sign pair, and the other function's pair. */
+function solveHeightRows(
+  params: SolveHeightParams,
+): { solutions: readonly number[]; wrongSign: readonly number[]; otherFn: readonly number[] } {
+  const { fn, positive, signedRange } = params;
+  const row = HALF_VALUE_ANGLES[signedRange ? 'signed' : 'full'];
+  const solutions = row[fn][positive ? 'positive' : 'negative'];
+  const wrongSign = row[fn][positive ? 'negative' : 'positive'];
+  const otherFn = row[fn === 'sin' ? 'cos' : 'sin'][positive ? 'positive' : 'negative'];
+  return { solutions, wrongSign, otherFn };
+}
+
+/** The explanatory third solution step, one per (fn, sign, range) combination. */
+function solveHeightExplanation(fn: 'sin' | 'cos', positive: boolean, signedRange: boolean): string {
+  if (fn === 'sin' && positive) {
+    return 'Sine is $\\tfrac{1}{2}$ at the reference angle $30^{\\circ}$; above the centre the other angle is its reflection in the vertical axis, $180^{\\circ} - 30^{\\circ} = 150^{\\circ}$.';
+  }
+  if (fn === 'sin') {
+    return signedRange
+      ? 'Below the centre, named by clockwise turns, they are $-30^{\\circ}$ and $-150^{\\circ}$: the reflections of $30^{\\circ}$ and $150^{\\circ}$ in the horizontal axis.'
+      : 'Below the centre the two angles are $180^{\\circ} + 30^{\\circ} = 210^{\\circ}$ and $360^{\\circ} - 30^{\\circ} = 330^{\\circ}$.';
+  }
+  if (positive) {
+    return signedRange
+      ? 'Cosine is $\\tfrac{1}{2}$ at $60^{\\circ}$; to the right of the centre the other angle is its reflection in the horizontal axis, $360^{\\circ} - 60^{\\circ} = 300^{\\circ}$, which is $-60^{\\circ}$ when the lower half is named by clockwise turns.'
+      : 'Cosine is $\\tfrac{1}{2}$ at $60^{\\circ}$; to the right of the centre the other angle is its reflection in the horizontal axis, $360^{\\circ} - 60^{\\circ} = 300^{\\circ}$.';
+  }
+  return signedRange
+    ? 'To the left of the centre they are $120^{\\circ}$ and $-120^{\\circ}$, reflections of each other in the horizontal axis.'
+    : 'To the left of the centre the two angles are $180^{\\circ} - 60^{\\circ} = 120^{\\circ}$ and $180^{\\circ} + 60^{\\circ} = 240^{\\circ}$.';
+}
+
+/** Given a height (or displacement) reached, find both angles on the turn. */
+const solveHeight: Generator<SolveHeightParams> = {
+  id: 'trig-solve-height',
+  sample: (rng, difficulty) => {
+    const radius = rng.int(1, 8) * 2;
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const positive = rng.chance(0.5);
+    const form = rng.pick(['circle', 'equation'] as const);
+    const signedRange = difficulty > 1 && rng.chance(0.5);
+    return { radius, fn, positive, form, signedRange };
+  },
+  choices: (params) => {
+    const { solutions, wrongSign, otherFn } = solveHeightRows(params);
+    const pair = (p: readonly number[]) => ({ tex: `${p[0]}^{\\circ} \\text{ and } ${p[1]}^{\\circ}` });
+    return options(pair(solutions), pair(wrongSign), pair(otherFn), pair([solutions[0], wrongSign[0]]));
+  },
+  render: (params): Slide => {
+    const { radius, fn, positive, form, signedRange } = params;
+    const half = radius / 2;
+    const value = positive ? half : -half;
+    const { solutions, wrongSign, otherFn } = solveHeightRows(params);
+    const rangeTex = signedRange ? '-180^{\\circ} < \\theta \\le 180^{\\circ}' : '0^{\\circ} \\le \\theta < 360^{\\circ}';
+    const where =
+      fn === 'sin' ? (positive ? 'above' : 'below') : positive ? 'to the right of' : 'to the left of';
+    const prompt =
+      form === 'circle'
+        ? `A point starts at the far right of a circle of radius $${radius}$ centred at the origin and turns anticlockwise through an angle $\\theta$. Find both values of $\\theta$ with $${rangeTex}$ at which the point is $${half}$ ${where} the centre.`
+        : `Find both solutions of $${radius}\\${fn}(\\theta) = ${value}$ with $${rangeTex}$.`;
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: prompt }],
+      template: '\\theta = {0}^{\\circ} \\quad \\text{or} \\quad \\theta = {1}^{\\circ}',
+      bank: sortedBank(solutions.map(String), [...wrongSign, ...otherFn].map(String)),
+      answer: solutions.map(String),
+      unordered: true,
+    };
+  },
+  solution: (params) => {
+    const { radius, fn, positive, form, signedRange } = params;
+    const half = radius / 2;
+    const value = positive ? half : -half;
+    const { solutions } = solveHeightRows(params);
+    const heightWord = fn === 'sin' ? 'height' : 'displacement';
+    const step1 =
+      form === 'circle'
+        ? `The ${heightWord} is $${radius}\\${fn}(\\theta)$, so $${radius}\\${fn}(\\theta) = ${value}$. Dividing by $${radius}$ leaves $\\${fn}(\\theta) = ${positive ? '' : '-'}\\tfrac{1}{2}$.`
+        : `Dividing by $${radius}$ leaves $\\${fn}(\\theta) = ${positive ? '' : '-'}\\tfrac{1}{2}$.`;
+    return [
+      { text: step1 },
+      {
+        tex: `\\${fn}(\\theta) = ${positive ? '' : '-'}\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = ${solutions[0]}^{\\circ} \\text{ or } ${solutions[1]}^{\\circ}`,
+      },
+      { text: solveHeightExplanation(fn, positive, signedRange) },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -1221,4 +1330,5 @@ export const trigonometryGenerators = [
   evaluateExactTrig,
   periodFromB,
   relatedAngleGenerator,
+  solveHeight,
 ] as unknown as Generator<unknown>[];

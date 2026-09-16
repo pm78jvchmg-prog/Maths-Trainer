@@ -1398,3 +1398,60 @@ confirmed exits 1 with a deliberate +0.01 bug injected.
 Commit next: the two content files. Message: "Relate the sine and cosine of
 an angle to those of its reflections". Mutations M-B-oracle and M-B run after
 this commit and before the push.
+
+---
+
+## Task 4 — Unit C consultation (trig-solve-height, tf-l2-solve)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only against plan section 3.3, for `HALF_VALUE_ANGLES`
+correctness and `solveHeightRows`'s indexing, whether the six-tile bank is
+genuinely 6 distinct tokens across all 8 (fn, sign, range) combinations,
+whether the `solveHeightExplanation` editorial resolution of the plan's
+elliptical cos/positive/signed text is coherent and correct, and whether the
+lesson/level check match section 3.3.
+
+**Advisor's self-reported model, quoted verbatim:** "Opus 5 (1M context),
+model ID `claude-opus-5[1m]`."
+
+**Verdict: no confirmed bugs.**
+
+1. `HALF_VALUE_ANGLES` correct against real trig for all 8 rows; each pair is
+   the complete solution set in its stated range (verified by brute-forcing
+   every integer degree, all 8 combinations at radius 6, 0 mismatches — same
+   check as the oracle, run independently). `solveHeightRows`'s `otherFn`
+   confirmed to index the other function at the *same* sign on the *same*
+   range row, verified by printed banks rather than by reading alone.
+2. Six-tile bank genuinely 6 distinct tokens in all 8 combinations, verified
+   programmatically. Noted the lexicographic `.sort()` makes a full-range
+   bank read in a visually odd order (`150 210 30 300 330 60`) — cosmetic
+   only, and the point of the sort (PITFALLS 3.10) is determinism, not
+   visual order.
+3. The `solveHeightExplanation` cos/positive/signed resolution (appending the
+   continuation to the full sentence rather than treating it as a standalone
+   fragment) is correct and reads as one coherent, factually accurate
+   sentence — confirmed 300° and −60° name the same point. Advisor would
+   keep it as written.
+4. Lesson placement, slide order/difficulties, skill check, all three
+   `maths()` blocks and all prose match section 3.3. Level check is 15
+   entries in the exact specified order.
+5. All TeX (three tiles-template fragments, all 32 choice labels, all
+   solution `tex`) renders under KaTeX `throwOnError: true, strict: true`.
+   `unordered: true` confirmed correct for this slide (the reducer compares
+   element-wise after sorting). No run of 3 identical-shape questions in the
+   lesson (guided sequence checked kind by kind). Non-blocking notes: the
+   `sortedBank` helper duplicates the same pattern already local to three
+   other generator files (logarithms/quadratics/vectors) — consistent with
+   existing practice, left as-is; and T2's "a displacement of $\tfrac{1}{2}$"
+   is loosely worded (means cos θ = ½) but is the plan's verbatim text and is
+   disambiguated by the following `maths()` line.
+
+**Gates green before this consult:** `-t 'trig-solve-height'` → 26 passed;
+full suite 3060 passed (was 3034, +26 exactly as predicted); `tsc` silent;
+lint 0 errors / 25 warnings; `git diff HEAD` → exactly the two content files.
+Scratch oracle C (`oracle-c.ts`, scratchpad only): 400 draws, 0 failures,
+exit 0; confirmed exits 1 with a deliberate wrong-target-value bug injected.
+
+Commit next: the two content files. Message: "Find both angles at which a
+point reaches a given height". Mutations M-C-oracle and M-C-shape run after
+this commit and before the push.

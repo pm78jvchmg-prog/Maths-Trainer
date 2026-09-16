@@ -642,6 +642,64 @@ export const trigonometricFunctions: Course = {
           ],
         },
         {
+          id: 'tf-l2-solve',
+          title: 'Solving for the Angle',
+          slides: [
+            teach(
+              prose(
+                'So far the angle was given and the height asked for; turn it round: at which angles is a point on a circle of radius $6$ exactly $3$ above the centre?',
+              ),
+              maths('6\\sin(\\theta) = 3 \\quad \\Rightarrow \\quad \\sin(\\theta) = \\tfrac{3}{6} = \\tfrac{1}{2}'),
+              prose(
+                'Dividing by the radius turns a question about a height into one about the sine alone; one answer is $30^{\\circ}$ from the table of exact values, but the previous lesson says $\\sin(150^{\\circ})$ is also $\\tfrac{1}{2}$, so there are two.',
+              ),
+              maths('\\sin(\\theta) = \\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = 30^{\\circ} \\text{ or } 150^{\\circ}'),
+              prose(
+                'Two, because the point passes every height twice in a turn, once going up and once coming down; giving only one is the standard slip.',
+              ),
+            ),
+            ask('trig-solve-height'),
+            ask('trig-related-angle', 2),
+            ask('trig-solve-height'),
+            teach(
+              prose(
+                'Cosine works the same way with the other axis: a displacement of $\\tfrac{1}{2}$ happens at $60^{\\circ}$ and again at its reflection in the horizontal axis, $300^{\\circ}$.',
+              ),
+              maths('\\cos(\\theta) = \\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = 60^{\\circ} \\text{ or } 300^{\\circ}'),
+              prose(
+                'A negative value moves both answers to the other half of the circle: for $\\sin(\\theta) = -\\tfrac{1}{2}$ the point is below the centre, at $210^{\\circ}$ and $330^{\\circ}$; for $\\cos(\\theta) = -\\tfrac{1}{2}$ it is to the left, at $120^{\\circ}$ and $240^{\\circ}$.',
+              ),
+              prose(
+                'The range matters: between $0^{\\circ}$ and $360^{\\circ}$ every angle is an anticlockwise turn, but between $-180^{\\circ}$ and $180^{\\circ}$ the lower half of the circle is named by clockwise turns instead.',
+              ),
+              maths(
+                '\\sin(\\theta) = -\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\qquad (-180^{\\circ} < \\theta \\le 180^{\\circ})',
+              ),
+            ),
+            ask('trig-solve-height', 2),
+            ask('trig-solve-height+choice', 2),
+            ask('trig-solve-height', 2),
+            teach(
+              prose(
+                'The method is always the same: find the reference angle in the table, decide from the sign which half of the circle the point is in, and take the two angles there by symmetry.',
+              ),
+              prose(
+                'Same two points, different labels: $-30^{\\circ}$ is $330^{\\circ}$ and $-150^{\\circ}$ is $210^{\\circ}$; always read the range before writing the answer.',
+              ),
+              prose(
+                'Check each answer by substituting it back: $6\\sin(330^{\\circ})$ is $-3$, so $330^{\\circ}$ answers the question about $-3$ and not the one about $3$; pairing $30^{\\circ}$ with $210^{\\circ}$ is the slip that check catches.',
+              ),
+            ),
+            ask('trig-solve-height', 2),
+            ask('trig-sine-from-circle', 2),
+          ],
+          skillCheck: [
+            ask('trig-solve-height', 2),
+            ask('trig-solve-height+choice', 2),
+            ask('trig-solve-height', 2),
+          ],
+        },
+        {
           id: 'tf-l2-speed',
           title: 'Period and Speed',
           slides: [
@@ -703,11 +761,11 @@ export const trigonometricFunctions: Course = {
         ask('trig-cosine-from-circle', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-related-angle', 2),
-        ask('trig-sine-from-circle', 2),
+        ask('trig-solve-height', 2),
         ask('trig-cosine-from-circle', 2),
         ask('trig-amplitude', 2),
         ask('trig-period-from-speed', 2),
-        ask('trig-speed-comparison'),
+        ask('trig-solve-height', 2),
         ask('trig-related-angle', 2),
       ],
     },

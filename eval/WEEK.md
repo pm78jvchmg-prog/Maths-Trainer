@@ -312,3 +312,66 @@ diff — which is what F2 is about.
 
 Neither finding blocks the branch. Both are recorded against the week's question,
 not against this task.
+
+#### Findings ledger — written before any of them is fixed
+
+Recorded here first because a fixed bug leaves no trace of how it was found, and
+how it was found is what this week measures.
+
+**F1 — fix it. Logged as a finding of the week first.** *Introduced by task 1 and
+caught by the adversarial read, not by 2679 tests.* That sentence is the data
+point: the suite went green on every one of the four commits, the typecheck was
+silent, lint was unchanged, and the defect is on the owner's own progress display.
+Nothing in the gate stack could see it, because no test exercises a level check
+whose total changed. It is roughly four lines to fix, and cheaper now than after
+eleven more tasks have moved level-check totals again.
+
+**F1 is worse than first reported, and an existing test pins the worse half.**
+`progress.test.ts:33` — *"never persists a best score higher than the current
+total"* — records 3/3, then 1/2, and asserts `bestCorrect: 2`. The learner scored
+**one** of two; the screen reads **"Best 2/2"**, a perfect run that never happened.
+The clamp's remedy for a shrinking check invents a score rather than retiring a
+stale one. Growth (F1 as first reported) and shrinkage are the same root cause:
+a best is carried across a change in what was being assessed. Resolving that
+changes an existing test's expectation, which is not a thing to do quietly — put
+to the owner before touching it.
+
+**F2 — do not fix. Named as a class instead.** A teach slide asserting behaviour
+that only a generator field upholds is the **second instance of this pattern in
+two separate exercises**: `pairBank` asserted termination that nothing exercised;
+`df-l1-index` asserts a grading promise that only `domain: 'positive'` keeps.
+Patching this one instance would hide the pattern and leave the next one to be
+discovered the same expensive way. The fix for the class — a test that renders
+each teach slide's claims against the generators its lesson actually uses — is
+real work and outside this week's scope. **Recorded as a candidate task, not done.**
+
+**The sharpest thing the read found is not a bug.** `df-index-form`'s solution
+step 4 writes `-\frac{a}{2x\sqrt{x}}`, which agrees with the index form at
+negative x, rather than `-\frac{a}{2\sqrt{x^{3}}}`, which does not. The code is
+correct and **nothing in it records why that form and not the other**, so the next
+edit has no way to know it matters. That is F2 restated: correct behaviour with no
+account of itself is one careless edit from being wrong behaviour with a green
+suite.
+
+**A self-report diverged from the code.** The session's own post-turn summary
+names its generators *"df-reciprocal, df-quotient, df-product"*; the code carries
+`df-index-form`, `df-chain-root`, `df-product-mixed`, `df-tangent-line`. Small in
+itself, and worth a line because a self-report is exactly what gets trusted when
+reading the diff starts to feel expensive. Reading the diff is the job.
+
+#### What the one intervention on task 1 actually was
+
+The count is the measure, so it needs to survive to task 12 as more than a digit.
+
+> **Task 1, 1 intervention — owner-initiated plan correction, mid-run, after pair
+> A had landed.** Not a rescue: the session was not stuck and its work to that
+> point was sound. The owner read the plan and found three defects in it — an
+> unverified environment claim, a self-contradictory push instruction, and a
+> missing rule for a red gate. The session was interrupted, the plan was corrected
+> by the planner, and the session was resumed in place. **Attributable to the
+> plan, not to the executor.**
+
+That distinction is the thing to keep: an intervention that corrects the *brief*
+says nothing about whether the cheaper model could do the work, and an
+intervention that unsticks the *executor* says everything. Both count as 1 here,
+so each one gets a sentence saying which it was.

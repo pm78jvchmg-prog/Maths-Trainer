@@ -375,3 +375,31 @@ That distinction is the thing to keep: an intervention that corrects the *brief*
 says nothing about whether the cheaper model could do the work, and an
 intervention that unsticks the *executor* says everything. Both count as 1 here,
 so each one gets a sentence saying which it was.
+
+#### F1 fixed — `05c9032` on `week/task1-differentiation`
+
+Fixed on the branch rather than on `main`, because the branch is what introduces
+the growth; this way merging it never ships the defect, and nothing deploys until
+the owner merges.
+
+A best is now kept only when the stored total matches the run's, and retired
+otherwise. Both directions go together, at the owner's call, because they are one
+mistake: carrying a best across a change in what was being assessed.
+
+**The existing test's expectation changed, 2 to 1, and that is the notable part.**
+`progress.test.ts` asserted the shrink defect — 3/3 then 1/2 storing a best of 2 —
+with a comment justifying it. The test was not wrong about the danger it named, it
+was wrong about the remedy: it clamped a stale best onto the new total instead of
+retiring it, and clamping is how the invented score got in. Renamed from *clamps*
+to *retires*.
+
+**Both new guards were confirmed to fail against the old line before being kept**,
+per `CLAUDE.md`: the shrink guard reported *expected 2 to be 1* and the growth
+guard *expected 12 to be 9* — the 12/15 case exactly. Restored and re-run clean.
+
+Gates on the fix: **2681 passed** (two more than before, as expected), `tsc`
+silent, lint 0 errors and the same 25 warnings.
+
+The finding record above stands as written. The bug is gone; the fact that 2679
+tests could not see it is the thing the week is measuring, and that does not get
+edited out now that it is fixed.

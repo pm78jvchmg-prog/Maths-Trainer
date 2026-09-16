@@ -115,6 +115,15 @@ the deck. Force the seed, or call the generator with the params you
 need and feed that question to the widget. The form that never came up
 is usually the one the claim turns on.
 
+**Append to `eval-advisor.log`, never write it.** Writing the file
+replaces it: one session overwrote 461 lines of the previous task's
+history with a 40-line entry and caught it only because the scope diff
+showed 462 deletions on a file that should only ever grow. The advisor
+log is the sole record of whether the advisor was ever in the loop, so
+losing it silently destroys the one measurement that has no backup.
+Read the file, append, and check `git diff --stat` shows insertions
+only.
+
 **`eval-advisor.log` is tracked despite `*.log` in `.gitignore`.**
 Plain `git add eval-advisor.log` works because it is already tracked.
 Do not add a gitignore negation — that is a change outside the diff

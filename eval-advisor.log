@@ -1516,3 +1516,195 @@ Commit next: the two content files. Message: "Find the cosine from the sine
 with the Pythagorean identity". Mutations M-D-oracle and M-D-shape run after
 this commit and before the push. This is the last of the four units; a final
 short commit follows to append the four units' mutation outputs to this log.
+
+---
+
+## Task 4 — mutation proofs, all four units (verbatim harness output)
+
+Per plan step 10, this is the deliberate final append: each unit's own
+consultation entry above was written and logged *before* that unit's
+mutation proofs ran (mutations run after commit, before push, per section 6),
+so the actual `eval/bin/mutate.sh` output for every mutation is recorded here
+instead, once, after the last unit's push. All ten required mutations plus
+the one expected survivor ran from the repository root, each followed by a
+clean `git status --short`.
+
+### Unit A (5 mutations)
+
+**M-A-oracle** — `eval/bin/mutate.sh src/content/generators/trigonometry.ts
+"s/^const FULL_TURN = 360;$/const FULL_TURN = 180;/" -- npx vite-node
+<scratchpad>/oracle-a.ts`:
+```
+400 draws, 400 failures
+mutant killed: the command exited 1
+```
+
+**M-A-writing** — `... "s/unsimplified(FULL_TURN, b)/unsimplified(180,
+b)/" -- npx vitest run ... -t 'other writing it promises'`:
+```
+AssertionError: seed 0: promised writing 180/2 is not accepted against 180
+over real: expected 'incorrect' to be 'correct'
+ Tests  1 failed | 218 passed | 2645 skipped (2864)
+mutant killed: the command exited 1
+```
+
+**M-A-promise** — `... "/^ *alsoAccepts: \[unsimplified/d" -- npx vitest
+run ... -t 'another writing'`:
+```
+AssertionError: tf-l3-period-formula says "You do not have to simplify. If
+the period is $360^{\circ} \div 3$, typing $\frac{360}{3}$ is accepted just
+as $120$ is, because the checker compares the value rather than how it is
+written. The same holds the other way round: for $b$, typing
+$\frac{360}{120}$ is accepted as $3$." but none of trig-period-from-b@1,
+trig-period-from-b+choice@1, trig-period-from-b@1, trig-period-from-b@2,
+trig-period-from-speed@2, trig-period-from-b+choice@2, trig-period-from-b@2,
+trig-wave-range@2 declares alsoAccepts on any draw: expected false to be true
+ Tests  1 failed | 2863 skipped (2864)
+mutant killed: the command exited 1
+```
+
+**M-A-residual** (expected to SURVIVE) — `... "/alsoAccepts:
+\[unsimplified(FULL_TURN, b)\]/d" -- npx vitest run ... -t 'another
+writing'`:
+```diff
+-        alsoAccepts: [unsimplified(FULL_TURN, b)],
+```
+(the findB form's `alsoAccepts: [unsimplified(FULL_TURN, p)],` line
+untouched — real diff, not a paraphrase)
+```
+ Tests  1 passed | 2863 skipped (2864)
+MUTANT SURVIVED: the command passed with
+src/content/generators/trigonometry.ts mutated
+```
+Recorded as survived, per the plan, and not fixed — the promise sentence
+names both forms and is satisfied by either declaration still standing. This
+is task 5's work.
+
+**M-A-shape** — `eval/bin/mutate.sh
+src/content/courses/trigonometricFunctions.ts "/id: 'tf-l3-period-formula'/,
+/skillCheck: \[/ s/ask('trig-period-from-b+choice'),$/ask('trig-period-from-b'),/"
+-- npx vitest run ... -t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l3-period-formula: run of 3 questi…' to be ''
++ tf-l3-period-formula: run of 3 questions can all be expression
+  (trig-period-from-b@1, trig-period-from-b@1, trig-period-from-b@1)
+mutant killed: the command exited 1
+```
+
+### Unit B (2 mutations)
+
+**M-B-oracle** — `... "s/sin: { supplement: true,/sin: { supplement:
+false,/" -- npx vite-node <scratchpad>/oracle-b.ts`:
+```
+seed 159 difficulty 2: symbolic fn=sin base=30 relation=supplement
+  claimed=-0.49999999999999994 actual=0.49999999999999994
+400 draws (92 numeric), 45 failures
+mutant killed: the command exited 1
+```
+
+**M-B** — `... "/id: 'tf-l2-symmetry'/,/skillCheck: \[/ { s/ask('trig-cosine
+-from-circle+choice', 2),/ask('trig-sine-from-circle', 2),/; s/ask('trig-
+evaluate-exact'),/ask('trig-related-angle', 2),/ }" -- npx vitest run ...
+-t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l2-symmetry: run of 3 questions ca…' to be ''
++ tf-l2-symmetry: run of 3 questions can all be expression
+  (trig-related-angle@2, trig-sine-from-circle@2, trig-related-angle@2)
+mutant killed: the command exited 1
+```
+This is the one differential in the whole task (section 2a): the old,
+pre-task-3 one-seed-at-difficulty-1 shape guard would have read this run as
+`choice, expression, choice` and passed it. The repaired guard, reading the
+kind set each generator can render at the difficulty actually asked, catches
+it.
+
+### Unit C (2 mutations)
+
+**M-C-oracle** — `... "s/positive: \[30, 150\]/positive: [30, 120]/" --
+npx vite-node <scratchpad>/oracle-c.ts`:
+```
+seed 198 difficulty 2: fn=cos positive=true signedRange=false
+  claimed=60,300 expected=
+400 draws, 90 failures
+mutant killed: the command exited 1
+```
+
+**M-C-shape** — `... "/id: 'tf-l2-solve'/,/skillCheck: \[/
+s/ask('trig-solve-height+choice', 2),$/ask('trig-solve-height', 2),/" --
+npx vitest run ... -t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l2-solve: run of 3 questions can a…' to be ''
++ tf-l2-solve: run of 3 questions can all be tiles (trig-solve-height@2,
+  trig-solve-height@2, trig-solve-height@2)
+mutant killed: the command exited 1
+```
+
+### Unit D (2 mutations)
+
+**M-D-oracle** — `... "s/quadrant === 1 || quadrant === 4/quadrant === 1
+|| quadrant === 3/" -- npx vite-node <scratchpad>/oracle-d.ts`:
+```
+seed 197 difficulty 2: no theta found for cos(theta) = -0.38461538461538464
+  in quadrant 4
+400 draws, 108 failures
+mutant killed: the command exited 1
+```
+
+**M-D-shape** — `... "/id: 'tf-l2-identity'/,/skillCheck: \[/
+s/ask('trig-pythagorean+choice'),$/ask('trig-pythagorean'),/" -- npx
+vitest run ... -t 'identical-shape'`:
+```
+AssertionError: expected 'tf-l2-identity: run of 3 questions ca…' to be ''
++ tf-l2-identity: run of 3 questions can all be expression
+  (trig-pythagorean@1, trig-pythagorean@1, trig-pythagorean@1)
+mutant killed: the command exited 1
+```
+
+### Summary
+
+10 of 11 mutations killed; M-A-residual survived exactly as the plan
+predicted and required. `git status --short` was empty after every run
+(`mutate.sh`'s EXIT trap restored the mutated file each time). Section 2's
+three guard reports, in full: 2a — shape guards green on the unmutated tree
+for all four lessons, M-A/M-C/M-D-shape killed but not evidence about the
+task-3 repair (kind-fixed generators, the old rule would have caught them
+too), M-B killed and *is* the repair's differential (message quoted above).
+2b — `alsoAccepts` test graded 400 writings correct / 400 perturbations
+incorrect for `trig-period-from-b` (and its `+choice`, though the `+choice`
+render is `kind: 'choice'` so the test's `slide.kind !== 'expression'` guard
+skips it — 400 writings covered on the base id only, per the advisor's note
+on unit A); skipped (no declaration) for units B, C, D, reported as a skip,
+not a pass. 2c — 3 promises found (2 pre-existing in `differentiation.ts`,
+1 new here), all backed; M-A-promise killed; M-A-residual survived as the
+known per-generator limitation, not fixed.
+
+---
+
+## Task 4 — consultation on the mutation-proof append itself
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+the append above (the one directly preceding this entry) for insertions-only
+scope, whether the transcribed mutation output looks like faithful real
+output rather than cherry-picked or rewritten, whether its summary paragraph
+is internally consistent with what it transcribes, and whether anything in
+it reads as inflating the task's result.
+
+**Advisor's self-reported model, quoted verbatim:** "I am Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Verdict: clean, honest append; one wording slip found and fixed before this
+commit.** Confirmed insertions-only (single hunk, 0 deletions besides the
+diff header). Transcribed kill/survive strings match `mutate.sh`'s own
+literal output; vitest pass/fail/skip counts are internally self-consistent;
+oracle lines carry unflattering detail (partial-failure counts, ugly floats)
+rather than tidy round numbers, which reads as genuine rather than curated.
+Summary's 10 killed + 1 survived matches the 11 transcribed entries;
+M-A-residual is explicitly marked expected/not-fixed; M-B is correctly the
+only entry credited as the shape-guard differential, with A/C/D-shape
+explicitly denied that credit. No sample dressed as a sweep, no check unable
+to fail. Two cosmetic issues found and corrected before this commit: the
+preamble said "nine" required mutations where the plan specifies and the
+summary itself says ten (A:4 gate mutations + B/C/D:2 each = 10, plus the one
+expected survivor = 11 total runs) — fixed to "ten"; and the M-A-residual
+entry's diff snippet was a paraphrase under a "verbatim" heading — replaced
+with the actual one-line diff mutate.sh printed.

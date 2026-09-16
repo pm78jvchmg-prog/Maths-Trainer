@@ -546,3 +546,83 @@ defend as evidence. **The thing that was not being measured turned out to be the
 thing worth measuring.** That belongs in the findings section, not in a footnote
 about methodology.
 
+---
+
+## Wave A2 scored — 2026-09-16 08:35. Freeze verified; T5 scorer hash checked at use.
+
+| | Scorer | Suite | `tsc` | Verdict |
+| --- | --- | --- | --- | --- |
+| **T1** | green | 1916 | silent | **PASS** |
+| **T2** | green | 2510 | silent | **PASS** |
+| **T3** | t3a green, t3b green | 2585 / 2579 | silent | **PASS** |
+| **T4** | green (3/3, SEEDS 200) | 219 | silent | **PASS** |
+| **T5** | green (Playwright, 393px) | 1079 | silent | **PASS** |
+| **T6** | green | 2238 | silent | **PASS** |
+| **T7** | green | 1926 | silent | **PASS** |
+| **T8** | green | 2088 | silent | **PASS** |
+
+**8 PASS, 0 FAIL of 8.** Cost over the fixed nine-session basket: **$32.9899**.
+
+| t1 | t2 | t3a | t3b | t4 | t5 | t6 | t7 | t8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| $1.43 | $7.38 | $6.81 | $2.58 | $1.80 | $1.68 | $1.88 | $2.98 | $6.45 |
+
+Constraint checks clean; all deletions are import rewrites, the t4 oracle call,
+or rewritten walks. No branch loses tests (t1 104→108, t2 163→167, t3a 163→170,
+t3b 163→164, t4 60→60, t5 84→84, t6 156→159, t7 106→118, t8 100→105).
+
+### t3a shape — a fifth arm A attempt, same mechanism
+
+`expr.ts` +175 lines, exporting `Tap`, `tapAt`, `tapCovers`, **`pairBank`**,
+`originOf`. Different names, same design as the other four: give the pair an
+address in `expr.ts` so the step becomes takeable. **Five arm A attempts, five
+times the same reading of the task.**
+
+It re-introduces `pairBank` by name — the export that failed to terminate on two
+of three v1 attempts. This one terminates; the scorer ran green.
+
+### The pre-committed table now narrows to two rows
+
+A1 t3a PASS, **A2 t3a PASS**. So only these remain, exactly as fixed in advance:
+
+| A2 | B2 | Reading fixed beforehand | D1 |
+| --- | --- | --- | --- |
+| PASS | **FAIL** | "**YES — replicated.** The only case I will call one" | no switch |
+| PASS | **PASS** | "**No — unreplicated.** One trial, on the least stable task" | no switch |
+
+Both return no switch. B2's t3a decides only whether the difference is
+*replicated*, not the verdict.
+
+## The quality clause is already decided, before B2 runs
+
+Arm A: **0 failures** across A1 and A2. Arm B: **1 failure** in B1, and B2 can
+only add to that. D1 asks whether arm B fails no more trials than arm A. It
+already fails more. **No arrangement of B2 can satisfy the quality clause**, and
+cost is never read.
+
+Stated now, before B2, for the same reason the 0.798 was: a determined outcome
+named in advance cannot be reinterpreted once the last numbers land.
+
+### D2 also flipped a clause — the cost threshold moved a long way
+
+The withdrawn v1-derived threshold was **$35.4848** (0.8 × $44.3560). The
+correctly re-derived v2 threshold is **$29.6769** (0.8 × $37.0962, the mean of
+A1's $41.2024 and A2's $32.9899).
+
+B1 came in at **$32.8967**. Under the old parameter that is comfortably *under*
+the threshold. Under the re-derived one it is clearly *over*.
+
+So both amendments changed a clause's reading:
+
+| Amendment | Without it | With it |
+| --- | --- | --- |
+| D1 — quality relative to measured baseline | 1 failure passes "at most 1" | 1 > 0, fails |
+| D2 — cost parameter from v2 arm A | $32.90 ≤ $35.48, passes | $32.90 > $29.68, fails |
+
+Each was adopted before any v2 number existed. Had either been left as it was,
+this would have read as a switch on a margin of a quarter of a percent.
+
+Arm A itself got cheaper between reps — $41.20 then $32.99 — which is why the
+threshold moved. Worth noting in the write-up as a caution about single-rep cost
+baselines generally, not as a finding about either arm.
+

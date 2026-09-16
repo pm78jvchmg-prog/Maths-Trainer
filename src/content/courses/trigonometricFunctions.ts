@@ -574,6 +574,74 @@ export const trigonometricFunctions: Course = {
           ],
         },
         {
+          id: 'tf-l2-symmetry',
+          title: 'Angles with the Same Sine',
+          slides: [
+            teach(
+              prose(
+                'An earlier lesson said $\\sin(150^{\\circ})$ equals $\\sin(30^{\\circ})$; that is not a coincidence about one pair of angles but a symmetry of the circle, and it comes in three kinds.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [{ f: wave(0, 1, 360, 0) }],
+                marks: [
+                  { x: 40, y: Math.sin((40 * Math.PI) / 180) },
+                  { x: 140, y: Math.sin((40 * Math.PI) / 180) },
+                ],
+                verticals: [{ x: 40 }, { x: 140 }],
+                yMin: -1.4,
+                yMax: 1.4,
+                label: 'The sine curve, with the equal heights at 40 and 140 degrees ringed',
+              }),
+              prose(
+                'The ringed points are $\\sin(40^{\\circ})$ and $\\sin(140^{\\circ})$, the same height because $40^{\\circ}$ and $140^{\\circ}$ are the same distance either side of the top of the circle at $90^{\\circ}$ — reflections of each other in the vertical axis.',
+              ),
+              maths('\\sin(180^{\\circ} - \\theta) = \\sin(\\theta) \\qquad \\cos(180^{\\circ} - \\theta) = -\\cos(\\theta)'),
+              prose(
+                'The reflection keeps the height and flips the displacement, so the sine is unchanged and the cosine changes sign.',
+              ),
+            ),
+            ask('trig-related-angle'),
+            ask('trig-sine-from-circle', 2),
+            ask('trig-related-angle'),
+            teach(
+              prose(
+                'A half turn takes the point to the diametrically opposite side, so both coordinates change sign.',
+              ),
+              maths('\\sin(180^{\\circ} + \\theta) = -\\sin(\\theta) \\qquad \\cos(180^{\\circ} + \\theta) = -\\cos(\\theta)'),
+              prose(
+                'The third symmetry is reflection in the horizontal axis: $360^{\\circ} - \\theta$ sits just below the starting point rather than just above it, and a negative angle, a clockwise turn, lands in exactly the same place; same displacement, flipped height.',
+              ),
+              maths(
+                '\\sin(360^{\\circ} - \\theta) = \\sin(-\\theta) = -\\sin(\\theta) \\qquad \\cos(360^{\\circ} - \\theta) = \\cos(-\\theta) = \\cos(\\theta)',
+              ),
+              prose(
+                'Given a value, the same rules hand over the answer: if $\\sin(40^{\\circ}) \\approx 0.643$ then $\\sin(220^{\\circ}) \\approx -0.643$; the digits are the same and only the sign needs deciding.',
+              ),
+            ),
+            ask('trig-related-angle', 2),
+            ask('trig-cosine-from-circle+choice', 2),
+            ask('trig-evaluate-exact'),
+            teach(
+              prose(
+                'Rather than memorising six rules, picture the point: sine is the height, so ask whether the reflected point is above or below the centre; cosine is the displacement, so ask whether it is left or right.',
+              ),
+              maths('\\sin(220^{\\circ}) = -\\sin(40^{\\circ}) \\approx -0.643'),
+              prose(
+                'These symmetries are what make a table of values from $0^{\\circ}$ to $90^{\\circ}$ enough for every angle there is; the sine of $140^{\\circ}$, $220^{\\circ}$, $320^{\\circ}$ and $-40^{\\circ}$ are all $0.643$ in size, with the sign read off the circle.',
+              ),
+            ),
+            ask('trig-related-angle', 2),
+            ask('trig-related-angle', 2),
+          ],
+          skillCheck: [
+            ask('trig-related-angle', 2),
+            ask('trig-related-angle', 2),
+            ask('trig-sine-from-circle', 2),
+          ],
+        },
+        {
           id: 'tf-l2-speed',
           title: 'Period and Speed',
           slides: [
@@ -628,16 +696,19 @@ export const trigonometricFunctions: Course = {
       levelCheck: [
         ask('trig-sine-from-circle', 2),
         ask('trig-cosine-from-circle', 2),
+        ask('trig-related-angle', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-sine-from-circle', 2),
         ask('trig-speed-comparison'),
         ask('trig-cosine-from-circle', 2),
         ask('trig-period-from-speed', 2),
+        ask('trig-related-angle', 2),
         ask('trig-sine-from-circle', 2),
         ask('trig-cosine-from-circle', 2),
         ask('trig-amplitude', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-speed-comparison'),
+        ask('trig-related-angle', 2),
       ],
     },
     {

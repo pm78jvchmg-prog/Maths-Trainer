@@ -1335,3 +1335,66 @@ Commit next: `src/content/generators/trigonometry.ts`,
 a sine or cosine from its formula". Mutation proofs (M-A-oracle, M-A-writing,
 M-A-promise, M-A-residual, M-A-shape) run after this commit and before the
 push, per section 6 of the plan.
+
+---
+
+## Task 4 — Unit B consultation (trig-related-angle, tf-l2-symmetry)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only against plan section 3.2 (and section 2a, the shape-guard
+differential this unit exists to exercise), for the KEEPS_SIGN table's trig
+correctness, the deterministic rotation logic, whether the lesson prose/graph/
+level-check match the spec, and whether the kind sets are really `{choice}@1`
+/ `{choice, expression}@2` as section 2a claims.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Verdict: no confirmed bugs.**
+
+1. `KEEPS_SIGN`/`relatedAngle` correct against the trig identities for all 8
+   cells; independently re-verified with 400 draws (200 seeds × 2
+   difficulties) against raw `Math.sin`/`Math.cos`, 0 failures. Rows are
+   one-line, so M-B-oracle's sed will match.
+2. Rotation is `turn = (base / 5) % 4` then slice-concat, deterministic (no
+   `rng.shuffle`, per PITFALLS 3.10); all four option labels distinct on every
+   draw; no distractor numerically equal to the truth. Minor non-bug: the
+   correct option's slot distribution is mildly uneven across the 14 base
+   angles (only 2 of 14 give turn = 1) — noted, not fixed, out of scope.
+3. Generator placement, sample order, prompt/lead/answer/domain/mode, no
+   `alsoAccepts`, all four `how` strings, solution shape, and all three teach
+   slides match section 3.2 verbatim. No `choices` field (comment present
+   explaining why); `trig-related-angle+choice` absent from the registry, as
+   intended. Level check 15 entries in the specified order. Still exactly one
+   line matching "accepted" (unit A's).
+4. Section 2a's kind-set claim confirmed by direct measurement: `{choice}` at
+   difficulty 1 (relations limited to the first three, form always symbolic),
+   `{choice, expression}` at difficulty 2. 84 distinct draws at difficulty 1,
+   195 at difficulty 2 over 400 seeds (plan predicted 214; both comfortably
+   above the 25 floor). The differential argument for M-B holds.
+5. Two non-blocking notes: (a) section 3's general "exactly 10 guided slides"
+   line is inconsistent with its own per-unit layouts (11 in both units A and
+   B, and in the pre-existing `tf-l1-periodic`) — a spec-internal
+   inconsistency, not a defect in this unit; (b) T1's "The last two lessons
+   said $\sin(150^\circ)$..." is only true of `tf-l2-sine`, not
+   `tf-l2-cosine` — inherited verbatim from the plan's own prose, not a
+   transcription slip.
+
+**Departure from the plan, applied after this consult:** reworded T1's
+opening clause from "The last two lessons said" to "An earlier lesson said",
+per the advisor's note 5b, to make the factual reference accurate (only one
+prior lesson makes that claim). No `$…$` fragment or other wording changed.
+Re-ran the full suite after the edit: still 3034 passed, unchanged. This is a
+one-clause prose fix with no effect on any test, so it was not sent back
+through a second consultation; logged here as the departure it is.
+
+**Gates green before this consult:** `-t 'trig-related-angle'` → 13 passed (no
+`+choice`, as intended); full suite 3034 passed (was 3021, +13 exactly as
+predicted); `tsc` silent; lint 0 errors / 25 warnings; diff scoped to the two
+content files, insertions only on top of unit A. Scratch oracle B
+(`oracle-b.ts`, scratchpad only): 400 draws (92 numeric), 0 failures, exit 0;
+confirmed exits 1 with a deliberate +0.01 bug injected.
+
+Commit next: the two content files. Message: "Relate the sine and cosine of
+an angle to those of its reflections". Mutations M-B-oracle and M-B run after
+this commit and before the push.

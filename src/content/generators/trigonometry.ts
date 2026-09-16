@@ -1082,6 +1082,127 @@ const periodFromB: Generator<PeriodFromBParams> = {
   },
 };
 
+/* ---------- Level 2: symmetries of the circle ---------- */
+
+/** Base angles for the symmetry questions. 45 is left out: its sine and cosine coincide, so the cofunction distractor would equal the answer. */
+const BASE_ANGLES = [10, 15, 20, 25, 30, 35, 40, 50, 55, 60, 65, 70, 75, 80];
+type Relation = 'supplement' | 'halfTurn' | 'reflex' | 'negative';
+const RELATIONS: Relation[] = ['supplement', 'halfTurn', 'reflex', 'negative'];
+
+/** The related angle: 180 - a, 180 + a, 360 - a, -a. */
+function relatedAngle(base: number, relation: Relation): number {
+  switch (relation) {
+    case 'supplement':
+      return 180 - base;
+    case 'halfTurn':
+      return 180 + base;
+    case 'reflex':
+      return 360 - base;
+    case 'negative':
+      return -base;
+  }
+}
+
+/**
+ * Whether the function keeps its sign at the related angle, read off the circle:
+ * sine is the height (positive above the centre), cosine the displacement (positive to the right).
+ */
+const KEEPS_SIGN: Record<'sin' | 'cos', Record<Relation, boolean>> = {
+  sin: { supplement: true, halfTurn: false, reflex: false, negative: false },
+  cos: { supplement: false, halfTurn: false, reflex: true, negative: true },
+};
+
+interface RelatedAngleParams {
+  base: number;
+  fn: 'sin' | 'cos';
+  relation: Relation;
+  form: 'symbolic' | 'numeric';
+}
+
+/**
+ * The sine or cosine of an angle, related to that of a base angle by a
+ * symmetry of the circle: a reflection or a half turn.
+ *
+ * No `choices()` on this generator: its symbolic form already renders as a
+ * native `choice`, and a derived `+choice` form would render the same
+ * question twice.
+ */
+const relatedAngleGenerator: Generator<RelatedAngleParams> = {
+  id: 'trig-related-angle',
+  sample: (rng, difficulty) => {
+    const base = rng.pick(BASE_ANGLES);
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const relation = rng.pick(difficulty > 1 ? RELATIONS : RELATIONS.slice(0, 3));
+    const form = difficulty > 1 && rng.chance(0.5) ? 'numeric' : 'symbolic';
+    return { base, fn, relation, form };
+  },
+  render: (params): Slide => {
+    const { base, fn, relation, form } = params;
+    const angle = relatedAngle(base, relation);
+    const keeps = KEEPS_SIGN[fn][relation];
+    const co = fn === 'sin' ? 'cos' : 'sin';
+
+    if (form === 'symbolic') {
+      const opts = [
+        { id: 'same', label: `\\${fn}(${base}^{\\circ})`, tex: true },
+        { id: 'negated', label: `-\\${fn}(${base}^{\\circ})`, tex: true },
+        { id: 'co', label: `\\${co}(${base}^{\\circ})`, tex: true },
+        { id: 'coNegated', label: `-\\${co}(${base}^{\\circ})`, tex: true },
+      ];
+      const turn = (base / 5) % 4;
+      const turned = [...opts.slice(turn), ...opts.slice(0, turn)];
+      return {
+        kind: 'choice',
+        prompt: [{ kind: 'prose', text: `Which of these is equal to $\\${fn}(${angle}^{\\circ})$?` }],
+        options: turned,
+        correctId: keeps ? 'same' : 'negated',
+      };
+    }
+
+    const shown = Math.abs((fn === 'sin' ? Math.sin : Math.cos)((base * Math.PI) / 180)).toFixed(3);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Given that $\\${fn}(${base}^{\\circ}) \\approx ${shown}$, what is $\\${fn}(${angle}^{\\circ})$? Give it to three decimal places, with its sign.`,
+        },
+      ],
+      lead: `\\${fn}(${angle}^{\\circ}) \\approx`,
+      keypad: NUMBER_KEYS,
+      answer: `${keeps ? '' : '-'}${shown}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ base, fn, relation, form }) => {
+    const angle = relatedAngle(base, relation);
+    const keeps = KEEPS_SIGN[fn][relation];
+    const how: Record<Relation, string> = {
+      supplement:
+        'they are reflections of each other in the vertical axis, so the point is at the same height on the other side.',
+      halfTurn:
+        'the point is diametrically opposite, so both the height and the displacement change sign.',
+      reflex:
+        'they are reflections in the horizontal axis, so the displacement is the same and the height is flipped.',
+      negative: 'a clockwise turn reflects the point in the horizontal axis: same displacement, flipped height.',
+    };
+    const core = `\\${fn}(${angle}^{\\circ}) = ${keeps ? '' : '-'}\\${fn}(${base}^{\\circ})`;
+    const shown = Math.abs((fn === 'sin' ? Math.sin : Math.cos)((base * Math.PI) / 180)).toFixed(3);
+    const tex = form === 'numeric' ? `${core} \\approx ${keeps ? '' : '-'}${shown}` : core;
+    return [
+      { text: `On the circle, $${angle}^{\\circ}$ and $${base}^{\\circ}$ are related by a symmetry: ${how[relation]}` },
+      { tex },
+      {
+        text:
+          fn === 'sin'
+            ? 'Sine is the height, so it keeps its sign across the vertical axis and flips it across the horizontal one.'
+            : 'Cosine is the displacement, so it keeps its sign across the horizontal axis and flips it across the vertical one.',
+      },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -1099,4 +1220,5 @@ export const trigonometryGenerators = [
   waveSlider,
   evaluateExactTrig,
   periodFromB,
+  relatedAngleGenerator,
 ] as unknown as Generator<unknown>[];

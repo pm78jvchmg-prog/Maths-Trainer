@@ -1,7 +1,7 @@
 /**
  * Complex Numbers, Levels 3 and 4: the plane, modulus, argument and powers.
  */
-import type { Generator, KeypadKey, Slide } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf } from './format';
@@ -35,6 +35,9 @@ const SQRT_KEYS: KeypadKey[] = [
   { insert: 'sqrt(', label: '√(' },
   { insert: ')' },
 ];
+
+/** Wraps a TeX fragment that starts with a minus sign, so it survives being multiplied or squared. */
+const paren = (tex: string): string => (tex.startsWith('-') ? `\\left(${tex}\\right)` : tex);
 
 /* ---------- Read a point off the plane ---------- */
 
@@ -266,16 +269,22 @@ const modulusSteps: Generator<ModulusStepsParams> = {
 
 /* ---------- Argument ---------- */
 
-/** Points whose argument is a clean multiple of pi/4, plus the axes. */
-const ANGLES: { re: number; im: number; tex: string; value: string }[] = [
-  { re: 1, im: 0, tex: '0', value: '0' },
-  { re: 1, im: 1, tex: '\\tfrac{\\pi}{4}', value: 'pi/4' },
-  { re: 0, im: 1, tex: '\\tfrac{\\pi}{2}', value: 'pi/2' },
-  { re: -1, im: 1, tex: '\\tfrac{3\\pi}{4}', value: '3*pi/4' },
-  { re: -1, im: 0, tex: '\\pi', value: 'pi' },
-  { re: -1, im: -1, tex: '-\\tfrac{3\\pi}{4}', value: '-3*pi/4' },
-  { re: 0, im: -1, tex: '-\\tfrac{\\pi}{2}', value: '-pi/2' },
-  { re: 1, im: -1, tex: '-\\tfrac{\\pi}{4}', value: '-pi/4' },
+/**
+ * Points whose argument is a clean multiple of pi/4, plus the axes.
+ *
+ * `cosTex`/`sinTex` are the cosine and sine of the angle, as the learner
+ * reads them — used by `polar-form` to build a modulus-argument display and
+ * its worked solution. `argument` ignores both fields.
+ */
+const ANGLES: { re: number; im: number; tex: string; value: string; cosTex: string; sinTex: string }[] = [
+  { re: 1, im: 0, tex: '0', value: '0', cosTex: '1', sinTex: '0' },
+  { re: 1, im: 1, tex: '\\tfrac{\\pi}{4}', value: 'pi/4', cosTex: '\\tfrac{1}{\\sqrt{2}}', sinTex: '\\tfrac{1}{\\sqrt{2}}' },
+  { re: 0, im: 1, tex: '\\tfrac{\\pi}{2}', value: 'pi/2', cosTex: '0', sinTex: '1' },
+  { re: -1, im: 1, tex: '\\tfrac{3\\pi}{4}', value: '3*pi/4', cosTex: '-\\tfrac{1}{\\sqrt{2}}', sinTex: '\\tfrac{1}{\\sqrt{2}}' },
+  { re: -1, im: 0, tex: '\\pi', value: 'pi', cosTex: '-1', sinTex: '0' },
+  { re: -1, im: -1, tex: '-\\tfrac{3\\pi}{4}', value: '-3*pi/4', cosTex: '-\\tfrac{1}{\\sqrt{2}}', sinTex: '-\\tfrac{1}{\\sqrt{2}}' },
+  { re: 0, im: -1, tex: '-\\tfrac{\\pi}{2}', value: '-pi/2', cosTex: '0', sinTex: '-1' },
+  { re: 1, im: -1, tex: '-\\tfrac{\\pi}{4}', value: '-pi/4', cosTex: '\\tfrac{1}{\\sqrt{2}}', sinTex: '-\\tfrac{1}{\\sqrt{2}}' },
 ];
 
 interface ArgParams { index: number; scale: number }
@@ -326,6 +335,120 @@ export const argument: Generator<ArgParams> = {
       {
         text: 'Scaling a number stretches it away from the origin but does not rotate it, so the argument is unchanged.',
       },
+    ];
+  },
+};
+
+/* ---------- Modulus-argument form ---------- */
+
+interface PolarParams { index: number; scale: number; direction: 'toCartesian' | 'toPolar' }
+
+/** The derived quantities every render/choices/solution branch needs. */
+function polarParts(params: PolarParams) {
+  const { index, scale } = params;
+  const angle = ANGLES[index];
+  const re = angle.re * scale;
+  const im = angle.im * scale;
+  const diagonal = angle.re !== 0 && angle.im !== 0;
+  const rTex = diagonal ? `${scale === 1 ? '' : scale}\\sqrt{2}` : `${scale}`;
+  const rAnswer = diagonal ? `${scale}*sqrt(2)` : `${scale}`;
+  // The other kind's modulus rule, applied where it does not belong.
+  const rWrongTex = diagonal ? `${2 * scale}` : `${scale === 1 ? '' : scale}\\sqrt{2}`;
+  const rWrongAnswer = diagonal ? `${2 * scale}` : `${scale}*sqrt(2)`;
+  return { angle, re, im, diagonal, rTex, rAnswer, rWrongTex, rWrongAnswer };
+}
+
+/** "r(\cos\theta + i\sin\theta)", as the learner reads it. */
+function polarTex(r: string, a: { tex: string }): string {
+  return `${r}\\left(\\cos ${paren(a.tex)} + i\\sin ${paren(a.tex)}\\right)`;
+}
+
+/** The same value in a form mathjs parses without ambiguity. */
+function polarAnswer(r: string, a: { value: string }): string {
+  return `${r}*(cos(${a.value}) + i*sin(${a.value}))`;
+}
+
+/** The four options shared by the native choice render and the derived `+choice` form. */
+function polarOptions(params: PolarParams): ChoiceOption[] {
+  const { index, direction } = params;
+  const { angle, re, im, rTex, rAnswer, rWrongTex, rWrongAnswer } = polarParts(params);
+  if (direction === 'toCartesian') {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(re, im), opt(im, re), opt(re, -im), opt(-re, im));
+  }
+  // Two different directions at the right modulus, and the right direction at
+  // the wrong modulus: every distractor is a genuinely different point.
+  const at = (i: number) => ANGLES[((i % ANGLES.length) + ANGLES.length) % ANGLES.length];
+  return options(
+    { tex: polarTex(rTex, angle), answer: polarAnswer(rAnswer, angle) },
+    { tex: polarTex(rTex, at(index + 2)), answer: polarAnswer(rAnswer, at(index + 2)) },
+    { tex: polarTex(rTex, at(index + 4)), answer: polarAnswer(rAnswer, at(index + 4)) },
+    { tex: polarTex(rWrongTex, angle), answer: polarAnswer(rWrongAnswer, angle) },
+  );
+}
+
+export const polarForm: Generator<PolarParams> = {
+  id: 'polar-form',
+  choices: (params) => polarOptions(params),
+  sample: (rng, difficulty) => ({
+    // Row 0 (theta = 0) is excluded: a degenerate "r(\cos 0 + i\sin 0)" question.
+    index: rng.int(1, 7),
+    scale: rng.int(1, difficulty >= 2 ? 8 : 5),
+    direction: difficulty >= 2 && rng.chance(0.5) ? 'toPolar' : 'toCartesian',
+  }),
+  render: (params): Slide => {
+    const { angle, re, im, rTex } = polarParts(params);
+    if (params.direction === 'toCartesian') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Write this number in the form $a + bi$.' },
+          { kind: 'display', tex: `z = ${polarTex(rTex, angle)}` },
+        ],
+        lead: 'z =',
+        keypad: I_KEY,
+        answer: complexAnswer(re, im),
+        domain: 'complex',
+        mode: 'exact',
+      };
+    }
+    // Sorted rather than shuffled, so the same question renders one way and
+    // the deck de-duplicator can recognise a repeat.
+    const ordered = [...polarOptions(params)].sort((a, b) => a.tex.localeCompare(b.tex));
+    const correctIdx = ordered.findIndex((option) => option.correct);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Write $z$ in modulus-argument form $r(\\cos\\theta + i\\sin\\theta)$, with $-\\pi < \\theta \\leq \\pi$.' },
+        { kind: 'display', tex: `z = ${complexTex(re, im)}` },
+        { kind: 'diagram', svg: complexPlaneSvg(rangeFor(re, im), [{ re, im, highlight: true }]) },
+      ],
+      options: ordered.map((option, idx) => ({ id: `opt${idx}`, label: option.tex, tex: true })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: (params) => {
+    const { angle, re, im, rTex } = polarParts(params);
+    if (params.direction === 'toCartesian') {
+      return [
+        {
+          text: 'Read off the cosine and sine of the angle.',
+          tex: `\\cos ${paren(angle.tex)} = ${angle.cosTex}, \\quad \\sin ${paren(angle.tex)} = ${angle.sinTex}`,
+        },
+        {
+          text: 'Multiply each by the modulus. On a diagonal the $\\sqrt{2}$ cancels.',
+          tex: `${rTex} \\times ${paren(angle.cosTex)} = ${re}, \\quad ${rTex} \\times ${paren(angle.sinTex)} = ${im}`,
+        },
+        { tex: `z = ${complexTex(re, im)}` },
+      ];
+    }
+    return [
+      { text: 'The modulus is the distance from the origin.', tex: `|z| = \\sqrt{${re * re + im * im}} = ${rTex}` },
+      {
+        text: 'The argument comes from the sketch: which quadrant, then which of the standard angles.',
+        tex: `\\arg z = ${angle.tex}`,
+      },
+      { tex: `z = ${polarTex(rTex, angle)}` },
     ];
   },
 };
@@ -387,4 +510,5 @@ export const planeGenerators = [
   modulusSteps,
   argument,
   complexPower,
+  polarForm,
 ];

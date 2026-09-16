@@ -499,3 +499,36 @@ scratch oracle (task 2's substitute for a missing derivative-style oracle
 test) is the deliverable's load-bearing evidence and should not pass through
 a subagent paraphrase; also flagged the risk of a subagent "fixing" a red
 gate by editing generators.test.ts or src/engine/, which PREFLIGHT forbids.
+
+## Note — a self-caught mistake, not a consultation
+
+Before Unit A's commit I wrote this log with the Write tool instead of
+appending, which overwrote the entire Task 1 history (461 lines) with only
+the Task 2 entry above. Caught it myself via `git diff --stat origin/main`
+showing 462 deletions against 40 insertions on a file that should only grow.
+Fixed by pulling the original content back from `origin/main` with `git show`
+and reconstructing the file (Task 1's content, unchanged, followed by a
+`# Task 2` header and the entry above) before Unit A was committed — no
+consultation content was actually lost, and the diff is now purely additive.
+Recorded here rather than silently fixed, per the instruction to be specific
+and honest about anything changed that no test asserts.
+
+## Note — a plan transcription bug, not a consultation
+
+TASK2-PLAN.md section 2.2 defines `polarTex`/`polarAnswer` with four literal
+backslashes before `left`/`cos`/`sin`/`right` (verified with `cat -A` on the
+raw file — not a Read-tool rendering artifact), e.g.
+`` `\\\\left(\\\\cos ... \\\\right)` `` where every other TeX string in this
+plan and in the codebase's existing generators uses two backslashes per
+command. Copying the plan literally would have produced `\\left(` at
+runtime — a TeX line-break command followed by the literal text "left(" —
+which is wrong and inconsistent with the plan's own parenthetical two lines
+later ("note the space after `\\cos`", two backslashes). Treated this as a
+transcription bug in the plan document itself (the same nested-escaping
+failure mode CLAUDE.md warns about, here adding a level rather than eating
+one) rather than the intended behaviour, and wrote `polarTex`/`polarAnswer`
+with the standard doubled-backslash convention instead. The generated-TeX
+test suite (KaTeX strict rendering plus the `BARE_TEX_COMMAND` denylist)
+passed either way — `\\left(` is valid TeX, so nothing would have caught the
+quadruple-backslash version mechanically — so this was a manual read, not a
+gate catching it.

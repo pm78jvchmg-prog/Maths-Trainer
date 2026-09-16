@@ -462,6 +462,41 @@ export const complexNumbers: Course = {
         },
 
         {
+          id: 'cn-l4-polar',
+          title: 'Modulus-Argument Form',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'Modulus and argument fix a point as surely as real and imaginary parts do, and there is a way of writing the number that uses them directly.' },
+              { kind: 'display', tex: 'z = r\\left(\\cos\\theta + i\\sin\\theta\\right) \\qquad r = |z|,\\ \\theta = \\arg z' },
+              { kind: 'prose', text: 'Reading it back: $r\\cos\\theta$ across, $r\\sin\\theta$ up. For the standard angles the cosine and sine are $0$, $\\pm 1$ or $\\pm\\tfrac{1}{\\sqrt{2}}$, so the arithmetic is small.' },
+              { kind: 'display', tex: '2\\sqrt{2}\\left(\\cos\\tfrac{3\\pi}{4} + i\\sin\\tfrac{3\\pi}{4}\\right) = 2\\sqrt{2}\\left(-\\tfrac{1}{\\sqrt{2}}\\right) + 2\\sqrt{2}\\left(\\tfrac{1}{\\sqrt{2}}\\right)i = -2 + 2i' },
+              plane([{ re: -2, im: 2, highlight: true }]),
+              { kind: 'prose', text: 'The same point, described by distance and direction instead of across and up.' },
+            ),
+            ask('polar-form'),
+            ask('polar-form+choice'),
+            ask('polar-form'),
+            teach(
+              { kind: 'prose', text: 'The other direction. Modulus by Pythagoras, argument from a sketch — never from the calculator alone, since $-2 + 2i$ and $2 - 2i$ share a tangent.' },
+              { kind: 'display', tex: '|{-2 + 2i}| = \\sqrt{4 + 4} = 2\\sqrt{2} \\qquad \\arg(-2 + 2i) = \\tfrac{3\\pi}{4}' },
+              { kind: 'prose', text: 'Keep the argument principal, between $-\\pi$ and $\\pi$. The two slips: adding the parts for the modulus ($4$, not $2\\sqrt{2}$), and taking the diagonal angle in the wrong quadrant.' },
+            ),
+            ask('polar-form', 2),
+            ask('argument', 2),
+            ask('polar-form+choice', 2),
+            teach(
+              { kind: 'prose', text: 'Why bother — because multiplication is easy in this form and hard in the other.' },
+              { kind: 'display', tex: '|zw| = |z||w| \\qquad \\arg(zw) = \\arg z + \\arg w' },
+              { kind: 'prose', text: 'Multiplying by $i$ (modulus $1$, argument $\\tfrac{\\pi}{2}$) is the quarter turn from Level 2, now as a formula.' },
+              { kind: 'prose', text: 'Every number with the same modulus lies on one circle; every number with the same argument on one ray. The next lesson runs with this.' },
+            ),
+            ask('polar-form', 2),
+            ask('modulus-steps'),
+          ],
+          skillCheck: [ask('polar-form', 2), ask('polar-form'), ask('argument', 2)],
+        },
+
+        {
           id: 'cn-l4-powers',
           title: 'Powers',
           slides: [
@@ -498,16 +533,19 @@ export const complexNumbers: Course = {
       levelCheck: [
         ask('argument', 2),
         ask('complex-power', 2),
+        ask('polar-form', 2),
         ask('argument', 2),
         ask('complex-power', 2),
+        ask('polar-form', 2),
         ask('argument', 2),
         ask('complex-power', 2),
+        ask('polar-form', 2),
         ask('argument', 2),
         ask('complex-power', 2),
+        ask('polar-form', 2),
         ask('argument', 2),
         ask('complex-power', 2),
-        ask('argument', 2),
-        ask('complex-power', 2),
+        ask('polar-form', 2),
       ],
     },
   ],

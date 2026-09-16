@@ -279,3 +279,87 @@ one-third assumption for Sonnet ($3.05, still a 1.35× excess).
 
 Both fatal-direction defects are therefore closed.
 
+---
+
+# Amendments C1-C3 — 2026-09-16 00:50
+
+## C1. Correction: my "2.25x above pure Sonnet" was wrong, and the real
+## calibration is better evidence than the claim it replaces
+
+B3 inferred an Opus component in `armB-rep1-t8` by assuming Sonnet costs one
+fifth of Opus. That assumption was never verified and it is wrong.
+
+The six arm B sessions that refused the task give an exact calibration, because
+they stopped before doing anything and so are pure executor with no subagent.
+Against the Opus rate model fitted from arm A, all six land on the same ratio to
+four figures:
+
+| | t1 | t2 | t3a | t3b | t6 | t7 |
+| --- | --- | --- | --- | --- | --- | --- |
+| cost / Opus-equivalent | 0.400 | 0.400 | 0.400 | 0.400 | 0.400 | 0.400 |
+
+**Sonnet is exactly 0.4x Opus.** Six independent sessions, differing token mixes,
+one ratio. Anything above 0.400 therefore carries non-Sonnet cost.
+
+The corrected excesses over pure Sonnet are:
+
+| | t8 | t5 | t4 |
+| --- | --- | --- | --- |
+| ratio | 0.449 | 0.578 | 0.602 |
+| above pure Sonnet | **+12%** | **+44%** | **+51%** |
+
+So **Check 1 still passes** — the advisor's cost is billed into the session — but
+on +12% for t8, not the +125% I reported. I overstated the strength of that
+evidence. The conclusion is unchanged and now rests on an exact calibration
+rather than a guessed price ratio.
+
+Keep the fit. Two exact recoveries — Opus rates from 18 sessions with zero
+residual, Sonnet at 0.400x from six — are what make a 0.8x threshold a
+meaningful quantity rather than a gesture.
+
+## C2. Correction: the refusals were NOT the advisor doing its job
+
+The appealing reading is that arm B's sessions consulted their advisor, and the
+advisor flagged an anomalous instruction — which would make the refusal a
+genuine property of the configuration under test.
+
+**The telemetry says otherwise for six of the seven.** Those six sit at exactly
+0.400, which is pure Sonnet with no subagent call. They refused **before
+consulting the advisor at all**. Only `t4` (0.602) consulted and refused anyway.
+
+So the refusal is a property of the **executor model reading the prompt**, not of
+the advisor mechanism. That is still a property of the configuration under test —
+arm B is the Sonnet-executor arm — so it must not be engineered away. But the
+mechanism is not the one proposed, and acting on the advisor reading would have
+drawn the wrong lesson from it.
+
+## C3. Arm B rep 1 is void twice over
+
+Independently of the cost confound, **six of nine branches had zero advisor
+consultations**. B2's rule voids the arm at more than 2 of 16. Six in a single
+rep of nine clears that on its own.
+
+## C4. The preamble stays. Both arms re-run under one text.
+
+Rejected: removing the preamble for arm B. The argument for it was that arm B's
+effective condition would then match arm A's — but that rests on the preamble
+being inert, and the same text has now been watched producing two completely
+different behaviours across arms. Whatever it is doing, it is not inert, and
+"the conditions would match" is the exact claim the evidence undermines.
+
+So the isolation block is replaced for **both arms**, and **both arms re-run**
+under the replacement. Arm A's 22 of 22 is not discarded — it becomes a prior on
+a different prompt, and re-running it costs nine sessions rather than a rebuild.
+
+The replacement states the constraint without issuing destructive commands:
+
+```
+Work only from the checkout you have been given. Do not consult any other
+branch and do not run `git log --all`. Treat the working tree as the only
+source of truth: no other branch, no non-ancestor commit.
+```
+
+Nothing else in any task prompt changes. This is a **new experiment** with a new
+freeze; it does not amend or reinterpret anything already recorded, and arm A's
+closed 22-of-22 result stands as the record of what happened under the old text.
+

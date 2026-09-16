@@ -648,3 +648,74 @@ may well be right. It is still an instrument change mid-experiment, in the arm
 that stands to benefit, and that is the owner's call.
 
 Arm B rep 1 is void. No further sessions launched. Nothing scored.
+
+## 2026-09-16 00:50 — two corrections, and the price model that survives both
+
+### The cost evidence I gave was overstated
+
+I reported `armB-rep1-t8` at 2.25x pure Sonnet, inferring an Opus component from
+an **assumed** Sonnet-is-one-fifth-of-Opus rate. The assumption was wrong.
+
+The six arm B sessions that refused the task supply the real calibration: they
+stopped before doing anything, so they are pure executor with no subagent, and
+against the Opus rate model fitted from arm A all six land on **exactly 0.400**
+— same ratio, different token mixes. Sonnet is 0.4x Opus.
+
+Corrected: t8 is **+12%** over pure Sonnet, t5 **+44%**, t4 **+51%**. The
+advisor's cost is billed into the session, so Check 1 passes — but on much
+thinner margin than I claimed for t8.
+
+Two exact recoveries now underpin the cost clause: Opus rates from 18 sessions
+with zero residual, and Sonnet at 0.400x from six. That is the strongest evidence
+in the exercise and it is what makes 0.8x a real quantity.
+
+### The refusals were not the advisor doing its job
+
+The attractive reading — the advisor flagged an anomalous instruction, so the
+refusal is the configuration working as designed — **fails on the telemetry.**
+Six of the seven refusing sessions sit at exactly 0.400, which is pure Sonnet
+with no subagent call: they refused **before consulting the advisor at all**.
+Only `t4` consulted and refused anyway.
+
+The refusal is the executor model reading the prompt, not the advisor mechanism.
+Still a property of the configuration under test, so still not to be engineered
+away — but the mechanism is not the one it looked like, and the wrong lesson was
+one step from being recorded.
+
+### Arm B rep 1 is void twice over
+
+Six of nine branches had zero advisor consultations. B2 voids the arm above 2 of
+16; six in one rep of nine clears it independently of the cost confound.
+
+### Decision: keep the constraint, replace the text, re-run BOTH arms
+
+Removing the preamble from arm B alone is rejected. That fix rested on the
+preamble being inert in arm A — and the same text has now been observed producing
+opposite behaviour in the two arms, which is precisely the evidence against
+calling it inert.
+
+Both arms re-run under one replacement, which states the constraint and issues no
+commands:
+
+    Work only from the checkout you have been given. Do not consult any other
+    branch and do not run `git log --all`. Treat the working tree as the only
+    source of truth: no other branch, no non-ancestor commit.
+
+Arm A's 22 of 22 is not lost; it becomes a prior under the old text, and its
+record stands unamended. This is a new experiment with a new freeze.
+
+### BLOCKED on the owner: four fresh subject repositories
+
+One per (arm, rep), never reused — `armB-rep1` now holds solution branches and
+`armA-rep2`/`armA-rep3` are spent. Two clean repos exist (`armB-rep2`,
+`armB-rep3`) but reusing them would put arm B names on arm A work.
+
+Needed, and repository creation returns 403 to this integration:
+
+    maths-trainer-eval-subject-v2-armA-rep1
+    maths-trainer-eval-subject-v2-armA-rep2
+    maths-trainer-eval-subject-v2-armB-rep1
+    maths-trainer-eval-subject-v2-armB-rep2
+
+Once they exist I push the eight bases into each, verify by listing branches, and
+launch. Nothing runs until then.

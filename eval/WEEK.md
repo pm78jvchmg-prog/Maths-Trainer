@@ -935,3 +935,64 @@ broken version before being trusted.
 the only instrument that cannot be satisfied by the measured thing reporting well
 of itself — and on its first run it contradicted a self-report that was otherwise
 accurate and unusually candid.
+
+### Task 2 verified here, and the adversarial read's finding
+
+**Gates, run on a worktree of `ec83ba9` rather than taken from the report:**
+
+| | |
+| --- | --- |
+| `npm test` | **2777 passed**, 6 files, exit 0 (`main` is 2681, so +96) |
+| `npx tsc --noEmit -p tsconfig.app.json` | silent, exit 0 |
+| `npm run lint` | 0 errors, **25 warnings — the same 25 as `main`** |
+
+**Ids by grep, not from the report.** 14 lessons: `cn-l1-roots, cn-l1-arithmetic,
+cn-l1-complex, cn-l1-quadratics, cn-l2-multiply, cn-l2-conjugates, cn-l2-division,
+cn-l3-plane, cn-l3-modulus, cn-l3-sqrt, cn-l4-argument, cn-l4-polar, cn-l4-powers,
+cn-l4-de-moivre`. Four new generators present: `complex-quadratic`, `polar-form`,
+`polar-power`, `complex-sqrt`. Level checks 15 / 12 / 15 / 15. Scope is three
+content files plus `eval-advisor.log`, whose diff is **+189 and additive** — task
+1's 461 lines intact, so the overwrite really was repaired before pushing. No test
+file touched; the 18 deletions are level-check arrays replaced wholesale, two
+import lines extended, and the `ANGLES` table rewritten to carry its new fields.
+
+The plan's own risk 6 held: **no teach slide in this course claims anything about
+what the checker accepts.** That was the task 1 defect class, and it did not recur.
+
+#### The finding: two shape guards are now blind to the generator they most need to see
+
+> **`polar-form` is the first generator in this repository whose rendered *kind*
+> depends on its parameters.** A `toCartesian` draw is an `expression`; a `toPolar`
+> draw is a native `choice`. `toPolar` is only ever drawn at difficulty 2.
+
+Both shape guards in `generators.test.ts` decide a generator's shape with
+`g.render(g.sample(makeRng(1), 1)).kind` — **seed 1, difficulty 1, always**,
+whatever difficulty the lesson actually asks at. Measured on the branch:
+
+```
+polar-form  difficulty 1: {"expression":400}
+polar-form  difficulty 2: {"expression":196,"choice":204}
+what the shape test sees (seed 1, difficulty 1): expression
+```
+
+So for every difficulty-2 `ask('polar-form', 2)` — and `cn-l4-polar` has four —
+*"varies the shape of the questions inside a lesson"* and *"never runs 3 or more
+identical-shape questions between teach slides"* are reasoning from a shape the
+learner has a **51% chance of not seeing**.
+
+**No violation ships today.** Re-running the run-length rule at the difficulty each
+slide is actually asked at, across every lesson in every course and 120 seeds:
+
+```
+runs of 3+ identical shapes between teach slides, at the asked difficulty: 0
+```
+
+`cn-l4-polar` is safe because `argument` sits between its two difficulty-2
+`polar-form` asks and is always an `expression`. **That is luck, not design** —
+remove that slide, or add a second difficulty-dependent generator, and a run of
+three choice slides ships with a green suite.
+
+Recorded, not fixed: the fix is a change to `generators.test.ts`, which this task's
+diff boundary forbids and which is the owner's call. It is a fourth instance of
+the class above — a guard that looks like it checks lesson shape and checks a
+shape no learner necessarily meets.

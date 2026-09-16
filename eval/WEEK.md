@@ -135,7 +135,7 @@ Filled as tasks complete. Empty now.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **0 of 5** — only one consultation self-reported at all, and it said Sonnet | **4 of 4** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
 | 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
-| 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | *running* | — | — | *pending* | *pending* | *pending* |
+| 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | **$15.1065** | **0** | **0** | **3 of 4** — 1 inconsistent | **4 of 4** | 5 (`mutate.sh`, `generators.test.ts`, `types.ts`, `differentiation.ts`, `eval-advisor.log`) |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1194,3 +1194,87 @@ made it. The offender message is word-for-word what the plan predicted.
 one per registered generator**, which is the plan's prediction for the
 `alsoAccepts` test and rules out a test having been lost or duplicated alongside
 it.
+
+## Task 3 complete — four units, and the first task with no intervention
+
+`$15.1065`, **0 abandoned**, **0 interventions**. All four units landed:
+`ef10bc3` harness, `6fcdbb0` shape guards, `71026be` `alsoAccepts`, `5881397`
+the promise guard.
+
+**Gates, run here:** `npm test` **2995 passed** — exactly the plan's prediction
+of 2777 → 2777 → 2994 → 2995, which rules out a test lost or duplicated — `tsc`
+silent, lint 0 errors and the same 25 warnings, tree clean after every mutation.
+Scope is the plan's four files plus the log; `eval-advisor.log` is **569
+insertions, 0 deletions**, so the append rule held.
+
+### Advisor: 4 of 4 on timing, and a third way the identity instrument fails
+
+**The ordering check passes for the first time: 4 commits, 4 consultations, every
+one returned before the commit it covers.** No "returned after" or "in flight"
+language anywhere in the log. Against task 2's 1 of 5, that is the added prompt
+line working — and it is the first evidence in the week that a written
+instruction closed a gap rather than being present and not firing.
+
+**But consultation 3's advisor contradicted its own harness label**, and the
+executor logged it rather than tidying it:
+
+> *"Advisor model identity: Claude Opus 4.5 (claude-opus-4-5-20251101). Note: the
+> environment prompt in my context labels me 'Opus 5 (1M context) /
+> claude-opus-5[1m]' — I have no such model in my own knowledge, so log both
+> strings and treat the harness label as authoritative if you are recording the
+> run's configured model."*
+
+**This is a third distinct mechanism, and the most awkward of the three**, because
+the first two were process faults and this one is the instrument itself:
+
+| # | Mechanism | Parameter passed? | Returned before commit? |
+| --- | --- | --- | --- |
+| 1 | `model` omitted — ran Sonnet | **no** | yes |
+| 2 | Consultation returned after the commits it covered | yes | **no** |
+| 3 | **Self-report disagrees with the harness label** | **yes** | **yes** |
+
+Everything procedural was right and the answer still cannot be read off. The
+column has always recorded a floor; this is the reason it has to. **Task 3 is
+logged as 3 of 4 verified, 1 inconsistent** — not 4 of 4, and not 3 of 4 failed.
+
+The executor's handling is the part worth keeping: **both strings logged verbatim,
+neither discarded, and the advisor's own explanation for the discrepancy recorded
+as "its account, not independently confirmed here."** That is the correct posture
+toward a self-report that has just demonstrated it can be internally inconsistent.
+
+### The residual gap — found by the advisor, re-verified here, and it sets task 4
+
+Unit 3b's guard asks **a per-generator question about a per-form promise**.
+`declaresAlsoAccepts` is satisfied if *any* draw of *any* generator the lesson asks
+declares *something*. The sentence in `df-l1-index` names a specific writing — "a
+fraction under a root" — and nothing ties the sentence to that writing.
+
+**Boundary established here in three runs, not taken from the report:**
+
+| Declarations deleted from `df-index-form` | Result |
+| --- | --- |
+| 1 — the `root` form, the exact writing the sentence names | **`MUTANT SURVIVED`** |
+| 2 — `reciprocal` + `root` | **`MUTANT SURVIVED`** |
+| all 3 | **`mutant killed`**, the sentence quoted in the failure |
+
+So the promise the lesson makes can lose the writing it names and the suite stays
+green. **F2 is two-thirds closed by this task**: declaration → checker (3a) and
+sentence → some-declaration-exists (3b) are mechanised; **sentence → the specific
+writing named is not.**
+
+**Task 4 is therefore determined, not open:** close the residual by making the
+promise guard per-writing rather than per-generator. It is the same class, the
+same lesson, and the gap is already demonstrated with a one-line mutation that
+reproduces it.
+
+### Findings, with the exit-criterion column
+
+| Finding | Could a rule or check have caught it? |
+| --- | --- |
+| The 3b guard is per-generator where the promise is per-form | **Yes** — and task 4 is that check |
+| Advisor self-report contradicts its harness label | **No.** Same reason as the original: no reachable telemetry records a subagent's model per call. This is the second entry in the not-mechanisable column, and it is the same root cause as the first |
+| `git diff --quiet` returns 0 for a nonexistent or untracked path | **Yes** — and the executor built that check unprompted, into `mutate.sh`, before shipping it |
+
+**Two of three are mechanisable and one already is.** The one that is not is the
+advisor's own identity — now failing in three different ways, all invisible to
+anything but the log.

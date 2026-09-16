@@ -131,6 +131,59 @@ whole redesign — a 0.57× cost ratio observed in the voided v1 run — does no
 survive contact with a controlled measurement. Sonnet-with-an-Opus-advisor is not
 a cheaper configuration here. It is the same price, for worse results.
 
+### Where the 0.57× came from, and why it was wrong
+
+The figure that motivated this entire experiment is recorded in `REPB-C1.md`:
+arm B rep 1 at **$24.91** against arm A rep 3's **$43.93**, on an identical
+6-of-8 result. It was void, and the reason matters.
+
+It was **not** the refusal artefact that produced B1's fake 0.164× later on. In
+that run every session worked: *"Every session started immediately, none
+stalled, none flagged a prompt injection, and seven of eight pushed without a
+poke."*
+
+The defect was **an arm-asymmetric instrument**. Arm B was run with the isolation
+preamble **removed** — the same document says so plainly, and says why: *"it was
+removed after the voided attempt showed it cost a whole task."* Arm A was carrying
+that preamble. So arm B ran under materially easier conditions than its baseline:
+no stalls, no interventions, no task lost, while arm A's comparable rep bore the
+friction. **That inflates the challenger, which is the fatal direction.**
+
+The tell was visible at the time and written down without being acted on:
+
+> Arm B's costs are flat ($2.10–$4.05), arm A's ranged $2.44–$13.16. T3 alone
+> cost arm A $13.16 and arm B $3.58.
+
+A flat cost profile across tasks of very different difficulty is not a cheaper
+model — it is a model not engaging with the hard one. In v2, under a common
+instrument, **arm B's t3a cost $13.92** — arm A's expensive shape, arrived at
+honestly, and it still failed.
+
+**The portable lesson is not about scorers.** A number that pointed somewhere
+convenient went unexamined for days, and the entire experiment was restructured
+around it. The same class of artefact was caught within minutes when it produced
+an *implausible* 0.164×. Convenience, not subtlety, is what kept the first one
+alive.
+
+## The headline limitation: n=2 per arm
+
+This is not a caveat at the bottom. It is the main thing to know about every
+number above.
+
+Each arm ran **two reps**. Arm A's own two reps differ by **20%** on cost
+($41.2024, $32.9899). Arm B's differ by **30%** ($32.8967, $42.7192).
+
+So **nobody should read $37.0961 versus $37.8080 as a measured 1.9% difference.**
+Those are two samples per arm, either side of a wide band. The honest statement is
+that arm B showed **no cost advantage** — not that it costs 1.9% more.
+
+The verdict is directionally sound because both clauses fail and the cost gap to
+the *threshold* is large: $37.81 against $29.68 is 27.4% adrift, far outside the
+spread. A 1.9% difference between arms is not.
+
+The same applies to quality. Two reps per arm, eight tasks, one of which
+separated them.
+
 ### What the verdict licenses — and what it does not
 
 > On eight tasks Opus solves reliably, the cheaper configuration failed one, cost

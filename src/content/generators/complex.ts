@@ -7,7 +7,7 @@
  * steps always describe the question actually on screen.
  */
 import type { Generator } from '../types';
-import { I_KEY, coeffTex, complexTex, complexAnswer } from './format';
+import { I_KEY, coeffTex, complexTex, complexAnswer, nonZero } from './format';
 import { options } from '../choiceVariant';
 
 
@@ -289,6 +289,71 @@ export const complexPart: Generator<PartParams> = {
   ],
 };
 
+/* ---------- Quadratics with complex roots ---------- */
+
+interface QuadraticParams { p: number; q: number }
+
+/** x^2 + bx + c as the learner reads it; b is always even here, c always positive. */
+function monicTex(b: number, c: number): string {
+  const bx = b === 0 ? '' : b > 0 ? ` + ${b === 1 ? '' : b}x` : ` - ${b === -1 ? '' : -b}x`;
+  return `x^2${bx} + ${c}`;
+}
+
+export const complexQuadratic: Generator<QuadraticParams> = {
+  id: 'complex-quadratic',
+  // The three slips: losing the sign of the real part, reading off the other
+  // root, and forgetting to halve both parts of (2p ± 2qi)/2.
+  choices: ({ p, q }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(p, q), opt(-p, q), opt(p, -q), opt(2 * p, 2 * q));
+  },
+  sample: (rng, difficulty) => ({
+    p: nonZero(rng, difficulty >= 2 ? 5 : 3),
+    q: rng.int(1, difficulty >= 2 ? 6 : 5),
+  }),
+  render: ({ p, q }) => {
+    const b = -2 * p;
+    const c = p * p + q * q;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Solve the equation. Give the root with positive imaginary part, in the form $a + bi$.' },
+        { kind: 'display', tex: `${monicTex(b, c)} = 0` },
+      ],
+      lead: 'x =',
+      keypad: I_KEY,
+      // A quadratic-roots question, not a derivative: no `source` here for
+      // the oracle test to differentiate against.
+      answer: complexAnswer(p, q),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: ({ p, q }) => {
+    const b = -2 * p;
+    const c = p * p + q * q;
+    const sign = p > 0 ? '-' : '+';
+    const abs = Math.abs(p);
+    return [
+      {
+        text: 'Complete the square: half the coefficient of $x$ goes inside the bracket, and what is left over is positive.',
+        tex: `${monicTex(b, c)} = (x ${sign} ${abs})^2 + ${q * q}`,
+      },
+      {
+        text: 'A square that equals a negative number has no real solution, but it does have an imaginary one.',
+        tex: `(x ${sign} ${abs})^2 = -${q * q} \\quad\\Rightarrow\\quad x ${sign} ${abs} = \\pm ${coeffTex(q)}`,
+      },
+      {
+        text: 'So there are two roots, and they are a conjugate pair — the imaginary parts differ only in sign.',
+        tex: `x = ${complexTex(p, q)} \\quad\\text{or}\\quad x = ${complexTex(p, -q)}`,
+      },
+      {
+        text: `The root with positive imaginary part is $${complexTex(p, q)}$. The discriminant is $${b * b} - ${4 * c} = ${b * b - 4 * c}$, negative, which is what said there were no real roots.`,
+      },
+    ];
+  },
+};
+
 export const complexGenerators = [
   imaginarySquare,
   imaginarySum,
@@ -298,4 +363,5 @@ export const complexGenerators = [
   bothRoots,
   complexAdd,
   complexPart,
+  complexQuadratic,
 ];

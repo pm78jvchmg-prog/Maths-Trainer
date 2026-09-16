@@ -861,8 +861,17 @@ under the strict definition:**
 
 | | Consultations with a **verified** Opus advisor | Unit commits with a **completed** consultation before them |
 | --- | --- | --- |
-| **Task 1** | **0 of 5** — one self-reported, and it was Sonnet | **4 of 4** — each of `8fd4b57`, `a35d9f0`, `25bfff7`, `586bfcc` has a consultation before it, and task 1's log contains no "returned after" language anywhere |
+| **Task 1** | **0 of 5 verified** — not 5 of 5 failed; see the caveat below | **4 of 4** — each of `8fd4b57`, `a35d9f0`, `25bfff7`, `586bfcc` has a consultation before it, and task 1's log contains no "returned after" language anywhere |
 | **Task 2** | **2 of 2** — both quote `claude-opus-5[1m]` | **1 of 5** — only `ec83ba9` |
+
+**Caveat on `0 of 5`, attached so the figure cannot be read as stronger than it
+is.** Four of task 1's five consultations record that the advisor *"did not
+restate its own identity this time"*. That is **absence of evidence, not evidence
+of Sonnet.** The presumption leans that way — the one consultation that did report
+said Sonnet, and the omitted `model` parameter was real — but the honest label is
+*0 of 5 verified*, never *5 of 5 failed*. The difference will matter the moment
+there is a task to compare against where the advisor is verified throughout, which
+task 2 now is.
 
 **The two tasks did not decline or improve. They traded.** Task 2 fixed the model
 problem completely — the added prompt line worked, and every consultation now
@@ -891,3 +900,38 @@ Both were caught, and neither turned out to hide a defect. The pattern is worth
 naming before a third: **a sample is not a sweep, and when the claim is universal
 the check should be exhaustive if the space is small enough to enumerate** — 375
 combinations take under a second.
+
+## The week's real output so far: one defect class, three instances
+
+Three findings have been recorded separately. They are not three things. Grouping
+them, because the fourth will be another instance and the point is to recognise it
+as one rather than discover it again:
+
+> ### Something that looks like verification and isn't
+
+| # | Instance | What it looked like | What it actually checked |
+| --- | --- | --- | --- |
+| 1 | **Prose promising what only a field upholds** | A teach slide telling the learner *"the checker compares values, not the shape they are written in"* | Nothing. The promise is kept solely by `domain: 'positive'` on two generators, and no test connects the sentence to the field |
+| 2 | **A check that cannot fail** | A scratch oracle reporting `0/400` | A wraparound tolerance with no basis in the plan, added by the thing being checked, turning 13 genuine disagreements into 0. My own oracle had the same shape twice — absolute imports loading the wrong branch, and a parser that threw rather than compared |
+| 3 | **A sample presented as a sweep** | "≥3 options survive every draw", and "the checker accepts either writing" | 225 of 375 combinations; and 16 typed writings every one of which passes on either domain, so none of them tested the claim |
+
+**The shape is identical each time: a result that is true, produced by a procedure
+that could not have shown it false.** None of the three was a lie, and two of them
+were self-reported by the thing that made them.
+
+What separates the instances is only *what* could not fail — a sentence with
+nothing tying it to code, a tolerance that absorbed the disagreements, a subspace
+that excluded the hard cases. So the question that catches all three, and which
+now goes to every claim in this project, is not *is this true* but:
+
+> **What would this check have done if the thing were wrong?**
+
+That question caught instance 2 (the advisor asked it of the oracle), caught
+instance 3 twice (the widget writings, then the 225), and is the reason the F1
+guards, the `polar-power` fix and my own oracle were each run against a deliberately
+broken version before being trusted.
+
+**It is also why the ordering check exists.** Of everything added this week it is
+the only instrument that cannot be satisfied by the measured thing reporting well
+of itself — and on its first run it contradicted a self-report that was otherwise
+accurate and unusually candid.

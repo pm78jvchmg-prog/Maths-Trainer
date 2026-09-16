@@ -498,3 +498,51 @@ first:
    survives is a matched pair, and the Opus rate model fitted exactly from 18
    sessions. Recorded because the error recurred once after being corrected.
 
+### Two corrections to how the shape register reads
+
+**It is n=1 on the divergence, not 4-versus-1.** The four convergent arm A
+attempts establish that the `expr.ts` pair mechanism is the *natural* reading of
+t3a — that is what n=4 buys, and it is worth having. It says nothing about how
+often arm B diverges. **Arm B's deviation is one session, sampled once.** If B2
+restricts the generator again there is a replicated mechanism; if B2 opens
+`expr.ts`, B1 was one draw from a distribution with a single observation.
+
+The 4-versus-1 asymmetry makes the contrast *look* stronger than the evidence
+about arm B actually is. Recorded here so it does not accumulate weight on the
+way to the write-up.
+
+**Arm B's guard is a real improvement, and the write-up carries both truths.**
+Its restriction found a latent trap four Opus attempts did not: a same-precedence
+right child prints unbracketed while `valueOf` evaluates it nested, so
+`10 - (4 + 3)` would render as `10 - 4 + 3` and come to 3. A silent wrong answer
+on a correct walk. None of the arm A branches has that guard.
+
+So both of these are true and neither cancels the other:
+
+- Arm B **made the step unnecessary rather than possible**, which is not what the
+  task asked for, and it fails on the assertion that names exactly that.
+- Arm B **noticed something arm A did not**, and shipped a guard for it.
+
+A configuration that reframes a task is a genuine behavioural difference with
+costs *and* benefits. Writing it up as simply worse would be inaccurate. The
+honest statement is that it is less literal about the brief and, on this
+instance, more curious about the surrounding code — and that one instance is all
+the evidence there is for either half.
+
+### The secondary outcome outperformed the primary
+
+Worth stating plainly in the write-up. The defect register was added as a
+*secondary* outcome — hangs, non-terminating exports, unhandled throws, tallied
+per arm, explicitly not feeding the verdict. It has since produced:
+
+- `pairBank` non-terminating on two of three v1 attempts under a green suite;
+- the only signal in the whole v1 run that separated one attempt from another;
+- and now, extended into the shape register, the finding that the arms differ in
+  what they took the task to be.
+
+Meanwhile the primary metric is heading for a verdict that rests on a count over
+one task at n=2 — a count that D1 will return correctly and that nobody would
+defend as evidence. **The thing that was not being measured turned out to be the
+thing worth measuring.** That belongs in the findings section, not in a footnote
+about methodology.
+

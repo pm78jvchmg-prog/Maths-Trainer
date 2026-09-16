@@ -47,6 +47,33 @@ is.
 
 ---
 
+### 3. Audit the number you are building on
+
+An experiment designed around an existing result inherits every defect in the
+run that produced it. **Before designing anything around a prior number, audit
+the run that produced it to the same standard as the one you are about to run.**
+Ask for its log, not its headline.
+
+The failure mode is not subtlety, it is convenience. An implausible number gets
+checked within minutes. A number that points where the work was already heading
+survives for days, and by then the experiment has been built on top of it.
+
+Two questions catch most of it:
+
+- **Was the instrument the same in both arms?** A constraint removed from one arm
+  "to make the run go smoothly" is the classic. It inflates whichever arm was
+  relieved, and the run notes usually say so plainly, in a sentence that reads at
+  the time like housekeeping.
+- **Is the metric flat across inputs that should vary it?** A per-task cost, time
+  or token count that barely moves across tasks of very different difficulty is
+  usually a sign the work was not done — not a sign of efficiency. Compare its
+  spread against the baseline's on the same tasks. A baseline ranging 5x while
+  the challenger sits in a 2x band is the tell, and it is visible in any per-task
+  table.
+
+If the prior run is void, its numbers are void too. They do not become usable by
+being quoted in a plan.
+
 ## Audit checklist
 
 Work these in order. Stop the run for any finding marked BLOCK.
@@ -190,3 +217,7 @@ blocked on them).
   repair in this family created a new coupling; check the replacement
   against the whole discovery-predicate list, not just the flaw it fixed.
 - Do not report a number without stating what it cannot distinguish.
+- Do not carry a figure from a voided run into a new design. If it was not good
+  enough to be a result, it is not good enough to be a premise.
+- Do not read a small inter-arm gap as a measurement when the arms' own reps
+  spread wider than the gap. Report "no advantage shown", not the difference.

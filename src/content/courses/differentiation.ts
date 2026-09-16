@@ -196,20 +196,72 @@ export const differentiation: Course = {
           ],
           skillCheck: [ask('sum-rule', 2), ask('evaluate-derivative'), ask('sum-rule')],
         },
+
+        {
+          id: 'df-l1-index',
+          title: 'Roots and Fractions',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'A fraction with $x$ underneath, and a root, are both powers of $x$ in disguise. The power rule already covers them — it just needs the expression rewritten first.',
+              },
+              { kind: 'display', tex: '\\frac{1}{x^{3}} = x^{-3} \\qquad \\sqrt{x} = x^{1/2}' },
+              {
+                kind: 'prose',
+                text: 'Rewrite in index form, apply the rule, then write the result back the way it started. Skipping the first step is where most of these questions go wrong.',
+              },
+              {
+                kind: 'prose',
+                text: 'For example, $\\frac{4}{x^{3}} = 4x^{-3}$ differentiates to $-12x^{-4}$, which is $-\\frac{12}{x^{4}}$ written back as a fraction.',
+              },
+            ),
+            ask('df-index-form'),
+            ask('df-index-form'),
+            ask('df-index-form+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Watch the sign on a reciprocal. A negative power comes down as a negative multiplier, and the power itself becomes *more* negative, not less.',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(\\frac{2}{x^{3}}\\right) = -6x^{-4} = -\\frac{6}{x^{4}}' },
+              {
+                kind: 'prose',
+                text: 'The power goes from $-3$ to $-4$, never to $-2$ — reducing by one always moves further from zero here. A positive answer for a reciprocal is wrong on sight: for positive $x$, $\\frac{1}{x^{n}}$ falls as $x$ grows, so its gradient there is negative.',
+              },
+            ),
+            ask('df-index-form', 2),
+            ask('df-index-form+choice', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Roots work the same way once rewritten. $\\sqrt{x} = x^{1/2}$ gives $\\tfrac{1}{2}x^{-1/2}$; $\\frac{1}{\\sqrt{x}} = x^{-1/2}$ gives $-\\tfrac{1}{2}x^{-3/2}$.',
+              },
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(4\\sqrt{x}\\right) = 2x^{-1/2} = \\frac{2}{\\sqrt{x}}' },
+              {
+                kind: 'prose',
+                text: 'Either the index-form answer or the answer written back as a fraction under a root is accepted — the checker compares values, not the shape they are written in.',
+              },
+            ),
+            ask('df-index-form', 2),
+            ask('power-rule', 2),
+          ],
+          skillCheck: [ask('df-index-form', 2), ask('df-index-form'), ask('power-rule', 2)],
+        },
       ],
       levelCheck: [
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
+        ask('df-index-form', 2),
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
+        ask('df-index-form', 2),
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
-        ask('power-rule', 2),
-        ask('sum-rule', 2),
-        ask('evaluate-derivative', 2),
+        ask('df-index-form', 2),
       ],
     },
 

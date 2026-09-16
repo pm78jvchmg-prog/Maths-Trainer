@@ -1,0 +1,156 @@
+# Advisor consultation log — Task 1 (Differentiation lessons)
+
+## Consultation 1 — before starting, sanity-check of TASK1-PLAN.md
+
+Question put to the advisor: full context of the task (add 4 lessons to the
+Differentiation course, each backed by one new generator: df-index-form,
+df-chain-root, df-product-mixed, df-tangent-line — exact math/TeX/answer
+strings as specified in eval/plans/TASK1-PLAN.md), plus this repo's testing
+idiom (numeric-probing checker, oracle test against mathjs symbolic
+differentiation, lesson/level-check shape tests). Asked: (1) is the plan sound
+or are there red flags in its hardcoded math/TeX to double-check rather than
+trust blindly; (2) known failure modes in this codebase's generator/test idiom
+that are easy to get subtly wrong even when copying an existing pattern;
+(3) recommended working loop given gates must be green before every push,
+committing per lesson; (4) anything to be careful about regarding the
+"consult the advisor" meta-instruction or this log itself.
+
+**Note on how this consultation was run:** I was instructed to spawn the
+advisor via the Agent tool with `model: "opus"`. I made a mistake and omitted
+the `model` parameter on this first call, so it ran on this session's default
+subagent model rather than Opus. The advisor caught this itself and flagged
+it back to me. Self-reported model (verbatim, from the advisor's own report):
+**"I checked my own system context: I am Sonnet 5, not Opus."** Logging this
+honestly rather than claiming an Opus consultation that did not happen. I have
+corrected this for subsequent consultations by passing `model: "opus"`
+explicitly.
+
+Summary of the advisor's answer (Sonnet 5, self-reported):
+- Verdict: the plan is sound. The advisor independently hand-derived the
+  calculus for all four generators (df-index-form, df-chain-root,
+  df-product-mixed, df-tangent-line) against the plan's stated answers and
+  found no math or sign errors. It cross-checked the plan's claims against
+  PITFALLS.md and found they matched verbatim (the planner had genuinely read
+  the codebase, not guessed).
+- Caveat: the plan's inline "Verified: mathjs gives …" parentheticals are
+  assertions, not proof of an executed check (it even caught one small
+  imprecision — `termAnswer(c, 0)` returns a bare `${coefficient}`, not
+  `(${coefficient})` as one comment implied, though it doesn't change
+  behaviour once `sumAnswer` wraps it). Recommendation: treat every such
+  parenthetical as a hypothesis to confirm with an actual
+  `npx vitest run ... -t '<generator-id>'` run, not as pre-cleared.
+- Known failure modes flagged: TeX backslash doubling (write files directly,
+  never through a heredoc/script); the `\left`/`\right` fragment-splitting
+  trap is scoped to `reduce`/`tiles` slides and does not apply to the plain
+  `expression`/`choice`/`teach` slides these four generators use; domain
+  (`'positive'` vs `'real'`) is almost always the fix for an oracle-test
+  failure, never the probe threshold; `options()` in choiceVariant.ts dedups
+  distractors by `tex` string equality only, so a distractor that collides in
+  *value* but not in *string* form (as generator D's tangent-line filter
+  anticipates) will not be caught automatically — must be filtered by hand;
+  a typo'd generator id inside `levelCheck` throws inside the
+  duplicate-detection test rather than the reference-integrity test, so a
+  confusing failure there likely means a levelCheck id typo.
+- Working loop: essentially the plan's own §5, run generator-first (write +
+  `vitest -t <id>` to green, including the 60s-budget oracle assertion, before
+  touching the lesson file), then the lesson + only the one levelCheck it
+  belongs to, full gate (`npm test && npx tsc --noEmit -p tsconfig.app.json &&
+  npm run lint`) before every push, never `main` (confirmed the branch
+  override matches this session's outcome branch).
+- On the advisor/logging instruction: log every pre-commit consultation
+  honestly including a confirmatory "no issue found" one rather than skip it
+  or manufacture false uncertainty; always record the advisor's self-reported
+  model verbatim (done above).
+
+Independent verification I did myself (not just trusting the advisor): ran
+`node` directly against this project's own `mathjs` instance (same `create(all,
+{})` + `ln` alias as `src/engine/expression.ts`) and computed
+`math.derivative(source, 'x')` for representative parameter draws of all four
+generators, comparing the oracle's output value to the plan's claimed
+`answer` string. All matched (values equal; surface syntax differs, which the
+numeric-probing checker does not care about). This is the same check the
+oracle test in `generators.test.ts` performs at scale across 200 seeds x 2
+difficulties, so it gave me confidence before writing any code, not after.
+
+Outcome: proceeded with the plan as written, generator order A -> B -> C -> D,
+push target `week/task1-differentiation` (not `main`), one commit per landed
+lesson, full gate green before every push.
+
+## Consultation 2 — before committing Lesson 1 (df-l1-index / df-index-form)
+
+Question put to the advisor: read the actual `git diff` for Generator A
+(`df-index-form`) and Lesson 1 (`df-l1-index`) myself, rather than trust my
+own description of it, and check (1) whether landing the L1 level check at an
+interim 12-entry state (not yet including `df-tangent-line`, since Generator D
+hasn't been written yet in this session) is safe or creates a problem;
+(2) the maths, TeX and choice distractors for anything a green test suite
+would not catch; (3) whether anything outside the three permitted files had
+leaked into the diff. This time I passed `model: "opus"` explicitly.
+
+Self-reported model (verbatim): the agent did not restate its own identity
+this time (I did not ask it to); it was invoked with `model: "opus"` and I
+have no reason to doubt that ran as configured.
+
+Summary of the advisor's answer:
+- Verdict: fix two things, otherwise safe to push, nothing mathematically
+  wrong.
+- (1) Level-check interim state is fine: nothing enforces a specific final
+  shape mid-session, count (12) is within the required 10-15 range, and the
+  duplicate-check test compares rendered slides across 40 seeds, not ids or
+  order. Correctly noted the plan itself assigns the L1 level-check edit to
+  *both* pair A and pair D, so touching it twice is intended, not a
+  deviation — flagged that I must remember to come back and finish it in the
+  D commit or the plan's final "15/12/14/15" shape check fails.
+- (2) Caught a real, reproducible bug I had introduced: in the worked
+  solutions for the `a = 1` case, `termTex`-based lines correctly eluded the
+  coefficient (`x^{-2}`, not `1x^{-2}`) but two hand-written template strings
+  did not (`\frac{1}{x} = 1x^{-1}`, `\sqrt{x} = 1x^{1/2}`), so the same
+  worked solution contradicted itself across its own lines for roughly 1/9 of
+  difficulty-1 reciprocal draws and all `a=1` root/reciprocalRoot draws.
+  Fixed by driving those lines through `termTex`/the same `a === 1 ? '' : a`
+  elision the rest of the file uses.
+- Caught a second, more substantial bug: for `n = 1` reciprocal questions,
+  the "forgot to multiply by the power" distractor I had written as
+  `termTex(-a*n, -(n-1))` degenerated to `termTex(-a, 0)` — a bare constant
+  with no `x` in it at all — collapsing what should be a 4-option (3 after
+  the tex-collision the plan already expected) multiple-choice slide into an
+  unintentionally easy 3-option slide with an obvious throwaway. Fixed by
+  changing that distractor's power from `-(n-1)` to `-n` ("multiplied by the
+  power correctly, forgot to reduce it"), which stays genuinely wrong and
+  distinct from the other options at every `n`.
+- Three prose/comment nits, all fixed: two distractor comments read "the
+  power went up instead of down" where the distractor actually leaves the
+  power unchanged ("forgot to reduce the power" is accurate); the lesson's
+  T2 slide and the reciprocal/reciprocalRoot worked solutions stated "its
+  gradient is negative" and "one more negative, as every application of the
+  rule makes it" as unconditional facts about `1/x^n`, which is false for
+  x < 0 with even n and false in general for a positive power going toward
+  zero — added the "for positive $x$" qualifier and reworded the
+  monotonicity claim to be about magnitude ("further from zero"), matching
+  the phrasing the lesson's own T2 slide already used correctly.
+- (3) Scope: confirmed the diff was exactly the three permitted files at
+  the moment it read it, but flagged that mid-review it had also seen
+  `package-lock.json` modified (this container's older npm stripping `libc`
+  metadata blocks on `npm install` — unrelated to the task) and Generator B's
+  code sitting in the same working tree (since I write A and B into the same
+  two files sequentially and only then split them apart for separate
+  commits, to keep each push a whole, self-contained lesson as required).
+  Recommended staging the three paths explicitly by name rather than
+  `git add src/content`, and running `git checkout -- package-lock.json`
+  first if `npm install` had touched it. Both of those were already my plan;
+  confirmed rather than changed by this consult.
+- Also recommended opening `df-l1-index` in `npm run dev` before or shortly
+  after the push, since CLAUDE.md's deploy-gate expectation is that a
+  visible-surface change gets browser-checked and nothing in this container
+  can drive a real browser against the dev server for this kind of content
+  change. I could not act on this myself in this environment; noted in the
+  final report as something the owner should do once deployed.
+
+I applied both real fixes (the `a=1` template-string elision, and the `n=1`
+distractor degeneracy) and all three wording nits before committing. Verified
+afterward: `npx vitest run ... -t 'df-index-form'` (24/24), full `npm test`
+(2607/2607, matching the count from before these fixes — no regression),
+`npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors, same as
+baseline), and `git diff --stat` / `git status --porcelain` confirmed to
+touch only the three permitted content files immediately before staging and
+committing.

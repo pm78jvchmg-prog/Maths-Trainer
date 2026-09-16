@@ -14,6 +14,7 @@ import {
   ALGEBRA_KEYS,
   TRIG_KEYS,
   EXP_KEYS,
+  ROOT_KEYS,
   termTex,
   termAnswer,
   sumTex,
@@ -47,6 +48,15 @@ function bank4(correct: number, ...near: number[]): string[] {
     }
   }
   return out.map(String);
+}
+
+/** c/2 · x^{power} with `power` a TeX exponent such as '-1/2'; whole halves lose the fraction. */
+function halfTermTex(c: number, power: string): string {
+  if (c % 2 === 0) {
+    const h = c / 2;
+    return `${h === 1 ? '' : h === -1 ? '-' : h}x^{${power}}`;
+  }
+  return `${c < 0 ? '-' : ''}\\frac{${Math.abs(c)}}{2}x^{${power}}`;
 }
 
 /* ---------- Power rule ---------- */
@@ -1083,6 +1093,167 @@ const chooseRule: Generator<RuleParams> = {
   },
 };
 
+/* ---------- Roots and fractions, by index form ---------- */
+
+interface IndexFormParams {
+  form: 'reciprocal' | 'root' | 'reciprocalRoot';
+  a: number;
+  n: number;
+}
+
+/**
+ * A fraction with $x$ underneath, or a root, differentiated by first
+ * rewriting it as a power of $x$ — the move the power rule itself does not
+ * teach, since it only ever meets whole positive powers.
+ */
+const indexForm: Generator<IndexFormParams> = {
+  id: 'df-index-form',
+  sample: (rng, difficulty) => {
+    if (difficulty >= 2) {
+      return {
+        form: rng.pick(['reciprocal', 'root', 'reciprocalRoot'] as const),
+        a: rng.int(2, 12),
+        n: rng.int(2, 6),
+      };
+    }
+    return {
+      form: rng.pick(['reciprocal', 'reciprocal', 'root'] as const),
+      a: rng.int(1, 9),
+      n: rng.int(1, 4),
+    };
+  },
+  choices: ({ form, a, n }) => {
+    if (form === 'reciprocal') {
+      return options(
+        { tex: termTex(-a * n, -(n + 1)), answer: termAnswer(-a * n, -(n + 1)) },
+        // Dropped the sign.
+        { tex: termTex(a * n, -(n + 1)), answer: termAnswer(a * n, -(n + 1)) },
+        // Multiplied by the power but forgot to reduce it.
+        { tex: termTex(-a * n, -n), answer: termAnswer(-a * n, -n) },
+        // Forgot to multiply by the power.
+        { tex: termTex(-a, -(n + 1)), answer: termAnswer(-a, -(n + 1)) },
+      );
+    }
+    if (form === 'root') {
+      return options(
+        { tex: halfTermTex(a, '-1/2'), answer: `((${a})/2) * x^(-1/2)` },
+        // Forgot to reduce the power.
+        { tex: halfTermTex(a, '1/2'), answer: `((${a})/2) * x^(1/2)` },
+        // Forgot the half.
+        { tex: `${a === 1 ? '' : a}x^{-1/2}`, answer: `(${a}) * x^(-1/2)` },
+        // Sign dropped in.
+        { tex: halfTermTex(-a, '-1/2'), answer: `((${-a})/2) * x^(-1/2)` },
+      );
+    }
+    return options(
+      { tex: halfTermTex(-a, '-3/2'), answer: `((${-a})/2) * x^(-3/2)` },
+      // Sign dropped.
+      { tex: halfTermTex(a, '-3/2'), answer: `((${a})/2) * x^(-3/2)` },
+      // Forgot to reduce the power.
+      { tex: halfTermTex(-a, '-1/2'), answer: `((${-a})/2) * x^(-1/2)` },
+      // Forgot the half.
+      { tex: `-${a === 1 ? '' : a}x^{-3/2}`, answer: `(${-a}) * x^(-3/2)` },
+    );
+  },
+  render: ({ form, a, n }) => {
+    if (form === 'reciprocal') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+          { kind: 'display', tex: `y = ${n === 1 ? `\\frac{${a}}{x}` : `\\frac{${a}}{x^{${n}}}`}` },
+        ],
+        lead: '\\frac{dy}{dx} =',
+        keypad: ALGEBRA_KEYS,
+        answer: termAnswer(-a * n, -(n + 1)),
+        source: termAnswer(a, -n),
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    if (form === 'root') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+          { kind: 'display', tex: `y = ${a === 1 ? '' : a}\\sqrt{x}` },
+        ],
+        lead: '\\frac{dy}{dx} =',
+        keypad: ROOT_KEYS,
+        answer: `((${a})/2) * x^(-1/2)`,
+        source: `(${a}) * x^(1/2)`,
+        domain: 'positive',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+        { kind: 'display', tex: `y = \\frac{${a}}{\\sqrt{x}}` },
+      ],
+      lead: '\\frac{dy}{dx} =',
+      keypad: ROOT_KEYS,
+      answer: `((${-a})/2) * x^(-3/2)`,
+      source: `(${a}) * x^(-1/2)`,
+      domain: 'positive',
+      mode: 'exact',
+    };
+  },
+  solution: ({ form, a, n }) => {
+    if (form === 'reciprocal') {
+      const rewritten = `\\frac{${a}}{${n === 1 ? 'x' : `x^{${n}}`}} = ${termTex(a, -n)}`;
+      return [
+        {
+          text: 'A fraction with $x$ underneath is a negative power. Rewrite it in index form before differentiating.',
+          tex: rewritten,
+        },
+        {
+          text: `Now the power rule applies as usual: multiply by the power $${-n}$, then reduce it by one.`,
+          tex: `${a} \\times (${-n}) = ${-a * n}, \\; ${-n} - 1 = ${-(n + 1)}`,
+        },
+        { text: 'So the derivative in index form is:', tex: termTex(-a * n, -(n + 1)) },
+        {
+          text: 'Written back as a fraction, the power became *more* negative than it started. The coefficient $-an$ is negative, so for positive $x$ the gradient is negative — right, since $1/x^n$ falls as $x$ grows there.',
+          tex: `\\frac{dy}{dx} = -\\frac{${a * n}}{x^{${n + 1}}}`,
+        },
+      ];
+    }
+    if (form === 'root') {
+      return [
+        {
+          text: 'A root is a fractional power. Rewrite it in index form before differentiating.',
+          tex: `${a === 1 ? '' : a}\\sqrt{x} = ${a === 1 ? '' : a}x^{1/2}`,
+        },
+        {
+          text: 'The power rule applies exactly as before: multiply by the power $\\tfrac{1}{2}$, then reduce it by one.',
+          tex: `${a} \\times \\tfrac{1}{2} = ${a % 2 === 0 ? a / 2 : `\\tfrac{${a}}{2}`}, \\; \\tfrac{1}{2} - 1 = -\\tfrac{1}{2}`,
+        },
+        { text: 'So the derivative in index form is:', tex: halfTermTex(a, '-1/2') },
+        {
+          text: 'Either that, or written back as a fraction under a root — both are accepted.',
+          tex: `\\frac{dy}{dx} = \\frac{${a}}{2\\sqrt{x}}`,
+        },
+      ];
+    }
+    return [
+      {
+        text: 'A root underneath a fraction is a negative fractional power. Rewrite it in index form before differentiating.',
+        tex: `\\frac{${a}}{\\sqrt{x}} = ${a === 1 ? '' : a}x^{-1/2}`,
+      },
+      {
+        text: 'Multiply by the power $-\\tfrac{1}{2}$, then reduce it by one.',
+        tex: `${a} \\times \\left(-\\tfrac{1}{2}\\right) = -${a % 2 === 0 ? a / 2 : `\\tfrac{${a}}{2}`}, \\; -\\tfrac{1}{2} - 1 = -\\tfrac{3}{2}`,
+      },
+      { text: 'So the derivative in index form is:', tex: halfTermTex(-a, '-3/2') },
+      {
+        text: 'Written back as a fraction, the power went from $-\\tfrac{1}{2}$ to $-\\tfrac{3}{2}$, further from zero — reducing a negative power by one always moves it further from zero, never closer.',
+        tex: `\\frac{dy}{dx} = -\\frac{${a}}{2x\\sqrt{x}}`,
+      },
+    ];
+  },
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -1094,4 +1265,5 @@ export const differentiationGenerators = [
   evaluateDerivative,
   evaluateSteps,
   chooseRule,
+  indexForm,
 ];

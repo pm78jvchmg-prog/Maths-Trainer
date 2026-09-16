@@ -28,6 +28,8 @@ export const EXP_KEYS: KeypadKey[] = [
   { insert: 'ln(' },
 ];
 
+export const ROOT_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
+
 /**
  * A single power term as it would be written by hand.
  *

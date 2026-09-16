@@ -4,7 +4,7 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
-import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf } from './format';
+import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf, nonZero } from './format';
 import { complexPlaneSvg, rangeFor } from './plane';
 import { options } from '../choiceVariant';
 
@@ -262,6 +262,72 @@ const modulusSteps: Generator<ModulusStepsParams> = {
       { tex: `= \\sqrt{${sum}} = ${c}` },
       {
         text: `Rooting the two squares separately and adding would give $${a} + ${b} = ${a + b}$ — close enough to look plausible, and wrong, because $\\sqrt{x} + \\sqrt{y}$ is not $\\sqrt{x + y}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Square roots ---------- */
+
+interface SqrtParams { p: number; q: number }
+
+/**
+ * The square root of `z = (p + qi)^2 = (p^2 - q^2) + 2pq*i` with positive real
+ * part, found the way the lesson teaches it: match real and imaginary parts,
+ * then use `a^2 + b^2 = |z|` as a third equation.
+ */
+export const complexSqrt: Generator<SqrtParams> = {
+  id: 'complex-sqrt',
+  // Sign of the imaginary part, the magnitudes swapped (the two equations
+  // added and subtracted the wrong way round), and the other root.
+  choices: ({ p, q }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(p, q), opt(p, -q), opt(Math.abs(q), Math.sign(q) * p), opt(-p, -q));
+  },
+  sample: (rng, difficulty) => ({
+    p: rng.int(1, difficulty >= 2 ? 7 : 5),
+    q: nonZero(rng, difficulty >= 2 ? 6 : 3),
+  }),
+  render: ({ p, q }) => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Find the square root of $z$ that has a positive real part.' },
+        { kind: 'display', tex: `z = ${complexTex(x, y)}` },
+      ],
+      lead: '\\sqrt{z} =',
+      keypad: I_KEY,
+      // A square-root question, not a derivative: no `source` here for the
+      // oracle test to differentiate against.
+      answer: complexAnswer(p, q),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: ({ p, q }) => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    // Exactly |z|, since x^2 + y^2 = (p^2 + q^2)^2 — which is why every
+    // number in the working below is whole.
+    const mod = p * p + q * q;
+    return [
+      {
+        text: 'Let $\\sqrt{z} = a + bi$ with $a$ and $b$ real, square it, and match real parts and imaginary parts.',
+        tex: `(a + bi)^2 = a^2 - b^2 + 2ab\\,i \\quad\\Rightarrow\\quad a^2 - b^2 = ${x}, \\quad 2ab = ${y}`,
+      },
+      {
+        text: 'Squaring a number squares its modulus, so $a^2 + b^2 = |z|$ — a third equation for free.',
+        tex: `a^2 + b^2 = \\sqrt{${paren(`${x}`)}^2 + ${paren(`${y}`)}^2} = \\sqrt{${x * x + y * y}} = ${mod}`,
+      },
+      {
+        text: 'Add and subtract the first and third equations.',
+        tex: `a^2 = \\tfrac{${mod} + ${paren(`${x}`)}}{2} = ${p * p}, \\qquad b^2 = \\tfrac{${mod} - ${paren(`${x}`)}}{2} = ${q * q}`,
+      },
+      {
+        text: `$2ab = ${y}$ is ${y > 0 ? 'positive, so $a$ and $b$ have the same sign' : 'negative, so $a$ and $b$ have opposite signs'}. Taking $a > 0$:`,
+        tex: `\\sqrt{z} = ${complexTex(p, q)}, \\quad\\text{and the other root is}\\quad ${complexTex(-p, -q)}`,
       },
     ];
   },
@@ -632,4 +698,5 @@ export const planeGenerators = [
   complexPower,
   polarForm,
   polarPower,
+  complexSqrt,
 ];

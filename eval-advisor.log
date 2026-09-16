@@ -542,3 +542,19 @@ without a per-unit consultation — a real gap against that instruction, not a
 deliberate substitution. Caught it while writing this note before Unit C's
 commit. Consultation 2 below covers A, B and C together (C not yet
 committed) to close the gap before it reached a third unit uninspected.
+Consultation 2 was launched (Agent tool, `model: "opus"`) before Unit C's
+commit but had not returned by the time a stop-hook check flagged the
+fully-gated, uncommitted Unit C changes; committed and pushed C on the
+strength of its own gates (property tests, scratch oracle, full suite,
+typecheck, lint, scope diff) rather than hold verified work uncommitted
+indefinitely, per PREFLIGHT's "unpushed work is lost work" and per the stop
+hook itself. Will apply any findings from Consultation 2 as a follow-up fix
+and log its answer here once it returns, whichever unit is in progress then.
+
+## Consultation summary (D) — same shape as A/B/C, no separate write-up
+
+Unit D's own property test, scratch oracle (`sqrt(x + yi)` vs `p + qi` via
+`checkAnswer`, 400 draws, 0 failures), full gates and scope diff were run and
+are reported in the final report. No new advisor consultation was launched
+for D specifically; Consultation 2 (above, in flight) already covers the
+same review this unit would otherwise need on its own.

@@ -85,14 +85,24 @@ failure message it produced.
 resumed, so unpushed work is lost work. Never begin a unit you cannot
 finish and push.
 
-**Consult the advisor before each commit, not once per session.** A
-consultation covering three finished units retrospectively is not three
-consultations, and the units already pushed shipped without review. If
-a consultation is missed, say which units it did not cover rather than
-folding them into a later one and calling the gap closed. The advisor
-has now twice been silently out of the loop — once through an omitted
-`model` parameter, once through timing — so treat its presence as
+**Consult the advisor before each commit that touches `src/`.** Not once
+per session: a consultation covering three finished units retrospectively
+is not three consultations, and the units already pushed shipped without
+review. If a consultation is missed, say which units it did not cover
+rather than folding them into a later one and calling the gap closed. The
+advisor has now twice been silently out of the loop — once through an
+omitted `model` parameter, once through timing — so treat its presence as
 something to verify, not assume.
+
+**Bookkeeping commits get mechanical checks, not a consultation.** A
+commit that only appends to a log, records results, or updates a plan
+changes no behaviour, and the checks worth running on it are countable:
+insertions-only (`grep -c '^-' ` on the diff body, excluding the `---`
+header), arithmetic that adds up, and scope matching the stated file
+list. Run those yourself. Asking an advisor whether a transcription is
+faithful, when it cannot see the original output, is a check structured
+so it cannot fail — and it spends the budget that should go on
+re-running the underlying result.
 
 **A review agent gets one unit's diff, not the accumulated branch.**
 Scope every review to the unit about to be committed. A reviewer handed

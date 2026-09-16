@@ -34,7 +34,7 @@ import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX } from '../choiceVariant';
 import { TRIPLES } from './complexPlane';
-import type { Generator } from '../types';
+import type { Generator, Slide, SlideRef } from '../types';
 
 const SEEDS = 200;
 const DIFFICULTIES = [1, 2];
@@ -815,6 +815,67 @@ describe('course integrity', () => {
     return [shape(session.guided), shape(session.skillCheck)];
   };
 
+  /**
+   * The generated half of a `SlideRef` — the only kind whose rendered shape
+   * can vary between draws. A lesson's shape guards only ever look at these.
+   */
+  type GeneratedRef = Extract<SlideRef, { type: 'generated' }>;
+
+  /**
+   * Every kind a generator can render across `SEEDS` seeds, at one difficulty.
+   * `polar-form` renders a typed `expression` on one direction and a native
+   * `choice` on the other, and draws the direction only at difficulty 2 — so
+   * the set a lesson's shape guards must reason about is keyed by difficulty,
+   * not just by generator id.
+   *
+   * The sweep is a sample of the reachable kinds, not a proof of them — a
+   * branch drawn rarer than roughly 1-in-200 can be missed, which *shrinks*
+   * the set and so *hides* offenders, the same way this guard went blind to
+   * `polar-form` in the first place. The rarest branch in the registry today
+   * is 86/200; a generator branching far more rarely than that would need a
+   * wider sweep here.
+   */
+  const shapeCache = new Map<string, Set<Slide['kind']>>();
+  const shapesOf = (ref: GeneratedRef): Set<Slide['kind']> => {
+    // The `?? 1` mirrors resolveRef in src/engine/session.ts, the one place
+    // this default lives — a reference with no stated difficulty is asked at 1.
+    const difficulty = ref.difficulty ?? 1;
+    const key = `${ref.generatorId}@${difficulty}`;
+    const cached = shapeCache.get(key);
+    if (cached) return cached;
+    const g = registry[ref.generatorId] as unknown as Generator<unknown>;
+    const shapes = new Set<Slide['kind']>();
+    for (let seed = 0; seed < SEEDS; seed += 1) {
+      shapes.add(g.render(g.sample(makeRng(seed), difficulty)).kind);
+    }
+    shapeCache.set(key, shapes);
+    return shapes;
+  };
+
+  /**
+   * A kind every reference in the run could take, or `undefined` when no
+   * single kind is common to all of them.
+   *
+   * Per-slide seeds are independent (`resolveRef`, session.ts:123), so every
+   * combination of kinds is reachable in some sitting — a run is an offender
+   * the moment the intersection of its kind-sets is non-empty, whether or not
+   * any one seed sweep happens to land on it. That is deliberately a stronger,
+   * deterministic claim than sampling resolved decks for an occurrence.
+   */
+  const commonShape = (refs: GeneratedRef[]): Slide['kind'] | undefined => {
+    let common: Set<Slide['kind']> | undefined;
+    for (const ref of refs) {
+      const shapes = shapesOf(ref);
+      common = common === undefined ? new Set(shapes) : new Set([...common].filter((kind) => shapes.has(kind)));
+      if (common.size === 0) return undefined;
+    }
+    return common === undefined ? undefined : [...common][0];
+  };
+
+  /** Names a run of references for a failure message, e.g. `polar-form@2, argument@2`. */
+  const describeRefs = (refs: GeneratedRef[]): string =>
+    refs.map((ref) => `${ref.generatorId}@${ref.difficulty ?? 1}`).join(', ');
+
   /** Every deck that repeats a question, across a sweep of seeds. */
   const duplicatesIn = (decks: (typeof lessons)[number][]) => {
     const offenders = new Map<string, number>();
@@ -867,21 +928,26 @@ describe('course integrity', () => {
     // id: two generators that both render an expression slide feel the same,
     // and one generator asked through its typed and its multiple-choice form
     // feels like two.
-    const shapeOf = (id: string) => {
-      const g = registry[id] as unknown as Generator<unknown>;
-      return g.render(g.sample(makeRng(1), 1)).kind;
-    };
-
+    //
+    // This used to read one seed at difficulty 1, always — `g.render(g.sample
+    // (makeRng(1), 1)).kind`, ignoring the difficulty the lesson actually
+    // asks at. `polar-form` renders a typed `expression` one direction and a
+    // native `choice` the other, and draws the direction only at difficulty
+    // 2, so every difficulty-2 `ask('polar-form', 2)` was being judged by a
+    // shape the learner had roughly a 51% chance of never meeting. Now a
+    // lesson is an offender when there is one kind every one of its generated
+    // references *can* render at the difficulty it is asked — "can all be"
+    // rather than "happened to render as, once, at difficulty 1" — since
+    // per-slide seeds are independent and every combination is reachable in
+    // some sitting.
     const offenders: string[] = [];
     for (const lesson of lessons) {
-      const asked = lesson.slides
-        .filter((ref) => ref.type === 'generated')
-        .map((ref) => (ref.type === 'generated' ? ref.generatorId : ''));
+      const asked = lesson.slides.filter((ref): ref is GeneratedRef => ref.type === 'generated');
       if (asked.length < 4) continue;
 
-      const shapes = new Set(asked.map(shapeOf));
-      if (shapes.size < 2) {
-        offenders.push(`${lesson.id}: ${asked.length} questions, all ${[...shapes][0]}`);
+      const kind = commonShape(asked);
+      if (kind !== undefined) {
+        offenders.push(`${lesson.id}: ${asked.length} questions can all be ${kind} (${describeRefs(asked)})`);
       }
     }
 
@@ -889,22 +955,23 @@ describe('course integrity', () => {
   });
 
   it('never runs 3 or more identical-shape questions between teach slides', () => {
-    const shapeOf = (id: string) => {
-      const g = registry[id] as unknown as Generator<unknown>;
-      return g.render(g.sample(makeRng(1), 1)).kind;
-    };
+    // Same repair as above, applied to a run rather than a whole lesson: the
+    // old read was one seed at difficulty 1, always, so a run leaning on
+    // `polar-form` at difficulty 2 was judged by the direction it draws at
+    // difficulty 1 instead. "Can all be" is checked with `commonShape`, the
+    // shared helper above.
     const offenders: string[] = [];
     for (const lesson of lessons) {
-      const runs: string[][] = [[]];
+      const runs: GeneratedRef[][] = [[]];
       for (const ref of lesson.slides) {
         if (ref.type === 'literal') runs.push([]);
-        else runs[runs.length - 1].push(ref.generatorId);
+        else runs[runs.length - 1].push(ref);
       }
       for (const run of runs) {
         if (run.length < 3) continue;
-        const shapes = new Set(run.map(shapeOf));
-        if (shapes.size < 2) {
-          offenders.push(`${lesson.id}: run of ${run.length} questions, all ${[...shapes][0]}`);
+        const kind = commonShape(run);
+        if (kind !== undefined) {
+          offenders.push(`${lesson.id}: run of ${run.length} questions can all be ${kind} (${describeRefs(run)})`);
         }
       }
     }

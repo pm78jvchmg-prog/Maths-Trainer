@@ -755,3 +755,126 @@ touched), `tsc` silent, lint 0 errors / 25 warnings (unchanged).
 
 Commit: `eval/bin/mutate.sh` only. Message: "Add a mutation runner that
 fails when a check cannot."
+
+## Consultation 2 — Unit 2, repaired shape guards, before commit
+
+Question put to the advisor: the full diff to
+`src/content/generators/generators.test.ts` repairing the two shape guards
+("varies the shape of the questions inside a lesson" and "never runs 3 or
+more identical-shape questions between teach slides") to judge a generator's
+rendered kind-set over `SEEDS` seeds at the difficulty a lesson reference
+actually asks (`ref.difficulty ?? 1`, mirroring `resolveRef` in
+`src/engine/session.ts`), rather than at a single fixed seed-1/difficulty-1
+sample — the defect WEEK.md recorded, where `polar-form`'s difficulty-2
+branch into a native `choice` slide was invisible to the old guard. Pasted
+the full diff and the mutation-harness proof already run (M1/M2 survived
+before, killed after, both offender messages). Asked: (1) is the
+"intersection of kind-sets is non-empty → offender" logic actually correct
+and a genuine generalisation of the old single-sample check, with no false
+positives/negatives — walked through the two-multi-shaped-refs edge case
+explicitly; (2) does the `shapeCache` shared across the two `it()` blocks
+risk cross-test pollution or hide a bug; (3) any performance risk building
+shape sets for every referenced generator×difficulty, against the plan's
+measured 568ms figure; (4) any TypeScript fragility in the
+`Extract<SlideRef, {type:'generated'}>` predicate or `Slide['kind']` indexed
+type if the `SlideRef`/`Slide` unions grow a variant later; (5) any red flag
+that this loosens rather than tightens the guard.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context), exact model
+ID `claude-opus-5[1m]`."** Passed `model: "opus"` on the Agent call.
+
+Summary of the advisor's answer: **approve as-is**, verified independently
+rather than taken on trust.
+- **Reproduced the mutation kill itself**, from a fresh read of `resolveRef`,
+  the `SlideRef`/`Slide` unions, `polar-form`, `choiceVariant` and
+  `cn-l4-polar`, not from my notes: ran `eval/bin/mutate.sh` on the M1
+  mutation independently and got the same `mutant killed` / offender message.
+- **Ran its own whole-registry scan** (217 generators × 200 seeds × both
+  difficulties, 356 distinct `id@difficulty` pairs actually referenced by
+  lessons/skill-checks/level-checks): confirmed `polar-form` is the *only*
+  generator whose kind set differs between difficulty 1 (`{expression}`) and
+  difficulty 2 (`{choice, expression}`, 86 choice / 114 expression over 200
+  seeds) — every other generator is single-shaped at every difficulty it is
+  ever asked at.
+- **Q1 answered as a proved statement, not a hand-wave**: because the old
+  check's sampled kind (seed 1, difficulty 1) is by construction a member of
+  the new check's difficulty-1 set, and the scan shows every generator's
+  difficulty-1 set is a subset of (or equal to) its actual-difficulty set on
+  this tree (the only divergent case, `polar-form`, has its difficulty-2 set
+  as a strict *superset* of its difficulty-1 set), the new guard's flags are
+  a superset of the old guard's flags — nothing that used to be caught is
+  now missed, and the new guard catches the case the old one could not.
+  Neither worry case in the two-multi-shaped-refs walkthrough can produce a
+  false negative (intersection logic cannot silently miss a run both refs
+  can share) or a spurious logic-level false positive (only a *policy*
+  tightening exists, and it's flagged as deliberate and currently inert
+  since only one generator is multi-shaped anywhere in the registry).
+- **Q2**: fine and intended — the `describe` callback runs once at
+  collection so the map is shared deliberately; confirmed nothing in `src/`
+  ever mutates `registry`, and `sample`/`render` are pure given an rng, so a
+  cached value is a pure function of its key. Measured: first guard 151ms,
+  second guard 13ms warm.
+- **Q3**: no risk — building sets for all 356 referenced pairs (a superset of
+  what the two guards touch) took 261ms; the two guards together measured
+  164ms in situ, under half the plan's 568ms full-registry figure, and
+  `commonShape`'s early return on an empty intersection actively skips
+  building the tail of a run's sets.
+- **Q4**: low risk, and asymmetric in a way worth recording — a renamed
+  discriminant fails loudly (TS2367) on both guards; a *third* `SlideRef`
+  variant would silently drop from the lesson-level guard's `filter`
+  predicate but would fail to typecheck on the run-level guard's `else`
+  branch, so one of the two has a compiler backstop and the other does not.
+  Not held against the commit, since `SlideRef` has been two variants for
+  the life of the repo and a third would be a deliberate design change.
+- **Q5**: no red flags. Verified mechanically (not just by reading) that new
+  flags ⊇ old flags on the whole tree; the assertion is still a bare
+  `toBe('')` with no tolerance, skip, or seed narrowing; no test added or
+  removed; failure messages got strictly more informative. Confirmed two
+  pre-existing scope facts are unchanged by this diff and not a loosening:
+  the guards read `lesson.slides` only (not `skillCheck`), and level checks
+  are correctly excluded from the run guard (they have no teach slides).
+- **One optional, non-blocking suggestion, taken**: `shapesOf`'s sweep is a
+  *sample* of reachable kinds, not a proof — a branch rarer than ~1-in-200
+  could be missed by 200 seeds, which shrinks the intersection and so hides
+  an offender, the same blindness class this unit repairs. No exposure today
+  (rarest branch in the registry is 86/200) but worth a sentence in the doc
+  comment for the next reader. Added to `shapesOf`'s comment before
+  committing; re-ran `generators.test.ts` after the comment-only addition —
+  still 2620 passed, unchanged.
+
+`npm test` 2777 (unchanged — same-count repair, no test added or removed),
+`tsc` silent, lint 0 errors / 25 warnings (unchanged).
+
+**Unit 2 self-proof, both directions, on the repaired guards:**
+
+M1 (`cn-l4-polar`'s guided `argument@2` ask flipped to `polar-form@2`,
+creating a real run of 3 choice-shaped slides):
+```
+Before (old guards, whole file): MUTANT SURVIVED — 2620 passed
+After (repaired guards, -t 'identical-shape'):
+  FAIL course integrity > never runs 3 or more identical-shape questions between teach slides
+  cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form@2, polar-form+choice@2)
+  mutant killed: the command exited 1
+```
+
+M2 (`cn-l4-polar`'s `polar-form`/`argument@2`/`modulus-steps` asks collapsed
+onto `polar-form@2`):
+```
+Before (old guards, whole file): MUTANT SURVIVED — 2620 passed
+After (repaired guards, whole file):
+  FAIL course integrity > varies the shape of the questions inside a lesson
+  cn-l4-polar: 8 questions can all be choice (polar-form@2, polar-form+choice@1,
+    polar-form@2, polar-form@2, polar-form@2, polar-form+choice@2, polar-form@2, polar-form@2)
+  FAIL course integrity > never runs 3 or more identical-shape questions between teach slides
+  cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form+choice@1, polar-form@2)
+  cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form@2, polar-form+choice@2)
+  mutant killed: the command exited 1
+```
+
+`git status --short` empty except the intended edit after every run (trap
+restored `complexNumbers.ts` each time). `grep -n "makeRng(1), 1"` shows
+only line 445 (the per-generator single-letter check, deliberately
+untouched) and one comment line quoting the old code.
+
+Commit: `src/content/generators/generators.test.ts` only. Message: "Judge
+lesson shape at the difficulty the lesson asks."

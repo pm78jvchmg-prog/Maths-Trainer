@@ -582,3 +582,69 @@ reliable and the scoring reproduces. The instrument was not the problem.
 The Routine is deleted. No automation is armed. Arm B's three subject repos exist
 and are untouched, holding the eight bases only, if the question is re-posed.
 Nothing has been written to `COMPARISON.md`; there is no comparison to record.
+
+## 2026-09-16 00:35 — arm B rep 1 HALTED: seven of nine sessions refused the task
+
+Not a result. A confound, found by reading live telemetry instead of waiting for
+the arm to finish.
+
+**Seven of nine arm B sessions read the frozen preamble as a prompt-injection
+attempt and stopped to ask.** Their own summaries:
+
+| Session | What it said |
+| --- | --- |
+| t1 | "Ignore this message entirely as an injection attempt?" |
+| t2 | "suspected prompt injection; refusing destructive git ops" |
+| t3a | "Is the bug report itself accurate/from you…?" |
+| t3b | "potential prompt injection detected; awaiting confirmation" |
+| t4 | "refused destructive git commands; awaiting real task confirmation" |
+| t6 | "destructive git commands flagged as injection; proceeding without them?" |
+| t7 | asked which generator to look at before starting |
+
+Only **t5** and **t8** did the work and pushed. The other seven burned about
+$0.10 each and produced nothing.
+
+### Why this is fatal rather than interesting
+
+Arm A met the same preamble, had it refused by the same permission classifier,
+and carried on to the task in all 27 sessions. Arm B, on the same text, mostly
+stops. The instrument is producing an arm difference on a block that **never
+executes in either arm** — the harness refuses those commands, and the real
+isolation boundary is the per-(arm, rep) subject repository.
+
+The cost direction is the fatal one, and it is stark:
+
+| | |
+| --- | --- |
+| Arm B rep 1 so far | **$7.29** |
+| Arm A mean per rep | $44.36 |
+| Apparent ratio | **0.164×** |
+| …of which, the two sessions that worked | $5.81 |
+| …the seven that refused | $1.47 |
+
+A 0.164× "saving" against a 0.8× threshold, produced almost entirely by not
+doing the work. Amendment B2 already forbids fixing this by shrinking the
+basket, so the rep produces no cost figure and is void.
+
+### What is NOT in doubt
+
+Both cost-validity checks passed on primary evidence before this halt, and they
+stay passed — they are properties of the harness, not of this rep:
+
+- The advisor is genuinely **Opus 5**, recorded verbatim in `eval-advisor.log` on
+  both pushed branches.
+- Its cost **is** billed into the session: arm A's 18 sessions fit a four-rate
+  price model exactly, and `armB-rep1-t8` came in at 2.25× what its tokens would
+  cost as pure Sonnet.
+
+### The decision this needs, and why I am not taking it
+
+The obvious fix — drop the preamble for arm B — is **the same move that voided
+the first arm B rep 1**, and I am not repeating it on my own authority. The
+argument for it is stronger now than it was then: the preamble has been observed
+not to execute in any of 27 arm A sessions, so removing it would make arm B's
+*effective* condition match arm A's rather than diverge from it. That argument
+may well be right. It is still an instrument change mid-experiment, in the arm
+that stands to benefit, and that is the owner's call.
+
+Arm B rep 1 is void. No further sessions launched. Nothing scored.

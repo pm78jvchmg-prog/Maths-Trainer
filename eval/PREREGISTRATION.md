@@ -217,3 +217,65 @@ shared prompt text changes and arm A is untouched.
   carried that tail inside their recorded cost. Arm B's must be counted the same
   way, including any one-resume. Symmetric between arms.
 
+---
+
+# Amendments B1-B3 — 2026-09-16 00:35, before any arm B branch was scored
+
+## B1. Quality tightened to zero failures
+
+Was "at most 1 failure". Now: **arm B is non-inferior only if it fails zero live
+trials.** Any conclusive failure is a detected difference.
+
+The looseness was flagged in the original draft rather than fixed, which was the
+wrong response to noticing it. Arm A scored 22 of 22 on exactly these tasks —
+1-of-14 is a failure rate the baseline never demonstrated, so tolerating it would
+concede a regression the data gives no warrant for. Changed before the first arm
+B branch was scored, so it remains pre-registered rather than fitted.
+
+## B2. Cost denominators must match task-for-task
+
+Arm A's $44.355953 mean is over **nine sessions**, and includes t3a at $11.52 —
+the single most expensive session in the arm. Any arm B mean computed over a
+different basket is not comparable to it, and dropping an expensive task from one
+side manufactures an apparent saving.
+
+**Both means cover the same nine sessions: t1, t2, t3a, t3b, t4, t5, t6, t7, t8.**
+
+Exclusions are therefore handled by **voiding the rep, never by shrinking the
+basket**. If a session must be excluded for any reason — zero advisor
+consultations, no branch pushed, anything else — its rep produces no cost figure
+at all. The earlier wording, which dropped zero-consultation branches from the
+cost mean, is **withdrawn**: it would have shrunk the basket, which is precisely
+the defect this amendment forbids.
+
+T3's exclusion from the **quality** clause stands, and does not touch cost: t3a
+and t3b remain in the cost basket for both arms.
+
+## B3. The two cost-validity checks are PASSED, on primary evidence
+
+Both were run at 00:35 against live arm B telemetry and the two pushed branches,
+rather than waiting for the arm to finish.
+
+**Check 2 — the advisor is genuinely Opus.** Not inferred. Both pushed branches
+record it verbatim in `eval-advisor.log`:
+
+    armB-rep1-t5:  **Model:** I'm Claude Opus 5 (1M context).
+    armB-rep1-t8:  Model: I'm Claude Opus 5 (1M context).
+
+So the per-call `model: "opus"` does beat the base tree's
+`CLAUDE_CODE_SUBAGENT_MODEL: sonnet`, as the repo's `CLAUDE.md` claimed and as
+this had no evidence for until now.
+
+**Check 1 — the advisor's cost is counted.** Arm A's 18 recorded sessions fit a
+four-rate price model **exactly** (maximum residual $0.0000 across costs from
+$2.05 to $11.52): cache-read $0.50/Mtok, cache-write $10.00/Mtok, output
+$25.00/Mtok, input $5.00/Mtok.
+
+Applying it to `armB-rep1-t8`'s tokens: the same work billed entirely at those
+rates would be $9.1529. Pure Sonnet at the customary one-fifth would be $1.8306.
+**Actual: $4.1127 — 2.25× the pure-Sonnet figure.** The excess is the advisor
+being billed into the session. The conclusion survives a more conservative
+one-third assumption for Sonnet ($3.05, still a 1.35× excess).
+
+Both fatal-direction defects are therefore closed.
+

@@ -131,10 +131,10 @@ sample and says so.
 
 Filled as tasks complete. Empty now.
 
-| # | Task | Session | Cost | Abandoned→Opus | Interventions | Files touched |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
-| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | *running* | — | — | *pending* |
+| # | Task | Session | Cost | Abandoned→Opus | Interventions | **Advisor in the loop** | Files touched |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **4 of 5 consultations** — 1 ran Sonnet-on-Sonnet | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
+| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | *running* | — | — | *pending* | *pending* |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -631,3 +631,43 @@ Recorded because it is exactly the kind of thing the eval's eight fixed tasks
 could not see: **noticing that the usual verification does not apply here, and
 building the missing one.** No scorer would have rewarded it, and no test would
 have caught its absence.
+
+## Measure 4 — whether the advisor was actually in the loop
+
+**Added after task 1, promoted to a column after the second instance.** It is not
+a footnote about instrumentation; it is one of the things the week is for.
+
+The configuration under test is *Sonnet executor with an Opus advisor*. If the
+advisor is absent, the week is measuring Sonnet alone and calling it something
+else — and the failure is silent, because the executor carries on and the work
+still looks like work.
+
+**It has now been absent twice, by two unrelated mechanisms:**
+
+| | How | How it was caught |
+| --- | --- | --- |
+| Omitted `model` parameter | The Agent call ran on the session's default subagent model, which `.claude/settings.json` pins to Sonnet. Sonnet advising Sonnet. | The advisor said so about itself |
+| Timing | A single consultation covering several finished units retrospectively. The units already committed and pushed had no review before they shipped. | Self-report |
+
+**Both were caught by self-report, and nothing structural would have caught
+either.** There is no telemetry reachable from this session that records a
+subagent's model per call — verified during the v2 eval, not assumed. So the log
+is the only instrument, and the log is written by the thing being measured.
+
+That is why this is a column. Per task, it records:
+
+- consultations made, and how many units each actually covered **before** the
+  commit rather than after;
+- the advisor's self-reported model, **quoted, on every entry**;
+- units that shipped with no consultation preceding them.
+
+**Reading the log line by line is the measurement.** A precedent cuts against
+being casual about it in either direction: in the v2 eval, `t1`'s log read
+"Sonnet 5" and it took three self-corrections to establish that *that* one was a
+mislabel by an executor writing in its own voice. Now the omission is known to be
+real and to have happened. Neither reading — "it says Sonnet so it was Sonnet",
+nor "it says Sonnet so it is probably a mislabel again" — is safe without looking
+at what the entry actually says and what the consultation actually did.
+
+Task 1's figure, `4 of 5`, is the honest one: five consultations, of which the
+first — the pre-planning one the advisor block weights most — ran on Sonnet.

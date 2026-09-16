@@ -75,6 +75,21 @@ failure message it produced.
 resumed, so unpushed work is lost work. Never begin a unit you cannot
 finish and push.
 
+**Consult the advisor before each commit, not once per session.** A
+consultation covering three finished units retrospectively is not three
+consultations, and the units already pushed shipped without review. If
+a consultation is missed, say which units it did not cover rather than
+folding them into a later one and calling the gap closed. The advisor
+has now twice been silently out of the loop — once through an omitted
+`model` parameter, once through timing — so treat its presence as
+something to verify, not assume.
+
+**A review agent gets one unit's diff, not the accumulated branch.**
+Scope every review to the unit about to be committed. A reviewer handed
+three units at once reads everything and notices nothing in particular,
+and the context cost is the symptom of a missed step rather than a
+thorough review.
+
 **Check self-reported names against the code.** Final summaries have
 misnamed their own generators while the code was correct. Anything you
 report by name, grep for first.

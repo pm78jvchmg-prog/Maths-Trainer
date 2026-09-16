@@ -403,3 +403,42 @@ silent, lint 0 errors and the same 25 warnings.
 The finding record above stands as written. The bug is gone; the fact that 2679
 tests could not see it is the thing the week is measuring, and that does not get
 edited out now that it is fixed.
+
+#### Interventions need a second axis: whose artefact was defective
+
+The first split is what the intervention did — corrected the brief, or unstuck the
+executor. The second is **whose work was wrong**, and for task 1 that is not the
+configuration under test.
+
+**Task 1's plan was written by Fable 5.1, not by Sonnet.** All three defects the
+owner found — a claim verified in another container, a self-contradictory push
+instruction, a missing rule for a red gate — were in the *plan*. The executor
+never authored them and, on the contradiction, did not even trip over it: it
+pushed pair A to the branch rather than to `main`, correctly, before anyone
+corrected the text.
+
+So task 1's single intervention is **upstream of the configuration under test**.
+It says nothing about whether Sonnet can do this work, in either direction. Every
+task from here records which of the three it was:
+
+| | Attributable to | Evidence about the cheap configuration? |
+| --- | --- | --- |
+| Plan defect | the planner | **none** — upstream |
+| Brief correction by the owner | the owner's changing mind | none |
+| Unsticking the executor | the executor | **yes — this is the measure** |
+
+At task 12 a bare count of interventions would have been uninterpretable without
+this. Task 1 stands at **1 intervention, 0 of them about the executor.**
+
+#### The four lessons cannot reach the phone before the branch lands
+
+Recorded because it defeats a check that ought to be free. There is no preview
+deployment: `.github/workflows` does not exist, `wrangler.jsonc` names one
+environment, and the Cloudflare build triggers on a push to `main`. So the only
+routes to looking at the four lessons on the phone are to merge first, or to
+check the branch out on the owner's own machine and run `npm run dev` on the LAN.
+
+The check that matters is thirty seconds and is precisely F2's: open
+`df-l1-index`, reach a `\frac{a}{\sqrt{x}}` question, and write the answer back
+as a radical rather than in index form. The teach slide promises that is accepted.
+Only `domain: 'positive'` makes it true, and no test ties the two together.

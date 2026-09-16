@@ -248,20 +248,86 @@ export const differentiation: Course = {
           ],
           skillCheck: [ask('df-index-form', 2), ask('df-index-form'), ask('power-rule', 2)],
         },
+
+        {
+          id: 'df-l1-tangent',
+          title: 'The Equation of a Tangent',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'A tangent is a straight line, and a straight line is fixed by a gradient and a point on it. The derivative supplies the gradient; the curve itself supplies the point.',
+              },
+              { kind: 'display', tex: 'y - y_{1} = m\\left(x - x_{1}\\right)' },
+              {
+                kind: 'prose',
+                text: 'Three steps, always in this order: differentiate to get the gradient function, substitute the given $x$-value into it for $m$, then substitute the same value into the original curve for the point.',
+              },
+            ),
+            ask('evaluate-derivative'),
+            ask('df-tangent-line'),
+            ask('df-tangent-line+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Worked in full: for $f(x) = x^{2} + 1$ at $x = 2$, the derivative is $f\'(x) = 2x$, so $m = 4$. The point is $f(2) = 5$, giving $(2, 5)$.',
+              },
+              {
+                kind: 'display',
+                tex: 'y - 5 = 4\\left(x - 2\\right) \\implies y = 4x - 3',
+              },
+              graph({
+                xMin: -1,
+                xMax: 4,
+                curves: [
+                  { f: quadratic(1, 0, 1) },
+                  { f: (x) => 4 * x - 3, dashed: true, accent: true },
+                ],
+                marks: [{ x: 2, y: 5 }],
+                yMin: -4,
+                yMax: 12,
+                label: 'y = x^2 + 1 with its tangent line at x = 2',
+              }),
+              {
+                kind: 'prose',
+                text: 'The dashed line is that tangent, touching the curve only at the ringed point $(2, 5)$.',
+              },
+            ),
+            ask('df-tangent-line'),
+            ask('df-tangent-line', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'Two traps produce a plausible-looking wrong line. Substituting the point into the curve *before* differentiating gives a constant, whose derivative is $0$ — a horizontal line, which is only ever the actual tangent at a turning point.',
+              },
+              {
+                kind: 'prose',
+                text: 'The other is using the curve\'s height as if it were the gradient. A quick check catches both: the point you found must actually satisfy the line you write down.',
+              },
+              { kind: 'display', tex: "m = f'(x_{1}) \\qquad c = f(x_{1}) - m x_{1}" },
+            ),
+            ask('df-tangent-line+choice', 2),
+            ask('df-evaluate-steps'),
+          ],
+          skillCheck: [ask('df-tangent-line', 2), ask('df-tangent-line'), ask('evaluate-derivative', 2)],
+        },
       ],
       levelCheck: [
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
         ask('df-index-form', 2),
+        ask('df-tangent-line', 2),
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
         ask('df-index-form', 2),
+        ask('df-tangent-line', 2),
         ask('power-rule', 2),
         ask('sum-rule', 2),
         ask('evaluate-derivative', 2),
         ask('df-index-form', 2),
+        ask('df-tangent-line', 2),
       ],
     },
 

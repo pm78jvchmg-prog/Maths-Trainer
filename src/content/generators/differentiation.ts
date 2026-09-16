@@ -59,6 +59,12 @@ function halfTermTex(c: number, power: string): string {
   return `${c < 0 ? '-' : ''}\\frac{${Math.abs(c)}}{2}x^{${power}}`;
 }
 
+/** A straight line as the learner reads it; never the empty string. */
+function lineTex(gradient: number, intercept: number): string {
+  const tex = sumTex([termTex(gradient, 1), termTex(intercept, 0)]);
+  return tex === '' ? '0' : tex;
+}
+
 /* ---------- Power rule ---------- */
 
 interface PowerParams { coefficient: number; power: number }
@@ -1529,6 +1535,108 @@ const productMixed: Generator<ProductMixedParams> = {
   },
 };
 
+/* ---------- The tangent to a curve at a point ---------- */
+
+interface TangentParams {
+  a: number;
+  b: number;
+  c: number;
+  at: number;
+}
+
+/**
+ * The equation of the tangent to $y = ax^{2} + bx + c$ at $x = at$: the
+ * derivative supplies the gradient, the curve itself supplies the point, and
+ * the two are assembled with point-gradient form. Unlike every other
+ * generator in this course, the answer here is not a derivative of anything
+ * — it is a line built *from* one — so this generator declares no `source`
+ * and the oracle test correctly has nothing to check.
+ */
+const tangentLine: Generator<TangentParams> = {
+  id: 'df-tangent-line',
+  sample: (rng, difficulty) => {
+    // A horizontal tangent (m = 0) makes the "forgot to shift" distractor
+    // equal to the correct answer, so it is excluded rather than sampled.
+    for (;;) {
+      const a = difficulty >= 2 ? nonZero(rng.int(-3, 3), 2) : 1;
+      const b = difficulty >= 2 ? rng.int(-6, 6) : rng.int(-4, 4);
+      const c = difficulty >= 2 ? rng.int(-9, 9) : rng.int(-5, 5);
+      const at = difficulty >= 2 ? nonZero(rng.int(-4, 4), -2) : nonZero(rng.int(-3, 3), 2);
+      if (2 * a * at + b !== 0) return { a, b, c, at };
+    }
+  },
+  choices: ({ a, b, c, at }) => {
+    const m = 2 * a * at + b;
+    const height = a * at * at + b * at + c;
+    const k = height - m * at;
+    const pair = (gradient: number, intercept: number) => ({
+      tex: lineTex(gradient, intercept),
+      answer: sumAnswer([termAnswer(gradient, 1), termAnswer(intercept, 0)]),
+    });
+    // Candidates that happen to land on the correct (gradient, intercept)
+    // pair for this draw are dropped rather than offered as if wrong.
+    const candidates = [
+      // The right gradient, but never shifted onto the point — the
+      // constant term is left as the curve's height rather than reduced.
+      [m, height],
+      // Substituted the point into the curve before differentiating,
+      // which gives a constant and so a gradient of 0.
+      [0, height],
+      // Used the height as if it were the gradient.
+      [height, height - height * at],
+    ].filter(([g, i]) => !(g === m && i === k));
+    return options(pair(m, k), ...candidates.map(([g, i]) => pair(g, i)));
+  },
+  render: ({ a, b, c, at }) => {
+    const m = 2 * a * at + b;
+    const height = a * at * at + b * at + c;
+    const k = height - m * at;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the equation of the tangent to the curve at $x = ${at}$. Give the answer as an expression in $x$.`,
+        },
+        { kind: 'display', tex: `y = ${sumTex([termTex(a, 2), termTex(b, 1), termTex(c, 0)])}` },
+      ],
+      lead: 'y =',
+      keypad: ALGEBRA_KEYS,
+      answer: sumAnswer([termAnswer(m, 1), termAnswer(k, 0)]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, c, at }) => {
+    const m = 2 * a * at + b;
+    const height = a * at * at + b * at + c;
+    const k = height - m * at;
+    const derivative = sumTex([termTex(2 * a, 1), termTex(b, 0)]);
+    return [
+      {
+        text: 'Differentiate first, to get the gradient function.',
+        tex: `f'(x) = ${derivative}`,
+      },
+      {
+        text: `Substitute $x = ${at}$ into the gradient function to find the gradient at that point.`,
+        tex: `m = f'(${at}) = ${m}`,
+      },
+      {
+        text: `Substitute $x = ${at}$ into the original curve to find the point it touches.`,
+        tex: `f(${at}) = ${height}`,
+      },
+      {
+        text: 'A tangent is a straight line through that point with that gradient. Start from point-gradient form and rearrange.',
+        tex: `y - ${height} = ${m}\\left(x - ${at}\\right)`,
+      },
+      {
+        text: `The order matters the same way it always has: substituting into the curve before differentiating would give a constant, whose gradient is $0$ rather than the $${m}$ found above.`,
+        tex: `y = ${lineTex(m, k)}`,
+      },
+    ];
+  },
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -1543,4 +1651,5 @@ export const differentiationGenerators = [
   indexForm,
   chainRoot,
   productMixed,
+  tangentLine,
 ];

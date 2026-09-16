@@ -338,3 +338,124 @@ Applied all three required fixes. Verified afterward: `npx vitest run ...
 regression), `npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0
 errors), and `git diff --stat` confirmed the isolated commit touches only
 the two generator/course files.
+
+## Consultation 5 — before committing Lesson 5 (df-l1-tangent / df-tangent-line, the final pair)
+
+Question put to the advisor: verify the tangent-line maths (m = 2a·at+b,
+height = a·at²+b·at+c, k = height−m·at) and the sampling guard
+(2a·at+b != 0, never a horizontal tangent) independently rather than by
+re-deriving my own reasoning; check the three choice distractors — "forgot
+to shift", "substituted before differentiating", "used height as
+gradient" — for whether they are genuinely wrong at every draw and whether
+the filter dropping a candidate equal to the correct answer is live code
+or dead code; explicitly flagged that this generator declares no `source`
+(a tangent line is not a derivative of anything, so the oracle test has
+nothing to check here by design) and asked the advisor to weigh that when
+deciding how hard to look, since self-consistency is the only safety net;
+asked it to hunt for the elision-bug class the last three reviews each
+found once, while noting my own claim that this generator builds every
+displayed line through `lineTex`/`sumTex`/`termTex` rather than hand-written
+templates and asking it to verify that claim rather than trust it; checked
+the lesson prose for the same "overclaims a general rule"/"leaks the
+sampling policy" pattern; asked it to confirm the figure (`graph()` call,
+the first of the four new lessons to use one) matches a shipped pattern
+rather than assume it from a visual copy. Passed `model: "opus"` again.
+
+Summary of the advisor's answer: safe to commit and push, one required
+prose fix (~2 minutes), everything else a note for the final report, no
+correctness bug.
+- Verified the maths and every distractor **exhaustively** rather than by
+  sampling: enumerated all 12,026 `(a,b,c,at)` tuples reachable across both
+  difficulties (not a seed sweep), and for each independently checked
+  tangency via `f(x) - line(x) === a(x-at)^2` at multiple probe points (a
+  repeated root at `at` is the definition of a tangent) plus a
+  central-difference derivative check — a strictly independent check, not
+  a re-run of the generator's own formula, and the closest thing available
+  to an oracle test for a generator that cannot have one. Zero failures.
+- Confirmed my three claims about the distractors precisely, with counts
+  rather than "yes/no": `(m, height)` never collides with the correct
+  answer (0/12,026); `(0, height)` never collides (0/12,026); `(height,
+  height - height*at)` collides in exactly 336/12,026 draws (2.8%) —
+  confirming the `.filter()` is live code doing real work, not dead code,
+  and adding a precision I'd missed: the collision needs *both* `m != 0`
+  (the sampling guard) and `at != 0` (a separate `nonZero` call), so if
+  `at` were ever relaxed to allow 0 that distractor would silently become
+  correct. Also found, unprompted, that two of the three candidates can
+  coincide *with each other* (not with the correct answer) in 322/12,026
+  draws (2.7%, exactly when the curve's height at `at` is 0), which
+  `options()` already dedups harmlessly since the two collision sets are
+  disjoint — confirmed the slide never drops below 3 options across the
+  whole space (4 in 11,368 draws, 3 in 658).
+- **Found my "no hand-written templates" claim was false**, the fourth
+  time in five rounds the advisor has found something in this exact bug
+  class: solution step 4 (`y - ${height} = ${m}\left(x - ${at}\right)`) is
+  a raw template, not routed through `lineTex`, so it can show a bare
+  `1(...)` coefficient or a double sign like `y - -7 = -1\left(x - -2\right)`
+  (measured: 63% of sampled draws show a double sign somewhere in that
+  line; the bare-1 case hits ~11% of difficulty-1 draws). But it then did
+  something the earlier rounds didn't: checked whether this is a
+  regression by sweeping every *other* registered generator's solution TeX
+  for the same `+ -N`/`- -N` pattern, and found it is a long-standing
+  codebase-wide idiom (8 existing generators show it, `evaluate-derivative`
+  — in this same level and level check — worse than the new one), not
+  something this generator introduced. Classified as a known limitation to
+  record, not a blocker for this commit, and named a possible future fix
+  (a shared `signedTex` helper in `calculus.ts`, since `quadratics.ts` and
+  `integration.ts` each already have their own private version of the same
+  helper) explicitly as a separate refactor outside this session's scope.
+- Found the one required fix: the T3 teach slide and the solution's final
+  step both stated "substituting before differentiating gives a horizontal
+  line, [which misses the curve / is not the tangent]" as an unqualified
+  rule. That's only true because the generator's own sampling excludes
+  `m = 0` by construction — a quadratic's tangent at its actual turning
+  point genuinely is horizontal, so the claim is false in general and
+  contradicts a slide two lessons earlier (`df-l1-sums`) that correctly
+  teaches "a derivative of zero means the curve is momentarily flat, which
+  is how stationary points are found." Worse, it hands the learner an
+  exploit: the "substituted before differentiating" distractor always
+  renders as a bare constant with no `x` in it, so a learner who has just
+  been taught "horizontal is always wrong here" can eliminate that option
+  on sight rather than by understanding it, cutting the effective guess
+  rate on `+choice` slides. Fixed both the T3 prose (reworded to "a
+  horizontal line, which is only ever the actual tangent at a turning
+  point") and the solution's final step (made draw-specific — "$0$ rather
+  than the $m$ found above" — instead of a blanket claim).
+- Confirmed several things without needing a fix: the `graph()` figure
+  call is structurally identical to the already-shipped `df-l1-sums`
+  tangent figure and checked the mark/curve geometry by hand against the
+  280x150 viewBox to confirm nothing clips; agreed the T2 worked example
+  sitting inside the generator's own difficulty-1 sample space is the same
+  low-priority, pre-existing, codebase-wide pattern already accepted for
+  lessons 1 and 3 and should stay unfixed for consistency; confirmed
+  lesson structure (10 guided slides matching `df-l1-index`'s own
+  teach/3/teach/2/teach/2 shape, 3 skill-check, three widget shapes
+  including `df-evaluate-steps`'s `reduce` kind) and the completed
+  15-entry `df-l1` level check are all correct; confirmed no file outside
+  the two generator/course files changed.
+- Flagged several things explicitly for this final report rather than as
+  fixes: no committed test would catch a future edit breaking the
+  `k = height - m*at` line, since there is no oracle for this generator —
+  a candidate follow-up would be a generator-specific test asserting
+  `f(at) = line(at)` and `f'(at) = m` symbolically; the `m = 0` exclusion
+  is enforced only by the sampling guard and by convention in the prose,
+  with nothing coupling the two if either is edited later; a stale comment
+  in `choiceVariant.ts` ("quad-symmetry is the only generator this affects
+  today") is now inaccurate now that `df-tangent-line`'s `lead: 'y ='` is a
+  second bare-letter lead — comment-only, no behaviour change, left as
+  found since fixing a comment in a file this plan does not touch would
+  widen the diff for no functional reason; and that nothing in this
+  container could browser-check the new diagram or the `+choice` slide's
+  layout at phone width, so a pass through `df-l1-tangent` on the deployed
+  branch/production build is worth doing once it is reachable.
+
+Applied the one required fix (both instances — T3 prose and the solution's
+final step). Left the pre-existing double-sign/bare-1 TeX pattern in
+solution step 4 unfixed, matching the advisor's own classification of it as
+a known, codebase-wide limitation rather than a defect in this commit;
+recorded it above and in the final report rather than silently accepting
+it. Verified afterward: `npx vitest run ... -t 'df-tangent-line'` (24/24),
+`-t 'course integrity'` (16/16), full `npm test` (2679/2679, the exact
+expected count for all four lessons together — no regression),
+`npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors), and
+`git diff --stat` confirmed the isolated commit touches only the two
+generator/course files. This is the fourth and final pair of the session.

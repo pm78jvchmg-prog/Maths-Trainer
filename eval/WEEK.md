@@ -491,3 +491,43 @@ One artefact worth recording because it looked like an app fault and was not: th
 first run reported dozens of 403s on KaTeX font files. That was the scratch
 worktree's symlinked `node_modules` tripping Vite's `server.fs.allow`, not the
 app. Fixed in the throwaway checkout; nothing in the repository changed.
+
+#### The gap is closed — the radical of a cube, typed into the real widget
+
+The previous section's 16 accepted writings were **the cases that pass on either
+domain**. `sqrt(x)`, `1/sqrt(x)` and `1/(x*sqrt(x))` all agree with their index
+forms at negative x, so none of them needed `domain: 'positive'`. The one writing
+that does need it had never been typed, which meant the widget evidence did not
+touch the claim at all. Stated at the time; now fixed.
+
+**Driven, not waited for.** Walking the deck and hoping a `reciprocalRoot` came up
+failed four times — it is a difficulty-2 draw deep in the lesson. Instead the
+generator was called with the params required and its output fed to the real
+widget as a `literal` SlideRef, through the real `LessonPlayer`:
+
+```
+gen.render({ form: 'reciprocalRoot', a: 3, n: 2 })  ->  y = \frac{3}{\sqrt{x}}
+keypad: 21 keys, so ROOT_KEYS — the radical key is offered
+typed through the keypad: -3 / (2 \times \sqrt{x^{3}})
+verdict: CORRECT
+```
+
+Nothing under `src/engine/`, `src/ui/` or `src/content/` was modified to get this.
+The scratch checkout carried two throwaway edits — a `server.fs.allow` entry for
+the symlinked `node_modules`, and a probe entry point — and was deleted afterwards.
+
+So the chain is now complete on the case that matters:
+
+| | |
+| --- | --- |
+| The writing a learner would produce | `-3/(2√(x³))`, which the solution's step 4 leads them to |
+| In the real widget, through the keypad | **Correct** |
+| At engine level, 50 draws × 4 writings | 0 failures |
+| The same writing over `domain: 'real'` | **incorrect** |
+
+The last row is still the finding. One field in one generator is the whole reason
+the first two rows read as they do, and nothing in the repository ties the teach
+slide's promise to it.
+
+**PREFLIGHT rule earned here:** *drive the case, do not wait for the draw.* Four
+walker runs missed it; one forced render caught it in a minute.

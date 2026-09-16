@@ -136,6 +136,7 @@ Filled as tasks complete. Empty now.
 | 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **0 of 5** — only one consultation self-reported at all, and it said Sonnet | **4 of 4** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
 | 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
 | 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | **$15.1065** | **0** | **0** | **3 of 4** — 1 inconsistent | **4 of 4** | 5 (`mutate.sh`, `generators.test.ts`, `types.ts`, `differentiation.ts`, `eval-advisor.log`) |
+| 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | *running* | — | — | *pending* | *pending* | *pending* |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1358,3 +1359,55 @@ one.
 end** — no mid-run message, no correction, no unsticking. That is the fact worth
 recording. Three points is not a trend, the tasks are different work, and the week
 was pre-registered to make no cost finding; none is made here.
+
+## Task 4 — launched 2026-09-16 21:25 UTC. Alternation resumes; the residual becomes task 5.
+
+Trigonometric Functions, branch `week/task4-trigonometry`, plan at
+`eval/plans/TASK4-PLAN.md` (`73b926e`). Four lessons, 11 → 15.
+
+**Why a lesson task and not the residual.** *"Alternate: repair, lesson,
+repair"* and *"task 4 is determined by the residual"* both applied, and they
+point different ways. The residual keeps — it is specified and reproduces from a
+one-line mutation. **What does not keep is the chance to find out whether task 3's
+guards fire on honest new content rather than only on deliberate mutations.** That
+question can only be answered by a lesson task, and if a guard turns out to fire
+only on mutations it is better to know before a fourth guard is built on the same
+assumptions. The per-form residual is task 5.
+
+**Each unit closes a gap the course itself opens** — verified here, not taken on
+the plan's word: `tf-l2-speed` and `tf-l3-period-shift` both state that `b`
+divides the period, and the nearest existing generator, `trig-period-from-speed`,
+is a turns-per-second word problem rather than `period = 360/b`. The others close
+the symmetry behind `sin(150°) = sin(30°)`, solving `sinθ = k`, and the
+Pythagorean identity the course states and never uses.
+
+### Stage 3 — countable claims, verified before launch
+
+11 lessons at 5 / 3 / 3 per level; level checks **12 / 12 / 12**, so `tf-l2` and
+`tf-l3` growing to 15 leaves `tf-l1` untouched as the plan says; **zero**
+occurrences of "accepted" in the course today, which is what makes its
+one new promise-sentence countable; and the checker grades `360/3` against `120`
+**correct** and `(360/3) + 1` **incorrect**, which is the claim its promise
+sentence rests on. All exact.
+
+**Plan defects: 0 that I found** — the same weaker claim as task 3, and for the
+same reason.
+
+### The plan's own contribution, which the brief did not ask for
+
+It **designs unit B's generator to have a difficulty-dependent kind** — a native
+`choice` at difficulty 1, either kind at difficulty 2, measured 297/303 over 600
+seeds on a prototype. That makes it the first such generator since `polar-form`,
+and therefore the first real exercise of task 3's repaired shape guard on content
+rather than on a mutation. It predicts the differential explicitly: the old rule
+green, the repaired rule red, with the message quoted.
+
+Three distinctions in its section 2 are worth keeping, because each is the defect
+class in miniature:
+
+- **A skip is not a pass.** The `alsoAccepts` test skips on three of the four
+  units; the report must say so rather than counting them.
+- **A kill is not always evidence.** Units A, C and D would have been killed by the
+  old guard too. Only unit B's differential says anything about the repair.
+- **One mutation is expected to survive** — `M-A-residual`, the per-generator
+  limitation. Run it, report it, do not close it.

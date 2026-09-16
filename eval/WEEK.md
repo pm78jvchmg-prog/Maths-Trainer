@@ -134,6 +134,7 @@ Filled as tasks complete. Empty now.
 | # | Task | Session | Cost | Abandoned→Opus | Interventions | Files touched |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
+| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | *running* | — | — | *pending* |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -531,3 +532,56 @@ slide's promise to it.
 
 **PREFLIGHT rule earned here:** *drive the case, do not wait for the draw.* Four
 walker runs missed it; one forced render caught it in a minute.
+
+## Task 2 — launched 2026-09-16 14:47 UTC
+
+Complex Numbers, the thinnest remaining course at 10 lessons, and the successor
+the task 1 plan named for itself. Planned again by **Fable 5.1**, this time
+through the `fable-planner` definition at **effort: high** — the setting task 1
+asked for and did not get. Plan committed at `eval/plans/TASK2-PLAN.md`.
+
+Four units, in order: `complex-quadratic` (quadratics with complex roots),
+`polar-form` (modulus-argument form), `polar-power` (De Moivre), `complex-sqrt`
+(square roots by equating parts). 10 lessons become 14.
+
+**The plan is materially better than task 1's on exactly the points that failed
+there**, which is the first sign the week is producing anything cumulative:
+
+- **Six claims about mathjs and the checker verified in this container**, with
+  the command and its output written into the plan — against task 1's
+  "verified" claim that was right for the wrong reason.
+- **What was *not* verified is named** for the executor to check, rather than
+  asserted.
+- **One push destination, stated once.** No override to contradict it.
+- **The blast radius is stated up front:** three level checks grow 12 → 15, so
+  the F1 fix will retire the owner's stored bests on those checks the next time
+  they are played. That is the fix working as designed, and it is in the plan
+  rather than discovered afterwards.
+- It also notes what task 1 had to establish headlessly: this course introduces
+  **no new typed answer form and no new keypad**, so the widget question does not
+  arise again.
+
+### Amendment to the frozen configuration — flagged, not buried
+
+`WEEK.md` freezes the advisor block as appended *verbatim*, and says the week
+restarts if the configuration changes. **One sentence was added for task 2:**
+
+> **Pass `model: "opus"` on every single Agent call.** Omitting it silently runs
+> the advisor on this session's default subagent model, which is Sonnet — that
+> happened on the previous task and was only caught because the advisor
+> identified itself.
+
+The reasoning for treating this as enforcing the frozen configuration rather than
+changing it: the configuration under test is *"Sonnet executor with an Opus
+advisor"*, and on task 1 the pre-planning consultation **was not that** — it was
+Sonnet advising Sonnet, through an omitted parameter. The block failed to produce
+the configuration it names. The added sentence changes no instruction about how to
+do the work; it closes a hole through which the named configuration silently did
+not happen.
+
+**The counter-argument is real and is recorded here too:** task 1 ran under the
+original text, so task 2 runs under a different prompt, and a week whose config
+drifts task by task measures a moving target. If the owner judges that the stronger
+consideration, task 2 should be relaunched with the verbatim block and this
+paragraph deleted. The decision is theirs; it is written down before the result is
+known either way.

@@ -1254,6 +1254,151 @@ const indexForm: Generator<IndexFormParams> = {
   },
 };
 
+/* ---------- Chain rule on roots and reciprocals of a bracket ---------- */
+
+interface ChainRootParams {
+  form: 'root' | 'reciprocal';
+  a: number;
+  b: number;
+  n: number;
+}
+
+/**
+ * The chain rule applied to $\sqrt{ax+b}$ and $\frac{1}{(ax+b)^{n}}$ — the
+ * same two shapes as `df-index-form`, but with a linear bracket in place of
+ * plain $x$, so the chain rule's inner factor is now genuinely part of the
+ * question rather than always being $1$.
+ */
+const chainRoot: Generator<ChainRootParams> = {
+  id: 'df-chain-root',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(['root', 'reciprocal'] as const);
+    // `a` is never 1, so the chain factor is always visible: a distractor
+    // that forgets it is then wrong at every draw, not just some.
+    const a = rng.int(2, difficulty >= 2 ? 7 : 5);
+    const b =
+      form === 'root'
+        ? rng.int(1, 9)
+        : nonZero(rng.int(-9, 9), difficulty >= 2 ? -4 : 3);
+    const n = difficulty >= 2 ? rng.pick([2, 3] as const) : 1;
+    return { form, a, b, n };
+  },
+  choices: ({ form, a, b, n }) => {
+    const linear = sumTex([termTex(a, 1), termTex(b, 0)]);
+    const linearAnswer = sumAnswer([termAnswer(a, 1), termAnswer(b, 0)]);
+    if (form === 'root') {
+      // c/2, reduced to a whole number whenever c is even — an unreduced
+      // \frac{2}{2} or \frac{4}{2} is a fraction that has not been simplified.
+      const half = (c: number) => {
+        if (c % 2 !== 0) return `\\frac{${c}}{2}`;
+        const h = c / 2;
+        return h === 1 ? '' : `${h}`;
+      };
+      return options(
+        {
+          tex: a % 2 === 0 ? `\\frac{${a / 2}}{\\sqrt{${linear}}}` : `\\frac{${a}}{2\\sqrt{${linear}}}`,
+          answer: `((${a})/2) * (${linearAnswer})^(-1/2)`,
+        },
+        // Forgot the chain rule factor.
+        { tex: `\\frac{1}{2\\sqrt{${linear}}}`, answer: `(1/2) * (${linearAnswer})^(-1/2)` },
+        // Forgot the half.
+        { tex: `\\frac{${a}}{\\sqrt{${linear}}}`, answer: `(${a}) * (${linearAnswer})^(-1/2)` },
+        // Forgot to reduce the power.
+        { tex: `${half(a)}\\sqrt{${linear}}`, answer: `((${a})/2) * (${linearAnswer})^(1/2)` },
+      );
+    }
+    const bracket = (p: number) =>
+      p === 1 ? `\\left(${linear}\\right)` : `\\left(${linear}\\right)^{${p}}`;
+    return options(
+      { tex: `-\\frac{${a * n}}{${bracket(n + 1)}}`, answer: `(${-a * n}) * (${linearAnswer})^(${-(n + 1)})` },
+      // Sign dropped.
+      { tex: `\\frac{${a * n}}{${bracket(n + 1)}}`, answer: `(${a * n}) * (${linearAnswer})^(${-(n + 1)})` },
+      // Forgot the chain rule factor.
+      { tex: `-\\frac{${n}}{${bracket(n + 1)}}`, answer: `(${-n}) * (${linearAnswer})^(${-(n + 1)})` },
+      // The power was not increased by one.
+      { tex: `-\\frac{${a * n}}{${bracket(n)}}`, answer: `(${-a * n}) * (${linearAnswer})^(${-n})` },
+    );
+  },
+  render: ({ form, a, b, n }) => {
+    const linear = sumTex([termTex(a, 1), termTex(b, 0)]);
+    const linearAnswer = sumAnswer([termAnswer(a, 1), termAnswer(b, 0)]);
+    if (form === 'root') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+          { kind: 'display', tex: `y = \\sqrt{${linear}}` },
+        ],
+        lead: '\\frac{dy}{dx} =',
+        keypad: ROOT_KEYS,
+        answer: `((${a})/2) * (${linearAnswer})^(-1/2)`,
+        source: `(${linearAnswer})^(1/2)`,
+        domain: 'positive',
+        mode: 'exact',
+      };
+    }
+    const bracket = (p: number) =>
+      p === 1 ? `\\left(${linear}\\right)` : `\\left(${linear}\\right)^{${p}}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate with respect to $x$.' },
+        { kind: 'display', tex: `y = \\frac{1}{${n === 1 ? linear : bracket(n)}}` },
+      ],
+      lead: '\\frac{dy}{dx} =',
+      keypad: ALGEBRA_KEYS,
+      answer: `(${-a * n}) * (${linearAnswer})^(${-(n + 1)})`,
+      source: `(${linearAnswer})^(${-n})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ form, a, b, n }) => {
+    const linear = sumTex([termTex(a, 1), termTex(b, 0)]);
+    if (form === 'root') {
+      return [
+        {
+          text: 'A root of a bracket is that bracket raised to the power $\\tfrac{1}{2}$.',
+          tex: `\\sqrt{${linear}} = \\left(${linear}\\right)^{1/2}`,
+        },
+        {
+          text: 'Differentiate the outside as usual, then multiply by the derivative of the inside.',
+          tex: `\\tfrac{1}{2}\\left(${linear}\\right)^{-1/2} \\times \\frac{du}{dx}, \\quad u = ${linear}, \\; \\frac{du}{dx} = ${a}`,
+        },
+        {
+          text: `The $\\tfrac{1}{2}$ is the outer derivative; the $${a}$ is the chain rule factor from the bracket. Both must appear.`,
+          tex: `\\tfrac{1}{2} \\times ${a} = ${a % 2 === 0 ? a / 2 : `\\tfrac{${a}}{2}`}`,
+        },
+        {
+          text: 'So the derivative is:',
+          tex: `\\frac{dy}{dx} = ${a % 2 === 0 ? `\\frac{${a / 2}}{\\sqrt{${linear}}}` : `\\frac{${a}}{2\\sqrt{${linear}}}`}`,
+        },
+      ];
+    }
+    return [
+      {
+        text:
+          n === 1
+            ? 'A reciprocal is that bracket to the power $-1$.'
+            : `A reciprocal of a bracket to the power $${n}$ is that bracket to the power $${-n}$.`,
+        tex: `\\frac{1}{${n === 1 ? linear : `\\left(${linear}\\right)^{${n}}`}} = \\left(${linear}\\right)^{${-n}}`,
+      },
+      {
+        text: 'Differentiate the outside as usual, then multiply by the derivative of the inside.',
+        tex: `${n === 1 ? '-' : -n}\\left(${linear}\\right)^{${-n - 1}} \\times \\frac{du}{dx}, \\quad u = ${linear}, \\; \\frac{du}{dx} = ${a}`,
+      },
+      {
+        text: `Collect the two multipliers: the power $${-n}$ times the chain rule factor $${a}$.`,
+        tex: `${-n} \\times ${a} = ${-a * n}`,
+      },
+      {
+        text: 'So the derivative is:',
+        tex: `\\frac{dy}{dx} = -\\frac{${a * n}}{\\left(${linear}\\right)^{${n + 1}}}`,
+      },
+    ];
+  },
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -1266,4 +1411,5 @@ export const differentiationGenerators = [
   evaluateSteps,
   chooseRule,
   indexForm,
+  chainRoot,
 ];

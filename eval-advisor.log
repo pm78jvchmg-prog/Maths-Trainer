@@ -154,3 +154,81 @@ afterward: `npx vitest run ... -t 'df-index-form'` (24/24), full `npm test`
 baseline), and `git diff --stat` / `git status --porcelain` confirmed to
 touch only the three permitted content files immediately before staging and
 committing.
+
+## Consultation 3 — before committing Lesson 2 (df-l3-roots / df-chain-root)
+
+Question put to the advisor: same shape as consultation 2 — read the actual
+diff for Generator B (`df-chain-root`, chain rule on sqrt(ax+b) and
+1/(ax+b)^n) and lesson `df-l3-roots`, verify the maths (signs, the `a != 1`
+sample-space guarantee, whether `n=1` degenerates anything the way `n=1` bit
+generator A), the TeX and worked-solution wording for the same class of bug
+the previous consult caught (a hand-written numeric literal that should have
+gone through `termTex` to elide a coefficient of 1, and prose overclaiming a
+general rule from a specific worked example), and whether the L3 level check
+(landing in its full 14-entry form this time, since `df-chain-root` already
+exists in the same commit) was safe. Passed `model: "opus"` again.
+
+Summary of the advisor's answer: not safe to push as-is, four fixes needed,
+none a maths error. Independently re-verified the calculus by rendering
+~1000 draws through a temporary test harness and running the oracle
+(`mathjs.derivative` of `source` vs `answer` via `checkAnswer`) over 240 of
+them — all correct, confirmed my sample-space claims (`a` never 1, `b != 0`
+on the reciprocal branch, `ax+b > 0` on the positive-domain root branch),
+confirmed lesson structure and the 14-entry level check, and confirmed scope
+was clean (only the two generator/course files touched). Then found:
+- **Fix 1 (real, learner-visible on ~half of root draws):** the root
+  branch's `\frac{a}{2}` fractions were never reduced — `a=2` rendered as
+  the correct option reading `\frac{2}{2\sqrt{2x+3}}` instead of
+  `\frac{1}{\sqrt{2x+3}}`, and that unreduced value is literally what the
+  lesson's own first teach slide displays as the answer, so a learner who
+  had just read the teach slide would not recognise the correct option.
+  Also caught that my own worked-solution step 3 computed the reduced
+  coefficient (`1/2 * 4 = 2`) and then step 4 didn't use it, contradicting
+  itself the same way generator A's `1x^{...}` did last round. Fixed by
+  adding reduction (mirroring the existing `halfTermTex` convention) to
+  both the correct choice option and the "forgot to reduce the power"
+  distractor, and to the solution's final step.
+- **Fix 2 (real, hits every difficulty-1 reciprocal draw):** the exact same
+  bug class as generator A's `1x^{...}`, one sign over — the reciprocal
+  solution's step 2 rendered `-1\left(3x+9\right)^{-2}` at `n=1` instead of
+  eliding to `-\left(3x+9\right)^{-2}`. Fixed with the same
+  `n === 1 ? '-' : -n` pattern already used elsewhere in the file.
+- **Fix 3 (wording):** the reciprocal solution's final step — the one line
+  a learner reads to find the answer — captioned the answer with a remark
+  about the generator's own sampling policy ("which is why it is never $1$
+  here") instead of presenting the result. Replaced with "So the derivative
+  is:", matching the root branch's own final step.
+- **Fix 4 (real bug, not style):** lesson prose read "...treating it as
+  $\frac{1}{2x+3}$ with numerator $1$" — a copy-paste slip saying "treat X
+  as X" instead of naming the quotient's numerator and denominator. Fixed
+  to "treating it as a quotient with numerator $1$ and denominator $2x+3$".
+- Two more flagged as optional/"your call", both applied: a teach slide's
+  prose leaking the generator's sampling policy to the learner ("every
+  question here has a coefficient of at least 2"), reworded to make the
+  same point about the maths rather than about the question bank; and the
+  reciprocal solution's first step showing bracket notation and saying
+  "power $1$" for an `n=1` case whose prompt never showed a power or
+  brackets — fixed to match the prompt exactly at `n=1`.
+- One flagged as low-priority and left as-is: two of the lesson's three
+  teach examples use parameter values that are themselves drawable by the
+  generator at the difficulty shown, so `resolveDeck`'s guided-slide
+  de-duplication (which only compares generated slides against each other,
+  never against literal teach slides) cannot stop a learner occasionally
+  meeting a question whose worked answer is already on the teach slide
+  above it. I checked this is a pre-existing, unenforced pattern across the
+  already-committed lesson 1 too (its own teach examples sit inside
+  `df-index-form`'s sample space), so fixing it only here would be
+  inconsistent with the rest of the codebase rather than fixing a defect I
+  introduced; left it, matching the advisor's own "your call" framing.
+- Confirmed `domain: 'real'` on the reciprocal branch puts a pole inside the
+  sampler's coordinate band (unlike generator A's reciprocal, whose pole
+  sits at 0, outside the band) but found no failures across ~1000 checks and
+  assessed the flake risk as negligible given the probe's tolerance for two
+  outliers in 24 — noted as a new exposure worth being aware of, not a fix.
+
+Applied fixes 1-4 plus both optional wording changes. Verified afterward:
+`npx vitest run ... -t 'df-chain-root'` (24/24), full `npm test` (2631/2631,
+the exact expected count for lessons 1+2 together — no regression),
+`npx tsc --noEmit` clean, `npm run lint` (25 warnings, 0 errors), and
+`git diff --stat` confirmed the isolated commit touches only the two
+generator/course files.

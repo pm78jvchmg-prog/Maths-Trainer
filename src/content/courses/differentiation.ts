@@ -480,20 +480,79 @@ export const differentiation: Course = {
           ],
           skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('product-rule', 2)],
         },
+
+        {
+          id: 'df-l3-roots',
+          title: 'Roots and Reciprocals of Brackets',
+          slides: [
+            teach(
+              {
+                kind: 'prose',
+                text: 'A root of a bracket is that bracket to the power $\\tfrac{1}{2}$, so the chain rule applies exactly as it does anywhere else.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\sqrt{2x + 3} = \\tfrac{1}{2}\\left(2x + 3\\right)^{-1/2} \\times 2 = \\frac{1}{\\sqrt{2x + 3}}',
+              },
+              {
+                kind: 'prose',
+                text: 'Two things have to appear: the $\\tfrac{1}{2}$ from differentiating the outer power, and the $2$ that is the derivative of what is inside. Dropping either one is the error to watch for.',
+              },
+            ),
+            ask('df-chain-root'),
+            ask('df-chain-root'),
+            ask('df-chain-root+choice'),
+            teach(
+              {
+                kind: 'prose',
+                text: 'A reciprocal of a bracket to a power $n$ is that bracket to the power $-n$, so it differentiates the same way a negative power always has.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\left(\\frac{1}{\\left(3x - 1\\right)^{2}}\\right) = -2\\left(3x - 1\\right)^{-3} \\times 3 = -\\frac{6}{\\left(3x - 1\\right)^{3}}',
+              },
+              {
+                kind: 'prose',
+                text: 'Watch two things: the minus sign that comes down with the power, and the power in the denominator, which goes *up* by one rather than down.',
+              },
+            ),
+            ask('df-chain-root', 2),
+            ask('df-chain-root', 2),
+            teach(
+              {
+                kind: 'prose',
+                text: 'If the coefficient inside the bracket were $1$, the chain rule factor would be $1$ too, and the step would look as though it were not there — which is why it is worth writing down even when it changes nothing.',
+              },
+              {
+                kind: 'display',
+                tex: '\\frac{d}{dx}\\left(\\frac{1}{2x + 3}\\right) = -\\frac{2}{\\left(2x + 3\\right)^{2}}',
+              },
+              {
+                kind: 'prose',
+                text: '$\\frac{1}{2x+3}$ can also be differentiated with the quotient rule, treating it as a quotient with numerator $1$ and denominator $2x+3$. The two routes must agree, and checking that they do is a good way to catch a slip.',
+              },
+            ),
+            ask('df-chain-root+choice', 2),
+            ask('chain-rule', 2),
+          ],
+          skillCheck: [ask('df-chain-root', 2), ask('df-chain-root'), ask('chain-rule', 2)],
+        },
       ],
       levelCheck: [
         ask('chain-rule', 2),
+        ask('df-chain-root', 2),
         ask('product-rule', 2),
         ask('quotient-rule', 2),
         ask('chain-rule', 2),
+        ask('df-chain-root', 2),
         ask('product-rule', 2),
         ask('quotient-rule', 2),
         ask('chain-rule', 2),
+        ask('df-chain-root', 2),
         ask('product-rule', 2),
         ask('quotient-rule', 2),
         ask('chain-rule', 2),
-        ask('product-rule', 2),
-        ask('quotient-rule', 2),
+        ask('df-chain-root', 2),
       ],
     },
 

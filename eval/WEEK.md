@@ -1144,3 +1144,53 @@ class was already recorded once from task 1's read. Task 3's units 3a and 3b
 address it directly, so what happens to those two units decides whether this stays
 the strongest candidate or is closed. If 3b is dropped under the stop rule, it is
 the first thing the next repair task takes.
+
+### Stage 6 on task 3, run at 17:10Z while the session was still on unit 3b
+
+Units 1, 2 and 3a were pushed, so the mechanical checks ran before the report
+existed — the same reason the task 2 oracle was run early.
+
+#### Instance 5 of the class, resolved: anticipated and mechanised
+
+*"The mutation was killed"* and *"the mutation never applied"* produce identical
+green output. The refusal branches are the only thing between them, so they were
+tested directly rather than read:
+
+| Refusal | Result |
+| --- | --- |
+| sed expression matches nothing | `mutation did not change …: the sed expression matched nothing`, exit 2 |
+| path does not exist | `no such file: … (path is relative to …)`, exit 2 |
+| path untracked | `not tracked: …`, exit 2 |
+| file already dirty | `refusing: … has uncommitted changes`, exit 2 |
+
+All four fire; `git status --short` is empty after each, so the trap restores on
+the refusal paths too. **The harness that exists to prove guards can fail cannot
+itself report a kill for a mutation that never happened.**
+
+**And the executor improved on the plan, in this exact class, unprompted.** The
+plan specified `git diff --quiet` as the cleanliness check. `git diff --quiet`
+**exits 0 for a nonexistent or untracked path**, so a mistyped path would have
+passed the check, failed an empty `cp`, and had the EXIT trap write a **0-byte
+file** back over it. The shipped script adds `[ -f ]` and
+`git ls-files --error-unmatch` with a comment stating exactly that reasoning.
+Two of the four refusals above exist only because it caught this.
+
+#### The unit 2 differential, re-run here rather than read
+
+Same mutation — `cn-l4-polar`'s `ask('argument', 2)` replaced by
+`ask('polar-form', 2)`, the scenario this finding was first written up as — run
+against both trees:
+
+| Tree | Guard | Result |
+| --- | --- | --- |
+| `origin/main` (`fb3e9c9`) | the old `shapeOf` | **`MUTANT SURVIVED`**, `1 passed \| 2619 skipped` |
+| branch (`71026be`) | the repaired rule | **`mutant killed`**, `cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form@2, polar-form+choice@2)` |
+
+That is the repair proved as a differential by someone other than the thing that
+made it. The offender message is word-for-word what the plan predicted.
+
+**Test-file count corroborates unit 3a independently:** `generators.test.ts` holds
+**2620** tests on `main` and **2837** on the branch. The delta is **+217, exactly
+one per registered generator**, which is the plan's prediction for the
+`alsoAccepts` test and rules out a test having been lost or duplicated alongside
+it.

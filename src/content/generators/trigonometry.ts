@@ -971,6 +971,117 @@ const evaluateExactTrig: Generator<ExactTrigParams> = {
     ];
   },
 };
+
+/* ---------- Level 3: reading the period out of the formula ---------- */
+
+/** Degrees in one full turn: the period of sin(t) and cos(t) when t is in degrees. */
+const FULL_TURN = 360;
+/** Values of b that divide a full turn, so every period is a whole number of degrees. */
+const B_VALUES = [2, 3, 4, 5, 6, 8, 9, 10, 12];
+/** An unsimplified fraction in mathjs syntax: a writing the lesson promises is accepted. Never displayed. */
+const unsimplified = (numerator: number, denominator: number): string => `${numerator}/${denominator}`;
+
+/** The wave written with its multiplier and shift, e.g. "2\\sin(3t) + 4". */
+function scaledWaveTex(a: number, fn: 'sin' | 'cos', inner: string, d: number): string {
+  return `${a === 1 ? '' : a}\\${fn}(${inner})${d === 0 ? '' : ` ${signedTex(d)}`}`;
+}
+
+interface PeriodFromBParams {
+  a: number;
+  b: number;
+  d: number;
+  fn: 'sin' | 'cos';
+  direction: 'period' | 'findB';
+}
+
+/** Reading the period of sin(bt) or cos(bt) from b, and the reverse. */
+const periodFromB: Generator<PeriodFromBParams> = {
+  id: 'trig-period-from-b',
+  sample: (rng, difficulty) => {
+    const a = rng.int(1, difficulty > 1 ? 6 : 3);
+    const b = rng.pick(B_VALUES);
+    const d = difficulty > 1 ? nonZeroInt(rng, -6, 8) : 0;
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const direction = difficulty > 1 && rng.chance(0.5) ? 'findB' : 'period';
+    return { a, b, d, fn, direction };
+  },
+  choices: ({ b, direction }) => {
+    const p = FULL_TURN / b;
+    if (direction === 'period') {
+      return options(
+        { tex: `${p}`, answer: `${p}` },
+        { tex: `${2 * p}`, answer: `${2 * p}` },
+        { tex: `${b}`, answer: `${b}` },
+        { tex: `${FULL_TURN}`, answer: `${FULL_TURN}` },
+      );
+    }
+    return options(
+      { tex: `${b}`, answer: `${b}` },
+      { tex: `${p}`, answer: `${p}` },
+      { tex: `${2 * b}`, answer: `${2 * b}` },
+      { tex: `${FULL_TURN}`, answer: `${FULL_TURN}` },
+    );
+  },
+  render: ({ a, b, d, fn, direction }): Slide => {
+    const p = FULL_TURN / b;
+    if (direction === 'period') {
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `What is the period of $y = ${scaledWaveTex(a, fn, `${b}t`, d)}$? Here $t$ is in degrees.`,
+          },
+        ],
+        lead: '\\text{period} =',
+        keypad: NUMBER_KEYS,
+        answer: `${p}`,
+        alsoAccepts: [unsimplified(FULL_TURN, b)],
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve $y = ${scaledWaveTex(a, fn, 'bt', d)}$ has period $${p}^{\\circ}$. What is $b$?`,
+        },
+      ],
+      lead: 'b =',
+      keypad: NUMBER_KEYS,
+      answer: `${b}`,
+      alsoAccepts: [unsimplified(FULL_TURN, p)],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ b, direction }) => {
+    const p = FULL_TURN / b;
+    if (direction === 'period') {
+      return [
+        {
+          text: `The $b$ inside the bracket is how many cycles fit into one turn. Sine and cosine repeat every $360^{\\circ}$, so $${b}$ cycles of this curve fit into $360^{\\circ}$.`,
+        },
+        { tex: `\\text{period} = \\frac{360^{\\circ}}{${b}} = ${p}^{\\circ}` },
+        {
+          text: 'The multiplier in front sets the height and anything added on the end moves the curve up or down; neither touches the period. Only what is inside the bracket does.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Period and $b$ are reciprocals across a full turn: the period is $360^{\\circ}$ divided by $b$, so $b$ is $360^{\\circ}$ divided by the period.',
+      },
+      { tex: `b = \\frac{360^{\\circ}}{${p}^{\\circ}} = ${b}` },
+      {
+        text: `So the curve completes $${b}$ full cycles between $0^{\\circ}$ and $360^{\\circ}$. A larger $b$ means a shorter period — the reversal that comes with living inside the bracket.`,
+      },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -987,4 +1098,5 @@ export const trigonometryGenerators = [
   evaluateWave,
   waveSlider,
   evaluateExactTrig,
+  periodFromB,
 ] as unknown as Generator<unknown>[];

@@ -1217,3 +1217,121 @@ warnings (unchanged).
 
 Commit: `src/content/generators/generators.test.ts` only. Message: "Require
 a declaration behind every \"accepted\" promise."
+
+---
+
+## Task 4 — pre-flight consultation (before unit A)
+
+**Question put to the advisor** (general-purpose agent, model: opus): sanity-check
+the overall approach for task 4 (four trig generators/lessons per
+eval/plans/TASK4-PLAN.md, one unit at a time, per-unit oracle + mutation proof +
+advisor consult + commit + push) before starting; flag anything that
+contradicts PREFLIGHT.md or looks like the "obvious fix is wrong" traps in
+PITFALLS.md; flag anything to double-check in the plan's exact literals before
+transcribing.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Summary of its answer:**
+1. Approach (literal, one unit at a time, A→B→C→D, never stopping mid-unit) is
+   sound — proceed.
+2. Real risk: `mutate.sh` reports "killed" on *any* non-zero exit, so a scratch
+   oracle that crashes (import error, vite-node resolution failure, typo) also
+   reads as "killed" and the oracle proof is then unearned — the bias is
+   fatal, not conservative. Mitigation: before running any mutation against an
+   oracle, first confirm on the clean tree that the oracle prints `0 failures`
+   AND exits 0, and separately confirm it exits non-zero when a wrong
+   assertion is deliberately introduced. Flagged that plan section 3 (around
+   its "risk 8a" table, the line about "a check that only prints") has this
+   backwards — an always-exit-0 oracle reads as SURVIVED (safe direction);
+   the dangerous case is an oracle that is always non-zero regardless of
+   truth. Not relying on that line.
+3. Distinguish `mutate.sh` exit 2 (harness error — sed matched nothing, e.g.
+   from a transcription line-wrap) from exit 1 (survived) and exit 0
+   (killed); log the exit code for every mutation run. Rewording a sed
+   expression to match the actual source formatting is fine; rewording it
+   until it kills is not.
+4. Section 2's honesty burden: units A, C, D's shape mutations are not
+   evidence about the task-3 shape-guard repair (the old rule would have
+   caught them too); only M-B is a differential. Advised empirically checking
+   M-B's differential in the scratchpad (sample the mutated tf-l2-symmetry
+   run over the 40-seed duplicate sweep and confirm no single sitting
+   actually lands three same-kind slides) rather than asserting it from the
+   plan's prose alone.
+5. Transcribe generator/lesson code with Write/Edit directly, never a heredoc
+   or intermediate script (an escaping layer eats a backslash silently, and
+   `sin`/`cos`/`frac`/`pi`/`quad` are denylisted, so a stripped backslash is a
+   guard failure). Verify each `+choice` id only exists where the base
+   generator declares `choices()`.
+6. If `npm test` counts diverge from 3021/3034/3060/3086, investigate the
+   delta and report it rather than adjusting content to hit the number.
+7. This consultation does not cover any of the four units' diffs — each unit
+   still needs its own consult on `git diff` (that unit only), returned
+   before its commit, with the advisor's self-reported model logged verbatim
+   each time. A repair commit after a surviving mutant needs its own short
+   consult. Unit D's mutation outputs need a final log-append commit even if
+   budget ends right after D's push.
+
+No code written yet at this point; `git status --short` was empty.
+
+---
+
+## Task 4 — Unit A consultation (trig-period-from-b, tf-l3-period-formula)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only (/tmp scratchpad diff of the two content files vs
+origin/main) against plan section 3.1, for transcription bugs (TeX escaping,
+`alsoAccepts` construction, the `lead: 'b ='` bare-letter fallback, sign/parity
+edge cases), whether the lesson prose and level check match the spec, and
+whether the PROMISE sentence is exactly as specified and backed by
+`alsoAccepts` on both forms it names.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), exact model ID `claude-opus-5[1m]`."
+
+**Verdict: no CONFIRMED bugs. The unit matches section 3.1 field by field.**
+
+Checked and found correct: `FULL_TURN`/`B_VALUES`/`unsimplified` verbatim,
+`FULL_TURN` on its own line (so M-A-oracle's sed anchor matches);
+`scaledWaveTex` character-for-character, every backslash doubled; `sample`'s
+draw order and the difficulty-1 gate on `direction`; `alsoAccepts` on both
+forms, each on its own line, values correct (every `b` in `B_VALUES` divides
+360 exactly) — independently re-ran the real checker: `360/3` vs `120` and
+`360/120` vs `3` both correct, including the widget's `((360)/(3))`
+serialisation, and the `+1` perturbations both incorrect; the PROMISE sentence
+is byte-identical to the plan and both writings it names are backed;
+distractors distinct in both forms (period form collapses to three only at
+`b = 2`, matching the plan); `lead: 'b ='` correctly falls back to the prompt
+via `promptFrom`'s bare-letter rule; lesson slide count/block counts/ordering
+and the level check's 15 entries all match the plan exactly; all four
+mutation sed expressions will match the text as written.
+
+**Three non-blocking notes, carried into the final report:**
+1. Plan section 2b's "400 writings for `trig-period-from-b+choice`" does not
+   happen — the `+choice` variant renders `kind: 'choice'`, so the
+   `alsoAccepts` test's `slide.kind !== 'expression'` guard skips it. Coverage
+   is 400 writings on the base id only.
+2. The PROMISE sentence contains the word "accepted" twice, not once as
+   section 2 states; harmless, since the guard counts per prose block
+   (`promises += 1` fires once for the block). `grep -n accepted` on the
+   course file still shows exactly one *line*.
+3. `choiceVariant.ts:63-65`'s comment ("quad-symmetry is the only generator
+   this affects today") is now stale — `trig-period-from-b`'s findB form also
+   hits the bare-letter fallback. Out of this unit's file boundary (the plan
+   forbids editing `choiceVariant.ts`), left as-is; flagged for the owner.
+
+**Gates already green before this consult:** `-t 'trig-period-from-b'` → 26
+passed; full suite 3021 passed (was 2995, +26 exactly as predicted); `tsc`
+silent; lint 0 errors / 25 warnings (unchanged); `git diff --stat origin/main`
+→ exactly `eval-advisor.log`, `src/content/courses/trigonometricFunctions.ts`,
+`src/content/generators/trigonometry.ts`, insertions only. Scratch oracle A
+(`oracle-a.ts`, scratchpad only): 400 draws, 0 failures, exit 0; separately
+confirmed the same oracle exits 1 when a deliberate `P + 1` bug is injected
+into it, so it is a live check.
+
+Commit next: `src/content/generators/trigonometry.ts`,
+`src/content/courses/trigonometricFunctions.ts`. Message: "Read the period of
+a sine or cosine from its formula". Mutation proofs (M-A-oracle, M-A-writing,
+M-A-promise, M-A-residual, M-A-shape) run after this commit and before the
+push, per section 6 of the plan.

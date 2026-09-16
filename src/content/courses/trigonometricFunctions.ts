@@ -759,6 +759,66 @@ export const trigonometricFunctions: Course = {
           ],
         },
         {
+          id: 'tf-l3-period-formula',
+          title: 'Reading the Period from the Formula',
+          slides: [
+            teach(
+              prose(
+                'The previous lesson said $b$ divides the period; with $t$ in degrees the arithmetic is concrete. $\\sin(t)$ repeats every $360^{\\circ}$, so $\\sin(bt)$ repeats every $360^{\\circ}$ divided by $b$.',
+              ),
+              maths('\\text{period of } \\sin(bt) = \\frac{360^{\\circ}}{b}'),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [
+                  { f: wave(0, 1, 360, 0), dashed: true },
+                  { f: wave(0, 1, 120, 0), accent: true },
+                ],
+                verticals: [{ x: 120 }, { x: 240 }],
+                label: 'sin t dashed against sin 3t, which fits three cycles into one turn',
+              }),
+              prose(
+                'The dashed curve is $\\sin(t)$ and the solid one is $\\sin(3t)$; three complete cycles of the solid curve fit into one cycle of the dashed one, so each is a third as long: $360^{\\circ} \\div 3 = 120^{\\circ}$, and the dashed verticals mark where each cycle ends.',
+              ),
+              prose('Read $b$ as a count: how many cycles fit into one turn.'),
+            ),
+            ask('trig-period-from-b'),
+            ask('trig-period-from-b+choice'),
+            ask('trig-period-from-b'),
+            teach(
+              prose(
+                'Only what is inside the bracket changes the period; in $y = 4\\sin(3t) + 2$ the $4$ sets the height and the $2$ lifts the curve, but the period is still $120^{\\circ}$.',
+              ),
+              prose(
+                'The formula runs backwards just as easily: a curve known to repeat every $90^{\\circ}$ fits four cycles into a turn, so $b = 4$.',
+              ),
+              maths('b = \\frac{360^{\\circ}}{\\text{period}} = \\frac{360^{\\circ}}{90^{\\circ}} = 4'),
+              prose(
+                'You do not have to simplify. If the period is $360^{\\circ} \\div 3$, typing $\\frac{360}{3}$ is accepted just as $120$ is, because the checker compares the value rather than how it is written. The same holds the other way round: for $b$, typing $\\frac{360}{120}$ is accepted as $3$.',
+              ),
+            ),
+            ask('trig-period-from-b', 2),
+            ask('trig-period-from-speed', 2),
+            ask('trig-period-from-b+choice', 2),
+            teach(
+              prose(
+                'This is the wheel from Level 2 in a new coat: a wheel making more turns per second has a shorter period, and $b$ counts cycles per turn in exactly the same way.',
+              ),
+              maths('b \\times \\text{period} = 360^{\\circ}'),
+              prose(
+                'That product is a check worth a second: if $b$ and the period do not multiply to a full turn, one of them has been misread; and $\\sin(2t)$ is still not $2\\sin(t)$ — the first repeats twice as often, the second is twice as tall.',
+              ),
+            ),
+            ask('trig-period-from-b', 2),
+            ask('trig-wave-range', 2),
+          ],
+          skillCheck: [
+            ask('trig-period-from-b', 2),
+            ask('trig-period-from-b+choice', 2),
+            ask('trig-read-parameters', 2),
+          ],
+        },
+        {
           id: 'tf-l3-together',
           title: 'Putting It Together',
           slides: [
@@ -815,13 +875,16 @@ export const trigonometricFunctions: Course = {
         ask('trig-evaluate-exact', 2),
         ask('trig-horizontal-shift', 2),
         ask('trig-period-from-speed', 2),
+        ask('trig-period-from-b', 2),
         ask('trig-wave-range', 2),
         ask('trig-read-parameters', 2),
         ask('trig-evaluate-exact+choice', 2),
+        ask('trig-period-from-b+choice', 2),
         ask('trig-amplitude', 2),
         ask('trig-midline', 2),
         ask('trig-wave-range', 2),
         ask('trig-evaluate-wave', 2),
+        ask('trig-period-from-b', 2),
       ],
     },
   ],

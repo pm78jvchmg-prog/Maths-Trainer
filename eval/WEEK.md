@@ -137,6 +137,7 @@ Filled as tasks complete. Empty now.
 | 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
 | 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | **$15.1065** | **0** | **0** | **3 of 4** — 1 inconsistent | **4 of 4** | 5 (`mutate.sh`, `generators.test.ts`, `types.ts`, `differentiation.ts`, `eval-advisor.log`) |
 | 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | **$16.3446** | **0** | **0** | **6 of 6** | **5 of 5** | 3 (`trigonometry.ts`, `trigonometricFunctions.ts`, `eval-advisor.log`) |
+| 5 | **Repair** — a counts reconciler for plan, report and tree | `session_01XheN92TbZPhY8RWagdJyo6` | *running* | — | — | *pending* | *pending* | *pending* |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1529,3 +1530,50 @@ Two reasons, and both are about which repair buys more:
 
 The residual becomes task 6. It loses nothing by waiting and the class it belongs
 to is already half-mechanised; the counts class is not mechanised at all.
+
+## Task 5 — launched 2026-09-16 22:43 UTC
+
+Branch `week/task5-counts`, plan at `eval/plans/TASK5-PLAN.md` (`ae1c0a1`). Three
+units: a pure core with its tests, the tree loader and CLI, then the report and
+retro runs.
+
+**The fork resolved as a hybrid, with the split stated.** The four done-list
+sentence shapes already present in plans 1–4 are *parsed* — giving four real test
+cases on the day the script is written, including task 4's, which must go red —
+and a fenced `counts` block becomes the *emitted* forward format from task 6, so
+the prose grammar never has to keep up with how future plans are phrased. Pure
+parsing rots silently, which is the hole; pure emission has no failing case until
+task 6, which is the class this task exists to close.
+
+**The report is a committed file.** That is the structural answer to task 4: its
+plan and tree agreed, and only the summary lied, so a script reconciling two
+numbers would have passed the very task that produced the defect. Three must
+agree — plan, report, tree — and the executor's closing message copies its numbers
+from the script's output rather than the reverse.
+
+### Stage 3 — verified before launch
+
+Tree facts, by import: **8 courses, 101 total lessons, 224 registry ids**, and
+`trigonometric-functions` 15 (5/6/4, checks 12/15/15), `complex-numbers` 14
+(4/3/3/4, 15/12/15/15), `differentiation` 11 (4/2/2/3, 15/12/14/15) — every figure
+the plan asserts, exact. No `counts` fence exists anywhere in the repository today;
+no `eval/reports/` directory; `.gitignore` line 3 is `*.log`, which is why the plan
+forbids a fixture named `*.log`.
+
+**The plan's most consequential unverified item is now verified.** It reasoned
+from the absence of a `test:` block in `vite.config.ts` that vitest would collect a
+file under `eval/bin/`, and flagged it honestly as unconfirmed — the entire +14 /
++11 count prediction rests on it. Checked empirically instead: a throwaway probe
+test placed at `eval/bin/collect-probe.test.ts` **was collected**, listed alongside
+the six `src/` files, and removed immediately. That is now in the executor's brief
+as confirmed rather than assumed.
+
+**Plan defects: 0 that I found** — the same weaker claim as tasks 3 and 4.
+
+### What this task does to the flow if it lands
+
+`FLOW.md` stage 6 currently says *ids by grep, never from the report*, and stage 8
+records counts. Both are rules run because the orchestrator remembers. If unit 2
+lands, those become one command with a non-zero exit — and the plan proposes the
+one-line additions rather than editing `FLOW.md` or `PREFLIGHT.md` itself, which is
+correct: the owner decides what the flow says.

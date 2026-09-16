@@ -135,6 +135,7 @@ Filled as tasks complete. Empty now.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **0 of 5** — only one consultation self-reported at all, and it said Sonnet | **4 of 4** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
 | 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
+| 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | *running* | — | — | *pending* | *pending* | *pending* |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1083,3 +1084,63 @@ a rebuild of two units from clean checkouts; task 2 did not. `COMPARISON.md`
 answered cost under control, on matched work, and this week was pre-registered to
 make no cost claim. Two numbers in a column are not a trend, and cost estimates in
 this project are still nought for four.
+
+## Task 3 — launched 2026-09-16 16:20 UTC. First repair task.
+
+Branch `week/task3-instrument-repairs`. Plan at `eval/plans/TASK3-PLAN.md`
+(`b9cc3c4`). Three repairs as four units: a mutation harness, the shape guards,
+and promised writings at generator and lesson level.
+
+**The plan reversed one instruction of the brief, correctly.** The harness was
+ranked last, "only if the first two leave room"; the plan builds it **first**,
+because the other three units use it to prove their guards, and building it first
+means it is exercised four times in this session rather than shipped untested.
+
+**It also corrected an error of mine, and the correction is the important part.**
+My brief said a changed guard must be shown *"failing against the unfixed code"*.
+For a guard repair **the code is not what is broken — the guard is**, so that
+instruction cannot be satisfied as written. The correct form, now in the plan and
+the executor's prompt:
+
+> A repaired guard is kept only on a **differential**: the same mutation, survived
+> by the current suite, killed by the repaired one. Green on the unmutated tree is
+> a **precondition, not a result**.
+
+That belongs in `PREFLIGHT.md` eventually. **Deliberately deferred**, along with
+the recommendation to move the four defect classes there from the planner
+template: after task 3, two of those four classes will have automated checks
+rather than rules, which changes what the section should say. Writing it now means
+writing it twice, and the second version is the one informed by whether the checks
+actually landed.
+
+### Plan defect trend — and why the third number is not comparable
+
+| | Plan defects | Kind |
+| --- | --- | --- |
+| Task 1 | **3** | judgement |
+| Task 2 | **1** | mechanical |
+| Task 3 | **0 that I found** | — |
+
+**"None I found" is a weaker claim than the other two, and the wording is kept
+deliberately.** Task 3's plan was checked differently from its predecessors: every
+countable claim was verified independently before launch — 217 registered
+generators, 97 lessons, exactly two "accept" sentences and both in
+`differentiation.ts`, `.gitignore` covering only `eval/scorers/`, and
+`makeRng(1), 1` at lines 445 / 872 / 894. All exact. That is stronger verification
+than task 1 or task 2's plans received.
+
+**But stronger checking making a defect less likely to be found is not the same as
+there being none**, and a later reading will treat 3 / 1 / 0 as one series unless
+this paragraph stops it. The first two numbers count defects the owner found by
+reading; the third counts defects that survived a countable-claims audit. They are
+not the same measurement.
+
+### Next repair candidate, on the evidence
+
+**Prose promising what only a field upholds is now three instances across two
+courses.** The plan's own grep found a second in `df-l4-combine` — *"either the
+expanded or the factorised form is accepted"* — alongside `df-l1-index`'s, and the
+class was already recorded once from task 1's read. Task 3's units 3a and 3b
+address it directly, so what happens to those two units decides whether this stays
+the strongest candidate or is closed. If 3b is dropped under the stop rule, it is
+the first thing the next repair task takes.

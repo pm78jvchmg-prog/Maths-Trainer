@@ -1,7 +1,11 @@
 <!-- Provenance: written by Fable 5.1 (built-in Plan agent, model override
 `fable`, default effort — the high-effort frontmatter did not load, since agent
-definitions are read at session start). Verbatim, except for this header and the
-override at the end. Task 1 of the week of real use; see ../WEEK.md. -->
+definitions are read at session start). Verbatim, except for this header and
+the amendments of 2026-09-16 (sections 0, 2.2 A, 4, 5, 6 and 7), made after the
+owner's review and folded into the text so the plan carries one instruction per
+point rather than an instruction and an override. The amendments were written
+by the same planner, at high effort this time, and applied by the launching
+session. Task 1 of the week of real use; see ../WEEK.md. -->
 
 # Plan: more lessons — Differentiation only, four lessons, four generators, staged
 
@@ -17,7 +21,7 @@ Why Differentiation and not "one lesson in each of eight":
 
 Where breadth is traded for completability: no new courses, no new levels, no new slide kinds, no new tests, no changes to `registry.ts`, `index.ts`, `types.ts`, or `generators.test.ts`. Two files change: `src/content/generators/differentiation.ts` and `src/content/courses/differentiation.ts` (plus one exported keypad constant in `src/content/generators/calculus.ts`).
 
-**Stop rule.** Pairs are ordered by value. Complete = 4 pairs. Acceptable = 2 pairs. Never start a pair you cannot finish and push; each pushed commit deploys to production and must be a whole lesson, green on every gate.
+**Stop rule.** Pairs are ordered by value. Complete = 4 pairs. Acceptable = 2 pairs. Never start a pair you cannot finish, commit and push to the outcome branch (section 5, step 6); each commit must be a whole lesson, green on every gate, because the branch is read commit by commit afterwards and is what may later be merged to `main`, where it would deploy.
 
 ## 1. Before writing anything
 
@@ -78,7 +82,7 @@ Roots and fractions differentiated by rewriting them as powers. `interface Index
 - `root`: display `y = ${a === 1 ? '' : a}\\sqrt{x}`; `answer: \`((${a})/2) * x^(-1/2)\``; `source: \`(${a}) * x^(1/2)\``; `domain: 'positive'`; `keypad: ROOT_KEYS`.
 - `reciprocalRoot`: display `y = \\frac{a}{\\sqrt{x}}`; `answer: \`((${-a})/2) * x^(-3/2)\``; `source: \`(${a}) * x^(-1/2)\``; `domain: 'positive'`; `keypad: ROOT_KEYS`.
 
-`domain: 'positive'` on the two root forms is deliberate and verified: `sqrt(x^3)` and `x^(3/2)` disagree at negative x under mathjs's principal branch, and a learner writing `3/(2*sqrt(x))` must not be marked wrong. Integer-power forms stay `'real'`.
+`domain: 'positive'` on the two root forms is deliberate, and was re-verified in the executing container against this repo's mathjs (15.2.0) and `checkAnswer`: at `x = -2`, `sqrt(x^3)` is `2.83i` and `x^(3/2)` is `-2.83i` (both principal branch, opposite sign), so over `'real'` the checker marks them `incorrect` and over `'positive'` `correct`. The writing that needs it is the `reciprocalRoot` answer written back as a radical — `-3/(2*sqrt(x^3))` against `((-3)/2) * x^(-3/2)` is `incorrect` over `'real'` and `correct` over `'positive'` — which is exactly the form step 4 of the solution shows the learner. `sqrt(x)`, `1/sqrt(x)` and `1/(x*sqrt(x))` happen to agree with their index forms at negative x as well, so `3/(2*sqrt(x))` passes on either domain; `'positive'` on `root` is the consistency rule *fractional index ⇒ `'positive'`*, not a rescue. It cannot weaken the distractor test, which calls `checkAnswer` without a domain and so always probes over the reals. Integer-power forms stay `'real'`: `-12/x^4` against `(-12) * x^(-4)`, and against mathjs's own `-(12 / x ^ 4)`, are `correct` there.
 
 `choices` (each option has both `tex` and `answer`, so the test proves every distractor wrong):
 - reciprocal — correct `(−an, −(n+1))`; distractors `(an, −(n+1))` sign dropped, `(−an, −(n−1))` power went up, `(−a, −(n+1))` forgot to multiply. Use `termTex`/`termAnswer` for all four. When `n = 1` the last has identical tex to the correct answer and `options()` drops it — that is fine (three options remain).
@@ -226,9 +230,9 @@ All in `src/content/generators/generators.test.ts` unless stated:
 | ≥2 widget shapes per lesson; no run of 3 same-shape questions between teach slides | "varies the shape of the questions inside a lesson", "never runs 3 or more identical-shape questions between teach slides" |
 | Unique lesson ids | "uses unique lesson ids" |
 | Real type errors (vitest strips types unchecked) | `npx tsc --noEmit -p tsconfig.app.json` — not a test; run it every time |
-| No XP/streaks/routers/engagement mechanics; nothing outside content touched | Nothing catches this; it is a rule. Diff must be confined to the three files named. |
+| No XP/streaks/routers/engagement mechanics; nothing outside content touched | Nothing catches this; it is a rule. Diff must be confined to the three files named plus `eval-advisor.log` at the repository root, which the session's system prompt requires to be committed with the work. |
 
-Never fix a failing distractor test by removing a distractor's `answer` field: that silently disables the check. Fix the sampling range or the filter instead.
+If any of these goes red, follow *When a gate goes red* at the end of section 5 before changing anything. In particular, never fix a failing distractor test by removing a distractor's `answer` field: that silently disables the check.
 
 ## 5. Working loop per pair (A, then B, then C, then D)
 
@@ -236,21 +240,36 @@ Never fix a failing distractor test by removing a distractor's `answer` field: t
 2. `npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'` (the `-t` argument is a regex and matches the `+choice` form too). Iterate until green.
 3. Write the lesson and its level-check edit.
 4. `npm test` && `npx tsc --noEmit -p tsconfig.app.json` && `npm run lint` (0 errors; 25 pre-existing warnings are expected — do not "fix" them).
-5. `git add src/content && git commit` with a one-line imperative message in the repo's style (e.g. `Differentiate roots and fractions by rewriting them as powers`, `Chain rule for roots and reciprocals of a bracket`, `Combine the product rule with the chain rule`, `Find the tangent to a curve at a point`), ending with the attribution lines your session's system reminder specifies. Never commit `dist/`.
-6. `git push origin main` (the remote is reachable from the container; if the proxy refuses a push, use the GitHub MCP `push_files` tool with the changed files instead). Every push deploys to production, which is why step 4 must be green first.
+5. `git add src/content eval-advisor.log && git commit` with a one-line imperative message in the repo's style (e.g. `Differentiate roots and fractions by rewriting them as powers`, `Chain rule for roots and reciprocals of a bracket`, `Combine the product rule with the chain rule`, `Find the tangent to a curve at a point`), ending with the attribution lines your session's system reminder specifies. `eval-advisor.log` is the advisor record the session's system prompt requires committed alongside the work; it is the one file outside `src/content` a commit may touch. Never commit `dist/`.
+6. `git push origin week/task1-differentiation` — the outcome branch this session was created with, rooted at the `main` of launch (`9d6cdcb`). **This is the only place commits go. Never push to `main`, never merge into it, and do not open a pull request.** The week's frozen configuration (`eval/WEEK.md`, Configuration) is "work pushed to a branch, never straight to `main`". Nothing deploys from this branch — the Cloudflare build triggers on `main` only — so step 4 is mandatory not because a push is a deploy but because the branch is the record that gets read afterwards and may later be merged, and the tests are the only thing that has checked it. Before the first push of a session, `git branch --show-current` must print `week/task1-differentiation`; if it prints `main`, `git fetch origin week/task1-differentiation && git switch week/task1-differentiation` (the branch already exists on `origin` with pair A, `8fd4b57`, on it — do not recreate it and do not redo pair A). Do not rebase the branch onto the current `main`: it is one commit behind (`e52a679`, which only logs the launch in `eval/WEEK.md`), and that is expected. If the proxy refuses the push, use the GitHub MCP `push_files` tool with `branch: "week/task1-differentiation"` and the same files.
 7. After the final pair, run `npm run build` once as the same command Cloudflare will run.
+
+### When a gate goes red
+
+Read the failure before changing anything. Every message in `generators.test.ts` names the seed and both expressions (or the fragment and where it came from); reproduce it on that seed — `checkAnswer(a, b, { seed })` in a one-off `vitest` file, or `mathjs.derivative` by hand — and work out which side is wrong before touching either. A test can be wrong, and so can the answer it is checking; decide which from the numbers, not from which is easier to change.
+
+The fix is always in the generator's *sampling* or in a *filter*: narrow a range, exclude a value, add a `for (;;)` guard like `quotientRule`'s, tighten the pair filter in `choices`. It is never any of the following, each of which turns the test off rather than passing it:
+
+- deleting or blanking a distractor's `answer` — the distractor test then cannot see that option;
+- dropping `source` — the oracle test skips silently (PITFALLS 2.2);
+- changing `domain` to `'positive'` on anything that is not a fractional-index form, or on anything at all in order to make a failing check pass;
+- changing `mode`, the probe policy, or anything under `src/engine/`;
+- editing, skipping, or adding to `generators.test.ts` (including its `BARE_TEX_COMMAND` denylist), which section 0 forbids;
+- trimming a sample count or a timeout (PITFALLS 3.7).
+
+If, having read the failure, you believe the test itself is wrong: stop the pair there, leave the tree uncommitted, and say so in the final report with the seed and both expressions. Do not fix the test and do not work around it. A wrong test is the owner's call, and a wrong test that was quietly routed around is exactly what the week's adversarial read is looking for.
 
 ## 6. Done
 
 - `src/content/courses/differentiation.ts` has 11 lessons (ids `df-l1-power, df-l1-sums, df-l1-index, df-l1-tangent, df-l2-product, df-l2-quotient, df-l3-chain, df-l3-roots, df-l4-trig, df-l4-exp, df-l4-combine`); level checks are 15/12/14/15.
 - `src/content/generators/differentiation.ts` exports four more generators; `grep -n "source:" src/content/generators/differentiation.ts` shows one for each of A, B, C and a comment explaining its absence in D.
-- `npm test`, `npx tsc --noEmit -p tsconfig.app.json`, `npm run lint` (0 errors), `npm run build` all pass on the pushed tree; `git status` clean; `origin/main` == local `main`.
-- Four commits (or two, at minimum), each a whole lesson, each pushed.
-- Nothing changed outside `src/content/generators/{differentiation,calculus}.ts` and `src/content/courses/differentiation.ts`.
+- `npm test`, `npx tsc --noEmit -p tsconfig.app.json`, `npm run lint` (0 errors), `npm run build` all pass on the pushed tree; `git status` clean; `origin/week/task1-differentiation` == local `week/task1-differentiation`; `main`, local and remote, still at the commit the session started from.
+- Four commits (or two, at minimum), each a whole lesson, each on `week/task1-differentiation` and pushed there. Pair A (`8fd4b57`) is already one of them.
+- Nothing changed outside `src/content/generators/{differentiation,calculus}.ts`, `src/content/courses/differentiation.ts` and `eval-advisor.log`.
 
 ## 7. Risks and handling
 
-1. **Fractional powers and the checker.** Retired by verification: mathjs differentiates `x^(1/2)`, `x^(-1/2)`, `(2x+3)^(1/2)` correctly, and half-integer forms agree at negative x — except `sqrt(x^3)` vs `x^(3/2)`, hence `domain: 'positive'` on every root form and `'real'` on integer powers. Do not make `'positive'` a default.
+1. **Fractional powers and the checker.** Re-verified in the executing container (this repo's mathjs 15.2.0, `checkAnswer` with seed `probe`): `mathjs.derivative` gives `x ^ (-1 / 2) * 3 / 2` for `(3) * x^(1/2)`, `x ^ (-3 / 2) * -3 / 2` for `(3) * x^(-1/2)` and `(2 * x + 3) ^ (-1 / 2)` for `((2) * x + (3))^(1/2)`, and each matches the planned answer over `'positive'`. At negative x, `sqrt(x)`, `1/sqrt(x)` and `1/(x*sqrt(x))` agree with `x^(1/2)`, `x^(-1/2)`, `x^(-3/2)`; `sqrt(x^3)` and `1/sqrt(x^3)` do not (opposite sign on the imaginary part), and a radical of a cube is how the `reciprocalRoot` answer is written back. Hence `'positive'` on every fractional-index form and `'real'` on integer powers. Do not make `'positive'` a default, and do not reach for it to make any other test pass.
 2. **Distractor collisions.** Canonical formatting (`termTex`, `lineTex`) makes value-equal options tex-equal, which `options()` drops; the remaining value-equal-but-tex-different case (tangent gradient equal to height) is filtered explicitly; `a ≥ 2` / `k ≥ 2` / `m ≠ 0` guarantee the "forgot a factor" distractors are always wrong. If the distractor test still fails on a seed, read its message — it names the seed and both expressions — and narrow the sampling; do not drop `answer`.
 3. **Blank option label.** `sumTex` of two zero terms is `''`; `lineTex` guards it. Keep it.
 4. **TeX escaping.** Write the file directly. The proposed labels were rendered under KaTeX strict mode and the denylist and all pass; keep to them and to the patterns already in the file.
@@ -266,16 +285,3 @@ Never fix a failing distractor test by removing a distractor's `answer` field: t
 - /home/user/Maths-Trainer/src/content/generators/generators.test.ts
 - /home/user/Maths-Trainer/src/content/choiceVariant.ts
 
----
-
-## Override — branch, not `main` (added by the launching session, not the planner)
-
-Section 5 step 6 says `git push origin main`. **It is overridden.** The week of
-real use freezes "work pushed to a branch, never straight to `main`"
-(`eval/WEEK.md`, Configuration). Push every commit to the outcome branch this
-session was created with, and do not push to `main`. Everything else in section
-5 stands, including that each commit must be a whole lesson with every gate
-green before it is pushed.
-
-Section 6's "`origin/main` == local `main`" is read the same way: the outcome
-branch is what must be pushed and current, not `main`.

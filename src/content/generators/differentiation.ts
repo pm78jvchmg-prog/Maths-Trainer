@@ -1172,6 +1172,8 @@ const indexForm: Generator<IndexFormParams> = {
         lead: '\\frac{dy}{dx} =',
         keypad: ALGEBRA_KEYS,
         answer: termAnswer(-a * n, -(n + 1)),
+        // The solution's step 4, the answer written back as a fraction.
+        alsoAccepts: [`(${-a * n})/x^(${n + 1})`],
         source: termAnswer(a, -n),
         domain: 'real',
         mode: 'exact',
@@ -1187,6 +1189,8 @@ const indexForm: Generator<IndexFormParams> = {
         lead: '\\frac{dy}{dx} =',
         keypad: ROOT_KEYS,
         answer: `((${a})/2) * x^(-1/2)`,
+        // The solution's step 4, $\frac{a}{2\sqrt{x}}$.
+        alsoAccepts: [`(${a})/(2*sqrt(x))`],
         source: `(${a}) * x^(1/2)`,
         domain: 'positive',
         mode: 'exact',
@@ -1201,6 +1205,16 @@ const indexForm: Generator<IndexFormParams> = {
       lead: '\\frac{dy}{dx} =',
       keypad: ROOT_KEYS,
       answer: `((${-a})/2) * x^(-3/2)`,
+      // Two ways the learner is told they may write it. The first is the
+      // solution's own step 4, $-\frac{a}{2x\sqrt{x}}$. The second is the
+      // radical-of-a-cube form the teach slide's "a fraction under a root"
+      // invites and that the checker's own domain policy names as the reason
+      // `positive` exists: over the real line $\sqrt{x^3}$ takes the other
+      // branch at negative x and disagrees with the index form, so this
+      // writing is the one that fails if the `domain` below is widened. The
+      // other three writings across this generator agree on any domain —
+      // this is the only one that pins the prose to the domain field.
+      alsoAccepts: [`(${-a})/(2*x*sqrt(x))`, `(${-a})/(2*sqrt(x^3))`],
       source: `(${a}) * x^(-1/2)`,
       domain: 'positive',
       mode: 'exact',
@@ -1482,6 +1496,15 @@ const productMixed: Generator<ProductMixedParams> = {
       lead: '\\frac{dy}{dx} =',
       keypad: fn === 'exp' ? EXP_KEYS : TRIG_KEYS,
       answer: sumAnswer([`${termAnswer(a * n, n - 1)} * ${fAnswer}`, `${termAnswer(s * a * k, n)} * ${fdAnswer}`]),
+      // The solution's own last step, for the exponential case only: both
+      // terms share the exponential, so the answer factorises and the
+      // teach slide for df-l4-combine promises "either form is accepted".
+      // Absent (not undefined) on a trig draw — the prose and the solution's
+      // promise are the exponential case, and a trig "factorised form" only
+      // shares x^{n-1}, so none is invented here.
+      ...(fn === 'exp'
+        ? { alsoAccepts: [`(${a}) * x^(${n - 1}) * e^((${k})*x) * ((${n}) + (${k})*x)`] }
+        : {}),
       source: `${termAnswer(a, n)} * ${fAnswer}`,
       domain: 'real',
       mode: 'exact',

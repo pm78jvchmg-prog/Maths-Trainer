@@ -648,3 +648,572 @@ which the repo's own test suite never checks at all; and scope) came back
 clean, with specific figures rather than "looks fine" — logged here for
 completeness but not repeated in full; see the agent handback for the exact
 numbers if ever needed.**
+
+# Task 3 (repair the instruments) — advisor consultations
+
+## Consultation 1 — Unit 1, `eval/bin/mutate.sh`, before commit
+
+Question put to the advisor: reviewed the full spec for the perturbation
+harness from `eval/plans/TASK3-PLAN.md` section 3.1 verbatim (usage line,
+seven-step behaviour, three exit codes, header-comment requirements, the two
+example invocations). Asked: (1) is the spec correct and safe as written —
+any bug, race condition or edge case around the trap/`set -u` interaction,
+`mktemp`, or `cmp` vs `diff --quiet` for detecting a no-op mutation; (2) is
+running `npx vitest run` as the mutated command safe given the file is
+restored via trap regardless of how vitest exits; (3) how strictly to
+interpret "print an error message" on the two exit-2 paths — stderr, and
+does collapsing both into one exit code matter; (4) anything about
+`git diff --quiet -- "$file"` on an untracked or nonexistent path worth
+flagging before writing this.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context) — model ID
+`claude-opus-5[1m]`."** Passed `model: "opus"` on the Agent call.
+
+Summary of the advisor's answer:
+- **Verdict: the spec is sound, build it as written** — the ordering is
+  right, the trap is correct, and the `cmp` guard does what it claims.
+- **One real hole, closed before committing.** `git diff --quiet -- "$file"`
+  exits 0 for a *nonexistent or untracked* path too — the wrong way round for
+  a guard. A mistyped `<file>` argument would sail through the cleanliness
+  check, `cp` would fail silently (no `-e` in the script), `sed -i` would
+  fail, and `cmp` on an (empty backup, missing file) pair exits status 2 —
+  which `if cmp -s …` reads as "differ", not as the "matched nothing" case —
+  so the guard against a no-op mutation would not fire either. The command
+  then runs against a completely unmutated tree, passes, and the script
+  reports a false `MUTANT SURVIVED`; the EXIT trap then writes a **0-byte
+  file back at the mistyped path**. Fixed by adding `[ -f "$file" ]` and
+  `git ls-files --error-unmatch -- "$file"` checks before the cleanliness
+  check, both exiting 2 with a message on stderr naming the path. This also
+  fixes step 5 for an untracked file: `git --no-pager diff -- "$file"` prints
+  nothing for one, so the mutation would go unrecorded.
+- Also recommended capturing `sed`'s own exit status separately, so a
+  malformed sed expression reports "sed failed on '<expr>'" instead of the
+  misleading "matched nothing" — added.
+- Confirmed the trap/`set -u` interaction is safe (verified empirically:
+  SIGINT still runs the EXIT trap and restores the file; the only wrinkle is
+  that a Ctrl-C mid-command reports "exited 130" as a "kill", which is
+  accurate but easy to misread as a real guard finding — noted as something
+  to read rather than trust blindly, not a bug).
+- Confirmed `npx vitest run` is safe to run as the mutated command: no
+  network access (resolves the local binary), writes nothing under `src/`,
+  and the trap restores the file on every exit path including a crash.
+- Flagged, as a *discipline* point rather than a script change: a `-t`
+  pattern that matches nothing exits 0 and is therefore indistinguishable
+  from a genuine `MUTANT SURVIVED` in the harness's own output — verified
+  directly (`npx vitest run src/engine/session.test.ts -t 'zzzz-no-such-name'`
+  exits 0, reporting only skips). The bias only runs one way (a typo'd `-t`
+  can fake a survival, never a kill), but the fix is procedural: read the
+  streamed output on every survive/kill, not just the exit code, and confirm
+  each `-t` pattern matches a nonzero test count on the clean tree before
+  trusting a mutated run against it. Applied throughout this task.
+- Recommended stderr for both exit-2 paths (already the case) and confirmed
+  collapsing both into exit code 2 is fine — callers only need "not a
+  verdict", distinguished by message rather than code.
+
+Both hardening changes (file-exists/tracked check, sed-status check) were
+applied to `eval/bin/mutate.sh` before its two self-proof runs were
+re-verified and before this unit was committed.
+
+**Unit 1 self-proof, both directions, run against the hardened script:**
+
+Kill (`df-index-form`'s reciprocal answer, sign dropped):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "s/answer: termAnswer(-a \* n, -(n + 1)),$/answer: termAnswer(a * n, -(n + 1)),/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'
+--- diff shows exactly line 1174 changed ---
+ FAIL  src/content/generators/generators.test.ts > df-index-form > matches an
+ independent symbolic derivative, where the generator declares its source
+AssertionError: seed 0: d/dx((1) * x^(-1)) is -(1 / x ^ 2), generator claims
+(1) * x^(-2): expected 'incorrect' to be 'correct'
+ Tests  1 failed | 23 passed | 2596 skipped (2620)
+mutant killed: the command exited 1
+$ echo $?
+0
+```
+
+Survive (`df-index-form`'s two positive-domain forms flipped to `real`):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ s/domain: 'positive'/domain: 'real'/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'
+--- diff shows exactly lines 1191 and 1205 changed ---
+ Tests  24 passed | 2596 skipped (2620)
+MUTANT SURVIVED: the command passed with src/content/generators/differentiation.ts mutated
+$ echo $?
+1
+```
+
+`git status --short` empty except the new file after every run (trap
+restored the mutation each time). Also verified the two new guard paths: a
+nonexistent path exits 2 with "no such file …"; an untracked path exits 2
+with "not tracked …"; a dirty target file exits 2 and refuses to touch it; a
+sed expression matching nothing exits 2 with "matched nothing".
+
+`npm test` 2777 (unchanged — this unit adds a script, no test file
+touched), `tsc` silent, lint 0 errors / 25 warnings (unchanged).
+
+Commit: `eval/bin/mutate.sh` only. Message: "Add a mutation runner that
+fails when a check cannot."
+
+## Consultation 2 — Unit 2, repaired shape guards, before commit
+
+Question put to the advisor: the full diff to
+`src/content/generators/generators.test.ts` repairing the two shape guards
+("varies the shape of the questions inside a lesson" and "never runs 3 or
+more identical-shape questions between teach slides") to judge a generator's
+rendered kind-set over `SEEDS` seeds at the difficulty a lesson reference
+actually asks (`ref.difficulty ?? 1`, mirroring `resolveRef` in
+`src/engine/session.ts`), rather than at a single fixed seed-1/difficulty-1
+sample — the defect WEEK.md recorded, where `polar-form`'s difficulty-2
+branch into a native `choice` slide was invisible to the old guard. Pasted
+the full diff and the mutation-harness proof already run (M1/M2 survived
+before, killed after, both offender messages). Asked: (1) is the
+"intersection of kind-sets is non-empty → offender" logic actually correct
+and a genuine generalisation of the old single-sample check, with no false
+positives/negatives — walked through the two-multi-shaped-refs edge case
+explicitly; (2) does the `shapeCache` shared across the two `it()` blocks
+risk cross-test pollution or hide a bug; (3) any performance risk building
+shape sets for every referenced generator×difficulty, against the plan's
+measured 568ms figure; (4) any TypeScript fragility in the
+`Extract<SlideRef, {type:'generated'}>` predicate or `Slide['kind']` indexed
+type if the `SlideRef`/`Slide` unions grow a variant later; (5) any red flag
+that this loosens rather than tightens the guard.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context), exact model
+ID `claude-opus-5[1m]`."** Passed `model: "opus"` on the Agent call.
+
+Summary of the advisor's answer: **approve as-is**, verified independently
+rather than taken on trust.
+- **Reproduced the mutation kill itself**, from a fresh read of `resolveRef`,
+  the `SlideRef`/`Slide` unions, `polar-form`, `choiceVariant` and
+  `cn-l4-polar`, not from my notes: ran `eval/bin/mutate.sh` on the M1
+  mutation independently and got the same `mutant killed` / offender message.
+- **Ran its own whole-registry scan** (217 generators × 200 seeds × both
+  difficulties, 356 distinct `id@difficulty` pairs actually referenced by
+  lessons/skill-checks/level-checks): confirmed `polar-form` is the *only*
+  generator whose kind set differs between difficulty 1 (`{expression}`) and
+  difficulty 2 (`{choice, expression}`, 86 choice / 114 expression over 200
+  seeds) — every other generator is single-shaped at every difficulty it is
+  ever asked at.
+- **Q1 answered as a proved statement, not a hand-wave**: because the old
+  check's sampled kind (seed 1, difficulty 1) is by construction a member of
+  the new check's difficulty-1 set, and the scan shows every generator's
+  difficulty-1 set is a subset of (or equal to) its actual-difficulty set on
+  this tree (the only divergent case, `polar-form`, has its difficulty-2 set
+  as a strict *superset* of its difficulty-1 set), the new guard's flags are
+  a superset of the old guard's flags — nothing that used to be caught is
+  now missed, and the new guard catches the case the old one could not.
+  Neither worry case in the two-multi-shaped-refs walkthrough can produce a
+  false negative (intersection logic cannot silently miss a run both refs
+  can share) or a spurious logic-level false positive (only a *policy*
+  tightening exists, and it's flagged as deliberate and currently inert
+  since only one generator is multi-shaped anywhere in the registry).
+- **Q2**: fine and intended — the `describe` callback runs once at
+  collection so the map is shared deliberately; confirmed nothing in `src/`
+  ever mutates `registry`, and `sample`/`render` are pure given an rng, so a
+  cached value is a pure function of its key. Measured: first guard 151ms,
+  second guard 13ms warm.
+- **Q3**: no risk — building sets for all 356 referenced pairs (a superset of
+  what the two guards touch) took 261ms; the two guards together measured
+  164ms in situ, under half the plan's 568ms full-registry figure, and
+  `commonShape`'s early return on an empty intersection actively skips
+  building the tail of a run's sets.
+- **Q4**: low risk, and asymmetric in a way worth recording — a renamed
+  discriminant fails loudly (TS2367) on both guards; a *third* `SlideRef`
+  variant would silently drop from the lesson-level guard's `filter`
+  predicate but would fail to typecheck on the run-level guard's `else`
+  branch, so one of the two has a compiler backstop and the other does not.
+  Not held against the commit, since `SlideRef` has been two variants for
+  the life of the repo and a third would be a deliberate design change.
+- **Q5**: no red flags. Verified mechanically (not just by reading) that new
+  flags ⊇ old flags on the whole tree; the assertion is still a bare
+  `toBe('')` with no tolerance, skip, or seed narrowing; no test added or
+  removed; failure messages got strictly more informative. Confirmed two
+  pre-existing scope facts are unchanged by this diff and not a loosening:
+  the guards read `lesson.slides` only (not `skillCheck`), and level checks
+  are correctly excluded from the run guard (they have no teach slides).
+- **One optional, non-blocking suggestion, taken**: `shapesOf`'s sweep is a
+  *sample* of reachable kinds, not a proof — a branch rarer than ~1-in-200
+  could be missed by 200 seeds, which shrinks the intersection and so hides
+  an offender, the same blindness class this unit repairs. No exposure today
+  (rarest branch in the registry is 86/200) but worth a sentence in the doc
+  comment for the next reader. Added to `shapesOf`'s comment before
+  committing; re-ran `generators.test.ts` after the comment-only addition —
+  still 2620 passed, unchanged.
+
+`npm test` 2777 (unchanged — same-count repair, no test added or removed),
+`tsc` silent, lint 0 errors / 25 warnings (unchanged).
+
+**Unit 2 self-proof, both directions, on the repaired guards:**
+
+M1 (`cn-l4-polar`'s guided `argument@2` ask flipped to `polar-form@2`,
+creating a real run of 3 choice-shaped slides):
+```
+Before (old guards, whole file): MUTANT SURVIVED — 2620 passed
+After (repaired guards, -t 'identical-shape'):
+  FAIL course integrity > never runs 3 or more identical-shape questions between teach slides
+  cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form@2, polar-form+choice@2)
+  mutant killed: the command exited 1
+```
+
+M2 (`cn-l4-polar`'s `polar-form`/`argument@2`/`modulus-steps` asks collapsed
+onto `polar-form@2`):
+```
+Before (old guards, whole file): MUTANT SURVIVED — 2620 passed
+After (repaired guards, whole file):
+  FAIL course integrity > varies the shape of the questions inside a lesson
+  cn-l4-polar: 8 questions can all be choice (polar-form@2, polar-form+choice@1,
+    polar-form@2, polar-form@2, polar-form@2, polar-form+choice@2, polar-form@2, polar-form@2)
+  FAIL course integrity > never runs 3 or more identical-shape questions between teach slides
+  cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form+choice@1, polar-form@2)
+  cn-l4-polar: run of 3 questions can all be choice (polar-form@2, polar-form@2, polar-form+choice@2)
+  mutant killed: the command exited 1
+```
+
+`git status --short` empty except the intended edit after every run (trap
+restored `complexNumbers.ts` each time). `grep -n "makeRng(1), 1"` shows
+only line 445 (the per-generator single-letter check, deliberately
+untouched) and one comment line quoting the old code.
+
+Commit: `src/content/generators/generators.test.ts` only. Message: "Judge
+lesson shape at the difficulty the lesson asks."
+
+## Consultation 3 — Unit 3a, pin promised writings at the generator, before commit
+
+Question put to the advisor: the full three-file diff repairing "F2"
+(`eval/WEEK.md`'s finding that a teach slide promises checker behaviour only
+a `domain` field upholds) — a new `alsoAccepts?: string[]` field on the
+`expression` variant of `Slide` (`src/content/types.ts`), populated on
+`df-index-form`'s three renders and on `df-product-mixed`'s exponential case
+only (via a conditional spread so the property is genuinely absent on trig
+draws), plus a new generic per-generator test in `generators.test.ts` that
+grades each declared writing against `answer` under the slide's own
+`domain`/`mode`, exactly as the reducer grades a learner. Pasted the full
+diff and the mutation-harness proof already run (the domain-flip mutation,
+`-t 'other writing it promises'`: killed, naming seed 2's `reciprocalRoot`
+draw; the exact same mutation re-run with `-t 'df-index-form'` — the
+original Unit 1 "survived" invocation, verbatim — now also killed, closing
+F2 at the oracle level). Explained the staging mechanism used to run the
+harness on a file this unit had already edited: `mutate.sh`'s cleanliness
+check is `git diff --quiet -- "$file"`, which compares the working tree to
+the INDEX, not HEAD, so staging the file first (`git add`) lets the harness
+mutate on top of an uncommitted edit and its trap restores back to that
+staged version rather than to HEAD — verified this held by checking
+`git status --short` showed only the staged `M` with no unstaged diff after
+each run. Asked: (1) independently re-derive whether the four declared
+writings are algebraically correct against their `answer` fields, especially
+the two singled out (`df-index-form` reciprocal, `df-product-mixed`
+exponential); (2) is the generic test's placement and cost sound; (3) is the
+conditional-spread technique for keeping `alsoAccepts` genuinely absent (not
+`undefined`) on trig draws sound; (4) could the numeric-probing checker be
+fooled into accepting a writing that is not genuinely equivalent; (5) any
+red flag that this games rather than tightens the guard.
+
+Self-reported model — **inconsistent, logged verbatim rather than resolved
+in either direction**: *"Advisor model identity: Claude Opus 4.5
+(claude-opus-4-5-20251101). Note: the environment prompt in my context
+labels me 'Opus 5 (1M context) / claude-opus-5[1m]' — I have no such model
+in my own knowledge, so log both strings and treat the harness label as
+authoritative if you are recording the run's configured model."* Passed
+`model: "opus"` on the Agent call, as every consultation this task. Recorded
+here exactly as given rather than picking the string that looks more
+authoritative — this is a new failure mode for this project's advisor
+self-report, distinct from the two named in `eval/WEEK.md` (an omitted
+`model` parameter, and a consultation returning after the commits it should
+have covered): here the parameter was passed correctly and the consultation
+returned before any commit, but the model's own account of its identity
+disagrees with the harness's label for it. Neither string is discarded.
+
+Summary of the advisor's answer:
+- **Q1 — verified independently, not taken on trust.** Wrote its own scratch
+  script (not this repo's checker): raw mathjs, a from-source
+  reimplementation of `termAnswer`/`sumAnswer`, 40 sample points per case,
+  swept the *full* parameter ranges from each generator's `sample()` (not a
+  seed sample) — 208 writing-checks against both the generator's own
+  `answer` and an independent `math.derivative(source, 'x')` oracle, 0
+  failures either direction. Hand-confirmed the two singled out algebraically
+  correct, including the `df-product-mixed` exponential term at `n = 1`
+  (`x^(n-1)` becoming `x^0`).
+- **Q2 — sound and measured, not assumed**: `-t 'other writing it promises'`
+  runs all 217 generator tests in 1.92s wall (~0.5s of actual test time); the
+  215 vacuous generators cost only the `render()` call the sibling tests
+  already pay, and the `'correct'` assertion means an `indeterminate`
+  verdict fails too — nothing can slip through on too few valid probe points.
+- **Q3 — fine, with a precision correction**: confirmed `tsc --noEmit`
+  silent independently. Noted `exactOptionalPropertyTypes` is not enabled in
+  `tsconfig.app.json`, so `alsoAccepts: undefined` would have typechecked
+  identically — the conditional spread buys genuine runtime absence, which
+  the test's own `!slide.alsoAccepts` check does not distinguish from
+  `undefined` either. Not a correctness requirement, a style choice; logged
+  here so it is not later described as load-bearing.
+- **Q4 — no**: these are exact algebraic identities confirmed symbolically
+  against `math.derivative`, not near-misses that happen to agree at 24
+  points.
+- **Q5 — one real defect found, the reverse of what was asked about.** The
+  `reciprocalRoot` comment claimed both `alsoAccepts` writings came from
+  "the solution's step 4" — false: `solution()` for that form shows only
+  `-\frac{a}{2x\sqrt{x}}`, never the radical-of-a-cube form. The second
+  writing's real provenance is the teach slide's "a fraction under a root"
+  phrase plus the checker's own `domain` policy, which is a *better*
+  justification than a solution step (it is the one the F2 finding is
+  actually about) but the comment claiming a solution shows something it
+  does not is exactly the class of inaccurate self-account this task exists
+  to close. **Fixed before commit**: rewrote the comment to name the true
+  source of each writing, and to flag explicitly that this is the *only* one
+  of the four writings that is domain-sensitive (checked at x = −1, −1.7,
+  −0.6: the other three agree on the negative reals or the whole complex
+  plane too) — a fact worth being explicit about so a later reader does not
+  assume all four guard `domain`.
+- **Recommended and applied: a negative control**, mirroring "rejects a
+  perturbed answer" but for each declared writing — without it, a
+  declaration that passed trivially (in the limit, `alsoAccepts:
+  [slide.answer]`) would sail through unnoticed. The advisor applied this
+  itself, ran it green, then **verified it can fail per CLAUDE.md's own
+  rule** by flipping the expectation: it went red on exactly the two
+  declaring generators (`df-index-form` seed 0, `df-product-mixed` seed 2)
+  and nowhere else, before restoring. Re-verified independently after
+  applying the same addition: flipped the same expectation myself, confirmed
+  red on exactly those two generators (`df-index-form` seed 0's reciprocal
+  writing, `df-product-mixed` seed 2's exponential writing), then restored
+  from a backup copy and confirmed the diff returned to exactly the intended
+  45-line addition.
+- **One item flagged for Unit 3b, checked and found out of scope**: a
+  comment at `differentiation.ts:367` (`df-product-poly`) reading "an
+  unexpanded answer is equally accepted" — same defect class, but it is a
+  source-code comment inside the generator, never shown to a learner, not a
+  `teach`-slide prose block. `grep -n "accepted" src/content/generators/*.ts
+  src/content/courses/*.ts` run directly (not taken from the advisor's
+  report) confirms exactly two course-level teach-slide promises (lines 243,
+  838 of `courses/differentiation.ts`) and no third — matching the plan's
+  own verified count in section 8. Unit 3b's test is scoped to
+  `lesson.slides`' literal teach-slide prose, which this comment is not, so
+  it is correctly out of the diff boundary rather than a gap. Recorded for
+  the final report as something noticed, not acted on.
+
+Both required fixes (the reciprocalRoot comment, the negative-control
+addition) were applied before this unit's harness proofs were re-verified
+and before committing. `npx tsc --noEmit` silent after; `generators.test.ts`
+full file green at 2837 (unchanged from before the fixes — the negative
+control adds assertions inside the same `it`, not new `it` blocks).
+
+**Unit 3a self-proof, both directions, on the version including both fixes:**
+
+Domain-flip mutation, `-t 'other writing it promises'`:
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ s/domain: 'positive'/domain: 'real'/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'other writing it promises'
+FAIL df-index-form > accepts every other writing it promises
+AssertionError: seed 2: promised writing (-5)/(2*sqrt(x^3)) is not accepted
+against ((-5)/2) * x^(-3/2) over real: expected 'incorrect' to be 'correct'
+ Tests  1 failed | 216 passed | 2620 skipped (2837)
+mutant killed: the command exited 1
+```
+
+Same mutation, re-run with the original Unit 1 "survived" filter verbatim
+(`-t 'df-index-form'`) — F2 closed at the oracle level:
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ s/domain: 'positive'/domain: 'real'/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'
+FAIL df-index-form > accepts every other writing it promises
+AssertionError: seed 2: promised writing (-5)/(2*sqrt(x^3)) is not accepted
+against ((-5)/2) * x^(-3/2) over real: expected 'incorrect' to be 'correct'
+ Tests  1 failed | 25 passed | 2811 skipped (2837)
+mutant killed: the command exited 1
+```
+
+Negative-control self-check (not a mutate.sh run — a direct flip of the new
+test's own expectation, restored from a backup afterward): red on exactly
+`df-index-form` seed 0 and `df-product-mixed` seed 2, confirming the control
+is live rather than vacuous.
+
+`git status --short` empty except the intended staged edits after every
+harness run (`differentiation.ts` re-staged after the comment fix so the
+cleanliness check passed against the updated index each time).
+
+`npm test` 2994 (was 2777, +217 — one new test per registered generator,
+matching the plan's prediction exactly), `tsc` silent, `npm run build`
+succeeds (required since `types.ts` changed), lint 0 errors / 25 warnings
+(unchanged).
+
+Commit: `src/content/types.ts`, `src/content/generators/differentiation.ts`,
+`src/content/generators/generators.test.ts`. Message: "Pin promised
+alternative writings to the checker."
+
+## Consultation 4 — Unit 3b, require a declaration behind every "accepted" promise, before commit
+
+Question put to the advisor: the full diff (one file — a new course-integrity
+test plus a `declaresAlsoAccepts` helper) completing repair 2's other half —
+unit 3a pins a generator's declared writing to the checker; nothing yet
+pinned the lesson *sentence* to a declaration existing at all, so moving the
+promise-sentence to a lesson whose generators declare nothing would go
+unbacked again with a green suite. The new test scans every lesson's literal
+teach-slide prose for `/\baccepted\b/i`, and for each match requires some
+generated reference anywhere in `lesson.slides` (not `skillCheck`) whose
+generator renders an `expression` slide with non-empty `alsoAccepts` on at
+least one of 200 seed draws at the asked difficulty — cached per
+`${generatorId}@${difficulty}`, mirroring the prior unit's `shapesOf` cache
+key but early-breaking on the first hit rather than sweeping all 200, since
+this is an existence question rather than a full kind-set. A loud-pass guard
+(`expect(promises, ...).toBeGreaterThan(0)`) matches the pattern the
+traversal-figure test already uses. Pasted the full diff and the
+mutation-harness proof already run: before adding the test (verified via
+`git stash` on the test file to get the true pre-unit state), the sed
+mutation deleting all 3 of `df-index-form`'s `alsoAccepts` lines survived
+against the whole file (2837 passed) — showing unit 3a's own test correctly
+*skips* an undeclared slide rather than catching its disappearance; after
+adding the test, the identical mutation with `-t 'another writing'` was
+killed, naming `df-l1-index` and quoting its exact sentence, while
+`df-l4-combine` stayed green because `df-product-mixed`'s declaration sits
+outside the mutated id range — exactly as the plan predicted. Asked: (1)
+independently confirm the `/\baccepted\b/i` marker and its teach-slide-prose
+scope are complete and correctly bounded (not solution-step text, not
+`skillCheck`); (2) is scoping the "declared" search to `lesson.slides` (not
+`skillCheck`) correct, or could a promise realistically be backed only by a
+skill-check-only generator; (3) is early-breaking on the first declaring
+seed (vs. `shapesOf`'s full 200-seed sweep) correct for an existence check,
+and does the asymmetry between two same-keyed caches risk confusing a future
+reader; (4) any way the loud-pass guard could silently read 0 today; (5) any
+red flag of gaming, and whether the full four-unit task reads as complete
+and coherent. Also asked, since this is the last unit, for anything across
+all four units worth flagging in the final report without a code change.
+
+Self-reported model — **resolved, unlike consultation 3**: *"Claude Opus 5
+(1M context) — model ID `claude-opus-5[1m]`. That is the single answer; no
+alternative name applies."* The advisor itself offered an explanation for
+consultation 3's inconsistency (an older model's self-report conflicting
+with its own harness label) but this is its account, not independently
+confirmed here — logged as the advisor's own statement, not adopted as fact.
+Passed `model: "opus"` on the Agent call, as every consultation this task.
+
+Summary of the advisor's answer: **approve as-is, commit it** — verified
+independently rather than taken from the question's framing.
+- **Q1**: ran its own `grep -rn "accepted" src/` over the whole tree (19
+  hits, not just the two globs given) and confirmed exactly 2 in
+  `src/content/courses/` — both the ones this test targets — with the
+  remainder being doc comments, other test files' comments, two generator
+  solution-step texts, and one generator source comment, none of which this
+  test's scope claims to cover. Also swept a list of near-miss phrasings
+  ("either form", "any equivalent", "same value", etc.) across every course
+  file and found no unmarked checker-acceptance promise today. But flagged
+  that the stated justification for excluding solution-step text — "already
+  covered structurally since `alsoAccepts` is declared right where those
+  live" — is **true today and enforced by nothing**, which is the same "true
+  only by luck" shape the whole repair exists to close. See the residual
+  below.
+- **Q2**: correct as scoped — a promise backed only by a skill-check
+  generator would produce a **false failure** under the current scope, not a
+  false pass, which is the safe direction; widening to include `skillCheck`
+  would weaken rather than strengthen the check.
+- **Q3**: correct — `shapesOf` must sweep all 200 seeds because it builds a
+  complete kind-set; `declaresAlsoAccepts` is a pure existence query and
+  short-circuiting is the right shape for it. Both are pure functions of
+  `(generatorId, difficulty)` with separate cache objects, so no aliasing
+  risk between the two same-keyed caches.
+- **Q4**: safe, and structurally so — the sibling test "never puts a
+  teaching slide in a skill check" (same file) already guarantees teach
+  slides exist only in `lesson.slides`, so the guard's scope cannot drift
+  silently; if every "accepted" sentence were ever moved out of teach-slide
+  prose, `promises` would read 0 and fail loudly rather than pass silently.
+- **Q5**: no gaming — the assertion is a real, currently-satisfied property,
+  weakens nothing, and the mutation proof was independently re-run by the
+  advisor (a variant of it) rather than taken on the question's word.
+- **One residual gap found and demonstrated, not fixed here — the advisor's
+  own recommendation, followed**: ran a *tighter* mutation through
+  `eval/bin/mutate.sh` — deleting only the single `root`-form `alsoAccepts`
+  line (the exact writing `df-l1-index`'s sentence names, "a fraction under
+  a root") while leaving `df-index-form`'s other two declarations intact.
+  Result: `MUTANT SURVIVED`, 2838 passed. Reason: `declaresAlsoAccepts` asks
+  a *per-generator* question (some draw declares *something*) about a
+  *per-form* promise, so the reciprocal form's surviving declaration
+  satisfies the guard while the specific writing the sentence names is gone.
+  **Independently re-verified here** before recording it (not taken on the
+  advisor's word): `eval/bin/mutate.sh src/content/generators/differentiation.ts
+  "1193s/^.*alsoAccepts:.*$//" -- npx vitest run
+  src/content/generators/generators.test.ts` → `MUTANT SURVIVED`, 2838
+  passed, matching the advisor's own run exactly. The advisor prototyped a
+  finer, per-draw fix (tying a draw's `solution()` prose directly to that
+  same draw's `alsoAccepts`) and confirmed it would catch this — 217 passed
+  unmutated, killed on the same single-line mutation — then explicitly
+  recommended **not** adding it to this unit: it is a distinct promise
+  surface (solution-step text, not lesson prose) at a distinct granularity
+  (per-draw, not per-lesson), belongs in the per-generator block rather than
+  course-integrity, and bolting it on in the task's last unit would muddy
+  this unit's own proof story. Followed that recommendation — no code
+  change from this finding. Named for the final report instead, with both
+  mutation results (all-three-deleted → killed by this unit's test;
+  root-only-deleted → still survived) side by side, since a report showing
+  only the kill would overstate what this unit closes.
+- **Also flagged as a content observation, not a defect**: `choiceVariant.ts`
+  makes a derived `+choice` slide inherit its parent's `solution()` verbatim,
+  so `df-index-form+choice` and `df-product-mixed+choice` show a learner who
+  picked from four options the same "either form is accepted" / "both are
+  accepted" sentence written for someone who typed an answer. Harmless, and
+  outside this task's diff boundary (no course or generator content changes
+  beyond the `alsoAccepts` declarations named in the plan) — recorded for
+  the final report.
+- **Summary across all four units, requested since this is the last one**:
+  the F2 repair is two-thirds closed by this task, not whole (declaration→
+  checker via 3a, sentence→declaration-exists via 3b; sentence→specific-
+  writing-named is the residual above); unit 2's own comment already
+  concedes a symmetric 1-in-200 sampling limit and `declaresAlsoAccepts`
+  inherits the same limit in the opposite direction (a real declaration on a
+  branch rarer than ~1/200 would read as no declaration and cause a loud
+  false failure, not a silent pass); and the harness built in unit 1 is
+  named as the task's most durable artefact — it is what let both this
+  consultation and the previous one demonstrate the residual gap on the
+  measured code rather than assert it.
+
+`git status --short` confirmed clean (only the intended `generators.test.ts`
+edit) throughout, including after the tighter residual-gap mutation the
+advisor ran and after my own independent re-run of it.
+
+**Unit 3b self-proof, both directions:**
+
+Before (via `git stash` on `generators.test.ts` to get the pre-unit state,
+whole file):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ { /^ *alsoAccepts:/d }" \
+    -- npx vitest run src/content/generators/generators.test.ts
+--- diff deletes exactly the 3 alsoAccepts: lines unit 3a added, nothing else ---
+ Tests  2837 passed (2837)
+MUTANT SURVIVED: the command passed with src/content/generators/differentiation.ts mutated
+```
+
+After (`git stash pop` to restore this unit's test, `-t 'another writing'`):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ { /^ *alsoAccepts:/d }" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'another writing'
+FAIL course integrity > backs every promise that another writing is accepted
+AssertionError: df-l1-index says "Either the index-form answer or the answer
+written back as a fraction under a root is accepted — the checker compares
+values, not the shape they are written in." but none of df-index-form@1,
+df-index-form@1, df-index-form+choice@1, df-index-form@2,
+df-index-form+choice@2, df-index-form@2, power-rule@2 declares alsoAccepts
+on any draw: expected false to be true
+ Tests  1 failed | 2837 skipped (2838)
+mutant killed: the command exited 1
+```
+
+Residual-gap demonstration (not this unit's proof — recorded for the final
+report, independently re-run rather than taken on the advisor's word):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "1193s/^.*alsoAccepts:.*\$//" -- npx vitest run src/content/generators/generators.test.ts
+--- diff deletes only the root-form alsoAccepts line at 1193, the writing
+    df-l1-index's sentence names, leaving the other two forms' declarations
+    intact ---
+ Tests  2838 passed (2838)
+MUTANT SURVIVED: the command passed with src/content/generators/differentiation.ts mutated
+```
+
+`npm test` 2995 (was 2994, +1 — one course-integrity test, not per-generator,
+matching the plan's prediction exactly), `tsc` silent, lint 0 errors / 25
+warnings (unchanged).
+
+Commit: `src/content/generators/generators.test.ts` only. Message: "Require
+a declaration behind every \"accepted\" promise."

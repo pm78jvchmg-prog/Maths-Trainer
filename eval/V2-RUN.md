@@ -327,3 +327,57 @@ Under non-inferiority, one failure against a baseline of zero is a detected
 difference — which is precisely what a ceiling makes measurable and superiority
 did not.
 
+---
+
+## t1: mechanism confirmed, instance inferred
+
+Standing correction to how the section above may read. What the probe
+established is that **the per-call `model: "opus"` override beats
+`CLAUDE_CODE_SUBAGENT_MODEL: sonnet` in this repository** — a fact about the
+mechanism, demonstrated in this session's container.
+
+It did **not** establish that the override worked in `v2-armB-rep1-t1`'s
+container. That is an inference from the mechanism holding, seven sibling
+sessions in the same repository reporting Opus, and the log line being a
+mislabel in the executor's own voice.
+
+**Mechanism confirmed, instance inferred.** Not "t1 was verified Opus". Anywhere
+this is summarised, it keeps that shape.
+
+## Pre-committed reading of T3, written before A2 and B2 run
+
+First, a definitional point settled now rather than after the data. The earlier
+exclusion of T3 from the quality clause was computed from **v1** arm A's record
+(INCONCLUSIVE in reps 1 and 3). v1 is no longer the baseline — amendment D2
+withdrew it. The live-task definition as written is: *a task is live only if
+every scored trial of it, in both arms, is conclusive.* In v2, A1's T3 is a
+conclusive PASS and B1's a conclusive FAIL. **T3 is live in v2**, and stays live
+unless a v2 trial returns INCONCLUSIVE. That is the rule applied to new data, not
+a new rule.
+
+`t3a` is the least stable task in the set: two INCONCLUSIVEs in v1, a
+non-terminating `pairBank` on two of three v1 arm A attempts, and a scorer
+rebuilt twice. So its v2 outcomes need a reading fixed in advance.
+
+Standing: A1 t3a **PASS**, B1 t3a **FAIL**.
+
+| A2 t3a | B2 t3a | Arm A fails / Arm B fails on T3 | Is this a detected difference? | D1 verdict |
+| --- | --- | --- | --- | --- |
+| PASS | FAIL | 0 / 2 | **YES — replicated.** The only case I will call one | no switch |
+| FAIL | PASS | 1 / 1 | **No.** Parity; the task is unstable, not the arms | quality satisfied on T3, cost read |
+| FAIL | FAIL | 1 / 2 | **No.** A task both arms fail is uninformative | no switch — see below |
+| PASS | PASS | 0 / 1 | **No — unreplicated.** One trial, on the least stable task | no switch |
+
+**The tension in row 3, pre-committed.** If both arms fail t3a in rep 2, D1 is a
+count rule and says arm B fails more trials than arm A, so: no switch. But the
+project's own rubric calls a task both arms fail *uninformative*. Both are true.
+**D1 is frozen and governs the verdict — I will not reinterpret it to rescue that
+case.** It will be reported as a no-switch verdict driven by an uninformative
+task, which is a weakness of the rule, not evidence about the configurations.
+
+**What this means for the whole exercise.** Only row 2 can reach the cost clause.
+Rows 1, 3 and 4 all return no switch, and only row 1 returns it on evidence worth
+the name. So the most likely outcome is a correct verdict resting on very thin
+evidence — one task, n=2 — and that has to be said in the conclusion rather than
+smoothed over with the eight-task denominator.
+

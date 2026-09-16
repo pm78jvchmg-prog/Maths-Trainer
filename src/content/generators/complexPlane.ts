@@ -1,7 +1,7 @@
 /**
  * Complex Numbers, Levels 3 and 4: the plane, modulus, argument and powers.
  */
-import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf } from './format';
@@ -453,6 +453,126 @@ export const polarForm: Generator<PolarParams> = {
   },
 };
 
+/* ---------- De Moivre: powers in modulus-argument form ---------- */
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? Math.abs(a) : gcd(b, a % b);
+}
+
+/** m·π/d in lowest terms, as the learner reads it. Canonical: equal values give equal strings. */
+function angleTex(m: number, d: number): string {
+  if (m === 0) return '0';
+  const g = gcd(m, d);
+  const num = Math.abs(m) / g;
+  const den = d / g;
+  const top = num === 1 ? '\\pi' : `${num}\\pi`;
+  return `${m < 0 ? '-' : ''}${den === 1 ? top : `\\tfrac{${top}}{${den}}`}`;
+}
+
+/** The same angle for mathjs; `-2*pi/3`, `3*pi/1` and `0` all parse. */
+function angleAnswer(m: number, d: number): string {
+  if (m === 0) return '0';
+  const g = gcd(m, d);
+  return `${m / g}*pi/${d / g}`;
+}
+
+/** m·π/d brought into (−π, π] by removing whole turns; returns the new numerator over the same d. */
+function principal(m: number, d: number): number {
+  const turn = 2 * d;
+  let r = ((m % turn) + turn) % turn;
+  if (r > d) r -= turn;
+  return r;
+}
+
+const POLAR_ANGLES: { k: number; d: number }[] = [
+  { k: 1, d: 6 }, { k: 1, d: 4 }, { k: 1, d: 3 }, { k: 1, d: 2 }, { k: 2, d: 3 }, { k: 3, d: 4 }, { k: 5, d: 6 }, { k: 1, d: 1 },
+  { k: -1, d: 6 }, { k: -1, d: 4 }, { k: -1, d: 3 }, { k: -1, d: 2 }, { k: -2, d: 3 }, { k: -3, d: 4 }, { k: -5, d: 6 },
+];
+
+interface PolarPowerParams { r: number; index: number; n: number; ask: 'modulus' | 'argument' }
+
+export const polarPower: Generator<PolarPowerParams> = {
+  id: 'polar-power',
+  choices: ({ r, index, n, ask }) => {
+    const { k, d } = POLAR_ANGLES[index];
+    const m = principal(n * k, d);
+    if (ask === 'modulus') {
+      // Multiplied instead of powered, one power short, one power over.
+      const num = (v: number) => ({ tex: `${v}`, answer: `${v}` });
+      return options(num(r ** n), num(n * r), num(r ** (n - 1)), num(r ** (n + 1)));
+    }
+    // The angle left unreduced, the argument not multiplied at all, the sign
+    // flipped, and off by one multiple.
+    const ang = (mm: number) => ({ tex: angleTex(mm, d), answer: angleAnswer(mm, d) });
+    return options(
+      ang(m),
+      ang(n * k),
+      ang(principal(k, d)),
+      ang(principal(-m, d)),
+      ang(principal((n - 1) * k, d)),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const ask = rng.pick(['modulus', 'argument'] as const);
+    // Modulus 1 makes |z^n| = 1 trivial, so it is excluded on that branch only.
+    const r = ask === 'modulus' ? rng.int(2, 3) : rng.int(1, 3);
+    const index = rng.int(0, POLAR_ANGLES.length - 1);
+    const n = rng.int(2, difficulty >= 2 ? 6 : 4);
+    return { r, index, n, ask };
+  },
+  render: ({ r, index, n, ask }) => {
+    const { k, d } = POLAR_ANGLES[index];
+    const m = principal(n * k, d);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `A complex number $z$ has modulus $${r}$ and argument $${angleTex(k, d)}$.` },
+        {
+          kind: 'prose',
+          text: ask === 'modulus'
+            ? `What is $|z^{${n}}|$?`
+            : `What is the principal argument of $z^{${n}}$, between $-\\pi$ and $\\pi$?`,
+        },
+      ],
+      lead: ask === 'modulus' ? `|z^{${n}}| =` : `\\arg\\left(z^{${n}}\\right) =`,
+      keypad: ANGLE_KEYS,
+      // A power question, not a derivative: no `source` here for the oracle
+      // test to differentiate against.
+      answer: ask === 'modulus' ? `${r ** n}` : angleAnswer(m, d),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ r, index, n }) => {
+    const { k, d } = POLAR_ANGLES[index];
+    const m = principal(n * k, d);
+    const unreduced = angleTex(n * k, d);
+    const reduced = angleTex(m, d);
+    const steps: SolutionStep[] = [
+      {
+        text: "De Moivre's theorem: raising to the power $n$ raises the modulus to the power $n$ and multiplies the argument by $n$.",
+        tex: `|z^{${n}}| = |z|^{${n}} = ${r}^{${n}} = ${r ** n}`,
+      },
+      {
+        tex: `\\arg\\left(z^{${n}}\\right) = ${n} \\times ${paren(angleTex(k, d))} = ${unreduced}`,
+      },
+    ];
+    if (unreduced !== reduced) {
+      const j = (n * k - m) / (2 * d);
+      steps.push({
+        text: 'That is outside $(-\\pi, \\pi]$, so remove whole turns of $2\\pi$ until it lands inside — the direction is unchanged, only the label.',
+        tex: `${unreduced} ${j > 0 ? '-' : '+'} ${Math.abs(j) === 1 ? '' : `${Math.abs(j)} \\times `}2\\pi = ${reduced}`,
+      });
+    } else {
+      steps.push({
+        text: 'That is already between $-\\pi$ and $\\pi$, so it is the principal argument as it stands.',
+      });
+    }
+    steps.push({ text: `So $|z^{${n}}| = ${r ** n}$ and $\\arg(z^{${n}}) = ${reduced}$.` });
+    return steps;
+  },
+};
+
 /* ---------- Powers, via De Moivre ---------- */
 
 interface PowerParams { re: number; im: number; n: number }
@@ -511,4 +631,5 @@ export const planeGenerators = [
   argument,
   complexPower,
   polarForm,
+  polarPower,
 ];

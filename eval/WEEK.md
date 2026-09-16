@@ -1630,3 +1630,48 @@ without a way to check any of them, and does so in a repair task whose whole
 subject is documents lying about their own contents. That is the most
 injection-shaped brief of the five, and it is the part I control. Whether the
 wrapper also differed is unresolved and is left that way.
+
+### The fix for unverifiable claims produced a verifiably false one
+
+**Task 5 refused a second time, on stronger evidence, and was right again.** Its
+report: *"commit b8ebcb4 and week/task* branches don't exist."*
+
+Checked here before answering, and it is **my error, twice over**:
+
+| | |
+| --- | --- |
+| `ae1c0a1` committed | 22:42:32 |
+| **Session cloned** | **22:43:03** |
+| `b8ebcb4` committed | **22:43:29 — 26 seconds after the clone** |
+
+I wrote the WEEK.md log entry *after* calling `create_session`, then cited its
+commit as proof of legitimacy. **The session's checkout is at `ae1c0a1` and can
+never contain `b8ebcb4`.** The second anchor failed too: the clone is single-branch,
+so `git branch -r` shows only `origin/main`, and no `week/*` branch is visible from
+inside any task session.
+
+**Both anchors in the message written to fix unverifiable claims were false.** The
+session checked them, found them false, and escalated from *"prompt-injection
+concern"* to *"social engineering detected"* — which on that evidence is the correct
+inference. It behaved better on the second refusal than on the first, because the
+evidence was better.
+
+**This is worse than the problem it was fixing, and that is the finding.** An
+unverifiable claim leaves a session unconvinced; **a claim it checks and finds false
+actively convinces it of the opposite.** The fix introduced a stronger failure than
+the one it replaced, on its first use, in the message implementing it.
+
+**Mechanical form of the rule, now in `FLOW.md` stage 4:** *an anchor must predate
+the clone and be visible in it.* Take the head commit **before** launching; never
+cite a commit written in the same breath; a branch listing is never an anchor in a
+single-branch clone.
+
+**Could a check have caught this?** **Yes, trivially** — compare the anchor's commit
+timestamp against the session's `created_at`, both of which are available. Added to
+the candidate list. It is the third entry in the mechanisable column from task 5
+alone.
+
+**Interventions: this is the second on task 5**, both brief-attributable, both with
+the executor behaving correctly. Task 5 now stands at **2 interventions, 0 about
+the executor** — and the executor has twice declined to proceed on bad evidence
+from me, which is the behaviour the configuration is supposed to have.

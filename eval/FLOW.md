@@ -45,6 +45,23 @@ suspected injection, correctly. **So quote the false claim with the commit and f
 it appears in, so the session can go and read the wrong number for itself.** It
 turns the most suspicious part of a brief into the most checkable part.
 
+**An anchor must predate the clone, and must be visible in it.** The two
+ways this fails, both found by giving a session anchors it then disproved:
+
+- **A commit made after `create_session` returns is not in the checkout.** Task 5's
+  correction cited a commit written **26 seconds after** the session was cloned. The
+  session looked, correctly found no such commit, and concluded it was being
+  socially engineered — by the very message sent to prove it was not. **Take the
+  head commit before launching, not after**, and never cite a commit written in the
+  same breath as the launch.
+- **The clone is single-branch.** `git branch -r` shows `origin/main` and nothing
+  else, so no `week/*` branch is ever visible from inside a task session. A branch
+  listing is not an anchor.
+
+The general form: **an anchor is only an anchor if the session can reach it.** A
+claim the session checks and finds false is worse than an unverifiable one — the
+first proves you wrong, the second merely leaves you unproven.
+
 **Give a cold session anchors before assertions.** The head commit and its
 subject, the binding files by `ls`, the provenance of any script it is told to
 use — with *verify before believing, and stop if a check fails*. A brief that

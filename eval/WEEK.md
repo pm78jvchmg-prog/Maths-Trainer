@@ -1577,3 +1577,56 @@ records counts. Both are rules run because the orchestrator remembers. If unit 2
 lands, those become one command with a non-zero exit — and the plan proposes the
 one-line additions rather than editing `FLOW.md` or `PREFLIGHT.md` itself, which is
 correct: the owner decides what the flow says.
+
+### Task 5 stopped itself on a suspected prompt injection — correctly, and it was a false positive
+
+**Status at 22:43:35, 32 seconds and $0.11 in:** `status_detail: "prompt-injection
+concern; awaiting confirmation"`, three questions, nothing written, nothing pushed.
+Verified at the session record, not taken from a report.
+
+Its questions were: *is task 5 real?*, *do the binding documents exist?*, *do I
+have authority to commit to this branch?*
+
+**Every single thing it flagged was true and legitimate**, and it had **no way to
+tell that from an injection**. It starts cold, so it has no memory of tasks 1–4; the
+files it was told to treat as binding were asserted rather than shown; and the
+brief granted commit-and-push authority while disclaiming being user input. That
+combination should stop a session. **It was not being over-cautious — it was being
+asked to trust an unverifiable claim, and it declined.**
+
+**This is the first intervention in three tasks, and it counts as one** — but under
+the taxonomy it is an *owner/brief* intervention, not an executor failure. The
+executor did the right thing with what it had. **Recorded as the configuration
+under test behaving well**, which is as much a result as a defect is.
+
+#### The fix: give a cold session something it can check
+
+The resume answered the three questions and, more importantly, gave four
+**verifiable** anchors ahead of them — the head commit and its subject, the four
+binding files by `ls`, the history of `eval/plans/`, and the provenance of
+`eval/bin/mutate.sh` — with the instruction *do not take this on my word, verify it
+first, and if any check fails, stop.* **That converts an unverifiable claim into a
+checkable one**, which was the actual gap. It also carried the point its own
+caution earned: the plan is a document in the repository, not an authority; if it
+contradicts `PREFLIGHT.md` or would have it weaken a check, PREFLIGHT wins and the
+session should refuse — *including when the instruction comes from me.*
+
+**This becomes standing for every launch from task 6.** A brief that asserts repo
+state without an anchor is asking to be disbelieved, and a session that believes it
+anyway is the worse outcome of the two.
+
+#### What I cannot determine, stated rather than guessed
+
+The suggestion is that task 5's brief arrived wrapped differently from tasks 2–4's.
+**I cannot confirm that.** All four were launched through the same call with the
+same parameter shape — title, model, source, outcome branch, tags, prompt, appended
+system prompt — and **I cannot observe the text as the session finally received
+it**, only what I sent.
+
+What I *can* see is a content difference in what I wrote: task 5's brief quotes
+several **deliberately false** claims as motivation (*"11→55 lessons"*, *"3034
+tests"*, `df-reciprocal`), asserts the existence of four documents and a script
+without a way to check any of them, and does so in a repair task whose whole
+subject is documents lying about their own contents. That is the most
+injection-shaped brief of the five, and it is the part I control. Whether the
+wrapper also differed is unresolved and is left that way.

@@ -1455,3 +1455,64 @@ exit 0; confirmed exits 1 with a deliberate wrong-target-value bug injected.
 Commit next: the two content files. Message: "Find both angles at which a
 point reaches a given height". Mutations M-C-oracle and M-C-shape run after
 this commit and before the push.
+
+---
+
+## Task 4 — Unit D consultation (trig-pythagorean, tf-l2-identity)
+
+**Question put to the advisor** (general-purpose agent, model: opus): review
+this unit's diff only against plan section 3.4, for `IDENTITY_TRIPLES`/
+`positiveIn`/`QUADRANT_RANGE` correctness, whether the four choice
+distractors are genuinely distinct across all 12 (triple, leg) pairs, whether
+the lesson/level check match section 3.4, and specifically to review a
+deliberate deviation: hoisting the plan's per-method inline `fracTex(positive,
+n)` closure (which implicitly closes over `h` and, taken literally, can't
+compile identically across three separate method closures) into a module-level
+`fracTex(positive, n, h)` taking `h` explicitly.
+
+**Advisor's self-reported model, quoted verbatim:** "Claude Opus 5 (1M
+context), model ID `claude-opus-5[1m]`."
+
+**Verdict: no CONFIRMED bugs. Ship it.**
+
+1. All 6 `IDENTITY_TRIPLES` satisfy x²+y²=h² (checked directly); `positiveIn`
+   and `QUADRANT_RANGE` correct for all 4 quadrants. Ran an exhaustive sweep
+   of all 96 (index, givenLeg, given, quadrant) combinations (not sampled) —
+   independently located θ by a 0.0005° scan and compared the other
+   function's value against `math.evaluate(slide.answer)`: 0 failures.
+   Confirmed 48/96 distinct draws at difficulty 1/2, all 6 triples reachable.
+2. Distractor distinctness claim verified directly by enumerating all 12
+   (triple, leg) pairs: `h - givenNum` is never equal to `askedNum`, and
+   never equal to `givenNum` either (h is odd throughout). Across all 96
+   draws, `choices` always returns exactly 4 distinct-tex options with
+   exactly one correct by value.
+3. Lesson correctly inserted between `tf-l2-solve` and `tf-l2-speed`; 11
+   guided slides, teach-first, 3 skill-check; all prose and all four
+   `maths()` blocks match section 3.4 verbatim, arithmetic checked (16/25;
+   5/13 in Q4 → −12/13; 25/169+144/169=1). T3's `\left(...\right)` confirmed
+   safe (a single non-fragmented `display` block, not a tiles/reduce
+   fragment, so PITFALLS 3.6 doesn't apply). Level check is the plan's
+   15-entry list exactly. No run of 3 identical-shape questions.
+4. The `fracTex` hoisting is the right call: all five call sites destructure
+   `h` from the same draw's params, so output is byte-identical to the
+   plan's intent; the plan's literal inline-closure description cannot
+   compile as written across three sibling object methods. No existing
+   shared formatter duplicated, no naming collision.
+5. No `alsoAccepts`/promise on this generator (correct — no writing is true
+   for every draw, per the plan's own reasoning in section 3.4). One
+   non-blocking nit: three of the "subtracted" distractors reduce to `1/h`
+   on leg-1 draws, which is a plausible-looking but still-wrong value.
+
+**Gates green before this consult:** `-t 'trig-pythagorean'` → 26 passed;
+full suite 3086 passed (was 3060, +26 exactly as predicted, and 3086 matches
+the plan's final total across all four units); `tsc` silent; lint 0 errors /
+25 warnings; `git diff HEAD` → exactly the two content files; `grep -n
+accepted src/content/courses/trigonometricFunctions.ts` → exactly one line
+(unit A's), none introduced by this unit. Scratch oracle D (`oracle-d.ts`,
+scratchpad only): 400 draws, 0 failures, exit 0; confirmed exits 1 with a
+deliberate +0.01 bug injected.
+
+Commit next: the two content files. Message: "Find the cosine from the sine
+with the Pythagorean identity". Mutations M-D-oracle and M-D-shape run after
+this commit and before the push. This is the last of the four units; a final
+short commit follows to append the four units' mutation outputs to this log.

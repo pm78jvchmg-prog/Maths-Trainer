@@ -1312,6 +1312,118 @@ const solveHeight: Generator<SolveHeightParams> = {
   },
 };
 
+/* ---------- Level 2: the Pythagorean identity ---------- */
+
+/** Pythagorean triples, so a sine given as a fraction has a cosine that is also a fraction. Exported for the scratch oracle. */
+export const IDENTITY_TRIPLES: [number, number, number][] = [
+  [3, 4, 5],
+  [5, 12, 13],
+  [8, 15, 17],
+  [7, 24, 25],
+  [20, 21, 29],
+  [9, 40, 41],
+];
+
+/** Sine is the height, positive in the upper half; cosine the displacement, positive on the right. */
+const positiveIn = (fn: 'sin' | 'cos', quadrant: number): boolean =>
+  fn === 'sin' ? quadrant <= 2 : quadrant === 1 || quadrant === 4;
+
+const QUADRANT_RANGE = [
+  '0^{\\circ} < \\theta < 90^{\\circ}',
+  '90^{\\circ} < \\theta < 180^{\\circ}',
+  '180^{\\circ} < \\theta < 270^{\\circ}',
+  '270^{\\circ} < \\theta < 360^{\\circ}',
+];
+
+interface IdentityParams {
+  index: number;
+  givenLeg: 0 | 1;
+  given: 'sin' | 'cos';
+  quadrant: number;
+}
+
+/** A signed fraction n/h, in mathjs-displayable TeX. */
+const fracTex = (positive: boolean, n: number, h: number): string =>
+  `${positive ? '' : '-'}\\tfrac{${n}}{${h}}`;
+
+/** Find the cosine from the sine (or the reverse) with the Pythagorean identity. */
+const pythagorean: Generator<IdentityParams> = {
+  id: 'trig-pythagorean',
+  sample: (rng, difficulty) => {
+    const index = rng.int(0, 5);
+    const givenLeg = rng.int(0, 1) as 0 | 1;
+    const given = rng.pick(['sin', 'cos'] as const);
+    const quadrant = rng.int(1, difficulty > 1 ? 4 : 2);
+    return { index, givenLeg, given, quadrant };
+  },
+  choices: (params) => {
+    const { index, givenLeg, given, quadrant } = params;
+    const [x, y, h] = IDENTITY_TRIPLES[index];
+    const givenNum = givenLeg === 0 ? x : y;
+    const askedNum = givenLeg === 0 ? y : x;
+    const asked = given === 'sin' ? 'cos' : 'sin';
+    const gs = positiveIn(given, quadrant);
+    const as = positiveIn(asked, quadrant);
+    const frac = (positive: boolean, n: number) => ({
+      tex: fracTex(positive, n, h),
+      answer: `${positive ? '' : '-'}${n}/${h}`,
+    });
+    return options(frac(as, askedNum), frac(!as, askedNum), frac(gs, givenNum), frac(as, h - givenNum));
+  },
+  render: (params): Slide => {
+    const { index, givenLeg, given, quadrant } = params;
+    const [x, y, h] = IDENTITY_TRIPLES[index];
+    const givenNum = givenLeg === 0 ? x : y;
+    const askedNum = givenLeg === 0 ? y : x;
+    const asked = given === 'sin' ? 'cos' : 'sin';
+    const gs = positiveIn(given, quadrant);
+    const as = positiveIn(asked, quadrant);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\${given}(\\theta) = ${fracTex(gs, givenNum, h)}$ and $${QUADRANT_RANGE[quadrant - 1]}$. What is $\\${asked}(\\theta)$? Give it as a fraction.`,
+        },
+      ],
+      lead: `\\${asked}(\\theta) =`,
+      keypad: NUMBER_KEYS,
+      answer: `${as ? '' : '-'}${askedNum}/${h}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { index, givenLeg, given, quadrant } = params;
+    const [x, y, h] = IDENTITY_TRIPLES[index];
+    const givenNum = givenLeg === 0 ? x : y;
+    const askedNum = givenLeg === 0 ? y : x;
+    const asked = given === 'sin' ? 'cos' : 'sin';
+    const gs = positiveIn(given, quadrant);
+    const as = positiveIn(asked, quadrant);
+    const where =
+      asked === 'sin'
+        ? as
+          ? 'above the centre'
+          : 'below the centre'
+        : as
+          ? 'to the right of the centre'
+          : 'to the left of the centre';
+    return [
+      {
+        text: 'The point is on a circle of radius $1$, so its two coordinates satisfy $\\cos^2(\\theta) + \\sin^2(\\theta) = 1$. Square the value you have and subtract it from $1$.',
+      },
+      {
+        tex: `\\${asked}^2(\\theta) = 1 - \\left(${fracTex(gs, givenNum, h)}\\right)^2 = 1 - \\tfrac{${givenNum * givenNum}}{${h * h}} = \\tfrac{${askedNum * askedNum}}{${h * h}}`,
+      },
+      {
+        text: `Taking the square root gives $\\tfrac{${askedNum}}{${h}}$ up to sign, and the quadrant decides the sign: with $${QUADRANT_RANGE[quadrant - 1]}$ the point is ${where}, so $\\${asked}(\\theta)$ is ${as ? 'positive' : 'negative'}.`,
+      },
+      { tex: `\\${asked}(\\theta) = ${fracTex(as, askedNum, h)}` },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -1331,4 +1443,5 @@ export const trigonometryGenerators = [
   periodFromB,
   relatedAngleGenerator,
   solveHeight,
+  pythagorean,
 ] as unknown as Generator<unknown>[];

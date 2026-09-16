@@ -700,6 +700,63 @@ export const trigonometricFunctions: Course = {
           ],
         },
         {
+          id: 'tf-l2-identity',
+          title: 'The Pythagorean Identity',
+          slides: [
+            teach(
+              prose(
+                'The cosine lesson ended with $\\cos^2(\\theta) + \\sin^2(\\theta) = 1$, the circle equation with the coordinates renamed; it means knowing one of sine and cosine nearly pins down the other.',
+              ),
+              maths('\\cos^2(\\theta) = 1 - \\sin^2(\\theta) = 1 - \\tfrac{9}{25} = \\tfrac{16}{25}'),
+              prose(
+                'If $\\sin(\\theta) = \\tfrac{3}{5}$ then $\\cos(\\theta)$ is $\\tfrac{4}{5}$ or $-\\tfrac{4}{5}$: the square root leaves the sign open, and the sign comes from where the point is — sine is the height, positive in the upper half of the circle; cosine is the displacement, positive on the right.',
+              ),
+              maths(
+                '\\sin(\\theta) = \\tfrac{3}{5}, \\quad 90^{\\circ} < \\theta < 180^{\\circ} \\quad \\Rightarrow \\quad \\cos(\\theta) = -\\tfrac{4}{5}',
+              ),
+              prose(
+                'Between $90^{\\circ}$ and $180^{\\circ}$ the point is above the centre and to its left, so the sine is positive and the cosine negative; the quarter of the circle the angle lies in is the only extra information needed.',
+              ),
+            ),
+            ask('trig-pythagorean'),
+            ask('trig-pythagorean+choice'),
+            ask('trig-pythagorean'),
+            teach(
+              prose(
+                'The lower half works the same way: between $180^{\\circ}$ and $270^{\\circ}$ the point is below and to the left, so both are negative; between $270^{\\circ}$ and $360^{\\circ}$ it is below and to the right.',
+              ),
+              maths(
+                '\\cos(\\theta) = \\tfrac{5}{13}, \\quad 270^{\\circ} < \\theta < 360^{\\circ} \\quad \\Rightarrow \\quad \\sin(\\theta) = -\\tfrac{12}{13}',
+              ),
+              prose(
+                'The fractions stay tidy because $5$, $12$ and $13$ are the sides of a right-angled triangle, like $3$, $4$ and $5$; every question here uses such a triple, so the arithmetic is never the hard part.',
+              ),
+              prose(
+                'Give the answer as a fraction, with its sign; the fraction is the exact value, and a decimal read off a calculator usually is not.',
+              ),
+            ),
+            ask('trig-pythagorean', 2),
+            ask('trig-cosine-from-circle', 2),
+            ask('trig-pythagorean+choice', 2),
+            teach(
+              prose(
+                'The identity is a check as well as a tool: any pair of values claimed for the sine and cosine of one angle must have squares adding to $1$, and if they do not, one of them is wrong.',
+              ),
+              maths('\\left(\\tfrac{5}{13}\\right)^2 + \\left(\\tfrac{12}{13}\\right)^2 = \\tfrac{25}{169} + \\tfrac{144}{169} = 1'),
+              prose(
+                'It also says neither value can exceed $1$ in size and the two cannot both be large: when one is $1$ the other is $0$, the point at the top of the circle or the far right, never both.',
+              ),
+            ),
+            ask('trig-pythagorean', 2),
+            ask('trig-evaluate-exact+choice', 2),
+          ],
+          skillCheck: [
+            ask('trig-pythagorean', 2),
+            ask('trig-pythagorean+choice', 2),
+            ask('trig-pythagorean', 2),
+          ],
+        },
+        {
           id: 'tf-l2-speed',
           title: 'Period and Speed',
           slides: [
@@ -758,13 +815,13 @@ export const trigonometricFunctions: Course = {
         ask('trig-period-from-speed', 2),
         ask('trig-sine-from-circle', 2),
         ask('trig-speed-comparison'),
-        ask('trig-cosine-from-circle', 2),
+        ask('trig-pythagorean', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-related-angle', 2),
         ask('trig-solve-height', 2),
         ask('trig-cosine-from-circle', 2),
         ask('trig-amplitude', 2),
-        ask('trig-period-from-speed', 2),
+        ask('trig-pythagorean', 2),
         ask('trig-solve-height', 2),
         ask('trig-related-angle', 2),
       ],

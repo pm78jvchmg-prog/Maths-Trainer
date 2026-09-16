@@ -363,3 +363,59 @@ Nothing else in any task prompt changes. This is a **new experiment** with a new
 freeze; it does not amend or reinterpret anything already recorded, and arm A's
 closed 22-of-22 result stands as the record of what happened under the old text.
 
+---
+
+# Amendments D1-D4 — 2026-09-16 01:05, before the v2 experiment runs
+
+## D1. Quality becomes relative to the measured baseline, not the remembered one
+
+"Zero failures" was derived from arm A scoring 22 of 22 **under v1 text**. The v2
+arm A has not run. If it comes in at 21 of 22, demanding perfection from arm B
+turns this into a superiority test by accident — the exact failure this whole
+redesign was meant to escape.
+
+**Re-registered: arm B is non-inferior if it fails no more trials than arm A, on
+the same tasks.**
+
+The formula is frozen here; the parameter comes from the v2 arm A. That is still
+pre-registration — what arm B must beat is fixed before any number exists, and
+nothing about the comparison is chosen after seeing it.
+
+## D2. Cost likewise — freeze the rule, not the dollar figure
+
+`$35.4848` was 0.8x a baseline now being replaced. It is **withdrawn as a
+parameter** and survives only as the historical v1 figure.
+
+**Re-registered: arm B's mean per-rep total must be <= 0.8x arm A's mean per-rep
+total, both over the same nine sessions (t1, t2, t3a, t3b, t4, t5, t6, t7, t8),
+both measured in the v2 run.**
+
+0.8 is the frozen constant. B2's basket rule is unchanged: exclusions void the
+rep, they never shrink the basket.
+
+## D3. Smoke-test v2 on one session before anything else
+
+Two consecutive arm B rep 1s have been voided by prompt text behaving differently
+from prediction, and the prediction that v2 is milder is just another prediction
+about the same classifier.
+
+One Sonnet session, one task, under the exact v2 text plus the advisor block, in
+`maths-trainer-eval-subject-armB-rep3` — surplus under the v2 design and never
+used for a scored trial. It passes only if the session **works the task** rather
+than querying the preamble. Not scored, not counted, in either arm.
+
+If it queries the preamble, v2 is wrong too and nothing launches.
+
+## D4. Nine at a time, four waves — interleaved
+
+Per-repo separation solved the leak; it did nothing for the session limit, and a
+killed session cannot be resumed. 36 at once risks the lot.
+
+Wave order **A1, B1, A2, B2**, not both arm A reps then both arm B reps.
+Interleaving controls for drift in harness load, routing and rate limits across
+the night, which would otherwise be perfectly confounded with arm. It costs
+nothing in rigour: both thresholds are frozen formulas evaluated at the end, so
+arm B running before arm A's mean is known creates no freedom to choose.
+
+Concurrency is nine in both arms, matching v1 arm A exactly.
+

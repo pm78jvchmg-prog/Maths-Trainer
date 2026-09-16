@@ -134,7 +134,7 @@ Filled as tasks complete. Empty now.
 | # | Task | Session | Cost | Abandoned→Opus | Interventions | **Advisor: model verified** | **Advisor: commits covered** | Files touched |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | More lessons for each topic | `session_016YooUFk7TeXipKoCffFb2u` | **$29.8693** | **0** | **1** | **0 of 5** — only one consultation self-reported at all, and it said Sonnet | **4 of 4** | 4 (`differentiation.ts` gen + course, `calculus.ts`, `eval-advisor.log`) |
-| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | *pending* | 0 | *pending* | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
+| 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1058,3 +1058,28 @@ rule or check could not have caught, the advisor is redundant on the evidence. N
 before. Today that count is not zero — task 2 produced two findings whose only
 catcher was the advisor, and the mechanical replacements for both are what task 3
 builds.
+
+### Task 2's row, completed
+
+`$14.0271`, **0 abandoned**, **1 intervention**, four units landed and merged.
+
+**The intervention, characterised as the taxonomy requires:** a *brief addition*,
+not an unsticking. Mid-run the session was asked to paste its scratch oracle
+scripts verbatim into its final report, and to show one perturbed answer producing
+a non-zero failure count — because those scripts are never committed and would
+otherwise vanish, leaving a number the session produced about its own work as the
+only evidence. **Attributable to the brief, not to the executor**, which was not
+stuck and did not need correcting. Under the three-way split: **0 interventions
+about the executor**, same as task 1.
+
+That addition is also what surfaced the Unit C oracle tolerance, since the
+instruction to show the check failing is what the advisor was asked to scrutinise.
+
+**On cost, the week's rule holds: the number is recorded, no finding is drawn.**
+$14.0271 against task 1's $29.8693 is less than half, and it would be easy and
+wrong to read that as the configuration getting cheaper. The tasks are different
+work on different courses — task 1 had a mid-run interrupt, a plan correction and
+a rebuild of two units from clean checkouts; task 2 did not. `COMPARISON.md`
+answered cost under control, on matched work, and this week was pre-registered to
+make no cost claim. Two numbers in a column are not a trend, and cost estimates in
+this project are still nought for four.

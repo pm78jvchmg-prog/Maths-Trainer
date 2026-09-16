@@ -568,7 +568,13 @@ export const polarPower: Generator<PolarPowerParams> = {
       return options(num(r ** n), num(n * r), num(r ** (n - 1)), num(r ** (n + 1)));
     }
     // The angle left unreduced, the argument not multiplied at all, the sign
-    // flipped, and off by one multiple.
+    // flipped, and off by one multiple in each direction. The last is needed
+    // because "off by one multiple" alone can collapse: at theta = pi/2,
+    // n = 2, the unreduced/sign-flipped/n-1 candidates all coincide with
+    // either the correct answer or each other, leaving only two options.
+    // n+1 can never coincide with the correct answer: principal((n+1)k, d)
+    // === principal(nk, d) would require k to be a multiple of 2d, which no
+    // POLAR_ANGLES row's |k| <= d allows.
     const ang = (mm: number) => ({ tex: angleTex(mm, d), answer: angleAnswer(mm, d) });
     return options(
       ang(m),
@@ -576,6 +582,7 @@ export const polarPower: Generator<PolarPowerParams> = {
       ang(principal(k, d)),
       ang(principal(-m, d)),
       ang(principal((n - 1) * k, d)),
+      ang(principal((n + 1) * k, d)),
     );
   },
   sample: (rng, difficulty) => {

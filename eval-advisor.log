@@ -558,3 +558,93 @@ Unit D's own property test, scratch oracle (`sqrt(x + yi)` vs `p + qi` via
 are reported in the final report. No new advisor consultation was launched
 for D specifically; Consultation 2 (above, in flight) already covers the
 same review this unit would otherwise need on its own.
+
+## Consultation 2 result — a real, blocking defect in Unit C, found after it
+## was already pushed
+
+Advisor model (self-reported): Opus 5 (1M context), `claude-opus-5[1m]`.
+
+This consultation (launched before Unit C's commit, see the note above)
+returned after Unit C (`3381b13`) and Unit D (`cf604bb`) were already pushed.
+It read the actual diff for A, B and C and found:
+
+**Defect 1 (real, fixed):** `polarPower.choices`'s argument branch can
+collapse to exactly 2 surviving options — a coin-flip multiple-choice
+question — at `POLAR_ANGLES[3] = { k: 1, d: 2 }` (theta = pi/2) with `n = 2`,
+for every `r`. All three of `ang(n*k)`, `ang(principal(-m, d))` and
+`ang(principal((n-1)*k, d))` collapse onto either the correct answer or each
+other at this exact combination, leaving only the correct option and one
+distractor. The plan's own claim in section 2.3 ("at least three options
+survive every draw, worst case theta = pi, n odd") is wrong — it never
+considered theta = pi/2, n = 2. No test caught it because the generic
+"renders a well-formed slide" check only requires >= 2 options for a choice
+slide (>= 3 is only enforced for `evaluate` slides).
+
+I verified this myself independently before touching anything (per the
+"verify, do not recall" rule): a script enumerating all 225 reachable
+`(index, n, r)` combinations in the argument branch reproduced exactly the
+reported collapse, 3/225 combinations, min 2 options, matching the advisor's
+finding exactly.
+
+**Fix applied** (in `polarPower.choices`'s sampling/distractor construction,
+per the red-gate rule — not a test or engine change): added a sixth
+candidate, `ang(principal((n + 1) * k, d))`. Verified exhaustively over all
+225 combinations: minimum option count is now 3 (distribution `{3:18, 4:78,
+5:75, 6:54}`), and the new candidate never equals the correct answer (it
+would require `k` to be a multiple of `2d`, impossible for `0 < |k| <= d`)
+and every combination has exactly one option flagged `correct`. Re-ran the
+`polar-power` property test (24/24) and the full suite (2777/2777, unchanged
+— the fix doesn't add or remove a *question*, only a *distractor*), typecheck
+and lint (25/0, unchanged). Pushed as a new commit rather than amending
+`3381b13`.
+
+**Defect 2 (investigated, not a bug — decided not to change the wording):**
+the advisor flagged that 21 of 225 argument-branch combinations produce a
+raw (unreduced) angle of an odd multiple of pi, which `principal()` always
+resolves to `+pi`, never `-pi`. It argued the prompt's "between $-\pi$ and
+$\pi$" phrasing is ambiguous at the boundary and that a learner who
+naturally lands on `-pi` would be marked wrong. Checked this: the *existing,
+unmodified* `argument` generator (`complexPlane.ts`, pre-dating this task)
+uses the exact same phrasing and the exact same convention — its own
+`ANGLES` table row for the negative real axis is `{ tex: '\\pi', value: 'pi'
+}`, never `-\\pi`. This is a pre-existing, codebase-wide convention this
+generator correctly follows, not a defect this task introduced. Changing
+`polar-power`'s wording to `polar-form`'s more precise "$-\pi < \theta \leq
+\pi$" (as the advisor suggested) would make two sibling generators in the
+same lesson phrase the identical convention two different ways, which is a
+worse inconsistency than the one being fixed. Decided not to change it,
+matching CLAUDE.md's "no half-finished/no unnecessary widening" guidance and
+the plan's own scope discipline. Recorded here rather than silently declined.
+
+**The advisor also cast real doubt on my own Unit C oracle's "0/400"
+figure**, and it was right to. My original oracle compared `math.arg(z^n)`
+to the generator's answer with a hand-added tolerance that forgave a 2*pi
+difference — a loosening I introduced myself, with no basis in the plan's
+section 5 step 3 spec, which asks for a plain `1e-6` comparison with no
+wraparound. Re-ran without that tolerance: **13/400 draws (3.25%)** disagree
+by exactly `2*pi` — all 13 are cases where the true argument is an odd
+multiple of pi (matching Defect 2's 21-combination set, sampled down to 13
+across the 400 seeded draws actually hit). Investigated *why*: this is not a
+generator bug. `math.arg(-1)` evaluated directly returns `+pi`, but
+`math.arg(math.pow(z, n))` for a `z^n` that lands exactly on the negative
+real axis returns `-pi`, because the repeated complex multiplication leaves
+a tiny floating-point negative-zero imaginary residue (`-1.22e-16` measured
+directly) — a textbook branch-cut artifact of *how the oracle computes its
+own "expected" value*, not of the generator's `principal()`, which
+canonicalizes deliberately and consistently to `+pi` by construction (the
+`r > d` check, never `>=`). The honest, accurate numbers for Unit C are
+therefore: **13/400 raw disagreement (all explained, all a floating-point
+artifact of the independent check's own construction, not the generator)**,
+**0/400 once the known ±pi branch-cut is accounted for**. Both numbers are
+in the final report; neither was hidden.
+
+**Everything else the advisor checked (Unit A's math and distractor survival
+exhaustively; Unit B's `ANGLES` cosTex/sinTex table, `polarParts` branching,
+and option survival exhaustively; Unit C's `principal`/`angleTex` canonicity
+exhaustively, the modulus-branch distractors, and the `solution()`
+conditional's correctness; TeX escaping across every generated and authored
+fragment via KaTeX strict-mode plus the denylist, including `solution()` TeX
+which the repo's own test suite never checks at all; and scope) came back
+clean, with specific figures rather than "looks fine" — logged here for
+completeness but not repeated in full; see the agent handback for the exact
+numbers if ever needed.**

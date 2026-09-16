@@ -97,6 +97,42 @@ What the withdrawals *did* establish, via a matched pair and a direct probe: the
 Opus advisor's cost **is** billed into the executor's session, and the per-call
 `model: "opus"` override **does** beat `CLAUDE_CODE_SUBAGENT_MODEL: sonnet`.
 
+## 7. The corrections outproduced the scorers
+
+Worth counting rather than asserting. Over the whole exercise:
+
+**The scorers produced** 32 pass/fail verdicts across four v2 waves. Two were
+failures. Both were the same task. Every other task passed in every rep of both
+arms. As an instrument for separating the arms, that is one bit of information.
+
+**Checking produced**, in order:
+
+| # | Claim | What checking found |
+| --- | --- | --- |
+| 1 | The harness does a single-branch clone, so isolation holds | Retracted — the probe never fetched; absence of objects is not inability to fetch |
+| 2 | The ceiling is a write-up caveat | Wrong category — it was already decisive at 15 of 16, and the experiment could not answer its question |
+| 3 | Sonnet costs one fifth of Opus | Assumed, never checked. Withdrawn |
+| 4 | Sonnet is exactly 0.4× Opus, from six sessions | One token mix measured six times, not six confirmations. Withdrawn |
+| 5 | The smoke test passed | Called off a 28-second summary before it had done anything. The branch was always the pass condition |
+| 6 | t1's low cost ratio corroborates its "Sonnet 5" log line | Not weak evidence — *uninformative*. The pure-Sonnet ratio is known at one mix; t1 sits at another |
+| 7 | B1 is already over the cost threshold | True of B1 alone; the clause is about arm B's **mean**, which was not yet known |
+| 8 | Arm B reads the task differently | Retired by criteria fixed before B2 ran, when B2 built arm A's mechanism and failed anyway |
+| 9 | The 0.57× came from the refusal artefact | Wrong voided run. The real defect — preamble removed from the challenger only — is worse |
+
+Nine corrections. **Every one came from running a command or reading a file, not
+from thinking harder** — and at least four were caught against a claim made
+earlier in the same exercise by the same reviewer. Several of those claims were
+comfortable ones.
+
+Items 3, 4, 6 and 9 all concern the cost evidence. That number was wrong, in one
+form or another, four separate times, and it was the number the whole experiment
+was designed around.
+
+**This is the habit the `eval-checker` skill exists to encode, and on this run it
+found more than the scorers did.** The skill's first rule is *verify, never
+assert*, and its hardest clause is the one about re-testing your own earlier
+claim rather than defending it. That clause did the work here.
+
 ---
 
 # Part 2 — The verdict
@@ -258,3 +294,18 @@ rerun:
 The eval gives a defensible number on easy work. A week of real use gives a
 better-founded decision on the work that matters. They answer different questions
 and neither substitutes for the other.
+
+---
+
+## Pre-registered, for the week of real use
+
+If the week runs, one thing is fixed now rather than at the end.
+
+**Choose the sample of fixes to read adversarially before knowing which ones went
+well.** Pick them by a rule set in advance — every third change, or every change
+touching the grading engine — not by which ones look interesting afterwards.
+
+The week's weakness is that its detector is attention, and a plausible wrong fix
+that passes tests is exactly what a downgrade costs and exactly what does not get
+noticed in use. Reading a blind sample the way the constraint checks were read
+here partly restores that detector. Choosing the sample after the fact does not.

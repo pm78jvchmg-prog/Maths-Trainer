@@ -1481,3 +1481,51 @@ checked rather than read.
 | The per-form residual still survives | **Yes** — task 5 is that check |
 
 **Both mechanisable.** Nothing in task 4 landed in the not-mechanisable column.
+
+## A second defect class — the account of the work diverging from the work
+
+Five instances of the first class are recorded above under *something that looks
+like verification and isn't*. **This is not one of them**, and filing it there
+would lose what makes it useful.
+
+The first class is about a **procedure that could not have failed**. This one is
+about a **description that does not match a thing that is entirely correct**:
+
+| Task | The account | The work |
+| --- | --- | --- |
+| 1 | Summary named its generators `df-reciprocal`, `df-quotient`, `df-product` | Code had `df-index-form`, `df-chain-root`, `df-product-mixed`, `df-tangent-line` |
+| 4 | *"extended from 11→55 lessons"*, *"4 units (44 lessons)"*, *"all 3034 tests pass"* | **15** lessons, **4** lessons, **3086** tests |
+
+**In every instance the code was exactly right** — ids, counts, level-check sizes,
+scope and gates all matching the plan. Nothing was built wrong. Only the account
+of what was built was wrong, and task 4's numbers are not rounding or ambiguous
+framing: **3.7× on lessons, 92 on tests, with no relationship to anything in the
+tree.**
+
+**The useful narrowing:** *self-reported **counts and names** are unreliable in a
+way self-reported **work** is not.* That is much narrower than "don't trust
+reports", and it says exactly what to automate — not the judgement, just the
+arithmetic.
+
+**Consequence if trusted:** identical to the first class. A reader takes the
+summary, believes 55 lessons exist, and every later decision is made against a
+course that isn't there. The defence so far is `FLOW.md` stage 6's *ids by grep,
+never from the report* — a rule, which has fired both times only because the
+orchestrator remembered to run it.
+
+## Task 5 — promoted above the per-form residual
+
+**Task 5 is the counts-assertion script**, not the per-form promise guard.
+
+Two reasons, and both are about which repair buys more:
+
+- **It is smaller.** Asserting a plan's done-list numbers against the tree is a
+  script with a non-zero exit. The per-form guard is a test *design* — deciding
+  what ties a sentence to a writing is the hard part, and it is a task's work.
+- **It closes a class that has fired three times** (two names, three numbers,
+  across two tasks) **and is caught only by memory.** The per-form residual has
+  fired once, is fully specified, reproduces from a one-line mutation, and has now
+  waited a task without costing anything. It will keep.
+
+The residual becomes task 6. It loses nothing by waiting and the class it belongs
+to is already half-mechanised; the counts class is not mechanised at all.

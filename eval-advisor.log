@@ -648,3 +648,110 @@ which the repo's own test suite never checks at all; and scope) came back
 clean, with specific figures rather than "looks fine" — logged here for
 completeness but not repeated in full; see the agent handback for the exact
 numbers if ever needed.**
+
+# Task 3 (repair the instruments) — advisor consultations
+
+## Consultation 1 — Unit 1, `eval/bin/mutate.sh`, before commit
+
+Question put to the advisor: reviewed the full spec for the perturbation
+harness from `eval/plans/TASK3-PLAN.md` section 3.1 verbatim (usage line,
+seven-step behaviour, three exit codes, header-comment requirements, the two
+example invocations). Asked: (1) is the spec correct and safe as written —
+any bug, race condition or edge case around the trap/`set -u` interaction,
+`mktemp`, or `cmp` vs `diff --quiet` for detecting a no-op mutation; (2) is
+running `npx vitest run` as the mutated command safe given the file is
+restored via trap regardless of how vitest exits; (3) how strictly to
+interpret "print an error message" on the two exit-2 paths — stderr, and
+does collapsing both into one exit code matter; (4) anything about
+`git diff --quiet -- "$file"` on an untracked or nonexistent path worth
+flagging before writing this.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context) — model ID
+`claude-opus-5[1m]`."** Passed `model: "opus"` on the Agent call.
+
+Summary of the advisor's answer:
+- **Verdict: the spec is sound, build it as written** — the ordering is
+  right, the trap is correct, and the `cmp` guard does what it claims.
+- **One real hole, closed before committing.** `git diff --quiet -- "$file"`
+  exits 0 for a *nonexistent or untracked* path too — the wrong way round for
+  a guard. A mistyped `<file>` argument would sail through the cleanliness
+  check, `cp` would fail silently (no `-e` in the script), `sed -i` would
+  fail, and `cmp` on an (empty backup, missing file) pair exits status 2 —
+  which `if cmp -s …` reads as "differ", not as the "matched nothing" case —
+  so the guard against a no-op mutation would not fire either. The command
+  then runs against a completely unmutated tree, passes, and the script
+  reports a false `MUTANT SURVIVED`; the EXIT trap then writes a **0-byte
+  file back at the mistyped path**. Fixed by adding `[ -f "$file" ]` and
+  `git ls-files --error-unmatch -- "$file"` checks before the cleanliness
+  check, both exiting 2 with a message on stderr naming the path. This also
+  fixes step 5 for an untracked file: `git --no-pager diff -- "$file"` prints
+  nothing for one, so the mutation would go unrecorded.
+- Also recommended capturing `sed`'s own exit status separately, so a
+  malformed sed expression reports "sed failed on '<expr>'" instead of the
+  misleading "matched nothing" — added.
+- Confirmed the trap/`set -u` interaction is safe (verified empirically:
+  SIGINT still runs the EXIT trap and restores the file; the only wrinkle is
+  that a Ctrl-C mid-command reports "exited 130" as a "kill", which is
+  accurate but easy to misread as a real guard finding — noted as something
+  to read rather than trust blindly, not a bug).
+- Confirmed `npx vitest run` is safe to run as the mutated command: no
+  network access (resolves the local binary), writes nothing under `src/`,
+  and the trap restores the file on every exit path including a crash.
+- Flagged, as a *discipline* point rather than a script change: a `-t`
+  pattern that matches nothing exits 0 and is therefore indistinguishable
+  from a genuine `MUTANT SURVIVED` in the harness's own output — verified
+  directly (`npx vitest run src/engine/session.test.ts -t 'zzzz-no-such-name'`
+  exits 0, reporting only skips). The bias only runs one way (a typo'd `-t`
+  can fake a survival, never a kill), but the fix is procedural: read the
+  streamed output on every survive/kill, not just the exit code, and confirm
+  each `-t` pattern matches a nonzero test count on the clean tree before
+  trusting a mutated run against it. Applied throughout this task.
+- Recommended stderr for both exit-2 paths (already the case) and confirmed
+  collapsing both into exit code 2 is fine — callers only need "not a
+  verdict", distinguished by message rather than code.
+
+Both hardening changes (file-exists/tracked check, sed-status check) were
+applied to `eval/bin/mutate.sh` before its two self-proof runs were
+re-verified and before this unit was committed.
+
+**Unit 1 self-proof, both directions, run against the hardened script:**
+
+Kill (`df-index-form`'s reciprocal answer, sign dropped):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "s/answer: termAnswer(-a \* n, -(n + 1)),$/answer: termAnswer(a * n, -(n + 1)),/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'
+--- diff shows exactly line 1174 changed ---
+ FAIL  src/content/generators/generators.test.ts > df-index-form > matches an
+ independent symbolic derivative, where the generator declares its source
+AssertionError: seed 0: d/dx((1) * x^(-1)) is -(1 / x ^ 2), generator claims
+(1) * x^(-2): expected 'incorrect' to be 'correct'
+ Tests  1 failed | 23 passed | 2596 skipped (2620)
+mutant killed: the command exited 1
+$ echo $?
+0
+```
+
+Survive (`df-index-form`'s two positive-domain forms flipped to `real`):
+```
+$ eval/bin/mutate.sh src/content/generators/differentiation.ts \
+    "/id: 'df-index-form'/,/id: 'df-chain-root'/ s/domain: 'positive'/domain: 'real'/" \
+    -- npx vitest run src/content/generators/generators.test.ts -t 'df-index-form'
+--- diff shows exactly lines 1191 and 1205 changed ---
+ Tests  24 passed | 2596 skipped (2620)
+MUTANT SURVIVED: the command passed with src/content/generators/differentiation.ts mutated
+$ echo $?
+1
+```
+
+`git status --short` empty except the new file after every run (trap
+restored the mutation each time). Also verified the two new guard paths: a
+nonexistent path exits 2 with "no such file …"; an untracked path exits 2
+with "not tracked …"; a dirty target file exits 2 and refuses to touch it; a
+sed expression matching nothing exits 2 with "matched nothing".
+
+`npm test` 2777 (unchanged — this unit adds a script, no test file
+touched), `tsc` silent, lint 0 errors / 25 warnings (unchanged).
+
+Commit: `eval/bin/mutate.sh` only. Message: "Add a mutation runner that
+fails when a check cannot."

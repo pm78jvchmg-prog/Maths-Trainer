@@ -647,10 +647,14 @@ still looks like work.
 | | How | How it was caught |
 | --- | --- | --- |
 | Omitted `model` parameter | The Agent call ran on the session's default subagent model, which `.claude/settings.json` pins to Sonnet. Sonnet advising Sonnet. | The advisor said so about itself |
-| Timing | A single consultation covering several finished units retrospectively. The units already committed and pushed had no review before they shipped. | Self-report |
+| Timing | A single consultation covering several finished units retrospectively. The units already committed and pushed had no review before they shipped. | The session's own report: *"Units A and B were committed and pushed on the strength of gates and my own diff review alone, without a per-unit consultation."* |
 
-**Both were caught by self-report, and nothing structural would have caught
-either.** There is no telemetry reachable from this session that records a
+**Both were self-reported by the executor, and nothing structural would have
+caught either.** Worth being exact about the source, because it is the thing this
+column is about: the second absence was **not** observed by the owner and then
+confirmed — the session volunteered it, unprompted, in its own final note. A
+self-reported absence and an owner-observed absence are different instruments, and
+**the first kind is all there is here.** There is no telemetry reachable from this session that records a
 subagent's model per call — verified during the v2 eval, not assumed. So the log
 is the only instrument, and the log is written by the thing being measured.
 
@@ -671,3 +675,25 @@ at what the entry actually says and what the consultation actually did.
 
 Task 1's figure, `4 of 5`, is the honest one: five consultations, of which the
 first — the pre-planning one the advisor block weights most — ran on Sonnet.
+
+**But read it as a floor, not a count.** An advisor that was absent and did not
+say so reads identically to one that was present. Every absence on record was
+disclosed by the executor about its own work; nothing in the instrument would
+have surfaced one that was not.
+
+### The one structural check available — ordering, not content
+
+There is a check that does not depend on trusting what any entry *says*:
+
+> **Consultation count against commit count, by position.** The advisor block
+> requires a consultation before each commit. So a commit with no `eval-advisor.log`
+> entry preceding it in the log's own order is a gap, and it is mechanically
+> detectable by reading the log's entry order against `git log` on the branch.
+
+It is narrow, and its limits are worth stating alongside it: it would **not** have
+caught the omitted `model` parameter, because that consultation happened and was
+logged — it was simply the wrong model. It **would** have caught the timing gap on
+the branch, from the artefacts, rather than waiting for a note to admit it.
+
+So from task 2 on, the column carries both: what the log claims, and what the
+ordering can be made to prove independently of the claim.

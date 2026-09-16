@@ -9,9 +9,27 @@ This is that question, asked of real work.
 
 ## What this is NOT
 
-**It is not a controlled comparison.** There is no matched Opus arm running the
-same tasks. Every number below is descriptive. Nothing here produces a cost
-*ratio*, and no result from this week should be reported as one.
+**It is not a controlled comparison, and the cost claim is therefore dropped.**
+There is no matched Opus arm running the same tasks. Recording Sonnet costs
+against no baseline is *cost versus memory* — the exact flaw named when this week
+was first proposed, and then built into the first draft of this file anyway.
+
+**A pre-registered Opus estimate was considered and rejected.** The obvious patch
+is to guess each task's Opus cost before starting. But cost estimates are the
+single least reliable thing produced in this project: Sonnet-is-Opus/5 (wrong),
+Sonnet-is-exactly-0.4x-Opus (wrong), t1's ratio as corroboration (uninformative),
+and the 0.57x premise (an artefact). **Nought for four.** Substituting a fifth
+guess for a missing measurement would be the same mistake with more ceremony.
+
+So: **`cost_usd` is still recorded, because it is free, but the week makes no
+cost finding.** Cost was already answered under control, on comparable work, in
+`COMPARISON.md`: $37.0961 against $37.8080 per nine-session rep — no advantage
+shown. If a cost answer is wanted for *hard* work specifically, that needs
+matched Opus pairs on a pre-registered subset, and that is a separate decision
+with its own budget.
+
+**What the week measures is the intervention rate and the quality of the
+changes.** That is the finding. Cost is a column, not a conclusion.
 
 **Its detector is attention.** A plausible-looking wrong fix that passes tests is
 exactly what a downgrade costs, and exactly what does not get noticed while using
@@ -52,10 +70,33 @@ substitutes for the other: the first is failure, the second is friction.
 ### 3. The adversarial read — every change, not a sample
 
 **Chosen before the week starts, per the rule pre-registered in
-`COMPARISON.md`.** Every change produced in the week is read adversarially at the
-end, against the prompt that asked for it and against the three invariants in
-`CLAUDE.md`. Not a sample — the 12-task cap makes the full set feasible, and a
-full read removes the question of whether the sample was well chosen.
+`COMPARISON.md`.** Every change is read — not a sample. The 12-task cap makes the
+full set feasible and removes any question about how the sample was drawn.
+
+**This is where the real answer lives, and it has a specific question.** Not *is
+this good code*. The question is:
+
+> **What does this change that no test asserts?**
+
+`pairBank` is the template. It failed to terminate on ordinary input, on two of
+three attempts, with a green suite and a silent typecheck every time. The suite
+could not see it because nothing exercised those inputs. A change to
+`src/engine/equivalence.ts` that silently loosens grading, or to
+`src/content/expr.ts` that changes which taps are legal, has exactly that shape:
+tests pass, behaviour moved, nobody notices until a learner meets it.
+
+Procedure per change:
+
+1. List every behaviour the diff alters.
+2. For each, find the test that now pins it. **No test = a finding**, whether or
+   not the behaviour looks correct.
+3. Check the three invariants in `CLAUDE.md` directly — a wrong answer never
+   reveals the answer, the skill check is sealed, a level check is one attempt.
+4. Read deleted and rewritten test lines by hand, as every rep of the eval was.
+
+**This is the one thing the eval proved the suite cannot do.** Green tests were
+the constant across every branch in 36 sessions, including the ones that were
+wrong.
 
 ## Stop rule
 

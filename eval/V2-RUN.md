@@ -626,3 +626,39 @@ Arm A itself got cheaper between reps — $41.20 then $32.99 — which is why th
 threshold moved. Worth noting in the write-up as a caution about single-rep cost
 baselines generally, not as a finding about either arm.
 
+---
+
+## Wave B2 — launched 2026-09-16 08:35. The last wave.
+
+Nine Sonnet sessions with the Opus advisor, into `...-v2-armB-rep2`, verified at
+launch to hold exactly the eight bases. Freeze verified `OK`. Task text and v2
+preamble byte-identical to every other wave.
+
+| Task | Branch | Session |
+| --- | --- | --- |
+| t1 | `v2-armB-rep2-t1` | `session_019pgiw4xNvNVcPxghLuArCn` |
+| t2 | `v2-armB-rep2-t2` | `session_01H8Q9wZJtvG6mFhgUnQhWjN` |
+| t3a | `v2-armB-rep2-t3a` | `session_01G8TZpSbtqFRfDDqDWgaSD9` |
+| t3b | `v2-armB-rep2-t3b` | `session_01Mp2PJLPtR9W3ZLGPTfVrp6` |
+| t4 | `v2-armB-rep2-t4` | `session_01RDbMX4yKFAcPGNe8k8K6kg` |
+| t5 | `v2-armB-rep2-t5` | `session_01YUzHkJ6z5EGdnjKVXDFnb6` |
+| t6 | `v2-armB-rep2-t6` | `session_012H6EwGBJmEBmn3zt6bmH3r` |
+| t7 | `v2-armB-rep2-t7` | `session_016svZbMQWTdE2MiphsArVom` |
+| t8 | `v2-armB-rep2-t8` | `session_016XcN2kb7U3Un6UrYE8e39t` |
+
+### What this wave can and cannot change
+
+It **cannot** change the verdict. Arm A finished both reps with zero failures;
+arm B already has one. D1 is decided.
+
+It decides two things that matter more than the verdict does:
+
+1. **Whether the t3a difference replicates.** If B2's t3a restricts the
+   generator again rather than giving the pair an address in `expr.ts`, that is a
+   replicated *mechanism* — the arms differ in what they take the task to be. If
+   it opens `expr.ts`, B1 was one draw and the divergence is n=1.
+2. **The cost figure that will be reported but not used.** Arm B's mean over two
+   reps, against the $29.6769 threshold. B1 alone is already over it.
+
+Both readings were fixed before this wave launched.
+

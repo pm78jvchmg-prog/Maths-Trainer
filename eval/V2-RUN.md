@@ -118,3 +118,25 @@ That is v1 text and no longer describes this experiment, which is two reps per
 arm under the pre-registered non-inferiority rule. It is display only — it feeds
 no verdict — and `score.sh` is deliberately not edited mid-run. Ignore that line.
 
+---
+
+## Wave B1 — launched 2026-09-16 05:28
+
+Nine Sonnet sessions with the Opus advisor, into `...-v2-armB-rep1`, verified at
+launch to hold exactly the eight bases. Task text and v2 preamble byte-identical
+to A1; the only additions are the model and the advisor block.
+
+| Task | Branch | Session |
+| --- | --- | --- |
+| t1 | `v2-armB-rep1-t1` | `session_017rLhPXUR2vnT5cDVJQ39Wa` |
+| t2 | `v2-armB-rep1-t2` | `session_01W9jZqiZCPj15rTFr4pUbMf` |
+| t3a | `v2-armB-rep1-t3a` | `session_01Ex7e4Q4Q3jfp3xmyTzTjbj` |
+| t3b | `v2-armB-rep1-t3b` | `session_01Ns63pbFXQ7wzWFLQtRysJQ` |
+| t4 | `v2-armB-rep1-t4` | `session_01YTAwnT3hg3TBsQ9TLF9BCu` |
+| t5 | `v2-armB-rep1-t5` | `session_01BtczAzC1CogABGaPaW4WXj` |
+| t6 | `v2-armB-rep1-t6` | `session_017tyiDkE6gc9JeYYFTKN6X6` |
+| t7 | `v2-armB-rep1-t7` | `session_014fKFFwhiybtRTHQmGANa9a` |
+| t8 | `v2-armB-rep1-t8` | `session_01WQCZcofRwmYNoKXVjfSiGL` |
+
+Waves A2 and B2 follow, one at a time. No verdict until all four are scored.
+

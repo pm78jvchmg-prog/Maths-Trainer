@@ -29,17 +29,21 @@ export const useProgress = create<ProgressState>()(
       recordCompletion: (lessonId, score) =>
         set((state) => {
           const previous = state.lessons[lessonId];
+          // A best is only meaningful against the assessment it was set on,
+          // and content is edited daily, so a skill check or level check can
+          // grow or shrink between plays. Rescaling a best across that change
+          // reports a run that never happened in both directions: 12/12 on a
+          // check that grew to 15 would read "Best 12/15", and 3/3 on one that
+          // shrank to 2 would read a perfect "Best 2/2" for a run that scored
+          // one. So a best set against a different total is retired, not
+          // carried. Same total, and the best survives replays as it should.
+          const comparable = previous?.total === score.total ? (previous?.bestCorrect ?? 0) : 0;
           return {
             lessons: {
               ...state.lessons,
               [lessonId]: {
                 completedAt: Date.now(),
-                // Keep the best run, so replaying for practice can never make
-                // your record look worse. Clamped to the current total so a
-                // record set before content was edited (a skill check or
-                // level check that shrank) can never read as more correct
-                // than there are questions.
-                bestCorrect: Math.min(score.total, Math.max(previous?.bestCorrect ?? 0, score.correct)),
+                bestCorrect: Math.min(score.total, Math.max(comparable, score.correct)),
                 total: score.total,
                 timesPlayed: (previous?.timesPlayed ?? 0) + 1,
               },

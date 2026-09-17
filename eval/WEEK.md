@@ -1486,7 +1486,8 @@ checked rather than read.
 ## A second defect class — the account of the work diverging from the work
 
 Five instances of the first class are recorded above under *something that looks
-like verification and isn't*. **This is not one of them**, and filing it there
+like verification and isn't*, and a sixth arrives under task 5 below, inside the
+tool this class-splitting produced. **This is not one of them**, and filing it there
 would lose what makes it useful.
 
 The first class is about a **procedure that could not have failed**. This one is
@@ -1817,22 +1818,53 @@ grows — every course added widens the prose universe. Worth saying plainly: **
 prose sweep caught task 4's numbers because they were absurd, not because it is
 discriminating.**
 
-### C is the one that changes a recommendation
+### Instance six of the first class — inside the tool built to catch the second
 
-The report proposes two one-line additions. The first, for `FLOW.md` stage 6, is
-sound: the *orchestrator* runs `counts.sh` with the log from their own gate run, so
-claim and evidence come from different parties.
+**C is not a caveat on the tool. It is the class, in the tool.** Filing it beside A
+and B would lose that, because A and B are bounded by the authoritative `counts`
+block and C is not bounded by anything.
+
+| | | |
+| --- | --- | --- |
+| **What it looks like** | `COUNTS AGREE`, exit 0, on a plan claiming 3086 against a tree holding 3117 |
+| **The stated guarantee** | *the plan's claims match the tree* |
+| **What it actually checks** | *the plan's claims match whatever log you hand it* |
+
+The tree is read live, by import, in `countsTree.ts` — lessons, ids, level checks,
+generators, all of it. The test count alone is read from a file path supplied on the
+command line, and nothing ties that file to the checkout. So one claim in five is
+checked against a second document instead of against the fact, and the failure does
+not require anyone to fabricate anything: run the suite, add tests, reconcile against
+the earlier log. **That is what happened to this very plan** — 3111 was true when it
+was written.
+
+Apply the standing question — *what would this check have done if the thing were
+wrong?* On a stale log: printed `ok`.
+
+**The `FLOW.md` fix mitigates by process and does not close it.** Requiring the
+orchestrator's own log splits claim from evidence, which defeats the realistic
+failure, but it is a person remembering a convention. The closure is mechanical:
+record `HEAD` in the captured suite log and have `parseSuiteLog` refuse a log whose
+sha is not the sha being reconciled. Until then C stands open and is recorded as
+open.
+
+### What the report proposed, and why one half was refused
+
+Two one-line additions. The first, for `FLOW.md` stage 6, is sound and was taken: the
+*orchestrator* runs `counts.sh` with the log from their own gate run, so claim and
+evidence come from different parties.
 
 The second, for `PREFLIGHT.md` — *"`counts.sh` exits 0 on the report before the
-report is committed"* — **installs the very class this project exists to close.** The
-executor would supply the claim, the suite log the claim is checked against, and the
-verdict. Probe C is that hole exactly: a session that runs the suite, then adds
-tests, then reconciles against the earlier log gets a green run and an honest-looking
-exit 0. Not fabrication — staleness, which is the realistic failure and is what
-happened to this very plan.
+report is committed"* — **installs the very class this project exists to close**, and
+C is the hole it would install: the executor supplying the claim, the log the claim
+is checked against, and the verdict. It was refused, and `PREFLIGHT.md` instead
+carries the counts-block requirement plus an explicit prohibition on self-gating.
 
-Take stage 6's line. Hold the PREFLIGHT line until the log can be bound to the
-checkout (a commit sha in the captured log, checked against `HEAD`, would do it).
+Worth noticing where it came from. This arrived as a helpful suggestion, in a report
+that had just reported its own red self-run rather than editing the prediction green.
+**A tool behaving impeccably is not evidence about the rule it proposes.** The two
+are independent, and the second still has to be read as if a careless session had
+written it.
 
 ### Findings, with the exit-criterion column
 
@@ -1841,24 +1873,44 @@ checkout (a commit sha in the captured log, checked against `HEAD`, would do it)
 | 1 | Plan's own `tests: 3111` stale by the time the work finished | **Check** — this task's own tool, which caught it |
 | 2 | Prose sweep's discriminating power is an 11-element integer set | **Check** — attribute prose counts to a named course, or drop the sweep's `ok` line so it never reads as verification |
 | 3 | `generators` verifies existence, not attribution | **Check** — compare against the ids the diff adds, not the whole registry |
-| 4 | `--suite-log` is unbound to the checkout | **Check** — record `HEAD` in the captured log and refuse a log whose sha is not `HEAD` |
+| 4 | `--suite-log` is unbound to the checkout — **instance six of the first class, open** | **Check** — record `HEAD` in the captured log and have `parseSuiteLog` refuse a log whose sha is not the one being reconciled. `FLOW.md`'s fix mitigates by process; this closes it |
 | 5 | `countsTree.ts`'s >1-course-export branch has no test | **Rule** — already recorded by the report as a gap, which is the right handling |
 
 Nothing here needed a rule. That is four of five mechanisable, and the count holds:
 **the advisor-identity question remains the only one that is not.**
 
-### Advisor: 2 of 2, and a stronger ordering instrument than entry order
+### Advisor: 2 of 2, and a tamper-evident ordering instrument nobody designed
 
 Two consultations, both self-reporting `claude-opus-5[1m]`, one per behaviour commit.
 Unit 3 is bookkeeping and holds **a logged absence** — *"No advisor consultation was
 held for this unit's commit, and this is that deliberate absence, logged as PREFLIGHT
 requires"* — so the refusal-shaped hole in the ordering check stays closed.
 
-And the ordering instrument improved without anyone designing it: **each
-consultation's log entry is inside the commit it covers** (50 insertions in
-`67c87f8`, 63 in `1795c05`, 35 in `290574e`). An entry cannot be back-dated into a
-commit that already exists. That is stronger than comparing entry order against `git
-log`, and it costs nothing — it falls out of committing the log with the code.
+#### A property to preserve, written down because it arrived by construction
+
+**Each consultation's log entry is inside the commit it covers** — 50 insertions of
+`eval-advisor.log` in `67c87f8`, 63 in `1795c05`, 35 in `290574e`, each alongside the
+code that consultation was about.
+
+That makes the ordering check **tamper-evident rather than merely chronological**.
+Comparing entry order against `git log` asks whether the log *looks* consistent with
+the commits; commit-inclusion makes an inconsistent log impossible to produce after
+the fact, because an entry cannot be added to a commit that already exists without
+rewriting it, and a rewrite is visible. The instrument stopped depending on the
+honesty of the thing it measures — which is the one property the whole
+advisor-identity column has never had.
+
+**Nobody chose this.** It fell out of `git add src/... eval-advisor.log` in one
+command, which was written for convenience. So it is exactly the kind of property a
+tidy refactor removes without noticing: *"collect the session's advisor entries into
+one log commit at the end"* is a reasonable-sounding change that would silently
+convert the strongest instrument here back into the weakest. Recorded so that
+proposal can be recognised when it comes.
+
+Now a rule in `PREFLIGHT.md` (the entry ships in the commit it covers, never in a
+later bookkeeping commit) and a check in `FLOW.md` stage 6 (read commit-inclusion,
+not entry order). **A property that costs nothing to keep and cannot be recovered
+once lost is worth a rule even when nothing has threatened it yet.**
 
 ### Cost
 

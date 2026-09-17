@@ -119,6 +119,15 @@ report exit 0 on it as verification. The orchestrator runs it at stage 6
 with a log from their own gate run, which is a different party supplying
 the evidence, which is what makes it a check.
 
+**The consultation's log entry ships in the commit it covers.** `git add
+src/... eval-advisor.log` in one command, never a separate log commit at the
+end of the session. This is not tidiness: an entry inside the commit cannot be
+added afterwards without rewriting that commit, so the ordering check stops
+asking whether the log looks consistent with the commits and starts being
+unable to be fooled. Collecting the entries into one commit at the end would
+read as tidier and would quietly destroy the only instrument here that does
+not depend on the executor reporting well of itself.
+
 **A review agent gets one unit's diff, not the accumulated branch.**
 Scope every review to the unit about to be committed. A reviewer handed
 three units at once reads everything and notices nothing in particular,

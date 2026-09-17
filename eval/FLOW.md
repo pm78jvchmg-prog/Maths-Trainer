@@ -71,7 +71,11 @@ session that believes it anyway is the worse of the two outcomes.
 **5. It runs unattended.** Unit → gates → consult → commit → push, repeated.
 
 **6. Mechanical checks — run before reading anything the session wrote.**
-- **Ordering:** every unit commit has a **completed** consultation before it.
+- **Ordering:** every unit commit has a **completed** consultation before it, and
+  the entry is **inside that commit** (`git show --stat <sha> | grep eval-advisor.log`).
+  Read commit-inclusion, not entry order: an entry in the commit cannot have been
+  written after it. If a branch instead has one log commit at the end, the instrument
+  is gone and the column is back to self-report — say so rather than scoring it.
 - **Advisor model:** every log entry quotes `claude-opus-5`.
 - **Scope:** `git diff --stat $(git merge-base <branch> main)` matches the plan's
   file list. A local `main` in the session's container is often a stale ref; compare

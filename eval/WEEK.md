@@ -1917,3 +1917,78 @@ once lost is worth a rule even when nothing has threatened it yet.**
 **$16.5004** — $16.1245 for the relaunched session plus **$0.3759** archived across
 the three refusals. Two interventions, both attributable to my briefs rather than to
 the executor: the two false anchors.
+
+## Task 6 — Integration, and a false citation in my own brief caught by the planner
+
+Plan at `eval/plans/TASK6-PLAN.md` (`90623d8`). Four lessons, four generators, order
+A → B → D → C; 13 lessons (5/5/3) → 17 (6/5/6); level checks 12/12/12 → 15/12/15.
+
+**Chosen for its oracles.** Integration is the one course whose generators carry
+independent verification inside the suite itself — three tests in
+`generators.test.ts`, each gated on a field the generator declares: `source`
+(differentiate the source, compare to the answer), `integrand` (differentiate *our
+answer*, compare to the integrand, in `exact` mode), and `limits` (Simpson's rule,
+1000 steps). Task 4 had to write a scratch oracle per unit because trigonometry
+declares nothing. So the plan makes **oracle coverage a deliverable**: each generator
+named with its oracle and its field, and a mutation per unit proving the oracle
+fires rather than skipping silently on a missing field.
+
+### Three errors in my brief, all three mine
+
+| | I wrote | The tree |
+| --- | --- | --- |
+| 1 | "17 `int-*` generators" | **15** base ids |
+| 2 | "read `eval/reports/TASK4-REPORT.md`" | **The file does not exist.** `eval/reports/` holds only `TASK5-REPORT.md` |
+| 3 | (implied) an integration answer can be written with `ln` | `math.derivative('x*ln(x)')` **throws** — the `ln` alias in `expression.ts` is evaluation-only. Oracle 2 would have failed on every draw of unit C |
+
+All three verified here. The third is a genuine save: it is the difference between
+unit C working and unit C failing its oracle on the first seed, and no amount of care
+in the executor would have found it before writing the generator.
+
+**The second is the one about me.** I wrote the rule *"an anchor must predate the
+clone, and must be visible in it"* and *"cite defective material with its commit,
+never bare"* into `FLOW.md` **this morning**, then wrote a brief citing a file that
+does not exist. Third false anchor of the week, and the first one written after the
+rule that forbids it.
+
+What is different is what caught it. The first two reached a cold executor, which
+refused and was right to. This one was caught by a **planner between me and the
+executor**, which verified the citation, found it false, and wrote the correction
+*into the plan* — naming the real location (`eval/WEEK.md` line 1416) and the command
+that shows it. The false claim never reached the session that would act on it.
+
+> **A rule I follow imperfectly plus a second party who checks is worth more than the
+> rule alone.** The rule did not stop me writing it. The checking step stopped it
+> mattering. That is an argument for keeping the planner as a separate party rather
+> than folding planning into the launch, and it is the same shape as splitting claim
+> from evidence in probe C — one party, one job.
+
+### The plan's `counts` block is a pre-registered prediction
+
+Reconciled against today's tree before launch: 5 claims, **5 mismatches, exit 1** —
+lessons 17 vs 13, four extra ids, level checks 15/12/15 vs 12/12/12, eight absent
+generators, tests 3221 vs 3117. Every one of them is the plan predicting the future
+correctly.
+
+That makes stage 6 sharper than it was. The plan's block was **frozen before the work
+and reconciles to zero only if the work matched it** — a stronger test than
+reconciling the report, which is written afterwards by the party being checked. Two
+readings to keep apart at stage 6:
+
+- **All five green** → the work landed exactly as planned.
+- **`tests` alone red** → a prediction that went stale, as task 5's did. The tool
+  working.
+- **`lessons`, `lesson-ids` and `level-checks` red as well** → the stop rule fired
+  and a unit was dropped. Expected, and the report must say which.
+
+### Two findings the plan carries into the report rather than fixing
+
+1. `src/content/generators/integration.ts` lines 10–14 claim `∫ 1/x dx` is *"asked as
+   a choice question instead"*. **It is not** — `grep -n "ln"` on that file matches
+   only the comment itself, three times. A stale comment describing a question that
+   does not exist. Out of scope; logged.
+2. **M-B-tex is a mutation the plan expects to survive.** Nothing checks that a
+   slide's declared `integrand` describes the TeX the learner actually reads, so the
+   plan runs the mutation anyway and records the survival. A gap stated as a result
+   beats a gap assumed closed — and it is the honest counterweight to a task whose
+   headline is "every generator is under an oracle".

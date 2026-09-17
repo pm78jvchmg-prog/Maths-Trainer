@@ -2033,3 +2033,65 @@ rather than about who is careless.
 And the cost of a launcher defect is now measurable: $0.1372 for a clean refusal
 against the $0.3759 the three refusals of task 5 cost. A session that stops at the
 first missing anchor is cheap. That is the return on giving it permission to refuse.
+
+### Launcher defect five — the first one that would not have announced itself
+
+The task 6 relaunch stopped too, at **$0.1018**, having created no branch
+(`current_branches: {"": null}`). Diagnosed by comparing the call against the last
+one that worked, read out of this session's own transcript rather than remembered:
+
+| Field | Task 5 relaunch (started clean) | Task 6 relaunch (stopped) |
+| --- | --- | --- |
+| `source_url` / `source_revision` | present | present |
+| `outcome_branch` | `week/task5-counts` | **absent** |
+| `append_system_prompt` | **1655 chars — the whole advisor protocol** | **absent** |
+
+The second one is the defect. `append_system_prompt` is not a nicety: it is the
+entire Sonnet-executor/Opus-advisor mechanism — consult before planning, `model:
+"opus"` on every Agent call, a consultation must return before the commit it covers,
+bookkeeping gets mechanical checks, append to `eval-advisor.log` and quote the
+self-report verbatim. The `prompt` carried one sentence about passing `model: "opus"`.
+Everything that enforces it was gone.
+
+**Every launcher defect so far produced a refusal. This one need not have.** A session
+missing the advisor protocol can read its plan, do the work, pass every gate and push
+four correct lessons — and produce a task-6 row whose two advisor columns measure
+nothing at all, with no mark anywhere saying so. Defects 1–4 cost cents and stopped
+the work. Defect 5's natural outcome is a completed task with a silently void
+measurement, which is strictly worse. It stopped for some other reason, and that was
+luck rather than the design.
+
+#### The check I wrote this morning would not have caught it
+
+`FLOW.md` stage 4 gained *"read what the launch returned"* four hours ago, after
+defect 4. It catches defect 4 exactly: `sources` is echoed in the reply. It cannot
+catch defect 5, because **`append_system_prompt` does not appear in the reply at
+all** — the reply reports the repository and the outcome branch, not the
+configuration the session was given.
+
+So the check is sound and incomplete, in a way worth naming rather than patching over:
+*a reply can only confirm the fields it echoes.* For everything else the instrument
+has to be the call itself, compared against the last one known to have worked. That is
+what found this, and it is now the second line of stage 4.
+
+> **An instrument built from the last defect catches the last defect.** Both of
+> today's launcher rules were written the same way, and the second was needed within
+> four hours of the first. This is not an argument against writing them — it is the
+> reason the standing question is *what would this check have done if the thing were
+> wrong*, asked of the new check, at the moment of writing it.
+
+#### Five refusals, and what is actually holding
+
+| # | Launcher defect | Caught by | Cost |
+| --- | --- | --- | --- |
+| 1 | Anchor post-dated the clone by 26s | Cold executor | — |
+| 2 | Cited branches invisible in a single-branch clone | Cold executor | $0.3759 across the three |
+| 3 | Cited a report file that does not exist | The planner | — |
+| 4 | No `source_url`; no checkout | Cold executor | $0.1372 |
+| 5 | No `append_system_prompt`; no advisor protocol | Cold executor | $0.1018 |
+
+Four of five caught by the party with the least context, one by the planner. **None
+caught by me, at the moment of making them, in five attempts.** That is the week's
+most consistent result — more consistent than anything about cost or lesson counts,
+and it points the same way every time: the check belongs with the party that has to
+act on the claim, not with the party making it.

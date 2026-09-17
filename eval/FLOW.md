@@ -61,6 +61,14 @@ ways this fails, both found by giving a session anchors it then disproved:
   session refused correctly 70 seconds later, at $0.14. **This is the first
   mechanical check in this file that measures the orchestrator rather than the
   executor, and its evidence arrives unasked in a tool result I already receive.**
+- **Diff the call against the last one that worked.** The reply echoes the
+  repository and the outcome branch; it does **not** echo `append_system_prompt`,
+  so no reading of the reply can tell you the session got its advisor protocol.
+  Task 6's second launch dropped all 1655 characters of it and the reply looked
+  correct. A launch missing the protocol can finish the work and pass every gate
+  while its advisor columns measure nothing — the only launcher defect so far
+  whose natural outcome is not a refusal. Read the previous task's `create_session`
+  call out of the transcript and compare the key sets, every time.
 - **The clone is single-branch.** `git branch -r` shows `origin/main` and nothing
   else, so no `week/*` branch is ever visible from inside a task session. A branch
   listing is not an anchor.

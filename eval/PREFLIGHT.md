@@ -104,6 +104,21 @@ faithful, when it cannot see the original output, is a check structured
 so it cannot fail — and it spends the budget that should go on
 re-running the underlying result.
 
+**A report's counted claims go in a `counts` block.** Lessons, lesson
+ids, level checks, generators and the test total, one key per line,
+fenced as ```` ```counts ````. Prose is still read by a human; the block
+is what `eval/bin/counts.sh` reconciles against the tree, and a claim
+nothing can parse is a claim nothing can check.
+
+**Do not run `counts.sh` on your own report as your own gate.** You
+would be supplying the claim, the suite log the claim is checked
+against, and the verdict — and nothing binds a suite log to a checkout,
+so a log captured before your last commit agrees with a count taken
+before it too. Run it to find your own mistakes, by all means; do not
+report exit 0 on it as verification. The orchestrator runs it at stage 6
+with a log from their own gate run, which is a different party supplying
+the evidence, which is what makes it a check.
+
 **A review agent gets one unit's diff, not the accumulated branch.**
 Scope every review to the unit about to be committed. A reviewer handed
 three units at once reads everything and notices nothing in particular,

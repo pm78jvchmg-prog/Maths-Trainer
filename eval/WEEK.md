@@ -137,7 +137,7 @@ Filled as tasks complete. Empty now.
 | 2 | More lessons for each topic — Complex Numbers | `session_01KZdaxw3AtjHQw8C4HFx4vj` | **$14.0271** | **0** | **1** | **2 of 2** | **1 of 5** | 3 (`complex.ts`, `complexPlane.ts`, `complexNumbers.ts`) + `eval-advisor.log` |
 | 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | **$15.1065** | **0** | **0** | **3 of 4** — 1 inconsistent | **4 of 4** | 5 (`mutate.sh`, `generators.test.ts`, `types.ts`, `differentiation.ts`, `eval-advisor.log`) |
 | 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | **$16.3446** | **0** | **0** | **6 of 6** | **5 of 5** | 3 (`trigonometry.ts`, `trigonometricFunctions.ts`, `eval-advisor.log`) |
-| 5 | **Repair** — a counts reconciler for plan, report and tree | `session_01XheN92TbZPhY8RWagdJyo6` | *running* | — | — | *pending* | *pending* | *pending* |
+| 5 | **Repair** — a counts reconciler for plan, report and tree | `session_01XieEsvRk1R2B8mcgd7FT5V` (+3 archived) | **$16.5004** | **0** | **2** | **2 of 2** | **2 of 2** (+1 bookkeeping, absence logged) | 12 (`eval/bin/counts*`, 4 fixtures, `tsconfig.eval.json`, `TASK5-REPORT.md`, `eval-advisor.log`) |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -1766,3 +1766,102 @@ extra. The plan requires the executor to *"say by how much and why rather than
 adjusting the plan's block"* — so the report must account for them, and a
 `counts` block claiming 3111 would now be a self-inflicted mismatch on the
 self-run. Flagged, not yet explained.
+## Task 5 complete — the tool's first act was to fail its own plan, and the report said so
+
+Merged at the count **3117** (verified here by an independent `npx vitest run`, not
+taken from the report): `tsc -p tsconfig.app.json` and `-p tsconfig.eval.json` both
+silent, lint exit 0 with the same 25 warnings as baseline, `npm run build` passes.
+Scope since the merge base is **12 files, 2086 insertions, 0 deletions** — exactly
+the plan's file list, nothing under `src/`.
+
+### The count deviation, accounted for and checked rather than absorbed
+
+The plan predicted 3111 tests and 25 new ones; the tree has **3117** and **31**. The
+report names all six extras individually and attributes each to an advisor finding
+(five in unit 1, one in unit 2). Checked here rather than believed: `counts.test.ts`
+holds **19** `it()` calls at `67c87f8` and **31** at `1795c05`, and all six named
+tests exist by name in the file. `3086 + 19 + 12 = 3117`. The account matches the
+work exactly — which is the first time this week a deviation from a plan's number has
+been explained in the report *before* the orchestrator asked.
+
+### The self-run went red, and that is the finding
+
+`counts.sh` run on its own plan and report — reproduced here with my own suite log,
+not the executor's:
+
+```
+plan    tests  3111 = 3117  MISMATCH: expected 3111, suite has 3117 (line 303)
+report  tests  3117 = 3117  ok
+COUNTS DISAGREE: 1 mismatches                                        exit:1
+```
+
+The plan's frozen prediction is stale; the report's claim is true. A plan's claim and
+a report's claim are each checked against the tree, never against each other, so one
+can be red while the other is green. **The executor reported this rather than editing
+the frozen block to force a green run** — the fix that would have converted this into
+a check that cannot fail was available, obvious, and refused. That refusal is worth
+more than the tool.
+
+### Three things the reconciler accepts that it should not — found by adversarial read, each reproduced
+
+| # | Probe | Result | Why it matters |
+| --- | --- | --- | --- |
+| A | Report prose claims *"12 lessons"* for a course that has 15 | `ok` | The prose universe is every course total, level total and the grand total: today `{2,3,4,5,6,11,12,13,14,15,101}`. An 11-element set of small integers. |
+| B | Plan claims `generators: argument, both-roots` — real ids, wrong course | `COUNTS AGREE`, exit 0 | The check is *existence in the registry*, not attribution. Task 1's defect was caught only because its invented names did not exist. |
+| C | Plan claims 3086; `--suite-log` is a stale green log saying 3086; tree has 3117 | `COUNTS AGREE`, exit 0 | Nothing binds the suite log to the checkout. |
+
+A and B are bounded: the authoritative number lives in the `counts` block, which is
+checked against the tree directly, and the prose sweep is a backstop that catches
+*implausible* numbers (55, 44) rather than *wrong* ones. Both degrade as content
+grows — every course added widens the prose universe. Worth saying plainly: **the
+prose sweep caught task 4's numbers because they were absurd, not because it is
+discriminating.**
+
+### C is the one that changes a recommendation
+
+The report proposes two one-line additions. The first, for `FLOW.md` stage 6, is
+sound: the *orchestrator* runs `counts.sh` with the log from their own gate run, so
+claim and evidence come from different parties.
+
+The second, for `PREFLIGHT.md` — *"`counts.sh` exits 0 on the report before the
+report is committed"* — **installs the very class this project exists to close.** The
+executor would supply the claim, the suite log the claim is checked against, and the
+verdict. Probe C is that hole exactly: a session that runs the suite, then adds
+tests, then reconciles against the earlier log gets a green run and an honest-looking
+exit 0. Not fabrication — staleness, which is the realistic failure and is what
+happened to this very plan.
+
+Take stage 6's line. Hold the PREFLIGHT line until the log can be bound to the
+checkout (a commit sha in the captured log, checked against `HEAD`, would do it).
+
+### Findings, with the exit-criterion column
+
+| # | Finding | Could a rule or a check have caught it? |
+| --- | --- | --- |
+| 1 | Plan's own `tests: 3111` stale by the time the work finished | **Check** — this task's own tool, which caught it |
+| 2 | Prose sweep's discriminating power is an 11-element integer set | **Check** — attribute prose counts to a named course, or drop the sweep's `ok` line so it never reads as verification |
+| 3 | `generators` verifies existence, not attribution | **Check** — compare against the ids the diff adds, not the whole registry |
+| 4 | `--suite-log` is unbound to the checkout | **Check** — record `HEAD` in the captured log and refuse a log whose sha is not `HEAD` |
+| 5 | `countsTree.ts`'s >1-course-export branch has no test | **Rule** — already recorded by the report as a gap, which is the right handling |
+
+Nothing here needed a rule. That is four of five mechanisable, and the count holds:
+**the advisor-identity question remains the only one that is not.**
+
+### Advisor: 2 of 2, and a stronger ordering instrument than entry order
+
+Two consultations, both self-reporting `claude-opus-5[1m]`, one per behaviour commit.
+Unit 3 is bookkeeping and holds **a logged absence** — *"No advisor consultation was
+held for this unit's commit, and this is that deliberate absence, logged as PREFLIGHT
+requires"* — so the refusal-shaped hole in the ordering check stays closed.
+
+And the ordering instrument improved without anyone designing it: **each
+consultation's log entry is inside the commit it covers** (50 insertions in
+`67c87f8`, 63 in `1795c05`, 35 in `290574e`). An entry cannot be back-dated into a
+commit that already exists. That is stronger than comparing entry order against `git
+log`, and it costs nothing — it falls out of committing the log with the code.
+
+### Cost
+
+**$16.5004** — $16.1245 for the relaunched session plus **$0.3759** archived across
+the three refusals. Two interventions, both attributable to my briefs rather than to
+the executor: the two false anchors.

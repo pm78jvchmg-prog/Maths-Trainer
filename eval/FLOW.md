@@ -73,9 +73,17 @@ session that believes it anyway is the worse of the two outcomes.
 **6. Mechanical checks — run before reading anything the session wrote.**
 - **Ordering:** every unit commit has a **completed** consultation before it.
 - **Advisor model:** every log entry quotes `claude-opus-5`.
-- **Scope:** `git diff --stat main` matches the plan's file list.
+- **Scope:** `git diff --stat $(git merge-base <branch> main)` matches the plan's
+  file list. A local `main` in the session's container is often a stale ref; compare
+  against the merge base, not a branch name.
 - **Gates on the branch:** `npm test`, `npx tsc --noEmit -p tsconfig.app.json`, `npm run lint`.
 - **Ids by grep, never from the report.**
+- **Counts:** `eval/bin/counts.sh eval/plans/TASK{N}-PLAN.md eval/reports/TASK{N}-REPORT.md
+  --suite-log <your own gate run's log>` — **your** log, never one the session
+  captured. Nothing binds a suite log to a checkout, so a stale log and a stale
+  claim agree with each other; supplying it yourself is what makes the check a
+  check. Exit 1 on the *plan* side alone is usually a prediction that went stale,
+  which is the tool working — read which side is red before treating it as a defect.
 
 *Before, because reading the report first shapes what you then go looking for.
 A session's summary once misnamed its own generators while the code was right.*

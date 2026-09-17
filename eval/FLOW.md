@@ -54,6 +54,13 @@ ways this fails, both found by giving a session anchors it then disproved:
   socially engineered — by the very message sent to prove it was not. **Take the
   head commit before launching, not after**, and never cite a commit written in the
   same breath as the launch.
+- **Read what the launch returned, not just that it returned.** `create_session`
+  answers with the session's context; `session_context.sources` must name the
+  repository. Task 6's first launch omitted `source_url` and got a container with
+  no checkout — the field was simply absent from the reply, and I did not look. The
+  session refused correctly 70 seconds later, at $0.14. **This is the first
+  mechanical check in this file that measures the orchestrator rather than the
+  executor, and its evidence arrives unasked in a tool result I already receive.**
 - **The clone is single-branch.** `git branch -r` shows `origin/main` and nothing
   else, so no `week/*` branch is ever visible from inside a task session. A branch
   listing is not an anchor.

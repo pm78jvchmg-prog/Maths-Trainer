@@ -1992,3 +1992,44 @@ readings to keep apart at stage 6:
    plan runs the mutation anyway and records the survival. A gap stated as a result
    beats a gap assumed closed — and it is the honest counterweight to a task whose
    headline is "every generator is under an oracle".
+
+### Launcher defect four — and the first one that is mechanically checkable
+
+The task 6 launch produced a container with **no repository**. I called `create_session`
+without `source_url`. The session read its brief, found no `eval/plans/TASK6-PLAN.md`,
+and stopped at **$0.1372** after 70 seconds with `needs_action: "provide repository
+checkout with eval/plans/TASK6-PLAN.md present at commit 61c505c"` — naming exactly
+what was missing and inventing nothing. Relaunched as
+`session_01A6kEr9BA8FpaNB2C4pCKNc`, whose reply carries the `sources` field the first
+one lacked.
+
+That is four launcher defects this week, and this one is a different class from the
+other three:
+
+| # | Defect | Class |
+| --- | --- | --- |
+| 1 | Anchor commit post-dated the clone by 26 seconds | False anchor |
+| 2 | Cited `week/*` branches invisible in a single-branch clone | False anchor |
+| 3 | Cited `eval/reports/TASK4-REPORT.md`, which does not exist | False anchor |
+| 4 | Omitted `source_url`; container had no checkout | **Omitted parameter** |
+
+The first three are claims I made that were not true. This one is a thing I did not
+do — and the difference matters, because **the evidence was already in my hands and I
+did not read it.** `create_session` returns the session's context. Task 5's reply
+carried `"sources":[{"git_repository":{...}}]`; task 6's carried
+`{"model":"claude-sonnet-5"}` and nothing else. I read the id out of that reply and
+stopped reading.
+
+> **Every instrument built this week measures the executor. This is the first one that
+> measures the orchestrator** — and it needs no new tooling at all, because the return
+> value arrives unasked. Now a line in `FLOW.md` stage 4.
+
+Two things are worth keeping apart here. The three false anchors were caught by other
+parties — twice by a cold executor refusing, once by the planner. This one was caught
+the same way: **by the executor, again.** Four for four. The party with the least
+context is doing the most catching, which is an argument about where checks belong
+rather than about who is careless.
+
+And the cost of a launcher defect is now measurable: $0.1372 for a clean refusal
+against the $0.3759 the three refusals of task 5 cost. A session that stops at the
+first missing anchor is cheap. That is the return on giving it permission to refuse.

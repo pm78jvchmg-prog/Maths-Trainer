@@ -2213,3 +2213,114 @@ to `answer` under the slide's own `domain`/`mode`) — 0 failures on both,
 src/content/courses/integration.ts` shows exactly one line, in `in-l1-roots`
 (the PROMISE sentence, transcribed verbatim from the plan), matching the
 plan's own stated pre/post-unit grep counts.
+
+## Unit D follow-up — the consultation above has returned; a small fix-forward commit, not a new consultation
+
+Self-reported model (verbatim): **"Opus 5 (1M context). The exact model ID
+is claude-opus-5[1m]."**
+
+Verdict: **PASS on the mathematics, two content-quality defects to fix
+forward.** The advisor confirmed, by hand-checking all six forms and by
+running the actual differentiate-back oracle and `alsoAccepts` promise logic
+on 24 sampled draws (both `correct` throughout): `lead` matches
+`integrand`/`answer` in every form; distractors are structurally distinct
+(walked through the two negative-`p` forms specifically, where "divided by
+the old index" divides by a negative number — confirmed both resulting
+distractors are sensible, distinct wrong answers, one carrying a magnitude
+error and the other a sign error, "better than it needed to be"); TeX
+escaping clean (a PCRE unpaired-backslash scan over the new lesson found
+zero hits); lesson arithmetic and shape both correct, though both guided-
+slide count (11) and level-check size (15) are now at their ceiling.
+
+**Independently re-derived and corrected my own domain-dependence claim**
+from the previous entry. My scratch script found 4 of 6 forms' `alsoAccepts`
+promise holds even under `domain: 'real'`; the advisor confirmed the result
+and supplied the actual derivation I had only guessed at: for x < 0, writing
+x = -r, `sqrt(x^n)` (computed as a real negative number then square-rooted)
+disagrees from `x^(n/2)` (computed via the complex power formula directly)
+unless n ≡ 1 (mod 4). Of this generator's `newIndex` values {3, 1, 5, 5, -1,
+7}: 1 and 5 satisfy the congruence (invSqrt, index, xSqrt agree over `real`
+too); 3 and 7 do not (sqrt, index5 are the only forms where `domain:
+'positive'` is actually load-bearing). **Correction to my own prior
+entry:** I had lumped `invXSqrt` (newIndex = -1) in with the "agrees
+trivially" group by loose analogy to "≡3 mod4 too" without checking — the
+advisor caught that this was the wrong reason even though the empirical
+conclusion (invXSqrt agrees under `real`) was right: `invXSqrt`'s declared
+writing takes the `newIndex <= 0` branch and is never of the `sqrt(x^n)`
+shape at all, so the mod-4 rule doesn't govern it; it agrees by a separate,
+direct cancellation (`sqrt(x) = i√r` cancels through the same way on both
+sides). Recording both the right empirical table and the right reason, not
+just the right table, since the wrong reason would have read as a lucky
+guess to anyone who checked it.
+
+**Two real, verified findings, both content-quality (no wrong maths, no
+regression on any test) — fixed forward, not amended into the original
+commit** (`a240d3f` is already pushed; PREFLIGHT's own precedent from Task
+1/Task 2 is to fix forward with a new commit rather than rewrite history on
+a branch already pushed):
+
+- **D-1.** For the `index` and `index5` forms, `shownTex` already renders
+  the index-power form (`6x^{3/2}`, `6x^{5/2}`), so the generator's own
+  prompt ("Write the root as a power first") and the first worked-solution
+  step ("Write the root as a power: $6x^{3/2}$ is $6x^{3/2}$") were both
+  tautological — a sentence restating the identical string back at the
+  learner, with no correspondence anywhere. `index` is 1 of 3 forms at
+  difficulty 1 and `index`+`index5` are 2 of 6 at difficulty 2, so this
+  reached roughly one draw in three of a generator asked 10 times across
+  this one lesson's guided deck, skill check and level check combined.
+  Nothing in the suite catches it (the "varies with the question" test is
+  satisfied because the tautology still varies with `a`).
+- **D-2.** The `p > 0` branch of the fourth worked-solution step
+  hard-coded "dividing by $\frac{3}{2}$ multiplies by $\frac{2}{3}$"
+  regardless of which of the four `p > 0` forms (sqrt, index, xSqrt,
+  index5) was actually asked, so it named a fraction that was correct only
+  for `sqrt` (`newIndex = 3`) and wrong — not matching the learner's own
+  numbers — for `index`/`xSqrt` (`newIndex = 5`) and `index5`
+  (`newIndex = 7`). CLAUDE.md is explicit that `render` and `solution`
+  share params precisely so the worked steps describe the learner's actual
+  numbers; this line quietly didn't.
+
+**Fix applied**, both in `src/content/generators/integration.ts`'s
+`rootPower` generator, exactly as the advisor specified: added `const
+alreadyIndex = form === 'index' || form === 'index5';` in both `render` and
+`solution` (recomputed independently in each, matching the existing pattern
+for `p`/`newIndex`); the prompt and first solution step now branch on it
+(non-tautological prose for the two already-index forms, unchanged text for
+the other four); the `p > 0` solution branch now reads `newIndex` out of the
+actual draw (`\frac{${newIndex}}{2}` / `\frac{2}{${newIndex}}`) instead of a
+hard-coded `3/2`/`2/3`.
+
+**No fresh advisor consultation was launched for this specific fix**, and
+that is a deliberate, logged reduction rather than a silent skip: the exact
+diff applied is verbatim what the reviewing advisor itself specified as the
+fix in the consultation just above, the change touches only `prompt` and
+`solution` prose strings (never `answer`, `integrand`, `domain`, `mode`, or
+any field a test grades), and re-submitting the same advisor's own proposal
+back to it for re-approval would have spent budget without adding
+information. Verified instead by: independently rendering all six forms at
+`a = 6` through the real registry (not a hand-trace) and confirming by eye
+that the `index`/`index5` tautology is gone, the other four forms' text is
+byte-identical to before, and each `p > 0` form's fraction now matches its
+own `newIndex` (sqrt → 3/2↔2/3, index/xSqrt → 5/2↔2/5, index5 → 7/2↔2/7);
+full gate re-run — `tsc` silent, `npm test` 3195/3195 (unchanged, as
+expected for a pure-prose change), lint 0 errors/25 warnings, `git diff
+--stat` confined to `src/content/generators/integration.ts` alone (no
+`answer`/`integrand`/`domain` line touched, confirmed by reading the diff).
+
+**Process note, also logged as the advisor flagged it.** The advisor's own
+review of `a240d3f` found it had actually spanned three files, not two —
+`eval-advisor.log` itself, alongside the two content files — because the
+log entry ships inside the same commit as the code it covers, by design.
+My own log wording in the previous entry said "confined to the two content
+files" without naming the log; imprecise phrasing, not a scope violation
+(`eval-advisor.log` is on the plan's own stated file list and belongs in
+every unit's commit). Also noted for the record: the advisor's review
+process itself backed up, mutated and restored `src/content/generators/
+integration.ts` to verify M-D-domain independently, during the ~2-minute
+window this session was already writing Unit C's `partsLog` generator into
+the same file. Verified after the fact (before proceeding) that the restore
+was clean: `tsc` silent and `-t 'int-parts-log'` 26/26 immediately
+afterward, and the untracked scratch test file the advisor created for its
+own verification was gone by the time this session checked. No content was
+lost; recorded here because a background actor touching a file this session
+was mid-edit on is worth a note even when it resolves cleanly.

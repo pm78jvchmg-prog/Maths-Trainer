@@ -1705,12 +1705,18 @@ const rootPower: Generator<RootPowerParams> = {
   render: ({ form, a }) => {
     const p = HALF_INDEX[form];
     const newIndex = p + 2;
+    const alreadyIndex = form === 'index' || form === 'index5';
     const rootWriting =
       newIndex > 0 ? `((${2 * a})/(${newIndex})) * sqrt(x^(${newIndex}))` : `(${-2 * a})/sqrt(x)`;
     return {
       kind: 'expression',
       prompt: [
-        { kind: 'prose', text: 'Integrate, for $x > 0$. Write the root as a power first.' },
+        {
+          kind: 'prose',
+          text: alreadyIndex
+            ? 'Integrate, for $x > 0$.'
+            : 'Integrate, for $x > 0$. Write the root as a power first.',
+        },
       ],
       lead: `${integralTex(shownTex(form, a))} =`,
       keypad: ROOT_INTEGRAL_KEYS,
@@ -1724,13 +1730,16 @@ const rootPower: Generator<RootPowerParams> = {
   solution: ({ form, a }) => {
     const p = HALF_INDEX[form];
     const newIndex = p + 2;
+    const alreadyIndex = form === 'index' || form === 'index5';
     const rootForm =
       newIndex > 0
         ? fracCoeffTex(2 * a, newIndex, newIndex === 1 ? '\\sqrt{x}' : `\\sqrt{x^{${newIndex}}}`)
         : `-\\frac{${2 * a}}{\\sqrt{x}}`;
     return [
       {
-        text: `Write the root as a power: $${shownTex(form, a)}$ is $${a === 1 ? '' : a}x^{${p}/2}$. Then the rule is the usual one — raise the index by one, divide by the new index.`,
+        text: alreadyIndex
+          ? `The index is already a fraction, and the power rule never required a whole one: raise it by one and divide by the new index.`
+          : `Write the root as a power: $${shownTex(form, a)}$ is $${a === 1 ? '' : a}x^{${p}/2}$. Then the rule is the usual one — raise the index by one, divide by the new index.`,
       },
       {
         tex: `\\int ${a === 1 ? '' : a}x^{${p}/2} \\, dx = \\frac{${a === 1 ? '' : a}x^{${newIndex}/2}}{${newIndex}/2} + C`,
@@ -1739,7 +1748,7 @@ const rootPower: Generator<RootPowerParams> = {
       {
         text:
           p > 0
-            ? 'Dividing by a fraction is multiplying by its reciprocal: dividing by $\\frac{3}{2}$ multiplies by $\\frac{2}{3}$. Check by differentiating, and the two fractions cancel back to the original coefficient.'
+            ? `Dividing by a fraction is multiplying by its reciprocal: dividing by $\\frac{${newIndex}}{2}$ multiplies by $\\frac{2}{${newIndex}}$. Check by differentiating, and the two fractions cancel back to the original coefficient.`
             : `Adding one to a negative fraction moves it towards zero, so $${p}/2$ becomes $${newIndex}/2$, and dividing by that ${newIndex < 0 ? 'negative fraction flips the sign' : 'fraction doubles the coefficient'}. Differentiate the answer to check the sign.`,
       },
     ];

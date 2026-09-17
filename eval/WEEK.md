@@ -1710,3 +1710,59 @@ anchor and the clone. The previous launch did the opposite and produced an ancho
 **Task 5's cost so far is $0.3759 for zero output**, and it is charged to the task.
 Three refusals produced no code and one genuine finding about the launch mechanism,
 which is a worse ratio than any task this week and an honest one.
+
+### The relaunch started clean — the FLOW fix worked on its first use
+
+`session_01XieEsvRk1R2B8mcgd7FT5V`, launched 02:13Z against anchor `a3d44bc`
+taken **after** the push and verified present. **No refusal.** Units 1 and 2
+committed and pushed inside 40 minutes.
+
+That is the first evidence that the corrected launch procedure does something: same
+task, same plan, same executor configuration — the only difference is a brief whose
+anchors are true and whose quoted defects point into the repository. **Three
+refusals became zero.**
+
+### Stage 6, run at 03:00 while unit 3 was still being written
+
+**The found-nothing trap, three cases run separately.** `counts.ts` maps both
+`nothing` and `error` to exit 2, so exit code alone proves nothing and the message
+is the only discriminator:
+
+| Case | Output | Exit |
+| --- | --- | --- |
+| Real documents that parse and yield nothing | `NOTHING TO CHECK: plan and report yielded 0 claims` | 2 |
+| Missing path | `ERROR: cannot read "…"` — **not** the found-nothing message | 2 |
+| Malformed block | `ERROR: unknown key "lesson" at line 6` | 2 |
+
+**All three discriminate**, and case 1 additionally explains *why* each document
+yielded nothing (`"## N. Done" section found but it contains no recognisable
+claim`; `report: no counts block found; prose sweep only`). So the guard can tell
+"I read it and there was nothing" from "there was nothing to read" — which is the
+distinction the whole tool turns on.
+
+**Both critical mutations killed, re-run here:** M1 (`nothing` → `ok`) fails 3 tests;
+M6 (`nothing: 2` → `nothing: 0`) fails the spawn test.
+
+**The motivating defect is caught.** Run here against task 4's summary fixture:
+
+```
+report  prose-lessons  55   MISMATCH: 55 is not a lesson count the tree has
+report  prose-lessons  44   MISMATCH: 44 is not a lesson count the tree has
+report  prose-tests    3034 MISMATCH: expected 3034, suite has 3117
+plan    tests          3086 MISMATCH: expected 3086, suite has 3117
+COUNTS DISAGREE: 4 mismatches
+```
+
+The fourth line is the tool working as designed on its own corpus: **task 4's plan
+is now a stale claim** — it said 3086 and the tree says 3117 — and the tree is the
+fact. Exactly the verdict the plan predicted for that case.
+
+**Advisor log:** 113 insertions, 0 deletions; two consultations, one per behaviour
+commit, each named by unit.
+
+**One deviation to chase in the report:** the suite is **3117**, against the plan's
+predicted 3111. `counts.test.ts` holds **31** tests where the plan specified 25. Six
+extra. The plan requires the executor to *"say by how much and why rather than
+adjusting the plan's block"* — so the report must account for them, and a
+`counts` block claiming 3111 would now be a self-inflicted mismatch on the
+self-run. Flagged, not yet explained.

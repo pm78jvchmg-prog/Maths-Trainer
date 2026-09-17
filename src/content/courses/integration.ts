@@ -758,6 +758,64 @@ export const integration: Course = {
           ],
         },
         {
+          id: 'in-l3-shapes',
+          title: 'Spotting the Substitution',
+          slides: [
+            teach(
+              prose(
+                'The last lesson used one shape, $x$ outside a bracket containing $x^{2}$; the pattern is more general: substitution works whenever the integrand contains a function of $x$ alongside its derivative, up to a constant factor.',
+              ),
+              maths('\\int 4x^{2}\\left(x^{3} + 1\\right)^{2} \\, dx'),
+              prose(
+                'Inside the bracket is $x^{3} + 1$, whose derivative is $3x^{2}$; the $x^{2}$ outside is that derivative up to the constant $3$, so $u = x^{3} + 1$, $\\frac{du}{dx} = 3x^{2}$, and $4x^{2} \\, dx = \\frac{4}{3} \\, du$.',
+              ),
+              maths(
+                '\\int 4x^{2}\\left(x^{3} + 1\\right)^{2} \\, dx = \\frac{4}{3}\\int u^{2} \\, du = \\frac{4u^{3}}{9} + C = \\frac{4\\left(x^{3} + 1\\right)^{3}}{9} + C',
+              ),
+              prose(
+                'The division by $3$ is the new step; it comes from $\\frac{du}{dx}$, so a cube inside the bracket means dividing by $3$ where a square meant dividing by $2$.',
+              ),
+            ),
+            ask('int-substitution-general'),
+            ask('int-substitution-general+choice'),
+            ask('int-substitution-general'),
+            teach(
+              prose(
+                'The bracket need not be a bracket: any function with its derivative alongside will do, and two cases turn up constantly.',
+              ),
+              maths('\\int xe^{x^{2}} \\, dx = \\frac{e^{x^{2}}}{2} + C'),
+              prose(
+                'Here $u = x^{2}$: the derivative $2x$ is there up to a factor of $2$, and $\\int e^{u} \\, du$ is just $e^{u}$.',
+              ),
+              maths('\\int \\cos(x)\\sin^{3}(x) \\, dx = \\frac{\\sin^{4}(x)}{4} + C'),
+              prose(
+                'Here $u = \\sin(x)$, because $\\cos(x)$ is its derivative, and a power of $\\sin(x)$ integrates like a power of $u$; with the roles swapped, $u = \\cos(x)$ has derivative $-\\sin(x)$, so a minus sign appears in the answer.',
+              ),
+            ),
+            ask('int-substitution-general', 2),
+            ask('int-choose-method', 2),
+            ask('int-substitution-general+choice', 2),
+            teach(
+              prose(
+                'The test is always the same: pick the inner function, differentiate it, and look for that derivative in what is left over; a constant factor is no obstacle, a missing power of $x$ is fatal.',
+              ),
+              prose(
+                '$\\int \\left(x^{3} + 1\\right)^{2} \\, dx$ has no $x^{2}$ outside the bracket, so substitution leaves an $x^{2}$ stranded and gains nothing; for that one, multiply the bracket out.',
+              ),
+              prose(
+                'Which $u$ to try is the only judgement here, and the worked solutions on every question name it; if the substitution you choose leaves any $x$ behind, it was the wrong one.',
+              ),
+            ),
+            ask('int-substitution-general', 2),
+            ask('int-substitution', 2),
+          ],
+          skillCheck: [
+            ask('int-substitution-general', 2),
+            ask('int-substitution-general+choice', 2),
+            ask('int-substitution-general', 2),
+          ],
+        },
+        {
           id: 'in-l3-definite-substitution',
           title: 'Substitution with Limits',
           slides: [
@@ -873,17 +931,17 @@ export const integration: Course = {
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
         ask('int-definite-substitution', 2),
+        ask('int-substitution-general', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
         ask('int-definite-substitution', 2),
+        ask('int-substitution-general', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
         ask('int-definite-substitution', 2),
-        ask('int-linear-bracket', 2),
-        ask('int-substitution', 2),
-        ask('int-by-parts', 2),
+        ask('int-substitution-general', 2),
       ],
     },
   ],

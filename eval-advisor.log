@@ -2010,3 +2010,166 @@ plan's stated behaviour rather than a bug.
 The advisor's answer will be applied as a follow-up fix in a later commit if
 it finds anything; recorded here now rather than silently skipped, and will
 be logged again (with its actual findings) once it returns.
+
+## Unit A follow-up — the consultation launched above has now returned
+
+Self-reported model (verbatim): **"Opus 5 (1M context), exact model ID
+`claude-opus-5[1m]`."**
+
+Verdict: **PASS, no required fixes.** The advisor reviewed the committed diff
+(confirmed byte-identical to what it was handed: `b1273b1 → ad280cf` on
+`src/content/generators/integration.ts`, matching the hunk headers) by
+building its own temporary sweep test over the full reachable parameter space
+at both difficulties through the real registry (not the pasted diff alone),
+then deleted the temp file and re-ran `tsc` clean. Findings:
+- Lead TeX matches `integrand`/`answer` on every one of 160 reachable
+  parameter combinations — hand-verified three draws by full arithmetic
+  (e.g. `m=1,n=2,b=1,[0,2]`: lead $\int_0^2 6x(x^2+1)^2\,dx$, `integrand`
+  `(6)*x*(x^2+(1))^(2)`, u-substitution gives 124, matching `answer` and the
+  lesson's own T1 worked example).
+  Confirmed `a = 2(n+1)m ≥ 6` always, so `termTex(a,1)` never suppresses or
+  mis-signs the coefficient.
+- The antiderivative algebra is correct: d/dx[m(x²+b)^(n+1)] =
+  2m(n+1)x(x²+b)^n = a·x·(x²+b)^n exactly, confirming `a`'s formula and the
+  solution's two derived constants ((n+1)m du and m·u^(n+1)).
+- Distractor collisions: swept 4000 seeds/difficulty through the `+choice`
+  variant. Confirmed the plan's documented collision (`b=-1, lower=0,
+  upper=1, n=2`) drops to 3 options cleanly, and found **one additional,
+  previously undocumented collision** at `b=-1, lower=1` (the "dropped the
+  lower term" distractor coincides with the answer when `at(lower)=0`) —
+  also dropped cleanly by `options()`'s dedup, not a bug, just not written
+  down in the plan. Also found a genuine 2-option edge case (1.5% of
+  difficulty-2 draws, when the definite integral evaluates to exactly 0 and
+  two of the three distractors collapse onto each other): passes the
+  suite's `>= 2` floor and the *answer* is still correct, so not a required
+  fix; the advisor offered an optional re-draw guard, not applied (the gate
+  is green and PITFALLS's own "when a gate goes red" rule doesn't apply to
+  a gate that hasn't gone red).
+- TeX escaping clean (checked file bytes, not the diff) — every command in
+  the new lesson prose is doubled; independently re-verified the teach
+  slides' own arithmetic (the trap value 8, the answer value 124, and the
+  "convert back" value 124 all agree, and the antiderivative shown in slide
+  3 genuinely differentiates to the integral in slide 1).
+- Shape guards pass structurally, not by seed luck: `int-definite-substitution`
+  always renders `expression`, its `+choice` form always renders `choice`,
+  `int-definite-steps` renders a third kind — every run's kind-intersection
+  is empty by construction.
+- Two optional notes, no action taken: difficulty-2 answers can reach
+  55,872 (in house style with the pre-existing `int-definite-power`, whose
+  worst case is far larger — left as-is); `m`'s range narrowing at
+  difficulty 2 while `b`/`upper` widen "reads backwards" without a comment
+  explaining the compensation — a documentation nit, not a defect, not
+  applied since the plan's stated file list doesn't invite unprompted
+  polish commits.
+
+**Process note, logged as the advisor itself flagged it:** this consultation
+returned after unit A (`40ac442`) was already committed and pushed — the
+ordering the plan and PREFLIGHT ask for (consult, then commit) was not met
+for unit A, for the reason already logged above (a stop-hook check flagging
+gated-but-uncommitted work). No corrective action needed since the verdict
+is a clean pass with nothing to fix, but the gap is real and is recorded
+rather than folded into "reviewed before commit." Restoring in-order
+consultation (launch, wait, then commit) from unit B onward.
+
+## Unit B (`int-substitution-general` / `in-l3-shapes`) — per-unit consultation, held before commit as required
+
+Launched (Agent tool, `model: "opus"`) on this unit's own diff (`git diff`
+against HEAD) before this commit, restoring the in-order sequencing the
+previous entry noted had slipped for unit A. Waited for it to return before
+staging or committing anything.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context) — exact model
+ID `claude-opus-5[1m]`."**
+
+Question put to the advisor: hand-verify, for each of the generator's four
+branching forms (cube, exp, sinPower, cosPower), that the displayed `lead`
+TeX describes the same function as the internal `integrand`/`answer`
+strings — the one thing nothing in the suite checks, and doubly worth
+independent checking on this unit since the plan's own M-B-tex mutation
+(record only, not applied yet) is expected to *survive* against this exact
+generator, meaning a real bug here would look identical to "the known,
+accepted gap" without a hand check. Also asked it to verify the antiderivative
+algebra per form (particular attention to the cosPower sign, where two
+negatives — the baked-in `-a` and the `-sin(x)` from differentiating
+`cos^(n+1)` — must cancel), the `fracCoeffTex` helper's sign handling on
+negative numerators, distractor value-distinctness (not just string
+distinctness) across the whole parameter space, TeX escaping, and lesson
+shape risk.
+
+Verdict: **PASS**, with one should-fix content-quality issue (not a
+correctness bug).
+- Confirmed all four forms' `lead`↔`integrand`↔`answer` correspondence by
+  an independent method (not re-reading my code): wrote its own regex
+  transcription of each `lead` TeX back into a mathjs expression and
+  compared it numerically against `integrand` at 8 off-integer points
+  across the full parameter space (237 draws total: cube 192, exp 9,
+  sin/cosPower 18 each) — all 237 agreed, and all 237 independently passed
+  the differentiate-back oracle too. Specifically confirmed the cosPower
+  sign: the baked-in `-a` and the `-sin(x)` from d/dx[cos(x)^(n+1)] do
+  cancel to give the correct positive `a·sin(x)·cos(x)^n`. Confirmed
+  `termTex(a, 2)` (the `shown` local in the cube branch) never hits its
+  coefficient-elision branch here since `a = rng.int(2, 9)` excludes 0/±1.
+- Verified `fracCoeffTex`'s sign handling by hand on several cases including
+  a negative numerator over a positive denominator (`fracCoeffTex(-6, 8,
+  'X')` → `-\frac{3}{4}X`, sign emitted once, not doubled or lost) and
+  confirmed every denominator this unit ever passes it is positive, so the
+  sign-carried-by-`reduce`'s-denominator branch is never exercised here —
+  worth knowing but not a bug.
+- Confirmed no distractor is ever value-equal to the correct answer across
+  all 237 draws, with the algebraic reason per form (a genuine factor
+  difference in every case, none reachable within the sampled ranges).
+- **Found a real, deterministic content-quality defect**, independently of
+  anything the suite catches: in the cube form's `choices`, the "forgot the
+  3 from du = 3x²dx" distractor (`fracCoeffTex(a, n+1, ...)`) and the
+  "divided by 3 only" distractor (`fracCoeffTex(a, 3, ...)`) produce
+  byte-identical TeX whenever `n + 1 = 3`, i.e. at `n = 2` — one of the
+  three values `n` can take, and the *only* form asked at difficulty 1
+  (`sample` returns `'cube'` unconditionally there). Measured: 64/64
+  `(a, n=2)` combinations collapse from 4 options to 3, meaning roughly a
+  third of difficulty-1 `int-substitution-general+choice` draws — including
+  the lesson's own third guided slide — silently raise the guess rate from
+  1-in-4 to 1-in-3. Not a wrong answer (the correct option always survives
+  and every distractor is genuinely wrong), so it passed every gate; but a
+  deterministic collapse a third of the time is a real pedagogical defect,
+  not the "rare arithmetic coincidence" `options()`'s own dedup is meant to
+  absorb.
+- TeX escaping confirmed clean by raw-byte check (`cat -A`) on every new
+  line, not just a visual read; independently re-verified the three new
+  worked-example lines in the lesson's own T1/T2 teach blocks are
+  mathematically correct.
+- Lesson shape: 11 guided slides (the plan's own stated max of the 9-11
+  band) and the `in-l3` level check is now at 15 (also the stated max of
+  10-15) — both legal, both at their ceiling; flagged as forward-looking
+  information for unit C, which also touches `in-l3` and must swap entries
+  rather than append if it needs the level check, since there is no
+  headroom left. Recorded here for that unit's own consultation to check
+  against, not applied as a change now.
+- Two non-blocking style notes, not applied: the cube solution's step 3
+  converts from `u` to `x` in one line with no intermediate `u^(n+1)` step,
+  where the previous lesson (`in-l3-substitution`) devotes a whole teach
+  block to calling that conversion "the most commonly dropped step" — left
+  as-is since the plan's own solution text is what section 3.2 specifies
+  verbatim and this is a stylistic nicety, not a defect; the exp form's
+  "no halving" distractor hand-rolls its coefficient elision instead of
+  reusing `fracCoeffTex(a, 1, ...)`, which is byte-identical for every
+  reachable `a` — cosmetic, not applied.
+- One pre-existing, not-this-unit's stale comment noted for the report: the
+  course file's header still says "twelve questions" for every level check;
+  `in-l3` has been 15 since unit A. Not fixed here (out of this unit's
+  stated scope; will be named in the final report alongside the other two
+  known stale comments from the plan).
+
+**Fix applied before commit**, per the advisor's finding: when `n === 2`,
+the "divided by 3 only" distractor's denominator changes from `3` to `6`,
+keeping it a distinct (and still genuinely wrong) slip rather than colliding
+with the "forgot the 3" distractor. Re-verified independently afterward
+(not just re-running the suite): a scratch enumeration over the full
+`(a, n)` cube parameter space confirms 0/24 collisions post-fix, versus a
+deterministic 1-in-3 collapse before it. Re-ran every gate after the fix,
+not just before the consultation, per this session's own corrected working
+loop: `-t 'int-substitution-general'` → 26/26 (unchanged — the fix only
+touches a `+choice` distractor string, not an `expression` slide's own
+fields, so the test count and the base generator's own checks are
+untouched); full `npm test` → 3169/3169 (unchanged from before the fix, as
+expected); `tsc` silent; lint 0 errors / 25 warnings; scope confined to the
+two content files plus this log.

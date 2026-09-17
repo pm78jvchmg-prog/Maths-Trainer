@@ -1428,6 +1428,219 @@ const definiteSubstitution: Generator<DefiniteSubstitutionParams> = {
   },
 };
 
+/**
+ * A coefficient in lowest terms in front of an arbitrary TeX factor: a bracket,
+ * an exponential, a power of a trigonometric function. `fracTermTex` covers a
+ * power of x; this covers everything else, and drops a coefficient of 1 so the
+ * learner never reads "1(x^3 + 1)^4".
+ */
+function fracCoeffTex(num: number, den: number, factor: string): string {
+  const { n, d } = reduce(num, den);
+  if (d === 1) return `${n === 1 ? '' : n === -1 ? '-' : n}${factor}`;
+  return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}${factor}`;
+}
+
+type SubstitutionForm = 'cube' | 'exp' | 'sinPower' | 'cosPower';
+
+interface GeneralSubstitutionParams {
+  form: SubstitutionForm;
+  a: number;
+  b: number;
+  n: number;
+}
+
+/**
+ * Substitution beyond the one shape `int-substitution` teaches: a cube inside
+ * a bracket, an exponential, or a power of sine or cosine.
+ */
+const substitutionGeneral: Generator<GeneralSubstitutionParams> = {
+  id: 'int-substitution-general',
+  sample: (rng, difficulty) => {
+    const form: SubstitutionForm =
+      difficulty > 1 ? rng.pick(['cube', 'exp', 'sinPower', 'cosPower'] as const) : 'cube';
+    if (form === 'cube') {
+      const a = rng.int(2, 9);
+      const b = difficulty > 1 ? nonZero(rng.int(-4, 4), 2) : rng.int(1, 4);
+      const n = rng.int(2, 4);
+      return { form, a, b, n };
+    }
+    if (form === 'exp') {
+      return { form, a: rng.int(1, 9), b: 0, n: 0 };
+    }
+    return { form, a: rng.int(1, 6), b: 0, n: rng.int(2, 4) };
+  },
+  choices: ({ form, a, b, n }) => {
+    if (form === 'cube') {
+      const bracket = `\\left(x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)`;
+      const inner = `(x^3 + (${b}))`;
+      return options(
+        {
+          tex: `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n + 1}}`)} + C`,
+          answer: `((${a})/(3 * (${n + 1}))) * ${inner}^(${n + 1})`,
+        },
+        // Forgot the 3 from du = 3x^2 dx.
+        {
+          tex: `${fracCoeffTex(a, n + 1, `${bracket}^{${n + 1}}`)} + C`,
+          answer: `((${a})/(${n + 1})) * ${inner}^(${n + 1})`,
+        },
+        // Divided by 3 only. At n = 2, n + 1 = 3, which would make this
+        // byte-identical to the "forgot the 3" distractor above and collapse
+        // the slide to 3 options every time; divide by 6 there instead so it
+        // stays a distinct (and still wrong) slip.
+        {
+          tex: `${fracCoeffTex(a, n === 2 ? 6 : 3, `${bracket}^{${n + 1}}`)} + C`,
+          answer: `((${a})/(${n === 2 ? 6 : 3})) * ${inner}^(${n + 1})`,
+        },
+        // Correct coefficient on the old power.
+        {
+          tex: `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n}}`)} + C`,
+          answer: `((${a})/(3 * (${n + 1}))) * ${inner}^(${n})`,
+        },
+      );
+    }
+    if (form === 'exp') {
+      return options(
+        { tex: `${fracCoeffTex(a, 2, 'e^{x^{2}}')} + C`, answer: `((${a})/2) * e^(x^2)` },
+        // No halving.
+        { tex: `${a === 1 ? '' : a}e^{x^{2}} + C`, answer: `(${a}) * e^(x^2)` },
+        // Kept an x^2 factor and halved.
+        {
+          tex: `${fracCoeffTex(a, 2, 'x^{2}e^{x^{2}}')} + C`,
+          answer: `((${a})/2) * x^2 * e^(x^2)`,
+        },
+        // Exponent power wrong.
+        { tex: `${fracCoeffTex(a, 3, 'e^{x^{3}}')} + C`, answer: `((${a})/3) * e^(x^3)` },
+      );
+    }
+    const fn = form === 'sinPower' ? 'sin' : 'cos';
+    const sign = form === 'sinPower' ? 1 : -1;
+    return options(
+      {
+        tex: `${fracCoeffTex(sign * a, n + 1, `\\${fn}^{${n + 1}}(x)`)} + C`,
+        answer: `((${sign * a})/(${n + 1})) * ${fn}(x)^(${n + 1})`,
+      },
+      // Sign flipped.
+      {
+        tex: `${fracCoeffTex(-sign * a, n + 1, `\\${fn}^{${n + 1}}(x)`)} + C`,
+        answer: `((${-sign * a})/(${n + 1})) * ${fn}(x)^(${n + 1})`,
+      },
+      // Not divided.
+      {
+        tex: `${fracCoeffTex(sign * a, 1, `\\${fn}^{${n + 1}}(x)`)} + C`,
+        answer: `(${sign * a}) * ${fn}(x)^(${n + 1})`,
+      },
+      // Power not raised.
+      {
+        tex: `${fracCoeffTex(sign * a, n + 1, `\\${fn}^{${n}}(x)`)} + C`,
+        answer: `((${sign * a})/(${n + 1})) * ${fn}(x)^(${n})`,
+      },
+    );
+  },
+  render: ({ form, a, b, n }) => {
+    if (form === 'cube') {
+      const scale = 3 * (n + 1);
+      const shown = termTex(a, 2);
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+        lead: `${integralTex(`${shown}\\left(x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)^{${n}}`)} =`,
+        keypad: INTEGRAL_KEYS,
+        answer: `((${a})/(${scale})) * (x^3 + (${b}))^(${n + 1})`,
+        integrand: `(${a}) * x^2 * (x^3 + (${b}))^(${n})`,
+        domain: 'real',
+        mode: 'upToConstant',
+      };
+    }
+    if (form === 'exp') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+        lead: `${integralTex(`${a === 1 ? '' : a}xe^{x^{2}}`)} =`,
+        keypad: EXP_INTEGRAL_KEYS,
+        answer: `((${a})/2) * e^(x^2)`,
+        integrand: `(${a}) * x * e^(x^2)`,
+        domain: 'real',
+        mode: 'upToConstant',
+      };
+    }
+    if (form === 'sinPower') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+        lead: `${integralTex(`${a === 1 ? '' : a}\\cos(x)\\sin^{${n}}(x)`)} =`,
+        keypad: TRIG_INTEGRAL_KEYS,
+        answer: `((${a})/(${n + 1})) * sin(x)^(${n + 1})`,
+        integrand: `(${a}) * cos(x) * sin(x)^(${n})`,
+        domain: 'real',
+        mode: 'upToConstant',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+      lead: `${integralTex(`${a === 1 ? '' : a}\\sin(x)\\cos^{${n}}(x)`)} =`,
+      keypad: TRIG_INTEGRAL_KEYS,
+      answer: `((${-a})/(${n + 1})) * cos(x)^(${n + 1})`,
+      integrand: `(${a}) * sin(x) * cos(x)^(${n})`,
+      domain: 'real',
+      mode: 'upToConstant',
+    };
+  },
+  solution: ({ form, a, b, n }) => {
+    if (form === 'cube') {
+      const bracket = `\\left(x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)`;
+      const correct = `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n + 1}}`)} + C`;
+      return [
+        {
+          text: `Inside the bracket is $x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, whose derivative is $3x^{2}$, and there is an $x^{2}$ outside. Put $u = x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $${a}x^{2} \\, dx$ becomes $\\frac{${a}}{3} \\, du$.`,
+        },
+        { tex: `\\frac{${a}}{3}\\int u^{${n}} \\, du = \\frac{${a}}{3} \\times \\frac{u^{${n + 1}}}{${n + 1}}` },
+        { tex: `= ${correct}` },
+        {
+          text: 'The constant factor is no obstacle; it just sits outside. An $x$ left over after the substitution would be, and would mean the wrong $u$ was chosen.',
+        },
+      ];
+    }
+    if (form === 'exp') {
+      const correct = `${fracCoeffTex(a, 2, 'e^{x^{2}}')} + C`;
+      return [
+        {
+          text: `The derivative of $x^{2}$ is $2x$, and there is an $x$ outside the exponential. Put $u = x^{2}$, so $${a}x \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
+        },
+        { tex: `\\frac{${a}}{2}\\int e^{u} \\, du = \\frac{${a}}{2}e^{u}` },
+        { tex: `= ${correct}` },
+        {
+          text: 'The constant factor is no obstacle; it just sits outside. An $x$ left over after the substitution would be, and would mean the wrong $u$ was chosen.',
+        },
+      ];
+    }
+    if (form === 'sinPower') {
+      const correct = `${fracCoeffTex(a, n + 1, `\\sin^{${n + 1}}(x)`)} + C`;
+      return [
+        {
+          text: 'The derivative of $\\sin(x)$ is $\\cos(x)$, which is sitting alongside it. Put $u = \\sin(x)$, so $\\cos(x) \\, dx$ becomes $du$.',
+        },
+        { tex: `${a === 1 ? '' : a}\\int u^{${n}} \\, du = ${fracCoeffTex(a, n + 1, `u^{${n + 1}}`)}` },
+        { tex: `= ${correct}` },
+        {
+          text: 'A power of $\\sin(x)$ next to $\\cos(x)$ is a power of $u$ next to $du$: it integrates exactly like $u^{n}$.',
+        },
+      ];
+    }
+    const correct = `${fracCoeffTex(-a, n + 1, `\\cos^{${n + 1}}(x)`)} + C`;
+    return [
+      {
+        text: 'The derivative of $\\cos(x)$ is $-\\sin(x)$, which is sitting alongside it. Put $u = \\cos(x)$, so $\\sin(x) \\, dx$ becomes $-du$.',
+      },
+      { tex: `-${a === 1 ? '' : a}\\int u^{${n}} \\, du = -${fracCoeffTex(a, n + 1, `u^{${n + 1}}`)}` },
+      { tex: `= ${correct}` },
+      {
+        text: 'Differentiating $\\cos(x)$ gives $-\\sin(x)$, so the $\\sin(x)$ in the integrand is $-\\frac{du}{dx}$ and the answer picks up a minus sign. Forgetting it is the characteristic slip with cosine.',
+      },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -1445,4 +1658,5 @@ export const integrationGenerators = [
   byParts,
   chooseMethod,
   definiteSubstitution,
+  substitutionGeneral,
 ] as unknown as Generator<unknown>[];

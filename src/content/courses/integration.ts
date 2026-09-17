@@ -273,6 +273,62 @@ export const integration: Course = {
           skillCheck: [ask('int-power', 2), ask('int-power', 2), ask('int-power', 2)],
         },
         {
+          id: 'in-l1-roots',
+          title: 'Roots and Fractional Powers',
+          slides: [
+            teach(
+              prose(
+                'The power rule was derived without assuming the index was a whole number, and it is not; a root is a fractional power, and the rule integrates it as soon as it is written that way.',
+              ),
+              maths('\\sqrt{x} = x^{1/2} \\qquad \\frac{1}{\\sqrt{x}} = x^{-1/2} \\qquad x\\sqrt{x} = x^{3/2}'),
+              prose(
+                'Then raise the index by one and divide by the new index, exactly as before; adding one to $\\frac{1}{2}$ gives $\\frac{3}{2}$, and dividing by $\\frac{3}{2}$ is multiplying by $\\frac{2}{3}$.',
+              ),
+              maths('\\int \\sqrt{x} \\, dx = \\int x^{1/2} \\, dx = \\frac{x^{3/2}}{3/2} + C = \\frac{2}{3}x^{3/2} + C'),
+              prose(
+                'Convert first, every time; trying to integrate a root while it is still written as a root is where the guessing starts, just as it was for fractions.',
+              ),
+            ),
+            ask('int-root-power'),
+            ask('int-root-power+choice'),
+            ask('int-root-power'),
+            teach(
+              prose(
+                'A root underneath a fraction is a negative fractional power and both negatives have to be carried: $\\frac{1}{\\sqrt{x}}$ is $x^{-1/2}$, adding one gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles the coefficient.',
+              ),
+              maths('\\int \\frac{4}{\\sqrt{x}} \\, dx = \\int 4x^{-1/2} \\, dx = \\frac{4x^{1/2}}{1/2} + C = 8\\sqrt{x} + C'),
+              prose(
+                '$x$ multiplied by its own root is $x^{3/2}$, and $x$ under a root under a fraction is $x^{-3/2}$; adding one to $-\\frac{3}{2}$ gives $-\\frac{1}{2}$, and dividing by $-\\frac{1}{2}$ flips the sign.',
+              ),
+              maths('\\int \\frac{6}{x\\sqrt{x}} \\, dx = \\int 6x^{-3/2} \\, dx = \\frac{6x^{-1/2}}{-1/2} + C = -\\frac{12}{\\sqrt{x}} + C'),
+              prose(
+                'Either the index-form answer or the answer written back under a square root is accepted — the checker compares values, not the shape they are written in. So $\\frac{2}{3}x^{3/2}$ and $\\frac{2}{3}\\sqrt{x^{3}}$ are the same answer.',
+              ),
+            ),
+            ask('int-root-power', 2),
+            ask('int-power', 2),
+            ask('int-root-power+choice', 2),
+            teach(
+              prose(
+                'Check by differentiating, as always: $-12x^{-1/2}$ differentiates to $6x^{-3/2}$, the minus from the index cancelling the minus in front, and when the signs are right the check says so at once.',
+              ),
+              prose(
+                'The index that cannot be reached is still $-1$, and $-\\frac{1}{2}$ is not it; every fractional index goes through the power rule, and $x^{5/2}$ is no different from $x^{3/2}$ except in the arithmetic of the fraction.',
+              ),
+              prose(
+                'The arithmetic is the whole difficulty here; write the division by the new index out as a fraction before simplifying, and the coefficient takes care of itself.',
+              ),
+            ),
+            ask('int-root-power', 2),
+            ask('int-sum', 2),
+          ],
+          skillCheck: [
+            ask('int-root-power', 2),
+            ask('int-root-power+choice', 2),
+            ask('int-root-power', 2),
+          ],
+        },
+        {
           id: 'in-l1-standard',
           title: 'Exponentials and Trigonometric Functions',
           slides: [
@@ -323,13 +379,16 @@ export const integration: Course = {
         ask('int-power'),
         ask('int-power', 2),
         ask('int-sum', 2),
+        ask('int-root-power', 2),
         ask('int-exponential', 2),
         ask('int-trig', 2),
         ask('int-sum', 2),
+        ask('int-root-power', 2),
         ask('int-power'),
         ask('int-trig', 2),
         ask('int-exponential', 2),
         ask('int-power', 2),
+        ask('int-root-power', 2),
         ask('int-antiderivative-family', 2),
       ],
     },

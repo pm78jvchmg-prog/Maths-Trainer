@@ -19,7 +19,7 @@
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
-import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
+import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow } from '../expr';
 
 /** The algebra keys plus the constant of integration. */
@@ -1641,6 +1641,111 @@ const substitutionGeneral: Generator<GeneralSubstitutionParams> = {
   },
 };
 
+/** The algebra keys plus a root and the constant of integration. */
+const ROOT_INTEGRAL_KEYS: KeypadKey[] = [...ROOT_KEYS, { insert: 'C' }];
+
+type RootForm = 'sqrt' | 'invSqrt' | 'index' | 'xSqrt' | 'invXSqrt' | 'index5';
+
+/**
+ * The index of x over 2, per form: the question is a·x^{p/2}. A table rather
+ * than a derivation, so a mistyped row fails a test instead of shipping.
+ */
+const HALF_INDEX: Record<RootForm, number> = {
+  sqrt: 1,
+  invSqrt: -1,
+  index: 3,
+  xSqrt: 3,
+  invXSqrt: -3,
+  index5: 5,
+};
+const ROOT_FORMS_1: RootForm[] = ['sqrt', 'invSqrt', 'index'];
+const ROOT_FORMS_2: RootForm[] = ['sqrt', 'invSqrt', 'index', 'xSqrt', 'invXSqrt', 'index5'];
+
+/** The root or root-fraction as the learner reads it, before it is rewritten as a power. */
+function shownTex(form: RootForm, a: number): string {
+  const c = a === 1 ? '' : `${a}`;
+  if (form === 'sqrt') return `${c}\\sqrt{x}`;
+  if (form === 'invSqrt') return `\\frac{${a}}{\\sqrt{x}}`;
+  if (form === 'index') return `${c}x^{3/2}`;
+  if (form === 'xSqrt') return `${c}x\\sqrt{x}`;
+  if (form === 'invXSqrt') return `\\frac{${a}}{x\\sqrt{x}}`;
+  return `${c}x^{5/2}`;
+}
+
+/** A coefficient in lowest terms in front of a fractional power of x. */
+function halfPowTex(num: number, den: number, p: number): string {
+  return fracCoeffTex(num, den, `x^{${p}/2}`);
+}
+
+interface RootPowerParams {
+  form: RootForm;
+  a: number;
+}
+
+/** Integrating a root, or a root under a fraction, by rewriting it as a fractional power first. */
+const rootPower: Generator<RootPowerParams> = {
+  id: 'int-root-power',
+  sample: (rng, difficulty) => ({
+    form: rng.pick(difficulty > 1 ? ROOT_FORMS_2 : ROOT_FORMS_1),
+    a: rng.int(difficulty > 1 ? 2 : 1, 12),
+  }),
+  choices: ({ form, a }) => {
+    const p = HALF_INDEX[form];
+    const q = p + 2;
+    return options(
+      { tex: `${halfPowTex(2 * a, q, q)} + C`, answer: `((${2 * a})/(${q})) * x^((${q})/2)` },
+      // Divided by the old index.
+      { tex: `${halfPowTex(2 * a, p, q)} + C`, answer: `((${2 * a})/(${p})) * x^((${q})/2)` },
+      // Not divided at all.
+      { tex: `${halfPowTex(a, 1, q)} + C`, answer: `(${a}) * x^((${q})/2)` },
+      // Index lowered instead of raised.
+      { tex: `${halfPowTex(a * p, 2, p - 2)} + C`, answer: `((${a * p})/2) * x^((${p - 2})/2)` },
+    );
+  },
+  render: ({ form, a }) => {
+    const p = HALF_INDEX[form];
+    const newIndex = p + 2;
+    const rootWriting =
+      newIndex > 0 ? `((${2 * a})/(${newIndex})) * sqrt(x^(${newIndex}))` : `(${-2 * a})/sqrt(x)`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Integrate, for $x > 0$. Write the root as a power first.' },
+      ],
+      lead: `${integralTex(shownTex(form, a))} =`,
+      keypad: ROOT_INTEGRAL_KEYS,
+      answer: `((${2 * a})/(${newIndex})) * x^((${newIndex})/2)`,
+      alsoAccepts: [rootWriting],
+      integrand: `(${a}) * x^((${p})/2)`,
+      domain: 'positive',
+      mode: 'upToConstant',
+    };
+  },
+  solution: ({ form, a }) => {
+    const p = HALF_INDEX[form];
+    const newIndex = p + 2;
+    const rootForm =
+      newIndex > 0
+        ? fracCoeffTex(2 * a, newIndex, newIndex === 1 ? '\\sqrt{x}' : `\\sqrt{x^{${newIndex}}}`)
+        : `-\\frac{${2 * a}}{\\sqrt{x}}`;
+    return [
+      {
+        text: `Write the root as a power: $${shownTex(form, a)}$ is $${a === 1 ? '' : a}x^{${p}/2}$. Then the rule is the usual one — raise the index by one, divide by the new index.`,
+      },
+      {
+        tex: `\\int ${a === 1 ? '' : a}x^{${p}/2} \\, dx = \\frac{${a === 1 ? '' : a}x^{${newIndex}/2}}{${newIndex}/2} + C`,
+      },
+      { tex: `= ${halfPowTex(2 * a, newIndex, newIndex)} + C = ${rootForm} + C` },
+      {
+        text:
+          p > 0
+            ? 'Dividing by a fraction is multiplying by its reciprocal: dividing by $\\frac{3}{2}$ multiplies by $\\frac{2}{3}$. Check by differentiating, and the two fractions cancel back to the original coefficient.'
+            : `Adding one to a negative fraction moves it towards zero, so $${p}/2$ becomes $${newIndex}/2$, and dividing by that ${newIndex < 0 ? 'negative fraction flips the sign' : 'fraction doubles the coefficient'}. Differentiate the answer to check the sign.`,
+      },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -1659,4 +1764,5 @@ export const integrationGenerators = [
   chooseMethod,
   definiteSubstitution,
   substitutionGeneral,
+  rootPower,
 ] as unknown as Generator<unknown>[];

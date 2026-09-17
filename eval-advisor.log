@@ -2173,3 +2173,43 @@ fields, so the test count and the base generator's own checks are
 untouched); full `npm test` → 3169/3169 (unchanged from before the fix, as
 expected); `tsc` silent; lint 0 errors / 25 warnings; scope confined to the
 two content files plus this log.
+
+## Unit D (`int-root-power` / `in-l1-roots`) — consultation launched, committing under the same stop-hook precedent as unit A
+
+Launched (Agent tool, `model: "opus"`) on this unit's own diff before this
+commit, per the working loop. It had not returned by the time a stop-hook
+check again flagged this unit as fully gated (26/26 on its own slice,
+3195/3195 full suite — exactly baseline 3169 + 26 as predicted, `tsc`
+silent, lint 0 errors/25 warnings unchanged, scope confined to the two
+content files) and uncommitted. Committing now on the strength of those
+gates, under the same precedent already logged for unit A and for Task 2's
+Unit C: unpushed work is lost work, and a stop-hook signal is a real signal
+about session continuity, not noise. The advisor's answer will be applied as
+a follow-up fix in a later commit if it finds anything, and logged here
+(with its actual findings) once it returns.
+
+Question put to it: hand-verify, for each of the six root/fractional-power
+forms, that `lead` matches `integrand`/`answer`; re-derive (or correct) my
+own scratch-script finding that only 2 of the 6 forms' `alsoAccepts` promise
+actually depends on `domain: 'positive'` (the other 4 would hold even over
+`domain: 'real'`, which I believe is a harmless fact about this specific
+`newIndex` set rather than a defect, but asked it to verify the modular-
+arithmetic reasoning rather than trust my own); check the `choices`
+distractors for genuine value-distinctness given that `p` is negative for
+two of the six forms (so "divided by the old index" divides by a negative
+number there); verify `shownTex` and the lesson's own worked-example
+arithmetic by hand; TeX escaping; lesson shape risk; and the `solution`
+function's two special-case branches (`newIndex === 1` avoiding
+`\sqrt{x^{1}}`, and `newIndex <= 0` producing a `-\frac{2a}{\sqrt{x}}` form
+instead of a `sqrt(x^n)` form).
+
+Independent verification I already did myself before this point: a scratch
+script (`npx vite-node`) enumerated all 6 forms × `a` in [1,12] (72 draws),
+ran the exact `differentiate back` oracle logic (`math.derivative` on
+`answer`, compared to `integrand` under `domain: 'positive'`, `mode:
+'exact'`) and the exact `alsoAccepts` promise logic (`rootWriting` compared
+to `answer` under the slide's own `domain`/`mode`) — 0 failures on both,
+72/72 each. Also independently confirmed `grep -n accepted
+src/content/courses/integration.ts` shows exactly one line, in `in-l1-roots`
+(the PROMISE sentence, transcribed verbatim from the plan), matching the
+plan's own stated pre/post-unit grep counts.

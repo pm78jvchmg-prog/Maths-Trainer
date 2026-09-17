@@ -1821,3 +1821,38 @@ is recorded as a follow-up, not applied (package.json is outside this task's
 stated file scope). The plan's own tests: 3111 staleness is carried into the
 unit-3 report rather than silently corrected in the plan file, per the
 advisor's and PREFLIGHT's instruction never to edit a red gate away.
+
+## Task 5 — unit 3 (bookkeeping: no consultation, per PREFLIGHT)
+
+Unit 3 is the report, the retro runs, and this log entry — a bookkeeping
+commit per PREFLIGHT's rule ("a commit that only appends to a log, records
+results, or updates a plan changes no behaviour"), so it gets mechanical
+checks rather than an advisor consultation, and this entry says so rather
+than leaving the gap unmarked.
+
+Mechanical checks run in place of a consultation:
+- `git diff --stat origin/main -- .` lists exactly section 0's file list —
+  countsCore.ts, countsTree.ts, counts.ts, counts.sh, counts.test.ts, the
+  four fixtures, tsconfig.eval.json, this report, and this log. Nothing
+  outside it (not package.json, tsconfig.json, vite.config.ts, .gitignore,
+  or anything under src/). (Note: local `main` in this container is a stale
+  ref several commits behind `origin/main` — `git diff --stat main` would
+  overcount by including everything between them; `origin/main`, which
+  matches this branch's actual base commit `a3d44bc`, is what the scope
+  check must be run against.)
+- `git diff --stat origin/main -- eval-advisor.log` shows insertions only
+  (113, 0 deletions — the one `^-` line in the raw diff is the `---` file
+  header, per PREFLIGHT's own carve-out).
+- `eval/bin/counts.sh eval/plans/TASK5-PLAN.md eval/reports/TASK5-REPORT.md
+  --suite-log <this run's suite log>` was run and its output (a mismatch,
+  exit 1) is quoted verbatim in the report along with why: the plan's own
+  frozen `tests: 3111` prediction is stale against the tree's actual 3117,
+  because both advisor consultations above found real gaps worth six extra
+  tests combined. Not fixed by editing the plan — see the report's dedicated
+  section on this.
+- Arithmetic: `3086 (baseline) + 19 (unit 1) + 12 (unit 2) = 3117`, matching
+  the final `npm test` count exactly.
+
+No advisor consultation was held for this unit's commit, and this is that
+deliberate absence, logged as PREFLIGHT requires — distinguishable from a
+gap nobody noticed.

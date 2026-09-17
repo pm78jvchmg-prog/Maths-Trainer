@@ -138,6 +138,7 @@ Filled as tasks complete. Empty now.
 | 3 | **Repair** — the shape guards, promised writings, and a mutation harness | `session_01K7Ey9XeyExj7mqiiEZDJKb` | **$15.1065** | **0** | **0** | **3 of 4** — 1 inconsistent | **4 of 4** | 5 (`mutate.sh`, `generators.test.ts`, `types.ts`, `differentiation.ts`, `eval-advisor.log`) |
 | 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | **$16.3446** | **0** | **0** | **6 of 6** | **5 of 5** | 3 (`trigonometry.ts`, `trigonometricFunctions.ts`, `eval-advisor.log`) |
 | 5 | **Repair** — a counts reconciler for plan, report and tree | `session_01XieEsvRk1R2B8mcgd7FT5V` (+3 archived) | **$16.5004** | **0** | **2** | **2 of 2** | **2 of 2** (+1 bookkeeping, absence logged) | 12 (`eval/bin/counts*`, 4 fixtures, `tsconfig.eval.json`, `TASK5-REPORT.md`, `eval-advisor.log`) |
+| 6 | More lessons for each topic — Integration | `session_01GpiV4mYeqwg8X7jNRsEXsZ` (+2 archived) | **$32.7221** | **0** | **0** | **6 of 6** | **1 of 4** (3 committed with consultations in flight, all logged, all followed up) | 4 (`integration.ts` ×2, `eval-advisor.log`, `TASK6-REPORT.md`) |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -2169,3 +2170,110 @@ that first uses it, and said so. Same end state, no functional difference.
 
 That is the planner's defect, caught by the executor, one task after the planner caught
 mine. **Three parties, each catching the one before it.**
+
+## Task 6 complete — the prediction landed exactly, and the defect class moved house
+
+Merged at `77bff4b`. Gates on the merged tree: **3221 tests**, both typechecks silent,
+lint 0 errors / 25 warnings, build passes. Four lessons, four generators, 13 → 17
+lessons (6/5/6), level checks 12/12/12 → 15/12/15. Scope since the merge base: 4 files,
+1757 insertions, 6 deletions — exactly the plan's list.
+
+### The pre-registered prediction reconciles to zero — a first
+
+`counts.sh` on plan **and** report, with my own gate log:
+
+```
+plan   lessons/lesson-ids/level-checks/generators/tests   all ok
+report lessons/lesson-ids/level-checks/generators/tests   all ok
+checked: plan 5 claims, report 5 claims
+COUNTS AGREE                                              exit:0
+```
+
+The plan's block was frozen before a line was written and it called seventeen lessons,
+their exact ids and order, 15/12/15, eight new generator ids and **3221 tests**. All
+ten claims green. Tasks 3, 4 and 5 all went stale on at least their test count; this
+one did not. **A frozen prediction reconciling to zero is a stronger result than a
+report reconciling to zero**, because the report is written afterwards by the party
+being checked and the plan is not.
+
+### The report is wrong about the one thing the reconciler cannot see
+
+Report §10, titled *"two units committed before their own review returned"*:
+
+> *"Units B and C waited for the consultation to return before committing, as the
+> working loop specifies. Units A and D did not"*
+
+Unit C's own log entry, committed eight minutes earlier in `5b085b2`:
+
+> *"It had not returned by the time a stop-hook check again flagged this unit as fully
+> gated … Committing now on the same precedent already logged for units A and D."*
+
+**Three units committed with consultations in flight, not two, and the source that
+contradicts the report is the session's own log in the commit immediately before it.**
+
+| Unit | Commit | Waited? | Consultation returned |
+| --- | --- | --- | --- |
+| A | `40ac442` | no | PASS |
+| B | `62d7f18` | **yes** | — |
+| D | `a240d3f` | no | two defects, fixed in `af84706` |
+| C | `5b085b2` | **no** — report says yes | PASS |
+
+#### This is the second class, and it has moved somewhere the new instrument cannot reach
+
+Task 1's divergence was generator names. Task 4's was lesson and test counts. Both were
+**countable facts about the tree**, and task 5 built `counts.sh` to catch exactly those
+— which it now does: every countable claim in this report is true, all ten reconcile,
+the oracle-coverage divergence is explained correctly and even corrects the plan's own
+baseline.
+
+This divergence is about **how the work was done**. No count is wrong. The reconciler
+reads the tree and the suite; it has nothing to compare a protocol claim against.
+
+> **Build the check and the class relocates.** It did not stop happening; it stopped
+> happening in the place that is now checked. That is what a working instrument looks
+> like from the inside, and it is the argument for reading the report at stage 7 even
+> when stage 6 comes back entirely green — which here it did.
+
+**Exit criterion: mechanisable, and cheaply.** The log's headings are regular and were
+written honestly — *"committing under the same stop-hook precedent"*, and a
+*"follow-up — the consultation above has returned"* entry that only exists because one
+returned late. Counting entries of those two shapes and comparing against the report's
+claim is the same trick `counts.sh` already plays, pointed at the log instead of the
+tree. **Candidate for task 7.**
+
+### The stop-hook was real, which vindicates the executor entirely
+
+`worker_epoch: 3` on the finished session: the worker restarted **twice** during the
+run. So the signal the executor committed early on was not noise it should have
+ignored — the environment genuinely was tearing its worker down. Its judgement, three
+times, was correct: *"unpushed work is lost work"*.
+
+That settles the shape of yesterday's proposal. The rule must move to the push, because
+**the commit boundary is not defensible in an environment that restarts the worker
+mid-unit.** Asking an executor to hold a commit while its container is being recycled is
+asking it to lose the unit. Recorded at `5b2a0dc`; the finding here is the evidence.
+
+### Two structural gaps the advisor found in the existing suite, not in this task's work
+
+- **`options()` fails soft.** `src/content/choiceVariant.ts` silently drops a distractor
+  whose `tex` duplicates another, and the suite's guard is
+  `expect(slide.options.length).toBeGreaterThanOrEqual(3)` at
+  `generators.test.ts:104` — **verified here**. A four-option question degrading to
+  three passes everything. That is the structural reason unit B's own collision was
+  invisible to every test rather than merely unsampled.
+- **Nothing asserts a distractor's `answer` genuinely grades `incorrect`.** Every such
+  check in this task was done by hand or scratch script.
+
+Both found by the unit C consultation, both named in the report as candidates rather
+than fixed, both correctly outside scope.
+
+### Cost — the number that matters for the week's question
+
+**$32.7221** ($32.4832 plus $0.2390 across the two archived launches). Task 4 was
+**$16.3446** for the same four-lesson shape. **Double, for work of at least equal
+quality**, against a run that was interrupted twice and did six advisor rounds plus two
+fix-forward commits.
+
+That is the first task where the cheaper configuration was not cheap. It does not by
+itself answer the week's question, but it is the first data point pointing the other way,
+and it belongs next to the quality result rather than under it.

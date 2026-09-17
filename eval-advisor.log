@@ -2375,3 +2375,123 @@ deliberately states "these questions are only posed for x > 0" as a
 mathematical fact rather than a claim about the checker, per the plan's own
 explicit instruction not to write a second "accepted"/"the checker probes"
 sentence with no field backing it.
+
+## Unit C follow-up — the consultation above has returned; verdict PASS, no fix needed
+
+Self-reported model (verbatim): **"Opus 5 (1M context) — exact model ID
+`claude-opus-5[1m]`."**
+
+Verdict: **PASS, no required fixes.** Verified the committed content
+(`5b085b2`) is byte-identical to the reviewed diff, then went further than
+re-reading it: built its own throwaway audit test (600 draws, since
+deleted, `git status` clean afterward) asserting per draw that `choices`
+always yields 4 options with exactly one correct, that the correct option's
+`answer` matches `render`'s own `answer`, that every distractor grades
+`incorrect` under the slide's own `domain`/`mode`, and that a learner-style
+`ln(...) + C` answer grades `correct` — all passed on all 600 draws.
+- Confirmed both forms' `lead`/`integrand`/`answer` correspondence by
+  independently re-deriving the integration-by-parts result from scratch
+  (not from reading my code): power form gives `(a/m)x^m·ln x − (a/m²)x^m`
+  exactly, matching `answer` and the `square = m*m` local; plain form gives
+  `a(x·ln x − x)`, matching. Solution steps checked too: the intermediate
+  line in step 3 is the true partial result, not a restated final answer.
+- **Directly answered the collision question I raised.** No collision is
+  possible: the "divided by `m` not `m²`" distractor differs from correct
+  iff `m ≠ 1`, and `m = n + 1` with `n ∈ [1,4]` never reaches 1 — matching
+  my own algebraic reasoning exactly, and confirmed the structural
+  difference from unit B's cube-form bug: there, a *parameter* (`n+1`)
+  coincided with a *literal constant* (`3`) used elsewhere; here both
+  colliding quantities are functions of the same parameter and differ by a
+  factor of `m`, so the degenerate case is structurally unreachable rather
+  than merely unsampled.
+- TeX escaping confirmed clean by reading the raw file bytes. Independently
+  differentiated all three lesson worked examples by hand and recovered
+  the stated integrand in each case.
+- Confirmed the teaching-order question I asked: `ask`'s default difficulty
+  is 1, `sample` gates the `plain` form behind `difficulty > 1`, and the
+  first difficulty-2 ask of `int-parts-log` in the lesson (slide 6) comes
+  immediately after the T2 teach block that introduces the `dv/dx = 1`
+  trick — no `plain`-form question is ever asked before it is taught.
+- Confirmed the level-check swap: all 15 entries resolve to valid ids, and
+  checked every one of `in-l3`'s six lessons against the final 15-entry
+  list — no lesson's technique is left completely unrepresented (mild
+  imbalance, some at ×2 rather than ×3, is the correct trade against
+  growing past the 15-entry ceiling rather than a gap).
+- **Answered the `ln`/`log` desynchronisation question directly, and it is
+  categorically safer than I had framed it.** `src/engine/expression.ts`'s
+  `math.import({ ln: math.log }, { silent: true })` means `ln` is not a
+  parallel implementation that could drift from `log` — it is the *same
+  function object* under two names. Unlike unit B's cube-substitution
+  generator (a genuine, permanent display/integrand gap, M-B-tex), there is
+  no display/internal mismatch risk here at all: `\ln x` and `log(x)`
+  cannot desynchronise because there is exactly one definition. This
+  generator's header-comment addition states that accurately.
+- Two residuals named for this report, both pre-existing and codebase-wide,
+  neither triggered by this unit but both worth recording: `options()`
+  (`src/content/choiceVariant.ts`) silently drops a distractor whose `tex`
+  string collides with one already seen, and the generic suite guard only
+  requires `>= 3` surviving options — so a future collision degrades a
+  4-option question to 3 without failing anything, which is the structural
+  reason unit B's collision was invisible to any test rather than merely
+  missed by one; and nothing in the generic suite asserts a distractor's
+  `answer` field actually grades `incorrect` against the correct answer —
+  every generator-specific check of that kind in this task (units A/B/C/D)
+  was done by hand or by scratch script, not by an existing repo guard.
+
+No fix was needed — this consultation confirms the unit as committed
+(`5b085b2`) rather than finding anything to change afterward. This closes
+the sixth and final advisor consultation of this task (one pre-execution,
+four per-unit, one follow-up on unit D's findings).
+
+## Unit C mutation proof (M-C-oracle), run after `5b085b2`, before push — not yet logged above
+
+`eval/bin/mutate.sh src/content/generators/integration.ts 's/^ *const square = m
+\* m;$/    const square = m;/' -- npx vitest run
+src/content/generators/generators.test.ts -t 'int-parts-log > differentiates back'`.
+Diff confirmed to touch exactly one line (`const square = m * m;` →
+`const square = m;`, inside the `power` branch of `int-parts-log`'s `render`).
+Result: `mutant killed`, exit 0. Failure message: `seed 0: d/dx(((4)/(2)) *
+x^(2) * log(x) - ((4)/(2)) * x^(2)) is x * (4 * log(x) - 2), integrand is (4)
+* x^(1) * log(x): expected 'incorrect' to be 'correct'`. `git status --short`
+empty afterward (trap restored the file). This is the last of the eight
+mutation runs this task required (M-A-oracle, M-B-oracle, M-B-tex [survived,
+recorded], M-D-oracle, M-D-writing, M-D-domain, M-D-promise, M-C-oracle) — all
+seven intended kills killed, the one intended survival survived.
+
+## Final bookkeeping commit — no consultation held, per PREFLIGHT
+
+This commit adds `eval/reports/TASK6-REPORT.md` and this log entry. Per
+PREFLIGHT's own rule ("bookkeeping commits get mechanical checks, not a
+consultation" — a commit that only appends to a log or records results
+changes no behaviour), no advisor consultation was launched for this commit,
+and this sentence is that deliberate absence, logged rather than left as an
+unmarked gap. Mechanical checks run in its place:
+
+- **Insertions-only on this log.** `git diff --stat -- eval-advisor.log`
+  shows insertions only at every append this task made (verified individually
+  before each of the eight prior appends, and again here for this one); the
+  one line matching `^-` in each raw diff is the `---` file-header line,
+  PREFLIGHT's own documented carve-out.
+- **Scope.** `git diff --stat $(git merge-base HEAD origin/main)` for this
+  commit shows only `eval/reports/TASK6-REPORT.md` (new) and
+  `eval-advisor.log` — matching the plan's own stated exception ("in the
+  final bookkeeping commit only: `eval/reports/TASK6-REPORT.md`").
+- **Arithmetic.** Baseline 3117 + 26 (A) + 26 (B) + 26 (D) + 0 (D fix-forward,
+  pure prose) + 26 (C) = 3221, matching the final `npm test` run exactly.
+  Registry 224 + 8 new ids (4 base + 4 `+choice`) = 232, confirmed against
+  the live registry via a scratch script rather than arithmetic alone.
+  Lessons 101 + 4 = 105, likewise confirmed live.
+- **The report's own counted claims.** Run informally through
+  `eval/bin/counts.sh eval/plans/TASK6-PLAN.md eval/reports/TASK6-REPORT.md
+  --suite-log <this session's own suite-log capture>` to catch this report's
+  own transcription mistakes before finalizing — not as a gate, and its exit
+  code is not offered as evidence in the report itself, per PREFLIGHT's own
+  instruction that the executor cannot self-certify this check. It caught
+  two real mistakes on the first pass: the counts block itself had "lessons:
+  seventeen" (a spelled-out word where the machine-parsed block needs the
+  literal integer — the "spell digits out" instruction applies to prose
+  claims elsewhere in the report, not to the fenced block's own values,
+  and I had over-applied it) and a stray "101 lessons" in prose (the
+  pre-task baseline count, misread by the reconciler's sweep as an
+  unverifiable claim about the current tree). Both fixed; a second run
+  showed `COUNTS AGREE`, `checked: plan 5 claims, report 5 claims`.

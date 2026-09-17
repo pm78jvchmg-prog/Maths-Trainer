@@ -2095,3 +2095,77 @@ caught by me, at the moment of making them, in five attempts.** That is the week
 most consistent result — more consistent than anything about cost or lesson counts,
 and it points the same way every time: the check belongs with the party that has to
 act on the claim, not with the party making it.
+
+### Task 6, mid-run: the ordering rule and durability are in direct conflict, and the environment forces it
+
+Three units in, the executor has **twice committed a unit with its consultation still
+in flight**, both times saying so in the log at the moment it did it:
+
+> *"It had not returned by the time a stop-hook check again flagged this unit as fully
+> gated … and uncommitted. Committing now on the strength of those gates … unpushed
+> work is lost work, and a stop-hook signal is a real signal about session continuity,
+> not noise."*
+
+| Unit | Commit | Consultation at commit time | What the consultation then said |
+| --- | --- | --- | --- |
+| A | `40ac442` 08:10 | in flight | **PASS, no required fixes** — logged in B's commit |
+| B | `62d7f18` 08:25 | **held before commit, as required** | — |
+| D | `a240d3f` 08:32 | in flight | **two real defects (D-1, D-2)**, fixed forward in `af84706` 08:44 |
+
+B is the interesting row: the session noticed its own slip on A and explicitly
+corrected for it — *"restoring the in-order sequencing the previous entry noted had
+slipped for unit A. Waited for it to return before staging or committing anything."*
+Then slipped again on D under the same pressure. **This is not carelessness and it is
+not concealment.** It is a protocol losing to its environment, in the open, three times
+running.
+
+#### The rule asks the executor to choose between two guarantees
+
+*A consultation must return before the commit it covers* was written for a world where
+deferring a commit is free. In this harness it is not: a session can be stopped, and
+unpushed work is lost. So the rule as written forces a choice between **the advisor
+shaping the code** and **the work surviving at all** — and the executor chose survival,
+which is the right choice, and logged it, which is the required one.
+
+#### D is the proof it matters, and the containment is luck's job to hold
+
+`a240d3f` was on the remote when I fetched at **08:41**. Its consultation's findings —
+two real defects — landed at **08:44**. So unit D was **pushed unadvised**, and the
+advisor subsequently found something wrong with it. A's identical slip cost nothing
+only because the consultation came back PASS; that is an outcome, not a safeguard.
+
+What contains this is that a task branch does not deploy. The same pattern on `main`
+would put an unadvised defect in front of the learner within two minutes, because every
+push to `main` deploys to production by design (see `CLAUDE.md`). **The protocol's
+safety here rests on a property of the branch, not on the protocol.**
+
+#### Proposed: measure the push, not the commit — with the gap named
+
+The plan's own loop is commit → mutations → push. The push is where work leaves the
+session; a commit is local and revisable. So the rule that keeps the substance is:
+
+> **Nothing is pushed that a returned consultation has not covered.** Commit whenever
+> durability demands it; hold the push until the consultation is back and its findings
+> are applied.
+
+It preserves commit-inclusion untouched (each entry still ships inside a commit), it
+survives a stop-hook (committing early is now allowed rather than penalised), and it is
+the thing the original rule was actually protecting.
+
+**It does not fix task 6's units A and D, which were pushed before their consultations
+returned under either rule.** Recorded as the finding, not scored away. The column for
+this task reads **1 of 3 in-order so far**, with the substance preserved in all three by
+follow-ups — and the distinction between those two facts is the entire point of keeping
+both columns.
+
+#### And the executor caught a real defect in the plan
+
+Unit A's entry opens with a **logged refusal**. The plan asks for two module-level
+helpers added "once, above unit A's generator". `tsconfig.app.json` sets
+`noUnusedLocals: true`, so both sit unused until the unit that first calls them and
+fail `tsc` — confirmed by the executor as `TS6133`, with "tsc silent" being a required
+gate after *every* unit, not just the last. It declined, moved each helper into the unit
+that first uses it, and said so. Same end state, no functional difference.
+
+That is the planner's defect, caught by the executor, one task after the planner caught
+mine. **Three parties, each catching the one before it.**

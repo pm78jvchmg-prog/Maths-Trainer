@@ -758,6 +758,61 @@ export const integration: Course = {
           ],
         },
         {
+          id: 'in-l3-definite-substitution',
+          title: 'Substitution with Limits',
+          slides: [
+            teach(
+              prose(
+                'A definite integral by substitution can be done two ways and one is a trap; the safe way changes the limits along with the variable: once $u$ replaces $x$, the numbers on the integral sign must be $u$-values too.',
+              ),
+              maths('\\int_{0}^{2} 6x\\left(x^{2} + 1\\right)^{2} \\, dx'),
+              prose(
+                'Put $u = x^{2} + 1$, so $\\frac{du}{dx} = 2x$ and $6x \\, dx$ becomes $3 \\, du$; then convert the limits: at $x = 0$, $u = 1$; at $x = 2$, $u = 5$.',
+              ),
+              maths(
+                '\\int_{0}^{2} 6x\\left(x^{2} + 1\\right)^{2} \\, dx = 3\\int_{1}^{5} u^{2} \\, du = \\left[u^{3}\\right]_{1}^{5} = 125 - 1 = 124',
+              ),
+              prose(
+                'No converting back: the limits are now $u$-values and the answer is a number, so $x$ never reappears.',
+              ),
+            ),
+            ask('int-definite-substitution'),
+            ask('int-definite-substitution+choice'),
+            ask('int-definite-substitution'),
+            teach(
+              prose(
+                'The trap is to write the antiderivative in $u$ and then use the $x$ limits on it; the working looks fine and the number is wrong.',
+              ),
+              maths('\\left[u^{3}\\right]_{0}^{2} = 8 \\qquad \\left[u^{3}\\right]_{1}^{5} = 124'),
+              prose(
+                'The first is the error, the second the answer; two habits prevent it: write the new limits on the integral sign the moment $u$ appears, and check that the final bracket is a $u$ bracket with $u$ limits or an $x$ bracket with $x$ limits, never a mixture.',
+              ),
+              prose(
+                'A negative constant inside the bracket changes nothing about the method: $x^{2} - 2$ at $x = 1$ is $-1$, and an odd power of a negative number is negative, so carry the sign through the subtraction.',
+              ),
+            ),
+            ask('int-definite-substitution', 2),
+            ask('int-definite-steps', 2),
+            ask('int-definite-substitution+choice', 2),
+            teach(
+              prose(
+                'Converting back is still allowed: leave the limits as $x$-values, write the antiderivative in terms of $x$, and substitute those; it is the same arithmetic in a different order.',
+              ),
+              maths('\\left[\\left(x^{2} + 1\\right)^{3}\\right]_{0}^{2} = 125 - 1 = 124'),
+              prose(
+                'Both routes must give the same number, which makes the pair a useful check when there is time; but do one or the other, because changing the variable without changing the limits is the error, and it is the one to watch for.',
+              ),
+            ),
+            ask('int-definite-substitution', 2),
+            ask('int-substitution', 2),
+          ],
+          skillCheck: [
+            ask('int-definite-substitution', 2),
+            ask('int-definite-substitution+choice', 2),
+            ask('int-definite-substitution', 2),
+          ],
+        },
+        {
           id: 'in-l3-parts',
           title: 'Integration by Parts',
           slides: [
@@ -817,12 +872,15 @@ export const integration: Course = {
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
+        ask('int-definite-substitution', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
+        ask('int-definite-substitution', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
+        ask('int-definite-substitution', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),

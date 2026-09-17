@@ -1347,6 +1347,87 @@ const chooseMethod: Generator<MethodParams> = {
   },
 };
 
+interface DefiniteSubstitutionParams {
+  m: number;
+  n: number;
+  b: number;
+  lower: number;
+  upper: number;
+}
+
+/**
+ * A definite integral by substitution, where the one real trap is changing
+ * the variable without changing the limits.
+ */
+const definiteSubstitution: Generator<DefiniteSubstitutionParams> = {
+  id: 'int-definite-substitution',
+  sample: (rng, difficulty) => {
+    const n = rng.pick([2, 3] as const);
+    const m = rng.int(1, difficulty > 1 ? 2 : 3);
+    const b = difficulty > 1 ? nonZero(rng.int(-3, 4), 2) : rng.int(1, 4);
+    const lower = rng.int(0, 1);
+    const upper = lower + rng.int(1, difficulty > 1 ? 2 : 1);
+    return { m, n, b, lower, upper };
+  },
+  choices: ({ m, n, b, lower, upper }) => {
+    const at = (t: number) => m * Math.pow(t * t + b, n + 1);
+    const value = at(upper) - at(lower);
+    return options(
+      { tex: `${value}`, answer: `${value}` },
+      // Forgot that a x dx is a/2 du.
+      { tex: `${2 * value}`, answer: `${2 * value}` },
+      // Dropped the lower term.
+      { tex: `${at(upper)}`, answer: `${at(upper)}` },
+      // Kept the x-limits on the u antiderivative.
+      {
+        tex: `${m * (Math.pow(upper, n + 1) - Math.pow(lower, n + 1))}`,
+        answer: `${m * (Math.pow(upper, n + 1) - Math.pow(lower, n + 1))}`,
+      },
+    );
+  },
+  render: ({ m, n, b, lower, upper }) => {
+    const a = 2 * (n + 1) * m;
+    const at = (t: number) => m * Math.pow(t * t + b, n + 1);
+    const total = at(upper) - at(lower);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Evaluate, using the substitution $u = x^{2} + c$. The answer is a whole number.',
+        },
+      ],
+      lead: `${definiteTex(`${termTex(a, 1)}\\left(x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)^{${n}}`, lower, upper)} =`,
+      keypad: [],
+      answer: `${total}`,
+      integrand: `(${a}) * x * (x^2 + (${b}))^(${n})`,
+      limits: [lower, upper],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ m, n, b, lower, upper }) => {
+    const a = 2 * (n + 1) * m;
+    const at = (t: number) => m * Math.pow(t * t + b, n + 1);
+    const total = at(upper) - at(lower);
+    return [
+      {
+        text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $\\frac{du}{dx} = 2x$ and $${a}x \\, dx$ becomes $${(n + 1) * m} \\, du$. Change the limits with the variable: at $x = ${lower}$, $u = ${lower * lower + b}$; at $x = ${upper}$, $u = ${upper * upper + b}$.`,
+      },
+      {
+        tex: `${(n + 1) * m}\\int_{${lower * lower + b}}^{${upper * upper + b}} u^{${n}} \\, du = \\left[${m === 1 ? '' : m}u^{${n + 1}}\\right]_{${lower * lower + b}}^{${upper * upper + b}}`,
+      },
+      { tex: `= ${at(upper)} - \\left(${at(lower)}\\right) = ${total}` },
+      {
+        text: 'Once the limits are $u$-values there is nothing to convert back. The answer is a number, and $x$ never reappears.',
+      },
+      {
+        text: `Putting the $x$-limits into the $u$ bracket instead gives $${m * (Math.pow(upper, n + 1) - Math.pow(lower, n + 1))}$ — the working looks right and the number is wrong. Change both, or change neither.`,
+      },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -1363,4 +1444,5 @@ export const integrationGenerators = [
   substitution,
   byParts,
   chooseMethod,
+  definiteSubstitution,
 ] as unknown as Generator<unknown>[];

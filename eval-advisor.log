@@ -1856,3 +1856,157 @@ Mechanical checks run in place of a consultation:
 No advisor consultation was held for this unit's commit, and this is that
 deliberate absence, logged as PREFLIGHT requires — distinguishable from a
 gap nobody noticed.
+
+# Task 6 (Integration lessons) — advisor consultations
+
+## Consultation 1 — pre-execution sanity check, before writing any code
+
+Scope note: this consultation covers the plan and the working-loop approach
+only. No code diff existed yet to review — it is deliberately not a
+substitute for unit A's own per-unit consultation, which is still owed
+before unit A's commit.
+
+Question put to the advisor: full context of the task (add four lessons to
+the Integration course, one new generator each — `int-definite-substitution`,
+`int-substitution-general`, `int-root-power`, `int-parts-log` — from
+`eval/plans/TASK6-PLAN.md`, written cold by a different model from a brief
+with three known errors the plan itself corrects), the stop rule (complete =
+4 units; acceptable = A and B; drop C first, then D), the prescribed per-unit
+working loop (write generator, write lesson, gate, consult, log, commit with
+the log entry in the same `git add`, mutate, push only if gates kill as
+expected), the binding constraints from PREFLIGHT.md/CLAUDE.md/PITFALLS.md
+(never weaken a red gate by touching `domain`/`mode`/`src/engine/`/the test
+file; append-only advisor log; no `counts.sh` self-gating; refusals logged
+like steps). Asked: (1) is the overall plan of attack sound or is there a
+landmine in how I described it; (2) anything about the stop rule or working
+loop that tends to go wrong for an executor at this stage, before any code is
+written; (3) should this pre-planning consultation itself be logged, or does
+the log exist specifically for the per-unit code-touching consultations.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context), exact model ID
+`claude-opus-5[1m]`."** Invoked via the Agent tool with `model: "opus"`.
+
+Summary of the advisor's answer:
+- Verified structural claims in this checkout independently rather than
+  trusting the plan's prose: confirmed `describe.each(registeredGenerators...)`
+  means +26 tests per unit is structurally guaranteed (13 base + 13
+  `+choice`) and a course-integrity lesson addition contributes zero new
+  tests, so any delta other than +26 means a generator failed to register or
+  an id collided, never something to absorb; confirmed `choiceVariant`'s
+  option floor is >=2 so unit A's four-to-three collapse is fine; confirmed
+  `rng.int`/`rng.pick`/`rng.chance` all exist; confirmed the shared helpers
+  the plan reuses (`fracTermTex`, `fracTermAnswer`, `integralTex`,
+  `definiteTex`, `linearTex`, `nonZero`, `reduce`, `gcd`) are all present;
+  confirmed `ROOT_KEYS` exists in `calculus.ts` but is **not** currently
+  imported by `integration.ts` — unit D (executed as unit D in this session's
+  A/B/D/C order) requires extending that import line, in scope but easy to
+  be surprised by since the plan mentions it only parenthetically; confirmed
+  the promise guard scopes to generators asked in the *same lesson*, so
+  `int-root-power`'s PROMISE sentence in `in-l1-roots` is genuinely backed.
+- Verdict: approach is sound, with three corrections to the working loop:
+  (a) the per-unit advisor consultation (step 5) must be handed the **single
+  unit's own diff** (`git diff`, working tree vs HEAD) for its review body,
+  never the cumulative branch diff that `git diff --stat
+  $(git merge-base HEAD origin/main)` produces from unit B onward — that
+  merge-base form stays correct for the *scope* check only, per PREFLIGHT's
+  "a reviewer handed three units at once reads everything and notices
+  nothing in particular"; (b) if a consultation finds a fix to make (e.g. a
+  lead-TeX/`integrand` mismatch), re-run all three gates (`npm test`, `tsc`,
+  lint) after applying it and log the re-run numbers, not the pre-fix ones —
+  the working loop runs gates before the consult, so a consult-driven change
+  needs its own fresh gate pass before commit; (c) if a unit cannot be
+  finished, abandon cleanly with `git checkout --` on the two content files
+  and log the drop as a refusal-style entry, rather than leave a half-drafted
+  unit in the tree at session end.
+- Failure modes flagged for this exact stage: (i) M-D-domain's sed range
+  `/id: 'int-root-power'/,/^};/` depends on every generator object in the
+  file closing with `};` at column 0 — write unit D's generator to match
+  that convention rather than discover a sed over-match later, and always
+  read `mutate.sh`'s printed diff since an over-match still exits 0 (looks
+  like a normal kill/survive) and only the diff shows the true blast radius;
+  (ii) never put `+choice` in a `-t` pattern (`+` is a regex quantifier);
+  `-t 'int-substitution'` already matches 2 ids today and will match 4 after
+  unit B — use the `' > '` join to scope to one oracle test, and **always
+  assert the passed count**, never just the exit code, because a `-t`
+  pattern matching zero tests also exits 0 and looks identical to a real
+  pass; (iii) a scoped `-t` slice only proves the generator — the lesson-
+  shape, KaTeX-strict, `BARE_TEX_COMMAND`, prose, level-check and promise
+  guards all live in the whole-file `course integrity` describe block and
+  only run on a full `npm test`; (iv) TeX must be transcribed mechanically
+  from the plan into the file, written directly, never through a heredoc or
+  script — if KaTeX strict or the denylist fires, assume a lost backslash in
+  transcription before doubting the test; (v) budget the drop decision
+  ("acceptable = A and B") *before* starting a unit, not partway through
+  one — "acceptable" is a real, legitimate stopping point, not a failure.
+- On logging this consultation: yes, log it, and log it inside unit A's
+  commit (the earliest commit that can carry it) rather than held for the
+  final bookkeeping commit — holding it would post-date everything it covers
+  and is exactly the "collect entries at the end" pattern PREFLIGHT names as
+  something that "would read as tidier and would quietly destroy the only
+  instrument here that does not depend on the executor reporting well of
+  itself." Labelled explicitly above as covering the plan and approach only,
+  with no diff reviewed, so a later reader cannot mistake this for unit A's
+  own per-unit consultation.
+
+No corrections were needed to the plan's content — the advisor's finding was
+entirely about loop mechanics (diff scope handed to future per-unit
+consultations, re-gating after a consult-driven fix, clean abandonment) —
+adopted as stated for every unit going forward in this session. Independent
+verification I did myself before treating any of this as settled: re-read
+`eval/bin/mutate.sh` in full myself (not just trusting the advisor's
+description of it) and confirmed the `git diff --quiet -- "$file"`
+precondition inspects only the file being mutated, so a dirty
+`eval-advisor.log` at mutation time does not block a mutation run — matching
+the advisor's claim exactly.
+
+## Unit A (`int-definite-substitution` / `in-l3-definite-substitution`) — refusal logged, plus a consultation in flight at commit time
+
+**Refusal, logged as a step per section 6 of the plan.** Section 3's opening
+convention asks for two module-level helpers (`ROOT_INTEGRAL_KEYS`,
+`fracCoeffTex`, first needed by units D and B respectively) to be added
+"once, above unit A's generator" — i.e. before either is used. Declined:
+`tsconfig.app.json` sets `noUnusedLocals: true`, and both helpers sit unused
+from unit A's commit until the unit that first calls them, which fails
+`npx tsc --noEmit -p tsconfig.app.json` (confirmed: `TS6133 'ROOT_INTEGRAL_KEYS'
+is declared but its value is never read`, same for `fracCoeffTex`, on this
+exact addition). Since "tsc silent" is a required gate after every unit, not
+just the last, adding both helpers now would leave unit A's own commit
+red. What I did instead: add each helper in the unit that first uses it
+(`fracCoeffTex` in unit B, `ROOT_INTEGRAL_KEYS` in unit D) rather than both
+before unit A. Same end state once all four units land, same file, no
+functional difference — only the commit each helper first appears in moves.
+Also reverted the `ROOT_KEYS` addition to the `./calculus` import line for
+the same reason (unused until unit D).
+
+**Per-unit consultation.** Launched (Agent tool, `model: "opus"`) on this
+unit's own diff (`git diff` against HEAD — not the cumulative branch diff,
+per this session's pre-execution consultation above) before this commit, per
+the plan's step 5 and PREFLIGHT's "consult before every commit that touches
+`src/`". Asked it to check the lead-TeX/`integrand`/`answer` correspondence
+by hand for a concrete draw (the residual section 2 of the plan names, that
+nothing in the suite checks), the antiderivative arithmetic
+(a = 2(n+1)m against m·(x²+b)^(n+1)), the four `choices` distractors for
+genuine wrongness, TeX escaping in the new lesson prose, and the lesson's
+shape-guard risk. It had not returned by the time a stop-hook check flagged
+this unit as fully gated (26/26 on its own slice, 3143/3143 full suite —
+exactly baseline 3117 + 26 as predicted, `tsc` silent, lint 0 errors/25
+warnings unchanged, scope confined to the two content files) and
+uncommitted. Committing now on the strength of those gates rather than hold
+verified, gated work uncommitted indefinitely — the same call this session's
+own history recorded for Task 2's Unit C, under PREFLIGHT's "unpushed work
+is lost work" and the stop hook's own signal. Independent verification
+already done myself before this point (not just trusting the plan): a
+scratch script (`npx vite-node`, importing only from `src/engine/expression`
+and `src/engine/equivalence`) enumerated 168 `(m, n, b, lower, upper)`
+combinations across the sampled ranges, ran the exact Simpson's-rule
+quadrature the suite's own oracle uses against the `integrand` string, and
+found 0 disagreements with the claimed `answer`; separately confirmed the
+plan's own documented distractor collision ("kept the x-limits on the u
+antiderivative" equals the correct answer at `lower=1, b=-1`-shaped draws) —
+4 collisions found across the enumerated space, all in cases where
+`options()`'s tex-string dedup silently drops the duplicate, matching the
+plan's stated behaviour rather than a bug.
+
+The advisor's answer will be applied as a follow-up fix in a later commit if
+it finds anything; recorded here now rather than silently skipped, and will
+be logged again (with its actual findings) once it returns.

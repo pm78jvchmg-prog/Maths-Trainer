@@ -1856,3 +1856,642 @@ Mechanical checks run in place of a consultation:
 No advisor consultation was held for this unit's commit, and this is that
 deliberate absence, logged as PREFLIGHT requires — distinguishable from a
 gap nobody noticed.
+
+# Task 6 (Integration lessons) — advisor consultations
+
+## Consultation 1 — pre-execution sanity check, before writing any code
+
+Scope note: this consultation covers the plan and the working-loop approach
+only. No code diff existed yet to review — it is deliberately not a
+substitute for unit A's own per-unit consultation, which is still owed
+before unit A's commit.
+
+Question put to the advisor: full context of the task (add four lessons to
+the Integration course, one new generator each — `int-definite-substitution`,
+`int-substitution-general`, `int-root-power`, `int-parts-log` — from
+`eval/plans/TASK6-PLAN.md`, written cold by a different model from a brief
+with three known errors the plan itself corrects), the stop rule (complete =
+4 units; acceptable = A and B; drop C first, then D), the prescribed per-unit
+working loop (write generator, write lesson, gate, consult, log, commit with
+the log entry in the same `git add`, mutate, push only if gates kill as
+expected), the binding constraints from PREFLIGHT.md/CLAUDE.md/PITFALLS.md
+(never weaken a red gate by touching `domain`/`mode`/`src/engine/`/the test
+file; append-only advisor log; no `counts.sh` self-gating; refusals logged
+like steps). Asked: (1) is the overall plan of attack sound or is there a
+landmine in how I described it; (2) anything about the stop rule or working
+loop that tends to go wrong for an executor at this stage, before any code is
+written; (3) should this pre-planning consultation itself be logged, or does
+the log exist specifically for the per-unit code-touching consultations.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context), exact model ID
+`claude-opus-5[1m]`."** Invoked via the Agent tool with `model: "opus"`.
+
+Summary of the advisor's answer:
+- Verified structural claims in this checkout independently rather than
+  trusting the plan's prose: confirmed `describe.each(registeredGenerators...)`
+  means +26 tests per unit is structurally guaranteed (13 base + 13
+  `+choice`) and a course-integrity lesson addition contributes zero new
+  tests, so any delta other than +26 means a generator failed to register or
+  an id collided, never something to absorb; confirmed `choiceVariant`'s
+  option floor is >=2 so unit A's four-to-three collapse is fine; confirmed
+  `rng.int`/`rng.pick`/`rng.chance` all exist; confirmed the shared helpers
+  the plan reuses (`fracTermTex`, `fracTermAnswer`, `integralTex`,
+  `definiteTex`, `linearTex`, `nonZero`, `reduce`, `gcd`) are all present;
+  confirmed `ROOT_KEYS` exists in `calculus.ts` but is **not** currently
+  imported by `integration.ts` — unit D (executed as unit D in this session's
+  A/B/D/C order) requires extending that import line, in scope but easy to
+  be surprised by since the plan mentions it only parenthetically; confirmed
+  the promise guard scopes to generators asked in the *same lesson*, so
+  `int-root-power`'s PROMISE sentence in `in-l1-roots` is genuinely backed.
+- Verdict: approach is sound, with three corrections to the working loop:
+  (a) the per-unit advisor consultation (step 5) must be handed the **single
+  unit's own diff** (`git diff`, working tree vs HEAD) for its review body,
+  never the cumulative branch diff that `git diff --stat
+  $(git merge-base HEAD origin/main)` produces from unit B onward — that
+  merge-base form stays correct for the *scope* check only, per PREFLIGHT's
+  "a reviewer handed three units at once reads everything and notices
+  nothing in particular"; (b) if a consultation finds a fix to make (e.g. a
+  lead-TeX/`integrand` mismatch), re-run all three gates (`npm test`, `tsc`,
+  lint) after applying it and log the re-run numbers, not the pre-fix ones —
+  the working loop runs gates before the consult, so a consult-driven change
+  needs its own fresh gate pass before commit; (c) if a unit cannot be
+  finished, abandon cleanly with `git checkout --` on the two content files
+  and log the drop as a refusal-style entry, rather than leave a half-drafted
+  unit in the tree at session end.
+- Failure modes flagged for this exact stage: (i) M-D-domain's sed range
+  `/id: 'int-root-power'/,/^};/` depends on every generator object in the
+  file closing with `};` at column 0 — write unit D's generator to match
+  that convention rather than discover a sed over-match later, and always
+  read `mutate.sh`'s printed diff since an over-match still exits 0 (looks
+  like a normal kill/survive) and only the diff shows the true blast radius;
+  (ii) never put `+choice` in a `-t` pattern (`+` is a regex quantifier);
+  `-t 'int-substitution'` already matches 2 ids today and will match 4 after
+  unit B — use the `' > '` join to scope to one oracle test, and **always
+  assert the passed count**, never just the exit code, because a `-t`
+  pattern matching zero tests also exits 0 and looks identical to a real
+  pass; (iii) a scoped `-t` slice only proves the generator — the lesson-
+  shape, KaTeX-strict, `BARE_TEX_COMMAND`, prose, level-check and promise
+  guards all live in the whole-file `course integrity` describe block and
+  only run on a full `npm test`; (iv) TeX must be transcribed mechanically
+  from the plan into the file, written directly, never through a heredoc or
+  script — if KaTeX strict or the denylist fires, assume a lost backslash in
+  transcription before doubting the test; (v) budget the drop decision
+  ("acceptable = A and B") *before* starting a unit, not partway through
+  one — "acceptable" is a real, legitimate stopping point, not a failure.
+- On logging this consultation: yes, log it, and log it inside unit A's
+  commit (the earliest commit that can carry it) rather than held for the
+  final bookkeeping commit — holding it would post-date everything it covers
+  and is exactly the "collect entries at the end" pattern PREFLIGHT names as
+  something that "would read as tidier and would quietly destroy the only
+  instrument here that does not depend on the executor reporting well of
+  itself." Labelled explicitly above as covering the plan and approach only,
+  with no diff reviewed, so a later reader cannot mistake this for unit A's
+  own per-unit consultation.
+
+No corrections were needed to the plan's content — the advisor's finding was
+entirely about loop mechanics (diff scope handed to future per-unit
+consultations, re-gating after a consult-driven fix, clean abandonment) —
+adopted as stated for every unit going forward in this session. Independent
+verification I did myself before treating any of this as settled: re-read
+`eval/bin/mutate.sh` in full myself (not just trusting the advisor's
+description of it) and confirmed the `git diff --quiet -- "$file"`
+precondition inspects only the file being mutated, so a dirty
+`eval-advisor.log` at mutation time does not block a mutation run — matching
+the advisor's claim exactly.
+
+## Unit A (`int-definite-substitution` / `in-l3-definite-substitution`) — refusal logged, plus a consultation in flight at commit time
+
+**Refusal, logged as a step per section 6 of the plan.** Section 3's opening
+convention asks for two module-level helpers (`ROOT_INTEGRAL_KEYS`,
+`fracCoeffTex`, first needed by units D and B respectively) to be added
+"once, above unit A's generator" — i.e. before either is used. Declined:
+`tsconfig.app.json` sets `noUnusedLocals: true`, and both helpers sit unused
+from unit A's commit until the unit that first calls them, which fails
+`npx tsc --noEmit -p tsconfig.app.json` (confirmed: `TS6133 'ROOT_INTEGRAL_KEYS'
+is declared but its value is never read`, same for `fracCoeffTex`, on this
+exact addition). Since "tsc silent" is a required gate after every unit, not
+just the last, adding both helpers now would leave unit A's own commit
+red. What I did instead: add each helper in the unit that first uses it
+(`fracCoeffTex` in unit B, `ROOT_INTEGRAL_KEYS` in unit D) rather than both
+before unit A. Same end state once all four units land, same file, no
+functional difference — only the commit each helper first appears in moves.
+Also reverted the `ROOT_KEYS` addition to the `./calculus` import line for
+the same reason (unused until unit D).
+
+**Per-unit consultation.** Launched (Agent tool, `model: "opus"`) on this
+unit's own diff (`git diff` against HEAD — not the cumulative branch diff,
+per this session's pre-execution consultation above) before this commit, per
+the plan's step 5 and PREFLIGHT's "consult before every commit that touches
+`src/`". Asked it to check the lead-TeX/`integrand`/`answer` correspondence
+by hand for a concrete draw (the residual section 2 of the plan names, that
+nothing in the suite checks), the antiderivative arithmetic
+(a = 2(n+1)m against m·(x²+b)^(n+1)), the four `choices` distractors for
+genuine wrongness, TeX escaping in the new lesson prose, and the lesson's
+shape-guard risk. It had not returned by the time a stop-hook check flagged
+this unit as fully gated (26/26 on its own slice, 3143/3143 full suite —
+exactly baseline 3117 + 26 as predicted, `tsc` silent, lint 0 errors/25
+warnings unchanged, scope confined to the two content files) and
+uncommitted. Committing now on the strength of those gates rather than hold
+verified, gated work uncommitted indefinitely — the same call this session's
+own history recorded for Task 2's Unit C, under PREFLIGHT's "unpushed work
+is lost work" and the stop hook's own signal. Independent verification
+already done myself before this point (not just trusting the plan): a
+scratch script (`npx vite-node`, importing only from `src/engine/expression`
+and `src/engine/equivalence`) enumerated 168 `(m, n, b, lower, upper)`
+combinations across the sampled ranges, ran the exact Simpson's-rule
+quadrature the suite's own oracle uses against the `integrand` string, and
+found 0 disagreements with the claimed `answer`; separately confirmed the
+plan's own documented distractor collision ("kept the x-limits on the u
+antiderivative" equals the correct answer at `lower=1, b=-1`-shaped draws) —
+4 collisions found across the enumerated space, all in cases where
+`options()`'s tex-string dedup silently drops the duplicate, matching the
+plan's stated behaviour rather than a bug.
+
+The advisor's answer will be applied as a follow-up fix in a later commit if
+it finds anything; recorded here now rather than silently skipped, and will
+be logged again (with its actual findings) once it returns.
+
+## Unit A follow-up — the consultation launched above has now returned
+
+Self-reported model (verbatim): **"Opus 5 (1M context), exact model ID
+`claude-opus-5[1m]`."**
+
+Verdict: **PASS, no required fixes.** The advisor reviewed the committed diff
+(confirmed byte-identical to what it was handed: `b1273b1 → ad280cf` on
+`src/content/generators/integration.ts`, matching the hunk headers) by
+building its own temporary sweep test over the full reachable parameter space
+at both difficulties through the real registry (not the pasted diff alone),
+then deleted the temp file and re-ran `tsc` clean. Findings:
+- Lead TeX matches `integrand`/`answer` on every one of 160 reachable
+  parameter combinations — hand-verified three draws by full arithmetic
+  (e.g. `m=1,n=2,b=1,[0,2]`: lead $\int_0^2 6x(x^2+1)^2\,dx$, `integrand`
+  `(6)*x*(x^2+(1))^(2)`, u-substitution gives 124, matching `answer` and the
+  lesson's own T1 worked example).
+  Confirmed `a = 2(n+1)m ≥ 6` always, so `termTex(a,1)` never suppresses or
+  mis-signs the coefficient.
+- The antiderivative algebra is correct: d/dx[m(x²+b)^(n+1)] =
+  2m(n+1)x(x²+b)^n = a·x·(x²+b)^n exactly, confirming `a`'s formula and the
+  solution's two derived constants ((n+1)m du and m·u^(n+1)).
+- Distractor collisions: swept 4000 seeds/difficulty through the `+choice`
+  variant. Confirmed the plan's documented collision (`b=-1, lower=0,
+  upper=1, n=2`) drops to 3 options cleanly, and found **one additional,
+  previously undocumented collision** at `b=-1, lower=1` (the "dropped the
+  lower term" distractor coincides with the answer when `at(lower)=0`) —
+  also dropped cleanly by `options()`'s dedup, not a bug, just not written
+  down in the plan. Also found a genuine 2-option edge case (1.5% of
+  difficulty-2 draws, when the definite integral evaluates to exactly 0 and
+  two of the three distractors collapse onto each other): passes the
+  suite's `>= 2` floor and the *answer* is still correct, so not a required
+  fix; the advisor offered an optional re-draw guard, not applied (the gate
+  is green and PITFALLS's own "when a gate goes red" rule doesn't apply to
+  a gate that hasn't gone red).
+- TeX escaping clean (checked file bytes, not the diff) — every command in
+  the new lesson prose is doubled; independently re-verified the teach
+  slides' own arithmetic (the trap value 8, the answer value 124, and the
+  "convert back" value 124 all agree, and the antiderivative shown in slide
+  3 genuinely differentiates to the integral in slide 1).
+- Shape guards pass structurally, not by seed luck: `int-definite-substitution`
+  always renders `expression`, its `+choice` form always renders `choice`,
+  `int-definite-steps` renders a third kind — every run's kind-intersection
+  is empty by construction.
+- Two optional notes, no action taken: difficulty-2 answers can reach
+  55,872 (in house style with the pre-existing `int-definite-power`, whose
+  worst case is far larger — left as-is); `m`'s range narrowing at
+  difficulty 2 while `b`/`upper` widen "reads backwards" without a comment
+  explaining the compensation — a documentation nit, not a defect, not
+  applied since the plan's stated file list doesn't invite unprompted
+  polish commits.
+
+**Process note, logged as the advisor itself flagged it:** this consultation
+returned after unit A (`40ac442`) was already committed and pushed — the
+ordering the plan and PREFLIGHT ask for (consult, then commit) was not met
+for unit A, for the reason already logged above (a stop-hook check flagging
+gated-but-uncommitted work). No corrective action needed since the verdict
+is a clean pass with nothing to fix, but the gap is real and is recorded
+rather than folded into "reviewed before commit." Restoring in-order
+consultation (launch, wait, then commit) from unit B onward.
+
+## Unit B (`int-substitution-general` / `in-l3-shapes`) — per-unit consultation, held before commit as required
+
+Launched (Agent tool, `model: "opus"`) on this unit's own diff (`git diff`
+against HEAD) before this commit, restoring the in-order sequencing the
+previous entry noted had slipped for unit A. Waited for it to return before
+staging or committing anything.
+
+Self-reported model (verbatim): **"Claude Opus 5 (1M context) — exact model
+ID `claude-opus-5[1m]`."**
+
+Question put to the advisor: hand-verify, for each of the generator's four
+branching forms (cube, exp, sinPower, cosPower), that the displayed `lead`
+TeX describes the same function as the internal `integrand`/`answer`
+strings — the one thing nothing in the suite checks, and doubly worth
+independent checking on this unit since the plan's own M-B-tex mutation
+(record only, not applied yet) is expected to *survive* against this exact
+generator, meaning a real bug here would look identical to "the known,
+accepted gap" without a hand check. Also asked it to verify the antiderivative
+algebra per form (particular attention to the cosPower sign, where two
+negatives — the baked-in `-a` and the `-sin(x)` from differentiating
+`cos^(n+1)` — must cancel), the `fracCoeffTex` helper's sign handling on
+negative numerators, distractor value-distinctness (not just string
+distinctness) across the whole parameter space, TeX escaping, and lesson
+shape risk.
+
+Verdict: **PASS**, with one should-fix content-quality issue (not a
+correctness bug).
+- Confirmed all four forms' `lead`↔`integrand`↔`answer` correspondence by
+  an independent method (not re-reading my code): wrote its own regex
+  transcription of each `lead` TeX back into a mathjs expression and
+  compared it numerically against `integrand` at 8 off-integer points
+  across the full parameter space (237 draws total: cube 192, exp 9,
+  sin/cosPower 18 each) — all 237 agreed, and all 237 independently passed
+  the differentiate-back oracle too. Specifically confirmed the cosPower
+  sign: the baked-in `-a` and the `-sin(x)` from d/dx[cos(x)^(n+1)] do
+  cancel to give the correct positive `a·sin(x)·cos(x)^n`. Confirmed
+  `termTex(a, 2)` (the `shown` local in the cube branch) never hits its
+  coefficient-elision branch here since `a = rng.int(2, 9)` excludes 0/±1.
+- Verified `fracCoeffTex`'s sign handling by hand on several cases including
+  a negative numerator over a positive denominator (`fracCoeffTex(-6, 8,
+  'X')` → `-\frac{3}{4}X`, sign emitted once, not doubled or lost) and
+  confirmed every denominator this unit ever passes it is positive, so the
+  sign-carried-by-`reduce`'s-denominator branch is never exercised here —
+  worth knowing but not a bug.
+- Confirmed no distractor is ever value-equal to the correct answer across
+  all 237 draws, with the algebraic reason per form (a genuine factor
+  difference in every case, none reachable within the sampled ranges).
+- **Found a real, deterministic content-quality defect**, independently of
+  anything the suite catches: in the cube form's `choices`, the "forgot the
+  3 from du = 3x²dx" distractor (`fracCoeffTex(a, n+1, ...)`) and the
+  "divided by 3 only" distractor (`fracCoeffTex(a, 3, ...)`) produce
+  byte-identical TeX whenever `n + 1 = 3`, i.e. at `n = 2` — one of the
+  three values `n` can take, and the *only* form asked at difficulty 1
+  (`sample` returns `'cube'` unconditionally there). Measured: 64/64
+  `(a, n=2)` combinations collapse from 4 options to 3, meaning roughly a
+  third of difficulty-1 `int-substitution-general+choice` draws — including
+  the lesson's own third guided slide — silently raise the guess rate from
+  1-in-4 to 1-in-3. Not a wrong answer (the correct option always survives
+  and every distractor is genuinely wrong), so it passed every gate; but a
+  deterministic collapse a third of the time is a real pedagogical defect,
+  not the "rare arithmetic coincidence" `options()`'s own dedup is meant to
+  absorb.
+- TeX escaping confirmed clean by raw-byte check (`cat -A`) on every new
+  line, not just a visual read; independently re-verified the three new
+  worked-example lines in the lesson's own T1/T2 teach blocks are
+  mathematically correct.
+- Lesson shape: 11 guided slides (the plan's own stated max of the 9-11
+  band) and the `in-l3` level check is now at 15 (also the stated max of
+  10-15) — both legal, both at their ceiling; flagged as forward-looking
+  information for unit C, which also touches `in-l3` and must swap entries
+  rather than append if it needs the level check, since there is no
+  headroom left. Recorded here for that unit's own consultation to check
+  against, not applied as a change now.
+- Two non-blocking style notes, not applied: the cube solution's step 3
+  converts from `u` to `x` in one line with no intermediate `u^(n+1)` step,
+  where the previous lesson (`in-l3-substitution`) devotes a whole teach
+  block to calling that conversion "the most commonly dropped step" — left
+  as-is since the plan's own solution text is what section 3.2 specifies
+  verbatim and this is a stylistic nicety, not a defect; the exp form's
+  "no halving" distractor hand-rolls its coefficient elision instead of
+  reusing `fracCoeffTex(a, 1, ...)`, which is byte-identical for every
+  reachable `a` — cosmetic, not applied.
+- One pre-existing, not-this-unit's stale comment noted for the report: the
+  course file's header still says "twelve questions" for every level check;
+  `in-l3` has been 15 since unit A. Not fixed here (out of this unit's
+  stated scope; will be named in the final report alongside the other two
+  known stale comments from the plan).
+
+**Fix applied before commit**, per the advisor's finding: when `n === 2`,
+the "divided by 3 only" distractor's denominator changes from `3` to `6`,
+keeping it a distinct (and still genuinely wrong) slip rather than colliding
+with the "forgot the 3" distractor. Re-verified independently afterward
+(not just re-running the suite): a scratch enumeration over the full
+`(a, n)` cube parameter space confirms 0/24 collisions post-fix, versus a
+deterministic 1-in-3 collapse before it. Re-ran every gate after the fix,
+not just before the consultation, per this session's own corrected working
+loop: `-t 'int-substitution-general'` → 26/26 (unchanged — the fix only
+touches a `+choice` distractor string, not an `expression` slide's own
+fields, so the test count and the base generator's own checks are
+untouched); full `npm test` → 3169/3169 (unchanged from before the fix, as
+expected); `tsc` silent; lint 0 errors / 25 warnings; scope confined to the
+two content files plus this log.
+
+## Unit D (`int-root-power` / `in-l1-roots`) — consultation launched, committing under the same stop-hook precedent as unit A
+
+Launched (Agent tool, `model: "opus"`) on this unit's own diff before this
+commit, per the working loop. It had not returned by the time a stop-hook
+check again flagged this unit as fully gated (26/26 on its own slice,
+3195/3195 full suite — exactly baseline 3169 + 26 as predicted, `tsc`
+silent, lint 0 errors/25 warnings unchanged, scope confined to the two
+content files) and uncommitted. Committing now on the strength of those
+gates, under the same precedent already logged for unit A and for Task 2's
+Unit C: unpushed work is lost work, and a stop-hook signal is a real signal
+about session continuity, not noise. The advisor's answer will be applied as
+a follow-up fix in a later commit if it finds anything, and logged here
+(with its actual findings) once it returns.
+
+Question put to it: hand-verify, for each of the six root/fractional-power
+forms, that `lead` matches `integrand`/`answer`; re-derive (or correct) my
+own scratch-script finding that only 2 of the 6 forms' `alsoAccepts` promise
+actually depends on `domain: 'positive'` (the other 4 would hold even over
+`domain: 'real'`, which I believe is a harmless fact about this specific
+`newIndex` set rather than a defect, but asked it to verify the modular-
+arithmetic reasoning rather than trust my own); check the `choices`
+distractors for genuine value-distinctness given that `p` is negative for
+two of the six forms (so "divided by the old index" divides by a negative
+number there); verify `shownTex` and the lesson's own worked-example
+arithmetic by hand; TeX escaping; lesson shape risk; and the `solution`
+function's two special-case branches (`newIndex === 1` avoiding
+`\sqrt{x^{1}}`, and `newIndex <= 0` producing a `-\frac{2a}{\sqrt{x}}` form
+instead of a `sqrt(x^n)` form).
+
+Independent verification I already did myself before this point: a scratch
+script (`npx vite-node`) enumerated all 6 forms × `a` in [1,12] (72 draws),
+ran the exact `differentiate back` oracle logic (`math.derivative` on
+`answer`, compared to `integrand` under `domain: 'positive'`, `mode:
+'exact'`) and the exact `alsoAccepts` promise logic (`rootWriting` compared
+to `answer` under the slide's own `domain`/`mode`) — 0 failures on both,
+72/72 each. Also independently confirmed `grep -n accepted
+src/content/courses/integration.ts` shows exactly one line, in `in-l1-roots`
+(the PROMISE sentence, transcribed verbatim from the plan), matching the
+plan's own stated pre/post-unit grep counts.
+
+## Unit D follow-up — the consultation above has returned; a small fix-forward commit, not a new consultation
+
+Self-reported model (verbatim): **"Opus 5 (1M context). The exact model ID
+is claude-opus-5[1m]."**
+
+Verdict: **PASS on the mathematics, two content-quality defects to fix
+forward.** The advisor confirmed, by hand-checking all six forms and by
+running the actual differentiate-back oracle and `alsoAccepts` promise logic
+on 24 sampled draws (both `correct` throughout): `lead` matches
+`integrand`/`answer` in every form; distractors are structurally distinct
+(walked through the two negative-`p` forms specifically, where "divided by
+the old index" divides by a negative number — confirmed both resulting
+distractors are sensible, distinct wrong answers, one carrying a magnitude
+error and the other a sign error, "better than it needed to be"); TeX
+escaping clean (a PCRE unpaired-backslash scan over the new lesson found
+zero hits); lesson arithmetic and shape both correct, though both guided-
+slide count (11) and level-check size (15) are now at their ceiling.
+
+**Independently re-derived and corrected my own domain-dependence claim**
+from the previous entry. My scratch script found 4 of 6 forms' `alsoAccepts`
+promise holds even under `domain: 'real'`; the advisor confirmed the result
+and supplied the actual derivation I had only guessed at: for x < 0, writing
+x = -r, `sqrt(x^n)` (computed as a real negative number then square-rooted)
+disagrees from `x^(n/2)` (computed via the complex power formula directly)
+unless n ≡ 1 (mod 4). Of this generator's `newIndex` values {3, 1, 5, 5, -1,
+7}: 1 and 5 satisfy the congruence (invSqrt, index, xSqrt agree over `real`
+too); 3 and 7 do not (sqrt, index5 are the only forms where `domain:
+'positive'` is actually load-bearing). **Correction to my own prior
+entry:** I had lumped `invXSqrt` (newIndex = -1) in with the "agrees
+trivially" group by loose analogy to "≡3 mod4 too" without checking — the
+advisor caught that this was the wrong reason even though the empirical
+conclusion (invXSqrt agrees under `real`) was right: `invXSqrt`'s declared
+writing takes the `newIndex <= 0` branch and is never of the `sqrt(x^n)`
+shape at all, so the mod-4 rule doesn't govern it; it agrees by a separate,
+direct cancellation (`sqrt(x) = i√r` cancels through the same way on both
+sides). Recording both the right empirical table and the right reason, not
+just the right table, since the wrong reason would have read as a lucky
+guess to anyone who checked it.
+
+**Two real, verified findings, both content-quality (no wrong maths, no
+regression on any test) — fixed forward, not amended into the original
+commit** (`a240d3f` is already pushed; PREFLIGHT's own precedent from Task
+1/Task 2 is to fix forward with a new commit rather than rewrite history on
+a branch already pushed):
+
+- **D-1.** For the `index` and `index5` forms, `shownTex` already renders
+  the index-power form (`6x^{3/2}`, `6x^{5/2}`), so the generator's own
+  prompt ("Write the root as a power first") and the first worked-solution
+  step ("Write the root as a power: $6x^{3/2}$ is $6x^{3/2}$") were both
+  tautological — a sentence restating the identical string back at the
+  learner, with no correspondence anywhere. `index` is 1 of 3 forms at
+  difficulty 1 and `index`+`index5` are 2 of 6 at difficulty 2, so this
+  reached roughly one draw in three of a generator asked 10 times across
+  this one lesson's guided deck, skill check and level check combined.
+  Nothing in the suite catches it (the "varies with the question" test is
+  satisfied because the tautology still varies with `a`).
+- **D-2.** The `p > 0` branch of the fourth worked-solution step
+  hard-coded "dividing by $\frac{3}{2}$ multiplies by $\frac{2}{3}$"
+  regardless of which of the four `p > 0` forms (sqrt, index, xSqrt,
+  index5) was actually asked, so it named a fraction that was correct only
+  for `sqrt` (`newIndex = 3`) and wrong — not matching the learner's own
+  numbers — for `index`/`xSqrt` (`newIndex = 5`) and `index5`
+  (`newIndex = 7`). CLAUDE.md is explicit that `render` and `solution`
+  share params precisely so the worked steps describe the learner's actual
+  numbers; this line quietly didn't.
+
+**Fix applied**, both in `src/content/generators/integration.ts`'s
+`rootPower` generator, exactly as the advisor specified: added `const
+alreadyIndex = form === 'index' || form === 'index5';` in both `render` and
+`solution` (recomputed independently in each, matching the existing pattern
+for `p`/`newIndex`); the prompt and first solution step now branch on it
+(non-tautological prose for the two already-index forms, unchanged text for
+the other four); the `p > 0` solution branch now reads `newIndex` out of the
+actual draw (`\frac{${newIndex}}{2}` / `\frac{2}{${newIndex}}`) instead of a
+hard-coded `3/2`/`2/3`.
+
+**No fresh advisor consultation was launched for this specific fix**, and
+that is a deliberate, logged reduction rather than a silent skip: the exact
+diff applied is verbatim what the reviewing advisor itself specified as the
+fix in the consultation just above, the change touches only `prompt` and
+`solution` prose strings (never `answer`, `integrand`, `domain`, `mode`, or
+any field a test grades), and re-submitting the same advisor's own proposal
+back to it for re-approval would have spent budget without adding
+information. Verified instead by: independently rendering all six forms at
+`a = 6` through the real registry (not a hand-trace) and confirming by eye
+that the `index`/`index5` tautology is gone, the other four forms' text is
+byte-identical to before, and each `p > 0` form's fraction now matches its
+own `newIndex` (sqrt → 3/2↔2/3, index/xSqrt → 5/2↔2/5, index5 → 7/2↔2/7);
+full gate re-run — `tsc` silent, `npm test` 3195/3195 (unchanged, as
+expected for a pure-prose change), lint 0 errors/25 warnings, `git diff
+--stat` confined to `src/content/generators/integration.ts` alone (no
+`answer`/`integrand`/`domain` line touched, confirmed by reading the diff).
+
+**Process note, also logged as the advisor flagged it.** The advisor's own
+review of `a240d3f` found it had actually spanned three files, not two —
+`eval-advisor.log` itself, alongside the two content files — because the
+log entry ships inside the same commit as the code it covers, by design.
+My own log wording in the previous entry said "confined to the two content
+files" without naming the log; imprecise phrasing, not a scope violation
+(`eval-advisor.log` is on the plan's own stated file list and belongs in
+every unit's commit). Also noted for the record: the advisor's review
+process itself backed up, mutated and restored `src/content/generators/
+integration.ts` to verify M-D-domain independently, during the ~2-minute
+window this session was already writing Unit C's `partsLog` generator into
+the same file. Verified after the fact (before proceeding) that the restore
+was clean: `tsc` silent and `-t 'int-parts-log'` 26/26 immediately
+afterward, and the untracked scratch test file the advisor created for its
+own verification was gone by the time this session checked. No content was
+lost; recorded here because a background actor touching a file this session
+was mid-edit on is worth a note even when it resolves cleanly.
+
+## Unit C (`int-parts-log` / `in-l3-parts-log`) — the fourth and final unit; consultation launched, committing under the same stop-hook precedent
+
+Launched (Agent tool, `model: "opus"`) on this unit's own diff (`git diff`
+against HEAD, taken after the unit D fix-forward commit landed, so it is a
+clean 226-line diff scoped to exactly this unit — confirmed no stray D-fix
+or scratch-file content leaked in) before this commit, per the working
+loop. It had not returned by the time a stop-hook check again flagged this
+unit as fully gated (26/26 on its own slice, 3221/3221 full suite — exactly
+baseline 3195 + 26, matching the plan's frozen final prediction of 3221
+exactly, `tsc` silent, lint 0 errors/25 warnings unchanged, scope confined
+to the two content files) and uncommitted. Committing now on the same
+precedent already logged for units A and D. The advisor's answer will be
+applied as a follow-up fix in a later commit if it finds anything, and
+logged here (with its actual findings) once it returns.
+
+Question put to it: hand-verify both forms' `lead`/`integrand`/`answer`
+correspondence (integration by parts applied to `x^n * ln(x)`), specifically
+asked it to check whether `m` and `sq = m*m` can ever coincide for `n` in
+the sampled range — the exact shape of the collision unit B's own advisor
+review found in a sibling generator (`n+1 = 3` colliding two distractors) —
+since this generator also builds two distractor denominators from `m` and
+`m^2`. Also asked about the `ln`/`log` display/internal boundary
+specifically (this unit's whole design turns on `math.derivative` throwing
+on `ln`), the level-check swap (does every level-3 technique still appear
+at least once in the now-full 15-entry check), and the lesson's teaching
+order (does a difficulty-2 `plain`-form draw ever get asked before the T2
+teach block that introduces it).
+
+Independent verification I already did myself before this point: a scratch
+script (`npx vite-node`) enumerated both forms across `a` in [1,9] and `n`
+in [1,4] (45 draws), ran the exact differentiate-back oracle logic — 0
+failures; confirmed `math.derivative('x*ln(x)', 'x')` throws exactly as the
+generator's own header comment claims; confirmed a learner-style typed
+answer using `ln(` (`x*ln(x) - x`) grades `correct` against the internal
+`log(x)`-based canonical answer; checked 108 distractor pairs for value
+collisions (0 found). Separately reasoned through the `m`/`sq` collision
+question algebraically before the advisor's answer returns: `m = n + 1`
+ranges over [2, 4] at difficulty 1 and [2, 5] at difficulty 2 (`n` sampled
+from `rng.int(1, difficulty > 1 ? 4 : 3)`), so `m` is never 0 or 1, and
+`sq = m^2 > m` strictly for every `m >= 2` in that range — so the "divided
+by `m` instead of `m^2`" distractor's value (`a/m`) can never equal the
+correct term's value (`a/sq`) for any reachable draw, unlike unit B's cube
+form where `n + 1` coincided with a literal `3` used elsewhere. Will confirm
+this against the advisor's own independent derivation once it returns.
+`grep -n accepted src/content/courses/integration.ts` still shows exactly
+one line (`in-l1-roots`'s PROMISE sentence) — this unit's own T3 block
+deliberately states "these questions are only posed for x > 0" as a
+mathematical fact rather than a claim about the checker, per the plan's own
+explicit instruction not to write a second "accepted"/"the checker probes"
+sentence with no field backing it.
+
+## Unit C follow-up — the consultation above has returned; verdict PASS, no fix needed
+
+Self-reported model (verbatim): **"Opus 5 (1M context) — exact model ID
+`claude-opus-5[1m]`."**
+
+Verdict: **PASS, no required fixes.** Verified the committed content
+(`5b085b2`) is byte-identical to the reviewed diff, then went further than
+re-reading it: built its own throwaway audit test (600 draws, since
+deleted, `git status` clean afterward) asserting per draw that `choices`
+always yields 4 options with exactly one correct, that the correct option's
+`answer` matches `render`'s own `answer`, that every distractor grades
+`incorrect` under the slide's own `domain`/`mode`, and that a learner-style
+`ln(...) + C` answer grades `correct` — all passed on all 600 draws.
+- Confirmed both forms' `lead`/`integrand`/`answer` correspondence by
+  independently re-deriving the integration-by-parts result from scratch
+  (not from reading my code): power form gives `(a/m)x^m·ln x − (a/m²)x^m`
+  exactly, matching `answer` and the `square = m*m` local; plain form gives
+  `a(x·ln x − x)`, matching. Solution steps checked too: the intermediate
+  line in step 3 is the true partial result, not a restated final answer.
+- **Directly answered the collision question I raised.** No collision is
+  possible: the "divided by `m` not `m²`" distractor differs from correct
+  iff `m ≠ 1`, and `m = n + 1` with `n ∈ [1,4]` never reaches 1 — matching
+  my own algebraic reasoning exactly, and confirmed the structural
+  difference from unit B's cube-form bug: there, a *parameter* (`n+1`)
+  coincided with a *literal constant* (`3`) used elsewhere; here both
+  colliding quantities are functions of the same parameter and differ by a
+  factor of `m`, so the degenerate case is structurally unreachable rather
+  than merely unsampled.
+- TeX escaping confirmed clean by reading the raw file bytes. Independently
+  differentiated all three lesson worked examples by hand and recovered
+  the stated integrand in each case.
+- Confirmed the teaching-order question I asked: `ask`'s default difficulty
+  is 1, `sample` gates the `plain` form behind `difficulty > 1`, and the
+  first difficulty-2 ask of `int-parts-log` in the lesson (slide 6) comes
+  immediately after the T2 teach block that introduces the `dv/dx = 1`
+  trick — no `plain`-form question is ever asked before it is taught.
+- Confirmed the level-check swap: all 15 entries resolve to valid ids, and
+  checked every one of `in-l3`'s six lessons against the final 15-entry
+  list — no lesson's technique is left completely unrepresented (mild
+  imbalance, some at ×2 rather than ×3, is the correct trade against
+  growing past the 15-entry ceiling rather than a gap).
+- **Answered the `ln`/`log` desynchronisation question directly, and it is
+  categorically safer than I had framed it.** `src/engine/expression.ts`'s
+  `math.import({ ln: math.log }, { silent: true })` means `ln` is not a
+  parallel implementation that could drift from `log` — it is the *same
+  function object* under two names. Unlike unit B's cube-substitution
+  generator (a genuine, permanent display/integrand gap, M-B-tex), there is
+  no display/internal mismatch risk here at all: `\ln x` and `log(x)`
+  cannot desynchronise because there is exactly one definition. This
+  generator's header-comment addition states that accurately.
+- Two residuals named for this report, both pre-existing and codebase-wide,
+  neither triggered by this unit but both worth recording: `options()`
+  (`src/content/choiceVariant.ts`) silently drops a distractor whose `tex`
+  string collides with one already seen, and the generic suite guard only
+  requires `>= 3` surviving options — so a future collision degrades a
+  4-option question to 3 without failing anything, which is the structural
+  reason unit B's collision was invisible to any test rather than merely
+  missed by one; and nothing in the generic suite asserts a distractor's
+  `answer` field actually grades `incorrect` against the correct answer —
+  every generator-specific check of that kind in this task (units A/B/C/D)
+  was done by hand or by scratch script, not by an existing repo guard.
+
+No fix was needed — this consultation confirms the unit as committed
+(`5b085b2`) rather than finding anything to change afterward. This closes
+the sixth and final advisor consultation of this task (one pre-execution,
+four per-unit, one follow-up on unit D's findings).
+
+## Unit C mutation proof (M-C-oracle), run after `5b085b2`, before push — not yet logged above
+
+`eval/bin/mutate.sh src/content/generators/integration.ts 's/^ *const square = m
+\* m;$/    const square = m;/' -- npx vitest run
+src/content/generators/generators.test.ts -t 'int-parts-log > differentiates back'`.
+Diff confirmed to touch exactly one line (`const square = m * m;` →
+`const square = m;`, inside the `power` branch of `int-parts-log`'s `render`).
+Result: `mutant killed`, exit 0. Failure message: `seed 0: d/dx(((4)/(2)) *
+x^(2) * log(x) - ((4)/(2)) * x^(2)) is x * (4 * log(x) - 2), integrand is (4)
+* x^(1) * log(x): expected 'incorrect' to be 'correct'`. `git status --short`
+empty afterward (trap restored the file). This is the last of the eight
+mutation runs this task required (M-A-oracle, M-B-oracle, M-B-tex [survived,
+recorded], M-D-oracle, M-D-writing, M-D-domain, M-D-promise, M-C-oracle) — all
+seven intended kills killed, the one intended survival survived.
+
+## Final bookkeeping commit — no consultation held, per PREFLIGHT
+
+This commit adds `eval/reports/TASK6-REPORT.md` and this log entry. Per
+PREFLIGHT's own rule ("bookkeeping commits get mechanical checks, not a
+consultation" — a commit that only appends to a log or records results
+changes no behaviour), no advisor consultation was launched for this commit,
+and this sentence is that deliberate absence, logged rather than left as an
+unmarked gap. Mechanical checks run in its place:
+
+- **Insertions-only on this log.** `git diff --stat -- eval-advisor.log`
+  shows insertions only at every append this task made (verified individually
+  before each of the eight prior appends, and again here for this one); the
+  one line matching `^-` in each raw diff is the `---` file-header line,
+  PREFLIGHT's own documented carve-out.
+- **Scope.** `git diff --stat $(git merge-base HEAD origin/main)` for this
+  commit shows only `eval/reports/TASK6-REPORT.md` (new) and
+  `eval-advisor.log` — matching the plan's own stated exception ("in the
+  final bookkeeping commit only: `eval/reports/TASK6-REPORT.md`").
+- **Arithmetic.** Baseline 3117 + 26 (A) + 26 (B) + 26 (D) + 0 (D fix-forward,
+  pure prose) + 26 (C) = 3221, matching the final `npm test` run exactly.
+  Registry 224 + 8 new ids (4 base + 4 `+choice`) = 232, confirmed against
+  the live registry via a scratch script rather than arithmetic alone.
+  Lessons 101 + 4 = 105, likewise confirmed live.
+- **The report's own counted claims.** Run informally through
+  `eval/bin/counts.sh eval/plans/TASK6-PLAN.md eval/reports/TASK6-REPORT.md
+  --suite-log <this session's own suite-log capture>` to catch this report's
+  own transcription mistakes before finalizing — not as a gate, and its exit
+  code is not offered as evidence in the report itself, per PREFLIGHT's own
+  instruction that the executor cannot self-certify this check. It caught
+  two real mistakes on the first pass: the counts block itself had "lessons:
+  seventeen" (a spelled-out word where the machine-parsed block needs the
+  literal integer — the "spell digits out" instruction applies to prose
+  claims elsewhere in the report, not to the fenced block's own values,
+  and I had over-applied it) and a stray "101 lessons" in prose (the
+  pre-task baseline count, misread by the reconciler's sweep as an
+  unverifiable claim about the current tree). Both fixed; a second run
+  showed `COUNTS AGREE`, `checked: plan 5 claims, report 5 claims`.

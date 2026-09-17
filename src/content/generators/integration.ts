@@ -12,6 +12,9 @@
  *   `ln|x| + iπ` for `ln(x)`. A learner writing the better answer, `ln|x|`,
  *   would then disagree with ours at half the sample points and be marked
  *   wrong. It is taught on the slides and asked as a choice question instead.
+ *   `int-parts-log` puts `ln x` into a typed answer, under `domain: 'positive'`,
+ *   where the concern does not arise: the question is only posed for x > 0 and
+ *   the probe never leaves it.
  *
  * - Definite integrals stay polynomial. Their answers are numbers, and the
  *   whole-number results come from choosing the coefficient as a multiple of
@@ -19,7 +22,7 @@
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
-import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
+import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow } from '../expr';
 
 /** The algebra keys plus the constant of integration. */
@@ -1347,6 +1350,529 @@ const chooseMethod: Generator<MethodParams> = {
   },
 };
 
+interface DefiniteSubstitutionParams {
+  m: number;
+  n: number;
+  b: number;
+  lower: number;
+  upper: number;
+}
+
+/**
+ * A definite integral by substitution, where the one real trap is changing
+ * the variable without changing the limits.
+ */
+const definiteSubstitution: Generator<DefiniteSubstitutionParams> = {
+  id: 'int-definite-substitution',
+  sample: (rng, difficulty) => {
+    const n = rng.pick([2, 3] as const);
+    const m = rng.int(1, difficulty > 1 ? 2 : 3);
+    const b = difficulty > 1 ? nonZero(rng.int(-3, 4), 2) : rng.int(1, 4);
+    const lower = rng.int(0, 1);
+    const upper = lower + rng.int(1, difficulty > 1 ? 2 : 1);
+    return { m, n, b, lower, upper };
+  },
+  choices: ({ m, n, b, lower, upper }) => {
+    const at = (t: number) => m * Math.pow(t * t + b, n + 1);
+    const value = at(upper) - at(lower);
+    return options(
+      { tex: `${value}`, answer: `${value}` },
+      // Forgot that a x dx is a/2 du.
+      { tex: `${2 * value}`, answer: `${2 * value}` },
+      // Dropped the lower term.
+      { tex: `${at(upper)}`, answer: `${at(upper)}` },
+      // Kept the x-limits on the u antiderivative.
+      {
+        tex: `${m * (Math.pow(upper, n + 1) - Math.pow(lower, n + 1))}`,
+        answer: `${m * (Math.pow(upper, n + 1) - Math.pow(lower, n + 1))}`,
+      },
+    );
+  },
+  render: ({ m, n, b, lower, upper }) => {
+    const a = 2 * (n + 1) * m;
+    const at = (t: number) => m * Math.pow(t * t + b, n + 1);
+    const total = at(upper) - at(lower);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Evaluate, using the substitution $u = x^{2} + c$. The answer is a whole number.',
+        },
+      ],
+      lead: `${definiteTex(`${termTex(a, 1)}\\left(x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)^{${n}}`, lower, upper)} =`,
+      keypad: [],
+      answer: `${total}`,
+      integrand: `(${a}) * x * (x^2 + (${b}))^(${n})`,
+      limits: [lower, upper],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ m, n, b, lower, upper }) => {
+    const a = 2 * (n + 1) * m;
+    const at = (t: number) => m * Math.pow(t * t + b, n + 1);
+    const total = at(upper) - at(lower);
+    return [
+      {
+        text: `Put $u = x^{2} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $\\frac{du}{dx} = 2x$ and $${a}x \\, dx$ becomes $${(n + 1) * m} \\, du$. Change the limits with the variable: at $x = ${lower}$, $u = ${lower * lower + b}$; at $x = ${upper}$, $u = ${upper * upper + b}$.`,
+      },
+      {
+        tex: `${(n + 1) * m}\\int_{${lower * lower + b}}^{${upper * upper + b}} u^{${n}} \\, du = \\left[${m === 1 ? '' : m}u^{${n + 1}}\\right]_{${lower * lower + b}}^{${upper * upper + b}}`,
+      },
+      { tex: `= ${at(upper)} - \\left(${at(lower)}\\right) = ${total}` },
+      {
+        text: 'Once the limits are $u$-values there is nothing to convert back. The answer is a number, and $x$ never reappears.',
+      },
+      {
+        text: `Putting the $x$-limits into the $u$ bracket instead gives $${m * (Math.pow(upper, n + 1) - Math.pow(lower, n + 1))}$ — the working looks right and the number is wrong. Change both, or change neither.`,
+      },
+    ];
+  },
+};
+
+/**
+ * A coefficient in lowest terms in front of an arbitrary TeX factor: a bracket,
+ * an exponential, a power of a trigonometric function. `fracTermTex` covers a
+ * power of x; this covers everything else, and drops a coefficient of 1 so the
+ * learner never reads "1(x^3 + 1)^4".
+ */
+function fracCoeffTex(num: number, den: number, factor: string): string {
+  const { n, d } = reduce(num, den);
+  if (d === 1) return `${n === 1 ? '' : n === -1 ? '-' : n}${factor}`;
+  return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}${factor}`;
+}
+
+type SubstitutionForm = 'cube' | 'exp' | 'sinPower' | 'cosPower';
+
+interface GeneralSubstitutionParams {
+  form: SubstitutionForm;
+  a: number;
+  b: number;
+  n: number;
+}
+
+/**
+ * Substitution beyond the one shape `int-substitution` teaches: a cube inside
+ * a bracket, an exponential, or a power of sine or cosine.
+ */
+const substitutionGeneral: Generator<GeneralSubstitutionParams> = {
+  id: 'int-substitution-general',
+  sample: (rng, difficulty) => {
+    const form: SubstitutionForm =
+      difficulty > 1 ? rng.pick(['cube', 'exp', 'sinPower', 'cosPower'] as const) : 'cube';
+    if (form === 'cube') {
+      const a = rng.int(2, 9);
+      const b = difficulty > 1 ? nonZero(rng.int(-4, 4), 2) : rng.int(1, 4);
+      const n = rng.int(2, 4);
+      return { form, a, b, n };
+    }
+    if (form === 'exp') {
+      return { form, a: rng.int(1, 9), b: 0, n: 0 };
+    }
+    return { form, a: rng.int(1, 6), b: 0, n: rng.int(2, 4) };
+  },
+  choices: ({ form, a, b, n }) => {
+    if (form === 'cube') {
+      const bracket = `\\left(x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)`;
+      const inner = `(x^3 + (${b}))`;
+      return options(
+        {
+          tex: `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n + 1}}`)} + C`,
+          answer: `((${a})/(3 * (${n + 1}))) * ${inner}^(${n + 1})`,
+        },
+        // Forgot the 3 from du = 3x^2 dx.
+        {
+          tex: `${fracCoeffTex(a, n + 1, `${bracket}^{${n + 1}}`)} + C`,
+          answer: `((${a})/(${n + 1})) * ${inner}^(${n + 1})`,
+        },
+        // Divided by 3 only. At n = 2, n + 1 = 3, which would make this
+        // byte-identical to the "forgot the 3" distractor above and collapse
+        // the slide to 3 options every time; divide by 6 there instead so it
+        // stays a distinct (and still wrong) slip.
+        {
+          tex: `${fracCoeffTex(a, n === 2 ? 6 : 3, `${bracket}^{${n + 1}}`)} + C`,
+          answer: `((${a})/(${n === 2 ? 6 : 3})) * ${inner}^(${n + 1})`,
+        },
+        // Correct coefficient on the old power.
+        {
+          tex: `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n}}`)} + C`,
+          answer: `((${a})/(3 * (${n + 1}))) * ${inner}^(${n})`,
+        },
+      );
+    }
+    if (form === 'exp') {
+      return options(
+        { tex: `${fracCoeffTex(a, 2, 'e^{x^{2}}')} + C`, answer: `((${a})/2) * e^(x^2)` },
+        // No halving.
+        { tex: `${a === 1 ? '' : a}e^{x^{2}} + C`, answer: `(${a}) * e^(x^2)` },
+        // Kept an x^2 factor and halved.
+        {
+          tex: `${fracCoeffTex(a, 2, 'x^{2}e^{x^{2}}')} + C`,
+          answer: `((${a})/2) * x^2 * e^(x^2)`,
+        },
+        // Exponent power wrong.
+        { tex: `${fracCoeffTex(a, 3, 'e^{x^{3}}')} + C`, answer: `((${a})/3) * e^(x^3)` },
+      );
+    }
+    const fn = form === 'sinPower' ? 'sin' : 'cos';
+    const sign = form === 'sinPower' ? 1 : -1;
+    return options(
+      {
+        tex: `${fracCoeffTex(sign * a, n + 1, `\\${fn}^{${n + 1}}(x)`)} + C`,
+        answer: `((${sign * a})/(${n + 1})) * ${fn}(x)^(${n + 1})`,
+      },
+      // Sign flipped.
+      {
+        tex: `${fracCoeffTex(-sign * a, n + 1, `\\${fn}^{${n + 1}}(x)`)} + C`,
+        answer: `((${-sign * a})/(${n + 1})) * ${fn}(x)^(${n + 1})`,
+      },
+      // Not divided.
+      {
+        tex: `${fracCoeffTex(sign * a, 1, `\\${fn}^{${n + 1}}(x)`)} + C`,
+        answer: `(${sign * a}) * ${fn}(x)^(${n + 1})`,
+      },
+      // Power not raised.
+      {
+        tex: `${fracCoeffTex(sign * a, n + 1, `\\${fn}^{${n}}(x)`)} + C`,
+        answer: `((${sign * a})/(${n + 1})) * ${fn}(x)^(${n})`,
+      },
+    );
+  },
+  render: ({ form, a, b, n }) => {
+    if (form === 'cube') {
+      const scale = 3 * (n + 1);
+      const shown = termTex(a, 2);
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+        lead: `${integralTex(`${shown}\\left(x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)^{${n}}`)} =`,
+        keypad: INTEGRAL_KEYS,
+        answer: `((${a})/(${scale})) * (x^3 + (${b}))^(${n + 1})`,
+        integrand: `(${a}) * x^2 * (x^3 + (${b}))^(${n})`,
+        domain: 'real',
+        mode: 'upToConstant',
+      };
+    }
+    if (form === 'exp') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+        lead: `${integralTex(`${a === 1 ? '' : a}xe^{x^{2}}`)} =`,
+        keypad: EXP_INTEGRAL_KEYS,
+        answer: `((${a})/2) * e^(x^2)`,
+        integrand: `(${a}) * x * e^(x^2)`,
+        domain: 'real',
+        mode: 'upToConstant',
+      };
+    }
+    if (form === 'sinPower') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+        lead: `${integralTex(`${a === 1 ? '' : a}\\cos(x)\\sin^{${n}}(x)`)} =`,
+        keypad: TRIG_INTEGRAL_KEYS,
+        answer: `((${a})/(${n + 1})) * sin(x)^(${n + 1})`,
+        integrand: `(${a}) * cos(x) * sin(x)^(${n})`,
+        domain: 'real',
+        mode: 'upToConstant',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Integrate by substitution, choosing $u$ yourself.' }],
+      lead: `${integralTex(`${a === 1 ? '' : a}\\sin(x)\\cos^{${n}}(x)`)} =`,
+      keypad: TRIG_INTEGRAL_KEYS,
+      answer: `((${-a})/(${n + 1})) * cos(x)^(${n + 1})`,
+      integrand: `(${a}) * sin(x) * cos(x)^(${n})`,
+      domain: 'real',
+      mode: 'upToConstant',
+    };
+  },
+  solution: ({ form, a, b, n }) => {
+    if (form === 'cube') {
+      const bracket = `\\left(x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}\\right)`;
+      const correct = `${fracCoeffTex(a, 3 * (n + 1), `${bracket}^{${n + 1}}`)} + C`;
+      return [
+        {
+          text: `Inside the bracket is $x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, whose derivative is $3x^{2}$, and there is an $x^{2}$ outside. Put $u = x^{3} ${b < 0 ? '-' : '+'} ${Math.abs(b)}$, so $${a}x^{2} \\, dx$ becomes $\\frac{${a}}{3} \\, du$.`,
+        },
+        { tex: `\\frac{${a}}{3}\\int u^{${n}} \\, du = \\frac{${a}}{3} \\times \\frac{u^{${n + 1}}}{${n + 1}}` },
+        { tex: `= ${correct}` },
+        {
+          text: 'The constant factor is no obstacle; it just sits outside. An $x$ left over after the substitution would be, and would mean the wrong $u$ was chosen.',
+        },
+      ];
+    }
+    if (form === 'exp') {
+      const correct = `${fracCoeffTex(a, 2, 'e^{x^{2}}')} + C`;
+      return [
+        {
+          text: `The derivative of $x^{2}$ is $2x$, and there is an $x$ outside the exponential. Put $u = x^{2}$, so $${a}x \\, dx$ becomes $\\frac{${a}}{2} \\, du$.`,
+        },
+        { tex: `\\frac{${a}}{2}\\int e^{u} \\, du = \\frac{${a}}{2}e^{u}` },
+        { tex: `= ${correct}` },
+        {
+          text: 'The constant factor is no obstacle; it just sits outside. An $x$ left over after the substitution would be, and would mean the wrong $u$ was chosen.',
+        },
+      ];
+    }
+    if (form === 'sinPower') {
+      const correct = `${fracCoeffTex(a, n + 1, `\\sin^{${n + 1}}(x)`)} + C`;
+      return [
+        {
+          text: 'The derivative of $\\sin(x)$ is $\\cos(x)$, which is sitting alongside it. Put $u = \\sin(x)$, so $\\cos(x) \\, dx$ becomes $du$.',
+        },
+        { tex: `${a === 1 ? '' : a}\\int u^{${n}} \\, du = ${fracCoeffTex(a, n + 1, `u^{${n + 1}}`)}` },
+        { tex: `= ${correct}` },
+        {
+          text: 'A power of $\\sin(x)$ next to $\\cos(x)$ is a power of $u$ next to $du$: it integrates exactly like $u^{n}$.',
+        },
+      ];
+    }
+    const correct = `${fracCoeffTex(-a, n + 1, `\\cos^{${n + 1}}(x)`)} + C`;
+    return [
+      {
+        text: 'The derivative of $\\cos(x)$ is $-\\sin(x)$, which is sitting alongside it. Put $u = \\cos(x)$, so $\\sin(x) \\, dx$ becomes $-du$.',
+      },
+      { tex: `-${a === 1 ? '' : a}\\int u^{${n}} \\, du = -${fracCoeffTex(a, n + 1, `u^{${n + 1}}`)}` },
+      { tex: `= ${correct}` },
+      {
+        text: 'Differentiating $\\cos(x)$ gives $-\\sin(x)$, so the $\\sin(x)$ in the integrand is $-\\frac{du}{dx}$ and the answer picks up a minus sign. Forgetting it is the characteristic slip with cosine.',
+      },
+    ];
+  },
+};
+
+/** The algebra keys plus a root and the constant of integration. */
+const ROOT_INTEGRAL_KEYS: KeypadKey[] = [...ROOT_KEYS, { insert: 'C' }];
+
+type RootForm = 'sqrt' | 'invSqrt' | 'index' | 'xSqrt' | 'invXSqrt' | 'index5';
+
+/**
+ * The index of x over 2, per form: the question is a·x^{p/2}. A table rather
+ * than a derivation, so a mistyped row fails a test instead of shipping.
+ */
+const HALF_INDEX: Record<RootForm, number> = {
+  sqrt: 1,
+  invSqrt: -1,
+  index: 3,
+  xSqrt: 3,
+  invXSqrt: -3,
+  index5: 5,
+};
+const ROOT_FORMS_1: RootForm[] = ['sqrt', 'invSqrt', 'index'];
+const ROOT_FORMS_2: RootForm[] = ['sqrt', 'invSqrt', 'index', 'xSqrt', 'invXSqrt', 'index5'];
+
+/** The root or root-fraction as the learner reads it, before it is rewritten as a power. */
+function shownTex(form: RootForm, a: number): string {
+  const c = a === 1 ? '' : `${a}`;
+  if (form === 'sqrt') return `${c}\\sqrt{x}`;
+  if (form === 'invSqrt') return `\\frac{${a}}{\\sqrt{x}}`;
+  if (form === 'index') return `${c}x^{3/2}`;
+  if (form === 'xSqrt') return `${c}x\\sqrt{x}`;
+  if (form === 'invXSqrt') return `\\frac{${a}}{x\\sqrt{x}}`;
+  return `${c}x^{5/2}`;
+}
+
+/** A coefficient in lowest terms in front of a fractional power of x. */
+function halfPowTex(num: number, den: number, p: number): string {
+  return fracCoeffTex(num, den, `x^{${p}/2}`);
+}
+
+interface RootPowerParams {
+  form: RootForm;
+  a: number;
+}
+
+/** Integrating a root, or a root under a fraction, by rewriting it as a fractional power first. */
+const rootPower: Generator<RootPowerParams> = {
+  id: 'int-root-power',
+  sample: (rng, difficulty) => ({
+    form: rng.pick(difficulty > 1 ? ROOT_FORMS_2 : ROOT_FORMS_1),
+    a: rng.int(difficulty > 1 ? 2 : 1, 12),
+  }),
+  choices: ({ form, a }) => {
+    const p = HALF_INDEX[form];
+    const q = p + 2;
+    return options(
+      { tex: `${halfPowTex(2 * a, q, q)} + C`, answer: `((${2 * a})/(${q})) * x^((${q})/2)` },
+      // Divided by the old index.
+      { tex: `${halfPowTex(2 * a, p, q)} + C`, answer: `((${2 * a})/(${p})) * x^((${q})/2)` },
+      // Not divided at all.
+      { tex: `${halfPowTex(a, 1, q)} + C`, answer: `(${a}) * x^((${q})/2)` },
+      // Index lowered instead of raised.
+      { tex: `${halfPowTex(a * p, 2, p - 2)} + C`, answer: `((${a * p})/2) * x^((${p - 2})/2)` },
+    );
+  },
+  render: ({ form, a }) => {
+    const p = HALF_INDEX[form];
+    const newIndex = p + 2;
+    const alreadyIndex = form === 'index' || form === 'index5';
+    const rootWriting =
+      newIndex > 0 ? `((${2 * a})/(${newIndex})) * sqrt(x^(${newIndex}))` : `(${-2 * a})/sqrt(x)`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: alreadyIndex
+            ? 'Integrate, for $x > 0$.'
+            : 'Integrate, for $x > 0$. Write the root as a power first.',
+        },
+      ],
+      lead: `${integralTex(shownTex(form, a))} =`,
+      keypad: ROOT_INTEGRAL_KEYS,
+      answer: `((${2 * a})/(${newIndex})) * x^((${newIndex})/2)`,
+      alsoAccepts: [rootWriting],
+      integrand: `(${a}) * x^((${p})/2)`,
+      domain: 'positive',
+      mode: 'upToConstant',
+    };
+  },
+  solution: ({ form, a }) => {
+    const p = HALF_INDEX[form];
+    const newIndex = p + 2;
+    const alreadyIndex = form === 'index' || form === 'index5';
+    const rootForm =
+      newIndex > 0
+        ? fracCoeffTex(2 * a, newIndex, newIndex === 1 ? '\\sqrt{x}' : `\\sqrt{x^{${newIndex}}}`)
+        : `-\\frac{${2 * a}}{\\sqrt{x}}`;
+    return [
+      {
+        text: alreadyIndex
+          ? `The index is already a fraction, and the power rule never required a whole one: raise it by one and divide by the new index.`
+          : `Write the root as a power: $${shownTex(form, a)}$ is $${a === 1 ? '' : a}x^{${p}/2}$. Then the rule is the usual one — raise the index by one, divide by the new index.`,
+      },
+      {
+        tex: `\\int ${a === 1 ? '' : a}x^{${p}/2} \\, dx = \\frac{${a === 1 ? '' : a}x^{${newIndex}/2}}{${newIndex}/2} + C`,
+      },
+      { tex: `= ${halfPowTex(2 * a, newIndex, newIndex)} + C = ${rootForm} + C` },
+      {
+        text:
+          p > 0
+            ? `Dividing by a fraction is multiplying by its reciprocal: dividing by $\\frac{${newIndex}}{2}$ multiplies by $\\frac{2}{${newIndex}}$. Check by differentiating, and the two fractions cancel back to the original coefficient.`
+            : `Adding one to a negative fraction moves it towards zero, so $${p}/2$ becomes $${newIndex}/2$, and dividing by that ${newIndex < 0 ? 'negative fraction flips the sign' : 'fraction doubles the coefficient'}. Differentiate the answer to check the sign.`,
+      },
+    ];
+  },
+};
+
+interface PartsLogParams {
+  form: 'power' | 'plain';
+  a: number;
+  n: number;
+}
+
+/**
+ * Integration by parts with a logarithm as u, the exception to "the
+ * polynomial is always u" — including x^0 * ln x, where dv/dx = 1.
+ *
+ * `answer`/`integrand` use `log(x)` rather than `ln(x)`: `math.derivative`
+ * throws on the `ln` alias (it exists only for evaluation), while the
+ * learner still types `ln(` from the keypad, which grades correct against
+ * `log` through the same alias.
+ */
+const partsLog: Generator<PartsLogParams> = {
+  id: 'int-parts-log',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.chance(0.3)) return { form: 'plain' as const, a: rng.int(1, 9), n: 0 };
+    return {
+      form: 'power' as const,
+      a: rng.int(1, difficulty > 1 ? 9 : 12),
+      n: rng.int(1, difficulty > 1 ? 4 : 3),
+    };
+  },
+  choices: ({ form, a, n }) => {
+    if (form === 'power') {
+      const m = n + 1;
+      const sq = m * m;
+      const first = `${fracTermTex(a, m, m)}\\ln x`;
+      return options(
+        {
+          tex: `${first} - ${fracTermTex(a, sq, m)} + C`,
+          answer: `((${a})/(${m})) * x^(${m}) * log(x) - ((${a})/(${sq})) * x^(${m})`,
+        },
+        // Sign flipped on the second term.
+        {
+          tex: `${first} + ${fracTermTex(a, sq, m)} + C`,
+          answer: `((${a})/(${m})) * x^(${m}) * log(x) + ((${a})/(${sq})) * x^(${m})`,
+        },
+        // uv only.
+        { tex: `${first} + C`, answer: `((${a})/(${m})) * x^(${m}) * log(x)` },
+        // Second term divided by m rather than m^2.
+        {
+          tex: `${first} - ${fracTermTex(a, m, m)} + C`,
+          answer: `((${a})/(${m})) * x^(${m}) * log(x) - ((${a})/(${m})) * x^(${m})`,
+        },
+      );
+    }
+    return options(
+      { tex: `${termTex(a, 1)}\\ln x - ${termTex(a, 1)} + C`, answer: `(${a}) * x * log(x) - (${a}) * x` },
+      // Plus instead of minus.
+      { tex: `${termTex(a, 1)}\\ln x + ${termTex(a, 1)} + C`, answer: `(${a}) * x * log(x) + (${a}) * x` },
+      // uv only.
+      { tex: `${termTex(a, 1)}\\ln x + C`, answer: `(${a}) * x * log(x)` },
+      // Differentiated instead of integrated.
+      { tex: `\\frac{${a}}{x} + C`, answer: `(${a})/x` },
+    );
+  },
+  render: ({ form, a, n }) => {
+    if (form === 'plain') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by parts, for $x > 0$.' }],
+        lead: `${integralTex(`${a === 1 ? '' : a}\\ln x`)} =`,
+        keypad: EXP_INTEGRAL_KEYS,
+        answer: `(${a}) * x * log(x) - (${a}) * x`,
+        integrand: `(${a}) * log(x)`,
+        domain: 'positive',
+        mode: 'upToConstant',
+      };
+    }
+    const m = n + 1;
+    const square = m * m;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Integrate by parts, for $x > 0$.' }],
+      lead: `${integralTex(`${termTex(a, n)}\\ln x`)} =`,
+      keypad: EXP_INTEGRAL_KEYS,
+      answer: `((${a})/(${m})) * x^(${m}) * log(x) - ((${a})/(${square})) * x^(${m})`,
+      integrand: `(${a}) * x^(${n}) * log(x)`,
+      domain: 'positive',
+      mode: 'upToConstant',
+    };
+  },
+  solution: ({ form, a, n }) => {
+    if (form === 'plain') {
+      return [
+        {
+          text: `The logarithm is $u$: it has no standard integral to be $\\frac{dv}{dx}$, and its derivative $\\frac{1}{x}$ is as simple as a function gets. So $u = \\ln x$ and $\\frac{dv}{dx} = ${a === 1 ? '1' : `${a}`}$.`,
+        },
+        { tex: `u = \\ln x \\quad v = ${termTex(a, 1)} \\quad \\frac{du}{dx} = \\frac{1}{x}` },
+        { tex: `${termTex(a, 1)}\\ln x - \\int ${a} \\, dx` },
+        { tex: `= ${termTex(a, 1)}\\ln x - ${termTex(a, 1)} + C` },
+        {
+          text: 'Taking $\\frac{dv}{dx} = 1$ looks like cheating and is not: $v = x$, and the $x$ cancels the $\\frac{1}{x}$ from the logarithm, leaving an integral of a constant.',
+        },
+      ];
+    }
+    const m = n + 1;
+    const sq = m * m;
+    return [
+      {
+        text: `The logarithm is $u$: it has no standard integral to be $\\frac{dv}{dx}$, and its derivative $\\frac{1}{x}$ is as simple as a function gets. So $u = \\ln x$ and $\\frac{dv}{dx} = ${termTex(a, n)}$.`,
+      },
+      { tex: `u = \\ln x \\quad v = ${fracTermTex(a, m, m)} \\quad \\frac{du}{dx} = \\frac{1}{x}` },
+      { tex: `${fracTermTex(a, m, m)}\\ln x - \\int ${fracTermTex(a, m, n)} \\, dx` },
+      { tex: `= ${fracTermTex(a, m, m)}\\ln x - ${fracTermTex(a, sq, m)} + C` },
+      {
+        text: `The denominator of the second term is the square of the first, $${m}$ and $${sq}$. Writing $${m}$ for both is the common slip, and differentiating the answer catches it: the $\\ln x$ terms only cancel when the second denominator is the square.`,
+      },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -1363,4 +1889,8 @@ export const integrationGenerators = [
   substitution,
   byParts,
   chooseMethod,
+  definiteSubstitution,
+  substitutionGeneral,
+  rootPower,
+  partsLog,
 ] as unknown as Generator<unknown>[];

@@ -273,6 +273,62 @@ export const integration: Course = {
           skillCheck: [ask('int-power', 2), ask('int-power', 2), ask('int-power', 2)],
         },
         {
+          id: 'in-l1-roots',
+          title: 'Roots and Fractional Powers',
+          slides: [
+            teach(
+              prose(
+                'The power rule was derived without assuming the index was a whole number, and it is not; a root is a fractional power, and the rule integrates it as soon as it is written that way.',
+              ),
+              maths('\\sqrt{x} = x^{1/2} \\qquad \\frac{1}{\\sqrt{x}} = x^{-1/2} \\qquad x\\sqrt{x} = x^{3/2}'),
+              prose(
+                'Then raise the index by one and divide by the new index, exactly as before; adding one to $\\frac{1}{2}$ gives $\\frac{3}{2}$, and dividing by $\\frac{3}{2}$ is multiplying by $\\frac{2}{3}$.',
+              ),
+              maths('\\int \\sqrt{x} \\, dx = \\int x^{1/2} \\, dx = \\frac{x^{3/2}}{3/2} + C = \\frac{2}{3}x^{3/2} + C'),
+              prose(
+                'Convert first, every time; trying to integrate a root while it is still written as a root is where the guessing starts, just as it was for fractions.',
+              ),
+            ),
+            ask('int-root-power'),
+            ask('int-root-power+choice'),
+            ask('int-root-power'),
+            teach(
+              prose(
+                'A root underneath a fraction is a negative fractional power and both negatives have to be carried: $\\frac{1}{\\sqrt{x}}$ is $x^{-1/2}$, adding one gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles the coefficient.',
+              ),
+              maths('\\int \\frac{4}{\\sqrt{x}} \\, dx = \\int 4x^{-1/2} \\, dx = \\frac{4x^{1/2}}{1/2} + C = 8\\sqrt{x} + C'),
+              prose(
+                '$x$ multiplied by its own root is $x^{3/2}$, and $x$ under a root under a fraction is $x^{-3/2}$; adding one to $-\\frac{3}{2}$ gives $-\\frac{1}{2}$, and dividing by $-\\frac{1}{2}$ flips the sign.',
+              ),
+              maths('\\int \\frac{6}{x\\sqrt{x}} \\, dx = \\int 6x^{-3/2} \\, dx = \\frac{6x^{-1/2}}{-1/2} + C = -\\frac{12}{\\sqrt{x}} + C'),
+              prose(
+                'Either the index-form answer or the answer written back under a square root is accepted — the checker compares values, not the shape they are written in. So $\\frac{2}{3}x^{3/2}$ and $\\frac{2}{3}\\sqrt{x^{3}}$ are the same answer.',
+              ),
+            ),
+            ask('int-root-power', 2),
+            ask('int-power', 2),
+            ask('int-root-power+choice', 2),
+            teach(
+              prose(
+                'Check by differentiating, as always: $-12x^{-1/2}$ differentiates to $6x^{-3/2}$, the minus from the index cancelling the minus in front, and when the signs are right the check says so at once.',
+              ),
+              prose(
+                'The index that cannot be reached is still $-1$, and $-\\frac{1}{2}$ is not it; every fractional index goes through the power rule, and $x^{5/2}$ is no different from $x^{3/2}$ except in the arithmetic of the fraction.',
+              ),
+              prose(
+                'The arithmetic is the whole difficulty here; write the division by the new index out as a fraction before simplifying, and the coefficient takes care of itself.',
+              ),
+            ),
+            ask('int-root-power', 2),
+            ask('int-sum', 2),
+          ],
+          skillCheck: [
+            ask('int-root-power', 2),
+            ask('int-root-power+choice', 2),
+            ask('int-root-power', 2),
+          ],
+        },
+        {
           id: 'in-l1-standard',
           title: 'Exponentials and Trigonometric Functions',
           slides: [
@@ -323,13 +379,16 @@ export const integration: Course = {
         ask('int-power'),
         ask('int-power', 2),
         ask('int-sum', 2),
+        ask('int-root-power', 2),
         ask('int-exponential', 2),
         ask('int-trig', 2),
         ask('int-sum', 2),
+        ask('int-root-power', 2),
         ask('int-power'),
         ask('int-trig', 2),
         ask('int-exponential', 2),
         ask('int-power', 2),
+        ask('int-root-power', 2),
         ask('int-antiderivative-family', 2),
       ],
     },
@@ -758,6 +817,119 @@ export const integration: Course = {
           ],
         },
         {
+          id: 'in-l3-shapes',
+          title: 'Spotting the Substitution',
+          slides: [
+            teach(
+              prose(
+                'The last lesson used one shape, $x$ outside a bracket containing $x^{2}$; the pattern is more general: substitution works whenever the integrand contains a function of $x$ alongside its derivative, up to a constant factor.',
+              ),
+              maths('\\int 4x^{2}\\left(x^{3} + 1\\right)^{2} \\, dx'),
+              prose(
+                'Inside the bracket is $x^{3} + 1$, whose derivative is $3x^{2}$; the $x^{2}$ outside is that derivative up to the constant $3$, so $u = x^{3} + 1$, $\\frac{du}{dx} = 3x^{2}$, and $4x^{2} \\, dx = \\frac{4}{3} \\, du$.',
+              ),
+              maths(
+                '\\int 4x^{2}\\left(x^{3} + 1\\right)^{2} \\, dx = \\frac{4}{3}\\int u^{2} \\, du = \\frac{4u^{3}}{9} + C = \\frac{4\\left(x^{3} + 1\\right)^{3}}{9} + C',
+              ),
+              prose(
+                'The division by $3$ is the new step; it comes from $\\frac{du}{dx}$, so a cube inside the bracket means dividing by $3$ where a square meant dividing by $2$.',
+              ),
+            ),
+            ask('int-substitution-general'),
+            ask('int-substitution-general+choice'),
+            ask('int-substitution-general'),
+            teach(
+              prose(
+                'The bracket need not be a bracket: any function with its derivative alongside will do, and two cases turn up constantly.',
+              ),
+              maths('\\int xe^{x^{2}} \\, dx = \\frac{e^{x^{2}}}{2} + C'),
+              prose(
+                'Here $u = x^{2}$: the derivative $2x$ is there up to a factor of $2$, and $\\int e^{u} \\, du$ is just $e^{u}$.',
+              ),
+              maths('\\int \\cos(x)\\sin^{3}(x) \\, dx = \\frac{\\sin^{4}(x)}{4} + C'),
+              prose(
+                'Here $u = \\sin(x)$, because $\\cos(x)$ is its derivative, and a power of $\\sin(x)$ integrates like a power of $u$; with the roles swapped, $u = \\cos(x)$ has derivative $-\\sin(x)$, so a minus sign appears in the answer.',
+              ),
+            ),
+            ask('int-substitution-general', 2),
+            ask('int-choose-method', 2),
+            ask('int-substitution-general+choice', 2),
+            teach(
+              prose(
+                'The test is always the same: pick the inner function, differentiate it, and look for that derivative in what is left over; a constant factor is no obstacle, a missing power of $x$ is fatal.',
+              ),
+              prose(
+                '$\\int \\left(x^{3} + 1\\right)^{2} \\, dx$ has no $x^{2}$ outside the bracket, so substitution leaves an $x^{2}$ stranded and gains nothing; for that one, multiply the bracket out.',
+              ),
+              prose(
+                'Which $u$ to try is the only judgement here, and the worked solutions on every question name it; if the substitution you choose leaves any $x$ behind, it was the wrong one.',
+              ),
+            ),
+            ask('int-substitution-general', 2),
+            ask('int-substitution', 2),
+          ],
+          skillCheck: [
+            ask('int-substitution-general', 2),
+            ask('int-substitution-general+choice', 2),
+            ask('int-substitution-general', 2),
+          ],
+        },
+        {
+          id: 'in-l3-definite-substitution',
+          title: 'Substitution with Limits',
+          slides: [
+            teach(
+              prose(
+                'A definite integral by substitution can be done two ways and one is a trap; the safe way changes the limits along with the variable: once $u$ replaces $x$, the numbers on the integral sign must be $u$-values too.',
+              ),
+              maths('\\int_{0}^{2} 6x\\left(x^{2} + 1\\right)^{2} \\, dx'),
+              prose(
+                'Put $u = x^{2} + 1$, so $\\frac{du}{dx} = 2x$ and $6x \\, dx$ becomes $3 \\, du$; then convert the limits: at $x = 0$, $u = 1$; at $x = 2$, $u = 5$.',
+              ),
+              maths(
+                '\\int_{0}^{2} 6x\\left(x^{2} + 1\\right)^{2} \\, dx = 3\\int_{1}^{5} u^{2} \\, du = \\left[u^{3}\\right]_{1}^{5} = 125 - 1 = 124',
+              ),
+              prose(
+                'No converting back: the limits are now $u$-values and the answer is a number, so $x$ never reappears.',
+              ),
+            ),
+            ask('int-definite-substitution'),
+            ask('int-definite-substitution+choice'),
+            ask('int-definite-substitution'),
+            teach(
+              prose(
+                'The trap is to write the antiderivative in $u$ and then use the $x$ limits on it; the working looks fine and the number is wrong.',
+              ),
+              maths('\\left[u^{3}\\right]_{0}^{2} = 8 \\qquad \\left[u^{3}\\right]_{1}^{5} = 124'),
+              prose(
+                'The first is the error, the second the answer; two habits prevent it: write the new limits on the integral sign the moment $u$ appears, and check that the final bracket is a $u$ bracket with $u$ limits or an $x$ bracket with $x$ limits, never a mixture.',
+              ),
+              prose(
+                'A negative constant inside the bracket changes nothing about the method: $x^{2} - 2$ at $x = 1$ is $-1$, and an odd power of a negative number is negative, so carry the sign through the subtraction.',
+              ),
+            ),
+            ask('int-definite-substitution', 2),
+            ask('int-definite-steps', 2),
+            ask('int-definite-substitution+choice', 2),
+            teach(
+              prose(
+                'Converting back is still allowed: leave the limits as $x$-values, write the antiderivative in terms of $x$, and substitute those; it is the same arithmetic in a different order.',
+              ),
+              maths('\\left[\\left(x^{2} + 1\\right)^{3}\\right]_{0}^{2} = 125 - 1 = 124'),
+              prose(
+                'Both routes must give the same number, which makes the pair a useful check when there is time; but do one or the other, because changing the variable without changing the limits is the error, and it is the one to watch for.',
+              ),
+            ),
+            ask('int-definite-substitution', 2),
+            ask('int-substitution', 2),
+          ],
+          skillCheck: [
+            ask('int-definite-substitution', 2),
+            ask('int-definite-substitution+choice', 2),
+            ask('int-definite-substitution', 2),
+          ],
+        },
+        {
           id: 'in-l3-parts',
           title: 'Integration by Parts',
           slides: [
@@ -812,20 +984,79 @@ export const integration: Course = {
           ],
           skillCheck: [ask('int-by-parts', 2), ask('int-by-parts', 2), ask('int-by-parts', 2)],
         },
+        {
+          id: 'in-l3-parts-log',
+          title: 'By Parts with a Logarithm',
+          slides: [
+            teach(
+              prose(
+                'The last lesson said the polynomial is always $u$; that rule has one famous exception, the logarithm: $\\ln x$ has no standard integral to be $\\frac{dv}{dx}$, but its derivative $\\frac{1}{x}$ is about as simple as a function gets.',
+              ),
+              maths('u = \\ln x \\quad \\frac{dv}{dx} = x \\quad \\frac{du}{dx} = \\frac{1}{x} \\quad v = \\frac{x^{2}}{2}'),
+              prose(
+                'So for $\\int x\\ln x \\, dx$ the logarithm is $u$ and the power of $x$ is the part to integrate, the opposite of the choice for $xe^{2x}$.',
+              ),
+              maths(
+                '\\int x\\ln x \\, dx = \\frac{x^{2}}{2}\\ln x - \\int \\frac{x^{2}}{2} \\times \\frac{1}{x} \\, dx = \\frac{x^{2}}{2}\\ln x - \\frac{x^{2}}{4} + C',
+              ),
+              prose(
+                'The $\\frac{1}{x}$ from differentiating the logarithm cancels a power of $x$ in the second integral, which is what makes it easy; every question here works the same way.',
+              ),
+            ),
+            ask('int-parts-log'),
+            ask('int-parts-log+choice'),
+            ask('int-parts-log'),
+            teach(
+              prose(
+                'A higher power changes only the numbers: with $x^{n}$, $v$ is $\\frac{x^{n+1}}{n+1}$, and the second integral is $\\frac{1}{n+1}\\int x^{n} \\, dx$, which is $\\frac{x^{n+1}}{(n+1)^{2}}$.',
+              ),
+              maths('\\int x^{2}\\ln x \\, dx = \\frac{x^{3}}{3}\\ln x - \\frac{x^{3}}{9} + C'),
+              prose(
+                'The denominator of the second term is the square of the first: $3$ and $9$, $4$ and $16$; writing $\\frac{x^{3}}{3}$ for both is the common slip, and differentiating the answer catches it, because the $\\ln x$ terms cancel only when the second denominator is the square.',
+              ),
+              maths('\\int \\ln x \\, dx = x\\ln x - \\int x \\times \\frac{1}{x} \\, dx = x\\ln x - x + C'),
+              prose(
+                'Even $\\ln x$ on its own goes by parts, with the trick of taking $\\frac{dv}{dx} = 1$; nothing else integrates $\\ln x$, and the result is worth remembering as a standard one.',
+              ),
+            ),
+            ask('int-parts-log', 2),
+            ask('int-by-parts', 2),
+            ask('int-parts-log+choice', 2),
+            teach(
+              prose(
+                'Differentiate $x\\ln x - x$ to see that it works: the product rule gives $\\ln x + 1$, and the $-x$ takes the $1$ away.',
+              ),
+              prose(
+                'So the choice of $u$ has two rules, not one: a polynomial is $u$ against an exponential or a trigonometric function; a logarithm is $u$ against anything; both say the same thing, choose the factor that differentiates into something simpler.',
+              ),
+              prose('These questions are only posed for $x > 0$, where $\\ln x$ is defined.'),
+            ),
+            ask('int-parts-log', 2),
+            ask('int-choose-method', 2),
+          ],
+          skillCheck: [
+            ask('int-parts-log', 2),
+            ask('int-parts-log+choice', 2),
+            ask('int-parts-log', 2),
+          ],
+        },
       ],
       levelCheck: [
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
+        ask('int-definite-substitution', 2),
+        ask('int-substitution-general', 2),
+        ask('int-parts-log', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
+        ask('int-definite-substitution', 2),
+        ask('int-substitution-general', 2),
+        ask('int-parts-log', 2),
         ask('int-linear-bracket', 2),
-        ask('int-substitution', 2),
-        ask('int-by-parts', 2),
-        ask('int-linear-bracket', 2),
-        ask('int-substitution', 2),
-        ask('int-by-parts', 2),
+        ask('int-definite-substitution', 2),
+        ask('int-substitution-general', 2),
       ],
     },
   ],

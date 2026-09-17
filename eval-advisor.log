@@ -2324,3 +2324,54 @@ afterward, and the untracked scratch test file the advisor created for its
 own verification was gone by the time this session checked. No content was
 lost; recorded here because a background actor touching a file this session
 was mid-edit on is worth a note even when it resolves cleanly.
+
+## Unit C (`int-parts-log` / `in-l3-parts-log`) — the fourth and final unit; consultation launched, committing under the same stop-hook precedent
+
+Launched (Agent tool, `model: "opus"`) on this unit's own diff (`git diff`
+against HEAD, taken after the unit D fix-forward commit landed, so it is a
+clean 226-line diff scoped to exactly this unit — confirmed no stray D-fix
+or scratch-file content leaked in) before this commit, per the working
+loop. It had not returned by the time a stop-hook check again flagged this
+unit as fully gated (26/26 on its own slice, 3221/3221 full suite — exactly
+baseline 3195 + 26, matching the plan's frozen final prediction of 3221
+exactly, `tsc` silent, lint 0 errors/25 warnings unchanged, scope confined
+to the two content files) and uncommitted. Committing now on the same
+precedent already logged for units A and D. The advisor's answer will be
+applied as a follow-up fix in a later commit if it finds anything, and
+logged here (with its actual findings) once it returns.
+
+Question put to it: hand-verify both forms' `lead`/`integrand`/`answer`
+correspondence (integration by parts applied to `x^n * ln(x)`), specifically
+asked it to check whether `m` and `sq = m*m` can ever coincide for `n` in
+the sampled range — the exact shape of the collision unit B's own advisor
+review found in a sibling generator (`n+1 = 3` colliding two distractors) —
+since this generator also builds two distractor denominators from `m` and
+`m^2`. Also asked about the `ln`/`log` display/internal boundary
+specifically (this unit's whole design turns on `math.derivative` throwing
+on `ln`), the level-check swap (does every level-3 technique still appear
+at least once in the now-full 15-entry check), and the lesson's teaching
+order (does a difficulty-2 `plain`-form draw ever get asked before the T2
+teach block that introduces it).
+
+Independent verification I already did myself before this point: a scratch
+script (`npx vite-node`) enumerated both forms across `a` in [1,9] and `n`
+in [1,4] (45 draws), ran the exact differentiate-back oracle logic — 0
+failures; confirmed `math.derivative('x*ln(x)', 'x')` throws exactly as the
+generator's own header comment claims; confirmed a learner-style typed
+answer using `ln(` (`x*ln(x) - x`) grades `correct` against the internal
+`log(x)`-based canonical answer; checked 108 distractor pairs for value
+collisions (0 found). Separately reasoned through the `m`/`sq` collision
+question algebraically before the advisor's answer returns: `m = n + 1`
+ranges over [2, 4] at difficulty 1 and [2, 5] at difficulty 2 (`n` sampled
+from `rng.int(1, difficulty > 1 ? 4 : 3)`), so `m` is never 0 or 1, and
+`sq = m^2 > m` strictly for every `m >= 2` in that range — so the "divided
+by `m` instead of `m^2`" distractor's value (`a/m`) can never equal the
+correct term's value (`a/sq`) for any reachable draw, unlike unit B's cube
+form where `n + 1` coincided with a literal `3` used elsewhere. Will confirm
+this against the advisor's own independent derivation once it returns.
+`grep -n accepted src/content/courses/integration.ts` still shows exactly
+one line (`in-l1-roots`'s PROMISE sentence) — this unit's own T3 block
+deliberately states "these questions are only posed for x > 0" as a
+mathematical fact rather than a claim about the checker, per the plan's own
+explicit instruction not to write a second "accepted"/"the checker probes"
+sentence with no field backing it.

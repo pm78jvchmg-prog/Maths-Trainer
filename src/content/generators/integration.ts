@@ -12,6 +12,9 @@
  *   `ln|x| + iπ` for `ln(x)`. A learner writing the better answer, `ln|x|`,
  *   would then disagree with ours at half the sample points and be marked
  *   wrong. It is taught on the slides and asked as a choice question instead.
+ *   `int-parts-log` puts `ln x` into a typed answer, under `domain: 'positive'`,
+ *   where the concern does not arise: the question is only posed for x > 0 and
+ *   the probe never leaves it.
  *
  * - Definite integrals stay polynomial. Their answers are numbers, and the
  *   whole-number results come from choosing the coefficient as a multiple of
@@ -1755,6 +1758,121 @@ const rootPower: Generator<RootPowerParams> = {
   },
 };
 
+interface PartsLogParams {
+  form: 'power' | 'plain';
+  a: number;
+  n: number;
+}
+
+/**
+ * Integration by parts with a logarithm as u, the exception to "the
+ * polynomial is always u" — including x^0 * ln x, where dv/dx = 1.
+ *
+ * `answer`/`integrand` use `log(x)` rather than `ln(x)`: `math.derivative`
+ * throws on the `ln` alias (it exists only for evaluation), while the
+ * learner still types `ln(` from the keypad, which grades correct against
+ * `log` through the same alias.
+ */
+const partsLog: Generator<PartsLogParams> = {
+  id: 'int-parts-log',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.chance(0.3)) return { form: 'plain' as const, a: rng.int(1, 9), n: 0 };
+    return {
+      form: 'power' as const,
+      a: rng.int(1, difficulty > 1 ? 9 : 12),
+      n: rng.int(1, difficulty > 1 ? 4 : 3),
+    };
+  },
+  choices: ({ form, a, n }) => {
+    if (form === 'power') {
+      const m = n + 1;
+      const sq = m * m;
+      const first = `${fracTermTex(a, m, m)}\\ln x`;
+      return options(
+        {
+          tex: `${first} - ${fracTermTex(a, sq, m)} + C`,
+          answer: `((${a})/(${m})) * x^(${m}) * log(x) - ((${a})/(${sq})) * x^(${m})`,
+        },
+        // Sign flipped on the second term.
+        {
+          tex: `${first} + ${fracTermTex(a, sq, m)} + C`,
+          answer: `((${a})/(${m})) * x^(${m}) * log(x) + ((${a})/(${sq})) * x^(${m})`,
+        },
+        // uv only.
+        { tex: `${first} + C`, answer: `((${a})/(${m})) * x^(${m}) * log(x)` },
+        // Second term divided by m rather than m^2.
+        {
+          tex: `${first} - ${fracTermTex(a, m, m)} + C`,
+          answer: `((${a})/(${m})) * x^(${m}) * log(x) - ((${a})/(${m})) * x^(${m})`,
+        },
+      );
+    }
+    return options(
+      { tex: `${termTex(a, 1)}\\ln x - ${termTex(a, 1)} + C`, answer: `(${a}) * x * log(x) - (${a}) * x` },
+      // Plus instead of minus.
+      { tex: `${termTex(a, 1)}\\ln x + ${termTex(a, 1)} + C`, answer: `(${a}) * x * log(x) + (${a}) * x` },
+      // uv only.
+      { tex: `${termTex(a, 1)}\\ln x + C`, answer: `(${a}) * x * log(x)` },
+      // Differentiated instead of integrated.
+      { tex: `\\frac{${a}}{x} + C`, answer: `(${a})/x` },
+    );
+  },
+  render: ({ form, a, n }) => {
+    if (form === 'plain') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: 'Integrate by parts, for $x > 0$.' }],
+        lead: `${integralTex(`${a === 1 ? '' : a}\\ln x`)} =`,
+        keypad: EXP_INTEGRAL_KEYS,
+        answer: `(${a}) * x * log(x) - (${a}) * x`,
+        integrand: `(${a}) * log(x)`,
+        domain: 'positive',
+        mode: 'upToConstant',
+      };
+    }
+    const m = n + 1;
+    const square = m * m;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Integrate by parts, for $x > 0$.' }],
+      lead: `${integralTex(`${termTex(a, n)}\\ln x`)} =`,
+      keypad: EXP_INTEGRAL_KEYS,
+      answer: `((${a})/(${m})) * x^(${m}) * log(x) - ((${a})/(${square})) * x^(${m})`,
+      integrand: `(${a}) * x^(${n}) * log(x)`,
+      domain: 'positive',
+      mode: 'upToConstant',
+    };
+  },
+  solution: ({ form, a, n }) => {
+    if (form === 'plain') {
+      return [
+        {
+          text: `The logarithm is $u$: it has no standard integral to be $\\frac{dv}{dx}$, and its derivative $\\frac{1}{x}$ is as simple as a function gets. So $u = \\ln x$ and $\\frac{dv}{dx} = ${a === 1 ? '1' : `${a}`}$.`,
+        },
+        { tex: `u = \\ln x \\quad v = ${termTex(a, 1)} \\quad \\frac{du}{dx} = \\frac{1}{x}` },
+        { tex: `${termTex(a, 1)}\\ln x - \\int ${a} \\, dx` },
+        { tex: `= ${termTex(a, 1)}\\ln x - ${termTex(a, 1)} + C` },
+        {
+          text: 'Taking $\\frac{dv}{dx} = 1$ looks like cheating and is not: $v = x$, and the $x$ cancels the $\\frac{1}{x}$ from the logarithm, leaving an integral of a constant.',
+        },
+      ];
+    }
+    const m = n + 1;
+    const sq = m * m;
+    return [
+      {
+        text: `The logarithm is $u$: it has no standard integral to be $\\frac{dv}{dx}$, and its derivative $\\frac{1}{x}$ is as simple as a function gets. So $u = \\ln x$ and $\\frac{dv}{dx} = ${termTex(a, n)}$.`,
+      },
+      { tex: `u = \\ln x \\quad v = ${fracTermTex(a, m, m)} \\quad \\frac{du}{dx} = \\frac{1}{x}` },
+      { tex: `${fracTermTex(a, m, m)}\\ln x - \\int ${fracTermTex(a, m, n)} \\, dx` },
+      { tex: `= ${fracTermTex(a, m, m)}\\ln x - ${fracTermTex(a, sq, m)} + C` },
+      {
+        text: `The denominator of the second term is the square of the first, $${m}$ and $${sq}$. Writing $${m}$ for both is the common slip, and differentiating the answer catches it: the $\\ln x$ terms only cancel when the second denominator is the square.`,
+      },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -1774,4 +1892,5 @@ export const integrationGenerators = [
   definiteSubstitution,
   substitutionGeneral,
   rootPower,
+  partsLog,
 ] as unknown as Generator<unknown>[];

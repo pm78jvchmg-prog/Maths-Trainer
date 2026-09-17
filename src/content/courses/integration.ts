@@ -984,6 +984,62 @@ export const integration: Course = {
           ],
           skillCheck: [ask('int-by-parts', 2), ask('int-by-parts', 2), ask('int-by-parts', 2)],
         },
+        {
+          id: 'in-l3-parts-log',
+          title: 'By Parts with a Logarithm',
+          slides: [
+            teach(
+              prose(
+                'The last lesson said the polynomial is always $u$; that rule has one famous exception, the logarithm: $\\ln x$ has no standard integral to be $\\frac{dv}{dx}$, but its derivative $\\frac{1}{x}$ is about as simple as a function gets.',
+              ),
+              maths('u = \\ln x \\quad \\frac{dv}{dx} = x \\quad \\frac{du}{dx} = \\frac{1}{x} \\quad v = \\frac{x^{2}}{2}'),
+              prose(
+                'So for $\\int x\\ln x \\, dx$ the logarithm is $u$ and the power of $x$ is the part to integrate, the opposite of the choice for $xe^{2x}$.',
+              ),
+              maths(
+                '\\int x\\ln x \\, dx = \\frac{x^{2}}{2}\\ln x - \\int \\frac{x^{2}}{2} \\times \\frac{1}{x} \\, dx = \\frac{x^{2}}{2}\\ln x - \\frac{x^{2}}{4} + C',
+              ),
+              prose(
+                'The $\\frac{1}{x}$ from differentiating the logarithm cancels a power of $x$ in the second integral, which is what makes it easy; every question here works the same way.',
+              ),
+            ),
+            ask('int-parts-log'),
+            ask('int-parts-log+choice'),
+            ask('int-parts-log'),
+            teach(
+              prose(
+                'A higher power changes only the numbers: with $x^{n}$, $v$ is $\\frac{x^{n+1}}{n+1}$, and the second integral is $\\frac{1}{n+1}\\int x^{n} \\, dx$, which is $\\frac{x^{n+1}}{(n+1)^{2}}$.',
+              ),
+              maths('\\int x^{2}\\ln x \\, dx = \\frac{x^{3}}{3}\\ln x - \\frac{x^{3}}{9} + C'),
+              prose(
+                'The denominator of the second term is the square of the first: $3$ and $9$, $4$ and $16$; writing $\\frac{x^{3}}{3}$ for both is the common slip, and differentiating the answer catches it, because the $\\ln x$ terms cancel only when the second denominator is the square.',
+              ),
+              maths('\\int \\ln x \\, dx = x\\ln x - \\int x \\times \\frac{1}{x} \\, dx = x\\ln x - x + C'),
+              prose(
+                'Even $\\ln x$ on its own goes by parts, with the trick of taking $\\frac{dv}{dx} = 1$; nothing else integrates $\\ln x$, and the result is worth remembering as a standard one.',
+              ),
+            ),
+            ask('int-parts-log', 2),
+            ask('int-by-parts', 2),
+            ask('int-parts-log+choice', 2),
+            teach(
+              prose(
+                'Differentiate $x\\ln x - x$ to see that it works: the product rule gives $\\ln x + 1$, and the $-x$ takes the $1$ away.',
+              ),
+              prose(
+                'So the choice of $u$ has two rules, not one: a polynomial is $u$ against an exponential or a trigonometric function; a logarithm is $u$ against anything; both say the same thing, choose the factor that differentiates into something simpler.',
+              ),
+              prose('These questions are only posed for $x > 0$, where $\\ln x$ is defined.'),
+            ),
+            ask('int-parts-log', 2),
+            ask('int-choose-method', 2),
+          ],
+          skillCheck: [
+            ask('int-parts-log', 2),
+            ask('int-parts-log+choice', 2),
+            ask('int-parts-log', 2),
+          ],
+        },
       ],
       levelCheck: [
         ask('int-linear-bracket', 2),
@@ -991,14 +1047,14 @@ export const integration: Course = {
         ask('int-by-parts', 2),
         ask('int-definite-substitution', 2),
         ask('int-substitution-general', 2),
+        ask('int-parts-log', 2),
         ask('int-linear-bracket', 2),
         ask('int-substitution', 2),
         ask('int-by-parts', 2),
         ask('int-definite-substitution', 2),
         ask('int-substitution-general', 2),
+        ask('int-parts-log', 2),
         ask('int-linear-bracket', 2),
-        ask('int-substitution', 2),
-        ask('int-by-parts', 2),
         ask('int-definite-substitution', 2),
         ask('int-substitution-general', 2),
       ],

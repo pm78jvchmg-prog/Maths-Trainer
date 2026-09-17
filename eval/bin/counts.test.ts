@@ -1,3 +1,8 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   parseCountsBlock,
@@ -7,8 +12,38 @@ import {
   reconcile,
   verdict,
   formatResult,
+  scriptArgs,
   type Facts,
 } from './countsCore';
+import { loadFacts } from './countsTree';
+
+const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
+const PLANS_DIR = join(REPO_ROOT, 'eval', 'plans');
+const FIXTURES_DIR = join(REPO_ROOT, 'eval', 'bin', 'fixtures', 'counts');
+const COUNTS_SH = join(REPO_ROOT, 'eval', 'bin', 'counts.sh');
+const SUITE_LOG_GREEN = 'Tests  3086 passed (3086)\n';
+
+function readFixture(name: string): string {
+  return readFileSync(join(FIXTURES_DIR, name), 'utf8');
+}
+
+function readPlan(name: string): string {
+  return readFileSync(join(PLANS_DIR, name), 'utf8');
+}
+
+function loadSnapshot(): Facts {
+  return JSON.parse(readFixture('tree-snapshot.json')) as Facts;
+}
+
+function runCounts(args: string[]): { status: number; stdout: string } {
+  try {
+    const stdout = execFileSync(COUNTS_SH, args, { encoding: 'utf8', timeout: 60_000 });
+    return { status: 0, stdout };
+  } catch (err) {
+    const e = err as { status: number | null; stdout: string };
+    return { status: e.status ?? -1, stdout: e.stdout };
+  }
+}
 
 const FACTS: Facts = {
   courses: {
@@ -257,4 +292,181 @@ describe('counts: parsing and reconciliation', () => {
     const result2 = reconcile(onlyGrandTotal.claims, facts2, 3);
     expect(result2.lines.some((l) => l.includes('MISMATCH'))).toBe(false);
   });
+
+  it('splits process.argv at the vite-node binary under both observed layouts', () => {
+    // TASK5-PLAN.md section 8 item 5's claimed layout: no node entry.
+    expect(scriptArgs(['/root/.npm/_npx/x/node_modules/.bin/vite-node', 'alpha', '--suite-log', 'x.txt', '2'])).toEqual([
+      'alpha',
+      '--suite-log',
+      'x.txt',
+      '2',
+    ]);
+    // This container's actual layout: node entry first.
+    expect(scriptArgs(['/opt/node22/bin/node', '/root/.npm/_npx/x/node_modules/.bin/vite-node', 'alpha', '--x', 'y'])).toEqual([
+      'alpha',
+      '--x',
+      'y',
+    ]);
+    // Neither layout found (e.g. plain node): falls back to slice(2) rather than misreading a real arg as the binary.
+    expect(scriptArgs(['/opt/node22/bin/node', '/some/script.ts', '--dump-facts'])).toEqual(['--dump-facts']);
+  });
+});
+
+describe('counts: the real plans, the real tree, and the command line', () => {
+  const snapshot = loadSnapshot();
+
+  it('maps every course file to the course it exports', async () => {
+    const { courses, lessonCount } = await import('../../src/content/courses/index');
+    const { registry } = await import('../../src/content/registry');
+    const live = await loadFacts(REPO_ROOT);
+
+    expect(Object.keys(live.courses)).toHaveLength(courses.length);
+    // Two live sources compared against each other, so this cannot rot: the
+    // course index's own lessonCount() must agree with what countsTree counted.
+    const liveLessonsByCourse = Object.values(live.courses)
+      .map((c) => c.lessons)
+      .sort((a, b) => a - b);
+    const indexLessonsByCourse = courses.map((c) => lessonCount(c)).sort((a, b) => a - b);
+    expect(liveLessonsByCourse).toEqual(indexLessonsByCourse);
+
+    const summed = Object.values(live.courses).reduce((sum, c) => sum + c.lessons, 0);
+    expect(summed).toBe(live.totalLessons);
+    expect(live.generators.length).toBe(Object.keys(registry).length);
+  });
+
+  it('reconciles the task 1 plan against the tree', () => {
+    const parsed = parsePlan(readPlan('TASK1-PLAN.md'));
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.claims).toHaveLength(3);
+    const result = reconcile(parsed.claims, snapshot);
+    expect(result.status).toBe('ok');
+  });
+
+  it('reconciles the task 2 plan against the tree', () => {
+    const parsed = parsePlan(readPlan('TASK2-PLAN.md'));
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.claims).toHaveLength(3);
+    const result = reconcile(parsed.claims, snapshot);
+    expect(result.status).toBe('ok');
+  });
+
+  it('reconciles the task 3 plan only through its test count', () => {
+    const parsed = parsePlan(readPlan('TASK3-PLAN.md'));
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.claims).toHaveLength(1);
+    const agree = reconcile(parsed.claims, snapshot, 2995);
+    expect(agree.status).toBe('ok');
+    const disagree = reconcile(parsed.claims, snapshot, 3086);
+    expect(disagree.status).toBe('mismatch');
+    const line = disagree.lines.find((l) => l.includes('MISMATCH'))!;
+    expect(line).toContain('2995');
+    expect(line).toContain('3086');
+  });
+
+  it('reconciles the task 4 plan against the tree', () => {
+    const parsed = parsePlan(readPlan('TASK4-PLAN.md'));
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.claims).toHaveLength(4);
+    const result = reconcile(parsed.claims, snapshot, 3086);
+    expect(result.status).toBe('ok');
+  });
+
+  it('rejects the task 4 summary transcribed as a block', () => {
+    const plan = parsePlan(readPlan('TASK4-PLAN.md'));
+    const report = parseReport(readFixture('task4-summary-block.md'));
+    const claims = [...plan.claims, ...report.claims];
+    const result = reconcile(claims, snapshot, 3086, ['plan', 'report']);
+    expect(result.status).toBe('mismatch');
+    const text = result.lines.join('\n');
+    expect(text).toContain('55');
+    expect(text).toContain('15');
+    expect(text).toContain('3034');
+    expect(text).toContain('3086');
+    expect(text).toContain('44');
+  });
+
+  it('rejects the task 4 summary as prose', () => {
+    const report = parseReport(readFixture('task4-summary-prose.md'));
+    expect(report.notes.join(' ')).toContain('no counts block');
+    const result = reconcile(report.claims, snapshot, 3086, ['report']);
+    expect(result.status).toBe('mismatch');
+    const text = result.lines.join('\n');
+    expect(text).toContain('55');
+    expect(text).toContain('44');
+    expect(text).toContain('3034');
+  });
+
+  it('rejects the generator names the task 1 summary used', () => {
+    const plan = parsePlan(readPlan('TASK1-PLAN.md'));
+    const report = parseReport(readFixture('task1-summary-block.md'));
+    const claims = [...plan.claims, ...report.claims];
+    const result = reconcile(claims, snapshot, undefined, ['plan', 'report']);
+    expect(result.status).toBe('mismatch');
+    const text = result.lines.join('\n');
+    expect(text).toContain('df-reciprocal');
+    expect(text).toContain('df-quotient');
+    expect(text).toContain('df-product');
+  });
+
+  it(
+    'exits non-zero from the command line when there is nothing to check',
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), 'counts-nothing-'));
+      const planPath = join(dir, 'plan.md');
+      const reportPath = join(dir, 'report.md');
+      writeFileSync(planPath, '## 1. Done\n\nEverything shipped, no counts stated.\n');
+      writeFileSync(reportPath, 'Nothing quantitative was said here.\n');
+      const { status, stdout } = runCounts([planPath, reportPath]);
+      expect(status).toBe(2);
+      expect(stdout).toContain('NOTHING TO CHECK');
+    },
+    60_000,
+  );
+
+  it(
+    'exits zero from the command line when plan, report and tree agree',
+    async () => {
+      const live = await loadFacts(REPO_ROOT);
+      const trig = live.courses['src/content/courses/trigonometricFunctions.ts'];
+      const dir = mkdtempSync(join(tmpdir(), 'counts-agree-'));
+      const reportPath = join(dir, 'report.md');
+      const suiteLogPath = join(dir, 'suite.txt');
+      const reportBlock = [
+        '```counts',
+        'course: src/content/courses/trigonometricFunctions.ts',
+        `lessons: ${trig.lessons}`,
+        `lesson-ids: ${trig.lessonIds.join(', ')}`,
+        `level-checks: ${trig.levelChecks.join('/')}`,
+        'generators: trig-period-from-b, trig-related-angle, trig-solve-height, trig-pythagorean',
+        'tests: 3086',
+        '```',
+        '',
+      ].join('\n');
+      writeFileSync(reportPath, reportBlock);
+      writeFileSync(suiteLogPath, SUITE_LOG_GREEN);
+      const { status, stdout } = runCounts([join(PLANS_DIR, 'TASK4-PLAN.md'), reportPath, '--suite-log', suiteLogPath]);
+      expect(status).toBe(0);
+      expect(stdout).toContain('COUNTS AGREE');
+      expect(stdout).toContain('checked: plan 4 claims, report 5 claims');
+    },
+    60_000,
+  );
+
+  it(
+    'exits one from the command line on a mismatch',
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), 'counts-mismatch-'));
+      const suiteLogPath = join(dir, 'suite.txt');
+      writeFileSync(suiteLogPath, SUITE_LOG_GREEN);
+      const { status, stdout } = runCounts([
+        join(PLANS_DIR, 'TASK4-PLAN.md'),
+        join(FIXTURES_DIR, 'task4-summary-block.md'),
+        '--suite-log',
+        suiteLogPath,
+      ]);
+      expect(status).toBe(1);
+      expect(stdout).toContain('COUNTS DISAGREE');
+    },
+    60_000,
+  );
 });

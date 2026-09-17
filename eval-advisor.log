@@ -1758,3 +1758,66 @@ the `normaliseCourse` absolute-prefix case, `SUITE_GREEN`'s unequal-pair case,
 and the `buildProseLessonUniverse` per-level/total-only membership cases the
 advisor flagged as under-tested. Gates re-run after the fixes before
 committing (see the unit-1 commit message and its gate numbers).
+
+## Task 5 — unit 2 consultation (countsTree.ts, counts.ts, counts.sh, fixtures, retro tests)
+
+Question: full Unit 2 diff pasted (countsTree.ts's loadFacts, counts.ts's
+CLI, counts.sh's wrapper, the three transcription fixtures, and 11 more
+tests reconciling plans 1-4 against a generated tree snapshot plus three
+end-to-end spawn tests of the real binary) — asked whether the CLI actually
+preserves "nothing outranks mismatch, never silently exit 0" end to end,
+whether countsTree's dynamic-import fact loading has correctness risk,
+whether the hand-rolled argument parser has edge cases, whether the
+`process.argv.slice(2)` fix (found in the unit-2 build: this container's
+`process.argv` under `npx vite-node` is `[node, vite-node-bin,
+...scriptArgs]`, contradicting TASK5-PLAN.md section 8 item 5's claimed
+`[vite-node-bin, ...scriptArgs]`) is actually right or just lucky for this
+container, and whether the three spawn tests exercise the real binary or
+could pass vacuously.
+
+Advisor's self-reported model, quoted verbatim: "**Opus 5 (1M context)** —
+exact model ID `claude-opus-5[1m]`."
+
+Summary of the answer: sound to commit after two must-fix bugs. Verified the
+core precedence property directly against the real `counts.sh` binary across
+all four supplied-document combinations, confirming `nothing` outranks
+`mismatch` end to end. Found (B1, must-fix): `void main()` meant an
+uncaught rejection inside `main` — e.g. a stray non-course file dropped into
+`src/content/courses/` — became an unhandled-rejection exit of 1, which
+`counts.sh`'s own documented contract assigns to "mismatch", making a broken
+tool indistinguishable from disagreeing documents; reproduced live. Found
+(B2, should-fix): `process.exit()` after a large `console.log` can truncate
+piped stdout (measured ~64KB threshold under vite-node), which would silently
+drop the verdict line on a long run through a pipe while the exit code
+survives; fixed by using `process.exitCode` and returning rather than calling
+`process.exit()` after output. Found (B3): confirmed my `slice(2)` finding
+independently (byte-identical argv reproduction), but suggested deriving the
+split from wherever the `vite-node` binary itself sits in argv rather than
+hard-coding either index, since that is the one thing both observed layouts
+agree on — implemented as `scriptArgs()` in countsCore.ts with a unit test
+covering both layouts plus a no-match fallback. Found (B4, minor): a course
+file exporting two course-shaped values would silently pick the first via
+`.find()`; changed to `.filter()` + throw unless exactly one. Also flagged
+(B5, non-blocking follow-up, not applied — out of the plan's stated file
+scope which excludes package.json): `vite-node` isn't a pinned dependency of
+this repo, fetched fresh via npx. Confirmed the three end-to-end spawn tests
+are genuine (not vacuous) with one tightened assertion suggested
+(`.not.toBe('ok')` → `.toBe('mismatch')`, since the claim being tested is
+deterministic). Separately and pointedly: ran counts.sh against its own plan
+with a real suite log and got `COUNTS DISAGREE` — TASK5-PLAN.md's own
+`tests: 3111` block is now stale against the tree's actual 3116 (soon 3117),
+and the plan's stated "25 tests" is now 31 — advised reporting this
+divergence rather than editing the frozen plan to force a green run, since
+that would be exactly the fabrication this task exists to prevent.
+
+Action taken: B1 (main().catch(), proper ERROR + exit 2 on a harness fault
+— verified live against a real stray-file crash before this fix showed a raw
+stack trace at exit 1, after it shows a clean ERROR at exit 2), B2
+(process.exitCode instead of process.exit after output, on both the
+--dump-facts and the main result path), B3 (scriptArgs() in countsCore.ts,
+plus a 3-case unit test), B4 (filter+throw-unless-exactly-one in
+countsTree.ts), and the test tightening were all applied before commit. B5
+is recorded as a follow-up, not applied (package.json is outside this task's
+stated file scope). The plan's own tests: 3111 staleness is carried into the
+unit-3 report rather than silently corrected in the plan file, per the
+advisor's and PREFLIGHT's instruction never to edit a red gate away.

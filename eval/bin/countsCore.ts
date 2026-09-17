@@ -454,3 +454,21 @@ export function formatResult(result: Result): string {
   }
   return lines.join('\n');
 }
+
+/**
+ * Splits `process.argv` at the `vite-node` binary rather than at a fixed
+ * index. Two layouts have been observed for the same `npx vite-node
+ * script.ts args...` invocation: TASK5-PLAN.md section 8 item 5 claims
+ * `[vite-node-bin, ...args]` (args from index 1); this container instead
+ * produces `[node-bin, vite-node-bin, ...args]` (args from index 2) —
+ * reproduced directly rather than taken on the plan's word. The script path
+ * itself never appears in `argv` under either layout, so the one thing both
+ * agree on is "immediately after the vite-node binary entry", which is what
+ * this derives instead of hard-coding either index. Bounded to the first two
+ * entries so a caller-supplied path that happens to contain "vite-node"
+ * can't be mistaken for the binary.
+ */
+export function scriptArgs(argv: string[]): string[] {
+  const i = argv.slice(0, 2).findIndex((a) => /(^|[/\\])vite-node(\.\w+)?$/.test(a));
+  return i === -1 ? argv.slice(2) : argv.slice(i + 1);
+}

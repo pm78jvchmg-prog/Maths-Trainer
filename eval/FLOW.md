@@ -69,6 +69,11 @@ ways this fails, both found by giving a session anchors it then disproved:
   while its advisor columns measure nothing — the only launcher defect so far
   whose natural outcome is not a refusal. Read the previous task's `create_session`
   call out of the transcript and compare the key sets, every time.
+- **Delete the superseded check-in when you relaunch.** `send_later` fires once and
+  then disables itself, but a queued one still arrives naming the session you
+  archived. Task 6's fired for a dead session eight minutes before the live one's
+  did. Harmless read carefully, misleading read quickly — `delete_trigger` on the
+  old id is one call.
 - **The clone is single-branch.** `git branch -r` shows `origin/main` and nothing
   else, so no `week/*` branch is ever visible from inside a task session. A branch
   listing is not an anchor.

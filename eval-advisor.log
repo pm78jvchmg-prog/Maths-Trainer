@@ -1708,3 +1708,53 @@ summary itself says ten (A:4 gate mutations + B/C/D:2 each = 10, plus the one
 expected survivor = 11 total runs) — fixed to "ten"; and the M-A-residual
 entry's diff snippet was a paraphrase under a "verbatim" heading — replaced
 with the actual one-line diff mutate.sh printed.
+
+## Task 5 — unit 1 consultation (countsCore.ts, counts.test.ts, tsconfig.eval.json)
+
+Question: full Unit 1 diff pasted (parseCountsBlock/parsePlan/parseReport/
+parseSuiteLog/reconcile/verdict/formatResult in eval/bin/countsCore.ts, plus
+the 14 unit tests), asked for a verdict on soundness to commit, concrete bugs,
+and whether the `nothing`-outranks-`mismatch` precedence can be defeated —
+given the CLI (Unit 2) was designed to layer a per-supplied-document "nothing"
+check on top of `reconcile`'s own combined-claims check, rather than having
+`reconcile` itself know about per-document emptiness.
+
+Advisor's self-reported model, quoted verbatim: "I am **Claude Opus 5 (1M
+context)**; exact model ID **`claude-opus-5[1m]`**."
+
+Summary of the answer: sound to commit but fix two things first. (1) The
+CLI-side split for per-document "nothing" was the real design flaw — it makes
+`Result.status` a value the CLI can silently override, defeats the literal
+`NOTHING TO CHECK: <document> yielded 0 claims (<why>)` message the plan
+specifies, and weakens M1's intended end-to-end kill (test 23 would exit 2 via
+the CLI's own check even if `verdict` were mutated to always return 'ok').
+Fix: pass a `supplied` list into `reconcile` itself so it computes the
+per-document emptiness and folds it into `status` before returning — `verdict`
+and its verbatim `if (claims.length === 0) return 'nothing'` line are
+untouched. (2) The `prose-lessons` MISMATCH message text itself matched
+`PROSE_LESSONS` (`/\b(\d+) lessons\b/g`), so quoting a red retro run verbatim
+into TASK5-REPORT.md in unit 3 would self-trigger new prose claims and break
+the unit-3 self-run. Also flagged: the `generators` ok-line printed the full
+224-id registry on every claim; an empty `generators:`/`lesson-ids:` value
+parsed as a valid empty-list claim that trivially passes; `sectionOffset`
+computed via `indexOf` rather than exact arithmetic (correct today, fragile);
+a double "ERROR: … ERROR: …" prefix in `formatResult`'s error branch; the
+mismatch count derived by re-scanning lines for the substring "MISMATCH"
+rather than the counter already held in `reconcile`; and several mutation
+blind spots in `buildProseLessonUniverse`, `normaliseCourse` and
+`SUITE_GREEN`'s equality check that the 14-test suite doesn't yet exercise.
+Confirmed the `nothing`-outranks-`mismatch` precedence in `verdict()` itself
+is correct and cannot be defeated from inside `countsCore.ts` — the risk was
+entirely that Unit 2 would become a second authority on it.
+
+Action taken: all five concrete findings applied before commit (reconcile now
+takes `supplied` and computes `empty`/folds it into `status`; prose-lessons
+reason text reworded off the swept phrasing; generators actual value
+summarised instead of dumping the registry; empty `generators`/`lesson-ids`
+values now a parse error; `sectionOffset` computed by exact length arithmetic).
+Also applied the double-ERROR-prefix fix and switched the mismatch count to
+the counter tracked during reconciliation. Extra test assertions added for
+the `normaliseCourse` absolute-prefix case, `SUITE_GREEN`'s unequal-pair case,
+and the `buildProseLessonUniverse` per-level/total-only membership cases the
+advisor flagged as under-tested. Gates re-run after the fixes before
+committing (see the unit-1 commit message and its gate numbers).

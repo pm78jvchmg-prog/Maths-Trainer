@@ -1,0 +1,260 @@
+import { describe, expect, it } from 'vitest';
+import {
+  parseCountsBlock,
+  parsePlan,
+  parseReport,
+  parseSuiteLog,
+  reconcile,
+  verdict,
+  formatResult,
+  type Facts,
+} from './countsCore';
+
+const FACTS: Facts = {
+  courses: {
+    'src/content/courses/x.ts': {
+      id: 'src/content/courses/x.ts',
+      lessons: 3,
+      perLevel: [2, 1],
+      lessonIds: ['x-l1-a', 'x-l1-b', 'x-l2-c'],
+      levelChecks: [12, 0],
+    },
+  },
+  generators: ['g-one', 'g-one+choice'],
+  totalLessons: 3,
+};
+
+describe('counts: parsing and reconciliation', () => {
+  it('parses every block key into claims', () => {
+    const doc = [
+      '```counts',
+      'course: src/content/courses/x.ts',
+      'lessons: 3',
+      'lesson-ids: x-l1-a, x-l1-b, x-l2-c',
+      'level-checks: 12/0',
+      'generators: g-one, g-one+choice',
+      'tests: 3',
+      '```',
+      '',
+    ].join('\n');
+    const result = parseCountsBlock(doc, 'plan');
+    expect(result.error).toBeUndefined();
+    expect(result.found).toBe(true);
+    expect(result.claims).toHaveLength(5);
+    expect(result.claims.every((c) => typeof c.line === 'number')).toBe(true);
+    expect(result.claims.map((c) => c.kind)).toEqual(['lessons', 'lesson-ids', 'level-checks', 'generators', 'tests']);
+  });
+
+  it('rejects an unknown block key', () => {
+    const doc = ['```counts', 'course: src/content/courses/x.ts', 'lesson: 3', '```'].join('\n');
+    const result = parseCountsBlock(doc, 'plan');
+    expect(result.error).toContain('lesson');
+    expect(result.error).toContain('line 3');
+  });
+
+  it('rejects a course claim before any course line', () => {
+    const doc = ['```counts', 'lessons: 3', '```'].join('\n');
+    const result = parseCountsBlock(doc, 'plan');
+    expect(result.error).toBeDefined();
+  });
+
+  it('rejects two counts blocks in one document', () => {
+    const doc = ['```counts', 'tests: 3', '```', '', '```counts', 'tests: 4', '```'].join('\n');
+    const result = parseCountsBlock(doc, 'plan');
+    expect(result.error).toBeDefined();
+    expect(result.found).toBe(true);
+  });
+
+  it('reads the four legacy done-list shapes', () => {
+    const doc = [
+      '## 1. Done',
+      '',
+      '- `src/content/courses/x.ts` has 3 lessons (ids `x-l1-a, x-l1-b, x-l2-c`); level checks are 12/0.',
+      '- `src/content/courses/x.ts` has 3 lessons with ids `x-l1-a, x-l1-b, x-l2-c`; level checks are 12/0.',
+      '- `src/content/courses/x.ts` has 3 lessons; `grep -n "^          id: \'" ` lists `x-l1-a, x-l1-b, x-l2-c`; level checks 12/0.',
+      '- `npm test` 3100 (or 3086 per the stop rule).',
+      '',
+    ].join('\n');
+    const result = parsePlan(doc);
+    expect(result.error).toBeUndefined();
+    const lessonsClaims = result.claims.filter((c) => c.kind === 'lessons');
+    expect(lessonsClaims).toHaveLength(3);
+    expect(lessonsClaims.every((c) => c.value === 3)).toBe(true);
+    const idClaims = result.claims.filter((c) => c.kind === 'lesson-ids');
+    expect(idClaims).toHaveLength(3);
+    for (const claim of idClaims) {
+      expect(claim.value).toEqual(['x-l1-a', 'x-l1-b', 'x-l2-c']);
+    }
+    const testsClaims = result.claims.filter((c) => c.kind === 'tests');
+    expect(testsClaims).toHaveLength(1);
+    expect(testsClaims[0].value).toBe(3100);
+  });
+
+  it('yields nothing for a plan with no done section', () => {
+    const result = parsePlan('# A plan with no heading at all.\n');
+    expect(result.error).toBeUndefined();
+    expect(verdict(result.claims, 0, result.error)).toBe('nothing');
+    expect(result.notes.join(' ')).toContain('## N. Done');
+  });
+
+  it('yields nothing for a done section with no recognisable claim', () => {
+    const result = parsePlan('## 1. Done\n\nEverything shipped.\n');
+    expect(result.error).toBeUndefined();
+    expect(verdict(result.claims, 0, result.error)).toBe('nothing');
+  });
+
+  it('prefers the block over done-section prose', () => {
+    const doc = [
+      '```counts',
+      'course: src/content/courses/x.ts',
+      'lessons: 99',
+      '```',
+      '',
+      '## 1. Done',
+      '',
+      '- `src/content/courses/x.ts` has 3 lessons; level checks are 12/0.',
+      '',
+    ].join('\n');
+    const parsed = parsePlan(doc);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.notes.join(' ')).toContain('Done-section prose ignored');
+    const result = reconcile(parsed.claims, FACTS, 3);
+    expect(result.status).toBe('mismatch');
+    const line = result.lines.find((l) => l.includes('MISMATCH'))!;
+    expect(line).toContain('99');
+    expect(line).toContain('3');
+  });
+
+  it('reports every kind of mismatch with both sides', () => {
+    const doc = [
+      '```counts',
+      'course: src/content/courses/x.ts',
+      'lessons: 4',
+      'lesson-ids: x-l1-b, x-l1-a, x-l2-c',
+      'level-checks: 12/1',
+      'generators: g-two',
+      'tests: 3000',
+      '```',
+    ].join('\n');
+    const parsed = parsePlan(doc);
+    const result = reconcile(parsed.claims, FACTS, 3100);
+    expect(result.status).toBe('mismatch');
+    const mismatchLines = result.lines.filter((l) => l.includes('MISMATCH'));
+    expect(mismatchLines).toHaveLength(5);
+    expect(mismatchLines.some((l) => l.includes('4') && l.includes('3'))).toBe(true);
+    expect(mismatchLines.some((l) => l.includes('different order'))).toBe(true);
+    expect(mismatchLines.some((l) => l.includes('12/1') && l.includes('12/0'))).toBe(true);
+    expect(mismatchLines.some((l) => l.includes('g-two'))).toBe(true);
+    expect(mismatchLines.some((l) => l.includes('3000') && l.includes('3100'))).toBe(true);
+  });
+
+  it('agrees when every claim matches', () => {
+    const doc = [
+      '```counts',
+      'course: src/content/courses/x.ts',
+      'lessons: 3',
+      '```',
+    ].join('\n');
+    const planParsed = parsePlan(doc);
+    const reportDoc = [
+      '```counts',
+      'course: src/content/courses/x.ts',
+      'lessons: 3',
+      'lesson-ids: x-l1-a, x-l1-b, x-l2-c',
+      'level-checks: 12/0',
+      'generators: g-one',
+      'tests: 3',
+      '```',
+    ].join('\n');
+    const reportParsed = parseReport(reportDoc);
+    const claims = [...planParsed.claims, ...reportParsed.claims];
+    const result = reconcile(claims, FACTS, 3);
+    expect(result.status).toBe('ok');
+    const formatted = formatResult(result);
+    expect(formatted).toContain('checked: plan 1 claims, report 5 claims');
+  });
+
+  it('errors on a tests claim without a suite total', () => {
+    const doc = ['```counts', 'tests: 3', '```'].join('\n');
+    const parsed = parsePlan(doc);
+    const result = reconcile(parsed.claims, FACTS);
+    expect(result.status).toBe('error');
+    expect(result.lines.join(' ')).toContain('--suite-log');
+  });
+
+  it('reads only an all-green suite line', () => {
+    expect(parseSuiteLog('Tests  3086 passed (3086)\n')).toBe(3086);
+    const red = parseSuiteLog('Tests  1 failed | 3085 passed (3086)\n');
+    expect(red).toHaveProperty('error');
+    const neither = parseSuiteLog('nothing useful here\n');
+    expect(neither).toHaveProperty('error');
+  });
+
+  it('sweeps report prose for lesson and test counts', () => {
+    const bad = parseReport('Trigonometric Functions course extended from 11→55 lessons. 4 units (44 lessons) added. All 3034 tests pass.\n');
+    const badResult = reconcile(bad.claims, FACTS, 3086);
+    const badMismatches = badResult.lines.filter((l) => l.includes('MISMATCH'));
+    expect(badMismatches.length).toBeGreaterThanOrEqual(3);
+
+    const good = parseReport('The course has 3 lessons. All 3086 tests pass. 26 passed.\n');
+    const proseLessonClaims = good.claims.filter((c) => c.kind === 'prose-lessons');
+    const proseTestClaims = good.claims.filter((c) => c.kind === 'prose-tests');
+    expect(proseLessonClaims).toHaveLength(1);
+    expect(proseTestClaims).toHaveLength(1);
+    const goodResult = reconcile(good.claims, FACTS, 3086);
+    expect(goodResult.lines.some((l) => l.includes('MISMATCH'))).toBe(false);
+  });
+
+  it('yields nothing for a report with no block and no counted phrases', () => {
+    const result = parseReport('Nothing quantitative was said here.\n');
+    expect(result.error).toBeUndefined();
+    expect(verdict(result.claims, 0, result.error)).toBe('nothing');
+    expect(result.notes.join(' ')).toContain('no counts block');
+  });
+
+  it('treats a supplied-but-empty report as nothing even when the plan has claims', () => {
+    const planDoc = ['```counts', 'course: src/content/courses/x.ts', 'lessons: 3', '```'].join('\n');
+    const planParsed = parsePlan(planDoc);
+    const reportParsed = parseReport('Nothing quantitative was said here.\n');
+    const combined = [...planParsed.claims, ...reportParsed.claims];
+    const result = reconcile(combined, FACTS, 3, ['plan', 'report']);
+    expect(result.status).toBe('nothing');
+    expect(result.empty).toEqual(['report']);
+    // The same combined claims, told only the plan was supplied, must not
+    // read as nothing — the plan's own claims are real.
+    const planOnly = reconcile(planParsed.claims, FACTS, 3, ['plan']);
+    expect(planOnly.status).toBe('ok');
+  });
+
+  it('rejects an empty generators or lesson-ids value rather than treating it as an empty list that trivially agrees', () => {
+    const emptyGenerators = parseCountsBlock(['```counts', 'generators:', '```'].join('\n'), 'plan');
+    expect(emptyGenerators.error).toBeDefined();
+    const emptyIds = parseCountsBlock(['```counts', 'course: src/content/courses/x.ts', 'lesson-ids:', '```'].join('\n'), 'plan');
+    expect(emptyIds.error).toBeDefined();
+  });
+
+  it('normalises an absolute path prefix on a course line', () => {
+    const doc = ['```counts', 'course: /home/user/Maths-Trainer/src/content/courses/x.ts', 'lessons: 3', '```'].join('\n');
+    const parsed = parsePlan(doc);
+    const result = reconcile(parsed.claims, FACTS, 3);
+    expect(result.status).toBe('ok');
+  });
+
+  it('reads only a suite line whose two numbers actually agree', () => {
+    const inconsistent = parseSuiteLog('Tests  3085 passed (3086)\n');
+    expect(inconsistent).toHaveProperty('error');
+  });
+
+  it('checks prose lesson counts against every level total and the grand total, not only the course total', () => {
+    // FACTS: course lessons=3, perLevel=[2,1], totalLessons=3 — "2 lessons"
+    // is valid only via a per-level count, never via the course or grand total.
+    const onlyPerLevel = parseReport('The first level has 2 lessons.\n');
+    const result = reconcile(onlyPerLevel.claims, FACTS, 3);
+    expect(result.lines.some((l) => l.includes('MISMATCH'))).toBe(false);
+
+    const facts2: Facts = { ...FACTS, totalLessons: 9 };
+    const onlyGrandTotal = parseReport('9 lessons across the app so far.\n');
+    const result2 = reconcile(onlyGrandTotal.claims, facts2, 3);
+    expect(result2.lines.some((l) => l.includes('MISMATCH'))).toBe(false);
+  });
+});

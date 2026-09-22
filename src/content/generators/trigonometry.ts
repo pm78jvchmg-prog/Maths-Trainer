@@ -13,10 +13,10 @@
  * of pi for the same reason: "2\\pi/3" is an unpleasant thing to enter and an
  * ambiguous thing to grade.
  */
-import type { Generator, KeypadKey, Slide } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
-import { plotSvg, wave } from '../figures';
+import { markerWindow, plotSvg, wave } from '../figures';
 import { bin, num, trig, valueOf, type Expr } from '../expr';
 
 /** Plain number entry. The base keypad already supplies digits and signs. */
@@ -2217,6 +2217,1144 @@ const matchGraph: Generator<MatchGraphParams> = {
   ],
 };
 
+/* ---------- Level 4: radians ---------- */
+
+/*
+ * Everything above measures angles in degrees. This level changes the unit,
+ * and the answers change shape with it: most of them are now a multiple of pi,
+ * which the learner types with a pi key rather than as a decimal. The checker
+ * compares values, so `5pi/6` and `5*pi/6` and `(5/6)pi` are all the same answer.
+ */
+
+/** Number entry with a pi key. `/` is what puts the fraction key on the pad; the point is already there. */
+const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, { insert: '/' }];
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) [x, y] = [y, x % y];
+  return x;
+}
+
+/** The numerators from `from` to `to` that share no factor with `d`, so n/d is already in lowest terms. */
+function coprimeTo(d: number, from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let n = from; n <= to; n += 1) if (gcd(n, d) === 1) out.push(n);
+  return out;
+}
+
+/** A fraction the learner reads, in lowest terms: `\frac{5}{2}`, `3`, `-\frac{1}{4}`. */
+function ratioTex(n: number, d: number): string {
+  const g = gcd(n, d) || 1;
+  const top = n / g;
+  const bottom = d / g;
+  if (bottom === 1) return `${top}`;
+  return `${top < 0 ? '-' : ''}\\frac{${Math.abs(top)}}{${bottom}}`;
+}
+
+/** n pi / d as the learner reads it, in lowest terms: `\frac{5\pi}{6}`, `\pi`, `-\frac{\pi}{3}`. */
+function piTex(n: number, d: number): string {
+  const g = gcd(n, d) || 1;
+  const top = n / g;
+  const bottom = d / g;
+  if (top === 0) return '0';
+  const size = Math.abs(top);
+  const pi = size === 1 ? '\\pi' : `${size}\\pi`;
+  const sign = top < 0 ? '-' : '';
+  return bottom === 1 ? `${sign}${pi}` : `${sign}\\frac{${pi}}{${bottom}}`;
+}
+
+/** The same angle for mathjs. Never displayed. */
+const piAnswer = (n: number, d: number): string => `${n}*pi/${d}`;
+
+/** A value that is either n/d or n pi / d, carried with both of its writings. */
+interface Measure {
+  n: number;
+  d: number;
+  withPi: boolean;
+}
+
+const measureTex = (m: Measure): string => (m.withPi ? piTex(m.n, m.d) : ratioTex(m.n, m.d));
+const measureAnswer = (m: Measure): string => (m.withPi ? piAnswer(m.n, m.d) : `${m.n}/${m.d}`);
+const measureValue = (m: Measure): number => (m.n / m.d) * (m.withPi ? Math.PI : 1);
+
+/**
+ * Choice options from measures, keeping only distractors whose *value* differs.
+ *
+ * `options` drops a repeated label, but two different labels can still be the
+ * same number — `2\pi` over a radius of 2 is `\pi`, the very slip one distractor
+ * models — and a question with two right answers is the one thing a choice
+ * slide cannot be. So values are compared here, before the labels are.
+ */
+function measureOptions(correct: Measure, ...candidates: Measure[]): ChoiceOption[] {
+  const taken = [measureValue(correct)];
+  const kept: Measure[] = [];
+  for (const candidate of candidates) {
+    if (kept.length === 3) break;
+    const value = measureValue(candidate);
+    if (!Number.isFinite(value) || value <= 0) continue;
+    if (taken.some((other) => Math.abs(other - value) < 1e-9)) continue;
+    taken.push(value);
+    kept.push(candidate);
+  }
+  return options(
+    { tex: measureTex(correct), answer: measureAnswer(correct) },
+    ...kept.map((m) => ({ tex: measureTex(m), answer: measureAnswer(m) })),
+  );
+}
+
+/** The four quarter-turn marks, as the learner reads them. */
+const QUARTER_MARKS = ['0', '\\frac{\\pi}{2}', '\\pi', '\\frac{3\\pi}{2}', '2\\pi'];
+
+interface TurnParams {
+  /** The fraction of a turn is n/d; for the clock form d is 60 and n the minutes. */
+  n: number;
+  d: number;
+  clock: boolean;
+}
+
+const TURN_DENOMINATORS = [2, 3, 4, 5, 6, 8, 10, 12];
+
+/** A fraction of a full turn, in radians: the definition of 2 pi used forwards. */
+const radFromTurn: Generator<TurnParams> = {
+  id: 'trig-rad-from-turn',
+  sample: (rng, difficulty) => {
+    if (rng.chance(0.4)) {
+      // Whole hours are left out: a full turn is the one answer the teaching
+      // slide has already given away.
+      const minutes = rng.pick(
+        Array.from({ length: difficulty > 1 ? 23 : 11 }, (_, i) => 5 * (i + 1)).filter((m) => m !== 60),
+      );
+      return { n: minutes, d: 60, clock: true };
+    }
+    const d = rng.pick(TURN_DENOMINATORS);
+    return { n: rng.pick(coprimeTo(d, 1, difficulty > 1 ? 2 * d - 1 : d - 1)), d, clock: false };
+  },
+  render: ({ n, d, clock }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: clock
+          ? `The minute hand of a clock moves for $${n}$ minutes. Through how many radians does it turn?`
+          : `How many radians is $\\frac{${n}}{${d}}$ of a full turn?`,
+      },
+    ],
+    lead: '\\text{angle} =',
+    keypad: PI_KEYS,
+    answer: piAnswer(2 * n, d),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ n, d }) =>
+    measureOptions(
+      { n: 2 * n, d, withPi: true },
+      // A turn taken as pi rather than 2 pi, then twice too much, then the
+      // answer left in degrees.
+      { n, d, withPi: true },
+      { n: 4 * n, d, withPi: true },
+      { n: 360 * n, d, withPi: false },
+    ),
+  solution: ({ n, d, clock }) => [
+    {
+      text: clock
+        ? `The minute hand goes all the way round in $60$ minutes, so $${n}$ minutes is $\\frac{${n}}{60}$ of a turn.`
+        : `A full turn is $2\\pi$ radians, because $2\\pi$ radii fit round the circumference exactly.`,
+    },
+    { tex: `\\frac{${n}}{${d}} \\times 2\\pi = ${piTex(2 * n, d)}` },
+    {
+      text: `As a check, that is $${ratioTex(360 * n, d)}^{\\circ}$: a quarter of a turn is $\\frac{\\pi}{2}$, half a turn is $\\pi$, and the answer should sit sensibly among those.`,
+    },
+  ],
+};
+
+interface PlaceParams {
+  /** The angle in twelfths of pi. */
+  k: number;
+  fn: 'sin' | 'cos';
+  /** Whether all four quarter-turn marks are drawn, or only pi. */
+  guides: boolean;
+}
+
+/** Twelfths of pi that are not quarter turns, so the angle is never on a drawn mark. */
+const OFF_MARK_TWELFTHS = Array.from({ length: 23 }, (_, i) => i + 1).filter((k) => k % 6 !== 0);
+
+/** A radian angle as a distance along the axis: how big is 2 pi / 3, really? */
+const radPlace: Generator<PlaceParams> = {
+  id: 'trig-rad-place',
+  sample: (rng, difficulty) => ({
+    k: rng.pick(OFF_MARK_TWELFTHS),
+    fn: rng.pick(['sin', 'cos'] as const),
+    guides: difficulty <= 1,
+  }),
+  render: ({ k, fn, guides }): Slide => {
+    const xMax = 6.5;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax,
+      curves: [{ f: fn === 'sin' ? Math.sin : Math.cos }],
+      verticals: (guides ? [1, 2, 3, 4] : [2]).map((q) => ({ x: (q * Math.PI) / 2, dashed: true })),
+      yMin: -1.5,
+      yMax: 1.5,
+      label: `The graph of ${fn} x with x in radians, and dashed lines at quarter turns`,
+    });
+    // To the nearest step, so the answer is reachable by dragging.
+    const answer = Number((Math.round(((k * Math.PI) / 12) * 20) / 20).toFixed(2));
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: guides
+            ? `This is $y = \\${fn}(x)$ with $x$ in radians; the dashed lines mark $\\frac{\\pi}{2}$, $\\pi$, $\\frac{3\\pi}{2}$ and $2\\pi$. Slide to $x = ${piTex(k, 12)}$.`
+            : `This is $y = \\${fn}(x)$ with $x$ in radians; the dashed line marks $\\pi$. Slide to $x = ${piTex(k, 12)}$.`,
+        },
+      ],
+      min: 0,
+      max: xMax,
+      step: 0.05,
+      tolerance: 0.1,
+      answer,
+      readout: 'x = {v}',
+      figure: { svg, ...markerWindow(0, xMax) },
+    };
+  },
+  solution: ({ k }) => [
+    {
+      text: 'A radian angle is an ordinary number once $\\pi$ is replaced by about $3.14$.',
+    },
+    { tex: `${piTex(k, 12)} \\approx ${((k * Math.PI) / 12).toFixed(2)}` },
+    {
+      text: `It lies between $${QUARTER_MARKS[Math.floor(k / 6)]}$ and $${QUARTER_MARKS[Math.floor(k / 6) + 1]}$, which is the quickest way to tell a slip: a whole turn is only about $6.28$.`,
+    },
+  ],
+};
+
+/** Circles in the wild, each with its question about the angle. */
+const ARC_CONTEXTS: { setup: (s: number, r: number) => string; ask: string }[] = [
+  {
+    setup: (s, r) => `An arc of length $${s}$ cm is marked on a circle of radius $${r}$ cm.`,
+    ask: 'What angle does it make at the centre, in radians?',
+  },
+  {
+    setup: (s, r) => `A wheel of radius $${r}$ cm rolls $${s}$ cm along the ground without slipping.`,
+    ask: 'Through what angle has it turned, in radians?',
+  },
+  {
+    setup: (s, r) => `A pendulum $${r}$ cm long swings its bob along an arc $${s}$ cm long.`,
+    ask: 'Through what angle does it swing, in radians?',
+  },
+  {
+    setup: (s, r) => `A bend on a running track is part of a circle of radius $${r}$ m, and the bend is $${s}$ m long.`,
+    ask: 'What angle does the bend turn through, in radians?',
+  },
+];
+
+interface ArcAngleParams {
+  r: number;
+  /** Twice the angle, so half-radian angles stay whole in the parameters. */
+  twice: number;
+  context: number;
+}
+
+/** The definition of a radian, used directly: angle = arc / radius. */
+const radArcAngle: Generator<ArcAngleParams> = {
+  id: 'trig-rad-arc-angle',
+  sample: (rng, difficulty) => {
+    let r = rng.int(2, difficulty > 1 ? 12 : 9);
+    const twice = rng.int(1, difficulty > 1 ? 12 : 8);
+    // An odd radius with a half-radian angle would leave the arc a half; an
+    // even one keeps every length on screen whole.
+    if ((r * twice) % 2 !== 0) r += 1;
+    return { r, twice, context: rng.int(0, ARC_CONTEXTS.length - 1) };
+  },
+  render: ({ r, twice, context }): Slide => {
+    const s = (r * twice) / 2;
+    const { setup, ask } = ARC_CONTEXTS[context];
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${setup(s, r)} ${ask}` }],
+      lead: '\\text{angle} =',
+      keypad: NUMBER_KEYS,
+      answer: `${s}/${r}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: ({ r, twice }) => {
+    const s = (r * twice) / 2;
+    return measureOptions(
+      { n: s, d: r, withPi: false },
+      // Upside down, multiplied instead of divided, and the diameter used.
+      { n: r, d: s, withPi: false },
+      { n: s * r, d: 1, withPi: false },
+      { n: s, d: 2 * r, withPi: false },
+      { n: s + r, d: 1, withPi: false },
+    );
+  },
+  solution: ({ r, twice }) => {
+    const s = (r * twice) / 2;
+    return [
+      {
+        text: 'An angle in radians counts how many radii fit along the arc. So divide the arc by the radius.',
+      },
+      { tex: `\\theta = \\frac{s}{r} = \\frac{${s}}{${r}} = ${ratioTex(s, r)}` },
+      {
+        text: 'The units cancel, which is why a radian has no unit to write: the answer is the same whether the lengths are in centimetres or in miles.',
+      },
+    ];
+  },
+};
+
+interface CompareParams {
+  /** The radian angle is n/d, times pi when `withPi`. */
+  n: number;
+  d: number;
+  withPi: boolean;
+  degrees: number;
+  radFirst: boolean;
+}
+
+/** Which is bigger, an angle in radians or one in degrees? A sense of scale. */
+const radCompare: Generator<CompareParams> = {
+  id: 'trig-rad-compare',
+  sample: (rng, difficulty) => {
+    const withPi = difficulty > 1;
+    const d = withPi ? rng.pick([3, 4, 6, 12]) : 1;
+    const n = withPi ? rng.pick(coprimeTo(d, 1, 2 * d - 1)) : rng.int(1, 6);
+    const exact = withPi ? (180 * n) / d : (180 * n) / Math.PI;
+    // Far enough apart that the question is about scale, not about rounding.
+    const gap = rng.int(6, 40);
+    const below = exact - gap > 4 && rng.chance(0.5);
+    return {
+      n,
+      d,
+      withPi,
+      degrees: Math.round(below ? exact - gap : exact + gap),
+      radFirst: rng.chance(0.5),
+    };
+  },
+  render: ({ n, d, withPi, degrees, radFirst }): Slide => {
+    const exact = withPi ? (180 * n) / d : (180 * n) / Math.PI;
+    const rad = { id: 'rad', label: `${withPi ? piTex(n, d) : n}\\text{ rad}`, tex: true };
+    const deg = { id: 'deg', label: `${degrees}^{\\circ}`, tex: true };
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: 'Which of these two angles is larger?' }],
+      options: radFirst ? [rad, deg] : [deg, rad],
+      correctId: exact > degrees ? 'rad' : 'deg',
+    };
+  },
+  solution: ({ n, d, withPi, degrees }) => {
+    const exact = withPi ? (180 * n) / d : (180 * n) / Math.PI;
+    return [
+      withPi
+        ? { text: 'Half a turn is $\\pi$ radians and also $180^{\\circ}$, so replace $\\pi$ by $180^{\\circ}$.' }
+        : { text: 'One radian is $\\frac{180^{\\circ}}{\\pi}$, a little over $57^{\\circ}$: just under a sixth of a turn.' },
+      withPi
+        ? { tex: `${piTex(n, d)} = ${Math.round(exact)}^{\\circ}` }
+        : { tex: `${n}\\text{ rad} \\approx ${n} \\times 57.3^{\\circ} \\approx ${Math.round(exact)}^{\\circ}` },
+      {
+        text: `So the radian angle is ${exact > degrees ? 'larger' : 'smaller'} than $${degrees}^{\\circ}$. A radian angle usually *looks* small because its number is small; the unit is what is big.`,
+      },
+    ];
+  },
+};
+
+interface FromDegreesParams {
+  degrees: number;
+  wheel: boolean;
+}
+
+/** Degrees to radians: multiply by pi/180 and simplify. */
+const radFromDegrees: Generator<FromDegreesParams> = {
+  id: 'trig-rad-from-degrees',
+  sample: (rng, difficulty) => {
+    const pool =
+      difficulty > 1
+        ? [
+            ...Array.from({ length: 36 }, (_, i) => 10 * (i + 1)),
+            ...Array.from({ length: 20 }, (_, i) => 18 * (i + 1)),
+            ...Array.from({ length: 24 }, (_, i) => 15 * (i + 25)),
+          ]
+        : Array.from({ length: 24 }, (_, i) => 15 * (i + 1));
+    return { degrees: rng.pick(pool), wheel: rng.chance(0.5) };
+  },
+  render: ({ degrees, wheel }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: wheel
+          ? `A wheel turns through $${degrees}^{\\circ}$. How many radians is that?`
+          : `Write $${degrees}^{\\circ}$ in radians, as a multiple of $\\pi$.`,
+      },
+    ],
+    lead: '\\text{angle} =',
+    keypad: PI_KEYS,
+    answer: piAnswer(degrees, 180),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ degrees }) =>
+    measureOptions(
+      { n: degrees, d: 180, withPi: true },
+      // Divided by 360 instead of 180, by 90, and the fraction upside down.
+      { n: degrees, d: 360, withPi: true },
+      { n: degrees, d: 90, withPi: true },
+      { n: 180, d: degrees, withPi: true },
+      { n: degrees, d: 60, withPi: true },
+    ),
+  solution: ({ degrees }) => [
+    { text: 'Half a turn is $180^{\\circ}$ and also $\\pi$ radians, so each degree is $\\frac{\\pi}{180}$ radians.' },
+    { tex: `${degrees}^{\\circ} \\times \\frac{\\pi}{180} = \\frac{${degrees}\\pi}{180} = ${piTex(degrees, 180)}` },
+    {
+      text: 'Cancel the fraction as far as it goes. The simplified form is the one worth recognising, since the same few angles come up again and again.',
+    },
+  ],
+};
+
+interface ToDegreesParams {
+  n: number;
+  d: number;
+  turntable: boolean;
+}
+
+/** Radians to degrees: replace pi by 180 degrees. */
+const radToDegrees: Generator<ToDegreesParams> = {
+  id: 'trig-rad-to-degrees',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const d = rng.pick([3, 4, 5, 6, 9, 10, 18]);
+      return { n: rng.pick(coprimeTo(d, 1, 3 * d)), d, turntable: rng.chance(0.5) };
+    }
+    // Twelfths of pi, reduced: every multiple of 15 degrees up to a full turn.
+    const k = rng.int(1, 24);
+    const g = gcd(k, 12);
+    return { n: k / g, d: 12 / g, turntable: rng.chance(0.5) };
+  },
+  render: ({ n, d, turntable }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: turntable
+          ? `A turntable turns through $${piTex(n, d)}$ radians. How many degrees is that?`
+          : `Write $${piTex(n, d)}$ radians in degrees.`,
+      },
+    ],
+    lead: '\\text{degrees} =',
+    keypad: NUMBER_KEYS,
+    answer: `${(180 * n) / d}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ n, d }) => {
+    const degrees = (180 * n) / d;
+    const correct = { tex: `${degrees}^{\\circ}`, answer: `${degrees}` };
+    const seen = new Set([degrees]);
+    const picked: number[] = [];
+    // Pi taken as 360, as 90, the supplement, and a half turn too far.
+    for (const value of [2 * degrees, degrees / 2, 360 - degrees, degrees + 180]) {
+      if (picked.length === 3) break;
+      if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
+      seen.add(value);
+      picked.push(value);
+    }
+    return options(correct, ...picked.map((value) => ({ tex: `${value}^{\\circ}`, answer: `${value}` })));
+  },
+  solution: ({ n, d }) => [
+    { text: 'Radians to degrees runs the other way: $\\pi$ radians is $180^{\\circ}$, so put $180^{\\circ}$ where the $\\pi$ was.' },
+    {
+      tex:
+        d === 1
+          ? `${piTex(n, d)} = ${n} \\times 180^{\\circ} = ${(180 * n) / d}^{\\circ}`
+          : n === 1
+            ? `${piTex(n, d)} = \\frac{180^{\\circ}}{${d}} = ${180 / d}^{\\circ}`
+            : `${piTex(n, d)} = \\frac{${n} \\times 180^{\\circ}}{${d}} = ${(180 * n) / d}^{\\circ}`,
+    },
+    n === 1
+      ? { text: `A single $\\pi$ over $${d}$ is simply $180^{\\circ}$ shared ${d} ways.` }
+      : {
+          text: `Divide first where you can: $180^{\\circ} \\div ${d} = ${180 / d}^{\\circ}$ is what $${piTex(1, d)}$ is worth, and the angle is $${n}$ of those.`,
+        },
+  ],
+};
+
+interface ConvertTilesParams {
+  /** The angle is k pi / d. */
+  k: number;
+  d: number;
+  toRadians: boolean;
+}
+
+/** Choosing the conversion factor, then its result: the two decisions in one line. */
+const radConvertTiles: Generator<ConvertTilesParams> = {
+  id: 'trig-rad-convert-tiles',
+  sample: (rng, difficulty) => {
+    const d = difficulty > 1 ? rng.pick([5, 9, 10, 12, 18]) : 12;
+    return { k: rng.int(1, 2 * d), d, toRadians: rng.chance(0.5) };
+  },
+  render: ({ k, d, toRadians }): Slide => {
+    const degrees = (180 * k) / d;
+    const toRad = '\\frac{\\pi}{180}';
+    const toDeg = '\\frac{180}{\\pi}';
+    if (toRadians) {
+      const bank = [...new Set([toRad, toDeg, piTex(k, d), piTex(k, 2 * d), piTex(2 * k, d)])];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Convert $\\theta = ${degrees}^{\\circ}$ to radians: place what to multiply by, then what it comes to.`,
+          },
+        ],
+        // The angle itself stays in the prompt: a template is split on {n}
+        // markers, and the fraction's own braces would be taken for blanks.
+        template: '\\theta \\times {0} = {1}',
+        bank,
+        answer: [toRad, piTex(k, d)],
+      };
+    }
+    const results = [degrees, 2 * degrees, degrees % 2 === 0 ? degrees / 2 : degrees + 180];
+    const bank = [...new Set([toRad, toDeg, ...results.map((value) => `${value}^{\\circ}`)])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Convert $\\theta = ${piTex(k, d)}$ to degrees: place what to multiply by, then what it comes to.`,
+        },
+      ],
+      template: '\\theta \\times {0} = {1}',
+      bank,
+      answer: [toDeg, `${degrees}^{\\circ}`],
+    };
+  },
+  solution: ({ k, d, toRadians }) => {
+    const degrees = (180 * k) / d;
+    return [
+      {
+        text: 'Both factors come from one fact, $180^{\\circ} = \\pi$. Pick the one that cancels the unit you start with.',
+      },
+      toRadians
+        ? { tex: `${degrees}^{\\circ} \\times \\frac{\\pi}{180} = ${piTex(k, d)}` }
+        : { tex: `${piTex(k, d)} \\times \\frac{180}{\\pi} = ${degrees}^{\\circ}` },
+      {
+        text: toRadians
+          ? 'Going to radians the number should shrink, and a $\\pi$ appears; if it grew, the factor is upside down.'
+          : 'Going to degrees the $\\pi$ cancels and the number grows; if a $\\pi$ is left over, the factor is upside down.',
+      },
+    ];
+  },
+};
+
+interface UnitTreeParams {
+  k: number;
+  d: number;
+}
+
+/** What pi/d is worth, then k of them: radians to degrees without a formula. */
+const radUnitTree: Generator<UnitTreeParams> = {
+  id: 'trig-rad-unit-tree',
+  sample: (rng, difficulty) => {
+    const d = difficulty > 1 ? rng.pick([5, 9, 10, 12, 18, 20]) : rng.pick([3, 4, 5, 6, 9, 12]);
+    return { k: rng.pick(coprimeTo(d, 2, difficulty > 1 ? 3 * d : 2 * d - 1)), d };
+  },
+  render: ({ k, d }): Slide => {
+    const unit = 180 / d;
+    const total = unit * k;
+    const answer = [`${unit}`, `${total}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Fill the top box with $\\frac{\\pi}{${d}}$ in degrees, then build up to the whole angle underneath.`,
+        },
+      ],
+      expression: `\\theta = ${piTex(k, d)}`,
+      nodes: [
+        { id: 'unit', from: [] },
+        { id: 'angle', from: ['unit'] },
+      ],
+      bank: bankAround(
+        answer,
+        // One step of pi/d too many or too few, and pi/d taken as twice its size.
+        [2 * unit, total + unit, total - unit, 2 * total].filter((value) => Number.isInteger(value)),
+      ),
+      answer,
+    };
+  },
+  solution: ({ k, d }) => [
+    { text: `Half a turn, $\\pi$, is $180^{\\circ}$, so $\\frac{\\pi}{${d}}$ is $180^{\\circ}$ shared ${d} ways.` },
+    { tex: `\\frac{\\pi}{${d}} = \\frac{180^{\\circ}}{${d}} = ${180 / d}^{\\circ}` },
+    { tex: `${piTex(k, d)} = ${k} \\times ${180 / d}^{\\circ} = ${(180 * k) / d}^{\\circ}` },
+  ],
+};
+
+/** The exact values a special angle can have, smallest first. */
+const EXACT_VALUES: { value: number; tex: string }[] = [
+  { value: -1, tex: '-1' },
+  { value: -Math.sqrt(3) / 2, tex: '-\\frac{\\sqrt{3}}{2}' },
+  { value: -Math.SQRT2 / 2, tex: '-\\frac{\\sqrt{2}}{2}' },
+  { value: -0.5, tex: '-\\frac{1}{2}' },
+  { value: 0, tex: '0' },
+  { value: 0.5, tex: '\\frac{1}{2}' },
+  { value: Math.SQRT2 / 2, tex: '\\frac{\\sqrt{2}}{2}' },
+  { value: Math.sqrt(3) / 2, tex: '\\frac{\\sqrt{3}}{2}' },
+  { value: 1, tex: '1' },
+];
+
+/** The table row for the sine or cosine of k pi / 12. */
+function exactAt(fn: 'sin' | 'cos', k: number): { value: number; tex: string } {
+  const x = (k * Math.PI) / 12;
+  const raw = fn === 'sin' ? Math.sin(x) : Math.cos(x);
+  const row = EXACT_VALUES.find((entry) => Math.abs(entry.value - raw) < 1e-9);
+  if (!row) throw new Error(`${fn}(${k}pi/12) is not a special value`);
+  return row;
+}
+
+/** Twelfths of pi on the special-angle grid (multiples of pi/6 and pi/4), zero left out. */
+const SPECIAL_TWELFTHS = Array.from({ length: 23 }, (_, i) => i + 1).filter((k) => k % 2 === 0 || k % 3 === 0);
+
+/** The slips worth offering for an exact value: the sign, and the other function. */
+function exactDistractors(fn: 'sin' | 'cos', k: number, count: number): { value: number; tex: string }[] {
+  const right = exactAt(fn, k);
+  const other = exactAt(fn === 'sin' ? 'cos' : 'sin', k);
+  const flipped = EXACT_VALUES.find((entry) => Math.abs(entry.value + right.value) < 1e-9)!;
+  const nearest = [...EXACT_VALUES].sort(
+    (a, b) => Math.abs(a.value - right.value) - Math.abs(b.value - right.value),
+  );
+  const out: { value: number; tex: string }[] = [];
+  for (const candidate of [flipped, other, ...nearest]) {
+    if (out.length === count) break;
+    if (candidate.tex === right.tex || out.some((entry) => entry.tex === candidate.tex)) continue;
+    out.push(candidate);
+  }
+  return out;
+}
+
+interface ExactParams {
+  fn: 'sin' | 'cos';
+  /** The angle in twelfths of pi. */
+  k: number;
+}
+
+/** sin and cos at a special radian angle, from four exact values. */
+const radExactValue: Generator<ExactParams> = {
+  id: 'trig-rad-exact-value',
+  sample: (rng, difficulty) => {
+    const k = rng.pick(SPECIAL_TWELFTHS);
+    // Past a full turn, or backwards, at the higher difficulty.
+    const wind = difficulty > 1 ? rng.pick([0, 24, -24]) : 0;
+    return { fn: rng.pick(['sin', 'cos'] as const), k: k + wind };
+  },
+  render: ({ fn, k }): Slide => {
+    const right = exactAt(fn, k);
+    const rows = [right, ...exactDistractors(fn, k, 3)].sort((a, b) => a.value - b.value);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Without a calculator, what is $\\${fn}\\left(${piTex(k, 12)}\\right)$?`,
+        },
+      ],
+      options: rows.map((row) => ({ id: row.tex, label: row.tex, tex: true })),
+      correctId: right.tex,
+    };
+  },
+  solution: ({ fn, k }) => {
+    const degrees = 15 * k;
+    const turned = ((degrees % 360) + 360) % 360;
+    return [
+      {
+        text:
+          turned === degrees
+            ? 'Convert to degrees, where the special values are already familiar.'
+            : `Convert to degrees, then take off or add full turns: $${degrees}^{\\circ}$ lands in the same place as $${turned}^{\\circ}$.`,
+      },
+      { tex: `${piTex(k, 12)} = ${degrees}^{\\circ}` },
+      { tex: `\\${fn}\\left(${turned}^{\\circ}\\right) = ${exactAt(fn, k).tex}` },
+    ];
+  },
+};
+
+interface QuadrantParams {
+  fn: 'sin' | 'cos';
+  /** The angle in twelfths of pi, never on a quarter-turn mark. */
+  k: number;
+}
+
+const QUARTER_LABELS = [
+  'Between $0$ and $\\frac{\\pi}{2}$',
+  'Between $\\frac{\\pi}{2}$ and $\\pi$',
+  'Between $\\pi$ and $\\frac{3\\pi}{2}$',
+  'Between $\\frac{3\\pi}{2}$ and $2\\pi$',
+];
+const HEIGHT_LABEL = 'Its height above or below the centre';
+const ACROSS_LABEL = 'Its displacement to one side of the centre';
+
+/**
+ * Positive or negative, from where a radian angle lands.
+ *
+ * `trig-quadrant-flow` asks the same thing in degrees, where the quarter-turn
+ * marks are 90, 180 and 270 and nobody has to think about them. In radians the
+ * placing is the hard part — is $\frac{5\pi}{4}$ past $\pi$? — so that is the
+ * first fork here, and the function comes second.
+ */
+const radQuadrantFlow: Generator<QuadrantParams> = {
+  id: 'trig-rad-quadrant-flow',
+  sample: (rng, difficulty) => ({
+    fn: rng.pick(['sin', 'cos'] as const),
+    k: rng.pick(OFF_MARK_TWELFTHS) + (difficulty > 1 && rng.chance(0.5) ? 24 : 0),
+  }),
+  render: ({ fn, k }): Slide => {
+    const quarter = Math.floor((k % 24) / 6);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Is this positive or negative? Place the angle first, then say what the function measures.',
+        },
+      ],
+      subject: `\\${fn}\\left(${piTex(k, 12)}\\right)`,
+      steps: [
+        {
+          id: 'where',
+          ask:
+            k > 24
+              ? 'Take off one full turn, $2\\pi$. Between which two quarter-turn marks does what is left fall?'
+              : 'Between which two quarter-turn marks does the angle fall?',
+          branches: QUARTER_LABELS.map((label, i) => ({ label, to: `q${i}` })),
+        },
+        ...QUARTER_LABELS.map((_, i) => {
+          const up = i < 2;
+          const toRight = i === 0 || i === 3;
+          return {
+            id: `q${i}`,
+            ask: 'Which measurement of the point does the function give?',
+            branches: [
+              {
+                label: HEIGHT_LABEL,
+                outcome: up
+                  ? 'Positive. In this quarter the point is above the centre.'
+                  : 'Negative. In this quarter the point is below the centre.',
+              },
+              {
+                label: ACROSS_LABEL,
+                outcome: toRight
+                  ? 'Positive. In this quarter the point is to the right of the centre.'
+                  : 'Negative. In this quarter the point is to the left of the centre.',
+              },
+            ],
+          };
+        }),
+      ],
+      answer: [QUARTER_LABELS[quarter], fn === 'sin' ? HEIGHT_LABEL : ACROSS_LABEL],
+    };
+  },
+  solution: ({ fn, k }) => {
+    const quarter = Math.floor((k % 24) / 6);
+    const positive = fn === 'sin' ? quarter < 2 : quarter === 0 || quarter === 3;
+    return [
+      {
+        text: `The marks are $\\frac{\\pi}{2} = \\frac{6\\pi}{12}$, $\\pi = \\frac{12\\pi}{12}$ and $\\frac{3\\pi}{2} = \\frac{18\\pi}{12}$; writing the angle over $12$ too makes the comparison easy.`,
+      },
+      {
+        // Over twelve already when nothing cancels, and then saying so twice reads as a typo.
+        tex: [
+          ...new Set([piTex(k, 12), `\\frac{${k}\\pi}{12}`]),
+          ...(k > 24 ? [`2\\pi + \\frac{${k - 24}\\pi}{12}`] : []),
+        ].join(' = '),
+      },
+      {
+        text: `So it lies between $${QUARTER_MARKS[quarter]}$ and $${QUARTER_MARKS[quarter + 1]}$, and $\\${fn}$ is the point's ${fn === 'sin' ? 'height' : 'sideways displacement'} there: ${positive ? 'positive' : 'negative'}.`,
+      },
+    ];
+  },
+};
+
+/** Convert, then read the value: the route from a radian angle to a number. */
+const radValueTree: Generator<ExactParams> = {
+  id: 'trig-rad-value-tree',
+  sample: (rng, difficulty) => ({
+    fn: rng.pick(['sin', 'cos'] as const),
+    k: rng.pick(SPECIAL_TWELFTHS) + (difficulty > 1 && rng.chance(0.5) ? 24 : 0),
+  }),
+  render: ({ fn, k }): Slide => {
+    const degrees = 15 * k;
+    const right = exactAt(fn, k);
+    const wrongDegrees = [...new Set([2 * degrees, degrees + 90, degrees + 180])]
+      .filter((value) => value !== degrees)
+      .slice(0, 2);
+    const bank = [
+      `${degrees}`,
+      ...wrongDegrees.map(String),
+    ].sort((a, b) => Number(a) - Number(b));
+    const values = [right, ...exactDistractors(fn, k, 2)].sort((a, b) => a.value - b.value);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Put the angle in degrees in the top box, then the exact value underneath.',
+        },
+      ],
+      expression: `\\${fn}\\left(${piTex(k, 12)}\\right)`,
+      nodes: [
+        { id: 'degrees', from: [] },
+        { id: 'value', from: ['degrees'] },
+      ],
+      bank: [...bank, ...values.map((row) => row.tex)],
+      answer: [`${degrees}`, right.tex],
+    };
+  },
+  solution: ({ fn, k }) => {
+    const degrees = 15 * k;
+    return [
+      { text: 'Replace $\\pi$ by $180^{\\circ}$ to land on an angle whose values you know.' },
+      { tex: `${piTex(k, 12)} = ${degrees}^{\\circ}` },
+      {
+        text: `Then read the ${fn === 'sin' ? 'height' : 'sideways displacement'} of the point at that angle, sign included.`,
+      },
+      { tex: `\\${fn}\\left(${degrees}^{\\circ}\\right) = ${exactAt(fn, k).tex}` },
+    ];
+  },
+};
+
+type Feature = 'peak' | 'trough' | 'down' | 'up';
+
+/** Where each feature first happens after zero, in quarter turns. */
+const FEATURE_QUARTERS: Record<'sin' | 'cos', Record<Feature, number>> = {
+  sin: { peak: 1, down: 2, trough: 3, up: 4 },
+  cos: { down: 1, trough: 2, up: 3, peak: 4 },
+};
+
+const FEATURE_WORDS: Record<Feature, string> = {
+  peak: 'reaches its highest point',
+  trough: 'reaches its lowest point',
+  down: 'crosses the axis going down',
+  up: 'crosses the axis going up',
+};
+
+interface GraphSliderParams {
+  fn: 'sin' | 'cos';
+  feature: Feature;
+  a: number;
+  /** The second time rather than the first, over two turns. */
+  second: boolean;
+}
+
+/**
+ * Where on a radian axis does the wave do this?
+ *
+ * Level 3 read features off waves with the axis in degrees. In radians the
+ * same features sit at pi/2, pi, 3pi/2 — numbers the learner has to know the
+ * size of, since the readout only ever says 1.55 or 4.7.
+ */
+const radGraphSlider: Generator<GraphSliderParams> = {
+  id: 'trig-rad-graph-slider',
+  sample: (rng, difficulty) => ({
+    fn: rng.pick(['sin', 'cos'] as const),
+    feature: rng.pick(['peak', 'trough', 'down', 'up'] as const),
+    a: rng.int(1, 4),
+    second: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: ({ fn, feature, a, second }): Slide => {
+    // Neither midpoint, where an untouched handle rests, is near a feature.
+    const xMax = second ? 13 : 7;
+    const trig = fn === 'sin' ? Math.sin : Math.cos;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax,
+      curves: [{ f: (x) => a * trig(x) }],
+      yMin: -a - 1,
+      yMax: a + 1,
+      label: `The graph of ${a === 1 ? '' : a} ${fn} x with x in radians`,
+    });
+    const quarters = FEATURE_QUARTERS[fn][feature] + (second ? 4 : 0);
+    const exact = (quarters * Math.PI) / 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is $y = ${a === 1 ? '' : a}\\${fn}(x)$ with $x$ in radians. Slide to where it ${FEATURE_WORDS[feature]} for the ${second ? '**second**' : '**first**'} time after $x = 0$.`,
+        },
+      ],
+      min: 0,
+      max: xMax,
+      step: 0.05,
+      tolerance: 0.1,
+      answer: Number((Math.round(exact * 20) / 20).toFixed(2)),
+      readout: 'x = {v}',
+      figure: { svg, ...markerWindow(0, xMax) },
+    };
+  },
+  solution: ({ fn, feature, second }) => {
+    const quarters = FEATURE_QUARTERS[fn][feature] + (second ? 4 : 0);
+    return [
+      {
+        text: `Every feature of $\\sin$ and $\\cos$ sits on a quarter-turn mark, a multiple of $\\frac{\\pi}{2}$. This one is ${quarters} quarter turns along${second ? ', one full turn after the first time' : ''}.`,
+      },
+      { tex: `x = ${piTex(quarters, 2)} \\approx ${((quarters * Math.PI) / 2).toFixed(2)}` },
+      {
+        text: `The height of the wave makes no difference to where it happens: stretching upwards leaves every peak and crossing where it was.`,
+      },
+    ];
+  },
+};
+
+interface SectorParams {
+  r: number;
+  /** The angle is n/d, times pi when `withPi`. */
+  n: number;
+  d: number;
+  withPi: boolean;
+  /** Given in degrees, to be converted first. Only ever set with `withPi`. */
+  inDegrees: boolean;
+  context: number;
+}
+
+/** A sector's angle as the question states it. */
+const sectorAngleTex = (p: SectorParams): string =>
+  p.inDegrees ? `${(180 * p.n) / p.d}^{\\circ}` : p.withPi ? piTex(p.n, p.d) : `${p.n}\\text{ rad}`;
+
+/** Radius and angle for a sector question: whole radians, or a tidy multiple of pi. */
+function sampleSector(rng: Rng, difficulty: number, contexts: number): SectorParams {
+  const r = rng.int(2, difficulty > 1 ? 12 : 9);
+  const context = rng.int(0, contexts - 1);
+  if (rng.chance(0.35)) return { r, n: rng.int(1, 4), d: 1, withPi: false, inDegrees: false, context };
+  const d = rng.pick([2, 3, 4, 6]);
+  const n = rng.pick(coprimeTo(d, 1, 2 * d - 1));
+  return { r, n, d, withPi: true, inDegrees: difficulty > 1 && rng.chance(0.5), context };
+}
+
+const ARC_LENGTH_CONTEXTS: ((r: number, angle: string) => string)[] = [
+  (r, angle) => `A sector of a circle of radius $${r}$ cm has angle $${angle}$ at the centre. How long is its curved edge?`,
+  (r, angle) => `A pendulum $${r}$ cm long swings through $${angle}$. How far does its bob travel along the arc?`,
+  (r, angle) => `A wheel of radius $${r}$ cm turns through $${angle}$. How far does a point on its rim travel?`,
+];
+
+/** s = r theta, with theta in radians — or converted to radians first. */
+const radArcLength: Generator<SectorParams> = {
+  id: 'trig-rad-arc-length',
+  sample: (rng, difficulty) => sampleSector(rng, difficulty, ARC_LENGTH_CONTEXTS.length),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${ARC_LENGTH_CONTEXTS[p.context](p.r, sectorAngleTex(p))} Give it in cm${p.withPi ? ', in terms of $\\pi$' : ''}.`,
+      },
+    ],
+    lead: 's =',
+    keypad: PI_KEYS,
+    answer: measureAnswer({ n: p.r * p.n, d: p.d, withPi: p.withPi }),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ r, n, d, withPi, inDegrees }) =>
+    measureOptions(
+      { n: r * n, d, withPi },
+      // The area formula, the diameter, and degrees fed straight in.
+      { n: r * r * n, d: 2 * d, withPi },
+      { n: 2 * r * n, d, withPi },
+      ...(inDegrees ? [{ n: (r * 180 * n) / d, d: 1, withPi: false }] : []),
+      { n, d: d * r, withPi },
+    ),
+  solution: (p) => {
+    const steps: SolutionStep[] = [];
+    if (p.inDegrees) {
+      steps.push({ text: 'The formula needs the angle in radians, so convert it first.' });
+      steps.push({ tex: `${sectorAngleTex(p)} = ${piTex(p.n, p.d)}` });
+    }
+    steps.push({
+      text: 'An angle of $\\theta$ radians is an arc $\\theta$ radii long, so the arc is the radius times the angle.',
+    });
+    steps.push({
+      tex: `s = r\\theta = ${p.r} \\times ${p.withPi ? piTex(p.n, p.d) : p.n} = ${measureTex({ n: p.r * p.n, d: p.d, withPi: p.withPi })}`,
+    });
+    return steps;
+  },
+};
+
+const SECTOR_AREA_CONTEXTS: ((r: number, angle: string) => string)[] = [
+  (r, angle) => `A sector of a circle of radius $${r}$ cm has angle $${angle}$ at the centre. What is its area?`,
+  (r, angle) => `A slice is cut from a round cake of radius $${r}$ cm, with angle $${angle}$ at the centre. What area of the top does it take?`,
+  (r, angle) => `A lawn sprinkler reaches $${r}$ m and sweeps through $${angle}$. What area does it water?`,
+];
+
+/** A = r squared theta over 2: the sector's share of the circle. */
+const radSectorArea: Generator<SectorParams> = {
+  id: 'trig-rad-sector-area',
+  sample: (rng, difficulty) => sampleSector(rng, difficulty, SECTOR_AREA_CONTEXTS.length),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${SECTOR_AREA_CONTEXTS[p.context](p.r, sectorAngleTex(p))}${p.withPi ? ' Give it in terms of $\\pi$.' : ''}`,
+      },
+    ],
+    lead: 'A =',
+    keypad: PI_KEYS,
+    answer: measureAnswer({ n: p.r * p.r * p.n, d: 2 * p.d, withPi: p.withPi }),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ r, n, d, withPi }) =>
+    measureOptions(
+      { n: r * r * n, d: 2 * d, withPi },
+      // The half forgotten, the arc length instead, and r not squared.
+      { n: r * r * n, d, withPi },
+      { n: r * n, d, withPi },
+      { n: r * n, d: 2 * d, withPi },
+    ),
+  solution: (p) => {
+    const steps: SolutionStep[] = [];
+    if (p.inDegrees) {
+      steps.push({ text: 'The formula needs the angle in radians, so convert it first.' });
+      steps.push({ tex: `${sectorAngleTex(p)} = ${piTex(p.n, p.d)}` });
+    }
+    steps.push({
+      text: 'The whole circle is $\\pi r^2$ over an angle of $2\\pi$, so a sector of angle $\\theta$ takes $\\frac{\\theta}{2\\pi}$ of it, which is $\\frac{1}{2}r^2\\theta$.',
+    });
+    steps.push({
+      tex: `A = \\frac{1}{2} \\times ${p.r}^2 \\times ${p.withPi ? piTex(p.n, p.d) : p.n} = ${measureTex({ n: p.r * p.r * p.n, d: 2 * p.d, withPi: p.withPi })}`,
+    });
+    return steps;
+  },
+};
+
+interface SectorTreeParams {
+  r: number;
+  theta: number;
+}
+
+/**
+ * Arc, then area from the arc.
+ *
+ * $A = \frac{1}{2}rs$ is the triangle-area formula with the arc as its base,
+ * and building the area on top of the arc says so better than a second formula
+ * to remember does.
+ */
+const radSectorTree: Generator<SectorTreeParams> = {
+  id: 'trig-rad-sector-tree',
+  sample: (rng, difficulty) => {
+    let r = rng.int(2, difficulty > 1 ? 14 : 12);
+    const theta = rng.int(1, difficulty > 1 ? 5 : 4);
+    // An odd radius and an odd angle would leave half a square centimetre.
+    if ((r * theta) % 2 !== 0) r += 1;
+    return { r, theta };
+  },
+  render: ({ r, theta }): Slide => {
+    const s = r * theta;
+    const area = (r * s) / 2;
+    const answer = [`${s}`, `${area}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Put the arc length $s$ in the top box, then the area underneath, using $A = \\frac{1}{2}rs$.',
+        },
+      ],
+      expression: `r = ${r}, \\quad \\theta = ${theta}`,
+      nodes: [
+        { id: 'arc', from: [] },
+        { id: 'area', from: ['arc'] },
+      ],
+      bank: bankAround(answer, [r * s, 2 * r * theta, r + theta, s / 2].filter((v) => Number.isInteger(v))),
+      answer,
+    };
+  },
+  solution: ({ r, theta }) => [
+    { tex: `s = r\\theta = ${r} \\times ${theta} = ${r * theta}` },
+    {
+      text: 'A thin sector is almost a triangle with the arc as its base and the radius as its height, which is where the half comes from.',
+    },
+    { tex: `A = \\frac{1}{2} r s = \\frac{1}{2} \\times ${r} \\times ${r * theta} = ${(r * r * theta) / 2}` },
+  ],
+};
+
+interface FormulaFlowParams extends SectorParams {
+  wants: 'arc' | 'area';
+}
+
+const FLOW_RADIANS = 'Radians';
+const FLOW_DEGREES = 'Degrees';
+const FLOW_CONVERT = 'Multiply it by $\\frac{\\pi}{180}$';
+const FLOW_ARC = 'The length of the curved edge';
+const FLOW_AREA = 'The area inside the sector';
+
+/** Which formula, and is the angle ready for it? */
+const radFormulaFlow: Generator<FormulaFlowParams> = {
+  id: 'trig-rad-formula-flow',
+  sample: (rng, difficulty) => {
+    // Degrees at every difficulty: spotting them is the first fork.
+    const base = sampleSector(rng, 2, 1);
+    return { ...base, r: difficulty > 1 ? base.r : Math.min(base.r, 9), wants: rng.pick(['arc', 'area'] as const) };
+  },
+  render: (p): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Find the ${p.wants === 'arc' ? 'length of the curved edge' : 'area'} of this sector. Work down the questions to choose the method.`,
+      },
+    ],
+    subject: `r = ${p.r}\\text{ cm}, \\quad \\theta = ${sectorAngleTex(p)}`,
+    steps: [
+      {
+        id: 'unit',
+        ask: 'What unit is the angle in?',
+        branches: [
+          { label: FLOW_RADIANS, to: 'find' },
+          { label: FLOW_DEGREES, to: 'convert' },
+        ],
+      },
+      {
+        id: 'convert',
+        ask: 'Before a radian formula can be used, what should happen to the angle?',
+        branches: [
+          { label: FLOW_CONVERT, to: 'find' },
+          { label: 'Multiply it by $\\frac{180}{\\pi}$', to: 'find' },
+          { label: 'Leave it as it is', to: 'find' },
+        ],
+      },
+      {
+        id: 'find',
+        ask: 'What does the question want?',
+        branches: [
+          { label: FLOW_ARC, outcome: 'Use $s = r\\theta$.' },
+          { label: FLOW_AREA, outcome: 'Use $A = \\frac{1}{2}r^2\\theta$.' },
+        ],
+      },
+    ],
+    answer: [
+      ...(p.inDegrees ? [FLOW_DEGREES, FLOW_CONVERT] : [FLOW_RADIANS]),
+      p.wants === 'arc' ? FLOW_ARC : FLOW_AREA,
+    ],
+  }),
+  solution: (p) => [
+    {
+      text: p.inDegrees
+        ? `The angle has a degree sign, and both formulas are built on radians, so convert first: $${sectorAngleTex(p)} = ${piTex(p.n, p.d)}$.`
+        : `There is no degree sign, so $${sectorAngleTex(p)}$ is already in radians and goes straight in.`,
+    },
+    {
+      text:
+        p.wants === 'arc'
+          ? `The curved edge is an arc, so $s = r\\theta = ${measureTex({ n: p.r * p.n, d: p.d, withPi: p.withPi })}$ cm.`
+          : `The space inside is an area, so $A = \\frac{1}{2}r^2\\theta = ${measureTex({ n: p.r * p.r * p.n, d: 2 * p.d, withPi: p.withPi })}$ square cm.`,
+    },
+  ],
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -2246,4 +3384,20 @@ export const trigonometryGenerators = [
   evaluateTree,
   quadrantFlow,
   matchGraph,
+  radFromTurn,
+  radPlace,
+  radArcAngle,
+  radCompare,
+  radFromDegrees,
+  radToDegrees,
+  radConvertTiles,
+  radUnitTree,
+  radExactValue,
+  radQuadrantFlow,
+  radValueTree,
+  radGraphSlider,
+  radArcLength,
+  radSectorArea,
+  radSectorTree,
+  radFormulaFlow,
 ] as unknown as Generator<unknown>[];

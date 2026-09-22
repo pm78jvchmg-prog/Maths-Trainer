@@ -23,7 +23,8 @@ itself, so that no thread ever has to stop and ask what is next.
 ## 1. What exists today
 
 8 courses, 26 levels, 105 lessons, 147 generators (247 ids once the derived
-`+choice` variants are counted).
+`+choice` variants are counted). After A10: **9 courses** — Vectors & Matrices
+became two — and 162 generators, 271 ids.
 
 | Concept | Category | Levels | Lessons | Toward 30 |
 | --- | --- | --- | ---: | ---: |
@@ -34,7 +35,8 @@ itself, so that no thread ever has to stop and ask what is next.
 | Complex Numbers | Advanced Maths | 4 | 14 | 47% |
 | Differentiation | Advanced Maths | 4 | 11 | 37% |
 | Integration | Advanced Maths | 3 | 17 | 57% |
-| Vectors & Matrices | Advanced Maths | 3 | 12 | 40% |
+| Vectors | Advanced Maths | 1 | 4 | 13% |
+| Matrices & Linear Transformations | Advanced Maths | 2 | 8 | 27% |
 
 Every level closes with a level check of 12–15 questions. All 26 have one.
 
@@ -141,8 +143,8 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 16 | Complex Numbers | **14 lessons** |
 | 17 | Differentiation | **11 lessons** |
 | 18 | Integration | **17 lessons** |
-| 19 | Vectors | **4 lessons** (split from Vectors & Matrices) |
-| 20 | Matrices & Linear Transformations | **8 lessons** (split from Vectors & Matrices) |
+| 19 | Vectors | **4 lessons** (split out in A10) |
+| 20 | Matrices & Linear Transformations | **8 lessons** (split out in A10) |
 | 21 | Parametric & Implicit Differentiation | new |
 | 22 | Differential Equations | new |
 | 23 | Series Expansions | new |
@@ -254,7 +256,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
-| A10 | Split Vectors & Matrices, then widen both | claimed — `claude/roadmap-a10-j23if4` | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
+| A10 | Split Vectors & Matrices, then widen both | done — `claude/roadmap-a10-j23if4` | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
@@ -262,6 +264,13 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 more than twice" rule, counted by family, catches **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
 empties both.
+
+A10 took the twelve `vm-` lessons off both lists, leaving **43** and **90**.
+What it took to clear the bar is worth knowing before starting A3–A9: eight
+exercises with no generator asked more than twice needs *four* distinct skills
+per lesson, and the twelve lessons had one or two between them. Fifteen new
+generators went in before a single deck could be widened, which is the shape of
+the remaining batches too.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

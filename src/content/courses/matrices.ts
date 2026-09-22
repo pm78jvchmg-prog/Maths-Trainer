@@ -66,9 +66,9 @@ export const matrices: Course = {
                 'Addition and subtraction work entry by entry, with each position in the answer depending only on the same position in the originals.',
               ),
             ),
+            ask('mat-shape'),
             ask('mat-add'),
-            ask('mat-add'),
-            ask('mat-add+choice'),
+            ask('mat-shape'),
             teach(
               prose('So addition is four small sums that never interact.'),
               maths(
@@ -81,8 +81,9 @@ export const matrices: Course = {
                 'Bracket each entry before combining it, exactly as with vectors. A negative entry being subtracted is the one place the sign goes wrong.',
               ),
             ),
-            ask('mat-add'),
-            ask('mat-add'),
+            ask('mat-sum-entry'),
+            ask('mat-add+choice'),
+            ask('mat-sum-entry'),
             teach(
               prose(
                 'Matrix addition behaves like ordinary addition in every respect that matters: the order does not change the answer, and the grouping does not either.',
@@ -94,11 +95,24 @@ export const matrices: Course = {
               prose(
                 'The matrix of all zeros plays the part of zero: adding it changes nothing. It is written $\\mathbf{0}$ and is the additive identity.',
               ),
+              prose(
+                'Because it behaves that ordinarily, an equation with a matrix missing rearranges the way an ordinary one does.',
+              ),
+              maths(
+                '\\mathbf{A} + \\mathbf{X} = \\mathbf{B} \\implies \\mathbf{X} = \\mathbf{B} - \\mathbf{A}',
+              ),
+              prose(
+                'That is four small equations solved at once rather than anything new. Subtracting the other way round flips every sign, which answers a different question.',
+              ),
             ),
-            ask('mat-add+choice'),
-            ask('mat-add'),
+            ask('mat-missing'),
+            ask('mat-missing+choice'),
           ],
-          skillCheck: [ask('mat-add', 2), ask('mat-add', 2), ask('mat-add', 2)],
+          skillCheck: [
+            ask('mat-add', 2),
+            ask('mat-missing', 2),
+            ask('mat-shape', 2),
+          ],
         },
         {
           id: 'vm-l2-combine',
@@ -119,8 +133,8 @@ export const matrices: Course = {
               ),
             ),
             ask('mat-combine'),
-            ask('mat-combine'),
-            ask('mat-combine+choice'),
+            ask('mat-sum-entry', 2),
+            ask('mat-add'),
             teach(
               prose('So a combination like $2\\mathbf{A} - 3\\mathbf{B}$ is done in two stages.'),
               maths(
@@ -131,8 +145,9 @@ export const matrices: Course = {
                 'Write the two scaled matrices down before subtracting. Trying to do both steps in one pass is what produces sign errors in the entries that were already negative.',
               ),
             ),
-            ask('mat-combine'),
-            ask('mat-combine'),
+            ask('mat-combine+choice'),
+            ask('mat-missing'),
+            ask('mat-sum-entry', 2),
             teach(
               prose(
                 'Subtraction is addition of a negative multiple, so nothing new is needed: $\\mathbf{A} - \\mathbf{B}$ is $\\mathbf{A} + \\left(-1\\right)\\mathbf{B}$.',
@@ -145,10 +160,14 @@ export const matrices: Course = {
                 'Everything so far has been entry-by-entry. The next lesson is the operation that is not, and it is unlike anything in ordinary arithmetic.',
               ),
             ),
-            ask('mat-combine+choice'),
-            ask('mat-add'),
+            ask('mat-add+choice'),
+            ask('mat-missing+choice'),
           ],
-          skillCheck: [ask('mat-combine', 2), ask('mat-combine', 2), ask('mat-combine', 2)],
+          skillCheck: [
+            ask('mat-combine', 2),
+            ask('mat-sum-entry', 2),
+            ask('mat-missing', 2),
+          ],
         },
         {
           id: 'vm-l2-multiply',
@@ -170,10 +189,17 @@ export const matrices: Course = {
               prose(
                 'Say "row of the first, column of the second" as you go. It is the only reliable way to stop the two being crossed over.',
               ),
+              prose(
+                'Pairing a row with a column only works if they are the same length, so the shapes decide whether a product exists at all. Write the two orders side by side: the inner pair must match, and the outer pair is the order of the answer.',
+              ),
+              maths('\\left(2 \\times 3\\right)\\left(3 \\times 4\\right) \\implies 2 \\times 4'),
+              prose(
+                'If the inner numbers disagree the product is simply not defined, and there is nothing to work out. Everything in this lesson is two-by-two, where they always agree.',
+              ),
             ),
-            ask('mat-multiply'),
-            ask('mat-multiply'),
-            ask('mat-multiply+choice'),
+            ask('vec-dot-steps'),
+            ask('mat-product-entry'),
+            ask('mat-order'),
             teach(
               prose('Working through all four entries of that example:'),
               maths(
@@ -186,8 +212,9 @@ export const matrices: Course = {
                 'Multiplying the matching entries together instead — 1 times 5, 2 times 6, and so on — is the error this lesson exists to remove. It gives a plausible-looking answer that is wrong throughout.',
               ),
             ),
-            ask('vec-dot-steps'),
             ask('mat-multiply'),
+            ask('mat-product-entry+choice'),
+            ask('mat-multiply+choice'),
             teach(
               prose(
                 'Order matters. $\\mathbf{AB}$ and $\\mathbf{BA}$ are usually different matrices, which has no parallel in ordinary arithmetic.',
@@ -201,10 +228,14 @@ export const matrices: Course = {
               ),
               maths('\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}'),
             ),
+            ask('mat-order'),
             ask('vec-dot-steps+choice'),
-            ask('mat-multiply'),
           ],
-          skillCheck: [ask('mat-multiply', 2), ask('mat-multiply', 2), ask('mat-multiply', 2)],
+          skillCheck: [
+            ask('mat-multiply', 2),
+            ask('mat-product-entry', 2),
+            ask('mat-order', 2),
+          ],
         },
         {
           id: 'vm-l2-vector',
@@ -225,8 +256,8 @@ export const matrices: Course = {
               ),
             ),
             ask('mat-vector'),
-            ask('mat-vector'),
-            ask('mat-vector+choice'),
+            ask('vec-dot-steps'),
+            ask('mat-order'),
             teach(
               prose(
                 'This is the operation that gives matrices their meaning. A matrix acting on a vector is a **transformation** of the plane: it moves every point at once, and the matrix is a complete description of how.',
@@ -241,8 +272,9 @@ export const matrices: Course = {
                 'The columns of a matrix are where $\\mathbf{i}$ and $\\mathbf{j}$ end up, which is the quickest way to read a transformation off a matrix or write one down.',
               ),
             ),
-            ask('vec-dot-steps'),
-            ask('mat-vector'),
+            ask('mat-vector+choice'),
+            ask('mat-product-entry'),
+            ask('vec-dot-steps+choice'),
             teach(
               prose(
                 'Applying two transformations in turn is the product of their matrices — and the order in the product is the reverse of the order of the actions.',
@@ -255,25 +287,29 @@ export const matrices: Course = {
                 'It also explains why matrices are written to the left of the vector: they act in from the left, the nearest one first.',
               ),
             ),
-            ask('mat-vector+choice'),
-            ask('vec-dot-steps+choice'),
+            ask('mat-product-entry+choice'),
+            ask('mat-order'),
           ],
-          skillCheck: [ask('mat-vector', 2), ask('mat-vector', 2), ask('mat-vector+choice', 2)],
+          skillCheck: [
+            ask('mat-vector', 2),
+            ask('mat-product-entry', 2),
+            ask('mat-order', 2),
+          ],
         },
       ],
       levelCheck: [
+        ask('mat-shape', 2),
         ask('mat-add', 2),
+        ask('mat-missing', 2),
+        ask('mat-sum-entry', 2),
         ask('mat-combine', 2),
         ask('mat-multiply', 2),
+        ask('mat-product-entry', 2),
+        ask('mat-order', 2),
         ask('mat-vector', 2),
         ask('mat-add', 2),
-        ask('mat-combine', 2),
         ask('mat-multiply', 2),
         ask('mat-vector', 2),
-        ask('mat-combine', 2),
-        ask('mat-multiply', 2),
-        ask('mat-vector', 2),
-        ask('mat-add', 2),
       ],
     },
     {
@@ -302,8 +338,8 @@ export const matrices: Course = {
               ),
             ),
             ask('mat-determinant'),
-            ask('mat-determinant'),
-            ask('mat-determinant+choice'),
+            ask('mat-determinant-steps'),
+            ask('mat-multiply'),
             teach(
               prose(
                 'The determinant has a meaning: it is the factor by which the matrix scales area.',
@@ -315,9 +351,17 @@ export const matrices: Course = {
               prose(
                 'A negative determinant means the transformation turns the plane over as well as scaling it — a reflection is in there somewhere.',
               ),
+              prose(
+                'The area reading also settles what scaling the whole matrix does. Multiplying a two-by-two matrix by $k$ stretches both directions by $k$, so area is scaled twice.',
+              ),
+              maths('\\det\\left(k\\mathbf{A}\\right) = k^{2}\\det\\mathbf{A}'),
+              prose(
+                'Multiplying the determinant by $k$ once is the mistake to avoid: the power is the size of the matrix, not something to be guessed at.',
+              ),
             ),
-            ask('mat-determinant'),
-            ask('mat-determinant-steps'),
+            ask('mat-det-property'),
+            ask('mat-vector'),
+            ask('mat-multiply+choice'),
             teach(
               prose('Determinants interact with products in a way that is worth knowing.'),
               maths('\\det\\left(\\mathbf{AB}\\right) = \\det\\mathbf{A} \\times \\det\\mathbf{B}'),
@@ -327,14 +371,18 @@ export const matrices: Course = {
               prose(
                 'Note that there is no such rule for sums. $\\det\\left(\\mathbf{A} + \\mathbf{B}\\right)$ has nothing to do with the two separate determinants, and assuming otherwise is a common and costly mistake.',
               ),
+              prose(
+                'Transposing — reflecting the matrix in its leading diagonal — leaves the determinant alone, since the leading diagonal is untouched and the other two entries only swap places.',
+              ),
+              maths('\\det\\left(\\mathbf{A}^{T}\\right) = \\det\\mathbf{A}'),
             ),
-            ask('mat-determinant-steps+choice'),
-            ask('mat-determinant'),
+            ask('mat-det-property'),
+            ask('mat-vector+choice'),
           ],
           skillCheck: [
             ask('mat-determinant', 2),
-            ask('mat-determinant', 2),
-            ask('mat-determinant', 2),
+            ask('mat-det-property', 2),
+            ask('mat-multiply', 2),
           ],
         },
         {
@@ -354,8 +402,8 @@ export const matrices: Course = {
               ),
             ),
             ask('mat-singular-k'),
-            ask('mat-singular-k'),
-            ask('mat-singular-k+choice'),
+            ask('mat-determinant'),
+            ask('mat-det-property'),
             teach(
               prose(
                 'So "find the value that makes this matrix singular" is the instruction to set the determinant to zero and solve.',
@@ -368,8 +416,9 @@ export const matrices: Course = {
                 'Notice what a singular two-by-two matrix looks like: one row is a multiple of the other. That is the same statement as the determinant being zero, and it is often quicker to spot.',
               ),
             ),
-            ask('mat-singular-k'),
+            ask('mat-singular-k+choice'),
             ask('mat-determinant-steps'),
+            ask('mat-det-property'),
             teach(
               prose(
                 'The same idea decides whether a pair of simultaneous equations has a unique solution.',
@@ -382,8 +431,8 @@ export const matrices: Course = {
                 'Checking the determinant first is therefore worth doing before attempting to solve anything: it tells you whether there is an answer to find.',
               ),
             ),
-            ask('mat-singular-k+choice'),
-            ask('mat-singular-k'),
+            ask('mat-method'),
+            ask('mat-method'),
           ],
           skillCheck: [
             ask('mat-singular-k', 2),
@@ -411,7 +460,7 @@ export const matrices: Course = {
               ),
             ),
             ask('mat-inverse'),
-            ask('mat-inverse'),
+            ask('mat-determinant'),
             ask('mat-inverse+choice'),
             teach(
               prose('Worked through on a real matrix:'),
@@ -425,8 +474,9 @@ export const matrices: Course = {
                 'Check by multiplying the two together: the product should be the identity. That check is worth doing the first few times, because it catches every version of the misremembered recipe.',
               ),
             ),
-            ask('mat-inverse'),
             ask('mat-determinant-steps'),
+            ask('mat-multiply'),
+            ask('mat-multiply+choice'),
             teach(
               prose(
                 'The recipe fails exactly when the determinant is zero, since it would divide by zero. That is the singular case again, from a different direction.',
@@ -438,11 +488,22 @@ export const matrices: Course = {
               prose(
                 'Putting a coat on over a jumper and then taking them off is the same idea: the last thing on is the first thing off.',
               ),
+              prose(
+                'The determinant of an inverse follows from the same undoing. If a matrix scales area by a factor, its inverse has to scale it back.',
+              ),
+              maths('\\det\\left(\\mathbf{A}^{-1}\\right) = \\frac{1}{\\det\\mathbf{A}}'),
+              prose(
+                'Which says again why a singular matrix has no inverse: a determinant of zero would need a reciprocal, and there is not one.',
+              ),
             ),
-            ask('mat-determinant-steps+choice'),
-            ask('mat-inverse'),
+            ask('mat-det-property'),
+            ask('mat-det-property'),
           ],
-          skillCheck: [ask('mat-inverse', 2), ask('mat-inverse', 2), ask('mat-inverse', 2)],
+          skillCheck: [
+            ask('mat-inverse', 2),
+            ask('mat-inverse', 2),
+            ask('mat-det-property', 2),
+          ],
         },
         {
           id: 'vm-l3-solve',
@@ -463,9 +524,9 @@ export const matrices: Course = {
               ),
               maths('\\mathbf{M}\\mathbf{v} = \\mathbf{u} \\implies \\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}'),
             ),
+            ask('mat-vector'),
             ask('mat-solve'),
-            ask('mat-solve'),
-            ask('mat-solve+choice'),
+            ask('mat-inverse+choice'),
             teach(
               prose('So the method is: find the determinant, write the inverse, multiply.'),
               maths('\\det = \\left(2\\right)\\left(-2\\right) - \\left(3\\right)\\left(1\\right) = -7'),
@@ -479,8 +540,9 @@ export const matrices: Course = {
                 'Substitute back into the original equations to check. It takes one line and catches any arithmetic slip in the inverse.',
               ),
             ),
-            ask('mat-solve'),
-            ask('mat-determinant-steps'),
+            ask('mat-solve+choice'),
+            ask('mat-inverse'),
+            ask('mat-vector+choice'),
             teach(
               prose(
                 'The method needs a non-zero determinant, and what happens otherwise is exactly what the singular case predicted.',
@@ -493,25 +555,29 @@ export const matrices: Course = {
               ),
               maths('\\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}'),
             ),
-            ask('mat-solve+choice'),
-            ask('mat-determinant-steps+choice'),
+            ask('mat-method'),
+            ask('mat-method'),
           ],
-          skillCheck: [ask('mat-solve', 2), ask('mat-solve', 2), ask('mat-solve+choice', 2)],
+          skillCheck: [
+            ask('mat-solve', 2),
+            ask('mat-inverse', 2),
+            ask('mat-method', 2),
+          ],
         },
       ],
       levelCheck: [
         ask('mat-determinant', 2),
+        ask('mat-det-property', 2),
         ask('mat-singular-k', 2),
+        ask('mat-method', 2),
         ask('mat-inverse', 2),
         ask('mat-solve', 2),
         ask('mat-determinant', 2),
+        ask('mat-det-property', 2),
         ask('mat-singular-k', 2),
+        ask('mat-method', 2),
         ask('mat-inverse', 2),
         ask('mat-solve', 2),
-        ask('mat-determinant', 2),
-        ask('mat-inverse', 2),
-        ask('mat-solve', 2),
-        ask('mat-singular-k', 2),
       ],
     },
   ],

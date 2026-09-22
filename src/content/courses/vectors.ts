@@ -66,9 +66,9 @@ export const vectors: Course = {
                 'Because a vector is only a direction and a size, it has no position. The same vector describes a move from anywhere to anywhere three across and two up.',
               ),
             ),
-            ask('vec-add'),
-            ask('vec-add'),
-            ask('vec-add+choice'),
+            ask('vec-notation'),
+            ask('vec-component'),
+            ask('vec-notation'),
             teach(
               prose(
                 'Vectors add component by component. The across-parts combine with each other and the up-parts with each other, and the two calculations never interact.',
@@ -82,9 +82,16 @@ export const vectors: Course = {
               prose(
                 'Bracket each component before combining. A negative entry being subtracted is where the sign goes wrong, and the bracket removes the risk.',
               ),
+              prose(
+                'A journey described in words becomes vectors the same way. West is the negative of east and south is the negative of north, so 3 km west is a first component of $-3$.',
+              ),
+              prose(
+                'What comes out is the **displacement** — where the journey ended up relative to where it started — not the distance travelled. The two legs can cancel; distances never do.',
+              ),
             ),
             ask('vec-add'),
-            ask('vec-add'),
+            ask('vec-journey'),
+            ask('vec-component'),
             teach(
               prose(
                 'Subtraction follows the same rule, and it has a useful reading of its own.',
@@ -98,9 +105,13 @@ export const vectors: Course = {
               ),
             ),
             ask('vec-add+choice'),
-            ask('vec-add'),
+            ask('vec-journey+choice'),
           ],
-          skillCheck: [ask('vec-add', 2), ask('vec-add', 2), ask('vec-add', 2)],
+          skillCheck: [
+            ask('vec-add', 2),
+            ask('vec-journey', 2),
+            ask('vec-notation', 2),
+          ],
         },
         {
           id: 'vm-l1-scalars',
@@ -118,9 +129,9 @@ export const vectors: Course = {
                 'A negative scalar reverses the direction as well as scaling: $-2\\mathbf{v}$ is twice as long as $\\mathbf{v}$ and points the opposite way.',
               ),
             ),
-            ask('vec-scalar-combine'),
+            ask('vec-scalar-k'),
             ask('vec-parallel'),
-            ask('vec-scalar-combine'),
+            ask('vec-scalar-k+choice'),
             teach(
               prose(
                 'A **linear combination** scales two vectors and adds the results, which is the operation nearly every vector question is built from.',
@@ -136,6 +147,7 @@ export const vectors: Course = {
               ),
             ),
             ask('vec-scalar-combine'),
+            ask('vec-add+choice'),
             ask('vec-scalar-combine'),
             teach(
               prose(
@@ -150,12 +162,12 @@ export const vectors: Course = {
               ),
             ),
             ask('vec-parallel'),
-            ask('vec-scalar-combine'),
+            ask('vec-add'),
           ],
           skillCheck: [
             ask('vec-scalar-combine', 2),
-            ask('vec-scalar-combine', 2),
             ask('vec-parallel', 2),
+            ask('vec-scalar-k', 2),
           ],
         },
         {
@@ -176,10 +188,19 @@ export const vectors: Course = {
               prose(
                 'Most magnitudes are not whole numbers. Leaving $\\sqrt{13}$ as it stands keeps the answer exact; a decimal is a rounded one, and rounding early spoils anything done afterwards.',
               ),
+              prose(
+                'The **distance between two points** is the same calculation with one step in front of it: find the vector from one to the other — destination minus start — and take its magnitude.',
+              ),
+              maths(
+                'AB = \\left| \\begin{pmatrix} 5 \\\\ 1 \\end{pmatrix} - \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix} \\right| = \\left| \\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix} \\right| = 5',
+              ),
+              prose(
+                'Reaching for Pythagoras on the two coordinate pairs without subtracting first measures from the origin instead, which answers a different question.',
+              ),
             ),
             ask('vec-magnitude'),
-            ask('vec-magnitude'),
-            ask('vec-magnitude+choice'),
+            ask('vec-magnitude-steps'),
+            ask('vec-distance'),
             teach(
               prose(
                 'A vector of magnitude 1 is called a **unit vector**, and dividing any vector by its own magnitude produces one pointing the same way.',
@@ -192,8 +213,9 @@ export const vectors: Course = {
                 'This is how a direction is separated from a size, which is why unit vectors appear wherever only the direction matters.',
               ),
             ),
-            ask('vec-magnitude'),
-            ask('vec-magnitude'),
+            ask('vec-unit'),
+            ask('vec-distance+choice'),
+            ask('vec-add'),
             teach(
               prose(
                 'Scaling a vector scales its magnitude by the *size* of the scalar, sign ignored.',
@@ -206,10 +228,14 @@ export const vectors: Course = {
                 'What does *not* work is adding magnitudes. $\\left| \\mathbf{a} + \\mathbf{b} \\right|$ is almost never $\\left| \\mathbf{a} \\right| + \\left| \\mathbf{b} \\right|$ — they are equal only when the two vectors point the same way.',
               ),
             ),
-            ask('vec-magnitude-steps+choice'),
-            ask('vec-magnitude-steps'),
+            ask('vec-unit+choice'),
+            ask('vec-add+choice'),
           ],
-          skillCheck: [ask('vec-magnitude', 2), ask('vec-magnitude', 2), ask('vec-magnitude', 2)],
+          skillCheck: [
+            ask('vec-magnitude', 2),
+            ask('vec-distance', 2),
+            ask('vec-unit', 2),
+          ],
         },
         {
           id: 'vm-l1-dot',
@@ -231,7 +257,7 @@ export const vectors: Course = {
             ),
             ask('vec-dot'),
             ask('vec-dot-steps'),
-            ask('vec-dot'),
+            ask('vec-method'),
             teach(
               prose('The sign of the scalar product describes the angle between the vectors.'),
               maths('\\mathbf{a} \\cdot \\mathbf{b} = \\left| \\mathbf{a} \\right| \\left| \\mathbf{b} \\right| \\cos\\theta'),
@@ -242,8 +268,9 @@ export const vectors: Course = {
                 'Rearranging that formula gives the angle itself, which is the usual reason for computing a scalar product at all.',
               ),
             ),
-            ask('vec-dot'),
-            ask('vec-perpendicular-k'),
+            ask('vec-angle'),
+            ask('vec-method'),
+            ask('vec-angle+choice'),
             teach(
               prose(
                 'So a missing component can be found by insisting the scalar product is zero.',
@@ -258,29 +285,29 @@ export const vectors: Course = {
                 'Check the answer by substituting it back. $24 + 4\\left(-6\\right) = 0$, so the two vectors really are at right angles.',
               ),
             ),
-            ask('vec-dot-steps+choice'),
-            ask('vec-parallel'),
+            ask('vec-perpendicular-k'),
+            ask('vec-perpendicular-k+choice'),
           ],
           skillCheck: [
             ask('vec-dot', 2),
             ask('vec-perpendicular-k', 2),
-            ask('vec-perpendicular-k', 2),
+            ask('vec-angle', 2),
           ],
         },
       ],
       levelCheck: [
         ask('vec-add', 2),
+        ask('vec-notation', 2),
+        ask('vec-journey', 2),
         ask('vec-scalar-combine', 2),
+        ask('vec-scalar-k', 2),
+        ask('vec-parallel', 2),
         ask('vec-magnitude', 2),
+        ask('vec-distance', 2),
+        ask('vec-unit', 2),
         ask('vec-dot', 2),
         ask('vec-perpendicular-k', 2),
-        ask('vec-parallel', 2),
-        ask('vec-add', 2),
-        ask('vec-scalar-combine', 2),
-        ask('vec-magnitude', 2),
-        ask('vec-dot', 2),
-        ask('vec-perpendicular-k', 2),
-        ask('vec-parallel', 2),
+        ask('vec-angle', 2),
       ],
     },
   ],

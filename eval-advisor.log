@@ -2846,3 +2846,30 @@ claim demonstrated on a `plot` slide rather than asserted.
 
 Bookkeeping commit; mechanical checks only, per PREFLIGHT. Insertions only on
 this log; scope is this file alone.
+
+## Unit 3 — Powers: the modulus of a power, and which z has z^n = w
+
+Committed with NO consultation, per the deviation logged above.
+
+Gates:
+
+- `npx vitest run` -> 3352 passed, 7 files, 92.12 s, exit 0. Predicted 3313 + 39
+  = 3352 (power-modulus and its +choice 26; power-reverse 13). Exact.
+- Both typechecks silent. `npm run lint` -> 0 errors, 25 warnings.
+- Scope: complexPlane.ts, complexNumbers.ts, this log.
+- Scoped runs: `-t 'power-modulus > '` 13 passed; `-t 'power-reverse'` 13 passed.
+
+Oracle:
+
+    power-modulus: draws: 400, failures: 0
+    power-reverse: draws: 400, failures: 0
+
+`power-reverse`'s `eligible` filter is written on one line, as the plan requires,
+because M-3-oracle substitutes that whole line. It filters by the *value* of a
+candidate's n-th power rather than by candidate identity, which is what removes
+-z at even n and +-iz at n = 4. The oracle's `power-reverse` check raises every
+option label to the n-th power with mathjs and requires exactly one to land on
+w, which is the only thing in this repository that can see a second right answer
+on a native choice slide.
+
+Mutations M-3-short and M-3-oracle run after this commit and before the push.

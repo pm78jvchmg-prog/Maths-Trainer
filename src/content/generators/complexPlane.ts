@@ -970,6 +970,138 @@ export const complexPower: Generator<PowerParams> = {
   ],
 };
 
+/* ---------- The modulus of a power ---------- */
+
+interface PowerModulusParams { a: number; b: number; k: number }
+
+/**
+ * De Moivre applied to the modulus alone, so the argument never has to be
+ * found. `|z|` is a surd, and raising a surd to a power is `surdTex` of the
+ * powered radicand: the largest reachable value is 32^5, well inside integer
+ * range, so nothing here is a rounded float.
+ */
+export const powerModulus: Generator<PowerModulusParams> = {
+  id: 'power-modulus',
+  choices: ({ a, b, k }) => {
+    const n0 = a * a + b * b;
+    // Multiplied instead of powered (k times root n0 is root of k^2 n0), one
+    // power short, and never rooted at all.
+    return options(
+      { tex: surdTex(n0 ** k), answer: surdAnswer(n0 ** k) },
+      { tex: surdTex(k * k * n0), answer: surdAnswer(k * k * n0) },
+      { tex: surdTex(n0 ** (k - 1)), answer: surdAnswer(n0 ** (k - 1)) },
+      { tex: `${n0 ** k}`, answer: `${n0 ** k}` },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, 4) * (difficulty >= 2 ? rng.sign() : 1),
+    b: rng.int(1, 4) * (difficulty >= 2 ? rng.sign() : 1),
+    k: rng.int(2, difficulty >= 2 ? 5 : 3),
+  }),
+  render: ({ a, b, k }) => {
+    const n0 = a * a + b * b;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `$z = ${complexTex(a, b)}$. What is $|z^{${k}}|$?` },
+      ],
+      lead: `|z^{${k}}| =`,
+      keypad: SQRT_KEYS,
+      answer: surdAnswer(n0 ** k),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, k }) => {
+    const n0 = a * a + b * b;
+    return [
+      { tex: `|z| = \\sqrt{${a * a} + ${b * b}} = ${surdTex(n0)}` },
+      {
+        text: 'De Moivre for the modulus alone: a power raises the modulus to that power, and the argument is not needed for this question.',
+        tex: `|z^{${k}}| = |z|^{${k}} = \\left(${surdTex(n0)}\\right)^{${k}} = ${surdTex(n0 ** k)}`,
+      },
+      {
+        text: `Multiplying the modulus by the power, instead of raising it, is the slip — that would be $${surdTex(k * k * n0)}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Which z has z^n = w? ---------- */
+
+/** Every a + bi with a, b in -2..2 except 0: small enough that any power is checkable by hand. */
+const REVERSE_BASES: { re: number; im: number }[] = [];
+for (let re = -2; re <= 2; re += 1) {
+  for (let im = -2; im <= 2; im += 1) {
+    if (re !== 0 || im !== 0) REVERSE_BASES.push({ re, im });
+  }
+}
+
+interface ReverseParams {
+  re: number;
+  im: number;
+  n: number;
+  distractors: { re: number; im: number }[];
+}
+
+export const powerReverse: Generator<ReverseParams> = {
+  id: 'power-reverse',
+  sample: (rng, difficulty) => {
+    const n = difficulty >= 2 ? rng.int(2, 4) : 2;
+    const base = rng.pick(REVERSE_BASES);
+    const target = powersOf(base.re, base.im, n)[n - 1];
+    // Filtered by *value*, not by identity: at even n the base -z has the same
+    // n-th power, and at n = 4 so do +-iz. Offering one of those would make a
+    // second right answer, which no existing guard can see.
+    const eligible = REVERSE_BASES.filter((c) => { const p = powersOf(c.re, c.im, n)[n - 1]; return p[0] !== target[0] || p[1] !== target[1]; });
+    return { ...base, n, distractors: rng.sample(eligible, 3) };
+  },
+  render: ({ re, im, n, distractors }): Slide => {
+    const [tr, ti] = powersOf(re, im, n)[n - 1];
+    const candidates = [{ re, im }, ...distractors];
+    // Sorted rather than shuffled, so the same question renders one way and
+    // the deck de-duplicator can recognise a repeat.
+    const ordered = [...candidates].sort((p, q) =>
+      complexTex(p.re, p.im).localeCompare(complexTex(q.re, q.im)),
+    );
+    const correctIdx = ordered.findIndex((p) => p.re === re && p.im === im);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Exactly one of these satisfies $z^{${n}} = w$. Which?` },
+        { kind: 'display', tex: `w = ${complexTex(tr, ti)}` },
+      ],
+      options: ordered.map((p, idx) => ({
+        id: `opt${idx}`,
+        label: complexTex(p.re, p.im),
+        tex: true,
+      })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: ({ re, im, n, distractors }) => {
+    const [tr, ti] = powersOf(re, im, n)[n - 1];
+    return [
+      { text: 'Raising each candidate is the check; only one lands on $w$.' },
+      ...powersOf(re, im, n)
+        .map((value, idx) => ({ value, power: idx + 1 }))
+        .filter(({ power }) => power <= 3 || power === n)
+        .map(({ value, power }) => ({
+          tex: `${bracketedTex(re, im)}^{${power}} = ${complexTex(value[0], value[1])}`,
+        })),
+      ...distractors.map((c) => {
+        const p = powersOf(c.re, c.im, n)[n - 1];
+        return { tex: `${bracketedTex(c.re, c.im)}^{${n}} = ${complexTex(p[0], p[1])}` };
+      }),
+      {
+        text: n === 2
+          ? `So $w = ${complexTex(tr, ti)}$ comes from $${complexTex(re, im)}$. The other square root of $w$ is $${complexTex(-re, -im)}$, which is not offered.`
+          : `So $w = ${complexTex(tr, ti)}$ comes from $${complexTex(re, im)}$ and from none of the others.`,
+      },
+    ];
+  },
+};
+
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
@@ -981,6 +1113,8 @@ export const planeGenerators = [
   modulusDistance,
   argument,
   complexPower,
+  powerModulus,
+  powerReverse,
   polarForm,
   polarPower,
   complexSqrt,

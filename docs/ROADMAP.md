@@ -22,9 +22,12 @@ itself, so that no thread ever has to stop and ask what is next.
 
 ## 1. What exists today
 
-8 courses, 26 levels, 105 lessons, 155 generators (255 ids once the derived
-`+choice` variants are counted). Written against 147 and 247; batch A5 added
-the eight new logarithm shapes.
+8 courses, 26 levels, 105 lessons, 147 generators (247 ids once the derived
+`+choice` variants are counted). Written against those figures. Four phase A
+batches have since landed — A5's eight logarithm shapes, A2's fifteen working
+widgets, A7's seventeen complex-number ones and A10's fifteen vector and matrix
+ones — so it now stands at **9 courses**, Vectors & Matrices having become two,
+with **202 generators** and 316 ids.
 
 | Concept | Category | Levels | Lessons | Toward 30 |
 | --- | --- | --- | ---: | ---: |
@@ -35,7 +38,8 @@ the eight new logarithm shapes.
 | Complex Numbers | Advanced Maths | 4 | 14 | 47% |
 | Differentiation | Advanced Maths | 4 | 11 | 37% |
 | Integration | Advanced Maths | 3 | 17 | 57% |
-| Vectors & Matrices | Advanced Maths | 3 | 12 | 40% |
+| Vectors | Advanced Maths | 1 | 4 | 13% |
+| Matrices & Linear Transformations | Advanced Maths | 2 | 8 | 27% |
 
 Every level closes with a level check of 12–15 questions. All 26 have one.
 
@@ -148,8 +152,8 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 16 | Complex Numbers | **14 lessons** |
 | 17 | Differentiation | **11 lessons** |
 | 18 | Integration | **17 lessons** |
-| 19 | Vectors | **4 lessons** (split from Vectors & Matrices) |
-| 20 | Matrices & Linear Transformations | **8 lessons** (split from Vectors & Matrices) |
+| 19 | Vectors | **4 lessons** (split out in A10) |
+| 20 | Matrices & Linear Transformations | **8 lessons** (split out in A10) |
 | 21 | Parametric & Implicit Differentiation | new |
 | 22 | Differential Equations | new |
 | 23 | Series Expansions | new |
@@ -261,7 +265,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | **done** (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
-| A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
+| A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
@@ -271,7 +275,7 @@ exercise deck built from two or three generators breaks it by construction. A11
 empties both. Each batch below reports where the two lists stand once it is
 merged, so the figures only make sense in the order the merges happened:
 A5 to **40** and **90**, A2 the first list to **29**, A7 both to **23** and
-**77**, and A9 both to **16** and **60**.
+**77**, A10 both to **21** and **65**, and A9 both to **14** and **48**.
 
 One thing A5 found that the later batches should budget for: a lesson at the
 bar needs **at least four generator families**, since eight exercises at two
@@ -321,6 +325,13 @@ opening the pull request, and again on every conflict notice — a branch can
 merge cleanly and still be wrong, because these two batches changed the same
 rule from different ends. Only the ceilings conflict textually; recount both
 from the merged file rather than taking either side's number.
+
+A10 took the twelve `vm-` lessons off both lists, which with A5's, A2's and
+A7's removals counted leaves **21** and **65**. It needed fifteen new generators to
+do it, which says the same thing A5 found from the other direction: a phase A
+batch is a generator batch first and a deck batch second. Where A2 had already
+put a `tree` or a `steps` exercise into a `vm-` lesson, the widened deck keeps
+it rather than the repeat it replaced, so both batches' gains survive.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

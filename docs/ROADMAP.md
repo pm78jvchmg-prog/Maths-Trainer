@@ -400,6 +400,7 @@ are green, and one new lesson has been played in a browser.
 | # | Batch | Status |
 | ---: | --- | --- |
 | B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
+| B4 | Trigonometric Functions: Radians | **claimed** (`claude/roadmap-b-trig-functions-dt6rsq`) |
 
 ### Phase C — the twenty-one new concepts
 

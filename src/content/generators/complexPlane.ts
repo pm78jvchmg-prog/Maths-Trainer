@@ -4,7 +4,10 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
-import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf, nonZero } from './format';
+import {
+  I_KEY, complexTex, complexAnswer, bracketedTex, powersOf, nonZero,
+  surdParts, surdTex, surdAnswer,
+} from './format';
 import { complexPlaneSvg, rangeFor } from './plane';
 import { options } from '../choiceVariant';
 
@@ -90,9 +93,19 @@ export const plotPoint: Generator<PointParams> = {
 
 /**
  * Pythagorean triples as [leg, leg, hypotenuse], so the modulus is a whole
- * number the table states outright. Deriving it with Math.hypot would mean
- * rounding a float back to the integer we already know, and would let a
- * mistyped row produce a plausible wrong answer instead of failing a test.
+ * number the table states outright.
+ *
+ * This table now serves `modulus-steps` alone. That slide is a `reduce` over
+ * `src/content/expr.ts`, whose `valueOf` rounds every root to a whole number on
+ * purpose and whose banks the suite asserts are whole — a bank of surds would
+ * turn an order-of-operations question into an arithmetic-with-surds question.
+ * A clean triple still earns its place there for exactly that reason: the point
+ * of the slide is square, square, add, *then* root, and a whole-number root is
+ * what lets the last tap land on a bank of integers.
+ *
+ * `modulus` no longer reads it. It answers with a surd, computed in integer
+ * arithmetic from the two parts, so there is nothing to round back to an
+ * integer already known and nothing a table could state more safely.
  */
 export const TRIPLES: [number, number, number][] = [
   [3, 4, 5], [4, 3, 5], [6, 8, 10], [8, 6, 10], [5, 12, 13], [12, 5, 13],
@@ -103,51 +116,287 @@ export const TRIPLES: [number, number, number][] = [
   [35, 12, 37], [11, 60, 61], [28, 45, 53],
 ];
 
-interface ModulusParams { a: number; b: number; hypotenuse: number }
+/**
+ * Two non-zero parts, never both ±1: (1, 1) is the one pair where the sum of
+ * the parts, the never-rooted square and the answer all come to the same
+ * number, so its distractors would collide with the answer.
+ */
+function samplePythagoreanParts(rng: Rng, difficulty: number): { a: number; b: number } {
+  const top = difficulty >= 2 ? 8 : 6;
+  let a = rng.int(1, top);
+  let b = rng.int(1, top);
+  while (a === 1 && b === 1) {
+    a = rng.int(1, top);
+    b = rng.int(1, top);
+  }
+  if (difficulty >= 2) {
+    a *= rng.sign();
+    b *= rng.sign();
+  }
+  return { a, b };
+}
+
+/**
+ * The three ways a modulus is misread, as options: the parts added instead
+ * of squared, the square never rooted, and the parts added and then rooted.
+ * Shared by `modulus` and `modulus-distance`, since a distance is a modulus.
+ */
+function modulusChoices(a: number, b: number): ChoiceOption[] {
+  const n = a * a + b * b;
+  const sum = Math.abs(a) + Math.abs(b);
+  return options(
+    { tex: surdTex(n), answer: surdAnswer(n) },
+    { tex: `${sum}`, answer: `${sum}` },
+    { tex: `${n}`, answer: `${n}` },
+    { tex: `\\sqrt{${sum}}`, answer: `sqrt(${sum})` },
+  );
+}
+
+interface ModulusParams { a: number; b: number }
 
 export const modulus: Generator<ModulusParams> = {
   id: 'modulus',
-  // The sum of the parts, and the square that was never rooted: the two ways
-  // a modulus is misread.
-  choices: ({ a, b, hypotenuse }) =>
-    options(
-      { tex: `${hypotenuse}`, answer: `${hypotenuse}` },
-      { tex: `${Math.abs(a) + Math.abs(b)}`, answer: `${Math.abs(a) + Math.abs(b)}` },
-      { tex: `${a * a + b * b}`, answer: `${a * a + b * b}` },
-      { tex: `${hypotenuse + 1}`, answer: `${hypotenuse + 1}` },
-    ),
-  sample: (rng, difficulty) => {
-    const [x, y, hypotenuse] = rng.pick(TRIPLES);
-    // Signs vary so the learner cannot assume both parts are positive.
-    return difficulty >= 2
-      ? { a: x * rng.sign(), b: y * rng.sign(), hypotenuse }
-      : { a: x, b: y, hypotenuse };
+  choices: ({ a, b }) => modulusChoices(a, b),
+  sample: samplePythagoreanParts,
+  render: ({ a, b }) => {
+    const n = a * a + b * b;
+    const simplified = surdAnswer(n);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `What is $|${complexTex(a, b)}|$? Give the exact value — a surd where it is not a whole number.`,
+        },
+        {
+          kind: 'diagram',
+          svg: complexPlaneSvg(rangeFor(a, b), [{ re: a, im: b, highlight: true }]),
+        },
+      ],
+      lead: `|${complexTex(a, b)}| =`,
+      keypad: SQRT_KEYS,
+      answer: `sqrt(${n})`,
+      alsoAccepts: simplified === `sqrt(${n})` ? undefined : [simplified],
+      domain: 'real',
+      mode: 'exact',
+    };
   },
-  render: ({ a, b, hypotenuse }) => ({
-    kind: 'expression',
-    prompt: [
-      { kind: 'prose', text: `What is $|${complexTex(a, b)}|$?` },
+  solution: ({ a, b }) => {
+    const n = a * a + b * b;
+    const tail = surdTex(n) === `\\sqrt{${n}}` ? '' : ` = ${surdTex(n)}`;
+    return [
       {
-        kind: 'diagram',
-        svg: complexPlaneSvg(rangeFor(a, b), [{ re: a, im: b, highlight: true }]),
+        text: 'The modulus is the distance from the origin, so it is Pythagoras on the two parts.',
+        tex: `|${complexTex(a, b)}| = \\sqrt{${paren(`${a}`)}^2 + ${paren(`${b}`)}^2}`,
       },
-    ],
-    lead: `|${complexTex(a, b)}| =`,
-    keypad: SQRT_KEYS,
-    answer: `${hypotenuse}`,
-    domain: 'real',
-    mode: 'exact',
+      {
+        text: 'Signs disappear when squared, which is why the modulus is never negative.',
+        tex: `= \\sqrt{${a * a} + ${b * b}} = \\sqrt{${n}}${tail}`,
+      },
+      {
+        text: surdParts(n).m === 1
+          ? 'That happens to be a whole number. Most are not, and a surd is the exact answer — do not turn it into a decimal.'
+          : 'A surd is the exact answer and the one to give. It is not a whole number, and nothing is gained by making it one.',
+      },
+    ];
+  },
+};
+
+/* ---------- Which of these has this modulus? ---------- */
+
+interface WhichParams { a: number; b: number; v: number }
+
+/**
+ * One of eight ways to write a pair of magnitudes as a point: swapped, and
+ * each component's sign flipped. The *same* variant is applied to all four
+ * options, so no option stands out by its sign pattern — the learner has to
+ * square and add rather than read the shape.
+ */
+function variant(x: number, y: number, v: number): [number, number] {
+  const [first, second] = (v & 4) !== 0 ? [y, x] : [x, y];
+  return [(v & 1) !== 0 ? -first : first, (v & 2) !== 0 ? -second : second];
+}
+
+export const modulusWhich: Generator<WhichParams> = {
+  id: 'modulus-which',
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, difficulty >= 2 ? 8 : 5),
+    b: rng.int(1, difficulty >= 2 ? 8 : 5),
+    v: rng.int(0, 7),
   }),
-  solution: ({ a, b, hypotenuse }) => [
+  render: ({ a, b, v }): Slide => {
+    const n = a * a + b * b;
+    // Each distractor grows one or both magnitudes, so its modulus strictly
+    // exceeds the target's and there is never a second right answer.
+    const candidates: [number, number][] = [
+      variant(a, b, v),
+      variant(a + 1, b, v),
+      variant(a, b + 1, v),
+      variant(a + 1, b + 1, v),
+    ];
+    const correct = candidates[0];
+    // Sorted rather than shuffled, so the same question renders one way and
+    // the deck de-duplicator can recognise a repeat.
+    const ordered = [...candidates].sort((p, q) =>
+      complexTex(p[0], p[1]).localeCompare(complexTex(q[0], q[1])),
+    );
+    const correctIdx = ordered.findIndex((p) => p[0] === correct[0] && p[1] === correct[1]);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Exactly one of these has modulus $${surdTex(n)}$. Which?` },
+      ],
+      options: ordered.map((p, idx) => ({
+        id: `opt${idx}`,
+        label: complexTex(p[0], p[1]),
+        tex: true,
+      })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: ({ a, b, v }) => {
+    const n = a * a + b * b;
+    const candidates: [number, number][] = [
+      variant(a, b, v),
+      variant(a + 1, b, v),
+      variant(a, b + 1, v),
+      variant(a + 1, b + 1, v),
+    ];
+    return [
+      ...candidates.map(([x, y]) => ({
+        tex: `|${complexTex(x, y)}|^2 = ${paren(`${x}`)}^2 + ${paren(`${y}`)}^2 = ${x * x + y * y}`,
+      })),
+      {
+        text: `Square and add each candidate's parts; only one comes to ${n}. The root keeps the order, so comparing the squares is enough.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Which is furthest from the origin? ---------- */
+
+interface CompareParams { points: { re: number; im: number }[] }
+
+export const modulusCompare: Generator<CompareParams> = {
+  id: 'modulus-compare',
+  // Four points with four *different* moduli, so the largest is unique. The
+  // shuffle happens here rather than in `render`, the `complex-part` pattern:
+  // one question must render one way or the de-duplicator cannot spot a repeat.
+  sample: (rng, difficulty) => {
+    const top = difficulty >= 2 ? 7 : 5;
+    const grid: { re: number; im: number }[] = [];
+    for (let x = 1; x <= top; x += 1) {
+      for (let y = 1; y <= top; y += 1) grid.push({ re: x, im: y });
+    }
+    const seen = new Set<number>();
+    const kept: { re: number; im: number }[] = [];
+    for (const point of rng.shuffle(grid)) {
+      const value = point.re * point.re + point.im * point.im;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      kept.push(point);
+      if (kept.length === 4) break;
+    }
+    return {
+      points: difficulty >= 2
+        ? kept.map((point) => ({ re: point.re * rng.sign(), im: point.im * rng.sign() }))
+        : kept,
+    };
+  },
+  render: ({ points }): Slide => {
+    const squares = points.map((p) => p.re * p.re + p.im * p.im);
+    const correctIdx = squares.indexOf(Math.max(...squares));
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: 'Which of these is furthest from the origin?' }],
+      options: points.map((p, idx) => ({
+        id: `opt${idx}`,
+        label: complexTex(p.re, p.im),
+        tex: true,
+      })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: ({ points }) => [
+    ...points.map((p) => ({
+      tex: `|${complexTex(p.re, p.im)}|^2 = ${paren(`${p.re}`)}^2 + ${paren(`${p.im}`)}^2 = ${p.re * p.re + p.im * p.im}`,
+    })),
     {
-      text: 'The modulus is the distance from the origin, so it is Pythagoras on the two parts.',
-      tex: `|${complexTex(a, b)}| = \\sqrt{${a}^2 + ${b}^2}`,
-    },
-    {
-      text: 'Signs disappear when squared, which is why the modulus is never negative.',
-      tex: `= \\sqrt{${a * a} + ${b * b}} = \\sqrt{${a * a + b * b}} = ${hypotenuse}`,
+      text: 'The largest sum of squares is the largest modulus — no roots needed to compare, because the root keeps the order.',
     },
   ],
+};
+
+/* ---------- The distance between two points ---------- */
+
+interface DistanceParams { a: number; b: number; c: number; d: number }
+
+export const modulusDistance: Generator<DistanceParams> = {
+  id: 'modulus-distance',
+  choices: ({ a, b, c, d }) => modulusChoices(a - c, b - d),
+  // Both differences non-zero, so the distance is genuinely two-dimensional,
+  // and never the (1, 1) difference whose distractors collide (`modulusChoices`).
+  sample: (rng, difficulty) => {
+    const draw = () => (difficulty >= 2 ? rng.int(-4, 4) : rng.int(0, 5));
+    let a = draw();
+    let b = draw();
+    let c = draw();
+    let d = draw();
+    while (a - c === 0 || b - d === 0 || (Math.abs(a - c) === 1 && Math.abs(b - d) === 1)) {
+      a = draw();
+      b = draw();
+      c = draw();
+      d = draw();
+    }
+    return { a, b, c, d };
+  },
+  render: ({ a, b, c, d }) => {
+    const dx = a - c;
+    const dy = b - d;
+    const n = dx * dx + dy * dy;
+    const simplified = surdAnswer(n);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$z = ${complexTex(a, b)}$ and $w = ${complexTex(c, d)}$ are marked. How far apart are they? That distance is $|z - w|$.`,
+        },
+        {
+          kind: 'diagram',
+          svg: complexPlaneSvg(rangeFor(a, b, c, d), [
+            { re: a, im: b, highlight: true },
+            { re: c, im: d, highlight: true },
+          ]),
+        },
+      ],
+      lead: '|z - w| =',
+      keypad: SQRT_KEYS,
+      answer: `sqrt(${n})`,
+      alsoAccepts: simplified === `sqrt(${n})` ? undefined : [simplified],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, c, d }) => {
+    const dx = a - c;
+    const dy = b - d;
+    const n = dx * dx + dy * dy;
+    const tail = surdTex(n) === `\\sqrt{${n}}` ? '' : ` = ${surdTex(n)}`;
+    return [
+      {
+        text: 'Subtract first: $z - w$ is the arrow from $w$ to $z$.',
+        tex: `z - w = ${complexTex(dx, dy)}`,
+      },
+      {
+        text: 'Then its modulus, which is Pythagoras on the difference.',
+        tex: `|z - w| = \\sqrt{${paren(`${dx}`)}^2 + ${paren(`${dy}`)}^2} = \\sqrt{${n}}${tail}`,
+      },
+      {
+        text: 'Subtracting the other way round gives $w - z$, the same distance: the modulus does not care which end you start from.',
+      },
+    ];
+  },
 };
 
 interface ModulusStepsParams { a: number; b: number; c: number }
@@ -701,6 +950,9 @@ export const planeGenerators = [
   plotPoint,
   modulus,
   modulusSteps,
+  modulusWhich,
+  modulusCompare,
+  modulusDistance,
   argument,
   complexPower,
   polarForm,

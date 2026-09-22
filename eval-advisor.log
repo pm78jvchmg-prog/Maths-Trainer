@@ -2568,3 +2568,74 @@ Complex Numbers percentages also match section 10 item 4 line for line
 
 Mutation M-0-swap runs after this commit and before the push; its output is
 appended below.
+
+## Unit 0 — mutation output, after the commit and before the push
+
+M-0-swap (gate, must be killed). Command as written in the plan, against
+`src/content/courses/differentiation.ts`. The harness's printed diff changed
+exactly one line:
+
+    -          skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('chain-rule+choice', 2)],
+    +          skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('product-rule', 2)],
+
+and the test failed with `AssertionError: expected 'df-l3-chain -> product-rule'
+to be ''` — the plan's expected message exactly. Harness verdict: `mutant
+killed: the command exited 1`. `git status --short` empty afterwards.
+
+Unit 0 pushed to origin/week/task7-complex-variety at 9bb7716.
+
+## Unit 1 — Modulus: surd answers and three new question shapes
+
+Committed with NO consultation, per the deviation logged above.
+
+Gates:
+
+- `npx vitest run` -> 3274 passed, 7 files, 93.10 s, exit 0. Predicted 3222 + 52
+  = 3274 (modulus-which 13, modulus-compare 13, modulus-distance and its
+  +choice 26). Exact.
+- `npx tsc --noEmit -p tsconfig.app.json` -> silent.
+- `npx tsc --noEmit -p tsconfig.eval.json` -> silent.
+- `npm run lint` -> 0 errors, 25 warnings.
+- Scope: format.ts, complexPlane.ts, complexNumbers.ts, plus this log. All in
+  the plan's table.
+- `npx vitest run src/content/generators/generators.test.ts -t 'modulus'` ->
+  105 passed. The plan predicted 104 (eight modulus-family ids x 13). The extra
+  one is not a generator test: `-t` matches test *names* as well as ids, and
+  `holds a genuine Pythagorean triple in every modulus row` contains the word.
+  104 + 1 = 105. Noted rather than absorbed.
+- `grep -n accepted src/content/courses/complexNumbers.ts` -> exactly one line,
+  379, the promise in T1 of cn-l3-modulus. Empty at the anchor, as the plan
+  says.
+
+Oracle (scratch, never committed; imports only registry, makeRng and math, and
+its own TeX parser unit-checked on the plan's five strings plus two more):
+
+    modulus: draws: 400, failures: 0
+    modulus-distance: draws: 400, failures: 0
+    modulus-which: draws: 400, failures: 0
+    modulus-compare: draws: 400, failures: 0
+
+Surd helpers checked by hand against the plan's own worked values before use:
+20 -> {k:2,m:5}, 72 -> {k:6,m:2}, 25 -> {k:5,m:1}, 13 -> {k:1,m:13},
+2 -> {k:1,m:2}. All five agree.
+
+### Amendment to the plan, logged as a step: T1 has six blocks, not five
+
+Section 3.1 describes `cn-l3-modulus`'s first teach slide as "existing five
+blocks, edited" and then names which to keep: blocks 1-3, the `|3 + 4i|`
+display replaced by two, and "the closing block about `|3 + 4i|` being 5 not 7".
+The slide actually has six blocks at the anchor. The unnamed one is the prose
+about $|-3|$ being 3 — that the bars mean what they always did for a real
+number. The plan neither says to keep it nor to remove it.
+
+I kept it, placed after the promise and before the closing block. Removing a
+correct paragraph the plan did not ask me to remove would be a content change
+the owner never decided on, and the paragraph is the one place the lesson links
+the new definition to absolute value. So T1 is now nine blocks: the original
+six, with the `|3 + 4i|` display joined by a `|2 + 3i| = \sqrt{13}` display and
+two new prose blocks (the surd instruction and the promise). Recorded here
+because an unlogged departure from a plan's block count is indistinguishable
+from a miscount of my own.
+
+Mutations M-1-surd, M-1-pair, M-1-value and M-1-oracle run after this commit
+and before the push; their outputs are appended below.

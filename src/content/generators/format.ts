@@ -61,6 +61,37 @@ export function powersOf(re: number, im: number, n: number): [number, number][] 
   return out;
 }
 
+/**
+ * n = k^2 * m with m square-free: the surd sqrt(n) in lowest terms. Integer
+ * arithmetic only, so a modulus is never a float rounded back to the integer
+ * it was meant to be.
+ */
+export function surdParts(n: number): { k: number; m: number } {
+  let k = 1;
+  let m = n;
+  for (let p = 2; p * p <= m; p += 1) {
+    while (m % (p * p) === 0) {
+      m /= p * p;
+      k *= p;
+    }
+  }
+  return { k, m };
+}
+
+/** sqrt(n) as the learner reads it: 5, \sqrt{13}, 2\sqrt{5}. */
+export function surdTex(n: number): string {
+  const { k, m } = surdParts(n);
+  if (m === 1) return `${k}`;
+  return `${k === 1 ? '' : k}\\sqrt{${m}}`;
+}
+
+/** The same value for mathjs, simplified: 5, sqrt(13), 2*sqrt(5). */
+export function surdAnswer(n: number): string {
+  const { k, m } = surdParts(n);
+  if (m === 1) return `${k}`;
+  return k === 1 ? `sqrt(${m})` : `${k}*sqrt(${m})`;
+}
+
 /** A non-zero magnitude with a random sign. */
 export function nonZero(rng: Rng, max: number): number {
   return rng.int(1, max) * rng.sign();

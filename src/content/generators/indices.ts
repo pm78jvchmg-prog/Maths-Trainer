@@ -19,6 +19,10 @@
 import type { Generator, KeypadKey, Slide } from '../types';
 import { bin, num, pow, root, valueOf, type Expr } from '../expr';
 import { options } from '../choiceVariant';
+import { plotSvg } from '../figures';
+// Where a slider's handle rests before it is touched. Imported rather than
+// restated so a question cannot be built against a rule the widget has moved.
+import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import type { Rng } from '../../engine/rng';
 
@@ -1264,6 +1268,848 @@ const evaluateDivideLaw = lawReduction('divide', 'idx-evaluate-divide');
 const evaluatePowerLaw = lawReduction('power-of-power', 'idx-evaluate-power');
 const evaluateCoefficientLaw = lawReduction('coefficient', 'idx-evaluate-coefficient');
 
+/* ---------- Shapes beyond typing and picking ---------- */
+
+/**
+ * A tiles bank: the answer's tokens, plus distractors that are not among them.
+ *
+ * Sorted rather than shuffled, for the reason `choiceVariant` rotates instead
+ * of drawing from the rng — one question has to render one way, or the deck
+ * de-duplicator sees two questions where the learner sees one.
+ */
+function fillBank(answer: string[], distractors: string[]): string[] {
+  const needed = new Set(answer);
+  const extras = [...new Set(distractors)].filter((token) => !needed.has(token));
+  return [...answer, ...extras].sort();
+}
+
+/** A root written the way it is read: a square root carries no small 2. */
+function rootOf(index: number, radicand: number | string): string {
+  return index === 2 ? `\\sqrt{${radicand}}` : `\\sqrt[${index}]{${radicand}}`;
+}
+
+/**
+ * An index law, filled in rather than typed.
+ *
+ * Two blanks, and they are deliberately different in kind: the first is the
+ * law *applied* — the indices brought together but not worked out — and the
+ * second is that arithmetic done. Typing the final power asks only for the
+ * answer, and a learner who multiplies the indices instead of adding them
+ * writes something that looks just as finished. Placing $x^{5 + 3}$ first
+ * makes the step being taught the thing that gets graded.
+ *
+ * The blanks sit in the template while the question itself sits in the prompt,
+ * which is the convention every tiles generator here follows and is not only
+ * taste: the widget splits its template on `{0}`, `{1}`, … so any brace round
+ * a bare number — `x^{5}`, `\\sqrt{9}`, `\\frac{2}{3}` — would be read as a
+ * blank marker and tear the TeX in half.
+ */
+interface LawFillParams {
+  a: number;
+  b: number;
+  /** Coefficients, read only by the `coefficient` shape. */
+  p: number;
+  q: number;
+  shape: 'multiply' | 'divide' | 'power' | 'coefficient' | 'negative';
+}
+
+/** The expression the question is about, as the learner reads it. */
+function lawFillSubject({ a, b, p, q, shape }: LawFillParams): string {
+  if (shape === 'divide') return `\\frac{x^{${a}}}{x^{${b}}}`;
+  if (shape === 'power') return `\\left(x^{${a}}\\right)^{${b}}`;
+  if (shape === 'coefficient') return `${p}x^{${a}} \\times ${q}x^{${b}}`;
+  if (shape === 'negative') return `\\frac{1}{x^{${a}}} \\times \\frac{1}{x^{${b}}}`;
+  return `x^{${a}} \\times x^{${b}}`;
+}
+
+/** The law applied, with the arithmetic still to do. */
+function lawFillWorking({ a, b, p, q, shape }: LawFillParams): string {
+  if (shape === 'divide') return `x^{${a} - ${b}}`;
+  if (shape === 'power') return `x^{${a} \\times ${b}}`;
+  if (shape === 'coefficient') return `(${p} \\times ${q})x^{${a} + ${b}}`;
+  if (shape === 'negative') return `x^{-${a}} \\times x^{-${b}}`;
+  return `x^{${a} + ${b}}`;
+}
+
+/** The same thing finished. */
+function lawFillResult({ a, b, p, q, shape }: LawFillParams): string {
+  if (shape === 'divide') return `x^{${a - b}}`;
+  if (shape === 'power') return `x^{${a * b}}`;
+  if (shape === 'coefficient') return `${p * q}x^{${a + b}}`;
+  if (shape === 'negative') return `x^{-${a + b}}`;
+  return `x^{${a + b}}`;
+}
+
+/**
+ * The wrong tiles, which are the standard slips written out.
+ *
+ * Some of them coincide with the answer for particular numbers — $2 \\times 2$
+ * and $2 + 2$ are the same four — and `fillBank` drops those rather than
+ * adjusting them, so a bank is occasionally one tile shorter and never offers
+ * the right answer twice.
+ */
+function lawFillDistractors({ a, b, p, q, shape }: LawFillParams): string[] {
+  if (shape === 'divide') {
+    return [`x^{${b} - ${a}}`, `x^{${b - a}}`, `x^{${a} + ${b}}`, `x^{${a + b}}`];
+  }
+  if (shape === 'power') {
+    return [`x^{${a} + ${b}}`, `x^{${a + b}}`, `x^{${a}}`, `x^{${b}}`];
+  }
+  if (shape === 'coefficient') {
+    return [
+      `(${p} + ${q})x^{${a} \\times ${b}}`,
+      `${p + q}x^{${a * b}}`,
+      `${p * q}x^{${a * b}}`,
+      `${p + q}x^{${a + b}}`,
+    ];
+  }
+  if (shape === 'negative') {
+    return [`x^{${a}} \\times x^{${b}}`, `x^{${a + b}}`, `x^{-${a * b}}`, `x^{-${a}} + x^{-${b}}`];
+  }
+  return [`x^{${a} \\times ${b}}`, `x^{${a * b}}`, `x^{${a} - ${b}}`, `x^{${a}}`];
+}
+
+/** What the first blank is asking for, said in words above the question. */
+const LAW_FILL_PROMPT: Record<LawFillParams['shape'], string> = {
+  multiply: 'Fill the first gap with the indices brought together, and the second with that worked out.',
+  divide: 'Fill the first gap with the indices brought together, and the second with that worked out.',
+  power: 'Fill the first gap with the indices brought together, and the second with that worked out.',
+  coefficient:
+    'The numbers in front multiply; the indices add. Fill the first gap with that written out, and the second with it worked out.',
+  negative:
+    'Rewrite each fraction with a negative index in the first gap, then combine them in the second.',
+};
+
+function lawFillSolution(params: LawFillParams): { text?: string; tex?: string }[] {
+  const { a, b, p, q, shape } = params;
+  const subject = lawFillSubject(params);
+  const working = lawFillWorking(params);
+  const result = lawFillResult(params);
+  if (shape === 'divide') {
+    return [
+      { text: `Dividing powers of the same base subtracts the indices, top one first: $${a} - ${b}$.` },
+      { tex: `${subject} = ${working} = ${result}` },
+      {
+        text: `Taking them the other way round would give $x^{${b - a}}$, which is the reciprocal of the right answer rather than a near miss.`,
+      },
+    ];
+  }
+  if (shape === 'power') {
+    return [
+      {
+        text: `The bracket is $${a}$ copies of $x$, and there are $${b}$ of those brackets — so $${a} \\times ${b} = ${a * b}$ copies in all.`,
+      },
+      { tex: `${subject} = ${working} = ${result}` },
+      {
+        text: `Adding would give $x^{${a + b}}$. That is the law for a *product* of powers, and this is a power *of* a power.`,
+      },
+    ];
+  }
+  if (shape === 'coefficient') {
+    return [
+      {
+        text: `The index belongs to the $x$ alone, so the numbers in front are simply multiplied: $${p} \\times ${q} = ${p * q}$.`,
+      },
+      { tex: `${subject} = ${working} = ${result}` },
+      {
+        text: `The indices still add, giving $x^{${a + b}}$. Multiplying them instead would give $x^{${a * b}}$, which is the slip worth watching for once there are two things to do at once.`,
+      },
+    ];
+  }
+  if (shape === 'negative') {
+    return [
+      {
+        text: `A reciprocal is a negative index, so $\\frac{1}{x^{${a}}}$ is $x^{-${a}}$ and $\\frac{1}{x^{${b}}}$ is $x^{-${b}}$.`,
+      },
+      { tex: `${subject} = ${working} = ${result}` },
+      {
+        text: `Once both are powers of $x$ the ordinary law applies: $-${a} + (-${b}) = -${a + b}$. The answer is smaller than either factor, which is what multiplying two reciprocals should do.`,
+      },
+    ];
+  }
+  return [
+    {
+      text: `Multiplying powers of the same base puts the two piles of copies together: $${a} + ${b} = ${a + b}$.`,
+    },
+    { tex: `${subject} = ${working} = ${result}` },
+    {
+      text: `Multiplying the indices instead would give $x^{${a * b}}$, and counting copies is the quickest way to see that it cannot be right.`,
+    },
+  ];
+}
+
+const lawFillBase: Omit<Generator<LawFillParams>, 'id' | 'sample'> = {
+  render: (params): Slide => {
+    const answer = [lawFillWorking(params), lawFillResult(params)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: LAW_FILL_PROMPT[params.shape] },
+        { kind: 'display', tex: lawFillSubject(params) },
+      ],
+      template: `{0} = {1}`,
+      bank: fillBank(answer, lawFillDistractors(params)),
+      answer,
+    };
+  },
+  solution: lawFillSolution,
+};
+
+/** Numbers for one law-filling shape, kept where the working stays readable. */
+function sampleLawFill(rng: Rng, difficulty: number, shape: LawFillParams['shape']): LawFillParams {
+  const wide = difficulty > 1;
+  if (shape === 'divide') {
+    // Difficulty 1 keeps the top index the larger one, so the result is a
+    // positive power; difficulty 2 lets it go either way, which is the case
+    // the negative-index lesson is built on.
+    const b = rng.int(2, wide ? 12 : 7);
+    const a = wide ? rng.int(2, 12) : b + rng.int(1, 6);
+    return { a: a === b ? a + 1 : a, b, p: 1, q: 1, shape };
+  }
+  if (shape === 'power') {
+    return { a: rng.int(2, wide ? 12 : 9), b: rng.int(2, wide ? 7 : 5), p: 1, q: 1, shape };
+  }
+  if (shape === 'coefficient') {
+    return {
+      a: rng.int(2, wide ? 9 : 6),
+      b: rng.int(2, wide ? 9 : 6),
+      p: rng.int(2, wide ? 12 : 9),
+      q: rng.int(2, wide ? 12 : 9),
+      shape,
+    };
+  }
+  return { a: rng.int(2, wide ? 12 : 9), b: rng.int(2, wide ? 12 : 9), p: 1, q: 1, shape };
+}
+
+/**
+ * One generator per law, sharing everything but the shape — the same
+ * arrangement `lawReduction` uses above, and for the same reason: a lesson
+ * asks about the law it has just taught rather than whichever one a draw
+ * happened to land on.
+ */
+const lawFill = (shape: LawFillParams['shape'], id: string): Generator<LawFillParams> => ({
+  ...lawFillBase,
+  id,
+  sample: (rng, difficulty) => sampleLawFill(rng, difficulty, shape),
+});
+
+const fillMultiply = lawFill('multiply', 'idx-fill-multiply');
+const fillDivide = lawFill('divide', 'idx-fill-divide');
+const fillPower = lawFill('power', 'idx-fill-power');
+const fillCoefficient = lawFill('coefficient', 'idx-fill-coefficient');
+const fillNegative = lawFill('negative', 'idx-fill-negative');
+
+/* ---------- Choosing a law rather than applying one ---------- */
+
+interface LawRouteParams {
+  a: number;
+  b: number;
+  /** The second base, used only where the two bases differ. */
+  other: string;
+  route: 'power' | 'different' | 'multiply' | 'divide';
+}
+
+/**
+ * Which index law does this expression call for?
+ *
+ * Every other generator in this file hands the learner the law in the lesson
+ * title and asks them to run it. Deciding is the separate skill, and it is the
+ * one that survives outside a lesson labelled with the answer — a page of
+ * mixed expressions is where "add the indices" starts being applied to
+ * $\\left(x^{4}\\right)^{3}$.
+ *
+ * A `choice` slide could ask the same thing and would be a one-in-four guess.
+ * Walking the tree makes the learner commit to a reason at each fork, and the
+ * first fork is the one that matters: a bracket raised to a power is settled
+ * before the question of what the two things are doing to each other arises.
+ */
+const chooseLaw: Generator<LawRouteParams> = {
+  id: 'idx-law-choose',
+  sample: (rng, difficulty) => ({
+    a: rng.int(2, difficulty > 1 ? 12 : 9),
+    b: rng.int(2, difficulty > 1 ? 9 : 7),
+    other: rng.pick(['y', 't', 'z']),
+    route: rng.pick(['power', 'different', 'multiply', 'divide'] as const),
+  }),
+  render: ({ a, b, other, route }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Work down the questions to decide what can be done here. Each answer chooses what gets asked next.',
+      },
+    ],
+    subject:
+      route === 'power'
+        ? `\\left(x^{${a}}\\right)^{${b}}`
+        : route === 'divide'
+          ? `\\frac{x^{${a}}}{x^{${b}}}`
+          : route === 'different'
+            ? `x^{${a}} \\times ${other}^{${b}}`
+            : `x^{${a}} \\times x^{${b}}`,
+    steps: [
+      {
+        id: 'bracket',
+        ask: 'Is a power being raised to another power?',
+        branches: [
+          { label: 'Yes', outcome: 'Multiply the two indices.' },
+          { label: 'No', to: 'bases' },
+        ],
+      },
+      {
+        id: 'bases',
+        ask: 'Are both powers written with the same base?',
+        branches: [
+          { label: 'Yes', to: 'operation' },
+          { label: 'No', outcome: 'No index law applies — it stays exactly as it is.' },
+        ],
+      },
+      {
+        id: 'operation',
+        ask: 'Are they multiplied or divided?',
+        branches: [
+          { label: 'Multiplied', outcome: 'Add the indices.' },
+          { label: 'Divided', outcome: 'Subtract the bottom index from the top one.' },
+        ],
+      },
+    ],
+    answer:
+      route === 'power'
+        ? ['Yes']
+        : route === 'different'
+          ? ['No', 'No']
+          : route === 'multiply'
+            ? ['No', 'Yes', 'Multiplied']
+            : ['No', 'Yes', 'Divided'],
+  }),
+  solution: ({ a, b, other, route }) => {
+    if (route === 'power') {
+      return [
+        {
+          text: 'The whole of the first power sits inside a bracket with an index of its own, so this is a power of a power and nothing else needs deciding.',
+        },
+        { tex: `\\left(x^{${a}}\\right)^{${b}} = x^{${a} \\times ${b}} = x^{${a * b}}` },
+        {
+          text: `There are $${b}$ brackets, each holding $${a}$ copies of $x$. Adding would give $x^{${a + b}}$, which is far too few.`,
+        },
+      ];
+    }
+    if (route === 'different') {
+      return [
+        {
+          text: `The bases are $x$ and $${other}$, and every index law begins by insisting they match.`,
+        },
+        { tex: `x^{${a}} \\times ${other}^{${b}}` },
+        {
+          text: `There is no single pile of copies to count, so this cannot be written as one power. It is already as simple as it gets.`,
+        },
+      ];
+    }
+    if (route === 'multiply') {
+      return [
+        {
+          text: 'Nothing is bracketed, the bases match, and the two powers are multiplied — so the copies are put together.',
+        },
+        { tex: `x^{${a}} \\times x^{${b}} = x^{${a + b}}` },
+        {
+          text: `That is $${a}$ copies followed by $${b}$ more, which is $${a + b}$ of them.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Nothing is bracketed, the bases match, and one power is divided by the other — so copies cancel rather than gather.',
+      },
+      { tex: `\\frac{x^{${a}}}{x^{${b}}} = x^{${a} - ${b}} = x^{${a - b}}` },
+      {
+        text: `The order is top index minus bottom one. Reversing it gives $x^{${b - a}}$, and a sign slip here turns the answer upside down.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 2: roots, filled in and decided about ---------- */
+
+interface RootFillParams {
+  base: number;
+  n: number;
+  d: number;
+  /** The d-th root of base, so nothing has to recompute it. */
+  root: number;
+  value: number;
+}
+
+/**
+ * Every fractional index worth filling in, unit fractions included.
+ *
+ * Split into two pools rather than one, because the two halves are two
+ * different lessons: a 1 on top means "take this root and stop", which is all
+ * *Roots as Indices* teaches, and a power on top is what *Powers of Roots*
+ * adds. A generator drawing across both would ask the second lesson's question
+ * in the first.
+ */
+const ROOT_FILLS: RootFillParams[] = ROOTS.flatMap(({ base, den, root }) =>
+  [1, 2, 3, 4, 5]
+    .filter((n) => gcd(n, den) === 1 && Math.pow(root, n) <= 2000)
+    .map((n) => ({ base, n, d: den, root, value: Math.pow(root, n) })),
+);
+
+/** A 1 on top: the index is a root and nothing else. */
+const ROOT_FILLS_UNIT = ROOT_FILLS.filter(({ n }) => n === 1);
+
+/** A genuine power on top, so there is a root *and* a power to place. */
+const ROOT_FILLS_POWER = ROOT_FILLS.filter(({ n }) => n > 1);
+
+/** The gentler half of those: a square or a cube on top. */
+const ROOT_FILLS_POWER_EASY = ROOT_FILLS_POWER.filter(({ n }) => n <= 3);
+
+/** A root written the way it is read aloud, for the branch labels below. */
+const ROOT_NAMES: Record<number, string> = {
+  2: 'The square root',
+  3: 'The cube root',
+  4: 'The fourth root',
+  5: 'The fifth root',
+};
+
+/**
+ * A fractional index rewritten and then evaluated, placed rather than typed.
+ *
+ * Two blanks again, and the same reason as the index laws above: the first is
+ * the index read as a root, the second is that arithmetic done. `idx-fractional`
+ * asks only for the number, which a learner can reach by recognising it without
+ * ever saying what the bottom of the fraction was for.
+ */
+const rootFillBase: Omit<Generator<RootFillParams>, 'id' | 'sample'> = {
+  render: (params): Slide => {
+    const { base, n, d, root, value } = params;
+    const unit = n === 1;
+    const answer = unit
+      ? [rootOf(d, base), `${value}`]
+      : [`\\left(${rootOf(d, base)}\\right)^{${n}}`, `${value}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: unit
+            ? 'The bottom of the index says which root to take. Place that root, then what it comes to.'
+            : 'The bottom of the index is a root and the top is a power. Place the root raised to that power, then what it all comes to.',
+        },
+        { kind: 'display', tex: `${base}^{\\frac{${n}}{${d}}}` },
+      ],
+      template: `{0} = {1}`,
+      bank: fillBank(
+        answer,
+        unit
+          ? [rootOf(d + 1, base), `${d}`, `${root + 1}`, `${Math.round(base / d)}`]
+          : [
+              `\\left(${rootOf(n, base)}\\right)^{${d}}`,
+              rootOf(d, base),
+              `${root}`,
+              `${base * n}`,
+              `${root * n}`,
+            ],
+      ),
+      answer,
+    };
+  },
+  solution: ({ base, n, d, root, value }) =>
+    n === 1
+      ? [
+          {
+            text: `A 1 on top means there is no power to apply — the $${d}$ underneath is the whole instruction.`,
+          },
+          { tex: `${base}^{\\frac{1}{${d}}} = ${rootOf(d, base)} = ${root}` },
+          {
+            text: `Read it as a question: what number to the power $${d}$ gives $${base}$? It is $${root}$, because $${root}^{${d}} = ${base}$.`,
+          },
+        ]
+      : [
+          {
+            text: `The $${d}$ underneath says which root to take, and the $${n}$ on top says what power to raise it to.`,
+          },
+          { tex: `${rootOf(d, base)} = ${root}` },
+          {
+            tex: `${base}^{\\frac{${n}}{${d}}} = \\left(${rootOf(d, base)}\\right)^{${n}} = ${root}^{${n}} = ${value}`,
+          },
+          {
+            text: `Taking the power first gives the same $${value}$ by way of $${base}^{${n}}$, a number far larger than anything else on the page — which is why the root goes first by habit.`,
+          },
+        ],
+};
+
+/** A unit fractional index: the root alone. */
+const fillRoot: Generator<RootFillParams> = {
+  ...rootFillBase,
+  id: 'idx-fill-root',
+  sample: (rng, difficulty) =>
+    rng.pick(difficulty > 1 ? ROOT_FILLS_UNIT : ROOT_FILLS_UNIT.filter(({ d }) => d <= 4)),
+};
+
+/** A fractional index with a power on top: the root, then the power. */
+const fillFractional: Generator<RootFillParams> = {
+  ...rootFillBase,
+  id: 'idx-fill-fractional',
+  sample: (rng, difficulty) =>
+    rng.pick(difficulty > 1 ? ROOT_FILLS_POWER : ROOT_FILLS_POWER_EASY),
+};
+
+interface RootRouteParams {
+  base: number;
+  n: number;
+  d: number;
+  root: number;
+  /** A plain whole-number index, where there is no root to take at all. */
+  whole: boolean;
+}
+
+/** Roots a four-way fork can actually name, unit fractions first. */
+const ROOT_ROUTES = ROOT_FILLS.filter(({ d }) => d <= 5);
+const ROOT_ROUTES_EASY = ROOT_ROUTES.filter(({ n }) => n === 1);
+
+/**
+ * What does this index tell you to do?
+ *
+ * The companion to `idx-law-choose`, one level on. A fractional index carries
+ * two instructions and a habit — which root, which power, and which of them to
+ * do first — and a learner who can evaluate $64^{2/3}$ when told to often
+ * cannot say what the $3$ underneath was for.
+ */
+const chooseRootRoute: Generator<RootRouteParams> = {
+  id: 'idx-root-flow',
+  sample: (rng, difficulty) => {
+    const drawn = rng.pick(difficulty > 1 ? ROOT_ROUTES : ROOT_ROUTES_EASY);
+    return { ...drawn, whole: rng.int(1, 4) === 1 };
+  },
+  render: ({ base, n, d, root, whole }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Read the index and decide what it is asking for. Each answer chooses what gets asked next.',
+      },
+    ],
+    subject: whole ? `${root}^{${n}}` : `${base}^{\\frac{${n}}{${d}}}`,
+    steps: [
+      {
+        id: 'index',
+        ask: 'What kind of index is it?',
+        branches: [
+          { label: 'A whole number', outcome: 'Raise the base to that power, and there is nothing else to do.' },
+          { label: 'A fraction', to: 'root' },
+        ],
+      },
+      {
+        id: 'root',
+        ask: 'The bottom of the fraction names a root. Which root is it here?',
+        branches: [
+          { label: ROOT_NAMES[2], to: 'top' },
+          { label: ROOT_NAMES[3], to: 'top' },
+          { label: ROOT_NAMES[4], to: 'top' },
+          { label: ROOT_NAMES[5], to: 'top' },
+        ],
+      },
+      {
+        id: 'top',
+        ask: 'And what does the number on top tell you to do?',
+        branches: [
+          {
+            label: 'Nothing — it is a 1',
+            outcome: 'Take that root of the base, and that is the whole answer.',
+          },
+          {
+            label: 'Raise the root to that power',
+            outcome: 'Take the root first, then raise it — the same answer, with far smaller numbers on the way.',
+          },
+        ],
+      },
+    ],
+    answer: whole
+      ? ['A whole number']
+      : [
+          'A fraction',
+          ROOT_NAMES[d],
+          n === 1 ? 'Nothing — it is a 1' : 'Raise the root to that power',
+        ],
+  }),
+  solution: ({ base, n, d, root, whole }) => {
+    if (whole) {
+      return [
+        {
+          text: `The index $${n}$ is a whole number, so there is no root hiding in it — it is $${n}$ copies of $${root}$ multiplied together.`,
+        },
+        { tex: `${root}^{${n}} = ${Math.pow(root, n)}` },
+        {
+          text: 'A fraction underneath is what turns an index into a root. There is no fraction here, so nothing is being undone.',
+        },
+      ];
+    }
+    if (n === 1) {
+      return [
+        {
+          text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply the $${d}$th root of $${base}$.`,
+        },
+        { tex: `${base}^{\\frac{1}{${d}}} = ${rootOf(d, base)} = ${root}` },
+        {
+          text: `A 1 on top is easy to read past. It is the only case where the index does one job rather than two.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as the $${d}$th root of $${base}$, then raised to the power $${n}$.`,
+      },
+      { tex: `${rootOf(d, base)} = ${root} \\quad\\text{then}\\quad ${root}^{${n}} = ${Math.pow(root, n)}` },
+      {
+        text: `The other order gives the same answer through $${base}^{${n}}$, which is a number you would not want to write down. Root first, every time.`,
+      },
+    ];
+  },
+};
+
+interface MatchBaseParams {
+  r: number;
+  p: number;
+  q: number;
+}
+
+/**
+ * Both sides of an index equation, rewritten over a common base.
+ *
+ * `idx-equation` asks for the answer; this asks for the step that gets you
+ * there, which is the one a learner skips. Writing $16^{x}$ as $2^{4x}$ is
+ * where the equation stops being about $16$ at all.
+ */
+const MATCH_PAIRS: MatchBaseParams[] = [2, 3, 5, 7, 11].flatMap((r) =>
+  [2, 3, 4].flatMap((p) => {
+    if (Math.pow(r, p) > 1000) return [];
+    const out: MatchBaseParams[] = [];
+    for (let q = 2; Math.pow(r, q) <= 1_000_000; q += 1) {
+      // Equal indices would make both sides identical, which asks nothing.
+      if (q !== p) out.push({ r, p, q });
+    }
+    return out;
+  }),
+);
+
+/** The pairs whose equation has a whole-number solution. */
+const MATCH_WHOLE = MATCH_PAIRS.filter(({ p, q }) => q % p === 0);
+
+const matchBase: Generator<MatchBaseParams> = {
+  id: 'idx-match-base',
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? MATCH_PAIRS : MATCH_WHOLE),
+  render: (params): Slide => {
+    const { r, p, q } = params;
+    const answer = [`${r}^{${p}x}`, `${r}^{${q}}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Rewrite both sides as powers of $${r}$. Nothing needs solving yet.`,
+        },
+        { kind: 'display', tex: `${Math.pow(r, p)}^{x} = ${Math.pow(r, q)}` },
+      ],
+      template: `{0} = {1}`,
+      bank: fillBank(answer, [
+        `${r}^{${p} + x}`,
+        `${r}^{x}`,
+        `${r}^{${q + 1}}`,
+        `${Math.pow(r, p)}^{${q}}`,
+        `${r}^{${p * q}}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ r, p, q }) => [
+    {
+      text: `Both $${Math.pow(r, p)}$ and $${Math.pow(r, q)}$ are powers of $${r}$, which is what makes this solvable without logarithms.`,
+    },
+    { tex: `${Math.pow(r, p)}^{x} = \\left(${r}^{${p}}\\right)^{x} = ${r}^{${p}x}` },
+    { tex: `${r}^{${p}x} = ${r}^{${q}} \\implies ${p}x = ${q} \\implies x = ${q % p === 0 ? q / p : `\\frac{${q}}{${p}}`}` },
+    {
+      text: `Once the bases match, the indices can simply be equated — that is the whole method, and the rewriting above is the only part that takes any thought.`,
+    },
+  ],
+};
+
+/* ---------- Level 3: surds, filled in and estimated ---------- */
+
+/** Pulling the square factor out of a surd, placed rather than typed. */
+const fillSimplifySurd: Generator<SurdParams> = {
+  id: 'rad-fill-simplify',
+  sample: (rng, difficulty) => ({
+    k: rng.int(2, difficulty > 1 ? 9 : 6),
+    m: rng.pick(difficulty > 1 ? SURD_FREE : SURD_FREE.slice(0, 8)),
+  }),
+  render: ({ k, m }): Slide => {
+    const answer = [`\\sqrt{${k * k}} \\times \\sqrt{${m}}`, `${k}\\sqrt{${m}}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Split the number under the root into its square factor and the rest, then finish it.',
+        },
+        { kind: 'display', tex: `\\sqrt{${k * k * m}}` },
+      ],
+      template: `{0} = {1}`,
+      bank: fillBank(answer, [
+        `\\sqrt{${k}} \\times \\sqrt{${m}}`,
+        `\\sqrt{${k * k}} + \\sqrt{${m}}`,
+        `${k * k}\\sqrt{${m}}`,
+        `${k}\\sqrt{${k * m}}`,
+        `${m}\\sqrt{${k}}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ k, m }) => [
+    {
+      text: `The largest square dividing $${k * k * m}$ is $${k * k}$, and $${k * k * m} \\div ${k * k} = ${m}$.`,
+    },
+    { tex: `\\sqrt{${k * k * m}} = \\sqrt{${k * k}} \\times \\sqrt{${m}} = ${k}\\sqrt{${m}}` },
+    {
+      text: `The square factor leaves as its root: $${k * k}$ comes out as $${k}$, not as $${k * k}$. What stays behind, $${m}$, has no square factor left in it.`,
+    },
+  ],
+};
+
+/**
+ * Every whole number from 5 up whose square root is worth estimating.
+ *
+ * Perfect squares are dropped — there is nothing to estimate — and the range
+ * is capped where the figure's curve leaves the picture.
+ */
+const ESTIMABLE: number[] = Array.from({ length: 126 }, (_, idx) => idx + 5).filter((n) => {
+  const nearest = Math.round(Math.sqrt(n));
+  return nearest * nearest !== n && nearest >= 2 && nearest <= 11;
+});
+
+/**
+ * How big is this surd?
+ *
+ * The one question none of the other widgets here can ask. Every other surd
+ * generator is about rewriting — $\\sqrt{72}$ into $6\\sqrt{2}$ — and a learner
+ * can do all of it fluently while having no idea that the answer is a bit
+ * over eight. Dragging to a number, against a curve that shows where the
+ * square lands, asks for the size rather than the form.
+ */
+const estimateSurd: Generator<{ n: number }> = {
+  id: 'rad-estimate',
+  sample: (rng, difficulty) => ({
+    n: rng.pick(difficulty > 1 ? ESTIMABLE : ESTIMABLE.filter((n) => n <= 60)),
+  }),
+  render: ({ n }): Slide => {
+    // The window is built around this question's own answer rather than fixed.
+    // A fixed 0-12 span puts the crossing for a small n in the bottom-left
+    // corner of an otherwise empty picture, which is the one thing the figure
+    // exists to show. Three past the answer leaves the crossing comfortably
+    // inside the frame at every n the pool offers.
+    const nearest = Math.round(Math.sqrt(n));
+    // Then grown until the untouched handle is not already on the answer. A
+    // slider seeds its answer with wherever the handle rests, so a track whose
+    // middle *is* the answer is marked correct without being dragged — which
+    // it was for every n whose root rounds to 4 or 5.
+    let span = nearest + 3;
+    while (defaultSliderValue(1, span, 1) === nearest) span += 1;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve is $y = x^{2}$, and the dashed line is at $y = ${n}$. Slide to the whole number $\\sqrt{${n}}$ is closest to.`,
+        },
+      ],
+      min: 1,
+      max: span,
+      step: 1,
+      answer: nearest,
+      readout: `\\sqrt{${n}} \\approx {v}`,
+      // The figure covers the slider's own span, so the marker under the handle
+      // sits where that value is on the curve.
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: span * span,
+          curves: [{ f: (x) => x * x }],
+          horizontals: [n],
+          label: `The curve y equals x squared, with a dashed line at y equals ${n}`,
+        }),
+        xMin: 0,
+        xMax: span,
+      },
+    };
+  },
+  solution: ({ n }) => {
+    const nearest = Math.round(Math.sqrt(n));
+    const below = Math.floor(Math.sqrt(n));
+    return [
+      {
+        text: `Look for the squares either side of $${n}$: $${below}^{2} = ${below * below}$ and $${below + 1}^{2} = ${(below + 1) * (below + 1)}$.`,
+      },
+      { tex: `${below * below} < ${n} < ${(below + 1) * (below + 1)}` },
+      {
+        text: `So $\\sqrt{${n}}$ lies between $${below}$ and $${below + 1}$, and it is nearer $${nearest}$ — which is where the dashed line meets the curve.`,
+      },
+      {
+        text: 'Knowing roughly how big a surd is catches an answer that has gone wrong in a way no amount of rewriting will.',
+      },
+    ];
+  },
+};
+
+/** Rationalising a denominator, as the multiplication that does it. */
+const fillRationalise: Generator<{ c: number; m: number }> = {
+  id: 'rad-fill-rationalise',
+  // c never equals m, because `\frac{c}{m}` is one of the distractors and at
+  // c = m it is a fraction genuinely worth 1 — a learner placing it would be
+  // answering the question as asked and still be marked wrong.
+  sample: (rng, difficulty) => {
+    const m = rng.pick(difficulty > 1 ? SURD_FREE : SURD_FREE.slice(0, 8));
+    const c = rng.int(2, difficulty > 1 ? 12 : 9);
+    return { c: c === m ? c + 1 : c, m };
+  },
+  render: ({ c, m }): Slide => {
+    const answer = [
+      `\\frac{\\sqrt{${m}}}{\\sqrt{${m}}}`,
+      `\\frac{${c}\\sqrt{${m}}}{${m}}`,
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Which fraction worth 1 clears the root from the bottom? Place it, then place what the multiplication leaves.',
+        },
+        { kind: 'display', tex: `\\frac{${c}}{\\sqrt{${m}}}` },
+      ],
+      template: `\\text{multiply by } {0} \\text{ and get } {1}`,
+      bank: fillBank(answer, [
+        `\\frac{\\sqrt{${m}}}{${m}}`,
+        `\\frac{${m}}{\\sqrt{${m}}}`,
+        `\\frac{${c}}{${m}}`,
+        `\\frac{${c}\\sqrt{${m}}}{\\sqrt{${m}}}`,
+        `\\frac{\\sqrt{${m}}}{${c * m}}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ c, m }) => [
+    {
+      text: `Multiplying by $\\frac{\\sqrt{${m}}}{\\sqrt{${m}}}$ is multiplying by 1, so it changes how the fraction is written and not what it is worth.`,
+    },
+    {
+      tex: `\\frac{${c}}{\\sqrt{${m}}} \\times \\frac{\\sqrt{${m}}}{\\sqrt{${m}}} = \\frac{${c}\\sqrt{${m}}}{${m}}`,
+    },
+    {
+      text: `The bottom becomes $${m}$ because $\\sqrt{${m}} \\times \\sqrt{${m}} = ${m}$. Multiplying only the denominator would have changed the value — that is why the tile has to be a fraction worth 1 rather than just $\\sqrt{${m}}$.`,
+    },
+  ],
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -1283,4 +2129,17 @@ export const indicesGenerators = [
   evaluateDivideLaw,
   evaluatePowerLaw,
   evaluateCoefficientLaw,
+  fillMultiply,
+  fillDivide,
+  fillPower,
+  fillCoefficient,
+  fillNegative,
+  chooseLaw,
+  fillRoot,
+  fillFractional,
+  chooseRootRoute,
+  matchBase,
+  fillSimplifySurd,
+  estimateSurd,
+  fillRationalise,
 ] as unknown as Generator<unknown>[];

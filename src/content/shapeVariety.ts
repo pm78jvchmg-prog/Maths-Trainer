@@ -54,8 +54,6 @@ export const MAX_PER_FAMILY = 2;
  * lessons, so this is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l2-equations': 2,
-  'er-l3-rationalise': 2,
   'qd-l1-expand': 2,
   'qd-l1-factorise': 2,
   'qd-l1-squares': 2,
@@ -87,22 +85,10 @@ export const WIDGET_KIND_CEILING = 21;
  * Far longer than the widget-kind list — it started at 102 of 105 lessons —
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
- * progress is measured. Logarithms left both lists in batch A5, and Complex
- * Numbers in A7.
+ * progress is measured. Logarithms left both lists in batch A5, Complex Numbers
+ * in A7, and Exponents & Radicals in A3.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l1-multiply': 5,
-  'er-l1-divide': 4,
-  'er-l1-power-of-power': 4,
-  'er-l1-coefficients': 5,
-  'er-l1-negative': 5,
-  'er-l2-fractional': 5,
-  'er-l2-powers-of-roots': 3,
-  'er-l2-equations': 6,
-  'er-l3-simplify': 5,
-  'er-l3-multiply': 5,
-  'er-l3-add': 7,
-  'er-l3-rationalise': 5,
   'qd-l1-expand': 7,
   'qd-l1-factorise': 7,
   'qd-l1-squares': 7,

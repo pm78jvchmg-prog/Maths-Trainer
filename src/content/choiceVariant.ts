@@ -28,12 +28,18 @@ export function choiceId(generatorId: string): string {
  * practise what its skill check asks". `x`, `x+choice`, `x-steps` and
  * `x-steps+choice` are one family: the same computation through a different
  * widget, or with its working shown. Difficulty is deliberately not part of it.
+ *
+ * `-tree` counts the same way, and for a sharper reason than tidiness. The
+ * repetition rule in `shapeVariety.ts` is counted by family, so a `tree` form of
+ * a generator already in the deck would otherwise read as a second skill and
+ * let a lesson ask one thing three times while passing. Adding the suffix here
+ * moves no existing number, because no id ended in `-tree` before batch A2.
  */
 export function familyOf(generatorId: string): string {
   const bare = generatorId.endsWith(CHOICE_SUFFIX)
     ? generatorId.slice(0, -CHOICE_SUFFIX.length)
     : generatorId;
-  return bare.replace(/-steps$/, '');
+  return bare.replace(/-(steps|tree)$/, '');
 }
 
 /**

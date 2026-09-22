@@ -21,6 +21,13 @@
  * can stop someone editing a list, but adding an entry now means raising a
  * number whose comment says it only goes down, in the same diff, where a
  * reviewer sees it.
+ *
+ * Neither list is meant to survive phase A. When one reaches zero the suite
+ * says so and fails until the list, its ceiling and the guard's use of it are
+ * deleted — see `retires an allowlist once it is empty` in
+ * `generators.test.ts`. An empty list left in place is still a guard with an
+ * exception in it, and re-populating it would cost one line rather than a
+ * raised ceiling.
  */
 
 /** Distinct widget kinds a lesson's exercises must offer between them. */
@@ -48,62 +55,46 @@ export const MAX_PER_FAMILY = 2;
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l2-equations': 2,
-  'er-l3-add': 2,
   'er-l3-rationalise': 2,
   'qd-l1-expand': 2,
   'qd-l1-factorise': 2,
   'qd-l1-squares': 2,
   'qd-l1-coefficient': 2,
   'qd-l2-solve': 2,
-  'qd-l2-square': 2,
-  'qd-l3-turning': 2,
   'tf-l1-periodic': 2,
   'tf-l1-shift': 2,
   'tf-l2-speed': 2,
-  'tf-l3-period-shift': 2,
-  'lg-l1-meaning': 2,
-  'lg-l1-domain': 2,
-  'lg-l2-combine': 2,
-  'lg-l3-exponential': 2,
-  'lg-l3-natural': 2,
-  'lg-l3-growth': 2,
-  'lg-l3-models': 2,
   'df-l1-index': 2,
-  'df-l2-product': 2,
   'df-l2-quotient': 2,
-  'df-l3-chain': 2,
   'df-l3-roots': 2,
   'df-l4-trig': 2,
   'in-l1-antiderivatives': 2,
   'in-l1-powers': 2,
-  'in-l1-sums': 2,
   'in-l1-negative': 2,
   'in-l1-roots': 2,
   'in-l1-standard': 2,
   'in-l3-brackets': 2,
   'in-l3-substitution': 2,
-  'vm-l1-components': 2,
-  'vm-l1-scalars': 2,
   'vm-l2-add': 2,
   'vm-l2-combine': 2,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 39;
+export const WIDGET_KIND_CEILING = 23;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
  * how many times the worst offender is asked today.
  *
- * Far longer than the widget-kind list — 102 of 105 lessons when A1 measured
- * it — because a seven exercise deck built from two or three generators breaks
- * this rule by construction. Phase A widens the decks; this list is how that
- * progress is measured. A7 took the 13 Complex Numbers lessons off it, and 8
- * off the widget-kind list above.
+ * Far longer than the widget-kind list — it started at 102 of 105 lessons —
+ * because a seven exercise deck built from two or three generators breaks this
+ * rule by construction. Phase A widens the decks; this list is how that
+ * progress is measured. Logarithms left both lists in batch A5, and Complex
+ * Numbers in A7.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l1-multiply': 6,
-  'er-l1-divide': 5,
+  'er-l1-multiply': 5,
+  'er-l1-divide': 4,
   'er-l1-power-of-power': 4,
   'er-l1-coefficients': 5,
   'er-l1-negative': 5,
@@ -123,7 +114,7 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'qd-l2-formula': 5,
   'qd-l2-discriminant': 4,
   'qd-l3-symmetry': 5,
-  'qd-l3-turning': 6,
+  'qd-l3-turning': 5,
   'qd-l3-roots': 4,
   'tf-l1-periodic': 4,
   'tf-l1-period': 5,
@@ -139,18 +130,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'tf-l3-amplitude-shift': 3,
   'tf-l3-period-shift': 3,
   'tf-l3-period-formula': 6,
-  'lg-l1-meaning': 4,
-  'lg-l1-evaluate': 5,
-  'lg-l1-solve': 5,
-  'lg-l1-domain': 5,
-  'lg-l2-add': 3,
-  'lg-l2-power': 3,
-  'lg-l2-combine': 7,
-  'lg-l2-equations': 5,
-  'lg-l3-exponential': 7,
-  'lg-l3-natural': 6,
-  'lg-l3-growth': 6,
-  'lg-l3-models': 3,
   'df-l1-power': 5,
   'df-l1-sums': 5,
   'df-l1-index': 6,
@@ -194,4 +173,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 89;
+export const GENERATOR_REPETITION_CEILING = 77;

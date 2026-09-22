@@ -258,7 +258,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | ---: | --- | --- | --- |
 | A1 | Shape-variety report and guard | done | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
 | A2 | `tree` and `steps` generators | done | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
-| A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
+| A3 | Widen Exponents & Radicals | **done** (`claude/roadmap-a3-vrqpoj`) | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
@@ -272,16 +272,31 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
 more than twice" rule, counted by family, caught **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
-empties both. Each batch below reports where the two lists stand once it is
-merged, so the figures only make sense in the order the merges happened:
-A5 to **40** and **90**, A2 the first list to **29**, A7 both to **23** and
-**77**, A10 both to **21** and **65**, and A9 both to **14** and **48**.
+empties both. A3, A5, A7, A9 and A10 have each taken a course off both lists,
+and A2 took ten lessons off the first. After those the lists stand at **12**
+and **36**, with only Differentiation, Quadratics and Trigonometric Functions
+left — A4, A6 and A8. Do not trust that pair of numbers, or any other written
+down here: every one of them went stale the moment the next batch landed, and
+`npm test` prints the current standing.
 
 One thing A5 found that the later batches should budget for: a lesson at the
 bar needs **at least four generator families**, since eight exercises at two
 asks each is four. Every phase A batch is therefore partly a generator batch,
 whatever its row says — Logarithms needed eight new ones to widen twelve
-lessons.
+lessons, and Exponents & Radicals needed twelve.
+
+A3 found the second constraint, which is arithmetic the rows do not state: the
+suite caps a lesson at **11 slides in total**, so eight exercises leaves room
+for exactly three teaching slides. A lesson that already has four has to fold
+one into the `leadIn` of the question it sets up, or lose it.
+
+A3 also found a trap in the `tiles` widget worth writing down once. Its
+template is split on `{0}`, `{1}`, … so **any brace round a bare number is read
+as a blank marker** — `x^{5}`, `\sqrt{9}` and `\frac{2}{3}` all tear the TeX in
+half, and a blank cannot sit inside a superscript either, since the `x^`
+fragment left behind is not valid on its own. The convention that survives all
+of it: the question goes in the prompt, where braces are free, and the template
+holds only whole tokens separated by literal text.
 
 A2 then took the widget-kind list to **29**: giving fifteen lessons one
 exercise through a `tree` or a `steps` slide put thirteen of them over the

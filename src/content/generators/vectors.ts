@@ -1255,6 +1255,2037 @@ const method: Generator<MethodParams> = {
   },
 };
 
+/* ---------- Level 4: vector geometry (roadmap batch B8) ---------- */
+
+/*
+ * Level 4 moves from vectors as columns of numbers to vectors as the way of
+ * saying where points are: position vectors, the vector between two points,
+ * a point part-way along a line, three points on one line, the fourth corner
+ * of a parallelogram, and finally the same reasoning with no numbers at all.
+ *
+ * Every answer is still either a scalar or a pair of numbers placed as tiles,
+ * for the reason `vectorFormat.ts` gives. The one exception in spirit is the
+ * last lesson, where the answer is a combination of the symbols `a` and `b`:
+ * that is graded as a scalar expression in two variables, and correctly so —
+ * a linear combination of two independent vectors behaves exactly like the
+ * same combination of two independent numbers, so `a/2 + b/2` and
+ * `(a + b)/2` agree at every probe point exactly when the vectors agree.
+ */
+
+/** A point's coordinates, for prompts and options. One whole TeX string. */
+function pointTex(x: number, y: number): string {
+  return `\\left(${x}, ${y}\\right)`;
+}
+
+/**
+ * The coordinate template every point answer uses.
+ *
+ * Plain brackets rather than `\left(`: a tiles template is split at its blanks
+ * into separate TeX fragments, and a `\left(` whose `\right)` lives in another
+ * fragment renders as red error text.
+ */
+function pointTemplate(name: string): string {
+  return `${name} = ( {0} , \\; {1} )`;
+}
+
+/** Point options, as a choice's labels. */
+function pointOptions(correct: [number, number], ...wrong: [number, number][]) {
+  return options(
+    { tex: pointTex(correct[0], correct[1]) },
+    ...wrong.map(([x, y]) => ({ tex: pointTex(x, y) })),
+  );
+}
+
+/** Zero exactly when two vectors are parallel (or either is zero). */
+function cross(ux: number, uy: number, vx: number, vy: number): number {
+  return ux * vy - uy * vx;
+}
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) [x, y] = [y, x % y];
+  return x;
+}
+
+/** A fraction in lowest terms with a positive denominator. */
+interface Ratio {
+  n: number;
+  d: number;
+}
+
+function ratio(n: number, d: number): Ratio {
+  const g = gcd(n, d) || 1;
+  const sign = d < 0 ? -1 : 1;
+  return { n: (sign * n) / g, d: (sign * d) / g };
+}
+
+const sameRatio = (p: Ratio, q: Ratio) => p.n === q.n && p.d === q.d;
+
+/** A fraction as the learner reads it: `-\frac{1}{3}`, `2`, never `\frac{2}{1}`. */
+function ratioTex({ n, d }: Ratio): string {
+  if (d === 1) return `${n}`;
+  return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}`;
+}
+
+/** The same fraction for mathjs, bracketed so nothing can bind into it. */
+function ratioAnswer({ n, d }: Ratio): string {
+  return `(${n}/${d})`;
+}
+
+/** One term of a combination, with the sign left to the caller. */
+function termTex(size: Ratio, symbol: string): string {
+  if (size.n === size.d) return symbol;
+  return `${ratioTex(size)}${symbol}`;
+}
+
+/**
+ * `λa + μb` as it would be written by hand: a coefficient of one is implied, a
+ * zero term vanishes, and a negative second term reads as a subtraction.
+ */
+function combinationTex(lambda: Ratio, mu: Ratio, a = '\\mathbf{a}', b = '\\mathbf{b}'): string {
+  const parts: string[] = [];
+  if (lambda.n !== 0) {
+    parts.push(`${lambda.n < 0 ? '-' : ''}${termTex(ratio(Math.abs(lambda.n), lambda.d), a)}`);
+  }
+  if (mu.n !== 0) {
+    const body = termTex(ratio(Math.abs(mu.n), mu.d), b);
+    if (parts.length === 0) parts.push(`${mu.n < 0 ? '-' : ''}${body}`);
+    else parts.push(`${mu.n < 0 ? '-' : '+'} ${body}`);
+  }
+  return parts.length === 0 ? '\\mathbf{0}' : parts.join(' ');
+}
+
+/** The same combination for mathjs, in the two symbols the keypad offers. */
+function combinationAnswer(lambda: Ratio, mu: Ratio): string {
+  return `${ratioAnswer(lambda)}*a + ${ratioAnswer(mu)}*b`;
+}
+
+/** Tile tokens, sorted by the value they stand for so the bank reads in order. */
+function ratioBank(answer: Ratio[], wrong: Ratio[]): string[] {
+  const value = (r: Ratio) => r.n / r.d;
+  const needed = new Set(answer.map(ratioTex));
+  const extras: Ratio[] = [];
+  const seen = new Set<string>();
+  const offer = (r: Ratio) => {
+    const tex = ratioTex(r);
+    if (needed.has(tex) || seen.has(tex)) return;
+    seen.add(tex);
+    extras.push(r);
+  };
+  wrong.forEach(offer);
+  // Padding for the cases whose slips all land on the answer — a midpoint's
+  // two halves, swapped, are the same two halves.
+  for (const r of [ratio(1, 1), ratio(-1, 1), ratio(1, 2), ratio(2, 1), ratio(-1, 2)]) {
+    if (extras.length >= 3) break;
+    offer(r);
+  }
+  return [...answer, ...extras].sort((p, q) => value(p) - value(q)).map(ratioTex);
+}
+
+/** A tree bank keeping its answers with multiplicity and at least two spares. */
+function geometryTreeBank(answer: string[], candidates: string[], pad: string[]): string[] {
+  const needed = new Set(answer);
+  const extras: string[] = [];
+  for (const candidate of [...candidates, ...pad]) {
+    if (extras.length >= 4) break;
+    if (needed.has(candidate) || extras.includes(candidate)) continue;
+    extras.push(candidate);
+  }
+  return [...answer, ...extras].sort();
+}
+
+/**
+ * Points on squared paper, with the segment between the first two.
+ *
+ * Square and to scale like `vectorSvg`, and for the same reason: a slider
+ * marker is positioned as a fraction of the picture, so -span has to sit on the
+ * left edge exactly. Each label sits beyond its point along the segment, where
+ * the line cannot run through it.
+ */
+function pointsSvg(
+  points: { x: number; y: number; name: string }[],
+  opts: { span: number; arrow?: boolean; label: string },
+): string {
+  const { span } = opts;
+  const SIZE = 220;
+  const unit = SIZE / (2 * span);
+  const sx = (v: number) => SIZE / 2 + v * unit;
+  const sy = (v: number) => SIZE / 2 - v * unit;
+  const f = (v: number) => v.toFixed(1);
+
+  const parts = [
+    `<svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" role="img" aria-label="${opts.label}">`,
+  ];
+  for (let i = -span + 1; i <= span - 1; i += 1) {
+    parts.push(
+      `<line x1="${f(sx(i))}" y1="0" x2="${f(sx(i))}" y2="${SIZE}" stroke="currentColor" stroke-width="0.5" opacity="0.15" />`,
+      `<line x1="0" y1="${f(sy(i))}" x2="${SIZE}" y2="${f(sy(i))}" stroke="currentColor" stroke-width="0.5" opacity="0.15" />`,
+    );
+  }
+  parts.push(
+    `<line x1="0" y1="${f(sy(0))}" x2="${SIZE}" y2="${f(sy(0))}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+    `<line x1="${f(sx(0))}" y1="0" x2="${f(sx(0))}" y2="${SIZE}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+  );
+
+  const [from, to] = points;
+  if (from && to) {
+    parts.push(
+      `<line x1="${f(sx(from.x))}" y1="${f(sy(from.y))}" x2="${f(sx(to.x))}" y2="${f(sy(to.y))}" class="plot-accent" stroke="currentColor" stroke-width="2.5" />`,
+    );
+    if (opts.arrow) {
+      const angle = Math.atan2(-(to.y - from.y), to.x - from.x);
+      for (const turn of [0.4, -0.4]) {
+        parts.push(
+          `<line x1="${f(sx(to.x))}" y1="${f(sy(to.y))}" x2="${f(sx(to.x) - 11 * Math.cos(angle + turn))}" y2="${f(sy(to.y) - 11 * Math.sin(angle + turn))}" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />`,
+        );
+      }
+    }
+  }
+
+  for (const [idx, point] of points.entries()) {
+    const other = points[idx === 0 ? 1 : 0] ?? { x: 0, y: 0 };
+    const dx = sx(point.x) - sx(other.x);
+    const dy = sy(point.y) - sy(other.y);
+    const length = Math.hypot(dx, dy) || 1;
+    parts.push(
+      `<circle cx="${f(sx(point.x))}" cy="${f(sy(point.y))}" r="3.5" fill="currentColor" />`,
+      `<text x="${f(sx(point.x) + (14 * dx) / length)}" y="${f(sy(point.y) + (14 * dy) / length + 4)}" font-size="13" font-style="italic" text-anchor="middle" fill="currentColor">${point.name}</text>`,
+    );
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+interface BetweenParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  reverse: boolean;
+  given: 'points' | 'vectors';
+}
+
+/** Where a between-two-points question starts and where it ends. */
+function ends({ ax, ay, bx, by, reverse }: BetweenParams) {
+  return reverse
+    ? { from: 'B', to: 'A', fx: bx, fy: by, tx: ax, ty: ay }
+    : { from: 'A', to: 'B', fx: ax, fy: ay, tx: bx, ty: by };
+}
+
+/**
+ * The vector from one point to another: destination minus start.
+ *
+ * Level 1 met `b - a` once, in a teaching slide. Here it is the whole subject,
+ * asked both ways round and from both notations, because every later question
+ * in the level starts with it.
+ */
+const between: Generator<BetweenParams> = {
+  id: 'vec-between',
+  choices: (params) => {
+    const { fx, fy, tx, ty } = ends(params);
+    const x = tx - fx;
+    const y = ty - fy;
+    return options(
+      { tex: columnTex(x, y) },
+      // Start minus destination: the right size, pointing backwards.
+      { tex: columnTex(-x, -y) },
+      // The two positions added.
+      { tex: columnTex(tx + fx, ty + fy) },
+      { tex: columnTex(y, x) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 9 : 6;
+    for (let tries = 0; tries < 40; tries += 1) {
+      const ax = rng.int(-span, span);
+      const ay = rng.int(-span, span);
+      const bx = rng.int(-span, span);
+      const by = rng.int(-span, span);
+      if (bx === ax || by === ay) continue;
+      return {
+        ax,
+        ay,
+        bx,
+        by,
+        reverse: rng.pick([false, true]),
+        given: rng.pick(['points', 'vectors'] as const),
+      };
+    }
+    return { ax: 1, ay: 2, bx: 4, by: -3, reverse: false, given: 'points' };
+  },
+  render: (params) => {
+    const { ax, ay, bx, by, given } = params;
+    const { from, to, fx, fy, tx, ty } = ends(params);
+    const x = tx - fx;
+    const y = ty - fy;
+    const setup =
+      given === 'points'
+        ? `$A$ is the point $${pointTex(ax, ay)}$ and $B$ is the point $${pointTex(bx, by)}$.`
+        : `$A$ and $B$ have position vectors $\\mathbf{a} = ${columnTex(ax, ay)}$ and $\\mathbf{b} = ${columnTex(bx, by)}$.`;
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `${setup} Find $\\overrightarrow{${from}${to}}$.` }],
+      template: VECTOR_TEMPLATE,
+      bank: bankOf([`${x}`, `${y}`], [`${-x}`, `${-y}`, `${tx + fx}`, `${ty + fy}`]),
+      answer: [`${x}`, `${y}`],
+    };
+  },
+  solution: (params) => {
+    const { from, to, fx, fy, tx, ty } = ends(params);
+    const x = tx - fx;
+    const y = ty - fy;
+    return [
+      {
+        text: `The vector from $${from}$ to $${to}$ is destination minus start: the position of $${to}$ take away the position of $${from}$.`,
+      },
+      {
+        tex: `\\overrightarrow{${from}${to}} = ${columnTex(tx, ty)} - ${columnTex(fx, fy)} = ${columnTex(x, y)}`,
+      },
+      {
+        text: `Check it by walking: start at $${pointTex(fx, fy)}$, go ${Math.abs(x)} ${x < 0 ? 'left' : 'right'} and ${Math.abs(y)} ${y < 0 ? 'down' : 'up'}, and you arrive at $${pointTex(tx, ty)}$.`,
+      },
+      {
+        text: `Subtracting the other way gives $${columnTex(-x, -y)}$, which is $\\overrightarrow{${to}${from}}$: the same length, pointing back the way it came.`,
+      },
+    ];
+  },
+};
+
+interface BetweenSliderParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  part: 'i' | 'j';
+}
+
+/**
+ * The vector between two drawn points, read off the picture.
+ *
+ * The marker starts level with $A$ and moves by the value on the slider, so
+ * the learner drags until it reaches $B$ and reads how far that was. Counting
+ * squares from one point to another is what "destination minus start" means
+ * before it is a subtraction.
+ */
+const betweenSlider: Generator<BetweenSliderParams> = {
+  id: 'vec-between-slider',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 6 : 5;
+    const part = rng.pick(['i', 'j'] as const);
+    for (let tries = 0; tries < 60; tries += 1) {
+      const ax = rng.int(-reach, reach);
+      const ay = rng.int(-reach, reach);
+      const bx = rng.int(-reach, reach);
+      const by = rng.int(-reach, reach);
+      if (bx === ax || by === ay) continue;
+      return { ax, ay, bx, by, part };
+    }
+    return { ax: -3, ay: 1, bx: 2, by: 4, part };
+  },
+  render: ({ ax, ay, bx, by, part }): Slide => {
+    const span = 8;
+    const across = part === 'i';
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: across
+            ? 'The arrow runs from $A$ to $B$. Slide to the $\\mathbf{i}$ component of $\\overrightarrow{AB}$: how far across it goes. The line starts at $A$.'
+            : 'The arrow runs from $A$ to $B$. Slide to the $\\mathbf{j}$ component of $\\overrightarrow{AB}$: how far up it goes, negative for down. The line starts level with $A$.',
+        },
+      ],
+      min: -12,
+      max: 12,
+      step: 1,
+      answer: across ? bx - ax : by - ay,
+      readout: across
+        ? '\\mathbf{i}\\text{ component of } \\overrightarrow{AB} = {v}'
+        : '\\mathbf{j}\\text{ component of } \\overrightarrow{AB} = {v}',
+      figure: {
+        svg: pointsSvg(
+          [
+            { x: ax, y: ay, name: 'A' },
+            { x: bx, y: by, name: 'B' },
+          ],
+          { span, arrow: true, label: 'An arrow from A to B on squared paper' },
+        ),
+        xMin: -span,
+        xMax: span,
+        axis: across ? 'x' : 'y',
+        origin: across ? ax : ay,
+      },
+    };
+  },
+  solution: ({ ax, ay, bx, by, part }) => {
+    const across = part === 'i';
+    const value = across ? bx - ax : by - ay;
+    return [
+      {
+        text: `$A$ is at $${pointTex(ax, ay)}$ and $B$ is at $${pointTex(bx, by)}$, so the vector from one to the other is destination minus start.`,
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(bx, by)} - ${columnTex(ax, ay)} = ${columnTex(bx - ax, by - ay)}` },
+      {
+        text: across
+          ? `Across, that is $${bx} - \\left(${ax}\\right) = ${value}$: ${Math.abs(value)} square${Math.abs(value) === 1 ? '' : 's'} to the ${value < 0 ? 'left' : 'right'}.`
+          : `Up, that is $${by} - \\left(${ay}\\right) = ${value}$: ${Math.abs(value)} square${Math.abs(value) === 1 ? '' : 's'} ${value < 0 ? 'down' : 'up'}.`,
+      },
+      {
+        text: 'Reading off where $B$ is instead measures from the origin, which answers a different question: the position of $B$, not the journey from $A$.',
+      },
+    ];
+  },
+};
+
+interface EndpointParams {
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  findStart: boolean;
+}
+
+/**
+ * A point from another point and the vector between them.
+ *
+ * The same equation as `vec-between` used the other way: `b = a + AB` going
+ * forwards and `a = b - AB` going back. Going back is where the sign slips.
+ */
+const endpoint: Generator<EndpointParams> = {
+  id: 'vec-endpoint',
+  choices: ({ ax, ay, dx, dy, findStart }) => {
+    const bx = ax + dx;
+    const by = ay + dy;
+    return findStart
+      ? pointOptions([ax, ay], [bx + dx, by + dy], [dx, dy], [ay, ax])
+      : pointOptions([bx, by], [ax - dx, ay - dy], [dx, dy], [by, bx]);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 8 : 5;
+    return {
+      ax: rng.int(-span, span),
+      ay: rng.int(-span, span),
+      dx: nonZero(rng.int(-span, span), 3),
+      dy: nonZero(rng.int(-span, span), -2),
+      findStart: rng.pick([false, true]),
+    };
+  },
+  render: ({ ax, ay, dx, dy, findStart }) => {
+    const bx = ax + dx;
+    const by = ay + dy;
+    const vector = `$\\overrightarrow{AB} = ${columnTex(dx, dy)}$`;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: findStart
+            ? `$B$ is the point $${pointTex(bx, by)}$ and ${vector}. Find the coordinates of $A$.`
+            : `$A$ is the point $${pointTex(ax, ay)}$ and ${vector}. Find the coordinates of $B$.`,
+        },
+      ],
+      template: pointTemplate(findStart ? 'A' : 'B'),
+      bank: findStart
+        ? bankOf([`${ax}`, `${ay}`], [`${bx + dx}`, `${by + dy}`, `${dx}`, `${dy}`])
+        : bankOf([`${bx}`, `${by}`], [`${ax - dx}`, `${ay - dy}`, `${dx}`, `${dy}`]),
+      answer: findStart ? [`${ax}`, `${ay}`] : [`${bx}`, `${by}`],
+    };
+  },
+  solution: ({ ax, ay, dx, dy, findStart }) => {
+    const bx = ax + dx;
+    const by = ay + dy;
+    if (findStart) {
+      return [
+        {
+          text: '$\\overrightarrow{AB}$ is the journey from $A$ to $B$. To get back to $A$, start at $B$ and make that journey in reverse: subtract it.',
+        },
+        { tex: `\\mathbf{a} = \\mathbf{b} - \\overrightarrow{AB} = ${columnTex(bx, by)} - ${columnTex(dx, dy)} = ${columnTex(ax, ay)}` },
+        { text: `So $A$ is $${pointTex(ax, ay)}$.` },
+        {
+          text: `Check it forwards: $${pointTex(ax, ay)}$ moved by $${columnTex(dx, dy)}$ lands on $${pointTex(bx, by)}$, which is $B$. Adding instead would have walked further on, to $${pointTex(bx + dx, by + dy)}$.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: '$\\overrightarrow{AB}$ is the journey from $A$ to $B$, so $B$ is where you end up after making it from $A$.',
+      },
+      { tex: `\\mathbf{b} = \\mathbf{a} + \\overrightarrow{AB} = ${columnTex(ax, ay)} + ${columnTex(dx, dy)} = ${columnTex(bx, by)}` },
+      { text: `So $B$ is $${pointTex(bx, by)}$.` },
+      {
+        text: `Subtracting would walk the journey backwards and land on $${pointTex(ax - dx, ay - dy)}$, a point on the far side of $A$.`,
+      },
+    ];
+  },
+};
+
+const POINT_NAMES = ['A', 'B', 'C', 'D', 'P', 'Q', 'R', 'S'];
+
+interface DirectionParams {
+  p: number;
+  q: number;
+  r: number;
+  phrase: number;
+  chain: boolean;
+}
+
+/**
+ * `q - p` with no numbers in it.
+ *
+ * The step between the numeric questions and the last lesson's symbolic ones:
+ * the rule is the same, but there is nothing to check it against by walking,
+ * so it has to be known the right way round.
+ */
+const direction: Generator<DirectionParams> = {
+  id: 'vec-direction',
+  sample: (rng, difficulty) => {
+    const [p, q, r] = rng.sample([0, 1, 2, 3, 4, 5, 6, 7], 3);
+    return {
+      p,
+      q,
+      r,
+      phrase: rng.int(0, 2),
+      chain: difficulty > 1 && rng.chance(0.5),
+    };
+  },
+  render: ({ p, q, r, phrase, chain }): Slide => {
+    const P = POINT_NAMES[p];
+    const Q = POINT_NAMES[q];
+    const R = POINT_NAMES[r];
+    const v = (name: string) => `\\mathbf{${name.toLowerCase()}}`;
+    const offered = chain
+      ? distinctOptions([
+          { id: 'right', label: `${v(R)} - ${v(P)}`, tex: true },
+          { id: 'backwards', label: `${v(P)} - ${v(R)}`, tex: true },
+          { id: 'last-leg', label: `${v(R)} - ${v(Q)}`, tex: true },
+          { id: 'added', label: `${v(P)} + ${v(R)} - 2${v(Q)}`, tex: true },
+        ])
+      : distinctOptions([
+          { id: 'right', label: `${v(Q)} - ${v(P)}`, tex: true },
+          { id: 'backwards', label: `${v(P)} - ${v(Q)}`, tex: true },
+          { id: 'added', label: `${v(P)} + ${v(Q)}`, tex: true },
+          { id: 'midpoint', label: `\\frac{1}{2}\\left(${v(P)} + ${v(Q)}\\right)`, tex: true },
+        ]);
+    const setup = chain
+      ? `$${P}$, $${Q}$ and $${R}$ have position vectors $${v(P)}$, $${v(Q)}$ and $${v(R)}$.`
+      : `$${P}$ and $${Q}$ have position vectors $${v(P)}$ and $${v(Q)}$.`;
+    const question = chain
+      ? [
+          `Which is $\\overrightarrow{${P}${Q}} + \\overrightarrow{${Q}${R}}$?`,
+          `A journey goes from $${P}$ to $${Q}$ and then on to $${R}$. Which vector is the whole journey?`,
+          `Which single vector does the same as $\\overrightarrow{${P}${Q}}$ followed by $\\overrightarrow{${Q}${R}}$?`,
+        ][phrase]
+      : [
+          `Which is $\\overrightarrow{${P}${Q}}$?`,
+          `Which vector takes you from $${P}$ to $${Q}$?`,
+          `Which is the position of $${Q}$ relative to $${P}$?`,
+        ][phrase];
+    const turn = (p + q + r + phrase) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `${setup} ${question}` }],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'right',
+    };
+  },
+  solution: ({ p, q, r, chain }) => {
+    const P = POINT_NAMES[p];
+    const Q = POINT_NAMES[q];
+    const R = POINT_NAMES[r];
+    const v = (name: string) => `\\mathbf{${name.toLowerCase()}}`;
+    if (chain) {
+      return [
+        { text: 'Each leg is destination minus start.' },
+        {
+          tex: `\\overrightarrow{${P}${Q}} + \\overrightarrow{${Q}${R}} = \\left(${v(Q)} - ${v(P)}\\right) + \\left(${v(R)} - ${v(Q)}\\right) = ${v(R)} - ${v(P)}`,
+        },
+        {
+          text: `$${v(Q)}$ cancels: where the journey passed through does not matter, only where it started and where it ended. So the whole journey is $\\overrightarrow{${P}${R}}$.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: `To get from $${P}$ to $${Q}$, go from $${P}$ back to the origin and then out to $${Q}$: that is $-${v(P)}$ followed by $${v(Q)}$.`,
+      },
+      { tex: `\\overrightarrow{${P}${Q}} = -${v(P)} + ${v(Q)} = ${v(Q)} - ${v(P)}` },
+      {
+        text: `Destination minus start. $${v(P)} - ${v(Q)}$ is the same journey backwards, $\\overrightarrow{${Q}${P}}$.`,
+      },
+    ];
+  },
+};
+
+interface MidpointParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  findEnd: boolean;
+}
+
+/**
+ * The midpoint, and at difficulty 2 the end reached from a midpoint.
+ *
+ * Coordinates are drawn with matching parity so every midpoint is whole: a
+ * half on a tile is a different question, about fractions.
+ */
+const midpoint: Generator<MidpointParams> = {
+  id: 'vec-midpoint',
+  choices: ({ ax, ay, bx, by, findEnd }) => {
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    return findEnd
+      ? pointOptions([bx, by], [2 * ax - mx, 2 * ay - my], [mx - ax, my - ay], [ax + mx, ay + my])
+      : pointOptions([mx, my], [(bx - ax) / 2, (by - ay) / 2], [ax + bx, ay + by], [my, mx]);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 9 : 6;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const ax = rng.int(-span, span);
+      const ay = rng.int(-span, span);
+      const bx = ax + 2 * nonZero(rng.int(-span, span), 2);
+      const by = ay + 2 * nonZero(rng.int(-span, span), -3);
+      if (Math.abs(bx) > span + 4 || Math.abs(by) > span + 4) continue;
+      return { ax, ay, bx, by, findEnd: difficulty > 1 && rng.chance(0.5) };
+    }
+    return { ax: 1, ay: -2, bx: 5, by: 4, findEnd: false };
+  },
+  render: ({ ax, ay, bx, by, findEnd }) => {
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: findEnd
+            ? `$M$ is the midpoint of $AB$. $A$ is $${pointTex(ax, ay)}$ and $M$ is $${pointTex(mx, my)}$. Find the coordinates of $B$.`
+            : `$A$ is $${pointTex(ax, ay)}$ and $B$ is $${pointTex(bx, by)}$. Find the coordinates of $M$, the midpoint of $AB$.`,
+        },
+      ],
+      template: pointTemplate(findEnd ? 'B' : 'M'),
+      bank: findEnd
+        ? bankOf([`${bx}`, `${by}`], [`${2 * ax - mx}`, `${2 * ay - my}`, `${mx - ax}`, `${my - ay}`])
+        : bankOf([`${mx}`, `${my}`], [`${(bx - ax) / 2}`, `${(by - ay) / 2}`, `${ax + bx}`, `${ay + by}`]),
+      answer: findEnd ? [`${bx}`, `${by}`] : [`${mx}`, `${my}`],
+    };
+  },
+  solution: ({ ax, ay, bx, by, findEnd }) => {
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    if (findEnd) {
+      return [
+        {
+          text: '$M$ is halfway, so the journey from $A$ to $M$ is half the journey from $A$ to $B$. Make it twice.',
+        },
+        { tex: `\\overrightarrow{AM} = ${columnTex(mx, my)} - ${columnTex(ax, ay)} = ${columnTex(mx - ax, my - ay)}` },
+        { tex: `\\mathbf{b} = \\mathbf{m} + \\overrightarrow{AM} = ${columnTex(mx, my)} + ${columnTex(mx - ax, my - ay)} = ${columnTex(bx, by)}` },
+        {
+          text: `Check with the midpoint formula: halfway between $${pointTex(ax, ay)}$ and $${pointTex(bx, by)}$ is $${pointTex(mx, my)}$, which is $M$.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Halfway from $A$ to $B$ is $A$ plus half of $\\overrightarrow{AB}$, which tidies up to the average of the two position vectors.',
+      },
+      { tex: `\\mathbf{m} = \\mathbf{a} + \\tfrac{1}{2}\\left(\\mathbf{b} - \\mathbf{a}\\right) = \\tfrac{1}{2}\\left(\\mathbf{a} + \\mathbf{b}\\right)` },
+      { tex: `\\tfrac{1}{2}\\left(${columnTex(ax, ay)} + ${columnTex(bx, by)}\\right) = \\tfrac{1}{2}${columnTex(ax + bx, ay + by)} = ${columnTex(mx, my)}` },
+      {
+        text: `Halving $\\overrightarrow{AB}$ alone gives $${pointTex((bx - ax) / 2, (by - ay) / 2)}$, which is how far $M$ is from $A$, not where it is.`,
+      },
+    ];
+  },
+};
+
+/** Ratios a point may divide a line in, `AP : PB = m : n`, never 1 : 1. */
+const SECTION_PAIRS: Record<1 | 2, [number, number][]> = {
+  1: [[1, 2], [2, 1], [1, 3], [3, 1]],
+  2: [[1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2], [1, 4], [4, 1]],
+};
+
+interface SectionParams {
+  ax: number;
+  ay: number;
+  u: number;
+  v: number;
+  m: number;
+  n: number;
+}
+
+/**
+ * A line split in the ratio m : n. `B - A` is drawn as (m + n) whole steps, so
+ * every point on the way is on the grid.
+ */
+function sampleSection(rng: Parameters<Generator['sample']>[0], difficulty: number): SectionParams {
+  const [m, n] = rng.pick(SECTION_PAIRS[difficulty > 1 ? 2 : 1]);
+  const span = difficulty > 1 ? 8 : 6;
+  return {
+    ax: rng.int(-span, span),
+    ay: rng.int(-span, span),
+    u: nonZero(rng.int(-3, 3), 2),
+    v: nonZero(rng.int(-3, 3), -1),
+    m,
+    n,
+  };
+}
+
+function sectionSetup({ ax, ay, u, v, m, n }: SectionParams): string {
+  const bx = ax + (m + n) * u;
+  const by = ay + (m + n) * v;
+  return `$A$ is $${pointTex(ax, ay)}$ and $B$ is $${pointTex(bx, by)}$. $P$ lies on $AB$ with $AP : PB = ${m} : ${n}$.`;
+}
+
+/** The point dividing a line in a given ratio, as coordinates. */
+const section: Generator<SectionParams> = {
+  id: 'vec-section',
+  choices: ({ ax, ay, u, v, m, n }) =>
+    pointOptions(
+      [ax + m * u, ay + m * v],
+      // The ratio read the wrong way round.
+      [ax + n * u, ay + n * v],
+      // How far P is from A, rather than where it is.
+      [m * u, m * v],
+      [ay + m * v, ax + m * u],
+    ),
+  sample: sampleSection,
+  render: (params) => {
+    const { ax, ay, u, v, m, n } = params;
+    const px = ax + m * u;
+    const py = ay + m * v;
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `${sectionSetup(params)} Find the coordinates of $P$.` }],
+      template: pointTemplate('P'),
+      bank: bankOf([`${px}`, `${py}`], [`${ax + n * u}`, `${ay + n * v}`, `${m * u}`, `${m * v}`]),
+      answer: [`${px}`, `${py}`],
+    };
+  },
+  solution: ({ ax, ay, u, v, m, n }) => {
+    const total = m + n;
+    return [
+      {
+        text: `$AP : PB = ${m} : ${n}$ cuts $AB$ into ${total} equal parts, and $P$ is ${m} of them along from $A$. So $\\overrightarrow{AP} = \\frac{${m}}{${total}}\\overrightarrow{AB}$.`,
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(total * u, total * v)} \\implies \\overrightarrow{AP} = \\frac{${m}}{${total}}${columnTex(total * u, total * v)} = ${columnTex(m * u, m * v)}` },
+      { tex: `\\mathbf{p} = \\mathbf{a} + \\overrightarrow{AP} = ${columnTex(ax, ay)} + ${columnTex(m * u, m * v)} = ${columnTex(ax + m * u, ay + m * v)}` },
+      {
+        text: `Using $\\frac{${n}}{${total}}$ instead reads the ratio from the $B$ end, and lands on $${pointTex(ax + n * u, ay + n * v)}$. The first number in the ratio belongs to the part next to $A$.`,
+      },
+    ];
+  },
+};
+
+/** The same point, with the working laid out as a tree. */
+const sectionTree: Generator<SectionParams> = {
+  id: 'vec-section-tree',
+  sample: sampleSection,
+  render: (params): Slide => {
+    const { ax, ay, u, v, m, n } = params;
+    const total = m + n;
+    const answer = [
+      columnTex(total * u, total * v),
+      columnTex(m * u, m * v),
+      pointTex(ax + m * u, ay + m * v),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${sectionSetup(params)} Fill the tree: $\\overrightarrow{AB}$ first, then $\\overrightarrow{AP}$, then the point $P$.`,
+        },
+      ],
+      expression: `\\overrightarrow{OP} = \\overrightarrow{OA} + \\frac{${m}}{${total}}\\overrightarrow{AB}`,
+      nodes: [
+        { id: 'ab', from: [] },
+        { id: 'ap', from: ['ab'] },
+        { id: 'p', from: ['ap'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [
+          columnTex(-total * u, -total * v),
+          columnTex(n * u, n * v),
+          pointTex(ax + n * u, ay + n * v),
+          pointTex(m * u, m * v),
+        ],
+        [columnTex(m * u + 1, m * v), pointTex(ax + m * u, ay + m * v + 1)],
+      ),
+      answer,
+    };
+  },
+  solution: ({ ax, ay, u, v, m, n }) => {
+    const total = m + n;
+    return [
+      { text: 'Start with the whole journey from $A$ to $B$: destination minus start.' },
+      { tex: `\\overrightarrow{AB} = ${columnTex(total * u, total * v)}` },
+      { text: `$P$ is ${m} of the ${total} equal parts along, so take $\\frac{${m}}{${total}}$ of it.` },
+      { tex: `\\overrightarrow{AP} = ${columnTex(m * u, m * v)}` },
+      { text: 'Then start at $A$ and make that journey.' },
+      { tex: `P = ${pointTex(ax + m * u, ay + m * v)}` },
+    ];
+  },
+};
+
+type SectionAsk = 'AP-AB' | 'PB-AB' | 'AP-PB' | 'PA-AB';
+
+interface SectionFractionParams {
+  m: number;
+  n: number;
+  ask: SectionAsk;
+}
+
+/** Which fraction of which vector each ask is, for a ratio m : n. */
+function sectionFraction({ m, n, ask }: SectionFractionParams): Ratio {
+  if (ask === 'AP-AB') return ratio(m, m + n);
+  if (ask === 'PB-AB') return ratio(n, m + n);
+  if (ask === 'AP-PB') return ratio(m, n);
+  return ratio(-m, m + n);
+}
+
+/**
+ * The scalar a ratio turns into.
+ *
+ * `AP : PB = 2 : 3` is a statement about lengths; `AP = 2/5 AB` is the vector
+ * equation every calculation actually uses. The slip is the denominator: 2/3
+ * compares the two parts with each other, not a part with the whole.
+ */
+const sectionFractionGen: Generator<SectionFractionParams> = {
+  id: 'vec-section-fraction',
+  choices: (params) => {
+    const { m, n, ask } = params;
+    const right = sectionFraction(params);
+    const wrong =
+      ask === 'AP-AB'
+        ? [ratio(m, n), ratio(n, m + n), ratio(m + n, m)]
+        : ask === 'PB-AB'
+          ? [ratio(n, m), ratio(m, m + n), ratio(m + n, n)]
+          : ask === 'AP-PB'
+            ? [ratio(m, m + n), ratio(n, m), ratio(n, m + n)]
+            : [ratio(m, m + n), ratio(-n, m + n), ratio(-m, n)];
+    return options(
+      { tex: ratioTex(right), answer: ratioAnswer(right) },
+      ...wrong.map((r) => ({ tex: ratioTex(r), answer: ratioAnswer(r) })),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const top = difficulty > 1 ? 5 : 4;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const m = rng.int(1, top);
+      const n = rng.int(1, top);
+      if (m === n || gcd(m, n) !== 1) continue;
+      const asks: SectionAsk[] =
+        difficulty > 1 ? ['AP-AB', 'PB-AB', 'AP-PB', 'PA-AB'] : ['AP-AB', 'PB-AB', 'AP-PB'];
+      return { m, n, ask: rng.pick(asks) };
+    }
+    return { m: 2, n: 3, ask: 'AP-AB' };
+  },
+  render: (params) => {
+    const { m, n, ask } = params;
+    const [left, right] =
+      ask === 'AP-AB' ? ['AP', 'AB'] : ask === 'PB-AB' ? ['PB', 'AB'] : ask === 'AP-PB' ? ['AP', 'PB'] : ['PA', 'AB'];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$P$ lies on the line segment $AB$, with $AP : PB = ${m} : ${n}$. Find $\\lambda$.`,
+        },
+      ],
+      lead: `\\overrightarrow{${left}} = \\lambda\\,\\overrightarrow{${right}} \\implies \\lambda =`,
+      keypad: [{ insert: '/' }],
+      answer: ratioAnswer(sectionFraction(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { m, n, ask } = params;
+    const total = m + n;
+    const right = ratioTex(sectionFraction(params));
+    const steps = [
+      {
+        text: `$AP : PB = ${m} : ${n}$ cuts $AB$ into ${total} equal parts: ${m} between $A$ and $P$, and ${n} between $P$ and $B$.`,
+      },
+    ];
+    if (ask === 'AP-AB') {
+      steps.push({ text: `$\\overrightarrow{AP}$ is ${m} parts out of the whole ${total}, so $\\lambda = ${right}$.` });
+    } else if (ask === 'PB-AB') {
+      steps.push({ text: `$\\overrightarrow{PB}$ is the other ${n} parts out of ${total}, pointing the same way, so $\\lambda = ${right}$.` });
+    } else if (ask === 'AP-PB') {
+      steps.push({ text: `Here the comparison is part with part, not part with whole: ${m} parts against ${n}, so $\\lambda = ${right}$.` });
+    } else {
+      steps.push({
+        text: `$\\overrightarrow{PA}$ is ${m} parts out of ${total}, but it points from $P$ back towards $A$, against $\\overrightarrow{AB}$. So $\\lambda = ${right}$.`,
+      });
+    }
+    steps.push({
+      text: ask === 'AP-PB'
+        ? `$\\frac{${m}}{${total}}$ would compare $AP$ with the whole of $AB$, which was not asked.`
+        : `$\\frac{${m}}{${n}}$ compares the two parts with each other. A fraction of $\\overrightarrow{AB}$ needs the whole, ${total}, underneath.`,
+    });
+    return steps;
+  },
+};
+
+interface RatioSliderParams {
+  ax: number;
+  ay: number;
+  u: number;
+  v: number;
+  m: number;
+  n: number;
+  part: 'x' | 'y';
+}
+
+const RATIO_SLIDER_PAIRS: Record<1 | 2, [number, number][]> = {
+  1: [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1]],
+  2: [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2]],
+};
+
+/**
+ * Where on a drawn line the dividing point falls.
+ *
+ * The point itself is not drawn: the learner works out a coordinate and drags
+ * the marker there, and the line on the figure is what they check it against.
+ */
+const ratioSlider: Generator<RatioSliderParams> = {
+  id: 'vec-ratio-slider',
+  sample: (rng, difficulty) => {
+    const pairs = RATIO_SLIDER_PAIRS[difficulty > 1 ? 2 : 1];
+    const part = rng.pick(['x', 'y'] as const);
+    for (let tries = 0; tries < 80; tries += 1) {
+      const [m, n] = rng.pick(pairs);
+      const u = nonZero(rng.int(-3, 3), 2);
+      const v = nonZero(rng.int(-3, 3), -1);
+      const ax = rng.int(-7, 7);
+      const ay = rng.int(-7, 7);
+      const bx = ax + (m + n) * u;
+      const by = ay + (m + n) * v;
+      const answer = part === 'x' ? ax + m * u : ay + m * v;
+      // Inside the drawing, and never 0: the handle starts at 0, so an answer
+      // of 0 would be marked right untouched.
+      if (Math.abs(bx) > 7 || Math.abs(by) > 7 || answer === 0) continue;
+      return { ax, ay, u, v, m, n, part };
+    }
+    return { ax: -5, ay: -4, u: 2, v: 3, m: 1, n: 2, part };
+  },
+  render: ({ ax, ay, u, v, m, n, part }): Slide => {
+    const span = 9;
+    const bx = ax + (m + n) * u;
+    const by = ay + (m + n) * v;
+    const where = m === n ? '$P$ is the midpoint of $AB$.' : `$P$ lies on $AB$ with $AP : PB = ${m} : ${n}$.`;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$A$ is $${pointTex(ax, ay)}$ and $B$ is $${pointTex(bx, by)}$. ${where} Slide the line to $P$'s $${part}$-coordinate.`,
+        },
+      ],
+      min: -8,
+      max: 8,
+      step: 1,
+      answer: part === 'x' ? ax + m * u : ay + m * v,
+      readout: `${part}\\text{-coordinate of } P = {v}`,
+      figure: {
+        svg: pointsSvg(
+          [
+            { x: ax, y: ay, name: 'A' },
+            { x: bx, y: by, name: 'B' },
+          ],
+          { span, label: 'The line segment from A to B on squared paper' },
+        ),
+        xMin: -span,
+        xMax: span,
+        axis: part === 'x' ? 'x' : 'y',
+      },
+    };
+  },
+  solution: ({ ax, ay, u, v, m, n, part }) => {
+    const total = m + n;
+    return [
+      {
+        text: `$P$ is ${m} of ${total} equal parts along from $A$, so $\\overrightarrow{AP} = \\frac{${m}}{${total}}\\overrightarrow{AB}$.`,
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(total * u, total * v)} \\implies \\overrightarrow{AP} = ${columnTex(m * u, m * v)}` },
+      { tex: `P = ${pointTex(ax, ay)} + ${columnTex(m * u, m * v)} = ${pointTex(ax + m * u, ay + m * v)}` },
+      {
+        text: `So the $${part}$-coordinate is $${part === 'x' ? ax + m * u : ay + m * v}$. On the picture, the marker crosses the line ${m === n ? 'halfway along it' : `${m} parts of the way from $A$`}.`,
+      },
+    ];
+  },
+};
+
+interface LineTestParams {
+  points: boolean;
+  yes: boolean;
+  ax: number;
+  ay: number;
+  ux: number;
+  uy: number;
+  k: number;
+  ex: number;
+  ey: number;
+}
+
+/** The second vector (or point) of a line test, nudged off the line when `yes` is false. */
+function lineTestSecond({ yes, ux, uy, k, ex, ey }: LineTestParams): [number, number] {
+  return yes ? [k * ux, k * uy] : [k * ux + ex, k * uy + ey];
+}
+
+/**
+ * Parallel vectors and collinear points, as one decision.
+ *
+ * The two questions share their test — is one vector a scalar multiple of the
+ * other? — and differ in one extra condition, which is the thing a learner
+ * forgets: two parallel vectors describe collinear points only when they
+ * share a point. The tree makes that condition a fork of its own.
+ */
+const lineTest: Generator<LineTestParams> = {
+  id: 'vec-line-test',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 5 : 4;
+    const ks = difficulty > 1 ? [-2, -1, 2, 3] : [2, 3];
+    for (let tries = 0; tries < 60; tries += 1) {
+      const ux = nonZero(rng.int(-span, span), 2);
+      const uy = nonZero(rng.int(-span, span), 3);
+      const ex = rng.pick([-1, 0, 1]);
+      const ey = ex === 0 ? rng.pick([-1, 1]) : rng.pick([-1, 0, 1]);
+      const params: LineTestParams = {
+        points: rng.chance(0.5),
+        yes: rng.chance(0.5),
+        ax: rng.int(-4, 4),
+        ay: rng.int(-4, 4),
+        ux,
+        uy,
+        k: rng.pick(ks),
+        ex,
+        ey,
+      };
+      const [vx, vy] = lineTestSecond(params);
+      if (!params.yes && cross(ux, uy, vx, vy) === 0) continue;
+      return params;
+    }
+    return { points: false, yes: true, ax: 0, ay: 0, ux: 2, uy: 3, k: 2, ex: 0, ey: 1 };
+  },
+  render: (params): Slide => {
+    const { points, yes, ax, ay, ux, uy } = params;
+    const [vx, vy] = lineTestSecond(params);
+    const subject = points
+      ? `A${pointTex(ax, ay)}, \\; B${pointTex(ax + ux, ay + uy)}, \\; C${pointTex(ax + vx, ay + vy)}`
+      : `${columnTex(ux, uy)} \\text{ and } ${columnTex(vx, vy)}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: points
+            ? 'Are these three points on one straight line? Work down the questions; each answer chooses what gets asked next.'
+            : 'Are these two vectors parallel? Work down the questions; each answer chooses what gets asked next.',
+        },
+      ],
+      subject,
+      steps: [
+        {
+          id: 'what',
+          ask: 'What is being compared?',
+          branches: [
+            { label: 'Two vectors', to: 'vectors' },
+            { label: 'Three points', to: 'points' },
+          ],
+        },
+        {
+          id: 'vectors',
+          ask: 'Is one vector a scalar multiple of the other?',
+          branches: [
+            { label: 'Yes', outcome: 'Parallel: one is a scalar multiple of the other.' },
+            { label: 'No', outcome: 'Not parallel: no single scalar works for both components.' },
+          ],
+        },
+        {
+          id: 'points',
+          ask: 'Find $\\overrightarrow{AB}$ and $\\overrightarrow{AC}$. Is one a scalar multiple of the other?',
+          branches: [
+            { label: 'Yes', to: 'share' },
+            { label: 'No', outcome: 'Not collinear: the three points do not lie on one line.' },
+          ],
+        },
+        {
+          id: 'share',
+          ask: 'Do those two vectors share a point?',
+          branches: [
+            { label: 'Yes', outcome: 'Collinear: parallel, and both pass through $A$.' },
+            { label: 'No', outcome: 'Parallel lines, but not the same line.' },
+          ],
+        },
+      ],
+      answer: points
+        ? ['Three points', yes ? 'Yes' : 'No', ...(yes ? ['Yes'] : [])]
+        : ['Two vectors', yes ? 'Yes' : 'No'],
+    };
+  },
+  solution: (params) => {
+    const { points, yes, ux, uy, k } = params;
+    const [vx, vy] = lineTestSecond(params);
+    const first = points ? '\\overrightarrow{AB}' : '\\mathbf{u}';
+    const second = points ? '\\overrightarrow{AC}' : '\\mathbf{v}';
+    const steps = [
+      {
+        text: points
+          ? 'Three points are collinear when the vectors from one of them to the other two are parallel. Both then start at $A$, so they lie along one line rather than two parallel ones.'
+          : 'Two vectors are parallel when one is a scalar multiple of the other: the same multiple for both components.',
+      },
+      { tex: `${first} = ${columnTex(ux, uy)} \\qquad ${second} = ${columnTex(vx, vy)}` },
+    ];
+    if (yes) {
+      steps.push(
+        { tex: `${second} = ${k}${first}` },
+        {
+          text: points
+            ? `The same multiple, $${k}$, works for both components, and both vectors start at $A$. So $A$, $B$ and $C$ are collinear.`
+            : `The same multiple, $${k}$, works for both components, so the vectors are parallel${k < 0 ? ', pointing opposite ways' : ''}.`,
+        },
+      );
+    } else {
+      steps.push({
+        text: `Across, the multiple would be $\\frac{${vx}}{${ux}}$; up, it would be $\\frac{${vy}}{${uy}}$. Those differ, so no single scalar works and ${points ? 'the points are not collinear' : 'the vectors are not parallel'}.`,
+      });
+    }
+    return steps;
+  },
+};
+
+interface CollinearKParams {
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  t: number;
+}
+
+/** A missing coordinate that puts three points on one line. */
+const collinearK: Generator<CollinearKParams> = {
+  id: 'vec-collinear-k',
+  choices: ({ ay, dy, t }) =>
+    signedChoices(ay + t * dy, [
+      // The multiple applied without starting from A.
+      t * dy,
+      // One step too many along the line.
+      ay + (t + 1) * dy,
+      // Moved the wrong way along it.
+      ay - t * dy,
+    ]),
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 6 : 4;
+    return {
+      ax: rng.int(-span, span),
+      ay: rng.int(-span, span),
+      dx: nonZero(rng.int(-3, 3), 2),
+      dy: nonZero(rng.int(-3, 3), 1),
+      t: rng.pick(difficulty > 1 ? [-2, -1, 2, 3, 4] : [2, 3, 4]),
+    };
+  },
+  render: ({ ax, ay, dx, dy, t }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$A${pointTex(ax, ay)}$, $B${pointTex(ax + dx, ay + dy)}$ and $C\\left(${ax + t * dx}, k\\right)$ lie on one straight line. Find $k$.`,
+      },
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${ay + t * dy}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ ax, ay, dx, dy, t }) => {
+    const cx = ax + t * dx;
+    const k = ay + t * dy;
+    return [
+      {
+        text: 'On one line means $\\overrightarrow{AC}$ is a multiple of $\\overrightarrow{AB}$. The across components say which multiple.',
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(dx, dy)} \\qquad \\overrightarrow{AC} = \\begin{pmatrix} ${cx - ax} \\\\ k - ${ay < 0 ? `\\left(${ay}\\right)` : ay} \\end{pmatrix}` },
+      { tex: `${cx - ax} = ${t} \\times ${dx < 0 ? `\\left(${dx}\\right)` : dx} \\implies \\overrightarrow{AC} = ${t}\\overrightarrow{AB}` },
+      { text: `So the up component of $\\overrightarrow{AC}$ must be $${t}$ times $${dy}$ as well, which is $${t * dy}$.` },
+      { tex: `k = ${ay} + ${t * dy < 0 ? `\\left(${t * dy}\\right)` : t * dy} = ${k}` },
+    ];
+  },
+};
+
+interface OnLineParams {
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  t: number;
+}
+
+/** Which of four points lies on the line through two others. */
+const onLine: Generator<OnLineParams> = {
+  id: 'vec-on-line',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 5 : 4;
+    for (let tries = 0; tries < 40; tries += 1) {
+      const dx = nonZero(rng.int(-3, 3), 1);
+      const dy = nonZero(rng.int(-3, 3), 2);
+      // The swapped distractor would be on the line too if the steps matched.
+      if (Math.abs(dx) === Math.abs(dy)) continue;
+      return {
+        ax: rng.int(-span, span),
+        ay: rng.int(-span, span),
+        dx,
+        dy,
+        t: rng.pick(difficulty > 1 ? [-2, -1, 2, 3] : [2, 3]),
+      };
+    }
+    return { ax: 1, ay: 2, dx: 1, dy: 3, t: 2 };
+  },
+  render: ({ ax, ay, dx, dy, t }): Slide => {
+    const cx = ax + t * dx;
+    const cy = ay + t * dy;
+    const candidates = [
+      { id: 'on', x: cx, y: cy },
+      { id: 'nudged-up', x: cx, y: cy + 1 },
+      { id: 'nudged-across', x: cx - 1, y: cy },
+      // The steps taken the wrong way round: across by the up step.
+      { id: 'swapped', x: ax + t * dy, y: ay + t * dx },
+    ].filter((c) => c.id === 'on' || cross(dx, dy, c.x - ax, c.y - ay) !== 0);
+    const offered = distinctOptions(
+      candidates.map((c) => ({ id: c.id, label: pointTex(c.x, c.y), tex: true })),
+    );
+    const turn = (Math.abs(ax) + Math.abs(ay) + Math.abs(t)) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which point lies on the straight line through $A${pointTex(ax, ay)}$ and $B${pointTex(ax + dx, ay + dy)}$?`,
+        },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'on',
+    };
+  },
+  solution: ({ ax, ay, dx, dy, t }) => {
+    const cx = ax + t * dx;
+    const cy = ay + t * dy;
+    return [
+      {
+        text: 'A point $C$ is on the line through $A$ and $B$ exactly when $\\overrightarrow{AC}$ is a multiple of $\\overrightarrow{AB}$.',
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(dx, dy)}` },
+      { tex: `C${pointTex(cx, cy)}: \\quad \\overrightarrow{AC} = ${columnTex(t * dx, t * dy)} = ${t}\\overrightarrow{AB}` },
+      {
+        text: `The same multiple, $${t}$, works across and up. For each of the other points, the multiple needed across is not the one needed up, so they sit just off the line.`,
+      },
+    ];
+  },
+};
+
+const CORNERS = ['A', 'B', 'C', 'D'];
+
+interface FourthVertexParams {
+  ax: number;
+  ay: number;
+  ux: number;
+  uy: number;
+  wx: number;
+  wy: number;
+  missing: number;
+}
+
+/** A parallelogram's corners in order: A, A + u, A + u + w, A + w. */
+function corners({ ax, ay, ux, uy, wx, wy }: FourthVertexParams): [number, number][] {
+  return [
+    [ax, ay],
+    [ax + ux, ay + uy],
+    [ax + ux + wx, ay + uy + wy],
+    [ax + wx, ay + wy],
+  ];
+}
+
+function sampleParallelogram(
+  rng: Parameters<Generator['sample']>[0],
+  difficulty: number,
+): FourthVertexParams {
+  for (let tries = 0; tries < 60; tries += 1) {
+    const ux = rng.int(-5, 5);
+    const uy = rng.int(-5, 5);
+    const wx = rng.int(-5, 5);
+    const wy = rng.int(-5, 5);
+    // A flat "parallelogram" is a line, and has no fourth corner to find.
+    if (cross(ux, uy, wx, wy) === 0) continue;
+    return {
+      ax: rng.int(-4, 4),
+      ay: rng.int(-4, 4),
+      ux,
+      uy,
+      wx,
+      wy,
+      missing: difficulty > 1 ? rng.int(0, 3) : 3,
+    };
+  }
+  return { ax: 0, ay: 0, ux: 4, uy: 1, wx: 1, wy: 3, missing: 3 };
+}
+
+/**
+ * The fourth corner of a parallelogram.
+ *
+ * Opposite sides of a parallelogram are the same vector, so the missing
+ * corner is its neighbour plus the side that runs parallel to it. The slip is
+ * pairing the wrong corners, which produces a parallelogram — just not the
+ * one called ABCD.
+ */
+const fourthVertex: Generator<FourthVertexParams> = {
+  id: 'vec-fourth-vertex',
+  choices: (params) => {
+    const v = corners(params);
+    const i = params.missing;
+    const prev = v[(i + 3) % 4];
+    const next = v[(i + 1) % 4];
+    const opp = v[(i + 2) % 4];
+    return pointOptions(
+      v[i],
+      [next[0] + opp[0] - prev[0], next[1] + opp[1] - prev[1]],
+      [prev[0] + opp[0] - next[0], prev[1] + opp[1] - next[1]],
+      [v[i][1], v[i][0]],
+    );
+  },
+  sample: sampleParallelogram,
+  render: (params) => {
+    const v = corners(params);
+    const i = params.missing;
+    const known = [1, 2, 3].map((step) => (i + step) % 4).sort((p, q) => p - q);
+    const listed = known.map((j) => `$${CORNERS[j]}${pointTex(v[j][0], v[j][1])}$`);
+    const prev = v[(i + 3) % 4];
+    const next = v[(i + 1) % 4];
+    const opp = v[(i + 2) % 4];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$ABCD$ is a parallelogram, lettered in order round the shape, with ${listed[0]}, ${listed[1]} and ${listed[2]}. Find the coordinates of $${CORNERS[i]}$.`,
+        },
+      ],
+      template: pointTemplate(CORNERS[i]),
+      bank: bankOf(
+        [`${v[i][0]}`, `${v[i][1]}`],
+        [
+          `${next[0] + opp[0] - prev[0]}`,
+          `${next[1] + opp[1] - prev[1]}`,
+          `${prev[0] + opp[0] - next[0]}`,
+          `${prev[1] + opp[1] - next[1]}`,
+        ],
+      ),
+      answer: [`${v[i][0]}`, `${v[i][1]}`],
+    };
+  },
+  solution: (params) => {
+    const v = corners(params);
+    const i = params.missing;
+    const X = CORNERS[i];
+    const P = CORNERS[(i + 3) % 4];
+    const N = CORNERS[(i + 1) % 4];
+    const O = CORNERS[(i + 2) % 4];
+    const prev = v[(i + 3) % 4];
+    const opp = v[(i + 2) % 4];
+    const side = [opp[0] - v[(i + 1) % 4][0], opp[1] - v[(i + 1) % 4][1]];
+    return [
+      {
+        text: `Opposite sides of a parallelogram are equal and parallel, so they are the same vector. Going round in order, $${P}${X}$ is opposite $${N}${O}$, so $\\overrightarrow{${P}${X}} = \\overrightarrow{${N}${O}}$.`,
+      },
+      { tex: `\\overrightarrow{${N}${O}} = ${columnTex(opp[0], opp[1])} - ${columnTex(v[(i + 1) % 4][0], v[(i + 1) % 4][1])} = ${columnTex(side[0], side[1])}` },
+      { tex: `${X} = ${pointTex(prev[0], prev[1])} + ${columnTex(side[0], side[1])} = ${pointTex(v[i][0], v[i][1])}` },
+      {
+        text: 'Lettered in order matters: pairing the wrong two sides gives a corner of a different parallelogram, one whose letters do not go round in order.',
+      },
+    ];
+  },
+};
+
+/** The fourth corner again, with AB and D's coordinates as separate strands. */
+const fourthVertexTree: Generator<FourthVertexParams> = {
+  id: 'vec-fourth-vertex-tree',
+  sample: (rng) => sampleParallelogram(rng, 1),
+  render: (params): Slide => {
+    const [a, b, c, d] = corners(params);
+    const ux = b[0] - a[0];
+    const uy = b[1] - a[1];
+    const answer = [`${ux}`, `${uy}`, `${d[0]}`, `${d[1]}`, pointTex(d[0], d[1])];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$ABCD$ is a parallelogram with $A${pointTex(a[0], a[1])}$, $B${pointTex(b[0], b[1])}$ and $C${pointTex(c[0], c[1])}$. Fill the tree: the two components of $\\overrightarrow{AB}$, then $D$'s coordinates, then the point $D$.`,
+        },
+      ],
+      expression: '\\overrightarrow{DC} = \\overrightarrow{AB} \\implies D = C - \\overrightarrow{AB}',
+      nodes: [
+        { id: 'ux', from: [] },
+        { id: 'uy', from: [] },
+        { id: 'dx', from: ['ux'] },
+        { id: 'dy', from: ['uy'] },
+        { id: 'd', from: ['dx', 'dy'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [`${-ux}`, `${-uy}`, `${c[0] + ux}`, `${c[1] + uy}`, pointTex(c[0] + ux, c[1] + uy)],
+        [`${d[0] + 1}`, `${d[1] - 1}`, pointTex(d[1], d[0])],
+      ),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const [a, b, c, d] = corners(params);
+    return [
+      { text: '$DC$ is the side opposite $AB$, so it is the same vector: $\\overrightarrow{DC} = \\overrightarrow{AB}$.' },
+      { tex: `\\overrightarrow{AB} = ${columnTex(b[0], b[1])} - ${columnTex(a[0], a[1])} = ${columnTex(b[0] - a[0], b[1] - a[1])}` },
+      { text: '$\\overrightarrow{DC}$ ends at $C$, so $D$ is where you start from to make that journey and arrive at $C$: subtract it from $C$.' },
+      { tex: `D = ${pointTex(c[0], c[1])} - ${columnTex(b[0] - a[0], b[1] - a[1])} = ${pointTex(d[0], d[1])}` },
+      {
+        text: `Adding it instead walks on past $C$, to $${pointTex(c[0] + b[0] - a[0], c[1] + b[1] - a[1])}$.`,
+      },
+    ];
+  },
+};
+
+type QuadShape = 'parallelogram' | 'trapezium' | 'neither';
+
+interface QuadParams {
+  ax: number;
+  ay: number;
+  ux: number;
+  uy: number;
+  wx: number;
+  wy: number;
+  shape: QuadShape;
+  k: number;
+  ex: number;
+  ey: number;
+}
+
+/** A, B, C, D for a quadrilateral question. */
+function quadCorners({ ax, ay, ux, uy, wx, wy, shape, k, ex, ey }: QuadParams): [number, number][] {
+  const dx = ax + wx;
+  const dy = ay + wy;
+  const [sx, sy] =
+    shape === 'parallelogram' ? [ux, uy] : shape === 'trapezium' ? [k * ux, k * uy] : [ux + ex, uy + ey];
+  return [
+    [ax, ay],
+    [ax + ux, ay + uy],
+    [dx + sx, dy + sy],
+    [dx, dy],
+  ];
+}
+
+/**
+ * Is ABCD a parallelogram? The vector proof, as a decision.
+ *
+ * One pair of opposite sides equal as vectors is the whole proof — equal
+ * vectors are parallel *and* the same length. Parallel alone is a trapezium,
+ * which is the case that shows why "equal" and not merely "parallel" is the
+ * test.
+ */
+const quadFlow: Generator<QuadParams> = {
+  id: 'vec-quad-flow',
+  sample: (rng) => {
+    for (let tries = 0; tries < 80; tries += 1) {
+      const params: QuadParams = {
+        ax: rng.int(-4, 4),
+        ay: rng.int(-4, 4),
+        ux: rng.int(1, 4),
+        uy: rng.int(-2, 2),
+        wx: rng.int(-2, 2),
+        wy: rng.int(2, 4),
+        shape: rng.pick(['parallelogram', 'trapezium', 'neither'] as const),
+        k: rng.pick([2, 3]),
+        ex: rng.pick([-1, 0, 1]),
+        ey: rng.pick([-1, 1]),
+      };
+      const [a, b, c, d] = quadCorners(params);
+      const ab = [b[0] - a[0], b[1] - a[1]];
+      const dc = [c[0] - d[0], c[1] - d[1]];
+      const ad = [d[0] - a[0], d[1] - a[1]];
+      const bc = [c[0] - b[0], c[1] - b[1]];
+      if (cross(ab[0], ab[1], ad[0], ad[1]) === 0) continue;
+      // "Neither" must be genuinely neither: AB not parallel to DC, and not a
+      // trapezium the other way round either, or its outcome would mislead.
+      if (params.shape === 'neither') {
+        if (cross(ab[0], ab[1], dc[0], dc[1]) === 0) continue;
+        if (cross(ad[0], ad[1], bc[0], bc[1]) === 0) continue;
+      }
+      return params;
+    }
+    return { ax: 0, ay: 0, ux: 3, uy: 1, wx: 1, wy: 3, shape: 'parallelogram', k: 2, ex: 0, ey: 1 };
+  },
+  render: (params): Slide => {
+    const [a, b, c, d] = quadCorners(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Is $ABCD$ a parallelogram? Work down the questions; each answer chooses what gets asked next.',
+        },
+      ],
+      subject: `\\begin{matrix} A${pointTex(a[0], a[1])} & B${pointTex(b[0], b[1])} \\\\ C${pointTex(c[0], c[1])} & D${pointTex(d[0], d[1])} \\end{matrix}`,
+      steps: [
+        {
+          id: 'equal',
+          ask: 'Find $\\overrightarrow{AB}$ and $\\overrightarrow{DC}$. Are they equal?',
+          branches: [
+            { label: 'Yes', outcome: 'A parallelogram: one pair of opposite sides is equal and parallel.' },
+            { label: 'No', to: 'parallel' },
+          ],
+        },
+        {
+          id: 'parallel',
+          ask: 'Is one of them a scalar multiple of the other?',
+          branches: [
+            { label: 'Yes', outcome: 'A trapezium: $AB$ and $DC$ are parallel but different lengths.' },
+            { label: 'No', outcome: 'Not a parallelogram: $AB$ and $DC$ are not even parallel.' },
+          ],
+        },
+      ],
+      answer:
+        params.shape === 'parallelogram' ? ['Yes'] : params.shape === 'trapezium' ? ['No', 'Yes'] : ['No', 'No'],
+    };
+  },
+  solution: (params) => {
+    const [a, b, c, d] = quadCorners(params);
+    const ab: [number, number] = [b[0] - a[0], b[1] - a[1]];
+    const dc: [number, number] = [c[0] - d[0], c[1] - d[1]];
+    const steps = [
+      {
+        text: 'Opposite sides of a parallelogram are the same vector. So compare $\\overrightarrow{AB}$ with $\\overrightarrow{DC}$, both written in the direction of going round the shape from $A$.',
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(ab[0], ab[1])} \\qquad \\overrightarrow{DC} = ${columnTex(dc[0], dc[1])}` },
+    ];
+    if (params.shape === 'parallelogram') {
+      steps.push({
+        text: 'They are equal, so $AB$ and $DC$ are parallel and the same length. That one pair is enough: $ABCD$ is a parallelogram.',
+      });
+    } else if (params.shape === 'trapezium') {
+      steps.push({
+        text: `$\\overrightarrow{DC} = ${params.k}\\overrightarrow{AB}$: parallel, but ${params.k} times as long. So $ABCD$ is a trapezium, not a parallelogram.`,
+      });
+    } else {
+      steps.push({
+        text: 'No single scalar takes one to the other, so $AB$ and $DC$ are not parallel and $ABCD$ cannot be a parallelogram.',
+      });
+    }
+    return steps;
+  },
+};
+
+/* ---------- vector paths: a and b with no numbers ---------- */
+
+type PathCase = 'AB' | 'BA' | 'OM' | 'AM' | 'MB' | 'OC' | 'OP' | 'AP' | 'PB' | 'OD';
+
+interface PathParams {
+  kind: PathCase;
+  m: number;
+  n: number;
+  name: string;
+}
+
+const PATH_NAMES: Record<PathCase, string[]> = {
+  AB: ['B'],
+  BA: ['A'],
+  OM: ['M', 'N', 'X'],
+  AM: ['M', 'N', 'X'],
+  MB: ['M', 'N', 'X'],
+  OC: ['C', 'D', 'E'],
+  OP: ['P', 'Q', 'R'],
+  AP: ['P', 'Q', 'R'],
+  PB: ['P', 'Q', 'R'],
+  OD: ['D', 'E', 'F'],
+};
+
+function samplePath(rng: Parameters<Generator['sample']>[0], difficulty: number): PathParams {
+  const kinds: PathCase[] =
+    difficulty > 1
+      ? ['AB', 'BA', 'OM', 'AM', 'OC', 'OP', 'AP', 'PB', 'OD']
+      : ['AB', 'BA', 'OM', 'AM', 'MB', 'OC', 'OP', 'AP'];
+  const kind = rng.pick(kinds);
+  const [m, n] = rng.pick(SECTION_PAIRS[difficulty > 1 ? 2 : 1]);
+  return { kind, m, n, name: rng.pick(PATH_NAMES[kind]) };
+}
+
+/** The vector each case asks for, as coefficients of a and b. */
+function pathCoefficients({ kind, m, n }: PathParams): [Ratio, Ratio] {
+  const whole = m + n;
+  switch (kind) {
+    case 'AB':
+      return [ratio(-1, 1), ratio(1, 1)];
+    case 'BA':
+      return [ratio(1, 1), ratio(-1, 1)];
+    case 'OM':
+      return [ratio(1, 2), ratio(1, 2)];
+    case 'AM':
+    case 'MB':
+      return [ratio(-1, 2), ratio(1, 2)];
+    case 'OC':
+      return [ratio(1, 1), ratio(1, 1)];
+    case 'OP':
+      return [ratio(n, whole), ratio(m, whole)];
+    case 'AP':
+      return [ratio(-m, whole), ratio(m, whole)];
+    case 'PB':
+      return [ratio(-n, whole), ratio(n, whole)];
+    case 'OD':
+      return [ratio(-1, 1), ratio(2, 1)];
+  }
+}
+
+/** The vector asked for, e.g. `\overrightarrow{OM}`. */
+function pathTarget({ kind, name }: PathParams): string {
+  const [from, to] =
+    kind === 'AB' ? ['A', 'B']
+    : kind === 'BA' ? ['B', 'A']
+    : kind === 'MB' || kind === 'PB' ? [name, 'B']
+    : kind === 'AM' || kind === 'AP' ? ['A', name]
+    : ['O', name];
+  return `\\overrightarrow{${from}${to}}`;
+}
+
+/** What the question says about the extra point. */
+function pathSetup({ kind, m, n, name }: PathParams): string {
+  const base = '$\\overrightarrow{OA} = \\mathbf{a}$ and $\\overrightarrow{OB} = \\mathbf{b}$.';
+  switch (kind) {
+    case 'AB':
+    case 'BA':
+      return base;
+    case 'OM':
+    case 'AM':
+    case 'MB':
+      return `${base} $${name}$ is the midpoint of $AB$.`;
+    case 'OC':
+      return `${base} $OA${name}B$ is a parallelogram.`;
+    case 'OP':
+    case 'AP':
+    case 'PB':
+      return `${base} $${name}$ lies on $AB$ with $A${name} : ${name}B = ${m} : ${n}$.`;
+    case 'OD':
+      return `${base} $B$ is the midpoint of $A${name}$.`;
+  }
+}
+
+/**
+ * The triangle OAB with the question's extra point, so the route can be
+ * traced with a finger. Fixed proportions rather than the question's numbers,
+ * because there are none: the picture is a sketch, as it would be on paper.
+ */
+function pathSvg(params: PathParams): string {
+  const O = { x: 20, y: 150 };
+  const A = { x: 220, y: 150 };
+  const B = { x: 90, y: 40 };
+  const [lambda, mu] = pathCoefficients(params);
+  const l = lambda.n / lambda.d;
+  const u = mu.n / mu.d;
+  const extra = !(params.kind === 'AB' || params.kind === 'BA');
+  const X = { x: O.x + l * (A.x - O.x) + u * (B.x - O.x), y: O.y + l * (A.y - O.y) + u * (B.y - O.y) };
+  const xs = [O.x, A.x, B.x, ...(extra ? [X.x] : [])];
+  const ys = [O.y, A.y, B.y, ...(extra ? [X.y] : [])];
+  const pad = 22;
+  const left = Math.min(...xs) - pad;
+  const top = Math.min(...ys) - pad;
+  const width = Math.max(...xs) - left + pad;
+  const height = Math.max(...ys) - top + pad;
+  const f = (v: number) => v.toFixed(1);
+  const line = (p: { x: number; y: number }, q: { x: number; y: number }, extraAttrs = '') =>
+    `<line x1="${f(p.x)}" y1="${f(p.y)}" x2="${f(q.x)}" y2="${f(q.y)}" stroke="currentColor" ${extraAttrs} />`;
+  const arrow = (p: { x: number; y: number }, q: { x: number; y: number }) => {
+    const angle = Math.atan2(q.y - p.y, q.x - p.x);
+    const mid = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+    return [
+      line(p, q, 'stroke-width="2" class="plot-accent"'),
+      ...[0.45, -0.45].map(
+        (turn) =>
+          `<line x1="${f(mid.x + 5 * Math.cos(angle))}" y1="${f(mid.y + 5 * Math.sin(angle))}" x2="${f(mid.x + 5 * Math.cos(angle) - 9 * Math.cos(angle + turn))}" y2="${f(mid.y + 5 * Math.sin(angle) - 9 * Math.sin(angle + turn))}" stroke="currentColor" stroke-width="2" class="plot-accent" stroke-linecap="round" />`,
+      ),
+    ].join('');
+  };
+  const dot = (p: { x: number; y: number }) => `<circle cx="${f(p.x)}" cy="${f(p.y)}" r="3" fill="currentColor" />`;
+  const label = (p: { x: number; y: number }, text: string, dx: number, dy: number, bold = false) =>
+    `<text x="${f(p.x + dx)}" y="${f(p.y + dy)}" font-size="14" ${bold ? 'font-weight="bold"' : 'font-style="italic"'} text-anchor="middle" fill="currentColor">${text}</text>`;
+
+  const parts = [
+    `<svg viewBox="${f(left)} ${f(top)} ${f(width)} ${f(height)}" width="100%" style="max-width:280px" role="img" aria-label="Triangle OAB with the point the question describes">`,
+    arrow(O, A),
+    arrow(O, B),
+    line(A, B, 'stroke-width="1.2" opacity="0.7"'),
+  ];
+  if (params.kind === 'OC') {
+    parts.push(line(A, X, 'stroke-width="1.2" stroke-dasharray="4 4" opacity="0.7"'));
+    parts.push(line(B, X, 'stroke-width="1.2" stroke-dasharray="4 4" opacity="0.7"'));
+  }
+  if (params.kind === 'OD') {
+    parts.push(line(B, X, 'stroke-width="1.2" stroke-dasharray="4 4" opacity="0.7"'));
+  }
+  parts.push(
+    dot(O),
+    dot(A),
+    dot(B),
+    label(O, 'O', -10, 16),
+    label(A, 'A', 10, 16),
+    label(B, 'B', -8, -8),
+    label({ x: (O.x + A.x) / 2, y: O.y }, 'a', 0, 18, true),
+    label({ x: (O.x + B.x) / 2, y: (O.y + B.y) / 2 }, 'b', -12, 0, true),
+  );
+  if (extra) {
+    parts.push(dot(X), label(X, params.name, 12, -6));
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/** `a` and `b` for the answer box, with the brackets and fractions a combination needs. */
+const PATH_KEYS: KeypadKey[] = [
+  { insert: 'a', tex: true },
+  { insert: 'b', tex: true },
+  { insert: '(' },
+  { insert: ')' },
+  { insert: '/' },
+];
+
+/** Worked steps for a path case, shared by every path generator. */
+function pathSolution(params: PathParams) {
+  const { kind, m, n, name } = params;
+  const [lambda, mu] = pathCoefficients(params);
+  const target = pathTarget(params);
+  const result = combinationTex(lambda, mu);
+  const whole = m + n;
+  const route: Record<PathCase, { text: string; tex: string }> = {
+    AB: {
+      text: 'Go from $A$ back to $O$, then out to $B$.',
+      tex: `\\overrightarrow{AB} = \\overrightarrow{AO} + \\overrightarrow{OB} = -\\mathbf{a} + \\mathbf{b}`,
+    },
+    BA: {
+      text: 'Go from $B$ back to $O$, then out to $A$.',
+      tex: `\\overrightarrow{BA} = \\overrightarrow{BO} + \\overrightarrow{OA} = -\\mathbf{b} + \\mathbf{a}`,
+    },
+    OM: {
+      text: `Go out to $A$, then half of the way along $AB$ to $${name}$.`,
+      tex: `\\overrightarrow{O${name}} = \\mathbf{a} + \\tfrac{1}{2}\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+    AM: {
+      text: `$${name}$ is halfway from $A$ to $B$, so take half of $\\overrightarrow{AB}$.`,
+      tex: `\\overrightarrow{A${name}} = \\tfrac{1}{2}\\overrightarrow{AB} = \\tfrac{1}{2}\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+    MB: {
+      text: `$${name}$ is halfway, so the second half of the line is also half of $\\overrightarrow{AB}$, pointing the same way.`,
+      tex: `\\overrightarrow{${name}B} = \\tfrac{1}{2}\\overrightarrow{AB} = \\tfrac{1}{2}\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+    OC: {
+      text: `In the parallelogram $OA${name}B$, $A${name}$ is opposite $OB$, so it is the vector $\\mathbf{b}$. Go out to $A$, then along $\\mathbf{b}$.`,
+      tex: `\\overrightarrow{O${name}} = \\overrightarrow{OA} + \\overrightarrow{A${name}} = \\mathbf{a} + \\mathbf{b}`,
+    },
+    OP: {
+      text: `$${name}$ is ${m} of ${whole} equal parts along from $A$, so go out to $A$ and then $\\frac{${m}}{${whole}}$ of the way along $AB$.`,
+      tex: `\\overrightarrow{O${name}} = \\mathbf{a} + \\frac{${m}}{${whole}}\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+    AP: {
+      text: `$${name}$ is ${m} of ${whole} equal parts along from $A$.`,
+      tex: `\\overrightarrow{A${name}} = \\frac{${m}}{${whole}}\\overrightarrow{AB} = \\frac{${m}}{${whole}}\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+    PB: {
+      text: `From $${name}$ there are ${n} of the ${whole} parts left to go to $B$, in the direction of $\\overrightarrow{AB}$.`,
+      tex: `\\overrightarrow{${name}B} = \\frac{${n}}{${whole}}\\overrightarrow{AB} = \\frac{${n}}{${whole}}\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+    OD: {
+      text: `$B$ is halfway to $${name}$, so the journey from $A$ to $${name}$ is twice $\\overrightarrow{AB}$. Go out to $A$, then twice along $AB$.`,
+      tex: `\\overrightarrow{O${name}} = \\mathbf{a} + 2\\left(\\mathbf{b} - \\mathbf{a}\\right)`,
+    },
+  };
+  return [
+    {
+      text: 'Find a route made of journeys you already know as $\\mathbf{a}$ and $\\mathbf{b}$. Going along a vector backwards is its negative.',
+    },
+    { text: route[kind].text },
+    { tex: route[kind].tex },
+    { tex: `${target} = ${result}` },
+    {
+      text:
+        kind === 'OC'
+          ? '$\\mathbf{a} + \\mathbf{b}$ is the diagonal of the parallelogram, which is the picture behind adding two vectors.'
+          : kind === 'OM' || kind === 'OP' || kind === 'OD'
+            ? `Check: the two coefficients add up to 1. Every point on the line through $A$ and $B$ does, just as $\\mathbf{a}$ is $1\\mathbf{a} + 0\\mathbf{b}$.`
+            : 'Check: the two coefficients add up to 0. Any vector running along $AB$ does, because it is a multiple of $\\mathbf{b} - \\mathbf{a}$.',
+    },
+  ];
+}
+
+/**
+ * The same vector written as its route, before tidying: the form the lesson
+ * says is accepted, and the one a learner who stops a step early has typed.
+ */
+function pathRouteAnswer({ kind, m, n }: PathParams): string {
+  const whole = m + n;
+  switch (kind) {
+    case 'AB':
+      return 'b - a';
+    case 'BA':
+      return 'a - b';
+    case 'OM':
+      return '(a + b)/2';
+    case 'AM':
+    case 'MB':
+      return '(b - a)/2';
+    case 'OC':
+      return 'b + a';
+    case 'OP':
+      return `a + (${m}/${whole})*(b - a)`;
+    case 'AP':
+      return `(${m}/${whole})*(b - a)`;
+    case 'PB':
+      return `(${n}/${whole})*(b - a)`;
+    case 'OD':
+      return 'a + 2*(b - a)';
+  }
+}
+
+/** Other combinations a slip produces, none equal to the answer. */
+function pathSlips([lambda, mu]: [Ratio, Ratio]): [Ratio, Ratio][] {
+  const negate = (r: Ratio) => ratio(-r.n, r.d);
+  const out: [Ratio, Ratio][] = [];
+  for (const candidate of [
+    [mu, lambda],
+    [negate(lambda), negate(mu)],
+    [negate(lambda), mu],
+    [lambda, negate(mu)],
+  ] as [Ratio, Ratio][]) {
+    if (sameRatio(candidate[0], lambda) && sameRatio(candidate[1], mu)) continue;
+    if (out.some(([p, q]) => sameRatio(p, candidate[0]) && sameRatio(q, candidate[1]))) continue;
+    out.push(candidate);
+  }
+  return out.slice(0, 3);
+}
+
+/**
+ * A vector in a shape, written in terms of a and b.
+ *
+ * The level's other questions have numbers to check against. This one has
+ * none, which is the point: a route through the shape is the proof, and it is
+ * the form every exam question on vector geometry takes.
+ */
+const path: Generator<PathParams> = {
+  id: 'vec-path',
+  choices: (params) => {
+    const right = pathCoefficients(params);
+    return options(
+      { tex: combinationTex(...right), answer: combinationAnswer(...right) },
+      ...pathSlips(right).map((slip) => ({ tex: combinationTex(...slip), answer: combinationAnswer(...slip) })),
+    );
+  },
+  sample: samplePath,
+  render: (params) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'diagram', svg: pathSvg(params) },
+      { kind: 'prose', text: `${pathSetup(params)} Find $${pathTarget(params)}$ in terms of $\\mathbf{a}$ and $\\mathbf{b}$.` },
+    ],
+    lead: `${pathTarget(params)} =`,
+    keypad: PATH_KEYS,
+    answer: combinationAnswer(...pathCoefficients(params)),
+    alsoAccepts: [pathRouteAnswer(params)],
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: pathSolution,
+};
+
+/** The same vector, with its two coefficients placed as tiles. */
+const pathCoefficientsGen: Generator<PathParams> = {
+  id: 'vec-path-coefficients',
+  sample: samplePath,
+  render: (params) => {
+    const [lambda, mu] = pathCoefficients(params);
+    const negate = (r: Ratio) => ratio(-r.n, r.d);
+    const { m, n } = params;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'diagram', svg: pathSvg(params) },
+        {
+          kind: 'prose',
+          text: `${pathSetup(params)} Write $${pathTarget(params)}$ as $\\lambda\\mathbf{a} + \\mu\\mathbf{b}$ by placing the two numbers.`,
+        },
+      ],
+      template: '\\lambda: \\; {0} \\qquad \\mu: \\; {1}',
+      bank: ratioBank(
+        [lambda, mu],
+        [negate(lambda), negate(mu), ratio(m, n), ratio(n, m + n), ratio(m, m + n)],
+      ),
+      answer: [ratioTex(lambda), ratioTex(mu)],
+    };
+  },
+  solution: pathSolution,
+};
+
+interface PathTreeParams {
+  m: number;
+  n: number;
+  name: string;
+  fromB: boolean;
+}
+
+const PATH_TREE_PAIRS: Record<1 | 2, [number, number][]> = {
+  1: [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1]],
+  2: [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2], [1, 4], [4, 1]],
+};
+
+/**
+ * The route to a point on AB, one leg at a time: the whole line, the part of
+ * it that is needed, then the journey from O. From either end — starting at B
+ * is just as valid, and meeting the same answer by the other route is what
+ * makes the answer believable.
+ */
+const pathTree: Generator<PathTreeParams> = {
+  id: 'vec-path-tree',
+  sample: (rng, difficulty) => {
+    const [m, n] = rng.pick(PATH_TREE_PAIRS[difficulty > 1 ? 2 : 1]);
+    return {
+      m,
+      n,
+      name: rng.pick(m === n ? ['M', 'N', 'X'] : ['P', 'Q', 'R']),
+      fromB: rng.chance(0.5),
+    };
+  },
+  render: ({ m, n, name, fromB }): Slide => {
+    const whole = m + n;
+    const along = fromB ? '\\mathbf{a} - \\mathbf{b}' : '\\mathbf{b} - \\mathbf{a}';
+    const back = fromB ? '\\mathbf{b} - \\mathbf{a}' : '\\mathbf{a} - \\mathbf{b}';
+    const share = ratioTex(ratio(fromB ? n : m, whole));
+    const otherShare = ratioTex(ratio(fromB ? m : n, whole));
+    const result = combinationTex(ratio(n, whole), ratio(m, whole));
+    const swapped = combinationTex(ratio(m, whole), ratio(n, whole));
+    const [start, end] = fromB ? ['B', 'A'] : ['A', 'B'];
+    const where = m === n ? `$${name}$ is the midpoint of $AB$` : `$${name}$ lies on $AB$ with $A${name} : ${name}B = ${m} : ${n}$`;
+    const answer = [along, `${share}\\left(${along}\\right)`, result];
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'diagram', svg: pathSvg({ kind: 'OP', m, n, name }) },
+        {
+          kind: 'prose',
+          text: `$\\overrightarrow{OA} = \\mathbf{a}$, $\\overrightarrow{OB} = \\mathbf{b}$, and ${where}. Fill the tree: $\\overrightarrow{${start}${end}}$, then $\\overrightarrow{${start}${name}}$, then $\\overrightarrow{O${name}}$.`,
+        },
+      ],
+      expression: `\\overrightarrow{O${name}} = \\overrightarrow{O${start}} + \\overrightarrow{${start}${name}}`,
+      nodes: [
+        { id: 'line', from: [] },
+        { id: 'part', from: ['line'] },
+        { id: 'whole', from: ['part'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [back, `${otherShare}\\left(${along}\\right)`, swapped, '\\mathbf{a} + \\mathbf{b}'],
+        [`${share}\\left(${back}\\right)`, '\\tfrac{1}{2}\\mathbf{a} - \\mathbf{b}'],
+      ),
+      answer,
+    };
+  },
+  solution: ({ m, n, name, fromB }) => {
+    const whole = m + n;
+    const [start, end] = fromB ? ['B', 'A'] : ['A', 'B'];
+    const along = fromB ? '\\mathbf{a} - \\mathbf{b}' : '\\mathbf{b} - \\mathbf{a}';
+    const share = ratioTex(ratio(fromB ? n : m, whole));
+    const startVec = fromB ? '\\mathbf{b}' : '\\mathbf{a}';
+    return [
+      { text: `The line from $${start}$ to $${end}$ is destination minus start.` },
+      { tex: `\\overrightarrow{${start}${end}} = ${along}` },
+      {
+        text: `$${name}$ is ${fromB ? n : m} of the ${whole} equal parts along from $${start}$, so take $${share}$ of that.`,
+      },
+      { tex: `\\overrightarrow{${start}${name}} = ${share}\\left(${along}\\right)` },
+      { text: `Then start from $O$: out to $${start}$, and along.` },
+      {
+        tex: `\\overrightarrow{O${name}} = ${startVec} + ${share}\\left(${along}\\right) = ${combinationTex(ratio(n, whole), ratio(m, whole))}`,
+      },
+    ];
+  },
+};
+
+interface PathParallelParams {
+  r: number;
+  s: number;
+  k: number;
+  j: number;
+  phrase: number;
+}
+
+/**
+ * Spotting a parallel vector written in a and b.
+ *
+ * The level 1 test — one is a scalar multiple of the other — with symbols in
+ * place of components. It is the step every "prove these lines are parallel"
+ * question ends on.
+ */
+const pathParallel: Generator<PathParallelParams> = {
+  id: 'vec-path-parallel',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 60; tries += 1) {
+      const r = nonZero(rng.int(difficulty > 1 ? -4 : 1, 4), 1);
+      const s = nonZero(rng.int(-4, 4), 2);
+      // Coprime, so the correct option is the simplest multiple; and not both
+      // of size one, where swapping the coefficients would stay parallel.
+      if (gcd(r, s) !== 1 || (Math.abs(r) === 1 && Math.abs(s) === 1)) continue;
+      const k = rng.pick(difficulty > 1 ? [-3, -2, 2, 3, 4] : [2, 3, 4]);
+      const j = rng.pick([1, -1, 2].filter((x) => x !== k));
+      return { r, s, k, j, phrase: rng.int(0, 2) };
+    }
+    return { r: 1, s: 2, k: 3, j: 1, phrase: 0 };
+  },
+  render: ({ r, s, k, j, phrase }): Slide => {
+    const tex = (x: number, y: number) => combinationTex(ratio(x, 1), ratio(y, 1));
+    const given = tex(k * r, k * s);
+    const candidates = [
+      { id: 'parallel', x: j * r, y: j * s },
+      { id: 'swapped', x: j * s, y: j * r },
+      { id: 'sign', x: j * r, y: -j * s },
+      { id: 'one-scaled', x: j * r, y: k * s },
+    ].filter((c) => c.id === 'parallel' || cross(r, s, c.x, c.y) !== 0);
+    const offered = distinctOptions(candidates.map((c) => ({ id: c.id, label: tex(c.x, c.y), tex: true })));
+    const question = [
+      `Which of these is parallel to $${given}$?`,
+      `$\\overrightarrow{PQ} = ${given}$. $RS$ is parallel to $PQ$. Which of these could $\\overrightarrow{RS}$ be?`,
+      `Which of these vectors points along the same line as $${given}$, in either direction?`,
+    ][phrase];
+    const turn = (Math.abs(r) + Math.abs(s) + Math.abs(k) + phrase) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: question }],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'parallel',
+    };
+  },
+  solution: ({ r, s, k, j }) => {
+    const tex = (x: number, y: number) => combinationTex(ratio(x, 1), ratio(y, 1));
+    const scale = ratio(k, j);
+    return [
+      {
+        text: 'Two vectors are parallel when one is a scalar multiple of the other. With $\\mathbf{a}$ and $\\mathbf{b}$ that means the *same* multiple on both coefficients.',
+      },
+      { tex: `${tex(k * r, k * s)} = ${ratioTex(scale)}\\left(${tex(j * r, j * s)}\\right)` },
+      {
+        text: `Both coefficients are multiplied by $${ratioTex(scale)}$, so the two are parallel${scale.n < 0 ? ', pointing opposite ways' : ''}.`,
+      },
+      {
+        text: 'Swapping the coefficients, or changing just one of them or just one sign, changes the ratio of $\\mathbf{a}$ to $\\mathbf{b}$, and with it the direction.',
+      },
+    ];
+  },
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -1272,4 +3303,23 @@ export const vectorGenerators = [
   distance,
   angleBetween,
   method,
+  between,
+  betweenSlider,
+  endpoint,
+  direction,
+  midpoint,
+  section,
+  sectionTree,
+  sectionFractionGen,
+  ratioSlider,
+  lineTest,
+  collinearK,
+  onLine,
+  fourthVertex,
+  fourthVertexTree,
+  quadFlow,
+  path,
+  pathCoefficientsGen,
+  pathTree,
+  pathParallel,
 ] as unknown as Generator<unknown>[];

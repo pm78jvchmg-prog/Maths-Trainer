@@ -89,7 +89,7 @@ export const vectors: Course = {
                 'What comes out is the **displacement** — where the journey ended up relative to where it started — not the distance travelled. The two legs can cancel; distances never do.',
               ),
             ),
-            ask('vec-add'),
+            ask('vec-add-tree'),
             ask('vec-journey'),
             ask('vec-component'),
             teach(
@@ -148,7 +148,7 @@ export const vectors: Course = {
             ),
             ask('vec-scalar-combine'),
             ask('vec-add+choice'),
-            ask('vec-scalar-combine'),
+            ask('vec-scalar-combine-steps'),
             teach(
               prose(
                 'Two vectors are **parallel** exactly when one is a scalar multiple of the other — the same multiple applied to every component.',

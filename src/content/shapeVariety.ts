@@ -47,9 +47,6 @@ export const MAX_PER_FAMILY = 2;
  * lessons, so this is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l2-equations': 2,
-  'er-l3-add': 2,
-  'er-l3-rationalise': 2,
   'qd-l1-expand': 2,
   'qd-l1-factorise': 2,
   'qd-l1-squares': 2,
@@ -97,30 +94,18 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 47;
+export const WIDGET_KIND_CEILING = 44;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
  * how many times the worst offender is asked today.
  *
- * Far longer than the widget-kind list — 102 of 105 lessons — because a seven
- * exercise deck built from two or three generators breaks this rule by
- * construction. Phase A widens the decks; this list is how that progress is
- * measured.
+ * Far longer than the widget-kind list — it started at 102 of the 105 lessons —
+ * because a seven exercise deck built from two or three generators breaks this
+ * rule by construction. Phase A widens the decks; this list is how that
+ * progress is measured, and batch A3 took the twelve `er-` lessons off it.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l1-multiply': 6,
-  'er-l1-divide': 5,
-  'er-l1-power-of-power': 4,
-  'er-l1-coefficients': 5,
-  'er-l1-negative': 5,
-  'er-l2-fractional': 5,
-  'er-l2-powers-of-roots': 3,
-  'er-l2-equations': 6,
-  'er-l3-simplify': 5,
-  'er-l3-multiply': 5,
-  'er-l3-add': 7,
-  'er-l3-rationalise': 5,
   'qd-l1-expand': 7,
   'qd-l1-factorise': 7,
   'qd-l1-squares': 7,
@@ -214,4 +199,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 102;
+export const GENERATOR_REPETITION_CEILING = 90;

@@ -62,8 +62,8 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply'),
+            ask('idx-fill-multiply'),
             ask('idx-evaluate-order'),
-            ask('idx-evaluate-order+choice'),
             ask('idx-multiply+choice'),
             teach(
               prose(
@@ -76,8 +76,8 @@ export const exponentsRadicals: Course = {
                 'A base written with no index has an index of 1, which is easy to overlook: $x \\times x^{6} = x^{7}$, not $x^{6}$.',
               ),
             ),
-            ask('idx-multiply'),
-            ask('idx-multiply'),
+            ask('idx-law-choose'),
+            ask('idx-fill-multiply'),
             teach(
               prose('Three or more powers work the same way — add all the exponents at once.'),
               maths('x^{2} \\times x^{3} \\times x^{4} = x^{9}'),
@@ -85,8 +85,8 @@ export const exponentsRadicals: Course = {
                 'And the law reads backwards just as well, which turns out to be the more useful direction later: $x^{9}$ can be split into $x^{4} \\times x^{5}$ whenever that helps.',
               ),
             ),
-            ask('idx-multiply+choice'),
-            ask('idx-multiply'),
+            ask('idx-evaluate-order+choice'),
+            ask('idx-law-choose'),
           ],
           skillCheck: [ask('idx-multiply', 2), ask('idx-multiply', 2), ask('idx-multiply', 2)],
         },
@@ -108,7 +108,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-divide'),
-            ask('idx-divide'),
+            ask('idx-fill-divide'),
             ask('idx-divide+choice'),
             teach(
               prose(
@@ -122,8 +122,9 @@ export const exponentsRadicals: Course = {
                 'If the exponents are equal, everything cancels: $\\frac{x^{4}}{x^{4}} = x^{0} = 1$. Any non-zero base to the power zero is 1, which is the only value this law can consistently give.',
               ),
             ),
-            ask('idx-divide'),
             ask('idx-evaluate-divide'),
+            ask('idx-law-choose'),
+            ask('idx-fill-divide'),
             teach(
               prose(
                 'The two laws so far are a pair. Multiplying adds, dividing subtracts, and both insist on the same base.',
@@ -133,8 +134,8 @@ export const exponentsRadicals: Course = {
                 'Nothing here says anything about $\\frac{x^{5}}{y^{2}}$. Different bases do not cancel, and that fraction simply stays as it is.',
               ),
             ),
-            ask('idx-divide+choice'),
             ask('idx-evaluate-divide+choice'),
+            ask('idx-law-choose'),
           ],
           skillCheck: [ask('idx-divide', 2), ask('idx-divide', 2), ask('idx-divide', 2)],
         },
@@ -156,7 +157,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-power-of-power'),
-            ask('idx-power-of-power'),
+            ask('idx-fill-power'),
             ask('idx-power-of-power+choice'),
             teach(
               prose('Hold the two cases side by side until the difference is automatic.'),
@@ -168,8 +169,9 @@ export const exponentsRadicals: Course = {
                 'The outer power applies to everything inside the bracket, coefficients included: $\\left(3x^{2}\\right)^{2} = 9x^{4}$, not $3x^{4}$.',
               ),
             ),
-            ask('idx-multiply'),
             ask('idx-evaluate-power'),
+            ask('idx-law-choose'),
+            ask('idx-fill-power'),
             teach(
               prose(
                 'Negative exponents need no special treatment here — multiply them as they stand and keep the sign.',
@@ -179,8 +181,8 @@ export const exponentsRadicals: Course = {
                 'Two negatives multiply to a positive in the usual way, so $\\left(x^{-3}\\right)^{-2} = x^{6}$.',
               ),
             ),
-            ask('idx-power-of-power+choice'),
             ask('idx-evaluate-power+choice'),
+            ask('idx-law-choose'),
           ],
           skillCheck: [
             ask('idx-power-of-power', 2),
@@ -208,7 +210,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply-terms'),
-            ask('idx-multiply-terms'),
+            ask('idx-fill-coefficient'),
             ask('idx-multiply-terms+choice'),
             teach(
               prose('Division splits the same way — divide the coefficients, subtract the indices.'),
@@ -220,8 +222,9 @@ export const exponentsRadicals: Course = {
                 'Track the sign of the coefficient separately from the sign of the index. In $-3x^{-2}$ the minus in front belongs to the number and the minus in the index belongs to the power; neither has anything to do with the other.',
               ),
             ),
-            ask('idx-multiply-terms'),
             ask('idx-evaluate-coefficient'),
+            ask('idx-law-choose'),
+            ask('idx-fill-coefficient'),
             teach(
               prose(
                 'Addition is the odd one out. $3x^{2} + 4x^{2}$ is $7x^{2}$, because those are like terms — same base, same index — so the coefficients simply count them.',
@@ -231,8 +234,8 @@ export const exponentsRadicals: Course = {
                 'But $3x^{2} + 4x^{3}$ does not simplify at all. Only multiplication and division have index laws; addition needs the terms to match exactly before anything can happen.',
               ),
             ),
-            ask('idx-multiply-terms+choice'),
             ask('idx-evaluate-coefficient+choice'),
+            ask('idx-law-choose'),
           ],
           skillCheck: [
             ask('idx-multiply-terms', 2),
@@ -257,7 +260,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-negative'),
-            ask('idx-negative'),
+            ask('idx-fill-negative'),
             ask('idx-negative+choice'),
             teach(
               prose('With a coefficient in front, only the part actually carrying the index moves.'),
@@ -269,8 +272,9 @@ export const exponentsRadicals: Course = {
                 'If the coefficient is inside the bracket then it does carry the index and it does move: $\\left(5x\\right)^{-2} = \\frac{1}{25x^{2}}$. The brackets decide.',
               ),
             ),
-            ask('idx-negative'),
-            ask('idx-evaluate-divide+choice'),
+            ask('idx-evaluate-divide'),
+            ask('idx-law-choose'),
+            ask('idx-fill-negative'),
             teach(
               prose('Negative indices obey every law already met, with no special cases.'),
               maths('x^{-2} \\times x^{-3} = x^{-5} \\qquad \\frac{x^{-2}}{x^{3}} = x^{-5}'),
@@ -278,8 +282,8 @@ export const exponentsRadicals: Course = {
                 'That is the point of allowing them. The three laws then hold for every whole number, positive or negative, rather than only for counting numbers — and the same argument is about to push them further still.',
               ),
             ),
-            ask('idx-negative+choice'),
-            ask('idx-evaluate-divide'),
+            ask('idx-evaluate-divide+choice'),
+            ask('idx-law-choose'),
           ],
           skillCheck: [ask('idx-negative', 2), ask('idx-negative', 2), ask('idx-negative', 2)],
         },
@@ -319,7 +323,7 @@ export const exponentsRadicals: Course = {
               maths('x^{\\frac{1}{n}} = \\sqrt[n]{x}'),
             ),
             ask('idx-fractional'),
-            ask('idx-fractional'),
+            ask('idx-fill-root'),
             ask('idx-fractional+choice'),
             teach(
               prose(
@@ -333,8 +337,9 @@ export const exponentsRadicals: Course = {
                 'The index is not a multiplier. $16^{\\frac{1}{2}}$ is 4, not 8: halving a number and taking its square root are different operations that happen to agree only at 0 and 4.',
               ),
             ),
-            ask('idx-fractional'),
             ask('idx-evaluate-roots'),
+            ask('idx-root-flow'),
+            ask('idx-fill-root'),
             teach(
               prose(
                 'The same reading handles a root of a root, because the laws are still the laws.',
@@ -346,8 +351,8 @@ export const exponentsRadicals: Course = {
                 'Converting to index form and multiplying is quicker than reasoning about nested roots directly, and that is the practical reason for writing roots as indices at all.',
               ),
             ),
-            ask('idx-fractional+choice'),
             ask('idx-evaluate-roots+choice'),
+            ask('idx-root-flow'),
           ],
           // Difficulty 1 here, deliberately: difficulty 2 brings in a numerator
           // above 1, which is the next lesson's material.
@@ -371,7 +376,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-fractional', 2),
-            ask('idx-index-form'),
+            ask('idx-fill-fractional'),
             ask('idx-fractional+choice', 2),
             teach(
               prose(
@@ -385,8 +390,9 @@ export const exponentsRadicals: Course = {
                 'Swapping the two numbers is the mistake to guard against: $\\frac{3}{4}$ means a fourth root and a cube, not a cube root and a fourth power.',
               ),
             ),
-            ask('idx-evaluate-roots'),
-            ask('idx-evaluate-roots+choice'),
+            ask('idx-index-form'),
+            ask('idx-root-flow', 2),
+            ask('idx-fill-fractional', 2),
             teach(
               prose(
                 'A negative fractional index combines both of the extensions — take the reciprocal, and read the fraction as a root and a power.',
@@ -397,7 +403,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-index-form+choice', 2),
-            ask('idx-index-form', 2),
+            ask('idx-root-flow', 2),
           ],
           skillCheck: [
             ask('idx-fractional', 2),
@@ -422,7 +428,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-equation'),
-            ask('idx-equation'),
+            ask('idx-match-base'),
             ask('idx-equation+choice'),
             teach(
               prose(
@@ -436,8 +442,9 @@ export const exponentsRadicals: Course = {
                 'When no common base exists — $2^{n} = 10$, say — this method simply stops, and logarithms take over. That is a course of its own.',
               ),
             ),
-            ask('idx-equation'),
-            ask('idx-equation'),
+            ask('idx-evaluate-roots'),
+            ask('idx-fractional', 2),
+            ask('idx-match-base', 2),
             teach(
               prose('A negative or fractional answer is not a sign that something has gone wrong.'),
               maths('2^{n} = \\frac{1}{8} \\implies 2^{n} = 2^{-3} \\implies n = -3'),
@@ -445,8 +452,8 @@ export const exponentsRadicals: Course = {
                 'And $9^{n} = 3$ gives $n = \\frac{1}{2}$, because 3 is $9^{\\frac{1}{2}}$. The index laws were extended precisely so that cases like these would have answers, so the method reaches them too.',
               ),
             ),
-            ask('idx-equation+choice'),
-            ask('idx-fractional', 2),
+            ask('idx-evaluate-roots+choice'),
+            ask('idx-fractional+choice', 2),
           ],
           skillCheck: [ask('idx-equation', 2), ask('idx-equation', 2), ask('idx-equation', 2)],
         },
@@ -488,7 +495,7 @@ export const exponentsRadicals: Course = {
               maths('\\sqrt{72} = \\sqrt{36 \\times 2} = \\sqrt{36} \\times \\sqrt{2} = 6\\sqrt{2}'),
             ),
             ask('rad-simplify'),
-            ask('idx-evaluate-roots'),
+            ask('rad-fill-simplify'),
             ask('rad-simplify+choice'),
             teach(
               prose(
@@ -502,8 +509,9 @@ export const exponentsRadicals: Course = {
                 'The squares worth scanning for are 4, 9, 16, 25, 36, 49, 64, 81 and 100. Checking them from the largest downwards finds the answer in one pass.',
               ),
             ),
-            ask('idx-evaluate-roots+choice'),
-            ask('rad-simplify', 2),
+            ask('idx-evaluate-roots'),
+            ask('rad-estimate'),
+            ask('rad-fill-simplify', 2),
             teach(
               prose(
                 'A surd is fully simplified when whatever remains under the root has no square factor left.',
@@ -515,8 +523,8 @@ export const exponentsRadicals: Course = {
                 'A coefficient already in front is just multiplied by whatever comes out: $3\\sqrt{8} = 3 \\times 2\\sqrt{2} = 6\\sqrt{2}$.',
               ),
             ),
-            ask('rad-simplify+choice', 2),
-            ask('rad-simplify', 2),
+            ask('idx-evaluate-roots+choice'),
+            ask('rad-estimate', 2),
           ],
           skillCheck: [ask('rad-simplify', 2), ask('rad-simplify', 2), ask('rad-simplify', 2)],
         },
@@ -536,7 +544,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-multiply'),
-            ask('rad-multiply'),
+            ask('rad-fill-simplify'),
             ask('rad-multiply+choice'),
             teach(
               prose('A root multiplied by itself undoes itself, which is what a root means.'),
@@ -548,8 +556,9 @@ export const exponentsRadicals: Course = {
                 'With coefficients, the numbers and the roots are handled separately, exactly as they were with powers: $2\\sqrt{3} \\times 5\\sqrt{7} = 10\\sqrt{21}$.',
               ),
             ),
-            ask('rad-multiply'),
             ask('idx-evaluate-roots'),
+            ask('rad-simplify'),
+            ask('rad-fill-simplify', 2),
             teach(
               prose(
                 'Multiply first and simplify afterwards. It is usually less work than simplifying each factor on the way in.',
@@ -559,8 +568,8 @@ export const exponentsRadicals: Course = {
                 'The product often hides a square factor even when neither surd did, so check the result before calling it finished.',
               ),
             ),
-            ask('rad-multiply+choice', 2),
             ask('idx-evaluate-roots+choice'),
+            ask('rad-simplify+choice', 2),
           ],
           skillCheck: [ask('rad-multiply', 2), ask('rad-multiply', 2), ask('rad-multiply', 2)],
         },
@@ -581,7 +590,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-add'),
-            ask('rad-add'),
+            ask('rad-fill-simplify'),
             ask('rad-add+choice'),
             teach(
               prose(
@@ -595,8 +604,9 @@ export const exponentsRadicals: Course = {
                 'If they genuinely differ, as in $\\sqrt{2} + \\sqrt{3}$, the sum stays as it is. That is a complete answer, not an unfinished one.',
               ),
             ),
-            ask('rad-add'),
-            ask('rad-add'),
+            ask('rad-simplify'),
+            ask('rad-estimate'),
+            ask('rad-fill-simplify', 2),
             teach(
               prose('Subtraction works the same way, and a coefficient of 1 is still a coefficient.'),
               maths('\\sqrt{7} + 5\\sqrt{7} = 6\\sqrt{7} \\qquad 5\\sqrt{7} - \\sqrt{7} = 4\\sqrt{7}'),
@@ -604,8 +614,8 @@ export const exponentsRadicals: Course = {
                 'Counting a bare surd as nothing rather than as one is a common slip, and it gives an answer that is short by exactly one.',
               ),
             ),
-            ask('rad-add+choice'),
-            ask('rad-add'),
+            ask('rad-simplify+choice', 2),
+            ask('rad-estimate', 2),
           ],
           skillCheck: [ask('rad-add', 2), ask('rad-add', 2), ask('rad-add', 2)],
         },
@@ -629,8 +639,8 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-rationalise'),
+            ask('rad-fill-rationalise'),
             ask('rad-multiply'),
-            ask('rad-rationalise'),
             teach(
               prose('With a number on top, it comes along unchanged.'),
               maths('\\frac{5}{\\sqrt{2}} = \\frac{5\\sqrt{2}}{2}'),
@@ -641,8 +651,9 @@ export const exponentsRadicals: Course = {
                 'Both halves have to be multiplied, because that is the only thing that makes the factor equal to 1.',
               ),
             ),
-            ask('rad-rationalise'),
-            ask('rad-rationalise'),
+            ask('rad-simplify'),
+            ask('rad-fill-rationalise', 2),
+            ask('rad-multiply+choice'),
             teach(
               prose('Simplify the surd before rationalising where you can; the numbers stay smaller.'),
               maths(
@@ -652,8 +663,8 @@ export const exponentsRadicals: Course = {
                 'Cancelling at the second step is what keeps this tidy. Rationalising $\\sqrt{8}$ directly works too, but it leaves an 8 underneath to cancel at the end instead.',
               ),
             ),
-            ask('rad-rationalise'),
-            ask('rad-multiply'),
+            ask('rad-rationalise', 2),
+            ask('rad-simplify+choice', 2),
           ],
           skillCheck: [
             ask('rad-rationalise', 2),

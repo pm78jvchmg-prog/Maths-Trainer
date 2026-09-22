@@ -1632,20 +1632,28 @@ interface RootFillParams {
 }
 
 /**
- * Fractional indices whose top is genuinely a power.
+ * Every fractional index worth filling in, unit fractions included.
  *
- * `FRACTIONAL` above allows a numerator of 1, where the question is only "take
- * the root" and the two-step working this asks for collapses into one. Here
- * the top starts at 2, so there is always a root *and* a power to place.
+ * Split into two pools rather than one, because the two halves are two
+ * different lessons: a 1 on top means "take this root and stop", which is all
+ * *Roots as Indices* teaches, and a power on top is what *Powers of Roots*
+ * adds. A generator drawing across both would ask the second lesson's question
+ * in the first.
  */
 const ROOT_FILLS: RootFillParams[] = ROOTS.flatMap(({ base, den, root }) =>
-  [2, 3, 4, 5]
+  [1, 2, 3, 4, 5]
     .filter((n) => gcd(n, den) === 1 && Math.pow(root, n) <= 2000)
     .map((n) => ({ base, n, d: den, root, value: Math.pow(root, n) })),
 );
 
-/** The gentler half: a square or a cube on top, which is most of them. */
-const ROOT_FILLS_EASY = ROOT_FILLS.filter(({ n }) => n <= 3);
+/** A 1 on top: the index is a root and nothing else. */
+const ROOT_FILLS_UNIT = ROOT_FILLS.filter(({ n }) => n === 1);
+
+/** A genuine power on top, so there is a root *and* a power to place. */
+const ROOT_FILLS_POWER = ROOT_FILLS.filter(({ n }) => n > 1);
+
+/** The gentler half of those: a square or a cube on top. */
+const ROOT_FILLS_POWER_EASY = ROOT_FILLS_POWER.filter(({ n }) => n <= 3);
 
 /** A root written the way it is read aloud, for the branch labels below. */
 const ROOT_NAMES: Record<number, string> = {
@@ -1655,43 +1663,87 @@ const ROOT_NAMES: Record<number, string> = {
   5: 'The fifth root',
 };
 
-/** Evaluating a fractional index, placed in two steps rather than typed. */
-const fillFractional: Generator<RootFillParams> = {
-  id: 'idx-fill-fractional',
-  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? ROOT_FILLS : ROOT_FILLS_EASY),
+/**
+ * A fractional index rewritten and then evaluated, placed rather than typed.
+ *
+ * Two blanks again, and the same reason as the index laws above: the first is
+ * the index read as a root, the second is that arithmetic done. `idx-fractional`
+ * asks only for the number, which a learner can reach by recognising it without
+ * ever saying what the bottom of the fraction was for.
+ */
+const rootFillBase: Omit<Generator<RootFillParams>, 'id' | 'sample'> = {
   render: (params): Slide => {
     const { base, n, d, root, value } = params;
-    const answer = [`\\left(\\sqrt[${d}]{${base}}\\right)^{${n}}`, `${value}`];
+    const unit = n === 1;
+    const answer = unit
+      ? [`\\sqrt[${d}]{${base}}`, `${value}`]
+      : [`\\left(\\sqrt[${d}]{${base}}\\right)^{${n}}`, `${value}`];
     return {
       kind: 'tiles',
       prompt: [
         {
           kind: 'prose',
-          text: 'The bottom of the index is a root and the top is a power. Place the root being taken, then what it all comes to.',
+          text: unit
+            ? 'The bottom of the index says which root to take. Place that root, then what it comes to.'
+            : 'The bottom of the index is a root and the top is a power. Place the root raised to that power, then what it all comes to.',
         },
         { kind: 'display', tex: `${base}^{\\frac{${n}}{${d}}}` },
       ],
       template: `{0} = {1}`,
-      bank: fillBank(answer, [
-        `\\left(\\sqrt[${n}]{${base}}\\right)^{${d}}`,
-        `\\sqrt[${d}]{${base}}`,
-        `${root}`,
-        `${base * n}`,
-        `${root * n}`,
-      ]),
+      bank: fillBank(
+        answer,
+        unit
+          ? [`\\sqrt[${d + 1}]{${base}}`, `${d}`, `${root + 1}`, `${Math.round(base / d)}`]
+          : [
+              `\\left(\\sqrt[${n}]{${base}}\\right)^{${d}}`,
+              `\\sqrt[${d}]{${base}}`,
+              `${root}`,
+              `${base * n}`,
+              `${root * n}`,
+            ],
+      ),
       answer,
     };
   },
-  solution: ({ base, n, d, root, value }) => [
-    {
-      text: `The $${d}$ underneath says which root to take, and the $${n}$ on top says what power to raise it to.`,
-    },
-    { tex: `\\sqrt[${d}]{${base}} = ${root}` },
-    { tex: `${base}^{\\frac{${n}}{${d}}} = \\left(\\sqrt[${d}]{${base}}\\right)^{${n}} = ${root}^{${n}} = ${value}` },
-    {
-      text: `Taking the power first gives the same $${value}$ by way of $${base}^{${n}}$, a number far larger than anything else on the page — which is why the root goes first by habit.`,
-    },
-  ],
+  solution: ({ base, n, d, root, value }) =>
+    n === 1
+      ? [
+          {
+            text: `A 1 on top means there is no power to apply — the $${d}$ underneath is the whole instruction.`,
+          },
+          { tex: `${base}^{\\frac{1}{${d}}} = \\sqrt[${d}]{${base}} = ${root}` },
+          {
+            text: `Read it as a question: what number to the power $${d}$ gives $${base}$? It is $${root}$, because $${root}^{${d}} = ${base}$.`,
+          },
+        ]
+      : [
+          {
+            text: `The $${d}$ underneath says which root to take, and the $${n}$ on top says what power to raise it to.`,
+          },
+          { tex: `\\sqrt[${d}]{${base}} = ${root}` },
+          {
+            tex: `${base}^{\\frac{${n}}{${d}}} = \\left(\\sqrt[${d}]{${base}}\\right)^{${n}} = ${root}^{${n}} = ${value}`,
+          },
+          {
+            text: `Taking the power first gives the same $${value}$ by way of $${base}^{${n}}$, a number far larger than anything else on the page — which is why the root goes first by habit.`,
+          },
+        ],
+};
+
+/** A unit fractional index: the root alone. */
+const fillRoot: Generator<RootFillParams> = {
+  ...rootFillBase,
+  id: 'idx-fill-root',
+  sample: (rng, difficulty) =>
+    rng.pick(difficulty > 1 ? ROOT_FILLS_UNIT : ROOT_FILLS_UNIT.filter(({ d }) => d <= 4)),
+};
+
+/** A fractional index with a power on top: the root, then the power. */
+const fillFractional: Generator<RootFillParams> = {
+  ...rootFillBase,
+  id: 'idx-fill-fractional',
+  sample: (rng, difficulty) =>
+    rng.pick(difficulty > 1 ? ROOT_FILLS_POWER : ROOT_FILLS_POWER_EASY),
 };
 
 interface RootRouteParams {
@@ -1703,9 +1755,9 @@ interface RootRouteParams {
   whole: boolean;
 }
 
-/** Roots and powers that a four-way fork can actually name. */
+/** Roots a four-way fork can actually name, unit fractions first. */
 const ROOT_ROUTES = ROOT_FILLS.filter(({ d }) => d <= 5);
-const ROOT_ROUTES_EASY = ROOT_FILLS_EASY.filter(({ d }) => d <= 5);
+const ROOT_ROUTES_EASY = ROOT_ROUTES.filter(({ n }) => n === 1);
 
 /**
  * What does this index tell you to do?
@@ -1743,22 +1795,34 @@ const chooseRootRoute: Generator<RootRouteParams> = {
         id: 'root',
         ask: 'The bottom of the fraction names a root. Which root is it here?',
         branches: [
-          { label: ROOT_NAMES[2], to: 'order' },
-          { label: ROOT_NAMES[3], to: 'order' },
-          { label: ROOT_NAMES[4], to: 'order' },
-          { label: ROOT_NAMES[5], to: 'order' },
+          { label: ROOT_NAMES[2], to: 'top' },
+          { label: ROOT_NAMES[3], to: 'top' },
+          { label: ROOT_NAMES[4], to: 'top' },
+          { label: ROOT_NAMES[5], to: 'top' },
         ],
       },
       {
-        id: 'order',
-        ask: 'Root first or power first? Both reach the same answer — which one keeps the numbers small?',
+        id: 'top',
+        ask: 'And what does the number on top tell you to do?',
         branches: [
-          { label: 'The root first', outcome: 'Take the root, then raise the result to the number on top.' },
-          { label: 'The power first', outcome: 'It works, but it builds a far larger number on the way.' },
+          {
+            label: 'Nothing — it is a 1',
+            outcome: 'Take that root of the base, and that is the whole answer.',
+          },
+          {
+            label: 'Raise the root to that power',
+            outcome: 'Take the root first, then raise it — the same answer, with far smaller numbers on the way.',
+          },
         ],
       },
     ],
-    answer: whole ? ['A whole number'] : ['A fraction', ROOT_NAMES[d], 'The root first'],
+    answer: whole
+      ? ['A whole number']
+      : [
+          'A fraction',
+          ROOT_NAMES[d],
+          n === 1 ? 'Nothing — it is a 1' : 'Raise the root to that power',
+        ],
   }),
   solution: ({ base, n, d, root, whole }) => {
     if (whole) {
@@ -1772,9 +1836,20 @@ const chooseRootRoute: Generator<RootRouteParams> = {
         },
       ];
     }
+    if (n === 1) {
+      return [
+        {
+          text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply the $${d}$th root of $${base}$.`,
+        },
+        { tex: `${base}^{\\frac{1}{${d}}} = \\sqrt[${d}]{${base}} = ${root}` },
+        {
+          text: `A 1 on top is easy to read past. It is the only case where the index does one job rather than two.`,
+        },
+      ];
+    }
     return [
       {
-        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as "the $${d}$th root of $${base}$, then raised to the power $${n}$".`,
+        text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as the $${d}$th root of $${base}$, then raised to the power $${n}$.`,
       },
       { tex: `\\sqrt[${d}]{${base}} = ${root} \\quad\\text{then}\\quad ${root}^{${n}} = ${Math.pow(root, n)}` },
       {
@@ -2032,6 +2107,7 @@ export const indicesGenerators = [
   fillCoefficient,
   fillNegative,
   chooseLaw,
+  fillRoot,
   fillFractional,
   chooseRootRoute,
   matchBase,

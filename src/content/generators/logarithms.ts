@@ -2236,10 +2236,11 @@ const changeBaseSlider: Generator<ChangeParams> = {
     const value = Math.log(argument) / Math.log(base);
     const answer = Math.round(value * 10) / 10;
     // The handle starts in the middle of the track, so the track is stretched
-    // until the middle is nowhere near the answer — otherwise *Check* would be
-    // right before anything had been dragged.
+    // until the middle is well clear of the answer — otherwise *Check* would be
+    // right before anything had been dragged. Only by a unit or two, though: a
+    // wider window squeezes the curve into its left-hand third.
     let top = Math.ceil(value) + 1;
-    while (Math.abs(top / 2 - answer) < 0.6) top += 1;
+    while (Math.abs(top / 2 - answer) < 0.35) top += 1;
     const svg = plotSvg({
       xMin: 0,
       xMax: top,

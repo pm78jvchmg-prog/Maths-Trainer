@@ -336,6 +336,12 @@ generator passes the property tests including the 25-distinct-questions floor,
 `npx vitest run` and `npx tsc --noEmit -p tsconfig.app.json` and `npm run lint`
 are green, and one new lesson has been played in a browser.
 
+### Phase B batches
+
+| # | Batch | Status |
+| ---: | --- | --- |
+| B9 | Matrices & Linear Transformations: Matrices as Transformations | claimed (`claude/roadmap-b-matrices-fcu036`): level `vm-l5` |
+
 ### Phase C — the twenty-one new concepts
 
 One batch = **one new concept's first two levels**, 8–10 lessons, plus its level

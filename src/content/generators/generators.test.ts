@@ -35,9 +35,11 @@ import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
 import {
   GENERATOR_REPETITION_ALLOWLIST,
+  GENERATOR_REPETITION_CEILING,
   MAX_PER_FAMILY,
   MIN_WIDGET_KINDS,
   WIDGET_KIND_ALLOWLIST,
+  WIDGET_KIND_CEILING,
 } from '../shapeVariety';
 import { TRIPLES } from './complexPlane';
 import type { Generator, Slide, SlideRef } from '../types';
@@ -1217,6 +1219,79 @@ describe('course integrity', () => {
     );
 
     expect(variety.length).toBe(lessons.length);
+  });
+
+  /**
+   * Both guards below are ratchets rather than plain assertions, and the three
+   * failure modes matter equally:
+   *
+   * - a lesson off the list that misses the bar — the guard doing its job on
+   *   anything written after this batch;
+   * - a listed lesson that now clears the bar — a stale entry, which has to go
+   *   or the list stops meaning anything;
+   * - a listed lesson whose number has moved — worse is a regression, better is
+   *   progress the entry should record, and either way the entry is now a lie.
+   *
+   * The last one is what makes "may only shrink" true of the *contents* as well
+   * as the length: an allowlisted lesson cannot quietly decay behind its entry.
+   */
+  const checkRatchet = (
+    label: string,
+    remedy: string,
+    allowlist: Readonly<Record<string, number>>,
+    ceiling: number,
+    measured: { id: string; value: number }[],
+    passes: (value: number) => boolean,
+    describe: (value: number) => string,
+  ) => {
+    const offenders: string[] = [];
+    for (const { id, value } of measured) {
+      const recorded = allowlist[id];
+      if (passes(value)) {
+        if (recorded !== undefined) {
+          offenders.push(`${id} now clears the bar (${describe(value)}) — delete its allowlist entry`);
+        }
+        continue;
+      }
+      if (recorded === undefined) {
+        offenders.push(`${id} ${describe(value)} and is not allowlisted — ${remedy}`);
+      } else if (value !== recorded) {
+        offenders.push(`${id} is allowlisted at ${recorded} but ${describe(value)} — update its entry`);
+      }
+    }
+    for (const id of Object.keys(allowlist)) {
+      if (!measured.some((row) => row.id === id)) {
+        offenders.push(`${id} is allowlisted but no longer exists — delete its entry`);
+      }
+    }
+    expect(offenders.join('\n')).toBe('');
+    // The length is pinned separately: an entry removed above without the
+    // ceiling following it down leaves the ratchet slack for the next batch.
+    expect(Object.keys(allowlist).length, `the ${label} changed length: move its ceiling`).toBe(ceiling);
+  };
+
+  it('asks every lesson through at least three widget kinds', () => {
+    checkRatchet(
+      'widget-kind allowlist',
+      'ask some of its exercises through a different widget',
+      WIDGET_KIND_ALLOWLIST,
+      WIDGET_KIND_CEILING,
+      variety.map((row) => ({ id: row.id, value: row.kinds })),
+      (value) => value >= MIN_WIDGET_KINDS,
+      (value) => `asks through ${value} widget kind${value === 1 ? '' : 's'}`,
+    );
+  });
+
+  it('never asks one generator family more than twice in a lesson', () => {
+    checkRatchet(
+      'generator-repetition allowlist',
+      'spread its exercises across more generators',
+      GENERATOR_REPETITION_ALLOWLIST,
+      GENERATOR_REPETITION_CEILING,
+      variety.map((row) => ({ id: row.id, value: row.topFamilyAsks })),
+      (value) => value <= MAX_PER_FAMILY,
+      (value) => `asks one family ${value} times`,
+    );
   });
 
   it('uses unique lesson ids', () => {

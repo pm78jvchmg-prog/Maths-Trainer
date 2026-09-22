@@ -49,9 +49,10 @@ This depends on what counts, and the two readings give opposite answers:
 - **Counting guided practice alone**: the range is **6 to 8** — 6 × 6 lessons,
   7 × 81, 8 × 18. On this reading **87 of 105 lessons are short by one or two**.
 
-The six lessons that are short on either reading are all in Differentiation:
-`df-l2-product`, `df-l2-quotient`, `df-l3-chain`, `df-l4-trig`, `df-l4-exp`, and
-they sit at 6 guided exercises where every other course sits at 7.
+The six lessons that are short on either reading sit at 6 guided exercises where
+every other course sits at 7. Five are in Differentiation — `df-l2-product`,
+`df-l2-quotient`, `df-l3-chain`, `df-l4-trig`, `df-l4-exp` — and the sixth is
+`cn-l4-argument` in Complex Numbers.
 
 This roadmap assumes the **stricter reading** — 8 to 10 guided practice slides
 before the skill check — because that is what makes the repetition problem below
@@ -249,8 +250,8 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | open | Same bar, all 12 `lg-` lessons |
-| A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the six 6-exercise lessons reach 8 |
-| A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; the 4 unused `+choice` complex generators are placed |
+| A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
+| A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |

@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Maths Trainer',
         short_name: 'Maths',
         description: 'Guided maths practice, offline.',
-        theme_color: '#0d0d0f',
-        background_color: '#0d0d0f',
+        theme_color: '#11121a',
+        background_color: '#11121a',
         // Standalone hides Safari's chrome once added to the Home Screen.
         display: 'standalone',
         orientation: 'portrait',

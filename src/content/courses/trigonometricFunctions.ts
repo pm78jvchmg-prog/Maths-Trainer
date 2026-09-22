@@ -937,7 +937,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-horizontal-shift', 2),
-            ask('trig-read-graph', 2),
+            ask('trig-evaluate-wave-tree', 2),
             ask('trig-read-parameters'),
             teach(
               prose(

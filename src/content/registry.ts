@@ -10,6 +10,7 @@ import { logarithmGenerators } from './generators/logarithms';
 import { quadraticsGenerators } from './generators/quadratics';
 import { vectorGenerators } from './generators/vectors';
 import { trigonometryGenerators } from './generators/trigonometry';
+import { workingGenerators } from './generators/working';
 
 /**
  * Every generator that declares a multiple-choice form also gets that form
@@ -27,6 +28,9 @@ export const allGenerators = [
   ...quadraticsGenerators,
   ...vectorGenerators,
   ...trigonometryGenerators,
+  // The `tree` and `steps` generators, grouped by widget rather than by topic —
+  // see the header of `generators/working.ts` for why.
+  ...workingGenerators,
 ];
 
 /** The base generators plus the choice form of every one that declares it. */

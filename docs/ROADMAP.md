@@ -252,8 +252,8 @@ two-widget habit would multiply the problem the owner actually complained about.
 
 | # | Batch | Status | Done when |
 | ---: | --- | --- | --- |
-| A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
-| A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
+| A1 | Shape-variety report and guard | done | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
+| A2 | `tree` and `steps` generators | done | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
@@ -276,6 +276,13 @@ asks each is four. Every phase A batch is therefore partly a generator batch,
 whatever its row says — Logarithms needed eight new ones to widen twelve
 lessons.
 
+A2 then took the widget-kind list to **29**: giving fifteen lessons one
+exercise through a `tree` or a `steps` slide put thirteen of them over the
+three-kind bar without lengthening a single deck, eleven of which A5 had not
+already retired. The repetition list does not move, and cannot — a swap changes
+a lesson's shape, not how many families it asks, so emptying that list stays
+A3 to A10's work.
+
 A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
 allowlist entry belongs to one of those batches. A11 is therefore the **last**
 row of phase A rather than a parallel one — the commit that deletes the two
@@ -285,9 +292,9 @@ now prints what each course still has outstanding so the burn-down is visible
 per batch rather than as one falling total. An emptied list that is left in
 place fails the suite, so the deletion cannot be forgotten.
 
-A8 took all fifteen `tf-` lessons off both lists — four from the widget-kind
-list and fourteen from the repetition one. Two things it found are worth the
-next batch knowing. A lesson is capped at eleven
+A8 took every `tf-` lesson off both lists, so no Trigonometric Functions lesson
+is allowlisted any more. Two things it found are worth the next batch knowing.
+A lesson is capped at eleven
 slides by `generators.test.ts`, teaching slides included, so the eighth exercise
 has to come out of a teaching slide — merging its blocks into the slide above,
 or moving them onto the question as a `leadIn`. And `eval/plans/TASK4-PLAN.md`

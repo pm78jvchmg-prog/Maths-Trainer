@@ -8,6 +8,7 @@ import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
 import { logarithmGenerators } from './generators/logarithms';
 import { quadraticsGenerators } from './generators/quadratics';
+import { quadraticShapeGenerators } from './generators/quadraticShapes';
 import { vectorGenerators } from './generators/vectors';
 import { trigonometryGenerators } from './generators/trigonometry';
 
@@ -25,6 +26,7 @@ export const allGenerators = [
   ...integrationGenerators,
   ...logarithmGenerators,
   ...quadraticsGenerators,
+  ...quadraticShapeGenerators,
   ...vectorGenerators,
   ...trigonometryGenerators,
 ];

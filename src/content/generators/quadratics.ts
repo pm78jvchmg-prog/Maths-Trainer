@@ -27,10 +27,10 @@ import { ALGEBRA_KEYS } from './calculus';
 import { bin, num, pow } from '../expr';
 
 /** Roots can be surds, so the formula questions need a root key. */
-const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
+export const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
 
 /** A non-zero integer, for sampling where 0 would make a degenerate question. */
-function nonZero(value: number, fallback: number): number {
+export function nonZero(value: number, fallback: number): number {
   return value === 0 ? fallback : value;
 }
 
@@ -40,14 +40,14 @@ function nonZero(value: number, fallback: number): number {
  * The sign is part of the tile rather than the template, because which sign a
  * term carries is half of what is being tested.
  */
-function signedTile(value: number, variable = ''): string {
+export function signedTile(value: number, variable = ''): string {
   const size = Math.abs(value);
   const body = variable && size === 1 ? variable : `${size}${variable}`;
   return `${value < 0 ? '-' : '+'} ${body}`;
 }
 
 /** A linear factor as a tile: "3x + 2", "x - 4". */
-function factorTile(coefficient: number, constant: number): string {
+export function factorTile(coefficient: number, constant: number): string {
   const front = coefficient === 1 ? 'x' : `${coefficient}x`;
   return `${front} ${constant < 0 ? '-' : '+'} ${Math.abs(constant)}`;
 }
@@ -65,21 +65,21 @@ function factorTile(coefficient: number, constant: number): string {
  * shuffle drawn from the rng would make one question render two ways and defeat
  * the deck de-duplicator.
  */
-function bankOf(answer: string[], distractors: string[]): string[] {
+export function bankOf(answer: string[], distractors: string[]): string[] {
   const needed = new Set(answer);
   const extras = [...new Set(distractors)].filter((token) => !needed.has(token));
   return [...answer, ...extras].sort();
 }
 
 /** x^2 + bx + c, written the way it appears on the page. */
-function quadraticTex(a: number, b: number, c: number): string {
+export function quadraticTex(a: number, b: number, c: number): string {
   const lead = a === 1 ? 'x^{2}' : `${a}x^{2}`;
   const middle = b === 0 ? '' : ` ${signedTile(b, 'x')}`;
   const tail = c === 0 ? '' : ` ${signedTile(c)}`;
   return `${lead}${middle}${tail}`;
 }
 
-function isPerfectSquare(n: number): boolean {
+export function isPerfectSquare(n: number): boolean {
   if (n < 0) return false;
   const root = Math.round(Math.sqrt(n));
   return root * root === n;
@@ -544,7 +544,7 @@ const discriminant: Generator<FormulaParams> = {
 };
 
 /** Four whole-number options, the correct one first, deduplicated and padded. */
-function offer(correct: number, ...near: number[]): string[] {
+export function offer(correct: number, ...near: number[]): string[] {
   const seen = new Set<number>([correct]);
   const out = [correct];
   for (const value of near) {

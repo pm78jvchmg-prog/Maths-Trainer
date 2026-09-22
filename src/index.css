@@ -311,6 +311,16 @@ button {
   margin-bottom: 0;
 }
 
+/* A slide is a scrolling flex column, and a flex item shrinks before its
+   container scrolls. So a slide taller than the screen used to squash its
+   children rather than scroll: the first four-row tree painted two of its rows
+   outside the answer frame, over the expression above and the tile bank below,
+   and cut the expression in half vertically. Refusing to shrink is what lets
+   `overflow-y: auto` above do its job. */
+.slide > * {
+  flex-shrink: 0;
+}
+
 /* One slide replacing another is the single most-used transition in the app,
    and swapping it instantly reads as a glitch rather than a step forward. The
    incoming slide enters from the side the deck moved.

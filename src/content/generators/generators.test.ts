@@ -309,6 +309,17 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           expect(at, `value ${value} missing from bank`).toBeGreaterThanOrEqual(0);
           bank.splice(at, 1);
         }
+        // A bank that is the answer and one spare is not a question — with
+        // three slots and four tiles a learner can place the odd one out
+        // without doing any of the arithmetic. Distractors are built from the
+        // question's own numbers, so they collide with the answer far more
+        // often than they look like they will: a vector sum whose components
+        // happened to match dropped three of its four distractors and shipped
+        // with exactly one.
+        expect(
+          bank.length,
+          `tree bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+        ).toBeGreaterThanOrEqual(2);
       }
     }
   });

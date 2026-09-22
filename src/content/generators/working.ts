@@ -100,6 +100,18 @@ function columnTex(top: number, bottom: number): string {
   return `\\begin{pmatrix} ${top} \\\\ ${bottom} \\end{pmatrix}`;
 }
 
+/**
+ * A power of x as the learner writes it: x, x^{5}, and 1 for x^{0}.
+ *
+ * `x^{1}` on the last line of a simplification reads as unfinished work, which
+ * is exactly what the slide has just asked the learner not to leave behind.
+ */
+function powerTex(n: number): string {
+  if (n === 0) return '1';
+  if (n === 1) return 'x';
+  return `x^{${n}}`;
+}
+
 /** A scalar written in front of something: 1 disappears, -1 is a bare minus. */
 function scalarTex(n: number): string {
   if (n === 1) return '';
@@ -236,10 +248,10 @@ const quadraticTree: Generator<QuadraticTreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Substitute $x = ${k}$. The bottom row is $x^{2}$ and the $x$ term; above them is $${a}x^{2}$; the top is the whole thing, constant included.`,
+          `Substitute $x = ${k}$, from the bottom up: $x^{2}$ and the $x$ term, then $${a}x^{2}$, then the whole thing with the constant.`,
         ),
       ],
-      expression: `${xTerm(a, 2)} ${signed(b)}x ${signed(c)} \\quad \\text{at } x = ${k}`,
+      expression: `${xTerm(a, 2)} ${signed(b)}x ${signed(c)}`,
       nodes: [
         { id: 'square', from: [] },
         { id: 'linear', from: [] },
@@ -252,6 +264,7 @@ const quadraticTree: Generator<QuadraticTreeParams> = {
         `${quadratic + linear}`,
         `${quadratic - linear + c}`,
         `${total + c}`,
+        `${total - 1}`,
       ]),
       answer,
     };
@@ -316,12 +329,17 @@ const logarithmTree: Generator<LogTreeParams> = {
         { id: 'right', from: [] },
         { id: 'total', from: ['left', 'right'] },
       ],
+      // Exponents are small numbers, so a distractor built from them lands on
+      // one of the three answers surprisingly often. The values themselves
+      // never do, which is what keeps the bank honest at the bottom of the
+      // range.
       bank: treeBank(answer, [
         `${left.value}`,
         `${right.value}`,
-        `${left.exp * right.exp}`,
-        `${subtract ? right.exp - left.exp : left.exp + right.exp + 1}`,
-        `${left.base}`,
+        `${left.value + right.value}`,
+        `${left.exp + 1}`,
+        `${right.exp + 1}`,
+        `${total + 1}`,
       ]),
       answer,
     };
@@ -410,10 +428,10 @@ const waveTree: Generator<WaveTreeParams> = {
       kind: 'tree',
       prompt: [
         say(
-          `Work out the value at $x = ${x}$. The bottom slot is the angle inside the bracket, then its sine, then the sine multiplied by ${amplitude}, then the shift added.`,
+          `Work out the value at $x = ${x}$, from the bottom up: the bracket, its sine, then $\\times ${amplitude}$, then the shift.`,
         ),
       ],
-      expression: `${amplitude}\\sin((${c === 0 ? `${b}x` : `${b}x ${signed(c)}`})^{\\circ}) ${signed(shift)} \\quad \\text{at } x = ${x}`,
+      expression: `${amplitude}\\sin((${c === 0 ? `${b}x` : `${b}x ${signed(c)}`})^{\\circ}) ${signed(shift)}`,
       nodes: [
         { id: 'angle', from: [] },
         { id: 'sine', from: ['angle'] },
@@ -422,10 +440,10 @@ const waveTree: Generator<WaveTreeParams> = {
       ],
       bank: treeBank(answer, [
         `${b * x}^{\\circ}`,
-        `${sine.degrees + shift}^{\\circ}`,
+        `${sine.degrees + 30}^{\\circ}`,
         `${-scaled}`,
-        `${scaled - shift}`,
-        sine.half > 0 ? '-1' : '1',
+        `${total + 1}`,
+        sine.half > 0 ? '-\\frac{1}{2}' : '\\frac{1}{2}',
       ]),
       answer,
     };
@@ -513,6 +531,7 @@ const discriminantTree: Generator<ComplexDiscriminant> = {
         `${-discriminant}`,
         `${root}`,
         imaginaryTex(-root),
+        imaginaryTex(root + 1),
       ]),
       answer,
     };
@@ -579,9 +598,10 @@ const productRuleTree: Generator<ProductTreeParams> = {
       ],
       bank: treeBank(answer, [
         `${a * c}`,
+        `${a + c}`,
+        `${a + 1}`,
         linearTex(a * c, b * d),
         linearTex(2 * a * c, a * d - b * c),
-        linearTex(a + c, b + d),
       ]),
       answer,
     };
@@ -644,6 +664,7 @@ const integralTree: Generator<IntegralTreeParams> = {
         xTerm(raised, power),
         `${constant}`,
         `${first} ${signed(constant)}x`,
+        `${xTerm(coefficient, power + 1)} ${signed(constant)}x + C`,
       ]),
       answer,
     };
@@ -701,10 +722,11 @@ const vectorTree: Generator<VectorTreeParams> = {
         { id: 'vector', from: ['top', 'bottom'] },
       ],
       bank: treeBank(answer, [
-        `${a + c}`,
         `${p * a - q * c}`,
-        columnTex(bottom, top),
-        columnTex(a + c, b + d),
+        `${top + 1}`,
+        `${bottom - 1}`,
+        columnTex(top + 1, bottom),
+        columnTex(top, bottom - 1),
       ]),
       answer,
     };
@@ -745,42 +767,42 @@ const indexLawSteps: Generator<IndexLawParams> = {
         'Simplify one law at a time. Tap the part you would do **next**, then choose what it comes to.',
       ),
     ],
-    start: [`x^{${a}}`, '\\times', `x^{${b}}`, '\\div', `x^{${c}}`],
+    start: [powerTex(a), '\\times', powerTex(b), '\\div', powerTex(c)],
     reductions: [
       {
         span: [0, 3],
-        value: `x^{${a + b}}`,
+        value: powerTex(a + b),
         bank: stepBank(
-          `x^{${a + b}}`,
-          `x^{${a * b}}`,
-          `x^{${a - b}}`,
-          `x^{${a + b + c}}`,
-          `x^{${b - a}}`,
+          powerTex(a + b),
+          powerTex(a * b),
+          powerTex(a - b),
+          powerTex(a + b + c),
+          powerTex(b - a),
         ),
       },
       {
         span: [0, 3],
-        value: `x^{${a + b - c}}`,
+        value: powerTex(a + b - c),
         bank: stepBank(
-          `x^{${a + b - c}}`,
-          `x^{${a + b + c}}`,
-          `x^{${c - a - b}}`,
-          `x^{${a + b}}`,
-          `x^{${(a + b) * c}}`,
+          powerTex(a + b - c),
+          powerTex(a + b + c),
+          powerTex(c - a - b),
+          powerTex(a + b),
+          powerTex((a + b) * c),
         ),
       },
     ],
   }),
   solution: ({ a, b, c }) => [
     { text: 'Multiplying powers of the same base adds the indices — count the copies.' },
-    { tex: `x^{${a}} \\times x^{${b}} = x^{${a + b}}` },
+    { tex: `${powerTex(a)} \\times ${powerTex(b)} = ${powerTex(a + b)}` },
     { text: 'Dividing subtracts, top index minus bottom one.' },
-    { tex: `x^{${a + b}} \\div x^{${c}} = x^{${a + b - c}}` },
+    { tex: `${powerTex(a + b)} \\div ${powerTex(c)} = ${powerTex(a + b - c)}` },
     {
       text:
         a + b - c < 0
           ? `A negative index is a perfectly good answer: $x^{${a + b - c}}$ means $\\frac{1}{x^{${c - a - b}}}$.`
-          : `Multiplying the indices instead of adding them is the classic slip: that would give $x^{${a * b}}$.`,
+          : `Multiplying the indices instead of adding them is the classic slip: that would give $${powerTex(a * b)}$.`,
     },
   ],
 };

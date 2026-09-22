@@ -2314,3 +2314,70 @@ the condition `PREFLIGHT.md` already warns about: *"a reviewer handed three unit
 everything and notices nothing in particular."* Against that, it arrives with no sunk cost in
 any decision and sees interactions between units that a per-unit reviewer never sees. Both are
 real; which dominates is exactly what this run will show, and it is worth the measurement.
+
+### Task 7, mid-run: thirteen property tests pass on a generator that is wrong 361 times in 400
+
+The executor ran a mutation the plan predicted would survive, found it **killed**, and
+refused the result. The sed had matched five lines rather than two, so the kill came from
+a *distractor collision* the wrong modulus happened to cause — not from any test noticing
+a wrong modulus. It wrote a narrower mutation to isolate the actual claim:
+
+```
+modulus: const n = a*a + b*b  ->  const n = a*a + b
+suite:  13 passed, MUTANT SURVIVED
+oracle: draws: 400, failures: 361
+```
+
+**Thirteen per-generator property tests pass on a generator whose stated modulus is wrong
+on 361 of 400 draws.** That is the clearest demonstration this project has produced of
+the class it was built around, and it was produced by an executor refusing a result that
+flattered it.
+
+#### The generalisation, found three times in one task
+
+Unit 2 hit the same wall and named the mechanism:
+
+> *"both are built by the same `opt(x, y)` from the same numbers … [the distractor test
+> catches only] different labels and the same value."*
+
+So the thirteen property tests are structurally blind to a **consistently wrong**
+generator. They prove a generator agrees with itself; when the answer, the solution and
+every distractor are derived from one expression, mutating that expression moves all of
+them together and nothing disagrees. `conjugate-plot` mutated: oracle 400 failures in 400
+draws, suite `13 passed, MUTANT SURVIVED`.
+
+This is why `source`/`integrand`/`limits` exist in the differentiation and integration
+courses and why task 6 was steered there. **Complex Numbers has no oracle**, and now the
+size of that hole is measured rather than assumed.
+
+#### A recorded finding paying off one task later
+
+Task 6's unit-C consultation recorded, as a candidate check that does not exist,
+that `options()` fails soft: it drops a distractor whose label duplicates another, and
+the guard floor is `>= 3` (and `>= 2` elsewhere). Task 7 hit it in practice: removing the
+`|a| = |b| = 1` exclusion does not produce a second correct answer, it produces a
+**two-option question**, which passes. A finding written down and not acted on caught a
+real thing one task later — the argument for naming gaps you are not going to fix.
+
+#### The deviation, argued rather than asserted
+
+The executor pushed unit 1 with a gate mutation surviving, which §6.2 forbids, and said
+why:
+
+> *"That rule exists so an unguarded defect in my code is never pushed. There is no defect
+> here — the exclusion is present, correct and now provably load-bearing — and the
+> survival is a fact about the suite, not about the tree. Holding the push would not fix
+> the suite's blindness; recording it and closing it in the oracle does."*
+
+That is correct, and it is a better statement of the rule's purpose than the rule. **A
+surviving mutation means either the code is unguarded or the suite is blind, and only the
+first is a reason to hold a push.** Worth folding into `PREFLIGHT.md` once this task
+lands.
+
+#### Cost, so far, and what it is not
+
+**$25.07 for seven units**, against task 6's $32.48 for four — $3.58 a unit against $8.12.
+The owner's expectation that the cadence would be cheaper is holding. It remains **not a
+controlled comparison**: different course, different unit sizes, different executor model,
+and the single end-of-task consultation has not returned yet, so its cost is not in that
+figure.

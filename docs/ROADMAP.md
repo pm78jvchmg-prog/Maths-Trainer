@@ -255,13 +255,22 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
-| A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
+| A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
 more than twice" rule, counted by family, catches **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
 empties both.
+
+A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
+allowlist entry belongs to one of those batches. A11 is therefore the **last**
+row of phase A rather than a parallel one — the commit that deletes the two
+lists, their ceilings and the guard's use of them once the widening batches have
+emptied them. Until then its job is to keep the ratchet honest, and `npm test`
+now prints what each course still has outstanding so the burn-down is visible
+per batch rather than as one falling total. An emptied list that is left in
+place fails the suite, so the deletion cannot be forgotten.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

@@ -1198,6 +1198,24 @@ describe('course integrity', () => {
     const kindOffenders = variety.filter((row) => row.kinds < MIN_WIDGET_KINDS).length;
     const askOffenders = variety.filter((row) => row.topFamilyAsks > MAX_PER_FAMILY).length;
 
+    // Phase A widens one course per batch, so the number that says how much of
+    // it is left is per course rather than in total: a single figure falling
+    // from 102 to 95 does not tell you whether that was one batch finishing or
+    // eight batches each doing a little.
+    const burnDown = (list: Readonly<Record<string, number>>) => {
+      const counts = new Map<string, number>();
+      for (const id of Object.keys(list)) {
+        const course = id.split('-')[0];
+        counts.set(course, (counts.get(course) ?? 0) + 1);
+      }
+      return counts.size === 0
+        ? 'empty'
+        : [...counts.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([course, count]) => `${course} ${count}`)
+            .join('  ');
+    };
+
     // Straight to stdout rather than through `console.log`, which this vitest
     // setup swallows — and reached through `globalThis` because `src` is typed
     // with `vite/client` alone, so node's globals are deliberately not in scope.
@@ -1214,6 +1232,8 @@ describe('course integrity', () => {
           ` (allowlisted: ${Object.keys(WIDGET_KIND_ALLOWLIST).length})`,
         `  one family asked over ${MAX_PER_FAMILY} times: ${askOffenders}` +
           ` (allowlisted: ${Object.keys(GENERATOR_REPETITION_ALLOWLIST).length})`,
+        `  still allowlisted by course — widget kinds: ${burnDown(WIDGET_KIND_ALLOWLIST)}`,
+        `  still allowlisted by course — repetition:   ${burnDown(GENERATOR_REPETITION_ALLOWLIST)}`,
         '',
       ].join('\n'),
     );
@@ -1292,6 +1312,37 @@ describe('course integrity', () => {
       (value) => value <= MAX_PER_FAMILY,
       (value) => `asks one family ${value} times`,
     );
+  });
+
+  /**
+   * The last tooth of the ratchet: an emptied allowlist has to be deleted, not
+   * left behind at zero.
+   *
+   * This is the one test in the file that goes red on success, and that is
+   * deliberate. `docs/ROADMAP.md` asks batch A11 for two things — the lists
+   * empty *and* the guard unconditional — and an empty list left in place gives
+   * only the first. It still reads as a guard with an exception, and the next
+   * batch that finds a lesson inconvenient can re-populate it by adding one
+   * line instead of by raising a ceiling a reviewer would notice. Deleting it
+   * closes that door for good.
+   *
+   * The failure is a one-line instruction and the fix is a deletion, so nobody
+   * has to remember which commit was supposed to do it.
+   */
+  it('retires an allowlist once it is empty', () => {
+    const retired = (
+      [
+        ['WIDGET_KIND_ALLOWLIST', WIDGET_KIND_ALLOWLIST],
+        ['GENERATOR_REPETITION_ALLOWLIST', GENERATOR_REPETITION_ALLOWLIST],
+      ] as const
+    )
+      .filter(([, list]) => Object.keys(list).length === 0)
+      .map(
+        ([name]) =>
+          `${name} is empty: delete it, its ceiling and the guard's use of it` +
+          ' — that is roadmap batch A11, and the guard is unconditional without it',
+      );
+    expect(retired.join('\n')).toBe('');
   });
 
   it('uses unique lesson ids', () => {

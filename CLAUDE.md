@@ -115,11 +115,24 @@ per difficulty**. Widening a range is nearly always the right fix; where the
 stem is fixed and the pool is a word list, vary the phrasing too — otherwise a
 lesson reads as the same question five times even when no two are identical.
 
-This is a single-player personal tool. It deliberately has no XP, streaks,
-leagues, or multiplayer — do not add engagement mechanics. The reference app
-shows a running XP total on almost every screen; that is the one part of it
-which is deliberately **not** copied. A per-lesson score is fine, a persistent
-points total is not.
+This is a single-player personal tool. It deliberately has no XP, leagues, or
+multiplayer — do not add engagement mechanics. The reference app shows a
+running XP total on almost every screen; that is the one part of it which is
+deliberately **not** copied. A per-lesson score is fine, a persistent points
+total is not.
+
+The **daily streak** is the one exception, asked for by the owner. It lives in
+`src/store/streak.ts` and is shown on the home screen only, never on a lesson
+screen. It rises by one per consecutive local calendar day a lesson is
+finished, and starting a streak banks a *charge*; a charge is spent
+automatically to cover one missed day, and at most two are ever banked. Days
+are the device's local calendar days held as `'YYYY-MM-DD'`, not 24-hour
+windows, so two plays in one afternoon count once and 23:50 then 00:10 counts
+twice. `resolveStreak` is pure and is the only place a gap is interpreted, so
+what the home screen shows and what the next play builds on cannot drift; a
+charge is deducted only when the play that needed it is recorded, never by
+looking at the screen. That the streak is forgiving is the point — it should
+not become a reason to feel bad about missing a morning.
 
 ## Answer checking
 

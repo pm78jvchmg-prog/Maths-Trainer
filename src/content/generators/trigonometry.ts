@@ -1846,7 +1846,7 @@ const circleCoords: Generator<CircleCoordsParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A point starts at the far side of a circle of radius $${radius}$ centred on the origin, level with the centre, and turns anticlockwise through $${turn.degrees}^{\\circ}$. Fill in its height above the centre and its displacement to the right of it.`,
+          text: `A point starts at the far right of a circle of radius $${radius}$ centred on the origin and turns anticlockwise through $${turn.degrees}^{\\circ}$. Fill in its height above the centre and its displacement to the right of it.`,
         },
       ],
       template: '\\text{height} = {0} \\qquad \\text{displacement} = {1}',
@@ -2155,24 +2155,35 @@ const matchGraph: Generator<MatchGraphParams> = {
   id: 'trig-match-graph',
   sample: (rng, difficulty) => {
     const a = rng.int(1, difficulty > 1 ? 6 : 4);
+    // The midline is kept within reach of the amplitude. The only scale on the
+    // figure is the axis at y = 0, so the learner reads the midline off as a
+    // multiple of the swing — and a midline of 9 on a swing of 1 is a window
+    // in which the wave is a thin ripple near the top and nothing is readable.
+    let d = nonZeroInt(rng, difficulty > 1 ? -(a + 3) : 1, a + 3);
     // A midline equal to the amplitude would make the swapped distractor the
     // same equation as the answer, leaving a question with three options and
     // one fewer confusion tested.
-    let d = nonZeroInt(rng, difficulty > 1 ? -5 : 1, difficulty > 1 ? 9 : 7);
     if (d === a) d = a + 1;
     return { a, d, fn: rng.pick(['sin', 'cos'] as const) };
   },
   render: ({ a, d, fn }): Slide => {
-    // A cosine is a sine a quarter period early, so one figure helper draws
-    // both: the shift is what turns one into the other.
-    const f = wave(d, a, 360, fn === 'sin' ? 0 : 90);
+    // Written out rather than reached through `wave`, whose shift is the only
+    // handle it offers on the phase: a cosine is `wave(d, a, 360, -90)` and a
+    // *minus* cosine is `+90`, the same picture turned upside down and none of
+    // the four options. Naming the function the answer names is a mistake that
+    // cannot be made, where a sign on a shift is one that already was.
+    const radians = (x: number) => (x * Math.PI) / 180;
+    const f = (x: number) => d + a * (fn === 'sin' ? Math.sin(radians(x)) : Math.cos(radians(x)));
     const svg = plotSvg({
       xMin: 0,
       xMax: 720,
       curves: [{ f }],
       horizontals: [d],
-      yMin: d - a - 1.5,
-      yMax: d + a + 1.5,
+      // The window always holds y = 0, because the axis is the only scale on
+      // the figure: without it a midline above the curve's own swing cannot be
+      // told from one below, and two of the four options differ by just that.
+      yMin: Math.min(0, d - a) - 1.5,
+      yMax: Math.max(0, d + a) + 1.5,
       label: 'A wave over two full cycles, with its midline dashed',
     });
     const other = fn === 'sin' ? 'cos' : 'sin';

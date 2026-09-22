@@ -245,8 +245,8 @@ two-widget habit would multiply the problem the owner actually complained about.
 
 | # | Batch | Status | Done when |
 | ---: | --- | --- | --- |
-| A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
-| A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
+| A1 | Shape-variety report and guard | done | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
+| A2 | `tree` and `steps` generators | claimed | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | open | Same bar, all 12 `lg-` lessons |

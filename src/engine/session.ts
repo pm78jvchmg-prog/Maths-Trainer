@@ -335,7 +335,9 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
 
     case 'slider': {
       // The range input hands back a string; anything else did not come from it.
-      if (typeof answer !== 'string') return { kind: 'incorrect' };
+      // Empty is a handle nobody has moved, and has to be refused by name:
+      // `Number('')` is 0, which is a real answer on most tracks.
+      if (typeof answer !== 'string' || answer.trim() === '') return { kind: 'incorrect' };
       const value = Number(answer);
       if (!Number.isFinite(value)) return { kind: 'incorrect' };
       // Half a step by default: the handle cannot stop between steps, so this

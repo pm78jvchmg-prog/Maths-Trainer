@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { defaultSliderValue } from './sliderValue';
 import { registry } from '../content/registry';
 import { makeRng } from '../engine/rng';
-import type { Generator } from '../content/types';
+import { reduce, startSession } from '../engine/session';
+import { hasAnswer, initialAnswer } from './slides';
+import type { Generator, Slide } from '../content/types';
 
 describe('the slider s resting value', () => {
   it('sits in the middle of a symmetric track', () => {
@@ -35,5 +37,64 @@ describe('the slider s resting value', () => {
         }
       }
     }
+  });
+});
+
+/**
+ * An untouched slider is not an answer.
+ *
+ * The handle has to rest somewhere, and on `argument-turns` every position on
+ * the track is the answer to one of its questions, so a resting value that
+ * counted would hand out a free mark on one draw in eight. What the widget
+ * starts from is held to two things: Check cannot take it, and the reducer
+ * would not mark it correct if it were sent anyway.
+ */
+describe('an untouched slider', () => {
+  const untouchedVerdict = (slide: Slide) => {
+    const lesson = {
+      id: 'untouched',
+      title: 'Untouched',
+      slides: [],
+      skillCheck: [{ type: 'literal' as const, slide }],
+    };
+    const draft = initialAnswer(slide);
+    const session = reduce(startSession(lesson, registry, 1), { type: 'submit', answer: draft });
+    return { submittable: hasAnswer(slide, draft), feedback: session.feedback.kind };
+  };
+
+  const sliders = function* (generator: Generator<unknown>) {
+    for (const difficulty of [1, 2]) {
+      for (let seed = 0; seed < 40; seed += 1) {
+        const slide = generator.render(generator.sample(makeRng(seed), difficulty));
+        if (slide.kind === 'slider') yield { slide, seed, difficulty };
+      }
+    }
+  };
+
+  /** Every draw an untouched handle would score, and every draw Check would take. */
+  const audit = (generators: Generator<unknown>[]) => {
+    const marked: string[] = [];
+    const live: string[] = [];
+    for (const generator of generators) {
+      for (const { slide, seed, difficulty } of sliders(generator)) {
+        const { submittable, feedback } = untouchedVerdict(slide);
+        const where = `${generator.id} seed ${seed} d${difficulty}`;
+        if (feedback === 'correct') marked.push(where);
+        if (submittable) live.push(where);
+      }
+    }
+    return { marked, live };
+  };
+
+  it('is never marked correct on the argument slider', () => {
+    const { marked, live } = audit([registry['argument-turns'] as Generator<unknown>]);
+    expect(marked, 'marked correct without being touched').toEqual([]);
+    expect(live, 'Check is live before the handle moves').toEqual([]);
+  });
+
+  it('is never marked correct on any slider in the registry', () => {
+    const { marked, live } = audit(Object.values(registry) as Generator<unknown>[]);
+    expect(marked, 'marked correct without being touched').toEqual([]);
+    expect(live, 'Check is live before the handle moves').toEqual([]);
   });
 });

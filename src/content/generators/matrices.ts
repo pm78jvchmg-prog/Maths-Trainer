@@ -19,6 +19,7 @@ import {
   signedOffer,
   VECTOR_TEMPLATE,
 } from './vectorFormat';
+import { spanFor, transformGridSvg, type Mirror } from './transformFigure';
 
 interface MatrixPairParams {
   a: number;
@@ -1347,6 +1348,1434 @@ const systemMethod: Generator<SystemMethodParams> = {
   },
 };
 
+/* ---------- Level 5: matrices as transformations (roadmap batch B9) ---------- */
+
+type Matrix = readonly [number, number, number, number];
+
+const texOf = (m: Matrix) => matrixTex(m[0], m[1], m[2], m[3]);
+
+/** Where the point (x, y) goes under the matrix. */
+function apply(m: Matrix, x: number, y: number): [number, number] {
+  return [m[0] * x + m[1] * y, m[2] * x + m[3] * y];
+}
+
+const detOf = (m: Matrix) => m[0] * m[3] - m[1] * m[2];
+
+/** A coordinate pair, for prompts and choice labels only — never a tile. */
+function pairTex(x: number, y: number): string {
+  return `\\left(${x}, \\; ${y}\\right)`;
+}
+
+/**
+ * Two components placed as tiles. Plain brackets, not `\left(`: each literal
+ * piece of a tiles template is rendered on its own (see `vectorFormat.ts`).
+ */
+const COORD_TEMPLATE = `x: \\; {0} \\qquad y: \\; {1}`;
+const IMAGE_TEMPLATE = `P' = ({0}, \\; {1})`;
+
+/**
+ * An invertible 2x2 matrix whose transpose is a different matrix.
+ *
+ * Both conditions serve the distractors. A singular matrix squashes the unit
+ * square flat, so there is no shape to draw; and when b equals c, reading the
+ * matrix by rows gives the same answer as reading it by columns, which is the
+ * one confusion these questions exist to separate.
+ */
+function sampleTransform(
+  rng: Parameters<Generator<unknown>['sample']>[0],
+  span: number,
+  allowZero = false,
+): Matrix {
+  const draw = () => (allowZero ? rng.int(-span, span) : nonZero(rng.int(-span, span), rng.int(1, span)));
+  for (let tries = 0; tries < 60; tries += 1) {
+    const m: Matrix = [draw(), draw(), draw(), draw()];
+    if (detOf(m) !== 0 && m[1] !== m[2]) return m;
+  }
+  return [2, 1, -1, 3];
+}
+
+type Standard = 'rot90' | 'rot180' | 'rot270' | 'refl-x' | 'refl-y' | 'refl-yx' | 'refl-ynx';
+
+const STANDARD_KEYS: readonly Standard[] = ['rot90', 'rot180', 'rot270', 'refl-x', 'refl-y', 'refl-yx', 'refl-ynx'];
+
+/**
+ * The seven transformations with a matrix of zeros and ones.
+ *
+ * `phrases` are the ways a question may say it, in prose — a quarter turn
+ * clockwise and a rotation of 270 degrees anticlockwise are the same matrix,
+ * and recognising that is part of the skill. `name` is the plain-text form a
+ * choice option shows.
+ */
+const STANDARD: Record<Standard, { matrix: Matrix; phrases: string[]; name: string; mirror?: Mirror }> = {
+  rot90: {
+    matrix: [0, -1, 1, 0],
+    phrases: [
+      'a rotation of $90^\\circ$ anticlockwise about the origin',
+      'a rotation of $270^\\circ$ clockwise about the origin',
+      'a quarter turn anticlockwise about the origin',
+    ],
+    name: 'Rotation of 90° anticlockwise about O',
+  },
+  rot180: {
+    matrix: [-1, 0, 0, -1],
+    phrases: ['a rotation of $180^\\circ$ about the origin', 'a half turn about the origin'],
+    name: 'Rotation of 180° about O',
+  },
+  rot270: {
+    matrix: [0, 1, -1, 0],
+    phrases: [
+      'a rotation of $90^\\circ$ clockwise about the origin',
+      'a rotation of $270^\\circ$ anticlockwise about the origin',
+      'a quarter turn clockwise about the origin',
+    ],
+    name: 'Rotation of 90° clockwise about O',
+  },
+  'refl-x': {
+    matrix: [1, 0, 0, -1],
+    phrases: ['a reflection in the $x$-axis', 'a reflection in the line $y = 0$'],
+    name: 'Reflection in the x-axis',
+    mirror: 'x-axis',
+  },
+  'refl-y': {
+    matrix: [-1, 0, 0, 1],
+    phrases: ['a reflection in the $y$-axis', 'a reflection in the line $x = 0$'],
+    name: 'Reflection in the y-axis',
+    mirror: 'y-axis',
+  },
+  'refl-yx': {
+    matrix: [0, 1, 1, 0],
+    phrases: ['a reflection in the line $y = x$'],
+    name: 'Reflection in the line y = x',
+    mirror: 'y=x',
+  },
+  'refl-ynx': {
+    matrix: [0, -1, -1, 0],
+    phrases: ['a reflection in the line $y = -x$'],
+    name: 'Reflection in the line y = −x',
+    mirror: 'y=-x',
+  },
+};
+
+/** The transformations each one is most often mistaken for, closest first. */
+const CONFUSED_WITH: Record<Standard, Standard[]> = {
+  rot90: ['rot270', 'refl-yx', 'refl-ynx'],
+  rot270: ['rot90', 'refl-ynx', 'refl-yx'],
+  rot180: ['refl-x', 'refl-y', 'rot90'],
+  'refl-x': ['refl-y', 'rot180', 'refl-yx'],
+  'refl-y': ['refl-x', 'rot180', 'refl-ynx'],
+  'refl-yx': ['refl-ynx', 'rot90', 'rot270'],
+  'refl-ynx': ['refl-yx', 'rot270', 'rot90'],
+};
+
+/** Any transformation in this level with a name: the seven above, or a scaling. */
+type Transform =
+  | { kind: 'standard'; key: Standard }
+  | { kind: 'enlarge'; k: number }
+  | { kind: 'stretch-x'; k: number }
+  | { kind: 'stretch-y'; k: number }
+  | { kind: 'stretch-xy'; k: number; q: number };
+
+function matrixOf(t: Transform): Matrix {
+  switch (t.kind) {
+    case 'standard':
+      return STANDARD[t.key].matrix;
+    case 'enlarge':
+      return [t.k, 0, 0, t.k];
+    case 'stretch-x':
+      return [t.k, 0, 0, 1];
+    case 'stretch-y':
+      return [1, 0, 0, t.k];
+    case 'stretch-xy':
+      return [t.k, 0, 0, t.q];
+  }
+}
+
+/** How many ways `phraseOf` can say this transformation. */
+function phraseCount(t: Transform): number {
+  return t.kind === 'standard' ? STANDARD[t.key].phrases.length : 2;
+}
+
+/** The transformation in prose, with any maths between dollar signs. */
+function phraseOf(t: Transform, variant: number): string {
+  const v = variant % phraseCount(t);
+  switch (t.kind) {
+    case 'standard':
+      return STANDARD[t.key].phrases[v];
+    case 'enlarge':
+      return v === 0
+        ? `an enlargement of scale factor $${t.k}$ about the origin`
+        : `an enlargement, centre $O$, scale factor $${t.k}$`;
+    case 'stretch-x':
+      return v === 0
+        ? `a stretch parallel to the $x$-axis, scale factor $${t.k}$`
+        : `a stretch of scale factor $${t.k}$ in the $x$ direction, with the $y$-axis fixed`;
+    case 'stretch-y':
+      return v === 0
+        ? `a stretch parallel to the $y$-axis, scale factor $${t.k}$`
+        : `a stretch of scale factor $${t.k}$ in the $y$ direction, with the $x$-axis fixed`;
+    case 'stretch-xy':
+      return v === 0
+        ? `a stretch of scale factor $${t.k}$ parallel to the $x$-axis together with one of scale factor $${t.q}$ parallel to the $y$-axis`
+        : `the stretch that multiplies every $x$-coordinate by $${t.k}$ and every $y$-coordinate by $${t.q}$`;
+  }
+}
+
+/** A signed number as plain text, with a real minus sign rather than a hyphen. */
+const plain = (n: number) => (n < 0 ? `−${-n}` : `${n}`);
+
+/** The transformation as a choice option reads it: plain text, no maths. */
+function nameOf(t: Transform): string {
+  switch (t.kind) {
+    case 'standard':
+      return STANDARD[t.key].name;
+    case 'enlarge':
+      return `Enlargement, scale factor ${plain(t.k)}, centre O`;
+    case 'stretch-x':
+      return `Stretch parallel to the x-axis, scale factor ${plain(t.k)}`;
+    case 'stretch-y':
+      return `Stretch parallel to the y-axis, scale factor ${plain(t.k)}`;
+    case 'stretch-xy':
+      return `Stretches of scale factor ${plain(t.k)} parallel to the x-axis and ${plain(t.q)} parallel to the y-axis`;
+  }
+}
+
+/** The images of i and j, as a sentence for a worked solution. */
+function columnsLine(m: Matrix): string {
+  return `\\mathbf{i} \\to ${columnTex(m[0], m[2])} \\qquad \\mathbf{j} \\to ${columnTex(m[1], m[3])}`;
+}
+
+/* ----- where i and j land ----- */
+
+interface ColumnImageParams {
+  m: Matrix;
+  basis: 'i' | 'j';
+}
+
+/**
+ * Where i or j lands, read straight off the matrix.
+ *
+ * The idea the whole level stands on: the columns of a matrix are the images
+ * of i and j. Reading a row instead is the slip, and it gives an answer that
+ * looks every bit as reasonable.
+ */
+const columnImage: Generator<ColumnImageParams> = {
+  id: 'mat-column-image',
+  choices: ({ m, basis }) => {
+    const [a, b, c, d] = m;
+    return basis === 'i'
+      ? options(
+          { tex: columnTex(a, c) },
+          { tex: columnTex(a, b) },
+          { tex: columnTex(b, d) },
+          { tex: columnTex(c, a) },
+        )
+      : options(
+          { tex: columnTex(b, d) },
+          { tex: columnTex(c, d) },
+          { tex: columnTex(a, c) },
+          { tex: columnTex(d, b) },
+        );
+  },
+  sample: (rng, difficulty) => ({
+    m: sampleTransform(rng, difficulty > 1 ? 9 : 5),
+    basis: rng.pick(['i', 'j'] as const),
+  }),
+  render: ({ m, basis }) => {
+    const [a, b, c, d] = m;
+    const answer = basis === 'i' ? [a, c] : [b, d];
+    // Reading along a row, and the other column.
+    const slips = basis === 'i' ? [a, b, b, d] : [c, d, a, c];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Where does $\\mathbf{${basis}}$ land under this matrix? Give the components of its image.`,
+        },
+        { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
+      ],
+      template: COORD_TEMPLATE,
+      bank: bankOf(answer.map(String), slips.map(String)),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ m, basis }) => {
+    const [a, b, c, d] = m;
+    const unit = basis === 'i' ? columnTex(1, 0) : columnTex(0, 1);
+    const image = basis === 'i' ? columnTex(a, c) : columnTex(b, d);
+    const column = basis === 'i' ? 'first' : 'second';
+    return [
+      {
+        text: `The columns of a matrix are where $\\mathbf{i}$ and $\\mathbf{j}$ land: the ${column} column is the image of $\\mathbf{${basis}}$.`,
+      },
+      { tex: `${texOf(m)} ${unit} = ${image}` },
+      {
+        text: `Multiplying out shows why: the $1$ in $\\mathbf{${basis}}$ picks out the ${column} column, and the $0$ wipes out the other.`,
+      },
+      {
+        text: `Reading along the ${basis === 'i' ? 'top' : 'bottom'} row instead gives $${basis === 'i' ? columnTex(a, b) : columnTex(c, d)}$, which is the usual slip — rows are for multiplying, columns are for reading off images.`,
+      },
+    ];
+  },
+};
+
+interface FromImagesParams {
+  m: Matrix;
+  asPoints: boolean;
+}
+
+/** The matrix, built from where i and j land. */
+const fromImages: Generator<FromImagesParams> = {
+  id: 'mat-from-images',
+  choices: ({ m }) => {
+    const [a, b, c, d] = m;
+    return options(
+      { tex: texOf(m) },
+      // The images written as rows, the columns in the wrong order, and the
+      // rows in the wrong order.
+      { tex: matrixTex(a, c, b, d) },
+      { tex: matrixTex(b, a, d, c) },
+      { tex: matrixTex(c, d, a, b) },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    m: sampleTransform(rng, difficulty > 1 ? 9 : 6),
+    asPoints: rng.pick([true, false]),
+  }),
+  render: ({ m, asPoints }) => {
+    const [a, b, c, d] = m;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: asPoints
+            ? `A transformation maps the point $(1, 0)$ to $(${a}, ${c})$ and the point $(0, 1)$ to $(${b}, ${d})$. Find its matrix.`
+            : `A transformation sends $\\mathbf{i}$ to $${columnTex(a, c)}$ and $\\mathbf{j}$ to $${columnTex(b, d)}$. Find its matrix.`,
+        },
+      ],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf([a, b, c, d].map(String), [-a, -d, -b, -c].map(String)),
+      answer: [a, b, c, d].map(String),
+    };
+  },
+  solution: ({ m }) => {
+    const [a, b, c, d] = m;
+    return [
+      {
+        text: 'The image of $\\mathbf{i}$ is the first column and the image of $\\mathbf{j}$ is the second. Write them in as columns, side by side.',
+      },
+      { tex: columnsLine(m) },
+      { tex: `\\mathbf{M} = ${texOf(m)}` },
+      {
+        text: `Writing the images in as rows gives $${matrixTex(a, c, b, d)}$, the transpose — a different transformation. Check by multiplying $\\mathbf{M}$ by $${columnTex(1, 0)}$: it should give back $${columnTex(a, c)}$.`,
+      },
+    ];
+  },
+};
+
+interface ReadColumnParams {
+  m: Matrix;
+  row: number;
+  col: number;
+}
+
+/**
+ * An entry of the matrix, read off a picture of what it does.
+ *
+ * The reverse of drawing the image: the arrows show where i and j land, so the
+ * matrix is sitting in the figure as two tips' coordinates. The marker slides
+ * across the grid (or up it, for the second row) until it meets the right tip.
+ */
+const readColumn: Generator<ReadColumnParams> = {
+  id: 'mat-read-column',
+  sample: (rng, difficulty) => ({
+    m: sampleTransform(rng, difficulty > 1 ? 4 : 3, true),
+    row: rng.int(1, 2),
+    col: rng.int(1, 2),
+  }),
+  render: ({ m, row, col }): Slide => {
+    const [a, b, c, d] = m;
+    const span = spanFor(a, b, c, d, a + b, c + d);
+    const answer = [[a, b], [c, d]][row - 1][col - 1];
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The shaded shape is the image of the unit square under $\\mathbf{M}$, and the arrows show where $\\mathbf{i}$ and $\\mathbf{j}$ land. Slide to the entry in row ${row}, column ${col} of $\\mathbf{M}$.`,
+        },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer,
+      readout: `\\text{row } ${row}, \\text{ column } ${col} = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          image: m,
+          square: true,
+          arrows: [
+            { x: a, y: c, label: 'i', accent: true },
+            { x: b, y: d, label: 'j' },
+          ],
+          label: 'The unit square and its image, with the images of i and j drawn as arrows',
+        }),
+        xMin: -span,
+        xMax: span,
+        axis: row === 1 ? 'x' : 'y',
+      },
+    };
+  },
+  solution: ({ m, row, col }) => {
+    const [a, b, c, d] = m;
+    const basis = col === 1 ? 'i' : 'j';
+    const tip = col === 1 ? [a, c] : [b, d];
+    return [
+      {
+        text: `Column ${col} of the matrix is where $\\mathbf{${basis}}$ lands, so read the tip of the $\\mathbf{${basis}}$ arrow.`,
+      },
+      { tex: `\\mathbf{${basis}} \\to ${pairTex(tip[0], tip[1])}` },
+      {
+        text: `Row ${row} is its ${row === 1 ? '$x$' : '$y$'}-coordinate: $${tip[row - 1]}$. So the whole matrix is $${texOf(m)}$.`,
+      },
+      {
+        text: 'The first row holds the across-coordinates and the second the up-coordinates, which is why the marker slides across for row 1 and up for row 2.',
+      },
+    ];
+  },
+};
+
+/* ----- the unit square ----- */
+
+interface SquareCornerParams {
+  m: Matrix;
+  side: number;
+}
+
+/**
+ * The corner of the square opposite the origin, after the transformation.
+ *
+ * It is the one corner that is not a column: it lands at the *sum* of the two
+ * columns, which is the parallelogram rule, and the reason the image of a
+ * square is always a parallelogram.
+ */
+const squareCorner: Generator<SquareCornerParams> = {
+  id: 'mat-square-corner',
+  choices: ({ m, side }) => {
+    const [a, b, c, d] = m;
+    return options(
+      { tex: pairTex(side * (a + b), side * (c + d)) },
+      // The rows added instead of the columns, the leading diagonal alone, and
+      // the diagonals crossed.
+      { tex: pairTex(side * (a + c), side * (b + d)) },
+      { tex: pairTex(side * a, side * d) },
+      { tex: pairTex(side * (a + d), side * (b + c)) },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    m: sampleTransform(rng, difficulty > 1 ? 7 : 5),
+    side: difficulty > 1 ? rng.pick([1, 2, 3]) : 1,
+  }),
+  render: ({ m, side }) => {
+    const [a, b, c, d] = m;
+    const answer = [side * (a + b), side * (c + d)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The square with corners $(0, 0)$, $(${side}, 0)$, $(${side}, ${side})$ and $(0, ${side})$ is transformed by this matrix. Where does the corner $(${side}, ${side})$ go?`,
+        },
+        { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
+      ],
+      template: `(${side}, ${side}) \\to ({0}, \\; {1})`,
+      bank: bankOf(answer.map(String), [side * (a + c), side * (b + d), side * a, side * d].map(String)),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ m, side }) => {
+    const [a, b, c, d] = m;
+    return [
+      {
+        text: `The corner $(${side}, ${side})$ is $${side === 1 ? '' : side}\\mathbf{i} + ${side === 1 ? '' : side}\\mathbf{j}$, so it lands on ${side === 1 ? 'the sum of the two columns' : `$${side}$ times the sum of the two columns`}.`,
+      },
+      { tex: `${texOf(m)} ${columnTex(side, side)} = ${columnTex(side * (a + b), side * (c + d))}` },
+      {
+        text: `So it goes to $${pairTex(side * (a + b), side * (c + d))}$. The other two corners go to the columns themselves${side === 1 ? '' : `, scaled by $${side}$`}, and the origin stays put.`,
+      },
+      {
+        text: 'Adding along the rows instead gives a point that is not on the image at all. Every corner of the image is built from columns: that is what makes it a parallelogram.',
+      },
+    ];
+  },
+};
+
+interface SquareWhichParams {
+  m: Matrix;
+}
+
+/** Which matrix drew this picture. */
+const squareWhich: Generator<SquareWhichParams> = {
+  id: 'mat-square-which',
+  sample: (rng, difficulty) => ({ m: sampleTransform(rng, difficulty > 1 ? 4 : 3, true) }),
+  render: ({ m }): Slide => {
+    const [a, b, c, d] = m;
+    const span = spanFor(a, b, c, d, a + b, c + d);
+    const offered = distinctOptions([
+      { id: 'matrix', label: texOf(m), tex: true },
+      // The images written as rows, the arrows mixed up, and one sign lost.
+      { id: 'transpose', label: matrixTex(a, c, b, d), tex: true },
+      { id: 'swapped', label: matrixTex(b, a, d, c), tex: true },
+      { id: 'negated', label: matrixTex(-a, b, -c, d), tex: true },
+    ]);
+    const turn = (Math.abs(a) + Math.abs(b) + Math.abs(c) + Math.abs(d)) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The shaded shape is the image of the dashed unit square, and the arrows show where $\\mathbf{i}$ and $\\mathbf{j}$ land. Which matrix is it?',
+        },
+        {
+          kind: 'diagram',
+          svg: transformGridSvg({
+            span,
+            image: m,
+            square: true,
+            arrows: [
+              { x: a, y: c, label: 'i', accent: true },
+              { x: b, y: d, label: 'j' },
+            ],
+            maxWidth: 260,
+            label: 'The unit square and its image, with the images of i and j drawn as arrows',
+          }),
+        },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'matrix',
+    };
+  },
+  solution: ({ m }) => {
+    const [a, b, c, d] = m;
+    return [
+      { text: 'Read the two arrow tips. Each one is a column of the matrix.' },
+      { tex: columnsLine(m) },
+      { tex: `\\mathbf{M} = ${texOf(m)}` },
+      {
+        text: `The fourth corner, at $${pairTex(a + b, c + d)}$, is the two columns added — a good check that the picture and the matrix agree. Writing the tips in as rows gives the transpose, which draws a different shape.`,
+      },
+    ];
+  },
+};
+
+/* ----- rotations and reflections ----- */
+
+interface StandardParams {
+  key: Standard;
+  phrase: number;
+  others: Standard[];
+}
+
+/** The matrix for a named rotation or reflection. */
+const standardMatrix: Generator<StandardParams> = {
+  id: 'mat-standard',
+  sample: (rng) => {
+    const key = rng.pick(STANDARD_KEYS);
+    return {
+      key,
+      phrase: rng.int(0, STANDARD[key].phrases.length - 1),
+      others: rng.sample(
+        STANDARD_KEYS.filter((other) => other !== key),
+        3,
+      ),
+    };
+  },
+  render: ({ key, phrase, others }): Slide => {
+    const offered = [
+      { id: 'right', label: texOf(STANDARD[key].matrix), tex: true },
+      ...others.map((other) => ({ id: other, label: texOf(STANDARD[other].matrix), tex: true })),
+    ];
+    const turn = (STANDARD_KEYS.indexOf(key) + phrase) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which matrix represents ${STANDARD[key].phrases[phrase]}?` }],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'right',
+    };
+  },
+  solution: ({ key, phrase }) => {
+    const m = STANDARD[key].matrix;
+    return [
+      {
+        text: `Work out where $\\mathbf{i}$ and $\\mathbf{j}$ go under ${STANDARD[key].phrases[phrase]}. A quick sketch of the two arrows is enough.`,
+      },
+      { tex: columnsLine(m) },
+      { tex: `\\mathbf{M} = ${texOf(m)}` },
+      {
+        text: 'Those two images are the columns. There is no need to memorise the seven matrices: each one is rebuilt in seconds from where the two unit arrows end up.',
+      },
+    ];
+  },
+};
+
+interface StandardImageParams {
+  key: Standard;
+  phrase: number;
+  x: number;
+  y: number;
+}
+
+/** A point moved by a named rotation or reflection. */
+const standardImage: Generator<StandardImageParams> = {
+  id: 'mat-standard-image',
+  choices: ({ key, x, y }) =>
+    options(
+      { tex: pairTex(...apply(STANDARD[key].matrix, x, y)) },
+      ...CONFUSED_WITH[key].map((other) => ({ tex: pairTex(...apply(STANDARD[other].matrix, x, y)) })),
+    ),
+  sample: (rng, difficulty) => {
+    const key = rng.pick(STANDARD_KEYS);
+    const span = difficulty > 1 ? 9 : 6;
+    let x = 2;
+    let y = 5;
+    // Different sizes, both non-zero: then the seven images are seven
+    // different points, and no distractor can land on the answer.
+    for (let tries = 0; tries < 40; tries += 1) {
+      x = nonZero(rng.int(-span, span), 3);
+      y = nonZero(rng.int(-span, span), -4);
+      if (Math.abs(x) !== Math.abs(y)) break;
+    }
+    if (Math.abs(x) === Math.abs(y)) y = x > 0 ? x + 1 : x - 1;
+    return { key, phrase: rng.int(0, STANDARD[key].phrases.length - 1), x, y };
+  },
+  render: ({ key, phrase, x, y }) => {
+    const answer = apply(STANDARD[key].matrix, x, y);
+    const [near, next] = CONFUSED_WITH[key].map((other) => apply(STANDARD[other].matrix, x, y));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The point $P(${x}, ${y})$ is transformed by ${STANDARD[key].phrases[phrase]}. Where does it go?`,
+        },
+      ],
+      template: IMAGE_TEMPLATE,
+      bank: bankOf(answer.map(String), [...near, ...next].map(String)),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ key, phrase, x, y }) => {
+    const m = STANDARD[key].matrix;
+    const [ix, iy] = apply(m, x, y);
+    return [
+      { text: `The matrix for ${STANDARD[key].phrases[phrase]} comes from where $\\mathbf{i}$ and $\\mathbf{j}$ go.` },
+      { tex: `\\mathbf{M} = ${texOf(m)}` },
+      { tex: `${texOf(m)} ${columnTex(x, y)} = ${columnTex(ix, iy)}` },
+      {
+        text: `So $P'$ is $${pairTex(ix, iy)}$. A sketch is the check: the image should sit where the ${key.startsWith('rot') ? 'turn' : 'mirror'} puts it, the same distance from the origin as $P$.`,
+      },
+    ];
+  },
+};
+
+interface LocateParams {
+  t: Transform;
+  phrase: number;
+  x: number;
+  y: number;
+  axis: 'x' | 'y';
+}
+
+/**
+ * Where a point lands, found by sliding a marker on the grid.
+ *
+ * The same question as `mat-standard-image` asked of the picture: the point is
+ * drawn, and so is any mirror line, so the move can be pictured before any
+ * multiplying happens. Difficulty 1 holds to rotations and reflections;
+ * difficulty 2 adds enlargements and stretches, for the lesson that teaches
+ * them.
+ */
+const standardLocate: Generator<LocateParams> = {
+  id: 'mat-standard-locate',
+  sample: (rng, difficulty) => {
+    const scaling = difficulty > 1 && rng.chance(0.5);
+    const t: Transform = scaling
+      ? rng.pick([
+          { kind: 'enlarge', k: rng.pick([-2, 2, 3]) },
+          { kind: 'stretch-x', k: rng.pick([2, 3]) },
+          { kind: 'stretch-y', k: rng.pick([2, 3]) },
+        ] as const)
+      : { kind: 'standard', key: rng.pick(STANDARD_KEYS) };
+    const span = scaling ? 3 : 4;
+    let x = 1;
+    let y = 3;
+    for (let tries = 0; tries < 40; tries += 1) {
+      x = nonZero(rng.int(-span, span), 2);
+      y = nonZero(rng.int(-span, span), -3);
+      if (Math.abs(x) !== Math.abs(y)) break;
+    }
+    if (Math.abs(x) === Math.abs(y)) y = x > 0 ? x + 1 : x - 1;
+    return { t, phrase: rng.int(0, phraseCount(t) - 1), x, y, axis: rng.pick(['x', 'y'] as const) };
+  },
+  render: ({ t, phrase, x, y, axis }): Slide => {
+    const [ix, iy] = apply(matrixOf(t), x, y);
+    const span = spanFor(x, y, ix, iy);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$P(${x}, ${y})$ is transformed by ${phraseOf(t, phrase)}. Slide to the $${axis}$-coordinate of its image.`,
+        },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: axis === 'x' ? ix : iy,
+      readout: `${axis}\\text{-coordinate of } P' = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          marks: [{ x, y, label: 'P' }],
+          mirror: t.kind === 'standard' ? STANDARD[t.key].mirror : undefined,
+          label: 'The point P on a grid',
+        }),
+        xMin: -span,
+        xMax: span,
+        axis,
+      },
+    };
+  },
+  solution: ({ t, phrase, x, y, axis }) => {
+    const m = matrixOf(t);
+    const [ix, iy] = apply(m, x, y);
+    return [
+      { text: `Write down the matrix for ${phraseOf(t, phrase)}, from where $\\mathbf{i}$ and $\\mathbf{j}$ go.` },
+      { tex: `${texOf(m)} ${columnTex(x, y)} = ${columnTex(ix, iy)}` },
+      {
+        text: `So $P'$ is $${pairTex(ix, iy)}$, and its $${axis}$-coordinate is $${axis === 'x' ? ix : iy}$.`,
+      },
+      {
+        text: 'The picture is the check. Put your finger on $P$, make the move in your head, and see whether it lands where the arithmetic says.',
+      },
+    ];
+  },
+};
+
+/** Angles with exact sines and cosines, in degrees. */
+const EXACT_ANGLES = [30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+
+/** An exact value of a sine or cosine of one of `EXACT_ANGLES`, as TeX. */
+function exactTex(value: number): string {
+  const size = Math.abs(value);
+  const forms: [number, string][] = [
+    [0, '0'],
+    [1, '1'],
+    [0.5, '\\frac{1}{2}'],
+    [Math.sqrt(3) / 2, '\\frac{\\sqrt{3}}{2}'],
+    [Math.SQRT2 / 2, '\\frac{\\sqrt{2}}{2}'],
+  ];
+  const form = forms.find(([exact]) => Math.abs(size - exact) < 1e-9)?.[1] ?? size.toFixed(3);
+  return value < -1e-9 && form !== '0' ? `-${form}` : form;
+}
+
+interface RotationParams {
+  turn: number;
+  clockwise: boolean;
+}
+
+/**
+ * The matrix of a rotation through any angle, with exact entries.
+ *
+ * Clockwise turns are asked on purpose: the formula is written for an
+ * anticlockwise angle, so a clockwise one has to be made negative first, and
+ * forgetting to is the mistake that swaps the signs of the two sines.
+ */
+const rotationMatrix: Generator<RotationParams> = {
+  id: 'mat-rotation-matrix',
+  choices: ({ turn, clockwise }) => {
+    const theta = ((clockwise ? -turn : turn) * Math.PI) / 180;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    const m = (p: number, q: number, r: number, s: number) =>
+      `\\begin{pmatrix} ${exactTex(p)} & ${exactTex(q)} \\\\ ${exactTex(r)} & ${exactTex(s)} \\end{pmatrix}`;
+    return options(
+      { tex: m(cos, -sin, sin, cos) },
+      // The turn taken the other way, the sine and cosine swapped, and every
+      // sign flipped.
+      { tex: m(cos, sin, -sin, cos) },
+      { tex: m(sin, -cos, cos, sin) },
+      { tex: m(-cos, sin, -sin, -cos) },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    turn: rng.pick(EXACT_ANGLES),
+    clockwise: rng.chance(difficulty > 1 ? 0.5 : 0.3),
+  }),
+  render: ({ turn, clockwise }) => {
+    const theta = ((clockwise ? -turn : turn) * Math.PI) / 180;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    const answer = [cos, -sin, sin, cos].map(exactTex);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the matrix for a rotation of $${turn}^\\circ$ ${clockwise ? 'clockwise' : 'anticlockwise'} about the origin.`,
+        },
+      ],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf(answer, [
+        exactTex(sin),
+        exactTex(-cos),
+        exactTex(Math.abs(cos) > 0.9 || Math.abs(cos) < 0.1 ? 0.5 : Math.abs(sin)),
+        '\\frac{\\sqrt{3}}{2}',
+      ]),
+      answer,
+    };
+  },
+  solution: ({ turn, clockwise }) => {
+    const angle = clockwise ? -turn : turn;
+    const theta = (angle * Math.PI) / 180;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    return [
+      {
+        text: 'A rotation through $\\theta$ anticlockwise about the origin sends $\\mathbf{i}$ to $(\\cos\\theta, \\sin\\theta)$ and $\\mathbf{j}$ to $(-\\sin\\theta, \\cos\\theta)$.',
+      },
+      { tex: '\\begin{pmatrix} \\cos\\theta & -\\sin\\theta \\\\ \\sin\\theta & \\cos\\theta \\end{pmatrix}' },
+      clockwise
+        ? { text: `The turn is clockwise, so $\\theta = -${turn}^\\circ$ in the formula.` }
+        : { text: `Here $\\theta = ${turn}^\\circ$.` },
+      {
+        tex: `\\cos\\theta = ${exactTex(cos)} \\qquad \\sin\\theta = ${exactTex(sin)}`,
+      },
+      {
+        tex: `\\begin{pmatrix} ${exactTex(cos)} & ${exactTex(-sin)} \\\\ ${exactTex(sin)} & ${exactTex(cos)} \\end{pmatrix}`,
+      },
+      {
+        text: 'The minus sign always sits on the sine in the top row. Putting it in the bottom row instead gives the rotation the other way round.',
+      },
+    ];
+  },
+};
+
+/* ----- enlargements, stretches and naming ----- */
+
+interface ScaleParams {
+  t: Transform;
+  phrase: number;
+}
+
+/** The matrix for an enlargement or a stretch. */
+const scaleMatrix: Generator<ScaleParams> = {
+  id: 'mat-scale',
+  choices: ({ t }) => {
+    const m = matrixOf(t);
+    const [a, , , d] = m;
+    const wrong: Matrix[] =
+      t.kind === 'enlarge'
+        ? [
+            [a, 0, 0, 1],
+            [1, 0, 0, a],
+            [0, a, a, 0],
+          ]
+        : t.kind === 'stretch-x'
+          ? [
+              [1, 0, 0, a],
+              [a, 0, 0, a],
+              [a, 0, 0, 0],
+            ]
+          : t.kind === 'stretch-y'
+            ? [
+                [d, 0, 0, 1],
+                [d, 0, 0, d],
+                [0, 0, 0, d],
+              ]
+            : [
+                [d, 0, 0, a],
+                [0, a, d, 0],
+                [a, 0, 0, 1],
+              ];
+    return options({ tex: texOf(m) }, ...wrong.map((w) => ({ tex: texOf(w) })));
+  },
+  sample: (rng, difficulty) => {
+    const k = rng.int(2, 6);
+    const kinds =
+      difficulty > 1
+        ? (['enlarge', 'stretch-x', 'stretch-y', 'stretch-xy'] as const)
+        : (['enlarge', 'stretch-x', 'stretch-y'] as const);
+    const kind = rng.pick(kinds);
+    const t: Transform =
+      kind === 'stretch-xy'
+        ? { kind, k, q: rng.pick([2, 3, 4, 5, 6].filter((q) => q !== k)) }
+        : kind === 'enlarge' && difficulty > 1 && rng.chance(0.4)
+          ? { kind, k: -rng.int(2, 4) }
+          : { kind, k };
+    return { t, phrase: rng.int(0, 1) };
+  },
+  render: ({ t, phrase }) => {
+    const m = matrixOf(t);
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Find the matrix for ${phraseOf(t, phrase)}.` }],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf(m.map(String), ['0', '1', `${-m[0]}`, `${m[0] + m[3]}`]),
+      answer: m.map(String),
+    };
+  },
+  solution: ({ t, phrase }) => {
+    const m = matrixOf(t);
+    const said =
+      t.kind === 'enlarge'
+        ? `Both $\\mathbf{i}$ and $\\mathbf{j}$ are multiplied by $${t.k}$ and keep their directions.`
+        : t.kind === 'stretch-x'
+          ? `Only the $x$ direction is stretched: $\\mathbf{i}$ is multiplied by $${t.k}$ and $\\mathbf{j}$ is left alone.`
+          : t.kind === 'stretch-y'
+            ? `Only the $y$ direction is stretched: $\\mathbf{j}$ is multiplied by $${t.k}$ and $\\mathbf{i}$ is left alone.`
+            : t.kind === 'stretch-xy'
+              ? `Each direction is stretched by its own factor: $\\mathbf{i}$ by $${t.k}$ and $\\mathbf{j}$ by $${t.q}$.`
+              : 'Work out where the two unit arrows end up.';
+    return [
+      { text: `Ask where $\\mathbf{i}$ and $\\mathbf{j}$ go under ${phraseOf(t, phrase)}.` },
+      { text: said },
+      { tex: columnsLine(m) },
+      { tex: `\\mathbf{M} = ${texOf(m)}` },
+      {
+        text: 'The direction that is left alone keeps its $1$ on the diagonal. Writing $0$ there instead squashes that whole direction flat.',
+      },
+    ];
+  },
+};
+
+interface DescribeParams {
+  t: Transform;
+  others: Transform[];
+}
+
+/** Scalings a stretch or enlargement is most easily mistaken for. */
+function scalingMixUps(t: Transform): Transform[] {
+  switch (t.kind) {
+    case 'enlarge':
+      return [
+        { kind: 'stretch-x', k: t.k },
+        { kind: 'stretch-y', k: t.k },
+        { kind: 'enlarge', k: -t.k },
+      ];
+    case 'stretch-x':
+      return [
+        { kind: 'stretch-y', k: t.k },
+        { kind: 'enlarge', k: t.k },
+        { kind: 'stretch-x', k: t.k + 1 },
+      ];
+    case 'stretch-y':
+      return [
+        { kind: 'stretch-x', k: t.k },
+        { kind: 'enlarge', k: t.k },
+        { kind: 'stretch-y', k: t.k + 1 },
+      ];
+    default:
+      return [];
+  }
+}
+
+/** Naming the transformation a matrix represents. */
+const describeMatrix: Generator<DescribeParams> = {
+  id: 'mat-describe',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick(['standard', 'standard', 'enlarge', 'stretch-x', 'stretch-y'] as const);
+    if (kind === 'standard') {
+      const key = rng.pick(STANDARD_KEYS);
+      return {
+        t: { kind, key },
+        others: rng
+          .sample(
+            STANDARD_KEYS.filter((other) => other !== key),
+            3,
+          )
+          .map((other): Transform => ({ kind: 'standard', key: other })),
+      };
+    }
+    const k =
+      kind === 'enlarge' && difficulty > 1 && rng.chance(0.4) ? -rng.int(2, 4) : rng.int(2, 7);
+    const t: Transform = { kind, k };
+    return { t, others: scalingMixUps(t) };
+  },
+  render: ({ t, others }): Slide => {
+    const offered = distinctOptions([
+      { id: 'right', label: nameOf(t), tex: false },
+      ...others.map((other, idx) => ({ id: `other${idx}`, label: nameOf(other), tex: false })),
+    ]);
+    const m = matrixOf(t);
+    const turn = (Math.abs(m[0]) + 2 * Math.abs(m[1]) + 3 * Math.abs(m[3])) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which transformation does this matrix represent?' },
+        { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'right',
+    };
+  },
+  solution: ({ t }) => {
+    const m = matrixOf(t);
+    return [
+      { text: 'Read the columns: they are where $\\mathbf{i}$ and $\\mathbf{j}$ land. Then picture the two arrows.' },
+      { tex: columnsLine(m) },
+      {
+        text:
+          t.kind === 'standard'
+            ? `Both arrows keep their length of $1$, so this is a rotation or a reflection. Their new positions say which it is: **${STANDARD[t.key].name}**.`
+            : t.kind === 'enlarge'
+              ? `Both arrows are multiplied by $${t.k}$ and neither turns${t.k < 0 ? ' except to point the opposite way' : ''}, so this is an enlargement of scale factor $${t.k}$ about the origin.`
+              : `One arrow is multiplied by $${t.k}$ and the other is unchanged, so this is a stretch in the direction of the arrow that grew: ${nameOf(t).toLowerCase()}.`,
+      },
+      {
+        text: 'A stretch parallel to the $x$-axis moves points across and leaves their heights alone, so it is the $x$ entry that changes. Mixing up the two axes is the commonest slip here.',
+      },
+    ];
+  },
+};
+
+type NameCase = 'enlarge' | 'stretch' | 'axis-mirror' | 'diagonal-mirror' | 'quarter' | 'other';
+
+interface NameParams {
+  m: Matrix;
+}
+
+/**
+ * Naming a transformation by working down a decision tree.
+ *
+ * `mat-describe` asks for the name from four; this asks for the reasoning that
+ * gets there, one fork at a time, and it takes in matrices with no standard
+ * name at all, which a list of four names cannot.
+ */
+const nameFlow: Generator<NameParams> = {
+  id: 'mat-name',
+  sample: (rng) => {
+    const which = rng.pick(['enlarge', 'stretch', 'axis-mirror', 'diagonal-mirror', 'quarter', 'other'] as const satisfies readonly NameCase[]);
+    switch (which) {
+      case 'enlarge': {
+        const k = rng.pick([-4, -3, -2, -1, 2, 3, 4, 5]);
+        return { m: [k, 0, 0, k] };
+      }
+      case 'stretch': {
+        const k = rng.int(2, 6);
+        const q = rng.pick([1, 1, rng.int(2, 6)].filter((v) => v !== k));
+        return { m: rng.chance(0.5) ? [k, 0, 0, q] : [q, 0, 0, k] };
+      }
+      case 'axis-mirror':
+        return { m: rng.pick([STANDARD['refl-x'].matrix, STANDARD['refl-y'].matrix]) };
+      case 'diagonal-mirror':
+        return { m: rng.pick([STANDARD['refl-yx'].matrix, STANDARD['refl-ynx'].matrix]) };
+      case 'quarter':
+        return { m: rng.pick([STANDARD.rot90.matrix, STANDARD.rot270.matrix]) };
+      case 'other': {
+        const k = nonZero(rng.int(-3, 3), 2);
+        if (rng.chance(0.5)) return { m: rng.pick<Matrix>([[1, k, 0, 1], [1, 0, k, 1]]) };
+        return { m: sampleTransform(rng, 4) };
+      }
+    }
+  },
+  render: ({ m }): Slide => {
+    const [a, b, c, d] = m;
+    const offDiagonalZero = b === 0 && c === 0;
+    const answer = offDiagonalZero
+      ? a === d
+        ? ['Yes', 'Yes']
+        : a * d === -1 && Math.abs(a) === 1
+          ? ['Yes', 'No', 'Yes']
+          : ['Yes', 'No', 'No']
+      : a === 0 && d === 0
+        ? b * c > 0
+          ? ['No', 'Yes', 'Yes']
+          : ['No', 'Yes', 'No']
+        : ['No', 'No'];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to name the transformation. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: `\\mathbf{M} = ${texOf(m)}`,
+      steps: [
+        {
+          id: 'off',
+          ask: 'Are both entries off the leading diagonal zero?',
+          branches: [
+            { label: 'Yes', to: 'equal' },
+            { label: 'No', to: 'lead' },
+          ],
+        },
+        {
+          id: 'equal',
+          ask: 'Are the two entries on the leading diagonal equal?',
+          branches: [
+            { label: 'Yes', outcome: 'An enlargement about the origin, with that entry as the scale factor.' },
+            { label: 'No', to: 'mirror' },
+          ],
+        },
+        {
+          id: 'mirror',
+          ask: 'Is one diagonal entry 1 and the other −1?',
+          branches: [
+            { label: 'Yes', outcome: 'A reflection in one of the axes.' },
+            { label: 'No', outcome: 'A stretch parallel to the axes, by the diagonal entries.' },
+          ],
+        },
+        {
+          id: 'lead',
+          ask: 'Are both entries on the leading diagonal zero?',
+          branches: [
+            { label: 'Yes', to: 'sign' },
+            { label: 'No', outcome: 'None of the standard ones: find where i and j land and describe that.' },
+          ],
+        },
+        {
+          id: 'sign',
+          ask: 'Do the other two entries have the same sign?',
+          branches: [
+            { label: 'Yes', outcome: 'A reflection in the line y = x or y = −x.' },
+            { label: 'No', outcome: 'A rotation of 90° about the origin, one way or the other.' },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: ({ m }) => {
+    const [a, b, c, d] = m;
+    const verdict =
+      b === 0 && c === 0
+        ? a === d
+          ? `Nothing off the diagonal and the diagonal entries match, so this is an enlargement of scale factor $${a}$ about the origin${a === -1 ? ', which is the same as a half turn' : ''}.`
+          : a * d === -1 && Math.abs(a) === 1
+            ? `Nothing off the diagonal, and one direction is kept while the other is flipped: a reflection in the ${a === 1 ? '$x$' : '$y$'}-axis.`
+            : `Nothing off the diagonal, with different entries on it: $\\mathbf{i}$ is multiplied by $${a}$ and $\\mathbf{j}$ by $${d}$, which is a stretch parallel to the axes.`
+        : a === 0 && d === 0
+          ? b * c > 0
+            ? `Zeros on the diagonal and matching signs off it: $\\mathbf{i}$ and $\\mathbf{j}$ swap places, possibly both reversed, which is a reflection in $y = ${b > 0 ? '' : '-'}x$.`
+            : `Zeros on the diagonal and opposite signs off it: $\\mathbf{i}$ turns onto the ${c > 0 ? 'positive' : 'negative'} $y$-axis, which is a quarter turn ${c > 0 ? 'anticlockwise' : 'clockwise'}.`
+          : 'Something both on and off the diagonal, so it is not one of the standard shapes. Read the columns and describe what happens to $\\mathbf{i}$ and $\\mathbf{j}$ directly — this family includes the shears.';
+    return [
+      { text: 'Where the zeros sit decides almost everything, so look for them first.' },
+      { tex: `${texOf(m)} \\qquad ${columnsLine(m)}` },
+      { text: verdict },
+    ];
+  },
+};
+
+/* ----- area ----- */
+
+interface AreaImageParams {
+  m: Matrix;
+  area: number;
+}
+
+/**
+ * The area of an image: the original area times the size of the determinant.
+ *
+ * Difficulty 1 keeps the determinant positive, for the lesson's first half;
+ * difficulty 2 lets it go negative, which is where taking the size of it
+ * starts to matter.
+ */
+const areaImage: Generator<AreaImageParams> = {
+  id: 'mat-area-image',
+  choices: ({ m, area }) => {
+    const det = detOf(m);
+    const [a, b, c, d] = m;
+    return options(
+      { tex: `${Math.abs(det) * area}`, answer: `${Math.abs(det) * area}` },
+      { tex: `${det * area}`, answer: `${det * area}` },
+      { tex: `${Math.abs(a * d + b * c) * area}`, answer: `${Math.abs(a * d + b * c) * area}` },
+      { tex: `${Math.abs(det) + area}`, answer: `${Math.abs(det) + area}` },
+      { tex: `${Math.abs(det)}`, answer: `${Math.abs(det)}` },
+    ).slice(0, 4);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 7 : 5;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const m: Matrix = [
+        nonZero(rng.int(-span, span), 3),
+        nonZero(rng.int(-span, span), 1),
+        nonZero(rng.int(-span, span), 2),
+        nonZero(rng.int(-span, span), 4),
+      ];
+      const det = detOf(m);
+      if (det === 0 || (difficulty === 1 && det < 0)) continue;
+      return { m, area: rng.int(2, difficulty > 1 ? 12 : 9) };
+    }
+    return { m: [3, 1, 2, 4], area: 5 };
+  },
+  render: ({ m, area }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `A shape of area $${area}$ is transformed by this matrix. Find the area of its image.`,
+      },
+      { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
+    ],
+    lead: '\\text{area of image} =',
+    keypad: [],
+    answer: `${Math.abs(detOf(m)) * area}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ m, area }) => {
+    const [a, b, c, d] = m;
+    const det = detOf(m);
+    return [
+      { text: 'The determinant is the factor the matrix scales every area by.' },
+      {
+        tex: `\\det\\mathbf{M} = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = ${det}`,
+      },
+      { tex: `${Math.abs(det)} \\times ${area} = ${Math.abs(det) * area}` },
+      det < 0
+        ? {
+            text: `The determinant is negative, which means the shape is turned over. Area is never negative, so the factor is its size, $${Math.abs(det)}$.`,
+          }
+        : {
+            text: 'The shape is not given, and it does not need to be: every region in the plane is scaled by the same factor.',
+          },
+    ];
+  },
+};
+
+interface AreaStepsParams {
+  m: Matrix;
+  p: number;
+  q: number;
+}
+
+/**
+ * The area of a transformed rectangle, one piece at a time.
+ *
+ * Two independent strands — the determinant and the rectangle's own area —
+ * meet in one product, and the determinant's subtraction has to wait for both
+ * of its diagonals. Kept to positive determinants so the line holds the
+ * area itself, with no size to take at the end.
+ */
+const areaSteps: Generator<AreaStepsParams> = {
+  id: 'mat-area-steps',
+  choices: ({ m, p, q }) => {
+    const [a, b, c, d] = m;
+    const det = detOf(m);
+    return signedChoices(det * p * q, [(a * d + b * c) * p * q, det + p * q, det * (p + q)]);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 6 : 4;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const m: Matrix = [
+        nonZero(rng.int(-span, span), 3),
+        nonZero(rng.int(-span, span), 1),
+        nonZero(rng.int(-span, span), 2),
+        nonZero(rng.int(-span, span), 4),
+      ];
+      if (detOf(m) > 0) return { m, p: rng.int(2, 5), q: rng.int(2, difficulty > 1 ? 7 : 5) };
+    }
+    return { m: [3, 1, 2, 4], p: 2, q: 3 };
+  },
+  render: ({ m, p, q }): Slide => {
+    const [a, b, c, d] = m;
+    const det = detOf(m);
+    const leading = a * d;
+    const other = b * c;
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A $${p}$ by $${q}$ rectangle is transformed by this matrix, whose determinant is positive. Its new area is the determinant times its old one. Tap the part you would work out **next**, then choose what it comes to.`,
+        },
+        { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
+      ],
+      expr: bin('*', bin('-', bin('*', num(a), num(d)), bin('*', num(b), num(c))), bin('*', num(p), num(q))),
+      banks: {
+        'r.l.l': signedOffer(leading, a + d, -leading, Math.abs(leading) + 1),
+        'r.l.r': signedOffer(other, b + c, -other, Math.abs(other) + 1),
+        'r.l': signedOffer(det, leading + other, other - leading, -det),
+        'r.r': signedOffer(p * q, p + q, p * q + 1, 2 * (p + q)),
+        r: signedOffer(det * p * q, det + p * q, (leading + other) * p * q, det * (p + q)),
+      },
+    };
+  },
+  solution: ({ m, p, q }) => {
+    const [a, b, c, d] = m;
+    const det = detOf(m);
+    return [
+      { text: 'Two things are needed, and neither depends on the other: the determinant, and the area of the rectangle.' },
+      {
+        tex: `\\det\\mathbf{M} = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = ${a * d} - \\left(${b * c}\\right) = ${det}`,
+      },
+      { tex: `${p} \\times ${q} = ${p * q}` },
+      { tex: `${det} \\times ${p * q} = ${det * p * q}` },
+      {
+        text: 'Both diagonals have to be multiplied before the subtraction can happen, but the rectangle can be done at any point — the order between the two strands does not matter.',
+      },
+    ];
+  },
+};
+
+interface AreaKParams {
+  slot: number;
+  entries: Matrix;
+  area: number;
+}
+
+/**
+ * An unknown entry, found from what the matrix does to area.
+ *
+ * The determinant is linear in any one entry, so fixing the area fixes the
+ * entry. Stating the orientation is what makes the answer unique: without it,
+ * a determinant of 6 and one of -6 both scale area by 6.
+ */
+const areaK: Generator<AreaKParams> = {
+  id: 'mat-area-k',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 80; tries += 1) {
+      const entries: Matrix = [
+        nonZero(rng.int(-5, 5), 3),
+        nonZero(rng.int(-5, 5), 1),
+        nonZero(rng.int(-5, 5), 2),
+        nonZero(rng.int(-5, 5), 4),
+      ];
+      const det = detOf(entries);
+      if (det === 0 || (difficulty === 1 && det < 0)) continue;
+      return { slot: rng.int(0, 3), entries, area: rng.int(2, 6) };
+    }
+    return { slot: 0, entries: [3, 1, 2, 4], area: 3 };
+  },
+  render: ({ slot, entries, area }) => {
+    const det = detOf(entries);
+    const shown = entries.map((value, idx) => (idx === slot ? 'k' : `${value}`));
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This matrix maps a shape of area $${area}$ to an image of area $${Math.abs(det) * area}$, ${det > 0 ? 'keeping it the same way round' : 'turning it over'}. Find $k$.`,
+        },
+        {
+          kind: 'display',
+          tex: `\\mathbf{M} = \\begin{pmatrix} ${shown[0]} & ${shown[1]} \\\\ ${shown[2]} & ${shown[3]} \\end{pmatrix}`,
+        },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${entries[slot]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ slot, entries, area }) => {
+    const [a, b, c, d] = entries;
+    const det = detOf(entries);
+    const image = Math.abs(det) * area;
+    // det = coefficient * k + rest, whichever entry k is.
+    const coefficient = [d, -c, -b, a][slot];
+    const rest = slot === 0 || slot === 3 ? -b * c : a * d;
+    const product =
+      slot === 0
+        ? `k\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right)`
+        : slot === 3
+          ? `\\left(${a}\\right)k - \\left(${b}\\right)\\left(${c}\\right)`
+          : slot === 1
+            ? `\\left(${a}\\right)\\left(${d}\\right) - k\\left(${c}\\right)`
+            : `\\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)k`;
+    return [
+      {
+        text: `The area is scaled by $${image} \\div ${area} = ${Math.abs(det)}$. The shape is ${det > 0 ? 'kept the same way round, so the determinant is positive' : 'turned over, so the determinant is negative'}: it is $${det}$.`,
+      },
+      { tex: `\\det\\mathbf{M} = ${product} = ${det}` },
+      { tex: `${coefficient}k ${rest < 0 ? '-' : '+'} ${Math.abs(rest)} = ${det}` },
+      { tex: `k = \\frac{${det - rest}}{${coefficient}} = ${entries[slot]}` },
+      {
+        text: 'Getting the sign of the determinant wrong gives a different $k$ that scales the area correctly but flips the shape when it should not, or the other way round.',
+      },
+    ];
+  },
+};
+
+interface OrientationParams {
+  m: Matrix;
+  area: number;
+}
+
+/**
+ * What a matrix does to a shape: its area, and whether it is turned over.
+ *
+ * The two halves of what a determinant says, asked together, so that the sign
+ * cannot be ignored and the size cannot be forgotten.
+ */
+const orientation: Generator<OrientationParams> = {
+  id: 'mat-orientation',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 7 : 5;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const m: Matrix = [
+        nonZero(rng.int(-span, span), 3),
+        nonZero(rng.int(-span, span), 1),
+        nonZero(rng.int(-span, span), 2),
+        nonZero(rng.int(-span, span), 4),
+      ];
+      if (detOf(m) !== 0) return { m, area: rng.int(2, 9) };
+    }
+    return { m: [1, 3, 2, 4], area: 3 };
+  },
+  render: ({ m, area }): Slide => {
+    const [a, b, c, d] = m;
+    const det = detOf(m);
+    const right = Math.abs(det) * area;
+    const summed = Math.abs(a * d + b * c) * area;
+    const wrong = summed === right || summed === 0 ? right + area : summed;
+    const kept = 'the same way round';
+    const flipped = 'turned over';
+    const offered = [
+      { id: det > 0 ? 'right' : 'size-only', label: `Area ${right}, ${kept}`, tex: false },
+      { id: det < 0 ? 'right' : 'sign-only', label: `Area ${right}, ${flipped}`, tex: false },
+      { id: 'kept', label: `Area ${wrong}, ${kept}`, tex: false },
+      { id: 'flipped', label: `Area ${wrong}, ${flipped}`, tex: false },
+    ];
+    const turn = (Math.abs(a) + Math.abs(d)) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A triangle of area $${area}$ is transformed by this matrix. Which describes its image?`,
+        },
+        { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'right',
+    };
+  },
+  solution: ({ m, area }) => {
+    const [a, b, c, d] = m;
+    const det = detOf(m);
+    return [
+      { text: 'Everything here comes from the determinant: its size scales the area, and its sign says whether the shape is turned over.' },
+      {
+        tex: `\\det\\mathbf{M} = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = ${det}`,
+      },
+      { tex: `\\text{area} = ${Math.abs(det)} \\times ${area} = ${Math.abs(det) * area}` },
+      {
+        text:
+          det > 0
+            ? 'The determinant is positive, so the image is the same way round: going round the corners in order still turns the same way.'
+            : 'The determinant is negative, so the image is turned over, like a reflection: going round the corners in order now turns the other way.',
+      },
+    ];
+  },
+};
+
 export const matrixGenerators = [
   addMatrices,
   combineMatrices,
@@ -1364,4 +2793,20 @@ export const matrixGenerators = [
   productOrder,
   detProperty,
   systemMethod,
+  columnImage,
+  fromImages,
+  readColumn,
+  squareCorner,
+  squareWhich,
+  standardMatrix,
+  standardImage,
+  standardLocate,
+  rotationMatrix,
+  scaleMatrix,
+  describeMatrix,
+  nameFlow,
+  areaImage,
+  areaSteps,
+  areaK,
+  orientation,
 ] as unknown as Generator<unknown>[];

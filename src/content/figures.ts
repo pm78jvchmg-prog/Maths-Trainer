@@ -72,6 +72,29 @@ const PAD = 12;
 const SAMPLES = 160;
 
 /**
+ * The span a slider's marker should declare, so that it lines up with the
+ * figure it is drawn over.
+ *
+ * `plotSvg` insets its drawing by `PAD` at every edge, while the marker is
+ * positioned as a percentage of the whole figure box. Declaring the plot's own
+ * window therefore puts the marker `PAD` out at the ends — a vertical slider
+ * dragged to its minimum draws the line *below the picture entirely*, which is
+ * how this was found. Widening the declared span by exactly that inset makes
+ * the two agree at every value, not only in the middle where the error happens
+ * to vanish.
+ */
+export function markerWindow(
+  min: number,
+  max: number,
+  axis: 'x' | 'y' = 'x',
+  height = 150,
+): { xMin: number; xMax: number } {
+  const extent = axis === 'y' ? height : WIDTH;
+  const overhang = (PAD * (max - min)) / (extent - 2 * PAD);
+  return { xMin: min - overhang, xMax: max + overhang };
+}
+
+/**
  * A y window that keeps the interesting part visible.
  *
  * Takes the extremes of every sampled curve, but never lets the window grow so

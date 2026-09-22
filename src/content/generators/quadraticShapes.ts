@@ -28,7 +28,7 @@
  * value inside a `reduce` tree is whole, banks included.
  */
 import type { ChoiceOption, Generator, Slide } from '../types';
-import { parabolaSvg } from '../figures';
+import { markerWindow, parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { bin, num, pow } from '../expr';
 import {
@@ -826,8 +826,7 @@ const rootSlider: Generator<RootsParams> = {
       readout: 'x = {v}',
       figure: {
         svg: parabolaSvg(1, b, c, { xMin: -reach, xMax: reach }),
-        xMin: -reach,
-        xMax: reach,
+        ...markerWindow(-reach, reach),
       },
     };
   },
@@ -903,19 +902,32 @@ const leastValue: Generator<VertexParams> = {
  * curve. Its typed sibling asks for the same number from the algebra, and
  * meeting both is what joins "complete the square" to "the bottom of the dip".
  */
-const vertexSlider: Generator<{ p: number; q: number }> = {
+const vertexSlider: Generator<VertexParams> = {
   id: 'quad-vertex-slider',
+  /**
+   * `a` earns its place rather than adding difficulty: the frame follows the
+   * dip, so a curve drawn from `p` alone looks *identical* whatever `p` is —
+   * the same picture translated back to the middle. Only the steepness and the
+   * height left it anything to vary, and twelve heights alone is under the
+   * floor of twenty-five distinct questions.
+   */
   sample: (rng) => ({
+    a: rng.int(1, 3),
     p: nonZero(rng.int(-4, 4), 2),
     q: nonZero(rng.int(-6, 6), -3),
   }),
-  render: ({ p, q }): Slide => {
-    const b = 2 * p;
-    const c = p * p + q;
+  render: ({ a, p, q }): Slide => {
+    const b = 2 * a * p;
+    const c = a * p * p + q;
     // The window is fixed rather than built around the answer, so where the
     // dip sits on the picture is not a clue to what it is worth.
     const low = -8;
     const high = 8;
+    // Centred on the dip rather than on zero, so the curve does not sit in one
+    // corner with the other half of the frame empty — and narrowed as the
+    // curve steepens, so the arms leave the frame at about the same place.
+    const centre = -p;
+    const half = a === 1 ? 4 : a === 2 ? 3 : 2;
     return {
       kind: 'slider',
       prompt: [
@@ -930,18 +942,24 @@ const vertexSlider: Generator<{ p: number; q: number }> = {
       answer: q,
       readout: 'y = {v}',
       figure: {
-        svg: parabolaSvg(1, b, c, { xMin: -6, xMax: 6, yMin: low, yMax: high }),
-        xMin: low,
-        xMax: high,
+        svg: parabolaSvg(a, b, c, {
+          xMin: centre - half,
+          xMax: centre + half,
+          yMin: low,
+          yMax: high,
+        }),
+        ...markerWindow(low, high, 'y'),
         axis: 'y',
       },
     };
   },
-  solution: ({ p, q }) => [
+  solution: ({ a, p, q }) => [
     {
       text: 'The lowest point of a parabola is its turning point, and the value there is what completing the square leaves outside the bracket.',
     },
-    { tex: `y = ${quadraticTex(1, 2 * p, p * p + q)} = \\left(x ${signedTile(p)}\\right)^{2} ${signedTile(q)}` },
+    {
+      tex: `y = ${quadraticTex(a, 2 * a * p, a * p * p + q)} = ${a === 1 ? '' : a}\\left(x ${signedTile(p)}\\right)^{2} ${signedTile(q)}`,
+    },
     {
       text: `The bracket is zero at $x = ${-p}$ and positive everywhere else, so the curve never goes below $y = ${q}$.`,
     },
@@ -1072,8 +1090,13 @@ const discriminantTree: Generator<DiscriminantParams> = {
       kind: 'tree',
       prompt: [
         {
+          // The slots carry no labels — the widget fills them in order — so the
+          // order has to be named here or the learner is guessing which half
+          // goes on the left.
           kind: 'prose',
-          text: 'Fill in the tree, top row first. The two halves are worked out on their own before they meet.',
+          text: split
+            ? 'Fill the tree in order: $b^{2}$, then $4a$, then $4ac$, then what the two halves make together.'
+            : 'Fill the tree in order: $b^{2}$, then $4ac$, then what the two halves make together.',
         },
         { kind: 'display', tex: `${quadraticTex(a, b, c)} = 0` },
       ],

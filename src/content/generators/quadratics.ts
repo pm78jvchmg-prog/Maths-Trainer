@@ -21,7 +21,7 @@
  * Hence `x^2` and plain parentheses. Both forms render identically.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
-import { parabolaSvg } from '../figures';
+import { markerWindow, parabolaSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS } from './calculus';
 import { bin, num, pow } from '../expr';
@@ -895,9 +895,10 @@ const symmetrySlider: Generator<FormulaParams> = {
     step: 1,
     answer: -b / (2 * a),
     readout: 'x = {v}',
-    // The window matches the slider's range, so the marker under the handle
-    // sits exactly where that x value is on the curve.
-    figure: { svg: parabolaSvg(a, b, c, { xMin: -5, xMax: 5 }), xMin: -5, xMax: 5 },
+    // The window the *marker* is measured against is the plot's own window
+    // widened by the inset `plotSvg` draws inside, so the handle and the curve
+    // agree at the ends of the track as well as in the middle.
+    figure: { svg: parabolaSvg(a, b, c, { xMin: -5, xMax: 5 }), ...markerWindow(-5, 5) },
   }),
   solution: ({ a, b }) => [
     {

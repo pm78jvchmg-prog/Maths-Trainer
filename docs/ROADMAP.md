@@ -248,7 +248,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
 | A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
-| A4 | Widen Quadratics | claimed — `claude/roadmap-a4-475hws` | Same bar, all 12 `qd-` lessons |
+| A4 | Widen Quadratics | done — `claude/roadmap-a4-475hws` | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | open | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
@@ -262,6 +262,17 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 more than twice" rule, counted by family, catches **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
 empties both.
+
+A4 has since emptied the twelve `qd-` rows: **40** lessons remain below three
+widget kinds and **91** still ask one family more than twice. Two numbers worth
+carrying into the batches that follow. First, `familyOf` strips a `-steps`
+suffix as well as `+choice`, so `quad-discriminant` and
+`quad-discriminant-steps` count as one family — a deck built from a generator
+and its worked-steps sibling is not two families, and A4 had to rebuild one
+lesson after the guard said so. Second, eight guided exercises at two per
+family needs **four** families per lesson, and only three of the nine widgets
+are cheap to add to an existing topic; the rest of the variety came from
+writing fourteen new generators, which is the real size of a phase A batch.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

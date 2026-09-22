@@ -260,10 +260,14 @@ interface CheckParams {
  */
 const checkAnswer: Generator<CheckParams> = {
   id: 'int-check-answer',
+  // Difficulty 2 moves to negative indices, matching `int-power`, so the
+  // lesson on negative powers can ask this without meeting an index its
+  // learner has not been shown. Difficulty 1 stays positive for the same
+  // reason, two lessons earlier.
   sample: (rng, difficulty) => {
-    const m = rng.int(1, difficulty > 1 ? 6 : 4);
+    const m = difficulty > 1 ? nonZero(rng.int(-7, -2), -3) : rng.int(1, 4);
     return {
-      a: rng.int(1, difficulty > 1 ? 8 : 6) * (m + 1),
+      a: rng.int(1, difficulty > 1 ? 9 : 6) * Math.abs(m + 1),
       m,
       fault: rng.pick(['none', 'index', 'coefficient', 'both'] as const),
     };
@@ -332,11 +336,52 @@ const checkAnswer: Generator<CheckParams> = {
 };
 
 interface RewriteParams {
-  form: 'fraction' | 'root' | 'rootUnder';
+  form: 'fraction' | 'root' | 'rootUnder' | 'rootTimes';
   /** Coefficient of the integrand, chosen so the integral stays whole. */
   a: number;
   /** Index of x underneath, for the fraction form. */
   n: number;
+}
+
+/**
+ * The three pieces a rewrite question is made of: what the learner is shown,
+ * the same thing as a power of $x$, and its integral.
+ *
+ * Held in one place rather than as three parallel ternary chains, because the
+ * whole point of the question is that the three lines correspond, and a
+ * mismatch between them would be a question with no right answer.
+ */
+function rewritePieces({ form, a, n }: RewriteParams): {
+  shown: string;
+  indexForm: string;
+  integrated: string;
+} {
+  if (form === 'fraction') {
+    return {
+      shown: `\\frac{${a}}{x^{${n}}}`,
+      indexForm: coefTex(a, `x^{-${n}}`),
+      integrated: termTex(-a / (n - 1), -(n - 1)),
+    };
+  }
+  if (form === 'root') {
+    return {
+      shown: coefTex(a, '\\sqrt{x}'),
+      indexForm: coefTex(a, 'x^{1/2}'),
+      integrated: coefTex((2 * a) / 3, 'x^{3/2}'),
+    };
+  }
+  if (form === 'rootTimes') {
+    return {
+      shown: coefTex(a, 'x\\sqrt{x}'),
+      indexForm: coefTex(a, 'x^{3/2}'),
+      integrated: coefTex((2 * a) / 5, 'x^{5/2}'),
+    };
+  }
+  return {
+    shown: `\\frac{${a}}{\\sqrt{x}}`,
+    indexForm: coefTex(a, 'x^{-1/2}'),
+    integrated: coefTex(2 * a, 'x^{1/2}'),
+  };
 }
 
 /**
@@ -351,38 +396,34 @@ interface RewriteParams {
  */
 const rewritePower: Generator<RewriteParams> = {
   id: 'int-rewrite-power',
+  /**
+   * Difficulty picks the *case*, not the size of the numbers, because the two
+   * cases belong to different lessons: negative whole indices are taught in
+   * "Negative Powers" and fractional ones a lesson later in "Roots and
+   * Fractional Powers". A question drawn from the wrong half would be asking
+   * about something the learner has not met yet.
+   */
   sample: (rng, difficulty) => {
-    const form = rng.pick(['fraction', 'root', 'rootUnder'] as const);
-    if (form === 'fraction') {
-      const n = rng.int(2, difficulty > 1 ? 6 : 4);
-      return { form, a: rng.int(1, difficulty > 1 ? 8 : 5) * (n - 1), n };
+    if (difficulty === 1) {
+      const n = rng.int(2, 6);
+      // a x^{-n} integrates to -a/(n-1) x^{-(n-1)}, so a is a multiple of n-1.
+      return { form: 'fraction' as const, a: rng.int(1, 8) * (n - 1), n };
     }
+    const form = rng.pick(['root', 'rootUnder', 'rootTimes'] as const);
     if (form === 'root') {
       // a x^{1/2} integrates to (2a/3) x^{3/2}, so a is a multiple of 3.
-      return { form, a: rng.int(1, difficulty > 1 ? 8 : 5) * 3, n: 0 };
+      return { form, a: rng.int(1, 8) * 3, n: 0 };
+    }
+    if (form === 'rootTimes') {
+      // a x^{3/2} integrates to (2a/5) x^{5/2}, so a is a multiple of 5.
+      return { form, a: rng.int(1, 8) * 5, n: 0 };
     }
     // a x^{-1/2} integrates to 2a x^{1/2}, whole for every a.
-    return { form, a: rng.int(2, difficulty > 1 ? 12 : 8), n: 0 };
+    return { form, a: rng.int(2, 12), n: 0 };
   },
-  render: ({ form, a, n }): Slide => {
-    const shown =
-      form === 'fraction'
-        ? `\\frac{${a}}{x^{${n}}}`
-        : form === 'root'
-          ? coefTex(a, '\\sqrt{x}')
-          : `\\frac{${a}}{\\sqrt{x}}`;
-    const indexForm =
-      form === 'fraction'
-        ? `${coefTex(a, `x^{-${n}}`)}`
-        : form === 'root'
-          ? `${coefTex(a, 'x^{1/2}')}`
-          : `${coefTex(a, 'x^{-1/2}')}`;
-    const integrated =
-      form === 'fraction'
-        ? termTex(-a / (n - 1), -(n - 1))
-        : form === 'root'
-          ? `${coefTex((2 * a) / 3, 'x^{3/2}')}`
-          : `${coefTex(2 * a, 'x^{1/2}')}`;
+  render: (params): Slide => {
+    const { form, a, n } = params;
+    const { shown, indexForm, integrated } = rewritePieces(params);
     const answer = [indexForm, integrated];
     return {
       kind: 'tiles',
@@ -392,19 +433,24 @@ const rewritePower: Generator<RewriteParams> = {
       ),
       template: '\\int {0} \\, dx = {1} + C',
       bank: bankOf(answer, [
-        // The index left positive, which is the whole reason for the step.
+        // The index left the way round it was written, which is the whole
+        // reason for the rewrite.
         form === 'fraction' ? coefTex(a, `x^{${n}}`) : coefTex(a, 'x^{-1/2}'),
         // Raised without dividing, and divided without raising.
         form === 'fraction'
           ? coefTex(a, `x^{-${n - 1}}`)
           : form === 'root'
             ? coefTex(a, 'x^{3/2}')
-            : coefTex(a, 'x^{1/2}'),
+            : form === 'rootTimes'
+              ? coefTex(a, 'x^{5/2}')
+              : coefTex(a, 'x^{1/2}'),
         form === 'fraction'
           ? termTex(a / (n - 1), -(n + 1))
           : form === 'root'
             ? coefTex((2 * a) / 3, 'x^{1/2}')
-            : coefTex(2 * a, 'x^{3/2}'),
+            : form === 'rootTimes'
+              ? coefTex((2 * a) / 5, 'x^{3/2}')
+              : coefTex(2 * a, 'x^{3/2}'),
         // The sign of the new index dropped.
         form === 'fraction' ? termTex(a / (n - 1), n - 1) : coefTex(a, 'x^{-3/2}'),
       ]),
@@ -438,6 +484,19 @@ const rewritePower: Generator<RewriteParams> = {
         },
       ];
     }
+    if (form === 'rootTimes') {
+      return [
+        { text: '$x$ multiplied by its own square root adds the indices: $1 + \\frac{1}{2}$.' },
+        { tex: `${coefTex(a, 'x\\sqrt{x}')} = ${coefTex(a, 'x^{3/2}')}` },
+        {
+          text: `Adding one to $\\frac{3}{2}$ gives $\\frac{5}{2}$, and dividing by $\\frac{5}{2}$ multiplies by $\\frac{2}{5}$: $${a} \\times \\frac{2}{5} = ${(2 * a) / 5}$.`,
+        },
+        { tex: `\\int ${coefTex(a, 'x^{3/2}')} \\, dx = ${coefTex((2 * a) / 5, 'x^{5/2}')} + C` },
+        {
+          text: 'Nothing about $\\frac{5}{2}$ is harder than $\\frac{3}{2}$; the arithmetic of the fraction is the whole of the difficulty, and writing the division out handles it.',
+        },
+      ];
+    }
     return [
       { text: 'A root underneath a fraction is a negative fractional power, and both negatives have to survive the rewrite.' },
       { tex: `\\frac{${a}}{\\sqrt{x}} = ${coefTex(a, 'x^{-1/2}')}` },
@@ -457,6 +516,16 @@ interface RuleParams {
   a: number;
   n: number;
   kind: 'plain' | 'fraction' | 'root' | 'exp' | 'sin' | 'cos';
+  /**
+   * Whether the standard-results fork is part of the tree.
+   *
+   * "Negative Powers" asks this question two lessons before $e^{kx}$,
+   * $\sin(kx)$ and $\cos(kx)$ are taught, and a fork naming them would put
+   * three results the learner has never seen in front of them. At difficulty 1
+   * the tree therefore stops at the power rule and says so; at difficulty 2,
+   * where the level is complete, all three routes are live.
+   */
+  full: boolean;
 }
 
 /**
@@ -476,27 +545,30 @@ interface RuleParams {
 const whichRule: Generator<RuleParams> = {
   id: 'int-which-rule',
   sample: (rng, difficulty) => {
-    const route = rng.pick(['log', 'power', 'standard'] as const);
+    const full = difficulty > 1;
+    const route = full ? rng.pick(['log', 'power', 'standard'] as const) : rng.pick(['log', 'power'] as const);
     if (route === 'log') {
-      return { route, a: rng.int(1, difficulty > 1 ? 12 : 8), n: 1, kind: 'fraction' as const };
+      return { route, a: rng.int(1, full ? 12 : 9), n: 1, kind: 'fraction' as const, full };
     }
     if (route === 'power') {
       const kind = rng.pick(['plain', 'fraction', 'root'] as const);
       return {
         route,
-        a: rng.int(1, difficulty > 1 ? 9 : 6),
-        n: kind === 'fraction' ? rng.int(2, difficulty > 1 ? 6 : 4) : rng.int(2, difficulty > 1 ? 7 : 5),
+        a: rng.int(1, full ? 9 : 8),
+        n: kind === 'fraction' ? rng.int(2, full ? 6 : 5) : rng.int(2, full ? 7 : 6),
         kind,
+        full,
       };
     }
     return {
       route,
-      a: rng.int(1, difficulty > 1 ? 9 : 6),
-      n: rng.int(2, difficulty > 1 ? 8 : 5),
+      a: rng.int(1, 9),
+      n: rng.int(2, 8),
       kind: rng.pick(['exp', 'sin', 'cos'] as const),
+      full,
     };
   },
-  render: ({ route, a, n, kind }): Slide => {
+  render: ({ route, a, n, kind, full }): Slide => {
     const integrand =
       route === 'log'
         ? `\\frac{${a}}{x}`
@@ -532,17 +604,23 @@ const whichRule: Generator<RuleParams> = {
           ask: 'Can it be written as a power of $x$ at all — including a root, or a fraction turned upside down?',
           branches: [
             { label: 'Yes', outcome: 'Rewrite it as a power, then raise the index by one and divide by the new index.' },
-            { label: 'No', to: 'standard' },
+            full
+              ? { label: 'No', to: 'standard' }
+              : { label: 'No', outcome: 'Then the power rule cannot reach it, and neither can the logarithm. It needs one of the standard results still to come in this level.' },
           ],
         },
-        {
-          id: 'standard',
-          ask: 'Is it one of the three standard results — $e^{kx}$, $\\sin(kx)$ or $\\cos(kx)$?',
-          branches: [
-            { label: 'Yes', outcome: 'Use the standard result, and divide by the coefficient of $x$ inside the function.' },
-            { label: 'No', outcome: 'None of the level 1 results reaches it; it needs one of the techniques in level 3.' },
-          ],
-        },
+        ...(full
+          ? [
+              {
+                id: 'standard',
+                ask: 'Is it one of the three standard results — $e^{kx}$, $\\sin(kx)$ or $\\cos(kx)$?',
+                branches: [
+                  { label: 'Yes', outcome: 'Use the standard result, and divide by the coefficient of $x$ inside the function.' },
+                  { label: 'No', outcome: 'None of the level 1 results reaches it; it needs one of the techniques in level 3.' },
+                ],
+              },
+            ]
+          : []),
       ],
       answer: route === 'log' ? ['Yes'] : route === 'power' ? ['No', 'Yes'] : ['No', 'No', 'Yes'],
     };
@@ -949,25 +1027,25 @@ const areaSlider: Generator<AreaSliderParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The region under $y = ${termTex(gradient, 1)}$ starts at $x = 0$. Slide the upper limit to the value of $b$ that makes the area exactly $${area}$.`,
+          text: `Slide the upper limit $b$ until the region under $y = ${termTex(gradient, 1)}$, measured from the origin, has area exactly $${area}$.`,
         },
       ],
       min: 0,
-      max: 7,
+      max: 8,
       step: 1,
       answer,
       readout: 'b = {v}',
       figure: {
         svg: plotSvg({
           xMin: 0,
-          xMax: 7,
+          xMax: 8,
           yMin: 0,
-          yMax: gradient * 7,
+          yMax: gradient * 8,
           curves: [{ f: (x) => gradient * x }],
-          label: `The line y = ${gradient}x from x = 0 to x = 7`,
+          label: `The line y = ${gradient}x from x = 0 to x = 8`,
         }),
         xMin: 0,
-        xMax: 7,
+        xMax: 8,
         axis: 'x',
       },
     };

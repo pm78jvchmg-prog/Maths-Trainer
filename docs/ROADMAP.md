@@ -253,7 +253,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
-| A9 | Widen Integration | claimed (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
+| A9 | Widen Integration | done (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
 
@@ -262,6 +262,11 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 more than twice" rule, counted by family, catches **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
 empties both.
+
+Where those two lists stand today, which is the measure of phase A's progress:
+**39** lessons below three widget kinds and **85** asking one family more than
+twice, after A9 took all seventeen Integration lessons off both. `npm test`
+prints the current standing on every run, so re-read it rather than this line.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

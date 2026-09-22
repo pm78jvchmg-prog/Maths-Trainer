@@ -173,7 +173,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-power-tree', 2),
-            ask('int-check-answer', 2),
+            ask('int-check-answer'),
           ],
           skillCheck: [ask('int-power'), ask('int-power'), ask('int-power')],
         },
@@ -258,8 +258,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-power+choice', 2),
-            ask('int-power-tree', 2),
-            ask('int-rewrite-power', 2),
+            ask('int-check-answer', 2),
+            ask('int-rewrite-power'),
             teach(
               prose(
                 'So the complete picture is: every index goes through the power rule except $-1$, which goes to a logarithm.',
@@ -271,8 +271,8 @@ export const integration: Course = {
                 'Noticing that an index is $-1$ before starting saves a wasted attempt, so it is the first thing to check whenever an index is negative.',
               ),
             ),
-            ask('int-which-rule', 2),
-            ask('int-power-tree', 2),
+            ask('int-which-rule'),
+            ask('int-check-answer', 2),
           ],
           skillCheck: [ask('int-power', 2), ask('int-power', 2), ask('int-power', 2)],
         },
@@ -294,7 +294,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-root-power'),
-            ask('int-rewrite-power'),
+            ask('int-rewrite-power', 2),
             ask('int-power'),
             teach(
               prose(

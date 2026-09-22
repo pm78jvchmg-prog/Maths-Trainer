@@ -1147,8 +1147,11 @@ interface TreeParams {
 const logTree: Generator<TreeParams> = {
   id: 'log-tree',
   sample: (rng, difficulty) => {
+    // Indices of at least 2 throughout. A logarithm whose value is 1 is
+    // recognised rather than worked out, and two of those in a line of three
+    // leaves nothing to settle.
     const pool = (difficulty > 1 ? HARD_PAIRS : EASY_PAIRS).filter(
-      (pair) => pair.index >= 1 && pair.index <= 6,
+      (pair) => pair.index >= 2 && pair.index <= 6,
     );
     const a = rng.pick(pool);
     const b = rng.pick(pool);
@@ -1558,7 +1561,11 @@ const splitLogs: Generator<SplitParams> = {
       };
     }
     if (form === 'quotient') {
-      const top = m * n;
+      // One more than a multiple of the denominator, so the fraction does not
+      // cancel: a quotient that simplifies to a whole number invites the
+      // learner to simplify it and hands back a single logarithm, which is not
+      // what the question asked for.
+      const top = m * n + 1;
       return {
         kind: 'tiles',
         prompt: [
@@ -1597,7 +1604,7 @@ const splitLogs: Generator<SplitParams> = {
       ];
     }
     if (form === 'quotient') {
-      const top = m * n;
+      const top = m * n + 1;
       return [
         { text: 'A fraction inside a logarithm comes apart as a subtraction, top minus bottom.' },
         {
@@ -1768,9 +1775,13 @@ const decaySlider: Generator<DecayParams> = {
       curves: [{ f }],
       horizontals: [target],
       yMin: 0,
-      // Growth runs off the top of the window on purpose: fitting the whole
-      // curve would press the level being asked about flat against the axis.
-      yMax: direction === 'decay' ? start * 1.08 : target * 1.5,
+      // The window is built around the level being asked about, not around the
+      // whole curve, and both directions run off the top of it on purpose.
+      // Fitting a decay curve from its starting value presses the level flat
+      // against the axis, and the crossing — the thing the question is about —
+      // becomes unreadable. Drawn this way the curve passes through the middle
+      // of the picture and meets the dashed line where it can be seen.
+      yMax: target * 3,
       label: direction === 'decay' ? 'A quantity falling over time' : 'A quantity growing over time',
     });
     return {

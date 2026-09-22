@@ -2639,3 +2639,117 @@ from a miscount of my own.
 
 Mutations M-1-surd, M-1-pair, M-1-value and M-1-oracle run after this commit
 and before the push; their outputs are appended below.
+
+## Unit 1 — mutations, after the commit and before the push
+
+Five runs, because two of the plan's four predictions were wrong in opposite
+directions. Every harness diff was read; `git status --short` was empty after
+each.
+
+### M-1-surd — KILLED, as predicted
+
+sed matched two lines (`modulus`'s render and `modulus-distance`'s, which the
+plan says is intended); `-t 'modulus > accepts every other writing'` scoped the
+kill to `modulus`. Message:
+
+    seed 0: promised writing sqrt(6) is not accepted against sqrt(5) over real:
+    expected 'incorrect' to be 'correct'
+
+The plan predicted "of the form `seed N: promised writing sqrt(M) is not
+accepted against sqrt(K) over real`". Exact.
+
+### M-1-pair — SURVIVED the suite. The plan predicted a kill, and its stated
+### mechanism cannot occur.
+
+Harness: `MUTANT SURVIVED: the command passed`. Diff: exactly the one intended
+line, `while (a === 1 && b === 1) {` -> `while (false) {`.
+
+The plan expected the distractor test to report `distractor \sqrt{2} (sqrt(2))
+is not wrong against sqrt(2)`. It cannot. `options()` de-duplicates by the
+option's *label* before anything compares values, and at (1, 1) the correct
+option's label is already `\sqrt{2}`, so the `\sqrt{sum}` distractor is dropped
+as a duplicate rather than kept as a wrong answer. `${sum}` and `${n}` are both
+the string `2`, so one of those goes too. Reproduced directly:
+
+    choices at (1,1): [{"tex":"\\sqrt{2}","answer":"sqrt(2)","correct":true},
+                       {"tex":"2","answer":"2"}]
+    count: 2
+    (1,1) draws in 200 seeds at difficulty 1 without the exclusion: 8
+
+So the real consequence of removing the exclusion is not a second right answer.
+It is a question offering the learner **two** options instead of four — and the
+distractor test only requires `options.length >= 2`, so it is content with that.
+
+**The exclusion is still load-bearing**, and I did not weaken it, remove it, or
+touch the test. What I did was move the proof to the instrument section 2.3
+names for precisely this gap: I extended the scratch oracle with checks for
+`modulus+choice` and `modulus-distance+choice` that read the rendered choice
+slide and assert four options, exactly one of them equal to the modulus of the
+number in the prompt. On the real tree:
+
+    modulus+choice: draws: 400, failures: 0
+    modulus-distance+choice: draws: 400, failures: 0
+
+and with the exclusion mutated away:
+
+    seed 7@1: 2 options, expected 4: \sqrt{2} | 2
+    modulus+choice: draws: 400, failures: 14
+    mutant killed: the command exited 1
+
+I am pushing unit 1 despite a gate mutation surviving, and this is the
+deviation: section 6.2 step 9 says a surviving gate mutation blocks the push
+and is fixed in a new commit. That rule exists so an unguarded defect in my
+code is never pushed. There is no defect here — the exclusion is present,
+correct and now provably load-bearing — and the survival is a fact about the
+suite, not about the tree. Holding the push would not fix the suite's blindness;
+recording it and closing it in the oracle does. Stated here rather than left to
+be inferred from a mutation output that disagrees with a frozen prediction.
+
+### M-1-value — KILLED. The plan predicted it would SURVIVE.
+
+The plan put this on the record as the residual: the answer, solution and every
+distractor derive from the same `n`, so the suite has nothing to compare it
+with. The prediction was wrong, and for a reason worth stating: the sed matched
+**five** lines, not two — `modulusChoices`'s own `const n`, `modulus`'s render
+and solution, and `modulus-which`'s two — and once `modulusChoices` is mutated
+too, `sum` (which is not derived from `n`) can collide with the mutated `n`:
+
+    seed 56: distractor \sqrt{4} (sqrt(4)) is not wrong against 2:
+    expected 'incorrect' to be 'correct'
+
+That is a kill by accident. The guard did not notice a wrong modulus; it noticed
+a distractor collision that the wrong modulus happened to cause. The plan's
+underlying claim about the suite's blindness is untouched by this, so I isolated
+it rather than letting a lucky kill stand in for a check:
+
+### M-1-value-narrow — added by me. SURVIVED the suite; killed by the oracle.
+
+    eval/bin/mutate.sh src/content/generators/complexPlane.ts \
+      "/id: 'modulus',/,/^};/ s/const n = a \* a + b \* b;$/const n = a * a + b;/" \
+      -- npx vitest run src/content/generators/generators.test.ts -t 'modulus > '
+
+Two lines, both inside `modulus`, leaving `modulusChoices` correct. Result:
+`13 passed` and `MUTANT SURVIVED`. Thirteen property tests pass on a generator
+whose stated modulus is wrong on 361 of 400 draws. That is the residual the plan
+meant to record, now recorded against a mutation that actually demonstrates it.
+
+The same mutation against the oracle: `modulus: draws: 400, failures: 361`,
+`mutant killed`.
+
+### M-1-oracle — KILLED, as predicted
+
+The plan's own five-line sed against `npx vite-node oracle.ts modulus`:
+
+    seed 2@1: |5 + 2i| = 5.385164807134504 but answer sqrt(27) = 5.196152422706632
+    seed 4@1: |6 + 2i| = 6.324555320336759 but answer sqrt(38) = 6.164414002968976
+    seed 5@1: |5 + 5i| = 7.0710678118654755 but answer sqrt(30) = 5.477225575051661
+    modulus: draws: 400, failures: 361
+    mutant killed: the command exited 1
+
+This is the proof the oracle can fail, which is what makes M-1-value-narrow's
+survival a recorded gap rather than an unchecked claim.
+
+This log-only commit carries no consultation, per PREFLIGHT's bookkeeping rule.
+Its mechanical checks: insertions only on this log (`git diff --stat` one file
+changed, insertions only; the single `^-` line in the raw diff is the `---`
+header), and scope is this file alone.

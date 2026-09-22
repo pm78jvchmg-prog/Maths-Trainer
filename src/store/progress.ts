@@ -2,9 +2,10 @@
  * Progress, persisted on the device.
  *
  * Deliberately minimal: which lessons have been finished and how the skill
- * check went. No XP, no streak, no league — this is a single-player practice
- * tool, and a streak counter would only add a reason to feel bad about missing
- * a morning.
+ * check went. No XP and no league — this is a single-player practice tool. The
+ * daily streak is the one engagement mechanic, and it lives next door in
+ * `streak.ts` rather than here, so that finishing a lesson and keeping a run
+ * of days going stay separate concerns.
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';

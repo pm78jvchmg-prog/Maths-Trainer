@@ -1114,6 +1114,19 @@ button {
   background: var(--correct);
 }
 
+/* Marks earned, beside the lessons finished. Never shrinks either: the two
+   numbers together are the whole point of the row. */
+.mastery {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mastery.mastered {
+  color: var(--correct);
+}
+
 .back-link {
   padding: 8px 14px;
   margin-bottom: 4px;
@@ -1622,4 +1635,80 @@ button {
   height: 2px;
   margin-left: 0;
   margin-top: -1px;
+}
+
+/* A caption under the streak bar: what is left of the library, not what has
+   been accumulated. Quiet, because it is orientation rather than a score. */
+.library-line {
+  margin: -8px 0 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ---------- Daily streak ---------- */
+
+/* Sits above the category tabs on the home screen, and nowhere else: a
+   counter on every screen is the one part of the reference app deliberately
+   not copied. */
+.streak-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Fixed height so the bar does not grow the moment a streak starts and
+     shove the tab strip down the screen. */
+  min-height: 52px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.streak-flame {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Violet, not amber. The verdict colours are reserved, and a rose streak
+   counter on the home screen would read as a wrong answer. */
+.streak-count {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Holds the count and the label as one phrase for a screen reader, and as one
+   flex child so the charges stay pinned to the right. */
+.streak-said {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.streak-label {
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* Two slots, always both drawn, so the cap is visible rather than implied. */
+.streak-charges {
+  display: flex;
+  flex-shrink: 0;
+  gap: 5px;
+}
+
+.charge {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.charge.banked {
+  border-color: var(--accent);
+  background: var(--accent);
 }

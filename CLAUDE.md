@@ -115,11 +115,40 @@ per difficulty**. Widening a range is nearly always the right fix; where the
 stem is fixed and the pool is a word list, vary the phrasing too — otherwise a
 lesson reads as the same question five times even when no two are identical.
 
-This is a single-player personal tool. It deliberately has no XP, streaks,
-leagues, or multiplayer — do not add engagement mechanics. The reference app
-shows a running XP total on almost every screen; that is the one part of it
-which is deliberately **not** copied. A per-lesson score is fine, a persistent
-points total is not.
+This is a single-player personal tool. It deliberately has no XP, leagues, or
+multiplayer — do not add engagement mechanics. The reference app shows a
+running XP total on almost every screen; that is the one part of it which is
+deliberately **not** copied. A per-lesson score is fine, a persistent points
+total is not.
+
+The **daily streak** is the one exception, asked for by the owner. It lives in
+`src/store/streak.ts` and is shown on the home screen only, never on a lesson
+screen. It rises by one per consecutive local calendar day a lesson is
+finished, and starting a streak banks a *charge*; a charge is spent
+automatically to cover one missed day, and at most two are ever banked. Days
+are the device's local calendar days held as `'YYYY-MM-DD'`, not 24-hour
+windows, so two plays in one afternoon count once and 23:50 then 00:10 counts
+twice. `resolveStreak` is pure and is the only place a gap is interpreted, so
+what the home screen shows and what the next play builds on cannot drift; a
+charge is deducted only when the play that needed it is recorded, never by
+looking at the screen. That the streak is forgiving is the point — it should
+not become a reason to feel bad about missing a morning.
+
+**Topic mastery** replaces the XP the reference app runs on, and is the reason
+a points total is still refused. Solo there is no leaderboard to give a running
+score meaning, so `src/store/mastery.ts` measures *coverage and how well*
+instead: marks earned over marks available across a whole course, where a
+lesson offers its skill check's length and a level check offers its own. It is
+**derived, never stored** — computed from the progress records and the content
+as it stands today — which is what makes it fall back below 100% when lessons
+are added to a course that was finished, rather than freezing a number that was
+true about a smaller library. An old `bestCorrect` is capped against what the
+check offers now, or a check that has since shrunk scores 4 out of 3. A course
+counts as mastered at `MASTERED_AT` (90%); 100% would demand a perfect run of
+every skill check and so would never be reached. The home screen carries one
+quiet line ("6 of 30 topics started · 2 mastered") and each course card its
+percentage beside the lessons-finished count — the pair being the point, since
+you can finish every lesson in a course and still be some way off knowing it.
 
 ## Answer checking
 

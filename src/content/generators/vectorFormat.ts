@@ -50,6 +50,12 @@ export function bankOf(answer: string[], distractors: string[]): string[] {
   return [...answer, ...extras].sort();
 }
 
+/** Choice options with no two rendering the same label. */
+export function distinctOptions<T extends { label: string }>(options: T[]): T[] {
+  const seen = new Set<string>();
+  return options.filter((option) => (seen.has(option.label) ? false : (seen.add(option.label), true)));
+}
+
 /** A column vector. Safe inside a prompt, which is one whole TeX string. */
 export function columnTex(x: number, y: number): string {
   return `\\begin{pmatrix} ${x} \\\\ ${y} \\end{pmatrix}`;

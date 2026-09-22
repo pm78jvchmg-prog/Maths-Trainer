@@ -8,10 +8,12 @@
 import type { Generator, KeypadKey, Slide } from '../types';
 import { bin, num, pow, root } from '../expr';
 import { options } from '../choiceVariant';
+import { vectorSvg } from '../figures';
 import { ALGEBRA_KEYS } from './calculus';
 import {
   bankOf,
   columnTex,
+  distinctOptions,
   nonZero,
   signedChoices,
   signedOffer,
@@ -20,12 +22,6 @@ import {
 
 /** Magnitudes are surds. */
 const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
-
-/** Choice options with no two rendering the same label. */
-function distinctOptions<T extends { label: string }>(options: T[]): T[] {
-  const seen = new Set<string>();
-  return options.filter((option) => (seen.has(option.label) ? false : (seen.add(option.label), true)));
-}
 
 /** A vector in i, j form, for prose and solutions. */
 function ijTex(x: number, y: number): string {
@@ -431,6 +427,10 @@ interface PerpendicularParams {
  */
 const perpendicular: Generator<PerpendicularParams> = {
   id: 'vec-perpendicular-k',
+  // The sign is the whole of what goes wrong here: the scalar product is set
+  // to zero and the term carrying k moves across, so an answer with the right
+  // size and the wrong sign is the standard slip.
+  choices: ({ a, b, t }) => signedChoices(-a * t, [a * t, a * b * t, -b * t]),
   sample: (rng, difficulty) => ({
     a: nonZero(rng.int(difficulty > 1 ? -9 : 1, 9), 3),
     b: rng.int(1, difficulty > 1 ? 9 : 6),
@@ -608,6 +608,653 @@ const dotSteps: Generator<DotStepsParams> = {
   },
 };
 
+/* ---------- shapes added by roadmap batch A10 ---------- */
+
+interface NotationParams {
+  x: number;
+  y: number;
+  toColumn: boolean;
+}
+
+/**
+ * The two ways of writing the same vector.
+ *
+ * Worth asking on its own because every later question arrives in whichever
+ * notation its author preferred, and a learner who reads only one of them
+ * stalls on the translation rather than on the vectors.
+ */
+const notation: Generator<NotationParams> = {
+  id: 'vec-notation',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 12 : 8;
+    return {
+      x: nonZero(rng.int(-span, span), 3),
+      y: nonZero(rng.int(-span, span), -5),
+      toColumn: rng.pick([true, false]),
+    };
+  },
+  render: ({ x, y, toColumn }): Slide => {
+    const write = toColumn ? columnTex : ijTex;
+    const offered = distinctOptions([
+      { id: 'same', label: write(x, y), tex: true },
+      // The components read in the wrong order, the second sign dropped, and
+      // the first sign dropped: the three ways a translation goes wrong.
+      { id: 'swapped', label: write(y, x), tex: true },
+      { id: 'sign-j', label: write(x, -y), tex: true },
+      { id: 'sign-i', label: write(-x, y), tex: true },
+    ]);
+    const turn = (Math.abs(x) + Math.abs(y)) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: toColumn
+            ? `Which column vector is $${ijTex(x, y)}$?`
+            : `Which of these is $${columnTex(x, y)}$ written with $\\mathbf{i}$ and $\\mathbf{j}$?`,
+        },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'same',
+    };
+  },
+  solution: ({ x, y, toColumn }) => [
+    {
+      text: 'The column form and the $\\mathbf{i}$, $\\mathbf{j}$ form are the same object written two ways. The top entry is the $\\mathbf{i}$ component and the bottom entry is the $\\mathbf{j}$ component.',
+    },
+    { tex: `${columnTex(x, y)} = ${ijTex(x, y)}` },
+    {
+      text: toColumn
+        ? `So $${ijTex(x, y)}$ stacks up as $${columnTex(x, y)}$ — across on top, up underneath.`
+        : `So $${columnTex(x, y)}$ reads as $${ijTex(x, y)}$ — the top entry goes with $\\mathbf{i}$.`,
+    },
+    {
+      text: 'Writing them in the wrong order is the usual slip, and it gives a genuinely different vector unless the two components happen to be equal.',
+    },
+    {
+      text: `A sign belongs to its component, not to the whole vector: $${ijTex(x, -y)}$ points somewhere else entirely.`,
+    },
+  ],
+};
+
+interface JourneyParams {
+  mover: number;
+  e1: number;
+  n1: number;
+  e2: number;
+  n2: number;
+}
+
+/** How a leg of a journey reads in words. */
+function legText(east: number, north: number): string {
+  const across = `${Math.abs(east)} km ${east < 0 ? 'west' : 'east'}`;
+  const up = `${Math.abs(north)} km ${north < 0 ? 'south' : 'north'}`;
+  return `${across} and ${up}`;
+}
+
+const MOVERS = ['A walker', 'A drone', 'A cyclist', 'A boat', 'A delivery van'];
+
+/**
+ * A displacement built from two legs described in words.
+ *
+ * `vec-add` asks the same arithmetic from two column vectors already written
+ * down. The work this one adds is the part a learner actually meets first:
+ * turning "3 km west" into a negative first component, and noticing that the
+ * total is a single vector rather than a distance walked.
+ */
+const journey: Generator<JourneyParams> = {
+  id: 'vec-journey',
+  choices: ({ e1, n1, e2, n2 }) =>
+    options(
+      { tex: columnTex(e1 + e2, n1 + n2) },
+      // Both legs treated as distances, so every direction reads positive.
+      { tex: columnTex(Math.abs(e1) + Math.abs(e2), Math.abs(n1) + Math.abs(n2)) },
+      // The second leg subtracted rather than added.
+      { tex: columnTex(e1 - e2, n1 - n2) },
+      // Across and up swapped.
+      { tex: columnTex(n1 + n2, e1 + e2) },
+    ),
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 12 : 8;
+    return {
+      mover: rng.int(0, MOVERS.length - 1),
+      e1: nonZero(rng.int(-span, span), 4),
+      n1: nonZero(rng.int(-span, span), 3),
+      e2: nonZero(rng.int(-span, span), -2),
+      n2: nonZero(rng.int(-span, span), 5),
+    };
+  },
+  render: ({ mover, e1, n1, e2, n2 }) => {
+    const x = e1 + e2;
+    const y = n1 + n2;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${MOVERS[mover]} travels ${legText(e1, n1)}, then ${legText(e2, n2)}. Give the components of the total displacement, east first.`,
+        },
+      ],
+      template: VECTOR_TEMPLATE,
+      bank: bankOf(
+        [`${x}`, `${y}`],
+        // Distances added regardless of direction, and one leg subtracted.
+        [
+          `${Math.abs(e1) + Math.abs(e2)}`,
+          `${Math.abs(n1) + Math.abs(n2)}`,
+          `${e1 - e2}`,
+          `${n1 - n2}`,
+        ],
+      ),
+      answer: [`${x}`, `${y}`],
+    };
+  },
+  solution: ({ e1, n1, e2, n2 }) => [
+    {
+      text: 'West is the negative of east and south is the negative of north, so each leg becomes a vector before anything is added.',
+    },
+    { tex: `${columnTex(e1, n1)} \\quad \\text{then} \\quad ${columnTex(e2, n2)}` },
+    { tex: `${columnTex(e1, n1)} + ${columnTex(e2, n2)} = ${columnTex(e1 + e2, n1 + n2)}` },
+    {
+      text: `The displacement is $${ijTex(e1 + e2, n1 + n2)}$ — where the journey ended up relative to where it began, not how far was travelled.`,
+    },
+    {
+      text: `Adding the distances instead would give $${columnTex(Math.abs(e1) + Math.abs(e2), Math.abs(n1) + Math.abs(n2))}$, which is a different quantity: distance has no direction, so the two legs cannot cancel.`,
+    },
+  ],
+};
+
+interface ComponentParams {
+  x: number;
+  y: number;
+  span: number;
+}
+
+/**
+ * Reading a component off a drawn vector.
+ *
+ * The only question in this course that starts from a picture, and it asks
+ * *where* the component is rather than what arithmetic produces it — which is
+ * the thing a learner who has only ever seen the column form cannot do.
+ */
+const component: Generator<ComponentParams> = {
+  id: 'vec-component',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 8 : 6;
+    return {
+      x: nonZero(rng.int(-reach, reach), 3),
+      y: nonZero(rng.int(-reach, reach), 4),
+      span: reach + 1,
+    };
+  },
+  render: ({ x, y, span }): Slide => ({
+    kind: 'slider',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'The arrow is a vector drawn from the origin. Slide to its $\\mathbf{i}$ component — how far it reaches across.',
+      },
+    ],
+    min: -(span - 1),
+    max: span - 1,
+    step: 1,
+    answer: x,
+    readout: '\\mathbf{i}\\text{ component} = {v}',
+    figure: {
+      svg: vectorSvg(x, y, { span, drop: true, label: 'A vector drawn from the origin' }),
+      xMin: -span,
+      xMax: span,
+    },
+  }),
+  solution: ({ x, y }) => [
+    {
+      text: 'The $\\mathbf{i}$ component is how far the arrow reaches across, counted along the horizontal axis. The dashed line drops from the tip to the place to read.',
+    },
+    { tex: `${columnTex(x, y)} = ${ijTex(x, y)}` },
+    {
+      text: `It reaches ${Math.abs(x)} to the ${x < 0 ? 'left' : 'right'}, so the $\\mathbf{i}$ component is $${x}$.`,
+    },
+    {
+      text: `Reading the height instead gives $${y}$, which is the $\\mathbf{j}$ component. The vector has no position, so only the arrow's shape matters — the same arrow drawn elsewhere has the same components.`,
+    },
+  ],
+};
+
+interface ScalarKParams {
+  x: number;
+  y: number;
+  k: number;
+}
+
+/**
+ * The scalar hiding between two parallel vectors.
+ *
+ * `vec-parallel` asks which vector is a multiple; this asks what the multiple
+ * is, which is the form the skill takes in every later question — a point
+ * dividing a line, a resultant force, a direction vector scaled to a length.
+ */
+const scalarK: Generator<ScalarKParams> = {
+  id: 'vec-scalar-k',
+  choices: ({ k }) =>
+    options(
+      { tex: `${k}`, answer: `${k}` },
+      { tex: `${-k}`, answer: `${-k}` },
+      { tex: `${k * k}`, answer: `${k * k}` },
+      { tex: `\\frac{1}{${k}}`, answer: `1/(${k})` },
+    ),
+  sample: (rng, difficulty) => ({
+    x: nonZero(rng.int(difficulty > 1 ? -9 : 1, 9), 3),
+    y: nonZero(rng.int(difficulty > 1 ? -9 : -7, 9), -2),
+    // Never 1 or -1: the scalar and its reciprocal would then be the same
+    // option, leaving the question with two answers to choose between.
+    k: rng.pick(difficulty > 1 ? [-6, -5, -4, -3, -2, 2, 3, 4, 5, 6] : [2, 3, 4, 5, 6]),
+  }),
+  render: ({ x, y, k }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'These two vectors are parallel. Find the scalar that takes the first to the second.',
+      },
+    ],
+    lead: `${columnTex(k * x, k * y)} = k ${columnTex(x, y)} \\implies k =`,
+    keypad: [],
+    answer: `${k}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ x, y, k }) => [
+    {
+      text: 'One component is enough to find the scalar, because the *same* multiple has to work for both.',
+    },
+    { tex: `k \\times ${x} = ${k * x} \\implies k = \\frac{${k * x}}{${x}} = ${k}` },
+    { tex: `k \\times ${y} = ${k * y} \\implies k = \\frac{${k * y}}{${y}} = ${k}` },
+    {
+      text: 'The second component is the check. If the two answers disagree, the vectors are not parallel at all and there is no such scalar.',
+    },
+    {
+      text:
+        k < 0
+          ? `Here $k = ${k}$ is negative, so the second vector points the opposite way along the same line. That is still parallel.`
+          : `Here $k = ${k}$, so the second vector is ${k} times as long and points the same way.`,
+    },
+  ],
+};
+
+interface UnitParams {
+  x: number;
+  y: number;
+}
+
+/**
+ * The scalar that shrinks a vector to length one.
+ *
+ * Asked as "find k" rather than "write down the unit vector" because the
+ * checker grades scalars: a unit vector is a vector, and a typed answer that
+ * evaluates to one comes back indeterminate. See `vectorFormat.ts`.
+ */
+const unitScalar: Generator<UnitParams> = {
+  id: 'vec-unit',
+  choices: ({ x, y }) => {
+    const sq = x * x + y * y;
+    return options(
+      { tex: `\\frac{1}{\\sqrt{${sq}}}`, answer: `1/sqrt(${sq})` },
+      { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
+      { tex: `\\frac{1}{${sq}}`, answer: `1/${sq}` },
+      { tex: `\\frac{1}{${Math.abs(x) + Math.abs(y)}}`, answer: `1/${Math.abs(x) + Math.abs(y)}` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    // Difficulty 1 draws from the Pythagorean triples, so the magnitude is
+    // whole and the answer is a plain fraction. Difficulty 2 lets the surd
+    // stand, which is what an exam question does.
+    if (difficulty <= 1) {
+      const [a, b] = rng.pick(MAGNITUDE_TRIPLES);
+      return { x: rng.pick([a, -a]), y: rng.pick([b, -b]) };
+    }
+    return {
+      x: nonZero(rng.int(-9, 9), 2),
+      y: nonZero(rng.int(-9, 9), -6),
+    };
+  },
+  render: ({ x, y }) => {
+    const sq = x * x + y * y;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the positive scalar $k$ for which $k${columnTex(x, y)}$ has magnitude 1. Leave a surd in the answer if it does not simplify.`,
+        },
+      ],
+      lead: 'k =',
+      keypad: SURD_KEYS,
+      answer: `1/sqrt(${sq})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ x, y }) => {
+    const sq = x * x + y * y;
+    const size = Math.sqrt(sq);
+    const whole = Number.isInteger(size);
+    return [
+      {
+        text: 'Scaling multiplies the length by the scalar, so the scalar that lands on length 1 is one over the length the vector already has.',
+      },
+      { tex: `\\left| ${columnTex(x, y)} \\right| = \\sqrt{${x * x} + ${y * y}} = \\sqrt{${sq}}${whole ? ` = ${size}` : ''}` },
+      { tex: `k = \\frac{1}{\\sqrt{${sq}}}${whole ? ` = \\frac{1}{${size}}` : ''}` },
+      {
+        text: whole
+          ? `So $k = \\frac{1}{${size}}$, and $k${columnTex(x, y)} = ${columnTex(x / size, y / size)}$, which has length 1.`
+          : `$${sq}$ is not a perfect square, so $\\frac{1}{\\sqrt{${sq}}}$ is the exact answer. A decimal would be a rounded one.`,
+      },
+      {
+        text: 'The result is called a **unit vector**: same direction, length one. It is how a direction gets written down without a length attached to it.',
+      },
+    ];
+  },
+};
+
+interface DistanceParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+/**
+ * The distance between two points, which is the magnitude of one minus the
+ * other.
+ *
+ * The subtraction is the whole of the difficulty: a learner who reaches
+ * straight for Pythagoras on the two position vectors gets the distance from
+ * the origin to something that is not either point.
+ */
+const distance: Generator<DistanceParams> = {
+  id: 'vec-distance',
+  choices: ({ ax, ay, bx, by }) => {
+    const sq = (bx - ax) ** 2 + (by - ay) ** 2;
+    return options(
+      { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
+      // The components added rather than subtracted.
+      { tex: `\\sqrt{${(bx + ax) ** 2 + (by + ay) ** 2}}`, answer: `sqrt(${(bx + ax) ** 2 + (by + ay) ** 2})` },
+      { tex: `${sq}`, answer: `${sq}` },
+      { tex: `${Math.abs(bx - ax) + Math.abs(by - ay)}`, answer: `${Math.abs(bx - ax) + Math.abs(by - ay)}` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 11 : 7;
+    for (let tries = 0; tries < 40; tries += 1) {
+      const ax = rng.int(-span, span);
+      const ay = rng.int(-span, span);
+      const bx = rng.int(-span, span);
+      const by = rng.int(-span, span);
+      if (bx !== ax && by !== ay) return { ax, ay, bx, by };
+    }
+    return { ax: 1, ay: 2, bx: 4, by: 6 };
+  },
+  render: ({ ax, ay, bx, by }) => {
+    const sq = (bx - ax) ** 2 + (by - ay) ** 2;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$A$ is the point $(${ax}, ${ay})$ and $B$ is the point $(${bx}, ${by})$. Find the distance $AB$ exactly, leaving a surd if it does not simplify.`,
+        },
+      ],
+      lead: 'AB =',
+      keypad: SURD_KEYS,
+      answer: `sqrt(${sq})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ ax, ay, bx, by }) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const sq = dx * dx + dy * dy;
+    const size = Math.sqrt(sq);
+    return [
+      {
+        text: 'Find the vector from $A$ to $B$ first — destination minus start — and then take its magnitude.',
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(bx, by)} - ${columnTex(ax, ay)} = ${columnTex(dx, dy)}` },
+      { tex: `AB = \\sqrt{\\left(${dx}\\right)^{2} + \\left(${dy}\\right)^{2}} = \\sqrt{${sq}}${Number.isInteger(size) ? ` = ${size}` : ''}` },
+      {
+        text: 'Taking $A$ minus $B$ instead gives the vector pointing the other way, but the same distance — both components change sign and the squaring removes it.',
+      },
+      {
+        text: 'Reaching for Pythagoras on the coordinates without subtracting first measures from the origin, which is not what was asked.',
+      },
+    ];
+  },
+};
+
+interface AngleParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+/**
+ * The cosine of the angle between two vectors.
+ *
+ * Asked as a cosine rather than as an angle in degrees because the exact value
+ * is what the scalar product gives, and rounding to a whole number of degrees
+ * would either accept a wrong method or reject a right one.
+ */
+const angleBetween: Generator<AngleParams> = {
+  id: 'vec-angle',
+  choices: ({ ax, ay, bx, by }) => {
+    const dot = ax * bx + ay * by;
+    const sa = ax * ax + ay * ay;
+    const sb = bx * bx + by * by;
+    return options(
+      { tex: `\\frac{${dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}`, answer: `${dot}/(sqrt(${sa})*sqrt(${sb}))` },
+      // The magnitudes left squared, which is the common slip.
+      { tex: `\\frac{${dot}}{${sa} \\times ${sb}}`, answer: `${dot}/(${sa}*${sb})` },
+      { tex: `\\frac{${dot}}{${sa} + ${sb}}`, answer: `${dot}/(${sa}+${sb})` },
+      { tex: `\\frac{${-dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}`, answer: `${-dot}/(sqrt(${sa})*sqrt(${sb}))` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 8 : 5;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const ax = nonZero(rng.int(-span, span), 2);
+      const ay = nonZero(rng.int(-span, span), 3);
+      const bx = nonZero(rng.int(-span, span), -1);
+      const by = nonZero(rng.int(-span, span), 4);
+      // A zero dot product would make three of the four options agree, and
+      // the question it asks is better served by a perpendicular check.
+      if (ax * bx + ay * by !== 0) return { ax, ay, bx, by };
+    }
+    return { ax: 2, ay: 3, bx: -1, by: 4 };
+  },
+  render: ({ ax, ay, bx, by }) => {
+    const dot = ax * bx + ay * by;
+    const sa = ax * ax + ay * ay;
+    const sb = bx * bx + by * by;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\theta$ is the angle between ${`$${columnTex(ax, ay)}$`} and ${`$${columnTex(bx, by)}$`}. Find $\\cos\\theta$ exactly.`,
+        },
+      ],
+      lead: '\\cos\\theta =',
+      keypad: SURD_KEYS,
+      answer: `${dot}/(sqrt(${sa})*sqrt(${sb}))`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ ax, ay, bx, by }) => {
+    const dot = ax * bx + ay * by;
+    const sa = ax * ax + ay * ay;
+    const sb = bx * bx + by * by;
+    return [
+      {
+        text: 'The scalar product carries the angle: $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$. Rearranged, the cosine is the scalar product over the two magnitudes.',
+      },
+      { tex: `\\mathbf{a} \\cdot \\mathbf{b} = \\left(${ax}\\right)\\left(${bx}\\right) + \\left(${ay}\\right)\\left(${by}\\right) = ${dot}` },
+      { tex: `|\\mathbf{a}| = \\sqrt{${sa}} \\qquad |\\mathbf{b}| = \\sqrt{${sb}}` },
+      { tex: `\\cos\\theta = \\frac{${dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}` },
+      {
+        text:
+          dot < 0
+            ? 'The scalar product is negative, so the cosine is too and the angle is obtuse. The sign alone answers "are these pointing roughly the same way?" without any arithmetic.'
+            : 'The scalar product is positive, so the angle is acute. The sign alone answers "are these pointing roughly the same way?" without any arithmetic.',
+      },
+      {
+        text: 'Forgetting the square roots is the usual mistake, and it shows up immediately: a cosine cannot be outside $-1$ to $1$.',
+      },
+    ];
+  },
+};
+
+type MethodRoute = 'magnitude' | 'angle' | 'scale' | 'combine';
+
+interface MethodParams {
+  route: MethodRoute;
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  k: number;
+}
+
+/**
+ * Which tool a vector question calls for.
+ *
+ * Choosing the method is a skill the other widgets cannot ask about: a
+ * `choice` slide asking "which method?" gets a lucky guess a quarter of the
+ * time, and an answer box only ever grades the arithmetic that came after the
+ * choice was already made.
+ */
+const method: Generator<MethodParams> = {
+  id: 'vec-method',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 9 : 6;
+    return {
+      route: rng.pick(['magnitude', 'angle', 'scale', 'combine'] as const),
+      ax: nonZero(rng.int(-span, span), 3),
+      ay: nonZero(rng.int(-span, span), -4),
+      bx: nonZero(rng.int(-span, span), 5),
+      by: nonZero(rng.int(-span, span), 2),
+      k: nonZero(rng.int(2, 6), 3),
+    };
+  },
+  render: ({ route, ax, ay, bx, by, k }): Slide => {
+    const a = columnTex(ax, ay);
+    const b = columnTex(bx, by);
+    const subject =
+      route === 'magnitude'
+        ? `\\text{How long is } ${a} \\text{?}`
+        : route === 'angle'
+          ? `\\text{What angle is there between } ${a} \\text{ and } ${b} \\text{?}`
+          : route === 'scale'
+            ? `\\text{What is } ${k}${a} \\text{?}`
+            : `\\text{What is } ${a} + ${b} \\text{?}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to decide how you would answer this. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject,
+      steps: [
+        {
+          id: 'kind',
+          ask: 'Is the answer a number or a vector?',
+          branches: [
+            { label: 'A number', to: 'number' },
+            { label: 'A vector', to: 'vector' },
+          ],
+        },
+        {
+          id: 'number',
+          ask: 'Does it involve one vector or two?',
+          branches: [
+            { label: 'One', outcome: 'Use Pythagoras: the magnitude is $\\sqrt{x^{2} + y^{2}}$.' },
+            {
+              label: 'Two',
+              outcome: 'Use the scalar product: $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$.',
+            },
+          ],
+        },
+        {
+          id: 'vector',
+          ask: 'Does it involve one vector or two?',
+          branches: [
+            { label: 'One', outcome: 'Multiply every component by the scalar.' },
+            { label: 'Two', outcome: 'Combine them component by component.' },
+          ],
+        },
+      ],
+      answer:
+        route === 'magnitude'
+          ? ['A number', 'One']
+          : route === 'angle'
+            ? ['A number', 'Two']
+            : route === 'scale'
+              ? ['A vector', 'One']
+              : ['A vector', 'Two'],
+    };
+  },
+  solution: ({ route, ax, ay, bx, by, k }) => {
+    if (route === 'magnitude') {
+      const sq = ax * ax + ay * ay;
+      return [
+        {
+          text: 'A length is a single number, and it comes from one vector, so this is Pythagoras on the components.',
+        },
+        { tex: `\\left| ${columnTex(ax, ay)} \\right| = \\sqrt{${ax * ax} + ${ay * ay}} = \\sqrt{${sq}}` },
+        {
+          text: 'The signs disappear in the squaring, which is why a magnitude can never come out negative.',
+        },
+      ];
+    }
+    if (route === 'angle') {
+      const dot = ax * bx + ay * by;
+      return [
+        {
+          text: 'An angle is a number and it needs both vectors, which is exactly what the scalar product is for.',
+        },
+        { tex: `${columnTex(ax, ay)} \\cdot ${columnTex(bx, by)} = ${dot}` },
+        {
+          text: `Divide by the two magnitudes to get $\\cos\\theta$. The sign of $${dot}$ already says whether the angle is acute or obtuse.`,
+        },
+      ];
+    }
+    if (route === 'scale') {
+      return [
+        {
+          text: 'Multiplying by a number leaves a vector, built from one vector, so every component is multiplied.',
+        },
+        { tex: `${k}${columnTex(ax, ay)} = ${columnTex(k * ax, k * ay)}` },
+        {
+          text: 'Scaling only the top component is the characteristic error — a scalar has to reach both.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Adding two vectors gives a vector, and the two components never interact.',
+      },
+      { tex: `${columnTex(ax, ay)} + ${columnTex(bx, by)} = ${columnTex(ax + bx, ay + by)}` },
+      {
+        text: 'Tops with tops and bottoms with bottoms. There is no cross term anywhere in vector addition.',
+      },
+    ];
+  },
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -617,4 +1264,12 @@ export const vectorGenerators = [
   perpendicular,
   parallel,
   dotSteps,
+  notation,
+  journey,
+  component,
+  scalarK,
+  unitScalar,
+  distance,
+  angleBetween,
+  method,
 ] as unknown as Generator<unknown>[];

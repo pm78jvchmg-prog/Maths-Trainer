@@ -167,6 +167,68 @@ export function plotSvg(options: PlotOptions): string {
   return parts.join('');
 }
 
+/**
+ * A vector drawn as an arrow from the origin, on squared paper.
+ *
+ * Square and to scale, unlike `plotSvg`: a vector is a direction as much as a
+ * pair of numbers, and a figure whose axes ran at different scales would show
+ * the wrong direction. So the caller gives one `span` and both axes use it.
+ *
+ * Nothing is inset from the edge either, because the slider widget positions
+ * its marker as a fraction of the picture's width and knows nothing about the
+ * drawing inside. Mapping -span to the left edge exactly is what lets the
+ * handle line up with the arrow. The arrow stays clear of the edge because the
+ * caller keeps `span` above the components it draws.
+ */
+export function vectorSvg(
+  x: number,
+  y: number,
+  opts: { span: number; label?: string; drop?: boolean },
+): string {
+  const { span, drop = false } = opts;
+  const SIZE = 220;
+  const unit = SIZE / (2 * span);
+  const sx = (v: number) => (SIZE / 2 + v * unit).toFixed(1);
+  const sy = (v: number) => (SIZE / 2 - v * unit).toFixed(1);
+
+  const parts = [
+    `<svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" role="img" aria-label="${opts.label ?? 'A vector drawn on axes'}">`,
+  ];
+
+  // One grid line per unit, so a component can be counted off rather than
+  // estimated — which is the whole question this figure is drawn for.
+  for (let i = -span + 1; i <= span - 1; i += 1) {
+    parts.push(
+      `<line x1="${sx(i)}" y1="0" x2="${sx(i)}" y2="${SIZE}" stroke="currentColor" stroke-width="0.5" opacity="0.15" />`,
+      `<line x1="0" y1="${sy(i)}" x2="${SIZE}" y2="${sy(i)}" stroke="currentColor" stroke-width="0.5" opacity="0.15" />`,
+    );
+  }
+  parts.push(
+    `<line x1="0" y1="${sy(0)}" x2="${SIZE}" y2="${sy(0)}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+    `<line x1="${sx(0)}" y1="0" x2="${sx(0)}" y2="${SIZE}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+  );
+
+  if (drop) {
+    parts.push(
+      `<line x1="${sx(x)}" y1="${sy(y)}" x2="${sx(x)}" y2="${sy(0)}" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity="0.5" />`,
+    );
+  }
+
+  // The shaft, then two short lines back from the tip for the head. Drawn from
+  // the tip's own direction so the head follows the arrow round.
+  const angle = Math.atan2(-y, x);
+  const head = (turn: number) =>
+    `<line x1="${sx(x)}" y1="${sy(y)}" x2="${(Number(sx(x)) - 11 * Math.cos(angle + turn)).toFixed(1)}" y2="${(Number(sy(y)) - 11 * Math.sin(angle + turn)).toFixed(1)}" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />`;
+  parts.push(
+    `<line x1="${sx(0)}" y1="${sy(0)}" x2="${sx(x)}" y2="${sy(y)}" class="plot-accent" stroke="currentColor" stroke-width="2.5" />`,
+    head(0.4),
+    head(-0.4),
+  );
+
+  parts.push('</svg>');
+  return parts.join('');
+}
+
 /** The curve y = ax^2 + bx + c. */
 export function quadratic(a: number, b: number, c: number) {
   return (x: number) => a * x * x + b * x + c;

@@ -4,8 +4,9 @@ import { differentiation } from './differentiation';
 import { exponentsRadicals } from './exponentsRadicals';
 import { integration } from './integration';
 import { logarithms } from './logarithms';
+import { matrices } from './matrices';
 import { quadratics } from './quadratics';
-import { vectorsAndMatrices } from './vectors';
+import { vectors } from './vectors';
 import { trigonometricFunctions } from './trigonometricFunctions';
 
 /**
@@ -32,7 +33,7 @@ export const categories: Category[] = [
     id: 'advanced-maths',
     title: 'Advanced Maths',
     blurb: 'Derivatives, complex numbers, and the machinery behind them.',
-    courses: [complexNumbers, differentiation, integration, vectorsAndMatrices],
+    courses: [complexNumbers, differentiation, integration, vectors, matrices],
   },
 ];
 

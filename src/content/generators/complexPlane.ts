@@ -1232,6 +1232,427 @@ export const powerReverse: Generator<ReverseParams> = {
   },
 };
 
+/* ---------- Which quadrant? ---------- */
+
+interface QuadrantParams { re: number; im: number }
+
+/**
+ * Where a number sits, decided from the signs alone.
+ *
+ * This is the step the argument questions skip over. `\arctan(b/a)` gives the
+ * same number for a point and for its opposite, so which quadrant the point is
+ * in is what decides whether the answer needs $\pi$ adding to it — and a
+ * learner who has only met the formula loses half the plane.
+ *
+ * Walking the fork twice, once per component, is the habit worth building;
+ * a `choice` slide offering four quadrants would be a one-in-four guess with
+ * no reason attached.
+ */
+export const quadrant: Generator<QuadrantParams> = {
+  id: 'quadrant',
+  sample: (rng, difficulty) => {
+    const span = difficulty >= 2 ? 9 : 6;
+    return { re: nonZero(rng, span), im: nonZero(rng, span) };
+  },
+  render: ({ re, im }) => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Work down the questions to place this number. Each answer chooses what gets asked next.',
+      },
+    ],
+    subject: `z = ${complexTex(re, im)}`,
+    steps: [
+      {
+        id: 'real',
+        ask: 'Is the real part positive?',
+        branches: [
+          { label: 'Yes', to: 'right' },
+          { label: 'No', to: 'left' },
+        ],
+      },
+      {
+        id: 'right',
+        ask: 'Is the imaginary part positive?',
+        branches: [
+          { label: 'Yes', outcome: 'Top right. The argument is between $0$ and $\\tfrac{\\pi}{2}$.' },
+          { label: 'No', outcome: 'Bottom right. The argument is between $-\\tfrac{\\pi}{2}$ and $0$.' },
+        ],
+      },
+      {
+        id: 'left',
+        ask: 'Is the imaginary part positive?',
+        branches: [
+          { label: 'Yes', outcome: 'Top left. The argument is between $\\tfrac{\\pi}{2}$ and $\\pi$.' },
+          { label: 'No', outcome: 'Bottom left. The argument is between $-\\pi$ and $-\\tfrac{\\pi}{2}$.' },
+        ],
+      },
+    ],
+    answer: [re > 0 ? 'Yes' : 'No', im > 0 ? 'Yes' : 'No'],
+  }),
+  solution: ({ re, im }) => [
+    {
+      text: `The real part is $${re}$ and the imaginary part is $${im}$, so the point is ${re > 0 ? 'right' : 'left'} of the imaginary axis and ${im > 0 ? 'above' : 'below'} the real one.`,
+      tex: `${complexTex(re, im)} \\rightarrow (${re},\\ ${im})`,
+    },
+    {
+      text: `That puts it ${re > 0 ? (im > 0 ? 'top right' : 'bottom right') : im > 0 ? 'top left' : 'bottom left'}.`,
+    },
+    {
+      text: `$\\arctan\\left(\\tfrac{${im}}{${re}}\\right)$ always answers between $-\\tfrac{\\pi}{2}$ and $\\tfrac{\\pi}{2}$, so it can only ever name a point on the right-hand half. The quadrant is what tells you whether $\\pi$ has to be added.`,
+    },
+  ],
+};
+
+/* ---------- The modulus of a product ---------- */
+
+interface ModulusProductParams { a: number; b: number; c: number; d: number }
+
+/**
+ * $|zw| = |z||w|$, without finding $zw$ first.
+ *
+ * Multiplying the two out and then taking the modulus gets the same answer
+ * after four times the work, and the point of the rule is that the work is not
+ * needed. Sampling keeps the parts small so the arithmetic never becomes the
+ * difficulty: the largest radicand reachable is $32 \times 32$.
+ */
+export const modulusProduct: Generator<ModulusProductParams> = {
+  id: 'modulus-product',
+  choices: ({ a, b, c, d }) => {
+    const n1 = a * a + b * b;
+    const n2 = c * c + d * d;
+    // The two moduli added rather than multiplied, the root forgotten
+    // altogether, and the answer doubled.
+    return options(
+      { tex: surdTex(n1 * n2), answer: surdAnswer(n1 * n2) },
+      { tex: surdTex(n1 + n2), answer: surdAnswer(n1 + n2) },
+      { tex: `${n1 * n2}`, answer: `${n1 * n2}` },
+      { tex: surdTex(4 * n1 * n2), answer: surdAnswer(4 * n1 * n2) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty >= 2 ? 4 : 3;
+    const draw = () => rng.int(1, span) * (difficulty >= 2 ? rng.sign() : 1);
+    return { a: draw(), b: draw(), c: draw(), d: draw() };
+  },
+  render: ({ a, b, c, d }) => {
+    const n1 = a * a + b * b;
+    const n2 = c * c + d * d;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$z = ${complexTex(a, b)}$ and $w = ${complexTex(c, d)}$. What is $|zw|$?`,
+        },
+      ],
+      lead: '|zw| =',
+      keypad: SQRT_KEYS,
+      answer: surdAnswer(n1 * n2),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, c, d }) => {
+    const n1 = a * a + b * b;
+    const n2 = c * c + d * d;
+    return [
+      {
+        text: 'Take each modulus on its own first.',
+        tex: `|z| = ${surdTex(n1)}, \\qquad |w| = ${surdTex(n2)}`,
+      },
+      {
+        text: 'The modulus of a product is the product of the moduli — stretching by one factor and then the other stretches by the two together.',
+        tex: `|zw| = |z| \\times |w| = ${surdTex(n1)} \\times ${surdTex(n2)} = ${surdTex(n1 * n2)}`,
+      },
+      {
+        text: `Expanding $zw$ first and then taking its modulus lands on the same $${surdTex(n1 * n2)}$ after four times the work. Adding the moduli instead would give $${surdTex(n1 + n2)}$, which is the slip worth naming.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Both square roots ---------- */
+
+interface SqrtPairParams { p: number; q: number; bank: string[] }
+
+/**
+ * A complex number has two square roots, and they differ by a sign.
+ *
+ * `complex-sqrt` asks for the one with a positive real part, which is a
+ * question about a convention as much as about the method. Asking for the pair
+ * puts the fact itself in view: $(-w)^2 = w^2$ here for the same reason it
+ * does over the reals, so finding one root has already found the other.
+ */
+export const sqrtPair: Generator<SqrtPairParams> = {
+  id: 'sqrt-pair',
+  sample: (rng, difficulty) => {
+    const p = rng.int(1, difficulty >= 2 ? 7 : 6);
+    const q = nonZero(rng, difficulty >= 2 ? 6 : 4);
+    const bank = rng.shuffle([
+      complexTex(p, q),
+      complexTex(-p, -q),
+      complexTex(p, -q),
+      complexTex(-p, q),
+      complexTex(Math.abs(q), p),
+    ]);
+    return { p, q, bank };
+  },
+  render: ({ p, q, bank }) => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Give both square roots of $z$.' },
+        { kind: 'display', tex: `z = ${complexTex(x, y)}` },
+      ],
+      template: `\\sqrt{z} = {0} \\text{ or } {1}`,
+      bank,
+      answer: [complexTex(p, q), complexTex(-p, -q)],
+      unordered: true,
+    };
+  },
+  solution: ({ p, q }) => {
+    const x = p * p - q * q;
+    const y = 2 * p * q;
+    return [
+      {
+        text: 'Match real and imaginary parts against $(a + bi)^2 = (a^2 - b^2) + 2ab\\,i$.',
+        tex: `a^2 - b^2 = ${x}, \\qquad 2ab = ${y}`,
+      },
+      { text: 'One pair that fits is:', tex: `a = ${p}, \\quad b = ${q}` },
+      {
+        text: 'And the other root is its negative, because squaring destroys the sign.',
+        tex: `(${complexTex(-p, -q)})^2 = (${complexTex(p, q)})^2 = ${complexTex(x, y)}`,
+      },
+      {
+        text: `The conjugate $${complexTex(p, -q)}$ is *not* a square root here — it squares to $${complexTex(x, -y)}$ instead.`,
+      },
+    ];
+  },
+};
+
+/* ---------- The argument, found by dragging ---------- */
+
+/** The argument of `ANGLES[i]`, counted in eighths of a full turn. */
+const QUARTER_TURNS = [0, 1, 2, 3, 4, -3, -2, -1];
+
+interface TurnsParams { index: number; scale: number }
+
+/**
+ * The argument as a position rather than a value.
+ *
+ * `argument` asks the learner to name the angle, which a table of eight rows
+ * can be memorised for. This asks where it *is*, in eighths of a turn from the
+ * positive real axis, with the point drawn beside the track — the thing the
+ * table is a shorthand for and the thing that decides whether a remembered
+ * answer is the right one.
+ *
+ * The range stops at $-\tfrac{3\pi}{4}$ rather than $-\pi$, because $-\pi$ and
+ * $\pi$ are the same direction and only $\pi$ is the principal argument. A
+ * slider offering both would have two handles for one answer and mark one of
+ * them wrong.
+ */
+export const argumentTurns: Generator<TurnsParams> = {
+  id: 'argument-turns',
+  sample: (rng, difficulty) => ({
+    index: rng.int(0, ANGLES.length - 1),
+    scale: difficulty >= 2 ? rng.int(1, 8) : rng.int(1, 5),
+  }),
+  render: ({ index, scale }) => {
+    const angle = ANGLES[index];
+    const re = angle.re * scale;
+    const im = angle.im * scale;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Slide to the argument of the marked number, counted in eighths of a turn.',
+        },
+        { kind: 'diagram', svg: complexPlaneSvg(rangeFor(re, im), [{ re, im, highlight: true }]) },
+      ],
+      min: -3,
+      max: 4,
+      step: 1,
+      answer: QUARTER_TURNS[index],
+      readout: '\\arg z = {v} \\times \\tfrac{\\pi}{4}',
+    };
+  },
+  solution: ({ index, scale }) => {
+    const angle = ANGLES[index];
+    const turns = QUARTER_TURNS[index];
+    return [
+      {
+        text: 'Find the direction first, then count eighths of a turn anticlockwise from the positive real axis.',
+        tex: `z = ${complexTex(angle.re * scale, angle.im * scale)}`,
+      },
+      {
+        text: `That is ${turns === 0 ? 'no turn at all' : `${Math.abs(turns)} eighth${Math.abs(turns) === 1 ? '' : 's'} of a turn ${turns > 0 ? 'anticlockwise' : 'clockwise'}`}.`,
+        tex: `\\arg z = ${turns} \\times \\tfrac{\\pi}{4} = ${angle.tex}`,
+      },
+      {
+        text: `Scaling by $${scale}$ moved the point further out without rotating it, so the argument did not change.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Multiplying in modulus-argument form ---------- */
+
+/** Angle numerators available over each denominator, taken from `POLAR_ANGLES`. */
+const ANGLE_GROUPS: { d: number; ks: number[] }[] = [
+  { d: 6, ks: [1, 5, -1, -5] },
+  { d: 4, ks: [1, 3, -1, -3] },
+  { d: 3, ks: [1, 2, -1, -2] },
+];
+
+interface PolarMultiplyParams { d: number; k1: number; k2: number; r1: number; r2: number; bank: string[] }
+
+/**
+ * Moduli multiply, arguments add — the rule De Moivre's theorem is the
+ * repeated case of.
+ *
+ * Both halves are asked at once and placed separately, because the two are
+ * independent and mixing them up is the characteristic error: multiplying the
+ * arguments, or adding the moduli, each look reasonable on their own and
+ * neither survives being written beside the other.
+ */
+export const polarMultiply: Generator<PolarMultiplyParams> = {
+  id: 'polar-multiply',
+  sample: (rng, difficulty) => {
+    const group = rng.pick(ANGLE_GROUPS);
+    const k1 = rng.pick(group.ks);
+    const k2 = rng.pick(group.ks);
+    const top = difficulty >= 2 ? 6 : 4;
+    const r1 = rng.int(2, top);
+    const r2 = rng.int(2, top);
+    const d = group.d;
+    const sum = principal(k1 + k2, d);
+    const candidates = [
+      `${r1 * r2}`,
+      angleTex(sum, d),
+      `${r1 + r2}`,
+      angleTex(principal(k1 * k2, d), d),
+      angleTex(k1 + k2, d),
+      angleTex(principal(k1 - k2, d), d),
+    ];
+    return { d, k1, k2, r1, r2, bank: rng.shuffle([...new Set(candidates)]) };
+  },
+  render: ({ d, k1, k2, r1, r2, bank }) => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$z$ has modulus $${r1}$ and argument $${angleTex(k1, d)}$. $w$ has modulus $${r2}$ and argument $${angleTex(k2, d)}$.`,
+      },
+      { kind: 'prose', text: 'Give the modulus and the principal argument of $zw$.' },
+    ],
+    template: `|zw| = {0}, \\qquad \\arg(zw) = {1}`,
+    bank,
+    answer: [`${r1 * r2}`, angleTex(principal(k1 + k2, d), d)],
+  }),
+  solution: ({ d, k1, k2, r1, r2 }) => {
+    const raw = angleTex(k1 + k2, d);
+    const reduced = angleTex(principal(k1 + k2, d), d);
+    const steps: SolutionStep[] = [
+      {
+        text: 'Multiplying stretches by one modulus and then the other, so the moduli multiply.',
+        tex: `|zw| = ${r1} \\times ${r2} = ${r1 * r2}`,
+      },
+      {
+        text: 'And it turns by one argument and then the other, so the arguments add.',
+        tex: `\\arg(zw) = ${paren(angleTex(k1, d))} + ${paren(angleTex(k2, d))} = ${raw}`,
+      },
+    ];
+    if (raw !== reduced) {
+      steps.push({
+        text: 'That is outside $(-\\pi, \\pi]$, so take a whole turn off. The direction is unchanged; only the label is.',
+        tex: `${raw} ${k1 + k2 > 0 ? '-' : '+'} 2\\pi = ${reduced}`,
+      });
+    }
+    steps.push({
+      text: `Multiplying the arguments instead would give $${angleTex(principal(k1 * k2, d), d)}$, and adding the moduli $${r1 + r2}$ — both plausible, both wrong.`,
+    });
+    return steps;
+  },
+};
+
+/* ---------- The argument of a power, reduced in two stages ---------- */
+
+interface PowerArgumentParams { d: number; k: number; n: number; bank: string[] }
+
+/**
+ * $\arg(z^n) = n\arg(z)$, and then the part everyone drops: bringing it back
+ * into $(-\pi, \pi]$.
+ *
+ * `polar-power` asks for the finished answer, so a learner who multiplies
+ * correctly and forgets to reduce simply gets it wrong with no sign of where.
+ * Here both stages are placed, which says which of the two went missing — and
+ * sampling insists a reduction is genuinely needed, or the second blank would
+ * be the first one copied out.
+ */
+export const powerArgument: Generator<PowerArgumentParams> = {
+  id: 'power-argument',
+  sample: (rng, difficulty) => {
+    const groups = [...ANGLE_GROUPS, { d: 2, ks: [1, -1] }];
+    for (let tries = 0; tries < 60; tries += 1) {
+      const group = groups[rng.int(0, groups.length - 1)];
+      const k = rng.pick(group.ks);
+      const n = rng.int(2, difficulty >= 2 ? 7 : 5);
+      const d = group.d;
+      const raw = angleTex(n * k, d);
+      const reduced = angleTex(principal(n * k, d), d);
+      if (raw === reduced) continue;
+      const candidates = [
+        raw,
+        reduced,
+        angleTex(principal(-n * k, d), d),
+        angleTex(k, d),
+        angleTex(n * k + 2 * d, d),
+      ];
+      const bank = [...new Set(candidates)];
+      if (bank.length < 3) continue;
+      return { d, k, n, bank: rng.shuffle(bank) };
+    }
+    // Reached only if 60 draws all collide, which no group above allows.
+    return { d: 4, k: 3, n: 2, bank: ['\\tfrac{3\\pi}{2}', '-\\tfrac{\\pi}{2}', '\\tfrac{\\pi}{2}', '\\tfrac{3\\pi}{4}'] };
+  },
+  render: ({ d, k, n, bank }) => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$z$ has argument $${angleTex(k, d)}$. Fill in both stages of $\\arg(z^${n})$.`,
+      },
+    ],
+    // `z^{n}` is deliberately written without braces: the tiles template reads
+    // `{n}` as a blank marker, so a braced single-digit power would vanish.
+    template: `${n} \\arg(z) = {0}, \\qquad \\arg(z^${n}) = {1}`,
+    bank,
+    answer: [angleTex(n * k, d), angleTex(principal(n * k, d), d)],
+  }),
+  solution: ({ d, k, n }) => {
+    const m = principal(n * k, d);
+    const turns = (n * k - m) / (2 * d);
+    return [
+      {
+        text: "De Moivre's theorem multiplies the argument by the power.",
+        tex: `\\arg(z^${n}) = ${n} \\times ${paren(angleTex(k, d))} = ${angleTex(n * k, d)}`,
+      },
+      {
+        text: 'That is past the ends of $(-\\pi, \\pi]$, so remove whole turns until it lands inside.',
+        tex: `${angleTex(n * k, d)} ${turns > 0 ? '-' : '+'} ${Math.abs(turns) === 1 ? '' : `${Math.abs(turns)} \\times `}2\\pi = ${angleTex(m, d)}`,
+      },
+      {
+        text: `Both name the same direction; only $${angleTex(m, d)}$ is the principal argument, and it is the one a marker expects.`,
+      },
+    ];
+  },
+};
+
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
@@ -1249,4 +1670,10 @@ export const planeGenerators = [
   polarForm,
   polarPower,
   complexSqrt,
+  quadrant,
+  modulusProduct,
+  sqrtPair,
+  argumentTurns,
+  polarMultiply,
+  powerArgument,
 ];

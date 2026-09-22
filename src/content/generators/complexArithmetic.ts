@@ -413,6 +413,267 @@ export const powersOfI: Generator<PowerParams> = {
   ],
 };
 
+/* ---------- Squaring ---------- */
+
+interface SquareParams { a: number; b: number }
+
+/**
+ * $(a + bi)^2$, which is a special case of the FOIL above and yet the one
+ * people get wrong far more often.
+ *
+ * The reason is that the square of a bracket invites the answer "square each
+ * part", and with real numbers that is at least visibly wrong; here $a^2 +
+ * b^2 i$ looks like a complex number and passes inspection. Asking it as its
+ * own question makes the cross term the subject rather than a detail of a
+ * longer expansion.
+ */
+export const complexSquare: Generator<SquareParams> = {
+  id: 'complex-square',
+  choices: ({ a, b }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    // Each part squared on its own, i^2 left as +1, and the cross term
+    // counted once instead of twice.
+    return options(
+      opt(a * a - b * b, 2 * a * b),
+      opt(a * a, b * b),
+      opt(a * a + b * b, 2 * a * b),
+      opt(a * a - b * b, a * b),
+    );
+  },
+  sample: (rng, difficulty) => ({
+    a: nonZero(rng, difficulty >= 2 ? 8 : 5),
+    b: nonZero(rng, difficulty >= 2 ? 8 : 5),
+  }),
+  render: ({ a, b }) => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Expand $(${complexTex(a, b)})^2$.` }],
+    lead: `(${complexTex(a, b)})^2 =`,
+    keypad: I_KEY,
+    answer: complexAnswer(a * a - b * b, 2 * a * b),
+    domain: 'complex',
+    mode: 'exact',
+  }),
+  solution: ({ a, b }) => [
+    {
+      text: 'A squared bracket is still two brackets, so the cross term appears twice.',
+      tex: `(${complexTex(a, b)})^2 = ${paren(`${a}`)}^2 + 2 \\cdot ${paren(`${a}`)}\\cdot ${paren(coeffTex(b))} + ${paren(coeffTex(b))}^2`,
+    },
+    {
+      text: 'The last term carries $i^2 = -1$, so it lands in the real part with its sign turned over.',
+      tex: `${paren(coeffTex(b))}^2 = ${b * b}i^2 = ${-(b * b)}`,
+    },
+    {
+      text: 'Collect what is left.',
+      tex: complexTex(a * a - b * b, 2 * a * b),
+    },
+    {
+      text: `Squaring the two parts separately would give $${complexTex(a * a, b * b)}$ — wrong in both components, and it looks perfectly reasonable.`,
+    },
+  ],
+};
+
+/* ---------- Multiplying by i is a quarter turn ---------- */
+
+/** The grid the plane widget draws, matching every other plane question. */
+const PLANE_RANGE = 4;
+
+interface TurnParams { re: number; im: number; clockwise: boolean }
+
+/**
+ * What multiplication by $i$ *does*, asked on the plane rather than in
+ * symbols.
+ *
+ * $i(a + bi) = -b + ai$ is one line of algebra and says nothing; watching the
+ * point swing a quarter turn about the origin is the fact worth carrying, and
+ * it is what makes $i^4 = 1$ obvious later. The answer is a tap, so the
+ * learner has to know where the point went, not how to write it down.
+ */
+export const multiplyByI: Generator<TurnParams> = {
+  id: 'multiply-by-i',
+  sample: (rng, difficulty) => {
+    const draw = () =>
+      difficulty < 2 ? rng.int(1, PLANE_RANGE) * rng.sign() : rng.int(-PLANE_RANGE, PLANE_RANGE);
+    let re = draw();
+    let im = draw();
+    while (re === 0 && im === 0) {
+      re = draw();
+      im = draw();
+    }
+    return { re, im, clockwise: difficulty >= 2 && rng.chance(0.5) };
+  },
+  render: ({ re, im, clockwise }) => ({
+    kind: 'plot',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Plot $${clockwise ? '-' : ''}iz$, where $z = ${complexTex(re, im)}$.`,
+      },
+    ],
+    range: PLANE_RANGE,
+    // i(a + bi) = -b + ai; -i(a + bi) = b - ai.
+    answer: clockwise ? { re: im, im: -re } : { re: -im, im: re },
+  }),
+  solution: ({ re, im, clockwise }) => {
+    const [x, y] = clockwise ? [im, -re] : [-im, re];
+    return [
+      {
+        text: 'Multiply out, and remember the $i^2$ in the second term.',
+        tex: `${clockwise ? '-' : ''}i(${complexTex(re, im)}) = ${complexTex(x, y)}`,
+      },
+      {
+        text: `The real and imaginary parts have swapped and one of them changed sign. On the plane that is a quarter turn about the origin, ${clockwise ? 'clockwise' : 'anticlockwise'}.`,
+      },
+      {
+        text: 'Four of those turns bring the point back where it started, which is $i^4 = 1$ drawn rather than calculated.',
+      },
+    ];
+  },
+};
+
+/* ---------- z plus and minus its conjugate ---------- */
+
+interface ConjSumParams { a: number; b: number; subtract: boolean }
+
+/**
+ * $z + \overline{z}$ and $z - \overline{z}$.
+ *
+ * Both are ways of pulling one component out of a complex number without
+ * looking at it: the sum keeps twice the real part and kills the imaginary,
+ * and the difference does the reverse. That is the idea behind the conjugate
+ * trick in division, and it is easier to see here, where there is no fraction
+ * in the way.
+ */
+export const conjugateSum: Generator<ConjSumParams> = {
+  id: 'conjugate-sum',
+  choices: ({ a, b, subtract }) => {
+    if (subtract) {
+      // The i dropped, the subtraction taken the other way round, and the
+      // "they cancel" answer that the sum would give.
+      return options(
+        { tex: coeffTex(2 * b), answer: complexAnswer(0, 2 * b) },
+        { tex: `${2 * b}`, answer: `${2 * b}` },
+        { tex: coeffTex(-2 * b), answer: complexAnswer(0, -2 * b) },
+        { tex: '0', answer: '0' },
+      );
+    }
+    return options(
+      { tex: `${2 * a}`, answer: `${2 * a}` },
+      { tex: '0', answer: '0' },
+      { tex: `${a}`, answer: `${a}` },
+      { tex: complexTex(2 * a, 2 * b), answer: complexAnswer(2 * a, 2 * b) },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    a: nonZero(rng, difficulty >= 2 ? 9 : 6),
+    b: nonZero(rng, difficulty >= 2 ? 9 : 6),
+    subtract: rng.chance(0.5),
+  }),
+  render: ({ a, b, subtract }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Let $z = ${complexTex(a, b)}$. What is $z ${subtract ? '-' : '+'} \\overline{z}$?`,
+      },
+    ],
+    lead: `z ${subtract ? '-' : '+'} \\overline{z} =`,
+    keypad: I_KEY,
+    answer: subtract ? complexAnswer(0, 2 * b) : `${2 * a}`,
+    domain: 'complex',
+    mode: 'exact',
+  }),
+  solution: ({ a, b, subtract }) => [
+    {
+      text: 'Write the conjugate out and line the two up.',
+      tex: `z = ${complexTex(a, b)}, \\quad \\overline{z} = ${complexTex(a, -b)}`,
+    },
+    subtract
+      ? {
+          text: 'Subtracting cancels the real parts and doubles the imaginary one.',
+          tex: `z - \\overline{z} = ${coeffTex(2 * b)}`,
+        }
+      : {
+          text: 'Adding cancels the imaginary parts and doubles the real one.',
+          tex: `z + \\overline{z} = ${2 * a}`,
+        },
+    {
+      text: subtract
+        ? 'So the difference is always purely imaginary, whatever $z$ was — the real part never survives it.'
+        : 'So the sum is always real, whatever $z$ was. This is the whole reason multiplying by a conjugate clears an $i$ out of a denominator.',
+    },
+  ],
+};
+
+/* ---------- Reciprocals ---------- */
+
+interface ReciprocalParams { c: number; d: number; bank: string[] }
+
+/**
+ * $1/z$ written as $a + bi$, assembled from tiles.
+ *
+ * The same method as `complex-divide` with the numerator taken away, which is
+ * what makes the denominator's job visible: $c^2 + d^2$ is the number
+ * everything ends up over, and the imaginary part is the only thing whose sign
+ * moves. The template says "minus" out loud so the question is which
+ * fractions go where, not whether a sign was noticed.
+ *
+ * `c` and `d` are coprime, which makes both fractions already in lowest terms:
+ * $\gcd(c,\, c^2 + d^2) = \gcd(c,\, d^2)$, so a shared factor is impossible.
+ * Without that a learner who simplifies correctly would find no tile to match.
+ */
+export const reciprocal: Generator<ReciprocalParams> = {
+  id: 'reciprocal',
+  sample: (rng, difficulty) => {
+    const top = difficulty >= 2 ? 9 : 6;
+    const gcd = (x: number, y: number): number => (y === 0 ? x : gcd(y, x % y));
+    let c = rng.int(1, top);
+    let d = rng.int(1, top);
+    while (c === d || gcd(c, d) !== 1) {
+      c = rng.int(1, top);
+      d = rng.int(1, top);
+    }
+    const n = c * c + d * d;
+    const bank = [
+      `\\tfrac{${c}}{${n}}`,
+      `\\tfrac{${d}}{${n}}`,
+      `\\tfrac{1}{${c}}`,
+      `\\tfrac{1}{${d}}`,
+      `\\tfrac{${d}}{${c}}`,
+    ];
+    return { c, d, bank: rng.shuffle([...new Set(bank)]) };
+  },
+  render: ({ c, d, bank }) => ({
+    kind: 'tiles',
+    prompt: [
+      { kind: 'prose', text: 'Write the reciprocal in the form $a - bi$, with $a$ and $b$ positive.' },
+      { kind: 'display', tex: `z = ${complexTex(c, d)}` },
+    ],
+    template: `z^{-1} = {0} - {1}i`,
+    bank,
+    answer: [`\\tfrac{${c}}{${c * c + d * d}}`, `\\tfrac{${d}}{${c * c + d * d}}`],
+  }),
+  solution: ({ c, d }) => {
+    const n = c * c + d * d;
+    return [
+      {
+        text: 'Multiply top and bottom by the conjugate of the denominator — the same move as any other division.',
+        tex: `\\dfrac{1}{${complexTex(c, d)}} \\times \\dfrac{${complexTex(c, -d)}}{${complexTex(c, -d)}}`,
+      },
+      {
+        text: 'The bottom becomes the sum of two squares, and the top is just the conjugate.',
+        tex: `= \\dfrac{${complexTex(c, -d)}}{${c}^2 + ${d}^2} = \\dfrac{${complexTex(c, -d)}}{${n}}`,
+      },
+      {
+        text: 'Split the fraction across the two parts.',
+        tex: `= \\tfrac{${c}}{${n}} - \\tfrac{${d}}{${n}}i`,
+      },
+      {
+        text: `So only the imaginary part changed sign. Note $${n} = |z|^2$ — every reciprocal lands over the square of the modulus.`,
+      },
+    ];
+  },
+};
+
 export const arithmeticGenerators = [
   complexMultiply,
   complexConjugate,
@@ -421,4 +682,8 @@ export const arithmeticGenerators = [
   divideReverse,
   divideWhichMultiplier,
   powersOfI,
+  complexSquare,
+  multiplyByI,
+  conjugateSum,
+  reciprocal,
 ];

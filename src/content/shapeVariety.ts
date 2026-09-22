@@ -54,11 +54,6 @@ export const MAX_PER_FAMILY = 2;
  * lessons, so this is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
-  'qd-l1-expand': 2,
-  'qd-l1-factorise': 2,
-  'qd-l1-squares': 2,
-  'qd-l1-coefficient': 2,
-  'qd-l2-solve': 2,
   'df-l1-index': 2,
   'df-l2-quotient': 2,
   'df-l3-roots': 2,
@@ -66,7 +61,7 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 9;
+export const WIDGET_KIND_CEILING = 4;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -76,21 +71,10 @@ export const WIDGET_KIND_CEILING = 9;
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
  * progress is measured. Exponents & Radicals left both lists in batch A3,
- * Logarithms in A5, Complex Numbers in A7, Integration in A9 and Vectors &
- * Matrices in A10.
+ * Quadratics in A4, Logarithms in A5, Complex Numbers in A7, Trigonometric
+ * Functions in A8, Integration in A9 and Vectors & Matrices in A10.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'qd-l1-expand': 7,
-  'qd-l1-factorise': 7,
-  'qd-l1-squares': 7,
-  'qd-l1-coefficient': 7,
-  'qd-l2-solve': 7,
-  'qd-l2-square': 7,
-  'qd-l2-formula': 5,
-  'qd-l2-discriminant': 4,
-  'qd-l3-symmetry': 5,
-  'qd-l3-turning': 5,
-  'qd-l3-roots': 4,
   'df-l1-power': 5,
   'df-l1-sums': 5,
   'df-l1-index': 6,
@@ -105,4 +89,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 22;
+export const GENERATOR_REPETITION_CEILING = 11;

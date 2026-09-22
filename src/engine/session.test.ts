@@ -576,6 +576,19 @@ describe('slider grading', () => {
     expect(answerWith('four').feedback.kind).toBe('incorrect');
   });
 
+  it('does not read an empty answer as zero', () => {
+    // `Number('')` is 0, and an untouched handle leaves the answer empty — so
+    // on a question whose answer is 0 an untouched slider would score.
+    const atZero: Lesson = {
+      ...sliderLesson,
+      id: 'slider-zero',
+      skillCheck: [{ type: 'literal', slide: { ...sliderSlide, answer: 0 } }],
+    };
+    expect(answerWith('0', atZero).feedback.kind).toBe('correct');
+    expect(answerWith('', atZero).feedback.kind).toBe('incorrect');
+    expect(answerWith(' ', atZero).feedback.kind).toBe('incorrect');
+  });
+
   it('honours an explicit tolerance', () => {
     const loose: Lesson = {
       ...sliderLesson,

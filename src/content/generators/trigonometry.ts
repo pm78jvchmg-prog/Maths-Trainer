@@ -1424,6 +1424,799 @@ const pythagorean: Generator<IdentityParams> = {
   },
 };
 
+/* ---------- Widening the decks: more shapes for the same skills ---------- */
+
+/**
+ * The answer's tokens, plus a guaranteed number of distractors, in numeric
+ * order.
+ *
+ * `sortedBank` above takes the distractors it is given and hopes at least one
+ * survives the overlap with the answer — which is fine where the distractors
+ * are angles from a table that cannot collide, and not fine where they are
+ * arithmetic on the question's own numbers. A midline of twice the amplitude
+ * makes `amplitude` equal the trough, and a bank whose every distractor
+ * happened to collide would leave the learner with nothing wrong to place.
+ * So the preferred slips are tried first and the shortfall is made up from
+ * values either side of the first answer.
+ */
+function bankAround(answer: string[], preferred: number[], extra = 3): string[] {
+  const taken = new Set(answer);
+  const out: string[] = [];
+  for (const value of preferred) {
+    if (out.length >= extra) break;
+    const token = String(value);
+    if (taken.has(token)) continue;
+    taken.add(token);
+    out.push(token);
+  }
+  const base = Number(answer[0]);
+  for (let step = 1; out.length < extra; step += 1) {
+    for (const candidate of [base + step, base - step]) {
+      if (out.length >= extra) break;
+      const token = String(candidate);
+      if (taken.has(token)) continue;
+      taken.add(token);
+      out.push(token);
+    }
+  }
+  return [...answer, ...out].sort((a, b) => Number(a) - Number(b));
+}
+
+/** Everyday events that recur, for questions about *when* rather than *how often*. */
+const REPEATING_EVENTS: { repeats: string; occurrence: string; unit: string }[] = [
+  { repeats: 'A lighthouse flashes', occurrence: 'flash', unit: 'seconds' },
+  { repeats: 'A bus leaves the stop', occurrence: 'departure', unit: 'minutes' },
+  { repeats: 'The tide reaches its highest', occurrence: 'high tide', unit: 'hours' },
+  { repeats: 'A piston returns to the top of its stroke', occurrence: 'return', unit: 'seconds' },
+  { repeats: 'A seat on a Ferris wheel reaches the top', occurrence: 'arrival at the top', unit: 'seconds' },
+  { repeats: 'A valve on a bicycle wheel touches the road', occurrence: 'touch', unit: 'seconds' },
+  { repeats: 'A pendulum reaches the far side of its swing', occurrence: 'arrival', unit: 'seconds' },
+  { repeats: 'A wave crest reaches the harbour wall', occurrence: 'crest', unit: 'seconds' },
+  { repeats: 'A garden sprinkler passes the same flower bed', occurrence: 'pass', unit: 'seconds' },
+  { repeats: 'A metronome clicks', occurrence: 'click', unit: 'seconds' },
+];
+
+interface RepeatTimesParams {
+  index: number;
+  first: number;
+  period: number;
+}
+
+/**
+ * When does it happen again?
+ *
+ * The period questions all run the same way round — a graph is described and a
+ * number comes out. This runs the other way: the period is given and the
+ * learner has to *use* it, which is the thing a period is for. Three blanks in
+ * a row also make an off-by-one visible, because the mistake shows up in every
+ * one of them rather than in a single answer that is simply marked wrong.
+ */
+const repeatTimes: Generator<RepeatTimesParams> = {
+  id: 'trig-repeat-times',
+  sample: (rng, difficulty) => ({
+    index: rng.int(0, REPEATING_EVENTS.length - 1),
+    first: rng.int(1, difficulty > 1 ? 9 : 6),
+    period: rng.int(2, difficulty > 1 ? 11 : 8),
+  }),
+  render: ({ index, first, period }): Slide => {
+    const event = REPEATING_EVENTS[index];
+    const answer = [first + period, first + 2 * period, first + 3 * period].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${event.repeats} every $${period}$ ${event.unit}, and the first ${event.occurrence} is at $t = ${first}$. Fill in the times of the next three.`,
+        },
+      ],
+      template: 't = {0} \\qquad t = {1} \\qquad t = {2}',
+      bank: bankAround(answer, [first, period, first + 4 * period, first + period + 1]),
+      answer,
+    };
+  },
+  solution: ({ index, first, period }) => [
+    {
+      text: `Each ${REPEATING_EVENTS[index].occurrence} is $${period}$ after the one before it, so add the period on again and again.`,
+    },
+    {
+      tex: `${first} + ${period} = ${first + period} \\qquad ${first + period} + ${period} = ${first + 2 * period} \\qquad ${first + 2 * period} + ${period} = ${first + 3 * period}`,
+    },
+    {
+      text: `Every one of them is $${first} + ${period}n$ for a whole number $n$. Starting the count at $${first} + ${period}$ rather than at $${first}$ is the usual slip: the first one has already happened.`,
+    },
+  ],
+};
+
+/**
+ * Quantities sorted by why they do or do not have a period.
+ *
+ * Four lists rather than two, because "not periodic" hides two quite different
+ * failures — a quantity that never comes back at all, and one that comes back
+ * but not on a fixed cycle. A learner who has only met the first thinks
+ * "repeats" and "periodic" are the same word.
+ */
+const FLOW_SUBJECTS: Record<'periodic' | 'none' | 'uneven' | 'dying', string[]> = {
+  periodic: [
+    'the height of a seat on a turning Ferris wheel',
+    'the depth of water at a harbour wall through the tide',
+    'the voltage in a mains socket',
+    'the position of a piston in a running engine',
+    'the angle of a clock hand',
+    'the phase of the moon',
+    'the length of the day through the year',
+    'the brightness of a lighthouse beam from the shore',
+  ],
+  none: [
+    'the total distance a car has driven',
+    'the height of a child as they grow',
+    'the reading on an electricity meter',
+    'the age of a tree',
+    'the mileage on an odometer',
+    'the total rainfall recorded since January',
+    'the number of words written in a diary',
+    'the amount of sand that has fallen through an hourglass',
+  ],
+  uneven: [
+    'the number of people in a shop through a week',
+    'the rainfall in a town week by week',
+    'the height of a ball as it is dribbled by hand',
+    'the temperature outside minute by minute',
+    'the number of cars crossing a bridge each hour',
+    'the queue at a coffee counter during a day',
+    'the noise in a classroom over a morning',
+    'the speed of a car in city traffic',
+  ],
+  dying: [
+    'the height of a bouncing ball, bounce after bounce',
+    'the swing of a pendulum slowed by friction',
+    'the sound of a plucked guitar string fading',
+    'the ripple height after a stone is dropped in a pond',
+    'the bounce of a car on worn suspension',
+    'the wobble of a spun coin coming to rest',
+    'the shudder of a door after it is slammed',
+    'the vibration of a tuning fork dying away',
+  ],
+};
+
+interface PeriodicFlowParams {
+  route: 'periodic' | 'none' | 'uneven' | 'dying';
+  index: number;
+}
+
+/**
+ * Is this periodic, and if not, why not?
+ *
+ * `trig-is-periodic` asks the same question as a pick-one between two options,
+ * which a learner can get right by spotting the odd one out without ever
+ * saying what periodic means. Walking the tree makes them commit to a reason
+ * at each fork, and the two ways of failing to be periodic come out as two
+ * different routes rather than as one shrug.
+ */
+const periodicFlow: Generator<PeriodicFlowParams> = {
+  id: 'trig-periodic-flow',
+  sample: (rng) => {
+    const route = rng.pick(['periodic', 'none', 'uneven', 'dying'] as const);
+    return { route, index: rng.int(0, FLOW_SUBJECTS[route].length - 1) };
+  },
+  render: ({ route, index }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Work down the questions to decide whether this quantity has a period. Each answer chooses what gets asked next.',
+      },
+    ],
+    subject: `\\text{${FLOW_SUBJECTS[route][index]}}`,
+    steps: [
+      {
+        id: 'returns',
+        ask: 'Does it ever come back to a value it has already had?',
+        branches: [
+          { label: 'Yes, again and again', to: 'even' },
+          {
+            label: 'No, it only ever moves one way',
+            outcome: 'Not periodic. Nothing comes round again, so there is no period to measure.',
+          },
+        ],
+      },
+      {
+        id: 'even',
+        ask: 'Are the gaps between one return and the next always the same length?',
+        branches: [
+          { label: 'Yes, evenly spaced', to: 'forever' },
+          {
+            label: 'No, the gaps change',
+            outcome: 'It repeats, but not on a fixed cycle, so there is no single period.',
+          },
+        ],
+      },
+      {
+        id: 'forever',
+        ask: 'Does it keep repeating at the same size, or does it fade away?',
+        branches: [
+          {
+            label: 'It keeps going',
+            outcome: 'Periodic. The gap between one return and the next is its period.',
+          },
+          {
+            label: 'It fades away',
+            outcome: 'Not periodic. Each repeat is smaller than the last, so it never returns to the same value twice.',
+          },
+        ],
+      },
+    ],
+    answer:
+      route === 'none'
+        ? ['No, it only ever moves one way']
+        : route === 'uneven'
+          ? ['Yes, again and again', 'No, the gaps change']
+          : route === 'dying'
+            ? ['Yes, again and again', 'Yes, evenly spaced', 'It fades away']
+            : ['Yes, again and again', 'Yes, evenly spaced', 'It keeps going'],
+  }),
+  solution: ({ route, index }) => {
+    const subject = FLOW_SUBJECTS[route][index];
+    if (route === 'none') {
+      return [
+        { text: `Ask first whether ${subject} ever revisits a value. It does not — it only ever grows.` },
+        {
+          text: 'A quantity that never comes back cannot repeat, so the later questions about spacing never arise.',
+        },
+      ];
+    }
+    if (route === 'uneven') {
+      return [
+        { text: `${subject[0].toUpperCase()}${subject.slice(1)} does come back to earlier values, so the first answer is yes.` },
+        {
+          text: 'But the gaps between those returns are not the same length, and a period is a *fixed* gap. Repeating is not enough on its own.',
+        },
+      ];
+    }
+    if (route === 'dying') {
+      return [
+        { text: `${subject[0].toUpperCase()}${subject.slice(1)} returns at even intervals, so the first two answers are yes.` },
+        {
+          text: 'Each repeat is smaller than the last, though, so it never actually reaches the same value again. The timing repeats; the quantity does not.',
+        },
+      ];
+    }
+    return [
+      { text: `${subject[0].toUpperCase()}${subject.slice(1)} comes back to the same values, at evenly spaced intervals, and keeps doing so.` },
+      { text: 'All three answers are yes, so it is periodic and the gap between returns is its period.' },
+    ];
+  },
+};
+
+interface SwingParams {
+  amplitude: number;
+  midline: number;
+  fn: 'sin' | 'cos';
+}
+
+/**
+ * The peak, the trough, and the swing between them, as an evaluation tree.
+ *
+ * Midline and amplitude are taught as two separate readings and are then
+ * confused for the rest of the course, usually as "the amplitude is the
+ * distance from the bottom to the top". Laying the three values out as a tree
+ * puts the swing *underneath* the peak and the trough, so the doubling is
+ * something the learner builds rather than a rule to remember.
+ */
+const waveSwing: Generator<SwingParams> = {
+  id: 'trig-wave-swing',
+  sample: (rng, difficulty) => ({
+    amplitude: rng.int(1, difficulty > 1 ? 7 : 4),
+    midline: nonZeroInt(rng, difficulty > 1 ? -5 : 1, difficulty > 1 ? 8 : 6),
+    fn: rng.pick(['sin', 'cos'] as const),
+  }),
+  render: ({ amplitude, midline, fn }): Slide => {
+    const answer = [midline + amplitude, midline - amplitude, 2 * amplitude].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Fill the top row with the greatest value this wave reaches and then the least, and underneath them the full swing from one to the other.',
+        },
+      ],
+      expression: `y = ${amplitude}\\${fn}(x) ${signedTex(midline)}`,
+      nodes: [
+        { id: 'peak', from: [] },
+        { id: 'trough', from: [] },
+        { id: 'swing', from: ['peak', 'trough'] },
+      ],
+      bank: bankAround(answer, [amplitude, midline, midline + 2 * amplitude, amplitude - midline]),
+      answer,
+    };
+  },
+  solution: ({ amplitude, midline }) => [
+    {
+      text: `The wave swings $${amplitude}$ either side of its midline, and the midline is the $${midline}$ sitting outside the function.`,
+    },
+    {
+      tex: `${midline} + ${amplitude} = ${midline + amplitude} \\qquad ${midline} - ${amplitude} = ${midline - amplitude}`,
+    },
+    {
+      text: `The full swing is peak minus trough, which is $${2 * amplitude}$ — twice the amplitude, not the amplitude itself. That doubling is the one worth remembering: amplitude is measured from the middle, never from the bottom.`,
+    },
+  ],
+};
+
+/** Quantities with a natural high and low, for reading a swing backwards. */
+const SWING_CONTEXTS: { subject: string; unit: string }[] = [
+  { subject: 'The depth of water at a harbour wall', unit: 'metres' },
+  { subject: 'The height of a seat on a Ferris wheel', unit: 'metres' },
+  { subject: 'The temperature in a greenhouse over a day', unit: 'degrees' },
+  { subject: 'The height of a piston in an engine', unit: 'centimetres' },
+  { subject: 'The number of hours of daylight through the year', unit: 'hours' },
+  { subject: 'The reading on a swinging pressure gauge', unit: 'units' },
+];
+
+interface DescribeWaveParams {
+  index: number;
+  midline: number;
+  amplitude: number;
+}
+
+/**
+ * Midline and amplitude from the two extremes, in one question.
+ *
+ * `trig-midline` and `trig-amplitude` each ask half of this, and a learner who
+ * has just done both in a row can answer the second without rereading the
+ * question. Asking for both at once is where the two get told apart, because
+ * one bank has to supply an average and a half-difference and they are
+ * different numbers.
+ */
+const describeWave: Generator<DescribeWaveParams> = {
+  id: 'trig-describe-wave',
+  sample: (rng, difficulty) => ({
+    index: rng.int(0, SWING_CONTEXTS.length - 1),
+    midline: rng.int(difficulty > 1 ? -4 : 2, difficulty > 1 ? 14 : 10),
+    amplitude: rng.int(1, difficulty > 1 ? 7 : 5),
+  }),
+  render: ({ index, midline, amplitude }): Slide => {
+    const context = SWING_CONTEXTS[index];
+    const high = midline + amplitude;
+    const low = midline - amplitude;
+    const answer = [String(midline), String(amplitude)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${context.subject} is greatest at $${high}$ ${context.unit} and least at $${low}$ ${context.unit}. Fill in the midline it swings about and the amplitude it swings by.`,
+        },
+      ],
+      template: '\\text{midline: } y = {0} \\qquad \\text{amplitude} = {1}',
+      bank: bankAround(answer, [high, low, 2 * amplitude, high + low]),
+      answer,
+    };
+  },
+  solution: ({ midline, amplitude }) => [
+    { text: 'The midline is halfway between the two extremes, so average them.' },
+    {
+      tex: `\\frac{${midline + amplitude} + ${midline - amplitude}}{2} = ${midline}`,
+    },
+    { text: 'The amplitude is how far one extreme sits from that middle, which is half the gap between them.' },
+    {
+      tex: `\\frac{${midline + amplitude} - (${midline - amplitude})}{2} = ${amplitude}`,
+    },
+    {
+      text: `Using the whole gap of $${2 * amplitude}$ as the amplitude is the standard mistake, and it is exactly twice the answer.`,
+    },
+  ],
+};
+
+/** The four quarter turns, where both coordinates of the point are whole. */
+const QUARTER_TURNS: { degrees: number; sine: number; cosine: number }[] = [
+  { degrees: 0, sine: 0, cosine: 1 },
+  { degrees: 90, sine: 1, cosine: 0 },
+  { degrees: 180, sine: 0, cosine: -1 },
+  { degrees: 270, sine: -1, cosine: 0 },
+];
+
+interface CircleCoordsParams {
+  radius: number;
+  index: number;
+}
+
+/**
+ * Both coordinates of the turning point at once.
+ *
+ * `trig-sine-from-circle` and `trig-cosine-from-circle` ask for one at a time,
+ * and a learner can answer either by remembering which word goes with which
+ * function. Asking for the pair makes the trade visible: at a quarter turn one
+ * of them is the whole radius exactly when the other is nothing, which is the
+ * fact the two graphs are built out of.
+ *
+ * Quarter turns only, so both coordinates are whole and the question stays
+ * about the circle rather than about surds.
+ */
+const circleCoords: Generator<CircleCoordsParams> = {
+  id: 'trig-circle-coords',
+  sample: (rng, difficulty) => ({
+    radius: rng.int(1, difficulty > 1 ? 10 : 7) * 2,
+    index: rng.int(0, QUARTER_TURNS.length - 1),
+  }),
+  render: ({ radius, index }): Slide => {
+    const turn = QUARTER_TURNS[index];
+    const answer = [String(radius * turn.sine), String(radius * turn.cosine)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A point starts at the far right of a circle of radius $${radius}$ centred on the origin and turns anticlockwise through $${turn.degrees}^{\\circ}$. Fill in its height above the centre and its displacement to the right of it.`,
+        },
+      ],
+      template: '\\text{height} = {0} \\qquad \\text{displacement} = {1}',
+      bank: bankAround(answer, [radius, -radius, radius / 2, -radius / 2]),
+      answer,
+    };
+  },
+  solution: ({ radius, index }) => {
+    const turn = QUARTER_TURNS[index];
+    return [
+      {
+        text: `The height is $${radius}\\sin(\\theta)$ and the displacement is $${radius}\\cos(\\theta)$, so put $\\theta = ${turn.degrees}^{\\circ}$ into both.`,
+      },
+      {
+        tex: `${radius}\\sin(${turn.degrees}^{\\circ}) = ${radius * turn.sine} \\qquad ${radius}\\cos(${turn.degrees}^{\\circ}) = ${radius * turn.cosine}`,
+      },
+      {
+        text: 'At a quarter turn the point sits on an axis, so one coordinate is the whole radius and the other is nothing. Which is which is the whole difference between the two functions.',
+      },
+    ];
+  },
+};
+
+interface HeightStepsParams {
+  radius: number;
+  degrees: number;
+  twice: number;
+  fn: 'sin' | 'cos';
+}
+
+/**
+ * The height of the turning point, worked out one operation at a time.
+ *
+ * The typed version of this question takes the trig value and the
+ * multiplication in one go, so a learner who multiplies the angle by the
+ * radius gets marked wrong with no indication of where it went astray.
+ * Splitting it shows the order: the function is applied to the angle first,
+ * and only its *value* meets the radius.
+ */
+const heightSteps: Generator<HeightStepsParams> = {
+  id: 'trig-height-steps',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const angle =
+      fn === 'sin'
+        ? (() => {
+            const picked = rng.pick(SINE_ANGLES);
+            return { degrees: picked.degrees, twice: picked.twiceSine };
+          })()
+        : (() => {
+            const picked = rng.pick(COSINE_ANGLES);
+            return { degrees: picked.degrees, twice: picked.twiceCosine };
+          })();
+    return { radius: rng.int(1, difficulty > 1 ? 9 : 6) * 2, fn, ...angle };
+  },
+  render: ({ radius, degrees, twice, fn }): Slide => {
+    const value = twice / 2;
+    const total = (radius * twice) / 2;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A point on a wheel of radius $${radius}$ has turned through $${degrees}^{\\circ}$. Work out its ${fn === 'sin' ? 'height above the centre' : 'displacement to the right of the centre'}, one step at a time.`,
+        },
+      ],
+      start: [`${radius}`, '\\times', `\\${fn}(${degrees}^{\\circ})`],
+      reductions: [
+        {
+          span: [2, 3],
+          value: `${value}`,
+          bank: ['-1', '-0.5', '0', '0.5', '1'],
+        },
+        {
+          span: [0, 3],
+          value: `${total}`,
+          bank: bankAround([`${total}`], [radius, -total, radius / 2, degrees]),
+        },
+      ],
+    };
+  },
+  solution: ({ radius, degrees, twice, fn }) => [
+    {
+      text: `The $\\${fn}$ is applied to the angle, so settle it before anything else touches it.`,
+    },
+    { tex: `\\${fn}(${degrees}^{\\circ}) = ${twice / 2}` },
+    { text: 'That value is a plain number, and it is what the radius multiplies.' },
+    { tex: `${radius} \\times ${twice / 2} = ${(radius * twice) / 2}` },
+    {
+      text: `Multiplying the radius by the angle instead would give $${radius * degrees}$, which is not a length on a circle of radius $${radius}$ at all.`,
+    },
+  ],
+};
+
+interface EvaluateTreeParams {
+  a: number;
+  b: number;
+  degrees: number;
+  degrees2: number;
+  fn: 'sin' | 'cos';
+  fn2: 'sin' | 'cos';
+}
+
+/**
+ * A two-term expression, each term settled before they are added.
+ *
+ * The same arithmetic as `trig-evaluate-exact`, laid out rather than tapped:
+ * the two products sit side by side on the top row with the total underneath,
+ * so what has to happen before the addition is a shape rather than a rule.
+ * Quadrantal angles only, so every value on the tree is whole.
+ */
+const evaluateTree: Generator<EvaluateTreeParams> = {
+  id: 'trig-evaluate-tree',
+  sample: (rng, difficulty) => ({
+    a: rng.int(2, difficulty > 1 ? 9 : 6),
+    b: rng.int(2, difficulty > 1 ? 9 : 6),
+    degrees: rng.pick(QUADRANT_ANGLES),
+    degrees2: rng.pick(QUADRANT_ANGLES),
+    fn: rng.pick(['sin', 'cos'] as const),
+    fn2: rng.pick(['sin', 'cos'] as const),
+  }),
+  render: ({ a, b, degrees, degrees2, fn, fn2 }): Slide => {
+    const left = a * exactValue(fn, degrees);
+    const right = b * exactValue(fn2, degrees2);
+    const answer = [left, right, left + right].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Fill the top row with the value of each term, in the order they are written, and their total underneath.',
+        },
+      ],
+      expression: `${a}\\${fn}(${degrees}^{\\circ}) + ${b}\\${fn2}(${degrees2}^{\\circ})`,
+      nodes: [
+        { id: 'left', from: [] },
+        { id: 'right', from: [] },
+        { id: 'total', from: ['left', 'right'] },
+      ],
+      bank: bankAround(answer, [a, b, a + b, left - right]),
+      answer,
+    };
+  },
+  solution: ({ a, b, degrees, degrees2, fn, fn2 }) => {
+    const v1 = exactValue(fn, degrees);
+    const v2 = exactValue(fn2, degrees2);
+    return [
+      {
+        text: 'At a quarter turn and its multiples every sine and cosine is $0$, $1$ or $-1$, so each trig value is a small whole number.',
+      },
+      {
+        tex: `\\${fn}(${degrees}^{\\circ}) = ${v1} \\qquad \\${fn2}(${degrees2}^{\\circ}) = ${v2}`,
+      },
+      { text: 'Each term is settled on its own before the two are added.' },
+      {
+        tex: `${a} \\times ${v1} = ${a * v1} \\qquad ${b} \\times ${v2} = ${b * v2} \\qquad ${a * v1} + ${b * v2} = ${a * v1 + b * v2}`,
+      },
+      {
+        text: `Adding the two coefficients first would give $${a + b}$ multiplied by something, which is a different number whenever the two trig values differ.`,
+      },
+    ];
+  },
+};
+
+/** Angles spread round the circle, so the sign question has more than four answers. */
+const SIGN_ANGLES = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+
+interface QuadrantFlowParams {
+  degrees: number;
+  fn: 'sin' | 'cos';
+}
+
+/**
+ * Is this value positive, negative or zero?
+ *
+ * Sign is where the circle definition earns its keep, and it is also where the
+ * mnemonics take over: a learner who has memorised a quadrant chart can get
+ * the answer without ever picturing the point. The tree asks the two questions
+ * the chart is a shorthand for — which coordinate is this, and where is the
+ * point — so the answer comes from the picture rather than from the chart.
+ */
+const quadrantFlow: Generator<QuadrantFlowParams> = {
+  id: 'trig-quadrant-flow',
+  sample: (rng) => ({
+    degrees: rng.pick(SIGN_ANGLES),
+    fn: rng.pick(['sin', 'cos'] as const),
+  }),
+  render: ({ degrees, fn }): Slide => {
+    const first = fn === 'sin' ? 'Its height above or below the centre' : 'Its displacement to one side of the centre';
+    const second =
+      fn === 'sin'
+        ? degrees === 0 || degrees === 180
+          ? 'Exactly level with it'
+          : degrees < 180
+            ? 'Above it'
+            : 'Below it'
+        : degrees === 90 || degrees === 270
+          ? 'Directly above or below it'
+          : degrees < 90 || degrees > 270
+            ? 'To the right of it'
+            : 'To the left of it';
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Picture the point after turning $${degrees}^{\\circ}$ anticlockwise from the far right of the circle, then work down the questions.`,
+        },
+      ],
+      subject: `\\${fn}(${degrees}^{\\circ})`,
+      steps: [
+        {
+          id: 'coordinate',
+          ask: 'Which measurement of the point does this ask for?',
+          branches: [
+            { label: 'Its height above or below the centre', to: 'height' },
+            { label: 'Its displacement to one side of the centre', to: 'across' },
+          ],
+        },
+        {
+          id: 'height',
+          ask: 'After that turn, where is the point compared with the centre?',
+          branches: [
+            { label: 'Above it', outcome: 'Positive. Heights above the centre count as positive.' },
+            { label: 'Below it', outcome: 'Negative. Heights below the centre count as negative.' },
+            { label: 'Exactly level with it', outcome: 'Zero. The point is on the horizontal axis, so it has no height.' },
+          ],
+        },
+        {
+          id: 'across',
+          ask: 'After that turn, which side of the centre is the point on?',
+          branches: [
+            { label: 'To the right of it', outcome: 'Positive. Displacements to the right count as positive.' },
+            { label: 'To the left of it', outcome: 'Negative. Displacements to the left count as negative.' },
+            { label: 'Directly above or below it', outcome: 'Zero. The point is on the vertical axis, so it is no distance to either side.' },
+          ],
+        },
+      ],
+      answer: [first, second],
+    };
+  },
+  solution: ({ degrees, fn }) => {
+    const value = exactSign(fn, degrees);
+    const measurement = fn === 'sin' ? 'height above the centre' : 'displacement to the right of the centre';
+    const where =
+      fn === 'sin'
+        ? degrees === 0 || degrees === 180
+          ? 'level with the centre'
+          : degrees < 180
+            ? 'above the centre'
+            : 'below the centre'
+        : degrees === 90 || degrees === 270
+          ? 'directly above or below the centre'
+          : degrees < 90 || degrees > 270
+            ? 'to the right of the centre'
+            : 'to the left of the centre';
+    return [
+      { text: `$\\${fn}(\\theta)$ is the ${measurement}, so the question is only ever about where the point has got to.` },
+      { text: `A turn of $${degrees}^{\\circ}$ anticlockwise leaves the point ${where}.` },
+      {
+        text:
+          value === 0
+            ? `So $\\${fn}(${degrees}^{\\circ})$ is zero — the point is on an axis, and that measurement of it is nothing.`
+            : `So $\\${fn}(${degrees}^{\\circ})$ is ${value > 0 ? 'positive' : 'negative'}. No chart is needed for this; the picture gives it directly.`,
+      },
+    ];
+  },
+};
+
+/**
+ * The sign of a quarter-turn-safe trig value, without going through floats.
+ *
+ * `Math.sin(Math.PI)` is about $1.2 \times 10^{-16}$ rather than zero, so
+ * taking the sign of the computed value would call $\sin(180^{\circ})$
+ * positive. The quadrant rules are exact and are what the question is about
+ * anyway.
+ */
+function exactSign(fn: 'sin' | 'cos', degrees: number): -1 | 0 | 1 {
+  if (fn === 'sin') {
+    if (degrees === 0 || degrees === 180) return 0;
+    return degrees < 180 ? 1 : -1;
+  }
+  if (degrees === 90 || degrees === 270) return 0;
+  return degrees < 90 || degrees > 270 ? 1 : -1;
+}
+
+interface MatchGraphParams {
+  a: number;
+  d: number;
+  fn: 'sin' | 'cos';
+}
+
+/**
+ * Which equation drew this graph?
+ *
+ * Every other question in level 3 hands over an equation and asks for a number.
+ * This runs the other way, from the picture to the formula, which is the
+ * direction an exam question about a model arrives in — and the direction that
+ * catches a learner who can compute an amplitude without recognising one.
+ *
+ * The distractors are the three confusions the lesson is about: amplitude
+ * swapped with midline, the shift taken the wrong way, and the other function
+ * with the same numbers.
+ */
+const matchGraph: Generator<MatchGraphParams> = {
+  id: 'trig-match-graph',
+  sample: (rng, difficulty) => {
+    const a = rng.int(1, difficulty > 1 ? 6 : 4);
+    // The midline is kept within reach of the amplitude. The only scale on the
+    // figure is the axis at y = 0, so the learner reads the midline off as a
+    // multiple of the swing — and a midline of 9 on a swing of 1 is a window
+    // in which the wave is a thin ripple near the top and nothing is readable.
+    let d = nonZeroInt(rng, difficulty > 1 ? -(a + 3) : 1, a + 3);
+    // A midline equal to the amplitude would make the swapped distractor the
+    // same equation as the answer, leaving a question with three options and
+    // one fewer confusion tested.
+    if (d === a) d = a + 1;
+    return { a, d, fn: rng.pick(['sin', 'cos'] as const) };
+  },
+  render: ({ a, d, fn }): Slide => {
+    // Written out rather than reached through `wave`, whose shift is the only
+    // handle it offers on the phase: a cosine is `wave(d, a, 360, -90)` and a
+    // *minus* cosine is `+90`, the same picture turned upside down and none of
+    // the four options. Naming the function the answer names is a mistake that
+    // cannot be made, where a sign on a shift is one that already was.
+    const radians = (x: number) => (x * Math.PI) / 180;
+    const f = (x: number) => d + a * (fn === 'sin' ? Math.sin(radians(x)) : Math.cos(radians(x)));
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 720,
+      curves: [{ f }],
+      horizontals: [d],
+      // The window always holds y = 0, because the axis is the only scale on
+      // the figure: without it a midline above the curve's own swing cannot be
+      // told from one below, and two of the four options differ by just that.
+      yMin: Math.min(0, d - a) - 1.5,
+      yMax: Math.max(0, d + a) + 1.5,
+      label: 'A wave over two full cycles, with its midline dashed',
+    });
+    const other = fn === 'sin' ? 'cos' : 'sin';
+    const correct = scaledWaveTex(a, fn, 'x', d);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'The dashed line is the midline. Which equation does this graph show?' },
+        { kind: 'diagram', svg },
+      ],
+      options: [
+        { id: 'right', label: correct, tex: true },
+        { id: 'swapped', label: scaledWaveTex(d, fn, 'x', a), tex: true },
+        { id: 'flipped', label: scaledWaveTex(a, fn, 'x', -d), tex: true },
+        { id: 'other', label: scaledWaveTex(a, other, 'x', d), tex: true },
+      ],
+      correctId: 'right',
+    };
+  },
+  solution: ({ a, d, fn }) => [
+    {
+      text: `The dashed midline sits at $y = ${d}$, and that number is the one added on outside the function.`,
+    },
+    {
+      text: `The curve reaches $${d + a}$ at the top and $${d - a}$ at the bottom, so it swings $${a}$ either side of the midline. That is the amplitude, and it multiplies the function.`,
+    },
+    { tex: `y = ${scaledWaveTex(a, fn, 'x', d)}` },
+    {
+      text: `It is a $\\${fn}$ rather than a $\\${fn === 'sin' ? 'cos' : 'sin'}$ because of where the curve starts: ${fn === 'sin' ? 'on the midline, heading upwards' : 'at its peak'}.`,
+    },
+  ],
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -1444,4 +2237,13 @@ export const trigonometryGenerators = [
   relatedAngleGenerator,
   solveHeight,
   pythagorean,
+  repeatTimes,
+  periodicFlow,
+  waveSwing,
+  describeWave,
+  circleCoords,
+  heightSteps,
+  evaluateTree,
+  quadrantFlow,
+  matchGraph,
 ] as unknown as Generator<unknown>[];

@@ -9,12 +9,12 @@
  * "0.5 x pi/4", which is not an angle. Every slider shipped before this had a
  * symmetric range and so landed on the lattice by luck.
  *
- * It is also a marking bug, not only a cosmetic one. The session seeds the
- * answer with this value so an untouched handle is not read as an empty
- * answer, and a slider grades within half a step of its answer. Half-way
- * between two steps is therefore within tolerance of *both* of them, so an
- * untouched slider was marked correct for either — and on the lattice it can
- * only ever be correct for the one value it is actually sitting on.
+ * It was a marking bug too, while the widget seeded this value as the answer:
+ * a slider grades within half a step, so half-way between two steps was
+ * within tolerance of *both*. The value is no longer seeded at all — an
+ * untouched handle leaves the draft empty, since wherever it rests is some
+ * question's answer — so this now decides only where the handle is drawn and
+ * what the readout says before the learner moves it.
  */
 export function defaultSliderValue(min: number, max: number, step: number): number {
   if (!(step > 0)) return (min + max) / 2;

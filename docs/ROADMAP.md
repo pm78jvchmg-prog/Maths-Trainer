@@ -263,7 +263,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
-| A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
+| A8 | Widen Trigonometric Functions | **done** (`claude/roadmap-a8-23kraq`) | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | **done** (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
@@ -364,6 +364,15 @@ three of the nine widgets are cheap to add to an existing topic; the rest of the
 variety came from writing fourteen new generators, which is the real size of a
 phase A batch.
 
+A8 took every `tf-` lesson off both lists, so no Trigonometric Functions lesson
+is allowlisted any more. Two things it found are worth the next batch knowing.
+A lesson is capped at eleven
+slides by `generators.test.ts`, teaching slides included, so the eighth exercise
+has to come out of a teaching slide — merging its blocks into the slide above,
+or moving them onto the question as a `leadIn`. And `eval/plans/TASK4-PLAN.md`
+pins this course's three level-check lengths at 12/15/15, which `eval/bin/counts.ts`
+checks: a level check may be re-spread over new generators but not grown.
+
 ### Phase B — take the nine existing concepts to 30 lessons
 
 One batch = **one new level**: 4–5 lessons at the phase A bar, plus a level check
@@ -390,8 +399,10 @@ are green, and one new lesson has been played in a browser.
 
 | # | Batch | Status |
 | ---: | --- | --- |
+| B1 | Exponents & Radicals: Standard Form | **done** (`claude/roadmap-b-exponents-radicals-8sklxv`): level `er-l4`, 5 lessons, a 14-question level check, 17 new generators |
 | B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
 | B8 | Vectors: Vector Geometry | **done** (`claude/roadmap-b-vectors-k0aou4`): level `vm-l4`, 5 lessons, a 14-question level check, 19 new generators |
+| B9 | Matrices & Linear Transformations: Matrices as Transformations | **done** (`claude/roadmap-b-matrices-fcu036`): level `vm-l5`, 5 lessons, a 15-question level check, 15 new generators and a unit-square figure |
 
 ### Phase C — the twenty-one new concepts
 

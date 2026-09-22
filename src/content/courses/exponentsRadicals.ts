@@ -5,10 +5,11 @@
  * rules to memorise; then the laws are pushed past whole numbers, where a
  * negative index has to mean a reciprocal and a fractional one has to mean a
  * root if the laws are to survive; then surds, which is that second idea used
- * in anger.
+ * in anger; then standard form, where powers of ten carry the size of very
+ * large and very small numbers.
  *
- * Each level closes with a level check: twelve questions, no teaching slides,
- * one attempt each.
+ * Each level closes with a level check: twelve to fourteen questions, no
+ * teaching slides, one attempt each.
  */
 import type { Course, SlideRef } from '../types';
 
@@ -38,7 +39,7 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
 export const exponentsRadicals: Course = {
   id: 'exponents-radicals',
   title: 'Exponents & Radicals',
-  blurb: 'The index laws by counting copies, then roots, then surds.',
+  blurb: 'The index laws by counting copies, then roots, surds and standard form.',
   levels: [
     {
       id: 'er-l1',
@@ -686,6 +687,264 @@ export const exponentsRadicals: Course = {
         ask('rad-multiply', 2),
         ask('rad-add', 2),
         ask('rad-rationalise', 2),
+      ],
+    },
+    {
+      id: 'er-l4',
+      title: 'Standard Form',
+      lessons: [
+        {
+          id: 'er-l4-large',
+          title: 'Large Numbers',
+          slides: [
+            teach(
+              prose(
+                'Very large numbers are hard to read at a glance. **Standard form** writes them as a number from 1 up to (but not including) 10, times a power of ten.',
+              ),
+              maths('320\\,000 = 3.2 \\times 10^{5}'),
+              prose(
+                'The front number carries the digits and the power carries the size. $10^{5}$ is $100\\,000$, so $3.2 \\times 10^{5}$ is $3.2$ with the decimal point moved 5 places to the right.',
+              ),
+              prose(
+                'Both parts have rules: the front number must be at least 1 and less than 10, and it must multiply a power of 10.',
+              ),
+            ),
+            ask('sf-to-ordinary'),
+            ask('sf-form-flow'),
+            ask('sf-to-ordinary+choice'),
+            teach(
+              prose(
+                'Going the other way, start from the digits. Put the point after the first one to get the front number, then count how many places it has to move to get back.',
+              ),
+              maths('4\\,700\\,000 \\quad\\to\\quad 4.7 \\quad\\to\\quad 4.7 \\times 10^{6}'),
+              prose(
+                'The point moves 6 places from $4.7$ to $4\\,700\\,000$, so the power is 6. A handy check: a number with 7 digits before the point always has power 6, one less than the count.',
+              ),
+            ),
+            ask('sf-write-tiles'),
+            ask('sf-power-slider'),
+            ask('sf-write-tiles'),
+            teach(
+              prose(
+                'A number can be the right size and still not be in standard form. $47 \\times 10^{5}$ equals $4\\,700\\,000$, but 47 is too big for a front number.',
+              ),
+              maths('47 \\times 10^{5} = 4.7 \\times 10 \\times 10^{5} = 4.7 \\times 10^{6}'),
+              prose(
+                'Making the front number ten times smaller means making the power ten times bigger, so the power goes up by one. The value never changes, only how it is written.',
+              ),
+            ),
+            ask('sf-form-flow'),
+            ask('sf-power-slider'),
+          ],
+          skillCheck: [
+            ask('sf-write-tiles', 2),
+            ask('sf-to-ordinary+choice', 2),
+            ask('sf-to-ordinary', 2),
+          ],
+        },
+        {
+          id: 'er-l4-small',
+          title: 'Small Numbers',
+          slides: [
+            teach(
+              prose(
+                'Small numbers use the same idea with a **negative** power. Level 1 showed that a negative index means a reciprocal, so $10^{-3}$ is $\\frac{1}{1000}$.',
+              ),
+              maths('4.5 \\times 10^{-3} = 4.5 \\div 1000 = 0.0045'),
+              prose(
+                'Dividing by $1000$ moves the point 3 places to the left, filling the gaps with zeros. A negative power always means a number smaller than 1.',
+              ),
+            ),
+            ask('sf-small-to-ordinary'),
+            ask('sf-small-power-slider'),
+            ask('sf-small-to-ordinary+choice'),
+            teach(
+              prose(
+                'To write a small number in standard form, find the first digit that is not zero and put the point after it. Then count the places back to where the point really is.',
+              ),
+              maths('0.00062 \\quad\\to\\quad 6.2 \\quad\\to\\quad 6.2 \\times 10^{-4}'),
+              prose(
+                'The point moves 4 places, so the power is $-4$. Another check: the first digit sits in the 4th decimal place, and the power is minus that position.',
+              ),
+            ),
+            ask('sf-write-small-tiles'),
+            ask('sf-form-flow', 2),
+            ask('sf-small-power-slider'),
+            teach(
+              prose(
+                'The sign of the power says which side of 1 the number is on: positive for numbers of 10 and over, negative for numbers under 1, and $10^{0} = 1$ for anything in between.',
+              ),
+              maths('6.2 \\times 10^{4} = 62\\,000 \\qquad 6.2 \\times 10^{-4} = 0.00062'),
+              prose(
+                'Getting the sign wrong turns a tiny number into a huge one, so check the answer against the question: a small number needs a negative power.',
+              ),
+            ),
+            ask('sf-write-small-tiles'),
+            ask('sf-form-flow', 2),
+          ],
+          skillCheck: [
+            ask('sf-write-small-tiles', 2),
+            ask('sf-small-to-ordinary+choice', 2),
+            ask('sf-small-to-ordinary', 2),
+          ],
+        },
+        {
+          id: 'er-l4-multiply',
+          title: 'Multiplying and Dividing',
+          slides: [
+            teach(
+              prose(
+                'Multiplication can be done in any order, so a product of two numbers in standard form splits into two easy products: the front numbers, and the powers of ten.',
+              ),
+              maths(
+                '\\left(3 \\times 10^{4}\\right) \\times \\left(2 \\times 10^{6}\\right) = \\left(3 \\times 2\\right) \\times \\left(10^{4} \\times 10^{6}\\right) = 6 \\times 10^{10}',
+              ),
+              prose(
+                'The powers are added, exactly as in level 1: $10^{4} \\times 10^{6} = 10^{10}$. Multiplying them is the slip to avoid.',
+              ),
+            ),
+            ask('sf-split-tree'),
+            ask('sf-multiply'),
+            ask('sf-multiply+choice'),
+            teach(
+              prose(
+                'Sometimes the front numbers multiply to 10 or more, and the answer is not in standard form yet.',
+              ),
+              maths(
+                '\\left(3 \\times 10^{4}\\right) \\times \\left(5 \\times 10^{6}\\right) = 15 \\times 10^{10} = 1.5 \\times 10^{11}',
+              ),
+              prose(
+                'Moving the point one place left makes 15 into 1.5, ten times smaller, so the power goes up by one to keep the value the same.',
+              ),
+            ),
+            ask('sf-adjust-tiles'),
+            ask('sf-split-tree'),
+            ask('sf-adjust-tiles'),
+            teach(
+              prose('Dividing works the same way: divide the front numbers, and subtract the powers.'),
+              maths('\\frac{8 \\times 10^{9}}{2 \\times 10^{3}} = \\frac{8}{2} \\times 10^{9 - 3} = 4 \\times 10^{6}'),
+              prose(
+                'Here the front number can come out less than 1: $\\frac{2}{5} = 0.4$. Then the point moves right, and the power goes **down** by one — $0.4 \\times 10^{6} = 4 \\times 10^{5}$.',
+              ),
+            ),
+            ask('sf-divide'),
+            ask('sf-divide+choice'),
+          ],
+          skillCheck: [
+            ask('sf-multiply', 2),
+            ask('sf-divide', 2),
+            ask('sf-split-tree', 2),
+          ],
+        },
+        {
+          id: 'er-l4-add',
+          title: 'Adding and Subtracting',
+          slides: [
+            teach(
+              prose(
+                'Adding is different: the front numbers can only be added when they count the same thing. With matching powers they do, like adding apples to apples.',
+              ),
+              maths('3.2 \\times 10^{4} + 1.5 \\times 10^{4} = 4.7 \\times 10^{4}'),
+              prose(
+                'Three point two lots of $10^{4}$ and one point five more makes four point seven lots. The power does not change, because nothing was multiplied.',
+              ),
+            ),
+            ask('sf-add'),
+            ask('sf-add-flow'),
+            ask('sf-add+choice'),
+            teach(
+              prose(
+                'When the powers differ, rewrite the smaller number with the larger power first. Its front number gets smaller to make up for the bigger power.',
+              ),
+              maths('5 \\times 10^{3} = 0.5 \\times 10^{4}'),
+              maths('3.2 \\times 10^{4} + 5 \\times 10^{3} = 3.2 \\times 10^{4} + 0.5 \\times 10^{4} = 3.7 \\times 10^{4}'),
+              prose(
+                'Adding 3.2 and 5 to get $8.2 \\times 10^{4}$ is the mistake this step prevents: $5 \\times 10^{3}$ is 5000, nowhere near $50\\,000$.',
+              ),
+            ),
+            ask('sf-common-power'),
+            ask('sf-add-flow'),
+            ask('sf-common-power'),
+            teach(
+              prose(
+                'Adding can push the front number past 10, and subtracting can drop it below 1. Either way, finish by adjusting it back into standard form.',
+              ),
+              maths('6.2 \\times 10^{5} + 4.5 \\times 10^{5} = 10.7 \\times 10^{5} = 1.07 \\times 10^{6}'),
+              maths('5.2 \\times 10^{5} - 4.7 \\times 10^{5} = 0.5 \\times 10^{5} = 5 \\times 10^{4}'),
+            ),
+            ask('sf-adjust-tiles'),
+            ask('sf-adjust-tiles'),
+          ],
+          skillCheck: [
+            ask('sf-add', 2),
+            ask('sf-common-power', 2),
+            ask('sf-add+choice', 2),
+          ],
+        },
+        {
+          id: 'er-l4-magnitude',
+          title: 'Orders of Magnitude',
+          slides: [
+            teach(
+              prose(
+                'The power of ten in standard form is called the **order of magnitude**. It is the rough size of a number, before the detail of the front number.',
+              ),
+              prose(
+                'So to compare numbers, compare the powers first. $1.2 \\times 10^{6}$ is bigger than $9.8 \\times 10^{5}$, even though 9.8 is bigger than 1.2: a million beats anything under a million.',
+              ),
+              prose('Only when the powers match do the front numbers decide.'),
+            ),
+            ask('sf-compare'),
+            ask('sf-small-power-slider'),
+            ask('sf-compare'),
+            teach(
+              prose(
+                'How many times bigger one number is than another is a division, and with matching front numbers it is a pure power of ten.',
+              ),
+              maths('\\frac{4 \\times 10^{9}}{4 \\times 10^{5}} = 10^{4} = 10\\,000'),
+              prose(
+                'Each step up in the power is ten times bigger, so four steps is $10\\,000$ times — not 4 times, which is the easy slip.',
+              ),
+            ),
+            ask('sf-times-bigger'),
+            ask('sf-power-slider'),
+            ask('sf-times-bigger+choice'),
+            teach(
+              prose(
+                'Orders of magnitude make estimating quick. Round each front number to one significant figure, then multiply as usual.',
+              ),
+              maths(
+                '\\left(3.9 \\times 10^{4}\\right) \\times \\left(2.1 \\times 10^{3}\\right) \\approx 4 \\times 2 \\times 10^{7} = 8 \\times 10^{7}',
+              ),
+              prose(
+                'The exact answer is $8.19 \\times 10^{7}$. The estimate gets the power right and the front number close, which is usually all a check needs.',
+              ),
+            ),
+            ask('sf-estimate'),
+            ask('sf-estimate'),
+          ],
+          skillCheck: [
+            ask('sf-compare', 2),
+            ask('sf-times-bigger', 2),
+            ask('sf-estimate', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('sf-to-ordinary', 2),
+        ask('sf-write-small-tiles', 2),
+        ask('sf-form-flow', 2),
+        ask('sf-small-power-slider', 2),
+        ask('sf-multiply', 2),
+        ask('sf-divide+choice', 2),
+        ask('sf-split-tree', 2),
+        ask('sf-adjust-tiles', 2),
+        ask('sf-add', 2),
+        ask('sf-common-power', 2),
+        ask('sf-add-flow', 2),
+        ask('sf-compare', 2),
+        ask('sf-times-bigger+choice', 2),
+        ask('sf-estimate', 2),
       ],
     },
   ],

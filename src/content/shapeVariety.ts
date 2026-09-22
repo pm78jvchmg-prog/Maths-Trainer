@@ -54,8 +54,6 @@ export const MAX_PER_FAMILY = 2;
  * lessons, so this is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l2-equations': 2,
-  'er-l3-rationalise': 2,
   'qd-l1-expand': 2,
   'qd-l1-factorise': 2,
   'qd-l1-squares': 2,
@@ -72,12 +70,10 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'in-l1-standard': 2,
   'in-l3-brackets': 2,
   'in-l3-substitution': 2,
-  'vm-l2-add': 2,
-  'vm-l2-combine': 2,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 20;
+export const WIDGET_KIND_CEILING = 16;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -86,22 +82,10 @@ export const WIDGET_KIND_CEILING = 20;
  * Far longer than the widget-kind list — it started at 102 of 105 lessons —
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
- * progress is measured. Logarithms left both lists in batch A5, and Complex
- * Numbers in A7.
+ * progress is measured. Logarithms left both lists in batch A5, Complex Numbers
+ * in A7, and Exponents & Radicals in A3.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l1-multiply': 5,
-  'er-l1-divide': 4,
-  'er-l1-power-of-power': 4,
-  'er-l1-coefficients': 5,
-  'er-l1-negative': 5,
-  'er-l2-fractional': 5,
-  'er-l2-powers-of-roots': 3,
-  'er-l2-equations': 6,
-  'er-l3-simplify': 5,
-  'er-l3-multiply': 5,
-  'er-l3-add': 7,
-  'er-l3-rationalise': 5,
   'qd-l1-expand': 7,
   'qd-l1-factorise': 7,
   'qd-l1-squares': 7,
@@ -141,19 +125,7 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'in-l3-definite-substitution': 6,
   'in-l3-parts': 6,
   'in-l3-parts-log': 6,
-  'vm-l1-components': 7,
-  'vm-l1-scalars': 5,
-  'vm-l1-magnitude': 7,
-  'vm-l1-dot': 5,
-  'vm-l2-add': 7,
-  'vm-l2-combine': 6,
-  'vm-l2-multiply': 5,
-  'vm-l2-vector': 5,
-  'vm-l3-determinant': 7,
-  'vm-l3-singular': 6,
-  'vm-l3-inverse': 5,
-  'vm-l3-solve': 5,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 63;
+export const GENERATOR_REPETITION_CEILING = 39;

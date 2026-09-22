@@ -22,9 +22,12 @@ itself, so that no thread ever has to stop and ask what is next.
 
 ## 1. What exists today
 
-8 courses, 26 levels, 105 lessons, 155 generators (255 ids once the derived
-`+choice` variants are counted). Written against 147 and 247; batch A5 added
-the eight new logarithm shapes.
+8 courses, 26 levels, 105 lessons, 147 generators (247 ids once the derived
+`+choice` variants are counted). Written against those figures. Four phase A
+batches have since landed — A5's eight logarithm shapes, A2's fifteen working
+widgets, A7's seventeen complex-number ones and A10's fifteen vector and matrix
+ones — so it now stands at **9 courses**, Vectors & Matrices having become two,
+with **202 generators** and 316 ids.
 
 | Concept | Category | Levels | Lessons | Toward 30 |
 | --- | --- | --- | ---: | ---: |
@@ -35,7 +38,8 @@ the eight new logarithm shapes.
 | Complex Numbers | Advanced Maths | 4 | 14 | 47% |
 | Differentiation | Advanced Maths | 4 | 11 | 37% |
 | Integration | Advanced Maths | 3 | 17 | 57% |
-| Vectors & Matrices | Advanced Maths | 3 | 12 | 40% |
+| Vectors | Advanced Maths | 1 | 4 | 13% |
+| Matrices & Linear Transformations | Advanced Maths | 2 | 8 | 27% |
 
 Every level closes with a level check of 12–15 questions. All 26 have one.
 
@@ -148,8 +152,8 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 16 | Complex Numbers | **14 lessons** |
 | 17 | Differentiation | **11 lessons** |
 | 18 | Integration | **17 lessons** |
-| 19 | Vectors | **4 lessons** (split from Vectors & Matrices) |
-| 20 | Matrices & Linear Transformations | **8 lessons** (split from Vectors & Matrices) |
+| 19 | Vectors | **4 lessons** (split out in A10) |
+| 20 | Matrices & Linear Transformations | **8 lessons** (split out in A10) |
 | 21 | Parametric & Implicit Differentiation | new |
 | 22 | Differential Equations | new |
 | 23 | Series Expansions | new |
@@ -254,27 +258,43 @@ two-widget habit would multiply the problem the owner actually complained about.
 | ---: | --- | --- | --- |
 | A1 | Shape-variety report and guard | done | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
 | A2 | `tree` and `steps` generators | done | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
-| A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
+| A3 | Widen Exponents & Radicals | **done** (`claude/roadmap-a3-vrqpoj`) | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | **done** (`claude/roadmap-a8-23kraq`) | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
-| A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
+| A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
 more than twice" rule, counted by family, caught **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
-empties both. A5 brought them to **40** and **90**.
+empties both. A3 took the twelve `er-` lessons off both; after the batches
+merged so far the lists stand at **21** and **65**, and `npm test` prints the
+current standing, which is the figure to trust — every figure written down here
+went stale the moment the next batch landed.
 
 One thing A5 found that the later batches should budget for: a lesson at the
 bar needs **at least four generator families**, since eight exercises at two
 asks each is four. Every phase A batch is therefore partly a generator batch,
 whatever its row says — Logarithms needed eight new ones to widen twelve
-lessons.
+lessons, and Exponents & Radicals needed twelve.
+
+A3 found the second constraint, which is arithmetic the rows do not state: the
+suite caps a lesson at **11 slides in total**, so eight exercises leaves room
+for exactly three teaching slides. A lesson that already has four has to fold
+one into the `leadIn` of the question it sets up, or lose it.
+
+A3 also found a trap in the `tiles` widget worth writing down once. Its
+template is split on `{0}`, `{1}`, … so **any brace round a bare number is read
+as a blank marker** — `x^{5}`, `\sqrt{9}` and `\frac{2}{3}` all tear the TeX in
+half, and a blank cannot sit inside a superscript either, since the `x^`
+fragment left behind is not valid on its own. The convention that survives all
+of it: the question goes in the prompt, where braces are free, and the template
+holds only whole tokens separated by literal text.
 
 A2 then took the widget-kind list to **29**: giving fifteen lessons one
 exercise through a `tree` or a `steps` slide put thirteen of them over the
@@ -302,6 +322,13 @@ emptied them. Until then its job is to keep the ratchet honest, and `npm test`
 now prints what each course still has outstanding so the burn-down is visible
 per batch rather than as one falling total. An emptied list that is left in
 place fails the suite, so the deletion cannot be forgotten.
+
+A10 took the twelve `vm-` lessons off both lists, which with A5's, A2's and
+A7's removals counted leaves **21** and **65**. It needed fifteen new generators to
+do it, which says the same thing A5 found from the other direction: a phase A
+batch is a generator batch first and a deck batch second. Where A2 had already
+put a `tree` or a `steps` exercise into a `vm-` lesson, the widened deck keeps
+it rather than the repeat it replaced, so both batches' gains survive.
 
 A8 took every `tf-` lesson off both lists, so no Trigonometric Functions lesson
 is allowlisted any more. Two things it found are worth the next batch knowing.
@@ -333,6 +360,12 @@ exercises across ≥3 widget kinds, a level check of 12–15 questions, every ne
 generator passes the property tests including the 25-distinct-questions floor,
 `npx vitest run` and `npx tsc --noEmit -p tsconfig.app.json` and `npm run lint`
 are green, and one new lesson has been played in a browser.
+
+### Phase B batches
+
+| # | Batch | Status |
+| ---: | --- | --- |
+| B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
 
 ### Phase C — the twenty-one new concepts
 

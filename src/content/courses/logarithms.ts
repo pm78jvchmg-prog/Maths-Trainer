@@ -5,10 +5,12 @@
  * index — and the restriction that follows from it. Level 2 derives the three
  * laws from the index laws rather than presenting them as rules to memorise.
  * Level 3 uses them, which is where logarithms stop being notation and start
- * being the only way to get an unknown out of an index.
+ * being the only way to get an unknown out of an index. Level 4 changes base:
+ * the formula, what it cancels, solving with it, and choosing the base that
+ * makes an answer exact.
  *
- * Each level closes with a level check: twelve questions, no teaching slides,
- * one attempt each.
+ * Each level closes with a level check: twelve to fourteen questions, no
+ * teaching slides, one attempt each.
  */
 import type { Course, SlideRef } from '../types';
 
@@ -38,7 +40,7 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
 export const logarithms: Course = {
   id: 'logarithms',
   title: 'Logarithms',
-  blurb: 'A logarithm is an index. Then the three laws, then solving with them.',
+  blurb: 'A logarithm is an index. Then the three laws, solving with them, and changing base.',
   levels: [
     {
       id: 'lg-l1',
@@ -718,6 +720,237 @@ export const logarithms: Course = {
         ask('log-solve-exponential', 2),
         ask('log-natural', 2),
         ask('log-growth', 2),
+      ],
+    },
+    {
+      id: 'lg-l4',
+      title: 'Change of Base',
+      lessons: [
+        {
+          id: 'lg-l4-formula',
+          title: 'The Change of Base Formula',
+          slides: [
+            teach(
+              prose('Level 3 solved $2^{x} = 30$ by taking natural logarithms of both sides.'),
+              maths('2^{x} = 30 \\implies x = \\frac{\\ln\\left(30\\right)}{\\ln\\left(2\\right)}'),
+              prose(
+                'But by definition $2^{x} = 30$ also says $x = \\log_{2}\\left(30\\right)$. So those are the same number, and nothing about 2 or 30 was special. That is the **change of base** formula.',
+              ),
+              maths('\\log_{a}\\left(b\\right) = \\frac{\\ln\\left(b\\right)}{\\ln\\left(a\\right)}'),
+              prose(
+                'The base sits low in $\\log_{a}$ and it stays low in the fraction: base underneath, argument on top.',
+              ),
+            ),
+            ask('log-change-base'),
+            ask('log-change-base-tiles'),
+            ask('log-change-base+choice'),
+            teach(
+              prose(
+                'Nothing in the formula needs $\\ln$. Any new base works, provided the same one is used top and bottom.',
+              ),
+              maths(
+                '\\log_{a}\\left(b\\right) = \\frac{\\log_{c}\\left(b\\right)}{\\log_{c}\\left(a\\right)}',
+              ),
+              prose(
+                'A calculator uses $e$ or 10 because those are the buttons it has. By hand, the best new base is one that makes both logarithms whole.',
+              ),
+              maths(
+                '\\log_{8}\\left(64\\right) = \\frac{\\log_{2}\\left(64\\right)}{\\log_{2}\\left(8\\right)} = \\frac{6}{3} = 2',
+              ),
+            ),
+            ask('log-quotient-reduce'),
+            ask('log-change-base-slider'),
+            ask('log-change-base-tiles'),
+            teach(
+              prose(
+                'The fraction upside down is the one mistake worth guarding against, and there is a quick check for it.',
+              ),
+              maths('2^{4} = 16 < 20 < 32 = 2^{5} \\implies 4 < \\log_{2}\\left(20\\right) < 5'),
+              prose(
+                '$\\frac{\\ln\\left(20\\right)}{\\ln\\left(2\\right)} \\approx 4.32$ sits in that range. Upside down it would be about 0.23, nowhere near.',
+              ),
+              prose(
+                'On a graph, $\\log_{2}\\left(20\\right)$ is where the curve $y = 2^{x}$ reaches the height 20.',
+              ),
+            ),
+            ask('log-quotient-reduce+choice'),
+            ask('log-change-base-slider'),
+          ],
+          skillCheck: [
+            ask('log-change-base', 2),
+            ask('log-quotient-reduce+choice', 2),
+            ask('log-change-base+choice', 2),
+          ],
+        },
+        {
+          id: 'lg-l4-reciprocal',
+          title: 'Reciprocals and Chains',
+          slides: [
+            teach(
+              prose(
+                'Swap the base and the argument, and the change of base formula turns upside down.',
+              ),
+              maths(
+                '\\log_{a}\\left(b\\right) = \\frac{\\ln\\left(b\\right)}{\\ln\\left(a\\right)} \\qquad \\log_{b}\\left(a\\right) = \\frac{\\ln\\left(a\\right)}{\\ln\\left(b\\right)}',
+              ),
+              prose('So each is the reciprocal of the other, and their product is exactly 1.'),
+              maths('\\log_{a}\\left(b\\right) \\times \\log_{b}\\left(a\\right) = 1'),
+              prose(
+                'For example $\\log_{2}\\left(8\\right) = 3$, so $\\log_{8}\\left(2\\right) = \\frac{1}{3}$ — and indeed $8^{1/3} = 2$.',
+              ),
+            ),
+            ask('log-reciprocal'),
+            ask('log-reciprocal+choice'),
+            teach(
+              prose(
+                'The same cancellation runs further. When the argument of one logarithm is the base of the next, the shared number drops out.',
+              ),
+              maths(
+                '\\log_{a}\\left(b\\right) \\times \\log_{b}\\left(c\\right) = \\frac{\\ln\\left(b\\right)}{\\ln\\left(a\\right)} \\times \\frac{\\ln\\left(c\\right)}{\\ln\\left(b\\right)} = \\log_{a}\\left(c\\right)',
+              ),
+              prose(
+                'What is left runs from the outer base to the outer argument. With whole numbers it checks: $\\log_{2}\\left(4\\right) \\times \\log_{4}\\left(64\\right) = 2 \\times 3 = 6 = \\log_{2}\\left(64\\right)$.',
+              ),
+            ),
+            ask('log-chain-reduce'),
+            ask('log-chain-tiles'),
+            ask('log-product-flow'),
+            teach(
+              prose(
+                'A product does not care which order it is written in, so look for the shared number on either side of the $\\times$.',
+              ),
+              maths('\\log_{7}\\left(20\\right) \\times \\log_{3}\\left(7\\right) = \\log_{3}\\left(20\\right)'),
+              prose(
+                'If no number is both an argument and a base, nothing cancels and the product stays as two logarithms.',
+              ),
+            ),
+            ask('log-chain-reduce+choice'),
+            ask('log-product-flow'),
+            ask('log-chain-tiles'),
+          ],
+          skillCheck: [
+            ask('log-reciprocal', 2),
+            ask('log-chain-reduce+choice', 2),
+            ask('log-reciprocal+choice', 2),
+          ],
+        },
+        {
+          id: 'lg-l4-solve',
+          title: 'Solving Index Equations',
+          slides: [
+            teach(
+              prose(
+                'By definition $a^{x} = b$ means $x = \\log_{a}\\left(b\\right)$, and the change of base formula turns that into something a calculator can do.',
+              ),
+              maths(
+                '3^{x} = 50 \\implies x = \\log_{3}\\left(50\\right) = \\frac{\\ln\\left(50\\right)}{\\ln\\left(3\\right)}',
+              ),
+              prose(
+                'Before calculating, bracket it: $3^{3} = 27$ and $3^{4} = 81$, so $x$ is between 3 and 4. An answer outside that range has gone wrong.',
+              ),
+            ),
+            ask('log-between'),
+            ask('log-change-base-slider'),
+            teach(
+              prose(
+                'When there is more than $x$ in the index, the *whole index* equals the logarithm. Solve for the index first, then for $x$.',
+              ),
+              maths(
+                '3^{x + 2} = 50 \\implies x + 2 = \\frac{\\ln\\left(50\\right)}{\\ln\\left(3\\right)} \\implies x = \\frac{\\ln\\left(50\\right)}{\\ln\\left(3\\right)} - 2',
+              ),
+              maths(
+                '3^{4x} = 50 \\implies 4x = \\frac{\\ln\\left(50\\right)}{\\ln\\left(3\\right)} \\implies x = \\frac{\\ln\\left(50\\right)}{4\\ln\\left(3\\right)}',
+              ),
+            ),
+            ask('log-solve-index'),
+            ask('log-solve-index-tiles'),
+            ask('log-between'),
+            teach(
+              prose(
+                'With both, undo them in the reverse of the order they were built: take the constant off, then divide by the coefficient.',
+              ),
+              maths(
+                '3^{4x + 2} = 50 \\implies x = \\frac{1}{4}\\left(\\frac{\\ln\\left(50\\right)}{\\ln\\left(3\\right)} - 2\\right)',
+              ),
+              prose(
+                'The slip is taking the 2 off $\\ln\\left(50\\right)$ before dividing. The 2 was added to the index, not to a logarithm, so it comes off after the change of base.',
+              ),
+            ),
+            ask('log-solve-index+choice'),
+            ask('log-solve-index-tiles'),
+            ask('log-change-base-slider'),
+          ],
+          skillCheck: [
+            ask('log-solve-index', 2),
+            ask('log-solve-index+choice', 2),
+            ask('log-solve-index', 2),
+          ],
+        },
+        {
+          id: 'lg-l4-choosing',
+          title: 'Choosing a Base',
+          slides: [
+            teach(
+              prose(
+                'Change of base works with any base, so the real question is which one makes the arithmetic easiest.',
+              ),
+              prose(
+                'When the base and the argument are both powers of one smaller number, change to that number. Both logarithms come out whole and the answer is an exact fraction.',
+              ),
+              maths(
+                '\\log_{8}\\left(32\\right) = \\frac{\\log_{2}\\left(32\\right)}{\\log_{2}\\left(8\\right)} = \\frac{5}{3}',
+              ),
+              prose(
+                'Natural logarithms give $\\frac{\\ln\\left(32\\right)}{\\ln\\left(8\\right)}$ — the same number, but hiding that it is exactly $\\frac{5}{3}$.',
+              ),
+            ),
+            ask('log-common-base-tiles'),
+            ask('log-solve-common'),
+            ask('log-quotient-reduce'),
+            teach(
+              prose(
+                'The same idea solves an equation directly: write both sides as powers of the shared number and match the indices.',
+              ),
+              maths('8^{x} = 32 \\implies 2^{3x} = 2^{5} \\implies x = \\frac{5}{3}'),
+              prose('A reciprocal on the right only makes the index negative.'),
+              maths('8^{x} = \\frac{1}{4} \\implies 2^{3x} = 2^{-2} \\implies x = -\\frac{2}{3}'),
+            ),
+            ask('log-solve-common+choice'),
+            ask('log-base-flow'),
+            ask('log-common-base-tiles'),
+            teach(
+              prose(
+                'When the numbers share no base — $\\log_{3}\\left(10\\right)$, say — no choice makes the logarithms whole. Change to $e$, use the calculator, and accept a decimal.',
+              ),
+              prose(
+                'So there are three cases: an exact power, where the index is read off; a shared base, which gives an exact fraction; and everything else, which goes to base $e$.',
+              ),
+            ),
+            ask('log-base-flow'),
+            ask('log-quotient-reduce+choice'),
+          ],
+          skillCheck: [
+            ask('log-solve-common', 2),
+            ask('log-common-base-tiles', 2),
+            ask('log-solve-common+choice', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('log-change-base', 2),
+        ask('log-quotient-reduce+choice', 2),
+        ask('log-change-base-tiles', 2),
+        ask('log-reciprocal', 2),
+        ask('log-chain-reduce+choice', 2),
+        ask('log-product-flow', 2),
+        ask('log-solve-index', 2),
+        ask('log-between', 2),
+        ask('log-solve-index-tiles', 2),
+        ask('log-change-base-slider', 2),
+        ask('log-solve-common', 2),
+        ask('log-common-base-tiles', 2),
+        ask('log-base-flow', 2),
+        ask('log-chain-tiles', 2),
       ],
     },
   ],

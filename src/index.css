@@ -763,6 +763,19 @@ button {
   background: var(--accent);
 }
 
+/* Marks earned, beside the lessons finished. Never shrinks either: the two
+   numbers together are the whole point of the row. */
+.mastery {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mastery.mastered {
+  color: var(--correct);
+}
+
 .back-link {
   padding: 10px 0;
   color: var(--text-dim);
@@ -1245,6 +1258,14 @@ button {
   height: 2px;
   margin-left: 0;
   margin-top: -1px;
+}
+
+/* A caption under the streak bar: what is left of the library, not what has
+   been accumulated. Quiet, because it is orientation rather than a score. */
+.library-line {
+  margin: -8px 0 16px;
+  color: var(--text-dim);
+  font-size: 13px;
 }
 
 /* ---------- Daily streak ---------- */

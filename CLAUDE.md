@@ -134,6 +134,22 @@ charge is deducted only when the play that needed it is recorded, never by
 looking at the screen. That the streak is forgiving is the point — it should
 not become a reason to feel bad about missing a morning.
 
+**Topic mastery** replaces the XP the reference app runs on, and is the reason
+a points total is still refused. Solo there is no leaderboard to give a running
+score meaning, so `src/store/mastery.ts` measures *coverage and how well*
+instead: marks earned over marks available across a whole course, where a
+lesson offers its skill check's length and a level check offers its own. It is
+**derived, never stored** — computed from the progress records and the content
+as it stands today — which is what makes it fall back below 100% when lessons
+are added to a course that was finished, rather than freezing a number that was
+true about a smaller library. An old `bestCorrect` is capped against what the
+check offers now, or a check that has since shrunk scores 4 out of 3. A course
+counts as mastered at `MASTERED_AT` (90%); 100% would demand a perfect run of
+every skill check and so would never be reached. The home screen carries one
+quiet line ("6 of 30 topics started · 2 mastered") and each course card its
+percentage beside the lessons-finished count — the pair being the point, since
+you can finish every lesson in a course and still be some way off knowing it.
+
 ## Answer checking
 
 `src/engine/equivalence.ts` grades by **numeric probing**, not symbolic

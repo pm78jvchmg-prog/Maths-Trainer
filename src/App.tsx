@@ -12,16 +12,9 @@ import { registry } from './content/registry';
 import { LessonPlayer } from './ui/LessonPlayer';
 import { useProgress } from './store/progress';
 import { MAX_CHARGES, localDay, resolveStreak, useStreak } from './store/streak';
+import { MASTERED_AT, courseMastery, libraryProgress, masteryPercent, playables } from './store/mastery';
 import { levelCheckLesson } from './content/types';
 import type { Category, Course, Lesson } from './content/types';
-
-/** Lessons plus level checks, which is what the progress count is out of. */
-function playableIds(course: Course): string[] {
-  return course.levels.flatMap((level) => {
-    const check = levelCheckLesson(level);
-    return [...level.lessons.map((lesson) => lesson.id), ...(check ? [check.id] : [])];
-  });
-}
 
 /**
  * The daily streak, on the home screen.
@@ -77,6 +70,26 @@ function StreakBar() {
   );
 }
 
+/**
+ * How much of the library is behind you.
+ *
+ * Deliberately not a points total: it counts topics, so it can stall or fall
+ * when content is added, and it says what is left rather than what you have
+ * accumulated.
+ */
+function LibraryLine() {
+  const records = useProgress((state) => state.lessons);
+  const { started, mastered, total } = libraryProgress(categories, records);
+
+  const text = (() => {
+    if (started === 0) return `${total} topics to explore`;
+    if (mastered === 0) return `${started} of ${total} topics started`;
+    return `${started} of ${total} topics started · ${mastered} mastered`;
+  })();
+
+  return <p className="library-line">{text}</p>;
+}
+
 function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
   const records = useProgress((state) => state.lessons);
   const [openId, setOpenId] = useState(categories[0]?.id);
@@ -87,6 +100,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
     <div className="app">
       <div className="map">
         <StreakBar />
+        <LibraryLine />
 
         {/* One tab per category. Scrolls horizontally rather than wrapping, so
             the row stays one line tall however many categories exist. */}
@@ -114,9 +128,10 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
 
             <div className="course-list">
               {category.courses.map((course) => {
-                const ids = playableIds(course);
+                const ids = playables(course).map((lesson) => lesson.id);
                 const done = ids.filter((id) => records[id]).length;
                 const total = lessonCount(course) + checkCount(course);
+                const mastery = courseMastery(course, records);
 
                 return (
                   <button
@@ -133,9 +148,19 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                           <span key={id} className={`pip${records[id] ? ' done' : ''}`} />
                         ))}
                       </span>
+                      {/* Lessons finished, then marks earned. The pair is the
+                          point: you can finish every lesson in a course and
+                          still be some way off knowing it. */}
                       <span className="progress-count">
                         {done}/{total}
                       </span>
+                      {mastery.played > 0 && (
+                        <span
+                          className={`mastery${mastery.fraction >= MASTERED_AT ? ' mastered' : ''}`}
+                        >
+                          {masteryPercent(mastery)}%
+                        </span>
+                      )}
                     </div>
                   </button>
                 );

@@ -139,6 +139,7 @@ Filled as tasks complete. Empty now.
 | 4 | More lessons for each topic — Trigonometric Functions | `session_01EGy7moBtmtYAZVEgy8ifSv` | **$16.3446** | **0** | **0** | **6 of 6** | **5 of 5** | 3 (`trigonometry.ts`, `trigonometricFunctions.ts`, `eval-advisor.log`) |
 | 5 | **Repair** — a counts reconciler for plan, report and tree | `session_01XieEsvRk1R2B8mcgd7FT5V` (+3 archived) | **$16.5004** | **0** | **2** | **2 of 2** | **2 of 2** (+1 bookkeeping, absence logged) | 12 (`eval/bin/counts*`, 4 fixtures, `tsconfig.eval.json`, `TASK5-REPORT.md`, `eval-advisor.log`) |
 | 6 | More lessons for each topic — Integration | `session_01GpiV4mYeqwg8X7jNRsEXsZ` (+2 archived) | **$32.7221** | **0** | **0** | **6 of 6** | **1 of 4** (3 committed with consultations in flight, all logged, all followed up) | 4 (`integration.ts` ×2, `eval-advisor.log`, `TASK6-REPORT.md`) |
+| 7 | **Real use** — Complex Numbers: surds, variety, containment | `session_01FXx6wj5S7ktou9UEsEz6vH` (+1 archived) | **$42.84** | **0** | **0** | **1 of 1** | **N/A** — one end-of-task review by design, not per-commit | 12 (`complexNumbers.ts`, `complexPlane.ts`, `complexArithmetic.ts`, `format.ts`, `choiceVariant.ts`, `generators.test.ts`, 3 course files, `variety.{sh,ts}`, `eval-advisor.log`, `TASK7-REPORT.md`) |
 
 ### Task 1 — launched 2026-09-16 12:07 UTC
 
@@ -2381,3 +2382,92 @@ The owner's expectation that the cadence would be cheaper is holding. It remains
 controlled comparison**: different course, different unit sizes, different executor model,
 and the single end-of-task consultation has not returned yet, so its cost is not in that
 figure.
+
+## Task 7 complete — the review found the task re-committing the sin it was built to fix
+
+Merged at `c9d1ac0`. Gates on the merged tree: **3417 tests**, both typechecks silent,
+lint 0 errors / 25 warnings, build passes. `counts.sh` on plan and report with my own
+gate log: **all ten claims green, exit 0**. Every one of the seven units hit its frozen
+test count exactly.
+
+### The owner's three complaints, answered
+
+| Complaint | Before | After |
+| --- | --- | --- |
+| Unrealistic figures | `\|18 + 24i\|` = 30, `√(35² + 12²)` = 37 | `\|4 + i\|` = `√17`, `\|6 + 5i\|` = `√61` |
+| Off-topic skill check | 18 offending pairs across 17 lessons, repo-wide | **0**, refused by a test |
+| Sameness | `cn-l3-modulus` 100% one generator | 50%; Complex Numbers 10 of 14 repetitive → **5 of 14** |
+
+Verified by my own scan, written before the executor's tool existed, not by theirs.
+
+### The end-of-task review earned its place, and the reason is uncomfortable
+
+Six findings, four live, **all fixed and pushed in `de3bc08` before the report was
+written**. The characteristic failure of this cadence — writing a finding up as a known
+limitation because there is no next unit to carry a fix into — did not occur.
+
+Two of the four were **this task re-committing the exact sin it exists to close**:
+
+- **`power-modulus` produced `4096√2`** with a never-rooted distractor of `33554432`, in
+  a skill check. The task built to end unrealistic arithmetic shipped worse arithmetic.
+- **Unit 1 made `cn-l4-argument` an offender** — a lesson the plan lists as clean. Its
+  deck practises `modulus-steps` (integer reduce, whole answer); its check asks
+  `modulus`, which unit 1 had just turned into a typed surd, in a lesson whose prose
+  never mentions surds.
+
+The executor's own note on the second is the sharpest sentence in this log:
+
+> *"It is the exact defect class the task exists to close, it was introduced by my own
+> change, and the test I wrote to catch the class cannot see it — because the rule is
+> about skills and the thing that bit is answer format."*
+
+> **Task 6 found that building a check moves the class somewhere unchecked. Task 7 found
+> it moving *within a single task, through the very rule written to catch it*.** The
+> containment test is correct, `familyOf` is correct, and the defect walked through both
+> because the rule quantifies over skills and the harm arrived as answer format.
+
+The third live finding is a plain invariant breach nothing caught: **`divide-which-multiplier`
+offered two correct options** in 272 of 2000 draws at difficulty 1. The exclusion made
+the four *labels* distinct and said nothing about which of them answers the question — a
+check on the wrong property, which is instance seven of the first class.
+
+### The reviewer refused the executor's instrument, unprompted
+
+Handed the scratch oracle, the advisor declined to use it: *"the oracle is code I wrote
+alongside the generators, so a shared misreading would be invisible to both."* It wrote
+its own prompt-parsing verifier and swept 800 draws per id.
+
+That sweep found **nothing** — no prompt-versus-answer disagreement on any of the fifteen
+ids. **Every defect it found was somewhere neither oracle was pointed at.** Independence
+of authorship bought the finding; the oracle itself did not.
+
+### A gap in my own instrument
+
+**Four of the fifteen new registry ids are never asked by any lesson or level check**,
+and account for 52 of the 196 new tests. `counts.sh` marks them delivered, because it
+reconciles a `generators` claim against **the registry** — not against whether anything
+asks them. A generator can be counted as shipped and never reach a learner. The report
+says so in those words; the reconciler cannot. Candidate check for a later task.
+
+### Cost, and a correction to what I said mid-run
+
+**$42.84** — $40.51 plus the archived Sonnet attempt's $2.3258. Seven units, so **$6.12
+a unit** against task 6's $8.18.
+
+Mid-run I quoted $3.58 a unit from a $25.07 reading. That figure predated the
+consultation and its fixes, which cost a further $15.44. **The saving is real and about
+half what I said it was**, and the mid-run number should not have been offered as a rate
+while the most expensive step had not run.
+
+Not a controlled comparison in any case: different course, different unit count,
+different executor model, different advisor cadence, all changed at once.
+
+### For the owner, on the phone
+
+The `)` key beside the root template now matters. Before this branch every modulus
+answered a whole number and the key was decorative; now nearly every `modulus`,
+`modulus-distance` and `power-modulus` answer is a surd, **including four one-attempt
+questions in the `cn-l3` level check**. Pressing `)` after the root template yields
+`sqrt(13))`, which grades `invalid` — invariant 3 keeps that editable, so nobody is
+stranded, but it moved from a wart to the primary input path. It lives in `src/ui/`,
+outside this task's boundary, and no container here has a browser.

@@ -64,12 +64,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'tf-l1-periodic': 2,
   'tf-l1-shift': 2,
   'tf-l2-speed': 2,
-  'cn-l1-arithmetic': 2,
-  'cn-l1-complex': 2,
-  'cn-l2-multiply': 2,
-  'cn-l2-division': 2,
-  'cn-l3-sqrt': 2,
-  'cn-l4-de-moivre': 2,
   'in-l1-antiderivatives': 2,
   'in-l1-powers': 2,
   'in-l1-negative': 2,
@@ -82,7 +76,7 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 25;
+export const WIDGET_KIND_CEILING = 19;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -91,8 +85,8 @@ export const WIDGET_KIND_CEILING = 25;
  * Far longer than the widget-kind list — it started at 102 of 105 lessons —
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
- * progress is measured. Logarithms left both lists in batch A5, and
- * Differentiation in batch A6.
+ * progress is measured. Logarithms left both lists in batch A5,
+ * Differentiation in A6 and Complex Numbers in A7.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l1-multiply': 5,
@@ -132,19 +126,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'tf-l3-amplitude-shift': 3,
   'tf-l3-period-shift': 3,
   'tf-l3-period-formula': 6,
-  'cn-l1-arithmetic': 5,
-  'cn-l1-complex': 4,
-  'cn-l1-quadratics': 5,
-  'cn-l2-multiply': 5,
-  'cn-l2-conjugates': 4,
-  'cn-l2-division': 4,
-  'cn-l3-plane': 3,
-  'cn-l3-modulus': 4,
-  'cn-l3-sqrt': 5,
-  'cn-l4-argument': 4,
-  'cn-l4-polar': 6,
-  'cn-l4-powers': 3,
-  'cn-l4-de-moivre': 6,
   'in-l1-antiderivatives': 4,
   'in-l1-powers': 7,
   'in-l1-sums': 6,
@@ -177,4 +158,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 79;
+export const GENERATOR_REPETITION_CEILING = 66;

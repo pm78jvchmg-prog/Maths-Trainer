@@ -261,12 +261,12 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A3 | Widen Exponents & Radicals | **done** (`claude/roadmap-a3-vrqpoj`) | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | **done** (`claude/roadmap-a4-475hws`) | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
-| A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
+| A6 | Widen Differentiation | **done** (`claude/roadmap-a6-9g7v59`) | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | **done** (`claude/roadmap-a8-23kraq`) | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | **done** (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
-| A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
+| A11 | Retire the allowlist | **done** (landed with A6, `claude/roadmap-a6-9g7v59`) | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
@@ -305,9 +305,15 @@ already retired. The repetition list does not move, and cannot — a swap change
 a lesson's shape, not how many families it asks, so emptying that list stays
 A3 to A10's work.
 
-A7 then took both lists down together, to **23** and **77**: widening the
-fourteen Complex Numbers lessons to eight exercises needed seventeen new
-generators, which is A5's "four families per lesson" arithmetic showing up
+A6 took all eleven Differentiation lessons off **both** lists. It confirms what
+A5 found about generator families, and sharpens it: the eleven decks needed ten
+new generators, and eight of the ten are `tiles` or `tree` rather than another
+way of typing an answer, because the constraint that actually binds is the
+second one. Three widget kinds is easy to reach with a choice question; four
+families that are genuinely different questions is not.
+
+A7 then took both lists down together: widening the fourteen Complex Numbers
+lessons to eight exercises needed seventeen new generators, which is A5's "four families per lesson" arithmetic showing up
 again. Worth knowing for the batches still to come is where those seventeen
 went — a course that already had thirty-odd generators still had almost none
 outside `expression` and `choice`, so the new ones were chosen by *widget*
@@ -316,14 +322,23 @@ levels 3 and 4, a plane tap, and a slider. Asking what a lesson has no way of
 asking is a faster route to the three-kind bar than another generator of the
 kind it already has eight of.
 
-A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
-allowlist entry belongs to one of those batches. A11 is therefore the **last**
-row of phase A rather than a parallel one — the commit that deletes the two
-lists, their ceilings and the guard's use of them once the widening batches have
-emptied them. Until then its job is to keep the ratchet honest, and `npm test`
-now prints what each course still has outstanding so the burn-down is visible
-per batch rather than as one falling total. An emptied list that is left in
-place fails the suite, so the deletion cannot be forgotten.
+Every figure above was true when its batch was written and was stale by the
+time the next one merged, since the two lists shrank from several branches at
+once. `npm test` prints the current standing, and that was always the number to
+quote.
+
+A11 owned no lessons of its own: A3–A10 covered all 105 between them, so every
+allowlist entry belonged to one of those batches, and A11 was the **last** row
+of phase A rather than a parallel one — the commit deleting the two lists,
+their ceilings and the guard's use of them once the widening batches had
+emptied them. It landed inside A6 rather than as a row of its own, because it
+was A6's merge of A8 that emptied the second list: A8 took the last `tf-` rows
+off it and A6 the last `df-` rows, so the two lists reached zero in a merge
+neither branch could have reached alone. A1 had built the ratchet to fail the
+suite the moment a list emptied, naming the deletion as the fix, so the batch
+that got there did it rather than handing it on. Both bars are now
+unconditional, and a lesson that cannot meet them is a lesson to widen —
+there is nowhere left to record an exception.
 
 A9 confirmed what A5 found about generator families, and adds one of its own:
 the family a lesson borrows must be one the learner has already met. Two of

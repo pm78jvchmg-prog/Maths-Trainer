@@ -355,8 +355,14 @@ function TreeBody({
         const y1 = ra.bottom - origin.top;
         const x2 = rb.left + rb.width / 2 - origin.left;
         const y2 = rb.top - origin.top;
-        const mid = (y1 + y2) / 2;
-        next.push(`M ${x1} ${y1} V ${mid} H ${x2} V ${y2}`);
+        // The elbow sits just above the node being fed, not halfway down.
+        // Halfway is the same thing for two adjacent rows, and wrong for a
+        // node fed from two rows up: the horizontal run then crosses the row
+        // in between and disappears behind a node it has nothing to do with,
+        // so the wire reads as ending there. Held at 12px because the rows
+        // are 26px apart, which keeps the elbow inside the gap.
+        const elbow = Math.max(y1, y2 - 12);
+        next.push(`M ${x1} ${y1} V ${elbow} H ${x2} V ${y2}`);
       }
       setPaths(next);
     };

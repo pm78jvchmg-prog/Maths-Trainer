@@ -190,7 +190,7 @@ export const differentiation: Course = {
             askAfter(
               [
                 prose(
-                  'With no constant term to lose, the derivative below is the whole of what the sum rule leaves behind. A value has already been put into it: work down the tree, doing each piece in the order the arithmetic allows.',
+                  'With no constant term to lose, this is the whole of what the sum rule leaves behind.',
                 ),
               ],
               'df-gradient-tree',
@@ -353,14 +353,7 @@ export const differentiation: Course = {
             ),
             ask('evaluate-derivative', 2),
             ask('df-evaluate-steps'),
-            askAfter(
-              [
-                prose(
-                  'A tangent lies flat exactly where the gradient is zero. Find where that happens on this curve, and slide to it.',
-                ),
-              ],
-              'df-stationary-slider',
-            ),
+            ask('df-stationary-slider'),
             teach(
               {
                 kind: 'prose',
@@ -445,7 +438,7 @@ export const differentiation: Course = {
             askAfter(
               [
                 prose(
-                  'The two terms stay apart until the very end, so each one can be worked out on its own. Fill the tree below to find the gradient at a point.',
+                  'The two terms stay apart until the very end, so each one can be worked out on its own.',
                 ),
               ],
               'df-product-tree',
@@ -620,7 +613,7 @@ export const differentiation: Course = {
             askAfter(
               [
                 prose(
-                  'Each layer has to be finished before the next one can start, which is what the tree below is showing. Work down it to get the gradient at a point.',
+                  'Each layer has to be finished before the next one can start, which is what the tree below is showing.',
                 ),
               ],
               'df-chain-tree',
@@ -986,7 +979,7 @@ export const differentiation: Course = {
             askAfter(
               [
                 prose(
-                  'The two terms of a product-rule answer never meet until the last step, whatever is inside them. Work down the tree for the gradient at a point.',
+                  'The two terms of a product-rule answer never meet until the last step, whatever is inside them.',
                 ),
               ],
               'df-product-tree',

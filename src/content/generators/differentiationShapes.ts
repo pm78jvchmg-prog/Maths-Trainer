@@ -19,8 +19,11 @@
  *   between the blanks is rendered as TeX on its own. So braces round a digit
  *   anywhere in a template are read as a blank marker — `x^{2}` becomes a
  *   slot — and a `\frac{` opening before a blank leaves an unmatched fragment.
- *   `tileSafe` strips the braces off single-digit exponents; blanks never go
- *   inside a `\frac`. Bank *tokens* are rendered whole, so they keep braces.
+ *   So the templates here carry no powers and no fractions at all: anything
+ *   with either goes in the prompt, where it is rendered whole. That also
+ *   keeps a template short enough not to wrap on a phone, which strands the
+ *   last blank on a row of its own. Bank *tokens* are rendered whole too, so
+ *   they keep their braces.
  * - Every backslash is doubled in source. A single one collapses silently and
  *   the learner reads the word "quad" in the middle of a formula.
  */
@@ -31,19 +34,6 @@ import { termTex, sumTex } from './calculus';
 /** A non-zero integer, for sampling where 0 would make a degenerate question. */
 function nonZero(value: number, fallback: number): number {
   return value === 0 ? fallback : value;
-}
-
-/**
- * A tiles template's literal TeX, with single-digit exponents unbraced.
- *
- * `termTex` writes `x^{2}`, which is right everywhere except inside a tiles
- * template, where the widget's `/\{(\d+)\}/` split takes `{2}` for a blank
- * marker and turns the exponent into an empty slot. `x^2` renders the same.
- * Exponents of ten or more would still collide, so no template here carries
- * one.
- */
-function tileSafe(tex: string): string {
-  return tex.replace(/\^\{(\d)\}/g, '^$1');
 }
 
 /**
@@ -242,7 +232,7 @@ const gradientTree: Generator<GradientTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The derivative of $f(x) = ${sumTex([termTex(a, 3), termTex(b, 2)])}$ has already been found and $x = ${t}$ substituted in. Fill the tree in: the top row is what can be worked out straight away.`,
+          text: `The derivative of $f(x) = ${sumTex([termTex(a, 3), termTex(b, 2)])}$ has been found and $x = ${t}$ put into it. Fill the tree: the top row is what can be done straight away.`,
         },
       ],
       expression: `f'(${t}) = ${3 * a} \\times ${bracketed(t)}^{2} + ${bracketed(2 * b)} \\times ${bracketed(t)}`,
@@ -397,7 +387,7 @@ const productPieces: Generator<ProductPiecesParams> = {
   }),
   render: ({ a, b, c, d }): Slide => {
     const u = sumTex([termTex(a, 1), termTex(b, 0)]);
-    const v = tileSafe(sumTex([termTex(c, 2), termTex(d, 0)]));
+    const v = sumTex([termTex(c, 2), termTex(d, 0)]);
     return {
       kind: 'tiles',
       prompt: [
@@ -407,10 +397,18 @@ const productPieces: Generator<ProductPiecesParams> = {
         },
         {
           kind: 'display',
-          tex: `y = \\left(${u}\\right)\\left(${sumTex([termTex(c, 2), termTex(d, 0)])}\\right)`,
+          tex: `y = \\left(${u}\\right)\\left(${v}\\right)`,
+        },
+        // The assembled rule stays in the prompt rather than in the template.
+        // A template carrying both brackets *and* both blanks wraps on a
+        // phone, and a wrapped tiles line puts the second slot on a row of its
+        // own with the operator stranded at the end of the first.
+        {
+          kind: 'display',
+          tex: `\\frac{dy}{dx} = u'\\left(${v}\\right) + \\left(${u}\\right)v'`,
         },
       ],
-      template: `\\frac{dy}{dx} = {0}(${v}) + (${u}){1}`,
+      template: "u' = {0}, \\quad v' = {1}",
       bank: bankOf(
         [`${a}`, termTex(2 * c, 1)],
         [`${b}`, `${a + b}`, `${2 * c}`, termTex(c, 1), termTex(2 * c, 2), termTex(a, 1)],
@@ -493,10 +491,12 @@ const productTree: Generator<ProductTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The product rule has already been applied to $y = \\left(${u}\\right)\\left(${v}\\right)$. Work out the gradient at $x = ${t}$ by filling the tree: the two brackets first, then the two products, then the sum.`,
+          text: `The product rule is already applied to $y = \\left(${u}\\right)\\left(${v}\\right)$. Fill the tree for the gradient at $x = ${t}$: brackets first, then the two products, then the sum.`,
         },
       ],
-      expression: `\\frac{dy}{dx} = ${a}\\left(${v}\\right) + \\left(${u}\\right)${c} \\quad \\text{at } x = ${t}`,
+      // No "at x = t" tail here: the prompt has just said it, and the line is
+      // already at the width a phone can show without scrolling sideways.
+      expression: `\\frac{dy}{dx} = ${a}\\left(${v}\\right) + \\left(${u}\\right)${c}`,
       nodes: [
         { id: 'vAt', from: [] },
         { id: 'uAt', from: [] },
@@ -589,8 +589,15 @@ const quotientPieces: Generator<QuotientPiecesParams> = {
           text: 'The numerator of the quotient rule is $u\'v - uv\'$, and the order of those two terms is not negotiable. Place them.',
         },
         { kind: 'display', tex: `y = \\frac{${u}}{${v}}` },
+        // Where the numerator is going, kept out of the template for the same
+        // reason the product rule's is: a template holding the fraction as
+        // well as both terms wraps on a phone.
+        {
+          kind: 'display',
+          tex: `\\frac{dy}{dx} = \\frac{N}{\\left(${v}\\right)^{2}}`,
+        },
       ],
-      template: `\\frac{dy}{dx} = \\frac{N}{(${v})^2}, \\quad N = {0} - {1}`,
+      template: 'N = {0} - {1}',
       bank: bankOf(
         [factorTex(a, v), factorTex(c, u)],
         [factorTex(c, v), factorTex(a, u), factorTex(b, v), factorTex(d, u)],
@@ -741,7 +748,9 @@ const chainTree: Generator<ChainTreeParams> = {
           text: `The chain rule has already been applied to $y = \\left(${innerTex}\\right)^{${n}}$. Find the gradient at $x = ${t}$: the bracket first, then its power, then the two multipliers.`,
         },
       ],
-      expression: `\\frac{dy}{dx} = ${n}\\left(${innerTex}\\right)^{${n - 1}} \\times ${a} \\quad \\text{at } x = ${t}`,
+      // Same as the product tree: the "at x = t" is in the prompt, and a phone
+      // has no width to spare for saying it twice.
+      expression: `\\frac{dy}{dx} = ${n}\\left(${innerTex}\\right)^{${n - 1}} \\times ${a}`,
       nodes: [
         { id: 'inner', from: [] },
         { id: 'raised', from: ['inner'] },

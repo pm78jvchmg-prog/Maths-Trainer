@@ -2524,3 +2524,52 @@ ran**; the fourth by disbelieving a number too dramatic to be true.
 That is the same lesson as `counts.sh`'s found-nothing trap, arrived at from the other
 side: task 5 built a tool that refuses to pass when it parsed nothing, and four times in
 one sitting I wrote checks with no such refusal.
+
+### The keypad could not type the answer the checker already accepted
+
+Second piece of real-use feedback, on the merged task 7: *"`|24+10i| = sqrt(24^2+10^2)`
+however, no exponent function or squared function exists to answer in this format."*
+
+Both halves true, and they point in opposite directions:
+
+| | |
+| --- | --- |
+| `checkAnswer('sqrt(24^2+10^2)', '26')` | **correct** — the grader has always taken this |
+| `SQRT_KEYS` | `√(` and `)`. No `^`. **The form was ungradeable only because it was untypeable** |
+
+So the owner's original third complaint — *"the ability to enter the answer in that
+format … without needing to calculate the exact number"* — was answered by task 7 only
+for the non-triple half. Where the parts still form a triple the answer is a whole number,
+and they were still made to compute it.
+
+**Fixed by adding one key.** `^` already existed everywhere it mattered: declared in
+`calculus.ts`, handled by `applyKey` (`slides.tsx:150`) as `insertSup`, rendered as
+`x^□` (`:218`). Adding `{ insert: '^' }` to `SQRT_KEYS` needed no UI change at all.
+
+**`)` removed in the same line.** `sqrt(` is a template that closes itself and no key on
+this pad opens a bracket, so `)` could only ever add a stray one — `sqrt(13))`, which
+grades `invalid`. Task 7's report flagged it as having moved "from a cosmetic wart to the
+primary input path" and deferred it as needing `src/ui/`. It did not: the key is declared
+in content.
+
+#### The first browser pass of the week, and it changed the result twice
+
+`CLAUDE.md` requires a visible surface to be exercised in a browser, and no task this week
+had done it. Chromium is installed here, so this one was.
+
+Two things only the browser could show:
+
+- **The keypad's two special keys render as KaTeX, not text.** Every text-based selector
+  missed them. A check that asserted "the keypad contains `^`" by label would have passed
+  vacuously on a pad that had neither key.
+- **The first typed attempt was rejected, correctly.** The driver hardcoded `5, 5` against
+  a question that was `|5 + 3i|`. The rejection was the app being right and my script
+  being wrong — and it incidentally exercised invariant 1 on a real screen: *"Not quite."*,
+  an opt-in *Show me*, and *"Tap the question to try again."* No answer revealed.
+
+Final run, at 393×852: question `|6 + 4i|`, keys `√ 6 ^ 2 › + 4 ^ 2`, verdict **CORRECT**.
+
+> **Driving the doc model proved the serialiser; only the browser proved the key exists to
+> press.** I had already verified `sqrt(24^(2)+10^(2))` end-to-end through `insertRoot`,
+> `insertSup` and `toAnswer` before touching the keypad — a real check, and it could not
+> have told me the button renders as KaTeX or that my selector would miss it.

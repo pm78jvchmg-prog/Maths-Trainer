@@ -34,9 +34,24 @@ const ANGLE_KEYS: KeypadKey[] = [
   { insert: '/' },
   { insert: 'pi', label: 'π' },
 ];
+/**
+ * The keypad for a typed modulus.
+ *
+ * `^` is here because the owner met `|24 + 10i|` and wanted to answer
+ * `sqrt(24^2 + 10^2)` — the working, not its value. The checker already accepts
+ * that (it probes numerically, so any writing that evaluates to 26 is correct);
+ * only the keypad could not produce it. Typing `√( 2 4 ^ 2 → + 1 0 ^ 2`
+ * serialises to `sqrt(24^(2)+10^(2))`, which grades correct.
+ *
+ * `)` is gone. `sqrt(` is a template that closes itself (`applyKey`,
+ * `src/ui/slides.tsx`), and no key on this pad opens a bracket, so the only
+ * thing `)` could ever add was a stray one — `sqrt(13))`, which grades
+ * `invalid`. It mattered little while every modulus answered a whole number
+ * and the root was decorative; it matters now that most answers are surds.
+ */
 const SQRT_KEYS: KeypadKey[] = [
   { insert: 'sqrt(', label: '√(' },
-  { insert: ')' },
+  { insert: '^' },
 ];
 
 /** Wraps a TeX fragment that starts with a minus sign, so it survives being multiplied or squared. */

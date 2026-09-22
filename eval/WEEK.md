@@ -2471,3 +2471,56 @@ questions in the `cn-l3` level check**. Pressing `)` after the root template yie
 `sqrt(13))`, which grades `invalid` — invariant 3 keeps that editable, so nobody is
 stranded, but it moved from a wart to the primary input path. It lives in `src/ui/`,
 outside this task's boundary, and no container here has a browser.
+
+### Stage 7 on task 7 — the mechanism behind the severest finding, which the report did not state
+
+The advisor found `divide-which-multiplier` shipping **two correct options** in 13.6% of
+draws. Neither it nor the report says *why nothing caught it*. Measured here:
+
+```
+generators.test.ts:408  it('offers exactly one correct option, and distractors
+generators.test.ts:414      if (!base.choices) return;
+```
+
+**Eighteen generators in this repository build their options inside `render()` and
+declare no `choices()`**, so that test returns at line 414 and never runs on them.
+`divide-which-multiplier` is one. Four of the eighteen are new in task 7:
+`divide-which-multiplier`, `modulus-which`, `modulus-compare`, `power-reverse`. The
+other fourteen predate it — `complex-part`, `int-properties`, `log-domain`,
+`quad-root-count`, `real-solutions`, `trig-related-angle`, `vec-parallel` and seven more.
+
+This is **instance eight of the first class, and the purest yet**: not a check that
+compares the wrong thing, but a check that *returns before comparing anything*, and
+reports green either way. PITFALLS §2.2 already names silent skipping as a hazard; this
+is that hazard holding the invariant "exactly one option is correct" for one generator in
+seven, unnoticed until an outside reader swept the values by hand.
+
+Value-duplication itself is clean where it can be measured: **27,954 option pairs compared
+across the generators that do declare `choices()`, none equal in value**, with the
+comparator proved able to fire first (`sqrt(20)` vs `2*sqrt(5)` reads `correct`).
+
+`PREFLIGHT.md` now carries the rule: **a check that skips is not a check that passed.**
+
+### Four checks of my own that could not have failed, in one sitting
+
+Worth recording against myself, in a project about exactly this:
+
+| Check | Why it could not fail |
+| --- | --- |
+| Lesson audit, first run | Read `.generator`; the field is `.generatorId`. Compared two empty sets, reported `0 off-topic, 0 repetitive` |
+| Adversarial sweep, first run | Read `o.correct`/`o.answer` on rendered options, which carry `id`/`label`. Reported `0 duplicate values` having compared none |
+| Adversarial sweep, second run | Called `choices()` on derived `+choice` ids, where it does not exist. `0 pairs compared`, reported as `0 duplicates` |
+| Coverage count, first run | Asked which choice-*rendering* generators have `choices()`; the test keys on having `choices()` at all. Reported `0 of 102 covered`, which was my question being wrong, not a hole |
+
+Only the first was caught by luck — I had read the offending line in the file beforehand.
+The second and third were caught by the habit of printing **how many comparisons actually
+ran**; the fourth by disbelieving a number too dramatic to be true.
+
+> **A zero is the most dangerous result a check can return**, because it is
+> indistinguishable from the check not running. Every count this project reports should
+> come with the denominator it was drawn from — `pairs compared: 27954` is evidence,
+> `duplicates: 0` on its own is not.
+
+That is the same lesson as `counts.sh`'s found-nothing trap, arrived at from the other
+side: task 5 built a tool that refuses to pass when it parsed nothing, and four times in
+one sitting I wrote checks with no such refusal.

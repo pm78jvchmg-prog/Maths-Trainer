@@ -128,6 +128,23 @@ unable to be fooled. Collecting the entries into one commit at the end would
 read as tidier and would quietly destroy the only instrument here that does
 not depend on the executor reporting well of itself.
 
+**A surviving mutation means one of two things, and only one of them holds
+a push.** Either the code is unguarded, or the suite is blind. The rule exists
+for the first: a defect of yours must never reach the branch unnoticed. When
+the code is right, the exclusion is present and the survival is a fact about
+what the suite cannot see, holding the push fixes nothing — recording it, and
+closing it in an instrument that can fail, is the whole available response.
+Say which of the two it is, with the evidence, in the commit that carries it.
+
+**A check that skips is not a check that passed.** A guard gated on a declared
+field — `if (!base.choices) return;`, `if (!slide.integrand) continue;` — runs
+on nothing when the field is absent, and reports green. Whenever you add a
+generator that does not declare the field its guard keys on, say so, and say
+what covers it instead. Task 7 shipped a question with two correct answers
+because the test that asserts exactly one correct option returns early for
+generators that build their options inside `render`, and eighteen generators
+in this repository do.
+
 **A review agent gets one unit's diff, not the accumulated branch.**
 Scope every review to the unit about to be committed. A reviewer handed
 three units at once reads everything and notices nothing in particular,

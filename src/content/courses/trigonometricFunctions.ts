@@ -8,8 +8,11 @@
  * point going round a circle, which is the definition that survives past
  * 90 degrees.
  *
- * Each level closes with a level check: twelve questions, no teaching slides,
- * one attempt each.
+ * Level 4 changes the unit to radians, the one the rest of mathematics uses:
+ * what a radian is, converting, exact values, and arcs and sectors.
+ *
+ * Each level closes with a level check: twelve to fifteen questions, no
+ * teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg, wave } from '../figures';
@@ -107,6 +110,34 @@ const graph = (
   kind: 'diagram',
   svg: plotSvg({ label: 'A repeating quantity', ...opts }),
 });
+
+/**
+ * A circle with one radius wrapped round its edge: the picture of one radian.
+ *
+ * The accent arc is exactly as long as the radius drawn beneath it, so the
+ * angle between the two radii is the thing being defined rather than an
+ * illustration of it. `sweep` lets the same figure show a sector for the
+ * arc-length lesson, where the angle is whatever the example needs.
+ */
+function radianSvg(sweep: number, label: string, shaded = false): string {
+  const cx = 130;
+  const cy = 78;
+  const r = 60;
+  const ex = cx + r * Math.cos(sweep);
+  const ey = cy - r * Math.sin(sweep);
+  const large = sweep > Math.PI ? 1 : 0;
+  const arc = `M ${cx + r} ${cy} A ${r} ${r} 0 ${large} 0 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+  return [
+    `<svg viewBox="0 0 260 156" width="100%" role="img" aria-label="${label}">`,
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35" />`,
+    shaded ? `<path class="plot-shade" d="M ${cx} ${cy} L ${cx + r} ${cy} ${arc.slice(arc.indexOf('A'))} Z" />` : '',
+    `<line x1="${cx}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="currentColor" stroke-width="1.5" />`,
+    `<line x1="${cx}" y1="${cy}" x2="${ex.toFixed(2)}" y2="${ey.toFixed(2)}" stroke="currentColor" stroke-width="1.5" />`,
+    `<path class="plot-accent" d="${arc}" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" />`,
+    `<circle cx="${cx}" cy="${cy}" r="2.5" fill="currentColor" />`,
+    `</svg>`,
+  ].join('');
+}
 
 export const trigonometricFunctions: Course = {
   id: 'trigonometric-functions',
@@ -1084,6 +1115,245 @@ export const trigonometricFunctions: Course = {
         ask('trig-midline', 2),
         ask('trig-evaluate-wave', 2),
         ask('trig-read-parameters', 2),
+      ],
+    },
+    {
+      id: 'tf-l4',
+      title: 'Radians',
+      lessons: [
+        {
+          id: 'tf-l4-radian',
+          title: 'What a Radian Is',
+          slides: [
+            teach(
+              prose(
+                'Degrees split a turn into $360$ because $360$ divides so many ways, a choice made thousands of years ago. A **radian** measures an angle with the circle itself instead.',
+              ),
+              { kind: 'diagram', svg: radianSvg(1, 'A circle with an arc exactly one radius long, and the angle it makes at the centre') },
+              prose(
+                'Bend the radius round the edge of the circle. The angle that arc makes at the centre is **one radian**, whatever the size of the circle.',
+              ),
+              maths('\\theta = \\frac{s}{r} \\qquad \\text{arc length} \\div \\text{radius}'),
+              prose(
+                'So an angle in radians counts how many radii fit along the arc: $10$ cm of arc on a radius of $4$ cm is $2.5$ radii, or $2.5$ radians. One radian is just under a sixth of a turn, a little over $57^{\\circ}$.',
+              ),
+            ),
+            ask('trig-rad-arc-angle'),
+            ask('trig-rad-arc-angle+choice'),
+            ask('trig-rad-compare'),
+            teach(
+              prose(
+                'The circumference of a circle is $2\\pi r$, so exactly $2\\pi$ radii fit round it. A full turn is therefore $2\\pi$ radians, about $6.28$.',
+              ),
+              maths('360^{\\circ} = 2\\pi \\qquad 180^{\\circ} = \\pi \\qquad 90^{\\circ} = \\frac{\\pi}{2}'),
+              prose(
+                'Any fraction of a turn is that fraction of $2\\pi$: a third of a turn is $\\frac{2\\pi}{3}$, three quarters is $\\frac{3\\pi}{2}$. Answers are usually left as a multiple of $\\pi$, typed with the $\\pi$ key, because $\\pi$ is not a tidy decimal.',
+              ),
+            ),
+            ask('trig-rad-from-turn'),
+            ask('trig-rad-place'),
+            ask('trig-rad-compare'),
+            teach(
+              prose(
+                'The waves of level 3 look exactly the same with the axis in radians; only the numbers along the bottom change. One cycle of $\\sin(x)$ now ends at $2\\pi$, not at $360$.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 6.5,
+                curves: [{ f: Math.sin, accent: true }],
+                verticals: [1, 2, 3, 4].map((q) => ({ x: (q * Math.PI) / 2, dashed: true })),
+                yMin: -1.5,
+                yMax: 1.5,
+                label: 'One cycle of sin x with the axis in radians, dashed lines at each quarter turn',
+              }),
+              prose(
+                'The dashed lines are the quarter turns, $\\frac{\\pi}{2} \\approx 1.57$, $\\pi \\approx 3.14$, $\\frac{3\\pi}{2} \\approx 4.71$ and $2\\pi \\approx 6.28$. An angle written with no degree sign is in radians.',
+              ),
+            ),
+            ask('trig-rad-place'),
+            ask('trig-rad-from-turn+choice'),
+          ],
+          skillCheck: [
+            ask('trig-rad-arc-angle'),
+            ask('trig-rad-from-turn'),
+            ask('trig-rad-compare'),
+          ],
+        },
+        {
+          id: 'tf-l4-converting',
+          title: 'Converting Degrees and Radians',
+          slides: [
+            teach(
+              prose(
+                'Half a turn is $180^{\\circ}$ and also $\\pi$ radians. Every conversion comes from that one fact.',
+              ),
+              maths('180^{\\circ} = \\pi \\quad \\Rightarrow \\quad 1^{\\circ} = \\frac{\\pi}{180}'),
+              prose(
+                'To go from degrees to radians, multiply by $\\frac{\\pi}{180}$ and cancel the fraction as far as it goes.',
+              ),
+              maths('150^{\\circ} \\times \\frac{\\pi}{180} = \\frac{150\\pi}{180} = \\frac{5\\pi}{6}'),
+            ),
+            ask('trig-rad-from-degrees'),
+            ask('trig-rad-convert-tiles'),
+            ask('trig-rad-from-degrees+choice'),
+            teach(
+              prose(
+                'The other way round, put $180^{\\circ}$ where the $\\pi$ is. That is the same as multiplying by $\\frac{180}{\\pi}$.',
+              ),
+              maths('\\frac{5\\pi}{6} = \\frac{5 \\times 180^{\\circ}}{6} = 150^{\\circ}'),
+              prose(
+                'Dividing first is often kinder: $\\frac{\\pi}{6}$ is $180^{\\circ} \\div 6 = 30^{\\circ}$, and $\\frac{5\\pi}{6}$ is five of those.',
+              ),
+            ),
+            ask('trig-rad-to-degrees'),
+            ask('trig-rad-unit-tree'),
+            ask('trig-rad-to-degrees+choice'),
+            teach(
+              prose(
+                'A quick check catches a factor used upside down. Degree numbers are big and radian numbers small: $150^{\\circ}$ is about $2.6$ radians, so a conversion that lands on thousands has gone the wrong way.',
+              ),
+              maths(
+                '30^{\\circ} = \\frac{\\pi}{6} \\qquad 45^{\\circ} = \\frac{\\pi}{4} \\qquad 60^{\\circ} = \\frac{\\pi}{3} \\qquad 90^{\\circ} = \\frac{\\pi}{2}',
+              ),
+              prose(
+                'These four are worth knowing on sight. They are the special angles of level 2 under new names, and every other common angle is a multiple of one of them.',
+              ),
+            ),
+            ask('trig-rad-unit-tree', 2),
+            ask('trig-rad-convert-tiles', 2),
+          ],
+          skillCheck: [
+            ask('trig-rad-from-degrees'),
+            ask('trig-rad-to-degrees'),
+            ask('trig-rad-unit-tree', 2),
+          ],
+        },
+        {
+          id: 'tf-l4-exact',
+          title: 'Exact Values in Radians',
+          slides: [
+            teach(
+              prose(
+                'The special angles keep their exact values; only their names change. Level 2 used the values $0$, $\\frac{1}{2}$ and $1$, and two more complete the set.',
+              ),
+              maths(
+                '\\begin{array}{c|ccccc} \\theta & 0 & \\frac{\\pi}{6} & \\frac{\\pi}{4} & \\frac{\\pi}{3} & \\frac{\\pi}{2} \\\\ \\hline \\sin(\\theta) & 0 & \\frac{1}{2} & \\frac{\\sqrt{2}}{2} & \\frac{\\sqrt{3}}{2} & 1 \\\\ \\cos(\\theta) & 1 & \\frac{\\sqrt{3}}{2} & \\frac{\\sqrt{2}}{2} & \\frac{1}{2} & 0 \\end{array}',
+              ),
+              prose(
+                'The cosine row is the sine row backwards: as the point climbs the circle its height grows while its sideways distance shrinks. Past $\\frac{\\pi}{2}$ the sizes repeat and only the sign changes, and converting to degrees is always a safe way in.',
+              ),
+            ),
+            ask('trig-rad-value-tree'),
+            ask('trig-rad-exact-value'),
+            ask('trig-rad-to-degrees+choice'),
+            teach(
+              prose(
+                'The sign still comes from where the point is. In radians the quarter-turn marks are $\\frac{\\pi}{2}$, $\\pi$ and $\\frac{3\\pi}{2}$, and writing the angle over the same denominator makes the comparison easy.',
+              ),
+              prose(
+                'Take $\\frac{5\\pi}{4} = \\frac{15\\pi}{12}$. The marks either side of it are $\\pi = \\frac{12\\pi}{12}$ and $\\frac{3\\pi}{2} = \\frac{18\\pi}{12}$:',
+              ),
+              maths('\\frac{12\\pi}{12} < \\frac{15\\pi}{12} < \\frac{18\\pi}{12}'),
+              prose(
+                'So the point is below the centre and to its left, and both $\\sin$ and $\\cos$ are negative there. An angle past $2\\pi$ is a full turn and then some, so take the $2\\pi$ off; a negative angle turns clockwise, so add $2\\pi$.',
+              ),
+            ),
+            ask('trig-rad-quadrant-flow'),
+            ask('trig-rad-exact-value'),
+            ask('trig-rad-value-tree'),
+            teach(
+              prose(
+                'On a graph in radians the features of $\\sin(x)$ land on the quarter-turn marks: its peak at $\\frac{\\pi}{2}$, down through the axis at $\\pi$, its trough at $\\frac{3\\pi}{2}$, and back to the start at $2\\pi$.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 6.5,
+                curves: [
+                  { f: Math.sin, accent: true },
+                  { f: Math.cos, dashed: true },
+                ],
+                verticals: [1, 2, 3, 4].map((q) => ({ x: (q * Math.PI) / 2, dashed: true })),
+                yMin: -1.5,
+                yMax: 1.5,
+                label: 'sin x solid and cos x dashed over one turn, with dashed lines at each quarter turn',
+              }),
+              prose(
+                'The dashed curve is $\\cos(x)$, a quarter turn ahead: its peak is at $0$ and its trough at $\\pi$. Stretching either curve taller moves none of these points.',
+              ),
+            ),
+            ask('trig-rad-graph-slider'),
+            ask('trig-rad-quadrant-flow', 2),
+          ],
+          skillCheck: [
+            ask('trig-rad-exact-value'),
+            ask('trig-rad-value-tree'),
+            ask('trig-rad-quadrant-flow'),
+          ],
+        },
+        {
+          id: 'tf-l4-arc-sector',
+          title: 'Arc Length and Sector Area',
+          slides: [
+            teach(
+              prose(
+                'The definition of a radian runs straight into a formula. If the angle is the arc divided by the radius, the arc is the radius times the angle.',
+              ),
+              maths('\\theta = \\frac{s}{r} \\quad \\Rightarrow \\quad s = r\\theta'),
+              { kind: 'diagram', svg: radianSvg((2 * Math.PI) / 3, 'A sector with an angle of two thirds of pi and its arc highlighted', true) },
+              prose(
+                'For a radius of $6$ cm and an angle of $\\frac{2\\pi}{3}$, the arc is $6 \\times \\frac{2\\pi}{3} = 4\\pi$ cm. That is the whole method, and it only works with the angle in radians.',
+              ),
+            ),
+            ask('trig-rad-arc-length'),
+            ask('trig-rad-arc-angle+choice'),
+            ask('trig-rad-arc-length+choice'),
+            teach(
+              prose(
+                'A sector with angle $\\theta$ is $\\frac{\\theta}{2\\pi}$ of the whole circle, so its area is that share of $\\pi r^2$.',
+              ),
+              maths('A = \\frac{\\theta}{2\\pi} \\times \\pi r^2 = \\frac{1}{2}r^2\\theta'),
+              prose(
+                'Written with the arc it is $A = \\frac{1}{2}rs$: a triangle with the arc as its base and the radius as its height. A thin sector nearly is one, which makes the half easy to remember.',
+              ),
+            ),
+            ask('trig-rad-sector-area'),
+            ask('trig-rad-sector-tree'),
+            ask('trig-rad-sector-area+choice'),
+            teach(
+              prose(
+                'When the angle arrives in degrees, convert it first. Both formulas are built on radians, and feeding in $60$ rather than $\\frac{\\pi}{3}$ makes the answer about $57$ times too big.',
+              ),
+              maths('60^{\\circ} = \\frac{\\pi}{3} \\quad \\Rightarrow \\quad s = r \\times \\frac{\\pi}{3}'),
+              prose(
+                'So every sector question is the same two decisions: is the angle in radians yet, and does the question want the curved edge or the space inside?',
+              ),
+            ),
+            ask('trig-rad-formula-flow'),
+            ask('trig-rad-sector-tree', 2),
+          ],
+          skillCheck: [
+            ask('trig-rad-arc-length', 2),
+            ask('trig-rad-sector-area'),
+            ask('trig-rad-sector-tree'),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('trig-rad-arc-angle', 2),
+        ask('trig-rad-compare', 2),
+        ask('trig-rad-from-turn', 2),
+        ask('trig-rad-place', 2),
+        ask('trig-rad-from-degrees', 2),
+        ask('trig-rad-to-degrees', 2),
+        ask('trig-rad-convert-tiles', 2),
+        ask('trig-rad-unit-tree', 2),
+        ask('trig-rad-exact-value', 2),
+        ask('trig-rad-quadrant-flow', 2),
+        ask('trig-rad-value-tree', 2),
+        ask('trig-rad-graph-slider', 2),
+        ask('trig-rad-arc-length', 2),
+        ask('trig-rad-sector-area+choice', 2),
+        ask('trig-rad-sector-tree', 2),
       ],
     },
   ],

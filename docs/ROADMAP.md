@@ -23,10 +23,11 @@ itself, so that no thread ever has to stop and ask what is next.
 ## 1. What exists today
 
 8 courses, 26 levels, 105 lessons, 147 generators (247 ids once the derived
-`+choice` variants are counted). Written against those figures; A5 added the
-eight new logarithm shapes and A10 added fifteen vector and matrix ones, so it
-now stands at **9 courses** — Vectors & Matrices became two — and 170
-generators, 279 ids.
+`+choice` variants are counted). Written against those figures. Four phase A
+batches have since landed — A5's eight logarithm shapes, A2's fifteen working
+widgets, A7's seventeen complex-number ones and A10's fifteen vector and matrix
+ones — so it now stands at **9 courses**, Vectors & Matrices having become two,
+with **202 generators** and 316 ids.
 
 | Concept | Category | Levels | Lessons | Toward 30 |
 | --- | --- | --- | ---: | ---: |

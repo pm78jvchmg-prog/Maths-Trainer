@@ -2226,8 +2226,8 @@ const matchGraph: Generator<MatchGraphParams> = {
  * compares values, so `5pi/6` and `5*pi/6` and `(5/6)pi` are all the same answer.
  */
 
-/** Number entry with a pi key, for answers that are a multiple of pi. */
-const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, { insert: '/' }, { insert: '.' }];
+/** Number entry with a pi key. `/` is what puts the fraction key on the pad; the point is already there. */
+const PI_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, { insert: '/' }];
 
 function gcd(a: number, b: number): number {
   let x = Math.abs(a);
@@ -2340,7 +2340,7 @@ const radFromTurn: Generator<TurnParams> = {
           : `How many radians is $\\frac{${n}}{${d}}$ of a full turn?`,
       },
     ],
-    lead: '\\theta =',
+    lead: '\\text{angle} =',
     keypad: PI_KEYS,
     answer: piAnswer(2 * n, d),
     domain: 'real',
@@ -2413,7 +2413,7 @@ const radPlace: Generator<PlaceParams> = {
       min: 0,
       max: xMax,
       step: 0.05,
-      tolerance: 0.15,
+      tolerance: 0.1,
       answer,
       readout: 'x = {v}',
       figure: { svg, ...markerWindow(0, xMax) },
@@ -2474,7 +2474,7 @@ const radArcAngle: Generator<ArcAngleParams> = {
     return {
       kind: 'expression',
       prompt: [{ kind: 'prose', text: `${setup(s, r)} ${ask}` }],
-      lead: '\\theta =',
+      lead: '\\text{angle} =',
       keypad: NUMBER_KEYS,
       answer: `${s}/${r}`,
       domain: 'real',
@@ -2500,7 +2500,7 @@ const radArcAngle: Generator<ArcAngleParams> = {
       },
       { tex: `\\theta = \\frac{s}{r} = \\frac{${s}}{${r}} = ${ratioTex(s, r)}` },
       {
-        text: `Every unit cancels, which is why a radian has no unit to write: the arc is $${ratioTex(s, r)}$ radii long, whatever the radii are measured in.`,
+        text: 'The units cancel, which is why a radian has no unit to write: the answer is the same whether the lengths are in centimetres or in miles.',
       },
     ];
   },
@@ -2590,7 +2590,7 @@ const radFromDegrees: Generator<FromDegreesParams> = {
           : `Write $${degrees}^{\\circ}$ in radians, as a multiple of $\\pi$.`,
       },
     ],
-    lead: '\\theta =',
+    lead: '\\text{angle} =',
     keypad: PI_KEYS,
     answer: piAnswer(degrees, 180),
     domain: 'real',
@@ -2669,11 +2669,15 @@ const radToDegrees: Generator<ToDegreesParams> = {
       tex:
         d === 1
           ? `${piTex(n, d)} = ${n} \\times 180^{\\circ} = ${(180 * n) / d}^{\\circ}`
-          : `${piTex(n, d)} = \\frac{${n} \\times 180^{\\circ}}{${d}} = ${(180 * n) / d}^{\\circ}`,
+          : n === 1
+            ? `${piTex(n, d)} = \\frac{180^{\\circ}}{${d}} = ${180 / d}^{\\circ}`
+            : `${piTex(n, d)} = \\frac{${n} \\times 180^{\\circ}}{${d}} = ${(180 * n) / d}^{\\circ}`,
     },
-    {
-      text: `Divide first where you can: $180^{\\circ} \\div ${d} = ${180 / d}^{\\circ}$ is what $${piTex(1, d)}$ is worth, and the angle is $${n}$ of those.`,
-    },
+    n === 1
+      ? { text: `A single $\\pi$ over $${d}$ is simply $180^{\\circ}$ shared ${d} ways.` }
+      : {
+          text: `Divide first where you can: $180^{\\circ} \\div ${d} = ${180 / d}^{\\circ}$ is what $${piTex(1, d)}$ is worth, and the angle is $${n}$ of those.`,
+        },
   ],
 };
 
@@ -2776,7 +2780,8 @@ const radUnitTree: Generator<UnitTreeParams> = {
       ],
       bank: bankAround(
         answer,
-        [2 * unit, 2 * total, 180 * k, total + unit].filter((value) => Number.isInteger(value)),
+        // One step of pi/d too many or too few, and pi/d taken as twice its size.
+        [2 * unit, total + unit, total - unit, 2 * total].filter((value) => Number.isInteger(value)),
       ),
       answer,
     };
@@ -2959,7 +2964,11 @@ const radQuadrantFlow: Generator<QuadrantParams> = {
         text: `The marks are $\\frac{\\pi}{2} = \\frac{6\\pi}{12}$, $\\pi = \\frac{12\\pi}{12}$ and $\\frac{3\\pi}{2} = \\frac{18\\pi}{12}$; writing the angle over $12$ too makes the comparison easy.`,
       },
       {
-        tex: `${piTex(k, 12)} = \\frac{${k}\\pi}{12}${k > 24 ? ` = 2\\pi + \\frac{${k - 24}\\pi}{12}` : ''}`,
+        // Over twelve already when nothing cancels, and then saying so twice reads as a typo.
+        tex: [
+          ...new Set([piTex(k, 12), `\\frac{${k}\\pi}{12}`]),
+          ...(k > 24 ? [`2\\pi + \\frac{${k - 24}\\pi}{12}`] : []),
+        ].join(' = '),
       },
       {
         text: `So it lies between $${QUARTER_MARKS[quarter]}$ and $${QUARTER_MARKS[quarter + 1]}$, and $\\${fn}$ is the point's ${fn === 'sin' ? 'height' : 'sideways displacement'} there: ${positive ? 'positive' : 'negative'}.`,
@@ -3055,7 +3064,8 @@ const radGraphSlider: Generator<GraphSliderParams> = {
     second: difficulty > 1 && rng.chance(0.5),
   }),
   render: ({ fn, feature, a, second }): Slide => {
-    const xMax = second ? 13 : 6.5;
+    // Neither midpoint, where an untouched handle rests, is near a feature.
+    const xMax = second ? 13 : 7;
     const trig = fn === 'sin' ? Math.sin : Math.cos;
     const svg = plotSvg({
       xMin: 0,
@@ -3078,7 +3088,7 @@ const radGraphSlider: Generator<GraphSliderParams> = {
       min: 0,
       max: xMax,
       step: 0.05,
-      tolerance: 0.15,
+      tolerance: 0.1,
       answer: Number((Math.round(exact * 20) / 20).toFixed(2)),
       readout: 'x = {v}',
       figure: { svg, ...markerWindow(0, xMax) },

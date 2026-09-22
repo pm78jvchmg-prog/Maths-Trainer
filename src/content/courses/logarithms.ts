@@ -92,7 +92,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-evaluate'),
-            ask('log-tree'),
+            ask('log-sum-tree'),
           ],
           skillCheck: [ask('log-to-index', 2), ask('log-to-index', 2), ask('log-evaluate', 2)],
         },
@@ -387,7 +387,7 @@ export const logarithms: Course = {
             ),
             ask('log-combine'),
             ask('log-law-flow'),
-            ask('log-combine+choice'),
+            ask('log-combine-steps'),
             teach(
               prose('Subtraction and negative coefficients behave as expected once the coefficients are cleared.'),
               maths('3\\log\\left(2\\right) - \\log\\left(4\\right) = \\log\\left(8\\right) - \\log\\left(4\\right) = \\log\\left(2\\right)'),

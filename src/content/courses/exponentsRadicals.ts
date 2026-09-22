@@ -76,7 +76,7 @@ export const exponentsRadicals: Course = {
                 'A base written with no index has an index of 1, which is easy to overlook: $x \\times x^{6} = x^{7}$, not $x^{6}$.',
               ),
             ),
-            ask('idx-law-choose'),
+            ask('idx-powers-tree'),
             ask('idx-fill-multiply'),
             teach(
               prose('Three or more powers work the same way — add all the exponents at once.'),
@@ -123,7 +123,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-evaluate-divide'),
-            ask('idx-law-choose'),
+            ask('idx-laws-steps'),
             ask('idx-fill-divide'),
             teach(
               prose(
@@ -591,7 +591,7 @@ export const exponentsRadicals: Course = {
             ),
             ask('rad-add'),
             ask('rad-fill-simplify'),
-            ask('rad-add+choice'),
+            ask('rad-add-steps'),
             teach(
               prose(
                 'When the roots differ, nothing can be done — unless simplifying first makes them match.',

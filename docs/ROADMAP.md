@@ -252,8 +252,8 @@ two-widget habit would multiply the problem the owner actually complained about.
 
 | # | Batch | Status | Done when |
 | ---: | --- | --- | --- |
-| A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
-| A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
+| A1 | Shape-variety report and guard | done | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
+| A2 | `tree` and `steps` generators | done | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
 | A3 | Widen Exponents & Radicals | **done** (`claude/roadmap-a3-vrqpoj`) | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
@@ -268,8 +268,9 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
 more than twice" rule, counted by family, caught **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
-empties both. A5 brought them to **40** and **90**; A3 then took the twelve
-`er-` lessons off both, leaving **37** and **78**.
+empties both. A3 took the twelve `er-` lessons off both; after the batches
+merged so far the lists stand at **27** and **78**, and `npm test` prints the
+current standing, which is the figure to trust.
 
 One thing A5 found that the later batches should budget for: a lesson at the
 bar needs **at least four generator families**, since eight exercises at two
@@ -289,6 +290,13 @@ half, and a blank cannot sit inside a superscript either, since the `x^`
 fragment left behind is not valid on its own. The convention that survives all
 of it: the question goes in the prompt, where braces are free, and the template
 holds only whole tokens separated by literal text.
+
+A2 then took the widget-kind list to **29**: giving fifteen lessons one
+exercise through a `tree` or a `steps` slide put thirteen of them over the
+three-kind bar without lengthening a single deck, eleven of which A5 had not
+already retired. The repetition list does not move, and cannot — a swap changes
+a lesson's shape, not how many families it asks, so emptying that list stays
+A3 to A10's work.
 
 A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
 allowlist entry belongs to one of those batches. A11 is therefore the **last**

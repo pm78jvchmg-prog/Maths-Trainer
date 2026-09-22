@@ -377,7 +377,7 @@ export const differentiation: Course = {
               },
             ),
             ask('product-rule', 2),
-            ask('product-rule', 2),
+            ask('product-rule-tree', 2),
             teach(
               {
                 kind: 'prose',
@@ -526,7 +526,7 @@ export const differentiation: Course = {
               },
             ),
             ask('chain-rule', 2),
-            ask('chain-rule', 2),
+            ask('chain-rule-steps', 2),
             teach(
               {
                 kind: 'prose',

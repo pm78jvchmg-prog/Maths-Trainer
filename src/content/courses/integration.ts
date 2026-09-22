@@ -204,7 +204,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-sum'),
-            ask('int-sum'),
+            ask('int-sum-tree'),
             teach(
               prose(
                 'Products and quotients have no such rule. Nothing says the integral of a product is the product of the integrals, and assuming it is a serious error.',

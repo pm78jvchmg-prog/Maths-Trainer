@@ -54,8 +54,6 @@ export const MAX_PER_FAMILY = 2;
  * lessons, so this is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l2-equations': 2,
-  'er-l3-rationalise': 2,
   'tf-l1-periodic': 2,
   'tf-l1-shift': 2,
   'tf-l2-speed': 2,
@@ -73,7 +71,7 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 16;
+export const WIDGET_KIND_CEILING = 14;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -83,21 +81,10 @@ export const WIDGET_KIND_CEILING = 16;
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
  * progress is measured. Logarithms left both lists in batch A5, Complex
- * Numbers in A7, Quadratics in A4, and Vectors and Matrices in A10.
+ * Numbers in A7, Exponents & Radicals in A3, Quadratics in A4, and Vectors and
+ * Matrices in A10.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l1-multiply': 5,
-  'er-l1-divide': 4,
-  'er-l1-power-of-power': 4,
-  'er-l1-coefficients': 5,
-  'er-l1-negative': 5,
-  'er-l2-fractional': 5,
-  'er-l2-powers-of-roots': 3,
-  'er-l2-equations': 6,
-  'er-l3-simplify': 5,
-  'er-l3-multiply': 5,
-  'er-l3-add': 7,
-  'er-l3-rationalise': 5,
   'tf-l1-periodic': 4,
   'tf-l1-period': 5,
   'tf-l1-shift': 5,
@@ -143,4 +130,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 54;
+export const GENERATOR_REPETITION_CEILING = 42;

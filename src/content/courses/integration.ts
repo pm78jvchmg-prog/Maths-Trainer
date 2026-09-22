@@ -88,7 +88,7 @@ export const integration: Course = {
               'int-antiderivative-family',
             ),
             ask('int-power'),
-            ask('int-antiderivative-family'),
+            ask('int-term-tiles'),
             teach(
               prose(
                 'That unknown is written $C$ and called the **constant of integration**. It is part of the answer, not decoration.',
@@ -105,7 +105,8 @@ export const integration: Course = {
               [prose('The same question again, now that the notation has a name.')],
               'int-antiderivative-family',
             ),
-            ask('int-antiderivative-family'),
+            ask('int-power'),
+            ask('int-check-answer'),
             teach(
               prose(
                 'Every integral can be checked, which is unusual enough to be worth exploiting: differentiate your answer and see whether you get back what you started with.',
@@ -118,10 +119,10 @@ export const integration: Course = {
               ),
             ),
             askAfter(
-              [prose('Here is one to try that on. Work out the integral, then differentiate your answer in your head before you tap Check.')],
-              'int-power',
+              [prose('Here is one to try that on. Differentiate what has been claimed before you decide.')],
+              'int-check-answer',
             ),
-            ask('int-power'),
+            ask('int-term-tiles'),
           ],
           skillCheck: [
             ask('int-antiderivative-family', 2),
@@ -147,8 +148,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-power'),
-            ask('int-power'),
-            ask('int-power+choice'),
+            ask('int-term-tiles'),
+            ask('int-power-tree'),
             teach(
               prose(
                 'A coefficient comes along for the ride, because a constant factor can be taken outside an integral.',
@@ -161,8 +162,9 @@ export const integration: Course = {
                 'A constant on its own is the case worth noting: $5$ is really $5x^{0}$, so it integrates to $5x$. Constants do not vanish under integration the way they do under differentiation.',
               ),
             ),
-            ask('int-power'),
-            ask('int-power'),
+            ask('int-power+choice'),
+            ask('int-check-answer'),
+            ask('int-term-tiles', 2),
             teach(
               prose('Two special cases are worth recognising on sight.'),
               maths('\\int 1 \\, dx = x + C \\qquad \\int x \\, dx = \\frac{x^{2}}{2} + C'),
@@ -170,8 +172,8 @@ export const integration: Course = {
                 'Both are just the rule with $n = 0$ and $n = 1$. Nothing is special about them except how often they turn up.',
               ),
             ),
-            ask('int-power+choice'),
-            ask('int-power'),
+            ask('int-power-tree', 2),
+            ask('int-check-answer', 2),
           ],
           skillCheck: [ask('int-power'), ask('int-power'), ask('int-power')],
         },
@@ -191,8 +193,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-sum'),
-            ask('int-sum'),
-            ask('int-sum+choice'),
+            ask('int-term-tiles'),
+            ask('int-power-tree'),
             teach(
               prose('Subtraction behaves identically, since subtracting is adding a negative.'),
               maths('\\int \\left(10x^{4} - 3x^{2}\\right) \\, dx = 2x^{5} - x^{3} + C'),
@@ -203,8 +205,9 @@ export const integration: Course = {
                 'The constant term is the one most often lost. In $\\int \\left(3x^{2} + 7\\right) \\, dx = x^{3} + 7x + C$ the 7 becomes $7x$ — it neither disappears nor merges into the $C$.',
               ),
             ),
-            ask('int-sum'),
-            ask('int-sum'),
+            ask('int-sum+choice'),
+            ask('int-constant-point'),
+            ask('int-term-tiles', 2),
             teach(
               prose(
                 'Products and quotients have no such rule. Nothing says the integral of a product is the product of the integrals, and assuming it is a serious error.',
@@ -214,8 +217,8 @@ export const integration: Course = {
                 'The way through is to simplify first: $x \\times x^{2}$ is $x^{3}$, and then the power rule applies. Multiply out, cancel, or rewrite until the integrand is a sum of powers.',
               ),
             ),
-            ask('int-sum+choice'),
-            ask('int-power'),
+            ask('int-power-tree', 2),
+            ask('int-constant-point', 2),
           ],
           skillCheck: [ask('int-sum', 2), ask('int-sum', 2), ask('int-sum', 2)],
         },
@@ -239,8 +242,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-power', 2),
-            ask('int-power', 2),
-            ask('int-power+choice', 2),
+            ask('int-rewrite-power'),
+            ask('int-which-rule'),
             teach(
               prose(
                 'There is exactly one index the rule cannot reach. Adding one to $-1$ gives zero, and the rule would divide by zero.',
@@ -254,8 +257,9 @@ export const integration: Course = {
                 'The modulus signs matter. $\\frac{1}{x}$ is defined for negative $x$ too, and $\\ln|x|$ covers both sides of zero where $\\ln x$ covers only one.',
               ),
             ),
-            ask('int-power', 2),
-            ask('int-power', 2),
+            ask('int-power+choice', 2),
+            ask('int-power-tree', 2),
+            ask('int-rewrite-power', 2),
             teach(
               prose(
                 'So the complete picture is: every index goes through the power rule except $-1$, which goes to a logarithm.',
@@ -267,8 +271,8 @@ export const integration: Course = {
                 'Noticing that an index is $-1$ before starting saves a wasted attempt, so it is the first thing to check whenever an index is negative.',
               ),
             ),
-            ask('int-power+choice', 2),
-            ask('int-power', 2),
+            ask('int-which-rule', 2),
+            ask('int-power-tree', 2),
           ],
           skillCheck: [ask('int-power', 2), ask('int-power', 2), ask('int-power', 2)],
         },
@@ -290,8 +294,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-root-power'),
-            ask('int-root-power+choice'),
-            ask('int-root-power'),
+            ask('int-rewrite-power'),
+            ask('int-power'),
             teach(
               prose(
                 'A root underneath a fraction is a negative fractional power and both negatives have to be carried: $\\frac{1}{\\sqrt{x}}$ is $x^{-1/2}$, adding one gives $\\frac{1}{2}$, and dividing by $\\frac{1}{2}$ doubles the coefficient.',
@@ -305,9 +309,9 @@ export const integration: Course = {
                 'Either the index-form answer or the answer written back under a square root is accepted — the checker compares values, not the shape they are written in. So $\\frac{2}{3}x^{3/2}$ and $\\frac{2}{3}\\sqrt{x^{3}}$ are the same answer.',
               ),
             ),
-            ask('int-root-power', 2),
-            ask('int-power', 2),
             ask('int-root-power+choice', 2),
+            ask('int-term-tiles', 2),
+            ask('int-rewrite-power', 2),
             teach(
               prose(
                 'Check by differentiating, as always: $-12x^{-1/2}$ differentiates to $6x^{-3/2}$, the minus from the index cancelling the minus in front, and when the signs are right the check says so at once.',
@@ -319,8 +323,8 @@ export const integration: Course = {
                 'The arithmetic is the whole difficulty here; write the division by the new index out as a fraction before simplifying, and the coefficient takes care of itself.',
               ),
             ),
-            ask('int-root-power', 2),
-            ask('int-sum', 2),
+            ask('int-power', 2),
+            ask('int-term-tiles', 2),
           ],
           skillCheck: [
             ask('int-root-power', 2),
@@ -344,8 +348,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-exponential'),
-            ask('int-exponential'),
-            ask('int-exponential+choice'),
+            ask('int-trig'),
+            ask('int-standard-tiles'),
             teach(
               prose(
                 'The trigonometric pair needs its signs kept straight, because they run opposite to the derivative pair.',
@@ -357,8 +361,9 @@ export const integration: Course = {
               ),
               prose('The division by $k$ applies here too, for exactly the same chain-rule reason.'),
             ),
-            ask('int-trig'),
-            ask('int-trig'),
+            ask('int-exponential+choice'),
+            ask('int-which-rule', 2),
+            ask('int-trig', 2),
             teach(
               prose('These combine with everything already met, because integration splits over sums.'),
               maths(
@@ -368,8 +373,8 @@ export const integration: Course = {
                 'Each term is handled by its own standard result and one $C$ covers the whole answer. From here on, most of integration is recognising which standard result a term belongs to.',
               ),
             ),
-            ask('int-trig'),
-            ask('int-exponential'),
+            ask('int-standard-tiles', 2),
+            ask('int-which-rule', 2),
           ],
           skillCheck: [ask('int-exponential', 2), ask('int-trig', 2), ask('int-trig', 2)],
         },
@@ -414,8 +419,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-power'),
-            ask('int-definite-power'),
-            ask('int-definite-power+choice'),
+            ask('int-limits-tiles'),
+            ask('int-definite-tree'),
             teach(
               prose(
                 'The constant of integration disappears, and not by being forgotten. Whatever $C$ is, it is added at the top and subtracted at the bottom.',
@@ -428,8 +433,9 @@ export const integration: Course = {
                 'Upper minus lower, in that order. Reversing the subtraction gives an answer of the right size with the wrong sign, which is the most common error in this whole level.',
               ),
             ),
-            ask('int-definite-power'),
-            ask('int-definite-power'),
+            ask('int-definite-power+choice'),
+            ask('int-definite-steps'),
+            ask('int-limits-tiles', 2),
             teach(
               prose('Bracket the lower value before subtracting it, especially when it is negative.'),
               maths('\\left[x^{2}\\right]_{-2}^{1} = 1 - \\left(4\\right) = -3'),
@@ -437,7 +443,7 @@ export const integration: Course = {
                 'Without the bracket the minus sign attaches to only part of the expression, and the answer comes out wrong by exactly twice the lower value. Writing the bracket costs nothing and removes the risk.',
               ),
             ),
-            ask('int-definite-steps'),
+            ask('int-definite-tree', 2),
             ask('int-definite-steps+choice'),
           ],
           skillCheck: [
@@ -465,8 +471,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-sum'),
-            ask('int-definite-sum'),
-            ask('int-definite-sum+choice'),
+            ask('int-limits-tiles'),
+            ask('int-definite-tree'),
             teach(
               prose('Negative limits and negative results are both perfectly ordinary here.'),
               maths(
@@ -479,8 +485,9 @@ export const integration: Course = {
                 'A negative answer is not a mistake. It means the line spent more of the interval below the axis than above it — the integral is a signed total.',
               ),
             ),
-            ask('int-definite-sum'),
+            ask('int-definite-sum+choice'),
             ask('int-definite-steps'),
+            ask('int-limits-tiles', 2),
             teach(
               prose(
                 'Whenever the integrand is a straight line a sanity check is available, because the region is a triangle or a trapezium and its area can be found without calculus.',
@@ -490,8 +497,8 @@ export const integration: Course = {
                 'The triangle has base 4 and height $2 \\times 4 = 8$. Agreement between the two methods is good evidence the limits were handled correctly.',
               ),
             ),
-            ask('int-definite-sum+choice'),
-            ask('int-definite-steps+choice'),
+            ask('int-definite-tree', 2),
+            ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [
             ask('int-definite-sum', 2),
@@ -519,8 +526,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-area-under'),
-            ask('int-area-under'),
-            ask('int-area-under+choice'),
+            ask('int-definite-tree'),
+            ask('int-area-slider'),
             teach(
               prose('The method in order: write the integral, integrate, evaluate at both limits, subtract.'),
               maths('\\int_{0}^{3} 3x^{2} \\, dx = \\left[x^{3}\\right]_{0}^{3} = 27 - 0 = 27'),
@@ -542,8 +549,9 @@ export const integration: Course = {
                 'Area is measured in square units, so an answer of 27 means 27 square units whatever the axes are labelled.',
               ),
             ),
-            ask('int-area-under'),
+            ask('int-area-under+choice'),
             ask('int-definite-steps'),
+            ask('int-definite-tree', 2),
             teach(
               prose(
                 'Two warnings before the next lesson. First, this works only while the curve stays above the axis.',
@@ -556,8 +564,8 @@ export const integration: Course = {
                 'It is the same idea applied twice: integrate the upper curve, integrate the lower one, and the difference is what lies between them.',
               ),
             ),
-            ask('int-area-under+choice'),
-            ask('int-definite-steps+choice'),
+            ask('int-area-slider', 2),
+            ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [ask('int-area-under', 2), ask('int-area-under', 2), ask('int-area-under', 2)],
         },
@@ -580,7 +588,7 @@ export const integration: Course = {
             ),
             ask('int-properties'),
             ask('int-definite-sum'),
-            ask('int-properties'),
+            ask('int-definite-tree'),
             teach(
               prose('The second property splits an interval at any point inside it.'),
               maths(
@@ -593,8 +601,9 @@ export const integration: Course = {
                 'This is what makes it possible to handle a curve that changes behaviour partway along: split at the point where it changes and treat each piece separately.',
               ),
             ),
-            ask('int-properties'),
+            ask('int-properties', 2),
             ask('int-definite-steps'),
+            ask('int-definite-sum', 2),
             teach(
               prose('Constants come out of an integral, and sums split into separate integrals.'),
               maths('\\int_{a}^{b} k f(x) \\, dx = k \\int_{a}^{b} f(x) \\, dx'),
@@ -605,8 +614,8 @@ export const integration: Course = {
                 'These properties concern the limits and the linearity, not the function. They hold whatever $f$ is, which is why they can be used before knowing how to integrate it.',
               ),
             ),
-            ask('int-properties'),
-            ask('int-definite-steps+choice'),
+            ask('int-definite-tree', 2),
+            ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [ask('int-properties', 2), ask('int-properties', 2), ask('int-properties', 2)],
         },
@@ -639,7 +648,7 @@ export const integration: Course = {
             ),
             ask('int-signed-area'),
             ask('int-definite-sum'),
-            ask('int-signed-area'),
+            ask('int-definite-tree'),
             teach(
               prose(
                 'The real trap is a curve that crosses the axis inside the interval. Integrating straight through lets the positive and negative parts cancel.',
@@ -663,8 +672,9 @@ export const integration: Course = {
                 'The fix is to split at the crossing point. Solve $y = 0$ to find it, integrate each piece separately, then add the sizes.',
               ),
             ),
-            ask('int-signed-area'),
+            ask('int-signed-area', 2),
             ask('int-definite-steps'),
+            ask('int-definite-sum', 2),
             teach(
               prose(
                 'The full method for a total area: find where the curve meets the axis, split the interval there, integrate each piece, take the size of each result, add.',
@@ -676,8 +686,8 @@ export const integration: Course = {
                 'Read the question carefully to know which is wanted. "Evaluate the integral" asks for the signed value; "find the area" asks for the unsigned total. They are different numbers and both get asked.',
               ),
             ),
-            ask('int-signed-area'),
-            ask('int-definite-steps+choice'),
+            ask('int-definite-tree', 2),
+            ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [ask('int-signed-area', 2), ask('int-signed-area', 2), ask('int-signed-area', 2)],
         },
@@ -723,8 +733,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-linear-bracket'),
-            ask('int-linear-bracket'),
-            ask('int-linear-bracket+choice'),
+            ask('int-bracket-tree'),
+            ask('int-term-tiles', 2),
             teach(
               prose('Differentiating the answer shows exactly why both divisions are needed.'),
               maths(
@@ -737,8 +747,9 @@ export const integration: Course = {
                 'Missing the division by $a$ is the characteristic error here. It cannot show up when $a = 1$, which is why a question with a coefficient of 1 proves nothing about whether the method is understood.',
               ),
             ),
-            ask('int-linear-bracket'),
-            ask('int-linear-bracket'),
+            ask('int-linear-bracket+choice'),
+            ask('int-power', 2),
+            ask('int-bracket-tree', 2),
             teach(
               prose(
                 'The shortcut needs the inside to be linear. $\\left(x^{2} + 1\\right)^{4}$ cannot be done this way, because differentiating it produces a factor of $2x$ rather than a constant, and a factor containing $x$ cannot be divided out.',
@@ -750,8 +761,8 @@ export const integration: Course = {
                 'There is no fix by adjusting the coefficient. Either multiply the bracket out, or use the substitution of the next lesson, when the rest of the integrand happens to supply the missing $x$.',
               ),
             ),
-            ask('int-linear-bracket+choice'),
-            ask('int-linear-bracket'),
+            ask('int-term-tiles', 2),
+            ask('int-power', 2),
           ],
           skillCheck: [
             ask('int-linear-bracket', 2),
@@ -779,8 +790,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-substitution'),
-            ask('int-substitution'),
-            ask('int-substitution+choice'),
+            ask('int-substitution-tiles'),
+            ask('int-bracket-tree'),
             teach(
               prose('The last step is to convert back, because the original question was about $x$.'),
               maths('\\frac{3u^{4}}{4} + C = \\frac{3\\left(x^{2} + 1\\right)^{4}}{4} + C'),
@@ -791,8 +802,9 @@ export const integration: Course = {
                 'Check by differentiating: the chain rule gives $\\frac{3 \\times 4\\left(x^{2} + 1\\right)^{3} \\times 2x}{4} = 6x\\left(x^{2} + 1\\right)^{3}$, which is where we started.',
               ),
             ),
-            ask('int-substitution'),
-            ask('int-substitution'),
+            ask('int-substitution+choice'),
+            ask('int-linear-bracket', 2),
+            ask('int-substitution-tiles', 2),
             teach(
               prose(
                 'Choosing $u$ is the only judgement involved. Look for an inner function whose derivative is already present in the integrand, up to a constant factor.',
@@ -807,8 +819,8 @@ export const integration: Course = {
                 'With practice the bracket-and-its-derivative shape becomes recognisable on sight, and the working compresses to a single line.',
               ),
             ),
-            ask('int-substitution+choice'),
-            ask('int-linear-bracket'),
+            ask('int-bracket-tree', 2),
+            ask('int-linear-bracket', 2),
           ],
           skillCheck: [
             ask('int-substitution', 2),
@@ -836,8 +848,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-substitution-general'),
-            ask('int-substitution-general+choice'),
-            ask('int-substitution-general'),
+            ask('int-substitution-tiles'),
+            ask('int-choose-method'),
             teach(
               prose(
                 'The bracket need not be a bracket: any function with its derivative alongside will do, and two cases turn up constantly.',
@@ -851,9 +863,9 @@ export const integration: Course = {
                 'Here $u = \\sin(x)$, because $\\cos(x)$ is its derivative, and a power of $\\sin(x)$ integrates like a power of $u$; with the roles swapped, $u = \\cos(x)$ has derivative $-\\sin(x)$, so a minus sign appears in the answer.',
               ),
             ),
-            ask('int-substitution-general', 2),
-            ask('int-choose-method', 2),
             ask('int-substitution-general+choice', 2),
+            ask('int-substitution', 2),
+            ask('int-substitution-tiles', 2),
             teach(
               prose(
                 'The test is always the same: pick the inner function, differentiate it, and look for that derivative in what is left over; a constant factor is no obstacle, a missing power of $x$ is fatal.',
@@ -865,7 +877,7 @@ export const integration: Course = {
                 'Which $u$ to try is the only judgement here, and the worked solutions on every question name it; if the substitution you choose leaves any $x$ behind, it was the wrong one.',
               ),
             ),
-            ask('int-substitution-general', 2),
+            ask('int-choose-method', 2),
             ask('int-substitution', 2),
           ],
           skillCheck: [
@@ -894,8 +906,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-substitution'),
-            ask('int-definite-substitution+choice'),
-            ask('int-definite-substitution'),
+            ask('int-limits-change'),
+            ask('int-definite-tree'),
             teach(
               prose(
                 'The trap is to write the antiderivative in $u$ and then use the $x$ limits on it; the working looks fine and the number is wrong.',
@@ -908,9 +920,9 @@ export const integration: Course = {
                 'A negative constant inside the bracket changes nothing about the method: $x^{2} - 2$ at $x = 1$ is $-1$, and an odd power of a negative number is negative, so carry the sign through the subtraction.',
               ),
             ),
-            ask('int-definite-substitution', 2),
-            ask('int-definite-steps', 2),
             ask('int-definite-substitution+choice', 2),
+            ask('int-definite-steps', 2),
+            ask('int-limits-change', 2),
             teach(
               prose(
                 'Converting back is still allowed: leave the limits as $x$-values, write the antiderivative in terms of $x$, and substitute those; it is the same arithmetic in a different order.',
@@ -920,8 +932,8 @@ export const integration: Course = {
                 'Both routes must give the same number, which makes the pair a useful check when there is time; but do one or the other, because changing the variable without changing the limits is the error, and it is the one to watch for.',
               ),
             ),
-            ask('int-definite-substitution', 2),
-            ask('int-substitution', 2),
+            ask('int-definite-tree', 2),
+            ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [
             ask('int-definite-substitution', 2),
@@ -946,8 +958,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-by-parts'),
-            ask('int-by-parts'),
-            ask('int-by-parts+choice'),
+            ask('int-parts-tiles'),
+            ask('int-choose-method'),
             teach(
               prose(
                 'For $\\int xe^{2x} \\, dx$, differentiating $x$ gives 1, which removes the $x$ from the second integral entirely. So $u = x$.',
@@ -962,8 +974,9 @@ export const integration: Course = {
                 'The remaining integral is a standard result with no $x$ in front of it, which is exactly the simplification being aimed for.',
               ),
             ),
-            ask('int-by-parts'),
-            ask('int-by-parts'),
+            ask('int-by-parts+choice'),
+            ask('int-substitution', 2),
+            ask('int-parts-tiles', 2),
             teach(
               prose(
                 'Choosing the other way round makes matters worse, and it is worth seeing why. With $u = e^{2x}$, the new integral contains $\\frac{x^{2}}{2}$ — a higher power than before.',
@@ -976,11 +989,11 @@ export const integration: Course = {
                 '\\int x\\sin(3x) \\, dx = -\\frac{x\\cos(3x)}{3} + \\frac{\\sin(3x)}{9} + C',
               ),
             ),
-            ask('int-by-parts+choice'),
+            ask('int-choose-method', 2),
             // The last slide of the level: every technique has now been
             // taught, so the last question is choosing between them rather
             // than running one that has already been named.
-            ask('int-choose-method'),
+            ask('int-substitution', 2),
           ],
           skillCheck: [ask('int-by-parts', 2), ask('int-by-parts', 2), ask('int-by-parts', 2)],
         },
@@ -1004,8 +1017,8 @@ export const integration: Course = {
               ),
             ),
             ask('int-parts-log'),
-            ask('int-parts-log+choice'),
-            ask('int-parts-log'),
+            ask('int-parts-tiles'),
+            ask('int-by-parts'),
             teach(
               prose(
                 'A higher power changes only the numbers: with $x^{n}$, $v$ is $\\frac{x^{n+1}}{n+1}$, and the second integral is $\\frac{1}{n+1}\\int x^{n} \\, dx$, which is $\\frac{x^{n+1}}{(n+1)^{2}}$.',
@@ -1019,9 +1032,9 @@ export const integration: Course = {
                 'Even $\\ln x$ on its own goes by parts, with the trick of taking $\\frac{dv}{dx} = 1$; nothing else integrates $\\ln x$, and the result is worth remembering as a standard one.',
               ),
             ),
-            ask('int-parts-log', 2),
-            ask('int-by-parts', 2),
             ask('int-parts-log+choice', 2),
+            ask('int-choose-method', 2),
+            ask('int-parts-tiles', 2),
             teach(
               prose(
                 'Differentiate $x\\ln x - x$ to see that it works: the product rule gives $\\ln x + 1$, and the $-x$ takes the $1$ away.',
@@ -1031,7 +1044,7 @@ export const integration: Course = {
               ),
               prose('These questions are only posed for $x > 0$, where $\\ln x$ is defined.'),
             ),
-            ask('int-parts-log', 2),
+            ask('int-by-parts', 2),
             ask('int-choose-method', 2),
           ],
           skillCheck: [

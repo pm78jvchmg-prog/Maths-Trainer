@@ -257,7 +257,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
-| A6 | Widen Differentiation | claimed (`claude/roadmap-a6-9g7v59`) | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
+| A6 | Widen Differentiation | **done** (`claude/roadmap-a6-9g7v59`) | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
@@ -282,6 +282,14 @@ three-kind bar without lengthening a single deck, eleven of which A5 had not
 already retired. The repetition list does not move, and cannot — a swap changes
 a lesson's shape, not how many families it asks, so emptying that list stays
 A3 to A10's work.
+
+A6 took all eleven Differentiation lessons off **both** lists, leaving **25**
+and **79**. It confirms what A5 found about generator families, and sharpens
+it: the eleven decks needed ten new generators, and eight of the ten are
+`tiles` or `tree` rather than another way of typing an answer, because the
+constraint that actually binds is the second one. Three widget kinds is easy to
+reach with a choice question; four families that are genuinely different
+questions is not.
 
 A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
 allowlist entry belongs to one of those batches. A11 is therefore the **last**

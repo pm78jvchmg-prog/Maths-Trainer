@@ -70,12 +70,10 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'in-l1-standard': 2,
   'in-l3-brackets': 2,
   'in-l3-substitution': 2,
-  'vm-l2-add': 2,
-  'vm-l2-combine': 2,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 18;
+export const WIDGET_KIND_CEILING = 16;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -85,7 +83,7 @@ export const WIDGET_KIND_CEILING = 18;
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
  * progress is measured. Logarithms left both lists in batch A5, Complex
- * Numbers in A7, and Quadratics in A4.
+ * Numbers in A7, Quadratics in A4, and Vectors and Matrices in A10.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l1-multiply': 5,
@@ -142,19 +140,7 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'in-l3-definite-substitution': 6,
   'in-l3-parts': 6,
   'in-l3-parts-log': 6,
-  'vm-l1-components': 7,
-  'vm-l1-scalars': 5,
-  'vm-l1-magnitude': 7,
-  'vm-l1-dot': 5,
-  'vm-l2-add': 7,
-  'vm-l2-combine': 6,
-  'vm-l2-multiply': 5,
-  'vm-l2-vector': 5,
-  'vm-l3-determinant': 7,
-  'vm-l3-singular': 6,
-  'vm-l3-inverse': 5,
-  'vm-l3-solve': 5,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 66;
+export const GENERATOR_REPETITION_CEILING = 54;

@@ -22,9 +22,12 @@ itself, so that no thread ever has to stop and ask what is next.
 
 ## 1. What exists today
 
-8 courses, 26 levels, 105 lessons, 155 generators (255 ids once the derived
-`+choice` variants are counted). Written against 147 and 247; batch A5 added
-the eight new logarithm shapes.
+8 courses, 26 levels, 105 lessons, 147 generators (247 ids once the derived
+`+choice` variants are counted). Written against those figures. Four phase A
+batches have since landed — A5's eight logarithm shapes, A2's fifteen working
+widgets, A7's seventeen complex-number ones and A10's fifteen vector and matrix
+ones — so it now stands at **9 courses**, Vectors & Matrices having become two,
+with **202 generators** and 316 ids.
 
 | Concept | Category | Levels | Lessons | Toward 30 |
 | --- | --- | --- | ---: | ---: |
@@ -35,7 +38,8 @@ the eight new logarithm shapes.
 | Complex Numbers | Advanced Maths | 4 | 14 | 47% |
 | Differentiation | Advanced Maths | 4 | 11 | 37% |
 | Integration | Advanced Maths | 3 | 17 | 57% |
-| Vectors & Matrices | Advanced Maths | 3 | 12 | 40% |
+| Vectors | Advanced Maths | 1 | 4 | 13% |
+| Matrices & Linear Transformations | Advanced Maths | 2 | 8 | 27% |
 
 Every level closes with a level check of 12–15 questions. All 26 have one.
 
@@ -148,8 +152,8 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 16 | Complex Numbers | **14 lessons** |
 | 17 | Differentiation | **11 lessons** |
 | 18 | Integration | **17 lessons** |
-| 19 | Vectors | **4 lessons** (split from Vectors & Matrices) |
-| 20 | Matrices & Linear Transformations | **8 lessons** (split from Vectors & Matrices) |
+| 19 | Vectors | **4 lessons** (split out in A10) |
+| 20 | Matrices & Linear Transformations | **8 lessons** (split out in A10) |
 | 21 | Parametric & Implicit Differentiation | new |
 | 22 | Differential Equations | new |
 | 23 | Series Expansions | new |
@@ -261,7 +265,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
-| A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
+| A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
@@ -303,19 +307,26 @@ now prints what each course still has outstanding so the burn-down is visible
 per batch rather than as one falling total. An emptied list that is left in
 place fails the suite, so the deletion cannot be forgotten.
 
-A4 then emptied the twelve `qd-` rows, taking the two lists to **18** and
-**66** measured with A2, A5 and A7 already merged in. Two things it learned are
-worth carrying into the batches that follow. First, `familyOf` strips `-steps`
-and `-tree` as well as `+choice`, so `quad-discriminant` and
-`quad-discriminant-steps` count as one family — a deck built from a generator
-and its worked-steps sibling is not two families, and A4 had to rebuild one
-lesson after the guard said so. That cuts the other way too, and deliberately:
-A4 named its substitution generator `quad-evaluate-steps` so that it files with
-A2's `quad-evaluate-tree`, the same skill asked through a second widget rather
-than a second skill. Second, eight guided exercises at two per family needs
-**four** families per lesson, and only three of the nine widgets are cheap to
-add to an existing topic; the rest of the variety came from writing fourteen
-new generators, which is the real size of a phase A batch.
+A10 took the twelve `vm-` lessons off both lists. It needed fifteen new
+generators to do it, which says the same thing A5 found from the other
+direction: a phase A batch is a generator batch first and a deck batch second.
+Where A2 had already put a `tree` or a `steps` exercise into a `vm-` lesson, the
+widened deck keeps it rather than the repeat it replaced, so both batches' gains
+survive.
+
+A4 emptied the twelve `qd-` rows in the same window, which with A2's, A5's,
+A7's and A10's removals counted leaves the two lists at **16** and **54**. Two
+things A4 learned are worth carrying into the batches that follow. First,
+`familyOf` strips `-steps` and `-tree` as well as `+choice`, so
+`quad-discriminant` and `quad-discriminant-steps` count as one family — a deck
+built from a generator and its worked-steps sibling is not two families, and A4
+had to rebuild one lesson after the guard said so. That cuts the other way too,
+and deliberately: A4 named its substitution generator `quad-evaluate-steps` so
+that it files with A2's `quad-evaluate-tree`, the same skill asked through a
+second widget rather than a second skill. Second, eight guided exercises at two
+per family needs **four** families per lesson, and only three of the nine
+widgets are cheap to add to an existing topic; the rest of the variety came from
+writing fourteen new generators, which is the real size of a phase A batch.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 
@@ -338,6 +349,12 @@ exercises across ≥3 widget kinds, a level check of 12–15 questions, every ne
 generator passes the property tests including the 25-distinct-questions floor,
 `npx vitest run` and `npx tsc --noEmit -p tsconfig.app.json` and `npm run lint`
 are green, and one new lesson has been played in a browser.
+
+### Phase B batches
+
+| # | Batch | Status |
+| ---: | --- | --- |
+| B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
 
 ### Phase C — the twenty-one new concepts
 

@@ -7,6 +7,7 @@ import { differentiationGenerators } from './generators/differentiation';
 import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
 import { logarithmGenerators } from './generators/logarithms';
+import { matrixGenerators } from './generators/matrices';
 import { quadraticsGenerators } from './generators/quadratics';
 import { quadraticShapeGenerators } from './generators/quadraticShapes';
 import { vectorGenerators } from './generators/vectors';
@@ -29,6 +30,7 @@ export const allGenerators = [
   ...quadraticsGenerators,
   ...quadraticShapeGenerators,
   ...vectorGenerators,
+  ...matrixGenerators,
   ...trigonometryGenerators,
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.

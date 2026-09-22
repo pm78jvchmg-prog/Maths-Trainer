@@ -1,83 +1,27 @@
 /**
- * Vectors and Matrices.
+ * Vectors: components, scalar multiples, magnitude and the scalar product.
  *
- * Two engine constraints shape every question here, and both are worth knowing
- * before editing this file.
- *
- * 1. **The checker grades scalars.** `evaluateAt` treats anything that is not a
- *    number or a complex number as a domain hole, so a typed answer that
- *    evaluates to a vector or a matrix comes back `indeterminate` rather than
- *    correct. So nothing here asks for one. Answers are either a scalar — a
- *    magnitude, a dot product, a determinant — or a set of components placed as
- *    tiles.
- *
- * 2. **A tiles template is split into independent TeX fragments**, one per
- *    literal segment between the blanks, and each is rendered on its own. A
- *    `\begin{pmatrix}` that opened before a blank and closed after it would be
- *    two invalid fragments, and KaTeX runs with `throwOnError: false`, so the
- *    learner would see red error text rather than a matrix.
- *
- *    Hence the labelled-component templates — `\mathbf{i}: \; {0}` — rather
- *    than bracketed column vectors. The question itself still shows proper
- *    column-vector and matrix notation, because a prompt is one whole TeX
- *    string and can use any environment it likes.
- *
- * Every tile is a plain signed number, deliberately: one vocabulary, so a
- * learner cannot be marked wrong for placing a correctly-valued tile that was
- * formatted for the other slot.
+ * Shared formatters and the engine constraints they exist for live in
+ * `vectorFormat.ts`; the matrix half of the old combined file is now
+ * `matrices.ts`.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
 import { bin, num, pow, root } from '../expr';
 import { options } from '../choiceVariant';
+import { vectorSvg } from '../figures';
 import { ALGEBRA_KEYS } from './calculus';
+import {
+  bankOf,
+  columnTex,
+  distinctOptions,
+  nonZero,
+  signedChoices,
+  signedOffer,
+  VECTOR_TEMPLATE,
+} from './vectorFormat';
 
 /** Magnitudes are surds. */
 const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
-
-function nonZero(value: number, fallback: number): number {
-  return value === 0 ? fallback : value;
-}
-
-/** A tile bank keeping its answers with multiplicity. See quadratics.ts. */
-function bankOf(answer: string[], distractors: string[]): string[] {
-  const needed = new Set(answer);
-  const extras = [...new Set(distractors)].filter((t) => !needed.has(t));
-  // Distractors are computed from the question's own numbers and can all
-  // collide with the answer; pad with numeric near-misses so a bank is never
-  // just the answer laid out in a different order.
-  for (let offset = 1; extras.length < 2 && offset <= 20; offset += 1) {
-    for (const token of answer) {
-      const n = Number(token);
-      if (Number.isNaN(n)) continue;
-      const candidate = `${n + offset}`;
-      if (!needed.has(candidate) && !extras.includes(candidate)) extras.push(candidate);
-    }
-  }
-  return [...answer, ...extras].sort();
-}
-
-/** Choice options with no two rendering the same label. */
-function distinctOptions<T extends { label: string }>(options: T[]): T[] {
-  const seen = new Set<string>();
-  return options.filter((option) => (seen.has(option.label) ? false : (seen.add(option.label), true)));
-}
-
-/** A column vector. Safe inside a prompt, which is one whole TeX string. */
-function columnTex(x: number, y: number): string {
-  return `\\begin{pmatrix} ${x} \\\\ ${y} \\end{pmatrix}`;
-}
-
-/** A 2x2 matrix, likewise for prompts only. */
-function matrixTex(a: number, b: number, c: number, d: number): string {
-  return `\\begin{pmatrix} ${a} & ${b} \\\\ ${c} & ${d} \\end{pmatrix}`;
-}
-
-/** The component template used by every vector answer. */
-const VECTOR_TEMPLATE = `\\mathbf{i}: \\; {0} \\qquad \\mathbf{j}: \\; {1}`;
-
-/** The entry template used by every 2x2 matrix answer, read row by row. */
-const MATRIX_TEMPLATE =
-  `\\text{row } 1: \\; {0} \\quad {1} \\qquad \\text{row } 2: \\; {2} \\quad {3}`;
 
 /** A vector in i, j form, for prose and solutions. */
 function ijTex(x: number, y: number): string {
@@ -483,6 +427,10 @@ interface PerpendicularParams {
  */
 const perpendicular: Generator<PerpendicularParams> = {
   id: 'vec-perpendicular-k',
+  // The sign is the whole of what goes wrong here: the scalar product is set
+  // to zero and the term carrying k moves across, so an answer with the right
+  // size and the wrong sign is the standard slip.
+  choices: ({ a, b, t }) => signedChoices(-a * t, [a * t, a * b * t, -b * t]),
   sample: (rng, difficulty) => ({
     a: nonZero(rng.int(difficulty > 1 ? -9 : 1, 9), 3),
     b: rng.int(1, difficulty > 1 ? 9 : 6),
@@ -579,608 +527,6 @@ const parallel: Generator<ParallelParams> = {
   ],
 };
 
-/* ---------- Level 2: matrices ---------- */
-
-interface MatrixPairParams {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  e: number;
-  f: number;
-  g: number;
-  h: number;
-  subtract: boolean;
-}
-
-function sampleMatrixPair(
-  rng: Parameters<Generator<MatrixPairParams>['sample']>[0],
-  span: number,
-): MatrixPairParams {
-  return {
-    a: nonZero(rng.int(-span, span), 2),
-    b: nonZero(rng.int(-span, span), 3),
-    c: nonZero(rng.int(-span, span), -1),
-    d: nonZero(rng.int(-span, span), 4),
-    e: nonZero(rng.int(-span, span), 5),
-    f: nonZero(rng.int(-span, span), -2),
-    g: nonZero(rng.int(-span, span), 3),
-    h: nonZero(rng.int(-span, span), 1),
-    subtract: rng.pick([true, false]),
-  };
-}
-
-/** Adding or subtracting two 2x2 matrices. */
-const addMatrices: Generator<MatrixPairParams> = {
-  id: 'mat-add',
-  choices: (p) => {
-    const sign = p.subtract ? -1 : 1;
-    return options(
-      { tex: matrixTex(p.a + sign * p.e, p.b + sign * p.f, p.c + sign * p.g, p.d + sign * p.h) },
-      { tex: matrixTex(p.a - sign * p.e, p.b - sign * p.f, p.c - sign * p.g, p.d - sign * p.h) },
-      { tex: matrixTex(p.a * p.e, p.b * p.f, p.c * p.g, p.d * p.h) },
-      { tex: matrixTex(p.a + sign * p.e, p.b + sign * p.f, p.c - sign * p.g, p.d - sign * p.h) },
-    );
-  },
-  sample: (rng, difficulty) => sampleMatrixPair(rng, difficulty > 1 ? 12 : 8),
-  render: (p) => {
-    const sign = p.subtract ? -1 : 1;
-    const entries = [p.a + sign * p.e, p.b + sign * p.f, p.c + sign * p.g, p.d + sign * p.h];
-    return {
-      kind: 'tiles',
-      prompt: [
-        { kind: 'prose', text: 'Work out the four entries of the result.' },
-        {
-          kind: 'display',
-          tex: `${matrixTex(p.a, p.b, p.c, p.d)} ${p.subtract ? '-' : '+'} ${matrixTex(p.e, p.f, p.g, p.h)}`,
-        },
-      ],
-      template: MATRIX_TEMPLATE,
-      bank: bankOf(
-        entries.map(String),
-        // The other operation throughout, which is the only mistake this
-        // question really admits.
-        [p.a - sign * p.e, p.b - sign * p.f, p.c - sign * p.g, p.d - sign * p.h].map(String),
-      ),
-      answer: entries.map(String),
-    };
-  },
-  solution: (p) => {
-    const sign = p.subtract ? -1 : 1;
-    const op = p.subtract ? '-' : '+';
-    return [
-      {
-        text: 'Matrices add and subtract entry by entry. Each position in the answer depends only on the same position in the two originals.',
-      },
-      {
-        tex: `${p.a} ${op} \\left(${p.e}\\right) = ${p.a + sign * p.e} \\qquad ${p.b} ${op} \\left(${p.f}\\right) = ${p.b + sign * p.f}`,
-      },
-      {
-        tex: `${p.c} ${op} \\left(${p.g}\\right) = ${p.c + sign * p.g} \\qquad ${p.d} ${op} \\left(${p.h}\\right) = ${p.d + sign * p.h}`,
-      },
-      {
-        tex: `${matrixTex(p.a, p.b, p.c, p.d)} ${op} ${matrixTex(p.e, p.f, p.g, p.h)} = ${matrixTex(p.a + sign * p.e, p.b + sign * p.f, p.c + sign * p.g, p.d + sign * p.h)}`,
-      },
-      {
-        text: 'This only works when the two matrices are the same shape, since every entry needs a partner. Two matrices of different shapes cannot be added at all.',
-      },
-      {
-        text: 'Multiplication, in the next lesson, is nothing like this. That it is *not* entry by entry is the thing most worth remembering about it.',
-      },
-    ];
-  },
-};
-
-interface MatrixCombineParams extends MatrixPairParams {
-  p: number;
-  q: number;
-}
-
-/** A scalar combination of two matrices. */
-const combineMatrices: Generator<MatrixCombineParams> = {
-  id: 'mat-combine',
-  choices: (m) =>
-    options(
-      { tex: matrixTex(m.p * m.a + m.q * m.e, m.p * m.b + m.q * m.f, m.p * m.c + m.q * m.g, m.p * m.d + m.q * m.h) },
-      { tex: matrixTex(m.a + m.e, m.b + m.f, m.c + m.g, m.d + m.h) },
-      { tex: matrixTex(m.p * m.a + m.e, m.p * m.b + m.f, m.p * m.c + m.g, m.p * m.d + m.h) },
-      { tex: matrixTex(m.p * m.a + m.q * m.e, m.p * m.b + m.q * m.f, m.c, m.d) },
-    ),
-  sample: (rng, difficulty) => ({
-    ...sampleMatrixPair(rng, difficulty > 1 ? 8 : 6),
-    p: nonZero(rng.int(difficulty > 1 ? -5 : 2, 5), 2),
-    q: nonZero(rng.int(difficulty > 1 ? -5 : -4, 5), -3),
-  }),
-  render: (m) => {
-    const entries = [
-      m.p * m.a + m.q * m.e,
-      m.p * m.b + m.q * m.f,
-      m.p * m.c + m.q * m.g,
-      m.p * m.d + m.q * m.h,
-    ];
-    return {
-      kind: 'tiles',
-      prompt: [
-        { kind: 'prose', text: 'Work out the four entries of the result.' },
-        {
-          kind: 'display',
-          tex: `${m.p === 1 ? '' : m.p}${matrixTex(m.a, m.b, m.c, m.d)} ${m.q < 0 ? '-' : '+'} ${Math.abs(m.q) === 1 ? '' : Math.abs(m.q)}${matrixTex(m.e, m.f, m.g, m.h)}`,
-        },
-      ],
-      template: MATRIX_TEMPLATE,
-      bank: bankOf(
-        entries.map(String),
-        // Scaling only the first matrix, and forgetting both scalars.
-        [m.p * m.a + m.e, m.a + m.q * m.e, m.a + m.e, m.d + m.h].map(String),
-      ),
-      answer: entries.map(String),
-    };
-  },
-  solution: (m) => [
-    {
-      text: 'A scalar multiplies every entry of a matrix — all four of them, not just the first row.',
-    },
-    { tex: `${m.p}${matrixTex(m.a, m.b, m.c, m.d)} = ${matrixTex(m.p * m.a, m.p * m.b, m.p * m.c, m.p * m.d)}` },
-    { tex: `${m.q}${matrixTex(m.e, m.f, m.g, m.h)} = ${matrixTex(m.q * m.e, m.q * m.f, m.q * m.g, m.q * m.h)}` },
-    {
-      tex: `= ${matrixTex(m.p * m.a + m.q * m.e, m.p * m.b + m.q * m.f, m.p * m.c + m.q * m.g, m.p * m.d + m.q * m.h)}`,
-    },
-    {
-      text: 'Scale both matrices fully before adding anything. Adding first and scaling afterwards gives a different answer unless the two scalars happen to be equal.',
-    },
-  ],
-};
-
-/** Multiplying two 2x2 matrices. */
-const multiplyMatrices: Generator<MatrixPairParams> = {
-  id: 'mat-multiply',
-  choices: (p) =>
-    options(
-      { tex: matrixTex(p.a * p.e + p.b * p.g, p.a * p.f + p.b * p.h, p.c * p.e + p.d * p.g, p.c * p.f + p.d * p.h) },
-      // Entry by entry, which is the error this lesson exists to remove.
-      { tex: matrixTex(p.a * p.e, p.b * p.f, p.c * p.g, p.d * p.h) },
-      // Columns of the first paired with rows of the second.
-      { tex: matrixTex(p.a * p.e + p.c * p.f, p.b * p.e + p.d * p.f, p.a * p.g + p.c * p.h, p.b * p.g + p.d * p.h) },
-      { tex: matrixTex(p.e * p.a + p.f * p.c, p.e * p.b + p.f * p.d, p.g * p.a + p.h * p.c, p.g * p.b + p.h * p.d) },
-    ),
-  sample: (rng, difficulty) => sampleMatrixPair(rng, difficulty > 1 ? 8 : 5),
-  render: (p) => {
-    const entries = [
-      p.a * p.e + p.b * p.g,
-      p.a * p.f + p.b * p.h,
-      p.c * p.e + p.d * p.g,
-      p.c * p.f + p.d * p.h,
-    ];
-    return {
-      kind: 'tiles',
-      prompt: [
-        { kind: 'prose', text: 'Work out the four entries of the product.' },
-        {
-          kind: 'display',
-          tex: `${matrixTex(p.a, p.b, p.c, p.d)} ${matrixTex(p.e, p.f, p.g, p.h)}`,
-        },
-      ],
-      template: MATRIX_TEMPLATE,
-      bank: bankOf(
-        entries.map(String),
-        // Entry-by-entry multiplication, which is the error this question
-        // exists to catch, plus one row-column pairing taken the wrong way.
-        [p.a * p.e, p.b * p.f, p.c * p.g, p.d * p.h, p.a * p.e + p.b * p.f].map(String),
-      ),
-      answer: entries.map(String),
-    };
-  },
-  solution: (p) => [
-    {
-      text: 'Matrix multiplication is not entry by entry. Each entry of the product pairs a *row* of the first matrix with a *column* of the second, multiplying across and adding.',
-    },
-    {
-      text: 'The entry in row 1, column 1 uses row 1 of the first matrix and column 1 of the second.',
-    },
-    {
-      tex: `\\left(${p.a}\\right)\\left(${p.e}\\right) + \\left(${p.b}\\right)\\left(${p.g}\\right) = ${p.a * p.e + p.b * p.g}`,
-    },
-    {
-      tex: `\\left(${p.a}\\right)\\left(${p.f}\\right) + \\left(${p.b}\\right)\\left(${p.h}\\right) = ${p.a * p.f + p.b * p.h}`,
-    },
-    {
-      tex: `\\left(${p.c}\\right)\\left(${p.e}\\right) + \\left(${p.d}\\right)\\left(${p.g}\\right) = ${p.c * p.e + p.d * p.g}`,
-    },
-    {
-      tex: `\\left(${p.c}\\right)\\left(${p.f}\\right) + \\left(${p.d}\\right)\\left(${p.h}\\right) = ${p.c * p.f + p.d * p.h}`,
-    },
-    {
-      text: 'Row of the first, column of the second, every time. Saying that out loud as you go is what stops the two being crossed over.',
-    },
-    {
-      text: 'Order matters: the product the other way round is usually a different matrix. Matrix multiplication is not commutative, which is the biggest difference between it and ordinary arithmetic.',
-    },
-  ],
-};
-
-interface MatrixVectorParams {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  x: number;
-  y: number;
-}
-
-/** A matrix acting on a vector. */
-const matrixTimesVector: Generator<MatrixVectorParams> = {
-  id: 'mat-vector',
-  choices: ({ a, b, c, d, x, y }) =>
-    options(
-      { tex: columnTex(a * x + b * y, c * x + d * y) },
-      { tex: columnTex(a * x + c * y, b * x + d * y) },
-      { tex: columnTex(a * x, d * y) },
-      { tex: columnTex(c * x + d * y, a * x + b * y) },
-    ),
-  sample: (rng, difficulty) => {
-    const span = difficulty > 1 ? 9 : 6;
-    return {
-      a: nonZero(rng.int(-span, span), 2),
-      b: nonZero(rng.int(-span, span), 1),
-      c: nonZero(rng.int(-span, span), -3),
-      d: nonZero(rng.int(-span, span), 4),
-      x: nonZero(rng.int(-span, span), 5),
-      y: nonZero(rng.int(-span, span), -2),
-    };
-  },
-  render: ({ a, b, c, d, x, y }) => {
-    const top = a * x + b * y;
-    const bottom = c * x + d * y;
-    return {
-      kind: 'tiles',
-      prompt: [
-        { kind: 'prose', text: 'Work out the components of the result.' },
-        { kind: 'display', tex: `${matrixTex(a, b, c, d)} ${columnTex(x, y)}` },
-      ],
-      template: VECTOR_TEMPLATE,
-      bank: bankOf(
-        [`${top}`, `${bottom}`],
-        // Taking columns instead of rows, and multiplying entry by entry.
-        [`${a * x + c * y}`, `${b * x + d * y}`, `${a * x}`, `${d * y}`],
-      ),
-      answer: [`${top}`, `${bottom}`],
-    };
-  },
-  solution: ({ a, b, c, d, x, y }) => [
-    {
-      text: 'Each component of the answer comes from one *row* of the matrix, multiplied across the vector and added.',
-    },
-    { tex: `\\left(${a}\\right)\\left(${x}\\right) + \\left(${b}\\right)\\left(${y}\\right) = ${a * x + b * y}` },
-    { tex: `\\left(${c}\\right)\\left(${x}\\right) + \\left(${d}\\right)\\left(${y}\\right) = ${c * x + d * y}` },
-    { tex: `${matrixTex(a, b, c, d)} ${columnTex(x, y)} = ${columnTex(a * x + b * y, c * x + d * y)}` },
-    {
-      text: 'Using the columns instead of the rows is the standard error, and it gives a plausible-looking wrong answer. Rows of the matrix, every time.',
-    },
-    {
-      text: 'A matrix acting on a vector is a *transformation* of the plane: it moves every point at once, and the matrix is a complete description of how.',
-    },
-  ],
-};
-
-/* ---------- Level 3: determinants and inverses ---------- */
-
-interface SquareParams {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-}
-
-/** The determinant of a 2x2 matrix. */
-const determinant: Generator<SquareParams> = {
-  id: 'mat-determinant',
-  choices: ({ a, b, c, d }) =>
-    options(
-      { tex: `${a * d - b * c}`, answer: `${a * d - b * c}` },
-      { tex: `${b * c - a * d}`, answer: `${b * c - a * d}` },
-      { tex: `${a * d + b * c}`, answer: `${a * d + b * c}` },
-      { tex: `${a * b - c * d}`, answer: `${a * b - c * d}` },
-    ),
-  sample: (rng, difficulty) => {
-    const span = difficulty > 1 ? 11 : 8;
-    return {
-      a: nonZero(rng.int(-span, span), 3),
-      b: nonZero(rng.int(-span, span), 2),
-      c: nonZero(rng.int(-span, span), -1),
-      d: nonZero(rng.int(-span, span), 5),
-    };
-  },
-  render: ({ a, b, c, d }) => ({
-    kind: 'expression',
-    prompt: [{ kind: 'prose', text: 'Find the determinant. The answer may be negative.' }],
-    lead: `\\det ${matrixTex(a, b, c, d)} =`,
-    keypad: [],
-    answer: `${a * d - b * c}`,
-    domain: 'real',
-    mode: 'exact',
-  }),
-  solution: ({ a, b, c, d }) => [
-    {
-      text: 'The determinant of a two-by-two matrix is the product of the leading diagonal minus the product of the other one.',
-    },
-    { tex: `\\det \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} = ad - bc` },
-    {
-      tex: `\\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = ${a * d} - \\left(${b * c}\\right) = ${a * d - b * c}`,
-    },
-    {
-      text: 'Work out each product with its sign before subtracting. Two negatives meeting in the subtraction is where this goes wrong most often.',
-    },
-    {
-      text: 'The determinant is the factor by which the matrix scales area. A determinant of 2 doubles every area; a negative one reflects as well as scaling.',
-    },
-  ],
-};
-
-interface SingularParams {
-  c: number;
-  d: number;
-  t: number;
-}
-
-/** Finding the value that makes a matrix singular. */
-const singular: Generator<SingularParams> = {
-  id: 'mat-singular-k',
-  choices: ({ c, d, t }) => {
-    const b = d * t;
-    const k = c * t;
-    return options(
-      { tex: `${k}`, answer: `${k}` },
-      { tex: `${-k}`, answer: `${-k}` },
-      { tex: `${b * c}`, answer: `${b * c}` },
-      { tex: `${k + d}`, answer: `${k + d}` },
-    );
-  },
-  sample: (rng, difficulty) => ({
-    c: nonZero(rng.int(difficulty > 1 ? -9 : 1, 9), 2),
-    d: rng.int(1, difficulty > 1 ? 9 : 6),
-    t: nonZero(rng.int(difficulty > 1 ? -5 : 1, 5), 3),
-  }),
-  render: ({ c, d, t }) => {
-    // b is a multiple of d, so k = bc/d stays a whole number.
-    const b = d * t;
-    const k = c * t;
-    return {
-      kind: 'expression',
-      prompt: [
-        {
-          kind: 'prose',
-          text: `Find the value of $k$ for which this matrix has no inverse.`,
-        },
-      ],
-      lead: `\\begin{pmatrix} k & ${b} \\\\ ${c} & ${d} \\end{pmatrix} \\implies k =`,
-      keypad: [],
-      answer: `${k}`,
-      domain: 'real',
-      mode: 'exact',
-    };
-  },
-  solution: ({ c, d, t }) => {
-    const b = d * t;
-    const k = c * t;
-    return [
-      {
-        text: 'A matrix has no inverse exactly when its determinant is zero. Such a matrix is called **singular**.',
-      },
-      { tex: `\\det = k\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = 0` },
-      { tex: `${d}k = ${b * c} \\implies k = \\frac{${b * c}}{${d}} = ${k}` },
-      {
-        text: `So $k = ${k}$ makes the determinant zero. Every other value of $k$ gives an invertible matrix.`,
-      },
-      {
-        text: 'Geometrically a singular matrix collapses the plane onto a line, so area becomes zero — and a collapse cannot be undone, which is why no inverse exists.',
-      },
-    ];
-  },
-};
-
-/**
- * The inverse of a 2x2 matrix, asked as the adjugate.
- *
- * The determinant is stated in the prompt and only the four entries are asked
- * for. Putting the determinant in a blank would need `\frac{1}{{0}}`, whose
- * literal fragments are `\frac{1}{` and `}` — neither valid on its own.
- */
-const inverse: Generator<SquareParams> = {
-  id: 'mat-inverse',
-  choices: ({ a, b, c, d }) =>
-    options(
-      { tex: matrixTex(d, -b, -c, a) },
-      // All four swapped, and the diagonal negated instead: the two ways the
-      // recipe is misremembered.
-      { tex: matrixTex(a, -b, -c, d) },
-      { tex: matrixTex(-d, b, c, -a) },
-      { tex: matrixTex(d, b, c, a) },
-    ),
-  sample: (rng, difficulty) => {
-    const span = difficulty > 1 ? 9 : 6;
-    for (let tries = 0; tries < 40; tries += 1) {
-      const a = nonZero(rng.int(-span, span), 3);
-      const b = nonZero(rng.int(-span, span), 1);
-      const c = nonZero(rng.int(-span, span), 2);
-      const d = nonZero(rng.int(-span, span), 4);
-      if (a * d - b * c !== 0) return { a, b, c, d };
-    }
-    return { a: 3, b: 1, c: 2, d: 4 };
-  },
-  render: ({ a, b, c, d }) => {
-    const det = a * d - b * c;
-    const entries = [`${d}`, `${-b}`, `${-c}`, `${a}`];
-    return {
-      kind: 'tiles',
-      prompt: [
-        {
-          kind: 'prose',
-          text: `This matrix has determinant $${det}$, so its inverse is $\\frac{1}{${det}}$ times another matrix. Give the four entries of that matrix.`,
-        },
-        { kind: 'display', tex: matrixTex(a, b, c, d) },
-      ],
-      template: MATRIX_TEMPLATE,
-      bank: bankOf(entries, [`${a}`, `${b}`, `${c}`, `${d}`, `${-a}`, `${-d}`]),
-      answer: entries,
-    };
-  },
-  solution: ({ a, b, c, d }) => {
-    const det = a * d - b * c;
-    return [
-      {
-        text: 'The inverse of a two-by-two matrix follows a fixed recipe: swap the two entries on the leading diagonal, change the sign of the other two, and divide everything by the determinant.',
-      },
-      {
-        tex: `\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}^{-1} = \\frac{1}{ad - bc}\\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}`,
-      },
-      { tex: `\\frac{1}{${det}}${matrixTex(d, -b, -c, a)}` },
-      {
-        text: `So the $${a}$ and the $${d}$ trade places, while the $${b}$ and the $${c}$ keep their places and change sign. Swapping all four, or negating the diagonal instead, are the two ways this is misremembered.`,
-      },
-      {
-        text: `Check by multiplying: the product of a matrix and its inverse is the identity, $\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}$. That check is worth doing the first few times.`,
-      },
-    ];
-  },
-};
-
-interface SystemParams {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  x: number;
-  y: number;
-}
-
-/** Solving a pair of linear equations, which is a matrix equation. */
-const solveSystem: Generator<SystemParams> = {
-  id: 'mat-solve',
-  choices: ({ a, b, c, d, x, y }) => {
-    const p = a * x + b * y;
-    const q = c * x + d * y;
-    return options(
-      { tex: `x = ${x} \\quad y = ${y}` },
-      { tex: `x = ${y} \\quad y = ${x}` },
-      { tex: `x = ${-x} \\quad y = ${-y}` },
-      { tex: `x = ${p} \\quad y = ${q}` },
-    );
-  },
-  sample: (rng, difficulty) => {
-    const span = difficulty > 1 ? 7 : 5;
-    for (let tries = 0; tries < 40; tries += 1) {
-      const a = nonZero(rng.int(-span, span), 2);
-      const b = nonZero(rng.int(-span, span), 3);
-      const c = nonZero(rng.int(-span, span), 1);
-      const d = nonZero(rng.int(-span, span), -2);
-      if (a * d - b * c !== 0) {
-        return {
-          a,
-          b,
-          c,
-          d,
-          // The solution is chosen first, so it is always a whole number.
-          x: nonZero(rng.int(-8, 8), 3),
-          y: nonZero(rng.int(-8, 8), -4),
-        };
-      }
-    }
-    return { a: 2, b: 3, c: 1, d: -2, x: 3, y: -4 };
-  },
-  render: ({ a, b, c, d, x, y }) => {
-    const p = a * x + b * y;
-    const q = c * x + d * y;
-    return {
-      kind: 'tiles',
-      prompt: [
-        { kind: 'prose', text: 'Solve the pair of equations.' },
-        {
-          kind: 'display',
-          tex: `${matrixTex(a, b, c, d)} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = ${columnTex(p, q)}`,
-        },
-      ],
-      template: `x = {0} \\qquad y = {1}`,
-      bank: bankOf([`${x}`, `${y}`], [`${-x}`, `${-y}`, `${p}`, `${q}`]),
-      answer: [`${x}`, `${y}`],
-    };
-  },
-  solution: ({ a, b, c, d, x, y }) => {
-    const p = a * x + b * y;
-    const q = c * x + d * y;
-    const det = a * d - b * c;
-    return [
-      {
-        text: 'A pair of simultaneous equations is a single matrix equation, and multiplying both sides by the inverse solves it in one step.',
-      },
-      { tex: `\\mathbf{M}\\mathbf{v} = \\mathbf{u} \\implies \\mathbf{v} = \\mathbf{M}^{-1}\\mathbf{u}` },
-      { tex: `\\mathbf{M}^{-1} = \\frac{1}{${det}}${matrixTex(d, -b, -c, a)}` },
-      {
-        tex: `\\mathbf{v} = \\frac{1}{${det}}${matrixTex(d, -b, -c, a)} ${columnTex(p, q)} = ${columnTex(x, y)}`,
-      },
-      {
-        text: `So $x = ${x}$ and $y = ${y}$. Substituting back into the original equations is the check, and it catches an arithmetic slip immediately.`,
-      },
-      {
-        text: 'The method needs the determinant to be non-zero. A singular matrix means the two equations either describe the same line or two parallel lines, so there is no single solution to find.',
-      },
-    ];
-  },
-};
-
-
-/* ---------- two products before one sum ---------- */
-
-/**
- * Six whole options around the right one, negatives allowed.
- *
- * Separate from the magnitude slide's `offer`, which filters negatives out: a
- * dot product and a determinant are both routinely negative, and a bank that
- * quietly dropped every negative candidate would leak the sign of the answer.
- */
-function signedOffer(correct: number, ...near: number[]): string[] {
-  const seen = new Set([correct]);
-  const out = [correct];
-  for (const value of near) {
-    if (out.length >= 6) break;
-    if (!Number.isInteger(value) || seen.has(value)) continue;
-    seen.add(value);
-    out.push(value);
-  }
-  for (let step = 1; out.length < 6; step += 1) {
-    for (const candidate of [correct + step, correct - step]) {
-      if (out.length >= 6) break;
-      if (seen.has(candidate)) continue;
-      seen.add(candidate);
-      out.push(candidate);
-    }
-  }
-  return out.sort((x, y) => x - y).map(String);
-}
-
-/** Three options beside the right one, from the slips a formula invites. */
-function signedChoices(correct: number, wrong: number[]) {
-  const seen = new Set([correct]);
-  const picked: number[] = [];
-  for (const value of wrong) {
-    if (picked.length === 3) break;
-    if (!Number.isInteger(value) || seen.has(value)) continue;
-    seen.add(value);
-    picked.push(value);
-  }
-  for (let step = 1; picked.length < 3; step += 1) {
-    for (const candidate of [correct + step, correct - step]) {
-      if (picked.length === 3) break;
-      if (seen.has(candidate)) continue;
-      seen.add(candidate);
-      picked.push(candidate);
-    }
-  }
-  return options(
-    { tex: `${correct}` },
-    ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })),
-  );
-}
-
 interface DotStepsParams {
   ax: number;
   ay: number;
@@ -1262,77 +608,653 @@ const dotSteps: Generator<DotStepsParams> = {
   },
 };
 
-interface DeterminantStepsParams {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
+/* ---------- shapes added by roadmap batch A10 ---------- */
+
+interface NotationParams {
+  x: number;
+  y: number;
+  toColumn: boolean;
 }
 
 /**
- * A determinant, one piece at a time.
+ * The two ways of writing the same vector.
  *
- * The same shape as the scalar product with a minus in the middle, and that is
- * exactly why it is worth asking separately: $ad - bc$ read carelessly becomes
- * $ad - b$ times $c$, or the diagonals taken the wrong way round. Both are
- * order mistakes rather than arithmetic ones, and neither is visible in an
- * answer box.
+ * Worth asking on its own because every later question arrives in whichever
+ * notation its author preferred, and a learner who reads only one of them
+ * stalls on the translation rather than on the vectors.
  */
-const determinantSteps: Generator<DeterminantStepsParams> = {
-  id: 'mat-determinant-steps',
-  choices: ({ a, b, c, d }) =>
-    signedChoices(a * d - b * c, [
-      // The diagonals swapped.
-      b * c - a * d,
-      // The minus read as a plus.
-      a * d + b * c,
-      // The rows multiplied instead of the diagonals.
-      a * b - c * d,
-    ]),
+const notation: Generator<NotationParams> = {
+  id: 'vec-notation',
   sample: (rng, difficulty) => {
-    const span = difficulty > 1 ? 7 : 5;
-    const draw = () => nonZero(rng.int(-span, span), rng.int(1, span));
-    return { a: draw(), b: draw(), c: draw(), d: draw() };
-  },
-  render: ({ a, b, c, d }): Slide => {
-    const expr = bin('-', bin('*', num(a), num(d)), bin('*', num(b), num(c)));
-    const leading = a * d;
-    const other = b * c;
+    const span = difficulty > 1 ? 12 : 8;
     return {
-      kind: 'reduce',
+      x: nonZero(rng.int(-span, span), 3),
+      y: nonZero(rng.int(-span, span), -5),
+      toColumn: rng.pick([true, false]),
+    };
+  },
+  render: ({ x, y, toColumn }): Slide => {
+    const write = toColumn ? columnTex : ijTex;
+    const offered = distinctOptions([
+      { id: 'same', label: write(x, y), tex: true },
+      // The components read in the wrong order, the second sign dropped, and
+      // the first sign dropped: the three ways a translation goes wrong.
+      { id: 'swapped', label: write(y, x), tex: true },
+      { id: 'sign-j', label: write(x, -y), tex: true },
+      { id: 'sign-i', label: write(-x, y), tex: true },
+    ]);
+    const turn = (Math.abs(x) + Math.abs(y)) % offered.length;
+    return {
+      kind: 'choice',
       prompt: [
         {
           kind: 'prose',
-          text: 'Find the determinant, one piece at a time. Tap the part you would do **next**, then choose what it comes to.',
+          text: toColumn
+            ? `Which column vector is $${ijTex(x, y)}$?`
+            : `Which of these is $${columnTex(x, y)}$ written with $\\mathbf{i}$ and $\\mathbf{j}$?`,
         },
-        { kind: 'display', tex: `\\det ${matrixTex(a, b, c, d)}` },
       ],
-      expr,
-      banks: {
-        'r.l': signedOffer(leading, a + d, -leading, Math.abs(leading)),
-        'r.r': signedOffer(other, b + c, -other, Math.abs(other)),
-        // The subtraction. Taking it the other way round flips the sign, which
-        // matters: the sign of a determinant is what says whether the
-        // transformation flips the plane over.
-        r: signedOffer(leading - other, other - leading, leading + other, leading * other),
-      },
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'same',
     };
   },
-  solution: ({ a, b, c, d }) => {
-    const leading = a * d;
-    const other = b * c;
+  solution: ({ x, y, toColumn }) => [
+    {
+      text: 'The column form and the $\\mathbf{i}$, $\\mathbf{j}$ form are the same object written two ways. The top entry is the $\\mathbf{i}$ component and the bottom entry is the $\\mathbf{j}$ component.',
+    },
+    { tex: `${columnTex(x, y)} = ${ijTex(x, y)}` },
+    {
+      text: toColumn
+        ? `So $${ijTex(x, y)}$ stacks up as $${columnTex(x, y)}$ — across on top, up underneath.`
+        : `So $${columnTex(x, y)}$ reads as $${ijTex(x, y)}$ — the top entry goes with $\\mathbf{i}$.`,
+    },
+    {
+      text: 'Writing them in the wrong order is the usual slip, and it gives a genuinely different vector unless the two components happen to be equal.',
+    },
+    {
+      text: `A sign belongs to its component, not to the whole vector: $${ijTex(x, -y)}$ points somewhere else entirely.`,
+    },
+  ],
+};
+
+interface JourneyParams {
+  mover: number;
+  e1: number;
+  n1: number;
+  e2: number;
+  n2: number;
+}
+
+/** How a leg of a journey reads in words. */
+function legText(east: number, north: number): string {
+  const across = `${Math.abs(east)} km ${east < 0 ? 'west' : 'east'}`;
+  const up = `${Math.abs(north)} km ${north < 0 ? 'south' : 'north'}`;
+  return `${across} and ${up}`;
+}
+
+const MOVERS = ['A walker', 'A drone', 'A cyclist', 'A boat', 'A delivery van'];
+
+/**
+ * A displacement built from two legs described in words.
+ *
+ * `vec-add` asks the same arithmetic from two column vectors already written
+ * down. The work this one adds is the part a learner actually meets first:
+ * turning "3 km west" into a negative first component, and noticing that the
+ * total is a single vector rather than a distance walked.
+ */
+const journey: Generator<JourneyParams> = {
+  id: 'vec-journey',
+  choices: ({ e1, n1, e2, n2 }) =>
+    options(
+      { tex: columnTex(e1 + e2, n1 + n2) },
+      // Both legs treated as distances, so every direction reads positive.
+      { tex: columnTex(Math.abs(e1) + Math.abs(e2), Math.abs(n1) + Math.abs(n2)) },
+      // The second leg subtracted rather than added.
+      { tex: columnTex(e1 - e2, n1 - n2) },
+      // Across and up swapped.
+      { tex: columnTex(n1 + n2, e1 + e2) },
+    ),
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 12 : 8;
+    return {
+      mover: rng.int(0, MOVERS.length - 1),
+      e1: nonZero(rng.int(-span, span), 4),
+      n1: nonZero(rng.int(-span, span), 3),
+      e2: nonZero(rng.int(-span, span), -2),
+      n2: nonZero(rng.int(-span, span), 5),
+    };
+  },
+  render: ({ mover, e1, n1, e2, n2 }) => {
+    const x = e1 + e2;
+    const y = n1 + n2;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${MOVERS[mover]} travels ${legText(e1, n1)}, then ${legText(e2, n2)}. Give the components of the total displacement, east first.`,
+        },
+      ],
+      template: VECTOR_TEMPLATE,
+      bank: bankOf(
+        [`${x}`, `${y}`],
+        // Distances added regardless of direction, and one leg subtracted.
+        [
+          `${Math.abs(e1) + Math.abs(e2)}`,
+          `${Math.abs(n1) + Math.abs(n2)}`,
+          `${e1 - e2}`,
+          `${n1 - n2}`,
+        ],
+      ),
+      answer: [`${x}`, `${y}`],
+    };
+  },
+  solution: ({ e1, n1, e2, n2 }) => [
+    {
+      text: 'West is the negative of east and south is the negative of north, so each leg becomes a vector before anything is added.',
+    },
+    { tex: `${columnTex(e1, n1)} \\quad \\text{then} \\quad ${columnTex(e2, n2)}` },
+    { tex: `${columnTex(e1, n1)} + ${columnTex(e2, n2)} = ${columnTex(e1 + e2, n1 + n2)}` },
+    {
+      text: `The displacement is $${ijTex(e1 + e2, n1 + n2)}$ — where the journey ended up relative to where it began, not how far was travelled.`,
+    },
+    {
+      text: `Adding the distances instead would give $${columnTex(Math.abs(e1) + Math.abs(e2), Math.abs(n1) + Math.abs(n2))}$, which is a different quantity: distance has no direction, so the two legs cannot cancel.`,
+    },
+  ],
+};
+
+interface ComponentParams {
+  x: number;
+  y: number;
+  span: number;
+}
+
+/**
+ * Reading a component off a drawn vector.
+ *
+ * The only question in this course that starts from a picture, and it asks
+ * *where* the component is rather than what arithmetic produces it — which is
+ * the thing a learner who has only ever seen the column form cannot do.
+ */
+const component: Generator<ComponentParams> = {
+  id: 'vec-component',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 8 : 6;
+    return {
+      x: nonZero(rng.int(-reach, reach), 3),
+      y: nonZero(rng.int(-reach, reach), 4),
+      span: reach + 1,
+    };
+  },
+  render: ({ x, y, span }): Slide => ({
+    kind: 'slider',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'The arrow is a vector drawn from the origin. Slide to its $\\mathbf{i}$ component — how far it reaches across.',
+      },
+    ],
+    min: -(span - 1),
+    max: span - 1,
+    step: 1,
+    answer: x,
+    readout: '\\mathbf{i}\\text{ component} = {v}',
+    figure: {
+      svg: vectorSvg(x, y, { span, drop: true, label: 'A vector drawn from the origin' }),
+      xMin: -span,
+      xMax: span,
+    },
+  }),
+  solution: ({ x, y }) => [
+    {
+      text: 'The $\\mathbf{i}$ component is how far the arrow reaches across, counted along the horizontal axis. The dashed line drops from the tip to the place to read.',
+    },
+    { tex: `${columnTex(x, y)} = ${ijTex(x, y)}` },
+    {
+      text: `It reaches ${Math.abs(x)} to the ${x < 0 ? 'left' : 'right'}, so the $\\mathbf{i}$ component is $${x}$.`,
+    },
+    {
+      text: `Reading the height instead gives $${y}$, which is the $\\mathbf{j}$ component. The vector has no position, so only the arrow's shape matters — the same arrow drawn elsewhere has the same components.`,
+    },
+  ],
+};
+
+interface ScalarKParams {
+  x: number;
+  y: number;
+  k: number;
+}
+
+/**
+ * The scalar hiding between two parallel vectors.
+ *
+ * `vec-parallel` asks which vector is a multiple; this asks what the multiple
+ * is, which is the form the skill takes in every later question — a point
+ * dividing a line, a resultant force, a direction vector scaled to a length.
+ */
+const scalarK: Generator<ScalarKParams> = {
+  id: 'vec-scalar-k',
+  choices: ({ k }) =>
+    options(
+      { tex: `${k}`, answer: `${k}` },
+      { tex: `${-k}`, answer: `${-k}` },
+      { tex: `${k * k}`, answer: `${k * k}` },
+      { tex: `\\frac{1}{${k}}`, answer: `1/(${k})` },
+    ),
+  sample: (rng, difficulty) => ({
+    x: nonZero(rng.int(difficulty > 1 ? -9 : 1, 9), 3),
+    y: nonZero(rng.int(difficulty > 1 ? -9 : -7, 9), -2),
+    // Never 1 or -1: the scalar and its reciprocal would then be the same
+    // option, leaving the question with two answers to choose between.
+    k: rng.pick(difficulty > 1 ? [-6, -5, -4, -3, -2, 2, 3, 4, 5, 6] : [2, 3, 4, 5, 6]),
+  }),
+  render: ({ x, y, k }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'These two vectors are parallel. Find the scalar that takes the first to the second.',
+      },
+    ],
+    lead: `${columnTex(k * x, k * y)} = k ${columnTex(x, y)} \\implies k =`,
+    keypad: [],
+    answer: `${k}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ x, y, k }) => [
+    {
+      text: 'One component is enough to find the scalar, because the *same* multiple has to work for both.',
+    },
+    { tex: `k \\times ${x} = ${k * x} \\implies k = \\frac{${k * x}}{${x}} = ${k}` },
+    { tex: `k \\times ${y} = ${k * y} \\implies k = \\frac{${k * y}}{${y}} = ${k}` },
+    {
+      text: 'The second component is the check. If the two answers disagree, the vectors are not parallel at all and there is no such scalar.',
+    },
+    {
+      text:
+        k < 0
+          ? `Here $k = ${k}$ is negative, so the second vector points the opposite way along the same line. That is still parallel.`
+          : `Here $k = ${k}$, so the second vector is ${k} times as long and points the same way.`,
+    },
+  ],
+};
+
+interface UnitParams {
+  x: number;
+  y: number;
+}
+
+/**
+ * The scalar that shrinks a vector to length one.
+ *
+ * Asked as "find k" rather than "write down the unit vector" because the
+ * checker grades scalars: a unit vector is a vector, and a typed answer that
+ * evaluates to one comes back indeterminate. See `vectorFormat.ts`.
+ */
+const unitScalar: Generator<UnitParams> = {
+  id: 'vec-unit',
+  choices: ({ x, y }) => {
+    const sq = x * x + y * y;
+    return options(
+      { tex: `\\frac{1}{\\sqrt{${sq}}}`, answer: `1/sqrt(${sq})` },
+      { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
+      { tex: `\\frac{1}{${sq}}`, answer: `1/${sq}` },
+      { tex: `\\frac{1}{${Math.abs(x) + Math.abs(y)}}`, answer: `1/${Math.abs(x) + Math.abs(y)}` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    // Difficulty 1 draws from the Pythagorean triples, so the magnitude is
+    // whole and the answer is a plain fraction. Difficulty 2 lets the surd
+    // stand, which is what an exam question does.
+    if (difficulty <= 1) {
+      const [a, b] = rng.pick(MAGNITUDE_TRIPLES);
+      return { x: rng.pick([a, -a]), y: rng.pick([b, -b]) };
+    }
+    return {
+      x: nonZero(rng.int(-9, 9), 2),
+      y: nonZero(rng.int(-9, 9), -6),
+    };
+  },
+  render: ({ x, y }) => {
+    const sq = x * x + y * y;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the positive scalar $k$ for which $k${columnTex(x, y)}$ has magnitude 1. Leave a surd in the answer if it does not simplify.`,
+        },
+      ],
+      lead: 'k =',
+      keypad: SURD_KEYS,
+      answer: `1/sqrt(${sq})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ x, y }) => {
+    const sq = x * x + y * y;
+    const size = Math.sqrt(sq);
+    const whole = Number.isInteger(size);
     return [
       {
-        text: 'Multiply along each diagonal first, then subtract. Leading diagonal minus the other, in that order.',
+        text: 'Scaling multiplies the length by the scalar, so the scalar that lands on length 1 is one over the length the vector already has.',
       },
-      { tex: `\\det ${matrixTex(a, b, c, d)} = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right)` },
-      { tex: `= ${leading} - \\left(${other}\\right) = ${leading - other}` },
+      { tex: `\\left| ${columnTex(x, y)} \\right| = \\sqrt{${x * x} + ${y * y}} = \\sqrt{${sq}}${whole ? ` = ${size}` : ''}` },
+      { tex: `k = \\frac{1}{\\sqrt{${sq}}}${whole ? ` = \\frac{1}{${size}}` : ''}` },
       {
-        text: `Taking the diagonals the other way round gives $${other - leading}$, the same size with the opposite sign — and the sign is the part that says whether the transformation turns the plane over.`,
+        text: whole
+          ? `So $k = \\frac{1}{${size}}$, and $k${columnTex(x, y)} = ${columnTex(x / size, y / size)}$, which has length 1.`
+          : `$${sq}$ is not a perfect square, so $\\frac{1}{\\sqrt{${sq}}}$ is the exact answer. A decimal would be a rounded one.`,
+      },
+      {
+        text: 'The result is called a **unit vector**: same direction, length one. It is how a direction gets written down without a length attached to it.',
       },
     ];
   },
 };
+
+interface DistanceParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+/**
+ * The distance between two points, which is the magnitude of one minus the
+ * other.
+ *
+ * The subtraction is the whole of the difficulty: a learner who reaches
+ * straight for Pythagoras on the two position vectors gets the distance from
+ * the origin to something that is not either point.
+ */
+const distance: Generator<DistanceParams> = {
+  id: 'vec-distance',
+  choices: ({ ax, ay, bx, by }) => {
+    const sq = (bx - ax) ** 2 + (by - ay) ** 2;
+    return options(
+      { tex: `\\sqrt{${sq}}`, answer: `sqrt(${sq})` },
+      // The components added rather than subtracted.
+      { tex: `\\sqrt{${(bx + ax) ** 2 + (by + ay) ** 2}}`, answer: `sqrt(${(bx + ax) ** 2 + (by + ay) ** 2})` },
+      { tex: `${sq}`, answer: `${sq}` },
+      { tex: `${Math.abs(bx - ax) + Math.abs(by - ay)}`, answer: `${Math.abs(bx - ax) + Math.abs(by - ay)}` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 11 : 7;
+    for (let tries = 0; tries < 40; tries += 1) {
+      const ax = rng.int(-span, span);
+      const ay = rng.int(-span, span);
+      const bx = rng.int(-span, span);
+      const by = rng.int(-span, span);
+      if (bx !== ax && by !== ay) return { ax, ay, bx, by };
+    }
+    return { ax: 1, ay: 2, bx: 4, by: 6 };
+  },
+  render: ({ ax, ay, bx, by }) => {
+    const sq = (bx - ax) ** 2 + (by - ay) ** 2;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$A$ is the point $(${ax}, ${ay})$ and $B$ is the point $(${bx}, ${by})$. Find the distance $AB$ exactly, leaving a surd if it does not simplify.`,
+        },
+      ],
+      lead: 'AB =',
+      keypad: SURD_KEYS,
+      answer: `sqrt(${sq})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ ax, ay, bx, by }) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const sq = dx * dx + dy * dy;
+    const size = Math.sqrt(sq);
+    return [
+      {
+        text: 'Find the vector from $A$ to $B$ first — destination minus start — and then take its magnitude.',
+      },
+      { tex: `\\overrightarrow{AB} = ${columnTex(bx, by)} - ${columnTex(ax, ay)} = ${columnTex(dx, dy)}` },
+      { tex: `AB = \\sqrt{\\left(${dx}\\right)^{2} + \\left(${dy}\\right)^{2}} = \\sqrt{${sq}}${Number.isInteger(size) ? ` = ${size}` : ''}` },
+      {
+        text: 'Taking $A$ minus $B$ instead gives the vector pointing the other way, but the same distance — both components change sign and the squaring removes it.',
+      },
+      {
+        text: 'Reaching for Pythagoras on the coordinates without subtracting first measures from the origin, which is not what was asked.',
+      },
+    ];
+  },
+};
+
+interface AngleParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+}
+
+/**
+ * The cosine of the angle between two vectors.
+ *
+ * Asked as a cosine rather than as an angle in degrees because the exact value
+ * is what the scalar product gives, and rounding to a whole number of degrees
+ * would either accept a wrong method or reject a right one.
+ */
+const angleBetween: Generator<AngleParams> = {
+  id: 'vec-angle',
+  choices: ({ ax, ay, bx, by }) => {
+    const dot = ax * bx + ay * by;
+    const sa = ax * ax + ay * ay;
+    const sb = bx * bx + by * by;
+    return options(
+      { tex: `\\frac{${dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}`, answer: `${dot}/(sqrt(${sa})*sqrt(${sb}))` },
+      // The magnitudes left squared, which is the common slip.
+      { tex: `\\frac{${dot}}{${sa} \\times ${sb}}`, answer: `${dot}/(${sa}*${sb})` },
+      { tex: `\\frac{${dot}}{${sa} + ${sb}}`, answer: `${dot}/(${sa}+${sb})` },
+      { tex: `\\frac{${-dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}`, answer: `${-dot}/(sqrt(${sa})*sqrt(${sb}))` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 8 : 5;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const ax = nonZero(rng.int(-span, span), 2);
+      const ay = nonZero(rng.int(-span, span), 3);
+      const bx = nonZero(rng.int(-span, span), -1);
+      const by = nonZero(rng.int(-span, span), 4);
+      // A zero dot product would make three of the four options agree, and
+      // the question it asks is better served by a perpendicular check.
+      if (ax * bx + ay * by !== 0) return { ax, ay, bx, by };
+    }
+    return { ax: 2, ay: 3, bx: -1, by: 4 };
+  },
+  render: ({ ax, ay, bx, by }) => {
+    const dot = ax * bx + ay * by;
+    const sa = ax * ax + ay * ay;
+    const sb = bx * bx + by * by;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\theta$ is the angle between ${`$${columnTex(ax, ay)}$`} and ${`$${columnTex(bx, by)}$`}. Find $\\cos\\theta$ exactly.`,
+        },
+      ],
+      lead: '\\cos\\theta =',
+      keypad: SURD_KEYS,
+      answer: `${dot}/(sqrt(${sa})*sqrt(${sb}))`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ ax, ay, bx, by }) => {
+    const dot = ax * bx + ay * by;
+    const sa = ax * ax + ay * ay;
+    const sb = bx * bx + by * by;
+    return [
+      {
+        text: 'The scalar product carries the angle: $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$. Rearranged, the cosine is the scalar product over the two magnitudes.',
+      },
+      { tex: `\\mathbf{a} \\cdot \\mathbf{b} = \\left(${ax}\\right)\\left(${bx}\\right) + \\left(${ay}\\right)\\left(${by}\\right) = ${dot}` },
+      { tex: `|\\mathbf{a}| = \\sqrt{${sa}} \\qquad |\\mathbf{b}| = \\sqrt{${sb}}` },
+      { tex: `\\cos\\theta = \\frac{${dot}}{\\sqrt{${sa}}\\sqrt{${sb}}}` },
+      {
+        text:
+          dot < 0
+            ? 'The scalar product is negative, so the cosine is too and the angle is obtuse. The sign alone answers "are these pointing roughly the same way?" without any arithmetic.'
+            : 'The scalar product is positive, so the angle is acute. The sign alone answers "are these pointing roughly the same way?" without any arithmetic.',
+      },
+      {
+        text: 'Forgetting the square roots is the usual mistake, and it shows up immediately: a cosine cannot be outside $-1$ to $1$.',
+      },
+    ];
+  },
+};
+
+type MethodRoute = 'magnitude' | 'angle' | 'scale' | 'combine';
+
+interface MethodParams {
+  route: MethodRoute;
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  k: number;
+}
+
+/**
+ * Which tool a vector question calls for.
+ *
+ * Choosing the method is a skill the other widgets cannot ask about: a
+ * `choice` slide asking "which method?" gets a lucky guess a quarter of the
+ * time, and an answer box only ever grades the arithmetic that came after the
+ * choice was already made.
+ */
+const method: Generator<MethodParams> = {
+  id: 'vec-method',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 9 : 6;
+    return {
+      route: rng.pick(['magnitude', 'angle', 'scale', 'combine'] as const),
+      ax: nonZero(rng.int(-span, span), 3),
+      ay: nonZero(rng.int(-span, span), -4),
+      bx: nonZero(rng.int(-span, span), 5),
+      by: nonZero(rng.int(-span, span), 2),
+      k: nonZero(rng.int(2, 6), 3),
+    };
+  },
+  render: ({ route, ax, ay, bx, by, k }): Slide => {
+    const a = columnTex(ax, ay);
+    const b = columnTex(bx, by);
+    const subject =
+      route === 'magnitude'
+        ? `\\text{How long is } ${a} \\text{?}`
+        : route === 'angle'
+          ? `\\text{What angle is there between } ${a} \\text{ and } ${b} \\text{?}`
+          : route === 'scale'
+            ? `\\text{What is } ${k}${a} \\text{?}`
+            : `\\text{What is } ${a} + ${b} \\text{?}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to decide how you would answer this. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject,
+      steps: [
+        {
+          id: 'kind',
+          ask: 'Is the answer a number or a vector?',
+          branches: [
+            { label: 'A number', to: 'number' },
+            { label: 'A vector', to: 'vector' },
+          ],
+        },
+        {
+          id: 'number',
+          ask: 'Does it involve one vector or two?',
+          branches: [
+            { label: 'One', outcome: 'Use Pythagoras: the magnitude is $\\sqrt{x^{2} + y^{2}}$.' },
+            {
+              label: 'Two',
+              outcome: 'Use the scalar product: $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$.',
+            },
+          ],
+        },
+        {
+          id: 'vector',
+          ask: 'Does it involve one vector or two?',
+          branches: [
+            { label: 'One', outcome: 'Multiply every component by the scalar.' },
+            { label: 'Two', outcome: 'Combine them component by component.' },
+          ],
+        },
+      ],
+      answer:
+        route === 'magnitude'
+          ? ['A number', 'One']
+          : route === 'angle'
+            ? ['A number', 'Two']
+            : route === 'scale'
+              ? ['A vector', 'One']
+              : ['A vector', 'Two'],
+    };
+  },
+  solution: ({ route, ax, ay, bx, by, k }) => {
+    if (route === 'magnitude') {
+      const sq = ax * ax + ay * ay;
+      return [
+        {
+          text: 'A length is a single number, and it comes from one vector, so this is Pythagoras on the components.',
+        },
+        { tex: `\\left| ${columnTex(ax, ay)} \\right| = \\sqrt{${ax * ax} + ${ay * ay}} = \\sqrt{${sq}}` },
+        {
+          text: 'The signs disappear in the squaring, which is why a magnitude can never come out negative.',
+        },
+      ];
+    }
+    if (route === 'angle') {
+      const dot = ax * bx + ay * by;
+      return [
+        {
+          text: 'An angle is a number and it needs both vectors, which is exactly what the scalar product is for.',
+        },
+        { tex: `${columnTex(ax, ay)} \\cdot ${columnTex(bx, by)} = ${dot}` },
+        {
+          text: `Divide by the two magnitudes to get $\\cos\\theta$. The sign of $${dot}$ already says whether the angle is acute or obtuse.`,
+        },
+      ];
+    }
+    if (route === 'scale') {
+      return [
+        {
+          text: 'Multiplying by a number leaves a vector, built from one vector, so every component is multiplied.',
+        },
+        { tex: `${k}${columnTex(ax, ay)} = ${columnTex(k * ax, k * ay)}` },
+        {
+          text: 'Scaling only the top component is the characteristic error — a scalar has to reach both.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Adding two vectors gives a vector, and the two components never interact.',
+      },
+      { tex: `${columnTex(ax, ay)} + ${columnTex(bx, by)} = ${columnTex(ax + bx, ay + by)}` },
+      {
+        text: 'Tops with tops and bottoms with bottoms. There is no cross term anywhere in vector addition.',
+      },
+    ];
+  },
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -1341,14 +1263,13 @@ export const vectorGenerators = [
   dotProduct,
   perpendicular,
   parallel,
-  addMatrices,
-  combineMatrices,
-  multiplyMatrices,
-  matrixTimesVector,
-  determinant,
-  singular,
-  inverse,
-  solveSystem,
   dotSteps,
-  determinantSteps,
+  notation,
+  journey,
+  component,
+  scalarK,
+  unitScalar,
+  distance,
+  angleBetween,
+  method,
 ] as unknown as Generator<unknown>[];

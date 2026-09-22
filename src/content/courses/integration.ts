@@ -162,7 +162,7 @@ export const integration: Course = {
                 'A constant on its own is the case worth noting: $5$ is really $5x^{0}$, so it integrates to $5x$. Constants do not vanish under integration the way they do under differentiation.',
               ),
             ),
-            ask('int-power+choice'),
+            ask('int-antiderivative-family'),
             ask('int-check-answer'),
             ask('int-term-tiles', 2),
             teach(
@@ -172,7 +172,7 @@ export const integration: Course = {
                 'Both are just the rule with $n = 0$ and $n = 1$. Nothing is special about them except how often they turn up.',
               ),
             ),
-            ask('int-power-tree', 2),
+            ask('int-antiderivative-family', 2),
             ask('int-check-answer'),
           ],
           skillCheck: [ask('int-power'), ask('int-power'), ask('int-power')],
@@ -205,7 +205,7 @@ export const integration: Course = {
                 'The constant term is the one most often lost. In $\\int \\left(3x^{2} + 7\\right) \\, dx = x^{3} + 7x + C$ the 7 becomes $7x$ — it neither disappears nor merges into the $C$.',
               ),
             ),
-            ask('int-sum+choice'),
+            ask('int-sum-tree'),
             ask('int-constant-point'),
             ask('int-term-tiles', 2),
             teach(
@@ -218,7 +218,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-power-tree', 2),
-            ask('int-constant-point', 2),
+            ask('int-constant-point+choice', 2),
           ],
           skillCheck: [ask('int-sum', 2), ask('int-sum', 2), ask('int-sum', 2)],
         },
@@ -434,7 +434,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-power+choice'),
-            ask('int-definite-steps'),
+            ask('int-power', 2),
             ask('int-limits-tiles', 2),
             teach(
               prose('Bracket the lower value before subtracting it, especially when it is negative.'),
@@ -444,7 +444,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-tree', 2),
-            ask('int-definite-steps+choice'),
+            ask('int-power+choice', 2),
           ],
           skillCheck: [
             ask('int-definite-power', 2),
@@ -472,7 +472,7 @@ export const integration: Course = {
             ),
             ask('int-definite-sum'),
             ask('int-limits-tiles'),
-            ask('int-definite-tree'),
+            ask('int-sum'),
             teach(
               prose('Negative limits and negative results are both perfectly ordinary here.'),
               maths(
@@ -497,7 +497,7 @@ export const integration: Course = {
                 'The triangle has base 4 and height $2 \\times 4 = 8$. Agreement between the two methods is good evidence the limits were handled correctly.',
               ),
             ),
-            ask('int-definite-tree', 2),
+            ask('int-sum+choice'),
             ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [
@@ -550,7 +550,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-area-under+choice'),
-            ask('int-definite-steps'),
+            ask('int-limits-tiles'),
             ask('int-definite-tree', 2),
             teach(
               prose(
@@ -565,7 +565,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-area-slider', 2),
-            ask('int-definite-steps+choice', 2),
+            ask('int-limits-tiles', 2),
           ],
           skillCheck: [ask('int-area-under', 2), ask('int-area-under', 2), ask('int-area-under', 2)],
         },
@@ -588,7 +588,7 @@ export const integration: Course = {
             ),
             ask('int-properties'),
             ask('int-definite-sum'),
-            ask('int-definite-tree'),
+            ask('int-limits-tiles'),
             teach(
               prose('The second property splits an interval at any point inside it.'),
               maths(
@@ -614,7 +614,7 @@ export const integration: Course = {
                 'These properties concern the limits and the linearity, not the function. They hold whatever $f$ is, which is why they can be used before knowing how to integrate it.',
               ),
             ),
-            ask('int-definite-tree', 2),
+            ask('int-limits-tiles', 2),
             ask('int-definite-steps+choice', 2),
           ],
           skillCheck: [ask('int-properties', 2), ask('int-properties', 2), ask('int-properties', 2)],
@@ -673,7 +673,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-signed-area', 2),
-            ask('int-definite-steps'),
+            ask('int-area-under'),
             ask('int-definite-sum', 2),
             teach(
               prose(
@@ -687,7 +687,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-tree', 2),
-            ask('int-definite-steps+choice', 2),
+            ask('int-area-under+choice', 2),
           ],
           skillCheck: [ask('int-signed-area', 2), ask('int-signed-area', 2), ask('int-signed-area', 2)],
         },
@@ -921,7 +921,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-substitution+choice', 2),
-            ask('int-definite-steps', 2),
+            ask('int-substitution', 2),
             ask('int-limits-change', 2),
             teach(
               prose(
@@ -933,7 +933,7 @@ export const integration: Course = {
               ),
             ),
             ask('int-definite-tree', 2),
-            ask('int-definite-steps+choice', 2),
+            ask('int-substitution+choice', 2),
           ],
           skillCheck: [
             ask('int-definite-substitution', 2),

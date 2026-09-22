@@ -252,8 +252,8 @@ two-widget habit would multiply the problem the owner actually complained about.
 
 | # | Batch | Status | Done when |
 | ---: | --- | --- | --- |
-| A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
-| A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
+| A1 | Shape-variety report and guard | done | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
+| A2 | `tree` and `steps` generators | done | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
@@ -268,14 +268,21 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
 more than twice" rule, counted by family, caught **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
-empties both. A5 brought them to **40** and **90**, and A9 to **32** and
-**73**.
+empties both. A5 brought them to **40** and **90**, A2 the first list to
+**29**, and A9 both to **22** and **73**.
 
 One thing A5 found that the later batches should budget for: a lesson at the
 bar needs **at least four generator families**, since eight exercises at two
 asks each is four. Every phase A batch is therefore partly a generator batch,
 whatever its row says — Logarithms needed eight new ones to widen twelve
 lessons.
+
+A2 then took the widget-kind list to **29**: giving fifteen lessons one
+exercise through a `tree` or a `steps` slide put thirteen of them over the
+three-kind bar without lengthening a single deck, eleven of which A5 had not
+already retired. The repetition list does not move, and cannot — a swap changes
+a lesson's shape, not how many families it asks, so emptying that list stays
+A3 to A10's work.
 
 A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
 allowlist entry belongs to one of those batches. A11 is therefore the **last**
@@ -292,6 +299,14 @@ Integration's new shapes had to be split by difficulty so that "Negative
 Powers" could not draw a root, and so that a decision tree asked four lessons
 early did not name results still to come. A widening batch is partly a
 *sequencing* job, not only a generator one.
+
+A9 and A2 also collided, which the batches after them should expect. A2 made
+`-tree` part of `familyOf`, so a `tree` form of a skill stopped counting as a
+second family; seven of A9's decks had been built on the old reading and broke
+the moment the two branches met. Bring `main` in and re-run the report before
+opening the pull request, not only when a conflict notice arrives — a branch
+can merge cleanly and still be wrong, because these two batches changed the
+same rule from different ends.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

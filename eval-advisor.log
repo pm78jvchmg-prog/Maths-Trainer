@@ -2495,3 +2495,76 @@ unmarked gap. Mechanical checks run in its place:
   pre-task baseline count, misread by the reconciler's sweep as an
   unverifiable claim about the current tree). Both fixed; a second run
   showed `COUNTS AGREE`, `checked: plan 5 claims, report 5 claims`.
+
+================================================================================
+TASK 7 — Complex Numbers: variety, surds, and containment
+Branch week/task7-complex-variety, from main at f1c189d (anchor 0b780bb is an
+ancestor, checked with git merge-base --is-ancestor).
+================================================================================
+
+## Deviation from the plan, logged as a step: ONE consultation, at the end
+
+TASK7-PLAN.md section 6.2 step 5 specifies an advisor consultation before every
+unit's commit, and section 6.2 step 6 requires that consultation's log entry to
+ship inside the commit it covers. PREFLIGHT says the same ("Consult the advisor
+before each commit that touches `src/`").
+
+The owner has overridden that cadence for this task, deliberately and in
+writing: one consultation covering the whole branch, held after every unit I
+intend to deliver is committed and pushed, and before the report is written. I
+am following the owner's instruction, not the plan's, and recording the
+departure here rather than leaving it to be inferred from an absence of
+entries.
+
+Two consequences, stated so neither is a silent gap:
+
+1. **Units 0 through N ship without individual review.** Each unit is still
+   gated (full suite at the plan's predicted count, both typechecks silent,
+   lint unchanged at 0 errors / 25 warnings, diff confined to the plan's file
+   list) and still mutation-proved after its commit and before its push. But
+   no advisor read any unit's diff before that unit was pushed. That is the
+   cost of this cadence and it is not recoverable after the fact; a single
+   end-of-branch consultation is one consultation, not seven.
+2. **The consultation's log entry cannot ship in the commit it covers.** A
+   single consultation covering the whole branch has no single commit to ship
+   inside, so the tamper-evidence instrument PREFLIGHT describes (an entry that
+   cannot be added afterwards without rewriting the commit) does not apply
+   here. Its entry goes in the final bookkeeping commit alongside the report.
+   This sentence is that departure stated rather than left for someone to
+   guess at.
+
+## Unit 0 — the containment test, the id swaps, and the variety scan
+
+Committed with NO consultation, per the deviation above.
+
+Gates, all run on the committed tree:
+
+- `npx vitest run` -> 3222 passed, 7 files, 96.29 s, exit 0. Predicted 3221 + 1
+  = 3222. Exact.
+- `npx tsc --noEmit -p tsconfig.app.json` -> silent.
+- `npx tsc --noEmit -p tsconfig.eval.json` -> silent (it includes eval/bin, so
+  it covers the new variety.ts).
+- `npm run lint` -> 0 errors, 25 warnings. Unchanged from baseline.
+- `git diff --stat $(git merge-base HEAD origin/main)` -> choiceVariant.ts,
+  complexNumbers.ts, differentiation.ts, trigonometricFunctions.ts, vectors.ts,
+  generators.test.ts, plus the two new eval/bin/variety.* files. Every one in
+  the plan's section 0 table.
+
+Baseline measured in this container, not recalled: suite 3221 passed / 7 files;
+both typechecks silent; lint 0 errors / 25 warnings; registry 232 ids; 105
+lessons. Every figure agrees with the plan's section 1 item 6.
+
+The test was written and run RED against the unmodified course tree, before any
+id swap, and it failed with exactly the eighteen pairs of section 2.1 in that
+order. The red run is quoted verbatim in the report. After the eighteen swaps
+it is green.
+
+`eval/bin/variety.sh` before the swaps: `repetitive: 83 of 105`,
+`stray skill checks: 18`, `stray level-check questions: 16`. After the swaps:
+`repetitive: 83 of 105`, `stray skill checks: 0`, `stray level-check questions:
+16`. Every one of the three matches the plan's prediction. The per-lesson
+Complex Numbers percentages also match section 10 item 4 line for line
+(`repetitive: 10 of 14` for `--course complex-numbers`).
+
+Mutation M-0-swap runs after this commit and before the push; its output is
+appended below.

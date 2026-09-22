@@ -24,6 +24,19 @@ export function choiceId(generatorId: string): string {
 }
 
 /**
+ * The skill a generator id practises, for the purpose of "did this lesson
+ * practise what its skill check asks". `x`, `x+choice`, `x-steps` and
+ * `x-steps+choice` are one family: the same computation through a different
+ * widget, or with its working shown. Difficulty is deliberately not part of it.
+ */
+export function familyOf(generatorId: string): string {
+  const bare = generatorId.endsWith(CHOICE_SUFFIX)
+    ? generatorId.slice(0, -CHOICE_SUFFIX.length)
+    : generatorId;
+  return bare.replace(/-steps$/, '');
+}
+
+/**
  * A stable rotation drawn from the options themselves.
  *
  * Not from the rng: a shuffle seeded per draw would make one question render

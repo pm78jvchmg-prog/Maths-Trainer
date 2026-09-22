@@ -108,7 +108,7 @@ export const complexNumbers: Course = {
             ),
             ask('imaginary-sum', 2),
           ],
-          skillCheck: [ask('imaginary-sum', 2), ask('imaginary-product', 2), ask('imaginary-square', 2)],
+          skillCheck: [ask('imaginary-sum', 2), ask('imaginary-product', 2), ask('imaginary-sum+choice', 2)],
         },
 
         {
@@ -145,7 +145,7 @@ export const complexNumbers: Course = {
             ),
             ask('complex-part'),
           ],
-          skillCheck: [ask('complex-add', 2), ask('complex-part'), ask('imaginary-product', 2)],
+          skillCheck: [ask('complex-add', 2), ask('complex-part'), ask('complex-add')],
         },
 
         {
@@ -272,7 +272,7 @@ export const complexNumbers: Course = {
             ),
             ask('complex-conjugate'),
           ],
-          skillCheck: [ask('complex-conjugate', 2), ask('complex-conjugate'), ask('complex-multiply', 2)],
+          skillCheck: [ask('complex-conjugate', 2), ask('complex-conjugate'), ask('complex-conjugate+choice', 2)],
         },
 
         {
@@ -304,7 +304,7 @@ export const complexNumbers: Course = {
             ),
             ask('complex-divide+choice', 2),
           ],
-          skillCheck: [ask('complex-divide', 2), ask('complex-divide'), ask('complex-conjugate', 2)],
+          skillCheck: [ask('complex-divide', 2), ask('complex-divide'), ask('complex-divide+choice', 2)],
         },
       ],
       levelCheck: [
@@ -402,7 +402,7 @@ export const complexNumbers: Course = {
             ),
             ask('modulus-steps+choice', 2),
           ],
-          skillCheck: [ask('modulus', 2), ask('modulus'), ask('complex-conjugate', 2)],
+          skillCheck: [ask('modulus', 2), ask('modulus'), ask('modulus+choice', 2)],
         },
 
         {
@@ -563,7 +563,7 @@ export const complexNumbers: Course = {
             ),
             ask('complex-power+choice', 2),
           ],
-          skillCheck: [ask('complex-power', 2), ask('complex-power'), ask('argument', 2)],
+          skillCheck: [ask('complex-power', 2), ask('complex-power'), ask('complex-power+choice', 2)],
         },
 
         {

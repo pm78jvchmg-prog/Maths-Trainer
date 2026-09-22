@@ -570,7 +570,7 @@ export const trigonometricFunctions: Course = {
           skillCheck: [
             ask('trig-cosine-from-circle', 2),
             ask('trig-cosine-from-circle', 2),
-            ask('trig-sine-from-circle', 2),
+            ask('trig-cosine-from-circle+choice', 2),
           ],
         },
         {
@@ -1001,7 +1001,7 @@ export const trigonometricFunctions: Course = {
           skillCheck: [
             ask('trig-period-from-b', 2),
             ask('trig-period-from-b+choice', 2),
-            ask('trig-read-parameters', 2),
+            ask('trig-period-from-speed', 2),
           ],
         },
         {

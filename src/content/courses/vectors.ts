@@ -495,7 +495,7 @@ export const vectorsAndMatrices: Course = {
             ask('mat-vector+choice'),
             ask('vec-dot-steps+choice'),
           ],
-          skillCheck: [ask('mat-vector', 2), ask('mat-vector', 2), ask('mat-multiply', 2)],
+          skillCheck: [ask('mat-vector', 2), ask('mat-vector', 2), ask('mat-vector+choice', 2)],
         },
       ],
       levelCheck: [
@@ -733,7 +733,7 @@ export const vectorsAndMatrices: Course = {
             ask('mat-solve+choice'),
             ask('mat-determinant-steps+choice'),
           ],
-          skillCheck: [ask('mat-solve', 2), ask('mat-solve', 2), ask('mat-inverse', 2)],
+          skillCheck: [ask('mat-solve', 2), ask('mat-solve', 2), ask('mat-solve+choice', 2)],
         },
       ],
       levelCheck: [

@@ -32,7 +32,7 @@ import {
 } from '../expr';
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
-import { CHOICE_SUFFIX } from '../choiceVariant';
+import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
 import { TRIPLES } from './complexPlane';
 import type { Generator, Slide, SlideRef } from '../types';
 
@@ -765,6 +765,29 @@ describe('course integrity', () => {
         if (ref.type === 'literal') expect(ref.slide.kind).not.toBe('teach');
       }
     }
+  });
+
+  it('checks only skills the lesson practised', () => {
+    // The owner met a conjugate question in the modulus lesson's skill check
+    // and called it what it is: a check of something the lesson never asked.
+    // Not interleaving, a defect — so it is a rule, over families rather than
+    // ids, because `x`, `x+choice` and `x-steps` are one skill (familyOf).
+    // Teach slides do not count: only an ask is practice.
+    const offenders: string[] = [];
+    for (const lesson of lessons) {
+      const practised = new Set(
+        lesson.slides
+          .filter((ref): ref is GeneratedRef => ref.type === 'generated')
+          .map((ref) => familyOf(ref.generatorId)),
+      );
+      for (const ref of lesson.skillCheck) {
+        if (ref.type !== 'generated') continue;
+        if (!practised.has(familyOf(ref.generatorId))) {
+          offenders.push(`${lesson.id} -> ${ref.generatorId}`);
+        }
+      }
+    }
+    expect(offenders.join('\n')).toBe('');
   });
 
   /**

@@ -2753,3 +2753,27 @@ This log-only commit carries no consultation, per PREFLIGHT's bookkeeping rule.
 Its mechanical checks: insertions only on this log (`git diff --stat` one file
 changed, insertions only; the single `^-` line in the raw diff is the `---`
 header), and scope is this file alone.
+
+## Unit 2 — Conjugates: plot the reflection, and recover z from z times its conjugate
+
+Committed with NO consultation, per the deviation logged above.
+
+Gates:
+
+- `npx vitest run` -> 3313 passed, 7 files, 98.41 s, exit 0. Predicted 3274 + 39
+  = 3313 (conjugate-plot 13; conjugate-recover and its +choice 26). Exact.
+- Both typechecks silent. `npm run lint` -> 0 errors, 25 warnings.
+- Scope: complexPlane.ts, complexArithmetic.ts, complexNumbers.ts, this log.
+
+Oracle:
+
+    conjugate-plot: draws: 400, failures: 0
+    conjugate-recover: draws: 400, failures: 0
+
+Note on the `conjugate-plot` check: the suite's plot tests only assert the
+answer is an integer lattice point inside the grid, so a conjugate that forgot
+to flip its sign would pass them. The oracle reads the number out of the prompt
+and compares `answer` against mathjs's own `conj`, which is what M-2-oracle
+below proves can fail.
+
+Mutations M-2-root and M-2-oracle run after this commit and before the push.

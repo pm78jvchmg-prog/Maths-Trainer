@@ -89,6 +89,31 @@ export const plotPoint: Generator<PointParams> = {
   ],
 };
 
+/* ---------- Plot the conjugate ---------- */
+
+interface ConjugatePlotParams { re: number; im: number }
+
+export const conjugatePlot: Generator<ConjugatePlotParams> = {
+  id: 'conjugate-plot',
+  // The imaginary part is never zero, or the conjugate is the point itself.
+  sample: (rng, difficulty) => ({
+    re: difficulty >= 2 ? nonZero(rng, RANGE) : rng.int(1, RANGE),
+    im: nonZero(rng, RANGE),
+  }),
+  render: ({ re, im }) => ({
+    kind: 'plot',
+    prompt: [{ kind: 'prose', text: `Plot $\\overline{z}$, the conjugate of $z = ${complexTex(re, im)}$.` }],
+    range: RANGE,
+    answer: { re, im: -im },
+  }),
+  solution: ({ re, im }) => [
+    {
+      text: 'The conjugate keeps the real part and flips the imaginary part: reflect $z$ in the real axis.',
+      tex: `\\overline{${complexTex(re, im)}} = ${complexTex(re, -im)} \\rightarrow (${re},\\ ${-im})`,
+    },
+  ],
+};
+
 /* ---------- Modulus ---------- */
 
 /**
@@ -948,6 +973,7 @@ export const complexPower: Generator<PowerParams> = {
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
+  conjugatePlot,
   modulus,
   modulusSteps,
   modulusWhich,

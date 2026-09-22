@@ -131,6 +131,67 @@ export const complexConjugate: Generator<ConjParams> = {
         ],
 };
 
+/* ---------- Conjugates, run backwards ---------- */
+
+/** Wraps a TeX fragment that starts with a minus sign, so it survives being squared. */
+const paren = (tex: string): string => (tex.startsWith('-') ? `\\left(${tex}\\right)` : tex);
+
+interface RecoverParams { a: number; b: number }
+
+/**
+ * Given the real part and $z\overline{z}$, recover $z$.
+ *
+ * `b` starts at 2, not 1: at $b = 1$ the "forgot the root" distractor
+ * $(a, b^2)$ *is* the answer, and the slide would offer two right options.
+ */
+export const conjugateRecover: Generator<RecoverParams> = {
+  id: 'conjugate-recover',
+  choices: ({ a, b }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    // The wrong sign, the parts swapped, and the root forgotten. The swap
+    // collapses into the answer's label when a = b, and `options()` drops it.
+    return options(opt(a, b), opt(a, -b), opt(b, a), opt(a, b * b));
+  },
+  sample: (rng, difficulty) => ({
+    a: difficulty >= 2 ? nonZero(rng, 6) : rng.int(1, 6),
+    b: rng.int(2, difficulty >= 2 ? 7 : 6),
+  }),
+  render: ({ a, b }) => {
+    const n = a * a + b * b;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$z$ has real part $${a}$ and $z\\overline{z} = ${n}$. Its imaginary part is positive. What is $z$?`,
+        },
+      ],
+      lead: 'z =',
+      keypad: I_KEY,
+      answer: complexAnswer(a, b),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b }) => {
+    const n = a * a + b * b;
+    return [
+      {
+        text: '$z\\overline{z} = a^2 + b^2$, and the real part is known, so the imaginary part is one subtraction away.',
+        tex: `b^2 = ${n} - ${paren(`${a}`)}^2 = ${n} - ${a * a} = ${b * b}`,
+      },
+      {
+        text: 'Two numbers square to that; the question says the imaginary part is positive.',
+        tex: `b = ${b}`,
+      },
+      { tex: `z = ${complexTex(a, b)}` },
+      {
+        text: `The other number with the same real part and the same $z\\overline{z}$ is the conjugate, $${complexTex(a, -b)}$ — which is why the sign had to be given.`,
+      },
+    ];
+  },
+};
+
 /* ---------- Division ---------- */
 
 interface DivParams { p: number; q: number; c: number; d: number }
@@ -228,6 +289,7 @@ export const powersOfI: Generator<PowerParams> = {
 export const arithmeticGenerators = [
   complexMultiply,
   complexConjugate,
+  conjugateRecover,
   complexDivide,
   powersOfI,
 ];

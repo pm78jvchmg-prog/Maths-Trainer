@@ -64,12 +64,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'tf-l1-periodic': 2,
   'tf-l1-shift': 2,
   'tf-l2-speed': 2,
-  'cn-l1-arithmetic': 2,
-  'cn-l1-complex': 2,
-  'cn-l2-multiply': 2,
-  'cn-l2-division': 2,
-  'cn-l3-sqrt': 2,
-  'cn-l4-de-moivre': 2,
   'df-l1-index': 2,
   'df-l2-quotient': 2,
   'df-l3-roots': 2,
@@ -79,7 +73,7 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 22;
+export const WIDGET_KIND_CEILING = 16;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -88,8 +82,8 @@ export const WIDGET_KIND_CEILING = 22;
  * Far longer than the widget-kind list — it started at 102 of 105 lessons —
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
- * progress is measured. Logarithms left both lists in batch A5 and
- * Integration in A9.
+ * progress is measured. Logarithms left both lists in batch A5, Complex
+ * Numbers in A7 and Integration in A9.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l1-multiply': 5,
@@ -129,19 +123,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'tf-l3-amplitude-shift': 3,
   'tf-l3-period-shift': 3,
   'tf-l3-period-formula': 6,
-  'cn-l1-arithmetic': 5,
-  'cn-l1-complex': 4,
-  'cn-l1-quadratics': 5,
-  'cn-l2-multiply': 5,
-  'cn-l2-conjugates': 4,
-  'cn-l2-division': 4,
-  'cn-l3-plane': 3,
-  'cn-l3-modulus': 4,
-  'cn-l3-sqrt': 5,
-  'cn-l4-argument': 4,
-  'cn-l4-polar': 6,
-  'cn-l4-powers': 3,
-  'cn-l4-de-moivre': 6,
   'df-l1-power': 5,
   'df-l1-sums': 5,
   'df-l1-index': 6,
@@ -168,4 +149,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 73;
+export const GENERATOR_REPETITION_CEILING = 60;

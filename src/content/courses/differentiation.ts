@@ -416,7 +416,7 @@ export const differentiation: Course = {
             ),
             ask('product-rule'),
             ask('df-product-tiles'),
-            ask('product-rule+choice'),
+            ask('product-rule-tree'),
             teach(
               {
                 kind: 'prose',
@@ -591,7 +591,7 @@ export const differentiation: Course = {
             ),
             ask('chain-rule'),
             ask('df-chain-tiles'),
-            ask('chain-rule+choice'),
+            ask('chain-rule-steps'),
             teach(
               {
                 kind: 'prose',

@@ -311,20 +311,15 @@ button {
   margin-bottom: 0;
 }
 
-/* Nothing on a slide gives up height to make the slide fit.
-
-   `.slide` is a flex column, so every block on it is a flex item and shrinks
-   the moment the content is taller than the screen. A panel with a min-height
-   stops at that and then spills its own contents out of both ends, landing on
-   top of the prompt above and the tile bank below; a panel without one is
-   squashed and, having `overflow-y: hidden`, simply goes blank. The slide
-   scrolls instead, which is what its `overflow-y` is for. Found on a four-node
-   tree, whose answer panel spilled and whose expression line vanished. */
+/* A slide is a scrolling flex column, and a flex item shrinks before its
+   container scrolls. So a slide taller than the screen used to squash its
+   children rather than scroll: the first four-row tree painted two of its rows
+   outside the answer frame, over the expression above and the tile bank below,
+   and cut the expression in half vertically. Refusing to shrink is what lets
+   `overflow-y: auto` above do its job. */
 .slide > * {
   flex-shrink: 0;
 }
-
-
 
 /* One slide replacing another is the single most-used transition in the app,
    and swapping it instantly reads as a glitch rather than a step forward. The

@@ -56,10 +56,32 @@ function bankOf(answer: string[], distractors: string[]): string[] {
  * Sorted numerically rather than as strings: a bank running -12, -2, 10, 2
  * reads as a mistake, and the sort is only there to keep the answers from
  * clustering at the front.
+ *
+ * Each distractor below is built from the question's own numbers, so it lands
+ * on a value the tree already holds far more often than it looks like it will:
+ * a gradient tree whose bracket happened to equal its product dropped four of
+ * its five. A bank that is the answer and one spare is not a question — the
+ * odd one out can be placed without doing any of the arithmetic — so the floor
+ * is topped up with the values either side of the answer, which is what a slip
+ * of one actually produces.
  */
+const MIN_DISTRACTORS = 3;
+
 function valueBank(answer: number[], distractors: number[]): string[] {
   const needed = new Set(answer);
-  const extras = [...new Set(distractors)].filter((value) => !needed.has(value));
+  const extras: number[] = [];
+  const add = (value: number) => {
+    if (needed.has(value) || extras.includes(value)) return;
+    extras.push(value);
+  };
+  for (const value of distractors) add(value);
+  for (let step = 1; extras.length < MIN_DISTRACTORS; step += 1) {
+    for (const value of answer) {
+      add(value + step);
+      add(value - step);
+      if (extras.length >= MIN_DISTRACTORS) break;
+    }
+  }
   return [...answer, ...extras].sort((x, y) => x - y).map(String);
 }
 

@@ -81,7 +81,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('vec-add'),
-            ask('vec-add'),
+            ask('vec-add-tree'),
             teach(
               prose(
                 'Subtraction follows the same rule, and it has a useful reading of its own.',
@@ -133,7 +133,7 @@ export const vectorsAndMatrices: Course = {
               ),
             ),
             ask('vec-scalar-combine'),
-            ask('vec-scalar-combine'),
+            ask('vec-scalar-combine-steps'),
             teach(
               prose(
                 'Two vectors are **parallel** exactly when one is a scalar multiple of the other — the same multiple applied to every component.',

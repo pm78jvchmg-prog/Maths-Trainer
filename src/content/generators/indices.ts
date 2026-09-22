@@ -1280,6 +1280,11 @@ function fillBank(answer: string[], distractors: string[]): string[] {
   return [...answer, ...extras].sort();
 }
 
+/** A root written the way it is read: a square root carries no small 2. */
+function rootOf(index: number, radicand: number | string): string {
+  return index === 2 ? `\\sqrt{${radicand}}` : `\\sqrt[${index}]{${radicand}}`;
+}
+
 /**
  * An index law, filled in rather than typed.
  *
@@ -1676,8 +1681,8 @@ const rootFillBase: Omit<Generator<RootFillParams>, 'id' | 'sample'> = {
     const { base, n, d, root, value } = params;
     const unit = n === 1;
     const answer = unit
-      ? [`\\sqrt[${d}]{${base}}`, `${value}`]
-      : [`\\left(\\sqrt[${d}]{${base}}\\right)^{${n}}`, `${value}`];
+      ? [rootOf(d, base), `${value}`]
+      : [`\\left(${rootOf(d, base)}\\right)^{${n}}`, `${value}`];
     return {
       kind: 'tiles',
       prompt: [
@@ -1693,10 +1698,10 @@ const rootFillBase: Omit<Generator<RootFillParams>, 'id' | 'sample'> = {
       bank: fillBank(
         answer,
         unit
-          ? [`\\sqrt[${d + 1}]{${base}}`, `${d}`, `${root + 1}`, `${Math.round(base / d)}`]
+          ? [rootOf(d + 1, base), `${d}`, `${root + 1}`, `${Math.round(base / d)}`]
           : [
-              `\\left(\\sqrt[${n}]{${base}}\\right)^{${d}}`,
-              `\\sqrt[${d}]{${base}}`,
+              `\\left(${rootOf(n, base)}\\right)^{${d}}`,
+              rootOf(d, base),
               `${root}`,
               `${base * n}`,
               `${root * n}`,
@@ -1711,7 +1716,7 @@ const rootFillBase: Omit<Generator<RootFillParams>, 'id' | 'sample'> = {
           {
             text: `A 1 on top means there is no power to apply — the $${d}$ underneath is the whole instruction.`,
           },
-          { tex: `${base}^{\\frac{1}{${d}}} = \\sqrt[${d}]{${base}} = ${root}` },
+          { tex: `${base}^{\\frac{1}{${d}}} = ${rootOf(d, base)} = ${root}` },
           {
             text: `Read it as a question: what number to the power $${d}$ gives $${base}$? It is $${root}$, because $${root}^{${d}} = ${base}$.`,
           },
@@ -1720,9 +1725,9 @@ const rootFillBase: Omit<Generator<RootFillParams>, 'id' | 'sample'> = {
           {
             text: `The $${d}$ underneath says which root to take, and the $${n}$ on top says what power to raise it to.`,
           },
-          { tex: `\\sqrt[${d}]{${base}} = ${root}` },
+          { tex: `${rootOf(d, base)} = ${root}` },
           {
-            tex: `${base}^{\\frac{${n}}{${d}}} = \\left(\\sqrt[${d}]{${base}}\\right)^{${n}} = ${root}^{${n}} = ${value}`,
+            tex: `${base}^{\\frac{${n}}{${d}}} = \\left(${rootOf(d, base)}\\right)^{${n}} = ${root}^{${n}} = ${value}`,
           },
           {
             text: `Taking the power first gives the same $${value}$ by way of $${base}^{${n}}$, a number far larger than anything else on the page — which is why the root goes first by habit.`,
@@ -1841,7 +1846,7 @@ const chooseRootRoute: Generator<RootRouteParams> = {
         {
           text: `The $${d}$ underneath names the root, and the 1 on top leaves it at that — so this is simply the $${d}$th root of $${base}$.`,
         },
-        { tex: `${base}^{\\frac{1}{${d}}} = \\sqrt[${d}]{${base}} = ${root}` },
+        { tex: `${base}^{\\frac{1}{${d}}} = ${rootOf(d, base)} = ${root}` },
         {
           text: `A 1 on top is easy to read past. It is the only case where the index does one job rather than two.`,
         },
@@ -1851,7 +1856,7 @@ const chooseRootRoute: Generator<RootRouteParams> = {
       {
         text: `The $${d}$ underneath names the root and the $${n}$ on top names the power, so this reads as the $${d}$th root of $${base}$, then raised to the power $${n}$.`,
       },
-      { tex: `\\sqrt[${d}]{${base}} = ${root} \\quad\\text{then}\\quad ${root}^{${n}} = ${Math.pow(root, n)}` },
+      { tex: `${rootOf(d, base)} = ${root} \\quad\\text{then}\\quad ${root}^{${n}} = ${Math.pow(root, n)}` },
       {
         text: `The other order gives the same answer through $${base}^{${n}}$, which is a number you would not want to write down. Root first, every time.`,
       },
@@ -1992,33 +1997,44 @@ const estimateSurd: Generator<{ n: number }> = {
   sample: (rng, difficulty) => ({
     n: rng.pick(difficulty > 1 ? ESTIMABLE : ESTIMABLE.filter((n) => n <= 60)),
   }),
-  render: ({ n }): Slide => ({
-    kind: 'slider',
-    prompt: [
-      {
-        kind: 'prose',
-        text: `The curve is $y = x^{2}$, and the dashed line is at $y = ${n}$. Slide to the whole number $\\sqrt{${n}}$ is closest to.`,
-      },
-    ],
-    min: 1,
-    max: 12,
-    step: 1,
-    answer: Math.round(Math.sqrt(n)),
-    readout: `\\sqrt{${n}} \\approx {v}`,
-    figure: {
-      svg: plotSvg({
+  render: ({ n }): Slide => {
+    // The window is built around this question's own answer rather than fixed.
+    // A fixed 0-12 span puts the crossing for a small n in the bottom-left
+    // corner of an otherwise empty picture, which is the one thing the figure
+    // exists to show. Three past the answer leaves the crossing comfortably
+    // inside the frame at every n the pool offers.
+    const nearest = Math.round(Math.sqrt(n));
+    const span = nearest + 3;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve is $y = x^{2}$, and the dashed line is at $y = ${n}$. Slide to the whole number $\\sqrt{${n}}$ is closest to.`,
+        },
+      ],
+      min: 1,
+      max: span,
+      step: 1,
+      answer: nearest,
+      readout: `\\sqrt{${n}} \\approx {v}`,
+      // The figure covers the slider's own span, so the marker under the handle
+      // sits where that value is on the curve.
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: span * span,
+          curves: [{ f: (x) => x * x }],
+          horizontals: [n],
+          label: `The curve y equals x squared, with a dashed line at y equals ${n}`,
+        }),
         xMin: 0,
-        xMax: 12,
-        yMin: 0,
-        yMax: 150,
-        curves: [{ f: (x) => x * x }],
-        horizontals: [n],
-        label: `The curve y equals x squared, with a dashed line at y equals ${n}`,
-      }),
-      xMin: 0,
-      xMax: 12,
-    },
-  }),
+        xMax: span,
+      },
+    };
+  },
   solution: ({ n }) => {
     const nearest = Math.round(Math.sqrt(n));
     const below = Math.floor(Math.sqrt(n));
@@ -2040,10 +2056,14 @@ const estimateSurd: Generator<{ n: number }> = {
 /** Rationalising a denominator, as the multiplication that does it. */
 const fillRationalise: Generator<{ c: number; m: number }> = {
   id: 'rad-fill-rationalise',
-  sample: (rng, difficulty) => ({
-    c: rng.int(2, difficulty > 1 ? 12 : 9),
-    m: rng.pick(difficulty > 1 ? SURD_FREE : SURD_FREE.slice(0, 8)),
-  }),
+  // c never equals m, because `\frac{c}{m}` is one of the distractors and at
+  // c = m it is a fraction genuinely worth 1 — a learner placing it would be
+  // answering the question as asked and still be marked wrong.
+  sample: (rng, difficulty) => {
+    const m = rng.pick(difficulty > 1 ? SURD_FREE : SURD_FREE.slice(0, 8));
+    const c = rng.int(2, difficulty > 1 ? 12 : 9);
+    return { c: c === m ? c + 1 : c, m };
+  },
   render: ({ c, m }): Slide => {
     const answer = [
       `\\frac{\\sqrt{${m}}}{\\sqrt{${m}}}`,
@@ -2054,7 +2074,7 @@ const fillRationalise: Generator<{ c: number; m: number }> = {
       prompt: [
         {
           kind: 'prose',
-          text: 'Choose what to multiply by — it has to be worth 1, or the value changes — and then what that leaves.',
+          text: 'Which fraction worth 1 clears the root from the bottom? Place it, then place what the multiplication leaves.',
         },
         { kind: 'display', tex: `\\frac{${c}}{\\sqrt{${m}}}` },
       ],

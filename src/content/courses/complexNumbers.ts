@@ -20,6 +20,23 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 });
 
 /**
+ * The same question with a line or two of teaching carried on its own slide.
+ *
+ * Widening these lessons to four skills apiece introduced techniques the three
+ * teaching slides never mentioned, and a new technique meeting the learner as
+ * a bare question is the worst of both. A whole extra teach slide is not the
+ * answer either — a lesson is capped at eleven slides, and every one spent
+ * explaining is one not spent practising. So the setup rides on the question
+ * it sets up, which is what `leadIn` is for.
+ */
+const asking = (generatorId: string, difficulty: number, ...lines: string[]): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: lines.map((text) => ({ kind: 'prose', text })),
+});
+
+/**
  * A specific complex number or two, plotted on the plane.
  *
  * This course spends four levels describing points, corners and circles on
@@ -55,7 +72,6 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'This is worth sitting with, because it is the reason the rest of this course exists. Every other equation of this shape has answers: $x^2 = 9$ gives $3$ and $-3$, and $x^2 = 2$ gives $\\sqrt{2}$ and $-\\sqrt{2}$. Only a negative right-hand side breaks the pattern.' },
             ),
             ask('real-solutions'),
-            ask('real-solutions'),
             ask('both-roots'),
             teach(
               { kind: 'prose', text: 'Rather than stop there, we define a new number whose square *is* negative. Call it $i$.' },
@@ -73,7 +89,9 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'When the number inside is not a perfect square, leave the surd: $\\sqrt{-12} = 2i\\sqrt{3}$. Writing $i$ in front rather than after the surd is the usual convention, because $\\sqrt{3}i$ invites the reader to wonder whether the $i$ is under the root.' },
             ),
             ask('sqrt-negative'),
+            asking('imaginary-surd', 1, 'That one came out whole because the number under the root was a perfect square. Most are not, and whatever is left over then stays under the root.'),
             ask('sqrt-negative', 2),
+            asking('root-method', 1, 'Three routes, and which one an equation needs is decided before any of them is run. Work down the questions.'),
           ],
           skillCheck: [ask('imaginary-square', 2), ask('sqrt-negative', 2), ask('real-solutions')],
         },
@@ -89,7 +107,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Only *like* terms combine. $3 + 4i$ is already as simple as it gets — there is no way to fold a real number and an imaginary one into a single term, in the same way that $3 + 4x$ will not collapse.' },
             ),
             ask('imaginary-sum'),
-            ask('imaginary-sum'),
+            asking('imaginary-collect', 1, 'Three terms now, so the working is worth seeing in stages. Fill in the line after the first pair, then the total.'),
             ask('imaginary-sum+choice', 2),
             teach(
               { kind: 'prose', text: 'Multiplication is where $i$ stops behaving like $x$. Multiply the coefficients as usual, which leaves an $i^2$ behind, and then replace that $i^2$ with $-1$.' },
@@ -98,7 +116,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'The step people skip is the second one. Stopping at $6i^2$ leaves the answer unsimplified; writing $6i$ loses the squaring altogether. Take the coefficients first, then deal with the $i^2$ as a separate move.' },
             ),
             ask('imaginary-product'),
-            ask('imaginary-sum+choice'),
+            asking('imaginary-missing+choice', 1, 'The same fact read backwards: the product is known and one factor is missing.'),
             ask('imaginary-product', 2),
             teach(
               { kind: 'prose', text: 'Watch the pattern: adding imaginary numbers keeps them imaginary, multiplying two of them makes them real. Addition stays in the imaginary world, multiplication steps out of it.' },
@@ -106,9 +124,10 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Because $i^4 = 1$, the powers cycle with length four and then start again: $i^5 = i$, $i^6 = -1$, and so on for ever.' },
               { kind: 'prose', text: 'That makes any power easy. Divide the exponent by $4$ and keep only the remainder — $i^{23}$ has remainder $3$, so $i^{23} = i^3 = -i$. Only the remainder matters; the quotient contributes a factor of $1$ however large it is.' },
             ),
-            ask('imaginary-sum', 2),
+            ask('imaginary-collect', 2),
+            ask('imaginary-missing', 2),
           ],
-          skillCheck: [ask('imaginary-sum', 2), ask('imaginary-product', 2), ask('imaginary-sum+choice', 2)],
+          skillCheck: [ask('imaginary-sum', 2), ask('imaginary-product', 2), ask('imaginary-collect', 2)],
         },
 
         {
@@ -124,7 +143,7 @@ export const complexNumbers: Course = {
             ),
             ask('complex-part'),
             ask('complex-add'),
-            ask('complex-part'),
+            ask('complex-part', 2),
             teach(
               { kind: 'prose', text: 'Complex numbers add component by component: real with real, imaginary with imaginary. The two parts never mix.' },
               { kind: 'display', tex: '(3 + 4i) + (1 + 2i) = 4 + 6i' },
@@ -132,9 +151,9 @@ export const complexNumbers: Course = {
               { kind: 'display', tex: '(3 + 4i) - (1 - 2i) = 2 + 6i' },
               { kind: 'prose', text: 'Dropping the sign on the second part of the bracket is the most common slip in the whole topic. Expand the bracket before combining anything and it cannot happen.' },
             ),
-            ask('complex-add'),
-            ask('complex-part'),
             ask('complex-add', 2),
+            asking('complex-subtract', 1, 'Subtraction works the same way, with one thing to watch: the minus sign belongs to the whole bracket, so it reaches the imaginary part too.'),
+            ask('complex-subtract+choice', 2),
             teach(
               { kind: 'prose', text: 'Because the parts stay separate, a complex number behaves like a point with two coordinates — which is exactly how it is drawn on the complex plane, real part across and imaginary part up.' },
               { kind: 'display', tex: '3 + 4i \\quad \\longleftrightarrow \\quad (3, 4)' },
@@ -143,9 +162,10 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Adding complex numbers is then the same operation as adding vectors: add the across-parts, add the up-parts. That correspondence is why complex numbers turn up wherever rotation and oscillation do.' },
               { kind: 'prose', text: 'One thing the picture takes away. Points in a plane cannot be put in order, so there is no sensible way to say one complex number is larger than another. $3 + 4i < 5 + 2i$ is not false — it is meaningless.' },
             ),
-            ask('complex-part'),
+            asking('complex-equate', 1, 'One complex equation is really two real ones. Nothing real can cancel an i, so the real parts have to match each other and the imaginary parts have to match each other.'),
+            ask('complex-equate', 2),
           ],
-          skillCheck: [ask('complex-add', 2), ask('complex-part'), ask('complex-add')],
+          skillCheck: [ask('complex-subtract', 2), ask('complex-part'), ask('complex-equate', 2)],
         },
 
         {
@@ -160,27 +180,27 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Two roots, exactly as every quadratic has. They are simply not real.' },
             ),
             ask('complex-quadratic'),
-            ask('complex-quadratic+choice'),
-            ask('complex-quadratic'),
+            ask('sqrt-negative'),
+            ask('real-solutions'),
             teach(
               { kind: 'prose', text: 'The quadratic formula reaches the same place. The part under the root is negative, so its square root is imaginary rather than undefined.' },
               { kind: 'display', tex: 'x = \\frac{-2 \\pm \\sqrt{-16}}{2} = \\frac{-2 \\pm 4i}{2} = -1 \\pm 2i' },
               { kind: 'prose', text: 'The slip to watch for is dividing only the real part by $2$ and leaving the imaginary part untouched — the $2$ in the denominator divides the whole numerator, both parts alike.' },
               { kind: 'prose', text: 'Checking costs one substitution: $(-1 + 2i)^2 = -3 - 4i$, add $2(-1 + 2i) = -2 + 4i$, add $5$, and the total is zero.' },
             ),
-            ask('complex-quadratic', 2),
-            ask('sqrt-negative', 2),
             ask('complex-quadratic+choice', 2),
+            ask('sqrt-negative', 2),
+            asking('root-pair', 1, 'Notice that the two roots above were a conjugate pair. That is not a coincidence: a quadratic with real coefficients can never have just one complex root.'),
             teach(
               { kind: 'prose', text: 'The two roots are always a conjugate pair when every coefficient is real, because the $\\pm$ sits only on the imaginary part — the real part is fixed regardless of which sign is taken.' },
               { kind: 'display', tex: 'x = -1 + 2i \\quad\\text{and}\\quad x = -1 - 2i' },
               { kind: 'prose', text: 'That fixed real part is the axis of symmetry, $-b/2a$; on the plane the two roots sit mirror-image across the real axis, the same reflection conjugates always give.' },
               { kind: 'prose', text: 'So every quadratic with real coefficients has either two real roots, one repeated real root, or a conjugate pair — the discriminant says which. Level 2 makes more of that conjugate.' },
             ),
+            ask('root-pair', 2),
             ask('complex-discriminant-tree', 2),
-            ask('real-solutions', 2),
           ],
-          skillCheck: [ask('complex-quadratic', 2), ask('complex-quadratic'), ask('sqrt-negative', 2)],
+          skillCheck: [ask('complex-quadratic', 2), ask('root-pair', 2), ask('sqrt-negative', 2)],
         },
       ],
       levelCheck: [
@@ -219,8 +239,8 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Expand fully before collecting. Trying to jump straight to the two-part form is where the sign gets lost.' },
             ),
             ask('complex-multiply'),
-            ask('complex-multiply'),
-            ask('complex-multiply+choice'),
+            ask('complex-multiply+choice', 2),
+            asking('complex-square', 1, 'A squared bracket is still two brackets, so the middle term appears twice. Squaring the two parts on their own is the mistake this one is for.'),
             teach(
               { kind: 'prose', text: 'The same trick makes powers of $i$ cycle. Every fourth power returns to where it started, because multiplying by $i$ four times is multiplying by $i^4 = 1$.' },
               { kind: 'display', tex: 'i^1 = i \\quad i^2 = -1 \\quad i^3 = -i \\quad i^4 = 1' },
@@ -229,7 +249,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'A remainder of $0$ means the power lands exactly on the end of a cycle, giving $1$ rather than $i$. That is the case people get wrong most often, because $i^0$ and $i^4$ both being $1$ feels like one case too few.' },
             ),
             ask('powers-of-i'),
-            ask('complex-multiply+choice'),
+            asking('multiply-by-i', 1, 'Multiplying by i does something you can see: it swings the point a quarter turn about the origin. Plot where it lands.'),
             ask('powers-of-i', 2),
             teach(
               { kind: 'prose', text: 'Notice what multiplication does geometrically: it scales and rotates. Multiplying by $i$ alone is a quarter turn anticlockwise, which is why four of them return you to the start.' },
@@ -237,9 +257,10 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Follow $1$ round that cycle and it traces the four points of a square about the origin. Nothing is being scaled, because $i$ sits at distance $1$ from the origin; it is a pure rotation.' },
               { kind: 'prose', text: 'This is the idea the rest of the course builds on. Multiplying by any complex number scales by its distance from the origin and rotates by its angle, which is why complex numbers describe rotation more neatly than coordinates do.' },
             ),
-            ask('complex-multiply', 2),
+            ask('complex-square', 2),
+            ask('multiply-by-i', 2),
           ],
-          skillCheck: [ask('complex-multiply', 2), ask('powers-of-i', 2), ask('complex-multiply')],
+          skillCheck: [ask('complex-multiply', 2), ask('powers-of-i', 2), ask('complex-square', 2)],
         },
 
         {
@@ -253,7 +274,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Only the imaginary part changes sign. Flipping both parts gives $-z$, which is a different number entirely — that is a rotation by half a turn, not a reflection.' },
             ),
             ask('complex-conjugate'),
-            ask('complex-conjugate+choice'),
+            ask('complex-conjugate+choice', 2),
             ask('conjugate-plot'),
             teach(
               { kind: 'prose', text: 'Multiplying a number by its own conjugate always gives a real result — the imaginary parts cancel exactly.' },
@@ -263,15 +284,15 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Turned round, the fact is a tool: if you know $z\\overline{z}$ and the real part, the imaginary part is one subtraction and a root away — $z\\overline{z} = 25$ with real part $3$ gives $b^2 = 16$, so $b = 4$ or $-4$.' },
               { kind: 'prose', text: 'This is the single most useful fact about conjugates, and the next lesson depends on it entirely.' },
             ),
-            ask('complex-conjugate', 2),
+            asking('conjugate-sum', 1, 'Adding a number to its conjugate kills the imaginary part; subtracting kills the real one. That is the whole reason a conjugate can clear an i out of a denominator.'),
             ask('conjugate-recover'),
-            ask('complex-conjugate+choice', 2),
+            ask('conjugate-sum+choice', 2),
             teach(
               { kind: 'prose', text: 'That real result is the square of the distance from the origin — which is where the next idea, the modulus, comes from.' },
               { kind: 'display', tex: '(3 + 4i)(3 - 4i) = 9 + 16 = 25 = 5^2' },
               { kind: 'prose', text: 'Read as Pythagoras it is obvious: $3$ across and $4$ up puts the point $5$ from the origin, and $25$ is that distance squared. Conjugation is doing geometry, not just tidying signs.' },
             ),
-            ask('conjugate-recover', 2),
+            ask('conjugate-recover+choice', 2),
             ask('conjugate-plot', 2),
           ],
           skillCheck: [ask('complex-conjugate', 2), ask('conjugate-recover', 2), ask('conjugate-plot', 2)],
@@ -290,7 +311,7 @@ export const complexNumbers: Course = {
             ),
             ask('complex-divide'),
             ask('divide-which-multiplier'),
-            ask('complex-divide+choice'),
+            ask('complex-divide+choice', 2),
             teach(
               { kind: 'prose', text: 'This is the same move as rationalising a surd denominator. Both use a conjugate to clear something awkward from the bottom of a fraction, and both rely on the difference of two squares to do it.' },
               { kind: 'display', tex: '\\dfrac{1}{\\sqrt{2} + 1} \\times \\dfrac{\\sqrt{2} - 1}{\\sqrt{2} - 1}' },
@@ -298,15 +319,15 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Use the conjugate of the *denominator*, not the numerator. Multiplying by the wrong one clears nothing and leaves the fraction worse than it started.' },
               { kind: 'prose', text: 'Division is multiplication run backwards: if $\\dfrac{z}{w} = u$ then $z = uw$. So a quotient can always be checked, and a missing $z$ recovered, by multiplying.' },
             ),
-            ask('complex-divide', 2),
+            asking('reciprocal', 1, 'With 1 on top there is nothing to expand, so the method shows through: everything lands over the sum of two squares, and only the imaginary part changes sign.'),
             ask('divide-reverse'),
-            ask('complex-divide+choice', 2),
+            ask('reciprocal', 2),
             teach(
               { kind: 'prose', text: 'With division in hand, every arithmetic operation now works on complex numbers: add, subtract, multiply and divide, with the single exception of dividing by zero.' },
               { kind: 'prose', text: 'That is what makes them a number system rather than a curiosity. Everything from GCSE algebra — expanding, factorising, solving — carries over unchanged, with $i^2 = -1$ as the only addition.' },
               { kind: 'prose', text: 'More than that: every polynomial equation has a solution here. $x^2 = -1$ was the gap that started this, and closing it turns out to close every gap of that kind at once.' },
             ),
-            ask('divide-reverse', 2),
+            ask('divide-reverse+choice', 2),
             ask('divide-which-multiplier', 2),
           ],
           skillCheck: [ask('complex-divide', 2), ask('divide-reverse', 2), ask('divide-which-multiplier', 2)],
@@ -344,7 +365,7 @@ export const complexNumbers: Course = {
             ),
             ask('identify-point'),
             ask('plot-point'),
-            ask('identify-point+choice'),
+            ask('identify-point+choice', 2),
             teach(
               { kind: 'prose', text: 'It works the other way too: given a number, you can place it. Move along the real axis first, then up or down the imaginary axis.' },
               { kind: 'display', tex: '-2 + 3i \\quad \\longleftrightarrow \\quad (-2, 3)' },
@@ -356,9 +377,9 @@ export const complexNumbers: Course = {
               ]),
               { kind: 'prose', text: 'The highlighted dot is $-2 + 3i$; the other is $2 - 3i$, straight through the origin from it.' },
             ),
-            ask('plot-point'),
-            ask('identify-point'),
+            asking('quadrant', 1, 'Which quarter of the plane a number sits in is decided by two signs and nothing else. It matters more than it looks: it is what tells you the angle later.'),
             ask('plot-point', 2),
+            ask('quadrant', 2),
             teach(
               { kind: 'prose', text: 'Adding complex numbers is now easy to picture: it shifts a point by the amount of the other, exactly like adding vectors.' },
               { kind: 'display', tex: '(3 + i) + (1 + 2i) = 4 + 3i' },
@@ -387,8 +408,8 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Square both parts before adding, and take the root only at the end. $|3 + 4i|$ is $5$, not $7$ — the parts do not simply add.' },
             ),
             ask('modulus'),
-            ask('modulus+choice'),
             ask('modulus-which'),
+            ask('modulus-steps', 2),
             teach(
               { kind: 'prose', text: 'Because both parts get squared, the signs disappear. A number and its conjugate have the same modulus, and the modulus is never negative.' },
               { kind: 'display', tex: '|3 + 4i| = |3 - 4i| = |-3 + 4i| = 5' },
@@ -401,9 +422,9 @@ export const complexNumbers: Course = {
               ]),
               { kind: 'prose', text: 'Only $0$ has modulus $0$. Everything else is a genuine distance from the origin, which is what lets you divide by any non-zero complex number.' },
             ),
-            ask('modulus', 2),
+            asking('modulus-product', 1, 'The modulus of a product is the product of the moduli, so there is no need to multiply the two numbers out first.'),
             ask('modulus-compare'),
-            ask('modulus-steps', 2),
+            ask('modulus-product+choice', 2),
             teach(
               { kind: 'prose', text: 'This connects back to conjugates: multiplying a number by its conjugate gives the modulus squared.' },
               { kind: 'display', tex: 'z\\overline{z} = |z|^2' },
@@ -413,7 +434,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'The plane lesson said $z - w$ is the arrow from $w$ to $z$. Its modulus is therefore the distance between the two points — subtract, then Pythagoras on what is left.' },
             ),
             ask('modulus-distance'),
-            ask('modulus-distance', 2),
+            ask('modulus-distance+choice', 2),
           ],
           skillCheck: [ask('modulus', 2), ask('modulus-distance', 2), ask('modulus-which', 2)],
         },
@@ -429,16 +450,16 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Checking a candidate is one multiplication: square it and compare with $z$. $(2 + i)^2 = 3 + 4i$, so $2 + i$ is a square root of $3 + 4i$ — and $-2 - i$ is the other.' },
             ),
             ask('complex-sqrt'),
-            ask('complex-sqrt+choice'),
+            ask('complex-sqrt+choice', 2),
             ask('power-reverse'),
             teach(
               { kind: 'prose', text: 'Here is the method. Squaring a number squares its modulus, so $a^2 + b^2 = |z|$ — a third equation, for free. Add it to the first for $a^2$, subtract for $b^2$.' },
               { kind: 'display', tex: 'a^2 + b^2 = |3 + 4i| = 5 \\qquad a^2 = \\tfrac{5 + 3}{2} = 4,\\ b^2 = \\tfrac{5 - 3}{2} = 1' },
               { kind: 'prose', text: 'The sign of $b$ comes from $2ab$: positive means $a$ and $b$ agree. So $\\sqrt{3 + 4i} = 2 + i$ or $-2 - i$.' },
             ),
-            ask('complex-sqrt', 2),
+            asking('sqrt-pair', 1, 'Every complex number has two square roots, and the second is the first with both signs turned over. Give both.'),
             ask('modulus', 2),
-            ask('complex-sqrt+choice', 2),
+            ask('sqrt-pair', 2),
             teach(
               { kind: 'prose', text: 'Every non-zero complex number has exactly two square roots, negatives of each other — the $\\pm$ of real arithmetic survives.' },
               { kind: 'display', tex: '\\sqrt{3 + 4i} = \\pm(2 + i)' },
@@ -446,8 +467,8 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Check by squaring: $(2 + i)^2 = 4 + 4i + i^2 = 3 + 4i$.' },
               { kind: 'prose', text: 'The same move is what makes the quadratic formula work for complex coefficients, though that is beyond this course.' },
             ),
-            ask('complex-sqrt', 2),
             ask('modulus+choice', 2),
+            ask('power-reverse'),
           ],
           skillCheck: [ask('complex-sqrt', 2), ask('power-reverse'), ask('modulus', 2)],
         },
@@ -488,7 +509,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Equally far across and up: the dot sits exactly on the diagonal running out of the origin.' },
               { kind: 'prose', text: 'In general $\\tan(\\arg z) = \\frac{b}{a}$, but do not reach straight for a calculator: the inverse tangent cannot tell $-2 - 2i$ from $2 + 2i$, since both give the same ratio. Sketch the point first and check which quadrant the answer belongs in.' },
             ),
-            ask('argument'),
+            asking('quadrant', 1, 'Before any angle is worked out, say which quarter of the plane the number is in. That is what decides whether the arctangent needs correcting.'),
             ask('argument'),
             ask('argument+choice'),
             teach(
@@ -498,14 +519,16 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'This is called the principal argument. If a calculation throws up an angle outside the range, add or subtract $2\\pi$ until it lands inside — that changes the written answer, not the direction.' },
               { kind: 'prose', text: 'The number $0$ has no argument at all. It sits at the origin and points nowhere, which is the one case the definition cannot cover.' },
             ),
-            ask('argument', 2),
+            asking('argument-turns', 1, 'Now say where the angle is rather than what it is called, counted in eighths of a turn from the positive real axis.'),
             ask('modulus-steps'),
+            ask('quadrant', 2),
             teach(
               { kind: 'prose', text: 'Scaling a number by a positive real moves it along its own ray, so the argument does not change. Modulus and argument really are independent: one can be altered without disturbing the other.' },
               { kind: 'display', tex: '\\arg(1 + i) = \\arg(5 + 5i) = \\tfrac{\\pi}{4}' },
               { kind: 'prose', text: 'Scaling by a *negative* real is different. It sends the point through the origin to the opposite side, which turns the direction by half a turn and so changes the argument by $\\pi$.' },
               { kind: 'prose', text: 'Between them, modulus and argument describe any complex number completely — and, as the next lesson shows, they are the pair that makes multiplication simple.' },
             ),
+            ask('argument-turns', 2),
             ask('modulus-steps+choice', 2),
           ],
           // `modulus-steps`, not `modulus`: unit 1 gave `modulus` a typed surd
@@ -514,7 +537,7 @@ export const complexNumbers: Course = {
           // two as one skill, correctly, but the answer format is the thing a
           // learner meets, and asking for a format the lesson never showed is
           // the defect this task exists to remove.
-          skillCheck: [ask('argument', 2), ask('argument'), ask('modulus-steps', 2)],
+          skillCheck: [ask('argument', 2), ask('argument-turns', 2), ask('modulus-steps', 2)],
         },
 
         {
@@ -530,26 +553,26 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'The same point, described by distance and direction instead of across and up.' },
             ),
             ask('polar-form'),
-            ask('polar-form+choice'),
-            ask('polar-form'),
+            ask('polar-form+choice', 2),
+            ask('argument'),
             teach(
               { kind: 'prose', text: 'The other direction. Modulus by Pythagoras, argument from a sketch — never from the calculator alone, since $-2 + 2i$ and $2 - 2i$ share a tangent.' },
               { kind: 'display', tex: '|{-2 + 2i}| = \\sqrt{4 + 4} = 2\\sqrt{2} \\qquad \\arg(-2 + 2i) = \\tfrac{3\\pi}{4}' },
               { kind: 'prose', text: 'Keep the argument principal, between $-\\pi$ and $\\pi$. The two slips: adding the parts for the modulus ($4$, not $2\\sqrt{2}$), and taking the diagonal angle in the wrong quadrant.' },
             ),
-            ask('polar-form', 2),
-            ask('argument', 2),
-            ask('polar-form+choice', 2),
+            asking('polar-multiply', 1, 'This form earns its keep on multiplication: the moduli multiply and the arguments add, with no brackets to expand at all.'),
+            ask('modulus-steps'),
+            ask('polar-multiply', 2),
             teach(
               { kind: 'prose', text: 'Why bother — because multiplication is easy in this form and hard in the other.' },
               { kind: 'display', tex: '|zw| = |z||w| \\qquad \\arg(zw) = \\arg z + \\arg w' },
               { kind: 'prose', text: 'Multiplying by $i$ (modulus $1$, argument $\\tfrac{\\pi}{2}$) is the quarter turn from Level 2, now as a formula.' },
               { kind: 'prose', text: 'Every number with the same modulus lies on one circle; every number with the same argument on one ray. The next lesson runs with this.' },
             ),
-            ask('polar-form', 2),
-            ask('modulus-steps'),
+            ask('modulus', 2),
+            ask('argument', 2),
           ],
-          skillCheck: [ask('polar-form', 2), ask('polar-form'), ask('argument', 2)],
+          skillCheck: [ask('polar-form', 2), ask('polar-multiply', 2), ask('argument', 2)],
         },
 
         {
@@ -564,7 +587,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Turned round: given $w$, which $z$ has $z^2 = w$? Raise each candidate and see — $(1 + i)^2 = 2i$, so $1 + i$ is a square root of $2i$, and so is $-(1 + i)$.' },
             ),
             ask('complex-power'),
-            ask('complex-power+choice'),
+            ask('complex-power+choice', 2),
             ask('power-reverse'),
             teach(
               { kind: 'prose', text: 'Seen in polar terms the pattern is simpler than the algebra suggests: powers multiply the modulus and add the argument.' },
@@ -577,15 +600,15 @@ export const complexNumbers: Course = {
             ),
             ask('powers-of-i-steps', 2),
             ask('power-modulus'),
-            ask('complex-power+choice', 2),
+            asking('power-argument', 1, 'The angle behaves the same way the modulus just did, with one extra step: multiplying by the power usually pushes it past a half turn, and it has to come back inside.'),
             teach(
               { kind: 'prose', text: 'Because arguments add, repeated powers walk around a circle at a constant angle. If the modulus is $1$ the walk stays on the unit circle for ever, stepping the same amount each time.' },
               { kind: 'display', tex: 'i^1 = i \\to i^2 = -1 \\to i^3 = -i \\to i^4 = 1' },
               { kind: 'prose', text: 'That is the cycle from Level 2, now with a reason attached: $i$ has argument $\\frac{\\pi}{2}$, so four steps make a full turn and land back at the start. The pattern was never a coincidence.' },
               { kind: 'prose', text: 'A modulus above $1$ spirals outwards and one below $1$ spirals inwards. Only on the circle itself do the powers repeat rather than drift.' },
             ),
-            ask('power-modulus', 2),
-            ask('power-reverse', 2),
+            ask('power-modulus+choice', 2),
+            ask('power-argument', 2),
           ],
           skillCheck: [ask('complex-power', 2), ask('power-modulus', 2), ask('power-reverse', 2)],
         },
@@ -601,16 +624,16 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'The commonest error is adding the moduli instead of raising, or multiplying the argument by the wrong thing.' },
             ),
             ask('polar-power'),
-            ask('polar-power+choice'),
-            ask('polar-power'),
+            ask('polar-power+choice', 2),
+            ask('complex-power', 2),
             teach(
               { kind: 'prose', text: 'The argument this produces can leave the principal range, and must be brought back by whole turns of $2\\pi$.' },
               { kind: 'display', tex: '4 \\times \\tfrac{\\pi}{3} = \\tfrac{4\\pi}{3} \\quad\\Rightarrow\\quad \\tfrac{4\\pi}{3} - 2\\pi = -\\tfrac{2\\pi}{3}' },
               { kind: 'prose', text: 'Subtracting $2\\pi$ changes the label, not the direction. A remainder that lands exactly on $\\pi$ is written $\\pi$, not $-\\pi$.' },
             ),
-            ask('polar-power', 2),
-            ask('complex-power', 2),
-            ask('polar-power+choice', 2),
+            asking('polar-multiply', 1, 'De Moivre is this rule used over and over: multiplying moduli and adding arguments, with both numbers the same.'),
+            ask('power-modulus'),
+            ask('power-modulus+choice', 2),
             teach(
               { kind: 'prose', text: 'Check it against expansion once, then trust it.' },
               { kind: 'prose', text: '$(1 + i)^4$: expansion gives $(2i)^2 = -4$; De Moivre gives modulus $(\\sqrt{2})^4 = 4$ at angle $4 \\times \\tfrac{\\pi}{4} = \\pi$, which is $-4$.' },
@@ -618,10 +641,10 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'When the angle is standard, De Moivre wins; when the number is small and the power is $2$, expanding is fine.' },
               { kind: 'prose', text: 'The $i^n$ cycle from Level 2 is De Moivre with $r = 1$ and $\\theta = \\tfrac{\\pi}{2}$.' },
             ),
-            ask('polar-power', 2),
+            ask('polar-multiply', 2),
             ask('complex-power+choice', 2),
           ],
-          skillCheck: [ask('polar-power', 2), ask('polar-power'), ask('complex-power', 2)],
+          skillCheck: [ask('polar-power', 2), ask('polar-multiply', 2), ask('complex-power', 2)],
         },
       ],
       levelCheck: [

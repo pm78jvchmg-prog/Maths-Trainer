@@ -258,7 +258,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A4 | Widen Quadratics | **done** (`claude/roadmap-a4-475hws`) | Same bar, all 12 `qd-` lessons |
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
-| A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
+| A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
@@ -283,6 +283,17 @@ already retired. The repetition list does not move, and cannot — a swap change
 a lesson's shape, not how many families it asks, so emptying that list stays
 A3 to A10's work.
 
+A7 then took both lists down together, to **23** and **77**: widening the
+fourteen Complex Numbers lessons to eight exercises needed seventeen new
+generators, which is A5's "four families per lesson" arithmetic showing up
+again. Worth knowing for the batches still to come is where those seventeen
+went — a course that already had thirty-odd generators still had almost none
+outside `expression` and `choice`, so the new ones were chosen by *widget*
+first and topic second: two decision trees, four tile-assembly questions across
+levels 3 and 4, a plane tap, and a slider. Asking what a lesson has no way of
+asking is a faster route to the three-kind bar than another generator of the
+kind it already has eight of.
+
 A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
 allowlist entry belongs to one of those batches. A11 is therefore the **last**
 row of phase A rather than a parallel one — the commit that deletes the two
@@ -292,16 +303,19 @@ now prints what each course still has outstanding so the burn-down is visible
 per batch rather than as one falling total. An emptied list that is left in
 place fails the suite, so the deletion cannot be forgotten.
 
-A4 has since emptied the twelve `qd-` rows: **40** lessons remain below three
-widget kinds and **91** still ask one family more than twice. Two numbers worth
-carrying into the batches that follow. First, `familyOf` strips a `-steps`
-suffix as well as `+choice`, so `quad-discriminant` and
+A4 then emptied the twelve `qd-` rows, taking the two lists to **18** and
+**66** measured with A2, A5 and A7 already merged in. Two things it learned are
+worth carrying into the batches that follow. First, `familyOf` strips `-steps`
+and `-tree` as well as `+choice`, so `quad-discriminant` and
 `quad-discriminant-steps` count as one family — a deck built from a generator
 and its worked-steps sibling is not two families, and A4 had to rebuild one
-lesson after the guard said so. Second, eight guided exercises at two per
-family needs **four** families per lesson, and only three of the nine widgets
-are cheap to add to an existing topic; the rest of the variety came from
-writing fourteen new generators, which is the real size of a phase A batch.
+lesson after the guard said so. That cuts the other way too, and deliberately:
+A4 named its substitution generator `quad-evaluate-steps` so that it files with
+A2's `quad-evaluate-tree`, the same skill asked through a second widget rather
+than a second skill. Second, eight guided exercises at two per family needs
+**four** families per lesson, and only three of the nine widgets are cheap to
+add to an existing topic; the rest of the variety came from writing fourteen
+new generators, which is the real size of a phase A batch.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

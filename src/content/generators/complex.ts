@@ -354,6 +354,398 @@ export const complexQuadratic: Generator<QuadraticParams> = {
   },
 };
 
+/* ---------- Square roots of negatives that are not perfect squares ---------- */
+
+interface SurdParams { k: number; m: number; bank: string[] }
+
+/** Square-free radicands, so `k sqrt(m)` is already in lowest terms. */
+const SQUARE_FREE = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23];
+
+/**
+ * `sqrt(-72) = 6i sqrt(2)`, assembled from tiles.
+ *
+ * `sqrt-negative` only ever draws a perfect square, so the $i$ comes out and
+ * nothing is left underneath. Most negatives are not perfect squares, and the
+ * step that trips people is what survives the root — which is a surd question
+ * wearing a complex hat, and is worth asking in its own right.
+ *
+ * Tiles rather than typing, because the answer has two independent halves and
+ * placing them separately says which half went wrong. The coefficient starts
+ * at 2: at `k = 1` the answer reads "1i", which nobody writes.
+ */
+export const imaginarySurd: Generator<SurdParams> = {
+  id: 'imaginary-surd',
+  sample: (rng, difficulty) => {
+    const k = rng.int(2, difficulty >= 2 ? 9 : 6);
+    const m = rng.pick(SQUARE_FREE.slice(0, difficulty >= 2 ? SQUARE_FREE.length : 8));
+    // Distractors: the radicand left whole, the coefficient squared, and the
+    // neighbouring coefficient — the three ways this is usually mis-split.
+    const spare = SQUARE_FREE.filter((value) => value !== m).slice(0, 3);
+    const bank = rng.shuffle([
+      `${k}`,
+      `\\sqrt{${m}}`,
+      `${k * k}`,
+      `${k + 1}`,
+      ...spare.slice(0, 2).map((value) => `\\sqrt{${value}}`),
+    ]);
+    return { k, m, bank };
+  },
+  render: ({ k, m, bank }) => ({
+    kind: 'tiles',
+    prompt: [
+      { kind: 'prose', text: 'Write this in the form $a i \\sqrt{b}$, with $b$ as small as possible.' },
+      { kind: 'display', tex: `\\sqrt{-${k * k * m}}` },
+    ],
+    template: `\\sqrt{-${k * k * m}} = {0}i{1}`,
+    bank,
+    answer: [`${k}`, `\\sqrt{${m}}`],
+  }),
+  solution: ({ k, m }) => [
+    {
+      text: 'Split the minus sign off first — that is the whole of the complex part.',
+      tex: `\\sqrt{-${k * k * m}} = \\sqrt{-1} \\times \\sqrt{${k * k * m}} = i\\sqrt{${k * k * m}}`,
+    },
+    {
+      text: `Now simplify the surd: $${k * k * m} = ${k * k} \\times ${m}$, and $${k * k}$ is a square.`,
+      tex: `\\sqrt{${k * k * m}} = \\sqrt{${k * k}} \\times \\sqrt{${m}} = ${k}\\sqrt{${m}}`,
+    },
+    {
+      text: `So $\\sqrt{-${k * k * m}} = ${k}i\\sqrt{${m}}$. Leaving it as $i\\sqrt{${k * k * m}}$ is not wrong, only unfinished.`,
+    },
+  ],
+};
+
+/* ---------- Which route does this equation take? ---------- */
+
+interface MethodParams { value: number; route: 'real' | 'whole' | 'surd' }
+
+/**
+ * Deciding what $x^2 = k$ needs, before doing any of it.
+ *
+ * Every other generator in this lesson hands the learner a method and asks
+ * them to run it. Choosing is the separate skill, and it is the one that
+ * decides whether $i$ ever gets used outside a lesson with "imaginary" in the
+ * title. A `choice` slide asking the same thing is a one-in-three guess;
+ * walking the tree makes each fork a reason.
+ */
+export const rootMethod: Generator<MethodParams> = {
+  id: 'root-method',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['real', 'whole', 'surd'] as const);
+    if (route === 'real') return { value: rng.int(2, difficulty >= 2 ? 90 : 50), route };
+    if (route === 'whole') {
+      const n = rng.int(2, difficulty >= 2 ? 12 : 9);
+      return { value: -n * n, route };
+    }
+    // A negative whose magnitude is not a square, so the root keeps a surd.
+    let m = rng.int(2, difficulty >= 2 ? 90 : 50);
+    while (Number.isInteger(Math.sqrt(m))) m = rng.int(2, difficulty >= 2 ? 90 : 50);
+    return { value: -m, route };
+  },
+  render: ({ value, route }) => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Work down the questions to decide what this equation needs. Each answer chooses what gets asked next.',
+      },
+    ],
+    subject: `x^2 = ${value}`,
+    steps: [
+      {
+        id: 'sign',
+        ask: 'Is the right-hand side negative?',
+        branches: [
+          { label: 'No', outcome: 'Take the square root of both sides: two real solutions, $\\pm\\sqrt{k}$.' },
+          { label: 'Yes', to: 'square' },
+        ],
+      },
+      {
+        id: 'square',
+        ask: 'Ignoring the minus sign, is it a perfect square?',
+        branches: [
+          { label: 'Yes', outcome: 'The solutions are $\\pm ni$, with $n$ a whole number.' },
+          { label: 'No', outcome: 'Take the $i$ out and leave the rest as a surd: $\\pm i\\sqrt{m}$.' },
+        ],
+      },
+    ],
+    answer: { real: ['No'], whole: ['Yes', 'Yes'], surd: ['Yes', 'No'] }[route],
+  }),
+  solution: ({ value, route }) => {
+    if (route === 'real') {
+      return [
+        { text: `$${value}$ is positive, so a real number can square to it and nothing imaginary is needed.` },
+        { tex: `x = \\pm\\sqrt{${value}}` },
+      ];
+    }
+    if (route === 'whole') {
+      const n = Math.round(Math.sqrt(-value));
+      return [
+        { text: 'The right-hand side is negative, so no real number squares to it. Take the minus out as $i$.' },
+        { tex: `x = \\pm\\sqrt{${value}} = \\pm i\\sqrt{${-value}} = \\pm ${coeffTex(n)}` },
+        { text: `$${-value}$ is a perfect square, so the answer is whole and the surd disappears.` },
+      ];
+    }
+    return [
+      { text: 'The right-hand side is negative, so no real number squares to it. Take the minus out as $i$.' },
+      { tex: `x = \\pm\\sqrt{${value}} = \\pm i\\sqrt{${-value}}` },
+      {
+        text: `$${-value}$ is not a perfect square, so the surd stays. Writing a decimal here loses the exact answer for nothing.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Collecting three imaginary terms ---------- */
+
+interface CollectParams { a: number; b: number; c: number; bank: string[] }
+
+/**
+ * `3i + 5i - 2i`, collected in two visible stages.
+ *
+ * `imaginary-sum` asks for one addition and shows nothing of the working.
+ * Three terms is where the sign of the last one starts to get lost, and
+ * placing both stages separates "added the first pair wrongly" from "took the
+ * subtraction as an addition", which a single typed answer cannot.
+ */
+export const imaginaryCollect: Generator<CollectParams> = {
+  id: 'imaginary-collect',
+  sample: (rng, difficulty) => {
+    const top = difficulty >= 2 ? 12 : 8;
+    const a = rng.int(2, top);
+    const b = rng.int(2, top);
+    // Leaves the final coefficient at 2 or more, so no stage reads "1i" or "0i".
+    const c = rng.int(1, a + b - 2);
+    const first = a + b;
+    const total = first - c;
+    const bank = rng.shuffle([
+      `${first}`,
+      `${total}`,
+      `${a + b + c}`,
+      `${a - b + c}`,
+      `${total + 1}`,
+    ]);
+    return { a, b, c, bank };
+  },
+  render: ({ a, b, c, bank }) => ({
+    kind: 'tiles',
+    prompt: [{ kind: 'prose', text: 'Collect the terms, one step at a time.' }],
+    template: `${a}i + ${b}i - ${c}i = {0}i - ${c}i = {1}i`,
+    bank,
+    answer: [`${a + b}`, `${a + b - c}`],
+  }),
+  solution: ({ a, b, c }) => [
+    {
+      text: 'Imaginary terms collect like terms in algebra — only the coefficients move.',
+      tex: `${a}i + ${b}i = ${a + b}i`,
+    },
+    {
+      text: 'Then the subtraction, keeping its sign attached to the term it belongs to.',
+      tex: `${a + b}i - ${c}i = ${a + b - c}i`,
+    },
+    {
+      text: `Adding all three instead would give $${a + b + c}i$, which is the usual slip here.`,
+    },
+  ],
+};
+
+/* ---------- The multiplication run backwards ---------- */
+
+interface MissingParams { k: number; b: number }
+
+/**
+ * `ki x bi = p`: the product known, one factor missing.
+ *
+ * `imaginary-product` asks which real number two imaginary terms make. This
+ * asks the same fact from the other end, where the $i^2$ has to be undone
+ * rather than applied — and the sign is exactly what a learner who has
+ * memorised "the answer comes out real" gets wrong.
+ */
+export const imaginaryMissing: Generator<MissingParams> = {
+  id: 'imaginary-missing',
+  choices: ({ k }) => {
+    const opt = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    // Losing i^2 = -1 flips the sign; the neighbours are there so the wrong
+    // sign is not the only alternative on offer.
+    return options(opt(k), opt(-k), opt(k + 1), opt(-k - 1));
+  },
+  sample: (rng, difficulty) => ({
+    k: rng.int(2, difficulty >= 2 ? 12 : 9) * (difficulty >= 2 ? rng.sign() : 1),
+    b: rng.int(2, difficulty >= 2 ? 12 : 9),
+  }),
+  render: ({ k, b }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the real number $k$.' },
+      { kind: 'display', tex: `ki \\times ${coeffTex(b)} = ${-k * b}` },
+    ],
+    lead: 'k =',
+    keypad: I_KEY,
+    answer: `${k}`,
+    domain: 'complex',
+    mode: 'exact',
+  }),
+  solution: ({ k, b }) => [
+    {
+      text: 'Multiply the two out with $k$ still in place. The $i^2$ becomes $-1$, which is where the sign turns over.',
+      tex: `ki \\times ${coeffTex(b)} = ${b}k\\,i^2 = -${b}k`,
+    },
+    {
+      text: 'Now match that against what the product actually is.',
+      tex: `-${b}k = ${-k * b} \\quad\\Rightarrow\\quad k = ${k}`,
+    },
+    {
+      text: `Reading straight off without the $i^2$ would give $k = ${-k}$ — right size, wrong sign.`,
+    },
+  ],
+};
+
+/* ---------- Equating real and imaginary parts ---------- */
+
+interface EquateParams { x: number; y: number; c: number; d: number; bank: string[] }
+
+/**
+ * Two real unknowns inside one complex equation.
+ *
+ * This is the idea the rest of the course leans on without ever asking about
+ * it directly: one complex equation is two real ones, because the real and the
+ * imaginary parts cannot pay each other's debts. Square roots, polar form and
+ * every "find $a$ and $b$" question later are this step.
+ */
+export const complexEquate: Generator<EquateParams> = {
+  id: 'complex-equate',
+  sample: (rng, difficulty) => {
+    const span = difficulty >= 2 ? 9 : 6;
+    const x = nonZero(rng, span);
+    let y = nonZero(rng, span);
+    // Distinct, so the two blanks never want the same token from the bank.
+    if (y === x) y = x > 0 ? -x : -x + 1;
+    const c = nonZero(rng, span);
+    const d = nonZero(rng, span);
+    const bank = rng.shuffle([
+      `${x}`,
+      `${y}`,
+      `${x + 2 * c}`,
+      `${y + 2 * d}`,
+      `${-x}`,
+    ]);
+    return { x, y, c, d, bank };
+  },
+  render: ({ x, y, c, d, bank }) => ({
+    kind: 'tiles',
+    prompt: [
+      { kind: 'prose', text: 'Find the real numbers $x$ and $y$.' },
+      { kind: 'display', tex: `(x + yi) + (${complexTex(c, d)}) = ${complexTex(x + c, y + d)}` },
+    ],
+    template: `x = {0}, \\quad y = {1}`,
+    bank,
+    answer: [`${x}`, `${y}`],
+  }),
+  solution: ({ x, y, c, d }) => [
+    {
+      text: 'Two complex numbers are equal only when their real parts match *and* their imaginary parts match. So one equation here is really two.',
+      tex: `x + ${c} = ${x + c} \\quad\\text{and}\\quad y + ${d} = ${y + d}`,
+    },
+    { text: 'Each is now an ordinary real equation.', tex: `x = ${x}, \\quad y = ${y}` },
+    {
+      text: 'There is no way to trade between the two: nothing real can cancel an $i$, which is why the split is allowed at all.',
+    },
+  ],
+};
+
+/* ---------- Subtracting complex numbers ---------- */
+
+export const complexSubtract: Generator<AddParams> = {
+  id: 'complex-subtract',
+  // The bracket not distributed over the second part, the parts subtracted
+  // the wrong way round, and the whole thing added instead.
+  choices: ({ a, b, c, d }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(a - c, b - d), opt(a - c, b + d), opt(c - a, d - b), opt(a + c, b + d));
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty >= 2 ? 9 : 6;
+    const draw = () => rng.int(1, span) * (difficulty >= 2 ? rng.sign() : 1);
+    return { a: draw(), b: draw(), c: draw(), d: draw() };
+  },
+  render: ({ a, b, c, d }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `What is $(${complexTex(a, b)}) - (${complexTex(c, d)})$?` },
+    ],
+    lead: `(${complexTex(a, b)}) - (${complexTex(c, d)}) =`,
+    keypad: I_KEY,
+    answer: complexAnswer(a - c, b - d),
+    domain: 'complex',
+    mode: 'exact',
+  }),
+  solution: ({ a, b, c, d }) => [
+    {
+      text: 'The minus sign belongs to the whole bracket, so it reaches the imaginary part too.',
+      tex: `(${complexTex(a, b)}) - (${complexTex(c, d)}) = (${a} - (${c})) + (${b} - (${d}))i`,
+    },
+    { text: 'Subtract the real parts and the imaginary parts separately.', tex: complexTex(a - c, b - d) },
+    {
+      text: `Leaving the second bracket's imaginary sign alone would give $${complexTex(a - c, b + d)}$, which is the one mistake this question is for.`,
+    },
+  ],
+};
+
+/* ---------- Conjugate root pairs ---------- */
+
+interface PairParams { p: number; q: number; bank: string[] }
+
+/**
+ * One root given, both wanted.
+ *
+ * A quadratic with real coefficients cannot have a lone complex root: the
+ * conjugate has to come too, or the coefficients would not stay real. Asking
+ * for the pair rather than for "the conjugate of $z$" puts the fact where it
+ * is actually used, and `unordered` keeps it a fact about the pair rather than
+ * a guess at which one goes first.
+ */
+export const rootPair: Generator<PairParams> = {
+  id: 'root-pair',
+  sample: (rng, difficulty) => {
+    const p = nonZero(rng, difficulty >= 2 ? 7 : 5);
+    const q = rng.int(1, difficulty >= 2 ? 7 : 5);
+    const bank = rng.shuffle([
+      complexTex(p, q),
+      complexTex(p, -q),
+      complexTex(-p, q),
+      complexTex(-p, -q),
+      complexTex(q, p),
+    ]);
+    return { p, q, bank };
+  },
+  render: ({ p, q, bank }) => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `A quadratic with real coefficients has $${complexTex(p, q)}$ as one root. Give both of its roots.`,
+      },
+    ],
+    template: `x = {0} \\text{ or } x = {1}`,
+    bank,
+    answer: [complexTex(p, q), complexTex(p, -q)],
+    unordered: true,
+  }),
+  solution: ({ p, q }) => [
+    {
+      text: 'Complex roots of a real quadratic always come in conjugate pairs — same real part, opposite imaginary part.',
+      tex: `x = ${complexTex(p, q)} \\quad\\text{or}\\quad x = ${complexTex(p, -q)}`,
+    },
+    {
+      text: 'The reason is what happens when you put them back together.',
+      tex: `(x - (${complexTex(p, q)}))(x - (${complexTex(p, -q)})) = x^2 - ${2 * p}x + ${p * p + q * q}`,
+    },
+    {
+      text: `Both coefficients came out real. Pairing it with $${complexTex(-p, q)}$ instead would leave an $i$ behind in the middle term.`,
+    },
+  ],
+};
+
 export const complexGenerators = [
   imaginarySquare,
   imaginarySum,
@@ -364,4 +756,11 @@ export const complexGenerators = [
   complexAdd,
   complexPart,
   complexQuadratic,
+  imaginarySurd,
+  rootMethod,
+  imaginaryCollect,
+  imaginaryMissing,
+  complexEquate,
+  complexSubtract,
+  rootPair,
 ];

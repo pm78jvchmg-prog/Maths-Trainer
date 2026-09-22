@@ -59,6 +59,31 @@ function numberChoices(correct: number, ...near: number[]): ChoiceOption[] {
   );
 }
 
+/**
+ * A tree's bank: its answers, then distractors that survive.
+ *
+ * The distractors worth offering are built from the question's own numbers, so
+ * they collide with the answers far more often than they look like they will —
+ * with `a = 1`, half of them *are* answers. What is left is padded from either
+ * side of the total, which keeps every tile a plausible near-miss rather than
+ * an obvious spare.
+ */
+function treeBank(answer: string[], preferred: number[], anchor: number): string[] {
+  const used = new Set(answer);
+  const extras: string[] = [];
+  const add = (value: number) => {
+    const token = `${value}`;
+    if (!Number.isInteger(value) || used.has(token) || extras.includes(token)) return;
+    extras.push(token);
+  };
+  preferred.forEach(add);
+  for (let gap = 1; extras.length < 3; gap += 1) {
+    add(anchor + gap);
+    add(anchor - gap);
+  }
+  return [...answer, ...extras].sort();
+}
+
 /** A bank token for `k` copies of x squared: `x^2`, `4x^2`. */
 function squareTile(coefficient: number): string {
   return coefficient === 1 ? 'x^2' : `${coefficient}x^2`;
@@ -221,7 +246,11 @@ interface SubstituteParams {
  * an arithmetic-with-fractions question, which is a different lesson.
  */
 const substitute: Generator<SubstituteParams> = {
-  id: 'quad-evaluate-at',
+  // `-steps` rather than a name of its own, so `familyOf` files it with
+  // `quad-evaluate-tree`: the same substitution through a different widget is
+  // one skill asked twice, not two skills, and a deck should not be able to
+  // spend both slots on it and call that variety.
+  id: 'quad-evaluate-steps',
   choices: ({ a, b, c, k }) => {
     const total = a * k * k + b * k + c;
     return numberChoices(
@@ -1102,13 +1131,11 @@ const discriminantTree: Generator<DiscriminantParams> = {
       ],
       expression: 'b^{2} - 4ac',
       nodes,
-      bank: bankOf(answer, [
-        `${2 * b}`,
-        `${bSquared + product}`,
-        `${4 * a * Math.abs(c)}`,
-        `${a * c}`,
-        `${2 * b * 2 * b}`,
-      ]),
+      bank: treeBank(
+        answer,
+        [bSquared + product, 4 * a * Math.abs(c), 2 * b, a * c, 2 * b * 2 * b],
+        total,
+      ),
       answer,
     };
   },

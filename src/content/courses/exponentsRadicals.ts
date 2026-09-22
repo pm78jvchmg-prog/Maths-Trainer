@@ -77,7 +77,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('idx-multiply'),
-            ask('idx-multiply'),
+            ask('idx-powers-tree'),
             teach(
               prose('Three or more powers work the same way — add all the exponents at once.'),
               maths('x^{2} \\times x^{3} \\times x^{4} = x^{9}'),
@@ -122,7 +122,7 @@ export const exponentsRadicals: Course = {
                 'If the exponents are equal, everything cancels: $\\frac{x^{4}}{x^{4}} = x^{0} = 1$. Any non-zero base to the power zero is 1, which is the only value this law can consistently give.',
               ),
             ),
-            ask('idx-divide'),
+            ask('idx-laws-steps'),
             ask('idx-evaluate-divide'),
             teach(
               prose(
@@ -596,7 +596,7 @@ export const exponentsRadicals: Course = {
               ),
             ),
             ask('rad-add'),
-            ask('rad-add'),
+            ask('rad-add-steps'),
             teach(
               prose('Subtraction works the same way, and a coefficient of 1 is still a coefficient.'),
               maths('\\sqrt{7} + 5\\sqrt{7} = 6\\sqrt{7} \\qquad 5\\sqrt{7} - \\sqrt{7} = 4\\sqrt{7}'),

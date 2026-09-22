@@ -103,7 +103,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-expand-square'),
-            askWith('quad-evaluate-at', 'Here is the check that costs nothing. Put a number in for $x$: the expanded form and the brackets must give the same value.'),
+            askWith('quad-evaluate-steps', 'Here is the check that costs nothing. Put a number in for $x$: the expanded form and the brackets must give the same value.'),
             ask('quad-expand-term+choice'),
             teach(
               prose('Negative numbers need no new rule, only care with signs.'),
@@ -116,7 +116,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-expand-square+choice'),
-            ask('quad-evaluate-at+choice'),
+            ask('quad-evaluate-steps+choice'),
           ],
           skillCheck: [
             ask('quad-expand', 2),
@@ -171,7 +171,7 @@ export const quadratics: Course = {
                 'Check by expanding, always. It takes seconds and catches a sign slip immediately.',
               ),
             ),
-            askWith('quad-evaluate-at', 'The other check: both forms must agree at every value of $x$, so pick one and work it out.'),
+            askWith('quad-evaluate-steps', 'The other check: both forms must agree at every value of $x$, so pick one and work it out.'),
             ask('quad-expand-term+choice'),
           ],
           skillCheck: [
@@ -264,7 +264,7 @@ export const quadratics: Course = {
               ),
             ),
             askWith('quad-common-factor', 'Before any of that, look for a factor every term shares. Taking it out makes what is left smaller.'),
-            ask('quad-evaluate-at', 2),
+            ask('quad-evaluate-steps', 2),
             ask('quad-common-factor+choice'),
             teach(
               prose(
@@ -299,7 +299,7 @@ export const quadratics: Course = {
         ask('quad-expand-term', 2),
         ask('quad-factorise-route', 2),
         ask('quad-squares-spot', 2),
-        ask('quad-evaluate-at', 2),
+        ask('quad-evaluate-steps', 2),
       ],
     },
     {
@@ -339,7 +339,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-root-slider'),
-            askWith('quad-evaluate-at', 'Substituting is how a root is checked: a value that makes the whole expression zero is a root, and anything else is not.'),
+            askWith('quad-evaluate-steps', 'Substituting is how a root is checked: a value that makes the whole expression zero is a root, and anything else is not.'),
             ask('quad-other-root+choice'),
             teach(
               prose(
@@ -354,7 +354,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-factorise'),
-            ask('quad-evaluate-at+choice'),
+            ask('quad-evaluate-steps+choice'),
           ],
           skillCheck: [
             ask('quad-solve-factorise', 2),
@@ -379,7 +379,7 @@ export const quadratics: Course = {
             ),
             ask('quad-complete-square'),
             askWith('quad-min-value', 'Which is what the completed square is for: once $x$ appears only inside a square, the smallest the curve ever gets is in plain sight.'),
-            ask('quad-complete-square+choice'),
+            ask('quad-complete-square-steps'),
             teach(
               prose('So the method is two steps: halve the middle coefficient, then correct the constant.'),
               maths(
@@ -487,8 +487,8 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-discriminant-tree'),
-            ask('quad-discriminant-steps'),
             ask('quad-root-count'),
+            askWith('quad-formula-values', 'Everything in $b^{2} - 4ac$ comes from the three coefficients, so reading them off correctly is the whole battle.'),
             teach(
               prose('Each case has a graphical meaning, and it is worth holding both pictures at once.'),
               maths('\\Delta > 0 \\qquad \\Delta = 0 \\qquad \\Delta < 0'),
@@ -500,7 +500,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-discriminant'),
-            askWith('quad-formula-values', 'Everything in $b^{2} - 4ac$ comes from the three coefficients, so reading them off correctly is the whole battle.'),
+            ask('quad-formula-values+choice'),
             ask('quad-root-count'),
             teach(
               prose(
@@ -514,8 +514,8 @@ export const quadratics: Course = {
                 'Compute it, look at the sign, stop. Going on to find the roots when the question only asked how many is wasted work.',
               ),
             ),
-            ask('quad-discriminant-tree'),
             ask('quad-choose-method'),
+            ask('quad-formula'),
           ],
           skillCheck: [
             ask('quad-discriminant', 2),
@@ -650,9 +650,9 @@ export const quadratics: Course = {
               ),
               prose('The $y$ coordinate is the constant outside, always unchanged.'),
             ),
+            ask('quad-complete-square', 2),
+            ask('quad-evaluate-tree'),
             ask('quad-min-value'),
-            ask('quad-complete-square'),
-            ask('quad-min-value+choice'),
             teach(
               prose(
                 'When the $x^{2}$ coefficient is negative the whole picture inverts and the turning point becomes a maximum.',

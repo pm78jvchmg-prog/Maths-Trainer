@@ -3303,3 +3303,58 @@ that exact class, and it was live on the pushed tree at about 13%. So the
 residual was not "no generic guard exists" — one instance had already got
 through, into a sealed check, and my own oracle spec was written so it could not
 notice.
+
+## Fix-forward commit — gates and the FULL mutation set re-run
+
+Four source files changed after the consultation, so every mutation was re-run
+against the changed tree rather than trusting the earlier results. `git status
+--short` was empty after each; every printed diff was read.
+
+Gates on the fixed tree:
+
+- `npx vitest run` -> **3417 passed**, 7 files, 95.18 s, exit 0. Unchanged: the
+  fixes are all in sampling, distractor construction and solution TeX, none of
+  which adds or removes a test.
+- `npx tsc --noEmit -p tsconfig.app.json` -> silent.
+- `npx tsc --noEmit -p tsconfig.eval.json` -> silent.
+- `npm run lint` -> 0 errors, 25 warnings.
+- `npm run build` -> passes, 69 precache entries.
+- `eval/bin/variety.sh` -> `repetitive: 78 of 105`, `stray skill checks: 0`,
+  `stray level-check questions: 16`. `--course complex-numbers` ->
+  `repetitive: 5 of 14`, `stray skill checks: 0`. Both unchanged by the fixes.
+- `eval/bin/variety.sh --course` with no value -> `ERROR: --course takes a course
+  id`, exit 2.
+- Oracle, all fifteen ids it covers: **400 draws each, 0 failures**.
+
+### New mutation, proving the finding-1 fix is load-bearing
+
+M-C-multiplier: restore the old, weaker exclusion in `divide-which-multiplier`.
+
+- Against the oracle: `seed 46@1: 2 options make 1 + 2i real (expected 1)`,
+  `divide-which-multiplier: draws: 400, failures: 33` -> **mutant killed**.
+- Against the suite, run deliberately and recorded: **MUTANT SURVIVED**. The
+  whole thirteen-test block passes on a generator that marks a correct answer
+  wrong on one sealed draw in eight. This is the third survival on the record and
+  the only one that corresponds to a defect that actually shipped.
+
+### Every other mutation, re-run
+
+Killed as predicted: M-0-swap (`df-l3-chain -> product-rule`); M-1-surd;
+M-1-pair-oracle (14/400); M-1-value-narrow-oracle (361/400); M-1-oracle
+(361/400); M-2-root-oracle (59/400); M-2-oracle (400/400); M-3-short; M-3-oracle
+against the oracle (48/400); M-4-labels; M-4-oracle (400/400); M-6-range.
+
+Survived, each recorded and each killed by the oracle instead:
+
+- **M-1-pair** against the suite (plan predicted a kill; mechanism cannot fire).
+- **M-2-root** against the suite (same).
+- **M-1-value-narrow** against the suite (this is what the plan's M-1-value meant
+  to demonstrate).
+- **M-3-oracle** against the suite (plan predicted this survival).
+- **M-C-multiplier** against the suite (new).
+
+M-1-value as the plan wrote it was killed again, for the incidental reason
+recorded under unit 1: its sed matches five lines, including the shared
+distractor helper.
+
+No gate mutation survived. Pushing.

@@ -5,12 +5,13 @@
  * Shared formatters and the engine constraints they exist for live in
  * `vectorFormat.ts`, alongside the vector generators these grew out of.
  */
-import type { Generator, Slide } from '../types';
+import type { Block, Generator, Slide } from '../types';
 import { bin, num } from '../expr';
 import { options } from '../choiceVariant';
 import {
   bankOf,
   columnTex,
+  distinctOptions,
   matrixTex,
   MATRIX_TEMPLATE,
   nonZero,
@@ -637,6 +638,715 @@ const determinantSteps: Generator<DeterminantStepsParams> = {
   },
 };
 
+/* ---------- shapes added by roadmap batch A10 ---------- */
+
+/** Any rectangular matrix, for the questions that are about shape. */
+function gridTex(rows: number[][]): string {
+  return `\\begin{pmatrix} ${rows.map((row) => row.join(' & ')).join(' \\\\ ')} \\end{pmatrix}`;
+}
+
+/** An order, written the way it is read aloud: rows first. */
+function orderTex(rows: number, cols: number): string {
+  return `${rows} \\times ${cols}`;
+}
+
+interface ShapeParams {
+  rows: number;
+  cols: number;
+  entries: number[];
+  row: number;
+  col: number;
+  asksOrder: boolean;
+}
+
+/**
+ * The order of a matrix, and which entry sits where.
+ *
+ * Every other matrix question in this course is a 2x2, which quietly teaches
+ * that matrices are 2x2. They are not, and the rules that decide whether an
+ * operation is even allowed are rules about shape — so shape is asked about
+ * directly, on matrices that are not square.
+ */
+const shape: Generator<ShapeParams> = {
+  id: 'mat-shape',
+  sample: (rng, difficulty) => {
+    const rows = rng.int(2, 3);
+    // Never square: on a square matrix "rows by columns" and "columns by rows"
+    // read the same, and the order question would have two right answers.
+    const cols = rng.pick((difficulty > 1 ? [2, 3, 4] : [2, 3]).filter((n) => n !== rows));
+    const span = difficulty > 1 ? 12 : 9;
+    return {
+      rows,
+      cols,
+      entries: Array.from({ length: rows * cols }, () => rng.int(-span, span)),
+      row: rng.int(1, rows),
+      col: rng.int(1, cols),
+      asksOrder: rng.pick([true, false]),
+    };
+  },
+  render: ({ rows, cols, entries, row, col, asksOrder }): Slide => {
+    const grid = Array.from({ length: rows }, (_, r) => entries.slice(r * cols, r * cols + cols));
+    const tex = gridTex(grid);
+    if (asksOrder) {
+      const offered = distinctOptions([
+        { id: 'order', label: orderTex(rows, cols), tex: true },
+        // Columns quoted before rows, which is the one thing to get right.
+        { id: 'flipped', label: orderTex(cols, rows), tex: true },
+        { id: 'square', label: orderTex(rows, rows), tex: true },
+        { id: 'count', label: orderTex(rows * cols, 1), tex: true },
+      ]);
+      const turn = (rows + cols) % offered.length;
+      return {
+        kind: 'choice',
+        prompt: [
+          { kind: 'prose', text: 'What is the order of this matrix?' },
+          { kind: 'display', tex },
+        ],
+        options: [...offered.slice(turn), ...offered.slice(0, turn)],
+        correctId: 'order',
+      };
+    }
+    const at = (r: number, c: number) => grid[r - 1]?.[c - 1];
+    const wrongWayRound = at(col, row);
+    const offered: { id: string; label: string; tex: boolean }[] = distinctOptions(
+      [
+        { id: 'entry', label: `${at(row, col)}`, tex: true },
+        // Row and column read the other way round, where the matrix has such
+        // an entry at all.
+        wrongWayRound === undefined
+          ? undefined
+          : { id: 'transposed', label: `${wrongWayRound}`, tex: true },
+        { id: 'first', label: `${at(1, 1)}`, tex: true },
+        { id: 'last', label: `${at(rows, cols)}`, tex: true },
+      ].filter((option): option is { id: string; label: string; tex: boolean } => option !== undefined),
+    );
+    // Entries repeat, so the three distractors can all collide with the answer
+    // and with each other, leaving a question with one option. Pad with
+    // near-misses rather than resampling: a bank of neighbouring numbers is
+    // what makes the position the thing being asked about.
+    for (let step = 1; offered.length < 3 && step <= 6; step += 1) {
+      for (const candidate of [at(row, col) + step, at(row, col) - step]) {
+        if (offered.length >= 3) break;
+        if (offered.some((option) => option.label === `${candidate}`)) continue;
+        offered.push({ id: `near${candidate}`, label: `${candidate}`, tex: true });
+      }
+    }
+    const turn = (row + col) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which number is the entry in row ${row}, column ${col}?`,
+        },
+        { kind: 'display', tex },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'entry',
+    };
+  },
+  solution: ({ rows, cols, entries, row, col, asksOrder }) => {
+    const grid = Array.from({ length: rows }, (_, r) => entries.slice(r * cols, r * cols + cols));
+    if (asksOrder) {
+      return [
+        {
+          text: 'An order is quoted rows first, then columns — the same way an entry is addressed.',
+        },
+        { tex: `${rows} \\text{ rows}, \\; ${cols} \\text{ columns} \\implies ${orderTex(rows, cols)}` },
+        {
+          text: `So this is a $${orderTex(rows, cols)}$ matrix. Quoting it the other way round is the standard slip, and it matters: two matrices can only be added when their orders match exactly.`,
+        },
+        {
+          text: 'Shape decides what is allowed before any arithmetic happens. A matrix that is the wrong shape cannot be added at all, whatever its entries are.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Entries are addressed row first, then column — count down to the row, then across to the column.',
+      },
+      { tex: `\\text{row } ${row}: \\; ${grid[row - 1].join(' \\quad ')}` },
+      { tex: `\\text{column } ${col} \\text{ of that row} = ${grid[row - 1][col - 1]}` },
+      {
+        text: `So the entry is $${grid[row - 1][col - 1]}$. Reading across before down gives a different entry entirely unless the matrix happens to be symmetric.`,
+      },
+    ];
+  },
+};
+
+interface MissingParams extends MatrixPairParams {
+  addend: boolean;
+}
+
+/**
+ * The matrix that completes an equation.
+ *
+ * `mat-add` asks what two matrices come to; this asks what is missing, which
+ * is the same arithmetic run backwards and the form the operation actually
+ * takes once matrices are being solved for rather than evaluated.
+ */
+const missing: Generator<MissingParams> = {
+  id: 'mat-missing',
+  choices: (p) => {
+    const sign = p.addend ? 1 : -1;
+    return options(
+      { tex: matrixTex(p.e - sign * p.a, p.f - sign * p.b, p.g - sign * p.c, p.h - sign * p.d) },
+      // The two sides subtracted the other way round, and added instead.
+      { tex: matrixTex(sign * p.a - p.e, sign * p.b - p.f, sign * p.c - p.g, sign * p.d - p.h) },
+      { tex: matrixTex(p.e + sign * p.a, p.f + sign * p.b, p.g + sign * p.c, p.h + sign * p.d) },
+      { tex: matrixTex(p.e, p.f, p.g, p.h) },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    ...sampleMatrixPair(rng, difficulty > 1 ? 10 : 7),
+    addend: rng.pick([true, false]),
+  }),
+  render: (p) => {
+    const sign = p.addend ? 1 : -1;
+    const entries = [
+      p.e - sign * p.a,
+      p.f - sign * p.b,
+      p.g - sign * p.c,
+      p.h - sign * p.d,
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Work out the four entries of the missing matrix.' },
+        {
+          kind: 'display',
+          tex: `${matrixTex(p.a, p.b, p.c, p.d)} ${p.addend ? '+' : '-'} \\mathbf{X} = ${matrixTex(p.e, p.f, p.g, p.h)}`,
+        },
+      ],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf(
+        entries.map(String),
+        // The subtraction taken the other way round, which is the whole of
+        // what goes wrong here.
+        [sign * p.a - p.e, sign * p.b - p.f, sign * p.c - p.g, sign * p.d - p.h].map(String),
+      ),
+      answer: entries.map(String),
+    };
+  },
+  solution: (p) => {
+    const sign = p.addend ? 1 : -1;
+    const entries = [p.e - sign * p.a, p.f - sign * p.b, p.g - sign * p.c, p.h - sign * p.d];
+    return [
+      {
+        text: p.addend
+          ? 'Take the known matrix across to the other side, which subtracts it from the answer.'
+          : 'The unknown is being subtracted, so it is the first matrix take the answer — the equation rearranges the same way an ordinary one does.',
+      },
+      {
+        tex: p.addend
+          ? `\\mathbf{X} = ${matrixTex(p.e, p.f, p.g, p.h)} - ${matrixTex(p.a, p.b, p.c, p.d)}`
+          : `\\mathbf{X} = ${matrixTex(p.a, p.b, p.c, p.d)} - ${matrixTex(p.e, p.f, p.g, p.h)}`,
+      },
+      { tex: `\\mathbf{X} = ${matrixTex(entries[0], entries[1], entries[2], entries[3])}` },
+      {
+        text: 'Every entry is independent, so this is four ordinary equations solved at once rather than anything new.',
+      },
+      {
+        text: 'Subtracting the other way round gives every entry with its sign flipped, which is the answer to a different question.',
+      },
+    ];
+  },
+};
+
+interface EntryParams extends MatrixCombineParams {
+  row: number;
+  col: number;
+}
+
+/** The entry of a combination or a product, by position. */
+function entryPrompt(row: number, col: number, expression: string): Block[] {
+  return [
+    {
+      kind: 'prose',
+      text: `Find the entry in row ${row}, column ${col} of the result.`,
+    },
+    { kind: 'display', tex: expression },
+  ];
+}
+
+/**
+ * One entry of a scalar combination.
+ *
+ * Placing four tiles proves the method; naming one entry proves the addressing,
+ * and the two go wrong in different places. A learner who can produce the whole
+ * matrix and still cannot say which entry sits in row 2, column 1 will not be
+ * able to read a worked solution.
+ */
+const sumEntry: Generator<EntryParams> = {
+  id: 'mat-sum-entry',
+  choices: (m) => {
+    const value = (r: number, c: number) => {
+      const first = [[m.a, m.b], [m.c, m.d]][r - 1][c - 1];
+      const second = [[m.e, m.f], [m.g, m.h]][r - 1][c - 1];
+      return m.p * first + m.q * second;
+    };
+    const correct = value(m.row, m.col);
+    const first = [[m.a, m.b], [m.c, m.d]][m.row - 1][m.col - 1];
+    const second = [[m.e, m.f], [m.g, m.h]][m.row - 1][m.col - 1];
+    return signedChoices(correct, [
+      // The scalars applied to the wrong matrices, one scalar forgotten, and
+      // the entry read from the transposed position.
+      m.q * first + m.p * second,
+      first + m.q * second,
+      value(m.col === 1 ? 1 : 2, m.row === 1 ? 1 : 2),
+    ]);
+  },
+  sample: (rng, difficulty) => ({
+    ...sampleMatrixPair(rng, difficulty > 1 ? 9 : 6),
+    // Difficulty 1 is a plain sum or difference, so the addition lesson can
+    // ask this before scalars have been met; difficulty 2 puts the scalars
+    // back for the lesson that teaches them.
+    p: difficulty > 1 ? nonZero(rng.int(-5, 5), 2) : 1,
+    q: difficulty > 1 ? nonZero(rng.int(-5, 5), -3) : rng.pick([1, -1]),
+    row: rng.int(1, 2),
+    col: rng.int(1, 2),
+  }),
+  render: (m) => {
+    const first = [[m.a, m.b], [m.c, m.d]][m.row - 1][m.col - 1];
+    const second = [[m.e, m.f], [m.g, m.h]][m.row - 1][m.col - 1];
+    return {
+      kind: 'expression',
+      prompt: entryPrompt(
+        m.row,
+        m.col,
+        `${m.p === 1 ? '' : m.p}${matrixTex(m.a, m.b, m.c, m.d)} ${m.q < 0 ? '-' : '+'} ${Math.abs(m.q) === 1 ? '' : Math.abs(m.q)}${matrixTex(m.e, m.f, m.g, m.h)}`,
+      ),
+      lead: `\\text{row } ${m.row}, \\text{ column } ${m.col} =`,
+      keypad: [],
+      answer: `${m.p * first + m.q * second}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (m) => {
+    const first = [[m.a, m.b], [m.c, m.d]][m.row - 1][m.col - 1];
+    const second = [[m.e, m.f], [m.g, m.h]][m.row - 1][m.col - 1];
+    return [
+      {
+        text: 'Adding and scaling happen entry by entry, so one entry of the answer needs only the matching entry of each matrix. There is no need to work out the other three.',
+      },
+      { tex: `\\text{row } ${m.row}, \\text{ column } ${m.col}: \\quad ${first} \\text{ and } ${second}` },
+      {
+        tex: `${m.p}\\left(${first}\\right) + \\left(${m.q}\\right)\\left(${second}\\right) = ${m.p * first + m.q * second}`,
+      },
+      {
+        text: 'Row first, then column. Counting across before down lands on a different entry unless the matrix is symmetric.',
+      },
+      {
+        text: 'This is what makes addition cheap and multiplication expensive: there, one entry needs a whole row and a whole column.',
+      },
+    ];
+  },
+};
+
+interface ProductEntryParams extends MatrixPairParams {
+  row: number;
+  col: number;
+}
+
+/**
+ * One entry of a product.
+ *
+ * The point of asking for a single entry is that the recipe is visible in it:
+ * row of the first, column of the second, multiplied across and added. A
+ * learner producing all four at once can get the right answer while thinking
+ * the operation is entry by entry, and this question cannot be answered that
+ * way at all.
+ */
+const productEntry: Generator<ProductEntryParams> = {
+  id: 'mat-product-entry',
+  choices: (p) => {
+    const left = [[p.a, p.b], [p.c, p.d]];
+    const right = [[p.e, p.f], [p.g, p.h]];
+    const value = (r: number, c: number) => left[r - 1][0] * right[0][c - 1] + left[r - 1][1] * right[1][c - 1];
+    return signedChoices(value(p.row, p.col), [
+      // Entry by entry, which is the error this question exists to expose.
+      left[p.row - 1][p.col - 1] * right[p.row - 1][p.col - 1],
+      // A column of the first paired with a row of the second.
+      left[0][p.row - 1] * right[p.col - 1][0] + left[1][p.row - 1] * right[p.col - 1][1],
+      value(p.col, p.row),
+    ]);
+  },
+  sample: (rng, difficulty) => ({
+    ...sampleMatrixPair(rng, difficulty > 1 ? 8 : 5),
+    row: rng.int(1, 2),
+    col: rng.int(1, 2),
+  }),
+  render: (p) => {
+    const left = [[p.a, p.b], [p.c, p.d]];
+    const right = [[p.e, p.f], [p.g, p.h]];
+    const value = left[p.row - 1][0] * right[0][p.col - 1] + left[p.row - 1][1] * right[1][p.col - 1];
+    return {
+      kind: 'expression',
+      prompt: entryPrompt(
+        p.row,
+        p.col,
+        `${matrixTex(p.a, p.b, p.c, p.d)} ${matrixTex(p.e, p.f, p.g, p.h)}`,
+      ),
+      lead: `\\text{row } ${p.row}, \\text{ column } ${p.col} =`,
+      keypad: [],
+      answer: `${value}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const left = [[p.a, p.b], [p.c, p.d]];
+    const right = [[p.e, p.f], [p.g, p.h]];
+    const value = left[p.row - 1][0] * right[0][p.col - 1] + left[p.row - 1][1] * right[1][p.col - 1];
+    return [
+      {
+        text: `Row ${p.row} of the first matrix, column ${p.col} of the second: multiply them together term by term and add.`,
+      },
+      {
+        tex: `\\text{row } ${p.row} = \\left(${left[p.row - 1][0]}, \\; ${left[p.row - 1][1]}\\right) \\qquad \\text{column } ${p.col} = \\left(${right[0][p.col - 1]}, \\; ${right[1][p.col - 1]}\\right)`,
+      },
+      {
+        tex: `\\left(${left[p.row - 1][0]}\\right)\\left(${right[0][p.col - 1]}\\right) + \\left(${left[p.row - 1][1]}\\right)\\left(${right[1][p.col - 1]}\\right) = ${value}`,
+      },
+      {
+        text: `Multiplying the two matching entries instead would give $${left[p.row - 1][p.col - 1] * right[p.row - 1][p.col - 1]}$. Matrix multiplication is not entry by entry, and that is the one thing most worth remembering about it.`,
+      },
+      {
+        text: 'It is also why the shapes have to agree: a row and a column can only be paired off if they are the same length.',
+      },
+    ];
+  },
+};
+
+interface OrderParams {
+  m: number;
+  n: number;
+  q: number;
+  mismatch: number;
+}
+
+/**
+ * Whether a product exists at all, and what shape it comes out.
+ *
+ * Asked before any entries, because it is the question that comes first in
+ * practice: an undefined product has no entries to get wrong, and the rule
+ * that decides it — the inner dimensions must agree — is also the reason
+ * matrix multiplication does not commute.
+ */
+const productOrder: Generator<OrderParams> = {
+  id: 'mat-order',
+  sample: (rng, difficulty) => ({
+    m: rng.int(2, difficulty > 1 ? 5 : 4),
+    n: rng.int(2, difficulty > 1 ? 5 : 4),
+    q: rng.int(2, difficulty > 1 ? 5 : 4),
+    // 0 keeps the inner dimensions equal; anything else breaks them by that
+    // much, so the product is not defined.
+    mismatch: rng.pick([0, 0, 1, 2]),
+  }),
+  render: ({ m, n, q, mismatch }): Slide => {
+    const p = n + mismatch;
+    const defined = mismatch === 0;
+    const offered = distinctOptions([
+      defined
+        ? { id: 'order', label: orderTex(m, q), tex: true }
+        : { id: 'order', label: '\\text{not defined}', tex: true },
+      defined
+        ? { id: 'undefined', label: '\\text{not defined}', tex: true }
+        : { id: 'outer', label: orderTex(m, q), tex: true },
+      { id: 'inner', label: orderTex(n, p), tex: true },
+      { id: 'reversed', label: orderTex(q, m), tex: true },
+    ]);
+    const turn = (m + n + q) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\mathbf{A}$ is $${orderTex(m, n)}$ and $\\mathbf{B}$ is $${orderTex(p, q)}$. What is the order of $\\mathbf{AB}$?`,
+        },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'order',
+    };
+  },
+  solution: ({ m, n, q, mismatch }) => {
+    const p = n + mismatch;
+    if (mismatch !== 0) {
+      return [
+        {
+          text: 'Write the two orders side by side. The inner pair has to match, because each entry pairs a row of the first with a column of the second and they must be the same length.',
+        },
+        { tex: `\\left(${orderTex(m, n)}\\right)\\left(${orderTex(p, q)}\\right)` },
+        {
+          text: `The inner numbers are $${n}$ and $${p}$, which are not equal, so $\\mathbf{AB}$ does not exist. There is nothing to work out.`,
+        },
+        {
+          text: 'The other order might still be fine. That is why matrix multiplication does not commute — sometimes only one way round is even defined.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Write the two orders side by side. The inner pair has to match; the outer pair is the order of the answer.',
+      },
+      { tex: `\\left(${orderTex(m, n)}\\right)\\left(${orderTex(p, q)}\\right) \\implies ${orderTex(m, q)}` },
+      {
+        text: `The inner numbers are both $${n}$, so the product exists, and the outer numbers $${m}$ and $${q}$ give its order.`,
+      },
+      {
+        text: 'Taking the outer pair in the wrong order is the usual slip. Rows first, always — the answer has as many rows as the first matrix and as many columns as the second.',
+      },
+    ];
+  },
+};
+
+type DetProperty = 'scalar' | 'product' | 'inverse' | 'transpose';
+
+interface DetPropertyParams {
+  det: number;
+  other: number;
+  k: number;
+  property: DetProperty;
+}
+
+/**
+ * What happens to a determinant when the matrix is changed.
+ *
+ * Every other determinant question here hands over four entries and asks for
+ * the arithmetic. These cannot be answered that way — no entries are given —
+ * so they ask what the determinant *is*: a scale factor for area, which is why
+ * scaling a 2x2 matrix squares it and why the determinant of a product
+ * multiplies.
+ */
+const detProperty: Generator<DetPropertyParams> = {
+  id: 'mat-det-property',
+  sample: (rng, difficulty) => ({
+    det: nonZero(rng.int(difficulty > 1 ? -9 : 2, 9), 3),
+    other: nonZero(rng.int(difficulty > 1 ? -7 : 2, 7), -2),
+    k: rng.pick(difficulty > 1 ? [-4, -3, -2, 2, 3, 4] : [2, 3, 4]),
+    property: rng.pick(['scalar', 'product', 'inverse', 'transpose'] as const),
+  }),
+  render: ({ det, other, k, property }): Slide => {
+    const asked =
+      property === 'scalar'
+        ? `\\det\\left(${k}\\mathbf{A}\\right)`
+        : property === 'product'
+          ? '\\det\\left(\\mathbf{AB}\\right)'
+          : property === 'inverse'
+            ? '\\det\\left(\\mathbf{A}^{-1}\\right)'
+            : '\\det\\left(\\mathbf{A}^{T}\\right)';
+    const given =
+      property === 'product'
+        ? `$\\mathbf{A}$ and $\\mathbf{B}$ are $2 \\times 2$ matrices with $\\det \\mathbf{A} = ${det}$ and $\\det \\mathbf{B} = ${other}$.`
+        : `$\\mathbf{A}$ is a $2 \\times 2$ matrix with $\\det \\mathbf{A} = ${det}$.`;
+    const correct =
+      property === 'scalar'
+        ? { tex: `${k * k * det}`, answer: `${k * k * det}` }
+        : property === 'product'
+          ? { tex: `${det * other}`, answer: `${det * other}` }
+          : property === 'inverse'
+            ? { tex: `\\frac{1}{${det}}`, answer: `1/(${det})` }
+            : { tex: `${det}`, answer: `${det}` };
+    const wrong =
+      property === 'scalar'
+        ? [
+            { tex: `${k * det}`, answer: `${k * det}` },
+            { tex: `${det}`, answer: `${det}` },
+            { tex: `${k * k}`, answer: `${k * k}` },
+          ]
+        : property === 'product'
+          ? [
+              { tex: `${det + other}`, answer: `${det + other}` },
+              { tex: `${det - other}`, answer: `${det - other}` },
+              { tex: `${det}`, answer: `${det}` },
+            ]
+          : property === 'inverse'
+            ? [
+                { tex: `${det}`, answer: `${det}` },
+                { tex: `${-det}`, answer: `${-det}` },
+                { tex: `\\frac{1}{${det * det}}`, answer: `1/(${det * det})` },
+              ]
+            : [
+                { tex: `${-det}`, answer: `${-det}` },
+                { tex: `\\frac{1}{${det}}`, answer: `1/(${det})` },
+                { tex: '0', answer: '0' },
+              ];
+    const offered = distinctOptions(
+      options(correct, ...wrong).map((option, idx) => ({
+        id: option.correct ? 'value' : `opt${idx}`,
+        label: option.tex,
+        tex: true,
+      })),
+    );
+    const turn = (Math.abs(det) + Math.abs(k)) % offered.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `${given} What is $${asked}$?` },
+      ],
+      options: [...offered.slice(turn), ...offered.slice(0, turn)],
+      correctId: 'value',
+    };
+  },
+  solution: ({ det, other, k, property }) => {
+    if (property === 'scalar') {
+      return [
+        {
+          text: 'The determinant is the factor a matrix scales area by. Multiplying a $2 \\times 2$ matrix by a number stretches *both* directions, so the area factor is multiplied twice.',
+        },
+        { tex: `\\det\\left(k\\mathbf{A}\\right) = k^{2}\\det \\mathbf{A}` },
+        { tex: `\\left(${k}\\right)^{2} \\times ${det} = ${k * k * det}` },
+        {
+          text: `Multiplying the determinant by $${k}$ once gives $${k * det}$, which is the answer for a $1 \\times 1$ matrix and nothing else. The power is the size of the matrix.`,
+        },
+      ];
+    }
+    if (property === 'product') {
+      return [
+        {
+          text: 'Applying one transformation after another multiplies their area factors, so the determinant of a product is the product of the determinants.',
+        },
+        { tex: `\\det\\left(\\mathbf{AB}\\right) = \\det \\mathbf{A} \\times \\det \\mathbf{B}` },
+        { tex: `${det} \\times \\left(${other}\\right) = ${det * other}` },
+        {
+          text: 'This holds whichever way round the product is taken, even though the product itself usually changes — which is a good check when one of them is zero: a singular factor makes the whole product singular.',
+        },
+      ];
+    }
+    if (property === 'inverse') {
+      return [
+        {
+          text: 'The inverse undoes the transformation, so it has to undo the stretching too: its area factor is the reciprocal.',
+        },
+        { tex: `\\mathbf{A}\\mathbf{A}^{-1} = \\mathbf{I} \\implies \\det \\mathbf{A} \\times \\det\\left(\\mathbf{A}^{-1}\\right) = 1` },
+        { tex: `\\det\\left(\\mathbf{A}^{-1}\\right) = \\frac{1}{${det}}` },
+        {
+          text: 'It also says why a singular matrix has no inverse: a determinant of zero would need a reciprocal, and there is not one.',
+        },
+      ];
+    }
+    return [
+      {
+        text: 'Transposing swaps the two diagonals of a $2 \\times 2$ matrix into positions that leave $ad - bc$ exactly as it was.',
+      },
+      { tex: `\\det ${matrixTex(1, 2, 3, 4)}^{T} = \\det \\begin{pmatrix} 1 & 3 \\\\ 2 & 4 \\end{pmatrix} = -2` },
+      { tex: `\\det\\left(\\mathbf{A}^{T}\\right) = \\det \\mathbf{A} = ${det}` },
+      {
+        text: 'The leading diagonal is untouched and the other two entries swap places, so both products are the same as before.',
+      },
+    ];
+  },
+};
+
+type SystemRoute = 'unique' | 'same' | 'none';
+
+interface SystemMethodParams {
+  route: SystemRoute;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  t: number;
+  p: number;
+}
+
+/**
+ * What to do with a matrix equation before doing anything to it.
+ *
+ * `mat-solve` assumes the inverse exists, which is true of every question it
+ * asks. Deciding whether it exists — and what the answer means when it does
+ * not — is a different skill, and one a typed answer cannot ask about, since
+ * the honest answer is sometimes that there is no answer.
+ */
+const systemMethod: Generator<SystemMethodParams> = {
+  id: 'mat-method',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 7 : 5;
+    const route = rng.pick(['unique', 'same', 'none'] as const);
+    const a = nonZero(rng.int(-span, span), 2);
+    const b = nonZero(rng.int(-span, span), 3);
+    const t = nonZero(rng.int(difficulty > 1 ? -4 : 2, 4), 2);
+    const p = nonZero(rng.int(-span, span), 4);
+    if (route === 'unique') {
+      for (let tries = 0; tries < 40; tries += 1) {
+        const c = nonZero(rng.int(-span, span), 1);
+        const d = nonZero(rng.int(-span, span), 4);
+        if (a * d - b * c !== 0) return { route, a, b, c, d, t, p };
+      }
+      return { route, a: 2, b: 3, c: 1, d: 4, t, p };
+    }
+    // A second row that is a multiple of the first: the determinant is zero
+    // either way, and what separates the two cases is the right-hand side.
+    return { route, a, b, c: t * a, d: t * b, t, p };
+  },
+  render: ({ route, a, b, c, d, t, p }): Slide => {
+    const q = route === 'unique' ? p + t : route === 'same' ? t * p : t * p + 1;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to decide what this system has. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: `${matrixTex(a, b, c, d)} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = ${columnTex(p, q)}`,
+      steps: [
+        {
+          id: 'determinant',
+          ask: 'Work out the determinant. Is it zero?',
+          branches: [
+            { label: 'No', outcome: 'The inverse exists: multiply both sides by it for the one solution.' },
+            { label: 'Yes', to: 'rows' },
+          ],
+        },
+        {
+          id: 'rows',
+          ask: 'Is the second equation a multiple of the first, right-hand side included?',
+          branches: [
+            { label: 'Yes', outcome: 'The two equations say the same thing: a whole line of solutions.' },
+            { label: 'No', outcome: 'The two equations contradict each other: no solutions at all.' },
+          ],
+        },
+      ],
+      answer: route === 'unique' ? ['No'] : route === 'same' ? ['Yes', 'Yes'] : ['Yes', 'No'],
+    };
+  },
+  solution: ({ route, a, b, c, d, t, p }) => {
+    const det = a * d - b * c;
+    const q = route === 'unique' ? p + t : route === 'same' ? t * p : t * p + 1;
+    if (route === 'unique') {
+      return [
+        {
+          text: 'The determinant decides everything here, so it is always the first thing to work out.',
+        },
+        { tex: `\\det = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = ${det}` },
+        {
+          text: `It is not zero, so the matrix has an inverse and there is exactly one solution: multiply both sides by $\\mathbf{A}^{-1}$.`,
+        },
+      ];
+    }
+    return [
+      {
+        text: 'The determinant decides everything here, so it is always the first thing to work out.',
+      },
+      { tex: `\\det = \\left(${a}\\right)\\left(${d}\\right) - \\left(${b}\\right)\\left(${c}\\right) = 0` },
+      {
+        text: `The second row is $${t}$ times the first, so there is no inverse and the two equations are about the same line. What is left is whether the right-hand side agrees.`,
+      },
+      {
+        tex: `${t} \\times ${p} = ${t * p} \\qquad \\text{against} \\qquad ${q}`,
+      },
+      {
+        text:
+          route === 'same'
+            ? 'It agrees, so the second equation adds nothing and every point on that line is a solution.'
+            : 'It disagrees, so the two equations demand different things of the same combination and nothing satisfies both.',
+      },
+    ];
+  },
+};
+
 export const matrixGenerators = [
   addMatrices,
   combineMatrices,
@@ -647,4 +1357,11 @@ export const matrixGenerators = [
   inverse,
   solveSystem,
   determinantSteps,
+  shape,
+  missing,
+  sumEntry,
+  productEntry,
+  productOrder,
+  detProperty,
+  systemMethod,
 ] as unknown as Generator<unknown>[];

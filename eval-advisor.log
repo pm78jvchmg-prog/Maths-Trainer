@@ -3036,3 +3036,270 @@ All three teach slides of `cn-l3-plane` are unchanged. The third already taught
 addition as two moves on the plane and asked nothing about it.
 
 Mutation M-6-range runs after this commit and before the push.
+
+## Unit 6 — mutation output, and the end-of-branch consultation
+
+### M-6-range — KILLED, as predicted
+
+Diff: both `while` lines inside `plot-sum` (the harness prints both; the sed is a
+substitution, not a one-shot). Message: `expected 5 to be less than or equal
+to 4`. Unit 6 pushed at c3a1b2b. All seven units delivered.
+
+================================================================================
+## THE CONSULTATION — one, covering the whole branch
+================================================================================
+
+**Cadence.** One consultation, held after all seven units were committed and
+pushed and before the report was written, per the owner's override of the plan's
+section 6.2 (logged at the top of this task's entries). Units 0 through 6 shipped
+without individual review; that cost is not recoverable and is stated here and in
+the report rather than folded away.
+
+**Where this entry sits.** In the fix-forward commit that carries the
+consultation's fixes, and not inside any unit's commit — a single consultation
+covering the whole branch has no single commit to ship inside, so PREFLIGHT's
+tamper-evidence instrument does not apply. Stated rather than left as a gap.
+
+**Model.** The advisor was asked to state its own model identifier verbatim and
+reported, quoted exactly as given:
+
+  "**claude-opus-5** (reported name: Opus 5). Verbatim exact model ID:
+  `claude-opus-5`."
+
+Its account of itself is internally consistent — one identifier, one marketing
+name for the same thing — so there is nothing to leave unresolved. The Agent call
+passed `model: "opus"`, so this is peer review on the same model family, not
+escalation.
+
+**What it was given.** The complete branch diff against the merge base f1c189d
+covering `src/` and `eval/bin/`; the plan; CLAUDE.md and PITFALLS.md; every
+mutation result with the plan's prediction beside the actual outcome, including
+the two expected survivals; the scratch oracle's source and its output; and the
+question the brief names — whether any new generator's displayed TeX describes a
+different function from its internal `answer`, which nothing in the suite checks.
+It was asked for defects, not reassurance, and was not told what I hoped it would
+find.
+
+**What it did.** It declined to use my oracle, which is the right instinct: the
+oracle is code I wrote alongside the generators, so a shared misreading would be
+invisible to both. It wrote its own prompt-parsing verifier and swept 800 draws
+per id. That sweep found **no** prompt-versus-answer disagreement on any of the
+fifteen ids — including two derived forms my oracle does not cover. It also
+reproduced every gate I reported (3417 passed, both typechecks silent, the
+variety numbers) independently.
+
+The defects it found are in places neither oracle was pointed at.
+
+### Finding 1 (severe, fixed) — `divide-which-multiplier` had TWO correct options
+
+The question is "what makes the bottom real". The exclusion I wrote made the four
+*labels* distinct and said nothing about which of them *answers the question*.
+`(c + di)(a - bi)` is real when `ad = bc`; `(c + di)(a + bi)` is real when
+`ad = -bc`. Neither was excluded.
+
+Verified myself before touching anything, with my own sweep and my own seeds:
+**272 of 2000 draws at difficulty 1 (13.6%)** and **176 of 2000 at difficulty 2
+(8.8%)**. Worked by hand on my seed 26 at difficulty 2, params
+`{a:5, b:5, c:2, d:-2}`, denominator `2 - 2i`:
+
+    (2 - 2i)(2 + 2i) =  8 + 0i  <- REAL   [conjugate of denominator, correctId]
+    (2 - 2i)(2 - 2i) =  0 - 8i            [denominator itself]
+    (2 - 2i)(5 - 5i) =  0 - 20i           [numerator's conjugate]
+    (2 - 2i)(5 + 5i) = 20 + 0i  <- REAL   [numerator itself]
+
+This generator sits in `cn-l2-division`'s guided deck **and** its skill check at
+difficulty 2 — sealed, one attempt, no retry, no reveal. So roughly one sealed
+division check in twelve marked a correct answer wrong. That is the worst class of
+defect this app can have and it was mine.
+
+Fixed in sampling, as section 6.2 requires: redraw while
+`a * d === b * c || a * d === -(b * c)`. That subsumes the old guard, so the four
+labels are still pairwise distinct. Re-verified: **0 of 2000 at both
+difficulties**. The solution's second step, which tells the learner the
+numerator's conjugate "clears nothing at all", is now true on every draw; it was
+false on exactly those draws.
+
+**Why neither check saw it.** The suite's `offers exactly one correct option`
+test only runs on generators declaring `choices()`, and this is a native `choice`
+slide. And the oracle spec I wrote in the plan's section 6 for this generator was
+"the option labelled with the denominator's conjugate over itself is
+`correctId`" — which asks whether the *intended* option is marked correct, not
+whether it is the *only* one. I wrote a check that could not fail in the
+direction the bug lay. The oracle now counts every option that makes the
+denominator real, and a new mutation (M-C-multiplier, below) proves it fires.
+
+### Finding 2 (fixed, plus one pre-existing) — invalid TeX in a worked solution
+
+`divide-reverse`'s solution built `${p}\cdot${coeffTex(d)}`, and `coeffTex`
+returns the bare string `i` for +-1, so the two concatenate into `\cdoti` — an
+undefined control sequence. Confirmed with KaTeX directly:
+`KaTeX parse error: Undefined control sequence: \cdoti`. `src/ui/Math.tsx` uses
+`throwOnError: false`, so a learner tapping *Show me* saw red error text mid
+solution. Measured: **76 of 400 draws (19%)**.
+
+Fixed by separating `\cdot` from its operand with a space and putting each factor
+through `paren`, so negatives also read properly. Re-verified: 0 of 400.
+
+**The same latent bug is in `complex-multiply`, pre-existing, 44 of 400 draws
+(11%)** — `divide-reverse`'s FOIL template was copied from it, into a generator
+with a tighter `d` range, which raised the rate. I fixed that too, and that is a
+deliberate scope extension I am logging rather than hiding: it is one line, in a
+file the plan already puts in scope, and it is a slide the owner can meet today.
+The owner may revert that one hunk independently of everything else; nothing
+depends on it.
+
+**The larger finding is the blind spot, not either instance.** The guard
+`renders every piece of TeX it emits` walks `slide.prompt`, `lead`, and each
+slide kind's own strings, and **never walks `solution()`**. The advisor swept
+every generator's solution TeX through KaTeX and these two were the only
+offenders in the whole registry. I am forbidden to touch `generators.test.ts`
+beyond unit 0's one test, so this goes in the report as the strongest candidate
+for the "check that does not yet exist" column: a five-line extension to the
+existing loop.
+
+### Finding 3 (fixed) — `modulus-which` was winnable without doing the maths
+
+All four candidates were `(a,b)`, `(a+1,b)`, `(a,b+1)`, `(a+1,b+1)`. The comment
+was right that every distractor's modulus strictly exceeds the target's — which
+also made the answer the component-wise **minimum on every single draw**.
+Measured: answer-is-smallest **600 of 600** at both difficulties. And because the
+options are sorted by TeX, whose leading digit tracks magnitude, that
+monotonicity became a positional tell:
+
+    before, correctId position (600 draws each):
+      @1  opt0 480  opt1 120  opt2 0  opt3 0
+      @2  opt0 525  opt1  75  opt2 0  opt3 0
+
+So the skill this generator claims to test — square and add, then compare — could
+be skipped entirely, on a question that sits in `cn-l3-modulus`'s sealed skill
+check.
+
+Fixed by drawing the three distractors from a mixed-direction offset list
+(`WHICH_OFFSETS`, both signs), keeping a candidate only when its sum of squares
+is one not already used — so exactly one option still has the target modulus,
+but it may be larger or smaller than the others. Magnitudes now start at 2 so a
+-1 offset is always usable. Re-measured:
+
+    after:
+      @1  opt0 116  opt1 316  opt2 168  opt3 0   answer-is-smallest 123/600
+      @2  opt0  78  opt1 321  opt2 201  opt3 0   answer-is-smallest 110/600
+
+123 of 600 is about chance for one of four. **Residual, stated rather than
+papered over:** the answer is still never in the last row. Flattening it further
+would mean rotating the sorted options by a hash of their labels — which is
+exactly what `rotate()` in `choiceVariant.ts` does for derived choice slides —
+but that helper is not exported and the plan permits one new export from that
+file. `polar-form`, the sorted pattern the plan told me to copy, is comparably
+uneven (the advisor measured 59/109/111/25 of 304). So I have left the sort as
+the repository's established pattern and named the residual for the owner instead
+of duplicating a helper or reaching outside the diff boundary.
+
+### Finding 4 (fixed) — unit 1 created a stray check in a lesson I never touched
+
+`cn-l4-argument`'s guided deck practises `modulus-steps` and
+`modulus-steps+choice` only; its skill check asks `modulus` at difficulty 2.
+`familyOf` counts those as one skill, correctly, and the new test passes. But
+**unit 1 made them different questions**: `modulus-steps` is a reduce over
+`TRIPLES` with an integer bank and a whole-number answer, while `modulus` is now
+a typed surd on a root keypad — and that lesson's teach prose never mentions
+surds. So the owner's original complaint became true of a lesson the plan lists
+as "not an offender", because of a change I made after the plan reasoned about it.
+
+Fixed with one line: that skill-check entry is now `ask('modulus-steps', 2)`,
+which is what the lesson actually practises. I did not narrow `familyOf`: the
+family rule is the owner's settled decision, and narrowing it would flag other
+lessons and re-open a scoping call that is not mine.
+
+This is the finding I am least comfortable about having needed an advisor for. It
+is the exact defect class the task exists to close, it was introduced by my own
+change, and the test I wrote to catch the class cannot see it — because the rule
+is about skills and the thing that bit is answer format.
+
+### Finding 5 (fixed) — `power-modulus` reintroduced the owner's own complaint
+
+Worst reachable draw at difficulty 2: `a = -4, b = 4, k = 5`, so `n0 = 32`, the
+answer `4096*sqrt(2)`, and the never-rooted distractor `33554432`. The brief this
+whole task answers is that `(35^2 + 12^2)^(1/2)` is not a mental calculation.
+`|z^5|` where `|z|^2 = 32` is worse, and it is in `cn-l4-powers`'s skill check.
+
+Fixed by capping: parts to +-1..3 and `k` to 4 at difficulty 2 (difficulty 1
+unchanged at parts 1..4, `k` in {2,3}, which keeps its 32 distinct questions
+above the floor of 25). Difficulty 2 is now harder through the signs and one more
+power rather than through bigger arithmetic. Re-measured worst draw: answer
+`324`, distractor `104976`. The no-collision argument still holds: `k^2 n0 = n0^k`
+would need `n0` to be 4 or 3, and neither is a sum of two non-zero squares.
+
+### Finding 6 (fixed) — a distractor reading `\sqrt{4}`
+
+`modulusChoices`'s "parts added then rooted" option was hard-coded
+`` `\sqrt{${sum}}` `` while the correct option went through `surdTex`. The sum is
+often a perfect square, so the slide offered `\sqrt{4}` or `\sqrt{9}`: a
+throwaway option, and a form tell, since the answer was then the only surd in
+lowest terms — directly contradicting the surd convention T1 had just taught.
+Measured **175 of 800** `modulus+choice` draws and **205 of 800**
+`modulus-distance+choice`. Fixed by putting it through `surdTex`/`surdAnswer`
+like the others; re-verified 0 of 800 each. No grading change: `sqrt(sum)` equals
+`sqrt(n)` only at (1, 1), which the sampler excludes.
+
+### Finding 10b (fixed) — `plot-sum` could ask for the origin
+
+**90 of 2000** draws at difficulty 2 answered `{re: 0, im: 0}`.
+`samplePlanePoint` excludes the origin for every other plot question in this
+course, so this was the one that could land there. Excluded; re-verified 0 of
+2000.
+
+### Finding 10c (fixed) — `variety.sh --course` with no value
+
+Silently scanned every course, where `--threshold` and `--min` correctly exit 2.
+Now exits 2 with `ERROR: --course takes a course id`. Not a numbers bug.
+
+### Findings accepted and NOT fixed — each named in the report
+
+- **Finding 7: four of the fifteen new ids are unreferenced.** No lesson or level
+  check asks `modulus-distance+choice`, `conjugate-recover+choice`,
+  `power-modulus+choice` or `divide-reverse+choice`; the deck slots the plan
+  specifies went to the native `choice` forms instead. Confirmed by my own walk
+  of every deck. They account for 52 of the 196 new tests. PITFALLS section 2.6
+  names this as an unchecked convention. Not fixed because the six decks are
+  specified slide by slide in the plan and were hand-checked against both shape
+  guards; adding four asks would deviate further than reporting does. The plan's
+  frozen counts block lists all four as delivered, which is true of the registry
+  and not of any deck, and the report says so in those words.
+- **Finding 8: the derived `modulus+choice` prompt.** The typing instruction is
+  fixed (it is now a noun phrase that reads correctly above four options). The
+  other half — `promptFrom` also appending the lead as a display block, so
+  `|2 + 4i|` appears twice — is in `choiceVariant.ts`, which the plan permits for
+  `familyOf` only. Cosmetic; reported.
+- **Finding 9: the deferred `)` key.** The plan defers it and I agree, but its
+  weight changed and the advisor is right to say so. Before this branch `modulus`
+  always answered a whole number, so the root key was decorative; now nearly
+  every `modulus`, `modulus-distance` and `power-modulus` answer is a surd,
+  including four one-attempt questions in the `cn-l3` level check. Pressing `)`
+  after the root template yields `sqrt(13))`, which grades `invalid` — still
+  editable under invariant 3, so nobody is stranded, but it moved from a
+  cosmetic wart to the primary input path. Cannot be fixed without `src/ui/`,
+  which is outside the diff boundary and has no browser here.
+- **Finding 10a: `modulus-distance`'s diagram carries no point labels.** Both
+  points render as identical accent dots while the prose says "$z = ...$ and
+  $w = ...$ are marked". Grading is unaffected — both numbers are in the prose —
+  but the figure promises information it does not carry. Fixing it means
+  `plane.ts`, outside the boundary.
+
+### On my own three conclusions
+
+The advisor confirmed the `options()` reasoning by reading `choiceVariant.ts` and
+the distractor test together, and sharpened it in a way worth carrying: the test
+cannot catch a distractor **written identically** to the answer, and that case is
+not a two-right-answer bug at all — the duplicate is deleted, leaving two or
+three options. It also pushed back, fairly, on my framing that those exclusions
+protect "option count": a two-option `modulus` inside a sealed skill check is a
+coin flip on a graded question, which is fairness, not cosmetics. I accept that
+and have changed the wording in the report.
+
+It also pointed out that my residual list understated one thing. I had recorded
+"a native choice slide with two satisfying options" as handled by construction
+plus the oracle, with M-3-oracle proving the suite cannot see it. Finding 1 is
+that exact class, and it was live on the pushed tree at about 13%. So the
+residual was not "no generic guard exists" — one instance had already got
+through, into a sealed check, and my own oracle spec was written so it could not
+notice.

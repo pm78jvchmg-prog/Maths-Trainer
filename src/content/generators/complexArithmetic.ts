@@ -8,6 +8,9 @@ import { options } from '../choiceVariant';
 /** Division answers are fractions, so the learner needs a divide key. */
 const DIVIDE_KEYS: KeypadKey[] = [{ insert: '/' }, ...I_KEY];
 
+/** Wraps a TeX fragment that starts with a minus sign, so it survives being squared. */
+const paren = (tex: string): string => (tex.startsWith('-') ? `\\left(${tex}\\right)` : tex);
+
 /* ---------- Multiplication by FOIL ---------- */
 
 interface MulParams { a: number; b: number; c: number; d: number }
@@ -47,7 +50,8 @@ export const complexMultiply: Generator<MulParams> = {
   solution: ({ a, b, c, d }) => [
     {
       text: 'Expand as you would any pair of brackets.',
-      tex: `${a}\\cdot${c} + ${a}\\cdot${coeffTex(d)} + ${coeffTex(b)}\\cdot${c} + ${coeffTex(b)}\\cdot${coeffTex(d)}`,
+      // Same `\cdoti` hazard as divide-reverse below: a space after `\cdot`.
+      tex: `${paren(`${a}`)}\\cdot ${paren(`${c}`)} + ${paren(`${a}`)}\\cdot ${paren(coeffTex(d))} + ${paren(coeffTex(b))}\\cdot ${paren(`${c}`)} + ${paren(coeffTex(b))}\\cdot ${paren(coeffTex(d))}`,
     },
     {
       text: 'The last term carries $i^2$, which is $-1$ — that is what turns it real.',
@@ -132,9 +136,6 @@ export const complexConjugate: Generator<ConjParams> = {
 };
 
 /* ---------- Conjugates, run backwards ---------- */
-
-/** Wraps a TeX fragment that starts with a minus sign, so it survives being squared. */
-const paren = (tex: string): string => (tex.startsWith('-') ? `\\left(${tex}\\right)` : tex);
 
 interface RecoverParams { a: number; b: number }
 
@@ -304,7 +305,11 @@ export const divideReverse: Generator<DivideReverseParams> = {
     return [
       {
         text: 'Multiply back up: $z$ is the quotient times the divisor.',
-        tex: `z = (${complexTex(p, q)})(${complexTex(c, d)}) = ${p}\\cdot${c} + ${p}\\cdot${coeffTex(d)} + ${coeffTex(q)}\\cdot${c} + ${coeffTex(q)}\\cdot${coeffTex(d)}`,
+        // `\cdot` needs a separator: `\cdot` immediately followed by the bare
+        // `i` that coeffTex returns for +-1 concatenates into `\cdoti`, an
+        // undefined control sequence KaTeX renders as red error text. The
+        // generated-TeX sweep never walks solution(), so nothing here catches it.
+        tex: `z = (${complexTex(p, q)})(${complexTex(c, d)}) = ${paren(`${p}`)}\\cdot ${paren(`${c}`)} + ${paren(`${p}`)}\\cdot ${paren(coeffTex(d))} + ${paren(coeffTex(q))}\\cdot ${paren(`${c}`)} + ${paren(coeffTex(q))}\\cdot ${paren(coeffTex(d))}`,
       },
       {
         text: 'The last term carries $i^2 = -1$, which is what turns it real.',
@@ -323,15 +328,23 @@ interface WhichMultiplierParams { a: number; b: number; c: number; d: number }
 
 export const divideWhichMultiplier: Generator<WhichMultiplierParams> = {
   id: 'divide-which-multiplier',
-  // The numerator is never the denominator or its conjugate: that is exactly
-  // the condition under which the four labels below are pairwise distinct.
+  /**
+   * The numerator must not make the denominator real either way round.
+   *
+   * `(c + di)(a - bi)` is real when `ad = bc`, and `(c + di)(a + bi)` is real
+   * when `ad = -bc` — so on those draws the numerator or its conjugate answers
+   * the question as well as the denominator's conjugate does, and a learner who
+   * picks it is marked wrong on a sealed check. Excluding both conditions also
+   * subsumes the weaker "numerator is not the denominator or its conjugate",
+   * which is what keeps the four labels pairwise distinct.
+   */
   sample: (rng, difficulty) => {
     const c = nonZero(rng, 3);
     const d = nonZero(rng, 3);
     const span = difficulty >= 2 ? 5 : 3;
     let a = nonZero(rng, span);
     let b = nonZero(rng, span);
-    while (a === c && (b === d || b === -d)) {
+    while (a * d === b * c || a * d === -(b * c)) {
       a = nonZero(rng, span);
       b = nonZero(rng, span);
     }

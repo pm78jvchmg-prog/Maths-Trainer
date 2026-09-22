@@ -113,7 +113,7 @@ export const plotSum: Generator<PlotSumParams> = {
       let b = nonZero(rng, 3);
       let c = nonZero(rng, 3);
       let d = nonZero(rng, 3);
-      while (Math.abs(a + c) > RANGE || Math.abs(b + d) > RANGE) {
+      while (Math.abs(a + c) > RANGE || Math.abs(b + d) > RANGE || (a + c === 0 && b + d === 0)) {
         a = nonZero(rng, 3);
         b = nonZero(rng, 3);
         c = nonZero(rng, 3);
@@ -239,7 +239,12 @@ function modulusChoices(a: number, b: number): ChoiceOption[] {
     { tex: surdTex(n), answer: surdAnswer(n) },
     { tex: `${sum}`, answer: `${sum}` },
     { tex: `${n}`, answer: `${n}` },
-    { tex: `\\sqrt{${sum}}`, answer: `sqrt(${sum})` },
+    // Through surdTex, not as a raw \sqrt{}: the sum is often a perfect square,
+    // and an option reading `\sqrt{4}` is both a throwaway and a form tell,
+    // since the answer would then be the only surd in lowest terms. It cannot
+    // collide with the other three: sqrt(sum) = sqrt(n) only at (1, 1), which
+    // the sampler excludes, and sqrt(sum) equals sum or n only below 2.
+    { tex: surdTex(sum), answer: surdAnswer(sum) },
   );
 }
 
@@ -257,7 +262,11 @@ export const modulus: Generator<ModulusParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `What is $|${complexTex(a, b)}|$? Give the exact value — a surd where it is not a whole number.`,
+          // A noun phrase, not an instruction to type: `promptFrom` lifts this
+          // prose whole into the derived `+choice` slide, where there is nothing
+          // to write and "give the exact value" would be telling the learner to
+          // do something the widget does not offer.
+          text: `What is $|${complexTex(a, b)}|$? The exact value — a surd where it is not a whole number.`,
         },
         {
           kind: 'diagram',
@@ -295,7 +304,40 @@ export const modulus: Generator<ModulusParams> = {
 
 /* ---------- Which of these has this modulus? ---------- */
 
-interface WhichParams { a: number; b: number; v: number }
+interface WhichParams { a: number; b: number; v: number; o: number }
+
+/**
+ * Perturbations of the two magnitudes, mixed in direction.
+ *
+ * All-positive offsets would make the correct option the component-wise
+ * smallest of the four on every draw, so the question would be winnable by
+ * "pick the option with the smallest numbers" without squaring anything — and
+ * because the options are sorted by their TeX, which differs in the leading
+ * digit, that monotonicity also pinned the answer to the first two rows. With
+ * both directions in play neither holds. Any offset is safe: a candidate is
+ * kept only when its sum of squares is one not already used, so exactly one
+ * option ever has the target modulus.
+ */
+const WHICH_OFFSETS: [number, number][] = [
+  [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1], [2, 0], [0, 2],
+];
+
+/** Three magnitude pairs near (a, b), none of them with the same modulus. */
+function whichDistractors(a: number, b: number, o: number): [number, number][] {
+  const kept: [number, number][] = [];
+  const seen = new Set([a * a + b * b]);
+  for (let step = 0; step < WHICH_OFFSETS.length && kept.length < 3; step += 1) {
+    const [dx, dy] = WHICH_OFFSETS[(o + step) % WHICH_OFFSETS.length];
+    const x = a + dx;
+    const y = b + dy;
+    if (x < 1 || y < 1) continue;
+    const square = x * x + y * y;
+    if (seen.has(square)) continue;
+    seen.add(square);
+    kept.push([x, y]);
+  }
+  return kept;
+}
 
 /**
  * One of eight ways to write a pair of magnitudes as a point: swapped, and
@@ -310,20 +352,21 @@ function variant(x: number, y: number, v: number): [number, number] {
 
 export const modulusWhich: Generator<WhichParams> = {
   id: 'modulus-which',
+  // Magnitudes start at 2 so that a -1 offset is always usable, which is what
+  // keeps the distractors on both sides of the answer.
   sample: (rng, difficulty) => ({
-    a: rng.int(1, difficulty >= 2 ? 8 : 5),
-    b: rng.int(1, difficulty >= 2 ? 8 : 5),
+    a: rng.int(2, difficulty >= 2 ? 8 : 5),
+    b: rng.int(2, difficulty >= 2 ? 8 : 5),
     v: rng.int(0, 7),
+    o: rng.int(0, WHICH_OFFSETS.length - 1),
   }),
-  render: ({ a, b, v }): Slide => {
+  render: ({ a, b, v, o }): Slide => {
     const n = a * a + b * b;
-    // Each distractor grows one or both magnitudes, so its modulus strictly
-    // exceeds the target's and there is never a second right answer.
+    // Every distractor's sum of squares differs from the target's, so there is
+    // never a second right answer — but it may be larger or smaller.
     const candidates: [number, number][] = [
       variant(a, b, v),
-      variant(a + 1, b, v),
-      variant(a, b + 1, v),
-      variant(a + 1, b + 1, v),
+      ...whichDistractors(a, b, o).map(([x, y]) => variant(x, y, v)),
     ];
     const correct = candidates[0];
     // Sorted rather than shuffled, so the same question renders one way and
@@ -345,13 +388,11 @@ export const modulusWhich: Generator<WhichParams> = {
       correctId: `opt${correctIdx}`,
     };
   },
-  solution: ({ a, b, v }) => {
+  solution: ({ a, b, v, o }) => {
     const n = a * a + b * b;
     const candidates: [number, number][] = [
       variant(a, b, v),
-      variant(a + 1, b, v),
-      variant(a, b + 1, v),
-      variant(a + 1, b + 1, v),
+      ...whichDistractors(a, b, o).map(([x, y]) => variant(x, y, v)),
     ];
     return [
       ...candidates.map(([x, y]) => ({
@@ -1059,10 +1100,18 @@ export const powerModulus: Generator<PowerModulusParams> = {
       { tex: `${n0 ** k}`, answer: `${n0 ** k}` },
     );
   },
+  /**
+   * The figures are capped deliberately. With parts up to 4 and k up to 5 the
+   * worst draw asks for |z^5| where |z|^2 = 32 — the answer is 4096*sqrt(2) and
+   * the never-rooted distractor reads 33554432, which is the owner's original
+   * complaint about (35^2 + 12^2)^(1/2) made worse rather than answered.
+   * Difficulty 2 is harder through the signs and one more power, not through
+   * bigger arithmetic; the worst answer is now 324 or 54*sqrt(2).
+   */
   sample: (rng, difficulty) => ({
-    a: rng.int(1, 4) * (difficulty >= 2 ? rng.sign() : 1),
-    b: rng.int(1, 4) * (difficulty >= 2 ? rng.sign() : 1),
-    k: rng.int(2, difficulty >= 2 ? 5 : 3),
+    a: rng.int(1, difficulty >= 2 ? 3 : 4) * (difficulty >= 2 ? rng.sign() : 1),
+    b: rng.int(1, difficulty >= 2 ? 3 : 4) * (difficulty >= 2 ? rng.sign() : 1),
+    k: rng.int(2, difficulty >= 2 ? 4 : 3),
   }),
   render: ({ a, b, k }) => {
     const n0 = a * a + b * b;

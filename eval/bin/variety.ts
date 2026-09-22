@@ -41,6 +41,10 @@ function parseOptions(args: string[]): Options {
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === '--course') {
+      if (args[i + 1] === undefined) {
+        console.error('ERROR: --course takes a course id');
+        process.exit(2);
+      }
       out.course = args[i + 1];
       i += 1;
     } else if (arg === '--threshold') {

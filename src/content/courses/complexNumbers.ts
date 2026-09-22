@@ -508,7 +508,13 @@ export const complexNumbers: Course = {
             ),
             ask('modulus-steps+choice', 2),
           ],
-          skillCheck: [ask('argument', 2), ask('argument'), ask('modulus', 2)],
+          // `modulus-steps`, not `modulus`: unit 1 gave `modulus` a typed surd
+          // answer on a root keypad, and this lesson teaches nothing about
+          // surds — it practises the reduce form only. `familyOf` counts the
+          // two as one skill, correctly, but the answer format is the thing a
+          // learner meets, and asking for a format the lesson never showed is
+          // the defect this task exists to remove.
+          skillCheck: [ask('argument', 2), ask('argument'), ask('modulus-steps', 2)],
         },
 
         {

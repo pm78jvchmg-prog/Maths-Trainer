@@ -253,7 +253,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
-| A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
+| A9 | Widen Integration | claimed (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
 

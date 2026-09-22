@@ -2110,6 +2110,1300 @@ const fillRationalise: Generator<{ c: number; m: number }> = {
   ],
 };
 
+/* ---------- Level 4: standard form ---------- */
+
+/**
+ * A number in standard form, held as its significant figures and its power of
+ * ten rather than as a float.
+ *
+ * `3.2 × 10^5` has to print as exactly "3.2" and "320 000", and a float front
+ * number does not: 4.1 × 3 is 12.299999999999999 in binary. Held as the digit
+ * string `'32'` with `n = 5`, every number in this level is built with whole
+ * number arithmetic and printed by placing a decimal point in a string, so
+ * nothing can drift.
+ */
+interface Sf {
+  /** The significant figures, first and last non-zero: `'32'` is the front number 3.2. */
+  digits: string;
+  /** The power of ten. */
+  n: number;
+}
+
+/** The front number: `'32'` reads 3.2, `'7'` reads 7. */
+function frontOf(digits: string): string {
+  return digits.length === 1 ? digits : `${digits[0]}.${digits.slice(1)}`;
+}
+
+/** A power of ten as the learner reads it. */
+function tenTex(n: number): string {
+  return `10^{${n}}`;
+}
+
+/** A number in standard form as the learner reads it. */
+function sfTex(sf: Sf): string {
+  return `${frontOf(sf.digits)} \\times ${tenTex(sf.n)}`;
+}
+
+/** The same number in mathjs syntax, used only to prove a distractor wrong. */
+function sfAnswer(sf: Sf): string {
+  return `${frontOf(sf.digits)}*10^(${sf.n})`;
+}
+
+/**
+ * The number written out in full, unspaced: `320000`, `0.0045`.
+ *
+ * The point starts after the first digit and moves `n` places, which is
+ * exactly how the lessons describe it.
+ */
+function plainOf({ digits, n }: Sf): string {
+  const point = 1 + n;
+  if (point <= 0) return `0.${'0'.repeat(-point)}${digits}`;
+  if (point >= digits.length) return digits + '0'.repeat(point - digits.length);
+  return `${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
+/** Thin spaces between groups of three, the way a long whole number is printed. */
+function grouped(whole: string): string {
+  if (whole.length <= 4) return whole;
+  const groups: string[] = [];
+  for (let end = whole.length; end > 0; end -= 3) {
+    groups.unshift(whole.slice(Math.max(0, end - 3), end));
+  }
+  return groups.join('\\,');
+}
+
+/** The number written out in full, as the learner reads it: `320\,000`. */
+function ordinaryTex(sf: Sf): string {
+  const [whole, fraction] = plainOf(sf).split('.');
+  return fraction === undefined ? grouped(whole) : `${grouped(whole)}.${fraction}`;
+}
+
+/** `10^k` written out, for the worked solutions: `100\,000`. */
+function tenPlainTex(k: number): string {
+  return grouped(`1${'0'.repeat(k)}`);
+}
+
+/**
+ * `m × 10^e`, for a positive whole `m`, rewritten in standard form.
+ *
+ * Trailing zeros of `m` move into the power, so `150 × 10^9` comes back as
+ * `1.5 × 10^11`. Every number this level computes goes through here, which is
+ * what makes two options with the same value print the same label.
+ */
+function sfOf(m: number, e: number): Sf {
+  let digits = String(m);
+  let power = e;
+  while (digits.length > 1 && digits.endsWith('0')) {
+    digits = digits.slice(0, -1);
+    power += 1;
+  }
+  return { digits, n: power + digits.length - 1 };
+}
+
+/** The inverse of `sfOf`: the whole number `m` and power `e` with `sf = m × 10^e`. */
+function wholeOf(sf: Sf): { m: number; e: number } {
+  return { m: Number(sf.digits), e: sf.n - (sf.digits.length - 1) };
+}
+
+/** `m × 10^e` written plainly, for front numbers that are worked on: 3.2 + 0.5. */
+function decimalOf(m: number, e: number): string {
+  return plainOf(sfOf(m, e));
+}
+
+/** `x ± y` for two numbers held as `m × 10^e`, still held that way. */
+function combine(
+  x: { m: number; e: number },
+  y: { m: number; e: number },
+  op: '+' | '-',
+): { m: number; e: number } {
+  const e = Math.min(x.e, y.e);
+  const left = x.m * Math.pow(10, x.e - e);
+  const right = y.m * Math.pow(10, y.e - e);
+  return { m: op === '+' ? left + right : left - right, e };
+}
+
+/** A front number's value as `m × 10^e`: 3.2 is 32 × 10^-1. */
+function frontValue(digits: string): { m: number; e: number } {
+  return { m: Number(digits), e: -(digits.length - 1) };
+}
+
+/** Significant figures with no zero at either end: 1 to 3 of them. */
+function drawDigits(rng: Rng, figures: number): string {
+  if (figures === 1) return `${rng.int(1, 9)}`;
+  let digits = `${rng.int(1, 9)}`;
+  for (let i = 2; i < figures; i += 1) digits += `${rng.int(0, 9)}`;
+  return digits + `${rng.int(1, 9)}`;
+}
+
+type Scale = 'large' | 'small';
+
+/**
+ * A number to write in or read out of standard form.
+ *
+ * Difficulty 1 keeps to two significant figures and a middling power, where
+ * the only thing to get right is the count of places. Difficulty 2 adds one-
+ * and three-figure numbers, where the zeros no longer line up with the power in
+ * an obvious way.
+ *
+ * Kept between 10^-6 and 10^8 because that is where the checker can tell a
+ * wrong typed answer from a right one. It compares within a relative 1e-8,
+ * floored at an absolute 1e-8: past 10^8 an answer 1 out is inside that, and
+ * below 10^-6 two answers a place apart start to be.
+ */
+function drawSf(rng: Rng, scale: Scale, difficulty: number): Sf {
+  const hard = difficulty > 1;
+  const digits = drawDigits(rng, hard ? rng.int(1, 3) : 2);
+  const n = scale === 'large' ? rng.int(hard ? 2 : 3, hard ? 7 : 6) : -rng.int(hard ? 1 : 2, hard ? 6 : 4);
+  return { digits, n };
+}
+
+/** "1 place", "3 places". */
+function places(k: number): string {
+  return k === 1 ? '1 place' : `${k} places`;
+}
+
+/**
+ * Choice options from standard-form candidates: the answer, then up to three
+ * distractors with a different value.
+ *
+ * De-duplicated by value rather than by label. Every candidate is already in
+ * standard form, so two labels match exactly when the values do — and a slip
+ * that happens to land on the right answer for this draw is dropped instead of
+ * being offered as a second correct option.
+ */
+function sfOptions(correct: Sf, ...candidates: Sf[]) {
+  const key = (sf: Sf) => `${sf.digits}e${sf.n}`;
+  const seen = new Set([key(correct)]);
+  const wrong: Sf[] = [];
+  for (const sf of candidates) {
+    if (wrong.length === 3 || seen.has(key(sf))) continue;
+    seen.add(key(sf));
+    wrong.push(sf);
+  }
+  return options(
+    { tex: sfTex(correct), answer: sfAnswer(correct) },
+    ...wrong.map((sf) => ({ tex: sfTex(sf), answer: sfAnswer(sf) })),
+  );
+}
+
+/* Reading and writing standard form */
+
+/**
+ * Standard form to an ordinary number, typed.
+ *
+ * The keypad is digits and a point only. Checking is by value, so a learner
+ * able to type `\times` and `^` could type the question straight back and be
+ * marked right; without them the only thing that can be entered is the number
+ * written out, which is the skill.
+ */
+function toOrdinary(id: string, scale: Scale): Generator<Sf> {
+  return {
+    id,
+    // One place too far either way, and the point moved the wrong way entirely.
+    choices: (sf) =>
+      options(
+        { tex: ordinaryTex(sf), answer: plainOf(sf) },
+        ...[sf.n + 1, sf.n - 1, -sf.n].map((n) => ({
+          tex: ordinaryTex({ ...sf, n }),
+          answer: plainOf({ ...sf, n }),
+        })),
+      ),
+    sample: (rng, difficulty) => drawSf(rng, scale, difficulty),
+    render: (sf): Slide => ({
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Write this as an ordinary number.' }],
+      lead: `${sfTex(sf)} =`,
+      keypad: [],
+      answer: plainOf(sf),
+      domain: 'real',
+      mode: 'exact',
+    }),
+    solution: (sf) => {
+      const front = frontOf(sf.digits);
+      if (sf.n > 0) {
+        return [
+          {
+            text: `$${tenTex(sf.n)}$ is $${tenPlainTex(sf.n)}$, so multiplying by it moves the decimal point ${places(sf.n)} to the right.`,
+          },
+          { tex: `${sfTex(sf)} = ${front} \\times ${tenPlainTex(sf.n)} = ${ordinaryTex(sf)}` },
+          {
+            text: `A quick check: a number with power $${sf.n}$ lies between $${tenTex(sf.n)}$ and $${tenTex(sf.n + 1)}$, and $${ordinaryTex(sf)}$ does.`,
+          },
+        ];
+      }
+      const zeros = -sf.n - 1;
+      return [
+        {
+          text: `A negative power divides: $${tenTex(sf.n)}$ is one over $${tenPlainTex(-sf.n)}$, so the decimal point moves ${places(-sf.n)} to the left.`,
+        },
+        { tex: `${sfTex(sf)} = ${front} \\div ${tenPlainTex(-sf.n)} = ${ordinaryTex(sf)}` },
+        {
+          text:
+            zeros === 0
+              ? `With a power of $-1$ the first digit, $${sf.digits[0]}$, lands straight after the point.`
+              : `The first digit, $${sf.digits[0]}$, lands ${places(-sf.n)} after the point, so $${zeros}$ zero${zeros === 1 ? '' : 's'} sit between the point and it.`,
+        },
+      ];
+    },
+  };
+}
+
+/** Large numbers out of standard form. */
+const sfToOrdinary = toOrdinary('sf-to-ordinary', 'large');
+
+/** Small numbers out of standard form. */
+const sfSmallToOrdinary = toOrdinary('sf-small-to-ordinary', 'small');
+
+/**
+ * An ordinary number into standard form, placed rather than typed.
+ *
+ * Typed, the answer would be checked by value and the question itself would
+ * pass. Tiles grade the *form*: the front number and the power go in separate
+ * blanks, next to the front number ten times too big and too small and the
+ * power one out either way — and the power of the wrong sign, which is what
+ * moving the point the wrong way gives.
+ */
+function writeTiles(id: string, scale: Scale): Generator<Sf> {
+  return {
+    id,
+    sample: (rng, difficulty) => drawSf(rng, scale, difficulty),
+    render: (sf): Slide => {
+      const answer = [frontOf(sf.digits), tenTex(sf.n)];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: 'Write this in standard form: a number at least 1 and less than 10, times a power of ten.',
+          },
+          { kind: 'display', tex: ordinaryTex(sf) },
+        ],
+        template: '{0} \\times {1}',
+        bank: fillBank(answer, [
+          plainOf({ ...sf, n: 1 }),
+          plainOf({ ...sf, n: -1 }),
+          tenTex(sf.n - 1),
+          tenTex(sf.n + 1),
+          tenTex(-sf.n),
+        ]),
+        answer,
+      };
+    },
+    solution: (sf) => {
+      const front = frontOf(sf.digits);
+      return [
+        {
+          text: `Put the point after the first digit to get the front number, $${front}$. Then count the places the point has to move to get back to $${ordinaryTex(sf)}$.`,
+        },
+        { tex: `${ordinaryTex(sf)} = ${sfTex(sf)}` },
+        {
+          text:
+            sf.n > 0
+              ? `It moves ${places(sf.n)} to the right, so the power is $${sf.n}$. A power of $${sf.n - 1}$ or $${sf.n + 1}$ would give a number ten times too small or too big.`
+              : `It moves ${places(-sf.n)} to the left, so the power is negative: $${sf.n}$. The number is less than 1, and only a negative power makes $${front}$ smaller.`,
+        },
+      ];
+    },
+  };
+}
+
+/** Large numbers into standard form. */
+const sfWriteTiles = writeTiles('sf-write-tiles', 'large');
+
+/** Small numbers into standard form. */
+const sfWriteSmallTiles = writeTiles('sf-write-small-tiles', 'small');
+
+/**
+ * A line of powers of ten from `10^-9` to `10^9`, for the slider to move along.
+ *
+ * Drawn edge to edge in its own units, like `vectorSvg`, because the slider
+ * places its marker as a fraction of the picture's width: the span -10 to 10
+ * maps exactly onto the 280 units across. With `dot`, the number itself is
+ * marked where it sits, between its own power and the next — which is the
+ * picture of why the power is the tick just below it.
+ */
+function powerLineSvg(sf: Sf, dot: boolean): string {
+  const width = 280;
+  const height = 56;
+  const axis = 22;
+  const x = (v: number) => (((v + 10) / 20) * width).toFixed(1);
+  const parts = [
+    `<svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="A line of powers of ten from ten to the minus nine up to ten to the nine${dot ? ', with a dot where the number sits' : ''}">`,
+    `<line x1="${x(-9.5)}" y1="${axis}" x2="${x(9.5)}" y2="${axis}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+  ];
+  for (let k = -9; k <= 9; k += 1) {
+    const major = k % 3 === 0;
+    const reach = major ? 6 : 3;
+    parts.push(
+      `<line x1="${x(k)}" y1="${axis - reach}" x2="${x(k)}" y2="${axis + reach}" stroke="currentColor" stroke-width="1" opacity="0.7" />`,
+    );
+    if (major) {
+      parts.push(
+        `<text x="${x(k)}" y="${axis + 24}" text-anchor="middle" font-size="11" fill="currentColor">10<tspan dy="-5" font-size="8">${k < 0 ? '−' : ''}${Math.abs(k)}</tspan></text>`,
+      );
+    }
+  }
+  if (dot) {
+    const at = sf.n + Math.log10(Number(frontOf(sf.digits)));
+    parts.push(`<circle cx="${x(at)}" cy="${axis}" r="4.5" fill="currentColor" />`);
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+interface PowerSliderParams extends Sf {
+  /** Mark the number on the line: at difficulty 1 only, as a support to take away. */
+  dot: boolean;
+}
+
+/**
+ * Drag to the power of ten.
+ *
+ * The front number is given and held in the readout, so the one thing moving
+ * is the power, and the readout says back what the learner has written
+ * (`3.2 × 10^4`) against the number they were given. The track runs the whole
+ * line both ways, so a large number can be given a negative power and a small
+ * one a positive power, which are the slips worth being able to make.
+ */
+function powerSlider(id: string, scale: Scale): Generator<PowerSliderParams> {
+  return {
+    id,
+    sample: (rng, difficulty) => ({ ...drawSf(rng, scale, difficulty), dot: difficulty === 1 }),
+    render: (params): Slide => ({
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: params.dot
+            ? `Slide to the power of ten that writes $${ordinaryTex(params)}$ in standard form. The dot shows where it sits on the line.`
+            : `Slide to the power of ten that writes $${ordinaryTex(params)}$ in standard form.`,
+        },
+      ],
+      min: -9,
+      max: 9,
+      step: 1,
+      answer: params.n,
+      readout: `${frontOf(params.digits)} \\times 10^{{v}}`,
+      figure: { svg: powerLineSvg(params, params.dot), xMin: -10, xMax: 10 },
+    }),
+    solution: (params) => {
+      const front = frontOf(params.digits);
+      return [
+        {
+          text: `The front number is $${front}$. Count how many places the point moves from $${front}$ to $${ordinaryTex(params)}$.`,
+        },
+        { tex: `${ordinaryTex(params)} = ${sfTex(params)}` },
+        {
+          text:
+            params.n > 0
+              ? `${places(params.n)} to the right, so the power is $${params.n}$. On the line the number sits between $${tenTex(params.n)}$ and $${tenTex(params.n + 1)}$, and the power is always the lower of the two.`
+              : `${places(-params.n)} to the left, so the power is $${params.n}$. On the line the number sits between $${tenTex(params.n)}$ and $${tenTex(params.n + 1)}$, and the power is always the lower of the two.`,
+        },
+      ];
+    },
+  };
+}
+
+/** The power of a large number, dragged to. */
+const sfPowerSlider = powerSlider('sf-power-slider', 'large');
+
+/** The power of a small number, dragged to. */
+const sfSmallPowerSlider = powerSlider('sf-small-power-slider', 'small');
+
+interface FormParams {
+  sf: Sf;
+  /** How far the written front number is from standard: 1 is ten times too big. */
+  shift: -1 | 0 | 1;
+}
+
+/** The number as written in the question: the same value, the front number shifted. */
+function shownOf({ sf, shift }: FormParams): { front: string; n: number } {
+  return { front: plainOf({ ...sf, n: shift }), n: sf.n - shift };
+}
+
+/**
+ * Is this in standard form, and if not, which way does the power go?
+ *
+ * The second half is the one that goes wrong. `34 \times 10^{4}` becomes
+ * `3.4 \times 10^{5}`: the front number got smaller, so the power has to get
+ * bigger to keep the value — and the instinct is to move both the same way.
+ * A choice slide could ask "which is the standard form of this" and be
+ * answered by spotting the one front number between 1 and 10; the tree makes
+ * the learner say what happens to the power and why.
+ */
+const sfFormFlow: Generator<FormParams> = {
+  id: 'sf-form-flow',
+  sample: (rng, difficulty) => ({
+    sf: drawSf(rng, difficulty > 1 ? rng.pick(['large', 'small'] as const) : 'large', difficulty),
+    shift: rng.pick([-1, 0, 1] as const),
+  }),
+  render: (params): Slide => {
+    const shown = shownOf(params);
+    const moved = (n: number) => `So it is $${frontOf(params.sf.digits)} \\times ${tenTex(n)}$.`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Decide whether this is in standard form, and fix it if not. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: `${shown.front} \\times ${tenTex(shown.n)}`,
+      steps: [
+        {
+          id: 'range',
+          ask: 'Is the number in front at least 1 and less than 10?',
+          branches: [
+            { label: 'Yes', outcome: 'Then it is already in standard form.' },
+            { label: 'No, it is 10 or more', to: 'big' },
+            { label: 'No, it is less than 1', to: 'small' },
+          ],
+        },
+        {
+          id: 'big',
+          ask: 'Move the point one place left, so the front number is ten times smaller. What must the power do to keep the value the same?',
+          branches: [
+            { label: 'Go up by one', outcome: moved(shown.n + 1) },
+            { label: 'Go down by one', outcome: moved(shown.n - 1) },
+          ],
+        },
+        {
+          id: 'small',
+          ask: 'Move the point one place right, so the front number is ten times bigger. What must the power do to keep the value the same?',
+          branches: [
+            { label: 'Go up by one', outcome: moved(shown.n + 1) },
+            { label: 'Go down by one', outcome: moved(shown.n - 1) },
+          ],
+        },
+      ],
+      answer:
+        params.shift === 0
+          ? ['Yes']
+          : params.shift === 1
+            ? ['No, it is 10 or more', 'Go up by one']
+            : ['No, it is less than 1', 'Go down by one'],
+    };
+  },
+  solution: (params) => {
+    const shown = shownOf(params);
+    const written = `${shown.front} \\times ${tenTex(shown.n)}`;
+    if (params.shift === 0) {
+      return [
+        {
+          text: `$${shown.front}$ is at least 1 and less than 10, and it multiplies a power of ten, so $${written}$ is already in standard form.`,
+        },
+        { tex: `1 \\le ${shown.front} < 10` },
+      ];
+    }
+    if (params.shift === 1) {
+      return [
+        {
+          text: `$${shown.front}$ is 10 or more, so the point moves one place left and the front number becomes ten times smaller.`,
+        },
+        {
+          text: 'To keep the value the same, the power of ten has to make up for it by becoming ten times bigger — up by one.',
+        },
+        { tex: `${written} = ${frontOf(params.sf.digits)} \\times 10 \\times ${tenTex(shown.n)} = ${sfTex(params.sf)}` },
+      ];
+    }
+    return [
+      {
+        text: `$${shown.front}$ is less than 1, so the point moves one place right and the front number becomes ten times bigger.`,
+      },
+      {
+        text: 'To keep the value the same, the power of ten has to become ten times smaller — down by one.',
+      },
+      { tex: `${written} = ${frontOf(params.sf.digits)} \\times 10^{-1} \\times ${tenTex(shown.n)} = ${sfTex(params.sf)}` },
+    ];
+  },
+};
+
+interface AdjustParams {
+  sf: Sf;
+  /** How many places the written front number is off: 2 is a hundred times too big. */
+  shift: number;
+}
+
+/**
+ * A number not quite in standard form, put right.
+ *
+ * What multiplying and adding leave behind: `15 \times 10^{10}` from a product,
+ * `0.4 \times 10^{5}` from a quotient. Placed rather than typed, because the
+ * value is unchanged and only the form is being asked about.
+ */
+const sfAdjustTiles: Generator<AdjustParams> = {
+  id: 'sf-adjust-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      sf: drawSf(rng, hard ? rng.pick(['large', 'small'] as const) : 'large', difficulty),
+      shift: rng.pick(hard ? [-2, -1, 1, 2] : [-1, 1]),
+    };
+  },
+  render: ({ sf, shift }): Slide => {
+    const shownFront = plainOf({ ...sf, n: shift });
+    const answer = [frontOf(sf.digits), tenTex(sf.n)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Rewrite this in standard form, without changing its value.' },
+        { kind: 'display', tex: `${shownFront} \\times ${tenTex(sf.n - shift)}` },
+      ],
+      template: '{0} \\times {1}',
+      bank: fillBank(answer, [
+        shownFront,
+        plainOf({ ...sf, n: -shift }),
+        tenTex(sf.n - shift),
+        tenTex(sf.n - 2 * shift),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ sf, shift }) => {
+    const shownFront = plainOf({ ...sf, n: shift });
+    const k = Math.abs(shift);
+    return [
+      {
+        text:
+          shift > 0
+            ? `$${shownFront}$ is too big for a front number. Moving the point ${places(k)} left makes it $${frontOf(sf.digits)}$, which is $${tenPlainTex(k)}$ times smaller.`
+            : `$${shownFront}$ is too small for a front number. Moving the point ${places(k)} right makes it $${frontOf(sf.digits)}$, which is $${tenPlainTex(k)}$ times bigger.`,
+      },
+      {
+        text:
+          shift > 0
+            ? `So the power goes up by $${k}$ to make up for it.`
+            : `So the power goes down by $${k}$ to make up for it.`,
+      },
+      { tex: `${shownFront} \\times ${tenTex(sf.n - shift)} = ${sfTex(sf)}` },
+    ];
+  },
+};
+
+/* Multiplying and dividing */
+
+interface ProductParams {
+  a: Sf;
+  b: Sf;
+  op: '*' | '/';
+  /** `a × b` or `a ÷ b`, already in standard form. */
+  result: Sf;
+}
+
+/**
+ * Two numbers and their product, all in standard form.
+ *
+ * Drawn as the two factors and multiplied out in whole numbers; a quotient is
+ * the same draw read backwards — the product divided by one factor gives the
+ * other — which is what guarantees every division comes out exact. The answer
+ * is kept to three significant figures, so the arithmetic stays about the
+ * powers rather than long multiplication. Nothing goes below 10^-6, where a
+ * distractor a place out sits inside the checker's absolute tolerance (see
+ * `drawSf`).
+ */
+function drawProduct(rng: Rng, difficulty: number, op: '*' | '/'): ProductParams {
+  const hard = difficulty > 1;
+  const power = () => (hard ? nonZeroInt(rng, -6, 8) : rng.int(2, 7));
+  for (;;) {
+    const x: Sf = { digits: drawDigits(rng, rng.int(1, 2)), n: power() };
+    const y: Sf = { digits: drawDigits(rng, hard ? rng.int(1, 2) : 1), n: power() };
+    const wx = wholeOf(x);
+    const wy = wholeOf(y);
+    const z = sfOf(wx.m * wy.m, wx.e + wy.e);
+    if (z.digits.length > 3 || Math.min(x.n, z.n) < -6) continue;
+    return op === '*' ? { a: x, b: y, op, result: z } : { a: z, b: y, op, result: x };
+  }
+}
+
+/** What the front numbers come to before any adjusting: 3 × 5 is 15, 2 ÷ 5 is 0.4. */
+function frontCombined({ a, b, op, result }: ProductParams): string {
+  const powers = op === '*' ? a.n + b.n : a.n - b.n;
+  return plainOf({ digits: result.digits, n: result.n - powers });
+}
+
+/** What the powers come to before any adjusting. */
+function powerCombined({ a, b, op }: ProductParams): number {
+  return op === '*' ? a.n + b.n : a.n - b.n;
+}
+
+/** The front numbers added, the slip of treating a product like a sum. */
+function frontSum(a: Sf, b: Sf): { m: number; e: number } {
+  return combine(frontValue(a.digits), frontValue(b.digits), '+');
+}
+
+/** The question as the learner reads it. */
+function productTex({ a, b, op }: ProductParams): string {
+  return op === '*'
+    ? `\\left(${sfTex(a)}\\right) \\times \\left(${sfTex(b)}\\right)`
+    : `\\frac{${sfTex(a)}}{${sfTex(b)}}`;
+}
+
+/** The worked solution, shared by the tiles and the tree. */
+function productSolution(params: ProductParams) {
+  const { a, b, op, result } = params;
+  const front = frontCombined(params);
+  const power = powerCombined(params);
+  const adjusted = front !== frontOf(result.digits);
+  const steps = [
+    {
+      text:
+        op === '*'
+          ? 'Multiplying can be done in any order, so multiply the front numbers together and the powers of ten together. The powers add.'
+          : 'Divide the front numbers, and divide the powers of ten. The powers subtract, top minus bottom.',
+    },
+    {
+      tex:
+        op === '*'
+          ? `${frontOf(a.digits)} \\times ${frontOf(b.digits)} = ${front} \\qquad 10^{${a.n}} \\times 10^{${b.n}} = ${tenTex(power)}`
+          : `${frontOf(a.digits)} \\div ${frontOf(b.digits)} = ${front} \\qquad 10^{${a.n}} \\div 10^{${b.n}} = ${tenTex(power)}`,
+    },
+  ];
+  if (!adjusted) {
+    return [
+      ...steps,
+      {
+        text: `$${front}$ is already between 1 and 10, so $${sfTex(result)}$ is the answer as it stands.`,
+      },
+    ];
+  }
+  return [
+    ...steps,
+    {
+      text:
+        result.n > power
+          ? `$${front}$ is 10 or more, so it is not in standard form yet. Moving the point one place left makes the front number ten times smaller, and the power goes up by one to make up for it.`
+          : `$${front}$ is less than 1, so it is not in standard form yet. Moving the point one place right makes the front number ten times bigger, and the power goes down by one to make up for it.`,
+    },
+    { tex: `${front} \\times ${tenTex(power)} = ${sfTex(result)}` },
+  ];
+}
+
+/**
+ * Multiplying in standard form, placed.
+ *
+ * The blanks separate the two things that go wrong: the front number (adding
+ * them, or leaving `15` unadjusted) and the power (multiplying the powers, or
+ * forgetting the one carried from adjusting).
+ */
+const sfMultiply: Generator<ProductParams> = {
+  id: 'sf-multiply',
+  choices: (params) => {
+    const { a, b, result } = params;
+    const sum = frontSum(a, b);
+    return sfOptions(
+      result,
+      sfOf(sum.m, sum.e + a.n + b.n),
+      { digits: result.digits, n: a.n * b.n },
+      { digits: result.digits, n: result.n - 1 },
+      { digits: result.digits, n: result.n + 1 },
+    );
+  },
+  sample: (rng, difficulty) => drawProduct(rng, difficulty, '*'),
+  render: (params): Slide => {
+    const { a, b, result } = params;
+    const sum = frontSum(a, b);
+    const answer = [frontOf(result.digits), tenTex(result.n)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Work this out, giving the answer in standard form.' },
+        { kind: 'display', tex: productTex(params) },
+      ],
+      template: '{0} \\times {1}',
+      bank: fillBank(answer, [
+        frontCombined(params),
+        decimalOf(sum.m, sum.e),
+        tenTex(a.n * b.n),
+        tenTex(powerCombined(params)),
+        tenTex(result.n + 1),
+      ]),
+      answer,
+    };
+  },
+  solution: productSolution,
+};
+
+/** Dividing in standard form, placed. */
+const sfDivide: Generator<ProductParams> = {
+  id: 'sf-divide',
+  choices: (params) => {
+    const { a, b, result } = params;
+    return sfOptions(
+      result,
+      { digits: result.digits, n: a.n + b.n },
+      { digits: result.digits, n: result.n + 1 },
+      { digits: result.digits, n: result.n - 1 },
+    );
+  },
+  sample: (rng, difficulty) => drawProduct(rng, difficulty, '/'),
+  render: (params): Slide => {
+    const { a, b, result } = params;
+    const answer = [frontOf(result.digits), tenTex(result.n)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Work this out, giving the answer in standard form.' },
+        { kind: 'display', tex: productTex(params) },
+      ],
+      template: '{0} \\times {1}',
+      bank: fillBank(answer, [
+        frontCombined(params),
+        plainOf({ digits: result.digits, n: 1 }),
+        tenTex(a.n + b.n),
+        tenTex(powerCombined(params)),
+        tenTex(result.n + 1),
+      ]),
+      answer,
+    };
+  },
+  solution: productSolution,
+};
+
+/**
+ * The same calculation with its working laid out: the front numbers, the
+ * powers, and the two brought together.
+ *
+ * The tiles version asks only for the finished answer, and a learner who has
+ * the right answer by luck and a learner who has it by method look the same
+ * there. Here the middle row is graded too, so `15` and `10^{10}` have to be
+ * placed before `1.5 \times 10^{11}` — and the adjusting step, which is the
+ * one that gets forgotten, is a row of its own.
+ */
+const sfSplitTree: Generator<ProductParams> = {
+  id: 'sf-split-tree',
+  sample: (rng, difficulty) =>
+    drawProduct(rng, difficulty, difficulty > 1 ? rng.pick(['*', '/'] as const) : '*'),
+  render: (params): Slide => {
+    const { a, b, op, result } = params;
+    const front = frontCombined(params);
+    const power = powerCombined(params);
+    const answer = [front, tenTex(power), sfTex(result)];
+    const sum = frontSum(a, b);
+    const distractors =
+      op === '*'
+        ? [
+            decimalOf(sum.m, sum.e),
+            tenTex(a.n * b.n),
+            `${frontOf(result.digits)} \\times ${tenTex(power)}`,
+            `${frontOf(result.digits)} \\times ${tenTex(result.n + 1)}`,
+            tenTex(power + 1),
+          ]
+        : [
+            tenTex(a.n + b.n),
+            plainOf({ digits: result.digits, n: 1 }),
+            `${frontOf(result.digits)} \\times ${tenTex(power)}`,
+            `${frontOf(result.digits)} \\times ${tenTex(result.n + 1)}`,
+            tenTex(power - 1),
+          ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            op === '*'
+              ? 'Multiply the front numbers on the left and the powers of ten on the right, then bring them together in standard form underneath.'
+              : 'Divide the front numbers on the left and the powers of ten on the right, then bring them together in standard form underneath.',
+        },
+      ],
+      expression: productTex(params),
+      nodes: [
+        { id: 'front', from: [] },
+        { id: 'power', from: [] },
+        { id: 'result', from: ['front', 'power'] },
+      ],
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: productSolution,
+};
+
+/* Adding and subtracting */
+
+interface SumParams {
+  a: Sf;
+  b: Sf;
+  op: '+' | '-';
+  /** `a ± b`, in standard form. */
+  result: Sf;
+}
+
+/**
+ * Two numbers to add or subtract, the first with the larger power.
+ *
+ * `gap` is how far apart the powers are, drawn by the caller: a gap of 0 is
+ * the easy case where the front numbers combine as they stand. The answer is
+ * kept to three significant figures and under 10^8 (see `drawSf`), and a
+ * difference is always positive.
+ */
+function drawSum(rng: Rng, difficulty: number, gap: number): SumParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const na = hard ? nonZeroInt(rng, -5, 7) : rng.int(3, 6);
+    const a: Sf = { digits: drawDigits(rng, 2), n: na };
+    const b: Sf = { digits: drawDigits(rng, rng.int(1, 2)), n: na - gap };
+    const op = rng.pick(['+', '-'] as const);
+    const total = combine(wholeOf(a), wholeOf(b), op);
+    if (total.m <= 0) continue;
+    const result = sfOf(total.m, total.e);
+    if (result.digits.length > 3 || result.n > 7) continue;
+    return { a, b, op, result };
+  }
+}
+
+/** The question as the learner reads it. */
+function sumTex({ a, b, op }: SumParams): string {
+  return `${sfTex(a)} ${op} ${sfTex(b)}`;
+}
+
+/** `b`'s front number once it is written over `a`'s power: 5 × 10^3 is 0.5 × 10^4. */
+function rescaled({ a, b }: SumParams): string {
+  const w = wholeOf(b);
+  return decimalOf(w.m, w.e - a.n);
+}
+
+/** The front numbers combined once both share `a`'s power. */
+function combinedFront(params: SumParams): string {
+  const w = wholeOf(params.result);
+  return decimalOf(w.m, w.e - params.a.n);
+}
+
+/** The worked solution, shared by every adding and subtracting question. */
+function sumSolution(params: SumParams) {
+  const { a, b, op, result } = params;
+  const word = op === '+' ? 'add' : 'subtract';
+  const same = a.n === b.n;
+  const combined = combinedFront(params);
+  const steps: { text?: string; tex?: string }[] = same
+    ? [
+        {
+          text: `The powers are both $${tenTex(a.n)}$, so the front numbers can be ${op === '+' ? 'added' : 'subtracted'} straight away, like counting ${op === '+' ? 'up' : 'down'} in lots of $${tenTex(a.n)}$.`,
+        },
+      ]
+    : [
+        {
+          text: `The powers differ, so the front numbers cannot simply be ${op === '+' ? 'added' : 'subtracted'}. Rewrite $${sfTex(b)}$ with the larger power first: its front number becomes smaller to match.`,
+        },
+        { tex: `${sfTex(b)} = ${rescaled(params)} \\times ${tenTex(a.n)}` },
+      ];
+  steps.push({
+    tex: `${frontOf(a.digits)} \\times ${tenTex(a.n)} ${op} ${rescaled(params)} \\times ${tenTex(a.n)} = ${combined} \\times ${tenTex(a.n)}`,
+  });
+  if (combined !== frontOf(result.digits)) {
+    steps.push({
+      text: `$${combined}$ is not between 1 and 10, so ${word}ing has knocked it out of standard form. Adjust it: $${combined} \\times ${tenTex(a.n)} = ${sfTex(result)}$.`,
+    });
+  }
+  steps.push({ text: `Written out in full, that is $${ordinaryTex(result)}$.` });
+  return steps;
+}
+
+/**
+ * Adding or subtracting, typed as an ordinary number.
+ *
+ * Digits and a point only on the keypad, for the same reason as reading
+ * standard form: without `\times` and `^` the question cannot be typed back.
+ * The multiple-choice form offers the answer in standard form beside the
+ * three slips — the front numbers combined without matching the powers, the
+ * powers added as if it were a product, and the power left one out after
+ * adjusting.
+ */
+const sfAdd: Generator<SumParams> = {
+  id: 'sf-add',
+  choices: (params) => {
+    const { a, b, op, result } = params;
+    const naive = combine(frontValue(a.digits), frontValue(b.digits), op);
+    const slips: Sf[] = [];
+    if (naive.m > 0) {
+      slips.push(sfOf(naive.m, naive.e + a.n));
+      slips.push(sfOf(naive.m, naive.e + a.n + b.n));
+    }
+    slips.push({ digits: result.digits, n: result.n + 1 }, { digits: result.digits, n: result.n - 1 });
+    return sfOptions(result, ...slips);
+  },
+  sample: (rng, difficulty) => drawSum(rng, difficulty, rng.int(0, difficulty > 1 ? 2 : 1)),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Work this out.' }],
+    lead: `${sumTex(params)} =`,
+    keypad: [],
+    answer: plainOf(params.result),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: sumSolution,
+};
+
+/** The power as a tiles template can hold it: no braces round a bare number. */
+function templatePower(n: number): string {
+  return n >= 0 && n <= 9 ? `10^${n}` : `10^{${n}}`;
+}
+
+/**
+ * Matching the powers, then combining the front numbers, placed.
+ *
+ * The power of ten is written into the template three times so the learner
+ * is only placing front numbers — and the one that has to change, the second,
+ * sits beside itself unchanged and ten times the wrong way.
+ */
+const sfCommonPower: Generator<SumParams> = {
+  id: 'sf-common-power',
+  sample: (rng, difficulty) => {
+    // The template writes the power bare, which only works for one digit. And
+    // 1.2 - 0.6 = 0.6 would need the same tile twice, reading as one tile
+    // placed in two blanks.
+    for (;;) {
+      const drawn = drawSum(rng, difficulty, rng.int(1, difficulty > 1 ? 2 : 1));
+      if (drawn.a.n <= 9 && combinedFront(drawn) !== rescaled(drawn)) return drawn;
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, op } = params;
+    const gap = a.n - b.n;
+    const power = templatePower(a.n);
+    const answer = [frontOf(a.digits), rescaled(params), combinedFront(params)];
+    const naive = combine(frontValue(a.digits), frontValue(b.digits), op);
+    const bw = frontValue(b.digits);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Write both numbers with the same power of ten, then ${op === '+' ? 'add' : 'subtract'} the front numbers.`,
+        },
+        { kind: 'display', tex: sumTex(params) },
+      ],
+      template: `{0} \\times ${power} ${op} {1} \\times ${power} = {2} \\times ${power}`,
+      bank: fillBank(answer, [
+        frontOf(b.digits),
+        decimalOf(bw.m, bw.e + gap),
+        ...(naive.m > 0 ? [decimalOf(naive.m, naive.e)] : []),
+      ]),
+      answer,
+    };
+  },
+  solution: sumSolution,
+};
+
+interface SumRouteParams extends SumParams {
+  route: 'rewrite' | 'fits' | 'adjust';
+}
+
+/**
+ * What does this sum need before it can be done?
+ *
+ * Three routes: the powers differ, so one number is rewritten first; they
+ * match and the front numbers combine cleanly; or they match and the result
+ * falls out of standard form and needs adjusting. The rewrite route asks
+ * which way the front number moves, which is the step that is done backwards.
+ */
+const sfAddFlow: Generator<SumRouteParams> = {
+  id: 'sf-add-flow',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['rewrite', 'fits', 'adjust'] as const);
+    for (;;) {
+      const drawn = drawSum(rng, difficulty, route === 'rewrite' ? rng.int(1, difficulty > 1 ? 2 : 1) : 0);
+      if (route === 'rewrite') return { ...drawn, route };
+      const fits = combinedFront(drawn) === frontOf(drawn.result.digits);
+      if (fits === (route === 'fits')) return { ...drawn, route };
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, op, route } = params;
+    const gap = a.n - b.n;
+    const factor = gap === 2 ? '100' : '10';
+    const bw = frontValue(b.digits);
+    const combined = combinedFront(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Decide what this needs before it can be worked out. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: sumTex(params),
+      steps: [
+        {
+          id: 'same',
+          ask: 'Are the two powers of ten the same?',
+          branches: [
+            { label: 'Yes', to: 'fits' },
+            { label: 'No', to: 'how' },
+          ],
+        },
+        {
+          id: 'how',
+          ask: `To write $${sfTex(b)}$ with the power $${tenTex(a.n)}$, what happens to its front number?`,
+          branches: [
+            {
+              label: `It is divided by ${factor}`,
+              outcome: `It becomes $${rescaled(params)} \\times ${tenTex(a.n)}$, and the front numbers can then be combined.`,
+            },
+            {
+              label: `It is multiplied by ${factor}`,
+              outcome: `It becomes $${decimalOf(bw.m, bw.e + Math.max(gap, 1))} \\times ${tenTex(a.n)}$, and the front numbers can then be combined.`,
+            },
+          ],
+        },
+        {
+          id: 'fits',
+          ask: `${op === '+' ? 'Add' : 'Subtract'} the front numbers. Is the result at least 1 and less than 10?`,
+          branches: [
+            { label: 'Yes', outcome: `Then $${combined} \\times ${tenTex(a.n)}$ is already in standard form.` },
+            { label: 'No', outcome: `Then $${combined} \\times ${tenTex(a.n)}$ has to be adjusted into standard form.` },
+          ],
+        },
+      ],
+      answer:
+        route === 'rewrite'
+          ? ['No', `It is divided by ${factor}`]
+          : route === 'fits'
+            ? ['Yes', 'Yes']
+            : ['Yes', 'No'],
+    };
+  },
+  solution: sumSolution,
+};
+
+/* Orders of magnitude */
+
+interface CompareParams {
+  /** The lower of the two powers in play. */
+  p: number;
+  /** Front numbers: two under the higher power, two under the lower one. */
+  high: [string, string];
+  low: [string, string];
+  ask: 'largest' | 'smallest';
+}
+
+/** Two-figure front numbers in a range, never ending in zero. */
+function twoFigures(rng: Rng, min: number, max: number): string {
+  for (;;) {
+    const value = rng.int(min, max);
+    if (value % 10 !== 0) return `${value}`;
+  }
+}
+
+/**
+ * Which is largest, or smallest?
+ *
+ * Built so that reading the front numbers gives the wrong answer. The largest
+ * number has a small front number and the higher power; the biggest front
+ * number sits under the lower power. Asked for the smallest, the smallest
+ * front number is the trap in the same way.
+ */
+const sfCompare: Generator<CompareParams> = {
+  id: 'sf-compare',
+  sample: (rng, difficulty) => {
+    const f1 = twoFigures(rng, 11, 29);
+    const f2 = twoFigures(rng, 31, 59);
+    let g1 = twoFigures(rng, Number(f1) + 1, 69);
+    while (g1 === f2) g1 = twoFigures(rng, Number(f1) + 1, 69);
+    return {
+      p: difficulty > 1 ? rng.int(-6, 6) : rng.int(2, 6),
+      high: [f1, f2],
+      low: [g1, twoFigures(rng, 71, 99)],
+      ask: rng.pick(['largest', 'smallest'] as const),
+    };
+  },
+  render: ({ p, high, low, ask }): Slide => {
+    const options = [
+      { id: 'high-small', label: sfTex({ digits: high[0], n: p + 1 }), tex: true },
+      { id: 'high-big', label: sfTex({ digits: high[1], n: p + 1 }), tex: true },
+      { id: 'low-small', label: sfTex({ digits: low[0], n: p }), tex: true },
+      { id: 'low-big', label: sfTex({ digits: low[1], n: p }), tex: true },
+    ];
+    // Turned by the question's own numbers, never by the rng, so one question
+    // always renders one way for the deck de-duplicator.
+    const turn = (((Number(high[0]) + Number(low[1]) + p) % 4) + 4) % 4;
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which of these numbers is the ${ask}?` }],
+      options: [...options.slice(turn), ...options.slice(0, turn)],
+      correctId: ask === 'largest' ? 'high-big' : 'low-small',
+    };
+  },
+  solution: ({ p, high, low, ask }) => {
+    const answer = ask === 'largest' ? { digits: high[1], n: p + 1 } : { digits: low[0], n: p };
+    return [
+      {
+        text: `Compare the powers first. Anything times $${tenTex(p + 1)}$ is at least $${tenTex(p + 1)}$, and anything times $${tenTex(p)}$ with a front number under 10 is less than that — so the power decides before the front number does.`,
+      },
+      {
+        text:
+          ask === 'largest'
+            ? `The two with $${tenTex(p + 1)}$ are the big ones, and of those $${frontOf(high[1])}$ is the larger front number.`
+            : `The two with $${tenTex(p)}$ are the small ones, and of those $${frontOf(low[0])}$ is the smaller front number.`,
+      },
+      { tex: `${sfTex(answer)}` },
+      {
+        text:
+          ask === 'largest'
+            ? `$${sfTex({ digits: low[1], n: p })}$ has the biggest front number and is still smaller, because its power is lower.`
+            : `$${sfTex({ digits: high[0], n: p + 1 })}$ has the smallest front number and is still larger, because its power is higher.`,
+      },
+    ];
+  },
+};
+
+interface TimesParams {
+  small: Sf;
+  big: Sf;
+  /** The ratio's front number: 1 when the two front numbers match. */
+  k: number;
+  gap: number;
+}
+
+/**
+ * How many times bigger is one number than another?
+ *
+ * The question an order of magnitude answers. With matching front numbers it
+ * is a pure power of ten, one followed by as many zeros as the powers differ
+ * by; at difficulty 2 the front numbers differ by a whole factor too. Typed on
+ * a digits-only keypad, so the answer has to be written out.
+ */
+const sfTimesBigger: Generator<TimesParams> = {
+  id: 'sf-times-bigger',
+  choices: ({ k, gap }) => {
+    const value = (g: number) => `${k}${'0'.repeat(g)}`;
+    return options(
+      { tex: grouped(value(gap)), answer: value(gap) },
+      { tex: grouped(value(gap - 1)), answer: value(gap - 1) },
+      { tex: grouped(value(gap + 1)), answer: value(gap + 1) },
+      { tex: `${gap}`, answer: `${gap}` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const small: Sf = {
+        digits: drawDigits(rng, rng.int(1, 2)),
+        n: hard ? nonZeroInt(rng, -6, 5) : rng.int(2, 5),
+      };
+      const k = hard ? rng.int(2, 5) : 1;
+      const gap = rng.int(hard ? 1 : 2, hard ? 6 : 5);
+      const w = wholeOf(small);
+      const big = sfOf(w.m * k, w.e + gap);
+      // No carry: the bigger number's front number is k times the smaller's.
+      if (big.n !== small.n + gap) continue;
+      return { small, big, k, gap };
+    }
+  },
+  render: ({ small, big, k, gap }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `How many times larger is $${sfTex(big)}$ than $${sfTex(small)}$?`,
+      },
+    ],
+    lead: `\\frac{${sfTex(big)}}{${sfTex(small)}} =`,
+    keypad: [],
+    answer: `${k}${'0'.repeat(gap)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ small, big, k, gap }) => [
+    { text: 'How many times larger means divide one by the other. Front numbers and powers divide separately.' },
+    {
+      tex: `${frontOf(big.digits)} \\div ${frontOf(small.digits)} = ${k} \\qquad ${tenTex(big.n)} \\div ${tenTex(small.n)} = ${tenTex(gap)}`,
+    },
+    {
+      text:
+        k === 1
+          ? `The front numbers match, so the answer is the power of ten alone: $${tenTex(gap)} = ${grouped(`1${'0'.repeat(gap)}`)}$. The powers differ by $${gap}$, which is the number of zeros — not the answer itself.`
+          : `So it is $${k} \\times ${tenTex(gap)} = ${grouped(`${k}${'0'.repeat(gap)}`)}$. The powers differ by $${gap}$, which is the number of zeros — not the answer itself.`,
+    },
+  ],
+};
+
+interface EstimateParams {
+  a: Sf;
+  b: Sf;
+  /** Each front number rounded to one significant figure. */
+  ra: number;
+  rb: number;
+  estimate: Sf;
+}
+
+/** A two-figure front number that rounds cleanly to one figure, never up to 10. */
+function roundable(rng: Rng): string {
+  for (;;) {
+    const digits = drawDigits(rng, 2);
+    // x.5 is a coin toss between two roundings, and 9.5 or more rounds to 10.
+    if (digits[1] !== '5' && Math.round(Number(digits) / 10) <= 9) return digits;
+  }
+}
+
+/**
+ * An estimate by rounding each front number to one figure first.
+ *
+ * What orders of magnitude are for: `3.9 \times 10^{4}` times `2.1 \times
+ * 10^{3}` is about `8 \times 10^{7}`, and no exact arithmetic is needed to
+ * know it. Placed, because the estimate is an answer about form as much as
+ * value.
+ */
+const sfEstimate: Generator<EstimateParams> = {
+  id: 'sf-estimate',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const power = () => (hard ? nonZeroInt(rng, -5, 7) : rng.int(2, 6));
+    const a: Sf = { digits: roundable(rng), n: power() };
+    const b: Sf = { digits: roundable(rng), n: power() };
+    const ra = Math.round(Number(a.digits) / 10);
+    const rb = Math.round(Number(b.digits) / 10);
+    return { a, b, ra, rb, estimate: sfOf(ra * rb, a.n + b.n) };
+  },
+  render: ({ a, b, ra, rb, estimate }): Slide => {
+    const answer = [frontOf(estimate.digits), tenTex(estimate.n)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Estimate this by rounding each front number to one significant figure. Give the estimate in standard form.',
+        },
+        { kind: 'display', tex: `\\left(${sfTex(a)}\\right) \\times \\left(${sfTex(b)}\\right)` },
+      ],
+      template: '{0} \\times {1}',
+      bank: fillBank(answer, [
+        `${ra * rb}`,
+        `${ra + rb}`,
+        tenTex(a.n + b.n),
+        tenTex(a.n * b.n),
+        tenTex(estimate.n + 1),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ a, b, ra, rb, estimate }) => {
+    const steps = [
+      {
+        text: `Round each front number to one figure: $${frontOf(a.digits)}$ is about $${ra}$ and $${frontOf(b.digits)}$ is about $${rb}$.`,
+      },
+      {
+        tex: `${ra} \\times ${rb} = ${ra * rb} \\qquad ${tenTex(a.n)} \\times ${tenTex(b.n)} = ${tenTex(a.n + b.n)}`,
+      },
+    ];
+    if (ra * rb >= 10) {
+      return [
+        ...steps,
+        {
+          text: `$${ra * rb}$ is too big for a front number, so adjust: $${ra * rb} \\times ${tenTex(a.n + b.n)} = ${sfTex(estimate)}$.`,
+        },
+      ];
+    }
+    return [
+      ...steps,
+      {
+        text: `So the product is about $${sfTex(estimate)}$. The exact answer will differ a little in the front number; the power is what the estimate is for.`,
+      },
+    ];
+  },
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -2142,4 +3436,21 @@ export const indicesGenerators = [
   fillSimplifySurd,
   estimateSurd,
   fillRationalise,
+  sfToOrdinary,
+  sfSmallToOrdinary,
+  sfWriteTiles,
+  sfWriteSmallTiles,
+  sfPowerSlider,
+  sfSmallPowerSlider,
+  sfFormFlow,
+  sfAdjustTiles,
+  sfMultiply,
+  sfDivide,
+  sfSplitTree,
+  sfAdd,
+  sfCommonPower,
+  sfAddFlow,
+  sfCompare,
+  sfTimesBigger,
+  sfEstimate,
 ] as unknown as Generator<unknown>[];

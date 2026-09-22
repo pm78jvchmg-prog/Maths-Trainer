@@ -2873,3 +2873,79 @@ w, which is the only thing in this repository that can see a second right answer
 on a native choice slide.
 
 Mutations M-3-short and M-3-oracle run after this commit and before the push.
+
+## Unit 3 — mutations, after the commit and before the push
+
+Per the plan's own convention (section 6.2 step 5, "the previous unit's mutation
+outputs where not yet logged"), unit 3's mutation record lands here rather than
+in a log-only commit of its own. Units 1 and 2 got their own log commits because
+in each case the push decision turned on an unexpected survival and I wanted the
+reasoning in the branch before the push. Unit 3 had no such issue: both its
+mutation outcomes are exactly what the plan predicted.
+
+### M-3-short — KILLED, as predicted, and it confirms the unit-2 finding
+
+Diff: exactly one line, the correct option's `answer` inside `power-modulus`'s
+`choices`. Message:
+
+    seed 0: distractor \sqrt{5} (sqrt(5)) is not wrong against sqrt(5):
+    expected 'incorrect' to be 'correct'
+
+This is the distractor test working, and it is worth saying why it works here
+when it failed in M-1-pair and M-2-root: the mutation changes the correct
+option's *value* while leaving its *label* alone, so two options carry different
+labels and the same value — the one shape `options()` does not delete first. The
+plan's own parenthetical predicted exactly this ("mutating the distractor's `tex`
+instead would make `options()` drop it as a duplicate label and the mutant would
+survive"), which is the same mechanism I had to discover the hard way twice.
+
+### M-3-oracle — SURVIVES the suite, killed by the oracle. Both as predicted.
+
+Against the suite: `13 passed`, `MUTANT SURVIVED`. This is the second of the two
+survivals the plan put on the record, and it is recorded rather than fixed, as
+instructed. With the value filter replaced by an identity filter, `-z` is offered
+alongside `z` at even n and the slide has two right answers; thirteen property
+tests do not notice, because nothing in the suite raises a native choice slide's
+options to any power.
+
+Against the oracle:
+
+    seed 29@1: 2 of 4 options satisfy z^2 = -3 + 4i (expected 1): -1 - 2i, -2, -2 - i, 1 + 2i
+    seed 41@1: 2 of 4 options satisfy z^2 = 3 - 4i (expected 1): -2 + i, 1 - i, 2 - 2i, 2 - i
+    power-reverse: draws: 400, failures: 48
+    mutant killed: the command exited 1
+
+Re-run after a later change to the oracle (see unit 4), with the same result.
+
+Unit 3 pushed at 856cff9. Units 0 through 3 are the plan's "acceptable" line.
+
+## Unit 4 — Division: which multiplier makes the bottom real, and division undone
+
+Committed with NO consultation, per the deviation logged above.
+
+Gates:
+
+- `npx vitest run` -> 3391 passed, 7 files, 95.47 s, exit 0. Predicted 3352 + 39
+  = 3391 (divide-reverse and its +choice 26; divide-which-multiplier 13). Exact.
+- Both typechecks silent. `npm run lint` -> 0 errors, 25 warnings.
+- Scope: complexArithmetic.ts, complexNumbers.ts, this log.
+- Scoped runs: `-t 'divide-reverse > '` 13 passed; `-t 'divide-which-multiplier'`
+  13 passed.
+
+Oracle:
+
+    divide-reverse: draws: 400, failures: 0
+    divide-which-multiplier: draws: 400, failures: 0
+
+### Amendment to the oracle, logged as a step
+
+Three of the oracle's checks originally read their numbers out of the prompt's
+prose and display blocks joined into one string, and `divide-reverse`'s prompt is
+prose, then the display, then more prose ("what is $z$?"). A regex anchored to
+the end of the joined string therefore captured the trailing prose along with the
+quotient. I gave the oracle a `displays()` helper and pointed
+`divide-reverse`, `divide-which-multiplier` and `power-reverse` at the display
+blocks alone. Recorded because it changed what the oracle reads, and because
+M-3-oracle was re-run afterwards to confirm the change did not blunt it.
+
+Mutations M-4-labels and M-4-oracle run after this commit and before the push.

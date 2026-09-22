@@ -256,6 +256,120 @@ export const complexDivide: Generator<DivParams> = {
   },
 };
 
+/* ---------- Division, run backwards ---------- */
+
+interface DivideReverseParams { p: number; q: number; c: number; d: number }
+
+export const divideReverse: Generator<DivideReverseParams> = {
+  id: 'divide-reverse',
+  choices: ({ p, q, c, d }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    // The conjugate used instead of the divisor, i^2 left as +1, and both
+    // signs lost. No sum distractor: (p + qi) + (c + di) equals the product at
+    // p = q = 1, c = 1, d = -1, and that seed would fail the distractor test.
+    return options(
+      opt(...mulComplex(p, q, c, d)),
+      opt(...mulComplex(p, q, c, -d)),
+      opt(p * c + q * d, p * d + q * c),
+      opt(-(p * c - q * d), -(p * d + q * c)),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty >= 2 ? 5 : 3;
+    return {
+      p: nonZero(rng, span),
+      q: nonZero(rng, span),
+      c: nonZero(rng, 3),
+      d: nonZero(rng, 3),
+    };
+  },
+  render: ({ p, q, c, d }) => {
+    const [zr, zi] = mulComplex(p, q, c, d);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Division undoes multiplication. If' },
+        { kind: 'display', tex: `\\dfrac{z}{${complexTex(c, d)}} = ${complexTex(p, q)}` },
+        { kind: 'prose', text: 'what is $z$?' },
+      ],
+      lead: 'z =',
+      keypad: I_KEY,
+      answer: complexAnswer(zr, zi),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: ({ p, q, c, d }) => {
+    const [zr, zi] = mulComplex(p, q, c, d);
+    return [
+      {
+        text: 'Multiply back up: $z$ is the quotient times the divisor.',
+        tex: `z = (${complexTex(p, q)})(${complexTex(c, d)}) = ${p}\\cdot${c} + ${p}\\cdot${coeffTex(d)} + ${coeffTex(q)}\\cdot${c} + ${coeffTex(q)}\\cdot${coeffTex(d)}`,
+      },
+      {
+        text: 'The last term carries $i^2 = -1$, which is what turns it real.',
+        tex: `z = ${complexTex(zr, zi)}`,
+      },
+      {
+        text: `Check by dividing again — multiply top and bottom by $${complexTex(c, -d)}$ — and $${complexTex(p, q)}$ returns.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Which multiplier makes the bottom real? ---------- */
+
+interface WhichMultiplierParams { a: number; b: number; c: number; d: number }
+
+export const divideWhichMultiplier: Generator<WhichMultiplierParams> = {
+  id: 'divide-which-multiplier',
+  // The numerator is never the denominator or its conjugate: that is exactly
+  // the condition under which the four labels below are pairwise distinct.
+  sample: (rng, difficulty) => {
+    const c = nonZero(rng, 3);
+    const d = nonZero(rng, 3);
+    const span = difficulty >= 2 ? 5 : 3;
+    let a = nonZero(rng, span);
+    let b = nonZero(rng, span);
+    while (a === c && (b === d || b === -d)) {
+      a = nonZero(rng, span);
+      b = nonZero(rng, span);
+    }
+    return { a, b, c, d };
+  },
+  render: ({ a, b, c, d }) => {
+    // Every option is a fraction equal to 1, so none of them is being compared
+    // as an expression and none carries an `answer`.
+    const over = (x: number, y: number) => `\\dfrac{${complexTex(x, y)}}{${complexTex(x, y)}}`;
+    const labels = [over(c, -d), over(c, d), over(a, -b), over(a, b)];
+    const correct = labels[0];
+    // Sorted rather than shuffled, so the same question renders one way and
+    // the deck de-duplicator can recognise a repeat.
+    const ordered = [...labels].sort((x, y) => x.localeCompare(y));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'To write this in the form $a + bi$, what do you multiply the top and the bottom by?',
+        },
+        { kind: 'display', tex: `\\dfrac{${complexTex(a, b)}}{${complexTex(c, d)}}` },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${ordered.indexOf(correct)}`,
+    };
+  },
+  solution: ({ a, b, c, d }) => [
+    {
+      text: 'The conjugate of the denominator, and only that, makes the bottom real.',
+      tex: `(${complexTex(c, d)})(${complexTex(c, -d)}) = ${c * c + d * d}`,
+    },
+    {
+      text: `Multiplying by the denominator itself squares it and leaves it complex; the numerator's conjugate, $${complexTex(a, -b)}$, clears nothing at all.`,
+    },
+  ],
+};
+
 /* ---------- Powers of i ---------- */
 
 interface PowerParams { n: number }
@@ -291,5 +405,7 @@ export const arithmeticGenerators = [
   complexConjugate,
   conjugateRecover,
   complexDivide,
+  divideReverse,
+  divideWhichMultiplier,
   powersOfI,
 ];

@@ -459,11 +459,13 @@ export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
  * moves with the thumb is unreadable on a phone at the moment it matters, when
  * a thumb is covering it.
  *
- * There is no "nothing chosen yet" state. A range input always has a position,
- * so pretending otherwise would mean drawing a handle somewhere and claiming it
- * means nothing. The midpoint is seeded as the answer instead, which makes
- * *Check* live immediately — correct for a widget whose whole gesture is
- * adjustment rather than entry.
+ * A range input always has a position, so the handle is drawn mid-track before
+ * anyone touches it — but that position is not an answer. It used to be seeded
+ * as one, and since the handle has to rest *somewhere*, it rested on the right
+ * answer for some draws: on `argument-turns` every position on the track is
+ * one question's answer, so an untouched slider scored one draw in eight. So
+ * the draft stays empty and *Check* stays off until the handle is dragged, or
+ * tapped where it sits for a learner whose answer is the resting value.
  */
 /**
  * Where the marker sits, as a percentage along its axis.
@@ -486,10 +488,8 @@ function markerAt(
 export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideProps) {
   if (slide.kind !== 'slider') return null;
   const locked = isLocked(feedback, canEdit);
-  const value =
-    typeof answer === 'string' && answer !== ''
-      ? Number(answer)
-      : defaultSliderValue(slide.min, slide.max, slide.step);
+  const touched = typeof answer === 'string' && answer !== '';
+  const value = touched ? Number(answer) : defaultSliderValue(slide.min, slide.max, slide.step);
 
   return (
     <>
@@ -508,7 +508,7 @@ export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
         </div>
       )}
 
-      <div className={frameClass(feedback)}>
+      <div className={`${frameClass(feedback)}${touched ? '' : ' untouched'}`}>
         <Tex tex={slide.readout.replace('{v}', String(value))} />
       </div>
 
@@ -522,6 +522,9 @@ export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
         disabled={locked}
         aria-label="Choose a value"
         onChange={(event) => onAnswer(event.target.value)}
+        // A tap that leaves the handle where it is fires no change, and is
+        // the only way to choose the resting value without dragging off it.
+        onPointerUp={(event) => onAnswer(event.currentTarget.value)}
       />
 
       <div className="slider-scale">
@@ -540,24 +543,7 @@ export function SlideView(props: SlideProps) {
   // Clear the draft answer whenever the slide changes.
   const { onAnswer } = props;
   useEffect(() => {
-    if (slide.kind === 'tiles') {
-      onAnswer(Array.from({ length: slide.answer.length }, () => ''));
-    } else if (slide.kind === 'tree') {
-      onAnswer(Array.from({ length: slide.nodes.length }, () => ''));
-    } else if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') {
-      // Both start at nothing chosen and grow as the learner works.
-      onAnswer([]);
-    } else if (slide.kind === 'slider') {
-      // A range input has a position whether or not anyone has touched it, so
-      // the session is told where the handle actually is rather than left
-      // holding '' while the learner looks at a handle sitting mid-track.
-      // Snapped, because the true midpoint of an odd-width track is not a
-      // value the input can produce — and an unsnapped one sits half a step
-      // from a real answer, which is inside the default tolerance.
-      onAnswer(String(defaultSliderValue(slide.min, slide.max, slide.step)));
-    } else {
-      onAnswer('');
-    }
+    onAnswer(initialAnswer(slide));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slide]);
 
@@ -585,6 +571,17 @@ export function SlideView(props: SlideProps) {
     case 'evaluate':
       return <EvaluateSlide {...props} />;
   }
+}
+
+/** The draft a slide starts from, before the learner has done anything. */
+export function initialAnswer(slide: Slide): Answer {
+  if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
+  if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
+  // Both start at nothing chosen and grow as the learner works.
+  if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') return [];
+  // A slider too, although its handle is drawn somewhere: where it rests is
+  // not something the learner chose, and it can be the answer.
+  return '';
 }
 
 /** Whether the current draft is complete enough to submit. */

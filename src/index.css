@@ -1378,6 +1378,13 @@ button {
   opacity: 0.5;
 }
 
+/* The readout before the handle has been moved: shown, since the handle is
+   visibly somewhere, but dimmed, because it is not yet an answer and Check is
+   off until it becomes one. */
+.answer-frame.untouched {
+  color: var(--text-dim);
+}
+
 .slider-scale {
   display: flex;
   justify-content: space-between;

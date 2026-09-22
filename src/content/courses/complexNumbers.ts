@@ -89,7 +89,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'When the number inside is not a perfect square, leave the surd: $\\sqrt{-12} = 2i\\sqrt{3}$. Writing $i$ in front rather than after the surd is the usual convention, because $\\sqrt{3}i$ invites the reader to wonder whether the $i$ is under the root.' },
             ),
             ask('sqrt-negative'),
-            asking('imaginary-surd', 1, 'That worked because 36 is a perfect square, so the root came out whole. Most negatives are not, and what is left under the root then stays there.'),
+            asking('imaginary-surd', 1, 'That one came out whole because the number under the root was a perfect square. Most are not, and whatever is left over then stays under the root.'),
             ask('sqrt-negative', 2),
             asking('root-method', 1, 'Three routes, and which one an equation needs is decided before any of them is run. Work down the questions.'),
           ],

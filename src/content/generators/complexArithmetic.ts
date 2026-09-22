@@ -633,12 +633,16 @@ export const reciprocal: Generator<ReciprocalParams> = {
       d = rng.int(1, top);
     }
     const n = c * c + d * d;
+    // Distractors are the two ways the denominator gets built wrongly: the
+    // parts added rather than squared, and the numerator squared along with
+    // them. Nothing here can degenerate into a fraction like 1/1, which an
+    // earlier draft offered whenever a part was 1.
     const bank = [
       `\\tfrac{${c}}{${n}}`,
       `\\tfrac{${d}}{${n}}`,
-      `\\tfrac{1}{${c}}`,
-      `\\tfrac{1}{${d}}`,
-      `\\tfrac{${d}}{${c}}`,
+      `\\tfrac{${c}}{${c + d}}`,
+      `\\tfrac{${d}}{${c + d}}`,
+      `\\tfrac{${c * c}}{${n}}`,
     ];
     return { c, d, bank: rng.shuffle([...new Set(bank)]) };
   },

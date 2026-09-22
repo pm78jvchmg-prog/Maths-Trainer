@@ -1550,7 +1550,7 @@ export const polarMultiply: Generator<PolarMultiplyParams> = {
       },
       { kind: 'prose', text: 'Give the modulus and the principal argument of $zw$.' },
     ],
-    template: `|zw| = {0}, \\qquad \\arg(zw) = {1}`,
+    template: `|zw| = {0} \\text{, and } \\arg(zw) = {1}`,
     bank,
     answer: [`${r1 * r2}`, angleTex(principal(k1 + k2, d), d)],
   }),
@@ -1630,7 +1630,7 @@ export const powerArgument: Generator<PowerArgumentParams> = {
     ],
     // `z^{n}` is deliberately written without braces: the tiles template reads
     // `{n}` as a blank marker, so a braced single-digit power would vanish.
-    template: `${n} \\arg(z) = {0}, \\qquad \\arg(z^${n}) = {1}`,
+    template: `${n} \\arg(z) = {0} \\text{, then } \\arg(z^${n}) = {1}`,
     bank,
     answer: [angleTex(n * k, d), angleTex(principal(n * k, d), d)],
   }),

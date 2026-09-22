@@ -90,7 +90,7 @@ export const logarithms: Course = {
                 'Base 10 is common enough that it is often written with no base at all, and base $e$ has a symbol of its own, $\\ln$. Level 3 is about that one.',
               ),
             ),
-            ask('log-evaluate'),
+            ask('log-sum-tree'),
             ask('log-evaluate'),
           ],
           skillCheck: [ask('log-to-index', 2), ask('log-to-index', 2), ask('log-evaluate', 2)],
@@ -393,7 +393,7 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-combine'),
-            ask('log-combine'),
+            ask('log-combine-steps'),
             teach(
               prose(
                 'The reverse direction — splitting one logarithm into several — is the same three laws read backwards, and it appears just as often.',

@@ -43,8 +43,8 @@ export const MAX_PER_FAMILY = 2;
  * Measured as the smallest number of distinct kinds a *sitting* can show, not
  * the number the generators could reach between them: a generator that renders
  * either an `expression` or a `choice` counts towards whichever of those the
- * rest of the deck is already using. Today the two readings agree on all 105
- * lessons, so this is the stricter one at no cost.
+ * rest of the deck is already using. The two readings agreed on all 105
+ * lessons when this was written, so it is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l2-equations': 2,
@@ -76,12 +76,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'cn-l3-sqrt': 2,
   'cn-l4-powers': 2,
   'cn-l4-de-moivre': 2,
-  'df-l1-index': 2,
-  'df-l2-product': 2,
-  'df-l2-quotient': 2,
-  'df-l3-chain': 2,
-  'df-l3-roots': 2,
-  'df-l4-trig': 2,
   'in-l1-antiderivatives': 2,
   'in-l1-powers': 2,
   'in-l1-sums': 2,
@@ -97,16 +91,17 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 47;
+export const WIDGET_KIND_CEILING = 41;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
  * how many times the worst offender is asked today.
  *
- * Far longer than the widget-kind list — 102 of 105 lessons — because a seven
- * exercise deck built from two or three generators breaks this rule by
- * construction. Phase A widens the decks; this list is how that progress is
- * measured.
+ * Far longer than the widget-kind list — it began at 102 of 105 lessons —
+ * because a seven exercise deck built from two or three generators breaks this
+ * rule by construction. Phase A widens the decks; this list is how that
+ * progress is measured, and batch A6 took the eleven Differentiation lessons
+ * off it.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l1-multiply': 6,
@@ -171,17 +166,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'cn-l4-polar': 6,
   'cn-l4-powers': 4,
   'cn-l4-de-moivre': 6,
-  'df-l1-power': 5,
-  'df-l1-sums': 5,
-  'df-l1-index': 6,
-  'df-l1-tangent': 5,
-  'df-l2-product': 6,
-  'df-l2-quotient': 6,
-  'df-l3-chain': 6,
-  'df-l3-roots': 6,
-  'df-l4-trig': 6,
-  'df-l4-exp': 5,
-  'df-l4-combine': 6,
   'in-l1-antiderivatives': 4,
   'in-l1-powers': 7,
   'in-l1-sums': 6,
@@ -214,4 +198,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 102;
+export const GENERATOR_REPETITION_CEILING = 91;

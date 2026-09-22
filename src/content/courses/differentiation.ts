@@ -20,6 +20,25 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 });
 
 /**
+ * A generated question with the sentence that sets it up above it.
+ *
+ * Widening these decks meant bringing in questions the teaching slide before
+ * them was not written for — a sum dropped into the product-rule lesson to
+ * ask whether the product rule is needed at all, a gradient at a point in the
+ * middle of the power rule. The setting-up sentence belongs with the question
+ * rather than on a slide of its own, so the lesson still reads as one thread.
+ * Plain `ask` stays the default.
+ */
+const askAfter = (lead: Block[], generatorId: string, difficulty = 1): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: lead,
+});
+
+const prose = (text: string): Block => ({ kind: 'prose', text });
+
+/**
  * The curve a slide is talking about — a tangent, a gradient, a rate.
  *
  * This course teaches differentiation almost entirely in symbols: "the
@@ -67,7 +86,7 @@ export const differentiation: Course = {
               },
             ),
             ask('power-rule'),
-            ask('power-rule'),
+            ask('df-power-tiles'),
             ask('power-rule+choice'),
             teach(
               {
@@ -89,7 +108,15 @@ export const differentiation: Course = {
                 text: 'Converting to index form before differentiating is almost always the right first move. A root or a fraction that has not been rewritten is where most power-rule questions go wrong.',
               },
             ),
-            ask('power-rule', 2),
+            ask('df-power-tiles', 2),
+            askAfter(
+              [
+                prose(
+                  'A derivative is a function in its own right, so a number can be put into it. Doing that gives the gradient at that one point rather than everywhere.',
+                ),
+              ],
+              'evaluate-derivative',
+            ),
             ask('df-evaluate-steps'),
             teach(
               {
@@ -106,7 +133,7 @@ export const differentiation: Course = {
                 text: 'Neither is a rule to memorise separately — they are the power rule applied to $x^{1}$ and $x^{0}$. Whenever a case looks special, check whether writing it as a power makes it ordinary.',
               },
             ),
-            ask('power-rule+choice'),
+            ask('evaluate-derivative', 2),
             ask('df-evaluate-steps+choice'),
           ],
           skillCheck: [ask('power-rule', 2), ask('power-rule'), ask('power-rule', 2)],
@@ -135,8 +162,15 @@ export const differentiation: Course = {
               },
             ),
             ask('sum-rule'),
-            ask('sum-rule'),
             ask('sum-rule+choice'),
+            askAfter(
+              [
+                prose(
+                  'Term by term means every term is a power-rule question in its own right. Here is one of them on its own, in two pieces.',
+                ),
+              ],
+              'df-power-tiles',
+            ),
             teach(
               {
                 kind: 'prose',
@@ -152,8 +186,15 @@ export const differentiation: Course = {
                 text: 'A constant *multiplier* is a different matter and does survive: $\\frac{d}{dx}(5x^{2}) = 10x$. Multiplying stretches the curve vertically and so does change its gradient, where adding merely lifts it.',
               },
             ),
-            ask('sum-rule', 2),
-            ask('sum-rule', 2),
+            ask('df-power-tiles', 2),
+            askAfter(
+              [
+                prose(
+                  'With no constant term to lose, the derivative below is the whole of what the sum rule leaves behind. A value has already been put into it: work down the tree, doing each piece in the order the arithmetic allows.',
+                ),
+              ],
+              'df-gradient-tree',
+            ),
             teach(
               {
                 kind: 'prose',
@@ -192,6 +233,7 @@ export const differentiation: Course = {
               },
             ),
             ask('df-evaluate-steps'),
+            ask('df-gradient-tree', 2),
             ask('df-evaluate-steps+choice'),
           ],
           skillCheck: [ask('sum-rule', 2), ask('sum-rule+choice', 2), ask('sum-rule')],
@@ -216,9 +258,16 @@ export const differentiation: Course = {
                 text: 'For example, $\\frac{4}{x^{3}} = 4x^{-3}$ differentiates to $-12x^{-4}$, which is $-\\frac{12}{x^{4}}$ written back as a fraction.',
               },
             ),
+            ask('df-index-rewrite'),
             ask('df-index-form'),
-            ask('df-index-form'),
-            ask('df-index-form+choice'),
+            askAfter(
+              [
+                prose(
+                  'Once it has been rewritten, it is an ordinary power and nothing about the rule changes. Here is that step on its own.',
+                ),
+              ],
+              'df-power-tiles',
+            ),
             teach(
               {
                 kind: 'prose',
@@ -230,8 +279,16 @@ export const differentiation: Course = {
                 text: 'The power goes from $-3$ to $-4$, never to $-2$ — reducing by one always moves further from zero here. A positive answer for a reciprocal is wrong on sight: for positive $x$, $\\frac{1}{x^{n}}$ falls as $x$ grows, so its gradient there is negative.',
               },
             ),
-            ask('df-index-form', 2),
-            ask('df-index-form+choice', 2),
+            ask('df-index-rewrite', 2),
+            askAfter(
+              [
+                prose(
+                  'The same sign to watch, with no fraction in the way: a negative power comes down as a negative multiplier and then gets one more negative.',
+                ),
+              ],
+              'power-rule',
+              2,
+            ),
             teach(
               {
                 kind: 'prose',
@@ -243,7 +300,8 @@ export const differentiation: Course = {
                 text: 'Either the index-form answer or the answer written back as a fraction under a root is accepted — the checker compares values, not the shape they are written in.',
               },
             ),
-            ask('df-index-form', 2),
+            ask('df-index-form+choice', 2),
+            ask('df-power-tiles', 2),
             ask('power-rule', 2),
           ],
           skillCheck: [ask('df-index-form', 2), ask('df-index-form'), ask('power-rule', 2)],
@@ -293,8 +351,16 @@ export const differentiation: Course = {
                 text: 'The dashed line is that tangent, touching the curve only at the ringed point $(2, 5)$.',
               },
             ),
-            ask('df-tangent-line'),
-            ask('df-tangent-line', 2),
+            ask('evaluate-derivative', 2),
+            ask('df-evaluate-steps'),
+            askAfter(
+              [
+                prose(
+                  'A tangent lies flat exactly where the gradient is zero. Find where that happens on this curve, and slide to it.',
+                ),
+              ],
+              'df-stationary-slider',
+            ),
             teach(
               {
                 kind: 'prose',
@@ -306,8 +372,8 @@ export const differentiation: Course = {
               },
               { kind: 'display', tex: "m = f'(x_{1}) \\qquad c = f(x_{1}) - m x_{1}" },
             ),
-            ask('df-tangent-line+choice', 2),
-            ask('df-evaluate-steps'),
+            ask('df-stationary-slider', 2),
+            ask('df-evaluate-steps+choice'),
           ],
           skillCheck: [ask('df-tangent-line', 2), ask('df-tangent-line'), ask('evaluate-derivative', 2)],
         },
@@ -356,7 +422,7 @@ export const differentiation: Course = {
               { kind: 'display', tex: "\\frac{d}{dx}(uv) = u'v + uv'" },
             ),
             ask('product-rule'),
-            ask('product-rule'),
+            ask('df-product-tiles'),
             ask('product-rule+choice'),
             teach(
               {
@@ -376,8 +442,16 @@ export const differentiation: Course = {
                 text: 'Which factor you call $u$ makes no difference to the answer, since the rule is symmetric in the two. Choosing the messier one as $u$ sometimes keeps the algebra tidier, but nothing is riding on it.',
               },
             ),
-            ask('product-rule', 2),
-            ask('product-rule', 2),
+            askAfter(
+              [
+                prose(
+                  'The two terms stay apart until the very end, so each one can be worked out on its own. Fill the tree below to find the gradient at a point.',
+                ),
+              ],
+              'df-product-tree',
+            ),
+            ask('df-product-tiles', 2),
+            ask('df-product-tree', 2),
             teach(
               {
                 kind: 'prose',
@@ -393,7 +467,16 @@ export const differentiation: Course = {
                 text: 'Expanding is not always possible and rarely stays quicker. Three factors, a fractional power, or anything transcendental and the product rule is the only route — so it is worth being fluent in it even where a shortcut exists.',
               },
             ),
-            ask('product-rule+choice', 2),
+            askAfter(
+              [
+                prose(
+                  'Here is the other route, on an expression that has already been expanded: no product rule needed, just the sum rule term by term.',
+                ),
+              ],
+              'sum-rule',
+              2,
+            ),
+            ask('sum-rule+choice', 2),
           ],
           skillCheck: [ask('product-rule', 2), ask('product-rule'), ask('product-rule+choice', 2)],
         },
@@ -422,7 +505,7 @@ export const differentiation: Course = {
               },
             ),
             ask('quotient-rule'),
-            ask('quotient-rule'),
+            ask('df-quotient-tiles'),
             ask('quotient-rule+choice'),
             teach(
               {
@@ -442,8 +525,15 @@ export const differentiation: Course = {
                 text: 'Do not expand $v^{2}$ unless something will cancel. Leaving the denominator factorised keeps the asymptotes visible and usually makes the next step shorter.',
               },
             ),
-            ask('quotient-rule', 2),
-            ask('quotient-rule', 2),
+            ask('df-quotient-tiles', 2),
+            askAfter(
+              [
+                prose(
+                  'The product rule\'s two terms can be written either way round and the quotient rule\'s cannot. Here is the symmetric one again, to feel the difference.',
+                ),
+              ],
+              'df-product-tiles',
+            ),
             teach(
               {
                 kind: 'prose',
@@ -459,7 +549,9 @@ export const differentiation: Course = {
                 text: 'Which route to take is a matter of what the answer is for. The quotient rule lands directly in the tidy single-fraction form; the product route often leaves something easier to differentiate again.',
               },
             ),
-            ask('quotient-rule+choice', 2),
+            ask('product-rule', 2),
+            ask('df-product-tiles', 2),
+            ask('product-rule+choice', 2),
           ],
           skillCheck: [ask('quotient-rule', 2), ask('quotient-rule'), ask('quotient-rule+choice', 2)],
         },
@@ -505,7 +597,7 @@ export const differentiation: Course = {
               },
             ),
             ask('chain-rule'),
-            ask('chain-rule'),
+            ask('df-chain-tiles'),
             ask('chain-rule+choice'),
             teach(
               {
@@ -525,8 +617,16 @@ export const differentiation: Course = {
                 text: 'Differentiating the inside as well as the outside, and writing $3(2x)^{2}\\cdot 2x$, is the other classic error. Bring the inside down as a multiplier; leave the copy inside the bracket alone.',
               },
             ),
-            ask('chain-rule', 2),
-            ask('chain-rule', 2),
+            askAfter(
+              [
+                prose(
+                  'Each layer has to be finished before the next one can start, which is what the tree below is showing. Work down it to get the gradient at a point.',
+                ),
+              ],
+              'df-chain-tree',
+            ),
+            ask('df-chain-tiles', 2),
+            ask('df-chain-tree', 2),
             teach(
               {
                 kind: 'prose',
@@ -542,7 +642,15 @@ export const differentiation: Course = {
                 text: 'Layers can nest more than two deep, and then the factors simply keep multiplying — one for each layer, working inwards. Peel them one at a time rather than trying to see the whole answer at once.',
               },
             ),
-            ask('chain-rule+choice', 2),
+            askAfter(
+              [
+                prose(
+                  'Picking the right rule is now a question in its own right. Work down the questions and commit to a reason at each fork.',
+                ),
+              ],
+              'df-choose-rule',
+            ),
+            ask('df-choose-rule', 2),
           ],
           skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('chain-rule+choice', 2)],
         },
@@ -566,7 +674,7 @@ export const differentiation: Course = {
               },
             ),
             ask('df-chain-root'),
-            ask('df-chain-root'),
+            ask('df-chain-tiles'),
             ask('df-chain-root+choice'),
             teach(
               {
@@ -582,8 +690,17 @@ export const differentiation: Course = {
                 text: 'Watch two things: the minus sign that comes down with the power, and the power in the denominator, which goes *up* by one rather than down.',
               },
             ),
-            ask('df-chain-root', 2),
-            ask('df-chain-root', 2),
+            askAfter(
+              [
+                prose(
+                  'The same rewrite, with plain $x$ inside instead of a bracket — which is the case where the chain rule factor is $1$ and disappears from view.',
+                ),
+              ],
+              'df-index-rewrite',
+              2,
+            ),
+            ask('df-chain-tiles', 2),
+            ask('chain-rule', 2),
             teach(
               {
                 kind: 'prose',
@@ -598,8 +715,8 @@ export const differentiation: Course = {
                 text: '$\\frac{1}{2x+3}$ can also be differentiated with the quotient rule, treating it as a quotient with numerator $1$ and denominator $2x+3$. The two routes must agree, and checking that they do is a good way to catch a slip.',
               },
             ),
-            ask('df-chain-root+choice', 2),
-            ask('chain-rule', 2),
+            ask('df-chain-tree', 2),
+            ask('chain-rule+choice', 2),
           ],
           skillCheck: [ask('df-chain-root', 2), ask('df-chain-root'), ask('chain-rule', 2)],
         },
@@ -675,7 +792,7 @@ export const differentiation: Course = {
               },
             ),
             ask('trig-derivative'),
-            ask('trig-derivative'),
+            ask('df-standard-tiles'),
             ask('trig-derivative+choice'),
             teach(
               {
@@ -692,8 +809,17 @@ export const differentiation: Course = {
                 text: 'These formulas hold only in radians. In degrees an awkward constant appears, which is the practical reason radians are the default in calculus.',
               },
             ),
-            ask('trig-derivative', 2),
-            ask('trig-derivative', 2),
+            ask('df-standard-tiles', 2),
+            askAfter(
+              [
+                prose(
+                  'That extra multiplier is the chain rule, and it behaves the same way with a bracket on the outside as it does with a sine.',
+                ),
+              ],
+              'chain-rule',
+              2,
+            ),
+            ask('chain-rule+choice', 2),
             teach(
               {
                 kind: 'prose',
@@ -709,7 +835,15 @@ export const differentiation: Course = {
                 text: 'Compare it with $e^{x}$, which returns to itself after *one* step and therefore grows rather than oscillates. The length of the cycle is what decides the behaviour.',
               },
             ),
-            ask('trig-derivative+choice', 2),
+            askAfter(
+              [
+                prose(
+                  'Trigonometric functions join everything else that has been met, so the first question about one is which rule it needs at all.',
+                ),
+              ],
+              'df-choose-rule',
+            ),
+            ask('df-choose-rule', 2),
           ],
           skillCheck: [ask('trig-derivative', 2), ask('trig-derivative'), ask('trig-derivative+choice', 2)],
         },
@@ -760,7 +894,7 @@ export const differentiation: Course = {
               },
             ),
             ask('exp-log-derivative'),
-            ask('exp-log-derivative'),
+            ask('df-standard-tiles'),
             ask('exp-log-derivative+choice'),
             teach(
               {
@@ -773,8 +907,16 @@ export const differentiation: Course = {
                 text: 'A surprising consequence: $\\ln(kx)$ also differentiates to $\\frac{1}{x}$, whatever $k$ is — multiplying inside a log only adds a constant, and constants vanish.',
               },
             ),
-            ask('exp-log-derivative', 2),
-            ask('exp-log-derivative', 2),
+            ask('df-standard-tiles', 2),
+            askAfter(
+              [
+                prose(
+                  'The $k$ that appears in front of $e^{kx}$ is the chain rule\'s inner derivative — the same factor a bracket raised to a power produces.',
+                ),
+              ],
+              'chain-rule',
+              2,
+            ),
             teach(
               {
                 kind: 'prose',
@@ -794,10 +936,12 @@ export const differentiation: Course = {
                 text: 'Differentiating is mechanical in a way that integrating is not: follow the structure and the answer comes out. That reliability is what makes it worth drilling until it is automatic.',
               },
             ),
-            // The last slide of the lesson: every rule has now been taught,
-            // so the last question is choosing between them rather than
-            // running one that has already been named.
+            // The last three slides of the lesson: every rule has now been
+            // taught, so the closing questions are about choosing between
+            // them rather than running one that has already been named.
             ask('df-choose-rule'),
+            ask('df-choose-rule', 2),
+            ask('chain-rule+choice', 2),
           ],
           skillCheck: [
             ask('exp-log-derivative', 2),
@@ -822,7 +966,7 @@ export const differentiation: Course = {
               },
             ),
             ask('df-product-mixed'),
-            ask('df-product-mixed'),
+            ask('df-standard-tiles'),
             ask('df-product-mixed+choice'),
             teach(
               {
@@ -838,8 +982,17 @@ export const differentiation: Course = {
                 text: 'Either the expanded or the factorised form is accepted — the checker compares values, not the shape they are written in. With cosine instead, the same assembly puts the minus sign on the second term only, exactly where cosine was differentiated.',
               },
             ),
-            ask('df-product-mixed', 2),
-            ask('df-product-mixed', 2),
+            ask('df-standard-tiles', 2),
+            askAfter(
+              [
+                prose(
+                  'The two terms of a product-rule answer never meet until the last step, whatever is inside them. Work down the tree for the gradient at a point.',
+                ),
+              ],
+              'df-product-tree',
+              2,
+            ),
+            ask('df-choose-rule'),
             teach(
               {
                 kind: 'prose',
@@ -855,8 +1008,16 @@ export const differentiation: Course = {
               },
               { kind: 'display', tex: "\\frac{d}{dx}(uv) = u'v + uv'" },
             ),
-            ask('df-product-mixed+choice', 2),
             ask('df-choose-rule', 2),
+            askAfter(
+              [
+                prose(
+                  'And one where the outer structure is all there is: two ordinary factors, so the product rule on its own finishes it.',
+                ),
+              ],
+              'product-rule',
+              2,
+            ),
           ],
           skillCheck: [ask('df-product-mixed', 2), ask('df-product-mixed'), ask('df-product-mixed+choice', 2)],
         },

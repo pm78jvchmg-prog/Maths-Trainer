@@ -21,6 +21,13 @@
  * can stop someone editing a list, but adding an entry now means raising a
  * number whose comment says it only goes down, in the same diff, where a
  * reviewer sees it.
+ *
+ * Neither list is meant to survive phase A. When one reaches zero the suite
+ * says so and fails until the list, its ceiling and the guard's use of it are
+ * deleted — see `retires an allowlist once it is empty` in
+ * `generators.test.ts`. An empty list left in place is still a guard with an
+ * exception in it, and re-populating it would cost one line rather than a
+ * raised ceiling.
  */
 
 /** Distinct widget kinds a lesson's exercises must offer between them. */
@@ -58,13 +65,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'tf-l1-shift': 2,
   'tf-l2-speed': 2,
   'tf-l3-period-shift': 2,
-  'lg-l1-meaning': 2,
-  'lg-l1-domain': 2,
-  'lg-l2-combine': 2,
-  'lg-l3-exponential': 2,
-  'lg-l3-natural': 2,
-  'lg-l3-growth': 2,
-  'lg-l3-models': 2,
   'cn-l1-arithmetic': 2,
   'cn-l1-complex': 2,
   'cn-l1-quadratics': 2,
@@ -94,16 +94,17 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 44;
+export const WIDGET_KIND_CEILING = 37;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
  * how many times the worst offender is asked today.
  *
- * Far longer than the widget-kind list — it started at 102 of the 105 lessons —
+ * Far longer than the widget-kind list — it started at 102 of 105 lessons —
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
- * progress is measured, and batch A3 took the twelve `er-` lessons off it.
+ * progress is measured. Logarithms left both lists in batch A5, and Exponents
+ * & Radicals left both in A3.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
   'qd-l1-expand': 7,
@@ -131,18 +132,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'tf-l3-amplitude-shift': 3,
   'tf-l3-period-shift': 3,
   'tf-l3-period-formula': 6,
-  'lg-l1-meaning': 4,
-  'lg-l1-evaluate': 5,
-  'lg-l1-solve': 5,
-  'lg-l1-domain': 5,
-  'lg-l2-add': 3,
-  'lg-l2-power': 3,
-  'lg-l2-combine': 7,
-  'lg-l2-equations': 5,
-  'lg-l3-exponential': 7,
-  'lg-l3-natural': 6,
-  'lg-l3-growth': 6,
-  'lg-l3-models': 3,
   'cn-l1-arithmetic': 5,
   'cn-l1-complex': 4,
   'cn-l1-quadratics': 6,
@@ -199,4 +188,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 90;
+export const GENERATOR_REPETITION_CEILING = 78;

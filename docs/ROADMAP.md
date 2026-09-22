@@ -22,8 +22,9 @@ itself, so that no thread ever has to stop and ask what is next.
 
 ## 1. What exists today
 
-8 courses, 26 levels, 105 lessons, 147 generators (247 ids once the derived
-`+choice` variants are counted).
+8 courses, 26 levels, 105 lessons, 155 generators (255 ids once the derived
+`+choice` variants are counted). Written against 147 and 247; batch A5 added
+the eight new logarithm shapes.
 
 | Concept | Category | Levels | Lessons | Toward 30 |
 | --- | --- | --- | ---: | ---: |
@@ -65,40 +66,46 @@ The owner's complaint about repetitive question styles is measurable, and it is
 not about repeated numbers — deck resolution already de-duplicates identical
 renderings within a lesson. It is about repeated **widgets**:
 
-| Distinct widget kinds among a lesson's exercises | Lessons |
-| ---: | ---: |
-| 2 | 47 |
-| 3 | 24 |
-| 4 | 33 |
-| 5 | 1 |
+| Distinct widget kinds among a lesson's exercises | Lessons, as written | After A5 |
+| ---: | ---: | ---: |
+| 2 | 47 | 40 |
+| 3 | 24 | 23 |
+| 4 | 33 | 34 |
+| 5 | 1 | 5 |
+| 6 | 0 | 3 |
 
-**Forty-seven lessons — nearly half — ask their questions through only two
+**Forty-seven lessons — nearly half — asked their questions through only two
 widgets.** Worse, 22 lessons lean on a single generator for 5 of their 7
 exercises; `qd-l1-expand`, `qd-l1-factorise`, `lg-l2-combine`, `in-l1-powers`,
 `vm-l1-components` and `vm-l2-add` each ask one generator five times in a row.
 Those lessons read as the same question five times even though no two questions
 are numerically identical.
 
+Batch A5 took all twelve Logarithms lessons off both counts, which is the
+column on the right. The 12 lessons that now clear the repetition rule are
+`lg-*` plus the three that already did.
+
 The widget inventory is not the constraint. There are nine exercise widgets and
 the generators use them very unevenly:
 
-| Widget | Generators |
-| --- | ---: |
-| `choice` | 102 |
-| `expression` | 85 |
-| `tiles` | 19 |
-| `reduce` | 16 |
-| `evaluate` | 16 |
-| `plot` | 3 |
-| `flow` | 3 |
-| `slider` | 2 |
-| `steps` | 1 |
-| `tree` | **0** |
+| Widget | Generators, as written | After A5 |
+| --- | ---: | ---: |
+| `choice` | 102 | 103 |
+| `expression` | 85 | 86 |
+| `tiles` | 19 | 22 |
+| `reduce` | 16 | 16 |
+| `evaluate` | 16 | 16 |
+| `plot` | 3 | 3 |
+| `flow` | 3 | 6 |
+| `slider` | 2 | 3 |
+| `steps` | 1 | 1 |
+| `tree` | **0** | 1 |
 
-`tree` is fully implemented in `src/ui/workingSlides.tsx`, graded by
-`gradeSequence`, and **no generator produces one**. `steps` has exactly one. Two
-of the four widgets that show working rather than a final answer are effectively
-unused, which is the single cheapest source of shape variety available.
+`tree` was fully implemented in `src/ui/workingSlides.tsx`, graded by
+`gradeSequence`, and **no generator produced one** until A5 wrote `log-tree`.
+`steps` still has exactly one, which is A2's job. Two of the four widgets that
+show working rather than a final answer were effectively unused, which is the
+single cheapest source of shape variety available.
 
 Six registered generator ids are also asked by no lesson:
 `idx-evaluate-multiply`, `conjugate-recover+choice`, `divide-reverse+choice`,
@@ -247,21 +254,50 @@ two-widget habit would multiply the problem the owner actually complained about.
 | ---: | --- | --- | --- |
 | A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
 | A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
-| A3 | Widen Exponents & Radicals | claimed (`claude/roadmap-a3-vrqpoj`) | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
+| A3 | Widen Exponents & Radicals | **done** (`claude/roadmap-a3-vrqpoj`) | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
-| A5 | Widen Logarithms | open | Same bar, all 12 `lg-` lessons |
+| A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
-| A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
+| A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
-more than twice" rule, counted by family, catches **102 of the 105** — a seven
+more than twice" rule, counted by family, caught **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
-empties both.
+empties both. A5 brought them to **40** and **90**; A3 then took the twelve
+`er-` lessons off both, leaving **37** and **78**.
+
+One thing A5 found that the later batches should budget for: a lesson at the
+bar needs **at least four generator families**, since eight exercises at two
+asks each is four. Every phase A batch is therefore partly a generator batch,
+whatever its row says — Logarithms needed eight new ones to widen twelve
+lessons, and Exponents & Radicals needed twelve.
+
+A3 found the second constraint, which is arithmetic the rows do not state: the
+suite caps a lesson at **11 slides in total**, so eight exercises leaves room
+for exactly three teaching slides. A lesson that already has four has to fold
+one into the `leadIn` of the question it sets up, or lose it.
+
+A3 also found a trap in the `tiles` widget worth writing down once. Its
+template is split on `{0}`, `{1}`, … so **any brace round a bare number is read
+as a blank marker** — `x^{5}`, `\sqrt{9}` and `\frac{2}{3}` all tear the TeX in
+half, and a blank cannot sit inside a superscript either, since the `x^`
+fragment left behind is not valid on its own. The convention that survives all
+of it: the question goes in the prompt, where braces are free, and the template
+holds only whole tokens separated by literal text.
+
+A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
+allowlist entry belongs to one of those batches. A11 is therefore the **last**
+row of phase A rather than a parallel one — the commit that deletes the two
+lists, their ceilings and the guard's use of them once the widening batches have
+emptied them. Until then its job is to keep the ratchet honest, and `npm test`
+now prints what each course still has outstanding so the burn-down is visible
+per batch rather than as one falling total. An emptied list that is left in
+place fails the suite, so the deletion cannot be forgotten.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

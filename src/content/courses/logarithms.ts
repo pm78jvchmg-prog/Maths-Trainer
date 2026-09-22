@@ -64,8 +64,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-to-index'),
+            ask('log-from-index'),
             ask('log-evaluate'),
-            ask('log-to-index'),
             teach(
               prose(
                 'Converting between the two forms is the single most useful move in the topic, and it is worth doing automatically.',
@@ -78,8 +78,9 @@ export const logarithms: Course = {
                 'The usual confusion is which number goes where. The logarithm is never the result — it is the power. $\\log_{2}\\left(32\\right)$ is 5, not 32 and not 16.',
               ),
             ),
+            ask('log-from-index'),
             ask('log-to-index'),
-            ask('log-evaluate'),
+            ask('log-tree'),
             teach(
               prose('Two values come free, whatever the base.'),
               maths('\\log_{b}\\left(1\\right) = 0 \\qquad \\log_{b}\\left(b\\right) = 1'),
@@ -90,8 +91,8 @@ export const logarithms: Course = {
                 'Base 10 is common enough that it is often written with no base at all, and base $e$ has a symbol of its own, $\\ln$. Level 3 is about that one.',
               ),
             ),
-            ask('log-sum-tree'),
             ask('log-evaluate'),
+            ask('log-sum-tree'),
           ],
           skillCheck: [ask('log-to-index', 2), ask('log-to-index', 2), ask('log-evaluate', 2)],
         },
@@ -115,8 +116,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-evaluate'),
-            ask('log-evaluate'),
             ask('log-evaluate+choice'),
+            ask('log-chain-steps'),
             teach(
               prose('Sometimes the argument is not an obvious power, and breaking it up helps.'),
               maths('\\log_{2}\\left(4096\\right)'),
@@ -127,8 +128,9 @@ export const logarithms: Course = {
                 'Splitting the argument into familiar powers beats counting up from the base as soon as the numbers get large.',
               ),
             ),
-            ask('log-evaluate'),
-            ask('log-chain-steps'),
+            ask('log-from-index'),
+            ask('log-tree'),
+            ask('log-chain-steps+choice'),
             teach(
               prose('Negative answers happen whenever the argument is smaller than 1.'),
               maths('\\log_{2}\\left(\\frac{1}{8}\\right) = -3'),
@@ -139,8 +141,8 @@ export const logarithms: Course = {
                 'So the sign of a logarithm says which side of 1 the argument lies on: positive above, zero at 1, negative below.',
               ),
             ),
-            ask('log-evaluate+choice'),
-            ask('log-chain-steps+choice'),
+            ask('log-from-index'),
+            ask('log-tree'),
           ],
           skillCheck: [ask('log-evaluate', 2), ask('log-evaluate', 2), ask('log-evaluate', 2)],
         },
@@ -159,8 +161,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-solve-simple'),
-            ask('log-solve-simple'),
             ask('log-solve-simple+choice'),
+            ask('log-from-index'),
             teach(
               prose('The same conversion works when it is the base that is unknown.'),
               maths('\\log_{x}\\left(125\\right) = 3 \\iff x^{3} = 125 \\iff x = 5'),
@@ -170,8 +172,9 @@ export const logarithms: Course = {
                 'Three different-looking problems, one method: write the index form and read off whatever is missing.',
               ),
             ),
-            ask('log-solve-simple'),
             ask('log-chain-steps'),
+            ask('log-from-index'),
+            ask('log-tree'),
             teach(
               prose('Always check the answer keeps the logarithm defined.'),
               prose(
@@ -182,8 +185,8 @@ export const logarithms: Course = {
                 'Here 25 is positive, so there is nothing to discard. The next lesson is about why that check is not a formality.',
               ),
             ),
-            ask('log-solve-simple+choice'),
             ask('log-chain-steps+choice'),
+            ask('log-tree'),
           ],
           skillCheck: [
             ask('log-solve-simple', 2),
@@ -211,8 +214,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-domain'),
+            ask('log-domain-flow'),
             ask('log-evaluate'),
-            ask('log-domain'),
             teach(
               prose('The base has restrictions too: it must be positive, and it must not be 1.'),
               maths('1^{x} = 1 \\quad \\text{for every } x'),
@@ -224,7 +227,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-domain'),
-            ask('log-domain'),
+            ask('log-domain-flow'),
+            ask('log-tree'),
             teach(
               prose(
                 'This is why solving a log equation ends with a check rather than an answer.',
@@ -237,8 +241,8 @@ export const logarithms: Course = {
                 'Substituting back into the original is the only reliable check, and it takes one line.',
               ),
             ),
-            ask('log-domain'),
             ask('log-evaluate'),
+            ask('log-tree'),
           ],
           skillCheck: [ask('log-domain', 2), ask('log-domain', 2), ask('log-domain', 2)],
         },
@@ -281,7 +285,7 @@ export const logarithms: Course = {
             ),
             ask('log-arithmetic'),
             ask('log-combine'),
-            ask('log-arithmetic'),
+            ask('log-law-flow'),
             teach(
               prose('Dividing powers subtracts their indices, which gives the second law.'),
               maths(
@@ -294,8 +298,9 @@ export const logarithms: Course = {
                 'Adding the arguments is the error to guard against. $\\log\\left(8\\right) + \\log\\left(4\\right)$ is $\\log\\left(32\\right)$, not $\\log\\left(12\\right)$ — the logarithms add, and that is exactly why the arguments multiply.',
               ),
             ),
-            ask('log-chain-steps'),
-            ask('log-combine'),
+            ask('log-arithmetic'),
+            ask('log-split'),
+            ask('log-law-flow'),
             teach(
               prose('Both laws need the *same base* on every term. Without that nothing can be combined.'),
               maths('\\log_{2}\\left(8\\right) + \\log_{3}\\left(9\\right)'),
@@ -306,8 +311,8 @@ export const logarithms: Course = {
                 'So the first thing to check on any combining question is whether the bases match. If they do not, the laws are simply not available.',
               ),
             ),
-            ask('log-combine'),
-            ask('log-chain-steps+choice'),
+            ask('log-combine+choice'),
+            ask('log-split'),
           ],
           skillCheck: [ask('log-arithmetic', 2), ask('log-arithmetic', 2), ask('log-combine', 2)],
         },
@@ -329,8 +334,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-power-rule'),
-            ask('log-combine'),
-            ask('log-power-rule'),
+            ask('log-power-steps'),
+            ask('log-split'),
             teach(
               prose('The index becomes a multiplier, not a power of the logarithm.'),
               maths('\\log_{2}\\left(8^{4}\\right) = 4\\log_{2}\\left(8\\right) = 4 \\times 3 = 12'),
@@ -342,7 +347,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-power-rule'),
-            ask('log-power-steps'),
+            ask('log-power-steps+choice'),
+            ask('log-combine'),
             teach(
               prose('Two useful consequences fall out at once.'),
               maths(
@@ -355,8 +361,8 @@ export const logarithms: Course = {
                 'Recognising roots and reciprocals as indices before starting is what makes these questions short.',
               ),
             ),
-            ask('log-power-steps+choice'),
-            ask('log-combine'),
+            ask('log-law-flow'),
+            ask('log-combine+choice'),
           ],
           skillCheck: [ask('log-power-rule', 2), ask('log-power-rule', 2), ask('log-combine', 2)],
         },
@@ -380,8 +386,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-combine'),
-            ask('log-combine'),
-            ask('log-combine+choice'),
+            ask('log-law-flow'),
+            ask('log-combine-steps'),
             teach(
               prose('Subtraction and negative coefficients behave as expected once the coefficients are cleared.'),
               maths('3\\log\\left(2\\right) - \\log\\left(4\\right) = \\log\\left(8\\right) - \\log\\left(4\\right) = \\log\\left(2\\right)'),
@@ -392,8 +398,9 @@ export const logarithms: Course = {
                 'Check numerically whenever the arguments are small. Here $\\log\\left(2\\right)$ is clearly right because $\\frac{8}{4} = 2$.',
               ),
             ),
-            ask('log-combine'),
-            ask('log-combine-steps'),
+            ask('log-split'),
+            ask('log-law-flow'),
+            ask('log-arithmetic'),
             teach(
               prose(
                 'The reverse direction — splitting one logarithm into several — is the same three laws read backwards, and it appears just as often.',
@@ -406,8 +413,8 @@ export const logarithms: Course = {
                 'What cannot be split is a sum *inside* a logarithm. $\\log\\left(m + n\\right)$ does not break up at all, and treating it as though it does is the most serious error in the topic.',
               ),
             ),
-            ask('log-combine+choice'),
-            ask('log-combine'),
+            ask('log-split'),
+            ask('log-power-rule'),
           ],
           skillCheck: [ask('log-combine', 2), ask('log-combine', 2), ask('log-combine', 2)],
         },
@@ -429,8 +436,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-laws-equation'),
+            ask('log-law-flow'),
             ask('log-power-steps'),
-            ask('log-laws-equation'),
             teach(
               prose(
                 'When the unknown appears twice inside logarithms, combining produces a product or a quotient — and often a quadratic.',
@@ -444,7 +451,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-laws-equation'),
-            ask('log-laws-equation'),
+            ask('log-split'),
+            ask('log-law-flow'),
             teach(
               prose(
                 'When both sides are a single logarithm to the same base, the arguments must be equal — and the logarithms disappear entirely.',
@@ -457,8 +465,8 @@ export const logarithms: Course = {
                 'The full method, in order: clear coefficients, combine to one logarithm on each side, then either equate the arguments or convert to index form. Then check the domain.',
               ),
             ),
-            ask('log-laws-equation'),
             ask('log-power-steps+choice'),
+            ask('log-combine'),
           ],
           skillCheck: [
             ask('log-laws-equation', 2),
@@ -504,8 +512,8 @@ export const logarithms: Course = {
               maths('x = \\frac{\\ln\\left(30\\right)}{\\ln\\left(2\\right)}'),
             ),
             ask('log-solve-exponential'),
-            ask('log-solve-exponential'),
-            ask('log-solve-exponential+choice'),
+            ask('log-exponential-tiles'),
+            ask('log-method-flow'),
             teach(
               prose(
                 'Any base will do for the logarithms you take, provided the same one is used on both sides. The answer comes out the same.',
@@ -518,8 +526,9 @@ export const logarithms: Course = {
               ),
               maths('\\log_{a}\\left(c\\right) = \\frac{\\log_{b}\\left(c\\right)}{\\log_{b}\\left(a\\right)}'),
             ),
-            ask('log-solve-exponential'),
-            ask('log-solve-exponential'),
+            ask('log-decay-slider'),
+            ask('log-solve-exponential+choice'),
+            ask('log-exponential-tiles'),
             teach(
               prose(
                 'The answer is a quotient of logarithms, not the logarithm of a quotient. Those are different numbers.',
@@ -532,8 +541,8 @@ export const logarithms: Course = {
                 'No law turns a quotient of logarithms into anything simpler. Leaving it as it stands *is* the exact answer.',
               ),
             ),
-            ask('log-solve-exponential+choice'),
-            ask('log-solve-exponential'),
+            ask('log-method-flow'),
+            ask('log-decay-slider'),
           ],
           skillCheck: [
             ask('log-solve-exponential', 2),
@@ -559,8 +568,8 @@ export const logarithms: Course = {
               maths('\\ln\\left(e^{y}\\right) = y \\qquad e^{\\ln\\left(y\\right)} = y'),
             ),
             ask('log-natural'),
-            ask('log-natural'),
             ask('log-natural+choice'),
+            ask('log-exponential-tiles'),
             teach(
               prose(
                 'So an equation built on $e$ is solved by taking natural logarithms, and the exponential simply vanishes.',
@@ -573,8 +582,9 @@ export const logarithms: Course = {
                 'Divide the whole logarithm by the coefficient, not part of it: $\\frac{\\ln\\left(20\\right)}{3}$ is not $\\ln\\left(\\frac{20}{3}\\right)$.',
               ),
             ),
-            ask('log-natural'),
-            ask('log-natural'),
+            ask('log-decay-slider'),
+            ask('log-method-flow'),
+            ask('log-exponential-tiles'),
             teach(
               prose(
                 'A negative coefficient means decay rather than growth, and a negative answer is then ordinary.',
@@ -587,8 +597,8 @@ export const logarithms: Course = {
                 'Leave the logarithm in place unless a decimal is asked for. $\\ln\\left(5\\right)$ is exact; 1.609 is rounded, and rounding early spoils everything done afterwards.',
               ),
             ),
-            ask('log-natural+choice'),
             ask('log-solve-exponential'),
+            ask('log-decay-slider'),
           ],
           skillCheck: [ask('log-natural', 2), ask('log-natural', 2), ask('log-natural', 2)],
         },
@@ -610,8 +620,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-growth'),
-            ask('log-growth'),
             ask('log-growth+choice'),
+            ask('log-decay-slider'),
             teach(
               prose('Then take logarithms and divide, exactly as before.'),
               maths('t > \\frac{\\ln\\left(100\\right)}{\\ln\\left(3\\right)} \\approx 4.19'),
@@ -622,8 +632,9 @@ export const logarithms: Course = {
                 'Rounding the wrong way is the characteristic error in every question of this shape. At $t = 4$ the quantity is still below the threshold, so 4 is not an answer — round *up*.',
               ),
             ),
-            ask('log-growth'),
-            ask('log-growth'),
+            ask('log-method-flow'),
+            ask('log-natural'),
+            ask('log-decay-slider'),
             teach(
               prose(
                 'Decay works the same way with a factor below 1, and the inequality reverses along the way.',
@@ -636,8 +647,8 @@ export const logarithms: Course = {
                 'Checking against the original inequality is the safest habit. Substituting the whole numbers either side of the exact value settles which one is wanted.',
               ),
             ),
-            ask('log-growth+choice'),
-            ask('log-natural'),
+            ask('log-exponential-tiles'),
+            ask('log-method-flow'),
           ],
           skillCheck: [ask('log-growth', 2), ask('log-growth', 2), ask('log-growth', 2)],
         },
@@ -661,8 +672,8 @@ export const logarithms: Course = {
               ),
             ),
             ask('log-growth', 2),
-            ask('log-growth', 2),
             ask('log-natural+choice', 2),
+            ask('log-decay-slider', 2),
             teach(
               prose(
                 'Once the model is written down the method is fixed: substitute, divide out the starting value, take logarithms, divide.',
@@ -676,7 +687,8 @@ export const logarithms: Course = {
               prose('A decay model is identical with a multiplier below 1: a 4% annual fall is a multiplier of 0.96.'),
             ),
             ask('log-solve-exponential', 2),
-            ask('log-growth', 2),
+            ask('log-method-flow', 2),
+            ask('log-growth+choice', 2),
             teach(
               prose('Two checks catch most mistakes in questions of this kind.'),
               prose(
@@ -687,8 +699,8 @@ export const logarithms: Course = {
                 'Second, is it the right sign? Growth towards a larger target gives a positive time; anything negative means the model or the target has been read backwards.',
               ),
             ),
-            ask('log-natural+choice', 2),
-            ask('log-solve-exponential', 2),
+            ask('log-decay-slider', 2),
+            ask('log-method-flow', 2),
           ],
           skillCheck: [ask('log-growth', 2), ask('log-natural', 2), ask('log-solve-exponential', 2)],
         },

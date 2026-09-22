@@ -417,6 +417,7 @@ are green, and one new lesson has been played in a browser.
 | B1 | Exponents & Radicals: Standard Form | **done** (`claude/roadmap-b-exponents-radicals-8sklxv`): level `er-l4`, 5 lessons, a 14-question level check, 17 new generators |
 | B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
 | B4 | Trigonometric Functions: Radians | **done** (`claude/roadmap-b-trig-functions-dt6rsq`): level `tf-l4`, 4 lessons, a 15-question level check, 16 new generators |
+| B8 | Vectors: Vector Geometry | **done** (`claude/roadmap-b-vectors-k0aou4`): level `vm-l4`, 5 lessons, a 14-question level check, 19 new generators |
 | B9 | Matrices & Linear Transformations: Matrices as Transformations | **done** (`claude/roadmap-b-matrices-fcu036`): level `vm-l5`, 5 lessons, a 15-question level check, 15 new generators and a unit-square figure |
 
 ### Phase C — the twenty-one new concepts

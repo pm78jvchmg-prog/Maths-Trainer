@@ -1,17 +1,24 @@
 /**
  * Vectors.
  *
- * One level today: vectors as components, through the scalar product and what
+ * Level 1 is vectors as components, through the scalar product and what
  * it says about direction. Split out of the old Vectors & Matrices course,
  * which was two subjects sharing a title — neither half reaches thirty lessons
  * while they share one, and a learner looking for matrices should not have to
  * know they live under a heading that starts with vectors.
  *
  * Lesson ids keep their `vm-` prefix so that progress recorded against the
- * combined course survives the split.
+ * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`:
+ * `vm-l2` and `vm-l3` are the Matrices course's, and `vm-l5` is kept for its
+ * next level.
  *
- * The level closes with a level check: twelve questions, no teaching slides,
- * one attempt each.
+ * Level 4 turns vectors into a way of saying where points are: position
+ * vectors, a point part-way along a line, three points on one line, the
+ * corners of a parallelogram, and last the same reasoning in terms of
+ * $\mathbf{a}$ and $\mathbf{b}$ with no numbers at all.
+ *
+ * Each level closes with a level check: twelve or fourteen questions, no
+ * teaching slides, one attempt each.
  */
 import type { Course, SlideRef } from '../types';
 
@@ -41,7 +48,7 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
 export const vectors: Course = {
   id: 'vectors',
   title: 'Vectors',
-  blurb: 'Components, scalar multiples, magnitude, and the scalar product.',
+  blurb: 'Components, magnitude and the scalar product, then vector geometry.',
   levels: [
     {
       id: 'vm-l1',
@@ -308,6 +315,308 @@ export const vectors: Course = {
         ask('vec-dot', 2),
         ask('vec-perpendicular-k', 2),
         ask('vec-angle', 2),
+      ],
+    },
+    {
+      id: 'vm-l4',
+      title: 'Vector Geometry',
+      lessons: [
+        {
+          id: 'vm-l4-position',
+          title: 'Position Vectors',
+          slides: [
+            teach(
+              prose(
+                'The **position vector** of a point is the vector from the origin $O$ to it. It carries the same two numbers as the point.',
+              ),
+              maths(
+                'A\\left(3, 2\\right) \\implies \\mathbf{a} = \\overrightarrow{OA} = \\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix}',
+              ),
+              prose(
+                'Lower-case bold is the usual name: $\\mathbf{a}$ for $A$, $\\mathbf{p}$ for $P$.',
+              ),
+              prose(
+                'The vector **between** two points is destination minus start. From $A$, go back to $O$, which is $-\\mathbf{a}$, then out to $B$, which is $\\mathbf{b}$.',
+              ),
+              maths('\\overrightarrow{AB} = -\\mathbf{a} + \\mathbf{b} = \\mathbf{b} - \\mathbf{a}'),
+            ),
+            ask('vec-between'),
+            ask('vec-direction'),
+            ask('vec-between-slider'),
+            teach(
+              prose(
+                'On squared paper, $\\overrightarrow{AB}$ is how far you move from $A$ to reach $B$: across, then up. Counting squares and subtracting coordinates are the same calculation.',
+              ),
+              maths(
+                'A\\left(-1, 4\\right), \\; B\\left(3, 1\\right) \\implies \\overrightarrow{AB} = \\begin{pmatrix} 3 - \\left(-1\\right) \\\\ 1 - 4 \\end{pmatrix} = \\begin{pmatrix} 4 \\\\ -3 \\end{pmatrix}',
+              ),
+              prose(
+                'The same equation run the other way finds a point. Knowing one end and the journey between them gives the other end.',
+              ),
+              maths('\\mathbf{b} = \\mathbf{a} + \\overrightarrow{AB} \\qquad \\mathbf{a} = \\mathbf{b} - \\overrightarrow{AB}'),
+            ),
+            ask('vec-endpoint'),
+            ask('vec-between+choice'),
+            ask('vec-between-slider'),
+            teach(
+              prose(
+                'Reversing a journey negates it: $\\overrightarrow{BA} = \\mathbf{a} - \\mathbf{b} = -\\overrightarrow{AB}$. The same length, pointing the other way.',
+              ),
+              prose(
+                'Journeys chain. Going from $P$ to $Q$ and then on to $R$ ends in the same place as going straight from $P$ to $R$.',
+              ),
+              maths(
+                '\\overrightarrow{PQ} + \\overrightarrow{QR} = \\left(\\mathbf{q} - \\mathbf{p}\\right) + \\left(\\mathbf{r} - \\mathbf{q}\\right) = \\mathbf{r} - \\mathbf{p} = \\overrightarrow{PR}',
+              ),
+              prose('Where the journey passed through cancels out. Only the start and the end are left.'),
+            ),
+            ask('vec-direction'),
+            ask('vec-endpoint+choice'),
+          ],
+          skillCheck: [
+            ask('vec-between', 2),
+            ask('vec-endpoint', 2),
+            ask('vec-direction', 2),
+          ],
+        },
+        {
+          id: 'vm-l4-ratio',
+          title: 'Dividing a Line',
+          slides: [
+            teach(
+              prose(
+                'The **midpoint** of $AB$ is halfway along it: start at $A$ and go half of $\\overrightarrow{AB}$.',
+              ),
+              maths(
+                '\\mathbf{m} = \\mathbf{a} + \\tfrac{1}{2}\\left(\\mathbf{b} - \\mathbf{a}\\right) = \\tfrac{1}{2}\\left(\\mathbf{a} + \\mathbf{b}\\right)',
+              ),
+              prose(
+                'So each coordinate of the midpoint is the average of the two ends. Halfway between $\\left(2, 7\\right)$ and $\\left(8, -1\\right)$ is $\\left(5, 3\\right)$.',
+              ),
+              prose(
+                'Halving $\\overrightarrow{AB}$ on its own says how far the midpoint is **from $A$**, not where it is. Adding $\\mathbf{a}$ is the step that places it.',
+              ),
+              prose(
+                'Run it backwards to find an end: the second half of the line is the same journey as the first, so $\\mathbf{b} = \\mathbf{m} + \\overrightarrow{AM}$.',
+              ),
+            ),
+            ask('vec-midpoint'),
+            ask('vec-section-fraction'),
+            ask('vec-midpoint+choice'),
+            teach(
+              prose(
+                'A ratio does the same job for any other point. $AP : PB = 2 : 3$ cuts $AB$ into $2 + 3 = 5$ equal parts, with 2 of them between $A$ and $P$.',
+              ),
+              maths(
+                '\\overrightarrow{AP} = \\frac{2}{5}\\overrightarrow{AB} \\qquad \\overrightarrow{PB} = \\frac{3}{5}\\overrightarrow{AB}',
+              ),
+              prose(
+                'The fraction is a part over the **whole**, 5. $\\frac{2}{3}$ compares $AP$ with $PB$, which is a different question with a different answer.',
+              ),
+              prose(
+                'Direction counts too: $\\overrightarrow{PA}$ points back towards $A$, so $\\overrightarrow{PA} = -\\frac{2}{5}\\overrightarrow{AB}$.',
+              ),
+            ),
+            ask('vec-section'),
+            ask('vec-ratio-slider'),
+            ask('vec-section-fraction+choice'),
+            teach(
+              prose(
+                'Worked through, with $A\\left(1, 2\\right)$, $B\\left(10, -4\\right)$ and $AP : PB = 1 : 2$:',
+              ),
+              maths(
+                '\\overrightarrow{AB} = \\begin{pmatrix} 9 \\\\ -6 \\end{pmatrix} \\implies \\overrightarrow{AP} = \\frac{1}{3}\\begin{pmatrix} 9 \\\\ -6 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ -2 \\end{pmatrix} \\implies P = \\left(4, 0\\right)',
+              ),
+              prose(
+                'The first number of the ratio belongs to the part next to $A$. Read it backwards and you land on the point the same distance from the other end.',
+              ),
+            ),
+            ask('vec-section-tree'),
+            ask('vec-ratio-slider'),
+          ],
+          skillCheck: [
+            ask('vec-midpoint', 2),
+            ask('vec-section', 2),
+            ask('vec-section-fraction', 2),
+          ],
+        },
+        {
+          id: 'vm-l4-collinear',
+          title: 'Parallel and Collinear',
+          slides: [
+            teach(
+              prose(
+                'Level 1 met the test for **parallel** vectors: one is a scalar multiple of the other, with the same multiple on every component.',
+              ),
+              maths('\\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix} = -2\\begin{pmatrix} -3 \\\\ 2 \\end{pmatrix}'),
+              prose(
+                'Parallel says two lines point the same way. It does not say they are the same line: opposite sides of a rectangle are parallel and never meet.',
+              ),
+            ),
+            ask('vec-parallel'),
+            ask('vec-scalar-k'),
+            ask('vec-line-test'),
+            teach(
+              prose(
+                'Three points are **collinear** when they lie on one straight line. The test puts two facts together.',
+              ),
+              maths('\\overrightarrow{AC} = k\\,\\overrightarrow{AB}'),
+              prose(
+                'That makes $AB$ and $AC$ parallel, and both start at $A$, so they cannot be two separate parallel lines. They are one line, through all three points.',
+              ),
+              prose(
+                'For $A\\left(1, 1\\right)$, $B\\left(3, 2\\right)$ and $C\\left(7, 4\\right)$: $\\overrightarrow{AB} = \\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}$ and $\\overrightarrow{AC} = \\begin{pmatrix} 6 \\\\ 3 \\end{pmatrix} = 3\\overrightarrow{AB}$, so the three are collinear.',
+              ),
+            ),
+            ask('vec-on-line'),
+            ask('vec-collinear-k'),
+            ask('vec-line-test'),
+            teach(
+              prose(
+                'The same fact finds a missing coordinate. If $C\\left(9, k\\right)$ is on the line through $A\\left(1, 1\\right)$ and $B\\left(3, 2\\right)$, the across components fix the multiple.',
+              ),
+              maths(
+                '\\overrightarrow{AC} = \\begin{pmatrix} 8 \\\\ k - 1 \\end{pmatrix} = 4\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} \\implies k - 1 = 4 \\implies k = 5',
+              ),
+              prose(
+                'The multiple comes from the component you know, and then has to hold for the one you do not.',
+              ),
+            ),
+            ask('vec-on-line'),
+            ask('vec-collinear-k+choice'),
+          ],
+          skillCheck: [
+            ask('vec-collinear-k', 2),
+            ask('vec-on-line', 2),
+            ask('vec-line-test', 2),
+          ],
+        },
+        {
+          id: 'vm-l4-parallelogram',
+          title: 'Parallelograms',
+          slides: [
+            teach(
+              prose(
+                'Two vectors are **equal** when they have the same components: the same length and the same direction, wherever they start.',
+              ),
+              prose(
+                'In a parallelogram $ABCD$, lettered in order round the shape, opposite sides are equal and parallel. As vectors that is one equation, with both sides written going the same way round.',
+              ),
+              maths('\\overrightarrow{AB} = \\overrightarrow{DC}'),
+              prose(
+                'So a missing corner comes from one subtraction. $\\overrightarrow{DC}$ ends at $C$, so $D$ is $C$ with that journey taken off.',
+              ),
+              maths(
+                'A\\left(1, 1\\right), \\; B\\left(5, 2\\right), \\; C\\left(6, 5\\right) \\implies D = C - \\overrightarrow{AB} = \\left(6, 5\\right) - \\begin{pmatrix} 4 \\\\ 1 \\end{pmatrix} = \\left(2, 4\\right)',
+              ),
+            ),
+            ask('vec-fourth-vertex'),
+            ask('vec-between+choice'),
+            ask('vec-fourth-vertex-tree'),
+            teach(
+              prose(
+                'To **prove** a quadrilateral is a parallelogram, one pair of opposite sides equal as vectors is enough. Equal vectors are parallel and the same length at once.',
+              ),
+              prose(
+                'Parallel alone is not enough. If $\\overrightarrow{DC} = 2\\overrightarrow{AB}$, the two sides are parallel but one is twice as long, and the shape is a **trapezium**.',
+              ),
+              prose(
+                'Any corner can be the missing one. Each is its neighbour plus the side opposite, written in the same direction round the shape.',
+              ),
+            ),
+            ask('vec-quad-flow'),
+            ask('vec-between'),
+            teach(
+              prose(
+                'The diagonals of a parallelogram cut each other in half, so the midpoint of $AC$ is also the midpoint of $BD$.',
+              ),
+              maths(
+                '\\tfrac{1}{2}\\left(\\mathbf{a} + \\mathbf{c}\\right) = \\tfrac{1}{2}\\left(\\mathbf{b} + \\mathbf{d}\\right)',
+              ),
+              prose(
+                'With the corners above, both midpoints are $\\left(3.5, 3\\right)$. Finding where the diagonals cross is a midpoint question, and it doubles as a check on a corner you have just found.',
+              ),
+            ),
+            ask('vec-midpoint'),
+            ask('vec-quad-flow'),
+            ask('vec-midpoint+choice'),
+          ],
+          skillCheck: [
+            ask('vec-fourth-vertex', 2),
+            ask('vec-quad-flow', 2),
+            ask('vec-midpoint', 2),
+          ],
+        },
+        {
+          id: 'vm-l4-paths',
+          title: 'Vector Paths',
+          slides: [
+            teach(
+              prose(
+                'Vector geometry often has no coordinates at all. Two vectors are named, $\\overrightarrow{OA} = \\mathbf{a}$ and $\\overrightarrow{OB} = \\mathbf{b}$, and everything else is written in terms of them.',
+              ),
+              prose(
+                'The method is to find a **route**: a chain of journeys you already know. Going along a known vector backwards is its negative.',
+              ),
+              maths('\\overrightarrow{AB} = \\overrightarrow{AO} + \\overrightarrow{OB} = -\\mathbf{a} + \\mathbf{b}'),
+              prose(
+                'Type $\\mathbf{a}$ and $\\mathbf{b}$ with the $a$ and $b$ keys. The route itself or its tidied form is accepted, so $\\frac{1}{2}\\left(\\mathbf{a} + \\mathbf{b}\\right)$ and $\\frac{1}{2}\\mathbf{a} + \\frac{1}{2}\\mathbf{b}$ both count.',
+              ),
+            ),
+            ask('vec-direction'),
+            ask('vec-path'),
+            ask('vec-path-coefficients'),
+            teach(
+              prose(
+                'A point on $AB$ is reached the same way: out to $A$, then the right fraction of the way along $\\overrightarrow{AB}$. With $AP : PB = 1 : 2$:',
+              ),
+              maths(
+                '\\overrightarrow{OP} = \\mathbf{a} + \\tfrac{1}{3}\\left(\\mathbf{b} - \\mathbf{a}\\right) = \\tfrac{2}{3}\\mathbf{a} + \\tfrac{1}{3}\\mathbf{b}',
+              ),
+              prose(
+                'Starting from $B$ gives the same answer by another route, which makes a good check: $\\mathbf{b} + \\tfrac{2}{3}\\left(\\mathbf{a} - \\mathbf{b}\\right)$ tidies up to the same thing.',
+              ),
+              prose(
+                'For any point on the line $AB$ the two coefficients add up to 1, as $\\tfrac{2}{3} + \\tfrac{1}{3}$ does here.',
+              ),
+            ),
+            ask('vec-path-tree'),
+            ask('vec-section-fraction'),
+            ask('vec-path-coefficients'),
+            teach(
+              prose(
+                'Proofs in vector geometry usually end on the level 1 test. Two vectors written in $\\mathbf{a}$ and $\\mathbf{b}$ are parallel when one is a multiple of the other, with the same multiple on both coefficients.',
+              ),
+              maths('6\\mathbf{a} - 4\\mathbf{b} = 2\\left(3\\mathbf{a} - 2\\mathbf{b}\\right)'),
+              prose(
+                'So those two are parallel. If they also share a point, the points are collinear, exactly as with numbers.',
+              ),
+            ),
+            ask('vec-path-parallel'),
+            ask('vec-line-test'),
+          ],
+          skillCheck: [
+            ask('vec-path', 2),
+            ask('vec-path-coefficients', 2),
+            ask('vec-path-parallel', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('vec-between', 2),
+        ask('vec-direction', 2),
+        ask('vec-endpoint+choice', 2),
+        ask('vec-midpoint', 2),
+        ask('vec-section-fraction', 2),
+        ask('vec-section', 2),
+        ask('vec-on-line', 2),
+        ask('vec-collinear-k', 2),
+        ask('vec-line-test', 2),
+        ask('vec-fourth-vertex', 2),
+        ask('vec-quad-flow', 2),
+        ask('vec-path', 2),
+        ask('vec-path-parallel', 2),
+        ask('vec-path-coefficients', 2),
       ],
     },
   ],

@@ -263,10 +263,10 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A5 | Widen Logarithms | **done** (`claude/roadmap-a5-9cli5g`) | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | **done** (`claude/roadmap-a6-9g7v59`) | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
-| A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
+| A8 | Widen Trigonometric Functions | **done** (`claude/roadmap-a8-23kraq`) | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | **done** (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
-| A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
+| A11 | Retire the allowlist | **done** (landed with A6, `claude/roadmap-a6-9g7v59`) | The A1 allowlist is empty and the guard is unconditional |
 
 A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
@@ -322,20 +322,23 @@ levels 3 and 4, a plane tap, and a slider. Asking what a lesson has no way of
 asking is a faster route to the three-kind bar than another generator of the
 kind it already has eight of.
 
-Every figure above was true when its batch was written and is stale by the time
-the next one merges, since the two lists shrink from several branches at once.
-`npm test` prints the current standing and the per-course burn-down; that is the
-number to quote, and the ceilings in `shapeVariety.ts` are recounted from it
-rather than carried over from either side of a merge.
+Every figure above was true when its batch was written and was stale by the
+time the next one merged, since the two lists shrank from several branches at
+once. `npm test` prints the current standing, and that was always the number to
+quote.
 
-A11 owns no lessons of its own: A3–A10 cover all 105 between them, so every
-allowlist entry belongs to one of those batches. A11 is therefore the **last**
-row of phase A rather than a parallel one — the commit that deletes the two
-lists, their ceilings and the guard's use of them once the widening batches have
-emptied them. Until then its job is to keep the ratchet honest, and `npm test`
-now prints what each course still has outstanding so the burn-down is visible
-per batch rather than as one falling total. An emptied list that is left in
-place fails the suite, so the deletion cannot be forgotten.
+A11 owned no lessons of its own: A3–A10 covered all 105 between them, so every
+allowlist entry belonged to one of those batches, and A11 was the **last** row
+of phase A rather than a parallel one — the commit deleting the two lists,
+their ceilings and the guard's use of them once the widening batches had
+emptied them. It landed inside A6 rather than as a row of its own, because it
+was A6's merge of A8 that emptied the second list: A8 took the last `tf-` rows
+off it and A6 the last `df-` rows, so the two lists reached zero in a merge
+neither branch could have reached alone. A1 had built the ratchet to fail the
+suite the moment a list emptied, naming the deletion as the fix, so the batch
+that got there did it rather than handing it on. Both bars are now
+unconditional, and a lesson that cannot meet them is a lesson to widen —
+there is nowhere left to record an exception.
 
 A9 confirmed what A5 found about generator families, and adds one of its own:
 the family a lesson borrows must be one the learner has already met. Two of
@@ -375,6 +378,15 @@ guided exercises at two per family needs **four** families per lesson, and only
 three of the nine widgets are cheap to add to an existing topic; the rest of the
 variety came from writing fourteen new generators, which is the real size of a
 phase A batch.
+
+A8 took every `tf-` lesson off both lists, so no Trigonometric Functions lesson
+is allowlisted any more. Two things it found are worth the next batch knowing.
+A lesson is capped at eleven
+slides by `generators.test.ts`, teaching slides included, so the eighth exercise
+has to come out of a teaching slide — merging its blocks into the slide above,
+or moving them onto the question as a `leadIn`. And `eval/plans/TASK4-PLAN.md`
+pins this course's three level-check lengths at 12/15/15, which `eval/bin/counts.ts`
+checks: a level check may be re-spread over new generators but not grown.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

@@ -1,24 +1,77 @@
 /* Dark, mobile-first. Sized for one-handed use on a moving train: large tap
    targets, high contrast, and nothing that depends on hover. */
 
+/*
+ * The palette.
+ *
+ * Still dark — this is played at night on a phone — but slate rather than the
+ * near-black it started as, so a card can sit *above* the page instead of
+ * being a slightly different shade of the same black. Every surface below is
+ * one step lighter than the one behind it, and that ladder is the only thing
+ * carrying depth: there is no blur and no translucency, both of which cost
+ * frames on an old phone for an effect nobody notices.
+ *
+ * Two accents, and the split between them is deliberate:
+ *
+ *  - `--accent-strong` is dark enough to carry white text (5.6:1), so it fills
+ *    buttons and the active tab.
+ *  - `--accent` is light enough to read *on* the page (6.2:1), so it draws
+ *    borders, icons and small labels.
+ *
+ * Using either in the other's place is the mistake this pair exists to stop.
+ *
+ * The verdict colours are reserved and must stay that way: mint means right,
+ * amber means not quite. Nothing decorative may borrow them, which is why the
+ * friendlier warmth in here comes from violet rather than from the orange a
+ * "warm" palette would otherwise reach for — an amber flourish on a card would
+ * read as a wrong answer.
+ */
 :root {
-  --bg: #0d0d0f;
-  --surface: #17171a;
-  --surface-raised: #232327;
-  --border: #303036;
-  --text: #f2f2f4;
-  --text-dim: #9a9aa4;
+  --bg: #11121a;
+  --bg-glow: #272555;
+  --surface: #1a1c27;
+  --surface-raised: #262937;
+  --border: #333749;
+  --text: #f3f3f8;
+  /* Between the two: bright enough that an unchosen option still reads as
+     something to tap, dim enough that choosing one is a visible change. */
+  --text-soft: #c8cde0;
+  --text-dim: #9ba2bb;
 
-  --accent: #4d6bfe;
-  --accent-dim: #2a3a8a;
+  --accent: #8a86ff;
+  --accent-strong: #5b53e0;
+  --accent-dim: #2a2856;
 
-  --correct: #1fc16b;
-  --correct-bg: #0a2d1a;
-  --wrong: #e0a419;
-  --wrong-bg: #2e2408;
+  /*
+   * The verdicts, picked to sit beside the violet rather than fight it.
+   *
+   * Mint is pulled towards teal and rose replaces the amber, which was the one
+   * colour in the app with nothing else near it: violet, teal and rose are
+   * neighbours enough to read as one palette, where violet and orange read as
+   * two. Rose is a soft wrong on purpose — the app never punishes a wrong
+   * answer, so the colour should not either, and alarm red would.
+   *
+   * The `-bg` pair are tints of their hue mixed into the page, not saturated
+   * bands: the feedback bar spans the width of the phone, and at full strength
+   * it was a slab of colour with the answer somewhere underneath it.
+   */
+  --correct: #4bd6ad;
+  --correct-bg: #14302a;
+  --correct-tint: rgb(75 214 173 / 0.1);
+  --correct-edge: rgb(75 214 173 / 0.4);
+  --wrong: #ec8fa8;
+  --wrong-bg: #331f28;
+  --wrong-tint: rgb(236 143 168 / 0.1);
+  --wrong-edge: rgb(236 143 168 / 0.4);
 
-  --radius: 14px;
+  --radius: 18px;
+  --radius-sm: 12px;
   --tap: 52px;
+
+  /* One shadow, used everywhere something lifts off the page. The inset top
+     line is the light catching the upper edge; without it a raised card on a
+     dark background reads as a hole rather than a slab. */
+  --lift: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.9);
 
   color-scheme: dark;
 }
@@ -34,15 +87,40 @@ body,
   height: 100%;
 }
 
+/* A screen enters by sliding in from the side, and for those ~240ms it sticks
+   out past the edge of the page. Every scrolling region is inside it and has
+   its own `overflow`, so clipping here costs nothing and stops the transition
+   from handing the page a horizontal scrollbar it never loses. */
+#root {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  /* `ui-rounded` resolves to SF Pro Rounded on an iPhone, which is where this
+     app actually runs, and costs nothing: no font file, no request, nothing
+     extra for the service worker to precache. It is the whole of the friendlier
+     typography, and it is invisible on a desktop browser, which falls straight
+     through to the system stack. */
+  font-family: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.5;
+  /* Thinner strokes, which is what the rounded face is drawn for and what the
+     default weight on a retina screen loses. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   /* Stops the whole page rubber-banding when a keypad is tapped. */
   overscroll-behavior: none;
+
+  /* A single soft glow behind the top of the page, so the background is lit
+     from somewhere rather than being a flat slab. Sized and pinned rather than
+     `fixed`, which iOS Safari handles badly inside a scrolling column. */
+  background-color: var(--bg);
+  background-image: radial-gradient(120% 52% at 50% -8%, var(--bg-glow) 0%, transparent 62%);
+  background-repeat: no-repeat;
+  background-size: 100% 520px;
 }
 
 button {
@@ -51,6 +129,74 @@ button {
   border: none;
   background: none;
   cursor: pointer;
+}
+
+/* ---------- Screen transitions ---------- */
+
+/*
+ * One whole screen replacing another: home to a course, a course to a lesson,
+ * and back again.
+ *
+ * The same gesture as a slide moving inside a lesson, one step slower and one
+ * step further, because the whole screen is travelling rather than its
+ * contents. Only the incoming screen animates — the outgoing one is gone by
+ * the time React commits, and holding it on stage would mean keeping a
+ * finished lesson mounted, which is exactly what the remount-on-change key
+ * exists to prevent.
+ *
+ * `translate3d` rather than `translateX`: it puts the screen on its own
+ * compositor layer for the length of the animation, so the phone moves a
+ * finished texture instead of laying the page out again on every frame.
+ */
+.screen {
+  height: 100%;
+}
+
+.screen.enter-forward {
+  animation: screen-in 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+.screen.enter-back {
+  animation: screen-in-back 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translate3d(34px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes screen-in-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-34px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Switching tabs changes the list under a header that stays put, so the pane
+   fades and lifts rather than travelling sideways. */
+.category-pane {
+  animation: pane-in 200ms ease-out;
+}
+
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 /* ---------- App shell ---------- */
@@ -103,8 +249,8 @@ button {
 .progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--correct);
-  transition: width 220ms ease;
+  background: linear-gradient(90deg, #2fb392, var(--correct));
+  transition: width 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
 /* The skill check swaps the bar for dots, so the change of mode is visible. */
@@ -128,7 +274,7 @@ button {
 
 .dot.active {
   background: var(--correct);
-  box-shadow: 0 0 0 4px var(--correct-bg);
+  box-shadow: 0 0 0 4px var(--correct-bg), 0 0 12px rgb(75 214 173 / 0.45);
 }
 
 /* ---------- Slide body ---------- */
@@ -167,26 +313,41 @@ button {
 
 /* One slide replacing another is the single most-used transition in the app,
    and swapping it instantly reads as a glitch rather than a step forward. The
-   incoming slide enters from the side the deck moved. */
+   incoming slide enters from the side the deck moved.
+
+   Same curve and same `translate3d` as a whole screen, a little quicker and a
+   little shorter: the two are the same gesture at two scales, and running them
+   on different curves made moving between lessons feel like a different app
+   from moving between questions. The animation ends on an explicit `to`, so
+   the compositor layer is torn down at a known state rather than wherever the
+   implicit end-frame left it. */
 .slide.enter-forward {
-  animation: slide-in 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: slide-in 210ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
 .slide.enter-back {
-  animation: slide-in-back 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: slide-in-back 210ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
 @keyframes slide-in {
   from {
     opacity: 0;
-    transform: translateX(26px);
+    transform: translate3d(26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes slide-in-back {
   from {
     opacity: 0;
-    transform: translateX(-26px);
+    transform: translate3d(-26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -207,6 +368,17 @@ button {
   overflow-y: hidden;
 }
 
+/* The result a teaching slide is building to, set on a panel so it reads as
+   the thing to remember rather than as one more line of the paragraph. */
+.slide > .display-math {
+  margin: 22px 0;
+  padding: 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
 /* ---------- Answer widgets ---------- */
 
 .answer-frame {
@@ -223,6 +395,8 @@ button {
   /* Tall enough to hold a fraction or a surd without jumping, and no taller:
      at 96px an empty slot floated in the middle of a large blank panel. */
   min-height: 68px;
+  background: var(--surface);
+  box-shadow: var(--lift);
   transition: border-color 160ms ease;
 }
 
@@ -264,6 +438,7 @@ button {
   gap: 1px;
   background: var(--bg);
   overflow-x: auto;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .answer-slot.filled {
@@ -272,6 +447,7 @@ button {
 
 .answer-slot.focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(138 134 255 / 0.16);
 }
 
 .answer-slot.correct {
@@ -329,8 +505,36 @@ button {
     transition: none;
   }
   .slide.enter-forward,
-  .slide.enter-back {
+  .slide.enter-back,
+  .screen.enter-forward,
+  .screen.enter-back,
+  .category-pane,
+  .footer.correct,
+  .footer.wrong,
+  .solution {
     animation: none;
+  }
+  /* The press-to-shrink feedback is movement too, so it goes with the rest.
+     The colour changes stay: they are what says a thing is selected. */
+  .option,
+  .tile,
+  .course-card,
+  .lesson-row,
+  .flow-branch,
+  .ghost-button,
+  .primary-button,
+  .key {
+    transition: none;
+  }
+  .option:active,
+  .tile:active,
+  .course-card:active,
+  .lesson-row:active,
+  .flow-branch:active,
+  .ghost-button:active,
+  .primary-button:enabled:active,
+  .key:active {
+    transform: none;
   }
 }
 
@@ -346,16 +550,26 @@ button {
   padding: 14px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--lift);
   text-align: center;
   font-size: 18px;
-  color: var(--text-dim);
-  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+  color: var(--text-soft);
+  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease,
+    transform 90ms ease;
+}
+
+/* Every tappable card sinks a little under the finger. It is the one piece of
+   feedback that works before anything has been graded, and on a touch screen
+   there is no hover to carry it. */
+.option:active {
+  transform: scale(0.985);
 }
 
 .option[aria-pressed='true'] {
   border-color: var(--accent);
   color: var(--text);
-  background: #131735;
+  background: var(--accent-dim);
 }
 
 .option.correct {
@@ -376,7 +590,9 @@ button {
   margin-top: 18px;
   padding: 16px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--lift);
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -388,11 +604,17 @@ button {
   min-height: 46px;
   padding: 6px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--lift);
   font-size: 19px;
   display: grid;
   place-items: center;
+  transition: transform 90ms ease;
+}
+
+.tile:active {
+  transform: scale(0.94);
 }
 
 .tile.used {
@@ -402,11 +624,19 @@ button {
 
 /* Keypad */
 
+/*
+ * The keypad used to be a saturated blue slab filling the lower third of the
+ * screen, which made it — rather than the question — the loudest thing on the
+ * phone. It is a tool, so it now sits back: a slate tray the same family as
+ * every other surface, with the contrast spent on the key faces instead.
+ */
 .keypad {
   margin-top: 18px;
   padding: 10px;
-  background: var(--accent-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--lift);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -430,21 +660,30 @@ button {
 
 .key {
   min-height: var(--tap);
-  border-radius: 10px;
-  background: #43539c;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
   font-size: 19px;
   display: grid;
   place-items: center;
-  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.28);
+  /* The dark lip along the bottom is what makes a flat rectangle read as a
+     physical key; it is taken away on press so the key travels. */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 2px 0 rgb(0 0 0 / 0.35);
 }
 
 .key:active {
-  transform: translateY(1px);
+  transform: translateY(2px);
   box-shadow: none;
 }
 
+/* The cursor keys and backspace are tinted, so the row that edits is told apart
+   from the row that types at a glance rather than by reading it. Tinted and not
+   filled: solid accent down there outshouted the Check button, and the button
+   is the one thing on the screen that should be pulling the eye. */
 .key.utility {
-  background: #5a68a8;
+  background: var(--accent-dim);
+  border-color: #3f3c74;
+  color: var(--accent);
 }
 
 .text-button {
@@ -461,18 +700,49 @@ button {
 
 /* ---------- Feedback bar ---------- */
 
+/*
+ * A verdict is a tint and a rule along the top, not a slab.
+ *
+ * Filled edge to edge at full strength, the bar was the largest area of colour
+ * on the phone and the loudest thing on a screen whose subject is the answer
+ * above it. The hue still arrives across the whole width — it just arrives at
+ * a tenth of the strength, with the edge and the title carrying the reading.
+ */
 .footer {
   flex-shrink: 0;
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
-  transition: background-color 180ms ease;
+  border-top: 1px solid transparent;
+  transition: background-color 200ms ease, border-color 200ms ease;
 }
 
 .footer.correct {
-  background: var(--correct-bg);
+  background: linear-gradient(180deg, var(--correct-tint), transparent 70%);
+  border-top-color: var(--correct-edge);
 }
 
 .footer.wrong {
-  background: var(--wrong-bg);
+  background: linear-gradient(180deg, var(--wrong-tint), transparent 70%);
+  border-top-color: var(--wrong-edge);
+}
+
+/* The bar gains a line of its own when a verdict lands — a title, sometimes a
+   worked solution — and that content appeared in one frame while the tint
+   behind it faded in over two hundred milliseconds. Adding the class starts
+   this, so it plays on the change of verdict without the element remounting. */
+.footer.correct,
+.footer.wrong {
+  animation: verdict-in 220ms ease-out;
+}
+
+@keyframes verdict-in {
+  from {
+    opacity: 0.35;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .footer-head {
@@ -503,6 +773,11 @@ button {
   font-size: 16px;
   font-weight: 600;
   min-height: 44px;
+  transition: transform 90ms ease;
+}
+
+.ghost-button:active {
+  transform: scale(0.96);
 }
 
 .primary-button {
@@ -513,25 +788,29 @@ button {
   font-weight: 700;
   background: var(--surface-raised);
   color: var(--text-dim);
+  transition: transform 90ms ease;
 }
 
+/* White-on-violet rather than the black-on-white it was: the button is the one
+   thing on the screen the learner is meant to reach for, and the accent says so
+   without the flashbulb a full-white pill makes of it in a dark room.
+   `--accent-strong` is the dark end of the accent pair precisely so this stays
+   at 5.6:1 against white. */
 .primary-button:enabled {
-  background: #e8e8ea;
-  color: #111;
+  background: linear-gradient(180deg, #6d64ea, var(--accent-strong));
+  color: #fff;
+  box-shadow: 0 6px 18px -10px rgb(91 83 224 / 0.9);
 }
 
-.footer.correct .primary-button:enabled {
-  background: var(--correct);
-  color: #04240f;
+.primary-button:enabled:active {
+  transform: scale(0.985);
 }
 
-.footer.wrong .primary-button:enabled {
-  background: var(--wrong);
-  color: #2a1f02;
-}
 
 .solution {
+  animation: pane-in 200ms ease-out;
   background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.07);
   border-radius: var(--radius);
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -561,7 +840,9 @@ button {
 
 .course-title {
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
   margin: 8px 0 6px;
 }
 
@@ -570,19 +851,28 @@ button {
   margin: 0 0 28px;
 }
 
+/* Filled rather than outlined. An empty bordered box reads as a disabled
+   control; the band is the one place on the map that carries colour, so it
+   divides the level from the one above it without a rule. */
 .level-banner {
-  border: 1px solid var(--accent);
+  border: 1px solid transparent;
   border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent-strong), #3f3aa8);
+  box-shadow: var(--lift);
   padding: 14px;
   text-align: center;
   margin: 28px 0 20px;
 }
 
 .level-tag {
-  color: var(--accent);
+  color: rgb(255 255 255 / 0.72);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+.level-banner .level-name {
+  color: #fff;
 }
 
 .level-name {
@@ -599,10 +889,16 @@ button {
   border-radius: var(--radius);
   text-align: left;
   min-height: var(--tap);
+  transition: background-color 120ms ease, transform 90ms ease;
 }
 
 .lesson-row:hover {
   background: var(--surface);
+}
+
+.lesson-row:active {
+  background: var(--surface);
+  transform: scale(0.99);
 }
 
 .node {
@@ -613,13 +909,24 @@ button {
   place-items: center;
   background: var(--surface-raised);
   border: 2px solid var(--border);
+  box-shadow: var(--lift);
   flex-shrink: 0;
   font-size: 18px;
 }
 
+/* An unplayed node holds nothing, and a row of large empty circles reads as
+   something that failed to load. A pip gives it a centre to be about. */
+.node:not(.done)::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
 .node.done {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(160deg, #6d64ea, var(--accent-strong));
+  border-color: var(--accent-strong);
   color: #fff;
 }
 
@@ -647,7 +954,12 @@ button {
 
 .summary-score {
   font-size: 46px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #fff, var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* ---------- Complex plane ---------- */
@@ -693,11 +1005,26 @@ button {
 
 .home-title {
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
   margin: 8px 0 24px;
 }
 
+/*
+ * A course card.
+ *
+ * `position: relative` and the glow below are the whole of the "card
+ * treatment": a soft accent bloom off the top-right corner, clipped by the
+ * card's own radius, so a stack of cards has a highlight running down it
+ * instead of being a column of identical grey rectangles. It is drawn in a
+ * pseudo-element under the text rather than as a background gradient because
+ * the card's background also has to change when the course is complete.
+ */
 .course-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   width: 100%;
   text-align: left;
   padding: 20px;
@@ -705,15 +1032,35 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--lift);
+  transition: border-color 140ms ease, transform 90ms ease;
+}
+
+.course-card::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -60%;
+  right: -30%;
+  width: 70%;
+  height: 180%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(138 134 255 / 0.2), transparent);
+  pointer-events: none;
 }
 
 .course-card:hover {
   border-color: var(--accent);
 }
 
+.course-card:active {
+  transform: scale(0.99);
+}
+
 .course-card-title {
   font-size: 21px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   margin-bottom: 4px;
 }
 
@@ -763,10 +1110,20 @@ button {
   background: var(--accent);
 }
 
+.course-card.complete .pip.done {
+  background: var(--correct);
+}
+
 .back-link {
-  padding: 10px 0;
+  padding: 8px 14px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--text-dim);
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 40px;
 }
 
 /* ---------- Category tabs ---------- */
@@ -792,16 +1149,21 @@ button {
   min-height: 44px;
   border-radius: 999px;
   border: 1px solid var(--border);
+  background: var(--surface);
   color: var(--text-dim);
   font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
+/* Filled, not tinted. The selected category is the only thing telling you what
+   the list below is, so at a glance it has to be plainly *on* rather than
+   slightly darker than its neighbours. */
 .tab.active {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--text);
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: #fff;
 }
 
 .category-head {
@@ -821,6 +1183,10 @@ button {
   border-color: var(--correct);
 }
 
+.course-card.complete::before {
+  background: radial-gradient(closest-side, rgb(75 214 173 / 0.18), transparent);
+}
+
 /* The level check closes a level, so it is set apart from the lessons above
    it rather than reading as one more of them. */
 .check-row {
@@ -833,11 +1199,15 @@ button {
   color: var(--accent);
 }
 
+.node.check:not(.done)::before {
+  background: var(--accent);
+}
+
 .node.check.done {
   border-style: solid;
-  background: var(--correct);
+  background: linear-gradient(160deg, var(--correct), #25a686);
   border-color: var(--correct);
-  color: #fff;
+  color: #04240f;
 }
 
 /* ---------- Working slides: steps and tree ---------- */
@@ -862,7 +1232,7 @@ button {
    surface of its own rather than relying on colour alone. */
 .step-target {
   padding: 4px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface-raised);
   display: inline-flex;
   align-items: center;
@@ -872,8 +1242,8 @@ button {
 }
 
 .step-target.armed {
-  background: var(--accent-dim);
-  color: var(--text);
+  background: var(--accent-strong);
+  color: #fff;
 }
 
 .step-target:disabled {
@@ -888,7 +1258,7 @@ button {
   height: 36px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text-dim);
   font-size: 20px;
 }
@@ -1137,9 +1507,15 @@ button {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--lift);
   color: inherit;
   font-size: 16px;
   padding: 10px 14px;
+  transition: transform 90ms ease;
+}
+
+.flow-branch:active {
+  transform: scale(0.985);
 }
 
 .flow-branch:disabled {
@@ -1150,6 +1526,7 @@ button {
   margin: 16px 0 0;
   padding: 14px;
   border: 1px solid var(--accent);
+  background: var(--accent-dim);
   border-radius: var(--radius);
   font-size: 17px;
   font-weight: 600;
@@ -1195,7 +1572,7 @@ button {
 
 .reduce-handle.lit,
 .reduce-piece.lit {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
   border-radius: 10px;
   padding: 4px 8px;
@@ -1204,7 +1581,7 @@ button {
 /* The value a line introduced, once the whole walk is graded right. */
 .reduce-piece.settled {
   background: var(--correct);
-  color: #04150b;
+  color: #05261a;
   border-radius: 8px;
   padding: 2px 8px;
   font-weight: 600;

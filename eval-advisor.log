@@ -2949,3 +2949,58 @@ blocks alone. Recorded because it changed what the oracle reads, and because
 M-3-oracle was re-run afterwards to confirm the change did not blunt it.
 
 Mutations M-4-labels and M-4-oracle run after this commit and before the push.
+
+## Unit 4 — mutations, after the commit and before the push
+
+### M-4-labels — KILLED, as predicted
+
+Diff: exactly one line, the redraw loop inside `divide-which-multiplier`.
+Message:
+
+    duplicate option label in \dfrac{-3 - 2i}{-3 - 2i} | \dfrac{-3 - 2i}{-3 - 2i}
+      | \dfrac{-3 + 2i}{-3 + 2i} | \dfrac{-3 + 2i}{-3 + 2i}: expected 2 to be 4
+
+Note which guard caught it: `renders a well-formed slide for every seed`, on
+duplicate labels. This is a native `choice` slide, so its options never go
+through `options()` and nothing de-duplicates them — which is exactly why the
+label guard can see this and could not see M-1-pair or M-2-root.
+
+### M-4-oracle — KILLED by the oracle, as predicted; and it SURVIVES the suite
+
+sed matched two lines (render and solution), both inside `divide-reverse`.
+
+    seed 0@1: answer/(2 + 2i) = -1 + 1i but the prompt states -1 - i
+    seed 3@1: answer/(-3 - 2i) = -3 + 2i but the prompt states -3 - 2i
+    divide-reverse: draws: 400, failures: 400
+    mutant killed: the command exited 1
+
+Run against the suite as well: `13 passed`, `MUTANT SURVIVED`. A `divide-reverse`
+whose answer is the conjugate-used slip on every single draw passes every
+property test it has, because the answer, the choices and the solution all agree
+with each other.
+
+Unit 4 pushed at 8a99a1a.
+
+## Unit 5 — Square roots: check a candidate root by squaring it
+
+Committed with NO consultation, per the deviation logged above. Lesson only; no
+generator changes, so no mutation, as the plan specifies. The containment test
+and the two shape guards are the gates.
+
+Gates:
+
+- `npx vitest run` -> 3391 passed, 7 files, 95.93 s, exit 0. Predicted unchanged
+  at 3391. Exact.
+- Both typechecks silent. `npm run lint` -> 0 errors, 25 warnings.
+- Scope: complexNumbers.ts, this log.
+
+`power-reverse` at difficulty 1 always draws n = 2, so "which of these squares to
+w" is literally the square-root check, and it is asked in the guided deck before
+the skill check asks it. `complex-sqrt` drops from six of eight questions to five
+of eight.
+
+`eval/bin/variety.sh --course complex-numbers` after this unit:
+`repetitive: 5 of 14`, `stray skill checks: 0`, `stray level-check questions: 0`.
+The five are the five the plan's section 7 names — cn-l1-quadratics 75%,
+cn-l4-polar 75%, cn-l4-de-moivre 75%, cn-l1-arithmetic 71%, cn-l2-multiply 71%.
+The prediction landed exactly, including which lessons remain.

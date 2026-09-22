@@ -425,10 +425,11 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'A square root of $z$ is any $w$ with $w^2 = z$. Write $w = a + bi$, square it, and match parts — one complex equation becomes two real ones, the trick promised back in Level 1.' },
               { kind: 'display', tex: '(a + bi)^2 = a^2 - b^2 + 2ab\\,i \\qquad a^2 - b^2 = 3,\\ 2ab = 4' },
               { kind: 'prose', text: 'Two equations in two unknowns, for $z = 3 + 4i$. Guessing $a = 2, b = 1$ works here, but guessing is not a method.' },
+              { kind: 'prose', text: 'Checking a candidate is one multiplication: square it and compare with $z$. $(2 + i)^2 = 3 + 4i$, so $2 + i$ is a square root of $3 + 4i$ — and $-2 - i$ is the other.' },
             ),
             ask('complex-sqrt'),
             ask('complex-sqrt+choice'),
-            ask('complex-sqrt'),
+            ask('power-reverse'),
             teach(
               { kind: 'prose', text: 'Here is the method. Squaring a number squares its modulus, so $a^2 + b^2 = |z|$ — a third equation, for free. Add it to the first for $a^2$, subtract for $b^2$.' },
               { kind: 'display', tex: 'a^2 + b^2 = |3 + 4i| = 5 \\qquad a^2 = \\tfrac{5 + 3}{2} = 4,\\ b^2 = \\tfrac{5 - 3}{2} = 1' },
@@ -447,7 +448,7 @@ export const complexNumbers: Course = {
             ask('complex-sqrt', 2),
             ask('modulus+choice', 2),
           ],
-          skillCheck: [ask('complex-sqrt', 2), ask('complex-sqrt'), ask('modulus', 2)],
+          skillCheck: [ask('complex-sqrt', 2), ask('power-reverse'), ask('modulus', 2)],
         },
       ],
       levelCheck: [

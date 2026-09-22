@@ -10,6 +10,7 @@ import { integrationShapeGenerators } from './generators/integrationShapes';
 import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
 import { quadraticsGenerators } from './generators/quadratics';
+import { quadraticShapeGenerators } from './generators/quadraticShapes';
 import { vectorGenerators } from './generators/vectors';
 import { trigonometryGenerators } from './generators/trigonometry';
 import { workingGenerators } from './generators/working';
@@ -29,6 +30,7 @@ export const allGenerators = [
   ...integrationShapeGenerators,
   ...logarithmGenerators,
   ...quadraticsGenerators,
+  ...quadraticShapeGenerators,
   ...vectorGenerators,
   ...matrixGenerators,
   ...trigonometryGenerators,

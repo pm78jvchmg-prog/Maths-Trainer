@@ -194,7 +194,7 @@ export const differentiation: Course = {
             ask('df-evaluate-steps'),
             ask('df-evaluate-steps+choice'),
           ],
-          skillCheck: [ask('sum-rule', 2), ask('evaluate-derivative'), ask('sum-rule')],
+          skillCheck: [ask('sum-rule', 2), ask('sum-rule+choice', 2), ask('sum-rule')],
         },
 
         {
@@ -395,7 +395,7 @@ export const differentiation: Course = {
             ),
             ask('product-rule+choice', 2),
           ],
-          skillCheck: [ask('product-rule', 2), ask('product-rule'), ask('sum-rule', 2)],
+          skillCheck: [ask('product-rule', 2), ask('product-rule'), ask('product-rule+choice', 2)],
         },
 
         {
@@ -461,7 +461,7 @@ export const differentiation: Course = {
             ),
             ask('quotient-rule+choice', 2),
           ],
-          skillCheck: [ask('quotient-rule', 2), ask('quotient-rule'), ask('product-rule', 2)],
+          skillCheck: [ask('quotient-rule', 2), ask('quotient-rule'), ask('quotient-rule+choice', 2)],
         },
       ],
       levelCheck: [
@@ -544,7 +544,7 @@ export const differentiation: Course = {
             ),
             ask('chain-rule+choice', 2),
           ],
-          skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('product-rule', 2)],
+          skillCheck: [ask('chain-rule', 2), ask('chain-rule'), ask('chain-rule+choice', 2)],
         },
 
         {
@@ -711,7 +711,7 @@ export const differentiation: Course = {
             ),
             ask('trig-derivative+choice', 2),
           ],
-          skillCheck: [ask('trig-derivative', 2), ask('trig-derivative'), ask('chain-rule', 2)],
+          skillCheck: [ask('trig-derivative', 2), ask('trig-derivative'), ask('trig-derivative+choice', 2)],
         },
 
         {
@@ -801,8 +801,8 @@ export const differentiation: Course = {
           ],
           skillCheck: [
             ask('exp-log-derivative', 2),
-            ask('trig-derivative', 2),
-            ask('evaluate-derivative'),
+            ask('exp-log-derivative+choice', 2),
+            ask('exp-log-derivative'),
           ],
         },
 
@@ -858,7 +858,7 @@ export const differentiation: Course = {
             ask('df-product-mixed+choice', 2),
             ask('df-choose-rule', 2),
           ],
-          skillCheck: [ask('df-product-mixed', 2), ask('df-product-mixed'), ask('product-rule', 2)],
+          skillCheck: [ask('df-product-mixed', 2), ask('df-product-mixed'), ask('df-product-mixed+choice', 2)],
         },
       ],
       levelCheck: [

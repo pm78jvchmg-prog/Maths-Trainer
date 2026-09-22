@@ -4,7 +4,10 @@
 import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
-import { I_KEY, complexTex, complexAnswer, bracketedTex, powersOf, nonZero } from './format';
+import {
+  I_KEY, complexTex, complexAnswer, bracketedTex, powersOf, nonZero,
+  surdParts, surdTex, surdAnswer,
+} from './format';
 import { complexPlaneSvg, rangeFor } from './plane';
 import { options } from '../choiceVariant';
 
@@ -45,6 +48,13 @@ interface PointParams { re: number; im: number }
 
 export const identifyPoint: Generator<PointParams> = {
   id: 'identify-point',
+  // The parts swapped, and each sign lost. When a part is zero (difficulty 2
+  // only) or the two are equal, a distractor's label collapses onto the
+  // answer's and `options()` drops it, leaving three — which is fine.
+  choices: ({ re, im }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(re, im), opt(im, re), opt(-re, im), opt(re, -im));
+  },
   sample: samplePlanePoint,
   render: ({ re, im }) => ({
     kind: 'expression',
@@ -86,13 +96,107 @@ export const plotPoint: Generator<PointParams> = {
   ],
 };
 
+/* ---------- Plot a sum ---------- */
+
+interface PlotSumParams { a: number; b: number; c: number; d: number }
+
+/**
+ * Addition as two moves on the plane, which the third teach slide of the plane
+ * lesson has always drawn and never asked. Both components are redrawn until
+ * the sum stays on the grid the widget draws.
+ */
+export const plotSum: Generator<PlotSumParams> = {
+  id: 'plot-sum',
+  sample: (rng, difficulty) => {
+    if (difficulty >= 2) {
+      let a = nonZero(rng, 3);
+      let b = nonZero(rng, 3);
+      let c = nonZero(rng, 3);
+      let d = nonZero(rng, 3);
+      while (Math.abs(a + c) > RANGE || Math.abs(b + d) > RANGE || (a + c === 0 && b + d === 0)) {
+        a = nonZero(rng, 3);
+        b = nonZero(rng, 3);
+        c = nonZero(rng, 3);
+        d = nonZero(rng, 3);
+      }
+      return { a, b, c, d };
+    }
+    let a = rng.int(1, 3);
+    let b = rng.int(1, 3);
+    let c = rng.int(1, 3);
+    let d = rng.int(1, 3);
+    while (a + c > RANGE || b + d > RANGE) {
+      a = rng.int(1, 3);
+      b = rng.int(1, 3);
+      c = rng.int(1, 3);
+      d = rng.int(1, 3);
+    }
+    return { a, b, c, d };
+  },
+  render: ({ a, b, c, d }) => ({
+    kind: 'plot',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Plot $z + w$, where $z = ${complexTex(a, b)}$ and $w = ${complexTex(c, d)}$.`,
+      },
+    ],
+    range: RANGE,
+    answer: { re: a + c, im: b + d },
+  }),
+  solution: ({ a, b, c, d }) => [
+    {
+      text: 'Add the real parts and the imaginary parts.',
+      tex: `(${complexTex(a, b)}) + (${complexTex(c, d)}) = ${complexTex(a + c, b + d)}`,
+    },
+    {
+      text: `On the plane: go to $z$, then move by $w$ — ${Math.abs(c)} ${c < 0 ? 'left' : 'right'} and ${Math.abs(d)} ${d < 0 ? 'down' : 'up'} — and the two routes to the same point are addition being commutative, drawn.`,
+    },
+  ],
+};
+
+/* ---------- Plot the conjugate ---------- */
+
+interface ConjugatePlotParams { re: number; im: number }
+
+export const conjugatePlot: Generator<ConjugatePlotParams> = {
+  id: 'conjugate-plot',
+  // The imaginary part is never zero, or the conjugate is the point itself.
+  sample: (rng, difficulty) => ({
+    re: difficulty >= 2 ? nonZero(rng, RANGE) : rng.int(1, RANGE),
+    im: nonZero(rng, RANGE),
+  }),
+  render: ({ re, im }) => ({
+    kind: 'plot',
+    prompt: [{ kind: 'prose', text: `Plot $\\overline{z}$, the conjugate of $z = ${complexTex(re, im)}$.` }],
+    range: RANGE,
+    answer: { re, im: -im },
+  }),
+  solution: ({ re, im }) => [
+    {
+      text: 'The conjugate keeps the real part and flips the imaginary part: reflect $z$ in the real axis.',
+      tex: `\\overline{${complexTex(re, im)}} = ${complexTex(re, -im)} \\rightarrow (${re},\\ ${-im})`,
+    },
+  ],
+};
+
 /* ---------- Modulus ---------- */
 
 /**
  * Pythagorean triples as [leg, leg, hypotenuse], so the modulus is a whole
- * number the table states outright. Deriving it with Math.hypot would mean
- * rounding a float back to the integer we already know, and would let a
- * mistyped row produce a plausible wrong answer instead of failing a test.
+ * number the table states outright.
+ *
+ * This table now serves `modulus-steps` alone. That slide is a `reduce` over
+ * `src/content/expr.ts`, whose `valueOf` rounds every root to a whole number on
+ * purpose and whose banks the suite asserts are whole — a bank of surds would
+ * turn an order-of-operations question into an arithmetic-with-surds question.
+ * A clean triple still earns its place there for exactly that reason: the point
+ * of the slide is square, square, add, *then* root, and a whole-number root is
+ * what lets the last tap land on a bank of integers.
+ *
+ * `modulus` no longer reads it. It answers with a surd, computed in integer
+ * arithmetic from the two parts, so there is nothing to round back to an
+ * integer already known and nothing a table could state more safely.
  */
 export const TRIPLES: [number, number, number][] = [
   [3, 4, 5], [4, 3, 5], [6, 8, 10], [8, 6, 10], [5, 12, 13], [12, 5, 13],
@@ -103,51 +207,328 @@ export const TRIPLES: [number, number, number][] = [
   [35, 12, 37], [11, 60, 61], [28, 45, 53],
 ];
 
-interface ModulusParams { a: number; b: number; hypotenuse: number }
+/**
+ * Two non-zero parts, never both ±1: (1, 1) is the one pair where the sum of
+ * the parts, the never-rooted square and the answer all come to the same
+ * number, so its distractors would collide with the answer.
+ */
+function samplePythagoreanParts(rng: Rng, difficulty: number): { a: number; b: number } {
+  const top = difficulty >= 2 ? 8 : 6;
+  let a = rng.int(1, top);
+  let b = rng.int(1, top);
+  while (a === 1 && b === 1) {
+    a = rng.int(1, top);
+    b = rng.int(1, top);
+  }
+  if (difficulty >= 2) {
+    a *= rng.sign();
+    b *= rng.sign();
+  }
+  return { a, b };
+}
+
+/**
+ * The three ways a modulus is misread, as options: the parts added instead
+ * of squared, the square never rooted, and the parts added and then rooted.
+ * Shared by `modulus` and `modulus-distance`, since a distance is a modulus.
+ */
+function modulusChoices(a: number, b: number): ChoiceOption[] {
+  const n = a * a + b * b;
+  const sum = Math.abs(a) + Math.abs(b);
+  return options(
+    { tex: surdTex(n), answer: surdAnswer(n) },
+    { tex: `${sum}`, answer: `${sum}` },
+    { tex: `${n}`, answer: `${n}` },
+    // Through surdTex, not as a raw \sqrt{}: the sum is often a perfect square,
+    // and an option reading `\sqrt{4}` is both a throwaway and a form tell,
+    // since the answer would then be the only surd in lowest terms. It cannot
+    // collide with the other three: sqrt(sum) = sqrt(n) only at (1, 1), which
+    // the sampler excludes, and sqrt(sum) equals sum or n only below 2.
+    { tex: surdTex(sum), answer: surdAnswer(sum) },
+  );
+}
+
+interface ModulusParams { a: number; b: number }
 
 export const modulus: Generator<ModulusParams> = {
   id: 'modulus',
-  // The sum of the parts, and the square that was never rooted: the two ways
-  // a modulus is misread.
-  choices: ({ a, b, hypotenuse }) =>
-    options(
-      { tex: `${hypotenuse}`, answer: `${hypotenuse}` },
-      { tex: `${Math.abs(a) + Math.abs(b)}`, answer: `${Math.abs(a) + Math.abs(b)}` },
-      { tex: `${a * a + b * b}`, answer: `${a * a + b * b}` },
-      { tex: `${hypotenuse + 1}`, answer: `${hypotenuse + 1}` },
-    ),
-  sample: (rng, difficulty) => {
-    const [x, y, hypotenuse] = rng.pick(TRIPLES);
-    // Signs vary so the learner cannot assume both parts are positive.
-    return difficulty >= 2
-      ? { a: x * rng.sign(), b: y * rng.sign(), hypotenuse }
-      : { a: x, b: y, hypotenuse };
+  choices: ({ a, b }) => modulusChoices(a, b),
+  sample: samplePythagoreanParts,
+  render: ({ a, b }) => {
+    const n = a * a + b * b;
+    const simplified = surdAnswer(n);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          // A noun phrase, not an instruction to type: `promptFrom` lifts this
+          // prose whole into the derived `+choice` slide, where there is nothing
+          // to write and "give the exact value" would be telling the learner to
+          // do something the widget does not offer.
+          text: `What is $|${complexTex(a, b)}|$? The exact value — a surd where it is not a whole number.`,
+        },
+        {
+          kind: 'diagram',
+          svg: complexPlaneSvg(rangeFor(a, b), [{ re: a, im: b, highlight: true }]),
+        },
+      ],
+      lead: `|${complexTex(a, b)}| =`,
+      keypad: SQRT_KEYS,
+      answer: `sqrt(${n})`,
+      alsoAccepts: simplified === `sqrt(${n})` ? undefined : [simplified],
+      domain: 'real',
+      mode: 'exact',
+    };
   },
-  render: ({ a, b, hypotenuse }) => ({
-    kind: 'expression',
-    prompt: [
-      { kind: 'prose', text: `What is $|${complexTex(a, b)}|$?` },
+  solution: ({ a, b }) => {
+    const n = a * a + b * b;
+    const tail = surdTex(n) === `\\sqrt{${n}}` ? '' : ` = ${surdTex(n)}`;
+    return [
       {
-        kind: 'diagram',
-        svg: complexPlaneSvg(rangeFor(a, b), [{ re: a, im: b, highlight: true }]),
+        text: 'The modulus is the distance from the origin, so it is Pythagoras on the two parts.',
+        tex: `|${complexTex(a, b)}| = \\sqrt{${paren(`${a}`)}^2 + ${paren(`${b}`)}^2}`,
       },
-    ],
-    lead: `|${complexTex(a, b)}| =`,
-    keypad: SQRT_KEYS,
-    answer: `${hypotenuse}`,
-    domain: 'real',
-    mode: 'exact',
+      {
+        text: 'Signs disappear when squared, which is why the modulus is never negative.',
+        tex: `= \\sqrt{${a * a} + ${b * b}} = \\sqrt{${n}}${tail}`,
+      },
+      {
+        text: surdParts(n).m === 1
+          ? 'That happens to be a whole number. Most are not, and a surd is the exact answer — do not turn it into a decimal.'
+          : 'A surd is the exact answer and the one to give. It is not a whole number, and nothing is gained by making it one.',
+      },
+    ];
+  },
+};
+
+/* ---------- Which of these has this modulus? ---------- */
+
+interface WhichParams { a: number; b: number; v: number; o: number }
+
+/**
+ * Perturbations of the two magnitudes, mixed in direction.
+ *
+ * All-positive offsets would make the correct option the component-wise
+ * smallest of the four on every draw, so the question would be winnable by
+ * "pick the option with the smallest numbers" without squaring anything — and
+ * because the options are sorted by their TeX, which differs in the leading
+ * digit, that monotonicity also pinned the answer to the first two rows. With
+ * both directions in play neither holds. Any offset is safe: a candidate is
+ * kept only when its sum of squares is one not already used, so exactly one
+ * option ever has the target modulus.
+ */
+const WHICH_OFFSETS: [number, number][] = [
+  [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1], [2, 0], [0, 2],
+];
+
+/** Three magnitude pairs near (a, b), none of them with the same modulus. */
+function whichDistractors(a: number, b: number, o: number): [number, number][] {
+  const kept: [number, number][] = [];
+  const seen = new Set([a * a + b * b]);
+  for (let step = 0; step < WHICH_OFFSETS.length && kept.length < 3; step += 1) {
+    const [dx, dy] = WHICH_OFFSETS[(o + step) % WHICH_OFFSETS.length];
+    const x = a + dx;
+    const y = b + dy;
+    if (x < 1 || y < 1) continue;
+    const square = x * x + y * y;
+    if (seen.has(square)) continue;
+    seen.add(square);
+    kept.push([x, y]);
+  }
+  return kept;
+}
+
+/**
+ * One of eight ways to write a pair of magnitudes as a point: swapped, and
+ * each component's sign flipped. The *same* variant is applied to all four
+ * options, so no option stands out by its sign pattern — the learner has to
+ * square and add rather than read the shape.
+ */
+function variant(x: number, y: number, v: number): [number, number] {
+  const [first, second] = (v & 4) !== 0 ? [y, x] : [x, y];
+  return [(v & 1) !== 0 ? -first : first, (v & 2) !== 0 ? -second : second];
+}
+
+export const modulusWhich: Generator<WhichParams> = {
+  id: 'modulus-which',
+  // Magnitudes start at 2 so that a -1 offset is always usable, which is what
+  // keeps the distractors on both sides of the answer.
+  sample: (rng, difficulty) => ({
+    a: rng.int(2, difficulty >= 2 ? 8 : 5),
+    b: rng.int(2, difficulty >= 2 ? 8 : 5),
+    v: rng.int(0, 7),
+    o: rng.int(0, WHICH_OFFSETS.length - 1),
   }),
-  solution: ({ a, b, hypotenuse }) => [
+  render: ({ a, b, v, o }): Slide => {
+    const n = a * a + b * b;
+    // Every distractor's sum of squares differs from the target's, so there is
+    // never a second right answer — but it may be larger or smaller.
+    const candidates: [number, number][] = [
+      variant(a, b, v),
+      ...whichDistractors(a, b, o).map(([x, y]) => variant(x, y, v)),
+    ];
+    const correct = candidates[0];
+    // Sorted rather than shuffled, so the same question renders one way and
+    // the deck de-duplicator can recognise a repeat.
+    const ordered = [...candidates].sort((p, q) =>
+      complexTex(p[0], p[1]).localeCompare(complexTex(q[0], q[1])),
+    );
+    const correctIdx = ordered.findIndex((p) => p[0] === correct[0] && p[1] === correct[1]);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Exactly one of these has modulus $${surdTex(n)}$. Which?` },
+      ],
+      options: ordered.map((p, idx) => ({
+        id: `opt${idx}`,
+        label: complexTex(p[0], p[1]),
+        tex: true,
+      })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: ({ a, b, v, o }) => {
+    const n = a * a + b * b;
+    const candidates: [number, number][] = [
+      variant(a, b, v),
+      ...whichDistractors(a, b, o).map(([x, y]) => variant(x, y, v)),
+    ];
+    return [
+      ...candidates.map(([x, y]) => ({
+        tex: `|${complexTex(x, y)}|^2 = ${paren(`${x}`)}^2 + ${paren(`${y}`)}^2 = ${x * x + y * y}`,
+      })),
+      {
+        text: `Square and add each candidate's parts; only one comes to ${n}. The root keeps the order, so comparing the squares is enough.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Which is furthest from the origin? ---------- */
+
+interface CompareParams { points: { re: number; im: number }[] }
+
+export const modulusCompare: Generator<CompareParams> = {
+  id: 'modulus-compare',
+  // Four points with four *different* moduli, so the largest is unique. The
+  // shuffle happens here rather than in `render`, the `complex-part` pattern:
+  // one question must render one way or the de-duplicator cannot spot a repeat.
+  sample: (rng, difficulty) => {
+    const top = difficulty >= 2 ? 7 : 5;
+    const grid: { re: number; im: number }[] = [];
+    for (let x = 1; x <= top; x += 1) {
+      for (let y = 1; y <= top; y += 1) grid.push({ re: x, im: y });
+    }
+    const seen = new Set<number>();
+    const kept: { re: number; im: number }[] = [];
+    for (const point of rng.shuffle(grid)) {
+      const value = point.re * point.re + point.im * point.im;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      kept.push(point);
+      if (kept.length === 4) break;
+    }
+    return {
+      points: difficulty >= 2
+        ? kept.map((point) => ({ re: point.re * rng.sign(), im: point.im * rng.sign() }))
+        : kept,
+    };
+  },
+  render: ({ points }): Slide => {
+    const squares = points.map((p) => p.re * p.re + p.im * p.im);
+    const correctIdx = squares.indexOf(Math.max(...squares));
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: 'Which of these is furthest from the origin?' }],
+      options: points.map((p, idx) => ({
+        id: `opt${idx}`,
+        label: complexTex(p.re, p.im),
+        tex: true,
+      })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: ({ points }) => [
+    ...points.map((p) => ({
+      tex: `|${complexTex(p.re, p.im)}|^2 = ${paren(`${p.re}`)}^2 + ${paren(`${p.im}`)}^2 = ${p.re * p.re + p.im * p.im}`,
+    })),
     {
-      text: 'The modulus is the distance from the origin, so it is Pythagoras on the two parts.',
-      tex: `|${complexTex(a, b)}| = \\sqrt{${a}^2 + ${b}^2}`,
-    },
-    {
-      text: 'Signs disappear when squared, which is why the modulus is never negative.',
-      tex: `= \\sqrt{${a * a} + ${b * b}} = \\sqrt{${a * a + b * b}} = ${hypotenuse}`,
+      text: 'The largest sum of squares is the largest modulus — no roots needed to compare, because the root keeps the order.',
     },
   ],
+};
+
+/* ---------- The distance between two points ---------- */
+
+interface DistanceParams { a: number; b: number; c: number; d: number }
+
+export const modulusDistance: Generator<DistanceParams> = {
+  id: 'modulus-distance',
+  choices: ({ a, b, c, d }) => modulusChoices(a - c, b - d),
+  // Both differences non-zero, so the distance is genuinely two-dimensional,
+  // and never the (1, 1) difference whose distractors collide (`modulusChoices`).
+  sample: (rng, difficulty) => {
+    const draw = () => (difficulty >= 2 ? rng.int(-4, 4) : rng.int(0, 5));
+    let a = draw();
+    let b = draw();
+    let c = draw();
+    let d = draw();
+    while (a - c === 0 || b - d === 0 || (Math.abs(a - c) === 1 && Math.abs(b - d) === 1)) {
+      a = draw();
+      b = draw();
+      c = draw();
+      d = draw();
+    }
+    return { a, b, c, d };
+  },
+  render: ({ a, b, c, d }) => {
+    const dx = a - c;
+    const dy = b - d;
+    const n = dx * dx + dy * dy;
+    const simplified = surdAnswer(n);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$z = ${complexTex(a, b)}$ and $w = ${complexTex(c, d)}$ are marked. How far apart are they? That distance is $|z - w|$.`,
+        },
+        {
+          kind: 'diagram',
+          svg: complexPlaneSvg(rangeFor(a, b, c, d), [
+            { re: a, im: b, highlight: true },
+            { re: c, im: d, highlight: true },
+          ]),
+        },
+      ],
+      lead: '|z - w| =',
+      keypad: SQRT_KEYS,
+      answer: `sqrt(${n})`,
+      alsoAccepts: simplified === `sqrt(${n})` ? undefined : [simplified],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, c, d }) => {
+    const dx = a - c;
+    const dy = b - d;
+    const n = dx * dx + dy * dy;
+    const tail = surdTex(n) === `\\sqrt{${n}}` ? '' : ` = ${surdTex(n)}`;
+    return [
+      {
+        text: 'Subtract first: $z - w$ is the arrow from $w$ to $z$.',
+        tex: `z - w = ${complexTex(dx, dy)}`,
+      },
+      {
+        text: 'Then its modulus, which is Pythagoras on the difference.',
+        tex: `|z - w| = \\sqrt{${paren(`${dx}`)}^2 + ${paren(`${dy}`)}^2} = \\sqrt{${n}}${tail}`,
+      },
+      {
+        text: 'Subtracting the other way round gives $w - z$, the same distance: the modulus does not care which end you start from.',
+      },
+    ];
+  },
 };
 
 interface ModulusStepsParams { a: number; b: number; c: number }
@@ -696,13 +1077,160 @@ export const complexPower: Generator<PowerParams> = {
   ],
 };
 
+/* ---------- The modulus of a power ---------- */
+
+interface PowerModulusParams { a: number; b: number; k: number }
+
+/**
+ * De Moivre applied to the modulus alone, so the argument never has to be
+ * found. `|z|` is a surd, and raising a surd to a power is `surdTex` of the
+ * powered radicand: the largest reachable value is 32^5, well inside integer
+ * range, so nothing here is a rounded float.
+ */
+export const powerModulus: Generator<PowerModulusParams> = {
+  id: 'power-modulus',
+  choices: ({ a, b, k }) => {
+    const n0 = a * a + b * b;
+    // Multiplied instead of powered (k times root n0 is root of k^2 n0), one
+    // power short, and never rooted at all.
+    return options(
+      { tex: surdTex(n0 ** k), answer: surdAnswer(n0 ** k) },
+      { tex: surdTex(k * k * n0), answer: surdAnswer(k * k * n0) },
+      { tex: surdTex(n0 ** (k - 1)), answer: surdAnswer(n0 ** (k - 1)) },
+      { tex: `${n0 ** k}`, answer: `${n0 ** k}` },
+    );
+  },
+  /**
+   * The figures are capped deliberately. With parts up to 4 and k up to 5 the
+   * worst draw asks for |z^5| where |z|^2 = 32 — the answer is 4096*sqrt(2) and
+   * the never-rooted distractor reads 33554432, which is the owner's original
+   * complaint about (35^2 + 12^2)^(1/2) made worse rather than answered.
+   * Difficulty 2 is harder through the signs and one more power, not through
+   * bigger arithmetic; the worst answer is now 324 or 54*sqrt(2).
+   */
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, difficulty >= 2 ? 3 : 4) * (difficulty >= 2 ? rng.sign() : 1),
+    b: rng.int(1, difficulty >= 2 ? 3 : 4) * (difficulty >= 2 ? rng.sign() : 1),
+    k: rng.int(2, difficulty >= 2 ? 4 : 3),
+  }),
+  render: ({ a, b, k }) => {
+    const n0 = a * a + b * b;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `$z = ${complexTex(a, b)}$. What is $|z^{${k}}|$?` },
+      ],
+      lead: `|z^{${k}}| =`,
+      keypad: SQRT_KEYS,
+      answer: surdAnswer(n0 ** k),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, k }) => {
+    const n0 = a * a + b * b;
+    return [
+      { tex: `|z| = \\sqrt{${a * a} + ${b * b}} = ${surdTex(n0)}` },
+      {
+        text: 'De Moivre for the modulus alone: a power raises the modulus to that power, and the argument is not needed for this question.',
+        tex: `|z^{${k}}| = |z|^{${k}} = \\left(${surdTex(n0)}\\right)^{${k}} = ${surdTex(n0 ** k)}`,
+      },
+      {
+        text: `Multiplying the modulus by the power, instead of raising it, is the slip — that would be $${surdTex(k * k * n0)}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Which z has z^n = w? ---------- */
+
+/** Every a + bi with a, b in -2..2 except 0: small enough that any power is checkable by hand. */
+const REVERSE_BASES: { re: number; im: number }[] = [];
+for (let re = -2; re <= 2; re += 1) {
+  for (let im = -2; im <= 2; im += 1) {
+    if (re !== 0 || im !== 0) REVERSE_BASES.push({ re, im });
+  }
+}
+
+interface ReverseParams {
+  re: number;
+  im: number;
+  n: number;
+  distractors: { re: number; im: number }[];
+}
+
+export const powerReverse: Generator<ReverseParams> = {
+  id: 'power-reverse',
+  sample: (rng, difficulty) => {
+    const n = difficulty >= 2 ? rng.int(2, 4) : 2;
+    const base = rng.pick(REVERSE_BASES);
+    const target = powersOf(base.re, base.im, n)[n - 1];
+    // Filtered by *value*, not by identity: at even n the base -z has the same
+    // n-th power, and at n = 4 so do +-iz. Offering one of those would make a
+    // second right answer, which no existing guard can see.
+    const eligible = REVERSE_BASES.filter((c) => { const p = powersOf(c.re, c.im, n)[n - 1]; return p[0] !== target[0] || p[1] !== target[1]; });
+    return { ...base, n, distractors: rng.sample(eligible, 3) };
+  },
+  render: ({ re, im, n, distractors }): Slide => {
+    const [tr, ti] = powersOf(re, im, n)[n - 1];
+    const candidates = [{ re, im }, ...distractors];
+    // Sorted rather than shuffled, so the same question renders one way and
+    // the deck de-duplicator can recognise a repeat.
+    const ordered = [...candidates].sort((p, q) =>
+      complexTex(p.re, p.im).localeCompare(complexTex(q.re, q.im)),
+    );
+    const correctIdx = ordered.findIndex((p) => p.re === re && p.im === im);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Exactly one of these satisfies $z^{${n}} = w$. Which?` },
+        { kind: 'display', tex: `w = ${complexTex(tr, ti)}` },
+      ],
+      options: ordered.map((p, idx) => ({
+        id: `opt${idx}`,
+        label: complexTex(p.re, p.im),
+        tex: true,
+      })),
+      correctId: `opt${correctIdx}`,
+    };
+  },
+  solution: ({ re, im, n, distractors }) => {
+    const [tr, ti] = powersOf(re, im, n)[n - 1];
+    return [
+      { text: 'Raising each candidate is the check; only one lands on $w$.' },
+      ...powersOf(re, im, n)
+        .map((value, idx) => ({ value, power: idx + 1 }))
+        .filter(({ power }) => power <= 3 || power === n)
+        .map(({ value, power }) => ({
+          tex: `${bracketedTex(re, im)}^{${power}} = ${complexTex(value[0], value[1])}`,
+        })),
+      ...distractors.map((c) => {
+        const p = powersOf(c.re, c.im, n)[n - 1];
+        return { tex: `${bracketedTex(c.re, c.im)}^{${n}} = ${complexTex(p[0], p[1])}` };
+      }),
+      {
+        text: n === 2
+          ? `So $w = ${complexTex(tr, ti)}$ comes from $${complexTex(re, im)}$. The other square root of $w$ is $${complexTex(-re, -im)}$, which is not offered.`
+          : `So $w = ${complexTex(tr, ti)}$ comes from $${complexTex(re, im)}$ and from none of the others.`,
+      },
+    ];
+  },
+};
+
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
+  plotSum,
+  conjugatePlot,
   modulus,
   modulusSteps,
+  modulusWhich,
+  modulusCompare,
+  modulusDistance,
   argument,
   complexPower,
+  powerModulus,
+  powerReverse,
   polarForm,
   polarPower,
   complexSqrt,

@@ -2777,3 +2777,72 @@ and compares `answer` against mathjs's own `conj`, which is what M-2-oracle
 below proves can fail.
 
 Mutations M-2-root and M-2-oracle run after this commit and before the push.
+
+## Unit 2 — mutations, after the commit and before the push
+
+### M-2-root — SURVIVED the suite. The plan predicted a kill, by the same
+### mechanism that failed in M-1-pair.
+
+Diff: exactly one line, inside `conjugate-recover`, `rng.int(2, ...)` ->
+`rng.int(1, ...)`. Harness: `MUTANT SURVIVED`, `1 passed`.
+
+This is the second instance of one finding, and it generalises past this task:
+
+**`options()` deletes exactly the cases the distractor test is looking for.** It
+de-duplicates by an option's *label* before anything compares values, and a
+distractor that is equal in value to the answer is almost always equal in label
+too — because both are built by the same `opt(x, y)` from the same numbers. So
+the distractor test can only catch a collision where two options carry
+*different* labels and the *same* value. Three of this plan's mutations
+(M-1-pair, M-2-root, and M-3-short's stated rationale) were written against the
+belief that it catches "a distractor silently equal to the answer". It does not,
+and its own comment ("the two are written differently by construction, so
+comparing the strings proves nothing") is why: the construction it assumes is
+not the one these generators use.
+
+What removing `b >= 2` actually does is shrink the option set — at b = 1 the
+"forgot the root" option (a, b^2) carries the answer's own label and is dropped,
+leaving three options instead of four. Three options is explicitly fine by this
+repository's convention, so this exclusion is a question-quality choice rather
+than a correctness one, and I am saying so rather than overstating it.
+
+Proof that it is load-bearing, via the oracle, extended with a
+`conjugate-recover+choice` check. First attempt at that check was wrong and is
+worth recording: I asserted four options flat, and it failed on 46 of 400 draws
+of the *unmutated* tree — because when a = b the "parts swapped" option is the
+answer and `options()` drops it, which section 3.2 of the plan explicitly
+allows. That was my check being wrong, not the generator, so I derived the
+expected count from the prompt's own numbers instead (three when a = b, four
+otherwise). Clean tree:
+
+    conjugate-recover: draws: 400, failures: 0
+    conjugate-recover+choice: draws: 400, failures: 0
+    conjugate-plot: draws: 400, failures: 0
+
+Mutated:
+
+    seed 0@1: 3 options, expected 4 (a=2, b=1): 2 + i | 2 - i | 1 + 2i
+    seed 7@1: 2 options, expected 3 (a=1, b=1): 1 + i | 1 - i
+    conjugate-recover+choice: draws: 400, failures: 59
+    mutant killed: the command exited 1
+
+I am pushing unit 2 with M-2-root surviving the suite, for the reason given
+under unit 1: the exclusion is present and correct, the survival is a fact about
+the suite, and the oracle now closes it.
+
+### M-2-oracle — KILLED by the oracle, as predicted; and it SURVIVES the suite
+
+    seed 0@1: conj(2 - i) = 2 + 1i but answer is 2 + -1i
+    seed 1@1: conj(3 + i) = 3 + -1i but answer is 3 + 1i
+    conjugate-plot: draws: 400, failures: 400
+    mutant killed: the command exited 1
+
+Run against the suite as well, which the plan did not ask for but which is the
+part worth having: `13 passed`, `MUTANT SURVIVED`. Thirteen property tests pass
+on a conjugate generator that does not conjugate. The plot tests check the
+answer is an integer inside the grid and nothing else, and `{ re, im }` is as
+integer and as inside the grid as `{ re, -im }`. That is the plan's section 2.3
+claim demonstrated on a `plot` slide rather than asserted.
+
+Bookkeeping commit; mechanical checks only, per PREFLIGHT. Insertions only on
+this log; scope is this file alone.

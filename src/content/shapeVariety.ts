@@ -68,14 +68,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'lg-l3-natural': 2,
   'lg-l3-growth': 2,
   'lg-l3-models': 2,
-  'cn-l1-arithmetic': 2,
-  'cn-l1-complex': 2,
-  'cn-l1-quadratics': 2,
-  'cn-l2-multiply': 2,
-  'cn-l2-division': 2,
-  'cn-l3-sqrt': 2,
-  'cn-l4-powers': 2,
-  'cn-l4-de-moivre': 2,
   'df-l1-index': 2,
   'df-l2-product': 2,
   'df-l2-quotient': 2,
@@ -97,16 +89,17 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 47;
+export const WIDGET_KIND_CEILING = 39;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
  * how many times the worst offender is asked today.
  *
- * Far longer than the widget-kind list — 102 of 105 lessons — because a seven
- * exercise deck built from two or three generators breaks this rule by
- * construction. Phase A widens the decks; this list is how that progress is
- * measured.
+ * Far longer than the widget-kind list — 102 of 105 lessons when A1 measured
+ * it — because a seven exercise deck built from two or three generators breaks
+ * this rule by construction. Phase A widens the decks; this list is how that
+ * progress is measured. A7 took the 13 Complex Numbers lessons off it, and 8
+ * off the widget-kind list above.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l1-multiply': 6,
@@ -158,19 +151,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'lg-l3-natural': 6,
   'lg-l3-growth': 6,
   'lg-l3-models': 3,
-  'cn-l1-arithmetic': 5,
-  'cn-l1-complex': 4,
-  'cn-l1-quadratics': 6,
-  'cn-l2-multiply': 5,
-  'cn-l2-conjugates': 4,
-  'cn-l2-division': 4,
-  'cn-l3-plane': 3,
-  'cn-l3-modulus': 4,
-  'cn-l3-sqrt': 5,
-  'cn-l4-argument': 4,
-  'cn-l4-polar': 6,
-  'cn-l4-powers': 4,
-  'cn-l4-de-moivre': 6,
   'df-l1-power': 5,
   'df-l1-sums': 5,
   'df-l1-index': 6,
@@ -214,4 +194,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 102;
+export const GENERATOR_REPETITION_CEILING = 89;

@@ -29,6 +29,22 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 const prose = (text: string): Block => ({ kind: 'prose', text });
 
 /**
+ * An exercise with a line of teaching above it, on the same slide.
+ *
+ * Used where the question changes direction — a check by substitution after a
+ * run of expansions, a decision after a run of arithmetic — so the lesson
+ * reads as one thread rather than a quiz that keeps changing subject. The
+ * continuity belongs to the lesson rather than to the generator, which is why
+ * it is a property of the reference.
+ */
+const askWith = (generatorId: string, text: string, difficulty = 1): SlideRef => ({
+  type: 'generated',
+  generatorId,
+  difficulty,
+  leadIn: [prose(text)],
+});
+
+/**
  * The curve a teaching slide is talking about.
  *
  * Every slide in "The Line of Symmetry" describes a picture — a line through
@@ -72,7 +88,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-expand'),
-            ask('quad-expand'),
+            ask('quad-expand-term'),
             ask('quad-expand+choice'),
             teach(
               prose(
@@ -86,8 +102,9 @@ export const quadratics: Course = {
                 'Swapping the sum and the product is the error to watch for. Both come from the same pair of numbers, so a wrong answer still looks plausible.',
               ),
             ),
-            ask('quad-expand'),
-            ask('quad-expand'),
+            ask('quad-expand-square'),
+            askWith('quad-evaluate-at', 'Here is the check that costs nothing. Put a number in for $x$: the expanded form and the brackets must give the same value.'),
+            ask('quad-expand-term+choice'),
             teach(
               prose('Negative numbers need no new rule, only care with signs.'),
               maths('\\left(x - 4\\right)\\left(x + 7\\right) = x^{2} + 3x - 28'),
@@ -98,10 +115,14 @@ export const quadratics: Course = {
                 'A negative constant always means the two numbers had opposite signs. That is a useful check here, and the first thing to notice when factorising later.',
               ),
             ),
-            ask('quad-expand+choice'),
-            ask('quad-expand'),
+            ask('quad-expand-square+choice'),
+            ask('quad-evaluate-at+choice'),
           ],
-          skillCheck: [ask('quad-expand', 2), ask('quad-expand', 2), ask('quad-expand', 2)],
+          skillCheck: [
+            ask('quad-expand', 2),
+            ask('quad-expand-square', 2),
+            ask('quad-expand-term', 2),
+          ],
         },
         {
           id: 'qd-l1-factorise',
@@ -123,7 +144,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-factorise'),
-            ask('quad-factorise'),
+            ask('quad-factor-one'),
             ask('quad-factorise+choice'),
             teach(
               prose('The signs can be settled before any searching, which removes most of the work.'),
@@ -135,8 +156,9 @@ export const quadratics: Course = {
                 'Here the constant is negative, so the signs differ; the middle term is negative, so the larger of the two numbers is the negative one.',
               ),
             ),
-            ask('quad-factorise'),
-            ask('quad-factorise'),
+            ask('quad-factorise-route'),
+            askWith('quad-expand-term', 'Factorising is expanding run backwards, so expanding is how you check it. This one asks for the middle coefficient alone.'),
+            ask('quad-factor-one+choice'),
             teach(
               prose(
                 'Not every quadratic factorises with whole numbers, and there is nothing wrong with one that does not — Level 2 has two methods that work regardless.',
@@ -149,10 +171,14 @@ export const quadratics: Course = {
                 'Check by expanding, always. It takes seconds and catches a sign slip immediately.',
               ),
             ),
-            ask('quad-factorise+choice'),
-            ask('quad-factorise'),
+            askWith('quad-evaluate-at', 'The other check: both forms must agree at every value of $x$, so pick one and work it out.'),
+            ask('quad-expand-term+choice'),
           ],
-          skillCheck: [ask('quad-factorise', 2), ask('quad-factorise', 2), ask('quad-factorise', 2)],
+          skillCheck: [
+            ask('quad-factorise', 2),
+            ask('quad-factorise', 2),
+            ask('quad-factor-one', 2),
+          ],
         },
         {
           id: 'qd-l1-squares',
@@ -172,8 +198,8 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-difference-squares'),
-            ask('quad-difference-squares'),
-            ask('quad-difference-squares+choice'),
+            askWith('quad-squares-arithmetic', 'The same identity, turned on numbers. Two squarings and a subtraction become one small multiplication.'),
+            ask('quad-squares-spot'),
             teach(
               prose('Both factors carry the square *root*, not the original number.'),
               maths('x^{2} - 49 = \\left(x - 7\\right)\\left(x + 7\\right)'),
@@ -183,8 +209,9 @@ export const quadratics: Course = {
               prose('A coefficient on $x^{2}$ is no obstacle provided it is a square too.'),
               maths('9x^{2} - 25 = \\left(3x - 5\\right)\\left(3x + 5\\right)'),
             ),
-            ask('quad-difference-squares'),
-            ask('quad-difference-squares', 2),
+            ask('quad-difference-squares+choice'),
+            ask('quad-factorise-route'),
+            ask('quad-squares-arithmetic+choice'),
             teach(
               prose(
                 'A *sum* of two squares is a different matter. $x^{2} + 49$ does not factorise at all over the real numbers, and no amount of searching will help.',
@@ -197,13 +224,13 @@ export const quadratics: Course = {
                 'Expanding the right-hand side gives $x^{2} + 14x + 49$, which has a middle term the original does not.',
               ),
             ),
-            ask('quad-difference-squares+choice', 2),
-            ask('quad-difference-squares', 2),
+            ask('quad-squares-spot'),
+            ask('quad-factorise-route'),
           ],
           skillCheck: [
             ask('quad-difference-squares', 2),
             ask('quad-difference-squares', 2),
-            ask('quad-difference-squares', 2),
+            ask('quad-squares-arithmetic', 2),
           ],
         },
         {
@@ -224,7 +251,7 @@ export const quadratics: Course = {
               maths('3 \\times 3 + 2 \\times 1 = 11'),
             ),
             ask('quad-factorise-coefficient'),
-            ask('quad-factorise-coefficient'),
+            ask('quad-expand-term', 2),
             ask('quad-factorise-coefficient+choice'),
             teach(
               prose('That means the order of the two constants matters, which is the extra difficulty.'),
@@ -236,8 +263,9 @@ export const quadratics: Course = {
                 'So expanding to check is not optional here. It is the only way to know which of the two arrangements is the right one.',
               ),
             ),
-            ask('quad-factorise-coefficient'),
-            ask('quad-factorise-coefficient'),
+            askWith('quad-common-factor', 'Before any of that, look for a factor every term shares. Taking it out makes what is left smaller.'),
+            ask('quad-evaluate-at', 2),
+            ask('quad-common-factor+choice'),
             teach(
               prose(
                 'Take out a common factor first whenever there is one. It makes everything that follows easier.',
@@ -249,13 +277,13 @@ export const quadratics: Course = {
                 'The 2 came out and left a quadratic with a leading coefficient of 1 — back to the simple case. Checking for a common factor costs nothing and often removes the difficulty entirely.',
               ),
             ),
-            ask('quad-factorise-coefficient+choice'),
-            ask('quad-factorise-coefficient'),
+            ask('quad-factorise-route'),
+            ask('quad-expand-term+choice', 2),
           ],
           skillCheck: [
             ask('quad-factorise-coefficient', 2),
             ask('quad-factorise-coefficient', 2),
-            ask('quad-factorise-coefficient', 2),
+            ask('quad-common-factor', 2),
           ],
         },
       ],
@@ -264,14 +292,14 @@ export const quadratics: Course = {
         ask('quad-factorise', 2),
         ask('quad-difference-squares', 2),
         ask('quad-factorise-coefficient', 2),
-        ask('quad-expand', 2),
-        ask('quad-factorise', 2),
-        ask('quad-difference-squares', 2),
-        ask('quad-factorise-coefficient', 2),
-        ask('quad-factorise', 2),
-        ask('quad-factorise-coefficient', 2),
-        ask('quad-expand', 2),
-        ask('quad-difference-squares', 2),
+        ask('quad-expand-square', 2),
+        ask('quad-common-factor', 2),
+        ask('quad-factor-one', 2),
+        ask('quad-squares-arithmetic', 2),
+        ask('quad-expand-term', 2),
+        ask('quad-factorise-route', 2),
+        ask('quad-squares-spot', 2),
+        ask('quad-evaluate-at', 2),
       ],
     },
     {
@@ -296,7 +324,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-solve-factorise'),
-            ask('quad-solve-factorise'),
+            askWith('quad-other-root', 'The two roots are tied together by the equation, so one of them hands you the other without any factorising at all.'),
             ask('quad-solve-factorise+choice'),
             teach(
               prose(
@@ -310,8 +338,9 @@ export const quadratics: Course = {
                 'Substituting back is the check: $\\left(-3\\right)^{2} - 2\\left(-3\\right) - 15 = 9 + 6 - 15 = 0$, so $-3$ is genuinely a root.',
               ),
             ),
-            ask('quad-solve-factorise'),
-            ask('quad-solve-factorise'),
+            ask('quad-root-slider'),
+            askWith('quad-evaluate-at', 'Substituting is how a root is checked: a value that makes the whole expression zero is a root, and anything else is not.'),
+            ask('quad-other-root+choice'),
             teach(
               prose(
                 'The method needs the equation to equal zero first, so everything has to be moved to one side before factorising.',
@@ -324,13 +353,13 @@ export const quadratics: Course = {
                 'So rearrange first, every time. Skipping that step is what produces confidently wrong answers.',
               ),
             ),
-            ask('quad-solve-factorise+choice'),
-            ask('quad-solve-factorise'),
+            ask('quad-factorise'),
+            ask('quad-evaluate-at+choice'),
           ],
           skillCheck: [
             ask('quad-solve-factorise', 2),
             ask('quad-solve-factorise', 2),
-            ask('quad-solve-factorise', 2),
+            ask('quad-other-root', 2),
           ],
         },
         {
@@ -349,7 +378,7 @@ export const quadratics: Course = {
               maths('\\left(x + 3\\right)^{2} + 2 = x^{2} + 6x + 9 + 2'),
             ),
             ask('quad-complete-square'),
-            ask('quad-complete-square'),
+            askWith('quad-min-value', 'Which is what the completed square is for: once $x$ appears only inside a square, the smallest the curve ever gets is in plain sight.'),
             ask('quad-complete-square+choice'),
             teach(
               prose('So the method is two steps: halve the middle coefficient, then correct the constant.'),
@@ -361,8 +390,9 @@ export const quadratics: Course = {
               ),
               prose('Expanding the bracket back is the check, and it takes one line.'),
             ),
-            ask('quad-complete-square'),
-            ask('quad-complete-square'),
+            ask('quad-turning-point'),
+            ask('quad-vertex-slider'),
+            ask('quad-min-value+choice'),
             teach(
               prose('Why bother? Because this form answers questions the original cannot.'),
               maths('\\left(x + 3\\right)^{2} + 2 \\geq 2'),
@@ -373,13 +403,13 @@ export const quadratics: Course = {
                 'It also solves the equation directly with no factorising: set it to zero, move the constant across, and take the square root of both sides.',
               ),
             ),
-            ask('quad-complete-square+choice'),
-            ask('quad-complete-square'),
+            ask('quad-turning-point+choice'),
+            ask('quad-vertex-slider'),
           ],
           skillCheck: [
             ask('quad-complete-square', 2),
             ask('quad-complete-square', 2),
-            ask('quad-complete-square', 2),
+            ask('quad-min-value', 2),
           ],
         },
         {
@@ -399,9 +429,9 @@ export const quadratics: Course = {
                 'Write down $a$, $b$ and $c$ with their signs before substituting anything. Most errors here are sign errors made while reading the equation.',
               ),
             ),
-            ask('quad-formula'),
-            ask('quad-formula'),
-            ask('quad-formula+choice'),
+            askWith('quad-formula-values', 'Start where the errors start. Name the three coefficients, with their signs, before anything goes into the formula.'),
+            ask('quad-discriminant-steps'),
+            ask('quad-formula-values+choice'),
             teach(
               prose('Work out the part under the root first, on its own, and then substitute.'),
               maths('x^{2} + 3x - 5 = 0 \\implies b^{2} - 4ac = 9 + 20 = 29'),
@@ -413,8 +443,9 @@ export const quadratics: Course = {
                 '29 is not a perfect square, so the roots are irrational. Leaving the surd in place keeps the answer exact; turning it into a decimal rounds it.',
               ),
             ),
-            ask('quad-discriminant-steps'),
             ask('quad-formula'),
+            ask('quad-discriminant-steps+choice'),
+            ask('quad-formula+choice'),
             teach(
               prose('The larger root always comes from the plus branch, provided $a$ is positive.'),
               maths(
@@ -427,10 +458,8 @@ export const quadratics: Course = {
                 'Try factorising first. When it works it is faster, and when it does not, the formula is waiting.',
               ),
             ),
-            ask('quad-formula+choice'),
-            // Directly after the slide saying to try factorising first: the
-            // decision that advice describes, made rather than read.
             ask('quad-choose-method'),
+            ask('quad-root-count'),
           ],
           skillCheck: [
             ask('quad-discriminant-steps+choice', 2),
@@ -457,8 +486,8 @@ export const quadratics: Course = {
                 'So the discriminant answers "how many roots" without ever finding them, which is often all a question wants.',
               ),
             ),
+            ask('quad-discriminant-tree'),
             ask('quad-discriminant-steps'),
-            ask('quad-discriminant-steps+choice'),
             ask('quad-root-count'),
             teach(
               prose('Each case has a graphical meaning, and it is worth holding both pictures at once.'),
@@ -470,8 +499,9 @@ export const quadratics: Course = {
                 'When the discriminant is zero the quadratic is a perfect square, which is useful in reverse: a perfect square always has a repeated root.',
               ),
             ),
-            ask('quad-root-count'),
             ask('quad-discriminant'),
+            askWith('quad-formula-values', 'Everything in $b^{2} - 4ac$ comes from the three coefficients, so reading them off correctly is the whole battle.'),
+            ask('quad-root-count'),
             teach(
               prose(
                 'Only the sign matters, never the size. A discriminant of 1 and a discriminant of 10000 both mean two distinct roots.',
@@ -484,8 +514,8 @@ export const quadratics: Course = {
                 'Compute it, look at the sign, stop. Going on to find the roots when the question only asked how many is wasted work.',
               ),
             ),
-            ask('quad-root-count'),
-            ask('quad-discriminant'),
+            ask('quad-discriminant-tree'),
+            ask('quad-choose-method'),
           ],
           skillCheck: [
             ask('quad-discriminant', 2),
@@ -500,13 +530,13 @@ export const quadratics: Course = {
         ask('quad-formula', 2),
         ask('quad-discriminant', 2),
         ask('quad-root-count', 2),
-        ask('quad-solve-factorise', 2),
-        ask('quad-complete-square', 2),
-        ask('quad-formula', 2),
-        ask('quad-discriminant', 2),
-        ask('quad-root-count', 2),
-        ask('quad-solve-factorise', 2),
-        ask('quad-complete-square', 2),
+        ask('quad-other-root', 2),
+        ask('quad-min-value', 2),
+        ask('quad-formula-values', 2),
+        ask('quad-discriminant-tree', 2),
+        ask('quad-root-slider', 2),
+        ask('quad-vertex-slider', 2),
+        ask('quad-choose-method', 2),
       ],
     },
     {
@@ -567,8 +597,9 @@ export const quadratics: Course = {
                 'It works in the other direction too: one root plus the line of symmetry gives the other root immediately, with no factorising at all.',
               ),
             ),
-            ask('quad-symmetry-slider'),
-            ask('quad-symmetry'),
+            askWith('quad-other-root', 'The two roots sit at equal distances either side of that line, so one root and the equation fix the other.'),
+            askWith('quad-complete-square', 'Completing the square puts the line of symmetry in plain sight: it runs through the value that makes the bracket zero.'),
+            ask('quad-other-root+choice'),
             teach(
               prose(
                 'The $y$-intercept needs no work at all. Setting $x = 0$ leaves only the constant term.',
@@ -580,10 +611,14 @@ export const quadratics: Course = {
                 'So the constant is always where the curve crosses the vertical axis. Two features of the graph are therefore free on sight: the constant gives the $y$-intercept, and the sign of the $x^{2}$ coefficient gives the direction.',
               ),
             ),
-            ask('quad-symmetry+choice'),
-            ask('quad-symmetry'),
+            ask('quad-symmetry-slider'),
+            ask('quad-complete-square+choice'),
           ],
-          skillCheck: [ask('quad-symmetry', 2), ask('quad-symmetry', 2), ask('quad-symmetry', 2)],
+          skillCheck: [
+            ask('quad-symmetry', 2),
+            ask('quad-symmetry', 2),
+            ask('quad-other-root', 2),
+          ],
         },
         {
           id: 'qd-l3-turning',
@@ -605,7 +640,7 @@ export const quadratics: Course = {
               ),
             ),
             ask('quad-turning-point'),
-            ask('quad-turning-point'),
+            ask('quad-vertex-slider'),
             ask('quad-turning-point+choice'),
             teach(
               prose('So the completed-square form can be read directly as a position.'),
@@ -615,8 +650,9 @@ export const quadratics: Course = {
               ),
               prose('The $y$ coordinate is the constant outside, always unchanged.'),
             ),
-            ask('quad-turning-point'),
-            ask('quad-complete-square', 2),
+            ask('quad-min-value'),
+            ask('quad-complete-square'),
+            ask('quad-min-value+choice'),
             teach(
               prose(
                 'When the $x^{2}$ coefficient is negative the whole picture inverts and the turning point becomes a maximum.',
@@ -629,13 +665,13 @@ export const quadratics: Course = {
                 'The same reading gives the point either way. Only the word — maximum or minimum — depends on the sign out front.',
               ),
             ),
-            ask('quad-turning-point+choice'),
-            ask('quad-turning-point'),
+            ask('quad-vertex-slider'),
+            ask('quad-symmetry'),
           ],
           skillCheck: [
             ask('quad-turning-point', 2),
             ask('quad-turning-point', 2),
-            ask('quad-turning-point', 2),
+            ask('quad-min-value', 2),
           ],
         },
         {
@@ -661,7 +697,7 @@ export const quadratics: Course = {
             ),
             ask('quad-from-roots'),
             ask('quad-root-count'),
-            ask('quad-from-roots'),
+            ask('quad-root-slider'),
             teach(
               prose(
                 'Going from roots to an equation: each root $r$ contributes a factor $\\left(x - r\\right)$.',
@@ -678,6 +714,7 @@ export const quadratics: Course = {
             ),
             ask('quad-from-roots'),
             ask('quad-discriminant-steps'),
+            ask('quad-root-count'),
             teach(
               prose('The discriminant and the graph agree, as they must.'),
               prose(
@@ -688,10 +725,14 @@ export const quadratics: Course = {
                 'That last case is worth picturing. The curve still exists and still has a turning point; it simply has no real roots, which is a statement about the axis rather than about the curve.',
               ),
             ),
-            ask('quad-from-roots'),
+            ask('quad-root-slider'),
             ask('quad-discriminant-steps+choice'),
           ],
-          skillCheck: [ask('quad-from-roots', 2), ask('quad-from-roots', 2), ask('quad-root-count', 2)],
+          skillCheck: [
+            ask('quad-from-roots', 2),
+            ask('quad-from-roots', 2),
+            ask('quad-root-count', 2),
+          ],
         },
         {
           id: 'qd-l3-sketch',
@@ -727,6 +768,7 @@ export const quadratics: Course = {
             ),
             ask('quad-root-count', 2),
             ask('quad-symmetry', 2),
+            ask('quad-vertex-slider'),
             teach(
               prose(
                 'A sketch is not a plot. It needs the right shape and the right labelled features, not accurate spacing.',
@@ -754,14 +796,14 @@ export const quadratics: Course = {
         ask('quad-turning-point', 2),
         ask('quad-root-count', 2),
         ask('quad-from-roots', 2),
+        ask('quad-other-root', 2),
+        ask('quad-min-value', 2),
+        ask('quad-vertex-slider', 2),
+        ask('quad-root-slider', 2),
         ask('quad-symmetry', 2),
         ask('quad-turning-point', 2),
         ask('quad-from-roots', 2),
-        ask('quad-root-count', 2),
-        ask('quad-symmetry', 2),
-        ask('quad-turning-point', 2),
-        ask('quad-from-roots', 2),
-        ask('quad-complete-square', 2),
+        ask('quad-discriminant-steps', 2),
       ],
     },
   ],

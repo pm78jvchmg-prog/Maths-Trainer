@@ -50,13 +50,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'er-l2-equations': 2,
   'er-l3-add': 2,
   'er-l3-rationalise': 2,
-  'qd-l1-expand': 2,
-  'qd-l1-factorise': 2,
-  'qd-l1-squares': 2,
-  'qd-l1-coefficient': 2,
-  'qd-l2-solve': 2,
-  'qd-l2-square': 2,
-  'qd-l3-turning': 2,
   'tf-l1-periodic': 2,
   'tf-l1-shift': 2,
   'tf-l2-speed': 2,
@@ -97,13 +90,14 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 47;
+export const WIDGET_KIND_CEILING = 40;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
  * how many times the worst offender is asked today.
  *
- * Far longer than the widget-kind list — 102 of 105 lessons — because a seven
+ * Far longer than the widget-kind list — 102 of the 105 lessons when it was
+ * written — because a seven
  * exercise deck built from two or three generators breaks this rule by
  * construction. Phase A widens the decks; this list is how that progress is
  * measured.
@@ -121,17 +115,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'er-l3-multiply': 5,
   'er-l3-add': 7,
   'er-l3-rationalise': 5,
-  'qd-l1-expand': 7,
-  'qd-l1-factorise': 7,
-  'qd-l1-squares': 7,
-  'qd-l1-coefficient': 7,
-  'qd-l2-solve': 7,
-  'qd-l2-square': 7,
-  'qd-l2-formula': 5,
-  'qd-l2-discriminant': 4,
-  'qd-l3-symmetry': 5,
-  'qd-l3-turning': 6,
-  'qd-l3-roots': 4,
   'tf-l1-periodic': 4,
   'tf-l1-period': 5,
   'tf-l1-shift': 5,
@@ -214,4 +197,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 102;
+export const GENERATOR_REPETITION_CEILING = 91;

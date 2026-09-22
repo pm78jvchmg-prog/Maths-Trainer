@@ -20,6 +20,9 @@ import type { Generator, KeypadKey, Slide } from '../types';
 import { bin, num, pow, root, valueOf, type Expr } from '../expr';
 import { options } from '../choiceVariant';
 import { plotSvg } from '../figures';
+// Where a slider's handle rests before it is touched. Imported rather than
+// restated so a question cannot be built against a rule the widget has moved.
+import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import type { Rng } from '../../engine/rng';
 
@@ -2004,7 +2007,12 @@ const estimateSurd: Generator<{ n: number }> = {
     // exists to show. Three past the answer leaves the crossing comfortably
     // inside the frame at every n the pool offers.
     const nearest = Math.round(Math.sqrt(n));
-    const span = nearest + 3;
+    // Then grown until the untouched handle is not already on the answer. A
+    // slider seeds its answer with wherever the handle rests, so a track whose
+    // middle *is* the answer is marked correct without being dragged — which
+    // it was for every n whose root rounds to 4 or 5.
+    let span = nearest + 3;
+    while (defaultSliderValue(1, span, 1) === nearest) span += 1;
     return {
       kind: 'slider',
       prompt: [

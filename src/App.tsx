@@ -5,6 +5,11 @@
  * routing a lesson through the address bar would hand the browser's back
  * gesture a way into the guided slides during a skill check, which is exactly
  * what the skill check is meant to prevent.
+ *
+ * One screen replacing another animates in the direction travelled, the same
+ * way a slide does inside a lesson. `direction` is presentation only — nothing
+ * reads it but a class name — and the screens themselves are still chosen by
+ * the state below rather than by a route.
  */
 import { useState } from 'react';
 import { categories, lessonCount, checkCount } from './content/courses';
@@ -120,7 +125,10 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
         </div>
 
         {category && (
-          <>
+          /* Keyed on the category so switching tabs remounts the pane and
+             replays its fade. Without the key the list swaps in one frame,
+             which reads as a flicker rather than a change of tab. */
+          <div className="category-pane" key={category.id}>
             <header className="category-head">
               <h1 className="home-title">{category.title}</h1>
               <p className="course-blurb">{category.blurb}</p>
@@ -166,7 +174,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
                 );
               })}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -257,31 +265,60 @@ function CourseMap({
 export default function App() {
   const [course, setCourse] = useState<Course | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const recordCompletion = useProgress((state) => state.recordCompletion);
   const recordPlay = useStreak((state) => state.recordPlay);
 
-  if (lesson) {
-    return (
-      <LessonPlayer
-        // Remount on lesson change so no session state survives between lessons.
-        key={lesson.id}
-        lesson={lesson}
-        registry={registry}
-        onExit={() => setLesson(null)}
-        onComplete={(score) => {
-          recordCompletion(lesson.id, score);
-          // Finishing something is what counts as playing; opening a lesson
-          // and backing out is not a day's practice.
-          recordPlay();
-          setLesson(null);
-        }}
-      />
-    );
-  }
+  const openCourse = (next: Course) => {
+    setDirection('forward');
+    setCourse(next);
+  };
 
-  if (course) {
-    return <CourseMap course={course} onOpen={setLesson} onBack={() => setCourse(null)} />;
-  }
+  const openLesson = (next: Lesson) => {
+    setDirection('forward');
+    setLesson(next);
+  };
 
-  return <Catalogue onOpen={setCourse} />;
+  const leaveLesson = () => {
+    setDirection('back');
+    setLesson(null);
+  };
+
+  const screen = lesson ? (
+    <LessonPlayer
+      // Remount on lesson change so no session state survives between lessons.
+      key={lesson.id}
+      lesson={lesson}
+      registry={registry}
+      onExit={leaveLesson}
+      onComplete={(score) => {
+        recordCompletion(lesson.id, score);
+        // Finishing something is what counts as playing; opening a lesson and
+        // backing out is not a day's practice.
+        recordPlay();
+        leaveLesson();
+      }}
+    />
+  ) : course ? (
+    <CourseMap
+      course={course}
+      onOpen={openLesson}
+      onBack={() => {
+        setDirection('back');
+        setCourse(null);
+      }}
+    />
+  ) : (
+    <Catalogue onOpen={openCourse} />
+  );
+
+  // Keyed so the wrapper remounts on every change of screen, which is what
+  // restarts the enter animation; a class alone would only play it once.
+  const key = lesson ? `lesson:${lesson.id}` : course ? `course:${course.id}` : 'home';
+
+  return (
+    <div className={`screen enter-${direction}`} key={key}>
+      {screen}
+    </div>
+  );
 }

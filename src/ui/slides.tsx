@@ -35,6 +35,7 @@ import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
+import { defaultSliderValue } from './sliderValue';
 
 export interface SlideProps {
   slide: Slide;
@@ -486,7 +487,9 @@ export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
   if (slide.kind !== 'slider') return null;
   const locked = isLocked(feedback, canEdit);
   const value =
-    typeof answer === 'string' && answer !== '' ? Number(answer) : (slide.min + slide.max) / 2;
+    typeof answer === 'string' && answer !== ''
+      ? Number(answer)
+      : defaultSliderValue(slide.min, slide.max, slide.step);
 
   return (
     <>
@@ -548,7 +551,10 @@ export function SlideView(props: SlideProps) {
       // A range input has a position whether or not anyone has touched it, so
       // the session is told where the handle actually is rather than left
       // holding '' while the learner looks at a handle sitting mid-track.
-      onAnswer(String((slide.min + slide.max) / 2));
+      // Snapped, because the true midpoint of an odd-width track is not a
+      // value the input can produce — and an unsnapped one sits half a step
+      // from a real answer, which is inside the default tolerance.
+      onAnswer(String(defaultSliderValue(slide.min, slide.max, slide.step)));
     } else {
       onAnswer('');
     }

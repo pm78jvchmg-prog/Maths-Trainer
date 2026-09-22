@@ -1636,6 +1636,9 @@ const fromImages: Generator<FromImagesParams> = {
       { tex: matrixTex(a, c, b, d) },
       { tex: matrixTex(b, a, d, c) },
       { tex: matrixTex(c, d, a, b) },
+      // One image with its sign lost. Also the one option not made of the same
+      // four numbers, which keeps the derived rotation from favouring two slots.
+      { tex: matrixTex(-a, b, -c, d) },
     );
   },
   sample: (rng, difficulty) => ({
@@ -1934,6 +1937,8 @@ const standardImage: Generator<StandardImageParams> = {
     options(
       { tex: pairTex(...apply(STANDARD[key].matrix, x, y)) },
       ...CONFUSED_WITH[key].map((other) => ({ tex: pairTex(...apply(STANDARD[other].matrix, x, y)) })),
+      // P itself, as though nothing had moved it.
+      { tex: pairTex(x, y) },
     ),
   sample: (rng, difficulty) => {
     const key = rng.pick(STANDARD_KEYS);
@@ -2108,6 +2113,8 @@ const rotationMatrix: Generator<RotationParams> = {
       { tex: m(cos, sin, -sin, cos) },
       { tex: m(sin, -cos, cos, sin) },
       { tex: m(-cos, sin, -sin, -cos) },
+      // A minus on both sines.
+      { tex: m(cos, -sin, -sin, cos) },
     );
   },
   sample: (rng, difficulty) => ({
@@ -2310,7 +2317,11 @@ const describeMatrix: Generator<DescribeParams> = {
       ...others.map((other, idx) => ({ id: `other${idx}`, label: nameOf(other), tex: false })),
     ]);
     const m = matrixOf(t);
-    const turn = (Math.abs(m[0]) + 2 * Math.abs(m[1]) + 3 * Math.abs(m[3])) % offered.length;
+    // From every label as well as the entries: for an enlargement the entries
+    // alone always came to a multiple of four, which pinned the answer first.
+    const turn =
+      Math.abs(offered.reduce((hash, option) => hash * 31 + option.label.length, Math.abs(m[0]) + Math.abs(m[3]))) %
+      offered.length;
     return {
       kind: 'choice',
       prompt: [
@@ -2592,16 +2603,19 @@ const areaSteps: Generator<AreaStepsParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `A $${p}$ by $${q}$ rectangle is transformed by this matrix, whose determinant is positive. Its new area is the determinant times its old one. Tap the part you would work out **next**, then choose what it comes to.`,
+          text: `A $${p}$ by $${q}$ rectangle is transformed by this matrix, whose determinant is positive. Its new area is its old area times the determinant. Tap the part you would work out **next**, then choose what it comes to.`,
         },
         { kind: 'display', tex: `\\mathbf{M} = ${texOf(m)}` },
       ],
-      expr: bin('*', bin('-', bin('*', num(a), num(d)), bin('*', num(b), num(c))), bin('*', num(p), num(q))),
+      // Rectangle first, as the line reads left to right. With the determinant
+      // first the rectangle's product loses its brackets, and "(det) x 3 x 3"
+      // invites multiplying by the first 3 alone, which is not a piece.
+      expr: bin('*', bin('*', num(p), num(q)), bin('-', bin('*', num(a), num(d)), bin('*', num(b), num(c)))),
       banks: {
-        'r.l.l': signedOffer(leading, a + d, -leading, Math.abs(leading) + 1),
-        'r.l.r': signedOffer(other, b + c, -other, Math.abs(other) + 1),
-        'r.l': signedOffer(det, leading + other, other - leading, -det),
-        'r.r': signedOffer(p * q, p + q, p * q + 1, 2 * (p + q)),
+        'r.l': signedOffer(p * q, p + q, p * q + 1, 2 * (p + q)),
+        'r.r.l': signedOffer(leading, a + d, -leading, Math.abs(leading) + 1),
+        'r.r.r': signedOffer(other, b + c, -other, Math.abs(other) + 1),
+        'r.r': signedOffer(det, leading + other, other - leading, -det),
         r: signedOffer(det * p * q, det + p * q, (leading + other) * p * q, det * (p + q)),
       },
     };

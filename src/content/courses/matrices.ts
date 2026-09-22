@@ -623,15 +623,13 @@ export const matrices: Course = {
               prose(
                 'Every other point follows from those two. The point $(x, y)$ is $x$ lots of $\\mathbf{i}$ and $y$ lots of $\\mathbf{j}$, so it lands on $x$ lots of the first column plus $y$ lots of the second.',
               ),
-              maths(
-                '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = x\\begin{pmatrix} a \\\\ c \\end{pmatrix} + y\\begin{pmatrix} b \\\\ d \\end{pmatrix}',
-              ),
+              maths('\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\end{pmatrix}'),
+              maths('= x\\begin{pmatrix} a \\\\ c \\end{pmatrix} + y\\begin{pmatrix} b \\\\ d \\end{pmatrix}'),
               prose(
                 'So it works backwards too. Told where $\\mathbf{i}$ and $\\mathbf{j}$ go, write the matrix straight down: the two images, side by side, as columns.',
               ),
-              maths(
-                '\\mathbf{i} \\to \\begin{pmatrix} 2 \\\\ -1 \\end{pmatrix}, \\; \\mathbf{j} \\to \\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix} \\implies \\mathbf{M} = \\begin{pmatrix} 2 & 3 \\\\ -1 & 4 \\end{pmatrix}',
-              ),
+              maths('\\mathbf{i} \\to \\begin{pmatrix} 2 \\\\ -1 \\end{pmatrix} \\qquad \\mathbf{j} \\to \\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix}'),
+              maths('\\mathbf{M} = \\begin{pmatrix} 2 & 3 \\\\ -1 & 4 \\end{pmatrix}'),
               prose(
                 'A picture carries the same information. The tips of the two arrows are the columns: row 1 is how far across each tip is, and row 2 is how far up.',
               ),
@@ -687,7 +685,9 @@ export const matrices: Course = {
               prose(
                 'The fourth corner, $(1, 1)$, is $\\mathbf{i} + \\mathbf{j}$, so it lands on the two columns added together.',
               ),
-              maths('\\begin{pmatrix} 3 & 1 \\\\ 1 & 2 \\end{pmatrix}: \\quad (1, 0) \\to (3, 1) \\qquad (0, 1) \\to (1, 2)'),
+              maths('\\mathbf{M} = \\begin{pmatrix} 3 & 1 \\\\ 1 & 2 \\end{pmatrix}'),
+              maths('(1, 0) \\to (3, 1)'),
+              maths('(0, 1) \\to (1, 2)'),
               maths('(1, 1) \\to (3 + 1, \\; 1 + 2) = (4, 3)'),
               figure(
                 transformGridSvg({
@@ -725,9 +725,9 @@ export const matrices: Course = {
                 'The picture and the matrix check each other. Read the columns off the arrows, add them, and the sum should be the far corner of the parallelogram.',
               ),
               prose(
-                'Bigger squares follow the same rule. The square of side $2$ has its far corner at $(2, 2)$, which lands on twice the sum of the columns.',
+                'Bigger squares follow the same rule. The square of side $2$ has its far corner at $(2, 2)$, which lands on twice the sum of the columns. For the matrix at the start of this lesson, that sum was $(4, 3)$.',
               ),
-              maths('\\mathbf{M}\\begin{pmatrix} 2 \\\\ 2 \\end{pmatrix} = 2\\left(\\text{column } 1 + \\text{column } 2\\right)'),
+              maths('(2, 2) \\to 2 \\times (4, 3) = (8, 6)'),
               prose('Everything about the image comes from those two columns.'),
             ),
             ask('mat-square-which'),
@@ -750,21 +750,18 @@ export const matrices: Course = {
               prose(
                 'A quarter turn anticlockwise about the origin sends $\\mathbf{i}$ to $\\mathbf{j}$ and $\\mathbf{j}$ to $-\\mathbf{i}$. A half turn sends each to its opposite.',
               ),
-              maths(
-                '90^\\circ \\text{ anticlockwise}: \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\qquad 180^\\circ: \\begin{pmatrix} -1 & 0 \\\\ 0 & -1 \\end{pmatrix}',
-              ),
+              maths('90^\\circ \\text{ anticlockwise}: \\; \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}'),
+              maths('180^\\circ: \\; \\begin{pmatrix} -1 & 0 \\\\ 0 & -1 \\end{pmatrix}'),
               prose(
                 'A turn of $90^\\circ$ clockwise is the same as $270^\\circ$ anticlockwise, so one matrix goes by both names: $\\begin{pmatrix} 0 & 1 \\\\ -1 & 0 \\end{pmatrix}$.',
               ),
               prose(
                 'A reflection leaves its mirror line alone and flips everything else across it. In the $x$-axis, $\\mathbf{i}$ stays put and $\\mathbf{j}$ flips to $-\\mathbf{j}$; in the line $y = x$, the two swap places.',
               ),
-              maths(
-                'y = 0: \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix} \\qquad x = 0: \\begin{pmatrix} -1 & 0 \\\\ 0 & 1 \\end{pmatrix}',
-              ),
-              maths(
-                'y = x: \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix} \\qquad y = -x: \\begin{pmatrix} 0 & -1 \\\\ -1 & 0 \\end{pmatrix}',
-              ),
+              maths('x\\text{-axis}: \\; \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix}'),
+              maths('y\\text{-axis}: \\; \\begin{pmatrix} -1 & 0 \\\\ 0 & 1 \\end{pmatrix}'),
+              maths('y = x: \\; \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix}'),
+              maths('y = -x: \\; \\begin{pmatrix} 0 & -1 \\\\ -1 & 0 \\end{pmatrix}'),
             ),
             ask('mat-standard'),
             ask('mat-standard-image'),
@@ -807,9 +804,8 @@ export const matrices: Course = {
               prose(
                 'The formula is for an anticlockwise turn. A clockwise turn is a negative angle, and since $\\sin\\left(-\\theta\\right) = -\\sin\\theta$ the minus sign moves to the bottom row.',
               ),
-              maths(
-                '60^\\circ \\text{ anticlockwise}: \\begin{pmatrix} \\frac{1}{2} & -\\frac{\\sqrt{3}}{2} \\\\ \\frac{\\sqrt{3}}{2} & \\frac{1}{2} \\end{pmatrix}',
-              ),
+              prose('So a turn of $60^\\circ$ anticlockwise is'),
+              maths('\\begin{pmatrix} \\frac{1}{2} & -\\frac{\\sqrt{3}}{2} \\\\ \\frac{\\sqrt{3}}{2} & \\frac{1}{2} \\end{pmatrix}'),
             ),
             ask('mat-rotation-matrix'),
             ask('mat-rotation-matrix+choice'),
@@ -828,13 +824,11 @@ export const matrices: Course = {
               prose(
                 'An **enlargement** about the origin with scale factor $k$ multiplies both $\\mathbf{i}$ and $\\mathbf{j}$ by $k$, so $k$ runs down the leading diagonal and zeros go everywhere else.',
               ),
-              maths('\\text{enlargement, factor } 3: \\; \\begin{pmatrix} 3 & 0 \\\\ 0 & 3 \\end{pmatrix}'),
+              maths('\\text{factor } 3: \\; \\begin{pmatrix} 3 & 0 \\\\ 0 & 3 \\end{pmatrix}'),
               prose(
                 'A **stretch** does that in one direction only. Parallel to the $x$-axis, $\\mathbf{i}$ is multiplied by $k$ and $\\mathbf{j}$ stays exactly where it is, so the $y$-axis does not move at all.',
               ),
-              maths(
-                '\\text{stretch parallel to the } x\\text{-axis, factor } 3: \\; \\begin{pmatrix} 3 & 0 \\\\ 0 & 1 \\end{pmatrix}',
-              ),
+              maths('x\\text{ only, factor } 3: \\; \\begin{pmatrix} 3 & 0 \\\\ 0 & 1 \\end{pmatrix}'),
               prose(
                 'The $1$ is the part that gets lost. A direction left alone keeps its $1$; a $0$ there would squash that whole direction flat. Stretching both ways at once puts a different factor in each diagonal slot.',
               ),
@@ -852,9 +846,7 @@ export const matrices: Course = {
               prose(
                 'If both arrows keep length $1$, it is a rotation or a reflection. If they only grow or shrink along the axes, it is an enlargement or a stretch.',
               ),
-              maths(
-                '\\begin{pmatrix} 1 & 0 \\\\ 0 & 4 \\end{pmatrix}: \\; \\mathbf{i} \\text{ unchanged}, \\; \\mathbf{j} \\times 4',
-              ),
+              maths('\\begin{pmatrix} 1 & 0 \\\\ 0 & 4 \\end{pmatrix}: \\quad \\mathbf{i} \\to \\mathbf{i}, \\; \\mathbf{j} \\to 4\\mathbf{j}'),
               prose(
                 'So that is a stretch parallel to the $y$-axis, factor $4$. It is the easy one to get backwards: a stretch parallel to the $y$-axis moves points up and down, so it is the bottom-right entry that changes.',
               ),
@@ -903,7 +895,7 @@ export const matrices: Course = {
               prose(
                 'That parallelogram has five times the area of the square it came from. Every shape is scaled by the same factor, because any shape can be filled with tiny squares and each of them grows by the same amount.',
               ),
-              maths('\\text{area of image} = \\left|\\det\\mathbf{M}\\right| \\times \\text{original area}'),
+              maths('\\text{new area} = \\left|\\det\\mathbf{M}\\right| \\times \\text{old area}'),
             ),
             ask('mat-area-image'),
             ask('mat-area-steps'),
@@ -925,7 +917,8 @@ export const matrices: Course = {
               prose(
                 'Knowing the area scale factor pins down an unknown entry. The determinant is a linear expression in any one entry, so setting it equal to the scale factor gives a linear equation.',
               ),
-              maths('\\det\\begin{pmatrix} k & 2 \\\\ 3 & 4 \\end{pmatrix} = 4k - 6 = 10 \\implies k = 4'),
+              maths('\\det\\begin{pmatrix} k & 2 \\\\ 3 & 4 \\end{pmatrix} = 4k - 6'),
+              maths('4k - 6 = 10 \\implies k = 4'),
               prose(
                 'Settle the orientation first. If the shape is turned over, the determinant is the negative of the scale factor, and solving with the wrong sign gives a matrix that scales the area correctly but flips the shape when it should not.',
               ),

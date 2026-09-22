@@ -133,8 +133,11 @@ export function transformGridSvg(options: GridOptions): string {
     );
     if (arrow.label) {
       // Just past the tip, along the arrow, so it never sits on the shaft.
-      const lx = tipX + 11 * Math.cos(angle);
-      const ly = tipY + 11 * Math.sin(angle) + 4;
+      // Held inside the frame: a tip one unit from the edge would otherwise
+      // push its label half out of the picture.
+      const inside = (v: number) => Math.min(SIZE - 6, Math.max(8, v));
+      const lx = inside(tipX + 11 * Math.cos(angle));
+      const ly = inside(tipY + 11 * Math.sin(angle) + 4);
       parts.push(
         `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}"${cls} fill="currentColor" font-size="13" font-weight="700" text-anchor="middle">${arrow.label}</text>`,
       );

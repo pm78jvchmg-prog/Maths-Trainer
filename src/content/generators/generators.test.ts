@@ -33,6 +33,14 @@ import {
 import { startSession } from '../../engine/session';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
+import {
+  GENERATOR_REPETITION_ALLOWLIST,
+  GENERATOR_REPETITION_CEILING,
+  MAX_PER_FAMILY,
+  MIN_WIDGET_KINDS,
+  WIDGET_KIND_ALLOWLIST,
+  WIDGET_KIND_CEILING,
+} from '../shapeVariety';
 import { TRIPLES } from './complexPlane';
 import type { Generator, Slide, SlideRef } from '../types';
 
@@ -1102,6 +1110,188 @@ describe('course integrity', () => {
       }
     }
     expect(offenders.join('\n')).toBe('');
+  });
+
+  /**
+   * The smallest number of distinct widget kinds a *sitting* of these
+   * exercises can show.
+   *
+   * Not the union of what the generators can render: a reference that draws
+   * either an `expression` or a `choice` costs the deck nothing extra when
+   * some other reference is already `expression`-only, because per-slide seeds
+   * are independent and that sitting is reachable. So the honest count is the
+   * smallest set of kinds that covers every reference — a minimum hitting set,
+   * brute-forced over the union, which is at most nine kinds wide.
+   *
+   * `commonShape` above is this same question asked for the answer 1: a lesson
+   * whose minimum is 1 is one where every exercise can wear the same widget.
+   */
+  const minDistinctKinds = (refs: GeneratedRef[]): number => {
+    if (refs.length === 0) return 0;
+    const sets = refs.map(shapesOf);
+    const union = [...new Set(sets.flatMap((kinds) => [...kinds]))];
+    const covers = (pick: Set<Slide['kind']>) =>
+      sets.every((kinds) => [...kinds].some((kind) => pick.has(kind)));
+    for (let size = 1; size <= union.length; size += 1) {
+      const chosen: Slide['kind'][] = [];
+      const search = (from: number): boolean => {
+        if (chosen.length === size) return covers(new Set(chosen));
+        for (let i = from; i < union.length; i += 1) {
+          chosen.push(union[i]);
+          if (search(i + 1)) return true;
+          chosen.pop();
+        }
+        return false;
+      };
+      if (search(0)) return size;
+    }
+    return union.length;
+  };
+
+  /** How often each generator family is asked, worst first. */
+  const familyCounts = (refs: GeneratedRef[]): [string, number][] => {
+    const counts = new Map<string, number>();
+    for (const ref of refs) {
+      const family = familyOf(ref.generatorId);
+      counts.set(family, (counts.get(family) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  };
+
+  /** A lesson's guided exercises: the generated refs, which is all of them. */
+  const exercisesOf = (lesson: (typeof lessons)[number]): GeneratedRef[] =>
+    lesson.slides.filter((ref): ref is GeneratedRef => ref.type === 'generated');
+
+  /**
+   * One row per lesson, printed by the report test below.
+   *
+   * Computed once and shared with the two guards, because `shapesOf` sweeps
+   * 200 seeds per reference and there is no reason to pay for it three times.
+   */
+  const variety = lessons.map((lesson) => {
+    const exercises = exercisesOf(lesson);
+    const families = familyCounts(exercises);
+    return {
+      id: lesson.id,
+      exercises: exercises.length,
+      kinds: minDistinctKinds(exercises),
+      topFamily: families[0]?.[0] ?? '-',
+      topFamilyAsks: families[0]?.[1] ?? 0,
+    };
+  });
+
+  it('reports the widget kinds and generator repetition of every lesson', () => {
+    // The point of the report is that `npm test` itself says how far phase A
+    // has to go, so a number nobody can see would be no use.
+    const tally = (values: number[]) =>
+      [...new Set(values)]
+        .sort((a, b) => a - b)
+        .map((value) => `${value}: ${values.filter((v) => v === value).length}`)
+        .join('  ');
+
+    const rows = variety.map(
+      (row) =>
+        `  ${row.id.padEnd(24)} ${String(row.exercises).padStart(2)} exercises` +
+        `  ${row.kinds} widget kind${row.kinds === 1 ? ' ' : 's'}` +
+        `  ${row.topFamily} x${row.topFamilyAsks}`,
+    );
+    const kindOffenders = variety.filter((row) => row.kinds < MIN_WIDGET_KINDS).length;
+    const askOffenders = variety.filter((row) => row.topFamilyAsks > MAX_PER_FAMILY).length;
+
+    // Straight to stdout rather than through `console.log`, which this vitest
+    // setup swallows — and reached through `globalThis` because `src` is typed
+    // with `vite/client` alone, so node's globals are deliberately not in scope.
+    const stdout = (globalThis as { process?: { stdout?: { write(text: string): void } } })
+      .process?.stdout;
+    stdout?.write(
+      [
+        '',
+        `shape variety, ${variety.length} lessons`,
+        ...rows,
+        `  widget kinds per lesson — ${tally(variety.map((row) => row.kinds))}`,
+        `  most-asked family per lesson — ${tally(variety.map((row) => row.topFamilyAsks))}`,
+        `  below ${MIN_WIDGET_KINDS} widget kinds: ${kindOffenders}` +
+          ` (allowlisted: ${Object.keys(WIDGET_KIND_ALLOWLIST).length})`,
+        `  one family asked over ${MAX_PER_FAMILY} times: ${askOffenders}` +
+          ` (allowlisted: ${Object.keys(GENERATOR_REPETITION_ALLOWLIST).length})`,
+        '',
+      ].join('\n'),
+    );
+
+    expect(variety.length).toBe(lessons.length);
+  });
+
+  /**
+   * Both guards below are ratchets rather than plain assertions, and the three
+   * failure modes matter equally:
+   *
+   * - a lesson off the list that misses the bar — the guard doing its job on
+   *   anything written after this batch;
+   * - a listed lesson that now clears the bar — a stale entry, which has to go
+   *   or the list stops meaning anything;
+   * - a listed lesson whose number has moved — worse is a regression, better is
+   *   progress the entry should record, and either way the entry is now a lie.
+   *
+   * The last one is what makes "may only shrink" true of the *contents* as well
+   * as the length: an allowlisted lesson cannot quietly decay behind its entry.
+   */
+  const checkRatchet = (
+    label: string,
+    remedy: string,
+    allowlist: Readonly<Record<string, number>>,
+    ceiling: number,
+    measured: { id: string; value: number }[],
+    passes: (value: number) => boolean,
+    describe: (value: number) => string,
+  ) => {
+    const offenders: string[] = [];
+    for (const { id, value } of measured) {
+      const recorded = allowlist[id];
+      if (passes(value)) {
+        if (recorded !== undefined) {
+          offenders.push(`${id} now clears the bar (${describe(value)}) — delete its allowlist entry`);
+        }
+        continue;
+      }
+      if (recorded === undefined) {
+        offenders.push(`${id} ${describe(value)} and is not allowlisted — ${remedy}`);
+      } else if (value !== recorded) {
+        offenders.push(`${id} is allowlisted at ${recorded} but ${describe(value)} — update its entry`);
+      }
+    }
+    for (const id of Object.keys(allowlist)) {
+      if (!measured.some((row) => row.id === id)) {
+        offenders.push(`${id} is allowlisted but no longer exists — delete its entry`);
+      }
+    }
+    expect(offenders.join('\n')).toBe('');
+    // The length is pinned separately: an entry removed above without the
+    // ceiling following it down leaves the ratchet slack for the next batch.
+    expect(Object.keys(allowlist).length, `the ${label} changed length: move its ceiling`).toBe(ceiling);
+  };
+
+  it('asks every lesson through at least three widget kinds', () => {
+    checkRatchet(
+      'widget-kind allowlist',
+      'ask some of its exercises through a different widget',
+      WIDGET_KIND_ALLOWLIST,
+      WIDGET_KIND_CEILING,
+      variety.map((row) => ({ id: row.id, value: row.kinds })),
+      (value) => value >= MIN_WIDGET_KINDS,
+      (value) => `asks through ${value} widget kind${value === 1 ? '' : 's'}`,
+    );
+  });
+
+  it('never asks one generator family more than twice in a lesson', () => {
+    checkRatchet(
+      'generator-repetition allowlist',
+      'spread its exercises across more generators',
+      GENERATOR_REPETITION_ALLOWLIST,
+      GENERATOR_REPETITION_CEILING,
+      variety.map((row) => ({ id: row.id, value: row.topFamilyAsks })),
+      (value) => value <= MAX_PER_FAMILY,
+      (value) => `asks one family ${value} times`,
+    );
   });
 
   it('uses unique lesson ids', () => {

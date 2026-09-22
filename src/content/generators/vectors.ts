@@ -1700,7 +1700,8 @@ const endpoint: Generator<EndpointParams> = {
         {
           text: '$\\overrightarrow{AB}$ is the journey from $A$ to $B$. To get back to $A$, start at $B$ and make that journey in reverse: subtract it.',
         },
-        { tex: `\\mathbf{a} = \\mathbf{b} - \\overrightarrow{AB} = ${columnTex(bx, by)} - ${columnTex(dx, dy)} = ${columnTex(ax, ay)}` },
+        { tex: '\\mathbf{a} = \\mathbf{b} - \\overrightarrow{AB}' },
+        { tex: `= ${columnTex(bx, by)} - ${columnTex(dx, dy)} = ${columnTex(ax, ay)}` },
         { text: `So $A$ is $${pointTex(ax, ay)}$.` },
         {
           text: `Check it forwards: $${pointTex(ax, ay)}$ moved by $${columnTex(dx, dy)}$ lands on $${pointTex(bx, by)}$, which is $B$. Adding instead would have walked further on, to $${pointTex(bx + dx, by + dy)}$.`,
@@ -1711,7 +1712,8 @@ const endpoint: Generator<EndpointParams> = {
       {
         text: '$\\overrightarrow{AB}$ is the journey from $A$ to $B$, so $B$ is where you end up after making it from $A$.',
       },
-      { tex: `\\mathbf{b} = \\mathbf{a} + \\overrightarrow{AB} = ${columnTex(ax, ay)} + ${columnTex(dx, dy)} = ${columnTex(bx, by)}` },
+      { tex: '\\mathbf{b} = \\mathbf{a} + \\overrightarrow{AB}' },
+      { tex: `= ${columnTex(ax, ay)} + ${columnTex(dx, dy)} = ${columnTex(bx, by)}` },
       { text: `So $B$ is $${pointTex(bx, by)}$.` },
       {
         text: `Subtracting would walk the journey backwards and land on $${pointTex(ax - dx, ay - dy)}$, a point on the far side of $A$.`,
@@ -1881,7 +1883,8 @@ const midpoint: Generator<MidpointParams> = {
           text: '$M$ is halfway, so the journey from $A$ to $M$ is half the journey from $A$ to $B$. Make it twice.',
         },
         { tex: `\\overrightarrow{AM} = ${columnTex(mx, my)} - ${columnTex(ax, ay)} = ${columnTex(mx - ax, my - ay)}` },
-        { tex: `\\mathbf{b} = \\mathbf{m} + \\overrightarrow{AM} = ${columnTex(mx, my)} + ${columnTex(mx - ax, my - ay)} = ${columnTex(bx, by)}` },
+        { tex: '\\mathbf{b} = \\mathbf{m} + \\overrightarrow{AM}' },
+        { tex: `= ${columnTex(mx, my)} + ${columnTex(mx - ax, my - ay)} = ${columnTex(bx, by)}` },
         {
           text: `Check with the midpoint formula: halfway between $${pointTex(ax, ay)}$ and $${pointTex(bx, by)}$ is $${pointTex(mx, my)}$, which is $M$.`,
         },
@@ -1892,7 +1895,8 @@ const midpoint: Generator<MidpointParams> = {
         text: 'Halfway from $A$ to $B$ is $A$ plus half of $\\overrightarrow{AB}$, which tidies up to the average of the two position vectors.',
       },
       { tex: `\\mathbf{m} = \\mathbf{a} + \\tfrac{1}{2}\\left(\\mathbf{b} - \\mathbf{a}\\right) = \\tfrac{1}{2}\\left(\\mathbf{a} + \\mathbf{b}\\right)` },
-      { tex: `\\tfrac{1}{2}\\left(${columnTex(ax, ay)} + ${columnTex(bx, by)}\\right) = \\tfrac{1}{2}${columnTex(ax + bx, ay + by)} = ${columnTex(mx, my)}` },
+      { tex: `\\tfrac{1}{2}\\left(${columnTex(ax, ay)} + ${columnTex(bx, by)}\\right)` },
+      { tex: `= \\tfrac{1}{2}${columnTex(ax + bx, ay + by)} = ${columnTex(mx, my)}` },
       {
         text: `Halving $\\overrightarrow{AB}$ alone gives $${pointTex((bx - ax) / 2, (by - ay) / 2)}$, which is how far $M$ is from $A$, not where it is.`,
       },
@@ -1969,8 +1973,10 @@ const section: Generator<SectionParams> = {
       {
         text: `$AP : PB = ${m} : ${n}$ cuts $AB$ into ${total} equal parts, and $P$ is ${m} of them along from $A$. So $\\overrightarrow{AP} = \\frac{${m}}{${total}}\\overrightarrow{AB}$.`,
       },
-      { tex: `\\overrightarrow{AB} = ${columnTex(total * u, total * v)} \\implies \\overrightarrow{AP} = \\frac{${m}}{${total}}${columnTex(total * u, total * v)} = ${columnTex(m * u, m * v)}` },
-      { tex: `\\mathbf{p} = \\mathbf{a} + \\overrightarrow{AP} = ${columnTex(ax, ay)} + ${columnTex(m * u, m * v)} = ${columnTex(ax + m * u, ay + m * v)}` },
+      { tex: `\\overrightarrow{AB} = ${columnTex(total * u, total * v)}` },
+      { tex: `\\overrightarrow{AP} = \\frac{${m}}{${total}}${columnTex(total * u, total * v)} = ${columnTex(m * u, m * v)}` },
+      { tex: `\\mathbf{p} = \\mathbf{a} + \\overrightarrow{AP} = ${columnTex(ax, ay)} + ${columnTex(m * u, m * v)}` },
+      { tex: `= ${columnTex(ax + m * u, ay + m * v)}` },
       {
         text: `Using $\\frac{${n}}{${total}}$ instead reads the ratio from the $B$ end, and lands on $${pointTex(ax + n * u, ay + n * v)}$. The first number in the ratio belongs to the part next to $A$.`,
       },
@@ -2276,7 +2282,8 @@ const lineTest: Generator<LineTestParams> = {
     const { points, yes, ax, ay, ux, uy } = params;
     const [vx, vy] = lineTestSecond(params);
     const subject = points
-      ? `A${pointTex(ax, ay)}, \\; B${pointTex(ax + ux, ay + uy)}, \\; C${pointTex(ax + vx, ay + vy)}`
+      ? // Two rows: three coordinate pairs on one line overrun a phone.
+        `\\begin{gathered} A${pointTex(ax, ay)} \\quad B${pointTex(ax + ux, ay + uy)} \\\\ C${pointTex(ax + vx, ay + vy)} \\end{gathered}`
       : `${columnTex(ux, uy)} \\text{ and } ${columnTex(vx, vy)}`;
     return {
       kind: 'flow',

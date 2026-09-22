@@ -245,7 +245,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 
 | # | Batch | Status | Done when |
 | ---: | --- | --- | --- |
-| A1 | Shape-variety report and guard | open | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
+| A1 | Shape-variety report and guard | claimed | `npm test` reports per-lesson widget-kind counts and generator repetition, fails any lesson added after this batch that uses fewer than 3 widget kinds or repeats one generator more than twice, and carries an allowlist of the current 47 offenders that may only shrink |
 | A2 | `tree` and `steps` generators | open | At least 8 `tree` generators and 6 more `steps` generators exist, registered, passing the property tests, and each is asked by at least one lesson |
 | A3 | Widen Exponents & Radicals | open | All 12 `er-` lessons have 8–10 guided exercises across ≥3 widget kinds, no generator asked more than twice, suite and typecheck green, one lesson checked in a browser |
 | A4 | Widen Quadratics | open | Same bar, all 12 `qd-` lessons |
@@ -256,6 +256,12 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
+
+A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
+47 counted above are the lessons below three widget kinds; the "no generator
+more than twice" rule, counted by family, catches **102 of the 105** — a seven
+exercise deck built from two or three generators breaks it by construction. A11
+empties both.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

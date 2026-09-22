@@ -21,6 +21,13 @@
  * can stop someone editing a list, but adding an entry now means raising a
  * number whose comment says it only goes down, in the same diff, where a
  * reviewer sees it.
+ *
+ * Neither list is meant to survive phase A. When one reaches zero the suite
+ * says so and fails until the list, its ceiling and the guard's use of it are
+ * deleted — see `retires an allowlist once it is empty` in
+ * `generators.test.ts`. An empty list left in place is still a guard with an
+ * exception in it, and re-populating it would cost one line rather than a
+ * raised ceiling.
  */
 
 /** Distinct widget kinds a lesson's exercises must offer between them. */

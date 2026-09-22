@@ -344,7 +344,7 @@ export const complexNumbers: Course = {
             ),
             ask('identify-point'),
             ask('plot-point'),
-            ask('identify-point'),
+            ask('identify-point+choice'),
             teach(
               { kind: 'prose', text: 'It works the other way too: given a number, you can place it. Move along the real axis first, then up or down the imaginary axis.' },
               { kind: 'display', tex: '-2 + 3i \\quad \\longleftrightarrow \\quad (-2, 3)' },
@@ -365,9 +365,10 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'Go $3$ across and $1$ up, then a further $1$ across and $2$ up. Doing the two moves in the other order lands in the same place, which is addition being commutative, drawn.' },
               { kind: 'prose', text: 'Subtraction is the same idea reversed, and $z - w$ is the arrow *from* $w$ *to* $z$. That reading makes the modulus of a difference the distance between two points, which is worth holding on to for the next lesson.' },
             ),
-            ask('identify-point', 2),
+            ask('plot-sum'),
+            ask('plot-sum', 2),
           ],
-          skillCheck: [ask('identify-point', 2), ask('plot-point', 2), ask('identify-point')],
+          skillCheck: [ask('identify-point', 2), ask('plot-point', 2), ask('plot-sum', 2)],
         },
 
         {

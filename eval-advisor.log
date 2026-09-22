@@ -3004,3 +3004,35 @@ of eight.
 The five are the five the plan's section 7 names — cn-l1-quadratics 75%,
 cn-l4-polar 75%, cn-l4-de-moivre 75%, cn-l1-arithmetic 71%, cn-l2-multiply 71%.
 The prediction landed exactly, including which lessons remain.
+
+## Unit 6 — The plane: identify a point from four, and plot a sum
+
+Committed with NO consultation, per the deviation logged above.
+
+Gates:
+
+- `npx vitest run` -> 3417 passed, 7 files, 94.61 s, exit 0. Predicted 3391 + 26
+  = 3417 (identify-point+choice 13; plot-sum 13), and the plan's frozen final
+  count. Exact.
+- Both typechecks silent. `npm run lint` -> 0 errors, 25 warnings.
+- `npm run build` -> built, service worker written, 69 precache entries. Run here
+  because this is the last unit, as section 6.2 step 2 requires.
+- Scope: complexPlane.ts, complexNumbers.ts, this log.
+- Scoped runs: `-t 'plot-sum'` 13 passed; `-t 'identify-point'` 26 passed (the
+  typed form plus its new derived choice form).
+
+Oracle:
+
+    plot-sum: draws: 400, failures: 0
+    identify-point+choice: draws: 400, failures: 0
+
+`identify-point+choice` cannot be read off its diagram, so the oracle checks it
+against the *typed* form's own answer for the same seed and difficulty: the label
+at `correctId` must be the number `identify-point` asks the learner to type, and
+exactly one option may read that number. That is a different shape of check from
+the rest and is the only one in the oracle that renders two generators.
+
+All three teach slides of `cn-l3-plane` are unchanged. The third already taught
+addition as two moves on the plane and asked nothing about it.
+
+Mutation M-6-range runs after this commit and before the push.

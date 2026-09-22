@@ -48,6 +48,13 @@ interface PointParams { re: number; im: number }
 
 export const identifyPoint: Generator<PointParams> = {
   id: 'identify-point',
+  // The parts swapped, and each sign lost. When a part is zero (difficulty 2
+  // only) or the two are equal, a distractor's label collapses onto the
+  // answer's and `options()` drops it, leaving three — which is fine.
+  choices: ({ re, im }) => {
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return options(opt(re, im), opt(im, re), opt(-re, im), opt(re, -im));
+  },
   sample: samplePlanePoint,
   render: ({ re, im }) => ({
     kind: 'expression',
@@ -85,6 +92,65 @@ export const plotPoint: Generator<PointParams> = {
     {
       text: `Move ${Math.abs(re)} ${re < 0 ? 'left' : 'right'} along the real axis, then ${Math.abs(im)} ${im < 0 ? 'down' : 'up'} the imaginary axis.`,
       tex: `${complexTex(re, im)} \\rightarrow (${re},\\ ${im})`,
+    },
+  ],
+};
+
+/* ---------- Plot a sum ---------- */
+
+interface PlotSumParams { a: number; b: number; c: number; d: number }
+
+/**
+ * Addition as two moves on the plane, which the third teach slide of the plane
+ * lesson has always drawn and never asked. Both components are redrawn until
+ * the sum stays on the grid the widget draws.
+ */
+export const plotSum: Generator<PlotSumParams> = {
+  id: 'plot-sum',
+  sample: (rng, difficulty) => {
+    if (difficulty >= 2) {
+      let a = nonZero(rng, 3);
+      let b = nonZero(rng, 3);
+      let c = nonZero(rng, 3);
+      let d = nonZero(rng, 3);
+      while (Math.abs(a + c) > RANGE || Math.abs(b + d) > RANGE) {
+        a = nonZero(rng, 3);
+        b = nonZero(rng, 3);
+        c = nonZero(rng, 3);
+        d = nonZero(rng, 3);
+      }
+      return { a, b, c, d };
+    }
+    let a = rng.int(1, 3);
+    let b = rng.int(1, 3);
+    let c = rng.int(1, 3);
+    let d = rng.int(1, 3);
+    while (a + c > RANGE || b + d > RANGE) {
+      a = rng.int(1, 3);
+      b = rng.int(1, 3);
+      c = rng.int(1, 3);
+      d = rng.int(1, 3);
+    }
+    return { a, b, c, d };
+  },
+  render: ({ a, b, c, d }) => ({
+    kind: 'plot',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Plot $z + w$, where $z = ${complexTex(a, b)}$ and $w = ${complexTex(c, d)}$.`,
+      },
+    ],
+    range: RANGE,
+    answer: { re: a + c, im: b + d },
+  }),
+  solution: ({ a, b, c, d }) => [
+    {
+      text: 'Add the real parts and the imaginary parts.',
+      tex: `(${complexTex(a, b)}) + (${complexTex(c, d)}) = ${complexTex(a + c, b + d)}`,
+    },
+    {
+      text: `On the plane: go to $z$, then move by $w$ — ${Math.abs(c)} ${c < 0 ? 'left' : 'right'} and ${Math.abs(d)} ${d < 0 ? 'down' : 'up'} — and the two routes to the same point are addition being commutative, drawn.`,
     },
   ],
 };
@@ -1105,6 +1171,7 @@ export const powerReverse: Generator<ReverseParams> = {
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
+  plotSum,
   conjugatePlot,
   modulus,
   modulusSteps,

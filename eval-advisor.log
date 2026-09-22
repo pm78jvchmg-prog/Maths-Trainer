@@ -3358,3 +3358,57 @@ recorded under unit 1: its sed matches five lines, including the shared
 distractor helper.
 
 No gate mutation survived. Pushing.
+
+## Final bookkeeping commit — no consultation held, per PREFLIGHT
+
+This commit adds `eval/reports/TASK7-REPORT.md` and this entry. Per PREFLIGHT's
+own rule — a commit that only records results changes no behaviour, and asking an
+advisor whether a transcription is faithful when it cannot see the original output
+is a check structured so it cannot fail — no consultation was launched for it.
+This sentence is that deliberate absence, logged rather than left as a gap.
+Mechanical checks in its place:
+
+- **Insertions-only on this log.** `git diff --stat -- eval-advisor.log` shows one
+  file changed, insertions only, at every append this task made; the single line
+  matching `^-` in each raw diff is the `---` file header, PREFLIGHT's documented
+  carve-out. Checked individually before each of the twelve appends.
+- **Scope.** This commit touches `eval/reports/TASK7-REPORT.md` (new) and this
+  log. The branch as a whole touches exactly the twelve files of the plan's
+  section 0 table plus the report.
+- **Arithmetic.** 3221 + 1 (unit 0) + 52 (unit 1) + 39 (unit 2) + 39 (unit 3)
+  + 39 (unit 4) + 0 (unit 5) + 26 (unit 6) + 0 (fix-forward) = **3417**, matching
+  the final `npm test` exactly and the plan's frozen prediction. Registry
+  232 + 15 = 247 and lessons 105 unchanged, both confirmed against the live tree
+  by a script rather than by arithmetic alone.
+- **The timing table.** Written by re-reading this log from the top rather than
+  from memory, as section 6.3 requires. Every unit row says the same thing
+  because it is true of every unit row: no consultation had returned before the
+  commit or before the push, because only one was held and it was held after unit
+  6's push. Nine commits pushed with none held; three after it returned. The
+  table's headings were checked line by line against this log's own headings, in
+  order.
+- **The report's counted claims.** Run informally through
+  `eval/bin/counts.sh eval/plans/TASK7-PLAN.md eval/reports/TASK7-REPORT.md
+  --suite-log <this session's own capture>` to catch my own transcription
+  mistakes. It reported `COUNTS AGREE`, `checked: plan 5 claims, report 5 claims`
+  on the first pass, with no mistakes to fix. Its exit code is **not** offered as
+  evidence in the report, and the report says so: nothing binds a suite log to a
+  checkout, so I would be supplying the claim, the evidence and the verdict. The
+  orchestrator runs it at stage 6 with a log from their own gate run.
+
+## What this task should be remembered for
+
+The plan predicted fourteen mutation outcomes and got eleven right. The three it
+missed all turn on one mechanism I had to find by running them: `options()`
+de-duplicates a choice by its *label* before anything compares values, so the
+distractor test cannot catch a distractor equal to the answer — only one written
+differently from it. Two exclusions the plan describes as preventing a second
+right answer in fact prevent a silent collapse to two or three options.
+
+And the end-of-branch consultation found four defects live on the pushed tree,
+one of them marking a correct answer wrong on about one sealed division check in
+twelve. Each unit had passed its full gate, its typechecks, its lint, its scope
+check and its mutations before it was pushed. That is the cost of the cadence,
+measured rather than argued: the gates this repository has are good at catching a
+generator that disagrees with itself and blind to a question that disagrees with
+the thing it claims to ask.

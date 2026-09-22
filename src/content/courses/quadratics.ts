@@ -362,7 +362,7 @@ export const quadratics: Course = {
               prose('Expanding the bracket back is the check, and it takes one line.'),
             ),
             ask('quad-complete-square'),
-            ask('quad-complete-square'),
+            ask('quad-complete-square-steps'),
             teach(
               prose('Why bother? Because this form answers questions the original cannot.'),
               maths('\\left(x + 3\\right)^{2} + 2 \\geq 2'),
@@ -615,7 +615,7 @@ export const quadratics: Course = {
               ),
               prose('The $y$ coordinate is the constant outside, always unchanged.'),
             ),
-            ask('quad-turning-point'),
+            ask('quad-evaluate-tree'),
             ask('quad-complete-square', 2),
             teach(
               prose(

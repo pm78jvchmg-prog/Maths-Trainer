@@ -926,7 +926,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-period-from-speed', 2),
-            ask('trig-horizontal-shift', 2),
+            ask('trig-evaluate-wave-tree', 2),
             teach(
               prose(
                 'Neither of these touches the vertical picture. Squashing and sliding leave the amplitude and the midline exactly where they were.',

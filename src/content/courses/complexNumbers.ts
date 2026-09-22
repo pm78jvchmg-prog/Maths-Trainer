@@ -177,7 +177,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'That fixed real part is the axis of symmetry, $-b/2a$; on the plane the two roots sit mirror-image across the real axis, the same reflection conjugates always give.' },
               { kind: 'prose', text: 'So every quadratic with real coefficients has either two real roots, one repeated real root, or a conjugate pair — the discriminant says which. Level 2 makes more of that conjugate.' },
             ),
-            ask('complex-quadratic', 2),
+            ask('complex-discriminant-tree', 2),
             ask('real-solutions', 2),
           ],
           skillCheck: [ask('complex-quadratic', 2), ask('complex-quadratic'), ask('sqrt-negative', 2)],
@@ -575,7 +575,7 @@ export const complexNumbers: Course = {
               { kind: 'prose', text: 'So the modulus is $32$ and the angle is $\\frac{10\\pi}{4}$, which is $\\frac{\\pi}{2}$ after removing a full turn. The answer is $32i$, reached without expanding anything.' },
               { kind: 'prose', text: 'The moduli multiply and the arguments add — never the other way round. Adding moduli is the commonest error here, and it comes from forgetting that the two coordinates are doing different jobs.' },
             ),
-            ask('complex-power', 2),
+            ask('powers-of-i-steps', 2),
             ask('power-modulus'),
             ask('complex-power+choice', 2),
             teach(

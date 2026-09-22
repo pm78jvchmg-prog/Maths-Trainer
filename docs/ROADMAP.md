@@ -252,7 +252,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A5 | Widen Logarithms | open | Same bar, all 12 `lg-` lessons |
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | open | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
-| A8 | Widen Trigonometric Functions | claimed (`claude/roadmap-a8-23kraq`) | Same bar, all 15 `tf-` lessons |
+| A8 | Widen Trigonometric Functions | **done** (`claude/roadmap-a8-23kraq`) | Same bar, all 15 `tf-` lessons |
 | A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | open | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | open | The A1 allowlist is empty and the guard is unconditional |
@@ -262,6 +262,14 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 more than twice" rule, counted by family, catches **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
 empties both.
+
+A8 took all fifteen `tf-` lessons off both lists, leaving **43** and **88**. Two
+things it found are worth the next batch knowing. A lesson is capped at eleven
+slides by `generators.test.ts`, teaching slides included, so the eighth exercise
+has to come out of a teaching slide — merging its blocks into the slide above,
+or moving them onto the question as a `leadIn`. And `eval/plans/TASK4-PLAN.md`
+pins this course's three level-check lengths at 12/15/15, which `eval/bin/counts.ts`
+checks: a level check may be re-spread over new generators but not grown.
 
 ### Phase B — take the nine existing concepts to 30 lessons
 

@@ -57,10 +57,6 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
   'qd-l2-solve': 2,
   'qd-l2-square': 2,
   'qd-l3-turning': 2,
-  'tf-l1-periodic': 2,
-  'tf-l1-shift': 2,
-  'tf-l2-speed': 2,
-  'tf-l3-period-shift': 2,
   'lg-l1-meaning': 2,
   'lg-l1-domain': 2,
   'lg-l2-combine': 2,
@@ -97,7 +93,7 @@ export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 47;
+export const WIDGET_KIND_CEILING = 43;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -132,20 +128,6 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'qd-l3-symmetry': 5,
   'qd-l3-turning': 6,
   'qd-l3-roots': 4,
-  'tf-l1-periodic': 4,
-  'tf-l1-period': 5,
-  'tf-l1-shift': 5,
-  'tf-l1-midline': 6,
-  'tf-l1-amplitude': 5,
-  'tf-l2-sine': 5,
-  'tf-l2-cosine': 5,
-  'tf-l2-symmetry': 5,
-  'tf-l2-solve': 6,
-  'tf-l2-identity': 6,
-  'tf-l2-speed': 5,
-  'tf-l3-amplitude-shift': 3,
-  'tf-l3-period-shift': 3,
-  'tf-l3-period-formula': 6,
   'lg-l1-meaning': 4,
   'lg-l1-evaluate': 5,
   'lg-l1-solve': 5,
@@ -214,4 +196,4 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 102;
+export const GENERATOR_REPETITION_CEILING = 88;

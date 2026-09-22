@@ -65,25 +65,27 @@ function periodicTraversalSvg(): string {
   ].join('');
 }
 
-/** The figure as a teaching slide. The local `teach` helper takes only prose and display. */
-const periodicFigure: SlideRef = {
-  type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: [
-      {
-        kind: 'prose',
-        text: 'Watch one full cycle. The height rises, falls, and returns to exactly where it started — and the next cycle will take just as long as this one. Press Replay to watch it again.',
-      },
-      {
-        kind: 'traversal',
-        svg: periodicTraversalSvg(),
-        pathId: 'tf-periodic-path',
-        durationMs: 2600,
-      },
-    ],
+/**
+ * The animated figure, as blocks rather than as a slide of its own.
+ *
+ * It used to sit on its own teaching slide, which cost this lesson a slide it
+ * now needs for an eighth exercise. Closing the opening slide with the
+ * animation of what it has just described reads better than a page turn
+ * between the two, and the local `prose` and `maths` helpers do not cover a
+ * traversal block, hence the longhand.
+ */
+const periodicBlocks: Block[] = [
+  {
+    kind: 'prose',
+    text: 'Watch one full cycle. The height rises, falls, and returns to exactly where it started — and the next cycle will take just as long as this one. Press Replay to watch it again.',
   },
-};
+  {
+    kind: 'traversal',
+    svg: periodicTraversalSvg(),
+    pathId: 'tf-periodic-path',
+    durationMs: 2600,
+  },
+];
 
 const prose = (text: string): Block => ({ kind: 'prose', text });
 const maths = (tex: string): Block => ({ kind: 'display', tex });
@@ -129,10 +131,10 @@ export const trigonometricFunctions: Course = {
               prose(
                 'That is a stronger condition than simply going up and down. A share price rises and falls, but it never repeats on a fixed interval, so it has no period.',
               ),
+              ...periodicBlocks,
             ),
-            periodicFigure,
             ask('trig-is-periodic'),
-            ask('trig-is-periodic'),
+            ask('trig-periodic-flow'),
             ask('trig-cycle-count'),
             teach(
               prose(
@@ -145,8 +147,9 @@ export const trigonometricFunctions: Course = {
                 'The total distance a car has driven behaves the same way. Something can change fast, slowly, or in fits and starts and still not be periodic — the question is whether it comes back.',
               ),
             ),
-            ask('trig-is-periodic'),
-            ask('trig-cycle-count'),
+            ask('trig-repeat-times'),
+            ask('trig-is-periodic', 2),
+            ask('trig-periodic-flow', 2),
             teach(
               prose(
                 'One complete repeat is a **cycle**. Because every cycle takes the same time, counting cycles and counting periods are the same thing.',
@@ -159,13 +162,13 @@ export const trigonometricFunctions: Course = {
                 'This is why the period is the natural unit for anything that repeats: it converts an awkward stretch of time into a plain count.',
               ),
             ),
-            ask('trig-is-periodic'),
-            ask('trig-cycle-count'),
+            ask('trig-cycle-count', 2),
+            ask('trig-repeat-times', 2),
           ],
           skillCheck: [
             ask('trig-is-periodic', 2),
             ask('trig-cycle-count', 2),
-            ask('trig-is-periodic', 2),
+            ask('trig-periodic-flow', 2),
           ],
         },
         {
@@ -199,7 +202,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-period-from-peaks'),
             ask('trig-read-graph'),
-            ask('trig-period-from-peaks+choice'),
+            ask('trig-cycle-count'),
             teach(
               prose(
                 'Peaks are convenient but not special. Any pair of matching points does, as long as they are at the same point in the cycle.',
@@ -227,8 +230,9 @@ export const trigonometricFunctions: Course = {
                 'This is the most common error in reading a period off a graph, and it gives an answer exactly half the true one.',
               ),
             ),
-            ask('trig-period-from-peaks'),
-            ask('trig-period-from-peaks', 2),
+            ask('trig-period-from-peaks+choice', 2),
+            ask('trig-read-graph', 2),
+            ask('trig-repeat-times', 2),
             teach(
               prose(
                 'Once the period is known, every future repeat is predictable. If a peak is at $t = 2$ with period $7$, there are peaks at $9$, $16$, $23$, and so on.',
@@ -238,12 +242,12 @@ export const trigonometricFunctions: Course = {
                 'Working backwards is just as valid: $n = -1$ gives a peak at $t = -5$. A periodic function has no start, which is what makes it worth studying as a whole rather than point by point.',
               ),
             ),
-            ask('trig-period-from-peaks+choice', 2),
+            ask('trig-repeat-times'),
             ask('trig-cycle-count', 2),
           ],
           skillCheck: [
             ask('trig-period-from-peaks', 2),
-            ask('trig-period-from-peaks', 2),
+            ask('trig-repeat-times', 2),
             ask('trig-cycle-count', 2),
           ],
         },
@@ -280,7 +284,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-horizontal-shift'),
             ask('trig-period-from-peaks'),
-            ask('trig-horizontal-shift'),
+            ask('trig-read-graph'),
             teach(
               prose(
                 'The reason is that the bracket is an *input*, not an output. For $f(t - 3)$ to do what $f$ did at $0$, the bracket must equal $0$ — so $t$ must be $3$.',
@@ -294,7 +298,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-horizontal-shift', 2),
-            ask('trig-horizontal-shift', 2),
+            ask('trig-repeat-times'),
+            ask('trig-read-graph', 2),
             teach(
               prose(
                 'A horizontal shift changes nothing else. The period is the same, the maximum and minimum are the same, and the midline is the same.',
@@ -304,11 +309,11 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-period-from-peaks', 2),
-            ask('trig-horizontal-shift', 2),
+            ask('trig-repeat-times', 2),
           ],
           skillCheck: [
             ask('trig-horizontal-shift', 2),
-            ask('trig-horizontal-shift', 2),
+            ask('trig-repeat-times', 2),
             ask('trig-period-from-peaks', 2),
           ],
         },
@@ -344,7 +349,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-midline'),
             ask('trig-read-graph'),
-            ask('trig-midline+choice'),
+            ask('trig-describe-wave'),
             teach(
               prose(
                 'Adding a constant to a function raises the whole graph, midline included. Subtracting lowers it.',
@@ -357,8 +362,9 @@ export const trigonometricFunctions: Course = {
                 'A vertical shift leaves the period untouched, and leaves the size of the swing untouched. It moves the whole picture up or down and nothing else.',
               ),
             ),
-            ask('trig-midline', 2),
-            ask('trig-midline', 2),
+            ask('trig-midline+choice', 2),
+            ask('trig-wave-swing'),
+            ask('trig-read-graph', 2),
             teach(
               prose(
                 'One caution. The midline is the mean of the two *extremes*, not the average value over time.',
@@ -370,13 +376,13 @@ export const trigonometricFunctions: Course = {
                 'The definition to hold on to is the geometric one: the midline is the horizontal line the graph is symmetric about.',
               ),
             ),
-            ask('trig-midline+choice', 2),
-            ask('trig-midline', 2),
+            ask('trig-wave-swing', 2),
+            ask('trig-describe-wave', 2),
           ],
           skillCheck: [
             ask('trig-midline', 2),
-            ask('trig-midline', 2),
-            ask('trig-midline', 2),
+            ask('trig-describe-wave', 2),
+            ask('trig-wave-swing', 2),
           ],
         },
         {
@@ -415,8 +421,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-amplitude'),
-            ask('trig-read-graph'),
-            ask('trig-amplitude+choice'),
+            ask('trig-describe-wave'),
+            ask('trig-midline'),
             teach(
               prose(
                 'Midline and amplitude together fix the whole vertical picture, and either pair determines the other.',
@@ -428,7 +434,8 @@ export const trigonometricFunctions: Course = {
                 'So a tide with midline $6$ m and amplitude $3$ m runs between $3$ m and $9$ m, which is where we started. Being able to go either way is worth more than either formula on its own.',
               ),
             ),
-            ask('trig-amplitude', 2),
+            ask('trig-amplitude+choice', 2),
+            ask('trig-wave-swing'),
             ask('trig-midline', 2),
             teach(
               prose(
@@ -439,29 +446,29 @@ export const trigonometricFunctions: Course = {
                 'Watch the double negative in that subtraction; it is where sign errors creep in. Later, a negative multiplier in front of a sine will flip the curve upside down, but even then the amplitude is its size, taken positive.',
               ),
             ),
-            ask('trig-amplitude+choice', 2),
-            ask('trig-amplitude', 2),
+            ask('trig-wave-swing', 2),
+            ask('trig-describe-wave', 2),
           ],
           skillCheck: [
             ask('trig-amplitude', 2),
-            ask('trig-amplitude', 2),
+            ask('trig-wave-swing', 2),
             ask('trig-midline', 2),
           ],
         },
       ],
       levelCheck: [
         ask('trig-is-periodic', 2),
+        ask('trig-periodic-flow', 2),
         ask('trig-cycle-count', 2),
+        ask('trig-repeat-times', 2),
         ask('trig-period-from-peaks', 2),
+        ask('trig-read-graph', 2),
         ask('trig-midline', 2),
+        ask('trig-describe-wave', 2),
         ask('trig-amplitude', 2),
+        ask('trig-wave-swing', 2),
         ask('trig-horizontal-shift', 2),
         ask('trig-period-from-peaks', 2),
-        ask('trig-amplitude', 2),
-        ask('trig-cycle-count', 2),
-        ask('trig-midline', 2),
-        ask('trig-horizontal-shift', 2),
-        ask('trig-is-periodic', 2),
       ],
     },
     {
@@ -485,8 +492,8 @@ export const trigonometricFunctions: Course = {
               maths('\\sin(\\theta) = \\text{height of the point after turning } \\theta'),
             ),
             ask('trig-sine-from-circle'),
-            ask('trig-sine-from-circle'),
-            ask('trig-sine-from-circle+choice'),
+            ask('trig-circle-coords'),
+            ask('trig-evaluate-exact'),
             teach(
               prose(
                 'Defining it this way costs nothing for the angles you already know and gains everything for the ones you do not.',
@@ -499,8 +506,9 @@ export const trigonometricFunctions: Course = {
                 'Past a half turn the point is below the centre and the sine is negative. Nothing special happens at $90^{\\circ}$; the point simply keeps going.',
               ),
             ),
-            ask('trig-sine-from-circle', 2),
-            ask('trig-evaluate-exact'),
+            ask('trig-sine-from-circle+choice', 2),
+            ask('trig-height-steps'),
+            ask('trig-circle-coords', 2),
             teach(
               prose(
                 'On a circle of radius $r$ the whole picture scales. Every height is $r$ times what it was on the unit circle.',
@@ -513,13 +521,13 @@ export const trigonometricFunctions: Course = {
                 'Plotting height against angle gives the sine curve. Its period is one full turn, because that is when the point is back where it started.',
               ),
             ),
-            ask('trig-sine-from-circle+choice', 2),
-            ask('trig-evaluate-exact+choice'),
+            ask('trig-height-steps', 2),
+            ask('trig-evaluate-exact+choice', 2),
           ],
           skillCheck: [
             ask('trig-sine-from-circle', 2),
-            ask('trig-sine-from-circle', 2),
-            ask('trig-sine-from-circle', 2),
+            ask('trig-circle-coords', 2),
+            ask('trig-height-steps', 2),
           ],
         },
         {
@@ -536,8 +544,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-cosine-from-circle'),
-            ask('trig-cosine-from-circle'),
-            ask('trig-cosine-from-circle+choice'),
+            ask('trig-circle-coords'),
+            ask('trig-evaluate-tree'),
             teach(
               prose(
                 'Sine and cosine describe the same motion, measured in two directions. That is why their graphs have the same shape and the same period, and differ only in where they start.',
@@ -550,8 +558,9 @@ export const trigonometricFunctions: Course = {
                 'A practical consequence: any question about cosine can be answered by shifting a sine question, and the other way round. They are not two facts to learn but one.',
               ),
             ),
-            ask('trig-cosine-from-circle', 2),
-            ask('trig-evaluate-exact'),
+            ask('trig-cosine-from-circle+choice', 2),
+            ask('trig-height-steps'),
+            ask('trig-circle-coords', 2),
             teach(
               prose(
                 'The point sits on a circle of radius $1$, so its two coordinates obey Pythagoras.',
@@ -564,13 +573,13 @@ export const trigonometricFunctions: Course = {
                 'It also says the two cannot both be large. If the sine is $1$, the cosine must be $0$: the point is at the top of the circle, and it cannot be far to the right at the same time.',
               ),
             ),
-            ask('trig-cosine-from-circle+choice', 2),
-            ask('trig-evaluate-exact+choice'),
+            ask('trig-height-steps', 2),
+            ask('trig-evaluate-tree', 2),
           ],
           skillCheck: [
             ask('trig-cosine-from-circle', 2),
-            ask('trig-cosine-from-circle', 2),
-            ask('trig-cosine-from-circle+choice', 2),
+            ask('trig-circle-coords', 2),
+            ask('trig-evaluate-tree', 2),
           ],
         },
         {
@@ -603,8 +612,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-related-angle'),
-            ask('trig-sine-from-circle', 2),
-            ask('trig-related-angle'),
+            ask('trig-quadrant-flow'),
+            ask('trig-circle-coords'),
             teach(
               prose(
                 'A half turn takes the point to the diametrically opposite side, so both coordinates change sign.',
@@ -621,8 +630,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-related-angle', 2),
-            ask('trig-cosine-from-circle+choice', 2),
-            ask('trig-evaluate-exact'),
+            ask('trig-sine-from-circle'),
+            ask('trig-quadrant-flow', 2),
             teach(
               prose(
                 'Rather than memorising six rules, picture the point: sine is the height, so ask whether the reflected point is above or below the centre; cosine is the displacement, so ask whether it is left or right.',
@@ -632,12 +641,12 @@ export const trigonometricFunctions: Course = {
                 'These symmetries are what make a table of values from $0^{\\circ}$ to $90^{\\circ}$ enough for every angle there is; the sine of $140^{\\circ}$, $220^{\\circ}$, $320^{\\circ}$ and $-40^{\\circ}$ are all $0.643$ in size, with the sign read off the circle.',
               ),
             ),
-            ask('trig-related-angle', 2),
-            ask('trig-related-angle', 2),
+            ask('trig-sine-from-circle', 2),
+            ask('trig-circle-coords', 2),
           ],
           skillCheck: [
             ask('trig-related-angle', 2),
-            ask('trig-related-angle', 2),
+            ask('trig-quadrant-flow', 2),
             ask('trig-sine-from-circle', 2),
           ],
         },
@@ -660,7 +669,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-solve-height'),
             ask('trig-related-angle', 2),
-            ask('trig-solve-height'),
+            ask('trig-quadrant-flow'),
             teach(
               prose(
                 'Cosine works the same way with the other axis: a displacement of $\\tfrac{1}{2}$ happens at $60^{\\circ}$ and again at its reflection in the horizontal axis, $300^{\\circ}$.',
@@ -676,9 +685,9 @@ export const trigonometricFunctions: Course = {
                 '\\sin(\\theta) = -\\tfrac{1}{2} \\quad \\Rightarrow \\quad \\theta = -30^{\\circ} \\text{ or } -150^{\\circ} \\qquad (-180^{\\circ} < \\theta \\le 180^{\\circ})',
               ),
             ),
-            ask('trig-solve-height', 2),
             ask('trig-solve-height+choice', 2),
-            ask('trig-solve-height', 2),
+            ask('trig-height-steps'),
+            ask('trig-quadrant-flow', 2),
             teach(
               prose(
                 'The method is always the same: find the reference angle in the table, decide from the sign which half of the circle the point is in, and take the two angles there by symmetry.',
@@ -690,13 +699,13 @@ export const trigonometricFunctions: Course = {
                 'Check each answer by substituting it back: $6\\sin(330^{\\circ})$ is $-3$, so $330^{\\circ}$ answers the question about $-3$ and not the one about $3$; pairing $30^{\\circ}$ with $210^{\\circ}$ is the slip that check catches.',
               ),
             ),
-            ask('trig-solve-height', 2),
-            ask('trig-sine-from-circle', 2),
+            ask('trig-height-steps', 2),
+            ask('trig-related-angle'),
           ],
           skillCheck: [
             ask('trig-solve-height', 2),
             ask('trig-solve-height+choice', 2),
-            ask('trig-solve-height', 2),
+            ask('trig-quadrant-flow', 2),
           ],
         },
         {
@@ -719,8 +728,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-pythagorean'),
-            ask('trig-pythagorean+choice'),
-            ask('trig-pythagorean'),
+            ask('trig-quadrant-flow'),
+            ask('trig-circle-coords'),
             teach(
               prose(
                 'The lower half works the same way: between $180^{\\circ}$ and $270^{\\circ}$ the point is below and to the left, so both are negative; between $270^{\\circ}$ and $360^{\\circ}$ it is below and to the right.',
@@ -735,9 +744,9 @@ export const trigonometricFunctions: Course = {
                 'Give the answer as a fraction, with its sign; the fraction is the exact value, and a decimal read off a calculator usually is not.',
               ),
             ),
-            ask('trig-pythagorean', 2),
-            ask('trig-cosine-from-circle', 2),
             ask('trig-pythagorean+choice', 2),
+            ask('trig-evaluate-exact'),
+            ask('trig-quadrant-flow', 2),
             teach(
               prose(
                 'The identity is a check as well as a tool: any pair of values claimed for the sine and cosine of one angle must have squares adding to $1$, and if they do not, one of them is wrong.',
@@ -747,13 +756,13 @@ export const trigonometricFunctions: Course = {
                 'It also says neither value can exceed $1$ in size and the two cannot both be large: when one is $1$ the other is $0$, the point at the top of the circle or the far right, never both.',
               ),
             ),
-            ask('trig-pythagorean', 2),
             ask('trig-evaluate-exact+choice', 2),
+            ask('trig-circle-coords', 2),
           ],
           skillCheck: [
             ask('trig-pythagorean', 2),
             ask('trig-pythagorean+choice', 2),
-            ask('trig-pythagorean', 2),
+            ask('trig-quadrant-flow', 2),
           ],
         },
         {
@@ -770,8 +779,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-period-from-speed'),
-            ask('trig-period-from-speed'),
             ask('trig-speed-comparison'),
+            ask('trig-repeat-times'),
             teach(
               prose(
                 'Turning faster squashes the graph horizontally. The peaks come closer together, but they are no higher.',
@@ -785,7 +794,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-period-from-speed', 2),
-            ask('trig-speed-comparison'),
+            ask('trig-read-graph'),
+            ask('trig-speed-comparison', 2),
             teach(
               prose(
                 'The general rate is written $b$, and it multiplies the input rather than the output.',
@@ -798,32 +808,32 @@ export const trigonometricFunctions: Course = {
                 'Note that $\\sin(2t)$ is not $2\\sin(t)$. The first is twice as fast, the second is twice as tall. Where the number sits decides which.',
               ),
             ),
-            ask('trig-period-from-speed', 2),
-            ask('trig-period-from-speed', 2),
+            ask('trig-read-graph', 2),
+            ask('trig-repeat-times', 2),
           ],
           skillCheck: [
             ask('trig-period-from-speed', 2),
             ask('trig-speed-comparison'),
-            ask('trig-period-from-speed', 2),
+            ask('trig-repeat-times', 2),
           ],
         },
       ],
       levelCheck: [
         ask('trig-sine-from-circle', 2),
         ask('trig-cosine-from-circle', 2),
+        ask('trig-circle-coords', 2),
+        ask('trig-height-steps', 2),
         ask('trig-related-angle', 2),
+        ask('trig-quadrant-flow', 2),
+        ask('trig-evaluate-tree', 2),
+        ask('trig-pythagorean', 2),
+        ask('trig-solve-height', 2),
         ask('trig-period-from-speed', 2),
-        ask('trig-sine-from-circle', 2),
         ask('trig-speed-comparison'),
-        ask('trig-pythagorean', 2),
-        ask('trig-period-from-speed', 2),
+        ask('trig-repeat-times', 2),
+        ask('trig-evaluate-exact', 2),
         ask('trig-related-angle', 2),
-        ask('trig-solve-height', 2),
         ask('trig-cosine-from-circle', 2),
-        ask('trig-amplitude', 2),
-        ask('trig-pythagorean', 2),
-        ask('trig-solve-height', 2),
-        ask('trig-related-angle', 2),
       ],
     },
     {
@@ -862,7 +872,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-read-parameters'),
             ask('trig-wave-range'),
-            ask('trig-evaluate-exact'),
+            ask('trig-match-graph'),
             teach(
               prose(
                 'Reading the numbers back out is a matter of noticing where they sit. The multiplier in front is the amplitude; the number added on the end is the midline.',
@@ -875,7 +885,8 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-read-parameters', 2),
-            ask('trig-wave-range', 2),
+            ask('trig-wave-swing'),
+            ask('trig-match-graph', 2),
             teach(
               prose(
                 'A negative $a$ flips the curve upside down. $y = -3\\sin(t)$ starts by going *down* rather than up.',
@@ -885,11 +896,11 @@ export const trigonometricFunctions: Course = {
               ),
               maths('y = -3\\sin(t) \\quad \\text{has amplitude } 3'),
             ),
-            ask('trig-read-parameters', 2),
+            ask('trig-wave-swing', 2),
             ask('trig-wave-range', 2),
           ],
           skillCheck: [
-            ask('trig-evaluate-exact+choice', 2),
+            ask('trig-match-graph', 2),
             ask('trig-read-parameters', 2),
             ask('trig-wave-range', 2),
           ],
@@ -912,7 +923,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-horizontal-shift'),
             ask('trig-period-from-speed'),
-            ask('trig-horizontal-shift', 2),
+            ask('trig-read-graph'),
             teach(
               prose(
                 'The order to read them in is: $b$ squashes first, then $c$ slides the squashed graph.',
@@ -925,8 +936,9 @@ export const trigonometricFunctions: Course = {
                 'The left-hand side is shifted right by $3$; the right-hand side by only $\\frac{3}{2}$. Keeping $b$ factored out is what stops that confusion.',
               ),
             ),
-            ask('trig-period-from-speed', 2),
             ask('trig-horizontal-shift', 2),
+            ask('trig-read-graph', 2),
+            ask('trig-read-parameters'),
             teach(
               prose(
                 'Neither of these touches the vertical picture. Squashing and sliding leave the amplitude and the midline exactly where they were.',
@@ -935,8 +947,8 @@ export const trigonometricFunctions: Course = {
                 'That gives a reliable way to take a graph apart: read the height first, since $a$ and $d$ are unaffected by anything inside the bracket, and only then work out what has been done to the input.',
               ),
             ),
-            ask('trig-read-parameters', 2),
             ask('trig-period-from-speed', 2),
+            ask('trig-read-parameters', 2),
           ],
           skillCheck: [
             ask('trig-horizontal-shift', 2),
@@ -969,8 +981,8 @@ export const trigonometricFunctions: Course = {
               prose('Read $b$ as a count: how many cycles fit into one turn.'),
             ),
             ask('trig-period-from-b'),
-            ask('trig-period-from-b+choice'),
-            ask('trig-period-from-b'),
+            ask('trig-match-graph'),
+            ask('trig-wave-range'),
             teach(
               prose(
                 'Only what is inside the bracket changes the period; in $y = 4\\sin(3t) + 2$ the $4$ sets the height and the $2$ lifts the curve, but the period is still $120^{\\circ}$.',
@@ -983,9 +995,9 @@ export const trigonometricFunctions: Course = {
                 'You do not have to simplify. If the period is $360^{\\circ} \\div 3$, typing $\\frac{360}{3}$ is accepted just as $120$ is, because the checker compares the value rather than how it is written. The same holds the other way round: for $b$, typing $\\frac{360}{120}$ is accepted as $3$.',
               ),
             ),
-            ask('trig-period-from-b', 2),
-            ask('trig-period-from-speed', 2),
             ask('trig-period-from-b+choice', 2),
+            ask('trig-period-from-speed', 2),
+            ask('trig-match-graph', 2),
             teach(
               prose(
                 'This is the wheel from Level 2 in a new coat: a wheel making more turns per second has a shorter period, and $b$ counts cycles per turn in exactly the same way.',
@@ -995,12 +1007,12 @@ export const trigonometricFunctions: Course = {
                 'That product is a check worth a second: if $b$ and the period do not multiply to a full turn, one of them has been misread; and $\\sin(2t)$ is still not $2\\sin(t)$ — the first repeats twice as often, the second is twice as tall.',
               ),
             ),
-            ask('trig-period-from-b', 2),
+            ask('trig-period-from-speed'),
             ask('trig-wave-range', 2),
           ],
           skillCheck: [
             ask('trig-period-from-b', 2),
-            ask('trig-period-from-b+choice', 2),
+            ask('trig-match-graph', 2),
             ask('trig-period-from-speed', 2),
           ],
         },
@@ -1037,6 +1049,7 @@ export const trigonometricFunctions: Course = {
             ),
             ask('trig-evaluate-exact'),
             ask('trig-evaluate-exact+choice', 2),
+            ask('trig-read-parameters'),
             teach(
               prose(
                 'A useful check: the answer must lie between $d - a$ and $d + a$. Sine never leaves $[-1, 1]$, so the curve never leaves that band.',
@@ -1046,7 +1059,7 @@ export const trigonometricFunctions: Course = {
               ),
             ),
             ask('trig-evaluate-wave', 2),
-            ask('trig-wave-range', 2),
+            ask('trig-wave-range'),
           ],
           skillCheck: [
             ask('trig-evaluate-exact', 2),
@@ -1058,19 +1071,19 @@ export const trigonometricFunctions: Course = {
       levelCheck: [
         ask('trig-read-parameters', 2),
         ask('trig-wave-range', 2),
+        ask('trig-match-graph', 2),
         ask('trig-evaluate-exact', 2),
         ask('trig-horizontal-shift', 2),
         ask('trig-period-from-speed', 2),
         ask('trig-period-from-b', 2),
-        ask('trig-wave-range', 2),
-        ask('trig-read-parameters', 2),
+        ask('trig-wave-swing', 2),
+        ask('trig-read-graph', 2),
         ask('trig-evaluate-exact+choice', 2),
         ask('trig-period-from-b+choice', 2),
         ask('trig-amplitude', 2),
         ask('trig-midline', 2),
-        ask('trig-wave-range', 2),
         ask('trig-evaluate-wave', 2),
-        ask('trig-period-from-b', 2),
+        ask('trig-read-parameters', 2),
       ],
     },
   ],

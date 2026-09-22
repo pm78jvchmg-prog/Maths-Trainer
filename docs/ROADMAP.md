@@ -264,7 +264,7 @@ two-widget habit would multiply the problem the owner actually complained about.
 | A6 | Widen Differentiation | open | Same bar, all 11 `df-` lessons; the five 6-exercise lessons reach 8 |
 | A7 | Widen Complex Numbers | done | Same bar, all 14 `cn-` lessons; `cn-l4-argument` reaches 8; the 4 unused `+choice` complex generators are placed |
 | A8 | Widen Trigonometric Functions | open | Same bar, all 15 `tf-` lessons |
-| A9 | Widen Integration | open | Same bar, all 17 `in-` lessons |
+| A9 | Widen Integration | **done** (`claude/roadmap-a9-slcm91`) | Same bar, all 17 `in-` lessons |
 | A10 | Split Vectors & Matrices, then widen both | **done** (`claude/roadmap-a10-j23if4`) | Two courses in `courses/index.ts`, all 12 lessons at the same bar, home screen checked in a browser |
 | A11 | Retire the allowlist | claimed `claude/roadmap-a11-dyc30o` | The A1 allowlist is empty and the guard is unconditional |
 
@@ -272,10 +272,12 @@ A1 landed as **two** allowlists in `src/content/shapeVariety.ts`, not one. The
 47 counted above are the lessons below three widget kinds; the "no generator
 more than twice" rule, counted by family, caught **102 of the 105** — a seven
 exercise deck built from two or three generators breaks it by construction. A11
-empties both. A3 took the twelve `er-` lessons off both; after the batches
-merged so far the lists stand at **21** and **65**, and `npm test` prints the
-current standing, which is the figure to trust — every figure written down here
-went stale the moment the next batch landed.
+empties both. A3, A5, A7, A9 and A10 have each taken a course off both lists,
+and A2 took ten lessons off the first. After those the lists stand at **12**
+and **36**, with only Differentiation, Quadratics and Trigonometric Functions
+left — A4, A6 and A8. Do not trust that pair of numbers, or any other written
+down here: every one of them went stale the moment the next batch landed, and
+`npm test` prints the current standing.
 
 One thing A5 found that the later batches should budget for: a lesson at the
 bar needs **at least four generator families**, since eight exercises at two
@@ -322,6 +324,22 @@ emptied them. Until then its job is to keep the ratchet honest, and `npm test`
 now prints what each course still has outstanding so the burn-down is visible
 per batch rather than as one falling total. An emptied list that is left in
 place fails the suite, so the deletion cannot be forgotten.
+
+A9 confirmed what A5 found about generator families, and adds one of its own:
+the family a lesson borrows must be one the learner has already met. Two of
+Integration's new shapes had to be split by difficulty so that "Negative
+Powers" could not draw a root, and so that a decision tree asked four lessons
+early did not name results still to come. A widening batch is partly a
+*sequencing* job, not only a generator one.
+
+A9 and A2 also collided, which the batches after them should expect. A2 made
+`-tree` part of `familyOf`, so a `tree` form of a skill stopped counting as a
+second family; seven of A9's decks had been built on the old reading and broke
+the moment the two branches met. Bring `main` in and re-run the report before
+opening the pull request, and again on every conflict notice — a branch can
+merge cleanly and still be wrong, because these two batches changed the same
+rule from different ends. Only the ceilings conflict textually; recount both
+from the merged file rather than taking either side's number.
 
 A10 took the twelve `vm-` lessons off both lists, which with A5's, A2's and
 A7's removals counted leaves **21** and **65**. It needed fifteen new generators to

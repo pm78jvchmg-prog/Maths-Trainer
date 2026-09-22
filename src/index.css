@@ -42,10 +42,27 @@
   --accent-strong: #5b53e0;
   --accent-dim: #2a2856;
 
-  --correct: #3ddc97;
-  --correct-bg: #0e2e22;
-  --wrong: #f0a93f;
-  --wrong-bg: #33260c;
+  /*
+   * The verdicts, picked to sit beside the violet rather than fight it.
+   *
+   * Mint is pulled towards teal and rose replaces the amber, which was the one
+   * colour in the app with nothing else near it: violet, teal and rose are
+   * neighbours enough to read as one palette, where violet and orange read as
+   * two. Rose is a soft wrong on purpose — the app never punishes a wrong
+   * answer, so the colour should not either, and alarm red would.
+   *
+   * The `-bg` pair are tints of their hue mixed into the page, not saturated
+   * bands: the feedback bar spans the width of the phone, and at full strength
+   * it was a slab of colour with the answer somewhere underneath it.
+   */
+  --correct: #4bd6ad;
+  --correct-bg: #14302a;
+  --correct-tint: rgb(75 214 173 / 0.1);
+  --correct-edge: rgb(75 214 173 / 0.4);
+  --wrong: #ec8fa8;
+  --wrong-bg: #331f28;
+  --wrong-tint: rgb(236 143 168 / 0.1);
+  --wrong-edge: rgb(236 143 168 / 0.4);
 
   --radius: 18px;
   --radius-sm: 12px;
@@ -70,6 +87,14 @@ body,
   height: 100%;
 }
 
+/* A screen enters by sliding in from the side, and for those ~240ms it sticks
+   out past the edge of the page. Every scrolling region is inside it and has
+   its own `overflow`, so clipping here costs nothing and stops the transition
+   from handing the page a horizontal scrollbar it never loses. */
+#root {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   color: var(--text);
@@ -82,6 +107,10 @@ body {
     'Segoe UI', system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.5;
+  /* Thinner strokes, which is what the rounded face is drawn for and what the
+     default weight on a retina screen loses. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   /* Stops the whole page rubber-banding when a keypad is tapped. */
   overscroll-behavior: none;
 
@@ -100,6 +129,74 @@ button {
   border: none;
   background: none;
   cursor: pointer;
+}
+
+/* ---------- Screen transitions ---------- */
+
+/*
+ * One whole screen replacing another: home to a course, a course to a lesson,
+ * and back again.
+ *
+ * The same gesture as a slide moving inside a lesson, one step slower and one
+ * step further, because the whole screen is travelling rather than its
+ * contents. Only the incoming screen animates — the outgoing one is gone by
+ * the time React commits, and holding it on stage would mean keeping a
+ * finished lesson mounted, which is exactly what the remount-on-change key
+ * exists to prevent.
+ *
+ * `translate3d` rather than `translateX`: it puts the screen on its own
+ * compositor layer for the length of the animation, so the phone moves a
+ * finished texture instead of laying the page out again on every frame.
+ */
+.screen {
+  height: 100%;
+}
+
+.screen.enter-forward {
+  animation: screen-in 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+.screen.enter-back {
+  animation: screen-in-back 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translate3d(34px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes screen-in-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-34px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Switching tabs changes the list under a header that stays put, so the pane
+   fades and lifts rather than travelling sideways. */
+.category-pane {
+  animation: pane-in 200ms ease-out;
+}
+
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 /* ---------- App shell ---------- */
@@ -152,8 +249,8 @@ button {
 .progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #2bb87f, var(--correct));
-  transition: width 220ms ease;
+  background: linear-gradient(90deg, #2fb392, var(--correct));
+  transition: width 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
 /* The skill check swaps the bar for dots, so the change of mode is visible. */
@@ -177,7 +274,7 @@ button {
 
 .dot.active {
   background: var(--correct);
-  box-shadow: 0 0 0 4px var(--correct-bg), 0 0 12px rgb(61 220 151 / 0.45);
+  box-shadow: 0 0 0 4px var(--correct-bg), 0 0 12px rgb(75 214 173 / 0.45);
 }
 
 /* ---------- Slide body ---------- */
@@ -216,26 +313,41 @@ button {
 
 /* One slide replacing another is the single most-used transition in the app,
    and swapping it instantly reads as a glitch rather than a step forward. The
-   incoming slide enters from the side the deck moved. */
+   incoming slide enters from the side the deck moved.
+
+   Same curve and same `translate3d` as a whole screen, a little quicker and a
+   little shorter: the two are the same gesture at two scales, and running them
+   on different curves made moving between lessons feel like a different app
+   from moving between questions. The animation ends on an explicit `to`, so
+   the compositor layer is torn down at a known state rather than wherever the
+   implicit end-frame left it. */
 .slide.enter-forward {
-  animation: slide-in 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: slide-in 210ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
 .slide.enter-back {
-  animation: slide-in-back 190ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: slide-in-back 210ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
 @keyframes slide-in {
   from {
     opacity: 0;
-    transform: translateX(26px);
+    transform: translate3d(26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes slide-in-back {
   from {
     opacity: 0;
-    transform: translateX(-26px);
+    transform: translate3d(-26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -393,7 +505,13 @@ button {
     transition: none;
   }
   .slide.enter-forward,
-  .slide.enter-back {
+  .slide.enter-back,
+  .screen.enter-forward,
+  .screen.enter-back,
+  .category-pane,
+  .footer.correct,
+  .footer.wrong,
+  .solution {
     animation: none;
   }
   /* The press-to-shrink feedback is movement too, so it goes with the rest.
@@ -582,18 +700,49 @@ button {
 
 /* ---------- Feedback bar ---------- */
 
+/*
+ * A verdict is a tint and a rule along the top, not a slab.
+ *
+ * Filled edge to edge at full strength, the bar was the largest area of colour
+ * on the phone and the loudest thing on a screen whose subject is the answer
+ * above it. The hue still arrives across the whole width — it just arrives at
+ * a tenth of the strength, with the edge and the title carrying the reading.
+ */
 .footer {
   flex-shrink: 0;
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
-  transition: background-color 180ms ease;
+  border-top: 1px solid transparent;
+  transition: background-color 200ms ease, border-color 200ms ease;
 }
 
 .footer.correct {
-  background: var(--correct-bg);
+  background: linear-gradient(180deg, var(--correct-tint), transparent 70%);
+  border-top-color: var(--correct-edge);
 }
 
 .footer.wrong {
-  background: var(--wrong-bg);
+  background: linear-gradient(180deg, var(--wrong-tint), transparent 70%);
+  border-top-color: var(--wrong-edge);
+}
+
+/* The bar gains a line of its own when a verdict lands — a title, sometimes a
+   worked solution — and that content appeared in one frame while the tint
+   behind it faded in over two hundred milliseconds. Adding the class starts
+   this, so it plays on the change of verdict without the element remounting. */
+.footer.correct,
+.footer.wrong {
+  animation: verdict-in 220ms ease-out;
+}
+
+@keyframes verdict-in {
+  from {
+    opacity: 0.35;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .footer-head {
@@ -657,17 +806,9 @@ button {
   transform: scale(0.985);
 }
 
-.footer.correct .primary-button:enabled {
-  background: var(--correct);
-  color: #04240f;
-}
-
-.footer.wrong .primary-button:enabled {
-  background: var(--wrong);
-  color: #2a1f02;
-}
 
 .solution {
+  animation: pane-in 200ms ease-out;
   background: rgb(0 0 0 / 0.3);
   border: 1px solid rgb(255 255 255 / 0.07);
   border-radius: var(--radius);
@@ -1043,7 +1184,7 @@ button {
 }
 
 .course-card.complete::before {
-  background: radial-gradient(closest-side, rgb(61 220 151 / 0.18), transparent);
+  background: radial-gradient(closest-side, rgb(75 214 173 / 0.18), transparent);
 }
 
 /* The level check closes a level, so it is set apart from the lessons above
@@ -1064,7 +1205,7 @@ button {
 
 .node.check.done {
   border-style: solid;
-  background: linear-gradient(160deg, var(--correct), #21a874);
+  background: linear-gradient(160deg, var(--correct), #25a686);
   border-color: var(--correct);
   color: #04240f;
 }

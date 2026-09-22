@@ -2277,3 +2277,40 @@ fix-forward commits.
 That is the first task where the cheaper configuration was not cheap. It does not by
 itself answer the week's question, but it is the first data point pointing the other way,
 and it belongs next to the quality result rather than under it.
+
+### Task 7 relaunched on Opus, with one review at the end — a deliberate configuration change
+
+At the owner's instruction, task 7 runs **Opus 5 as the executor** with **a single advisor
+consultation covering the whole task**, rather than Sonnet with a consultation before every
+commit. The Sonnet attempt (`session_018ovahprZJHyDf93tDhHbsu`) was archived at **$2.3258**
+having pushed nothing. Live session: `session_01FXx6wj5S7ktou9UEsEz6vH`.
+
+**This row is not comparable to tasks 1–6**, and saying so now is cheaper than discovering it
+when the week is totted up. Two of its columns measure something different and one measures
+nothing:
+
+| Column | Under this configuration |
+| --- | --- |
+| Cost | A different configuration's cost. Not a data point about Sonnet+Opus |
+| Advisor: commits covered | **N/A, not 0.** One consultation cannot precede seven commits |
+| Advisor: model verified | Still meaningful — the log still quotes a verbatim self-report |
+
+**Commit-inclusion, the week's one tamper-evident instrument, does not apply here either.** It
+works because an entry inside a commit cannot be written after that commit exists; a single
+entry covering the whole branch has no commit to sit inside. The brief therefore says where it
+goes — the final bookkeeping commit — and requires the log to *state* the departure rather
+than leave a reader to infer it. An absence someone has to guess at is worse than a stated one;
+that is the same rule that made a logged refusal count as a step.
+
+**What replaces both checks:** did the end-of-task consultation change anything? The brief
+requires findings to be fixed and pushed *before* the report is written. A consultation whose
+findings were described rather than acted on is the defect to look for, and it is the one this
+cadence is most exposed to — there is no next unit to carry a fix into, so the temptation is to
+write the finding up as a known limitation and ship.
+
+**Worth noticing about the cadence itself.** Per-unit consultation catches a defect while its
+unit is the only thing in the diff. One end-of-task review reads seven units at once, which is
+the condition `PREFLIGHT.md` already warns about: *"a reviewer handed three units at once reads
+everything and notices nothing in particular."* Against that, it arrives with no sunk cost in
+any decision and sees interactions between units that a per-unit reviewer never sees. Both are
+real; which dominates is exactly what this run will show, and it is worth the measurement.

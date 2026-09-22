@@ -22,7 +22,8 @@
  * This is not a workaround imposed on the content: it is how the topic is
  * examined anyway.
  */
-import type { Generator, KeypadKey, Slide } from '../types';
+import type { Rng } from '../../engine/rng';
+import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
 import { bin, log, num, pow } from '../expr';
 import { plotSvg } from '../figures';
@@ -1971,6 +1972,1205 @@ const methodFlow: Generator<MethodParams> = {
   },
 };
 
+/* ---------- Level 4: change of base ---------- */
+
+/**
+ * Level 4 is where a logarithm stops having to be to a friendly base.
+ *
+ * The one fact the level teaches is `log_a(b) = log_c(b) / log_c(a)`, and most
+ * of what it asks is what that fact is *for*: reaching a base the calculator
+ * has, cancelling a chain of logarithms, solving an index equation whose answer
+ * is not whole, and spotting when two numbers share a base so the answer comes
+ * out as an exact fraction instead of a decimal.
+ *
+ * The constraint at the top of this file still holds. Nothing here asks for a
+ * typed logarithm of a variable: answers are numbers, exact fractions, or
+ * quotients of logarithms of numbers, and every one settles in a single
+ * evaluation. The `reduce` and `evaluate` questions only use the cases where
+ * every logarithm on the line is whole — a change of base usually is not, and
+ * a bank of decimals would turn an order question into a calculator question.
+ */
+
+/** For an answer that is an exact fraction, which the base keypad cannot type. */
+const FRACTION_KEYS: KeypadKey[] = [{ insert: '/' }, { insert: '(' }, { insert: ')' }];
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) [x, y] = [y, x % y];
+  return x;
+}
+
+/** p/q in lowest terms, with any sign carried on the numerator. */
+function reduced(p: number, q: number): [number, number] {
+  const g = gcd(p, q);
+  const sign = q < 0 ? -1 : 1;
+  return [(sign * p) / g, (sign * q) / g];
+}
+
+/** A fraction as the learner reads it. A whole number stays whole. */
+function fracTex(p: number, q: number): string {
+  const [n, d] = reduced(p, q);
+  if (d === 1) return `${n}`;
+  return n < 0 ? `-\\frac{${-n}}{${d}}` : `\\frac{${n}}{${d}}`;
+}
+
+/** The same fraction for the checker. Never displayed. */
+function fracAnswer(p: number, q: number): string {
+  const [n, d] = reduced(p, q);
+  return `(${n}) / (${d})`;
+}
+
+/** True when `n` is a whole-number power of `base`, 1 included. */
+function isPowerOf(n: number, base: number): boolean {
+  let value = 1;
+  while (value < n) value *= base;
+  return value === n;
+}
+
+/**
+ * The smallest number `n` is a whole power of: 8 gives 2, 36 gives 6, and a
+ * number that is no power of anything smaller gives itself. Two numbers share
+ * a base exactly when this agrees on them.
+ */
+function rootOf(n: number): number {
+  for (let candidate = 2; candidate < n; candidate += 1) {
+    if (isPowerOf(n, candidate)) return candidate;
+  }
+  return n;
+}
+
+/**
+ * A whole number in [lo, hi] that is not a power of `base`, so its logarithm
+ * to that base is not whole and a change of base is genuinely needed.
+ */
+function nonPower(rng: Rng, base: number, lo: number, hi: number): number {
+  for (let tries = 0; tries < 60; tries += 1) {
+    const drawn = rng.int(lo, hi);
+    if (drawn !== base && !isPowerOf(drawn, base)) return drawn;
+  }
+  // The number after the base is never a power of it.
+  return base + 1;
+}
+
+/** ln(v), as it is written. */
+function lnTex(argument: number | string): string {
+  return `\\ln\\left(${argument}\\right)`;
+}
+
+/** ln(top) / ln(bottom), stacked. */
+function lnQuotientTex(top: number | string, bottom: number | string): string {
+  return `\\frac{${lnTex(top)}}{${lnTex(bottom)}}`;
+}
+
+/**
+ * A reduce bank of six whole numbers: the value, the slips it invites, then
+ * near misses until there are enough. The same shape the chain generators
+ * above build inline, shared here because this level has three of them.
+ */
+function wholeBank(correct: number, ...near: number[]): string[] {
+  const seen = new Set([correct]);
+  const out = [correct];
+  for (const value of near) {
+    if (out.length >= 6) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  for (let gap = 1; out.length < 6; gap += 1) {
+    for (const candidate of [correct + gap, correct - gap]) {
+      if (out.length >= 6) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out.sort((x, y) => x - y).map(String);
+}
+
+/** Four whole-number options for an `evaluate` form: the value and three slips. */
+function wholeOptions(correct: number, ...wrong: number[]): ChoiceOption[] {
+  const seen = new Set([correct]);
+  const picked: number[] = [];
+  for (const value of wrong) {
+    if (picked.length === 3) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    picked.push(value);
+  }
+  for (let gap = 1; picked.length < 3; gap += 1) {
+    for (const candidate of [correct + gap, correct - gap]) {
+      if (picked.length === 3) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      picked.push(candidate);
+    }
+  }
+  return options({ tex: `${correct}` }, ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}` })));
+}
+
+interface ChangeParams {
+  base: number;
+  argument: number;
+}
+
+/** The change of base formula itself, onto natural logarithms. */
+const changeBase: Generator<ChangeParams> = {
+  id: 'log-change-base',
+  // Upside down is the characteristic error; the log of the quotient and the
+  // quotient with the logarithms dropped are the two ways of misreading the
+  // fraction as something a law applies to.
+  choices: ({ base, argument }) =>
+    options(
+      { tex: lnQuotientTex(argument, base), answer: `log(${argument}) / log(${base})` },
+      { tex: lnQuotientTex(base, argument), answer: `log(${base}) / log(${argument})` },
+      { tex: lnTex(`\\frac{${argument}}{${base}}`), answer: `log(${argument} / ${base})` },
+      { tex: `\\frac{${argument}}{${base}}`, answer: `${argument} / ${base}` },
+    ),
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 12 : 7);
+    return { base, argument: nonPower(rng, base, 3, difficulty > 1 ? 99 : 40) };
+  },
+  render: ({ base, argument }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Rewrite using natural logarithms, as one logarithm divided by another.',
+      },
+    ],
+    lead: `${logTex(base, `${argument}`)} =`,
+    keypad: LOG_KEYS,
+    answer: `log(${argument}) / log(${base})`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ base, argument }) => {
+    const value = Math.log(argument) / Math.log(base);
+    return [
+      {
+        text: `A calculator has $\\ln$ and $\\log_{10}$ buttons and usually nothing for base $${base}$. The change of base formula moves any logarithm onto a base you can reach.`,
+      },
+      { tex: `\\log_{a}\\left(b\\right) = \\frac{\\ln\\left(b\\right)}{\\ln\\left(a\\right)}` },
+      { tex: `${logTex(base, `${argument}`)} = ${lnQuotientTex(argument, base)} \\approx ${value.toFixed(3)}` },
+      {
+        text: `The argument, $${argument}$, goes on top and the base, $${base}$, underneath. Upside down it reads $${lnQuotientTex(base, argument)} \\approx ${(1 / value).toFixed(3)}$, which is $${logTex(argument, `${base}`)}$ — a different logarithm.`,
+      },
+    ];
+  },
+};
+
+interface ChangeTilesParams {
+  base: number;
+  argument: number;
+  /** The base being changed to. One character, for the tiles template. */
+  target: number;
+}
+
+/**
+ * The formula again, onto a base the question names.
+ *
+ * `log-change-base` always lands on `ln`, and a learner can come away thinking
+ * `ln` is part of the rule. Here the new base changes from question to question,
+ * which is the point of the formula: any base will do, so long as it is the same
+ * one top and bottom.
+ */
+const changeBaseTiles: Generator<ChangeTilesParams> = {
+  id: 'log-change-base-tiles',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 12 : 9);
+    const argument = nonPower(rng, base, 3, difficulty > 1 ? 60 : 40);
+    // Single-digit targets only: `\log_{10}` in a template would lose its `{10}`
+    // to the blank-marker split, as `log-combine` documents.
+    const targets = [2, 3, 4, 5, 6, 7, 8, 9].filter((t) => t !== base && t !== argument);
+    return { base, argument, target: rng.pick(targets) };
+  },
+  render: ({ base, argument, target }): Slide => ({
+    kind: 'tiles',
+    prompt: [
+      { kind: 'prose', text: `Change the base to $${target}$.` },
+      { kind: 'display', tex: logTex(base, `${argument}`) },
+    ],
+    template: `\\log_${target}({0}) / \\log_${target}({1})`,
+    bank: bankOf(
+      [`${argument}`, `${base}`],
+      [
+        `${argument * base}`,
+        `${argument + base}`,
+        `${target}`,
+        ...(argument > base ? [`${argument - base}`] : []),
+      ],
+    ),
+    answer: [`${argument}`, `${base}`],
+  }),
+  solution: ({ base, argument, target }) => [
+    { text: 'The change of base formula works with any new base, provided the same one is used top and bottom.' },
+    { tex: `\\log_{a}\\left(b\\right) = \\frac{\\log_{c}\\left(b\\right)}{\\log_{c}\\left(a\\right)}` },
+    {
+      tex: `${logTex(base, `${argument}`)} = \\frac{${logTex(target, `${argument}`)}}{${logTex(target, `${base}`)}}`,
+    },
+    {
+      text: `The old argument, $${argument}$, stays on top and the old base, $${base}$, goes underneath. The new base $${target}$ only appears as the subscript, and changing it to any other number would give the same value.`,
+    },
+  ],
+};
+
+/**
+ * Where a^x meets b, found by the formula and checked on the curve.
+ *
+ * Every other question in this level leaves the answer as a quotient of
+ * logarithms. This one asks what number that quotient actually is, with the two
+ * natural logarithms supplied the way a calculator would give them, and draws
+ * `y = a^x` against the level `b` so the learner can see the answer is where
+ * the curve reaches the line.
+ */
+const changeBaseSlider: Generator<ChangeParams> = {
+  id: 'log-change-base-slider',
+  sample: (rng, difficulty) => {
+    const base = rng.pick(difficulty > 1 ? [2, 3, 4, 5, 6] : [2, 3]);
+    // Above the base, so the answer is past 1 and the crossing sits well inside
+    // the picture rather than against the axis.
+    return { base, argument: nonPower(rng, base, base + 1, difficulty > 1 ? 99 : 40) };
+  },
+  render: ({ base, argument }): Slide => {
+    const value = Math.log(argument) / Math.log(base);
+    const answer = Math.round(value * 10) / 10;
+    // The handle starts in the middle of the track, so the track is stretched
+    // until the middle is nowhere near the answer — otherwise *Check* would be
+    // right before anything had been dragged.
+    let top = Math.ceil(value) + 1;
+    while (Math.abs(top / 2 - answer) < 0.6) top += 1;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: top,
+      curves: [{ f: (x) => Math.pow(base, x) }],
+      horizontals: [argument],
+      yMin: 0,
+      yMax: argument * 2,
+      label: `The curve y = ${base} to the x, and a dashed line at ${argument}`,
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve is $y = ${base}^{x}$ and the dashed line is $y = ${argument}$. They meet at $x = ${logTex(base, `${argument}`)}$.`,
+        },
+        {
+          kind: 'prose',
+          text: `Given $${lnTex(argument)} \\approx ${Math.log(argument).toFixed(3)}$ and $${lnTex(base)} \\approx ${Math.log(base).toFixed(3)}$, slide to its value to one decimal place.`,
+        },
+      ],
+      min: 0,
+      max: top,
+      step: 0.1,
+      answer,
+      // A graph read by eye is good to about a tenth either side, and the
+      // division gives the same answer to far better than that.
+      tolerance: 0.2,
+      readout: `${logTex(base, `${argument}`)} \\approx {v}`,
+      figure: { svg, xMin: 0, xMax: top },
+    };
+  },
+  solution: ({ base, argument }) => {
+    const value = Math.log(argument) / Math.log(base);
+    const below = Math.floor(value);
+    return [
+      { text: 'Change to natural logarithms, then divide the two numbers given.' },
+      {
+        tex: `${logTex(base, `${argument}`)} = ${lnQuotientTex(argument, base)} \\approx \\frac{${Math.log(argument).toFixed(3)}}{${Math.log(base).toFixed(3)}} \\approx ${value.toFixed(2)}`,
+      },
+      {
+        tex: `${base}^{${below}} = ${Math.pow(base, below)} < ${argument} < ${Math.pow(base, below + 1)} = ${base}^{${below + 1}}`,
+      },
+      {
+        text: `So the answer has to sit between $${below}$ and $${below + 1}$, and on the picture that is where the curve crosses the dashed line. A value outside that range means the fraction was taken upside down.`,
+      },
+    ];
+  },
+};
+
+interface QuotientParams {
+  base: number;
+  /** The two logarithms are base^p over base^q, and q divides p. */
+  p: number;
+  q: number;
+}
+
+/**
+ * Every base-and-pair whose change of base is whole on every piece: both
+ * arguments are powers of the base, and the quotient of their indices is whole.
+ * Drawn from a flat list so each question is equally likely — the easy pool is
+ * only just past the 25-question floor, and drawing the base first would leave
+ * the rarer pairs to chance.
+ */
+function quotientPool(cap: number): QuotientParams[] {
+  const out: QuotientParams[] = [];
+  for (let base = 2; base <= 10; base += 1) {
+    for (let q = 2; Math.pow(base, 2 * q) <= cap; q += 1) {
+      for (let k = 2; Math.pow(base, q * k) <= cap; k += 1) out.push({ base, p: q * k, q });
+    }
+  }
+  return out;
+}
+
+const QUOTIENTS = quotientPool(10_000);
+const QUOTIENTS_HARD = quotientPool(100_000);
+
+/**
+ * The change of base formula read backwards, on a line that comes out whole.
+ *
+ * `log_c(X) / log_c(Y)` is `log_Y(X)` with its base changed to c, and when both
+ * arguments are powers of c each logarithm on the line is a whole number. So
+ * the formula can be worked by hand, one piece at a time, which is how it
+ * stops being a rule to trust and becomes a fact that can be checked.
+ */
+const quotientReduce: Generator<QuotientParams> = {
+  id: 'log-quotient-reduce',
+  // Subtracting the indices is the logarithm of the quotient, the slip this
+  // level is built to catch.
+  choices: ({ p, q }) => wholeOptions(p / q, p - q, p * q, p + q),
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? QUOTIENTS_HARD : QUOTIENTS),
+  render: ({ base, p, q }): Slide => {
+    const top = Math.pow(base, p);
+    const bottom = Math.pow(base, q);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is $${logTex(bottom, `${top}`)}$ with its base changed to $${base}$. Work it out one piece at a time: tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      expr: bin('/', log(num(base), num(top)), log(num(base), num(bottom))),
+      banks: {
+        // Reading the argument back, or dividing it by the base, instead of
+        // asking what power it is.
+        'r.l': wholeBank(p, top / base, top, base),
+        'r.r': wholeBank(q, bottom / base, bottom, base),
+        // Subtracting instead of dividing turns this into the logarithm of a
+        // quotient, which is a different number.
+        r: wholeBank(p / q, p - q, p * q, p + q),
+      },
+    };
+  },
+  solution: ({ base, p, q }) => {
+    const top = Math.pow(base, p);
+    const bottom = Math.pow(base, q);
+    return [
+      { text: 'Each logarithm asks what power of the base gives its argument, and both have whole answers here.' },
+      {
+        tex: `${logTex(base, `${top}`)} = ${p} \\qquad ${logTex(base, `${bottom}`)} = ${q}`,
+      },
+      { tex: `${p} \\div ${q} = ${p / q}` },
+      {
+        text: `So $${logTex(bottom, `${top}`)} = ${p / q}$, and it checks: $${bottom}^{${p / q}} = ${top}$. Subtracting the two instead would give $${p - q}$, which is $${logTex(base, `\\frac{${top}}{${bottom}}`)}$ — a quotient *inside* a logarithm, not a quotient *of* logarithms.`,
+      },
+    ];
+  },
+};
+
+interface ChainParams {
+  base: number;
+  /** The middle number is base^m, the last is that number to the k. */
+  m: number;
+  k: number;
+  /** Written with the second logarithm first; multiplication does not mind. */
+  swap: boolean;
+}
+
+function chainPool(cap: number): ChainParams[] {
+  const out: ChainParams[] = [];
+  for (let base = 2; base <= 10; base += 1) {
+    for (let m = 2; Math.pow(base, 2 * m) <= cap; m += 1) {
+      for (let k = 2; Math.pow(base, m * k) <= cap; k += 1) {
+        out.push({ base, m, k, swap: false }, { base, m, k, swap: true });
+      }
+    }
+  }
+  return out;
+}
+
+const CHAINS = chainPool(10_000);
+const CHAINS_HARD = chainPool(100_000);
+
+/**
+ * `log_a(b) x log_b(c)`, worked one logarithm at a time.
+ *
+ * The chain rule says the product is `log_a(c)` — the shared number cancels.
+ * Working the line piece by piece gets there without the rule, and the worked
+ * solution then shows the rule arriving at the same number, which is the
+ * argument for it.
+ */
+const chainReduce: Generator<ChainParams> = {
+  id: 'log-chain-reduce',
+  choices: ({ m, k }) => wholeOptions(m * k, m + k, Math.pow(m, k), Math.pow(k, m)),
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? CHAINS_HARD : CHAINS),
+  render: ({ base, m, k, swap }): Slide => {
+    const middle = Math.pow(base, m);
+    const last = Math.pow(middle, k);
+    const first = log(num(base), num(middle));
+    const second = log(num(middle), num(last));
+    const firstBank = wholeBank(m, middle / base, middle, base);
+    const secondBank = wholeBank(k, last / middle, middle, k + 1);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The argument of one logarithm is the base of the other. Work it out one piece at a time: tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      expr: swap ? bin('*', second, first) : bin('*', first, second),
+      banks: {
+        [swap ? 'r.r' : 'r.l']: firstBank,
+        [swap ? 'r.l' : 'r.r']: secondBank,
+        // Adding the two is the slip; the powers are what a learner produces
+        // when they half-remember that indices are involved somewhere.
+        r: wholeBank(m * k, m + k, Math.pow(m, k), Math.pow(k, m)),
+      },
+    };
+  },
+  solution: ({ base, m, k }) => {
+    const middle = Math.pow(base, m);
+    const last = Math.pow(middle, k);
+    return [
+      { text: 'Settle each logarithm on its own, then multiply.' },
+      {
+        tex: `${logTex(base, `${middle}`)} = ${m} \\qquad ${logTex(middle, `${last}`)} = ${k} \\qquad ${m} \\times ${k} = ${m * k}`,
+      },
+      {
+        text: `The chain rule gets there in one step. Changing both to one base, the $${middle}$ in the middle cancels, leaving a single logarithm from the outer base to the outer argument.`,
+      },
+      { tex: `${logTex(base, `${middle}`)} \\times ${logTex(middle, `${last}`)} = ${logTex(base, `${last}`)} = ${m * k}` },
+      { text: `And it checks: $${base}^{${m * k}} = ${last}$.` },
+    ];
+  },
+};
+
+interface ReciprocalParams {
+  /** Both numbers are powers of this. */
+  root: number;
+  /** The base is root^q and the argument root^p. */
+  p: number;
+  q: number;
+}
+
+/** log_b(a) from log_a(b): swapping base and argument takes the reciprocal. */
+const reciprocal: Generator<ReciprocalParams> = {
+  id: 'log-reciprocal',
+  // Leaving the value as it was, and the two sign slips that come from
+  // half-remembering a "minus" somewhere in the laws.
+  choices: ({ p, q }) =>
+    options(
+      { tex: fracTex(q, p), answer: fracAnswer(q, p) },
+      { tex: fracTex(p, q), answer: fracAnswer(p, q) },
+      { tex: fracTex(-q, p), answer: fracAnswer(-q, p) },
+      { tex: fracTex(-p, q), answer: fracAnswer(-p, q) },
+    ),
+  sample: (rng, difficulty) => {
+    const root = rng.pick(difficulty > 1 ? [2, 3, 5, 7] : [2, 3, 5]);
+    const cap = difficulty > 1 ? 20_000 : 1_000;
+    const indices: number[] = [];
+    for (let index = 1; Math.pow(root, index) <= cap; index += 1) indices.push(index);
+    const q = rng.pick(indices);
+    const p = rng.pick(indices.filter((index) => index !== q));
+    return { root, p, q };
+  },
+  render: ({ root, p, q }) => {
+    const base = Math.pow(root, q);
+    const argument = Math.pow(root, p);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Use the first logarithm to find the second.' },
+        { kind: 'display', tex: `${logTex(base, `${argument}`)} = ${fracTex(p, q)}` },
+      ],
+      lead: `${logTex(argument, `${base}`)} =`,
+      keypad: FRACTION_KEYS,
+      answer: fracAnswer(q, p),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ root, p, q }) => {
+    const base = Math.pow(root, q);
+    const argument = Math.pow(root, p);
+    return [
+      { text: 'Change both to natural logarithms and the two are the same fraction, one upside down.' },
+      {
+        tex: `\\log_{a}\\left(b\\right) = \\frac{\\ln\\left(b\\right)}{\\ln\\left(a\\right)} \\qquad \\log_{b}\\left(a\\right) = \\frac{\\ln\\left(a\\right)}{\\ln\\left(b\\right)}`,
+      },
+      { tex: `${logTex(argument, `${base}`)} = \\frac{1}{${logTex(base, `${argument}`)}} = ${fracTex(q, p)}` },
+      {
+        text: `Check with powers of $${root}$: $${base} = ${root}^{${q}}$ and $${argument} = ${root}^{${p}}$, so raising $${argument}$ to $${fracTex(q, p)}$ gives $${root}^{${q}}$, which is $${base}$. The sign never changes — a logarithm and its reciprocal are either both positive or both negative.`,
+      },
+    ];
+  },
+};
+
+interface ProductFlowParams {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  route: 'chain' | 'reversed' | 'reciprocal' | 'none';
+}
+
+/**
+ * Does a product of two logarithms simplify, and to what?
+ *
+ * The chain and the reciprocal are the two shapes this level teaches, and both
+ * hinge on one number being the argument of one logarithm and the base of the
+ * other. Spotting that — in either order, since the product does not care which
+ * logarithm is written first — is the skill, and a product with no shared
+ * number is the case worth practising saying no to.
+ */
+const productFlow: Generator<ProductFlowParams> = {
+  id: 'log-product-flow',
+  sample: (rng, difficulty) => {
+    const a = rng.int(2, 9);
+    const pickApart = (lo: number, hi: number, taken: number[]) => {
+      for (;;) {
+        const drawn = rng.int(lo, hi);
+        if (!taken.includes(drawn)) return drawn;
+      }
+    };
+    const b = pickApart(2, difficulty > 1 ? 40 : 20, [a]);
+    const c = pickApart(2, difficulty > 1 ? 80 : 50, [a, b]);
+    const d = pickApart(2, difficulty > 1 ? 80 : 50, [a, b, c]);
+    return { a, b, c, d, route: rng.pick(['chain', 'reversed', 'reciprocal', 'none'] as const) };
+  },
+  render: ({ a, b, c, d, route }): Slide => {
+    const subject =
+      route === 'chain'
+        ? `${logTex(a, `${b}`)} \\times ${logTex(b, `${c}`)}`
+        : route === 'reversed'
+          ? `${logTex(b, `${c}`)} \\times ${logTex(a, `${b}`)}`
+          : route === 'reciprocal'
+            ? `${logTex(a, `${b}`)} \\times ${logTex(b, `${a}`)}`
+            : `${logTex(a, `${b}`)} \\times ${logTex(c, `${d}`)}`;
+    const right = `$${logTex(a, `${c}`)}$`;
+    const wrong = `$${logTex(c, `${a}`)}$`;
+    const left = [
+      { label: right, outcome: `That reads the product as $${logTex(a, `${c}`)}$.` },
+      { label: wrong, outcome: `That reads the product as $${logTex(c, `${a}`)}$.` },
+    ];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work down the questions to decide what this product simplifies to, if anything.',
+        },
+      ],
+      subject,
+      steps: [
+        {
+          id: 'link',
+          ask: 'Is the argument of one logarithm the base of the other?',
+          branches: [
+            { label: 'Yes', to: 'both' },
+            {
+              label: 'No',
+              outcome: 'Nothing cancels. The product stays as two logarithms.',
+            },
+          ],
+        },
+        {
+          id: 'both',
+          ask: "Is each one's base the other one's argument?",
+          branches: [
+            { label: 'Yes', outcome: 'They are reciprocals, so the product is exactly 1.' },
+            { label: 'No', to: 'left' },
+          ],
+        },
+        {
+          id: 'left',
+          ask: 'The shared number cancels. Which single logarithm is left?',
+          branches: (a + c) % 2 === 0 ? left : [left[1], left[0]],
+        },
+      ],
+      answer:
+        route === 'none' ? ['No'] : route === 'reciprocal' ? ['Yes', 'Yes'] : ['Yes', 'No', right],
+    };
+  },
+  solution: ({ a, b, c, d, route }) => {
+    if (route === 'none') {
+      return [
+        {
+          text: `The numbers are $${a}$ and $${b}$ in one logarithm and $${c}$ and $${d}$ in the other. None of them is shared, so there is nothing to cancel.`,
+        },
+        {
+          tex: `${logTex(a, `${b}`)} \\times ${logTex(c, `${d}`)} = \\frac{${lnTex(b)}}{${lnTex(a)}} \\times \\frac{${lnTex(d)}}{${lnTex(c)}}`,
+        },
+        { text: 'Changing base still works — it always does — but four different logarithms are left and none of them cancels.' },
+      ];
+    }
+    if (route === 'reciprocal') {
+      return [
+        { text: `$${a}$ and $${b}$ have swapped places, so each logarithm is the other upside down.` },
+        {
+          tex: `${logTex(a, `${b}`)} \\times ${logTex(b, `${a}`)} = \\frac{${lnTex(b)}}{${lnTex(a)}} \\times \\frac{${lnTex(a)}}{${lnTex(b)}} = 1`,
+        },
+        { text: 'Everything cancels. Whatever the two numbers are, a logarithm times its reciprocal is 1.' },
+      ];
+    }
+    return [
+      {
+        text: `$${b}$ is the argument of $${logTex(a, `${b}`)}$ and the base of $${logTex(b, `${c}`)}$, so it cancels${route === 'reversed' ? ' — the order they are written in makes no difference to a product' : ''}.`,
+      },
+      {
+        tex: `\\frac{${lnTex(b)}}{${lnTex(a)}} \\times \\frac{${lnTex(c)}}{${lnTex(b)}} = \\frac{${lnTex(c)}}{${lnTex(a)}} = ${logTex(a, `${c}`)}`,
+      },
+      {
+        text: `What is left runs from the outer base, $${a}$, to the outer argument, $${c}$. Writing $${logTex(c, `${a}`)}$ instead gives the reciprocal.`,
+      },
+    ];
+  },
+};
+
+interface ChainTilesParams {
+  a: number;
+  b: number;
+  c: number;
+  reversed: boolean;
+}
+
+/**
+ * The chain rule, cancelled by hand.
+ *
+ * `log-chain-reduce` only ever uses numbers whose logarithms are whole, so it
+ * can be done without seeing anything cancel. Here none of them is whole, and
+ * the only way through is to change both to natural logarithms and watch the
+ * middle number go.
+ */
+const chainTiles: Generator<ChainTilesParams> = {
+  id: 'log-chain-tiles',
+  sample: (rng, difficulty) => {
+    const a = rng.int(2, 9);
+    let b = rng.int(2, difficulty > 1 ? 40 : 20);
+    if (b === a) b += 1;
+    let c = rng.int(3, difficulty > 1 ? 60 : 40);
+    while (c === a || c === b) c += 1;
+    return { a, b, c, reversed: rng.chance(0.5) };
+  },
+  render: ({ a, b, c, reversed }): Slide => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Change both to natural logarithms. One number cancels — fill in what is left.',
+      },
+      {
+        kind: 'display',
+        tex: reversed
+          ? `${logTex(b, `${c}`)} \\times ${logTex(a, `${b}`)}`
+          : `${logTex(a, `${b}`)} \\times ${logTex(b, `${c}`)}`,
+      },
+    ],
+    template: `\\ln({0}) / \\ln({1})`,
+    bank: bankOf([`${c}`, `${a}`], [`${b}`, `${a * c}`, `${b * c}`, `${a * b}`]),
+    answer: [`${c}`, `${a}`],
+  }),
+  solution: ({ a, b, c }) => [
+    { text: 'Write each logarithm as a quotient of natural logarithms.' },
+    {
+      tex: `${logTex(a, `${b}`)} \\times ${logTex(b, `${c}`)} = \\frac{${lnTex(b)}}{${lnTex(a)}} \\times \\frac{${lnTex(c)}}{${lnTex(b)}}`,
+    },
+    {
+      text: `$${lnTex(b)}$ is on the top of one fraction and the bottom of the other, so it cancels.`,
+    },
+    { tex: `= ${lnQuotientTex(c, a)} = ${logTex(a, `${c}`)}` },
+    {
+      text: `That is the chain rule: the shared $${b}$ disappears, leaving a single logarithm from $${a}$ to $${c}$.`,
+    },
+  ],
+};
+
+interface SolveIndexParams {
+  base: number;
+  target: number;
+  /** The coefficient of x in the index. 1 for the shift form. */
+  m: number;
+  /** The constant added to the index. 0 for the scale form. */
+  k: number;
+  form: 'shift' | 'scale' | 'both';
+}
+
+/** `m x + k`, as it would be written in an index. */
+function indexTex(m: number, k: number): string {
+  const lead = m === 1 ? 'x' : `${m}x`;
+  if (k === 0) return lead;
+  return k > 0 ? `${lead} + ${k}` : `${lead} - ${-k}`;
+}
+
+/** `- k` after something, written with the right sign. */
+function minus(k: number): string {
+  return k > 0 ? `- ${k}` : `+ ${-k}`;
+}
+
+/**
+ * Solving when the unknown is not the whole index.
+ *
+ * Level 3 only ever sets `a^x = b`, where the answer is the change of base
+ * formula and nothing more. Real equations put something next to the x, and
+ * the change of base is then only the middle of the working: the index is set
+ * equal to `log_a(b)` and ordinary algebra finishes it.
+ */
+const solveIndex: Generator<SolveIndexParams> = {
+  id: 'log-solve-index',
+  choices: ({ base, target, m, k, form }) => {
+    const L = lnQuotientTex(target, base);
+    const l = `log(${target}) / log(${base})`;
+    if (form === 'shift') {
+      return options(
+        { tex: `${L} ${minus(k)}`, answer: `${l} - (${k})` },
+        { tex: `${L} ${minus(-k)}`, answer: `${l} + (${k})` },
+        { tex: L, answer: l },
+        {
+          tex: `\\frac{${lnTex(target)} ${minus(k)}}{${lnTex(base)}}`,
+          answer: `(log(${target}) - (${k})) / log(${base})`,
+        },
+      );
+    }
+    if (form === 'scale') {
+      return options(
+        { tex: `\\frac{${lnTex(target)}}{${m}${lnTex(base)}}`, answer: `log(${target}) / ((${m}) * log(${base}))` },
+        { tex: `\\frac{${m}${lnTex(target)}}{${lnTex(base)}}`, answer: `(${m}) * log(${target}) / log(${base})` },
+        { tex: `${L} - ${m}`, answer: `${l} - (${m})` },
+        { tex: L, answer: l },
+      );
+    }
+    return options(
+      { tex: `\\frac{1}{${m}}\\left(${L} ${minus(k)}\\right)`, answer: `(${l} - (${k})) / (${m})` },
+      { tex: `\\frac{1}{${m}}${L} ${minus(k)}`, answer: `${l} / (${m}) - (${k})` },
+      { tex: `\\frac{1}{${m}}\\left(${L} ${minus(-k)}\\right)`, answer: `(${l} + (${k})) / (${m})` },
+      { tex: `${L} ${minus(k)}`, answer: `${l} - (${k})` },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 6);
+    const target = nonPower(rng, base, 3, difficulty > 1 ? 60 : 40);
+    const form = rng.pick(difficulty > 1 ? (['shift', 'scale', 'both'] as const) : (['shift', 'scale'] as const));
+    const k = nonZero(rng.int(-4, 4), 2);
+    const m = rng.int(2, 5);
+    return {
+      base,
+      target,
+      m: form === 'shift' ? 1 : m,
+      k: form === 'scale' ? 0 : k,
+      form,
+    };
+  },
+  render: ({ base, target, m, k, form }) => {
+    const l = `log(${target}) / log(${base})`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Solve for $x$, exactly. Leave natural logarithms in your answer.' },
+      ],
+      lead: `${base}^{${indexTex(m, k)}} = ${target} \\implies x =`,
+      keypad: LOG_KEYS,
+      answer:
+        form === 'shift'
+          ? `${l} - (${k})`
+          : form === 'scale'
+            ? `log(${target}) / ((${m}) * log(${base}))`
+            : `(${l} - (${k})) / (${m})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ base, target, m, k, form }) => {
+    const L = lnQuotientTex(target, base);
+    const final =
+      form === 'shift'
+        ? `x = ${L} ${minus(k)}`
+        : form === 'scale'
+          ? `x = \\frac{${lnTex(target)}}{${m}${lnTex(base)}}`
+          : `x = \\frac{1}{${m}}\\left(${L} ${minus(k)}\\right)`;
+    return [
+      {
+        text: `$${target}$ is not a power of $${base}$, so take logarithms. The whole index comes down as one bracket.`,
+      },
+      {
+        tex: `${base}^{${indexTex(m, k)}} = ${target} \\implies ${indexTex(m, k)} = ${logTex(base, `${target}`)} = ${L}`,
+      },
+      { tex: final },
+      {
+        text:
+          form === 'shift'
+            ? `Change base first and deal with the $${k}$ afterwards. Taking it off $${lnTex(target)}$ before dividing is the usual slip — the $${k}$ belongs to the index, not to the logarithm.`
+            : form === 'scale'
+              ? `The $${m}$ multiplies the whole of $x$, so it divides the whole answer: it ends up beside $${lnTex(base)}$ on the bottom, not on the top.`
+              : `Undo the index in the reverse of the order it was built: the $${k}$ comes off first, then everything is divided by $${m}$.`,
+      },
+    ];
+  },
+};
+
+/**
+ * The same solutions assembled from tiles.
+ *
+ * The typed form can be answered by anyone who types `log(b)/log(a)` and hopes;
+ * placing the pieces makes each number go somewhere on purpose, and the
+ * `scale` form puts the coefficient in a position that has to be chosen.
+ */
+const solveIndexTiles: Generator<SolveIndexParams> = {
+  id: 'log-solve-index-tiles',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 6);
+    const target = nonPower(rng, base, 3, difficulty > 1 ? 60 : 40);
+    const form = rng.pick(['shift', 'scale'] as const);
+    return {
+      base,
+      target,
+      m: form === 'scale' ? rng.int(2, 5) : 1,
+      k: form === 'shift' ? nonZero(rng.int(-4, 4), 3) : 0,
+      form,
+    };
+  },
+  render: ({ base, target, m, k, form }): Slide => {
+    if (form === 'scale') {
+      const answer = [`${target}`, `${m}`, `${base}`];
+      return {
+        kind: 'tiles',
+        prompt: [
+          { kind: 'prose', text: 'Take logarithms and solve. Fill in the answer.' },
+          { kind: 'display', tex: `${base}^{${indexTex(m, 0)}} = ${target}` },
+        ],
+        template: `x = \\ln({0}) / ({1} \\ln({2}))`,
+        bank: bankOf(answer, [`${m * base}`, `${m + 1}`, `${target * m}`, `${base + 1}`]),
+        answer,
+      };
+    }
+    const answer = [`${target}`, `${base}`, `${Math.abs(k)}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Take logarithms and solve. Fill in the answer.' },
+        { kind: 'display', tex: `${base}^{${indexTex(1, k)}} = ${target}` },
+      ],
+      template: k > 0 ? `x = \\ln({0}) / \\ln({1}) - {2}` : `x = \\ln({0}) / \\ln({1}) + {2}`,
+      bank: bankOf(answer, [`${target * base}`, `${Math.abs(k) + 1}`, `${base + target}`, `${target - 1}`]),
+      answer,
+    };
+  },
+  solution: ({ base, target, m, k, form }) => [
+    { text: 'Taking logarithms brings the whole index down, so the index equals a change-of-base quotient.' },
+    { tex: `${indexTex(m, k)} = ${lnQuotientTex(target, base)}` },
+    {
+      tex:
+        form === 'scale'
+          ? `x = \\frac{${lnTex(target)}}{${m}${lnTex(base)}}`
+          : `x = ${lnQuotientTex(target, base)} ${minus(k)}`,
+    },
+    {
+      text:
+        form === 'scale'
+          ? `The $${m}$ belongs to the bottom, beside $${lnTex(base)}$: it multiplied $x$, so it divides the whole of the answer.`
+          : `The $${k}$ comes off last, after the division, because it was added to $x$ inside the index and not to any logarithm.`,
+    },
+  ],
+};
+
+/**
+ * Which two whole numbers does a logarithm sit between?
+ *
+ * The estimate every answer in this level should be checked against, and the
+ * one a calculator never gives: the powers of the base either side of the
+ * argument bracket the logarithm, and an answer outside the bracket was taken
+ * upside down.
+ */
+const between: Generator<ChangeParams> = {
+  id: 'log-between',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 12 : 6);
+    return { base, argument: nonPower(rng, base, base + 1, difficulty > 1 ? 999 : 100) };
+  },
+  render: ({ base, argument }): Slide => {
+    let below = 0;
+    while (Math.pow(base, below + 1) < argument) below += 1;
+    // Starts one either side of the right pair, plus the pair that comes from
+    // dividing the argument by the base as though the logarithm were a quotient.
+    const starts = [below, below - 1, below + 1, Math.floor(argument / base)].filter(
+      (start, idx, all) => start >= 0 && all.indexOf(start) === idx,
+    );
+    const options = starts.map((start) => ({
+      id: start === below ? 'correct' : `s${start}`,
+      label: `${start} \\text{ and } ${start + 1}`,
+      tex: true,
+    }));
+    const turn = (base + argument) % options.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Without a calculator: $${logTex(base, `${argument}`)}$ lies between which two whole numbers?`,
+        },
+      ],
+      options: [...options.slice(turn), ...options.slice(0, turn)],
+      correctId: 'correct',
+    };
+  },
+  solution: ({ base, argument }) => {
+    let below = 0;
+    while (Math.pow(base, below + 1) < argument) below += 1;
+    return [
+      { text: `List the powers of $${base}$ until one passes $${argument}$.` },
+      {
+        tex: `${base}^{${below}} = ${Math.pow(base, below)} < ${argument} < ${Math.pow(base, below + 1)} = ${base}^{${below + 1}}`,
+      },
+      {
+        text: `The logarithm is the power that lands exactly on $${argument}$, so it lies between $${below}$ and $${below + 1}$ — about $${(Math.log(argument) / Math.log(base)).toFixed(2)}$.`,
+      },
+      {
+        text: 'Checking a change-of-base answer against this bracket catches the upside-down fraction every time, because the reciprocal is almost never in it.',
+      },
+    ];
+  },
+};
+
+interface CommonParams {
+  /** Both numbers are powers of this. */
+  root: number;
+  /** The base is root^q; the other number is root^p. */
+  p: number;
+  q: number;
+  /** The other number is 1 / root^p rather than root^p. */
+  flip: boolean;
+}
+
+/**
+ * Pairs of powers of one root whose logarithm is a fraction, never whole: if q
+ * divided p the base would already be a power of the base and no change would
+ * be needed.
+ */
+function commonPool(roots: number[], baseCap: number, argumentCap: number, flips: boolean): CommonParams[] {
+  const out: CommonParams[] = [];
+  for (const root of roots) {
+    for (let q = 2; Math.pow(root, q) <= baseCap; q += 1) {
+      for (let p = 1; Math.pow(root, p) <= argumentCap; p += 1) {
+        if (p % q === 0) continue;
+        out.push({ root, p, q, flip: false });
+        if (flips) out.push({ root, p, q, flip: true });
+      }
+    }
+  }
+  return out;
+}
+
+const COMMON = commonPool([2, 3, 5], 125, 3_125, false);
+const COMMON_HARD = commonPool([2, 3, 5, 7], 343, 20_000, true);
+
+/**
+ * `8^x = 32`: an exact fraction, reached by choosing the base.
+ *
+ * Taking natural logarithms here works, and leaves `ln 32 / ln 8` — correct,
+ * and hiding that the answer is 5/3. Seeing that both numbers are powers of 2
+ * and changing to that base is the whole of "choosing a base".
+ */
+const solveCommon: Generator<CommonParams> = {
+  id: 'log-solve-common',
+  choices: ({ p, q, flip }) => {
+    const s = flip ? -p : p;
+    return options(
+      { tex: fracTex(s, q), answer: fracAnswer(s, q) },
+      { tex: fracTex(flip ? -q : q, p), answer: fracAnswer(flip ? -q : q, p) },
+      { tex: fracTex(-s, q), answer: fracAnswer(-s, q) },
+      { tex: fracTex(flip ? q : -q, p), answer: fracAnswer(flip ? q : -q, p) },
+    );
+  },
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? COMMON_HARD : COMMON),
+  render: ({ root, p, q, flip }) => {
+    const base = Math.pow(root, q);
+    const value = Math.pow(root, p);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Solve for $x$, as an exact fraction.' }],
+      lead: `${base}^{x} = ${flip ? `\\frac{1}{${value}}` : value} \\implies x =`,
+      keypad: FRACTION_KEYS,
+      answer: fracAnswer(flip ? -p : p, q),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ root, p, q, flip }) => {
+    const base = Math.pow(root, q);
+    const value = Math.pow(root, p);
+    const s = flip ? -p : p;
+    return [
+      {
+        text: `$${base}$ and $${value}$ are both powers of $${root}$, so write everything in base $${root}$ rather than reaching for $\\ln$.`,
+      },
+      {
+        tex: `\\left(${root}^{${q}}\\right)^{x} = ${root}^{${s}} \\implies ${root}^{${q}x} = ${root}^{${s}}`,
+      },
+      { tex: `${q}x = ${s} \\implies x = ${fracTex(s, q)}` },
+      {
+        text: `Natural logarithms would give the same number as $${lnQuotientTex(flip ? `\\frac{1}{${value}}` : value, base)}$, which is correct but hides that it is exactly $${fracTex(s, q)}$. When both numbers share a base, change to it.`,
+      },
+    ];
+  },
+};
+
+const COMMON_TILES = COMMON;
+const COMMON_TILES_HARD = commonPool([2, 3, 5, 7], 343, 20_000, false);
+
+/**
+ * Evaluating `log_8(32)` by changing to base 2, with the two indices placed.
+ *
+ * `log-solve-common` asks for the finished fraction. This is the line before
+ * it, where the choice of base turns two awkward logarithms into two whole
+ * numbers that can be read off.
+ */
+const commonBaseTiles: Generator<CommonParams> = {
+  id: 'log-common-base-tiles',
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? COMMON_TILES_HARD : COMMON_TILES),
+  render: ({ root, p, q }): Slide => {
+    const base = Math.pow(root, q);
+    const value = Math.pow(root, p);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Both numbers are powers of $${root}$. Change to base $${root}$ and fill in each logarithm.`,
+        },
+        { kind: 'display', tex: logTex(base, `${value}`) },
+      ],
+      // The root is a single digit and the arguments sit in plain brackets, so
+      // nothing here is a braced number for the blank-marker split to take.
+      template: `\\log_${root}(${value}) / \\log_${root}(${base}) = {0} / {1}`,
+      bank: bankOf([`${p}`, `${q}`], [`${value}`, `${base}`, `${p + q}`, `${q + 1}`]),
+      answer: [`${p}`, `${q}`],
+    };
+  },
+  solution: ({ root, p, q }) => {
+    const base = Math.pow(root, q);
+    const value = Math.pow(root, p);
+    // Written as the two indices first, then in lowest terms where that differs.
+    const lowest = gcd(p, q) === 1 ? '' : ` = ${fracTex(p, q)}`;
+    return [
+      { text: `Change to base $${root}$, the number both are powers of.` },
+      {
+        tex: `${logTex(base, `${value}`)} = \\frac{${logTex(root, `${value}`)}}{${logTex(root, `${base}`)}}`,
+      },
+      {
+        tex: `${value} = ${root}^{${p}} \\qquad ${base} = ${root}^{${q}} \\implies ${logTex(base, `${value}`)} = \\frac{${p}}{${q}}${lowest}`,
+      },
+      {
+        text: `Each logarithm to base $${root}$ is just an index, so the answer is a fraction of two whole numbers — exact, with no calculator involved.`,
+      },
+    ];
+  },
+};
+
+interface BaseFlowParams {
+  base: number;
+  argument: number;
+  route: 'power' | 'common' | 'calculator';
+}
+
+/**
+ * Which base should this logarithm be changed to?
+ *
+ * Three cases, and the level's closing skill is telling them apart: an
+ * argument that is a power of the base needs no change at all; two numbers
+ * that are powers of a smaller one go to that base and come out as a fraction;
+ * anything else goes to `e` and comes out as a decimal.
+ */
+const baseFlow: Generator<BaseFlowParams> = {
+  id: 'log-base-flow',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['power', 'common', 'calculator'] as const);
+    if (route === 'power') {
+      const base = rng.int(2, difficulty > 1 ? 10 : 6);
+      const indices: number[] = [];
+      for (let index = 2; Math.pow(base, index) <= 10_000; index += 1) indices.push(index);
+      return { base, argument: Math.pow(base, rng.pick(indices)), route };
+    }
+    if (route === 'common') {
+      const pick = rng.pick(difficulty > 1 ? COMMON_TILES_HARD : COMMON_TILES);
+      return { base: Math.pow(pick.root, pick.q), argument: Math.pow(pick.root, pick.p), route };
+    }
+    const base = rng.int(2, difficulty > 1 ? 12 : 9);
+    for (let tries = 0; tries < 60; tries += 1) {
+      const argument = rng.int(3, difficulty > 1 ? 99 : 60);
+      if (argument !== base && rootOf(argument) !== rootOf(base)) return { base, argument, route };
+    }
+    return { base, argument: base + 1, route };
+  },
+  render: ({ base, argument }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Work down the questions to decide how you would evaluate this. Each answer decides what gets asked next.',
+      },
+    ],
+    subject: logTex(base, `${argument}`),
+    steps: [
+      {
+        id: 'power',
+        ask: 'Is the argument a whole-number power of the base?',
+        branches: [
+          { label: 'Yes', outcome: 'Read the index straight off. No change of base is needed.' },
+          { label: 'No', to: 'common' },
+        ],
+      },
+      {
+        id: 'common',
+        ask: 'Are the base and the argument both powers of one smaller whole number?',
+        branches: [
+          {
+            label: 'Yes',
+            outcome: 'Change to that number. Both logarithms come out whole, so the answer is an exact fraction.',
+          },
+          {
+            label: 'No',
+            outcome: 'Change to base $e$ and use a calculator. The answer is not a fraction at all.',
+          },
+        ],
+      },
+    ],
+    answer: isPowerOf(argument, base) ? ['Yes'] : rootOf(argument) === rootOf(base) ? ['No', 'Yes'] : ['No', 'No'],
+  }),
+  solution: ({ base, argument }) => {
+    if (isPowerOf(argument, base)) {
+      const index = Math.round(Math.log(argument) / Math.log(base));
+      return [
+        { text: `$${argument}$ is an exact power of $${base}$, so the logarithm is just that power.` },
+        { tex: `${base}^{${index}} = ${argument} \\implies ${logTex(base, `${argument}`)} = ${index}` },
+        { text: 'Changing base here would give the same answer the long way round.' },
+      ];
+    }
+    const root = rootOf(base);
+    if (root === rootOf(argument)) {
+      const q = Math.round(Math.log(base) / Math.log(root));
+      const p = Math.round(Math.log(argument) / Math.log(root));
+      return [
+        { text: `$${argument}$ is not a power of $${base}$, but both are powers of $${root}$.` },
+        {
+          tex: `${logTex(base, `${argument}`)} = \\frac{${logTex(root, `${argument}`)}}{${logTex(root, `${base}`)}} = \\frac{${p}}{${q}}`,
+        },
+        { text: 'Changing to the shared number makes both logarithms whole, which is what makes the answer exact.' },
+      ];
+    }
+    return [
+      {
+        text: `$${argument}$ is not a power of $${base}$, and the two share no smaller base, so no choice of base makes the logarithms whole.`,
+      },
+      {
+        tex: `${logTex(base, `${argument}`)} = ${lnQuotientTex(argument, base)} \\approx ${(Math.log(argument) / Math.log(base)).toFixed(3)}`,
+      },
+      { text: 'Base $e$ is the usual choice because the calculator has it. Base 10 would give the same number.' },
+    ];
+  },
+};
+
 export const logarithmGenerators = [
   evaluateLog,
   logToIndex,
@@ -1993,4 +3193,18 @@ export const logarithmGenerators = [
   exponentialTiles,
   decaySlider,
   methodFlow,
+  changeBase,
+  changeBaseTiles,
+  changeBaseSlider,
+  quotientReduce,
+  chainReduce,
+  reciprocal,
+  productFlow,
+  chainTiles,
+  solveIndex,
+  solveIndexTiles,
+  between,
+  solveCommon,
+  commonBaseTiles,
+  baseFlow,
 ] as unknown as Generator<unknown>[];

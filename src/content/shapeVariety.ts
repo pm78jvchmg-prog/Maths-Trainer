@@ -54,31 +54,14 @@ export const MAX_PER_FAMILY = 2;
  * lessons, so this is the stricter one at no cost.
  */
 export const WIDGET_KIND_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l2-equations': 2,
-  'er-l3-rationalise': 2,
-  'qd-l1-expand': 2,
-  'qd-l1-factorise': 2,
-  'qd-l1-squares': 2,
-  'qd-l1-coefficient': 2,
-  'qd-l2-solve': 2,
-  'tf-l1-periodic': 2,
-  'tf-l1-shift': 2,
-  'tf-l2-speed': 2,
   'df-l1-index': 2,
   'df-l2-quotient': 2,
   'df-l3-roots': 2,
   'df-l4-trig': 2,
-  'in-l1-antiderivatives': 2,
-  'in-l1-powers': 2,
-  'in-l1-negative': 2,
-  'in-l1-roots': 2,
-  'in-l1-standard': 2,
-  'in-l3-brackets': 2,
-  'in-l3-substitution': 2,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const WIDGET_KIND_CEILING = 21;
+export const WIDGET_KIND_CEILING = 4;
 
 /**
  * Lessons that ask one generator family more than `MAX_PER_FAMILY` times, and
@@ -87,47 +70,11 @@ export const WIDGET_KIND_CEILING = 21;
  * Far longer than the widget-kind list — it started at 102 of 105 lessons —
  * because a seven exercise deck built from two or three generators breaks this
  * rule by construction. Phase A widens the decks; this list is how that
- * progress is measured. Logarithms left both lists in batch A5, and Complex
- * Numbers in A7.
+ * progress is measured. Exponents & Radicals left both lists in batch A3,
+ * Quadratics in A4, Logarithms in A5, Complex Numbers in A7, Trigonometric
+ * Functions in A8, Integration in A9 and Vectors & Matrices in A10.
  */
 export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = {
-  'er-l1-multiply': 5,
-  'er-l1-divide': 4,
-  'er-l1-power-of-power': 4,
-  'er-l1-coefficients': 5,
-  'er-l1-negative': 5,
-  'er-l2-fractional': 5,
-  'er-l2-powers-of-roots': 3,
-  'er-l2-equations': 6,
-  'er-l3-simplify': 5,
-  'er-l3-multiply': 5,
-  'er-l3-add': 7,
-  'er-l3-rationalise': 5,
-  'qd-l1-expand': 7,
-  'qd-l1-factorise': 7,
-  'qd-l1-squares': 7,
-  'qd-l1-coefficient': 7,
-  'qd-l2-solve': 7,
-  'qd-l2-square': 7,
-  'qd-l2-formula': 5,
-  'qd-l2-discriminant': 4,
-  'qd-l3-symmetry': 5,
-  'qd-l3-turning': 5,
-  'qd-l3-roots': 4,
-  'tf-l1-periodic': 4,
-  'tf-l1-period': 5,
-  'tf-l1-shift': 5,
-  'tf-l1-midline': 6,
-  'tf-l1-amplitude': 5,
-  'tf-l2-sine': 5,
-  'tf-l2-cosine': 5,
-  'tf-l2-symmetry': 5,
-  'tf-l2-solve': 6,
-  'tf-l2-identity': 6,
-  'tf-l2-speed': 5,
-  'tf-l3-amplitude-shift': 3,
-  'tf-l3-period-shift': 3,
-  'tf-l3-period-formula': 6,
   'df-l1-power': 5,
   'df-l1-sums': 5,
   'df-l1-index': 6,
@@ -139,24 +86,7 @@ export const GENERATOR_REPETITION_ALLOWLIST: Readonly<Record<string, number>> = 
   'df-l4-trig': 6,
   'df-l4-exp': 5,
   'df-l4-combine': 6,
-  'in-l1-antiderivatives': 4,
-  'in-l1-powers': 7,
-  'in-l1-sums': 6,
-  'in-l1-negative': 7,
-  'in-l1-roots': 6,
-  'in-l1-standard': 4,
-  'in-l2-definite': 5,
-  'in-l2-lines': 5,
-  'in-l2-area': 5,
-  'in-l2-properties': 4,
-  'in-l2-below': 4,
-  'in-l3-brackets': 7,
-  'in-l3-substitution': 6,
-  'in-l3-shapes': 6,
-  'in-l3-definite-substitution': 6,
-  'in-l3-parts': 6,
-  'in-l3-parts-log': 6,
 };
 
 /** The list above may only shrink. Edit this downwards, never upwards. */
-export const GENERATOR_REPETITION_CEILING = 65;
+export const GENERATOR_REPETITION_CEILING = 11;

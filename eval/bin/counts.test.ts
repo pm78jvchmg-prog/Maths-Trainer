@@ -426,25 +426,36 @@ describe('counts: the real plans, the real tree, and the command line', () => {
   it(
     'exits zero from the command line when plan, report and tree agree',
     async () => {
+      // Plan and report are both written from the live tree. The plan used to
+      // be the frozen TASK4-PLAN.md, which pins the trig course at 15 lessons
+      // and so failed the moment a level was added; the claim that the frozen
+      // plan matched the tree it was written against is kept, against the
+      // snapshot, by 'reconciles the task 4 plan against the tree'.
       const live = await loadFacts(REPO_ROOT);
       const trig = live.courses['src/content/courses/trigonometricFunctions.ts'];
       const dir = mkdtempSync(join(tmpdir(), 'counts-agree-'));
+      const planPath = join(dir, 'plan.md');
       const reportPath = join(dir, 'report.md');
       const suiteLogPath = join(dir, 'suite.txt');
-      const reportBlock = [
-        '```counts',
+      const trigClaims = [
         'course: src/content/courses/trigonometricFunctions.ts',
         `lessons: ${trig.lessons}`,
         `lesson-ids: ${trig.lessonIds.join(', ')}`,
         `level-checks: ${trig.levelChecks.join('/')}`,
+      ];
+      const planBlock = ['```counts', ...trigClaims, 'tests: 3086', '```', ''].join('\n');
+      const reportBlock = [
+        '```counts',
+        ...trigClaims,
         'generators: trig-period-from-b, trig-related-angle, trig-solve-height, trig-pythagorean',
         'tests: 3086',
         '```',
         '',
       ].join('\n');
+      writeFileSync(planPath, planBlock);
       writeFileSync(reportPath, reportBlock);
       writeFileSync(suiteLogPath, SUITE_LOG_GREEN);
-      const { status, stdout } = runCounts([join(PLANS_DIR, 'TASK4-PLAN.md'), reportPath, '--suite-log', suiteLogPath]);
+      const { status, stdout } = runCounts([planPath, reportPath, '--suite-log', suiteLogPath]);
       expect(status).toBe(0);
       expect(stdout).toContain('COUNTS AGREE');
       expect(stdout).toContain('checked: plan 4 claims, report 5 claims');

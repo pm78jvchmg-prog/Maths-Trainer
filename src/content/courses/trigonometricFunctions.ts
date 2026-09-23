@@ -15,6 +15,11 @@
  * radius, then turns all three over to meet secant, cosecant and cotangent,
  * their graphs, and the two identities that follow from the Pythagorean one.
  *
+ * Level 6 runs the functions backwards. sin^-1, cos^-1 and tan^-1 each answer
+ * with one angle from a restricted range, the principal value: what that
+ * means, the graphs as reflections, what happens inside another function, and
+ * how the calculator's one angle leads to every solution.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -173,6 +178,64 @@ function tangentSvg(): string {
 
 /** A degree-measured curve, for the tangent-level graphs. */
 const inDegrees = (f: (x: number) => number) => (x: number) => f((x * Math.PI) / 180);
+
+/**
+ * The inverses as curves, with no value off their domain. Drawn with
+ * `breaks`, a sample with no value lifts the pen rather than writing NaN into
+ * the path, and the windows used here put a sample exactly on x = -1 and 1.
+ */
+const arcsin = (x: number) => (Math.abs(x) > 1 ? NaN : Math.asin(x));
+const arccos = (x: number) => (Math.abs(x) > 1 ? NaN : Math.acos(x));
+
+/** plotSvg draws no y-axis of its own; the inverse graphs need one. */
+const Y_AXIS = { x: 0, dashed: false };
+
+/**
+ * Sine on its restricted domain, its inverse, and the mirror line y = x.
+ *
+ * Square, with the same span on both axes, so the reflection is a true one:
+ * a figure whose axes ran at different scales would show two curves that are
+ * not mirror images, which is the one thing it exists to show.
+ */
+function reflectionSvg(): string {
+  return plotSvg({
+    xMin: -2,
+    xMax: 2,
+    yMin: -2,
+    yMax: 2,
+    height: 280,
+    curves: [
+      { f: (x) => x, dashed: true },
+      { f: (x) => (Math.abs(x) > Math.PI / 2 ? NaN : Math.sin(x)), dashed: true, breaks: true },
+      { f: arcsin, accent: true, breaks: true },
+    ],
+    verticals: [Y_AXIS],
+    marks: [
+      { x: -1, y: -Math.PI / 2 },
+      { x: 1, y: Math.PI / 2 },
+    ],
+    label:
+      'Sine from minus a quarter turn to a quarter turn, dashed, and its inverse, solid, mirror images of each other in the dashed line y = x',
+  });
+}
+
+/** A right-angled triangle with sides 3, 4 and 5 and the angle theta marked. */
+function triangleSvg(): string {
+  const [ax, ay] = [40, 140];
+  const [bx, by] = [200, 140];
+  const [cx, cy] = [200, 20];
+  return [
+    `<svg viewBox="0 0 260 170" width="100%" role="img" aria-label="A right-angled triangle with hypotenuse 5, opposite side 3 and adjacent side 4, and the angle theta at the bottom left">`,
+    `<path d="M ${ax} ${ay} L ${bx} ${by} L ${cx} ${cy} Z" fill="none" stroke="currentColor" stroke-width="2" />`,
+    `<path d="M ${bx - 14} ${by} L ${bx - 14} ${by - 14} L ${bx} ${by - 14}" fill="none" stroke="currentColor" stroke-width="1" />`,
+    `<path class="plot-accent" d="M ${ax + 34} ${ay} A 34 34 0 0 0 ${(ax + 34 * 0.8).toFixed(1)} ${(ay - 34 * 0.6).toFixed(1)}" fill="none" stroke="currentColor" stroke-width="2.5" />`,
+    `<text x="${ax + 44}" y="${ay - 8}" font-size="14" font-style="italic" fill="currentColor">θ</text>`,
+    `<text x="${(ax + cx) / 2 - 14}" y="${(ay + cy) / 2 - 6}" font-size="15" fill="currentColor" text-anchor="end">5</text>`,
+    `<text x="${bx + 10}" y="${(by + cy) / 2 + 5}" font-size="15" fill="currentColor">3</text>`,
+    `<text x="${(ax + bx) / 2}" y="${ay + 20}" font-size="15" fill="currentColor" text-anchor="middle">4</text>`,
+    `</svg>`,
+  ].join('');
+}
 
 export const trigonometricFunctions: Course = {
   id: 'trigonometric-functions',
@@ -1697,6 +1760,329 @@ export const trigonometricFunctions: Course = {
         ask('trig-recip-undefined-flow', 2),
         ask('trig-recip-graph-match', 2),
         ask('trig-identity-find', 2),
+      ],
+    },
+    {
+      id: 'tf-l6',
+      title: 'Inverse Trigonometric Functions',
+      lessons: [
+        {
+          id: 'tf-l6-arcsin',
+          title: 'Undoing Sine',
+          slides: [
+            teach(
+              prose(
+                'Sine takes an angle to a number: $\\sin(30^{\\circ}) = \\frac{1}{2}$. Running it backwards asks which angle has a sine of $\\frac{1}{2}$, and there is a snag: lots of them do.',
+              ),
+              graph({
+                xMin: -180,
+                xMax: 360,
+                curves: [{ f: inDegrees(Math.sin), accent: true }],
+                horizontals: [0.5],
+                verticals: [{ x: -90 }, { x: 90 }],
+                marks: [
+                  { x: 30, y: 0.5 },
+                  { x: 150, y: 0.5, hollow: true },
+                ],
+                yMin: -1.4,
+                yMax: 1.4,
+                label:
+                  'y = sin x from -180 to 360 degrees crossing the dashed line y = 1/2 at 30 and 150 degrees, with upright dashed lines at -90 and 90 degrees',
+              }),
+              prose(
+                'So we only allow angles from $-90^{\\circ}$ to $90^{\\circ}$, between the upright dashed lines, where sine takes every value from $-1$ to $1$ exactly once. The **inverse sine** gives the one angle there:',
+              ),
+              maths('\\sin^{-1}\\left(\\frac{1}{2}\\right) = 30^{\\circ}'),
+              prose(
+                'That answer is the **principal value**; $150^{\\circ}$, ringed, is not it. $\\sin^{-1}$ is also written $\\arcsin$, and the $-1$ is not a power: $\\sin^{-1}(x)$ is not $\\frac{1}{\\sin(x)}$.',
+              ),
+            ),
+            ask('trig-inv-sin-exact'),
+            ask('trig-inv-sin-tiles'),
+            ask('trig-inv-principal'),
+            teach(
+              prose(
+                'In radians the range is $-\\frac{\\pi}{2} \\le \\theta \\le \\frac{\\pi}{2}$, and the answers are the same angles: $\\sin^{-1}\\left(\\frac{1}{2}\\right) = \\frac{\\pi}{6}$, $\\sin^{-1}\\left(\\frac{\\sqrt{2}}{2}\\right) = \\frac{\\pi}{4}$ and $\\sin^{-1}(1) = \\frac{\\pi}{2}$.',
+              ),
+              prose(
+                'A negative input gives a negative angle, below the axis. The sine of $-\\theta$ is minus the sine of $\\theta$, so',
+              ),
+              maths('\\sin^{-1}(-x) = -\\sin^{-1}(x)'),
+              prose('For example $\\sin^{-1}\\left(-\\frac{\\sqrt{3}}{2}\\right) = -60^{\\circ}$, which is $-\\frac{\\pi}{3}$.'),
+            ),
+            ask('trig-inv-sin-exact', 2),
+            ask('trig-inv-crossing-slider'),
+            ask('trig-inv-sin-tiles', 2),
+            teach(
+              prose(
+                'On the graph, $\\sin^{-1}(k)$ is where the level line $y = k$ crosses the sine curve between $-90^{\\circ}$ and $90^{\\circ}$. For any $k$ from $-1$ to $1$ there is exactly one such crossing.',
+              ),
+              prose(
+                "A calculator's $\\sin^{-1}$ key gives that crossing and no other. $\\sin(150^{\\circ})$ is $\\frac{1}{2}$ too, but $\\sin^{-1}\\left(\\frac{1}{2}\\right)$ is still $30^{\\circ}$, because $150^{\\circ}$ is outside the range.",
+              ),
+            ),
+            ask('trig-inv-principal'),
+            ask('trig-inv-crossing-slider'),
+          ],
+          skillCheck: [
+            ask('trig-inv-sin-exact', 2),
+            ask('trig-inv-sin-tiles', 2),
+            ask('trig-inv-crossing-slider'),
+          ],
+        },
+        {
+          id: 'tf-l6-arccos-arctan',
+          title: 'Inverse Cosine and Inverse Tangent',
+          slides: [
+            teach(
+              prose(
+                "Cosine needs a different range. From $-90^{\\circ}$ to $90^{\\circ}$ it never goes negative, so instead $\\cos^{-1}$ answers from $0^{\\circ}$ to $180^{\\circ}$, the top half of the circle, where cosine falls from $1$ to $-1$ and takes every value once.",
+              ),
+              maths('0^{\\circ} \\le \\cos^{-1}(x) \\le 180^{\\circ}'),
+              prose(
+                'Tangent keeps the range of sine, but without its ends, since $\\tan(90^{\\circ})$ has no value:',
+              ),
+              maths('-90^{\\circ} < \\tan^{-1}(x) < 90^{\\circ}'),
+              prose(
+                'The positive values come straight from the tables: $\\cos^{-1}\\left(\\frac{1}{2}\\right) = 60^{\\circ}$, $\\tan^{-1}(1) = 45^{\\circ}$ and $\\tan^{-1}\\left(\\sqrt{3}\\right) = 60^{\\circ}$, or $\\frac{\\pi}{3}$, $\\frac{\\pi}{4}$ and $\\frac{\\pi}{3}$ in radians. Like $\\arcsin$, these are also written $\\arccos$ and $\\arctan$.',
+              ),
+            ),
+            ask('trig-inv-exact'),
+            ask('trig-inv-principal', 2),
+            ask('trig-inv-exact+choice'),
+            teach(
+              prose(
+                'A negative input puts the angle in the other part of the range. For sine and tangent that means below the axis, so the angle is simply negative:',
+              ),
+              maths('\\tan^{-1}(-1) = -45^{\\circ}'),
+              prose(
+                'Cosine is negative left of the centre, so $\\cos^{-1}$ of a negative number is past a quarter turn, as far past $90^{\\circ}$ as the positive answer falls short of it:',
+              ),
+              maths('\\cos^{-1}(-x) = 180^{\\circ} - \\cos^{-1}(x)'),
+              prose(
+                'So $\\cos^{-1}\\left(-\\frac{1}{2}\\right) = 180^{\\circ} - 60^{\\circ} = 120^{\\circ}$, which is $\\frac{2\\pi}{3}$.',
+              ),
+            ),
+            ask('trig-inv-range-flow'),
+            ask('trig-inv-negative-tree'),
+            ask('trig-inv-principal', 2),
+            teach(
+              prose('Side by side, the three ranges are:'),
+              maths(
+                '\\begin{array}{c|c} \\sin^{-1} & -\\frac{\\pi}{2} \\le \\theta \\le \\frac{\\pi}{2} \\\\ \\cos^{-1} & 0 \\le \\theta \\le \\pi \\\\ \\tan^{-1} & -\\frac{\\pi}{2} < \\theta < \\frac{\\pi}{2} \\end{array}',
+              ),
+              prose(
+                'So before looking anything up, the sign of the input already says where the answer is: a positive input always lands in the first quarter, and a negative one below the axis, or past a quarter turn for $\\cos^{-1}$.',
+              ),
+            ),
+            ask('trig-inv-range-flow', 2),
+            ask('trig-inv-negative-tree', 2),
+          ],
+          skillCheck: [
+            ask('trig-inv-exact', 2),
+            ask('trig-inv-range-flow', 2),
+            ask('trig-inv-negative-tree', 2),
+          ],
+        },
+        {
+          id: 'tf-l6-graphs',
+          title: 'Graphs of the Inverse Functions',
+          slides: [
+            teach(
+              prose(
+                'Undoing a function swaps its inputs and outputs, so every point $(a, b)$ on the graph of sine becomes $(b, a)$ on the graph of $\\sin^{-1}$. On a picture that is a reflection in the line $y = x$.',
+              ),
+              { kind: 'diagram', svg: reflectionSvg() },
+              prose(
+                'The dashed curve is sine on its restricted domain, and the solid one is $y = \\sin^{-1}(x)$. Its **domain**, the inputs allowed, is $-1 \\le x \\le 1$; its **range**, the values it gives, is $-\\frac{\\pi}{2} \\le y \\le \\frac{\\pi}{2}$. $y = \\cos^{-1}(x)$ has the same domain and the range $0 \\le y \\le \\pi$. A number in front, as in $y = 2\\sin^{-1}(x)$, doubles every height and so the range, and leaves the domain alone.',
+              ),
+            ),
+            ask('trig-inv-domain-range'),
+            ask('trig-inv-graph-slider'),
+            ask('trig-inv-undefined'),
+            teach(
+              prose(
+                '$y = \\cos^{-1}(x)$ starts at its highest point, $(-1, \\pi)$, and falls to $(1, 0)$. $y = \\tan^{-1}(x)$ is different again: tangent takes every value, so every number has an inverse tangent and the curve runs right across the page.',
+              ),
+              graph({
+                xMin: -6,
+                xMax: 6,
+                curves: [{ f: Math.atan, accent: true }],
+                horizontals: [Math.PI / 2, -Math.PI / 2],
+                verticals: [Y_AXIS],
+                yMin: -2.2,
+                yMax: 2.2,
+                label: 'y = inverse tangent of x from -6 to 6, levelling off towards dashed lines at plus and minus pi over 2',
+              }),
+              prose(
+                'It never reaches $\\frac{\\pi}{2}$ or $-\\frac{\\pi}{2}$, which are **horizontal asymptotes**: the upright asymptotes of $\\tan$, reflected in $y = x$. So its domain is every real number and its range is $-\\frac{\\pi}{2} < y < \\frac{\\pi}{2}$.',
+              ),
+            ),
+            ask('trig-inv-graph-match'),
+            ask('trig-inv-undefined', 2),
+            ask('trig-inv-graph-slider', 2),
+            teach(
+              prose(
+                'Changes inside the bracket act on $x$. In $y = \\sin^{-1}\\left(\\frac{x}{3}\\right)$ the input to $\\sin^{-1}$ must still lie from $-1$ to $1$, so $x$ itself runs from $-3$ to $3$: the domain is three times as wide.',
+              ),
+              prose('So $y = 2\\cos^{-1}\\left(\\frac{x}{3}\\right)$, drawn here, has'),
+              maths('-3 \\le x \\le 3 \\qquad 0 \\le y \\le 2\\pi'),
+              graph({
+                xMin: -4,
+                xMax: 4,
+                curves: [{ f: (x) => 2 * arccos(x / 3), accent: true, breaks: true }],
+                verticals: [Y_AXIS],
+                marks: [
+                  { x: -3, y: 2 * Math.PI },
+                  { x: 3, y: 0 },
+                ],
+                yMin: -1,
+                yMax: 7,
+                label: 'y = 2 times inverse cosine of x over 3, running from a height of 2 pi at x = -3 down to 0 at x = 3',
+              }),
+              prose(
+                'A negative number in front turns the curve upside down, so $y = -\\cos^{-1}(x)$ lies below the axis, from $-\\pi$ up to $0$.',
+              ),
+            ),
+            ask('trig-inv-domain-range', 2),
+            ask('trig-inv-graph-match', 2),
+          ],
+          skillCheck: [
+            ask('trig-inv-graph-match', 2),
+            ask('trig-inv-domain-range', 2),
+            ask('trig-inv-graph-slider', 2),
+          ],
+        },
+        {
+          id: 'tf-l6-compose',
+          title: 'Inverses Inside Other Functions',
+          slides: [
+            teach(
+              prose(
+                'Doing sine and then undoing it should get you back where you started, and one way round it always does. $\\sin^{-1}(x)$ is an angle whose sine is $x$, so for any $x$ from $-1$ to $1$:',
+              ),
+              maths('\\sin\\left(\\sin^{-1}(x)\\right) = x'),
+              prose(
+                'The other way round only works inside the range. $\\sin(150^{\\circ}) = \\frac{1}{2}$, and $\\sin^{-1}\\left(\\frac{1}{2}\\right)$ is $30^{\\circ}$, so',
+              ),
+              maths('\\sin^{-1}\\left(\\sin(150^{\\circ})\\right) = 30^{\\circ}'),
+              prose(
+                'For an angle outside the range, find the angle inside it with the same sine; here $180^{\\circ} - 150^{\\circ}$. $\\cos^{-1}(\\cos\\theta)$ and $\\tan^{-1}(\\tan\\theta)$ work the same way, each with its own range.',
+              ),
+            ),
+            ask('trig-inv-undo'),
+            ask('trig-inv-undo-flow'),
+            ask('trig-inv-undo+choice', 2),
+            teach(
+              prose(
+                'A function of a different inverse needs a triangle. Let $\\theta = \\sin^{-1}\\left(\\frac{3}{5}\\right)$. Then $\\sin(\\theta) = \\frac{3}{5}$: opposite $3$, hypotenuse $5$.',
+              ),
+              { kind: 'diagram', svg: triangleSvg() },
+              prose(
+                "Pythagoras gives the third side, $\\sqrt{5^2 - 3^2} = 4$, and now every ratio of $\\theta$ can be read off. The answer stays a fraction, never a decimal from a calculator's angle.",
+              ),
+              maths('\\cos\\left(\\sin^{-1}\\left(\\frac{3}{5}\\right)\\right) = \\frac{4}{5}'),
+            ),
+            ask('trig-inv-side-tree'),
+            ask('trig-inv-triangle'),
+            ask('trig-inv-side-tree', 2),
+            teach(
+              prose(
+                "A negative input moves the angle out of the first quarter, and the triangle's ratios pick up that quarter's signs. $\\sin^{-1}$ and $\\tan^{-1}$ of a negative number are below the axis, where cosine is still positive; $\\cos^{-1}$ of a negative number is past a quarter turn, where sine is still positive.",
+              ),
+              maths('\\tan\\left(\\cos^{-1}\\left(-\\frac{3}{5}\\right)\\right) = -\\frac{4}{3}'),
+              prose(
+                'The same goes for undoing: $\\sin^{-1}\\left(\\sin(-150^{\\circ})\\right)$ is $-30^{\\circ}$, since $-180^{\\circ} - (-150^{\\circ})$ is the angle in the range with the same sine.',
+              ),
+            ),
+            ask('trig-inv-triangle+choice', 2),
+            ask('trig-inv-undo-flow', 2),
+          ],
+          skillCheck: [
+            ask('trig-inv-undo', 2),
+            ask('trig-inv-undo-flow', 2),
+            ask('trig-inv-triangle', 2),
+          ],
+        },
+        {
+          id: 'tf-l6-general',
+          title: 'From Principal Value to Every Solution',
+          slides: [
+            teach(
+              prose(
+                'A calculator solving $\\sin(x) = 0.4$ gives one angle, $\\sin^{-1}(0.4) = 23.6^{\\circ}$. But the level line crosses the curve twice in a turn.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [{ f: inDegrees(Math.sin), accent: true }],
+                horizontals: [0.4],
+                marks: [
+                  { x: 23.6, y: 0.4 },
+                  { x: 156.4, y: 0.4 },
+                ],
+                yMin: -1.4,
+                yMax: 1.4,
+                label: 'y = sin x from 0 to 360 degrees crossing the dashed line y = 0.4 at 23.6 and 156.4 degrees',
+              }),
+              prose(
+                'The curve is symmetric about its peak at $90^{\\circ}$, so the second crossing is as far before $180^{\\circ}$ as the first is after $0^{\\circ}$. Calling the calculator\'s angle $\\alpha$, the solutions of $\\sin(x) = k$ in one turn are',
+              ),
+              maths('x = \\alpha \\quad \\text{or} \\quad x = 180^{\\circ} - \\alpha'),
+              prose(
+                'Cosine is symmetric about $0^{\\circ}$ instead, so its second solution is $-\\alpha$, which is $360^{\\circ} - \\alpha$ once a turn is added. In radians these are $\\pi - \\alpha$ and $2\\pi - \\alpha$.',
+              ),
+            ),
+            ask('trig-inv-second-solution'),
+            ask('trig-inv-solutions-slider'),
+            ask('trig-inv-general-tiles'),
+            teach(
+              prose(
+                'Tangent repeats every $180^{\\circ}$, so its second solution is $\\alpha + 180^{\\circ}$, or $\\alpha + \\pi$.',
+              ),
+              prose(
+                'For a negative $k$ the calculator gives a negative angle for $\\sin^{-1}$ and $\\tan^{-1}$, outside $0^{\\circ} \\le x < 360^{\\circ}$. Adding a full turn brings it in without changing its value, and the rule gives the other: $\\sin^{-1}(-0.4) = -23.6^{\\circ}$, so',
+              ),
+              maths('x = 180^{\\circ} + 23.6^{\\circ} = 203.6^{\\circ}'),
+              maths('x = -23.6^{\\circ} + 360^{\\circ} = 336.4^{\\circ}'),
+            ),
+            ask('trig-inv-general-flow'),
+            ask('trig-inv-general-tiles', 2),
+            ask('trig-inv-general-flow', 2),
+            teach(
+              prose(
+                "Other intervals use the same rules, with a turn added or taken off where needed. For $-180^{\\circ} < x \\le 180^{\\circ}$, cosine's second solution is $-\\alpha$ as it stands; sine's is $180^{\\circ} - \\alpha$, or $-180^{\\circ} - \\alpha$ when $\\alpha$ is negative; and tangent's is $\\alpha - 180^{\\circ}$, or $\\alpha + 180^{\\circ}$ when $\\alpha$ is negative.",
+              ),
+              prose(
+                "Every solution there is comes from the principal value or its partner, with whole turns added. The calculator's one answer is where the working starts, not where it ends.",
+              ),
+            ),
+            ask('trig-inv-second-solution+choice', 2),
+            ask('trig-inv-solutions-slider', 2),
+          ],
+          skillCheck: [
+            ask('trig-inv-second-solution', 2),
+            ask('trig-inv-general-tiles', 2),
+            ask('trig-inv-general-flow', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('trig-inv-sin-exact', 2),
+        ask('trig-inv-principal', 2),
+        ask('trig-inv-crossing-slider', 2),
+        ask('trig-inv-exact+choice', 2),
+        ask('trig-inv-range-flow', 2),
+        ask('trig-inv-negative-tree', 2),
+        ask('trig-inv-graph-match', 2),
+        ask('trig-inv-domain-range', 2),
+        ask('trig-inv-graph-slider', 2),
+        ask('trig-inv-undo', 2),
+        ask('trig-inv-undo-flow', 2),
+        ask('trig-inv-triangle', 2),
+        ask('trig-inv-general-tiles', 2),
+        ask('trig-inv-second-solution+choice', 2),
+        ask('trig-inv-general-flow', 2),
       ],
     },
   ],

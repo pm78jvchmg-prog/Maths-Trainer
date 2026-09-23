@@ -5,13 +5,16 @@
  * derivative, what was differentiated? — which is where the constant of
  * integration comes from and why it cannot be dropped. Level 2 attaches limits
  * and turns the answer into a number, then into an area. Level 3 is the two
- * techniques that handle integrands the standard results cannot.
+ * techniques that handle integrands the standard results cannot. Level 4 goes
+ * back to area with a second curve in place of the axis: given limits, then
+ * limits found where the curves meet, then curves that cross.
  *
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
+import { betweenSvg } from '../generators/integration';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1070,6 +1073,305 @@ export const integration: Course = {
         ask('int-linear-bracket', 2),
         ask('int-definite-substitution', 2),
         ask('int-substitution-general', 2),
+      ],
+    },
+    {
+      id: 'in-l4',
+      title: 'Area Between Curves',
+      lessons: [
+        {
+          id: 'in-l4-between',
+          title: 'The Area Between Two Curves',
+          slides: [
+            teach(
+              prose(
+                'Level 2 found the area between a curve and the $x$-axis. Now put a second curve where the axis was: the region is bounded above by one curve and below by another.',
+              ),
+              // The worked example below: y = x^2 + 4 over y = 2x - 1, from
+              // x = 0 to x = 3, where the gap x^2 - 2x + 5 integrates to 15.
+              {
+                kind: 'diagram',
+                svg: betweenSvg({
+                  xMin: -0.6,
+                  xMax: 3.6,
+                  yMin: -2.5,
+                  yMax: 14,
+                  top: (x) => x * x + 4,
+                  bottom: (x) => 2 * x - 1,
+                  from: 0,
+                  to: 3,
+                  verticals: [0, 3],
+                  label: 'The region between y = x^2 + 4 above and y = 2x - 1 below, from x = 0 to x = 3',
+                }),
+              },
+              prose(
+                'The area under the top curve is the region plus everything under the bottom curve. Take away the area under the bottom curve and the region is what is left.',
+              ),
+              maths('\\text{area} = \\int_{a}^{b} \\left(\\text{top} - \\text{bottom}\\right) dx'),
+            ),
+            askAfter(
+              [prose('First the idea exactly as stated: two areas under two curves, one subtracted from the other.')],
+              'int-between-tree',
+            ),
+            ask('int-between-given'),
+            ask('int-which-above'),
+            teach(
+              prose(
+                'Subtracting two integrals works, but it is quicker to subtract the curves first and integrate once.',
+              ),
+              maths('\\left(x^{2} + 4\\right) - \\left(2x - 1\\right)'),
+              maths('= x^{2} - 2x + 5'),
+              prose(
+                'The bracket round the bottom curve is the step that goes wrong. Every term of it changes sign: $-(2x - 1)$ is $-2x + 1$, not $-2x - 1$.',
+              ),
+              maths('\\int_{0}^{3} \\left(x^{2} - 2x + 5\\right) dx'),
+              maths('= \\left[\\frac{x^{3}}{3} - x^{2} + 5x\\right]_{0}^{3} = 15'),
+            ),
+            ask('int-between-tiles'),
+            ask('int-between-given+choice'),
+            ask('int-between-tree', 2),
+            teach(
+              prose(
+                'The method needs to know which curve is on top. When the equations do not make it obvious, try a value of $x$ inside the interval and compare the two heights.',
+              ),
+              prose(
+                'The axis plays no part. If one or both curves dip below it, top minus bottom is still the height of the region at every $x$, and its integral is still the area.',
+              ),
+              prose(
+                'Taken the wrong way round, the integral comes out negative: the right size with the wrong sign. A negative area is the signal to check which curve is on top.',
+              ),
+            ),
+            ask('int-between-tiles', 2),
+            ask('int-which-above'),
+          ],
+          skillCheck: [
+            ask('int-between-given', 2),
+            ask('int-between-tiles', 2),
+            ask('int-between-given', 2),
+          ],
+        },
+        {
+          id: 'in-l4-meeting',
+          title: 'Where the Curves Meet',
+          slides: [
+            teach(
+              prose(
+                'Often no limits are given. The question asks for the region **enclosed** by two curves, and that region runs from one meeting point to the other.',
+              ),
+              // y = 2x + 1 over y = 2x^2 - 3, meeting at x = -1 and x = 2; the
+              // enclosed area, worked on the next slide, is 9.
+              {
+                kind: 'diagram',
+                svg: betweenSvg({
+                  xMin: -1.8,
+                  xMax: 2.8,
+                  yMin: -3.8,
+                  yMax: 7.5,
+                  top: (x) => 2 * x + 1,
+                  bottom: (x) => 2 * x * x - 3,
+                  from: -1,
+                  to: 2,
+                  marks: [
+                    { x: -1, y: -1 },
+                    { x: 2, y: 5 },
+                  ],
+                  label: 'The line y = 2x + 1 and the parabola y = 2x^2 - 3 enclosing a region between x = -1 and x = 2',
+                }),
+              },
+              prose('Where the curves meet they have the same $y$, so the limits come from setting them equal.'),
+              maths('2x^{2} - 3 = 2x + 1'),
+              maths('2x^{2} - 2x - 4 = 0'),
+              maths('2(x + 1)(x - 2) = 0'),
+              prose('So they meet at $x = -1$ and $x = 2$, and those are the limits.'),
+            ),
+            askAfter(
+              [prose('Find the limits first. Set the curves equal, gather everything on one side, and factorise.')],
+              'int-meet-points',
+            ),
+            ask('int-meet-slider'),
+            ask('int-setup-integral'),
+            teach(
+              prose(
+                'With the limits found, the rest is the method from the last lesson. Test a value between them: at $x = 0$ the line gives $1$ and the parabola $-3$, so the line is on top.',
+              ),
+              maths('\\left(2x + 1\\right) - \\left(2x^{2} - 3\\right)'),
+              maths('= -2x^{2} + 2x + 4'),
+              maths('\\left[-\\frac{2x^{3}}{3} + x^{2} + 4x\\right]_{-1}^{2}'),
+              maths('= \\frac{20}{3} - \\left(-\\frac{7}{3}\\right) = 9'),
+            ),
+            ask('int-enclosed-area'),
+            ask('int-meet-points'),
+            ask('int-setup-integral'),
+            teach(
+              prose(
+                'Fractions in the middle of the working are normal here. The answers in this level are chosen to come out whole, so a fraction at the end means a slip somewhere.',
+              ),
+              prose(
+                'The whole method, in order: set the curves equal and solve for the limits; test a point between them to see which is on top; integrate top minus bottom from one limit to the other.',
+              ),
+            ),
+            ask('int-enclosed-area+choice'),
+            ask('int-meet-slider'),
+          ],
+          skillCheck: [
+            ask('int-enclosed-area', 2),
+            ask('int-setup-integral'),
+            ask('int-enclosed-area', 2),
+          ],
+        },
+        {
+          id: 'in-l4-parabolas',
+          title: 'Two Parabolas, and a Shortcut',
+          slides: [
+            teach(
+              prose(
+                'Two parabolas can enclose a region too. Nothing in the method changes: their difference is again a single quadratic, and once it is simplified the question is the one from the last lesson.',
+              ),
+              // y = 3 - x^2 over y = 2x^2, meeting at x = -1 and x = 1, with
+              // an enclosed area of 4.
+              {
+                kind: 'diagram',
+                svg: betweenSvg({
+                  xMin: -1.9,
+                  xMax: 1.9,
+                  yMin: -0.6,
+                  yMax: 4.2,
+                  top: (x) => 3 - x * x,
+                  bottom: (x) => 2 * x * x,
+                  from: -1,
+                  to: 1,
+                  label: 'The parabolas y = 3 - x^2 and y = 2x^2 enclosing a region between x = -1 and x = 1',
+                }),
+              },
+              maths('2x^{2} = 3 - x^{2}, \\quad x = \\pm 1'),
+              maths('\\int_{-1}^{1} \\left(3 - 3x^{2}\\right) dx'),
+              maths('= \\left[3x - x^{3}\\right]_{-1}^{1} = 4'),
+            ),
+            ask('int-meet-points', 2),
+            ask('int-parabolas-area'),
+            ask('int-meet-slider', 2),
+            teach(
+              prose(
+                'In every enclosed region so far, top minus bottom has been a quadratic that is zero at both limits. Any such quadratic can be written as $k(x - p)(q - x)$, where $p$ and $q$ are the meeting points, and its integral between them is always the same shape of number.',
+              ),
+              maths('\\int_{p}^{q} k(x - p)(q - x) \\, dx'),
+              maths('= \\frac{k}{6}(q - p)^{3}'),
+              prose(
+                'Here $3 - 3x^{2} = 3(x + 1)(1 - x)$, so $k = 3$ and the width is $2$: the area is $\\frac{3}{6} \\times 2^{3} = 4$, as before.',
+              ),
+            ),
+            askAfter(
+              [prose('The shortcut, one piece at a time.')],
+              'int-sixth-rule',
+            ),
+            ask('int-parabolas-area+choice', 2),
+            ask('int-meet-slider', 2),
+            teach(
+              prose(
+                'The $k$ in the rule is the coefficient in top minus bottom, upper curve first. Written the other way round it comes out negative, and so does the answer.',
+              ),
+              prose(
+                'It applies only to a quadratic gap that is zero at both limits: a curve and a line, or two parabolas, enclosing a region. Use it as a check on the long way, or as the fast way when only the number is wanted. With limits that are not meeting points, integrate as usual.',
+              ),
+            ),
+            askAfter(
+              [prose('The same rule with nothing written down: work it out in your head.')],
+              'int-sixth-rule+choice',
+              2,
+            ),
+            ask('int-meet-points', 2),
+          ],
+          skillCheck: [
+            ask('int-parabolas-area', 2),
+            ask('int-sixth-rule+choice', 2),
+            ask('int-parabolas-area', 2),
+          ],
+        },
+        {
+          id: 'in-l4-crossing',
+          title: 'When the Curves Cross',
+          slides: [
+            teach(
+              prose(
+                'So far one curve has stayed on top. When the curves cross inside the interval they swap over: the first is higher on one side of the crossing, the second on the other.',
+              ),
+              // y = x^2 and y = x^2 - 2x + 2 cross at x = 1; from 0 to 2 the
+              // two halves are equal and opposite.
+              {
+                kind: 'diagram',
+                svg: betweenSvg({
+                  xMin: -0.4,
+                  xMax: 2.4,
+                  yMin: -0.6,
+                  yMax: 5,
+                  top: (x) => x * x,
+                  bottom: (x) => x * x - 2 * x + 2,
+                  from: 0,
+                  to: 2,
+                  verticals: [0, 2],
+                  marks: [{ x: 1, y: 1 }],
+                  label: 'y = x^2 and y = x^2 - 2x + 2 crossing at x = 1, with the region between them from x = 0 to x = 2',
+                }),
+              },
+              prose(
+                'Integrating straight through then goes wrong. Here $x^{2} - \\left(x^{2} - 2x + 2\\right) = 2x - 2$, which is negative before the crossing and positive after it.',
+              ),
+              maths('\\int_{0}^{2} \\left(2x - 2\\right) dx'),
+              maths('= \\left[x^{2} - 2x\\right]_{0}^{2} = 0'),
+              prose('Zero, for a region that plainly has area. The two halves are the same size and opposite in sign.'),
+            ),
+            askAfter(
+              [prose('What the integral straight through counts, and what the area counts.')],
+              'int-net-between',
+            ),
+            ask('int-crossing-pieces'),
+            ask('int-region-flow'),
+            teach(
+              prose(
+                'The fix is the one from Area Below the Axis: split the interval at the crossing point, integrate the difference over each piece, and add the sizes.',
+              ),
+              maths('\\int_{0}^{1} \\left(2x - 2\\right) dx = -1'),
+              maths('\\int_{1}^{2} \\left(2x - 2\\right) dx = 1'),
+              prose(
+                'So the area is $1 + 1 = 2$. To find a crossing point, solve $y_1 = y_2$ as before: a solution strictly inside the interval is where to split, and one outside it can be ignored.',
+              ),
+            ),
+            ask('int-crossing-area'),
+            ask('int-region-flow', 2),
+            ask('int-crossing-pieces', 2),
+            teach(
+              prose(
+                'Read the question for which number it wants. The integral from end to end is a **signed** total that counts the swapped stretch as negative; the area counts every piece as positive.',
+              ),
+              prose(
+                'The full method: find where the curves meet; if a meeting point falls inside the interval, split there; integrate top minus bottom over each piece, or take the size of each result; add.',
+              ),
+            ),
+            ask('int-crossing-area+choice', 2),
+            ask('int-net-between', 2),
+          ],
+          skillCheck: [
+            ask('int-crossing-area', 2),
+            ask('int-crossing-area+choice', 2),
+            ask('int-crossing-area', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('int-between-given', 2),
+        ask('int-which-above', 2),
+        ask('int-meet-points', 2),
+        ask('int-enclosed-area', 2),
+        ask('int-between-tree', 2),
+        ask('int-setup-integral', 2),
+        ask('int-parabolas-area', 2),
+        ask('int-sixth-rule+choice', 2),
+        ask('int-crossing-area', 2),
+        ask('int-net-between', 2),
+        ask('int-crossing-pieces', 2),
+        ask('int-region-flow', 2),
+        ask('int-between-tiles', 2),
+        ask('int-enclosed-area+choice', 2),
       ],
     },
   ],

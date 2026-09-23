@@ -24,6 +24,7 @@
  *   unambiguous rather than pretty: `(3)/(4)` for that same fraction.
  */
 import { useMemo } from 'react';
+import type { KeypadKey } from '../content/types';
 import { Tex } from './Math';
 
 /**
@@ -36,7 +37,9 @@ export type Node =
   | { kind: 'atom'; tex: string; ans: string }
   | { kind: 'frac'; num: Node[]; den: Node[] }
   | { kind: 'root'; arg: Node[] }
-  | { kind: 'sup'; arg: Node[] };
+  | { kind: 'sup'; arg: Node[] }
+  /** A trig function with its argument inside, e.g. sin(30). */
+  | { kind: 'fn'; name: string; unit: 'degrees' | 'radians'; arg: Node[] };
 
 /** One step down into a node's slot, naming which slot. */
 export interface Step {
@@ -56,7 +59,7 @@ export const EMPTY_CARET: Caret = { steps: [], index: 0 };
 
 function slotOf(node: Node, slot: Step['slot']): Node[] {
   if (node.kind === 'frac') return slot === 'num' ? node.num : node.den;
-  if (node.kind === 'root' || node.kind === 'sup') return node.arg;
+  if (node.kind === 'root' || node.kind === 'sup' || node.kind === 'fn') return node.arg;
   return [];
 }
 
@@ -64,7 +67,7 @@ function withSlot(node: Node, slot: Step['slot'], next: Node[]): Node {
   if (node.kind === 'frac') {
     return slot === 'num' ? { ...node, num: next } : { ...node, den: next };
   }
-  if (node.kind === 'root' || node.kind === 'sup') return { ...node, arg: next };
+  if (node.kind === 'root' || node.kind === 'sup' || node.kind === 'fn') return { ...node, arg: next };
   return node;
 }
 
@@ -122,6 +125,17 @@ export function insertFraction(doc: Doc): Doc {
 
 export function insertRoot(doc: Doc): Doc {
   return insert(doc, { kind: 'root', arg: [] }, 'arg');
+}
+
+/**
+ * Open a function such as sin, with the caret inside its brackets.
+ *
+ * A template rather than the `sin(` atom the calculus keypads insert, so there
+ * is no closing bracket to find and nothing typed after the angle can end up
+ * inside it by accident.
+ */
+export function insertFn(doc: Doc, name: string, unit: 'degrees' | 'radians'): Doc {
+  return insert(doc, { kind: 'fn', name, unit, arg: [] }, 'arg');
 }
 
 /**
@@ -183,7 +197,7 @@ export function deleteBack(doc: Doc): Doc {
 /** The slots of a node, in the order the caret should visit them. */
 function slotsOf(node: Node): Step['slot'][] {
   if (node.kind === 'frac') return ['num', 'den'];
-  if (node.kind === 'root' || node.kind === 'sup') return ['arg'];
+  if (node.kind === 'root' || node.kind === 'sup' || node.kind === 'fn') return ['arg'];
   return [];
 }
 
@@ -277,6 +291,9 @@ export function toTex(nodes: Node[], caret?: Caret, steps: Step[] = []): string 
     } else if (node.kind === 'root') {
       const arg = toTex(node.arg, caret, [...steps, { node: idx, slot: 'arg' }]);
       pieces.push(`\\sqrt{${arg || PLACEHOLDER}}`);
+    } else if (node.kind === 'fn') {
+      const arg = toTex(node.arg, caret, [...steps, { node: idx, slot: 'arg' }]);
+      pieces.push(`${fnTex(node.name)}\\left(${arg || PLACEHOLDER}\\right)`);
     } else {
       const arg = toTex(node.arg, caret, [...steps, { node: idx, slot: 'arg' }]);
       pieces.push(`^{${arg || PLACEHOLDER}}`);
@@ -288,6 +305,13 @@ export function toTex(nodes: Node[], caret?: Caret, steps: Step[] = []): string 
 }
 
 const CARET_TEX = '\\htmlClass{mi-caret}{\\mathstrut}';
+
+/** `sin` reads as sin, `asin` as sin to the -1: the calculator's spelling, not mathjs's. */
+export function fnTex(name: string): string {
+  const inverse = name.startsWith('a');
+  const base = `\\${inverse ? name.slice(1) : name}`;
+  return inverse ? `${base}^{-1}` : base;
+}
 
 /**
  * What mathjs parses. Never displayed.
@@ -310,6 +334,14 @@ export function toAnswer(nodes: Node[]): string {
       if (node.kind === 'atom') return node.ans;
       if (node.kind === 'frac') return `((${toAnswer(node.num) || '0'})/(${toAnswer(node.den) || '1'}))`;
       if (node.kind === 'root') return `sqrt(${toAnswer(node.arg) || '0'})`;
+      // Bracketed whole for the same reason as a fraction, and in degree mode
+      // renamed to the degree functions in `expression.ts`. An empty slot is
+      // left as `()`, which mathjs refuses to read: grading sin() as sin(0)
+      // would mark a learner right for a question whose answer happens to be 0.
+      if (node.kind === 'fn') {
+        const name = node.unit === 'degrees' ? `${node.name}d` : node.name;
+        return `(${name}(${toAnswer(node.arg) || '()'}))`;
+      }
       return `^(${toAnswer(node.arg) || '1'})`;
     })
     .join('');
@@ -334,8 +366,52 @@ export function isFilled(nodes: Node[]): boolean {
  * inside a slide keeps its structure, because the component stays mounted.
  */
 export function docFromAnswer(text: string): Doc {
-  const nodes: Node[] = [...text].map((ch) => ({ kind: 'atom', tex: ch, ans: ch }));
+  const nodes: Node[] = [];
+  for (let at = 0; at < text.length; ) {
+    // A function key's name comes back as one atom that reads as the key did,
+    // rather than as the letters `sind` the learner never typed.
+    const name = /^a?(sin|cos|tan)d?(?=\()/.exec(text.slice(at))?.[0];
+    if (name) {
+      nodes.push({ kind: 'atom', tex: fnTex(name.replace(/d$/, '')), ans: name });
+      at += name.length;
+    } else {
+      nodes.push({ kind: 'atom', tex: text[at], ans: text[at] });
+      at += 1;
+    }
+  }
   return { nodes, caret: { steps: [], index: nodes.length } };
+}
+
+/* ---------- keys ---------- */
+
+/** Keys whose two audiences differ: this one reads as × and parses as *. */
+const ATOM_TEX: Record<string, string> = {
+  '*': '\\times',
+  'ln(': '\\ln(',
+  'sin(': '\\sin(',
+  'cos(': '\\cos(',
+  'log(': '\\log(',
+};
+
+/**
+ * How a keypad key becomes an edit.
+ *
+ * Two keys the generators already declare are templates rather than characters
+ * now, so a fraction is stacked and a root has a bar over it while it is being
+ * typed. Mapping them here rather than changing every generator means no
+ * content file has to know the editor exists.
+ */
+export function applyKey(doc: Doc, key: KeypadKey): Doc {
+  if (key.fn) return insertFn(doc, key.insert, key.fn);
+  if (key.insert === '/') return insertFraction(doc);
+  if (key.insert === 'sqrt(') return insertRoot(doc);
+  if (key.insert === '^') return insertSup(doc);
+  return insertAtom(doc, ATOM_TEX[key.insert] ?? key.insert, key.insert);
+}
+
+/** The editor as a slide's `prefill` leaves it: those keys pressed in order. */
+export function docFromKeys(keys: readonly KeypadKey[] = []): Doc {
+  return keys.reduce(applyKey, EMPTY_DOC);
 }
 
 /* ---------- the slot ---------- */

@@ -7,14 +7,16 @@
  * and turns the answer into a number, then into an area. Level 3 is the two
  * techniques that handle integrands the standard results cannot. Level 4 goes
  * back to area with a second curve in place of the axis: given limits, then
- * limits found where the curves meet, then curves that cross.
+ * limits found where the curves meet, then curves that cross. Level 5 turns a
+ * region about an axis and integrates the solid it sweeps out: set up, then
+ * evaluated, then about the y-axis, then cones and hollow solids.
  *
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
-import { betweenSvg } from '../generators/integration';
+import { betweenSvg, solidSvg } from '../generators/integration';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1372,6 +1374,306 @@ export const integration: Course = {
         ask('int-region-flow', 2),
         ask('int-between-tiles', 2),
         ask('int-enclosed-area+choice', 2),
+      ],
+    },
+    {
+      id: 'in-l5',
+      title: 'Volumes of Revolution',
+      lessons: [
+        {
+          id: 'in-l5-solids',
+          title: 'Solids of Revolution',
+          slides: [
+            teach(
+              prose(
+                'Turn a flat region a full turn, $360^{\\circ}$, about the $x$-axis and it sweeps out a solid: a **solid of revolution**.',
+              ),
+              // y = sqrt(x) from 0 to 4, whose volume, worked in the next
+              // lesson, is 8 pi.
+              {
+                kind: 'diagram',
+                svg: solidSvg({
+                  xMin: -0.4,
+                  xMax: 4.6,
+                  yMin: -2.6,
+                  yMax: 2.6,
+                  top: (x) => Math.sqrt(x),
+                  from: 0,
+                  to: 4,
+                  axis: 'x',
+                  edges: [{ f: (x) => Math.sqrt(x), from: 0, to: 4 }],
+                  rims: [{ at: 4, radius: 2 }],
+                  label: 'The region under y = square root of x from x = 0 to x = 4, and the solid it sweeps out about the x-axis',
+                }),
+              },
+              prose(
+                'Here the region under $y = \\sqrt{x}$ from $x = 0$ to $x = 4$ makes a rounded, bullet-shaped solid. The dashed curve is where the edge ends up half a turn later.',
+              ),
+              prose(
+                'Cut the solid straight across at any $x$ and the cut face is a circle. Its radius is the height of the curve there, $y$.',
+              ),
+            ),
+            ask('int-vol-shape'),
+            ask('int-vol-slice'),
+            ask('int-vol-disc-area'),
+            teach(
+              prose(
+                'Slice the whole solid into thin discs. The disc at $x$ has area $\\pi y^{2}$, so one $\\delta x$ thick has volume about $\\pi y^{2} \\, \\delta x$.',
+              ),
+              maths('V \\approx \\sum \\pi y^{2} \\, \\delta x'),
+              prose('As the slices get thinner the sum becomes an integral, exactly as a sum of thin strips became an area.'),
+              maths('V = \\pi \\int_{a}^{b} y^{2} \\, dx'),
+            ),
+            ask('int-vol-setup'),
+            ask('int-vol-integrand'),
+            ask('int-vol-slice', 2),
+            teach(
+              prose(
+                'Two slips to avoid. The radius is squared, so the integrand is $y^{2}$, not $y$. And $y^{2}$ means the whole of $y$ squared: $\\left(x + 3\\right)^{2}$ is $x^{2} + 6x + 9$, not $x^{2} + 9$.',
+              ),
+              prose(
+                'The $\\pi$ is a constant, so it sits outside the integral, and it is usually left in the answer: $\\frac{26\\pi}{3}$ is exact, where $27.2$ is not.',
+              ),
+            ),
+            ask('int-vol-integrand', 2),
+            ask('int-vol-setup', 2),
+          ],
+          skillCheck: [
+            ask('int-vol-setup', 2),
+            ask('int-vol-integrand', 2),
+            ask('int-vol-disc-area', 2),
+          ],
+        },
+        {
+          id: 'in-l5-x-axis',
+          title: 'Rotating About the x-Axis',
+          slides: [
+            teach(
+              prose('To find a volume, square the curve first, multiply it out, then integrate as usual.'),
+              // y = x + 1 from 0 to 2, a frustum of volume 26 pi / 3.
+              {
+                kind: 'diagram',
+                svg: solidSvg({
+                  xMin: -0.4,
+                  xMax: 2.6,
+                  yMin: -3.6,
+                  yMax: 3.6,
+                  top: (x) => x + 1,
+                  from: 0,
+                  to: 2,
+                  axis: 'x',
+                  edges: [{ f: (x) => x + 1, from: 0, to: 2 }],
+                  rims: [
+                    { at: 0, radius: 1 },
+                    { at: 2, radius: 3 },
+                  ],
+                  label: 'The region under y = x + 1 from x = 0 to x = 2, and the solid it sweeps out about the x-axis',
+                }),
+              },
+              maths('V = \\pi \\int_{0}^{2} \\left(x + 1\\right)^{2} dx'),
+              maths('= \\pi \\int_{0}^{2} \\left(x^{2} + 2x + 1\\right) dx'),
+              maths('= \\pi \\left[\\frac{x^{3}}{3} + x^{2} + x\\right]_{0}^{2}'),
+              maths('= \\frac{26\\pi}{3}'),
+            ),
+            ask('int-vol-square'),
+            ask('int-vol-x-axis'),
+            ask('int-vol-x-axis+choice'),
+            teach(
+              prose(
+                'A square root in the curve is good news: squaring removes it, and what is left is often easier than any polynomial.',
+              ),
+              maths('y = \\sqrt{x}, \\quad y^{2} = x'),
+              maths('\\pi \\int_{0}^{4} x \\, dx = \\pi \\left[\\frac{x^{2}}{2}\\right]_{0}^{4}'),
+              maths('= 8\\pi'),
+              prose('That is the volume of the bullet-shaped solid from the last lesson.'),
+            ),
+            ask('int-vol-root'),
+            ask('int-vol-find-limit'),
+            ask('int-vol-square', 2),
+            teach(
+              prose(
+                'Working backwards: when the volume is given and a limit is not, leave the limit as a letter, integrate, and solve.',
+              ),
+              prose(
+                'The region under $y = 2$ from $0$ to $h$ turns into a cylinder, and $\\pi \\int_{0}^{h} 4 \\, dx = 4\\pi h$. A volume of $20\\pi$ therefore means $h = 5$.',
+              ),
+              prose('Type $\\pi$ with its key, and a fraction with the fraction key: $\\frac{26\\pi}{3}$ is exactly how to leave it.'),
+            ),
+            ask('int-vol-root+choice'),
+            ask('int-vol-find-limit', 2),
+          ],
+          skillCheck: [
+            ask('int-vol-x-axis', 2),
+            ask('int-vol-root+choice', 2),
+            ask('int-vol-x-axis', 2),
+          ],
+        },
+        {
+          id: 'in-l5-y-axis',
+          title: 'Rotating About the y-Axis',
+          slides: [
+            teach(
+              prose(
+                'Turn a region about the $y$-axis instead and the roles swap. The slices are stacked up the $y$-axis, and each radius is a distance across: an $x$ value.',
+              ),
+              // y = x^2 + 1 between y = 2 and y = 5, worked on the next slide:
+              // 15 pi / 2.
+              {
+                kind: 'diagram',
+                svg: solidSvg({
+                  xMin: -2.6,
+                  xMax: 2.6,
+                  yMin: -0.5,
+                  yMax: 5.6,
+                  top: () => 5,
+                  bottom: (x) => Math.max(2, x * x + 1),
+                  from: 0,
+                  to: 2,
+                  axis: 'y',
+                  edges: [{ f: (x) => x * x + 1, from: 1, to: 2 }],
+                  rims: [
+                    { at: 2, radius: 1 },
+                    { at: 5, radius: 2 },
+                  ],
+                  label: 'The region between y = x^2 + 1, the y-axis and the lines y = 2 and y = 5, and the solid it sweeps out about the y-axis',
+                }),
+              },
+              maths('V = \\pi \\int_{c}^{d} x^{2} \\, dy'),
+              prose('The limits are heights now, and $x^{2}$ has to be written in terms of $y$ before integrating.'),
+            ),
+            ask('int-vol-rearrange'),
+            ask('int-vol-y-radius'),
+            ask('int-vol-axis-flow'),
+            teach(
+              prose(
+                'The region in the picture lies between $y = x^{2} + 1$, the $y$-axis and the lines $y = 2$ and $y = 5$. Rearranging gives $x^{2} = y - 1$.',
+              ),
+              maths('V = \\pi \\int_{2}^{5} \\left(y - 1\\right) dy'),
+              maths('= \\pi \\left[\\frac{y^{2}}{2} - y\\right]_{2}^{5}'),
+              maths('= \\pi \\left(\\frac{15}{2} - 0\\right) = \\frac{15\\pi}{2}'),
+            ),
+            ask('int-vol-y-axis'),
+            ask('int-vol-rearrange', 2),
+            ask('int-vol-y-axis+choice'),
+            teach(
+              prose(
+                'When the region is described by $x$ values, turn them into heights first: put each one into the curve.',
+              ),
+              prose(
+                'Only $x^{2}$ is needed, never $x$ itself, so there is no square root to take. A line through the origin such as $y = \\frac{x}{2}$ turns into a cone standing on its tip, with $x = 2y$ and so $x^{2} = 4y^{2}$.',
+              ),
+            ),
+            ask('int-vol-axis-flow', 2),
+            ask('int-vol-y-radius', 2),
+          ],
+          skillCheck: [
+            ask('int-vol-y-axis', 2),
+            ask('int-vol-y-axis+choice', 2),
+            ask('int-vol-rearrange', 2),
+          ],
+        },
+        {
+          id: 'in-l5-hollow',
+          title: 'Cones and Hollow Solids',
+          slides: [
+            teach(
+              prose(
+                'A straight line through the origin turns into a cone, and integrating gives the formula you already know.',
+              ),
+              // y = x/2 from 0 to 4: a cone of radius 2 and height 4.
+              {
+                kind: 'diagram',
+                svg: solidSvg({
+                  xMin: -0.4,
+                  xMax: 4.6,
+                  yMin: -2.7,
+                  yMax: 2.7,
+                  top: (x) => x / 2,
+                  from: 0,
+                  to: 4,
+                  axis: 'x',
+                  edges: [{ f: (x) => x / 2, from: 0, to: 4 }],
+                  rims: [{ at: 4, radius: 2 }],
+                  label: 'The region under y = x/2 from x = 0 to x = 4, and the cone it sweeps out about the x-axis',
+                }),
+              },
+              maths('\\pi \\int_{0}^{4} \\frac{x^{2}}{4} \\, dx = \\frac{16\\pi}{3}'),
+              maths('\\frac{1}{3}\\pi r^{2} h = \\frac{1}{3}\\pi \\times 2^{2} \\times 4'),
+              prose('The radius is the line\'s height at the wide end, and the third in the formula is the third from integrating $x^{2}$.'),
+            ),
+            ask('int-vol-cone'),
+            ask('int-vol-cone-parts'),
+            ask('int-vol-shape', 2),
+            teach(
+              prose(
+                'Turn the region **between** two curves and the solid has a hole down it. Each slice is a washer: a disc of the outer radius with a disc of the inner radius taken out.',
+              ),
+              // Between y = 3 and y = x from 0 to 3: a cylinder with a cone
+              // taken out, 27 pi - 9 pi = 18 pi.
+              {
+                kind: 'diagram',
+                svg: solidSvg({
+                  xMin: -0.4,
+                  xMax: 3.6,
+                  yMin: -3.8,
+                  yMax: 3.8,
+                  top: () => 3,
+                  bottom: (x) => x,
+                  from: 0,
+                  to: 3,
+                  axis: 'x',
+                  edges: [
+                    { f: () => 3, from: 0, to: 3 },
+                    { f: (x) => x, from: 0, to: 3 },
+                  ],
+                  rims: [
+                    { at: 0, radius: 3 },
+                    { at: 3, radius: 3 },
+                  ],
+                  label: 'The region between y = 3 and y = x from x = 0 to x = 3, and the hollow solid it sweeps out about the x-axis',
+                }),
+              },
+              maths('V = \\pi \\int_{a}^{b} \\left(y_1^{2} - y_2^{2}\\right) dx'),
+              prose(
+                'Here $y_1 = 3$ and $y_2 = x$: a cylinder with a cone taken out of it, $27\\pi - 9\\pi = 18\\pi$.',
+              ),
+            ),
+            ask('int-vol-outer-inner'),
+            ask('int-vol-washer'),
+            ask('int-vol-cone+choice'),
+            teach(
+              prose(
+                'The slip to avoid: $\\left(y_1 - y_2\\right)^{2}$ is not $y_1^{2} - y_2^{2}$. Square each curve, then subtract.',
+              ),
+              prose(
+                'Both curves have to be on the same side of the axis, and $y_1$ is the one further from it. Test a value of $x$ between the limits if it is not obvious.',
+              ),
+            ),
+            ask('int-vol-washer+choice', 2),
+            ask('int-vol-outer-inner', 2),
+          ],
+          skillCheck: [
+            ask('int-vol-washer', 2),
+            ask('int-vol-cone', 2),
+            ask('int-vol-washer+choice', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('int-vol-shape', 2),
+        ask('int-vol-integrand', 2),
+        ask('int-vol-x-axis', 2),
+        ask('int-vol-find-limit', 2),
+        ask('int-vol-setup', 2),
+        ask('int-vol-square', 2),
+        ask('int-vol-root', 2),
+        ask('int-vol-y-radius', 2),
+        ask('int-vol-axis-flow', 2),
+        ask('int-vol-y-axis', 2),
+        ask('int-vol-rearrange', 2),
+        ask('int-vol-cone+choice', 2),
+        ask('int-vol-outer-inner', 2),
+        ask('int-vol-washer', 2),
       ],
     },
   ],

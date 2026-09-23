@@ -9,6 +9,8 @@
  * trial, factorising a cubic fully, and solving it. Then the graph: where a
  * factorised curve meets the axis, whether it crosses or touches, where its
  * arms go, its y-intercept and sign, and back from a sketch to a formula.
+ * Then roots to coefficients: the sums and products of the roots, a cubic
+ * built from them, a missing root, and symmetric functions of the roots.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -687,6 +689,205 @@ export const polynomials: Course = {
         ask('poly-find-lead', 2),
         ask('poly-sketch-form-tiles', 2),
         ask('poly-describe-graph', 2),
+      ],
+    },
+    {
+      id: 'pl-l4',
+      title: 'Roots and Coefficients',
+      lessons: [
+        {
+          id: 'pl-l4-two',
+          title: 'Sum and Product of Two Roots',
+          slides: [
+            teach(
+              prose('Level 2 went from a polynomial to its roots. This level goes the other way. Multiply out a quadratic with roots $\\alpha$ and $\\beta$:'),
+              working('&(x - \\alpha)(x - \\beta)', '=\\;&x^{2} - (\\alpha + \\beta)x + \\alpha\\beta'),
+              prose(
+                'So in $x^{2} + bx + c$, the $x$ coefficient is minus the sum of the roots and the constant is their product. $x^{2} - 5x + 6$ has roots adding to $5$ and multiplying to $6$: they are $2$ and $3$.',
+              ),
+            ),
+            ask('poly-roots-sum-product'),
+            ask('poly-root-signs'),
+            ask('poly-quad-coeffs-tree'),
+            teach(
+              prose('With a leading coefficient $a$, the quadratic is $a(x - \\alpha)(x - \\beta)$, so divide through by $a$ first:'),
+              working('\\alpha + \\beta &= -\\frac{b}{a}', '\\alpha\\beta &= \\frac{c}{a}'),
+              prose(
+                'For $2x^{2} + 6x - 8 = 0$ the roots add to $-\\frac{6}{2} = -3$ and multiply to $\\frac{-8}{2} = -4$. The minus belongs to the sum only; the product keeps the sign of $\\frac{c}{a}$.',
+              ),
+            ),
+            ask('poly-roots-sum-product+choice', 2),
+            ask('poly-quad-coeffs-tree', 2),
+            ask('poly-root-signs', 2),
+            teach(
+              prose('Read backwards, a sum and a product give the quadratic: minus the sum in front of $x$, the product at the end.'),
+              maths('x^{2} - (\\text{sum})x + (\\text{product}) = 0'),
+              prose('Roots adding to $1$ and multiplying to $-6$ give $x^{2} - x - 6 = 0$, whose roots are $3$ and $-2$. With a leading coefficient, multiply every term by it.'),
+            ),
+            ask('poly-sum-product-tiles'),
+            ask('poly-sum-product-tiles', 2),
+          ],
+          skillCheck: [ask('poly-roots-sum-product', 2), ask('poly-sum-product-tiles', 2), ask('poly-quad-coeffs-tree', 2)],
+        },
+        {
+          id: 'pl-l4-three',
+          title: 'Three Roots',
+          slides: [
+            teach(
+              prose('A cubic with roots $\\alpha$, $\\beta$ and $\\gamma$ multiplies out the same way, with three sums instead of two:'),
+              working(
+                '&(x - \\alpha)(x - \\beta)(x - \\gamma)',
+                '=\\;&x^{3} - (\\alpha + \\beta + \\gamma)x^{2}',
+                '&+ (\\alpha\\beta + \\beta\\gamma + \\gamma\\alpha)x',
+                '&- \\alpha\\beta\\gamma',
+              ),
+              prose(
+                'These are written $\\Sigma\\alpha$, the sum of the roots, $\\Sigma\\alpha\\beta$, the sum of their products in pairs, and $\\alpha\\beta\\gamma$, the product of all three.',
+              ),
+            ),
+            ask('poly-cubic-sums-tree'),
+            ask('poly-cubic-vieta'),
+            ask('poly-cubic-identity-tiles'),
+            teach(
+              prose('For $ax^{3} + bx^{2} + cx + d = 0$, divide by $a$ first. The signs alternate, minus, plus, minus:'),
+              working('\\Sigma\\alpha &= -\\frac{b}{a}', '\\Sigma\\alpha\\beta &= \\frac{c}{a}', '\\alpha\\beta\\gamma &= -\\frac{d}{a}'),
+              prose('For $2x^{3} - 4x^{2} - 22x + 24 = 0$:'),
+              working('\\Sigma\\alpha &= -\\tfrac{-4}{2} = 2', '\\Sigma\\alpha\\beta &= \\tfrac{-22}{2} = -11', '\\alpha\\beta\\gamma &= -\\tfrac{24}{2} = -12'),
+            ),
+            ask('poly-vieta-flow'),
+            ask('poly-cubic-vieta+choice', 2),
+            ask('poly-cubic-identity-tiles', 2),
+            teach(
+              prose(
+                'The slip to watch for is the sign of the product. For a quadratic it is $+\\frac{c}{a}$, but for a cubic it is $-\\frac{d}{a}$: the roots of that cubic are $1$, $-3$ and $4$, and $1 \\times (-3) \\times 4 = -12$, not $12$.',
+              ),
+              prose('Each extra root flips it again, so the constant term of a monic cubic is minus the product of its roots.'),
+            ),
+            ask('poly-vieta-flow', 2),
+            ask('poly-cubic-sums-tree', 2),
+          ],
+          skillCheck: [ask('poly-cubic-vieta', 2), ask('poly-vieta-flow', 2), ask('poly-cubic-sums-tree', 2)],
+        },
+        {
+          id: 'pl-l4-build',
+          title: 'A Cubic from its Roots',
+          slides: [
+            teach(
+              prose('To build a cubic from its roots, work out the three sums and put them in with the signs alternating:'),
+              working('&x^{3} - (\\Sigma\\alpha)x^{2}', '&+ (\\Sigma\\alpha\\beta)x - \\alpha\\beta\\gamma'),
+              prose('For roots $-1$, $2$ and $3$: $\\Sigma\\alpha = 4$, $\\Sigma\\alpha\\beta = -2 + 6 - 3 = 1$ and $\\alpha\\beta\\gamma = -6$, so the cubic is'),
+              maths('x^{3} - 4x^{2} + x + 6'),
+            ),
+            ask('poly-roots-to-cubic-tiles'),
+            ask('poly-cubic-coeffs-tree'),
+            ask('poly-sums-to-cubic'),
+            teach(
+              prose('A cubic with a leading coefficient is the monic one times that number: with leading coefficient $2$ and the same roots,'),
+              maths('2x^{3} - 8x^{2} + 2x + 12'),
+              prose(
+                'The roots themselves are not needed, only their sums. If $\\Sigma\\alpha = 3$, $\\Sigma\\alpha\\beta = -1$ and $\\alpha\\beta\\gamma = -3$, the monic cubic is $x^{3} - 3x^{2} - x + 3$.',
+              ),
+            ),
+            ask('poly-roots-to-cubic-tiles+choice', 2),
+            ask('poly-cubic-coeffs-tree', 2),
+            ask('poly-sums-to-cubic', 2),
+            teach(
+              prose('That is how to find a cubic whose roots are related to another\'s, without ever solving it. For roots $2\\alpha$, $2\\beta$ and $2\\gamma$, each sum picks up a $2$ per root in it:'),
+              working(
+                '\\Sigma 2\\alpha &= 2\\Sigma\\alpha',
+                '\\Sigma (2\\alpha)(2\\beta) &= 4\\Sigma\\alpha\\beta',
+                '(2\\alpha)(2\\beta)(2\\gamma) &= 8\\alpha\\beta\\gamma',
+              ),
+              prose(
+                'For roots $\\alpha + 1$, $\\beta + 1$ and $\\gamma + 1$, multiplying out gives $\\Sigma\\alpha + 3$, then $\\Sigma\\alpha\\beta + 2\\Sigma\\alpha + 3$, then $\\alpha\\beta\\gamma + \\Sigma\\alpha\\beta + \\Sigma\\alpha + 1$.',
+              ),
+            ),
+            ask('poly-new-roots-steps'),
+            ask('poly-new-roots-steps+choice', 2),
+          ],
+          skillCheck: [ask('poly-roots-to-cubic-tiles', 2), ask('poly-cubic-coeffs-tree', 2), ask('poly-new-roots-steps', 2)],
+        },
+        {
+          id: 'pl-l4-missing',
+          title: 'A Missing Root',
+          slides: [
+            teach(
+              prose('Knowing two roots of a cubic, the sum of the roots gives the third. $x^{3} - 2x^{2} - 5x + 6 = 0$ has roots $1$ and $3$, and'),
+              maths('1 + 3 + \\gamma = -\\tfrac{-2}{1} = 2'),
+              prose('so $\\gamma = -2$. No division, and no trial.'),
+            ),
+            ask('poly-third-root'),
+            ask('poly-missing-coeff-steps'),
+            ask('poly-which-identity-flow'),
+            teach(
+              prose(
+                'When a coefficient is unknown, use an identity that does not need it. $x^{3} + kx^{2} - 5x + 6 = 0$ has roots $1$ and $3$; the sum needs $k$, but the product does not:',
+              ),
+              working('1 \\times 3 \\times \\gamma &= -6', '\\gamma &= -2'),
+              prose('Then the sum gives $k$: $1 + 3 - 2 = -k$, so $k = -2$.'),
+            ),
+            ask('poly-which-identity-flow', 2),
+            ask('poly-third-root', 2),
+            ask('poly-missing-coeff-steps', 2),
+            teach(
+              prose('Roots in arithmetic progression are written $\\alpha - d$, $\\alpha$ and $\\alpha + d$, so the $d$s cancel in the sum:'),
+              maths('(\\alpha - d) + \\alpha + (\\alpha + d) = 3\\alpha'),
+              prose(
+                'For $x^{3} - 6x^{2} + 3x + 10 = 0$: $3\\alpha = 6$, so $\\alpha = 2$. The product is $\\alpha(\\alpha^{2} - d^{2}) = -10$, so $4 - d^{2} = -5$ and $d = 3$. The roots are $-1$, $2$ and $5$.',
+              ),
+            ),
+            ask('poly-ap-roots-tree'),
+            ask('poly-ap-roots-tree', 2),
+          ],
+          skillCheck: [ask('poly-third-root', 2), ask('poly-which-identity-flow', 2), ask('poly-ap-roots-tree', 2)],
+        },
+        {
+          id: 'pl-l4-symmetric',
+          title: 'Symmetric Functions',
+          slides: [
+            teach(
+              prose('Some expressions in the roots can be found from the coefficients without knowing the roots at all. Squaring the sum gives each square once and the product twice:'),
+              maths('(\\alpha + \\beta)^{2} = \\alpha^{2} + \\beta^{2} + 2\\alpha\\beta'),
+              prose('so $\\alpha^{2} + \\beta^{2} = (\\alpha + \\beta)^{2} - 2\\alpha\\beta$. For $x^{2} - 5x + 3 = 0$, whose roots are not whole, that is still $5^{2} - 2 \\times 3 = 19$.'),
+            ),
+            ask('poly-sum-squares'),
+            ask('poly-square-identity-tiles'),
+            ask('poly-reciprocal-sum'),
+            teach(
+              prose('Reciprocals go over a common denominator, the product of the roots:'),
+              working('\\frac{1}{\\alpha} + \\frac{1}{\\beta} &= \\frac{\\alpha + \\beta}{\\alpha\\beta}', '\\Sigma\\frac{1}{\\alpha} &= \\frac{\\Sigma\\alpha\\beta}{\\alpha\\beta\\gamma}'),
+              prose('For $x^{3} - 4x^{2} + x + 6 = 0$, $\\Sigma\\alpha\\beta = 1$ and $\\alpha\\beta\\gamma = -6$, so $\\Sigma\\frac{1}{\\alpha} = -\\frac{1}{6}$.'),
+            ),
+            ask('poly-recip-divide-steps'),
+            ask('poly-reciprocal-sum+choice', 2),
+            ask('poly-symmetric-tree'),
+            teach(
+              prose('For three roots, squaring the sum gives every square once and every pair product twice, so'),
+              maths('\\Sigma\\alpha^{2} = (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta'),
+              prose('For $x^{3} - 4x^{2} + x + 6$ that is $16 - 2 = 14$, and the roots $-1$, $2$ and $3$ agree: $1 + 4 + 9 = 14$.'),
+            ),
+            ask('poly-sum-squares+choice', 2),
+            ask('poly-symmetric-tree', 2),
+          ],
+          skillCheck: [ask('poly-sum-squares', 2), ask('poly-reciprocal-sum', 2), ask('poly-symmetric-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('poly-roots-sum-product', 2),
+        ask('poly-cubic-sums-tree', 2),
+        ask('poly-root-signs', 2),
+        ask('poly-sum-product-tiles', 2),
+        ask('poly-vieta-flow', 2),
+        ask('poly-cubic-vieta', 2),
+        ask('poly-roots-to-cubic-tiles', 2),
+        ask('poly-new-roots-steps', 2),
+        ask('poly-sums-to-cubic', 2),
+        ask('poly-third-root', 2),
+        ask('poly-ap-roots-tree', 2),
+        ask('poly-which-identity-flow', 2),
+        ask('poly-missing-coeff-steps', 2),
+        ask('poly-sum-squares', 2),
+        ask('poly-reciprocal-sum', 2),
       ],
     },
   ],

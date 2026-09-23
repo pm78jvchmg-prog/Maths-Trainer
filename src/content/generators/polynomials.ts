@@ -6,7 +6,8 @@
  * linear factor. Level 2 is the two theorems that division leads to — the
  * remainder is p(a), and (x - a) is a factor exactly when p(a) = 0 — and what
  * they are for: finding a factor by trial, factorising a cubic fully and
- * solving it.
+ * solving it. Level 3 reads a graph off the factors, and level 4 goes from
+ * roots back to coefficients through the sums of the roots.
  *
  * Everything starts at degree 3, since two brackets and the quadratic formula
  * belong to Quadratics, and top-heavy division and partial fractions belong to
@@ -4281,6 +4282,1184 @@ const polyDescribeGraph: Generator<DescribeParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: roots and coefficients
+ *
+ * Level 2 went from a polynomial to its roots; this goes the other way. The
+ * roots fix the coefficients through their sums: for a quadratic
+ * a(x - α)(x - β), α + β = -b/a and αβ = c/a; for a cubic, Σα = -b/a,
+ * Σαβ = c/a and αβγ = -d/a, the signs alternating. Every polynomial here is
+ * still built outward from small whole roots with `fromRoots`, and every sum
+ * is computed from those roots, never read back off the coefficients, so it
+ * is whole by construction. Only Σ1/α is a fraction.
+ * ================================================================ */
+
+/** The sums of the roots taken one, two and three at a time: [Σα, Σαβ, αβγ]. */
+function rootSums(roots: number[]): number[] {
+  let sums = [1];
+  for (const r of roots) {
+    sums = [...sums, 0].map((s, k) => s + (k > 0 ? r * sums[k - 1] : 0));
+  }
+  return sums.slice(1);
+}
+
+/** A leading coefficient: 1 at difficulty 1, and at difficulty 2 one that has to be divided by. */
+function sampleLead(rng: Rng, hard: boolean): number {
+  return hard ? rng.pick([2, -2, 3, -3, -1]) : 1;
+}
+
+/** Every coefficient within `limit`, so the cubic reads comfortably. */
+const fits = (p: Poly, limit: number): boolean => p.every((c) => Math.abs(c) <= limit);
+
+/** A coefficient in front of a letter or a bracket: 1 is left off and -1 is a bare minus. */
+function coefMark(k: number): string {
+  if (k === 1) return '';
+  if (k === -1) return '-';
+  return String(k);
+}
+
+function gcdOf(a: number, b: number): number {
+  return b === 0 ? Math.abs(a) : gcdOf(b, a % b);
+}
+
+/** n/d in lowest terms, the sign in front, as the learner reads it. */
+function fracTex(n: number, d: number): string {
+  const g = gcdOf(n, d) || 1;
+  const sign = n * d < 0 ? '-' : '';
+  const top = Math.abs(n / g);
+  const bottom = Math.abs(d / g);
+  return bottom === 1 ? `${sign}${top}` : `${sign}\\frac{${top}}{${bottom}}`;
+}
+
+/** The same for the grader. Never displayed. */
+const fracAnswer = (n: number, d: number): string => `(${n})/(${d})`;
+
+/** c/a as a line of working: just c when a is 1, with a minus in front when asked. */
+function overLead(c: number, a: number, minus: boolean): string {
+  if (a === 1) return minus ? `-(${c})` : String(c);
+  return `${minus ? '-' : ''}\\frac{${c}}{${a}}`;
+}
+
+/** Roots as a list the learner reads: "-2, 1 and 3". */
+function rootList(roots: number[]): string {
+  const sorted = [...roots].sort((x, y) => x - y);
+  return `$${sorted.slice(0, -1).join(', ')}$ and $${sorted[sorted.length - 1]}$`;
+}
+
+const TWO_LABELS = ['\\alpha + \\beta', '\\alpha\\beta'];
+const THREE_LABELS = ['\\alpha + \\beta + \\gamma', '\\alpha\\beta + \\beta\\gamma + \\gamma\\alpha', '\\alpha\\beta\\gamma'];
+const THREE_ROOTS = '$\\alpha$, $\\beta$ and $\\gamma$';
+/** The same three sums in Σ notation, short enough for a line of working on a phone. */
+const SIGMA_LABELS = ['\\Sigma\\alpha', '\\Sigma\\alpha\\beta', '\\alpha\\beta\\gamma'];
+
+/** The identities for a quadratic, as a worked-solution line. */
+const TWO_IDENTITIES = '\\alpha + \\beta = -\\frac{b}{a}, \\qquad \\alpha\\beta = \\frac{c}{a}';
+
+/** The three identities for a cubic, one to a line, since together they are wider than a phone. */
+const THREE_IDENTITIES = chain(
+  '\\Sigma\\alpha &= -\\frac{b}{a}',
+  '\\Sigma\\alpha\\beta &= \\frac{c}{a}',
+  '\\alpha\\beta\\gamma &= -\\frac{d}{a}',
+);
+
+interface RootsLeadParams {
+  roots: number[];
+  lead: number;
+}
+
+/** Two distinct whole roots and a lead, the quadratic kept readable. */
+function sampleQuadratic(rng: Rng, difficulty: number, ok: (p: Poly, sums: number[]) => boolean = () => true): RootsLeadParams {
+  for (;;) {
+    const roots = sampleRoots(rng, 2, 5);
+    const lead = sampleLead(rng, difficulty > 1);
+    const p = fromRoots(roots, lead);
+    if (!fits(p, 45) || !ok(p, rootSums(roots))) continue;
+    return { roots, lead };
+  }
+}
+
+/** Three distinct whole roots and a lead, the cubic kept readable. */
+function sampleCubicRoots(
+  rng: Rng,
+  max: number,
+  hard: boolean,
+  limit: number,
+  ok: (p: Poly, sums: number[]) => boolean = () => true,
+): RootsLeadParams {
+  for (;;) {
+    const roots = sampleRoots(rng, 3, max);
+    const lead = sampleLead(rng, hard);
+    const p = fromRoots(roots, lead);
+    if (!fits(p, limit) || !ok(p, rootSums(roots))) continue;
+    return { roots, lead };
+  }
+}
+
+/** A cubic's line of working: which identity, then the numbers. */
+function cubicIdentityStep(p: Poly, k: number): string {
+  const value = ((k === 1 ? 1 : -1) * p[k + 1]) / p[0];
+  return `${SIGMA_LABELS[k]} = ${overLead(p[k + 1], p[0], k !== 1)} = ${value}`;
+}
+
+/* ---------- lesson 1: two roots ---------- */
+
+interface QuadAskParams extends RootsLeadParams {
+  ask: number;
+}
+
+/** α + β or αβ read off a quadratic's coefficients. */
+const polyRootsSumProduct: Generator<QuadAskParams> = {
+  id: 'poly-roots-sum-product',
+  sample: (rng, difficulty) => ({ ...sampleQuadratic(rng, difficulty), ask: rng.int(0, 1) }),
+  choices: ({ roots, lead, ask }) => {
+    const p = fromRoots(roots, lead);
+    const [s, pr] = rootSums(roots);
+    return ask === 0
+      ? intOptions(s, [-s, p[1], pr, -p[1]])
+      : intOptions(pr, [-pr, p[2], -s, s]);
+  },
+  render: ({ roots, lead, ask }): Slide => {
+    const p = fromRoots(roots, lead);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`$\\alpha$ and $\\beta$ are the roots of $${polyTex(p)} = 0$. Find $${TWO_LABELS[ask]}$ from the coefficients, without solving.`),
+      ],
+      lead: `${TWO_LABELS[ask]} =`,
+      keypad: [],
+      answer: String(rootSums(roots)[ask]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ roots, lead, ask }) => {
+    const p = fromRoots(roots, lead);
+    const value = rootSums(roots)[ask];
+    return [
+      { text: 'For $ax^{2} + bx + c = 0$:' },
+      { tex: TWO_IDENTITIES },
+      { text: `Here $a = ${p[0]}$, $b = ${p[1]}$ and $c = ${p[2]}$.` },
+      { tex: `${TWO_LABELS[ask]} = ${overLead(p[ask + 1], p[0], ask === 0)} = ${value}` },
+    ];
+  },
+};
+
+/** A quadratic built from the sum and product of its roots. */
+const polySumProductTiles: Generator<RootsLeadParams> = {
+  id: 'poly-sum-product-tiles',
+  sample: (rng, difficulty) => sampleQuadratic(rng, difficulty, (_, [s]) => s !== 0),
+  render: ({ roots, lead }): Slide => {
+    const [s, pr] = rootSums(roots);
+    const a = lead;
+    const answer = [signedTerm(-a * s, 1), signedNum(a * pr)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `A quadratic${a === 1 ? ' with leading coefficient $1$' : ` with leading coefficient $${a}$`} has two roots whose sum is $${s}$ and whose product is $${pr}$. Fill in the quadratic.`,
+        ),
+      ],
+      template: `${coefMark(a)}x^2 {0} {1} = 0`,
+      bank: fillBank(answer, [
+        signedTerm(a * s, 1),
+        signedNum(-a * pr),
+        signedTerm(-s, 1),
+        signedNum(pr),
+        signedTerm(a * pr, 1),
+        signedNum(-a * s),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const [s, pr] = rootSums(roots);
+    const p = fromRoots(roots, lead);
+    return [
+      { text: 'Multiplying out $(x - \\alpha)(x - \\beta)$ gives the sum and the product:' },
+      { tex: 'x^{2} - (\\alpha + \\beta)x + \\alpha\\beta' },
+      { text: `So the $x$ term is minus the sum, $${termTex(-s, 1)}$, and the constant is the product, $${pr}$.` },
+      ...(lead === 1 ? [] : [{ text: `Then every term times $${lead}$:` }]),
+      { tex: `${polyTex(p)} = 0` },
+    ];
+  },
+};
+
+/** From two roots to the sum and product, then to b and c. */
+const polyQuadCoeffsTree: Generator<RootsLeadParams> = {
+  id: 'poly-quad-coeffs-tree',
+  sample: (rng, difficulty) => sampleQuadratic(rng, difficulty),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s, pr] = rootSums(roots);
+    const values = [s, pr, p[1], p[2]];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `The roots of $${coefMark(lead)}x^{2} + bx + c = 0$ are $\\alpha = ${roots[0]}$ and $\\beta = ${roots[1]}$. Top row: $\\alpha + \\beta$, then $\\alpha\\beta$. Underneath each, the coefficient it gives: $b = ${coefMark(-lead)}(\\alpha + \\beta)$ and $c = ${coefMark(lead)}\\alpha\\beta$.`,
+        ),
+      ],
+      expression: `${coefMark(lead)}x^{2} + bx + c`,
+      nodes: [
+        { id: 's', from: [] },
+        { id: 'p', from: [] },
+        { id: 'b', from: ['s'] },
+        { id: 'c', from: ['p'] },
+      ],
+      bank: numberBank(values, [-s, -pr, -p[1], -p[2], s + pr]),
+      answer: values.map(String),
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [s, pr] = rootSums(roots);
+    return [
+      { tex: chain(`\\alpha + \\beta &= ${roots[0]} ${signedNum(roots[1])} = ${s}`, `\\alpha\\beta &= ${roots[0]} \\times ${factor(String(roots[1]))} = ${pr}`) },
+      { text: `$b = ${coefMark(-lead)}(${s}) = ${p[1]}$ and $c = ${coefMark(lead)}(${pr}) = ${p[2]}$.` },
+      { tex: `${polyTex(p)} = 0` },
+    ];
+  },
+};
+
+const SIGN_WORDS = ['Both positive', 'Both negative', 'One positive, one negative'];
+
+/** The signs of the roots from the signs of their sum and product, without solving. */
+const polyRootSigns: Generator<RootsLeadParams> = {
+  id: 'poly-root-signs',
+  sample: (rng, difficulty) => sampleQuadratic(rng, difficulty),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s, pr] = rootSums(roots);
+    const correct = pr < 0 ? 2 : s > 0 ? 0 : 1;
+    return wordChoice(
+      [say(`$${polyTex(p)} = 0$ has two whole-number roots. Without solving it, what are their signs?`)],
+      SIGN_WORDS,
+      correct,
+    );
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [s, pr] = rootSums(roots);
+    return [
+      { tex: `\\alpha\\beta = ${overLead(p[2], p[0], false)} = ${pr}` },
+      pr < 0
+        ? { text: 'A negative product means the roots have opposite signs.' }
+        : { text: `A positive product means the roots have the same sign, and their sum says which: $\\alpha + \\beta = ${overLead(p[1], p[0], true)} = ${s}$.` },
+      { text: `So: ${SIGN_WORDS[pr < 0 ? 2 : s > 0 ? 0 : 1].toLowerCase()}. They are $${[...roots].sort((x, y) => x - y).join('$ and $')}$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 2: three roots ---------- */
+
+interface CubicRootsParams {
+  roots: number[];
+}
+
+/** Σα, the three pair products and their sum, and αβγ, from three given roots. */
+const polyCubicSumsTree: Generator<CubicRootsParams> = {
+  id: 'poly-cubic-sums-tree',
+  sample: (rng, difficulty) => ({ roots: sampleRoots(rng, 3, difficulty > 1 ? 5 : 3) }),
+  render: ({ roots }): Slide => {
+    const [a, b, c] = roots;
+    const [s1, s2, s3] = rootSums(roots);
+    const values = [s1, a * b, b * c, c * a, s2, s3];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          'Top row, left to right: $\\alpha + \\beta + \\gamma$, then $\\alpha\\beta$, $\\beta\\gamma$ and $\\gamma\\alpha$. Underneath: $\\alpha\\beta + \\beta\\gamma + \\gamma\\alpha$, then $\\alpha\\beta\\gamma$, which is $\\alpha\\beta$ times $\\gamma$.',
+        ),
+      ],
+      expression: `\\alpha = ${a},\\;\\; \\beta = ${b},\\;\\; \\gamma = ${c}`,
+      nodes: [
+        { id: 's1', from: [] },
+        { id: 'ab', from: [] },
+        { id: 'bc', from: [] },
+        { id: 'ca', from: [] },
+        { id: 's2', from: ['ab', 'bc', 'ca'] },
+        { id: 's3', from: ['ab'] },
+      ],
+      bank: numberBank(values, [-s1, -s2, -s3, a * b + b * c - c * a, a + b - c], String, 2),
+      answer: values.map(String),
+    };
+  },
+  solution: ({ roots }) => {
+    const [a, b, c] = roots;
+    const [s1, s2, s3] = rootSums(roots);
+    const f = (n: number) => factor(String(n));
+    return [
+      { tex: `\\alpha + \\beta + \\gamma = ${a} ${signedNum(b)} ${signedNum(c)} = ${s1}` },
+      { tex: `\\Sigma\\alpha\\beta = ${a * b} ${signedNum(b * c)} ${signedNum(c * a)} = ${s2}` },
+      { tex: `\\alpha\\beta\\gamma = ${a} \\times ${f(b)} \\times ${f(c)} = ${s3}` },
+      { text: 'These three are what the coefficients of the cubic are made of.' },
+    ];
+  },
+};
+
+interface CubicAskParams extends RootsLeadParams {
+  ask: number;
+}
+
+/** One of the three sums read off a cubic's coefficients. */
+const polyCubicVieta: Generator<CubicAskParams> = {
+  id: 'poly-cubic-vieta',
+  sample: (rng, difficulty) => ({
+    ...sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, difficulty > 1 ? 120 : 60),
+    ask: rng.int(0, 2),
+  }),
+  choices: ({ roots, lead, ask }) => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    const value = sums[ask];
+    return intOptions(value, [-value, p[ask + 1], -p[ask + 1], ...sums.filter((_, k) => k !== ask)]);
+  },
+  render: ({ roots, lead, ask }): Slide => {
+    const p = fromRoots(roots, lead);
+    return {
+      kind: 'expression',
+      prompt: [say(`${THREE_ROOTS} are the roots of $${polyTex(p)} = 0$. Find $${THREE_LABELS[ask]}$ without solving.`)],
+      lead: `${THREE_LABELS[ask]} =`,
+      keypad: [],
+      answer: String(rootSums(roots)[ask]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ roots, lead, ask }) => {
+    const p = fromRoots(roots, lead);
+    return [
+      { text: 'For $ax^{3} + bx^{2} + cx + d = 0$:' },
+      { tex: THREE_IDENTITIES },
+      { text: `Here $a = ${p[0]}$, $b = ${p[1]}$, $c = ${p[2]}$ and $d = ${p[3]}$.` },
+      { tex: cubicIdentityStep(p, ask) },
+    ];
+  },
+};
+
+/** All three sums in turn, each a fork where the slip is the sign. */
+const polyVietaFlow: Generator<RootsLeadParams> = {
+  id: 'poly-vieta-flow',
+  sample: (rng, difficulty) =>
+    sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, difficulty > 1 ? 120 : 60, (_, [s1, s2]) => s1 !== 0 && s2 !== 0),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    const ids = ['sum', 'pairs', 'product'];
+    const key = polyTex(p);
+    return {
+      kind: 'flow',
+      prompt: [say('Read the three sums of the roots off the coefficients. Each answer chooses what gets asked next.')],
+      subject: `${key} = 0`,
+      steps: sums.map((right, k) => {
+        const raw = p[k + 1];
+        const values = [right, -right, ...(raw !== right && raw !== -right ? [raw] : [])];
+        const branches = values.map((value) => {
+          if (value === right) {
+            return k < 2
+              ? { label: `$${value}$`, to: ids[k + 1] }
+              : { label: `$${value}$`, outcome: 'Minus, plus, minus: all three sums from the coefficients alone.' };
+          }
+          return value === raw
+            ? { label: `$${value}$`, outcome: `That is the coefficient itself. Divide it by the leading coefficient, $${p[0]}$.` }
+            : { label: `$${value}$`, outcome: `That has the wrong sign: the identities go $-\\frac{b}{a}$, $+\\frac{c}{a}$, $-\\frac{d}{a}$.` };
+        });
+        return { id: ids[k], ask: `What is $${THREE_LABELS[k]}$?`, branches: turned(branches, `${key}|${k}`) };
+      }),
+      answer: sums.map((value) => `$${value}$`),
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    return [
+      { tex: THREE_IDENTITIES },
+      { text: `Here $a = ${p[0]}$, $b = ${p[1]}$, $c = ${p[2]}$ and $d = ${p[3]}$:` },
+      { tex: chain(...[0, 1, 2].map((k) => cubicIdentityStep(p, k).replace(' = ', ' &= '))) },
+    ];
+  },
+};
+
+/** The three sums placed at once, in Σ notation. */
+const polyCubicIdentityTiles: Generator<RootsLeadParams> = {
+  id: 'poly-cubic-identity-tiles',
+  sample: (rng, difficulty) => sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, difficulty > 1 ? 120 : 60),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    return {
+      kind: 'tiles',
+      prompt: [say(`${THREE_ROOTS} are the roots of $${polyTex(p)} = 0$. Fill in the three sums from its coefficients.`)],
+      template: '\\Sigma\\alpha = {0}\\quad \\Sigma\\alpha\\beta = {1}\\quad \\alpha\\beta\\gamma = {2}',
+      bank: numberBank(sums, [...sums.map((s) => -s), p[1], p[2], p[3]]),
+      answer: sums.map(String),
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    return [
+      { text: '$\\Sigma\\alpha$ is the sum of the roots and $\\Sigma\\alpha\\beta$ the sum of their products in pairs.' },
+      { tex: THREE_IDENTITIES },
+      { tex: chain(...[0, 1, 2].map((k) => cubicIdentityStep(p, k).replace(' = ', ' &= '))) },
+    ];
+  },
+};
+
+/* ---------- lesson 3: a cubic from its roots ---------- */
+
+/** The cubic with given roots and lead, built from the three sums. */
+const polyRootsToCubicTiles: Generator<RootsLeadParams> = {
+  id: 'poly-roots-to-cubic-tiles',
+  sample: (rng, difficulty) => sampleCubicRoots(rng, 4, difficulty > 1, 100, (_, [s1, s2]) => s1 !== 0 && s2 !== 0),
+  choices: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const variants = [
+      fromRoots(roots.map((r) => -r), lead),
+      [p[0], p[1], p[2], -p[3]],
+      [p[0], p[1], -p[2], p[3]],
+    ];
+    return options(
+      { tex: polyTex(p), answer: polyAnswer(p) },
+      ...variants.map((q) => ({ tex: polyTex(q), answer: polyAnswer(q) })),
+    );
+  },
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    const answer = [signedTerm(p[1], 2), signedTerm(p[2], 1), signedNum(p[3])];
+    return {
+      kind: 'tiles',
+      prompt: [say(`Find the cubic with leading coefficient $${lead}$ and roots ${rootList(roots)}, from the sums of its roots.`)],
+      template: `${coefMark(lead)}x^3 {0} {1} {2}`,
+      bank: fillBank(answer, [
+        signedTerm(-p[1], 2),
+        signedTerm(-p[2], 1),
+        signedNum(-p[3]),
+        ...(lead === 1 ? [] : [signedTerm(-s1, 2), signedTerm(s2, 1), signedNum(-s3)]),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    return [
+      { tex: chain(`\\Sigma\\alpha &= ${s1}`, `\\Sigma\\alpha\\beta &= ${s2}`, `\\alpha\\beta\\gamma &= ${s3}`) },
+      { text: 'A monic cubic is $x^{3} - (\\Sigma\\alpha)x^{2} + (\\Sigma\\alpha\\beta)x - \\alpha\\beta\\gamma$, the signs alternating:' },
+      { tex: polyTex(fromRoots(roots)) },
+      ...(lead === 1 ? [] : [{ text: `Then every term times $${lead}$:` }, { tex: polyTex(p) }]),
+    ];
+  },
+};
+
+interface NewRootsParams {
+  roots: number[];
+  /** Each root times m, or each root plus m. */
+  mode: 'scale' | 'shift';
+  m: number;
+}
+
+function newRoots({ roots, mode, m }: NewRootsParams): number[] {
+  return roots.map((r) => (mode === 'scale' ? m * r : r + m));
+}
+
+function newRootsLabel({ mode, m }: NewRootsParams): string {
+  const greek = ['\\alpha', '\\beta', '\\gamma'];
+  return mode === 'scale'
+    ? greek.map((g) => `${coefMark(m)}${g}`).join(', ')
+    : greek.map((g) => `${g} ${signedNum(m)}`).join(', ');
+}
+
+/** The three new coefficients written in terms of the old sums, one bracket each. */
+function newRootsTokens({ roots, mode, m }: NewRootsParams): string[] {
+  const [s1, s2, s3] = rootSums(roots).map((v) => factor(String(v)));
+  const f = factor(String(m));
+  if (mode === 'scale') {
+    return ['x^{3}', `- (${f} \\times ${s1})x^{2}`, `+ (${f}^{2} \\times ${s2})x`, `- (${f}^{3} \\times ${s3})`];
+  }
+  const sign = m > 0 ? '+' : '-';
+  return [
+    'x^{3}',
+    `- (${s1} ${signedNum(3 * m)})x^{2}`,
+    `+ (${s2} ${sign} 2 \\times ${s1} + 3)x`,
+    `- (${s3} ${sign} ${s2} + ${s1} ${signedNum(m)})`,
+  ];
+}
+
+/** A cubic whose roots are 2α, 2β, 2γ (or α + 1, ...), from the old sums, coefficient by coefficient. */
+const polyNewRootsSteps: Generator<NewRootsParams> = {
+  id: 'poly-new-roots-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const roots = sampleRoots(rng, 3, 4);
+      const params: NewRootsParams =
+        difficulty > 1 ? { roots, mode: 'shift', m: rng.pick([1, -1]) } : { roots, mode: 'scale', m: rng.pick([2, -2, 3, -1]) };
+      const [s1, s2] = rootSums(roots);
+      const q = fromRoots(newRoots(params));
+      if (s1 === 0 || s2 === 0 || q.some((c) => c === 0) || !fits(q, 150)) continue;
+      return params;
+    }
+  },
+  choices: (params) => {
+    const q = fromRoots(newRoots(params));
+    const { roots, mode, m } = params;
+    const [s1, s2, s3] = rootSums(roots);
+    const other =
+      mode === 'scale' ? [1, -m * s1, m * s2, -m * s3] : fromRoots(roots.map((r) => r - m));
+    const variants = [[q[0], -q[1], q[2], -q[3]], other, [q[0], q[1], q[2], -q[3]]];
+    return options(
+      { tex: polyTex(q), answer: polyAnswer(q) },
+      ...variants.map((v) => ({ tex: polyTex(v), answer: polyAnswer(v) })),
+    );
+  },
+  render: (params): Slide => {
+    const { roots, mode, m } = params;
+    const p = fromRoots(roots);
+    const [s1, s2, s3] = rootSums(roots);
+    const q = fromRoots(newRoots(params));
+    const start = newRootsTokens(params);
+    // The same bracket worked with the change the wrong way: the power of m
+    // forgotten, or the shift taken off rather than added.
+    const slip =
+      mode === 'scale' ? [1, -m * s1, m * s2, -m * s3] : fromRoots(roots.map((r) => r - m));
+    const shows = [(c: number) => signedTerm(c, 2), (c: number) => signedTerm(c, 1), (c: number) => signedNum(c)];
+    const reductions = [1, 2, 3].map((i) => {
+      const show = shows[i - 1];
+      const value = show(q[i]);
+      const extras = [show(-q[i]), ...(slip[i] !== q[i] && slip[i] !== 0 ? [show(slip[i])] : []), show(q[i] + (i === 3 ? 2 : 1))];
+      return { span: [i, i + 1] as [number, number], value, bank: stepBank(value, ...extras) };
+    });
+    // Last, the line read as one cubic, against the usual slips in the signs.
+    const whole = polyTex(q);
+    reductions.push({
+      span: [0, 4],
+      value: whole,
+      bank: stepBank(whole, polyTex([q[0], -q[1], q[2], -q[3]]), polyTex([q[0], q[1], q[2], -q[3]]), polyTex([q[0], -q[1], -q[2], q[3]])),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$p(x) = ${polyTex(p)}$ has roots ${THREE_ROOTS}, so $\\Sigma\\alpha = ${s1}$, $\\Sigma\\alpha\\beta = ${s2}$ and $\\alpha\\beta\\gamma = ${s3}$. The line below is the cubic with roots $${newRootsLabel(params)}$, written from those sums. Work out each coefficient: tap the part you would do **next**, then choose what it comes to.`,
+        ),
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: (params) => {
+    const { roots, mode, m } = params;
+    const [s1, s2, s3] = rootSums(roots);
+    const [n1, n2, n3] = rootSums(newRoots(params));
+    const lines =
+      mode === 'scale'
+        ? [
+            `&${factor(String(m))} \\times ${factor(String(s1))} = ${n1}`,
+            `&${factor(String(m))}^{2} \\times ${factor(String(s2))} = ${n2}`,
+            `&${factor(String(m))}^{3} \\times ${factor(String(s3))} = ${n3}`,
+          ]
+        : [
+            `&${s1} ${signedNum(3 * m)} = ${n1}`,
+            `&${s2} ${m > 0 ? '+' : '-'} 2 \\times ${factor(String(s1))} + 3 = ${n2}`,
+            `&${s3} ${m > 0 ? '+' : '-'} ${factor(String(s2))} + ${factor(String(s1))} ${signedNum(m)} = ${n3}`,
+          ];
+    return [
+      mode === 'scale'
+        ? { text: `Each root is multiplied by $${m}$, so the sum is multiplied by $${m}$, each product of a pair by $${factor(String(m))}^{2}$, and the product of all three by $${factor(String(m))}^{3}$.` }
+        : { text: `Each root has $${m}$ added. Multiplying out the brackets, the new sums come from the old ones:` },
+      { tex: chain(...lines) },
+      { text: 'Then minus, plus, minus:' },
+      { tex: polyTex(fromRoots(newRoots(params))) },
+    ];
+  },
+};
+
+/** From three roots to the three sums, then each sum to its coefficient. */
+const polyCubicCoeffsTree: Generator<RootsLeadParams> = {
+  id: 'poly-cubic-coeffs-tree',
+  sample: (rng, difficulty) => sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, 100),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    const values = [...sums, p[1], p[2], p[3]];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `The cubic below has roots ${rootList(roots)}. Top row: $\\Sigma\\alpha$, $\\Sigma\\alpha\\beta$ and $\\alpha\\beta\\gamma$. Underneath each, the coefficient it gives: $b = ${coefMark(-lead)}\\Sigma\\alpha$, $c = ${coefMark(lead)}\\Sigma\\alpha\\beta$ and $d = ${coefMark(-lead)}\\alpha\\beta\\gamma$.`,
+        ),
+      ],
+      expression: `${coefMark(lead)}x^{3} + bx^{2} + cx + d`,
+      nodes: [
+        { id: 's1', from: [] },
+        { id: 's2', from: [] },
+        { id: 's3', from: [] },
+        { id: 'b', from: ['s1'] },
+        { id: 'c', from: ['s2'] },
+        { id: 'd', from: ['s3'] },
+      ],
+      bank: numberBank(values, [...values.map((v) => -v)], String, 2),
+      answer: values.map(String),
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    return [
+      { tex: chain(`\\Sigma\\alpha &= ${s1}`, `\\Sigma\\alpha\\beta &= ${s2}`, `\\alpha\\beta\\gamma &= ${s3}`) },
+      { text: `The signs alternate: $b = ${coefMark(-lead)}(${s1}) = ${p[1]}$, $c = ${coefMark(lead)}(${s2}) = ${p[2]}$ and $d = ${coefMark(-lead)}(${s3}) = ${p[3]}$.` },
+      { tex: polyTex(p) },
+    ];
+  },
+};
+
+/** Which cubic has these three sums? */
+const polySumsToCubic: Generator<RootsLeadParams> = {
+  id: 'poly-sums-to-cubic',
+  sample: (rng, difficulty) =>
+    sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, 100, (_, [s1, s2]) => s1 !== 0 && s2 !== 0),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    const a = lead;
+    const variants = [
+      [a, a * s1, a * s2, a * s3],
+      [p[0], p[1], p[2], -p[3]],
+      ...(a === 1 ? [[p[0], p[1], -p[2], p[3]]] : [[a, -s1, s2, -s3]]),
+      [p[0], -p[1], -p[2], p[3]],
+    ];
+    return choiceSlide(
+      [
+        say(
+          `A cubic with leading coefficient $${a}$ has roots with $\\Sigma\\alpha = ${s1}$, $\\Sigma\\alpha\\beta = ${s2}$ and $\\alpha\\beta\\gamma = ${s3}$. Which cubic is it?`,
+        ),
+      ],
+      options({ tex: polyTex(p) }, ...variants.map((v) => ({ tex: polyTex(v) }))).slice(0, 4),
+    );
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    return [
+      { text: 'A monic cubic is $x^{3} - (\\Sigma\\alpha)x^{2} + (\\Sigma\\alpha\\beta)x - \\alpha\\beta\\gamma$:' },
+      { tex: chain(`&x^{3} - (${s1})x^{2} + (${s2})x - (${s3})`, `=\\;&${polyTex(fromRoots(roots))}`) },
+      ...(lead === 1 ? [] : [{ text: `Times $${lead}$:` }, { tex: polyTex(p) }]),
+    ];
+  },
+};
+
+/* ---------- lesson 4: a missing root ---------- */
+
+/** The cubic as TeX with one coefficient replaced by a letter: 2x^3 + kx^2 - 22x + 24. */
+function withLetters(p: Poly, letters: (string | undefined)[]): string {
+  const terms = [termTex(p[0], 3)];
+  for (let k = 1; k <= 3; k += 1) {
+    const letter = letters[k - 1];
+    const power = 3 - k;
+    if (letter) terms.push(`+ ${letter}${power === 0 ? '' : power === 1 ? 'x' : `x^{${power}}`}`);
+    else if (p[k] !== 0) terms.push(signedTerm(p[k], power));
+  }
+  return terms.join(' ');
+}
+
+interface ThirdRootParams extends RootsLeadParams {
+  /** Difficulty 2: the x^2 coefficient is unknown, so the sum of the roots is no use. */
+  unknown: boolean;
+}
+
+/** Two roots given; the third from Σα, or from αβγ when b is unknown. */
+const polyThirdRoot: Generator<ThirdRootParams> = {
+  id: 'poly-third-root',
+  sample: (rng, difficulty) => ({
+    ...sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, 120, (p) => p[2] !== 0),
+    unknown: difficulty > 1,
+  }),
+  render: ({ roots, lead, unknown }): Slide => {
+    const p = fromRoots(roots, lead);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`Two of the roots of $f(x) = 0$ are $${roots[0]}$ and $${roots[1]}$. Find the third root, $\\gamma$.`),
+        show(`f(x) = ${unknown ? withLetters(p, ['k']) : polyTex(p)}`),
+      ],
+      lead: '\\gamma =',
+      keypad: [],
+      answer: String(roots[2]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ roots, lead, unknown }) => {
+    const p = fromRoots(roots, lead);
+    const [r1, r2, r3] = roots;
+    const [s1, , s3] = rootSums(roots);
+    return unknown
+      ? [
+          { text: '$k$ is unknown, so the sum of the roots cannot help. The product can:' },
+          { tex: `\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)} = ${s3}` },
+          { tex: `${r1} \\times ${factor(String(r2))} \\times \\gamma = ${s3}` },
+          { text: `So $\\gamma = ${r3}$.` },
+        ]
+      : [
+          { tex: `\\alpha + \\beta + \\gamma = ${overLead(p[1], p[0], true)} = ${s1}` },
+          { tex: `${r1} ${signedNum(r2)} + \\gamma = ${s1}` },
+          { text: `So $\\gamma = ${r3}$.` },
+        ];
+  },
+};
+
+interface WhichIdentityParams extends RootsLeadParams {
+  /** The one coefficient given: 0 for b, 1 for c, 2 for d. */
+  known: number;
+}
+
+const IDENTITY_LABELS = ['$\\Sigma\\alpha = -\\frac{b}{a}$', '$\\Sigma\\alpha\\beta = \\frac{c}{a}$', '$\\alpha\\beta\\gamma = -\\frac{d}{a}$'];
+const COEFFICIENT_NAMES = ['$x^{2}$', '$x$', 'constant'];
+
+/** Two coefficients unknown, so only one identity finds the third root: which, then what. */
+const polyWhichIdentityFlow: Generator<WhichIdentityParams> = {
+  id: 'poly-which-identity-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, 120);
+      const known = rng.int(0, 2);
+      const [r1, r2] = params.roots;
+      const p = fromRoots(params.roots, params.lead);
+      if (p[known + 1] === 0 || (known === 1 && r1 + r2 === 0)) continue;
+      return { ...params, known };
+    }
+  },
+  render: ({ roots, lead, known }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [r1, r2, gamma] = roots;
+    // Two letters in order: the first unknown is p, the second q.
+    const unknowns = [0, 1, 2].filter((k) => k !== known);
+    const named = [0, 1, 2].map((k) => (k === known ? undefined : unknowns[0] === k ? 'p' : 'q'));
+    const subject = `f(x) = ${withLetters(p, named)}`;
+    // The known identity worked with its sign the wrong way round.
+    const slips: number[] = [];
+    if (known === 0) slips.push(p[1] / p[0] - r1 - r2);
+    if (known === 1) slips.push((-p[2] / p[0] - r1 * r2) / (r1 + r2));
+    if (known === 2) slips.push(p[3] / (p[0] * r1 * r2));
+    const values = [gamma, -gamma, ...slips, gamma + 1].filter(
+      (v, i, all) => Number.isInteger(v) && all.indexOf(v) === i,
+    ).slice(0, 3);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Two of the roots of $f(x) = 0$ are $${r1}$ and $${r2}$, and two coefficients are unknown. Each answer chooses what gets asked next.`),
+      ],
+      subject,
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which identity gives the third root, $\\gamma$?',
+          branches: IDENTITY_LABELS.map((label, k) =>
+            k === known
+              ? { label, to: 'value' }
+              : { label, outcome: `That needs the ${COEFFICIENT_NAMES[k]} coefficient, which is unknown here.` },
+          ),
+        },
+        {
+          id: 'value',
+          ask: 'So what is $\\gamma$?',
+          branches: turned(
+            values.map((v) =>
+              v === gamma
+                ? { label: `$${v}$`, outcome: `$\\gamma = ${v}$, and all three roots are known.` }
+                : { label: `$${v}$`, outcome: `Put $\\gamma = ${v}$ back into the identity: the two sides do not agree.` },
+            ),
+            `${subject}|value`,
+          ),
+        },
+      ],
+      answer: [IDENTITY_LABELS[known], `$${gamma}$`],
+    };
+  },
+  solution: ({ roots, lead, known }) => {
+    const p = fromRoots(roots, lead);
+    const [r1, r2, gamma] = roots;
+    const [s1, s2, s3] = rootSums(roots);
+    const f = (n: number) => factor(String(n));
+    const value = [s1, s2, s3][known];
+    const working = [
+      `${r1} ${signedNum(r2)} + \\gamma &= ${s1}`,
+      `${r1} \\times ${f(r2)} + \\gamma(${r1} ${signedNum(r2)}) &= ${s2}`,
+      `${r1} \\times ${f(r2)} \\times \\gamma &= ${s3}`,
+    ][known];
+    return [
+      { text: `Only the ${COEFFICIENT_NAMES[known]} coefficient is known, so use ${IDENTITY_LABELS[known]}.` },
+      { tex: `${SIGMA_LABELS[known]} = ${overLead(p[known + 1], p[0], known !== 1)} = ${value}` },
+      { tex: working.replace('&', '') },
+      { text: `So $\\gamma = ${gamma}$.` },
+    ];
+  },
+};
+
+/** Roots in arithmetic progression, α - d, α, α + d: 3α from the sum, then d from the product. */
+interface ApParams {
+  m: number;
+  t: number;
+  lead: number;
+}
+
+const apRoots = ({ m, t }: ApParams): number[] => [m - t, m, m + t];
+
+const polyApRootsTree: Generator<ApParams> = {
+  id: 'poly-ap-roots-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const m = nonZero(rng, 4);
+      const t = rng.int(1, 3);
+      const lead = difficulty > 1 ? rng.pick([2, -2, 3, -3]) : rng.pick([1, 1, -1, 2]);
+      const params = { m, t, lead };
+      const roots = apRoots(params);
+      if (roots.some((r) => r === 0 || Math.abs(r) > 5)) continue;
+      if (!fits(fromRoots(roots, lead), 120)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { m, t, lead } = params;
+    const p = fromRoots(apRoots(params), lead);
+    const product = m * (m * m - t * t);
+    const values = [3 * m, product, m, m * m - t * t, t * t, t];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          'The roots of this cubic are $\\alpha - d$, $\\alpha$ and $\\alpha + d$, with $d > 0$. Top row: their sum, which is $3\\alpha$, then their product. Next $\\alpha$, then $\\alpha^{2} - d^{2}$, which is the product divided by $\\alpha$. Last $d^{2}$, and $d$.',
+        ),
+      ],
+      expression: polyTex(p),
+      nodes: [
+        { id: 'sum', from: [] },
+        { id: 'prod', from: [] },
+        { id: 'mid', from: ['sum'] },
+        { id: 'pair', from: ['prod', 'mid'] },
+        { id: 'dd', from: ['mid', 'pair'] },
+        { id: 'd', from: ['dd'] },
+      ],
+      bank: numberBank(values, [-3 * m, -product, -m, m * m + t * t, 2 * t], String, 2),
+      answer: values.map(String),
+    };
+  },
+  solution: (params) => {
+    const { m, t, lead } = params;
+    const p = fromRoots(apRoots(params), lead);
+    const product = m * (m * m - t * t);
+    return [
+      { text: 'The $d$s cancel in the sum:' },
+      { tex: chain('&(\\alpha - d) + \\alpha + (\\alpha + d)', `=\\;&3\\alpha = ${overLead(p[1], p[0], true)} = ${3 * m}`) },
+      { text: `So $\\alpha = ${m}$. The product is $\\alpha(\\alpha^{2} - d^{2}) = ${overLead(p[3], p[0], true)} = ${product}$:` },
+      { tex: chain(`${factor(String(m))}(${factor(String(m))}^{2} - d^{2}) &= ${product}`, `${m * m} - d^{2} &= ${m * m - t * t}`, `d^{2} &= ${t * t}`) },
+      { text: `So $d = ${t}$ and the roots are $${m - t}$, $${m}$ and $${m + t}$.` },
+    ];
+  },
+};
+
+/** An unknown x^2 coefficient: the third root from the product, then k from the sum. */
+const polyMissingCoeffSteps: Generator<RootsLeadParams> = {
+  id: 'poly-missing-coeff-steps',
+  sample: (rng, difficulty) => sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, 120, (p) => p[2] !== 0),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [r1, r2, gamma] = roots;
+    const [s1] = rootSums(roots);
+    const f = (n: number) => factor(String(n));
+    const denominator = `${lead === 1 ? '' : `${f(lead)} \\times `}${f(r1)} \\times ${f(r2)}`;
+    const start = [`k = ${coefMark(-lead)}(`, String(r1), '+', f(r2), '+', `\\frac{${-p[3]}}{${denominator}}`, ')'];
+    const unscaled = -p[3] / (r1 * r2);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Two of the roots of $f(x) = ${withLetters(p, ['k'])} = 0$ are $${r1}$ and $${r2}$. The line below finds $k$: the third root $\\gamma$ from $\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)}$, then $k$ from $\\alpha + \\beta + \\gamma = ${lead === 1 ? '-k' : lead === -1 ? 'k' : `-\\frac{k}{${lead}}`}$. Tap the part you would do **next**, then choose what it comes to.`,
+        ),
+      ],
+      start,
+      reductions: [
+        {
+          span: [5, 6],
+          value: f(gamma),
+          bank: stepBank(f(gamma), f(-gamma), f(gamma + 1), ...(Number.isInteger(unscaled) && unscaled !== gamma ? [f(unscaled)] : [])),
+        },
+        {
+          span: [1, 6],
+          operator: 2,
+          value: String(s1),
+          bank: stepBank(String(s1), String(-s1), String(r1 + r2 - gamma), String(s1 + 2)),
+        },
+        {
+          span: [0, 3],
+          value: `k = ${p[1]}`,
+          bank: stepBank(`k = ${p[1]}`, `k = ${-p[1]}`, `k = ${p[1] + lead}`, `k = ${lead === 1 ? p[1] - 1 : -s1}`),
+        },
+      ],
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [r1, r2, gamma] = roots;
+    const [s1] = rootSums(roots);
+    return [
+      { tex: `\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)} = ${rootSums(roots)[2]}` },
+      { tex: `${r1} \\times ${factor(String(r2))} \\times \\gamma = ${rootSums(roots)[2]}` },
+      { text: `So $\\gamma = ${gamma}$, and the sum of the roots is $${r1} ${signedNum(r2)} ${signedNum(gamma)} = ${s1}$.` },
+      { tex: `${lead === 1 ? '-k' : lead === -1 ? 'k' : `-\\frac{k}{${lead}}`} = ${s1}` },
+      { text: `So $k = ${p[1]}$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 5: symmetric functions ---------- */
+
+interface SymParams extends RootsLeadParams {
+  cubic: boolean;
+}
+
+/** A quadratic at difficulty 1, a cubic at difficulty 2. */
+function sampleSym(rng: Rng, difficulty: number, ok: (sums: number[]) => boolean = () => true): SymParams {
+  if (difficulty > 1) {
+    return { ...sampleCubicRoots(rng, 4, true, 120, (_, sums) => ok(sums)), cubic: true };
+  }
+  return { ...sampleQuadratic(rng, 1, (_, sums) => ok(sums)), cubic: false };
+}
+
+function symRootsText(cubic: boolean): string {
+  return cubic ? THREE_ROOTS : '$\\alpha$ and $\\beta$';
+}
+
+const squaresLabel = (cubic: boolean) =>
+  cubic ? '\\alpha^{2} + \\beta^{2} + \\gamma^{2}' : '\\alpha^{2} + \\beta^{2}';
+const reciprocalLabel = (cubic: boolean) =>
+  cubic ? '\\frac{1}{\\alpha} + \\frac{1}{\\beta} + \\frac{1}{\\gamma}' : '\\frac{1}{\\alpha} + \\frac{1}{\\beta}';
+
+/** The sum of the squares of the roots, (Σα)² - 2Σαβ. */
+const polySumSquares: Generator<SymParams> = {
+  id: 'poly-sum-squares',
+  sample: (rng, difficulty) => sampleSym(rng, difficulty),
+  choices: ({ roots }) => {
+    const [s, e] = rootSums(roots);
+    return intOptions(s * s - 2 * e, [s * s + 2 * e, s * s, s * s - e, 2 * e - s * s], 0);
+  },
+  render: ({ roots, lead, cubic }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s, e] = rootSums(roots);
+    return {
+      kind: 'expression',
+      prompt: [say(`${symRootsText(cubic)} are the roots of $${polyTex(p)} = 0$. Find $${squaresLabel(cubic)}$ without solving.`)],
+      lead: `${squaresLabel(cubic)} =`,
+      keypad: [],
+      answer: String(s * s - 2 * e),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ roots, lead, cubic }) => {
+    const p = fromRoots(roots, lead);
+    const [s, e] = rootSums(roots);
+    const sum = cubic ? '\\Sigma\\alpha' : '(\\alpha + \\beta)';
+    const pairs = cubic ? '\\Sigma\\alpha\\beta' : '\\alpha\\beta';
+    return [
+      { text: `Squaring the sum gives every square once and every pair product twice, so` },
+      { tex: `${cubic ? '\\Sigma\\alpha^{2}' : squaresLabel(false)} = ${cubic ? '(\\Sigma\\alpha)' : sum}^{2} - 2${pairs}` },
+      { text: `From the coefficients, $${cubic ? '\\Sigma\\alpha' : '\\alpha + \\beta'} = ${overLead(p[1], p[0], true)} = ${s}$ and $${pairs} = ${overLead(p[2], p[0], false)} = ${e}$.` },
+      { tex: chain(`&(${s})^{2} - 2(${e})`, `=\\;&${s * s - 2 * e}`) },
+    ];
+  },
+};
+
+/** The sum of the reciprocals of the roots, Σαβ / αβγ (or (α + β) / αβ). */
+const polyReciprocalSum: Generator<SymParams> = {
+  id: 'poly-reciprocal-sum',
+  sample: (rng, difficulty) => sampleSym(rng, difficulty),
+  choices: ({ roots, cubic }) => {
+    const sums = rootSums(roots);
+    const n = cubic ? sums[1] : sums[0];
+    const d = cubic ? sums[2] : sums[1];
+    const slips: [number, number][] = [[-n, d], [cubic ? sums[0] : n + d, d], [1, d]];
+    if (n !== 0) slips.unshift([d, n]);
+    return options(
+      { tex: fracTex(n, d), answer: fracAnswer(n, d) },
+      ...slips.filter(([a, b]) => a * d !== b * n).map(([a, b]) => ({ tex: fracTex(a, b), answer: fracAnswer(a, b) })),
+    ).slice(0, 4);
+  },
+  render: ({ roots, lead, cubic }): Slide => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    const n = cubic ? sums[1] : sums[0];
+    const d = cubic ? sums[2] : sums[1];
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${symRootsText(cubic)} are the roots of $${polyTex(p)} = 0$. Find $${reciprocalLabel(cubic)}$ without solving, as a fraction if it is not whole.`),
+      ],
+      lead: `${reciprocalLabel(cubic)} =`,
+      keypad: [{ insert: '/' }],
+      answer: fracAnswer(n, d),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ roots, lead, cubic }) => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    return cubic
+      ? [
+          { text: 'Over a common denominator, $\\alpha\\beta\\gamma$:' },
+          { tex: chain('\\Sigma\\frac{1}{\\alpha} &= \\frac{\\beta\\gamma + \\gamma\\alpha + \\alpha\\beta}{\\alpha\\beta\\gamma}', '&= \\frac{\\Sigma\\alpha\\beta}{\\alpha\\beta\\gamma}') },
+          { text: `$\\Sigma\\alpha\\beta = ${overLead(p[2], p[0], false)} = ${sums[1]}$ and $\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)} = ${sums[2]}$.` },
+          { tex: `\\frac{${sums[1]}}{${sums[2]}} = ${fracTex(sums[1], sums[2])}` },
+        ]
+      : [
+          { text: 'Over a common denominator, $\\alpha\\beta$:' },
+          { tex: `${reciprocalLabel(false)} = \\frac{\\alpha + \\beta}{\\alpha\\beta}` },
+          { text: `$\\alpha + \\beta = ${overLead(p[1], p[0], true)} = ${sums[0]}$ and $\\alpha\\beta = ${overLead(p[2], p[0], false)} = ${sums[1]}$.` },
+          { tex: `\\frac{${sums[0]}}{${sums[1]}} = ${fracTex(sums[0], sums[1])}` },
+        ];
+  },
+};
+
+/** The identity for the sum of squares, its pieces placed as numbers. */
+const polySquareIdentityTiles: Generator<SymParams> = {
+  id: 'poly-square-identity-tiles',
+  sample: (rng, difficulty) => sampleSym(rng, difficulty),
+  render: ({ roots, lead, cubic }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s, e] = rootSums(roots);
+    const values = [s, e, s * s - 2 * e];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `${symRootsText(cubic)} are the roots of $${polyTex(p)} = 0$. Fill in ${cubic ? '$\\Sigma\\alpha$, then $\\Sigma\\alpha\\beta$' : '$\\alpha + \\beta$, then $\\alpha\\beta$'}, then the answer.`,
+        ),
+      ],
+      template: cubic ? '\\Sigma\\alpha^2 = ({0})^2 - 2({1}) = {2}' : '\\alpha^2 + \\beta^2 = ({0})^2 - 2({1}) = {2}',
+      bank: numberBank(values, [-s, -e, s * s + 2 * e, s * s, p[1], p[2]]),
+      answer: values.map(String),
+    };
+  },
+  solution: ({ roots, lead, cubic }) => {
+    const p = fromRoots(roots, lead);
+    const [s, e] = rootSums(roots);
+    return [
+      { text: `From the coefficients, the sum is $${overLead(p[1], p[0], true)} = ${s}$ and the ${cubic ? 'sum of pair products' : 'product'} is $${overLead(p[2], p[0], false)} = ${e}$.` },
+      { tex: chain(`${cubic ? '\\Sigma\\alpha^{2}' : squaresLabel(false)} &= (${s})^{2} - 2(${e})`, `&= ${s * s - 2 * e}`) },
+    ];
+  },
+};
+
+/** From a cubic's coefficients: the three sums, then Σα² and Σ1/α from them. */
+const polySymmetricTree: Generator<RootsLeadParams> = {
+  id: 'poly-symmetric-tree',
+  sample: (rng, difficulty) => sampleCubicRoots(rng, difficulty > 1 ? 5 : 4, difficulty > 1, 100),
+  render: ({ roots, lead }): Slide => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    const answer = [s1, s2, s3, s1 * s1].map(String).concat([fracTex(s2, s3), String(s1 * s1 - 2 * s2)]);
+    const slips = [
+      String(-s1),
+      String(-s2),
+      String(-s3),
+      String(s1 * s1 + 2 * s2),
+      fracTex(-s2, s3),
+      ...(s2 === 0 ? [fracTex(s1, s3)] : [fracTex(s3, s2)]),
+      String(s1 * s1 - s2),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${THREE_ROOTS} are the roots of this cubic. Top row: $\\Sigma\\alpha$, $\\Sigma\\alpha\\beta$ and $\\alpha\\beta\\gamma$. Next $(\\Sigma\\alpha)^{2}$ and $\\Sigma\\frac{1}{\\alpha} = \\frac{\\Sigma\\alpha\\beta}{\\alpha\\beta\\gamma}$. Last $\\Sigma\\alpha^{2} = (\\Sigma\\alpha)^{2} - 2\\Sigma\\alpha\\beta$.`,
+        ),
+      ],
+      expression: `${polyTex(p)} = 0`,
+      nodes: [
+        { id: 's1', from: [] },
+        { id: 's2', from: [] },
+        { id: 's3', from: [] },
+        { id: 'sq', from: ['s1'] },
+        { id: 'rec', from: ['s2', 's3'] },
+        { id: 'ss', from: ['sq', 's2'] },
+      ],
+      bank: fillBank(answer, slips),
+      answer,
+    };
+  },
+  solution: ({ roots, lead }) => {
+    const p = fromRoots(roots, lead);
+    const [s1, s2, s3] = rootSums(roots);
+    return [
+      { tex: chain(...[0, 1, 2].map((k) => cubicIdentityStep(p, k).replace(' = ', ' &= '))) },
+      { tex: `\\Sigma\\frac{1}{\\alpha} = \\frac{${s2}}{${s3}} = ${fracTex(s2, s3)}` },
+      { tex: `\\Sigma\\alpha^{2} = (${s1})^{2} - 2(${s2}) = ${s1 * s1 - 2 * s2}` },
+    ];
+  },
+};
+
+/** Σ1/α as a division of two coefficient ratios, worked one piece at a time. */
+const polyRecipDivideSteps: Generator<SymParams> = {
+  id: 'poly-recip-divide-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      if (difficulty > 1) {
+        const params = sampleSym(rng, 2, ([, s2]) => s2 !== 0);
+        return params;
+      }
+      const roots = sampleRoots(rng, 2, 5);
+      const lead = rng.pick([2, -2, 3, -3]);
+      const [s] = rootSums(roots);
+      if (s === 0 || !fits(fromRoots(roots, lead), 60)) continue;
+      return { roots, lead, cubic: false };
+    }
+  },
+  render: ({ roots, lead, cubic }): Slide => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    const [n, d] = cubic ? [sums[1], sums[2]] : [sums[0], sums[1]];
+    const [top, bottom] = cubic
+      ? [`\\frac{${p[2]}}{${p[0]}}`, `(-\\frac{${p[3]}}{${p[0]}})`]
+      : [`-\\frac{${p[1]}}{${p[0]}}`, `\\frac{${p[2]}}{${p[0]}}`];
+    const [rawTop, rawBottom] = cubic ? [p[2], p[3]] : [p[1], p[2]];
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `${symRootsText(cubic)} are the roots of $${polyTex(p)} = 0$. The line below is $${reciprocalLabel(cubic)} = \\frac{${cubic ? '\\Sigma\\alpha\\beta' : '\\alpha + \\beta'}}{${cubic ? '\\alpha\\beta\\gamma' : '\\alpha\\beta'}}$ from the coefficients. Tap the part you would do **next**, then choose what it comes to.`,
+        ),
+      ],
+      start: [top, '\\div', bottom],
+      reductions: [
+        { span: [0, 1], value: String(n), bank: stepBank(String(n), String(-n), String(rawTop), String(n + 1)) },
+        {
+          span: [2, 3],
+          value: productNum(d),
+          bank: stepBank(productNum(d), productNum(-d), productNum(rawBottom), productNum(d + 1)),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: fracTex(n, d),
+          bank: stepBank(fracTex(n, d), fracTex(d, n), fracTex(-n, d), String(n * d)),
+        },
+      ],
+    };
+  },
+  solution: ({ roots, lead, cubic }) => {
+    const p = fromRoots(roots, lead);
+    const sums = rootSums(roots);
+    const [n, d] = cubic ? [sums[1], sums[2]] : [sums[0], sums[1]];
+    return [
+      { tex: `${reciprocalLabel(cubic)} = \\frac{${cubic ? '\\Sigma\\alpha\\beta' : '\\alpha + \\beta'}}{${cubic ? '\\alpha\\beta\\gamma' : '\\alpha\\beta'}}` },
+      cubic
+        ? { text: `$\\Sigma\\alpha\\beta = ${overLead(p[2], p[0], false)} = ${n}$ and $\\alpha\\beta\\gamma = ${overLead(p[3], p[0], true)} = ${d}$.` }
+        : { text: `$\\alpha + \\beta = ${overLead(p[1], p[0], true)} = ${n}$ and $\\alpha\\beta = ${overLead(p[2], p[0], false)} = ${d}$.` },
+      { tex: `${n} \\div ${productNum(d)} = ${fracTex(n, d)}` },
+    ];
+  },
+};
+
 export const polynomialGenerators = [
   polyDegree,
   polyNameFlow,
@@ -4336,4 +5515,25 @@ export const polynomialGenerators = [
   polyFindLead,
   polySketchExpandSteps,
   polyDescribeGraph,
+  polyRootsSumProduct,
+  polySumProductTiles,
+  polyQuadCoeffsTree,
+  polyRootSigns,
+  polyCubicSumsTree,
+  polyCubicVieta,
+  polyVietaFlow,
+  polyCubicIdentityTiles,
+  polyRootsToCubicTiles,
+  polyNewRootsSteps,
+  polyCubicCoeffsTree,
+  polySumsToCubic,
+  polyThirdRoot,
+  polyWhichIdentityFlow,
+  polyApRootsTree,
+  polyMissingCoeffSteps,
+  polySumSquares,
+  polyReciprocalSum,
+  polySquareIdentityTiles,
+  polySymmetricTree,
+  polyRecipDivideSteps,
 ];

@@ -6,7 +6,8 @@
  * negative index has to mean a reciprocal and a fractional one has to mean a
  * root if the laws are to survive; then surds, which is that second idea used
  * in anger; then standard form, where powers of ten carry the size of very
- * large and very small numbers.
+ * large and very small numbers; and last, surds back inside expressions —
+ * brackets, conjugates, equations and exact lengths.
  *
  * Each level closes with a level check: twelve to fourteen questions, no
  * teaching slides, one attempt each.
@@ -945,6 +946,269 @@ export const exponentsRadicals: Course = {
         ask('sf-compare', 2),
         ask('sf-times-bigger+choice', 2),
         ask('sf-estimate', 2),
+      ],
+    },
+    {
+      id: 'er-l5',
+      title: 'Manipulating Surd Expressions',
+      lessons: [
+        {
+          id: 'er-l5-bracket',
+          title: 'Expanding a Bracket',
+          slides: [
+            teach(
+              prose(
+                'Level 3 simplified single surds. Now surds sit in brackets with whole numbers, and the aim is always one tidy shape: a whole number plus a multiple of one surd, like $7 + 3\\sqrt{2}$.',
+              ),
+              prose('A number outside a bracket multiplies **every** term inside it, exactly as in algebra.'),
+              maths('3(4 + 2\\sqrt{5}) = 3 \\times 4 + 3 \\times 2\\sqrt{5} = 12 + 6\\sqrt{5}'),
+              prose(
+                'Each term is a product, and level 3 settled how surds multiply: $\\sqrt{a} \\times \\sqrt{b} = \\sqrt{ab}$, and $\\sqrt{a} \\times \\sqrt{a} = a$ exactly.',
+              ),
+            ),
+            ask('rad-expand-single'),
+            ask('rad-product-flow'),
+            ask('rad-expand-single+choice'),
+            teach(
+              prose(
+                'A root outside the bracket multiplies each term too. When it meets the same root inside, the pair becomes a whole number, which moves to the front.',
+              ),
+              maths('\\sqrt{3}(2\\sqrt{3} + 5) = 2 \\times 3 + 5\\sqrt{3} = 6 + 5\\sqrt{3}'),
+              prose(
+                'When the roots differ, multiply under one root and check for a square factor before moving on: $\\sqrt{6} \\times \\sqrt{3} = \\sqrt{18} = 3\\sqrt{2}$.',
+              ),
+            ),
+            ask('rad-root-bracket-tree'),
+            ask('rad-product-flow', 2),
+            ask('rad-root-bracket-tree', 2),
+            teach(
+              prose(
+                'With two brackets to expand, do each one, then collect: whole numbers with whole numbers, and multiples of the same surd with each other.',
+              ),
+              maths(
+                '2(3 + \\sqrt{7}) + 4(1 - 2\\sqrt{7}) = 6 + 2\\sqrt{7} + 4 - 8\\sqrt{7} = 10 - 6\\sqrt{7}',
+              ),
+              prose(
+                'A minus in front of a bracket changes the sign of both its terms, just as it would in algebra.',
+              ),
+            ),
+            ask('rad-collect'),
+            ask('rad-collect', 2),
+          ],
+          skillCheck: [
+            ask('rad-expand-single', 2),
+            ask('rad-root-bracket-tree', 2),
+            ask('rad-collect', 2),
+          ],
+        },
+        {
+          id: 'er-l5-double',
+          title: 'Expanding Two Brackets',
+          slides: [
+            teach(
+              prose(
+                'Two brackets multiply the way they do in algebra: every term in the first times every term in the second, four products in all.',
+              ),
+              maths('(3 + \\sqrt{2})(4 + \\sqrt{2}) = 12 + 3\\sqrt{2} + 4\\sqrt{2} + 2'),
+              prose(
+                'The last product is $\\sqrt{2} \\times \\sqrt{2} = 2$, a whole number, so it joins the 12. The two middle terms are like surds and collect.',
+              ),
+              maths('= 14 + 7\\sqrt{2}'),
+            ),
+            ask('rad-expand-double'),
+            ask('rad-product-flow'),
+            ask('rad-expand-double+choice'),
+            teach(
+              prose(
+                'Squaring a bracket is multiplying it by itself, so it has the same four products, and the two middle ones are equal.',
+              ),
+              maths('(3 + \\sqrt{5})^{2} = 9 + 3\\sqrt{5} + 3\\sqrt{5} + 5 = 14 + 6\\sqrt{5}'),
+              prose(
+                'So a square is the first term squared, **twice** the product of the terms, and the second term squared. Writing $9 + 5$ and stopping is the classic slip: it loses the middle.',
+              ),
+            ),
+            ask('rad-square-tree'),
+            ask('rad-product-flow', 2),
+            ask('rad-square-tree', 2),
+            teach(
+              prose('Now change one sign. The two middle products are equal and opposite, and cancel.'),
+              maths('(3 + \\sqrt{5})(3 - \\sqrt{5}) = 9 - 3\\sqrt{5} + 3\\sqrt{5} - 5 = 4'),
+              prose(
+                'This is the **difference of two squares**, $(a + b)(a - b) = a^{2} - b^{2}$. With a surd as $b$ its square is whole, so no root survives. The next lesson puts that to work.',
+              ),
+            ),
+            ask('rad-conjugate-product'),
+            ask('rad-conjugate-product+choice'),
+          ],
+          skillCheck: [
+            ask('rad-expand-double', 2),
+            ask('rad-square-tree', 2),
+            ask('rad-conjugate-product', 2),
+          ],
+        },
+        {
+          id: 'er-l5-conjugate',
+          title: 'Rationalising with the Conjugate',
+          slides: [
+            teach(
+              prose(
+                'Level 3 cleared a root from a denominator by multiplying by that root. With two terms underneath that no longer works: $(2 + \\sqrt{3}) \\times \\sqrt{3} = 2\\sqrt{3} + 3$ still has a root in it.',
+              ),
+              prose(
+                'Multiply instead by the **conjugate**: the same two terms with the sign between them changed. The bottom becomes a difference of two squares, which is whole.',
+              ),
+              maths(
+                '\\frac{7}{3 + \\sqrt{2}} \\times \\frac{3 - \\sqrt{2}}{3 - \\sqrt{2}} = \\frac{7(3 - \\sqrt{2})}{9 - 2} = 3 - \\sqrt{2}',
+              ),
+            ),
+            ask('rad-pick-conjugate'),
+            ask('rad-conjugate-product'),
+            ask('rad-conjugate-tree'),
+            teach(
+              prose(
+                'Work the top and the bottom separately. The bottom is always a whole number; the top is an ordinary single-bracket expansion.',
+              ),
+              maths(
+                '\\frac{12}{4 - \\sqrt{10}} = \\frac{12(4 + \\sqrt{10})}{16 - 10} = \\frac{48 + 12\\sqrt{10}}{6} = 8 + 2\\sqrt{10}',
+              ),
+              prose(
+                'Finish by dividing **both** terms on top by the bottom. Dividing only the whole number gives an easy, half-done answer.',
+              ),
+            ),
+            ask('rad-binomial-rationalise-steps'),
+            ask('rad-pick-conjugate', 2),
+            ask('rad-binomial-rationalise'),
+            teach(
+              prose('The bottom can come out negative, when the surd part is the bigger square.'),
+              maths(
+                '\\frac{2}{1 + \\sqrt{3}} = \\frac{2(1 - \\sqrt{3})}{1 - 3} = \\frac{2 - 2\\sqrt{3}}{-2} = -1 + \\sqrt{3}',
+              ),
+              prose(
+                'Dividing by a negative flips the sign of both terms. The answer is positive, as it must be: $\\sqrt{3}$ is about 1.73, so $-1 + \\sqrt{3}$ is about 0.73.',
+              ),
+            ),
+            ask('rad-conjugate-tree', 2),
+            ask('rad-conjugate-product+choice', 2),
+          ],
+          skillCheck: [
+            ask('rad-binomial-rationalise', 2),
+            ask('rad-conjugate-tree', 2),
+            ask('rad-binomial-rationalise+choice', 2),
+          ],
+        },
+        {
+          id: 'er-l5-form',
+          title: 'Equations and the Form a + b√c',
+          slides: [
+            teach(
+              prose(
+                'Surd answers are usually given in one standard shape, $a + b\\sqrt{c}$: a whole number plus a whole multiple of a single surd, with $c$ as small as it can be.',
+              ),
+              prose(
+                'Getting there takes up to three checks, in this order: clear any root from a denominator, simplify any root hiding a square, then collect like surds.',
+              ),
+              maths('\\sqrt{12} + 5 - \\sqrt{3} = 2\\sqrt{3} + 5 - \\sqrt{3} = 5 + \\sqrt{3}'),
+              prose(
+                'Once it is in the form, $a$ and $b$ can be read off: here $a = 5$ and $b = 1$. A bare $\\sqrt{3}$ counts as $1\\sqrt{3}$, and a subtracted surd gives a negative $b$.',
+              ),
+            ),
+            ask('rad-form-flow'),
+            ask('rad-read-off'),
+            ask('rad-form-flow', 2),
+            teach(
+              prose(
+                'An equation with surd coefficients is solved the ordinary way: get $x$ on its own, then tidy the answer into the form.',
+              ),
+              maths(
+                'x\\sqrt{3} = 6 + 2\\sqrt{3} \\quad\\Rightarrow\\quad x = \\frac{6}{\\sqrt{3}} + \\frac{2\\sqrt{3}}{\\sqrt{3}}',
+              ),
+              prose(
+                'Divide each term by $\\sqrt{3}$ separately. The second is simply 2; the first is rationalised as in level 3, $\\frac{6\\sqrt{3}}{3} = 2\\sqrt{3}$. So $x = 2 + 2\\sqrt{3}$. If a number is added to the $x$ term, subtract it from both sides first.',
+              ),
+            ),
+            ask('rad-divide-surd-steps'),
+            ask('rad-surd-equation'),
+            ask('rad-divide-surd-steps', 2),
+            teach(
+              prose(
+                'When $x$ appears on both sides, gather the $x$ terms and factorise. What is left to divide by is a two-term surd, so the conjugate finishes the job.',
+              ),
+              maths(
+                'x\\sqrt{3} = x + 4 \\;\\Rightarrow\\; x(\\sqrt{3} - 1) = 4 \\;\\Rightarrow\\; x = \\frac{4(\\sqrt{3} + 1)}{3 - 1} = 2 + 2\\sqrt{3}',
+              ),
+            ),
+            ask('rad-surd-equation+choice', 2),
+            ask('rad-read-off', 2),
+          ],
+          skillCheck: [
+            ask('rad-surd-equation', 2),
+            ask('rad-read-off', 2),
+            ask('rad-form-flow', 2),
+          ],
+        },
+        {
+          id: 'er-l5-geometry',
+          title: 'Surds in Geometry',
+          slides: [
+            teach(
+              prose(
+                'Pythagoras is where surds turn up most naturally. A right-angled triangle with shorter sides 2 and 4 has a longest side of $\\sqrt{2^{2} + 4^{2}} = \\sqrt{20}$.',
+              ),
+              maths('\\sqrt{20} = \\sqrt{4 \\times 5} = 2\\sqrt{5}'),
+              prose(
+                'That is the **exact** length. A calculator gives 4.472…, which is rounded, and every step built on it inherits the rounding. Keep lengths as simplified surds until the very end.',
+              ),
+              prose('A size check still helps: $\\sqrt{20}$ is between 4 and 5, since $16 < 20 < 25$.'),
+            ),
+            ask('rad-pythag'),
+            ask('rad-diagonal-slider'),
+            ask('rad-pythag+choice'),
+            teach(
+              prose(
+                'A perimeter adds side lengths, and a side such as $3 + \\sqrt{2}$ is two terms. Adding sides is collecting like terms.',
+              ),
+              maths('2(3 + \\sqrt{2}) + 2(1 + 2\\sqrt{2}) = 6 + 2\\sqrt{2} + 2 + 4\\sqrt{2} = 8 + 6\\sqrt{2}'),
+              prose(
+                'That is the perimeter of a $3 + \\sqrt{2}$ by $1 + 2\\sqrt{2}$ rectangle. The whole numbers and the surds stay apart: $8 + 6\\sqrt{2}$ is not 14 of anything.',
+              ),
+            ),
+            ask('rad-perimeter'),
+            ask('rad-diagonal-slider', 2),
+            ask('rad-perimeter', 2),
+            teach(
+              prose(
+                'An area multiplies side lengths, so it is a bracket expansion, and a surd times the same surd turns whole.',
+              ),
+              maths('(2 + \\sqrt{3})(4 + \\sqrt{3}) = 8 + 2\\sqrt{3} + 4\\sqrt{3} + 3 = 11 + 6\\sqrt{3}'),
+              prose(
+                'A square is a bracket squared, so remember the doubled middle term. A triangle is half the base times the height, and a 2 in the base cancels the half.',
+              ),
+            ),
+            ask('rad-rect-area'),
+            ask('rad-rect-area', 2),
+          ],
+          skillCheck: [
+            ask('rad-pythag', 2),
+            ask('rad-perimeter', 2),
+            ask('rad-rect-area', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('rad-expand-single', 2),
+        ask('rad-root-bracket-tree', 2),
+        ask('rad-collect', 2),
+        ask('rad-expand-double+choice', 2),
+        ask('rad-square-tree', 2),
+        ask('rad-conjugate-product', 2),
+        ask('rad-pick-conjugate', 2),
+        ask('rad-binomial-rationalise', 2),
+        ask('rad-conjugate-tree', 2),
+        ask('rad-surd-equation', 2),
+        ask('rad-read-off', 2),
+        ask('rad-form-flow', 2),
+        ask('rad-pythag', 2),
+        ask('rad-rect-area', 2),
       ],
     },
   ],

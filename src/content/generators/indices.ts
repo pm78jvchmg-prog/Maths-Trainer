@@ -24,6 +24,7 @@ import { plotSvg } from '../figures';
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
+import { surdAnswer, surdTex } from './format';
 import type { Rng } from '../../engine/rng';
 
 /** Index work needs the algebra keys plus a root. */
@@ -3404,6 +3405,1821 @@ const sfEstimate: Generator<EstimateParams> = {
   },
 };
 
+/* ---------- Level 5: manipulating surd expressions ---------- */
+
+/*
+ * Everything in this level ends in the form p + q√d, and one rule shapes how it
+ * is asked. The checker compares values, so a typed expansion would accept the
+ * question typed straight back — `3(2 + sqrt(5))` equals its own expansion.
+ * Where the form is the skill, the answer is placed as tiles or picked from
+ * options. Typed answers here are whole numbers only (a part read off, or a
+ * product that comes out rational), on a keypad with no root key, so there is
+ * no question to type back.
+ */
+
+/** Radicands for the easier draws: small and square-free. */
+const FREE_EASY: number[] = SURD_FREE.slice(0, 6);
+
+/** Radicands for the harder draws. */
+const FREE_HARD: number[] = SURD_FREE.slice(0, 12);
+
+/** Whole-number answers need digits and a minus sign, and nothing to type a root with. */
+const WHOLE_KEYS: KeypadKey[] = [];
+
+/** k√m as it is written by hand: √5, 3√5. */
+function kSurd(k: number, m: number): string {
+  return k === 1 ? `\\sqrt{${m}}` : `${k}\\sqrt{${m}}`;
+}
+
+/** p + q√m as the learner reads it, with the sign folded in: 4 - 3√2, -1 + √7. */
+function formTex(p: number, q: number, m: number): string {
+  if (q === 0) return `${p}`;
+  const surd = kSurd(Math.abs(q), m);
+  if (p === 0) return q < 0 ? `-${surd}` : surd;
+  return `${p} ${q < 0 ? '-' : '+'} ${surd}`;
+}
+
+/** The same value for mathjs. Never displayed. */
+function formAnswer(p: number, q: number, m: number): string {
+  return `(${p}) + (${q}) * sqrt(${m})`;
+}
+
+/** `+` or `-` for a sign, as it sits between two terms. */
+function signOf(sign: number): string {
+  return sign < 0 ? '-' : '+';
+}
+
+/** A leading minus for a negative sign, nothing for a positive one. */
+function minus(sign: number): string {
+  return sign < 0 ? '-' : '';
+}
+
+/**
+ * A tiles template and answer for p + q√m: the whole number in the first blank,
+ * the surd in the second, and the sign between them written into the template.
+ */
+function formTiles(p: number, q: number, m: number, before = '', after = '') {
+  return {
+    template: `${before}{0} ${signOf(q)} {1}${after}`,
+    answer: [`${p}`, kSurd(Math.abs(q), m)],
+  };
+}
+
+/** The largest k with k^2 dividing n. */
+function squarePart(n: number): number {
+  let k = 1;
+  for (let f = 2; f * f <= n; f += 1) if (n % (f * f) === 0) k = f;
+  return k;
+}
+
+/* Expanding a single bracket */
+
+interface ExpandSingleParams {
+  /** `number`: a(b ± c√d). `root`: √d(c√d ± b). */
+  shape: 'number' | 'root';
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  sign: number;
+}
+
+/** The expansion as p + q√d. */
+function expandSingle({ shape, a, b, c, d, sign }: ExpandSingleParams): { p: number; q: number } {
+  return shape === 'number' ? { p: a * b, q: sign * a * c } : { p: c * d, q: sign * b };
+}
+
+function expandSingleTex({ shape, a, b, c, d, sign }: ExpandSingleParams): string {
+  return shape === 'number'
+    ? `${a}(${b} ${signOf(sign)} ${kSurd(c, d)})`
+    : `\\sqrt{${d}}(${kSurd(c, d)} ${signOf(sign)} ${b})`;
+}
+
+/**
+ * One bracket multiplied out, the whole number placed first.
+ *
+ * Two shapes, because they go wrong in different places. A number outside
+ * multiplies both terms and the slip is forgetting the second one; a root
+ * outside meets a matching root inside, and the slip is not seeing that
+ * √d × √d is the whole number d — which is also what moves that term to the
+ * front of the answer.
+ */
+const expandSingleBracket: Generator<ExpandSingleParams> = {
+  id: 'rad-expand-single',
+  choices: (params) => {
+    const { shape, a, b, c, d, sign } = params;
+    const { p, q } = expandSingle(params);
+    const right = { tex: formTex(p, q, d), answer: formAnswer(p, q, d) };
+    if (shape === 'number') {
+      return options(
+        right,
+        { tex: formTex(a * b, sign * c, d), answer: formAnswer(a * b, sign * c, d) },
+        { tex: formTex(b, sign * a * c, d), answer: formAnswer(b, sign * a * c, d) },
+        { tex: formTex(a + b, sign * (a + c), d), answer: formAnswer(a + b, sign * (a + c), d) },
+      );
+    }
+    return options(
+      right,
+      { tex: formTex(c, sign * b, d), answer: formAnswer(c, sign * b, d) },
+      { tex: `${c * d} ${signOf(sign)} ${b}`, answer: `(${c * d}) + (${sign * b})` },
+      { tex: formTex(c * d * d, sign * b, d), answer: formAnswer(c * d * d, sign * b, d) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      shape: rng.chance(hard ? 0.5 : 0.25) ? 'root' : 'number',
+      a: rng.int(2, hard ? 9 : 6),
+      b: rng.int(1, 9),
+      c: rng.int(1, hard ? 5 : 3),
+      d: rng.pick(hard ? FREE_HARD : FREE_EASY),
+      sign: hard ? rng.sign() : rng.chance(0.3) ? -1 : 1,
+    };
+  },
+  render: (params): Slide => {
+    const { shape, a, b, c, d } = params;
+    const { p, q } = expandSingle(params);
+    const { template, answer } = formTiles(p, q, d);
+    const distractors =
+      shape === 'number'
+        ? [`${b}`, kSurd(c, d), `${a + b}`, kSurd(a + c, d)]
+        : [`${c}`, `${c * d * d}`, `\\sqrt{${b * d}}`, `${b}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Expand the bracket and simplify. Put the whole number first.' },
+        { kind: 'display', tex: expandSingleTex(params) },
+      ],
+      template,
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { shape, a, b, c, d, sign } = params;
+    const { p, q } = expandSingle(params);
+    if (shape === 'number') {
+      return [
+        { text: `The $${a}$ outside multiplies **both** terms inside the bracket.` },
+        {
+          tex: `${a} \\times ${b} = ${a * b} \\qquad ${a} \\times ${kSurd(c, d)} = ${kSurd(a * c, d)}`,
+        },
+        { tex: `${expandSingleTex(params)} = ${formTex(p, q, d)}` },
+        {
+          text: `Multiplying only the first term would leave $${formTex(a * b, sign * c, d)}$, which is short by a factor of $${a}$ in the surd.`,
+        },
+      ];
+    }
+    return [
+      { text: `The $\\sqrt{${d}}$ outside multiplies both terms inside.` },
+      {
+        tex: `\\sqrt{${d}} \\times ${kSurd(c, d)} = ${c} \\times ${d} = ${c * d} \\qquad \\sqrt{${d}} \\times ${b} = ${kSurd(b, d)}`,
+      },
+      {
+        text: `A root times itself is the number underneath, so the first product is a whole number. That is why it goes at the front: $${formTex(p, q, d)}$.`,
+      },
+    ];
+  },
+};
+
+/* Deciding what a product of two surd terms comes to */
+
+interface ProductFlowParams {
+  route: 'same' | 'square' | 'plain';
+  p: number;
+  q: number;
+  m: number;
+  n: number;
+}
+
+/** Pairs of different radicands whose product hides a square, and pairs whose product does not. */
+const RADICAND_PAIRS = FREE_HARD.flatMap((m) =>
+  FREE_HARD.filter((n) => n > m && m * n <= 150).map((n) => ({ m, n })),
+);
+const SQUARE_PAIRS = RADICAND_PAIRS.filter(({ m, n }) => squarePart(m * n) > 1);
+const PLAIN_PAIRS = RADICAND_PAIRS.filter(({ m, n }) => squarePart(m * n) === 1);
+
+/**
+ * Multiplying two surd terms: is the result whole, a surd that simplifies, or a
+ * surd that stays as it is?
+ *
+ * Every term of an expansion is one of these products, and the three answers
+ * send the term to different places — a whole number joins the other whole
+ * numbers, a surd joins the surds. Asked as a decision rather than a sum so the
+ * learner says *why* before saying what.
+ */
+const productFlow: Generator<ProductFlowParams> = {
+  id: 'rad-product-flow',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['same', 'square', 'plain'] as const);
+    const top = difficulty > 1 ? 5 : 3;
+    const p = rng.int(1, top);
+    const q = rng.int(1, top);
+    if (route === 'same') {
+      const m = rng.pick(difficulty > 1 ? FREE_HARD : FREE_EASY);
+      return { route, p, q, m, n: m };
+    }
+    const pool = (route === 'square' ? SQUARE_PAIRS : PLAIN_PAIRS).filter(
+      ({ m, n }) => difficulty > 1 || m * n <= 42,
+    );
+    const { m, n } = rng.pick(pool);
+    return rng.chance(0.5) ? { route, p, q, m, n } : { route, p, q, m: n, n: m };
+  },
+  render: ({ route, p, q, m, n }): Slide => {
+    const k = squarePart(m * n);
+    const r = (m * n) / (k * k);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Decide what this product comes to. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: `${kSurd(p, m)} \\times ${kSurd(q, n)}`,
+      steps: [
+        {
+          id: 'same',
+          ask: 'Are the numbers under the two roots the same?',
+          branches: [
+            { label: 'Yes', to: 'whole' },
+            { label: 'No', to: 'factor' },
+          ],
+        },
+        {
+          id: 'whole',
+          ask: `What is $\\sqrt{${m}} \\times \\sqrt{${m}}$?`,
+          branches: [
+            {
+              label: `$${m}$`,
+              outcome: `So the product is $${p * q} \\times ${m} = ${p * q * m}$, a whole number.`,
+            },
+            {
+              label: `$${m * m}$`,
+              outcome: `So the product would be $${p * q} \\times ${m * m} = ${p * q * m * m}$.`,
+            },
+            {
+              label: `$2\\sqrt{${m}}$`,
+              outcome: `So the product would be $${kSurd(2 * p * q, m)}$, still a surd.`,
+            },
+          ],
+        },
+        {
+          id: 'factor',
+          ask: `Under one root that is $\\sqrt{${m * n}}$. Does $${m * n}$ have a square factor bigger than 1?`,
+          branches: [
+            {
+              label: 'Yes',
+              outcome:
+                route === 'square'
+                  ? `Then take it out: $\\sqrt{${m * n}} = ${kSurd(k, r)}$, so the product is $${kSurd(p * q * k, r)}$.`
+                  : `Then look for the largest square dividing $${m * n}$ and take its root outside.`,
+            },
+            {
+              label: 'No',
+              outcome:
+                route === 'plain'
+                  ? `So the product is $${kSurd(p * q, m * n)}$, and it cannot be simplified.`
+                  : `Then the product stays as $${kSurd(p * q, m * n)}$.`,
+            },
+          ],
+        },
+      ],
+      answer: route === 'same' ? ['Yes', `$${m}$`] : route === 'square' ? ['No', 'Yes'] : ['No', 'No'],
+    };
+  },
+  solution: ({ route, p, q, m, n }) => {
+    const k = squarePart(m * n);
+    const r = (m * n) / (k * k);
+    const head = {
+      text: `Multiply the whole numbers and the roots separately: $${p} \\times ${q} = ${p * q}$, and $\\sqrt{${m}} \\times \\sqrt{${n}} = \\sqrt{${m * n}}$.`,
+    };
+    if (route === 'same') {
+      return [
+        head,
+        { tex: `\\sqrt{${m}} \\times \\sqrt{${m}} = \\sqrt{${m * m}} = ${m}` },
+        {
+          text: `A root times itself is the number underneath, so the product is $${p * q * m}$ — a whole number, with no surd left in it.`,
+        },
+      ];
+    }
+    if (route === 'square') {
+      return [
+        head,
+        { text: `$${m * n} = ${k * k} \\times ${r}$, and $${k * k}$ is a square, so it comes out as $${k}$.` },
+        { tex: `${kSurd(p, m)} \\times ${kSurd(q, n)} = ${kSurd(p * q, m * n)} = ${kSurd(p * q * k, r)}` },
+      ];
+    }
+    return [
+      head,
+      {
+        text: `$${m * n}$ has no square factor, so $${kSurd(p * q, m * n)}$ is already as simple as it gets.`,
+      },
+    ];
+  },
+};
+
+/* A root times a bracket, where the product simplifies */
+
+interface RootBracketParams {
+  /** The square-free part left after simplifying √a × √b. */
+  r: number;
+  /** What comes out: √a × √b = x√r. */
+  x: number;
+  /** Which of the two roots carries the r. */
+  swap: boolean;
+  c: number;
+  sign: number;
+}
+
+/** Coprime square-free pairs, so r·x is square-free and √(r·x) × √x = x√r. */
+const ROOT_BRACKET_PAIRS = [2, 3, 5, 6, 7, 10, 11, 13].flatMap((r) =>
+  [2, 3, 5, 6, 7].filter((x) => x !== r && gcd(r, x) === 1).map((x) => ({ r, x })),
+);
+
+function rootBracketRoots({ r, x, swap }: RootBracketParams): { a: number; b: number } {
+  return swap ? { a: x, b: r * x } : { a: r * x, b: x };
+}
+
+/**
+ * √a(√b ± c), worked on a tree: the product of the roots, that product
+ * simplified, the other term, and the two together.
+ *
+ * The product of the roots is chosen to hide a square every time, so the
+ * simplifying row is never a formality — √6 × √3 is √18, and √18 is not
+ * finished.
+ */
+const rootBracketTree: Generator<RootBracketParams> = {
+  id: 'rad-root-bracket-tree',
+  sample: (rng, difficulty) => {
+    const pool = ROOT_BRACKET_PAIRS.filter(({ r, x }) => r * x <= (difficulty > 1 ? 70 : 35));
+    const { r, x } = rng.pick(pool);
+    return {
+      r,
+      x,
+      swap: rng.chance(0.5),
+      c: rng.int(2, difficulty > 1 ? 9 : 6),
+      sign: difficulty > 1 ? rng.sign() : 1,
+    };
+  },
+  render: (params): Slide => {
+    const { r, x, c, sign } = params;
+    const { a, b } = rootBracketRoots(params);
+    const answer = [
+      `\\sqrt{${a * b}}`,
+      `${minus(sign)}${kSurd(c, a)}`,
+      kSurd(x, r),
+      `${kSurd(x, r)} ${signOf(sign)} ${kSurd(c, a)}`,
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Multiply $\\sqrt{${a}}$ by each term in the bracket. The first product simplifies, so simplify it on the row below before putting the two terms together.`,
+        },
+      ],
+      expression: `\\sqrt{${a}}(\\sqrt{${b}} ${signOf(sign)} ${c})`,
+      nodes: [
+        { id: 'product', from: [] },
+        { id: 'other', from: [] },
+        { id: 'simple', from: ['product'] },
+        { id: 'result', from: ['simple', 'other'] },
+      ],
+      bank: fillBank(answer, [
+        `\\sqrt{${a + b}}`,
+        kSurd(x * x, r),
+        kSurd(r, x),
+        `${minus(sign)}${kSurd(c, b)}`,
+        `${kSurd(x, r)} ${signOf(sign)} ${kSurd(c, b)}`,
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { r, x, c, sign } = params;
+    const { a, b } = rootBracketRoots(params);
+    return [
+      { text: `Multiply $\\sqrt{${a}}$ by each term inside the bracket.` },
+      { tex: `\\sqrt{${a}} \\times \\sqrt{${b}} = \\sqrt{${a * b}} = \\sqrt{${x * x}} \\times \\sqrt{${r}} = ${kSurd(x, r)}` },
+      { tex: `\\sqrt{${a}} \\times ${c} = ${kSurd(c, a)}` },
+      {
+        text: `The two surds have different numbers underneath, so they cannot be combined: the answer is $${kSurd(x, r)} ${signOf(sign)} ${kSurd(c, a)}$.`,
+      },
+    ];
+  },
+};
+
+/* Expanding two single brackets and collecting */
+
+interface CollectParams {
+  a: number;
+  b: number;
+  c: number;
+  s1: number;
+  op: number;
+  e: number;
+  f: number;
+  g: number;
+  s2: number;
+  d: number;
+  ask: 'p' | 'q';
+}
+
+function collected({ a, b, c, s1, op, e, f, g, s2 }: CollectParams): { p: number; q: number } {
+  return { p: a * b + op * e * f, q: s1 * a * c + op * s2 * e * g };
+}
+
+function collectTex({ a, b, c, s1, op, e, f, g, s2, d }: CollectParams): string {
+  return `${a}(${b} ${signOf(s1)} ${kSurd(c, d)}) ${signOf(op)} ${e}(${f} ${signOf(s2)} ${kSurd(g, d)})`;
+}
+
+/**
+ * Two brackets expanded and collected, then one part read off.
+ *
+ * A typed whole number rather than the whole form, because the form typed back
+ * as the question would be accepted — see the note at the top of this level.
+ * Asking for one part still needs the whole expansion done.
+ */
+const collectBrackets: Generator<CollectParams> = {
+  id: 'rad-collect',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const params: CollectParams = {
+        a: rng.int(2, hard ? 6 : 5),
+        b: rng.int(1, 9),
+        c: rng.int(1, hard ? 4 : 3),
+        s1: hard ? rng.sign() : 1,
+        op: hard ? rng.sign() : 1,
+        e: rng.int(2, hard ? 6 : 5),
+        f: rng.int(1, 9),
+        g: rng.int(1, hard ? 4 : 3),
+        s2: rng.sign(),
+        d: rng.pick(hard ? FREE_HARD : FREE_EASY),
+        ask: rng.pick(['p', 'q'] as const),
+      };
+      const { p, q } = collected(params);
+      if (p !== 0 && q !== 0) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { d, ask } = params;
+    const { p, q } = collected(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Expand both brackets and collect like terms, writing the result as $p + q\\sqrt{${d}}$. What is $${ask}$?`,
+        },
+        { kind: 'display', tex: collectTex(params) },
+      ],
+      lead: `${ask} =`,
+      keypad: WHOLE_KEYS,
+      answer: `${ask === 'p' ? p : q}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, s1, op, e, f, g, s2, d, ask } = params;
+    const { p, q } = collected(params);
+    return [
+      { text: 'Expand each bracket on its own first.' },
+      { tex: `${a}(${b} ${signOf(s1)} ${kSurd(c, d)}) = ${formTex(a * b, s1 * a * c, d)}` },
+      { tex: `${e}(${f} ${signOf(s2)} ${kSurd(g, d)}) = ${formTex(e * f, s2 * e * g, d)}` },
+      ...(op < 0
+        ? [{ text: 'The second bracket is being subtracted, so both of its terms change sign.' }]
+        : []),
+      {
+        text: `Whole numbers collect with whole numbers and multiples of $\\sqrt{${d}}$ with each other: $${formTex(p, q, d)}$.`,
+      },
+      { text: `So $${ask} = ${ask === 'p' ? p : q}$.` },
+    ];
+  },
+};
+
+/* Expanding two brackets */
+
+interface DoubleParams {
+  a: number;
+  b: number;
+  c: number;
+  e: number;
+  d: number;
+  /** The sign inside the second bracket. */
+  t: number;
+}
+
+/** (a + b√d)(c ± e√d) as p + q√d. */
+function expandDouble({ a, b, c, e, d, t }: DoubleParams): { p: number; q: number } {
+  return { p: a * c + t * b * e * d, q: t * a * e + b * c };
+}
+
+function doubleTex({ a, b, c, e, d, t }: DoubleParams): string {
+  return `(${a} + ${kSurd(b, d)})(${c} ${signOf(t)} ${kSurd(e, d)})`;
+}
+
+/**
+ * Two brackets multiplied out, every term by every term, and collected.
+ *
+ * The distractors are the three standard slips: dropping the last product,
+ * taking √d × √d as 1 rather than d, and losing the sign on one cross term.
+ */
+const expandDoubleBrackets: Generator<DoubleParams> = {
+  id: 'rad-expand-double',
+  choices: (params) => {
+    const { a, b, c, e, d, t } = params;
+    const { p, q } = expandDouble(params);
+    const slip = b * c - t * a * e;
+    return options(
+      { tex: formTex(p, q, d), answer: formAnswer(p, q, d) },
+      { tex: formTex(a * c, q, d), answer: formAnswer(a * c, q, d) },
+      { tex: formTex(a * c + t * b * e, q, d), answer: formAnswer(a * c + t * b * e, q, d) },
+      { tex: formTex(p, slip, d), answer: formAnswer(p, slip, d) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const params = {
+        a: rng.int(1, hard ? 7 : 6),
+        b: hard ? rng.int(1, 3) : 1,
+        c: rng.int(1, hard ? 7 : 6),
+        e: hard ? rng.int(1, 3) : 1,
+        d: rng.pick(hard ? FREE_HARD : FREE_EASY),
+        t: rng.sign(),
+      };
+      const { p, q } = expandDouble(params);
+      if (p !== 0 && q !== 0) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, c, e, d, t } = params;
+    const { p, q } = expandDouble(params);
+    const { template, answer } = formTiles(p, q, d);
+    const slip = Math.abs(b * c - t * a * e);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Multiply out the brackets and collect like terms. Put the whole number first.',
+        },
+        { kind: 'display', tex: doubleTex(params) },
+      ],
+      template,
+      bank: fillBank(answer, [
+        `${a * c}`,
+        `${a * c + t * b * e}`,
+        ...(slip > 0 ? [kSurd(slip, d)] : []),
+        kSurd(b * c, d),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, e, d, t } = params;
+    const { p, q } = expandDouble(params);
+    return [
+      { text: 'Every term in the first bracket multiplies every term in the second: four products.' },
+      {
+        tex: `${a} \\times ${c} = ${a * c} \\qquad ${a} \\times ${t < 0 ? '(-' : ''}${kSurd(e, d)}${t < 0 ? ')' : ''} = ${formTex(0, t * a * e, d)}`,
+      },
+      {
+        tex: `${kSurd(b, d)} \\times ${c} = ${kSurd(b * c, d)} \\qquad ${kSurd(b, d)} \\times ${t < 0 ? '(-' : ''}${kSurd(e, d)}${t < 0 ? ')' : ''} = ${t * b * e * d}`,
+      },
+      {
+        text: `The last product is whole because $\\sqrt{${d}} \\times \\sqrt{${d}} = ${d}$. Collecting the whole numbers and the surds gives $${formTex(p, q, d)}$.`,
+      },
+    ];
+  },
+};
+
+/* Squaring a bracket */
+
+interface SquareParams {
+  a: number;
+  b: number;
+  d: number;
+  t: number;
+}
+
+/**
+ * (a ± b√d)² on a tree: the three parts of the square, then the collected
+ * answer.
+ *
+ * The middle term is its own node because it is the one that goes missing —
+ * squaring each term separately is the most common error in the whole level,
+ * and it is offered in the bank as a finished answer.
+ */
+const squareTree: Generator<SquareParams> = {
+  id: 'rad-square-tree',
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, 9),
+    b: difficulty > 1 ? rng.int(1, 3) : 1,
+    d: rng.pick(difficulty > 1 ? FREE_HARD : FREE_EASY),
+    t: rng.sign(),
+  }),
+  render: ({ a, b, d, t }): Slide => {
+    const answer = [
+      `${a * a}`,
+      `${minus(t)}${kSurd(2 * a * b, d)}`,
+      `${b * b * d}`,
+      formTex(a * a + b * b * d, 2 * t * a * b, d),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work out the three parts of the square along the top: the first term squared, twice the product of the terms, and the second term squared. Then collect them.',
+        },
+      ],
+      expression: `(${a} ${signOf(t)} ${kSurd(b, d)})^{2}`,
+      nodes: [
+        { id: 'first', from: [] },
+        { id: 'middle', from: [] },
+        { id: 'last', from: [] },
+        { id: 'result', from: ['first', 'middle', 'last'] },
+      ],
+      bank: fillBank(answer, [
+        `${b * d}`,
+        `${minus(t)}${kSurd(a * b, d)}`,
+        `${a * a + b * b * d}`,
+        `${b * b * d * d}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ a, b, d, t }) => [
+    { text: 'Squaring a bracket means multiplying it by itself, which gives three parts.' },
+    {
+      tex: `(${a} ${signOf(t)} ${kSurd(b, d)})^{2} = ${a}^{2} ${signOf(t)} 2 \\times ${a} \\times ${kSurd(b, d)} + (${kSurd(b, d)})^{2}`,
+    },
+    {
+      tex: `= ${a * a} ${signOf(t)} ${kSurd(2 * a * b, d)} + ${b * b * d} = ${formTex(a * a + b * b * d, 2 * t * a * b, d)}`,
+    },
+    {
+      text: `Squaring each term on its own gives $${a * a + b * b * d}$ and loses the middle term, $${minus(t)}${kSurd(2 * a * b, d)}$.`,
+    },
+  ],
+};
+
+/* The difference of two squares */
+
+interface ConjugateProductParams {
+  /** `number`: (a + b√d)(a - b√d). `root`: (b√d + a)(b√d - a). `roots`: (√m + √n)(√m - √n). */
+  shape: 'number' | 'root' | 'roots';
+  a: number;
+  b: number;
+  d: number;
+}
+
+function conjugateValue({ shape, a, b, d }: ConjugateProductParams): number {
+  if (shape === 'number') return a * a - b * b * d;
+  if (shape === 'root') return b * b * d - a * a;
+  return d - a;
+}
+
+function conjugateProductTex({ shape, a, b, d }: ConjugateProductParams): string {
+  if (shape === 'number') return `(${a} + ${kSurd(b, d)})(${a} - ${kSurd(b, d)})`;
+  if (shape === 'root') return `(${kSurd(b, d)} + ${a})(${kSurd(b, d)} - ${a})`;
+  return `(\\sqrt{${d}} + \\sqrt{${a}})(\\sqrt{${d}} - \\sqrt{${a}})`;
+}
+
+/** Non-square numbers for the two-root shape. */
+const NON_SQUARES: number[] = Array.from({ length: 29 }, (_, idx) => idx + 2).filter(
+  (n) => squarePart(n) ** 2 !== n,
+);
+
+/**
+ * A bracket times its conjugate: the surd terms cancel and a whole number is
+ * left, which is the whole reason conjugates are used to rationalise.
+ *
+ * Typed as a whole number on a keypad with no root key.
+ */
+const conjugateProduct: Generator<ConjugateProductParams> = {
+  id: 'rad-conjugate-product',
+  choices: (params) => {
+    const { shape, a, b, d } = params;
+    const value = conjugateValue(params);
+    const whole = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    if (shape === 'number') {
+      return options(whole(value), whole(a * a + b * b * d), whole(a * a - b * d), whole(a - b * b * d));
+    }
+    if (shape === 'root') {
+      return options(whole(value), whole(b * b * d + a * a), whole(b * d - a * a), whole(b * b * d - a));
+    }
+    return options(whole(value), whole(d + a), whole(d * d - a * a), whole(a - d));
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const shape = rng.pick(hard ? (['number', 'root', 'roots'] as const) : (['number', 'root'] as const));
+    if (shape === 'roots') {
+      const [d, a] = rng.sample(NON_SQUARES, 2);
+      return { shape, a, b: 1, d };
+    }
+    return {
+      shape,
+      a: rng.int(1, hard ? 9 : 7),
+      b: hard ? rng.int(1, 3) : 1,
+      d: rng.pick(hard ? FREE_HARD : FREE_EASY),
+    };
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Multiply out and simplify. The answer is a whole number.' }],
+    lead: `${conjugateProductTex(params)} =`,
+    keypad: WHOLE_KEYS,
+    answer: `${conjugateValue(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { shape, a, b, d } = params;
+    const [first, second] =
+      shape === 'number'
+        ? [`${a}`, kSurd(b, d)]
+        : shape === 'root'
+          ? [kSurd(b, d), `${a}`]
+          : [`\\sqrt{${d}}`, `\\sqrt{${a}}`];
+    const [firstSq, secondSq] =
+      shape === 'number' ? [a * a, b * b * d] : shape === 'root' ? [b * b * d, a * a] : [d, a];
+    return [
+      {
+        text: 'The brackets differ only in the sign between the terms, so the two middle products cancel. What is left is the first term squared minus the second term squared.',
+      },
+      { tex: `(${first} + ${second})(${first} - ${second}) = (${first})^{2} - (${second})^{2}` },
+      { tex: `= ${firstSq} - ${secondSq} = ${firstSq - secondSq}` },
+      { text: 'No root survives. That is exactly the property used to clear a root from a denominator.' },
+    ];
+  },
+};
+
+/* Rationalising a binomial denominator */
+
+interface BinomialParams {
+  a: number;
+  b: number;
+  d: number;
+  /** The sign inside the denominator: a + t·b√d. */
+  t: number;
+  /** p = k·|a² - b²d|, so the division comes out whole. */
+  k: number;
+}
+
+/** Everything a binomial rationalisation passes through, from its parameters. */
+function binomial({ a, b, d, t, k }: BinomialParams) {
+  const n = a * a - b * b * d;
+  const p = k * Math.abs(n);
+  const sgn = Math.sign(n);
+  return {
+    /** The denominator's value once multiplied by its conjugate. */
+    n,
+    p,
+    den: `${a} ${signOf(t)} ${kSurd(b, d)}`,
+    conj: `${a} ${signOf(-t)} ${kSurd(b, d)}`,
+    /** The numerator after multiplying by the conjugate: pa ∓ pb√d. */
+    top: { p: p * a, q: -t * p * b },
+    /** The final answer. */
+    result: { p: sgn * k * a, q: -t * sgn * k * b },
+  };
+}
+
+function sampleBinomial(rng: Rng, difficulty: number): BinomialParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const a = rng.int(2, 7);
+    const b = hard ? rng.int(1, 2) : 1;
+    const d = rng.pick(hard ? FREE_HARD : FREE_EASY);
+    const n = a * a - b * b * d;
+    // A denominator of ±1 would make the division a formality, and the easier
+    // draws keep it positive so a negative denominator is met on purpose.
+    if (Math.abs(n) < 2 || (!hard && n < 0)) continue;
+    return { a, b, d, t: rng.sign(), k: rng.int(1, hard ? 4 : 3) };
+  }
+}
+
+function binomialSolution(params: BinomialParams) {
+  const { d } = params;
+  const { n, p, den, conj, top, result } = binomial(params);
+  return [
+    {
+      text: `Multiply top and bottom by the conjugate, $${conj}$: the same two terms with the sign between them changed. That is multiplying by 1.`,
+    },
+    {
+      tex: `\\frac{${p}}{${den}} \\times \\frac{${conj}}{${conj}} = \\frac{${formTex(top.p, top.q, d)}}{${n}}`,
+    },
+    {
+      text: `The bottom is a difference of two squares, $${params.a * params.a} - ${params.b * params.b * d} = ${n}$, so the root has gone.`,
+    },
+    { text: `Divide both terms on top by $${n}$: $${formTex(result.p, result.q, d)}$.` },
+  ];
+}
+
+/**
+ * Which multiplier clears a two-term denominator?
+ *
+ * The distractors are the moves that worked before and do not work now: the
+ * root alone (enough for a one-term denominator) and the denominator itself,
+ * squared or not.
+ */
+const pickConjugate: Generator<BinomialParams> = {
+  id: 'rad-pick-conjugate',
+  sample: sampleBinomial,
+  render: (params): Slide => {
+    const { a, b, d, k } = params;
+    const { p, den, conj } = binomial(params);
+    const choices = [
+      { id: 'conjugate', label: conj, tex: true },
+      { id: 'same', label: den, tex: true },
+      { id: 'root', label: `\\sqrt{${d}}`, tex: true },
+      { id: 'square', label: `(${den})^{2}`, tex: true },
+    ];
+    const turn = (a + b + d + k) % choices.length;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `To rationalise the denominator of $\\frac{${p}}{${den}}$, what should the top and bottom both be multiplied by?`,
+        },
+      ],
+      options: [...choices.slice(turn), ...choices.slice(0, turn)],
+      correctId: 'conjugate',
+    };
+  },
+  solution: (params) => {
+    const { a, b, d } = params;
+    const { n, den, conj } = binomial(params);
+    return [
+      {
+        text: `Multiplying by $\\sqrt{${d}}$ alone clears a denominator with one term. Here there are two, and $(${den}) \\times \\sqrt{${d}}$ still has a root in it.`,
+      },
+      {
+        text: `The conjugate, $${conj}$, changes only the sign between the terms. The product is a difference of two squares and the roots cancel:`,
+      },
+      { tex: `(${den})(${conj}) = ${a * a} - ${b * b * d} = ${n}` },
+    ];
+  },
+};
+
+/**
+ * The conjugate rationalisation laid out as a tree: the multiplier, what it
+ * makes of the bottom and of the top, and the division that finishes it.
+ */
+const conjugateTree: Generator<BinomialParams> = {
+  id: 'rad-conjugate-tree',
+  sample: sampleBinomial,
+  render: (params): Slide => {
+    const { a, b, d, t } = params;
+    const { n, p, den, conj, top, result } = binomial(params);
+    const answer = [conj, `${n}`, formTex(top.p, top.q, d), formTex(result.p, result.q, d)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Choose what to multiply top and bottom by. Then work out the new bottom and the new top, and divide to finish.',
+        },
+      ],
+      expression: `\\frac{${p}}{${den}}`,
+      nodes: [
+        { id: 'by', from: [] },
+        { id: 'bottom', from: ['by'] },
+        { id: 'top', from: ['by'] },
+        { id: 'result', from: ['top', 'bottom'] },
+      ],
+      bank: fillBank(answer, [
+        den,
+        `\\sqrt{${d}}`,
+        `${a * a + b * b * d}`,
+        `${a * a - b * d}`,
+        formTex(top.p, t * p * b, d),
+        formTex(result.p, -result.q, d),
+      ]),
+      answer,
+    };
+  },
+  solution: binomialSolution,
+};
+
+/**
+ * A two-term denominator rationalised, the finished form placed as tiles.
+ *
+ * Tiles rather than typing for the reason `rad-rationalise` is a choice: the
+ * rationalised form equals the question, so a typed answer would accept the
+ * question copied back.
+ */
+const binomialRationalise: Generator<BinomialParams> = {
+  id: 'rad-binomial-rationalise',
+  choices: (params) => {
+    const { d } = params;
+    const { top, result } = binomial(params);
+    return options(
+      { tex: formTex(result.p, result.q, d), answer: formAnswer(result.p, result.q, d) },
+      { tex: formTex(result.p, -result.q, d), answer: formAnswer(result.p, -result.q, d) },
+      { tex: formTex(top.p, top.q, d), answer: formAnswer(top.p, top.q, d) },
+      { tex: formTex(result.p, top.q, d), answer: formAnswer(result.p, top.q, d) },
+    );
+  },
+  sample: sampleBinomial,
+  render: (params): Slide => {
+    const { a, d } = params;
+    const { p, den, top, result } = binomial(params);
+    const { template, answer } = formTiles(result.p, result.q, d);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Rationalise the denominator and simplify. Put the whole number first.' },
+        { kind: 'display', tex: `\\frac{${p}}{${den}}` },
+      ],
+      template,
+      bank: fillBank(answer, [
+        `${top.p}`,
+        kSurd(Math.abs(top.q), d),
+        `${-result.p}`,
+        `${a}`,
+      ]),
+      answer,
+    };
+  },
+  solution: binomialSolution,
+};
+
+/** The same rationalisation, worked one line at a time. */
+const binomialRationaliseSteps: Generator<BinomialParams> = {
+  id: 'rad-binomial-rationalise-steps',
+  sample: sampleBinomial,
+  render: (params): Slide => {
+    const { a, b, d, t } = params;
+    const { n, p, den, conj, top, result } = binomial(params);
+    const multiplied = `\\frac{${formTex(top.p, top.q, d)}}{${n}}`;
+    const finished = formTex(result.p, result.q, d);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Multiplying by the conjugate clears the root from the bottom. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      start: [`\\frac{${p}}{${den}}`, '\\times', `\\frac{${conj}}{${conj}}`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: multiplied,
+          bank: fillBank(
+            [multiplied],
+            [
+              `\\frac{${formTex(top.p, top.q, d)}}{${a * a + b * b * d}}`,
+              `\\frac{${formTex(top.p, t * p * b, d)}}{${n}}`,
+              `\\frac{${p}}{${n}}`,
+            ],
+          ),
+        },
+        {
+          span: [0, 1],
+          value: finished,
+          bank: fillBank(
+            [finished],
+            [
+              formTex(result.p, top.q, d),
+              formTex(top.p, result.q, d),
+              formTex(result.p, -result.q, d),
+            ],
+          ),
+        },
+      ],
+    };
+  },
+  solution: binomialSolution,
+};
+
+/* Equations with surds */
+
+interface SurdEquationParams {
+  /**
+   * `A`: x√d = kd + f√d. `B`: x√d + kd = f√d. `C`: x√d = x + k(d - 1), which
+   * needs a conjugate to finish.
+   */
+  shape: 'A' | 'B' | 'C';
+  d: number;
+  f: number;
+  k: number;
+}
+
+function surdEquationTex({ shape, d, f, k }: SurdEquationParams): string {
+  if (shape === 'A') return `x\\sqrt{${d}} = ${k * d} + ${kSurd(f, d)}`;
+  if (shape === 'B') return `x\\sqrt{${d}} + ${k * d} = ${kSurd(f, d)}`;
+  return `x\\sqrt{${d}} = x + ${k * (d - 1)}`;
+}
+
+/** The solution as p + q√d. */
+function surdEquationRoot({ shape, f, k }: SurdEquationParams): { p: number; q: number } {
+  if (shape === 'A') return { p: f, q: k };
+  if (shape === 'B') return { p: f, q: -k };
+  return { p: k, q: k };
+}
+
+/**
+ * Solving a linear equation whose coefficients are surds.
+ *
+ * The numbers are chosen so each division by √d lands on a whole multiple of
+ * √d, and the answer comes out in the form p + q√d with nothing left to cancel.
+ */
+const surdEquation: Generator<SurdEquationParams> = {
+  id: 'rad-surd-equation',
+  choices: (params) => {
+    const { shape, d, f, k } = params;
+    const { p, q } = surdEquationRoot(params);
+    const e = shape === 'C' ? k * (d - 1) : k * d;
+    const form = (x: number, y: number) => ({ tex: formTex(x, y, d), answer: formAnswer(x, y, d) });
+    if (shape === 'C') {
+      return options(form(p, q), form(-k, k), form(e, e), {
+        tex: `\\frac{${e}}{\\sqrt{${d}}}`,
+        answer: `(${e}) / sqrt(${d})`,
+      });
+    }
+    return options(form(p, q), form(p, shape === 'A' ? -k : k), form(f, Math.sign(q) * e), form(k, Math.sign(q) * f));
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      shape: rng.pick(hard ? (['A', 'B', 'C'] as const) : (['A', 'B'] as const)),
+      d: rng.pick(hard ? FREE_HARD.slice(0, 8) : FREE_EASY),
+      f: rng.int(1, hard ? 9 : 6),
+      k: rng.int(1, hard ? 5 : 4),
+    };
+  },
+  render: (params): Slide => {
+    const { shape, d, f, k } = params;
+    const { p, q } = surdEquationRoot(params);
+    const e = shape === 'C' ? k * (d - 1) : k * d;
+    const { template, answer } = formTiles(p, q, d, 'x = ');
+    const distractors =
+      shape === 'C' ? [`${e}`, kSurd(e, d), `${k * (d + 1)}`] : [`${e}`, kSurd(e, d), kSurd(f, d), `${k}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve for $x$, giving the answer in the form $a + b\\sqrt{${d}}$.`,
+        },
+        { kind: 'display', tex: surdEquationTex(params) },
+      ],
+      template,
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { shape, d, f, k } = params;
+    const { p, q } = surdEquationRoot(params);
+    if (shape === 'C') {
+      const e = k * (d - 1);
+      return [
+        { text: 'Gather the terms in $x$ on one side, then factorise.' },
+        { tex: `x\\sqrt{${d}} - x = ${e} \\quad\\Rightarrow\\quad x(\\sqrt{${d}} - 1) = ${e}` },
+        {
+          text: `Dividing leaves $\\frac{${e}}{\\sqrt{${d}} - 1}$, a two-term denominator. Multiply top and bottom by the conjugate $\\sqrt{${d}} + 1$; the bottom becomes $${d} - 1 = ${d - 1}$.`,
+        },
+        { tex: `x = \\frac{${e}(\\sqrt{${d}} + 1)}{${d - 1}} = ${formTex(p, q, d)}` },
+      ];
+    }
+    const e = k * d;
+    return [
+      ...(shape === 'B'
+        ? [{ text: `Subtract $${e}$ from both sides first: $x\\sqrt{${d}} = ${kSurd(f, d)} - ${e}$.` }]
+        : []),
+      { text: `Divide both terms on the right by $\\sqrt{${d}}$, one at a time.` },
+      {
+        tex: `\\frac{${kSurd(f, d)}}{\\sqrt{${d}}} = ${f} \\qquad \\frac{${e}}{\\sqrt{${d}}} = \\frac{${e}\\sqrt{${d}}}{${d}} = ${kSurd(k, d)}`,
+      },
+      { text: `So $x = ${formTex(p, q, d)}$.` },
+    ];
+  },
+};
+
+interface DivideSurdParams {
+  d: number;
+  k: number;
+  f: number;
+  sign: number;
+}
+
+/**
+ * Dividing a two-term expression by a root, term by term, as the steps of
+ * solving x√d = kd ± f√d.
+ *
+ * The last stage offers the two terms merged into one, which is the error the
+ * line of working exists to stop: k√d and f are not like terms.
+ */
+const divideSurdSteps: Generator<DivideSurdParams> = {
+  id: 'rad-divide-surd-steps',
+  sample: (rng, difficulty) => ({
+    d: rng.pick(difficulty > 1 ? FREE_HARD.slice(0, 8) : FREE_EASY),
+    k: rng.int(1, difficulty > 1 ? 5 : 4),
+    f: rng.int(1, difficulty > 1 ? 9 : 6),
+    sign: rng.sign(),
+  }),
+  render: ({ d, k, f, sign }): Slide => {
+    const e = k * d;
+    const s = signOf(sign);
+    const finished = `${kSurd(k, d)} ${s} ${f}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solving $x\\sqrt{${d}} = ${e} ${s} ${kSurd(f, d)}$ means dividing each term by $\\sqrt{${d}}$. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      start: [`\\frac{${e}}{\\sqrt{${d}}}`, s, `\\frac{${kSurd(f, d)}}{\\sqrt{${d}}}`],
+      reductions: [
+        {
+          span: [0, 1],
+          value: kSurd(k, d),
+          bank: fillBank([kSurd(k, d)], [`${k}`, kSurd(e, d), `${e}`]),
+        },
+        {
+          span: [2, 3],
+          value: `${f}`,
+          bank: fillBank([`${f}`], [kSurd(f, d), `${f * d}`]),
+        },
+        {
+          span: [0, 3],
+          value: finished,
+          bank: fillBank(
+            [finished],
+            sign > 0
+              ? [kSurd(k + f, d), `${k + f}`, `${kSurd(k, d)} + ${kSurd(f, d)}`]
+              : [`${f} - ${kSurd(k, d)}`, `${kSurd(k, d)} - ${kSurd(f, d)}`, `${k * f}\\sqrt{${d}}`],
+          ),
+        },
+      ],
+    };
+  },
+  solution: ({ d, k, f, sign }) => [
+    { text: `A fraction with two terms on top splits into two fractions over the same bottom.` },
+    {
+      tex: `\\frac{${k * d}}{\\sqrt{${d}}} = \\frac{${k * d}\\sqrt{${d}}}{${d}} = ${kSurd(k, d)}`,
+    },
+    { tex: `\\frac{${kSurd(f, d)}}{\\sqrt{${d}}} = ${f}` },
+    {
+      text: `So $x = ${kSurd(k, d)} ${signOf(sign)} ${f}$. A surd and a whole number are not like terms, so that is finished.`,
+    },
+  ],
+};
+
+/* Reading off a and b */
+
+interface ReadOffParams {
+  shape: 'collect' | 'square' | 'fraction';
+  ask: 'a' | 'b';
+  p: number;
+  q: number;
+  s: number;
+  t: number;
+  d: number;
+  /** Only for `fraction`. */
+  frac: BinomialParams;
+}
+
+function readOffParts(params: ReadOffParams): { a: number; b: number } {
+  const { shape, p, q, s, t, d, frac } = params;
+  if (shape === 'collect') return { a: p, b: s + t * q };
+  if (shape === 'square') return { a: p * p + q * q * d, b: 2 * t * p * q };
+  const { result } = binomial(frac);
+  return { a: result.p, b: result.q };
+}
+
+function readOffTex(params: ReadOffParams): string {
+  const { shape, p, q, s, t, d, frac } = params;
+  if (shape === 'collect') return `\\sqrt{${s * s * d}} + ${p} ${signOf(t)} ${kSurd(q, d)}`;
+  if (shape === 'square') return `(${p} ${signOf(t)} ${kSurd(q, d)})^{2}`;
+  const { p: top, den } = binomial(frac);
+  return `\\frac{${top}}{${den}}`;
+}
+
+/**
+ * Put an expression into the form a + b√d, then read off one part.
+ *
+ * The expression needs one of the earlier lessons' moves first — simplifying a
+ * root, squaring a bracket, or clearing a two-term denominator — so reading
+ * off is the last step of a real piece of working rather than a lookup.
+ */
+const readOff: Generator<ReadOffParams> = {
+  id: 'rad-read-off',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const frac = sampleBinomial(rng, difficulty);
+    for (;;) {
+      const shape = rng.pick(
+        hard ? (['collect', 'square', 'fraction'] as const) : (['collect', 'square'] as const),
+      );
+      const d = shape === 'fraction' ? frac.d : rng.pick(hard ? FREE_HARD.slice(0, 8) : FREE_EASY);
+      const params: ReadOffParams = {
+        shape,
+        ask: shape === 'collect' ? 'b' : rng.pick(['a', 'b'] as const),
+        p: rng.int(1, hard ? 8 : 6),
+        q: rng.int(1, hard ? 3 : 2),
+        s: rng.int(2, hard ? 5 : 4),
+        t: rng.sign(),
+        d,
+        frac,
+      };
+      if (readOffParts(params).b !== 0) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { ask, d } = params;
+    const parts = readOffParts(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Write this in the form $a + b\\sqrt{${d}}$, where $a$ and $b$ are whole numbers. What is $${ask}$?`,
+        },
+        { kind: 'display', tex: readOffTex(params) },
+      ],
+      lead: `${ask} =`,
+      keypad: WHOLE_KEYS,
+      answer: `${parts[ask]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { shape, ask, p, q, s, t, d, frac } = params;
+    const { a, b } = readOffParts(params);
+    const close = { text: `So $a = ${a}$ and $b = ${b}$, and the question asked for $${ask} = ${ask === 'a' ? a : b}$.` };
+    if (shape === 'collect') {
+      return [
+        { text: `Simplify the root first: $\\sqrt{${s * s * d}} = ${kSurd(s, d)}$.` },
+        {
+          tex: `${kSurd(s, d)} + ${p} ${signOf(t)} ${kSurd(q, d)} = ${formTex(a, b, d)}`,
+        },
+        close,
+      ];
+    }
+    if (shape === 'square') {
+      return [
+        { text: 'Square the bracket: the first term squared, twice the product, the second term squared.' },
+        {
+          tex: `${p * p} ${signOf(t)} ${kSurd(2 * p * q, d)} + ${q * q * d} = ${formTex(a, b, d)}`,
+        },
+        close,
+      ];
+    }
+    return [...binomialSolution(frac), close];
+  },
+};
+
+/* What does an expression need before it is in the form a + b√c? */
+
+interface FormFlowParams {
+  route: 'rationalise' | 'simplify' | 'collect' | 'done';
+  /** For `rationalise`: one term underneath, or two. */
+  single: boolean;
+  a: number;
+  c: number;
+  d: number;
+  p: number;
+  q: number;
+  s: number;
+  t: number;
+}
+
+function formFlowSubject({ route, single, a, c, d, p, q, s, t }: FormFlowParams): string {
+  if (route === 'rationalise') {
+    return single ? `${a} + \\frac{${c}}{\\sqrt{${d}}}` : `\\frac{${c}}{${a} + \\sqrt{${d}}}`;
+  }
+  if (route === 'simplify') return `${a} ${signOf(t)} \\sqrt{${s * s * d}}`;
+  if (route === 'collect') return `${kSurd(p, d)} + ${a} ${signOf(t)} ${kSurd(q, d)}`;
+  return `${a} ${signOf(t)} ${kSurd(p, d)}`;
+}
+
+/**
+ * The checks an expression goes through on its way to a + b√c, in the order
+ * they are worth doing: a root underneath first, then a square hiding under a
+ * root, then like surds to collect.
+ */
+const formFlow: Generator<FormFlowParams> = {
+  id: 'rad-form-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const d = rng.pick(hard ? FREE_HARD.slice(0, 8) : FREE_EASY);
+    const a = rng.int(1, 9);
+    return {
+      route: rng.pick(['rationalise', 'simplify', 'collect', 'done'] as const),
+      single: rng.chance(hard ? 0.4 : 0.6),
+      a,
+      c: rng.int(1, 9),
+      d,
+      p: rng.int(1, hard ? 6 : 4),
+      q: rng.int(1, hard ? 6 : 4),
+      s: rng.int(2, hard ? 5 : 3),
+      t: rng.sign(),
+    };
+  },
+  render: (params): Slide => {
+    const { route, single, a, d } = params;
+    const right = single ? `$\\sqrt{${d}}$` : `$${a} - \\sqrt{${d}}$`;
+    const wrong = single ? `$${d}$` : `$${a} + \\sqrt{${d}}$`;
+    const multipliers = [
+      {
+        label: right,
+        outcome: single
+          ? `Then the bottom becomes $${d}$ and the root moves to the top.`
+          : `Then the bottom becomes $${a * a} - ${d} = ${a * a - d}$, a whole number.`,
+      },
+      {
+        label: wrong,
+        outcome: single
+          ? `Then the bottom becomes $${d}\\sqrt{${d}}$, which still holds a root.`
+          : `Then the bottom becomes $${formTex(a * a + d, 2 * a, d)}$, which still holds a root.`,
+      },
+    ];
+    // Turned by the question's own numbers, so the right multiplier is not
+    // always the first button.
+    if ((a + d) % 2 === 1) multipliers.reverse();
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'What does this need before it is in the form $a + b\\sqrt{c}$? Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: formFlowSubject(params),
+      steps: [
+        {
+          id: 'denominator',
+          ask: 'Is there a root in a denominator?',
+          branches: [
+            { label: 'Yes', to: 'multiply' },
+            { label: 'No', to: 'square' },
+          ],
+        },
+        {
+          id: 'multiply',
+          ask: 'What should the top and bottom be multiplied by?',
+          branches: multipliers,
+        },
+        {
+          id: 'square',
+          ask: 'Does a number under a root have a square factor bigger than 1?',
+          branches: [
+            { label: 'Yes', outcome: 'Then simplify that root before anything else.' },
+            { label: 'No', to: 'like' },
+          ],
+        },
+        {
+          id: 'like',
+          ask: 'Are there two surd terms with the same number under the root?',
+          branches: [
+            { label: 'Yes', outcome: 'Then collect them into a single term.' },
+            { label: 'No', outcome: 'Then it is already in the form $a + b\\sqrt{c}$.' },
+          ],
+        },
+      ],
+      answer:
+        route === 'rationalise'
+          ? ['Yes', right]
+          : route === 'simplify'
+            ? ['No', 'Yes']
+            : route === 'collect'
+              ? ['No', 'No', 'Yes']
+              : ['No', 'No', 'No'],
+    };
+  },
+  solution: (params) => {
+    const { route, single, a, c, d, p, q, s, t } = params;
+    if (route === 'rationalise') {
+      return single
+        ? [
+            { text: `There is a root underneath, so that goes first. Multiply that fraction by $\\frac{\\sqrt{${d}}}{\\sqrt{${d}}}$.` },
+            { tex: `\\frac{${c}}{\\sqrt{${d}}} = \\frac{${c}\\sqrt{${d}}}{${d}}` },
+          ]
+        : [
+            {
+              text: `There is a two-term denominator, so multiply top and bottom by its conjugate, $${a} - \\sqrt{${d}}$.`,
+            },
+            { tex: `(${a} + \\sqrt{${d}})(${a} - \\sqrt{${d}}) = ${a * a} - ${d} = ${a * a - d}` },
+          ];
+    }
+    if (route === 'simplify') {
+      return [
+        { text: `No root underneath, but $${s * s * d} = ${s * s} \\times ${d}$ hides a square.` },
+        { tex: `\\sqrt{${s * s * d}} = ${kSurd(s, d)}, \\quad\\text{so}\\quad ${a} ${signOf(t)} ${kSurd(s, d)}` },
+      ];
+    }
+    if (route === 'collect') {
+      return [
+        { text: `Nothing to rationalise and nothing to simplify, but two multiples of $\\sqrt{${d}}$ to collect.` },
+        { tex: `${formFlowSubject(params)} = ${formTex(a, p + t * q, d)}` },
+      ];
+    }
+    return [
+      {
+        text: `No root underneath, $${d}$ has no square factor, and there is only one surd term. $${a} ${signOf(t)} ${kSurd(p, d)}$ is already in the form, with $a = ${a}$ and $b = ${t * p}$.`,
+      },
+    ];
+  },
+};
+
+/* Surds in geometry */
+
+interface PythagParams {
+  /** `hyp`: two shorter sides given. `leg`: the longest side and one other. `roots`: shorter sides √x and √y. */
+  shape: 'hyp' | 'leg' | 'roots';
+  x: number;
+  y: number;
+}
+
+function isSquare(n: number): boolean {
+  const r = Math.round(Math.sqrt(n));
+  return r * r === n;
+}
+
+/** The square of the side being found. */
+function pythagSquare({ shape, x, y }: PythagParams): number {
+  if (shape === 'hyp') return x * x + y * y;
+  if (shape === 'leg') return y * y - x * x;
+  return x + y;
+}
+
+/**
+ * Pythagoras with an exact answer. The numbers are drawn so the side is never
+ * whole, which is the point: the exact answer is a surd, and a decimal would be
+ * a rounded one.
+ */
+const pythagSurd: Generator<PythagParams> = {
+  id: 'rad-pythag',
+  choices: (params) => {
+    const { shape, x, y } = params;
+    const n = pythagSquare(params);
+    const right = { tex: surdTex(n), answer: surdAnswer(n) };
+    if (shape === 'hyp') {
+      return options(
+        right,
+        { tex: `${x + y}`, answer: `${x + y}` },
+        { tex: `\\sqrt{${x + y}}`, answer: `sqrt(${x + y})` },
+        ...(y !== x ? [{ tex: surdTex(y * y - x * x), answer: surdAnswer(y * y - x * x) }] : []),
+      );
+    }
+    if (shape === 'leg') {
+      return options(
+        right,
+        { tex: surdTex(x * x + y * y), answer: surdAnswer(x * x + y * y) },
+        { tex: `${y - x}`, answer: `${y - x}` },
+        { tex: `${n}`, answer: `${n}` },
+      );
+    }
+    return options(
+      right,
+      { tex: `${x + y}`, answer: `${x + y}` },
+      { tex: `\\sqrt{${x}} + \\sqrt{${y}}`, answer: `sqrt(${x}) + sqrt(${y})` },
+      { tex: surdTex(x * x + y * y), answer: surdAnswer(x * x + y * y) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const shape = hard ? rng.pick(['hyp', 'leg', 'roots'] as const) : 'hyp';
+    for (;;) {
+      if (shape === 'roots') {
+        const [x, y] = rng.sample(NON_SQUARES.filter((n) => n <= 20), 2);
+        if (!isSquare(x + y)) return { shape, x: Math.min(x, y), y: Math.max(x, y) };
+        continue;
+      }
+      if (shape === 'leg') {
+        const y = rng.int(3, 12);
+        const x = rng.int(1, y - 1);
+        if (!isSquare(y * y - x * x)) return { shape, x, y };
+        continue;
+      }
+      const x = rng.int(1, hard ? 12 : 9);
+      const y = rng.int(x, hard ? 12 : 9);
+      if (!isSquare(x * x + y * y)) return { shape, x, y };
+    }
+  },
+  render: (params): Slide => {
+    const { shape, x, y } = params;
+    const n = pythagSquare(params);
+    const text =
+      shape === 'hyp'
+        ? `A right-angled triangle has shorter sides of $${x}$ cm and $${y}$ cm. Find the exact length of the longest side, as a simplified surd.`
+        : shape === 'leg'
+          ? `A right-angled triangle has a longest side of $${y}$ cm and another side of $${x}$ cm. Find the exact length of the third side, as a simplified surd.`
+          : `A right-angled triangle has shorter sides of $\\sqrt{${x}}$ cm and $\\sqrt{${y}}$ cm. Find the exact length of the longest side, as a simplified surd.`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text }],
+      lead: shape === 'leg' ? '\\text{third side} =' : '\\text{longest side} =',
+      keypad: SURD_KEYS,
+      answer: surdAnswer(n),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { shape, x, y } = params;
+    const n = pythagSquare(params);
+    const working =
+      shape === 'hyp'
+        ? `${x}^{2} + ${y}^{2} = ${x * x} + ${y * y} = ${n}`
+        : shape === 'leg'
+          ? `${y}^{2} - ${x}^{2} = ${y * y} - ${x * x} = ${n}`
+          : `(\\sqrt{${x}})^{2} + (\\sqrt{${y}})^{2} = ${x} + ${y} = ${n}`;
+    return [
+      {
+        text:
+          shape === 'leg'
+            ? 'The longest side squared is the sum of the other two squared, so the missing side squared is a difference.'
+            : 'The longest side squared is the sum of the squares of the other two.',
+      },
+      { tex: working },
+      {
+        tex:
+          surdTex(n) === `\\sqrt{${n}}`
+            ? `\\text{side} = \\sqrt{${n}}`
+            : `\\text{side} = \\sqrt{${n}} = ${surdTex(n)}`,
+      },
+      {
+        text: `$${n}$ is not a square number, so the side is not whole. The surd is the exact length; a decimal would be a rounded one.`,
+      },
+    ];
+  },
+};
+
+/** Rectangle sides whose diagonal is worth estimating: not whole, and on the figure. */
+interface DiagonalParams {
+  w: number;
+  h: number;
+}
+
+/**
+ * How long is the diagonal, roughly?
+ *
+ * Pythagoras gives √(w² + h²), and the question is its size rather than its
+ * form — the check that an exact answer is sensible. The figure is the same
+ * curve `rad-estimate` uses, with the dashed line at w² + h², so finding the
+ * crossing is the estimate.
+ */
+const diagonalSlider: Generator<DiagonalParams> = {
+  id: 'rad-diagonal-slider',
+  sample: (rng, difficulty) => {
+    const [lo, hi] = difficulty > 1 ? [2, 8] : [1, 6];
+    for (;;) {
+      const w = rng.int(lo, hi);
+      const h = rng.int(lo, hi);
+      if (!isSquare(w * w + h * h)) return { w, h };
+    }
+  },
+  render: ({ w, h }): Slide => {
+    const n = w * w + h * h;
+    const nearest = Math.round(Math.sqrt(n));
+    // As in `rad-estimate`: framed around the answer, then widened until the
+    // untouched handle does not already sit on it.
+    let span = nearest + 3;
+    while (defaultSliderValue(1, span, 1) === nearest) span += 1;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A rectangle measures $${w}$ cm by $${h}$ cm. The curve is $y = x^{2}$, and the dashed line is at $y = ${w}^{2} + ${h}^{2}$. Slide to the whole number of centimetres the diagonal is closest to.`,
+        },
+      ],
+      min: 1,
+      max: span,
+      step: 1,
+      answer: nearest,
+      readout: `\\text{diagonal} \\approx {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: span * span,
+          curves: [{ f: (x) => x * x }],
+          horizontals: [n],
+          label: `The curve y equals x squared, with a dashed line at y equals ${n}`,
+        }),
+        xMin: 0,
+        xMax: span,
+      },
+    };
+  },
+  solution: ({ w, h }) => {
+    const n = w * w + h * h;
+    const below = Math.floor(Math.sqrt(n));
+    const nearest = Math.round(Math.sqrt(n));
+    return [
+      { text: 'The diagonal cuts the rectangle into two right-angled triangles, so Pythagoras gives its length.' },
+      { tex: `\\text{diagonal} = \\sqrt{${w}^{2} + ${h}^{2}} = \\sqrt{${n}}` },
+      {
+        text: `$${below}^{2} = ${below * below}$ and $${below + 1}^{2} = ${(below + 1) * (below + 1)}$, so $\\sqrt{${n}}$ is between $${below}$ and $${below + 1}$, nearer $${nearest}$.`,
+      },
+    ];
+  },
+};
+
+interface PerimeterParams {
+  shape: 'rectangle' | 'triangle' | 'square';
+  a: number;
+  b: number;
+  p: number;
+  q: number;
+  r: number;
+  d: number;
+}
+
+function perimeterParts({ shape, a, b, p, q, r }: PerimeterParams): { whole: number; surd: number } {
+  if (shape === 'rectangle') return { whole: 2 * (a + b), surd: 2 * (p + q) };
+  if (shape === 'triangle') return { whole: a + b, surd: p + q + r };
+  return { whole: 4 * a, surd: 4 * p };
+}
+
+/**
+ * An exact perimeter: adding side lengths that are each part whole number,
+ * part surd, which is collecting like terms with a shape around it.
+ */
+const perimeter: Generator<PerimeterParams> = {
+  id: 'rad-perimeter',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const params: PerimeterParams = {
+        shape: rng.pick(['rectangle', 'triangle', 'square'] as const),
+        a: rng.int(1, 9),
+        b: rng.int(1, 9),
+        p: rng.int(1, hard ? 4 : 3),
+        q: rng.int(1, hard ? 4 : 3),
+        r: rng.int(1, hard ? 5 : 3),
+        d: rng.pick(hard ? FREE_HARD.slice(0, 8) : FREE_EASY),
+      };
+      if (params.shape !== 'triangle') return params;
+      // Three lengths only make a triangle when the longest is shorter than
+      // the other two together.
+      const root = Math.sqrt(params.d);
+      const sides = [params.a + params.p * root, params.b + params.q * root, params.r * root].sort(
+        (x, y) => x - y,
+      );
+      if (sides[2] < sides[0] + sides[1]) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { shape, a, b, p, q, r, d } = params;
+    const { whole, surd } = perimeterParts(params);
+    const sideA = formTex(a, p, d);
+    const sideB = formTex(b, q, d);
+    const text =
+      shape === 'rectangle'
+        ? `A rectangle is $${sideA}$ cm long and $${sideB}$ cm wide. Find its exact perimeter, whole number first.`
+        : shape === 'triangle'
+          ? `A triangle has sides of $${sideA}$ cm, $${sideB}$ cm and $${kSurd(r, d)}$ cm. Find its exact perimeter, whole number first.`
+          : `A square has sides of $${sideA}$ cm. Find its exact perimeter, whole number first.`;
+    const { template, answer } = formTiles(whole, surd, d, '', ' \\text{ cm}');
+    const half =
+      shape === 'rectangle'
+        ? [`${a + b}`, kSurd(p + q, d)]
+        : shape === 'triangle'
+          ? [`${a + b + r}`, kSurd(p + q, d)]
+          : [`${2 * a}`, kSurd(2 * p, d)];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text }],
+      template,
+      bank: fillBank(answer, [...half, `${whole + surd}`]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { shape, a, b, p, q, r, d } = params;
+    const { whole, surd } = perimeterParts(params);
+    const sides =
+      shape === 'rectangle'
+        ? `2(${formTex(a, p, d)}) + 2(${formTex(b, q, d)})`
+        : shape === 'triangle'
+          ? `(${formTex(a, p, d)}) + (${formTex(b, q, d)}) + ${kSurd(r, d)}`
+          : `4(${formTex(a, p, d)})`;
+    return [
+      {
+        text:
+          shape === 'rectangle'
+            ? 'A rectangle has two of each side, so the perimeter is twice the length plus twice the width.'
+            : shape === 'triangle'
+              ? 'The perimeter is the three sides added.'
+              : 'A square has four equal sides.',
+      },
+      { tex: `${sides} = ${formTex(whole, surd, d)}` },
+      {
+        text: `Whole numbers collect with whole numbers and multiples of $\\sqrt{${d}}$ with each other. They do not combine into $${whole + surd}$ or anything like it.`,
+      },
+    ];
+  },
+};
+
+interface AreaParams {
+  /** `rectangle`: (a + p√d)(b + q√d). `square`: side a + p√d. `triangle`: base 2c√d, height a + √d. */
+  shape: 'rectangle' | 'square' | 'triangle';
+  a: number;
+  b: number;
+  c: number;
+  p: number;
+  q: number;
+  d: number;
+}
+
+function areaParts({ shape, a, b, c, p, q, d }: AreaParams): { whole: number; surd: number } {
+  if (shape === 'rectangle') return { whole: a * b + p * q * d, surd: a * q + b * p };
+  if (shape === 'square') return { whole: a * a + p * p * d, surd: 2 * a * p };
+  return { whole: c * d, surd: a * c };
+}
+
+/**
+ * An exact area: expanding brackets where the brackets are side lengths.
+ *
+ * The triangle carries a half that the 2 in its base cancels, which is the
+ * step most often dropped.
+ */
+const rectArea: Generator<AreaParams> = {
+  id: 'rad-rect-area',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const a = rng.int(1, hard ? 7 : 6);
+    let b = rng.int(1, hard ? 7 : 6);
+    // Equal sides would be the square shape asked a second way.
+    if (b === a) b = a === 1 ? 2 : a - 1;
+    return {
+      shape: rng.pick(['rectangle', 'square', 'triangle'] as const),
+      a,
+      b,
+      c: rng.int(1, hard ? 4 : 3),
+      p: hard ? rng.int(1, 2) : 1,
+      q: hard ? rng.int(1, 2) : 1,
+      d: rng.pick(hard ? FREE_HARD.slice(0, 8) : FREE_EASY),
+    };
+  },
+  render: (params): Slide => {
+    const { shape, a, b, c, p, q, d } = params;
+    const { whole, surd } = areaParts(params);
+    const text =
+      shape === 'rectangle'
+        ? `A rectangle is $${formTex(a, p, d)}$ cm long and $${formTex(b, q, d)}$ cm wide. Find its exact area, whole number first.`
+        : shape === 'square'
+          ? `A square has sides of $${formTex(a, p, d)}$ cm. Find its exact area, whole number first.`
+          : `A triangle has a base of $${kSurd(2 * c, d)}$ cm and a perpendicular height of $${formTex(a, 1, d)}$ cm. Find its exact area, whole number first.`;
+    const { template, answer } = formTiles(whole, surd, d, '', ' \\text{ cm}^2');
+    const distractors =
+      shape === 'rectangle'
+        ? [`${a * b}`, `${a * b + p * q}`, kSurd(a * q, d)]
+        : shape === 'square'
+          ? [`${a * a}`, kSurd(a * p, d), `${a * a + p * p}`]
+          : [`${2 * c * d}`, kSurd(2 * a * c, d), `${c}`];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text }],
+      template,
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { shape, a, b, c, p, q, d } = params;
+    const { whole, surd } = areaParts(params);
+    if (shape === 'triangle') {
+      return [
+        { text: 'Area of a triangle is half the base times the height, and the half cancels the 2 in the base.' },
+        {
+          tex: `\\tfrac{1}{2} \\times ${kSurd(2 * c, d)} \\times (${formTex(a, 1, d)}) = ${kSurd(c, d)}(${formTex(a, 1, d)})`,
+        },
+        { tex: `= ${kSurd(a * c, d)} + ${c} \\times ${d} = ${formTex(whole, surd, d)}` },
+      ];
+    }
+    const [first, second] =
+      shape === 'rectangle' ? [formTex(a, p, d), formTex(b, q, d)] : [formTex(a, p, d), formTex(a, p, d)];
+    return [
+      {
+        text:
+          shape === 'rectangle'
+            ? 'Area is length times width: multiply every term of one bracket by every term of the other.'
+            : 'Area is the side squared, and squaring a bracket gives three parts, the middle one doubled.',
+      },
+      { tex: `(${first})(${second}) = ${formTex(whole, surd, d)}` },
+      {
+        text: `The surd terms multiply to a whole number, because $\\sqrt{${d}} \\times \\sqrt{${d}} = ${d}$, so it joins the other whole number.`,
+      },
+    ];
+  },
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -3453,4 +5269,23 @@ export const indicesGenerators = [
   sfCompare,
   sfTimesBigger,
   sfEstimate,
+  expandSingleBracket,
+  productFlow,
+  rootBracketTree,
+  collectBrackets,
+  expandDoubleBrackets,
+  squareTree,
+  conjugateProduct,
+  pickConjugate,
+  conjugateTree,
+  binomialRationalise,
+  binomialRationaliseSteps,
+  surdEquation,
+  divideSurdSteps,
+  readOff,
+  formFlow,
+  pythagSurd,
+  diagonalSlider,
+  perimeter,
+  rectArea,
 ] as unknown as Generator<unknown>[];

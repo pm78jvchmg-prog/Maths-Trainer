@@ -2,7 +2,7 @@
  * Complex Numbers, Levels 3 and 4: the plane, modulus, argument and powers.
  */
 import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
-import type { Rng } from '../../engine/rng';
+import { hashSeed, type Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import {
   I_KEY, coeffTex, complexTex, complexAnswer, bracketedTex, powersOf, nonZero,
@@ -4291,6 +4291,1602 @@ export const locusModulusRange: Generator<ModulusRangeParams> = {
   },
 };
 
+/* ====================================================================== */
+/* Level 7: the exponential form, z = re^{iθ}                              */
+/* ====================================================================== */
+
+/** An angle of mπ/d radians, which `angleTex`, `angleAnswer` and `principal` all read. */
+interface Angle { m: number; d: number }
+
+/** Every angle whose sine and cosine are known exactly, once each way round the circle. */
+const EXP_ANGLES: Angle[] = POLAR_ANGLES.map(({ k, d }) => ({ m: k, d }));
+
+/**
+ * A modulus a√s. Whole numbers, and whole multiples of √2, are all this level
+ * needs: the second is what puts a point on a diagonal onto the lattice.
+ */
+interface Mod { a: number; s: 1 | 2 }
+
+const UNIT: Mod = { a: 1, s: 1 };
+
+const modTex = ({ a, s }: Mod): string => (s === 1 ? `${a}` : `${a === 1 ? '' : a}\\sqrt{2}`);
+
+const modAnswer = ({ a, s }: Mod): string => (s === 1 ? `${a}` : `${a}*sqrt(2)`);
+
+const modValue = ({ a, s }: Mod): number => a * Math.sqrt(s);
+
+/**
+ * The exponent of e as the learner reads it: `i\tfrac{\pi}{3}`, `-i\pi`, and
+ * `3\pi i` rather than `i3\pi` for a whole multiple.
+ */
+function expoTex({ m, d }: Angle): string {
+  if (m === 0) return '0';
+  // `\tfrac` would force a full-size fraction into the superscript.
+  const size = angleTex(Math.abs(m), d).replace('\\tfrac', '\\frac');
+  const sign = m < 0 ? '-' : '';
+  return /^\d/.test(size) ? `${sign}${size} i` : `${sign}i${size}`;
+}
+
+/** re^{iθ} as the learner reads it. A modulus of 1 is left unwritten, and e^0 is not written at all. */
+function expTex(mod: Mod, angle: Angle): string {
+  if (angle.m === 0) return modTex(mod);
+  const r = mod.a === 1 && mod.s === 1 ? '' : modTex(mod);
+  return `${r}e^{${expoTex(angle)}}`;
+}
+
+/** An angle brought into (−π, π] by whole turns. */
+const reduced = ({ m, d }: Angle): Angle => ({ m: principal(m, d), d });
+
+const radians = ({ m, d }: Angle): number => (m * Math.PI) / d;
+
+/** Where re^{iθ} is, as numbers: for telling apart two options that print differently. */
+const pointOf = (mod: Mod, angle: Angle): [number, number] => [
+  modValue(mod) * Math.cos(radians(angle)),
+  modValue(mod) * Math.sin(radians(angle)),
+];
+
+/**
+ * One exact part of re^{iθ}, sign × (p/q)√t.
+ *
+ * Built by multiplying the modulus into the cosine or sine rather than read
+ * back from a decimal, so `3√2 × (−√2/2)` comes out as the −3 it is.
+ */
+interface Part { sign: number; p: number; q: number; t: number }
+
+/** cos or sin of a table angle, looked up by size. */
+function unitPart(x: number): Part {
+  const size = Math.abs(x);
+  const sign = x < 0 ? -1 : 1;
+  if (size < 1e-9) return { sign: 1, p: 0, q: 1, t: 1 };
+  if (Math.abs(size - 0.5) < 1e-9) return { sign, p: 1, q: 2, t: 1 };
+  if (Math.abs(size - Math.SQRT1_2) < 1e-9) return { sign, p: 1, q: 2, t: 2 };
+  if (Math.abs(size - Math.sqrt(3) / 2) < 1e-9) return { sign, p: 1, q: 2, t: 3 };
+  if (Math.abs(size - 1) < 1e-9) return { sign, p: 1, q: 1, t: 1 };
+  throw new Error(`no exact value for ${x}`);
+}
+
+/** a√s times (p/q)√t, with a square taken out of the root and the fraction cancelled. */
+function scalePart({ a, s }: Mod, part: Part): Part {
+  if (part.p === 0) return part;
+  let p = a * part.p;
+  let t = s * part.t;
+  if (t === 4) {
+    p *= 2;
+    t = 1;
+  }
+  const g = gcd(p, part.q);
+  return { sign: part.sign, p: p / g, q: part.q / g, t };
+}
+
+/** A part's size as read: 3, \tfrac{1}{2}, 2\sqrt{3}, \tfrac{\sqrt{2}}{2}. */
+function partSize({ p, q, t }: Part): string {
+  const top = t === 1 ? `${p}` : `${p === 1 ? '' : p}\\sqrt{${t}}`;
+  return q === 1 ? top : `\\tfrac{${top}}{${q}}`;
+}
+
+/** A part as a signed number, the way a tile shows it. */
+const partTex = (part: Part): string => (part.p === 0 ? '0' : `${part.sign < 0 ? '-' : ''}${partSize(part)}`);
+
+const partAnswer = (part: Part): string =>
+  part.p === 0 ? '0' : `${part.sign < 0 ? '-' : ''}(${part.p})*sqrt(${part.t})/(${part.q})`;
+
+const flipPart = (part: Part): Part => ({ ...part, sign: part.p === 0 ? 1 : -part.sign });
+
+/** The exact Cartesian parts of re^{iθ}. */
+function cartesianParts(mod: Mod, angle: Angle): { re: Part; im: Part } {
+  const t = radians(angle);
+  return { re: scalePart(mod, unitPart(Math.cos(t))), im: scalePart(mod, unitPart(Math.sin(t))) };
+}
+
+/** x + yi with exact parts, signs collapsed the way `complexTex` collapses them. */
+function partsTex(re: Part, im: Part): string {
+  const size = partSize(im);
+  const imag = size === '1' ? 'i' : `${size}i`;
+  if (im.p === 0) return partTex(re);
+  if (re.p === 0) return `${im.sign < 0 ? '-' : ''}${imag}`;
+  return `${partTex(re)} ${im.sign < 0 ? '-' : '+'} ${imag}`;
+}
+
+const partsAnswer = (re: Part, im: Part): string => `(${partAnswer(re)}) + (${partAnswer(im)})*i`;
+
+/** A native option in exponential form, carrying its point so `distinctByValue` can catch equal values. */
+const expOption = (mod: Mod, angle: Angle, correct = false) => ({
+  tex: expTex(mod, angle),
+  value: pointOf(mod, angle),
+  ...(correct && { correct: true }),
+});
+
+/**
+ * A tiles bank: the answer's tokens as a multiset, then whichever distractors
+ * are genuinely different from them, at least two of them.
+ */
+function tileBank(rng: Rng, answer: string[], distractors: string[]): string[] {
+  const extras: string[] = [];
+  for (const token of [...distractors, '0', '1', '-1']) {
+    if (answer.includes(token) || extras.includes(token)) continue;
+    if (extras.length >= 2 && ['0', '1', '-1'].includes(token)) break;
+    extras.push(token);
+  }
+  return rng.shuffle([...answer, ...extras.slice(0, 4)]);
+}
+
+const quadrantName = (q: number): string => `${QUADRANT_NAMES[q][0].toUpperCase()}${QUADRANT_NAMES[q].slice(1)}`;
+
+/* ---------- Euler's formula: re^{iθ} written as a + bi ---------- */
+
+interface EulerParams { a: number; s: 1 | 2; m: number; d: number }
+
+/**
+ * A modulus and a table angle. Difficulty 1 is a modulus of 1 or 2 at a
+ * principal angle. Difficulty 2 scales further, lets a diagonal carry √2 so
+ * its parts come out whole, and half the time writes the angle a whole turn
+ * out of range.
+ */
+function sampleEuler(rng: Rng, difficulty: number): EulerParams {
+  const { m, d } = rng.pick(EXP_ANGLES);
+  if (difficulty < 2) return { a: rng.int(1, 2), s: 1, m, d };
+  const s: 1 | 2 = d === 4 && rng.chance(0.5) ? 2 : 1;
+  const turns = rng.chance(0.5) ? rng.pick([-1, 1]) : 0;
+  return { a: rng.int(1, 4), s, m: m + 2 * d * turns, d };
+}
+
+function eulerParts({ a, s, m, d }: EulerParams) {
+  const mod: Mod = { a, s };
+  const angle: Angle = { m, d };
+  const main = reduced(angle);
+  return { mod, angle, main, ...cartesianParts(mod, angle) };
+}
+
+/** Drop whole turns, read the cosine and sine, then scale by the modulus. */
+function eulerWorking(params: EulerParams): SolutionStep[] {
+  const { mod, angle, main, re, im } = eulerParts(params);
+  const unit = cartesianParts(UNIT, main);
+  const t = paren(angleTex(main.m, main.d));
+  const steps: SolutionStep[] = [];
+  if (main.m !== angle.m) {
+    steps.push({
+      text: 'A whole turn of $2\\pi$ comes back to the same point, so drop it first.',
+      tex: `e^{${expoTex(angle)}} = e^{${expoTex(main)}}`,
+    });
+  }
+  steps.push(
+    {
+      text: "Euler's formula says $e^{i\\theta} = \\cos\\theta + i\\sin\\theta$. The cosine is the real part",
+      tex: `\\cos ${t} = ${partTex(unit.re)}`,
+    },
+    { text: 'and the sine is the imaginary part.', tex: `\\sin ${t} = ${partTex(unit.im)}` },
+  );
+  if (mod.a !== 1 || mod.s !== 1) {
+    steps.push({ text: `Multiply both by the modulus, $${modTex(mod)}$.` });
+  }
+  steps.push({ tex: `z = ${partsTex(re, im)}` });
+  return steps;
+}
+
+export const expformEulerCartesian: Generator<EulerParams> = {
+  id: 'expform-euler-cartesian',
+  choices: (params) => {
+    const { main, re, im } = eulerParts(params);
+    const unit = cartesianParts(UNIT, main);
+    const opt = (x: Part, y: Part) => ({ tex: partsTex(x, y), answer: partsAnswer(x, y) });
+    // The conjugate, cosine and sine swapped, the real part's sign lost, and
+    // the modulus left off.
+    return steered(
+      options(opt(re, im), opt(re, flipPart(im)), opt(im, re), opt(flipPart(re), im), opt(unit.re, unit.im)).slice(0, 4),
+      mix(params.a, params.s, params.m, params.d),
+    );
+  },
+  sample: sampleEuler,
+  render: (params) => {
+    const { mod, angle, re, im } = eulerParts(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Write $z$ in the form $a + bi$.' },
+        { kind: 'display', tex: `z = ${expTex(mod, angle)}` },
+      ],
+      lead: 'z =',
+      keypad: EXACT_KEYS,
+      answer: partsAnswer(re, im),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => eulerWorking(params),
+};
+
+/* ---------- Euler's formula: a real and an imaginary part, placed ---------- */
+
+interface EulerTilesParams extends EulerParams { bank: string[] }
+
+/**
+ * The two parts of re^{iθ} as tiles. The bank holds each part with its sign
+ * flipped and the cosine and sine of the bare angle, so a lost minus, a
+ * swapped pair or a forgotten modulus each has a tile to land on.
+ */
+export const expformEulerParts: Generator<EulerTilesParams> = {
+  id: 'expform-euler-parts',
+  sample: (rng, difficulty) => {
+    const params = sampleEuler(rng, difficulty);
+    const { main, re, im } = eulerParts(params);
+    const unit = cartesianParts(UNIT, main);
+    const answer = [partTex(re), partTex(im)];
+    const bank = tileBank(rng, answer, [flipPart(re), flipPart(im), unit.re, unit.im, flipPart(unit.im)].map(partTex));
+    return { ...params, bank };
+  },
+  render: (params) => {
+    const { mod, angle, re, im } = eulerParts(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write $z$ as $x + yi$: fill in $x$ and $y$.' },
+        { kind: 'display', tex: `z = ${expTex(mod, angle)}` },
+      ],
+      template: 'x = {0}, \\quad y = {1}',
+      bank: params.bank,
+      answer: [partTex(re), partTex(im)],
+    };
+  },
+  solution: (params) => [
+    ...eulerWorking(params),
+    { text: '$y$ is the number multiplying $i$, without the $i$.' },
+  ],
+};
+
+/* ---------- Euler's formula: re^{iθ}, plotted ---------- */
+
+interface EulerPlotParams { index: number; scale: number; turns: number }
+
+/** A lattice point in one of the eight table directions, as a modulus and an angle. */
+function latticeExp(index: number, scale: number): { mod: Mod; angle: Angle; re: number; im: number; diagonal: boolean } {
+  const dir = ANGLES[index];
+  const diagonal = dir.re !== 0 && dir.im !== 0;
+  return {
+    mod: { a: scale, s: diagonal ? 2 : 1 },
+    angle: { m: QUARTER_TURNS[index], d: 4 },
+    re: dir.re * scale,
+    im: dir.im * scale,
+    diagonal,
+  };
+}
+
+/**
+ * Plot re^{iθ}. Only the eight directions a lattice point can have, so the
+ * modulus on a diagonal is a multiple of √2 and the point it names is whole.
+ * Difficulty 2 writes some angles a whole turn round, including 2π itself.
+ */
+export const expformEulerPlot: Generator<EulerPlotParams> = {
+  id: 'expform-euler-plot',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { index: rng.int(1, 7), scale: rng.int(1, RANGE), turns: 0 };
+    const index = rng.int(0, 7);
+    const turns = index === 0 ? rng.pick([-1, 1]) : rng.pick([-1, 0, 0, 1]);
+    return { index, scale: rng.int(1, RANGE), turns };
+  },
+  render: ({ index, scale, turns }) => {
+    const { mod, angle, re, im } = latticeExp(index, scale);
+    return {
+      kind: 'plot',
+      prompt: [{ kind: 'prose', text: `Plot $z = ${expTex(mod, { m: angle.m + 8 * turns, d: 4 })}$.` }],
+      range: RANGE,
+      answer: { re, im },
+    };
+  },
+  solution: ({ index, scale, turns }) => {
+    const { mod, angle, re, im, diagonal } = latticeExp(index, scale);
+    const steps: SolutionStep[] = [];
+    if (turns !== 0) {
+      steps.push({
+        text: 'A whole turn of $2\\pi$ changes nothing, so drop it.',
+        tex: `e^{${expoTex({ m: angle.m + 8 * turns, d: 4 })}} = e^{${expoTex(angle)}}`,
+      });
+    }
+    steps.push({
+      text: `The modulus $${modTex(mod)}$ says how far out the point is, and the angle $${angleTex(angle.m, 4)}$ says which way.`,
+    });
+    steps.push({
+      text: diagonal
+        ? `That direction is a diagonal, and a length of $${modTex(mod)}$ along it is ${scale} across and ${scale} up or down, since $${scale}^2 + ${scale}^2 = ${2 * scale * scale}$.`
+        : 'That direction is along an axis, so the whole modulus lies on it.',
+      tex: `z = ${complexTex(re, im)}`,
+    });
+    return steps;
+  },
+};
+
+/* ---------- Euler's formula: where e^{iθ} lands ---------- */
+
+interface EulerFlowParams { m: number; d: number }
+
+/**
+ * Two forks: which kind of place e^{iθ} is, then which one. The angles are
+ * written up to one turn either way at difficulty 1 and two at difficulty 2,
+ * so the whole-turns idea is exercised before any arithmetic with it.
+ */
+export const expformEulerFlow: Generator<EulerFlowParams> = {
+  id: 'expform-euler-flow',
+  sample: (rng, difficulty) => {
+    const d = rng.pick([2, 3, 4, 6]);
+    const reach = (difficulty < 2 ? 2 : 4) * d;
+    for (;;) {
+      const m = rng.int(-reach, reach);
+      if (m === 0) continue;
+      // Off the axes for every denominator but 2, which is the axes.
+      if (d !== 2 && (2 * m) % d === 0) continue;
+      return { m, d };
+    }
+  },
+  render: ({ m, d }) => {
+    const [x, y] = pointOf(UNIT, { m, d });
+    const onReal = Math.abs(y) < 1e-9;
+    const onImag = Math.abs(x) < 1e-9;
+    const where = onReal ? 'On the real axis' : onImag ? 'On the imaginary axis' : 'In a quadrant';
+    const which = onReal ? (x > 0 ? '$1$' : '$-1$') : onImag ? (y > 0 ? '$i$' : '$-i$') : quadrantName(quadrantOf(x, y));
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Where is this number on the unit circle? Work down the questions.' }],
+      subject: `e^{${expoTex({ m, d })}}`,
+      steps: [
+        {
+          id: 'where',
+          ask: 'Where is it?',
+          branches: [
+            { label: 'On the real axis', to: 'real' },
+            { label: 'On the imaginary axis', to: 'imag' },
+            { label: 'In a quadrant', to: 'quad' },
+          ],
+        },
+        {
+          id: 'real',
+          ask: 'Which point is it?',
+          branches: [{ label: '$1$', outcome: 'It is $1$.' }, { label: '$-1$', outcome: 'It is $-1$.' }],
+        },
+        {
+          id: 'imag',
+          ask: 'Which point is it?',
+          branches: [{ label: '$i$', outcome: 'It is $i$.' }, { label: '$-i$', outcome: 'It is $-i$.' }],
+        },
+        {
+          id: 'quad',
+          ask: 'Which quadrant?',
+          branches: [0, 1, 2, 3].map((q) => ({ label: quadrantName(q), outcome: `The ${QUADRANT_NAMES[q]} quadrant.` })),
+        },
+      ],
+      answer: [where, which],
+    };
+  },
+  solution: ({ m, d }) => {
+    const main = reduced({ m, d });
+    const unit = cartesianParts(UNIT, main);
+    const [x, y] = pointOf(UNIT, main);
+    const steps: SolutionStep[] = [];
+    if (main.m !== m) {
+      steps.push({
+        text: 'Take off whole turns of $2\\pi$ until the angle is between $-\\pi$ and $\\pi$.',
+        tex: `${angleTex(m, d)} \\to ${angleTex(main.m, d)}`,
+      });
+    }
+    steps.push({
+      text: "Euler's formula gives the point as $\\cos\\theta + i\\sin\\theta$.",
+      tex: `e^{${expoTex(main)}} = ${partsTex(unit.re, unit.im)}`,
+    });
+    if (Math.abs(x) > 1e-9 && Math.abs(y) > 1e-9) {
+      steps.push({
+        text: `Real part ${x > 0 ? 'positive' : 'negative'}, imaginary part ${y > 0 ? 'positive' : 'negative'}: the ${QUADRANT_NAMES[quadrantOf(x, y)]} quadrant.`,
+      });
+    }
+    return steps;
+  },
+};
+
+/* ---------- z = re^{iθ}: the modulus or the argument, read off ---------- */
+
+interface ReadParams { a: number; s: 1 | 2; m: number; d: number; ask: 'modulus' | 'argument'; neg: boolean }
+
+/** The number as written, and the modulus and principal argument it really has. */
+function readParts({ a, s, m, d, neg }: ReadParams) {
+  const mod: Mod = { a, s };
+  const written: Angle = { m, d };
+  const main = reduced({ m: m + (neg ? d : 0), d });
+  return { mod, written, main, tex: `${neg ? '-' : ''}${expTex(mod, written)}` };
+}
+
+/**
+ * $|z|$ or $\arg z$ from $z = re^{i\theta}$. Difficulty 1 writes the principal
+ * argument, so it is a matter of reading. Difficulty 2 writes it a turn out of
+ * range, or puts a minus sign in front, which is a half turn: $-2e^{i\pi/3}$
+ * has modulus 2, not −2, and argument $-\tfrac{2\pi}{3}$.
+ */
+export const expformRead: Generator<ReadParams> = {
+  id: 'expform-read',
+  choices: (params) => {
+    const { mod, written, main } = readParts(params);
+    const num = (tex: string, answer: string) => ({ tex, answer });
+    if (params.ask === 'modulus') {
+      return steered(options(
+        num(modTex(mod), modAnswer(mod)),
+        num(`-${modTex(mod)}`, `-${modAnswer(mod)}`),
+        num(`${mod.a * mod.a * mod.s}`, `${mod.a * mod.a * mod.s}`),
+        num(mod.s === 2 ? `${mod.a}` : `${mod.a}\\sqrt{2}`, mod.s === 2 ? `${mod.a}` : `${mod.a}*sqrt(2)`),
+      ), mix(params.a, params.s, params.m, params.d, 1));
+    }
+    const ang = ({ m, d }: Angle) => num(angleTex(m, d), angleAnswer(m, d));
+    // Left unreduced, the sign lost, and the half turn a minus sign stands for
+    // either missed or added.
+    return steered(options(
+      ang(main),
+      ang({ m: params.m, d: params.d }),
+      ang(reduced({ m: -main.m, d: main.d })),
+      ang(reduced({ m: params.neg ? params.m : params.m + params.d, d: params.d })),
+      ang(reduced({ m: main.m + written.d, d: written.d })),
+      ang({ m: main.m, d: 2 * main.d }),
+    ).slice(0, 4), mix(params.a, params.s, params.m, params.d, 2));
+  },
+  sample: (rng, difficulty) => {
+    const { m, d } = rng.pick(EXP_ANGLES);
+    const a = rng.int(1, difficulty < 2 ? 5 : 6);
+    const s: 1 | 2 = rng.chance(0.3) ? 2 : 1;
+    const ask = rng.pick(['modulus', 'argument'] as const);
+    if (difficulty < 2) return { a, s, m, d, ask, neg: false };
+    if (rng.chance(0.5)) return { a, s, m, d, ask, neg: true };
+    return { a, s, m: m + 2 * d * rng.pick([-1, 1]), d, ask: 'argument', neg: false };
+  },
+  render: (params) => {
+    const { mod, main, tex } = readParts(params);
+    const modulus = params.ask === 'modulus';
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: modulus
+            ? 'What is the modulus of $z$?'
+            : 'What is the principal argument of $z$, between $-\\pi$ and $\\pi$?',
+        },
+        { kind: 'display', tex: `z = ${tex}` },
+      ],
+      lead: modulus ? '|z| =' : '\\arg z =',
+      keypad: modulus ? SQRT_KEYS : ANGLE_KEYS,
+      answer: modulus ? modAnswer(mod) : angleAnswer(main.m, main.d),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { mod, written, main } = readParts(params);
+    const steps: SolutionStep[] = [
+      {
+        text: 'In $re^{i\\theta}$ the number in front is the modulus and the angle in the exponent is an argument.',
+      },
+    ];
+    if (params.neg) {
+      steps.push({
+        text: 'A modulus is never negative. The minus sign is $e^{i\\pi}$, a half turn, so it joins the angle.',
+        tex: `-${expTex(mod, written)} = ${expTex(mod, { m: written.m + written.d, d: written.d })}`,
+      });
+    }
+    const raw: Angle = { m: written.m + (params.neg ? written.d : 0), d: written.d };
+    if (raw.m !== main.m) {
+      steps.push({
+        text: 'That angle is outside $(-\\pi, \\pi]$, so take off a whole turn.',
+        tex: `${angleTex(raw.m, raw.d)} \\to ${angleTex(main.m, main.d)}`,
+      });
+    }
+    steps.push({ tex: `|z| = ${modTex(mod)}, \\quad \\arg z = ${angleTex(main.m, main.d)}` });
+    return steps;
+  },
+};
+
+/* ---------- Exponential form and modulus-argument form, swapped ---------- */
+
+interface SwapParams { a: number; m: number; d: number; dir: 'toExp' | 'toPolar'; minus: boolean }
+
+/**
+ * The same number in the other notation. $e^{i\theta}$ is shorthand for
+ * $\cos\theta + i\sin\theta$, so the modulus carries across and so does the
+ * angle. The distractors change one of the two. At difficulty 2 the bracket
+ * may read $\cos\theta - i\sin\theta$, which is $e^{-i\theta}$, not $e^{i\theta}$.
+ */
+export const expformSwap: Generator<SwapParams> = {
+  id: 'expform-swap',
+  sample: (rng, difficulty) => {
+    const { m, d } = rng.pick(EXP_ANGLES.filter((angle) => angle.d !== 1));
+    const dir = rng.pick(['toExp', 'toPolar'] as const);
+    return { a: rng.int(2, difficulty < 2 ? 5 : 9), m, d, dir, minus: difficulty >= 2 && dir === 'toExp' && rng.chance(0.5) };
+  },
+  render: ({ a, m, d, dir, minus }) => {
+    const mod: Mod = { a, s: 1 };
+    const angle: Angle = { m, d };
+    const t = paren(angleTex(m, d));
+    const polar = (r: number, x: Angle) => `${r}\\left(\\cos ${paren(angleTex(x.m, x.d))} + i\\sin ${paren(angleTex(x.m, x.d))}\\right)`;
+    const salt = mix(a, m, d, dir.length, minus ? 1 : 0);
+    if (dir === 'toExp') {
+      const shown = minus ? `${a}\\left(\\cos ${t} - i\\sin ${t}\\right)` : polar(a, angle);
+      const right: Angle = minus ? { m: -m, d } : angle;
+      const opts = distinctByValue([
+        expOption(mod, right, true),
+        expOption(mod, { m: -right.m, d }),
+        expOption({ a: a * a, s: 1 }, right),
+        expOption(mod, reduced({ m: d - right.m, d })),
+        expOption(mod, reduced({ m: right.m + d, d })),
+      ], 4);
+      return choiceSlide(
+        [
+          { kind: 'prose', text: 'Which is this number in exponential form?' },
+          { kind: 'display', tex: `z = ${shown}` },
+        ],
+        opts,
+        salt,
+      );
+    }
+    const polarOption = (r: number, x: Angle, correct = false) => ({
+      tex: polar(r, x),
+      value: pointOf({ a: r, s: 1 }, x),
+      ...(correct && { correct: true }),
+    });
+    const opts = distinctByValue([
+      polarOption(a, angle, true),
+      polarOption(a, { m: -m, d }),
+      polarOption(a, reduced({ m: d - m, d })),
+      polarOption(a * a, angle),
+      polarOption(a, reduced({ m: m + d, d })),
+    ], 4);
+    return choiceSlide(
+      [
+        { kind: 'prose', text: 'Which is this number in modulus-argument form?' },
+        { kind: 'display', tex: `z = ${expTex(mod, angle)}` },
+      ],
+      opts,
+      salt,
+    );
+  },
+  solution: ({ a, m, d, dir, minus }) => {
+    const t = paren(angleTex(m, d));
+    const steps: SolutionStep[] = [
+      {
+        text: "Euler's formula is the whole translation: $e^{i\\theta} = \\cos\\theta + i\\sin\\theta$, so the modulus stays in front and the angle carries across.",
+      },
+    ];
+    if (minus) {
+      steps.push({
+        text: 'Here the sine is subtracted. Since $\\cos(-\\theta) = \\cos\\theta$ and $\\sin(-\\theta) = -\\sin\\theta$, that is the angle $-\\theta$.',
+        tex: `\\cos ${t} - i\\sin ${t} = e^{${expoTex({ m: -m, d })}}`,
+      });
+    }
+    const angle: Angle = minus ? { m: -m, d } : { m, d };
+    steps.push({
+      tex: dir === 'toExp'
+        ? `z = ${expTex({ a, s: 1 }, angle)}`
+        : `z = ${a}\\left(\\cos ${paren(angleTex(m, d))} + i\\sin ${paren(angleTex(m, d))}\\right)`,
+    });
+    return steps;
+  },
+};
+
+/* ---------- From a + bi to re^{iθ} ---------- */
+
+interface ConvertParams { a: number; s: 1 | 2; m: number; d: number; bank: string[] }
+
+/**
+ * $a + bi$ back to $re^{i\theta}$, placing r and θ. The modulus is chosen so
+ * both parts are whole or a whole multiple of √3: a multiple of 2 on the
+ * π/6 family, √2 times a whole number on the diagonals, and anything on an
+ * axis.
+ */
+export const expformConvert: Generator<ConvertParams> = {
+  id: 'expform-convert',
+  sample: (rng, difficulty) => {
+    const { m, d } = rng.pick(EXP_ANGLES);
+    const top = difficulty < 2 ? 2 : 4;
+    const mod: Mod = d === 4 ? { a: rng.int(1, top), s: 2 } : d === 3 || d === 6 ? { a: 2 * rng.int(1, top), s: 1 } : { a: rng.int(1, 3 + top), s: 1 };
+    const answer = [modTex(mod), angleTex(m, d)];
+    const bank = tileBank(rng, answer, [
+      `${mod.a * mod.a * mod.s}`,
+      angleTex(-m, d),
+      angleTex(principal(d - m, d), d),
+      angleTex(principal(m + d, d), d),
+      angleTex(principal(d - 2 * m, 2 * d), 2 * d),
+      mod.s === 2 ? `${2 * mod.a}` : `${mod.a / 2}`,
+    ].filter((token) => !token.includes('.')));
+    return { a: mod.a, s: mod.s, m, d, bank };
+  },
+  render: ({ a, s, m, d, bank }) => {
+    const { re, im } = cartesianParts({ a, s }, { m, d });
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write $z$ as $re^{i\\theta}$, with $-\\pi < \\theta \\le \\pi$.' },
+        { kind: 'display', tex: `z = ${partsTex(re, im)}` },
+      ],
+      template: 'r = {0}, \\quad \\theta = {1}',
+      bank,
+      answer: [modTex({ a, s }), angleTex(m, d)],
+    };
+  },
+  solution: ({ a, s, m, d }) => {
+    const mod: Mod = { a, s };
+    const { re, im } = cartesianParts(mod, { m, d });
+    const [x, y] = pointOf(mod, { m, d });
+    const onAxis = Math.abs(x) < 1e-9 || Math.abs(y) < 1e-9;
+    return [
+      {
+        text: 'The modulus is the distance from the origin, by Pythagoras on the two parts.',
+        tex: `r = \\sqrt{${Math.round(x * x)} + ${Math.round(y * y)}} = ${modTex(mod)}`,
+      },
+      {
+        text: onAxis
+          ? 'The point is on an axis, so its angle is one of the four quarter turns.'
+          : `The point is in the ${QUADRANT_NAMES[quadrantOf(x, y)]} quadrant. Match the parts $${partTex(re)}$ and $${partTex(im)}$ to a cosine and sine of that size, with those signs.`,
+        tex: `\\theta = ${angleTex(m, d)}`,
+      },
+      { tex: `z = ${expTex(mod, { m, d })}` },
+    ];
+  },
+};
+
+/* ---------- The principal argument, slid into range ---------- */
+
+interface PrincipalParams { a: number; m: number; d: 4 | 6 }
+
+/**
+ * An exponent a turn or more out of range, brought back by sliding to the
+ * principal argument in steps of π/4 or π/6. Difficulty 2 goes further out.
+ */
+export const expformPrincipal: Generator<PrincipalParams> = {
+  id: 'expform-principal',
+  sample: (rng, difficulty) => {
+    const d = rng.pick([4, 6] as const);
+    const reach = (difficulty < 2 ? 3 : 5) * d;
+    for (;;) {
+      const m = rng.int(-reach, reach);
+      if (principal(m, d) === m) continue;
+      return { a: rng.int(1, 5), m, d };
+    }
+  },
+  render: ({ a, m, d }) => ({
+    kind: 'slider',
+    prompt: [
+      { kind: 'prose', text: `Slide to the principal argument of $z$, in steps of $\\tfrac{\\pi}{${d}}$.` },
+      { kind: 'display', tex: `z = ${expTex({ a, s: 1 }, { m, d })}` },
+    ],
+    min: 1 - d,
+    max: d,
+    step: 1,
+    answer: principal(m, d),
+    readout: `\\theta = {v} \\times \\tfrac{\\pi}{${d}}`,
+  }),
+  solution: ({ m, d }) => {
+    const main = principal(m, d);
+    const turns = (m - main) / (2 * d);
+    return [
+      {
+        text: `Each whole turn is $2\\pi = \\tfrac{${2 * d}\\pi}{${d}}$, and taking one off does not move the point.`,
+        tex: `${angleTex(m, d)} ${turns > 0 ? '-' : '+'} ${Math.abs(turns) === 1 ? '' : `${Math.abs(turns)} \\times `}2\\pi = ${angleTex(main, d)}`,
+      },
+      { text: `That is $${main}$ step${Math.abs(main) === 1 ? '' : 's'} of $\\tfrac{\\pi}{${d}}$, inside $(-\\pi, \\pi]$.` },
+    ];
+  },
+};
+
+/* ---------- Multiplying and dividing: moduli and arguments ---------- */
+
+/** The angle groups `polar-multiply` draws from, plus the quarter turns. */
+const EXP_GROUPS: { d: number; ks: number[] }[] = [...ANGLE_GROUPS, { d: 2, ks: [1, -1] }];
+
+interface ProductParams { r1: number; r2: number; k1: number; k2: number; d: number; op: 'times' | 'divide' }
+
+/**
+ * $zw$ or $\tfrac{z}{w}$ with both in exponential form: the index laws, with
+ * the moduli as the coefficients. Every distractor gets one half right, which
+ * is how the mistake is usually made: adding moduli, or combining the angles
+ * the wrong way.
+ */
+export const expformProduct: Generator<ProductParams> = {
+  id: 'expform-product',
+  sample: (rng, difficulty) => {
+    const op = rng.pick(['times', 'divide'] as const);
+    const top = difficulty < 2 ? 4 : 6;
+    for (;;) {
+      const group = rng.pick(EXP_GROUPS);
+      const k1 = rng.pick(group.ks);
+      const k2 = rng.pick(group.ks);
+      const m = op === 'times' ? k1 + k2 : k1 - k2;
+      if (principal(m, group.d) === 0) continue;
+      const r2 = rng.int(2, top);
+      const r1 = op === 'times' ? rng.int(2, top) : r2 * rng.int(2, difficulty < 2 ? 3 : 4);
+      return { r1, r2, k1, k2, d: group.d, op };
+    }
+  },
+  render: ({ r1, r2, k1, k2, d, op }) => {
+    const times = op === 'times';
+    const r = times ? r1 * r2 : r1 / r2;
+    const wrong = times ? r1 + r2 : r1 - r2;
+    const right: Angle = reduced({ m: times ? k1 + k2 : k1 - k2, d });
+    const other: Angle = reduced({ m: times ? k1 - k2 : k1 + k2, d });
+    const opts = distinctByValue([
+      expOption({ a: r, s: 1 }, right, true),
+      expOption({ a: wrong, s: 1 }, right),
+      expOption({ a: r, s: 1 }, other),
+      expOption({ a: wrong, s: 1 }, other),
+      expOption({ a: r, s: 1 }, reduced({ m: -right.m, d })),
+    ], 4);
+    return choiceSlide(
+      [
+        {
+          kind: 'prose',
+          text: `$z = ${expTex({ a: r1, s: 1 }, { m: k1, d })}$ and $w = ${expTex({ a: r2, s: 1 }, { m: k2, d })}$.`,
+        },
+        {
+          kind: 'prose',
+          text: `Which is $${times ? 'zw' : '\\frac{z}{w}'}$, with its argument in $(-\\pi, \\pi]$?`,
+        },
+      ],
+      opts,
+      mix(r1, r2, k1, k2, d, times ? 1 : 2),
+    );
+  },
+  solution: ({ r1, r2, k1, k2, d, op }) => {
+    const times = op === 'times';
+    const raw: Angle = { m: times ? k1 + k2 : k1 - k2, d };
+    const main = reduced(raw);
+    const steps: SolutionStep[] = [
+      {
+        text: times
+          ? 'Multiply the numbers in front and add the powers of $e$, exactly as with $x^a \\times x^b = x^{a + b}$.'
+          : 'Divide the numbers in front and subtract the powers of $e$, exactly as with $x^a \\div x^b = x^{a - b}$.',
+        tex: `${times ? `${r1} \\times ${r2}` : `${r1} \\div ${r2}`} = ${times ? r1 * r2 : r1 / r2}`,
+      },
+      {
+        tex: `${angleTex(k1, d)} ${times ? '+' : '-'} ${paren(angleTex(k2, d))} = ${angleTex(raw.m, d)}`,
+      },
+    ];
+    if (main.m !== raw.m) {
+      steps.push({
+        text: 'That is outside $(-\\pi, \\pi]$, so take off a whole turn.',
+        tex: `${angleTex(raw.m, d)} \\to ${angleTex(main.m, d)}`,
+      });
+    }
+    steps.push({ tex: `${times ? 'zw' : '\\frac{z}{w}'} = ${expTex({ a: times ? r1 * r2 : r1 / r2, s: 1 }, main)}` });
+    return steps;
+  },
+};
+
+/* ---------- Dividing, with the working as a tree ---------- */
+
+interface QuotientTreeParams { r2: number; q: number; k1: number; k2: number; d: number; bank: string[] }
+
+/** Pairs of angles whose difference leaves (−π, π] and needs bringing back. */
+const QUOTIENT_PAIRS: { k1: number; k2: number; d: number }[] = EXP_GROUPS.flatMap(({ d, ks }) =>
+  ks.flatMap((k1) => ks.map((k2) => ({ k1, k2, d }))),
+).filter(({ k1, k2, d }) => principal(k1 - k2, d) !== k1 - k2 && principal(k1 - k2, d) !== 0);
+
+/**
+ * $\tfrac{z}{w}$ as two strands, the modulus and the angle, meeting in the
+ * answer. Every pair is one whose difference needs a turn added or taken off,
+ * so the third node is never a copy of the second.
+ */
+export const expformQuotientTree: Generator<QuotientTreeParams> = {
+  id: 'expform-quotient-tree',
+  sample: (rng, difficulty) => {
+    const { k1, k2, d } = rng.pick(QUOTIENT_PAIRS);
+    const r2 = rng.int(2, difficulty < 2 ? 3 : 5);
+    const q = rng.int(2, difficulty < 2 ? 3 : 4);
+    const main = principal(k1 - k2, d);
+    const answer = quotientAnswer({ r2, q, k1, k2, d });
+    const pool = [
+      `${q * r2 * r2}`,
+      `${q * r2 - r2}`,
+      angleTex(k1 + k2, d),
+      angleTex(k2 - k1, d),
+      angleTex(principal(k2 - k1, d), d),
+      expTex({ a: q, s: 1 }, { m: -main, d }),
+      expTex({ a: q * r2 * r2, s: 1 }, { m: main, d }),
+    ];
+    const extras: string[] = [];
+    for (const token of pool) {
+      if (!answer.includes(token) && !extras.includes(token)) extras.push(token);
+    }
+    return { r2, q, k1, k2, d, bank: rng.shuffle([...answer, ...extras.slice(0, 3)]) };
+  },
+  render: (params) => {
+    const { r2, q, k1, k2, d, bank } = params;
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'prose', text: 'Top row: the moduli divided, then the angles subtracted. Next, that angle brought into $(-\\pi, \\pi]$. Last, the answer.' },
+      ],
+      expression: `\\dfrac{${expTex({ a: q * r2, s: 1 }, { m: k1, d })}}{${expTex({ a: r2, s: 1 }, { m: k2, d })}}`,
+      nodes: [
+        { id: 'mod', from: [] },
+        { id: 'raw', from: [] },
+        { id: 'arg', from: ['raw'] },
+        { id: 'result', from: ['mod', 'arg'] },
+      ],
+      bank,
+      answer: quotientAnswer(params),
+    };
+  },
+  solution: ({ r2, q, k1, k2, d }) => {
+    const main = principal(k1 - k2, d);
+    return [
+      { text: 'The moduli divide.', tex: `${q * r2} \\div ${r2} = ${q}` },
+      {
+        text: 'The angles subtract, top minus bottom.',
+        tex: `${angleTex(k1, d)} - ${paren(angleTex(k2, d))} = ${angleTex(k1 - k2, d)}`,
+      },
+      {
+        text: `That is ${k1 - k2 > 0 ? 'past $\\pi$' : 'at or below $-\\pi$'}, so ${k1 - k2 > 0 ? 'take off' : 'add'} a whole turn of $2\\pi$.`,
+        tex: `${angleTex(k1 - k2, d)} \\to ${angleTex(main, d)}`,
+      },
+      { tex: `\\frac{z}{w} = ${expTex({ a: q, s: 1 }, { m: main, d })}` },
+    ];
+  },
+};
+
+function quotientAnswer({ q, k1, k2, d }: Omit<QuotientTreeParams, 'bank'>): string[] {
+  const main = principal(k1 - k2, d);
+  return [`${q}`, angleTex(k1 - k2, d), angleTex(main, d), expTex({ a: q, s: 1 }, { m: main, d })];
+}
+
+/* ---------- The reciprocal, the conjugate and the negative ---------- */
+
+type Relative = 'recip' | 'conj' | 'neg' | 'recipconj';
+
+interface RelativeParams { r: number; m: number; d: number; op: Relative; bank: string[] }
+
+const RELATIVE_TEX: Record<Relative, string> = {
+  recip: '\\frac{1}{z}',
+  conj: '\\overline{z}',
+  neg: '-z',
+  recipconj: '\\frac{1}{\\overline{z}}',
+};
+
+/** The modulus and principal argument of each relative of re^{iθ}, as tiles read them. */
+function relativeOf({ r, m, d, op }: Omit<RelativeParams, 'bank'>): [string, string] {
+  const inverse = op === 'recip' || op === 'recipconj';
+  const angle = op === 'recip' || op === 'conj' ? -m : op === 'neg' ? m + d : m;
+  return [inverse ? `\\tfrac{1}{${r}}` : `${r}`, angleTex(principal(angle, d), d)];
+}
+
+/**
+ * $\tfrac{1}{z} = \tfrac{1}{r}e^{-i\theta}$ and $\overline{z} = re^{-i\theta}$:
+ * both turn the angle round, and only one touches the modulus. Difficulty 2
+ * adds $-z$, a half turn, and $\tfrac{1}{\overline{z}}$, where the two turns
+ * cancel.
+ */
+export const expformReciprocal: Generator<RelativeParams> = {
+  id: 'expform-reciprocal',
+  sample: (rng, difficulty) => {
+    const { m, d } = rng.pick(EXP_ANGLES.filter((angle) => angle.d !== 1));
+    const r = rng.int(2, difficulty < 2 ? 4 : 6);
+    const op = rng.pick(difficulty < 2 ? (['recip', 'conj'] as const) : (['recip', 'conj', 'neg', 'recipconj'] as const));
+    const answer = relativeOf({ r, m, d, op });
+    const bank = tileBank(rng, answer, [
+      answer[0] === `${r}` ? `\\tfrac{1}{${r}}` : `${r}`,
+      `-${r}`,
+      angleTex(m, d),
+      angleTex(-m, d),
+      angleTex(principal(m + d, d), d),
+      angleTex(principal(d - m, d), d),
+    ]);
+    return { r, m, d, op, bank };
+  },
+  render: (params) => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$z = ${expTex({ a: params.r, s: 1 }, { m: params.m, d: params.d })}$ and $w = ${RELATIVE_TEX[params.op]}$. Place the modulus and principal argument of $w$.`,
+      },
+    ],
+    template: '|w| = {0}, \\quad \\arg w = {1}',
+    bank: params.bank,
+    answer: relativeOf(params),
+  }),
+  solution: (params) => {
+    const { r, m, d, op } = params;
+    const z = expTex({ a: r, s: 1 }, { m, d });
+    const [size, angle] = relativeOf(params);
+    const working: Record<Relative, SolutionStep> = {
+      recip: {
+        text: 'One over a power of $e$ is the negative power, and one over the modulus stays in front.',
+        tex: `\\frac{1}{${z}} = \\tfrac{1}{${r}}e^{${expoTex({ m: -m, d })}}`,
+      },
+      conj: {
+        text: 'The conjugate reflects in the real axis: the same distance out, the angle turned the other way.',
+        tex: `\\overline{${z}} = ${expTex({ a: r, s: 1 }, { m: -m, d })}`,
+      },
+      neg: {
+        text: 'A minus sign is $e^{i\\pi}$, a half turn, so it adds $\\pi$ to the angle.',
+        tex: `-z = ${expTex({ a: r, s: 1 }, { m: m + d, d })}`,
+      },
+      recipconj: {
+        text: 'The conjugate turns the angle round and the reciprocal turns it back, so only the modulus changes.',
+        tex: `\\frac{1}{\\overline{z}} = \\tfrac{1}{${r}}e^{${expoTex({ m, d })}}`,
+      },
+    };
+    const steps: SolutionStep[] = [working[op]];
+    const raw = op === 'recip' || op === 'conj' ? -m : op === 'neg' ? m + d : m;
+    if (principal(raw, d) !== raw) {
+      steps.push({ text: 'Bring the angle into $(-\\pi, \\pi]$.', tex: `${angleTex(raw, d)} \\to ${angle}` });
+    }
+    steps.push({ tex: `|w| = ${size}, \\quad \\arg w = ${angle}` });
+    return steps;
+  },
+};
+
+/* ---------- Multiplying by e^{iθ} is a turn ---------- */
+
+interface TurnByParams { a: number; b: number; k: number; scale: number }
+
+/** A lattice point turned by k quarter turns. */
+function quarterTurn(a: number, b: number, k: number): [number, number] {
+  let [x, y] = [a, b];
+  for (let j = 0; j < mod(k, 4); j += 1) [x, y] = [-y, x];
+  return [x, y];
+}
+
+/**
+ * $z \times e^{i\theta}$, plotted: multiplying by a number of modulus 1 turns
+ * $z$ about the origin by $\theta$ and leaves its length alone. Quarter turns
+ * keep the answer on the lattice. Difficulty 2 writes some multipliers a
+ * whole turn round and lets the modulus be 2, a turn and a stretch at once.
+ */
+export const expformTurn: Generator<TurnByParams> = {
+  id: 'expform-turn',
+  sample: (rng, difficulty) => {
+    const k = difficulty < 2 ? rng.pick([1, 2, -1]) : rng.pick([1, 2, -1, 3, -2, -3]);
+    const scale = difficulty >= 2 && rng.chance(0.4) ? 2 : 1;
+    const top = scale === 2 ? 2 : 3;
+    return { a: nonZero(rng, top), b: nonZero(rng, top), k, scale };
+  },
+  render: ({ a, b, k, scale }) => {
+    const [x, y] = quarterTurn(a, b, k);
+    return {
+      kind: 'plot',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Plot $z \\times ${expTex({ a: scale, s: 1 }, { m: k, d: 2 })}$, where $z = ${complexTex(a, b)}$.`,
+        },
+      ],
+      range: RANGE,
+      answer: { re: x * scale, im: y * scale },
+    };
+  },
+  solution: ({ a, b, k, scale }) => {
+    const [x, y] = quarterTurn(a, b, k);
+    const turn = mod(k, 4);
+    const unit = ['1', 'i', '-1', '-i'][turn];
+    const steps: SolutionStep[] = [
+      {
+        text: `$e^{${expoTex({ m: k, d: 2 })}}$ has modulus 1, so multiplying by it turns $z$ about the origin by $${angleTex(k, 2)}$ without stretching it. By Euler's formula it is $${unit}$.`,
+      },
+      {
+        text: `A quarter turn anticlockwise takes $a + bi$ to $-b + ai$${turn === 1 ? '' : `, and this is ${turn === 2 ? 'two' : 'three'} of them`}.`,
+        tex: `${complexTex(a, b)} \\to ${complexTex(x, y)}`,
+      },
+    ];
+    if (scale !== 1) {
+      steps.push({ text: `The $${scale}$ in front then doubles the distance from the origin.`, tex: `${complexTex(x * scale, y * scale)}` });
+    }
+    return steps;
+  },
+};
+
+/* ---------- Powers: (re^{iθ})^n written as a + bi ---------- */
+
+interface PowerExpParams { r: number; m: number; d: number; n: number }
+
+/** z^n for z = re^{iθ}: its modulus, its angle before and after reducing, and its exact parts. */
+function powerParts({ r, m, d, n }: PowerExpParams) {
+  const mod: Mod = { a: r ** n, s: 1 };
+  const raw: Angle = { m: n * m, d };
+  const main = reduced(raw);
+  return { mod, raw, main, ...cartesianParts(mod, main) };
+}
+
+/**
+ * Draws a power whose answer has whole parts: r = 2 always does, and r = 3
+ * only when the power lands on an axis, since 27 × ½ is not a number anyone
+ * should be asked to type.
+ */
+function samplePower(rng: Rng, top: number, needsTurn: boolean): PowerExpParams {
+  for (;;) {
+    const { m, d } = rng.pick(EXP_ANGLES);
+    const r = rng.pick([2, 3]);
+    const n = rng.int(2, top);
+    const params = { r, m, d, n };
+    const { raw, main, re, im } = powerParts(params);
+    if (re.q !== 1 || im.q !== 1) continue;
+    if (needsTurn && (raw.m === main.m || main.m === 0)) continue;
+    return params;
+  }
+}
+
+function powerWorking(params: PowerExpParams): SolutionStep[] {
+  const { r, m, d, n } = params;
+  const { mod, raw, main, re, im } = powerParts(params);
+  const steps: SolutionStep[] = [
+    {
+      text: 'A power applies to both factors: the modulus is raised to it, and the exponent of $e$ is multiplied by it.',
+      tex: `z^{${n}} = ${r}^{${n}}e^{${n} \\times ${paren(expoTex({ m, d }))}} = ${expTex(mod, raw)}`,
+    },
+  ];
+  if (raw.m !== main.m) {
+    steps.push({ text: 'Take off whole turns to bring the angle into $(-\\pi, \\pi]$.', tex: `${angleTex(raw.m, d)} \\to ${angleTex(main.m, d)}` });
+  }
+  steps.push({
+    text: `Then Euler's formula: $${mod.a}$ times the cosine and the sine of $${angleTex(main.m, d)}$.`,
+    tex: `z^{${n}} = ${partsTex(re, im)}`,
+  });
+  return steps;
+}
+
+export const expformPower: Generator<PowerExpParams> = {
+  id: 'expform-power',
+  sample: (rng, difficulty) => samplePower(rng, difficulty < 2 ? 3 : 4, false),
+  render: (params) => {
+    const { re, im } = powerParts(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `Write $z^{${params.n}}$ in the form $a + bi$.` },
+        { kind: 'display', tex: `z = ${expTex({ a: params.r, s: 1 }, { m: params.m, d: params.d })}` },
+      ],
+      lead: `z^{${params.n}} =`,
+      keypad: EXACT_KEYS,
+      answer: partsAnswer(re, im),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: powerWorking,
+};
+
+/* ---------- Powers, one step at a time ---------- */
+
+/** Up to four distinct values for one stage of a `steps` line, the right one among them, in a fixed scatter. */
+function stageBank(value: string, ...candidates: string[]): string[] {
+  const bank = [value];
+  for (const candidate of candidates) {
+    if (bank.length < 4 && !bank.includes(candidate)) bank.push(candidate);
+  }
+  return [...bank].sort((x, y) => hashSeed(x) - hashSeed(y));
+}
+
+/**
+ * The same power worked in four stages on one line: the modulus, the angle
+ * multiplied, the angle reduced, and Euler's formula to finish. Only powers
+ * whose angle genuinely leaves (−π, π] are drawn, so the third stage is
+ * never a copy of the second.
+ */
+export const expformPowerSteps: Generator<PowerExpParams> = {
+  id: 'expform-power-steps',
+  sample: (rng, difficulty) => samplePower(rng, difficulty < 2 ? 4 : 5, true),
+  render: (params) => {
+    const { r, m, d, n } = params;
+    const { mod, raw, main, re, im } = powerParts(params);
+    const e = (angle: Angle) => `e^{${expoTex(angle)}}`;
+    const final = partsTex(re, im);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$z = ${expTex({ a: r, s: 1 }, { m, d })}$. Work out $z^{${n}}$ a step at a time: tap the part to do next, then choose what it becomes.`,
+        },
+      ],
+      start: [`${r}^{${n}}`, `e^{${n} \\times ${paren(expoTex({ m, d }))}}`],
+      reductions: [
+        {
+          span: [0, 1],
+          value: `${mod.a}`,
+          bank: stageBank(`${mod.a}`, `${r * n}`, `${r ** (n - 1)}`, `${r ** (n + 1)}`),
+        },
+        {
+          span: [1, 2],
+          value: e(raw),
+          bank: stageBank(e(raw), e({ m, d }), e({ m: (n + 1) * m, d }), e({ m, d: n * d })),
+        },
+        {
+          span: [1, 2],
+          value: e(main),
+          bank: stageBank(
+            e(main),
+            e(reduced({ m: -main.m, d })),
+            e(reduced({ m: main.m + d, d })),
+            e({ m: raw.m - Math.sign(raw.m) * d, d }),
+            e({ m: main.m, d: 2 * d }),
+            e(reduced({ m: 2 * main.m + d, d: 2 * d })),
+          ),
+        },
+        {
+          span: [0, 2],
+          value: final,
+          bank: stageBank(final, partsTex(re, flipPart(im)), partsTex(im, re), partsTex(flipPart(re), im)),
+        },
+      ],
+    };
+  },
+  solution: powerWorking,
+};
+
+/* ---------- Powers, plotted ---------- */
+
+interface PowerPlotParams { index: number; scale: number; n: number; turns: number }
+
+/**
+ * $z^n$ plotted for a lattice $z$ written in exponential form. On a diagonal
+ * the modulus is √2 and the powers go 2, 2√2, 4: the point spirals out a
+ * diagonal and an axis at a time. Difficulty 2 writes some angles a turn round.
+ */
+export const expformPowerPlot: Generator<PowerPlotParams> = {
+  id: 'expform-power-plot',
+  sample: (rng, difficulty) => {
+    const options: { index: number; scale: number; n: number }[] = [];
+    for (let index = 1; index < 8; index += 1) {
+      const diagonal = index % 2 === 1;
+      for (let n = 2; n <= (diagonal ? 5 : 4); n += 1) options.push({ index, scale: 1, n });
+      if (!diagonal) options.push({ index, scale: 2, n: 2 });
+    }
+    const pick = rng.pick(options);
+    return { ...pick, turns: difficulty < 2 ? 0 : rng.pick([-1, 0, 1]) };
+  },
+  render: ({ index, scale, n, turns }) => {
+    const { mod, angle, re, im } = latticeExp(index, scale);
+    const [x, y] = powersOf(re, im, n)[n - 1];
+    return {
+      kind: 'plot',
+      prompt: [{ kind: 'prose', text: `Plot $z^{${n}}$, where $z = ${expTex(mod, { m: angle.m + 8 * turns, d: 4 })}$.` }],
+      range: RANGE,
+      answer: { re: x, im: y },
+    };
+  },
+  solution: ({ index, scale, n, turns }) => {
+    const { mod, angle, re, im } = latticeExp(index, scale);
+    const [x, y] = powersOf(re, im, n)[n - 1];
+    const written: Angle = { m: angle.m + 8 * turns, d: 4 };
+    const size = Math.sqrt(x * x + y * y);
+    const sizeTex = Number.isInteger(size) ? `${size}` : modTex({ a: Math.round(size / Math.SQRT2), s: 2 });
+    const raw: Angle = { m: n * written.m, d: 4 };
+    const main = reduced(raw);
+    const unit = mod.a === 1 && mod.s === 1;
+    const steps: SolutionStep[] = [
+      unit
+        ? { text: `The modulus is 1, so every power stays on the unit circle. Multiply the angle by ${n}.` }
+        : {
+            text: `Raise the modulus to the power ${n} and multiply the angle by ${n}.`,
+            tex: `|z^{${n}}| = (${modTex(mod)})^{${n}} = ${sizeTex}`,
+          },
+      { tex: `${n} \\times ${paren(angleTex(written.m, 4))} = ${angleTex(raw.m, 4)}` },
+    ];
+    if (main.m !== raw.m) {
+      steps.push({ text: 'Whole turns change nothing, so take them off.', tex: `${angleTex(raw.m, 4)} \\to ${angleTex(main.m, 4)}` });
+    }
+    steps.push({ text: `So $z^{${n}}$ is $${sizeTex}$ out in the direction $${angleTex(main.m, 4)}$.`, tex: `z^{${n}} = ${complexTex(x, y)}` });
+    return steps;
+  },
+};
+
+/* ---------- The least power that is real ---------- */
+
+type Target = 'real' | 'positive' | 'imaginary';
+
+interface LeastParams { k: number; d: number; want: Target }
+
+/** The least n ≥ 1 for which n·kπ/d lands where it is wanted; 0 when none does by 24. */
+function leastPower(k: number, d: number, want: Target): number {
+  for (let n = 1; n <= 24; n += 1) {
+    const top = n * k;
+    if (want === 'real' && top % d === 0) return n;
+    if (want === 'positive' && top % (2 * d) === 0) return n;
+    if (want === 'imaginary' && mod(2 * top, 2 * d) === d) return n;
+  }
+  return 0;
+}
+
+const TARGET_TEXT: Record<Target, string> = {
+  real: 'real',
+  positive: 'real and positive',
+  imaginary: 'purely imaginary',
+};
+
+/**
+ * The least positive n for which $z^n$ is real. The argument of $z^n$ is
+ * $n\theta$, so the question is the least multiple of θ that is a whole
+ * number of half turns. Difficulty 2 asks for a positive real number (whole
+ * turns) or a purely imaginary one (an odd number of quarter turns).
+ */
+export const expformLeastPower: Generator<LeastParams> = {
+  id: 'expform-least-power',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const d = rng.int(2, 12);
+      const k = rng.int(1 - d, d);
+      if (k === 0 || k === d) continue;
+      const want: Target = difficulty < 2 ? 'real' : rng.pick(['real', 'positive', 'imaginary'] as const);
+      const n = leastPower(k, d, want);
+      if (n < 2 || n > 12) continue;
+      return { k, d, want };
+    }
+  },
+  render: ({ k, d, want }) => ({
+    kind: 'slider',
+    prompt: [
+      { kind: 'prose', text: `Slide to the least positive whole $n$ for which $z^n$ is ${TARGET_TEXT[want]}.` },
+      { kind: 'display', tex: `z = 2e^{${expoTex({ m: k, d })}}` },
+    ],
+    min: 1,
+    max: 12,
+    step: 1,
+    answer: leastPower(k, d, want),
+    readout: 'n = {v}',
+  }),
+  solution: ({ k, d, want }) => {
+    const n = leastPower(k, d, want);
+    const need: Record<Target, string> = {
+      real: 'a whole number of half turns, $\\pi$',
+      positive: 'a whole number of full turns, $2\\pi$',
+      imaginary: 'an odd number of quarter turns, $\\tfrac{\\pi}{2}$',
+    };
+    return [
+      {
+        text: `The argument of $z^n$ is $n$ times the argument of $z$. The modulus does not matter: only the direction decides whether $z^n$ is ${TARGET_TEXT[want]}.`,
+      },
+      { text: `That direction has to be ${need[want]}. Try $n = 1, 2, 3, \\ldots$ until it is.` },
+      { tex: `${n} \\times ${paren(angleTex(k, d))} = ${angleTex(n * k, d)}` },
+    ];
+  },
+};
+
+/* ---------- Negative powers ---------- */
+
+interface NegativePowerParams { r: number; m: number; d: number; n: number; bank: string[] }
+
+function negativePowerOf({ r, m, d, n }: Omit<NegativePowerParams, 'bank'>): [string, string] {
+  return [`\\tfrac{1}{${r ** n}}`, angleTex(principal(-n * m, d), d)];
+}
+
+/**
+ * $z^{-n} = r^{-n}e^{-in\theta}$: the power law still holds with a negative
+ * power, so the modulus becomes a fraction and the angle turns the other way.
+ */
+export const expformNegativePower: Generator<NegativePowerParams> = {
+  id: 'expform-negative-power',
+  sample: (rng, difficulty) => {
+    const { m, d } = rng.pick(EXP_ANGLES);
+    const n = difficulty < 2 ? rng.int(1, 2) : rng.int(2, 3);
+    const r = n === 3 ? 2 : rng.int(2, 3);
+    const answer = negativePowerOf({ r, m, d, n });
+    const bank = tileBank(rng, answer, [
+      `${r ** n}`,
+      `\\tfrac{1}{${r * n}}`,
+      angleTex(principal(n * m, d), d),
+      angleTex(principal(-m, d), d),
+      angleTex(principal(-n * m + d, d), d),
+    ]);
+    return { r, m, d, n, bank };
+  },
+  render: (params) => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$z = ${expTex({ a: params.r, s: 1 }, { m: params.m, d: params.d })}$ and $w = z^{-${params.n}}$. Place the modulus and principal argument of $w$.`,
+      },
+    ],
+    template: '|w| = {0}, \\quad \\arg w = {1}',
+    bank: params.bank,
+    answer: negativePowerOf(params),
+  }),
+  solution: (params) => {
+    const { r, m, d, n } = params;
+    const [size, angle] = negativePowerOf(params);
+    const steps: SolutionStep[] = [
+      {
+        text: `The power law works for $-${n}$ too: raise the modulus to it and multiply the angle by it.`,
+        tex: `z^{-${n}} = ${r}^{-${n}}e^{${expoTex({ m: -n * m, d })}}`,
+      },
+      { text: `A negative power of the modulus is one over the positive power: $${r}^{-${n}} = ${size}$.` },
+    ];
+    if (principal(-n * m, d) !== -n * m) {
+      steps.push({ text: 'Bring the angle into $(-\\pi, \\pi]$.', tex: `${angleTex(-n * m, d)} \\to ${angle}` });
+    }
+    steps.push({ tex: `|w| = ${size}, \\quad \\arg w = ${angle}` });
+    return steps;
+  },
+};
+
+/* ---------- Which form for the job? ---------- */
+
+type Job = 'sum' | 'difference' | 'product' | 'quotient' | 'power';
+
+interface MethodParams { job: Job; zTex: string; wTex: string; zExp: boolean; wExp: boolean; n: number }
+
+const JOB_TEX: Record<Job, (n: number) => string> = {
+  sum: () => 'z + w',
+  difference: () => 'z - w',
+  product: () => 'zw',
+  quotient: () => '\\dfrac{z}{w}',
+  power: (n) => `z^{${n}}`,
+};
+
+const CARTESIAN_LABEL = 'Cartesian, $a + bi$';
+const EXPONENTIAL_LABEL = 'Exponential, $re^{i\\theta}$';
+
+/** A number for a method question, in whichever form was drawn. */
+function methodNumber(rng: Rng, exponential: boolean): string {
+  if (exponential) {
+    const { m, d } = rng.pick(EXP_ANGLES);
+    return expTex({ a: rng.int(2, 5), s: 1 }, { m, d });
+  }
+  return complexTex(nonZero(rng, 5), nonZero(rng, 5));
+}
+
+/**
+ * Which form suits the job, then whether anything needs converting first.
+ * Adding works part by part, so it wants a + bi; multiplying, dividing and
+ * powers multiply moduli and add angles, so they want re^{iθ}. Powers are
+ * drawn at 5 or more, where multiplying out a + bi is plainly the long way.
+ */
+export const expformMethodFlow: Generator<MethodParams> = {
+  id: 'expform-method-flow',
+  sample: (rng, difficulty) => {
+    const job = rng.pick(['sum', 'difference', 'product', 'quotient', 'power'] as const);
+    const zExp = rng.chance(0.5);
+    const wExp = job === 'power' ? zExp : difficulty < 2 ? zExp : rng.chance(0.5);
+    return {
+      job,
+      zTex: methodNumber(rng, zExp),
+      wTex: job === 'power' ? '' : methodNumber(rng, wExp),
+      zExp,
+      wExp,
+      n: rng.int(5, 12),
+    };
+  },
+  render: ({ job, zTex, wTex, zExp, wExp, n }) => {
+    const additive = job === 'sum' || job === 'difference';
+    const ready = additive ? !zExp && !wExp : zExp && wExp;
+    const readiness = [
+      { label: 'Yes', outcome: 'Work it out as it stands.' },
+      { label: 'No', outcome: 'Convert first, then work it out.' },
+    ];
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: 'Which form makes this easiest? Work down the questions.' },
+        { kind: 'display', tex: job === 'power' ? `z = ${zTex}` : `z = ${zTex}, \\quad w = ${wTex}` },
+      ],
+      subject: JOB_TEX[job](n),
+      steps: [
+        {
+          id: 'form',
+          ask: 'Which form suits this job?',
+          branches: [
+            { label: CARTESIAN_LABEL, to: 'cartesian' },
+            { label: EXPONENTIAL_LABEL, to: 'exponential' },
+          ],
+        },
+        { id: 'cartesian', ask: 'Is everything already in that form?', branches: readiness },
+        { id: 'exponential', ask: 'Is everything already in that form?', branches: readiness },
+      ],
+      answer: [additive ? CARTESIAN_LABEL : EXPONENTIAL_LABEL, ready ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ job, zTex, wTex, zExp, wExp, n }) => {
+    const additive = job === 'sum' || job === 'difference';
+    const wrong = additive ? [zExp && `$z = ${zTex}$`, wExp && `$w = ${wTex}$`] : [!zExp && `$z = ${zTex}$`, job !== 'power' && !wExp && `$w = ${wTex}$`];
+    const convert = wrong.filter(Boolean);
+    return [
+      {
+        text: additive
+          ? 'Adding and subtracting go part by part, real with real and imaginary with imaginary, so $a + bi$ is the form for it.'
+          : `${job === 'power' ? `A power like $z^{${n}}$ raises the modulus and multiplies the angle` : 'Multiplying and dividing combine the moduli and the angles'}, so $re^{i\\theta}$ is the form for it.`,
+      },
+      {
+        text: convert.length === 0
+          ? 'Everything is already in that form, so there is nothing to convert.'
+          : `${convert.join(' and ')} ${convert.length === 1 ? 'needs' : 'need'} converting first.`,
+      },
+    ];
+  },
+};
+
+/* ---------- A point, matched to its exponential form ---------- */
+
+interface MatchPointParams { index: number; scale: number }
+
+/**
+ * A lattice point on the plane and four exponential forms. The distractors are
+ * the conjugate, the reflection in the imaginary axis, the opposite point,
+ * and the right direction at a modulus read wrongly off a diagonal.
+ */
+export const expformMatchPoint: Generator<MatchPointParams> = {
+  id: 'expform-match-point',
+  sample: (rng) => ({ index: rng.int(1, 7), scale: rng.int(1, RANGE) }),
+  render: ({ index, scale }) => {
+    const { mod, angle, re, im, diagonal } = latticeExp(index, scale);
+    const wrongMod: Mod = diagonal ? { a: 2 * scale, s: 1 } : { a: scale, s: 2 };
+    const opts = distinctByValue([
+      expOption(mod, angle, true),
+      expOption(mod, { m: -angle.m, d: 4 }),
+      expOption(mod, reduced({ m: 4 - angle.m, d: 4 })),
+      expOption(wrongMod, angle),
+      expOption(mod, reduced({ m: angle.m + 4, d: 4 })),
+    ], 4);
+    return choiceSlide(
+      [
+        { kind: 'prose', text: 'Which is the marked number in exponential form?' },
+        { kind: 'diagram', svg: complexPlaneSvg(RANGE, [{ re, im, highlight: true }]) },
+      ],
+      opts,
+      mix(index, scale, 7),
+    );
+  },
+  solution: ({ index, scale }) => {
+    const { mod, angle, re, im, diagonal } = latticeExp(index, scale);
+    return [
+      {
+        text: 'The modulus is the distance from the origin.',
+        tex: `r = \\sqrt{${re * re} + ${im * im}} = ${modTex(mod)}`,
+      },
+      {
+        text: diagonal
+          ? `The point is on a diagonal in the ${QUADRANT_NAMES[quadrantOf(re, im)]} quadrant.`
+          : 'The point is on an axis, so the angle is a quarter turn or a half turn.',
+        tex: `\\theta = ${angleTex(angle.m, 4)}`,
+      },
+      { tex: `${complexTex(re, im)} = ${expTex(mod, angle)}` },
+    ];
+  },
+};
+
+/* ---------- Adding: back to a + bi ---------- */
+
+interface SumParams { i1: number; s1: number; i2: number; s2: number; op: 1 | -1 }
+
+function sumParts({ i1, s1, i2, s2, op }: SumParams) {
+  const z = latticeExp(i1, s1);
+  const w = latticeExp(i2, s2);
+  return { z, w, x: z.re + op * w.re, y: z.im + op * w.im };
+}
+
+/**
+ * $z + w$ with both in exponential form. There is no rule for adding moduli
+ * and angles, so each is turned into $a + bi$ first. The points are on the
+ * lattice, so the answer is whole.
+ */
+export const expformSum: Generator<SumParams> = {
+  id: 'expform-sum',
+  choices: (params) => {
+    const { z, w, x, y } = sumParts(params);
+    const opt = (p: number, q: number) => ({ tex: complexTex(p, q), answer: complexAnswer(p, q) });
+    return steered(
+      options(opt(x, y), opt(z.re - params.op * w.re, z.im - params.op * w.im), opt(x, -y), opt(y, x), opt(-x, y)).slice(0, 4),
+      mix(params.i1, params.s1, params.i2, params.s2, params.op),
+    );
+  },
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const i1 = rng.int(0, 7);
+      const i2 = rng.int(0, 7);
+      if (i1 === i2) continue;
+      const params: SumParams = {
+        i1,
+        s1: rng.int(1, difficulty < 2 ? 3 : 4),
+        i2,
+        s2: rng.int(1, difficulty < 2 ? 3 : 4),
+        op: difficulty < 2 || rng.chance(0.5) ? 1 : -1,
+      };
+      const { x, y } = sumParts(params);
+      if (x === 0 && y === 0) continue;
+      return params;
+    }
+  },
+  render: (params) => {
+    const { z, w, x, y } = sumParts(params);
+    const sign = params.op === 1 ? '+' : '-';
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `$z = ${expTex(z.mod, z.angle)}$ and $w = ${expTex(w.mod, w.angle)}$. Write $z ${sign} w$ in the form $a + bi$.` },
+      ],
+      lead: `z ${sign} w =`,
+      keypad: I_KEY,
+      answer: complexAnswer(x, y),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { z, w, x, y } = sumParts(params);
+    const sign = params.op === 1 ? '+' : '-';
+    return [
+      { text: 'Adding has no shortcut in exponential form, so write each number as $a + bi$ first.' },
+      { tex: `z = ${expTex(z.mod, z.angle)} = ${complexTex(z.re, z.im)}` },
+      { tex: `w = ${expTex(w.mod, w.angle)} = ${complexTex(w.re, w.im)}` },
+      { text: `Then ${params.op === 1 ? 'add' : 'subtract'} the real parts and the imaginary parts.`, tex: `z ${sign} w = ${complexTex(x, y)}` },
+    ];
+  },
+};
+
+/* ---------- A power of a + bi, by way of re^{iθ} ---------- */
+
+interface CartesianPowerParams { m: number; d: number; n: number }
+
+/** Bases of modulus √2 (the diagonals) or 2 (the π/6 family): r^n stays whole or √2 times whole. */
+const POWER_BASES: Angle[] = EXP_ANGLES.filter(({ d }) => d === 4 || d === 3 || d === 6);
+
+function cartesianPowerParts({ m, d, n }: CartesianPowerParams) {
+  const base: Mod = d === 4 ? { a: 1, s: 2 } : { a: 2, s: 1 };
+  const power: Mod = d === 4 ? { a: 2 ** Math.floor(n / 2), s: n % 2 === 1 ? 2 : 1 } : { a: 2 ** n, s: 1 };
+  const b = cartesianParts(base, { m, d });
+  const raw: Angle = { m: n * m, d };
+  const main = reduced(raw);
+  return { base, power, baseTex: partsTex(b.re, b.im), raw, main, ...cartesianParts(power, main) };
+}
+
+/**
+ * $(a + bi)^n$ for a large n, which is the whole case for exponential form:
+ * convert, raise, convert back, where multiplying out would take n − 1
+ * multiplications.
+ */
+export const expformCartesianPower: Generator<CartesianPowerParams> = {
+  id: 'expform-cartesian-power',
+  sample: (rng, difficulty) => {
+    const { m, d } = rng.pick(POWER_BASES);
+    const n = d === 4 ? rng.int(difficulty < 2 ? 3 : 5, difficulty < 2 ? 6 : 10) : rng.int(difficulty < 2 ? 2 : 3, difficulty < 2 ? 4 : 6);
+    return { m, d, n };
+  },
+  render: (params) => {
+    const { baseTex, re, im } = cartesianPowerParts(params);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `Use exponential form to write $(${baseTex})^{${params.n}}$ in the form $a + bi$.` }],
+      lead: `(${baseTex})^{${params.n}} =`,
+      keypad: EXACT_KEYS,
+      answer: partsAnswer(re, im),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { m, d, n } = params;
+    const { base, power, baseTex, raw, main, re, im } = cartesianPowerParts(params);
+    const steps: SolutionStep[] = [
+      { text: 'Convert first: the modulus by Pythagoras, the angle from the signs and sizes of the parts.', tex: `${baseTex} = ${expTex(base, { m, d })}` },
+      { text: `Raise to the power ${n}: the modulus to the power, the angle times ${n}.`, tex: `(${modTex(base)})^{${n}} = ${modTex(power)}` },
+      { tex: `${n} \\times ${paren(angleTex(m, d))} = ${angleTex(raw.m, d)}` },
+    ];
+    if (main.m !== raw.m) {
+      steps.push({ text: 'Take off whole turns.', tex: `${angleTex(raw.m, d)} \\to ${angleTex(main.m, d)}` });
+    }
+    steps.push({ text: "Convert back with Euler's formula.", tex: `${expTex(power, main)} = ${partsTex(re, im)}` });
+    return steps;
+  },
+};
+
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
@@ -4348,4 +5944,25 @@ export const planeGenerators = [
   locusCartesianCentre,
   locusCartesianRadius,
   locusModulusRange,
+  expformEulerCartesian,
+  expformEulerParts,
+  expformEulerPlot,
+  expformEulerFlow,
+  expformRead,
+  expformSwap,
+  expformConvert,
+  expformPrincipal,
+  expformProduct,
+  expformQuotientTree,
+  expformReciprocal,
+  expformTurn,
+  expformPower,
+  expformPowerSteps,
+  expformPowerPlot,
+  expformLeastPower,
+  expformNegativePower,
+  expformMethodFlow,
+  expformMatchPoint,
+  expformSum,
+  expformCartesianPower,
 ];

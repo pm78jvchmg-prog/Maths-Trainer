@@ -7,6 +7,7 @@
  * available.
  */
 import { useReducer, useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   startSession,
   reduce,
@@ -110,7 +111,11 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         </button>
 
         {isSkillCheck ? (
-          <div className="dots" aria-label={`Question ${session.index + 1} of ${deck.length}`}>
+          <div
+            className="dots"
+            aria-label={`Question ${session.index + 1} of ${deck.length}`}
+            style={{ '--count': deck.length } as CSSProperties}
+          >
             {deck.map((_, idx) => (
               <span
                 key={idx}

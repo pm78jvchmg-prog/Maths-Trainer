@@ -2,9 +2,11 @@ import type { Generator, GeneratorRegistry } from './types';
 import { choiceVariants } from './choiceVariant';
 import { complexGenerators } from './generators/complex';
 import { arithmeticGenerators } from './generators/complexArithmetic';
+import { binomialGenerators } from './generators/binomialExpansion';
 import { planeGenerators } from './generators/complexPlane';
 import { differentiationGenerators } from './generators/differentiation';
 import { differentiationShapeGenerators } from './generators/differentiationShapes';
+import { exponentialModelGenerators } from './generators/exponentialModels';
 import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
 import { integrationShapeGenerators } from './generators/integrationShapes';
@@ -34,11 +36,13 @@ export const allGenerators = [
   ...integrationShapeGenerators,
   ...linearEquationsGenerators,
   ...logarithmGenerators,
+  ...exponentialModelGenerators,
   ...quadraticsGenerators,
   ...quadraticShapeGenerators,
   ...vectorGenerators,
   ...matrixGenerators,
   ...trigonometryGenerators,
+  ...binomialGenerators,
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.
   ...workingGenerators,

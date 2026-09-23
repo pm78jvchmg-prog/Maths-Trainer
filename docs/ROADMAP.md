@@ -141,8 +141,8 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 10 | Trigonometric Functions | **15 lessons** |
 | 11 | Trigonometric Identities & Equations | new |
 | 12 | Logarithms | **12 lessons** |
-| 13 | Exponential Models | new |
-| 14 | Binomial Expansion | new |
+| 13 | Exponential Models | **9 lessons** |
+| 14 | Binomial Expansion | **10 lessons** |
 | 15 | Inequalities & the Modulus Function | new |
 
 ### Advanced Maths
@@ -244,6 +244,29 @@ Simultaneous Linear Equations. Needs: Rearranging Formulae; Linear Inequalities
 Simultaneous Equations in Three Unknowns (by elimination; the matrix route stays
 in Matrices vm-l9); Inequalities in Two Variables & Regions; Modelling with
 Linear Equations (break-even, rates, mixtures).
+
+**Exponential Models** (new in C10) — has: The Continuous Model; Fitting and
+Using Models. Needs: Rates in Models (the rate as ky read and compared, average
+against instantaneous rate, when two models grow at the same rate); Comparing
+Models (when one model overtakes another, sums and differences of exponentials);
+Logistic Growth (a ceiling that slows growth, P = L / (1 + Ae^(-kt)), the
+fastest growth at half the ceiling); Continuous Compounding (e as the limit of
+(1 + 1/n)^n, effective annual rate against continuous rate); The
+Limits of a Model (residuals, when a model stops fitting, choosing between two
+fits). Solving dy/dt = ky belongs to Differential Equations (C13).
+
+**Binomial Expansion** (new in C7) — has: Pascal's Triangle and (a + b)ⁿ; nCr and
+the General Term. Needs: Unknowns and Conditions (finding n, k or a from given
+coefficients, equal and in-ratio coefficients, the sum of the coefficients);
+Products of Expansions ((a + bx)ᵐ(c + dx)ⁿ, (1 + x + x²)ⁿ, and pairing brackets
+such as (1 + x)ⁿ(1 − x)ⁿ = (1 − x²)ⁿ); Estimates and Surds (choosing x to estimate
+a power, how big the error is, (√2 + 1)ⁿ and conjugate pairs); The Binomial Series
+for Rational n ((1 + x)ⁿ for negative and fractional n as an infinite series, valid
+for |x| < 1, and (a + bx)ⁿ taken out as aⁿ(1 + bx/a)ⁿ with its own range);
+Approximating with the Series (roots and reciprocals such as √1.02 and 1/(1 − x)²,
+and the series of a partial-fraction split once C9 has landed). Rational n belongs
+to this course: C14 Series Expansions builds on it and quotes the binomial series
+as a special case of Maclaurin, rather than teaching it again.
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -497,6 +520,8 @@ batch rather than waiting on a separate one.
 | # | Batch | Status |
 | ---: | --- | --- |
 | C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
+| C7 | Binomial Expansion | **done** (`claude/roadmap-c-binomial-expansion-e9c0un`): course `binomial-expansion`, levels `be-l1` and `be-l2`, 10 lessons, level checks of 14 and 15 questions, 32 new generators |
+| C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
 | C5-widget | Term-table widget for C5 | **done** (`claude/roadmap-c5-widget-table-jccge6`): slide kind `table`, 2 demo generators (`term-table-explicit`, `term-table-recursive`), no lessons yet |
 
 ### When the queue empties

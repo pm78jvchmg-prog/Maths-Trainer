@@ -1028,11 +1028,11 @@ const rootCheck: Generator<CheckParams> = {
     };
   },
   solution: (params) => {
-    const { X, s, B, C, term, first, value } = checkNumbers(params);
+    const { X, s, B, C, term, value } = checkNumbers(params);
     return [
       { text: `$\\sqrt{${X}} = ${s}$: a square root is never negative.` },
-      { tex: `${X} ${signedTile(B)} \\times ${s} ${signedTile(C)} = ${X} ${signedTile(term)} ${signedTile(C)}` },
-      { tex: `${first} ${signedTile(C)} = ${value}` },
+      { tex: `${X} ${signedTile(B)} \\times ${s} ${signedTile(C)}` },
+      { tex: `= ${X} ${signedTile(term)} ${signedTile(C)} = ${value}` },
       {
         text:
           value === 0

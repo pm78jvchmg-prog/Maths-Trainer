@@ -506,8 +506,19 @@ export interface Level {
   levelCheck?: SlideRef[];
 }
 
+/** The tabs on the home screen; `courses/index.ts` gives each its title. */
+export type CategoryId = 'algebra-fundamentals' | 'advanced-algebra' | 'advanced-maths';
+
 export interface Course {
   id: string;
+  /** Which home-screen tab the course sits in. */
+  category: CategoryId;
+  /**
+   * Where in that tab, smallest first. Spaced in tens so a new course can go
+   * between two others; a tie is broken by id, so two new courses picking the
+   * same number still get a fixed order.
+   */
+  position: number;
   title: string;
   blurb: string;
   levels: Level[];

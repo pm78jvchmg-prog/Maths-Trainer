@@ -51,6 +51,8 @@ const logf =
 
 export const logarithms: Course = {
   id: 'logarithms',
+  category: 'advanced-algebra',
+  position: 20,
   title: 'Logarithms',
   blurb: 'A logarithm is an index. Then the three laws, solving with them, changing base, the graph, and straightening a model.',
   levels: [

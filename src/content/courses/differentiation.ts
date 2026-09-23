@@ -1652,5 +1652,225 @@ export const differentiation: Course = {
         ask('df-cs-gradient-shape', 2),
       ],
     },
+    {
+      id: 'df-l7',
+      title: 'Rates of Change & Related Rates',
+      lessons: [
+        {
+          id: 'df-l7-rate',
+          title: 'A Derivative Is a Rate',
+          slides: [
+            teach(
+              prose(
+                'A derivative measures how fast one thing changes as another does. When a quantity changes with **time**, its derivative is a **rate**: so many units of it for every second, minute or hour.',
+              ),
+              { kind: 'display', tex: 'V = 2t^{3} + 5t' },
+              { kind: 'display', tex: '\\frac{dV}{dt} = 6t^{2} + 5' },
+              graph({
+                xMin: -0.2,
+                xMax: 2.2,
+                yMin: -4,
+                yMax: 28,
+                curves: [
+                  { f: (t) => 2 * t ** 3 + 5 * t },
+                  { f: (t) => 11 * t - 4, dashed: true, accent: true },
+                ],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [{ x: 1, y: 7 }],
+                label: 'The volume in a tank against time, with its tangent at t = 1',
+              }),
+              prose(
+                'If $V$ is the water in a tank in $\\text{cm}^{3}$ after $t$ seconds, then at $t = 1$ it is filling at $\\frac{dV}{dt} = 11$ $\\text{cm}^{3}$ per second: the steepness of the graph there.',
+              ),
+            ),
+            ask('df-rc-rate-fn'),
+            ask('df-rc-rate-fn+choice', 2),
+            ask('df-rc-read-units'),
+            teach(
+              prose(
+                'For the rate at one moment, **differentiate first**, then put the time in. At $t = 2$ the tank above is filling at $29$ $\\text{cm}^{3}$ per second:',
+              ),
+              { kind: 'display', tex: '\\frac{dV}{dt} = 6(2)^{2} + 5 = 29' },
+              prose(
+                'Putting $t = 2$ into $V$ instead gives $26$ $\\text{cm}^{3}$. That is how much water there is, not how fast it is arriving, and its unit has no "per second" in it.',
+              ),
+            ),
+            ask('df-rc-rate-at'),
+            ask('df-rc-rate-slider'),
+            ask('df-rc-rate-at+choice', 2),
+            teach(
+              prose(
+                'A rate can be negative: the quantity is going **down**. A ball thrown upwards is $h = 20t - 5t^{2}$ metres high, so its height changes at',
+              ),
+              { kind: 'display', tex: '\\frac{dh}{dt} = 20 - 10t' },
+              graph({
+                xMin: -0.2,
+                xMax: 4.2,
+                yMin: -3,
+                yMax: 24,
+                curves: [{ f: (t) => 20 * t - 5 * t * t }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [{ x: 2, y: 20 }],
+                label: 'The height of a ball against time, rising to a peak at t = 2 and falling',
+              }),
+              prose(
+                'Positive before $t = 2$, so it rises; zero at $t = 2$, the top; negative after, so it falls. The number is the speed and the sign is the direction.',
+              ),
+            ),
+            ask('df-rc-rate-slider', 2),
+            ask('df-rc-read-units', 2),
+          ],
+          skillCheck: [ask('df-rc-rate-fn', 2), ask('df-rc-rate-at', 2), ask('df-rc-rate-slider', 2)],
+        },
+
+        {
+          id: 'df-l7-connect',
+          title: 'Connecting Rates',
+          slides: [
+            teach(
+              prose(
+                'When one quantity depends on another, their rates are linked. A cube\'s volume depends on its edge, and the edge on time, so the rates **multiply**:',
+              ),
+              { kind: 'display', tex: '\\frac{dV}{dt} = \\frac{dV}{dx} \\times \\frac{dx}{dt}' },
+              prose(
+                'This is the chain rule read as rates: $\\text{cm}^{3}$ per cm, times cm per second, gives $\\text{cm}^{3}$ per second. With $V = x^{3}$, an edge of $4$ cm growing at $2$ cm per second:',
+              ),
+              { kind: 'display', tex: '\\frac{dV}{dt} = 3(4)^{2} \\times 2' },
+              { kind: 'display', tex: '= 48 \\times 2 = 96' },
+            ),
+            ask('df-rc-chain-tiles'),
+            ask('df-rc-which-rate'),
+            ask('df-rc-chain-tiles', 2),
+            teach(
+              prose(
+                'The middle of the chain can be moving too. If $y = x^{2}$ and $x = 3t + 1$, find $x$ at the moment first, then use it. At $t = 1$, $x = 4$ and $\\frac{dx}{dt} = 3$, so $\\frac{dy}{dx} = 2x = 8$ and',
+              ),
+              { kind: 'display', tex: '\\frac{dy}{dt} = 8 \\times 3 = 24' },
+              prose('$\\frac{dy}{dx}$ is evaluated at $x = 4$, not at $t = 1$. The two are different numbers.'),
+            ),
+            ask('df-rc-link-tree'),
+            ask('df-rc-which-rate', 2),
+            ask('df-rc-link-tree', 2),
+            teach(
+              prose(
+                'When $x$ changes at a steady rate, the chain gives $\\frac{dy}{dt}$ as a function of $x$: every term of $\\frac{dy}{dx}$ multiplied by that rate. For $y = x^{3} - 4x$ with $\\frac{dx}{dt} = 2$:',
+              ),
+              { kind: 'display', tex: '\\frac{dy}{dt} = (3x^{2} - 4) \\times 2' },
+              { kind: 'display', tex: '= 6x^{2} - 8' },
+            ),
+            ask('df-rc-rate-in-x'),
+            ask('df-rc-rate-in-x+choice', 2),
+          ],
+          skillCheck: [ask('df-rc-chain-tiles', 2), ask('df-rc-link-tree', 2), ask('df-rc-rate-in-x', 2)],
+        },
+
+        {
+          id: 'df-l7-shapes',
+          title: 'Related Rates in Shapes',
+          slides: [
+            teach(
+              prose(
+                'Most related-rates questions are about a shape. Write the formula that links the two quantities, differentiate it, then chain. A circle with radius $5$ cm growing at $3$ cm per second:',
+              ),
+              { kind: 'display', tex: 'A = \\pi r^{2}' },
+              { kind: 'display', tex: '\\frac{dA}{dr} = 2\\pi r = 10\\pi' },
+              { kind: 'display', tex: '\\frac{dA}{dt} = 10\\pi \\times 3 = 30\\pi' },
+              prose(
+                'That is $30\\pi$ $\\text{cm}^{2}$ per second, and the $\\pi$ stays in because it is exact. A shape with two lengths is tied down to one first, so a cone that is always three times as tall as its radius has $V = \\frac{1}{3}\\pi r^{2}(3r) = \\pi r^{3}$. A length that is shrinking has a negative rate.',
+              ),
+            ),
+            ask('df-rc-shape-k'),
+            ask('df-rc-shape-flow'),
+            ask('df-rc-shape-k+choice', 2),
+            teach(
+              prose(
+                'The chain works backwards too. Knowing how fast the **size** changes, divide by $\\frac{dV}{dr}$ to get the length\'s rate. A balloon gaining $288\\pi$ $\\text{cm}^{3}$ per second when its radius is $6$ cm:',
+              ),
+              { kind: 'display', tex: '\\frac{dV}{dr} = 4\\pi r^{2} = 144\\pi' },
+              { kind: 'display', tex: '\\frac{dr}{dt} = 288\\pi \\div 144\\pi = 2' },
+              prose('That is $2$ cm per second. The $\\pi$ on top cancels the $\\pi$ underneath, which is why the answer is a plain number.'),
+            ),
+            ask('df-rc-shape-back'),
+            ask('df-rc-shape-flow', 2),
+            ask('df-rc-shape-back', 2),
+            teach(
+              prose(
+                'A cube or a box has no $\\pi$, and the numbers come out whole. A cube-shaped crystal gaining $96$ $\\text{cm}^{3}$ per second when its edge is $4$ cm has $\\frac{dV}{dx} = 3x^{2}$, so',
+              ),
+              { kind: 'display', tex: '\\frac{dx}{dt} = 96 \\div 3 \\div 4^{2} = 2' },
+              prose('Dividing by $3x^{2}$ is dividing by $3$, then by $x^{2}$: left to right, one step at a time.'),
+            ),
+            ask('df-rc-block-back'),
+            ask('df-rc-block-back+choice', 2),
+          ],
+          skillCheck: [ask('df-rc-shape-k', 2), ask('df-rc-shape-back', 2), ask('df-rc-shape-flow', 2)],
+        },
+
+        {
+          id: 'df-l7-reading',
+          title: 'Reading a Rate',
+          slides: [
+            teach(
+              prose(
+                'The **sign** of a rate says which way a quantity is going: positive, increasing; negative, decreasing; zero, still for an instant.',
+              ),
+              { kind: 'display', tex: 'V = -t^{3} + 6t^{2} + 20' },
+              { kind: 'display', tex: '\\frac{dV}{dt} = 3t(4 - t)' },
+              graph({
+                xMin: -0.3,
+                xMax: 6.2,
+                yMin: 0,
+                yMax: 60,
+                curves: [{ f: (t) => -(t ** 3) + 6 * t * t + 20 }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [{ x: 4, y: 52 }],
+                label: 'A quantity that rises until t = 4 and then falls',
+              }),
+              prose(
+                'Between $t = 0$ and $t = 4$ both factors are positive, so $V$ rises. At $t = 4$ the rate is zero and $V$ stops increasing; after that it falls.',
+              ),
+            ),
+            ask('df-rc-sign'),
+            ask('df-rc-method-flow'),
+            ask('df-rc-sign', 2),
+            teach(
+              prose(
+                'The rate is a function too, so it has its own peak: where **its** derivative is zero. Here the rate is an upside-down parabola, greatest halfway between its zeros.',
+              ),
+              { kind: 'display', tex: '\\frac{d^{2}V}{dt^{2}} = -6t + 12 = 0' },
+              graph({
+                xMin: -0.3,
+                xMax: 5.2,
+                yMin: -16,
+                yMax: 16,
+                curves: [{ f: (t) => -3 * t * t + 12 * t, accent: true }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: 2, y: 12 },
+                  { x: 4, y: 0 },
+                ],
+                label: 'The rate against time: zero at t = 0 and t = 4, greatest at t = 2',
+              }),
+              prose('That gives $t = 2$: $V$ increases fastest there, and stops increasing at $t = 4$.'),
+            ),
+            ask('df-rc-peak-tiles'),
+            ask('df-rc-method-flow', 2),
+            ask('df-rc-peak-tiles', 2),
+            teach(
+              prose(
+                'Over a **small** change $\\delta x$, a curve is almost straight, so the change in $y$ is about the gradient times the change:',
+              ),
+              { kind: 'display', tex: '\\delta y \\approx \\frac{dy}{dx} \\times \\delta x' },
+              prose(
+                'For $y = x^{3}$ moving from $x = 2$ to $x = 2.1$: $\\frac{dy}{dx} = 12$, so $\\delta y \\approx 12 \\times 0.1 = 1.2$. The exact change is $1.261$, and the estimate gets closer as the nudge gets smaller.',
+              ),
+            ),
+            ask('df-rc-small-change'),
+            ask('df-rc-small-change+choice', 2),
+          ],
+          skillCheck: [ask('df-rc-sign', 2), ask('df-rc-peak-tiles', 2), ask('df-rc-small-change', 2)],
+        },
+      ],
+    },
   ],
 };

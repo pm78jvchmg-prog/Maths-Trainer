@@ -303,6 +303,20 @@ window), which is what keeps each tick's tap target 24 px wide at 393 px, and
 every end must sit on a tick strictly inside the window. `nl-linear` and
 `nl-modulus` in `generators/numberLine.ts` are demonstrations no lesson asks
 yet.
+**`iterate`** (batch C15-widget) runs a numerical scheme by hand: an `n | x_n`
+table with `x_0` given, one blank per iterate, and a last blank for the
+conclusion (`conclusion: 'limit'` or `'bracket'`, the bracket one token such as
+`1.8 < \alpha < 1.9`). Values come from a sorted bank and blanks fill in any
+order; graded by `gradeSequence` on exact tokens. That is only safe because
+`generators/iterationTable.ts` refuses any draw where a written value sits
+within 0.05 of a unit of a rounding boundary, prints as `-0.000`, or comes out
+differently for a learner who carries the rounded value forward — copy
+`written()` and `carriedRounded()` for any new iterate generator. The limit
+comes from iterating to convergence and the bracket from a sign change of `f`,
+never from `x_4`. The widget (`src/ui/iterateSlide.tsx`) pins its bank to the
+bottom of the slide while it is live, since a filled table runs past the fold.
+`iterate-fixed-point` and `iterate-newton-raphson` are demonstrations no lesson
+asks yet.
 
 ## TeX escaping — the recurring hazard
 

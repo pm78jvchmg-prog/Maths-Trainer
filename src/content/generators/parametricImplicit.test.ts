@@ -20,7 +20,15 @@ import type { Generator, Slide } from '../types';
 import {
   ANGLES,
   axisCurve,
+  conicRhs,
+  conicTerms,
   curveSources,
+  linearD2Curve,
+  lowestCurve,
+  quadraticXCurve,
+  stationaryPoints,
+  taylorCurve,
+  trigD2Sources,
   eliminateSources,
   flatCurve,
   implicitSource,
@@ -33,6 +41,16 @@ import {
   xyAnswer,
   type AxisParams,
   type CircleParams,
+  type ConcaveParams,
+  type ConicParams,
+  type GeneralD2Params,
+  type LinearD2Params,
+  type LowestParams,
+  type QuadraticXParams,
+  type TaylorParams,
+  type TrigD2Params,
+  type TurningKindParams,
+  type TurningParams,
   type CurveParams,
   type EliminateFlowParams,
   type EliminateParams,
@@ -412,6 +430,253 @@ describe('implicit curves, checked against mathjs', { timeout: 60_000 }, () => {
       const n = F.Fx(curve.p, curve.q);
       const d = F.Fy(curve.p, curve.q);
       expect(slide.correctId).toBe(n === 0 ? 'horizontal' : d === 0 ? 'vertical' : 'neither');
+    }
+  });
+});
+
+/**
+ * A tile, bank entry or label written in TeX, read back for mathjs: fractions,
+ * braced powers and the trigonometric functions this level writes.
+ */
+function texToMath(tex: string): string {
+  let s = tex
+    .replace(/\\left|\\right/g, '')
+    .replace(/\^\{([^{}]+)\}/g, '^($1)')
+    .replace(/\\(sin|cos|tan|cot)\^\((\d+)\) t/g, '$1(t)^($2)')
+    .replace(/\\(sin|cos|tan|cot) t/g, '$1(t)');
+  for (let i = 0; i < 4; i += 1) s = s.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))');
+  return s.replaceAll('$', '');
+}
+
+const valueOfTex = (tex: string, scope: Scope = {}): number => fn(texToMath(tex)).at(scope);
+
+/** x(t), y(t), and d²y/dx² = (y''x' - y'x'')/x'^3, all from mathjs. */
+function parametric2(x: string, y: string) {
+  const X = math.parse(x);
+  const Y = math.parse(y);
+  const dX = math.derivative(X, 't');
+  const dY = math.derivative(Y, 't');
+  const ddX = math.derivative(dX, 't');
+  const ddY = math.derivative(dY, 't');
+  const gradient = math.parse(`(${dY.toString()})/(${dX.toString()})`);
+  const rate = math.derivative(gradient, 't');
+  const at = (node: { evaluate(scope: Scope): unknown }) => (t: number) => node.evaluate({ t }) as number;
+  const text = `((${ddY.toString()})*(${dX.toString()}) - (${dY.toString()})*(${ddX.toString()}))/(${dX.toString()})^3`;
+  return { x: at(X), y: at(Y), dx: at(dX), dy: at(dY), rate: at(rate), d2: at(math.parse(text)), text };
+}
+
+/** F(x, y) with the implicit first and second derivatives, from mathjs's partials. */
+function implicit2(source: string) {
+  const F = math.parse(source);
+  const Fx = math.derivative(F, 'x');
+  const Fy = math.derivative(F, 'y');
+  const Fxx = math.derivative(Fx, 'x');
+  const Fxy = math.derivative(Fx, 'y');
+  const Fyy = math.derivative(Fy, 'y');
+  const at = (node: { evaluate(scope: Scope): unknown }) => (x: number, y: number) => node.evaluate({ x, y }) as number;
+  const [f, fx, fy, fxx, fxy, fyy] = [F, Fx, Fy, Fxx, Fxy, Fyy].map(at);
+  const slope = (x: number, y: number) => -fx(x, y) / fy(x, y);
+  const second = (x: number, y: number) => {
+    const s = slope(x, y);
+    return -(fxx(x, y) + 2 * fxy(x, y) * s + fyy(x, y) * s * s) / fy(x, y);
+  };
+  return { F: f, Fx: fx, Fy: fy, slope, second };
+}
+
+const correctAnswer = <P>(generator: Generator<P>, params: P): string => {
+  const right = generator.choices!(params).find((option) => option.correct)!;
+  return right.answer!;
+};
+
+const lastValue = (slide: Slide): string => {
+  if (slide.kind === 'tree') return slide.answer[slide.answer.length - 1];
+  if (slide.kind === 'steps') return slide.reductions[slide.reductions.length - 1].value;
+  throw new Error(`no last value on a ${slide.kind} slide`);
+};
+
+
+// Symbolic differentiation twice per draw across ten generators: the slowest
+// block here, so it has a budget of its own rather than fewer seeds.
+describe('second derivatives, checked against mathjs', { timeout: 180_000 }, () => {
+  it('param-d2 types (and offers) y\'\'x\' - y\'x\'\' over x\'^3', () => {
+    for (const { params, slide, seed } of draws(g.paramD2 as Generator<LinearD2Params>)) {
+      const { x, y } = curveSources(linearD2Curve(params));
+      const oracle = parametric2(x, y).text;
+      expect(checkAnswer(typed(slide), oracle, { seed }).status, `${oracle} vs ${typed(slide)}`).toBe('correct');
+      expect(checkAnswer(correctAnswer(g.paramD2 as Generator<LinearD2Params>, params), oracle, { seed }).status).toBe('correct');
+    }
+  });
+
+  it('param-d2-tiles places d/dt(dy/dx), then dx/dt, and their quotient is d2y/dx2', () => {
+    for (const { params, slide } of draws(g.paramD2Tiles as Generator<LinearD2Params>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { x, y } = curveSources(linearD2Curve(params));
+      const c = parametric2(x, y);
+      const [rate, divisor] = slide.answer;
+      for (const t of T_SAMPLES) {
+        expect(close(valueOfTex(rate, { t }), c.rate(t)), `${rate} at ${t}`).toBe(true);
+        expect(close(valueOfTex(divisor), c.dx(t))).toBe(true);
+        expect(close(valueOfTex(rate, { t }) / valueOfTex(divisor), c.d2(t))).toBe(true);
+      }
+    }
+  });
+
+  it('param-d2-flow ends on d2y/dx2', () => {
+    for (const { params, slide } of draws(g.paramD2Flow as Generator<LinearD2Params>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { x, y } = curveSources(linearD2Curve(params));
+      const c = parametric2(x, y);
+      for (const t of T_SAMPLES) expect(close(valueOfTex(slide.answer[2], { t }), c.d2(t)), slide.answer[2]).toBe(true);
+    }
+  });
+
+  it('param-d2-trig and param-d2-general type (and offer) d2y/dx2 in t', () => {
+    for (const { params, slide, seed } of draws(g.paramD2Trig as Generator<TrigD2Params>)) {
+      const { x, y } = trigD2Sources(params);
+      const oracle = parametric2(x, y).text;
+      expect(checkAnswer(typed(slide), oracle, { seed }).status, `${oracle} vs ${typed(slide)}`).toBe('correct');
+      expect(checkAnswer(correctAnswer(g.paramD2Trig as Generator<TrigD2Params>, params), oracle, { seed }).status).toBe('correct');
+    }
+    for (const { params, slide, seed } of draws(g.paramD2General as Generator<QuadraticXParams>)) {
+      const { x, y } = curveSources(quadraticXCurve(params));
+      const oracle = parametric2(x, y).text;
+      expect(checkAnswer(typed(slide), oracle, { seed }).status, `${oracle} vs ${typed(slide)}`).toBe('correct');
+      expect(checkAnswer(correctAnswer(g.paramD2General as Generator<QuadraticXParams>, params), oracle, { seed }).status).toBe('correct');
+    }
+  });
+
+  it('the value at t = k agrees with mathjs, however it is asked', () => {
+    const want = ({ curve }: GeneralD2Params) => {
+      const { x, y } = curveSources(curve);
+      return parametric2(x, y);
+    };
+    for (const { params, slide } of draws(g.paramD2RatesTree as Generator<GeneralD2Params>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const c = want(params);
+      const [rate, dx, v] = slide.answer.map((tex) => valueOfTex(tex));
+      expect(close(rate, c.rate(params.k)), `${slide.answer}`).toBe(true);
+      expect(close(dx, c.dx(params.k))).toBe(true);
+      expect(close(v, c.d2(params.k))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramD2QuotientSteps as Generator<GeneralD2Params>)) {
+      expect(close(valueOfTex(lastValue(slide)), want(params).d2(params.k)), lastValue(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramD2At as Generator<GeneralD2Params>)) {
+      const d2 = want(params).d2(params.k);
+      expect(close(fn(typed(slide)).at({}), d2)).toBe(true);
+      expect(close(fn(correctAnswer(g.paramD2At as Generator<GeneralD2Params>, params)).at({}), d2)).toBe(true);
+    }
+  });
+
+  it('param-concave-choice reads the sign of d2y/dx2 at t = k', () => {
+    for (const { params, slide } of draws(g.paramConcaveChoice as Generator<ConcaveParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const { x, y } = curveSources(taylorCurve(params));
+      const d2 = parametric2(x, y).d2(params.k);
+      expect(slide.correctId).toBe(d2 > 1e-12 ? 'up' : d2 < -1e-12 ? 'down' : 'neither');
+    }
+  });
+
+  it('param-turning-tree and param-nature-flow sit on a horizontal tangent and read d2y/dx2 there', () => {
+    const at = (params: TaylorParams) => {
+      const { x, y } = curveSources(taylorCurve(params));
+      const c = parametric2(x, y);
+      expect(c.dy(params.k) === 0, 'dy/dt is zero at t = k').toBe(true);
+      expect(c.dx(params.k)).not.toBe(0);
+      return c.d2(params.k);
+    };
+    for (const { params, slide } of draws(g.paramTurningTree as Generator<TaylorParams>)) {
+      expect(close(valueOfTex(lastValue(slide)), at(params))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramNatureFlow as Generator<TaylorParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const d2 = at(params);
+      expect(close(valueOfTex(slide.answer[1].split('=')[1]), d2), slide.answer[1]).toBe(true);
+      expect(slide.answer[2]).toBe(d2 < 0 ? 'A maximum' : 'A minimum');
+    }
+  });
+
+  it('param-lowest-slider slides to the height where dy/dt = 0 and d2y/dx2 has the asked sign', () => {
+    for (const { params, slide } of draws(g.paramLowestSlider as Generator<LowestParams>)) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const { x, y } = curveSources(lowestCurve(params));
+      const c = parametric2(x, y);
+      const flat = [];
+      for (let t = -12; t <= 12; t += 1) if (c.dy(t) === 0) flat.push(t);
+      expect(flat.length, 'two horizontal tangents').toBe(2);
+      const wanted = flat.filter((t) => (params.max ? c.d2(t) < 0 : c.d2(t) > 0));
+      expect(wanted.length).toBe(1);
+      expect(slide.answer).toBe(c.y(wanted[0]));
+    }
+  });
+
+  it('the implicit second derivative agrees with mathjs, however it is asked', () => {
+    const on = (params: ConicParams) => {
+      const F = implicit2(xyAnswer(conicTerms(params)));
+      expect(F.F(params.p, params.q)).toBe(conicRhs(params));
+      return F;
+    };
+    for (const { params, slide, seed } of draws(g.implD2At as Generator<ConicParams>)) {
+      const want = on(params).second(params.p, params.q);
+      expect(close(fn(typed(slide)).at({}), want)).toBe(true);
+      expect(close(fn(correctAnswer(g.implD2At as Generator<ConicParams>, params)).at({}), want), `seed ${seed}`).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implD2Tiles as Generator<ConicParams>)) {
+      const [k, quotient] = (slide.kind === 'tiles' ? slide.answer : []) as string[];
+      expect(quotient).toBe('y - x\\frac{dy}{dx}');
+      const F = on(params);
+      const { p, q } = params;
+      expect(close((valueOfTex(k) * (q - p * F.slope(p, q))) / (q * q), F.second(p, q))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implD2SubSteps as Generator<ConicParams>)) {
+      const F = on(params);
+      const { p, q } = params;
+      // The curve is symmetric in both axes, so all four of these are on it.
+      for (const [X, Y] of [[p, q], [-p, q], [p, -q], [-p, -q]]) {
+        expect(close(valueOfTex(lastValue(slide), { y: Y }), F.second(X, Y)), lastValue(slide)).toBe(true);
+      }
+    }
+    for (const { params, slide } of draws(g.implD2PointTree as Generator<ConicParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const F = on(params);
+      expect(close(valueOfTex(slide.answer[0]), F.slope(params.p, params.q))).toBe(true);
+      expect(close(valueOfTex(lastValue(slide)), F.second(params.p, params.q))).toBe(true);
+    }
+  });
+
+  it('implicit turning points are flat, on the curve, and read the sign of d2y/dx2', () => {
+    const at = ({ curve }: TurningParams) => {
+      const F = implicit2(implicitSource(curve));
+      expect(F.F(curve.p, curve.q)).toBe(curve.rhs);
+      expect(F.Fx(curve.p, curve.q) === 0, 'the tangent is horizontal').toBe(true);
+      expect(F.Fy(curve.p, curve.q)).not.toBe(0);
+      return F.second(curve.p, curve.q);
+    };
+    for (const { params, slide } of draws(g.implTurningTree as Generator<TurningParams>)) {
+      expect(close(valueOfTex(lastValue(slide)), at(params))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implTurningValue as Generator<TurningParams>)) {
+      const want = at(params);
+      expect(close(fn(typed(slide)).at({}), want)).toBe(true);
+      expect(close(fn(correctAnswer(g.implTurningValue as Generator<TurningParams>, params)).at({}), want)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implTurningFlow as Generator<TurningParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const want = at(params);
+      expect(close(valueOfTex(slide.answer[1].split('=')[1]), want)).toBe(true);
+      expect(slide.answer[2]).toBe(want < 0 ? 'A local maximum' : 'A local minimum');
+    }
+    for (const { params, slide } of draws(g.implTurningKind as Generator<TurningKindParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const F = implicit2(xyAnswer(stationaryTerms(params)));
+      const seconds = stationaryPoints(params).map(([x, y]) => {
+        expect(F.F(x, y) === stationaryRhs(params)).toBe(true);
+        expect(F.Fx(x, y) === 0).toBe(true);
+        return F.second(x, y);
+      });
+      const pick = seconds.findIndex((s) => (params.max ? s < 0 : s > 0));
+      expect(seconds.filter((s) => (params.max ? s < 0 : s > 0)).length).toBe(1);
+      expect(slide.correctId).toBe(pick === 0 ? 'first' : 'second');
     }
   });
 });

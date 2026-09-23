@@ -2,11 +2,10 @@
 
 Written by C12.
 
-Has: Parametric Curves; Implicit Differentiation.
+Has: Parametric Curves; Implicit Differentiation; Second Derivatives of
+Parametric & Implicit Curves (C12-l3).
 
-Needs: Second Derivatives of Parametric & Implicit Curves (d²y/dx² as the
-derivative of dy/dx with respect to t, divided by dx/dt; concavity along the
-curve); Tangents & Normals to Parametric & Implicit Curves (after C3 Coordinate
+Needs: Tangents & Normals to Parametric & Implicit Curves (after C3 Coordinate
 Geometry, which teaches the normal); Implicit Differentiation of Exponentials &
 Inverses (a^x, arcsin, arctan, logarithmic differentiation); Related Rates &
 Motion along a Curve (implicit related rates, velocity and speed on a

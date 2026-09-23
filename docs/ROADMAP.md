@@ -466,7 +466,7 @@ are green, and one new lesson has been played in a browser.
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
 | B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
 | B34 | Integration: Improper Integrals | **done** (`claude/roadmap-b-integration-4-gbuy3r`): level `in-l7`, 5 lessons, a 15-question level check, 17 new generators and an independent numeric check |
-| B29 | Quadratics: Quadratics in Disguise | claimed (`claude/roadmap-b-quadratics-4-xwfezb`) |
+| B29 | Quadratics: Quadratics in Disguise | **done** (`claude/roadmap-b-quadratics-4-xwfezb`): level `qd-l7`, 5 lessons, a 15-question level check, 20 new generators |
 
 ### Phase C — the twenty-one new concepts
 

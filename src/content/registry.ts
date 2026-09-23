@@ -9,6 +9,7 @@ import { exponentialModelGenerators } from './generators/exponentialModels';
 import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
 import { integrationShapeGenerators } from './generators/integrationShapes';
+import { linearEquationsGenerators } from './generators/linearEquations';
 import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
 import { quadraticsGenerators } from './generators/quadratics';
@@ -31,6 +32,7 @@ export const allGenerators = [
   ...indicesGenerators,
   ...integrationGenerators,
   ...integrationShapeGenerators,
+  ...linearEquationsGenerators,
   ...logarithmGenerators,
   ...exponentialModelGenerators,
   ...quadraticsGenerators,

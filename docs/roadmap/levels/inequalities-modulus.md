@@ -6,10 +6,11 @@ Has: Inequalities (linear on the number line, and/or and double inequalities,
 quadratics with surd critical values, rational inequalities by sign table,
 interval and set notation); The Modulus Function (|x| as a distance, sketching
 y = |ax + b|, solving |ax + b| = c and = dx + e, modulus inequalities,
-transformations of modulus graphs).
+transformations of modulus graphs); Modulus on Both Sides and Squaring
+(|ax + b| = |cx + d| and |f(x)| < |g(x)| by squaring, and when squaring is
+safe).
 
-Needs: Modulus on Both Sides and Squaring (|ax + b| = |cx + d| and
-|f(x)| < |g(x)| by squaring, and when squaring is safe); Modulus of Quadratics
+Needs: Modulus of Quadratics
 (sketching y = |f(x)| and y = f(|x|) for quadratics and cubics, and solving
 |x² − 4| = 3 from the graph); Regions with Modulus (shading y ≥ |x − a| and
 y < k − |x| on the plane, and regions bounded by two modulus graphs);

@@ -166,6 +166,11 @@ function chain(...lines: string[]): string {
 
 const say = (text: string): Block => ({ kind: 'prose', text });
 const show = (tex: string): Block => ({ kind: 'display', tex });
+/**
+ * A long line as inline maths in prose, which wraps between terms where a
+ * display cannot: a five-term polynomial is wider than a phone.
+ */
+const wrapped = (tex: string): Block => say(`$${tex}$`);
 
 const NAMES = ['Constant', 'Linear', 'Quadratic', 'Cubic', 'Quartic', 'Quintic'];
 
@@ -358,7 +363,7 @@ const polyDegree: Generator<DegreeParams> = {
   },
   render: ({ terms }): Slide => ({
     kind: 'expression',
-    prompt: [say('What is the degree of this polynomial?'), show(`p(x) = ${termsTex(terms)}`)],
+    prompt: [say('What is the degree of this polynomial?'), wrapped(`p(x) = ${termsTex(terms)}`)],
     lead: '\\text{degree of } p(x) =',
     keypad: [],
     answer: String(degreeOf(collect(terms))),
@@ -375,13 +380,13 @@ const polyDegree: Generator<DegreeParams> = {
         {
           text: `The two $x^{${written}}$ terms cancel: $${termTex(top.c, written)} ${signedTerm(-top.c, written)} = 0$.`,
         },
-        { tex: `p(x) = ${polyTex(p)}` },
+        { text: `$p(x) = ${polyTex(p)}$` },
         { text: `The highest power left is $${termTex(1, degree)}$, so the degree is $${degree}$.` },
       ];
     }
     return [
       { text: 'The degree is the highest power of $x$. The terms are not in order, so check every one.' },
-      { tex: `p(x) = ${polyTex(p)}` },
+      { text: `$p(x) = ${polyTex(p)}$` },
       { text: `The highest power is $${termTex(1, degree)}$, so the degree is $${degree}$${terms.length === degree ? '' : ` — not the number of terms, which is ${terms.length}`}.` },
     ];
   },
@@ -550,7 +555,7 @@ const polyCoefficient: Generator<CoefficientParams> = {
     kind: 'expression',
     prompt: [
       say(k === 0 ? 'What is the constant term of this polynomial?' : `What is the coefficient of $${termTex(1, k)}$ in this polynomial?`),
-      show(`p(x) = ${termsTex(terms)}`),
+      wrapped(`p(x) = ${termsTex(terms)}`),
     ],
     lead: k === 0 ? '\\text{constant term} =' : `\\text{coefficient of } ${termTex(1, k)} =`,
     keypad: [],
@@ -562,7 +567,7 @@ const polyCoefficient: Generator<CoefficientParams> = {
     const p = collect(terms);
     const right = coefficientOf(p, k);
     const at = terms.filter((t) => t.k === k);
-    const steps: SolutionStep[] = [{ text: 'Collect like terms and write it in descending powers:' }, { tex: `p(x) = ${polyTex(p)}` }];
+    const steps: SolutionStep[] = [{ text: 'Collect like terms and write it in descending powers:' }, { text: `$p(x) = ${polyTex(p)}$` }];
     if (at.length === 0) {
       steps.push({ text: `There is no $${termTex(1, k)}$ term at all, so its coefficient is $0$.` });
     } else if (at.length > 1) {
@@ -607,7 +612,7 @@ const polyStandardTiles: Generator<StandardParams> = {
     const pieces = terms.map(({ c, k }) => signedTerm(c, k));
     return {
       kind: 'tiles',
-      prompt: [say('Write $p(x)$ in descending powers of $x$, collecting any like terms.'), show(`p(x) = ${termsTex(terms)}`)],
+      prompt: [say('Write $p(x)$ in descending powers of $x$, collecting any like terms.'), wrapped(`p(x) = ${termsTex(terms)}`)],
       template: 'p(x) = {0} {1} {2} {3}',
       bank: fillBank(answer, [...flipped, ...pieces, signedTerm(p[1], 1), signedTerm(p[2], 2)]),
       answer,
@@ -626,7 +631,7 @@ const polyStandardTiles: Generator<StandardParams> = {
       });
     }
     steps.push({ text: 'Then write the terms from the highest power of $x$ down, each keeping its own sign.' });
-    steps.push({ tex: `p(x) = ${polyTex(p)}` });
+    steps.push({ text: `$p(x) = ${polyTex(p)}$` });
     return steps;
   },
 };
@@ -685,7 +690,8 @@ const polyAddTiles: Generator<AddParams> = {
       kind: 'tiles',
       prompt: [
         say(minus ? 'Subtract, collecting like terms.' : 'Add, collecting like terms.'),
-        show(`(${polyTex(p)}) ${minus ? '-' : '+'} (${polyTex(q)})`),
+        // One bracket to a line: side by side, two cubics are wider than a phone.
+        show(chain(`&(${polyTex(p)})`, `${minus ? '-' : '+'}\\;&(${polyTex(q)})`)),
       ],
       template: '{0} {1} {2} {3}',
       bank: fillBank(answer, [...termTiles(other), ...r.map((c, i) => signedTerm(-c, 3 - i, i === 0))]),
@@ -699,7 +705,7 @@ const polyAddTiles: Generator<AddParams> = {
     const lines = [3, 2, 1, 0].map((k) => {
       const a = coefficientOf(p, k);
       const b = coefficientOf(q, k);
-      return `${termTex(1, k) === '1' ? '\\text{numbers}' : termTex(1, k)}: &\\; ${a} ${op} ${factor(String(b))} = ${coefficientOf(r, k)}`;
+      return `${termTex(1, k) === '1' ? '\\text{number}' : termTex(1, k)}: &\\;${a} ${op} ${factor(String(b))} = ${coefficientOf(r, k)}`;
     });
     return [
       {
@@ -777,9 +783,9 @@ const polySubtractSteps: Generator<SubtractParams> = {
   },
   solution: ({ p, q }) => [
     { text: 'The minus sign in front of a bracket changes the sign of every term inside it, not only the first.' },
-    { tex: `-(${polyTex(q)}) = ${polyTex(scalePoly(q, -1))}` },
+    { tex: chain(`&-(${polyTex(q)})`, `=\\;&${polyTex(scalePoly(q, -1))}`) },
     { text: 'Then collect the like terms:' },
-    { tex: `${polyTex(p)} ${signedPolyTex(scalePoly(q, -1))} = ${polyTex(subPoly(p, q))}` },
+    { tex: chain(`&${polyTex(p)}`, `&\\quad ${signedPolyTex(scalePoly(q, -1))}`, `=\\;&${polyTex(subPoly(p, q))}`) },
   ],
 };
 
@@ -838,7 +844,7 @@ const polyCollectCoefficient: Generator<CollectParams> = {
     const what = k === 0 ? 'the constant term of' : `the coefficient of $${termTex(1, k)}$ in`;
     return {
       kind: 'expression',
-      prompt: [show(`p(x) = ${polyTex(p)}`), show(`q(x) = ${polyTex(q)}`), say(`What is ${what} $${comboTex(params)}$?`)],
+      prompt: [wrapped(`p(x) = ${polyTex(p)}`), wrapped(`q(x) = ${polyTex(q)}`), say(`What is ${what} $${comboTex(params)}$?`)],
       lead: k === 0 ? '\\text{constant term} =' : `\\text{coefficient of } ${termTex(1, k)} =`,
       keypad: [],
       answer: String(comboCoefficient(params)),
@@ -870,7 +876,11 @@ interface SumDegreeParams {
 }
 
 function randomPoly(rng: Rng, degree: number): Poly {
-  return [nonZero(rng, 6), ...Array.from({ length: degree }, () => rng.int(-7, 7))];
+  const p = [nonZero(rng, 6), ...Array.from({ length: degree }, () => rng.int(-7, 7))];
+  // Five terms at most: a full quintic is wider than a phone. The second term
+  // is left alone, since whether it cancels is part of the question.
+  while (p.filter((c) => c !== 0).length > 5) p[rng.int(2, degree)] = 0;
+  return p;
 }
 
 /**
@@ -914,8 +924,8 @@ const polySumDegreeFlow: Generator<SumDegreeParams> = {
     return {
       kind: 'flow',
       prompt: [
-        show(`p(x) = ${polyTex(p)}`),
-        show(`q(x) = ${polyTex(q)}`),
+        wrapped(`p(x) = ${polyTex(p)}`),
+        wrapped(`q(x) = ${polyTex(q)}`),
         say(`Find the degree of $${expr}$ without working it all out. Each answer chooses what gets asked next.`),
       ],
       subject: expr,
@@ -1048,11 +1058,13 @@ const polyExpandTiles: Generator<ExpandParams> = {
     const { a, b, c, d, e } = params;
     const ax = termTex(a, 1);
     return [
-      { text: 'Multiply every term in the first bracket by every term in the second: six products.' },
+      {
+        text: `Multiply every term of $${polyTex([c, d, e])}$ by each term of $${polyTex([a, b])}$: six products.`,
+      },
       {
         tex: chain(
-          `${ax} \\times (${polyTex([c, d, e])}) &= ${polyTex([a * c, a * d, a * e, 0])}`,
-          `${factor(String(b))} \\times (${polyTex([c, d, e])}) &= ${polyTex([b * c, b * d, b * e])}`,
+          `\\times\\, ${ax}: &\\;\\; ${polyTex([a * c, a * d, a * e, 0])}`,
+          `\\times\\, ${factor(String(b))}: &\\;\\; ${polyTex([b * c, b * d, b * e])}`,
         ),
       },
       { text: 'Then collect the $x^{2}$ terms and the $x$ terms:' },
@@ -1117,10 +1129,10 @@ const polyStrandsTree: Generator<ExpandParams> = {
         text: `An $x^{2}$ comes from $x$ times $x$, or from a number times $x^{2}$, so there are two products to find, and the same for $x$.`,
       },
       {
-        tex: chain(
-          `${ax} \\times ${factor(termTex(d, 1))} ${signedNum(b)} \\times ${termTex(c, 2)} &= ${termTex(a * d + b * c, 2)}`,
-          `${ax} \\times ${factor(String(e))} ${signedNum(b)} \\times ${factor(termTex(d, 1))} &= ${termTex(a * e + b * d, 1)}`,
-        ),
+        text: `$${ax} \\times ${factor(termTex(d, 1))} ${signedNum(b)} \\times ${termTex(c, 2)} = ${termTex(a * d + b * c, 2)}$`,
+      },
+      {
+        text: `$${ax} \\times ${factor(String(e))} ${signedNum(b)} \\times ${factor(termTex(d, 1))} = ${termTex(a * e + b * d, 1)}$`,
       },
       { text: `So the whole product is $${polyTex(expanded(params))}$.` },
     ];
@@ -1251,12 +1263,12 @@ const polyTripleSteps: Generator<TripleParams> = {
     const [r, s, t] = roots;
     const quad = fromRoots([r, s]);
     return [
-      { tex: `(${linTex(r)})(${linTex(s)}) = ${polyTex(quad)}` },
-      { text: `Then every term of that times each term of $(${linTex(t)})$:` },
+      { text: `$(${linTex(r)})(${linTex(s)}) = ${polyTex(quad)}$` },
+      { text: `Then every term of $${polyTex(quad)}$ times each term of $(${linTex(t)})$:` },
       {
         tex: chain(
-          `x(${polyTex(quad)}) &= ${polyTex([...quad, 0])}`,
-          `${-t}(${polyTex(quad)}) &= ${polyTex(scalePoly(quad, -t))}`,
+          `\\times\\, x: &\\;\\; ${polyTex([...quad, 0])}`,
+          `\\times\\, ${factor(String(-t))}: &\\;\\; ${polyTex(scalePoly(quad, -t))}`,
         ),
       },
       { tex: polyTex(fromRoots(roots)) },
@@ -1316,8 +1328,12 @@ function reduceBanks(expr: Expr): Record<string, string[]> {
   return banks;
 }
 
-/** The substituted line for a worked solution: 2(3)^3 - 4(3) + 1. */
-function substitutedTex(p: Poly, a: number): string {
+/**
+ * p(a) written out term by term, two terms to a line so that it fits a phone:
+ * p(-3) = 2(-3)^3 - 4(-3)^2, then + 6(-3) + 8 underneath. A bracketed negative
+ * needs no times sign; a bare positive does, or 2 \times 3^3 would read as 23^3.
+ */
+function substitutedTex(p: Poly, a: number, total?: number): string {
   const n = degreeOf(p);
   const shown = a < 0 ? `(${a})` : `${a}`;
   const pieces = p
@@ -1326,11 +1342,17 @@ function substitutedTex(p: Poly, a: number): string {
       if (c === 0) return '';
       const power = k === 0 ? '' : k === 1 ? shown : `${shown}^{${k}}`;
       const size = Math.abs(c);
-      const body = k === 0 ? `${size}` : size === 1 ? power : `${size} \\times ${power}`;
+      const body = k === 0 ? `${size}` : size === 1 ? power : a < 0 ? `${size}${power}` : `${size} \\times ${power}`;
       return c < 0 ? `-${body}` : body;
     })
     .filter(Boolean);
-  return sumTex(pieces);
+  const lines: string[] = [];
+  for (let i = 0; i < pieces.length; i += 2) {
+    const row = sumTex(pieces.slice(i, i + 2));
+    lines.push(i === 0 ? `p(${a}) &= ${row}` : `&\\quad ${row.startsWith('-') ? `- ${row.slice(1)}` : `+ ${row}`}`);
+  }
+  if (total !== undefined) lines.push(`&= ${total}`);
+  return chain(...lines);
 }
 
 function sampleValue(rng: Rng, difficulty: number): ValueParams {
@@ -1373,7 +1395,7 @@ const polyValueReduce: Generator<ValueParams> = {
       .filter(Boolean);
     return [
       { text: `Put $${a}$ in place of every $x$. Powers first, then the multiplying, then add and take away from left to right.` },
-      { tex: `p(${a}) = ${substitutedTex(p, a)}` },
+      { tex: substitutedTex(p, a) },
       ...(powers.length ? [{ tex: chain(...powers.map((line) => `& ${line}`)) }] : []),
       { tex: `p(${a}) = ${valueAt(p, a)}` },
     ];
@@ -1449,7 +1471,7 @@ const polyValueSlider: Generator<ValueSliderParams> = {
     const { a } = params;
     return [
       { text: `The height of $y = p(x)$ at $x = ${a}$ is $p(${a})$, so substitute:` },
-      { tex: `p(${a}) = ${substitutedTex(p, a)} = ${valueAt(p, a)}` },
+      { tex: substitutedTex(p, a, valueAt(p, a)) },
       {
         text: `${valueAt(p, a) > 0 ? 'Positive, so the curve is above' : 'Negative, so the curve is below'} the $x$-axis there, which the picture agrees with.`,
       },
@@ -1501,13 +1523,13 @@ const polySpecialValue: Generator<SpecialParams> = {
     if (at === 1) {
       return [
         { text: 'Every power of $1$ is $1$, so $p(1)$ is just the coefficients added up.' },
-        { tex: `p(1) = ${sumTex(p.filter((c) => c !== 0).map(String))} = ${valueAt(p, 1)}` },
+        { text: `$p(1) = ${sumTex(p.filter((c) => c !== 0).map(String))} = ${valueAt(p, 1)}$` },
       ];
     }
     const signed = p.map((c, i) => ((n - i) % 2 === 0 ? c : -c)).filter((c) => c !== 0);
     return [
       { text: 'An even power of $-1$ is $1$ and an odd power is $-1$, so the odd-power terms change sign.' },
-      { tex: `p(-1) = ${sumTex(signed.map(String))} = ${valueAt(p, -1)}` },
+      { text: `$p(-1) = ${sumTex(signed.map(String))} = ${valueAt(p, -1)}$` },
     ];
   },
 };
@@ -1715,13 +1737,10 @@ const polyDivideSteps: Generator<DivideParams> = {
     const lin = `(${linTex(a)})`;
     return [
       { text: `Clear the first term each time by taking away the right multiple of $${lin}$.` },
-      {
-        tex: chain(
-          `x^{3} ${placeTerm(p[1], 2)} - x^{2}${lin} &= ${termTex(b, 2)}`,
-          `${termTex(b, 2)} ${placeTerm(p[2], 1)} - ${factor(termTex(b, 1))}${lin} &= ${termTex(c, 1)}`,
-          `${termTex(c, 1)} ${placeTerm(p[3], 0)} - ${factor(String(c))}${lin} &= ${r}`,
-        ),
-      },
+      // One step to a line, as prose: a step written out in full is wider than a phone.
+      { text: `$x^{3} ${placeTerm(p[1], 2)} - x^{2}${lin} = ${termTex(b, 2)}$` },
+      { text: `$${termTex(b, 2)} ${placeTerm(p[2], 1)} - ${factor(termTex(b, 1))}${lin} = ${termTex(c, 1)}$` },
+      { text: `$${termTex(c, 1)} ${placeTerm(p[3], 0)} - ${factor(String(c))}${lin} = ${r}$` },
       {
         text: `What was taken away is the quotient, $${polyTex(q)}$, and the remainder is $${r}$.`,
       },
@@ -1763,7 +1782,8 @@ const polySyntheticTree: Generator<SyntheticParams> = {
         ),
         show(`\\begin{array}{r|rrrr} ${a} & ${p.join(' & ')} \\end{array}`),
       ],
-      expression: `(${polyTex(p)}) \\div (${linTex(a)})`,
+      // A fraction rather than a division sign: on one line it is wider than a phone.
+      expression: `\\frac{${polyTex(p)}}{${linTex(a)}}`,
       nodes: [
         { id: 'c2', from: [] },
         { id: 'c1', from: ['c2'] },
@@ -1810,7 +1830,7 @@ const polyQuotientTiles: Generator<DivideParams> = {
         say(`Divide $p(x)$ by $(${linTex(a)})$. Fill in the quotient${r === 0 ? '' : ' and the remainder'}.`),
         show(`p(x) = ${polyTex(p)}`),
       ],
-      template: `p(x) = (${linTex(a)})({0} {1} {2})${r === 0 ? '' : ' {3}'}`,
+      template: `(${linTex(a)})({0} {1} {2})${r === 0 ? '' : ' {3}'}`,
       bank: fillBank(answer, [
         ...termTiles(wrong.quotient).slice(1),
         signedTerm(-q[1], 1),
@@ -1827,7 +1847,7 @@ const polyQuotientTiles: Generator<DivideParams> = {
       { text: `Divide by $(${linTex(a)})$, by long or synthetic division:` },
       { tex: `\\begin{array}{r|rrrr} ${a} & ${p.join(' & ')} \\\\ & ${q.join(' & ')} & ${r} \\end{array}` },
       { text: `So the quotient is $${polyTex(q)}$ and the remainder is $${r}$.` },
-      { tex: `p(x) = (${linTex(a)})(${polyTex(q)})${r === 0 ? '' : ` ${signedNum(r)}`}` },
+      { text: `$p(x) = (${linTex(a)})(${polyTex(q)})${r === 0 ? '' : ` ${signedNum(r)}`}$` },
     ];
   },
 };
@@ -1868,8 +1888,9 @@ const polyRebuild: Generator<DivideParams> = {
     const { a, q, r } = params;
     return [
       { text: 'The dividend is the divisor times the quotient, plus the remainder.' },
-      { tex: `p(x) = (${linTex(a)})(${polyTex(q)}) ${signedNum(r)}` },
-      { tex: `= ${polyTex(mulPoly([1, -a], q))} ${signedNum(r)} = ${polyTex(dividend(params))}` },
+      { text: `$p(x) = (${linTex(a)})(${polyTex(q)}) ${signedNum(r)}$` },
+      { text: `Expanding the brackets gives $${polyTex(mulPoly([1, -a], q))}$, then ${r < 0 ? `take away $${-r}$` : `add $${r}$`}:` },
+      { tex: polyTex(dividend(params)) },
     ];
   },
 };
@@ -1909,7 +1930,7 @@ const polyRemainder: Generator<RemainderParams> = {
   }),
   solution: ({ p, a }) => [
     { text: `By the remainder theorem, dividing by $(${linTex(a)})$ leaves $p(${a})$, since $x = ${a}$ is what makes $${linTex(a)}$ zero.` },
-    { tex: `p(${a}) = ${substitutedTex(p, a)} = ${valueAt(p, a)}` },
+    { tex: substitutedTex(p, a, valueAt(p, a)) },
     { text: `So the remainder is $${valueAt(p, a)}$, with no division needed.` },
   ],
 };
@@ -1941,8 +1962,12 @@ const polySubstituteFlow: Generator<RemainderParams> = {
     const key = `${polyTex(p)}|${a}`;
     return {
       kind: 'flow',
-      prompt: [say('Find the remainder without dividing. Each answer chooses what gets asked next.')],
-      subject: `(${polyTex(p)}) \\div (${linTex(a)})`,
+      prompt: [
+        say(
+          `$p(x) = ${polyTex(p)}$. Find the remainder when it is divided by $(${linTex(a)})$, without dividing. Each answer chooses what gets asked next.`,
+        ),
+      ],
+      subject: `p(x) \\div (${linTex(a)})`,
       steps: [
         {
           id: 'input',
@@ -1969,7 +1994,7 @@ const polySubstituteFlow: Generator<RemainderParams> = {
   },
   solution: ({ p, a }) => [
     { text: `$${linTex(a)}$ is zero when $x = ${a}$, so the remainder is $p(${a})$.` },
-    { tex: `p(${a}) = ${substitutedTex(p, a)} = ${valueAt(p, a)}` },
+    { tex: substitutedTex(p, a, valueAt(p, a)) },
   ],
 };
 
@@ -2042,7 +2067,7 @@ const polyFactorFlow: Generator<FactorCheckParams> = {
     const value = valueAt(p, a);
     return [
       { text: `$${linTex(a)} = 0$ when $x = ${a}$, so work out $p(${a})$.` },
-      { tex: `p(${a}) = ${substitutedTex(p, a)} = ${value}` },
+      { tex: substitutedTex(p, a, value) },
       {
         text:
           value === 0
@@ -2107,7 +2132,7 @@ const polyFactorTree: Generator<FactorCheckParams> = {
           `Is $(${linTex(a)})$ a factor of $p(x) = ${polyTex(p)}$? Work out $p(${a})$ in pieces. Top row, left to right: the value of each term at $x = ${a}$. Then add them in pairs, then the total. A total of $0$ means it is a factor.`,
         ),
       ],
-      expression: `p(${a}) = ${substitutedTex(p, a)}`,
+      expression: substitutedTex(p, a),
       nodes: [
         { id: 't3', from: [] },
         { id: 't2', from: [] },
@@ -2278,7 +2303,7 @@ const polyFactoriseTiles: Generator<FactoriseParams> = {
         say(hint ? `$(${linTex(roots[0])})$ is a factor of $p(x)$. Factorise $p(x)$ fully.` : 'Factorise $p(x)$ fully.'),
         show(`p(x) = ${polyTex(p)}`),
       ],
-      template: 'p(x) = (x {0})(x {1})(x {2})',
+      template: '(x {0})(x {1})(x {2})',
       bank: numberBank(
         roots.map((r) => -r),
         [...roots, ...(decoy === undefined ? [] : [-decoy])],
@@ -2297,7 +2322,7 @@ const polyFactoriseTiles: Generator<FactoriseParams> = {
       hint
         ? { text: `Divide by the factor you are given, $(${linTex(r)})$:` }
         : { text: `Try divisors of $${Math.abs(p[3])}$: $p(${r}) = 0$, so $(${linTex(r)})$ is a factor. Divide by it:` },
-      { tex: `p(x) = (${linTex(r)})(${polyTex(quotient)})` },
+      { text: `$p(x) = (${linTex(r)})(${polyTex(quotient)})$` },
       { text: 'Then factorise the quadratic:' },
       { tex: `p(x) = ${roots.map((root) => `(${linTex(root)})`).join('')}` },
     ];
@@ -2340,7 +2365,7 @@ const polyCompareTree: Generator<CompareParams> = {
           `$(${linTex(a)})$ is a factor, so $p(x) = (${linTex(a)})(x^{2} + bx + c)$. Compare coefficients: the top row is $b$, then $c$. Underneath, the two roots of $x^{2} + bx + c = 0$, smaller first.`,
         ),
       ],
-      expression: `${polyTex(p)} = (${linTex(a)})(x^{2} + bx + c)`,
+      expression: chain(`&${polyTex(p)}`, `=\\;&(${linTex(a)})(x^{2} + bx + c)`),
       nodes: [
         { id: 'b', from: [] },
         { id: 'c', from: [] },
@@ -2359,7 +2384,7 @@ const polyCompareTree: Generator<CompareParams> = {
     return [
       { text: `Multiplying out, $(${linTex(a)})(x^{2} + bx + c)$ has $x^{2}$ coefficient $b ${signedNum(-a)}$ and constant $${-a}c$.` },
       { tex: chain(`b ${signedNum(-a)} &= ${p[1]} &\\Rightarrow b &= ${b}`, `${-a}c &= ${p[3]} &\\Rightarrow c &= ${c}`) },
-      { tex: `${polyTex([1, b, c])} = (${linTex(r2)})(${linTex(r3)})` },
+      { text: `$${polyTex([1, b, c])} = (${linTex(r2)})(${linTex(r3)})$` },
       { text: `So the quadratic's roots are $${Math.min(r2, r3)}$ and $${Math.max(r2, r3)}$.` },
     ];
   },
@@ -2491,7 +2516,7 @@ const polyFullFlow: Generator<FullParams> = {
     const disc = b * b - 4 * c;
     return [
       { text: `Divide by $(${linTex(a)})$:` },
-      { tex: `${polyTex(p)} = (${linTex(a)})(${polyTex(q)})` },
+      { tex: chain(`&${polyTex(p)}`, `=\\;&(${linTex(a)})(${polyTex(q)})`) },
       split
         ? { text: `The quadratic splits: $${polyTex(q)} = (${linTex(split[0])})(${linTex(split[1])})$.` }
         : {
@@ -2593,7 +2618,7 @@ const polyRootSlider: Generator<RootSliderParams> = {
     const p = fromRoots(roots, lead);
     return [
       { text: `Trial finds $p(${roots[0]}) = 0$, and dividing by $(${linTex(roots[0])})$ leaves a quadratic to factorise:` },
-      { tex: `${polyTex(p)} = ${lead < 0 ? '-' : ''}${bracketsTex(roots)}` },
+      { tex: chain(`&${polyTex(p)}`, `=\\;&${lead < 0 ? '-' : ''}${bracketsTex(roots)}`) },
       { text: `The solutions are $${roots.join(',\\ ')}$, so the ${WHICH[which]} is $x = ${roots[which]}$, where the curve crosses the axis.` },
     ];
   },
@@ -2759,7 +2784,7 @@ const polySolveFlow: Generator<SolveFlowParams> = {
     const q = divideBy(p, r).quotient;
     return [
       { text: `$p(${r}) = 0$, so $(${linTex(r)})$ is a factor.` },
-      { tex: `p(x) = (${linTex(r)})(${polyTex(q)}) = ${bracketsTex(roots)}` },
+      { text: `$p(x) = (${linTex(r)})(${polyTex(q)}) = ${bracketsTex(roots)}$` },
       { text: `So $x = ${[...roots].sort((x, y) => x - y).join(',\\ ')}$.` },
     ];
   },

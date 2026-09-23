@@ -98,10 +98,7 @@ export const polynomials: Course = {
           slides: [
             teach(
               prose('To add polynomials, collect like terms: add the coefficients of each power of $x$ separately.'),
-              working(
-                '(2x^{3} + 5x^{2} - 3) + (x^{3} - 2x^{2} + 4x)',
-                '= 3x^{3} + 3x^{2} + 4x - 3',
-              ),
+              working('&(2x^{3} + 5x^{2} - 3)', '+\\;&(x^{3} - 2x^{2} + 4x)', '=\\;&3x^{3} + 3x^{2} + 4x - 3'),
               prose(
                 'The degree of a sum is the larger of the two degrees, unless the two share a degree and their leading terms cancel: $(2x^{3} + x) + (-2x^{3} + x^{2})$ is $x^{2} + x$, of degree 2.',
               ),
@@ -113,7 +110,7 @@ export const polynomials: Course = {
               prose(
                 'Subtracting a bracket subtracts every term in it, so the minus sign changes the sign of each term inside, not only the first:',
               ),
-              maths('-(x^{3} - 2x^{2} + 4x - 1) = -x^{3} + 2x^{2} - 4x + 1'),
+              working('&-(x^{3} - 2x^{2} + 4x - 1)', '=\\;&-x^{3} + 2x^{2} - 4x + 1'),
               prose(
                 'Then collect as before. Subtracting cancels equal leading terms, where adding cancels opposite ones.',
               ),
@@ -141,7 +138,12 @@ export const polynomials: Course = {
               prose(
                 'To multiply a linear by a quadratic, multiply each term of the first bracket by each term of the second, which is $2 \\times 3 = 6$ products, then collect like terms.',
               ),
-              working('(x + 2)(x^{2} - 3x + 4) &= x^{3} - 3x^{2} + 4x + 2x^{2} - 6x + 8', '&= x^{3} - x^{2} - 2x + 8'),
+              working(
+                '&(x + 2)(x^{2} - 3x + 4)',
+                '=\\;&x^{3} - 3x^{2} + 4x',
+                '&\\quad + 2x^{2} - 6x + 8',
+                '=\\;&x^{3} - x^{2} - 2x + 8',
+              ),
               prose('A linear times a quadratic is always a cubic: $x \\times x^{2}$ is the only way to make $x^{3}$.'),
             ),
             ask('poly-expand-tiles'),
@@ -161,7 +163,7 @@ export const polynomials: Course = {
             ask('poly-expand-tiles+choice', 2),
             teach(
               prose('Three brackets multiply two at a time: two into a quadratic, then that by the third.'),
-              working('(x - 1)(x + 2)(x - 3) &= (x^{2} + x - 2)(x - 3)', '&= x^{3} - 2x^{2} - 5x + 6'),
+              working('&(x - 1)(x + 2)(x - 3)', '=\\;&(x^{2} + x - 2)(x - 3)', '=\\;&x^{3} - 2x^{2} - 5x + 6'),
               prose('Notice the constant, $6$, is $(-1) \\times 2 \\times (-3)$: the three numbers in the brackets multiplied.'),
             ),
             ask('poly-triple-steps'),
@@ -185,7 +187,7 @@ export const polynomials: Course = {
             ask('poly-special-value'),
             teach(
               prose('A negative input needs its brackets. An odd power keeps the minus sign and an even power loses it:'),
-              working('p(-2) &= 2 \\times (-2)^{3} - 5 \\times (-2) + 1', '&= -16 + 10 + 1 = -5'),
+              working('p(-2) &= 2(-2)^{3} - 5(-2) + 1', '&= -16 + 10 + 1', '&= -5'),
               prose('So $p(-1)$ is the coefficients added up with the odd-power ones given the opposite sign.'),
             ),
             ask('poly-value-reduce+choice', 2),
@@ -240,7 +242,7 @@ export const polynomials: Course = {
               prose(
                 'When the division is not exact, the remainder goes on the end: dividing $x^{3} + x^{2} - 5x - 3$ by $(x - 2)$ gives',
               ),
-              maths('x^{3} + x^{2} - 5x - 3 = (x - 2)(x^{2} + 3x + 1) - 1'),
+              working('&x^{3} + x^{2} - 5x - 3', '=\\;&(x - 2)(x^{2} + 3x + 1) - 1'),
               prose('Multiplying back out is the check: divisor times quotient, plus the remainder, is the polynomial you started with.'),
             ),
             ask('poly-quotient-tiles', 2),
@@ -322,7 +324,7 @@ export const polynomials: Course = {
             ask('poly-is-factor'),
             teach(
               prose('For $(x + a)$, test $p(-a)$. With the same $p(x)$:'),
-              maths('p(-2) = -8 - 12 + 8 + 12 = 0'),
+              working('p(-2) &= -8 - 12 + 8 + 12', '&= 0'),
               prose(
                 'So $(x + 2)$ is a factor too. A value that is not $0$ is still useful: it is the remainder, and it rules that bracket out.',
               ),
@@ -349,7 +351,7 @@ export const polynomials: Course = {
               prose(
                 'If $(x - r)$ is a factor of $x^{3} + \\dots + d$, then $r$ times the other factors\' numbers makes $d$, up to sign. So every whole-number root divides the constant term.',
               ),
-              maths('x^{3} - 2x^{2} - 5x + 6: \\quad \\pm 1, \\pm 2, \\pm 3, \\pm 6'),
+              working('&x^{3} - 2x^{2} - 5x + 6:', '&\\pm 1, \\; \\pm 2, \\; \\pm 3, \\; \\pm 6'),
               prose('Those eight are the only whole numbers worth trying, negatives included.'),
             ),
             ask('poly-candidates'),
@@ -384,7 +386,7 @@ export const polynomials: Course = {
               prose(
                 'To factorise a cubic fully: find one factor by trial, divide by it, then factorise the quadratic that is left.',
               ),
-              working('x^{3} - 2x^{2} - 5x + 6 &= (x - 1)(x^{2} - x - 6)', '&= (x - 1)(x - 3)(x + 2)'),
+              working('&x^{3} - 2x^{2} - 5x + 6', '=\\;&(x - 1)(x^{2} - x - 6)', '=\\;&(x - 1)(x - 3)(x + 2)'),
               prose('Check by the constant: $(-1) \\times (-3) \\times 2 = 6$.'),
             ),
             ask('poly-factorise-tiles'),
@@ -394,7 +396,7 @@ export const polynomials: Course = {
               prose(
                 'Instead of dividing, you can compare coefficients. With $(x - 2)$ a factor of $x^{3} + x^{2} - 10x + 8$, write $(x - 2)(x^{2} + bx + c)$ and multiply out:',
               ),
-              working('x^{2}: \\; b - 2 &= 1, \\text{ so } b = 3', '\\text{constant}: \\; -2c &= 8, \\text{ so } c = -4'),
+              working('x^{2}\\!: \\;\\; b - 2 &= 1, \\;\\; b = 3', '\\text{number}\\!: \\;\\; -2c &= 8, \\;\\; c = -4'),
               prose('So the quadratic is $x^{2} + 3x - 4 = (x + 4)(x - 1)$.'),
             ),
             ask('poly-compare-tree'),
@@ -404,7 +406,7 @@ export const polynomials: Course = {
               prose(
                 'Sometimes the quadratic does not factorise. Two whole numbers would have to multiply to $c$ and add to $b$, and if $b^{2} - 4c$ is not a square number, none do.',
               ),
-              maths('x^{3} - x^{2} - x - 2 = (x - 2)(x^{2} + x + 1)'),
+              working('&x^{3} - x^{2} - x - 2', '=\\;&(x - 2)(x^{2} + x + 1)'),
               prose('Here $b^{2} - 4c = -3$, so this is already fully factorised: two factors, not three.'),
             ),
             ask('poly-full-flow'),
@@ -418,7 +420,7 @@ export const polynomials: Course = {
           slides: [
             teach(
               prose('To solve $p(x) = 0$, factorise fully. A product is zero when one of its brackets is, so each bracket gives a solution:'),
-              working('(x - 1)(x - 3)(x + 2) &= 0', 'x &= 1, \\; 3 \\text{ or } -2'),
+              working('&(x - 1)(x - 3)(x + 2) = 0', '&x = 1, 3 \\text{ or } -2'),
               prose('Each sign flips: $(x + 2) = 0$ gives $x = -2$.'),
             ),
             ask('poly-solve-tiles'),
@@ -428,7 +430,12 @@ export const polynomials: Course = {
               prose(
                 'A cubic can have fewer than three different solutions. A repeated bracket counts once, and a quadratic factor with $b^{2} - 4c < 0$ adds none:',
               ),
-              working('(x - 2)(x - 2)(x + 1) = 0 &: \\; x = 2 \\text{ or } -1', '(x - 2)(x^{2} + x + 3) = 0 &: \\; x = 2 \\text{ only}'),
+              working(
+                '&(x - 2)(x - 2)(x + 1) = 0',
+                '&\\quad x = 2 \\text{ or } -1',
+                '&(x - 2)(x^{2} + x + 3) = 0',
+                '&\\quad x = 2 \\text{ only}',
+              ),
               prose('Every cubic has at least one real solution, so the count is 1, 2 or 3.'),
             ),
             ask('poly-count-roots'),

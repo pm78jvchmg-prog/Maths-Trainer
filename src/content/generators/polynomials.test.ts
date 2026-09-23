@@ -85,9 +85,9 @@ describe('polynomial division, checked from what the learner sees', () => {
   it('synthetic division: the chain is the quotient then the remainder', () => {
     for (const { slide, seed, difficulty } of slides('poly-synthetic-tree')) {
       if (slide.kind !== 'tree') throw new Error('expected tree');
-      const [dividend, divisor] = slide.expression.split('\\div');
+      const [, dividend, divisor] = /^\\frac\{(.+)\}\{(.+)\}$/.exec(slide.expression)!;
       const [q2, q1, q0, r] = slide.answer.map(Number);
-      expectDivision(dividend, rootIn(divisor), `(${q2})*x^2 + (${q1})*x + (${q0})`, r, `seed ${seed} d${difficulty}`);
+      expectDivision(dividend, rootIn(`(${divisor})`), `(${q2})*x^2 + (${q1})*x + (${q0})`, r, `seed ${seed} d${difficulty}`);
     }
   });
 

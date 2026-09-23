@@ -14,6 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { math } from '../../engine/expression';
+import { parseSet, type Piece } from '../numberLine';
 import { makeRng } from '../../engine/rng';
 import { reduce, startSession } from '../../engine/session';
 import { registry } from '../registry';
@@ -265,6 +266,216 @@ describe('quadratic factors, from what the learner is shown', () => {
       } else {
         expect(q[1] * q[1] - 4 * q[0] * q[2], `seed ${seed} d${difficulty}`).toBeLessThan(0);
       }
+    }
+  });
+});
+
+describe('inequalities with fractions, from what the learner is shown', () => {
+  type Rel = '<' | '\\le' | '>' | '\\ge' | '=';
+  const relation = /\s(\\le|\\ge|<|>|=)\s/;
+
+  /** The shown inequality as its two sides and the sign between them. */
+  function sides(tex: string): { left: string; rel: Rel; right: string } {
+    const [left, rel, right] = tex.split(relation);
+    return { left, rel: rel as Rel, right };
+  }
+
+  /** Whether the shown inequality holds at x; undefined at a pole, where it has no value. */
+  function holds(tex: string, x: number): boolean | undefined {
+    const { left, rel, right } = sides(tex);
+    const gap = at(left, x) - at(right, x);
+    if (!Number.isFinite(gap)) return undefined;
+    const zero = Math.abs(gap) < 1e-9;
+    if (rel === '<') return gap < 0 && !zero;
+    if (rel === '\\le') return gap < 0 || zero;
+    if (rel === '>') return gap > 0 && !zero;
+    if (rel === '\\ge') return gap > 0 || zero;
+    return zero;
+  }
+
+  /** Every bottom in the shown inequality. */
+  function bottoms(tex: string): string[] {
+    return [...tex.matchAll(/\\frac\{[^{}]*\}\{([^{}]*)\}/g)].map((m) => m[1]);
+  }
+
+  const inPieces = (pieces: Piece[], x: number) =>
+    pieces.some((p) => (x > p.lo || (x === p.lo && p.loClosed)) && (x < p.hi || (x === p.hi && p.hiClosed)));
+
+  /** A set as `setTex` writes it, read back: pieces joined by "or". */
+  function readSetTex(tex: string): Piece[] {
+    return tex.split(' \\text{ or } ').map((part) => {
+      const closed = (rel: string) => rel === '\\le' || rel === '\\ge';
+      let m = /^(-?\d+) (<|\\le) x (<|\\le) (-?\d+)$/.exec(part);
+      if (m) return { lo: Number(m[1]), hi: Number(m[4]), loClosed: closed(m[2]), hiClosed: closed(m[3]) };
+      m = /^x (<|\\le|>|\\ge) (-?\d+)$/.exec(part);
+      if (!m) throw new Error(`unreadable piece ${part}`);
+      const end = Number(m[2]);
+      return m[1] === '<' || m[1] === '\\le'
+        ? { lo: -Infinity, hi: end, loClosed: false, hiClosed: closed(m[1]) }
+        : { lo: end, hi: Infinity, loClosed: closed(m[1]), hiClosed: false };
+    });
+  }
+
+  /** Quarter steps across a window, so every region and every whole end is probed. */
+  const probes = (min: number, max: number) => Array.from({ length: (max - min) * 4 + 1 }, (_, i) => min + i / 4);
+
+  it('shades exactly the points that satisfy the inequality shown', () => {
+    for (const id of ['frac-ineq-line', 'frac-ineq-square-line', 'frac-ineq-two-line', 'frac-ineq-table-line']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'numberLine') throw new Error('expected numberLine');
+        const pieces = parseSet(slide.answer)!;
+        for (const x of probes(slide.min, slide.max)) {
+          const truth = holds(display(slide), x) ?? false;
+          expect(inPieces(pieces, x), `${id} seed ${seed} d${difficulty} at ${x}: ${slide.answer}`).toBe(truth);
+        }
+      }
+    }
+  });
+
+  it('offers the real set as the right option, and only there', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ineq-slip-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const shown = display(slide);
+      for (const option of slide.options) {
+        const pieces = readSetTex(option.label);
+        const agrees = probes(-12, 12).every((x) => inPieces(pieces, x) === (holds(shown, x) ?? false));
+        expect(agrees, `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('solves each case to the part of it the inequality holds on', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ineq-cases-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const caseTex = /\$(x [<>] -?\d+)\$/.exec(slide.steps[0].ask)![1];
+      const casePiece = readSetTex(caseTex);
+      const said = slide.answer[2];
+      const claimed = said === 'None of it' ? [] : said.startsWith('All of') ? casePiece : readSetTex(said.slice(1, -1));
+      for (const x of probes(-12, 12).filter((x) => inPieces(casePiece, x))) {
+        expect(inPieces(claimed, x), `seed ${seed} d${difficulty} at ${x}: ${said}`).toBe(holds(slide.subject, x) ?? false);
+      }
+      const bottom = bottoms(slide.subject)[0];
+      const at0 = at(bottom, casePiece[0].lo === -Infinity ? casePiece[0].hi - 0.5 : casePiece[0].lo + 0.5);
+      expect(slide.answer[0], `seed ${seed} d${difficulty}`).toBe(at0 > 0 ? 'Positive' : 'Negative');
+    }
+  });
+
+  it('finds the crossing, the pole and the tree values from the fraction shown', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ineq-crossing')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { left, right } = sides(display(slide));
+      expect(at(left, Number(slide.answer)), `seed ${seed} d${difficulty}`).toBeCloseTo(at(right, 0), 9);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-test-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const t = Number(/x = (-?\d+)/.exec((slide.prompt[0] as { text: string }).text)![1]);
+      const { left, right } = sides(slide.expression);
+      const [top, bottom, kb, value] = slide.answer.map(Number);
+      expect(bottom, `seed ${seed} d${difficulty}`).toBeLessThan(0);
+      expect(bottom).toBeCloseTo(at(bottoms(slide.expression)[0], t), 9);
+      expect(top / bottom).toBeCloseTo(value, 9);
+      expect(value, `seed ${seed} d${difficulty}`).toBeCloseTo(at(left, t), 9);
+      expect(kb).toBeCloseTo(at(right, t) * bottom, 9);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-critical-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { left, right } = sides(slide.expression);
+      const bottom = bottoms(slide.expression)[0];
+      const [coef, num, pole, cross] = slide.answer.map(Number);
+      expect(at(bottom, pole), `seed ${seed} d${difficulty}`).toBeCloseTo(0, 9);
+      expect(at(left, cross), `seed ${seed} d${difficulty}`).toBeCloseTo(at(right, cross), 9);
+      for (const x of POINTS) expect(coef * x + num).toBeCloseTo((at(left, x) - at(right, x)) * at(bottom, x), 8);
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-two-top-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { left, right } = sides(slide.expression);
+      const [b1, b2] = bottoms(slide.expression);
+      const [, , s, num, cross] = slide.answer.map(Number);
+      expect(at(left, cross), `seed ${seed} d${difficulty}`).toBeCloseTo(at(right, cross), 9);
+      for (const x of POINTS) expect(s * x + num).toBeCloseTo((at(left, x) - at(right, x)) * at(b1, x) * at(b2, x), 8);
+    }
+  });
+
+  it('every line of working equals the difference it started from', () => {
+    for (const id of ['frac-ineq-one-side-steps', 'frac-ineq-two-steps']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'steps') throw new Error('expected steps');
+        const { left, right } = sides(display(slide));
+        let line = slide.start;
+        for (const x of POINTS) expect(at(line.join(' '), x), `${id} seed ${seed}`).toBeCloseTo(at(left, x) - at(right, x), 8);
+        for (const reduction of slide.reductions) {
+          line = [...line.slice(0, reduction.span[0]), reduction.value, ...line.slice(reduction.span[1])];
+          expectSame(line.join(' '), slide.start.join(' '), `${id} seed ${seed} d${difficulty}`);
+        }
+      }
+    }
+  });
+
+  it('multiplying by the square keeps the inequality, line by line', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ineq-square-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const shown = /\$(\\frac[^$]*)\$/.exec((slide.prompt[0] as { text: string }).text)![1];
+      const { left, right } = sides(shown);
+      const bottom = bottoms(shown)[0];
+      const squared = (x: number) => (at(left, x) - at(right, x)) * at(bottom, x) ** 2;
+      let line = slide.start;
+      const read = (tokens: string[]) => tokens.join(' ').replace(/\[/g, '(').replace(/\]/g, ')');
+      for (const reduction of [undefined, ...slide.reductions]) {
+        if (reduction) line = [...line.slice(0, reduction.span[0]), reduction.value, ...line.slice(reduction.span[1])];
+        for (const x of POINTS) expect(at(read(line), x), `seed ${seed} d${difficulty}: ${read(line)}`).toBeCloseTo(squared(x), 7);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-square-tiles')) {
+      const { left, right } = sides(display(slide));
+      const bottom = bottoms(display(slide))[0];
+      const quadratic = sides(filled(slide));
+      expect(quadratic.rel, `seed ${seed} d${difficulty}`).toBe(sides(display(slide)).rel);
+      for (const x of POINTS) {
+        expect(at(quadratic.left, x), `seed ${seed} d${difficulty}`).toBeCloseTo((at(left, x) - at(right, x)) * at(bottom, x) ** 2, 7);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-new-top-tiles')) {
+      const shown = display(slide);
+      const bottom = bottoms(shown)[0];
+      for (const x of POINTS) {
+        expect(at(filled(slide), x) / at(bottom, x), `seed ${seed} d${difficulty}`).toBeCloseTo(at(shown, x), 8);
+      }
+    }
+  });
+
+  it('offers the difference as one fraction as the right option, and only there', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ineq-two-top-which')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      for (const option of slide.options) {
+        const same = POINTS.every((x) => Math.abs(at(option.label, x) - at(display(slide), x)) < 1e-8);
+        expect(same, `seed ${seed} d${difficulty}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('reads whole numbers, single values and the graph against the inequality shown', () => {
+    for (const { slide, seed, difficulty } of slides('frac-ineq-least-whole')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const n = Number(slide.answer);
+      const least = (slide.prompt[1] as { text: string }).text.includes('least');
+      expect(holds(display(slide), n), `seed ${seed} d${difficulty}`).toBe(true);
+      for (let gap = 1; gap <= 30; gap += 1) {
+        expect(holds(display(slide), least ? n - gap : n + gap) ?? false, `seed ${seed} d${difficulty} beyond ${n}`).toBe(false);
+      }
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-member-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const v = Number(/x = (-?\d+)/.exec(slide.steps[0].ask)![1]);
+      const verdict = slide.answer[slide.answer.length - 1];
+      expect(verdict, `seed ${seed} d${difficulty} at ${v}`).toBe(holds(slide.subject, v) ? 'Yes' : 'No');
+    }
+    for (const { slide, seed, difficulty } of slides('frac-ineq-graph-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const text = (slide.prompt[0] as { text: string }).text;
+      const shown = /answer to \$([^$]*)\$/.exec(text)![1];
+      const { left, right } = sides(shown);
+      if (text.includes('to where it shoots off')) expect(at(bottoms(shown)[0], slide.answer), `seed ${seed} d${difficulty}`).toBeCloseTo(0, 9);
+      else expect(at(left, slide.answer), `seed ${seed} d${difficulty}`).toBeCloseTo(at(right, slide.answer), 9);
     }
   });
 });

@@ -1,6 +1,6 @@
 /**
  * An independent check on the level 3 modulus generators, modulus on both
- * sides.
+ * sides, and the level 4 ones, the modulus of quadratics and cubics.
  *
  * The property tests in `generators.test.ts` prove each generator agrees with
  * itself, and the oracle there skips everything here. These read what the
@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { math } from '../../engine/expression';
 import { makeRng } from '../../engine/rng';
 import { registry } from '../registry';
+import { modulusDips } from './inequalitiesModulus';
 import type { Generator, Slide } from '../types';
 
 const SEEDS = 120;
@@ -22,12 +23,14 @@ const POINTS = [-3, -2, -1, 0, 1, 2, 3, 5];
 /** The learner-facing TeX of an expression as something mathjs evaluates. */
 function toMath(tex: string): string {
   return tex
+    .replace(/(\d)\\lvert/g, '$1*\\lvert')
     .replace(/\\lvert/g, 'abs(')
     .replace(/\\rvert/g, ')')
     .replace(/\^\{(-?\d+)\}/g, '^($1)')
     // "0x" would read as the start of a hexadecimal number.
     .replace(/(\d)x/g, '$1*x')
     .replace(/(\d)\(/g, '$1*(')
+    .replace(/x\(/g, 'x*(')
     .replace(/\)\(/g, ')*(');
 }
 
@@ -344,6 +347,330 @@ describe('modulus on both sides, checked from what the learner sees', () => {
           looks.set(look, token);
         }
       }
+    }
+  });
+});
+
+/** Every $...$ segment of a slide's prose, in order. */
+function inlineMaths(slide: Slide): string[] {
+  return prose(slide)
+    .split(/\$([^$]+)\$/g)
+    .filter((_, idx) => idx % 2 === 1);
+}
+
+/** How many times `f` is zero, by sign changes and exact zeros on a grid of hundredths. */
+function zeroCount(f: (x: number) => number): number {
+  let count = 0;
+  let previous = f(-2000 / 100);
+  if (Math.abs(previous) < 1e-9) count += 1;
+  for (let i = -1999; i <= 2000; i += 1) {
+    const here = f(i / 100);
+    if (Math.abs(here) < 1e-9) count += 1;
+    else if (Math.abs(previous) >= 1e-9 && previous * here < 0) count += 1;
+    previous = here;
+  }
+  return count;
+}
+
+/** The pieces of a canonical number-line answer, and a membership test. */
+function readSet(answer: string): (x: number) => boolean {
+  const pieces = answer.split('|').map((piece) => {
+    const m = /^([[(])([^,]+),([^\])]+)([\])])$/.exec(piece);
+    if (!m) throw new Error(`unreadable piece ${piece}`);
+    const end = (s: string) => (s === 'inf' ? Infinity : s === '-inf' ? -Infinity : Number(s));
+    return { lo: end(m[2]), hi: end(m[3]), loClosed: m[1] === '[', hiClosed: m[4] === ']' };
+  });
+  return (x) =>
+    pieces.some((p) => (x > p.lo || (x === p.lo && p.loClosed)) && (x < p.hi || (x === p.hi && p.hiClosed)));
+}
+
+/** A tile template filled in with its answer, tiles' spaces closed up. */
+function filled(template: string, answer: string[]): string {
+  return answer.reduce((tex, token, idx) => tex.replace(`{${idx}}`, token.replace(/^([+-]) /, '$1')), template);
+}
+
+/** Where a flow's stated answer leads: the outcome text it reaches. */
+function outcomeOf(slide: Slide): string {
+  if (slide.kind !== 'flow') throw new Error('expected a flow');
+  let step = slide.steps[0];
+  for (const label of slide.answer) {
+    const branch = step.branches.find((b) => b.label === label);
+    if (!branch) throw new Error(`no branch ${label}`);
+    if (branch.outcome) return branch.outcome;
+    step = slide.steps.find((s) => s.id === branch.to)!;
+  }
+  throw new Error('the answer stops before an outcome');
+}
+
+/** The label of the option marked right. */
+function chosen(slide: Slide): string {
+  if (slide.kind !== 'choice') throw new Error('expected a choice');
+  return slide.options.find((option) => option.id === slide.correctId)!.label;
+}
+
+/** The whole numbers from -8 to 8 where a function is zero. */
+function integerZeros(f: (x: number) => number): number[] {
+  return Array.from({ length: 17 }, (_, i) => i - 8).filter((x) => Math.abs(f(x)) < 1e-9);
+}
+
+const GRID = Array.from({ length: 121 }, (_, i) => -6 + i / 10);
+const isEven = (f: (x: number) => number) => GRID.every((x) => Math.abs(f(x) - f(-x)) < 1e-9);
+const neverNegative = (f: (x: number) => number) => GRID.every((x) => f(x) >= -1e-9);
+
+describe('the modulus of quadratics and cubics, checked from what the learner sees', () => {
+  it('holds only rows whose roots are all whole', () => {
+    for (const { h, c, outer, inner } of modulusDips) {
+      const row = `h ${h}, c ${c}`;
+      expect(h, row).toBeGreaterThan(0);
+      expect(c, row).toBeGreaterThan(0);
+      expect(outer * outer, row).toBe(h + c);
+      if (inner === null) expect(h, row).toBeLessThan(c);
+      else expect(inner * inner, row).toBe(h - c);
+    }
+  });
+
+  it('marks as right the one graph that is the modulus of the quadratic or cubic', () => {
+    for (const id of ['mod-abs-quad-match', 'mod-cubic-match']) {
+      for (const { slide, where } of slides(id)) {
+        if (slide.kind !== 'choice') throw new Error('expected a choice');
+        // Difficulty 2 of the cubic leaves the roots to the grid.
+        if (!prose(slide).includes('axis at')) continue;
+        const roots = [...prose(slide).matchAll(/\$x = ([^$]+)\$/g)].flatMap((m) => m[1].split(', ').map(Number));
+        const fits = slide.options.filter(({ label }) => {
+          const f = (x: number) => at(label.slice(4), x);
+          return neverNegative(f) && !isEven(f) && JSON.stringify(integerZeros(f)) === JSON.stringify([...roots].sort((a, b) => a - b));
+        });
+        expect(fits.map((option) => option.id), where).toEqual([slide.correctId]);
+      }
+    }
+  });
+
+  it('marks as right the one graph that is f(|x|), even and through the stated roots', () => {
+    for (const { slide, where } of slides('mod-fabs-match')) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const stated = /at \$x = ([^$]+)\$/.exec(prose(slide));
+      const roots = stated![1].split(', ').map(Number);
+      const fits = slide.options.filter(({ label }) => {
+        const f = (x: number) => at(label.slice(4), x);
+        return isEven(f) && JSON.stringify(integerZeros(f)) === JSON.stringify(roots);
+      });
+      expect(fits.map((option) => option.id), where).toEqual([slide.correctId]);
+    }
+  });
+
+  it('slides to the height of the vertex of |f(x)|', () => {
+    for (const { slide, where } of slides('mod-abs-vertex-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected a slider');
+      const f = (x: number) => at(inlineMaths(slide)[0].slice(4), x);
+      const a = (f(1) + f(-1) - 2 * f(0)) / 2;
+      const b = (f(1) - f(-1)) / 2;
+      expect(slide.answer, where).toBe(Math.abs(f(-b / (2 * a))));
+    }
+  });
+
+  it('works out f and |f| at the named points', () => {
+    for (const { slide, where } of slides('mod-abs-values-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const f = slide.expression.replace('f(x) = ', '');
+      const [x1, x2] = [...prose(slide).matchAll(/\$x = (-?\d+)\$/g)].map((m) => Number(m[1]));
+      const [u, v, au, av] = slide.answer.map(Number);
+      expect([u, v, au, av], where).toEqual([at(f, x1), at(f, x2), Math.abs(at(f, x1)), Math.abs(at(f, x2))]);
+      expect(u * v, `${where}: one point below the axis and one above`).toBeLessThan(0);
+    }
+  });
+
+  it('says which part of the quadratic the modulus reflects', () => {
+    for (const { slide, where } of slides('mod-abs-sketch-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const f = (x: number) => at(inlineMaths(slide).at(-1)!.replace('f(x) = ', ''), x);
+      const wide = Array.from({ length: 401 }, (_, i) => -20 + i / 10);
+      const negative = wide.filter((x) => f(x) < 0);
+      let expected: string[];
+      if (negative.length === 0) expected = ['No'];
+      else if (negative.length === wide.length) expected = ['Yes', 'Everywhere'];
+      else if (f(-20) < 0) expected = ['Yes', 'Outside its roots'];
+      else expected = ['Yes', 'Between its roots'];
+      expect(slide.answer, where).toEqual(expected);
+    }
+  });
+
+  it('builds the left arm of f(|x|) that agrees with it wherever x < 0', () => {
+    for (const { slide, where } of slides('mod-fabs-arm-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const whole = inlineMaths(slide)[0].slice(4);
+      const arm = filled(slide.template, slide.answer).slice(4);
+      for (const x of [-6, -4.5, -3, -2, -1.25, -0.5]) {
+        expect(at(arm, x), `${where} at ${x}`).toBeCloseTo(at(whole, x), 9);
+      }
+      expect(at(arm, 2.5), `${where}: the arm is not the right-hand one too`).not.toBeCloseTo(at(whole, 2.5), 9);
+    }
+  });
+
+  it('takes the modulus inside and outside at the same negative x', () => {
+    for (const { slide, where } of slides('mod-inside-out-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const f = slide.expression.replace('f(x) = ', '');
+      const t = Number(/at \$x = (-?\d+)\$/.exec(prose(slide))?.[1]);
+      expect(t, where).toBeLessThan(0);
+      expect(slide.answer.map(Number), where).toEqual([Math.abs(t), at(f, Math.abs(t)), at(f, t), Math.abs(at(f, t))]);
+      expect(at(f, Math.abs(t)), where).not.toBe(Math.abs(at(f, t)));
+    }
+  });
+
+  it('counts the roots of f(|x|) = 0', () => {
+    const counts: Record<string, number> = { Two: 4, 'One,Yes': 3, 'One,No': 2, 'None,Yes': 1, 'None,No': 0 };
+    for (const { slide, where } of slides('mod-fabs-count-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const f = slide.subject.replace('f(x) = ', '');
+      expect(counts[slide.answer.join(',')], where).toBe(zeroCount((x) => at(f, Math.abs(x))));
+    }
+  });
+
+  it('gives the root of |f(x)| = c that was asked for, and every root is whole', () => {
+    for (const { slide, where } of slides('mod-quad-eq-root')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [equation] = displays(slide);
+      const { left, right } = relation(equation);
+      const roots = wholeRoots(equation);
+      expect(zeroCount((x) => at(left, x) - at(right, x)), where).toBe(roots.length);
+      const text = prose(slide);
+      const wanted = text.includes('**smallest**') ? roots[0] : text.includes('**largest**') ? roots.at(-1) : roots.at(-2);
+      expect(Number(slide.answer), where).toBe(wanted);
+    }
+  });
+
+  it('splits |f(x)| = c into two cases whose roots are all the roots', () => {
+    const read = (tile: string) =>
+      tile === '\\text{no roots}' ? [] : tile.includes('\\pm') ? [-Number(tile.split('\\pm ')[1]), Number(tile.split('\\pm ')[1])] : tile.slice(4).split(', ').map(Number);
+    for (const { slide, where } of slides('mod-two-cases-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const [plus, minus, plusRoots, minusRoots] = slide.answer;
+      const c = Number(relation(slide.expression).right);
+      const { left } = relation(slide.expression);
+      const inside = left.replace(/\\lvert|\\rvert/g, '');
+      for (const x of POINTS) {
+        // Each case is f(x) = c or f(x) = -c with the same number added to both sides.
+        expect(at(relation(plus).left, x) - Number(relation(plus).right), `${where} plus at ${x}`).toBeCloseTo(at(inside, x) - c, 9);
+        expect(at(relation(minus).left, x) - Number(relation(minus).right), `${where} minus at ${x}`).toBeCloseTo(at(inside, x) + c, 9);
+      }
+      for (const root of read(plusRoots)) expect(holds(plus, root), `${where} ${root}`).toBe(true);
+      for (const root of read(minusRoots)) expect(holds(minus, root), `${where} ${root}`).toBe(true);
+      const all = [...new Set([...read(plusRoots), ...read(minusRoots)])].sort((a, b) => a - b);
+      expect(all, where).toEqual(wholeRoots(slide.expression));
+    }
+  });
+
+  it('slides to the crossing of |f(x)| and the line that was asked for', () => {
+    for (const { slide, where } of slides('mod-crossing-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected a slider');
+      const [curve, line] = inlineMaths(slide).map((tex) => tex.slice(4));
+      const roots = wholeRoots(`${curve} = ${line}`);
+      const text = prose(slide);
+      const c = Number(line);
+      const f = curve.replace(/\\lvert|\\rvert/g, '');
+      let wanted: number | undefined;
+      if (text.includes('**left-most**')) wanted = roots[0];
+      else if (text.includes('**right-most**')) wanted = roots.at(-1);
+      else {
+        // On the reflected hump: where f(x) = -c, left or right of the vertex.
+        const hump = roots.filter((x) => at(f, x) < 0);
+        expect(hump, where).toHaveLength(2);
+        wanted = text.includes('**left** side') ? hump[0] : hump[1];
+        expect(at(f, wanted), where).toBe(-c);
+      }
+      expect(slide.answer, where).toBe(wanted);
+    }
+  });
+
+  it('counts the solutions of |f(x)| = c for quadratics and cubics', () => {
+    const words: Record<number, string> = { 0: 'None', 2: 'Two', 3: 'Three', 4: 'Four' };
+    for (const { slide, where } of slides('mod-quad-count')) {
+      const { left, right } = relation(displays(slide)[0]);
+      expect(chosen(slide), where).toBe(words[zeroCount((x) => at(left, x) - Number(right))]);
+    }
+    for (const { slide, where } of slides('mod-cubic-count')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { left, right } = relation(displays(slide)[0]);
+      expect(Number(slide.answer), where).toBe(zeroCount((x) => at(left, x) - Number(right)));
+    }
+  });
+
+  it('shades where the cubic is negative', () => {
+    for (const { slide, where } of slides('mod-cubic-reflect-line')) {
+      if (slide.kind !== 'numberLine') throw new Error('expected a number line');
+      const f = displays(slide)[0].replace('f(x) = ', '');
+      const inSet = readSet(slide.answer);
+      for (let x = slide.min - 2; x <= slide.max + 2; x += 0.25) {
+        expect(inSet(x), `${where} at x = ${x}`).toBe(at(f, x) < 0);
+      }
+    }
+  });
+
+  it('reaches the reflected outcome exactly where the cubic is negative', () => {
+    for (const { slide, where } of slides('mod-cubic-sign-flow')) {
+      const f = inlineMaths(slide).at(-1)!.replace('f(x) = ', '');
+      const t = Number(/Above \$x = (-?\d+)\$/.exec(prose(slide))?.[1]);
+      expect(outcomeOf(slide).includes('reflected up'), `${where} at ${t}`).toBe(at(f, t) < 0);
+    }
+  });
+
+  it('shades exactly where |f(x)| op c holds', () => {
+    for (const { slide, where } of slides('mod-quad-ineq-line')) {
+      if (slide.kind !== 'numberLine') throw new Error('expected a number line');
+      const [inequality] = displays(slide);
+      const inSet = readSet(slide.answer);
+      for (let x = slide.min - 2; x <= slide.max + 2; x += 0.25) {
+        expect(inSet(x), `${where} at x = ${x}`).toBe(holds(inequality, x));
+      }
+    }
+  });
+
+  it('names the shape the solution set really has', () => {
+    const pieces: Record<string, number> = { 'Less than,Yes': 2, 'Less than,No': 1, 'Greater than,Yes': 3, 'Greater than,No': 2 };
+    for (const { slide, where } of slides('mod-quad-ineq-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      let runs = 0;
+      let inside = false;
+      for (let i = -300; i <= 300; i += 1) {
+        const here = holds(slide.subject, i / 10 + 0.05);
+        if (here && !inside) runs += 1;
+        inside = here;
+      }
+      expect(pieces[slide.answer.join(',')], where).toBe(runs);
+      expect(slide.answer[0] === 'Less than', where).toBe(/ (<|\\le) /.test(slide.subject));
+    }
+  });
+
+  it('finds the four critical values from the two cases', () => {
+    for (const { slide, where } of slides('mod-critical-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const { left, right } = relation(slide.expression);
+      const equation = `${left} = ${right}`;
+      const [, , a, b, c, d] = slide.answer.map(Number);
+      expect(a, where).toBeLessThan(b);
+      expect(c, where).toBeLessThan(d);
+      expect([a, c, d, b], where).toEqual(wholeRoots(equation));
+      const inside = left.replace(/\\lvert|\\rvert/g, '');
+      expect(at(inside, a), where).toBe(Number(right));
+      expect(at(inside, c), where).toBe(-Number(right));
+    }
+  });
+
+  it('places the ends of the solution set so it reads as the inequality', () => {
+    for (const { slide, where } of slides('mod-quad-ineq-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [inequality] = displays(slide);
+      const parts = filled(slide.template, slide.answer).split(' \\text{ or } ');
+      const rel = (a: number, op: string, b: number) => (op === '<' ? a < b : op === '>' ? a > b : op === '\\le' ? a <= b : a >= b);
+      const reads = (x: number) =>
+        parts.some((part) => {
+          const span = /^(-?\d+) (<|\\le) x (<|\\le) (-?\d+)$/.exec(part);
+          if (span) return rel(Number(span[1]), span[2], x) && rel(x, span[3], Number(span[4]));
+          const ray = /^x (<|\\le|>|\\ge) (-?\d+)$/.exec(part);
+          if (!ray) throw new Error(`${where}: unreadable ${part}`);
+          return rel(x, ray[1], Number(ray[2]));
+        });
+      for (let x = -10; x <= 10; x += 0.25) expect(reads(x), `${where} at x = ${x}`).toBe(holds(inequality, x));
     }
   });
 });

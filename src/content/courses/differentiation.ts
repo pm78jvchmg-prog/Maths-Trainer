@@ -56,7 +56,7 @@ const graph = (
 export const differentiation: Course = {
   id: 'differentiation',
   title: 'Differentiation',
-  blurb: 'Rates of change, from the power rule to stationary points.',
+  blurb: 'Rates of change, from the power rule to sketching curves.',
   levels: [
     {
       id: 'df-l1',
@@ -1326,6 +1326,330 @@ export const differentiation: Course = {
         ask('df-increasing-at', 2),
         ask('df-inflection-flow', 2),
         ask('df-sp-count', 2),
+      ],
+    },
+    {
+      id: 'df-l6',
+      title: 'Curve Sketching',
+      lessons: [
+        {
+          id: 'df-l6-axes',
+          title: 'Where a Curve Meets the Axes',
+          slides: [
+            teach(
+              prose(
+                'A sketch starts where the curve meets the axes. In factorised form the $x$-axis crossings are printed on the brackets: $y = 0$ exactly when one bracket is zero.',
+              ),
+              { kind: 'display', tex: 'y = (x + 2)(x - 1)(x - 3)' },
+              graph({
+                xMin: -3.5,
+                xMax: 4.5,
+                yMin: -14,
+                yMax: 11,
+                curves: [{ f: (x) => (x + 2) * (x - 1) * (x - 3) }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: -2, y: 0 },
+                  { x: 1, y: 0 },
+                  { x: 3, y: 0 },
+                  { x: 0, y: 6 },
+                ],
+                label: 'A cubic crossing the x-axis three times and the y-axis once',
+              }),
+              prose(
+                'So $x = -2$, $1$ and $3$: each bracket\'s number with its sign flipped. The $y$-axis is $x = 0$, and putting $0$ into every bracket gives $(2)(-1)(-3) = 6$.',
+              ),
+            ),
+            ask('df-cs-roots'),
+            ask('df-cs-y-int'),
+            ask('df-cs-roots', 2),
+            teach(
+              prose(
+                'Between two roots a curve cannot change sign, so the roots cut the number line into stretches that are wholly above or wholly below the axis.',
+              ),
+              prose(
+                'Far to the right every bracket is positive, so the last stretch takes the sign of the number in front. Moving left, the sign flips at each root.',
+              ),
+              { kind: 'display', tex: 'y = -2(x + 1)(x - 2)(x - 4)' },
+              { kind: 'display', tex: '+ \\quad - \\quad + \\quad -' },
+            ),
+            ask('df-cs-signs'),
+            ask('df-cs-y-int+choice', 2),
+            ask('df-cs-signs', 2),
+            teach(
+              prose(
+                'A squared bracket is never negative, so $y$ does not change sign there: the curve **touches** the axis and turns back. A cubed bracket does change sign, but the curve flattens as it **crosses**.',
+              ),
+              graph({
+                xMin: -3,
+                xMax: 3,
+                yMin: -3,
+                yMax: 7,
+                curves: [{ f: (x) => (x - 1) ** 2 * (x + 2) }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: -2, y: 0 },
+                  { x: 1, y: 0 },
+                ],
+                label: 'A cubic that crosses the axis at minus 2 and touches it at 1',
+              }),
+              { kind: 'display', tex: 'y = (x - 1)^{2}(x + 2)' },
+              prose(
+                'Whether a touch is a dip or a hump depends on the rest of the product. Here $(x + 2)$ is positive near $x = 1$, so the curve touches from above.',
+              ),
+            ),
+            ask('df-cs-touch'),
+            ask('df-cs-touch', 2),
+          ],
+          skillCheck: [ask('df-cs-roots', 2), ask('df-cs-signs', 2), ask('df-cs-touch', 2)],
+        },
+
+        {
+          id: 'df-l6-turning',
+          title: 'Placing the Turning Points',
+          slides: [
+            teach(
+              prose(
+                'The roots are the skeleton of a sketch; the turning points are its humps. Find them as before: solve $f\'(x) = 0$, then let $f\'\'(x)$ say which is which.',
+              ),
+              { kind: 'display', tex: 'y = x^{3} - 6x^{2} + 9x + 1' },
+              { kind: 'display', tex: 'f\'(x) = 3(x - 1)(x - 3)' },
+              prose(
+                'So the curve is flat at $x = 1$ and $x = 3$. Putting those back into $y$ gives the points $(1, 5)$ and $(3, 1)$, and $f\'\'(1) = -6$ makes the first a maximum.',
+              ),
+            ),
+            ask('df-cs-turn'),
+            ask('df-sp-y'),
+            ask('df-nature-flow'),
+            teach(
+              prose(
+                'Mark the turning points first, then join them up. A cubic with a positive $x^{3}$ term comes up from below, over its maximum, down through its minimum, and away upwards.',
+              ),
+              graph({
+                xMin: -0.8,
+                xMax: 4.2,
+                yMin: -2,
+                yMax: 7,
+                curves: [{ f: (x) => x ** 3 - 6 * x ** 2 + 9 * x + 1 }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: 1, y: 5 },
+                  { x: 3, y: 1 },
+                ],
+                label: 'A cubic with both of its turning points above the x-axis',
+              }),
+              prose(
+                'Both turning points here are above the axis, so the curve never dips below it between them: it crosses the axis once, on its left arm.',
+              ),
+            ),
+            ask('df-cs-turn', 2),
+            ask('df-sp-slider'),
+            ask('df-cs-crossings'),
+            teach(
+              prose(
+                'A turning point can sit on the axis itself. That is a root the curve only touches, and it is where a squared bracket comes from.',
+              ),
+              { kind: 'display', tex: 'y = x^{3} - 3x + 2' },
+              { kind: 'display', tex: '= (x - 1)^{2}(x + 2)' },
+              prose(
+                'Its minimum is $(1, 0)$, on the axis, and its maximum is $(-1, 4)$. The curve crosses at $x = -2$ and touches at $x = 1$: two meetings, not three.',
+              ),
+            ),
+            ask('df-cs-crossings', 2),
+            ask('df-nature-flow', 2),
+          ],
+          skillCheck: [ask('df-cs-turn', 2), ask('df-cs-crossings', 2), ask('df-nature-flow', 2)],
+        },
+
+        {
+          id: 'df-l6-asymptotes',
+          title: 'Asymptotes and Large x',
+          slides: [
+            teach(
+              prose(
+                'Some curves have lines they approach but never meet: **asymptotes**. A reciprocal curve has two.',
+              ),
+              { kind: 'display', tex: 'y = \\frac{2}{x - 1} + 1' },
+              graph({
+                xMin: -4,
+                xMax: 6,
+                yMin: -6,
+                yMax: 8,
+                curves: [{ f: (x) => 2 / (x - 1) + 1, breaks: true }],
+                verticals: [{ x: 1 }],
+                horizontals: [1],
+                label: 'A reciprocal curve on either side of its two dashed asymptotes',
+              }),
+              prose(
+                'There is no $y$ where the denominator is zero, so there is a vertical asymptote at $x = 1$. Far out the fraction shrinks to nothing, so $y$ levels out towards $1$: a horizontal asymptote at $y = 1$.',
+              ),
+            ),
+            ask('df-cs-asymptotes'),
+            ask('df-cs-rational-y'),
+            ask('df-cs-asymptotes+choice', 2),
+            teach(
+              prose('The curve still meets the axes like any other. For the $y$-axis put $x = 0$:'),
+              { kind: 'display', tex: 'y = \\frac{2}{-1} + 1 = -1' },
+              prose('For the $x$-axis put $y = 0$, and the fraction has to cancel the $1$:'),
+              { kind: 'display', tex: '\\frac{2}{x - 1} = -1' },
+              prose('So $x - 1 = -2$, and the curve crosses at $x = -1$.'),
+            ),
+            ask('df-cs-rational-root'),
+            ask('df-cs-rational-y', 2),
+            ask('df-cs-rational-root', 2),
+            teach(
+              prose(
+                'A polynomial has no asymptotes. Far out, its highest power outweighs everything else, so that one term decides which way the ends go.',
+              ),
+              { kind: 'display', tex: 'y = 3x^{2} + 5x - 2x^{3}' },
+              { kind: 'display', tex: 'y \\approx -2x^{3}' },
+              prose(
+                'An odd power sends the two ends opposite ways; an even power sends them the same way. The sign in front says which: here the right end goes down and the left end up.',
+              ),
+            ),
+            ask('df-cs-ends'),
+            ask('df-cs-ends', 2),
+          ],
+          skillCheck: [ask('df-cs-asymptotes', 2), ask('df-cs-rational-root', 2), ask('df-cs-ends', 2)],
+        },
+
+        {
+          id: 'df-l6-sketch',
+          title: 'Sketching from Start to Finish',
+          slides: [
+            teach(
+              prose(
+                'A sketch from factorised form is a checklist: the roots, and whether each is crossed or touched; the $y$-intercept; and which way the ends go. Then join them up.',
+              ),
+              { kind: 'display', tex: 'y = -(x + 2)(x - 1)^{2}' },
+              graph({
+                xMin: -3,
+                xMax: 2.5,
+                yMin: -5,
+                yMax: 6,
+                curves: [{ f: (x) => -(x + 2) * (x - 1) ** 2 }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: -2, y: 0 },
+                  { x: 1, y: 0 },
+                  { x: 0, y: -2 },
+                ],
+                label: 'An upside-down cubic crossing at minus 2 and touching at 1',
+              }),
+              prose(
+                'It crosses at $x = -2$ and touches at $x = 1$; it meets the $y$-axis at $-(2)(1) = -2$; and with $-x^{3}$ leading it comes down from the top left and leaves at the bottom right.',
+              ),
+            ),
+            ask('df-cs-roots', 2),
+            ask('df-cs-ends'),
+            ask('df-cs-y-int', 2),
+            teach(
+              prose(
+                'Between two places where the curve crosses, it has to turn round, so every gap between crossings holds a hump or a dip. For a sketch its rough place is enough; its exact place is where $f\'(x) = 0$.',
+              ),
+              prose(
+                'A touch is a turning point already, sitting on the axis. A flattened crossing is a stationary point of inflection, which is not a turn at all.',
+              ),
+            ),
+            ask('df-cs-touch', 2),
+            ask('df-cs-spot-error'),
+            ask('df-sp-slider', 2),
+            teach(
+              prose(
+                'Check a finished sketch one feature at a time. Is each root on the right side of the $y$-axis? Does it touch at the squared bracket and cross at the others? Do the ends go the right way?',
+              ),
+              prose(
+                'A sketch can have every feature but one right, so stop only when all three checks pass.',
+              ),
+            ),
+            ask('df-cs-spot-error', 2),
+            ask('df-cs-crossings', 2),
+          ],
+          skillCheck: [ask('df-cs-spot-error', 2), ask('df-cs-roots', 2), ask('df-cs-ends', 2)],
+        },
+
+        {
+          id: 'df-l6-reading',
+          title: 'Reading a Sketch',
+          slides: [
+            teach(
+              prose(
+                'Reading a sketch runs the checklist backwards. Each root gives a bracket; a touch means that bracket is squared; the ends give the sign in front.',
+              ),
+              graph({
+                xMin: -2.5,
+                xMax: 4,
+                yMin: -12,
+                yMax: 6,
+                curves: [{ f: (x) => (x + 1) ** 2 * (x - 3) }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: -1, y: 0 },
+                  { x: 3, y: 0 },
+                ],
+                label: 'A cubic touching the axis at minus 1 and crossing at 3',
+              }),
+              prose(
+                'This touches at $x = -1$ and crosses at $x = 3$, and its right end goes up:',
+              ),
+              { kind: 'display', tex: 'y = (x + 1)^{2}(x - 3)' },
+            ),
+            ask('df-cs-match'),
+            ask('df-cs-touch'),
+            ask('df-cs-match', 2),
+            teach(
+              prose(
+                'The graph of the **gradient function** $y = f\'(x)$ can be read straight off $y = f(x)$. It is zero at every turning point, positive where the curve rises and negative where it falls.',
+              ),
+              graph({
+                xMin: -2.4,
+                xMax: 2.4,
+                yMin: -4,
+                yMax: 6,
+                curves: [{ f: (x) => x ** 3 - 3 * x }, { f: (x) => 3 * x * x - 3, dashed: true }],
+                marks: [
+                  { x: -1, y: 0 },
+                  { x: 1, y: 0 },
+                ],
+                label: 'A cubic with its gradient function dashed, crossing zero under each turning point',
+              }),
+              prose(
+                'Here $y = x^{3} - 3x$ turns at $x = -1$ and $x = 1$, so its gradient (dashed) crosses the axis there: positive, then negative, then positive. A cubic\'s gradient is always a parabola.',
+              ),
+            ),
+            ask('df-cs-gradient-shape'),
+            ask('df-cs-read-gradient'),
+            ask('df-cs-gradient-shape', 2),
+            teach(
+              prose(
+                'The gradient graph has a turning point of its own, and it means something too: that is where the original curve is steepest.',
+              ),
+              prose(
+                'For $y = x^{3} - 3x$ the dashed parabola is lowest at $x = 0$, so the curve falls most steeply there. It is also where $f\'\'(x) = 0$: the point of inflection.',
+              ),
+            ),
+            ask('df-cs-steepest'),
+            ask('df-cs-read-gradient', 2),
+          ],
+          skillCheck: [ask('df-cs-match', 2), ask('df-cs-read-gradient', 2), ask('df-cs-gradient-shape', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('df-cs-roots', 2),
+        ask('df-cs-y-int+choice', 2),
+        ask('df-cs-touch', 2),
+        ask('df-cs-asymptotes', 2),
+        ask('df-cs-crossings', 2),
+        ask('df-cs-rational-root', 2),
+        ask('df-cs-turn', 2),
+        ask('df-cs-ends', 2),
+        ask('df-cs-rational-y', 2),
+        ask('df-cs-spot-error', 2),
+        ask('df-cs-signs', 2),
+        ask('df-cs-steepest', 2),
+        ask('df-cs-match', 2),
+        ask('df-cs-read-gradient', 2),
+        ask('df-cs-gradient-shape', 2),
       ],
     },
   ],

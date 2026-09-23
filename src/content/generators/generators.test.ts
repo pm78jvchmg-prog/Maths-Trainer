@@ -318,6 +318,38 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           `tree bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
         ).toBeGreaterThanOrEqual(2);
       }
+
+      if (slide.kind === 'iterate') {
+        // Graded as exact tokens, so each one has to be written to exactly
+        // the places the prompt asks for: a row the learner computes right
+        // and writes to the stated precision must be a tile they can find.
+        const prose = slide.prompt
+          .map((block) => (block.kind === 'prose' ? block.text : ''))
+          .join(' ');
+        const stated = /to (\d) decimal places/.exec(prose);
+        expect(stated, `iterate prompt states no precision: ${prose}`).not.toBeNull();
+        const places = Number(stated![1]);
+        const written = new RegExp(`^-?\\d+\\.\\d{${places}}$`);
+        expect(slide.answer.length, 'an iteration needs rows and a conclusion').toBeGreaterThanOrEqual(3);
+        for (const token of slide.answer.slice(0, -1)) {
+          expect(token, `row ${token} is not written to ${places} places`).toMatch(written);
+        }
+        const conclusion = slide.answer[slide.answer.length - 1];
+        expect(conclusion).toMatch(
+          slide.conclusion === 'limit' ? written : /^-?\d+\.\d < \\alpha < -?\d+\.\d$/,
+        );
+
+        const bank = [...slide.bank];
+        for (const value of slide.answer) {
+          const at = bank.indexOf(value);
+          expect(at, `value ${value} missing from bank`).toBeGreaterThanOrEqual(0);
+          bank.splice(at, 1);
+        }
+        expect(
+          bank.length,
+          `iterate bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+        ).toBeGreaterThanOrEqual(2);
+      }
     }
   });
 
@@ -417,6 +449,11 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       if (slide.kind === 'tree') {
         check(slide.expression, 'tree expression');
         for (const token of slide.bank) check(token, 'tree bank');
+      }
+
+      if (slide.kind === 'iterate') {
+        check(slide.start, 'iterate start');
+        for (const token of slide.bank) check(token, 'iterate bank');
       }
     }
   });

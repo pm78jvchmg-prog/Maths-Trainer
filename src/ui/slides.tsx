@@ -33,6 +33,7 @@ import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
+import { IterateSlide } from './iterateSlide';
 import { defaultSliderValue } from './sliderValue';
 
 export interface SlideProps {
@@ -544,6 +545,8 @@ export function SlideView(props: SlideProps) {
       return <StepsSlide {...props} />;
     case 'tree':
       return <TreeSlide {...props} />;
+    case 'iterate':
+      return <IterateSlide {...props} />;
     case 'slider':
       return <SliderSlide {...props} />;
     case 'flow':
@@ -559,6 +562,7 @@ export function SlideView(props: SlideProps) {
 export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
+  if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
   if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') return [];
   // A slider too, although its handle is drawn somewhere: where it rests is
@@ -570,8 +574,8 @@ export function initialAnswer(slide: Slide): Answer {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles' || slide.kind === 'tree') {
-    const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
+  if (slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate') {
+    const expected = slide.kind === 'tree' ? slide.nodes.length : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
   // One tile chosen is the whole answer.

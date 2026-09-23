@@ -10,6 +10,7 @@ import { exponentialModelGenerators } from './generators/exponentialModels';
 import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
 import { integrationShapeGenerators } from './generators/integrationShapes';
+import { iterationTableGenerators } from './generators/iterationTable';
 import { linearEquationsGenerators } from './generators/linearEquations';
 import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
@@ -45,6 +46,8 @@ export const allGenerators = [
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.
   ...workingGenerators,
+  // Demo generators for the `iterate` widget; Numerical Methods will ask them.
+  ...iterationTableGenerators,
 ];
 
 /** The base generators plus the choice form of every one that declares it. */

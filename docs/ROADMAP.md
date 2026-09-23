@@ -143,7 +143,7 @@ gives the live lesson count for every course.
 | # | Concept | State |
 | ---: | --- | --- |
 | 10 | Trigonometric Functions | **15 lessons** |
-| 11 | Trigonometric Identities & Equations | new |
+| 11 | Trigonometric Identities & Equations | **9 lessons** |
 | 12 | Logarithms | **12 lessons** |
 | 13 | Exponential Models | **9 lessons** |
 | 14 | Binomial Expansion | **10 lessons** |

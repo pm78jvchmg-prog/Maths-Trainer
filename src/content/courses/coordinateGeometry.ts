@@ -6,7 +6,10 @@
  * parallel and perpendicular lines, and where two lines meet. Level 2 puts
  * points and circles on the same axes: the midpoint and the distance, the
  * perpendicular bisector, the circle's equation, its centre and radius from
- * the expanded form, and tangents and chords.
+ * the expanded form, and tangents and chords. Level 3 puts a line into a
+ * circle: the quadratic that substituting gives, the discriminant deciding
+ * whether the line cuts, touches or misses, the tangent condition, the two
+ * tangents from a point outside, and chords cut off by a line.
  *
  * Several things this course leans on are taught elsewhere and only pointed
  * at here: solving two equations at once (Linear Equations `le-l2`),
@@ -475,6 +478,218 @@ export const coordinateGeometry: Course = {
         ask('coord-tangent-gradient', 2),
         ask('coord-chord+choice', 2),
         ask('coord-tangent-slider', 2),
+      ],
+    },
+    {
+      id: 'cg-l3',
+      title: 'Lines Meeting Circles',
+      lessons: [
+        {
+          id: 'cg-l3-substitute',
+          title: 'Where a Line Meets a Circle',
+          slides: [
+            teach(
+              prose(
+                'Where a line meets a circle, both equations hold at once. Put the line\'s $mx + c$ in place of $y$ in the circle, and a quadratic in $x$ is left: its roots are the $x$-coordinates of the meeting points.',
+              ),
+              grid(6, [line(1, 1, true)], [{ x: -4, y: -3 }, { x: 3, y: 4 }], 'The circle x^2 + y^2 = 25 cut by the line y = x + 1 at two marked points', [{ h: 0, k: 0, r2: 25 }]),
+              prose('For $y = x + 1$ and $x^2 + y^2 = 25$, multiply out, collect everything on one side, then divide through by the number in front of $x^2$:'),
+              maths('\\begin{aligned} x^2 + (x + 1)^2 &= 25 \\\\ 2x^2 + 2x - 24 &= 0 \\\\ x^2 + x - 12 &= 0 \\end{aligned}'),
+            ),
+            ask('coord-substitute-steps'),
+            ask('coord-meet-quadratic-tiles'),
+            ask('coord-meet-circle-x'),
+            teach(
+              prose(
+                'With the centre away from the origin, both brackets carry a number. Into $(x - a)^2 + (y - b)^2 = r^2$ the line puts $mx + c - b$ in the second bracket:',
+              ),
+              maths('\\begin{aligned} &(x - a)^2 + (mx + c - b)^2 \\\\ &\\quad = r^2 \\end{aligned}'),
+              prose('For $y = 2x - 1$ and $(x - 1)^2 + (y - 2)^2 = 5$ the second bracket is $(2x - 3)^2$. The rest is the same: multiply out, collect, divide through.'),
+            ),
+            ask('coord-substitute-steps', 2),
+            ask('coord-meet-quadratic-tiles', 2),
+            ask('coord-meet-circle-x+choice', 2),
+            teach(
+              prose(
+                'Solving the quadratic, as in Quadratics, gives the $x$-coordinates: $x^2 + x - 12 = 0$ factorises. Put each back into the **line** for its $y$, not into the circle, which gives two values of $y$ for most $x$ and only one of them is on the line.',
+              ),
+              maths('(x + 4)(x - 3) = 0'),
+              prose('So $x = -4$ gives $y = -3$ and $x = 3$ gives $y = 4$: the line meets the circle at $(-4, -3)$ and $(3, 4)$.'),
+            ),
+            ask('coord-root-point-tree'),
+            ask('coord-root-point-tree', 2),
+          ],
+          skillCheck: [ask('coord-substitute-steps', 2), ask('coord-meet-quadratic-tiles', 2), ask('coord-root-point-tree', 2)],
+        },
+        {
+          id: 'cg-l3-discriminant',
+          title: 'Cuts, Touches or Misses',
+          slides: [
+            teach(
+              prose(
+                'The quadratic from substituting has two roots, one or none, and so does the meeting: the line **cuts** the circle at two points, **touches** it at one, or **misses** it. The discriminant $b^2 - 4ac$, from Quadratics, says which without solving anything.',
+              ),
+              grid(
+                8,
+                [
+                  { f: () => 2, accent: true },
+                  { f: () => 5, accent: true },
+                  { f: () => 7, accent: true },
+                ],
+                [{ x: 0, y: 5 }],
+                'The circle x^2 + y^2 = 25 with the lines y = 2, y = 5 and y = 7: one cuts it, one touches it, one misses it',
+                [{ h: 0, k: 0, r2: 25 }],
+              ),
+              maths('\\begin{aligned} b^2 - 4ac > 0 &\\quad \\text{cuts} \\\\ b^2 - 4ac = 0 &\\quad \\text{touches} \\\\ b^2 - 4ac < 0 &\\quad \\text{misses} \\end{aligned}'),
+            ),
+            ask('coord-meet-count-flow'),
+            ask('coord-meet-discriminant'),
+            ask('coord-which-line'),
+            teach(
+              prose('Does $y = 2x + 5$ meet $x^2 + y^2 = 5$? Substitute and collect:'),
+              maths('\\begin{aligned} x^2 + (2x + 5)^2 &= 5 \\\\ 5x^2 + 20x + 20 &= 0 \\end{aligned}'),
+              prose(
+                'Here $b^2 - 4ac = 400 - 400 = 0$, so the line touches. A repeated root is $x = -\\frac{b}{2a} = -2$, and the line gives $y = 1$: they touch at $(-2, 1)$.',
+              ),
+            ),
+            ask('coord-touch-point-slider'),
+            ask('coord-meet-count-flow', 2),
+            ask('coord-meet-discriminant+choice', 2),
+            teach(
+              prose(
+                'Only the sign matters. Dividing through by a positive number shrinks the discriminant but never changes its sign, so the quadratic can be tidied first if that is easier.',
+              ),
+              prose('When a question asks for the discriminant itself, give it for the quadratic before dividing, the one that starts $(1 + m^2)x^2$.'),
+            ),
+            ask('coord-which-line', 2),
+            ask('coord-touch-point-slider', 2),
+          ],
+          skillCheck: [ask('coord-meet-count-flow', 2), ask('coord-meet-discriminant', 2), ask('coord-which-line', 2)],
+        },
+        {
+          id: 'cg-l3-tangent-condition',
+          title: 'The Tangent Condition',
+          slides: [
+            teach(
+              prose('A line is a **tangent** exactly when it touches: the discriminant is zero. For $y = mx + c$ and $x^2 + y^2 = r^2$ the quadratic is'),
+              maths('\\begin{aligned} &(1 + m^2)x^2 + 2mcx \\\\ &\\quad + c^2 - r^2 = 0 \\end{aligned}'),
+              prose('and in $b^2 - 4ac = 0$ the $c^2$ terms nearly cancel, leaving the **tangent condition**:'),
+              maths('c^2 = r^2(1 + m^2)'),
+            ),
+            ask('coord-touch-condition-steps'),
+            ask('coord-touch-c'),
+            ask('coord-touch-lines-tiles'),
+            teach(
+              prose('Two values of $c$ come out, one of each sign: two parallel tangents, either side of the circle. For $x^2 + y^2 = 20$ and gradient $2$:'),
+              maths('c^2 = 20 \\times 5 = 100, \\quad c = \\pm 10'),
+              grid(10, [line(2, 10, true), line(2, -10, true)], [{ x: -4, y: 2 }, { x: 4, y: -2 }], 'The circle x^2 + y^2 = 20 with its two tangents of gradient 2', [{ h: 0, k: 0, r2: 20 }]),
+              prose('Run it backwards to find a radius: $y = 3x + 10$ touches a circle centred at the origin with $r^2 = 100 \\div 10 = 10$.'),
+            ),
+            ask('coord-touch-radius-tree'),
+            ask('coord-touch-c+choice'),
+            teach(
+              prose(
+                'With the centre at $(a, b)$, measure from the centre instead. Where $x = a$ the line is at height $ma + c$, so it is $k = ma + c - b$ above the centre, and the condition becomes',
+              ),
+              maths('k^2 = r^2(1 + m^2)'),
+              prose('Solve for $k$, then $c = k + b - ma$. At the origin $k$ is just $c$.'),
+            ),
+            ask('coord-touch-condition-steps', 2),
+            ask('coord-touch-lines-tiles', 2),
+            ask('coord-touch-radius-tree', 2),
+          ],
+          skillCheck: [ask('coord-touch-lines-tiles', 2), ask('coord-touch-radius-tree', 2), ask('coord-touch-c', 2)],
+        },
+        {
+          id: 'cg-l3-from-outside',
+          title: 'Tangents from a Point Outside',
+          slides: [
+            teach(
+              prose(
+                'From a point $P$ outside a circle, two tangents can be drawn, and they are the same length. From a point on the circle there is one; from inside, none, since every line through it cuts the circle.',
+              ),
+              grid(6, [line(2, 5, true), line(-2, 5, true)], [{ x: 0, y: 5 }, { x: -2, y: 1 }, { x: 2, y: 1 }], 'The circle x^2 + y^2 = 5 with the two tangents from (0, 5)', [{ h: 0, k: 0, r2: 5 }]),
+              prose(
+                'The radius to the point of contact $T$ meets the tangent at a right angle, so $C$, $T$ and $P$ make a right-angled triangle with $CP$ as its hypotenuse: $PT^2 = CP^2 - r^2$.',
+              ),
+            ),
+            ask('coord-outside-count'),
+            ask('coord-tangent-length'),
+            ask('coord-tangent-length-tree'),
+            teach(
+              prose(
+                'To find the tangents themselves, take every line through $P$ at once: through $P(1, 3)$ a line of gradient $m$ has $c = 3 - m$. Put that into the tangent condition for $x^2 + y^2 = 2$:',
+              ),
+              maths('\\begin{aligned} (3 - m)^2 &= 2(1 + m^2) \\\\ m^2 + 6m - 7 &= 0 \\\\ m = -7 &\\text{ or } m = 1 \\end{aligned}'),
+              prose('So the tangents are $y = x + 2$ and $y = -7x + 10$.'),
+            ),
+            ask('coord-outside-gradient-steps'),
+            ask('coord-outside-tangent-tiles'),
+            ask('coord-outside-count', 2),
+            teach(
+              prose(
+                'With the centre at $C(a, b)$, measure $P$ from the centre as well: if $P$ is $X$ across and $Y$ up from $C$, a line through it is $k = Y - mX$ above the centre, and the condition is $k^2 = r^2(1 + m^2)$ as before.',
+              ),
+              prose('If the circle comes multiplied out, complete the square first, as in level 2, to find $C$ and $r^2$.'),
+            ),
+            ask('coord-outside-gradient-steps', 2),
+            ask('coord-outside-tangent-tiles', 2),
+          ],
+          skillCheck: [ask('coord-tangent-length', 2), ask('coord-outside-tangent-tiles', 2), ask('coord-outside-count', 2)],
+        },
+        {
+          id: 'cg-l3-chords',
+          title: 'Chords',
+          slides: [
+            teach(
+              prose(
+                'The perpendicular from the centre to a chord meets it at its midpoint $M$, as in level 2. So the radius, half the chord and $CM$ make a right-angled triangle:',
+              ),
+              maths('\\left(\\tfrac{1}{2}AB\\right)^2 = r^2 - CM^2'),
+              grid(6, [segment(-4, 3, 4, 3)], [{ x: -4, y: 3 }, { x: 4, y: 3 }, { x: 0, y: 3 }, { x: 0, y: 0, hollow: true }], 'The circle x^2 + y^2 = 25 with a chord from (-4, 3) to (4, 3) and its midpoint (0, 3)', [{ h: 0, k: 0, r2: 25 }]),
+              prose('In $x^2 + y^2 = 25$ the chord with midpoint $(0, 3)$ has $CM^2 = 9$, so half of it is $\\sqrt{16} = 4$ and the chord is $8$.'),
+            ),
+            ask('coord-chord-half-tree'),
+            ask('coord-chord-radius'),
+            teach(
+              prose(
+                'When a line cuts the chord off, its midpoint comes straight from the quadratic. The roots of $x^2 + px + q = 0$ add to $-p$, so the midpoint\'s $x$ is half of $-p$, and the line gives its $y$.',
+              ),
+              prose('$y = -x + 4$ into $x^2 + y^2 = 10$ gives $2x^2 - 8x + 6 = 0$, that is $x^2 - 4x + 3 = 0$:'),
+              maths('\\begin{aligned} x_M &= \\frac{4}{2} = 2 \\\\ y_M &= -2 + 4 = 2 \\end{aligned}'),
+            ),
+            ask('coord-chord-midpoint-steps'),
+            ask('coord-chord-slider'),
+            ask('coord-chord-radius+choice', 2),
+            teach(
+              prose(
+                'A check on a midpoint: the line from the centre to $M$ is perpendicular to the chord, so its gradient is $-\\frac{1}{m}$. From $(0, 0)$ to $(2, 2)$ is gradient $1$, and the chord\'s is $-1$.',
+              ),
+              prose('It is also a second way in: $M$ is where that perpendicular meets the chord, two lines meeting as in level 1.'),
+            ),
+            ask('coord-chord-half-tree', 2),
+            ask('coord-chord-midpoint-steps', 2),
+            ask('coord-chord-slider', 2),
+          ],
+          skillCheck: [ask('coord-chord-half-tree', 2), ask('coord-chord-midpoint-steps', 2), ask('coord-chord-radius', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('coord-substitute-steps', 2),
+        ask('coord-meet-quadratic-tiles', 2),
+        ask('coord-root-point-tree', 2),
+        ask('coord-meet-count-flow', 2),
+        ask('coord-meet-discriminant', 2),
+        ask('coord-touch-point-slider', 2),
+        ask('coord-touch-c', 2),
+        ask('coord-touch-lines-tiles', 2),
+        ask('coord-touch-radius-tree', 2),
+        ask('coord-tangent-length', 2),
+        ask('coord-outside-tangent-tiles', 2),
+        ask('coord-outside-count', 2),
+        ask('coord-chord-half-tree', 2),
+        ask('coord-chord-midpoint-steps', 2),
+        ask('coord-chord-radius+choice', 2),
       ],
     },
   ],

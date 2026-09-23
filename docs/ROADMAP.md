@@ -524,6 +524,7 @@ batch rather than waiting on a separate one.
 | C7 | Binomial Expansion | **done** (`claude/roadmap-c-binomial-expansion-e9c0un`): course `binomial-expansion`, levels `be-l1` and `be-l2`, 10 lessons, level checks of 14 and 15 questions, 32 new generators |
 | C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
 | C8-widget | Number-line widget for C8 and the Linear Equations inequalities level | **done** (`claude/roadmap-c8-widget-number-line-6civa1`): slide kind `numberLine` (rays, bounded intervals, unions; open and closed ends; whole or half steps), 2 demo generators asked by no lesson yet |
+| C2 | Functions & Transformations | claimed (`claude/roadmap-c-functions-transformations-uvigpv`) |
 
 ### When the queue empties
 

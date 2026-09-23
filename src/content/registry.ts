@@ -10,6 +10,7 @@ import { integrationGenerators } from './generators/integration';
 import { integrationShapeGenerators } from './generators/integrationShapes';
 import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
+import { parametricGenerators } from './generators/parametricImplicit';
 import { quadraticsGenerators } from './generators/quadratics';
 import { quadraticShapeGenerators } from './generators/quadraticShapes';
 import { vectorGenerators } from './generators/vectors';
@@ -35,6 +36,7 @@ export const allGenerators = [
   ...quadraticShapeGenerators,
   ...vectorGenerators,
   ...matrixGenerators,
+  ...parametricGenerators,
   ...trigonometryGenerators,
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.

@@ -71,6 +71,12 @@ function mix(...values: number[]): number {
     hash = Math.imul(hash ^ (value + 1013), 0x85ebca6b);
     hash ^= hash >>> 13;
   }
+  // A full finaliser, so the low bits a slot is taken from depend on every input bit.
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
   return hash >>> 0;
 }
 
@@ -104,21 +110,44 @@ function derivedTurn(opts: ChoiceOption[]): number {
  * orderings of the distractors until the rotation lands where the salt says is
  * cheap and keeps each question rendering one way.
  */
-function steered(opts: ChoiceOption[], salt: number): ChoiceOption[] {
-  const [correct, ...rest] = opts;
-  const n = opts.length;
-  const want = salt % n;
-  const orders: ChoiceOption[][] = [];
-  const permute = (left: ChoiceOption[], built: ChoiceOption[]) => {
-    if (left.length === 0) orders.push(built);
-    for (let i = 0; i < left.length; i += 1) permute([...left.slice(0, i), ...left.slice(i + 1)], [...built, left[i]]);
-  };
-  permute(rest, []);
-  for (const order of orders) {
-    const candidate = [correct, ...order];
-    if ((n - derivedTurn(candidate)) % n === want) return candidate;
+function steered(opts: ChoiceOption[], salt: number, spare: Omit<ChoiceOption, 'correct'>[] = []): ChoiceOption[] {
+  const [correct, ...given] = opts;
+  // The rotation hashes the labels with an odd multiplier, so its parity is
+  // fixed by which labels are present, whatever their order: with four
+  // options, reordering alone reaches only two of the slots. Spare
+  // distractors give other sets to try, the given ones first.
+  const seen = new Set(opts.map((o) => o.tex));
+  const pool: ChoiceOption[] = [...given];
+  for (const option of spare) {
+    if (seen.has(option.tex)) continue;
+    seen.add(option.tex);
+    pool.push(option);
   }
-  return opts;
+  // Short of four, spares top the question up.
+  const n = Math.max(opts.length, Math.min(4, 1 + pool.length));
+  const want = salt % n;
+  const sets: ChoiceOption[][] = [];
+  const choose = (from: number, built: ChoiceOption[]) => {
+    if (built.length === n - 1) {
+      sets.push(built);
+      return;
+    }
+    for (let i = from; i < pool.length; i += 1) choose(i + 1, [...built, pool[i]]);
+  };
+  choose(0, []);
+  for (const set of sets) {
+    const orders: ChoiceOption[][] = [];
+    const permute = (left: ChoiceOption[], built: ChoiceOption[]) => {
+      if (left.length === 0) orders.push(built);
+      for (let i = 0; i < left.length; i += 1) permute([...left.slice(0, i), ...left.slice(i + 1)], [...built, left[i]]);
+    };
+    permute(set, []);
+    for (const order of orders) {
+      const candidate = [correct, ...order];
+      if ((n - derivedTurn(candidate)) % n === want) return candidate;
+    }
+  }
+  return sets.length > 0 ? [correct, ...sets[0]] : opts;
 }
 
 /** Options for a whole-number answer: the slips given, then near misses. */
@@ -138,10 +167,22 @@ function numberChoices(correct: number, wrong: number[], salt: number): ChoiceOp
       picked.push(candidate);
     }
   }
-  return steered(
-    options({ tex: `${correct}`, answer: `${correct}` }, ...picked.map((v) => ({ tex: `${v}`, answer: `${v}` }))),
-    salt,
-  );
+  const spare: number[] = [];
+  for (let step = 1; spare.length < 4; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (!seen.has(candidate)) spare.push(candidate);
+    }
+  }
+  const asOption = (v: number) => ({ tex: `${v}`, answer: `${v}` });
+  return steered(options(asOption(correct), ...picked.map(asOption)), salt, spare.map(asOption));
+}
+
+/** The same option with its sign turned over: a distractor held in reserve. */
+function negated(option: Omit<ChoiceOption, 'correct'>): Omit<ChoiceOption, 'correct'> {
+  return {
+    tex: option.tex.startsWith('-') ? option.tex.slice(1) : `-${option.tex}`,
+    answer: option.answer === undefined ? undefined : `-(${option.answer})`,
+  };
 }
 
 /** A tiles bank of whole numbers: the answer's, then distinct extras, sorted. */
@@ -389,15 +430,18 @@ const paramPoint: Generator<PointParams> = {
     const [x0, y0] = pointAt(curve, k);
     const [xm, ym] = pointAt(curve, -k);
     const [x1, y1] = pointAt(curve, k + 1);
+    const all = options(
+      { tex: pair(x0, y0) },
+      { tex: pair(y0, x0) },
+      { tex: pair(xm, ym) },
+      { tex: pair(x0, y1) },
+      { tex: pair(x1, y1) },
+      { tex: pair(x1, y0) },
+    );
     return steered(
-      options(
-        { tex: pair(x0, y0) },
-        { tex: pair(y0, x0) },
-        { tex: pair(xm, ym) },
-        { tex: pair(x0, y1) },
-        { tex: pair(x1, y1) },
-      ).slice(0, 4),
+      all.slice(0, 4),
       mix(x0, y0, k),
+      all.slice(4),
     );
   },
   render: ({ curve, k }): Slide => {
@@ -689,7 +733,7 @@ export type EliminateParams =
 
 /** t written in x, as the learner reads it inside a bracket. */
 function tInX(a: number, b: number): string {
-  return a === 1 ? `(x ${signed(-b)})` : `\\left(\\frac{x ${signed(-b)}}{${a}}\\right)`;
+  return a === 1 ? `(x ${signed(-b)})` : `\\left(\\tfrac{x ${signed(-b)}}{${a}}\\right)`;
 }
 
 /** y(t) with t replaced by a TeX body, e.g. 2(x - 3)^2 - (x - 3) + 4. */
@@ -749,9 +793,11 @@ const paramEliminate: Generator<EliminateParams> = {
     if (difficulty >= 2 && rng.chance(0.35)) {
       return { form: 'exp', k: rng.int(1, 5), n: rng.pick([2, 3]), c: rng.int(1, 9) * rng.sign() };
     }
-    const a = difficulty >= 2 ? rng.pick([1, 2, 3]) : 1;
+    // A cubic keeps x's multiplier at 1: a cubed fraction runs off a phone.
+    const cubic = difficulty >= 2 && rng.chance(0.4);
+    const a = difficulty >= 2 && !cubic ? rng.pick([1, 2, 3]) : 1;
     const b = rng.int(1, 6) * rng.sign();
-    const y = difficulty >= 2 && rng.chance(0.4)
+    const y = cubic
       ? [rng.int(1, 2), 0, rng.int(-4, 4), rng.int(-5, 5)]
       : [rng.int(1, 3), rng.int(-4, 4), rng.int(-5, 5)];
     return { form: 'linear', a, b, y };
@@ -768,6 +814,10 @@ const paramEliminate: Generator<EliminateParams> = {
           { tex: `y = ${coef(k)}x^{${n + 1}} ${signed(c)}`, answer: `(${k})*x^(${n + 1}) + (${c})` },
         ),
         mix(k, n, c),
+        [
+          { tex: `y = ${coef(k)}x^{${n}} ${signed(-c)}`, answer: `(${k})*x^(${n}) + (${-c})` },
+          { tex: `y = ${coef(k * n)}x^{${n}} ${signed(c)}`, answer: `(${k * n})*x^(${n}) + (${c})` },
+        ],
       );
     }
     const { a, b, y } = params;
@@ -792,7 +842,31 @@ const paramEliminate: Generator<EliminateParams> = {
             { tex: `y = ${substitutedTex(y, `(x ${signed(-b)})`)}`, answer: substitutedAnswer(y, `x - (${b})`) },
             { tex: `y = ${substitutedTex(y, `(${a}x ${signed(b)})`)}`, answer: substitutedAnswer(y, `${a}*x + (${b})`) },
           ];
-    return steered(options({ tex: `y = ${right.tex}`, answer: right.answer }, ...wrong), mix(a, b, ...y));
+    // The top power's t read as x, the rest replaced properly.
+    const top = y.length - 1;
+    const rest = substitutedTex(y.slice(1), tInX(a, b));
+    const halfDone = rest === ''
+      ? []
+      : [
+          {
+            tex: `y = ${sumTex([`${coef(y[0])}x^{${top}}`, rest])}`,
+            answer: `(${y[0]})*x^(${top}) + ${substitutedAnswer(y.slice(1), `(x - (${b}))/(${a})`)}`,
+          },
+        ];
+    // The constant's sign slipped.
+    const slipped = y[top] === 0
+      ? []
+      : [
+          {
+            tex: `y = ${substitutedTex([...y.slice(0, top), -y[top]], tInX(a, b))}`,
+            answer: substitutedAnswer([...y.slice(0, top), -y[top]], `(x - (${b}))/(${a})`),
+          },
+        ];
+    return steered(
+      options({ tex: `y = ${right.tex}`, answer: right.answer }, ...wrong),
+      mix(a, b, ...y),
+      [...halfDone, ...slipped],
+    );
   },
   render: (params): Slide => ({
     kind: 'expression',
@@ -1242,7 +1316,7 @@ const paramGradientTrig: Generator<TrigGradientParams> = {
                 { tex: `-\\frac{${coef(a)}\\sin t}{${2 * b}t}`, answer: `-(${a}*sin(t))/(${2 * b}*t)` },
                 { tex: `\\frac{${2 * b}t}{${coef(a)}\\cos t}`, answer: `(${2 * b}*t)/(${a}*cos(t))` },
               ];
-    return steered(options({ tex, answer }, ...wrong), mix(a, b, form.charCodeAt(0), form.charCodeAt(1)));
+    return steered(options({ tex, answer }, ...wrong), mix(a, b, form.charCodeAt(0), form.charCodeAt(1)), wrong.map(negated));
   },
   render: (params): Slide => ({
     kind: 'expression',
@@ -1476,6 +1550,11 @@ const paramTrigSlope: Generator<TrigSlopeParams> = {
         { tex: fracTex(-bottom, top), answer: fracAnswer(-bottom, top) },
       ),
       mix(params.a, params.b, params.angle),
+      [
+        { tex: fracTex(2 * top, bottom), answer: fracAnswer(2 * top, bottom) },
+        { tex: fracTex(top, 2 * bottom), answer: fracAnswer(top, 2 * bottom) },
+        { tex: fracTex(-2 * top, bottom), answer: fracAnswer(-2 * top, bottom) },
+      ],
     );
   },
   render: (params): Slide => {
@@ -1695,7 +1774,14 @@ const paramFlatT: Generator<FlatParams> = {
  */
 const paramFlatSlider: Generator<FlatParams> = {
   id: 'param-flat-slider',
-  sample: (rng, difficulty) => sampleFlat(rng, difficulty),
+  // An untouched slider rests at 0, the middle of its track, so 0 is never the answer.
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleFlat(rng, difficulty);
+      const [x0, y0] = pointAt(flatCurve(params), flatT(params)[0]);
+      if ((params.horizontal ? y0 : x0) !== 0) return params;
+    }
+  },
   render: (params): Slide => {
     const curve = flatCurve(params);
     const [t0] = flatT(params);
@@ -1895,6 +1981,15 @@ export const implicitSource = (curve: ImplicitCurve): string => xyAnswer(curve.t
 
 /** The equation as the learner reads it. */
 export const equationTex = (curve: ImplicitCurve): string => `${xyTex(curve.terms)} = ${curve.rhs}`;
+
+/** The curve's equation as displays: split after its third term when too wide for a phone. */
+function equationBlocks(curve: ImplicitCurve): Block[] {
+  const whole = equationTex(curve);
+  if (visible(whole) <= 26 || curve.terms.length < 4) return [display(whole)];
+  const first = xyTex(curve.terms.slice(0, 3));
+  const rest = xyTex(curve.terms.slice(3));
+  return [display(first), display(`${rest.startsWith('-') ? rest : `+ ${rest}`} = ${curve.rhs}`)];
+}
 
 /**
  * dy/dx = P/Q, tidied for reading: the minus sign taken into the top, the
@@ -2375,7 +2470,7 @@ const implCoefficient: Generator<CurveParams> = {
       prose(
         `Differentiate every term with respect to $x$. Each term with a $y$ in it brings a $${DYDX}$. Collect those: what multiplies $${DYDX}$ altogether?`,
       ),
-      display(equationTex(curve)),
+      ...equationBlocks(curve),
     ],
     lead: '\\text{coefficient} =',
     keypad: XY_KEYS,
@@ -2394,19 +2489,30 @@ const implCoefficient: Generator<CurveParams> = {
 function termDerivativeTex(c: number, a: number, b: number): string {
   const xPart = a > 0 ? monoTex(c * a, a - 1, b) : '';
   const yPart = b > 0 ? withDy(c * b, a, b - 1) : '';
-  if (xPart && yPart) return `(${xPart} + ${yPart})`;
+  if (xPart && yPart) return yPart.startsWith('-') ? `(${xPart} - ${yPart.slice(1)})` : `(${xPart} + ${yPart})`;
   return xPart || yPart || '0';
+}
+
+/** Each term's derivative with the sign that joins it to the line. */
+function differentiatedPieces(terms: Term[]): string[] {
+  return terms.map((t, i) => {
+    const body = termDerivativeTex(i === 0 ? t.c : Math.abs(t.c), t.a, t.b);
+    return i === 0 ? body : `${t.c < 0 ? '-' : '+'} ${body}`;
+  });
 }
 
 /** The whole equation differentiated, term by term, as one line. */
 function differentiatedTex(terms: Term[]): string {
-  return `${terms
-    .map((t, i) => {
-      const body = termDerivativeTex(i === 0 ? t.c : Math.abs(t.c), t.a, t.b);
-      if (i === 0) return body;
-      return `${t.c < 0 ? '-' : '+'} ${body}`;
-    })
-    .join(' ')} = 0`;
+  return `${differentiatedPieces(terms).join(' ')} = 0`;
+}
+
+/** The differentiated line as displays: one when it fits a phone, two when not. */
+function differentiatedBlocks(terms: Term[]): Block[] {
+  const whole = differentiatedTex(terms);
+  if (visible(whole) <= 30 || terms.length < 3) return [display(whole)];
+  const pieces = differentiatedPieces(terms);
+  const cut = Math.ceil(pieces.length / 2);
+  return [display(pieces.slice(0, cut).join(' ')), display(`${pieces.slice(cut).join(' ')} = 0`)];
 }
 
 /** Solution lines differentiating a curve's terms one per line, as the Show me panel is narrow. */
@@ -2423,6 +2529,23 @@ function sampleCurveOnly(rng: Rng, difficulty: number): CurveParams {
 }
 
 /** [the right dy/dx, flipped, sign lost, and the product term's dy/dx dropped where there is one]. */
+/** dy/dx doubled, or with one term of the top or the bottom lost: spare distractors. */
+function droppedTerms(terms: Term[]): Omit<ChoiceOption, 'correct'>[] {
+  const { top, bottom } = slopeParts(terms);
+  const N = partialX(terms);
+  const D = partialY(terms);
+  const out: Omit<ChoiceOption, 'correct'>[] = [
+    { tex: xyFracTex(top.map((t) => ({ ...t, c: 2 * t.c })), bottom), answer: `-2*(${xyAnswer(N)})/(${xyAnswer(D)})` },
+  ];
+  if (top.length > 1 && N.length > 1) {
+    out.push({ tex: xyFracTex(top.slice(1), bottom), answer: `-(${xyAnswer(N)} - (${xyAnswer([N[0]])}))/(${xyAnswer(D)})` });
+  }
+  if (bottom.length > 1 && D.length > 1) {
+    out.push({ tex: xyFracTex(top, bottom.slice(1)), answer: `-(${xyAnswer(N)})/(${xyAnswer(D)} - (${xyAnswer([D[0]])}))` });
+  }
+  return out;
+}
+
 function diffOptions(terms: Term[]): Omit<ChoiceOption, 'correct'>[] {
   const { top, bottom } = slopeParts(terms);
   const N = partialX(terms);
@@ -2463,11 +2586,14 @@ const implDiff: Generator<CurveParams> = {
   sample: sampleCurveOnly,
   choices: ({ curve }) => {
     const [right, ...wrong] = diffOptions(curve.terms);
-    return steered(options(right, ...wrong), mix(curve.rhs, ...curve.terms.map((t) => t.c)));
+    return steered(options(right, ...wrong), mix(curve.rhs, ...curve.terms.map((t) => t.c)), [
+      ...wrong.map(negated),
+      ...droppedTerms(curve.terms),
+    ]);
   },
   render: ({ curve }): Slide => ({
     kind: 'expression',
-    prompt: [prose('Find the gradient of this curve in terms of $x$ and $y$.'), display(equationTex(curve))],
+    prompt: [prose('Find the gradient of this curve in terms of $x$ and $y$.'), ...equationBlocks(curve)],
     lead: `${DYDX} =`,
     keypad: XY_KEYS,
     answer: slopeAnswer(curve.terms),
@@ -2484,7 +2610,8 @@ function implicitSolution(terms: Term[]): SolutionStep[] {
   return [
     { text: 'Differentiate every term with respect to $x$; the constant goes to $0$.' },
     ...differentiatedSteps(terms),
-    { text: `Collect the $${DYDX}$ terms on one side.`, tex: `(${xyTex(D)})${DYDX} = ${xyTex(negate(N))}` },
+    { text: `Collect the $${DYDX}$ terms on the left and factor it out.`, tex: `${DYDX}(${xyTex(D)})` },
+    { text: 'Move the rest to the right, changing each sign.', tex: `= ${xyTex(negate(N))}` },
     { text: 'Divide.', tex: `${DYDX} = ${slopeTex(terms)}` },
   ];
 }
@@ -2568,9 +2695,9 @@ const implCollectTiles: Generator<CurveParams> = {
       kind: 'tiles',
       prompt: [
         prose('This curve'),
-        display(equationTex(curve)),
+        ...equationBlocks(curve),
         prose('differentiates term by term to'),
-        display(differentiatedTex(curve.terms)),
+        ...differentiatedBlocks(curve.terms),
         prose(`Gather the $${DYDX}$ terms on the left and everything else on the right.`),
       ],
       template: `${DYDX}({0}) = {1}`,
@@ -2602,9 +2729,16 @@ function sampleAtPoint(rng: Rng, difficulty: number, unit = true): CurveParams {
   };
 }
 
-/** The collected derivative, N + D dy/dx = 0, as the learner reads it. */
-const collectedTex = (terms: Term[]): string =>
-  `${xyTex(partialX(terms))} + (${xyTex(partialY(terms))})${DYDX} = 0`;
+/**
+ * The collected derivative, N + D dy/dx = 0, as two solution lines.
+ *
+ * On one line it runs past the edge of a phone for most curves, so the two
+ * parts are shown one under the other.
+ */
+const collectedSteps = (terms: Term[]): SolutionStep[] => [
+  { text: `Differentiate and collect. The part without $${DYDX}$ is`, tex: xyTex(partialX(terms)) },
+  { text: `and the part multiplying $${DYDX}$ is`, tex: xyTex(partialY(terms)) },
+];
 
 /**
  * The gradient at a point as a tree: the two collected pieces there, then
@@ -2622,12 +2756,12 @@ const implSlopeTree: Generator<CurveParams> = {
       kind: 'tree',
       prompt: [
         prose(`The curve below passes through $${pair(curve.p, curve.q)}$.`),
-        display(equationTex(curve)),
+        ...equationBlocks(curve),
         prose(
-          `Differentiating gives the line underneath. The top row is the part without $${DYDX}$ and the part multiplying it, at that point; the box below is $${DYDX}$.`,
+          `Differentiating and rearranging gives the gradient underneath. The top row is the top and the bottom of that fraction at the point; the box below is $${DYDX}$.`,
         ),
       ],
-      expression: collectedTex(curve.terms),
+      expression: `${DYDX} = -\\frac{${xyTex(partialX(curve.terms))}}{${xyTex(partialY(curve.terms))}}`,
       nodes: [
         { id: 'n', from: [] },
         { id: 'd', from: [] },
@@ -2643,7 +2777,7 @@ const implSlopeTree: Generator<CurveParams> = {
 function pointSolution(curve: ImplicitCurve): SolutionStep[] {
   const [n, dd] = partsAtPoint(curve);
   return [
-    { text: 'Differentiate and collect.', tex: collectedTex(curve.terms) },
+    ...collectedSteps(curve.terms),
     { text: `Put in $x = ${curve.p}$ and $y = ${curve.q}$.`, tex: `${n} + ${bracketed(dd)}${DYDX} = 0` },
     { text: 'Solve for the gradient.', tex: `${DYDX} = ${-n / dd}` },
   ];
@@ -2722,7 +2856,7 @@ const implGrad: Generator<CurveParams> = {
   },
   render: ({ curve }): Slide => ({
     kind: 'expression',
-    prompt: [prose(`Find the gradient of this curve at $${pair(curve.p, curve.q)}$.`), display(equationTex(curve))],
+    prompt: [prose(`Find the gradient of this curve at $${pair(curve.p, curve.q)}$.`), ...equationBlocks(curve)],
     lead: `${DYDX} =`,
     keypad: [],
     answer: `${gradientAtPoint(curve)}`,
@@ -2740,7 +2874,7 @@ const implTangentTiles: Generator<CurveParams> = {
     const [n, dd] = partsAtPoint(curve);
     const g = -n / dd;
     return tangentTiles(
-      [prose(`Find the tangent to this curve at $${pair(curve.p, curve.q)}$.`), display(equationTex(curve))],
+      [prose(`Find the tangent to this curve at $${pair(curve.p, curve.q)}$.`), ...equationBlocks(curve)],
       g,
       curve.p,
       curve.q,
@@ -2749,7 +2883,7 @@ const implTangentTiles: Generator<CurveParams> = {
   },
   solution: ({ curve }) =>
     tangentSolution(gradientAtPoint(curve), curve.p, curve.q, [
-      { text: 'Differentiate and collect.', tex: collectedTex(curve.terms) },
+      ...collectedSteps(curve.terms),
       { text: `At $${pair(curve.p, curve.q)}$ that gives the gradient.`, tex: `${DYDX} = ${gradientAtPoint(curve)}` },
     ]),
 };
@@ -2819,6 +2953,11 @@ const implFlatLine: Generator<StationaryParams> = {
         { tex: lineTex(-B, 2 * A), answer: `(${-B})/(${2 * A})*x` },
       ),
       mix(A, B, C, k),
+      [
+        { tex: lineTex(B, 2 * C), answer: `(${B})/(${2 * C})*x` },
+        { tex: lineTex(B, 2 * A), answer: `(${B})/(${2 * A})*x` },
+        { tex: lineTex(2 * k, 1), answer: `(${2 * k})*x` },
+      ],
     );
   },
   render: (params): Slide => {
@@ -3019,7 +3158,7 @@ const implTangentKind: Generator<ImplicitKindParams> = {
       kind: 'choice',
       prompt: [
         prose(`The point $${pair(curve.p, curve.q)}$ lies on this curve. Is the tangent there horizontal, vertical, or neither?`),
-        display(equationTex(curve)),
+        ...equationBlocks(curve),
       ],
       options: [
         { id: 'horizontal', label: 'Horizontal' },
@@ -3032,7 +3171,7 @@ const implTangentKind: Generator<ImplicitKindParams> = {
   solution: ({ curve }) => {
     const [n, dd] = partsAtPoint(curve);
     return [
-      { text: 'Differentiate and collect.', tex: collectedTex(curve.terms) },
+      ...collectedSteps(curve.terms),
       { text: `At $${pair(curve.p, curve.q)}$ the part without $${DYDX}$ is $${n}$ and the part multiplying it is $${dd}$.` },
       {
         text:

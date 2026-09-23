@@ -61,6 +61,46 @@ const lines = (
   }),
 });
 
+/**
+ * A number line with a solution set on it: a band along the line where the
+ * set is, and a dot at each end, hollow where the end is left out.
+ */
+const numberLine = (
+  window: { min: number; max: number },
+  inSet: (x: number) => boolean,
+  ends: { x: number; hollow: boolean }[],
+  label: string,
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: window.min,
+    xMax: window.max,
+    yMin: -0.9,
+    yMax: 0.9,
+    height: 60,
+    grid: true,
+    curves: [{ f: (x) => (inSet(x) ? 0 : NaN), band: true, breaks: true }],
+    marks: ends.map((end) => ({ x: end.x, y: 0, hollow: end.hollow })),
+    label,
+  }),
+});
+
+/** A boundary line on squared axes, dashed when it is left out, with a dot. */
+const region = (f: (x: number) => number, dashed: boolean, dot: { x: number; y: number }, label: string): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: -6,
+    xMax: 6,
+    yMin: -6,
+    yMax: 6,
+    height: 220,
+    grid: true,
+    curves: [{ f, dashed }],
+    marks: [dot],
+    label,
+  }),
+});
+
 export const linearEquations: Course = {
   id: 'linear-equations',
   category: 'algebra-fundamentals',
@@ -519,6 +559,227 @@ export const linearEquations: Course = {
         ask('lin-sub', 2),
         ask('lin-sim-words-solve', 2),
         ask('lin-sum-diff', 2),
+      ],
+    },
+    {
+      id: 'le-l4',
+      title: 'Linear Inequalities',
+      lessons: [
+        {
+          id: 'le-l4-solve',
+          title: 'Solving and Drawing',
+          slides: [
+            teach(
+              prose(
+                'An inequality compares two sides that need not be equal: $<$ is "less than", $\\le$ is "less than or equal to", and $>$ and $\\ge$ are the same the other way. Its solution is a whole range of numbers, not one.',
+              ),
+              prose('Solve it like an equation, doing the same to both sides and undoing in reverse order.'),
+              maths('\\begin{gathered} 3x + 4 \\le 13 \\\\ 3x \\le 9 \\\\ x \\le 3 \\end{gathered}'),
+              prose(
+                'Every number up to and including $3$ works. Taking away and dividing by a positive number leave the sign exactly as it was.',
+              ),
+            ),
+            ask('lin-ineq-steps'),
+            ask('lin-ineq-picture'),
+            ask('lin-ineq-line'),
+            teach(
+              prose(
+                'On a number line the solution is a dot at the boundary and shading along the line. A **filled** dot means the boundary is included ($\\le$ or $\\ge$); a **hollow** dot means it is left out ($<$ or $>$).',
+              ),
+              numberLine({ min: -2, max: 8 }, (x) => x <= 3, [{ x: 3, hollow: false }], 'x at most 3: a filled dot at 3, shaded to the left'),
+              prose(
+                'That is $x \\le 3$: filled at $3$, shaded left. To draw one here, tap a number for a dot, tap the dot to make it hollow, then tap the line on the side to shade.',
+              ),
+            ),
+            ask('lin-ineq-line'),
+            ask('lin-ineq-steps'),
+            ask('lin-ineq-picture'),
+            teach(
+              prose(
+                'With $x$ on both sides, collect the $x$ terms on the side with **more** $x$, just as for equations: $5x - 2 > 2x + 7$ gives $3x > 9$, so $x > 3$.',
+              ),
+              prose(
+                'Check with a test value from the answer. $x = 4$ is in $x > 3$, and it gives $18 > 15$, which is true. $x = 3$ gives $13 > 13$, which is false, so $3$ is rightly left out.',
+              ),
+            ),
+            ask('lin-ineq-test-flow'),
+            ask('lin-ineq-test-flow', 2),
+          ],
+          skillCheck: [ask('lin-ineq-line', 2), ask('lin-ineq-picture', 2), ask('lin-ineq-test-flow')],
+        },
+        {
+          id: 'le-l4-flip',
+          title: 'Flipping on a Negative',
+          slides: [
+            teach(
+              prose('$2 < 5$. Multiply both sides by $-1$ and the order reverses: $-2$ is **bigger** than $-5$.'),
+              maths('2 < 5 \\quad \\text{but} \\quad -2 > -5'),
+              prose(
+                'So multiplying or dividing both sides by a **negative** number turns the sign round. Adding or subtracting never does, whatever the numbers, and neither does multiplying or dividing by a positive.',
+              ),
+            ),
+            ask('lin-flip-flow'),
+            ask('lin-flip-steps'),
+            ask('lin-flip-line'),
+            teach(
+              prose('Solve $5 - 2x > 1$. Taking away $5$ leaves the sign alone.'),
+              maths('-2x > -4'),
+              prose('Dividing by $-2$ turns it round.'),
+              maths('x < 2'),
+              prose(
+                'Test it with $x = 0$, which is in $x < 2$: $5 - 0 > 1$ is true. Had the sign not turned, $x > 2$ would claim $0$ fails, and the test would catch it.',
+              ),
+            ),
+            ask('lin-flip-tiles'),
+            ask('lin-ineq-test-flow', 2),
+            ask('lin-flip-flow', 2),
+            teach(
+              prose(
+                'With $x$ on both sides there is a way round the negative: collect the $x$ terms on the side with more $x$.',
+              ),
+              maths('\\begin{gathered} 2x + 5 < 5x - 7 \\\\ 12 < 3x \\\\ 4 < x \\end{gathered}'),
+              prose(
+                'That is $x > 4$. Collecting on the left instead gives $-3x < -12$, and dividing by $-3$ turns the sign round to the same $x > 4$.',
+              ),
+            ),
+            ask('lin-flip-steps', 2),
+            ask('lin-flip-line', 2),
+          ],
+          skillCheck: [ask('lin-flip-tiles', 2), ask('lin-flip-line', 2), ask('lin-flip-flow', 2)],
+        },
+        {
+          id: 'le-l4-double',
+          title: 'Double Inequalities',
+          slides: [
+            teach(
+              prose(
+                '$-3 < 2x + 1 \\le 7$ says two things at once: $2x + 1$ is more than $-3$ **and** at most $7$. Solve all three parts together, doing the same to each.',
+              ),
+              maths('\\begin{gathered} -3 < 2x + 1 \\le 7 \\\\ -4 < 2x \\le 6 \\\\ -2 < x \\le 3 \\end{gathered}'),
+              prose('The solution is a stretch between two ends: hollow at $-2$, filled at $3$, shaded between.'),
+              numberLine(
+                { min: -4, max: 5 },
+                (x) => x > -2 && x <= 3,
+                [
+                  { x: -2, hollow: true },
+                  { x: 3, hollow: false },
+                ],
+                'A hollow dot at -2, a filled dot at 3, shaded between',
+              ),
+            ),
+            ask('lin-double-steps'),
+            ask('lin-double-line'),
+            ask('lin-double-ends'),
+            teach(
+              prose('With a negative coefficient in the middle, dividing turns **both** signs round.'),
+              maths('\\begin{gathered} -5 \\le 3 - 2x < 7 \\\\ -8 \\le -2x < 4 \\\\ 4 \\ge x > -2 \\end{gathered}'),
+              prose(
+                'Read it from the smaller end: $-2 < x \\le 4$. The sign that was written on the left now belongs to the right-hand end.',
+              ),
+            ),
+            ask('lin-double-steps', 2),
+            ask('lin-double-tiles'),
+            ask('lin-double-ends', 2),
+            teach(
+              prose(
+                'Test the answer with a number in the middle of the stretch: it should pass both parts. Then look at each end on its own: it is in the solution only where its sign has "or equal to".',
+              ),
+            ),
+            ask('lin-double-line', 2),
+            ask('lin-double-tiles', 2),
+          ],
+          skillCheck: [ask('lin-double-line', 2), ask('lin-double-tiles', 2), ask('lin-double-ends', 2)],
+        },
+        {
+          id: 'le-l4-integers',
+          title: 'Integer Solutions',
+          slides: [
+            teach(
+              prose(
+                'Sometimes only whole numbers are wanted. The integers that satisfy $-2 \\le x < 3$ are the whole numbers in that stretch:',
+              ),
+              maths('-2, \\; -1, \\; 0, \\; 1, \\; 2'),
+              prose('$-2$ is in, because its sign has "or equal to". $3$ is out, because $x < 3$ leaves it out.'),
+            ),
+            ask('lin-int-list'),
+            ask('lin-int-count'),
+            ask('lin-int-slider'),
+            teach(
+              prose('With one inequality, solve it first and then step in from the boundary.'),
+              maths('\\begin{gathered} 3x - 2 < 13 \\\\ 3x < 15 \\\\ x < 5 \\end{gathered}'),
+              prose(
+                'The largest integer is $4$, since $5$ is left out. For $x \\le 5$ it would be $5$ itself. A solution pointing up, like $x > 5$, has a smallest integer instead, $6$.',
+              ),
+            ),
+            ask('lin-int-extreme'),
+            ask('lin-double-line', 2),
+            ask('lin-int-list', 2),
+            teach(
+              prose(
+                'To count without listing: from the smallest integer to the largest, both included, is the difference **plus one**. From $-4$ to $6$ is $6 - (-4) + 1 = 11$ integers.',
+              ),
+              prose('Find the smallest and largest first, stepping in from any end that is left out.'),
+            ),
+            ask('lin-int-count', 2),
+            ask('lin-int-slider', 2),
+          ],
+          skillCheck: [ask('lin-int-count', 2), ask('lin-int-list', 2), ask('lin-int-extreme', 2)],
+        },
+        {
+          id: 'le-l4-regions',
+          title: 'Inequalities in Two Variables',
+          slides: [
+            teach(
+              prose(
+                'With two letters the solution is a region of the plane. The line $y = 2x + 1$ splits the plane in two, and $y < 2x + 1$ is every point **below** it.',
+              ),
+              region((x) => 2 * x + 1, true, { x: 2, y: -2 }, 'A dashed line y = 2x + 1 with a dot below it at (2, -2)'),
+              prose(
+                'The boundary is **dashed** when the sign is strict, since its points are left out, and **solid** for $\\le$ or $\\ge$. To find the side, test one point off the line: $(0, 0)$ gives $0 < 1$, true, so the side with the origin is shaded.',
+              ),
+            ),
+            ask('lin-region-flow'),
+            ask('lin-region-test'),
+            ask('lin-region-choice'),
+            teach(
+              prose(
+                'To draw the boundary, find where it crosses the axes. For $y = 2x - 4$, put $y = 0$: $2x = 4$, so it crosses the $x$-axis at $2$.',
+              ),
+              prose(
+                'The form $2x + 3y \\le 12$ is quickest this way. Put $y = 0$: $x = 6$. Put $x = 0$: $y = 4$. Join $(6, 0)$ to $(0, 4)$ with a solid line.',
+              ),
+            ),
+            ask('lin-region-slider'),
+            ask('lin-region-slider', 2),
+            ask('lin-region-test', 2),
+            teach(
+              prose(
+                'In the form $ax + by$, "less than" is not always "below". $2x - 3y < 6$ is the region **above** its line, because the $y$ term is negative.',
+              ),
+              prose('A test point never gets this wrong, so test one rather than guessing from the sign.'),
+            ),
+            ask('lin-region-choice', 2),
+            ask('lin-region-flow', 2),
+          ],
+          skillCheck: [ask('lin-region-choice', 2), ask('lin-region-flow', 2), ask('lin-region-slider', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('lin-ineq-line', 2),
+        ask('lin-ineq-picture', 2),
+        ask('lin-flip-steps', 2),
+        ask('lin-ineq-test-flow', 2),
+        ask('lin-flip-tiles', 2),
+        ask('lin-flip-line', 2),
+        ask('lin-flip-flow', 2),
+        ask('lin-double-steps', 2),
+        ask('lin-double-ends', 2),
+        ask('lin-double-line', 2),
+        ask('lin-int-list', 2),
+        ask('lin-int-count', 2),
+        ask('lin-int-slider', 2),
+        ask('lin-region-choice', 2),
+        ask('lin-region-flow', 2),
       ],
     },
   ],

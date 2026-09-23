@@ -26,6 +26,7 @@ import {
 } from '../numberLine';
 import { registry } from '../registry';
 import { numberLineGenerators } from './numberLine';
+import { linearEquationsGenerators } from './linearEquations';
 import type { Generator, Lesson, Slide } from '../types';
 
 type LineSlide = Extract<Slide, { kind: 'numberLine' }>;
@@ -79,7 +80,16 @@ function submitted(session: Session, draft: string): string {
   return reduce(session, { type: 'submit', answer: draft }).feedback.kind;
 }
 
-describe.each(numberLineGenerators.map((g) => [g.id, g] as const))('%s', (id, generator) => {
+/**
+ * The demonstrations, and every lesson generator drawing on the line: the
+ * tapping sweep is the only check that a set can actually be drawn.
+ */
+const swept = [
+  ...numberLineGenerators,
+  ...linearEquationsGenerators.filter((g) => ['lin-ineq-line', 'lin-flip-line', 'lin-double-line'].includes(g.id)),
+];
+
+describe.each(swept.map((g) => [g.id, g] as const))('%s', (id, generator) => {
   const g = generator as unknown as Generator<unknown>;
 
   describe.each([1, 2])('difficulty %i', (difficulty) => {

@@ -4202,6 +4202,1551 @@ const featuresTree: Generator<SketchRuleParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 4: Even, Odd and Periodic Functions (batch C2-l4)
+ * ==================================================================== */
+
+/*
+ * What a rule does to $-x$, what it does after a whole period, and a rule
+ * that changes from one stretch of $x$ to the next.
+ *
+ * Whether a rule is even or odd is a fact about its *form*, and the checker
+ * compares values, so $f(-x)$ and $-f(x)$ are placed as tiles, stepped or
+ * chosen; only numbers — $f(-a)$, a missing $k$, a period — are typed. Every
+ * number typed or placed is whole: inputs from $-4$ to $4$ and coefficients
+ * from $-3$ to $3$. A period in degrees comes from $\sin bx$ with $b$ a
+ * divisor of $360$.
+ *
+ * Polynomials are held as `[coefficient, power]` pairs, highest power first,
+ * so writing $-x$ in is a sign change on each odd power and nothing else —
+ * which is most of what the level teaches.
+ */
+
+/** A polynomial as `[coefficient, power]` pairs, highest power first. */
+type Poly = [number, number][];
+
+type Parity = 'even' | 'odd' | 'neither';
+
+/** f(-x): every odd power changes sign. */
+function atNegX(poly: Poly): Poly {
+  return poly.map(([c, p]): [number, number] => [p % 2 === 0 ? c : -c, p]);
+}
+
+/** -f(x): every term changes sign. */
+function negated(poly: Poly): Poly {
+  return poly.map(([c, p]): [number, number] => [-c, p]);
+}
+
+/** The slip of changing the even powers rather than the odd ones. */
+function flippedEvens(poly: Poly): Poly {
+  return poly.map(([c, p]): [number, number] => [p % 2 === 0 ? -c : c, p]);
+}
+
+/** The slip of changing only the first term's sign. */
+function flippedFirst(poly: Poly): Poly {
+  return poly.map(([c, p], idx): [number, number] => [idx === 0 ? -c : c, p]);
+}
+
+function parityOf(poly: Poly): Parity {
+  if (poly.every(([, p]) => p % 2 === 0)) return 'even';
+  if (poly.every(([, p]) => p % 2 === 1)) return 'odd';
+  return 'neither';
+}
+
+function polyAt(poly: Poly, x: number): number {
+  return poly.reduce((sum, [c, p]) => sum + c * x ** p, 0);
+}
+
+/** Two polynomials multiplied out, like powers collected. */
+function multiplied(first: Poly, second: Poly): Poly {
+  const byPower = new Map<number, number>();
+  for (const [c1, p1] of first) {
+    for (const [c2, p2] of second) byPower.set(p1 + p2, (byPower.get(p1 + p2) ?? 0) + c1 * c2);
+  }
+  return [...byPower.entries()]
+    .filter(([, c]) => c !== 0)
+    .sort((x, y) => y[0] - x[0])
+    .map(([p, c]): [number, number] => [c, p]);
+}
+
+/** A term as a tile: the first spelled `-2x^{3}`, the rest `- 2x^{3}`, the way `signedTile` spells them. */
+function termToken(c: number, p: number, first: boolean): string {
+  return first ? termTex(c, p) : `${c < 0 ? '-' : '+'} ${termTex(Math.abs(c), p)}`;
+}
+
+function polyTokens(poly: Poly): string[] {
+  return poly.map(([c, p], idx) => termToken(c, p, idx === 0));
+}
+
+/** A number written in for x, term by term and bracketed: `2(-3)^3 - 5(-3)`, short enough for a phone. */
+function plugTex(poly: Poly, x: number): string {
+  return sumTex(
+    poly.map(([c, p]) => {
+      if (p === 0) return `${c}`;
+      const base = p === 1 ? `(${x})` : `(${x})^${p}`;
+      return c === 1 ? base : c === -1 ? `-${base}` : `${c}${base}`;
+    }),
+  );
+}
+
+/** The rule with -x written in, before tidying: `2(-x)^3 - 5(-x) + 1`. */
+function negXTex(poly: Poly): string {
+  const terms = poly.map(([c, p]) => {
+    if (p === 0) return `${c}`;
+    const base = p === 1 ? '(-x)' : `(-x)^${p}`;
+    return c === 1 ? base : c === -1 ? `-${base}` : `${c}${base}`;
+  });
+  if (terms.length <= 3) return sumTex(terms);
+  // Four terms run off a phone on one line, so the second pair goes beneath, keeping its sign.
+  const rest = terms.slice(2).map((term) => (term.startsWith('-') ? `- ${term.slice(1)}` : `+ ${term}`));
+  return `\\begin{gathered} ${sumTex(terms.slice(0, 2))} \\\\ ${rest.join(' ')} \\end{gathered}`;
+}
+
+const COEFFICIENTS = nonZeroRange(-3, 3);
+
+/** Distinct powers from `pool`, highest first, each with a coefficient from -3 to 3. */
+function drawPoly(rng: Rng, pool: number[], terms: number): Poly {
+  return rng
+    .sample(pool, terms)
+    .sort((x, y) => y - x)
+    .map((p): [number, number] => [rng.pick(COEFFICIENTS), p]);
+}
+
+/** A polynomial of the parity asked for, never a bare constant. */
+function drawParity(rng: Rng, parity: Parity, terms: number, maxPower: number): Poly {
+  const all = range(0, maxPower);
+  const pool = parity === 'neither' ? all : all.filter((p) => p % 2 === (parity === 'even' ? 0 : 1));
+  const fallback: Record<Parity, Poly> = {
+    even: [[1, 4], [2, 2], [1, 0]].slice(0, terms) as Poly,
+    odd: [[1, 5], [2, 3], [1, 1]].slice(3 - terms) as Poly,
+    neither: [[1, 3], [2, 2], [1, 0]].slice(0, Math.max(terms, 2)) as Poly,
+  };
+  return drawUntil(
+    () => drawPoly(rng, pool, terms),
+    (poly) => parityOf(poly) === parity && poly[0][1] > 0,
+    fallback[parity],
+  );
+}
+
+/** The working behind a verdict: write -x in, tidy, compare. */
+function paritySteps(poly: Poly): SolutionStep[] {
+  const parity = parityOf(poly);
+  return [
+    { text: 'Write $(-x)$ in place of every $x$. An even power of $-x$ is positive and an odd power negative, so the even powers stay as they were and the odd powers change sign.' },
+    { tex: negXTex(poly) },
+    { tex: `f(-x) = ${polyTex(atNegX(poly))}` },
+    {
+      text:
+        parity === 'even'
+          ? 'Every term came back unchanged: $f(-x) = f(x)$, so $f$ is even.'
+          : parity === 'odd'
+            ? 'Every term changed sign: $f(-x) = -f(x)$, so $f$ is odd.'
+            : `Some terms changed sign and some did not, so $f(-x)$ is neither $f(x)$ nor $-f(x)$: $f$ is neither even nor odd.`,
+    },
+  ];
+}
+
+/* ---------- Lesson 1: even functions ---------- */
+
+interface EvenValueParams {
+  /** `given` states f(a); `graph` a point on the curve; `half` the rule for x ≥ 0 only. */
+  form: 'given' | 'graph' | 'half';
+  /** The input whose value is known; the question asks at -a. */
+  a: number;
+  v: number;
+  /** For `half`, the rule on x ≥ 0. */
+  rule: Poly;
+}
+
+function evenValueOf({ form, a, v, rule }: EvenValueParams): number {
+  return form === 'half' ? polyAt(rule, a) : v;
+}
+
+/**
+ * $f(-a)$ from what is known at $a$.
+ *
+ * Difficulty 1 gives $f(a)$, or a point on a curve symmetrical in the
+ * $y$-axis, and the answer is that value again. Difficulty 2 gives the rule
+ * only for $x \geq 0$ and asks at a negative input, which the rule does not
+ * cover: the slip is to put $-a$ in anyway.
+ */
+const evenValue: Generator<EvenValueParams> = {
+  id: 'fun-even-value',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) {
+      return {
+        form: rng.pick(['given', 'graph'] as const),
+        a: rng.pick(nonZeroRange(-4, 4)),
+        v: rng.pick(nonZeroRange(-9, 9)),
+        rule: [],
+      };
+    }
+    const m = rng.pick(COEFFICIENTS);
+    const q = rng.pick(COEFFICIENTS);
+    const rules: Poly[] = [
+      [[m, 1], [q, 0]],
+      [[1, 2], [m, 1]],
+      [[1, 2], [m, 1], [q, 0]],
+      [[-1, 2], [m, 1], [q, 0]],
+    ];
+    return { form: 'half', a: rng.int(1, 4), v: 0, rule: rng.pick(rules) };
+  },
+  render: (params): Slide => {
+    const { form, a, v, rule } = params;
+    const text =
+      form === 'given'
+        ? `$f$ is an even function, and $f(${a}) = ${v}$. Find $f(${-a})$.`
+        : form === 'graph'
+          ? `The graph of $y = f(x)$ is symmetrical in the $y$-axis and passes through $(${a}, ${v})$. Find $f(${-a})$.`
+          : `$f$ is an even function. For $x \\geq 0$ its rule is $f(x) = ${polyTex(rule)}$. Find $f(${-a})$.`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text }],
+      lead: `f(${-a}) =`,
+      keypad: [],
+      answer: `${evenValueOf(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { form, a, v, rule } = params;
+    if (form !== 'half') {
+      const steps: SolutionStep[] = [
+        { text: 'An even function takes the same value at $x$ and at $-x$: $f(-x) = f(x)$ for every $x$.' },
+      ];
+      if (form === 'graph') {
+        steps.push({ text: `The mirror image of $(${a}, ${v})$ in the $y$-axis is $(${-a}, ${v})$, so that point is on the curve too.` });
+      }
+      steps.push({ tex: `f(${-a}) = f(${a}) = ${v}` });
+      return steps;
+    }
+    const value = polyAt(rule, a);
+    return [
+      { text: `The rule only covers $x \\geq 0$, and $${-a}$ is not in it. But $f$ is even, so $f(${-a}) = f(${a})$, and $${a}$ is.` },
+      { tex: `f(${a}) = ${plugTex(rule, a)}` },
+      { tex: `f(${a}) = ${value}` },
+      { tex: `f(${-a}) = ${value}` },
+      { text: `Putting $${-a}$ straight into the rule gives $${polyAt(rule, -a)}$: the rule is not what $f$ does to the left of the $y$-axis.` },
+    ];
+  },
+};
+
+interface Candidate {
+  tex: string;
+  /** Why it is even, or why not, in the learner's numbers. */
+  why: string;
+}
+
+/** A coefficient in front of a letter or a bar: `3`, or nothing for 1. */
+function coefficientTex(a: number): string {
+  return a === 1 ? '' : a === -1 ? '-' : `${a}`;
+}
+
+function polyCandidate(poly: Poly): Candidate {
+  const even = parityOf(poly) === 'even';
+  return {
+    tex: polyTex(poly),
+    why: even
+      ? 'every power of $x$ in it is even, so writing $-x$ in changes nothing'
+      : `writing $-x$ in gives $${polyTex(atNegX(poly))}$`,
+  };
+}
+
+/** The even rules and the others a question may offer, built from its numbers. */
+function evenCandidates(hard: boolean, a: number, b: number): { even: Candidate[]; other: Candidate[] } {
+  if (!hard) {
+    return {
+      even: [[[a, 4], [b, 2]], [[a, 2], [b, 0]], [[a, 4], [b, 0]], [[1, 6], [b, 2]]].map((poly) =>
+        polyCandidate(poly as Poly),
+      ),
+      other: [[[a, 3], [b, 1]], [[a, 2], [b, 1]], [[a, 4], [b, 3]], [[a, 3], [b, 0]], [[a, 4], [b, 1]], [[b, 3], [a, 2]]].map(
+        (poly) => polyCandidate(poly as Poly),
+      ),
+    };
+  }
+  const size = Math.abs(b);
+  return {
+    even: [
+      { tex: `|x|${tail(b)}`, why: '$|-x| = |x|$, so writing $-x$ in changes nothing' },
+      { tex: `x^2 + ${coefficientTex(a)}|x|`, why: '$(-x)^2 = x^2$ and $|-x| = |x|$, so writing $-x$ in changes nothing' },
+      { tex: `\\frac{${a}}{x^2 + ${size}}`, why: '$(-x)^2 = x^2$, so writing $-x$ in changes nothing' },
+      { tex: `(x^2${tail(b)})^2`, why: '$(-x)^2 = x^2$, so writing $-x$ in changes nothing' },
+    ],
+    other: [
+      { tex: `(${shiftedX(-b)})^2`, why: `its line of symmetry is $x = ${-b}$, not the $y$-axis` },
+      { tex: `|${shiftedX(-b)}|`, why: `its line of symmetry is $x = ${-b}$, not the $y$-axis` },
+      { tex: `${coefficientTex(a)}x|x|`, why: `$${coefficientTex(a)}(-x)|-x| = -${coefficientTex(a)}x|x|$, so it is odd` },
+      { tex: `\\frac{${a}}{x}`, why: `$\\frac{${a}}{-x} = -\\frac{${a}}{x}$, so it is odd` },
+      { tex: polyTex([[1, 2], [b, 1]]), why: `writing $-x$ in gives $${polyTex([[1, 2], [-b, 1]])}$` },
+      { tex: `\\frac{${a}}{${shiftedX(-b)}}`, why: `its break is at $x = ${-b}$, which the $y$-axis does not mirror` },
+    ],
+  };
+}
+
+interface EvenPickParams {
+  hard: boolean;
+  a: number;
+  b: number;
+  right: number;
+  wrong: number[];
+}
+
+/**
+ * Which rule is even, from four.
+ *
+ * Difficulty 1 offers polynomials, the even one the one with only even
+ * powers, the others built from the same numbers with one power changed.
+ * Difficulty 2 brings $|x|$ and fractions, and the two traps that look
+ * symmetrical and are — about the wrong line: $(x - 2)^2$ and $|x - 2|$.
+ */
+const evenPick: Generator<EvenPickParams> = {
+  id: 'fun-even-pick',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const { even, other } = evenCandidates(hard, 1, 1);
+    return {
+      hard,
+      a: rng.int(1, 3),
+      b: rng.pick(COEFFICIENTS),
+      right: rng.int(0, even.length - 1),
+      wrong: rng.sample(range(0, other.length - 1), 3),
+    };
+  },
+  render: ({ hard, a, b, right, wrong }): Slide => {
+    const { even, other } = evenCandidates(hard, a, b);
+    const labels = [even[right], ...wrong.map((idx) => other[idx])].map(({ tex }) => ({ label: tex, tex: true }));
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: 'Which of these functions of $x$ is even?' }],
+      ...fixedChoice(labels),
+    };
+  },
+  solution: ({ hard, a, b, right, wrong }) => {
+    const { even, other } = evenCandidates(hard, a, b);
+    const yes = even[right];
+    const no = other[wrong[0]];
+    return [
+      { text: 'Even means $f(-x) = f(x)$: writing $-x$ in place of $x$ gives back exactly what you started with.' },
+      { text: `$${yes.tex}$ is even: ${yes.why}.` },
+      { text: `Each of the others changes. For $${no.tex}$, ${no.why}.` },
+    ];
+  },
+};
+
+interface PolyParams {
+  poly: Poly;
+}
+
+/**
+ * Is it even? Write $-x$ in, one term at a time.
+ *
+ * Each fork asks what one term becomes, so the learner meets the rule —
+ * even powers stay, odd powers change sign — term by term before it is ever
+ * stated, and the last fork asks whether all of that adds up to $f(x)$.
+ * Difficulty 2 has three terms and may have a constant, which is $x^0$ and
+ * so stays.
+ */
+const evenFlow: Generator<PolyParams> = {
+  id: 'fun-even-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const terms = hard ? 3 : 2;
+    const parity: Parity = rng.chance(0.4) ? 'even' : rng.pick(['odd', 'neither', 'neither'] as const);
+    return { poly: drawParity(rng, parity, terms, hard ? 5 : 4) };
+  },
+  render: ({ poly }): Slide => {
+    const label = (c: number, p: number) => `$${termTex(c, p)}$`;
+    const steps = poly.map(([c, p], idx) => ({
+      id: `t${idx}`,
+      ask: `In $f(-x)$, what does $${termTex(c, p)}$ become?`,
+      branches: [label(c, p), label(-c, p)]
+        .sort()
+        .map((text) => ({ label: text, to: idx + 1 < poly.length ? `t${idx + 1}` : 'same' })),
+    }));
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Is $f$ even? Write $-x$ in place of $x$, one term at a time.' }],
+      subject: `f(x) = ${polyTex(poly)}`,
+      steps: [
+        ...steps,
+        {
+          id: 'same',
+          ask: 'So is $f(-x)$ the same as $f(x)$?',
+          branches: [
+            { label: FLOW_YES, outcome: 'So $f$ is even.' },
+            { label: FLOW_NO, outcome: 'So $f$ is not even.' },
+          ],
+        },
+      ],
+      answer: [...atNegX(poly).map(([c, p]) => label(c, p)), parityOf(poly) === 'even' ? FLOW_YES : FLOW_NO],
+    };
+  },
+  solution: ({ poly }) => {
+    const even = parityOf(poly) === 'even';
+    return [
+      { text: 'Write $(-x)$ in place of every $x$. An even power of $-x$ is positive and an odd power negative.' },
+      { tex: negXTex(poly) },
+      { tex: `f(-x) = ${polyTex(atNegX(poly))}` },
+      { text: even ? 'That is $f(x)$ again, so $f$ is even.' : `That is not $f(x) = ${polyTex(poly)}$, so $f$ is not even.` },
+    ];
+  },
+};
+
+/**
+ * $f(-x)$, term by term, as tiles.
+ *
+ * Each blank is one term of $f(-x)$, and the bank holds every term with
+ * both signs, so each blank is the question "does this one change?". Always
+ * at least one odd power, or nothing would. Difficulty 2 has four terms.
+ */
+const negXTiles: Generator<PolyParams> = {
+  id: 'fun-negx-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      poly: drawUntil(
+        () => drawPoly(rng, range(0, hard ? 5 : 4), hard ? 4 : 3),
+        (poly) => poly[0][1] > 0 && poly.some(([, p]) => p % 2 === 1),
+        [[2, 3], [-1, 2], [4, 1]],
+      ),
+    };
+  },
+  render: ({ poly }): Slide => {
+    const answer = polyTokens(atNegX(poly));
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `$f(x) = ${polyTex(poly)}$. Write $f(-x)$, one term in each gap.` }],
+      template: `f(-x) = ${answer.map((_, idx) => `{${idx}}`).join(' ')}`,
+      bank: bankOf(answer, polyTokens(negated(atNegX(poly)))),
+      answer,
+    };
+  },
+  solution: ({ poly }) => [
+    { text: 'Write $(-x)$ in place of every $x$. An even power of $-x$ is positive and an odd power negative, so only the odd powers change sign.' },
+    { tex: negXTex(poly) },
+    { text: 'Tidied, one term to each gap:' },
+    { tex: polyTex(atNegX(poly)) },
+  ],
+};
+
+/* ---------- Lesson 2: odd functions ---------- */
+
+interface OddSumParams {
+  p: number;
+  q: number;
+  /** A constant added on at difficulty 2, which stops the rule being odd. */
+  c: number;
+  a: number;
+}
+
+/**
+ * From $f(a)$ to $f(-a)$, and what the two add to.
+ *
+ * Difficulty 1 is an odd rule, $px^3 + qx$: $f(-a)$ is $-f(a)$ straight
+ * away and the sum is $0$, which is what odd means. Difficulty 2 adds a
+ * constant, so $f(-a)$ has to be built from the terms — the odd ones change
+ * sign and the constant does not — and the sum is twice the constant.
+ */
+const oddSumTree: Generator<OddSumParams> = {
+  id: 'fun-odd-sum-tree',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { p: rng.pick(COEFFICIENTS), q: rng.pick(COEFFICIENTS), c: rng.pick(COEFFICIENTS), a: rng.pick(nonZeroRange(-3, 3)) }
+      : { p: rng.int(1, 3), q: rng.pick(COEFFICIENTS), c: 0, a: rng.int(1, 3) },
+  render: ({ p, q, c, a }): Slide => {
+    const cube = p * a ** 3;
+    const lin = q * a;
+    const fa = cube + lin + c;
+    const fna = -cube - lin + c;
+    const answer = [cube, lin, fa, fna, fa + fna].map(String);
+    const rule = polyTex([[p, 3], [q, 1], [c, 0]]);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            c === 0
+              ? `$f(x) = ${rule}$ is odd. Fill in its two terms at $x = ${a}$ and add them for $f(${a})$. Being odd gives $f(${-a})$ straight from that; then add the two.`
+              : `$f(x) = ${rule}$. Fill in its $x^3$ and $x$ terms at $x = ${a}$, then $f(${a})$ and $f(${-a})$, then their sum.`,
+        },
+      ],
+      expression: `f(${a}) + f(${-a})`,
+      nodes: [
+        { id: 'cube', from: [] },
+        { id: 'lin', from: [] },
+        { id: 'fa', from: ['cube', 'lin'] },
+        { id: 'fna', from: c === 0 ? ['fa'] : ['cube', 'lin'] },
+        { id: 'sum', from: ['fa', 'fna'] },
+      ],
+      bank: treeBank(answer, [-cube, -lin, cube - lin, 2 * fa, -fna], fa),
+      answer,
+    };
+  },
+  solution: ({ p, q, c, a }) => {
+    const cube = p * a ** 3;
+    const lin = q * a;
+    const fa = cube + lin + c;
+    const steps: SolutionStep[] = [
+      { tex: `f(${a}) = ${plugTex([[p, 3], [q, 1], [c, 0]], a)}` },
+      { tex: `f(${a}) = ${fa}` },
+    ];
+    if (c === 0) {
+      steps.push({ text: 'Odd means $f(-x) = -f(x)$, so the value at $-a$ is the value at $a$ with its sign changed.' });
+      steps.push({ tex: `f(${-a}) = -f(${a}) = ${-fa}` });
+      steps.push({ tex: `f(${a}) + f(${-a}) = 0` });
+      steps.push({ text: 'That is always so for an odd function: its values at $a$ and $-a$ cancel.' });
+      return steps;
+    }
+    steps.push({ text: `At $x = ${-a}$ the $x^3$ and $x$ terms change sign, but the constant $${c}$ does not.` });
+    steps.push({ tex: `f(${-a}) = ${-cube} ${signedTile(-lin)} ${signedTile(c)} = ${-cube - lin + c}` });
+    steps.push({ tex: `f(${a}) + f(${-a}) = ${2 * c}` });
+    steps.push({ text: `The odd terms cancel and the constant is left twice, so $f$ is not odd.` });
+    return steps;
+  },
+};
+
+const IS_F = 'It is $f(x)$';
+const IS_MINUS_F = 'It is $-f(x)$';
+const IS_NEITHER = 'Neither';
+
+/**
+ * Even, odd or neither, in two forks: first $f(-x)$, then what it is.
+ *
+ * The options at the first fork are $f(-x)$ and the slips — the rule
+ * unchanged, every sign changed, only the first changed — so a learner who
+ * has not written $-x$ in properly takes a visibly different path. The rules
+ * are drawn evenly from the three answers.
+ */
+const parityFlow: Generator<PolyParams> = {
+  id: 'fun-parity-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { poly: drawParity(rng, rng.pick(['even', 'odd', 'neither'] as const), hard ? 3 : 2, hard ? 5 : 4) };
+  },
+  render: ({ poly }): Slide => {
+    const right = `$${polyTex(atNegX(poly))}$`;
+    const labels = [
+      ...new Set([right, ...[poly, negated(poly), flippedFirst(poly), flippedEvens(poly)].map((each) => `$${polyTex(each)}$`)]),
+    ]
+      .slice(0, 3)
+      .sort();
+    const parity = parityOf(poly);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Is $f$ even, odd or neither?' }],
+      subject: `f(x) = ${polyTex(poly)}`,
+      steps: [
+        {
+          id: 'sub',
+          ask: 'Write $-x$ in place of $x$. What is $f(-x)$?',
+          branches: labels.map((label) => ({ label, to: 'compare' })),
+        },
+        {
+          id: 'compare',
+          ask: 'Compare that with $f(x)$. What is it?',
+          branches: [
+            { label: IS_F, outcome: 'So $f$ is even.' },
+            { label: IS_MINUS_F, outcome: 'So $f$ is odd.' },
+            { label: IS_NEITHER, outcome: 'So $f$ is neither even nor odd.' },
+          ],
+        },
+      ],
+      answer: [right, parity === 'even' ? IS_F : parity === 'odd' ? IS_MINUS_F : IS_NEITHER],
+    };
+  },
+  solution: ({ poly }) => paritySteps(poly),
+};
+
+/**
+ * $-f(x)$ and $f(-x)$ side by side.
+ *
+ * $-f(x)$ changes every sign, $f(-x)$ only the odd powers', and a rule is
+ * odd exactly when the two lines come out the same. Difficulty 1 is always
+ * odd, so they always match; difficulty 2 is odd half the time, and
+ * otherwise has an even power or a constant that makes them differ.
+ */
+const oddTiles: Generator<PolyParams> = {
+  id: 'fun-odd-tiles',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { poly: drawParity(rng, rng.pick(['odd', 'neither'] as const), 3, 5) }
+      : { poly: drawParity(rng, 'odd', 2, 5) },
+  render: ({ poly }): Slide => {
+    const minus = polyTokens(negated(poly));
+    const flipped = polyTokens(atNegX(poly));
+    const n = poly.length;
+    const blanks = (from: number) => range(from, from + n - 1).map((idx) => `{${idx}}`).join(' ');
+    const answer = [...minus, ...flipped];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `$f(x) = ${polyTex(poly)}$. Write $-f(x)$, then $f(-x)$.` }],
+      template: `-f(x) = ${blanks(0)}, \\quad f(-x) = ${blanks(n)}`,
+      bank: bankOf(answer, [...polyTokens(poly), ...polyTokens(negated(atNegX(poly)))]),
+      answer,
+    };
+  },
+  solution: ({ poly }) => {
+    const odd = parityOf(poly) === 'odd';
+    return [
+      { text: '$-f(x)$: every term changes sign.' },
+      { tex: `-f(x) = ${polyTex(negated(poly))}` },
+      { text: '$f(-x)$: write $-x$ in, and only the odd powers change sign.' },
+      { tex: `f(-x) = ${polyTex(atNegX(poly))}` },
+      {
+        text: odd
+          ? 'The two are the same, so $f(-x) = -f(x)$ and $f$ is odd.'
+          : 'The two differ, so $f$ is not odd: a term with an even power, or a constant, keeps its sign in $f(-x)$.',
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: testing a rule ---------- */
+
+const SAME_F = 'f(x)';
+const MINUS_F = '-f(x)';
+const NEITHER_F = '\\text{neither } f(x) \\text{ nor } -f(x)';
+
+/**
+ * $f(-x)$ tidied, then named.
+ *
+ * The line starts with $-x$ written in. The first step tidies it, the bank
+ * holding the slips — nothing changed, everything changed, only the first
+ * term, the even powers instead of the odd; the second says what it equals.
+ * Difficulty 2 has three terms and powers up to $5$.
+ */
+const negXSteps: Generator<PolyParams> = {
+  id: 'fun-negx-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { poly: drawParity(rng, rng.pick(['even', 'odd', 'neither'] as const), hard ? 3 : 2, hard ? 5 : 4) };
+  },
+  render: ({ poly }): Slide => {
+    const tidy = polyTex(atNegX(poly));
+    const parity = parityOf(poly);
+    const verdict = parity === 'even' ? SAME_F : parity === 'odd' ? MINUS_F : NEITHER_F;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Is $f(x) = ${polyTex(poly)}$ even, odd or neither? The line is $f(-x)$ with $-x$ written in: tidy it, then say what it equals. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [negXTex(poly)],
+      reductions: [
+        {
+          span: [0, 1],
+          value: tidy,
+          bank: stepBank(tidy, ...[poly, negated(poly), flippedFirst(poly), flippedEvens(poly)].map((each) => polyTex(each))),
+        },
+        { span: [0, 1], value: verdict, bank: stepBank(verdict, SAME_F, MINUS_F, NEITHER_F) },
+      ],
+    };
+  },
+  solution: ({ poly }) => paritySteps(poly),
+};
+
+interface ParityChoiceParams {
+  /** One polynomial at difficulty 1; two factors multiplied at difficulty 2. */
+  factors: Poly[];
+}
+
+/** A factor as it sits in a product: `x`, `x^{2}`, or bracketed. */
+function factorPolyTex(poly: Poly): string {
+  return poly.length === 1 ? polyTex(poly) : `(${polyTex(poly)})`;
+}
+
+function productTex(factors: Poly[]): string {
+  const ordered = [...factors].sort((x, y) => x.length - y.length);
+  return ordered.map(factorPolyTex).join('');
+}
+
+const PARITY_OPTIONS = [
+  { id: 'even', label: 'Even' },
+  { id: 'odd', label: 'Odd' },
+  { id: 'neither', label: 'Neither' },
+];
+
+/**
+ * Even, odd or neither, named.
+ *
+ * Difficulty 1 is a polynomial, drawn evenly from the three answers.
+ * Difficulty 2 is a product of two factors: odd times odd is even, like two
+ * minus signs, odd times even is odd, and a factor that is neither makes the
+ * product neither — which the worked solution confirms by multiplying out.
+ */
+const parityChoice: Generator<ParityChoiceParams> = {
+  id: 'fun-parity-choice',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) {
+      return { factors: [drawParity(rng, rng.pick(['even', 'odd', 'neither'] as const), 2, 4)] };
+    }
+    const b = () => rng.pick(COEFFICIENTS);
+    const pools: Record<Parity, () => Poly> = {
+      even: () => rng.pick<Poly>([[[1, 2]], [[1, 2], [b(), 0]], [[1, 4], [b(), 2]]]),
+      odd: () => rng.pick<Poly>([[[1, 1]], [[1, 3]], [[1, 3], [b(), 1]]]),
+      neither: () => rng.pick<Poly>([[[1, 1], [b(), 0]], [[1, 2], [b(), 1]]]),
+    };
+    return drawUntil(
+      () => {
+        const first = rng.pick(['even', 'odd', 'neither'] as const);
+        const second = first === 'neither' ? rng.pick(['even', 'odd'] as const) : rng.pick(['even', 'odd', 'neither'] as const);
+        return { factors: [pools[first](), pools[second]()] };
+      },
+      // Two bare powers multiply to a bare power, which is the difficulty 1 question.
+      ({ factors }) => factors.some((factor) => factor.length > 1),
+      { factors: [[[1, 1]], [[1, 2], [3, 0]]] },
+    );
+  },
+  render: ({ factors }): Slide => {
+    const product = factors.reduce(multiplied);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Is $f(x) = ${factors.length === 1 ? polyTex(factors[0]) : productTex(factors)}$ even, odd or neither?` }],
+      options: PARITY_OPTIONS,
+      correctId: parityOf(product),
+    };
+  },
+  solution: ({ factors }) => {
+    if (factors.length === 1) return paritySteps(factors[0]);
+    const product = factors.reduce(multiplied);
+    const kinds = factors.map(parityOf);
+    const word: Record<Parity, string> = { even: 'even', odd: 'odd', neither: 'neither even nor odd' };
+    const steps: SolutionStep[] = factors.map((factor, idx) => ({
+      text: `$${polyTex(factor)}$ is ${word[kinds[idx]]}.`,
+    }));
+    if (!kinds.includes('neither')) {
+      steps.push({
+        text:
+          kinds[0] === kinds[1]
+            ? `${kinds[0] === 'odd' ? 'Odd times odd is even: the two sign changes cancel, as two minus signs do' : 'Even times even is even: nothing changes sign'}.`
+            : 'Odd times even is odd: one factor changes sign and the other does not.',
+      });
+    }
+    steps.push({ text: 'Multiplied out, to check:' });
+    steps.push({ tex: `f(x) = ${polyTex(product)}` });
+    const parity = parityOf(product);
+    steps.push({ text: parity === 'neither' ? 'It has both odd and even powers, so $f$ is neither even nor odd.' : `Only ${parity} powers, so $f$ is ${parity}.` });
+    return steps;
+  },
+};
+
+interface ParityKParams {
+  form: 'even' | 'odd';
+  /** The power whose coefficient holds k. */
+  spot: number;
+  /** k's coefficient; the term is (mk + q) with q = -m p. */
+  m: number;
+  p: number;
+  rest: Poly;
+}
+
+/** `(k - 3)x^{3}`, `(2k + 6)x`, `kx^{3}`, or a constant `k - 3`. */
+function kTermTex({ spot, m, p }: ParityKParams): string {
+  const inner = linTex(m, -m * p, 'k');
+  if (spot === 0) return inner;
+  const bracketed = p === 0 ? inner : `(${inner})`;
+  return `${bracketed}${termTex(1, spot)}`;
+}
+
+function kRuleTex(params: ParityKParams): string {
+  const terms = [...params.rest.map(([c, p]): [string, number] => [termTex(c, p), p]), [kTermTex(params), params.spot] as [string, number]];
+  return sumTex(terms.sort((x, y) => y[1] - x[1]).map(([tex]) => tex));
+}
+
+/**
+ * The $k$ that makes a rule even, or odd.
+ *
+ * An even rule can have no odd powers, so the coefficient holding $k$ must
+ * be $0$ — and the same for an odd rule's even powers, a constant included,
+ * since a constant is $x^0$. Difficulty 2 puts $k$ with a multiplier, so the
+ * equation takes two steps.
+ */
+const parityK: Generator<ParityKParams> = {
+  id: 'fun-parity-k',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(['even', 'odd'] as const);
+    const m = difficulty > 1 ? rng.pick([2, 3]) : 1;
+    const p = rng.int(-4, 4);
+    if (form === 'even') {
+      return { form, spot: rng.pick([3, 1]), m, p, rest: [[1, 4], [rng.pick(COEFFICIENTS), 2], [rng.pick(COEFFICIENTS), 0]] };
+    }
+    return { form, spot: rng.pick([2, 0]), m, p, rest: [[rng.pick([1, 2]), 3], [rng.pick(COEFFICIENTS), 1]] };
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `$f(x) = ${kRuleTex(params)}$ is ${params.form}. Find $k$.` }],
+    lead: 'k =',
+    keypad: [],
+    answer: `${params.p}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { form, spot, m, p } = params;
+    const inner = linTex(m, -m * p, 'k');
+    const which = spot === 0 ? 'the constant' : `the $${termTex(1, spot)}$ term`;
+    const steps: SolutionStep[] = [
+      {
+        text:
+          form === 'even'
+            ? `An even function has only even powers of $x$: an odd power would change sign when $-x$ is written in. So ${which} must vanish.`
+            : `An odd function has only odd powers of $x$, and a constant counts as $x^0$, an even power. So ${which} must vanish.`,
+      },
+      { tex: `${inner} = 0` },
+    ];
+    if (m !== 1) steps.push({ tex: `${m}k = ${m * p}` });
+    steps.push({ tex: `k = ${p}` });
+    return steps;
+  },
+};
+
+interface SplitParams {
+  poly: Poly;
+  t: number;
+}
+
+function splitParts({ poly, t }: SplitParams): { even: number; odd: number } {
+  return {
+    even: polyAt(poly.filter(([, p]) => p % 2 === 0), t),
+    odd: polyAt(poly.filter(([, p]) => p % 2 === 1), t),
+  };
+}
+
+/**
+ * $f(t)$ and $f(-t)$ from one piece of arithmetic.
+ *
+ * Split the rule into its even-power terms, worth $E$ at $t$, and its
+ * odd-power terms, worth $O$. At $-t$ the even ones are unchanged and the
+ * odd ones change sign, so $f(t) = E + O$ and $f(-t) = E - O$. Difficulty 2
+ * lets the coefficients be negative and moves $t$ further out.
+ */
+const splitTree: Generator<SplitParams> = {
+  id: 'fun-split-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const coefficient = () => (hard ? rng.pick(COEFFICIENTS) : rng.int(1, 3));
+    return {
+      poly: [[coefficient(), 3], [coefficient(), 2], [coefficient(), 1], [coefficient(), 0]],
+      t: hard ? rng.pick([2, 3]) : rng.pick([1, 2]),
+    };
+  },
+  render: (params): Slide => {
+    const { poly, t } = params;
+    const { even, odd } = splitParts(params);
+    const answer = [even, odd, even + odd, even - odd].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$f(x) = ${polyTex(poly)}$. Fill in $E$, what its even-power terms come to at $x = ${t}$, and $O$, what its odd-power terms come to there. Then $f(${t})$ and $f(${-t})$.`,
+        },
+      ],
+      expression: `\\begin{gathered} f(${t}) = E + O \\\\ f(${-t}) = E - O \\end{gathered}`,
+      nodes: [
+        { id: 'even', from: [] },
+        { id: 'odd', from: [] },
+        { id: 'plus', from: ['even', 'odd'] },
+        { id: 'minus', from: ['even', 'odd'] },
+      ],
+      bank: treeBank(answer, [odd - even, -even - odd, -even, -odd], even + odd),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { poly, t } = params;
+    const { even, odd } = splitParts(params);
+    const evens = poly.filter(([, p]) => p % 2 === 0);
+    const odds = poly.filter(([, p]) => p % 2 === 1);
+    return [
+      { tex: `E = ${plugTex(evens, t)} = ${even}` },
+      { tex: `O = ${plugTex(odds, t)} = ${odd}` },
+      { text: `At $x = ${-t}$ the even-power terms are unchanged and the odd-power terms change sign.` },
+      { tex: `f(${t}) = ${even} ${signedTile(odd)} = ${even + odd}` },
+      { tex: `f(${-t}) = ${even} ${signedTile(-odd)} = ${even - odd}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: periodic functions ---------- */
+
+interface WaveParams {
+  fn: 'sin' | 'cos';
+  a: number;
+  b: number;
+  d: number;
+}
+
+/** `2\sin 3x + 1`, `-\cos 4x`. */
+function waveTex({ fn, a, b, d }: WaveParams, inside = `${b}x`): string {
+  return `${coefficientTex(a)}\\${fn} ${inside}${tail(d)}`;
+}
+
+/** Periods that land on the slider's five-degree steps and stay off its middle. */
+const SLIDER_B = [3, 4, 6, 8, 9, 12];
+
+/**
+ * The end of one period, dragged to on the wave.
+ *
+ * The rule is given and the picture drawn from $x = 0$ to $360^{\circ}$, so
+ * the learner works out $\frac{360}{b}$ and watches the line land where the
+ * wave starts over. Difficulty 2 turns the wave over and lifts it, neither of
+ * which changes the period.
+ */
+const periodSlider: Generator<WaveParams> = {
+  id: 'fun-period-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      fn: rng.pick(['sin', 'cos'] as const),
+      a: hard ? rng.pick(nonZeroRange(-3, 3)) : rng.int(1, 3),
+      b: rng.pick(SLIDER_B),
+      d: hard ? rng.pick(nonZeroRange(-2, 2)) : 0,
+    };
+  },
+  render: (params): Slide => {
+    const { fn, a, b, d } = params;
+    const wave = (x: number) => a * Math[fn]((b * x * Math.PI) / 180) + d;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$y = ${waveTex(params)}$, with $x$ in degrees, drawn from $x = 0$. Slide the line to where its first period ends.`,
+        },
+      ],
+      min: 0,
+      max: 360,
+      step: 5,
+      answer: 360 / b,
+      readout: 'x = {v}^{\\circ}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 360,
+          yMin: Math.min(0, d - Math.abs(a)) - 1,
+          yMax: Math.max(0, d + Math.abs(a)) + 1,
+          curves: [{ f: wave }],
+          label: `A ${fn === 'sin' ? 'sine' : 'cosine'} wave from 0 to 360 degrees`,
+        }),
+        ...markerWindow(0, 360),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ fn, a, b, d }) => {
+    const steps: SolutionStep[] = [
+      { text: `$\\${fn} x$ repeats every $360^{\\circ}$. With $${b}x$ inside, $x$ only has to reach $\\frac{360}{${b}}$ for $${b}x$ to reach $360$.` },
+      { tex: `\\frac{360}{${b}} = ${360 / b}` },
+    ];
+    if (a !== 1 || d !== 0) {
+      steps.push({ text: 'The number in front and the number added on change the height of the wave, not how often it repeats.' });
+    }
+    steps.push({ text: `So the first period ends at $x = ${360 / b}^{\\circ}$.` });
+    return steps;
+  },
+};
+
+interface PeriodValueParams extends WaveParams {
+  /** `plain` sin bx; `dressed` a sin bx + d; `slow` sin(x/b); `reverse` find b from the period. */
+  form: 'plain' | 'dressed' | 'slow' | 'reverse';
+}
+
+const DIVISORS_OF_360 = [2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 18, 20];
+
+function periodOf({ form, b }: PeriodValueParams): number {
+  return form === 'slow' ? 360 * b : 360 / b;
+}
+
+/**
+ * A period from the rule, in degrees.
+ *
+ * $\sin bx$ runs $b$ times as fast as $\sin x$, so its period is
+ * $\frac{360}{b}$. Difficulty 2 dresses the wave with a number in front and
+ * one added on, which do not change it; slows it down with $\frac{x}{b}$
+ * inside, which multiplies it; or runs backwards, from the period to $b$.
+ */
+const periodValue: Generator<PeriodValueParams> = {
+  id: 'fun-period-value',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    if (difficulty <= 1) return { form: 'plain', fn, a: rng.int(1, 3), b: rng.pick(DIVISORS_OF_360), d: 0 };
+    const form = rng.pick(['dressed', 'slow', 'reverse'] as const);
+    if (form === 'slow') return { form, fn, a: rng.int(1, 3), b: rng.pick([2, 3, 4]), d: 0 };
+    if (form === 'reverse') return { form, fn, a: 1, b: rng.pick(DIVISORS_OF_360), d: 0 };
+    return {
+      form,
+      fn,
+      a: rng.pick([-3, -2, -1, 2, 3]),
+      b: rng.pick(DIVISORS_OF_360),
+      d: rng.pick(COEFFICIENTS),
+    };
+  },
+  render: (params): Slide => {
+    const { form, fn, b } = params;
+    if (form === 'reverse') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: `$y = \\${fn} bx$, with $x$ in degrees, has period $${360 / b}^{\\circ}$. Find $b$.` }],
+        lead: 'b =',
+        keypad: [],
+        answer: `${b}`,
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    const rule = form === 'slow' ? waveTex(params, `\\frac{x}{${b}}`) : waveTex(params);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `Find the period of $y = ${rule}$, with $x$ in degrees.` }],
+      lead: '\\text{period} =',
+      keypad: [],
+      answer: `${periodOf(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { form, fn, b } = params;
+    if (form === 'reverse') {
+      return [
+        { text: `$\\${fn} bx$ has period $\\frac{360}{b}$, so:` },
+        { tex: `\\frac{360}{b} = ${360 / b}` },
+        { tex: `b = \\frac{360}{${360 / b}} = ${b}` },
+      ];
+    }
+    if (form === 'slow') {
+      return [
+        { text: `$\\${fn} x$ repeats every $360^{\\circ}$. With $\\frac{x}{${b}}$ inside, $x$ has to go $${b}$ times as far before the inside reaches $360$.` },
+        { tex: `360 \\times ${b} = ${360 * b}` },
+      ];
+    }
+    const steps: SolutionStep[] = [
+      { text: `$\\${fn} x$ repeats every $360^{\\circ}$. With $${b}x$ inside the wave runs $${b}$ times as fast, so it repeats $${b}$ times as often.` },
+      { tex: `\\frac{360}{${b}} = ${360 / b}` },
+    ];
+    if (form === 'dressed') {
+      steps.push({ text: 'The number in front stretches the wave up and the number added on lifts it; neither changes how often it repeats.' });
+    }
+    return steps;
+  },
+};
+
+type PatternShape = 'tri' | 'arch' | 'double' | 'ramp';
+
+interface PatternParams {
+  shape: PatternShape;
+  /** The period, in squares. */
+  p: number;
+  /** Where one repeat starts, 0 to p - 1. */
+  s: number;
+  /** The tall peak. */
+  h: number;
+  /** The short peak of `double`, or where `ramp` turns. */
+  k: number;
+}
+
+/** The pattern at x: each repeat starts on the axis. */
+function patternAt({ shape, p, s, h, k }: PatternParams, x: number): number {
+  const along = (((x - s) % p) + p) % p;
+  const u = along / p;
+  const tent = (w: number) => (w < 0.5 ? 2 * w : 2 - 2 * w);
+  if (shape === 'tri') return h * tent(u);
+  if (shape === 'arch') return 4 * h * u * (1 - u);
+  if (shape === 'double') return u < 0.5 ? h * tent(2 * u) : k * tent(2 * u - 1);
+  return along < k ? (h * along) / k : (h * (p - along)) / (p - k);
+}
+
+/**
+ * The period of a repeating graph, read off squared paper.
+ *
+ * Difficulty 1 is a zigzag or a row of arches, one peak a repeat. Difficulty
+ * 2 has two different peaks in each repeat, where the gap between
+ * neighbouring peaks is only half the period, or a lopsided zigzag, where
+ * the distance up one side is not the period either.
+ */
+const periodChoice: Generator<PatternParams> = {
+  id: 'fun-period-choice',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) {
+      const p = rng.int(2, 6);
+      return { shape: rng.pick(['tri', 'arch'] as const), p, s: rng.int(0, p - 1), h: rng.int(1, 3), k: 0 };
+    }
+    if (rng.chance(0.5)) {
+      const p = rng.pick([4, 6]);
+      const [h, k] = rng.pick([[3, 1], [3, 2], [2, 1], [4, 2], [4, 1]]);
+      return { shape: 'double', p, s: rng.int(0, p - 1), h, k };
+    }
+    const p = rng.int(3, 6);
+    return drawUntil(
+      () => ({ shape: 'ramp' as const, p, s: rng.int(0, p - 1), h: rng.int(2, 3), k: rng.int(1, p - 1) }),
+      ({ k }) => 2 * k !== p,
+      { shape: 'ramp', p: 5, s: 1, h: 3, k: 1 },
+    );
+  },
+  render: (params): Slide => {
+    const { shape, p, h, k } = params;
+    const near =
+      shape === 'double' ? [p / 2, 2 * p, p + 1] : shape === 'ramp' ? [k, p - k, 2 * p] : [p / 2, 2 * p, p + 1, p - 1];
+    const labels = distinctFirst(
+      `${p}`,
+      near.filter((value) => Number.isInteger(value) && value > 0).map(String),
+      p,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: -6,
+            xMax: 6,
+            yMin: -1,
+            yMax: Math.max(h, k) + 1,
+            grid: true,
+            height: 150,
+            curves: [{ f: (x) => patternAt(params, x) }],
+            label: 'A graph repeating the same pattern again and again',
+          }),
+        },
+        { kind: 'prose', text: 'Each square is one unit. What is the period of this function?' },
+      ],
+      ...fixedChoice(labels.map((label) => ({ label, tex: true }))),
+    };
+  },
+  solution: ({ shape, p, s }) => {
+    const start = s - p;
+    const steps: SolutionStep[] = [
+      { text: 'The period is how far along the pattern goes before it starts again exactly as before.' },
+      { text: `One repeat starts on the axis at $x = ${start}$ and the next at $x = ${start + p}$.` },
+      { tex: `\\text{period} = ${p}` },
+    ];
+    if (shape === 'double') {
+      steps.push({ text: `The peaks are only $${p / 2}$ apart, but a tall one and a short one are different points of the pattern: the tall peaks are $${p}$ apart.` });
+    }
+    if (shape === 'ramp') {
+      steps.push({ text: 'Going up one side and down the other are two parts of one repeat; the period is the whole of it.' });
+    }
+    return steps;
+  },
+};
+
+interface RepeatParams {
+  p: number;
+  r: number;
+  v: number;
+  t: number;
+}
+
+/**
+ * $f(t)$ from $f(r)$ and the period, when the two are a whole number of
+ * periods apart — and not otherwise.
+ *
+ * Difficulty 1 always lands a whole number of periods further on.
+ * Difficulty 2 goes either way along, and a third of the time lands between
+ * repeats, where $f(r)$ says nothing about $f(t)$.
+ */
+const repeatFlow: Generator<RepeatParams> = {
+  id: 'fun-repeat-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const p = hard ? rng.int(3, 8) : rng.int(2, 6);
+    const r = rng.int(-4, 4);
+    const v = rng.pick(nonZeroRange(-9, 9));
+    if (!hard) return { p, r, v, t: r + p * rng.int(1, 3) };
+    const n = rng.pick(nonZeroRange(-3, 3));
+    const off = rng.chance(1 / 3) ? rng.int(1, p - 1) : 0;
+    return { p, r, v, t: r + n * p + (n > 0 ? off : -off) };
+  },
+  render: ({ p, r, v, t }): Slide => {
+    const gap = Math.abs(t - r);
+    const whole = gap % p === 0;
+    const gaps = distinctFirst(`${gap}`, [`${Math.abs(t + r)}`, `${Math.abs(t)}`, `${gap + p}`], gap, 3)
+      .map(Number)
+      .sort((x, y) => x - y);
+    const values = distinctFirst(`${v}`, [v + gap, (gap / p) * v, -v].filter(Number.isInteger).map(String), v, 3)
+      .map(Number)
+      .sort((x, y) => x - y);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `$f$ is periodic. Find $f(${t})$, if it can be found.` }],
+      subject: `\\begin{gathered} f(x + ${p}) = f(x) \\\\ f(${r}) = ${v} \\end{gathered}`,
+      steps: [
+        {
+          id: 'gap',
+          ask: `How far is $x = ${t}$ from $x = ${r}$?`,
+          branches: gaps.map((value) => ({ label: `$${value}$`, to: 'whole' })),
+        },
+        {
+          id: 'whole',
+          ask: `The period is $${p}$. Is that distance a whole number of periods?`,
+          branches: [
+            { label: FLOW_YES, to: 'value' },
+            { label: FLOW_NO, outcome: `Then $f(${t})$ cannot be found from $f(${r})$ alone.` },
+          ],
+        },
+        {
+          id: 'value',
+          ask: `So what is $f(${t})$?`,
+          branches: values.map((value) => ({ label: `$${value}$`, outcome: `So $f(${t}) = ${value}$.` })),
+        },
+      ],
+      answer: whole ? [`$${gap}$`, FLOW_YES, `$${v}$`] : [`$${gap}$`, FLOW_NO],
+    };
+  },
+  solution: ({ p, r, v, t }) => {
+    const gap = Math.abs(t - r);
+    const steps: SolutionStep[] = [
+      { text: `$f(x + ${p}) = f(x)$ says the values repeat every $${p}$: moving $${p}$ along, either way, lands on the same value.` },
+      { tex: `|${t} - ${br(r)}| = ${gap}` },
+    ];
+    if (gap % p === 0) {
+      steps.push({ text: `$${gap} = ${gap / p} \\times ${p}$, a whole number of periods, so $f(${t}) = f(${r})$.` });
+      steps.push({ tex: `f(${t}) = ${v}` });
+    } else {
+      steps.push({ text: `$${gap}$ is not a multiple of $${p}$, so $x = ${t}$ is part-way through a repeat: $f(${t})$ is a value this question has not been told.` });
+    }
+    return steps;
+  },
+};
+
+/* ---------- Lesson 5: piecewise-defined functions ---------- */
+
+interface Piece {
+  sq: boolean;
+  m: number;
+  q: number;
+}
+
+/** A piece as the learner reads it: `x^2 - 1`, `2x + 3`, `4`. */
+function pieceTex({ sq, m, q }: Piece): string {
+  if (sq) return `x^2${tail(q)}`;
+  return m === 0 ? `${q}` : linTex(m, q);
+}
+
+function pieceAt({ sq, m, q }: Piece, x: number): number {
+  return sq ? x * x + q : m * x + q;
+}
+
+/** A piece with the number written in: `(-2)^2 + 1`, `3 \times 4 - 2`. */
+function pieceSubTex({ sq, m, q }: Piece, x: number): string {
+  if (sq) return `${br(x)}^2 ${q === 0 ? '' : signedTile(q)}`;
+  if (m === 0) return `${q}`;
+  return `${m === 1 ? '' : m === -1 ? '-' : `${m} \\times `}${br(x)} ${q === 0 ? '' : signedTile(q)}`;
+}
+
+type PieceKind = 'lin' | 'const' | 'sq';
+
+function drawPiece(rng: Rng, kinds: PieceKind[]): Piece {
+  const kind = rng.pick(kinds);
+  if (kind === 'lin') return { sq: false, m: rng.pick(COEFFICIENTS), q: rng.int(-3, 3) };
+  return { sq: kind === 'sq', m: 0, q: rng.int(-3, 3) };
+}
+
+/** Two pieces meeting at c; `leftOwns` puts c itself in the left piece. */
+function twoPieceTex(left: Piece, right: Piece, c: number, leftOwns = false): string {
+  return `f(x) = \\begin{cases} ${pieceTex(left)} & x ${leftOwns ? LEQ : '<'} ${c} \\\\ ${pieceTex(right)} & x ${leftOwns ? GT : GEQ} ${c} \\end{cases}`;
+}
+
+function threePieceTex(pieces: Piece[], [c1, c2]: number[]): string {
+  const [a, b, c] = pieces.map(pieceTex);
+  return `f(x) = \\begin{cases} ${a} & x < ${c1} \\\\ ${b} & ${c1} ${LEQ} x < ${c2} \\\\ ${c} & x ${GEQ} ${c2} \\end{cases}`;
+}
+
+/** Which piece x belongs to: each cut belongs to the piece on its right. */
+function pieceIndex(cuts: number[], x: number): number {
+  return cuts.filter((cut) => cut <= x).length;
+}
+
+/** Where piece `idx` applies, for the worked solution. */
+function regionTex(cuts: number[], idx: number): string {
+  if (idx === 0) return `x < ${cuts[0]}`;
+  if (idx === cuts.length) return `x ${GEQ} ${cuts[cuts.length - 1]}`;
+  return `${cuts[idx - 1]} ${LEQ} x < ${cuts[idx]}`;
+}
+
+function piecesTex(pieces: Piece[], cuts: number[]): string {
+  return pieces.length === 2 ? twoPieceTex(pieces[0], pieces[1], cuts[0]) : threePieceTex(pieces, cuts);
+}
+
+/** Pieces that read differently from one another. */
+function drawPieces(rng: Rng, count: number, kinds: PieceKind[]): Piece[] {
+  return drawUntil(
+    () => Array.from({ length: count }, () => drawPiece(rng, kinds)),
+    (pieces) => new Set(pieces.map(pieceTex)).size === count,
+    [
+      { sq: true, m: 0, q: 1 },
+      { sq: false, m: 2, q: -1 },
+      { sq: false, m: -1, q: 3 },
+    ].slice(0, count),
+  );
+}
+
+/** Two cuts at least two apart, between -2 and 3. */
+function drawCuts(rng: Rng): number[] {
+  const c1 = rng.int(-2, 0);
+  return [c1, rng.int(c1 + 2, 3)];
+}
+
+interface PieceValueParams {
+  pieces: Piece[];
+  cuts: number[];
+  a: number;
+}
+
+function pieceSolution({ pieces, cuts, a }: PieceValueParams): SolutionStep[] {
+  const idx = pieceIndex(cuts, a);
+  const steps: SolutionStep[] = [
+    { text: `$x = ${a}$ is in the stretch $${regionTex(cuts, idx)}$, so use the rule $${pieceTex(pieces[idx])}$.` },
+  ];
+  if (cuts.includes(a)) {
+    steps.push({ text: `$${a}$ is where two pieces meet. The $${LEQ}$ or $${GEQ}$ says which one owns it: the piece whose stretch includes $x = ${a}$ itself.` });
+  }
+  steps.push({ tex: `f(${a}) = ${pieceSubTex(pieces[idx], a)} = ${pieceAt(pieces[idx], a)}` });
+  return steps;
+}
+
+/**
+ * $f(a)$ from the piece that covers $a$.
+ *
+ * Difficulty 1 has two pieces and an input clearly inside one of them.
+ * Difficulty 2 has three, and half the time the input is exactly where two
+ * meet, so the $<$ and $\leq$ decide.
+ */
+const pieceValue: Generator<PieceValueParams> = {
+  id: 'fun-piece-value',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) {
+      const c = rng.int(-2, 2);
+      return {
+        pieces: drawPieces(rng, 2, ['lin', 'const', 'sq']),
+        cuts: [c],
+        a: rng.pick(range(-4, 4).filter((x) => x !== c)),
+      };
+    }
+    const cuts = drawCuts(rng);
+    return {
+      pieces: drawPieces(rng, 3, ['lin', 'const', 'sq']),
+      cuts,
+      a: rng.chance(0.5) ? rng.pick(cuts) : rng.int(-4, 4),
+    };
+  },
+  render: (params): Slide => {
+    const { pieces, cuts, a } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'This function has a different rule on each stretch of $x$:' },
+        { kind: 'display', tex: piecesTex(pieces, cuts) },
+        { kind: 'prose', text: `Find $f(${a})$.` },
+      ],
+      lead: `f(${a}) =`,
+      keypad: [],
+      answer: `${pieceAt(pieces[pieceIndex(cuts, a)], a)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: pieceSolution,
+};
+
+interface JoinParams {
+  left: Piece;
+  right: Piece;
+  c: number;
+}
+
+/**
+ * Either side of a join: the value each piece gives there, and the jump.
+ *
+ * A third of the draws are built to join up, so a jump of $0$ is an answer
+ * the learner meets and not a sign of a slip. Difficulty 2 brings squares
+ * and constants, and joins to the left of the $y$-axis.
+ */
+const joinTree: Generator<JoinParams> = {
+  id: 'fun-join-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kinds: PieceKind[] = hard ? ['lin', 'const', 'sq'] : ['lin'];
+    return drawUntil(
+      () => {
+        const c = hard ? rng.pick(nonZeroRange(-3, 3)) : rng.int(-2, 2);
+        const [left, drawn] = drawPieces(rng, 2, kinds);
+        if (!rng.chance(1 / 3)) return { left, right: drawn, c };
+        const right = { ...drawn, q: pieceAt(left, c) - pieceAt({ ...drawn, q: 0 }, c) };
+        return { left, right, c };
+      },
+      ({ left, right }) => Math.abs(right.q) <= 9 && pieceTex(left) !== pieceTex(right),
+      { left: { sq: false, m: 1, q: 1 }, right: { sq: false, m: 2, q: 0 }, c: 1 },
+    );
+  },
+  render: ({ left, right, c }): Slide => {
+    const l = pieceAt(left, c);
+    const r = pieceAt(right, c);
+    const answer = [l, r, r - l].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'display', tex: twoPieceTex(left, right, c) },
+        {
+          kind: 'prose',
+          text: `Fill in what each piece gives at $x = ${c}$, then the jump there: the second piece's value take away the first's.`,
+        },
+      ],
+      expression: '\\text{jump} = \\text{second} - \\text{first}',
+      nodes: [
+        { id: 'left', from: [] },
+        { id: 'right', from: [] },
+        { id: 'jump', from: ['left', 'right'] },
+      ],
+      bank: treeBank(answer, [l - r, l + r, pieceAt(left, -c), pieceAt(right, -c)], r - l),
+      answer,
+    };
+  },
+  solution: ({ left, right, c }) => {
+    const l = pieceAt(left, c);
+    const r = pieceAt(right, c);
+    return [
+      { text: `Put $x = ${c}$ into both rules, even though only the right one owns $x = ${c}$: the left one says where its piece stops.` },
+      { text: `The left piece: $${pieceSubTex(left, c)} = ${l}$.` },
+      { text: `The right piece: $${pieceSubTex(right, c)} = ${r}$.` },
+      { text: `The jump: $${r} - ${br(l)} = ${r - l}$.` },
+      {
+        text:
+          r === l
+            ? `The two pieces meet at $(${c}, ${l})$, so the graph joins up with no break.`
+            : `The graph breaks at $x = ${c}$: the left piece stops at height $${l}$, drawn hollow, and the right one starts at height $${r}$.`,
+      },
+    ];
+  },
+};
+
+interface PieceChoiceParams {
+  left: Piece;
+  right: Piece;
+  c: number;
+  leftOwns: boolean;
+}
+
+function pieceChoiceLabels({ left, right, c, leftOwns }: PieceChoiceParams, hard: boolean): string[] {
+  const flip = (piece: Piece): Piece => ({ ...piece, m: -piece.m });
+  const moved = (piece: Piece): Piece => ({ ...piece, q: piece.q + (piece.q < 3 ? 1 : -1) });
+  const correct = twoPieceTex(left, right, c, leftOwns);
+  const others = hard
+    ? [twoPieceTex(left, right, c, !leftOwns), twoPieceTex(left, flip(right), c, leftOwns), twoPieceTex(right, left, c, leftOwns)]
+    : [twoPieceTex(right, left, c, leftOwns), twoPieceTex(left, flip(right), c, leftOwns), twoPieceTex(moved(left), right, c, leftOwns)];
+  return [correct, ...others];
+}
+
+/**
+ * The rule that draws a sketch, from four.
+ *
+ * Two straight pieces on squared paper, a filled dot on the piece that owns
+ * the join and a hollow one on the piece that stops short. Difficulty 1 is a
+ * flat piece then a slope; the others swap the pieces, turn the slope, or
+ * move the flat piece. Difficulty 2 has two slopes, either piece may own the
+ * join, and one option gives it to the wrong one — which only the dots show.
+ */
+const pieceChoice: Generator<PieceChoiceParams> = {
+  id: 'fun-piece-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      (): PieceChoiceParams => ({
+        left: hard ? { sq: false, m: rng.pick([-2, -1, 1, 2]), q: rng.int(-3, 3) } : { sq: false, m: 0, q: rng.int(-3, 3) },
+        right: { sq: false, m: rng.pick(hard ? [-2, -1, 1, 2] : [-1, 1]), q: rng.int(-3, 3) },
+        c: rng.int(-2, 2),
+        leftOwns: hard ? rng.chance(0.5) : false,
+      }),
+      (params) => {
+        const { left, right, c } = params;
+        const l = pieceAt(left, c);
+        const r = pieceAt(right, c);
+        return l !== r && Math.abs(l) <= 4 && Math.abs(r) <= 4 && new Set(pieceChoiceLabels(params, hard)).size === 4;
+      },
+      { left: { sq: false, m: 0, q: 2 }, right: { sq: false, m: 1, q: -2 }, c: 1, leftOwns: false },
+    );
+  },
+  render: (params): Slide => {
+    const { left, right, c, leftOwns } = params;
+    const hard = left.m !== 0;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: -5,
+            xMax: 5,
+            yMin: -5,
+            yMax: 5,
+            grid: true,
+            height: 200,
+            curves: [
+              { f: (x) => ((leftOwns ? x <= c : x < c) ? pieceAt(left, x) : Number.NaN), breaks: true },
+              { f: (x) => ((leftOwns ? x > c : x >= c) ? pieceAt(right, x) : Number.NaN), breaks: true },
+            ],
+            marks: [
+              { x: c, y: pieceAt(left, c), hollow: !leftOwns },
+              { x: c, y: pieceAt(right, c), hollow: leftOwns },
+            ],
+            label: 'A graph in two straight pieces, with a filled dot and a hollow dot where they meet',
+          }),
+        },
+        { kind: 'prose', text: 'Each square is one unit. A filled dot is on the graph and a hollow one is not. Which rule draws it?' },
+      ],
+      ...fixedChoice(pieceChoiceLabels(params, hard).map((label) => ({ label, tex: true }))),
+    };
+  },
+  solution: ({ left, right, c, leftOwns }) => [
+    { text: `Left of $x = ${c}$ the graph is the line $y = ${pieceTex(left)}$; to the right it is $y = ${pieceTex(right)}$.` },
+    {
+      text: `The filled dot at $x = ${c}$ is on the ${leftOwns ? 'left' : 'right'} piece, so that piece owns $x = ${c}$ and gets the $${leftOwns ? LEQ : GEQ}$.`,
+    },
+    { tex: twoPieceTex(left, right, c, leftOwns) },
+  ],
+};
+
+/**
+ * Which piece applies, and what it gives.
+ *
+ * The first gap takes the piece's rule, from a bank holding all three; the
+ * second its value, beside what the other two pieces would give. Difficulty
+ * 2 asks exactly at a join.
+ */
+const pieceTiles: Generator<PieceValueParams> = {
+  id: 'fun-piece-tiles',
+  sample: (rng, difficulty) => {
+    const cuts = drawCuts(rng);
+    return {
+      pieces: drawPieces(rng, 3, ['lin', 'sq']),
+      cuts,
+      a: difficulty > 1 ? rng.pick(cuts) : rng.pick(range(-4, 4).filter((x) => !cuts.includes(x))),
+    };
+  },
+  render: ({ pieces, cuts, a }): Slide => {
+    const idx = pieceIndex(cuts, a);
+    const value = pieceAt(pieces[idx], a);
+    const answer = [pieceTex(pieces[idx]), numberTile(value)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'A function is defined in three pieces:' },
+        { kind: 'display', tex: threePieceTex(pieces, cuts) },
+        { kind: 'prose', text: `Which rule does $x = ${a}$ use, and what is $f(${a})$?` },
+      ],
+      template: `f(${a}) \\text{ uses } {0} \\text{, so } f(${a}) = {1}`,
+      bank: bankOf(answer, [...pieces.map(pieceTex), ...pieces.map((piece) => numberTile(pieceAt(piece, a)))]),
+      answer,
+    };
+  },
+  solution: pieceSolution,
+};
+
 export const functionGenerators = [
   evaluate,
   substitute,
@@ -4251,4 +5796,23 @@ export const functionGenerators = [
   meetTiles,
   sketchRule,
   featuresTree,
+  evenValue,
+  evenPick,
+  evenFlow,
+  negXTiles,
+  oddSumTree,
+  parityFlow,
+  oddTiles,
+  negXSteps,
+  parityChoice,
+  parityK,
+  splitTree,
+  periodSlider,
+  periodValue,
+  periodChoice,
+  repeatFlow,
+  pieceValue,
+  joinTree,
+  pieceChoice,
+  pieceTiles,
 ];

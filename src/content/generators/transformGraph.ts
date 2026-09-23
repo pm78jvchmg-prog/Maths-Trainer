@@ -342,6 +342,23 @@ const sketchPair = lessonPair(
   { bases: ['recip'], targetTex: reciprocalTex },
 );
 
+/**
+ * Odd functions (batch C2-l4): for an odd curve a flip left to right draws
+ * the same curve as a flip upside down, and the grader compares curves, so
+ * either route is marked right — which is the point of the lesson. Only odd
+ * curves, since the even ones cannot be flipped left to right at all
+ * (`DUPLICATE_MOVES`). A flip alone gives only three questions, so most draws
+ * also lift or stretch the flipped curve; difficulty 2 always does both.
+ */
+const oddPair = lessonPair(
+  'odd',
+  (rng, difficulty) =>
+    difficulty > 1
+      ? ['flipX', 'stretchY', 'moveY']
+      : rng.pick<Move[]>([['flipX'], ['flipX', 'moveY'], ['flipX', 'stretchY']]),
+  { bases: ['cube', 'sin', 'recip'] },
+);
+
 export const transformGraphGenerators = [
   transformApply,
   transformMatch,
@@ -350,4 +367,5 @@ export const transformGraphGenerators = [
   ...reflectPair,
   ...combinePair,
   ...sketchPair,
+  ...oddPair,
 ];

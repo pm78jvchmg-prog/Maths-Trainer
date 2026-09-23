@@ -12,7 +12,8 @@
  *
  * The third level, matrices as transformations, is `vm-l5`: roadmap batches B8
  * and B9 ran side by side, and Vectors took `vm-l4` for its second level so
- * the two could not collide.
+ * the two could not collide. The fourth, composing transformations, is `vm-l7`
+ * for the same reason: batch B18 ran beside B17, which gave Vectors `vm-l6`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -952,6 +953,290 @@ export const matrices: Course = {
         ask('mat-area-image', 2),
         ask('mat-orientation', 2),
         ask('mat-area-k', 2),
+      ],
+    },
+    {
+      id: 'vm-l7',
+      title: 'Composing Transformations',
+      lessons: [
+        {
+          id: 'vm-l7-product',
+          title: 'A Product Is a Composition',
+          slides: [
+            teach(
+              prose(
+                'Two transformations can be done one after the other: move every point by $\\mathbf{B}$, then move the results by $\\mathbf{A}$. The combined movement is a single transformation, and its matrix is the product $\\mathbf{AB}$.',
+              ),
+              maths('\\mathbf{A}\\left(\\mathbf{B}\\mathbf{v}\\right) = \\left(\\mathbf{AB}\\right)\\mathbf{v}'),
+              prose(
+                'Read it from the point outwards. $\\mathbf{B}$ sits next to $\\mathbf{v}$, so it acts first: $\\mathbf{AB}$ means $\\mathbf{B}$ first, then $\\mathbf{A}$. That is **the reverse of the order the letters are read**.',
+              ),
+              prose(
+                'So a question that says "$\\mathbf{P}$, then $\\mathbf{Q}$" wants $\\mathbf{QP}$, with the first transformation on the right.',
+              ),
+            ),
+            ask('mat-compose-order'),
+            ask('mat-compose-point'),
+            ask('mat-compose-matrix'),
+            teach(
+              prose(
+                'The unit square shows why the product works. The columns of $\\mathbf{B}$ are where $\\mathbf{i}$ and $\\mathbf{j}$ land first. $\\mathbf{A}$ then moves those two arrows, and where they end up are the columns of $\\mathbf{AB}$.',
+              ),
+              prose('Take a stretch across by a factor of $2$, then a quarter turn anticlockwise.'),
+              maths('\\mathbf{B} = \\begin{pmatrix} 2 & 0 \\\\ 0 & 1 \\end{pmatrix}'),
+              maths('\\mathbf{A} = \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}'),
+              prose(
+                'The stretch sends $\\mathbf{i}$ to $(2, 0)$, and the turn sends that up to $(0, 2)$. $\\mathbf{j}$ is left alone by the stretch, then turns to $(-1, 0)$. Those are the columns of the product.',
+              ),
+              maths('\\mathbf{AB} = \\begin{pmatrix} 0 & -1 \\\\ 2 & 0 \\end{pmatrix}'),
+              figure(
+                transformGridSvg({
+                  span: 3,
+                  image: [0, -1, 2, 0],
+                  square: true,
+                  arrows: [
+                    { x: 0, y: 2, label: 'i', accent: true },
+                    { x: -1, y: 0, label: 'j' },
+                  ],
+                  maxWidth: 240,
+                  label: 'The unit square, dashed, and its image after a stretch and then a quarter turn: i ends at (0, 2) and j at (-1, 0)',
+                }),
+              ),
+            ),
+            ask('mat-compose-slide'),
+            ask('mat-compose-matrix+choice'),
+            ask('mat-compose-point', 2),
+            teach(
+              prose(
+                'So there are two ways to follow a point through a pair of transformations: one step at a time, or all at once with the product. They have to agree, which makes each one a check on the other.',
+              ),
+              prose(
+                'With three the rule carries on. $\\mathbf{C}$ first, then $\\mathbf{B}$, then $\\mathbf{A}$ is $\\mathbf{ABC}$: the transformation that happens first is always the one on the right.',
+              ),
+            ),
+            ask('mat-compose-slide', 2),
+            ask('mat-compose-order', 2),
+          ],
+          skillCheck: [
+            ask('mat-compose-matrix', 2),
+            ask('mat-compose-point', 2),
+            ask('mat-compose-slide', 2),
+          ],
+        },
+        {
+          id: 'vm-l7-order',
+          title: 'Order Matters',
+          slides: [
+            teach(
+              prose(
+                'With numbers, $3 \\times 5$ and $5 \\times 3$ are the same. With transformations the order usually matters, so $\\mathbf{AB}$ and $\\mathbf{BA}$ are usually different matrices.',
+              ),
+              prose('Take a quarter turn anticlockwise and a reflection in the $x$-axis, and follow $\\mathbf{i}$.'),
+              prose('Turn first: $\\mathbf{i}$ goes up to $(0, 1)$, and the mirror then sends it down to $(0, -1)$.'),
+              prose('Reflect first: $\\mathbf{i}$ lies on the mirror and stays at $(1, 0)$, and the turn then sends it up to $(0, 1)$.'),
+              prose(
+                'Two different places, so two different transformations. Reading the order carefully is not a formality.',
+              ),
+            ),
+            ask('mat-order-point'),
+            ask('mat-commute-tree'),
+            ask('mat-compose-slide'),
+            teach(
+              prose(
+                'Some pairs do agree. Two rotations about the origin do: turning $30^\\circ$ and then $60^\\circ$ ends in the same place as $60^\\circ$ and then $30^\\circ$.',
+              ),
+              prose(
+                'An enlargement about the origin agrees with everything, because it scales every direction equally. So does a half turn, which is an enlargement of scale factor $-1$.',
+              ),
+              prose(
+                'Stretches along the axes agree with each other and with reflections in the axes. All of their matrices have zeros off the leading diagonal, and two such matrices can always be multiplied in either order.',
+              ),
+            ),
+            ask('mat-commute-which'),
+            ask('mat-order-point', 2),
+            ask('mat-commute-tree', 2),
+            teach(
+              prose(
+                'A reflection is the usual reason the order matters. It reverses the sense of a turn, so a turn before the mirror and a turn after it go opposite ways.',
+              ),
+              prose(
+                'When in doubt, follow $\\mathbf{i}$ and $\\mathbf{j}$ through both orders. If both arrows land in the same places either way, the two transformations commute.',
+              ),
+            ),
+            ask('mat-commute-which', 2),
+            ask('mat-compose-slide', 2),
+          ],
+          skillCheck: [
+            ask('mat-order-point', 2),
+            ask('mat-commute-tree', 2),
+            ask('mat-commute-which', 2),
+          ],
+        },
+        {
+          id: 'vm-l7-standard',
+          title: 'Composing the Standard Matrices',
+          slides: [
+            teach(
+              prose(
+                'The standard transformations combine into one another. Two turns about the origin make one turn, through the two angles added together.',
+              ),
+              prose(
+                'A turn and a reflection, in either order, make a reflection, though not always in the same line. Multiply with the first on the right, then read the columns to name the result.',
+              ),
+              maths('\\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix}'),
+              maths('= \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix}'),
+              prose(
+                'That is a reflection in the $x$-axis followed by a quarter turn anticlockwise, and together they are a reflection in the line $y = x$.',
+              ),
+            ),
+            ask('mat-compose-standard'),
+            ask('mat-compose-name'),
+            ask('mat-compose-locate'),
+            teach(
+              prose(
+                'Two reflections always make a rotation. Each one turns the plane over, and turning it over twice leaves it the right way up, so all that is left is a turn.',
+              ),
+              prose(
+                'The angle is **twice the angle from the first mirror to the second**, measured anticlockwise. Reflecting in the $x$-axis and then in $y = x$ turns through $2 \\times 45^\\circ = 90^\\circ$, and the matrices agree.',
+              ),
+              maths('\\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix} \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix}'),
+              maths('= \\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}'),
+              prose('Swap the two mirrors and the turn goes the other way, so the order matters here too.'),
+            ),
+            ask('mat-reflect-pair'),
+            ask('mat-compose-standard', 2),
+            ask('mat-compose-locate', 2),
+            teach(
+              prose(
+                'The rule works for any two mirrors through the origin, not only the four with standard matrices. Mirrors at $30^\\circ$ and $60^\\circ$ to the $x$-axis are $30^\\circ$ apart, so reflecting in the first and then the second turns through $60^\\circ$ anticlockwise.',
+              ),
+              prose(
+                'A picture names a combination as well as a product does. Follow the $\\mathbf{i}$ arrow: if it has turned, and $\\mathbf{j}$ has turned the same way with it, the pair made a rotation; if the square has been turned over, a reflection.',
+              ),
+            ),
+            ask('mat-reflect-pair+choice', 2),
+            ask('mat-compose-name', 2),
+          ],
+          skillCheck: [
+            ask('mat-compose-standard', 2),
+            ask('mat-compose-name', 2),
+            ask('mat-reflect-pair', 2),
+          ],
+        },
+        {
+          id: 'vm-l7-inverse',
+          title: 'Undoing a Transformation',
+          slides: [
+            teach(
+              prose(
+                'The inverse matrix $\\mathbf{M}^{-1}$ is the transformation that undoes $\\mathbf{M}$. Do one and then the other, and every point is back where it started.',
+              ),
+              maths('\\mathbf{M}^{-1}\\mathbf{M} = \\mathbf{I}'),
+              prose(
+                'For the standard transformations it can be written down without the formula. A rotation is undone by turning back the same amount, a reflection is undone by itself, and an enlargement of scale factor $k$ by one of scale factor $\\frac{1}{k}$.',
+              ),
+              maths('\\begin{pmatrix} 0 & -1 \\\\ 1 & 0 \\end{pmatrix}^{-1} = \\begin{pmatrix} 0 & 1 \\\\ -1 & 0 \\end{pmatrix}'),
+              prose('A quarter turn anticlockwise is undone by a quarter turn clockwise.'),
+            ),
+            ask('mat-undo-matrix'),
+            ask('mat-undo-point'),
+            ask('mat-undo-matrix+choice'),
+            teach(
+              prose(
+                'To undo two transformations, undo them in the reverse order. $\\mathbf{AB}$ does $\\mathbf{B}$ first and $\\mathbf{A}$ second, so undoing it starts by undoing $\\mathbf{A}$.',
+              ),
+              maths('\\left(\\mathbf{AB}\\right)^{-1} = \\mathbf{B}^{-1}\\mathbf{A}^{-1}'),
+              prose(
+                'It is the order socks and shoes come off: the shoes went on last, so they come off first.',
+              ),
+              prose(
+                'Multiplying shows it works. In $\\mathbf{AB}\\mathbf{B}^{-1}\\mathbf{A}^{-1}$ the middle pair cancels to the identity, and then the outer pair does.',
+              ),
+            ),
+            ask('mat-inverse-order'),
+            ask('mat-inverse-tree'),
+            ask('mat-inverse-order+choice', 2),
+            teach(
+              prose(
+                'The same idea finds where a point came from. If $P$ was moved by one transformation and then another, landing at $P\'$, undo the second first and the first last.',
+              ),
+              prose(
+                'With named transformations this needs no inverse formula at all: turn back, reflect again, or divide out the scale factor, one step at a time starting from the last.',
+              ),
+            ),
+            ask('mat-undo-point', 2),
+            ask('mat-inverse-tree', 2),
+          ],
+          skillCheck: [
+            ask('mat-undo-matrix', 2),
+            ask('mat-inverse-order', 2),
+            ask('mat-inverse-tree', 2),
+          ],
+        },
+        {
+          id: 'vm-l7-area',
+          title: 'Area Under a Composition',
+          slides: [
+            teach(
+              prose(
+                'Each transformation scales area by the size of its determinant. Do two in turn and the second scales an area the first has already scaled, so the factors multiply.',
+              ),
+              maths('\\det\\left(\\mathbf{AB}\\right) = \\det\\mathbf{A} \\times \\det\\mathbf{B}'),
+              prose(
+                'So the determinant of a product needs no multiplying of matrices: find each determinant, and multiply those.',
+              ),
+              prose(
+                'It does not matter which way round the product is. $\\det\\left(\\mathbf{AB}\\right)$ and $\\det\\left(\\mathbf{BA}\\right)$ are equal, even when $\\mathbf{AB}$ and $\\mathbf{BA}$ are not.',
+              ),
+            ),
+            ask('mat-compose-det'),
+            ask('mat-compose-area'),
+            ask('mat-compose-det+choice'),
+            teach(
+              prose(
+                'The sign carries through as well. A negative determinant turns shapes over, and two turnings over cancel: two reflections make a rotation, with determinant $(-1) \\times (-1) = 1$.',
+              ),
+              prose(
+                'So the final image is turned over exactly when one of the two determinants is negative, and the same way round when both are, or neither is.',
+              ),
+            ),
+            ask('mat-compose-orientation'),
+            ask('mat-det-missing'),
+            ask('mat-compose-area+choice', 2),
+            teach(
+              prose(
+                'The rule runs backwards too. If $\\det\\mathbf{A} = 3$ and $\\det\\left(\\mathbf{AB}\\right) = -12$, then $\\det\\mathbf{B} = -12 \\div 3 = -4$, and $\\mathbf{B}$ is the one that turns shapes over.',
+              ),
+              prose(
+                'It also says why a product with a singular matrix in it is singular: one factor of $0$ makes the whole product $0$, and the plane is flattened whatever else happens.',
+              ),
+            ),
+            ask('mat-det-missing+choice', 2),
+            ask('mat-compose-orientation', 2),
+          ],
+          skillCheck: [
+            ask('mat-compose-det', 2),
+            ask('mat-compose-orientation', 2),
+            ask('mat-det-missing', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('mat-compose-matrix', 2),
+        ask('mat-compose-slide', 2),
+        ask('mat-order-point', 2),
+        ask('mat-compose-name', 2),
+        ask('mat-commute-tree', 2),
+        ask('mat-reflect-pair', 2),
+        ask('mat-compose-point', 2),
+        ask('mat-undo-matrix', 2),
+        ask('mat-compose-locate', 2),
+        ask('mat-inverse-tree', 2),
+        ask('mat-commute-which', 2),
+        ask('mat-compose-standard', 2),
+        ask('mat-undo-point', 2),
+        ask('mat-compose-det', 2),
+        ask('mat-compose-orientation', 2),
       ],
     },
   ],

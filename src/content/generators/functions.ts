@@ -2660,6 +2660,1548 @@ const describeWords: Generator<DescribeWordsParams> = {
   ],
 };
 
+/* ======================================================================
+ * Level 3: Graphs of Functions
+ * ==================================================================== */
+
+/**
+ * Sketching is drawing a curve from its features — where it crosses the axes,
+ * the lines it never reaches, what it does at the ends — and reading those
+ * features back off a sketch. Every number a learner types, drags or places
+ * here is whole: a reciprocal curve is built from its asymptotes and a point
+ * chosen so the division comes out, and a parabola from the places a line
+ * meets it.
+ *
+ * Figures set their own $y$ window, since the arms of $\frac{1}{x}$ run off
+ * any window fitted to them, and lift the pen at an asymptote.
+ */
+
+const Y_AXIS = { x: 0, dashed: false };
+
+/** A y window holding the x-axis and every height given, with a margin. */
+function heightsWindow(heights: number[], margin = 1): { yMin: number; yMax: number } {
+  return { yMin: Math.min(0, ...heights) - margin, yMax: Math.max(0, ...heights) + margin };
+}
+
+/** The y-axis, when the window reaches it. */
+function yAxisIn(xMin: number, xMax: number): { x: number; dashed: boolean }[] {
+  return xMin < 0 && xMax > 0 ? [Y_AXIS] : [];
+}
+
+/** a/(x - h) + k as the learner reads it, the sign of a in front. */
+function recipTex(a: number, h: number, k: number): string {
+  return `${a < 0 ? '-' : ''}\\frac{${Math.abs(a)}}{${shiftedX(h)}}${tail(k)}`;
+}
+
+/** (x - p)(x - q), with a bare x for a root at 0. */
+function factorPairTex(p: number, q: number): string {
+  const bracket = (r: number) => (r === 0 ? 'x' : `(${shiftedX(r)})`);
+  return `${bracket(p)}${bracket(q)}`;
+}
+
+/** Options in a stable order whose first entry is the right one, padded with nearby whole numbers. */
+function distinctFirst(correct: string, candidates: string[], pad: number, count = 4): string[] {
+  const out = [correct];
+  for (const candidate of candidates) {
+    if (out.length < count && !out.includes(candidate)) out.push(candidate);
+  }
+  for (let gap = 1; out.length < count; gap += 1) {
+    for (const value of [pad + gap, pad - gap]) {
+      if (out.length < count && !out.includes(`${value}`)) out.push(`${value}`);
+    }
+  }
+  return out;
+}
+
+/* ---------- Lesson 1: intercepts ---------- */
+
+type YInterceptForm = 'factor' | 'vertex' | 'recip' | 'cubic' | 'over';
+
+interface YInterceptParams {
+  form: YInterceptForm;
+  /** The multiplier: in front of a square, on top of a reciprocal, on the x of a quotient. */
+  a: number;
+  /** A root, a vertex's x, or where the bottom of a fraction is zero. */
+  p: number;
+  /** A second root, a vertex's height, the number added, or the constant on top. */
+  q: number;
+  /** The cubic's third root. */
+  r: number;
+}
+
+function yRuleTex({ form, a, p, q, r }: YInterceptParams): string {
+  if (form === 'factor') return factorPairTex(p, q);
+  if (form === 'vertex') return `${a === -1 ? '-' : a}(${shiftedX(p)})^2${tail(q)}`;
+  if (form === 'recip') return recipTex(a, p, q);
+  if (form === 'cubic') return `(${shiftedX(p)})(${shiftedX(q)})(${shiftedX(r)})`;
+  return `\\frac{${linTex(a, q)}}{${shiftedX(p)}}`;
+}
+
+function yInterceptOf({ form, a, p, q, r }: YInterceptParams): number {
+  if (form === 'factor') return p * q;
+  if (form === 'vertex') return a * p * p + q;
+  if (form === 'recip') return q - a / p;
+  if (form === 'cubic') return -p * q * r;
+  return -q / p;
+}
+
+/** The rule with 0 written in for x, then tidied, for the worked solution: two lines, so neither runs off a phone. */
+function yZeroTex({ form, a, p, q, r }: YInterceptParams): [string, string] {
+  if (form === 'factor') return [`(0 ${signedTile(-p)})(0 ${signedTile(-q)})`, `${br(-p)} \\times ${br(-q)}`];
+  if (form === 'vertex') return [`${a}(0 ${signedTile(-p)})^2 ${signedTile(q)}`, `${a} \\times ${p * p} ${signedTile(q)}`];
+  if (form === 'recip') return [`${a < 0 ? '-' : ''}\\frac{${Math.abs(a)}}{0 ${signedTile(-p)}} ${signedTile(q)}`, `${-a / p} ${signedTile(q)}`];
+  if (form === 'cubic') return [`(0 ${signedTile(-p)})(0 ${signedTile(-q)})(0 ${signedTile(-r)})`, `${br(-p)} \\times ${br(-q)} \\times ${br(-r)}`];
+  return [`\\frac{${a} \\times 0 ${signedTile(q)}}{0 ${signedTile(-p)}}`, `\\frac{${q}}{${-p}}`];
+}
+
+/**
+ * Where a curve crosses the $y$-axis: at $x = 0$, so at $f(0)$.
+ *
+ * Put 0 in for every $x$ and the brackets give up their constants. The slip
+ * with $(x - 3)(x + 2)$ is to multiply $3$ by $2$ and keep the signs as
+ * written; difficulty 2 brings a reciprocal, a quotient and a cubic, where the
+ * sign of the answer has to be followed through three negatives.
+ */
+const yIntercept: Generator<YInterceptParams> = {
+  id: 'fun-y-intercept',
+  choices: (params) => {
+    const { form, a, p, q, r } = params;
+    const v = yInterceptOf(params);
+    if (form === 'factor') return numberChoices(v, -v, p + q, -(p + q));
+    if (form === 'vertex') return numberChoices(v, (a * p) ** 2 + q, a * p + q, q);
+    if (form === 'recip') return numberChoices(v, q + a / p, q, a / p);
+    if (form === 'cubic') return numberChoices(v, -v, p + q + r, p * q);
+    return numberChoices(v, -v, q, a);
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const form = rng.pick(hard ? (['recip', 'cubic', 'over', 'vertex'] as const) : (['factor', 'vertex'] as const));
+    if (form === 'factor') {
+      const p = rng.pick(nonZeroRange(-6, 6));
+      const q = rng.pick(nonZeroRange(-6, 6).filter((value) => value !== p));
+      return { form, a: 1, p, q, r: 0 };
+    }
+    if (form === 'vertex') {
+      const a = rng.pick(hard ? [-3, -2, -1, 2, 3, 4] : [2, 3, 4]);
+      return { form, a, p: rng.pick(nonZeroRange(-4, 4)), q: rng.pick(nonZeroRange(-9, 9)), r: 0 };
+    }
+    if (form === 'recip') {
+      const p = rng.pick(nonZeroRange(-4, 4));
+      return { form, a: p * rng.pick(nonZeroRange(-4, 4)), p, q: rng.pick(nonZeroRange(-6, 6)), r: 0 };
+    }
+    if (form === 'cubic') {
+      const [p, q, r] = rng.sample(nonZeroRange(-4, 4), 3);
+      return { form, a: 1, p, q, r };
+    }
+    const p = rng.pick(nonZeroRange(-4, 4));
+    return { form, a: rng.pick(nonZeroRange(-5, 5)), p, q: p * rng.pick(nonZeroRange(-5, 5)), r: 0 };
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Where does $y = ${yRuleTex(params)}$ cross the $y$-axis? Give the $y$-coordinate.`,
+      },
+    ],
+    lead: 'y =',
+    keypad: [],
+    answer: `${yInterceptOf(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const v = yInterceptOf(params);
+    const [written, tidied] = yZeroTex(params);
+    return [
+      { text: 'The $y$-axis is the line $x = 0$, so the curve crosses it at $f(0)$: write $0$ for every $x$.' },
+      { tex: `f(0) = ${written}` },
+      { tex: `${tidied} = ${v}` },
+      { text: `It crosses the $y$-axis at $(0, ${v})$.` },
+    ];
+  },
+};
+
+interface RootSliderParams {
+  form: 'factor' | 'expanded' | 'recip';
+  /** The roots of a quadratic, p < q; for a reciprocal, p is its one root. */
+  p: number;
+  q: number;
+  side: 'left' | 'right';
+  /** The reciprocal a/(x - h) + k. */
+  a: number;
+  h: number;
+  k: number;
+}
+
+function rootAnswer({ form, p, q, side }: RootSliderParams): number {
+  if (form === 'recip') return p;
+  return side === 'left' ? p : q;
+}
+
+function rootRuleTex({ form, p, q, a, h, k }: RootSliderParams): string {
+  if (form === 'factor') return factorPairTex(p, q);
+  if (form === 'expanded') return polyTex([[1, 2], [-(p + q), 1], [p * q, 0]]);
+  return recipTex(a, h, k);
+}
+
+/**
+ * An $x$-intercept, found from the rule and dragged to on the curve.
+ *
+ * The figure has no numbers on its axis, so the picture confirms rather than
+ * answers: the learner works out where $y = 0$ and watches the line land on
+ * the crossing. Difficulty 2 expands the quadratic, so it has to be factorised
+ * first, or gives a reciprocal, whose one crossing comes from solving
+ * $\frac{a}{x - h} = -k$.
+ */
+const rootSlider: Generator<RootSliderParams> = {
+  id: 'fun-root-slider',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(difficulty > 1 ? (['expanded', 'recip', 'expanded'] as const) : (['factor'] as const));
+    const side = rng.pick(['left', 'right'] as const);
+    if (form === 'recip') {
+      return drawUntil(
+        () => {
+          const k = rng.pick(nonZeroRange(-3, 3));
+          const p = rng.pick(nonZeroRange(-5, 5));
+          const h = rng.pick(nonZeroRange(-5, 5));
+          return { form, p, q: 0, side, a: k * (h - p), h, k };
+        },
+        (params) => params.h !== params.p && Math.abs(params.a) <= 12,
+        { form, p: 3, q: 0, side, a: 2, h: 1, k: 1 },
+      );
+    }
+    const [first, second] = rng.sample(nonZeroRange(-5, 5), 2);
+    const p = Math.min(first, second);
+    const q = Math.max(first, second);
+    if (q - p > 7) return { form, p: Math.max(p, q - 7), q, side, a: 1, h: 0, k: 0 };
+    return { form, p, q, side, a: 1, h: 0, k: 0 };
+  },
+  render: (params): Slide => {
+    const { form, p, q, side, a, h, k } = params;
+    const recip = form === 'recip';
+    const f = recip ? (x: number) => a / (x - h) + k : (x: number) => (x - p) * (x - q);
+    const window = recip ? { yMin: k - 6, yMax: k + 6 } : heightsWindow([-(((q - p) / 2) ** 2), 4]);
+    const rule = rootRuleTex(params);
+    const text = recip
+      ? `$y = ${rule}$ crosses the $x$-axis once. Slide the line to where it crosses.`
+      : `$y = ${rule}$ crosses the $x$-axis twice. ${form === 'expanded' ? 'Factorise it, then slide' : 'Slide'} the line to the crossing on the ${side}.`;
+    return {
+      kind: 'slider',
+      prompt: [{ kind: 'prose', text }],
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: rootAnswer(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -6,
+          xMax: 6,
+          ...window,
+          curves: [{ f, breaks: recip }],
+          verticals: [Y_AXIS],
+          label: recip ? 'A reciprocal curve crossing the x-axis once' : 'A parabola crossing the x-axis twice',
+        }),
+        ...markerWindow(-6, 6),
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { form, p, q, side, a, h, k } = params;
+    if (form === 'recip') {
+      return [
+        { text: 'On the $x$-axis $y = 0$, so solve the rule equal to $0$.' },
+        { tex: `${recipTex(a, h, k)} = 0` },
+        { tex: `\\frac{${a}}{${shiftedX(h)}} = ${-k}` },
+        { tex: `${shiftedX(h)} = ${a / -k}` },
+        { tex: `x = ${p}` },
+      ];
+    }
+    const steps: SolutionStep[] = [];
+    if (form === 'expanded') {
+      steps.push({ text: 'Factorise: two numbers that multiply to the constant and add to the $x$ coefficient.' });
+      steps.push({ tex: `${rootRuleTex(params)} = ${factorPairTex(p, q)}` });
+    }
+    steps.push({ text: 'On the $x$-axis $y = 0$, and a product is $0$ when one of its brackets is.' });
+    steps.push({ tex: `x = ${p} \\text{ or } x = ${q}` });
+    steps.push({ text: `The crossing on the ${side} is $x = ${side === 'left' ? p : q}$.` });
+    return steps;
+  },
+};
+
+interface InterceptsParams {
+  form: 'line' | 'recip';
+  /** A line's gradient, or the reciprocal's numerator. */
+  a: number;
+  /** A line's root, or the reciprocal's vertical asymptote. */
+  h: number;
+  /** The reciprocal's horizontal asymptote. */
+  k: number;
+}
+
+function interceptsOf({ form, a, h, k }: InterceptsParams): { y0: number; x0: number } {
+  if (form === 'line') return { y0: -a * h, x0: h };
+  return { y0: k - a / h, x0: h - a / k };
+}
+
+function interceptsRuleTex(params: InterceptsParams): string {
+  const { form, a, h, k } = params;
+  return form === 'line' ? linTex(a, -a * h) : recipTex(a, h, k);
+}
+
+/**
+ * Both intercepts, as coordinates.
+ *
+ * The two halves ask opposite things — put $x = 0$ in, or solve $y = 0$ —
+ * and the tiles make the learner keep them apart: the $y$-intercept's number
+ * goes in the second place of its pair and the $x$-intercept's in the first.
+ * Difficulty 2 asks it of a reciprocal curve, built so both come out whole.
+ */
+const intercepts: Generator<InterceptsParams> = {
+  id: 'fun-intercepts',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) {
+      return { form: 'line', a: rng.pick(nonZeroRange(-5, 5)), h: rng.pick(nonZeroRange(-6, 6)), k: 0 };
+    }
+    return drawUntil(
+      () => ({
+        form: 'recip' as const,
+        a: rng.pick(nonZeroRange(-12, 12)),
+        h: rng.pick(nonZeroRange(-4, 4)),
+        k: rng.pick(nonZeroRange(-4, 4)),
+      }),
+      (params) => {
+        const { y0, x0 } = interceptsOf(params);
+        return params.a % params.h === 0 && params.a % params.k === 0 && y0 !== 0 && x0 !== 0;
+      },
+      { form: 'recip', a: 6, h: 3, k: 3 },
+    );
+  },
+  render: (params): Slide => {
+    const { form, a, h, k } = params;
+    const { y0, x0 } = interceptsOf(params);
+    const answer = [`${y0}`, `${x0}`];
+    const distractors =
+      form === 'line'
+        ? [`${-y0}`, `${-x0}`, `${a}`, `${x0 + 1}`]
+        : [`${-y0}`, `${-x0}`, `${k}`, `${h}`, `${-a / h}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Complete the points where $y = ${interceptsRuleTex(params)}$ meets the $y$-axis and the $x$-axis.`,
+        },
+      ],
+      template: '(0, {0}) \\text{ and } ({1}, 0)',
+      bank: bankOf(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { form, a, h, k } = params;
+    const { y0, x0 } = interceptsOf(params);
+    const rule = interceptsRuleTex(params);
+    if (form === 'line') {
+      return [
+        { text: `On the $y$-axis $x = 0$, so $y = ${a} \\times 0 ${signedTile(-a * h)} = ${y0}$.` },
+        { text: 'On the $x$-axis $y = 0$, so solve:' },
+        { tex: `${rule} = 0 \\implies x = ${x0}` },
+        { tex: `(0, ${y0}) \\text{ and } (${x0}, 0)` },
+      ];
+    }
+    return [
+      { text: `On the $y$-axis $x = 0$: $y = \\frac{${a}}{${-h}} ${signedTile(k)} = ${y0}$.` },
+      { text: `On the $x$-axis $y = 0$: $\\frac{${a}}{${shiftedX(h)}} = ${-k}$, so $${shiftedX(h)} = ${-a / k}$.` },
+      { tex: `(0, ${y0}) \\text{ and } (${x0}, 0)` },
+    ];
+  },
+};
+
+interface GraphRuleParams {
+  /** 1 for a parabola opening upwards, -1 for one opening downwards. */
+  s: number;
+  p: number;
+  q: number;
+}
+
+function signedPairTex(s: number, p: number, q: number): string {
+  return `y = ${s < 0 ? '-' : ''}${factorPairTex(p, q)}`;
+}
+
+/**
+ * The rule read off a sketch.
+ *
+ * The roots are counted on squared paper and each becomes a bracket with its
+ * sign turned round — a root at $x = 3$ is $(x - 3)$. The options are the
+ * right roots, the signs kept as seen, and one of each; difficulty 2 lets the
+ * curve open downwards and offers the rule without the minus in front.
+ */
+const graphRule: Generator<GraphRuleParams> = {
+  id: 'fun-graph-rule',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const [first, second] = rng.sample(nonZeroRange(-5, 5), 2);
+        return {
+          s: difficulty > 1 ? rng.pick([1, -1]) : 1,
+          p: Math.min(first, second),
+          q: Math.max(first, second),
+        };
+      },
+      ({ p, q }) => p !== -q && q - p <= 5,
+      { s: 1, p: -1, q: 3 },
+    ),
+  render: (params): Slide => {
+    const { s, p, q } = params;
+    const f = (x: number) => s * (x - p) * (x - q);
+    const labels = [
+      signedPairTex(s, p, q),
+      signedPairTex(s, -p, -q),
+      signedPairTex(s, p, -q),
+      s > 0 ? signedPairTex(s, -p, q) : signedPairTex(-s, p, q),
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: -6,
+            xMax: 6,
+            yMin: -7,
+            yMax: 7,
+            grid: true,
+            height: 180,
+            curves: [{ f }],
+            marks: [
+              { x: p, y: 0 },
+              { x: q, y: 0 },
+            ],
+            label: `A parabola opening ${s > 0 ? 'upwards' : 'downwards'} and crossing the x-axis twice`,
+          }),
+        },
+        { kind: 'prose', text: 'Each square is one unit. Which rule draws this curve?' },
+      ],
+      ...fixedChoice(labels.map((label) => ({ label, tex: true }))),
+    };
+  },
+  solution: ({ s, p, q }) => {
+    const steps: SolutionStep[] = [
+      { text: `The curve crosses the $x$-axis at $x = ${p}$ and $x = ${q}$.` },
+      { text: `A root at $x = r$ comes from a bracket $(x - r)$, so these are $(${shiftedX(p)})$ and $(${shiftedX(q)})$ — each sign turned round.` },
+    ];
+    if (s < 0) steps.push({ text: 'The curve opens downwards, so the rule has a minus in front.' });
+    steps.push({ tex: signedPairTex(s, p, q) });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 2: graphs of a/(x - h) + k ---------- */
+
+interface AsymptoteParams {
+  /** `plain` a/(x - h) + k; `scaled` a/(mx - mh) + k; `flipped` a/(h - x) + k. */
+  form: 'plain' | 'scaled' | 'flipped';
+  a: number;
+  h: number;
+  k: number;
+  m: number;
+}
+
+/** The fraction on its own, without the + k. */
+function asymptoteFractionTex({ form, a, h, m }: AsymptoteParams): string {
+  const sign = a < 0 ? '-' : '';
+  if (form === 'scaled') return `${sign}\\frac{${Math.abs(a)}}{${linTex(m, -m * h)}}`;
+  if (form === 'flipped') return `${sign}\\frac{${Math.abs(a)}}{${h} - x}`;
+  return `${sign}\\frac{${Math.abs(a)}}{${shiftedX(h)}}`;
+}
+
+function asymptoteRuleTex(params: AsymptoteParams): string {
+  return `${asymptoteFractionTex(params)}${tail(params.k)}`;
+}
+
+/** The bottom of the fraction, as the learner reads it. */
+function asymptoteBottomTex({ form, h, m }: AsymptoteParams): string {
+  if (form === 'scaled') return linTex(m, -m * h);
+  if (form === 'flipped') return `${h} - x`;
+  return shiftedX(h);
+}
+
+function asymptoteCurve({ form, a, h, k, m }: AsymptoteParams): (x: number) => number {
+  if (form === 'scaled') return (x) => a / (m * (x - h)) + k;
+  if (form === 'flipped') return (x) => a / (h - x) + k;
+  return (x) => a / (x - h) + k;
+}
+
+function sampleAsymptote(rng: Rng, difficulty: number): AsymptoteParams {
+  const hard = difficulty > 1;
+  return {
+    form: hard ? rng.pick(['scaled', 'flipped', 'scaled'] as const) : 'plain',
+    a: rng.pick(nonZeroRange(-6, 6)),
+    h: rng.pick(nonZeroRange(-5, 5)),
+    k: rng.pick(nonZeroRange(-4, 4)),
+    m: rng.int(2, 4),
+  };
+}
+
+function asymptoteSteps(params: AsymptoteParams): SolutionStep[] {
+  const { h, k } = params;
+  return [
+    { text: 'The curve cannot exist where the bottom of the fraction is zero, so there is a vertical asymptote there.' },
+    { tex: `${asymptoteBottomTex(params)} = 0 \\implies x = ${h}` },
+    { text: `As $x$ grows, the fraction gets closer and closer to $0$, so $y$ heads for $${k}$ without reaching it.` },
+    { tex: `x = ${h}, \\quad y = ${k}` },
+  ];
+}
+
+/**
+ * The vertical asymptote, dragged to on the curve.
+ *
+ * It is where the bottom of the fraction is zero. Difficulty 2 hides it: in
+ * $\frac{a}{2x - 6}$ the number on show is $6$ and the asymptote is at $3$,
+ * and in $\frac{a}{3 - x}$ it is at $3$ although the sign reads the other way.
+ */
+const asymptoteSlider: Generator<AsymptoteParams> = {
+  id: 'fun-asymptote-slider',
+  sample: sampleAsymptote,
+  render: (params): Slide => {
+    const { k } = params;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$y = ${asymptoteRuleTex(params)}$ has a vertical asymptote, a line $x = h$ the curve never reaches. Slide the line to it.`,
+        },
+      ],
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: params.h,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -6,
+          xMax: 6,
+          yMin: k - 6,
+          yMax: k + 6,
+          curves: [{ f: asymptoteCurve(params), breaks: true }],
+          verticals: [Y_AXIS],
+          label: 'A reciprocal curve in two pieces',
+        }),
+        ...markerWindow(-6, 6),
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => asymptoteSteps(params).slice(0, 2),
+};
+
+/**
+ * Both asymptotes, as equations.
+ *
+ * $x = h$ from the bottom of the fraction and $y = k$ from the number added
+ * on. The bank holds each with its sign turned round, the numerator, and at
+ * difficulty 2 the number showing in $2x - 6$ in place of the $3$ it hides.
+ */
+const asymptoteTiles: Generator<AsymptoteParams> = {
+  id: 'fun-asymptote-tiles',
+  sample: sampleAsymptote,
+  render: (params): Slide => {
+    const { form, a, h, k, m } = params;
+    const answer = [`${h}`, `${k}`];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Complete the asymptotes of $y = ${asymptoteRuleTex(params)}$.` }],
+      template: 'x = {0}, \\quad y = {1}',
+      bank: bankOf(answer, [`${-h}`, `${-k}`, `${a}`, form === 'scaled' ? `${m * h}` : `${h + k}`]),
+      answer,
+    };
+  },
+  solution: asymptoteSteps,
+};
+
+/**
+ * From the rule to each asymptote, one question at a time.
+ *
+ * First where the bottom is zero, then what the fraction does as $x$ grows —
+ * which is the reason for the horizontal one, and the step a learner who only
+ * remembers "$y = k$" has never thought about.
+ */
+const asymptoteFlow: Generator<AsymptoteParams> = {
+  id: 'fun-asymptote-flow',
+  sample: sampleAsymptote,
+  render: (params): Slide => {
+    const { form, a, h, k, m } = params;
+    const alternative = form === 'scaled' ? m * h : a;
+    const wrong = alternative === h || alternative === -h ? h + Math.sign(h) : alternative;
+    const zeros = [h, -h, wrong].sort((x, y) => x - y);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Find both asymptotes of this curve.' }],
+      subject: `y = ${asymptoteRuleTex(params)}`,
+      steps: [
+        {
+          id: 'bottom',
+          ask: `Which value of $x$ makes the bottom, $${asymptoteBottomTex(params)}$, zero?`,
+          branches: zeros.map((value) => ({ label: `$x = ${value}$`, to: 'far' })),
+        },
+        {
+          id: 'far',
+          ask: `As $x$ gets very large, what does $${asymptoteFractionTex(params)}$ head for?`,
+          branches: [
+            // Says nothing of the first answer, which may have been wrong.
+            { label: '$0$', outcome: `So $y$ heads for $${k}$, and the horizontal asymptote is $y = ${k}$.` },
+            { label: `$${a}$`, outcome: `So $y$ heads for $${a + k}$.` },
+            { label: 'It grows without limit', outcome: 'So $y$ has no horizontal asymptote.' },
+          ],
+        },
+      ],
+      answer: [`$x = ${h}$`, '$0$'],
+    };
+  },
+  solution: asymptoteSteps,
+};
+
+interface FindKParams {
+  form: 'point' | 'yAxis' | 'xAxis';
+  a: number;
+  h: number;
+  k: number;
+  /** How far across from the vertical asymptote the given point is. */
+  d: number;
+}
+
+/** The point the question gives. */
+function findKPoint({ form, a, h, k, d }: FindKParams): [number, number] {
+  if (form === 'yAxis') return [0, k - a / h];
+  if (form === 'xAxis') return [h + d, 0];
+  return [h + d, k + a / d];
+}
+
+/**
+ * The number added on, from one point on the curve.
+ *
+ * Put the point in and $k$ is all that is left to find. Difficulty 2 gives
+ * the point as where the curve crosses an axis, so the learner has to know
+ * which coordinate is $0$.
+ */
+const findK: Generator<FindKParams> = {
+  id: 'fun-asymptote-k',
+  sample: (rng, difficulty) => {
+    const h = rng.pick(nonZeroRange(-4, 4));
+    const k = rng.pick(nonZeroRange(-6, 6));
+    if (difficulty <= 1) {
+      const d = rng.pick(nonZeroRange(-3, 3));
+      return { form: 'point', a: d * rng.pick(nonZeroRange(-4, 4)), h, k, d };
+    }
+    const form = rng.pick(['yAxis', 'xAxis'] as const);
+    if (form === 'yAxis') return { form, a: h * rng.pick(nonZeroRange(-4, 4)), h, k, d: -h };
+    const d = rng.pick(nonZeroRange(-4, 4));
+    return { form, a: -k * d, h, k, d };
+  },
+  render: (params): Slide => {
+    const { form, a, h } = params;
+    const [p, q] = findKPoint(params);
+    const where =
+      form === 'point'
+        ? `passes through $(${p}, ${q})$`
+        : form === 'yAxis'
+          ? `crosses the $y$-axis at $(0, ${q})$`
+          : `crosses the $x$-axis at $(${p}, 0)$`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `The curve $y = ${recipTex(a, h, 0)} + k$ ${where}. Find $k$.` }],
+      lead: 'k =',
+      keypad: [],
+      answer: `${params.k}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { a, h, k } = params;
+    const [p, q] = findKPoint(params);
+    const fraction = a / (p - h);
+    return [
+      { text: `Put $x = ${p}$ and $y = ${q}$ into the rule.` },
+      { tex: `${q} = \\frac{${a}}{${br(p)} ${signedTile(-h)}} + k` },
+      { tex: `${q} = ${fraction} + k` },
+      { tex: `k = ${q} ${signedTile(-fraction)} = ${k}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: the ends ---------- */
+
+type EndForm = 'ratio' | 'recip' | 'square' | 'cubic' | 'exp';
+
+interface EndParams {
+  form: EndForm;
+  end: 'left' | 'right';
+  a: number;
+  b: number;
+  /** A shift or a constant; for `exp`, 1 for 2^x and -1 for 2^{-x}. */
+  h: number;
+}
+
+type Limit = number | 'inf' | '-inf';
+
+function endRuleTex({ form, a, b, h }: EndParams): string {
+  if (form === 'ratio') return `\\frac{${linTex(a, b)}}{${shiftedX(h)}}`;
+  if (form === 'recip') return recipTex(a, h, b);
+  if (form === 'square') return polyTex([[a, 2], [b, 1], [h, 0]]);
+  if (form === 'cubic') return polyTex([[a, 3], [b, 1], [h, 0]]);
+  return `${a === 1 ? '' : `${a} \\times `}2^{${h > 0 ? 'x' : '-x'}} ${signedTile(b)}`;
+}
+
+function limitAt({ form, a, b, h }: EndParams, end: 'left' | 'right'): Limit {
+  const up = (positive: boolean): Limit => (positive ? 'inf' : '-inf');
+  if (form === 'ratio') return a;
+  if (form === 'recip') return b;
+  if (form === 'square') return up(a > 0);
+  if (form === 'cubic') return up(end === 'right' ? a > 0 : a < 0);
+  const grows = (h > 0) === (end === 'right');
+  return grows ? 'inf' : b;
+}
+
+function limitTex(limit: Limit): string {
+  return limit === 'inf' ? '\\infty' : limit === '-inf' ? '-\\infty' : `${limit}`;
+}
+
+function sampleEnd(rng: Rng, forms: readonly EndForm[]): EndParams {
+  const form = rng.pick(forms);
+  const end = rng.pick(['left', 'right'] as const);
+  if (form === 'ratio') {
+    return drawUntil(
+      () => ({ form, end, a: rng.pick(nonZeroRange(-6, 6)), b: rng.pick(nonZeroRange(-9, 9)), h: rng.pick(nonZeroRange(-5, 5)) }),
+      ({ a, b, h }) => b !== a && b !== -a * h,
+      { form, end, a: 2, b: 3, h: 1 },
+    );
+  }
+  if (form === 'recip') {
+    return drawUntil(
+      () => ({ form, end, a: rng.pick(nonZeroRange(-6, 6)), b: rng.pick(nonZeroRange(-6, 6)), h: rng.pick(nonZeroRange(-5, 5)) }),
+      ({ a, b }) => a !== b,
+      { form, end, a: 2, b: 3, h: 1 },
+    );
+  }
+  if (form === 'exp') return { form, end, a: rng.int(1, 4), b: rng.pick(nonZeroRange(-6, 6)), h: rng.pick([1, -1]) };
+  return { form, end, a: rng.pick(nonZeroRange(-4, 4)), b: rng.pick(nonZeroRange(-6, 6)), h: rng.pick(nonZeroRange(-9, 9)) };
+}
+
+/** One line of working per form, for the end asked about. */
+function endSteps(params: EndParams, end: 'left' | 'right'): SolutionStep[] {
+  const { form, a, b, h } = params;
+  const big = end === 'right' ? 'large and positive' : 'large and negative';
+  const limit = limitTex(limitAt(params, end));
+  if (form === 'ratio') {
+    return [
+      { text: `When $x$ is ${big}, the numbers added on hardly matter: $\\frac{${linTex(a, b)}}{${shiftedX(h)}}$ is nearly $\\frac{${a}x}{x} = ${a}$.` },
+      { tex: `y \\to ${limit}` },
+    ];
+  }
+  if (form === 'recip') {
+    return [
+      { text: `When $x$ is ${big}, the bottom of the fraction is huge, so the fraction heads for $0$ and $y$ for $${b}$.` },
+      { tex: `y \\to ${limit}` },
+    ];
+  }
+  if (form === 'exp') {
+    const power = h > 0 ? '2^x' : '2^{-x}';
+    const shrinks = limitAt(params, end) !== 'inf';
+    return [
+      {
+        text: shrinks
+          ? `When $x$ is ${big}, $${power}$ is a tiny positive number, so $y$ heads for $${b}$.`
+          : `When $x$ is ${big}, $${power}$ doubles again and again without limit.`,
+      },
+      { tex: `y \\to ${limit}` },
+    ];
+  }
+  const power = form === 'square' ? 2 : 3;
+  return [
+    { text: `When $x$ is ${big}, the $x^{${power}}$ term outgrows everything else, so $y$ follows $${termTex(a, power)}$.` },
+    { text: `${form === 'square' ? 'A square is positive either side' : `A cube keeps the sign of $x$`}, and it is multiplied by $${a}$.` },
+    { tex: `y \\to ${limit}` },
+  ];
+}
+
+/**
+ * What the curve does at one end, from four.
+ *
+ * Every family met so far, one question each: a quotient of lines heads for
+ * the ratio of its $x$ terms, a reciprocal for the number added, a square
+ * and a cube run away — the cube in opposite directions at the two ends —
+ * and an exponential does one at one end and the other at the other.
+ */
+const endChoice: Generator<EndParams> = {
+  id: 'fun-end-choice',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? sampleEnd(rng, ['cubic', 'exp', 'ratio', 'recip'])
+      : { ...sampleEnd(rng, ['ratio', 'recip', 'square']), end: 'right' },
+  render: (params): Slide => {
+    const { a, b, end } = params;
+    const limit = limitAt(params, end);
+    const labels = distinctFirst(limitTex(limit), ['\\infty', '-\\infty', '0', `${a}`, `${b}`], typeof limit === 'number' ? limit : 0);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `As $x \\to ${end === 'right' ? '\\infty' : '-\\infty'}$, what happens to $y = ${endRuleTex(params)}$?`,
+        },
+      ],
+      ...fixedChoice(labels.map((value) => ({ label: `y \\to ${value}`, tex: true }))),
+    };
+  },
+  solution: (params) => endSteps(params, params.end),
+};
+
+/**
+ * Both ends at once, as tiles.
+ *
+ * The left end first, then the right. A quotient and a reciprocal head for the
+ * same number both ways, which is what makes the line a horizontal
+ * asymptote; at difficulty 2 a cube and an exponential do different things
+ * at the two ends.
+ */
+const limitTiles: Generator<EndParams> = {
+  id: 'fun-limit-tiles',
+  sample: (rng, difficulty) => sampleEnd(rng, difficulty > 1 ? ['cubic', 'exp', 'cubic', 'ratio'] : ['square', 'recip', 'ratio']),
+  render: (params): Slide => {
+    const { a, b } = params;
+    const answer = [limitTex(limitAt(params, 'left')), limitTex(limitAt(params, 'right'))];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Where does $y = ${endRuleTex(params)}$ head at each end: first on the left, then on the right?` }],
+      template: 'x \\to -\\infty: \\; y \\to {0}, \\quad x \\to \\infty: \\; y \\to {1}',
+      bank: bankOf(answer, ['\\infty', '-\\infty', '0', `${a}`, `${b}`]),
+      answer,
+    };
+  },
+  solution: (params) => [...endSteps(params, 'left'), ...endSteps(params, 'right')],
+};
+
+interface LeadParams {
+  form: 'same' | 'top' | 'bottom';
+  /** The highest power, 1 or 2, on the side it sits. */
+  deg: number;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+function leadTop({ form, deg, a, b }: LeadParams): string {
+  if (form === 'bottom') return deg === 2 ? linTex(a, b) : `${a}`;
+  return polyTex([[a, form === 'top' ? 2 : deg], [b, 0]]);
+}
+
+function leadBottom({ form, deg, c, d }: LeadParams): string {
+  return polyTex([[c, form === 'top' ? 1 : deg], [d, 0]]);
+}
+
+const HIGHER_TOP = 'Higher on the top';
+const HIGHER_SAME = 'The same on both';
+const HIGHER_BOTTOM = 'Higher on the bottom';
+
+/**
+ * The end of a quotient, from its leading terms.
+ *
+ * Only the highest powers matter once $x$ is large. The top's higher: $y$
+ * runs away. The bottom's higher: $y$ dies to $0$. The same: $y$ heads for
+ * the ratio of their coefficients — and the slip there is to take the
+ * top's coefficient alone, or the constants' ratio, which are the other
+ * branches.
+ */
+const leadingFlow: Generator<LeadParams> = {
+  id: 'fun-leading-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const form = rng.pick(['same', 'same', 'top', 'bottom'] as const);
+    const c = rng.pick(hard ? nonZeroRange(-4, 4) : [1, 2, 3, 4]);
+    const q = rng.pick(hard ? nonZeroRange(-5, 5) : range(1, 5));
+    return {
+      form,
+      deg: hard ? 2 : 1,
+      // Whole even where the leading powers differ, since the ratio branch is
+      // still on offer to a learner who says they are the same.
+      a: c * q,
+      b: rng.pick(nonZeroRange(-9, 9)),
+      c,
+      d: rng.pick(nonZeroRange(-9, 9)),
+    };
+  },
+  render: (params): Slide => {
+    const { form, a, b, c, d } = params;
+    const q = a / c;
+    const ratios = distinctFirst(`${q}`, [`${a}`, Number.isInteger(b / d) ? `${b / d}` : `${-q}`, `${-q}`], q, 3)
+      .map(Number)
+      .sort((x, y) => x - y);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'What does $y$ head for as $x$ grows?' }],
+      subject: `y = \\frac{${leadTop(params)}}{${leadBottom(params)}}`,
+      steps: [
+        {
+          id: 'compare',
+          ask: 'Where is the highest power of $x$?',
+          branches: [
+            { label: HIGHER_TOP, outcome: 'The top outgrows the bottom, so $y$ runs away without limit.' },
+            { label: HIGHER_SAME, to: 'ratio' },
+            { label: HIGHER_BOTTOM, outcome: 'The bottom outgrows the top, so $y$ heads for $0$.' },
+          ],
+        },
+        {
+          id: 'ratio',
+          ask: 'Only the leading terms matter. What does $y$ head for?',
+          branches: ratios.map((value) => ({ label: `$${value}$`, outcome: `So $y$ heads for $${value}$.` })),
+        },
+      ],
+      answer: form === 'same' ? [HIGHER_SAME, `$${q}$`] : [form === 'top' ? HIGHER_TOP : HIGHER_BOTTOM],
+    };
+  },
+  solution: (params) => {
+    const { form, deg, a, c } = params;
+    const top = leadTop(params);
+    const bottom = leadBottom(params);
+    if (form === 'same') {
+      const power = deg === 2 ? 'x^2' : 'x';
+      return [
+        { text: `Both have $${power}$ as their highest power. When $x$ is large the rest hardly matters:` },
+        { tex: `\\frac{${top}}{${bottom}} \\approx \\frac{${a}${power}}{${c}${power}} = ${a / c}` },
+        { text: `So $y$ heads for $${a / c}$.` },
+      ];
+    }
+    return form === 'top'
+      ? [
+          { text: `The top has $x^2$ and the bottom only $x$, so the top grows faster.` },
+          { text: `$\\frac{${top}}{${bottom}}$ runs away without limit.` },
+        ]
+      : [
+          { text: 'The bottom has the higher power, so it grows faster than the top.' },
+          { text: `$\\frac{${top}}{${bottom}}$ heads for $0$.` },
+        ];
+  },
+};
+
+interface DivideParams {
+  deg: number;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+/** `3 + \frac{5}{x}` or `3 - \frac{5}{x^2}`: a term after dividing by x^deg. */
+function dividedTex(lead: number, rest: number, deg: number): string {
+  const power = deg === 2 ? 'x^2' : 'x';
+  return `${lead} ${rest < 0 ? '-' : '+'} \\frac{${Math.abs(rest)}}{${power}}`;
+}
+
+/**
+ * Dividing top and bottom by $x$, then letting $x$ grow.
+ *
+ * The working behind "it heads for the ratio": every term over $x$ dies, and
+ * what is left is two numbers. The bank at each stage holds the line a
+ * learner gets by dividing only some of the terms, or by letting the wrong
+ * ones die.
+ */
+const divideSteps: Generator<DivideParams> = {
+  id: 'fun-divide-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const c = rng.pick(hard ? nonZeroRange(-4, 4) : [1, 2, 3, 4]);
+    return drawUntil(
+      () => ({
+        deg: hard ? rng.pick([1, 2]) : 1,
+        a: c * rng.pick(hard ? nonZeroRange(-5, 5) : range(1, 5)),
+        b: rng.pick(nonZeroRange(-9, 9)),
+        c,
+        d: rng.pick(nonZeroRange(-9, 9)),
+      }),
+      ({ a, b, c: bottom, d }) => b / d !== a / bottom,
+      { deg: 1, a: 6, b: 1, c: 2, d: -3 },
+    );
+  },
+  render: (params): Slide => {
+    const { deg, a, b, c, d } = params;
+    const q = a / c;
+    const power = deg === 2 ? 'x^2' : 'x';
+    const start = `\\frac{${polyTex([[a, deg], [b, 0]])}}{${polyTex([[c, deg], [d, 0]])}}`;
+    const divided = `\\frac{${dividedTex(a, b, deg)}}{${dividedTex(c, d, deg)}}`;
+    const constants = `\\frac{${a} ${signedTile(b)}}{${c} ${signedTile(d)}}`;
+    const limit = `\\frac{${a} + 0}{${c} + 0}`;
+    const wrongLimit = `\\frac{0 ${signedTile(b)}}{0 ${signedTile(d)}}`;
+    const ends = [`${a}`, `${-q}`, `${q + 1}`, ...(Number.isInteger(b / d) ? [`${b / d}`] : [])];
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `What does $y = ${start}$ head for as $x$ grows? Divide every term by $${power}$, then let $x$ grow. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [start],
+      reductions: [
+        {
+          span: [0, 1],
+          value: divided,
+          bank: stepBank(divided, constants, `\\frac{${dividedTex(a, b, deg)}}{${polyTex([[c, deg], [d, 0]])}}`),
+        },
+        { span: [0, 1], value: limit, bank: stepBank(limit, wrongLimit, constants) },
+        { span: [0, 1], value: `${q}`, bank: stepBank(`${q}`, ...ends.filter((value) => value !== `${q}`)) },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { deg, a, b, c, d } = params;
+    const power = deg === 2 ? 'x^2' : 'x';
+    return [
+      { text: `Divide every term on the top and the bottom by $${power}$; the fraction's value does not change.` },
+      { tex: `\\frac{${dividedTex(a, b, deg)}}{${dividedTex(c, d, deg)}}` },
+      { text: `As $x$ grows, $\\frac{${Math.abs(b)}}{${power}}$ and $\\frac{${Math.abs(d)}}{${power}}$ shrink to $0$.` },
+      { tex: `\\frac{${a} + 0}{${c} + 0} = ${a / c}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: f(x) = k as a horizontal line ---------- */
+
+type MeetCurve = 'up' | 'down' | 'cubic' | 'recip';
+
+interface MeetCountParams {
+  curve: MeetCurve;
+  h: number;
+  c: number;
+  k: number;
+  /** The reciprocal's numerator, or the cubic's direction. */
+  s: number;
+}
+
+function meetCountOf({ curve, c, k }: MeetCountParams): number {
+  if (curve === 'up') return k > c ? 2 : k === c ? 1 : 0;
+  if (curve === 'down') return k < c ? 2 : k === c ? 1 : 0;
+  if (curve === 'cubic') return Math.abs(k - c) < 2 ? 3 : Math.abs(k - c) === 2 ? 2 : 1;
+  return k === c ? 0 : 1;
+}
+
+function meetCurve({ curve, h, c, s }: MeetCountParams): (x: number) => number {
+  if (curve === 'up') return (x) => (x - h) ** 2 + c;
+  if (curve === 'down') return (x) => c - (x - h) ** 2;
+  if (curve === 'cubic') return (x) => s * ((x - h) ** 3 - 3 * (x - h)) + c;
+  return (x) => s / (x - h) + c;
+}
+
+function parabolaTex(up: boolean, h: number, c: number): string {
+  const square = h === 0 ? 'x^2' : `(${shiftedX(h)})^2`;
+  return up ? `${square}${tail(c)}` : `${c} - ${square}`;
+}
+
+const COUNT_WORDS = ['No solutions', 'One solution', 'Two solutions', 'Three solutions'];
+
+/**
+ * How many solutions $f(x) = k$ has, counted off a picture.
+ *
+ * Each solution is a place the line $y = k$ meets the curve. A line through
+ * the vertex touches once; a line along a reciprocal's asymptote never meets
+ * it at all, which is difficulty 2's trap, alongside a cubic that can be met
+ * once, twice or three times.
+ */
+const meetCount: Generator<MeetCountParams> = {
+  id: 'fun-meet-count',
+  sample: (rng, difficulty) => {
+    const curve = rng.pick(difficulty > 1 ? (['cubic', 'recip', 'cubic', 'down'] as const) : (['up', 'down'] as const));
+    const offsets = curve === 'cubic' ? [-3, -2, -1, 0, 1, 2, 3] : curve === 'recip' ? [0, 0, -2, -1, 1, 2] : [-2, -1, 0, 0, 1, 2, 3];
+    return drawUntil(
+      () => {
+        const c = rng.pick(nonZeroRange(curve === 'cubic' ? -3 : -5, curve === 'cubic' ? 3 : 5));
+        const flip = curve === 'down' ? -1 : 1;
+        return {
+          curve,
+          h: rng.int(-3, 3),
+          c,
+          k: c + flip * rng.pick(offsets),
+          s: curve === 'recip' ? rng.pick(nonZeroRange(-3, 3)) : rng.pick([1, -1]),
+        };
+      },
+      ({ k }) => k !== 0,
+      { curve, h: 1, c: 2, k: 3, s: 1 },
+    );
+  },
+  render: (params): Slide => {
+    const { curve, h, c, k } = params;
+    const width = curve === 'cubic' ? 3 : curve === 'recip' ? 5 : 4;
+    const xMin = h - width;
+    const xMax = h + width;
+    const window =
+      curve === 'recip'
+        ? { yMin: c - 5, yMax: c + 5 }
+        : curve === 'cubic'
+          ? heightsWindow([c - 2, c + 2, k], 3)
+          : curve === 'up'
+            ? { yMin: Math.min(0, c, k) - 1, yMax: Math.max(0, c, k) + 5 }
+            : { yMin: Math.min(0, c, k) - 5, yMax: Math.max(0, c, k) + 1 };
+    const named = curve === 'up' || curve === 'down';
+    const count = meetCountOf(params);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin,
+            xMax,
+            ...window,
+            curves: [{ f: meetCurve(params), breaks: curve === 'recip' }],
+            horizontals: [k],
+            verticals: yAxisIn(xMin, xMax),
+            label: `A curve and the dashed line y = ${k}`,
+          }),
+        },
+        {
+          kind: 'prose',
+          text: named
+            ? `$f(x) = ${parabolaTex(curve === 'up', h, c)}$, drawn with the dashed line $y = ${k}$. How many solutions has $f(x) = ${k}$?`
+            : `The curve is $y = f(x)$ and the dashed line is $y = ${k}$. How many solutions has $f(x) = ${k}$?`,
+        },
+      ],
+      ...fixedChoice([COUNT_WORDS[count], ...COUNT_WORDS.filter((_, idx) => idx !== count)].map((label) => ({ label }))),
+    };
+  },
+  solution: (params) => {
+    const { curve, c, k } = params;
+    const count = meetCountOf(params);
+    const steps: SolutionStep[] = [
+      { text: `Each solution of $f(x) = ${k}$ is an $x$ where the curve is at height $${k}$: a place the line meets it.` },
+    ];
+    if (curve === 'up' || curve === 'down') {
+      steps.push({
+        text: `The vertex is at height $${c}$${k === c ? ', and the line goes through it: it touches once' : `, and the line is ${(k > c) === (curve === 'up') ? 'on the side the arms go, so it cuts both arms' : 'on the side the arms never reach'}`}.`,
+      });
+    } else if (curve === 'recip') {
+      steps.push({
+        text: k === c ? `The line is the asymptote $y = ${c}$, which the curve never reaches.` : `The line is not the asymptote, so exactly one branch crosses it.`,
+      });
+    } else {
+      steps.push({ text: `The turning points are at heights $${c - 2}$ and $${c + 2}$; the line is ${Math.abs(k - c) < 2 ? 'between them' : Math.abs(k - c) === 2 ? 'level with one of them' : 'outside them'}.` });
+    }
+    steps.push({ text: `${COUNT_WORDS[count]}.` });
+    return steps;
+  },
+};
+
+interface MeetFlowParams {
+  up: boolean;
+  /** Difficulty 2: ask which way it opens first. */
+  open: boolean;
+  h: number;
+  c: number;
+  k: number;
+}
+
+const OPENS_UP = 'Upwards';
+const OPENS_DOWN = 'Downwards';
+const LINE_ABOVE = 'Above it';
+const LINE_LEVEL = 'Level with it';
+const LINE_BELOW = 'Below it';
+
+/**
+ * How many solutions, from the vertex rather than a picture.
+ *
+ * $(x - h)^2 + c$ is lowest at height $c$, so $= k$ has two solutions above
+ * that, one at it and none below — and the other way round when the square
+ * is taken away. The vertex's height is asked first, with the $h$ from the
+ * bracket among the branches.
+ */
+const meetFlow: Generator<MeetFlowParams> = {
+  id: 'fun-meet-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const c = rng.pick(nonZeroRange(-6, 6));
+        return {
+          up: hard ? rng.chance(0.5) : true,
+          open: hard,
+          h: rng.pick(nonZeroRange(-5, 5)),
+          c,
+          k: c + rng.pick([-4, -2, -1, 0, 1, 3, 5]),
+        };
+      },
+      ({ h, c }) => h !== c && h !== -c,
+      { up: true, open: hard, h: 2, c: -3, k: 1 },
+    );
+  },
+  render: (params): Slide => {
+    const { up, open, h, c, k } = params;
+    const heights = [c, -c, h].sort((x, y) => x - y);
+    const vertex = (side: 'Up' | 'Down') => ({
+      id: `vertex${side}`,
+      ask: `Its ${side === 'Up' ? 'lowest' : 'highest'} point is the vertex. How high is it?`,
+      branches: heights.map((value) => ({ label: `$${value}$`, to: `compare${side}` })),
+    });
+    const compare = (side: 'Up' | 'Down') => {
+      const two = 'The line cuts both arms: two solutions.';
+      const none = 'The line misses the curve: no solutions.';
+      return {
+        id: `compare${side}`,
+        ask: `Is the line $y = ${k}$ above the vertex, level with it, or below it?`,
+        branches: [
+          { label: LINE_ABOVE, outcome: side === 'Up' ? two : none },
+          { label: LINE_LEVEL, outcome: 'The line touches the vertex: one solution.' },
+          { label: LINE_BELOW, outcome: side === 'Up' ? none : two },
+        ],
+      };
+    };
+    const position = k > c ? LINE_ABOVE : k === c ? LINE_LEVEL : LINE_BELOW;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'How many solutions has this equation?' }],
+      subject: `${parabolaTex(up, h, c)} = ${k}`,
+      steps: open
+        ? [
+            {
+              id: 'open',
+              ask: 'Which way does the parabola open?',
+              branches: [
+                { label: OPENS_UP, to: 'vertexUp' },
+                { label: OPENS_DOWN, to: 'vertexDown' },
+              ],
+            },
+            vertex('Up'),
+            vertex('Down'),
+            compare('Up'),
+            compare('Down'),
+          ]
+        : [vertex('Up'), compare('Up')],
+      answer: [...(open ? [up ? OPENS_UP : OPENS_DOWN] : []), `$${c}$`, position],
+    };
+  },
+  solution: ({ up, h, c, k }) => {
+    const count = up ? (k > c ? 2 : k === c ? 1 : 0) : k < c ? 2 : k === c ? 1 : 0;
+    return [
+      {
+        text: up
+          ? `A square is never negative, so $${parabolaTex(true, h, c)}$ is lowest when the bracket is $0$: the vertex is at height $${c}$, and the curve opens upwards.`
+          : `The square is taken away, so $${parabolaTex(false, h, c)}$ is highest when the bracket is $0$: the vertex is at height $${c}$, and the curve opens downwards.`,
+      },
+      { text: `The line $y = ${k}$ is ${k > c ? 'above' : k === c ? 'level with' : 'below'} it.` },
+      { text: `${COUNT_WORDS[count]}.` },
+    ];
+  },
+};
+
+interface MeetSolveParams {
+  form: 'square' | 'expanded';
+  h: number;
+  c: number;
+  d: number;
+  larger: boolean;
+}
+
+function meetSolveRuleTex({ form, h, c }: MeetSolveParams): string {
+  return form === 'square' ? parabolaTex(true, h, c) : polyTex([[1, 2], [-2 * h, 1], [h * h + c, 0]]);
+}
+
+function meetSolveAnswer({ h, d, larger }: MeetSolveParams): number {
+  return larger ? h + d : h - d;
+}
+
+/**
+ * One solution of $(x - h)^2 + c = k$, typed.
+ *
+ * Take $c$ over, square-root both sides — both roots — and add $h$ back.
+ * The question names which solution it wants so the answer is one number.
+ * Difficulty 2 gives the rule expanded, so the square has to be completed
+ * first, and sometimes asks for the smaller one.
+ */
+const meetSolve: Generator<MeetSolveParams> = {
+  id: 'fun-meet-solve',
+  choices: (params) => {
+    const { h, c, d } = params;
+    const x = meetSolveAnswer(params);
+    return numberChoices(x, 2 * h - x, -x, h + d * d, h + c + d, d);
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      form: hard ? rng.pick(['expanded', 'expanded', 'square'] as const) : 'square',
+      h: rng.pick(nonZeroRange(-5, 5)),
+      c: rng.pick(nonZeroRange(-6, 6)),
+      d: rng.int(1, hard ? 5 : 4),
+      larger: hard ? rng.chance(0.5) : true,
+    };
+  },
+  render: (params): Slide => {
+    const { c, d, larger } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve $${meetSolveRuleTex(params)} = ${c + d * d}$. Give the ${larger ? 'larger' : 'smaller'} solution.`,
+        },
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: `${meetSolveAnswer(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { form, h, c, d, larger } = params;
+    const steps: SolutionStep[] = [];
+    if (form === 'expanded') {
+      steps.push({ text: 'Complete the square first.' });
+      steps.push({ tex: `${meetSolveRuleTex(params)} = ${parabolaTex(true, h, c)}` });
+    }
+    steps.push({ text: `${c > 0 ? `Take $${c}$ from` : `Add $${-c}$ to`} both sides, then square-root: both signs.` });
+    steps.push({ tex: `(${shiftedX(h)})^2 = ${d * d}` });
+    steps.push({ tex: `${shiftedX(h)} = \\pm ${d}` });
+    steps.push({ tex: `x = ${h + d} \\text{ or } x = ${h - d}` });
+    steps.push({ text: `The ${larger ? 'larger' : 'smaller'} is $${meetSolveAnswer(params)}$.` });
+    return steps;
+  },
+};
+
+interface MeetTilesParams {
+  m: number;
+  r: number;
+  s: number;
+  k: number;
+}
+
+/** m(x - r)(x - s) + k, multiplied out. */
+function meetTilesRule({ m, r, s, k }: MeetTilesParams): string {
+  return polyTex([[m, 2], [-m * (r + s), 1], [m * r * s + k, 0]]);
+}
+
+/**
+ * Where the line meets the curve: both $x$ values, placed in either order.
+ *
+ * $f(x) = k$ with $k$ not zero, so the first move is to take $k$ over and
+ * only then factorise — factorising $f$ itself finds where the curve meets
+ * the $x$-axis, a different line. The figure marks both meeting points.
+ */
+const meetTiles: Generator<MeetTilesParams> = {
+  id: 'fun-meet-tiles',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const [first, second] = rng.sample(nonZeroRange(-5, 5), 2);
+        return {
+          m: difficulty > 1 ? rng.pick([-1, 2, -2, 1]) : 1,
+          r: Math.min(first, second),
+          s: Math.max(first, second),
+          k: rng.pick(nonZeroRange(-6, 6)),
+        };
+      },
+      ({ r, s }) => s - r <= 6 && r !== -s,
+      { m: 1, r: -1, s: 3, k: 2 },
+    ),
+  render: (params): Slide => {
+    const { m, r, s, k } = params;
+    const f = (x: number) => m * (x - r) * (x - s) + k;
+    const vertexY = f((r + s) / 2);
+    const window = m > 0 ? heightsWindow([vertexY, k + 4]) : heightsWindow([vertexY, k - 4]);
+    const answer = [`${r}`, `${s}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: r - 2,
+            xMax: s + 2,
+            ...window,
+            curves: [{ f }],
+            horizontals: [k],
+            verticals: yAxisIn(r - 2, s + 2),
+            marks: [
+              { x: r, y: k },
+              { x: s, y: k },
+            ],
+            label: `A parabola and the dashed line y = ${k}, meeting twice`,
+          }),
+        },
+        { kind: 'prose', text: `$f(x) = ${meetTilesRule(params)}$. Solve $f(x) = ${k}$.` },
+      ],
+      template: 'x = {0} \\text{ or } x = {1}',
+      bank: bankOf(answer, [`${-r}`, `${-s}`, `${r + s}`, `${r * s}`]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (params) => {
+    const { m, r, s, k } = params;
+    const steps: SolutionStep[] = [
+      { text: `Take $${k}$ from both sides, so one side is $0$.` },
+      { tex: `${polyTex([[m, 2], [-m * (r + s), 1], [m * r * s, 0]])} = 0` },
+    ];
+    if (m !== 1) {
+      steps.push({ text: `Divide by $${m}$.` });
+      steps.push({ tex: `${polyTex([[1, 2], [-(r + s), 1], [r * s, 0]])} = 0` });
+    }
+    steps.push({ tex: `${factorPairTex(r, s)} = 0` });
+    steps.push({ tex: `x = ${r} \\text{ or } x = ${s}` });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 5: sketch from rule, rule from sketch ---------- */
+
+interface SketchRuleParams {
+  a: number;
+  h: number;
+  k: number;
+  /** How far across the marked point is from the vertical asymptote; 0 for none. */
+  d: number;
+  /** Whether the prompt states the asymptotes rather than leaving them to be read off. */
+  told?: boolean;
+}
+
+/** The sketch: dashed asymptotes on squared paper, and the marked point if there is one. */
+function sketchSvg({ a, h, k, d }: SketchRuleParams): string {
+  return plotSvg({
+    xMin: -6,
+    xMax: 6,
+    yMin: -6,
+    yMax: 6,
+    grid: true,
+    height: 200,
+    curves: [{ f: (x) => a / (x - h) + k, breaks: true }],
+    verticals: [{ x: h }],
+    horizontals: [k],
+    marks: d === 0 ? [] : [{ x: h + d, y: k + a / d }],
+    label: 'A reciprocal curve with its two asymptotes dashed',
+  });
+}
+
+/** A reciprocal whose marked point lands on the grid, inside the picture. */
+function sampleSketch(rng: Rng, numerators: number[]): SketchRuleParams {
+  return drawUntil(
+    () => {
+      const a = rng.pick(numerators);
+      const d = rng.pick(nonZeroRange(-4, 4));
+      return { a, h: rng.pick(nonZeroRange(-3, 3)), k: rng.pick(nonZeroRange(-3, 3)), d };
+    },
+    ({ a, h, k, d }) =>
+      a % d === 0 && Math.abs(h + d) <= 5 && Math.abs(k + a / d) <= 5 && h + d !== 0 && k + a / d !== 0,
+    { a: 2, h: 1, k: 1, d: 2 },
+  );
+}
+
+/**
+ * The equation of a sketched reciprocal curve, from its asymptotes.
+ *
+ * The dashed lines give $h$ and $k$ straight away, the vertical one with its
+ * sign turned round inside the bracket. Difficulty 2 needs the numerator too,
+ * from the marked point: how far across it is from the vertical asymptote
+ * times how far up from the horizontal one. The numerator is kept positive
+ * so every tile beside it is spelled one way.
+ */
+const sketchRule: Generator<SketchRuleParams> = {
+  id: 'fun-sketch-rule',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? sampleSketch(rng, [2, 3, 4, 6])
+      : { a: 1, h: rng.pick(nonZeroRange(-4, 4)), k: rng.pick(nonZeroRange(-4, 4)), d: 0 },
+  render: (params): Slide => {
+    const { a, h, k, d } = params;
+    const hard = d !== 0;
+    const answer = hard ? [`${a}`, signedTile(-h), signedTile(k)] : [signedTile(-h), signedTile(k)];
+    const signs = [signedTile(h), signedTile(-k), signedTile(k + (k > 0 ? 1 : -1))];
+    const tops = hard ? [`${a + 1}`, `${Math.abs(d)}`, `${Math.abs(a / d)}`, `${Math.abs(d) + Math.abs(a / d)}`] : [];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'diagram', svg: sketchSvg(params) },
+        {
+          kind: 'prose',
+          text: hard
+            ? `Each square is one unit, and the dashed lines are the asymptotes. The curve passes through $(${h + d}, ${k + a / d})$. Write its equation.`
+            : 'Each square is one unit, and the dashed lines are the asymptotes. Write the equation of the curve.',
+        },
+      ],
+      template: hard ? 'y = {0}/(x {1}) {2}' : 'y = 1/(x {0}) {1}',
+      bank: bankOf(answer, [...signs, ...tops]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, h, k, d } = params;
+    const steps: SolutionStep[] = [
+      { text: `The vertical asymptote is $x = ${h}$, so the bottom is $${shiftedX(h)}$: zero there.` },
+      { text: `The horizontal asymptote is $y = ${k}$, so $${k}$ is added on.` },
+    ];
+    if (d !== 0) {
+      steps.push({ text: `The point is $${d}$ across from $x = ${h}$ and $${a / d}$ up from $y = ${k}$, so the numerator is $${d} \\times ${br(a / d)} = ${a}$.` });
+    }
+    steps.push({ tex: `y = ${recipTex(a, h, k)}` });
+    return steps;
+  },
+};
+
+/**
+ * From a sketch's features to $a$, $h$ and $k$.
+ *
+ * The asymptotes are $h$ and $k$; the marked point's distance across from
+ * one and up from the other multiply to $a$, since $y - k = \frac{a}{x - h}$.
+ * Difficulty 1 states the asymptotes; difficulty 2 leaves them to be read
+ * off the squares, and lets $a$ be negative.
+ */
+const featuresTree: Generator<SketchRuleParams> = {
+  id: 'fun-features-tree',
+  sample: (rng, difficulty) => ({
+    ...sampleSketch(rng, difficulty > 1 ? [-6, -4, -3, -2, 2, 3, 4, 6] : [2, 3, 4, 6]),
+    told: difficulty <= 1,
+  }),
+  render: (params): Slide => {
+    const { a, h, k, d, told } = params;
+    const p = h + d;
+    const q = k + a / d;
+    const answer = [h, k, d, a / d, a].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'diagram', svg: sketchSvg(params) },
+        {
+          kind: 'prose',
+          text: `The curve is $y = \\frac{a}{x - h} + k$ through $(${p}, ${q})$; each square is one unit${told ? `, and its asymptotes are $x = ${h}$ and $y = ${k}$` : ''}. Fill in $h$ and $k$, then $${p} - h$ and $${q} - k$, then $a$, their product.`,
+        },
+      ],
+      expression: `a = (${p} - h)(${q} - k)`,
+      nodes: [
+        { id: 'h', from: [] },
+        { id: 'k', from: [] },
+        { id: 'across', from: ['h'] },
+        { id: 'up', from: ['k'] },
+        { id: 'a', from: ['across', 'up'] },
+      ],
+      bank: treeBank(answer, [-h, -k, p, q, a + d], a),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, h, k, d } = params;
+    const p = h + d;
+    const q = k + a / d;
+    return [
+      { text: `The asymptotes are $x = ${h}$ and $y = ${k}$, so $h = ${h}$ and $k = ${k}$.` },
+      { text: 'Take $k$ over: $y - k = \\frac{a}{x - h}$, so $a = (x - h)(y - k)$ at any point on the curve.' },
+      { tex: `a = (${p} ${signedTile(-h)})(${q} ${signedTile(-k)})` },
+      { tex: `a = ${br(d)} \\times ${br(a / d)} = ${a}` },
+      { tex: `y = ${recipTex(a, h, k)}` },
+    ];
+  },
+};
+
 export const functionGenerators = [
   evaluate,
   substitute,
@@ -2691,4 +4233,22 @@ export const functionGenerators = [
   combinePoint,
   describeForm,
   describeWords,
+  yIntercept,
+  rootSlider,
+  intercepts,
+  graphRule,
+  asymptoteSlider,
+  asymptoteTiles,
+  asymptoteFlow,
+  findK,
+  endChoice,
+  limitTiles,
+  leadingFlow,
+  divideSteps,
+  meetCount,
+  meetFlow,
+  meetSolve,
+  meetTiles,
+  sketchRule,
+  featuresTree,
 ];

@@ -367,6 +367,31 @@ export type Slide =
       /** The branch labels along the correct path, in order. */
       answer: string[];
     })
+  /**
+   * Put the steps of a proof in order.
+   *
+   * The learner builds the proof rather than writing it: numbered slots, one
+   * per step, filled by tapping steps from a bank that also holds distractors —
+   * a step from a different strategy, an algebra slip, a true statement the
+   * proof never needs, a conclusion that does not follow. Distractors are the
+   * steps whose id is in no answer.
+   *
+   * Graded in exact order. Where two steps could genuinely swap, the generator
+   * writes the proof so that they cannot (each step leans on the one above it)
+   * rather than the grader accepting both.
+   */
+  | ({ kind: 'order' } & Prompted & {
+      /**
+       * Every step offered, in bank order. `text` is prose with inline `$...$`
+       * TeX, rendered the way a `prose` block is.
+       *
+       * Bank order is fixed by the steps themselves (`orderBank`), never by a
+       * per-draw shuffle and never by the answer order.
+       */
+      steps: { id: string; text: string }[];
+      /** Ids of the proof's steps, in slot order. */
+      answer: string[];
+    })
   | ({ kind: 'tree' } & Prompted & {
       /** The expression the tree evaluates. TeX. */
       expression: string;

@@ -9,7 +9,9 @@
  * run, and checking a solution by putting it back in. Level 3 takes the
  * equations that do not separate, `dy/dx + Py = Q`, and solves them with an
  * integrating factor: the product rule read backwards, finding the factor,
- * a constant P, P = n/x, and particular solutions.
+ * a constant P, P = n/x, and particular solutions. Level 4 is second order:
+ * `y'' + by' + cy = 0` through its auxiliary equation, with two real roots, a
+ * repeated root and complex roots, then y(0) and y'(0) to fix both constants.
  *
  * Integration and the exponential model are used here, not taught again:
  * `dy/dx = ky` read off a model belongs to Exponential Models' rate lesson,
@@ -45,7 +47,7 @@ export const differentialEquations: Course = {
   // After Integration (30), Vectors (40) and Matrices (50) — and Exponential Models, whose model it solves for.
   position: 70,
   title: 'Differential Equations',
-  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, and the integrating factor.',
+  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, the integrating factor, and second-order equations.',
   levels: [
     {
       id: 'de-l1',
@@ -673,6 +675,222 @@ export const differentialEquations: Course = {
         ask('de-if-integrate', 2),
         ask('de-if-cterm', 2),
         ask('de-if-value-tree', 2),
+      ],
+    },
+    {
+      id: 'de-l4',
+      title: 'Second-Order with Constant Coefficients',
+      lessons: [
+        {
+          id: 'de-l4-auxiliary',
+          title: 'The Auxiliary Equation',
+          slides: [
+            teach(
+              prose(
+                "A **second-order** equation has a second derivative in it. Write $y'$ for $\\frac{dy}{dx}$ and $y''$ for $\\frac{d^2y}{dx^2}$. This level solves",
+              ),
+              display("y'' + by' + cy = 0"),
+              prose(
+                "with $b$ and $c$ constants. Try $y = e^{mx}$: as in Differentiation's exponentials lesson, $y' = me^{mx}$ and $y'' = m^2e^{mx}$. Put them in and every term carries $e^{mx}$, which is never $0$, so",
+              ),
+              display('m^2 + bm + c = 0'),
+              prose('This is the **auxiliary equation**: $y\'\'$ becomes $m^2$, $y\'$ becomes $m$ and $y$ becomes $1$.'),
+            ),
+            ask('de-aux-sub-steps'),
+            ask('de-aux-tiles'),
+            ask('de-aux-root'),
+            teach(
+              prose(
+                'Each root $m$ gives a solution $e^{mx}$. Its discriminant, $b^2 - 4c$, decides the kind of root, just as in Quadratics:',
+              ),
+              prose('positive: two different real roots. Zero: one repeated root. Negative: two complex roots, as in Complex Numbers.'),
+              working("y'' - 5y' + 6y &= 0", 'm^2 - 5m + 6 &= 0', '(m - 2)(m - 3) &= 0'),
+              prose('Here $b^2 - 4c = 1$, and the roots are $2$ and $3$.'),
+            ),
+            ask('de-aux-case'),
+            ask('de-aux-sub-steps', 2),
+            ask('de-aux-tiles', 2),
+            teach(
+              prose(
+                "An equation may come rearranged, as $y'' = 5y' - 6y$: bring every term to the left first. If every term is multiplied by $2$, the auxiliary equation is too, and its roots do not change.",
+              ),
+            ),
+            ask('de-aux-root', 2),
+            ask('de-aux-case', 2),
+          ],
+          skillCheck: [ask('de-aux-tiles', 2), ask('de-aux-root', 2), ask('de-aux-case', 2)],
+        },
+        {
+          id: 'de-l4-real',
+          title: 'Two Real Roots',
+          slides: [
+            teach(
+              prose(
+                'When the auxiliary equation has two different real roots $p$ and $q$, both $e^{px}$ and $e^{qx}$ are solutions. With $0$ on the right, a sum of multiples of solutions is a solution too, so the **general solution** is',
+              ),
+              display('y = Ae^{px} + Be^{qx}'),
+              prose('A second-order equation needs two constants, one for each solution.'),
+            ),
+            ask('de-real-general'),
+            ask('de-real-roots-tree'),
+            ask('de-real-which'),
+            teach(
+              prose('The whole method: the auxiliary equation, its roots, then the general solution. For $y\'\' - y\' - 6y = 0$,'),
+              working('m^2 - m - 6 &= 0', '(m + 2)(m - 3) &= 0'),
+              prose('The roots are $-2$ and $3$, so'),
+              display('y = Ae^{-2x} + Be^{3x}'),
+            ),
+            ask('de-real-solve-steps'),
+            ask('de-real-general', 2),
+            ask('de-real-roots-tree', 2),
+            teach(
+              prose(
+                "A negative root gives a term that dies away. With no $y'$ term, as in $y'' - 9y = 0$, the roots are $\\pm 3$, so $y = Ae^{-3x} + Be^{3x}$: every solution with $B > 0$ ends up growing like $e^{3x}$.",
+              ),
+              figure({
+                xMin: -1.5,
+                xMax: 1.5,
+                yMin: -4,
+                yMax: 10,
+                curves: [
+                  { f: (x: number) => Math.exp(-3 * x) / 4 + Math.exp(3 * x) / 4 },
+                  { f: (x: number) => Math.exp(-3 * x) / 4, dashed: true },
+                  { f: (x: number) => Math.exp(3 * x) / 4, dashed: true },
+                ],
+                label: 'A solution curve dipping to a minimum, with dashed curves for its two exponential parts, one falling and one rising',
+              }),
+            ),
+            ask('de-real-which', 2),
+            ask('de-real-solve-steps', 2),
+          ],
+          skillCheck: [ask('de-real-general', 2), ask('de-real-roots-tree', 2), ask('de-real-solve-steps', 2)],
+        },
+        {
+          id: 'de-l4-repeated',
+          title: 'A Repeated Root',
+          slides: [
+            teach(
+              prose(
+                'When $b^2 = 4c$ the auxiliary equation has one root $p$, twice. $Ae^{px} + Be^{px}$ is only $(A + B)e^{px}$, one constant. The second solution is $xe^{px}$, so',
+              ),
+              working('y &= Ae^{px} + Bxe^{px}', '&= (A + Bx)e^{px}'),
+            ),
+            ask('de-rep-general'),
+            ask('de-rep-check-steps'),
+            ask('de-rep-shape'),
+            teach(
+              prose("Why $xe^{px}$ works, checked by putting it in, as in Checking a Solution. For $y'' - 6y' + 9y = 0$ and $y = xe^{3x}$:"),
+              working("y' &= (1 + 3x)e^{3x}", "y'' &= (6 + 9x)e^{3x}"),
+              prose("Then $y'' - 6y' + 9y = (6 + 9x - 6 - 18x + 9x)e^{3x} = 0$."),
+            ),
+            ask('de-rep-which'),
+            ask('de-rep-general', 2),
+            ask('de-rep-check-steps', 2),
+            teach(
+              prose(
+                'A repeated root shows as a perfect square: $b = -2p$ and $c = p^2$. For $y\'\' + 4y\' + 4y = 0$ the auxiliary equation is $(m + 2)^2 = 0$, so $y = (A + Bx)e^{-2x}$.',
+              ),
+            ),
+            ask('de-rep-shape', 2),
+            ask('de-rep-which', 2),
+          ],
+          skillCheck: [ask('de-rep-general', 2), ask('de-rep-check-steps', 2), ask('de-rep-shape', 2)],
+        },
+        {
+          id: 'de-l4-complex',
+          title: 'Complex Roots',
+          slides: [
+            teach(
+              prose(
+                'When $b^2 < 4c$ the roots are a complex pair $\\alpha \\pm \\beta i$, as in Quadratics with Complex Roots. The two exponentials combine into a cosine and a sine:',
+              ),
+              display('y = e^{\\alpha x}(A\\cos \\beta x + B\\sin \\beta x)'),
+              prose('For $y\'\' - 4y\' + 13y = 0$, $m = 2 \\pm 3i$, so $y = e^{2x}(A\\cos 3x + B\\sin 3x)$.'),
+            ),
+            ask('de-cx-general'),
+            ask('de-cx-part'),
+            ask('de-cx-which'),
+            teach(
+              prose('The quadratic formula gives $\\alpha$ and $\\beta$ at once:'),
+              display('\\alpha = -\\frac{b}{2}, \\qquad \\beta = \\frac{\\sqrt{4c - b^2}}{2}'),
+              prose('Completing the square does the same: $m^2 - 4m + 13 = (m - 2)^2 + 9$, so $\\alpha = 2$ and $\\beta = 3$.'),
+            ),
+            ask('de-cx-tree'),
+            ask('de-cx-general', 2),
+            ask('de-cx-part', 2),
+            teach(
+              prose(
+                "With no $y'$ term, $\\alpha = 0$ and the exponential is $1$: $y'' + 9y = 0$ gives $y = A\\cos 3x + B\\sin 3x$, which oscillates for ever. A negative $\\alpha$ makes the oscillation die away.",
+              ),
+              figure({
+                xMin: 0,
+                xMax: 6,
+                yMin: -1.2,
+                yMax: 1.2,
+                curves: [
+                  { f: (x: number) => Math.exp(-0.5 * x) * Math.cos(3 * x) },
+                  { f: (x: number) => Math.exp(-0.5 * x), dashed: true },
+                  { f: (x: number) => -Math.exp(-0.5 * x), dashed: true },
+                ],
+                label: 'An oscillating curve whose swings shrink inside two dashed exponential curves',
+              }),
+            ),
+            ask('de-cx-which', 2),
+            ask('de-cx-tree', 2),
+          ],
+          skillCheck: [ask('de-cx-general', 2), ask('de-cx-part', 2), ask('de-cx-tree', 2)],
+        },
+        {
+          id: 'de-l4-particular',
+          title: 'Initial Conditions',
+          slides: [
+            teach(
+              prose(
+                "Two constants need two conditions, usually the **initial conditions** $y(0)$ and $y'(0)$: where the curve starts and its gradient there. For $y'' - 5y' + 6y = 0$ with $y(0) = 5$ and $y'(0) = 12$:",
+              ),
+              working("y &= Ae^{2x} + Be^{3x}", "y' &= 2Ae^{2x} + 3Be^{3x}"),
+              prose('At $x = 0$ these give $A + B = 5$ and $2A + 3B = 12$, so $B = 2$, $A = 3$, and $y = 3e^{2x} + 2e^{3x}$.'),
+            ),
+            ask('de-ivp-constant'),
+            ask('de-ivp-solve-tree'),
+            ask('de-ivp-conditions-steps'),
+            teach(
+              prose(
+                "At $x = 0$, $e^{0} = 1$, $\\cos 0 = 1$ and $\\sin 0 = 0$, so $y(0) = A$ for a repeated root and for complex roots. Then $y'(0)$ gives $B$.",
+              ),
+              prose("For $y = (A + Bx)e^{px}$, the product rule gives $y'(0) = pA + B$."),
+              prose("For $y = e^{\\alpha x}(A\\cos \\beta x + B\\sin \\beta x)$, it gives $y'(0) = \\alpha A + \\beta B$."),
+            ),
+            ask('de-ivp-fit'),
+            ask('de-ivp-constant', 2),
+            ask('de-ivp-solve-tree', 2),
+            teach(
+              prose(
+                'A particular solution can be checked twice: it meets both conditions, and put back into the equation it gives $0$.',
+              ),
+            ),
+            ask('de-ivp-conditions-steps', 2),
+            ask('de-ivp-fit', 2),
+          ],
+          skillCheck: [ask('de-ivp-constant', 2), ask('de-ivp-solve-tree', 2), ask('de-ivp-fit', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-aux-tiles', 2),
+        ask('de-real-general', 2),
+        ask('de-rep-check-steps', 2),
+        ask('de-cx-part', 2),
+        ask('de-ivp-solve-tree', 2),
+        ask('de-aux-case', 2),
+        ask('de-real-which', 2),
+        ask('de-rep-general', 2),
+        ask('de-cx-tree', 2),
+        ask('de-ivp-constant', 2),
+        ask('de-aux-sub-steps', 2),
+        ask('de-real-roots-tree', 2),
+        ask('de-rep-shape', 2),
+        ask('de-cx-which', 2),
+        ask('de-ivp-conditions-steps', 2),
       ],
     },
   ],

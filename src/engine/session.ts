@@ -390,6 +390,16 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
     case 'table':
       return gradeSequence(answer, slide.answer);
 
+    // One token per row, then the conclusion. Exact strings, which is safe
+    // because the generator writes every value to the precision it asks for.
+    case 'iterate':
+      return gradeSequence(answer, slide.answer);
+
+    // The step ids in slot order. A distractor anywhere, or two steps swapped,
+    // is simply a different sequence.
+    case 'order':
+      return gradeSequence(answer, slide.answer);
+
     /**
      * One number, held against what the expression comes to.
      *

@@ -32,6 +32,8 @@ function record(bestCorrect: number, total: number): LessonRecord {
 function course(id = 'c'): Course {
   return {
     id,
+    category: 'advanced-maths',
+    position: 0,
     title: id,
     blurb: '',
     levels: [
@@ -53,6 +55,8 @@ describe('playables', () => {
   it('leaves out a level with no check', () => {
     const bare: Course = {
       id: 'b',
+      category: 'advanced-maths',
+      position: 0,
       title: 'b',
       blurb: '',
       levels: [{ id: 'b-l1', title: 'One', lessons: [lesson('b-a')] }],
@@ -143,7 +147,7 @@ describe('courseMastery', () => {
   });
 
   it('is zero rather than NaN for a course with nothing to answer', () => {
-    const empty: Course = { id: 'e', title: 'e', blurb: '', levels: [] };
+    const empty: Course = { id: 'e', category: 'advanced-maths', position: 0, title: 'e', blurb: '', levels: [] };
 
     expect(courseMastery(empty, {}).fraction).toBe(0);
   });
@@ -177,7 +181,7 @@ describe('libraryProgress', () => {
   });
 
   it('never counts a course as mastered without marks available', () => {
-    const empty = [{ id: 'cat', title: 'Cat', blurb: '', courses: [{ id: 'e', title: 'e', blurb: '', levels: [] }] }];
+    const empty = [{ id: 'cat', title: 'Cat', blurb: '', courses: [{ id: 'e', category: 'advanced-maths' as const, position: 0, title: 'e', blurb: '', levels: [] }] }];
 
     expect(libraryProgress(empty, {}).mastered).toBe(0);
   });

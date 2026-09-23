@@ -150,11 +150,17 @@ Grep for it before you commit:
 grep -n "source:\|integrand:" src/content/generators/<yourfile>.ts
 ```
 
-### 2.3 A course file not added to `index.ts` is invisible
+### 2.3 A course's `category` decides whether it is seen
 
-Tests import `courses` from `src/content/courses/index.ts`. A new course file
-that exists but is not listed there is absent from the app *and* from every
-course-integrity check, with no failure anywhere.
+Tests import `courses` from `src/content/courses/index.ts`, which finds every
+course file in the folder by itself (`import.meta.glob`) — there is no list to
+forget. What it cannot check is intent: a course is shown in the tab its
+`category` names, at its `position`. A file exporting two course-shaped values,
+or none, throws on load.
+
+The same goes for generators. `registry.ts` registers every exported array
+whose name ends in `Generators` in `src/content/generators/`, so an array meant
+only for a test must not be named that way.
 
 ### 2.4 Level-check references are only validated by accident
 
@@ -355,7 +361,7 @@ file directly.
 - [ ] Consider `choices()` rather than a second generator
 
 **Adding or editing a course**
-- [ ] Listed in `src/content/courses/index.ts`, or it does not exist
+- [ ] `category` and `position` set on the course (no list to add it to)
 - [ ] 9–11 guided slides, exactly 3 skill checks
 - [ ] Level check 10–15 questions
 - [ ] No three consecutive questions through the same widget

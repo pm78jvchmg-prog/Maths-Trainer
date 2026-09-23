@@ -1,0 +1,57 @@
+# Gives a pull request a fresh commit when Cloudflare never built its head.
+#
+# Every pull request waits on the "Workers Builds: maths-trainer" check before
+# auto-merge lands it. Now and then Cloudflare accepts a push and never builds
+# it: the check suite GitHub opens for it stays "queued" with no check run, the
+# required check never reports, and the pull request waits for ever — four of
+# about sixty pushes on 2026-09-23, one of them #50's head for 17 minutes, the
+# rest until the thread happened to push again. Nothing in the repository can
+# re-run a Cloudflare build, but any new commit gets a build of its own.
+#
+# So every ten minutes this finds each open, non-draft pull request whose head
+# has had only a queued Cloudflare suite for over twenty minutes, and merges
+# main into it (GitHub's "Update branch"). That is a real commit, not an empty
+# one, and it only happens to a pull request that is otherwise stranded. It
+# fails harmlessly on a branch that is already up to date or conflicts with
+# main; that is reported as a warning.
+
+name: Stuck builds
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  update-branch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      STUCK_AFTER_SECONDS: 1200
+    steps:
+      - name: Update pull requests whose build never started
+        run: |
+          now=$(date +%s)
+          gh pr list --state open --limit 100 --json number,isDraft,headRefOid \
+            --jq '.[] | select(.isDraft | not) | "\(.number) \(.headRefOid)"' |
+          while read -r pr sha; do
+            queued_since=$(gh api "repos/$GH_REPO/commits/$sha/check-suites" --jq '
+              [.check_suites[] | select(.app.slug == "cloudflare-workers-and-pages")] as $cf
+              | if ($cf | length) > 0 and all($cf[]; .status == "queued" and .latest_check_runs_count == 0)
+                then ($cf | map(.created_at | fromdateiso8601) | min) else empty end')
+            if [ -z "$queued_since" ] || [ $((now - queued_since)) -lt "$STUCK_AFTER_SECONDS" ]; then
+              continue
+            fi
+            echo "#$pr: Cloudflare has not built ${sha:0:7} for $(( (now - queued_since) / 60 )) minutes"
+            if gh api -X PUT "repos/$GH_REPO/pulls/$pr/update-branch" -f expected_head_sha="$sha" >/dev/null; then
+              echo "#$pr: merged main in, so the new head gets a build"
+            else
+              echo "::warning::#$pr: could not update the branch (see the message above); push to it by hand"
+            fi
+          done

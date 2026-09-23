@@ -6,8 +6,9 @@
  * negative index has to mean a reciprocal and a fractional one has to mean a
  * root if the laws are to survive; then surds, which is that second idea used
  * in anger; then standard form, where powers of ten carry the size of very
- * large and very small numbers; and last, surds back inside expressions —
- * brackets, conjugates, equations and exact lengths.
+ * large and very small numbers; then surds back inside expressions —
+ * brackets, conjugates, equations and exact lengths; and last, equations with
+ * the unknown in an index or under one, hidden quadratics, and substitution.
  *
  * Each level closes with a level check: twelve to fourteen questions, no
  * teaching slides, one attempt each.
@@ -1228,6 +1229,233 @@ export const exponentsRadicals: Course = {
         ask('rad-form-flow', 2),
         ask('rad-pythag', 2),
         ask('rad-rect-area', 2),
+      ],
+    },
+    {
+      id: 'er-l6',
+      title: 'Index Equations & Substitution',
+      lessons: [
+        {
+          id: 'er-l6-unlike',
+          title: 'Equations with Unlike Bases',
+          slides: [
+            teach(
+              prose(
+                'Level 2 solved $2^{x} = 32$ by writing 32 as a power of 2. When the bases differ, as in $4^{x} = 32$, write **both** sides as powers of one number.',
+              ),
+              working('4^{x} &= (2^{2})^{x} = 2^{2x}', '32 &= 2^{5}'),
+              prose(
+                'So $2^{2x} = 2^{5}$. The bases match, so the indices are equal: $2x = 5$ and $x = \\frac{5}{2}$. A fraction on the right is a negative power, such as $\\frac{1}{8} = 2^{-3}$.',
+              ),
+            ),
+            ask('ieq-base-flow'),
+            ask('ieq-base-tiles'),
+            ask('ieq-unlike'),
+            teach(
+              prose('A reciprocal is a negative index, so $\\frac{1}{9} = 3^{-2}$, and $27^{x} = \\frac{1}{9}$ becomes'),
+              working('3^{3x} &= 3^{-2}', '3x &= -2', 'x &= -\\frac{2}{3}'),
+              prose(
+                'Negative and fractional answers are normal here. Check this one: the cube root of 27 is 3, and $3^{-2} = \\frac{1}{9}$.',
+              ),
+            ),
+            ask('ieq-equate-tree'),
+            ask('ieq-unlike+choice'),
+            ask('ieq-base-flow'),
+            teach(
+              prose(
+                'With an $x$ in both indices, rewrite both sides, multiplying out each index, then solve the linear equation that is left.',
+              ),
+              working('2^{x + 1} &= 8^{x - 1}', '2^{x + 1} &= 2^{3x - 3}', 'x + 1 &= 3x - 3', 'x &= 2'),
+              prose('The 3 multiplies **both** terms of $x - 1$. Check: $2^{3} = 8$ and $8^{1} = 8$.'),
+            ),
+            ask('ieq-base-tiles', 2),
+            ask('ieq-equate-tree', 2),
+          ],
+          skillCheck: [
+            ask('ieq-unlike', 2),
+            ask('ieq-base-flow', 2),
+            ask('ieq-equate-tree', 2),
+          ],
+        },
+        {
+          id: 'er-l6-fractional',
+          title: 'Fractional-Index Equations',
+          slides: [
+            teach(
+              prose(
+                'Now the unknown is the base: $x^{\\frac{3}{2}} = 8$. Raise both sides to the reciprocal power, $\\frac{2}{3}$. The indices multiply to 1, which leaves $x$.',
+              ),
+              working('x &= 8^{\\frac{2}{3}}', '&= (\\sqrt[3]{8})^{2} = 4'),
+              prose(
+                'Take the root first, as in level 2. If a number multiplies the power, as in $3x^{\\frac{3}{2}} = 24$, divide it off before anything else.',
+              ),
+            ),
+            ask('ieq-undo-tree'),
+            ask('ieq-frac-power'),
+            ask('ieq-cross-slider'),
+            teach(
+              prose('A negative index has a negative reciprocal: the reciprocal of $-\\frac{1}{2}$ is $-2$.'),
+              working('x^{-\\frac{1}{2}} &= \\frac{1}{4}', 'x &= \\left(\\frac{1}{4}\\right)^{-2}', '&= 4^{2} = 16'),
+              prose('A negative power turns a fraction over, which is why the answer is bigger than 1.'),
+            ),
+            ask('ieq-reciprocal-tiles', 2),
+            ask('ieq-frac-power+choice', 2),
+            ask('ieq-undo-tree', 2),
+            teach(
+              prose(
+                'An even number on **top** of the index hides the sign. $x^{\\frac{2}{3}} = 4$ says the cube root of $x$, squared, is 4, so that cube root is 2 or $-2$, and $x = 8$ or $x = -8$.',
+              ),
+              prose(
+                'An even number **underneath** is an even root, which is never negative, so there only a positive $x$ works. And neither an even power nor an even root can equal a negative number: then there is no solution.',
+              ),
+            ),
+            ask('ieq-sign-flow'),
+            ask('ieq-sign-flow', 2),
+          ],
+          skillCheck: [
+            ask('ieq-frac-power', 2),
+            ask('ieq-undo-tree', 2),
+            ask('ieq-sign-flow', 2),
+          ],
+        },
+        {
+          id: 'er-l6-hidden',
+          title: 'Hidden Quadratics',
+          slides: [
+            teach(
+              prose(
+                'Some index equations are quadratics in disguise. In $9^{x} - 2(3^{x}) - 3 = 0$ the first term is $(3^{2})^{x} = (3^{x})^{2}$, so put $y = 3^{x}$.',
+              ),
+              working('y^{2} - 2y - 3 &= 0', '(y - 3)(y + 1) &= 0'),
+              prose(
+                'So $y = 3$ or $y = -1$. Now go back to $x$. $3^{x} = 3$ gives $x = 1$. But a power of a positive number is **always** positive, so $3^{x} = -1$ has no solution, and that root is rejected.',
+              ),
+            ),
+            ask('ieq-quad-tiles'),
+            ask('ieq-reject-flow'),
+            ask('ieq-hidden-solve'),
+            teach(
+              prose('When both roots are positive powers, both give a solution.'),
+              working('4^{x} - 5(2^{x}) + 4 &= 0', '(y - 1)(y - 4) &= 0'),
+              prose(
+                '$2^{x} = 4$ gives $x = 2$, and $2^{x} = 1$ gives $x = 0$, since any number to the power 0 is 1. A root of $y = 1$ is kept, not rejected.',
+              ),
+            ),
+            ask('ieq-hidden-tree'),
+            ask('ieq-hidden-solve+choice'),
+            ask('ieq-reject-flow', 2),
+            teach(
+              prose(
+                'The square term can be written other ways. With $y = 2^{x}$, each of these is $y^{2}$, because the index laws make them the same number.',
+              ),
+              maths('4^{x} = 2^{2x} = (2^{x})^{2}'),
+              prose("Look for a term whose index is double another term's, over the same base."),
+            ),
+            ask('ieq-quad-tiles', 2),
+            ask('ieq-hidden-tree', 2),
+          ],
+          skillCheck: [
+            ask('ieq-hidden-solve', 2),
+            ask('ieq-hidden-tree', 2),
+            ask('ieq-quad-tiles', 2),
+          ],
+        },
+        {
+          id: 'er-l6-substitute',
+          title: 'Substituting into Index Expressions',
+          slides: [
+            teach(
+              prose(
+                'To evaluate $3x^{\\frac{3}{2}}$ at $x = 4$, substitute, then deal with the index before multiplying by 3: powers come before multiplication.',
+              ),
+              working('3 \\times 4^{\\frac{3}{2}} &= 3 \\times (\\sqrt{4})^{3}', '&= 3 \\times 8 = 24'),
+              prose(
+                'Root first, then power, as in level 2. If $x$ is not a perfect square, $x^{\\frac{1}{2}}$ is a surd, and the value is not a whole number.',
+              ),
+            ),
+            ask('ieq-term-steps'),
+            ask('ieq-evaluate'),
+            ask('ieq-kind-flow'),
+            teach(
+              prose('A negative index makes a fraction, not a negative number: $4^{-\\frac{1}{2}} = \\frac{1}{\\sqrt{4}} = \\frac{1}{2}$.'),
+              working('3x^{\\frac{3}{2}} - x^{-\\frac{1}{2}} &= 24 - \\frac{1}{2}', '&= \\frac{47}{2}'),
+              prose('Work each term out on its own, then combine them.'),
+            ),
+            ask('ieq-term-steps', 2),
+            ask('ieq-evaluate+choice', 2),
+            ask('ieq-kind-flow', 2),
+            teach(
+              prose(
+                'So $x^{\\frac{2}{3}}$ is a whole number only when the cube root of $x$ is: $x$ has to be a perfect cube, such as 8, 27 or 64.',
+              ),
+              prose(
+                'With a negative index there is a division: $12x^{-\\frac{1}{2}} = \\frac{12}{\\sqrt{x}}$ is whole when $\\sqrt{x}$ is a whole number that divides 12, such as $x = 9$.',
+              ),
+            ),
+            ask('ieq-make-whole'),
+            ask('ieq-make-whole', 2),
+          ],
+          skillCheck: [
+            ask('ieq-evaluate', 2),
+            ask('ieq-make-whole', 2),
+            ask('ieq-kind-flow', 2),
+          ],
+        },
+        {
+          id: 'er-l6-surd-index',
+          title: 'Surds and Indices Together',
+          slides: [
+            teach(
+              prose(
+                'A root is a fractional index, so an equation mixing roots and powers can be written with a single index, then solved as in lesson 2.',
+              ),
+              working('x\\sqrt{x} &= x^{1} \\times x^{\\frac{1}{2}} = x^{\\frac{3}{2}}', '\\sqrt[3]{x^{2}} &= x^{\\frac{2}{3}}'),
+              prose('So $x\\sqrt{x} = 8$ is $x^{\\frac{3}{2}} = 8$, and $x = 8^{\\frac{2}{3}} = 4$.'),
+            ),
+            ask('ieq-single-index-tiles'),
+            ask('ieq-cross-slider', 2),
+            ask('ieq-single-index-tiles', 2),
+            teach(
+              prose(
+                'Surds turn up on the other side too, where the unknown is in the index. Write the surd as a power of the base, adding the indices.',
+              ),
+              maths('8\\sqrt{2} = 2^{3} \\times 2^{\\frac{1}{2}} = 2^{\\frac{7}{2}}'),
+              prose(
+                'So $2^{x} = 8\\sqrt{2}$ gives $x = \\frac{7}{2}$. A surd underneath a fraction line is a negative index: $\\frac{1}{\\sqrt{3}} = 3^{-\\frac{1}{2}}$.',
+              ),
+            ),
+            ask('ieq-surd-power'),
+            ask('ieq-surd-base-tree'),
+            ask('ieq-cross-slider', 2),
+            teach(
+              prose('When the left-hand base is itself a power, rewrite it too, then divide.'),
+              working('4^{x} &= 2\\sqrt{2}', '2^{2x} &= 2^{\\frac{3}{2}}', 'x &= \\frac{3}{4}'),
+            ),
+            ask('ieq-surd-base-tree', 2),
+            ask('ieq-surd-power+choice', 2),
+          ],
+          skillCheck: [
+            ask('ieq-single-index-tiles', 2),
+            ask('ieq-surd-power', 2),
+            ask('ieq-surd-base-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('ieq-unlike', 2),
+        ask('ieq-base-tiles', 2),
+        ask('ieq-equate-tree', 2),
+        ask('ieq-frac-power', 2),
+        ask('ieq-sign-flow', 2),
+        ask('ieq-undo-tree', 2),
+        ask('ieq-quad-tiles', 2),
+        ask('ieq-hidden-solve', 2),
+        ask('ieq-reject-flow', 2),
+        ask('ieq-evaluate+choice', 2),
+        ask('ieq-make-whole', 2),
+        ask('ieq-single-index-tiles', 2),
+        ask('ieq-surd-power', 2),
+        ask('ieq-cross-slider', 2),
       ],
     },
   ],

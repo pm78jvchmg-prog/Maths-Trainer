@@ -40,6 +40,13 @@ export interface Curve {
    * just past its edge, which keeps the numbers in the SVG sane.
    */
   breaks?: boolean;
+  /**
+   * Drawn as a wide, faint accent band rather than a line: a target to lay
+   * another curve into. A thin line of the same colour drawn over it reads as
+   * sitting *in* the band when it matches, which two thin accent lines could
+   * not show — they would be indistinguishable until they overlapped.
+   */
+  band?: boolean;
 }
 
 /** A ringed point: a root, an intercept, a turning point. */
@@ -73,6 +80,14 @@ export interface PlotOptions {
   horizontals?: number[];
   /** Shade the region between a curve and the axis, for an integral. */
   shade?: { f: (x: number) => number; from: number; to: number };
+  /**
+   * Draw the y-axis too, and faint lines at every whole number.
+   *
+   * Off by default because most figures here are about a curve's shape. A
+   * question about *moving* a curve is about how far, and a learner counting
+   * squares needs squares to count.
+   */
+  grid?: boolean;
   /** Overall shape. Wider than tall reads better on a phone. */
   height?: number;
   /** What a screen reader is told the picture shows. */
@@ -133,6 +148,7 @@ export function plotSvg(options: PlotOptions): string {
     horizontals = [],
     shade,
     height = 150,
+    grid = false,
     label,
   } = options;
 
@@ -163,6 +179,26 @@ export function plotSvg(options: PlotOptions): string {
     parts.push(
       `<path class="plot-shade" d="M ${px(shade.from).toFixed(1)},${py(0).toFixed(1)} L ${top} L ${px(shade.to).toFixed(1)},${py(0).toFixed(1)} Z" />`,
     );
+  }
+
+  if (grid) {
+    for (let x = Math.ceil(xMin); x <= Math.floor(xMax); x += 1) {
+      if (x === 0) continue;
+      parts.push(
+        `<line x1="${px(x).toFixed(1)}" y1="${PAD}" x2="${px(x).toFixed(1)}" y2="${height - PAD}" stroke="currentColor" stroke-width="0.5" opacity="0.18" />`,
+      );
+    }
+    for (let y = Math.ceil(lo); y <= Math.floor(hi); y += 1) {
+      if (y === 0) continue;
+      parts.push(
+        `<line x1="${PAD}" y1="${py(y).toFixed(1)}" x2="${WIDTH - PAD}" y2="${py(y).toFixed(1)}" stroke="currentColor" stroke-width="0.5" opacity="0.18" />`,
+      );
+    }
+    if (xMin < 0 && xMax > 0) {
+      parts.push(
+        `<line x1="${px(0).toFixed(1)}" y1="${PAD}" x2="${px(0).toFixed(1)}" y2="${height - PAD}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+      );
+    }
   }
 
   // The x-axis, and y = 0 is always where it sits.
@@ -204,12 +240,27 @@ export function plotSvg(options: PlotOptions): string {
     return pieces.join(' ');
   };
 
+  // On squared paper a curve running past the last grid line into the margin
+  // reads as a drawing error, so there the curves are clipped to the grid.
+  // Everywhere else they keep running to the edge of the picture as before.
+  if (grid) {
+    parts.push(
+      `<clipPath id="plot-grid-clip-${height}"><rect x="${PAD}" y="${PAD}" width="${WIDTH - 2 * PAD}" height="${height - 2 * PAD}" /></clipPath>`,
+      `<g clip-path="url(#plot-grid-clip-${height})">`,
+    );
+  }
+
   for (const curve of curves) {
     const dash = curve.dashed ? ' stroke-dasharray="5 4" opacity="0.6"' : '';
-    const stroke = curve.accent ? 'class="plot-accent" ' : '';
+    const stroke = curve.band ? 'class="plot-band" ' : curve.accent ? 'class="plot-accent" ' : '';
+    // Round ends on a band so it reads as a soft stroke rather than a slab.
+    const width = curve.band ? '9' : '2';
+    const ends = curve.band ? ' stroke-linecap="round" stroke-linejoin="round"' : '';
     const d = curve.breaks ? brokenPath(curve.f) : `M ${path(curve.f)}`;
-    parts.push(`<path ${stroke}fill="none" stroke="currentColor" stroke-width="2"${dash} d="${d}" />`);
+    parts.push(`<path ${stroke}fill="none" stroke="currentColor" stroke-width="${width}"${ends}${dash} d="${d}" />`);
   }
+
+  if (grid) parts.push('</g>');
 
   for (const mark of marks) {
     const fill = mark.hollow ? 'none' : 'currentColor';

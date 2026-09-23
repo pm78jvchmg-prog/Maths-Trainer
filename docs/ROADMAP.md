@@ -131,7 +131,7 @@ gives the live lesson count for every course.
 | 1 | Exponents & Radicals | **12 lessons** |
 | 2 | Quadratics | **12 lessons** |
 | 3 | Linear Equations & Inequalities | **10 lessons** |
-| 4 | Polynomials & the Factor Theorem | new |
+| 4 | Polynomials & the Factor Theorem | **10 lessons** |
 | 5 | Algebraic Fractions & Partial Fractions | new |
 | 6 | Sequences & Series | new |
 | 7 | Functions & Transformations | new |

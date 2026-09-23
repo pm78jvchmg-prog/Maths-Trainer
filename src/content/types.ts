@@ -8,6 +8,7 @@
  */
 import type { Rng } from '../engine/rng';
 import type { Expr } from './expr';
+import type { BaseCurve, Window } from './transform';
 
 /** A unit of rendered content. Prose may embed inline maths between $ signs. */
 export type Block =
@@ -366,6 +367,27 @@ export type Slide =
       }[];
       /** The branch labels along the correct path, in order. */
       answer: string[];
+    })
+  /**
+   * Move a curve until it is the one asked for.
+   *
+   * The base curve `y = f(x)` is drawn dashed and a live copy of it moves as
+   * the learner taps steppers (move, stretch) and flips. Two directions, one
+   * kind: `apply` names the target equation in the prompt and asks for the
+   * curve; `match` draws the target curve and asks for the transformation,
+   * which the readout writes out as the learner builds it.
+   *
+   * Graded by comparing curves, not parameters (`sameCurve` in
+   * `src/content/transform.ts`): for an even `f` a flip left to right draws
+   * the same curve as no flip, and the learner who drew it is right.
+   */
+  | ({ kind: 'transform' } & Prompted & {
+      direction: 'apply' | 'match';
+      base: BaseCurve;
+      /** Drawn and graded over this window. */
+      window: Window;
+      /** The transformation that draws the target, as `encodeTransform` writes it. */
+      answer: string;
     })
   /**
    * Put the steps of a proof in order.

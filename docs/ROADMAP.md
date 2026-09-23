@@ -436,7 +436,7 @@ are green, and one new lesson has been played in a browser.
 | B26 | Vectors: Planes & the Cross Product | **done** (`claude/roadmap-b-vectors-3-ke6n0q`): level `vm-l8`, 5 lessons, a 14-question level check, 21 new generators |
 | B27 | Matrices & Linear Transformations: Systems of Equations | **done** (`claude/roadmap-b-matrices-3-eamxgf`): level `vm-l9`, 5 lessons, a 15-question level check, 22 new generators |
 | B11 | Quadratics: Quadratic Inequalities | **done** (`claude/roadmap-b-quadratics-2-aoomzy`): level `qd-l5`, 5 lessons, a 15-question level check, 15 new generators |
-| B36 | Matrices & Linear Transformations: Invariant Lines & Points | claimed (`claude/roadmap-b-matrices-4-aeufej`) |
+| B36 | Matrices & Linear Transformations: Invariant Lines & Points | **done** (`claude/roadmap-b-matrices-4-aeufej`): level `vm-l11`, 5 lessons, a 15-question level check, 21 new generators |
 
 ### Phase C — the twenty-one new concepts
 

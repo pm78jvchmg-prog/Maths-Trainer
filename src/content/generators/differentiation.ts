@@ -8,7 +8,7 @@
  * Throughout, `*Tex` values are what the learner reads and `answer` is what
  * mathjs grades — the two are never the same string.
  */
-import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import {
@@ -4840,6 +4840,1694 @@ const sketchSteepest: Generator<Cubic> = {
   },
 };
 
+/* ---------- Rates of change ---------- */
+
+/*
+ * A derivative read as a rate: how fast a quantity changes with time, and how
+ * the rates of two linked quantities are tied together by the chain rule.
+ *
+ * Quantities here change with time, so most functions are written in $t$. The
+ * oracle in `generators.test.ts` differentiates in $x$ and could not check
+ * those, and most answers here are numbers rather than derivatives anyway, so
+ * `rates.test.ts` checks every one against mathjs's own derivative of the
+ * function the question shows.
+ */
+
+/** The keypad for an answer written in t. */
+const T_KEYS: KeypadKey[] = [
+  { insert: 't', tex: true },
+  ...ALGEBRA_KEYS.filter((key) => key.insert !== 'x'),
+];
+
+/** A polynomial from its coefficients, highest power first, as the learner reads it. */
+function polyInTex(coefficients: readonly number[], variable = 't'): string {
+  const top = coefficients.length - 1;
+  const tex = sumTex(coefficients.map((c, i) => termTex(c, top - i).replace('x', variable)));
+  return tex === '' ? '0' : tex;
+}
+
+/** The same polynomial for mathjs. */
+export function polyInAnswer(coefficients: readonly number[], variable = 't'): string {
+  const top = coefficients.length - 1;
+  return sumAnswer(coefficients.map((c, i) => termAnswer(c, top - i).replace('x', variable)));
+}
+
+/** The derivative's coefficients, highest power first. */
+function derivedCoefficients(coefficients: readonly number[]): number[] {
+  const top = coefficients.length - 1;
+  return coefficients.slice(0, -1).map((c, i) => c * (top - i));
+}
+
+/** A polynomial's value, by Horner's rule. */
+function hornerAt(coefficients: readonly number[], value: number): number {
+  return coefficients.reduce((total, c) => total * value + c, 0);
+}
+
+/** Something that changes with time, and the words and units it is described in. */
+interface RateContext {
+  symbol: string;
+  /** What it measures, mid-sentence. */
+  what: string;
+  /** Its unit, TeX. */
+  unit: string;
+  /** The unit of time, singular. */
+  per: string;
+}
+
+const RATE_CONTEXTS: readonly RateContext[] = [
+  { symbol: 'V', what: 'the volume of water in a tank', unit: '\\text{cm}^{3}', per: 'second' },
+  { symbol: 'h', what: 'the height of a weather balloon', unit: '\\text{m}', per: 'second' },
+  { symbol: 'A', what: 'the area of an oil slick', unit: '\\text{m}^{2}', per: 'minute' },
+  { symbol: 'M', what: 'the mass of a crystal', unit: '\\text{mg}', per: 'day' },
+  { symbol: 'D', what: 'the depth of water in a harbour', unit: '\\text{cm}', per: 'hour' },
+  { symbol: 'T', what: 'the temperature of an oven', unit: '{}^{\\circ}\\text{C}', per: 'minute' },
+  { symbol: 'F', what: 'the fuel in a generator', unit: '\\text{L}', per: 'hour' },
+  { symbol: 'W', what: 'the weight of snow on a roof', unit: '\\text{kg}', per: 'hour' },
+];
+
+/** The unit a rate of this quantity is measured in, TeX. */
+const rateUnit = (context: RateContext): string => `${context.unit}\\text{ per ${context.per}}`;
+
+/** Leibniz notation for a rate: `\frac{dV}{dt}`. */
+const rateOf = (top: string, bottom = 't'): string => `\\frac{d${top}}{d${bottom}}`;
+
+/** The sentence that introduces a quantity; a display of its formula follows. */
+const rateIntro = (context: RateContext): string =>
+  `After $t$ ${context.per}s, ${context.what} is $${context.symbol}$ $${context.unit}$, where`;
+
+/** How a signed rate reads in a sentence. */
+function changingTex(rate: number, context: RateContext): string {
+  if (rate === 0) return 'momentarily not changing at all';
+  return `${rate > 0 ? 'increasing' : 'decreasing'} at $${Math.abs(rate)}$ $${rateUnit(context)}$`;
+}
+
+/** A quantity changing with time, as a polynomial in t. */
+export interface RateFnParams {
+  context: number;
+  /** Highest power first. */
+  coefficients: number[];
+}
+
+/** A quadratic or a cubic in t, with a positive constant: where the quantity starts. */
+function sampleRatePoly(rng: Rng, difficulty: number): number[] {
+  if (difficulty >= 2) {
+    return [rng.pick([1, 2, 3, 4]) * rng.sign(), rng.int(-6, 6), nonZero(rng.int(-12, 12), 5), rng.int(2, 12) * 5];
+  }
+  return rng.chance(0.5)
+    ? [rng.int(1, 6), rng.int(1, 12), rng.int(1, 10) * 5]
+    : [rng.int(1, 4), 0, rng.int(1, 9), rng.int(1, 10) * 5];
+}
+
+/**
+ * A rate of change as a function of time.
+ *
+ * The differentiation is the power rule the course opened with; what is new is
+ * reading it. The distractors are the two halves of the rule forgotten one at
+ * a time, and the constant kept — where the quantity started, which says
+ * nothing about how fast it changes.
+ */
+const rateFunction: Generator<RateFnParams> = {
+  id: 'df-rc-rate-fn',
+  sample: (rng, difficulty) => ({
+    context: rng.int(0, RATE_CONTEXTS.length - 1),
+    coefficients: sampleRatePoly(rng, difficulty),
+  }),
+  choices: ({ coefficients }) => {
+    const top = coefficients.length - 1;
+    const derived = derivedCoefficients(coefficients);
+    const constant = coefficients[top];
+    const unmultiplied = coefficients.slice(0, -1);
+    const unlowered = coefficients.map((c, i) => c * (top - i));
+    const kept = derived.map((c, i) => (i === derived.length - 1 ? c + constant : c));
+    return options(
+      { tex: polyInTex(derived), answer: polyInAnswer(derived) },
+      { tex: polyInTex(unmultiplied), answer: polyInAnswer(unmultiplied) },
+      { tex: polyInTex(unlowered), answer: polyInAnswer(unlowered) },
+      { tex: polyInTex(kept), answer: polyInAnswer(kept) },
+    );
+  },
+  render: ({ context, coefficients }): Slide => {
+    const c = RATE_CONTEXTS[context];
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: rateIntro(c) },
+        { kind: 'display', tex: `${c.symbol} = ${polyInTex(coefficients)}` },
+        {
+          kind: 'prose',
+          text: `Find how fast it is changing at time $t$: the rate $${rateOf(c.symbol)}$, in $${rateUnit(c)}$.`,
+        },
+      ],
+      lead: `${rateOf(c.symbol)} =`,
+      keypad: T_KEYS,
+      answer: polyInAnswer(derivedCoefficients(coefficients)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ context, coefficients }) => {
+    const c = RATE_CONTEXTS[context];
+    return [
+      {
+        text: 'A rate of change is a derivative. Differentiate with respect to $t$ just as you would with respect to $x$: multiply by the power, then lower it by one.',
+        tex: `${rateOf(c.symbol)} = ${polyInTex(derivedCoefficients(coefficients))}`,
+      },
+      {
+        text: `The constant $${coefficients[coefficients.length - 1]}$ drops out. It is where ${c.what} started, and says nothing about how fast it changes.`,
+      },
+      {
+        text: `$${rateOf(c.symbol)}$ is measured in $${rateUnit(c)}$: units of $${c.symbol}$ for every ${c.per} that passes.`,
+      },
+    ];
+  },
+};
+
+export interface RateAtParams extends RateFnParams {
+  at: number;
+}
+
+const sampleRateAt = (rng: Rng, difficulty: number): RateAtParams => ({
+  context: rng.int(0, RATE_CONTEXTS.length - 1),
+  coefficients: sampleRatePoly(rng, difficulty),
+  at: rng.int(1, difficulty >= 2 ? 4 : 5),
+});
+
+/** [the rate at the moment asked about, the amount there is then]. */
+export function rateAndAmount({ coefficients, at }: RateAtParams): [number, number] {
+  return [hornerAt(derivedCoefficients(coefficients), at), hornerAt(coefficients, at)];
+}
+
+/**
+ * How fast a quantity is changing at one moment.
+ *
+ * Differentiate first, then substitute: substituting first gives the amount
+ * there is, which the options offer, as they offer the rate with the power
+ * rule half applied.
+ */
+const rateAt: Generator<RateAtParams> = {
+  id: 'df-rc-rate-at',
+  sample: sampleRateAt,
+  choices: (params) => {
+    const [rate, amount] = rateAndAmount(params);
+    const unmultiplied = hornerAt(params.coefficients.slice(0, -1), params.at);
+    return numberOptions(rate, [amount, unmultiplied, rate + params.coefficients[params.coefficients.length - 1]]);
+  },
+  render: (params): Slide => {
+    const { context, coefficients, at } = params;
+    const c = RATE_CONTEXTS[context];
+    const signed = coefficients.some((value) => value < 0);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: rateIntro(c) },
+        { kind: 'display', tex: `${c.symbol} = ${polyInTex(coefficients)}` },
+        {
+          kind: 'prose',
+          text: `How fast is it changing when $t = ${at}$? Give the rate in $${rateUnit(c)}$${signed ? '; a negative rate means it is going down' : ''}.`,
+        },
+      ],
+      lead: `\\left.${rateOf(c.symbol)}\\right|_{t = ${at}} =`,
+      keypad: [],
+      answer: `${rateAndAmount(params)[0]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { context, coefficients, at } = params;
+    const c = RATE_CONTEXTS[context];
+    const [rate, amount] = rateAndAmount(params);
+    return [
+      {
+        text: 'Differentiate first, leaving the rate as a function of $t$.',
+        tex: `${rateOf(c.symbol)} = ${polyInTex(derivedCoefficients(coefficients))}`,
+      },
+      {
+        text: `Only now substitute $t = ${at}$.`,
+        tex: `\\left.${rateOf(c.symbol)}\\right|_{t = ${at}} = ${rate}`,
+      },
+      {
+        text: `So at that moment it is ${changingTex(rate, c)}. Substituting into $${c.symbol}$ itself gives $${amount}$, which is how much there is, not how fast it is changing.`,
+      },
+    ];
+  },
+};
+
+export interface RateSliderParams {
+  context: number;
+  /** The quantity is p t^2 + q t + c. */
+  p: number;
+  q: number;
+  c: number;
+  /** The moment asked about: the answer. */
+  when: number;
+}
+
+/** The rate the slider question names, which the quantity reaches at `when`. */
+export const sliderRate = ({ p, q, when }: RateSliderParams): number => 2 * p * when + q;
+
+/**
+ * The moment a quantity is changing at a given rate, found and slid to.
+ *
+ * The graph shows the rate as steepness, so a learner can check that the
+ * moment they worked out is where the curve looks that steep. The rate is
+ * linear in $t$, so the moment is unique; half steps keep every rate whole.
+ */
+const rateSlider: Generator<RateSliderParams> = {
+  id: 'df-rc-rate-slider',
+  sample: (rng, difficulty) => {
+    const context = rng.int(0, RATE_CONTEXTS.length - 1);
+    if (difficulty >= 2 && rng.chance(0.5)) {
+      // Rises, turns, and falls inside the window.
+      const p = -rng.pick([1, 2, 3]);
+      return { context, p, q: -2 * p * rng.int(2, 5), c: rng.int(8, 16) * 5, when: rng.int(1, 11) / 2 };
+    }
+    return {
+      context,
+      p: rng.pick(difficulty >= 2 ? [1, 2, 3, 4] : [1, 2, 3]),
+      q: rng.int(0, difficulty >= 2 ? 12 : 8),
+      c: rng.int(1, 8) * 5,
+      when: rng.int(2, 10) / 2,
+    };
+  },
+  render: (params): Slide => {
+    const { context, p, q, c, when } = params;
+    const ctx = RATE_CONTEXTS[context];
+    const f = (t: number) => p * t * t + q * t + c;
+    const values = Array.from({ length: 61 }, (_, i) => f(i / 10));
+    const low = Math.min(0, ...values);
+    const high = Math.max(...values);
+    const pad = (high - low) * 0.1 + 1;
+    return {
+      kind: 'slider',
+      prompt: [
+        { kind: 'prose', text: rateIntro(ctx) },
+        { kind: 'display', tex: `${ctx.symbol} = ${polyInTex([p, q, c])}` },
+        { kind: 'prose', text: `Slide to the moment it is ${changingTex(sliderRate(params), ctx)}.` },
+      ],
+      min: 0,
+      max: 6,
+      step: 0.5,
+      answer: when,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 6,
+          yMin: low - pad,
+          yMax: high + pad,
+          curves: [{ f }],
+          label: `A graph of ${ctx.what} against time`,
+        }),
+        ...markerWindow(0, 6),
+      },
+    };
+  },
+  solution: (params) => {
+    const { context, p, q, when } = params;
+    const ctx = RATE_CONTEXTS[context];
+    const rate = sliderRate(params);
+    return [
+      {
+        text: 'The rate is the derivative.',
+        tex: `${rateOf(ctx.symbol)} = ${polyInTex([2 * p, q])}`,
+      },
+      {
+        text: `Set it equal to the rate you want, $${rate}$, and solve for $t$.`,
+        tex: `${polyInTex([2 * p, q])} = ${rate}`,
+      },
+      { tex: `t = ${when}` },
+      {
+        text:
+          p > 0
+            ? 'The curve gets steeper as time goes on, so this is the only moment it changes at exactly that rate.'
+            : 'The rate falls steadily, through zero at the top of the curve and negative after it, so it passes that value exactly once.',
+      },
+    ];
+  },
+};
+
+/** A rate at a moment, sampled so the rate and the amount are different numbers. */
+function sampleDistinctRate(rng: Rng, difficulty: number): RateAtParams {
+  for (;;) {
+    const params = sampleRateAt(rng, difficulty);
+    const [rate, amount] = rateAndAmount(params);
+    if (rate !== amount) return params;
+  }
+}
+
+/**
+ * A rate with its units: which number, and measured in what.
+ *
+ * The two mix-ups are independent — the amount taken for the rate, and the
+ * quantity's own unit kept for its rate — so the four options are every
+ * pairing of the two numbers with the two units.
+ */
+const readUnits: Generator<RateAtParams> = {
+  id: 'df-rc-read-units',
+  sample: sampleDistinctRate,
+  render: (params): Slide => {
+    const { context, coefficients, at } = params;
+    const c = RATE_CONTEXTS[context];
+    const [rate, amount] = rateAndAmount(params);
+    const inAmount = (value: number) => `${value}\\,${c.unit}`;
+    const inRate = (value: number) => `${value}\\,${rateUnit(c)}`;
+    const choices = [
+      { id: 'right', label: inRate(rate), tex: true },
+      { id: 'unit', label: inAmount(rate), tex: true },
+      { id: 'amount', label: inRate(amount), tex: true },
+      { id: 'both', label: inAmount(amount), tex: true },
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: rateIntro(c) },
+        { kind: 'display', tex: `${c.symbol} = ${polyInTex(coefficients)}` },
+        { kind: 'prose', text: `Which of these is its rate of change when $t = ${at}$?` },
+      ],
+      options: turned(choices, turnFor(4, context, at, ...coefficients)),
+      correctId: 'right',
+    };
+  },
+  solution: (params) => {
+    const { context, coefficients, at } = params;
+    const c = RATE_CONTEXTS[context];
+    const [rate, amount] = rateAndAmount(params);
+    return [
+      {
+        text: 'The rate of change is the derivative, evaluated at that moment.',
+        tex: `${rateOf(c.symbol)} = ${polyInTex(derivedCoefficients(coefficients))}`,
+      },
+      { tex: `\\left.${rateOf(c.symbol)}\\right|_{t = ${at}} = ${rate}` },
+      {
+        text: `A rate counts units of $${c.symbol}$ for each ${c.per}, so it is measured in $${rateUnit(c)}$, not in $${c.unit}$.`,
+      },
+      {
+        text: `$${amount}$ is $${c.symbol}$ itself at $t = ${at}$: how much there is, not how fast it is changing.`,
+      },
+    ];
+  },
+};
+
+/** A solid measured by one length x, whose size is k x^n. */
+interface BlockShape {
+  solid: string;
+  side: string;
+  q: string;
+  what: string;
+  k: number;
+  n: 2 | 3;
+  unit: string;
+}
+
+const BLOCK_SHAPES: readonly BlockShape[] = [
+  { solid: 'a cube', side: 'edge', q: 'V', what: 'volume', k: 1, n: 3, unit: '\\text{cm}^{3}' },
+  { solid: 'a cube', side: 'edge', q: 'S', what: 'surface area', k: 6, n: 2, unit: '\\text{cm}^{2}' },
+  { solid: 'a square', side: 'side', q: 'A', what: 'area', k: 1, n: 2, unit: '\\text{cm}^{2}' },
+  {
+    solid: 'a box twice as tall as its square base is wide',
+    side: 'base',
+    q: 'V',
+    what: 'volume',
+    k: 2,
+    n: 3,
+    unit: '\\text{cm}^{3}',
+  },
+];
+
+/** The formula for a block shape, in x. */
+const blockFormula = ({ q, k, n }: BlockShape): string => `${q} = ${termTex(k, n)}`;
+
+/** dQ/dx at x = s. */
+export const blockGradient = ({ k, n }: BlockShape, s: number): number => k * n * s ** (n - 1);
+
+export interface BlockParams {
+  shape: number;
+  /** The length x at the moment asked about. */
+  s: number;
+  /** dx/dt; negative when it is shrinking. */
+  r: number;
+}
+
+/**
+ * The chain rule as a product of two rates, in place.
+ *
+ * The chain is written out in the prompt so the order of the blanks is fixed;
+ * what the learner supplies is each rate's value at that moment. The bank
+ * holds the size itself, the classic substitute for its rate of change, and
+ * the derivative with the number in front left off.
+ */
+const chainTiles: Generator<BlockParams> = {
+  id: 'df-rc-chain-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const r = rng.int(1, hard ? 5 : 3);
+    return {
+      shape: rng.int(0, BLOCK_SHAPES.length - 1),
+      s: hard ? rng.int(2, 8) : rng.int(1, 6),
+      r: hard && rng.chance(0.4) ? -r : r,
+    };
+  },
+  render: ({ shape, s, r }): Slide => {
+    const b = BLOCK_SHAPES[shape];
+    const gradient = blockGradient(b, s);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The ${b.side} of ${b.solid}, $x$ cm, is ${r > 0 ? 'growing' : 'shrinking'} at $${Math.abs(r)}$ cm per second. How fast is its ${b.what} changing when $x = ${s}$? Fill the chain in the order it is written.`,
+        },
+        {
+          kind: 'display',
+          tex: `${blockFormula(b)}, \\qquad ${rateOf(b.q)} = ${rateOf(b.q, 'x')} \\times ${rateOf('x')}`,
+        },
+      ],
+      template: `${rateOf(b.q)} = {0} \\times {1} = {2}`,
+      bank: numberTiles(
+        [gradient, r, gradient * r],
+        [b.k * s ** b.n, b.k * s ** (b.n - 1), b.n * s ** (b.n - 1), gradient + r, -r],
+      ),
+      answer: [`${gradient}`, `${r}`, `${gradient * r}`],
+    };
+  },
+  solution: ({ shape, s, r }) => {
+    const b = BLOCK_SHAPES[shape];
+    const gradient = blockGradient(b, s);
+    return [
+      {
+        text: `Differentiate the formula to see how fast the ${b.what} changes for each centimetre of ${b.side}.`,
+        tex: `${rateOf(b.q, 'x')} = ${termTex(b.k * b.n, b.n - 1)} = ${gradient} \\text{ at } x = ${s}`,
+      },
+      {
+        text: `The ${b.side} ${r > 0 ? 'grows' : 'shrinks'} at $${Math.abs(r)}$ cm per second, so $${rateOf('x')} = ${r}$${r < 0 ? ', negative because it is shrinking' : ''}.`,
+      },
+      {
+        text: 'Multiply the two rates: the centimetres cancel, leaving the change per second.',
+        tex: `${rateOf(b.q)} = ${gradient} \\times ${bracketedNumber(r)} = ${gradient * r}`,
+      },
+      {
+        text: `So the ${b.what} is ${gradient * r > 0 ? 'growing' : 'shrinking'} at $${Math.abs(gradient * r)}$ $${b.unit}$ per second.`,
+      },
+    ];
+  },
+};
+
+export interface LinkParams {
+  k: number;
+  n: 2 | 3;
+  /** x = a t + b when 'line', x = t^2 + b when 'square'. */
+  form: 'line' | 'square';
+  a: number;
+  b: number;
+  at: number;
+}
+
+/** [x, dx/dt, dy/dx, dy/dt] at the moment asked about. */
+export function linkValues({ k, n, form, a, b, at }: LinkParams): [number, number, number, number] {
+  const x = form === 'line' ? a * at + b : at * at + b;
+  const dxdt = form === 'line' ? a : 2 * at;
+  const dydx = k * n * x ** (n - 1);
+  return [x, dxdt, dydx, dydx * dxdt];
+}
+
+/** x as a function of t, for mathjs. */
+export const linkX = ({ form, a, b }: LinkParams): string =>
+  form === 'line' ? polyInAnswer([a, b]) : polyInAnswer([1, 0, b]);
+
+/**
+ * Two links: y depends on x, and x on time.
+ *
+ * The tree makes the order visible. $\frac{dy}{dx}$ has to be evaluated at the
+ * value of $x$, not at the time — the bank carries the result of putting $t$ in
+ * instead, which is the slip this question is for.
+ */
+const linkTree: Generator<LinkParams> = {
+  id: 'df-rc-link-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    for (;;) {
+      const form = hard && rng.chance(0.5) ? ('square' as const) : ('line' as const);
+      const n = rng.pick([2, 3] as const);
+      const params: LinkParams = {
+        k: hard ? rng.pick([1, 2, 3]) * rng.sign() : rng.int(1, 3),
+        n,
+        form,
+        a: form === 'line' ? rng.int(2, 4) : 1,
+        b: hard ? rng.int(-2, 3) : rng.int(0, 3),
+        at: rng.int(1, 3),
+      };
+      const [x, , , dydt] = linkValues(params);
+      if (x === 0 || Math.abs(x) > (n === 3 ? 6 : 10) || Math.abs(dydt) > 500) continue;
+      // When x comes out equal to t, putting t in for x is not a slip at all.
+      if (x === params.at) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { k, n, form, a, b, at } = params;
+    const [x, dxdt, dydx, dydt] = linkValues(params);
+    const xTex = form === 'line' ? polyInTex([a, b]) : polyInTex([1, 0, b]);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$y$ depends on $x$, and $x$ changes with time. Find $${rateOf('y')}$ when $t = ${at}$. The top row is $x$ and $${rateOf('x')}$ at that moment, the next is $${rateOf('y', 'x')}$ using that value of $x$, and the last is their product.`,
+        },
+        { kind: 'display', tex: `y = ${termTex(k, n)}, \\qquad x = ${xTex}` },
+      ],
+      expression: `${rateOf('y')} = ${rateOf('y', 'x')} \\times ${rateOf('x')}`,
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'dxdt', from: [] },
+        { id: 'dydx', from: ['x'] },
+        { id: 'dydt', from: ['dydx', 'dxdt'] },
+      ],
+      bank: numberTiles(
+        [x, dxdt, dydx, dydt],
+        [k * n * at ** (n - 1), k * x ** n, dydx + dxdt, x * dxdt],
+      ),
+      answer: [x, dxdt, dydx, dydt].map(String),
+    };
+  },
+  solution: (params) => {
+    const { k, n, form, a, b, at } = params;
+    const [x, dxdt, dydx, dydt] = linkValues(params);
+    const xTex = form === 'line' ? polyInTex([a, b]) : polyInTex([1, 0, b]);
+    return [
+      {
+        text: `At $t = ${at}$, $x = ${xTex}$ comes to $${x}$. Differentiating it gives the rate $x$ changes at.`,
+        tex: `${rateOf('x')} = ${form === 'line' ? a : '2t'} = ${dxdt}`,
+      },
+      {
+        text: `Differentiate $y$ with respect to $x$, then put in $x = ${x}$, not $t = ${at}$.`,
+        tex: `${rateOf('y', 'x')} = ${termTex(k * n, n - 1)} = ${dydx}`,
+      },
+      {
+        text: 'Multiply the two rates.',
+        tex: `${rateOf('y')} = ${dydx} \\times ${dxdt} = ${dydt}`,
+      },
+    ];
+  },
+};
+
+/** Two quantities tied by a formula, and the words for them. */
+interface LinkedPair {
+  story: string;
+  q: string;
+  x: string;
+  qWhat: string;
+  xWhat: string;
+  qUnit: string;
+}
+
+const LINKED_PAIRS: readonly LinkedPair[] = [
+  { story: 'A circular ripple spreads across a pond', q: 'A', x: 'r', qWhat: 'area', xWhat: 'radius', qUnit: '\\text{cm}^{2}' },
+  { story: 'A spherical balloon is being blown up', q: 'V', x: 'r', qWhat: 'volume', xWhat: 'radius', qUnit: '\\text{cm}^{3}' },
+  { story: 'An ice cube is melting', q: 'V', x: 'x', qWhat: 'volume', xWhat: 'edge', qUnit: '\\text{cm}^{3}' },
+  { story: 'A square patch of moss is spreading', q: 'A', x: 'x', qWhat: 'area', xWhat: 'side', qUnit: '\\text{cm}^{2}' },
+  { story: 'Water is poured into a conical funnel', q: 'V', x: 'h', qWhat: 'volume', xWhat: 'depth', qUnit: '\\text{cm}^{3}' },
+  { story: 'A snowball rolls downhill, gathering snow', q: 'S', x: 'r', qWhat: 'surface area', xWhat: 'radius', qUnit: '\\text{cm}^{2}' },
+];
+
+export interface WhichRateParams {
+  pair: number;
+  /** Given the length's rate and asked for the size's, rather than the other way round. */
+  forward: boolean;
+  rate: number;
+}
+
+/**
+ * Which way round the chain goes.
+ *
+ * Forwards, the rate wanted is a product. Backwards it is the known rate
+ * divided by the derivative of the formula — the same chain rearranged, and
+ * the one most often written upside down.
+ */
+const whichRate: Generator<WhichRateParams> = {
+  id: 'df-rc-which-rate',
+  sample: (rng, difficulty) => ({
+    pair: rng.int(0, LINKED_PAIRS.length - 1),
+    forward: rng.chance(0.5),
+    rate: rng.int(1, difficulty >= 2 ? 12 : 9),
+  }),
+  render: ({ pair, forward, rate }): Slide => {
+    const p = LINKED_PAIRS[pair];
+    const qt = rateOf(p.q);
+    const qx = rateOf(p.q, p.x);
+    const xt = rateOf(p.x);
+    const xq = rateOf(p.x, p.q);
+    const choices = forward
+      ? [
+          { id: 'right', label: `${qt} = ${qx} \\times ${xt}`, tex: true },
+          { id: 'divided', label: `${qt} = ${qx} \\div ${xt}`, tex: true },
+          { id: 'flipped', label: `${qt} = ${xt} \\div ${qx}`, tex: true },
+          { id: 'inverted', label: `${qt} = ${xq} \\times ${xt}`, tex: true },
+        ]
+      : [
+          { id: 'right', label: `${xt} = ${qt} \\div ${qx}`, tex: true },
+          { id: 'times', label: `${xt} = ${qt} \\times ${qx}`, tex: true },
+          { id: 'flipped', label: `${xt} = ${qx} \\div ${qt}`, tex: true },
+          { id: 'upside', label: `${xt} = ${xq} \\div ${qt}`, tex: true },
+        ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: forward
+            ? `${p.story}. Its ${p.xWhat} is changing at $${rate}$ cm per second, and you want how fast its ${p.qWhat} is changing. Which gives it?`
+            : `${p.story}. Its ${p.qWhat} is changing at $${rate}$ $${p.qUnit}$ per second, and you want how fast its ${p.xWhat} is changing. Which gives it?`,
+        },
+      ],
+      options: turned(choices, turnFor(4, pair, forward ? 1 : 0, rate)),
+      correctId: 'right',
+    };
+  },
+  solution: ({ pair, forward, rate }) => {
+    const p = LINKED_PAIRS[pair];
+    const qt = rateOf(p.q);
+    const qx = rateOf(p.q, p.x);
+    const xt = rateOf(p.x);
+    return [
+      {
+        text: `The formula for the ${p.qWhat} gives $${qx}$, and the chain rule ties the rates together: the $d${p.x}$ on the bottom of one cancels the $d${p.x}$ on top of the other.`,
+        tex: `${qt} = ${qx} \\times ${xt}`,
+      },
+      forward
+        ? { text: `You know $${xt} = ${rate}$, so this is the rate you want as it stands: multiply.` }
+        : {
+            text: `You know $${qt} = ${rate}$ and want $${xt}$, so divide both sides by $${qx}$.`,
+            tex: `${xt} = ${qt} \\div ${qx}`,
+          },
+      {
+        text: 'A quick check: the letters should cancel to leave the rate you want on the right-hand side as well.',
+      },
+    ];
+  },
+};
+
+export interface RateInXParams {
+  /** y as a polynomial in x, highest power first. */
+  coefficients: number[];
+  /** dx/dt, constant. */
+  r: number;
+}
+
+/**
+ * dy/dt as a function of x, when x changes at a steady rate.
+ *
+ * `source` is r times y: since r is constant, the derivative of that with
+ * respect to x is exactly $\frac{dy}{dx} \times \frac{dx}{dt}$, which lets the
+ * oracle check the answer independently.
+ */
+const rateInX: Generator<RateInXParams> = {
+  id: 'df-rc-rate-in-x',
+  sample: (rng, difficulty) => {
+    if (difficulty >= 2) {
+      return {
+        coefficients: [rng.pick([1, 2, 3]) * rng.sign(), rng.int(-5, 5), nonZero(rng.int(-9, 9), 4), rng.int(-9, 9)],
+        r: rng.int(2, 6) * rng.sign(),
+      };
+    }
+    return {
+      coefficients: rng.chance(0.5)
+        ? [rng.int(1, 5), rng.int(0, 9), rng.int(0, 9)]
+        : [rng.int(1, 3), 0, rng.int(1, 9), rng.int(0, 9)],
+      r: rng.int(2, 5),
+    };
+  },
+  choices: ({ coefficients, r }) => {
+    const derived = derivedCoefficients(coefficients);
+    const right = derived.map((c) => c * r);
+    const plusRate = derived.map((c, i) => (i === derived.length - 1 ? c + r : c));
+    const scaledY = coefficients.map((c) => c * r);
+    return options(
+      { tex: polyInTex(right, 'x'), answer: polyInAnswer(right, 'x') },
+      { tex: polyInTex(derived, 'x'), answer: polyInAnswer(derived, 'x') },
+      { tex: polyInTex(plusRate, 'x'), answer: polyInAnswer(plusRate, 'x') },
+      { tex: polyInTex(scaledY, 'x'), answer: polyInAnswer(scaledY, 'x') },
+    );
+  },
+  render: ({ coefficients, r }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `A point moves along this curve, its $x$-coordinate ${r > 0 ? 'increasing' : 'decreasing'} at a steady $${Math.abs(r)}$ units per second. Find $${rateOf('y')}$ in terms of $x$.`,
+      },
+      { kind: 'display', tex: `y = ${polyInTex(coefficients, 'x')}` },
+    ],
+    lead: `${rateOf('y')} =`,
+    keypad: ALGEBRA_KEYS,
+    answer: polyInAnswer(
+      derivedCoefficients(coefficients).map((c) => c * r),
+      'x',
+    ),
+    source: `(${r}) * (${polyInAnswer(coefficients, 'x')})`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ coefficients, r }) => {
+    const derived = derivedCoefficients(coefficients);
+    return [
+      { text: 'Chain the two rates.', tex: `${rateOf('y')} = ${rateOf('y', 'x')} \\times ${rateOf('x')}` },
+      { text: 'Differentiate the curve.', tex: `${rateOf('y', 'x')} = ${polyInTex(derived, 'x')}` },
+      {
+        text: `$x$ is ${r > 0 ? 'increasing' : 'decreasing'} at $${Math.abs(r)}$ per second, so $${rateOf('x')} = ${r}$. Multiply every term by it.`,
+        tex: `${rateOf('y')} = ${polyInTex(
+          derived.map((c) => c * r),
+          'x',
+        )}`,
+      },
+    ];
+  },
+};
+
+/** A shape whose size is a whole number times π, measured by one length. */
+interface RoundShape {
+  /** A sentence setting the scene. */
+  story: string;
+  x: string;
+  xWhat: string;
+  q: string;
+  what: string;
+  /** The formula as displayed. */
+  formula: string;
+  /** dQ/dx, TeX. */
+  derivative: string;
+  /** A tempting wrong derivative, TeX. */
+  slip: string;
+  /** dQ/dx at x = s, as a multiple of π. */
+  coefficient: (s: number) => number;
+  /** Q at x = s, as a multiple of π; not always whole. */
+  amount: (s: number) => number;
+  unit: string;
+  grows: string;
+  shrinks: string;
+}
+
+const ROUND_SHAPES: readonly RoundShape[] = [
+  {
+    story: 'A puddle is a circle',
+    x: 'r',
+    xWhat: 'radius',
+    q: 'A',
+    what: 'area',
+    formula: 'A = \\pi r^{2}',
+    derivative: '2\\pi r',
+    slip: '\\pi r',
+    coefficient: (s) => 2 * s,
+    amount: (s) => s * s,
+    unit: '\\text{cm}^{2}',
+    grows: 'growing',
+    shrinks: 'shrinking',
+  },
+  {
+    story: 'A balloon is a sphere',
+    x: 'r',
+    xWhat: 'radius',
+    q: 'V',
+    what: 'volume',
+    formula: 'V = \\frac{4}{3}\\pi r^{3}',
+    derivative: '4\\pi r^{2}',
+    slip: '\\frac{4}{3}\\pi r^{2}',
+    coefficient: (s) => 4 * s * s,
+    amount: (s) => (4 * s ** 3) / 3,
+    unit: '\\text{cm}^{3}',
+    grows: 'growing',
+    shrinks: 'shrinking',
+  },
+  {
+    story: 'A snowball is a sphere',
+    x: 'r',
+    xWhat: 'radius',
+    q: 'S',
+    what: 'surface area',
+    formula: 'S = 4\\pi r^{2}',
+    derivative: '8\\pi r',
+    slip: '4\\pi r',
+    coefficient: (s) => 8 * s,
+    amount: (s) => 4 * s * s,
+    unit: '\\text{cm}^{2}',
+    grows: 'growing',
+    shrinks: 'shrinking',
+  },
+  {
+    story: 'A pile of sand is a cone, always three times as tall as its radius',
+    x: 'r',
+    xWhat: 'radius',
+    q: 'V',
+    what: 'volume',
+    formula: 'V = \\frac{1}{3}\\pi r^{2}h = \\pi r^{3}',
+    derivative: '3\\pi r^{2}',
+    slip: '\\pi r^{2}',
+    coefficient: (s) => 3 * s * s,
+    amount: (s) => s ** 3,
+    unit: '\\text{cm}^{3}',
+    grows: 'growing',
+    shrinks: 'shrinking',
+  },
+  {
+    story: 'Water stands in a cylindrical tank of radius $4$ cm',
+    x: 'h',
+    xWhat: 'depth',
+    q: 'V',
+    what: 'volume',
+    formula: 'V = \\pi r^{2}h = 16\\pi h',
+    derivative: '16\\pi',
+    slip: '16\\pi h',
+    coefficient: () => 16,
+    amount: (s) => 16 * s,
+    unit: '\\text{cm}^{3}',
+    grows: 'rising',
+    shrinks: 'falling',
+  },
+];
+
+/** The mathjs form of each round shape's formula, for the independent check. */
+export const ROUND_SOURCES = ['pi*r^2', '4/3*pi*r^3', '4*pi*r^2', 'pi*r^3', '16*pi*h'];
+
+/** A multiple of π as it is written: π alone, not 1π. */
+const piTex = (k: number): string => (k === 1 ? '\\pi' : k === -1 ? '-\\pi' : `${k}\\pi`);
+
+export interface RoundParams {
+  shape: number;
+  /** The length at the moment asked about. */
+  s: number;
+  /** dx/dt, negative when it is shrinking. */
+  rate: number;
+}
+
+/** dQ/dt as a multiple of π. */
+export const roundK = ({ shape, s, rate }: RoundParams): number => ROUND_SHAPES[shape].coefficient(s) * rate;
+
+/**
+ * The rate of a size with π in it, asked for as its whole-number multiple.
+ *
+ * A typed number is graded as a number, so $24\pi$ would have to be typed as
+ * 75.398… to pass. Asking for the multiple keeps the answer whole and the π
+ * where it belongs, on the page.
+ */
+const shapeK: Generator<RoundParams> = {
+  id: 'df-rc-shape-k',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const rate = rng.int(1, hard ? 5 : 4);
+    return {
+      shape: rng.int(0, ROUND_SHAPES.length - 1),
+      s: hard ? rng.int(2, 8) : rng.int(1, 6),
+      rate: hard && rng.chance(0.4) ? -rate : rate,
+    };
+  },
+  choices: (params) => {
+    const shape = ROUND_SHAPES[params.shape];
+    const k = roundK(params);
+    return numberOptions(k, [
+      shape.coefficient(params.s),
+      shape.amount(params.s) * params.rate,
+      k * 2,
+      -k,
+    ]);
+  },
+  render: (params): Slide => {
+    const shape = ROUND_SHAPES[params.shape];
+    const { s, rate } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${shape.story}. Its ${shape.xWhat} is ${rate > 0 ? shape.grows : shape.shrinks} at $${Math.abs(rate)}$ cm per second. How fast is its ${shape.what} changing when $${shape.x} = ${s}$ cm?`,
+        },
+        { kind: 'display', tex: shape.formula },
+        {
+          kind: 'prose',
+          text: `The answer is $${rateOf(shape.q)} = k\\pi$ $${shape.unit}$ per second, for a whole number $k$. Find $k$.`,
+        },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${roundK(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const shape = ROUND_SHAPES[params.shape];
+    const { s, rate } = params;
+    const gradient = shape.coefficient(s);
+    const k = roundK(params);
+    return [
+      {
+        text: `Differentiate the formula with respect to $${shape.x}$.`,
+        tex: `${rateOf(shape.q, shape.x)} = ${shape.derivative}`,
+      },
+      {
+        text: `At $${shape.x} = ${s}$ that is $${piTex(gradient)}$. Multiply by $${rateOf(shape.x)} = ${rate}$.`,
+        tex: `${rateOf(shape.q)} = ${piTex(gradient)} \\times ${bracketedNumber(rate)} = ${piTex(k)}`,
+      },
+      { text: `So $k = ${k}$: the ${shape.what} is changing at $${piTex(k)}$ $${shape.unit}$ per second.` },
+    ];
+  },
+};
+
+/** Tokens for a bank: the answer's, then distinct extras, sorted so one question renders one way. */
+function tokenBank(answer: string[], extras: string[], spare = 3): string[] {
+  const out = [...answer];
+  const seen = new Set(answer);
+  for (const token of extras) {
+    if (out.length - answer.length >= spare) break;
+    if (seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out.sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+}
+
+/**
+ * Backwards through the chain: the size's rate is known, the length's wanted.
+ *
+ * Dividing a multiple of π by a multiple of π leaves a whole number, so the π
+ * cancels on the page. The bank offers the size itself where it is a whole
+ * multiple of π, and the rate with the π dropped.
+ */
+const shapeBack: Generator<RoundParams> = {
+  id: 'df-rc-shape-back',
+  sample: (rng, difficulty) => ({
+    shape: rng.int(0, ROUND_SHAPES.length - 1),
+    s: difficulty >= 2 ? rng.int(2, 8) : rng.int(1, 5),
+    rate: rng.int(2, difficulty >= 2 ? 6 : 4),
+  }),
+  render: (params): Slide => {
+    const shape = ROUND_SHAPES[params.shape];
+    const { s, rate } = params;
+    const gradient = shape.coefficient(s);
+    const k = roundK(params);
+    const amount = shape.amount(s);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${shape.story}. Its ${shape.what} is ${shape.grows} at $${piTex(k)}$ $${shape.unit}$ per second. How fast is its ${shape.xWhat} ${shape.grows} when $${shape.x} = ${s}$ cm?`,
+        },
+        { kind: 'display', tex: shape.formula },
+        {
+          kind: 'prose',
+          text: `Divide the rate you know by $${rateOf(shape.q, shape.x)}$ at that moment.`,
+        },
+      ],
+      template: `${rateOf(shape.x)} = {0} \\div {1} = {2}`,
+      bank: tokenBank(
+        [piTex(k), piTex(gradient), `${rate}`],
+        [
+          ...(Number.isInteger(amount) ? [piTex(amount)] : []),
+          `${k}`,
+          piTex(gradient * 2),
+          `${rate + 1}`,
+          `${rate - 1}`,
+        ],
+      ),
+      answer: [piTex(k), piTex(gradient), `${rate}`],
+    };
+  },
+  solution: (params) => {
+    const shape = ROUND_SHAPES[params.shape];
+    const { s, rate } = params;
+    const gradient = shape.coefficient(s);
+    const k = roundK(params);
+    return [
+      {
+        text: `The chain is $${rateOf(shape.q)} = ${rateOf(shape.q, shape.x)} \\times ${rateOf(shape.x)}$, so the rate you want is the one you know divided by $${rateOf(shape.q, shape.x)}$.`,
+      },
+      {
+        text: `Differentiate the formula and put in $${shape.x} = ${s}$.`,
+        tex: `${rateOf(shape.q, shape.x)} = ${shape.derivative} = ${piTex(gradient)}`,
+      },
+      {
+        text: 'Divide. The π on top cancels the π underneath.',
+        tex: `${rateOf(shape.x)} = ${piTex(k)} \\div ${piTex(gradient)} = ${rate}`,
+      },
+      { text: `So the ${shape.xWhat} is ${shape.grows} at $${rate}$ cm per second.` },
+    ];
+  },
+};
+
+export interface ShapeFlowParams extends RoundParams {
+  /** Given the length's rate rather than the size's. */
+  forward: boolean;
+}
+
+/** The labels along the right path through `df-rc-shape-flow`. */
+function shapeFlowPath({ shape, s, forward }: ShapeFlowParams): string[] {
+  const round = ROUND_SHAPES[shape];
+  return [
+    `$${round.derivative}$`,
+    `$${piTex(round.coefficient(s))}$`,
+    forward ? 'Multiply them' : `Divide the known rate by $${rateOf(round.q, round.x)}$`,
+  ];
+}
+
+/**
+ * A related-rates problem as three decisions: the derivative, its value, and
+ * which way the chain goes.
+ *
+ * A wrong turn ends the walk with what it leads to, stated as fact and
+ * without saying it is wrong: the grade comes from the path, and an outcome
+ * that said "that is not right" would be a hint the learner never asked for.
+ */
+const shapeFlow: Generator<ShapeFlowParams> = {
+  id: 'df-rc-shape-flow',
+  sample: (rng, difficulty) => ({
+    shape: rng.int(0, ROUND_SHAPES.length - 1),
+    s: difficulty >= 2 ? rng.int(2, 7) : rng.int(2, 5),
+    rate: rng.int(2, difficulty >= 2 ? 6 : 4),
+    forward: rng.chance(0.5),
+  }),
+  render: (params): Slide => {
+    const shape = ROUND_SHAPES[params.shape];
+    const { s, rate, forward } = params;
+    const gradient = shape.coefficient(s);
+    const k = roundK(params);
+    const amount = shape.amount(s);
+    const qx = rateOf(shape.q, shape.x);
+    const [derivativeLabel, valueLabel, combineLabel] = shapeFlowPath(params);
+    const turn = turnFor(6, params.shape, s, rate, forward ? 1 : 0);
+    const valueSlips = [
+      Number.isInteger(amount) && amount !== gradient ? piTex(amount) : piTex(gradient * s),
+      `${gradient}`,
+    ];
+    const combine = forward
+      ? [
+          {
+            label: combineLabel,
+            outcome: `$${rateOf(shape.q)} = ${piTex(gradient)} \\times ${rate} = ${piTex(k)}$ $${shape.unit}$ per second.`,
+          },
+          { label: 'Divide them', outcome: `$${rateOf(shape.q)} = ${piTex(gradient)} \\div ${rate}$.` },
+          { label: 'Add them', outcome: `$${rateOf(shape.q)} = ${piTex(gradient)} + ${rate}$.` },
+        ]
+      : [
+          {
+            label: combineLabel,
+            outcome: `$${rateOf(shape.x)} = ${piTex(k)} \\div ${piTex(gradient)} = ${rate}$ cm per second.`,
+          },
+          {
+            label: `Multiply the known rate by $${qx}$`,
+            outcome: `$${rateOf(shape.x)} = ${piTex(k)} \\times ${piTex(gradient)}$.`,
+          },
+          {
+            label: `Divide $${qx}$ by the known rate`,
+            outcome: `$${rateOf(shape.x)} = ${piTex(gradient)} \\div ${piTex(k)}$.`,
+          },
+        ];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: forward
+            ? `${shape.story}, and its ${shape.xWhat} is ${shape.grows} at $${rate}$ cm per second. Work out how fast its ${shape.what} is ${shape.grows} when $${shape.x} = ${s}$ cm.`
+            : `${shape.story}, and its ${shape.what} is ${shape.grows} at $${piTex(k)}$ $${shape.unit}$ per second. Work out how fast its ${shape.xWhat} is ${shape.grows} when $${shape.x} = ${s}$ cm.`,
+        },
+      ],
+      subject: shape.formula,
+      steps: [
+        {
+          id: 'differentiate',
+          ask: `Differentiate the formula. What is $${qx}$?`,
+          branches: turned(
+            [
+              { label: derivativeLabel, to: 'value' },
+              { label: `$${shape.slip}$`, outcome: `Then $${qx} = ${shape.slip}$ from here on.` },
+            ],
+            turn % 2,
+          ),
+        },
+        {
+          id: 'value',
+          ask: `What is $${qx}$ when $${shape.x} = ${s}$?`,
+          branches: turned(
+            [
+              { label: valueLabel, to: 'combine' },
+              ...valueSlips.map((slip) => ({
+                label: `$${slip}$`,
+                outcome: `Then $${qx} = ${slip}$ at that moment.`,
+              })),
+            ],
+            turn % 3,
+          ),
+        },
+        {
+          id: 'combine',
+          ask: forward
+            ? `You know $${rateOf(shape.x)}$. How do you get $${rateOf(shape.q)}$ from it and $${qx}$?`
+            : `You know $${rateOf(shape.q)}$. How do you get $${rateOf(shape.x)}$ from it and $${qx}$?`,
+          branches: turned(combine, (turn + 1) % 3),
+        },
+      ],
+      answer: shapeFlowPath(params),
+    };
+  },
+  solution: (params) => {
+    const shape = ROUND_SHAPES[params.shape];
+    const { s, rate, forward } = params;
+    const gradient = shape.coefficient(s);
+    const k = roundK(params);
+    return [
+      {
+        text: `Differentiate the formula with respect to $${shape.x}$.`,
+        tex: `${rateOf(shape.q, shape.x)} = ${shape.derivative}`,
+      },
+      {
+        text: `Put in $${shape.x} = ${s}$.`,
+        tex: `${rateOf(shape.q, shape.x)} = ${piTex(gradient)}`,
+      },
+      forward
+        ? {
+            text: `The chain multiplies the two rates.`,
+            tex: `${rateOf(shape.q)} = ${piTex(gradient)} \\times ${rate} = ${piTex(k)}`,
+          }
+        : {
+            text: `The chain $${rateOf(shape.q)} = ${rateOf(shape.q, shape.x)} \\times ${rateOf(shape.x)}$, rearranged, divides the known rate by $${rateOf(shape.q, shape.x)}$.`,
+            tex: `${rateOf(shape.x)} = ${piTex(k)} \\div ${piTex(gradient)} = ${rate}`,
+          },
+    ];
+  },
+};
+
+/** The length's rate, dQ/dt divided by dQ/dx, as a line to reduce. */
+function blockQuotient(shape: BlockShape, s: number, rate: number): Expr {
+  const change = blockGradient(shape, s) * rate;
+  const power = shape.n - 1 === 1 ? num(s) : pow(num(s), num(shape.n - 1));
+  return bin('/', bin('/', num(change), num(shape.k * shape.n)), power);
+}
+
+/**
+ * Banks for a quotient line, from the slips each piece invites: dividing the
+ * wrong way, multiplying instead, and a power taken as a product.
+ */
+function quotientBanks(expr: Expr, path = 'r', out: Record<string, string[]> = {}): Record<string, string[]> {
+  if (expr.kind === 'num') return out;
+  const value = valueOf(expr);
+  const sorted = (bank: string[]) => bank.map(Number).sort((x, y) => x - y).map(String);
+  if (expr.kind === 'power') {
+    const base = valueOf(expr.base);
+    const exponent = valueOf(expr.exponent);
+    out[path] = sorted(bank4(value, base * exponent, base + exponent));
+    quotientBanks(expr.base, `${path}.b`, out);
+    quotientBanks(expr.exponent, `${path}.e`, out);
+    return out;
+  }
+  if (expr.kind === 'binary') {
+    const left = valueOf(expr.left);
+    const right = valueOf(expr.right);
+    out[path] = sorted(bank4(value, left * right, left - right, value * 2));
+    quotientBanks(expr.left, `${path}.l`, out);
+    quotientBanks(expr.right, `${path}.r`, out);
+  }
+  return out;
+}
+
+export interface BlockBackParams {
+  shape: number;
+  s: number;
+  /** dx/dt: the answer. */
+  rate: number;
+}
+
+/**
+ * Backwards through the chain for a shape with no π: the size's rate is
+ * known, the length's wanted, worked as a line of division.
+ *
+ * Dividing by $3x^{2}$ is written as dividing by $3$ and then by $x^{2}$, left
+ * to right, so the line reads correctly without brackets — a reduce line
+ * brackets only by precedence, and $a \div 3 \times 16$ would say something
+ * else entirely.
+ */
+const blockBack: Generator<BlockBackParams> = {
+  id: 'df-rc-block-back',
+  sample: (rng, difficulty) => ({
+    shape: rng.int(0, BLOCK_SHAPES.length - 1),
+    s: difficulty >= 2 ? rng.int(2, 6) : rng.int(2, 5),
+    rate: rng.int(difficulty >= 2 ? 2 : 1, difficulty >= 2 ? 6 : 4),
+  }),
+  choices: ({ shape, s, rate }) => {
+    const b = BLOCK_SHAPES[shape];
+    const change = blockGradient(b, s) * rate;
+    return numberOptions(rate, [change / (b.k * b.n), change / s ** (b.n - 1), rate * s, change]);
+  },
+  render: ({ shape, s, rate }): Slide => {
+    const b = BLOCK_SHAPES[shape];
+    const change = blockGradient(b, s) * rate;
+    const expr = blockQuotient(b, s, rate);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The ${b.what} of ${b.solid} is growing at $${change}$ $${b.unit}$ per second. How fast is its ${b.side}, $x$ cm, growing when $x = ${s}$? Dividing by $${rateOf(b.q, 'x')} = ${termTex(b.k * b.n, b.n - 1)}$ is dividing by $${b.k * b.n}$, then by $${termTex(1, b.n - 1).replace('x', `${s}`)}$. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+        { kind: 'display', tex: `${blockFormula(b)}, \\qquad ${rateOf('x')} = ${rateOf(b.q)} \\div ${rateOf(b.q, 'x')}` },
+      ],
+      expr,
+      banks: quotientBanks(expr),
+    };
+  },
+  solution: ({ shape, s, rate }) => {
+    const b = BLOCK_SHAPES[shape];
+    const gradient = blockGradient(b, s);
+    const change = gradient * rate;
+    return [
+      {
+        text: `The chain is $${rateOf(b.q)} = ${rateOf(b.q, 'x')} \\times ${rateOf('x')}$, so divide the known rate by $${rateOf(b.q, 'x')}$.`,
+      },
+      {
+        text: `Differentiate the formula and put in $x = ${s}$.`,
+        tex: `${rateOf(b.q, 'x')} = ${termTex(b.k * b.n, b.n - 1)} = ${gradient}`,
+      },
+      { tex: `${rateOf('x')} = ${change} \\div ${gradient} = ${rate}` },
+      { text: `So the ${b.side} is growing at $${rate}$ cm per second.` },
+    ];
+  },
+};
+
+export interface PeakParams {
+  context: number;
+  /** The rate is 3m(t - p)(q - t), zero at p and q. */
+  m: number;
+  p: number;
+  q: number;
+  c: number;
+}
+
+/** The quantity's coefficients in t, highest power first. */
+export const peakCoefficients = ({ m, p, q, c }: PeakParams): number[] => [
+  -m,
+  (3 * m * (p + q)) / 2,
+  -3 * m * p * q,
+  c,
+];
+
+/** A cubic whose rate is zero at two whole times p < q, with (p + q) / 2 whole too. */
+function samplePeak(rng: Rng, difficulty: number, signed = false): PeakParams {
+  const hard = difficulty >= 2;
+  const p = hard ? rng.int(0, 3) : 0;
+  const m = rng.pick(hard ? [1, 2, 3] : [1, 2]);
+  return {
+    context: rng.int(0, RATE_CONTEXTS.length - 1),
+    m: signed && hard ? m * rng.sign() : m,
+    p,
+    q: p + 2 * rng.int(1, 4),
+    c: rng.int(2, 12) * 5,
+  };
+}
+
+/** The quantity's rate at time t. */
+export const peakRate = ({ m, p, q }: PeakParams, t: number): number => 3 * m * (t - p) * (q - t);
+
+export interface RateSignParams extends PeakParams {
+  at: number;
+}
+
+/** 'up', 'down' or 'still', from the sign of the rate. */
+export function directionOf(params: RateSignParams): 'up' | 'down' | 'still' {
+  const rate = peakRate(params, params.at);
+  return rate > 0 ? 'up' : rate < 0 ? 'down' : 'still';
+}
+
+/**
+ * Whether a quantity is growing or shrinking at a moment: the sign of its rate.
+ *
+ * The rate is zero at two whole times, and a third of the draws land on one of
+ * them, so "neither" is sometimes the answer and cannot be ruled out on sight.
+ */
+const rateSign: Generator<RateSignParams> = {
+  id: 'df-rc-sign',
+  sample: (rng, difficulty) => {
+    const peak = samplePeak(rng, difficulty, true);
+    const at = rng.chance(1 / 3) ? rng.pick([peak.p, peak.q].filter((t) => t > 0)) : rng.int(1, peak.q + 2);
+    return { ...peak, at };
+  },
+  render: (params): Slide => {
+    const c = RATE_CONTEXTS[params.context];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: rateIntro(c) },
+        { kind: 'display', tex: `${c.symbol} = ${polyInTex(peakCoefficients(params))}` },
+        { kind: 'prose', text: `At $t = ${params.at}$, is it increasing or decreasing?` },
+      ],
+      options: [
+        { id: 'up', label: 'Increasing' },
+        { id: 'down', label: 'Decreasing' },
+        { id: 'still', label: 'Neither: at that instant it is not changing' },
+      ],
+      correctId: directionOf(params),
+    };
+  },
+  solution: (params) => {
+    const c = RATE_CONTEXTS[params.context];
+    const { m, p, q, at } = params;
+    const rate = peakRate(params, at);
+    return [
+      {
+        text: 'Its rate of change is the derivative.',
+        tex: `${rateOf(c.symbol)} = ${polyInTex(derivedCoefficients(peakCoefficients(params)))}`,
+      },
+      { text: 'It factorises, which shows where it is zero.', tex: `= ${leadingTex(3 * m)}${p === 0 ? 't' : `(t - ${p})`}(${q} - t)` },
+      { text: `Put in $t = ${at}$.`, tex: `\\left.${rateOf(c.symbol)}\\right|_{t = ${at}} = ${rate}` },
+      {
+        text:
+          rate === 0
+            ? 'Zero: at that instant it is neither increasing nor decreasing.'
+            : rate > 0
+              ? 'Positive, so it is increasing.'
+              : 'Negative, so it is decreasing.',
+      },
+    ];
+  },
+};
+
+type MethodKind = 'at' | 'zero' | 'greatest' | 'given' | 'small' | 'long';
+
+export interface MethodParams extends PeakParams {
+  kind: MethodKind;
+  /** A time the question names. */
+  at: number;
+}
+
+/** The labels along the right path through `df-rc-method-flow`. */
+function methodPath(kind: MethodKind): string[] {
+  const HOW_FAST = 'How fast it changes';
+  const HOW_MUCH = 'How much it changes';
+  const FIND = 'It has to be found';
+  return {
+    at: [HOW_FAST, 'It is given'],
+    zero: [HOW_FAST, FIND, 'The rate is zero'],
+    greatest: [HOW_FAST, FIND, 'The rate is greatest'],
+    given: [HOW_FAST, FIND, 'The rate has a set value'],
+    small: [HOW_MUCH, 'Yes, a small nudge'],
+    long: [HOW_MUCH, 'No, a whole stretch'],
+  }[kind];
+}
+
+/**
+ * Which method a question about a changing quantity calls for.
+ *
+ * Every question here is about the same function, and each wants a different
+ * piece of calculus: a derivative at a moment, a derivative set to zero, a
+ * second derivative set to zero, or an estimate. Telling them apart is most
+ * of the work, and it is the part a worked example never makes you do.
+ */
+const methodFlow: Generator<MethodParams> = {
+  id: 'df-rc-method-flow',
+  sample: (rng, difficulty) => {
+    const peak = samplePeak(rng, difficulty);
+    return {
+      ...peak,
+      kind: rng.pick(['at', 'zero', 'greatest', 'given', 'small', 'long'] as const),
+      at: rng.int(peak.p + 1, peak.q - 1),
+    };
+  },
+  render: (params): Slide => {
+    const c = RATE_CONTEXTS[params.context];
+    const { kind, at, q } = params;
+    const question = {
+      at: `How fast is it changing when $t = ${at}$?`,
+      zero: 'At what time does it stop increasing?',
+      greatest: 'At what time is it increasing fastest?',
+      given: `At what time after $t = ${params.p}$ is it ${changingTex(peakRate(params, at), c)}?`,
+      small: `Roughly how much does it change between $t = ${at}$ and $t = ${at}.1$?`,
+      long: `By how much does it change between $t = ${at}$ and $t = ${q}$?`,
+    }[kind];
+    const s = c.symbol;
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: `After $t$ ${c.per}s, ${c.what} is $${c.symbol}$ $${c.unit}$, as below.` },
+        { kind: 'prose', text: `${question} Choose how you would answer it.` },
+      ],
+      subject: `${s} = ${polyInTex(peakCoefficients(params))}`,
+      steps: [
+        {
+          id: 'what',
+          ask: `Is the question about how fast $${s}$ is changing, or how much it changes?`,
+          branches: [
+            { label: 'How fast it changes', to: 'moment' },
+            { label: 'How much it changes', to: 'size' },
+          ],
+        },
+        {
+          id: 'moment',
+          ask: 'Is the moment given, or is it what you have to find?',
+          branches: [
+            { label: 'It is given', outcome: `Differentiate, then put that value of $t$ into $${rateOf(s)}$.` },
+            { label: 'It has to be found', to: 'which' },
+          ],
+        },
+        {
+          id: 'which',
+          ask: 'What is true of the rate at that moment?',
+          branches: [
+            { label: 'The rate is zero', outcome: `Solve $${rateOf(s)} = 0$.` },
+            {
+              label: 'The rate is greatest',
+              outcome: `Differentiate again and solve $\\frac{d^{2}${s}}{dt^{2}} = 0$: the rate is greatest where its own rate is zero.`,
+            },
+            { label: 'The rate has a set value', outcome: `Set $${rateOf(s)}$ equal to that value and solve for $t$.` },
+          ],
+        },
+        {
+          id: 'size',
+          ask: 'Is the change in $t$ small?',
+          branches: [
+            {
+              label: 'Yes, a small nudge',
+              outcome: `Estimate it: $\\delta ${s} \\approx ${rateOf(s)} \\times \\delta t$.`,
+            },
+            { label: 'No, a whole stretch', outcome: `Work out $${s}$ at both times and subtract.` },
+          ],
+        },
+      ],
+      answer: methodPath(kind),
+    };
+  },
+  solution: (params) => {
+    const c = RATE_CONTEXTS[params.context];
+    const s = c.symbol;
+    const { kind, at, p, q } = params;
+    const rate = polyInTex(derivedCoefficients(peakCoefficients(params)));
+    const second = polyInTex(derivedCoefficients(derivedCoefficients(peakCoefficients(params))));
+    const steps: Record<MethodKind, SolutionStep[]> = {
+      at: [
+        { text: 'A rate at a moment you are given: differentiate, then substitute.', tex: `${rateOf(s)} = ${rate}` },
+        { tex: `\\left.${rateOf(s)}\\right|_{t = ${at}} = ${peakRate(params, at)}` },
+      ],
+      zero: [
+        { text: 'It stops increasing when its rate falls to zero.', tex: `${rate} = 0` },
+        { text: `That happens at $t = ${q}$${p > 0 ? `, and at $t = ${p}$, where it starts increasing` : ''}.` },
+      ],
+      greatest: [
+        { text: 'The rate is greatest where the rate of the rate is zero: differentiate twice.', tex: `\\frac{d^{2}${s}}{dt^{2}} = ${second} = 0` },
+        { text: `So $t = ${(p + q) / 2}$, halfway between the two times the rate is zero.` },
+      ],
+      given: [
+        { text: 'Set the rate equal to the value named and solve.', tex: `${rate} = ${peakRate(params, at)}` },
+        { text: `One solution is $t = ${at}$.` },
+      ],
+      small: [
+        { text: 'A change over a nudge of time is roughly the rate times the nudge.', tex: `\\delta ${s} \\approx ${rateOf(s)} \\times \\delta t` },
+        { text: `Here $${rateOf(s)} = ${peakRate(params, at)}$ at $t = ${at}$, and $\\delta t = 0.1$.` },
+      ],
+      long: [
+        { text: `Over a long stretch the rate changes too much for an estimate. Work out $${s}$ at $t = ${at}$ and at $t = ${q}$ and subtract.` },
+        { tex: `${hornerAt(peakCoefficients(params), q)} - ${bracketedNumber(hornerAt(peakCoefficients(params), at))} = ${hornerAt(peakCoefficients(params), q) - hornerAt(peakCoefficients(params), at)}` },
+      ],
+    };
+    return steps[kind];
+  },
+};
+
+export interface SmallChangeParams {
+  /** 'cube' is V = x^3, 'square' A = x^2, 'curve' y = the coefficients. */
+  form: 'cube' | 'square' | 'curve';
+  coefficients: number[];
+  a: number;
+  /** The nudge in x, in hundredths. */
+  dh: number;
+}
+
+/** The function as mathjs reads it, in x. */
+export const smallChangeSource = ({ coefficients }: SmallChangeParams): string => polyInAnswer(coefficients, 'x');
+
+/** The estimate the question asks for, dy/dx at a times the nudge, in hundredths so it stays exact. */
+export function smallChangeEstimate({ coefficients, a, dh }: SmallChangeParams): number {
+  return (hornerAt(derivedCoefficients(coefficients), a) * dh) / 100;
+}
+
+/** Decimal options from a list of values, dropping any that land on the answer or on each other. */
+function decimalOptions(correct: number, wrong: number[]): ChoiceOption[] {
+  const seen = new Set([correct]);
+  const picked = wrong.filter((value) => {
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+  return options(
+    { tex: `${correct}`, answer: `${correct}` },
+    ...picked.map((value) => ({ tex: `${value}`, answer: `${value}` })),
+  );
+}
+
+/**
+ * A small change estimated from the derivative: $\delta y \approx \frac{dy}{dx}\,\delta x$.
+ *
+ * The distractors are the derivative with the nudge left off, the height put
+ * in place of the gradient, and the decimal point one place out.
+ */
+const smallChange: Generator<SmallChangeParams> = {
+  id: 'df-rc-small-change',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const form = rng.pick(['cube', 'square', 'curve'] as const);
+    const coefficients =
+      form === 'cube'
+        ? [1, 0, 0, 0]
+        : form === 'square'
+          ? [1, 0, 0]
+          : rng.chance(0.5)
+            ? [rng.int(1, 4), rng.int(-5, 5), rng.int(-9, 9)]
+            : [1, 0, rng.int(-6, 6), rng.int(-9, 9)];
+    const nudges = hard ? [1, 2, 5, -1, -2, -5] : [1, 2, 5, 10];
+    for (;;) {
+      const a = rng.int(2, hard ? 9 : 6);
+      // A flat point has nothing to estimate.
+      if (hornerAt(derivedCoefficients(coefficients), a) !== 0) return { form, coefficients, a, dh: rng.pick(nudges) };
+    }
+  },
+  choices: (params) => {
+    const gradient = hornerAt(derivedCoefficients(params.coefficients), params.a);
+    const height = hornerAt(params.coefficients, params.a);
+    const estimate = smallChangeEstimate(params);
+    return decimalOptions(estimate, [gradient, (height * params.dh) / 100, (gradient * params.dh) / 10]);
+  },
+  render: (params): Slide => {
+    const { form, coefficients, a, dh } = params;
+    const to = (a * 100 + dh) / 100;
+    const [name, variable, words] =
+      form === 'cube'
+        ? ['V', 'x', `The edge of a metal cube is $x$ cm. Heating ${dh > 0 ? 'stretches' : 'shrinks'} it from $${a}$ cm to $${to}$ cm. Use $${rateOf('V', 'x')}$ to estimate the change in its volume, in $\\text{cm}^{3}$.`]
+        : form === 'square'
+          ? ['A', 'x', `A square tile has side $x$ cm, which ${dh > 0 ? 'grows' : 'shrinks'} from $${a}$ cm to $${to}$ cm. Use $${rateOf('A', 'x')}$ to estimate the change in its area, in $\\text{cm}^{2}$.`]
+          : ['y', 'x', `$x$ changes from $${a}$ to $${to}$. Use $${rateOf('y', 'x')}$ to estimate the change in $y$.`];
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: words },
+        { kind: 'display', tex: `${name} = ${polyInTex(coefficients, variable)}` },
+      ],
+      lead: `\\delta ${name} \\approx`,
+      keypad: [],
+      answer: `${smallChangeEstimate(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { form, coefficients, a, dh } = params;
+    const name = form === 'cube' ? 'V' : form === 'square' ? 'A' : 'y';
+    const gradient = hornerAt(derivedCoefficients(coefficients), a);
+    return [
+      {
+        text: 'Over a small nudge the curve is almost straight, so the change is about the gradient times the nudge.',
+        tex: `\\delta ${name} \\approx ${rateOf(name, 'x')} \\times \\delta x`,
+      },
+      {
+        text: `Differentiate and put in $x = ${a}$.`,
+        tex: `${rateOf(name, 'x')} = ${polyInTex(derivedCoefficients(coefficients), 'x')} = ${gradient}`,
+      },
+      {
+        text: `The nudge is $\\delta x = ${dh / 100}$.`,
+        tex: `\\delta ${name} \\approx ${gradient} \\times ${bracketedNumber(dh / 100)}`,
+      },
+      { text: `So the change is about $${smallChangeEstimate(params)}$.` },
+    ];
+  },
+};
+
+/**
+ * When a rate stops, and when it peaks, placed as tiles.
+ *
+ * The rate is an upside-down parabola, zero at p and q, so the quantity stops
+ * increasing at q and increases fastest halfway between. The bank carries p,
+ * where the rate is zero too but the quantity is starting to rise, and the
+ * slips of halving q or adding the two.
+ */
+const peakTiles: Generator<PeakParams> = {
+  id: 'df-rc-peak-tiles',
+  sample: (rng, difficulty) => samplePeak(rng, difficulty),
+  render: (params): Slide => {
+    const c = RATE_CONTEXTS[params.context];
+    const { p, q } = params;
+    const middle = (p + q) / 2;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: rateIntro(c) },
+        { kind: 'display', tex: `${c.symbol} = ${polyInTex(peakCoefficients(params))}` },
+        {
+          kind: 'prose',
+          text: `It increases from $t = ${p}$. When does it **stop** increasing, and when is it increasing **fastest**?`,
+        },
+      ],
+      template: '\\text{stops: } t = {0} \\quad \\text{fastest: } t = {1}',
+      bank: numberTiles([q, middle], [p, p + q, q / 2, middle + 1, q + 1]),
+      answer: [`${q}`, `${middle}`],
+    };
+  },
+  solution: (params) => {
+    const c = RATE_CONTEXTS[params.context];
+    const { m, p, q } = params;
+    const coefficients = peakCoefficients(params);
+    return [
+      {
+        text: 'The rate is the derivative.',
+        tex: `${rateOf(c.symbol)} = ${polyInTex(derivedCoefficients(coefficients))}`,
+      },
+      { text: 'It factorises, which shows where it is zero.', tex: `= ${leadingTex(3 * m)}${p === 0 ? 't' : `(t - ${p})`}(${q} - t)` },
+      {
+        text: `It is positive between $t = ${p}$ and $t = ${q}$ and falls to zero at $t = ${q}$: that is where ${c.what} stops increasing.`,
+      },
+      {
+        text: 'The rate is greatest where its own derivative is zero.',
+        tex: `\\frac{d^{2}${c.symbol}}{dt^{2}} = ${polyInTex(derivedCoefficients(derivedCoefficients(coefficients)))} = 0`,
+      },
+      { text: `So $t = ${(p + q) / 2}$, halfway between the two times the rate is zero.` },
+    ];
+  },
+};
+
+export const rateGenerators = {
+  rateFunction,
+  rateAt,
+  rateSlider,
+  readUnits,
+  chainTiles,
+  linkTree,
+  whichRate,
+  rateInX,
+  shapeK,
+  shapeBack,
+  shapeFlow,
+  blockBack,
+  rateSign,
+  methodFlow,
+  smallChange,
+  peakTiles,
+};
+
 export const stationaryPointGenerators = {
   stationaryRoots,
   stationaryY,
@@ -4903,4 +6591,5 @@ export const differentiationGenerators = [
   sketchGradientShape,
   sketchReadGradient,
   sketchSteepest,
+  ...Object.values(rateGenerators),
 ];

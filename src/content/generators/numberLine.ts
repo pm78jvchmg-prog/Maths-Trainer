@@ -51,7 +51,7 @@ const nonZero = (from: number, to: number) => range(from, to).filter((v) => v !=
  * when the ends cannot fit, which the generators below rule out by
  * construction and the property tests would catch if they stopped doing so.
  */
-function windowFor(rng: Rng, lo: number, hi: number, width: number, margin: number) {
+export function windowFor(rng: Rng, lo: number, hi: number, width: number, margin: number) {
   const from = Math.ceil(hi + margin - width);
   const to = Math.floor(lo - margin);
   if (from > to) throw new Error(`no ${width}-wide window holds [${lo}, ${hi}]`);

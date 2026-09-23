@@ -32,10 +32,10 @@ import { ALGEBRA_KEYS, TRIG_KEYS, sumTex, termAnswer, termTex } from './calculus
  * file is spaced for that reason, not only `y`: typing $y$ then $x$ would
  * otherwise make the symbol `yx`.
  */
-const spaced = (letter: string): KeypadKey => ({ insert: ` ${letter}`, label: letter, tex: true });
+export const spaced = (letter: string): KeypadKey => ({ insert: ` ${letter}`, label: letter, tex: true });
 
 /** ALGEBRA_KEYS without its bare `x`, for keypads that bring their own variables. */
-const OPERATOR_KEYS: KeypadKey[] = ALGEBRA_KEYS.filter((key) => key.insert !== 'x');
+export const OPERATOR_KEYS: KeypadKey[] = ALGEBRA_KEYS.filter((key) => key.insert !== 'x');
 
 /** An answer in t. */
 const T_KEYS: KeypadKey[] = [spaced('t'), ...OPERATOR_KEYS];
@@ -68,7 +68,7 @@ const prose = (text: string): Block => ({ kind: 'prose', text });
 const display = (tex: string): Block => ({ kind: 'display', tex });
 
 /** A stable hash of some numbers, mixed so that small inputs still spread. */
-function mix(...values: number[]): number {
+export function mix(...values: number[]): number {
   let hash = 0x9e3779b9;
   for (const value of values) {
     hash = Math.imul(hash ^ (value + 1013), 0x85ebca6b);
@@ -84,7 +84,7 @@ function mix(...values: number[]): number {
 }
 
 /** Items turned so the first lands `turn` places along. */
-function turned<T>(items: T[], turn: number): T[] {
+export function turned<T>(items: T[], turn: number): T[] {
   const at = ((turn % items.length) + items.length) % items.length;
   return [...items.slice(at), ...items.slice(0, at)];
 }
@@ -113,7 +113,7 @@ function derivedTurn(opts: ChoiceOption[]): number {
  * orderings of the distractors until the rotation lands where the salt says is
  * cheap and keeps each question rendering one way.
  */
-function steered(opts: ChoiceOption[], salt: number, spare: Omit<ChoiceOption, 'correct'>[] = []): ChoiceOption[] {
+export function steered(opts: ChoiceOption[], salt: number, spare: Omit<ChoiceOption, 'correct'>[] = []): ChoiceOption[] {
   const [correct, ...given] = opts;
   // The rotation hashes the labels with an odd multiplier, so its parity is
   // fixed by which labels are present, whatever their order: with four
@@ -154,7 +154,7 @@ function steered(opts: ChoiceOption[], salt: number, spare: Omit<ChoiceOption, '
 }
 
 /** Options for a whole-number answer: the slips given, then near misses. */
-function numberChoices(correct: number, wrong: number[], salt: number): ChoiceOption[] {
+export function numberChoices(correct: number, wrong: number[], salt: number): ChoiceOption[] {
   const seen = new Set([correct]);
   const picked: number[] = [];
   for (const value of wrong) {
@@ -189,7 +189,7 @@ function negated(option: Omit<ChoiceOption, 'correct'>): Omit<ChoiceOption, 'cor
 }
 
 /** A tiles bank of whole numbers: the answer's, then distinct extras, sorted. */
-function numberBank(answer: number[], distractors: number[], spare = 3): string[] {
+export function numberBank(answer: number[], distractors: number[], spare = 3): string[] {
   const needed = new Set(answer);
   const extras: number[] = [];
   const add = (value: number) => {
@@ -210,7 +210,7 @@ function numberBank(answer: number[], distractors: number[], spare = 3): string[
 }
 
 /** A tiles bank of TeX tokens: the answer's, then distinct extras, in a stable order. */
-function tokenBank(answer: string[], extras: string[], spare = 3): string[] {
+export function tokenBank(answer: string[], extras: string[], spare = 3): string[] {
   const out = [...answer];
   const seen = new Set(answer);
   for (const token of extras) {
@@ -223,7 +223,7 @@ function tokenBank(answer: string[], extras: string[], spare = 3): string[] {
 }
 
 /** A tree bank: every answer value (as a multiset), then distinct distractors. */
-function treeBank(answer: number[], distractors: number[]): string[] {
+export function treeBank(answer: number[], distractors: number[]): string[] {
   const extras: number[] = [];
   for (const value of distractors) {
     if (!Number.isInteger(value) || answer.includes(value) || extras.includes(value)) continue;
@@ -241,7 +241,7 @@ function treeBank(answer: number[], distractors: number[]): string[] {
  * A steps bank: the value and its near misses, de-duplicated and scattered by
  * a hash of each token, so one question always renders one way.
  */
-function stepBank(value: string, ...candidates: string[]): string[] {
+export function stepBank(value: string, ...candidates: string[]): string[] {
   const bank = [value];
   for (const candidate of candidates) {
     if (!bank.includes(candidate)) bank.push(candidate);
@@ -250,7 +250,7 @@ function stepBank(value: string, ...candidates: string[]): string[] {
 }
 
 /** A fraction as the learner reads it, lowest terms, sign out front. */
-function fracTex(top: number, bottom: number): string {
+export function fracTex(top: number, bottom: number): string {
   const g = gcd(top, bottom);
   let p = top / g;
   let q = bottom / g;
@@ -267,7 +267,7 @@ function fracAnswer(top: number, bottom: number): string {
   return `(${top})/(${bottom})`;
 }
 
-function gcd(a: number, b: number): number {
+export function gcd(a: number, b: number): number {
   let x = Math.abs(a);
   let y = Math.abs(b);
   while (y) [x, y] = [y, x % y];

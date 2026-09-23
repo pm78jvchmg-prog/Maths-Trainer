@@ -3439,6 +3439,15 @@ function formTex(p: number, q: number, m: number): string {
   return `${p} ${q < 0 ? '-' : '+'} ${surd}`;
 }
 
+/**
+ * Lines of working stacked in one display and aligned on their `&`. A chain of
+ * equals signs on one line runs off a phone screen after about three terms,
+ * and a solution panel is narrower than a teaching slide.
+ */
+function chain(...lines: string[]): string {
+  return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
+}
+
 /** The same value for mathjs. Never displayed. */
 function formAnswer(p: number, q: number, m: number): string {
   return `(${p}) + (${q}) * sqrt(${m})`;
@@ -3561,9 +3570,7 @@ const expandSingleBracket: Generator<ExpandSingleParams> = {
     if (shape === 'number') {
       return [
         { text: `The $${a}$ outside multiplies **both** terms inside the bracket.` },
-        {
-          tex: `${a} \\times ${b} = ${a * b} \\qquad ${a} \\times ${kSurd(c, d)} = ${kSurd(a * c, d)}`,
-        },
+        { tex: chain(`${a} \\times ${b} &= ${a * b}`, `${a} \\times ${kSurd(c, d)} &= ${kSurd(a * c, d)}`) },
         { tex: `${expandSingleTex(params)} = ${formTex(p, q, d)}` },
         {
           text: `Multiplying only the first term would leave $${formTex(a * b, sign * c, d)}$, which is short by a factor of $${a}$ in the surd.`,
@@ -3573,7 +3580,10 @@ const expandSingleBracket: Generator<ExpandSingleParams> = {
     return [
       { text: `The $\\sqrt{${d}}$ outside multiplies both terms inside.` },
       {
-        tex: `\\sqrt{${d}} \\times ${kSurd(c, d)} = ${c} \\times ${d} = ${c * d} \\qquad \\sqrt{${d}} \\times ${b} = ${kSurd(b, d)}`,
+        tex: chain(
+          `\\sqrt{${d}} \\times ${kSurd(c, d)} &= ${c} \\times ${d} = ${c * d}`,
+          `\\sqrt{${d}} \\times ${b} &= ${kSurd(b, d)}`,
+        ),
       },
       {
         text: `A root times itself is the number underneath, so the first product is a whole number. That is why it goes at the front: $${formTex(p, q, d)}$.`,
@@ -3628,6 +3638,23 @@ const productFlow: Generator<ProductFlowParams> = {
   render: ({ route, p, q, m, n }): Slide => {
     const k = squarePart(m * n);
     const r = (m * n) / (k * k);
+    const whole = [
+      {
+        label: `$${m}$`,
+        outcome: `So the product is $${p * q} \\times ${m} = ${p * q * m}$, a whole number.`,
+      },
+      {
+        label: `$${m * m}$`,
+        outcome: `So the product would be $${p * q} \\times ${m * m} = ${p * q * m * m}$.`,
+      },
+      {
+        label: `$2\\sqrt{${m}}$`,
+        outcome: `So the product would be $${kSurd(2 * p * q, m)}$, still a surd.`,
+      },
+    ];
+    // Turned by the question's own numbers, so the right answer is not always
+    // the first button.
+    const turn = (p + q + m) % whole.length;
     return {
       kind: 'flow',
       prompt: [
@@ -3649,20 +3676,7 @@ const productFlow: Generator<ProductFlowParams> = {
         {
           id: 'whole',
           ask: `What is $\\sqrt{${m}} \\times \\sqrt{${m}}$?`,
-          branches: [
-            {
-              label: `$${m}$`,
-              outcome: `So the product is $${p * q} \\times ${m} = ${p * q * m}$, a whole number.`,
-            },
-            {
-              label: `$${m * m}$`,
-              outcome: `So the product would be $${p * q} \\times ${m * m} = ${p * q * m * m}$.`,
-            },
-            {
-              label: `$2\\sqrt{${m}}$`,
-              outcome: `So the product would be $${kSurd(2 * p * q, m)}$, still a surd.`,
-            },
-          ],
+          branches: [...whole.slice(turn), ...whole.slice(0, turn)],
         },
         {
           id: 'factor',
@@ -3707,7 +3721,9 @@ const productFlow: Generator<ProductFlowParams> = {
       return [
         head,
         { text: `$${m * n} = ${k * k} \\times ${r}$, and $${k * k}$ is a square, so it comes out as $${k}$.` },
-        { tex: `${kSurd(p, m)} \\times ${kSurd(q, n)} = ${kSurd(p * q, m * n)} = ${kSurd(p * q * k, r)}` },
+        {
+          tex: chain(`${kSurd(p, m)} \\times ${kSurd(q, n)} &= ${kSurd(p * q, m * n)}`, `&= ${kSurd(p * q * k, r)}`),
+        },
       ];
     }
     return [
@@ -3742,12 +3758,14 @@ function rootBracketRoots({ r, x, swap }: RootBracketParams): { a: number; b: nu
 }
 
 /**
- * √a(√b ± c), worked on a tree: the product of the roots, that product
- * simplified, the other term, and the two together.
+ * √a(√b ± c), worked on a tree: each term of the expansion on the top row,
+ * and the two together underneath.
  *
- * The product of the roots is chosen to hide a square every time, so the
- * simplifying row is never a formality — √6 × √3 is √18, and √18 is not
- * finished.
+ * The product of the roots is chosen to hide a square every time, and the
+ * unsimplified product is in the bank — √6 × √3 is √18, and √18 is not
+ * finished, so placing it is marked wrong. A separate simplifying row was
+ * tried first; its connector had to run past it to reach the answer, and the
+ * picture read as three terms feeding one.
  */
 const rootBracketTree: Generator<RootBracketParams> = {
   id: 'rad-root-bracket-tree',
@@ -3766,9 +3784,8 @@ const rootBracketTree: Generator<RootBracketParams> = {
     const { r, x, c, sign } = params;
     const { a, b } = rootBracketRoots(params);
     const answer = [
-      `\\sqrt{${a * b}}`,
-      `${minus(sign)}${kSurd(c, a)}`,
       kSurd(x, r),
+      `${minus(sign)}${kSurd(c, a)}`,
       `${kSurd(x, r)} ${signOf(sign)} ${kSurd(c, a)}`,
     ];
     return {
@@ -3776,17 +3793,17 @@ const rootBracketTree: Generator<RootBracketParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Multiply $\\sqrt{${a}}$ by each term in the bracket. The first product simplifies, so simplify it on the row below before putting the two terms together.`,
+          text: `Multiply $\\sqrt{${a}}$ by each term in the bracket, simplifying each product fully, then put the two terms together underneath.`,
         },
       ],
       expression: `\\sqrt{${a}}(\\sqrt{${b}} ${signOf(sign)} ${c})`,
       nodes: [
-        { id: 'product', from: [] },
-        { id: 'other', from: [] },
-        { id: 'simple', from: ['product'] },
-        { id: 'result', from: ['simple', 'other'] },
+        { id: 'first', from: [] },
+        { id: 'second', from: [] },
+        { id: 'result', from: ['first', 'second'] },
       ],
       bank: fillBank(answer, [
+        `\\sqrt{${a * b}}`,
         `\\sqrt{${a + b}}`,
         kSurd(x * x, r),
         kSurd(r, x),
@@ -3801,7 +3818,13 @@ const rootBracketTree: Generator<RootBracketParams> = {
     const { a, b } = rootBracketRoots(params);
     return [
       { text: `Multiply $\\sqrt{${a}}$ by each term inside the bracket.` },
-      { tex: `\\sqrt{${a}} \\times \\sqrt{${b}} = \\sqrt{${a * b}} = \\sqrt{${x * x}} \\times \\sqrt{${r}} = ${kSurd(x, r)}` },
+      {
+        tex: chain(
+          `\\sqrt{${a}} \\times \\sqrt{${b}} &= \\sqrt{${a * b}}`,
+          `&= \\sqrt{${x * x}} \\times \\sqrt{${r}}`,
+          `&= ${kSurd(x, r)}`,
+        ),
+      },
       { tex: `\\sqrt{${a}} \\times ${c} = ${kSurd(c, a)}` },
       {
         text: `The two surds have different numbers underneath, so they cannot be combined: the answer is $${kSurd(x, r)} ${signOf(sign)} ${kSurd(c, a)}$.`,
@@ -3982,13 +4005,16 @@ const expandDoubleBrackets: Generator<DoubleParams> = {
   solution: (params) => {
     const { a, b, c, e, d, t } = params;
     const { p, q } = expandDouble(params);
+    const second = t < 0 ? `(-${kSurd(e, d)})` : kSurd(e, d);
     return [
       { text: 'Every term in the first bracket multiplies every term in the second: four products.' },
       {
-        tex: `${a} \\times ${c} = ${a * c} \\qquad ${a} \\times ${t < 0 ? '(-' : ''}${kSurd(e, d)}${t < 0 ? ')' : ''} = ${formTex(0, t * a * e, d)}`,
-      },
-      {
-        tex: `${kSurd(b, d)} \\times ${c} = ${kSurd(b * c, d)} \\qquad ${kSurd(b, d)} \\times ${t < 0 ? '(-' : ''}${kSurd(e, d)}${t < 0 ? ')' : ''} = ${t * b * e * d}`,
+        tex: chain(
+          `${a} \\times ${c} &= ${a * c}`,
+          `${a} \\times ${second} &= ${formTex(0, t * a * e, d)}`,
+          `${kSurd(b, d)} \\times ${c} &= ${kSurd(b * c, d)}`,
+          `${kSurd(b, d)} \\times ${second} &= ${t * b * e * d}`,
+        ),
       },
       {
         text: `The last product is whole because $\\sqrt{${d}} \\times \\sqrt{${d}} = ${d}$. Collecting the whole numbers and the surds gives $${formTex(p, q, d)}$.`,
@@ -4054,13 +4080,17 @@ const squareTree: Generator<SquareParams> = {
     };
   },
   solution: ({ a, b, d, t }) => [
-    { text: 'Squaring a bracket means multiplying it by itself, which gives three parts.' },
     {
-      tex: `(${a} ${signOf(t)} ${kSurd(b, d)})^{2} = ${a}^{2} ${signOf(t)} 2 \\times ${a} \\times ${kSurd(b, d)} + (${kSurd(b, d)})^{2}`,
+      text: `Squaring a bracket means multiplying it by itself, which gives three parts: the first term squared, twice the product of the terms, and the second term squared.${t < 0 ? ' The minus in the bracket makes the middle part a subtraction.' : ''}`,
     },
     {
-      tex: `= ${a * a} ${signOf(t)} ${kSurd(2 * a * b, d)} + ${b * b * d} = ${formTex(a * a + b * b * d, 2 * t * a * b, d)}`,
+      tex: chain(
+        `${a}^{2} &= ${a * a}`,
+        `2 \\times ${a} \\times ${kSurd(b, d)} &= ${kSurd(2 * a * b, d)}`,
+        `(${kSurd(b, d)})^{2} &= ${b * b * d}`,
+      ),
     },
+    { tex: `(${a} ${signOf(t)} ${kSurd(b, d)})^{2} = ${formTex(a * a + b * b * d, 2 * t * a * b, d)}` },
     {
       text: `Squaring each term on its own gives $${a * a + b * b * d}$ and loses the middle term, $${minus(t)}${kSurd(2 * a * b, d)}$.`,
     },
@@ -4151,8 +4181,9 @@ const conjugateProduct: Generator<ConjugateProductParams> = {
       {
         text: 'The brackets differ only in the sign between the terms, so the two middle products cancel. What is left is the first term squared minus the second term squared.',
       },
-      { tex: `(${first} + ${second})(${first} - ${second}) = (${first})^{2} - (${second})^{2}` },
-      { tex: `= ${firstSq} - ${secondSq} = ${firstSq - secondSq}` },
+      {
+        tex: chain(`&(${first})^{2} - (${second})^{2}`, `&= ${firstSq} - ${secondSq}`, `&= ${firstSq - secondSq}`),
+      },
       { text: 'No root survives. That is exactly the property used to clear a root from a denominator.' },
     ];
   },
@@ -4210,7 +4241,10 @@ function binomialSolution(params: BinomialParams) {
       text: `Multiply top and bottom by the conjugate, $${conj}$: the same two terms with the sign between them changed. That is multiplying by 1.`,
     },
     {
-      tex: `\\frac{${p}}{${den}} \\times \\frac{${conj}}{${conj}} = \\frac{${formTex(top.p, top.q, d)}}{${n}}`,
+      tex: chain(
+        `&\\frac{${p}}{${den}} \\times \\frac{${conj}}{${conj}}`,
+        `&= \\frac{${formTex(top.p, top.q, d)}}{${n}}`,
+      ),
     },
     {
       text: `The bottom is a difference of two squares, $${params.a * params.a} - ${params.b * params.b * d} = ${n}$, so the root has gone.`,
@@ -4261,7 +4295,7 @@ const pickConjugate: Generator<BinomialParams> = {
       {
         text: `The conjugate, $${conj}$, changes only the sign between the terms. The product is a difference of two squares and the roots cancel:`,
       },
-      { tex: `(${den})(${conj}) = ${a * a} - ${b * b * d} = ${n}` },
+      { tex: chain(`&(${den})(${conj})`, `&= ${a * a} - ${b * b * d} = ${n}`) },
     ];
   },
 };
@@ -4483,11 +4517,11 @@ const surdEquation: Generator<SurdEquationParams> = {
       const e = k * (d - 1);
       return [
         { text: 'Gather the terms in $x$ on one side, then factorise.' },
-        { tex: `x\\sqrt{${d}} - x = ${e} \\quad\\Rightarrow\\quad x(\\sqrt{${d}} - 1) = ${e}` },
+        { tex: chain(`x\\sqrt{${d}} - x &= ${e}`, `x(\\sqrt{${d}} - 1) &= ${e}`) },
         {
           text: `Dividing leaves $\\frac{${e}}{\\sqrt{${d}} - 1}$, a two-term denominator. Multiply top and bottom by the conjugate $\\sqrt{${d}} + 1$; the bottom becomes $${d} - 1 = ${d - 1}$.`,
         },
-        { tex: `x = \\frac{${e}(\\sqrt{${d}} + 1)}{${d - 1}} = ${formTex(p, q, d)}` },
+        { tex: chain(`x &= \\frac{${e}(\\sqrt{${d}} + 1)}{${d - 1}}`, `&= ${formTex(p, q, d)}`) },
       ];
     }
     const e = k * d;
@@ -4497,7 +4531,10 @@ const surdEquation: Generator<SurdEquationParams> = {
         : []),
       { text: `Divide both terms on the right by $\\sqrt{${d}}$, one at a time.` },
       {
-        tex: `\\frac{${kSurd(f, d)}}{\\sqrt{${d}}} = ${f} \\qquad \\frac{${e}}{\\sqrt{${d}}} = \\frac{${e}\\sqrt{${d}}}{${d}} = ${kSurd(k, d)}`,
+        tex: chain(
+          `\\frac{${kSurd(f, d)}}{\\sqrt{${d}}} &= ${f}`,
+          `\\frac{${e}}{\\sqrt{${d}}} &= \\frac{${e}\\sqrt{${d}}}{${d}} = ${kSurd(k, d)}`,
+        ),
       },
       { text: `So $x = ${formTex(p, q, d)}$.` },
     ];
@@ -4662,7 +4699,7 @@ const readOff: Generator<ReadOffParams> = {
       return [
         { text: `Simplify the root first: $\\sqrt{${s * s * d}} = ${kSurd(s, d)}$.` },
         {
-          tex: `${kSurd(s, d)} + ${p} ${signOf(t)} ${kSurd(q, d)} = ${formTex(a, b, d)}`,
+          tex: chain(`&${kSurd(s, d)} + ${p} ${signOf(t)} ${kSurd(q, d)}`, `&= ${formTex(a, b, d)}`),
         },
         close,
       ];
@@ -4671,7 +4708,7 @@ const readOff: Generator<ReadOffParams> = {
       return [
         { text: 'Square the bracket: the first term squared, twice the product, the second term squared.' },
         {
-          tex: `${p * p} ${signOf(t)} ${kSurd(2 * p * q, d)} + ${q * q * d} = ${formTex(a, b, d)}`,
+          tex: chain(`&${p * p} ${signOf(t)} ${kSurd(2 * p * q, d)} + ${q * q * d}`, `&= ${formTex(a, b, d)}`),
         },
         close,
       ];
@@ -4810,19 +4847,19 @@ const formFlow: Generator<FormFlowParams> = {
             {
               text: `There is a two-term denominator, so multiply top and bottom by its conjugate, $${a} - \\sqrt{${d}}$.`,
             },
-            { tex: `(${a} + \\sqrt{${d}})(${a} - \\sqrt{${d}}) = ${a * a} - ${d} = ${a * a - d}` },
+            { tex: chain(`&(${a} + \\sqrt{${d}})(${a} - \\sqrt{${d}})`, `&= ${a * a} - ${d} = ${a * a - d}`) },
           ];
     }
     if (route === 'simplify') {
       return [
         { text: `No root underneath, but $${s * s * d} = ${s * s} \\times ${d}$ hides a square.` },
-        { tex: `\\sqrt{${s * s * d}} = ${kSurd(s, d)}, \\quad\\text{so}\\quad ${a} ${signOf(t)} ${kSurd(s, d)}` },
+        { tex: chain(`\\sqrt{${s * s * d}} &= ${kSurd(s, d)}`, `${formFlowSubject(params)} &= ${a} ${signOf(t)} ${kSurd(s, d)}`) },
       ];
     }
     if (route === 'collect') {
       return [
         { text: `Nothing to rationalise and nothing to simplify, but two multiples of $\\sqrt{${d}}$ to collect.` },
-        { tex: `${formFlowSubject(params)} = ${formTex(a, p + t * q, d)}` },
+        { tex: chain(`&${formFlowSubject(params)}`, `&= ${formTex(a, p + t * q, d)}`) },
       ];
     }
     return [
@@ -4932,10 +4969,10 @@ const pythagSurd: Generator<PythagParams> = {
     const n = pythagSquare(params);
     const working =
       shape === 'hyp'
-        ? `${x}^{2} + ${y}^{2} = ${x * x} + ${y * y} = ${n}`
+        ? chain(`${x}^{2} + ${y}^{2} &= ${x * x} + ${y * y}`, `&= ${n}`)
         : shape === 'leg'
-          ? `${y}^{2} - ${x}^{2} = ${y * y} - ${x * x} = ${n}`
-          : `(\\sqrt{${x}})^{2} + (\\sqrt{${y}})^{2} = ${x} + ${y} = ${n}`;
+          ? chain(`${y}^{2} - ${x}^{2} &= ${y * y} - ${x * x}`, `&= ${n}`)
+          : chain(`(\\sqrt{${x}})^{2} + (\\sqrt{${y}})^{2} &= ${x} + ${y}`, `&= ${n}`);
     return [
       {
         text:
@@ -5022,7 +5059,7 @@ const diagonalSlider: Generator<DiagonalParams> = {
     const nearest = Math.round(Math.sqrt(n));
     return [
       { text: 'The diagonal cuts the rectangle into two right-angled triangles, so Pythagoras gives its length.' },
-      { tex: `\\text{diagonal} = \\sqrt{${w}^{2} + ${h}^{2}} = \\sqrt{${n}}` },
+      { tex: chain(`\\text{diagonal} &= \\sqrt{${w}^{2} + ${h}^{2}}`, `&= \\sqrt{${n}}`) },
       {
         text: `$${below}^{2} = ${below * below}$ and $${below + 1}^{2} = ${(below + 1) * (below + 1)}$, so $\\sqrt{${n}}$ is between $${below}$ and $${below + 1}$, nearer $${nearest}$.`,
       },
@@ -5103,12 +5140,21 @@ const perimeter: Generator<PerimeterParams> = {
   solution: (params) => {
     const { shape, a, b, p, q, r, d } = params;
     const { whole, surd } = perimeterParts(params);
-    const sides =
+    // The whole numbers and the surds summed on separate lines, which is both
+    // the method and short enough for a phone.
+    const sums =
       shape === 'rectangle'
-        ? `2(${formTex(a, p, d)}) + 2(${formTex(b, q, d)})`
+        ? chain(
+            `2(${a} + ${b}) &= ${whole}`,
+            `2(${kSurd(p, d)} + ${kSurd(q, d)}) &= ${kSurd(surd, d)}`,
+          )
         : shape === 'triangle'
-          ? `(${formTex(a, p, d)}) + (${formTex(b, q, d)}) + ${kSurd(r, d)}`
-          : `4(${formTex(a, p, d)})`;
+          ? chain(
+              `&${a} + ${b} = ${whole}`,
+              `&${kSurd(p, d)} + ${kSurd(q, d)} + ${kSurd(r, d)}`,
+              `&\\quad = ${kSurd(surd, d)}`,
+            )
+          : chain(`4 \\times ${a} &= ${whole}`, `4 \\times ${kSurd(p, d)} &= ${kSurd(surd, d)}`);
     return [
       {
         text:
@@ -5118,7 +5164,8 @@ const perimeter: Generator<PerimeterParams> = {
               ? 'The perimeter is the three sides added.'
               : 'A square has four equal sides.',
       },
-      { tex: `${sides} = ${formTex(whole, surd, d)}` },
+      { tex: sums },
+      { tex: `\\text{perimeter} = ${formTex(whole, surd, d)} \\text{ cm}` },
       {
         text: `Whole numbers collect with whole numbers and multiples of $\\sqrt{${d}}$ with each other. They do not combine into $${whole + surd}$ or anything like it.`,
       },
@@ -5198,9 +5245,13 @@ const rectArea: Generator<AreaParams> = {
       return [
         { text: 'Area of a triangle is half the base times the height, and the half cancels the 2 in the base.' },
         {
-          tex: `\\tfrac{1}{2} \\times ${kSurd(2 * c, d)} \\times (${formTex(a, 1, d)}) = ${kSurd(c, d)}(${formTex(a, 1, d)})`,
+          tex: chain(
+            `&\\tfrac{1}{2} \\times ${kSurd(2 * c, d)} \\times (${formTex(a, 1, d)})`,
+            `&= ${kSurd(c, d)}(${formTex(a, 1, d)})`,
+            `&= ${kSurd(a * c, d)} + ${c} \\times ${d}`,
+            `&= ${formTex(whole, surd, d)}`,
+          ),
         },
-        { tex: `= ${kSurd(a * c, d)} + ${c} \\times ${d} = ${formTex(whole, surd, d)}` },
       ];
     }
     const [first, second] =
@@ -5212,7 +5263,7 @@ const rectArea: Generator<AreaParams> = {
             ? 'Area is length times width: multiply every term of one bracket by every term of the other.'
             : 'Area is the side squared, and squaring a bracket gives three parts, the middle one doubled.',
       },
-      { tex: `(${first})(${second}) = ${formTex(whole, surd, d)}` },
+      { tex: chain(`&(${first})(${second})`, `&= ${formTex(whole, surd, d)}`) },
       {
         text: `The surd terms multiply to a whole number, because $\\sqrt{${d}} \\times \\sqrt{${d}} = ${d}$, so it joins the other whole number.`,
       },

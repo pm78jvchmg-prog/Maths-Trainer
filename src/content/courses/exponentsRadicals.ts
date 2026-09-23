@@ -37,6 +37,13 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
+/**
+ * Lines of working stacked in one display and aligned on their `&`. A chain
+ * of equals signs on one line runs off a phone screen after about three terms.
+ */
+const working = (...lines: string[]) =>
+  maths(`\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`);
+
 export const exponentsRadicals: Course = {
   id: 'exponents-radicals',
   title: 'Exponents & Radicals',
@@ -961,7 +968,7 @@ export const exponentsRadicals: Course = {
                 'Level 3 simplified single surds. Now surds sit in brackets with whole numbers, and the aim is always one tidy shape: a whole number plus a multiple of one surd, like $7 + 3\\sqrt{2}$.',
               ),
               prose('A number outside a bracket multiplies **every** term inside it, exactly as in algebra.'),
-              maths('3(4 + 2\\sqrt{5}) = 3 \\times 4 + 3 \\times 2\\sqrt{5} = 12 + 6\\sqrt{5}'),
+              working('3(4 + 2\\sqrt{5}) &= 3 \\times 4 + 3 \\times 2\\sqrt{5}', '&= 12 + 6\\sqrt{5}'),
               prose(
                 'Each term is a product, and level 3 settled how surds multiply: $\\sqrt{a} \\times \\sqrt{b} = \\sqrt{ab}$, and $\\sqrt{a} \\times \\sqrt{a} = a$ exactly.',
               ),
@@ -973,7 +980,7 @@ export const exponentsRadicals: Course = {
               prose(
                 'A root outside the bracket multiplies each term too. When it meets the same root inside, the pair becomes a whole number, which moves to the front.',
               ),
-              maths('\\sqrt{3}(2\\sqrt{3} + 5) = 2 \\times 3 + 5\\sqrt{3} = 6 + 5\\sqrt{3}'),
+              working('\\sqrt{3}(2\\sqrt{3} + 5) &= 2 \\times 3 + 5\\sqrt{3}', '&= 6 + 5\\sqrt{3}'),
               prose(
                 'When the roots differ, multiply under one root and check for a square factor before moving on: $\\sqrt{6} \\times \\sqrt{3} = \\sqrt{18} = 3\\sqrt{2}$.',
               ),
@@ -985,8 +992,10 @@ export const exponentsRadicals: Course = {
               prose(
                 'With two brackets to expand, do each one, then collect: whole numbers with whole numbers, and multiples of the same surd with each other.',
               ),
-              maths(
-                '2(3 + \\sqrt{7}) + 4(1 - 2\\sqrt{7}) = 6 + 2\\sqrt{7} + 4 - 8\\sqrt{7} = 10 - 6\\sqrt{7}',
+              working(
+                '&2(3 + \\sqrt{7}) + 4(1 - 2\\sqrt{7})',
+                '&= 6 + 2\\sqrt{7} + 4 - 8\\sqrt{7}',
+                '&= 10 - 6\\sqrt{7}',
               ),
               prose(
                 'A minus in front of a bracket changes the sign of both its terms, just as it would in algebra.',
@@ -1009,7 +1018,7 @@ export const exponentsRadicals: Course = {
               prose(
                 'Two brackets multiply the way they do in algebra: every term in the first times every term in the second, four products in all.',
               ),
-              maths('(3 + \\sqrt{2})(4 + \\sqrt{2}) = 12 + 3\\sqrt{2} + 4\\sqrt{2} + 2'),
+              working('&(3 + \\sqrt{2})(4 + \\sqrt{2})', '&= 12 + 3\\sqrt{2} + 4\\sqrt{2} + 2'),
               prose(
                 'The last product is $\\sqrt{2} \\times \\sqrt{2} = 2$, a whole number, so it joins the 12. The two middle terms are like surds and collect.',
               ),
@@ -1022,7 +1031,7 @@ export const exponentsRadicals: Course = {
               prose(
                 'Squaring a bracket is multiplying it by itself, so it has the same four products, and the two middle ones are equal.',
               ),
-              maths('(3 + \\sqrt{5})^{2} = 9 + 3\\sqrt{5} + 3\\sqrt{5} + 5 = 14 + 6\\sqrt{5}'),
+              working('&(3 + \\sqrt{5})^{2}', '&= 9 + 3\\sqrt{5} + 3\\sqrt{5} + 5', '&= 14 + 6\\sqrt{5}'),
               prose(
                 'So a square is the first term squared, **twice** the product of the terms, and the second term squared. Writing $9 + 5$ and stopping is the classic slip: it loses the middle.',
               ),
@@ -1032,7 +1041,7 @@ export const exponentsRadicals: Course = {
             ask('rad-square-tree', 2),
             teach(
               prose('Now change one sign. The two middle products are equal and opposite, and cancel.'),
-              maths('(3 + \\sqrt{5})(3 - \\sqrt{5}) = 9 - 3\\sqrt{5} + 3\\sqrt{5} - 5 = 4'),
+              working('&(3 + \\sqrt{5})(3 - \\sqrt{5})', '&= 9 - 3\\sqrt{5} + 3\\sqrt{5} - 5', '&= 4'),
               prose(
                 'This is the **difference of two squares**, $(a + b)(a - b) = a^{2} - b^{2}$. With a surd as $b$ its square is whole, so no root survives. The next lesson puts that to work.',
               ),
@@ -1057,8 +1066,9 @@ export const exponentsRadicals: Course = {
               prose(
                 'Multiply instead by the **conjugate**: the same two terms with the sign between them changed. The bottom becomes a difference of two squares, which is whole.',
               ),
-              maths(
-                '\\frac{7}{3 + \\sqrt{2}} \\times \\frac{3 - \\sqrt{2}}{3 - \\sqrt{2}} = \\frac{7(3 - \\sqrt{2})}{9 - 2} = 3 - \\sqrt{2}',
+              working(
+                '&\\frac{7}{3 + \\sqrt{2}} \\times \\frac{3 - \\sqrt{2}}{3 - \\sqrt{2}}',
+                '&= \\frac{7(3 - \\sqrt{2})}{9 - 2} = 3 - \\sqrt{2}',
               ),
             ),
             ask('rad-pick-conjugate'),
@@ -1068,8 +1078,10 @@ export const exponentsRadicals: Course = {
               prose(
                 'Work the top and the bottom separately. The bottom is always a whole number; the top is an ordinary single-bracket expansion.',
               ),
-              maths(
-                '\\frac{12}{4 - \\sqrt{10}} = \\frac{12(4 + \\sqrt{10})}{16 - 10} = \\frac{48 + 12\\sqrt{10}}{6} = 8 + 2\\sqrt{10}',
+              working(
+                '\\frac{12}{4 - \\sqrt{10}} &= \\frac{12(4 + \\sqrt{10})}{16 - 10}',
+                '&= \\frac{48 + 12\\sqrt{10}}{6}',
+                '&= 8 + 2\\sqrt{10}',
               ),
               prose(
                 'Finish by dividing **both** terms on top by the bottom. Dividing only the whole number gives an easy, half-done answer.',
@@ -1080,8 +1092,10 @@ export const exponentsRadicals: Course = {
             ask('rad-binomial-rationalise'),
             teach(
               prose('The bottom can come out negative, when the surd part is the bigger square.'),
-              maths(
-                '\\frac{2}{1 + \\sqrt{3}} = \\frac{2(1 - \\sqrt{3})}{1 - 3} = \\frac{2 - 2\\sqrt{3}}{-2} = -1 + \\sqrt{3}',
+              working(
+                '\\frac{2}{1 + \\sqrt{3}} &= \\frac{2(1 - \\sqrt{3})}{1 - 3}',
+                '&= \\frac{2 - 2\\sqrt{3}}{-2}',
+                '&= -1 + \\sqrt{3}',
               ),
               prose(
                 'Dividing by a negative flips the sign of both terms. The answer is positive, as it must be: $\\sqrt{3}$ is about 1.73, so $-1 + \\sqrt{3}$ is about 0.73.',
@@ -1107,7 +1121,7 @@ export const exponentsRadicals: Course = {
               prose(
                 'Getting there takes up to three checks, in this order: clear any root from a denominator, simplify any root hiding a square, then collect like surds.',
               ),
-              maths('\\sqrt{12} + 5 - \\sqrt{3} = 2\\sqrt{3} + 5 - \\sqrt{3} = 5 + \\sqrt{3}'),
+              working('&\\sqrt{12} + 5 - \\sqrt{3}', '&= 2\\sqrt{3} + 5 - \\sqrt{3}', '&= 5 + \\sqrt{3}'),
               prose(
                 'Once it is in the form, $a$ and $b$ can be read off: here $a = 5$ and $b = 1$. A bare $\\sqrt{3}$ counts as $1\\sqrt{3}$, and a subtracted surd gives a negative $b$.',
               ),
@@ -1119,9 +1133,7 @@ export const exponentsRadicals: Course = {
               prose(
                 'An equation with surd coefficients is solved the ordinary way: get $x$ on its own, then tidy the answer into the form.',
               ),
-              maths(
-                'x\\sqrt{3} = 6 + 2\\sqrt{3} \\quad\\Rightarrow\\quad x = \\frac{6}{\\sqrt{3}} + \\frac{2\\sqrt{3}}{\\sqrt{3}}',
-              ),
+              working('x\\sqrt{3} &= 6 + 2\\sqrt{3}', 'x &= \\frac{6}{\\sqrt{3}} + \\frac{2\\sqrt{3}}{\\sqrt{3}}'),
               prose(
                 'Divide each term by $\\sqrt{3}$ separately. The second is simply 2; the first is rationalised as in level 3, $\\frac{6\\sqrt{3}}{3} = 2\\sqrt{3}$. So $x = 2 + 2\\sqrt{3}$. If a number is added to the $x$ term, subtract it from both sides first.',
               ),
@@ -1133,8 +1145,11 @@ export const exponentsRadicals: Course = {
               prose(
                 'When $x$ appears on both sides, gather the $x$ terms and factorise. What is left to divide by is a two-term surd, so the conjugate finishes the job.',
               ),
-              maths(
-                'x\\sqrt{3} = x + 4 \\;\\Rightarrow\\; x(\\sqrt{3} - 1) = 4 \\;\\Rightarrow\\; x = \\frac{4(\\sqrt{3} + 1)}{3 - 1} = 2 + 2\\sqrt{3}',
+              working(
+                'x\\sqrt{3} &= x + 4',
+                'x(\\sqrt{3} - 1) &= 4',
+                'x &= \\frac{4(\\sqrt{3} + 1)}{3 - 1}',
+                '&= 2 + 2\\sqrt{3}',
               ),
             ),
             ask('rad-surd-equation+choice', 2),
@@ -1167,7 +1182,11 @@ export const exponentsRadicals: Course = {
               prose(
                 'A perimeter adds side lengths, and a side such as $3 + \\sqrt{2}$ is two terms. Adding sides is collecting like terms.',
               ),
-              maths('2(3 + \\sqrt{2}) + 2(1 + 2\\sqrt{2}) = 6 + 2\\sqrt{2} + 2 + 4\\sqrt{2} = 8 + 6\\sqrt{2}'),
+              working(
+                '&2(3 + \\sqrt{2}) + 2(1 + 2\\sqrt{2})',
+                '&= 6 + 2\\sqrt{2} + 2 + 4\\sqrt{2}',
+                '&= 8 + 6\\sqrt{2}',
+              ),
               prose(
                 'That is the perimeter of a $3 + \\sqrt{2}$ by $1 + 2\\sqrt{2}$ rectangle. The whole numbers and the surds stay apart: $8 + 6\\sqrt{2}$ is not 14 of anything.',
               ),
@@ -1179,7 +1198,7 @@ export const exponentsRadicals: Course = {
               prose(
                 'An area multiplies side lengths, so it is a bracket expansion, and a surd times the same surd turns whole.',
               ),
-              maths('(2 + \\sqrt{3})(4 + \\sqrt{3}) = 8 + 2\\sqrt{3} + 4\\sqrt{3} + 3 = 11 + 6\\sqrt{3}'),
+              working('&(2 + \\sqrt{3})(4 + \\sqrt{3})', '&= 8 + 2\\sqrt{3} + 4\\sqrt{3} + 3', '&= 11 + 6\\sqrt{3}'),
               prose(
                 'A square is a bracket squared, so remember the doubled middle term. A triangle is half the base times the height, and a 2 in the base cancels the half.',
               ),

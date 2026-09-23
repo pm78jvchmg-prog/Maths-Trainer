@@ -3486,7 +3486,12 @@ function drawProfile(rng: Rng, difficulty: number, form: ProfileForm): Profile {
         ? { poly: [rng.int(0, 5), 0, 1], root: false, k: 1 }
         : { poly: [0, 0, rng.int(2, 3)], root: false, k: 1 };
     }
-    return { poly: [rng.int(-2, 6), rng.int(-3, 3), rng.pick([-1, 1, 2])], root: false, k: 1 };
+    // Two terms, never three: a squared three-term quadratic has five terms,
+    // which runs off a phone in the working and as a tile.
+    const a = rng.pick([-1, 1, 2, 3]);
+    return rng.int(0, 1) === 0
+      ? { poly: [rng.int(-3, 8), 0, a], root: false, k: 1 }
+      : { poly: [0, rng.pick([-3, -2, -1, 1, 2, 3, 4]), a], root: false, k: 1 };
   }
   if (!hard) {
     return rng.int(0, 1) === 0
@@ -4158,7 +4163,7 @@ function rearrangeTex(riser: Riser): string {
   if (riser.line) {
     return stacked(`y = ${riserTex(riser)}`, `x = ${inY(polyTex([0, riser.a]))}`, `x^{2} = ${overTex(num, den)}`);
   }
-  return riser.a === 1
+  return riser.a === 1 || riser.c === 0
     ? stacked(`y = ${riserTex(riser)}`, `x^{2} = ${overTex(num, den)}`)
     : stacked(`y = ${riserTex(riser)}`, `${riser.a}x^{2} = ${inY(polyTex(num))}`, `x^{2} = ${overTex(num, den)}`);
 }

@@ -415,6 +415,7 @@ are green, and one new lesson has been played in a browser.
 | # | Batch | Status |
 | ---: | --- | --- |
 | B1 | Exponents & Radicals: Standard Form | **done** (`claude/roadmap-b-exponents-radicals-8sklxv`): level `er-l4`, 5 lessons, a 14-question level check, 17 new generators |
+| B2 | Quadratics: Simultaneous Equations with a Quadratic | **done** (`claude/roadmap-b-quadratics-sihaf2`): level `qd-l4`, 5 lessons, a 14-question level check, 15 new generators |
 | B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
 | B4 | Trigonometric Functions: Radians | **done** (`claude/roadmap-b-trig-functions-dt6rsq`): level `tf-l4`, 4 lessons, a 15-question level check, 16 new generators |
 | B8 | Vectors: Vector Geometry | **done** (`claude/roadmap-b-vectors-k0aou4`): level `vm-l4`, 5 lessons, a 14-question level check, 19 new generators |
@@ -427,6 +428,8 @@ are green, and one new lesson has been played in a browser.
 | B13 | Trigonometric Functions: Tangent & the Reciprocal Functions | **done** (`claude/roadmap-b-trig-2-147dx4`): level `tf-l5`, 5 lessons, a 15-question level check, 20 new generators and an asymptote-aware curve option in `figures.ts` |
 | B17 | Vectors: Lines in Vector Form | **done** (`claude/roadmap-b-vectors-2-u0463t`): level `vm-l6`, 5 lessons, a 14-question level check, 17 new generators |
 | B18 | Matrices & Linear Transformations: Composing Transformations | **done** (`claude/roadmap-b-matrices-2-taz4dj`): level `vm-l7`, 5 lessons, a 15-question level check, 19 new generators |
+| B16 | Integration: Volumes of Revolution | **done** (`claude/roadmap-b-integration-2-ymjv6y`): level `in-l5`, 4 lessons, a 14-question level check, 17 new generators and a solid-of-revolution figure |
+| B15 | Differentiation: Curve Sketching | **done** (`claude/roadmap-b-differentiation-2-66rw3b`): level `df-l6`, 5 lessons, a 15-question level check, 15 new generators |
 | B19 | Exponents & Radicals: Index Equations & Substitution | **done** (`claude/roadmap-b-exponents-3-vgmwol`): level `er-l6`, 5 lessons, a 14-question level check, 20 new generators |
 
 ### Phase C — the twenty-one new concepts

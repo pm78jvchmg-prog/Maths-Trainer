@@ -1579,6 +1579,45 @@ export const exponentsRadicals: Course = {
           ],
           skillCheck: [ask('grow-half-life', 2), ask('grow-halflife-slider', 2), ask('grow-trend-flow', 2)],
         },
+        {
+          id: 'er-l7-compare',
+          title: 'Comparing Growth',
+          slides: [
+            teach(
+              prose(
+                'There are two simple ways to grow. Linear growth adds the same amount at every step; exponential growth multiplies by the same number.',
+              ),
+              working('5, 8, 11, 14 &: \\; +3 \\text{ each step}', '5, 10, 20, 40 &: \\; \\times 2 \\text{ each step}'),
+              prose(
+                'Check the gaps first. If they change, check whether each term divided by the one before always gives the same number.',
+              ),
+            ),
+            ask('grow-pattern-flow'),
+            ask('grow-compare-tree'),
+            ask('grow-long-run'),
+            teach(
+              prose('Multiplying starts slowly but wins. $2^{n}$ is behind $10n$ at first:'),
+              maths(
+                '\\begin{array}{c|cccc} n & 4 & 5 & 6 & 7 \\\\ \\hline 2^{n} & 16 & 32 & 64 & 128 \\\\ 10n & 40 & 50 & 60 & 70 \\end{array}',
+              ),
+              prose('From $n = 6$ it is ahead for good: each step doubles it, while the other only gains 10.'),
+            ),
+            ask('grow-overtake-slider'),
+            ask('grow-pattern-flow', 2),
+            ask('grow-compare-tree', 2),
+            teach(
+              prose(
+                'Powers of $n$ lose in the end too. $n^{2}$ is ahead of $2^{n}$ at $n = 3$, they are level at $n = 4$, and from $n = 5$ the power of 2 stays in front.',
+              ),
+              prose(
+                'So compare at the $n$ you are asked about. At small $n$ a big number in front can win; in the long run, repeated multiplication always does.',
+              ),
+            ),
+            ask('grow-long-run', 2),
+            ask('grow-overtake-slider', 2),
+          ],
+          skillCheck: [ask('grow-overtake-slider', 2), ask('grow-compare-tree', 2), ask('grow-long-run', 2)],
+        },
       ],
     },
   ],

@@ -8,14 +8,19 @@
  * know they live under a heading that starts with vectors.
  *
  * Lesson ids keep their `vm-` prefix so that progress recorded against the
- * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`:
- * `vm-l2` and `vm-l3` are the Matrices course's, and `vm-l5` is kept for its
- * next level.
+ * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`
+ * and level 6, Lines in Vector Form, is `vm-l6`: `vm-l2`, `vm-l3`, `vm-l5`
+ * and `vm-l7` are the Matrices course's.
  *
  * Level 4 turns vectors into a way of saying where points are: position
  * vectors, a point part-way along a line, three points on one line, the
  * corners of a parallelogram, and last the same reasoning in terms of
  * $\mathbf{a}$ and $\mathbf{b}$ with no numbers at all.
+ *
+ * Level 6 writes a whole line as `r = a + t b`: its points, a line through
+ * two points, whether a point is on it, how two lines sit relative to each
+ * other and where they cross. It stays in two dimensions until skew lines
+ * need a third.
  *
  * Each level closes with a level check: twelve or fourteen questions, no
  * teaching slides, one attempt each.
@@ -48,7 +53,7 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
 export const vectors: Course = {
   id: 'vectors',
   title: 'Vectors',
-  blurb: 'Components, magnitude and the scalar product, then vector geometry.',
+  blurb: 'Components, magnitude and the scalar product, then vector geometry and lines.',
   levels: [
     {
       id: 'vm-l1',
@@ -617,6 +622,281 @@ export const vectors: Course = {
         ask('vec-path', 2),
         ask('vec-path-parallel', 2),
         ask('vec-path-coefficients', 2),
+      ],
+    },
+    {
+      id: 'vm-l6',
+      title: 'Lines in Vector Form',
+      lessons: [
+        {
+          id: 'vm-l6-equation',
+          title: 'The Vector Equation of a Line',
+          slides: [
+            teach(
+              prose(
+                'A straight line is fixed by a point on it and a direction along it. Start at the point, then move any multiple of the direction.',
+              ),
+              maths('\\mathbf{r} = \\mathbf{a} + t\\mathbf{b}'),
+              prose(
+                '$\\mathbf{a}$ is the position vector of a point on the line and $\\mathbf{b}$ is its **direction vector**. $t$ is a number you choose, called the **parameter**, and each value of $t$ gives one point $\\mathbf{r}$ on the line.',
+              ),
+              maths(
+                '\\mathbf{r} = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} + t\\begin{pmatrix} 3 \\\\ -1 \\end{pmatrix}',
+              ),
+              prose(
+                'With $t = 2$ that is $\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} + \\begin{pmatrix} 6 \\\\ -2 \\end{pmatrix} = \\begin{pmatrix} 7 \\\\ 0 \\end{pmatrix}$, the point $\\left(7, 0\\right)$.',
+              ),
+            ),
+            ask('line-point-at'),
+            ask('line-direction'),
+            ask('line-t-slider'),
+            teach(
+              prose(
+                '$t$ counts direction vectors from the starting point. $t = 0$ is the starting point itself, $t = 1$ is one step along, and a negative $t$ goes back the other way.',
+              ),
+              prose(
+                'Work a point out in two moves: multiply the direction by $t$, then add the start. Multiplying the start by $t$ as well is the usual slip.',
+              ),
+              maths('\\mathbf{a} + 3\\mathbf{b} \\ne 3\\left(\\mathbf{a} + \\mathbf{b}\\right)'),
+            ),
+            ask('line-point-at-steps'),
+            ask('line-t-slider'),
+            ask('line-same'),
+            teach(
+              prose(
+                'One line has many equations. Any point on it will do as the start, and any non-zero multiple of the direction still points along it.',
+              ),
+              maths(
+                '\\mathbf{r} = \\begin{pmatrix} 7 \\\\ 0 \\end{pmatrix} + s\\begin{pmatrix} -6 \\\\ 2 \\end{pmatrix}',
+              ),
+              prose(
+                'That is the line above again: $\\left(7, 0\\right)$ is its point at $t = 2$, and the new direction is $-2$ times the old one. A new letter, $s$, is a reminder that the two parameters count differently.',
+              ),
+            ),
+            ask('line-direction'),
+            ask('line-same'),
+          ],
+          skillCheck: [
+            ask('line-point-at', 2),
+            ask('line-direction', 2),
+            ask('line-same', 2),
+          ],
+        },
+        {
+          id: 'vm-l6-two-points',
+          title: 'A Line Through Two Points',
+          slides: [
+            teach(
+              prose(
+                'Two points fix a line. Start at one of them, and take the direction from the journey between them: destination minus start, as in the last level.',
+              ),
+              maths('\\mathbf{r} = \\mathbf{a} + t\\left(\\mathbf{b} - \\mathbf{a}\\right)'),
+              prose('For $A\\left(1, 4\\right)$ and $B\\left(3, 1\\right)$:'),
+              maths('\\overrightarrow{AB} = \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}'),
+              maths(
+                '\\mathbf{r} = \\begin{pmatrix} 1 \\\\ 4 \\end{pmatrix} + t\\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}',
+              ),
+            ),
+            ask('vec-between'),
+            ask('line-through-two'),
+            ask('line-same'),
+            teach(
+              prose(
+                'With this equation $t = 0$ gives $A$ and $t = 1$ gives $B$. Other values reach the rest of the line: $t = 2$ is as far beyond $B$ again, and $t = -1$ is one step back behind $A$.',
+              ),
+              prose(
+                'Starting at $B$, or heading along $\\overrightarrow{BA}$, gives another equation of the same line. Each is as correct as the first.',
+              ),
+            ),
+            ask('line-two-points-at-tree'),
+            ask('vec-between+choice'),
+            ask('line-same'),
+            teach(
+              prose(
+                'The direction has to be the journey **between** the points. $\\mathbf{b}$ on its own points from the origin to $B$, which is usually a different direction altogether.',
+              ),
+              prose(
+                'A line **parallel** to another shares its direction, so only the starting point changes. Here is a line:',
+              ),
+              maths('\\mathbf{r} = \\begin{pmatrix} 0 \\\\ 5 \\end{pmatrix} + s\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}'),
+              prose('The line through $\\left(4, -1\\right)$ parallel to it borrows its direction and starts at $\\left(4, -1\\right)$:'),
+              maths('\\mathbf{r} = \\begin{pmatrix} 4 \\\\ -1 \\end{pmatrix} + t\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}'),
+            ),
+            ask('line-through-two+choice', 2),
+            ask('line-two-points-at-tree'),
+          ],
+          skillCheck: [
+            ask('line-through-two', 2),
+            ask('line-two-points-at-tree', 2),
+            ask('line-same', 2),
+          ],
+        },
+        {
+          id: 'vm-l6-on-line',
+          title: 'Is the Point on the Line?',
+          slides: [
+            teach(
+              prose(
+                'To test whether a point is on a line, set the equation equal to it and look for a value of $t$ that works.',
+              ),
+              maths(
+                '\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} + t\\begin{pmatrix} 3 \\\\ -1 \\end{pmatrix} = \\begin{pmatrix} 10 \\\\ -1 \\end{pmatrix}',
+              ),
+              prose(
+                'Each component is an equation of its own. Across, $1 + 3t = 10$, so $t = 3$. Up, $2 - t = -1$, so $t = 3$ as well.',
+              ),
+              prose(
+                'One value of $t$ satisfies both, so $\\left(10, -1\\right)$ is on the line, three direction vectors from the start.',
+              ),
+            ),
+            ask('line-find-t'),
+            ask('line-contains'),
+            ask('line-t-slider'),
+            teach(
+              prose(
+                'A point off the line still gives a value of $t$ from each component. What gives it away is that the two values differ.',
+              ),
+              maths('1 + 3t = 7 \\implies t = 2'),
+              maths('2 - t = 1 \\implies t = 1'),
+              prose(
+                'No single value of $t$ reaches $\\left(7, 1\\right)$, so it is not on the line. Solving one component and stopping would have missed that, so always check the other.',
+              ),
+            ),
+            ask('line-contains'),
+            ask('line-find-t+choice'),
+            ask('line-missing-coord'),
+            teach(
+              prose(
+                'The same idea finds a missing coordinate. If $\\left(k, -3\\right)$ is on the line, the component you know fixes $t$.',
+              ),
+              maths('2 - t = -3 \\implies t = 5'),
+              maths('k = 1 + 3 \\times 5 = 16'),
+              prose('Find $t$ from the coordinate you have, then use it in the other component.'),
+            ),
+            ask('line-t-slider'),
+            ask('line-missing-coord+choice'),
+          ],
+          skillCheck: [
+            ask('line-find-t', 2),
+            ask('line-contains', 2),
+            ask('line-missing-coord', 2),
+          ],
+        },
+        {
+          id: 'vm-l6-relation',
+          title: 'Parallel, Intersecting or Skew',
+          slides: [
+            teach(
+              prose(
+                'Two lines are **parallel** when their directions are scalar multiples of each other. Compare the directions first, whatever else the question asks.',
+              ),
+              maths('\\begin{pmatrix} 6 \\\\ -4 \\end{pmatrix} = 2\\begin{pmatrix} 3 \\\\ -2 \\end{pmatrix}'),
+              prose(
+                'Parallel lines may still be one line written twice. Test whether a point of one lies on the other: if it does, they are the same line; if not, they never meet.',
+              ),
+            ),
+            ask('lines-parallel-k'),
+            ask('lines-relation'),
+            ask('line-contains'),
+            teach(
+              prose(
+                'In a plane, two lines that are not parallel always cross. In three dimensions they need not: one can pass above the other. Lines that are not parallel and never meet are **skew**.',
+              ),
+              prose(
+                'A line in three dimensions works exactly as in two, with a third component. Two lines get two parameters, $\\lambda$ and $\\mu$, because where they meet each line can be at a different value of its own.',
+              ),
+            ),
+            ask('lines-third-tree'),
+            ask('lines-relation+choice', 2),
+            ask('lines-parallel-k+choice'),
+            teach(
+              prose(
+                'To test for crossing, set the lines equal, solve two of the components for $\\lambda$ and $\\mu$, then check the third.',
+              ),
+              maths(
+                '\\ell_1: \\; \\mathbf{r} = \\begin{pmatrix} 1 \\\\ 2 \\\\ 0 \\end{pmatrix} + \\lambda\\begin{pmatrix} 1 \\\\ 1 \\\\ 2 \\end{pmatrix}',
+              ),
+              maths(
+                '\\ell_2: \\; \\mathbf{r} = \\begin{pmatrix} 3 \\\\ 0 \\\\ 1 \\end{pmatrix} + \\mu\\begin{pmatrix} 0 \\\\ 1 \\\\ 1 \\end{pmatrix}',
+              ),
+              prose(
+                'In $x$, $1 + \\lambda = 3$, so $\\lambda = 2$. In $y$, $2 + \\lambda = \\mu$, so $\\mu = 4$. Then in $z$, $\\ell_1$ reaches $2 \\times 2 = 4$ but $\\ell_2$ reaches $1 + 4 = 5$. The third component disagrees, so these lines are skew.',
+              ),
+            ),
+            ask('lines-third-tree'),
+            ask('lines-solve'),
+          ],
+          skillCheck: [
+            ask('lines-relation', 2),
+            ask('lines-third-tree', 2),
+            ask('lines-parallel-k', 2),
+          ],
+        },
+        {
+          id: 'vm-l6-intersection',
+          title: 'The Point of Intersection',
+          slides: [
+            teach(
+              prose(
+                'Where two lines cross, the same point is on both, so their equations are equal there, each line at its own parameter.',
+              ),
+              maths(
+                '\\begin{gathered} \\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix} + \\lambda\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} \\\\ = \\begin{pmatrix} 5 \\\\ 0 \\end{pmatrix} + \\mu\\begin{pmatrix} 0 \\\\ 1 \\end{pmatrix} \\end{gathered}',
+              ),
+              prose(
+                'Across, $1 + 2\\lambda = 5$, so $\\lambda = 2$. Up, $1 + \\lambda = \\mu$, so $\\mu = 3$. Two equations, two unknowns.',
+              ),
+            ),
+            ask('lines-solve'),
+            ask('lines-meet-slider'),
+            ask('lines-meet'),
+            teach(
+              prose(
+                'The parameter is not the point. Put $\\lambda = 2$ back into the first line to find where they cross:',
+              ),
+              maths(
+                '\\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix} + 2\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} = \\begin{pmatrix} 5 \\\\ 3 \\end{pmatrix}',
+              ),
+              prose(
+                'Putting $\\mu = 3$ into the second line lands on $\\left(5, 3\\right)$ too, which is a free check. Each parameter belongs to its own line: $\\lambda$ in the second equation is the slip to avoid.',
+              ),
+            ),
+            ask('lines-meet-tree'),
+            ask('lines-solve+choice'),
+            ask('lines-meet-slider'),
+            teach(
+              prose(
+                'In three dimensions the method is the same with one more step: solve two components, then check the third before trusting the point.',
+              ),
+              prose(
+                'If the third component disagrees there is no point to find. The lines are skew, and no pair of parameters puts them in the same place.',
+              ),
+            ),
+            ask('lines-third-tree'),
+            ask('lines-relation+choice', 2),
+          ],
+          skillCheck: [
+            ask('lines-meet', 2),
+            ask('lines-solve', 2),
+            ask('lines-third-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('line-point-at', 2),
+        ask('line-direction', 2),
+        ask('line-same', 2),
+        ask('line-through-two', 2),
+        ask('line-two-points-at-tree', 2),
+        ask('line-find-t', 2),
+        ask('line-contains', 2),
+        ask('line-missing-coord+choice', 2),
+        ask('lines-parallel-k', 2),
+        ask('lines-relation', 2),
+        ask('lines-third-tree', 2),
+        ask('lines-solve', 2),
+        ask('lines-meet', 2),
+        ask('lines-meet-slider', 2),
       ],
     },
   ],

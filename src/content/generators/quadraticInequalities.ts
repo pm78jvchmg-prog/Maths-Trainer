@@ -169,7 +169,8 @@ function rootsAndShape({ a, p, q, op }: IneqParams): SolutionStep[] {
   const { b, c } = coefficients({ a, p, q });
   return [
     { text: 'Find where the curve meets the axis: set the quadratic equal to zero and factorise.' },
-    { tex: `${polyTex(a, b, c)} = ${coefficientTex(a)}${rootFactor(p)}${rootFactor(q)} = 0` },
+    { tex: `${polyTex(a, b, c)} = 0` },
+    { tex: `${coefficientTex(a)}${rootFactor(p)}${rootFactor(q)} = 0` },
     { text: `So the critical values are $x = ${p}$ and $x = ${q}$.` },
     {
       text:
@@ -210,7 +211,11 @@ export function signFigure(
   const { b, c } = coefficients({ a, p, q });
   const f = quadratic(a, b, c);
   const depth = Math.abs(a) * ((q - p) / 2) ** 2;
-  const reach = Math.max(depth, 4);
+  // The arms get as much room as the dip, but no more than they use: roots
+  // near the edge of the window leave only short arms, and a window sized to
+  // the dip would squash them flat against the axis.
+  const arms = Math.min(Math.abs(f(X_MIN)), Math.abs(f(X_MAX)));
+  const reach = Math.max(Math.min(depth, arms), 4);
   const [yMin, yMax] = a > 0 ? [-depth * 1.2 - 1, reach] : [-reach, depth * 1.2 + 1];
   const curves: Curve[] = [{ f }];
   if (opts.region === 'between') {
@@ -416,9 +421,10 @@ const testPoint: Generator<TestPointParams> = {
     const prefix = a === 1 ? '' : `${bracketed(a)} \\times `;
     return [
       { text: `Substitute $x = ${u}$ into each bracket first.` },
-      {
-        tex: `${prefix}\\left(${u} - ${bracketed(p)}\\right)\\left(${u} - ${bracketed(q)}\\right) = ${prefix}${bracketed(u - p)} \\times ${bracketed(u - q)} = ${value}`,
-      },
+      { tex: `${u} - ${bracketed(p)} = ${u - p}` },
+      { tex: `${u} - ${bracketed(q)} = ${u - q}` },
+      { text: 'Then multiply.' },
+      { tex: `${prefix}${bracketed(u - p)} \\times ${bracketed(u - q)} = ${value}` },
       {
         text: `$${value}$ is ${value < 0 ? 'negative' : 'positive'}, and the inequality asks for ${
           asksBelow(op) ? 'a negative value' : 'a positive value'
@@ -988,8 +994,9 @@ const alwaysFlow: Generator<AlwaysParams> = {
   solution: ({ a, b, c, op }) => {
     const disc = b * b - 4 * a * c;
     const steps: SolutionStep[] = [
-      { text: 'The discriminant says whether the curve meets the axis at all.' },
-      { tex: `${bracketed(b)}^{2} - 4 \\times ${bracketed(a)} \\times ${bracketed(c)} = ${b * b} - ${bracketed(4 * a * c)} = ${disc}` },
+      { text: 'The discriminant $b^{2} - 4ac$ says whether the curve meets the axis at all.' },
+      { tex: `${bracketed(b)}^{2} - 4 \\times ${bracketed(a)} \\times ${bracketed(c)}` },
+      { tex: `= ${b * b} - ${bracketed(4 * a * c)} = ${disc}` },
     ];
     if (disc >= 0) {
       steps.push({
@@ -1068,7 +1075,7 @@ const paramDisc: Generator<ParamDiscParams> = {
     const op = CONDITION_OP[condition];
     return [
       { text: `Here $a = ${a}$, $b = k$ and $c = ${c}$, so the discriminant is` },
-      { tex: `b^{2} - 4ac = k^{2} - 4 \\times ${a} \\times ${c} = k^{2} - ${4 * a * c}` },
+      { tex: `k^{2} - 4 \\times ${a} \\times ${c} = k^{2} - ${4 * a * c}` },
       {
         text:
           condition === 'two'
@@ -1232,7 +1239,8 @@ const paramCritical: Generator<CriticalParams> = {
       { text: `Here $a = ${a}$, $b = ${b}$ and $c = k$, so the discriminant is` },
       { tex: `${bracketed(b)}^{2} - 4 \\times ${a} \\times k = ${b * b} - ${4 * a}k` },
       { text: 'The roots change where it is zero, so solve that for $k$.' },
-      { tex: `${b * b} - ${4 * a}k = 0 \\implies k = \\frac{${b * b}}{${4 * a}} = ${critical}` },
+      { tex: `${b * b} - ${4 * a}k = 0` },
+      { tex: `k = \\frac{${b * b}}{${4 * a}} = ${critical}` },
       {
         text: `Bigger $k$ makes the discriminant smaller, so ${CONDITION_TEXT[condition]} ${
           condition === 'none' ? `means $k > ${critical}$` : condition === 'two' ? `means $k < ${critical}$` : `means $k \\le ${critical}$`

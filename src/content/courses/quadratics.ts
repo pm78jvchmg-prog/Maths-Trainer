@@ -1170,7 +1170,8 @@ export const quadratics: Course = {
                 region: 'between',
                 label: 'The curve y = (x + 2)(x - 3), shaded where it is below the x-axis',
               }),
-              maths('\\left(x + 2\\right)\\left(x - 3\\right) < 0 \\iff -2 < x < 3'),
+              maths('\\left(x + 2\\right)\\left(x - 3\\right) < 0'),
+              maths('-2 < x < 3'),
               prose(
                 'Check with any value in between: $x = 0$ gives $2 \\times \\left(-3\\right) = -6$, which is negative. That is a **test point**, and it backs up the picture.',
               ),
@@ -1187,7 +1188,8 @@ export const quadratics: Course = {
                 region: 'outside',
                 label: 'The curve y = (x + 2)(x - 3), with the two arms above the x-axis picked out',
               }),
-              maths('\\left(x + 2\\right)\\left(x - 3\\right) > 0 \\iff x < -2 \\text{ or } x > 3'),
+              maths('\\left(x + 2\\right)\\left(x - 3\\right) > 0'),
+              maths('x < -2 \\text{ or } x > 3'),
               prose(
                 'The rings are **hollow** because the roots give $y = 0$, which is neither above nor below. With $\\le$ or $\\ge$ the roots count, and the rings are drawn **solid**.',
               ),
@@ -1204,7 +1206,8 @@ export const quadratics: Course = {
                 region: 'between',
                 label: 'The upside-down curve y = -(x + 1)(x - 4), shaded where it is above the x-axis',
               }),
-              maths('-\\left(x + 1\\right)\\left(x - 4\\right) \\ge 0 \\iff -1 \\le x \\le 4'),
+              maths('-\\left(x + 1\\right)\\left(x - 4\\right) \\ge 0'),
+              maths('-1 \\le x \\le 4'),
               prose(
                 'So the sign of the $x^{2}$ coefficient always matters: it decides which side of the axis the middle piece is on.',
               ),
@@ -1220,7 +1223,7 @@ export const quadratics: Course = {
         },
         {
           id: 'qd-l5-factorise',
-          title: 'Solving by Factorising',
+          title: 'Solving Inequalities by Factorising',
           slides: [
             teach(
               prose(
@@ -1257,7 +1260,8 @@ export const quadratics: Course = {
               prose(
                 'A positive leading coefficient changes nothing but the factorising. $2x^{2} - 2x - 12 = 2\\left(x + 2\\right)\\left(x - 3\\right)$ has the same roots and the same shape.',
               ),
-              maths('2x^{2} - 2x - 12 \\le 0 \\iff -2 \\le x \\le 3'),
+              maths('2x^{2} - 2x - 12 \\le 0'),
+              maths('-2 \\le x \\le 3'),
               prose('With $\\le$ the roots are included, so both signs in the answer are $\\le$ as well.'),
             ),
             ask('quad-ineq-between-tiles', 2),
@@ -1312,7 +1316,8 @@ export const quadratics: Course = {
                 region: 'outside',
                 label: 'The curve y = x^2 - 3x - 4 with solid rings at its roots and the arms picked out',
               }),
-              maths('x^{2} - 3x - 4 \\ge 0 \\iff x \\le -1 \\text{ or } x \\ge 4'),
+              maths('x^{2} - 3x - 4 \\ge 0'),
+              maths('x \\le -1 \\text{ or } x \\ge 4'),
             ),
             ask('quad-ineq-end-slider', 2),
             ask('quad-ineq-endpoint+choice', 2),
@@ -1380,7 +1385,8 @@ export const quadratics: Course = {
                 'The discriminant turns "how many roots" into an inequality. Two different roots needs $b^{2} - 4ac > 0$, none needs $< 0$, and "real roots" allows the repeated one, so $\\ge 0$.',
               ),
               prose('With an unknown constant, as in $x^{2} + 6x + k = 0$:'),
-              maths('36 - 4k > 0 \\iff k < 9'),
+              maths('36 - 4k > 0'),
+              maths('k < 9'),
               prose(
                 'Dividing by $-4$ turned the sign round. So there are two different roots exactly when $k < 9$, one repeated root at $k = 9$, and none when $k > 9$.',
               ),
@@ -1410,7 +1416,8 @@ export const quadratics: Course = {
               prose(
                 '"Always positive" is the same question in disguise. $x^{2} + kx + 9 > 0$ for every $x$ means the U never meets the axis, so the discriminant is negative:',
               ),
-              maths('k^{2} - 36 < 0 \\iff -6 < k < 6'),
+              maths('k^{2} - 36 < 0'),
+              maths('-6 < k < 6'),
               prose(
                 'The $x^{2}$ coefficient has to be positive as well: an upside-down curve with no roots is negative everywhere.',
               ),

@@ -34,7 +34,10 @@ import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 import { IterateSlide } from './iterateSlide';
+import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
+import { NumberLineSlide } from './numberLineSlide';
+import { draftHasShading } from '../content/numberLine';
 
 export interface SlideProps {
   slide: Slide;
@@ -555,6 +558,10 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'order':
+      return <OrderSlide {...props} />;
+    case 'numberLine':
+      return <NumberLineSlide {...props} />;
   }
 }
 
@@ -564,7 +571,14 @@ export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
   if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
-  if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') return [];
+  if (
+    slide.kind === 'steps' ||
+    slide.kind === 'flow' ||
+    slide.kind === 'reduce' ||
+    slide.kind === 'order'
+  ) {
+    return [];
+  }
   // A slider too, although its handle is drawn somewhere: where it rests is
   // not something the learner chose, and it can be the answer.
   return '';
@@ -578,6 +592,17 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
     const expected = slide.kind === 'tree' ? slide.nodes.length : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
+  // A proof is answerable once every slot holds a step.
+  if (slide.kind === 'order') {
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.answer.length &&
+      answer.every((t) => t !== '')
+    );
+  }
+  // A line with dots on it but nothing shaded is not a set yet, and the
+  // untouched line is not an answer at all.
+  if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:

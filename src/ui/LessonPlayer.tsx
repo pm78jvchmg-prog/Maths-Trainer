@@ -6,7 +6,7 @@
  * is not decoration — it is the visible signal that review is no longer
  * available.
  */
-import { useReducer, useState } from 'react';
+import { useReducer, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   startSession,
@@ -22,6 +22,7 @@ import type { Answer } from '../engine/session';
 import type { Lesson, GeneratorRegistry } from '../content/types';
 import { SlideView, hasAnswer } from './slides';
 import { FeedbackBar } from './FeedbackBar';
+import { tapOnQuestion } from './questionTap';
 
 interface Props {
   lesson: Lesson;
@@ -42,6 +43,10 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   // Which way the deck last moved, so the incoming slide animates from the
   // side it came from rather than always from the right.
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
+  // What the widget made of the tap now bubbling to the question, if anything.
+  // The question's handler was bound before that answer was committed, so this
+  // is the only way it can tell a tap that chose something from a bare one.
+  const answeredByTap = useRef<Answer | undefined>(undefined);
 
   const slide = currentSlide(session);
   const deck = currentDeck(session);
@@ -89,12 +94,14 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
 
   const act = (action: Parameters<typeof reduce>[1]) => {
     dispatch(action);
+    answeredByTap.current = undefined;
     if (action.type === 'continue' || action.type === 'back') {
       setDirection(action.type === 'back' ? 'back' : 'forward');
-    }
-    if (action.type === 'continue' || action.type === 'back' || action.type === 'tryAgain') {
       setAnswer('');
     }
+    // `tryAgain` keeps the draft: the widgets hold their own view of it (the
+    // expression box, a slider's handle, a line of working), and clearing it
+    // from out here left them showing an answer the player no longer had.
   };
 
   // Every answer change is also an edit, which is what lets a second attempt
@@ -102,6 +109,19 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   const changeAnswer = (next: Answer) => {
     dispatch({ type: 'edit' });
     setAnswer(next);
+    answeredByTap.current = next;
+  };
+
+  const tapQuestion = () => {
+    const tap = tapOnQuestion({
+      feedback: session.feedback.kind,
+      canRetry: canRetry(session),
+      draft: answer,
+      answered: answeredByTap.current,
+    });
+    answeredByTap.current = undefined;
+    if (tap.retry) act({ type: 'tryAgain' });
+    setAnswer(tap.draft);
   };
 
   return (
@@ -161,11 +181,13 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
           screen and back for every slip, when the thing you want to change is
           already under your finger — so any tap on the question counts as
           "let me have another go". It is guarded by `canRetry`, so inside a
-          level check the tap does nothing and the one-attempt rule stands. */}
+          level check the tap does nothing and the one-attempt rule stands.
+          A tap a widget has already turned into an answer is that retry, and
+          the answer stands; see `tapOnQuestion`. */}
       <main
         className={`slide enter-${direction}${grows ? ' grow' : ''}${retryOnTap ? ' retryable' : ''}`}
         key={slide.id}
-        onClick={retryOnTap ? () => act({ type: 'tryAgain' }) : undefined}
+        onClick={retryOnTap ? tapQuestion : undefined}
       >
         {/* Only when stepping *back* onto a solved slide. While the verdict for
             this answer is still on screen, saying it was already solved reads

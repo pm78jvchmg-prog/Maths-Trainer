@@ -14,6 +14,11 @@
  * modulus equations and the roots they produce that do not work, modulus
  * inequalities, and the V moved and stretched.
  *
+ * Level 3 puts a modulus on both sides: $|ax + b| = |cx + d|$ by cases and by
+ * squaring, the two Vs on one graph and how many times they meet,
+ * $|ax + b| < |cx + d|$ from the factorised square, and when squaring is safe
+ * at all.
+ *
  * Linear inequalities on their own are Linear Equations' `le-l4`; this
  * course's first lesson keeps to the number-line picture of them. Later
  * levels are in `docs/roadmap/levels/inequalities-modulus.md`.
@@ -561,6 +566,252 @@ export const inequalitiesModulus: Course = {
         ask('mod-shift-slider', 2),
         ask('mod-transform-match', 2),
         ask('mod-transform-tiles', 2),
+      ],
+    },
+    {
+      id: 'im-l3',
+      title: 'Modulus on Both Sides and Squaring',
+      lessons: [
+        {
+          id: 'im-l3-equal',
+          title: 'Two Moduli Equal',
+          slides: [
+            teach(
+              prose(
+                '$\\lvert 2x + 1 \\rvert = \\lvert x - 4 \\rvert$ says two distances from zero are equal. That happens when the insides are equal, or when they are opposite.',
+              ),
+              prose('Equal: $2x + 1 = x - 4$, so $x = -5$. Opposite: $2x + 1 = -(x - 4)$, which is $2x + 1 = -x + 4$, so $x = 1$.'),
+              prose('Check: at $x = -5$ both sides are $9$, and at $x = 1$ both are $3$.'),
+            ),
+            ask('mod-both-cases'),
+            ask('mod-both-negative-steps'),
+            ask('mod-both-root'),
+            teach(
+              prose(
+                'In level 2, $\\lvert x - 1 \\rvert = 2x + 5$ gave a root that failed, because the right-hand side could be negative there.',
+              ),
+              prose(
+                'With bars on **both** sides that cannot happen. Both sides are distances, so neither is ever negative, and every root the two cases give is a solution.',
+              ),
+            ),
+            ask('mod-both-flow'),
+            ask('mod-both-cases', 2),
+            ask('mod-both-negative-steps', 2),
+            teach(
+              prose(
+                'The opposite case is where slips happen. In $\\lvert 3x - 2 \\rvert = \\lvert x + 6 \\rvert$ it is $3x - 2 = -(x + 6)$, which is $3x - 2 = -x - 6$: the minus reaches **both** terms.',
+              ),
+              maths('4x = -4 \\quad\\Rightarrow\\quad x = -1'),
+              prose('The equal case, $3x - 2 = x + 6$, gives $x = 4$. At $x = -1$ both sides are $5$; at $x = 4$ both are $10$.'),
+            ),
+            ask('mod-both-flow', 2),
+            askWith('mod-both-root+choice', 'Both cases, then pick the one asked for.', 2),
+          ],
+          skillCheck: [ask('mod-both-cases', 2), ask('mod-both-root', 2), ask('mod-both-negative-steps', 2)],
+        },
+        {
+          id: 'im-l3-squaring',
+          title: 'Squaring Both Sides',
+          slides: [
+            teach(
+              prose(
+                'Both sides of $\\lvert u \\rvert = \\lvert v \\rvert$ are never negative, and for numbers that are not negative, squaring keeps equal things equal and unequal things unequal. So it holds exactly when $u^2 = v^2$.',
+              ),
+              maths('u^2 - v^2 = (u - v)(u + v) = 0'),
+              prose(
+                'For $\\lvert 2x + 1 \\rvert = \\lvert x - 4 \\rvert$: the difference is $x + 5$ and the sum $3x - 3$, so $(x + 5)(3x - 3) = 0$. That is $x = -5$ or $x = 1$, with no cases.',
+              ),
+            ),
+            ask('mod-square-factor'),
+            ask('mod-square-tree'),
+            ask('mod-expand-steps'),
+            teach(
+              prose('Multiplying the squares out works too, and lands on the same roots with more arithmetic. $(2x + 1)^2 = (x - 4)^2$ becomes'),
+              maths('\\begin{aligned} & 4x^2 + 4x + 1 \\\\ & \\quad = x^2 - 8x + 16 \\\\ & 3x^2 + 12x - 15 = 0 \\\\ & (x + 5)(x - 1) = 0 \\end{aligned}'),
+              prose('Watch the middle terms: $(x - 4)^2$ has $-8x$ in it. Forgetting it is the usual slip.'),
+            ),
+            ask('mod-square-root'),
+            ask('mod-square-factor', 2),
+            ask('mod-square-tree', 2),
+            teach(
+              prose(
+                'Squares can come in disguise. $4(x + 1)^2$ is $(2x + 2)^2$, since $4 = 2^2$, so $4(x + 1)^2 = (x - 5)^2$ is $\\lvert 2x + 2 \\rvert = \\lvert x - 5 \\rvert$.',
+              ),
+              prose('The difference is $x + 7$ and the sum $3x - 3$, so $x = -7$ or $x = 1$.'),
+            ),
+            ask('mod-expand-steps', 2),
+            askWith('mod-square-root+choice', 'Two squares equal: the things squared are equal or opposite.', 2),
+          ],
+          skillCheck: [ask('mod-square-factor', 2), ask('mod-square-tree', 2), ask('mod-square-root', 2)],
+        },
+        {
+          id: 'im-l3-graphs',
+          title: 'Two Vs on One Graph',
+          slides: [
+            teach(
+              prose(
+                'The solutions of $\\lvert 2x + 1 \\rvert = \\lvert x - 4 \\rvert$ are where the two Vs cross. Each crossing is at the same height on both graphs.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs(2 * x + 1), accent: true },
+                  { f: (x) => Math.abs(x - 4), dashed: true },
+                ],
+                { xMin: -7, xMax: 6, yMin: -1, yMax: 12 },
+                'The Vs of y = |2x + 1| and y = |x - 4| crossing at (-5, 9) and (1, 3)',
+                [
+                  { x: -5, y: 9 },
+                  { x: 1, y: 3 },
+                ],
+              ),
+              prose('They cross at $(-5, 9)$ and $(1, 3)$. Arms of different steepness always cross twice.'),
+            ),
+            ask('mod-cross-slider'),
+            ask('mod-cross-points'),
+            ask('mod-cross-count'),
+            teach(
+              prose(
+                'Equally steep arms are different. In $\\lvert x - 1 \\rvert = \\lvert x + 3 \\rvert$ the equal case, $x - 1 = x + 3$, loses its $x$ and says $-1 = 3$, which is false.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs(x - 1), accent: true },
+                  { f: (x) => Math.abs(x + 3), dashed: true },
+                ],
+                { xMin: -6, xMax: 5, yMin: -1, yMax: 7 },
+                'The Vs of y = |x - 1| and y = |x + 3|, with parallel arms, crossing once at (-1, 2)',
+                [{ x: -1, y: 2 }],
+              ),
+              prose('Only the opposite case gives a root, $x - 1 = -x - 3$, so $x = -1$: the parallel arms meet once.'),
+            ),
+            ask('mod-cross-flow'),
+            ask('mod-cross-slider', 2),
+            ask('mod-cross-points', 2),
+            teach(
+              prose(
+                'One more way to meet once: a shared vertex. $\\lvert 2x - 4 \\rvert$ and $\\lvert x - 2 \\rvert$ are both zero at $x = 2$, and either side of it the steeper V is above, so they only touch there.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs(2 * x - 4), accent: true },
+                  { f: (x) => Math.abs(x - 2), dashed: true },
+                ],
+                { xMin: -2, xMax: 6, yMin: -1, yMax: 7 },
+                'The Vs of y = |2x - 4| and y = |x - 2| sharing their vertex at (2, 0)',
+                [{ x: 2, y: 0 }],
+              ),
+            ),
+            ask('mod-cross-count', 2),
+            ask('mod-cross-flow', 2),
+          ],
+          skillCheck: [ask('mod-cross-slider', 2), ask('mod-cross-points', 2), ask('mod-cross-count', 2)],
+        },
+        {
+          id: 'im-l3-inequalities',
+          title: 'Inequalities with Two Moduli',
+          slides: [
+            teach(
+              prose(
+                'Squaring keeps an inequality the right way round when both sides are never negative. So $\\lvert u \\rvert < \\lvert v \\rvert$ exactly when $u^2 - v^2 < 0$, that is $(u - v)(u + v) < 0$.',
+              ),
+              maths('\\begin{gathered} \\lvert 2x + 1 \\rvert < \\lvert x - 4 \\rvert \\\\ (x + 5)(3x - 3) < 0 \\\\ -5 < x < 1 \\end{gathered}'),
+              line(-7, 3, [piece(-5, 1, false, false)], 'Between -5 and 1, both ends left out'),
+            ),
+            ask('mod-both-ineq-line'),
+            ask('mod-test-tree'),
+            ask('mod-ends-tiles'),
+            teach(
+              prose(
+                'Whether the set is between the roots or outside them can be read off the graph. The steeper V is below the flatter one between the crossings, and above it outside them.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs(2 * x + 1), accent: true },
+                  { f: (x) => Math.abs(x - 4), dashed: true },
+                ],
+                { xMin: -7, xMax: 6, yMin: -1, yMax: 12 },
+                'The steeper V of y = |2x + 1| is below y = |x - 4| between x = -5 and x = 1',
+                [
+                  { x: -5, y: 9 },
+                  { x: 1, y: 3 },
+                ],
+              ),
+              prose(
+                'So less than with the steeper V on the left is between; with it on the right, outside. Greater than turns both round: $\\lvert 2x + 1 \\rvert > \\lvert x - 4 \\rvert$ is $x < -5$ or $x > 1$.',
+              ),
+            ),
+            ask('mod-region-flow'),
+            ask('mod-both-ineq-line', 2),
+            ask('mod-test-tree', 2),
+            teach(
+              prose(
+                'With $\\le$ or $\\ge$ the critical values are solutions too, since both sides are equal there: filled dots.',
+              ),
+              prose(
+                'If in doubt, test a point. At $x = 0$, $\\lvert 1 \\rvert < \\lvert -4 \\rvert$, so $0$ is in the set of $\\lvert 2x + 1 \\rvert < \\lvert x - 4 \\rvert$, and so is the whole stretch between the roots.',
+              ),
+            ),
+            ask('mod-ends-tiles', 2),
+            ask('mod-region-flow', 2),
+          ],
+          skillCheck: [ask('mod-both-ineq-line', 2), ask('mod-ends-tiles', 2), ask('mod-region-flow', 2)],
+        },
+        {
+          id: 'im-l3-safe',
+          title: 'When Squaring is Safe',
+          slides: [
+            teach(
+              prose(
+                'Squaring both sides is safe when neither side can be negative. A modulus never is, and nor is a positive number, so $\\lvert u \\rvert = \\lvert v \\rvert$, $\\lvert u \\rvert < \\lvert v \\rvert$ and $\\lvert u \\rvert < 5$ can all be squared.',
+              ),
+              maths('\\begin{gathered} \\lvert x - 3 \\rvert < 5 \\\\ (x - 3)^2 < 25 \\end{gathered}'),
+              prose('When one side can be negative, squaring throws its sign away, and with it the thing that ruled a root out.'),
+            ),
+            ask('mod-safe-flow'),
+            ask('mod-safe-choice'),
+            ask('mod-false-root'),
+            teach(
+              prose(
+                'Square $\\lvert x - 1 \\rvert = 2x + 5$ from level 2 and factorise the difference of two squares:',
+              ),
+              maths('\\begin{gathered} (x - 1)^2 = (2x + 5)^2 \\\\ (-x - 6)(3x + 4) = 0 \\\\ x = -6 \\text{ or } x = -\\tfrac{4}{3} \\end{gathered}'),
+              prose(
+                'At $x = -6$ the right-hand side is $-7$, so it is rejected: the same root the two cases rejected. Squaring is quicker, but the check is still needed.',
+              ),
+            ),
+            ask('mod-square-check-steps'),
+            ask('mod-safe-flow', 2),
+            ask('mod-safe-choice', 2),
+            teach(
+              prose(
+                'A negative right-hand side is the extreme case. $\\lvert x + 2 \\rvert = -3$ has no solutions at all, since a modulus is never $-3$.',
+              ),
+              prose(
+                'Yet squaring gives $(x + 2)^2 = 9$, so $x = 1$ or $x = -5$, and both fail. Whenever the right-hand side could be negative, **check every root in the original**.',
+              ),
+            ),
+            ask('mod-false-root', 2),
+            ask('mod-square-check-steps', 2),
+          ],
+          skillCheck: [ask('mod-safe-choice', 2), ask('mod-false-root', 2), ask('mod-square-check-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('mod-both-cases', 2),
+        ask('mod-both-root', 2),
+        ask('mod-both-flow', 2),
+        ask('mod-square-factor', 2),
+        ask('mod-square-tree', 2),
+        ask('mod-square-root', 2),
+        ask('mod-cross-slider', 2),
+        ask('mod-cross-count', 2),
+        ask('mod-both-ineq-line', 2),
+        ask('mod-ends-tiles', 2),
+        ask('mod-region-flow', 2),
+        ask('mod-test-tree', 2),
+        ask('mod-safe-choice', 2),
+        ask('mod-false-root', 2),
+        ask('mod-square-check-steps', 2),
       ],
     },
   ],

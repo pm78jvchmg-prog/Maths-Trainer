@@ -7,7 +7,9 @@
  * inequalities read from a sign table, and the notations a solution set is
  * written in. Level 2 is the modulus function: $|x|$ as a distance, the V of
  * $y = |ax + b|$, modulus equations and the roots they can wrongly produce,
- * modulus inequalities, and transformations of the V.
+ * modulus inequalities, and transformations of the V. Level 3 puts a modulus
+ * on both sides: two moduli equal, solved by cases and by squaring, the two Vs
+ * on one graph, inequalities between two moduli, and when squaring is safe.
  *
  * **Every question is built outward from its answer.** Ends, roots, poles and
  * vertices are drawn first and the question is worked out from them, so every
@@ -343,11 +345,13 @@ function aimFor(correct: string, labels: string[], salt = ''): number {
  * A native choice slide, the answer placed by a hash of every label.
  *
  * Not shuffled from the rng (PITFALLS 3.10): one question has to render one
- * way, or the deck de-duplicator cannot see a repeat.
+ * way, or the deck de-duplicator cannot see a repeat. `salt` is for questions
+ * whose labels never change, which would otherwise always put the answer in
+ * the same slot.
  */
-function pickOne(prompt: Block[], correct: string, wrong: string[], tex = true): Slide {
+function pickOne(prompt: Block[], correct: string, wrong: string[], tex = true, salt = ''): Slide {
   const distinct = [...new Set(wrong)].filter((label) => label !== correct).slice(0, 3);
-  const at = aimFor(correct, [correct, ...distinct]);
+  const at = aimFor(correct, [correct, ...distinct], salt);
   const labels = [...distinct.slice(0, at), correct, ...distinct.slice(at)];
   return {
     kind: 'choice',
@@ -3757,6 +3761,1309 @@ const transformFlow: Generator<TransformParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 3: Modulus on Both Sides and Squaring
+ * ==================================================================== */
+
+/*
+ * Almost every question here is $|ax + b|$ against $|cx + d|$, and every one
+ * is built outward from its two roots. Writing $u = ax + b$ and $v = cx + d$,
+ *
+ *   u - v = (a - c)(x - p)   and   u + v = (a + c)(x - q),
+ *
+ * so `p` is the root of the case where the insides are equal and `q` the root
+ * of the case where they are opposite. Drawing a, c, p and q first and solving
+ * for b and d keeps everything whole; keeping |a| off |c| keeps both cases
+ * alive, and both constants off zero keeps every distractor below distinct
+ * from the answer it imitates.
+ *
+ * The last lesson puts a line on the right, $|ax + b| = dx + e$, and reuses
+ * `mod-equation-root`'s draw, which already guarantees one root that stands
+ * and one that fails the check.
+ */
+
+interface BothParams {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  /** The root of u = v. */
+  p: number;
+  /** The root of u = -v. */
+  q: number;
+}
+
+/** The pair with roots `p` and `q`, or undefined when `b` would not be whole. */
+function bothFromRoots(a: number, c: number, p: number, q: number): BothParams | undefined {
+  const twice = -(a + c) * q - (a - c) * p;
+  if (twice % 2 !== 0) return undefined;
+  const b = twice / 2;
+  return { a, b, c, d: b + (a - c) * p, p, q };
+}
+
+/** |2x + 1| = |x - 4|: roots -5 and 1. */
+const BOTH_FALLBACK: BothParams = { a: 2, b: 1, c: 1, d: -4, p: -5, q: 1 };
+
+/**
+ * Two moduli with whole roots. Difficulty 1 keeps both $x$ coefficients
+ * positive and the roots within five of zero; difficulty 2 has a negative
+ * coefficient on at least one side, wider roots and larger constants.
+ */
+function sampleBoth(
+  rng: Rng,
+  difficulty: number,
+  accept: (params: BothParams) => boolean = () => true,
+  reach?: number,
+): BothParams {
+  const hard = difficulty > 1;
+  const span = reach ?? (hard ? 7 : 5);
+  const bound = hard ? 20 : 12;
+  return drawUntil(
+    () =>
+      bothFromRoots(
+        hard ? rng.pick(nonZero(-4, 4)) : rng.int(1, 4),
+        hard ? rng.pick(nonZero(-4, 4)) : rng.int(1, 3),
+        rng.int(-span, span),
+        rng.int(-span, span),
+      ) ?? BOTH_FALLBACK,
+    (params) =>
+      params !== BOTH_FALLBACK &&
+      Math.abs(params.a) !== Math.abs(params.c) &&
+      params.p !== params.q &&
+      params.b !== 0 &&
+      params.d !== 0 &&
+      Math.abs(params.b) <= bound &&
+      Math.abs(params.d) <= bound &&
+      (!hard || params.a < 0 || params.c < 0) &&
+      accept(params),
+    BOTH_FALLBACK,
+  );
+}
+
+const uTex = ({ a, b }: BothParams) => linTex(a, b);
+const vTex = ({ c, d }: BothParams) => linTex(c, d);
+/** u - v and u + v, multiplied out. */
+const uMinusV = ({ a, b, c, d }: BothParams) => linTex(a - c, b - d);
+const uPlusV = ({ a, b, c, d }: BothParams) => linTex(a + c, b + d);
+
+/** |u| = |v|, or |u| < |v| and the rest. */
+const bothTex = (params: BothParams, op?: Op) =>
+  `${absLin(params.a, params.b)} ${op ? OP_TEX[op] : '='} ${absLin(params.c, params.d)}`;
+
+/** The two roots in order, as the lesson writes a pair of them. */
+function pairTex(x1: number, x2: number): string {
+  const [lo, hi] = x1 < x2 ? [x1, x2] : [x2, x1];
+  return `x = ${lo} \\text{ or } x = ${hi}`;
+}
+
+/**
+ * A line on one row when it fits a phone, otherwise broken before its
+ * relation: two squared brackets side by side run past the edge once the
+ * numbers are two digits.
+ */
+function stacked(left: string, rest: string): string {
+  const flat = `${left} ${rest}`;
+  if (printedLength(flat) <= 17) return flat;
+  return `\\begin{aligned} & ${left} \\\\ & \\quad ${rest} \\end{aligned}`;
+}
+
+/** (u)^2 - (v)^2 = 0, or with another relation in place of the equals. */
+const squaresTex = (u: string, v: string, rel = '=') => stacked(`(${u})^2`, `- (${v})^2 ${rel} 0`);
+
+const lower = ({ p, q }: BothParams) => Math.min(p, q);
+const upper = ({ p, q }: BothParams) => Math.max(p, q);
+
+/** |u| = |v| solved by cases, for a worked solution. */
+function bothCasesSolution(params: BothParams): SolutionStep[] {
+  const { a, b, c, d, p, q } = params;
+  const u = uTex(params);
+  return [
+    { tex: bothTex(params) },
+    {
+      text: 'Two distances are equal when the insides are equal or opposite.',
+      tex: either([`${u} = ${vTex(params)}`, `${u} = ${linTex(-c, -d)}`], QOR),
+    },
+    { tex: either([`${termTex(a - c, 1)} = ${d - b}`, `${termTex(a + c, 1)} = ${-d - b}`], QOR) },
+    { tex: either([`x = ${p}`, `x = ${q}`], QOR) },
+    { text: 'Both sides are distances, so neither can be negative: no root is rejected.' },
+  ];
+}
+
+/** |u| = |v| solved by squaring, for a worked solution. */
+function bothSquareSolution(params: BothParams): SolutionStep[] {
+  const { p, q } = params;
+  return [
+    { tex: bothTex(params) },
+    {
+      text: 'Both sides are never negative, so squaring keeps exactly the same solutions.',
+      tex: squaresTex(uTex(params), vTex(params)),
+    },
+    { text: 'A difference of two squares: the first minus the second, times the first plus the second.', tex: `(${uMinusV(params)})(${uPlusV(params)}) = 0` },
+    { tex: either([`x = ${p}`, `x = ${q}`], QOR) },
+  ];
+}
+
+/* ---------- Lesson 1: two moduli equal ---------- */
+
+/**
+ * The two cases of $|u| = |v|$, from tiles.
+ *
+ * The left inside equals the right one, or minus it, with the minus
+ * multiplied out. The slips on offer give the minus to one term only.
+ */
+const bothCases: Generator<BothParams> = {
+  id: 'mod-both-cases',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { c, d } = params;
+    const u = uTex(params);
+    const answer = [linTex(c, d), linTex(-c, -d)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Split into two cases, with any minus sign multiplied out. Place what the left-hand inside equals in each, in either order.',
+        },
+        { kind: 'display', tex: bothTex(params) },
+      ],
+      template: `${u} = {0} \\quad \\text{or} \\quad ${u} = {1}`,
+      bank: bankOf(answer, [linTex(-c, d), linTex(c, -d)]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: bothCasesSolution,
+};
+
+/**
+ * The opposite case of $|u| = |v|$, one line at a time.
+ *
+ * The same trap as `mod-cases-steps` in level 2, the minus reaching only the
+ * first term, met again with a modulus on the right. The last bank offers the
+ * other case's root, which is a real root, just not this case's.
+ */
+const bothNegativeSteps: Generator<BothParams> = {
+  id: 'mod-both-negative-steps',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, (params) => Math.abs(params.a + params.c) >= 2),
+  render: (params): Slide => {
+    const { a, b, c, d, p, q } = params;
+    const u = uTex(params);
+    const first = `${u} = ${linTex(-c, -d)}`;
+    const collected = `${termTex(a + c, 1)} = ${-d - b}`;
+    const last = `x = ${q}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve the **opposite** case of $${bothTex(params)}$: the left inside equals minus the right one. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [u, '=', `-(${vTex(params)})`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 2,
+          value: first,
+          bank: stepBank(first, `${u} = ${linTex(-c, d)}`, `${u} = ${linTex(c, -d)}`),
+        },
+        {
+          span: [0, 1],
+          value: collected,
+          bank: stepBank(
+            collected,
+            `${termTex(a - c, 1)} = ${-d - b}`,
+            `${termTex(a + c, 1)} = ${d - b}`,
+            `${termTex(a + c, 1)} = ${d + b}`,
+          ),
+        },
+        {
+          span: [0, 1],
+          value: last,
+          bank: stepBank(last, `x = ${-q}`, `x = ${p}`, `x = ${q + 1}`, `x = ${q - 1}`),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, d, p, q } = params;
+    const u = uTex(params);
+    return [
+      { tex: `${u} = -(${vTex(params)})` },
+      { text: 'The minus sign multiplies every term in the bracket.', tex: `${u} = ${linTex(-c, -d)}` },
+      { text: 'Collect the $x$ terms on the left and the numbers on the right.', tex: `${termTex(a + c, 1)} = ${-d - b}` },
+      { tex: `x = ${q}` },
+      { text: `Both sides are distances, so nothing is rejected: $x = ${q}$ stands beside $x = ${p}$ from the other case.` },
+    ];
+  },
+};
+
+interface BothRootParams extends BothParams {
+  larger: boolean;
+}
+
+/** The root asked for, then the other one. */
+const askedRoot = (params: BothRootParams): [number, number] =>
+  params.larger ? [upper(params), lower(params)] : [lower(params), upper(params)];
+
+/**
+ * Solve $|u| = |v|$ and give one named root.
+ *
+ * A number to type; the multiple-choice form offers the other root beside it,
+ * so finding only one case is not enough.
+ */
+const bothRoot: Generator<BothRootParams> = {
+  id: 'mod-both-root',
+  choices: (params) => {
+    const [target, other] = askedRoot(params);
+    return numberChoices(target, [other, -target, params.larger ? target - 1 : target + 1], bothTex(params));
+  },
+  sample: (rng, difficulty) => ({ ...sampleBoth(rng, difficulty), larger: rng.chance(0.5) }),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Solve. It has two roots: give the **${params.larger ? 'larger' : 'smaller'}** one.` },
+      { kind: 'display', tex: bothTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${askedRoot(params)[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => [
+    ...bothCasesSolution(params),
+    { text: `The ${params.larger ? 'larger' : 'smaller'} root is $x = ${askedRoot(params)[0]}$.` },
+  ],
+};
+
+interface BothFlowParams extends BothParams {
+  t: number;
+  /** The right-hand side written without bars, as in level 2. */
+  bare: boolean;
+}
+
+const EQUAL = 'Equal';
+const OPPOSITE = 'Opposite';
+
+/**
+ * Which case gave a root, and does it stand?
+ *
+ * With bars on both sides every case root stands, since neither side can be
+ * negative. Difficulty 2 mixes in the level 2 shape, $|u| = v$, where the
+ * sign of the right-hand side still has to be checked.
+ */
+const bothFlow: Generator<BothFlowParams> = {
+  id: 'mod-both-flow',
+  sample: (rng, difficulty) => {
+    const params = sampleBoth(rng, difficulty);
+    return { ...params, t: rng.chance(0.5) ? params.p : params.q, bare: difficulty > 1 && rng.chance(0.5) };
+  },
+  render: (params): Slide => {
+    const { a, b, c, d, p, t, bare } = params;
+    const v = vTex(params);
+    const right = c * t + d;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Splitting into cases gave $x = ${t}$ as a root. Which case gave it, and does it stand?`,
+        },
+      ],
+      subject: bare ? `${absLin(a, b)} = ${v}` : bothTex(params),
+      steps: [
+        {
+          id: 'case',
+          ask: `Put $x = ${t}$ into $${uTex(params)}$ and into $${v}$. Are the two values equal, or opposite?`,
+          branches: [
+            { label: EQUAL, to: 'bars' },
+            { label: OPPOSITE, to: 'bars' },
+          ],
+        },
+        {
+          id: 'bars',
+          ask: 'Is the right-hand side inside modulus bars as well?',
+          branches: [
+            { label: YES, outcome: `Keep $x = ${t}$: both sides are distances, so neither can be negative and every case root stands.` },
+            { label: NO, to: 'sign' },
+          ],
+        },
+        {
+          id: 'sign',
+          ask: `What sign is $${v}$ at $x = ${t}$?`,
+          branches: [
+            { label: REJECT_NEG, outcome: `Reject $x = ${t}$: a modulus can never equal a negative number.` },
+            { label: REJECT_OK, outcome: `Keep $x = ${t}$: it is a solution.` },
+          ],
+        },
+      ],
+      answer: [t === p ? EQUAL : OPPOSITE, bare ? NO : YES, ...(bare ? [right < 0 ? REJECT_NEG : REJECT_OK] : [])],
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, d, p, t, bare } = params;
+    const left = a * t + b;
+    const right = c * t + d;
+    const steps: SolutionStep[] = [
+      {
+        text: `At $x = ${t}$: $${uTex(params)} = ${left}$ and $${vTex(params)} = ${right}$, which are ${t === p ? 'equal' : 'opposite'}.`,
+      },
+    ];
+    if (!bare) steps.push({ text: 'Both sides have bars, so both are distances and never negative: the root stands.' });
+    else if (right < 0) steps.push({ text: `The right-hand side is $${right}$, negative, and a modulus never is: reject $x = ${t}$.` });
+    else steps.push({ text: `The right-hand side is $${right}$, and $${absTex(`${left}`)} = ${Math.abs(left)}$ agrees: keep $x = ${t}$.` });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 2: squaring both sides ---------- */
+
+/**
+ * $u^2 - v^2$ as a difference of two squares, from tiles.
+ *
+ * Squaring $|u| = |v|$ loses nothing, and $(u - v)(u + v) = 0$ gives both
+ * roots with no cases. The slips swap the constants between the factors.
+ */
+const squareFactor: Generator<BothParams> = {
+  id: 'mod-square-factor',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { a, b, c, d } = params;
+    const answer = [uMinusV(params), uPlusV(params)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Square both sides of $${bothTex(params)}$ and bring everything to the left. Factorise the difference of two squares: place both factors, in either order.`,
+        },
+        { kind: 'display', tex: squaresTex(uTex(params), vTex(params)) },
+      ],
+      template: '({0})({1}) = 0',
+      bank: bankOf(answer, [linTex(a - c, b + d), linTex(a + c, b - d), linTex(c - a, b - d)]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: bothSquareSolution,
+};
+
+/**
+ * Solve $|u| = |v|$ by squaring, as a tree: the two factors on top, the root
+ * each gives beneath it.
+ */
+const squareTree: Generator<BothParams> = {
+  id: 'mod-square-tree',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { a, b, c, d, p, q } = params;
+    const answer = [uMinusV(params), uPlusV(params), `x = ${p}`, `x = ${q}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve $${bothTex(params)}$ by squaring. Top row: the two factors of the difference of two squares, the difference first. Below each: the root it gives.`,
+        },
+      ],
+      expression: squaresTex(uTex(params), vTex(params)),
+      nodes: [
+        { id: 'minus', from: [] },
+        { id: 'plus', from: [] },
+        { id: 'root-minus', from: ['minus'] },
+        { id: 'root-plus', from: ['plus'] },
+      ],
+      bank: bankOf(answer, [linTex(a - c, b + d), linTex(a + c, b - d), `x = ${-p}`, `x = ${-q}`]),
+      answer,
+    };
+  },
+  solution: bothSquareSolution,
+};
+
+/**
+ * The long way round: square, multiply out, collect.
+ *
+ * The same roots as the factor route, which is the point of the comparison.
+ * The first bank forgets the middle term of a square, the second slips a
+ * sign while collecting. Kept to small numbers so the squares stay readable.
+ */
+const expandSteps: Generator<BothParams> = {
+  id: 'mod-expand-steps',
+  sample: (rng, difficulty) =>
+    sampleBoth(
+      rng,
+      difficulty,
+      ({ a, b, c, d, p, q }) =>
+        Math.abs(a) <= 3 &&
+        Math.abs(c) <= 3 &&
+        Math.abs(b) <= 9 &&
+        Math.abs(d) <= 9 &&
+        a * b !== c * d &&
+        Math.abs(b) !== Math.abs(d) &&
+        p !== -q &&
+        p !== 0 &&
+        q !== 0,
+    ),
+  render: (params): Slide => {
+    const { a, b, c, d, p, q } = params;
+    // Collected on whichever side keeps the square term positive.
+    const s = a * a > c * c ? 1 : -1;
+    const P = s * (a * a - c * c);
+    const Q = s * 2 * (a * b - c * d);
+    const R = s * (b * b - d * d);
+    const expanded = `${quadTex(a * a, 2 * a * b, b * b)} = ${quadTex(c * c, 2 * c * d, d * d)}`;
+    const collected = `${quadTex(P, Q, R)} = 0`;
+    const roots = pairTex(p, q);
+    return {
+      kind: 'steps',
+      prompt: [{ kind: 'prose', text: `Solve $${bothTex(params)}$ by squaring and multiplying out. ${HOW_TO_STEP}` }],
+      start: [`(${uTex(params)})^2`, '=', `(${vTex(params)})^2`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: expanded,
+          bank: stepBank(
+            expanded,
+            `${quadTex(a * a, 0, b * b)} = ${quadTex(c * c, 0, d * d)}`,
+            `${quadTex(a * a, a * b, b * b)} = ${quadTex(c * c, c * d, d * d)}`,
+          ),
+        },
+        {
+          span: [0, 1],
+          value: collected,
+          bank: stepBank(collected, `${quadTex(P, Q, -R)} = 0`, `${quadTex(P, -Q, R)} = 0`, `${quadTex(a * a + c * c, Q, R)} = 0`),
+        },
+        {
+          span: [0, 1],
+          value: roots,
+          bank: stepBank(roots, pairTex(-p, -q), pairTex(p, -q), pairTex(-p, q)),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, d, p, q } = params;
+    const s = a * a > c * c ? 1 : -1;
+    return [
+      { tex: stacked(`(${uTex(params)})^2`, `= (${vTex(params)})^2`) },
+      {
+        text: 'Multiply out each square: the first term squared, twice the product, the last term squared.',
+        tex: stacked(quadTex(a * a, 2 * a * b, b * b), `= ${quadTex(c * c, 2 * c * d, d * d)}`),
+      },
+      {
+        text: s > 0 ? 'Take the right-hand side from both sides.' : 'Take the left-hand side from both sides, keeping the square term positive.',
+        tex: `${quadTex(s * (a * a - c * c), s * 2 * (a * b - c * d), s * (b * b - d * d))} = 0`,
+      },
+      {
+        text: `It factorises as $(${uMinusV(params)})(${uPlusV(params)})$, which is the difference of two squares multiplied out.`,
+        tex: pairTex(p, q),
+      },
+    ];
+  },
+};
+
+interface SquareRootParams extends BothRootParams {
+  /** A square number pulled out in front of the left-hand square. */
+  s: number;
+}
+
+function squaredTex(params: SquareRootParams): string {
+  const { a, b, s } = params;
+  const left = s === 1 ? `(${uTex(params)})^2` : `${s * s}(${linTex(a / s, b / s)})^2`;
+  return stacked(left, `= (${vTex(params)})^2`);
+}
+
+/**
+ * Two squares equal, solved as two moduli equal.
+ *
+ * $(u)^2 = (v)^2$ is $|u| = |v|$. Difficulty 2 pulls a square number out in
+ * front, $4(x + 1)^2$, which is $(2x + 2)^2$ in disguise.
+ */
+const squareRoot: Generator<SquareRootParams> = {
+  id: 'mod-square-root',
+  choices: (params) => {
+    const [target, other] = askedRoot(params);
+    return numberChoices(target, [other, -target, params.larger ? target - 1 : target + 1], squaredTex(params));
+  },
+  sample: (rng, difficulty) => {
+    const s = difficulty > 1 ? rng.pick([2, 3]) : 1;
+    const params = sampleBoth(rng, difficulty, ({ a, b }) => a % s === 0 && b % s === 0);
+    return { ...params, s: params.a % s === 0 && params.b % s === 0 ? s : 1, larger: rng.chance(0.5) };
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Solve. Two squares are equal exactly when the things squared are equal or opposite. Give the **${params.larger ? 'larger' : 'smaller'}** root.`,
+      },
+      { kind: 'display', tex: squaredTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${askedRoot(params)[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { a, b, s } = params;
+    const steps: SolutionStep[] = [{ tex: squaredTex(params) }];
+    if (s !== 1) {
+      steps.push({ text: `$${s * s} = ${s}^2$, so the left-hand side is $(${s}(${linTex(a / s, b / s)}))^2 = (${uTex(params)})^2$.` });
+    }
+    steps.push(
+      { text: 'Two squares are equal when what is squared is equal or opposite: this is two moduli equal.', tex: bothTex(params) },
+      { tex: `(${uMinusV(params)})(${uPlusV(params)}) = 0` },
+      { tex: either([`x = ${params.p}`, `x = ${params.q}`], QOR) },
+      { text: `The ${params.larger ? 'larger' : 'smaller'} root is $x = ${askedRoot(params)[0]}$.` },
+    );
+    return steps;
+  },
+};
+
+/* ---------- Lesson 3: two Vs on one graph ---------- */
+
+/** One V's height at x. */
+const vHeight = (m: number, k: number) => (x: number) => Math.abs(m * x + k);
+
+/** Both Vs on squared paper, the left solid and the right dashed, for x from -6 to 6. */
+function twoVs(params: BothParams, heights: number[], label: string): string {
+  return plotSvg({
+    xMin: -6,
+    xMax: 6,
+    yMin: -1,
+    yMax: Math.max(8, ...heights.map((h) => h + 3)),
+    curves: [
+      { f: vHeight(params.a, params.b), accent: true },
+      { f: vHeight(params.c, params.d), dashed: true },
+    ],
+    grid: true,
+    label,
+  });
+}
+
+interface CrossParams extends BothParams {
+  left: boolean;
+}
+
+/** The height at each crossing, which is the same on either V. */
+const crossHeights = (params: BothParams) => [params.p, params.q].map(vHeight(params.a, params.b));
+
+/**
+ * Slide to one crossing of two Vs.
+ *
+ * The roots of $|u| = |v|$ are where the graphs meet. Both crossings lie on
+ * the drawn window; difficulty 2 has steeper and downward-facing insides, so
+ * reading the grid alone is harder than solving.
+ */
+const crossSlider: Generator<CrossParams> = {
+  id: 'mod-cross-slider',
+  sample: (rng, difficulty) => ({
+    ...sampleBoth(rng, difficulty, (params) => crossHeights(params).every((h) => h <= 10), 5),
+    left: rng.chance(0.5),
+  }),
+  render: (params): Slide => ({
+    kind: 'slider',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `The solid graph is $y = ${absLin(params.a, params.b)}$ and the dashed one is $y = ${absLin(params.c, params.d)}$. Slide to the $x$-coordinate of the **${params.left ? 'left' : 'right'}-hand** crossing.`,
+      },
+    ],
+    min: -6,
+    max: 6,
+    step: 1,
+    answer: params.left ? lower(params) : upper(params),
+    readout: 'x = {v}',
+    figure: {
+      svg: twoVs(params, crossHeights(params), 'Two V-shaped graphs crossing twice'),
+      ...markerWindow(-6, 6),
+    },
+  }),
+  solution: (params) => [
+    { text: 'The graphs cross where the two moduli are equal.' },
+    ...bothSquareSolution(params).slice(1),
+    { text: `The ${params.left ? 'left' : 'right'}-hand crossing is at $x = ${params.left ? lower(params) : upper(params)}$.` },
+  ],
+};
+
+/**
+ * Where two Vs cross, as points from tiles: each root, and the height there,
+ * which is the same on both graphs. The slips offer the inside without its
+ * bars and the root with its sign turned.
+ */
+const crossPoints: Generator<BothParams> = {
+  id: 'mod-cross-points',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, (params) => crossHeights(params).every((h) => h <= 15)),
+  render: (params): Slide => {
+    const { a, b } = params;
+    const lo = lower(params);
+    const hi = upper(params);
+    const at = vHeight(a, b);
+    const answer = [`${lo}`, `${at(lo)}`, `${hi}`, `${at(hi)}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Where do the graphs of $y = ${absLin(a, b)}$ and $y = ${absLin(params.c, params.d)}$ cross? Place both points, the left-hand one first.`,
+        },
+      ],
+      template: '({0}, {1}) \\quad \\text{and} \\quad ({2}, {3})',
+      bank: bankOf(answer, [`${a * lo + b}`, `${a * hi + b}`, `${-lo}`, `${-hi}`, `${Math.max(at(lo), at(hi)) + 1}`]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, b } = params;
+    const at = vHeight(a, b);
+    return [
+      ...bothCasesSolution(params).slice(1, 4),
+      {
+        text: `The height is the same on both graphs; on $y = ${absLin(a, b)}$ it is $${at(lower(params))}$ at $x = ${lower(params)}$ and $${at(upper(params))}$ at $x = ${upper(params)}$.`,
+      },
+      { tex: `(${lower(params)}, ${at(lower(params))}) \\text{ and } (${upper(params)}, ${at(upper(params))})` },
+    ];
+  },
+};
+
+type CrossKind = 'two' | 'steep' | 'shared';
+
+interface CrossCountParams {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  kind: CrossKind;
+}
+
+/**
+ * Two moduli that meet twice, or once for one of two reasons: arms of equal
+ * steepness, so one case loses its $x$; or a shared vertex, where both
+ * insides are zero at once. Never the same V twice.
+ */
+function sampleCrossCount(rng: Rng, difficulty: number, kinds: readonly CrossKind[]): CrossCountParams {
+  const hard = difficulty > 1;
+  const kind = rng.pick(kinds);
+  if (kind === 'two') {
+    const { a, b, c, d } = sampleBoth(rng, difficulty);
+    return { a, b, c, d, kind };
+  }
+  if (kind === 'shared') {
+    const v = rng.pick(nonZero(-5, 5));
+    const { a, c } = drawUntil(
+      () => ({ a: rng.pick(nonZero(-4, 4)), c: rng.pick(nonZero(-4, 4)) }),
+      (pair) => Math.abs(pair.a) !== Math.abs(pair.c),
+      { a: 2, c: 1 },
+    );
+    return { a, b: -a * v, c, d: -c * v, kind };
+  }
+  return drawUntil(
+    () => {
+      const a = hard ? rng.pick(nonZero(-4, 4)) : rng.int(1, 4);
+      return { a, b: rng.pick(nonZero(-9, 9)), c: rng.chance(0.5) ? a : -a, d: rng.pick(nonZero(-9, 9)), kind };
+    },
+    ({ a, b, c, d }) => (c === a ? b !== d : b !== -d),
+    { a: 1, b: -1, c: 1, d: 3, kind },
+  );
+}
+
+/** Every real solution of |ax + b| = |cx + d|, worked out from the two cases. */
+function crossRoots({ a, b, c, d }: CrossCountParams): number[] {
+  const roots: number[] = [];
+  for (const [k, r] of [
+    [a - c, d - b],
+    [a + c, -d - b],
+  ]) {
+    if (k !== 0) roots.push(r / k);
+  }
+  return [...new Set(roots)];
+}
+
+const COUNT_WORDS = ['No solutions', 'Exactly one', 'Exactly two', 'Infinitely many'];
+
+/**
+ * How many times do two Vs meet?
+ *
+ * Twice as a rule; once when the arms are equally steep, since one case then
+ * loses its $x$; and at difficulty 2 also once when the vertices share an $x$.
+ * The answer lands in a slot hashed from the equation, since the four words
+ * on offer never change.
+ */
+const crossCount: Generator<CrossCountParams> = {
+  id: 'mod-cross-count',
+  sample: (rng, difficulty) => sampleCrossCount(rng, difficulty, difficulty > 1 ? ['two', 'steep', 'shared'] : ['two', 'steep']),
+  render: (params): Slide => {
+    const tex = `${absLin(params.a, params.b)} = ${absLin(params.c, params.d)}`;
+    const correct = COUNT_WORDS[crossRoots(params).length];
+    return pickOne(
+      [
+        { kind: 'prose', text: 'How many solutions does this equation have?' },
+        { kind: 'display', tex },
+      ],
+      correct,
+      COUNT_WORDS.filter((word) => word !== correct),
+      false,
+      tex,
+    );
+  },
+  solution: (params) => {
+    const { a, b, c, d, kind } = params;
+    const u = linTex(a, b);
+    const roots = crossRoots(params);
+    if (kind === 'steep') {
+      const lost = c === a ? `${u} = ${linTex(c, d)}` : `${u} = ${linTex(-c, -d)}`;
+      return [
+        { text: 'The $x$ coefficients are the same size, so the arms are equally steep.' },
+        { text: `The case $${lost}$ loses its $x$ and says two different numbers are equal, so it gives nothing.` },
+        { text: `The other case gives the only solution, $x = ${fracTex((c === a ? -d - b : d - b), c === a ? a + c : a - c)}$: exactly one.` },
+      ];
+    }
+    if (kind === 'shared') {
+      return [
+        { text: `Both insides are zero at $x = ${roots[0]}$, so both Vs have their vertex there.` },
+        { text: 'Either side of it one V is steeper than the other, so they never meet again: exactly one solution.' },
+      ];
+    }
+    return [
+      { text: 'The $x$ coefficients differ in size, so each case keeps its $x$ and gives a root.' },
+      { tex: either(roots.map((root) => `x = ${root}`), QOR) },
+      { text: 'Exactly two.' },
+    ];
+  },
+};
+
+/**
+ * Walk the count: equal steepness first, then which case loses its $x$.
+ */
+const crossFlow: Generator<CrossCountParams> = {
+  id: 'mod-cross-flow',
+  sample: (rng, difficulty) => sampleCrossCount(rng, difficulty, ['two', 'steep']),
+  render: (params): Slide => {
+    const { a, b, c, d, kind } = params;
+    const u = linTex(a, b);
+    const same = `$${u} = ${linTex(c, d)}$`;
+    const opposite = `$${u} = ${linTex(-c, -d)}$`;
+    const lost = 'With no $x$ left, that case says two different numbers are equal, so it gives nothing: the other case gives the only crossing.';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'How many times do the two Vs meet? Look at the $x$ coefficients.' }],
+      subject: `${absLin(a, b)} = ${absLin(c, d)}`,
+      steps: [
+        {
+          id: 'steep',
+          ask: 'Ignoring their signs, are the two $x$ coefficients the same size?',
+          branches: [
+            { label: YES, to: 'lost' },
+            { label: NO, outcome: 'Neither case loses its $x$, so each gives a root: two crossings.' },
+          ],
+        },
+        {
+          id: 'lost',
+          ask: 'Then one of the two cases loses its $x$. Which one?',
+          branches: [
+            { label: same, outcome: lost },
+            { label: opposite, outcome: lost },
+          ],
+        },
+      ],
+      answer: kind === 'steep' ? [YES, c === a ? same : opposite] : [NO],
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, d, kind } = params;
+    const u = linTex(a, b);
+    if (kind !== 'steep') {
+      return [
+        { text: `The coefficients are $${a}$ and $${c}$, different sizes: the arms are not equally steep.` },
+        { text: 'Both cases keep their $x$, so the Vs cross twice.' },
+      ];
+    }
+    const lost = c === a ? `${u} = ${linTex(c, d)}` : `${u} = ${linTex(-c, -d)}`;
+    return [
+      { text: `The coefficients are $${a}$ and $${c}$, the same size: the arms are equally steep.` },
+      { text: `In $${lost}$ the $x$ terms cancel, leaving $${c === a ? `${b} = ${d}` : `${b} = ${-d}`}$, which is false.` },
+      { text: 'So only the other case gives a root: the Vs cross once.' },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: |ax + b| < |cx + d| ---------- */
+
+interface BothIneqParams extends BothParams {
+  op: Op;
+  min: number;
+  max: number;
+}
+
+/**
+ * Where $|u|$ op $|v|$ holds: $u^2 - v^2 = (a^2 - c^2)(x - p)(x - q)$, so the
+ * sign pattern is a parabola's, facing up when the left side is steeper.
+ */
+const bothIneqSet = ({ a, c, p, q }: BothParams, op: Op) => signSet([p, q], [], Math.sign(a * a - c * c), op);
+
+/** Between the critical values, or outside them. */
+const bothBetween = ({ a, c }: BothParams, op: Op) => (a * a > c * c) !== pointsRight(op);
+
+function sampleBothIneq(rng: Rng, difficulty: number): BothIneqParams {
+  const hard = difficulty > 1;
+  const params = sampleBoth(rng, difficulty, ({ p, q }) => Math.abs(p - q) <= 8);
+  const op = rng.pick<Op>(hard ? OPS : ['<', '>']);
+  const outside = !bothBetween(params, op);
+  return { ...params, op, ...windowFor(rng, lower(params), upper(params), outside ? 12 : 10, outside ? 2 : 1) };
+}
+
+function bothIneqSolution(params: BothIneqParams): SolutionStep[] {
+  const { a, c, op } = params;
+  const set = bothIneqSet(params, op);
+  return [
+    { tex: bothTex(params, op) },
+    {
+      text: 'Both sides are never negative, so squaring keeps the inequality as it is.',
+      tex: squaresTex(uTex(params), vTex(params), OP_TEX[op]),
+    },
+    { tex: `(${uMinusV(params)})(${uPlusV(params)}) ${OP_TEX[op]} 0` },
+    { text: `The critical values are $x = ${lower(params)}$ and $x = ${upper(params)}$.` },
+    {
+      text: `The ${a * a > c * c ? 'left' : 'right'}-hand V is steeper, so the set lies ${bothBetween(params, op) ? 'between' : 'outside'} them${isStrict(op) ? '' : ', ends included'}.`,
+      tex: setTex(set),
+    },
+    { text: describeSet(set) },
+  ];
+}
+
+/**
+ * Shade $|u|$ op $|v|$.
+ *
+ * Square, factorise, and read the set off the critical values. Difficulty 1
+ * keeps to strict signs; difficulty 2 includes the ends sometimes.
+ */
+const bothIneqLine: Generator<BothIneqParams> = {
+  id: 'mod-both-ineq-line',
+  sample: sampleBothIneq,
+  render: (params): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      { kind: 'prose', text: 'Solve by squaring both sides, then shade the solution set.' },
+      { kind: 'display', tex: bothTex(params, params.op) },
+    ],
+    min: params.min,
+    max: params.max,
+    step: 1,
+    answer: setOf(bothIneqSet(params, params.op)),
+  }),
+  solution: bothIneqSolution,
+};
+
+const LEFT_SIDE = 'The left';
+const RIGHT_SIDE = 'The right';
+const INSIDE_ROOTS = 'Between the two roots: near the crossings the steeper V dips under the flatter one.';
+const OUTSIDE_ROOTS = 'Outside the two roots: away from the crossings the steeper V is the higher one.';
+
+/**
+ * Between the critical values, or outside them?
+ *
+ * Decided before any algebra by which V is steeper: it is the lower of the
+ * two between the crossings and the higher outside them.
+ */
+const regionFlow: Generator<BothIneqParams> = {
+  id: 'mod-region-flow',
+  sample: sampleBothIneq,
+  render: (params): Slide => {
+    const { a, c, op } = params;
+    const ask = 'Is the left-hand side asked to be less than the right, or greater?';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Before solving: does the solution set lie between the two roots, or outside them?' }],
+      subject: bothTex(params, op),
+      steps: [
+        {
+          id: 'steep',
+          ask: 'Which side has the steeper V? Compare the $x$ coefficients, ignoring their signs.',
+          branches: [
+            { label: LEFT_SIDE, to: 'left' },
+            { label: RIGHT_SIDE, to: 'right' },
+          ],
+        },
+        {
+          id: 'left',
+          ask,
+          branches: [
+            { label: SHAPE_LESS, outcome: INSIDE_ROOTS },
+            { label: SHAPE_MORE, outcome: OUTSIDE_ROOTS },
+          ],
+        },
+        {
+          id: 'right',
+          ask,
+          branches: [
+            { label: SHAPE_LESS, outcome: OUTSIDE_ROOTS },
+            { label: SHAPE_MORE, outcome: INSIDE_ROOTS },
+          ],
+        },
+      ],
+      answer: [a * a > c * c ? LEFT_SIDE : RIGHT_SIDE, pointsRight(op) ? SHAPE_MORE : SHAPE_LESS],
+    };
+  },
+  solution: (params) => {
+    const { a, c, op } = params;
+    const steeper = a * a > c * c ? 'left' : 'right';
+    return [
+      { text: `The coefficients are $${a}$ and $${c}$, so the ${steeper}-hand V is steeper.` },
+      {
+        text: `The steeper V is below the other between the crossings and above it outside them, so the set lies ${bothBetween(params, op) ? 'between' : 'outside'} the roots.`,
+      },
+      { tex: setTex(bothIneqSet(params, op)) },
+    ];
+  },
+};
+
+const BETWEEN = '\\text{between}';
+const OUTSIDE = '\\text{outside}';
+
+/**
+ * The critical values and the shape of the set, from tiles.
+ *
+ * The template shows neither an interval nor two rays, so where the set lies
+ * is the learner's to place. The slips offer the roots with their signs
+ * turned.
+ */
+const endsTiles: Generator<BothIneqParams> = {
+  id: 'mod-ends-tiles',
+  sample: sampleBothIneq,
+  render: (params): Slide => {
+    const lo = lower(params);
+    const hi = upper(params);
+    const answer = [`${lo}`, `${hi}`, bothBetween(params, params.op) ? BETWEEN : OUTSIDE];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Solve by squaring. Place the two critical values, smaller first, then whether the solution set lies between them or outside them.',
+        },
+        { kind: 'display', tex: bothTex(params, params.op) },
+      ],
+      template: '{0} \\text{ and } {1} \\text{: } {2}',
+      bank: bankOf(answer, [`${-lo}`, `${-hi}`, `${lo - 1}`, `${hi + 1}`, BETWEEN, OUTSIDE]),
+      answer,
+    };
+  },
+  solution: bothIneqSolution,
+};
+
+interface PointTestParams extends BothIneqParams {
+  t: number;
+}
+
+/**
+ * Test a point by the factors.
+ *
+ * $u^2 - v^2$ has the sign of $(u - v)(u + v)$: the two insides at the test
+ * point, then their difference and sum, then the product.
+ */
+const testPointTree: Generator<PointTestParams> = {
+  id: 'mod-test-tree',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const params = sampleBothIneq(rng, difficulty);
+        return { ...params, t: rng.int(params.min + 1, params.max - 1) };
+      },
+      ({ a, b, c, d, p, q, t }) => t !== p && t !== q && Math.abs(a * t + b) <= 12 && Math.abs(c * t + d) <= 12,
+      { ...BOTH_FALLBACK, op: '<', min: -8, max: 2, t: 0 },
+    ),
+  render: (params): Slide => {
+    const { a, b, c, d, op, t } = params;
+    const u = a * t + b;
+    const v = c * t + d;
+    const answer = [`${u}`, `${v}`, `${u - v}`, `${u + v}`, `${(u - v) * (u + v)}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Test $x = ${t}$ by squaring: $(${uTex(params)})^2 - (${vTex(params)})^2$ is (first − second)(first + second), and its sign says whether $x = ${t}$ is in the set. Fill in both insides at $x = ${t}$, then their difference and sum, then the product.`,
+        },
+      ],
+      expression: bothTex(params, op),
+      nodes: [
+        { id: 'u', from: [] },
+        { id: 'v', from: [] },
+        { id: 'minus', from: ['u', 'v'] },
+        { id: 'plus', from: ['u', 'v'] },
+        { id: 'product', from: ['minus', 'plus'] },
+      ],
+      bank: treeBank(answer, [v - u, -(u - v) * (u + v), u * v], (u - v) * (u + v)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, d, op, t } = params;
+    const u = a * t + b;
+    const v = c * t + d;
+    const product = (u - v) * (u + v);
+    const holds = pointsRight(op) ? product > 0 : product < 0;
+    return [
+      { text: `At $x = ${t}$: $${uTex(params)} = ${u}$ and $${vTex(params)} = ${v}$.` },
+      { tex: `(${br(u)} - ${br(v)})(${br(u)} + ${br(v)}) = ${u - v} \\times ${br(u + v)} = ${product}` },
+      {
+        text: `That is ${product > 0 ? 'positive' : 'negative'}, so $${absTex(`${u}`)}$ is ${product > 0 ? 'greater' : 'less'} than $${absTex(`${v}`)}$: $x = ${t}$ is ${holds ? '' : 'not '}in the set.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: when squaring is safe ---------- */
+
+type SafeForm = 'moduli' | 'positive' | 'line' | 'negative';
+
+interface SafeParams {
+  form: SafeForm;
+  subject: string;
+}
+
+/** A small inside, |ax + b|, varied enough that no two statements repeat. */
+const smallAbs = (rng: Rng) => absLin(rng.pick([1, 2, 3, -1, -2]), rng.pick(nonZero(-9, 9)));
+
+/** One statement of each shape, the ones on the left safe to square. */
+function safeStatement(rng: Rng, form: SafeForm, inequality: boolean): string {
+  const op = inequality ? OP_TEX[rng.pick(OPS)] : '=';
+  if (form === 'moduli') return `${smallAbs(rng)} ${op} ${smallAbs(rng)}`;
+  if (form === 'positive') return `${smallAbs(rng)} ${op} ${rng.int(1, 9)}`;
+  if (form === 'negative') return `${smallAbs(rng)} = ${-rng.int(1, 9)}`;
+  return `${smallAbs(rng)} ${op} ${linTex(rng.pick([2, 3, -2, -3, 1, -1]), rng.pick(nonZero(-9, 9)))}`;
+}
+
+const isSafe = (form: SafeForm) => form === 'moduli' || form === 'positive';
+
+const CHECK_ROOTS = 'Check each root in the original';
+const KEEP_ROOTS = 'Keep every root of the squared equation';
+
+/**
+ * Is it safe to square both sides?
+ *
+ * Only when neither side can be negative: a modulus, or a number at least
+ * zero. Otherwise squaring can bring in a root that fails, so every root is
+ * checked. Difficulty 2 adds a negative right-hand side, which has no
+ * solutions at all though its square has two.
+ */
+const safeFlow: Generator<SafeParams> = {
+  id: 'mod-safe-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const form = rng.pick<SafeForm>(hard ? ['moduli', 'positive', 'line', 'negative'] : ['moduli', 'positive', 'line', 'line']);
+    return { form, subject: safeStatement(rng, form, hard && isSafe(form) && rng.chance(0.5)) };
+  },
+  render: ({ form, subject }): Slide => ({
+    kind: 'flow',
+    prompt: [{ kind: 'prose', text: 'Can you square both sides of this without changing its solutions?' }],
+    subject,
+    steps: [
+      {
+        id: 'right',
+        ask: 'Can the right-hand side ever be negative?',
+        branches: [
+          { label: NO, outcome: 'Safe: both sides are never negative, so squaring keeps exactly the same solutions.' },
+          { label: YES, to: 'then' },
+        ],
+      },
+      {
+        id: 'then',
+        ask: 'Then squaring can bring in a root that does not work. What do you do with the roots you find?',
+        branches: [
+          { label: CHECK_ROOTS, outcome: 'Right: any root that makes the right-hand side negative is rejected.' },
+          { label: KEEP_ROOTS, outcome: 'That keeps any root squaring brought in, even one that fails.' },
+        ],
+      },
+    ],
+    answer: isSafe(form) ? [NO] : [YES, CHECK_ROOTS],
+  }),
+  solution: ({ form }) => {
+    if (form === 'moduli') return [{ text: 'Both sides are moduli, so neither can be negative: squaring is safe.' }];
+    if (form === 'positive') return [{ text: 'A modulus against a positive number: neither side can be negative, so squaring is safe.' }];
+    if (form === 'negative') {
+      return [
+        { text: 'The right-hand side is negative and a modulus never is, so there are no solutions at all.' },
+        { text: 'Squaring would hide that: the squared equation has two roots, and both fail the check.' },
+      ];
+    }
+    return [
+      { text: 'The right-hand side is a line, which is negative for some $x$.' },
+      { text: 'Squaring loses the sign, so it can bring in a root where the line is negative: check every root in the original.' },
+    ];
+  },
+};
+
+interface SafeChoiceParams {
+  /** Ask for the one that is not safe, among three that are. */
+  reverse: boolean;
+  correct: string;
+  correctForm: SafeForm;
+  wrong: string[];
+}
+
+/**
+ * Which line is safe to square, or at difficulty 2 which one is not?
+ *
+ * Four statements, each with its own insides so the odd one out is the shape
+ * and not the numbers.
+ */
+const safeChoice: Generator<SafeChoiceParams> = {
+  id: 'mod-safe-choice',
+  sample: (rng, difficulty) => {
+    const reverse = difficulty > 1;
+    const safe: SafeForm[] = ['moduli', 'moduli', 'positive'];
+    const unsafe: SafeForm[] = ['line', 'line', 'negative'];
+    const correctForm = rng.pick(reverse ? unsafe : safe);
+    const inequality = () => rng.chance(0.4);
+    return {
+      reverse,
+      correct: safeStatement(rng, correctForm, !isSafe(correctForm) ? false : inequality()),
+      correctForm,
+      wrong: (reverse ? ['moduli', 'positive', 'moduli'] : ['line', 'negative', 'line']).map((form) =>
+        safeStatement(rng, form as SafeForm, form === 'negative' ? false : inequality()),
+      ),
+    };
+  },
+  render: ({ reverse, correct, wrong }): Slide =>
+    pickOne(
+      [
+        {
+          kind: 'prose',
+          text: reverse
+            ? 'Squaring both sides of three of these keeps the solutions exactly. Which one could squaring get wrong?'
+            : 'Which one can you square both sides of without risking a root that does not work?',
+        },
+      ],
+      correct,
+      wrong,
+    ),
+  solution: ({ reverse, correct, correctForm }) => [
+    { text: 'Squaring is safe exactly when neither side can be negative: a modulus, or a number at least zero.' },
+    {
+      text: reverse
+        ? correctForm === 'negative'
+          ? `In $${correct}$ the right-hand side is negative: it has no solutions, but its square does.`
+          : `In $${correct}$ the right-hand side is a line, negative for some $x$, so squaring can bring in a root that fails.`
+        : correctForm === 'moduli'
+          ? `In $${correct}$ both sides are moduli.`
+          : `In $${correct}$ the modulus is compared with a positive number.`,
+    },
+  ],
+};
+
+/** A |ax + b| = dx + e with one root standing and one failing, both constants non-zero. */
+function sampleFalseRoot(rng: Rng, difficulty: number): EquationParams {
+  return drawUntil(
+    () => equationRoot.sample(rng, difficulty),
+    ({ b, e, good, bad }) => b !== 0 && e !== 0 && good !== 0 && bad !== 0 && good !== -bad,
+    { a: 1, b: 2, d: 2, e: 7, good: -3, bad: -5 },
+  );
+}
+
+/** The squared equation factorised: (u - v)(u + v) = 0. */
+const falseFactors = ({ a, b, d, e }: EquationParams) => `(${linTex(a - d, b - e)})(${linTex(a + d, b + e)}) = 0`;
+
+/**
+ * Which root did squaring bring in?
+ *
+ * The squared, factorised equation is given with both its roots; the one that
+ * makes the right-hand side negative is the one to reject. `mod-reject-flow`
+ * in level 2 checks a single root the same way.
+ */
+const falseRoot: Generator<EquationParams> = {
+  id: 'mod-false-root',
+  choices: (params) => numberChoices(params.bad, [params.good, -params.bad], `${equationTex(params)}#false`),
+  sample: sampleFalseRoot,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Squaring both sides of $${equationTex(params)}$ and factorising gives the equation below, with roots $x = ${Math.min(params.good, params.bad)}$ and $x = ${Math.max(params.good, params.bad)}$. One of them does not solve the original. Which one?`,
+      },
+      { kind: 'display', tex: falseFactors(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${params.bad}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { a, b, d, e, good, bad } = params;
+    return [
+      { text: `At $x = ${bad}$ the right-hand side is $${d * bad + e}$: negative, and a modulus never is. Reject it.` },
+      { text: `At $x = ${good}$ it is $${d * good + e}$, and $${absTex(`${a * good + b}`)} = ${Math.abs(a * good + b)}$ agrees.` },
+      { tex: `x = ${bad} \\text{ is rejected}` },
+    ];
+  },
+};
+
+/**
+ * Solve $|ax + b| = dx + e$ by squaring, check included.
+ *
+ * Factorising the squared equation is quicker than two cases, but squaring
+ * forgets the right-hand side's sign, so the last step keeps only the root
+ * that survives. The last bank offers keeping both, which is the mistake.
+ */
+const squareCheckSteps: Generator<EquationParams> = {
+  id: 'mod-square-check-steps',
+  sample: sampleFalseRoot,
+  render: (params): Slide => {
+    const { a, b, d, e, good, bad } = params;
+    const factors = falseFactors(params);
+    const roots = pairTex(good, bad);
+    const last = `x = ${good}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve $${equationTex(params)}$ by squaring both sides. The last step is the check. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [`(${linTex(a, b)})^2`, '=', `(${linTex(d, e)})^2`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: factors,
+          bank: stepBank(
+            factors,
+            `(${linTex(a - d, b + e)})(${linTex(a + d, b - e)}) = 0`,
+            `(${linTex(a - d, b - e)})(${linTex(a + d, b - e)}) = 0`,
+          ),
+        },
+        {
+          span: [0, 1],
+          value: roots,
+          bank: stepBank(roots, pairTex(-good, -bad), pairTex(good, -bad), pairTex(-good, bad)),
+        },
+        {
+          span: [0, 1],
+          value: last,
+          bank: stepBank(last, `x = ${bad}`, roots, '\\text{no solutions}'),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { a, b, d, e, good, bad } = params;
+    return [
+      { tex: squaresTex(linTex(a, b), linTex(d, e)) },
+      { text: 'A difference of two squares.', tex: falseFactors(params) },
+      { tex: pairTex(good, bad) },
+      { text: `Check: at $x = ${bad}$ the right-hand side is $${d * bad + e}$, negative, so reject it.` },
+      { text: `At $x = ${good}$ it is $${d * good + e}$ and the left is $${Math.abs(a * good + b)}$: it stands.`, tex: `x = ${good}` },
+    ];
+  },
+};
+
 export const inequalityGenerators = [
   linearLine,
   linearSteps,
@@ -3804,4 +5111,24 @@ export const inequalityGenerators = [
   transformMatch,
   transformTiles,
   transformFlow,
+  bothCases,
+  bothNegativeSteps,
+  bothRoot,
+  bothFlow,
+  squareFactor,
+  squareTree,
+  expandSteps,
+  squareRoot,
+  crossSlider,
+  crossPoints,
+  crossCount,
+  crossFlow,
+  bothIneqLine,
+  regionFlow,
+  endsTiles,
+  testPointTree,
+  safeFlow,
+  safeChoice,
+  falseRoot,
+  squareCheckSteps,
 ];

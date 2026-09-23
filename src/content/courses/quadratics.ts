@@ -1854,6 +1854,47 @@ export const quadratics: Course = {
             ask('quad-disguise-count', 2),
           ],
         },
+        {
+          id: 'qd-l7-root',
+          title: 'Square Roots',
+          slides: [
+            teach(
+              prose('In $x - 5\\sqrt{x} + 6 = 0$, $x$ is the square of $\\sqrt{x}$. Put $u = \\sqrt{x}$:'),
+              maths('u^{2} - 5u + 6 = 0'),
+              maths('(u - 2)(u - 3) = 0'),
+              prose('Going back means squaring: $\\sqrt{x} = 2$ gives $x = 4$, and $\\sqrt{x} = 3$ gives $x = 9$.'),
+            ),
+            ask('quad-disguise-root-back-flow'),
+            ask('quad-disguise-root-tree'),
+            ask('quad-disguise-root-solve'),
+            teach(
+              prose('A square root is never negative, so a negative $u$ is rejected. In $x - \\sqrt{x} - 6 = 0$:'),
+              maths('(u + 2)(u - 3) = 0'),
+              prose(
+                '$\\sqrt{x} = -2$ is impossible, so the only solution is $x = 9$. Squaring $-2$ anyway gives $x = 4$, which does not work: $4 - 2 - 6 = -4$, not 0.',
+              ),
+            ),
+            ask('quad-disguise-root-check'),
+            ask('quad-disguise-root-solve+choice'),
+            ask('quad-disguise-root-back-flow', 2),
+            teach(
+              prose('Checking is quick insurance. Put the answer back into the equation, taking the positive square root:'),
+              maths('9 - \\sqrt{9} - 6 = 9 - 3 - 6 = 0'),
+              prose('It comes to 0, so $x = 9$ stands. A rejected root never survives this check.'),
+            ),
+            ask('quad-disguise-root-tree', 2),
+            askWith(
+              'quad-disguise-root-check+choice',
+              'The same check with no working shown: this is the left-hand side with a candidate put in. Pick what it comes to.',
+              2,
+            ),
+          ],
+          skillCheck: [
+            ask('quad-disguise-root-tree', 2),
+            ask('quad-disguise-root-solve', 2),
+            ask('quad-disguise-root-check', 2),
+          ],
+        },
       ],
     },
   ],

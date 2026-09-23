@@ -7,7 +7,7 @@
  */
 import type { Block, Course, SlideRef } from '../types';
 import { complexPlaneSvg, rangeFor, type PlanePoint } from '../generators/plane';
-import { unityCircleSvg } from '../generators/complexPlane';
+import { locusSvg, unityCircleSvg } from '../generators/complexPlane';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -820,6 +820,221 @@ export const complexNumbers: Course = {
         ask('unity-sum-except', 2),
         ask('root-argument', 2),
         ask('unity-slider', 2),
+      ],
+    },
+
+    {
+      id: 'cn-l6',
+      title: 'Loci in the Complex Plane',
+      lessons: [
+        {
+          id: 'cn-l6-circles',
+          title: 'Circles',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'A locus is the set of points that obey a rule. $|z - a|$ is the distance from $z$ to $a$, so $|z - a| = r$ picks out every point exactly $r$ from $a$: a circle with centre $a$ and radius $r$.' },
+              { kind: 'display', tex: '|z - (1 + i)| = 2' },
+              { kind: 'diagram', svg: locusSvg({ range: 4, circles: [{ re: 1, im: 1, r: 2 }], points: [{ re: 1, im: 1, label: 'a' }] }) },
+            ),
+            ask('locus-circle-centre'),
+            ask('locus-circle-radius'),
+            ask('locus-circle-tiles'),
+            teach(
+              { kind: 'prose', text: 'Loci usually arrive with the bracket multiplied out. Put it back before reading the centre, because the minus sign belongs to the whole of $a$:' },
+              { kind: 'display', tex: '|z + 2 - i| = |z - (-2 + i)|' },
+              { kind: 'prose', text: 'So that circle is centred on $-2 + i$, not $2 - i$. Written $|a - z|$ it is the same distance the other way round, and the same circle.' },
+              { kind: 'prose', text: 'The radius is a distance too. If the circle passes through $b$, then $r = |b - a|$.' },
+            ),
+            ask('locus-circle-through'),
+            ask('locus-circle-centre', 2),
+            ask('locus-circle-through+choice', 2),
+            teach(
+              { kind: 'prose', text: 'A number multiplying $z$ comes out of the modulus as a factor, since $|kw| = k|w|$ for positive $k$. Take it out before reading the radius:' },
+              { kind: 'display', tex: '|2z - 4 + 6i| = 8' },
+              { kind: 'display', tex: '2|z - (2 - 3i)| = 8' },
+              { kind: 'display', tex: '|z - (2 - 3i)| = 4' },
+            ),
+            ask('locus-circle-radius', 2),
+            ask('locus-circle-tiles', 2),
+          ],
+          skillCheck: [ask('locus-circle-centre', 2), ask('locus-circle-tiles', 2), ask('locus-circle-through', 2)],
+        },
+
+        {
+          id: 'cn-l6-bisectors',
+          title: 'Perpendicular Bisectors',
+          slides: [
+            teach(
+              { kind: 'prose', text: '$|z - a| = |z - b|$ asks for the points exactly as far from $a$ as from $b$. That is a straight line, the perpendicular bisector of the segment from $a$ to $b$.' },
+              {
+                kind: 'diagram',
+                svg: locusSvg({
+                  range: 4,
+                  segments: [[[-1, -1], [3, 1]]],
+                  lines: [{ re: 1, im: 0, dx: -1, dy: 2 }],
+                  points: [{ re: -1, im: -1, label: 'a' }, { re: 3, im: 1, label: 'b' }, { re: 1, im: 0, highlight: true }],
+                }),
+              },
+              { kind: 'prose', text: 'Here $|z + 1 + i| = |z - 3 - i|$. The line meets the segment at right angles at its midpoint, $1$. Every point off the line is nearer one of $a$ and $b$: compare the squared distances to tell which.' },
+            ),
+            ask('locus-bisector-midpoint'),
+            ask('locus-bisector-side'),
+            ask('locus-bisector-midpoint', 2),
+            teach(
+              { kind: 'prose', text: 'For a Cartesian equation you need a point and a gradient. The point is the midpoint. The gradient is perpendicular to the segment: minus one over its gradient.' },
+              { kind: 'display', tex: 'a = -1 - i, \\quad b = 3 + i' },
+              { kind: 'display', tex: 'm_{ab} = \\tfrac{2}{4} = \\tfrac{1}{2} \\;\\Rightarrow\\; m = -2' },
+              { kind: 'display', tex: 'y = -2(x - 1) = -2x + 2' },
+            ),
+            ask('locus-bisector-line'),
+            ask('locus-bisector-side', 2),
+            ask('locus-bisector-line+choice', 2),
+            teach(
+              { kind: 'prose', text: 'Where does the line cross the real axis? There $z = x$, a real number as far from $a$ as from $b$:' },
+              { kind: 'display', tex: '(x + 1)^2 + 1 = (x - 3)^2 + 1' },
+              { kind: 'prose', text: 'The $x^2$ terms always cancel, leaving a linear equation. Here $2x + 1 = -6x + 9$, so $x = 1$.' },
+            ),
+            ask('locus-bisector-crossing'),
+            ask('locus-bisector-crossing', 2),
+          ],
+          skillCheck: [ask('locus-bisector-midpoint', 2), ask('locus-bisector-line', 2), ask('locus-bisector-side', 2)],
+        },
+
+        {
+          id: 'cn-l6-half-lines',
+          title: 'Half-Lines',
+          slides: [
+            teach(
+              { kind: 'prose', text: '$\\arg(z - a) = \\theta$ asks for the points whose direction from $a$ is $\\theta$. That is a half-line: it starts at $a$ and runs off at angle $\\theta$ to the positive real direction.' },
+              { kind: 'display', tex: '\\arg(z - (1 - i)) = \\tfrac{3\\pi}{4}' },
+              { kind: 'diagram', svg: locusSvg({ range: 4, rays: [{ re: 1, im: -1, dx: -1, dy: 1 }], points: [{ re: 1, im: -1, open: true, label: 'a' }] }) },
+              { kind: 'prose', text: 'The start is drawn open: $\\arg 0$ has no value, so $a$ itself is not on the locus.' },
+            ),
+            ask('locus-halfline-turns'),
+            ask('locus-halfline-point'),
+            ask('locus-halfline-tiles'),
+            teach(
+              { kind: 'prose', text: 'It is only half a line. Points behind $a$ are on the same straight line, but their direction from $a$ is the opposite angle.' },
+              { kind: 'prose', text: 'And the start matters: $\\arg z = \\theta$ is the half-line from the origin, a different locus. As with circles, gather the bracket before reading the start. $\\arg(z + 2 - i)$ starts at $-2 + i$.' },
+            ),
+            ask('locus-halfline-through'),
+            ask('locus-halfline-point', 2),
+            ask('locus-halfline-tiles', 2),
+            teach(
+              { kind: 'prose', text: 'Given a point the half-line passes through, its angle is the argument of the step from the start to that point. From $1$ through $3 + 2i$:' },
+              { kind: 'display', tex: '\\arg(2 + 2i) = \\tfrac{\\pi}{4}' },
+            ),
+            ask('locus-halfline-turns', 2),
+            ask('locus-halfline-through', 2),
+          ],
+          skillCheck: [ask('locus-halfline-point', 2), ask('locus-halfline-through', 2), ask('locus-halfline-turns', 2)],
+        },
+
+        {
+          id: 'cn-l6-regions',
+          title: 'Regions',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'Swap the $=$ for an inequality and a curve becomes a region. $|z - a| < r$ is every point closer than $r$ to $a$, the inside of the circle; $|z - a| > r$ is the outside.' },
+              { kind: 'diagram', svg: locusSvg({ range: 4, discs: [{ re: 1, im: 0, r: 2 }], circles: [{ re: 1, im: 0, r: 2, dashed: true }], points: [{ re: 1, im: 0 }] }) },
+              { kind: 'prose', text: '$|z - 1| < 2$. A strict inequality leaves the circle out, drawn dashed; with $\\le$ or $\\ge$ it is included and drawn solid. In $|z - a| \\le r$ the real part reaches at most $r$ past the centre\'s.' },
+            ),
+            ask('locus-region-flow'),
+            ask('locus-region-match'),
+            ask('locus-region-extreme'),
+            teach(
+              { kind: 'prose', text: '$|z - a| < |z - b|$ is every point nearer $a$ than $b$: the side of the perpendicular bisector that $a$ is on.' },
+              {
+                kind: 'diagram',
+                svg: locusSvg({
+                  range: 4,
+                  halves: [{ re: 1, im: 0, dx: -1, dy: 2, toward: [-1, -1] }],
+                  lines: [{ re: 1, im: 0, dx: -1, dy: 2, dashed: true }],
+                  points: [{ re: -1, im: -1, label: 'a' }, { re: 3, im: 1, label: 'b' }],
+                }),
+              },
+            ),
+            ask('locus-region-flow', 2),
+            ask('locus-region-match', 2),
+            ask('locus-region-extreme+choice', 2),
+            teach(
+              { kind: 'prose', text: 'Between two arguments is a wedge, with its point at $a$ and its edges two half-lines.' },
+              { kind: 'display', tex: '\\tfrac{\\pi}{4} < \\arg z < \\tfrac{3\\pi}{4}' },
+              {
+                kind: 'diagram',
+                svg: locusSvg({
+                  range: 4,
+                  wedges: [{ re: 0, im: 0, from: 1, to: 3 }],
+                  rays: [{ re: 0, im: 0, dx: 1, dy: 1, dashed: true }, { re: 0, im: 0, dx: -1, dy: 1, dashed: true }],
+                  points: [{ re: 0, im: 0, open: true }],
+                }),
+              },
+              { kind: 'prose', text: 'To test a number, measure its direction from $a$, not from the origin.' },
+            ),
+            ask('locus-region-wedge'),
+            ask('locus-region-wedge', 2),
+          ],
+          skillCheck: [ask('locus-region-flow', 2), ask('locus-region-match', 2), ask('locus-region-wedge', 2)],
+        },
+
+        {
+          id: 'cn-l6-cartesian',
+          title: 'Loci in Cartesian Form',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'Writing $z = x + iy$ turns a locus into an equation in $x$ and $y$. A modulus is Pythagoras on the two parts, so square both sides:' },
+              { kind: 'display', tex: '|z - (2 - i)| = 3' },
+              { kind: 'display', tex: '(x - 2)^2 + (y + 1)^2 = 9' },
+              { kind: 'prose', text: 'The centre\'s signs flip inside the brackets, and the radius is squared.' },
+            ),
+            ask('locus-cartesian-tiles'),
+            ask('locus-cartesian-centre'),
+            ask('locus-cartesian-radius'),
+            teach(
+              { kind: 'prose', text: 'Going back, a circle that has been multiplied out needs its squares completed first:' },
+              { kind: 'display', tex: 'x^2 + y^2 - 4x + 2y = 4' },
+              { kind: 'prose', text: 'Here $x^2 - 4x = (x - 2)^2 - 4$ and $y^2 + 2y = (y + 1)^2 - 1$, so the $4$ and $1$ move across:' },
+              { kind: 'display', tex: '(x - 2)^2 + (y + 1)^2 = 9' },
+              { kind: 'prose', text: 'Centre $2 - i$, radius $3$.' },
+            ),
+            ask('locus-cartesian-centre', 2),
+            ask('locus-cartesian-tiles', 2),
+            ask('locus-cartesian-radius', 2),
+            teach(
+              { kind: 'prose', text: '$|z|$ is the distance from the origin. The nearest and furthest points of a circle lie on the line through the origin and its centre, so they are $|a| - r$ and $|a| + r$ away.' },
+              {
+                kind: 'diagram',
+                svg: locusSvg({
+                  range: 7,
+                  circles: [{ re: 3, im: 4, r: 2 }],
+                  segments: [[[0, 0], [4.2, 5.6]]],
+                  points: [{ re: 0, im: 0 }, { re: 3, im: 4, label: 'a' }, { re: 1.8, im: 2.4, highlight: true }, { re: 4.2, im: 5.6, highlight: true }],
+                }),
+              },
+              { kind: 'prose', text: 'For $|z - (3 + 4i)| = 2$, $|a| = 5$, so $|z|$ runs from $3$ to $7$. If the origin is inside the circle, the least is $r - |a|$ instead.' },
+            ),
+            ask('locus-modulus-range'),
+            ask('locus-modulus-range+choice', 2),
+          ],
+          skillCheck: [ask('locus-cartesian-centre', 2), ask('locus-cartesian-tiles', 2), ask('locus-modulus-range', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('locus-circle-centre', 2),
+        ask('locus-bisector-line', 2),
+        ask('locus-halfline-through', 2),
+        ask('locus-region-flow', 2),
+        ask('locus-cartesian-tiles', 2),
+        ask('locus-circle-through', 2),
+        ask('locus-bisector-side', 2),
+        ask('locus-halfline-point', 2),
+        ask('locus-region-match', 2),
+        ask('locus-modulus-range', 2),
+        ask('locus-circle-tiles', 2),
+        ask('locus-bisector-midpoint', 2),
+        ask('locus-halfline-turns', 2),
+        ask('locus-region-wedge', 2),
+        ask('locus-cartesian-centre', 2),
       ],
     },
   ],

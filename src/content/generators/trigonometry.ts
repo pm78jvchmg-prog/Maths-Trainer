@@ -6539,6 +6539,1353 @@ const inverseSolutionsSlider: Generator<SolutionsSliderParams> = {
   },
 };
 
+/* ---------- Level 7: modelling with trigonometric functions ---------- */
+
+/*
+ * A model here is d ± a sin(bt) or d ± a cos(bt), with t in the situation's own
+ * time unit and bt in degrees, the way level 3 wrote a wave. Every period
+ * divides 360, so b is whole, and is a multiple of 12, so every time a question
+ * asks about (a peak, a trough, a crossing at half the amplitude) is whole as
+ * well. Units live in the prose; every answer is a bare number.
+ */
+
+/** Where the quantity is at t = 0, which decides the function and its sign. */
+type Start = 'rise' | 'peak' | 'trough' | 'fall';
+const STARTS: Start[] = ['rise', 'peak', 'trough', 'fall'];
+const START_FN: Record<Start, 'sin' | 'cos'> = { rise: 'sin', fall: 'sin', peak: 'cos', trough: 'cos' };
+const START_SIGN: Record<Start, 1 | -1> = { rise: 1, peak: 1, trough: -1, fall: -1 };
+const START_WORDS: Record<Start, string> = {
+  rise: 'on its midline and rising',
+  peak: 'at its greatest',
+  trough: 'at its least',
+  fall: 'on its midline and falling',
+};
+
+/**
+ * Twice the sine and cosine at the angles where they are 0, ±1/2 or ±1, from a
+ * table rather than from Math.sin, whose 0.49999999999999994 would otherwise
+ * reach a bank as a tile of its own.
+ */
+const TWICE_RATIO: Record<'sin' | 'cos', Record<number, number>> = {
+  sin: { 0: 0, 30: 1, 90: 2, 150: 1, 180: 0, 210: -1, 270: -2, 330: -1 },
+  cos: { 0: 2, 60: 1, 90: 0, 120: -1, 180: -2, 240: -1, 270: 0, 300: 1 },
+};
+
+/** Half of a whole number of halves, as the learner reads it: 1/2, -1, 0. */
+const HALVES_TEX: Record<number, string> = {
+  [-2]: '-1',
+  [-1]: '-\\frac{1}{2}',
+  0: '0',
+  1: '\\frac{1}{2}',
+  2: '1',
+};
+
+const FN_NAME: Record<'sin' | 'cos', string> = { sin: 'sine', cos: 'cosine' };
+
+interface ModelContext {
+  /** Opens a sentence: "The depth of water at a harbour wall". */
+  subject: string;
+  symbol: string;
+  /** The quantity's unit, in prose only. */
+  unit: string;
+  /** The same unit for exactly one. */
+  unitOne: string;
+  /** What t counts, completing "t in hours ...". */
+  clock: string;
+  timeUnit: string;
+  /** One of the time unit, for "every hour". */
+  timeOne: string;
+  /** Periods on offer: multiples of 12 that divide 360. */
+  periods: number[];
+  midlines: [number, number];
+  amplitudes: [number, number];
+  /** Can go below zero, so offered only at difficulty 2. */
+  signed?: boolean;
+}
+
+/**
+ * The situations a model is built for.
+ *
+ * Kept varied on purpose. Most of these questions have a fixed stem, and the
+ * situation is most of what tells one draw from the next.
+ */
+const MODEL_CONTEXTS: ModelContext[] = [
+  {
+    subject: 'The depth of water at a harbour wall',
+    symbol: 'h',
+    unit: 'metres',
+    unitOne: 'metre',
+    clock: 'after midnight',
+    timeUnit: 'hours',
+    timeOne: 'hour',
+    periods: [12],
+    midlines: [5, 10],
+    amplitudes: [1, 4],
+  },
+  {
+    subject: 'The height of a seat on a Ferris wheel',
+    symbol: 'h',
+    unit: 'metres',
+    unitOne: 'metre',
+    clock: 'after the ride starts',
+    timeUnit: 'minutes',
+    timeOne: 'minute',
+    periods: [12, 24, 36],
+    midlines: [12, 40],
+    amplitudes: [10, 36],
+  },
+  {
+    subject: 'The temperature in a greenhouse',
+    symbol: 'T',
+    unit: 'degrees Celsius',
+    unitOne: 'degree Celsius',
+    clock: 'after midnight',
+    timeUnit: 'hours',
+    timeOne: 'hour',
+    periods: [24],
+    midlines: [14, 24],
+    amplitudes: [2, 8],
+  },
+  {
+    subject: 'The number of hours of daylight in a northern town',
+    symbol: 'D',
+    unit: 'hours',
+    unitOne: 'hour',
+    clock: 'into the year',
+    timeUnit: 'months',
+    timeOne: 'month',
+    periods: [12],
+    midlines: [11, 13],
+    amplitudes: [2, 6],
+  },
+  {
+    subject: 'The height of a buoy above the sea bed',
+    symbol: 'h',
+    unit: 'metres',
+    unitOne: 'metre',
+    clock: 'after the first reading',
+    timeUnit: 'seconds',
+    timeOne: 'second',
+    periods: [12, 24],
+    midlines: [8, 15],
+    amplitudes: [1, 4],
+  },
+  {
+    subject: 'The height of a paddle on a water wheel above the river bed',
+    symbol: 'h',
+    unit: 'metres',
+    unitOne: 'metre',
+    clock: 'after you start watching',
+    timeUnit: 'seconds',
+    timeOne: 'second',
+    periods: [12, 24, 36, 60],
+    midlines: [4, 9],
+    amplitudes: [2, 5],
+  },
+  {
+    subject: 'The water level in a tidal river',
+    symbol: 'L',
+    unit: 'metres',
+    unitOne: 'metre',
+    clock: 'after noon',
+    timeUnit: 'hours',
+    timeOne: 'hour',
+    periods: [12],
+    midlines: [3, 8],
+    amplitudes: [1, 3],
+  },
+  {
+    subject: 'The temperature on a winter day in a mountain town',
+    symbol: 'T',
+    unit: 'degrees Celsius',
+    unitOne: 'degree Celsius',
+    clock: 'after midnight',
+    timeUnit: 'hours',
+    timeOne: 'hour',
+    periods: [24],
+    midlines: [-4, 3],
+    amplitudes: [2, 7],
+    signed: true,
+  },
+  {
+    subject: 'The temperature inside a freezer as its motor cycles',
+    symbol: 'T',
+    unit: 'degrees Celsius',
+    unitOne: 'degree Celsius',
+    clock: 'after the motor starts',
+    timeUnit: 'minutes',
+    timeOne: 'minute',
+    periods: [12, 24, 36],
+    midlines: [-20, -14],
+    amplitudes: [1, 4],
+    signed: true,
+  },
+];
+
+interface ModelParams {
+  ctx: number;
+  d: number;
+  a: number;
+  period: number;
+  start: Start;
+}
+
+/**
+ * A model for one of the situations. Below zero only at difficulty 2; above it
+ * the least value stays at least 1, so a depth or a height never goes negative.
+ * `even` keeps the amplitude even, for a question that evaluates at half of it.
+ */
+function sampleModel(rng: Rng, difficulty: number, starts: Start[], even = false): ModelParams {
+  const pool = MODEL_CONTEXTS.map((_, i) => i).filter((i) => difficulty > 1 || !MODEL_CONTEXTS[i].signed);
+  const ctx = rng.pick(pool);
+  const c = MODEL_CONTEXTS[ctx];
+  let d = rng.int(c.midlines[0], c.midlines[1]);
+  // A midline of 0 would put a literal "0 +" at the front of the model.
+  if (d === 0) d = c.midlines[1];
+  const top = c.signed ? c.amplitudes[1] : Math.min(c.amplitudes[1], d - 1);
+  let a = rng.int(c.amplitudes[0], top);
+  if (even && a % 2 === 1) a = a + 1 <= top ? a + 1 : a - 1;
+  return { ctx, d, a, period: rng.pick(c.periods), start: rng.pick(starts) };
+}
+
+/** A bank from the answer and its slips, each slip offered once. */
+const modelBank = (answer: string[], slips: string[]): string[] =>
+  sortedBank(answer, [...new Set(slips)].filter((t) => !answer.includes(t)).slice(0, 5));
+
+const ctxOf = (p: ModelParams): ModelContext => MODEL_CONTEXTS[p.ctx];
+/** A value with its unit, in prose: $1$ metre, $7.5$ metres. */
+const qty = (c: ModelContext, n: number): string => `$${n}$ ${n === 1 ? c.unitOne : c.unit}`;
+const lowerFirst = (text: string): string => text[0].toLowerCase() + text.slice(1);
+const modelB = (p: ModelParams): number => 360 / p.period;
+
+/** d + a fn(inner), signs written by hand: 6 - 3\cos(30t), never 6 + -3. */
+function waveRhs(d: number, amplitude: number, fn: 'sin' | 'cos', inner: string): string {
+  const size = Math.abs(amplitude);
+  return `${d} ${amplitude < 0 ? '-' : '+'} ${size === 1 ? '' : size}\\${fn}(${inner})`;
+}
+
+/** The right-hand side of the model, with the bracket's contents given. */
+const modelRhs = (p: ModelParams, inner = `${modelB(p)}t`): string =>
+  waveRhs(p.d, START_SIGN[p.start] * p.a, START_FN[p.start], inner);
+
+const modelTex = (p: ModelParams): string => `${ctxOf(p).symbol} = ${modelRhs(p)}`;
+
+/** The model as a curve, for drawing. */
+const modelCurve =
+  (p: ModelParams) =>
+  (t: number): number =>
+    p.d + START_SIGN[p.start] * p.a * Math[START_FN[p.start]](modelB(p) * t * DEGREE);
+
+/** The model at a time whose angle is on the table, exactly. */
+function modelExact(p: ModelParams, t: number): number {
+  const twice = TWICE_RATIO[START_FN[p.start]][turnOf(modelB(p) * t)];
+  if (twice === undefined) throw new Error(`no exact value at t = ${t}`);
+  return p.d + (START_SIGN[p.start] * p.a * twice) / 2;
+}
+
+/** Degrees brought into 0 <= x < 360. */
+const turnOf = (degrees: number): number => ((degrees % 360) + 360) % 360;
+
+/** A negative number bracketed where it follows an operator. */
+const paren = (n: number): string => (n < 0 ? `(${n})` : `${n}`);
+
+/** The quarter of a cycle, 0 to 3, at which each start reaches its greatest and its least. */
+const QUARTER_OF: Record<Start, { peak: number; trough: number }> = {
+  rise: { peak: 1, trough: 3 },
+  peak: { peak: 0, trough: 2 },
+  fall: { peak: 3, trough: 1 },
+  trough: { peak: 2, trough: 0 },
+};
+
+/** The first time after t = 0 that the model is at its greatest or its least. */
+function firstExtreme(p: ModelParams, which: 'peak' | 'trough'): number {
+  const quarter = QUARTER_OF[p.start][which];
+  return ((quarter === 0 ? 4 : quarter) * p.period) / 4;
+}
+
+/** A y window holding the curve and the axis, since the axis is the only scale drawn. */
+function modelWindow(p: ModelParams): { yMin: number; yMax: number } {
+  const lo = Math.min(0, p.d - p.a);
+  const hi = Math.max(0, p.d + p.a);
+  const pad = 0.15 * (hi - lo);
+  return { yMin: lo - pad, yMax: hi + pad };
+}
+
+/** Two cycles of the model from t = 0, with the midline dashed and t = 0 drawn solid. */
+function modelSvg(p: ModelParams, label: string): string {
+  return plotSvg({
+    xMin: 0,
+    xMax: 2 * p.period,
+    curves: [{ f: modelCurve(p), accent: true }],
+    horizontals: [p.d],
+    verticals: [{ x: 0, dashed: false }],
+    ...modelWindow(p),
+    label,
+  });
+}
+
+/** Where the quarters of a cycle sit for a start: the sentence the solutions lean on. */
+function quarterStory(p: ModelParams): string {
+  const fn = START_FN[p.start];
+  const sign = START_SIGN[p.start];
+  const opener = `$${sign < 0 ? '-' : ''}\\${fn}$ starts ${START_WORDS[p.start]}`;
+  const { peak, trough } = QUARTER_OF[p.start];
+  const at = (q: number) => (q === 0 ? 'at the start of each cycle' : `${['', 'a quarter', 'half', 'three quarters'][q]} of the way through`);
+  return `${opener}, so it is greatest ${at(peak)} and least ${at(trough)}.`;
+}
+
+interface BuildParams extends ModelParams {
+  /** The half cycle, greatest to least, is given rather than the period. */
+  halfGiven: boolean;
+}
+
+/** From a description to d + a sin(bt): a midline and rising start, so the function is given away and the numbers are not. */
+const modelBuild: Generator<BuildParams> = {
+  id: 'trig-model-build',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty, ['rise']),
+    halfGiven: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const b = modelB(p);
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const timing = p.halfGiven
+      ? `it takes $${p.period / 2}$ ${c.timeUnit} to fall from its greatest to its least`
+      : `it repeats every $${p.period}$ ${c.timeUnit}`;
+    const answer = [`${p.d}`, `${p.a}`, `${b}`];
+    const slips = [high, 2 * p.a, p.period, low, ...(p.halfGiven ? [2 * b] : [])].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} rises and falls between $${low}$ and $${high}$ ${c.unit}, and ${timing}. At $t = 0$ it is on its midline and rising. What is its model, with $t$ in ${c.timeUnit}?`,
+        },
+      ],
+      template: `${c.symbol} = {0} + {1}\\sin({2}t)`,
+      bank: modelBank(answer, slips),
+      answer,
+    };
+  },
+  choices: (p) => {
+    const s = ctxOf(p).symbol;
+    const b = modelB(p);
+    const eq = (d: number, a: number, inner: number) => ({ tex: `${s} = ${waveRhs(d, a, 'sin', `${inner}t`)}` });
+    return options(
+      eq(p.d, p.a, b),
+      eq(p.a, p.d, b),
+      eq(p.d, p.a, p.period),
+      eq(p.d, 2 * p.a, b),
+      eq(p.d + p.a, p.a, b),
+    ).slice(0, 4);
+  },
+  solution: (p) => {
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const c = ctxOf(p);
+    return [
+      { text: 'The midline is halfway between the extremes, and the amplitude is how far either one is from it.' },
+      { tex: `d = \\frac{${high} + ${paren(low)}}{2} = ${p.d} \\qquad a = \\frac{${high} - ${paren(low)}}{2} = ${p.a}` },
+      ...(p.halfGiven
+        ? [{ text: `Greatest to least is half a cycle, so a whole cycle takes $2 \\times ${p.period / 2} = ${p.period}$ ${c.timeUnit}.` }]
+        : []),
+      { text: `$b$ is how many degrees the bracket turns through per ${c.timeOne}, so one cycle of $${p.period}$ ${c.timeUnit} is one full turn.` },
+      { tex: `b = \\frac{360}{${p.period}} = ${modelB(p)}` },
+      { text: `Sine starts on its midline and rising, which is what this does at $t = 0$, so $${modelTex(p)}$.` },
+    ];
+  },
+};
+
+interface ModelBParams extends ModelParams {
+  form: 'period' | 'cycles' | 'reverse';
+  /** Cycles completed in the stated stretch, for the `cycles` form. */
+  cycles: number;
+}
+
+/** b from the period, or from so many cycles in so long; at difficulty 2 also the period back from b. */
+const modelFindB: Generator<ModelBParams> = {
+  id: 'trig-model-b',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty, STARTS),
+    form: difficulty > 1 ? rng.pick(['cycles', 'reverse'] as const) : rng.pick(['period', 'cycles'] as const),
+    cycles: rng.int(2, 3),
+  }),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const b = modelB(p);
+    if (p.form === 'reverse') {
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. How many ${c.timeUnit} does one full cycle take?`,
+          },
+        ],
+        lead: '\\text{period} =',
+        keypad: NUMBER_KEYS,
+        answer: `${p.period}`,
+        alsoAccepts: [`360/${b}`],
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    const timing =
+      p.form === 'period'
+        ? `repeats every $${p.period}$ ${c.timeUnit}`
+        : `goes through $${p.cycles}$ full cycles every $${p.cycles * p.period}$ ${c.timeUnit}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} ${timing}. It is modelled by $${c.symbol} = ${modelRhs(p, 'bt')}$, with $t$ in ${c.timeUnit}. What is $b$?`,
+        },
+      ],
+      lead: 'b =',
+      keypad: NUMBER_KEYS,
+      answer: `${b}`,
+      alsoAccepts: [`360/${p.period}`],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const b = modelB(p);
+    const option = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    if (p.form === 'reverse') return options(option(p.period), option(b), option(p.period / 2), option(2 * p.period));
+    const long = p.form === 'cycles' ? p.cycles * p.period : 360;
+    return options(option(b), option(p.period), option(2 * b), option(long));
+  },
+  solution: (p) => {
+    const c = ctxOf(p);
+    const b = modelB(p);
+    const steps: SolutionStep[] = [];
+    if (p.form === 'cycles') {
+      steps.push({
+        text: `$${p.cycles}$ cycles in $${p.cycles * p.period}$ ${c.timeUnit} is one cycle every $${p.period}$ ${c.timeUnit}: divide by $${p.cycles}$ first.`,
+      });
+    }
+    steps.push({ text: 'One cycle is one full turn of the bracket, $360^{\\circ}$, so $b$ times the period is 360.' });
+    steps.push({
+      tex: p.form === 'reverse' ? `\\text{period} = \\frac{360}{${b}} = ${p.period}` : `b = \\frac{360}{${p.period}} = ${b}`,
+    });
+    return steps;
+  },
+};
+
+interface ExtremesTreeParams extends ModelParams {
+  phrasing: number;
+}
+
+const EXTREMES_PROMPTS = [
+  (c: ModelContext, low: number, high: number) =>
+    `${c.subject} swings between $${low}$ and $${high}$ ${c.unit}. Top row: the two added, then the gap between them. Bottom row: halve each, for the midline and then the amplitude.`,
+  (c: ModelContext, low: number, high: number) =>
+    `Readings of ${lowerFirst(c.subject)} run from $${low}$ up to $${high}$ ${c.unit}. Fill in their sum and their gap, then halve each: the midline $d$, then the amplitude $a$.`,
+];
+
+/** The midline and amplitude from the extremes, built as a sum and a gap, each halved. */
+const modelExtremesTree: Generator<ExtremesTreeParams> = {
+  id: 'trig-model-extremes-tree',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty, ['rise']),
+    phrasing: rng.int(0, EXTREMES_PROMPTS.length - 1),
+  }),
+  render: (p): Slide => {
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const answer = [high + low, high - low, p.d, p.a].map(String);
+    return {
+      kind: 'tree',
+      prompt: [{ kind: 'prose', text: EXTREMES_PROMPTS[p.phrasing](ctxOf(p), low, high) }],
+      expression: `\\text{greatest } ${high}, \\quad \\text{least } ${low}`,
+      nodes: [
+        { id: 'sum', from: [] },
+        { id: 'gap', from: [] },
+        { id: 'midline', from: ['sum'] },
+        { id: 'amplitude', from: ['gap'] },
+      ],
+      // Halving the wrong one, not halving at all, and the extremes themselves.
+      bank: bankAround(answer, [high, low, (high - low) * 2, high + low + 2]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    return [
+      { text: 'The midline is the average of the greatest and least values.' },
+      { tex: `d = \\frac{${high} + ${paren(low)}}{2} = \\frac{${high + low}}{2} = ${p.d}` },
+      { text: 'The amplitude is half the gap between them: the whole gap is the swing from top to bottom, twice the amplitude.' },
+      { tex: `a = \\frac{${high} - ${paren(low)}}{2} = \\frac{${high - low}}{2} = ${p.a}` },
+    ];
+  },
+};
+
+type ReadAsk = 'greatest' | 'least' | 'period' | 'firstPeak';
+
+interface ReadParams extends ModelParams {
+  asks: ReadAsk;
+}
+
+const READ_LEAD: Record<ReadAsk, string> = {
+  greatest: '\\text{greatest} =',
+  least: '\\text{least} =',
+  period: '\\text{period} =',
+  firstPeak: 't =',
+};
+
+function readAnswer(p: ReadParams): number {
+  if (p.asks === 'greatest') return p.d + p.a;
+  if (p.asks === 'least') return p.d - p.a;
+  if (p.asks === 'period') return p.period;
+  return firstExtreme(p, 'peak');
+}
+
+/** Reading a model back: its greatest and least values, its period, when it first peaks. */
+const modelRead: Generator<ReadParams> = {
+  id: 'trig-model-read',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak']),
+    asks: rng.pick(['greatest', 'least', 'period', 'firstPeak'] as const),
+  }),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const question: Record<ReadAsk, string> = {
+      greatest: `What is the greatest value it reaches, in ${c.unit}?`,
+      least: `What is the least value it falls to, in ${c.unit}?`,
+      period: `How many ${c.timeUnit} does one full cycle take?`,
+      firstPeak: 'When, after $t = 0$, is it first at its greatest?',
+    };
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. ${question[p.asks]}`,
+        },
+      ],
+      lead: READ_LEAD[p.asks],
+      keypad: NUMBER_KEYS,
+      answer: `${readAnswer(p)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const option = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    const right = readAnswer(p);
+    const quarter = p.period / 4;
+    const slips: Record<ReadAsk, number[]> = {
+      greatest: [p.a, p.d, p.d + 2 * p.a, 2 * p.a, p.d - p.a],
+      least: [-p.a, p.d, p.d - 2 * p.a, p.a - p.d, p.d + p.a],
+      period: [modelB(p), p.period / 2, 2 * p.period],
+      firstPeak: [quarter, 2 * quarter, 3 * quarter, 4 * quarter],
+    };
+    return options(option(right), ...slips[p.asks].filter((n) => n !== right).map(option)).slice(0, 4);
+  },
+  solution: (p) => {
+    const b = modelB(p);
+    if (p.asks === 'period') {
+      return [
+        { text: `The bracket turns through $${b}^{\\circ}$ each unit of $t$, and one cycle is a full turn.` },
+        { tex: `\\text{period} = \\frac{360}{${b}} = ${p.period}` },
+      ];
+    }
+    if (p.asks === 'firstPeak') {
+      return [
+        { text: quarterStory(p) },
+        { tex: `t = ${(4 * firstExtreme(p, 'peak')) / p.period} \\times \\frac{${p.period}}{4} = ${firstExtreme(p, 'peak')}` },
+      ];
+    }
+    const up = p.asks === 'greatest';
+    return [
+      { text: `The ${FN_NAME[START_FN[p.start]]} runs from $-1$ to $1$, so the model swings $${p.a}$ either side of its midline, $${p.d}$.` },
+      { tex: `${p.d} ${up ? '+' : '-'} ${p.a} = ${up ? p.d + p.a : p.d - p.a}` },
+    ];
+  },
+};
+
+interface PeakSliderParams extends ModelParams {
+  asks: 'peak' | 'trough';
+}
+
+/** Drag along two drawn cycles to the first time the model is greatest, or least. */
+const modelPeakSlider: Generator<PeakSliderParams> = {
+  id: 'trig-model-peak-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = {
+        ...sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak', 'trough']),
+        asks: rng.pick(['peak', 'trough'] as const),
+      };
+      // The untouched handle rests at one period, so that is never the answer.
+      if (firstExtreme(p, p.asks) !== p.period) return p;
+    }
+  },
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const max = 2 * p.period;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is $${modelTex(p)}$ for ${lowerFirst(c.subject)}, over its first two cycles, with $t$ in ${c.timeUnit} ${c.clock}. The dashed line is the midline. Slide to the first time after $t = 0$ that it is at its ${p.asks === 'peak' ? 'greatest' : 'least'}.`,
+        },
+      ],
+      min: 0,
+      max,
+      step: 1,
+      tolerance: p.period / 24,
+      answer: firstExtreme(p, p.asks),
+      readout: 't = {v}',
+      figure: {
+        svg: modelSvg(p, `Two cycles of the model from t = 0, with its midline dashed`),
+        ...markerWindow(0, max),
+      },
+    };
+  },
+  solution: (p) => {
+    const t = firstExtreme(p, p.asks);
+    return [
+      { text: quarterStory(p) },
+      { text: `One cycle is $${p.period}$ ${ctxOf(p).timeUnit}, so a quarter of a cycle is $${p.period / 4}$.` },
+      { tex: `t = ${(4 * t) / p.period} \\times ${p.period / 4} = ${t}` },
+    ];
+  },
+};
+
+interface ValueTreeParams extends ModelParams {
+  t: number;
+}
+
+/** The model at one time: the angle in the bracket, its sine or cosine, then the value. */
+const modelValueTree: Generator<ValueTreeParams> = {
+  id: 'trig-model-value-tree',
+  sample: (rng, difficulty) => {
+    const p = sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak'], true);
+    const angles = Object.keys(TWICE_RATIO[START_FN[p.start]]).map(Number).filter((angle) => angle > 0);
+    const angle = rng.pick(angles);
+    // At difficulty 2 the time can fall in the second cycle, past a full turn.
+    const later = difficulty > 1 && rng.chance(0.5) ? p.period : 0;
+    return { ...p, t: (angle * p.period) / 360 + later };
+  },
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const b = modelB(p);
+    const fn = START_FN[p.start];
+    const angle = b * p.t;
+    const twice = TWICE_RATIO[fn][turnOf(angle)];
+    const value = modelExact(p, p.t);
+    const answer = [`${angle}^{\\circ}`, HALVES_TEX[twice], `${value}`];
+    const term = value - p.d;
+    const other = TWICE_RATIO[fn === 'sin' ? 'cos' : 'sin'][turnOf(angle)];
+    const slips = [
+      `${b + p.t}^{\\circ}`,
+      ...(twice === 0 ? [] : [HALVES_TEX[-twice]]),
+      ...(other === undefined || other === twice ? [] : [HALVES_TEX[other]]),
+      `${p.d - term}`,
+      `${term}`,
+      // The greatest value, as if the function were always 1, and the time taken as the angle.
+      `${p.d + p.a}`,
+      `${p.t}^{\\circ}`,
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. Find $${c.symbol}$ at $t = ${p.t}$: the angle in the bracket, its ${FN_NAME[fn]}, then $${c.symbol}$.`,
+        },
+      ],
+      expression: `${c.symbol} = ${modelRhs(p, `${b} \\times ${p.t}`)}`,
+      nodes: [
+        { id: 'angle', from: [] },
+        { id: 'ratio', from: ['angle'] },
+        { id: 'value', from: ['ratio'] },
+      ],
+      bank: modelBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const b = modelB(p);
+    const fn = START_FN[p.start];
+    const angle = b * p.t;
+    const twice = TWICE_RATIO[fn][turnOf(angle)];
+    return [
+      { tex: `${b} \\times ${p.t} = ${angle}^{\\circ}` },
+      ...(angle >= 360
+        ? [{ text: `That is past a full turn, and $${angle - 360}^{\\circ}$ has the same ${FN_NAME[fn]}.` }]
+        : []),
+      { tex: `\\${fn}(${angle}^{\\circ}) = ${HALVES_TEX[twice]}` },
+      {
+        tex: `${ctxOf(p).symbol} = ${p.d} ${START_SIGN[p.start] < 0 ? '-' : '+'} ${p.a} \\times ${twice < 0 ? `\\left(${HALVES_TEX[twice]}\\right)` : HALVES_TEX[twice]} = ${modelExact(p, p.t)}`,
+      },
+    ];
+  },
+};
+
+const AT_GREATEST = 'At the greatest value';
+const ON_MIDLINE = 'On the midline';
+const AT_LEAST = 'At the least value';
+const RISING = 'Rising';
+const FALLING = 'Falling';
+
+/** Where the quantity starts decides the function: midline rising, peak, trough or midline falling. */
+const modelStartFlow: Generator<ModelParams> = {
+  id: 'trig-model-start-flow',
+  sample: (rng, difficulty) => sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak', 'trough']),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const v0 = p.start === 'peak' ? high : p.start === 'trough' ? low : p.d;
+    const moving = p.start === 'rise' ? ' and rising' : p.start === 'fall' ? ' and falling' : '';
+    const rhs = (start: Start) => modelRhs({ ...p, start });
+    const where = p.start === 'peak' ? AT_GREATEST : p.start === 'trough' ? AT_LEAST : ON_MIDLINE;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} varies between $${low}$ and $${high}$ ${c.unit}, repeating every $${p.period}$ ${c.timeUnit}. At $t = 0$ it is ${qty(c, v0)}${moving}. Choose its model.`,
+        },
+      ],
+      subject: `${c.symbol}(0) = ${v0}`,
+      steps: [
+        {
+          id: 'where',
+          ask: `Where is $${v0}$ in the swing from $${low}$ to $${high}$?`,
+          branches: [
+            { label: AT_GREATEST, to: 'fn' },
+            { label: ON_MIDLINE, to: 'way' },
+            { label: AT_LEAST, to: 'fn' },
+          ],
+        },
+        {
+          id: 'way',
+          ask: 'Which way is it heading at $t = 0$?',
+          branches: [
+            { label: RISING, to: 'fn' },
+            { label: FALLING, to: 'fn' },
+          ],
+        },
+        {
+          id: 'fn',
+          ask: 'Which model starts there?',
+          branches: STARTS.map((start) => ({
+            label: `$${rhs(start)}$`,
+            outcome: `That starts ${START_WORDS[start]}.`,
+          })),
+        },
+      ],
+      answer:
+        where === ON_MIDLINE
+          ? [ON_MIDLINE, p.start === 'rise' ? RISING : FALLING, `$${rhs(p.start)}$`]
+          : [where, `$${rhs(p.start)}$`],
+    };
+  },
+  solution: (p) => [
+    {
+      text: `Midline $\\frac{${p.d + p.a} + ${paren(p.d - p.a)}}{2} = ${p.d}$, amplitude $${p.a}$, and $b = \\frac{360}{${p.period}} = ${modelB(p)}$.`,
+    },
+    {
+      text: 'Sine starts on its midline rising, and minus sine on it falling. Cosine starts at its greatest, and minus cosine at its least.',
+    },
+    { text: `At $t = 0$ this one is ${START_WORDS[p.start]}, so:` },
+    { tex: modelTex(p) },
+  ],
+};
+
+/** Which of the four starts is the drawn curve? */
+const modelGraphMatch: Generator<ModelParams> = {
+  id: 'trig-model-graph-match',
+  sample: (rng, difficulty) => sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak', 'trough']),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Readings of ${lowerFirst(c.subject)} over two cycles, with $t$ in ${c.timeUnit} ${c.clock}. The dashed line is the midline and the solid upright is $t = 0$. Which model fits?`,
+        },
+        { kind: 'diagram', svg: modelSvg(p, 'Two cycles of a repeating quantity from t = 0, with its midline dashed') },
+      ],
+      options: STARTS.map((start) => ({ id: start, label: modelTex({ ...p, start }), tex: true })),
+      correctId: p.start,
+    };
+  },
+  solution: (p) => [
+    { text: `Every option has the right midline, amplitude and period, so only the start tells them apart. At $t = 0$ the curve is ${START_WORDS[p.start]}.` },
+    { text: quarterStory(p) },
+    { tex: modelTex(p) },
+  ],
+};
+
+interface ModelShiftParams extends ModelParams {
+  /** The first time after 0 that the quantity is greatest. */
+  c: number;
+  /** The time of a least value is given instead, half a cycle from c. */
+  fromLeast: boolean;
+}
+
+/** A peak time that is not a quarter of a cycle, so the curve has to be shifted rather than chosen. */
+function shiftedPeak(rng: Rng, period: number): number {
+  const quarter = period / 4;
+  const c = rng.int(1, period - 1);
+  return c % quarter === 0 ? c + 1 : c;
+}
+
+const leastTime = (p: ModelShiftParams): number => (p.c + p.period / 2) % p.period;
+
+/** A cosine moved to start at a peak that is not at t = 0: b and c in d + a cos(b(t - c)). */
+const modelShiftTiles: Generator<ModelShiftParams> = {
+  id: 'trig-model-shift-tiles',
+  sample: (rng, difficulty) => {
+    const p = sampleModel(rng, difficulty, ['peak']);
+    return { ...p, c: shiftedPeak(rng, p.period), fromLeast: difficulty > 1 && rng.chance(0.5) };
+  },
+  render: (p): Slide => {
+    const ctx = ctxOf(p);
+    const b = modelB(p);
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const told = p.fromLeast
+      ? `is least, ${qty(ctx, low)}, at $t = ${leastTime(p)}$ and greatest, ${qty(ctx, high)}, half a cycle away`
+      : `is greatest, ${qty(ctx, high)}, at $t = ${p.c}$, and least, ${qty(ctx, low)}, half a cycle later`;
+    const answer = [`${b}`, `${p.c}`];
+    const slips = [p.period, b * p.c, p.period - p.c, leastTime(p)].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${ctx.subject} ${told}. One cycle takes $${p.period}$ ${ctx.timeUnit}. Complete the model, shifting a cosine to the first time after $t = 0$ that it is greatest.`,
+        },
+      ],
+      template: `${ctx.symbol} = ${waveRhs(p.d, p.a, 'cos', '{0}(t - {1})')}`,
+      bank: modelBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const b = modelB(p);
+    return [
+      { tex: `b = \\frac{360}{${p.period}} = ${b}` },
+      ...(p.fromLeast
+        ? [{ text: `It is greatest half a cycle, $${p.period / 2}$, from the least at $t = ${leastTime(p)}$, and the first such time after $0$ is $t = ${p.c}$.` }]
+        : []),
+      { text: `Cosine is greatest when its bracket is $0$. Writing the bracket as $${b}(t - ${p.c})$ makes that happen at $t = ${p.c}$ instead of at $t = 0$.` },
+      { tex: `${ctxOf(p).symbol} = ${waveRhs(p.d, p.a, 'cos', `${b}(t - ${p.c})`)}` },
+    ];
+  },
+};
+
+interface WhenParams extends ModelParams {
+  /** Twice the value the sine or cosine must take: 1 or -1. */
+  half: 1 | -1;
+}
+
+/** The level being solved for: the model with its sine or cosine at plus or minus a half. */
+const whenLevel = (p: WhenParams): number => p.d + (START_SIGN[p.start] * p.a * p.half) / 2;
+
+/** The two angles in one turn where the function takes that half. */
+function halfAngles(fn: 'sin' | 'cos', half: 1 | -1): [number, number] {
+  const table = TWICE_RATIO[fn];
+  const found = Object.keys(table)
+    .map(Number)
+    .filter((angle) => table[angle] === half);
+  return [found[0], found[1]];
+}
+
+/** The partner the other function's rule would wrongly give: 360 - a for sine, 180 - a for cosine. */
+const wrongPartner = (fn: 'sin' | 'cos', angle: number): number => turnOf(fn === 'sin' ? 360 - angle : 180 - angle);
+
+function sampleWhen(rng: Rng, difficulty: number): WhenParams {
+  return {
+    ...sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak']),
+    half: rng.pick([1, -1] as const),
+  };
+}
+
+/** The times in one cycle, 0 <= t < period, when the model is at that level. */
+const whenTimes = (p: WhenParams): [number, number] =>
+  halfAngles(START_FN[p.start], START_SIGN[p.start] === 1 ? p.half : (-p.half as 1 | -1)).map(
+    (angle) => (angle * p.period) / 360,
+  ) as [number, number];
+
+/** The value the function must take once the level is moved across: the level's half, undone by the sign. */
+const needed = (p: WhenParams): 1 | -1 => (START_SIGN[p.start] === 1 ? p.half : (-p.half as 1 | -1));
+
+/** When is the model at a level? The value the function needs, both angles, both times, as a tree. */
+const modelWhenTree: Generator<WhenParams> = {
+  id: 'trig-model-when-tree',
+  sample: sampleWhen,
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const fn = START_FN[p.start];
+    const s = needed(p);
+    const [first, second] = halfAngles(fn, s);
+    const [t1, t2] = whenTimes(p);
+    const answer = [HALVES_TEX[s], `${first}^{\\circ}`, `${second}^{\\circ}`, `${t1}`, `${t2}`];
+    const wrong = wrongPartner(fn, first);
+    const slips = [HALVES_TEX[-s], `${wrong}^{\\circ}`, `${(wrong * p.period) / 360}`, `${t1 + p.period}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `When in the first cycle, $0 \\le t < ${p.period}$, is ${lowerFirst(c.subject)} exactly ${qty(c, whenLevel(p))}? Top: the value the ${FN_NAME[fn]} must take. Then both angles from $0^{\\circ}$ to $360^{\\circ}$, then each time.`,
+        },
+      ],
+      expression: `${modelRhs(p)} = ${whenLevel(p)}`,
+      nodes: [
+        { id: 'ratio', from: [] },
+        { id: 'first', from: ['ratio'] },
+        { id: 'second', from: ['ratio'] },
+        { id: 't1', from: ['first'] },
+        { id: 't2', from: ['second'] },
+      ],
+      bank: modelBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (p) => whenSolution(p),
+};
+
+/** Where the two angles in a turn come from, for each function and each sign of the half. */
+const HALF_ANGLE_TEXT: Record<'sin' | 'cos', Record<1 | -1, string>> = {
+  sin: {
+    1: 'In one turn sine is $\\frac{1}{2}$ at $30^{\\circ}$ and at $180^{\\circ} - 30^{\\circ} = 150^{\\circ}$.',
+    [-1]: 'In one turn sine is $-\\frac{1}{2}$ at $180^{\\circ} + 30^{\\circ} = 210^{\\circ}$ and at $360^{\\circ} - 30^{\\circ} = 330^{\\circ}$.',
+  },
+  cos: {
+    1: 'In one turn cosine is $\\frac{1}{2}$ at $60^{\\circ}$ and at $360^{\\circ} - 60^{\\circ} = 300^{\\circ}$.',
+    [-1]: 'In one turn cosine is $-\\frac{1}{2}$ at $180^{\\circ} - 60^{\\circ} = 120^{\\circ}$ and at $180^{\\circ} + 60^{\\circ} = 240^{\\circ}$.',
+  },
+};
+
+/** The working shared by the tree and the tiles: rearrange, both angles, divide by b. */
+function whenSolution(p: WhenParams, window?: { from: number; times: number[] }): SolutionStep[] {
+  const fn = START_FN[p.start];
+  const b = modelB(p);
+  const s = needed(p);
+  const [first, second] = halfAngles(fn, s);
+  const k = whenLevel(p);
+  const steps: SolutionStep[] = [
+    { tex: `${START_SIGN[p.start] < 0 ? '-' : ''}${p.a}\\${fn}(${b}t) = ${k} - ${paren(p.d)} = ${k - p.d}` },
+    { tex: `\\${fn}(${b}t) = ${HALVES_TEX[s]}` },
+    { text: HALF_ANGLE_TEXT[fn][s] },
+    { tex: `t = \\frac{${first}}{${b}} = ${(first * p.period) / 360} \\qquad t = \\frac{${second}}{${b}} = ${(second * p.period) / 360}` },
+  ];
+  if (window && window.from > 0) {
+    steps.push({
+      text: `Those are in the first cycle. Adding $${p.period}$, a whole cycle, where one falls before $t = ${window.from}$ gives the two in the window: $t = ${window.times[0]}$ and $t = ${window.times[1]}$.`,
+    });
+  }
+  return steps;
+}
+
+interface WhenTilesParams extends WhenParams {
+  /** Where the window of one cycle starts. */
+  from: number;
+}
+
+/** Both times in a window one cycle long, which from difficulty 2 straddles two cycles. */
+function windowTimes(p: WhenTilesParams): number[] {
+  return whenTimes(p)
+    .flatMap((t) => [t, t + p.period, t + 2 * p.period])
+    .filter((t) => t >= p.from && t < p.from + p.period)
+    .sort((x, y) => x - y);
+}
+
+/** When is the model at a level, in a window one cycle long: two times, one of them maybe a cycle on. */
+const modelWhenTiles: Generator<WhenTilesParams> = {
+  id: 'trig-model-when-tiles',
+  sample: (rng, difficulty) => {
+    const p = sampleWhen(rng, difficulty);
+    const from = difficulty > 1 ? (rng.int(1, 4) * p.period) / 4 : 0;
+    return { ...p, from };
+  },
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const answer = windowTimes(p).map(String);
+    const fn = START_FN[p.start];
+    const [first] = halfAngles(fn, needed(p));
+    const wrong = (wrongPartner(fn, first) * p.period) / 360;
+    const slips = [...whenTimes(p), ...whenTimes(p).map((t) => t + p.period), wrong, wrong + p.period].map(String);
+    const distractors = [...new Set(slips)].filter((t) => !answer.includes(t)).slice(0, 3);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. For $${p.from} \\le t < ${p.from + p.period}$, when is it exactly ${qty(c, whenLevel(p))}?`,
+        },
+      ],
+      template: 't = {0} \\; \\text{or} \\; t = {1}',
+      bank: sortedBank(answer, distractors),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (p) => whenSolution(p, { from: p.from, times: windowTimes(p) }),
+};
+
+type CountLevel = 'greatest' | 'least' | 'midline' | 'half' | 'beyond';
+
+interface CountParams extends ModelParams {
+  level: CountLevel;
+  cycles: number;
+  /** Which side of the midline a `half` or `beyond` level is on. */
+  up: boolean;
+}
+
+function countLevel(p: CountParams): number {
+  const side = p.up ? 1 : -1;
+  if (p.level === 'greatest') return p.d + p.a;
+  if (p.level === 'least') return p.d - p.a;
+  if (p.level === 'midline') return p.d;
+  if (p.level === 'half') return p.d + (side * p.a) / 2;
+  return p.d + side * (p.a + 1);
+}
+
+function countAnswer(p: CountParams): number {
+  if (p.level === 'beyond') return 0;
+  return p.level === 'greatest' || p.level === 'least' ? p.cycles : 2 * p.cycles;
+}
+
+/** How many times in so many cycles is the model at a level? Twice a cycle, once at an extreme, never beyond one. */
+const modelCount: Generator<CountParams> = {
+  id: 'trig-model-count',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty, difficulty > 1 ? STARTS : ['rise', 'peak']),
+    level: rng.pick(['greatest', 'least', 'midline', 'half', 'half', 'beyond'] as const),
+    cycles: rng.int(1, difficulty > 1 ? 3 : 2),
+    up: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const counts = [0, p.cycles, 2 * p.cycles, 4 * p.cycles];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. For $0 \\le t < ${p.cycles * p.period}$, how many times is it exactly ${qty(c, countLevel(p))}?`,
+        },
+      ],
+      options: counts.map((n) => ({ id: `n${n}`, label: `${n}`, tex: true })),
+      correctId: `n${countAnswer(p)}`,
+    };
+  },
+  solution: (p) => {
+    const cycles = `$${p.cycles}$ cycle${p.cycles === 1 ? '' : 's'}`;
+    const why: Record<CountLevel, string> = {
+      greatest: 'It reaches its greatest value once in each cycle.',
+      least: 'It falls to its least value once in each cycle.',
+      midline: 'It crosses its midline twice in each cycle, once going up and once coming down.',
+      half: 'A level between the least and the greatest is crossed twice in each cycle, once going up and once coming down.',
+      beyond: `$${countLevel(p)}$ is outside $${p.d - p.a}$ to $${p.d + p.a}$, so it is never reached at all.`,
+    };
+    return [
+      { text: `The window is $\\frac{${p.cycles * p.period}}{${p.period}} = ${p.cycles}$ period${p.cycles === 1 ? '' : 's'}: ${cycles}.` },
+      { text: why[p.level] },
+      { tex: `\\text{count} = ${countAnswer(p)}` },
+    ];
+  },
+};
+
+interface AboveParams extends WhenParams {
+  above: boolean;
+}
+
+/** How long in each cycle the model is above the level, or below it. */
+function aboveAnswer(p: AboveParams): number {
+  const [t1, t2] = whenTimes(p);
+  const between = t2 - t1;
+  const aboveBetween = modelCurve(p)((t1 + t2) / 2) > whenLevel(p);
+  const aboveFor = aboveBetween ? between : p.period - between;
+  return p.above ? aboveFor : p.period - aboveFor;
+}
+
+/** For how long in each cycle is the quantity above a level? The gap between the two times, or the rest of the cycle. */
+const modelAbove: Generator<AboveParams> = {
+  id: 'trig-model-above',
+  sample: (rng, difficulty) => ({ ...sampleWhen(rng, difficulty), above: rng.chance(0.5) }),
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is modelled by $${modelTex(p)}$, with $t$ in ${c.timeUnit} ${c.clock}. For how many ${c.timeUnit} in each cycle is it ${p.above ? 'above' : 'below'} ${qty(c, whenLevel(p))}?`,
+        },
+      ],
+      lead: '\\text{time} =',
+      keypad: NUMBER_KEYS,
+      answer: `${aboveAnswer(p)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const right = aboveAnswer(p);
+    const [t1, t2] = whenTimes(p);
+    const option = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    const slips = [p.period - right, t2, t1, p.period / 2, p.period / 6].filter((n) => n !== right);
+    return options(option(right), ...slips.map(option)).slice(0, 4);
+  },
+  solution: (p) => {
+    const [t1, t2] = whenTimes(p);
+    const right = aboveAnswer(p);
+    const inside = right === t2 - t1;
+    return [
+      { text: `It is exactly $${whenLevel(p)}$ at $t = ${t1}$ and $t = ${t2}$ in the first cycle.` },
+      {
+        text: inside
+          ? `Between those two times it is ${p.above ? 'above' : 'below'} that level.`
+          : `Between those two times it is ${p.above ? 'below' : 'above'} that level, so the answer is the rest of the cycle.`,
+      },
+      { tex: inside ? `${t2} - ${t1} = ${right}` : `${p.period} - (${t2} - ${t1}) = ${right}` },
+    ];
+  },
+};
+
+interface PeriodTreeParams extends ModelParams {
+  /** When the first of the two readings is. */
+  first: number;
+  leastFirst: boolean;
+}
+
+/** The period from a greatest and the least after it: the gap is half a cycle, and then b. */
+const modelPeriodTree: Generator<PeriodTreeParams> = {
+  id: 'trig-model-period-tree',
+  sample: (rng, difficulty) => {
+    const p = sampleModel(rng, difficulty, ['peak']);
+    return { ...p, first: rng.int(1, p.period - 1), leastFirst: difficulty > 1 && rng.chance(0.5) };
+  },
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const second = p.first + p.period / 2;
+    const [w1, w2] = p.leastFirst ? ['least', 'greatest'] : ['greatest', 'least'];
+    const b = modelB(p);
+    const answer = [p.period / 2, p.period, b];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is at its ${w1} at $t = ${p.first}$ and next at its ${w2} at $t = ${second}$, with $t$ in ${c.timeUnit}. Fill in the gap between the two, then the period, then $b$ for a model $${c.symbol} = d + a\\cos(bt)$.`,
+        },
+      ],
+      expression: `\\text{${w1} at } t = ${p.first}, \\quad \\text{${w2} at } t = ${second}`,
+      nodes: [
+        { id: 'gap', from: [] },
+        { id: 'period', from: ['gap'] },
+        { id: 'b', from: ['period'] },
+      ],
+      // The gap taken as the period, and the later reading taken as either.
+      bank: bankAround(answer.map(String), [2 * b, second, 2 * p.period, p.period / 4]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (p) => {
+    const second = p.first + p.period / 2;
+    return [
+      { text: 'From one extreme to the next, greatest to least or least to greatest, is half a cycle.' },
+      { tex: `${second} - ${p.first} = ${p.period / 2}` },
+      { tex: `\\text{period} = 2 \\times ${p.period / 2} = ${p.period}` },
+      { tex: `b = \\frac{360}{${p.period}} = ${modelB(p)}` },
+    ];
+  },
+};
+
+type FitAsk = 'a' | 'b' | 'c' | 'd';
+
+interface FitParams extends ModelParams {
+  /** The first reading's time; it is a greatest unless `leastFirst`. */
+  first: number;
+  leastFirst: boolean;
+  asks: FitAsk;
+}
+
+/** The fitted c: the first time after 0 that the quantity is greatest. */
+const fitC = (p: FitParams): number => (p.leastFirst ? p.first + p.period / 2 : p.first) % p.period;
+
+function fitAnswer(p: FitParams): number {
+  return { a: p.a, b: modelB(p), c: fitC(p), d: p.d }[p.asks];
+}
+
+/** One of a, b, c and d in d + a cos(b(t - c)), from a greatest and the least after it, or the other way round. */
+const modelFit: Generator<FitParams> = {
+  id: 'trig-model-fit',
+  sample: (rng, difficulty) => {
+    const p = sampleModel(rng, difficulty, ['peak']);
+    const leastFirst = difficulty > 1 && rng.chance(0.5);
+    const first = leastFirst ? shiftedPeak(rng, p.period) : rng.int(1, p.period / 2 - 1);
+    return {
+      ...p,
+      first,
+      leastFirst,
+      asks: rng.pick(difficulty > 1 ? (['a', 'b', 'c', 'd'] as const) : (['a', 'b', 'd'] as const)),
+    };
+  },
+  render: (p): Slide => {
+    const c = ctxOf(p);
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const [w1, v1, w2, v2] = p.leastFirst ? ['least', low, 'greatest', high] : ['greatest', high, 'least', low];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${c.subject} is at its ${w1}, ${qty(c, v1 as number)}, at $t = ${p.first}$, and next at its ${w2}, ${qty(c, v2 as number)}, at $t = ${p.first + p.period / 2}$, with $t$ in ${c.timeUnit}. Fit $${c.symbol} = d + a\\cos(b(t - c))$, with $c$ the first time after $t = 0$ that it is greatest.`,
+        },
+      ],
+      lead: `${p.asks} =`,
+      keypad: NUMBER_KEYS,
+      answer: `${fitAnswer(p)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const right = fitAnswer(p);
+    const option = (n: number) => ({ tex: `${n}`, answer: `${n}` });
+    const b = modelB(p);
+    const slips: Record<FitAsk, number[]> = {
+      a: [2 * p.a, p.d, p.d + p.a],
+      b: [2 * b, p.period, p.period / 2],
+      c: [p.first + p.period / 2, p.first, fitC(p) + p.period, p.period - fitC(p)],
+      d: [p.a, p.d + p.a, 2 * p.a],
+    };
+    return options(option(right), ...slips[p.asks].filter((n) => n !== right).map(option)).slice(0, 4);
+  },
+  solution: (p) => {
+    const high = p.d + p.a;
+    const low = p.d - p.a;
+    const second = p.first + p.period / 2;
+    if (p.asks === 'd') return [{ text: 'The midline is the average of the greatest and the least.' }, { tex: `d = \\frac{${high} + ${paren(low)}}{2} = ${p.d}` }];
+    if (p.asks === 'a') return [{ text: 'The amplitude is half the gap between the greatest and the least.' }, { tex: `a = \\frac{${high} - ${paren(low)}}{2} = ${p.a}` }];
+    if (p.asks === 'b') {
+      return [
+        { text: 'A greatest to the next least is half a cycle.' },
+        { tex: `\\text{period} = 2(${second} - ${p.first}) = ${p.period}` },
+        { tex: `b = \\frac{360}{${p.period}} = ${modelB(p)}` },
+      ];
+    }
+    const greatestAt = p.leastFirst ? second : p.first;
+    return [
+      { text: `It is greatest at $t = ${greatestAt}$, and every period of $${p.period}$ from there.` },
+      ...(greatestAt >= p.period
+        ? [{ text: `That is past a whole cycle, so take one period off to find the first greatest after $t = 0$.` }, { tex: `c = ${greatestAt} - ${p.period} = ${fitC(p)}` }]
+        : [{ tex: `c = ${fitC(p)}` }]),
+    ];
+  },
+};
+
+interface FitSliderParams extends ModelParams {
+  /** The first peak, in twelfths of a period. */
+  twelfth: number;
+  asks: 'peak' | 'midline';
+}
+
+/** Readings every twelfth of a cycle, as dots with no curve: slide to the first peak, or to the midline. */
+const modelFitSlider: Generator<FitSliderParams> = {
+  id: 'trig-model-fit-slider',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty, ['peak']),
+    twelfth: rng.pick([1, 2, 4, 5, 7, 8, 10, 11]),
+    asks: difficulty > 1 && rng.chance(0.5) ? 'midline' : 'peak',
+  }),
+  render: (p): Slide => {
+    const ctx = ctxOf(p);
+    const step = p.period / 12;
+    const c = p.twelfth * step;
+    const f = (t: number) => p.d + p.a * Math.cos(modelB(p) * (t - c) * DEGREE);
+    const readings = Array.from({ length: 25 }, (_, j) => ({ x: j * step, y: f(j * step) }));
+    const every = step === 1 ? `every ${ctx.timeOne}` : `every $${step}$ ${ctx.timeUnit}`;
+    const intro = `Readings of ${lowerFirst(ctx.subject)}, taken ${every} over two cycles, with $t$ in ${ctx.timeUnit} ${ctx.clock}.`;
+    if (p.asks === 'peak') {
+      const max = 2 * p.period;
+      const svg = plotSvg({
+        xMin: 0,
+        xMax: max,
+        curves: [],
+        marks: readings,
+        verticals: [{ x: 0, dashed: false }],
+        ...modelWindow(p),
+        label: 'Readings over two cycles, drawn as dots',
+      });
+      return {
+        kind: 'slider',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${intro} To fit $${ctx.symbol} = d + a\\cos(b(t - c))$, slide to $c$: the first time after $t = 0$ that it is greatest.`,
+          },
+        ],
+        min: 0,
+        max,
+        step,
+        answer: c,
+        readout: 'c = {v}',
+        figure: { svg, ...markerWindow(0, max) },
+      };
+    }
+    // The window is lopsided on purpose: its middle, where an untouched handle
+    // rests, sits a whole number above the midline rather than on it.
+    const min = p.d - p.a - 2;
+    const max = p.d + 2 * p.a + 2;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 2 * p.period,
+      curves: [],
+      marks: readings,
+      yMin: min,
+      yMax: max,
+      label: 'Readings over two cycles, drawn as dots',
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${intro} To fit $${ctx.symbol} = d + a\\cos(b(t - c))$, slide to the midline $d$.`,
+        },
+      ],
+      min,
+      max,
+      step: 1,
+      answer: p.d,
+      readout: 'd = {v}',
+      figure: { svg, ...markerWindow(min, max, 'y'), axis: 'y' },
+    };
+  },
+  solution: (p) => {
+    const c = (p.twelfth * p.period) / 12;
+    if (p.asks === 'peak') {
+      return [
+        { text: 'A cosine is greatest when its bracket is $0$, which in $\\cos(b(t - c))$ is at $t = c$.' },
+        { text: `The highest reading in the first cycle is at $t = ${c}$, so $c = ${c}$.` },
+      ];
+    }
+    return [
+      { text: `The readings reach $${p.d + p.a}$ at the highest and $${p.d - p.a}$ at the lowest.` },
+      { tex: `d = \\frac{${p.d + p.a} + ${paren(p.d - p.a)}}{2} = ${p.d}` },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -6623,4 +7970,20 @@ export const trigonometryGenerators = [
   inverseGeneralFlow,
   inverseSecondSolution,
   inverseSolutionsSlider,
+  modelBuild,
+  modelFindB,
+  modelExtremesTree,
+  modelRead,
+  modelPeakSlider,
+  modelValueTree,
+  modelStartFlow,
+  modelGraphMatch,
+  modelShiftTiles,
+  modelWhenTree,
+  modelWhenTiles,
+  modelCount,
+  modelAbove,
+  modelPeriodTree,
+  modelFit,
+  modelFitSlider,
 ] as unknown as Generator<unknown>[];

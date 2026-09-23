@@ -7961,6 +7961,1713 @@ const mechMeetFlow: Generator<MeetFlowParams> = {
   },
 };
 
+/* ---------- Level 12: the angle between two vectors ---------- */
+
+/*
+ * Level 12 turns the scalar product into an angle, in three dimensions
+ * throughout: the scalar product and its sign, the angle itself, perpendicular
+ * vectors, then the angle between two lines, between a line and a plane and
+ * between two planes, on the forms levels 6 and 8 wrote them in.
+ *
+ * Every angle asked for in degrees is whole. Those questions draw their two
+ * vectors from every pair of small vectors whose cosine is 0, a half, root two
+ * over two or root three over two, either sign, so the angle is one the
+ * learner can name. Where a question wants the cosine itself, both vectors
+ * have whole lengths instead, like (1, 2, 2) and (2, 3, 6), and the answer is
+ * a fraction. Degrees stay in the prose and on choice labels: every typed
+ * answer is a bare number.
+ */
+
+/** `2i - j + 3k`, dropping any zero term. */
+function ijkOf(v: Vec): string {
+  let out = '';
+  v.forEach((c, i) => {
+    if (c === 0) return;
+    const size = Math.abs(c) === 1 ? '' : `${Math.abs(c)}`;
+    out += out === '' ? `${c < 0 ? '-' : ''}${size}${UNITS[i]}` : ` ${c < 0 ? '-' : '+'} ${size}${UNITS[i]}`;
+  });
+  return out === '' ? '\\mathbf{0}' : out;
+}
+
+/** A whole number from -most to most, never zero. */
+function nonZeroInt(rng: Draw, most: number): number {
+  const n = rng.int(1, most);
+  return rng.chance(0.5) ? n : -n;
+}
+
+/** A three-component vector with no zero entry. */
+const fullVec = (rng: Draw, most: number): Vec => [nonZeroInt(rng, most), nonZeroInt(rng, most), nonZeroInt(rng, most)];
+
+const isParallel = (u: Vec, v: Vec) => crossOf(u, v).every((x) => x === 0);
+
+type VectorForm = 'column' | 'ijk';
+
+/** Two vectors for a prompt: columns side by side, or one i, j, k line each. */
+function vectorsShown(a: Vec, b: Vec, form: VectorForm, names = ['\\mathbf{a}', '\\mathbf{b}']): Block[] {
+  if (form === 'column') return [{ kind: 'display', tex: pairTex(a, b, names) }];
+  return [
+    { kind: 'display', tex: `${names[0]} = ${ijkOf(a)}` },
+    { kind: 'display', tex: `${names[1]} = ${ijkOf(b)}` },
+  ];
+}
+
+/** `\sqrt{n}`, or the whole number when n is a perfect square. */
+function rootTex(n: number): string {
+  const r = wholeRoot(n);
+  return r === undefined ? `\\sqrt{${n}}` : `${r}`;
+}
+
+/** `\sqrt{n}` with its square factors taken out: `2\sqrt{3}`, `\sqrt{6}`, `4`. */
+function surdTex(n: number): string {
+  let outside = 1;
+  let inside = n;
+  for (let f = 2; f * f <= inside; f += 1) {
+    while (inside % (f * f) === 0) {
+      inside /= f * f;
+      outside *= f;
+    }
+  }
+  if (inside === 1) return `${outside}`;
+  return `${outside === 1 ? '' : outside}\\sqrt{${inside}}`;
+}
+
+type CosClass = 'zero' | 'half' | 'root2' | 'root3';
+
+/** The acute angle, in degrees, whose cosine each class names. */
+const CLASS_ANGLE: Record<CosClass, number> = { zero: 90, half: 60, root2: 45, root3: 30 };
+
+/** That cosine, positive, as the learner writes it. */
+const CLASS_COS: Record<CosClass, string> = {
+  zero: '0',
+  half: '\\tfrac{1}{2}',
+  root2: '\\tfrac{\\sqrt{2}}{2}',
+  root3: '\\tfrac{\\sqrt{3}}{2}',
+};
+
+/** Which standard cosine `u . v / (|u||v|)` is, decided in whole numbers. */
+function cosClassOf(u: Vec, v: Vec): CosClass | undefined {
+  const dot = dotOf(u, v);
+  const product = dotOf(u, u) * dotOf(v, v);
+  if (dot === 0) return 'zero';
+  if (4 * dot * dot === product) return 'half';
+  if (2 * dot * dot === product) return 'root2';
+  if (4 * dot * dot === 3 * product) return 'root3';
+  return undefined;
+}
+
+/** The angle between two vectors in degrees: obtuse when the scalar product is negative. */
+function angleOf(u: Vec, v: Vec, cls: CosClass): number {
+  return dotOf(u, v) < 0 ? 180 - CLASS_ANGLE[cls] : CLASS_ANGLE[cls];
+}
+
+const pairCache = new Map<string, [Vec, Vec][]>();
+
+/**
+ * Every ordered pair of vectors with entries from -most to most, at least two
+ * of them non-zero, whose cosine is in the class named. Built on first use and
+ * kept. Drawing from the whole list rather than trying random vectors until
+ * one fits is what lets a rare class, root three over two, come up as often
+ * as a common one.
+ */
+function standardPairs(cls: CosClass, most: number): [Vec, Vec][] {
+  const key = `${cls}:${most}`;
+  const cached = pairCache.get(key);
+  if (cached) return cached;
+  const vectors: Vec[] = [];
+  for (let x = -most; x <= most; x += 1) {
+    for (let y = -most; y <= most; y += 1) {
+      for (let z = -most; z <= most; z += 1) {
+        if (nonZeroCount([x, y, z]) >= 2) vectors.push([x, y, z]);
+      }
+    }
+  }
+  const out: [Vec, Vec][] = [];
+  for (const u of vectors) {
+    for (const v of vectors) {
+      if (cosClassOf(u, v) === cls) out.push([u, v]);
+    }
+  }
+  pairCache.set(key, out);
+  return out;
+}
+
+/** Two vectors a standard angle apart; the class list sets the weights. */
+function drawStandard(rng: Draw, classes: CosClass[], most: number): { u: Vec; v: Vec; cls: CosClass } {
+  const cls = rng.pick(classes);
+  const [u, v] = rng.pick(standardPairs(cls, most));
+  return { u, v, cls };
+}
+
+const wholeCache = new Map<number, Vec[]>();
+
+/** Every vector of whole length up to `longest` with at least two entries non-zero. */
+function wholeVectors(longest: number): Vec[] {
+  const cached = wholeCache.get(longest);
+  if (cached) return cached;
+  const out: Vec[] = [];
+  for (let x = -longest; x <= longest; x += 1) {
+    for (let y = -longest; y <= longest; y += 1) {
+      for (let z = -longest; z <= longest; z += 1) {
+        const length = wholeRoot(x * x + y * y + z * z);
+        if (nonZeroCount([x, y, z]) >= 2 && length !== undefined && length <= longest) out.push([x, y, z]);
+      }
+    }
+  }
+  wholeCache.set(longest, out);
+  return out;
+}
+
+/** Two vectors of whole length, neither parallel nor perpendicular. */
+function sampleWholePair(rng: Draw, difficulty: number): { u: Vec; v: Vec } {
+  const pool = wholeVectors(difficulty > 1 ? 15 : 9);
+  for (let tries = 0; tries < 200; tries += 1) {
+    const u = rng.pick(pool);
+    const v = rng.pick(pool);
+    if (dotOf(u, v) === 0 || isParallel(u, v)) continue;
+    return { u, v };
+  }
+  return { u: [1, 2, 2], v: [2, 3, 6] };
+}
+
+const lengthOf = (v: Vec) => wholeRoot(dotOf(v, v)) ?? 1;
+
+const STANDARD_ANGLES = [30, 45, 60, 90, 120, 135, 150];
+
+/**
+ * An angle and three wrong ones, labelled in degrees. The slips come first;
+ * the rest are the nearest standard angles, so every option is an angle the
+ * question could plausibly have had.
+ */
+function degreeOptions(correct: number, slips: number[], salt: number): ChoiceOption[] {
+  const nearest = [...STANDARD_ANGLES].sort((p, q) => Math.abs(p - correct) - Math.abs(q - correct));
+  const picked: number[] = [];
+  for (const x of [...slips, ...nearest]) {
+    if (picked.length === 3) break;
+    if (x === correct || x <= 0 || x >= 180 || picked.includes(x)) continue;
+    picked.push(x);
+  }
+  return steered(
+    options(
+      { tex: `${correct}^\\circ`, answer: `${correct}` },
+      ...picked.map((x) => ({ tex: `${x}^\\circ`, answer: `${x}` })),
+    ),
+    salt,
+  );
+}
+
+/**
+ * The angle between two vectors of a standard pair, worked one step to a
+ * line. With `acute` the scalar product's modulus is used, which is the
+ * convention for lines and planes.
+ */
+function standardAngleSteps(
+  u: Vec,
+  v: Vec,
+  cls: CosClass,
+  acute: boolean,
+  names: [string, string],
+  symbol = '\\theta',
+): { text?: string; tex?: string }[] {
+  const dot = dotOf(u, v);
+  const U = dotOf(u, u);
+  const V = dotOf(v, v);
+  const shown = acute ? Math.abs(dot) : dot;
+  const angle = acute ? CLASS_ANGLE[cls] : angleOf(u, v, cls);
+  const cosTex = cls === 'zero' ? '0' : `${shown < 0 ? '-' : ''}${CLASS_COS[cls]}`;
+  return [
+    { text: `The scalar product $${names[0]} \\cdot ${names[1]}$:` },
+    ...dotLines(v, u),
+    { text: `The lengths are $${rootTex(U)}$ and $${rootTex(V)}$, and their product is $${surdTex(U * V)}$.` },
+    ...(acute && dot < 0
+      ? [{ text: 'The scalar product is negative, which gives the obtuse angle. For the acute one, take its modulus.' }]
+      : []),
+    { tex: cls === 'zero' ? `\\cos${symbol} = 0` : `\\cos${symbol} = \\frac{${shown}}{${surdTex(U * V)}} = ${cosTex}` },
+    {
+      text:
+        `So $${symbol} = ${angle}^\\circ$.` +
+        (!acute && dot < 0 ? ' The cosine is negative, so the angle is obtuse.' : ''),
+    },
+  ];
+}
+
+/* Lesson 1: the scalar product in three dimensions. */
+
+interface Dot3Params {
+  a: Vec;
+  b: Vec;
+  form: VectorForm;
+}
+
+/** Columns with every entry filled at first; later i, j, k form, with a gap or two. */
+function sampleDot3(rng: Draw, difficulty: number): Dot3Params {
+  if (difficulty === 1) return { a: fullVec(rng, 6), b: fullVec(rng, 6), form: 'column' };
+  const a = fullVec(rng, 9);
+  const b = fullVec(rng, 9);
+  const gap = rng.int(0, 2);
+  a[gap] = 0;
+  if (rng.chance(0.5)) b[(gap + rng.int(1, 2)) % 3] = 0;
+  return { a, b, form: 'ijk' };
+}
+
+function dot3Solution({ a, b, form }: Dot3Params) {
+  const dot = dotOf(a, b);
+  return [
+    ...(form === 'ijk'
+      ? [{ text: `A missing term is a zero component: $\\mathbf{a} = ${point3Tex(a)}$ and $\\mathbf{b} = ${point3Tex(b)}$.` }]
+      : []),
+    { text: 'Multiply matching components, $x$ with $x$, $y$ with $y$ and $z$ with $z$, then add the three products.' },
+    ...dotLines(b, a),
+    {
+      text:
+        dot === 0
+          ? 'Zero, so the two vectors are perpendicular.'
+          : dot > 0
+            ? 'It is positive, so the angle between the vectors is acute.'
+            : 'It is negative, so the angle between the vectors is obtuse.',
+    },
+  ];
+}
+
+/** The scalar product of two three-dimensional vectors. */
+const angleDot3: Generator<Dot3Params> = {
+  id: 'angle-dot3',
+  // A sign slipped on one product, the whole thing negated, and x and y crossed.
+  choices: (params) => {
+    const { a, b } = params;
+    const dot = dotOf(a, b);
+    return steered(signedChoices(dot, [slippedDot(a, b), -dot, dotOf(a, [b[1], b[0], b[2]])]), saltOf(params));
+  },
+  sample: sampleDot3,
+  render: ({ a, b, form }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Find the scalar product. The answer may be negative.' }, ...vectorsShown(a, b, form)],
+    lead: '\\mathbf{a} \\cdot \\mathbf{b} =',
+    keypad: [],
+    answer: `${dotOf(a, b)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: dot3Solution,
+};
+
+/** The same scalar product as three products and a sum. */
+const angleDot3Tree: Generator<Dot3Params> = {
+  id: 'angle-dot3-tree',
+  sample: sampleDot3,
+  render: ({ a, b, form }): Slide => {
+    const products = a.map((x, i) => x * b[i]);
+    const dot = dotOf(a, b);
+    const answer = [...products.map(String), `${dot}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find $\\mathbf{a} \\cdot \\mathbf{b}$: the three products of matching components, then their sum.',
+        },
+        ...vectorsShown(a, b, form),
+      ],
+      expression: 'a_x b_x + a_y b_y + a_z b_z',
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'y', from: [] },
+        { id: 'z', from: [] },
+        { id: 'sum', from: ['x', 'y', 'z'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [...products.map((p) => `${-p}`), `${slippedDot(a, b)}`],
+        [dot + 1, dot - 1, dot + 2, dot - 2, dot + 3].map(String),
+      ),
+      answer,
+    };
+  },
+  solution: dot3Solution,
+};
+
+type AngleKind = 'acute' | 'obtuse' | 'right';
+
+interface SignParams {
+  a: Vec;
+  b: Vec;
+  kind: AngleKind;
+  form: VectorForm;
+}
+
+const KIND_LABELS: Record<AngleKind, string> = {
+  acute: '\\text{Acute}',
+  obtuse: '\\text{Obtuse}',
+  right: '\\text{Right angle}',
+};
+
+/**
+ * Acute, obtuse or right, from the sign of the scalar product alone. The
+ * products are kept close to zero so the sign has to be worked out rather
+ * than seen at a glance.
+ */
+const angleSign: Generator<SignParams> = {
+  id: 'angle-sign',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<AngleKind>(['acute', 'obtuse', 'right']);
+    const form: VectorForm = difficulty > 1 && rng.chance(0.5) ? 'ijk' : 'column';
+    const most = difficulty > 1 ? 7 : 5;
+    for (let tries = 0; tries < 2000; tries += 1) {
+      const a = vec3(rng, -most, most);
+      const b = vec3(rng, -most, most);
+      if (nonZeroCount(a) < 2 || nonZeroCount(b) < 2 || isParallel(a, b)) continue;
+      const dot = dotOf(a, b);
+      if (Math.abs(dot) > (difficulty > 1 ? 6 : 12)) continue;
+      if (kind === 'right' ? dot !== 0 : kind === 'acute' ? dot <= 0 : dot >= 0) continue;
+      return { a, b, kind, form };
+    }
+    return { a: [2, -1, 3], b: [1, 5, 1], kind: 'right', form };
+  },
+  render: (params): Slide => {
+    const { a, b, kind, form } = params;
+    const others = (['acute', 'obtuse', 'right'] as AngleKind[]).filter((k) => k !== kind);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Is the angle between $\\mathbf{a}$ and $\\mathbf{b}$ acute, obtuse or a right angle?' },
+        ...vectorsShown(a, b, form),
+      ],
+      options: placeAnswer(
+        { id: kind, label: KIND_LABELS[kind] },
+        others.map((k) => ({ id: k, label: KIND_LABELS[k] })),
+        saltOf(params),
+      ),
+      correctId: kind,
+    };
+  },
+  solution: ({ a, b, kind }) => [
+    {
+      text: 'Both lengths are positive, so the scalar product has the same sign as $\\cos\\theta$. Work it out:',
+    },
+    ...dotLines(b, a),
+    {
+      text:
+        kind === 'right'
+          ? 'Zero, so $\\cos\\theta = 0$ and the angle is a right angle.'
+          : kind === 'acute'
+            ? 'Positive, so $\\cos\\theta > 0$ and the angle is acute.'
+            : 'Negative, so $\\cos\\theta < 0$ and the angle is obtuse.',
+    },
+  ],
+};
+
+interface UnknownKParams {
+  a: Vec;
+  b: Vec;
+  /** Where k sits in a, and in b as well on the harder draws (-1 when not). */
+  pa: number;
+  pb: number;
+  k: number;
+}
+
+/** `a . b` with k left in: the constant part and the coefficient of k. */
+function kSplit({ a, b, pa, pb }: UnknownKParams): { rest: number; coef: number } {
+  let rest = 0;
+  let coef = 0;
+  for (let i = 0; i < 3; i += 1) {
+    if (i === pa) coef += b[i];
+    else if (i === pb) coef += a[i];
+    else rest += a[i] * b[i];
+  }
+  return { rest, coef };
+}
+
+/** The value `a . b` takes with this k. */
+const kTarget = (params: UnknownKParams) => {
+  const { rest, coef } = kSplit(params);
+  return rest + coef * params.k;
+};
+
+/** Both vectors with k written in, for a prompt. */
+function kPair({ a, b, pa, pb }: UnknownKParams): string {
+  const ea = a.map((x, i) => (i === pa ? 'k' : `${x}`));
+  const eb = b.map((x, i) => (i === pb ? 'k' : `${x}`));
+  return `\\mathbf{a} = ${columnOf(ea)}, \\quad \\mathbf{b} = ${columnOf(eb)}`;
+}
+
+/** The three products as written by hand, `2(3) + 4k - 5(1)`. */
+function kProductsTex({ a, b, pa, pb }: UnknownKParams): string {
+  const terms = [0, 1, 2].map((i) => {
+    if (i !== pa && i !== pb) return `${a[i]}(${b[i]})`;
+    const c = i === pa ? b[i] : a[i];
+    return `${c === 1 ? '' : c === -1 ? '-' : c}k`;
+  });
+  return terms.join(' + ').replace(/\+ -/g, '- ');
+}
+
+/**
+ * Two vectors with k in one entry, or in one entry of each on the harder
+ * draws, never the same position: the equation stays linear. Built outward
+ * from a whole k, so the answer never needs a fraction.
+ */
+function sampleUnknownK(rng: Draw, difficulty: number, perpendicular: boolean): UnknownKParams {
+  for (let tries = 0; tries < 600; tries += 1) {
+    const a = fullVec(rng, 5);
+    const b = fullVec(rng, 5);
+    const pa = rng.int(0, 2);
+    const pb = difficulty > 1 ? (pa + rng.int(1, 2)) % 3 : -1;
+    const { rest, coef } = kSplit({ a, b, pa, pb, k: 0 });
+    if (coef === 0) continue;
+    let k: number;
+    if (perpendicular) {
+      if (rest % coef !== 0) continue;
+      k = -rest / coef;
+      if (k === 0 || Math.abs(k) > 9) continue;
+    } else {
+      k = nonZeroInt(rng, 6);
+      if (rest + coef * k === 0) continue;
+    }
+    a[pa] = k;
+    if (pb >= 0) b[pb] = k;
+    return { a, b, pa, pb, k };
+  }
+  return { a: [2, 1, 3], b: [-1, 5, -1], pa: 1, pb: -1, k: 1 };
+}
+
+function unknownKSolution(params: UnknownKParams, perpendicular: boolean) {
+  const { k } = params;
+  const { rest, coef } = kSplit(params);
+  const target = rest + coef * k;
+  return [
+    {
+      text: perpendicular
+        ? 'Perpendicular means the scalar product is zero. Write it out with $k$ left in:'
+        : 'Write out the scalar product with $k$ left in, and set it equal to the value given:',
+    },
+    { tex: `${kProductsTex(params)} = ${target}` },
+    { tex: `${affTex(rest, coef, 'k')} = ${target}` },
+    { tex: `${coef === 1 ? '' : coef === -1 ? '-' : coef}k = ${target - rest} \\implies k = ${k}` },
+    {
+      text: `Check it: with $k = ${k}$ the three products add to $${rest} + ${paren(coef * k)} = ${target}$.`,
+    },
+  ];
+}
+
+/** A missing entry from the value of the scalar product. */
+const angleDotK: Generator<UnknownKParams> = {
+  id: 'angle-dot-k',
+  // Wrong sign; the constant moved across without changing sign.
+  choices: (params) => {
+    const { rest, coef } = kSplit(params);
+    const target = rest + coef * params.k;
+    return steered(signedChoices(params.k, [-params.k, (target + rest) / coef, target / coef]), saltOf(params));
+  },
+  sample: (rng, difficulty) => sampleUnknownK(rng, difficulty, false),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `$\\mathbf{a} \\cdot \\mathbf{b} = ${kTarget(params)}$. Find $k$.` },
+      { kind: 'display', tex: kPair(params) },
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${params.k}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => unknownKSolution(params, false),
+};
+
+type AlgebraAsk = 'sum' | 'difference' | 'plus-minus' | 'with-a' | 'scaled';
+
+interface AlgebraParams {
+  ma: number;
+  mb: number;
+  ab: number;
+  ask: AlgebraAsk;
+  p: number;
+  q: number;
+  perpendicular: boolean;
+}
+
+function algebraValue({ ma, mb, ab, ask, p, q }: AlgebraParams): number {
+  if (ask === 'sum') return ma * ma + 2 * ab + mb * mb;
+  if (ask === 'difference') return ma * ma - 2 * ab + mb * mb;
+  if (ask === 'plus-minus') return ma * ma - mb * mb;
+  if (ask === 'with-a') return ma * ma + p * ab;
+  return p * q * ab;
+}
+
+function algebraLead({ ask, p, q }: AlgebraParams): string {
+  if (ask === 'sum') return '\\left| \\mathbf{a} + \\mathbf{b} \\right|^2 =';
+  if (ask === 'difference') return '\\left| \\mathbf{a} - \\mathbf{b} \\right|^2 =';
+  if (ask === 'plus-minus') return '(\\mathbf{a} + \\mathbf{b}) \\cdot (\\mathbf{a} - \\mathbf{b}) =';
+  if (ask === 'with-a') return `\\mathbf{a} \\cdot (${addMultipleTex('\\mathbf{a}', p, '\\mathbf{b}')}) =`;
+  return `(${p}\\mathbf{a}) \\cdot (${q}\\mathbf{b}) =`;
+}
+
+/**
+ * The rules of the scalar product, with no components at all: lengths and
+ * one scalar product given, and an expression built from them to work out.
+ * `a . a = |a|^2` is what most of them turn on; `(a + b).(a - b)` does not
+ * need the scalar product it is given, which is the point of asking it.
+ */
+const angleDotAlgebra: Generator<AlgebraParams> = {
+  id: 'angle-dot-algebra',
+  choices: (params) => {
+    const { ma, mb, ab, ask, p, q } = params;
+    const value = algebraValue(params);
+    const slips: Record<AlgebraAsk, number[]> = {
+      // The 2 dropped, the cross terms dropped, the lengths added before squaring.
+      sum: [ma * ma + ab + mb * mb, ma * ma + mb * mb, (ma + mb) * (ma + mb)],
+      difference: [ma * ma + 2 * ab + mb * mb, ma * ma - ab + mb * mb, (ma - mb) * (ma - mb)],
+      'plus-minus': [ma * ma + mb * mb, ma * ma - 2 * ab - mb * mb, mb * mb - ma * ma],
+      // |a| where |a|^2 belongs, and the multiple lost.
+      'with-a': [ma + p * ab, ma * ma + ab, p * ab],
+      scaled: [(p + q) * ab, -p * q * ab, p * ab],
+    };
+    return steered(signedChoices(value, slips[ask]), saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const ma = rng.int(2, 9);
+    const mb = rng.int(2, 9);
+    const perpendicular = difficulty > 1 && rng.chance(0.4);
+    const reach = Math.min(ma * mb - 1, 20);
+    const ab = perpendicular ? 0 : nonZeroInt(rng, reach);
+    const ask = perpendicular
+      ? rng.pick<AlgebraAsk>(['sum', 'difference', 'with-a'])
+      : rng.pick<AlgebraAsk>(difficulty > 1 ? ['sum', 'difference', 'plus-minus', 'with-a', 'scaled'] : ['sum', 'plus-minus', 'with-a', 'scaled']);
+    return { ma, mb, ab, ask, p: rng.pick([-4, -3, -2, 2, 3, 4]), q: rng.pick([-3, -2, 2, 3]), perpendicular };
+  },
+  render: (params): Slide => {
+    const { ma, mb, ab, perpendicular } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: perpendicular
+            ? `$|\\mathbf{a}| = ${ma}$ and $|\\mathbf{b}| = ${mb}$, and $\\mathbf{a}$ is perpendicular to $\\mathbf{b}$. Work out the value below.`
+            : `$|\\mathbf{a}| = ${ma}$, $|\\mathbf{b}| = ${mb}$ and $\\mathbf{a} \\cdot \\mathbf{b} = ${ab}$. Work out the value below.`,
+        },
+      ],
+      lead: algebraLead(params),
+      keypad: [],
+      answer: `${algebraValue(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { ma, mb, ab, ask, p, q, perpendicular } = params;
+    const value = algebraValue(params);
+    const opening = perpendicular
+      ? [{ text: 'Perpendicular vectors have a scalar product of zero, so $\\mathbf{a} \\cdot \\mathbf{b} = 0$.' }]
+      : [];
+    const square = {
+      text: 'A length squared is a vector dotted with itself, $|\\mathbf{v}|^2 = \\mathbf{v} \\cdot \\mathbf{v}$. Multiply out like brackets; $\\mathbf{a} \\cdot \\mathbf{b}$ and $\\mathbf{b} \\cdot \\mathbf{a}$ are equal, so the middle terms combine.',
+    };
+    if (ask === 'sum' || ask === 'difference') {
+      const sign = ask === 'sum' ? '+' : '-';
+      return [
+        ...opening,
+        square,
+        { tex: `|\\mathbf{a}|^2 ${sign} 2\\,\\mathbf{a} \\cdot \\mathbf{b} + |\\mathbf{b}|^2` },
+        { tex: `= ${ma}^2 ${sign} 2(${ab}) + ${mb}^2` },
+        { tex: `= ${value}` },
+        ...(perpendicular
+          ? [{ text: 'With the middle term gone this is Pythagoras: the two vectors are the sides of a right-angled triangle.' }]
+          : []),
+      ];
+    }
+    if (ask === 'plus-minus') {
+      return [
+        square,
+        { tex: '\\mathbf{a} \\cdot \\mathbf{a} - \\mathbf{b} \\cdot \\mathbf{b}' },
+        { tex: `= ${ma}^2 - ${mb}^2 = ${value}` },
+        {
+          text: 'The two cross terms, $-\\mathbf{a} \\cdot \\mathbf{b}$ and $+\\mathbf{b} \\cdot \\mathbf{a}$, cancel, so the scalar product given is not needed at all.',
+        },
+      ];
+    }
+    if (ask === 'with-a') {
+      return [
+        ...opening,
+        { text: 'The scalar product shares out over a sum, and $\\mathbf{a} \\cdot \\mathbf{a} = |\\mathbf{a}|^2$:' },
+        { tex: `\\mathbf{a} \\cdot \\mathbf{a} ${p < 0 ? '-' : '+'} ${Math.abs(p)}\\,\\mathbf{a} \\cdot \\mathbf{b}` },
+        { tex: `= ${ma}^2 + ${paren(p)}(${ab})` },
+        { tex: `= ${value}` },
+      ];
+    }
+    return [
+      { text: 'Numbers multiplying either vector come outside the scalar product:' },
+      { tex: `${p} \\times ${paren(q)} \\times \\mathbf{a} \\cdot \\mathbf{b}` },
+      { tex: `= ${p * q}(${ab}) = ${value}` },
+    ];
+  },
+};
+
+/* Lesson 2: the angle itself. */
+
+/**
+ * `dotLines`, or the products alone when the substitution would run off a
+ * phone: three two-digit entries each side, `-10(-10) + 11(-11) + 2(-2)`,
+ * overflow the worked-solution panel.
+ */
+function fittedDotLines(p: Vec, n: Vec): { tex: string }[] {
+  if (substituteTex(n, p.map(String)).length <= 22) return dotLines(p, n);
+  const products = n.map((c, i) => c * p[i]).filter((x) => x !== 0);
+  const sum = products.map((x, i) => (i === 0 ? `${x}` : x < 0 ? `- ${-x}` : `+ ${x}`)).join(' ');
+  return [{ tex: sum }, { tex: `= ${dotOf(p, n)}` }];
+}
+
+interface WholePairParams {
+  a: Vec;
+  b: Vec;
+}
+
+function cosSolution({ a, b }: WholePairParams) {
+  const dot = dotOf(a, b);
+  const ma = lengthOf(a);
+  const mb = lengthOf(b);
+  return [
+    {
+      text: 'Rearrange $\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta$: the cosine is the scalar product over the two lengths.',
+    },
+    ...fittedDotLines(b, a),
+    { tex: `|\\mathbf{a}| = \\sqrt{${dotOf(a, a)}} = ${ma}` },
+    { tex: `|\\mathbf{b}| = \\sqrt{${dotOf(b, b)}} = ${mb}` },
+    { tex: `\\cos\\theta = \\frac{${dot}}{${ma} \\times ${mb}} = ${fracTex(dot, ma * mb)}` },
+    {
+      text:
+        dot < 0
+          ? 'The cosine is negative, so the angle is obtuse.'
+          : 'The cosine is positive, so the angle is acute. Leaving out a square root is the usual slip, and a cosine outside $-1$ to $1$ would show it.',
+    },
+  ];
+}
+
+/** The cosine of the angle between two vectors of whole length. */
+const angleCos: Generator<WholePairParams> = {
+  id: 'angle-cos',
+  choices: (params) => {
+    const { a, b } = params;
+    const dot = dotOf(a, b);
+    const ma = lengthOf(a);
+    const mb = lengthOf(b);
+    const A = dotOf(a, a);
+    const B = dotOf(b, b);
+    return steered(
+      options(
+        { tex: fracTex(dot, ma * mb), answer: `${dot}/${ma * mb}` },
+        { tex: fracTex(-dot, ma * mb), answer: `${-dot}/${ma * mb}` },
+        // The lengths left squared, and added rather than multiplied.
+        { tex: fracTex(dot, A * B), answer: `${dot}/${A * B}` },
+        { tex: fracTex(dot, ma + mb), answer: `${dot}/${ma + mb}` },
+      ),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const { u, v } = sampleWholePair(rng, difficulty);
+    return { a: u, b: v };
+  },
+  render: ({ a, b }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: '$\\theta$ is the angle between $\\mathbf{a}$ and $\\mathbf{b}$, both of whole length. Find $\\cos\\theta$ as a fraction.',
+      },
+      { kind: 'display', tex: pairTex(a, b) },
+    ],
+    lead: '\\cos\\theta =',
+    keypad: [{ insert: '/' }],
+    answer: `${dotOf(a, b)}/${lengthOf(a) * lengthOf(b)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: cosSolution,
+};
+
+/** The same cosine as a tree: the scalar product and both lengths feed the quotient. */
+const angleCosTree: Generator<WholePairParams> = {
+  id: 'angle-cos-tree',
+  sample: (rng, difficulty) => {
+    const { u, v } = sampleWholePair(rng, difficulty);
+    return { a: u, b: v };
+  },
+  render: ({ a, b }): Slide => {
+    const dot = dotOf(a, b);
+    const ma = lengthOf(a);
+    const mb = lengthOf(b);
+    const answer = [`${dot}`, `${ma}`, `${mb}`, fracTex(dot, ma * mb)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find $\\cos\\theta$ for the angle between $\\mathbf{a}$ and $\\mathbf{b}$: the scalar product, the two lengths, then the cosine.',
+        },
+        { kind: 'display', tex: pairTex(a, b) },
+      ],
+      expression: '\\cos\\theta = \\frac{\\mathbf{a} \\cdot \\mathbf{b}}{|\\mathbf{a}| \\, |\\mathbf{b}|}',
+      nodes: [
+        { id: 'dot', from: [] },
+        { id: 'a', from: [] },
+        { id: 'b', from: [] },
+        { id: 'cos', from: ['dot', 'a', 'b'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [fracTex(-dot, ma * mb), `${dotOf(a, a)}`, `${dotOf(b, b)}`, `${-dot}`],
+        [`${ma + 1}`, `${mb + 2}`, `${dot + 1}`, fracTex(dot, ma + mb)],
+      ),
+      answer,
+    };
+  },
+  solution: cosSolution,
+};
+
+interface DegreesParams {
+  a: Vec;
+  b: Vec;
+  cls: CosClass;
+}
+
+/** The angle between two vectors, in whole degrees, acute or obtuse. */
+const angleDegrees: Generator<DegreesParams> = {
+  id: 'angle-degrees',
+  // The sign ignored, and the angle confused with its complement.
+  choices: (params) => {
+    const angle = angleOf(params.a, params.b, params.cls);
+    return degreeOptions(angle, [180 - angle, 90 - angle, angle - 90], saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const { u, v, cls } = drawStandard(
+      rng,
+      difficulty > 1
+        ? ['half', 'half', 'root2', 'root2', 'root3', 'zero']
+        : ['half', 'half', 'root2', 'root2', 'zero'],
+      difficulty > 1 ? 3 : 2,
+    );
+    return { a: u, b: v, cls };
+  },
+  render: ({ a, b, cls }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the angle between $\\mathbf{a}$ and $\\mathbf{b}$, in degrees.' },
+      { kind: 'display', tex: pairTex(a, b) },
+    ],
+    lead: '\\text{angle} =',
+    keypad: [],
+    answer: `${angleOf(a, b, cls)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ a, b, cls }) => standardAngleSteps(a, b, cls, false, ['\\mathbf{a}', '\\mathbf{b}']),
+};
+
+type GivenAsk = 'dot' | 'angle' | 'length';
+
+interface GivenParams {
+  ask: GivenAsk;
+  ma: number;
+  mb: number;
+  theta: number;
+}
+
+const givenDot = ({ ma, mb, theta }: GivenParams) => ((theta === 60 ? 1 : -1) * ma * mb) / 2;
+const halfTex = (theta: number) => (theta === 60 ? '\\tfrac{1}{2}' : '-\\tfrac{1}{2}');
+
+/**
+ * `a . b = |a||b|cos(theta)` with three of the four quantities given and the
+ * fourth to find. The angle is 60 or 120 degrees, so the cosine is a half
+ * either way round and the lengths make everything whole.
+ */
+const angleGiven: Generator<GivenParams> = {
+  id: 'angle-given',
+  choices: (params) => {
+    const { ask, ma, mb, theta } = params;
+    const dot = givenDot(params);
+    if (ask === 'angle') return degreeOptions(theta, [180 - theta, 30, 150], saltOf(params));
+    if (ask === 'dot') return steered(signedChoices(dot, [-dot, ma * mb, 2 * dot]), saltOf(params));
+    // The cosine forgotten, and the length found upside down.
+    return steered(signedChoices(mb, [mb / 2, 2 * mb, Math.abs(dot) - ma]), saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const ask = rng.pick<GivenAsk>(difficulty > 1 ? ['dot', 'angle', 'length'] : ['dot', 'angle']);
+    for (let tries = 0; tries < 100; tries += 1) {
+      const ma = rng.int(2, 12);
+      const mb = rng.int(2, 12);
+      if ((ma * mb) % 2 !== 0) continue;
+      return { ask, ma, mb, theta: rng.pick([60, 120]) };
+    }
+    return { ask, ma: 4, mb: 5, theta: 60 };
+  },
+  render: (params): Slide => {
+    const { ask, ma, mb, theta } = params;
+    const dot = givenDot(params);
+    const text: Record<GivenAsk, string> = {
+      dot: `$|\\mathbf{a}| = ${ma}$, $|\\mathbf{b}| = ${mb}$ and the angle between them is $${theta}^\\circ$. Find $\\mathbf{a} \\cdot \\mathbf{b}$.`,
+      angle: `$|\\mathbf{a}| = ${ma}$, $|\\mathbf{b}| = ${mb}$ and $\\mathbf{a} \\cdot \\mathbf{b} = ${dot}$. Find the angle between them, in degrees.`,
+      length: `$|\\mathbf{a}| = ${ma}$, $\\mathbf{a} \\cdot \\mathbf{b} = ${dot}$ and the angle between them is $${theta}^\\circ$. Find $|\\mathbf{b}|$.`,
+    };
+    const lead: Record<GivenAsk, string> = {
+      dot: '\\mathbf{a} \\cdot \\mathbf{b} =',
+      angle: '\\text{angle} =',
+      length: '|\\mathbf{b}| =',
+    };
+    const answer: Record<GivenAsk, number> = { dot, angle: theta, length: mb };
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: text[ask] }],
+      lead: lead[ask],
+      keypad: [],
+      answer: `${answer[ask]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { ask, ma, mb, theta } = params;
+    const dot = givenDot(params);
+    const formula = { tex: '\\mathbf{a} \\cdot \\mathbf{b} = |\\mathbf{a}||\\mathbf{b}|\\cos\\theta' };
+    if (ask === 'dot') {
+      return [
+        formula,
+        { tex: `= ${ma} \\times ${mb} \\times \\cos ${theta}^\\circ` },
+        { tex: `= ${ma * mb} \\times \\left(${halfTex(theta)}\\right) = ${dot}` },
+        {
+          text: theta === 60 ? 'An acute angle gives a positive scalar product.' : 'An obtuse angle gives a negative scalar product.',
+        },
+      ];
+    }
+    if (ask === 'angle') {
+      return [
+        { text: 'Rearranged, the cosine is the scalar product over the two lengths:' },
+        { tex: `\\cos\\theta = \\frac{${dot}}{${ma} \\times ${mb}} = ${halfTex(theta)}` },
+        {
+          text: `The cosine of $60^\\circ$ is $\\tfrac{1}{2}$, and a negative cosine means the obtuse angle, $180^\\circ - 60^\\circ$. So $\\theta = ${theta}^\\circ$.`,
+        },
+      ];
+    }
+    return [
+      formula,
+      { tex: `${dot} = ${ma} \\times |\\mathbf{b}| \\times \\left(${halfTex(theta)}\\right)` },
+      { tex: `${dot} = ${fracTex(theta === 60 ? ma : -ma, 2)}\\,|\\mathbf{b}|` },
+      { tex: `|\\mathbf{b}| = ${mb}` },
+    ];
+  },
+};
+
+/* Lesson 3: perpendicular vectors. */
+
+interface WhichPerpParams {
+  a: Vec;
+  c: Vec;
+  slip: Vec;
+  turned: Vec;
+  form: VectorForm;
+}
+
+/**
+ * Which of four vectors is perpendicular to a? One has a scalar product of
+ * zero; one is that vector with a sign slipped; one is it with its entries
+ * turned round; and one is -a, which points exactly the other way and is the
+ * wrong idea of perpendicular this question is here to catch.
+ */
+const anglePerpWhich: Generator<WhichPerpParams> = {
+  id: 'angle-perp-which',
+  sample: (rng, difficulty) => {
+    const form: VectorForm = difficulty > 1 ? 'ijk' : 'column';
+    for (let tries = 0; tries < 2000; tries += 1) {
+      const a = fullVec(rng, 4);
+      const c = vec3(rng, -4, 4);
+      if (nonZeroCount(c) < 2 || dotOf(a, c) !== 0) continue;
+      const live = [0, 1, 2].filter((i) => a[i] * c[i] !== 0);
+      const i = rng.pick(live);
+      const slip = c.map((x, idx) => (idx === i ? -x : x));
+      const turned = [c[1], c[2], c[0]];
+      if (dotOf(a, turned) === 0) continue;
+      const labels = [c, slip, turned, scaled(-1, a)].map(ijkOf);
+      if (new Set(labels).size !== 4) continue;
+      return { a, c, slip, turned, form };
+    }
+    return { a: [1, 2, 3], c: [1, 1, -1], slip: [-1, 1, -1], turned: [1, -1, 1], form };
+  },
+  render: (params): Slide => {
+    const { a, c, slip, turned, form } = params;
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which of these vectors is perpendicular to $\\mathbf{a}$?' },
+        { kind: 'display', tex: `\\mathbf{a} = ${form === 'column' ? colTex(a) : ijkOf(a)}` },
+      ],
+      options: placeAnswer(
+        { id: 'perpendicular', label: ijkOf(c) },
+        [
+          { id: 'slip', label: ijkOf(slip) },
+          { id: 'turned', label: ijkOf(turned) },
+          { id: 'opposite', label: ijkOf(scaled(-1, a)) },
+        ],
+        saltOf(params),
+      ),
+      correctId: 'perpendicular',
+    };
+  },
+  solution: ({ a, c, slip, turned }) => [
+    {
+      text: `Perpendicular means a scalar product of zero, so dot each option with $\\mathbf{a}$. For $${ijkOf(c)}$:`,
+    },
+    ...dotLines(c, a),
+    {
+      text: `The other three give $${dotOf(a, slip)}$, $${dotOf(a, turned)}$ and $${-dotOf(a, a)}$. The last of those is $-\\mathbf{a}$, which points exactly the opposite way: that is as far from perpendicular as a direction gets.`,
+    },
+  ],
+};
+
+type Relation3 = 'perpendicular' | 'parallel' | 'acute' | 'obtuse';
+
+interface RelationFlowParams {
+  a: Vec;
+  b: Vec;
+  rel: Relation3;
+  form: VectorForm;
+}
+
+/**
+ * How two vectors sit, walked as a decision: is the scalar product zero, is
+ * one a multiple of the other, and which way does the sign go.
+ */
+const angleRelationFlow: Generator<RelationFlowParams> = {
+  id: 'angle-relation-flow',
+  sample: (rng, difficulty) => {
+    const rel = rng.pick<Relation3>(['perpendicular', 'parallel', 'acute', 'obtuse']);
+    const form: VectorForm = difficulty > 1 && rng.chance(0.5) ? 'ijk' : 'column';
+    for (let tries = 0; tries < 2000; tries += 1) {
+      const a = vec3(rng, -4, 4);
+      if (nonZeroCount(a) < 2) continue;
+      let b: Vec;
+      if (rel === 'parallel') {
+        b = scaled(rng.pick([-3, -2, -1, 2, 3]), simplest(a));
+        if (b.every((x, i) => x === a[i])) continue;
+      } else {
+        b = vec3(rng, -4, 4);
+        if (nonZeroCount(b) < 2 || isParallel(a, b)) continue;
+        const dot = dotOf(a, b);
+        if (rel === 'perpendicular' ? dot !== 0 : rel === 'acute' ? dot <= 0 : dot >= 0) continue;
+      }
+      return { a, b, rel, form };
+    }
+    return { a: [1, 2, 3], b: [2, 4, 6], rel: 'parallel', form };
+  },
+  render: ({ a, b, rel, form }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'How do $\\mathbf{a}$ and $\\mathbf{b}$ sit relative to each other? Work down the questions; each answer chooses what gets asked next.',
+      },
+      ...vectorsShown(a, b, form),
+    ],
+    subject: '\\mathbf{a} \\text{ and } \\mathbf{b}',
+    steps: [
+      {
+        id: 'dot',
+        ask: 'Is $\\mathbf{a} \\cdot \\mathbf{b}$ zero?',
+        branches: [
+          { label: 'Yes', outcome: 'They are perpendicular.' },
+          { label: 'No', to: 'multiple' },
+        ],
+      },
+      {
+        id: 'multiple',
+        ask: 'Is $\\mathbf{b}$ a multiple of $\\mathbf{a}$?',
+        branches: [
+          { label: 'Yes', outcome: 'They are parallel.' },
+          { label: 'No', to: 'sign' },
+        ],
+      },
+      {
+        id: 'sign',
+        ask: 'Is $\\mathbf{a} \\cdot \\mathbf{b}$ positive?',
+        branches: [
+          { label: 'Yes', outcome: 'The angle between them is acute.' },
+          { label: 'No', outcome: 'The angle between them is obtuse.' },
+        ],
+      },
+    ],
+    answer: rel === 'perpendicular' ? ['Yes'] : rel === 'parallel' ? ['No', 'Yes'] : ['No', 'No', rel === 'acute' ? 'Yes' : 'No'],
+  }),
+  solution: ({ a, b, rel }) => {
+    const ratio = b.find((_, i) => a[i] !== 0)! / a.find((x) => x !== 0)!;
+    const verdict: Record<Relation3, string> = {
+      perpendicular: 'Zero, so they are perpendicular, and nothing else needs checking.',
+      parallel: `Not zero. Each entry of $\\mathbf{b}$ is $${Number.isInteger(ratio) ? ratio : fracTex(b.find((_, i) => a[i] !== 0)!, a.find((x) => x !== 0)!)}$ times the matching entry of $\\mathbf{a}$, so $\\mathbf{b}$ is a multiple of $\\mathbf{a}$ and they are parallel.`,
+      acute: 'Not zero, and $\\mathbf{b}$ is not a multiple of $\\mathbf{a}$. The scalar product is positive, so the angle is acute.',
+      obtuse: 'Not zero, and $\\mathbf{b}$ is not a multiple of $\\mathbf{a}$. The scalar product is negative, so the angle is obtuse.',
+    };
+    return [{ text: 'Start with the scalar product:' }, ...dotLines(b, a), { text: verdict[rel] }];
+  },
+};
+
+/** The k that makes two vectors perpendicular, with k in one or both. */
+const anglePerpK: Generator<UnknownKParams> = {
+  id: 'angle-perp-k',
+  // Wrong sign, and the k found from the constant alone.
+  choices: (params) => {
+    const { rest, coef } = kSplit(params);
+    return steered(signedChoices(params.k, [-params.k, rest / coef, rest]), saltOf(params));
+  },
+  sample: (rng, difficulty) => sampleUnknownK(rng, difficulty, true),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the value of $k$ that makes $\\mathbf{a}$ and $\\mathbf{b}$ perpendicular.' },
+      { kind: 'display', tex: kPair(params) },
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${params.k}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => unknownKSolution(params, true),
+};
+
+/** The same k as a tree: the part without k, the coefficient of k, then k. */
+const anglePerpKTree: Generator<UnknownKParams> = {
+  id: 'angle-perp-k-tree',
+  sample: (rng, difficulty) => sampleUnknownK(rng, difficulty, true),
+  render: (params): Slide => {
+    const { rest, coef } = kSplit(params);
+    const { k } = params;
+    const answer = [`${rest}`, `${coef}`, `${k}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Make $\\mathbf{a}$ and $\\mathbf{b}$ perpendicular. Split $\\mathbf{a} \\cdot \\mathbf{b}$ into the number without $k$ and the coefficient of $k$, then solve for $k$.',
+        },
+        { kind: 'display', tex: kPair(params) },
+      ],
+      expression: '\\mathbf{a} \\cdot \\mathbf{b} = c + mk = 0',
+      nodes: [
+        { id: 'c', from: [] },
+        { id: 'm', from: [] },
+        { id: 'k', from: ['c', 'm'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [`${-k}`, `${-rest}`, `${-coef}`],
+        [k + 1, k - 1, k + 2, rest + 2, coef - 1, rest - 3].map(String),
+      ),
+      answer,
+    };
+  },
+  solution: (params) => unknownKSolution(params, true),
+};
+
+/* Lesson 4: the angle between two lines. */
+
+type DirectionForm = 'vector' | 'point' | 'two';
+
+interface ReadDirectionParams {
+  a: Vec;
+  d: Vec;
+  form: DirectionForm;
+}
+
+/**
+ * Which vector goes into the scalar product when a line is involved: the
+ * direction, read off whichever way the line is written. The start point's
+ * numbers are in the bank, since using them is the slip.
+ */
+const angleLineDirection: Generator<ReadDirectionParams> = {
+  id: 'angle-line-direction',
+  sample: (rng, difficulty) => {
+    const form = rng.pick<DirectionForm>(difficulty > 1 ? ['point', 'two'] : ['vector', 'point']);
+    for (let tries = 0; tries < 200; tries += 1) {
+      const a = vec3(rng, -5, 5);
+      const d = vec3(rng, -4, 4);
+      if (nonZeroCount(d) < 2 || nonZeroCount(a) < 2) continue;
+      return { a, d, form };
+    }
+    return { a: [1, -2, 3], d: [2, 1, -1], form };
+  },
+  render: ({ a, d, form }): Slide => {
+    const b = plus(a, d);
+    const prompt: Block[] =
+      form === 'vector'
+        ? [
+            {
+              kind: 'prose',
+              text: 'To find the angle this line makes with another, which vector goes into the scalar product? Place its components.',
+            },
+            { kind: 'display', tex: lineTex(a, d) },
+          ]
+        : form === 'point'
+          ? [
+              {
+                kind: 'prose',
+                text: 'Every point of a line is below, for some value of $t$. Place the components of the vector that goes into the scalar product when finding the angle it makes with another line.',
+              },
+              { kind: 'display', tex: `\\left(${a.map((x, i) => affTex(x, d[i], 't')).join(', \\; ')}\\right)` },
+            ]
+          : [
+              {
+                kind: 'prose',
+                text: `A line passes through $A${point3Tex(a)}$ and $B${point3Tex(b)}$. To find the angle it makes with another line, place the components of $\\overrightarrow{AB}$.`,
+              },
+            ];
+    const tiles = d.map(String);
+    return {
+      kind: 'tiles',
+      prompt,
+      template: CROSS_TEMPLATE,
+      bank: bankOf(tiles, [...a.map(String), `${-d[0]}`, ...(form === 'two' ? [`${b[1]}`] : [])]),
+      answer: tiles,
+    };
+  },
+  solution: ({ a, d, form }) => {
+    if (form === 'two') {
+      const b = plus(a, d);
+      return [
+        { text: 'The direction is the journey from $A$ to $B$, end minus start:' },
+        ...[0, 1, 2].map((i) => ({ tex: `${AXES[i]}\\colon \\; {${b[i]} - ${bracket(a[i])}} = ${d[i]}` })),
+        { text: 'Either point could start the line; neither changes which way it points.' },
+      ];
+    }
+    return [
+      {
+        text:
+          form === 'vector'
+            ? 'An angle between lines depends only on which way they point. The direction is the vector multiplying $t$; the other only says where the line starts.'
+            : 'The coefficients of $t$ are the direction; the numbers without a $t$ are a point on the line, which plays no part in an angle.',
+      },
+      { tex: `\\mathbf{d} = ${point3Tex(d)}` },
+    ];
+  },
+};
+
+type AngleSetting = 'lines' | 'line-plane' | 'planes';
+
+interface SettingFlowParams {
+  setting: AngleSetting;
+  a: Vec;
+  c: Vec;
+  u: Vec;
+  v: Vec;
+  off: number;
+}
+
+const SETTING_TEXT: Record<AngleSetting, string> = {
+  lines: 'You want the acute angle between these two lines.',
+  'line-plane': 'You want the acute angle between this line and the plane $\\Pi$.',
+  planes: 'You want the acute angle between these two planes.',
+};
+
+const SETTING_BRANCH: Record<AngleSetting, string> = {
+  lines: 'Two direction vectors',
+  'line-plane': 'A direction and a normal',
+  planes: 'Two normals',
+};
+
+/** The displays for two lines, a line and a plane, or two planes. */
+function settingDisplays({ setting, a, c, u, v, off }: SettingFlowParams): Block[] {
+  if (setting === 'lines') {
+    return [
+      { kind: 'display', tex: lineTex(a, u, '\\lambda') },
+      { kind: 'display', tex: lineTex(c, v, '\\mu') },
+    ];
+  }
+  if (setting === 'line-plane') return [{ kind: 'display', tex: lineTex(a, u) }, planeDisplay(v, dotOf(a, v) + off, 'cartesian')];
+  return [
+    { kind: 'display', tex: `\\Pi_1\\colon \\; {${planeTex(u, dotOf(a, u) + off)}}` },
+    { kind: 'display', tex: `\\Pi_2\\colon \\; {${planeTex(v, dotOf(c, v))}}` },
+  ];
+}
+
+/**
+ * What goes into the scalar product, and what to do with the angle it gives:
+ * two directions or two normals, then the modulus for the acute angle; a
+ * direction and a normal, then ninety degrees minus.
+ */
+const angleSettingFlow: Generator<SettingFlowParams> = {
+  id: 'angle-setting-flow',
+  sample: (rng, difficulty) => {
+    const setting = difficulty > 1 ? rng.pick<AngleSetting>(['lines', 'line-plane', 'planes']) : 'lines';
+    const negative = rng.chance(0.5);
+    for (let tries = 0; tries < 400; tries += 1) {
+      const u = vec3(rng, -3, 3);
+      const v = vec3(rng, -3, 3);
+      if (nonZeroCount(u) < 2 || nonZeroCount(v) < 2 || isParallel(u, v)) continue;
+      const dot = dotOf(u, v);
+      if (dot === 0 || (setting !== 'line-plane' && dot < 0 !== negative)) continue;
+      return { setting, a: vec3(rng, -4, 4), c: vec3(rng, -4, 4), u, v, off: rng.int(-4, 4) };
+    }
+    return { setting, a: [1, 0, 2], c: [0, 1, -1], u: [1, 2, 2], v: [2, -1, 2], off: 1 };
+  },
+  render: (params): Slide => {
+    const { setting, u, v } = params;
+    const dot = dotOf(u, v);
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: `${SETTING_TEXT[setting]} Work down the questions; each answer chooses what gets asked next.` },
+        ...settingDisplays(params),
+      ],
+      subject: '\\cos\\theta = \\frac{\\mathbf{p} \\cdot \\mathbf{q}}{|\\mathbf{p}| \\, |\\mathbf{q}|}',
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which two vectors are $\\mathbf{p}$ and $\\mathbf{q}$?',
+          branches: [
+            { label: SETTING_BRANCH.lines, to: 'sign' },
+            { label: SETTING_BRANCH['line-plane'], to: 'complement' },
+            { label: SETTING_BRANCH.planes, to: 'sign' },
+          ],
+        },
+        {
+          id: 'sign',
+          ask: 'Is their scalar product negative?',
+          branches: [
+            { label: 'Yes', outcome: 'Take its modulus, so the angle found is the acute one.' },
+            { label: 'No', outcome: 'The angle from the formula is already the acute one.' },
+          ],
+        },
+        {
+          id: 'complement',
+          ask: 'That gives the angle between the line and the normal. Is it the angle with the plane?',
+          branches: [
+            { label: 'Yes', outcome: 'Use it as it is.' },
+            { label: 'No', outcome: 'Take it from $90^\\circ$ to get the angle with the plane.' },
+          ],
+        },
+      ],
+      answer: [SETTING_BRANCH[setting], setting === 'line-plane' ? 'No' : dot < 0 ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ setting, u, v }) => {
+    const dot = dotOf(u, v);
+    const which: Record<AngleSetting, string> = {
+      lines: 'An angle between lines is the angle between their directions, the vectors multiplying $\\lambda$ and $\\mu$. The start points play no part.',
+      'line-plane': "A line against a plane uses the line's direction and the plane's normal, read off the coefficients of $x$, $y$ and $z$.",
+      planes: 'An angle between planes is the angle between their normals, read off the coefficients of $x$, $y$ and $z$.',
+    };
+    return [
+      { text: which[setting] },
+      ...dotLines(v, u),
+      {
+        text:
+          setting === 'line-plane'
+            ? 'The normal is at right angles to the plane, so the formula finds the angle to the normal; the angle to the plane is $90^\\circ$ minus that.'
+            : dot < 0
+              ? 'The scalar product is negative, which would give the obtuse angle, so take its modulus for the acute one.'
+              : 'The scalar product is positive, so the formula already gives the acute angle.',
+      },
+    ];
+  },
+};
+
+interface LinesAngleParams {
+  a: Vec;
+  c: Vec;
+  u: Vec;
+  v: Vec;
+  cls: CosClass;
+}
+
+function twoLines({ a, c, u, v }: { a: Vec; c: Vec; u: Vec; v: Vec }): Block[] {
+  return [
+    { kind: 'display', tex: lineTex(a, u, '\\lambda') },
+    { kind: 'display', tex: lineTex(c, v, '\\mu') },
+  ];
+}
+
+/** The acute angle between two lines, in whole degrees. */
+const angleLines: Generator<LinesAngleParams> = {
+  id: 'angle-lines',
+  // The obtuse angle the raw scalar product gives, and the complement.
+  choices: (params) => {
+    const acute = CLASS_ANGLE[params.cls];
+    return degreeOptions(acute, [180 - acute, 90 - acute], saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const { u, v, cls } = drawStandard(
+      rng,
+      difficulty > 1 ? ['half', 'root2', 'root3', 'zero'] : ['half', 'root2'],
+      difficulty > 1 ? 3 : 2,
+    );
+    // A direction doubled on the harder draws: the same line, and the same angle.
+    const scale = difficulty > 1 && rng.chance(0.3) ? 2 : 1;
+    return { a: vec3(rng, -4, 4), c: vec3(rng, -4, 4), u, v: scaled(scale, v), cls };
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Find the acute angle between the two lines, in degrees.' }, ...twoLines(params)],
+    lead: '\\text{angle} =',
+    keypad: [],
+    answer: `${CLASS_ANGLE[params.cls]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ u, v, cls }) => [
+    {
+      text: `Only the directions matter: $\\mathbf{d}_1 = ${point3Tex(u)}$ and $\\mathbf{d}_2 = ${point3Tex(v)}$.`,
+    },
+    ...standardAngleSteps(u, v, cls, true, ['\\mathbf{d}_1', '\\mathbf{d}_2']),
+  ],
+};
+
+interface LinesCosParams {
+  a: Vec;
+  c: Vec;
+  u: Vec;
+  v: Vec;
+}
+
+function sampleLinesCos(rng: Draw, difficulty: number): LinesCosParams {
+  const { u, v } = sampleWholePair(rng, difficulty);
+  return { a: vec3(rng, -4, 4), c: vec3(rng, -4, 4), u, v };
+}
+
+function linesCosSolution({ u, v }: LinesCosParams) {
+  const dot = dotOf(u, v);
+  const mu = lengthOf(u);
+  const mv = lengthOf(v);
+  return [
+    {
+      text: `The directions are $\\mathbf{d}_1 = ${point3Tex(u)}$ and $\\mathbf{d}_2 = ${point3Tex(v)}$. Their scalar product:`,
+    },
+    ...fittedDotLines(v, u),
+    { text: `Their lengths are $\\sqrt{${dotOf(u, u)}} = ${mu}$ and $\\sqrt{${dotOf(v, v)}} = ${mv}$.` },
+    ...(dot < 0
+      ? [{ text: 'The scalar product is negative, which gives the obtuse angle. For the acute one, take its modulus.' }]
+      : []),
+    { tex: `\\cos\\theta = \\frac{${Math.abs(dot)}}{${mu} \\times ${mv}} = ${fracTex(Math.abs(dot), mu * mv)}` },
+  ];
+}
+
+/** The cosine of the acute angle between two lines whose directions have whole lengths. */
+const angleLinesCos: Generator<LinesCosParams> = {
+  id: 'angle-lines-cos',
+  sample: sampleLinesCos,
+  render: (params): Slide => {
+    const { u, v } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Find the cosine of the acute angle between the two lines, as a fraction.' },
+        ...twoLines(params),
+      ],
+      lead: '\\cos\\theta =',
+      keypad: [{ insert: '/' }],
+      answer: `${Math.abs(dotOf(u, v))}/${lengthOf(u) * lengthOf(v)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: linesCosSolution,
+};
+
+/** The same cosine as a tree. The start points' scalar product is in the bank, as the slip. */
+const angleLinesCosTree: Generator<LinesCosParams> = {
+  id: 'angle-lines-cos-tree',
+  sample: sampleLinesCos,
+  render: (params): Slide => {
+    const { a, c, u, v } = params;
+    const dot = dotOf(u, v);
+    const mu = lengthOf(u);
+    const mv = lengthOf(v);
+    const answer = [`${dot}`, `${mu}`, `${mv}`, fracTex(Math.abs(dot), mu * mv)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The lines have directions $\\mathbf{d}_1$ and $\\mathbf{d}_2$. Find the scalar product of the directions, their lengths, then the cosine of the acute angle.',
+        },
+        ...twoLines(params),
+      ],
+      expression: '\\cos\\theta = \\frac{|\\mathbf{d}_1 \\cdot \\mathbf{d}_2|}{|\\mathbf{d}_1| \\, |\\mathbf{d}_2|}',
+      nodes: [
+        { id: 'dot', from: [] },
+        { id: 'd1', from: [] },
+        { id: 'd2', from: [] },
+        { id: 'cos', from: ['dot', 'd1', 'd2'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [fracTex(-Math.abs(dot), mu * mv), `${dotOf(a, c)}`, `${dotOf(u, u)}`, `${-dot}`],
+        [`${mu + 1}`, `${mv + 2}`, `${dot + 1}`, fracTex(Math.abs(dot), mu + mv)],
+      ),
+      answer,
+    };
+  },
+  solution: linesCosSolution,
+};
+
+/* Lesson 5: lines and planes. */
+
+interface LinePlaneAngleParams {
+  a: Vec;
+  b: Vec;
+  n: Vec;
+  off: number;
+  cls: CosClass;
+}
+
+function sampleLinePlaneAngle(rng: Draw, difficulty: number): LinePlaneAngleParams {
+  const { u, v, cls } = drawStandard(
+    rng,
+    difficulty > 1 ? ['half', 'root2', 'root3'] : ['half', 'root2'],
+    difficulty > 1 ? 3 : 2,
+  );
+  return { a: vec3(rng, -4, 4), b: u, n: v, off: rng.int(-3, 3), cls };
+}
+
+function linePlaneDisplays({ a, b, n, off }: LinePlaneAngleParams): Block[] {
+  return [{ kind: 'display', tex: lineTex(a, b) }, planeDisplay(n, dotOf(a, n) + off, 'cartesian')];
+}
+
+/** The angle with the plane: ninety degrees minus the angle with the normal. */
+const planeAngleOf = (cls: CosClass) => 90 - CLASS_ANGLE[cls];
+
+function linePlaneAngleSolution({ b, n, cls }: LinePlaneAngleParams) {
+  const phi = CLASS_ANGLE[cls];
+  return [
+    {
+      text: `First the angle $\\phi$ between the line and the normal, from $\\mathbf{b} = ${point3Tex(b)}$ and $\\mathbf{n} = ${point3Tex(n)}$.`,
+    },
+    ...standardAngleSteps(b, n, cls, true, ['\\mathbf{b}', '\\mathbf{n}'], '\\phi'),
+    {
+      text: `The normal is at right angles to the plane, so the line meets the plane at $90^\\circ - ${phi}^\\circ = ${90 - phi}^\\circ$. In one step: $\\sin\\theta = ${CLASS_COS[cls]}$.`,
+    },
+  ];
+}
+
+/** The acute angle between a line and a plane, in whole degrees. */
+const angleLinePlane: Generator<LinePlaneAngleParams> = {
+  id: 'angle-line-plane',
+  // The angle with the normal instead, and its obtuse partners.
+  choices: (params) => {
+    const theta = planeAngleOf(params.cls);
+    return degreeOptions(theta, [90 - theta, 90 + theta, 180 - theta], saltOf(params));
+  },
+  sample: sampleLinePlaneAngle,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the acute angle between the line and the plane $\\Pi$, in degrees.' },
+      ...linePlaneDisplays(params),
+    ],
+    lead: '\\text{angle} =',
+    keypad: [],
+    answer: `${planeAngleOf(params.cls)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: linePlaneAngleSolution,
+};
+
+/** The same angle as a tree: the scalar product and two lengths, sine, then the angle. */
+const angleLinePlaneTree: Generator<LinePlaneAngleParams> = {
+  id: 'angle-line-plane-tree',
+  sample: sampleLinePlaneAngle,
+  render: (params): Slide => {
+    const { b, n, cls } = params;
+    const theta = planeAngleOf(cls);
+    const dot = dotOf(b, n);
+    const B = dotOf(b, b);
+    const N = dotOf(n, n);
+    const answer = [`${dot}`, rootTex(B), rootTex(N), CLASS_COS[cls], `${theta}`];
+    const otherCos = (['half', 'root2', 'root3'] as CosClass[]).filter((x) => x !== cls).map((x) => CLASS_COS[x]);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the acute angle between the line and the plane $\\Pi$: the scalar product of the direction and the normal, their lengths, $\\sin\\theta$, then $\\theta$ in degrees.',
+        },
+        ...linePlaneDisplays(params),
+      ],
+      expression: '\\sin\\theta = \\frac{|\\mathbf{b} \\cdot \\mathbf{n}|}{|\\mathbf{b}| \\, |\\mathbf{n}|}',
+      nodes: [
+        { id: 'dot', from: [] },
+        { id: 'b', from: [] },
+        { id: 'n', from: [] },
+        { id: 'sin', from: ['dot', 'b', 'n'] },
+        { id: 'theta', from: ['sin'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [`${90 - theta}`, `-${CLASS_COS[cls]}`, `${B}`, ...otherCos],
+        [`${N}`, `${dot + 1}`, `${-dot}`],
+      ),
+      answer,
+    };
+  },
+  solution: linePlaneAngleSolution,
+};
+
+interface PlanesAngleParams {
+  n1: Vec;
+  n2: Vec;
+  d1: number;
+  d2: number;
+  cls: CosClass;
+}
+
+/** The acute angle between two planes, from their normals, in whole degrees. */
+const anglePlanes: Generator<PlanesAngleParams> = {
+  id: 'angle-planes',
+  choices: (params) => {
+    const acute = CLASS_ANGLE[params.cls];
+    return degreeOptions(acute, [180 - acute, 90 - acute], saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const { u, v, cls } = drawStandard(
+      rng,
+      difficulty > 1 ? ['half', 'root2', 'root3', 'zero'] : ['half', 'root2'],
+      difficulty > 1 ? 3 : 2,
+    );
+    return { n1: u, n2: v, d1: rng.int(-6, 6), d2: rng.int(-6, 6), cls };
+  },
+  render: ({ n1, n2, d1, d2, cls }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the acute angle between the two planes, in degrees.' },
+      { kind: 'display', tex: `\\Pi_1\\colon \\; {${planeTex(n1, d1)}}` },
+      { kind: 'display', tex: `\\Pi_2\\colon \\; {${planeTex(n2, d2)}}` },
+    ],
+    lead: '\\text{angle} =',
+    keypad: [],
+    answer: `${CLASS_ANGLE[cls]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n1, n2, cls }) => [
+    {
+      text: `The angle between two planes is the angle between their normals, read off the coefficients: $\\mathbf{n}_1 = ${point3Tex(n1)}$ and $\\mathbf{n}_2 = ${point3Tex(n2)}$.`,
+    },
+    ...standardAngleSteps(n1, n2, cls, true, ['\\mathbf{n}_1', '\\mathbf{n}_2']),
+  ],
+};
+
+type SitSetting = 'line' | 'planes';
+type SitRelation = 'perpendicular' | 'parallel' | 'neither';
+
+interface SitParams {
+  setting: SitSetting;
+  rel: SitRelation;
+  a: Vec;
+  u: Vec;
+  n: Vec;
+  m: number;
+  off: number;
+}
+
+const SIT_LABELS: Record<SitSetting, Record<SitRelation, string>> = {
+  line: {
+    perpendicular: '\\text{Perpendicular to the plane}',
+    parallel: '\\text{Parallel to the plane}',
+    neither: '\\text{Neither}',
+  },
+  planes: {
+    perpendicular: '\\text{Perpendicular planes}',
+    parallel: '\\text{Parallel planes}',
+    neither: '\\text{Neither}',
+  },
+};
+
+/**
+ * Perpendicular, parallel or neither, for a line against a plane or for two
+ * planes. The trap is the line: it is perpendicular to the plane when its
+ * direction is parallel to the normal, and parallel to the plane when its
+ * direction is perpendicular to the normal.
+ */
+const angleLinePlaneKind: Generator<SitParams> = {
+  id: 'angle-line-plane-kind',
+  sample: (rng, difficulty) => {
+    const setting: SitSetting = difficulty > 1 && rng.chance(0.5) ? 'planes' : 'line';
+    const rel = rng.pick<SitRelation>(['perpendicular', 'parallel', 'neither']);
+    // Which relation needs the two vectors to be multiples of each other.
+    const multiple = (setting === 'line') === (rel === 'perpendicular');
+    for (let tries = 0; tries < 2000; tries += 1) {
+      const n = vec3(rng, -3, 3);
+      if (nonZeroCount(n) < 2) continue;
+      const m = rng.pick([-2, -1, 2, 3]);
+      let u: Vec;
+      if (rel !== 'neither' && multiple) {
+        u = scaled(m, n);
+      } else {
+        u = vec3(rng, -3, 3);
+        if (nonZeroCount(u) < 2 || isParallel(u, n)) continue;
+        if ((rel === 'neither') === (dotOf(u, n) === 0)) continue;
+      }
+      return { setting, rel, a: vec3(rng, -4, 4), u, n, m, off: nonZeroInt(rng, 4) };
+    }
+    return { setting, rel: 'neither', a: [1, 0, 2], u: [1, 1, 1], n: [1, 2, -1], m: 2, off: 1 };
+  },
+  render: (params): Slide => {
+    const { setting, rel, a, u, n, m, off } = params;
+    const d = dotOf(a, n);
+    const others = (['perpendicular', 'parallel', 'neither'] as SitRelation[]).filter((x) => x !== rel);
+    const prompt: Block[] =
+      setting === 'line'
+        ? [
+            { kind: 'prose', text: 'Is the line perpendicular to the plane $\\Pi$, parallel to it, or neither?' },
+            { kind: 'display', tex: lineTex(a, u) },
+            planeDisplay(n, d + off, 'cartesian'),
+          ]
+        : [
+            { kind: 'prose', text: 'Are these two planes perpendicular, parallel, or neither?' },
+            { kind: 'display', tex: `\\Pi_1\\colon \\; {${planeTex(n, d)}}` },
+            // A parallel pair is never the same plane twice.
+            { kind: 'display', tex: `\\Pi_2\\colon \\; {${planeTex(u, rel === 'parallel' ? m * d + off : dotOf(a, u) + off)}}` },
+          ];
+    return {
+      kind: 'choice',
+      prompt,
+      options: placeAnswer(
+        { id: rel, label: SIT_LABELS[setting][rel] },
+        others.map((x) => ({ id: x, label: SIT_LABELS[setting][x] })),
+        saltOf(params),
+      ),
+      correctId: rel,
+    };
+  },
+  solution: ({ setting, rel, u, n, m }) => {
+    const first = setting === 'line' ? '\\mathbf{b}' : '\\mathbf{n}_2';
+    const second = setting === 'line' ? '\\mathbf{n}' : '\\mathbf{n}_1';
+    const intro =
+      setting === 'line'
+        ? `Compare the line's direction $\\mathbf{b} = ${point3Tex(u)}$ with the normal $\\mathbf{n} = ${point3Tex(n)}$.`
+        : `Compare the normals, $\\mathbf{n}_1 = ${point3Tex(n)}$ and $\\mathbf{n}_2 = ${point3Tex(u)}$.`;
+    if (rel !== 'neither' && (setting === 'line') === (rel === 'perpendicular')) {
+      return [
+        { text: intro },
+        { tex: `${first} = ${m}${second}` },
+        {
+          text:
+            setting === 'line'
+              ? 'The direction is a multiple of the normal, so the line runs along the normal: it is perpendicular to the plane.'
+              : 'One normal is a multiple of the other, so the planes face the same way: they are parallel.',
+        },
+      ];
+    }
+    return [
+      { text: `${intro} Neither is a multiple of the other, so test the scalar product:` },
+      ...dotLines(u, n),
+      {
+        text:
+          rel === 'neither'
+            ? 'It is not zero either, so the answer is neither.'
+            : setting === 'line'
+              ? 'Zero, so the direction is at right angles to the normal: the line runs parallel to the plane.'
+              : 'Zero, so the normals are at right angles, and so are the planes.',
+      },
+    ];
+  },
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -8058,4 +9765,26 @@ export const vectorGenerators = [
   mechMeetTime,
   mechMeetPoint,
   mechMeetFlow,
+  angleDot3,
+  angleDot3Tree,
+  angleSign,
+  angleDotK,
+  angleDotAlgebra,
+  angleCos,
+  angleCosTree,
+  angleDegrees,
+  angleGiven,
+  anglePerpWhich,
+  angleRelationFlow,
+  anglePerpK,
+  anglePerpKTree,
+  angleLineDirection,
+  angleSettingFlow,
+  angleLines,
+  angleLinesCos,
+  angleLinesCosTree,
+  angleLinePlane,
+  angleLinePlaneTree,
+  anglePlanes,
+  angleLinePlaneKind,
 ] as unknown as Generator<unknown>[];

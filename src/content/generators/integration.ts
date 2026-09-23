@@ -6079,6 +6079,1498 @@ const formFlow: Generator<FormParams> = {
   },
 };
 
+/* ---------- Level 7: improper integrals ---------- */
+
+/*
+ * An improper integral has an end the ordinary method cannot reach: an
+ * infinite limit, or a point where the integrand is unbounded. The fix is
+ * always the same: put t in place of that end, integrate as usual, and let t
+ * go to it. Every value in this level is built outward from a whole answer:
+ * the coefficient on the page is chosen from the answer, so nothing is
+ * rounded.
+ *
+ * The oracles in `generators.test.ts` cannot see any of this. Quadrature over
+ * declared limits reads finite limits only and would integrate straight
+ * through a pole, and the antiderivative oracle is for indefinite integrals.
+ * So no slide here declares `integrand` or `limits`. Instead each question
+ * with a value exports its integral as an `ImproperSpec`, and
+ * `improper.test.ts` integrates that numerically out towards infinity or in
+ * towards the pole, and compares it with the answer read off the slide.
+ */
+
+/** An improper integral, for the independent check in `improper.test.ts`. Never displayed. */
+export interface ImproperSpec {
+  /** The integrand in mathjs syntax, in x. */
+  f: string;
+  /** Either may be infinite. */
+  lower: number;
+  upper: number;
+  /** Interior points to split at: a pole, or a kink such as |x| has at 0. */
+  splits?: number[];
+}
+
+/** A power of x as p = m/q, in lowest terms. */
+interface Power {
+  m: number;
+  q: number;
+}
+
+const pw = (m: number, q = 1): Power => ({ m, q });
+
+/**
+ * (inner)^(m/q) as a textbook writes it: `x^{2}`, `\sqrt{x}`, `x\sqrt[3]{x}`,
+ * `(x - 2)^{2}`, `\sqrt[3]{(x + 1)^{2}}`.
+ */
+function powerOfTex({ m, q }: Power, inner = 'x'): string {
+  const base = inner.includes(' ') ? `(${inner})` : inner;
+  const whole = Math.floor(m / q);
+  const rest = m % q;
+  if (whole === 1 && rest === 0) return inner;
+  const outside = whole === 0 ? '' : whole === 1 ? base : `${base}^{${whole}}`;
+  if (rest === 0) return outside;
+  const index = q === 2 ? '' : `[${q}]`;
+  const under = rest === 1 ? inner : `${base}^{${rest}}`;
+  return `${outside}\\sqrt${index}{${under}}`;
+}
+
+/** The same power for mathjs; a cube root goes through `cbrt` so a negative inside stays real. */
+function powerAnswer({ m, q }: Power, c = 0): string {
+  const inner = c === 0 ? 'x' : `(x - (${c}))`;
+  if (q === 3) return `cbrt(${inner})^${m}`;
+  return `${inner}^(${m}/${q})`;
+}
+
+/** The same power as a number; a square root of a negative is NaN, which a figure skips. */
+function powerAt({ m, q }: Power, x: number): number {
+  const root = q === 3 ? Math.cbrt(x) : q === 2 ? Math.sqrt(x) : x;
+  return root ** m;
+}
+
+/** p = m/q as the learner reads it: `2`, `\frac{3}{2}`. */
+const powerValueTex = ({ m, q }: Power): string => (q === 1 ? `${m}` : `\\frac{${m}}{${q}}`);
+
+/** x - c as the learner reads it, or plain x. */
+const shiftTex = (c: number): string => (c === 0 ? 'x' : linearTex(1, -c));
+
+/** A limit of integration, infinite ones included. */
+const endTex = (v: number): string => (v === Infinity ? '\\infty' : v === -Infinity ? '-\\infty' : `${v}`);
+
+function improperTex(integrand: string, lower: number, upper: number): string {
+  return `\\int_{${endTex(lower)}}^{${endTex(upper)}} ${integrand} \\, dx`;
+}
+
+/** x^n for a whole n, in whichever letter: `x`, `t^{2}`. */
+const letterTo = (n: number, letter = 'x'): string => (n === 1 ? letter : `${letter}^{${n}}`);
+
+/** k e^(-rx) for a decay, k e^(rx) for a negative r. */
+function expTex(k: number, rate: number): string {
+  const size = Math.abs(rate);
+  return `${k === 1 ? '' : k}e^{${rate > 0 ? '-' : ''}${size === 1 ? '' : size}x}`;
+}
+
+/** A number a salt can use: infinite limits become fixed stand-ins. */
+const saltOf = (v: number): number => (v === Infinity ? 101 : v === -Infinity ? 103 : v);
+
+const DIVERGES_TEX = '\\text{Diverges}';
+const convergesTex = (r: Ratio): string => `\\text{Converges to } ${ratioTex(r)}`;
+
+/** Ratios for slips, the right value and repeats removed, at most `count` of them. */
+function slipRatios(right: Ratio, slips: Ratio[], count: number): Ratio[] {
+  const out: Ratio[] = [];
+  for (const slip of slips) {
+    if (out.length === count) break;
+    if (!Number.isFinite(slip.n) || !Number.isFinite(slip.d) || slip.d === 0) continue;
+    const same = (r: Ratio) => r.n === slip.n && r.d === slip.d;
+    if (same(right) || out.some(same)) continue;
+    out.push(slip);
+  }
+  return out;
+}
+
+/** A typed value's options: the value, numeric slips, and "diverges". */
+function valueChoices(right: Ratio, slips: Ratio[], salt: number): ChoiceOption[] {
+  const numeric = (r: Ratio) => ({ tex: ratioTex(r), answer: `${r.n}/${r.d}` });
+  return steered(
+    options(numeric(right), ...slipRatios(right, slips, 2).map(numeric), { tex: DIVERGES_TEX }),
+    salt,
+  );
+}
+
+/** A native "converge or diverge" choice: `right` is null when the integral diverges. */
+function verdictOptions(right: Ratio | null, slips: Ratio[], salt: number) {
+  const say = (r: Ratio) => ({ tex: convergesTex(r) });
+  const opts =
+    right === null
+      ? options({ tex: DIVERGES_TEX }, ...slipRatios({ n: NaN, d: 1 }, slips, 3).map(say))
+      : options(say(right), { tex: DIVERGES_TEX }, ...slipRatios(right, slips, 2).map(say));
+  return placedChoices(opts, salt);
+}
+
+/* What makes an integral improper. */
+
+type WhichKind = 'upper' | 'lower' | 'end' | 'inside' | 'proper';
+
+export interface WhichParams {
+  kind: WhichKind;
+  k: number;
+  power: Power;
+  /** Where the bottom of the integrand is zero. */
+  c: number;
+  lower: number;
+  upper: number;
+}
+
+function sampleWhich(rng: Rng, difficulty: number): WhichParams {
+  const hard = difficulty > 1;
+  const kind = rng.pick<WhichKind>(hard ? ['upper', 'lower', 'end', 'inside', 'proper', 'proper'] : ['upper', 'lower', 'end', 'inside', 'proper']);
+  const k = rng.int(1, 9);
+  const c = rng.int(-3, 3);
+  const gap = rng.int(1, hard ? 2 : 3);
+  const width = rng.int(2, 5);
+  if (kind === 'upper') {
+    return { kind, k, c, power: rng.pick([pw(2), pw(3), pw(1, 2), pw(3, 2)]), lower: c + gap, upper: Infinity };
+  }
+  if (kind === 'lower') return { kind, k, c, power: rng.pick([pw(2), pw(3)]), lower: -Infinity, upper: c - gap };
+  if (kind === 'end') {
+    const power = rng.pick([pw(1), pw(2), pw(1, 2), pw(1, 3)]);
+    const atLower = power.q === 2 || rng.chance(0.5);
+    return atLower ? { kind, k, c, power, lower: c, upper: c + width } : { kind, k, c, power, lower: c - width, upper: c };
+  }
+  if (kind === 'inside') {
+    const left = rng.int(1, width - 1);
+    return { kind, k, c, power: rng.pick([pw(1), pw(2), pw(1, 3), pw(2, 3)]), lower: c - left, upper: c - left + width };
+  }
+  const power = rng.pick([pw(1), pw(2), pw(1, 2), pw(2, 3)]);
+  const right = power.q === 2 || rng.chance(0.5);
+  return right
+    ? { kind, k, c, power, lower: c + gap, upper: c + gap + width }
+    : { kind, k, c, power, lower: c - gap - width, upper: c - gap };
+}
+
+const whichIntegrandTex = ({ k, power, c }: { k: number; power: Power; c: number }): string =>
+  `\\frac{${k}}{${powerOfTex(power, shiftTex(c))}}`;
+
+export function whichSpec({ k, power, c, lower, upper }: WhichParams): ImproperSpec & { pole: number } {
+  return { f: `(${k}) / ${powerAnswer(power, c)}`, lower, upper, pole: c };
+}
+
+const WHICH_INFINITE = 'Improper: an infinite limit. Put $t$ in its place and let $t$ grow.';
+const WHICH_POLE = 'Improper: the integrand is unbounded there. Put $t$ in place of that point and let $t$ approach it.';
+const WHICH_PROPER = 'Proper: an ordinary definite integral, worked as usual.';
+
+/**
+ * Proper or improper, as a route: an infinite limit first, then a point in
+ * the interval where the integrand is unbounded. The proper draws keep the
+ * bad point one or two units outside the interval, which is the near miss.
+ */
+const whichFlow: Generator<WhichParams> = {
+  id: 'int-imp-which-flow',
+  sample: sampleWhich,
+  render: (params): Slide => {
+    const answer: Record<WhichKind, string[]> = {
+      upper: ['Yes'],
+      lower: ['Yes'],
+      end: ['No', 'Yes'],
+      inside: ['No', 'Yes'],
+      proper: ['No', 'No'],
+    };
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Is this integral improper? Each answer chooses what gets asked next.' }],
+      subject: improperTex(whichIntegrandTex(params), params.lower, params.upper),
+      steps: [
+        {
+          id: 'limit',
+          ask: 'Is either limit infinite?',
+          branches: [
+            { label: 'Yes', outcome: WHICH_INFINITE },
+            { label: 'No', to: 'unbounded' },
+          ],
+        },
+        {
+          id: 'unbounded',
+          ask: 'Is the integrand unbounded anywhere from the lower limit to the upper, the ends included?',
+          branches: [
+            { label: 'Yes', outcome: WHICH_POLE },
+            { label: 'No', outcome: WHICH_PROPER },
+          ],
+        },
+      ],
+      answer: answer[params.kind],
+    };
+  },
+  solution: ({ kind, c, lower, upper }) => {
+    if (kind === 'upper' || kind === 'lower') {
+      return [
+        { text: `The ${kind} limit is infinite, so the integral is improper whatever the integrand does.` },
+        { text: 'It is worked as a limit: put $t$ in place of the infinite end, integrate, and let $t$ grow.' },
+      ];
+    }
+    const where = kind === 'inside' ? 'inside the interval' : kind === 'end' ? 'an end of the interval' : 'outside the interval';
+    return [
+      { text: `Both limits are finite. The bottom of the integrand is zero at $x = ${c}$, where the integrand is unbounded.` },
+      { text: `The interval runs from $${lower}$ to $${upper}$, so $x = ${c}$ is ${where}.` },
+      {
+        text:
+          kind === 'proper'
+            ? 'The integrand never blows up between the limits, so this is an ordinary definite integral.'
+            : `So the integral is improper, and $x = ${c}$ is where the limit is taken.`,
+      },
+    ];
+  },
+};
+
+interface PointParams {
+  k: number;
+  power: Power;
+  c: number;
+  lower: number;
+  upper: number;
+}
+
+/** Where a finite-looking integral goes wrong, found on its graph. */
+const problemPoint: Generator<PointParams> = {
+  id: 'int-imp-problem-point',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const power = rng.pick([pw(1), pw(2), pw(1, 2), pw(1, 3), pw(2, 3)]);
+        const lower = rng.int(-4, 1);
+        const upper = lower + rng.int(4, difficulty > 1 ? 8 : 6);
+        return { k: rng.int(1, 6), power, c: power.q === 2 ? lower : rng.int(lower, upper), lower, upper };
+      },
+      ({ c, lower, upper }) => c !== restingOn(lower, upper),
+      { k: 2, power: pw(2), c: 1, lower: -2, upper: 4 },
+    ),
+  render: (params): Slide => {
+    const { k, power, c, lower, upper } = params;
+    const f = (x: number) => k / powerAt(power, x - c);
+    const high = 3 * k;
+    // An odd power changes sign across the pole; an even one or a square root does not.
+    const signed = power.m % 2 === 1 && power.q !== 2;
+    const window = markerWindow(lower, upper);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Both limits of $${improperTex(whichIntegrandTex(params), lower, upper)}$ are finite, yet it is improper. Slide the marker to where the integrand is unbounded.`,
+        },
+      ],
+      min: lower,
+      max: upper,
+      step: 1,
+      answer: c,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: window.xMin,
+          xMax: window.xMax,
+          yMin: signed ? -high : -0.25 * high,
+          yMax: high,
+          curves: [{ f, breaks: true }],
+          label: 'The graph of the integrand between the limits',
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ power, c, lower, upper }) => [
+    { text: `The integrand is unbounded where its bottom is zero, and $${powerOfTex(power, shiftTex(c))}$ is zero at $x = ${c}$.` },
+    {
+      text: `That is ${c === lower || c === upper ? 'an end' : 'inside'} of the interval from $${lower}$ to $${upper}$. On the graph it is where the curve shoots off.`,
+    },
+    { tex: `x = ${c}` },
+  ],
+};
+
+interface SpotIntegral {
+  k: number;
+  power: Power;
+  c: number;
+  lower: number;
+  upper: number;
+}
+
+interface SpotParams {
+  right: SpotIntegral;
+  wrong: SpotIntegral[];
+}
+
+const spotTex = (s: SpotIntegral): string => improperTex(whichIntegrandTex(s), s.lower, s.upper);
+
+/**
+ * One improper integral among three ordinary ones. At difficulty 2 all four
+ * share one integrand shape and finite limits, so the only difference is
+ * whether the bad point lies inside the interval.
+ */
+const spotImproper: Generator<SpotParams> = {
+  id: 'int-imp-spot',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const shared = rng.pick([pw(1), pw(2), pw(1, 2), pw(2, 3)]);
+    const powerFor = () => (hard ? shared : rng.pick([pw(1), pw(2), pw(3), pw(1, 2), pw(2, 3)]));
+    const proper = (): SpotIntegral => {
+      const power = powerFor();
+      const c = rng.int(-3, 3);
+      const width = rng.int(1, 4);
+      const gap = rng.int(1, 2);
+      return power.q === 2 || rng.chance(0.5)
+        ? { k: rng.int(1, 9), power, c, lower: c + gap, upper: c + gap + width }
+        : { k: rng.int(1, 9), power, c, lower: c - gap - width, upper: c - gap };
+    };
+    const improper = (): SpotIntegral => {
+      const power = powerFor();
+      const c = rng.int(-3, 3);
+      const k = rng.int(1, 9);
+      const width = rng.int(2, 4);
+      const kind = power.q === 2 ? rng.pick(hard ? ['end'] : ['end', 'infinite']) : rng.pick(hard ? ['end', 'inside'] : ['end', 'infinite']);
+      if (kind === 'infinite') return { k, power, c, lower: c + rng.int(1, 2), upper: Infinity };
+      if (kind === 'inside') {
+        const left = rng.int(1, width - 1);
+        return { k, power, c, lower: c - left, upper: c - left + width };
+      }
+      return power.q === 2 || rng.chance(0.5) ? { k, power, c, lower: c, upper: c + width } : { k, power, c, lower: c - width, upper: c };
+    };
+    return drawUntil(
+      () => ({ right: improper(), wrong: [proper(), proper(), proper()] }),
+      ({ right, wrong }) => new Set([right, ...wrong].map(spotTex)).size === 4,
+      {
+        right: { k: 1, power: pw(2), c: 0, lower: -1, upper: 2 },
+        wrong: [
+          { k: 1, power: pw(2), c: 0, lower: 1, upper: 3 },
+          { k: 2, power: pw(2), c: 1, lower: 2, upper: 4 },
+          { k: 3, power: pw(2), c: -1, lower: -4, upper: -2 },
+        ],
+      },
+    );
+  },
+  render: ({ right, wrong }): Slide => ({
+    kind: 'choice',
+    prompt: [{ kind: 'prose', text: 'Which of these integrals is improper?' }],
+    ...placedChoices(
+      [right, ...wrong].map((s) => ({ tex: spotTex(s) })),
+      mix(right.k, right.c, saltOf(right.upper), ...wrong.map((s) => s.c * 7 + s.k)),
+    ),
+  }),
+  solution: ({ right }) => [
+    { tex: spotTex(right) },
+    {
+      text:
+        right.upper === Infinity
+          ? 'Its upper limit is infinite, so it is improper whatever the integrand does.'
+          : `Its integrand is unbounded at $x = ${right.c}$, which is ${right.c === right.lower || right.c === right.upper ? 'an end' : 'inside'} of the interval from $${right.lower}$ to $${right.upper}$.`,
+    },
+    { text: 'In each of the others the bottom is zero only outside the interval, so the integrand stays bounded and the integral is an ordinary one.' },
+  ],
+};
+
+type LimitKind = 'upper' | 'lower' | 'start' | 'finish';
+
+interface LimitTilesParams {
+  kind: LimitKind;
+  k: number;
+  n: number;
+  a: number;
+  b: number;
+}
+
+const limTok = (to: string): string => `\\lim_{t \\to ${to}}`;
+const intTok = (lower: string | number, upper: string | number): string => `\\int_{${lower}}^{${upper}}`;
+
+function limitTilesParts({ kind, k, n, a, b }: LimitTilesParams) {
+  if (kind === 'upper') {
+    return {
+      integrand: `\\frac{${k}}{${letterTo(n)}}`,
+      lower: a,
+      upper: Infinity,
+      answer: [limTok('\\infty'), intTok(a, 't')],
+      wrong: [limTok('0'), limTok('-\\infty'), intTok('t', '\\infty'), intTok('t', a)],
+    };
+  }
+  if (kind === 'lower') {
+    return {
+      integrand: expTex(k, -n),
+      lower: -Infinity,
+      upper: b,
+      answer: [limTok('-\\infty'), intTok('t', b)],
+      wrong: [limTok('\\infty'), limTok('0'), intTok(b, 't'), intTok('-\\infty', 't')],
+    };
+  }
+  if (kind === 'start') {
+    return {
+      integrand: `\\frac{${k}}{\\sqrt{${shiftTex(a)}}}`,
+      lower: a,
+      upper: b,
+      answer: [limTok(`${a}^{+}`), intTok('t', b)],
+      wrong: [limTok(`${a}^{-}`), limTok(`${b}^{-}`), intTok(a, 't'), intTok('t', a)],
+    };
+  }
+  return {
+    integrand: `\\frac{${k}}{\\sqrt{${b} - x}}`,
+    lower: a,
+    upper: b,
+    answer: [limTok(`${b}^{-}`), intTok(a, 't')],
+    wrong: [limTok(`${b}^{+}`), limTok(`${a}^{+}`), intTok('t', b), intTok(b, 't')],
+  };
+}
+
+/** The limit an improper integral stands for, assembled from tiles. */
+const limitTiles: Generator<LimitTilesParams> = {
+  id: 'int-imp-limit-tiles',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<LimitKind>(difficulty > 1 ? ['upper', 'lower', 'start', 'finish'] : ['upper', 'start', 'upper', 'lower']);
+    const a = kind === 'upper' ? rng.int(1, 5) : rng.int(-3, 3);
+    return { kind, k: rng.int(1, 9), n: rng.int(2, 3), a, b: kind === 'lower' ? rng.int(-3, 3) : a + rng.int(1, 6) };
+  },
+  render: (params): Slide => {
+    const { integrand, lower, upper, answer, wrong } = limitTilesParts(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'display', tex: improperTex('f(x)', lower, upper) },
+        {
+          kind: 'prose',
+          text: `Here $f(x) = ${integrand}$. Put $t$ in place of the troublesome end and write the integral as a limit.`,
+        },
+      ],
+      template: '{0} \\; {1} f(x) \\, dx',
+      bank: tokenBank(answer, wrong),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { kind, a, b } = params;
+    const { lower, upper, answer } = limitTilesParts(params);
+    const trouble =
+      kind === 'upper'
+        ? 'The upper limit is infinite.'
+        : kind === 'lower'
+          ? 'The lower limit is infinite.'
+          : kind === 'start'
+            ? `The integrand is unbounded at $x = ${a}$, the lower limit, and the integral only exists to the right of it.`
+            : `The integrand is unbounded at $x = ${b}$, the upper limit, and the integral only exists to the left of it.`;
+    return [
+      { text: trouble },
+      { text: 'Replace that end by $t$, keep the other limit, and let $t$ go to the troublesome end from inside the interval.' },
+      { tex: stacked(`${improperTex('f(x)', lower, upper)}`, `= ${answer[0]} ${answer[1]} f(x) \\, dx`) },
+    ];
+  },
+};
+
+/* An infinite limit. */
+
+export interface PowerTailParams {
+  n: number;
+  a: number;
+  /** The value of the integral, from which the coefficient is built. */
+  W: number;
+}
+
+/** The coefficient that makes the integral from a to infinity of k/x^n come to W. */
+const powerTailK = ({ n, a, W }: PowerTailParams): number => W * (n - 1) * a ** (n - 1);
+
+function samplePowerTail(rng: Rng, difficulty: number): PowerTailParams {
+  return drawUntil(
+    () =>
+      difficulty > 1
+        ? { n: rng.pick([2, 2, 3, 4]), a: rng.int(1, 3), W: rng.int(1, 8) }
+        : { n: 2, a: rng.int(1, 4), W: rng.int(1, 8) },
+    (params) => powerTailK(params) <= 120,
+    { n: 2, a: 1, W: 3 },
+  );
+}
+
+const powerTailTex = (params: PowerTailParams): string =>
+  improperTex(`\\frac{${powerTailK(params)}}{${letterTo(params.n)}}`, params.a, Infinity);
+
+export function powerTailSpec(params: PowerTailParams): ImproperSpec {
+  return { f: `(${powerTailK(params)}) / x^${params.n}`, lower: params.a, upper: Infinity };
+}
+
+function powerTailSolution(params: PowerTailParams) {
+  const { n, a, W } = params;
+  const k = powerTailK(params);
+  const c = k / (n - 1);
+  return [
+    { text: 'Put $t$ in place of $\\infty$, integrate as usual, then let $t$ grow.' },
+    {
+      tex: stacked(
+        `\\int_{${a}}^{t} \\frac{${k}}{${letterTo(n)}} \\, dx`,
+        `= \\left[-\\frac{${c}}{${letterTo(n - 1)}}\\right]_{${a}}^{t}`,
+        `= ${W} - \\frac{${c}}{${letterTo(n - 1, 't')}}`,
+      ),
+    },
+    { text: `As $t$ grows, $\\frac{${c}}{${letterTo(n - 1, 't')}}$ shrinks to $0$, so the integral converges.` },
+    { tex: `${powerTailTex(params)} = ${W}` },
+  ];
+}
+
+/** The integral of k/x^n from a to infinity, typed. */
+const powerTail: Generator<PowerTailParams> = {
+  id: 'int-imp-power-tail',
+  sample: samplePowerTail,
+  choices: (params) => {
+    const { n, a, W } = params;
+    const k = powerTailK(params);
+    // Subtracted the wrong way; not divided by n - 1; the integrand's own value at a; the power taken the wrong way.
+    return valueChoices(
+      reduce(W, 1),
+      [reduce(-W, 1), reduce(k, a ** (n - 1)), reduce(k, a ** n), reduce(k, (n + 1) * a ** (n + 1))],
+      mix(n, a, W),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Evaluate. The answer is a whole number.' }],
+    lead: `${powerTailTex(params)} =`,
+    keypad: [],
+    answer: `${params.W}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: powerTailSolution,
+};
+
+/** The same integral worked one move at a time: integrate, put in the limits, let t grow. */
+const workSteps: Generator<PowerTailParams> = {
+  id: 'int-imp-work-steps',
+  sample: samplePowerTail,
+  render: (params): Slide => {
+    const { n, a, W } = params;
+    const k = powerTailK(params);
+    const c = k / (n - 1);
+    const bracket = (top: string, power: number, sign = '-') => `\\left[${sign}\\frac{${top}}{${letterTo(power)}}\\right]_{${a}}^{t}`;
+    const atT = `\\frac{${c}}{${letterTo(n - 1, 't')}}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Integrate, put in the limits, then let $t$ grow. Tap the part you would do **next**, then choose what it comes to.',
+        },
+      ],
+      start: [limTok('\\infty'), `\\int_{${a}}^{t} \\frac{${k}}{${letterTo(n)}} \\, dx`],
+      reductions: [
+        {
+          span: [1, 2],
+          value: bracket(`${c}`, n - 1),
+          // A sign lost; the power taken down instead of up; multiplied by n - 1 instead of divided.
+          bank: tokenBank(
+            [bracket(`${c}`, n - 1)],
+            [
+              bracket(`${c}`, n - 1, ''),
+              bracket(`${k}`, n + 1),
+              bracket(`${k * (n - 1)}`, n - 1),
+              bracket(`${k}`, n - 1, ''),
+              // A logarithm, as if every power of x went that way.
+              `\\left[${k}\\ln x\\right]_{${a}}^{t}`,
+            ],
+          ),
+        },
+        {
+          span: [1, 2],
+          value: `${W} - ${atT}`,
+          // Lower minus upper, and the sign of each term.
+          bank: tokenBank([`${W} - ${atT}`], [`${atT} - ${W}`, `-${atT} - ${W}`, `${W} + ${atT}`]),
+        },
+        {
+          span: [0, 2],
+          value: `${W}`,
+          bank: tokenBank([`${W}`], ['\\infty', '0', `${-W}`]),
+        },
+      ],
+    };
+  },
+  solution: powerTailSolution,
+};
+
+type ExpForm = 'rate' | 'scale' | 'left';
+
+export interface ExpTailParams {
+  form: ExpForm;
+  /** The rate c in e^(-cx), or the scale m in e^(-x/m). */
+  rate: number;
+  k: number;
+}
+
+const expTailValue = ({ form, rate, k }: ExpTailParams): number => (form === 'scale' ? k * rate : k / rate);
+
+function expTailParts({ form, rate, k }: ExpTailParams) {
+  if (form === 'scale') return { integrand: `${k === 1 ? '' : k}e^{-x/${rate}}`, lower: 0, upper: Infinity };
+  if (form === 'left') return { integrand: expTex(k, -rate), lower: -Infinity, upper: 0 };
+  return { integrand: expTex(k, rate), lower: 0, upper: Infinity };
+}
+
+const expTailTex = (params: ExpTailParams): string => {
+  const { integrand, lower, upper } = expTailParts(params);
+  return improperTex(integrand, lower, upper);
+};
+
+export function expTailSpec(params: ExpTailParams): ImproperSpec {
+  const { form, rate, k } = params;
+  const { lower, upper } = expTailParts(params);
+  const exponent = form === 'scale' ? `-x / ${rate}` : form === 'left' ? `${rate} * x` : `-${rate} * x`;
+  return { f: `(${k}) * exp(${exponent})`, lower, upper };
+}
+
+/** An exponential from 0 to infinity, or from minus infinity to 0, typed. */
+const expTail: Generator<ExpTailParams> = {
+  id: 'int-imp-exp-tail',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const form = rng.pick<ExpForm>(hard ? ['rate', 'scale', 'left'] : ['rate', 'scale']);
+    if (form === 'scale') return { form, rate: rng.int(2, hard ? 6 : 4), k: rng.int(1, 9) };
+    const rate = rng.int(1, hard ? 6 : 4);
+    return { form, rate, k: rate * rng.int(1, hard ? 10 : 8) };
+  },
+  choices: (params) => {
+    const { form, rate, k } = params;
+    const V = expTailValue(params);
+    // Divided where it should multiply (or the reverse), the coefficient alone, and the wrong sign.
+    const slips = form === 'scale' ? [reduce(k, rate), reduce(k, 1), reduce(-V, 1)] : [reduce(k * rate, 1), reduce(k, 1), reduce(-V, 1)];
+    return valueChoices(reduce(V, 1), slips, mix(rate, k, form.length));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Evaluate. The answer is a whole number.' }],
+    lead: `${expTailTex(params)} =`,
+    keypad: [],
+    answer: `${expTailValue(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { form, rate, k } = params;
+    const V = expTailValue(params);
+    if (form === 'left') {
+      return [
+        { text: `Put $t$ in place of $-\\infty$ and integrate: $\\int ${expTex(k, -rate)} \\, dx = ${leadingTex(reduce(k, rate))}${expTex(1, -rate)}$.` },
+        { tex: stacked(`\\left[${leadingTex(reduce(k, rate))}${expTex(1, -rate)}\\right]_{t}^{0}`, `= ${V} - ${leadingTex(reduce(k, rate))}${expTex(1, -rate).replace('x', 't')}`) },
+        { text: 'As $t \\to -\\infty$ the exponential shrinks to $0$, leaving the value at $x = 0$, where $e^{0} = 1$.' },
+        { tex: `${expTailTex(params)} = ${V}` },
+      ];
+    }
+    const antiderivative = form === 'scale' ? `-${V}e^{-x/${rate}}` : `-${leadingTex(reduce(k, rate))}${expTex(1, rate)}`;
+    return [
+      { text: 'Put $t$ in place of $\\infty$ and integrate, dividing by the number in front of $x$ in the power.' },
+      { tex: stacked(`\\left[${antiderivative}\\right]_{0}^{t}`, `= ${V} ${antiderivative.replace(/x/, 't')}`) },
+      { text: 'As $t$ grows the exponential shrinks to $0$, leaving the value at $x = 0$, where $e^{0} = 1$.' },
+      { tex: `${expTailTex(params)} = ${V}` },
+    ];
+  },
+};
+
+export interface TailSliderParams {
+  form: 'power' | 'exp';
+  /** The limit the area levels off at. */
+  L: number;
+  /** The lower limit for k/x^2, or the rate for an exponential from 0. */
+  a: number;
+  /** The top of the slider's track. */
+  top: number;
+}
+
+function tailSliderParts({ form, L, a }: TailSliderParams) {
+  if (form === 'power') {
+    return { integrand: `\\frac{${L * a}}{x^{2}}`, lower: a, area: (t: number) => (t < a ? NaN : L - (L * a) / t), span: 12 * a };
+  }
+  return { integrand: expTex(L * a, a), lower: 0, area: (t: number) => (t < 0 ? NaN : L * (1 - Math.exp(-a * t))), span: 6 / a };
+}
+
+export function tailSliderSpec(params: TailSliderParams): ImproperSpec {
+  const { form, L, a } = params;
+  return form === 'power'
+    ? { f: `(${L * a}) / x^2`, lower: a, upper: Infinity }
+    : { f: `(${L * a}) * exp(-${a} * x)`, lower: 0, upper: Infinity };
+}
+
+/**
+ * The area from the lower limit to t, drawn against t: it rises and levels
+ * off, and the level it approaches is the improper integral.
+ */
+const tailSlider: Generator<TailSliderParams> = {
+  id: 'int-imp-tail-slider',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const L = rng.int(2, difficulty > 1 ? 9 : 7);
+        return { form: rng.pick<'power' | 'exp'>(['power', 'exp']), L, a: rng.int(1, 3), top: L + rng.int(2, 4) };
+      },
+      ({ L, top }) => L !== restingOn(0, top),
+      { form: 'power', L: 4, a: 2, top: 7 },
+    ),
+  render: (params): Slide => {
+    const { L, top } = params;
+    const { integrand, lower, area, span } = tailSliderParts(params);
+    const window = markerWindow(0, top, 'y');
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph shows the area under $y = ${integrand}$ from $x = ${lower}$ to $x = t$, against $t$. It levels off at $${improperTex(integrand, lower, Infinity)}$. Work that out and slide the line to it.`,
+        },
+      ],
+      min: 0,
+      max: top,
+      step: 1,
+      answer: L,
+      readout: '\\text{area} = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: lower + span,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          curves: [{ f: area, accent: true, breaks: true }],
+          label: 'The area so far, rising and levelling off as t grows',
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const { form, L, a } = params;
+    const { integrand, lower } = tailSliderParts(params);
+    return [
+      {
+        tex: stacked(
+          `\\int_{${lower}}^{t} ${integrand} \\, dx`,
+          form === 'power' ? `= ${L} - \\frac{${L * a}}{t}` : `= ${L} - ${L}e^{-${a === 1 ? '' : a}t}`,
+        ),
+      },
+      { text: 'As $t$ grows the second term shrinks to $0$, which is why the graph flattens out.' },
+      { tex: `${improperTex(integrand, lower, Infinity)} = ${L}` },
+    ];
+  },
+};
+
+/* Converge or diverge. */
+
+type VerdictKind = 'tail' | 'pole' | 'exp';
+
+export interface VerdictParams {
+  kind: VerdictKind;
+  power: Power;
+  k: number;
+  /** For an exponential: its rate, and whether it grows rather than decays. */
+  rate: number;
+  grows: boolean;
+}
+
+/** p-integrals from 1 to infinity converge for p > 1; from 0 to 1, for p < 1. */
+function pValue(where: 'tail' | 'pole', { m, q }: Power, k: number): Ratio | null {
+  if (where === 'tail') return m > q ? reduce(k * q, m - q) : null;
+  return m < q ? reduce(k * q, q - m) : null;
+}
+
+function verdictValue({ kind, power, k, rate, grows }: VerdictParams): Ratio | null {
+  if (kind === 'exp') return grows ? null : reduce(k, rate);
+  return pValue(kind, power, k);
+}
+
+function verdictParts(params: VerdictParams) {
+  const { kind, power, k, rate, grows } = params;
+  if (kind === 'exp') return { integrand: expTex(k, grows ? -rate : rate), lower: 0, upper: Infinity };
+  const integrand = `\\frac{${k}}{${powerOfTex(power)}}`;
+  return kind === 'tail' ? { integrand, lower: 1, upper: Infinity } : { integrand, lower: 0, upper: 1 };
+}
+
+export function verdictSpec(params: VerdictParams): ImproperSpec {
+  const { kind, power, k, rate, grows } = params;
+  const { lower, upper } = verdictParts(params);
+  if (kind === 'exp') return { f: `(${k}) * exp(${grows ? '' : '-'}${rate} * x)`, lower, upper };
+  return { f: `(${k}) / ${powerAnswer(power)}`, lower, upper };
+}
+
+const TAIL_POWERS = [pw(1, 2), pw(2, 3), pw(1), pw(4, 3), pw(3, 2), pw(2), pw(3)];
+const POLE_POWERS = [pw(1, 3), pw(1, 2), pw(2, 3), pw(1), pw(3, 2), pw(2)];
+
+/** Converges to what, or diverges: p-integrals both ways round, and exponentials. */
+const verdict: Generator<VerdictParams> = {
+  id: 'int-imp-verdict',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const kind = rng.pick<VerdictKind>(difficulty > 1 ? ['tail', 'pole', 'exp'] : ['tail', 'tail', 'exp']);
+        const rate = rng.int(1, 3);
+        const grows = rng.chance(0.3);
+        return {
+          kind,
+          power: rng.pick(kind === 'pole' ? POLE_POWERS : TAIL_POWERS),
+          k: kind === 'exp' && !grows ? rate * rng.int(1, 6) : rng.int(1, 9),
+          rate,
+          grows: kind === 'exp' && grows,
+        };
+      },
+      (params) => {
+        const value = verdictValue(params);
+        return value === null || value.d === 1;
+      },
+      { kind: 'tail', power: pw(2), k: 3, rate: 1, grows: false },
+    ),
+  render: (params): Slide => {
+    const { kind, power, k, rate, grows } = params;
+    const { integrand, lower, upper } = verdictParts(params);
+    const value = verdictValue(params);
+    // For a divergent p-integral, what the formula gives when it is used anyway.
+    const naive =
+      kind === 'exp'
+        ? reduce(-k, rate)
+        : power.m === power.q
+          ? reduce(k, 1)
+          : reduce(k * power.q, kind === 'tail' ? power.m - power.q : power.q - power.m);
+    const slips = value === null ? [naive, reduce(-naive.n, naive.d), reduce(0, 1), reduce(k, 1)] : [reduce(k, 1), reduce(-value.n, value.d), times(value, 2)];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Does this integral converge? If it does, to what?' },
+        { kind: 'display', tex: improperTex(integrand, lower, upper) },
+      ],
+      ...verdictOptions(value, slips, mix(k, power.m, power.q, rate, kind.length, grows ? 1 : 0)),
+    };
+  },
+  solution: (params) => {
+    const { kind, power, k, rate, grows } = params;
+    const value = verdictValue(params);
+    if (kind === 'exp') {
+      return grows
+        ? [
+            { text: `$${expTex(1, -rate)}$ grows without limit as $x$ grows, and so does its integral from $0$ to $t$.` },
+            { text: 'So the integral diverges. For an exponential to converge on an infinite interval, it has to decay.' },
+          ]
+        : [
+            { text: `$\\int_{0}^{t} ${expTex(k, rate)} \\, dx = ${ratioTex(reduce(k, rate))}\\left(1 - ${expTex(1, rate).replace('x', 't')}\\right)$.` },
+            { text: 'As $t$ grows the exponential shrinks to $0$.' },
+            { tex: `\\text{Converges to } ${ratioTex(value ?? reduce(0, 1))}` },
+          ];
+    }
+    const p = powerValueTex(power);
+    const after = reduce(power.q - power.m, power.q);
+    const rule =
+      kind === 'tail'
+        ? `From $1$ to $\\infty$, $\\frac{1}{x^{p}}$ converges only when $p > 1$. Here $p = ${p}$.`
+        : `From $0$ to $1$, $\\frac{1}{x^{p}}$ converges only when $p < 1$. Here $p = ${p}$.`;
+    if (value === null) {
+      return [
+        { text: rule },
+        {
+          text:
+            power.m === power.q
+              ? `The integral is $${k}\\ln x$, and $\\ln x$ has no limit ${kind === 'tail' ? 'as $x$ grows' : 'as $x \\to 0$'}.`
+              : `The antiderivative has $x^{${ratioTex(after)}}$ in it, which grows without limit ${kind === 'tail' ? 'as $x$ grows' : 'as $x \\to 0$'}.`,
+        },
+        { text: 'So the integral diverges.' },
+      ];
+    }
+    return [
+      { text: rule },
+      { text: `The antiderivative is $${ratioTex(reduce(k * power.q, power.q - power.m))}x^{${ratioTex(after)}}$. ${kind === 'tail' ? 'Its value as $x$ grows is $0$, and at $x = 1$ it is the number in front.' : 'At $x = 1$ it is the number in front, and as $x \\to 0$ it goes to $0$.'}` },
+      { tex: `\\text{Converges to } ${ratioTex(value)}` },
+    ];
+  },
+};
+
+export interface PFlowParams {
+  where: 'tail' | 'pole';
+  power: Power;
+  k: number;
+}
+
+export function pFlowSpec({ where, power, k }: PFlowParams): ImproperSpec {
+  return { f: `(${k}) / ${powerAnswer(power)}`, lower: where === 'tail' ? 1 : 0, upper: where === 'tail' ? Infinity : 1 };
+}
+
+const P_TAIL_YES = 'It converges: after integrating, the power of $x$ is negative, so the term at $t$ dies away as $t$ grows.';
+const P_TAIL_NO = 'It diverges: the antiderivative grows without limit as $t$ grows.';
+const P_POLE_YES = 'It converges: after integrating, the power of $x$ is positive, so the term at $t$ vanishes as $t \\to 0$.';
+const P_POLE_NO = 'It diverges: the antiderivative grows without limit as $t \\to 0$.';
+
+/** The p-rule as a route: which end is the problem, then which side of 1 the power is. */
+const pFlow: Generator<PFlowParams> = {
+  id: 'int-imp-p-flow',
+  sample: (rng, difficulty) => ({
+    where: difficulty > 1 && rng.chance(0.5) ? 'pole' : 'tail',
+    power: rng.pick([pw(1, 3), pw(1, 2), pw(2, 3), pw(1), pw(4, 3), pw(3, 2), pw(2), pw(3)]),
+    k: rng.int(1, 9),
+  }),
+  render: ({ where, power, k }): Slide => {
+    const tail = where === 'tail';
+    const yes = tail ? power.m > power.q : power.m < power.q;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Does this integral converge? Each answer chooses what gets asked next.' }],
+      subject: improperTex(`\\frac{${k}}{${powerOfTex(power)}}`, tail ? 1 : 0, tail ? Infinity : 1),
+      steps: [
+        {
+          id: 'where',
+          ask: 'Where is the trouble with this integral?',
+          branches: [
+            { label: 'An infinite limit', to: 'tail' },
+            { label: 'It blows up at x = 0', to: 'pole' },
+          ],
+        },
+        {
+          id: 'tail',
+          ask: 'Is the power of x on the bottom bigger than 1?',
+          branches: [
+            { label: 'Yes', outcome: P_TAIL_YES },
+            { label: 'No', outcome: P_TAIL_NO },
+          ],
+        },
+        {
+          id: 'pole',
+          ask: 'Is the power of x on the bottom smaller than 1?',
+          branches: [
+            { label: 'Yes', outcome: P_POLE_YES },
+            { label: 'No', outcome: P_POLE_NO },
+          ],
+        },
+      ],
+      answer: [tail ? 'An infinite limit' : 'It blows up at x = 0', yes ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ where, power, k }) => {
+    const tail = where === 'tail';
+    const p = powerValueTex(power);
+    const value = pValue(where, power, k);
+    return [
+      {
+        text: tail
+          ? 'The upper limit is infinite, and the integrand is bounded from $1$ on.'
+          : 'Both limits are finite, but the integrand blows up at $x = 0$, the lower limit.',
+      },
+      { text: `$${powerOfTex(power)}$ is $x^{p}$ with $p = ${p}$.` },
+      {
+        text: tail
+          ? `On an infinite interval, $\\frac{1}{x^{p}}$ converges only for $p > 1$, where the power after integrating, $1 - p$, is negative.`
+          : `At $0$, $\\frac{1}{x^{p}}$ converges only for $p < 1$, where the power after integrating, $1 - p$, is positive.`,
+      },
+      { text: value === null ? 'So this one diverges.' : `So this one converges, to $${ratioTex(value)}$.` },
+    ];
+  },
+};
+
+export interface RootTailParams {
+  m: number;
+  q: number;
+  /** The lower limit is r^q, so its root is whole. */
+  r: number;
+  W: number;
+}
+
+const ROOT_TAILS: [number, number, number][] = [
+  [3, 2, 1],
+  [3, 2, 2],
+  [3, 2, 3],
+  [4, 3, 1],
+  [5, 2, 1],
+  [4, 3, 2],
+  [5, 3, 1],
+  [5, 2, 2],
+];
+
+/** The coefficient that makes the integral from r^q to infinity of k/x^(m/q) come to W. */
+const rootTailK = ({ m, q, r, W }: RootTailParams): number => (W * (m - q) * r ** (m - q)) / q;
+
+const rootTailTex = (params: RootTailParams): string =>
+  improperTex(`\\frac{${rootTailK(params)}}{${powerOfTex(pw(params.m, params.q))}}`, params.r ** params.q, Infinity);
+
+export function rootTailSpec(params: RootTailParams): ImproperSpec {
+  return { f: `(${rootTailK(params)}) / ${powerAnswer(pw(params.m, params.q))}`, lower: params.r ** params.q, upper: Infinity };
+}
+
+/** A fractional power over an infinite interval, typed. */
+const rootTail: Generator<RootTailParams> = {
+  id: 'int-imp-root-tail',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const [m, q, r] = rng.pick(difficulty > 1 ? ROOT_TAILS : ROOT_TAILS.slice(0, 5));
+        return { m, q, r, W: rng.int(1, 12) };
+      },
+      (params) => Number.isInteger(rootTailK(params)) && rootTailK(params) <= 150,
+      { m: 3, q: 2, r: 2, W: 3 },
+    ),
+  choices: (params) => {
+    const { m, q, r, W } = params;
+    const k = rootTailK(params);
+    // Not divided by p - 1; multiplied by it instead; the wrong sign.
+    return valueChoices(reduce(W, 1), [reduce(k, r ** (m - q)), reduce(k * (m - q), q * r ** (m - q)), reduce(-W, 1)], mix(m, q, r, W));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Evaluate. The answer is a whole number.' }],
+    lead: `${rootTailTex(params)} =`,
+    keypad: [],
+    answer: `${params.W}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { m, q, r, W } = params;
+    const k = rootTailK(params);
+    const a = r ** q;
+    const K = reduce(k * q, m - q);
+    const down = `-\\frac{${m - q}}{${q}}`;
+    return [
+      { text: `Write the integrand as a power: $${k}x^{-\\frac{${m}}{${q}}}$. Adding one to the power gives $${down}$, which is negative, so the integral converges.` },
+      { tex: stacked(`\\int ${k}x^{-\\frac{${m}}{${q}}} \\, dx`, `= -${ratioTex(K)}x^{${down}}`) },
+      {
+        text: `As $x$ grows the term at $t$ dies away, leaving the value at $x = ${a}$, where $x^{${down}} = \\frac{1}{${r ** (m - q)}}$${r === 1 ? ' is just $1$' : ''}.`,
+      },
+      { tex: `0 + ${ratioTex(K)} \\times \\frac{1}{${r ** (m - q)}} = ${W}` },
+    ];
+  },
+};
+
+/* Unbounded integrands. */
+
+type RootPoleForm = 'sqrt' | 'shift' | 'cbrt' | 'cbrt2';
+
+export interface RootPoleParams {
+  form: RootPoleForm;
+  k: number;
+  r: number;
+  /** Where the square root's inside is zero, for the shifted form. */
+  c: number;
+}
+
+function rootPoleParts({ form, k, r, c }: RootPoleParams) {
+  if (form === 'sqrt') return { power: pw(1, 2), c: 0, upper: r * r, value: 2 * k * r, front: 2 * k, top: r };
+  if (form === 'shift') return { power: pw(1, 2), c, upper: c + r * r, value: 2 * k * r, front: 2 * k, top: r };
+  if (form === 'cbrt') return { power: pw(1, 3), c: 0, upper: r ** 3, value: (3 * k * r * r) / 2, front: (3 * k) / 2, top: r * r };
+  return { power: pw(2, 3), c: 0, upper: r ** 3, value: 3 * k * r, front: 3 * k, top: r };
+}
+
+const rootPoleTex = (params: RootPoleParams): string => {
+  const { power, c, upper } = rootPoleParts(params);
+  return improperTex(whichIntegrandTex({ k: params.k, power, c }), c, upper);
+};
+
+export function rootPoleSpec(params: RootPoleParams): ImproperSpec {
+  const { power, c, upper } = rootPoleParts(params);
+  return { f: `(${params.k}) / ${powerAnswer(power, c)}`, lower: c, upper };
+}
+
+/** A root on the bottom, unbounded at the lower limit, typed. */
+const rootPole: Generator<RootPoleParams> = {
+  id: 'int-imp-root-pole',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const form = rng.pick<RootPoleForm>(difficulty > 1 ? ['sqrt', 'shift', 'cbrt', 'cbrt2'] : ['sqrt', 'cbrt2']);
+        const square = form === 'sqrt' || form === 'shift';
+        return { form, k: rng.int(1, 9), r: rng.int(square ? 2 : 1, square ? 5 : 3), c: form === 'shift' ? nonZero(rng.int(-3, 5), 2) : 0 };
+      },
+      (params) => Number.isInteger(rootPoleParts(params).value),
+      { form: 'sqrt', k: 2, r: 3, c: 0 },
+    ),
+  choices: (params) => {
+    const { k, r } = params;
+    const { value, top } = rootPoleParts(params);
+    // Not divided by 1 - p; the root forgotten; the wrong sign.
+    return valueChoices(reduce(value, 1), [reduce(k * top, 1), reduce(value * r, 1), reduce(-value, 1)], mix(k, r, params.c, params.form.length));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Evaluate. The answer is a whole number.' }],
+    lead: `${rootPoleTex(params)} =`,
+    keypad: [],
+    answer: `${rootPoleParts(params).value}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { power, c, upper, value, front } = rootPoleParts(params);
+    const after = reduce(power.q - power.m, power.q);
+    const inner = shiftTex(c);
+    const F = `${ratioTex(reduce(front * 2, 2))}${powerOfTex(pw(after.n, after.d), inner)}`;
+    const atT = `${ratioTex(reduce(front * 2, 2))}${powerOfTex(pw(after.n, after.d), c === 0 ? 't' : linearTex(1, -c).replace('x', 't'))}`;
+    return [
+      { text: `The integrand is unbounded at $x = ${c}$, the lower limit. Put $t$ there and let $t \\to ${c}^{+}$.` },
+      { text: `Adding one to the power $-${powerValueTex(power)}$ gives $${ratioTex(after)}$, so an antiderivative is $${F}$.` },
+      { tex: stacked(`\\left[${F}\\right]_{t}^{${upper}}`, `= ${value} - ${atT}`) },
+      { text: `As $t \\to ${c}$ the term at $t$ goes to $0$, so the integral converges to $${value}$.` },
+    ];
+  },
+};
+
+export interface PoleTreeParams {
+  power: Power;
+  k: number;
+  r: number;
+}
+
+function poleTreeParts({ power, k, r }: PoleTreeParams) {
+  const upper = r ** power.q;
+  const front = (k * power.q) / (power.q - power.m);
+  const root = r ** (power.q - power.m);
+  return { upper, front, root, total: front * root };
+}
+
+export function poleTreeSpec(params: PoleTreeParams): ImproperSpec {
+  return { f: `(${params.k}) / ${powerAnswer(params.power)}`, lower: 0, upper: poleTreeParts(params).upper };
+}
+
+/** The same kind of integral as a tree: the number in front, the root at the top, the limit at 0. */
+const poleTree: Generator<PoleTreeParams> = {
+  id: 'int-imp-pole-tree',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const power = rng.pick(difficulty > 1 ? [pw(1, 2), pw(1, 3), pw(2, 3)] : [pw(1, 2), pw(1, 2), pw(2, 3)]);
+        return { power, k: rng.int(1, 9), r: rng.int(2, power.q === 2 ? 6 : 3) };
+      },
+      (params) => Number.isInteger(poleTreeParts(params).front),
+      { power: pw(1, 2), k: 3, r: 2 },
+    ),
+  render: (params): Slide => {
+    const { power, k } = params;
+    const { upper, front, root, total } = poleTreeParts(params);
+    const after = powerValueTex(pw(power.q - power.m, power.q));
+    const answer = [front, root, 0, total, total];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Top row: the number in front of $x^{${after}}$ after integrating, then $${upper}^{${after}}$, then the antiderivative at $t$ as $t \\to 0^{+}$. Below: its value at $${upper}$, then the integral.`,
+        },
+      ],
+      expression: improperTex(`\\frac{${k}}{${powerOfTex(power)}}`, 0, upper),
+      nodes: [
+        { id: 'front', from: [] },
+        { id: 'root', from: [] },
+        { id: 'limit', from: [] },
+        { id: 'top', from: ['front', 'root'] },
+        { id: 'total', from: ['top', 'limit'] },
+      ],
+      // Not divided by 1 - p, the limit used without its root, and the wrong sign.
+      bank: wholeBank(answer, [k, upper, -total, front * upper, front + root]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { power, k } = params;
+    const { upper, front, root, total } = poleTreeParts(params);
+    const after = powerValueTex(pw(power.q - power.m, power.q));
+    return [
+      { text: `Adding one to the power $-${powerValueTex(power)}$ gives $${after}$; dividing by it puts $${front}$ in front: $\\int ${k}x^{-${powerValueTex(power)}} \\, dx = ${front}x^{${after}}$.` },
+      { text: `At $x = ${upper}$, $${upper}^{${after}} = ${root}$, so the antiderivative there is $${front} \\times ${root} = ${total}$.` },
+      { text: `At $x = t$ it is $${front}t^{${after}}$, which goes to $0$ as $t \\to 0$, because the power is positive.` },
+      { tex: `${total} - 0 = ${total}` },
+    ];
+  },
+};
+
+/* Splitting. */
+
+type SplitKind = 'line' | 'pole';
+
+interface SplitTilesParams {
+  kind: SplitKind;
+  k: number;
+  /** The kink or the pole. */
+  c: number;
+  left: number;
+  right: number;
+  rate: number;
+}
+
+function splitTilesParts({ kind, k, c, left, right, rate }: SplitTilesParams) {
+  if (kind === 'line') {
+    const integrand = `${k === 1 ? '' : k}e^{-${rate === 1 ? '' : rate}|${shiftTex(c)}|}`;
+    return {
+      integrand,
+      lower: -Infinity,
+      upper: Infinity,
+      answer: [intTok('-\\infty', c), intTok(c, '\\infty')],
+      wrong: [intTok(c, '-\\infty'), intTok('\\infty', c), intTok('-\\infty', '\\infty'), c === 0 ? intTok('-\\infty', 1) : intTok(0, '\\infty')],
+    };
+  }
+  const lower = c - left;
+  const upper = c + right;
+  return {
+    integrand: `\\frac{${k}}{${powerOfTex(pw(2, 3), shiftTex(c))}}`,
+    lower,
+    upper,
+    answer: [intTok(lower, c), intTok(c, upper)],
+    wrong: [intTok(lower, upper), intTok(c, lower), intTok(upper, c), c === 0 ? intTok(lower, 1) : intTok(lower, 0)],
+  };
+}
+
+/** Where to split, and the two halves, as tiles. */
+const splitTiles: Generator<SplitTilesParams> = {
+  id: 'int-imp-split-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick<SplitKind>(['line', 'pole']);
+    return {
+      kind,
+      k: rng.int(1, 9),
+      c: hard ? rng.int(-3, 3) : kind === 'line' ? 0 : rng.int(-2, 2),
+      left: rng.int(1, 4),
+      right: rng.int(1, 4),
+      rate: rng.int(1, 3),
+    };
+  },
+  render: (params): Slide => {
+    const { integrand, lower, upper, answer, wrong } = splitTilesParts(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'display', tex: improperTex('f(x)', lower, upper) },
+        {
+          kind: 'prose',
+          text: `Here $f(x) = ${integrand}$. Split it into two integrals of $f(x)$, each with just one troublesome end.`,
+        },
+      ],
+      template: '{0} \\; + \\; {1}',
+      bank: tokenBank(answer, wrong),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { kind, c } = params;
+    const { lower, upper, answer } = splitTilesParts(params);
+    return [
+      {
+        text:
+          kind === 'line'
+            ? `Both limits are infinite, and one $t$ cannot go two ways at once. Split at a convenient point; $x = ${c}$ is where the $|\\,|$ changes, so each half has a plain exponential.`
+            : `The integrand is unbounded at $x = ${c}$, inside the interval from $${lower}$ to $${upper}$. Split there, so the trouble sits at one end of each half.`,
+      },
+      { tex: stacked(improperTex('f(x)', lower, upper), `= ${answer[0]} f(x) \\, dx`, `\\quad + ${answer[1]} f(x) \\, dx`) },
+      { text: 'Each half is then its own limit, and the whole converges only if both halves do.' },
+    ];
+  },
+};
+
+export interface TwoSidedParams {
+  k: number;
+  rate: number;
+  h: number;
+}
+
+const twoSidedValue = ({ k, rate }: TwoSidedParams): number => (2 * k) / rate;
+
+const twoSidedTex = ({ k, rate, h }: TwoSidedParams): string =>
+  improperTex(`${k === 1 ? '' : k}e^{-${rate === 1 ? '' : rate}|${shiftTex(h)}|}`, -Infinity, Infinity);
+
+export function twoSidedSpec({ k, rate, h }: TwoSidedParams): ImproperSpec {
+  return { f: `(${k}) * exp(-${rate} * abs(x - (${h})))`, lower: -Infinity, upper: Infinity, splits: [h] };
+}
+
+/** k e^(-c|x - h|) over the whole line, typed: two equal halves. */
+const twoSided: Generator<TwoSidedParams> = {
+  id: 'int-imp-two-sided',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ k: rng.int(1, 12), rate: rng.int(1, 4), h: difficulty > 1 ? rng.int(-3, 3) : 0 }),
+      (params) => Number.isInteger(twoSidedValue(params)),
+      { k: 3, rate: 1, h: 0 },
+    ),
+  choices: (params) => {
+    const V = twoSidedValue(params);
+    // One half only, the halves cancelled, and the wrong sign.
+    return valueChoices(reduce(V, 1), [reduce(V, 2), reduce(0, 1), reduce(-V, 1)], mix(params.k, params.rate, params.h));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Evaluate. The answer is a whole number.' }],
+    lead: `${twoSidedTex(params)} =`,
+    keypad: [],
+    answer: `${twoSidedValue(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { k, rate, h } = params;
+    const half = reduce(k, rate);
+    return [
+      { text: `Split at $x = ${h}$, where the $|\\,|$ changes. To the right the integrand is $${k === 1 ? '' : k}e^{-${rate === 1 ? '' : rate}(${shiftTex(h)})}$, and to the left it is the mirror image.` },
+      { tex: stacked(`\\int_{${h}}^{\\infty} ${k === 1 ? '' : k}e^{-${rate === 1 ? '' : rate}(${shiftTex(h)})} \\, dx`, `= ${ratioTex(half)}`) },
+      { text: `The left half is the same by symmetry, and both converge, so the whole integral is twice one half.` },
+      { tex: `2 \\times ${ratioTex(half)} = ${twoSidedValue(params)}` },
+    ];
+  },
+};
+
+type HalvesForm = 'cbrt2' | 'abs' | 'cbrt';
+
+export interface HalvesParams {
+  form: HalvesForm;
+  k: number;
+  a: number;
+  b: number;
+}
+
+function halvesParts({ form, k, a, b }: HalvesParams) {
+  if (form === 'abs') {
+    const K = 2 * k;
+    return { integrand: `\\frac{${k}}{\\sqrt{|x|}}`, lower: -a * a, upper: b * b, low: -K * a, high: K * b, left: K * a, right: K * b, K };
+  }
+  if (form === 'cbrt') {
+    const K = (3 * k) / 2;
+    return { integrand: `\\frac{${k}}{\\sqrt[3]{x}}`, lower: -(a ** 3), upper: b ** 3, low: K * a * a, high: K * b * b, left: -K * a * a, right: K * b * b, K };
+  }
+  const K = 3 * k;
+  return { integrand: `\\frac{${k}}{\\sqrt[3]{x^{2}}}`, lower: -(a ** 3), upper: b ** 3, low: -K * a, high: K * b, left: K * a, right: K * b, K };
+}
+
+function halvesAntiderivative({ form }: HalvesParams, K: number): string {
+  if (form === 'abs') return `$F(x) = ${K}\\sqrt{x}$ for $x > 0$ and $-${K}\\sqrt{-x}$ for $x < 0$`;
+  if (form === 'cbrt') return `$F(x) = ${K}\\sqrt[3]{x^{2}}$`;
+  return `$F(x) = ${K}\\sqrt[3]{x}$`;
+}
+
+export function halvesSpec(params: HalvesParams): ImproperSpec {
+  const { form, k } = params;
+  const { lower, upper } = halvesParts(params);
+  const f = form === 'abs' ? `(${k}) / sqrt(abs(x))` : form === 'cbrt' ? `(${k}) / cbrt(x)` : `(${k}) / cbrt(x)^2`;
+  return { f, lower, upper, splits: [0] };
+}
+
+/** An integrand unbounded at 0, inside the interval, as a tree of its two halves. */
+const halvesTree: Generator<HalvesParams> = {
+  id: 'int-imp-halves-tree',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const form = rng.pick<HalvesForm>(difficulty > 1 ? ['cbrt2', 'abs', 'cbrt'] : ['cbrt2', 'abs']);
+        const reach = form === 'abs' ? 4 : difficulty > 1 ? 3 : 2;
+        return { form, k: rng.int(1, 9), a: rng.int(1, reach), b: rng.int(1, reach) };
+      },
+      (params) => Number.isInteger(halvesParts(params).K),
+      { form: 'cbrt2', k: 2, a: 1, b: 2 },
+    ),
+  render: (params): Slide => {
+    const { integrand, lower, upper, low, high, left, right, K } = halvesParts(params);
+    const answer = [low, high, left, right, left + right];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Split at $0$, where the integrand is unbounded. Here ${halvesAntiderivative(params, K)}, and $F(0) = 0$. Top row: $F$ at each limit. Then each half, then the integral.`,
+        },
+      ],
+      expression: improperTex(integrand, lower, upper),
+      nodes: [
+        { id: 'low', from: [] },
+        { id: 'high', from: [] },
+        { id: 'left', from: ['low'] },
+        { id: 'right', from: ['high'] },
+        { id: 'total', from: ['left', 'right'] },
+      ],
+      // Each half's sign flipped, and one half taken from the other.
+      bank: wholeBank(answer, [-left, -right, right - left, left - right]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { lower, upper, low, high, left, right } = halvesParts(params);
+    return [
+      { text: `Left half, from $${lower}$ up to $0$: $F(0) - F(${lower}) = 0 - (${low}) = ${left}$.` },
+      { text: `Right half, from $0$ up to $${upper}$: $F(${upper}) - F(0) = ${high} - 0 = ${right}$.` },
+      { text: 'Both halves converge, since $F$ has a limit at $0$, so the integral is their sum.' },
+      { tex: `${left} + ${right < 0 ? `(${right})` : right} = ${left + right}` },
+    ];
+  },
+};
+
+type TrapForm = 'square' | 'cube' | 'cbrt2' | 'abs';
+
+export interface TrapParams {
+  form: TrapForm;
+  k: number;
+  a: number;
+  b: number;
+}
+
+function trapParts({ form, k, a, b }: TrapParams) {
+  if (form === 'square') return { integrand: `\\frac{${k}}{x^{2}}`, lower: -a, upper: b, value: null, naive: reduce(-k * (a + b), a * b) };
+  if (form === 'cube') return { integrand: `\\frac{${k}}{x^{3}}`, lower: -a, upper: b, value: null, naive: reduce(k * (b * b - a * a), 2 * a * a * b * b) };
+  if (form === 'abs') return { integrand: `\\frac{${k}}{\\sqrt{|x|}}`, lower: -a * a, upper: b * b, value: reduce(2 * k * (a + b), 1), naive: reduce(2 * k * (b - a), 1) };
+  return { integrand: `\\frac{${k}}{\\sqrt[3]{x^{2}}}`, lower: -(a ** 3), upper: b ** 3, value: reduce(3 * k * (a + b), 1), naive: reduce(3 * k * (b - a), 1) };
+}
+
+export function trapSpec(params: TrapParams): ImproperSpec {
+  const { form, k } = params;
+  const { lower, upper } = trapParts(params);
+  const f = form === 'square' ? `(${k}) / x^2` : form === 'cube' ? `(${k}) / x^3` : form === 'abs' ? `(${k}) / sqrt(abs(x))` : `(${k}) / cbrt(x)^2`;
+  return { f, lower, upper, splits: [0] };
+}
+
+/**
+ * A pole inside the interval, where integrating straight across gives a
+ * number whether or not the integral exists. Half the draws do converge, so
+ * "diverges" is never the safe guess.
+ */
+const trap: Generator<TrapParams> = {
+  id: 'int-imp-trap',
+  sample: (rng, difficulty) => {
+    const form = rng.pick<TrapForm>(difficulty > 1 ? ['square', 'cube', 'cbrt2', 'abs'] : ['square', 'cbrt2']);
+    const reach = form === 'cube' || form === 'cbrt2' ? 3 : 4;
+    return { form, k: rng.int(1, 6), a: rng.int(1, reach), b: rng.int(1, reach) };
+  },
+  render: (params): Slide => {
+    const { k, a, b } = params;
+    const { integrand, lower, upper, value, naive } = trapParts(params);
+    const slips = value === null ? [naive, reduce(-naive.n, naive.d), reduce(0, 1), reduce(k, 1)] : [naive, reduce(-value.n, value.d), reduce(0, 1)];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Does this integral converge? If it does, to what?' },
+        { kind: 'display', tex: improperTex(integrand, lower, upper) },
+      ],
+      ...verdictOptions(value, slips, mix(k, a, b, params.form.length)),
+    };
+  },
+  solution: (params) => {
+    const { form } = params;
+    const { lower, upper, value, naive } = trapParts(params);
+    if (value === null) {
+      return [
+        { text: `The integrand is unbounded at $x = 0$, which is inside the interval, so split there.` },
+        { text: `The right half, $\\int_{0}^{${upper}} ${form === 'square' ? '\\frac{1}{x^{2}}' : '\\frac{1}{x^{3}}'}$ times a number, has power $${form === 'square' ? 2 : 3}$ at $0$, which is not less than $1$, so it diverges.` },
+        { text: 'One divergent half is enough: the whole integral diverges.' },
+        { text: `Integrating straight across $0$ gives $${ratioTex(naive)}$, a number with no meaning, because the formula jumps over the point where the integrand is infinite.` },
+      ];
+    }
+    return [
+      { text: `The integrand is unbounded at $x = 0$, inside the interval, so split there. Its power at $0$ is less than $1$, so each half converges.` },
+      { text: `Left half from $${lower}$ to $0$, right half from $0$ to $${upper}$. Both are positive, since the integrand is positive on both sides.` },
+      { tex: `\\text{Converges to } ${ratioTex(value)}` },
+    ];
+  },
+};
+
+/** This level's generators by name, for `improper.test.ts`. */
+export const improperGenerators = {
+  whichFlow,
+  problemPoint,
+  spotImproper,
+  limitTiles,
+  powerTail,
+  workSteps,
+  expTail,
+  tailSlider,
+  verdict,
+  pFlow,
+  rootTail,
+  rootPole,
+  poleTree,
+  splitTiles,
+  twoSided,
+  halvesTree,
+  trap,
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -6147,4 +7639,5 @@ export const integrationGenerators = [
   repeatedSplit,
   repeatedIntegrate,
   formFlow,
+  ...Object.values(improperGenerators),
 ] as unknown as Generator<unknown>[];

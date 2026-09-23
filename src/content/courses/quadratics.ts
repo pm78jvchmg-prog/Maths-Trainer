@@ -1895,6 +1895,46 @@ export const quadratics: Course = {
             ask('quad-disguise-root-check', 2),
           ],
         },
+        {
+          id: 'qd-l7-recip',
+          title: 'Reciprocals',
+          slides: [
+            teach(
+              prose(
+                'In $\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$, $\\frac{1}{x^{2}}$ is the square of $\\frac{1}{x}$. Put $u = \\frac{1}{x}$:',
+              ),
+              maths('6u^{2} - 5u + 1 = 0'),
+              maths('(2u - 1)(3u - 1) = 0'),
+              prose('So $u = \\frac{1}{2}$ or $u = \\frac{1}{3}$. Flip each one to go back: $x = 2$ or $x = 3$.'),
+            ),
+            ask('quad-disguise-recip-tiles'),
+            ask('quad-disguise-recip-solve'),
+            ask('quad-disguise-flip-steps'),
+            teach(
+              prose(
+                'There is a second route. $x$ cannot be 0 here, since $\\frac{1}{0}$ means nothing, so it is safe to multiply every term by $x^{2}$:',
+              ),
+              maths('6 - 5x + x^{2} = 0'),
+              prose('That is $x^{2} - 5x + 6 = 0$, an ordinary quadratic with the same roots, 2 and 3.'),
+              prose('For the same reason $u = \\frac{1}{x}$ is never 0, so a root of 0 in $u$ would have to be rejected.'),
+            ),
+            ask('quad-disguise-clear-tiles'),
+            ask('quad-disguise-recip-solve+choice', 2),
+            ask('quad-disguise-flip-steps', 2),
+            teach(
+              prose('Sometimes the number starts on the other side:'),
+              maths('\\frac{6}{x^{2}} - \\frac{5}{x} = -1'),
+              prose('Bring it over first, sign and all, so one side is zero. Then either route works.'),
+            ),
+            ask('quad-disguise-recip-tiles', 2),
+            ask('quad-disguise-clear-tiles', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-recip-tiles', 2),
+            ask('quad-disguise-recip-solve', 2),
+            ask('quad-disguise-flip-steps', 2),
+          ],
+        },
       ],
     },
   ],

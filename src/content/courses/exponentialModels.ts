@@ -6,7 +6,10 @@
  * e^(ln b) = b does the work, how b^t is rewritten as e^(kt) with k = ln b, and
  * doubling time and half-life as (ln 2)/k. Level 2 uses it: A and k from two
  * points, models that settle at a level, the time to reach a value, the rate
- * as ky, and telling linear, exponential and bounded apart.
+ * as ky, and telling linear, exponential and bounded apart. Level 3 reads
+ * the rate: k as a percentage of the amount, the average rate over a stretch
+ * against the rate at a moment, the rate run backwards to k, the amount or the
+ * time, and two models growing at the same rate.
  *
  * Whole-step growth without e, solving N = N0 r^t by logarithms, linearising
  * and differentiating e^x all belong to other courses and are used here, not
@@ -417,6 +420,200 @@ export const exponentialModels: Course = {
         ask('expm-model-flow', 2),
         ask('expm-fit-tiles', 2),
         ask('expm-next-tree', 2),
+      ],
+    },
+    {
+      id: 'em-l3',
+      title: 'Rates in Models',
+      lessons: [
+        {
+          id: 'em-l3-percent',
+          title: 'The Rate as a Percentage',
+          slides: [
+            teach(
+              prose(
+                'The rate of $y = Ae^{kt}$ is $\\frac{dy}{dt} = ky$: a fixed fraction of whatever there is. Read as a percentage, $k = 0.05$ says the rate is 5% of the amount per unit of time.',
+              ),
+              maths('\\frac{dN}{dt} = 0.05N'),
+              prose('So $0.05$ is 5%, $0.035$ is 3.5%, and a negative $k$ falls at that percentage instead of growing.'),
+            ),
+            ask('expm-percent-k'),
+            ask('expm-percent-flow'),
+            ask('expm-percent-tiles'),
+            teach(
+              prose('A sentence gives the model straight away. "Grows at 3% of its size per hour" is'),
+              working('\\frac{dN}{dt} &= 0.03N', 'N &= Ae^{0.03t}'),
+              prose(
+                'It is 3% of its size **now**, not of the start. That is what makes it exponential rather than a straight line.',
+              ),
+            ),
+            ask('expm-rate-words'),
+            ask('expm-percent-tiles', 2),
+            ask('expm-percent-flow', 2),
+            teach(
+              prose(
+                'Read the other way, a model says its rate. $D = 300e^{-0.035t}$ falls at 3.5% of its current size per hour, so when $D = 200$ it is falling at',
+              ),
+              maths('0.035 \\times 200 = 7 \\text{ mg per hour}'),
+            ),
+            ask('expm-percent-k+choice', 2),
+            ask('expm-rate-words', 2),
+          ],
+          skillCheck: [ask('expm-percent-k', 2), ask('expm-percent-tiles', 2), ask('expm-rate-words', 2)],
+        },
+        {
+          id: 'em-l3-average',
+          title: 'Average Rate over an Interval',
+          slides: [
+            teach(
+              prose(
+                'The **average rate** over a stretch is the change divided by the time it took. For $N = 5e^{\\frac{\\ln 2}{3}t}$ from $t = 3$ to $t = 9$:',
+              ),
+              working('N(3) &= 5 \\times 2 = 10', 'N(9) &= 5 \\times 2^{3} = 40', '\\frac{40 - 10}{9 - 3} &= 5'),
+              prose('That is 5 per hour on average, though it grew more slowly at first and faster later.'),
+            ),
+            ask('expm-avg-tree'),
+            ask('expm-avg-rate'),
+            ask('expm-avg-reduce'),
+            teach(
+              prose('On a graph the average rate is the gradient of the **chord** joining the two points.'),
+              prose(
+                'A growing model gets steeper, so of two stretches the same length the later one has the bigger average rate. A decaying model flattens out, so its early stretches change fastest.',
+              ),
+            ),
+            ask('expm-avg-compare'),
+            ask('expm-avg-slider'),
+            ask('expm-avg-reduce', 2),
+            teach(
+              prose('A falling model has a negative average rate. $M = 96e^{-t\\ln 2}$ goes from 96 to 12 between $t = 0$ and $t = 3$:'),
+              maths('\\frac{12 - 96}{3 - 0} = -28'),
+              prose('It lost 28 grams a day on average.'),
+            ),
+            ask('expm-avg-tree', 2),
+            ask('expm-avg-slider', 2),
+          ],
+          skillCheck: [ask('expm-avg-rate', 2), ask('expm-avg-tree', 2), ask('expm-avg-slider', 2)],
+        },
+        {
+          id: 'em-l3-instant',
+          title: 'Average against Instantaneous',
+          slides: [
+            teach(
+              prose(
+                'The rate at one moment is $ky$, with $y$ at that moment: the gradient of the **tangent** there. For $N = 40e^{\\frac{\\ln 2}{5}t}$ at $t = 15$, $N = 40 \\times 2^{3} = 320$, so',
+              ),
+              maths('\\frac{dN}{dt} = \\frac{\\ln 2}{5} \\times 320 = 64\\ln 2'),
+              prose('Keep the $\\ln 2$. It is exact, and typing it with the $\\ln$ key keeps it that way.'),
+            ),
+            ask('expm-instant'),
+            ask('expm-instant-tiles'),
+            ask('expm-which-rate'),
+            teach(
+              prose(
+                'The chord averages a whole stretch; the tangent is one moment. A growing curve steepens, so at the end of a stretch it is changing faster than its average, and at the start slower.',
+              ),
+              prose('A decaying curve flattens, so it is the other way round: faster than its average at the start, slower at the end.'),
+            ),
+            ask('expm-rate-compare-flow'),
+            ask('expm-instant+choice', 2),
+            ask('expm-instant-tiles', 2),
+            teach(
+              prose('The numbers agree. For $N = 40e^{\\frac{\\ln 2}{5}t}$ from $t = 0$ to $t = 15$:'),
+              working(
+                '\\text{average} &= \\frac{320 - 40}{15} \\approx 18.7',
+                '\\text{at } t = 0 &: \\ 8\\ln 2 \\approx 5.5',
+                '\\text{at } t = 15 &: \\ 64\\ln 2 \\approx 44.4',
+              ),
+            ),
+            ask('expm-rate-compare-flow', 2),
+            ask('expm-which-rate', 2),
+          ],
+          skillCheck: [ask('expm-instant', 2), ask('expm-instant-tiles', 2), ask('expm-rate-compare-flow', 2)],
+        },
+        {
+          id: 'em-l3-back',
+          title: 'From the Rate Back',
+          slides: [
+            teach(
+              prose('$\\frac{dy}{dt} = ky$ runs backwards too. Growing at 12 per hour when $N = 400$ means'),
+              maths('k = \\frac{12}{400} = 0.03'),
+              prose(
+                'And knowing $k$, the amount is the rate divided by $k$: growing at 30 per hour with $k = 0.05$ means $N = 30 \\div 0.05 = 600$.',
+              ),
+            ),
+            ask('expm-k-from-rate'),
+            ask('expm-amount-from-rate+choice'),
+            ask('expm-k-from-rate', 2),
+            teach(
+              prose(
+                'To find **when** the rate reaches a value, divide by $k$ to get the amount, then solve for $t$ as before. For $N = 40e^{\\frac{\\ln 2}{5}t}$ and a rate of $64\\ln 2$:',
+              ),
+              working('N &= 64\\ln 2 \\div \\frac{\\ln 2}{5} = 320', 'e^{\\frac{\\ln 2}{5}t} &= 8 = 2^{3}', 't &= 15'),
+            ),
+            ask('expm-rate-reach-tree'),
+            ask('expm-rate-solve-steps'),
+            ask('expm-amount-from-rate', 2),
+            teach(
+              prose(
+                'A decaying model works the same way, with the rate negative. $D = 160e^{-\\frac{\\ln 2}{2}t}$ has rate $-5\\ln 2$ when $D = 10$, which is $\\frac{1}{16}$ of the start: four halvings, so $t = 8$.',
+              ),
+            ),
+            ask('expm-rate-solve-steps', 2),
+            ask('expm-rate-reach-tree', 2),
+          ],
+          skillCheck: [ask('expm-k-from-rate', 2), ask('expm-rate-solve-steps', 2), ask('expm-rate-reach-tree', 2)],
+        },
+        {
+          id: 'em-l3-two',
+          title: 'Two Models at the Same Rate',
+          slides: [
+            teach(
+              prose(
+                'Two models, two rates. At $t = 0$ each rate is $k$ times its start, so a bigger start can lead at first. For $P = 800e^{0.02t}$ and $Q = 200e^{0.06t}$:',
+              ),
+              working('P\\text{: } 0.02 \\times 800 &= 16', 'Q\\text{: } 0.06 \\times 200 &= 12'),
+              prose('$P$ is growing faster now. But in the long run the bigger $k$ always wins, whatever the starts, so $Q$ ends up faster.'),
+            ),
+            ask('expm-two-faster'),
+            ask('expm-two-flow'),
+            ask('expm-two-faster', 2),
+            teach(
+              prose(
+                'They grow at the same rate when $k_1A_1e^{k_1t} = k_2A_2e^{k_2t}$. With $u = 2^{t/5}$, $P = 10e^{\\frac{2\\ln 2}{5}t} = 10u^{2}$ and $Q = 80e^{\\frac{\\ln 2}{5}t} = 80u$:',
+              ),
+              working('2 \\times 10u^{2} &= 1 \\times 80u', 'u &= 4 = 2^{2}', 't &= 10'),
+              prose('The $\\frac{\\ln 2}{5}$ in each $k$ cancels, which is what leaves whole numbers.'),
+            ),
+            ask('expm-two-equal'),
+            ask('expm-two-slider'),
+            ask('expm-two-flow', 2),
+            teach(
+              prose(
+                'Growing at the same rate is not being the same size. At $t = 10$, $P = 160$ and $Q = 320$: $Q$ is still bigger, but from here $P$ gains faster, and it draws level at $t = 15$.',
+              ),
+            ),
+            ask('expm-two-equal+choice', 2),
+            ask('expm-two-slider', 2),
+          ],
+          skillCheck: [ask('expm-two-faster', 2), ask('expm-two-equal', 2), ask('expm-two-slider', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('expm-percent-tiles', 2),
+        ask('expm-percent-k', 2),
+        ask('expm-rate-words', 2),
+        ask('expm-avg-tree', 2),
+        ask('expm-avg-rate+choice', 2),
+        ask('expm-avg-slider', 2),
+        ask('expm-avg-compare', 2),
+        ask('expm-instant', 2),
+        ask('expm-instant-tiles', 2),
+        ask('expm-rate-compare-flow', 2),
+        ask('expm-k-from-rate', 2),
+        ask('expm-rate-solve-steps', 2),
+        ask('expm-amount-from-rate', 2),
+        ask('expm-two-equal', 2),
+        ask('expm-two-flow', 2),
       ],
     },
   ],

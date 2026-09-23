@@ -2143,9 +2143,9 @@ export const differentiation: Course = {
           slides: [
             teach(
               prose(
-                'The stationary point gives the best $x$, which is often not what the question asked for. A pen against a wall with $40$ m of fencing has $A = x(40 - 2x)$, and $\\frac{dA}{dx} = 40 - 4x = 0$ gives $x = 10$.',
+                'The stationary point gives the best $x$, which is often not what the question asked for. A pen against a wall with $40$ m of fencing has $A = x(40 - 2x)$, and $\\frac{dA}{dx} = 40 - 4x = 0$ gives $x = 10$. The side along the wall is then',
               ),
-              { kind: 'display', tex: '\\text{side along the wall} = 40 - 20 = 20' },
+              { kind: 'display', tex: '40 - 2 \\times 10 = 20' },
               { kind: 'display', tex: 'A = 10 \\times 20 = 200' },
               prose(
                 '"How long should the sides be?" wants $10$ m and $20$ m. "What is the greatest area?" wants $200$ $\\text{m}^{2}$. Read the last line of the question again before answering.',

@@ -6911,7 +6911,7 @@ export interface EliminateParams {
 interface EliminateFacts {
   story: string;
   /** The constraint, then the quantity in two variables. */
-  given: string;
+  given: [string, string];
   template: string;
   answer: [string, string];
   slips: string[];
@@ -6927,8 +6927,8 @@ function eliminateFacts({ kind, m, story }: EliminateParams): EliminateFacts {
           story === 0
             ? `A rectangular pen has sides $x$ m and $y$ m and must enclose $${k}$ $\\text{m}^{2}$. Its perimeter is $P$ m.`
             : `A rectangular poster is $x$ cm by $y$ cm, with an area of $${k}$ $\\text{cm}^{2}$. Its perimeter is $P$ cm.`,
-        given: `xy = ${k}, \\qquad P = 2x + 2y`,
-        template: 'y = {0}, \\qquad P = 2x + {1}',
+        given: [`xy = ${k}`, `P = 2x + 2y`],
+        template: 'y = {0}, \\quad P = 2x + {1}',
         answer: [`\\frac{${k}}{x}`, `\\frac{${2 * k}}{x}`],
         slips: [`${k}x`, `\\frac{x}{${k}}`, `\\frac{${k}}{2x}`, `${2 * k}x`],
         steps: [
@@ -6944,8 +6944,8 @@ function eliminateFacts({ kind, m, story }: EliminateParams): EliminateFacts {
           story === 0
             ? `An open box has a square base $x$ cm wide and is $h$ cm tall. It must hold $${k}$ $\\text{cm}^{3}$. Its surface area, the base and four sides, is $S$ $\\text{cm}^{2}$.`
             : `An open-topped tank has a square base $x$ m wide and is $h$ m deep, and holds $${k}$ $\\text{m}^{3}$. Its base and four walls have area $S$ $\\text{m}^{2}$.`,
-        given: `x^{2}h = ${k}, \\qquad S = x^{2} + 4xh`,
-        template: 'h = {0}, \\qquad S = x^2 + {1}',
+        given: [`x^{2}h = ${k}`, `S = x^{2} + 4xh`],
+        template: 'h = {0}, \\quad S = x^2 + {1}',
         answer: [`\\frac{${k}}{x^{2}}`, `\\frac{${4 * k}}{x}`],
         slips: [`\\frac{${k}}{x}`, `\\frac{${4 * k}}{x^{2}}`, `${k}x^{2}`, `\\frac{${k}}{4x}`],
         steps: [
@@ -6961,8 +6961,8 @@ function eliminateFacts({ kind, m, story }: EliminateParams): EliminateFacts {
           story === 0
             ? `Positive numbers $x$ and $y$ add up to $${s}$, and $P = xy^{2}$.`
             : `Two positive numbers $x$ and $y$ have a sum of $${s}$. $P$ is $x$ times the square of $y$.`,
-        given: `x + y = ${s}, \\qquad P = xy^{2}`,
-        template: 'y = {0}, \\qquad P = {1}',
+        given: [`x + y = ${s}`, `P = xy^{2}`],
+        template: 'y = {0}, \\quad P = {1}',
         answer: [`${s} - x`, `x(${s} - x)^{2}`],
         slips: [`x - ${s}`, `x^{2}(${s} - x)`, `x(${s} - x)`],
         steps: [
@@ -6978,8 +6978,8 @@ function eliminateFacts({ kind, m, story }: EliminateParams): EliminateFacts {
           story === 0
             ? `A closed cylindrical tin has radius $r$ cm and height $h$ cm, and must hold $${k}\\pi$ $\\text{cm}^{3}$. Its surface area is $S$ $\\text{cm}^{2}$.`
             : `A closed cylindrical tank of radius $r$ m and height $h$ m holds $${k}\\pi$ $\\text{m}^{3}$. Its surface area is $S$ $\\text{m}^{2}$.`,
-        given: `\\pi r^{2}h = ${k}\\pi, \\qquad S = 2\\pi r^{2} + 2\\pi rh`,
-        template: 'h = {0}, \\qquad S = 2\\pi r^2 + {1}',
+        given: [`\\pi r^{2}h = ${k}\\pi`, `S = 2\\pi r^{2} + 2\\pi rh`],
+        template: 'h = {0}, \\quad S = 2\\pi r^2 + {1}',
         answer: [`\\frac{${k}}{r^{2}}`, `\\frac{${2 * k}\\pi}{r}`],
         slips: [`\\frac{${k}}{r}`, `\\frac{${2 * k}\\pi}{r^{2}}`, `\\frac{${k}\\pi}{r}`, `${k}r^{2}`],
         steps: [
@@ -7023,7 +7023,7 @@ const eliminate: Generator<EliminateParams> = {
       kind: 'tiles',
       prompt: [
         { kind: 'prose', text: facts.story },
-        { kind: 'display', tex: facts.given },
+        ...facts.given.map((tex) => ({ kind: 'display' as const, tex })),
         {
           kind: 'prose',
           text: `Use the first equation to write $${other}$ in terms of $${one}$, then put it into the second.`,
@@ -7175,7 +7175,10 @@ const modelDomain: Generator<Model> = {
         { kind: 'prose', text: facts.story },
         {
           kind: 'prose',
-          text: `$x$ is a length, so $x > 0$. The ${facts.other.name} must be positive too. Write it in terms of $x$, then the value $x$ must stay below.`,
+          text:
+            model.kind === 'sum'
+              ? 'Both numbers are positive, so $x > 0$ and $y > 0$. Write $y$ using $x$ and then give the value $x$ must stay below.'
+              : `$x$ is a length, so $x > 0$. The ${facts.other.name} must be positive too. Write it using $x$ and then give the value $x$ must stay below.`,
         },
       ],
       template: '{0} > 0, \\quad \\text{so } 0 < x < {1}',
@@ -7391,7 +7394,7 @@ const modelTree: Generator<Model> = {
         { kind: 'prose', text: facts.story },
         {
           kind: 'prose',
-          text: `Here $${facts.q} = ${product}$, where $${letter} = ${facts.other.tex}$ is the ${facts.other.name}, and $${modelRate(facts)} = ${facts.derivative.tex}$. Fill in the $x$ that makes $${facts.q}$ greatest, then $${letter}$, then $${facts.q}$.`,
+          text: `Here $${facts.q} = ${product}$, where $${letter} = ${facts.other.tex}$${kind === 'sum' ? '' : ` is the ${facts.other.name}`}, and $${modelRate(facts)} = ${facts.derivative.tex}$. Fill in the $x$ that makes $${facts.q}$ greatest, then $${letter}$, then $${facts.q}$.`,
         },
       ],
       expression: `${facts.q} = ${product}`,
@@ -7590,8 +7593,11 @@ const optNatureFlow: Generator<CubicModel> = {
     return {
       kind: 'flow',
       prompt: [
-        { kind: 'prose', text },
-        { kind: 'prose', text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Sort out the one at $x = ${p}$.` },
+        { kind: 'prose', text: `${text.replace(/, where$/, '.')} Its formula is below.` },
+        {
+          kind: 'prose',
+          text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Sort out the one at $x = ${p}$ step by step.`,
+        },
       ],
       subject: `${q} = ${polyInTex(profitCoefficients(params), 'x')}`,
       steps: [

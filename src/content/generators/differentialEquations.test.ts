@@ -55,6 +55,12 @@ import {
   qAnswer,
   yAt,
   type FactorParams,
+  type PartParams,
+  type RepCheckParams,
+  type RootParams,
+  type SecondDe,
+  type SecondIvp,
+  type WhichSecond,
   type LinearDe,
   type ParticularDe,
   type ProductParams,
@@ -1026,6 +1032,389 @@ describe('the integrating factor', () => {
       expect(close(evalAt(Y, { x: x0 }), y0)).toBe(true);
       expect(close(evalAt(Y, { x: params.x1 }), y1)).toBe(true);
       expect(yAt(params, params.x1)).toBe(y1);
+    }
+  });
+});
+
+describe('second-order equations', () => {
+  /** Probes, kept small enough that e^{6x} does not swamp the cancellation. */
+  const XS = [-0.6, 0.3, 0.9, 1.4];
+
+  /** A shown equation in y'', y' and y as mathjs, with E for y'' and D for y'. */
+  const equationToMath = (tex: string): [string, string] =>
+    tex
+      .replace(/\\frac\{d\^2y\}\{dx\^2\}/g, ' E ')
+      .replace(/\\frac\{dy\}\{dx\}/g, ' D ')
+      .replace(/y''/g, ' E ')
+      .replace(/y'/g, ' D ')
+      .replace(/(\d)\s*(?=[EDy])/g, '$1 * ')
+      .split('=') as [string, string];
+
+  /**
+   * y'' + by' + cy = 0 read off a shown equation: everything moved left,
+   * then divided by what multiplies y''. Nothing is left over on its own.
+   */
+  function coefficientsOf(tex: string): { b: number; c: number } {
+    const [lhs, rhs] = equationToMath(tex);
+    const L = (E: number, D: number, y: number) => evalAt(`(${lhs}) - (${rhs})`, { E, D, y });
+    const k0 = L(0, 0, 0);
+    expect(close(k0, 0), tex).toBe(true);
+    const kE = L(1, 0, 0) - k0;
+    return { b: (L(0, 1, 0) - k0) / kE, c: (L(0, 0, 1) - k0) / kE };
+  }
+
+  /** A solution's TeX as mathjs, keeping A and B as letters. */
+  function solutionToMath(tex: string): string {
+    return tex
+      .replace(/^y = /, '')
+      .replace(/\\(cos|sin) (\d*)x/g, (_, fn: string, n: string) => ` ${fn}(${n || 1}*x) `)
+      .replace(/e\^\{(-?)(\d*)x\}/g, (_, sign: string, n: string) => ` exp(${sign}${n || 1}*x) `)
+      .replace(/([0-9ABx)])\s*(?=[ABx(]|exp|cos|sin)/g, '$1 * ');
+  }
+
+  /** An expression in m (and x, through e^{mx}) as mathjs. */
+  const inM = (tex: string): string =>
+    tex
+      .replace(/e\^\{(\d*)mx\}/g, (_, n: string) => ` exp(${n || 1}*m*x) `)
+      .replace(/([0-9m)])\s*(?=[m(]|exp)/g, '$1 * ');
+
+  const compiledSecond = new Map<string, { evaluate: (scope: Scope) => unknown }>();
+  function secondAt(source: string, scope: Scope): number {
+    let hit = compiledSecond.get(source);
+    if (!hit) {
+      hit = math.derivative(math.derivative(source, 'x'), 'x').compile();
+      compiledSecond.set(source, hit);
+    }
+    return hit.evaluate({ ...scope }) as number;
+  }
+
+  /** Whether Y (in x, with A and B set in scope) satisfies y'' + by' + cy = 0 at every probe. */
+  function solves(Y: string, { b, c }: { b: number; c: number }, scope: Scope = {}): boolean {
+    return XS.every((x) => {
+      const at = { ...scope, x };
+      const [ypp, yp, y] = [secondAt(Y, at), derivativeAt(Y, 'x', at), evalAt(Y, at)];
+      const size = Math.max(1, Math.abs(ypp), Math.abs(b * yp), Math.abs(c * y));
+      return Math.abs(ypp + b * yp + c * y) < 1e-9 * size;
+    });
+  }
+
+  /** A general solution: A's part and B's part each solve it, and they are independent. */
+  function isGeneral(Y: string, coefficients: { b: number; c: number }): boolean {
+    const partA = { A: 1, B: 0 };
+    const partB = { A: 0, B: 1 };
+    if (!solves(Y, coefficients, partA) || !solves(Y, coefficients, partB)) return false;
+    const x = 0.3;
+    const [fa, fb] = [evalAt(Y, { ...partA, x }), evalAt(Y, { ...partB, x })];
+    const [da, db] = [derivativeAt(Y, 'x', { ...partA, x }), derivativeAt(Y, 'x', { ...partB, x })];
+    return Math.abs(fa * db - fb * da) > 1e-6 * (Math.abs(fa * db) + Math.abs(fb * da));
+  }
+
+  /** y(0) and y'(0) of a particular solution. */
+  const conditionsOf = (Y: string): [number, number] => [evalAt(Y, { x: 0 }), derivativeAt(Y, 'x', { x: 0 })];
+
+  /** The conditions a prompt or a line states. */
+  function statedConditions(text: string): [number, number] {
+    const [, y0, v0] = text.match(/y\(0\) = (-?\d+), \\; y'\(0\) = (-?\d+)/)!;
+    return [Number(y0), Number(v0)];
+  }
+
+  const meets = (Y: string, [y0, v0]: [number, number]): boolean => {
+    const [a, b] = conditionsOf(Y);
+    return close(a, y0) && close(b, v0);
+  };
+
+  /** The equation a slide shows, wherever it shows it. */
+  function shownEquation(slide: Slide): string {
+    if (slide.kind === 'teach') throw new Error('a teach slide shows no equation');
+    const candidates = slide.prompt.filter((block) => block.kind === 'display').map((block) => (block.kind === 'display' ? block.tex : ''));
+    if (slide.kind === 'flow') candidates.push(slide.subject);
+    if (slide.kind === 'tree') candidates.push(slide.expression);
+    if (slide.kind === 'steps') candidates.push(slide.start[0]);
+    for (const block of slide.prompt) if (block.kind === 'prose') candidates.push(...[...block.text.matchAll(/\$([^$]*)\$/g)].map((m) => m[1]));
+    const found = candidates.find((tex) => tex.includes('\\frac{d^2y}{dx^2}'));
+    if (!found) throw new Error('no second-order equation shown');
+    return found;
+  }
+
+  const stepsOf = (slide: Slide) => {
+    if (slide.kind !== 'steps') throw new Error(`expected steps, got ${slide.kind}`);
+    return slide;
+  };
+
+  const tilesOf = (slide: Slide) => {
+    if (slide.kind !== 'tiles') throw new Error(`expected tiles, got ${slide.kind}`);
+    return slide;
+  };
+
+  /** The template filled with tokens, as TeX. */
+  const fill = (template: string, tokens: string[]): string => template.replace(/\{(\d)\}/g, (_, i: string) => tokens[Number(i)]);
+
+  /** Every filling that differs from the answer in one blank. */
+  function oneOff(answer: string[], bank: string[]): string[][] {
+    return answer.flatMap((_, i) => bank.filter((token) => token !== answer[i]).map((token) => answer.map((a, j) => (j === i ? token : a))));
+  }
+
+  const lookAlikes = (bank: string[]): string[] => {
+    const squeezed = bank.map((token) => token.replace(/\s+/g, ''));
+    return bank.filter((_, i) => squeezed.indexOf(squeezed[i]) !== i);
+  };
+
+  /** The polynomial in m on the left of `... = 0`, as a function to compare. */
+  const samePoly = (lineA: string, lineB: string): boolean =>
+    [-1.3, 0.4, 2.2].every((m) => {
+      const value = (line: string) => {
+        const [l, r] = line.split('=').map(inM);
+        return evalAt(`(${l}) - (${r})`, { m, x: 0.7 });
+      };
+      return close(value(lineA), value(lineB));
+    });
+
+  const auxLine = ({ b, c }: { b: number; c: number }): string => `m^2 + (${b})m + (${c}) = 0`;
+
+  it('substitutes e^{mx}, takes it out, and drops it, with every slip wrong', () => {
+    for (const { slide } of draws(g.deAuxSubSteps as Generator<SecondDe>)) {
+      const { start, reductions } = stepsOf(slide);
+      const [lhs, rhs] = equationToMath(start[0]);
+      // The shown equation with y = e^{mx} put in, as a function of m and x.
+      const applied = (m: number, x: number) =>
+        evalAt(`(${lhs}) - (${rhs})`, { E: m * m * Math.exp(m * x), D: m * Math.exp(m * x), y: Math.exp(m * x) });
+      const agrees = (line: string, divided: boolean) =>
+        [[-1.3, 0.7], [0.4, -0.2], [2.2, 0.5]].every(([m, x]) => {
+          const [l, r] = line.split('=').map(inM);
+          return close(evalAt(`(${l}) - (${r})`, { m, x }), applied(m, x) / (divided ? Math.exp(m * x) : 1));
+        });
+      reductions.forEach((step, idx) => {
+        const divided = idx === 2;
+        expect(agrees(step.value, divided), step.value).toBe(true);
+        for (const slip of step.bank) if (slip !== step.value) expect(agrees(slip, divided), slip).toBe(false);
+      });
+    }
+  });
+
+  it('reads the auxiliary equation off every way the equation is written, and no other tile fits', () => {
+    for (const { slide } of draws(g.deAuxTiles as Generator<SecondDe>)) {
+      const { template, answer, bank } = tilesOf(slide);
+      const want = auxLine(coefficientsOf(shownEquation(slide)));
+      expect(samePoly(fill(template, answer), want)).toBe(true);
+      for (const other of oneOff(answer, bank)) expect(samePoly(fill(template, other), want), other.join(' ')).toBe(false);
+      expect(lookAlikes(bank)).toEqual([]);
+    }
+  });
+
+  it('types the root the question asks for', () => {
+    for (const { slide } of draws(g.deAuxRoot as Generator<RootParams>)) {
+      const r = Number(typed(slide));
+      const { b, c } = coefficientsOf(shownEquation(slide));
+      expect(close(r * r + b * r + c, 0)).toBe(true);
+      const other = -b - r;
+      const asked = proseOf(slide);
+      if (asked.includes('repeated')) expect(close(other, r)).toBe(true);
+      else if (asked.includes('larger')) expect(r).toBeGreaterThan(other);
+      else expect(r).toBeLessThan(other);
+    }
+  });
+
+  it('walks to the auxiliary equation, its discriminant and the right kind of root', () => {
+    for (const { slide } of draws(g.deAuxCase as Generator<SecondDe>)) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const coefficients = coefficientsOf(slide.subject);
+      const [aux, disc, kind] = slide.answer;
+      const strip = (label: string) => label.replace(/^\$|\$$/g, '');
+      expect(samePoly(strip(aux), auxLine(coefficients))).toBe(true);
+      for (const branch of slide.steps[0].branches) if (branch.label !== aux) expect(samePoly(strip(branch.label), auxLine(coefficients))).toBe(false);
+      const D = coefficients.b ** 2 - 4 * coefficients.c;
+      expect(close(Number(strip(disc)), D)).toBe(true);
+      for (const branch of slide.steps[1].branches) if (branch.label !== disc) expect(close(Number(strip(branch.label)), D)).toBe(false);
+      expect(kind).toBe(D > 0 ? 'Two different real roots' : D === 0 ? 'One repeated root' : 'Two complex roots');
+    }
+  });
+
+  /** The tiles place a general solution, and a tile swapped for any other does not. */
+  function checkGeneralTiles(slide: Slide) {
+    const { template, answer, bank } = tilesOf(slide);
+    const coefficients = coefficientsOf(shownEquation(slide));
+    expect(isGeneral(solutionToMath(fill(template, answer)), coefficients)).toBe(true);
+    for (const other of oneOff(answer, bank)) {
+      expect(isGeneral(solutionToMath(fill(template, other)), coefficients), other.join(' ')).toBe(false);
+    }
+    expect(lookAlikes(bank)).toEqual([]);
+  }
+
+  it('builds the general solution for two real roots, and no other tile fits', () => {
+    for (const { slide } of draws(g.deRealGeneral as Generator<SecondDe>)) checkGeneralTiles(slide);
+  });
+
+  it('builds the general solution for a repeated root, and no other tile fits', () => {
+    for (const { slide } of draws(g.deRepGeneral as Generator<SecondDe>)) checkGeneralTiles(slide);
+  });
+
+  it('builds the general solution for complex roots, and no other tile fits', () => {
+    for (const { slide } of draws(g.deCxGeneral as Generator<SecondDe>)) checkGeneralTiles(slide);
+  });
+
+  it('fills the roots from their sum and product', () => {
+    for (const { slide } of draws(g.deRealRootsTree as Generator<SecondDe>)) {
+      const [s, t, p, q] = answerOf(slide).map(Number);
+      const { b, c } = coefficientsOf(shownEquation(slide));
+      expect(p + q).toBe(s);
+      expect(p * q).toBe(t);
+      expect(p).toBeLessThan(q);
+      for (const r of [p, q]) expect(close(r * r + b * r + c, 0)).toBe(true);
+    }
+  });
+
+  /** Exactly one option of a which-question is right, in whichever direction it asks. */
+  function checkWhich(slide: Slide) {
+    if (slide.kind !== 'choice') throw new Error('expected a choice');
+    expect(slide.options.length).toBe(4);
+    const display = slide.prompt.find((block) => block.kind === 'display');
+    const shown = display?.kind === 'display' ? display.tex : '';
+    const right = slide.options.filter((option) =>
+      shown.startsWith('y =')
+        ? isGeneral(solutionToMath(shown), coefficientsOf(option.label))
+        : isGeneral(solutionToMath(option.label), coefficientsOf(shown)),
+    );
+    expect(right.map((option) => option.id)).toEqual([slide.correctId]);
+  }
+
+  it('marks the one general solution or equation that goes with two real roots', () => {
+    for (const { slide } of draws(g.deRealWhich as Generator<WhichSecond>)) checkWhich(slide);
+  });
+
+  it('marks the one general solution or equation that goes with a repeated root', () => {
+    for (const { slide } of draws(g.deRepWhich as Generator<WhichSecond>)) checkWhich(slide);
+  });
+
+  it('marks the one general solution or equation that goes with complex roots', () => {
+    for (const { slide } of draws(g.deCxWhich as Generator<WhichSecond>)) checkWhich(slide);
+  });
+
+  it('solves a real-roots equation line by line, and every slip fails', () => {
+    for (const { slide } of draws(g.deRealSolveSteps as Generator<SecondDe>)) {
+      const { start, reductions } = stepsOf(slide);
+      const coefficients = coefficientsOf(start[0]);
+      const [aux, factored, general] = reductions;
+      for (const step of [aux, factored]) {
+        const line = step.value.replace(/\)\(/g, ')*(');
+        expect(samePoly(line, auxLine(coefficients)), step.value).toBe(true);
+        for (const slip of step.bank) if (slip !== step.value) expect(samePoly(slip.replace(/\)\(/g, ')*('), auxLine(coefficients)), slip).toBe(false);
+      }
+      expect(isGeneral(solutionToMath(general.value), coefficients)).toBe(true);
+      for (const slip of general.bank) if (slip !== general.value) expect(isGeneral(solutionToMath(slip), coefficients), slip).toBe(false);
+    }
+  });
+
+  it('differentiates xe^{px} twice and puts it in, and every slip fails', () => {
+    for (const { slide } of draws(g.deRepCheckSteps as Generator<RepCheckParams>)) {
+      const { start, reductions } = stepsOf(slide);
+      const Y = solutionToMath(start[0]);
+      const coefficients = coefficientsOf(shownEquation(slide));
+      const [first, second, last] = reductions;
+      const matches = (line: string, order: 1 | 2) =>
+        XS.every((x) => close(evalAt(solutionToMath(line.replace(/^y'+ = /, '')), { x }), order === 1 ? derivativeAt(Y, 'x', { x }) : secondAt(Y, { x })));
+      expect(matches(first.value, 1)).toBe(true);
+      for (const slip of first.bank) if (slip !== first.value) expect(matches(slip, 1), slip).toBe(false);
+      expect(matches(second.value, 2)).toBe(true);
+      for (const slip of second.bank) if (slip !== second.value) expect(matches(slip, 2), slip).toBe(false);
+      // The last line is the equation itself, with y put in: its two sides agree only for the value.
+      expect(coefficientsOf(last.value)).toEqual(coefficients);
+      const holdsWithY = (line: string) => {
+        const [lhs, rhs] = equationToMath(line.replace(/ = (.*)$/, (_, right: string) => ` = ${solutionToMath(right)}`));
+        return XS.every((x) =>
+          close(evalAt(lhs, { E: secondAt(Y, { x }), D: derivativeAt(Y, 'x', { x }), y: evalAt(Y, { x }) }), evalAt(rhs, { x })),
+        );
+      };
+      expect(solves(Y, coefficients)).toBe(true);
+      expect(holdsWithY(last.value)).toBe(true);
+      for (const slip of last.bank) if (slip !== last.value) expect(holdsWithY(slip), slip).toBe(false);
+    }
+  });
+
+  it('types alpha or beta for the complex roots', () => {
+    for (const { params, slide } of draws(g.deCxPart as Generator<PartParams>)) {
+      const value = Number(typed(slide));
+      const { b, c } = coefficientsOf(shownEquation(slide));
+      const alpha = -b / 2;
+      const beta = Math.sqrt(c - alpha * alpha);
+      expect(close(value, params.ask === 'alpha' ? alpha : beta)).toBe(true);
+      expect(proseOf(slide)).toContain(`Find $\\${params.ask}$`);
+    }
+  });
+
+  it('fills the discriminant, then alpha, then beta', () => {
+    for (const { slide } of draws(g.deCxTree as Generator<SecondDe>)) {
+      const [D, alpha, beta] = answerOf(slide).map(Number);
+      const { b, c } = coefficientsOf(shownEquation(slide));
+      expect(close(D, b * b - 4 * c)).toBe(true);
+      expect(D).toBeLessThan(0);
+      expect(close(alpha, -b / 2)).toBe(true);
+      expect(close(beta, Math.sqrt(-D) / 2)).toBe(true);
+    }
+  });
+
+  /** The particular solution a generic form gives with its letters filled in. */
+  function fromForm(kind: SecondDe['kind'], values: Record<string, number>): string {
+    const { p, q, A, B } = values;
+    if (kind === 'real') return `(${A})*exp((${p})*x) + (${B})*exp((${q})*x)`;
+    if (kind === 'repeated') return `((${A}) + (${B})*x)*exp((${p})*x)`;
+    return `exp((${p})*x)*((${A})*cos((${q})*x) + (${B})*sin((${q})*x))`;
+  }
+
+  it('finds the constant the two conditions fix', () => {
+    for (const { params, slide } of draws(g.deIvpConstant as Generator<SecondIvp & { shown: boolean }>)) {
+      const value = Number(typed(slide));
+      const text = proseOf(slide);
+      const letter = text.match(/[Ff]ind \$([AB])\$/)![1];
+      const values = { p: params.p, q: params.q, A: params.A, B: params.B, [letter]: value };
+      const Y = fromForm(params.kind, values);
+      expect(solves(Y, coefficientsOf(shownEquation(slide)))).toBe(true);
+      expect(meets(Y, statedConditions(text))).toBe(true);
+    }
+  });
+
+  it('fills the roots, then A, then B, and meets both conditions', () => {
+    for (const { params, slide } of draws(g.deIvpTree as Generator<SecondIvp>)) {
+      const values = answerOf(slide).map(Number);
+      const named =
+        params.kind === 'repeated'
+          ? { p: values[0], q: values[0], A: values[1], B: values[2] }
+          : { p: values[0], q: values[1], A: values[2], B: values[3] };
+      if (params.kind === 'real') expect(named.p).toBeLessThan(named.q);
+      if (params.kind === 'complex') expect(named.q).toBeGreaterThan(0);
+      const Y = fromForm(params.kind, named);
+      expect(solves(Y, coefficientsOf(shownEquation(slide)))).toBe(true);
+      expect(meets(Y, statedConditions(proseOf(slide)))).toBe(true);
+    }
+  });
+
+  it('puts the conditions in and ends on the one solution that meets them', () => {
+    for (const { slide } of draws(g.deIvpSteps as Generator<SecondIvp>)) {
+      const { start, reductions } = stepsOf(slide);
+      const coefficients = coefficientsOf(shownEquation(slide));
+      const conditions = statedConditions(start[2]);
+      expect(isGeneral(solutionToMath(start[0]), coefficients)).toBe(true);
+      const last = reductions[reductions.length - 1];
+      const fits = (line: string) => solves(solutionToMath(line), coefficients) && meets(solutionToMath(line), conditions);
+      expect(fits(last.value)).toBe(true);
+      for (const slip of last.bank) if (slip !== last.value) expect(fits(slip), slip).toBe(false);
+      // The constants line gives the same solution as the last line.
+      const [, A, B] = reductions[1].value.match(/A = (-?\d+), \\; B = (-?\d+)/)!;
+      const Y = solutionToMath(start[0]);
+      expect(XS.every((x) => close(evalAt(Y, { x, A: Number(A), B: Number(B) }), evalAt(solutionToMath(last.value), { x })))).toBe(true);
+    }
+  });
+
+  it('marks the one particular solution that meets the equation and both conditions', () => {
+    for (const { slide } of draws(g.deIvpFit as Generator<SecondIvp>)) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      expect(slide.options.length).toBe(4);
+      const coefficients = coefficientsOf(shownEquation(slide));
+      const conditions = statedConditions(proseOf(slide));
+      const right = slide.options.filter((option) => {
+        const Y = solutionToMath(option.label);
+        return solves(Y, coefficients) && meets(Y, conditions);
+      });
+      expect(right.map((option) => option.id)).toEqual([slide.correctId]);
     }
   });
 });

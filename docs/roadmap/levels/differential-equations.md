@@ -4,11 +4,12 @@ Written by C13.
 
 Has: First-Order by Separation; Modelling with Differential Equations; The
 Integrating Factor (dy/dx + P(x)y = Q(x), finding e^∫P, recognising the left
-side as a product derivative, and particular solutions).
+side as a product derivative, and particular solutions); Second-Order with
+Constant Coefficients (the auxiliary equation, real distinct, repeated and
+complex roots, the general solution in each case, and y(0) and y'(0) fixing
+both constants).
 
-Needs: Second-Order
-with Constant Coefficients (the auxiliary equation, real distinct, repeated and
-complex roots, and the general solution in each case); Non-Homogeneous
+Needs: Non-Homogeneous
 Second-Order (complementary function plus particular integral for polynomial,
 exponential and trigonometric right sides, and the resonance case); Simple
 Harmonic Motion (ẍ = −ω²x, amplitude, period and phase, then damped motion as

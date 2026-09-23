@@ -9,6 +9,10 @@
  * substitution. Level 3 solves `dy/dx + Py = Q` with an integrating factor,
  * for a constant P and for P = n/x, built backwards from the solution so
  * that Q's coefficient is always a multiple of what the integral divides by.
+ * Level 4 solves `y'' + by' + cy = 0` through its auxiliary equation, drawing
+ * the roots first (two real, one repeated, or α ± βi) and building b and c
+ * from them, and the constants A and B first when a particular solution is
+ * asked, so that y(0) and y'(0) are read off them.
  *
  * Every number the learner meets is whole by construction. A rate constant
  * that has to be a logarithm is written as one, `k = (ln 2)/3`, so that the
@@ -4513,6 +4517,1148 @@ const deIfValueTree: Generator<ParticularDe> = {
   ],
 };
 
+/* ============================================================
+ * Level 4: second order with constant coefficients
+ * ============================================================ */
+
+/**
+ * `y'' + by' + cy = 0`, built from the roots of its auxiliary equation so
+ * that every number in it is whole.
+ *
+ * - `real`: roots p < q, so b = -(p + q) and c = pq.
+ * - `repeated`: the root p twice (q = p), so b = -2p and c = p^2.
+ * - `complex`: roots α ± βi with β > 0, held as p = α and q = β, so
+ *   b = -2α and c = α^2 + β^2.
+ *
+ * No real root is zero, so c is never zero and a real solution always has
+ * two exponentials rather than a bare constant.
+ */
+export interface SecondDe {
+  kind: 'real' | 'repeated' | 'complex';
+  p: number;
+  q: number;
+  /** `moved` has the y' and y terms on the right; `scaled` has every term times `scale`. */
+  written: 'standard' | 'moved' | 'scaled';
+  /** 1 unless the equation is scaled, so that nothing unseen feeds a salt. */
+  scale: number;
+}
+
+export const secondB = ({ kind, p, q }: SecondDe): number => (kind === 'complex' ? -2 * p : -(p + q));
+export const secondC = ({ kind, p, q }: SecondDe): number => (kind === 'complex' ? p * p + q * q : p * q);
+
+const D1 = rate('y', 'x');
+const D2 = '\\frac{d^2y}{dx^2}';
+
+/**
+ * Terms joined as the learner reads them: a zero term dropped, 1 and -1
+ * implied in front of a letter, a bare number kept whole.
+ */
+function terms(list: [number, string][]): string {
+  const kept = list.filter(([c]) => c !== 0);
+  if (kept.length === 0) return '0';
+  return kept
+    .map(([c, body], idx) => {
+      const size = Math.abs(c);
+      const shown = body === '' ? `${size}` : `${size === 1 ? '' : size}${body}`;
+      if (idx === 0) return c < 0 ? `-${shown}` : shown;
+      return `${c < 0 ? '-' : '+'} ${shown}`;
+    })
+    .join(' ');
+}
+
+/** A term with its sign in front, for a tile: `- 5m`, `+ 6`. Every tile goes through this, so no two spell one term two ways. */
+const signedTerm = (c: number, body: string): string =>
+  `${c < 0 ? '-' : '+'} ${body !== '' && Math.abs(c) === 1 ? '' : Math.abs(c)}${body}`;
+
+/** `\cos 3x` or `\sin x`. */
+const trig = (fn: 'cos' | 'sin', beta: number): string => `\\${fn} ${coef(beta)}x`;
+
+/** y'' + by' + cy = 0 in Leibniz notation, with 1 in front of the second derivative. */
+const eqOf = (b: number, c: number): string => `${terms([[1, D2], [b, D1], [c, 'y']])} = 0`;
+
+/** The same with primes, for a line of working. */
+const primesOf = (b: number, c: number): string => `${terms([[1, "y''"], [b, "y'"], [c, 'y']])} = 0`;
+
+/** m^2 + bm + c = 0. */
+const auxOf = (b: number, c: number, a = 1): string => `${terms([[a, 'm^2'], [a * b, 'm'], [a * c, '']])} = 0`;
+
+export const auxTex = (de: SecondDe): string => auxOf(secondB(de), secondC(de));
+
+/**
+ * The equation as it is shown. `primes` writes y'' and y' rather than the
+ * fractions, for the line of a steps slide: its fragments are set inline, and
+ * two stacked fractions beside `y = e^{mx}` wrap on a phone.
+ */
+export function secondTex(de: SecondDe, primes = false): string {
+  const b = secondB(de);
+  const c = secondC(de);
+  const [second, first] = primes ? ["y''", "y'"] : [D2, D1];
+  if (de.written === 'moved') return `${second} = ${terms([[-b, first], [-c, 'y']])}`;
+  const a = de.written === 'scaled' ? de.scale : 1;
+  return `${terms([[a, second], [a * b, first], [a * c, 'y']])} = 0`;
+}
+
+/** The roots as the learner reads them. */
+export function rootsTex({ kind, p, q }: SecondDe): string {
+  if (kind === 'real') return `m = ${p}, \\; m = ${q}`;
+  if (kind === 'repeated') return `m = ${p} \\text{ (twice)}`;
+  return `m = ${p === 0 ? '' : `${p} `}\\pm ${coef(q)}i`;
+}
+
+/** A cos βx + B sin βx, with whatever coefficients. */
+const waveOf = (A: number | string, B: number | string, beta: number): string =>
+  typeof A === 'number' && typeof B === 'number'
+    ? terms([[A, trig('cos', beta)], [B, trig('sin', beta)]])
+    : `${A}${trig('cos', beta)} + ${B}${trig('sin', beta)}`;
+
+/** The general solution, in A and B. */
+export function secondGeneralTex({ kind, p, q }: SecondDe): string {
+  if (kind === 'real') return `y = A${expX(p)} + B${expX(q)}`;
+  if (kind === 'repeated') return `y = (A + Bx)${expX(p)}`;
+  return p === 0 ? `y = ${waveOf('A', 'B', q)}` : `y = ${expX(p)}(${waveOf('A', 'B', q)})`;
+}
+
+/** A particular solution, with A and B numbers. */
+export function secondParticularTex({ kind, p, q }: SecondDe, A: number, B: number): string {
+  if (kind === 'real') return `y = ${terms([[A, expX(p)], [B, expX(q)]])}`;
+  if (kind === 'repeated') return `y = (${terms([[A, ''], [B, 'x']])})${expX(p)}`;
+  return p === 0 ? `y = ${waveOf(A, B, q)}` : `y = ${expX(p)}(${waveOf(A, B, q)})`;
+}
+
+/** The solution for mathjs, with A and B numbers or the letters. */
+export function secondAnswer({ kind, p, q }: SecondDe, A: number | string = 'A', B: number | string = 'B'): string {
+  if (kind === 'real') return `(${A})*e^((${p})*x) + (${B})*e^((${q})*x)`;
+  if (kind === 'repeated') return `((${A}) + (${B})*x)*e^((${p})*x)`;
+  return `e^((${p})*x)*((${A})*cos((${q})*x) + (${B})*sin((${q})*x))`;
+}
+
+/** y(0) and y'(0) for the solution with constants A and B. */
+export function atZero({ kind, p, q }: SecondDe, A: number, B: number): [number, number] {
+  if (kind === 'real') return [A + B, p * A + q * B];
+  if (kind === 'repeated') return [A, p * A + B];
+  return [A, p * A + q * B];
+}
+
+const KINDS: SecondDe['kind'][] = ['real', 'repeated', 'complex'];
+const WRITTEN: SecondDe['written'][] = ['standard', 'moved', 'scaled'];
+
+const secondSalt = (de: SecondDe, ...more: number[]): number =>
+  mix(KINDS.indexOf(de.kind), de.p, de.q, WRITTEN.indexOf(de.written), de.scale, ...more);
+
+const nonzero = (rng: Rng, size: number): number => rng.int(1, size) * rng.sign();
+
+/** The forms an equation is shown in: mostly as it is at difficulty 1. */
+const formsFor = (difficulty: number): SecondDe['written'][] =>
+  difficulty >= 2 ? ['standard', 'moved', 'scaled'] : ['standard', 'standard', 'moved'];
+
+/**
+ * The repeated root has only a dozen values, so its questions take every
+ * form at both difficulties: that is what clears the floor of 25.
+ */
+const repeatedForms = (difficulty: number): SecondDe['written'][] =>
+  difficulty >= 2 ? ['standard', 'moved', 'scaled', 'scaled'] : ['standard', 'standard', 'moved', 'scaled'];
+
+function sampleSecond(rng: Rng, difficulty: number, kind: SecondDe['kind'], forms: SecondDe['written'][]): SecondDe {
+  const hard = difficulty >= 2;
+  const written = rng.pick(forms);
+  const scale = written === 'scaled' ? rng.int(2, 3) : 1;
+  if (kind === 'repeated') {
+    const p = nonzero(rng, hard ? 6 : 5);
+    return { kind, p, q: p, written, scale };
+  }
+  if (kind === 'complex') return { kind, p: rng.int(hard ? -3 : -2, hard ? 3 : 2), q: rng.int(1, hard ? 4 : 3), written, scale };
+  for (;;) {
+    const one = nonzero(rng, hard ? 6 : 4);
+    const two = nonzero(rng, hard ? 6 : 4);
+    if (one !== two) return { kind, p: Math.min(one, two), q: Math.max(one, two), written, scale };
+  }
+}
+
+const sampleAnyKind = (rng: Rng, difficulty: number, forms: SecondDe['written'][]): SecondDe =>
+  sampleSecond(rng, difficulty, rng.pick(KINDS), forms);
+
+/** Getting the equation into the form y'' + by' + cy = 0 first, when it is not. */
+function toStandard(de: SecondDe): SolutionStep[] {
+  const standard = eqOf(secondB(de), secondC(de));
+  if (de.written === 'moved') return [{ text: 'Bring every term over to the left.', tex: standard }];
+  if (de.written === 'scaled') return [{ text: `Divide every term by $${de.scale}$.`, tex: standard }];
+  return [];
+}
+
+/** The general solution, start to finish. */
+function secondSteps(de: SecondDe): SolutionStep[] {
+  const b = secondB(de);
+  const c = secondC(de);
+  const disc = b * b - 4 * c;
+  const shape =
+    de.kind === 'real'
+      ? 'Two different real roots give a sum of two exponentials.'
+      : de.kind === 'repeated'
+        ? `A repeated root gives $e^{${coef(de.p)}x}$ and $xe^{${coef(de.p)}x}$.`
+        : `Complex roots $\\alpha \\pm \\beta i$ give $e^{\\alpha x}$ times a cosine and a sine of $\\beta x$.`;
+  return [
+    ...toStandard(de),
+    { text: "$y''$ becomes $m^2$, $y'$ becomes $m$ and $y$ becomes $1$.", tex: auxOf(b, c) },
+    { text: `The discriminant is $${b < 0 ? `(${b})` : b}^2 - 4 \\times ${c < 0 ? `(${c})` : c} = ${disc}$.`, tex: rootsTex(de) },
+    { text: shape, tex: secondGeneralTex(de) },
+  ];
+}
+
+/** A slip list cut down to the first few that are really different from the answer and from each other. */
+function firstDistinct(answer: string, slips: string[], count: number): string[] {
+  const out: string[] = [];
+  for (const slip of slips) {
+    if (out.length === count) break;
+    if (slip !== answer && !out.includes(slip)) out.push(slip);
+  }
+  return out;
+}
+
+/* ---------- Level 4, lesson 1: the auxiliary equation ---------- */
+
+/** Put y = e^{mx} in, take out e^{mx}, and drop it. */
+const deAuxSubSteps: Generator<SecondDe> = {
+  id: 'de-aux-sub-steps',
+  sample: (rng, difficulty) => sampleAnyKind(rng, difficulty, difficulty >= 2 ? ['standard', 'scaled', 'scaled'] : ['standard']),
+  render: (de): Slide => {
+    const a = de.written === 'scaled' ? de.scale : 1;
+    const b = secondB(de) * a;
+    const c = secondC(de) * a;
+    const E = 'e^{mx}';
+    const substituted = `${terms([[a, `m^2${E}`], [b, `m${E}`], [c, E]])} = 0`;
+    const poly = terms([[a, 'm^2'], [b, 'm'], [c, '']]);
+    const factored = `${E}(${poly}) = 0`;
+    const aux = `${poly} = 0`;
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          'Try $y = e^{mx}$ in this equation. Tap the comma to put it in, then tap the line to take out the common factor, then again to drop it.',
+        ),
+      ],
+      start: [secondTex(de, true), ',', `y = ${E}`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: substituted,
+          bank: stepBank(
+            substituted,
+            `${terms([[a, `m${E}`], [b, `m${E}`], [c, E]])} = 0`,
+            `${terms([[a, `m^2${E}`], [b, E], [c, E]])} = 0`,
+            `${terms([[a, `m^2${E}`], [b, `m${E}`], [c, '']])} = 0`,
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: factored,
+          bank: stepBank(
+            factored,
+            `${E}(${terms([[a, 'm^2'], [b, ''], [c, '']])}) = 0`,
+            `${E}(${terms([[a, 'm'], [b, 'm'], [c, '']])}) = 0`,
+            `e^{2mx}(${poly}) = 0`,
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: aux,
+          bank: stepBank(aux, `${E} = 0`, `${poly} = 1`, `${terms([[a, 'm^2'], [-b, 'm'], [c, '']])} = 0`),
+        },
+      ],
+    };
+  },
+  solution: (de) => {
+    const a = de.written === 'scaled' ? de.scale : 1;
+    const poly = terms([[a, 'm^2'], [a * secondB(de), 'm'], [a * secondC(de), '']]);
+    return [
+      { text: "With $y = e^{mx}$, $y' = me^{mx}$ and $y'' = m^2e^{mx}$." },
+      { text: 'Put them in. Every term has $e^{mx}$ in it, so take it out.', tex: `e^{mx}(${poly}) = 0` },
+      { text: '$e^{mx}$ is never $0$, so the bracket is. That is the auxiliary equation.', tex: `${poly} = 0` },
+    ];
+  },
+};
+
+/** The auxiliary equation read off, as tiles. */
+const deAuxTiles: Generator<SecondDe> = {
+  id: 'de-aux-tiles',
+  sample: (rng, difficulty) => sampleAnyKind(rng, difficulty, formsFor(difficulty)),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const answer = b === 0 ? [signedTerm(c, '')] : [signedTerm(b, 'm'), signedTerm(c, '')];
+    // Scaled, the likeliest slip is not dividing through, so those come first.
+    const slips = [
+      ...(de.written === 'scaled' ? [signedTerm(de.scale * b, 'm'), signedTerm(de.scale * c, '')] : []),
+      signedTerm(-b, 'm'),
+      signedTerm(-c, ''),
+      signedTerm(c, 'm'),
+      signedTerm(b, ''),
+    ].filter((token) => token !== signedTerm(0, 'm') && token !== signedTerm(0, ''));
+    return {
+      kind: 'tiles',
+      prompt: [prose('Write the auxiliary equation of this equation in the form $m^2 + bm + c = 0$.'), display(secondTex(de))],
+      template: b === 0 ? 'm^2 {0} = 0' : 'm^2 {0} {1} = 0',
+      bank: tokenBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: (de) => [
+    ...toStandard(de),
+    {
+      text: "Replace $y''$ with $m^2$, $y'$ with $m$ and $y$ with $1$, keeping every coefficient and its sign.",
+      tex: auxTex(de),
+    },
+  ],
+};
+
+/** A root of the auxiliary equation, typed. */
+export interface RootParams extends SecondDe {
+  larger: boolean;
+}
+
+const deAuxRoot: Generator<RootParams> = {
+  id: 'de-aux-root',
+  sample: (rng, difficulty) => {
+    const de = sampleSecond(rng, difficulty, rng.chance(0.75) ? 'real' : 'repeated', formsFor(difficulty));
+    return { ...de, larger: de.kind === 'repeated' || rng.chance(0.5) };
+  },
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(
+        `Find ${de.kind === 'repeated' ? 'the repeated root' : de.larger ? 'the larger root' : 'the smaller root'} of the auxiliary equation of`,
+      ),
+      display(secondTex(de)),
+    ],
+    lead: 'm =',
+    keypad: [],
+    answer: `${de.larger ? de.q : de.p}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (de) => [
+    ...toStandard(de),
+    { text: 'The auxiliary equation:', tex: auxTex(de) },
+    {
+      text: 'Factorise it.',
+      tex: `(m ${signed(-de.p)})${de.kind === 'repeated' ? '^2' : `(m ${signed(-de.q)})`} = 0`,
+    },
+    { tex: rootsTex(de) },
+  ],
+};
+
+/** A walk: the auxiliary equation, its discriminant, and the case that picks. */
+const deAuxCase: Generator<SecondDe> = {
+  id: 'de-aux-case',
+  sample: (rng, difficulty) => sampleAnyKind(rng, difficulty, difficulty >= 2 ? ['standard', 'moved', 'moved'] : ['standard', 'standard', 'moved']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const disc = b * b - 4 * c;
+    const salt = secondSalt(de);
+    const aux = `$${auxOf(b, c)}$`;
+    const auxSlips: Branch[] = [
+      {
+        label: `$${auxOf(-b, c)}$`,
+        outcome:
+          de.written === 'moved'
+            ? 'Moving a term across the $=$ changes its sign, so the $m$ term has the other sign.'
+            : "$y'$ becomes $m$ with its coefficient, sign and all.",
+      },
+      {
+        label: `$${auxOf(b, -c)}$`,
+        outcome: de.written === 'moved' ? 'Every term moved to the left changes sign, the $y$ term as well.' : '$y$ becomes $1$, keeping its coefficient and sign.',
+      },
+      { label: `$${auxOf(c, b)}$`, outcome: "$y'$ becomes $m$ and $y$ becomes $1$: the coefficients stay where they were." },
+    ];
+    const discSlips: Branch[] = [
+      { label: `$${b * b + 4 * c}$`, outcome: 'The discriminant is $b^2 - 4c$: take $4c$ away.' },
+      { label: `$${-disc}$`, outcome: 'That is $4c - b^2$, the discriminant the wrong way round.' },
+      { label: `$${2 * b - 4 * c}$`, outcome: 'Square $b$ rather than doubling it.' },
+    ];
+    const verdict =
+      de.kind === 'real'
+        ? `The roots are $m = ${de.p}$ and $m = ${de.q}$.`
+        : de.kind === 'repeated'
+          ? `The root is $m = ${de.p}$, twice.`
+          : `The roots are $${rootsTex(de)}$.`;
+    const sign = disc > 0 ? 'positive' : disc === 0 ? 'zero' : 'negative';
+    const cases: Branch[] = [
+      {
+        label: 'Two different real roots',
+        outcome: de.kind === 'real' ? verdict : `Two real roots need a positive discriminant, and this one is ${sign}.`,
+      },
+      {
+        label: 'One repeated root',
+        outcome: de.kind === 'repeated' ? verdict : `A repeated root needs a discriminant of zero, and this one is ${sign}.`,
+      },
+      {
+        label: 'Two complex roots',
+        outcome: de.kind === 'complex' ? verdict : `Complex roots need a negative discriminant, and this one is ${sign}.`,
+      },
+    ];
+    const caseLabel = cases[KINDS.indexOf(de.kind)].label;
+    return {
+      kind: 'flow',
+      prompt: [prose('Find which kind of roots the auxiliary equation of this equation has.')],
+      subject: secondTex(de),
+      steps: [
+        { id: 'aux', ask: 'The auxiliary equation is', branches: branchesOf({ label: aux, to: 'disc' }, auxSlips, salt) },
+        { id: 'disc', ask: 'Its discriminant, $b^2 - 4c$, is', branches: branchesOf({ label: `$${disc}$`, to: 'case' }, discSlips, salt >>> 4) },
+        { id: 'case', ask: 'So it has', branches: turned(cases, (salt >>> 8) % 3) },
+      ],
+      answer: [aux, `$${disc}$`, caseLabel],
+    };
+  },
+  solution: (de) => secondSteps(de).slice(0, -1),
+};
+
+/* ---------- Level 4, lesson 2: two real roots ---------- */
+
+/** The general solution for two real roots, as tiles. */
+const deRealGeneral: Generator<SecondDe> = {
+  id: 'de-real-general',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'real', formsFor(difficulty)),
+  render: (de): Slide => {
+    const { p, q } = de;
+    const b = secondB(de);
+    const c = secondC(de);
+    // An exponent that is one of the roots would be a right answer too, so none is offered.
+    const wrongPowers = [-p, -q, b, c, p + q, 2 * p].filter((k) => k !== p && k !== q && k !== 0);
+    return {
+      kind: 'tiles',
+      prompt: [prose('Find the general solution of'), display(secondTex(de))],
+      template: 'y = A{0} + B{1}',
+      bank: tokenBank([expX(p), expX(q)], [...wrongPowers.map(expX), `x${expX(p)}`], 3),
+      answer: [expX(p), expX(q)],
+      unordered: true,
+    };
+  },
+  solution: secondSteps,
+};
+
+/** The roots from their sum and product, as a tree. */
+const deRealRootsTree: Generator<SecondDe> = {
+  id: 'de-real-roots-tree',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'real', difficulty >= 2 ? ['standard', 'moved'] : ['standard', 'standard', 'moved']),
+  render: (de): Slide => {
+    const { p, q } = de;
+    const b = secondB(de);
+    const c = secondC(de);
+    const answer = [-b, c, p, q];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose('The roots of the auxiliary equation add to $s$ and multiply to $t$. They are $p$ and $q$, with $p < q$.'),
+        prose('Fill in $s$, then $t$, then $p$ and $q$.'),
+      ],
+      expression: secondTex(de),
+      nodes: [
+        { id: 's', from: [] },
+        { id: 't', from: [] },
+        { id: 'p', from: ['s', 't'] },
+        { id: 'q', from: ['s', 't'] },
+      ],
+      bank: treeBank(answer, [b, -c, -p, -q, p * q + 1]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => [
+    ...toStandard(de),
+    { text: 'The auxiliary equation:', tex: auxTex(de) },
+    {
+      text: `For $m^2 + bm + c$, the roots add to $-b$ and multiply to $c$: here $${-secondB(de)}$ and $${secondC(de)}$.`,
+    },
+    { text: 'Two whole numbers with that sum and product:', tex: rootsTex(de) },
+  ],
+};
+
+/** Which general solution, or which equation, as a choice. */
+export interface WhichSecond extends SecondDe {
+  /** Show the solution and ask for the equation. */
+  reverse: boolean;
+}
+
+/** Options for a which-solution question on any kind: the answer, then its slips. */
+function solutionSlips(de: SecondDe): string[] {
+  const { kind, p, q } = de;
+  if (kind === 'real') {
+    return [
+      q === -p ? `y = ${waveOf('A', 'B', q)}` : `y = A${expX(-p)} + B${expX(-q)}`,
+      `y = (A + Bx)${expX(p)}`,
+      `y = A${expX(p)}${expX(q)}`,
+      `y = A${expX(p)} + B${expX(-q)}`,
+    ];
+  }
+  if (kind === 'repeated') {
+    return [`y = (A + Bx)${expX(-p)}`, `y = A${expX(p)} + B${expX(-p)}`, `y = (A + Bx^2)${expX(p)}`];
+  }
+  // Forgetting to halve: the square root of 4c - b^2 is 2β, not β.
+  const freq = 2 * q;
+  const withFreq = (alpha: number, beta: number): string =>
+    alpha === 0 ? `y = ${waveOf('A', 'B', beta)}` : `y = ${expX(alpha)}(${waveOf('A', 'B', beta)})`;
+  if (p === 0) return [`y = A${expX(q)} + B${expX(-q)}`, withFreq(0, freq), withFreq(q, q)];
+  return [
+    withFreq(-p, q),
+    withFreq(p, freq),
+    ...(Math.abs(p) !== q ? [withFreq(q, Math.abs(p))] : []),
+    withFreq(0, q),
+    ...(Math.abs(p) !== q ? [`y = A${expX(p + q)} + B${expX(p - q)}`] : []),
+  ];
+}
+
+/** Equations that are not this one, for asking which has a given solution. */
+function equationSlips(de: SecondDe): string[] {
+  const b = secondB(de);
+  const c = secondC(de);
+  const { kind, p, q } = de;
+  const slips: [number, number][] =
+    kind === 'real'
+      ? [[-b, c], [b, -c], [c, b], [-b, -c], [b, q], [q - p, c]]
+      : kind === 'repeated'
+        ? [[-b, c], [-p, c], [b, -c]]
+        : [[-b, c], [b, p * p - q * q], [-p, c], [b, -c], [c, b], [q, c]];
+  return slips.filter(([bb, cc]) => bb !== b || cc !== c).map(([bb, cc]) => eqOf(bb, cc));
+}
+
+/** A which-question from a generator's own direction and slips. */
+function whichSlide(de: WhichSecond): Slide {
+  const salt = secondSalt(de, de.reverse ? 1 : 0);
+  if (de.reverse) {
+    const answer = eqOf(secondB(de), secondC(de));
+    return choiceSlide(
+      [prose('Which equation has this general solution?'), display(secondGeneralTex(de))],
+      [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, equationSlips(de), 3).map((label) => ({ label, tex: true }))],
+      salt,
+    );
+  }
+  const answer = secondGeneralTex(de);
+  return choiceSlide(
+    [prose('Which is the general solution of'), display(secondTex(de))],
+    [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, solutionSlips(de), 3).map((label) => ({ label, tex: true }))],
+    salt,
+  );
+}
+
+function whichSolution(de: WhichSecond): SolutionStep[] {
+  if (!de.reverse) return secondSteps(de);
+  return [
+    { text: 'Read the roots of the auxiliary equation off the solution.', tex: rootsTex(de) },
+    { text: 'The auxiliary equation is the quadratic with those roots.', tex: auxTex(de) },
+    { text: "Turn $m^2$ back into $y''$, $m$ into $y'$ and $1$ into $y$.", tex: eqOf(secondB(de), secondC(de)) },
+  ];
+}
+
+const deRealWhich: Generator<WhichSecond> = {
+  id: 'de-real-which',
+  sample: (rng, difficulty) => ({
+    ...sampleSecond(rng, difficulty, 'real', formsFor(difficulty)),
+    reverse: rng.chance(difficulty >= 2 ? 0.5 : 0.3),
+  }),
+  render: whichSlide,
+  solution: whichSolution,
+};
+
+/** Auxiliary equation, factorised, general solution, one line at a time. */
+const deRealSolveSteps: Generator<SecondDe> = {
+  id: 'de-real-solve-steps',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'real', difficulty >= 2 ? ['standard', 'moved', 'moved'] : ['standard', 'standard', 'moved']),
+  render: (de): Slide => {
+    const { p, q } = de;
+    const b = secondB(de);
+    const c = secondC(de);
+    const factor = (r: number): string => `(m ${signed(-r)})`;
+    const aux = auxOf(b, c);
+    const factored = `${factor(p)}${factor(q)} = 0`;
+    const general = secondGeneralTex(de);
+    const symmetric = q === -p;
+    return {
+      kind: 'steps',
+      prompt: [prose('Solve this equation: tap the line for its auxiliary equation, again to factorise that, and again for the general solution.')],
+      start: [secondTex(de, true)],
+      reductions: [
+        { span: [0, 1], operator: 0, value: aux, bank: stepBank(aux, auxOf(-b, c), auxOf(b, -c), auxOf(c, b)) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: factored,
+          bank: stepBank(
+            factored,
+            `${factor(-p)}${factor(q)} = 0`,
+            `${factor(p)}${factor(-q)} = 0`,
+            ...(symmetric ? [] : [`${factor(-p)}${factor(-q)} = 0`]),
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: general,
+          bank: stepBank(
+            general,
+            `y = (A + Bx)${expX(p)}`,
+            `y = A${expX(p)} + B${expX(-q)}`,
+            ...(symmetric ? [] : [`y = A${expX(-p)} + B${expX(-q)}`]),
+          ),
+        },
+      ],
+    };
+  },
+  solution: (de) => [
+    ...toStandard(de),
+    { text: 'The auxiliary equation:', tex: auxTex(de) },
+    { text: 'Factorise it.', tex: `(m ${signed(-de.p)})(m ${signed(-de.q)}) = 0` },
+    { text: `The roots are $${de.p}$ and $${de.q}$, so`, tex: secondGeneralTex(de) },
+  ],
+};
+
+/* ---------- Level 4, lesson 3: a repeated root ---------- */
+
+/** The two solutions a repeated root gives, as tiles. */
+const deRepGeneral: Generator<SecondDe> = {
+  id: 'de-rep-general',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'repeated', repeatedForms(difficulty)),
+  render: (de): Slide => {
+    const { p } = de;
+    const answer = [expX(p), `x${expX(p)}`];
+    return {
+      kind: 'tiles',
+      prompt: [prose('Find the general solution of'), display(secondTex(de))],
+      template: 'y = A{0} + B{1}',
+      bank: tokenBank(answer, [expX(-p), `x${expX(-p)}`, `x^2${expX(p)}`, expX(2 * p)], 3),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (de) => [
+    ...secondSteps(de),
+    { text: 'Multiplied out, the same solution reads', tex: `y = A${expX(de.p)} + Bx${expX(de.p)}` },
+  ],
+};
+
+/** Check that Bxe^{px} solves the equation with the repeated root p. */
+export interface RepCheckParams {
+  p: number;
+  B: number;
+}
+
+const repDe = (p: number): SecondDe => ({ kind: 'repeated', p, q: p, written: 'standard', scale: 1 });
+
+const deRepCheckSteps: Generator<RepCheckParams> = {
+  id: 'de-rep-check-steps',
+  sample: (rng, difficulty) =>
+    difficulty >= 2 ? { p: nonzero(rng, 6), B: nonzero(rng, 3) } : { p: nonzero(rng, 5), B: rng.int(1, 3) },
+  render: ({ p, B }): Slide => {
+    const de = repDe(p);
+    const E = expX(p);
+    const bracket = (constant: number, slope: number): string => `(${terms([[constant, ''], [slope, 'x']])})${E}`;
+    const first = `y' = ${bracket(B, B * p)}`;
+    const second = `y'' = ${bracket(2 * B * p, B * p * p)}`;
+    const zero = primesOf(secondB(de), secondC(de));
+    const lhs = zero.replace(/ = 0$/, '');
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Show that $y = ${coef(B)}x${E}$ solves the equation below: tap the line for $y'$, again for $y''$, then again to put all three in.`,
+        ),
+        display(secondTex(de)),
+      ],
+      start: [`y = ${coef(B)}x${E}`],
+      reductions: [
+        {
+          span: [0, 1],
+          operator: 0,
+          value: first,
+          bank: stepBank(first, `y' = ${terms([[B * p, `x${E}`]])}`, `y' = ${bracket(B, -B * p)}`, `y' = ${terms([[B, E]])}`),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: second,
+          bank: stepBank(second, `y'' = ${bracket(B * p, B * p * p)}`, `y'' = ${terms([[B * p * p, `x${E}`]])}`, `y'' = ${bracket(2 * B, B * p * p)}`),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: zero,
+          bank: stepBank(zero, `${lhs} = ${terms([[-B * p, E]])}`, `${lhs} = ${terms([[2 * B * p, E]])}`, `${lhs} = ${terms([[B * p * p, `x${E}`]])}`),
+        },
+      ],
+    };
+  },
+  solution: ({ p, B }) => {
+    const de = repDe(p);
+    const E = expX(p);
+    return [
+      { text: 'By the product rule:', tex: `y' = (${terms([[B, ''], [B * p, 'x']])})${E}` },
+      { text: 'And again:', tex: `y'' = (${terms([[2 * B * p, ''], [B * p * p, 'x']])})${E}` },
+      {
+        text: `Put them in. The numbers add to $0$ and the $x$ terms add to $0$, so $${coef(B)}x${E}$ is a solution.`,
+        tex: primesOf(secondB(de), secondC(de)),
+      },
+    ];
+  },
+};
+
+/** A walk: the auxiliary equation, its root, and the shape of the solution. */
+const deRepShape: Generator<SecondDe> = {
+  id: 'de-rep-shape',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'repeated', repeatedForms(difficulty)),
+  render: (de): Slide => {
+    const { p } = de;
+    const b = secondB(de);
+    const c = secondC(de);
+    const salt = secondSalt(de);
+    const aux = `$${auxOf(b, c)}$`;
+    const root = `$m = ${p}$, twice`;
+    const shape = `$${secondGeneralTex(de)}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('Find the general solution of this equation.')],
+      subject: secondTex(de),
+      steps: [
+        {
+          id: 'aux',
+          ask: `The auxiliary equation${de.written === 'scaled' ? `, divided by $${de.scale}$,` : ''} is`,
+          branches: branchesOf(
+            { label: aux, to: 'root' },
+            [
+              { label: `$${auxOf(-b, c)}$`, outcome: "$y'$ becomes $m$ with its sign, which the $m$ term here has the wrong way round." },
+              { label: `$${auxOf(b, -c)}$`, outcome: '$y$ becomes $1$ with its sign, which the number here has the wrong way round.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'root',
+          ask: 'It is a perfect square, so its root is',
+          branches: branchesOf(
+            { label: root, to: 'shape' },
+            [
+              { label: `$m = ${-p}$, twice`, outcome: `$(m ${signed(-p)})^2 = 0$ at $m = ${p}$: the sign flips out of the bracket.` },
+              { label: `$m = ${p}$ and $m = ${-p}$`, outcome: `Those would be the roots of $m^2 - ${p * p} = 0$, which has no $m$ term.` },
+            ],
+            salt >>> 4,
+          ),
+        },
+        {
+          id: 'shape',
+          ask: 'So the general solution is',
+          branches: branchesOf(
+            { label: shape, outcome: `The second solution $x${expX(p)}$ comes in because the root repeats.` },
+            [
+              { label: `$y = A${expX(p)} + B${expX(p)}$`, outcome: `That is $(A + B)${expX(p)}$: only one constant, and a second-order equation needs two.` },
+              { label: `$y = A${expX(p)} + B${expX(-p)}$`, outcome: `$${expX(-p)}$ would need $${-p}$ to be a root as well.` },
+            ],
+            salt >>> 8,
+          ),
+        },
+      ],
+      answer: [aux, root, shape],
+    };
+  },
+  solution: secondSteps,
+};
+
+const deRepWhich: Generator<WhichSecond> = {
+  id: 'de-rep-which',
+  sample: (rng, difficulty) => ({
+    ...sampleSecond(rng, difficulty, 'repeated', repeatedForms(difficulty)),
+    reverse: rng.chance(difficulty >= 2 ? 0.5 : 0.3),
+  }),
+  render: whichSlide,
+  solution: whichSolution,
+};
+
+/* ---------- Level 4, lesson 4: complex roots ---------- */
+
+/** The general solution for complex roots, as tiles, cosine first. */
+const deCxGeneral: Generator<SecondDe> = {
+  id: 'de-cx-general',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'complex', formsFor(difficulty)),
+  render: (de): Slide => {
+    const { p: alpha, q: beta } = de;
+    // Forgetting to halve: the square root of 4c - b^2 is 2β, not β.
+    const freq = 2 * beta;
+    const prompt = [prose('Find the general solution of this equation, with the cosine term first.'), display(secondTex(de))];
+    if (alpha === 0) {
+      const answer = [trig('cos', beta), trig('sin', beta)];
+      return {
+        kind: 'tiles',
+        prompt,
+        template: 'y = A{0} + B{1}',
+        bank: tokenBank(answer, [expX(beta), trig('cos', freq), trig('sin', freq), expX(-beta)], 3),
+        answer,
+      };
+    }
+    const answer = [expX(alpha), trig('cos', beta), trig('sin', beta)];
+    const swapped = Math.abs(alpha) !== beta ? [trig('cos', Math.abs(alpha)), trig('sin', Math.abs(alpha))] : [];
+    return {
+      kind: 'tiles',
+      prompt,
+      template: 'y = {0}(A{1} + B{2})',
+      bank: tokenBank(answer, [expX(beta), expX(-alpha), ...swapped, trig('cos', freq), expX(-2 * alpha)], 3),
+      answer,
+    };
+  },
+  solution: secondSteps,
+};
+
+/** α or β, typed. */
+export interface PartParams extends SecondDe {
+  ask: 'alpha' | 'beta';
+}
+
+const deCxPart: Generator<PartParams> = {
+  id: 'de-cx-part',
+  sample: (rng, difficulty) => ({
+    ...sampleSecond(rng, difficulty, 'complex', formsFor(difficulty)),
+    ask: rng.chance(0.5) ? 'alpha' : 'beta',
+  }),
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(`The auxiliary equation of this equation has roots $\\alpha \\pm \\beta i$, with $\\beta > 0$. Find $\\${de.ask}$.`),
+      display(secondTex(de)),
+    ],
+    lead: `\\${de.ask} =`,
+    keypad: [],
+    answer: `${de.ask === 'alpha' ? de.p : de.q}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (de) => {
+    const b = secondB(de);
+    const c = secondC(de);
+    return [
+      ...toStandard(de),
+      { text: 'The auxiliary equation:', tex: auxTex(de) },
+      {
+        text: 'Complete the square.',
+        tex: `${de.p === 0 ? 'm^2' : `(m ${signed(-de.p)})^2`} + ${de.q * de.q} = 0`,
+      },
+      {
+        text: `So $m = ${de.p} \\pm ${de.q}i$: $\\alpha = -\\frac{b}{2} = ${de.p}$ and $\\beta = \\frac{\\sqrt{4c - b^2}}{2} = \\frac{\\sqrt{${4 * c - b * b}}}{2} = ${de.q}$.`,
+      },
+    ];
+  },
+};
+
+const deCxWhich: Generator<WhichSecond> = {
+  id: 'de-cx-which',
+  sample: (rng, difficulty) => ({
+    ...sampleSecond(rng, difficulty, 'complex', formsFor(difficulty)),
+    reverse: rng.chance(difficulty >= 2 ? 0.5 : 0.3),
+  }),
+  render: whichSlide,
+  solution: whichSolution,
+};
+
+/** The discriminant, then α, then β, as a tree. */
+const deCxTree: Generator<SecondDe> = {
+  id: 'de-cx-tree',
+  sample: (rng, difficulty) => sampleSecond(rng, difficulty, 'complex', difficulty >= 2 ? ['standard', 'moved'] : ['standard', 'standard', 'moved']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const disc = b * b - 4 * c;
+    const answer = [disc, de.p, de.q];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          'The roots of the auxiliary equation are $\\alpha \\pm \\beta i$, with $\\beta > 0$. Its discriminant is $D$, then $\\alpha = -\\frac{b}{2}$ and $\\beta = \\frac{\\sqrt{-D}}{2}$.',
+        ),
+        prose('Fill in $D$, then $\\alpha$, then $\\beta$.'),
+      ],
+      expression: secondTex(de),
+      nodes: [
+        { id: 'D', from: [] },
+        { id: 'alpha', from: [] },
+        { id: 'beta', from: ['D'] },
+      ],
+      bank: treeBank(answer, [-disc, -de.p, 2 * de.q, de.q * de.q, b]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => {
+    const b = secondB(de);
+    const c = secondC(de);
+    return [
+      ...toStandard(de),
+      { text: 'The auxiliary equation:', tex: auxTex(de) },
+      { text: 'Its discriminant is negative:', tex: `D = ${b < 0 ? `(${b})` : b}^2 - 4 \\times ${c} = ${b * b - 4 * c}` },
+      { text: 'By the quadratic formula,', tex: `m = \\frac{${-b} \\pm \\sqrt{${b * b - 4 * c}}}{2} = ${de.p} \\pm ${coef(de.q)}i` },
+    ];
+  },
+};
+
+/* ---------- Level 4, lesson 5: particular solutions ---------- */
+
+/** An equation with the constants of its particular solution, read off as y(0) and y'(0). */
+export interface SecondIvp extends SecondDe {
+  A: number;
+  B: number;
+  /** For a typed constant: which one is asked. */
+  letter: 'A' | 'B';
+}
+
+function sampleIvp(rng: Rng, difficulty: number): SecondIvp {
+  const hard = difficulty >= 2;
+  const de = sampleAnyKind(rng, difficulty, hard ? ['standard', 'moved', 'scaled'] : ['standard', 'standard', 'moved']);
+  const A = nonzero(rng, hard ? 6 : 4);
+  const B = nonzero(rng, hard ? 6 : 4);
+  // Only two real roots make A something to solve for; otherwise y(0) is A.
+  const letter = de.kind === 'real' && rng.chance(0.5) ? 'A' : 'B';
+  return { ...de, A, B, letter };
+}
+
+export const conditionsTex = (de: SecondIvp): string => {
+  const [y0, v0] = atZero(de, de.A, de.B);
+  return `y(0) = ${y0}, \\; y'(0) = ${v0}`;
+};
+
+/** The general solution in words that name A and B without giving the roots away. */
+function genericForm({ kind }: SecondDe): string {
+  if (kind === 'real') return '$y = Ae^{px} + Be^{qx}$ with $p < q$';
+  if (kind === 'repeated') return '$y = (A + Bx)e^{px}$';
+  return '$y = e^{\\alpha x}(A\\cos \\beta x + B\\sin \\beta x)$ with $\\beta > 0$';
+}
+
+/** y(0) and y'(0) as equations in A and B. */
+function conditionEquations(de: SecondIvp, slip: 'none' | 'chain' | 'swap' | 'sign' = 'none'): string {
+  const [y0, v0] = atZero(de, de.A, de.B);
+  const { kind, p, q } = de;
+  const first = kind === 'real' ? 'A + B' : 'A';
+  const factor = slip === 'sign' ? -1 : 1;
+  const second =
+    slip === 'chain'
+      ? kind === 'real'
+        ? 'A + B'
+        : kind === 'repeated'
+          ? terms([[p, 'A']])
+          : terms([[p, 'A'], [1, 'B']])
+      : kind === 'repeated'
+        ? terms([[factor * p, 'A'], [1, 'B']])
+        : terms([[factor * p, 'A'], [factor * q, 'B']]);
+  const [left, right] = slip === 'swap' ? [v0, y0] : [y0, v0];
+  return `${first} = ${left}, \\; ${second} = ${right}`;
+}
+
+/** The same two equations stacked, for a worked solution, where one line runs off a phone. */
+function stackedConditions(de: SecondIvp): string {
+  const [first, second] = conditionEquations(de).split(', \\; ');
+  return chain(first.replace(' = ', ' &= '), second.replace(' = ', ' &= '));
+}
+
+/**
+ * Particular solutions that miss the equation or a condition.
+ *
+ * With the roots fixed, the conditions pick out A and B, so any other pair
+ * misses one. Flipping the roots' signs misses the equation, except where the
+ * roots are symmetric and the flip only swaps the two terms, so it is left out
+ * there.
+ */
+function ivpSlips(de: SecondIvp): string[] {
+  const { kind, p, q, A, B } = de;
+  const [y0, v0] = atZero(de, A, B);
+  const symmetric = (kind === 'real' && q === -p) || (kind === 'complex' && p === 0);
+  const flipped =
+    kind === 'real'
+      ? `y = ${terms([[A, expX(-p)], [B, expX(-q)]])}`
+      : kind === 'repeated'
+        ? `y = (${terms([[A, ''], [B, 'x']])})${expX(-p)}`
+        : `y = ${expX(-p)}(${waveOf(A, B, q)})`;
+  const pairs: [number, number][] = [[B, A], [A, -B], [-A, B], [y0, v0], [-A, -B]];
+  const others = pairs
+    .filter(([a, b]) => (a !== A || b !== B) && a !== 0 && b !== 0)
+    .map(([a, b]) => secondParticularTex(de, a, b));
+  return [others[0], ...(symmetric ? [] : [flipped]), ...others.slice(1)];
+}
+
+function ivpSteps(de: SecondIvp): SolutionStep[] {
+  const { kind, p, q, A, B } = de;
+  const [y0, v0] = atZero(de, A, B);
+  const derivative =
+    kind === 'real'
+      ? `y' = ${terms([[p, `A${expX(p)}`], [q, `B${expX(q)}`]])}`
+      : kind === 'repeated'
+        ? `y' = (${terms([[p, 'A'], [1, 'B'], [p, 'Bx']])})${expX(p)}`
+        : undefined;
+  const solve =
+    kind === 'real'
+      ? `Take $${p}$ times the first equation from the second: $${q - p}B = ${v0 - p * y0}$.`
+      : kind === 'repeated'
+        ? `$A = ${y0}$ straight away, so $B = ${v0} ${signed(-p * A)}$.`
+        : p === 0
+          ? `$A = ${y0}$ straight away, and $${coef(q)}B = ${v0}$.`
+          : `$A = ${y0}$ straight away, so $${coef(q)}B = ${v0} ${signed(-p * A)}$.`;
+  return [
+    { text: 'The general solution:', tex: secondGeneralTex(de) },
+    derivative
+      ? { text: 'Differentiate it.', tex: derivative }
+      : { text: "Differentiate it by the product rule. At $x = 0$, $e^{0} = 1$, $\\cos 0 = 1$ and $\\sin 0 = 0$, so $y'(0) = \\alpha A + \\beta B$." },
+    { text: `Put in $x = 0$ with $y(0) = ${y0}$ and $y'(0) = ${v0}$.`, tex: stackedConditions(de) },
+    { text: solve, tex: `A = ${A}, \\; B = ${B}` },
+    // Inline, so a wide wave can wrap: displayed, it runs a few pixels off a phone.
+    { text: `So the particular solution is $${secondParticularTex(de, A, B)}$.` },
+  ];
+}
+
+/** A or B from the two conditions, typed. */
+const deIvpConstant: Generator<SecondIvp & { shown: boolean }> = {
+  id: 'de-ivp-constant',
+  sample: (rng, difficulty) => ({ ...sampleIvp(rng, difficulty), shown: difficulty < 2 }),
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: de.shown
+        ? [
+            prose('The general solution of'),
+            display(secondTex(de)),
+            prose(`is $${secondGeneralTex(de)}$. Find $${de.letter}$ when $${conditionsTex(de)}$.`),
+          ]
+        : [
+            prose(`Solve this equation with $${conditionsTex(de)}$.`),
+            display(secondTex(de)),
+            prose(`Writing the general solution as ${genericForm(de)}, find $${de.letter}$.`),
+          ],
+    lead: `${de.letter} =`,
+    keypad: [],
+    answer: `${de.letter === 'A' ? de.A : de.B}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (de) => [...toStandard(de), ...ivpSteps(de)],
+};
+
+/** The roots, then A, then B, as a tree. */
+const deIvpTree: Generator<SecondIvp> = {
+  id: 'de-ivp-solve-tree',
+  sample: sampleIvp,
+  render: (de): Slide => {
+    const { kind, p, q, A, B } = de;
+    const [y0, v0] = atZero(de, A, B);
+    const shared = { kind: 'tree' as const, expression: secondTex(de) };
+    const lead = prose(`Solve with $${conditionsTex(de)}$, writing the general solution as ${genericForm(de)}.`);
+    if (kind === 'real') {
+      const answer = [p, q, A, B];
+      return {
+        ...shared,
+        prompt: [lead, prose('Fill in $p$ and $q$, then $A$, then $B$.')],
+        nodes: [
+          { id: 'p', from: [] },
+          { id: 'q', from: [] },
+          { id: 'A', from: ['p', 'q'] },
+          { id: 'B', from: ['A'] },
+        ],
+        bank: treeBank(answer, [-p, -q, y0, v0, -A, -B]),
+        answer: answer.map(String),
+      };
+    }
+    if (kind === 'repeated') {
+      const answer = [p, A, B];
+      return {
+        ...shared,
+        prompt: [lead, prose('Fill in $p$ and $A$, then $B$.')],
+        nodes: [
+          { id: 'p', from: [] },
+          { id: 'A', from: [] },
+          { id: 'B', from: ['p', 'A'] },
+        ],
+        bank: treeBank(answer, [-p, v0, -B, v0 + p * A]),
+        answer: answer.map(String),
+      };
+    }
+    const answer = [p, q, A, B];
+    return {
+      ...shared,
+      prompt: [lead, prose('Fill in $\\alpha$ and $\\beta$, then $A$, then $B$.')],
+      nodes: [
+        { id: 'alpha', from: [] },
+        { id: 'beta', from: [] },
+        { id: 'A', from: [] },
+        { id: 'B', from: ['alpha', 'beta', 'A'] },
+      ],
+      bank: treeBank(answer, [-p, v0, -B, v0 - p * A]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => [...secondSteps(de), ...ivpSteps(de).slice(1)],
+};
+
+/** Conditions in, A and B out, particular solution written, one line at a time. */
+const deIvpSteps: Generator<SecondIvp> = {
+  id: 'de-ivp-conditions-steps',
+  sample: (rng, difficulty) => {
+    const de = sampleIvp(rng, difficulty);
+    return { ...de, written: 'standard', scale: 1 };
+  },
+  render: (de): Slide => {
+    const { A, B } = de;
+    const [y0, v0] = atZero(de, A, B);
+    const equations = conditionEquations(de);
+    const constants = `A = ${A}, \\; B = ${B}`;
+    const particular = secondParticularTex(de, A, B);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `This general solution solves $${secondTex(de)}$. Tap the comma to put the conditions in, then tap the line to solve for $A$ and $B$, then again for the particular solution.`,
+        ),
+      ],
+      start: [secondGeneralTex(de), ',', conditionsTex(de)],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: equations,
+          bank: stepBank(equations, conditionEquations(de, 'chain'), conditionEquations(de, 'swap'), conditionEquations(de, 'sign')),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: constants,
+          bank: stepBank(
+            constants,
+            ...(A !== B ? [`A = ${B}, \\; B = ${A}`] : []),
+            `A = ${-A}, \\; B = ${-B}`,
+            `A = ${y0}, \\; B = ${v0}`,
+            `A = ${A}, \\; B = ${-B}`,
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: particular,
+          bank: stepBank(particular, ...firstDistinct(particular, ivpSlips(de), 3)),
+        },
+      ],
+    };
+  },
+  solution: (de) => ivpSteps(de).slice(1),
+};
+
+/** Which particular solution meets the equation and both conditions. */
+const deIvpFit: Generator<SecondIvp> = {
+  id: 'de-ivp-fit',
+  sample: sampleIvp,
+  render: (de): Slide => {
+    const answer = secondParticularTex(de, de.A, de.B);
+    return choiceSlide(
+      [prose(`Which is the solution of this equation with $${conditionsTex(de)}$?`), display(secondTex(de))],
+      [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, ivpSlips(de), 3).map((label) => ({ label, tex: true }))],
+      secondSalt(de, de.A, de.B),
+    );
+  },
+  solution: (de) => [
+    ...toStandard(de),
+    ...ivpSteps(de),
+    { text: 'Each of the others either misses a condition or, put back in, fails the equation.' },
+  ],
+};
+
 /* ---------- Registration ---------- */
 
 export const deGenerators = {
@@ -4573,6 +5719,26 @@ export const deGenerators = {
   deIfConditionSteps,
   deIfFit,
   deIfValueTree,
+  deAuxSubSteps,
+  deAuxTiles,
+  deAuxRoot,
+  deAuxCase,
+  deRealGeneral,
+  deRealRootsTree,
+  deRealWhich,
+  deRealSolveSteps,
+  deRepGeneral,
+  deRepCheckSteps,
+  deRepShape,
+  deRepWhich,
+  deCxGeneral,
+  deCxPart,
+  deCxWhich,
+  deCxTree,
+  deIvpConstant,
+  deIvpTree,
+  deIvpSteps,
+  deIvpFit,
 };
 
 export const differentialEquationGenerators = Object.values(deGenerators) as Generator<never>[];

@@ -343,10 +343,20 @@ proposed replacement was rejected precisely because it turned out not to fire.
 ## Adding content
 
 1. Write a `Generator` in `src/content/generators/`, export it from that file's
-   array, and it is registered automatically.
-2. Reference it by id from a lesson in `src/content/courses/`, then add the
-   course to `src/content/courses/index.ts`.
+   array, and it is registered automatically. A new generator *file* needs no
+   wiring either: `registry.ts` collects every exported array whose name ends in
+   `Generators` from every file in that folder (`import.meta.glob`), keeps an
+   object found twice once, and throws on two different generators sharing an id.
+2. Reference it by id from a lesson in `src/content/courses/`. A new course file
+   is found the same way by `courses/index.ts`; it exports exactly one `Course`,
+   whose `category` names its home-screen tab and whose `position` places it in
+   that tab (smallest first, spaced in tens, a tie broken by id).
 3. Run `npm test` — the property tests pick it up with no wiring.
+
+Neither list is written out by hand on purpose. With several content branches
+open at once, each adding an import and an entry to the same two lists, every
+landing put the others into a merge conflict. The roadmap's batch record is one
+file per batch under `docs/roadmap/batches/` for the same reason.
 
 ## Deployment
 

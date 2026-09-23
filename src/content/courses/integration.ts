@@ -65,6 +65,8 @@ const graph = (
 
 export const integration: Course = {
   id: 'integration',
+  category: 'advanced-maths',
+  position: 30,
   title: 'Integration',
   blurb: 'Differentiation run backwards, then areas, then the two techniques.',
   levels: [

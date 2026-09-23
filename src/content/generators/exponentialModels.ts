@@ -5918,6 +5918,1170 @@ const expmGapFlow: Generator<GapParams> = {
   },
 };
 
+/* ---------- Level 5: logistic growth ---------- */
+
+/**
+ * The logistic model P = L / (1 + Ae^(-kt)): growth that slows as it nears a
+ * ceiling L. Whole values come from the same trick as level 4. With A = b^j
+ * and k = (ln b)/h, e^(kt) at t = mh is u = b^m, and multiplying top and
+ * bottom by u gives P = Lu / (u + A). So the ceiling is built as c(b^m + b^j),
+ * which makes P(mh) = c b^m and (L - P)u = AP an equation in whole numbers;
+ * and P = L/2 falls at t = jh, where u = A. A decimal k appears only in reading
+ * the model and in the rate kP(1 - P/L), where L and P are built from the
+ * answer so the rate is whole.
+ *
+ * L - Ae^(-kt) is level 2's (`expm-limit-flow` and friends); here it is only
+ * the shape a logistic curve is told apart from.
+ */
+
+const LOGISTIC_STORIES: Story[] = [
+  { sym: 'N', subject: 'The number of rabbits on an island', unit: 'month', of: 'rabbits' },
+  { sym: 'R', subject: 'The number of students who have heard a rumour', unit: 'hour', of: 'students' },
+  { sym: 'U', subject: 'The number of people in a town using a new app', unit: 'week', of: 'people' },
+  { sym: 'F', subject: 'The number of fish in a new lake', unit: 'year', of: 'fish' },
+  { sym: 'D', subject: 'The number of plants in a field that have a disease', unit: 'day', of: 'plants' },
+];
+
+function logisticStory(ctx: number): Story {
+  return LOGISTIC_STORIES[ctx % LOGISTIC_STORIES.length];
+}
+
+/** The model, \frac{600}{1 + 8e^{-\frac{\ln 2}{5}t}}; `power` is the power of e, sign included. */
+function logisticTex(l: number, a: number, power: string): string {
+  return `\\frac{${texNum(l)}}{1 + ${a}e^{${power}}}`;
+}
+
+/**
+ * A prompt with the model on a line of its own. A fraction with a fraction in
+ * its power is too small to read inside a sentence on a phone.
+ */
+function logisticPrompt(story: Story, model: string, ask: string): Block[] {
+  return [
+    { kind: 'prose', text: `${story.subject} after $t$ ${story.unit}s is modelled by` },
+    { kind: 'display', tex: `${story.sym} = ${model}` },
+    { kind: 'prose', text: ask },
+  ];
+}
+
+/** The S-curve itself, for a figure. */
+function logisticCurve(l: number, a: number, k: number): (t: number) => number {
+  return (t) => l / (1 + a * Math.exp(-k * t));
+}
+
+/** Four or more distinct "t = n" options for a steps slide: the answer, the slips, then neighbours. */
+function timeSteps(answer: number, slips: number[], v = 't'): string[] {
+  const values = [answer];
+  for (const value of [...slips, answer + 1, answer + 2, answer + 3]) {
+    if (values.length === 5) break;
+    if (Number.isInteger(value) && value > 0 && !values.includes(value)) values.push(value);
+  }
+  return stepsBank(values.map((value) => `${v} = ${texNum(value)}`));
+}
+
+/* ---------- Level 5, lesson 1: reading the model ---------- */
+
+const LOGISTIC_STARTS = [10, 20, 25, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300];
+
+interface LogReadParams {
+  /** The start. The ceiling is s(1 + a), so the start is whole. */
+  s: number;
+  a: number;
+  /** k = p / 100. */
+  p: number;
+  ctx: number;
+}
+
+function logCeiling({ s, a }: LogReadParams): number {
+  return s * (1 + a);
+}
+
+function sampleLogRead(rng: Rng, difficulty: number): LogReadParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const a = rng.int(2, hard ? 19 : 9);
+    const s = rng.pick(LOGISTIC_STARTS);
+    const p = rng.pick(hard ? [...READ_PERCENTS, 1.5, 2.5, 7.5, 12.5] : [5, 10, 15, 20, 25, 30, 40, 50]);
+    if (s * (1 + a) > (hard ? 4000 : 2000)) continue;
+    return { s, a, p, ctx: rng.int(0, 4) };
+  }
+}
+
+function logReadModel(params: LogReadParams): string {
+  return logisticTex(logCeiling(params), params.a, `-${dec(params.p / 100)}t`);
+}
+
+function logReadSolution(params: LogReadParams): SolutionStep[] {
+  const { s, a, p } = params;
+  const l = logCeiling(params);
+  return [
+    {
+      text: `At $t = 0$, $e^{0} = 1$, so the bottom is $1 + ${a} = ${a + 1}$ and it starts at $\\frac{${texNum(l)}}{${a + 1}} = ${texNum(s)}$.`,
+    },
+    {
+      text: `As $t$ grows, $e^{-${dec(p / 100)}t}$ shrinks to $0$ and the bottom to $1$, so it levels off at the ceiling, $${texNum(l)}$.`,
+    },
+    { text: `$k = ${dec(p / 100)}$ sets the pace: the bigger $k$, the sooner it gets close to the ceiling.` },
+  ];
+}
+
+/** Build a logistic model from a story: its ceiling, A from the start, and k. */
+const expmLogisticBuildTiles: Generator<LogReadParams> = {
+  id: 'expm-logistic-build-tiles',
+  sample: sampleLogRead,
+  render: (params): Slide => {
+    const { s, a, p, ctx } = params;
+    const story = logisticStory(ctx);
+    const l = logCeiling(params);
+    const k = dec(p / 100);
+    const answer = [texNum(l), String(a), k];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story.subject} starts at ${s}, can never go above ${l}, and grows logistically with $k = ${k}$ per ${story.unit}. Fill in the three numbers of its model:`,
+        },
+        { kind: 'display', tex: `${story.sym} = \\frac{L}{1 + Ae^{-kt}}` },
+      ],
+      template: 'L = {0} \\quad A = {1} \\quad k = {2}',
+      bank: fillBank(answer, [texNum(s), String(a + 1), texNum(l - s), `-${k}`, String(p)]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { s, a, p, ctx } = params;
+    const l = logCeiling(params);
+    return [
+      { text: `The ceiling is $L = ${texNum(l)}$.` },
+      {
+        text: `At $t = 0$ the model is $\\frac{L}{1 + A}$, so $1 + A = \\frac{${texNum(l)}}{${texNum(s)}} = ${a + 1}$ and $A = ${a}$.`,
+      },
+      { text: `$k = ${dec(p / 100)}$ goes in as it is: the minus sign is already written in the power.` },
+      { tex: `${logisticStory(ctx).sym} = ${logReadModel(params)}` },
+    ];
+  },
+};
+
+type LogStartAsk = 'start' | 'room' | 'times';
+
+type LogStartParams = LogReadParams & { ask: LogStartAsk };
+
+function logStartValue(params: LogStartParams): number {
+  if (params.ask === 'room') return logCeiling(params) - params.s;
+  if (params.ask === 'times') return params.a + 1;
+  return params.s;
+}
+
+/** The start, typed; at difficulty 2 also how far it has to grow, or how many times over. */
+const expmLogisticStart: Generator<LogStartParams> = {
+  id: 'expm-logistic-start',
+  sample: (rng, difficulty) => ({
+    ...sampleLogRead(rng, difficulty),
+    ask: difficulty > 1 ? rng.pick(['start', 'room', 'times'] as const) : 'start',
+  }),
+  choices: (params) => {
+    const { s, a } = params;
+    const l = logCeiling(params);
+    return numberOptions(logStartValue(params), [l / a, s, l - s, a, a + 1, l, l / 2]);
+  },
+  render: (params): Slide => {
+    const story = logisticStory(params.ctx);
+    const { sym } = story;
+    const question = {
+      start: `What is $${sym}$ at the start, when $t = 0$?`,
+      room: `How much more does $${sym}$ have to grow, after the start, before it gets close to its ceiling?`,
+      times: `Its ceiling is how many times its value at the start?`,
+    }[params.ask];
+    return {
+      kind: 'expression',
+      prompt: logisticPrompt(story, logReadModel(params), question),
+      lead: params.ask === 'start' ? `${sym}(0) =` : params.ask === 'room' ? '\\text{still to grow} =' : `L \\div ${sym}(0) =`,
+      keypad: [],
+      answer: String(logStartValue(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const steps = logReadSolution(params).slice(0, 2);
+    const l = logCeiling(params);
+    if (params.ask === 'room') steps.push({ tex: `${texNum(l)} - ${texNum(params.s)} = ${texNum(l - params.s)}` });
+    if (params.ask === 'times') steps.push({ tex: `${texNum(l)} \\div ${texNum(params.s)} = ${params.a + 1}` });
+    return steps;
+  },
+};
+
+/** Which sentence describes the S-curve, with the picture beside the model. */
+const expmLogisticRead: Generator<LogReadParams> = {
+  id: 'expm-logistic-read',
+  sample: sampleLogRead,
+  render: (params): Slide => {
+    const { s, a, p, ctx } = params;
+    const story = logisticStory(ctx);
+    const l = logCeiling(params);
+    const k = p / 100;
+    // Long enough for the curve to get within 5% of its ceiling.
+    const span = Math.ceil(Math.log(19 * a) / k);
+    const slip = Number.isInteger(l / a) ? l / a : l - s;
+    const right = `Starts at ${s}, levels off at ${l}`;
+    const labels = turned(
+      [right, `Starts at ${s}, grows without limit`, `Starts at 0, levels off at ${l}`, `Starts at ${slip}, levels off at ${l}`],
+      `${s}-${a}-${p}-${ctx}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        ...logisticPrompt(story, logReadModel(params), 'The picture shows it, with its start ringed. Which describes it?'),
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: 0,
+            xMax: span,
+            yMin: 0,
+            yMax: l * 1.15,
+            curves: [{ f: logisticCurve(l, a, k), accent: true }],
+            horizontals: [l],
+            marks: [{ x: 0, y: s }],
+            label: 'An S-shaped curve rising from a ringed start towards a dashed ceiling',
+          }),
+        },
+      ],
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: logReadSolution,
+};
+
+type LogFlowParams = LogReadParams & { logistic: boolean };
+
+/**
+ * A logistic model or a bounded one, L - Ae^(-kt), built to start and settle
+ * at the same values, so only when it grows fastest tells them apart.
+ */
+const expmLogisticFlow: Generator<LogFlowParams> = {
+  id: 'expm-logistic-flow',
+  sample: (rng, difficulty) => ({ ...sampleLogRead(rng, difficulty), logistic: rng.chance(0.5) }),
+  render: (params): Slide => {
+    const { s, a, p, ctx, logistic } = params;
+    const story = logisticStory(ctx);
+    const { sym } = story;
+    const l = logCeiling(params);
+    const gap = l - s;
+    const k = dec(p / 100);
+    const model = logistic ? logReadModel(params) : `${texNum(l)} - ${texNum(gap)}e^{-${k}t}`;
+    const key = `${s}-${a}-${p}-${logistic}`;
+    const half = 'When it is halfway to its ceiling';
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: `${story.subject} after $t$ ${story.unit}s is modelled by` },
+        { kind: 'display', tex: `${sym} = ${model}` },
+        { kind: 'prose', text: 'Read it one question at a time. Each answer chooses what gets asked next.' },
+      ],
+      subject: `${sym} = ${model}`,
+      steps: [
+        {
+          id: 'start',
+          ask: `At $t = 0$, $e^{0} = 1$. What is $${sym}$ at the start?`,
+          branches: turned(
+            [
+              { label: `$${texNum(s)}$`, to: 'limit' },
+              {
+                label: `$${texNum(l)}$`,
+                outcome: logistic
+                  ? `That is the top of the fraction on its own. At $t = 0$ the bottom is $1 + ${a}$, not $1$.`
+                  : `That leaves out the $e^{-kt}$ term, which is its full $${texNum(gap)}$ at the start.`,
+              },
+              {
+                label: '$0$',
+                outcome: logistic
+                  ? `The top is $${texNum(l)}$ and the bottom is positive, so the fraction is never $0$.`
+                  : `At the start the $e^{-kt}$ term is $${texNum(gap)}$, not all $${texNum(l)}$.`,
+              },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'limit',
+          ask: `In the long run $e^{-${k}t}$ tends to $0$. What does $${sym}$ settle at?`,
+          branches: turned(
+            [
+              { label: `$${texNum(l)}$`, to: 'fast' },
+              { label: `$${texNum(s)}$`, outcome: 'That is where it starts. It rises from there.' },
+              { label: 'It grows without limit', outcome: `With $e^{-${k}t}$ gone, nothing is left that keeps growing.` },
+            ],
+            `${key}-limit`,
+          ),
+        },
+        {
+          id: 'fast',
+          ask: 'So both kinds of model could start and settle there. When is this one growing fastest?',
+          branches: [
+            {
+              label: 'At the start',
+              outcome: logistic
+                ? 'A logistic model starts slowly, with little to grow from. It speeds up before it slows down.'
+                : 'Yes: the gap to the level is biggest at the start, so it closes fastest then and slower ever after.',
+            },
+            {
+              label: half,
+              outcome: logistic
+                ? 'Yes: a logistic curve speeds up until it is halfway, then slows as it nears the ceiling. An S shape.'
+                : 'A model $L - Ae^{-kt}$ never speeds up: its gap to the level shrinks, and the rate with it.',
+            },
+          ],
+        },
+      ],
+      answer: [`$${texNum(s)}$`, `$${texNum(l)}$`, logistic ? half : 'At the start'],
+    };
+  },
+  solution: (params) => {
+    const { s, a, logistic } = params;
+    const l = logCeiling(params);
+    return [
+      {
+        text: logistic
+          ? `At $t = 0$ the bottom is $1 + ${a}$, so it starts at $\\frac{${texNum(l)}}{${a + 1}} = ${texNum(s)}$.`
+          : `At $t = 0$ the term is its full $${texNum(l - s)}$, so it starts at $${texNum(l)} - ${texNum(l - s)} = ${texNum(s)}$.`,
+      },
+      { text: `$e^{-kt}$ dies away, so it settles at $${texNum(l)}$.` },
+      {
+        text: logistic
+          ? 'It is logistic: slow at first, fastest at half the ceiling, then slowing. An S-curve.'
+          : 'It is $L - Ae^{-kt}$: fastest at the start, then slower and slower as it closes on its level.',
+      },
+    ];
+  },
+};
+
+/* ---------- Level 5, lesson 2: values at whole times ---------- */
+
+const LOGISTIC_SCALES = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 120, 150, 200];
+
+interface LogValueParams {
+  b: number;
+  h: number;
+  /** A = b^j, so the model is at half its ceiling at t = jh. */
+  j: number;
+  /** Asked about t = mh, where e^{kt} = b^m. Never j. */
+  m: number;
+  /** The ceiling is c(b^m + b^j), so the value at t = mh is c b^m. */
+  c: number;
+  ctx: number;
+}
+
+function sampleLogValue(rng: Rng, difficulty: number): LogValueParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = hard ? rng.pick([2, 3]) : 2;
+    const j = rng.int(1, b === 2 ? 3 : 2);
+    const m = rng.int(1, b === 2 && hard ? 4 : 3);
+    if (m === j) continue;
+    const params = { b, h: rng.int(1, hard ? 8 : 5), j, m, c: rng.pick(LOGISTIC_SCALES), ctx: rng.int(0, 4) };
+    if (logValueCeiling(params) > 4000) continue;
+    return params;
+  }
+}
+
+function logValueCeiling({ b, j, m, c }: LogValueParams): number {
+  return c * (b ** m + b ** j);
+}
+
+function logValueAt({ b, m, c }: LogValueParams): number {
+  return c * b ** m;
+}
+
+function logValueModel(params: LogValueParams): string {
+  const { b, h, j } = params;
+  return logisticTex(logValueCeiling(params), b ** j, ktTex({ b, h, down: true }));
+}
+
+function logValueSolution(params: LogValueParams): SolutionStep[] {
+  const { b, h, j, m, c, ctx } = params;
+  const { sym } = logisticStory(ctx);
+  const l = texNum(logValueCeiling(params));
+  const a = b ** j;
+  const u = b ** m;
+  const t = m * h;
+  return [
+    {
+      text: `Multiply top and bottom by $u = e^{${ktTex({ b, h, down: false })}} = ${uTex(b, h)}$. Since $e^{-kt} \\times e^{kt} = 1$, $${sym} = \\frac{${l}u}{u + ${a}}$.`,
+    },
+    { text: `At $t = ${t}$, $u = ${b}^{${m}} = ${u}$:` },
+    {
+      tex: chain(
+        `${sym}(${t}) &= \\frac{${l} \\times ${u}}{${u} + ${a}}`,
+        `&= ${l} \\div ${u + a} \\times ${u}`,
+        `&= ${c} \\times ${u} = ${texNum(c * u)}`,
+      ),
+    },
+  ];
+}
+
+/** The value at a whole time as a tree: u, the bottom, L shared out, then the value. */
+const expmLogisticValueTree: Generator<LogValueParams> = {
+  id: 'expm-logistic-value-tree',
+  sample: sampleLogValue,
+  render: (params): Slide => {
+    const { b, h, j, m, c, ctx } = params;
+    const story = logisticStory(ctx);
+    const l = texNum(logValueCeiling(params));
+    const a = b ** j;
+    const u = b ** m;
+    const answer = [u, u + a, c, c * u].map(String);
+    return {
+      kind: 'tree',
+      prompt: logisticPrompt(
+        story,
+        logValueModel(params),
+        `With $u = ${uTex(b, h)}$ it is $${story.sym} = \\frac{${l}u}{u + ${a}}$. Find $${story.sym}$ at $t = ${m * h}$: fill in $u$, then $u + ${a}$, then $${l}$ divided by that, then $${story.sym}$.`,
+      ),
+      expression: `\\frac{${l}u}{u + ${a}}`,
+      nodes: [
+        { id: 'u', from: [] },
+        { id: 'bottom', from: ['u'] },
+        { id: 'share', from: ['bottom'] },
+        { id: 'value', from: ['share', 'u'] },
+      ],
+      bank: treeBank(answer, [String(b * m), String(b ** (m + 1)), String(u * a), String(c * a), String(c + u)]),
+      answer,
+    };
+  },
+  solution: logValueSolution,
+};
+
+/** The value at a whole time, typed. */
+const expmLogisticAt: Generator<LogValueParams> = {
+  id: 'expm-logistic-at',
+  sample: sampleLogValue,
+  choices: (params) => {
+    const { b, j, m, c } = params;
+    const l = logValueCeiling(params);
+    return numberOptions(logValueAt(params), [c * b ** j, c, l - logValueAt(params), c * b ** (m + 1), l / 2]);
+  },
+  render: (params): Slide => {
+    const story = logisticStory(params.ctx);
+    const t = params.m * params.h;
+    return {
+      kind: 'expression',
+      prompt: logisticPrompt(story, logValueModel(params), `What is $${story.sym}$ at $t = ${t}$?`),
+      lead: `${story.sym}(${t}) =`,
+      keypad: [],
+      answer: String(logValueAt(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: logValueSolution,
+};
+
+/** L ÷ (b^m + A) × b^m, a piece at a time; its evaluate form comes from `choices`. */
+const expmLogisticReduce: Generator<LogValueParams> = {
+  id: 'expm-logistic-reduce',
+  sample: sampleLogValue,
+  choices: (params) => {
+    const { b, j, m, c } = params;
+    const l = logValueCeiling(params);
+    const u = b ** m;
+    return numberOptions(c * u, [c, c * b ** j, l / u, c * b ** (m + 1), c * u + c], true);
+  },
+  render: (params): Slide => {
+    const { b, j, m, c, h, ctx } = params;
+    const story = logisticStory(ctx);
+    const l = logValueCeiling(params);
+    const a = b ** j;
+    const u = b ** m;
+    const powerBank = offer(u, b * m, b + m, b ** (m + 1), u + 1);
+    return {
+      kind: 'reduce',
+      prompt: logisticPrompt(
+        story,
+        logValueModel(params),
+        `At $t = ${m * h}$, $e^{kt} = ${b}^{${m}}$, and multiplying top and bottom by it makes $${story.sym}(${m * h})$ the line below. Tap the part you would do **next**, then choose what it comes to.`,
+      ),
+      expr: bin('*', bin('/', num(l), bin('+', pow(num(b), num(m)), num(a))), pow(num(b), num(m))),
+      banks: {
+        r: offer(c * u, c * b ** (m + 1), c + u, c * a, l - c * u, c * u + c),
+        'r.l': offer(c, l / u, l / a, 2 * c, c + 1),
+        'r.l.r': offer(u + a, u * a, b * m + a, u + a + 1),
+        'r.l.r.l': powerBank,
+        'r.r': powerBank,
+      },
+    };
+  },
+  solution: logValueSolution,
+};
+
+/** Substitute u, tidy the fraction, then divide, one step at a time. */
+const expmLogisticWorkSteps: Generator<LogValueParams> = {
+  id: 'expm-logistic-work-steps',
+  sample: sampleLogValue,
+  render: (params): Slide => {
+    const { b, h, j, m, c, ctx } = params;
+    const story = logisticStory(ctx);
+    const lv = logValueCeiling(params);
+    const l = texNum(lv);
+    const a = b ** j;
+    const u = b ** m;
+    const t = m * h;
+    const put = (v: number) => `\\frac{${l} \\times ${v}}{${v} + ${a}}`;
+    const wrongU = [...new Set([b * m, b ** (m + 1), m, u + 1])].filter((v) => v !== u).slice(0, 3);
+    return {
+      kind: 'steps',
+      prompt: logisticPrompt(
+        story,
+        logValueModel(params),
+        `With $u = ${uTex(b, h)}$ it is $${story.sym} = \\frac{${l}u}{u + ${a}}$. Find $${story.sym}(${t})$ one step at a time: tap the step to do next, then choose what it gives.`,
+      ),
+      start: [`\\frac{${l}u}{u + ${a}}`],
+      reductions: [
+        { span: [0, 1], operator: 0, value: put(u), bank: stepsBank([put(u), ...wrongU.map(put)]) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `\\frac{${texNum(lv * u)}}{${u + a}}`,
+          bank: stepsBank([
+            `\\frac{${texNum(lv * u)}}{${u + a}}`,
+            `\\frac{${texNum(lv * u)}}{${u * a}}`,
+            `\\frac{${texNum(lv + u)}}{${u + a}}`,
+            `\\frac{${l}}{${u + a}}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: texNum(c * u),
+          bank: stepsBank([...new Set([c * u, c, c * a, c * u + c, lv - c * u])].map(texNum)),
+        },
+      ],
+    };
+  },
+  solution: logValueSolution,
+};
+
+/* ---------- Level 5, lesson 3: half the ceiling ---------- */
+
+const LOGISTIC_CEILINGS = [100, 120, 150, 200, 240, 300, 400, 500, 600, 800, 900, 1000, 1200, 1500, 2000, 2400, 3000];
+
+interface LogMidParams {
+  b: number;
+  h: number;
+  /** A = b^j, so it is at half its ceiling at t = jh. */
+  j: number;
+  l: number;
+  ctx: number;
+}
+
+function sampleLogMid(rng: Rng, difficulty: number): LogMidParams {
+  const hard = difficulty > 1;
+  const b = hard ? rng.pick([2, 3]) : 2;
+  return { b, h: rng.int(1, hard ? 8 : 5), j: rng.int(1, 3), l: rng.pick(LOGISTIC_CEILINGS), ctx: rng.int(0, 4) };
+}
+
+function logMidModel({ b, h, j, l }: LogMidParams): string {
+  return logisticTex(l, b ** j, ktTex({ b, h, down: true }));
+}
+
+function logMidSolution({ b, h, j, l }: LogMidParams): SolutionStep[] {
+  const a = b ** j;
+  return [
+    { text: `Half the ceiling is $${texNum(l / 2)}$. The fraction is half of $${texNum(l)}$ exactly when its bottom is $2$:` },
+    {
+      tex: chain(
+        `1 + ${a}e^{${ktTex({ b, h, down: true })}} &= 2`,
+        `${a}e^{${ktTex({ b, h, down: true })}} &= 1`,
+        `e^{${ktTex({ b, h, down: false })}} &= ${a} = ${b}^{${j}}`,
+      ),
+    },
+    {
+      text:
+        h === 1
+          ? `So $t\\ln ${b} = ${j}\\ln ${b}$ and $t = ${j}$.`
+          : `So $\\frac{t}{${h}}\\ln ${b} = ${j}\\ln ${b}$, $\\frac{t}{${h}} = ${j}$ and $t = ${j * h}$.`,
+    },
+    { text: 'That is where the S-curve is steepest: it speeds up before it and slows down after.' },
+  ];
+}
+
+/** Slide to the time a logistic model reaches half its ceiling. */
+const expmLogisticMidSlider: Generator<LogMidParams> = {
+  id: 'expm-logistic-mid-slider',
+  sample: sampleLogMid,
+  render: (params): Slide => {
+    const { b, h, j, l, ctx } = params;
+    const story = logisticStory(ctx);
+    const answer = j * h;
+    const span = sliderSpan(answer, Math.max(answer + 3, 2 * answer + h));
+    return {
+      kind: 'slider',
+      prompt: logisticPrompt(
+        story,
+        logMidModel(params),
+        `The dashed line is its ceiling, $${texNum(l)}$. Slide to the time at which $${story.sym}$ is half its ceiling.`,
+      ),
+      min: 0,
+      max: span,
+      step: 1,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: l * 1.15,
+          curves: [{ f: logisticCurve(l, b ** j, Math.log(b) / h), accent: true }],
+          horizontals: [l],
+          label: 'An S-shaped curve rising towards a dashed ceiling',
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: logMidSolution,
+};
+
+type LogMidAsk = 'half' | 'fastest';
+
+/** The time of half the ceiling, typed; at difficulty 2 it may be asked as the time of fastest growth. */
+const expmLogisticMid: Generator<LogMidParams & { ask: LogMidAsk }> = {
+  id: 'expm-logistic-mid',
+  sample: (rng, difficulty) => ({
+    ...sampleLogMid(rng, difficulty),
+    ask: difficulty > 1 ? rng.pick(['half', 'fastest'] as const) : 'half',
+  }),
+  choices: ({ b, h, j }) => numberOptions(j * h, [j, h, b ** j * h, (j + 1) * h, j * h + 1]),
+  render: (params): Slide => {
+    const story = logisticStory(params.ctx);
+    return {
+      kind: 'expression',
+      prompt: logisticPrompt(
+        story,
+        logMidModel(params),
+        params.ask === 'half' ? `When is $${story.sym}$ half its ceiling?` : `When is $${story.sym}$ growing fastest?`,
+      ),
+      lead: 't =',
+      keypad: [],
+      answer: String(params.j * params.h),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const steps = logMidSolution(params);
+    if (params.ask === 'fastest') steps.unshift({ text: 'A logistic model grows fastest at half its ceiling.' });
+    return steps;
+  },
+};
+
+/** Solve P = L/2 one step at a time: the bottom is 2, so e^(kt) = A. */
+const expmLogisticHalfSteps: Generator<LogMidParams> = {
+  id: 'expm-logistic-half-steps',
+  sample: sampleLogMid,
+  render: (params): Slide => {
+    const { b, h, j, l, ctx } = params;
+    const story = logisticStory(ctx);
+    const a = b ** j;
+    const down = ktTex({ b, h, down: true });
+    const up = ktTex({ b, h, down: false });
+    const sameLog = (x: number, y: number) => Math.abs(Math.log(x) - Math.log(y)) < 1e-9;
+    return {
+      kind: 'steps',
+      prompt: logisticPrompt(
+        story,
+        logMidModel(params),
+        `Find when $${story.sym}$ is half its ceiling, $${texNum(l / 2)}$, one step at a time: tap the step to do next, then choose what it gives.`,
+      ),
+      start: [logMidModel(params), '=', texNum(l / 2)],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `1 + ${a}e^{${down}} = 2`,
+          bank: stepsBank([
+            `1 + ${a}e^{${down}} = 2`,
+            `1 + ${a}e^{${down}} = \\frac{1}{2}`,
+            `1 + ${a}e^{${down}} = ${texNum(l / 2)}`,
+            `${a}e^{${down}} = 2`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `e^{${up}} = ${a}`,
+          bank: stepsBank([`e^{${up}} = ${a}`, `e^{${up}} = \\frac{1}{${a}}`, `e^{${up}} = ${a + 1}`, `e^{${up}} = ${2 * a}`]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `${up} = ${j}\\ln ${b}`,
+          bank: stepsBank([
+            `${up} = ${j}\\ln ${b}`,
+            ...(j === 1 || sameLog(j ** b, a) ? [] : [`${up} = ${b}\\ln ${j}`]),
+            `${up} = ${j + 1}\\ln ${b}`,
+            `${up} = \\ln ${a + 1}`,
+          ]),
+        },
+        { span: [0, 1], operator: 0, value: `t = ${j * h}`, bank: timeSteps(j * h, [j, h, a * h, (j + 1) * h]) },
+      ],
+    };
+  },
+  solution: logMidSolution,
+};
+
+/** Which ringed point on the S-curve is steepest. */
+const expmLogisticSteepest: Generator<LogMidParams> = {
+  id: 'expm-logistic-steepest',
+  sample: sampleLogMid,
+  render: (params): Slide => {
+    const { b, h, j, l, ctx } = params;
+    const story = logisticStory(ctx);
+    const mid = j * h;
+    const times = mid - 2 * h >= 0 ? [mid - 2 * h, mid, mid + 2 * h, mid + 4 * h] : [0, mid, mid + 2 * h, mid + 4 * h];
+    const f = logisticCurve(l, b ** j, Math.log(b) / h);
+    const right = `t = ${mid}`;
+    const labels = turned(
+      times.map((t) => `t = ${t}`),
+      `${b}-${h}-${j}-${l}-${ctx}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        ...logisticPrompt(
+          story,
+          logMidModel(params),
+          `The picture shows it with four points ringed, one at each of the times below. At which is $${story.sym}$ growing fastest?`,
+        ),
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: 0,
+            xMax: times[3] + h,
+            yMin: 0,
+            yMax: l * 1.15,
+            curves: [{ f, accent: true }],
+            horizontals: [l],
+            marks: times.map((t) => ({ x: t, y: f(t) })),
+            label: 'An S-shaped curve under a dashed ceiling, with four ringed points',
+          }),
+        },
+      ],
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: (params) => [
+    { text: 'A logistic curve is steepest where it is half its ceiling, so find when that is.' },
+    ...logMidSolution(params).slice(0, 3),
+  ],
+};
+
+/* ---------- Level 5, lesson 4: the rate ---------- */
+
+interface LogRateParams {
+  /** L = n^2 r and P = i n r, so P(1 - P/L) = i(n - i) r is whole. */
+  n: number;
+  r: number;
+  i: number;
+  /** k = p / 100, drawn so that k P(1 - P/L) is whole too. */
+  p: number;
+  /** The model's A. It plays no part in the rate. */
+  a: number;
+  ctx: number;
+}
+
+function sampleLogRate(rng: Rng, difficulty: number): LogRateParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const n = rng.pick([4, 5]);
+    const r = rng.pick(hard ? [4, 5, 8, 10, 12, 15, 20, 24, 25, 30, 40, 50, 60, 80, 100, 120, 150] : [5, 10, 20, 25, 40, 50, 100]);
+    const i = rng.int(1, n - 1);
+    const p = rng.pick(hard ? [5, 10, 15, 20, 25, 30, 40, 50] : [10, 20, 25, 50]);
+    if ((p * i * (n - i) * r) % 100 !== 0 || n * n * r > 4000) continue;
+    return { n, r, i, p, a: rng.int(2, hard ? 19 : 9), ctx: rng.int(0, 4) };
+  }
+}
+
+function logRateNumbers({ n, r, i, p }: LogRateParams): { l: number; value: number; inner: number; rate: number } {
+  const inner = i * (n - i) * r;
+  return { l: n * n * r, value: i * n * r, inner, rate: (p * inner) / 100 };
+}
+
+function logRateModel(params: LogRateParams): string {
+  return logisticTex(logRateNumbers(params).l, params.a, `-${dec(params.p / 100)}t`);
+}
+
+function logRateSolution(params: LogRateParams): SolutionStep[] {
+  const { p, ctx } = params;
+  const { sym } = logisticStory(ctx);
+  const { l, value, inner, rate } = logRateNumbers(params);
+  const k = dec(p / 100);
+  return [
+    { text: `A logistic model grows at $\\frac{d${sym}}{dt} = k${sym}\\left(1 - \\frac{${sym}}{L}\\right)$, here with $k = ${k}$ and $L = ${texNum(l)}$.` },
+    {
+      tex: chain(
+        `1 - \\frac{${value}}{${texNum(l)}} &= \\frac{${texNum(l - value)}}{${texNum(l)}}`,
+        `${value} \\times \\frac{${texNum(l - value)}}{${texNum(l)}} &= ${inner}`,
+        `\\frac{d${sym}}{dt} &= ${k} \\times ${inner} = ${dec(rate)}`,
+      ),
+    },
+    {
+      text:
+        2 * value < l
+          ? `$${value}$ is below half the ceiling, so the growth is still speeding up.`
+          : `$${value}$ is above half the ceiling, so the growth is slowing down.`,
+    },
+  ];
+}
+
+/** The rate formula, filled in for this model. */
+const expmLogisticRateTiles: Generator<LogRateParams> = {
+  id: 'expm-logistic-rate-tiles',
+  sample: sampleLogRate,
+  render: (params): Slide => {
+    const { p, a, ctx } = params;
+    const story = logisticStory(ctx);
+    const { sym } = story;
+    const { l } = logRateNumbers(params);
+    const k = dec(p / 100);
+    const answer = [k, `\\frac{${sym}}{${texNum(l)}}`];
+    return {
+      kind: 'tiles',
+      prompt: logisticPrompt(story, logRateModel(params), `Fill in the rate at which $${sym}$ grows, in terms of $${sym}$.`),
+      template: `\\frac{d${sym}}{dt} = {0}${sym}(1 - {1})`,
+      bank: fillBank(answer, [
+        `-${k}`,
+        String(p),
+        String(a),
+        `\\frac{${texNum(l)}}{${sym}}`,
+        `\\frac{${sym}}{${a}}`,
+        ...(l % 2 === 0 ? [`\\frac{${sym}}{${texNum(l / 2)}}`] : []),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { sym } = logisticStory(params.ctx);
+    const { l } = logRateNumbers(params);
+    return [
+      { text: `The rate is $k${sym}\\left(1 - \\frac{${sym}}{L}\\right)$, with $k$ and $L$ read from the model; $A$ plays no part.` },
+      { tex: `\\frac{d${sym}}{dt} = ${dec(params.p / 100)}${sym}\\left(1 - \\frac{${sym}}{${texNum(l)}}\\right)` },
+    ];
+  },
+};
+
+type LogRateAsk = 'at' | 'max';
+
+/** The rate at a value, typed; at difficulty 2 sometimes the greatest rate, kL/4. */
+const expmLogisticRateAt: Generator<LogRateParams & { ask: LogRateAsk }> = {
+  id: 'expm-logistic-rate-at',
+  sample: (rng, difficulty) => {
+    const params = sampleLogRate(rng, difficulty);
+    const { l } = logRateNumbers(params);
+    const max = difficulty > 1 && (params.p * l) % 400 === 0 && rng.chance(0.4);
+    return { ...params, ask: max ? 'max' : 'at' };
+  },
+  choices: (params) => {
+    const { p } = params;
+    const { l, value, inner, rate } = logRateNumbers(params);
+    const correct = params.ask === 'max' ? (p * l) / 400 : rate;
+    return numberOptions(correct, [inner, (p * value) / 100, 2 * rate, (p * (l - value)) / 100, (p * l) / 400, (p * l) / 200]);
+  },
+  render: (params): Slide => {
+    const story = logisticStory(params.ctx);
+    const { sym } = story;
+    const { l, value, rate } = logRateNumbers(params);
+    const question =
+      params.ask === 'max'
+        ? `What is the greatest rate at which $${sym}$ grows, in ${story.of} per ${story.unit}?`
+        : `How fast is it growing, in ${story.of} per ${story.unit}, when $${sym} = ${value}$?`;
+    return {
+      kind: 'expression',
+      prompt: logisticPrompt(story, logRateModel(params), question),
+      lead: `\\frac{d${sym}}{dt} =`,
+      keypad: [],
+      answer: String(params.ask === 'max' ? (params.p * l) / 400 : rate),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    if (params.ask === 'at') return logRateSolution(params);
+    const { sym } = logisticStory(params.ctx);
+    const { l } = logRateNumbers(params);
+    const k = dec(params.p / 100);
+    return [
+      { text: `The rate $k${sym}\\left(1 - \\frac{${sym}}{L}\\right)$ is greatest at half the ceiling, $${sym} = ${texNum(l / 2)}$.` },
+      { tex: `${k} \\times ${texNum(l / 2)} \\times \\frac{1}{2} = ${dec((params.p * l) / 400)}` },
+    ];
+  },
+};
+
+/** Below or above half the ceiling, so speeding up or slowing down. */
+const expmLogisticRateFlow: Generator<LogRateParams> = {
+  id: 'expm-logistic-rate-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleLogRate(rng, difficulty);
+      const { l, value } = logRateNumbers(params);
+      if (l % 2 === 0 && 2 * value !== l) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { n, i, p } = params;
+    const story = logisticStory(params.ctx);
+    const { sym } = story;
+    const { l, value } = logRateNumbers(params);
+    const below = 2 * value < l;
+    const bracket = `\\frac{${n - i}}{${n}}`;
+    const trend = (to: string) => ({
+      id: to,
+      ask: 'So is its growth speeding up or slowing down there?',
+      branches: [
+        {
+          label: 'Speeding up',
+          outcome: 'Below half the ceiling there is plenty of room left, and more to grow from each moment, so the rate rises.',
+        },
+        {
+          label: 'Slowing down',
+          outcome: 'Above half the ceiling the room left shrinks faster than the amount grows, so the rate falls.',
+        },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt: logisticPrompt(
+        story,
+        logRateModel(params),
+        `It grows at $\\frac{d${sym}}{dt} = ${dec(p / 100)}${sym}\\left(1 - \\frac{${sym}}{${texNum(l)}}\\right)$. Look at the moment $${sym} = ${value}$, one question at a time.`,
+      ),
+      subject: `${sym} = ${value}`,
+      steps: [
+        {
+          id: 'bracket',
+          ask: `At $${sym} = ${value}$, what is $1 - \\frac{${sym}}{${texNum(l)}}$?`,
+          branches: turned(
+            [
+              { label: `$${bracket}$`, to: 'side' },
+              { label: `$\\frac{${i}}{${n}}$`, outcome: `That is $\\frac{${sym}}{${texNum(l)}}$ itself, before taking it from $1$.` },
+              { label: `$\\frac{${n}}{${n - i}}$`, outcome: 'That is upside down. The part of the ceiling left is less than $1$.' },
+            ],
+            `${n}-${i}-${params.r}-${p}`,
+          ),
+        },
+        {
+          id: 'side',
+          ask: `Half the ceiling is $${texNum(l / 2)}$. Is $${sym} = ${value}$ below it or above it?`,
+          branches: [
+            { label: 'Below', to: 'below' },
+            { label: 'Above', to: 'above' },
+          ],
+        },
+        trend('below'),
+        trend('above'),
+      ],
+      answer: [`$${bracket}$`, below ? 'Below' : 'Above', below ? 'Speeding up' : 'Slowing down'],
+    };
+  },
+  solution: logRateSolution,
+};
+
+/** The rate at a value as a tree: the room left, P(1 - P/L), then the rate. */
+const expmLogisticRateTree: Generator<LogRateParams> = {
+  id: 'expm-logistic-rate-tree',
+  sample: sampleLogRate,
+  render: (params): Slide => {
+    const { p } = params;
+    const story = logisticStory(params.ctx);
+    const { sym } = story;
+    const { l, value, inner, rate } = logRateNumbers(params);
+    const k = dec(p / 100);
+    const L = texNum(l);
+    const answer = [l - value, inner, rate].map(String);
+    return {
+      kind: 'tree',
+      prompt: logisticPrompt(
+        story,
+        logRateModel(params),
+        `It grows at $\\frac{d${sym}}{dt} = ${k}${sym}\\left(1 - \\frac{${sym}}{${L}}\\right)$. Find the rate when $${sym} = ${value}$: fill in $${L} - ${value}$, then $${value}\\left(1 - \\frac{${value}}{${L}}\\right)$, which is $${value}$ times that divided by $${L}$, then the rate.`,
+      ),
+      expression: `${k} \\times ${value}\\left(1 - \\frac{${value}}{${L}}\\right)`,
+      nodes: [
+        { id: 'room', from: [] },
+        { id: 'inner', from: ['room'] },
+        { id: 'rate', from: ['inner'] },
+      ],
+      bank: treeBank(
+        answer,
+        [l / 2, l + value, value, 10 * rate, 2 * inner, (p * value) / 100].filter(Number.isInteger).map(String),
+      ),
+      answer,
+    };
+  },
+  solution: logRateSolution,
+};
+
+/* ---------- Level 5, lesson 5: reaching a value ---------- */
+
+function logReachSolution(params: LogValueParams): SolutionStep[] {
+  const { b, h, j, m, ctx } = params;
+  const { sym } = logisticStory(ctx);
+  const l = logValueCeiling(params);
+  const a = b ** j;
+  const value = logValueAt(params);
+  return [
+    { text: `With $u = e^{${ktTex({ b, h, down: false })}} = ${uTex(b, h)}$, $${sym} = \\frac{${texNum(l)}u}{u + ${a}}$. Set it equal to $${texNum(value)}$ and clear the fraction:` },
+    {
+      tex: chain(
+        `${texNum(l)}u &= ${texNum(value)}(u + ${a})`,
+        `${texNum(l - value)}u &= ${texNum(a * value)}`,
+        `u &= ${b ** m} = ${b}^{${m}}`,
+      ),
+    },
+    { text: `$${uTex(b, h)} = ${b}^{${m}}$, ${timeFrom(m, h)}.` },
+  ];
+}
+
+/** Solve P = value one step at a time, through u = e^(kt). */
+const expmLogisticReachSteps: Generator<LogValueParams> = {
+  id: 'expm-logistic-reach-steps',
+  sample: sampleLogValue,
+  render: (params): Slide => {
+    const { b, h, j, m, ctx } = params;
+    const story = logisticStory(ctx);
+    const lv = logValueCeiling(params);
+    const pv = logValueAt(params);
+    const l = texNum(lv);
+    const v = texNum(pv);
+    const a = b ** j;
+    const u = b ** m;
+    return {
+      kind: 'steps',
+      prompt: logisticPrompt(
+        story,
+        logValueModel(params),
+        `Find when $${story.sym} = ${v}$ one step at a time, with $u = ${uTex(b, h)}$: tap the step to do next, then choose what it gives.`,
+      ),
+      start: [logValueModel(params), '=', v],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${l}u = ${v}(u + ${a})`,
+          bank: stepsBank([
+            `${l}u = ${v}(u + ${a})`,
+            `${l} = ${v}(u + ${a})`,
+            `${l}u = ${v}u + ${a}`,
+            `${l}u = ${v}(1 + ${a}u)`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `${texNum(lv - pv)}u = ${texNum(a * pv)}`,
+          bank: stepsBank([
+            `${texNum(lv - pv)}u = ${texNum(a * pv)}`,
+            `${texNum(lv + pv)}u = ${texNum(a * pv)}`,
+            `${texNum(lv - pv)}u = ${texNum(a + pv)}`,
+            `${texNum(lv - pv)}u = ${v}`,
+          ]),
+        },
+        { span: [0, 1], operator: 0, value: `u = ${u}`, bank: timeSteps(u, [a, b ** (m + 1), b * m], 'u') },
+        { span: [0, 1], operator: 0, value: `t = ${m * h}`, bank: timeSteps(m * h, [m, h, u * h, (m + 1) * h]) },
+      ],
+    };
+  },
+  solution: logReachSolution,
+};
+
+/** The equation in u, then u itself, from tiles. */
+const expmLogisticUTiles: Generator<LogValueParams> = {
+  id: 'expm-logistic-u-tiles',
+  sample: sampleLogValue,
+  render: (params): Slide => {
+    const { b, h, j, m, ctx } = params;
+    const story = logisticStory(ctx);
+    const lv = logValueCeiling(params);
+    const pv = logValueAt(params);
+    const a = b ** j;
+    const answer = [texNum(lv - pv), texNum(a * pv), String(b ** m)];
+    return {
+      kind: 'tiles',
+      prompt: logisticPrompt(
+        story,
+        logValueModel(params),
+        `With $u = ${uTex(b, h)}$, $${story.sym} = ${texNum(pv)}$ clears to $(L - ${story.sym})u = A${story.sym}$. Fill in that equation, then $u$.`,
+      ),
+      template: '{0}u = {1}, \\quad u = {2}',
+      bank: fillBank(answer, [texNum(lv + pv), texNum(pv), texNum(lv), texNum(a + pv), String(a), String(b ** (m + 1))]),
+      answer,
+    };
+  },
+  solution: logReachSolution,
+};
+
+/** Slide to the time the S-curve reaches a dashed value. */
+const expmLogisticReachSlider: Generator<LogValueParams> = {
+  id: 'expm-logistic-reach-slider',
+  sample: sampleLogValue,
+  render: (params): Slide => {
+    const { b, h, j, m, ctx } = params;
+    const story = logisticStory(ctx);
+    const l = logValueCeiling(params);
+    const value = logValueAt(params);
+    const answer = m * h;
+    const span = sliderSpan(answer, Math.max(answer + 3, Math.ceil(answer * 1.5), (2 * j + 1) * h));
+    return {
+      kind: 'slider',
+      prompt: logisticPrompt(
+        story,
+        logValueModel(params),
+        `The upper dashed line is its ceiling and the lower one is $${texNum(value)}$. Slide to the time at which $${story.sym}$ reaches $${texNum(value)}$.`,
+      ),
+      min: 0,
+      max: span,
+      step: 1,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: l * 1.15,
+          curves: [{ f: logisticCurve(l, b ** j, Math.log(b) / h), accent: true }],
+          horizontals: [l, value],
+          label: `An S-shaped curve rising towards a dashed ceiling, with a second dashed line at ${value}`,
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: logReachSolution,
+};
+
+/** The time to reach a value, typed. */
+const expmLogisticWhen: Generator<LogValueParams> = {
+  id: 'expm-logistic-when',
+  sample: sampleLogValue,
+  choices: ({ b, h, j, m }) => numberOptions(m * h, [m, h, j * h, b ** m * h, (m + 1) * h]),
+  render: (params): Slide => {
+    const story = logisticStory(params.ctx);
+    return {
+      kind: 'expression',
+      prompt: logisticPrompt(story, logValueModel(params), `When does $${story.sym}$ reach $${texNum(logValueAt(params))}$?`),
+      lead: 't =',
+      keypad: [],
+      answer: String(params.m * params.h),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: logReachSolution,
+};
+
 /* ---------- registry ---------- */
 
 export const exponentialModelGenerators = [
@@ -5997,4 +7161,24 @@ export const exponentialModelGenerators = [
   expmGapSteps,
   expmGapSlider,
   expmGapFlow,
+  expmLogisticBuildTiles,
+  expmLogisticStart,
+  expmLogisticRead,
+  expmLogisticFlow,
+  expmLogisticValueTree,
+  expmLogisticAt,
+  expmLogisticReduce,
+  expmLogisticWorkSteps,
+  expmLogisticMidSlider,
+  expmLogisticMid,
+  expmLogisticHalfSteps,
+  expmLogisticSteepest,
+  expmLogisticRateTiles,
+  expmLogisticRateAt,
+  expmLogisticRateFlow,
+  expmLogisticRateTree,
+  expmLogisticReachSteps,
+  expmLogisticUTiles,
+  expmLogisticReachSlider,
+  expmLogisticWhen,
 ];

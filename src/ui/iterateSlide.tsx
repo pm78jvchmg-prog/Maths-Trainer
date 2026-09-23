@@ -52,10 +52,6 @@ function IterateBody({
     if (token) spent.set(token, (spent.get(token) ?? 0) + 1);
   }
 
-  // Every control stops the tap here. After a wrong answer the whole question
-  // area is a "try again" target that resets the draft, which would wipe the
-  // table the learner is in the middle of correcting; the `edit` that every
-  // change dispatches already clears the wrong verdict.
   const tapBlank = (idx: number) => {
     if (filled[idx] !== '') {
       const next = [...filled];
@@ -89,10 +85,7 @@ function IterateBody({
           ? `x ${idx + 1}${filled[idx] ? `, ${filled[idx]}` : ', empty'}`
           : `${CONCLUSION_LABEL[slide.conclusion]}${filled[idx] ? `, ${filled[idx]}` : ', empty'}`
       }
-      onClick={(event) => {
-        event.stopPropagation();
-        tapBlank(idx);
-      }}
+      onClick={() => tapBlank(idx)}
     >
       {filled[idx] ? <Tex tex={filled[idx]} /> : ' '}
     </button>
@@ -149,10 +142,7 @@ function IterateBody({
               type="button"
               className={`tile${used ? ' used' : ''}`}
               disabled={locked || used || target === -1}
-              onClick={(event) => {
-                event.stopPropagation();
-                place(value);
-              }}
+              onClick={() => place(value)}
             >
               <Tex tex={value} />
             </button>
@@ -164,8 +154,7 @@ function IterateBody({
         type="button"
         className="text-button"
         disabled={locked || filled.every((slot) => !slot)}
-        onClick={(event) => {
-          event.stopPropagation();
+        onClick={() => {
           onAnswer(Array.from({ length: size }, () => ''));
           setChosen(0);
         }}

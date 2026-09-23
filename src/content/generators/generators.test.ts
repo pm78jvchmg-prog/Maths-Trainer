@@ -110,6 +110,29 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         ).toBeGreaterThanOrEqual(1);
       }
 
+      if (slide.kind === 'table') {
+        // One answer token per blank, or the widget's reading order and the
+        // answer disagree about which value belongs where.
+        const blanks = slide.rows.flat().filter((cell) => cell === null).length;
+        expect(slide.answer.length, 'one answer token per blank').toBe(blanks);
+        for (const row of slide.rows) {
+          expect(row.length, 'a row is not as wide as the header').toBe(slide.columns.length);
+        }
+        // Every token the answer needs must be on offer, as often as it is needed.
+        const bank = [...slide.bank];
+        for (const token of slide.answer) {
+          const at = bank.indexOf(token);
+          expect(at, `table value ${token} missing from bank`).toBeGreaterThanOrEqual(0);
+          bank.splice(at, 1);
+        }
+        // Two spares at least, as for a tree: with one, the last blank is
+        // filled by elimination rather than by working the rule.
+        expect(
+          bank.length,
+          `table bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+        ).toBeGreaterThanOrEqual(2);
+      }
+
       if (slide.kind === 'evaluate') {
         // Exactly one option right, and every option a whole number: a
         // near-miss the learner cannot tell apart from the answer by shape is
@@ -540,6 +563,13 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         for (const token of slide.bank) check(token, 'tree bank');
       }
 
+      if (slide.kind === 'table') {
+        // Every header, given cell and bank value is its own KaTeX call.
+        for (const header of slide.columns) check(header, 'table header');
+        for (const cell of slide.rows.flat()) if (cell) check(cell, 'table cell');
+        for (const token of slide.bank) check(token, 'table bank');
+      }
+
       if (slide.kind === 'transform') {
         // The readout: what the learner builds, starting from the identity.
         const target = parseTransform(slide.answer);
@@ -594,6 +624,21 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           verdict.status,
           `seed ${seed}: distractor ${option.tex} (${option.answer}) is not wrong against ${right}`,
         ).toBe('incorrect');
+      }
+    }
+  });
+
+  it('never puts $-delimited maths in a plain-text choice label', () => {
+    // A choice option is either all TeX (`tex: true`) or plain text, and the
+    // plain branch renders its label as a string. "$D$ falls by 24 mg" then
+    // reaches the learner with the dollar signs showing, which is how the
+    // first draft of expm-rate-words looked in the browser.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'choice') continue;
+      for (const option of slide.options) {
+        if (option.tex) continue;
+        expect(option.label, `seed ${seed}: plain label shows raw $ signs`).not.toContain('$');
       }
     }
   });
@@ -1206,7 +1251,10 @@ describe('course integrity', () => {
     expect(
       offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
     ).toBe('');
-  });
+    // Every lesson resolved 40 times over: the sweep grows with the library and
+    // outgrew vitest's 5s default once the Phase C courses landed. A budget
+    // rather than fewer seeds, as for the oracle tests above.
+  }, 60_000);
 
   it('never repeats a question inside a level check', () => {
     const checks = courses.flatMap((course) =>
@@ -1216,7 +1264,7 @@ describe('course integrity', () => {
     expect(
       offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
     ).toBe('');
-  });
+  }, 60_000);
 
   it('varies the shape of the questions inside a lesson', () => {
     // Seven questions through one widget reads as the same question seven

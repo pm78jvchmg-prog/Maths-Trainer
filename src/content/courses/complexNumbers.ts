@@ -7,6 +7,7 @@
  */
 import type { Block, Course, SlideRef } from '../types';
 import { complexPlaneSvg, rangeFor, type PlanePoint } from '../generators/plane';
+import { unityCircleSvg } from '../generators/complexPlane';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -663,6 +664,162 @@ export const complexNumbers: Course = {
         ask('argument', 2),
         ask('complex-power', 2),
         ask('polar-power', 2),
+      ],
+    },
+
+    {
+      id: 'cn-l5',
+      title: 'Roots of Unity',
+      lessons: [
+        {
+          id: 'cn-l5-unity',
+          title: 'The nth Roots of Unity',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'A root of unity is a number that comes out as $1$ when raised to some power. $z^n = 1$ has exactly $n$ of them, and De Moivre says where they are.' },
+              { kind: 'display', tex: '|z|^n = 1 \\qquad n\\arg z = 2k\\pi' },
+              { kind: 'prose', text: 'The modulus must be $1$, since no other positive number stays at $1$ when raised to a power. And $n$ times the argument must be a whole number of turns, so the argument is a multiple of $\\tfrac{2\\pi}{n}$.' },
+              { kind: 'display', tex: 'z = \\cos\\tfrac{2k\\pi}{n} + i\\sin\\tfrac{2k\\pi}{n}' },
+              { kind: 'prose', text: 'Only $k = 0, 1, \\ldots, n - 1$ give different roots; $k = n$ is back at $1$. Call the $k = 1$ root $\\omega$. The rest are its powers, each a further $\\tfrac{2\\pi}{n}$ round:' },
+              { kind: 'diagram', svg: unityCircleSvg(6, 2) },
+              { kind: 'prose', text: 'The sixth roots of unity, with $\\omega^{2}$ highlighted, two steps anticlockwise from $1$.' },
+            ),
+            ask('unity-argument'),
+            ask('unity-which'),
+            ask('unity-slider'),
+            teach(
+              { kind: 'prose', text: 'For $n = 3, 4, 6, 8$ and $12$ the roots sit at angles whose sine and cosine you know exactly, so they can be written as $a + bi$.' },
+              { kind: 'display', tex: '\\omega = \\cos\\tfrac{2\\pi}{3} + i\\sin\\tfrac{2\\pi}{3}' },
+              { kind: 'display', tex: '= -\\tfrac{1}{2} + \\tfrac{\\sqrt{3}}{2}i' },
+              { kind: 'prose', text: 'With modulus $1$ there is nothing to multiply by: the real part is the cosine and the imaginary part the sine. A root in the lower half has a negative sine, and it is the conjugate of its partner above.' },
+            ),
+            ask('unity-cartesian'),
+            ask('unity-which', 2),
+            ask('unity-cartesian+choice', 2),
+            teach(
+              { kind: 'prose', text: '$\\tfrac{2k\\pi}{n}$ counts anticlockwise the whole way round, but a principal argument lies in $(-\\pi, \\pi]$. Past halfway, take a whole turn off. With $n = 6$:' },
+              { kind: 'display', tex: '\\arg\\left(\\omega^{5}\\right) = \\tfrac{10\\pi}{6} - 2\\pi = -\\tfrac{\\pi}{3}' },
+              { kind: 'prose', text: 'That is one step clockwise from $1$: $\\omega^{5}$ and $\\omega^{-1}$ are the same root.' },
+            ),
+            ask('unity-argument+choice', 2),
+            ask('unity-slider'),
+          ],
+          skillCheck: [ask('unity-argument', 2), ask('unity-cartesian', 2), ask('unity-which', 2)],
+        },
+
+        {
+          id: 'cn-l5-diagram',
+          title: 'On the Argand Diagram',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'Plotted, the $n$th roots of unity are the corners of a regular $n$-sided polygon inside the unit circle, with one corner always at $1$.' },
+              { kind: 'diagram', svg: unityCircleSvg(8, -1) },
+              { kind: 'prose', text: 'Some facts can be read straight off the picture. $-1$ is a corner exactly when $n$ is even, and $\\pm i$ exactly when $n$ is a multiple of $4$.' },
+              { kind: 'prose', text: 'The polygon is symmetric about the real axis, so the conjugate of a root is another root: $\\overline{\\omega^{k}} = \\omega^{n - k}$, the same number of steps clockwise.' },
+            ),
+            ask('unity-count'),
+            ask('unity-conjugate'),
+            ask('unity-count+choice', 2),
+            teach(
+              { kind: 'prose', text: 'Multiplying by $\\omega$ turns a point by $\\tfrac{2\\pi}{n}$ without stretching it, so it moves each corner on to the next. Multiplying by $\\omega^{k}$ moves $k$ corners on.' },
+              { kind: 'display', tex: '\\omega^{a} \\times \\omega^{b} = \\omega^{a + b} \\qquad \\omega^{n} = 1' },
+              { kind: 'prose', text: 'Going past $1$ starts another lap, so a power of $\\omega$ can always lose whole laps of $n$. With $n = 5$: $\\omega^{3} \\times \\omega^{4} = \\omega^{7} = \\omega^{2}$.' },
+            ),
+            ask('unity-power'),
+            ask('unity-conjugate', 2),
+            ask('unity-power+choice', 2),
+            teach(
+              { kind: 'prose', text: 'Nothing makes $\\omega$ special except being the first corner round. Label a different root $\\omega$ and its powers still land on corners, with a longer stride.' },
+              { kind: 'diagram', svg: unityCircleSvg(5, 1, 2) },
+              { kind: 'prose', text: 'Here $\\omega$ is two corners round, so $\\omega^{2}$ is four and $\\omega^{3}$ is six: one lap and one more corner, the highlighted one. Count the strides, then take off whole laps.' },
+            ),
+            ask('unity-slider', 2),
+            ask('unity-slider', 2),
+          ],
+          skillCheck: [ask('unity-conjugate', 2), ask('unity-power', 2), ask('unity-slider', 2)],
+        },
+
+        {
+          id: 'cn-l5-sum',
+          title: 'The Sum of the Roots',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'Add all $n$ roots of unity and you get $0$. On the diagram, the polygon balances on the origin.' },
+              { kind: 'display', tex: '1 + \\omega + \\omega^{2} + \\cdots + \\omega^{n - 1} = 0' },
+              { kind: 'prose', text: 'Algebraically it is a geometric series with ratio $\\omega \\neq 1$. Its sum is $\\tfrac{\\omega^{n} - 1}{\\omega - 1}$, and $\\omega^{n} = 1$ makes the top zero.' },
+              { kind: 'prose', text: 'So leave any roots out and the rest add up to minus what was left out. With $n = 3$: $\\omega + \\omega^{2} = -1$. Reduce any power past $n - 1$ first, as in the last lesson.' },
+            ),
+            ask('unity-sum-except'),
+            ask('unity-power', 2),
+            ask('unity-sum-except', 2),
+            teach(
+              { kind: 'prose', text: 'Raise every root to the power $p$ and add. Each $\\omega^{k}$ becomes $\\omega^{pk}$, another root, so the question is which roots you land on.' },
+              { kind: 'display', tex: '1 + \\omega^{p} + \\omega^{2p} + \\cdots + \\omega^{(n - 1)p}' },
+              { kind: 'prose', text: 'If $p$ is a multiple of $n$, every term is $1$, and there are $n$ of them: the sum is $n$. Otherwise it is a geometric series with ratio $\\omega^{p} \\neq 1$, and the same argument gives $0$.' },
+            ),
+            ask('unity-sum-power'),
+            ask('unity-power+choice', 2),
+            ask('unity-sum-power+choice', 2),
+            teach(
+              { kind: 'prose', text: 'The roots of $z^{n} = w$ are one root $z_0$ times each root of unity, so they add up to $z_0(1 + \\omega + \\cdots + \\omega^{n - 1}) = 0$ as well, whatever $w$ is.' },
+              plane([{ re: 1, im: 2 }, { re: -2, im: 1 }, { re: -1, im: -2 }, { re: 2, im: -1, highlight: true }]),
+              { kind: 'prose', text: 'The fourth roots of $-7 - 24i$. Given three, the last is minus their sum: $(1 + 2i) + (-2 + i) + (-1 - 2i) = -2 + i$, so the fourth is $2 - i$.' },
+            ),
+            ask('roots-missing-plot'),
+            ask('roots-missing-plot', 2),
+          ],
+          skillCheck: [ask('unity-sum-except', 2), ask('unity-sum-power', 2), ask('roots-missing-plot', 2)],
+        },
+
+        {
+          id: 'cn-l5-general',
+          title: 'Roots of z^n = w',
+          slides: [
+            teach(
+              { kind: 'prose', text: 'The same method solves $z^{n} = w$ for any $w$. Write $w = R(\\cos\\varphi + i\\sin\\varphi)$ and match both sides of De Moivre.' },
+              { kind: 'display', tex: '|z|^{n} = R' },
+              { kind: 'display', tex: 'n\\arg z = \\varphi + 2k\\pi' },
+              { kind: 'prose', text: 'Every root has modulus $\\sqrt[n]{R}$, the real $n$th root, and for $k = 0, 1, \\ldots, n - 1$ the arguments are' },
+              { kind: 'display', tex: '\\theta_k = \\frac{\\varphi + 2k\\pi}{n}' },
+              { kind: 'prose', text: 'For $z^{3} = 8i$: $R = 8$ and $\\varphi = \\tfrac{\\pi}{2}$, so $|z| = 2$ and $\\theta_k = \\tfrac{\\pi}{6} + \\tfrac{2k\\pi}{3}$.' },
+            ),
+            ask('root-modulus'),
+            ask('root-argument'),
+            ask('root-modulus+choice', 2),
+            teach(
+              { kind: 'prose', text: 'To list all $n$ arguments, start at $\\tfrac{\\varphi}{n}$ and add $\\tfrac{2\\pi}{n}$ each time. Any that pass $\\pi$ come back by a whole turn.' },
+              { kind: 'display', tex: 'z^{3} = 8i: \\quad \\tfrac{\\pi}{6},\\ \\tfrac{5\\pi}{6},\\ \\tfrac{3\\pi}{2} \\to -\\tfrac{\\pi}{2}' },
+              { kind: 'prose', text: 'The usual slip is dividing $\\varphi$ by $n$ but stepping by $2\\pi$, which lands on the same root every time. The step is $\\tfrac{2\\pi}{n}$.' },
+            ),
+            ask('root-args-tiles'),
+            ask('root-argument+choice', 2),
+            ask('root-args-tiles', 2),
+            teach(
+              { kind: 'prose', text: 'The roots still make a regular $n$-gon, now of radius $\\sqrt[n]{R}$ and turned so that one corner is at $\\tfrac{\\varphi}{n}$. Each root is the one before times $\\omega$.' },
+              { kind: 'prose', text: 'For $n = 4$ that factor is $i$, a quarter turn, which takes $a + bi$ to $-b + ai$. The fourth roots of $-4$ are $1 + i$ and its three quarter turns:' },
+              plane([{ re: 1, im: 1, highlight: true }, { re: -1, im: 1 }, { re: -1, im: -1 }, { re: 1, im: -1 }]),
+            ),
+            ask('root-rotate-plot'),
+            ask('root-rotate-plot', 2),
+          ],
+          skillCheck: [ask('root-modulus', 2), ask('root-argument', 2), ask('root-rotate-plot', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('unity-argument', 2),
+        ask('unity-count', 2),
+        ask('roots-missing-plot', 2),
+        ask('root-modulus', 2),
+        ask('unity-cartesian', 2),
+        ask('unity-conjugate', 2),
+        ask('unity-sum-power', 2),
+        ask('root-args-tiles', 2),
+        ask('unity-which', 2),
+        ask('unity-power', 2),
+        ask('root-rotate-plot', 2),
+        ask('unity-sum-except', 2),
+        ask('root-argument', 2),
+        ask('unity-slider', 2),
       ],
     },
   ],

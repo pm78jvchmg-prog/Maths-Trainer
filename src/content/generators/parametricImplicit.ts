@@ -2586,8 +2586,10 @@ const implDiff: Generator<CurveParams> = {
   sample: sampleCurveOnly,
   choices: ({ curve }) => {
     const [right, ...wrong] = diffOptions(curve.terms);
+    // Not the sign-lost distractor turned over: that is the answer again.
+    const [swapped, , ...rest] = wrong;
     return steered(options(right, ...wrong), mix(curve.rhs, ...curve.terms.map((t) => t.c)), [
-      ...wrong.map(negated),
+      ...[swapped, ...rest].map(negated),
       ...droppedTerms(curve.terms),
     ]);
   },

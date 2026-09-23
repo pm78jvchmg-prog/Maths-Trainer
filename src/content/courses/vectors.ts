@@ -1058,6 +1058,51 @@ export const vectors: Course = {
             ask('plane-missing', 2),
           ],
         },
+        {
+          id: 'vm-l8-three-points',
+          title: 'A Plane Through Three Points',
+          slides: [
+            teach(
+              prose(
+                'Three points not on one line fix a plane. The journeys between them lie in the plane, so their cross product is a normal to it.',
+              ),
+              maths('\\mathbf{n} = \\overrightarrow{AB} \\times \\overrightarrow{AC}'),
+              prose(
+                'Use the journeys, destination minus start, not the position vectors. $\\mathbf{a} \\times \\mathbf{b}$ is perpendicular to the lines from the origin, and those are not in the plane.',
+              ),
+            ),
+            ask('plane-three-normal'),
+            ask('plane-d'),
+            ask('plane-on'),
+            teach(
+              prose('The whole route for $A\\left(1, 0, 2\\right)$, $B\\left(2, 1, 2\\right)$ and $C\\left(1, 2, 3\\right)$:'),
+              maths(
+                '\\overrightarrow{AB} = \\begin{pmatrix} 1 \\\\ 1 \\\\ 0 \\end{pmatrix}, \\quad \\overrightarrow{AC} = \\begin{pmatrix} 0 \\\\ 2 \\\\ 1 \\end{pmatrix}',
+              ),
+              maths('\\mathbf{n} = \\overrightarrow{AB} \\times \\overrightarrow{AC} = \\begin{pmatrix} 1 \\\\ -1 \\\\ 2 \\end{pmatrix}'),
+              maths('d = 1(1) - 1(0) + 2(2) = 5'),
+              maths('x - y + 2z = 5'),
+            ),
+            ask('plane-three-tree'),
+            ask('plane-three-normal+choice'),
+            ask('plane-three-equation'),
+            teach(
+              prose(
+                'Any non-zero multiple of the normal gives the same plane, so divide out a common factor: $2x - 4y + 6z = 10$ is the plane $x - 2y + 3z = 5$.',
+              ),
+              prose(
+                'Then check with the points you did not use for $d$. All three have to satisfy the equation; if one does not, a sign has slipped.',
+              ),
+            ),
+            ask('plane-three-equation', 2),
+            ask('plane-three-tree', 2),
+          ],
+          skillCheck: [
+            ask('plane-three-normal', 2),
+            ask('plane-three-tree', 2),
+            ask('plane-three-equation', 2),
+          ],
+        },
       ],
     },
   ],

@@ -8,15 +8,15 @@ notation, arithmetic and geometric sums, convergence and the sum to infinity,
 series in context); Sequences and their Limits (increasing, decreasing and
 periodic sequences, the limit of a convergent recurrence found from L = f(L),
 sequences that oscillate or diverge, limits of position-to-term rules, and how
-fast the gap to a limit closes).
+fast the gap to a limit closes); Sums of Powers and the Method of Differences
+(the standard results for Σr, Σr² and Σr³, sums built from them, sums that do
+not start at 1, and telescoping sums such as Σ1/(r(r + 1)), finite and to
+infinity, with the split given).
 
-Needs: Sums of Powers and the Method of
-Differences (the standard results for Σr, Σr² and Σr³, sums built from them,
-and telescoping sums such as Σ1/(r(r + 1)) once C9 has landed); Proof by
-Induction for Series (proving a sum formula and a closed form for a
-recurrence, using the `order` widget once C11 has landed); Series in Context
-(loans and savings with regular payments, how many years until a total passes
-a target, and choosing between arithmetic and geometric models); Harder
+Needs: Proof by Induction for Series (proving a sum formula and a closed form
+for a recurrence, using the `order` widget once C11 has landed); Series in
+Context (loans and savings with regular payments, how many years until a total
+passes a target, and choosing between arithmetic and geometric models); Harder
 Arithmetic and Geometric Problems (simultaneous conditions on two terms or two
 sums, and the least n for which a sum exceeds a value, solved with logarithms).
 The binomial series for rational n belongs to Binomial Expansion, and Maclaurin

@@ -441,6 +441,7 @@ are green, and one new lesson has been played in a browser.
 | B11 | Quadratics: Quadratic Inequalities | **done** (`claude/roadmap-b-quadratics-2-aoomzy`): level `qd-l5`, 5 lessons, a 15-question level check, 15 new generators |
 | B35 | Vectors: Vectors in Mechanics | **done** (`claude/roadmap-b-vectors-4-kze9i1`): level `vm-l10`, 5 lessons, a 14-question level check, 23 new generators |
 | B20 | Quadratics: Modelling with Quadratics | **done** (`claude/roadmap-b-quadratics-3-ii0cum`): level `qd-l6`, 5 lessons, a 15-question level check, 19 new generators |
+| B28 | Exponents & Radicals: Growth by Repeated Multiplication | **done** (`claude/roadmap-b-exponents-4-te54kq`): level `er-l7`, 5 lessons, a 15-question level check, 20 new generators |
 
 ### Phase C — the twenty-one new concepts
 

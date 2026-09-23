@@ -1935,6 +1935,51 @@ export const quadratics: Course = {
             ask('quad-disguise-flip-steps', 2),
           ],
         },
+        {
+          id: 'qd-l7-bracket',
+          title: 'A Bracket as u',
+          slides: [
+            teach(
+              prose(
+                '$(x + 1)^{2} - 5(x + 1) + 6 = 0$ could be expanded, but the bracket appears squared and on its own. Put $u = x + 1$:',
+              ),
+              maths('u^{2} - 5u + 6 = 0'),
+              maths('(u - 2)(u - 3) = 0'),
+              prose('So $x + 1 = 2$ or $x + 1 = 3$, giving $x = 1$ or $x = 2$. Take the 1 away; do not add it.'),
+            ),
+            ask('quad-disguise-bracket-steps'),
+            ask('quad-disguise-bracket-solve'),
+            ask('quad-disguise-shift-slider'),
+            teach(
+              prose(
+                'As graphs, $y = (x + 1)^{2} - 5(x + 1) + 6$ is the dashed $y = x^{2} - 5x + 6$ moved 1 to the left, so both roots move 1 to the left too:',
+              ),
+              disguiseGraph(
+                [(x) => (x + 1) ** 2 - 5 * (x + 1) + 6, (x) => x * x - 5 * x + 6],
+                { xMin: -1, xMax: 5, yMin: -0.6, yMax: 2.5 },
+                [1, 2],
+                'Two identical parabolas, the solid one a step to the left of the dashed one, crossing at 1 and 2',
+              ),
+            ),
+            ask('quad-disguise-count-flow'),
+            ask('quad-disguise-bracket-solve+choice'),
+            ask('quad-disguise-bracket-steps', 2),
+            teach(
+              prose(
+                'Every disguise works the same way: find $u$, solve in $u$, go back to $x$. What changes is how many values of $x$ each root gives:',
+              ),
+              prose('$u = x^{2}$ gives two for a positive root and none for a negative one. $u = \\sqrt{x}$ gives one, or none for a negative root.'),
+              prose('$u = x^{3}$, $u = \\frac{1}{x}$ and $u = x + k$ give exactly one each time.'),
+            ),
+            ask('quad-disguise-count-flow', 2),
+            ask('quad-disguise-shift-slider', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-bracket-steps', 2),
+            ask('quad-disguise-bracket-solve', 2),
+            ask('quad-disguise-count-flow', 2),
+          ],
+        },
       ],
     },
   ],

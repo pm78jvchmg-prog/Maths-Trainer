@@ -142,7 +142,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 11 | Trigonometric Identities & Equations | new |
 | 12 | Logarithms | **12 lessons** |
 | 13 | Exponential Models | **9 lessons** |
-| 14 | Binomial Expansion | new |
+| 14 | Binomial Expansion | **10 lessons** |
 | 15 | Inequalities & the Modulus Function | new |
 
 ### Advanced Maths
@@ -254,6 +254,19 @@ fastest growth at half the ceiling); Continuous Compounding (e as the limit of
 (1 + 1/n)^n, effective annual rate against continuous rate); The
 Limits of a Model (residuals, when a model stops fitting, choosing between two
 fits). Solving dy/dt = ky belongs to Differential Equations (C13).
+
+**Binomial Expansion** (new in C7) — has: Pascal's Triangle and (a + b)ⁿ; nCr and
+the General Term. Needs: Unknowns and Conditions (finding n, k or a from given
+coefficients, equal and in-ratio coefficients, the sum of the coefficients);
+Products of Expansions ((a + bx)ᵐ(c + dx)ⁿ, (1 + x + x²)ⁿ, and pairing brackets
+such as (1 + x)ⁿ(1 − x)ⁿ = (1 − x²)ⁿ); Estimates and Surds (choosing x to estimate
+a power, how big the error is, (√2 + 1)ⁿ and conjugate pairs); The Binomial Series
+for Rational n ((1 + x)ⁿ for negative and fractional n as an infinite series, valid
+for |x| < 1, and (a + bx)ⁿ taken out as aⁿ(1 + bx/a)ⁿ with its own range);
+Approximating with the Series (roots and reciprocals such as √1.02 and 1/(1 − x)²,
+and the series of a partial-fraction split once C9 has landed). Rational n belongs
+to this course: C14 Series Expansions builds on it and quotes the binomial series
+as a special case of Maclaurin, rather than teaching it again.
 
 **Polynomials & the Factor Theorem** — has: Polynomial Arithmetic, The Factor
 and Remainder Theorems. Needs: Polynomial Graphs (roots, repeated roots and end
@@ -476,6 +489,7 @@ are green, and one new lesson has been played in a browser.
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
 | B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
 | B34 | Integration: Improper Integrals | **done** (`claude/roadmap-b-integration-4-gbuy3r`): level `in-l7`, 5 lessons, a 15-question level check, 17 new generators and an independent numeric check |
+| B29 | Quadratics: Quadratics in Disguise | **done** (`claude/roadmap-b-quadratics-4-xwfezb`): level `qd-l7`, 5 lessons, a 15-question level check, 20 new generators |
 
 ### Phase C — the twenty-one new concepts
 
@@ -518,7 +532,9 @@ batch rather than waiting on a separate one.
 | ---: | --- | --- |
 | C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
 | C4 | Polynomials & the Factor Theorem | **done** (`claude/roadmap-c-polynomials-iu11ey`): course `polynomials`, levels `pl-l1` and `pl-l2`, 10 lessons, level checks of 15 and 15 questions, 35 new generators |
+| C7 | Binomial Expansion | **done** (`claude/roadmap-c-binomial-expansion-e9c0un`): course `binomial-expansion`, levels `be-l1` and `be-l2`, 10 lessons, level checks of 14 and 15 questions, 32 new generators |
 | C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
+| C8-widget | Number-line widget for C8 and the Linear Equations inequalities level | **done** (`claude/roadmap-c8-widget-number-line-6civa1`): slide kind `numberLine` (rays, bounded intervals, unions; open and closed ends; whole or half steps), 2 demo generators asked by no lesson yet |
 
 ### When the queue empties
 

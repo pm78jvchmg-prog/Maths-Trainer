@@ -154,7 +154,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 18 | Integration | **17 lessons** |
 | 19 | Vectors | **4 lessons** (split out in A10) |
 | 20 | Matrices & Linear Transformations | **8 lessons** (split out in A10) |
-| 21 | Parametric & Implicit Differentiation | new |
+| 21 | Parametric & Implicit Differentiation | **9 lessons** |
 | 22 | Differential Equations | new |
 | 23 | Series Expansions | new |
 | 24 | Numerical Methods | new |
@@ -237,6 +237,17 @@ Two Vectors.
 **Matrices & Linear Transformations** (after the split) — has: Matrices,
 Determinants & Inverses. Needs: Matrices as Transformations; Composing
 Transformations; Systems of Equations; Invariant Lines & Points.
+
+**Parametric & Implicit Differentiation** — has: Parametric Curves, Implicit
+Differentiation. Needs: Second Derivatives of Parametric & Implicit Curves
+(d²y/dx² as the derivative of dy/dx with respect to t, divided by dx/dt; concavity
+along the curve); Tangents & Normals to Parametric & Implicit Curves (after C3
+Coordinate Geometry, which teaches the normal); Implicit Differentiation of
+Exponentials & Inverses (a^x, arcsin, arctan, logarithmic differentiation);
+Related Rates & Motion along a Curve (implicit related rates, velocity and speed
+on a parametric path); Area under a Parametric Curve (the integral of y times
+dx/dt with respect to t). This course owns parametric area: Integration's plan
+does not include it, and it needs Integration's Techniques level first.
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -484,7 +495,7 @@ batch rather than waiting on a separate one.
 
 | # | Batch | Status |
 | ---: | --- | --- |
-| C12 | Parametric & Implicit Differentiation | claimed (`claude/roadmap-c-parametric-implicit-dz9d6c`) |
+| C12 | Parametric & Implicit Differentiation | **done** (`claude/roadmap-c-parametric-implicit-dz9d6c`): course `parametric-implicit`, levels `pi-l1` and `pi-l2`, 9 lessons, level checks of 14 and 14 questions, 33 new generators |
 
 ### When the queue empties
 

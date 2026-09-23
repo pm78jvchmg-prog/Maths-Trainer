@@ -430,7 +430,7 @@ are green, and one new lesson has been played in a browser.
 | B18 | Matrices & Linear Transformations: Composing Transformations | **done** (`claude/roadmap-b-matrices-2-taz4dj`): level `vm-l7`, 5 lessons, a 15-question level check, 19 new generators |
 | B16 | Integration: Volumes of Revolution | **done** (`claude/roadmap-b-integration-2-ymjv6y`): level `in-l5`, 4 lessons, a 14-question level check, 17 new generators and a solid-of-revolution figure |
 | B15 | Differentiation: Curve Sketching | **done** (`claude/roadmap-b-differentiation-2-66rw3b`): level `df-l6`, 5 lessons, a 15-question level check, 15 new generators |
-| B14 | Complex Numbers: Loci in the Complex Plane | claimed (`claude/roadmap-b-complex-numbers-2-3bbesx`) |
+| B14 | Complex Numbers: Loci in the Complex Plane | **done** (`claude/roadmap-b-complex-numbers-2-3bbesx`): level `cn-l6`, 5 lessons, a 15-question level check, 20 new generators and a locus figure |
 
 ### Phase C — the twenty-one new concepts
 

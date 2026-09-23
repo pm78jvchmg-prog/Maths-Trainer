@@ -1,0 +1,2324 @@
+/**
+ * Number & Proof, level 1: Proof.
+ *
+ * What a proof is and the four ways this level makes one: direct algebraic
+ * proof (even as `2k`, odd as `2k + 1`), proof by exhaustion over remainders,
+ * disproof by counterexample, and proof by contradiction — then reading a
+ * proof somebody else wrote, to find its missing line, its flaw or its method.
+ *
+ * Level 2, Divisibility & Primes, is in `numberDivisibility.ts`.
+ *
+ * Two rules from the rest of the library matter more here than anywhere.
+ *
+ * - The checker compares values (PITFALLS 3.4). `2(k + 3) + 1` and `2k + 7`
+ *   are the same function, so a form — which is what a proof is made of —
+ *   goes through `tiles`, `order`, `flow` or `choice`. Only numbers are typed.
+ * - Every claim a slide calls true is checked by the generator itself, over
+ *   a spread of whole numbers, before it is shown: a distractor that happened
+ *   to be always odd would make "which of these is always odd?" have two
+ *   answers, and nothing downstream would notice.
+ *
+ * Proof-ordering slides follow `proofOrder.ts`: one accepted order, each step
+ * leaning on the one above it, distractors that are false or cannot replace
+ * any step, and the bank ordered by `orderBank`, never by the rng.
+ */
+import type { Block, Generator, Slide, SolutionStep } from '../types';
+import type { Rng } from '../../engine/rng';
+import { hashSeed } from '../../engine/rng';
+import { orderBank } from './proofOrder';
+
+/* ---------- shared helpers ---------- */
+
+export const say = (text: string): Block => ({ kind: 'prose', text });
+
+export function isPrime(n: number): boolean {
+  if (n < 2) return false;
+  for (let d = 2; d * d <= n; d += 1) if (n % d === 0) return false;
+  return true;
+}
+
+/** The smallest prime factor of n, for n at least 2. */
+export function smallestFactor(n: number): number {
+  for (let d = 2; d * d <= n; d += 1) if (n % d === 0) return d;
+  return n;
+}
+
+export function gcd(a: number, b: number): number {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y) [x, y] = [y, x % y];
+  return x;
+}
+
+/** A remainder in 0..m - 1, whatever the sign of n. */
+export function mod(n: number, m: number): number {
+  return ((n % m) + m) % m;
+}
+
+/** `ak + b` as the learner reads it: `k`, `3k`, `2k + 1`, `4k - 3`. */
+export function lin(a: number, b: number, v = 'k'): string {
+  const head = a === 1 ? v : `${a}${v}`;
+  if (b === 0) return head;
+  return b > 0 ? `${head} + ${b}` : `${head} - ${-b}`;
+}
+
+/**
+ * A polynomial in `v`, highest power first: `[4, 4, 6]` is `4k^2 + 4k + 6`.
+ * Exponents are single digits, so no braces: safe inside a tiles template.
+ */
+export function polyTex(coefs: number[], v = 'k'): string {
+  const top = coefs.length - 1;
+  let out = '';
+  coefs.forEach((c, i) => {
+    if (c === 0) return;
+    const p = top - i;
+    const size = Math.abs(c);
+    const power = p === 0 ? '' : p === 1 ? v : `${v}^${p}`;
+    const body = p === 0 ? `${size}` : `${size === 1 ? '' : size}${power}`;
+    if (out === '') out = c < 0 ? `-${body}` : body;
+    else out += c < 0 ? ` - ${body}` : ` + ${body}`;
+  });
+  return out || '0';
+}
+
+/** A single term `ck^p` as a tile. */
+export function termTex(c: number, p: number, v = 'k'): string {
+  return polyTex([c, ...Array(p).fill(0)], v);
+}
+
+/**
+ * A tiles or tree bank: every token the answer needs, as a multiset, plus the
+ * distractors that differ from all of them. Sorted, so one question renders
+ * one way (PITFALLS 3.10).
+ */
+export function fillBank(answer: string[], distractors: string[], spare = 2, limit = Infinity): string[] {
+  const bare = (token: string) => token.replace(/\s+/g, '');
+  const needed = new Set(answer.map(bare));
+  const extras: string[] = [];
+  for (const token of distractors) {
+    if (needed.has(bare(token)) || extras.some((extra) => bare(extra) === bare(token))) continue;
+    if (extras.length < limit) extras.push(token);
+  }
+  if (extras.length < spare) throw new Error(`fillBank: only ${extras.length} distractor(s) for ${answer.join(', ')}`);
+  return [...answer, ...extras].sort();
+}
+
+/**
+ * A solution line, stacked when it would run off a phone. Worked-solution
+ * displays are about 320 px wide at 393, which fits roughly twenty visible
+ * characters of maths, counting an operator twice for the space around it;
+ * anything longer scrolls sideways. A line of pairs (`a,\quad b`) goes one
+ * pair to a row, and a chain `a = b = c` puts each `= ...` on a row of its own.
+ */
+export function stackTex(tex: string): string {
+  const visible = (t: string) => {
+    const bare = t.replace(/\\(times|cdot|mid|nmid|ge|le|div)\b/g, 'x').replace(/\\[a-zA-Z]+|[{}\s^_&]/g, '');
+    return bare.length + (bare.match(/[+=x<>-]/g) ?? []).length;
+  };
+  if (visible(tex) <= 20) return tex;
+  const pairs = tex.split(/,\\(?:quad|;) /);
+  if (pairs.length > 1) return `\\begin{gathered} ${pairs.join(' \\\\ ')} \\end{gathered}`;
+  const chain = tex.split(' = ');
+  if (chain.length > 1) return `\\begin{aligned} &${chain[0]} \\\\ ${chain.slice(1).map((part) => `&= ${part}`).join(' \\\\ ')} \\end{aligned}`;
+  return tex;
+}
+
+/** Items turned by a hash of `key`, so the right one is not always first. */
+export function turned<T>(items: T[], key: string): T[] {
+  const turn = hashSeed(key) % items.length;
+  return [...items.slice(turn), ...items.slice(0, turn)];
+}
+
+/**
+ * A native choice slide. The options are turned by a hash of their labels,
+ * so the answer moves about yet one question renders one way. Labels are TeX
+ * unless `plain`, which is for sentences with no maths in them.
+ */
+export function choiceSlide(prompt: Block[], correct: string, distractors: string[], plain = false): Slide {
+  const labels = [correct, ...distractors.filter((d, i, all) => d !== correct && all.indexOf(d) === i)];
+  // Sorted by hash before turning, so the order the options were drawn in
+  // cannot make one question render two ways.
+  const sorted = [...labels].sort((a, b) => hashSeed(a) - hashSeed(b));
+  const ordered = turned(sorted, sorted.join('|'));
+  return {
+    kind: 'choice',
+    prompt,
+    options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: !plain })),
+    correctId: `opt${ordered.indexOf(correct)}`,
+  };
+}
+
+/**
+ * The k nearest 0 in -8..8 where `holds` fails, or undefined if it never does.
+ * Nearest first, so the counterexample a solution quotes is the easy one.
+ */
+function firstFailure(holds: (k: number) => boolean): number | undefined {
+  for (let size = 0; size <= 8; size += 1) {
+    for (const k of size === 0 ? [0] : [size, -size]) if (!holds(k)) return k;
+  }
+  return undefined;
+}
+
+const LETTERS = ['A', 'B', 'C', 'D'];
+
+/* ---------- proof ordering, as in proofOrder.ts ---------- */
+
+export interface Distractor {
+  text: string;
+  /** Shown in the worked solution only. */
+  why: string;
+}
+
+export interface Proof {
+  claim: string;
+  steps: string[];
+  pool: Distractor[];
+}
+
+export function orderSlide(proof: Proof, picks: number[]): Slide {
+  const distractors = picks.map((idx) => proof.pool[idx].text);
+  const { steps, answer } = orderBank(proof.steps, distractors);
+  const extra =
+    distractors.length === 1
+      ? 'One step in the bank does not belong.'
+      : 'Two steps in the bank do not belong.';
+  return {
+    kind: 'order',
+    prompt: [say(proof.claim), say(`Tap the steps of the proof in order. ${extra}`)],
+    steps,
+    answer,
+  };
+}
+
+export function orderSolution(proof: Proof, picks: number[]): SolutionStep[] {
+  return [
+    { text: 'Each step uses the one before it, so the proof runs:' },
+    ...proof.steps.map((text, idx) => ({ text: `${idx + 1}. ${text}` })),
+    ...picks.map((idx) => ({
+      text: `Not part of it: “${proof.pool[idx].text}” ${proof.pool[idx].why}`,
+    })),
+  ];
+}
+
+export function pickDistractors(rng: Rng, proof: Proof, difficulty: number): number[] {
+  const indices = proof.pool.map((_, idx) => idx);
+  return rng.sample(indices, difficulty >= 2 ? 2 : 1).sort((a, b) => a - b);
+}
+
+/* ================================================================
+ * Lesson 1: direct proof
+ * ================================================================ */
+
+type Target = 'odd' | 'even' | 'three';
+
+/**
+ * Expressions in k that a "which is always …?" question can offer. Each is a
+ * shape and a constant; whether it is always odd, even or a multiple of 3 is
+ * worked out by evaluating it, never assumed from the shape.
+ */
+const SHAPES: Record<string, { tex: (c: number) => string; f: (k: number, c: number) => number; hard?: boolean }> = {
+  one: { tex: (c) => lin(1, c), f: (k, c) => k + c },
+  two: { tex: (c) => lin(2, c), f: (k, c) => 2 * k + c },
+  three: { tex: (c) => lin(3, c), f: (k, c) => 3 * k + c },
+  four: { tex: (c) => lin(4, c), f: (k, c) => 4 * k + c },
+  six: { tex: (c) => lin(6, c), f: (k, c) => 6 * k + c, hard: true },
+  twoBracketOne: { tex: (c) => `2(k + ${c}) + 1`, f: (k, c) => 2 * (k + c) + 1 },
+  twoBracket: { tex: (c) => `2(k + ${c})`, f: (k, c) => 2 * (k + c) },
+  threeBracket: { tex: (c) => `3(k + ${c})`, f: (k, c) => 3 * (k + c), hard: true },
+  square: { tex: (c) => polyTex([1, 0, c]), f: (k, c) => k * k + c },
+  twoSquare: { tex: (c) => polyTex([2, 0, c]), f: (k, c) => 2 * k * k + c, hard: true },
+  consecutive: { tex: (c) => polyTex([1, 1, c]), f: (k, c) => k * k + k + c, hard: true },
+  cube: { tex: (c) => polyTex([1, 0, -1, c]), f: (k, c) => k ** 3 - k + c, hard: true },
+};
+
+const TARGET_TEST: Record<Target, (v: number) => boolean> = {
+  odd: (v) => mod(v, 2) === 1,
+  even: (v) => mod(v, 2) === 0,
+  three: (v) => mod(v, 3) === 0,
+};
+
+const TARGET_WORDS: Record<Target, string> = {
+  odd: 'odd',
+  even: 'even',
+  three: 'a multiple of $3$',
+};
+
+interface Pick {
+  shape: string;
+  c: number;
+}
+
+interface AlwaysParams {
+  target: Target;
+  correct: Pick;
+  distractors: Pick[];
+}
+
+const pickTex = ({ shape, c }: Pick) => SHAPES[shape].tex(c);
+const always = (target: Target, { shape, c }: Pick) =>
+  firstFailure((k) => TARGET_TEST[target](SHAPES[shape].f(k, c))) === undefined;
+
+/** Why an always-true pick is always true, in the learner's numbers. */
+function alwaysWhy(target: Target, { shape, c }: Pick): string {
+  const tex = SHAPES[shape].tex(c);
+  if (shape === 'consecutive') {
+    return `$k^2 + k = k(k + 1)$ is two consecutive whole numbers multiplied, so it is even; adding $${c}$ makes $${tex}$ ${TARGET_WORDS[target]}.`;
+  }
+  if (shape === 'cube') {
+    return `$k^3 - k = (k - 1)k(k + 1)$ is three consecutive whole numbers multiplied, so it is a multiple of $3$ and even; adding $${c}$ makes $${tex}$ ${TARGET_WORDS[target]}.`;
+  }
+  if (shape === 'twoSquare') {
+    return `$2k^2$ is even for every $k$, so adding $${c}$ makes $${tex}$ ${TARGET_WORDS[target]}.`;
+  }
+  if (target === 'three') {
+    const a = shape === 'threeBracket' ? 3 : shape === 'three' ? 3 : 6;
+    const inner = shape === 'threeBracket' ? lin(1, c) : lin(a / 3, c / 3);
+    return `$${tex} = 3(${inner})$, three times a whole number, so it is a multiple of $3$ for every $k$.`;
+  }
+  const odd = target === 'odd';
+  if (shape === 'twoBracketOne' || shape === 'twoBracket') {
+    return `$${tex}$ is $2 \\times$ a whole number${odd ? ', plus $1$' : ''}, so it is ${target} for every $k$.`;
+  }
+  const a = shape === 'two' ? 2 : shape === 'four' ? 4 : 6;
+  const inner = lin(a / 2, Math.floor(c / 2));
+  return `$${tex} = 2(${inner})${odd ? ' + 1' : ''}$, so it is ${target} for every $k$.`;
+}
+
+const prfAlways: Generator<AlwaysParams> = {
+  id: 'prf-always',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const target: Target = hard ? rng.pick(['odd', 'even', 'three'] as const) : rng.pick(['odd', 'even'] as const);
+    const shapes = Object.keys(SHAPES).filter((key) => hard || !SHAPES[key].hard);
+    const draw = (): Pick => ({ shape: rng.pick(shapes), c: rng.int(1, 9) });
+    for (;;) {
+      const correct = draw();
+      if (!always(target, correct)) continue;
+      const distractors: Pick[] = [];
+      for (let tries = 0; distractors.length < 3 && tries < 60; tries += 1) {
+        const pick = draw();
+        const tex = pickTex(pick);
+        if (always(target, pick)) continue;
+        if (tex === pickTex(correct) || distractors.some((d) => pickTex(d) === tex)) continue;
+        distractors.push(pick);
+      }
+      if (distractors.length === 3) return { target, correct, distractors };
+    }
+  },
+  render({ target, correct, distractors }) {
+    return choiceSlide(
+      [say(`Which of these is **always** ${TARGET_WORDS[target]}, whatever whole number $k$ is?`)],
+      pickTex(correct),
+      distractors.map(pickTex),
+    );
+  },
+  solution({ target, correct, distractors }) {
+    return [
+      { text: alwaysWhy(target, correct) },
+      { text: 'Each of the others fails for at least one $k$, and one failure is enough:' },
+      ...distractors.map((pick) => {
+        const k = firstFailure((x) => TARGET_TEST[target](SHAPES[pick.shape].f(x, pick.c))) as number;
+        return { text: `$${pickTex(pick)}$ at $k = ${k}$ is $${SHAPES[pick.shape].f(k, pick.c)}$.` };
+      }),
+    ];
+  },
+};
+
+/* ---------- writing an expression as 2 × whole number (+ 1) ---------- */
+
+interface ParityParams {
+  m: number;
+  r: 0 | 1;
+  c: number;
+  square: boolean;
+}
+
+/** `3(2k + 1) + 5`, the substitution the learner reads. */
+function substituted({ m, r, c, square }: ParityParams): string {
+  const n = lin(2, r);
+  const base = square ? `(${n})^2` : r === 0 && m > 1 ? `${m} \\times 2k` : `(${n})`;
+  const body = square ? (m === 1 ? base : `${m}${base}`) : r === 0 && m > 1 ? base : m === 1 ? n : `${m}${base}`;
+  return `${body} + ${c}`;
+}
+
+/** The expression in n: `3n + 5` or `2n^2 + 5`. */
+function parityExpr({ m, c, square }: ParityParams): string {
+  return `${square ? termTex(m, 2, 'n') : termTex(m, 1, 'n')} + ${c}`;
+}
+
+/** Coefficients in k after substituting, highest first. */
+function parityExpanded({ m, r, c, square }: ParityParams): number[] {
+  return square ? [4 * m, 4 * m * r, m * r + c] : [2 * m, m * r + c];
+}
+
+/** The parts inside 2( ), and the 0 or 1 left over. */
+function parityParts(params: ParityParams): { inside: string[]; t: number } {
+  const coefs = parityExpanded(params);
+  const s = coefs[coefs.length - 1];
+  const q = Math.floor(s / 2);
+  const t = s % 2;
+  const inside = coefs
+    .slice(0, -1)
+    .map((c, i) => termTex(c / 2, coefs.length - 1 - i))
+    .filter((_, i) => coefs[i] !== 0);
+  return { inside: [...inside, String(q)], t };
+}
+
+const prfParity: Generator<ParityParams> = {
+  id: 'prf-parity',
+  sample(rng, difficulty) {
+    const square = difficulty >= 2;
+    for (;;) {
+      const params: ParityParams = { m: rng.int(1, 5), r: rng.pick([0, 1] as const), c: rng.int(1, 9), square };
+      const coefs = parityExpanded(params);
+      if (coefs[coefs.length - 1] < 2) continue;
+      return params;
+    }
+  },
+  render(params) {
+    const { inside, t } = parityParts(params);
+    const expanded = polyTex(parityExpanded(params));
+    const blanks = inside.map((_, i) => `{${i}}`).join(' + ');
+    const { r } = params;
+    const coefs = parityExpanded(params);
+    const s = coefs[coefs.length - 1];
+    const top = coefs.length - 1;
+    // The undivided terms, a half taken of one term but not the next, and
+    // the constant's half off by one.
+    const slips = [
+      ...coefs.slice(0, -1).map((c, i) => termTex(c, top - i)),
+      String(s),
+      String(Math.floor(s / 2) + 1),
+      termTex(coefs[0] / 2 + 1, top),
+      ...(s >= 4 ? [String(Math.floor(s / 2) - 1)] : []),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`$n$ is ${r ? 'odd' : 'even'}, so $n = ${lin(2, r)}$ for some whole number $k$.`),
+        say(
+          `Then $${parityExpr(params)} = ${substituted(params)} = ${expanded}$. Write that as $2 \\times$ a whole number${t ? ', plus $1$' : ''}: it shows $${parityExpr(params)}$ is ${t ? 'odd' : 'even'}.`,
+        ),
+      ],
+      template: `${expanded} = 2(${blanks})${t ? ' + 1' : ''}`,
+      bank: fillBank(inside, slips),
+      answer: inside,
+    };
+  },
+  solution(params) {
+    const { inside, t } = parityParts(params);
+    const expanded = polyTex(parityExpanded(params));
+    return [
+      { text: `Take $2$ out of every term${t ? ', leaving $1$ over from the constant' : ''}:` },
+      { tex: stackTex(`${expanded} = 2(${inside.join(' + ')})${t ? ' + 1' : ''}`) },
+      {
+        text: `$${inside.join(' + ')}$ is a whole number, so $${parityExpr(params)}$ is ${t ? 'odd' : 'even'} whenever $n$ is ${params.r ? 'odd' : 'even'}.`,
+      },
+    ];
+  },
+};
+
+/* ---------- deciding parity, one decision at a time ---------- */
+
+interface ParityFlowParams {
+  r: 0 | 1;
+  m: number;
+  c: number;
+  quad: boolean;
+}
+
+function flowExpr({ m, c, quad }: ParityFlowParams): string {
+  return quad ? `n^2 + ${termTex(m, 1, 'n')} + ${c}` : `${termTex(m, 1, 'n')} + ${c}`;
+}
+
+/** The expression in k: coefficients, highest first. */
+function flowExpanded({ r, m, c, quad }: ParityFlowParams): number[] {
+  return quad ? [4, 4 * r + 2 * m, r + m * r + c] : [2 * m, m * r + c];
+}
+
+function flowSlips({ r, m, c, quad }: ParityFlowParams): number[][] {
+  return quad
+    ? [
+        [4, 2 * m, r + m * r + c],
+        [2, 2 * r + 2 * m, r + m * r + c],
+        [4, 4 * r + m, r + r + c],
+        [4, 4 * r + 2 * m, m * r + c + 1],
+      ]
+    : [
+        [2 * m, r + c],
+        [m, m * r + c],
+        [2 * m, m * r + c + 1],
+        [2 * m + 1, m * r + c],
+      ];
+}
+
+const prfParityFlow: Generator<ParityFlowParams> = {
+  id: 'prf-parity-flow',
+  sample(rng, difficulty) {
+    const quad = difficulty >= 2;
+    return { r: rng.pick([0, 1] as const), m: rng.int(quad ? 1 : 2, 5), c: rng.int(1, 9), quad };
+  },
+  render(params) {
+    const expr = flowExpr(params);
+    const right = polyTex(flowExpanded(params));
+    const slips = flowSlips(params)
+      .map((coefs) => polyTex(coefs))
+      .filter((tex, i, all) => tex !== right && all.indexOf(tex) === i)
+      .slice(0, 2);
+    const form = `$n = ${lin(2, params.r)}$`;
+    const forms = [`$n = 2k + 1$`, `$n = 2k$`, `$n = k + 1$`];
+    const constant = flowExpanded(params)[flowExpanded(params).length - 1];
+    const parity = constant % 2 === 1 ? 'Odd' : 'Even';
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `$n$ is ${params.r ? 'odd' : 'even'}. Decide whether $${expr}$ is odd or even. Each answer chooses what gets asked next.`,
+        ),
+      ],
+      subject: expr,
+      steps: [
+        {
+          id: 'form',
+          ask: `$n$ is ${params.r ? 'odd' : 'even'}. Which way of writing it do you start from?`,
+          branches: turned(forms, expr).map((label) => ({ label, to: 'expand' })),
+        },
+        {
+          id: 'expand',
+          ask: `Putting that in, $${expr}$ becomes`,
+          branches: turned([right, ...slips], `${expr}|${right}`).map((tex) => ({ label: `$${tex}$`, to: 'parity' })),
+        },
+        {
+          id: 'parity',
+          ask: `So $${expr}$ is`,
+          branches: [
+            { label: 'Even', outcome: 'Even: it is $2 \\times$ a whole number.' },
+            { label: 'Odd', outcome: 'Odd: it is $2 \\times$ a whole number, plus $1$.' },
+            { label: 'It depends on $k$', outcome: 'Then some values of $k$ would give odd and some even.' },
+          ],
+        },
+      ],
+      answer: [form, `$${right}$`, parity],
+    };
+  },
+  solution(params) {
+    const expr = flowExpr(params);
+    const coefs = flowExpanded(params);
+    const s = coefs[coefs.length - 1];
+    const inside = [...coefs.slice(0, -1).map((c, i) => termTex(c / 2, coefs.length - 1 - i)), String(Math.floor(s / 2))];
+    return [
+      { text: `$n$ is ${params.r ? 'odd' : 'even'}, so start from $n = ${lin(2, params.r)}$.` },
+      { tex: stackTex(`${expr} = ${polyTex(coefs)}`) },
+      { tex: stackTex(`= 2(${inside.join(' + ')})${s % 2 ? ' + 1' : ''}`) },
+      { text: `So $${expr}$ is ${s % 2 ? 'odd' : 'even'}, whatever whole number $k$ is.` },
+    ];
+  },
+};
+
+/* ---------- a proof, or only examples? ---------- */
+
+type ArgumentKind = 'proof' | 'examples' | 'sameLetter' | 'wrongForm' | 'circular';
+
+interface Claim {
+  claim: string;
+  arguments: Record<Exclude<ArgumentKind, 'examples'>, string>;
+  /** Three worked instances from the draw's numbers. */
+  examples: (nums: number[]) => string;
+  why: Record<Exclude<ArgumentKind, 'proof'>, string>;
+}
+
+const odd = (x: number) => 2 * x + 1;
+
+/**
+ * Every argument but `proof` must fail as a proof of its claim. That rules out
+ * some tempting claims: for "the difference of two odd numbers is even",
+ * writing them as $2a + 1$ and $2b - 1$ is a perfectly good proof, so it
+ * cannot be offered as the wrong one.
+ */
+const PROOF_CLAIMS: Claim[] = [
+  {
+    claim: 'The sum of two odd numbers is even.',
+    arguments: {
+      proof: 'Write them as $2a + 1$ and $2b + 1$. Their sum is $2a + 2b + 2 = 2(a + b + 1)$, which is even.',
+      sameLetter: 'Write them as $2n + 1$ and $2n + 1$. Their sum is $4n + 2 = 2(2n + 1)$, which is even.',
+      wrongForm: 'Write them as $2a$ and $2b$. Their sum is $2(a + b)$, which is even.',
+      circular: 'Adding two odd numbers always gives an even number, so their sum is even.',
+    },
+    examples: ([a, b, c, d, e, f]) =>
+      `$${odd(a)} + ${odd(b)} = ${odd(a) + odd(b)}$, $${odd(c)} + ${odd(d)} = ${odd(c) + odd(d)}$ and $${odd(e)} + ${odd(f)} = ${odd(e) + odd(f)}$ are all even, so the claim is true.`,
+    why: {
+      examples: 'Three examples say nothing about any other pair.',
+      sameLetter: 'Using $n$ twice only covers two odd numbers that are equal.',
+      wrongForm: '$2a$ and $2b$ are even numbers, not odd ones.',
+      circular: 'It assumes what it sets out to prove.',
+    },
+  },
+  {
+    claim: 'The sum of an odd number and an even number is odd.',
+    arguments: {
+      proof: 'Write them as $2a + 1$ and $2b$. Their sum is $2(a + b) + 1$, which is odd.',
+      sameLetter: 'Write them as $2n + 1$ and $2n$. Their sum is $4n + 1 = 2(2n) + 1$, which is odd.',
+      wrongForm: 'Write them as $2a + 1$ and $2b + 1$. Their sum is $2(a + b + 1)$, which is odd.',
+      circular: 'An odd number plus an even number is always odd, so the sum is odd.',
+    },
+    examples: ([a, b, c, d, e, f]) =>
+      `$${odd(a)} + ${2 * b + 2} = ${odd(a) + 2 * b + 2}$, $${odd(c)} + ${2 * d + 2} = ${odd(c) + 2 * d + 2}$ and $${odd(e)} + ${2 * f + 2} = ${odd(e) + 2 * f + 2}$ are all odd, so the claim is true.`,
+    why: {
+      examples: 'Three examples say nothing about any other pair.',
+      sameLetter: 'Using $n$ for both only covers an even number one less than the odd one.',
+      wrongForm: '$2b + 1$ is odd, and $2(a + b + 1)$ is even, not odd.',
+      circular: 'It assumes what it sets out to prove.',
+    },
+  },
+  {
+    claim: 'The product of two odd numbers is odd.',
+    arguments: {
+      proof: 'Write them as $2a + 1$ and $2b + 1$. Their product is $4ab + 2a + 2b + 1 = 2(2ab + a + b) + 1$, which is odd.',
+      sameLetter: 'Write them as $2n + 1$ and $2n + 1$. Their product is $4n^2 + 4n + 1 = 2(2n^2 + 2n) + 1$, which is odd.',
+      wrongForm: 'Write them as $2a + 1$ and $2b + 1$. Their product is $4ab + 1 = 2(2ab) + 1$, which is odd.',
+      circular: 'Multiplying two odd numbers never gives an even number, so the product is odd.',
+    },
+    examples: ([a, b, c, d, e, f]) =>
+      `$${odd(a)} \\times ${odd(b)} = ${odd(a) * odd(b)}$, $${odd(c)} \\times ${odd(d)} = ${odd(c) * odd(d)}$ and $${odd(e)} \\times ${odd(f)} = ${odd(e) * odd(f)}$ are all odd, so the claim is true.`,
+    why: {
+      examples: 'Three examples say nothing about any other pair.',
+      sameLetter: 'Using $n$ twice only covers an odd number times itself.',
+      wrongForm: '$(2a + 1)(2b + 1)$ is $4ab + 2a + 2b + 1$: the middle terms are missing.',
+      circular: 'It assumes what it sets out to prove.',
+    },
+  },
+  {
+    claim: 'The sum of three consecutive whole numbers is a multiple of $3$.',
+    arguments: {
+      proof: 'Call them $n$, $n + 1$ and $n + 2$. Their sum is $3n + 3 = 3(n + 1)$, a multiple of $3$.',
+      sameLetter: 'Call them $n$, $n$ and $n$. Their sum is $3n$, a multiple of $3$.',
+      wrongForm: 'Call them $n$, $n + 2$ and $n + 4$. Their sum is $3n + 6 = 3(n + 2)$, a multiple of $3$.',
+      circular: 'Three consecutive whole numbers always add to a multiple of $3$, so this sum is one.',
+    },
+    examples: ([a, b, c]) =>
+      `$${a} + ${a + 1} + ${a + 2} = ${3 * a + 3}$, $${b + 10} + ${b + 11} + ${b + 12} = ${3 * b + 33}$ and $${c + 20} + ${c + 21} + ${c + 22} = ${3 * c + 63}$ are all multiples of $3$, so the claim is true.`,
+    why: {
+      examples: 'Three examples say nothing about any other three numbers.',
+      sameLetter: '$n$, $n$ and $n$ are the same number three times, not consecutive ones.',
+      wrongForm: '$n$, $n + 2$ and $n + 4$ go up in twos, so they are not consecutive.',
+      circular: 'It assumes what it sets out to prove.',
+    },
+  },
+  {
+    claim: 'The square of an even number is a multiple of $4$.',
+    arguments: {
+      proof: 'An even number is $2k$ for a whole number $k$, and $(2k)^2 = 4k^2$, a multiple of $4$.',
+      sameLetter: 'An even number is $2$, and $2^2 = 4$, a multiple of $4$.',
+      wrongForm: 'An even number is $2k$ for a whole number $k$, and $(2k)^2 = 2k^2$, which is even.',
+      circular: 'Even squares are always multiples of $4$, so this one is.',
+    },
+    examples: ([a, b, c]) =>
+      `$${2 * a + 2}^2 = ${(2 * a + 2) ** 2}$, $${2 * b + 12}^2 = ${(2 * b + 12) ** 2}$ and $${2 * c + 22}^2 = ${(2 * c + 22) ** 2}$ are all multiples of $4$, so the claim is true.`,
+    why: {
+      examples: 'Three examples say nothing about any other even number.',
+      sameLetter: '$2$ is one even number, not every even number.',
+      wrongForm: '$(2k)^2$ squares the $2$ as well: it is $4k^2$. And even is not the claim.',
+      circular: 'It assumes what it sets out to prove.',
+    },
+  },
+];
+
+/** Claims by index; difficulty 2 drops the odd-plus-even one, whose slips are the easiest to spot. */
+const CLAIM_POOL = [0, 1, 2, 3, 4];
+const HARD_CLAIMS = [0, 2, 3, 4];
+
+interface ProofOrExampleParams {
+  claim: number;
+  nums: number[];
+  kinds: Exclude<ArgumentKind, 'proof'>[];
+}
+
+function argumentText(claim: Claim, kind: ArgumentKind, nums: number[]): string {
+  return kind === 'examples' ? claim.examples(nums) : claim.arguments[kind];
+}
+
+function lettered({ claim, nums, kinds }: ProofOrExampleParams): { kind: ArgumentKind; text: string }[] {
+  const c = PROOF_CLAIMS[claim];
+  const all = (['proof', ...kinds] as ArgumentKind[]).map((kind) => ({ kind, text: argumentText(c, kind, nums) }));
+  return [...all].sort((a, b) => hashSeed(a.text) - hashSeed(b.text));
+}
+
+const prfProofOrExample: Generator<ProofOrExampleParams> = {
+  id: 'prf-proof-or-example',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const claim = rng.pick(hard ? HARD_CLAIMS : CLAIM_POOL);
+    const nums = Array.from({ length: 6 }, () => rng.int(1, 9));
+    const kinds = hard
+      ? (['sameLetter', ...rng.sample(['examples', 'wrongForm', 'circular'] as const, 2)] as ProofOrExampleParams['kinds'])
+      : rng.sample(['examples', 'sameLetter', 'wrongForm', 'circular'] as const, 3);
+    return { claim, nums, kinds };
+  },
+  render(params) {
+    const args = lettered(params);
+    const correct = LETTERS[args.findIndex((a) => a.kind === 'proof')];
+    return {
+      kind: 'choice',
+      prompt: [
+        say(`Claim: ${PROOF_CLAIMS[params.claim].claim} Which argument **proves** it?`),
+        ...args.map((a, i) => say(`**${LETTERS[i]}.** ${a.text}`)),
+      ],
+      options: LETTERS.map((letter) => ({ id: letter, label: letter, tex: false })),
+      correctId: correct,
+    };
+  },
+  solution(params) {
+    const args = lettered(params);
+    const c = PROOF_CLAIMS[params.claim];
+    return [
+      {
+        text: `${LETTERS[args.findIndex((a) => a.kind === 'proof')]} is the proof: it names the numbers with letters, so it covers every case at once.`,
+      },
+      ...args
+        .map((a, i) => ({ a, i }))
+        .filter(({ a }) => a.kind !== 'proof')
+        .map(({ a, i }) => ({ text: `${LETTERS[i]}: ${c.why[a.kind as Exclude<ArgumentKind, 'proof'>]}` })),
+    ];
+  },
+};
+
+/* ================================================================
+ * Lesson 2: proof by exhaustion
+ * ================================================================ */
+
+/** A list of cases `ak + b`, and whether to write ± pairs. */
+interface CaseList {
+  a: number;
+  offsets: number[];
+  pm?: boolean;
+}
+
+function caseListTex({ a, offsets, pm }: CaseList): string {
+  const parts: string[] = [];
+  const done = new Set<number>();
+  for (const b of offsets) {
+    if (done.has(b)) continue;
+    if (pm && b > 0 && offsets.includes(-b)) {
+      parts.push(`${lin(a, 0)} \\pm ${b}`);
+      done.add(-b);
+    } else {
+      parts.push(lin(a, b));
+    }
+    done.add(b);
+  }
+  return `n = ${parts.join(',\\; ')}`;
+}
+
+/** Whether the cases between them take in every integer. */
+function covers({ a, offsets }: CaseList): boolean {
+  for (let n = -40; n <= 40; n += 1) {
+    if (!offsets.some((b) => mod(n - b, a) === 0)) return false;
+  }
+  return true;
+}
+
+/** Lists that each miss some integer, none rendering like another. */
+function caseDistractors(m: number): CaseList[] {
+  const all = Array.from({ length: m }, (_, i) => i);
+  const lists: CaseList[] = [
+    { a: m, offsets: all.slice(0, -1) },
+    { a: m, offsets: all.slice(1) },
+    { a: m, offsets: [...all.slice(0, -1), m] },
+    { a: m + 1, offsets: all },
+    { a: m, offsets: all.map((i) => i * m) },
+  ];
+  if (m === 2) lists.push({ a: 2, offsets: [-1, 1] }, { a: 2, offsets: [1, 3] });
+  if (m >= 4) lists.push({ a: m, offsets: [0, 1, -1], pm: true });
+  return lists.filter(
+    (list, i) => !covers(list) && lists.findIndex((other) => caseListTex(other) === caseListTex(list)) === i,
+  );
+}
+
+interface CaseSplitParams {
+  m: number;
+  pm: boolean;
+  distractors: number[];
+}
+
+function caseSplitCorrect({ m, pm }: CaseSplitParams): CaseList {
+  if (!pm) return { a: m, offsets: Array.from({ length: m }, (_, i) => i) };
+  const half = Math.floor(m / 2);
+  const offsets = [0];
+  for (let b = 1; b <= half; b += 1) {
+    if (m % 2 === 0 && b === half) offsets.push(b);
+    else offsets.push(b, -b);
+  }
+  return { a: m, offsets, pm: true };
+}
+
+const prfCaseSplit: Generator<CaseSplitParams> = {
+  id: 'prf-case-split',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const m = hard ? rng.pick([3, 4, 5]) : rng.pick([2, 3, 4]);
+    const pm = hard && m >= 4 && rng.chance(0.6);
+    const pool = caseDistractors(m).map((_, idx) => idx);
+    return { m, pm, distractors: rng.sample(pool, 3).sort((a, b) => a - b) };
+  },
+  render(params) {
+    const pool = caseDistractors(params.m);
+    return choiceSlide(
+      [
+        say(
+          `To prove a claim about every integer $n$ by cases, split $n$ by its remainder on division by $${params.m}$. Which list of cases takes in every integer?`,
+        ),
+      ],
+      caseListTex(caseSplitCorrect(params)),
+      params.distractors.map((idx) => caseListTex(pool[idx])),
+    );
+  },
+  solution(params) {
+    const { m } = params;
+    const remainders = Array.from({ length: m }, (_, i) => i).join(', ');
+    const pool = caseDistractors(m);
+    return [
+      {
+        text: `Dividing by $${m}$ leaves remainder ${remainders.replace(/(\d+)/g, '$$$1$$')}, so there are $${m}$ cases, one per remainder.`,
+      },
+      { tex: stackTex(caseListTex(caseSplitCorrect(params))) },
+      ...(params.pm ? [{ text: `$${lin(m, 0)} - 1$ leaves the same remainder as $${lin(m, m - 1)}$, so writing $\\pm$ covers the same cases.` }] : []),
+      ...params.distractors.map((idx) => {
+        const list = pool[idx];
+        let gap = 0;
+        for (let n = 1; n < 40; n += 1) {
+          if (!list.offsets.some((b) => mod(n - b, list.a) === 0)) {
+            gap = n;
+            break;
+          }
+        }
+        return { text: `$${caseListTex(list)}$ misses $n = ${gap}$.` };
+      }),
+    ];
+  },
+};
+
+/* ---------- one case, written as m × whole number + remainder ---------- */
+
+interface CaseParams {
+  m: number;
+  r: number;
+  a: number;
+  c: number;
+}
+
+function caseExpr({ a, c }: { a: number; c: number }): string {
+  return a === 0 ? `n^2 + ${c}` : `n^2 + ${termTex(a, 1, 'n')} + ${c}`;
+}
+
+/** f(mk + r) in k: [m^2, 2mr + am, r^2 + ar + c]. */
+function caseExpanded({ m, r, a, c }: CaseParams): number[] {
+  return [m * m, 2 * m * r + a * m, r * r + a * r + c];
+}
+
+function caseParts(params: CaseParams): { inside: string[]; remainder: number } {
+  const [k2, k1, k0] = caseExpanded(params);
+  const { m } = params;
+  const q = Math.floor(k0 / m);
+  const inside = [termTex(k2 / m, 2)];
+  if (k1 !== 0) inside.push(termTex(k1 / m, 1));
+  if (q !== 0) inside.push(String(q));
+  return { inside, remainder: k0 % m };
+}
+
+const prfCaseTiles: Generator<CaseParams> = {
+  id: 'prf-case-tiles',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const m = hard ? rng.pick([3, 4, 5]) : rng.pick([2, 3]);
+    return { m, r: rng.int(0, m - 1), a: hard ? rng.int(1, 3) : 0, c: rng.int(1, 9) };
+  },
+  render(params) {
+    const { m, r } = params;
+    const { inside, remainder } = caseParts(params);
+    const expanded = caseExpanded(params);
+    const answer = [...inside, String(remainder)];
+    const blanks = inside.map((_, i) => `{${i}}`).join(' + ');
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Case $n = ${lin(m, r)}$: $${caseExpr(params)} = ${polyTex(expanded)}$.`),
+        say(`Write it as $${m} \\times$ a whole number, plus a remainder from $0$ to $${m - 1}$.`),
+      ],
+      template: `${caseExpr(params)} = ${m}(${blanks}) + {${inside.length}}`,
+      bank: fillBank(answer, [
+        termTex(expanded[0], 2),
+        ...(expanded[1] ? [termTex(expanded[1], 1)] : []),
+        String(Math.floor(expanded[2] / m) + 1),
+        String(expanded[2]),
+        String((remainder + 1) % m),
+        termTex(m + 1, 2),
+        termTex(m, 1),
+      ]),
+      answer,
+    };
+  },
+  solution(params) {
+    const { m, r } = params;
+    const { inside, remainder } = caseParts(params);
+    return [
+      { text: `Take $${m}$ out of every term, keeping back what is left of the constant:` },
+      { tex: stackTex(`${polyTex(caseExpanded(params))} = ${m}(${inside.join(' + ')}) + ${remainder}`) },
+      {
+        text: `So when $n = ${lin(m, r)}$, $${caseExpr(params)}$ leaves remainder $${remainder}$ on division by $${m}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- every case at once, as a tree ---------- */
+
+interface CasesTreeParams {
+  m: number;
+  a: number;
+  c: number;
+}
+
+const prfCasesTree: Generator<CasesTreeParams> = {
+  id: 'prf-cases-tree',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    return {
+      m: hard ? 3 : rng.pick([2, 3]),
+      a: hard ? rng.int(1, 4) : rng.int(0, 1),
+      c: rng.int(1, 9),
+    };
+  },
+  render(params) {
+    const { m } = params;
+    const rs = Array.from({ length: m }, (_, r) => r);
+    const expansions = rs.map((r) => polyTex(caseExpanded({ ...params, r })));
+    const remainders = rs.map((r) => String(mod(caseExpanded({ ...params, r })[2], m)));
+    const slips = rs.flatMap((r) => {
+      const [k2, k1, k0] = caseExpanded({ ...params, r });
+      return [polyTex([k2, k1 === 0 ? m : k1 - m * r, k0]), polyTex([k2, k1, k0 + 1])];
+    });
+    const unusedRemainders = rs.map(String).filter((r) => !remainders.includes(r));
+    const expr = caseExpr(params);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Left to right, the cases are ${rs.map((r) => `$n = ${lin(m, r)}$`).join(', ')}. Top row: $${expr}$ in each case. Underneath: the remainder it leaves on division by $${m}$.`,
+        ),
+      ],
+      expression: expr,
+      nodes: [
+        ...rs.map((r) => ({ id: `e${r}`, from: [] })),
+        ...rs.map((r) => ({ id: `r${r}`, from: [`e${r}`] })),
+      ],
+      bank: fillBank([...expansions, ...remainders], [...unusedRemainders, ...slips]),
+      answer: [...expansions, ...remainders],
+    };
+  },
+  solution(params) {
+    const { m } = params;
+    const rs = Array.from({ length: m }, (_, r) => r);
+    const expr = caseExpr(params);
+    const remainders = rs.map((r) => mod(caseExpanded({ ...params, r })[2], m));
+    const never = rs.filter((r) => !remainders.includes(r));
+    return [
+      ...rs.map((r) => {
+        const { inside, remainder } = caseParts({ ...params, r });
+        return {
+          text: `$n = ${lin(m, r)}$: $${expr} = ${polyTex(caseExpanded({ ...params, r }))} = ${m}(${inside.join(' + ')}) + ${remainder}$, remainder $${remainder}$.`,
+        };
+      }),
+      {
+        text:
+          never.length > 0
+            ? `Every integer is one of these cases, so $${expr}$ never leaves remainder ${never.map((r) => `$${r}$`).join(' or ')} on division by $${m}$.`
+            : `Every integer is one of these cases, and every remainder turns up.`,
+      },
+    ];
+  },
+};
+
+/* ---------- only the remainder matters ---------- */
+
+interface RemainderParams {
+  m: number;
+  r: number;
+  shape: 'square' | 'linear' | 'quad' | 'cube';
+  a: number;
+  c: number;
+}
+
+function remainderExpr({ shape, a, c }: RemainderParams): string {
+  switch (shape) {
+    case 'square':
+      return `n^2 + ${c}`;
+    case 'linear':
+      return `${termTex(a, 1, 'n')} + ${c}`;
+    case 'quad':
+      return `n^2 + ${termTex(a, 1, 'n')} + ${c}`;
+    case 'cube':
+      return `n^3 + ${c}`;
+  }
+}
+
+function remainderValue({ r, shape, a, c }: RemainderParams): number {
+  switch (shape) {
+    case 'square':
+      return r * r + c;
+    case 'linear':
+      return a * r + c;
+    case 'quad':
+      return r * r + a * r + c;
+    case 'cube':
+      return r ** 3 + c;
+  }
+}
+
+function remainderAt({ r, shape, a, c }: RemainderParams): string {
+  switch (shape) {
+    case 'square':
+      return `${r}^2 + ${c}`;
+    case 'linear':
+      return `${a} \\times ${r} + ${c}`;
+    case 'quad':
+      return `${r}^2 + ${a} \\times ${r} + ${c}`;
+    case 'cube':
+      return `${r}^3 + ${c}`;
+  }
+}
+
+const prfCaseRemainder: Generator<RemainderParams> = {
+  id: 'prf-case-remainder',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const m = hard ? rng.pick([5, 6, 7]) : rng.pick([3, 4, 5]);
+    const shape = hard ? rng.pick(['quad', 'cube'] as const) : rng.pick(['square', 'linear'] as const);
+    return { m, r: rng.int(1, m - 1), shape, a: rng.int(2, 5), c: rng.int(1, 9) };
+  },
+  render(params) {
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `A whole number $n$ leaves remainder $${params.r}$ when divided by $${params.m}$. What remainder does $${remainderExpr(params)}$ leave when divided by $${params.m}$?`,
+        ),
+      ],
+      lead: '\\text{remainder} =',
+      keypad: [],
+      answer: String(mod(remainderValue(params), params.m)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution(params) {
+    const { m, r } = params;
+    const v = remainderValue(params);
+    return [
+      {
+        text: `Write $n = ${lin(m, r)}$. Every term with a $k$ in it is a multiple of $${m}$, so only what $${r}$ makes matters.`,
+      },
+      { tex: stackTex(`${remainderAt(params)} = ${v} = ${m} \\times ${Math.floor(v / m)} + ${mod(v, m)}`) },
+      { text: `So the remainder is $${mod(v, m)}$.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Lesson 3: disproof by counterexample
+ * ================================================================ */
+
+/** Claims "f(n) is prime", each with its values worked out. */
+const PRIME_CLAIMS: { tex: string; at: (n: number) => string; f: (n: number) => number }[] = [
+  ...[5, 11, 17].map((c) => ({
+    tex: `n^2 + n + ${c}`,
+    at: (n: number) => `${n}^2 + ${n} + ${c}`,
+    f: (n: number) => n * n + n + c,
+  })),
+  ...[5, 11, 17].map((c) => ({
+    tex: `n^2 - n + ${c}`,
+    at: (n: number) => `${n}^2 - ${n} + ${c}`,
+    f: (n: number) => n * n - n + c,
+  })),
+  ...[1, 3, 5, 9, 15].map((c) => ({
+    tex: `2^n + ${c}`,
+    at: (n: number) => `2^{${n}} + ${c}`,
+    f: (n: number) => 2 ** n + c,
+  })),
+  ...[
+    [2, 1],
+    [6, 1],
+    [6, 5],
+    [4, 3],
+    [10, 1],
+    [10, 3],
+  ].map(([a, b]) => ({
+    tex: `${a}n + ${b}`,
+    at: (n: number) => `${a} \\times ${n} + ${b}`,
+    f: (n: number) => a * n + b,
+  })),
+  ...[1, 3, 5].map((c) => ({
+    tex: `2n^2 + ${c}`,
+    at: (n: number) => `2 \\times ${n}^2 + ${c}`,
+    f: (n: number) => 2 * n * n + c,
+  })),
+];
+
+/** Windows [lo, hi] holding exactly one failure, every value under 1000. */
+function windows(claim: number, width: number[], maxLo: number, cap: number): { lo: number; hi: number; fail: number }[] {
+  const { f } = PRIME_CLAIMS[claim];
+  const out: { lo: number; hi: number; fail: number }[] = [];
+  for (let lo = 1; lo <= maxLo; lo += 1) {
+    for (const w of width) {
+      const hi = lo + w - 1;
+      const ns = Array.from({ length: w }, (_, i) => lo + i);
+      if (ns.some((n) => f(n) >= cap)) continue;
+      const fails = ns.filter((n) => !isPrime(f(n)));
+      if (fails.length === 1) out.push({ lo, hi, fail: fails[0] });
+    }
+  }
+  return out;
+}
+
+export function factorTex(v: number): string {
+  const p = smallestFactor(v);
+  return p === v ? `${v}` : `${p} \\times ${v / p}`;
+}
+
+interface CounterParams {
+  claim: number;
+  lo: number;
+  hi: number;
+  fail: number;
+}
+
+const prfCounter: Generator<CounterParams> = {
+  id: 'prf-counter',
+  sample(rng, difficulty) {
+    // Difficulty 1 keeps to small n and values under 200, where a factor is
+    // one a learner spots; difficulty 2 runs wider and higher.
+    const hard = difficulty >= 2;
+    const width = hard ? [6, 7] : [4, 5];
+    for (;;) {
+      const claim = rng.int(0, PRIME_CLAIMS.length - 1);
+      const options = windows(claim, width, hard ? 20 : 8, hard ? 1000 : 200);
+      if (options.length === 0) continue;
+      return { claim, ...rng.pick(options) };
+    }
+  },
+  render({ claim, lo, hi, fail }) {
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`Claim: $${PRIME_CLAIMS[claim].tex}$ is prime for every whole number $n$ from $${lo}$ to $${hi}$.`),
+        say('Exactly one $n$ in that range makes the claim false. Which one?'),
+      ],
+      lead: 'n =',
+      keypad: [],
+      answer: String(fail),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution({ claim, lo, hi, fail }) {
+    const { at, f } = PRIME_CLAIMS[claim];
+    const ns = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+    return [
+      { text: `Work out each value: ${ns.map((n) => `$${f(n)}$`).join(', ')}.` },
+      { tex: stackTex(`${at(fail)} = ${f(fail)} = ${factorTex(f(fail))}`) },
+      { text: `$${f(fail)}$ is not prime, so $n = ${fail}$ is a counterexample: one is enough to disprove the claim.` },
+    ];
+  },
+};
+
+/* ---------- which of these is a counterexample? ---------- */
+
+interface PickClaim {
+  claim: string;
+  counter: string[];
+  fine: string[];
+  hard?: boolean;
+  why: string;
+}
+
+const PICK_CLAIMS: PickClaim[] = [
+  {
+    claim: 'The sum of two prime numbers is even.',
+    counter: ['2 + 3', '2 + 5', '2 + 7', '2 + 11', '2 + 13'],
+    fine: ['3 + 5', '5 + 7', '3 + 7', '7 + 11', '3 + 11', '5 + 13', '11 + 13'],
+    why: 'Only a sum with $2$ in it, the one even prime, can be odd.',
+  },
+  {
+    claim: 'Every odd number greater than $1$ is prime.',
+    counter: ['9', '15', '21', '25', '27', '33', '35'],
+    fine: ['3', '5', '7', '11', '13', '17', '19', '23'],
+    why: 'An odd number with a factor other than $1$ and itself is not prime.',
+  },
+  {
+    claim: 'If $n$ is a multiple of $4$, then $n$ is a multiple of $8$.',
+    counter: ['n = 4', 'n = 12', 'n = 20', 'n = 28', 'n = 36'],
+    fine: ['n = 8', 'n = 16', 'n = 24', 'n = 32', 'n = 40'],
+    why: 'It needs a multiple of $4$ that is not a multiple of $8$.',
+  },
+  {
+    claim: 'Every multiple of $3$ is odd.',
+    counter: ['6', '12', '18', '24', '30'],
+    fine: ['3', '9', '15', '21', '27'],
+    why: 'It needs a multiple of $3$ that is even.',
+  },
+  {
+    claim: '$2^n + 1$ is prime for every positive whole number $n$.',
+    counter: ['n = 3', 'n = 5', 'n = 6', 'n = 7'],
+    fine: ['n = 1', 'n = 2', 'n = 4', 'n = 8'],
+    why: '$2^3 + 1 = 9$, $2^5 + 1 = 33$, $2^6 + 1 = 65$ and $2^7 + 1 = 129$ all have factors; $3$, $5$, $17$ and $257$ are prime.',
+  },
+  {
+    claim: 'If $a^2 > b^2$, then $a > b$.',
+    counter: ['a = -3,\\ b = 2', 'a = -5,\\ b = 1', 'a = -4,\\ b = 3', 'a = -6,\\ b = 2'],
+    fine: ['a = 3,\\ b = 2', 'a = 5,\\ b = 1', 'a = 4,\\ b = -3', 'a = 6,\\ b = -2'],
+    hard: true,
+    why: 'A negative $a$ can have the bigger square and still be the smaller number.',
+  },
+  {
+    claim: '$x^2 \\ge x$ for every real number $x$.',
+    counter: ['x = \\tfrac{1}{2}', 'x = \\tfrac{1}{3}', 'x = \\tfrac{3}{4}', 'x = 0.2'],
+    fine: ['x = 2', 'x = -1', 'x = 0', 'x = 1', 'x = -\\tfrac{1}{2}'],
+    hard: true,
+    why: 'Between $0$ and $1$, squaring makes a number smaller.',
+  },
+  {
+    claim: 'If $a$ divides $bc$, then $a$ divides $b$ or $a$ divides $c$.',
+    counter: ['a = 6,\\ b = 2,\\ c = 3', 'a = 4,\\ b = 2,\\ c = 6', 'a = 10,\\ b = 4,\\ c = 5', 'a = 9,\\ b = 3,\\ c = 6'],
+    fine: ['a = 3,\\ b = 6,\\ c = 2', 'a = 5,\\ b = 2,\\ c = 10', 'a = 2,\\ b = 4,\\ c = 3', 'a = 7,\\ b = 7,\\ c = 2'],
+    hard: true,
+    why: 'It needs $a$ to divide the product while dividing neither factor.',
+  },
+  {
+    claim: 'If $a > b$, then $\\frac{1}{a} < \\frac{1}{b}$.',
+    counter: ['a = 1,\\ b = -1', 'a = 2,\\ b = -3', 'a = 3,\\ b = -2', 'a = 5,\\ b = -1'],
+    fine: ['a = 3,\\ b = 2', 'a = 5,\\ b = 1', 'a = -1,\\ b = -2', 'a = 4,\\ b = 2'],
+    hard: true,
+    why: 'When $a$ is positive and $b$ negative, $\\frac{1}{a}$ is the bigger of the two.',
+  },
+];
+
+interface CounterPickParams {
+  claim: number;
+  counter: number;
+  fine: number[];
+}
+
+const prfCounterPick: Generator<CounterPickParams> = {
+  id: 'prf-counter-pick',
+  sample(rng, difficulty) {
+    const pool = PICK_CLAIMS.map((c, i) => ({ c, i })).filter(({ c }) => (difficulty >= 2 ? true : !c.hard));
+    const { c, i } = rng.pick(pool);
+    return {
+      claim: i,
+      counter: rng.int(0, c.counter.length - 1),
+      fine: rng.sample(c.fine.map((_, j) => j), 3).sort((a, b) => a - b),
+    };
+  },
+  render({ claim, counter, fine }) {
+    const c = PICK_CLAIMS[claim];
+    return choiceSlide(
+      [say(`Claim: ${c.claim}`), say('Which of these is a **counterexample**?')],
+      c.counter[counter],
+      fine.map((j) => c.fine[j]),
+    );
+  },
+  solution({ claim, counter, fine }) {
+    const c = PICK_CLAIMS[claim];
+    return [
+      { text: c.why },
+      { text: `$${c.counter[counter]}$ fits: the claim fails there, and one failure disproves it.` },
+      { text: `${fine.map((j) => `$${c.fine[j]}$`).join(', ')}: the claim holds for each of these, so none of them disproves it.` },
+    ];
+  },
+};
+
+/* ---------- testing values, one decision at a time ---------- */
+
+interface CounterFlowParams {
+  claim: number;
+  held: number;
+  fail: number;
+  hard: boolean;
+}
+
+const prfCounterFlow: Generator<CounterFlowParams> = {
+  id: 'prf-counter-flow',
+  sample(rng, difficulty) {
+    for (;;) {
+      const claim = rng.int(0, PRIME_CLAIMS.length - 1);
+      const { f } = PRIME_CLAIMS[claim];
+      const ns = Array.from({ length: 15 }, (_, i) => i + 1).filter((n) => f(n) < 1000);
+      const fails = ns.filter((n) => !isPrime(f(n)));
+      if (fails.length === 0) continue;
+      const fail = rng.pick(fails.slice(0, 2));
+      const held = ns.filter((n) => n < fail && isPrime(f(n)));
+      if (held.length === 0) continue;
+      return { claim, held: rng.pick(held), fail, hard: difficulty >= 2 };
+    }
+  },
+  render({ claim, held, fail, hard }) {
+    const { tex, at, f } = PRIME_CLAIMS[claim];
+    const test = (id: string, n: number, next: string) => ({
+      id,
+      ask: `Try $n = ${n}$: $${at(n)} = ${f(n)}$. Is that prime?`,
+      branches: [
+        { label: 'Yes', to: next },
+        { label: 'No', to: next },
+      ],
+    });
+    const verdict = {
+      id: 'verdict',
+      ask: 'So the claim is',
+      branches: turned(
+        [
+          { label: `False: $n = ${fail}$ is a counterexample`, outcome: 'One value where it fails is enough to disprove it.' },
+          { label: `True: it held at $n = ${held}$`, outcome: 'A value where it holds proves nothing about the others.' },
+          { label: 'Not settled: test more values', outcome: 'More testing only helps while no failure has turned up.' },
+        ],
+        `${tex}|${held}|${fail}`,
+      ),
+    };
+    const opening = {
+      id: 'what',
+      ask: 'The claim is about every positive whole number. What would disprove it?',
+      branches: [
+        { label: 'One value where it fails', to: 't1' },
+        { label: 'Showing it fails for every $n$', to: 't1' },
+        { label: 'Nothing: examples never settle it', to: 't1' },
+      ],
+    };
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Claim: $${tex}$ is prime for every positive whole number $n$. Test it. Each answer chooses what gets asked next.`),
+      ],
+      subject: `${tex}`,
+      steps: [...(hard ? [opening] : []), test('t1', held, 't2'), test('t2', fail, 'verdict'), verdict],
+      answer: [...(hard ? ['One value where it fails'] : []), 'Yes', 'No', `False: $n = ${fail}$ is a counterexample`],
+    };
+  },
+  solution({ claim, held, fail }) {
+    const { at, f } = PRIME_CLAIMS[claim];
+    return [
+      { text: `$n = ${held}$ gives $${f(held)}$, which is prime: the claim holds there, but that proves nothing about other $n$.` },
+      { tex: stackTex(`${at(fail)} = ${f(fail)} = ${factorTex(f(fail))}`) },
+      { text: `$${f(fail)}$ is not prime, so $n = ${fail}$ is a counterexample and the claim is false.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Lesson 4: proof by contradiction
+ * ================================================================ */
+
+/** Whole numbers from 2 to 13 that are not perfect squares, for √p claims. */
+const NON_SQUARES = [2, 3, 5, 6, 7, 10, 11, 13];
+const SMALL_PRIMES = [2, 3, 5, 7];
+
+type AssumeFamily = 'sqrt' | 'primes' | 'divides' | 'combo' | 'largest' | 'sum';
+
+interface AssumeParams {
+  family: AssumeFamily;
+  p: number;
+  m: number;
+  n: number;
+  c: number;
+}
+
+/** Claim, assumption and three wrong assumptions, as plain sentences. */
+function assumeText({ family, p, m, n, c }: AssumeParams): { claim: string; right: string; wrong: string[] } {
+  switch (family) {
+    case 'sqrt':
+      return {
+        claim: `$\\sqrt{${p}}$ is irrational.`,
+        right: `√${p} is rational.`,
+        wrong: [`√${p} is irrational.`, `√${p} is a whole number.`, `${p} is rational.`],
+      };
+    case 'primes':
+      return {
+        claim: 'There are infinitely many prime numbers.',
+        right: 'There are only finitely many primes.',
+        wrong: ['There are infinitely many primes.', 'There are no primes at all.', 'Every whole number is prime.'],
+      };
+    case 'divides':
+      return {
+        claim: `If $n^2$ is a multiple of $${p}$, then $n$ is a multiple of $${p}$.`,
+        right: `n² is a multiple of ${p}, and n is not.`,
+        wrong: [
+          `n² is not a multiple of ${p}.`,
+          `n is not a multiple of ${p}.`,
+          `n is a multiple of ${p}, and n² is not.`,
+        ],
+      };
+    case 'combo':
+      return {
+        claim: `There are no whole numbers $a$ and $b$ with $${m}a + ${n}b = ${c}$.`,
+        right: `There are whole numbers a and b with ${m}a + ${n}b = ${c}.`,
+        wrong: [
+          `There are no whole numbers a and b with ${m}a + ${n}b = ${c}.`,
+          `a and b are not whole numbers.`,
+          `${m}a + ${n}b = ${c} for every a and b.`,
+        ],
+      };
+    case 'largest':
+      return {
+        claim: `There is no largest multiple of $${m}$.`,
+        right: `There is a largest multiple of ${m}.`,
+        wrong: [`There is no largest multiple of ${m}.`, `There is a smallest multiple of ${m}.`, `No number is a multiple of ${m}.`],
+      };
+    case 'sum':
+      return {
+        claim: `If $a + b \\ge ${2 * m}$, then $a \\ge ${m}$ or $b \\ge ${m}$.`,
+        right: `a + b ≥ ${2 * m}, and a < ${m} and b < ${m}.`,
+        wrong: [`a + b < ${2 * m}.`, `a + b ≥ ${2 * m}, and a < ${m} or b < ${m}.`, `a ≥ ${m} and b ≥ ${m}.`],
+      };
+  }
+}
+
+const prfAssume: Generator<AssumeParams> = {
+  id: 'prf-assume',
+  sample(rng, difficulty) {
+    const family = rng.pick(
+      difficulty >= 2
+        ? (['divides', 'combo', 'sum', 'sqrt'] as const)
+        : (['sqrt', 'primes', 'combo', 'largest'] as const),
+    );
+    const combo = sampleCombo(rng);
+    return {
+      family,
+      p: family === 'sqrt' ? rng.pick(NON_SQUARES) : rng.pick(SMALL_PRIMES),
+      m: family === 'combo' ? combo.m : rng.int(2, 9),
+      n: combo.n,
+      c: combo.c,
+    };
+  },
+  render(params) {
+    const { claim, right, wrong } = assumeText(params);
+    return choiceSlide(
+      [say(`To prove by contradiction: ${claim}`), say('What do you assume first?')],
+      right,
+      wrong,
+      true,
+    );
+  },
+  solution(params) {
+    const { right } = assumeText(params);
+    const implication = params.family === 'divides' || params.family === 'sum';
+    return [
+      {
+        text: implication
+          ? 'For an "if … then …" claim, the opposite is: the "if" part holds, and the "then" part fails.'
+          : 'A proof by contradiction starts from the exact opposite of the claim, and shows that leads somewhere impossible.',
+      },
+      { text: `So assume: ${right}` },
+    ];
+  },
+};
+
+/* ---------- building the assumption from tiles ---------- */
+
+type NegateFamily = 'sum' | 'product' | 'parity' | 'divides';
+
+interface NegateParams {
+  family: NegateFamily;
+  m: number;
+  c: number;
+}
+
+function negation({ family, m, c }: NegateParams): {
+  claim: string;
+  template: string;
+  answer: string[];
+  distractors: string[];
+} {
+  switch (family) {
+    case 'sum':
+      return {
+        claim: `If $a + b \\ge ${2 * m}$, then $a \\ge ${m}$ or $b \\ge ${m}$.`,
+        template: `a + b \\ge ${2 * m},\\; a {0} ${m} \\text{ and } b {1} ${m}`,
+        answer: ['<', '<'],
+        distractors: ['\\ge', '\\le', '>'],
+      };
+    case 'product':
+      return {
+        claim: `If $a$ and $b$ are positive and $ab > ${m * m}$, then $a > ${m}$ or $b > ${m}$.`,
+        template: `ab > ${m * m},\\; a {0} ${m} \\text{ and } b {1} ${m}`,
+        answer: ['\\le', '\\le'],
+        distractors: ['<', '>', '\\ge'],
+      };
+    case 'parity': {
+      const odd = c % 2 === 1;
+      return {
+        claim: `If $n^2 + ${c}$ is even, then $n$ is ${odd ? 'odd' : 'even'}.`,
+        template: `n^2 + ${c} \\text{ is } {0} \\text{ and } n \\text{ is } {1}`,
+        answer: ['\\text{even}', odd ? '\\text{even}' : '\\text{odd}'],
+        distractors: ['\\text{odd}', '\\text{prime}', '\\text{positive}'],
+      };
+    }
+    case 'divides':
+      return {
+        claim: `If $n^2$ is a multiple of $${m}$, then $n$ is a multiple of $${m}$.`,
+        template: `${m} {0} n^2 \\text{ and } ${m} {1} n`,
+        answer: ['\\mid', '\\nmid'],
+        distractors: ['=', '<', '>'],
+      };
+  }
+}
+
+const prfNegate: Generator<NegateParams> = {
+  id: 'prf-negate',
+  sample(rng, difficulty) {
+    const family = rng.pick(
+      difficulty >= 2 ? (['product', 'parity', 'divides'] as const) : (['sum', 'parity', 'product'] as const),
+    );
+    return {
+      family,
+      m: family === 'divides' ? rng.pick(SMALL_PRIMES) : rng.int(2, 12),
+      c: rng.int(1, 12),
+    };
+  },
+  render(params) {
+    const { claim, template, answer, distractors } = negation(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`To prove by contradiction: ${claim}`),
+        say(
+          `Build the assumption: the "if" part holds and the "then" part fails.${params.family === 'divides' ? ' ($a \\mid b$ means $a$ divides $b$.)' : ''}`,
+        ),
+      ],
+      template,
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution(params) {
+    const { answer, template } = negation(params);
+    const filled = answer.reduce((t, token, i) => t.replace(`{${i}}`, token), template);
+    const hint: Record<NegateFamily, string> = {
+      sum: `The opposite of "$a \\ge ${params.m}$ or $b \\ge ${params.m}$" is that both are less than $${params.m}$.`,
+      product: `The opposite of "$a > ${params.m}$ or $b > ${params.m}$" is that neither is: both are at most $${params.m}$.`,
+      parity: 'Keep the "if" part as it is, and take the other parity for $n$.',
+      divides: `Keep "$${params.m}$ divides $n^2$", and say $${params.m}$ does not divide $n$.`,
+    };
+    return [{ text: hint[params.family] }, { tex: stackTex(filled) }];
+  },
+};
+
+/* ---------- a contradiction, one decision at a time ---------- */
+
+type ContraFamily = 'sqrt' | 'combo' | 'largest' | 'parity';
+
+interface ContraParams {
+  family: ContraFamily;
+  p: number;
+  m: number;
+  n: number;
+  c: number;
+}
+
+/**
+ * `ma + nb = c` with no whole-number solution: m and n share exactly the
+ * factor g, and c is not a multiple of it. Neither m nor n is g itself, so
+ * "c is a multiple of m" can never read the same as "c is a multiple of g".
+ */
+export function sampleCombo(rng: Rng, gs: number[] = [2, 3, 5]): { m: number; n: number; c: number } {
+  for (;;) {
+    const g = rng.pick(gs);
+    const u = rng.int(2, 6);
+    const v = rng.int(2, 7);
+    if (u === v || gcd(u, v) !== 1 || g * v >= 40) continue;
+    return { m: g * u, n: g * v, c: g * rng.int(0, 4) + rng.int(1, g - 1) };
+  }
+}
+
+function contraText({ family, p, m, n, c }: ContraParams): {
+  claim: string;
+  assume: string[];
+  lead: string[];
+} {
+  const g = gcd(m, n);
+  switch (family) {
+    case 'sqrt':
+      return {
+        claim: `$\\sqrt{${p}}$ is irrational`,
+        assume: [`$\\sqrt{${p}} = \\frac{a}{b}$, with no common factor`, `$\\sqrt{${p}}$ is irrational`, `$\\sqrt{${p}}$ is a whole number`],
+        lead: [`$a$ and $b$ are both multiples of $${p}$`, `$a^2 = ${p}b$`, `$\\sqrt{${p}}$ has no last decimal place`],
+      };
+    case 'combo':
+      return {
+        claim: `no whole numbers $a$, $b$ have $${m}a + ${n}b = ${c}$`,
+        assume: [`Whole numbers $a$, $b$ have $${m}a + ${n}b = ${c}$`, `No whole numbers $a$, $b$ have it`, `$a = 1$ and $b = 1$`],
+        lead: [`$${c}$ is a multiple of $${g}$`, `$${c}$ is a multiple of $${m}$`, `$a$ and $b$ are multiples of $${g}$`],
+      };
+    case 'largest':
+      return {
+        claim: `there is no largest multiple of $${m}$`,
+        assume: [`There is a largest multiple of $${m}$, $N$`, `There is no largest multiple of $${m}$`, `$N$ is not a multiple of $${m}$`],
+        lead: [`$N + ${m}$ is a bigger multiple of $${m}$`, `$N - ${m}$ is a smaller multiple of $${m}$`, `$N + 1$ is a multiple of $${m}$`],
+      };
+    case 'parity': {
+      const odd = c % 2 === 1;
+      const other = odd ? 'even' : 'odd';
+      return {
+        claim: `if $n^2 + ${c}$ is even, then $n$ is ${odd ? 'odd' : 'even'}`,
+        assume: [`$n^2 + ${c}$ is even and $n$ is ${other}`, `$n^2 + ${c}$ is odd`, `$n$ is ${odd ? 'odd' : 'even'}`],
+        lead: [`$n^2 + ${c}$ is odd`, `$n^2 + ${c}$ is a multiple of $4$`, `$n = ${c}$`],
+      };
+    }
+  }
+}
+
+const prfContraFlow: Generator<ContraParams> = {
+  id: 'prf-contra-flow',
+  sample(rng, difficulty) {
+    const family = rng.pick(
+      difficulty >= 2 ? (['sqrt', 'combo', 'parity'] as const) : (['sqrt', 'combo', 'largest', 'parity'] as const),
+    );
+    const combo = sampleCombo(rng, [2, 3, 5, 7]);
+    return {
+      family,
+      p: rng.pick([2, 3, 5, 7, 11, 13]),
+      m: family === 'combo' ? combo.m : rng.int(2, 9),
+      n: combo.n,
+      c: family === 'combo' ? combo.c : rng.int(0, 12),
+    };
+  },
+  render(params) {
+    const { claim, assume, lead } = contraText(params);
+    const key = `${claim}|${params.p}`;
+    return {
+      kind: 'flow',
+      prompt: [say(`Prove by contradiction that ${claim}. Each answer chooses what gets asked next.`)],
+      subject: '\\text{Proof by contradiction}',
+      steps: [
+        {
+          id: 'assume',
+          ask: 'What do you assume?',
+          branches: turned(assume, key).map((label) => ({ label, to: 'lead' })),
+        },
+        {
+          id: 'lead',
+          ask: 'Working from that, you reach',
+          branches: turned(lead, `${key}|lead`).map((label) => ({ label, to: 'so' })),
+        },
+        {
+          id: 'so',
+          ask: 'That cannot be true. So',
+          branches: [
+            { label: 'The assumption is false, and the claim is true', outcome: 'That is a proof by contradiction.' },
+            { label: 'The claim is false', outcome: 'The impossible thing came from the assumption, not the claim.' },
+            { label: 'Nothing: try an example', outcome: 'An example cannot prove a claim about every case.' },
+          ],
+        },
+      ],
+      answer: [assume[0], lead[0], 'The assumption is false, and the claim is true'],
+    };
+  },
+  solution(params) {
+    const { family, p, m, n, c } = params;
+    const g = gcd(m, n);
+    const middle: Record<ContraFamily, string> = {
+      sqrt: `Squaring $\\sqrt{${p}} = \\frac{a}{b}$ gives $a^2 = ${p}b^2$, so $${p}$ divides $a$; writing $a = ${p}k$ gives $b^2 = ${p}k^2$, so $${p}$ divides $b$ too. That is a common factor.`,
+      combo: `$${m}a + ${n}b = ${g}(${m / g}a + ${n / g}b)$ is a multiple of $${g}$, so $${c}$ would be too. It is not.`,
+      largest: `$N + ${m}$ is a multiple of $${m}$ and bigger than $N$, so $N$ was not the largest.`,
+      parity: `If $n$ is ${c % 2 === 1 ? 'even, $n = 2k$ and $n^2 + ' + c + ' = 4k^2 + ' + c + '$' : 'odd, $n = 2k + 1$ and $n^2 + ' + c + ' = 4k^2 + 4k + ' + (c + 1) + '$'}, which is odd.`,
+    };
+    const { assume } = contraText(params);
+    return [
+      { text: `Assume the opposite: ${assume[0]}.` },
+      { text: middle[family] },
+      { text: 'That contradicts what was assumed, so the assumption is false and the claim is true.' },
+    ];
+  },
+};
+
+/* ---------- ordering a proof by contradiction ---------- */
+
+type ContraOrderParams =
+  | { family: 'sqrt'; p: number; difficulty: number; picks: number[] }
+  | { family: 'combo'; m: number; n: number; c: number; difficulty: number; picks: number[] }
+  | { family: 'largest'; m: number; difficulty: number; picks: number[] }
+  | { family: 'primes'; difficulty: number; picks: number[] }
+  | { family: 'parity'; c: number; difficulty: number; picks: number[] };
+
+function sqrtProof(p: number, difficulty: number): Proof {
+  const open = `Suppose $\\sqrt{${p}} = \\frac{a}{b}$, where $a$ and $b$ are whole numbers with no common factor.`;
+  const close = `So $a$ and $b$ share the factor $${p}$: a contradiction, so $\\sqrt{${p}}$ is irrational.`;
+  const middle =
+    difficulty >= 2
+      ? [
+          `Squaring both sides, $a^2 = ${p}b^2$, so $a^2$ is a multiple of $${p}$.`,
+          `$${p}$ is prime, so $a$ is a multiple of $${p}$ too: write $a = ${p}c$.`,
+          `Then $${p * p}c^2 = ${p}b^2$, so $b^2 = ${p}c^2$ and, in the same way, $b$ is a multiple of $${p}$.`,
+        ]
+      : [
+          `Squaring both sides, $a^2 = ${p}b^2$, so $a$ is a multiple of $${p}$: write $a = ${p}c$.`,
+          `Then $b^2 = ${p}c^2$, so $b$ is a multiple of $${p}$ too.`,
+        ];
+  return {
+    claim: `Prove that $\\sqrt{${p}}$ is irrational.`,
+    steps: [open, ...middle, close],
+    pool: [
+      {
+        text: `Suppose $\\sqrt{${p}}$ is irrational, so it cannot be written as a fraction.`,
+        why: 'That assumes the claim. A contradiction proof assumes the opposite.',
+      },
+      {
+        text: `Squaring both sides, $a^2 = ${p}b$.`,
+        why: `Squaring $\\frac{a}{b}$ squares the bottom too: $a^2 = ${p}b^2$.`,
+      },
+      {
+        text: `A calculator gives $\\sqrt{${p}} = ${Math.sqrt(p).toFixed(6)}\\dots$, which never repeats.`,
+        why: 'Seeing some decimal places cannot show they never repeat.',
+      },
+      {
+        text: 'So $a$ and $b$ are both odd: a contradiction.',
+        why: 'Nothing above shows that, and two odd numbers can have no common factor.',
+      },
+    ],
+  };
+}
+
+function comboProof(m: number, n: number, c: number, difficulty: number): Proof {
+  const g = gcd(m, n);
+  const inner = `${m / g === 1 ? '' : m / g}a + ${n / g === 1 ? '' : n / g}b`;
+  const open = `Suppose there are whole numbers $a$ and $b$ with $${m}a + ${n}b = ${c}$.`;
+  const factor = `Taking out $${g}$, that says $${g}(${inner}) = ${c}$.`;
+  const multiple = `$${inner}$ is a whole number, so $${c}$ is a multiple of $${g}$.`;
+  const close = `But $${c} = ${g} \\times ${Math.floor(c / g)} + ${c % g}$ is not a multiple of $${g}$: a contradiction, so no such $a$ and $b$ exist.`;
+  const steps =
+    difficulty >= 2
+      ? [open, factor, `$${inner}$ is a whole number, so the left side is a multiple of $${g}$.`, `So $${c}$ is a multiple of $${g}$.`, close]
+      : [open, factor, multiple, close];
+  return {
+    claim: `Prove that there are no whole numbers $a$ and $b$ with $${m}a + ${n}b = ${c}$.`,
+    steps,
+    pool: [
+      {
+        text: `Suppose there are no whole numbers $a$ and $b$ with $${m}a + ${n}b = ${c}$.`,
+        why: 'That assumes the claim. A contradiction proof assumes the opposite.',
+      },
+      {
+        text: `Taking out $${g}$, that says $${g}(${m / g === 1 ? '' : m / g}a + ${n}b) = ${c}$.`,
+        why: `The $b$ term has to be divided by $${g}$ as well: $${n / g === 1 ? '' : n / g}b$.`,
+      },
+      {
+        text: `Trying $a = 1$ and $b = 1$ gives $${m + n}$, not $${c}$.`,
+        why: 'One pair is not every pair.',
+      },
+      {
+        text: `So $${c}$ is a multiple of $${m}$.`,
+        why: `Nothing shows that: the common factor is $${g}$.`,
+      },
+    ],
+  };
+}
+
+function largestProof(m: number, difficulty: number): Proof {
+  const open = `Suppose there is a largest multiple of $${m}$, and call it $N$.`;
+  const form = `Then $N = ${m}k$ for some whole number $k$.`;
+  const next = `So $N + ${m} = ${m}(k + 1)$ is also a multiple of $${m}$.`;
+  const close =
+    difficulty >= 2
+      ? [`$N + ${m}$ is bigger than $N$, so $N$ was not the largest: a contradiction.`, `So there is no largest multiple of $${m}$.`]
+      : [`$N + ${m}$ is bigger than $N$: a contradiction, so there is no largest multiple of $${m}$.`];
+  return {
+    claim: `Prove that there is no largest multiple of $${m}$.`,
+    steps: [open, form, next, ...close],
+    pool: [
+      {
+        text: `Suppose there is no largest multiple of $${m}$.`,
+        why: 'That assumes the claim. A contradiction proof assumes the opposite.',
+      },
+      { text: `So $N + 1 = ${m}k + 1$ is also a multiple of $${m}$.`, why: `$${m}k + 1$ leaves remainder $1$, so it is not.` },
+      {
+        text: `The multiples of $${m}$ go on for ever, so there is no largest.`,
+        why: 'That is the claim itself, not a reason for it.',
+      },
+    ],
+  };
+}
+
+function primesProof(difficulty: number): Proof {
+  const close =
+    difficulty >= 2
+      ? ['But $N > 1$ has a prime factor, and it is not on the list: a contradiction.', 'So there are infinitely many primes.']
+      : ['But $N > 1$ has a prime factor, and it is not on the list: a contradiction, so there are infinitely many primes.'];
+  return {
+    claim: 'Prove that there are infinitely many prime numbers.',
+    steps: [
+      'Suppose there are only finitely many primes, $p_1, p_2, \\dots, p_n$.',
+      'Let $N = p_1 p_2 \\cdots p_n + 1$.',
+      'Dividing $N$ by any $p_i$ leaves remainder $1$, so none of them divides $N$.',
+      ...close,
+    ],
+    pool: [
+      { text: 'Suppose there are infinitely many primes.', why: 'That assumes the claim. A contradiction proof assumes the opposite.' },
+      { text: 'Let $N = p_1 p_2 \\cdots p_n$.', why: 'Every $p_i$ divides that $N$, so it leads nowhere.' },
+      {
+        text: 'So $N$ must be prime.',
+        why: 'Not necessarily: $N$ may only have a prime factor that is missing from the list.',
+      },
+    ],
+  };
+}
+
+function parityProof(c: number, difficulty: number): Proof {
+  const odd = c % 2 === 1;
+  const want = odd ? 'odd' : 'even';
+  const other = odd ? 'even' : 'odd';
+  const form = odd ? '2k' : '2k + 1';
+  const expanded = odd ? `4k^2 + ${c}` : `4k^2 + 4k + ${c + 1}`;
+  const factored = odd ? `2(2k^2 + ${(c - 1) / 2}) + 1` : `2(2k^2 + 2k + ${c / 2}) + 1`;
+  const middle =
+    difficulty >= 2
+      ? [`Then $n^2 + ${c} = ${expanded}$.`, `That is $${factored}$, which is odd.`]
+      : [`Then $n^2 + ${c} = ${expanded} = ${factored}$, which is odd.`];
+  return {
+    claim: `Prove that if $n^2 + ${c}$ is even, then $n$ is ${want}.`,
+    steps: [
+      `Suppose $n^2 + ${c}$ is even but $n$ is ${other}.`,
+      `Then $n = ${form}$ for some whole number $k$.`,
+      ...middle,
+      `That contradicts $n^2 + ${c}$ being even, so $n$ is ${want}.`,
+    ],
+    pool: [
+      { text: `Suppose $n^2 + ${c}$ is odd.`, why: 'That is not the opposite of the claim: keep the "if" part, deny the "then" part.' },
+      {
+        text: `Then $n = ${odd ? '2k + 1' : '2k'}$ for some whole number $k$.`,
+        why: `That is ${want}, which is what we are proving, not what we assumed.`,
+      },
+      {
+        text: `Checking $n = ${odd ? 3 : 2}$: $n^2 + ${c} = ${(odd ? 9 : 4) + c}$, which is even.`,
+        why: 'One example is not a proof.',
+      },
+    ],
+  };
+}
+
+function contraProof(params: ContraOrderParams): Proof {
+  switch (params.family) {
+    case 'sqrt':
+      return sqrtProof(params.p, params.difficulty);
+    case 'combo':
+      return comboProof(params.m, params.n, params.c, params.difficulty);
+    case 'largest':
+      return largestProof(params.m, params.difficulty);
+    case 'primes':
+      return primesProof(params.difficulty);
+    case 'parity':
+      return parityProof(params.c, params.difficulty);
+  }
+}
+
+const prfOrderContradiction: Generator<ContraOrderParams> = {
+  id: 'prf-order-contradiction',
+  sample(rng, difficulty) {
+    const family = rng.pick(['sqrt', 'combo', 'largest', 'primes', 'parity'] as const);
+    const base: ContraOrderParams = (() => {
+      switch (family) {
+        case 'sqrt':
+          return { family, p: rng.pick(SMALL_PRIMES), difficulty, picks: [] };
+        case 'combo':
+          return { family, ...sampleCombo(rng), difficulty, picks: [] };
+        case 'largest':
+          return { family, m: rng.int(2, 9), difficulty, picks: [] };
+        case 'primes':
+          return { family, difficulty, picks: [] };
+        case 'parity':
+          return { family, c: rng.int(2, 12), difficulty, picks: [] };
+      }
+    })();
+    return { ...base, picks: pickDistractors(rng, contraProof(base), difficulty) };
+  },
+  render(params) {
+    return orderSlide(contraProof(params), params.picks);
+  },
+  solution(params) {
+    return orderSolution(contraProof(params), params.picks);
+  },
+};
+
+/* ================================================================
+ * Lesson 5: reading a proof
+ * ================================================================ */
+
+type MissingParams =
+  | { family: 'oddSquare'; c: number; line: 1 | 2; extra: number }
+  | { family: 'consecutive'; k: number; line: 1 | 2; extra: number }
+  | { family: 'diffSquares'; a: number; line: 0 | 1; extra: number };
+
+interface MissingProof {
+  claim: string;
+  lines: string[];
+  template: string;
+  answer: string[];
+  distractors: string[];
+}
+
+function missingProof(params: MissingParams): MissingProof {
+  switch (params.family) {
+    case 'oddSquare': {
+      const { c } = params;
+      const s = 1 + c;
+      const q = Math.floor(s / 2);
+      const t = s % 2;
+      const word = t ? 'odd' : 'even';
+      const lines = [
+        '$n$ is odd, so $n = 2k + 1$ for a whole number $k$.',
+        `$n^2 + ${c} = 4k^2 + 4k + ${s}$.`,
+        `$= 2(2k^2 + 2k + ${q})${t ? ' + 1' : ''}$.`,
+        `$2k^2 + 2k + ${q}$ is a whole number, so $n^2 + ${c}$ is ${word}.`,
+      ];
+      return params.line === 1
+        ? {
+            claim: `If $n$ is odd, then $n^2 + ${c}$ is ${word}.`,
+            lines,
+            template: `n^2 + ${c} = {0} + {1} + {2}`,
+            answer: ['4k^2', '4k', String(s)],
+            distractors: ['2k^2', '2k', String(c), String(s + 1), '4k^2 + 1'],
+          }
+        : {
+            claim: `If $n$ is odd, then $n^2 + ${c}$ is ${word}.`,
+            lines,
+            template: `= 2({0} + {1} + {2})${t ? ' + 1' : ''}`,
+            answer: ['2k^2', '2k', String(q)],
+            distractors: ['4k^2', '4k', String(s), String(q + 1), 'k^2'],
+          };
+    }
+    case 'consecutive': {
+      const { k } = params;
+      const m = (k - 1) / 2;
+      const total = k * m;
+      const list = k === 3 ? '$n$, $n + 1$ and $n + 2$' : `$n$, $n + 1$, $\\dots$, $n + ${k - 1}$`;
+      const lines = [
+        `Call the smallest of the numbers $n$, so they are ${list}.`,
+        `Their sum is $${k}n + ${total}$.`,
+        `$= ${k}(n + ${m})$.`,
+        `$n + ${m}$ is a whole number, so the sum is a multiple of $${k}$.`,
+      ];
+      const claim = `The sum of any $${k}$ consecutive whole numbers is a multiple of $${k}$.`;
+      return params.line === 1
+        ? {
+            claim,
+            lines,
+            template: `\\text{Sum} = {0} + {1}`,
+            answer: [`${k}n`, String(total)],
+            distractors: ['n', String(total - 1), String(k * (k - 1)), `${k - 1}n`],
+          }
+        : {
+            claim,
+            lines,
+            template: `${k}n + ${total} = ${k}({0} + {1})`,
+            answer: ['n', String(m)],
+            distractors: [`${k}n`, String(total), String(m + 1), String(k)],
+          };
+    }
+    case 'diffSquares': {
+      const { a } = params;
+      const lines = [
+        `$(n + ${a})^2 = n^2 + ${2 * a}n + ${a * a}$.`,
+        `$(n - ${a})^2 = n^2 - ${2 * a}n + ${a * a}$.`,
+        `Subtracting, the $n^2$ and $${a * a}$ terms cancel, leaving $${4 * a}n$.`,
+        `$n$ is a whole number, so $(n + ${a})^2 - (n - ${a})^2$ is a multiple of $${4 * a}$.`,
+      ];
+      const claim = `$(n + ${a})^2 - (n - ${a})^2$ is a multiple of $${4 * a}$ for every whole number $n$.`;
+      return params.line === 0
+        ? {
+            claim,
+            lines,
+            template: `(n + ${a})^2 = {0} + {1} + {2}`,
+            answer: ['n^2', `${2 * a}n`, String(a * a)],
+            distractors: [`${a}n`, String(2 * a), `${a * a}n`, String(a * a + 1)],
+          }
+        : {
+            claim,
+            lines,
+            template: `(n - ${a})^2 = {0} - {1} + {2}`,
+            answer: ['n^2', `${2 * a}n`, String(a * a)],
+            distractors: [`${a}n`, String(2 * a), `${a * a}n`, String(a * a + 1)],
+          };
+    }
+  }
+}
+
+const prfMissingLine: Generator<MissingParams> = {
+  id: 'prf-missing-line',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const family = rng.pick(['oddSquare', 'consecutive', 'diffSquares'] as const);
+    const extra = hard ? 4 : 2;
+    switch (family) {
+      case 'oddSquare':
+        return { family, c: rng.int(1, hard ? 15 : 9), line: rng.pick([1, 2] as const), extra };
+      case 'consecutive':
+        return { family, k: rng.pick([3, 5, 7, 9]), line: rng.pick([1, 2] as const), extra };
+      case 'diffSquares':
+        return { family, a: rng.int(hard ? 3 : 1, hard ? 9 : 5), line: rng.pick([0, 1] as const), extra };
+    }
+  },
+  render(params) {
+    const proof = missingProof(params);
+    const lines = proof.lines.map((line, i) => (i === params.line ? `${i + 1}. …` : `${i + 1}. ${line}`));
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Claim: ${proof.claim}`),
+        ...lines.map(say),
+        say(`Line ${params.line + 1} is missing. Build it.`),
+      ],
+      template: proof.template,
+      bank: fillBank(proof.answer, proof.distractors, 2, params.extra),
+      answer: proof.answer,
+    };
+  },
+  solution(params) {
+    const proof = missingProof(params);
+    return [
+      { text: `Line ${params.line + 1} has to turn the line above it into the line below it:` },
+      { text: proof.lines[params.line] },
+      { text: `Then line ${params.line + 2} follows from it.` },
+    ];
+  },
+};
+
+/* ---------- finding the flaw ---------- */
+
+type FlawFamily = 'oddSquare' | 'consecutive' | 'diffSquares' | 'oddSum';
+
+interface FlawParams {
+  family: FlawFamily;
+  n: number;
+  /** Which line is wrong, 0-based. */
+  wrong: number;
+}
+
+function flawLines({ family, n }: FlawParams): { claim: string; right: string[]; broken: string[]; why: string[] } {
+  switch (family) {
+    case 'oddSquare': {
+      const s = 1 + n;
+      const q = Math.floor(s / 2);
+      const t = s % 2;
+      const word = t ? 'odd' : 'even';
+      return {
+        claim: `If $n$ is odd, then $n^2 + ${n}$ is ${word}.`,
+        right: [
+          '$n$ is odd, so $n = 2k + 1$ for a whole number $k$.',
+          `Then $n^2 + ${n} = 4k^2 + 4k + ${s}$.`,
+          `That is $2(2k^2 + 2k + ${q})${t ? ' + 1' : ''}$.`,
+          `$2k^2 + 2k + ${q}$ is a whole number, so $n^2 + ${n}$ is ${word}.`,
+        ],
+        broken: [
+          '$n$ is odd, so $n = 2k$ for a whole number $k$.',
+          `Then $n^2 + ${n} = 4k^2 + ${s}$.`,
+          `That is $2(2k^2 + 2k + ${q + 1})${t ? ' + 1' : ''}$.`,
+          `$2k^2 + 2k + ${q}$ is a whole number, so $n^2 + ${n}$ is ${t ? 'even' : 'odd'}.`,
+        ],
+        why: [
+          '$2k$ is even. An odd number is $2k + 1$.',
+          '$(2k + 1)^2 = 4k^2 + 4k + 1$: the middle term is missing.',
+          `$2 \\times ${q + 1}$ is $${2 * q + 2}$, not $${2 * q}$.`,
+          `$2 \\times$ a whole number${t ? ', plus $1$,' : ''} is ${word}.`,
+        ],
+      };
+    }
+    case 'consecutive': {
+      const k = n;
+      const m = (k - 1) / 2;
+      const total = k * m;
+      return {
+        claim: `The sum of any $${k}$ consecutive whole numbers is a multiple of $${k}$.`,
+        right: [
+          `Call the smallest $n$, so the numbers are $n$, $n + 1$, $\\dots$, $n + ${k - 1}$.`,
+          `Their sum is $${k}n + ${total}$.`,
+          `That is $${k}(n + ${m})$.`,
+          `$n + ${m}$ is a whole number, so the sum is a multiple of $${k}$.`,
+        ],
+        broken: [
+          `Call the smallest $n$, so the numbers are $n$, $n + 2$, $\\dots$, $n + ${2 * (k - 1)}$.`,
+          `Their sum is $${k}n + ${total - 1}$.`,
+          `That is $${k}(n + ${total})$.`,
+          `$n + ${m}$ is a whole number, so the sum is even.`,
+        ],
+        why: [
+          'Those go up in twos, so they are not consecutive.',
+          `$1 + 2 + \\dots + ${k - 1} = ${total}$.`,
+          `$${k}(n + ${total})$ is $${k}n + ${k * total}$.`,
+          'That does not follow, and the claim is about multiples of $' + k + '$.',
+        ],
+      };
+    }
+    case 'diffSquares': {
+      const a = n;
+      return {
+        claim: `$(n + ${a})^2 - (n - ${a})^2$ is a multiple of $${4 * a}$.`,
+        right: [
+          `$(n + ${a})^2 = n^2 + ${2 * a}n + ${a * a}$.`,
+          `$(n - ${a})^2 = n^2 - ${2 * a}n + ${a * a}$.`,
+          `Subtracting, the $n^2$ and $${a * a}$ terms cancel, leaving $${4 * a}n$.`,
+          `$n$ is a whole number, so the difference is a multiple of $${4 * a}$.`,
+        ],
+        broken: [
+          `$(n + ${a})^2 = n^2 + ${a * a}$.`,
+          `$(n - ${a})^2 = n^2 - ${2 * a}n - ${a * a}$.`,
+          `Subtracting, the $n^2$ and $${a * a}$ terms cancel, leaving $${2 * a}n$.`,
+          `Checking $n = 1$ gives $${(1 + a) ** 2 - (1 - a) ** 2}$, so the difference is a multiple of $${4 * a}$.`,
+        ],
+        why: [
+          `Squaring a bracket gives a middle term: $${2 * a}n$.`,
+          `$(-${a})^2 = +${a * a}$.`,
+          `$${2 * a}n - (-${2 * a}n) = ${4 * a}n$.`,
+          'One example does not prove it for every $n$.',
+        ],
+      };
+    }
+    case 'oddSum': {
+      const g = 2 * n;
+      return {
+        claim: `The sum of two odd numbers that differ by $${g}$ is even.`,
+        right: [
+          'Write the smaller as $2k + 1$, for a whole number $k$.',
+          `The larger is $${g}$ more: $2k + ${1 + g}$.`,
+          `Their sum is $4k + ${2 + g} = 2(2k + ${1 + n})$.`,
+          `$2k + ${1 + n}$ is a whole number, so the sum is even.`,
+        ],
+        broken: [
+          'Write the smaller as $k + 1$, for a whole number $k$.',
+          `The larger is $${g}$ more: $2k + ${g}$.`,
+          `Their sum is $4k + ${2 + g} = 4(k + ${2 + g})$.`,
+          `Checking $1 + ${1 + g} = ${2 + g}$, so the sum is always even.`,
+        ],
+        why: [
+          '$k + 1$ is odd for only half of all $k$. An odd number is $2k + 1$.',
+          `$${g}$ more than $2k + 1$ is $2k + ${1 + g}$.`,
+          `$4(k + ${2 + g})$ multiplies out to $4k + ${4 * (2 + g)}$.`,
+          'One example does not prove it for every pair.',
+        ],
+      };
+    }
+  }
+}
+
+const prfFindFlaw: Generator<FlawParams> = {
+  id: 'prf-find-flaw',
+  sample(rng, difficulty) {
+    const family = rng.pick(['oddSquare', 'consecutive', 'diffSquares', 'oddSum'] as const);
+    const hard = difficulty >= 2;
+    const n =
+      family === 'consecutive'
+        ? rng.pick([3, 5, 7])
+        : family === 'oddSquare'
+          ? rng.int(1, hard ? 15 : 9)
+          : rng.int(hard ? 2 : 1, hard ? 9 : 5);
+    return { family, n, wrong: rng.int(hard ? 1 : 0, 3) };
+  },
+  render(params) {
+    const { claim, right, broken } = flawLines(params);
+    const lines = right.map((line, i) => (i === params.wrong ? broken[i] : line));
+    return {
+      kind: 'choice',
+      prompt: [
+        say(`Claim: ${claim}`),
+        ...lines.map((line, i) => say(`**Line ${i + 1}.** ${line}`)),
+        say('One line of this proof is wrong. Which?'),
+      ],
+      options: lines.map((_, i) => ({ id: `line${i}`, label: `Line ${i + 1}`, tex: false })),
+      correctId: `line${params.wrong}`,
+    };
+  },
+  solution(params) {
+    const { right, why } = flawLines(params);
+    return [
+      { text: `Line ${params.wrong + 1} is wrong. ${why[params.wrong]}` },
+      { text: `It should read: ${right[params.wrong]}` },
+    ];
+  },
+};
+
+/* ---------- choosing a method ---------- */
+
+type Method = 'counter' | 'cases' | 'contra' | 'direct';
+
+interface MethodParams {
+  method: Method;
+  n: number;
+  variant: number;
+}
+
+function methodClaim({ method, n, variant }: MethodParams): { claim: string; reason: string } {
+  switch (method) {
+    case 'counter': {
+      const c = PRIME_CLAIMS[n];
+      const fail = Array.from({ length: 20 }, (_, i) => i + 1).find((x) => !isPrime(c.f(x))) as number;
+      return {
+        claim: `$${c.tex}$ is prime for every positive whole number $n$.`,
+        reason: `It fails at $n = ${fail}$: $${c.at(fail)} = ${c.f(fail)} = ${factorTex(c.f(fail))}$. One counterexample disproves it.`,
+      };
+    }
+    case 'cases':
+      return variant % 2 === 0
+        ? {
+            claim: `$n^2 + ${n}$ is never a multiple of $3$, for any whole number $n$.`,
+            reason: 'It depends on the remainder of $n$ on division by $3$: three cases cover every $n$.',
+          }
+        : {
+            claim: `Every whole number from $${n}$ to $${n + 4}$ has a factor other than $1$ and itself.`,
+            reason: 'It is about a short list: check each of the five numbers in turn.',
+          };
+    case 'contra':
+      return variant % 2 === 0
+        ? {
+            claim: `$\\sqrt{${NON_SQUARES[n % NON_SQUARES.length]}}$ is irrational.`,
+            reason: 'Irrational means "not a fraction": suppose it is one, and reach something impossible.',
+          }
+        : {
+            claim: `There is no largest multiple of $${n}$.`,
+            reason: 'Suppose there is a largest one and show a bigger one exists.',
+          };
+    case 'direct':
+      return variant % 2 === 0
+        ? {
+            claim: `The sum of any $${n}$ consecutive whole numbers is a multiple of $${n}$.`,
+            reason: `Call them $m$, $m + 1$, $\\dots$, $m + ${n - 1}$ and add: $${n}m + ${(n * (n - 1)) / 2} = ${n}(m + ${(n - 1) / 2})$.`,
+          }
+        : {
+            claim: `$(n + ${n})^2 - (n - ${n})^2$ is a multiple of $${4 * n}$.`,
+            reason: `Expand both squares and simplify to $${4 * n}n$.`,
+          };
+  }
+}
+
+/** Claims that fail by n = 12, so "can you find a value?" is a fair ask. */
+const EARLY_FAILURES = PRIME_CLAIMS.map((c, i) => ({ c, i }))
+  .filter(({ c }) => Array.from({ length: 12 }, (_, n) => n + 1).some((n) => !isPrime(c.f(n))))
+  .map(({ i }) => i);
+
+/** Whole numbers whose next five include no prime, for the short-list claims. */
+const COMPOSITE_RUNS = [24, 32, 48, 62, 74, 90, 114, 116, 140, 182, 200];
+
+const prfMethodFlow: Generator<MethodParams> = {
+  id: 'prf-method-flow',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const method = rng.pick(['counter', 'cases', 'contra', 'direct'] as const);
+    const variant = rng.int(0, 1);
+    switch (method) {
+      case 'counter':
+        // The famous-looking quadratics first; every claim fails below 20.
+        return { method, n: rng.pick(hard ? EARLY_FAILURES : EARLY_FAILURES.filter((i) => i < 6)), variant };
+      case 'cases':
+        return variant === 1
+          ? { method, n: rng.pick(COMPOSITE_RUNS), variant }
+          : { method, n: rng.pick([1, 4, 7, 10, 13, 16, 19]), variant };
+      case 'contra':
+        return { method, n: variant === 1 ? rng.int(2, 12) : rng.int(0, NON_SQUARES.length - 1), variant };
+      case 'direct':
+        return { method, n: variant === 0 ? rng.pick([3, 5, 7, 9, 11]) : rng.int(1, 12), variant };
+    }
+  },
+  render(params) {
+    const { claim } = methodClaim(params);
+    const answer: Record<Method, string[]> = {
+      counter: ['Yes', 'Give one counterexample'],
+      cases: ['No', 'Yes'],
+      contra: ['No', 'No', 'Yes', 'Proof by contradiction'],
+      direct: ['No', 'No', 'No', 'Direct proof'],
+    };
+    return {
+      kind: 'flow',
+      prompt: [say(`Claim: ${claim}`), say('Choose how to settle it. Each answer chooses what gets asked next.')],
+      subject: '\\text{Which method?}',
+      steps: [
+        {
+          id: 'false',
+          ask: 'Can you find a value where the claim is false?',
+          branches: [
+            { label: 'Yes', to: 'give' },
+            { label: 'No', to: 'cases' },
+          ],
+        },
+        {
+          id: 'give',
+          ask: 'So to settle it, you',
+          branches: [
+            { label: 'Give one counterexample', outcome: 'Disproof by counterexample.' },
+            { label: 'Prove it fails for every value', outcome: 'One failure is already enough.' },
+            { label: 'Test more values where it holds', outcome: 'Values where it holds never settle it.' },
+          ],
+        },
+        {
+          id: 'cases',
+          ask: 'Is it about a short list of numbers, or does it hang on the remainder of $n$?',
+          branches: [
+            { label: 'Yes', outcome: 'Proof by exhaustion: every case in turn.' },
+            { label: 'No', to: 'contra' },
+          ],
+        },
+        {
+          id: 'contra',
+          ask: 'Does it say something is impossible, or "not a fraction", or "no largest"?',
+          branches: [
+            { label: 'Yes', to: 'contraName' },
+            { label: 'No', to: 'directName' },
+          ],
+        },
+        {
+          id: 'contraName',
+          ask: 'So you would use',
+          branches: [
+            { label: 'Proof by contradiction', outcome: 'Assume the opposite and reach something impossible.' },
+            { label: 'Direct proof', outcome: 'A direct proof has nowhere to start from here.' },
+          ],
+        },
+        {
+          id: 'directName',
+          ask: 'So you would use',
+          branches: [
+            { label: 'Direct proof', outcome: 'Start from what you know and work to the claim.' },
+            { label: 'Proof by contradiction', outcome: 'There is nothing impossible to aim for here.' },
+          ],
+        },
+      ],
+      answer: answer[params.method],
+    };
+  },
+  solution(params) {
+    const { reason } = methodClaim(params);
+    const name: Record<Method, string> = {
+      counter: 'Disproof by counterexample.',
+      cases: 'Proof by exhaustion.',
+      contra: 'Proof by contradiction.',
+      direct: 'Direct proof.',
+    };
+    return [{ text: name[params.method] }, { text: reason }];
+  },
+};
+
+export const numberProofGenerators = [
+  prfAlways,
+  prfParity,
+  prfParityFlow,
+  prfProofOrExample,
+  prfCaseSplit,
+  prfCaseTiles,
+  prfCasesTree,
+  prfCaseRemainder,
+  prfCounter,
+  prfCounterPick,
+  prfCounterFlow,
+  prfAssume,
+  prfNegate,
+  prfContraFlow,
+  prfOrderContradiction,
+  prfMissingLine,
+  prfFindFlaw,
+  prfMethodFlow,
+];
+
+/** The order generators, for the reducer harness in `proofOrder.test.ts`. */
+export const numberProofOrders = [prfOrderContradiction];

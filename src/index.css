@@ -643,6 +643,16 @@ button {
   pointer-events: none;
 }
 
+/*
+ * KaTeX raises a superscript or fraction on zero-width struts about 3em tall,
+ * and the browser hit-tests them, so a tile or option holding an exponent took
+ * taps meant for the one above it. The button's own box still takes every tap.
+ */
+.tile .katex,
+.option .katex {
+  pointer-events: none;
+}
+
 /* Keypad */
 
 /*

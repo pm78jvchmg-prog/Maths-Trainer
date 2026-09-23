@@ -141,7 +141,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 10 | Trigonometric Functions | **15 lessons** |
 | 11 | Trigonometric Identities & Equations | new |
 | 12 | Logarithms | **12 lessons** |
-| 13 | Exponential Models | new |
+| 13 | Exponential Models | **9 lessons** |
 | 14 | Binomial Expansion | new |
 | 15 | Inequalities & the Modulus Function | new |
 
@@ -244,6 +244,16 @@ Simultaneous Linear Equations. Needs: Rearranging Formulae; Linear Inequalities
 Simultaneous Equations in Three Unknowns (by elimination; the matrix route stays
 in Matrices vm-l9); Inequalities in Two Variables & Regions; Modelling with
 Linear Equations (break-even, rates, mixtures).
+
+**Exponential Models** (new in C10) — has: The Continuous Model; Fitting and
+Using Models. Needs: Rates in Models (the rate as ky read and compared, average
+against instantaneous rate, when two models grow at the same rate); Comparing
+Models (when one model overtakes another, sums and differences of exponentials);
+Logistic Growth (a ceiling that slows growth, P = L / (1 + Ae^(-kt)), the
+fastest growth at half the ceiling); Continuous Compounding (e as the limit of
+(1 + 1/n)^n, effective annual rate against continuous rate); The
+Limits of a Model (residuals, when a model stops fitting, choosing between two
+fits). Solving dy/dt = ky belongs to Differential Equations (C13).
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -449,10 +459,13 @@ are green, and one new lesson has been played in a browser.
 | B35 | Vectors: Vectors in Mechanics | **done** (`claude/roadmap-b-vectors-4-kze9i1`): level `vm-l10`, 5 lessons, a 14-question level check, 23 new generators |
 | B20 | Quadratics: Modelling with Quadratics | **done** (`claude/roadmap-b-quadratics-3-ii0cum`): level `qd-l6`, 5 lessons, a 15-question level check, 19 new generators |
 | B28 | Exponents & Radicals: Growth by Repeated Multiplication | **done** (`claude/roadmap-b-exponents-4-te54kq`): level `er-l7`, 5 lessons, a 15-question level check, 20 new generators |
+| B23 | Complex Numbers: The Exponential Form | **done** (`claude/roadmap-b-complex-numbers-3-ji4c6s`): level `cn-l7`, 5 lessons, a 15-question level check, 21 new generators |
 | B30 | Logarithms: Compound Log Equations | **done** (`claude/roadmap-b-logarithms-4-j5p34b`): level `lg-l7`, 5 lessons, a 15-question level check, 19 new generators |
 | B36 | Matrices & Linear Transformations: Invariant Lines & Points | **done** (`claude/roadmap-b-matrices-4-aeufej`): level `vm-l11`, 5 lessons, a 15-question level check, 21 new generators |
+| B31 | Trigonometric Functions: Modelling with Trigonometric Functions | **done** (`claude/roadmap-b-trig-4-8mnjwv`): level `tf-l7`, 5 lessons, a 15-question level check, 16 new generators |
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
 | B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
+| B34 | Integration: Improper Integrals | **done** (`claude/roadmap-b-integration-4-gbuy3r`): level `in-l7`, 5 lessons, a 15-question level check, 17 new generators and an independent numeric check |
 
 ### Phase C — the twenty-one new concepts
 
@@ -495,6 +508,7 @@ batch rather than waiting on a separate one.
 | ---: | --- | --- |
 | C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
 | C2-widget | Graph-transformation widget for C2, reused by C3 | **done** (`claude/roadmap-c2-widget-transform-tm5x5d`): slide kind `transform` (apply and match), graded by comparing curves, 2 demo generators asked by no lesson yet |
+| C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
 
 ### When the queue empties
 

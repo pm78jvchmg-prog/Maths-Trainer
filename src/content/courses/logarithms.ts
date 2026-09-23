@@ -11,7 +11,10 @@
  * its reflection y = a^x, what transformations do to it, and reading
  * solutions off it. Level 6 straightens a curve with logs: a power model
  * against log x, an exponential against x, the model back from two points on
- * the line, and choosing which graph to plot.
+ * the line, and choosing which graph to plot. Level 7 solves equations that
+ * need several of those ideas at once: logs on both sides, logs equal to a
+ * number, the impostor root the domain throws out, quadratics in log x, and
+ * pairs of equations or mixed bases.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -1462,6 +1465,232 @@ export const logarithms: Course = {
         ask('log-lin-axes-flow', 2),
         ask('log-lin-predict', 2),
         ask('log-lin-straight-choice', 2),
+      ],
+    },
+    {
+      id: 'lg-l7',
+      title: 'Compound Log Equations',
+      lessons: [
+        {
+          id: 'lg-l7-both',
+          title: 'Logs on Both Sides',
+          slides: [
+            teach(
+              prose(
+                'Every equation in this level needs several moves. The first is to collapse each side into a single logarithm with the laws.',
+              ),
+              prose('Then, with one logarithm each side and the same base, drop them: the arguments are equal.'),
+              maths('\\log A = \\log B \\implies A = B'),
+              prose('$\\log$ with no base means $\\log_{10}$, as in the last level.'),
+            ),
+            ask('log-cmp-combine-tiles'),
+            ask('log-cmp-quotient-tree'),
+            teach(
+              prose('A sum collapses by the product law, and that gives a quadratic.'),
+              maths('\\begin{aligned} &\\log(x + 3) + \\log(x - 1) \\\\ &\\quad = \\log 5 \\end{aligned}'),
+              maths('(x + 3)(x - 1) = 5'),
+              maths('x^2 + 2x - 8 = 0'),
+              prose(
+                'So $x = 2$ or $x = -4$. But at $x = -4$, $x + 3 = -1$, and a negative number has no logarithm. $x = -4$ is rejected.',
+              ),
+            ),
+            ask('log-cmp-collapse-steps'),
+            ask('log-cmp-both'),
+            ask('log-cmp-quotient-tree'),
+            teach(
+              prose(
+                'Check every root in the original equation, not in the quadratic. The quadratic is satisfied by both; the logarithms are not.',
+              ),
+              prose('For a sum of two logarithms one root always fails: at it, both arguments are negative.'),
+            ),
+            ask('log-cmp-both+choice'),
+            ask('log-cmp-collapse-steps'),
+            ask('log-cmp-combine-tiles'),
+          ],
+          skillCheck: [
+            ask('log-cmp-both', 2),
+            ask('log-cmp-combine-tiles', 2),
+            ask('log-cmp-collapse-steps', 2),
+          ],
+        },
+        {
+          id: 'lg-l7-number',
+          title: 'Logs Equal to a Number',
+          slides: [
+            teach(
+              prose('When the other side is a number, collapse the logarithms and write the result in index form:'),
+              maths('\\log_{b} A = k \\implies A = b^{k}'),
+              maths('\\log_{2} x + \\log_{2}(x - 2) = 3'),
+              maths('x(x - 2) = 2^{3} = 8'),
+            ),
+            ask('log-cmp-index-tiles'),
+            ask('log-cmp-number'),
+            ask('log-cmp-meet-slider'),
+            teach(
+              prose('From there it goes as before: rearrange, factorise, check.'),
+              maths('x^2 - 2x - 8 = 0'),
+              maths('(x - 4)(x + 2) = 0'),
+              prose('At $x = -2$ the argument $x$ is negative, so $x = 4$ is the solution.'),
+            ),
+            ask('log-cmp-quad-tiles'),
+            ask('log-cmp-number+choice'),
+            ask('log-cmp-index-tiles'),
+            teach(
+              prose(
+                'The picture says the same. The left-hand side is a curve, the number is a flat line, and the solution is where they cross.',
+              ),
+              graph({
+                xMin: -0.4,
+                xMax: 7,
+                yMin: -3,
+                yMax: 5.5,
+                curves: [{ f: (x) => Math.log2(x) + Math.log2(x - 2) }, { f: () => 3, dashed: true }],
+                marks: [{ x: 4, y: 3 }],
+                labels: [{ x: 4, y: 3, text: '(4, 3)' }],
+                label: 'The curve y = log2 x + log2(x - 2) meeting the line y = 3 at x = 4',
+              }),
+              prose('The curve only exists where every argument is positive, so the impostor has nowhere to appear.'),
+            ),
+            ask('log-cmp-meet-slider'),
+            ask('log-cmp-quad-tiles'),
+          ],
+          skillCheck: [
+            ask('log-cmp-number', 2),
+            ask('log-cmp-index-tiles', 2),
+            ask('log-cmp-quad-tiles', 2),
+          ],
+        },
+        {
+          id: 'lg-l7-impostor',
+          title: 'The Impostor Root',
+          slides: [
+            teach(
+              prose(
+                'Dropping the logarithms can create a root the original equation cannot take. Test each root by putting it into every argument; if any is zero or negative, reject it.',
+              ),
+              maths('\\log_{2}(x - 3) + \\log_{2}(x - 2) = 1'),
+              prose(
+                'This gives $x = 1$ or $x = 4$. Both are positive, but at $x = 1$, $x - 3 = -2$. Only $x = 4$ solves it: the arguments must be positive, not $x$.',
+              ),
+            ),
+            ask('log-cmp-impostor-flow'),
+            ask('log-cmp-impostor'),
+            ask('log-cmp-both+choice'),
+            teach(
+              prose('A doubled logarithm is different. The power law squares its argument:'),
+              maths('2\\log x = \\log(x + 6)'),
+              maths('x^2 = x + 6'),
+              prose(
+                'That gives $x = 3$ or $x = -2$. The right-hand argument equals a square, so it is positive at both; only $x$ itself can fail, and $x = -2$ goes.',
+              ),
+            ),
+            ask('log-cmp-square'),
+            ask('log-cmp-impostor-flow'),
+            ask('log-cmp-number'),
+            teach(
+              prose('Sometimes both roots survive:'),
+              maths('2\\log x = \\log(5x - 6)'),
+              prose('Here $x^2 = 5x - 6$ gives $x = 2$ or $x = 3$, and both keep $x$ and $5x - 6$ positive.'),
+            ),
+            ask('log-cmp-impostor'),
+            ask('log-cmp-square+choice'),
+          ],
+          skillCheck: [
+            ask('log-cmp-impostor-flow', 2),
+            ask('log-cmp-impostor', 2),
+            ask('log-cmp-square', 2),
+          ],
+        },
+        {
+          id: 'lg-l7-quadratic',
+          title: 'Quadratics in log x',
+          slides: [
+            teach(
+              prose('A logarithm can play the part of the unknown. With $u = \\log x$ this is a quadratic in $u$:'),
+              maths('(\\log x)^2 - 3\\log x + 2 = 0'),
+              maths('u^2 - 3u + 2 = 0'),
+              prose('So $u = 1$ or $u = 2$. Each is a value of $\\log x$, so undo it: $x = 10$ or $x = 100$.'),
+            ),
+            ask('log-cmp-sub-tiles'),
+            ask('log-cmp-sub-steps'),
+            ask('log-cmp-sub-root'),
+            teach(
+              prose('A squared logarithm is not the logarithm of a square:'),
+              maths('(\\log x)^2 = u^2'),
+              maths('\\log(x^2) = 2\\log x = 2u'),
+              prose('The laws hide $u$ in other places too: $\\log(10x) = 1 + u$.'),
+            ),
+            ask('log-cmp-hidden'),
+            ask('log-cmp-sub-root+choice'),
+            ask('log-cmp-sub-steps'),
+            teach(
+              prose('Never divide through by $\\log x$. It can be zero, and dividing loses that root:'),
+              maths('(\\log x)^2 = 3\\log x'),
+              prose('Moved to one side, $u^2 - 3u = 0$ gives $u = 0$ or $u = 3$: $x = 1$ or $x = 1000$.'),
+            ),
+            ask('log-cmp-sub-tiles'),
+            ask('log-cmp-hidden'),
+          ],
+          skillCheck: [
+            ask('log-cmp-sub-root', 2),
+            ask('log-cmp-hidden', 2),
+            ask('log-cmp-sub-tiles', 2),
+          ],
+        },
+        {
+          id: 'lg-l7-systems',
+          title: 'Two Unknowns and Mixed Bases',
+          slides: [
+            teach(
+              prose('Two equations can pin down two unknowns. Treat $\\log x$ and $\\log y$ as the unknowns and add the equations:'),
+              maths('\\log x + \\log y = 3'),
+              maths('\\log x - \\log y = 1'),
+              prose('So $2\\log x = 4$, $\\log x = 2$ and $\\log y = 1$. Undo both: $x = 100$, $y = 10$.'),
+              prose('A logarithm of a product or quotient splits first: $\\log(xy) = 3$ is $\\log x + \\log y = 3$.'),
+            ),
+            ask('log-cmp-pair-tree'),
+            ask('log-cmp-system'),
+            teach(
+              prose('Logarithms in different bases must share one before they combine. When one base is a power of the other, change of base does it:'),
+              maths('\\log_{4} x = \\frac{\\log_{2} x}{\\log_{2} 4} = \\frac{1}{2}\\log_{2} x'),
+              maths('\\log_{2} x + \\log_{4} x = 6'),
+              prose('So $\\frac{3}{2}\\log_{2} x = 6$, $\\log_{2} x = 4$ and $x = 16$.'),
+            ),
+            ask('log-cmp-base-tiles'),
+            ask('log-cmp-mixed'),
+            ask('log-cmp-system+choice'),
+            teach(
+              prose('Subtraction works the same way, with the larger base first or second:'),
+              maths('\\log_{9} x - \\log_{3} x = -1'),
+              prose('This is $-\\frac{1}{2}\\log_{3} x = -1$, so $\\log_{3} x = 2$ and $x = 9$.'),
+            ),
+            ask('log-cmp-mixed+choice'),
+            ask('log-cmp-pair-tree'),
+            ask('log-cmp-base-tiles'),
+          ],
+          skillCheck: [
+            ask('log-cmp-mixed', 2),
+            ask('log-cmp-pair-tree', 2),
+            ask('log-cmp-system', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('log-cmp-combine-tiles', 2),
+        ask('log-cmp-quotient-tree', 2),
+        ask('log-cmp-both', 2),
+        ask('log-cmp-collapse-steps', 2),
+        ask('log-cmp-index-tiles', 2),
+        ask('log-cmp-number+choice', 2),
+        ask('log-cmp-meet-slider', 2),
+        ask('log-cmp-impostor-flow', 2),
+        ask('log-cmp-square', 2),
+        ask('log-cmp-impostor', 2),
+        ask('log-cmp-sub-tiles', 2),
+        ask('log-cmp-hidden', 2),
+        ask('log-cmp-sub-root', 2),
+        ask('log-cmp-pair-tree', 2),
+        ask('log-cmp-mixed+choice', 2),
       ],
     },
   ],

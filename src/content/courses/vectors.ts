@@ -962,6 +962,56 @@ export const vectors: Course = {
             ask('cross-unknown', 2),
           ],
         },
+        {
+          id: 'vm-l8-perpendicular',
+          title: 'What the Cross Product Is For',
+          slides: [
+            teach(
+              prose(
+                'The cross product $\\mathbf{a} \\times \\mathbf{b}$ is **perpendicular to both** $\\mathbf{a}$ and $\\mathbf{b}$. That is what it is for: given two directions, it finds a third at right angles to both.',
+              ),
+              prose(
+                'The dot product checks it, since perpendicular vectors have a dot product of zero. With the example from the last lesson:',
+              ),
+              maths(
+                '\\begin{pmatrix} -2 \\\\ 13 \\\\ -8 \\end{pmatrix} \\cdot \\begin{pmatrix} 1 \\\\ 2 \\\\ 3 \\end{pmatrix}',
+              ),
+              maths('= -2 + 26 - 24 = 0'),
+              prose('Any non-zero multiple of $\\mathbf{a} \\times \\mathbf{b}$ is perpendicular to both as well.'),
+            ),
+            ask('cross-perpendicular'),
+            ask('cross-product'),
+            ask('cross-check-tree'),
+            teach(
+              prose(
+                'The **length** of $\\mathbf{a} \\times \\mathbf{b}$ is the area of the parallelogram with sides $\\mathbf{a}$ and $\\mathbf{b}$.',
+              ),
+              maths('\\text{area} = \\left|\\mathbf{a} \\times \\mathbf{b}\\right|'),
+              maths(
+                '\\begin{pmatrix} 2 \\\\ 0 \\\\ 1 \\end{pmatrix} \\times \\begin{pmatrix} 0 \\\\ 2 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} -2 \\\\ -4 \\\\ 4 \\end{pmatrix}',
+              ),
+              maths('\\sqrt{4 + 16 + 16} = 6'),
+              prose('So those two sides make a parallelogram of area $6$. Leaving out the square root is the usual slip.'),
+            ),
+            ask('cross-area-tree'),
+            ask('cross-product+choice'),
+            ask('cross-check-tree', 2),
+            teach(
+              prose('A triangle on the same two sides is half the parallelogram.'),
+              maths('\\text{triangle} = \\tfrac{1}{2}\\left|\\mathbf{a} \\times \\mathbf{b}\\right|'),
+              prose(
+                'When the corners are given as points, the sides are journeys out of one corner: for triangle $ABC$, cross $\\overrightarrow{AB}$ with $\\overrightarrow{AC}$.',
+              ),
+            ),
+            ask('cross-area'),
+            ask('cross-perpendicular', 2),
+          ],
+          skillCheck: [
+            ask('cross-area', 2),
+            ask('cross-perpendicular', 2),
+            ask('cross-check-tree', 2),
+          ],
+        },
       ],
     },
   ],

@@ -40,6 +40,7 @@ import {
   quadraticTex,
   signedTile,
 } from './quadratics';
+import { simultaneousGenerators } from './quadraticSimultaneous';
 
 /**
  * Four whole-number options built from `offer`, the correct one flagged.
@@ -1175,4 +1176,7 @@ export const quadraticShapeGenerators = [
   vertexSlider,
   formulaValues,
   discriminantTree,
+  // Level 4, simultaneous equations: kept in a file of its own and listed
+  // here so the registry needs no new import.
+  ...simultaneousGenerators,
 ] as unknown as Generator<unknown>[];

@@ -1,14 +1,16 @@
 /**
- * The graph-transformation widget's first two generators.
+ * The graph-transformation widget's generators.
  *
- * One asks each direction of the `transform` slide: `transform-apply` names a
- * target equation and asks for the curve, `transform-match` draws a target
- * curve and asks for the transformation. No lesson asks either yet — the
- * Functions & Transformations course comes in a later batch — but the property
- * sweep in `generators.test.ts` covers them all the same.
+ * Each asks one direction of the `transform` slide: `-apply` names a target
+ * equation and asks for the curve, `-match` draws a target curve and asks for
+ * the transformation. `transform-apply` and `transform-match` are the widget's
+ * demonstrations, drawing from every move; the `fun-*` pairs at the bottom are
+ * the Functions & Transformations lessons', each drawing only from the moves
+ * its lesson is about.
  *
- * Difficulty 1 is one move; difficulty 2 combines two different ones. Every
- * number comes from the rng, so one seed is one question.
+ * For the demonstrations, difficulty 1 is one move and difficulty 2 combines
+ * two different ones. Every number comes from the rng, so one seed is one
+ * question.
  *
  * Some moves are left out for some curves because they draw a curve another
  * move already draws, and a question the learner cannot tell apart from a
@@ -213,4 +215,93 @@ const transformMatch: Generator<TransformParams> = {
   solution: (params) => solution(params, 'match'),
 };
 
-export const transformGraphGenerators = [transformApply, transformMatch];
+/* ======================================================================
+ * The Functions & Transformations lessons (batch C2)
+ * ==================================================================== */
+
+/**
+ * Draw a question whose moves come from `pick`, under the same rules as the
+ * demonstrations: nothing another move on this curve already draws, no flip
+ * left to right on a curve already moved across, never the untouched curve,
+ * and enough of the target on screen to lay a curve onto.
+ */
+function sampleWith(rng: Rng, pick: (rng: Rng) => Move[]): TransformParams {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const base = rng.pick(CURVES);
+    const picked = pick(rng);
+    if (picked.some((move) => (DUPLICATE_MOVES[base] ?? []).includes(move))) continue;
+    if (picked.includes('flipX') && picked.includes('moveX')) continue;
+
+    const moves = ORDER.filter((move) => picked.includes(move));
+    const t = moves.reduce((acc, move) => applyMove(rng, base, acc, move), IDENTITY);
+    if (sameCurve(base, t, IDENTITY, BASES[base].window)) continue;
+    if (!targetVisible(base, t)) continue;
+    return { base, moves, t };
+  }
+  return { base: 'square', moves: ['moveY'], t: { ...IDENTITY, k: 2 } };
+}
+
+/** One lesson's pair: the target named and the curve asked for, then the reverse. */
+function lessonPair(name: string, pick: (rng: Rng, difficulty: number) => Move[]): Generator<TransformParams>[] {
+  const draw = (rng: Rng, difficulty: number) => sampleWith(rng, (r) => pick(r, difficulty));
+  return [
+    {
+      id: `fun-${name}-apply`,
+      sample: draw,
+      render: (params) => render(params, 'apply'),
+      solution: (params) => solution(params, 'apply'),
+    },
+    {
+      id: `fun-${name}-match`,
+      sample: draw,
+      render: (params) => render(params, 'match'),
+      solution: (params) => solution(params, 'match'),
+    },
+  ];
+}
+
+const ACROSS_OR_UP: Move[] = ['moveX', 'moveY'];
+
+/**
+ * Translations: one move at difficulty 1, both at difficulty 2.
+ */
+const translatePair = lessonPair('translate', (rng, difficulty) =>
+  difficulty > 1 ? ['moveX', 'moveY'] : [rng.pick(ACROSS_OR_UP)],
+);
+
+/**
+ * Stretches: one at difficulty 1, then with a translation at difficulty 2.
+ */
+const stretchPair = lessonPair('stretch', (rng, difficulty) => {
+  const stretch = rng.pick<Move>(['stretchX', 'stretchY']);
+  return difficulty > 1 ? [stretch, rng.pick(ACROSS_OR_UP)] : [stretch];
+});
+
+/**
+ * Reflections. A flip alone gives too few different questions — seven curves,
+ * and the two symmetrical ones cannot be flipped left to right — so most draws
+ * move the flipped curve as well; difficulty 2 always adds a second change.
+ */
+const reflectPair = lessonPair('reflect', (rng, difficulty) => {
+  const flip = rng.pick<Move>(['flipX', 'flipY']);
+  if (difficulty > 1) return [flip, rng.pick<Move>(['moveX', 'moveY', 'stretchY'])];
+  return rng.chance(0.4) ? [flip] : [flip, rng.pick(ACROSS_OR_UP)];
+});
+
+/**
+ * Combinations: a stretch or a reflection with a translation, and at
+ * difficulty 2 with both translations, so three changes to put in order.
+ */
+const combinePair = lessonPair('combine', (rng, difficulty) => {
+  const shape = rng.pick<Move>(['stretchX', 'stretchY', 'flipY']);
+  return difficulty > 1 ? [shape, 'moveX', 'moveY'] : [shape, rng.pick(ACROSS_OR_UP)];
+});
+
+export const transformGraphGenerators = [
+  transformApply,
+  transformMatch,
+  ...translatePair,
+  ...stretchPair,
+  ...reflectPair,
+  ...combinePair,
+];

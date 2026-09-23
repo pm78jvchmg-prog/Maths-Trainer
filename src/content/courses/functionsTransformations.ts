@@ -6,8 +6,14 @@
  * another, and a function undone. It closes on which functions can be undone
  * at all, and what the undoing looks like on a graph.
  *
- * Later levels — moving and stretching graphs, graphs of functions, even and
- * odd functions, and the rest — are in the level plan in `docs/ROADMAP.md`.
+ * Level 2 moves graphs, on the `transform` widget: translations, stretches,
+ * reflections, then several at once, in order, and a transformation said in
+ * words. Which reflection a curve has had is asked through the algebra rather
+ * than the widget, since the widget grades curves and for a symmetrical curve
+ * the two reflections draw the same thing.
+ *
+ * Later levels — graphs of functions, even and odd functions, and the rest —
+ * are in `docs/roadmap/levels/functions-transformations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -298,6 +304,228 @@ export const functionsTransformations: Course = {
         ask('fun-composite-form', 2),
         ask('fun-inverse-value', 2),
         ask('fun-inverse-point', 2),
+      ],
+    },
+    {
+      id: 'fn-l2',
+      title: 'Transformations',
+      lessons: [
+        {
+          id: 'fn-l2-translate',
+          title: 'Translations',
+          slides: [
+            teach(
+              prose(
+                'Change a function\'s equation and its graph moves. Adding a number **outside** the $f$ adds it to every output, so the whole curve moves up:',
+              ),
+              graph(
+                [(x) => x * x + 2],
+                { xMin: -4, xMax: 4, yMin: -2, yMax: 8 },
+                'The parabola y = x squared, dashed, and the same curve two units higher',
+                [(x) => x * x],
+              ),
+              maths('y = f(x) + 2'),
+              prose(
+                'In the questions that follow, the dashed curve is $y = f(x)$ and yours is the solid one. Move it with the buttons until it matches.',
+              ),
+            ),
+            ask('fun-translate-apply'),
+            ask('fun-shift-words'),
+            ask('fun-shift-point'),
+            teach(
+              prose(
+                'A number **inside** the bracket moves the curve across — and the opposite way to its sign. $f(x + 2)$ moves the curve $2$ to the **left**:',
+              ),
+              graph(
+                [(x) => (x + 2) ** 2],
+                { xMin: -5, xMax: 3, yMin: -2, yMax: 8 },
+                'The parabola y = x squared, dashed, and the same curve two units to the left',
+                [(x) => x * x],
+              ),
+              prose(
+                'The new curve reaches each height when $x + 2$ is what $x$ used to be, which is $2$ sooner. So $f(x - 3)$ moves right $3$.',
+              ),
+            ),
+            ask('fun-translate-match'),
+            ask('fun-shift-words', 2),
+            ask('fun-translate-apply', 2),
+            teach(
+              prose('Both at once: the inside moves across, the outside moves up or down.'),
+              maths('y = f(x - 1) + 4'),
+              prose('That is $1$ right and $4$ up. A point $(p, q)$ on $y = f(x)$ goes to $(p + 1, q + 4)$.'),
+            ),
+            ask('fun-shift-point', 2),
+            ask('fun-translate-match', 2),
+          ],
+          skillCheck: [ask('fun-translate-apply', 2), ask('fun-shift-words', 2), ask('fun-shift-point', 2)],
+        },
+        {
+          id: 'fn-l2-stretch',
+          title: 'Stretches',
+          slides: [
+            teach(
+              prose(
+                'Multiplying **outside** the $f$ multiplies every output, so the curve is stretched upwards from the $x$-axis:',
+              ),
+              maths('y = 2f(x)'),
+              prose(
+                'That is a stretch parallel to the $y$-axis, scale factor $2$: every height doubles, and anything on the $x$-axis stays put.',
+              ),
+            ),
+            ask('fun-stretch-apply'),
+            ask('fun-stretch-words'),
+            ask('fun-stretch-point'),
+            teach(
+              prose(
+                'Multiplying $x$ **inside** stretches the curve across — by the **reciprocal**. $f(2x)$ gets to each height when $x$ is half as big, so the curve is squeezed to half its width:',
+              ),
+              graph(
+                [(x) => Math.sin(2 * x)],
+                { xMin: -3.5, xMax: 3.5, yMin: -1.6, yMax: 1.6 },
+                'The sine curve, dashed, and the same curve squeezed to half its width',
+                [(x) => Math.sin(x)],
+              ),
+              prose('So $y = f(2x)$ is a stretch parallel to the $x$-axis with scale factor $\\tfrac{1}{2}$.'),
+            ),
+            ask('fun-stretch-match'),
+            ask('fun-stretch-words', 2),
+            ask('fun-stretch-apply', 2),
+            teach(
+              prose(
+                'For a point: outside, multiply the $y$-coordinate by the factor; inside, **divide** the $x$-coordinate by it.',
+              ),
+              prose('So $(4, 3)$ on $y = f(x)$ goes to $(2, 3)$ on $y = f(2x)$, and to $(4, 9)$ on $y = 3f(x)$.'),
+            ),
+            ask('fun-stretch-point', 2),
+            ask('fun-stretch-match', 2),
+          ],
+          skillCheck: [ask('fun-stretch-apply', 2), ask('fun-stretch-words', 2), ask('fun-stretch-point', 2)],
+        },
+        {
+          id: 'fn-l2-reflect',
+          title: 'Reflections',
+          slides: [
+            teach(
+              prose('A minus sign **outside** makes every output negative: $y = -f(x)$ is a reflection in the $x$-axis.'),
+              prose('A minus sign **inside** swaps each $x$ for $-x$: $y = f(-x)$ is a reflection in the $y$-axis.'),
+              graph(
+                [(x) => 2 ** -x],
+                { xMin: -4, xMax: 4, yMin: -1, yMax: 8 },
+                'The curve y = 2 to the x, dashed, and its reflection in the y-axis',
+                [(x) => 2 ** x],
+              ),
+            ),
+            ask('fun-reflect-apply'),
+            ask('fun-reflect-words'),
+            ask('fun-reflect-point'),
+            teach(
+              prose(
+                'Some curves look the same after a reflection. $x^2$ is symmetrical about the $y$-axis, so reflecting it in the $y$-axis changes nothing — and for $x^3$ the two reflections draw the same curve.',
+              ),
+              prose(
+                'So to tell the reflections apart, read the equation: which terms changed sign? Outside, all of them; inside, only the odd powers of $x$.',
+              ),
+            ),
+            ask('fun-reflect-match'),
+            ask('fun-reflect-words', 2),
+            ask('fun-reflect-apply', 2),
+            teach(
+              prose('For a point: a minus outside flips the $y$-coordinate, and a minus inside flips the $x$-coordinate.'),
+              prose('So $(3, 5)$ goes to $(3, -5)$ on $y = -f(x)$, and to $(-3, 5)$ on $y = f(-x)$.'),
+            ),
+            ask('fun-reflect-point', 2),
+            ask('fun-reflect-match', 2),
+          ],
+          skillCheck: [ask('fun-reflect-apply', 2), ask('fun-reflect-words', 2), ask('fun-reflect-point', 2)],
+        },
+        {
+          id: 'fn-l2-combine',
+          title: 'Combining Transformations',
+          slides: [
+            teach(
+              prose('Changes can be combined. Read the outside from the $f$ outwards, in the order a number would meet them:'),
+              maths('y = 2f(x) + 3'),
+              prose('Each output is doubled **first**, then has $3$ added: stretch, then move up.'),
+              maths('y = 2(f(x) + 3) = 2f(x) + 6'),
+              prose('Here the $3$ is added first and then doubled too, so the curve ends up $6$ higher.'),
+            ),
+            ask('fun-combine-apply'),
+            ask('fun-combine-order'),
+            ask('fun-combine-point'),
+            teach(
+              prose(
+                'Changes across and changes up do not get in each other\'s way, so they can happen in either order. Only two changes in the **same** direction have to be put in order.',
+              ),
+              maths('y = 3f(x - 2) - 1'),
+              prose('Move right $2$ at any point; stretch by $3$ **before** moving down $1$.'),
+            ),
+            ask('fun-combine-match'),
+            ask('fun-combine-order', 2),
+            ask('fun-combine-apply', 2),
+            teach(
+              prose(
+                'For a point, do each change to the coordinates in turn. On $y = 3f(x - 2) - 1$ the point $(1, 4)$ goes:',
+              ),
+              maths('\\begin{gathered} x: 1 + 2 = 3 \\\\ y: 3 \\times 4 - 1 = 11 \\end{gathered}'),
+            ),
+            ask('fun-combine-point', 2),
+            ask('fun-combine-match', 2),
+          ],
+          skillCheck: [ask('fun-combine-match', 2), ask('fun-combine-order', 2), ask('fun-combine-point', 2)],
+        },
+        {
+          id: 'fn-l2-describe',
+          title: 'Describing Transformations',
+          slides: [
+            teach(
+              prose('A full description names every change, with its size and direction:'),
+              prose(
+                '**translation** — how far, and which way; **stretch** — parallel to which axis, and the scale factor; **reflection** — in which axis.',
+              ),
+              prose(
+                'To write the equation from the words, put each change where it acts: across goes inside the bracket with its sign turned round, up goes on the end, and a stretch upwards multiplies the $f$.',
+              ),
+            ),
+            ask('fun-describe-form'),
+            ask('fun-describe-words'),
+            ask('fun-combine-match'),
+            teach(
+              prose(
+                'Order matters when the move up happens **before** the stretch: the stretch then applies to the move as well.',
+              ),
+              prose('Move up $2$, then stretch upwards by $3$:'),
+              maths('y = 3(f(x) + 2) = 3f(x) + 6'),
+            ),
+            ask('fun-describe-form+choice', 2),
+            ask('fun-combine-apply', 2),
+            ask('fun-describe-words', 2),
+            teach(
+              prose(
+                'Going the other way, read the equation from the $f$ outwards and say each change in that order. Check by taking one point through every change.',
+              ),
+            ),
+            ask('fun-combine-point', 2),
+            ask('fun-combine-match', 2),
+          ],
+          skillCheck: [ask('fun-describe-form', 2), ask('fun-describe-words', 2), ask('fun-combine-match', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('fun-translate-apply', 2),
+        ask('fun-shift-words', 2),
+        ask('fun-shift-point', 2),
+        ask('fun-stretch-match', 2),
+        ask('fun-stretch-words', 2),
+        ask('fun-stretch-point', 2),
+        ask('fun-reflect-apply', 2),
+        ask('fun-reflect-words', 2),
+        ask('fun-reflect-point', 2),
+        ask('fun-combine-match', 2),
+        ask('fun-combine-order', 2),
+        ask('fun-combine-point', 2),
+        ask('fun-describe-form', 2),
+        ask('fun-describe-words', 2),
+        ask('fun-combine-apply', 2),
       ],
     },
   ],

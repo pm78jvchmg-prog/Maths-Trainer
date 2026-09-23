@@ -4600,6 +4600,1382 @@ const gapFirst: Generator<GapFirstParams> = {
   },
 };
 
+/* ---------- Level 4: sums of powers and the method of differences ---------- */
+
+type Power = 1 | 2 | 3;
+
+/** Σr, Σr² or Σr³ from r = 1 to n, by the standard result. */
+function powerSum(k: Power, n: number): number {
+  if (k === 1) return (n * (n + 1)) / 2;
+  if (k === 2) return (n * (n + 1) * (2 * n + 1)) / 6;
+  return ((n * (n + 1)) / 2) ** 2;
+}
+
+/** A slip on each standard result: no halving, a third for a sixth, Σr left unsquared. */
+function resultSlip(k: Power, n: number): number {
+  if (k === 1) return n * (n + 1);
+  if (k === 2) return (n * (n + 1) * (2 * n + 1)) / 3;
+  return (n * (n + 1)) / 2;
+}
+
+/** r, r^2 or r^3, as the general term after a sigma. */
+function powerTex(k: Power): string {
+  return k === 1 ? 'r' : `r^${k}`;
+}
+
+/** The standard results, as the learner reads them. */
+const RESULT_TEX: Record<Power, string> = {
+  1: '\\frac{1}{2}n(n + 1)',
+  2: '\\frac{1}{6}n(n + 1)(2n + 1)',
+  3: '\\frac{1}{4}n^2(n + 1)^2',
+};
+
+/** The standard result with a number in place of n, before it is worked out. */
+function resultAt(k: Power, n: number): string {
+  if (k === 1) return `\\frac{1}{2} \\times ${n} \\times ${n + 1}`;
+  if (k === 2) return `\\frac{1}{6} \\times ${n} \\times ${n + 1} \\times ${2 * n + 1}`;
+  return `\\frac{1}{4} \\times ${n}^2 \\times ${n + 1}^2`;
+}
+
+/** 1^k + 2^k + … + n^k written out, as the sum is met on paper. */
+function powersWritten(k: Power, n: number): string {
+  const term = (r: number) => (k === 1 ? `${r}` : `${r}^${k}`);
+  return `${term(1)} + ${term(2)} + ${term(3)} + \\dots + ${term(n)}`;
+}
+
+/** A sum of f(r) from lo to hi, added up term by term. */
+function addUp(f: (r: number) => number, lo: number, hi: number): number {
+  let total = 0;
+  for (let r = lo; r <= hi; r += 1) total += f(r);
+  return total;
+}
+
+/** `\sum_{r=lo}^{hi}` with either end a number or a letter. */
+function sumFrom(lo: number | string, hi: number | string): string {
+  return `\\sum_{r=${lo}}^{${hi}}`;
+}
+
+/** a n + b, or the plain number b when a is 0. */
+function topTex(a: number, b: number): string {
+  return a === 0 ? `${b}` : linearTex(a, b);
+}
+
+/** a r^2 + b r + c in the letter r, zero terms left out. */
+function quadRTex(a: number, b: number, c: number): string {
+  return sumTex([termTex(a, 2), termTex(b, 1), `${c}`]).replace(/x/g, 'r');
+}
+
+/** `+ 3body`, `- body`: a signed term, its coefficient left off when it is 1. */
+function signedTerm(c: number, body: string): string {
+  const size = Math.abs(c) === 1 ? '' : `${Math.abs(c)}`;
+  return `${c < 0 ? '-' : '+'} ${size}${body}`;
+}
+
+/* Level 4, lesson 1: the standard results */
+
+interface PowerTilesParams {
+  k: Power;
+  /** The top of the sum as a n + b; a = 0 is a plain number. */
+  a: number;
+  b: number;
+}
+
+const TOPS: [number, number][] = [
+  [2, 0], [3, 0], [4, 0], [1, 1], [1, -1], [1, 2], [1, 3], [2, 1], [2, -1], [2, 2], [3, 1], [3, -1],
+];
+
+const PRODUCT_TEMPLATE: Record<Power, string> = {
+  1: '\\frac12({0})({1})',
+  2: '\\frac16({0})({1})({2})',
+  3: '\\frac14({0})^2({1})^2',
+};
+
+/**
+ * A standard result as a product, its factors placed as tiles. Easier draws
+ * stop at a number; harder ones stop at 2n or n + 1, so every n in the result
+ * becomes that. The factors may go in any order, which is why this is
+ * unordered: every blank is a factor, so a reordering is the same product.
+ */
+const powerSumTiles: Generator<PowerTilesParams> = {
+  id: 'seq-power-sum-tiles',
+  sample: (rng, difficulty) => {
+    const k = rng.pick<Power>([1, 2, 3]);
+    if (difficulty > 1) {
+      const [a, b] = rng.pick(TOPS);
+      return { k, a, b };
+    }
+    return { k, a: 0, b: k === 1 ? rng.int(5, 40) : k === 2 ? rng.int(4, 15) : rng.int(3, 12) };
+  },
+  render: ({ k, a, b }): Slide => {
+    // m + shift, or 2m + shift, where m is the top of the sum.
+    const m = (shift: number, times = 1) => topTex(times * a, times * b + shift);
+    const answer = k === 2 ? [m(0), m(1), m(1, 2)] : [m(0), m(1)];
+    const slips = [m(-1), m(-1, 2), m(2), ...(a === 0 ? [] : ['n', 'n + 1', '2n + 1']), m(0, 2), m(1, 2)];
+    const top = topTex(a, b);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            a === 0
+              ? `Write this sum as a product, using the standard result for $\\sum ${powerTex(k)}$.`
+              : `Put $${top}$ in place of $n$ in the standard result for $\\sum ${powerTex(k)}$, to write this sum as a product.`,
+        },
+        { kind: 'display', tex: `${sumFrom(1, top)} ${powerTex(k)}` },
+      ],
+      template: PRODUCT_TEMPLATE[k],
+      bank: tileBank(answer, slips, 4),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ k, a, b }) => {
+    const m = (shift: number, times = 1) => topTex(times * a, times * b + shift);
+    const product = { 1: `\\frac{1}{2}(${m(0)})(${m(1)})`, 2: `\\frac{1}{6}(${m(0)})(${m(1)})(${m(1, 2)})`, 3: `\\frac{1}{4}(${m(0)})^2(${m(1)})^2` }[k];
+    const steps: SolutionStep[] = [{ text: `The standard result is $${sumFrom(1, 'n')} ${powerTex(k)} = ${RESULT_TEX[k]}$.` }];
+    if (a === 0) {
+      steps.push({ text: `Here $n = ${b}$, so $n + 1 = ${b + 1}$${k === 2 ? ` and $2n + 1 = ${2 * b + 1}$` : ''}.` });
+      steps.push({ tex: `\\begin{gathered} ${sumFrom(1, b)} ${powerTex(k)} = ${product} \\\\ = ${powerSum(k, b)} \\end{gathered}` });
+    } else {
+      steps.push({
+        text: `Every $n$ becomes $${m(0)}$, so $n + 1$ becomes $${m(1)}$${k === 2 ? ` and $2n + 1$ becomes $2(${m(0)}) + 1 = ${m(1, 2)}$` : ''}.`,
+      });
+      // The sixth's three factors do not fit one phone line, so the last two go below.
+      const shown = k === 2 ? `\\frac{1}{6}(${m(0)}) \\\\ \\times (${m(1)})(${m(1, 2)})` : product;
+      steps.push({ tex: `\\begin{gathered} ${sumFrom(1, m(0))} ${powerTex(k)} \\\\ = ${shown} \\end{gathered}` });
+    }
+    return steps;
+  },
+};
+
+interface PowerSumParams {
+  k: Power;
+  n: number;
+  /** Shown written out, 1^2 + 2^2 + … + n^2, rather than in sigma form. */
+  written: boolean;
+}
+
+/** Σr, Σr² or Σr³ up to a number, typed. */
+const powerSumAsk: Generator<PowerSumParams> = {
+  id: 'seq-power-sum',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const k = hard ? rng.pick<Power>([2, 3]) : rng.pick<Power>([1, 2]);
+    const n = k === 1 ? rng.int(10, 40) : k === 2 ? (hard ? rng.int(10, 20) : rng.int(5, 12)) : rng.int(4, 12);
+    return { k, n, written: rng.chance(0.5) };
+  },
+  choices: ({ k, n }) => numberOptions(powerSum(k, n), [resultSlip(k, n), powerSum(k, n - 1), powerSum(k, n + 1)]),
+  render: ({ k, n, written }): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: written ? 'Use a standard result to add these up.' : 'Use a standard result to find this sum.' },
+        { kind: 'display', tex: written ? powersWritten(k, n) : `${sumFrom(1, n)} ${powerTex(k)}` },
+      ],
+      '\\text{sum} =',
+      powerSum(k, n),
+    ),
+  solution: ({ k, n, written }) => [
+    ...(written ? [{ text: `This is $${sumFrom(1, n)} ${powerTex(k)}$.` }] : []),
+    { text: `Use $${sumFrom(1, 'n')} ${powerTex(k)} = ${RESULT_TEX[k]}$ with $n = ${n}$.` },
+    { tex: `\\begin{gathered} ${resultAt(k, n)} \\\\ = ${powerSum(k, n)} \\end{gathered}` },
+  ],
+};
+
+interface PowerTableParams {
+  k: Power;
+  /** The first n in the table. */
+  start: number;
+  /** Rows (0 to 4) whose running total is a blank. */
+  sumBlanks: number[];
+  /** The row whose term is a blank, where there is a term column. */
+  termBlank: number;
+}
+
+/**
+ * n, n^k and the running total S_n in a table. A total is the one above plus
+ * the next term; at difficulty 2 the first total is blank too, so it has to
+ * come from the standard result.
+ */
+const powerSumTable: Generator<PowerTableParams> = {
+  id: 'seq-power-sum-table',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const k = rng.pick<Power>([2, 3]);
+      return { k, start: k === 2 ? rng.int(3, 10) : rng.int(2, 7), sumBlanks: [0, ...positions(rng, 1, 4, 2)], termBlank: rng.int(1, 4) };
+    }
+    const k = rng.pick<Power>([1, 2]);
+    return { k, start: rng.int(1, 8), sumBlanks: positions(rng, 1, 4, k === 1 ? 3 : 2), termBlank: rng.int(1, 4) };
+  },
+  render: ({ k, start, sumBlanks, termBlank }): Slide => {
+    const ns = [0, 1, 2, 3, 4].map((i) => start + i);
+    const withTerms = k > 1;
+    const answer: number[] = [];
+    const slips: number[] = [];
+    const rows = ns.map((n, i) => {
+      const term = n ** k;
+      const total = powerSum(k, n);
+      const row: (string | null)[] = [`${n}`];
+      if (withTerms) {
+        if (i === termBlank) {
+          answer.push(term);
+          slips.push(k * n, (n + 1) ** k, n ** (k + 1));
+        }
+        row.push(i === termBlank ? null : `${term}`);
+      }
+      if (sumBlanks.includes(i)) {
+        answer.push(total);
+        slips.push(total - term + (n + 1) ** k, total + term, resultSlip(k, n), total - n);
+      }
+      row.push(sumBlanks.includes(i) ? null : `${total}`);
+      return row;
+    });
+    const where = `$S_n = ${sumFrom(1, 'n')} ${powerTex(k)}$`;
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: sumBlanks.includes(0)
+            ? `Fill in the table, where ${where}. The first total needs the standard result; each one after is the one above plus the next term.`
+            : `Fill in the table, where ${where}: each total is the one above plus the next term.`,
+        },
+      ],
+      columns: withTerms ? ['n', `n^${k}`, 'S_n'] : ['n', 'S_n'],
+      rows,
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ k, start, sumBlanks }) => {
+    const ns = [0, 1, 2, 3, 4].map((i) => start + i);
+    return [
+      ...(sumBlanks.includes(0) ? [{ text: `The first total is the standard result at $n = ${start}$:` }, { tex: chain(`S_{${start}} &= ${resultAt(k, start)}`, `&= ${powerSum(k, start)}`) }] : []),
+      { text: 'Then add each new term to the total above it.' },
+      { tex: chain(...ns.slice(1).map((n) => `S_{${n}} &= ${powerSum(k, n - 1)} + ${n ** k} = ${powerSum(k, n)}`)) },
+    ];
+  },
+};
+
+interface FormulaParams {
+  k: Power;
+  n: number;
+}
+
+/** The standard result at n, as a tree: n × (n + 1) ÷ 2, and so on. */
+function formulaParts({ k, n }: FormulaParams): { expr: Expr; division: Expr; at: string } {
+  const pair = bin('*', num(n), bin('+', num(n), num(1)));
+  if (k === 1) {
+    const division = bin('/', pair, num(2));
+    return { expr: division, division, at: 'r' };
+  }
+  if (k === 2) {
+    const division = bin('/', bin('*', pair, bin('+', bin('*', num(2), num(n)), num(1))), num(6));
+    return { expr: division, division, at: 'r' };
+  }
+  const division = bin('/', pair, num(2));
+  return { expr: pow(division, num(2)), division, at: 'r.b' };
+}
+
+/** A standard result with its n filled in, reduced a piece at a time. */
+const formulaReduce: Generator<FormulaParams> = {
+  id: 'seq-formula-reduce',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const k = rng.pick<Power>([2, 3]);
+      return { k, n: k === 2 ? rng.int(4, 20) : rng.int(2, 12) };
+    }
+    const k = rng.pick<Power>([1, 2]);
+    return { k, n: k === 1 ? rng.int(5, 30) : rng.int(3, 12) };
+  },
+  render: (params): Slide => {
+    const { k, n } = params;
+    const { expr, division, at } = formulaParts(params);
+    const banks = banksFor(expr);
+    if (division.kind === 'binary') {
+      // The halving or the sixth: the likely slips are forgetting it or taking a third.
+      const whole = valueOf(division.left);
+      const value = valueOf(division);
+      banks[at] = offer(value, whole, whole / 3, whole / 2, value + n, value - n);
+    }
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The standard result $${sumFrom(1, 'n')} ${powerTex(k)} = ${RESULT_TEX[k]}$ at $n = ${n}$ is written out below. Tap the part you would work out next, then choose what it comes to.`,
+        },
+      ],
+      expr,
+      banks,
+    };
+  },
+  solution: ({ k, n }) => {
+    if (k === 1) return [{ tex: chain(`${n} \\times ${n + 1} &= ${n * (n + 1)}`, `${n * (n + 1)} \\div 2 &= ${powerSum(1, n)}`) }];
+    if (k === 2) {
+      return [
+        { text: 'Brackets first, then multiply along, then divide by 6.' },
+        { tex: chain(`${n} \\times ${n + 1} &= ${n * (n + 1)}`, `${n * (n + 1)} \\times ${2 * n + 1} &= ${n * (n + 1) * (2 * n + 1)}`, `${n * (n + 1) * (2 * n + 1)} \\div 6 &= ${powerSum(2, n)}`) },
+      ];
+    }
+    return [
+      { text: 'Work out $\\sum r$ inside the bracket first, then square it.' },
+      { tex: chain(`${n} \\times ${n + 1} \\div 2 &= ${powerSum(1, n)}`, `${powerSum(1, n)}^2 &= ${powerSum(3, n)}`) },
+    ];
+  },
+};
+
+/* Level 4, lesson 2: sums built from the standard results */
+
+interface SplitTreeParams {
+  /** Σ(ar + b), or Σ r(r + b). */
+  form: 'linear' | 'product';
+  a: number;
+  b: number;
+  n: number;
+}
+
+/** A sum split into standard results, worked as a tree. */
+const splitTree: Generator<SplitTreeParams> = {
+  id: 'seq-split-tree',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return { form: 'product', a: 1, b: rng.pick([-3, -2, 2, 3, 4, 5]), n: rng.int(4, 12) };
+    return { form: 'linear', a: rng.int(2, 6), b: rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6]), n: rng.int(5, 20) };
+  },
+  render: ({ form, a, b, n }): Slide => {
+    const s1 = powerSum(1, n);
+    if (form === 'linear') {
+      const answer = [s1, a * s1, b * n, a * s1 + b * n];
+      return {
+        kind: 'tree',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Split the sum into standard results. Fill the tree: $\\sum r$, then $${a}\\sum r$, then the sum of the $${b}$s, then the total.`,
+          },
+        ],
+        expression: `${sumFrom(1, n)} (${rTex(a, b)})`,
+        nodes: [
+          { id: 'sum', from: [] },
+          { id: 'scaled', from: ['sum'] },
+          { id: 'constant', from: [] },
+          { id: 'total', from: ['scaled', 'constant'] },
+        ],
+        bank: numberBank(answer, [b, a * s1 + b, powerSum(1, n - 1), n * (n + 1), a * powerSum(1, n - 1)]),
+        answer: answer.map(String),
+      };
+    }
+    const s2 = powerSum(2, n);
+    const answer = [s2, s1, b * s1, s2 + b * s1];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Multiply out, $r(r ${signed(b)}) = r^2 ${signed(b)}r$, and split the sum. Fill the tree: $\\sum r^2$, $\\sum r$, then $${b}\\sum r$, then the total.`,
+        },
+      ],
+      expression: `${sumFrom(1, n)} r(r ${signed(b)})`,
+      nodes: [
+        { id: 'squares', from: [] },
+        { id: 'sum', from: [] },
+        { id: 'scaled', from: ['sum'] },
+        { id: 'total', from: ['squares', 'scaled'] },
+      ],
+      bank: numberBank(answer, [b * n, s2 + b * n, powerSum(2, n - 1), s2 + b, s1 * s1]),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ form, a, b, n }) => {
+    const s1 = powerSum(1, n);
+    if (form === 'linear') {
+      return [
+        { tex: `\\begin{gathered} ${sumFrom(1, n)} (${rTex(a, b)}) \\\\ = ${a}${sumFrom(1, n)} r + ${sumFrom(1, n)} ${br(b)} \\end{gathered}` },
+        { text: `$\\sum r = \\frac{1}{2} \\times ${n} \\times ${n + 1} = ${s1}$. Adding $${b}$ once for each of the $${n}$ terms gives $${b} \\times ${n} = ${b * n}$, not $${b}$.` },
+        { tex: `${a} \\times ${s1} ${signed(b * n)} = ${a * s1 + b * n}` },
+      ];
+    }
+    const s2 = powerSum(2, n);
+    return [
+      { tex: `\\begin{gathered} ${sumFrom(1, n)} r(r ${signed(b)}) \\\\ = ${sumFrom(1, n)} r^2 ${signed(b)}${sumFrom(1, n)} r \\end{gathered}` },
+      { tex: chain(`\\sum r^2 &= ${resultAt(2, n)}`, `&= ${s2}`, `\\sum r &= ${resultAt(1, n)}`, `&= ${s1}`) },
+      { tex: `${s2} ${signed(b)} \\times ${s1} = ${s2 + b * s1}` },
+    ];
+  },
+};
+
+type SplitForm = 'lin' | 'sqConst' | 'sqLin' | 'pq' | 'square';
+
+interface SplitTilesParams {
+  form: SplitForm;
+  a: number;
+  b: number;
+}
+
+/** The general term of a split sum, as it sits after the sigma. */
+function splitTermTex({ form, a, b }: SplitTilesParams): string {
+  if (form === 'lin') return `(${rTex(a, b)})`;
+  if (form === 'sqConst') return `(${quadRTex(a, 0, b)})`;
+  if (form === 'sqLin') return `(${quadRTex(a, b, 0)})`;
+  if (form === 'pq') return `(r ${signed(a)})(r ${signed(b)})`;
+  return `(${rTex(a, b)})^2`;
+}
+
+/** Coefficients of r^2, r and 1 in the general term, multiplied out. */
+function splitCoefficients({ form, a, b }: SplitTilesParams): [number, number, number] {
+  if (form === 'lin') return [0, a, b];
+  if (form === 'sqConst') return [a, 0, b];
+  if (form === 'sqLin') return [a, b, 0];
+  if (form === 'pq') return [1, a + b, a * b];
+  return [a * a, 2 * a * b, b * b];
+}
+
+/**
+ * A sum split into multiples of the standard results, placed as tiles. The
+ * constant is the slip: added n times over, it is bn, never b.
+ */
+const splitTiles: Generator<SplitTilesParams> = {
+  id: 'seq-split-tiles',
+  sample: (rng, difficulty) => {
+    const big = [-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9];
+    if (difficulty > 1) {
+      if (rng.chance(0.5)) return { form: 'square', a: rng.int(2, 3), b: rng.pick([-4, -3, -2, -1, 1, 2, 3, 4]) };
+      for (;;) {
+        const a = rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]);
+        const b = rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]);
+        if (Math.abs(a + b) > 1) return { form: 'pq', a, b };
+      }
+    }
+    const form = rng.pick<SplitForm>(['lin', 'sqConst', 'sqLin']);
+    return { form, a: rng.int(2, 9), b: rng.pick(big) };
+  },
+  render: (params): Slide => {
+    const { form, a, b } = params;
+    const [x2, x1, x0] = splitCoefficients(params);
+    const per = (value: number) => `${token(value)}n`;
+    let template: string;
+    let answer: string[];
+    let slips: string[];
+    if (form === 'lin') {
+      template = '{0}\\sum r {1}';
+      answer = [`${a}`, per(b)];
+      slips = [token(b), per(-b), `${2 * a}`, per(a + b)];
+    } else if (form === 'sqConst') {
+      template = '{0}\\sum r^2 {1}';
+      answer = [`${a}`, per(b)];
+      slips = [token(b), per(-b), `${a * a}`, per(a + b)];
+    } else if (form === 'sqLin') {
+      template = '{0}\\sum r^2 {1}\\sum r';
+      answer = [`${a}`, token(b)];
+      slips = [per(b), token(-b), token(a), `${a + b > 0 ? a + b : 2 * a}`];
+    } else if (form === 'pq') {
+      template = '\\sum r^2 {0}\\sum r {1}';
+      answer = [token(x1), per(x0)];
+      slips = [token(x0), token(-x1), per(-x0), per(x1)];
+    } else {
+      template = '{0}\\sum r^2 {1}\\sum r {2}';
+      answer = [`${x2}`, token(x1), per(x0)];
+      slips = [`${a}`, token(a * b), token(x0), per(b), `${2 * a}`];
+    }
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: form === 'pq' || form === 'square' ? 'Multiply out, then split this sum into standard results.' : 'Split this sum into standard results.',
+        },
+        { kind: 'display', tex: `${sumFrom(1, 'n')} ${splitTermTex(params)}` },
+      ],
+      template,
+      bank: tileBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const [x2, x1, x0] = splitCoefficients(params);
+    const expanded = quadRTex(x2, x1, x0);
+    const parts = sumTex([
+      x2 === 0 ? '0' : `${x2 === 1 ? '' : x2}\\sum r^2`,
+      x1 === 0 ? '0' : `${x1 === 1 ? '' : x1 === -1 ? '-' : x1}\\sum r`,
+      x0 === 0 ? '0' : `${x0}n`,
+    ]);
+    return [
+      ...(params.form === 'pq' || params.form === 'square' ? [{ tex: `${splitTermTex(params)} = ${expanded}` }] : []),
+      { text: 'Each power of $r$ keeps its number in front, and a constant added once for each of the $n$ terms comes to that constant times $n$.' },
+      { tex: `\\begin{gathered} ${sumFrom(1, 'n')} (${expanded}) \\\\ = ${parts} \\end{gathered}` },
+    ];
+  },
+};
+
+interface BuiltParams {
+  /** Σ(ar + b), Σ r(r + b) or Σ r^2(r + b). */
+  form: 'lin' | 'prod' | 'cube';
+  a: number;
+  b: number;
+  n: number;
+}
+
+function builtTerm({ form, a, b }: BuiltParams): (r: number) => number {
+  if (form === 'lin') return (r) => a * r + b;
+  if (form === 'prod') return (r) => r * (r + b);
+  return (r) => r * r * (r + b);
+}
+
+function builtTex({ form, a, b }: BuiltParams): string {
+  if (form === 'lin') return `(${rTex(a, b)})`;
+  if (form === 'prod') return `r(r ${signed(b)})`;
+  return `r^2(r ${signed(b)})`;
+}
+
+/** A sum built from the standard results, typed. */
+const builtSum: Generator<BuiltParams> = {
+  id: 'seq-built-sum',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      if (rng.chance(0.5)) return { form: 'cube', a: 1, b: rng.pick([-2, -1, 1, 2, 3]), n: rng.int(3, 10) };
+      return { form: 'prod', a: 1, b: rng.pick([-3, -2, -1, 1, 2, 3, 4, 5]), n: rng.int(5, 15) };
+    }
+    return { form: 'lin', a: rng.int(2, 7), b: rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9]), n: rng.int(6, 25) };
+  },
+  choices: (params) => {
+    const { form, a, b, n } = params;
+    const total = addUp(builtTerm(params), 1, n);
+    if (form === 'lin') return numberOptions(total, [a * powerSum(1, n) + b, total - b, a * powerSum(1, n - 1) + b * n]);
+    if (form === 'prod') return numberOptions(total, [powerSum(2, n) + b * n, powerSum(2, n) + b, powerSum(2, n) + powerSum(1, n)]);
+    return numberOptions(total, [powerSum(3, n) + b * n, powerSum(3, n) + b * powerSum(1, n), powerSum(3, n) + powerSum(2, n)]);
+  },
+  render: (params): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: 'Use the standard results to find this sum.' },
+        { kind: 'display', tex: `${sumFrom(1, params.n)} ${builtTex(params)}` },
+      ],
+      '\\text{sum} =',
+      addUp(builtTerm(params), 1, params.n),
+    ),
+  solution: (params) => {
+    const { form, a, b, n } = params;
+    const total = addUp(builtTerm(params), 1, n);
+    if (form === 'lin') {
+      return [
+        { tex: `\\begin{gathered} ${sumFrom(1, n)} (${rTex(a, b)}) \\\\ = ${a}\\sum r ${signed(b)} \\times ${n} \\end{gathered}` },
+        { tex: `${a} \\times ${powerSum(1, n)} ${signed(b * n)} = ${total}` },
+      ];
+    }
+    const [hi, lo]: Power[] = form === 'prod' ? [2, 1] : [3, 2];
+    return [
+      { tex: `${builtTex(params)} = ${form === 'prod' ? `r^2 ${signedTerm(b, 'r')}` : `r^3 ${signedTerm(b, 'r^2')}`}` },
+      { tex: chain(`\\sum ${powerTex(hi)} &= ${powerSum(hi, n)}`, `\\sum ${powerTex(lo)} &= ${powerSum(lo, n)}`) },
+      { tex: `${powerSum(hi, n)} ${signed(b)} \\times ${powerSum(lo, n)} = ${total}` },
+    ];
+  },
+};
+
+interface FactorParams {
+  /** Σ(ar^2 + br) over a sixth, or Σ(ar + b) over a half. */
+  quad: boolean;
+  a: number;
+  b: number;
+}
+
+/**
+ * A sum written as one expression in n by taking out the common factor:
+ * n/2 from Σ(ar + b), or n(n + 1)/6 from Σ(ar^2 + br). Two blanks, the
+ * number in front of n and the constant, so the form is what is graded.
+ */
+const factorTiles: Generator<FactorParams> = {
+  id: 'seq-factor-tiles',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      for (;;) {
+        const a = rng.int(1, 4);
+        const b = rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5]);
+        if (a + 3 * b !== 0) return { quad: true, a, b };
+      }
+    }
+    return { quad: false, a: rng.pick([3, 5, 7, 9]), b: rng.pick([-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6]) };
+  },
+  render: ({ quad, a, b }): Slide => {
+    const keep = (values: number[]) => values.filter((v) => v !== 0);
+    const answer = quad ? [`${2 * a}`, token(a + 3 * b)] : [`${a}`, token(a + 2 * b)];
+    const slips = quad
+      ? [`${a}`, `${3 * a}`, ...keep([a + b, 3 * b, 2 * a + 3 * b]).map(token)]
+      : [`${2 * a}`, ...keep([2 * b, a + b, b]).map(token)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Take out the common factor to write this sum as one expression in $n$.' },
+        { kind: 'display', tex: `${sumFrom(1, 'n')} (${quad ? quadRTex(a, b, 0) : rTex(a, b)})` },
+      ],
+      template: quad ? '\\frac16 n(n + 1)({0}n {1})' : '\\frac12 n({0}n {1})',
+      bank: tileBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: ({ quad, a, b }) => {
+    if (!quad) {
+      return [
+        { tex: `\\begin{gathered} ${sumFrom(1, 'n')} (${rTex(a, b)}) \\\\ = ${a} \\times \\frac{1}{2}n(n + 1) ${signedTerm(b, 'n')} \\end{gathered}` },
+        { text: `Both parts have a factor $\\frac{1}{2}n$: the second is $\\frac{1}{2}n \\times ${br(2 * b)}$.` },
+        { tex: chain(`&= \\frac{1}{2}n\\big(${a}(n + 1) ${signed(2 * b)}\\big)`, `&= \\frac{1}{2}n(${linearTex(a, a + 2 * b)})`) },
+      ];
+    }
+    return [
+      { tex: `\\begin{gathered} ${sumFrom(1, 'n')} (${quadRTex(a, b, 0)}) \\\\ = ${a === 1 ? '' : a}\\sum r^2 ${signedTerm(b, `\\sum r`)} \\end{gathered}` },
+      { text: `$\\sum r^2 = \\frac{1}{6}n(n + 1)(2n + 1)$ and $\\sum r = \\frac{1}{6}n(n + 1) \\times 3$, so take out $\\frac{1}{6}n(n + 1)$. What is left in the bracket is` },
+      { tex: `${a === 1 ? '' : a}(2n + 1) ${signed(3 * b)} = ${linearTex(2 * a, a + 3 * b)}` },
+      { text: 'so the sum is' },
+      { tex: `\\frac{1}{6}n(n + 1)(${linearTex(2 * a, a + 3 * b)})` },
+    ];
+  },
+};
+
+/* Level 4, lesson 3: sums that do not start at 1 */
+
+interface FromParams {
+  k: Power;
+  m: number;
+  n: number;
+}
+
+/** A starting point and an end for a power sum, n kept small enough for r^3. */
+function sampleFrom(rng: Rng, hard: boolean): FromParams {
+  const k = hard ? rng.pick<Power>([2, 3]) : rng.pick<Power>([1, 2]);
+  const m = hard ? rng.int(4, 9) : rng.int(3, 9);
+  const top = k === 1 ? 30 : k === 2 ? 16 : 12;
+  return { k, m, n: rng.int(Math.min(m + 3, top), top) };
+}
+
+/** From m to n is everything up to n, less everything up to m - 1. */
+const fromBelow = ({ k, m, n }: FromParams) => powerSum(k, n) - powerSum(k, m - 1);
+
+/**
+ * Which total to take away, then what it is: the right total leads to
+ * S_{m-1}, the slip to S_m. Both forks then ask for that total's value.
+ */
+const subtractFlow: Generator<FromParams> = {
+  id: 'seq-subtract-flow',
+  sample: (rng, difficulty) => sampleFrom(rng, difficulty > 1),
+  render: (params): Slide => {
+    const { k, m, n } = params;
+    const right = `$S_{${m - 1}}$`;
+    const wrong = `$S_{${m}}$`;
+    const valueStep = (id: string, x: number) => ({
+      id,
+      ask: `What is $S_{${x}}$?`,
+      branches: turned(
+        [powerSum(k, x), resultSlip(k, x)].map((value) => ({
+          label: `$${value}$`,
+          outcome: `So the sum is $S_{${n}} - S_{${x}} = ${powerSum(k, n)} - ${value} = ${powerSum(k, n) - value}$.`,
+        })),
+        mix(k, x, n),
+      ),
+    });
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Work this sum out from totals that start at $r = 1$, where $S_x = ${sumFrom(1, 'x')} ${powerTex(k)}$ and $S_{${n}} = ${powerSum(k, n)}$.`,
+        },
+      ],
+      subject: `${sumFrom(m, n)} ${powerTex(k)}`,
+      steps: [
+        {
+          id: 'which',
+          ask: `Which total do you take away from $S_{${n}}$?`,
+          branches: turned(
+            [
+              { label: right, to: 'right' },
+              { label: wrong, to: 'wrong' },
+            ],
+            mix(m, n, k),
+          ),
+        },
+        valueStep('right', m - 1),
+        valueStep('wrong', m),
+      ],
+      answer: [right, `$${powerSum(k, m - 1)}$`],
+    };
+  },
+  solution: (params) => {
+    const { k, m, n } = params;
+    return [
+      { text: `$S_{${n}}$ runs from $r = 1$. The terms before $r = ${m}$ are $r = 1$ to $${m - 1}$, so take away $S_{${m - 1}}$, not $S_{${m}}$: that would remove $r = ${m}$ as well.` },
+      { tex: chain(`S_{${m - 1}} &= ${resultAt(k, m - 1)}`, `&= ${powerSum(k, m - 1)}`) },
+      { tex: `${sumFrom(m, n)} ${powerTex(k)} = ${powerSum(k, n)} - ${powerSum(k, m - 1)} = ${fromBelow(params)}` },
+    ];
+  },
+};
+
+interface FromAskParams extends FromParams {
+  /** Harder draws sometimes use a linear term, a r + b. */
+  linear: boolean;
+  a: number;
+  b: number;
+}
+
+function fromTerm({ k, linear, a, b }: FromAskParams): (r: number) => number {
+  return linear ? (r) => a * r + b : (r) => r ** k;
+}
+
+/** A sum from m to n, typed. */
+const fromAsk: Generator<FromAskParams> = {
+  id: 'seq-from-m',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    if (hard && rng.chance(0.35)) {
+      const m = rng.int(5, 12);
+      return { k: 1, m, n: rng.int(m + 6, 30), linear: true, a: rng.int(2, 6), b: rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5]) };
+    }
+    return { ...sampleFrom(rng, hard), linear: false, a: 1, b: 0 };
+  },
+  choices: (params) => {
+    const { m, n } = params;
+    const f = fromTerm(params);
+    const total = addUp(f, m, n);
+    return numberOptions(total, [total - f(m), addUp(f, 1, n), total + f(m - 1)]);
+  },
+  render: (params): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: 'Find this sum.' },
+        { kind: 'display', tex: `${sumFrom(params.m, params.n)} ${params.linear ? `(${rTex(params.a, params.b)})` : powerTex(params.k)}` },
+      ],
+      '\\text{sum} =',
+      addUp(fromTerm(params), params.m, params.n),
+    ),
+  solution: (params) => {
+    const { k, m, n, linear, a, b } = params;
+    const f = fromTerm(params);
+    const upTo = (x: number) => addUp(f, 1, x);
+    return [
+      { text: `Everything from $r = 1$ to $${n}$, less everything from $r = 1$ to $${m - 1}$.` },
+      linear
+        ? { tex: chain(`\\text{to } ${n}: &\\; ${a} \\times ${powerSum(1, n)} ${signed(b)} \\times ${n}`, `&\\; = ${upTo(n)}`, `\\text{to } ${m - 1}: &\\; ${a} \\times ${powerSum(1, m - 1)} ${signed(b)} \\times ${m - 1}`, `&\\; = ${upTo(m - 1)}`) }
+        : { tex: chain(`S_{${n}} &= ${resultAt(k, n)}`, `&= ${powerSum(k, n)}`, `S_{${m - 1}} &= ${resultAt(k, m - 1)}`, `&= ${powerSum(k, m - 1)}`) },
+      { tex: `${upTo(n)} - ${upTo(m - 1)} = ${upTo(n) - upTo(m - 1)}` },
+    ];
+  },
+};
+
+/** A sum from m to n as a tree: the total to the top, the part to drop, the difference. */
+const dropTree: Generator<FromParams> = {
+  id: 'seq-drop-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const k = hard ? rng.pick<Power>([2, 3]) : rng.pick<Power>([1, 2]);
+    const m = hard ? rng.int(5, 10) : rng.int(2, 8);
+    const top = k === 1 ? 30 : k === 2 ? 20 : 12;
+    return { k, m, n: rng.int(Math.min(m + 2, top), top) };
+  },
+  render: (params): Slide => {
+    const { k, m, n } = params;
+    const answer = [powerSum(k, n), powerSum(k, m - 1), fromBelow(params)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Fill the tree: the sum from $r = 1$ up to the top, the total of the terms that are not wanted, then the difference.',
+        },
+      ],
+      expression: `${sumFrom(m, n)} ${powerTex(k)}`,
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'drop', from: [] },
+        { id: 'sum', from: ['top', 'drop'] },
+      ],
+      bank: numberBank(answer, [powerSum(k, m), powerSum(k, n) - powerSum(k, m), powerSum(k, n - 1), resultSlip(k, n)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { k, m, n } = params;
+    return [
+      { text: `The unwanted terms are $r = 1$ to $${m - 1}$: $r = ${m}$ is part of the sum.` },
+      { tex: chain(`S_{${n}} &= ${resultAt(k, n)}`, `&= ${powerSum(k, n)}`, `S_{${m - 1}} &= ${resultAt(k, m - 1)}`, `&= ${powerSum(k, m - 1)}`) },
+      { tex: `${sumFrom(m, n)} ${powerTex(k)} = ${powerSum(k, n)} - ${powerSum(k, m - 1)} = ${fromBelow(params)}` },
+    ];
+  },
+};
+
+interface FromSlipParams {
+  k: Power;
+  /** Numbers, or limits in n: the bottom n + c, the top a n + b. */
+  symbolic: boolean;
+  m: number;
+  n: number;
+  a: number;
+  b: number;
+}
+
+/** Which difference of totals is the sum from m to n? The slip S_n - S_m is always offered. */
+const fromSlip: Generator<FromSlipParams> = {
+  id: 'seq-from-m-slip',
+  sample: (rng, difficulty) => {
+    const k = rng.pick<Power>([1, 2, 3]);
+    if (difficulty > 1) return { k, symbolic: true, m: rng.int(1, 3), n: 0, a: rng.int(2, 3), b: rng.int(-1, 1) };
+    const m = rng.int(2, 12);
+    return { k, symbolic: false, m, n: rng.int(m + 5, 30), a: 0, b: 0 };
+  },
+  render: ({ k, symbolic, m, n, a, b }): Slide => {
+    // Bottom and top of the sum, and a total's subscript shifted by `by`.
+    const bottom = (by: number) => (symbolic ? topTex(1, m + by) : `${m + by}`);
+    const top = (by: number) => (symbolic ? topTex(a, b + by) : `${n + by}`);
+    const labels = [
+      `S_{${top(0)}} - S_{${bottom(-1)}}`,
+      `S_{${top(0)}} - S_{${bottom(0)}}`,
+      `S_{${top(-1)}} - S_{${bottom(-1)}}`,
+      `S_{${top(1)}} - S_{${bottom(0)}}`,
+    ];
+    const { options, correctId } = nativeChoice(labels, mix(k, m, n, a, b));
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Here $S_x = ${sumFrom(1, 'x')} ${powerTex(k)}$. Which of these is the sum below?` },
+        { kind: 'display', tex: `${sumFrom(bottom(0), top(0))} ${powerTex(k)}` },
+      ],
+      options,
+      correctId,
+    };
+  },
+  solution: ({ k, symbolic, m, n, a, b }) => {
+    const bottom = (by: number) => (symbolic ? topTex(1, m + by) : `${m + by}`);
+    const top = symbolic ? topTex(a, b) : `${n}`;
+    return [
+      { text: `$S_{${top}}$ adds every term from $r = 1$ to $r = ${top}$. The terms before the bottom of the sum run from $r = 1$ to $r = ${bottom(-1)}$.` },
+      { tex: `${sumFrom(bottom(0), top)} ${powerTex(k)} = S_{${top}} - S_{${bottom(-1)}}` },
+      { text: `Taking away $S_{${bottom(0)}}$ would remove the first term, $r = ${bottom(0)}$, as well.` },
+    ];
+  },
+};
+
+/* Level 4, lesson 4: telescoping sums */
+
+/** A fraction p/q, held as a pair so sums of unit fractions stay exact. */
+type Frac = [number, number];
+
+function reduced([p, q]: Frac): Frac {
+  const g = gcd(p, q) * (q < 0 ? -1 : 1);
+  return [p / g, q / g];
+}
+
+const plus = ([a, b]: Frac, [c, d]: Frac): Frac => reduced([a * d + c * b, b * d]);
+const minus = (x: Frac, [c, d]: Frac): Frac => plus(x, [-c, d]);
+const scaled = (k: number, [a, b]: Frac): Frac => reduced([k * a, b]);
+const qTex = ([p, q]: Frac) => fracTex(p, q);
+const qAnswer = ([p, q]: Frac) => fracAnswer(p, q);
+
+/** 1/d + 1/e + … as one fraction. */
+function units(denominators: number[]): Frac {
+  return denominators.reduce<Frac>((total, d) => plus(total, [1, d]), [0, 1]);
+}
+
+/** d consecutive whole numbers from `from`. */
+function run(from: number, count: number): number[] {
+  return Array.from({ length: count }, (_, j) => from + j);
+}
+
+/** 1/d, with 1/1 written as 1. */
+function unitTex(d: number): string {
+  return d === 1 ? '1' : `\\frac{1}{${d}}`;
+}
+
+/** 1/(n + c) for the letter n. */
+function unitN(c: number): string {
+  return `\\frac{1}{${c === 0 ? 'n' : `n + ${c}`}}`;
+}
+
+/** (r + c)(r + c + g), or r(r + g) when c is 0. */
+function pairDen(c: number, g: number): string {
+  return c === 0 ? `r(r + ${g})` : `(r + ${c})(r + ${c + g})`;
+}
+
+/** 1/(r + c) - 1/(r + c + g): the split, which this level gives rather than asks. */
+function splitTex(c: number, g: number): string {
+  return `\\frac{1}{${c === 0 ? 'r' : `r + ${c}`}} - \\frac{1}{r + ${c + g}}`;
+}
+
+/** Σ from lo to hi of (1/(r + c) - 1/(r + c + g)): the first g fractions, less the last g. */
+function telescoped(lo: number, hi: number, c: number, g: number): Frac {
+  return minus(units(run(lo + c, g)), units(run(hi + c + 1, g)));
+}
+
+/**
+ * A bank of fractions for a table or a tree: every answer (repeats kept),
+ * then distinct slips, topped up with near misses so at least two remain.
+ * Sorted by value, never shuffled.
+ */
+function fracBank(answer: Frac[], slips: Frac[], most = 4): string[] {
+  const value = new Map<string, number>();
+  const note = (f: Frac) => {
+    const r = reduced(f);
+    const tex = qTex(r);
+    value.set(tex, r[0] / r[1]);
+    return tex;
+  };
+  const tokens = answer.map(note);
+  const extras: string[] = [];
+  const offerOne = (f: Frac) => {
+    if (f[1] === 0 || f[0] <= 0) return;
+    const tex = note(f);
+    if (!tokens.includes(tex) && !extras.includes(tex)) extras.push(tex);
+  };
+  for (const f of slips) if (extras.length < most) offerOne(f);
+  const last = reduced(answer[answer.length - 1]);
+  for (let step = 1; extras.length < 2; step += 1) offerOne([last[0] + step, last[1]]);
+  return [...tokens, ...extras].sort((x, y) => value.get(x)! - value.get(y)!);
+}
+
+/** The correct fraction and three wrong ones, for a derived choice. */
+function fracOptions(correct: Frac, slips: Frac[]): ChoiceOption[] {
+  const right = reduced(correct);
+  const out: ChoiceOption[] = [{ tex: qTex(right), answer: qAnswer(right), correct: true }];
+  const seen = new Set([qTex(right)]);
+  for (const f of [...slips, plus(right, [1, 1]), scaled(2, right)]) {
+    if (out.length === 4) break;
+    const r = reduced(f);
+    if (r[0] <= 0 || seen.has(qTex(r))) continue;
+    seen.add(qTex(r));
+    out.push({ tex: qTex(r), answer: qAnswer(r) });
+  }
+  return out;
+}
+
+interface TelescopeStepsParams {
+  c: number;
+  /** The gap in the split: 1/(r + c) - 1/(r + c + g). */
+  g: 1 | 2;
+  n: number;
+}
+
+/** A bracket of what is left: the surviving fractions at the front, less those at the back. */
+function leftTex(front: number[], back: number[]): string {
+  return `(${front.map(unitTex).join(' + ')} - ${back.map(unitTex).join(' - ')})`;
+}
+
+/**
+ * A telescoping sum written out, its first three terms and its last, then
+ * collapsed a step at a time: each new term cancels the fraction the last
+ * one left, until only the ends survive and come to one fraction.
+ */
+const telescopeSteps: Generator<TelescopeStepsParams> = {
+  id: 'seq-telescope-steps',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? { c: rng.int(0, 4), g: 2, n: rng.int(6, 12) } : { c: rng.int(0, 4), g: 1, n: rng.int(5, 12) },
+  render: ({ c, g, n }): Slide => {
+    const term = (r: number) => leftTex([r + c], [r + c + g]);
+    const total = telescoped(1, n, c, g);
+    const last = stepsBank([qTex(total), qTex(telescoped(1, n - 1, c, g)), qTex(telescoped(1, n + 1, c, g)), qTex(units(run(c + 1, g)))]);
+    const lead =
+      g === 1
+        ? `Each term of $${sumFrom(1, n)} \\frac{1}{${pairDen(c, 1)}}$ splits as $${splitTex(c, 1)}$.`
+        : `Each term of $${sumFrom(1, n)} \\frac{2}{${pairDen(c, 2)}}$ splits as $${splitTex(c, 2)}$.`;
+    const prompt: Block[] = [
+      { kind: 'prose', text: `${lead} The sum is written out below. Tap where terms join, then choose what is left once fractions cancel.` },
+    ];
+    if (g === 1) {
+      const A = c + 1;
+      return {
+        kind: 'steps',
+        prompt,
+        start: [term(1), '+', term(2), '+', term(3), '+', '\\dots', '+', term(n)],
+        reductions: [
+          { span: [0, 3], operator: 1, value: leftTex([A], [c + 3]), bank: stepsBank([leftTex([A], [c + 3]), leftTex([A], [c + 2]), leftTex([c + 2], [c + 3]), `(${unitTex(A)} + ${unitTex(c + 3)})`]) },
+          { span: [0, 3], operator: 1, value: leftTex([A], [c + 4]), bank: stepsBank([leftTex([A], [c + 4]), leftTex([A], [c + 3]), leftTex([c + 3], [c + 4]), `(${unitTex(A)} + ${unitTex(c + 4)})`]) },
+          { span: [0, 5], operator: 1, value: leftTex([A], [n + c + 1]), bank: stepsBank([leftTex([A], [n + c + 1]), leftTex([A], [n + c]), leftTex([A], [n + c + 2]), leftTex([n + c], [n + c + 1])]) },
+          { span: [0, 1], operator: 0, value: qTex(total), bank: last },
+        ],
+      };
+    }
+    const front = [c + 1, c + 2];
+    return {
+      kind: 'steps',
+      prompt,
+      start: [term(1), '+', term(2), '+', term(3), '+', '\\dots', '+', term(n - 1), '+', term(n)],
+      reductions: [
+        { span: [0, 3], operator: 1, value: leftTex(front, [c + 3, c + 4]), bank: stepsBank([leftTex(front, [c + 3, c + 4]), leftTex([c + 1], [c + 4]), leftTex(front, [c + 4]), leftTex([c + 1], [c + 3])]) },
+        { span: [0, 3], operator: 1, value: leftTex(front, [c + 4, c + 5]), bank: stepsBank([leftTex(front, [c + 4, c + 5]), leftTex(front, [c + 3, c + 5]), leftTex(front, [c + 5]), leftTex([c + 1], [c + 4, c + 5])]) },
+        { span: [0, 7], operator: 1, value: leftTex(front, [n + c + 1, n + c + 2]), bank: stepsBank([leftTex(front, [n + c + 1, n + c + 2]), leftTex(front, [n + c, n + c + 1]), leftTex(front, [n + c + 2]), leftTex([c + 1], [n + c + 1, n + c + 2])]) },
+        { span: [0, 1], operator: 0, value: qTex(total), bank: last },
+      ],
+    };
+  },
+  solution: ({ c, g, n }) => {
+    const front = run(c + 1, g);
+    const back = run(n + c + 1, g);
+    return [
+      { text: `Each term takes away a fraction that ${g === 1 ? 'the next term' : 'the term two further on'} adds back, so everything in the middle cancels.` },
+      { tex: `\\begin{gathered} ${leftTex([c + 1], [c + 1 + g])} + ${leftTex([c + 2], [c + 2 + g])} \\\\ + \\dots + ${leftTex([n + c], [n + c + g])} \\end{gathered}` },
+      { text: `What survives is ${g === 1 ? 'the first fraction and the last' : 'the first two fractions and the last two'}:` },
+      { tex: `${leftTex(front, back).slice(1, -1)} = ${qTex(telescoped(1, n, c, g))}` },
+    ];
+  },
+};
+
+interface SurvivorParams {
+  g: 1 | 2 | 3;
+  /** The bottom of the sum. */
+  m: number;
+  c: number;
+}
+
+/** What survives a telescoping sum to n, placed as two tiles: the front fractions, then the back. */
+const telescopeTiles: Generator<SurvivorParams> = {
+  id: 'seq-telescope-tiles',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      return rng.chance(0.75) ? { g: 2, m: rng.int(1, 4), c: rng.int(0, 5) } : { g: 3, m: rng.int(1, 2), c: rng.int(0, 3) };
+    }
+    return { g: 1, m: rng.int(1, 4), c: rng.int(0, 6) };
+  },
+  render: ({ g, m, c }): Slide => {
+    const frontOf = (from: number, count: number) => run(from, count).map(unitTex).join(' + ');
+    // The back fractions are all taken away, so they are written that way: one tile, minus signs inside.
+    const backOf = (from: number, count: number) => run(from, count).map(unitN).join(' - ');
+    const answer = [frontOf(m + c, g), backOf(c + 1, g)];
+    const slips = [
+      backOf(c, g),
+      frontOf(m + c + 1, g),
+      ...(m + c > 1 ? [frontOf(m + c - 1, g)] : []),
+      backOf(c + 2, g),
+      ...(g > 1 ? [frontOf(m + c, g - 1), backOf(c + 1, g - 1)] : [frontOf(m + c, 2)]),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write out the first few terms and the last few. What is left once the rest cancel?' },
+        { kind: 'display', tex: `${sumFrom(m, 'n')} \\left(${splitTex(c, g)}\\right)` },
+      ],
+      template: '{0} - {1}',
+      bank: tileBank(answer, slips, 4),
+      answer,
+    };
+  },
+  solution: ({ g, m, c }) => {
+    const term = (r: number, shift: number) => `\\left(${unitTex(r)} - ${unitTex(shift)}\\right)`;
+    const first = run(m, 2).map((r) => term(r + c, r + c + g));
+    return [
+      { text: `The first terms, from $r = ${m}$:` },
+      { tex: `${first.join(' + ')} + \\dots` },
+      { text: `Each fraction taken away comes back ${g === 1 ? 'one term' : `${g} terms`} later, so it cancels. The last ${g === 1 ? 'term' : `${g} terms`} take away fractions nothing adds back.` },
+      { tex: `\\begin{gathered} ${sumFrom(m, 'n')} \\left(${splitTex(c, g)}\\right) \\\\ = ${run(m + c, g).map(unitTex).join(' + ')} \\\\ - ${run(c + 1, g).map(unitN).join(' - ')} \\end{gathered}` },
+    ];
+  },
+};
+
+interface PartialTableParams {
+  a: number;
+  c: number;
+  /** The last row's n, far enough down that the rows above cannot be added on to it. */
+  far: number;
+  /** Rows (1 to 4) whose partial sum is a blank. */
+  blanks: number[];
+}
+
+/**
+ * A telescoping sum's terms and partial sums. The first rows can be added up
+ * one by one; the far row can only come from what survives the cancelling.
+ */
+const telescopeTable: Generator<PartialTableParams> = {
+  id: 'seq-telescope-table',
+  sample: (rng, difficulty) => {
+    const far = rng.pick([9, 10, 11, 14, 15, 19, 20, 24, 29, 30]);
+    if (difficulty > 1) return { a: rng.int(1, 6), c: rng.int(1, 3), far, blanks: [1, 2, 3, 4] };
+    return { a: rng.int(1, 6), c: 0, far, blanks: [...positions(rng, 1, 3, 2), 4] };
+  },
+  render: ({ a, c, far, blanks }): Slide => {
+    const ns = [1, 2, 3, 4, far];
+    const u = (n: number) => scaled(a, [1, (n + c) * (n + c + 1)]);
+    const S = (n: number) => scaled(a, telescoped(1, n, c, 1));
+    const answer = blanks.map((i) => S(ns[i]));
+    const slips = blanks.flatMap((i) => [S(ns[i] + 1), u(ns[i]), scaled(a, [1, ns[i] + c + 1])]);
+    const factor = a === 1 ? '' : `${a}`;
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Here $u_r = \\frac{${a}}{${pairDen(c, 1)}} = ${factor}\\left(${splitTex(c, 1)}\\right)$. Fill in the partial sums $S_n = u_1 + u_2 + \\dots + u_n$.`,
+        },
+      ],
+      columns: ['n', 'u_n', 'S_n'],
+      rows: ns.map((n, i) => [`${n}`, qTex(u(n)), blanks.includes(i) ? null : qTex(S(n))]),
+      bank: fracBank(answer, slips),
+      answer: answer.map(qTex),
+    };
+  },
+  solution: ({ a, c, far }) => {
+    const factor = a === 1 ? '' : `${a}`;
+    return [
+      { text: 'Everything between the first fraction and the last cancels:' },
+      { tex: `S_n = ${factor}\\left(${unitTex(c + 1)} - ${unitN(c + 1)}\\right)` },
+      { text: 'Put each $n$ in:' },
+      { tex: chain(...[2, 3, 4, far].map((n) => `S_{${n}} &= ${factor}\\left(${unitTex(c + 1)} - \\frac{1}{${n + c + 1}}\\right) = ${qTex(scaled(a, telescoped(1, n, c, 1)))}`)) },
+    ];
+  },
+};
+
+interface TelescopeSumParams {
+  g: 1 | 2;
+  c: number;
+  n: number;
+}
+
+/** A finite telescoping sum with its split given, typed as a fraction. */
+const telescopeSum: Generator<TelescopeSumParams> = {
+  id: 'seq-telescope-sum',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? { g: 2, c: rng.int(0, 3), n: rng.int(5, 15) } : { g: 1, c: rng.int(0, 2), n: rng.int(5, 20) },
+  choices: ({ g, c, n }) =>
+    fracOptions(telescoped(1, n, c, g), [telescoped(1, n - 1, c, g), telescoped(1, n + 1, c, g), units(run(c + 1, g))]),
+  render: ({ g, c, n }): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: `Use $\\frac{${g}}{${pairDen(c, g)}} = ${splitTex(c, g)}$ to find this sum.` },
+        { kind: 'display', tex: `${sumFrom(1, n)} \\frac{${g}}{${pairDen(c, g)}}` },
+      ],
+      '\\text{sum} =',
+      qAnswer(telescoped(1, n, c, g)),
+      FRACTION_KEYS,
+    ),
+  solution: ({ g, c, n }) => [
+    { text: `Written out, each fraction taken away is added back ${g === 1 ? 'by the next term' : 'two terms later'}, so only the ends survive.` },
+    { tex: `${leftTex([c + 1], [c + 1 + g])} + \\dots + ${leftTex([n + c], [n + c + g])}` },
+    { tex: `\\begin{gathered} ${leftTex(run(c + 1, g), run(n + c + 1, g)).slice(1, -1)} \\\\ = ${qTex(telescoped(1, n, c, g))} \\end{gathered}` },
+  ],
+};
+
+/* Level 4, lesson 5: to infinity */
+
+type LeftoverForm = 'frac' | 'pair' | 'root' | 'log';
+
+interface LeftoverParams {
+  form: LeftoverForm;
+  a: number;
+  b: number;
+}
+
+/** A partial sum the method of differences gives, the part with n in it, and its limit if it has one. */
+function leftoverOf({ form, a, b }: LeftoverParams): { sum: string; part: string; limit?: Frac; first?: Frac; offers: string[] } {
+  if (form === 'frac') {
+    const limit = reduced([a, b]);
+    const part = `\\frac{${a}}{n + ${b}}`;
+    return { sum: `${qTex(limit)} - ${part}`, part, limit, first: minus(limit, [a, b + 1]), offers: [] };
+  }
+  if (form === 'pair') {
+    const limit = units([b, b + 1]);
+    const part = `\\frac{1}{n + ${b}} + \\frac{1}{n + ${b + 1}}`;
+    return { sum: `${qTex(limit)} - ${unitN(b)} - ${unitN(b + 1)}`, part, limit, first: minus(limit, units([b + 1, b + 2])), offers: [] };
+  }
+  if (form === 'root') {
+    const part = `\\sqrt{n + ${a * a}}`;
+    return { sum: `${part} - ${a}`, part, offers: [`${-a}`, `${a}`] };
+  }
+  const part = `\\ln(n + ${b})`;
+  return b === 1 ? { sum: part, part, offers: ['0', '\\ln 2'] } : { sum: `${part} - \\ln ${b}`, part, offers: [`-\\ln ${b}`, `\\ln ${b}`] };
+}
+
+const TENDS_TO_ZERO = 'It tends to $0$';
+const GROWS = 'It grows without limit';
+
+/**
+ * Does the leftover die? A partial sum from the method of differences, and
+ * two forks: what the part with n in it does, then what the sum to infinity
+ * is. A root or a logarithm grows, so there is no sum to infinity.
+ */
+const leftoverFlow: Generator<LeftoverParams> = {
+  id: 'seq-leftover-flow',
+  sample: (rng, difficulty) => {
+    const form = difficulty > 1 ? rng.pick<LeftoverForm>(['frac', 'pair', 'root', 'log']) : rng.pick<LeftoverForm>(['frac', 'frac', 'root', 'log']);
+    if (form === 'frac') {
+      const b = rng.int(1, 6);
+      return { form, a: difficulty > 1 ? rng.int(1, 6) : b * rng.int(1, 4), b };
+    }
+    if (form === 'root') return { form, a: rng.int(1, 4), b: 0 };
+    return { form, a: 1, b: rng.int(1, form === 'pair' ? 5 : 6) };
+  },
+  render: (params): Slide => {
+    const { sum, part, limit, first, offers } = leftoverOf(params);
+    const labels = limit ? [qTex(limit), qTex(first!), qTex(plus(limit, minus(limit, first!)))] : offers;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'The method of differences gives this partial sum. Does the series have a sum to infinity?' }],
+      subject: `S_n = ${sum}`,
+      steps: [
+        {
+          id: 'fate',
+          ask: `As $n \\to \\infty$, what does $${part}$ do?`,
+          branches: turned(
+            [
+              { label: TENDS_TO_ZERO, to: 'value' },
+              { label: GROWS, outcome: 'Then $S_n$ grows without limit too, so the series has no sum to infinity.' },
+            ],
+            mix(sum),
+          ),
+        },
+        {
+          id: 'value',
+          ask: 'So what is the sum to infinity?',
+          branches: turned(
+            labels.map((label) => ({ label: `$${label}$`, outcome: `So $S_\\infty = ${label}$.` })),
+            mix(sum, part),
+          ),
+        },
+      ],
+      answer: limit ? [TENDS_TO_ZERO, `$${qTex(limit)}$`] : [GROWS],
+    };
+  },
+  solution: (params) => {
+    const { part, limit } = leftoverOf(params);
+    if (limit) {
+      return [
+        { text: `A fixed number over something that grows without limit tends to $0$, so $${part} \\to 0$.` },
+        { tex: `S_\\infty = ${qTex(limit)} - 0 = ${qTex(limit)}` },
+      ];
+    }
+    return [
+      { text: `$${part}$ keeps growing as $n$ does, ${params.form === 'root' ? 'slowly, but without limit' : 'very slowly, but without limit'}.` },
+      { text: 'So $S_n$ never settles, and the series has no sum to infinity.' },
+    ];
+  },
+};
+
+interface ToInfinityParams {
+  g: 1 | 2 | 3;
+  a: number;
+  p: number;
+}
+
+/** The split as it is given: for a gap of 2 or 3 it carries a 1/g in front. */
+function givenSplit(p: number, g: number): string {
+  return g === 1 ? `\\frac{1}{${pairDen(p, 1)}} = ${splitTex(p, 1)}` : `\\frac{1}{${pairDen(p, g)}} = \\frac{1}{${g}}\\left(${splitTex(p, g)}\\right)`;
+}
+
+/** a/g times the fractions that never cancel. */
+const toInfinity = ({ g, a, p }: ToInfinityParams): Frac => {
+  const survivors = units(run(p + 1, g));
+  return reduced([a * survivors[0], g * survivors[1]]);
+};
+
+/** A sum to infinity by the method of differences, typed as a fraction. */
+const infinitySum: Generator<ToInfinityParams> = {
+  id: 'seq-infinity-sum',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? { g: rng.pick<1 | 2 | 3>([2, 3]), a: rng.int(1, 6), p: rng.int(0, 3) } : { g: 1, a: rng.int(1, 6), p: rng.int(0, 4) },
+  render: (params): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: `Use $${givenSplit(params.p, params.g)}$ to find the sum to infinity.` },
+        { kind: 'display', tex: `${sumFrom(1, '\\infty')} \\frac{${params.a}}{${pairDen(params.p, params.g)}}` },
+      ],
+      'S_\\infty =',
+      qAnswer(toInfinity(params)),
+      FRACTION_KEYS,
+    ),
+  solution: (params) => {
+    const { g, a, p } = params;
+    const survivors = run(p + 1, g);
+    return [
+      { text: `Up to $n$, only the first ${g === 1 ? 'fraction survives' : `${g} fractions survive`} at the front, and the last ${g === 1 ? 'one' : g} at the back, which ${g === 1 ? 'tends' : 'all tend'} to $0$.` },
+      { tex: `S_\\infty = ${qTex([a, g]) === '1' ? '' : qTex([a, g])}\\left(${survivors.map(unitTex).join(' + ')}\\right) = ${qTex(toInfinity(params))}` },
+    ];
+  },
+};
+
+/** The fractions that never cancel, their total, then the sum to infinity, as a tree. */
+const survivorTree: Generator<ToInfinityParams> = {
+  id: 'seq-survivor-tree',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? { g: 3, a: rng.int(1, 6), p: rng.int(0, 4) } : { g: 2, a: rng.int(1, 6), p: rng.int(0, 5) },
+  render: (params): Slide => {
+    const { g, a, p } = params;
+    const survivors = run(p + 1, g);
+    const total = units(survivors);
+    const leaves = survivors.map((d) => ({ id: `d${d}`, from: [] as string[] }));
+    const answer: Frac[] = [...survivors.map((d): Frac => [1, d]), total, toInfinity(params)];
+    const factor = qTex([a, g]);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Here $${givenSplit(p, g)}$. Fill the tree: the fractions that never cancel, largest first, then their total, then the sum to infinity.`,
+        },
+      ],
+      expression: `\\begin{gathered} ${sumFrom(1, '\\infty')} \\frac{${a}}{${pairDen(p, g)}} \\\\ = ${factor === '1' ? '' : factor}${sumFrom(1, '\\infty')} \\left(${splitTex(p, g)}\\right) \\end{gathered}`,
+      nodes: [...leaves, { id: 'total', from: leaves.map((leaf) => leaf.id) }, { id: 'sum', from: ['total'] }],
+      bank: fracBank(answer, [[1, p + g + 1], scaled(a, total), scaled(g, total), units(survivors.slice(1)), [a, p + 1]]),
+      answer: answer.map(qTex),
+    };
+  },
+  solution: (params) => {
+    const { g, a, p } = params;
+    const survivors = run(p + 1, g);
+    return [
+      { text: `Each fraction taken away comes back $${g}$ terms later, so the front $${g}$ fractions never cancel; the ones at the far end tend to $0$.` },
+      { tex: `${survivors.map(unitTex).join(' + ')} = ${qTex(units(survivors))}` },
+      { tex: `S_\\infty = ${qTex([a, g])} \\times ${qTex(units(survivors))} = ${qTex(toInfinity(params))}` },
+    ];
+  },
+};
+
+interface SliderLimitParams {
+  K: number;
+  p: number;
+}
+
+/** Partial sums of a telescoping series, drawn as dots: slide to the height they close in on. */
+const telescopeSlider: Generator<SliderLimitParams> = {
+  id: 'seq-telescope-slider',
+  sample: (rng, difficulty) => ({ K: rng.int(3, 12), p: difficulty > 1 ? rng.int(3, 7) : rng.int(0, 3) }),
+  render: ({ K, p }): Slide => {
+    const a = K * (p + 1);
+    const partial = (n: number) => K - a / (n + p + 1);
+    // Room above the limit, and never so little that the handle starts on it.
+    let max = 5 * Math.ceil((K * 1.3) / 5);
+    while (Math.abs(max / 2 - K) < 1) max += 5;
+    const window = markerWindow(0, max, 'y');
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The dots are the partial sums $S_1, S_2, S_3, \\dots$ of $${sumFrom(1, '\\infty')} \\frac{${a}}{${pairDen(p, 1)}}$, where $\\frac{${a}}{${pairDen(p, 1)}} = ${a}\\left(${splitTex(p, 1)}\\right)$. Slide to its sum to infinity.`,
+        },
+      ],
+      min: 0,
+      max,
+      step: 1,
+      answer: K,
+      readout: 'S_\\infty = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 9,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          curves: [],
+          marks: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ x: n, y: partial(n) })),
+          label: `Partial sums rising towards a height, the first at ${partial(1).toFixed(1)}`,
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: ({ K, p }) => {
+    const a = K * (p + 1);
+    return [
+      { text: 'Everything cancels except the first fraction and the last:' },
+      { tex: `S_n = ${a}\\left(${unitTex(p + 1)} - ${unitN(p + 1)}\\right)` },
+      { text: `As $n \\to \\infty$ the last fraction tends to $0$, so $S_\\infty = ${a} \\times ${unitTex(p + 1)} = ${K}$.` },
+      ...(p > 2 ? [{ text: 'The dots climb slowly, so reading the picture alone would stop short: the limit comes from the algebra.' }] : []),
+    ];
+  },
+};
+
 export const sequenceGenerators = [
   ruleTable,
   ruleKind,
@@ -4662,4 +6038,24 @@ export const sequenceGenerators = [
   gapTree,
   rateFlow,
   gapFirst,
+  powerSumTiles,
+  powerSumAsk,
+  powerSumTable,
+  formulaReduce,
+  splitTree,
+  splitTiles,
+  builtSum,
+  factorTiles,
+  subtractFlow,
+  fromAsk,
+  dropTree,
+  fromSlip,
+  telescopeSteps,
+  telescopeTiles,
+  telescopeTable,
+  telescopeSum,
+  leftoverFlow,
+  infinitySum,
+  survivorTree,
+  telescopeSlider,
 ];

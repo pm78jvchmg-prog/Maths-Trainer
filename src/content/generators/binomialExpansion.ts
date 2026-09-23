@@ -47,9 +47,55 @@ function ncrTex(n: number | string, r: number | string): string {
   return `{}^{${n}}C_{${r}}`;
 }
 
-/** A row of numbers set out with room between them, as the triangle is drawn. */
-function rowTex(values: (number | string)[]): string {
-  return values.join(' \\quad ');
+/**
+ * A row of numbers set out with room between them, as the triangle is drawn.
+ * Rows from 7 down close the gaps up, or they run off a phone's width.
+ */
+function rowTex(values: (number | string)[], tight = values.length > 7): string {
+  return values.join(tight ? ' \\enspace ' : ' \\quad ');
+}
+
+/**
+ * Roughly how many characters wide a line of TeX renders: exponents are small
+ * and commands print nothing or one symbol. About 22 fit a phone's width.
+ */
+function texWidth(tex: string): number {
+  return tex
+    .replace(/\^\{[^{}]*\}|\^./g, '')
+    .replace(/\\times/g, 'x')
+    .replace(/\\[a-zA-Z]+/g, '')
+    .replace(/[{}&\\]/g, '').length;
+}
+
+const LINE = 22;
+
+/** lhs = the terms, broken over lines when it would not fit on one. */
+function expansionTex(lhs: string, terms: string[]): string {
+  const whole = `${lhs} = ${sumTex(terms)}`;
+  if (texWidth(whole) <= LINE) return whole;
+  const lines: string[][] = [];
+  let line: string[] = [];
+  for (const term of terms) {
+    if (line.length > 0 && texWidth(`= ${sumTex([...line, term])}`) > LINE) {
+      lines.push(line);
+      line = [];
+    }
+    line.push(term);
+  }
+  lines.push(line);
+  return chain(
+    `& ${lhs}`,
+    ...lines.map((terms, i) => {
+      const sum = sumTex(terms);
+      if (i === 0) return `&= ${sum}`;
+      return `&\\quad ${sum.startsWith('-') ? `- ${sum.slice(1)}` : `+ ${sum}`}`;
+    }),
+  );
+}
+
+/** Short results stacked one per line, lined up on their equals signs. */
+function column(lines: [string, string | number][]): string {
+  return chain(...lines.map(([left, right]) => `${left} &= ${right}`));
 }
 
 /**
@@ -323,7 +369,7 @@ const pascalTree: Generator<WindowParams> = {
           text: `These are ${width} neighbouring numbers from row $${n}$ of Pascal's triangle. Each number below is the sum of the two above it. Fill in the ${width === 3 ? 'two rows' : 'three rows'} beneath, left to right.`,
         },
       ],
-      expression: `\\text{row } ${n}: \\quad ${rowTex(given)}`,
+      expression: rowTex(given),
       nodes,
       bank: treeBank(answer, slips.map(String)),
       answer,
@@ -335,9 +381,9 @@ const pascalTree: Generator<WindowParams> = {
       const sums = Array.from({ length: width - level }, (_, i) => {
         const left = nCr(n + level - 1, k + level - 1 + i);
         const right = nCr(n + level - 1, k + level + i);
-        return `${left} + ${right} = ${left + right}`;
+        return [`${left} + ${right}`, left + right] as [string, number];
       });
-      steps.push({ text: `Row $${n + level}$:`, tex: sums.join(', \\quad ') });
+      steps.push({ text: `Row $${n + level}$:`, tex: column(sums) });
     }
     return steps;
   },
@@ -393,7 +439,7 @@ const pascalRowTiles: Generator<RowParams> = {
     const above = pascalRow(n);
     return [
       { text: 'Each number is the sum of the two above it: the one above-left and the one above-right.' },
-      { tex: blanks.map((i) => `${above[i - 1]} + ${above[i]} = ${above[i - 1] + above[i]}`).join(', \\quad ') },
+      { tex: column(blanks.map((i) => [`${above[i - 1]} + ${above[i]}`, above[i - 1] + above[i]])) },
       { text: `So row $${n + 1}$ is $${rowTex(pascalRow(n + 1))}$.` },
     ];
   },
@@ -545,7 +591,10 @@ const pascalError: Generator<ErrorParams> = {
               kind: 'prose',
               text: `Row $${n - 1}$ of Pascal's triangle is right. Row $${n}$ beneath it has one mistake, copied onto both sides. Which number is wrong?`,
             },
-            { kind: 'display', tex: chain(`&${rowTex(pascalRow(n - 1))}`, `&${rowTex(shown)}`) },
+            {
+              kind: 'display',
+              tex: `\\begin{gathered} ${rowTex(pascalRow(n - 1), shown.length > 7)} \\\\ ${rowTex(shown)} \\end{gathered}`,
+            },
           ]
         : [
             { kind: 'prose', text: `One number in this row of Pascal's triangle is wrong. Which one?` },
@@ -619,9 +668,10 @@ const oneXTiles: Generator<OneXParams> = {
     { text: `The coefficients of $(1 + x)^{${n}}$ are row $${n}$ of Pascal's triangle: $${rowTex(pascalRow(n))}$.` },
     { text: 'The power of $x$ counts up by one each term, from $x^0 = 1$.' },
     {
-      tex: `(${descending ? 'x + 1' : '1 + x'})^{${n}} = ${sumTex(
+      tex: expansionTex(
+        `(${descending ? 'x + 1' : '1 + x'})^{${n}}`,
         Array.from({ length: n + 1 }, (_, i) => termTex(nCr(n, descending ? n - i : i), descending ? n - i : i)),
-      )}`,
+      ),
     },
   ],
 };
@@ -911,7 +961,7 @@ const expandTiles: Generator<ExpandParams> = {
         ),
       },
       ...(b < 0 ? [{ text: `Odd powers of $${b}$ are negative, so the signs alternate.` }] : []),
-      { tex: `${bracketTex(br)} = ${sumTex(terms.map(({ coef, power }) => monoTex(coef, power)))}` },
+      { tex: expansionTex(bracketTex(br), terms.map(({ coef, power }) => monoTex(coef, power))) },
     ];
   },
 };
@@ -1325,7 +1375,7 @@ const ncrRowTiles: Generator<NcrRowParams> = {
   },
   solution: ({ n, rs }) => [
     { text: `Count along from $0$: the first number is $${ncrTex(n, 0)}$, the second $${ncrTex(n, 1)}$, and so on to $${ncrTex(n, n)}$.` },
-    { tex: rs.map((r) => `${ncrTex(n, r)} = ${nCr(n, r)}`).join(', \\quad ') },
+    { tex: column(rs.map((r) => [ncrTex(n, r), nCr(n, r)])) },
   ],
 };
 
@@ -1411,7 +1461,9 @@ const ncrFacts: Generator<NcrFactParams> = {
 function generalTermTex(br: Bracket, r = 'r'): string {
   const { a, p, b, q, n } = br;
   const part = (c: number, e: number) => (e === 0 && c > 0 ? `${c}` : `\\left(${monoTex(c, e)}\\right)`);
-  return `{}^{${br.n}}C_{${r}} \\, ${part(a, p)}^{${n} - ${r}} \\, ${part(b, q)}^{${r}}`;
+  // A part that is just 1 stays 1 at any power, so it is left out.
+  const raised = (c: number, e: number, power: string) => (c === 1 && e === 0 ? '' : ` \\, ${part(c, e)}^{${power}}`);
+  return `{}^{${br.n}}C_{${r}}${raised(a, p, `${n} - ${r}`)}${raised(b, q, r)}`;
 }
 
 /**
@@ -1732,7 +1784,7 @@ const findN: Generator<FindNParams> = {
     }
     return [
       { text: `The $x^2$ term is $${ncrTex('n', 2)}(${a === 1 ? 'x' : `${a}x`})^2$, and $${ncrTex('n', 2)} = \\frac{n(n - 1)}{2}$.` },
-      { tex: chain(`\\frac{n(n - 1)}{2}${a === 1 ? '' : ` \\times ${a * a}`} &= ${value}`, `n(n - 1) &= ${n * (n - 1)} = ${n} \\times ${n - 1}`) },
+      { tex: chain(`\\frac{n(n - 1)}{2}${a === 1 ? '' : ` \\times ${a * a}`} &= ${value}`, `n(n - 1) &= ${n * (n - 1)}`, `&= ${n} \\times ${n - 1}`) },
       { text: `So $n = ${n}$: two whole numbers in a row that multiply to $${n * (n - 1)}$.` },
     ];
   },
@@ -1869,7 +1921,8 @@ const approx: Generator<ApproxParams> = {
       { text: `$${baseOf(d)} = 1 + (${x})$, so put $x = ${x}$ into $1 + ${n}x + ${nCr(n, 2)}x^2$.` },
       {
         tex: chain(
-          `& 1 + ${n} \\times ${d < 0 ? `(${x})` : x} + ${nCr(n, 2)} \\times ${d < 0 ? `(${x})` : x}^{2}`,
+          `& 1 + ${n} \\times ${d < 0 ? `(${x})` : x}`,
+          `&\\quad + ${nCr(n, 2)} \\times ${d < 0 ? `(${x})` : x}^{2}`,
           `&= 1 + ${d < 0 ? `(${dec(n * d, 100)})` : dec(n * d, 100)} + ${dec(nCr(n, 2) * d * d, 10000)}`,
           `&= ${dec(threeTerms(params), 10000)}`,
         ),
@@ -1954,7 +2007,12 @@ const threeTermsSteps: Generator<ApproxParams> = {
     return [
       { text: 'The power first, then each product, then the sums.' },
       { tex: `${inLine(dec(d, 100))}^{2} = ${dec(d * d, 10000)}` },
-      { tex: `${c2} \\times ${dec(d * d, 10000)} = ${dec(c2 * d * d, 10000)}, \\quad ${n} \\times ${inLine(dec(d, 100))} = ${dec(n * d, 100)}` },
+      {
+        tex: column([
+          [`${n} \\times ${inLine(dec(d, 100))}`, dec(n * d, 100)],
+          [`${c2} \\times ${dec(d * d, 10000)}`, dec(c2 * d * d, 10000)],
+        ]),
+      },
       { tex: `1 + ${inLine(dec(n * d, 100))} + ${dec(c2 * d * d, 10000)} = ${dec(threeTerms(params), 10000)}` },
     ];
   },
@@ -2058,7 +2116,12 @@ function productWorking(params: ProductParams): SolutionStep[] {
     {
       text: `$x^{${m}}$ comes two ways: $${p}$ times the $x^{${m}}$ term of $(${sumTex(['1', termTex(b, 1)])})^{${n}}$, and $${termTex(q, 1)}$ times its $x^{${m - 1}}$ term.`,
     },
-    { tex: `${ncrTex(n, m)}${b === 1 ? '' : ` \\times (${b})^{${m}}`} = ${cm}, \\quad ${ncrTex(n, m - 1)}${b === 1 ? '' : ` \\times (${b})^{${m - 1}}`} = ${cm1}` },
+    {
+      tex: column([
+        [`${ncrTex(n, m)}${b === 1 ? '' : ` \\times (${b})^{${m}}`}`, cm],
+        [`${ncrTex(n, m - 1)}${b === 1 ? '' : ` \\times (${b})^{${m - 1}}`}`, cm1],
+      ]),
+    },
     { tex: `${p} \\times ${cm < 0 ? `(${cm})` : cm} + ${q < 0 ? `(${q})` : q} \\times ${cm1 < 0 ? `(${cm1})` : cm1} = ${productCoefficient(params)}` },
   ];
 }
@@ -2238,37 +2301,68 @@ const productExpandTiles: Generator<ProductParams> = {
   },
 };
 
+/**
+ * A worked line too wide for a phone, broken at its equals signs into an
+ * aligned column. Lines already aligned, or with no equals sign at the top
+ * level, are left alone: a solution that scrolls sideways hides its result.
+ */
+function fitLine(tex: string): string {
+  if (texWidth(tex) <= LINE || tex.includes('\\begin')) return tex;
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < tex.length; i += 1) {
+    if (tex[i] === '{') depth += 1;
+    if (tex[i] === '}') depth -= 1;
+    if (depth === 0 && tex.startsWith(' = ', i)) {
+      parts.push(tex.slice(start, i));
+      start = i + 3;
+    }
+  }
+  parts.push(tex.slice(start));
+  if (parts.length < 2) return tex;
+  return chain(`& ${parts[0]}`, ...parts.slice(1).map((part) => `&= ${part}`));
+}
+
+function fitted<P>(generator: Generator<P>): Generator<P> {
+  return {
+    ...generator,
+    solution: (params) =>
+      generator.solution(params).map((step) => (step.tex ? { ...step, tex: fitLine(step.tex) } : step)),
+  };
+}
+
 export const binomialGenerators = [
-  pascalTree,
-  pascalRowTiles,
-  rowFacts,
-  pascalError,
-  oneXTiles,
-  oneXCoeff,
-  signFlow,
-  termTiles,
-  expandTiles,
-  termReduce,
-  coeff,
-  splitTree,
-  pickTerm,
-  findK,
-  factorialGen,
-  ncrReduce,
-  ncrRowTiles,
-  ncrFacts,
-  whichRFlow,
-  generalTiles,
-  generalReduce,
-  coeffNcr,
-  freeTerm,
-  findN,
-  approxTiles,
-  approx,
-  threeTermsSteps,
-  approxX,
-  productCoeff,
-  twoBracketTree,
-  pairFlow,
-  productExpandTiles,
+  fitted(pascalTree),
+  fitted(pascalRowTiles),
+  fitted(rowFacts),
+  fitted(pascalError),
+  fitted(oneXTiles),
+  fitted(oneXCoeff),
+  fitted(signFlow),
+  fitted(termTiles),
+  fitted(expandTiles),
+  fitted(termReduce),
+  fitted(coeff),
+  fitted(splitTree),
+  fitted(pickTerm),
+  fitted(findK),
+  fitted(factorialGen),
+  fitted(ncrReduce),
+  fitted(ncrRowTiles),
+  fitted(ncrFacts),
+  fitted(whichRFlow),
+  fitted(generalTiles),
+  fitted(generalReduce),
+  fitted(coeffNcr),
+  fitted(freeTerm),
+  fitted(findN),
+  fitted(approxTiles),
+  fitted(approx),
+  fitted(threeTermsSteps),
+  fitted(approxX),
+  fitted(productCoeff),
+  fitted(twoBracketTree),
+  fitted(pairFlow),
+  fitted(productExpandTiles),
 ];

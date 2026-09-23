@@ -69,7 +69,8 @@ export const binomialExpansion: Course = {
             ask('bin-row-facts+choice'),
             teach(
               prose('The second number in row $n$ is always $n$, and the numbers rise to the middle and fall again.'),
-              maths('\\text{row } 6: \\quad 1 \\quad 6 \\quad 15 \\quad 20 \\quad 15 \\quad 6 \\quad 1'),
+              prose('Row $6$:'),
+              maths('1 \\quad 6 \\quad 15 \\quad 20 \\quad 15 \\quad 6 \\quad 1'),
             ),
             ask('bin-pascal-row'),
             ask('bin-pascal-error'),
@@ -83,7 +84,7 @@ export const binomialExpansion: Course = {
             teach(
               prose('$(1 + x)^n$ expands with row $n$ as its coefficients, and the power of $x$ rising by one each term.'),
               maths('(1 + x)^{3} = 1 + 3x + 3x^{2} + x^{3}'),
-              maths('(1 + x)^{4} = 1 + 4x + 6x^{2} + 4x^{3} + x^{4}'),
+              maths('\\begin{aligned} (1 + x)^{4} &= 1 + 4x + 6x^{2} \\\\ &\\quad + 4x^{3} + x^{4} \\end{aligned}'),
               prose(
                 'Multiplying out gives the same. Each term picks $1$ or $x$ from each bracket, and the triangle counts the ways to pick.',
               ),
@@ -93,7 +94,7 @@ export const binomialExpansion: Course = {
             ask('bin-row-facts'),
             teach(
               prose('In $(1 - x)^n$ the second part is $-x$. An even power of it is positive and an odd power negative, so the signs alternate.'),
-              maths('(1 - x)^{4} = 1 - 4x + 6x^{2} - 4x^{3} + x^{4}'),
+              maths('\\begin{aligned} (1 - x)^{4} &= 1 - 4x + 6x^{2} \\\\ &\\quad - 4x^{3} + x^{4} \\end{aligned}'),
               prose('The same goes for any negative part: its power decides the sign.'),
             ),
             ask('bin-sign-flow'),
@@ -118,9 +119,9 @@ export const binomialExpansion: Course = {
               prose(
                 'The triangle works for any two-part bracket. In $(a + b)^n$ each term is a number from row $n$, times $a$ to one power and $b$ to another, the powers adding to $n$.',
               ),
-              maths('(a + b)^{3} = a^{3} + 3a^{2}b + 3ab^{2} + b^{3}'),
+              maths('\\begin{aligned} (a + b)^{3} &= a^{3} + 3a^{2}b \\\\ &\\quad + 3ab^{2} + b^{3} \\end{aligned}'),
               prose('Put $x$ for $a$ and $2$ for $b$, and raise the $2$ to its power:'),
-              maths('\\begin{aligned} (x + 2)^{3} &= x^{3} + 3x^{2}(2) + 3x(2)^{2} + 2^{3} \\\\ &= x^{3} + 6x^{2} + 12x + 8 \\end{aligned}'),
+              maths('\\begin{aligned} (x + 2)^{3} &= x^{3} + 3x^{2}(2) \\\\ &\\quad + 3x(2)^{2} + 2^{3} \\\\ &=x^{3} + 6x^{2} + 12x + 8 \\end{aligned}'),
             ),
             ask('bin-term-tiles'),
             ask('bin-expand-tiles'),
@@ -135,7 +136,7 @@ export const binomialExpansion: Course = {
             ask('bin-coeff+choice'),
             teach(
               prose('A negative number keeps its sign inside the power, so odd powers of it are negative:'),
-              maths('\\begin{aligned} (x - 2)^{3} &= x^{3} + 3x^{2}(-2) + 3x(-2)^{2} + (-2)^{3} \\\\ &= x^{3} - 6x^{2} + 12x - 8 \\end{aligned}'),
+              maths('\\begin{aligned} (x - 2)^{3} &= x^{3} + 3x^{2}(-2) \\\\ &\\quad + 3x(-2)^{2} + (-2)^{3} \\\\ &=x^{3} - 6x^{2} + 12x - 8 \\end{aligned}'),
               prose('And a number stuck to $x$ is raised with it: the $x^2$ term of $(1 + 2x)^3$ is $3(2x)^2 = 12x^2$.'),
             ),
             ask('bin-term-reduce+choice'),
@@ -145,11 +146,11 @@ export const binomialExpansion: Course = {
         },
         {
           id: 'be-l1-signs',
-          title: 'Signs and Powers: (2x − 3)ⁿ',
+          title: 'Signs and Powers',
           slides: [
             teach(
               prose('When both parts carry a number, both numbers are raised to their powers. The $x^2$ term of $(2x - 3)^4$:'),
-              maths('6 \\times (2x)^{2} \\times (-3)^{2} = 6 \\times 4x^{2} \\times 9 = 216x^{2}'),
+              maths('\\begin{aligned} & 6 \\times (2x)^{2} \\times (-3)^{2} \\\\ &= 6 \\times 4x^{2} \\times 9 \\\\ &= 216x^{2} \\end{aligned}'),
               prose('Two slips to avoid: $(2x)^2$ is $4x^2$, not $2x^2$, and the $-3$ takes its sign into the power.'),
             ),
             ask('bin-split-tree'),
@@ -159,7 +160,7 @@ export const binomialExpansion: Course = {
               prose(
                 'The sign of a term depends only on the power of the negative part: even gives positive, odd gives negative. So the signs of $(2x - 3)^n$ alternate, starting with $+$.',
               ),
-              maths('(2x - 3)^{3} = 8x^{3} - 36x^{2} + 54x - 27'),
+              maths('\\begin{aligned} (2x - 3)^{3} &= 8x^{3} - 36x^{2} \\\\ &\\quad + 54x - 27 \\end{aligned}'),
             ),
             ask('bin-pick-term+choice', 2),
             ask('bin-term-reduce', 2),
@@ -200,7 +201,8 @@ export const binomialExpansion: Course = {
             ask('bin-pick-term+choice'),
             teach(
               prose('Working backwards: when a coefficient is given, write it in terms of the unknown and solve.'),
-              maths('(1 + kx)^{5}: \\quad x^{2} \\text{ term} = 10(kx)^{2} = 10k^{2}x^{2}'),
+              prose('In $(1 + kx)^5$ the $x^2$ term is'),
+              maths('10(kx)^{2} = 10k^{2}x^{2}'),
               prose('If that coefficient is $90$, then $k^2 = 9$ and $k = 3$, taking $k > 0$.'),
             ),
             ask('bin-find-k+choice'),
@@ -271,7 +273,7 @@ export const binomialExpansion: Course = {
             teach(
               prose('With nCr the expansion can be written for any $n$, without the row:'),
               maths(
-                '\\begin{aligned} (a + b)^{n} = a^{n} &+ {}^{n}C_{1}a^{n - 1}b \\\\ &+ {}^{n}C_{2}a^{n - 2}b^{2} + \\dots + b^{n} \\end{aligned}',
+                '\\begin{aligned} (a + b)^{n} &= a^{n} + {}^{n}C_{1}a^{n - 1}b \\\\ &\\quad + {}^{n}C_{2}a^{n - 2}b^{2} \\\\ &\\quad + \\dots + b^{n} \\end{aligned}',
               ),
               prose('The term with $b^r$ is the **general term**:'),
               maths('{}^{n}C_{r} \\, a^{n - r} \\, b^{r}'),
@@ -291,7 +293,8 @@ export const binomialExpansion: Course = {
             teach(
               prose('nCr does not have to come from a row you know: cancel the factorials, then multiply by the powers.'),
               maths('{}^{8}C_{3} = \\frac{8 \\times 7 \\times 6}{6} = 56'),
-              maths('(x + 2)^{8}: \\quad x^{5} \\text{ term} = 56 \\times x^{5} \\times 2^{3} = 448x^{5}'),
+              prose('So the $x^5$ term of $(x + 2)^8$ is'),
+              maths('56 \\times x^{5} \\times 2^{3} = 448x^{5}'),
             ),
             ask('bin-general-tiles'),
             ask('bin-general-reduce+choice'),
@@ -304,8 +307,9 @@ export const binomialExpansion: Course = {
           slides: [
             teach(
               prose('The general term finds a term by its power of $x$, even when $x$ is in both parts:'),
-              maths('\\left(x + \\frac{2}{x}\\right)^{6}: \\quad {}^{6}C_{r} \\, x^{6 - r} \\left(\\frac{2}{x}\\right)^{r} = {}^{6}C_{r} \\, 2^{r} \\, x^{6 - 2r}'),
-              prose('The term **independent of $x$** has power $0$: $6 - 2r = 0$, so $r = 3$, and the term is $20 \\times 2^3 = 160$.'),
+              prose('In $\\left(x + \\frac{2}{x}\\right)^6$ the general term is'),
+              maths('\\begin{aligned} & {}^{6}C_{r} \\, x^{6 - r} \\left(\\frac{2}{x}\\right)^{r} \\\\ &= {}^{6}C_{r} \\, 2^{r} \\, x^{6 - 2r} \\end{aligned}'),
+              prose('The term **independent** of $x$ has power $0$: $6 - 2r = 0$, so $r = 3$, and the term is $20 \\times 2^3 = 160$.'),
             ),
             ask('bin-free-term'),
             ask('bin-general-tiles', 2),
@@ -349,7 +353,8 @@ export const binomialExpansion: Course = {
             ask('bin-three-terms-steps', 2),
             teach(
               prose('To estimate a power from a given bracket, choose $x$ to make the bracket equal the number:'),
-              maths('(0.98)^{6} \\text{ from } (1 - 2x)^{6}: \\quad 1 - 2x = 0.98, \\; x = 0.01'),
+              prose('For $(0.98)^6$ from $(1 - 2x)^6$:'),
+              maths('1 - 2x = 0.98, \\quad x = 0.01'),
               prose('A number below $1$ needs a negative change: $0.98 = 1 + (-0.02)$.'),
             ),
             ask('bin-approx-x'),

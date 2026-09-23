@@ -4467,6 +4467,1457 @@ const expmTwoEqual: Generator<TwoParams> = {
   solution: twoSolution,
 };
 
+/* ---------- Level 4: comparing models ---------- */
+
+/**
+ * Every comparison here writes both models in one power, u = b^{t/h}, with
+ * each k a whole multiple (possibly negative) of (ln b)/h. At a whole number
+ * of h, u is a whole power of b, so every value is whole; and setting two
+ * models equal leaves a power of u equal to a ratio of starts, which is a
+ * whole power of b because the starts were built from the answer.
+ */
+
+/** u written out: 2^{t} or 2^{t/5}. */
+function uTex(b: number, h: number): string {
+  return h === 1 ? `${b}^{t}` : `${b}^{t/${h}}`;
+}
+
+/** A power of u as it sits beside a start: u, u^{2}, u^{-1}. */
+function uPow(n: number): string {
+  return n === 1 ? 'u' : `u^{${n}}`;
+}
+
+/**
+ * A model whose k is c × (ln b)/h, c whole and possibly negative, with the
+ * fraction in lowest terms: 40e^{\frac{2\ln 2}{5}t}, but 2 × (ln 2)/4 as
+ * \frac{\ln 2}{2}. A fraction left as 2/4 reads as a mistake.
+ */
+function multModel(a: number, c: number, b: number, h: number): string {
+  let top = Math.abs(c);
+  let bottom = h;
+  for (let d = Math.min(top, bottom); d > 1; d -= 1) {
+    if (top % d === 0 && bottom % d === 0) {
+      top /= d;
+      bottom /= d;
+      break;
+    }
+  }
+  const power = bottom === 1 ? `${top === 1 ? '' : top}t\\ln ${b}` : `${twoK(top, b, bottom)}t`;
+  return `${texNum(a)}e^{${c < 0 ? '-' : ''}${power}}`;
+}
+
+/** a u^c at u = b^j: multiplied by b^{cj}, or divided by it when c is negative. */
+function termAt(a: number, c: number, b: number, j: number): number {
+  return c < 0 ? a / b ** (-c * j) : a * b ** (c * j);
+}
+
+/** The value at t = j × h, worked: P(10) &= 12 \times 2^{4} = 192. */
+function termLine(a: number, c: number, b: number, j: number, name: string): string {
+  return `${name} &= ${texNum(a)} ${c < 0 ? '\\div' : '\\times'} ${b}^{${Math.abs(c) * j}} = ${texNum(termAt(a, c, b, j))}`;
+}
+
+/** "so t/5 = 3 and t = 15", or "so t = 3" when h is 1. */
+function timeFrom(m: number, h: number): string {
+  return h === 1 ? `so $t = ${m}$` : `so $\\frac{t}{${h}} = ${m}$ and $t = ${m * h}$`;
+}
+
+/* ---------- Level 4, lesson 1: which model is ahead ---------- */
+
+interface LeadParams {
+  b: number;
+  h: number;
+  /** The first model is a1 u^{c1}, the second a2 u^{c2}, with u = b^{t/h}. */
+  a1: number;
+  c1: number;
+  a2: number;
+  c2: number;
+  /** Compared at t = m × h. */
+  m: number;
+  /** Ask about the start as well as t = m h. */
+  both: boolean;
+  ctx: number;
+}
+
+/**
+ * Two models compared at a whole time. The bigger start always has the
+ * smaller k, so neither size can be read off the starts alone. At difficulty 2
+ * one model may decay, and its start is built to divide out.
+ */
+function sampleLead(rng: Rng, difficulty: number): LeadParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = hard ? rng.pick([2, 3]) : 2;
+    const h = rng.int(1, hard ? 6 : 4);
+    const m = rng.int(1, b === 2 ? 3 : 2);
+    const ks = hard ? [-2, -1, 1, 2, 3] : [1, 2, 3];
+    const c1 = rng.pick(ks);
+    const c2 = rng.pick(ks);
+    if (c1 === c2) continue;
+    const start = (c: number) => (c < 0 ? rng.int(1, 6) * b ** (-c * m) : rng.int(2, hard ? 40 : 30));
+    const a1 = start(c1);
+    const a2 = start(c2);
+    if (a1 === a2 || (a1 - a2) * (c1 - c2) >= 0) continue;
+    const p = termAt(a1, c1, b, m);
+    const q = termAt(a2, c2, b, m);
+    if (p === q || Math.max(a1, a2, p, q) > 4000) continue;
+    return { b, h, a1, c1, a2, c2, m, both: hard, ctx: rng.int(0, 3) };
+  }
+}
+
+function leadSyms({ ctx }: { ctx: number }): [string, string] {
+  return TWO_STORIES[ctx % TWO_STORIES.length].syms;
+}
+
+function leadOpening(params: LeadParams): string {
+  const { b, h, a1, c1, a2, c2, ctx } = params;
+  const story = TWO_STORIES[ctx % TWO_STORIES.length];
+  const [s1, s2] = story.syms;
+  return `${story.what} after $t$ ${story.unit}s are $${s1} = ${multModel(a1, c1, b, h)}$ and $${s2} = ${multModel(a2, c2, b, h)}$.`;
+}
+
+function leadValues({ b, a1, c1, a2, c2, m }: LeadParams): [number, number] {
+  return [termAt(a1, c1, b, m), termAt(a2, c2, b, m)];
+}
+
+function leadSolution(params: LeadParams): SolutionStep[] {
+  const { b, h, a1, c1, a2, c2, m } = params;
+  const [s1, s2] = leadSyms(params);
+  const [p, q] = leadValues(params);
+  const t = m * h;
+  return [
+    {
+      text: `With $u = ${uTex(b, h)}$, $${s1} = ${texNum(a1)}${uPow(c1)}$ and $${s2} = ${texNum(a2)}${uPow(c2)}$. At $t = ${t}$, $u = ${b}^{${m}}$.`,
+    },
+    { tex: chain(termLine(a1, c1, b, m, `${s1}(${t})`), termLine(a2, c2, b, m, `${s2}(${t})`)) },
+    {
+      text: `So $${p > q ? s1 : s2}$ is ahead by $${texNum(Math.abs(p - q))}$, although $${a1 > a2 ? s1 : s2}$ started bigger.`,
+    },
+  ];
+}
+
+/** Both models at a whole time, and the gap between them, as a tree. */
+const expmLeadTree: Generator<LeadParams> = {
+  id: 'expm-lead-tree',
+  sample: sampleLead,
+  render: (params): Slide => {
+    const { b, a1, c1, c2, m, h } = params;
+    const [s1, s2] = leadSyms(params);
+    const [p, q] = leadValues(params);
+    const t = m * h;
+    const f1 = b ** (Math.abs(c1) * m);
+    const f2 = b ** (Math.abs(c2) * m);
+    const answer = [f1, p, f2, q, p - q].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${leadOpening(params)} Compare them at $t = ${t}$. Fill in the power of $${b}$ each start is multiplied or divided by, then $${s1}$ and $${s2}$, then $${s1} - ${s2}$, which is negative if $${s2}$ is ahead.`,
+        },
+      ],
+      expression: `${s1}(${t}) - ${s2}(${t})`,
+      nodes: [
+        { id: 'f1', from: [] },
+        { id: 'first', from: ['f1'] },
+        { id: 'f2', from: [] },
+        { id: 'second', from: ['f2'] },
+        { id: 'gap', from: ['first', 'second'] },
+      ],
+      bank: treeBank(answer, [
+        String(q - p),
+        String(p + q),
+        String(termAt(a1, c1, b, m + 1)),
+        String(b ** (Math.abs(c1) * m + 1)),
+        String(a1 * b * Math.abs(c1) * m),
+      ]),
+      answer,
+    };
+  },
+  solution: leadSolution,
+};
+
+/** Which model is bigger at a whole time, and at difficulty 2 at the start too. */
+const expmLeadWhich: Generator<LeadParams> = {
+  id: 'expm-lead-which',
+  sample: sampleLead,
+  render: (params): Slide => {
+    const { a1, a2, m, h, both } = params;
+    const [s1, s2] = leadSyms(params);
+    const [p, q] = leadValues(params);
+    const t = m * h;
+    const later = p > q ? s1 : s2;
+    let labels: string[];
+    let right: string;
+    if (!both) {
+      right = `${later} is bigger`;
+      labels = [`${s1} is bigger`, `${s2} is bigger`, 'They are the same size'];
+    } else {
+      const first = a1 > a2 ? s1 : s2;
+      right = first === later ? `${first} both times` : `${first} at the start, ${later} at t = ${t}`;
+      labels = [
+        right,
+        ...[`${s1} at the start, ${s2} at t = ${t}`, `${s2} at the start, ${s1} at t = ${t}`, `${s1} both times`, `${s2} both times`].filter(
+          (label) => label !== right,
+        ),
+      ];
+      labels = turned(labels, `${params.a1}-${params.c1}-${params.a2}-${params.c2}-${t}`);
+    }
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${leadOpening(params)} ${both ? `Which is bigger at $t = 0$, and which at $t = ${t}$?` : `Which is bigger at $t = ${t}$?`}`,
+        },
+      ],
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: leadSolution,
+};
+
+/** How far ahead the leader is at a whole time, typed. */
+const expmLeadGap: Generator<LeadParams> = {
+  id: 'expm-lead-gap',
+  sample: sampleLead,
+  choices: (params) => {
+    const [p, q] = leadValues(params);
+    const { a1, c1, a2, c2, b, m } = params;
+    return numberOptions(Math.abs(p - q), [
+      p + q,
+      Math.abs(a1 - a2),
+      Math.abs(termAt(a1, c1, b, 1) - termAt(a2, c2, b, 1)),
+      Math.max(p, q),
+      Math.abs(termAt(a1, c1, b, m + 1) - termAt(a2, c2, b, m + 1)),
+    ]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${leadOpening(params)} At $t = ${params.m * params.h}$, how much bigger is the larger of the two?`,
+      },
+    ],
+    lead: '\\text{gap} =',
+    keypad: [],
+    answer: String(Math.abs(leadValues(params)[0] - leadValues(params)[1])),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: leadSolution,
+};
+
+interface LeadFlowParams {
+  a1: number;
+  /** k as a signed percentage: k = p / 100. */
+  p1: number;
+  a2: number;
+  p2: number;
+  ctx: number;
+}
+
+/** Two decimal-k models; at difficulty 2 one of them may decay. */
+function sampleLeadFlow(rng: Rng, difficulty: number): LeadFlowParams {
+  for (;;) {
+    const a1 = rng.pick(READ_STARTS);
+    const a2 = rng.pick(READ_STARTS);
+    let p1 = rng.pick(READ_PERCENTS);
+    let p2 = rng.pick(READ_PERCENTS);
+    if (difficulty > 1 && rng.chance(0.5)) {
+      if (rng.chance(0.5)) p1 = -p1;
+      else p2 = -p2;
+    }
+    if (a1 === a2 || p1 === p2) continue;
+    return { a1, p1, a2, p2, ctx: rng.int(0, 3) };
+  }
+}
+
+function signedModel(a: number, p: number, v = 't'): string {
+  return decimalModel(a, Math.abs(p) / 100, p < 0, v);
+}
+
+/**
+ * Start against rate, one fork at a time: which starts bigger, which has the
+ * bigger k, so which wins in the long run, and whether the one behind ever
+ * draws level.
+ */
+const expmLeadFlow: Generator<LeadFlowParams> = {
+  id: 'expm-lead-flow',
+  sample: sampleLeadFlow,
+  render: (params): Slide => {
+    const { a1, p1, a2, p2, ctx } = params;
+    const story = TWO_STORIES[ctx % TWO_STORIES.length];
+    const [s1, s2] = story.syms;
+    const first = a1 > a2 ? s1 : s2;
+    const long = p1 > p2 ? s1 : s2;
+    const pair = (to: string) => [s1, s2].map((s) => ({ label: `$${s}$`, to }));
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story.what} after $t$ ${story.unit}s are $${s1} = ${signedModel(a1, p1)}$ and $${s2} = ${signedModel(a2, p2)}$. Compare their sizes, one question at a time.`,
+        },
+      ],
+      subject: `${s1} \\text{ and } ${s2}`,
+      steps: [
+        { id: 'start', ask: 'Which is bigger at $t = 0$?', branches: pair('k') },
+        { id: 'k', ask: 'Which has the bigger $k$, counting its sign?', branches: pair('long') },
+        { id: 'long', ask: 'So which is bigger far into the future?', branches: pair('cross') },
+        {
+          id: 'cross',
+          ask: 'Does the one behind at the start ever draw level?',
+          branches: [
+            {
+              label: 'Yes, once',
+              outcome: 'The bigger $k$ always wins in the end. Starting behind, it catches up once and then pulls away.',
+            },
+            { label: 'Never', outcome: 'Starting ahead with the bigger $k$ as well, it is never caught.' },
+          ],
+        },
+      ],
+      answer: [`$${first}$`, `$${long}$`, `$${long}$`, first === long ? 'Never' : 'Yes, once'],
+    };
+  },
+  solution: ({ a1, p1, a2, p2, ctx }) => {
+    const [s1, s2] = TWO_STORIES[ctx % TWO_STORIES.length].syms;
+    const first = a1 > a2 ? s1 : s2;
+    const long = p1 > p2 ? s1 : s2;
+    return [
+      { text: `At $t = 0$ each model is its start, so $${first}$ is bigger: $${texNum(Math.max(a1, a2))}$ against $${texNum(Math.min(a1, a2))}$.` },
+      { text: `$${long}$ has the bigger $k$, $${dec(Math.max(p1, p2) / 100)}$, and the bigger $k$ always ends up ahead, whatever the starts.` },
+      {
+        text:
+          first === long
+            ? `$${long}$ is ahead at the start and in the long run, so they never draw level.`
+            : `$${first}$ leads at first and $${long}$ later, so they draw level exactly once in between.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 4, lesson 2: when one overtakes another ---------- */
+
+interface OvertakeParams {
+  b: number;
+  h: number;
+  /** The faster model is a1 u^p, the slower a2 u^q, with u = b^{t/h} and p > q. */
+  p: number;
+  q: number;
+  a1: number;
+  /** They are the same size at t = m × h. */
+  m: number;
+  /** Whether the faster model is named first. */
+  fastFirst: boolean;
+  ctx: number;
+}
+
+/** The slower model's start: a1 u^p = a2 u^q at u = b^m. */
+function overtakeSlowStart({ a1, b, p, q, m }: OvertakeParams): number {
+  return a1 * b ** ((p - q) * m);
+}
+
+function sampleOvertake(rng: Rng, difficulty: number): OvertakeParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = hard ? rng.pick([2, 3]) : 2;
+    const [p, q] = hard ? rng.pick([[2, 1], [3, 1], [3, 2]] as const) : ([2, 1] as const);
+    const h = rng.int(1, hard ? 6 : 5);
+    const m = rng.int(1, b === 2 ? 3 : 2);
+    const a1 = rng.int(2, hard ? 15 : 12);
+    const params = { b, h, p, q, a1, m, fastFirst: rng.chance(0.5), ctx: rng.int(0, 3) };
+    if (overtakeSlowStart(params) > 3000) continue;
+    return params;
+  }
+}
+
+function overtakeOpening(params: OvertakeParams): { text: string; fast: string; slow: string } {
+  const { b, h, p, q, a1, fastFirst, ctx } = params;
+  const story = TWO_STORIES[ctx % TWO_STORIES.length];
+  const [s1, s2] = story.syms;
+  const fast = fastFirst ? s1 : s2;
+  const slow = fastFirst ? s2 : s1;
+  const models: Record<string, string> = {
+    [fast]: multModel(a1, p, b, h),
+    [slow]: multModel(overtakeSlowStart(params), q, b, h),
+  };
+  return {
+    text: `${story.what} after $t$ ${story.unit}s are $${s1} = ${models[s1]}$ and $${s2} = ${models[s2]}$.`,
+    fast,
+    slow,
+  };
+}
+
+function overtakeSolution(params: OvertakeParams): SolutionStep[] {
+  const { b, h, p, q, a1, m } = params;
+  const { fast, slow } = overtakeOpening(params);
+  const a2 = overtakeSlowStart(params);
+  const d = p - q;
+  const ratio = b ** (d * m);
+  return [
+    { text: `Write $u = ${uTex(b, h)}$, so $${fast} = ${texNum(a1)}${uPow(p)}$ and $${slow} = ${texNum(a2)}${uPow(q)}$.` },
+    { text: `They are the same size when these are equal. Divide both sides by $${texNum(a1)}${uPow(q)}$:` },
+    {
+      tex: chain(
+        `${texNum(a1)}${uPow(p)} &= ${texNum(a2)}${uPow(q)}`,
+        `${uPow(d)} &= \\frac{${texNum(a2)}}{${texNum(a1)}} = ${ratio}`,
+        ...(d > 1 ? [`u &= ${b ** m} = ${b}^{${m}}`] : []),
+      ),
+    },
+    { text: `$${uTex(b, h)} = ${b}^{${m}}$, ${timeFrom(m, h)}. From then on $${fast}$, with the bigger $k$, is ahead.` },
+  ];
+}
+
+/** Solve for the time one model catches another, a step at a time. */
+const expmOvertakeSteps: Generator<OvertakeParams> = {
+  id: 'expm-overtake-steps',
+  sample: sampleOvertake,
+  render: (params): Slide => {
+    const { b, h, p, q, a1, m, fastFirst } = params;
+    const a2 = overtakeSlowStart(params);
+    const d = p - q;
+    const ratio = b ** (d * m);
+    const u = uTex(b, h);
+    const { text } = overtakeOpening(params);
+    const fastSide: [number, number] = [a1, p];
+    const slowSide: [number, number] = [a2, q];
+    const [left, right] = fastFirst ? [fastSide, slowSide] : [slowSide, fastSide];
+    const inU = (x: [number, number], y: [number, number]) => `${texNum(x[0])}${uPow(x[1])} = ${texNum(y[0])}${uPow(y[1])}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${text} Find when they are the same size, one step at a time: write each in terms of $u = ${u}$, solve for $u$, then for $t$.`,
+        },
+      ],
+      start: [multModel(left[0], left[1], b, h), '=', multModel(right[0], right[1], b, h)],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: inU(left, right),
+          bank: stepsBank([
+            inU(left, right),
+            inU([left[0], right[1]], [right[0], left[1]]),
+            inU([left[0] * left[1], left[1]], [right[0] * right[1], right[1]]),
+            `${uPow(left[1])} = ${uPow(right[1])}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `${uPow(d)} = ${ratio}`,
+          bank: stepsBank([
+            `${uPow(d)} = ${ratio}`,
+            `${uPow(d)} = \\frac{${texNum(a1)}}{${texNum(a2)}}`,
+            `${uPow(d)} = ${texNum(a2 - a1)}`,
+            `${uPow(p + q)} = ${ratio}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `${u} = ${b}^{${m}}`,
+          bank: stepsBank([`${u} = ${b}^{${m}}`, `${u} = ${b}^{${d * m}}`, `${u} = ${b}^{${m + 1}}`, `${u} = ${m}^{${b}}`]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `t = ${m * h}`,
+          bank: stepsBank([`t = ${m * h}`, `t = ${m}`, `t = ${(m + 1) * h}`, `t = ${h}`, `t = ${m * h + 1}`]),
+        },
+      ],
+    };
+  },
+  solution: overtakeSolution,
+};
+
+/** Each model in terms of u, and the u at which they are level. */
+const expmOvertakeTiles: Generator<OvertakeParams> = {
+  id: 'expm-overtake-tiles',
+  sample: sampleOvertake,
+  render: (params): Slide => {
+    const { b, h, p, q, a1, m, fastFirst, ctx } = params;
+    const a2 = overtakeSlowStart(params);
+    const [s1, s2] = TWO_STORIES[ctx % TWO_STORIES.length].syms;
+    const fastTok = `${texNum(a1)}${uPow(p)}`;
+    const slowTok = `${texNum(a2)}${uPow(q)}`;
+    const answer = [fastFirst ? fastTok : slowTok, fastFirst ? slowTok : fastTok, String(b ** m)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${overtakeOpening(params).text} Write each in terms of $u = ${uTex(b, h)}$, then fill in the value of $u$ at which they are the same size.`,
+        },
+      ],
+      template: `${s1} = {0}, \\quad ${s2} = {1}, \\quad u = {2}`,
+      bank: fillBank(answer, [
+        `${texNum(a1)}${uPow(q)}`,
+        `${texNum(a2)}${uPow(p)}`,
+        `${texNum(a1 * p)}${uPow(p)}`,
+        String(b ** ((p - q) * m)),
+        String(m * h),
+        String(b ** (m + 1)),
+      ]),
+      answer,
+    };
+  },
+  solution: overtakeSolution,
+};
+
+/** Slide to the time the faster model catches the slower, over a plot of both. */
+const expmOvertakeSlider: Generator<OvertakeParams> = {
+  id: 'expm-overtake-slider',
+  sample: sampleOvertake,
+  render: (params): Slide => {
+    const { b, h, p, q, a1, m } = params;
+    const { text, fast } = overtakeOpening(params);
+    const a2 = overtakeSlowStart(params);
+    const answer = m * h;
+    const span = sliderSpan(answer, Math.max(answer + 3, Math.ceil(answer * 1.6)));
+    const base = Math.log(b) / h;
+    const fastCurve = (t: number) => a1 * Math.exp(p * base * t);
+    const slowCurve = (t: number) => a2 * Math.exp(q * base * t);
+    // The two meet halfway up, so the crossing sits in the middle of the picture.
+    const top = a1 * b ** (p * m) * 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${text} The coloured curve is $${fast}$. Slide to the time at which the two are the same size.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 1,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: top,
+          curves: [{ f: (t) => Math.min(slowCurve(t), top * 2) }, { f: (t) => Math.min(fastCurve(t), top * 2), accent: true }],
+          label: 'Two rising curves: the coloured one starts lower and climbs faster, crossing the other',
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: overtakeSolution,
+};
+
+/** The whole time at which one model catches another, typed. */
+const expmOvertakeTime: Generator<OvertakeParams> = {
+  id: 'expm-overtake-time',
+  sample: sampleOvertake,
+  choices: ({ h, m, p, q }) => numberOptions(m * h, [m, (m + 1) * h, (p - q) * m * h, h, 2 * m * h]),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${overtakeOpening(params).text} At what time are they the same size?` }],
+    lead: 't =',
+    keypad: [],
+    answer: String(params.m * params.h),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: overtakeSolution,
+};
+
+/* ---------- Level 4, lesson 3: growth meets decay ---------- */
+
+interface MeetStory {
+  /** The rising model's letter, then the falling one's. */
+  syms: [string, string];
+  /** Names both, opening a sentence. */
+  lead: string;
+  unit: string;
+}
+
+const MEET_STORIES: MeetStory[] = [
+  { syms: ['N', 'D'], lead: 'The users $N$ of a new app and $D$ of an old one', unit: 'week' },
+  { syms: ['W', 'T'], lead: 'The bacteria $W$ in a warm dish and $T$ in a treated one', unit: 'hour' },
+  { syms: ['S', 'R'], lead: 'The monthly sales $S$ of a new phone and $R$ of the one it replaces', unit: 'month' },
+  { syms: ['G', 'C'], lead: 'The values in pounds of a growing fund $G$ and of a car $C$ that loses value', unit: 'year' },
+];
+
+interface MeetParams {
+  b: number;
+  h: number;
+  /** Rising a u^p against falling a2 u^{-q}, with u = b^{t/h}. */
+  p: number;
+  q: number;
+  a: number;
+  /** They meet at t = m × h. */
+  m: number;
+  /** Whether the picture draws the rising model in colour. */
+  accentRise: boolean;
+  ctx: number;
+}
+
+/** The falling model's start: a u^p = a2 u^{-q} at u = b^m. */
+function meetFallStart({ a, b, p, q, m }: MeetParams): number {
+  return a * b ** ((p + q) * m);
+}
+
+/** The size both are when they meet. */
+function meetValue({ a, b, p, m }: MeetParams): number {
+  return a * b ** (p * m);
+}
+
+function sampleMeet(rng: Rng, difficulty: number): MeetParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = hard ? rng.pick([2, 3]) : 2;
+    const [p, q] = hard ? rng.pick([[1, 1], [2, 1], [1, 2]] as const) : ([1, 1] as const);
+    const h = rng.int(1, hard ? 6 : 5);
+    const m = rng.int(1, b === 2 ? 3 : 2);
+    const a = rng.int(2, hard ? 30 : 25);
+    const params = { b, h, p, q, a, m, accentRise: rng.chance(0.5), ctx: rng.int(0, 3) };
+    if (meetFallStart(params) > 4000) continue;
+    return params;
+  }
+}
+
+function meetOpening(params: MeetParams): string {
+  const { b, h, p, q, a, ctx } = params;
+  const story = MEET_STORIES[ctx % MEET_STORIES.length];
+  const [rise, fall] = story.syms;
+  return `${story.lead} after $t$ ${story.unit}s are $${rise} = ${multModel(a, p, b, h)}$ and $${fall} = ${multModel(meetFallStart(params), -q, b, h)}$.`;
+}
+
+function meetSolution(params: MeetParams): SolutionStep[] {
+  const { b, h, p, q, a, m } = params;
+  const [rise, fall] = MEET_STORIES[params.ctx % MEET_STORIES.length].syms;
+  const a2 = meetFallStart(params);
+  return [
+    {
+      text: `Write $u = ${uTex(b, h)}$, so $${rise} = ${texNum(a)}${uPow(p)}$ and $${fall} = \\frac{${texNum(a2)}}{${uPow(q)}}$. Set them equal and multiply by $${uPow(q)}$: the powers add.`,
+    },
+    {
+      tex: chain(
+        `${texNum(a)}${uPow(p + q)} &= ${texNum(a2)}`,
+        `${uPow(p + q)} &= \\frac{${texNum(a2)}}{${texNum(a)}} = ${b ** ((p + q) * m)}`,
+        `u &= ${b}^{${m}}`,
+      ),
+    },
+    { text: `$${uTex(b, h)} = ${b}^{${m}}$, ${timeFrom(m, h)}. Both are $${texNum(meetValue(params))}$ then.` },
+  ];
+}
+
+/** The picture both meet-time questions share: rising against falling, clipped to show the crossing. */
+function meetWindow(params: MeetParams): { top: number; rise: (t: number) => number; fall: (t: number) => number } {
+  const { b, h, p, q, a } = params;
+  const base = Math.log(b) / h;
+  const a2 = meetFallStart(params);
+  // Never so tall that the crossing is squashed against the axis.
+  const top = Math.min(a2 * 1.1, meetValue(params) * 3);
+  return {
+    top,
+    rise: (t) => Math.min(a * Math.exp(p * base * t), top * 2),
+    fall: (t) => Math.min(a2 * Math.exp(-q * base * t), top * 2),
+  };
+}
+
+/** Where a rising and a falling model meet, as a tree: the ratio, u, then the time and the size. */
+const expmMeetTree: Generator<MeetParams> = {
+  id: 'expm-meet-tree',
+  sample: sampleMeet,
+  render: (params): Slide => {
+    const { b, h, p, q, a, m } = params;
+    const a2 = meetFallStart(params);
+    const ratio = b ** ((p + q) * m);
+    const answer = [ratio, b ** m, m * h, meetValue(params)].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${meetOpening(params)} With $u = ${uTex(b, h)}$ they meet when $${uPow(p + q)} = \\frac{${texNum(a2)}}{${texNum(a)}}$. Fill in that fraction, then $u$, then the time they meet and the size both are then.`,
+        },
+      ],
+      expression: `${uPow(p + q)} = \\frac{${texNum(a2)}}{${texNum(a)}}`,
+      nodes: [
+        { id: 'ratio', from: [] },
+        { id: 'u', from: ['ratio'] },
+        { id: 'time', from: ['u'] },
+        { id: 'size', from: ['u'] },
+      ],
+      bank: treeBank(answer, [
+        String(a2 - a),
+        String(b ** (m + 1)),
+        String(m),
+        String((p + q) * m * h),
+        String(a * b ** (p * m + 1)),
+      ]),
+      answer,
+    };
+  },
+  solution: meetSolution,
+};
+
+/** Slide to the time a rising and a falling model meet. */
+const expmMeetSlider: Generator<MeetParams> = {
+  id: 'expm-meet-slider',
+  sample: sampleMeet,
+  render: (params): Slide => {
+    const { m, h, ctx } = params;
+    const [rise] = MEET_STORIES[ctx % MEET_STORIES.length].syms;
+    const answer = m * h;
+    const span = sliderSpan(answer, Math.max(answer + 3, Math.ceil(answer * 1.7)));
+    const { top, rise: up, fall } = meetWindow(params);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${meetOpening(params)} The coloured curve is $${rise}$. Slide to the time at which they meet.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 1,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: top,
+          curves: [{ f: fall }, { f: up, accent: true }],
+          label: 'A falling curve and a coloured rising curve that cross',
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: meetSolution,
+};
+
+/** The whole time a rising and a falling model meet, typed. */
+const expmMeetTime: Generator<MeetParams> = {
+  id: 'expm-meet-time',
+  sample: sampleMeet,
+  choices: ({ m, h, p, q }) => numberOptions(m * h, [(p + q) * m * h, m, (m + 1) * h, h, m * h + 1]),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${meetOpening(params)} When do they meet?` }],
+    lead: 't =',
+    keypad: [],
+    answer: String(params.m * params.h),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: meetSolution,
+};
+
+/** Which model is the coloured curve, and when they meet, from a picture. */
+const expmMeetWhich: Generator<MeetParams> = {
+  id: 'expm-meet-which',
+  sample: sampleMeet,
+  render: (params): Slide => {
+    const { a, b, h, p, q, m, accentRise, ctx } = params;
+    const [rise, fall] = MEET_STORIES[ctx % MEET_STORIES.length].syms;
+    const t = m * h;
+    const slip = (p + q) * m * h;
+    const span = Math.max(t + 3, Math.ceil(t * 1.8));
+    const { top, rise: up, fall: down } = meetWindow(params);
+    const coloured = accentRise ? rise : fall;
+    const label = (sym: string, when: number) => `${sym} is coloured; they meet at t = ${when}`;
+    const right = label(coloured, t);
+    const labels = turned([label(rise, t), label(fall, t), label(rise, slip), label(fall, slip)], `${a}-${b}-${h}-${p}-${q}-${m}`);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${meetOpening(params)} The picture shows both, with the point where they meet ringed. Which is the coloured curve, and when do they meet?`,
+        },
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: 0,
+            xMax: span,
+            yMin: 0,
+            yMax: top,
+            curves: [
+              { f: accentRise ? down : up },
+              { f: accentRise ? up : down, accent: true },
+            ],
+            marks: [{ x: t, y: meetValue(params) }],
+            label: `A rising and a falling curve crossing at a ringed point; the ${accentRise ? 'rising' : 'falling'} one is coloured`,
+          }),
+        },
+      ],
+      options: labels.map((text, idx) => ({ id: `opt${idx}`, label: text })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: (params) => {
+    const [rise, fall] = MEET_STORIES[params.ctx % MEET_STORIES.length].syms;
+    return [
+      {
+        text: `$${rise}$ has a positive $k$, so it is the rising curve; $${fall}$ has a negative $k$ and falls. The coloured curve ${params.accentRise ? 'rises' : 'falls'}, so it is $${params.accentRise ? rise : fall}$.`,
+      },
+      ...meetSolution(params),
+    ];
+  },
+};
+
+/* ---------- Level 4, lesson 4: sums of exponentials ---------- */
+
+const SUM_STORIES: Story[] = [
+  { sym: 'N', subject: 'The number of insects in a greenhouse', unit: 'week', of: 'insects' },
+  { sym: 'P', subject: 'The population of an island', unit: 'year', of: 'people' },
+  { sym: 'V', subject: 'The value of a portfolio, in pounds,', unit: 'year', of: 'pounds' },
+  { sym: 'C', subject: 'The number of cells in a sample', unit: 'hour', of: 'cells' },
+];
+
+interface SumParams {
+  b: number;
+  h: number;
+  /** N = a1 u^{c1} + a2 u^{c2}, with u = b^{t/h} and c1 ≠ c2, neither 0. */
+  a1: number;
+  c1: number;
+  a2: number;
+  c2: number;
+  /** Evaluated at t = j × h. */
+  j: number;
+  ctx: number;
+}
+
+/**
+ * A sum of two exponentials, whole at t = j h. At difficulty 1 one term grows
+ * and one decays; at difficulty 2 both may grow or both decay, which is where
+ * "the bigger k wins" has to be applied with its sign.
+ */
+function sampleSum(rng: Rng, difficulty: number): SumParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = hard ? rng.pick([2, 3]) : 2;
+    const h = rng.int(1, hard ? 6 : 5);
+    const j = rng.int(1, b === 2 ? 3 : 2);
+    const pairs: [number, number][] = hard
+      ? [[1, -1], [2, -1], [1, -2], [1, 2], [1, 3], [-1, -2], [-1, -3]]
+      : [[1, -1]];
+    let [c1, c2] = rng.pick(pairs);
+    if (rng.chance(0.5)) [c1, c2] = [c2, c1];
+    const start = (c: number) => (c < 0 ? rng.int(1, 8) * b ** (-c * j) : rng.int(2, hard ? 30 : 20));
+    const a1 = start(c1);
+    const a2 = start(c2);
+    const params = { b, h, a1, c1, a2, c2, j, ctx: rng.int(0, 3) };
+    if (a1 === a2) continue;
+    if (Math.max(a1, a2, sumValue(params)) > 4000) continue;
+    return params;
+  }
+}
+
+function sumValue({ b, a1, c1, a2, c2, j }: SumParams): number {
+  return termAt(a1, c1, b, j) + termAt(a2, c2, b, j);
+}
+
+function sumModel({ b, h, a1, c1, a2, c2 }: SumParams): string {
+  return `${multModel(a1, c1, b, h)} + ${multModel(a2, c2, b, h)}`;
+}
+
+function sumStory({ ctx }: SumParams): Story {
+  return SUM_STORIES[ctx % SUM_STORIES.length];
+}
+
+function sumOpening(params: SumParams): string {
+  return opening(sumStory(params), sumModel(params));
+}
+
+function sumSolution(params: SumParams): SolutionStep[] {
+  const { b, h, a1, c1, a2, c2, j } = params;
+  const { sym } = sumStory(params);
+  const t = j * h;
+  const win = c1 > c2 ? multModel(a1, c1, b, h) : multModel(a2, c2, b, h);
+  return [
+    { text: `At $t = 0$ both powers are $e^{0} = 1$, so $${sym}(0) = ${texNum(a1)} + ${texNum(a2)} = ${texNum(a1 + a2)}$.` },
+    { text: `At $t = ${t}$, $u = ${uTex(b, h)} = ${b}^{${j}}$, so each term is its start multiplied or divided by a power of $${b}$:` },
+    {
+      tex: chain(
+        termLine(a1, c1, b, j, `${texNum(a1)}${uPow(c1)}`),
+        termLine(a2, c2, b, j, `${texNum(a2)}${uPow(c2)}`),
+        `${sym}(${t}) &= ${texNum(termAt(a1, c1, b, j))} + ${texNum(termAt(a2, c2, b, j))} = ${texNum(sumValue(params))}`,
+      ),
+    },
+    {
+      text: `In the long run the term with the bigger $k$, sign included, wins: $${sym} \\approx ${win}$, so it ${Math.max(c1, c2) > 0 ? 'grows without limit' : 'falls towards $0$'}.`,
+    },
+  ];
+}
+
+/** The start and the long-run term of a sum, from tiles. */
+const expmSumTiles: Generator<SumParams> = {
+  id: 'expm-sum-tiles',
+  sample: sampleSum,
+  render: (params): Slide => {
+    const { b, h, a1, c1, a2, c2 } = params;
+    const { sym } = sumStory(params);
+    const t1 = multModel(a1, c1, b, h);
+    const t2 = multModel(a2, c2, b, h);
+    const [win, lose] = c1 > c2 ? [t1, t2] : [t2, t1];
+    const winC = Math.max(c1, c2);
+    const answer = [String(a1 + a2), win];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${sumOpening(params)} Fill in its value at the start, and the one term it is close to once $t$ is large.`,
+        },
+      ],
+      template: `${sym}(0) = {0}, \\quad ${sym} \\approx {1}`,
+      bank: fillBank(answer, [
+        String(Math.max(a1, a2)),
+        String(a1 * a2),
+        String(Math.abs(a1 - a2)),
+        lose,
+        multModel(a1 + a2, winC, b, h),
+      ]),
+      answer,
+    };
+  },
+  solution: sumSolution,
+};
+
+interface SumFlowParams {
+  a1: number;
+  /** Signed percentages: k = p / 100. */
+  p1: number;
+  a2: number;
+  p2: number;
+  ctx: number;
+}
+
+function sampleSumFlow(rng: Rng, difficulty: number): SumFlowParams {
+  for (;;) {
+    const a1 = rng.pick(READ_STARTS);
+    const a2 = rng.pick(READ_STARTS);
+    let p1 = rng.pick(READ_PERCENTS);
+    let p2 = -rng.pick(READ_PERCENTS);
+    if (difficulty > 1) {
+      const kind = rng.int(0, 2);
+      if (kind === 1) p2 = -p2;
+      if (kind === 2) p1 = -p1;
+    }
+    if (rng.chance(0.5)) [p1, p2] = [p2, p1];
+    if (a1 === a2 || p1 === p2) continue;
+    return { a1, p1, a2, p2, ctx: rng.int(0, 3) };
+  }
+}
+
+/** What a sum does: the start, the term that wins, then where the whole thing goes. */
+const expmSumFlow: Generator<SumFlowParams> = {
+  id: 'expm-sum-flow',
+  sample: sampleSumFlow,
+  render: (params): Slide => {
+    const { a1, p1, a2, p2, ctx } = params;
+    const story = SUM_STORIES[ctx % SUM_STORIES.length];
+    const { sym } = story;
+    const t1 = signedModel(a1, p1);
+    const t2 = signedModel(a2, p2);
+    const win = p1 > p2 ? t1 : t2;
+    const grows = Math.max(p1, p2) > 0;
+    const key = `${a1}-${p1}-${a2}-${p2}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, `${t1} + ${t2}`)} Work out what it does, one question at a time.`,
+        },
+      ],
+      subject: `${sym} = ${t1} + ${t2}`,
+      steps: [
+        {
+          id: 'start',
+          ask: `At $t = 0$ both powers are $e^{0} = 1$. What is $${sym}$ at the start?`,
+          branches: turned(
+            [
+              { label: `$${texNum(a1 + a2)}$`, to: 'win' },
+              { label: `$${texNum(a1 * a2)}$`, outcome: 'That multiplies the two terms, but they are added.' },
+              { label: `$${texNum(a1)}$`, outcome: `That leaves out the second term, which is $${texNum(a2)}$ at the start.` },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'win',
+          ask: 'As $t$ grows, which term ends up much the bigger of the two?',
+          branches: [
+            { label: `$${t1}$`, to: 'long' },
+            { label: `$${t2}$`, to: 'long' },
+          ],
+        },
+        {
+          id: 'long',
+          ask: `So what does $${sym}$ do in the long run?`,
+          branches: [
+            {
+              label: 'Grows without limit',
+              outcome: 'A term with a positive $k$ keeps growing, and nothing in a sum can cancel it.',
+            },
+            {
+              label: 'Falls towards 0',
+              outcome: 'With both $k$ negative, both terms shrink towards $0$, the one with $k$ nearer $0$ more slowly.',
+            },
+            {
+              label: `Levels off at ${texNum(a1 + a2)}`,
+              outcome: 'The start is where it begins, not where it ends: neither term stays the size it started.',
+            },
+          ],
+        },
+      ],
+      answer: [`$${texNum(a1 + a2)}$`, `$${win}$`, grows ? 'Grows without limit' : 'Falls towards 0'],
+    };
+  },
+  solution: ({ a1, p1, a2, p2, ctx }) => {
+    const { sym } = SUM_STORIES[ctx % SUM_STORIES.length];
+    const win = p1 > p2 ? signedModel(a1, p1) : signedModel(a2, p2);
+    const top = Math.max(p1, p2) / 100;
+    return [
+      { text: `At $t = 0$, $${sym} = ${texNum(a1)} + ${texNum(a2)} = ${texNum(a1 + a2)}$.` },
+      { text: `The term with the bigger $k$, sign included, wins in the long run: $${win}$, with $k = ${dec(top)}$.` },
+      {
+        text:
+          top > 0
+            ? `Its $k$ is positive, so $${sym}$ grows without limit.`
+            : `Even that $k$ is negative, so $${sym}$ falls towards $0$, following $${win}$.`,
+      },
+    ];
+  },
+};
+
+/** A sum's value at a whole time, typed. */
+const expmSumAt: Generator<SumParams> = {
+  id: 'expm-sum-at',
+  sample: sampleSum,
+  choices: (params) => {
+    const { b, a1, c1, a2, c2, j } = params;
+    return numberOptions(sumValue(params), [
+      termAt(a1, c1, b, j),
+      termAt(a2, c2, b, j),
+      a1 + a2,
+      termAt(a1, Math.abs(c1), b, j) + termAt(a2, Math.abs(c2), b, j),
+      termAt(a1, c1, b, j + 1) + termAt(a2, c2, b, j + 1),
+    ]);
+  },
+  render: (params): Slide => {
+    const { sym } = sumStory(params);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${sumOpening(params)} What is $${sym}$ at $t = ${params.j * params.h}$?` }],
+      lead: `${sym}(${params.j * params.h}) =`,
+      keypad: [],
+      answer: String(sumValue(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: sumSolution,
+};
+
+/** A sum at a whole time as a tree: each factor, each term, then the total. */
+const expmSumTree: Generator<SumParams> = {
+  id: 'expm-sum-tree',
+  sample: sampleSum,
+  render: (params): Slide => {
+    const { b, h, a1, c1, a2, c2, j } = params;
+    const { sym } = sumStory(params);
+    const t = j * h;
+    const v1 = termAt(a1, c1, b, j);
+    const v2 = termAt(a2, c2, b, j);
+    const answer = [b ** (Math.abs(c1) * j), v1, b ** (Math.abs(c2) * j), v2, v1 + v2].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${sumOpening(params)} Find $${sym}$ at $t = ${t}$. Fill in the power of $${b}$ each start is multiplied or divided by, then each term, then $${sym}$.`,
+        },
+      ],
+      expression: `${sym}(${t})`,
+      nodes: [
+        { id: 'f1', from: [] },
+        { id: 'first', from: ['f1'] },
+        { id: 'f2', from: [] },
+        { id: 'second', from: ['f2'] },
+        { id: 'total', from: ['first', 'second'] },
+      ],
+      bank: treeBank(answer, [
+        String(a1 + a2),
+        String(Math.abs(v1 - v2)),
+        String(b ** (Math.abs(c1) * j + 1)),
+        String(termAt(a1, Math.abs(c1), b, j) + termAt(a2, Math.abs(c2), b, j)),
+      ]),
+      answer,
+    };
+  },
+  solution: sumSolution,
+};
+
+/* ---------- Level 4, lesson 5: differences and the gap ---------- */
+
+interface GapStory {
+  /** The model that ends up ahead, then the other. */
+  syms: [string, string];
+  lead: string;
+  unit: string;
+}
+
+const GAP_STORIES: GapStory[] = [
+  { syms: ['I', 'C'], lead: "A firm's yearly income $I$ and yearly costs $C$ in thousands of pounds", unit: 'year' },
+  { syms: ['M', 'N'], lead: 'Two cultures of bacteria $M$ and $N$', unit: 'hour' },
+  { syms: ['F', 'G'], lead: 'The followers $F$ and $G$ of two accounts', unit: 'week' },
+  { syms: ['S', 'V'], lead: 'The visitors $S$ and $V$ to two websites, in thousands,', unit: 'month' },
+];
+
+interface GapParams {
+  b: number;
+  h: number;
+  /** P = a u^2 and Q = a(r - s) u, with u = b^{t/h}, so P - Q = a u^2 - a(r - s) u. */
+  a: number;
+  /** P - Q reaches a r s at u = r = b^m, which is t = m h; the other root is u = -s. */
+  m: number;
+  s: number;
+  /** A whole time, t = j × h, for the tree to evaluate the gap at. */
+  j: number;
+  ctx: number;
+}
+
+function gapR({ b, m }: GapParams): number {
+  return b ** m;
+}
+
+/** Q's start, which is also its coefficient of u. */
+function gapQ(params: GapParams): number {
+  return params.a * (gapR(params) - params.s);
+}
+
+/** The gap asked for: P - Q at u = r. */
+function gapTarget(params: GapParams): number {
+  return params.a * gapR(params) * params.s;
+}
+
+function sampleGap(rng: Rng, difficulty: number): GapParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = hard ? rng.pick([2, 3]) : 2;
+    const m = rng.int(1, b === 2 ? 3 : 2);
+    const r = b ** m;
+    const s = rng.int(1, r - 1);
+    const a = rng.int(2, hard ? 9 : 6);
+    const h = rng.int(1, hard ? 6 : 4);
+    const j = rng.int(1, Math.min(m + 1, b === 2 ? 3 : 2));
+    const params = { b, h, a, m, s, j, ctx: rng.int(0, 3) };
+    if (gapTarget(params) > 4000 || a * b ** (2 * j) > 4000) continue;
+    return params;
+  }
+}
+
+function gapSyms({ ctx }: GapParams): [string, string] {
+  return GAP_STORIES[ctx % GAP_STORIES.length].syms;
+}
+
+function gapOpening(params: GapParams): string {
+  const { b, h, a, ctx } = params;
+  const story = GAP_STORIES[ctx % GAP_STORIES.length];
+  const [P, Q] = story.syms;
+  return `${story.lead} after $t$ ${story.unit}s are $${P} = ${multModel(a, 2, b, h)}$ and $${Q} = ${multModel(gapQ(params), 1, b, h)}$.`;
+}
+
+function gapSolution(params: GapParams): SolutionStep[] {
+  const { b, h, a, m, s } = params;
+  const [P, Q] = gapSyms(params);
+  const r = gapR(params);
+  const q = gapQ(params);
+  const g = gapTarget(params);
+  return [
+    { text: `Write $u = ${uTex(b, h)}$. Then $${P} = ${a}u^{2}$ and $${Q} = ${texNum(q)}u$, so the gap is a quadratic in $u$:` },
+    {
+      tex: chain(
+        `${a}u^{2} - ${texNum(q)}u &= ${texNum(g)}`,
+        `${a}u^{2} - ${texNum(q)}u - ${texNum(g)} &= 0`,
+        `${a}(u - ${r})(u + ${s}) &= 0`,
+      ),
+    },
+    { text: `$u = ${uTex(b, h)}$ is never negative, so $u = -${s}$ is no use and $u = ${r} = ${b}^{${m}}$, ${timeFrom(m, h)}.` },
+  ];
+}
+
+/** The gap P - Q at a whole time, through u: u, then each model, then the difference. */
+const expmDiffTree: Generator<GapParams> = {
+  id: 'expm-diff-tree',
+  sample: sampleGap,
+  render: (params): Slide => {
+    const { b, h, a, j } = params;
+    const [P, Q] = gapSyms(params);
+    const u = b ** j;
+    const p = a * u * u;
+    const q = gapQ(params) * u;
+    const t = j * h;
+    const answer = [u, p, q, p - q].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${gapOpening(params)} With $u = ${uTex(b, h)}$, find $${P} - ${Q}$ at $t = ${t}$. Fill in $u$, then $${P}$ and $${Q}$, then $${P} - ${Q}$, which is negative if $${Q}$ is ahead.`,
+        },
+      ],
+      expression: `${P}(${t}) - ${Q}(${t})`,
+      nodes: [
+        { id: 'u', from: [] },
+        { id: 'first', from: ['u'] },
+        { id: 'second', from: ['u'] },
+        { id: 'gap', from: ['first', 'second'] },
+      ],
+      bank: treeBank(answer, [String(a * u), String(q - p), String(p + q), String(b ** (j + 1)), String(a * u * u * u)]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { b, h, a, j } = params;
+    const [P, Q] = gapSyms(params);
+    const u = b ** j;
+    const q = gapQ(params);
+    const t = j * h;
+    return [
+      { text: `$${P} = ${a}u^{2}$ and $${Q} = ${texNum(q)}u$ with $u = ${uTex(b, h)}$. At $t = ${t}$, $u = ${b}^{${j}} = ${u}$.` },
+      {
+        tex: chain(
+          `${P}(${t}) &= ${a} \\times ${u}^{2} = ${texNum(a * u * u)}`,
+          `${Q}(${t}) &= ${texNum(q)} \\times ${u} = ${texNum(q * u)}`,
+          `${P} - ${Q} &= ${texNum(a * u * u - q * u)}`,
+        ),
+      },
+      { text: a * u * u >= q * u ? `So $${P}$ is ahead, or level, at $t = ${t}$.` : `It is negative: $${Q}$ is still ahead at $t = ${t}$.` },
+    ];
+  },
+};
+
+/** Solve P - Q = G as a quadratic in u, one step at a time. */
+const expmGapSteps: Generator<GapParams> = {
+  id: 'expm-gap-steps',
+  sample: sampleGap,
+  render: (params): Slide => {
+    const { b, h, a, m, s } = params;
+    const [P, Q] = gapSyms(params);
+    const r = gapR(params);
+    const q = texNum(gapQ(params));
+    const g = texNum(gapTarget(params));
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${gapOpening(params)} When is $${P}$ exactly $${g}$ more than $${Q}$? Solve one step at a time, with $u = ${uTex(b, h)}$.`,
+        },
+      ],
+      start: [`${multModel(a, 2, b, h)} - ${multModel(gapQ(params), 1, b, h)}`, '=', g],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${a}u^{2} - ${q}u - ${g} = 0`,
+          bank: stepsBank([
+            `${a}u^{2} - ${q}u - ${g} = 0`,
+            `${a}u^{2} - ${q}u + ${g} = 0`,
+            `${a}u^{2} + ${q}u - ${g} = 0`,
+            `${a}u^{2} - ${q}u = 0`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `${a}(u - ${r})(u + ${s}) = 0`,
+          bank: stepsBank([
+            `${a}(u - ${r})(u + ${s}) = 0`,
+            `${a}(u + ${r})(u - ${s}) = 0`,
+            `${a}(u - ${r})(u - ${s}) = 0`,
+            `(u - ${r})(${a}u + ${s}) = 0`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `u = ${r}`,
+          bank: stepsBank([`u = ${r}`, `u = -${s}`, `u = ${s}`, `u = -${r}`]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `t = ${m * h}`,
+          bank: stepsBank([`t = ${m * h}`, `t = ${m}`, `t = ${r * h}`, `t = ${(m + 1) * h}`, `t = ${h}`]),
+        },
+      ],
+    };
+  },
+  solution: gapSolution,
+};
+
+/** Slide to the time the gap P - Q reaches a dashed level, over a plot of the gap. */
+const expmGapSlider: Generator<GapParams> = {
+  id: 'expm-gap-slider',
+  sample: sampleGap,
+  render: (params): Slide => {
+    const { b, h, a, m, s } = params;
+    const [P, Q] = gapSyms(params);
+    const r = gapR(params);
+    const q = gapQ(params);
+    const g = gapTarget(params);
+    const answer = m * h;
+    const span = sliderSpan(answer, Math.max(answer + 3, Math.ceil(answer * 1.6)));
+    const base = Math.log(b) / h;
+    const top = g * 1.8;
+    const gap = (t: number) => {
+      const u = Math.exp(base * t);
+      return Math.min(a * u * u - q * u, top * 2);
+    };
+    // The lowest the gap goes, at u = (r - s) / 2, when that is after the start.
+    const dip = r - s >= 2 ? -(a * (r - s) ** 2) / 4 : a - q;
+    const bottom = Math.min(0, dip) - g * 0.15;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${gapOpening(params)} The curve is $${P} - ${Q}$ and the dashed line is $${texNum(g)}$. Slide to the time at which $${P}$ is $${texNum(g)}$ more than $${Q}$.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 1,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: bottom,
+          yMax: top,
+          curves: [{ f: gap, accent: true }],
+          horizontals: [g],
+          label: `The gap between two models, ${a - q < 0 ? 'starting below zero and ' : ''}rising through a dashed line at ${g}`,
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: gapSolution,
+};
+
+/** Three options for when two models are level, the right one first, never two alike. */
+function levelLabels(right: number, slips: number[]): string[] {
+  const out = [right];
+  for (const value of [...slips, right + 1, right + 2, right + 3]) {
+    if (out.length === 3) break;
+    if (value > 0 && !out.includes(value)) out.push(value);
+  }
+  return out.map((value) => `$u = ${texNum(value)}$`);
+}
+
+/** Read P - Q one fork at a time: the quadratic in u, who leads at the start, when they are level, the long run. */
+const expmGapFlow: Generator<GapParams> = {
+  id: 'expm-gap-flow',
+  sample: sampleGap,
+  render: (params): Slide => {
+    const { b, h, a, s } = params;
+    const [P, Q] = gapSyms(params);
+    const r = gapR(params);
+    const q = gapQ(params);
+    const key = `${a}-${b}-${h}-${r}-${s}`;
+    const form = `$${a}u^{2} - ${texNum(q)}u$`;
+    const levelAt = r - s;
+    const startLabel = levelAt === 1 ? 'They are level' : `$${Q}$`;
+    const levels = levelLabels(levelAt, [q, a, levelAt * a]);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${gapOpening(params)} Read the gap $${P} - ${Q}$, one question at a time, with $u = ${uTex(b, h)}$.`,
+        },
+      ],
+      subject: `${P} - ${Q}`,
+      steps: [
+        {
+          id: 'form',
+          ask: `What is $${P} - ${Q}$ in terms of $u$?`,
+          branches: turned(
+            [
+              { label: form, to: 'start' },
+              {
+                label: `$${a}u - ${texNum(q)}u^{2}$`,
+                outcome: `That swaps the powers. $${P}$ has the $2$ in its power, so it is the one with $u^{2}$.`,
+              },
+              {
+                label: `$${texNum(a - q)}u$`,
+                outcome: '$u^{2}$ and $u$ are different powers, so the two terms do not combine.',
+              },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'start',
+          ask: 'At $t = 0$, $u = 1$. Which is bigger then?',
+          branches: [
+            { label: `$${P}$`, to: 'level' },
+            { label: `$${Q}$`, to: 'level' },
+            { label: 'They are level', to: 'level' },
+          ],
+        },
+        {
+          id: 'level',
+          ask: `Setting $${a}u^{2} = ${texNum(q)}u$ and dividing by $u$, when are they the same size?`,
+          branches: turned(
+            levels.map((label) => ({ label, to: 'long' })),
+            `${key}-level`,
+          ),
+        },
+        {
+          id: 'long',
+          ask: `So what does $${P} - ${Q}$ do after that?`,
+          branches: [
+            { label: 'Grows without limit', outcome: `$u^{2}$ outgrows $u$, so the gap keeps widening in $${P}$'s favour.` },
+            { label: `Falls back to 0`, outcome: 'They are level only once for $u > 0$, so the gap cannot close again.' },
+            { label: 'Settles at a level', outcome: 'Both terms keep growing, and the $u^{2}$ one faster, so nothing settles.' },
+          ],
+        },
+      ],
+      answer: [form, startLabel, levels[0], 'Grows without limit'],
+    };
+  },
+  solution: (params) => {
+    const { b, h, a, s } = params;
+    const [P, Q] = gapSyms(params);
+    const r = gapR(params);
+    const q = gapQ(params);
+    return [
+      { text: `With $u = ${uTex(b, h)}$, $${P} - ${Q} = ${a}u^{2} - ${texNum(q)}u$.` },
+      {
+        text:
+          r - s === 1
+            ? `At $t = 0$, $u = 1$ and both are $${a}$: they start level.`
+            : `At $t = 0$, $u = 1$: $${P} = ${a}$ and $${Q} = ${texNum(q)}$, so $${Q}$ is bigger.`,
+      },
+      { tex: `${a}u^{2} = ${texNum(q)}u \\quad\\Rightarrow\\quad u = \\frac{${texNum(q)}}{${a}} = ${r - s}` },
+      { text: `Beyond that the $u^{2}$ term runs away from the $u$ term, so $${P}$ pulls ahead and the gap grows without limit.` },
+    ];
+  },
+};
+
 /* ---------- registry ---------- */
 
 export const exponentialModelGenerators = [
@@ -4526,4 +5977,24 @@ export const exponentialModelGenerators = [
   expmTwoFlow,
   expmTwoSlider,
   expmTwoEqual,
+  expmLeadTree,
+  expmLeadWhich,
+  expmLeadGap,
+  expmLeadFlow,
+  expmOvertakeSteps,
+  expmOvertakeTiles,
+  expmOvertakeSlider,
+  expmOvertakeTime,
+  expmMeetTree,
+  expmMeetSlider,
+  expmMeetTime,
+  expmMeetWhich,
+  expmSumTiles,
+  expmSumFlow,
+  expmSumAt,
+  expmSumTree,
+  expmDiffTree,
+  expmGapSteps,
+  expmGapSlider,
+  expmGapFlow,
 ];

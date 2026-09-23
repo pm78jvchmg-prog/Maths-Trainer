@@ -9,7 +9,10 @@
  * as ky, and telling linear, exponential and bounded apart. Level 3 reads
  * the rate: k as a percentage of the amount, the average rate over a stretch
  * against the rate at a moment, the rate run backwards to k, the amount or the
- * time, and two models growing at the same rate.
+ * time, and two models growing at the same rate. Level 4 compares models:
+ * which is ahead at a whole time, when one overtakes another, a rising model
+ * meeting a falling one, sums of exponentials and the term that wins, and the
+ * gap between two models as a quadratic in u.
  *
  * Whole-step growth without e, solving N = N0 r^t by logarithms, linearising
  * and differentiating e^x all belong to other courses and are used here, not
@@ -614,6 +617,198 @@ export const exponentialModels: Course = {
         ask('expm-amount-from-rate', 2),
         ask('expm-two-equal', 2),
         ask('expm-two-flow', 2),
+      ],
+    },
+    {
+      id: 'em-l4',
+      title: 'Comparing Models',
+      lessons: [
+        {
+          id: 'em-l4-ahead',
+          title: 'Which Model Is Ahead',
+          slides: [
+            teach(
+              prose(
+                'To compare two models, write both in the same power. For $P = 40e^{\\frac{\\ln 2}{5}t}$ and $Q = 5e^{\\frac{2\\ln 2}{5}t}$, let $u = 2^{t/5}$: then $P = 40u$ and $Q = 5u^{2}$. At $t = 10$, $u = 2^{2} = 4$:',
+              ),
+              working('P(10) &= 40 \\times 4 = 160', 'Q(10) &= 5 \\times 4^{2} = 80'),
+              prose('So $P$ is ahead by 80 at $t = 10$.'),
+            ),
+            ask('expm-lead-tree'),
+            ask('expm-lead-which'),
+            ask('expm-lead-gap'),
+            teach(
+              prose(
+                'The start is not the whole story. At $t = 20$, $u = 2^{4} = 16$, so $P = 640$ and $Q = 5 \\times 256 = 1280$: $Q$ has overtaken.',
+              ),
+              prose('The model with the bigger $k$ always ends up ahead in the long run, however far behind it starts.'),
+            ),
+            ask('expm-lead-flow'),
+            ask('expm-lead-which', 2),
+            ask('expm-lead-tree', 2),
+            teach(
+              prose(
+                'A decaying model is a negative power of $u$. $R = 320e^{-\\frac{\\ln 2}{5}t} = \\frac{320}{u}$, so at $t = 10$ it is $320 \\div 4 = 80$, level with $Q$.',
+              ),
+              prose('Counting $k$ with its sign, a falling model has the smaller $k$, so a rising one always ends up ahead of it.'),
+            ),
+            ask('expm-lead-flow', 2),
+            ask('expm-lead-gap+choice', 2),
+          ],
+          skillCheck: [ask('expm-lead-gap', 2), ask('expm-lead-which', 2), ask('expm-lead-tree', 2)],
+        },
+        {
+          id: 'em-l4-overtake',
+          title: 'When One Overtakes Another',
+          slides: [
+            teach(
+              prose('When does $Q = 5u^{2}$ catch $P = 40u$? Set them equal and divide by $5u$:'),
+              working('5u^{2} &= 40u', 'u &= 8 = 2^{3}', '2^{t/5} &= 2^{3}', 't &= 15'),
+              prose('Before $t = 15$, $P$ is bigger; after it, $Q$ is.'),
+            ),
+            ask('expm-overtake-tiles'),
+            ask('expm-overtake-steps'),
+            ask('expm-overtake-time'),
+            teach(
+              prose(
+                'On a graph that moment is where the curves cross. The one with the bigger $k$ starts lower and ends higher, so they cross exactly once.',
+              ),
+              prose('Check a crossing by putting it back: at $t = 15$, $u = 8$, so $P = 320$ and $Q = 5 \\times 64 = 320$.'),
+            ),
+            ask('expm-overtake-slider'),
+            ask('expm-overtake-steps', 2),
+            ask('expm-overtake-tiles', 2),
+            teach(
+              prose(
+                'When the powers of $u$ differ by 2, a square root is left at the end. For $A = 3e^{\\frac{3\\ln 2}{2}t} = 3u^{3}$ and $B = 48e^{\\frac{\\ln 2}{2}t} = 48u$, with $u = 2^{t/2}$:',
+              ),
+              working('3u^{3} &= 48u', 'u^{2} &= 16', 'u &= 4 = 2^{2}', 't &= 4'),
+              prose('$u$ is a power of 2, so it is never negative: $u = -4$ is no use.'),
+            ),
+            ask('expm-overtake-time', 2),
+            ask('expm-overtake-slider', 2),
+          ],
+          skillCheck: [ask('expm-overtake-steps', 2), ask('expm-overtake-time', 2), ask('expm-overtake-slider', 2)],
+        },
+        {
+          id: 'em-l4-meet',
+          title: 'Growth Meets Decay',
+          slides: [
+            teach(
+              prose(
+                'A rising and a falling model meet once. For $N = 5e^{\\frac{\\ln 2}{3}t}$ and $D = 320e^{-\\frac{\\ln 2}{3}t}$, set them equal and multiply both sides by $e^{\\frac{\\ln 2}{3}t}$, so the powers add:',
+              ),
+              working('5e^{\\frac{2\\ln 2}{3}t} &= 320', 'e^{\\frac{2\\ln 2}{3}t} &= 64 = 2^{6}', '\\frac{2t}{3} &= 6', 't &= 9'),
+              prose('That is $e^{2kt} = \\frac{B}{A}$, the ratio of the starts. Both are 40 at $t = 9$.'),
+            ),
+            ask('expm-meet-tree'),
+            ask('expm-meet-time'),
+            ask('expm-meet-slider'),
+            teach(
+              prose(
+                'In a picture, the curve that rises has the positive $k$ and the one that falls has the negative $k$. Where they cross is where they meet.',
+              ),
+              prose(
+                'The $2$ in $e^{2kt}$ matters: $64$ is $u^{2}$ with $u = 2^{t/3}$, so $u = 8$ and $t = 9$, not the $t = 18$ that $u = 64$ would give.',
+              ),
+            ),
+            ask('expm-meet-which'),
+            ask('expm-meet-tree', 2),
+            ask('expm-meet-slider', 2),
+            teach(
+              prose(
+                'With different rates the powers still add. With $u = 3^{t}$, $S = 2e^{2t\\ln 3} = 2u^{2}$ and $R = 54e^{-t\\ln 3} = \\frac{54}{u}$:',
+              ),
+              working('2u^{3} &= 54', 'u^{3} &= 27', 'u &= 3', 't &= 1'),
+              prose('Both are 18 then.'),
+            ),
+            ask('expm-meet-time+choice', 2),
+            ask('expm-meet-which', 2),
+          ],
+          skillCheck: [ask('expm-meet-time', 2), ask('expm-meet-which', 2), ask('expm-meet-slider', 2)],
+        },
+        {
+          id: 'em-l4-sum',
+          title: 'Sums of Exponentials',
+          slides: [
+            teach(
+              prose(
+                'A sum of two exponentials starts at the sum of the starts, since each $e^{0} = 1$. $N = 60e^{\\frac{\\ln 2}{4}t} + 96e^{-\\frac{\\ln 2}{4}t}$ starts at $60 + 96 = 156$.',
+              ),
+              prose(
+                'As $t$ grows the falling term shrinks towards 0 and the rising one takes over: for large $t$, $N \\approx 60e^{\\frac{\\ln 2}{4}t}$.',
+              ),
+            ),
+            ask('expm-sum-tiles'),
+            ask('expm-sum-flow'),
+            ask('expm-sum-at'),
+            teach(
+              prose('To evaluate it, write both terms in $u = 2^{t/4}$: $N = 60u + \\frac{96}{u}$. At $t = 8$, $u = 4$:'),
+              working('N(8) &= 60 \\times 4 + 96 \\div 4', '&= 240 + 24 = 264'),
+            ),
+            ask('expm-sum-tree'),
+            ask('expm-sum-tiles', 2),
+            ask('expm-sum-at+choice', 2),
+            teach(
+              prose(
+                'When both terms grow, the bigger $k$ wins. When both decay, both head to 0, but the one with $k$ nearer 0 lasts longer: $5e^{-0.1t} + 20e^{-0.3t}$ ends up close to $5e^{-0.1t}$, though that term starts smaller.',
+              ),
+            ),
+            ask('expm-sum-flow', 2),
+            ask('expm-sum-tree', 2),
+          ],
+          skillCheck: [ask('expm-sum-tiles', 2), ask('expm-sum-at', 2), ask('expm-sum-flow', 2)],
+        },
+        {
+          id: 'em-l4-gap',
+          title: 'Differences and the Gap',
+          slides: [
+            teach(
+              prose(
+                'The gap between a model and a level is a difference: $P = 5e^{t\\ln 2}$ is 35 above $L = 5$ when $5 \\times 2^{t} = 40$, at $t = 3$.',
+              ),
+              prose(
+                'Two models take more. With $u = 2^{t}$, $P = 3e^{2t\\ln 2} = 3u^{2}$ and $Q = 12e^{t\\ln 2} = 12u$, so $P - Q = 3u^{2} - 12u$: a quadratic in $u$.',
+              ),
+            ),
+            ask('expm-diff-tree'),
+            ask('expm-gap-flow'),
+            ask('expm-gap-slider'),
+            teach(
+              prose('So $P - Q = 96$ is a quadratic in disguise, as in Quadratics level 7:'),
+              working('3u^{2} - 12u - 96 &= 0', '3(u - 8)(u + 4) &= 0'),
+              prose('$u = 2^{t}$ is never negative, so $u = -4$ is no use: $u = 8$ and $t = 3$.'),
+            ),
+            ask('expm-gap-steps'),
+            ask('expm-diff-tree', 2),
+            ask('expm-gap-slider', 2),
+            teach(
+              prose(
+                'The gap can start negative. At $t = 0$, $u = 1$ and $P - Q = 3 - 12 = -9$, so $Q$ leads. They are level when $3u^{2} = 12u$, at $u = 4$, which is $t = 2$; after that the $u^{2}$ term runs away.',
+              ),
+            ),
+            ask('expm-gap-steps', 2),
+            ask('expm-gap-flow', 2),
+          ],
+          skillCheck: [ask('expm-gap-steps', 2), ask('expm-diff-tree', 2), ask('expm-gap-slider', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('expm-lead-tree', 2),
+        ask('expm-overtake-time', 2),
+        ask('expm-meet-slider', 2),
+        ask('expm-sum-tiles', 2),
+        ask('expm-gap-steps', 2),
+        ask('expm-lead-which', 2),
+        ask('expm-overtake-tiles', 2),
+        ask('expm-meet-tree', 2),
+        ask('expm-sum-at', 2),
+        ask('expm-gap-slider', 2),
+        ask('expm-lead-gap', 2),
+        ask('expm-overtake-steps', 2),
+        ask('expm-meet-which', 2),
+        ask('expm-sum-flow', 2),
+        ask('expm-diff-tree', 2),
       ],
     },
   ],

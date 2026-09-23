@@ -26,7 +26,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { bankFor, bin, num, pow, type Expr } from '../expr';
 import { sumTex, termTex } from './calculus';
-import { bankOf, offer, signedTile } from './quadratics';
+import { bankOf, numberTile, offer, signedTile } from './quadratics';
 
 /* ---------- Formatting ---------- */
 
@@ -1394,12 +1394,12 @@ const inverseForm: Generator<InverseFormParams> = {
       };
     }
     if (form === 'over') {
-      const answer = [`${a}`, signedTile(-b)];
+      const answer = [numberTile(a), signedTile(-b)];
       return {
         kind: 'tiles',
         prompt: prompt(`\\frac{x}{${a}} ${signedTile(b)}`),
         template: 'f^{-1}(x) = {0}(x {1})',
-        bank: bankOf(answer, [`\\frac{1}{${a}}`, `${-a}`, signedTile(b), signedTile(-a * b)]),
+        bank: bankOf(answer, [`\\frac{1}{${a}}`, numberTile(-a), signedTile(b), signedTile(-a * b)]),
         answer,
       };
     }

@@ -36,7 +36,7 @@ import { markerWindow, plotSvg, type Curve } from '../figures';
 import { options } from '../choiceVariant';
 import { bin, num, pow } from '../expr';
 import { ALGEBRA_KEYS } from './calculus';
-import { bankOf, offer, signedTile } from './quadratics';
+import { bankOf, numberTile, offer, signedTile } from './quadratics';
 
 /* ---------- Formatting ---------- */
 
@@ -1458,12 +1458,12 @@ const fitAbc: Generator<FitRootsParams> = {
     const { a, r1, r2 } = params;
     const b = -a * (r1 + r2);
     const c = a * r1 * r2;
-    const answer = [`${a}`, signedTile(b), signedTile(c)];
+    const answer = [numberTile(a), signedTile(b), signedTile(c)];
     return {
       kind: 'tiles',
       prompt: [prose(`${fitRootsStory(params)} Write its equation as $y = ax^{2} + bx + c$.`)],
       template: 'y = {0}x^2 {1}x {2}',
-      bank: bankOf(answer, [`${-a}`, signedTile(-b), signedTile(-c), signedTile(-(r1 + r2)), signedTile(r1 * r2)]),
+      bank: bankOf(answer, [numberTile(-a), signedTile(-b), signedTile(-c), signedTile(-(r1 + r2)), signedTile(r1 * r2)]),
       answer,
     };
   },

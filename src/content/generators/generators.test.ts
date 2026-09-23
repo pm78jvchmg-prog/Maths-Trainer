@@ -62,6 +62,32 @@ const DIFFICULTIES = [1, 2];
 const BARE_TEX_COMMAND =
   /(?<!\\)\b(qquad|quad|overline|dfrac|tfrac|frac|sqrt|cdot|times|pm|geq|leq|rightarrow|implies|arg|sin|cos|tan|ln|pi|text|left|right)\b/;
 
+/**
+ * What a tile shows the learner, as comparable text. The MathML half of KaTeX's
+ * output carries the source TeX in an annotation, so comparing whole HTML
+ * would tell `- 8` from `-8` even though they draw the same "−8" — which is
+ * exactly how two identical tiles hid in six generators.
+ */
+const renderedTile = (tex: string): string =>
+  katex
+    .renderToString(tex, { throwOnError: false, strict: false })
+    .replace(/<span class="katex-mathml">[\s\S]*?<\/math><\/span>/, '')
+    .replace(/\u2212/g, '-')
+    .replace(/\s+/g, ' ');
+
+/** Pairs of bank tokens spelled differently that the learner sees as one tile. */
+const lookalikeTiles = (bank: readonly string[]): string[] => {
+  const seen = new Map<string, string>();
+  const clashes: string[] = [];
+  for (const token of new Set(bank)) {
+    const shown = renderedTile(token);
+    const earlier = seen.get(shown);
+    if (earlier !== undefined) clashes.push(`${JSON.stringify(earlier)} and ${JSON.stringify(token)}`);
+    else seen.set(shown, token);
+  }
+  return clashes;
+};
+
 // Derived choice generators are swept exactly like the ones written by hand:
 // they are what a lesson actually asks, so "derived" is no reason to trust them.
 describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, generator) => {
@@ -108,6 +134,13 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           bank.length,
           `bank for answer ${JSON.stringify(slide.answer)} has no real distractor left over`,
         ).toBeGreaterThanOrEqual(1);
+        // Tiles are graded by exact string, but TeX ignores spaces: `- 8` and
+        // `-8` draw the same "−8", so a bank holding both shows two identical
+        // tiles of which only one is marked right. Spell every tile one way.
+        expect(
+          lookalikeTiles(slide.bank),
+          `${generator.id}: tiles that look the same in ${JSON.stringify(slide.bank)}`,
+        ).toEqual([]);
       }
 
       if (slide.kind === 'table') {
@@ -891,6 +924,27 @@ describe('course integrity', () => {
   const lessons = courses.flatMap((course) =>
     course.levels.flatMap((level) => level.lessons),
   );
+
+  it('offers no two authored tiles that look the same', () => {
+    // The literal counterpart of the generator sweep's check: a hand-written
+    // bank holding `- 8` and `-8` shows two identical tiles, one marked wrong.
+    const levelChecks = courses.flatMap((course) =>
+      course.levels.flatMap((level) => level.levelCheck ?? []),
+    );
+    const refs = [
+      ...lessons.flatMap((lesson) =>
+        [...lesson.slides, ...lesson.skillCheck].map((ref) => ({ ref, where: lesson.id })),
+      ),
+      ...levelChecks.map((ref) => ({ ref, where: 'level check' })),
+    ];
+    for (const { ref, where } of refs) {
+      if (ref.type !== 'literal' || ref.slide.kind !== 'tiles') continue;
+      expect(
+        lookalikeTiles(ref.slide.bank),
+        `${where}: tiles that look the same in ${JSON.stringify(ref.slide.bank)}`,
+      ).toEqual([]);
+    }
+  });
 
   it('references only generators that exist', () => {
     for (const lesson of lessons) {

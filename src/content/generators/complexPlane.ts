@@ -2864,6 +2864,9 @@ function holds(d: number, rel: Rel, e: number): boolean {
 
 const squared = (x: number, y: number): number => x * x + y * y;
 
+/** `y - 3`, `x + 2`, or the bare letter when there is nothing to take off. */
+const less = (v: string, c: number): string => (c === 0 ? v : `${v} ${c > 0 ? '-' : '+'} ${Math.abs(c)}`);
+
 /** `(x - p)^2`, or `x^2` when there is nothing to take off. */
 const squareTex = (v: string, p: number): string =>
   p === 0 ? `${v}^2` : `(${v} ${p > 0 ? '-' : '+'} ${Math.abs(p)})^2`;
@@ -2916,7 +2919,7 @@ interface LocusFigure {
   /** Whole lines through a point, in a direction. */
   lines?: { re: number; im: number; dx: number; dy: number; dashed?: boolean }[];
   /** Half-lines from a point. Mark the start open with a point, since it is not on the locus. */
-  rays?: { re: number; im: number; dx: number; dy: number }[];
+  rays?: { re: number; im: number; dx: number; dy: number; dashed?: boolean }[];
   /** The side of a line holding `toward`, shaded. */
   halves?: { re: number; im: number; dx: number; dy: number; toward: [number, number] }[];
   /** A wedge from an apex, turning anticlockwise from `from` to `to` eighths of a turn. */
@@ -2954,7 +2957,9 @@ export function locusSvg(figure: LocusFigure): string {
     const len = Math.hypot(dx, dy);
     return [dx / len, dy / len];
   };
-  const LOCUS = 'stroke="var(--accent)" stroke-width="2.2" fill="none"';
+  // A slider draws its marker in the accent colour, so a locus beside it is
+  // drawn plain, or the two read as one thing.
+  const LOCUS = `stroke="${figure.wide ? 'var(--text-soft)' : 'var(--accent)'}" stroke-width="2.2" fill="none"`;
   const SHADE = 'fill="var(--accent)" fill-opacity="0.2" stroke="none"';
   const DASH = ' stroke-dasharray="6 4"';
 
@@ -3006,7 +3011,7 @@ export function locusSvg(figure: LocusFigure): string {
   }
   for (const r of figure.rays ?? []) {
     const [ux, uy] = unitDir(r.dx, r.dy);
-    drawn.push(`<polyline points="${xy(r.re, r.im)} ${xy(r.re + far * ux, r.im + far * uy)}" ${LOCUS}/>`);
+    drawn.push(`<polyline points="${xy(r.re, r.im)} ${xy(r.re + far * ux, r.im + far * uy)}" ${LOCUS}${r.dashed ? DASH : ''}/>`);
   }
 
   const marks: string[] = [];
@@ -3079,8 +3084,8 @@ export const locusCircleCentre: Generator<CircleCentreParams> = {
     const steps: SolutionStep[] = [];
     if (reversed) {
       steps.push({
-        text: 'The distance from $a$ to $z$ is the distance from $z$ to $a$, so turn the difference round.',
-        tex: `|${complexTex(p, q)} - z| = |${shiftTex(p, q, 'bracket')}|`,
+        text: `The distance from $a$ to $z$ is the distance from $z$ to $a$, so turn the difference round: $|${complexTex(p, q)} - z|$ is`,
+        tex: `|${shiftTex(p, q, 'bracket')}|`,
       });
     } else if (style === 'expanded' && p !== 0 && q !== 0) {
       steps.push({
@@ -3090,7 +3095,7 @@ export const locusCircleCentre: Generator<CircleCentreParams> = {
     }
     steps.push({
       text: `$|z - a|$ is the distance from $z$ to $a$, so the locus is every point exactly ${r} from $${complexTex(p, q)}$: a circle about it.`,
-      tex: `\\text{centre } ${complexTex(p, q)} \\rightarrow (${p},\\ ${q})`,
+      tex: `a = ${complexTex(p, q)} \\rightarrow (${p},\\ ${q})`,
     });
     return steps;
   },
@@ -3130,19 +3135,19 @@ export const locusCircleRadius: Generator<CircleRadiusParams> = {
   },
   render: ({ p, q, r, k }) => ({
     kind: 'slider',
-    prompt: [
-      {
-        kind: 'prose',
-        text: k === 1
-          ? 'This circle is $|z - a| = r$, centred on the marked point $a$. Slide the marker out from the centre to the circle to find $r$.'
-          : `$${scaledShiftTex(k, p, q)} = ${k * r}$ is a circle, centred on the marked point. Slide the marker out from the centre to its radius.`,
-      },
-    ],
+    // Short, like every slider prompt in this level: the figure is full
+    // width, and a long prompt pushes the slider under the Check button.
+    prompt: k === 1
+      ? [{ kind: 'prose', text: 'This circle is $|z - a| = r$. Slide out from the marked centre to the circle to find $r$.' }]
+      : [
+          { kind: 'prose', text: 'Slide out from the marked centre to the radius of' },
+          { kind: 'display', tex: `${scaledShiftTex(k, p, q)} = ${k * r}` },
+        ],
     figure: {
       svg: locusSvg({
         range: 5,
         circles: k === 1 ? [{ re: p, im: q, r }] : [],
-        points: [{ re: p, im: q, highlight: true }],
+        points: [{ re: p, im: q }],
         wide: true,
       }),
       ...planeSpan(5),
@@ -3164,8 +3169,8 @@ export const locusCircleRadius: Generator<CircleRadiusParams> = {
         ]
       : [
           {
-            text: `Take the ${k} out of the modulus: $|${k}w| = ${k}|w|$ for any $w$.`,
-            tex: `${scaledShiftTex(k, p, q)} = ${k}|${shiftTex(p, q, 'bracket')}|`,
+            text: `Take the ${k} out of the modulus, since $|${k}w| = ${k}|w|$ for any $w$. So $${scaledShiftTex(k, p, q)}$ is`,
+            tex: `${k}|${shiftTex(p, q, 'bracket')}|`,
           },
           {
             text: `So $${k}|${shiftTex(p, q, 'bracket')}| = ${k * r}$, and dividing by ${k} leaves the radius.`,
@@ -3269,13 +3274,14 @@ export const locusCircleThrough: Generator<CircleThroughParams> = {
     const tail = surdTex(n) === `\\sqrt{${n}}` ? '' : ` = ${surdTex(n)}`;
     return [
       {
-        text: 'The radius is the distance from the centre to any point on the circle, and a distance between two numbers is the modulus of their difference.',
-        tex: `r = |(${complexTex(p + dx, q + dy)}) - (${complexTex(p, q)})| = |${complexTex(dx, dy)}|`,
+        text: `The radius is the distance from the centre to any point on the circle, and a distance between two numbers is the modulus of their difference: $(${complexTex(p + dx, q + dy)}) - (${complexTex(p, q)}) = ${complexTex(dx, dy)}$.`,
+        tex: `r = |${complexTex(dx, dy)}|`,
       },
       {
         text: 'Pythagoras on the two parts of the difference:',
-        tex: `r = \\sqrt{${paren(`${dx}`)}^2 + ${paren(`${dy}`)}^2} = \\sqrt{${n}}${tail}`,
+        tex: `r = \\sqrt{${paren(`${dx}`)}^2 + ${paren(`${dy}`)}^2}`,
       },
+      { tex: `= \\sqrt{${n}}${tail}` },
     ];
   },
 };
@@ -3324,8 +3330,10 @@ export const locusBisectorMidpoint: Generator<PairParams> = {
     },
     {
       text: 'The bisector crosses the segment at its midpoint: average the real parts and the imaginary parts.',
-      tex: `\\left(\\tfrac{${a1} + ${paren(`${b1}`)}}{2},\\ \\tfrac{${a2} + ${paren(`${b2}`)}}{2}\\right) = (${(a1 + b1) / 2},\\ ${(a2 + b2) / 2})`,
+      tex: `\\text{real: } \\tfrac{${a1} + ${paren(`${b1}`)}}{2} = ${(a1 + b1) / 2}`,
     },
+    { tex: `\\text{imaginary: } \\tfrac{${a2} + ${paren(`${b2}`)}}{2} = ${(a2 + b2) / 2}` },
+    { text: 'So the midpoint is', tex: complexTex((a1 + b1) / 2, (a2 + b2) / 2) },
   ],
 };
 
@@ -3378,10 +3386,8 @@ export const locusBisectorLine: Generator<BisectorLineParams> = {
     return {
       kind: 'expression',
       prompt: [
-        {
-          kind: 'prose',
-          text: `$${distTex(a1, a2, 'bracket')} = ${distTex(a1 + dx, a2 + dy, 'bracket')}$ is a straight line. With $z = x + iy$, what is its equation?`,
-        },
+        { kind: 'display', tex: `${distTex(a1, a2, 'bracket')} = ${distTex(a1 + dx, a2 + dy, 'bracket')}` },
+        { kind: 'prose', text: 'This locus is a straight line. With $z = x + iy$, what is its equation?' },
       ],
       lead: 'y =',
       keypad: X_KEY,
@@ -3404,8 +3410,10 @@ export const locusBisectorLine: Generator<BisectorLineParams> = {
         tex: `m = ${m}`,
       },
       {
-        text: `Through $(${mx}, ${my})$ with gradient ${m}:`,
-        tex: `y - ${paren(`${my}`)} = ${m}(x - ${paren(`${mx}`)}) \\;\\Rightarrow\\; y = ${lineTex(m, c)}`,
+        text: m === 0
+          ? `Through $(${mx}, ${my})$ and level, it is:`
+          : `Through $(${mx}, ${my})$ with gradient ${m}: $${less('y', my)} = ${m === 1 ? '' : m === -1 ? '-' : m}(${less('x', mx)})$, which rearranges to`,
+        tex: `y = ${lineTex(m, c)}`,
       },
     ];
   },
@@ -3441,10 +3449,9 @@ export const locusBisectorSide: Generator<SideParams> = {
     const db = squared(w1 - b1, w2 - b2);
     return choiceSlide(
       [
-        {
-          kind: 'prose',
-          text: `The line $${distTex(a1, a2, style)} = ${distTex(b1, b2, style)}$ splits the plane in two. Where is $w = ${complexTex(w1, w2)}$?`,
-        },
+        { kind: 'prose', text: 'This line splits the plane in two:' },
+        { kind: 'display', tex: `${distTex(a1, a2, style)} = ${distTex(b1, b2, style)}` },
+        { kind: 'prose', text: `Where is $w = ${complexTex(w1, w2)}$?` },
       ],
       [
         { tex: `\\text{nearer } ${complexTex(a1, a2)}`, correct: da < db },
@@ -3459,9 +3466,10 @@ export const locusBisectorSide: Generator<SideParams> = {
     const db = squared(w1 - b1, w2 - b2);
     return [
       {
-        text: 'Compare the squared distances from $w$ to each fixed point; squaring keeps the order and avoids the roots.',
-        tex: `|${complexTex(w1 - a1, w2 - a2)}|^2 = ${da}, \\quad |${complexTex(w1 - b1, w2 - b2)}|^2 = ${db}`,
+        text: `Compare the squared distances from $w$ to each fixed point; squaring keeps the order and avoids the roots. To $${complexTex(a1, a2)}$:`,
+        tex: `|${complexTex(w1 - a1, w2 - a2)}|^2 = ${da}`,
       },
+      { text: `To $${complexTex(b1, b2)}$:`, tex: `|${complexTex(w1 - b1, w2 - b2)}|^2 = ${db}` },
       {
         text: da === db
           ? 'They are equal, so $w$ is on the line.'
@@ -3496,10 +3504,8 @@ export const locusBisectorCrossing: Generator<CrossingParams> = {
   render: ({ a1, a2, b1, b2 }) => ({
     kind: 'slider',
     prompt: [
-      {
-        kind: 'prose',
-        text: `Slide the marker to where the line $${distTex(a1, a2, 'bracket')} = ${distTex(b1, b2, 'bracket')}$ crosses the real axis.`,
-      },
+      { kind: 'prose', text: 'Slide to where this line crosses the real axis:' },
+      { kind: 'display', tex: `${distTex(a1, a2, 'expanded')} = ${distTex(b1, b2, 'expanded')}` },
     ],
     figure: {
       svg: locusSvg({
@@ -3579,8 +3585,8 @@ export const locusHalflinePoint: Generator<HalfPointParams> = {
         text: `The half-line starts at $${complexTex(p, q)}$ and heads off at angle $${tex}$, which is the direction of $${complexTex(re, im)}$.`,
       },
       {
-        text: `Take ${k} of those steps from the start:`,
-        tex: `${complexTex(p, q)} + ${k} \\times (${complexTex(re, im)}) = ${complexTex(p + k * re, q + k * im)}`,
+        text: `Take ${k} of those steps from the start: $${complexTex(p, q)} + ${k}(${complexTex(re, im)})$.`,
+        tex: `z = ${complexTex(p + k * re, q + k * im)}`,
       },
     ];
   },
@@ -3681,7 +3687,10 @@ export const locusHalflineThrough: Generator<HalfThroughParams> = {
       if (opts.length === 4) break;
     }
     return choiceSlide(
-      [{ kind: 'prose', text: `Which of these points lies on the half-line $${argTex(p, q, style)} = ${tex}$?` }],
+      [
+        { kind: 'prose', text: 'Which of these points lies on this half-line?' },
+        { kind: 'display', tex: `${argTex(p, q, style)} = ${tex}` },
+      ],
       opts,
       mix(p, q, index, k),
     );
@@ -3690,8 +3699,8 @@ export const locusHalflineThrough: Generator<HalfThroughParams> = {
     const { re, im, tex } = ANGLES[index];
     return [
       {
-        text: `The half-line starts at $${complexTex(p, q)}$ and runs only one way, in the direction of $${complexTex(re, im)}$ at angle $${tex}$.`,
-        tex: `${complexTex(p, q)} + ${k} \\times (${complexTex(re, im)}) = ${complexTex(p + k * re, q + k * im)}`,
+        text: `The half-line starts at $${complexTex(p, q)}$ and runs only one way, in the direction of $${complexTex(re, im)}$ at angle $${tex}$. ${k} step${k === 1 ? '' : 's'} along it: $${complexTex(p, q)} + ${k}(${complexTex(re, im)})$.`,
+        tex: `z = ${complexTex(p + k * re, q + k * im)}`,
       },
       {
         text: `$${complexTex(p - k * re, q - k * im)}$ is on the same straight line but behind the start, where the angle is the opposite one. A half-line from the origin would be $\\arg z = ${tex}$, a different locus.`,
@@ -3747,8 +3756,8 @@ export const locusHalflineTurns: Generator<HalfTurnsParams> = {
     const steps: SolutionStep[] = [];
     if (k > 0) {
       steps.push({
-        text: 'The direction is from the start to the point it passes through:',
-        tex: `(${complexTex(p + k * re, q + k * im)}) - (${complexTex(p, q)}) = ${complexTex(k * re, k * im)}`,
+        text: `The direction is the step from the start to the point it passes through, $(${complexTex(p + k * re, q + k * im)}) - (${complexTex(p, q)})$:`,
+        tex: complexTex(k * re, k * im),
       });
     }
     steps.push({
@@ -3815,7 +3824,10 @@ export const locusRegionFlow: Generator<RegionFlowParams> = {
     const at = Math.sign(d - e) + 1;
     return {
       kind: 'flow',
-      prompt: [{ kind: 'prose', text: `Is $w$ in the region $${regionTex(params)}$? Work down the questions.` }],
+      prompt: [
+        { kind: 'prose', text: 'Is $w$ in this region? Work down the questions.' },
+        { kind: 'display', tex: regionTex(params) },
+      ],
       subject: `w = ${complexTex(w1, w2)}`,
       steps: [
         {
@@ -3842,17 +3854,22 @@ export const locusRegionFlow: Generator<RegionFlowParams> = {
     const d = squared(w1 - a1, w2 - a2);
     const e = shape === 'disc' ? r * r : squared(w1 - b1, w2 - b2);
     const inside = holds(d, rel, e);
-    const measured: SolutionStep = shape === 'disc'
-      ? {
-          text: `Compare squared distances, which avoids roots: $w$ against the centre, and the radius squared.`,
-          tex: `|${complexTex(w1 - a1, w2 - a2)}|^2 = ${d}, \\quad ${r}^2 = ${e}`,
-        }
-      : {
-          text: 'Compare the squared distances from $w$ to the two fixed points.',
-          tex: `|${complexTex(w1 - a1, w2 - a2)}|^2 = ${d}, \\quad |${complexTex(w1 - b1, w2 - b2)}|^2 = ${e}`,
-        };
+    const measured: SolutionStep[] = shape === 'disc'
+      ? [
+          {
+            text: `Compare squared distances, which avoids roots: from $w$ to the centre, against $${r}^2 = ${e}$.`,
+            tex: `|${complexTex(w1 - a1, w2 - a2)}|^2 = ${d}`,
+          },
+        ]
+      : [
+          {
+            text: `Compare the squared distances from $w$ to the two fixed points. To $${complexTex(a1, a2)}$:`,
+            tex: `|${complexTex(w1 - a1, w2 - a2)}|^2 = ${d}`,
+          },
+          { text: `To $${complexTex(b1, b2)}$:`, tex: `|${complexTex(w1 - b1, w2 - b2)}|^2 = ${e}` },
+        ];
     return [
-      measured,
+      ...measured,
       {
         text: `${d === e ? 'They are equal, so $w$ is on the boundary' : d < e ? 'The first is smaller' : 'The first is bigger'}, and the region wants $${regionTex(params)}$: ${strict(rel) && d === e ? 'a strict inequality leaves the boundary out' : `so $w$ is ${inside ? '' : 'not '}in it`}.`,
       },
@@ -3879,7 +3896,7 @@ export const locusRegionMatch: Generator<RegionMatchParams> = {
       for (;;) {
         const [a1, a2, b1, b2] = samplePair(rng, 3);
         if ((a1 === 0 && a2 === 0) || (b1 === 0 && b2 === 0) || (a1 === -b1 && a2 === -b2)) continue;
-        return { shape: 'half', a1, a2, b1, b2, r: 0, rel, style: 'bracket' };
+        return { shape: 'half', a1, a2, b1, b2, r: 0, rel, style: 'expanded' };
       }
     }
     const [a1, a2] = offOrigin(rng, 2);
@@ -3928,8 +3945,10 @@ export const locusRegionMatch: Generator<RegionMatchParams> = {
           : `The boundary is the perpendicular bisector of $${complexTex(a1, a2)}$ and $${complexTex(b1, b2)}$, and the shading is on the side nearer $${below(rel) ? complexTex(a1, a2) : complexTex(b1, b2)}$.`,
       },
       {
-        text: `The boundary is ${strict(rel) ? 'dashed, so it is left out and the inequality is strict' : 'solid, so it is included'}.`,
-        tex: regionTex(params),
+        // A half-plane's inequality is two moduli wide, too wide for a display
+        // in the solution panel, so it rides in the prose, which wraps.
+        text: `The boundary is ${strict(rel) ? 'dashed, so it is left out and the inequality is strict' : 'solid, so it is included'}${shape === 'half' ? `: $${regionTex(params)}$.` : '.'}`,
+        tex: shape === 'disc' ? regionTex(params) : undefined,
       },
     ];
   },
@@ -3971,10 +3990,8 @@ export const locusRegionWedge: Generator<WedgeParams> = {
   render: ({ p, q, lo, hi, picks }) =>
     choiceSlide(
       [
-        {
-          kind: 'prose',
-          text: `Which of these numbers satisfies $${turnTex(lo)} < ${argTex(p, q, 'bracket')} < ${turnTex(hi)}$?`,
-        },
+        { kind: 'prose', text: 'Which of these numbers lies in this region?' },
+        { kind: 'display', tex: `${turnTex(lo)} < ${argTex(p, q, 'bracket')} < ${turnTex(hi)}` },
       ],
       picks.map(([x, y], idx) => (idx === 0
         ? { tex: complexTex(p + x, q + y), correct: true }
@@ -3990,8 +4007,8 @@ export const locusRegionWedge: Generator<WedgeParams> = {
     ];
     if (p !== 0 || q !== 0) {
       steps.push({
-        text: 'Measure each number from the point of the wedge by subtracting it first.',
-        tex: `(${complexTex(p + x, q + y)}) - (${complexTex(p, q)}) = ${complexTex(x, y)}`,
+        text: `Measure each number from the point of the wedge by subtracting it first: $(${complexTex(p + x, q + y)}) - (${complexTex(p, q)})$ is`,
+        tex: complexTex(x, y),
       });
     }
     steps.push({
@@ -4035,9 +4052,10 @@ export const locusRegionExtreme: Generator<ExtremeParams> = {
   render: ({ p, q, r, part, end, style }) => ({
     kind: 'expression',
     prompt: [
+      { kind: 'display', tex: `${distTex(p, q, style)} \\le ${r}` },
       {
         kind: 'prose',
-        text: `$z$ lies in the region $${distTex(p, q, style)} \\le ${r}$. What is the ${end === 'max' ? 'greatest' : 'least'} possible value of $${PART_TEX[part]}$?`,
+        text: `$z$ lies in this region. What is the ${end === 'max' ? 'greatest' : 'least'} possible value of $${PART_TEX[part]}$?`,
       },
     ],
     lead: `\\text{${end === 'max' ? 'greatest' : 'least'} } ${PART_TEX[part]} =`,
@@ -4084,15 +4102,18 @@ export const locusCartesianTiles: Generator<CartesianTilesParams> = {
   }),
   render: ({ p, q, r, style }) => ({
     kind: 'tiles',
-    prompt: [{ kind: 'prose', text: `With $z = x + iy$, write $${distTex(p, q, style)} = ${r}$ in Cartesian form.` }],
+    prompt: [
+      { kind: 'prose', text: 'With $z = x + iy$, write this locus in Cartesian form.' },
+      { kind: 'display', tex: `${distTex(p, q, style)} = ${r}` },
+    ],
     template: '(x {0})^2 + (y {1})^2 = {2}',
     bank: [offsetTok(p), offsetTok(q), offsetTok(-p), offsetTok(-q), `${r * r}`, `${r}`].sort(),
     answer: [offsetTok(p), offsetTok(q), `${r * r}`],
   }),
   solution: ({ p, q, r }) => [
     {
-      text: 'Put $z = x + iy$ and collect the real and imaginary parts of the difference.',
-      tex: `z - (${complexTex(p, q)}) = (x ${offsetTok(p)}) + (y ${offsetTok(q)})i`,
+      text: `Put $z = x + iy$ and collect the real and imaginary parts of $z - (${complexTex(p, q)})$:`,
+      tex: `(x ${offsetTok(p)}) + (y ${offsetTok(q)})i`,
     },
     {
       text: `The modulus is Pythagoras on those two parts. Square both sides so there is no root: the right-hand side becomes ${r}^2.`,
@@ -4117,14 +4138,14 @@ function cartesianSolution({ p, q, r, form }: CartesianCircleParams): SolutionSt
       { text: 'Complete the square in $x$ and in $y$ separately.', tex: completeTex('x', p) },
       { tex: completeTex('y', q) },
       {
-        text: `Add the ${p * p + q * q} those take off to the right-hand side:`,
-        tex: `${squareTex('x', p)} + ${squareTex('y', q)} = ${r * r - p * p - q * q} + ${p * p + q * q} = ${r * r}`,
+        text: `Add the ${p * p + q * q} those take off to the right-hand side: $${r * r - p * p - q * q} + ${p * p + q * q} = ${r * r}$.`,
+        tex: `${squareTex('x', p)} + ${squareTex('y', q)} = ${r * r}`,
       },
     );
   }
   steps.push({
-    text: 'That is the distance from $(x, y)$ to the centre, squared, so read the centre off with the signs turned round, and the radius as the root of the right-hand side.',
-    tex: `\\text{centre } ${complexTex(p, q)}, \\quad r = \\sqrt{${r * r}} = ${r}`,
+    text: 'That is the distance from $(x, y)$ to the centre $a$, squared. Read $a$ off with the signs turned round, and the radius as the root of the right-hand side.',
+    tex: `a = ${complexTex(p, q)}, \\quad r = \\sqrt{${r * r}} = ${r}`,
   });
   return steps;
 }
@@ -4141,7 +4162,10 @@ export const locusCartesianCentre: Generator<CartesianCircleParams> = {
   },
   render: ({ p, q, r, form }) => ({
     kind: 'plot',
-    prompt: [{ kind: 'prose', text: `$${cartesianTex(p, q, r, form)}$ is a circle. Tap its centre.` }],
+    prompt: [
+      { kind: 'display', tex: cartesianTex(p, q, r, form) },
+      { kind: 'prose', text: 'This is a circle. Tap its centre.' },
+    ],
     range: RANGE,
     answer: { re: p, im: q },
   }),
@@ -4171,13 +4195,13 @@ export const locusCartesianRadius: Generator<CartesianCircleParams> = {
   render: ({ p, q, r, form }) => ({
     kind: 'slider',
     prompt: [
-      {
-        kind: 'prose',
-        text: `$${cartesianTex(p, q, r, form)}$ is a circle, centred on the marked point. Slide the marker out from the centre to its radius.`,
-      },
+      // Kept to a line: with the figure full width, any more pushes the
+      // slider under the Check button on a phone.
+      { kind: 'prose', text: 'Slide out from the marked centre to the radius of' },
+      { kind: 'display', tex: cartesianTex(p, q, r, form) },
     ],
     figure: {
-      svg: locusSvg({ range: 5, points: [{ re: p, im: q, highlight: true }], wide: true }),
+      svg: locusSvg({ range: 5, points: [{ re: p, im: q }], wide: true }),
       ...planeSpan(5),
       origin: p,
     },
@@ -4236,9 +4260,10 @@ export const locusModulusRange: Generator<ModulusRangeParams> = {
   render: ({ a1, a2, r, end, style, c }) => ({
     kind: 'expression',
     prompt: [
+      { kind: 'display', tex: `${distTex(a1, a2, style)} = ${r}` },
       {
         kind: 'prose',
-        text: `$z$ lies on the circle $${distTex(a1, a2, style)} = ${r}$. What is the ${end === 'max' ? 'greatest' : 'least'} value of $|z|$?`,
+        text: `$z$ lies on this circle. What is the ${end === 'max' ? 'greatest' : 'least'} value of $|z|$?`,
       },
     ],
     lead: `\\text{${end === 'max' ? 'greatest' : 'least'} } |z| =`,
@@ -4251,8 +4276,8 @@ export const locusModulusRange: Generator<ModulusRangeParams> = {
     const inside = r > c;
     return [
       {
-        text: 'The centre is this far from the origin:',
-        tex: `|${complexTex(a1, a2)}| = \\sqrt{${paren(`${a1}`)}^2 + ${paren(`${a2}`)}^2} = ${c}`,
+        text: `The centre $${complexTex(a1, a2)}$ is this far from the origin:`,
+        tex: `\\sqrt{${paren(`${a1}`)}^2 + ${paren(`${a2}`)}^2} = ${c}`,
       },
       {
         text: `The nearest and furthest points of the circle lie on the line through the origin and the centre. ${inside ? `The radius ${r} is more than ${c}, so the origin is inside the circle.` : 'The origin is outside the circle.'}`,

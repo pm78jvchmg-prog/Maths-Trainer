@@ -24,7 +24,7 @@ import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
-import { bin, num, pow } from '../expr';
+import { bin, num, pow, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
 
 /** The algebra keys plus the constant of integration. */
@@ -4833,6 +4833,1252 @@ const volumeOuterInner: Generator<HollowParams> = {
   },
 };
 
+/* ---------- Level 6: partial fractions in integration ---------- */
+
+/*
+ * Every fraction in this level is built from its answer. The numerators A and
+ * B and the brackets (x + a) and (x + b) are drawn first, and the fraction's
+ * top is what A/(x + a) + B/(x + b) adds up to, so every coefficient a learner
+ * finds is whole and nothing is rounded.
+ *
+ * Typed answers here are logarithms, and the checker probes negative x unless
+ * told otherwise, where ln goes complex (see the header of this file). So a
+ * typed log answer is only asked with a and b positive and under
+ * `domain: 'positive'`, where every bracket is positive at every probe; a
+ * bracket such as x - 3 appears only in tiles, choice and flow questions.
+ * `answer` and `integrand` write `log(` rather than `ln(`, which
+ * `math.derivative` rejects (see `int-parts-log`); the learner still types
+ * `ln(` from the keypad.
+ *
+ * A definite integral of a fraction is a logarithm such as ln(9/4), and the
+ * quadrature oracle reads a definite answer with `Number()`, so those are
+ * asked by choice, tiles and slider rather than typed.
+ */
+
+interface Split {
+  /** The numerators, never zero. */
+  A: number;
+  B: number;
+  /** The brackets are (x + a) and (x + b): a and b differ, and neither is zero. */
+  a: number;
+  b: number;
+}
+
+/** x + a as the learner reads it: `x + 3`, `x - 2`. */
+const bracketTex = (a: number): string => linearTex(1, a);
+
+const bracketAnswer = (a: number): string => `(x + (${a}))`;
+
+/** The top A(x + b) + B(x + a), lowest power first. */
+const splitTop = ({ A, B, a, b }: Split): Poly => [A * b + B * a, A + B];
+
+/** The bottom multiplied out, for a question that leaves the factorising to the learner. */
+const splitBottom = ({ a, b }: Split): Poly => [a * b, a + b, 1];
+
+/** The fraction before it is split, with the bottom factorised or multiplied out. */
+function splitFractionTex(split: Split, expanded = false): string {
+  const bottom = expanded ? polyTex(splitBottom(split)) : `(${bracketTex(split.a)})(${bracketTex(split.b)})`;
+  return `\\frac{${polyTex(splitTop(split))}}{${bottom}}`;
+}
+
+function splitFractionAnswer(split: Split): string {
+  return `(${polyAnswer(splitTop(split))}) / (${bracketAnswer(split.a)} * ${bracketAnswer(split.b)})`;
+}
+
+/** Where a term goes in a sum: first on the line, or after a sign. */
+function signedTerm(negative: boolean, body: string, first: boolean): string {
+  if (first) return negative ? `-${body}` : body;
+  return negative ? ` - ${body}` : ` + ${body}`;
+}
+
+/** k / (x + a), or k / (x + a)^2, as one term of a sum. */
+function fractionTermTex(k: number, a: number, first: boolean, squared = false): string {
+  const bottom = squared ? `(${bracketTex(a)})^{2}` : bracketTex(a);
+  return signedTerm(k < 0, `\\frac{${Math.abs(k)}}{${bottom}}`, first);
+}
+
+function splitTex({ A, B, a, b }: Split): string {
+  return `${fractionTermTex(A, a, true)}${fractionTermTex(B, b, false)}`;
+}
+
+/** The split form with letters for the numerators, as the question poses it. */
+function lettersTex({ a, b }: Split): string {
+  return `\\frac{A}{${bracketTex(a)}} + \\frac{B}{${bracketTex(b)}}`;
+}
+
+/** k ln|x + a| as one term of a sum. */
+function lnTermTex(k: number, a: number, first: boolean): string {
+  const size = Math.abs(k) === 1 ? '' : `${Math.abs(k)}`;
+  return signedTerm(k < 0, `${size}\\ln|${bracketTex(a)}|`, first);
+}
+
+function lnSumTex({ A, B, a, b }: Split): string {
+  return `${lnTermTex(A, a, true)}${lnTermTex(B, b, false)}`;
+}
+
+/** Both logs following something else on the line, each with its own sign. */
+function lnSumAfter({ A, B, a, b }: Split): string {
+  return `${lnTermTex(A, a, false)}${lnTermTex(B, b, false)}`;
+}
+
+/** Both fractions following something else on the line. */
+function splitAfter({ A, B, a, b }: Split): string {
+  return `${fractionTermTex(A, a, false)}${fractionTermTex(B, b, false)}`;
+}
+
+/** The two logs and the constant on two lines, for a solution panel about twenty characters wide. */
+function lnSumStacked({ A, B, a, b }: Split): string {
+  return stacked(lnTermTex(A, a, true), `${lnTermTex(B, b, false).trim()} + C`);
+}
+
+function lnSumAnswer({ A, B, a, b }: Split): string {
+  return `(${A}) * log${bracketAnswer(a)} + (${B}) * log${bracketAnswer(b)}`;
+}
+
+/** A coefficient written in front of something, with 1 and -1 left implied. */
+function leadingTex(r: Ratio): string {
+  if (r.d === 1 && r.n === 1) return '';
+  if (r.d === 1 && r.n === -1) return '-';
+  return ratioTex(r);
+}
+
+/** A number of the form n/d as a tile or a limit: `\frac{9}{4}`, `3`. */
+const fractionTex = ({ n, d }: Ratio): string => (d === 1 ? `${n}` : `\\frac{${n}}{${d}}`);
+
+/** ln of a positive fraction, as a textbook leaves it: `\ln\frac{9}{4}`, `\ln 3`. */
+const lnOfTex = (r: Ratio): string => (r.d === 1 ? `\\ln ${r.n}` : `\\ln\\frac{${r.n}}{${r.d}}`);
+
+function sampleSplit(rng: Rng, difficulty: number, positive: boolean): Split {
+  const hard = difficulty > 1;
+  const reach = hard ? 7 : 5;
+  const size = hard ? 6 : 4;
+  const coefficient = () => rng.sign() * rng.int(1, size);
+  const bracket = () => (positive ? rng.int(1, reach) : rng.sign() * rng.int(1, reach));
+  return drawUntil(
+    () => ({ A: coefficient(), B: coefficient(), a: bracket(), b: bracket() }),
+    ({ a, b }) => a !== b,
+    { A: 2, B: 3, a: 1, b: 2 },
+  );
+}
+
+/**
+ * Four whole-number options for a derived choice form: the right one, the
+ * slips given, then values beside the answer, placed at the slot `salt` picks.
+ */
+function numberChoices(correct: number, slips: number[], salt: number): ChoiceOption[] {
+  const picked: number[] = [];
+  for (const value of slips) {
+    if (picked.length === 3) break;
+    if (!Number.isInteger(value) || value === correct || picked.includes(value)) continue;
+    picked.push(value + 0);
+  }
+  for (let step = 1; picked.length < 3; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (picked.length < 3 && !picked.includes(candidate)) picked.push(candidate);
+    }
+  }
+  return steered(
+    options({ tex: `${correct}`, answer: `${correct}` }, ...picked.map((value) => ({ tex: `${value}`, answer: `${value}` }))),
+    salt,
+  );
+}
+
+/** A native choice's options, the first of `opts` being the right one, placed by `salt`. */
+function placedChoices(opts: ChoiceOption[], salt: number) {
+  const [right, ...rest] = opts;
+  const order = slotted(right, rest.slice(0, 3), salt);
+  return {
+    options: order.map((option, idx) => ({ id: `opt${idx}`, label: option.tex, tex: true })),
+    correctId: `opt${order.indexOf(right)}`,
+  };
+}
+
+interface CoverParams extends Split {
+  /** Which numerator is asked for: A, over x + a, or B, over x + b. */
+  ask: 'A' | 'B';
+}
+
+/** The asked numerator, its own bracket's constant and the other bracket's. */
+function coverSides({ A, B, a, b, ask }: CoverParams) {
+  return ask === 'A' ? { k: A, own: a, other: b, name: 'A' } : { k: B, own: b, other: a, name: 'B' };
+}
+
+function sampleCover(rng: Rng, difficulty: number): CoverParams {
+  return drawUntil(
+    () => ({ ...sampleSplit(rng, difficulty, false), ask: rng.pick<'A' | 'B'>(['A', 'B']) }),
+    (params) => splitTop(params).every((value) => value !== 0),
+    { A: 2, B: 3, a: 1, b: 2, ask: 'A' },
+  );
+}
+
+/** The working behind cover-up, shared by every question that finds a numerator. */
+function coverSolution(params: CoverParams) {
+  const { k, own, other, name } = coverSides(params);
+  const top = splitTop(params);
+  return [
+    {
+      text: `Multiply both sides by the bottom: $${polyTex(top)} = A(${bracketTex(params.b)}) + B(${bracketTex(params.a)})$.`,
+    },
+    {
+      text: `Put $x = ${-own}$. That makes $${bracketTex(own)}$ zero, so the other term vanishes and only $${name}$ is left.`,
+    },
+    { tex: `${name} = \\frac{${polyAt(top, -own)}}{${other - own}} = ${k}` },
+    {
+      text: `Cover-up is the same thing done by eye: cover $(${bracketTex(own)})$ in the fraction and put $x = ${-own}$ into what is left.`,
+    },
+  ];
+}
+
+/**
+ * One numerator by cover-up, worked one piece at a time: the top at x = -a,
+ * the other bracket at x = -a, and the division.
+ *
+ * The line is built from the substitution itself, so a learner who puts in
+ * +a instead of -a meets that slip as a wrong value in the first box.
+ */
+const coverUp: Generator<CoverParams> = {
+  id: 'int-pf-cover-up',
+  sample: sampleCover,
+  choices: (params) => {
+    const { k, own, other } = coverSides(params);
+    const [q, p] = splitTop(params);
+    const top = p * -own + q;
+    // Dividing by the wrong bracket's value; substituting +a; stopping before the division.
+    return numberChoices(k, [-k, (p * own + q) / (own + other), top], mix(k, own, other, p));
+  },
+  render: (params): Slide => {
+    const { own, other, name } = coverSides(params);
+    const [q, p] = splitTop(params);
+    const r = -own;
+    const t = p * r + q;
+    const d = other - own;
+    const constant = (left: Expr) => bin(q < 0 ? '-' : '+', left, num(Math.abs(q)));
+    const top = p === 1 ? constant(num(r)) : constant(bin('*', num(p), num(r)));
+    const bottom = bin(other < 0 ? '-' : '+', num(r), num(Math.abs(other)));
+    return {
+      kind: 'reduce',
+      prompt: [
+        { kind: 'display', tex: splitFractionTex(params) },
+        {
+          kind: 'prose',
+          text: `This splits as $${lettersTex(params)}$. To find $${name}$, cover $(${bracketTex(own)})$ and put $x = ${r}$ into what is left. Tap the part you would work out **next**, then choose its value.`,
+        },
+      ],
+      expr: bin('/', top, bottom),
+      banks: {
+        ...(p === 1 ? {} : { 'r.l.l': bank4(p * r, -p * r, p + r) }),
+        'r.l': bank4(t, p * own + q, p * r - q, -t),
+        'r.r': bank4(d, own + other, -d),
+        r: bank4(t / d, -t / d, t, d),
+      },
+    };
+  },
+  solution: coverSolution,
+};
+
+/** Both numerators placed as tiles, the fraction's bottom sometimes left to factorise. */
+const splitCoefficients: Generator<Split & { expanded: boolean }> = {
+  id: 'int-pf-coefficients',
+  sample: (rng, difficulty) => ({ ...sampleSplit(rng, difficulty, false), expanded: difficulty > 1 && rng.chance(0.4) }),
+  render: (params): Slide => {
+    const { A, B, a, b, expanded } = params;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'display', tex: splitFractionTex(params, expanded) },
+        {
+          kind: 'prose',
+          text: expanded
+            ? `Factorise the bottom, then split the fraction as $${lettersTex(params)}$. Place $A$ and $B$.`
+            : `Split the fraction as $${lettersTex(params)}$. Place $A$ and $B$.`,
+        },
+      ],
+      template: 'A = {0}, \\quad B = {1}',
+      // Signs flipped, and the top's value at x = -a before dividing.
+      bank: wholeBank([A, B], [-A, -B, A * (b - a)]),
+      answer: [`${A}`, `${B}`],
+    };
+  },
+  solution: (params) => {
+    const { A, B, a, b, expanded } = params;
+    const top = splitTop(params);
+    return [
+      ...(expanded ? [{ text: `The bottom factorises: $${polyTex(splitBottom(params))} = (${bracketTex(a)})(${bracketTex(b)})$.` }] : []),
+      { text: `Cover $(${bracketTex(a)})$ and put $x = ${-a}$ into the rest:` },
+      { tex: `A = \\frac{${polyAt(top, -a)}}{${b - a}} = ${A}` },
+      { text: `Cover $(${bracketTex(b)})$ and put $x = ${-b}$:` },
+      { tex: `B = \\frac{${polyAt(top, -b)}}{${a - b}} = ${B}` },
+      { text: `Check by adding back: $${splitTex(params)}$ has top $${polyTex(top)}$.` },
+    ];
+  },
+};
+
+/**
+ * Both numerators by cover-up as a tree: the top and the other bracket at each
+ * root of the bottom, then each division.
+ */
+const coverBothTree: Generator<Split> = {
+  id: 'int-pf-both-tree',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty, false),
+  render: (params): Slide => {
+    const { A, B, a, b } = params;
+    const top = splitTop(params);
+    const answer = [polyAt(top, -a), b - a, polyAt(top, -b), a - b, A, B];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Split into $${lettersTex(params)}$ by cover-up. Top row: the top of the fraction at $x = ${-a}$, then $${bracketTex(b)}$ there; the same two at $x = ${-b}$. Below them, $A$ and $B$.`,
+        },
+      ],
+      expression: splitFractionTex(params),
+      nodes: [
+        { id: 'top-at-a', from: [] },
+        { id: 'rest-at-a', from: [] },
+        { id: 'top-at-b', from: [] },
+        { id: 'rest-at-b', from: [] },
+        { id: 'A', from: ['top-at-a', 'rest-at-a'] },
+        { id: 'B', from: ['top-at-b', 'rest-at-b'] },
+      ],
+      bank: wholeBank(answer, [-A, -B, a + b, polyAt(top, a)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { A, B, a, b } = params;
+    const top = splitTop(params);
+    return [
+      { text: `At $x = ${-a}$ the top is $${polyAt(top, -a)}$ and $${bracketTex(b)}$ is $${b - a}$, so $A = ${A}$.` },
+      { text: `At $x = ${-b}$ the top is $${polyAt(top, -b)}$ and $${bracketTex(a)}$ is $${a - b}$, so $B = ${B}$.` },
+      { tex: `= ${splitTex(params)}` },
+      { text: 'Each substitution makes one bracket zero, which is what wipes out the other numerator.' },
+    ];
+  },
+};
+
+interface PoleParams extends CoverParams {
+  /** How far the track runs past each root of the bottom. */
+  left: number;
+  right: number;
+}
+
+function poleTrack({ a, b, left, right }: PoleParams): [number, number] {
+  return [Math.min(-a, -b) - left, Math.max(-a, -b) + right];
+}
+
+/**
+ * Which x to substitute, found on the graph: the bottom is zero where the
+ * curve shoots off, and there are two such places, one for each numerator.
+ */
+const poleSlider: Generator<PoleParams> = {
+  id: 'int-pf-pole-slider',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ ...sampleCover(rng, difficulty), left: rng.int(1, 3), right: rng.int(1, 3) }),
+      (params) => {
+        const [min, max] = poleTrack(params);
+        return -coverSides(params).own !== restingOn(min, max);
+      },
+      { A: 2, B: 3, a: 1, b: -2, ask: 'A', left: 2, right: 1 },
+    ),
+  render: (params): Slide => {
+    const { own, name } = coverSides(params);
+    const [min, max] = poleTrack(params);
+    const top = splitTop(params);
+    const f = (x: number) => polyAt(top, x) / ((x + params.a) * (x + params.b));
+    const heights = Array.from({ length: 4 * (max - min) + 1 }, (_, i) => min + i / 4)
+      .filter((x) => Math.abs(x + params.a) > 0.4 && Math.abs(x + params.b) > 0.4)
+      .map((x) => Math.abs(f(x)));
+    const high = 1.3 * Math.min(6, Math.max(1.5, ...heights));
+    const window = markerWindow(min, max);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph is $y = ${splitFractionTex(params)}$, which splits as $${lettersTex(params)}$. To find $${name}$ by cover-up, which value of $x$ goes in? Slide the marker to it.`,
+        },
+      ],
+      min,
+      max,
+      step: 1,
+      answer: -own,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: window.xMin,
+          xMax: window.xMax,
+          yMin: -high,
+          yMax: high,
+          curves: [{ f, breaks: true }],
+          label: 'The graph of the fraction, which shoots off where its bottom is zero',
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { own, other, name } = coverSides(params);
+    return [
+      {
+        text: `$${name}$ sits over $${bracketTex(own)}$, so cover that bracket and choose $x$ to make it zero: $x = ${-own}$.`,
+      },
+      {
+        text: `On the graph that is one of the two places the curve shoots off, because the bottom is zero there. The other, $x = ${-other}$, is the one for the other numerator.`,
+      },
+      { tex: `${name} = ${coverSides(params).k}` },
+    ];
+  },
+};
+
+/**
+ * Adding the split back up, the direction every learner already knows, with
+ * the slip that makes partial fractions necessary in the first place: adding
+ * the bottoms.
+ */
+const recombine: Generator<Split> = {
+  id: 'int-pf-recombine',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty, false),
+  render: (params): Slide => {
+    const { A, B, a, b } = params;
+    const bottom = `(${bracketTex(a)})(${bracketTex(b)})`;
+    const over = (top: Poly, under = bottom) => ({
+      tex: `\\frac{${polyTex(top)}}{${under}}`,
+      answer: `(${polyAnswer(top)}) / (${under === bottom ? `${bracketAnswer(a)} * ${bracketAnswer(b)}` : polyAnswer([a + b, 2])})`,
+    });
+    const opts = options(
+      over(splitTop(params)),
+      // Each numerator times its own bracket rather than the other one.
+      over([A * a + B * b, A + B]),
+      // Taking one fraction from the other.
+      over([A * b - B * a, A - B]),
+      // Adding tops and adding bottoms.
+      ...(A + B === 0 ? [] : [over([A + B], polyTex([a + b, 2]))]),
+      over([-(A * b + B * a), -(A + B)]),
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Add these as one fraction. Which is it?' },
+        { kind: 'display', tex: splitTex(params) },
+      ],
+      ...placedChoices(opts, mix(A, B, a, b)),
+    };
+  },
+  solution: (params) => {
+    const { A, B, a, b } = params;
+    return [
+      { text: 'Put both over the common bottom. Each top is multiplied by the bracket it is missing.' },
+      { tex: `\\frac{${A}(${bracketTex(b)}) ${B < 0 ? '-' : '+'} ${Math.abs(B)}(${bracketTex(a)})}{(${bracketTex(a)})(${bracketTex(b)})}` },
+      { tex: `= ${splitFractionTex(params)}` },
+      { text: 'Partial fractions is this run backwards: from the single fraction to the two simple ones.' },
+    ];
+  },
+};
+
+interface LogTermParams {
+  k: number;
+  m: number;
+  c: number;
+}
+
+function logTermCoefficient({ k, m }: LogTermParams): Ratio {
+  return reduce(k, m);
+}
+
+/** k/(mx + c) integrated: a logarithm of the bracket, divided by its x coefficient. */
+const logTerm: Generator<LogTermParams> = {
+  id: 'int-pf-log-term',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return { k: rng.sign() * rng.int(1, 9), m: rng.int(1, 5), c: rng.int(1, 9) };
+    const m = rng.pick([1, 1, 2, 3]);
+    return { k: rng.chance(0.6) ? m * rng.int(1, 4) : rng.int(1, 6), m, c: rng.int(1, 9) };
+  },
+  choices: (params) => {
+    const { k, m, c } = params;
+    const bracket = linearTex(m, c);
+    const ln = `\\ln|${bracket}|`;
+    const inside = `(${m}) * x + (${c})`;
+    const term = (r: Ratio, body = ln, argument = inside) => ({
+      tex: `${leadingTex(r)}${body} + C`,
+      answer: `((${r.n})/(${r.d})) * log(${argument})`,
+    });
+    return steered(
+      options(
+        term(logTermCoefficient(params)),
+        // Not divided by the x coefficient, then multiplied by it.
+        term(reduce(k, 1)),
+        term(reduce(k * m, 1)),
+        // The bracket's constant dropped.
+        term(logTermCoefficient(params), '\\ln|x|', 'x'),
+        // Differentiated instead: the power rule on the bracket to the -1.
+        {
+          tex: `-\\frac{${k * m}}{(${bracket})^{2}} + C`,
+          answer: `-(${k * m}) / (${inside})^2`,
+        },
+      ).slice(0, 4),
+      mix(k, m, c),
+    );
+  },
+  render: ({ k, m, c }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Integrate, for $x > 0$.' }],
+    lead: `${integralTex(`${k < 0 ? '-' : ''}\\frac{${Math.abs(k)}}{${linearTex(m, c)}}`)} =`,
+    keypad: EXP_INTEGRAL_KEYS,
+    answer: `((${k})/(${m})) * log((${m}) * x + (${c}))`,
+    integrand: `(${k}) / ((${m}) * x + (${c}))`,
+    domain: 'positive',
+    mode: 'upToConstant',
+  }),
+  solution: (params) => {
+    const { k, m, c } = params;
+    const coefficient = logTermCoefficient(params);
+    return [
+      { text: `$\\int \\frac{1}{x} \\, dx = \\ln|x|$, and a bracket works the same way: the top is a number and the bottom is linear.` },
+      ...(m === 1
+        ? []
+        : [{ text: `The $x$ in the bracket has coefficient $${m}$, so divide by $${m}$, exactly as for any linear bracket.` }]),
+      { tex: `${leadingTex(coefficient)}\\ln|${linearTex(m, c)}| + C` },
+      { text: `Check by differentiating: the chain rule brings the $${m}$ back and returns $\\frac{${k}}{${linearTex(m, c)}}$.` },
+    ];
+  },
+};
+
+interface IntegrateParams extends Split {
+  expanded: boolean;
+}
+
+/** The whole method, typed: split, then integrate each part to a logarithm. */
+const integrateSplit: Generator<IntegrateParams> = {
+  id: 'int-pf-integrate',
+  sample: (rng, difficulty) => ({ ...sampleSplit(rng, difficulty, true), expanded: difficulty > 1 && rng.chance(0.5) }),
+  choices: (params) => {
+    const { A, B, a, b } = params;
+    const choice = (split: Split) => ({ tex: `${lnSumTex(split)} + C`, answer: lnSumAnswer(split) });
+    return steered(
+      options(
+        choice(params),
+        // Numerators swapped over, and each sign slip.
+        choice({ A: B, B: A, a, b }),
+        choice({ A, B: -B, a, b }),
+        choice({ A: -A, B, a, b }),
+      ),
+      mix(A, B, a, b),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Split into partial fractions, then integrate, for $x > 0$.' }],
+    lead: `${integralTex(splitFractionTex(params, params.expanded))} =`,
+    keypad: EXP_INTEGRAL_KEYS,
+    answer: lnSumAnswer(params),
+    integrand: splitFractionAnswer(params),
+    domain: 'positive',
+    mode: 'upToConstant',
+  }),
+  solution: (params) => {
+    const { a, b, expanded } = params;
+    return [
+      ...(expanded ? [{ text: `Factorise the bottom first: $(${bracketTex(a)})(${bracketTex(b)})$.` }] : []),
+      { text: `Cover-up at $x = ${-a}$ and $x = ${-b}$ splits the fraction:` },
+      { tex: `${splitTex(params)}` },
+      { text: 'Each part is a number over a linear bracket, so each integrates to a logarithm.' },
+      { tex: lnSumStacked(params) },
+    ];
+  },
+};
+
+/** The split and the integration as tiles, brackets of either sign allowed. */
+const integrateTiles: Generator<Split> = {
+  id: 'int-pf-integrate-tiles',
+  sample: (rng, difficulty) => sampleSplit(rng, difficulty, false),
+  render: (params): Slide => {
+    const { A, B, a, b } = params;
+    // A whole term per tile, the second carrying its own sign, so a slip in
+    // a sign or a numerator is a slip in the tile. Two tiles fit a phone's
+    // width where four pieces of template did not.
+    const later = (k: number, at: number) => lnTermTex(k, at, false).trim();
+    const answer = [lnTermTex(A, a, true), later(B, b)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Split into partial fractions and integrate each part. The $+ C$ is left off here.' },
+        { kind: 'display', tex: integralTex(splitFractionTex(params)) },
+      ],
+      template: '{0} \\; {1}',
+      // Signs flipped, the numerators swapped, and the top before dividing.
+      bank: tokenBank(answer, [
+        lnTermTex(-A, a, true),
+        lnTermTex(B, a, true),
+        later(-B, b),
+        later(A, b),
+        lnTermTex(A * (b - a), a, true),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { A, B, a, b } = params;
+    const top = splitTop(params);
+    return [
+      { text: `Cover-up: at $x = ${-a}$, $A = \\frac{${polyAt(top, -a)}}{${b - a}} = ${A}$; at $x = ${-b}$, $B = \\frac{${polyAt(top, -b)}}{${a - b}} = ${B}$.` },
+      { tex: `${splitTex(params)}` },
+      { text: 'Each part integrates to its numerator times the logarithm of its bracket.' },
+      { tex: lnSumStacked(params) },
+    ];
+  },
+};
+
+interface DefiniteParams extends Split {
+  l: number;
+  u: number;
+}
+
+/** A multiplied by ln((u + a)/(l + a)) and so on, collapsed to one fraction inside a single log. */
+function logRatio(parts: [top: number, bottom: number, power: number][]): Ratio {
+  let n = 1;
+  let d = 1;
+  for (const [top, bottom, power] of parts) {
+    for (let i = 0; i < Math.abs(power); i += 1) {
+      n *= power > 0 ? top : bottom;
+      d *= power > 0 ? bottom : top;
+    }
+  }
+  return reduce(n, d);
+}
+
+function definiteRatio({ A, B, a, b, l, u }: DefiniteParams): Ratio {
+  return logRatio([
+    [u + a, l + a, A],
+    [u + b, l + b, B],
+  ]);
+}
+
+/**
+ * A definite integral of a split fraction whose answer collapses to one log.
+ *
+ * Numerators of one or two, so the fraction inside stays small enough to read;
+ * brackets may be x - 1 or x - 2 where the interval keeps clear of their root.
+ */
+function sampleDefinite(rng: Rng, difficulty: number): DefiniteParams {
+  const hard = difficulty > 1;
+  const coefficient = () => rng.pick(hard ? [-2, -1, 1, 1, 2] : [-1, 1, 1, 2]);
+  const bracket = () => rng.pick(hard ? [-2, -1, 1, 2, 3, 4, 5] : [-1, 1, 2, 3, 4]);
+  return drawUntil(
+    () => {
+      const l = rng.int(0, hard ? 3 : 2);
+      return { A: coefficient(), B: coefficient(), a: bracket(), b: bracket(), l, u: l + rng.int(1, hard ? 3 : 2) };
+    },
+    (params) => {
+      const r = definiteRatio(params);
+      return (
+        params.a !== params.b &&
+        params.l + Math.min(params.a, params.b) >= 1 &&
+        !(r.n === r.d) &&
+        r.n <= 400 &&
+        r.d <= 400
+      );
+    },
+    { A: 1, B: 1, a: 1, b: 2, l: 0, u: 1 },
+  );
+}
+
+function definiteSolution(params: DefiniteParams) {
+  const { a, b, l, u } = params;
+  return [
+    { text: `Split first: $${splitTex(params)}$, which integrates to $${lnSumTex(params)}$.` },
+    { text: `Put in $x = ${u}$, then $x = ${l}$, and subtract. The brackets are positive between the limits, so the bars can go.` },
+    {
+      tex: stacked(
+        `${params.A === 1 ? '' : params.A === -1 ? '-' : params.A}\\ln\\frac{${u + a}}{${l + a}}`,
+        `${params.B < 0 ? '-' : '+'} ${Math.abs(params.B) === 1 ? '' : Math.abs(params.B)}\\ln\\frac{${u + b}}{${l + b}}`,
+      ),
+    },
+    { text: 'A number in front becomes a power, and logs added or taken away become one log of a product or a quotient.' },
+    { tex: `= ${lnOfTex(definiteRatio(params))}` },
+  ];
+}
+
+/** The definite integral, asked for as a single logarithm. */
+const definiteSplit: Generator<DefiniteParams> = {
+  id: 'int-pf-definite',
+  sample: sampleDefinite,
+  render: (params): Slide => {
+    const { A, B, a, b, l, u } = params;
+    const right = definiteRatio(params);
+    const same = (r: Ratio) => r.n === right.n && r.d === right.d;
+    const wrong = [
+      // Lower limit minus upper.
+      reduce(right.d, right.n),
+      // Numerators swapped.
+      logRatio([
+        [u + a, l + a, B],
+        [u + b, l + b, A],
+      ]),
+      // The numbers in front left off.
+      logRatio([
+        [u + a, l + a, Math.sign(A)],
+        [u + b, l + b, Math.sign(B)],
+      ]),
+      // Only the upper limit put in.
+      logRatio([
+        [u + a, 1, A],
+        [u + b, 1, B],
+      ]),
+      // Both logs added, whatever their signs.
+      logRatio([
+        [u + a, l + a, Math.abs(A)],
+        [u + b, l + b, Math.abs(B)],
+      ]),
+    ].filter((r, idx, all) => !same(r) && r.n !== r.d && all.findIndex((s) => s.n === r.n && s.d === r.d) === idx);
+    const opts = options(
+      { tex: lnOfTex(right), answer: `log(${right.n}/${right.d})` },
+      ...wrong.map((r) => ({ tex: lnOfTex(r), answer: `log(${r.n}/${r.d})` })),
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Evaluate, as a single logarithm.' },
+        { kind: 'display', tex: definiteTex(splitFractionTex(params), l, u) },
+      ],
+      ...placedChoices(opts, mix(A, B, a, b, l, u)),
+    };
+  },
+  solution: definiteSolution,
+};
+
+/**
+ * Putting the limits into the logs, as tiles: each log's upper value over its
+ * lower one, which is the quotient law applied to one bracket at a time.
+ */
+const substituteLimits: Generator<DefiniteParams> = {
+  id: 'int-pf-substitute',
+  sample: sampleDefinite,
+  render: (params): Slide => {
+    const { A, B, a, b, l, u } = params;
+    const [first, second] = [reduce(u + a, l + a), reduce(u + b, l + b)];
+    const answer = [fractionTex(first), fractionTex(second)];
+    const lead = (k: number) => (k === 1 ? '' : k === -1 ? '-' : `${k}`);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$${splitTex(params)}$ integrates to $${lnSumTex(params)}$. Put in the limits $x = ${u}$ and $x = ${l}$, and write each log as one.`,
+        },
+      ],
+      template: `${lead(A)}\\ln {0} ${B < 0 ? '-' : '+'} ${lead(Math.abs(B))}\\ln {1}`,
+      // Each fraction upside down, and the upper limit put in alone.
+      bank: tokenBank(answer, [
+        fractionTex(reduce(first.d, first.n)),
+        fractionTex(reduce(second.d, second.n)),
+        `${u + a}`,
+        `${u + b}`,
+      ]),
+      answer,
+    };
+  },
+  solution: definiteSolution,
+};
+
+interface FindLimitParams {
+  k: number;
+  a: number;
+  h: number;
+  right: number;
+}
+
+/**
+ * The upper limit that gives a stated logarithm, dragged to on the curve: the
+ * integral run backwards, as `int-vol-find-limit` runs a volume.
+ */
+const findLimit: Generator<FindLimitParams> = {
+  id: 'int-pf-find-limit',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ k: rng.int(1, difficulty > 1 ? 4 : 3), a: rng.int(1, 5), h: rng.int(1, difficulty > 1 ? 9 : 7), right: rng.int(2, 4) }),
+      ({ h, right }) => h !== restingOn(0, h + right),
+      { k: 1, a: 2, h: 4, right: 3 },
+    ),
+  render: ({ k, a, h, right }): Slide => {
+    const max = h + right;
+    const window = markerWindow(0, max);
+    const top = k / a;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\int_{0}^{h} \\frac{${k}}{${bracketTex(a)}} \\, dx = ${leadingTex(reduce(k, 1))}${lnOfTex(reduce(h + a, a))}$. Slide the marker to $h$.`,
+        },
+      ],
+      min: 0,
+      max,
+      step: 1,
+      answer: h,
+      readout: 'h = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: window.xMin,
+          xMax: window.xMax,
+          yMin: -0.15 * top,
+          yMax: 1.2 * top,
+          curves: [{ f: (x) => k / (x + a) }],
+          label: `The curve y = ${k}/(x + ${a}) for x from 0`,
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ k, a, h }) => {
+    const r = reduce(h + a, a);
+    return [
+      { text: `The integral is $${leadingTex(reduce(k, 1))}\\ln|${bracketTex(a)}|$ between $0$ and $h$:` },
+      { tex: `${leadingTex(reduce(k, 1))}\\ln\\frac{h + ${a}}{${a}}` },
+      { text: `Match it to the value given: $\\frac{h + ${a}}{${a}} = ${fractionTex(r)}$, so $h + ${a} = ${h + a}$.` },
+      { tex: `h = ${h}` },
+    ];
+  },
+};
+
+type FprimeForm = 'square' | 'quad' | 'cube';
+
+interface FprimeParams {
+  form: FprimeForm;
+  /** The top is n x, n x^2 or n(2x + s): n times the derivative, over 2, 3 or 1. */
+  n: number;
+  s: number;
+  t: number;
+}
+
+function fprimeBottom({ form, s, t }: FprimeParams): Poly {
+  if (form === 'cube') return [t, 0, 0, 1];
+  return [t, form === 'quad' ? s : 0, 1];
+}
+
+function fprimeTop({ form, n, s }: FprimeParams): Poly {
+  if (form === 'square') return [0, n];
+  if (form === 'cube') return [0, 0, n];
+  return [n * s, 2 * n];
+}
+
+/** How many times the derivative the top is. */
+function fprimeCoefficient({ form, n }: FprimeParams): Ratio {
+  return reduce(n, form === 'square' ? 2 : form === 'cube' ? 3 : 1);
+}
+
+function fprimeLnTex(params: FprimeParams): string {
+  const bottom = polyTex(fprimeBottom(params));
+  // x^2 + t is positive everywhere, so a textbook writes a bracket, not bars.
+  return params.form === 'square' ? `\\ln(${bottom})` : `\\ln|${bottom}|`;
+}
+
+/**
+ * The shortcut beside partial fractions: a top that is a multiple of the
+ * bottom's derivative integrates straight to a logarithm of the bottom.
+ */
+const fprimeOverF: Generator<FprimeParams> = {
+  id: 'int-pf-fprime',
+  sample: (rng, difficulty) => {
+    const form = rng.pick<FprimeForm>(['square', 'quad', 'cube']);
+    const hard = difficulty > 1;
+    const t = rng.int(1, 9);
+    const s = form === 'quad' ? rng.int(1, 6) : 0;
+    if (form === 'quad') return { form, n: (hard && rng.chance(0.3) ? -1 : 1) * rng.int(1, hard ? 5 : 3), s, t };
+    const step = form === 'square' ? 2 : 3;
+    return { form, n: hard ? rng.sign() * rng.int(1, 9) : step * rng.int(1, 3), s, t };
+  },
+  choices: (params) => {
+    const bottom = polyAnswer(fprimeBottom(params));
+    const right = fprimeCoefficient(params);
+    const scaled = (r: Ratio) => ({
+      tex: `${leadingTex(r)}${fprimeLnTex(params)} + C`,
+      answer: `((${r.n})/(${r.d})) * log(${bottom})`,
+    });
+    return steered(
+      options(
+        scaled(right),
+        // The factor left off, turned upside down, and the top's own number.
+        scaled(reduce(1, 1)),
+        scaled(reduce(right.d, right.n)),
+        scaled(reduce(params.n, 1)),
+        scaled(reduce(2 * right.n, right.d)),
+        scaled(reduce(-right.n, right.d)),
+      ).slice(0, 4),
+      mix(params.n, params.s, params.t, params.form.length),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Integrate, for $x > 0$.' }],
+    lead: `${integralTex(`\\frac{${polyTex(fprimeTop(params))}}{${polyTex(fprimeBottom(params))}}`)} =`,
+    keypad: EXP_INTEGRAL_KEYS,
+    answer: `((${fprimeCoefficient(params).n})/(${fprimeCoefficient(params).d})) * log(${polyAnswer(fprimeBottom(params))})`,
+    integrand: `(${polyAnswer(fprimeTop(params))}) / (${polyAnswer(fprimeBottom(params))})`,
+    domain: 'positive',
+    mode: 'upToConstant',
+  }),
+  solution: (params) => {
+    const bottom = fprimeBottom(params);
+    const derivative = bottom.slice(1).map((value, power) => value * (power + 1));
+    const r = fprimeCoefficient(params);
+    return [
+      { text: `The bottom is $${polyTex(bottom)}$ and its derivative is $${polyTex(derivative)}$.` },
+      {
+        text: `The top, $${polyTex(fprimeTop(params))}$, is $${fractionTex({ n: Math.abs(r.n), d: r.d })}$ times ${r.n < 0 ? 'minus ' : ''}that derivative.`,
+      },
+      { tex: `\\int \\frac{f'(x)}{f(x)} \\, dx = \\ln|f(x)| + C` },
+      { tex: `= ${leadingTex(r)}${fprimeLnTex(params)} + C` },
+      { text: 'Differentiating the answer checks it: the chain rule puts the derivative of the bottom back on top.' },
+    ];
+  },
+};
+
+interface DivideParams extends Split {
+  /** The whole part left after dividing. */
+  k: number;
+}
+
+/** The top k(x + a)(x + b) + A(x + b) + B(x + a): one degree too many to split. */
+function divideTop(params: DivideParams): Poly {
+  return polyAdd(polyScale(splitBottom(params), params.k), splitTop(params));
+}
+
+/** A top-heavy fraction: divide, then split what is left. */
+const divideFirst: Generator<DivideParams> = {
+  id: 'int-pf-divide',
+  sample: (rng, difficulty) => ({ ...sampleSplit(rng, difficulty, false), k: rng.int(1, difficulty > 1 ? 4 : 2) }),
+  render: (params): Slide => {
+    const { A, B, a, b, k } = params;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'display', tex: `\\frac{${polyTex(divideTop(params))}}{(${bracketTex(a)})(${bracketTex(b)})}` },
+        {
+          kind: 'prose',
+          text: `The top's degree is not lower than the bottom's, so divide first. Write it as $k + ${lettersTex(params)}$ and place the numbers.`,
+        },
+      ],
+      template: 'k = {0}, \\quad A = {1}, \\quad B = {2}',
+      // Signs flipped, and the remainder's own coefficients.
+      bank: wholeBank([k, A, B], [-A, -B, A + B, k + 1]),
+      answer: [`${k}`, `${A}`, `${B}`],
+    };
+  },
+  solution: (params) => {
+    const { a, b, k } = params;
+    return [
+      { text: `The bottom multiplies out to $${polyTex(splitBottom(params))}$. It goes into the top $${k}$ times.` },
+      {
+        tex: stacked(
+          `${polyTex(divideTop(params))}`,
+          `= ${k}(${polyTex(splitBottom(params))})`,
+          `\\quad ${sumTex(['x', polyTex(splitTop(params))]).slice(1)}`,
+        ),
+      },
+      { text: `What is left over, $${polyTex(splitTop(params))}$, is lower in degree than the bottom, so it splits by cover-up at $x = ${-a}$ and $x = ${-b}$.` },
+      { tex: `${k}${splitAfter(params)}` },
+    ];
+  },
+};
+
+/** The top-heavy integral typed: kx from the division, then the two logarithms. */
+const topHeavy: Generator<DivideParams> = {
+  id: 'int-pf-top-heavy',
+  sample: (rng, difficulty) => ({ ...sampleSplit(rng, difficulty, true), k: rng.int(1, difficulty > 1 ? 4 : 2) }),
+  choices: (params) => {
+    const { A, B, a, b, k } = params;
+    const choice = (split: Split, whole: number) => ({
+      tex: `${whole === 0 ? lnSumTex(split) : `${termTex(whole, 1)}${lnSumAfter(split)}`} + C`,
+      answer: `(${whole}) * x + ${lnSumAnswer(split)}`,
+    });
+    return steered(
+      options(
+        choice(params, k),
+        // The division forgotten; numerators swapped; a sign slip.
+        choice(params, 0),
+        choice({ A: B, B: A, a, b }, k),
+        choice({ A, B: -B, a, b }, k),
+      ),
+      mix(A, B, a, b, k),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Integrate, for $x > 0$. Divide first.' }],
+    lead: `${integralTex(`\\frac{${polyTex(divideTop(params))}}{(${bracketTex(params.a)})(${bracketTex(params.b)})}`)} =`,
+    keypad: EXP_INTEGRAL_KEYS,
+    answer: `(${params.k}) * x + ${lnSumAnswer(params)}`,
+    integrand: `(${polyAnswer(divideTop(params))}) / (${bracketAnswer(params.a)} * ${bracketAnswer(params.b)})`,
+    domain: 'positive',
+    mode: 'upToConstant',
+  }),
+  solution: (params) => {
+    const { k } = params;
+    return [
+      { text: `The bottom goes into the top $${k}$ times, leaving $${polyTex(splitTop(params))}$ over the same bottom.` },
+      { tex: `${k}${splitAfter(params)}` },
+      { text: `The whole number integrates to $${termTex(k, 1)}$ and each fraction to a logarithm.` },
+      {
+        tex: stacked(
+          `${termTex(k, 1)}${lnTermTex(params.A, params.a, false)}`,
+          `${lnTermTex(params.B, params.b, false).trim()} + C`,
+        ),
+      },
+    ];
+  },
+};
+
+interface RepeatedParams {
+  A: number;
+  B: number;
+  a: number;
+}
+
+/** The top A(x + a) + B over (x + a)^2, lowest power first. */
+const repeatedTop = ({ A, B, a }: RepeatedParams): Poly => [A * a + B, A];
+
+function repeatedFractionTex(params: RepeatedParams): string {
+  return `\\frac{${polyTex(repeatedTop(params))}}{(${bracketTex(params.a)})^{2}}`;
+}
+
+function sampleRepeated(rng: Rng, difficulty: number, positive: boolean): RepeatedParams {
+  const hard = difficulty > 1;
+  const reach = hard ? 7 : 5;
+  return {
+    A: rng.sign() * rng.int(1, hard ? 6 : 4),
+    B: rng.sign() * rng.int(1, hard ? 8 : 5),
+    a: positive ? rng.int(1, reach) : rng.sign() * rng.int(1, reach),
+  };
+}
+
+function repeatedSplitTex({ A, B, a }: RepeatedParams): string {
+  return `${fractionTermTex(A, a, true)}${fractionTermTex(B, a, false, true)}`;
+}
+
+function repeatedSolution(params: RepeatedParams) {
+  const { A, B, a } = params;
+  return [
+    { text: `Write the top in terms of the bracket: $${polyTex(repeatedTop(params))} = ${A}(${bracketTex(a)}) ${B < 0 ? '-' : '+'} ${Math.abs(B)}$.` },
+    { text: 'Divide each part by the bracket squared:' },
+    { tex: `${repeatedSplitTex(params)}` },
+    { text: `So $A = ${A}$, the $x$ coefficient of the top, and $B = ${B}$, the top's value at $x = ${-a}$.` },
+  ];
+}
+
+/** A repeated bracket's split, as tiles. */
+const repeatedSplit: Generator<RepeatedParams> = {
+  id: 'int-pf-repeated',
+  sample: (rng, difficulty) => sampleRepeated(rng, difficulty, false),
+  render: (params): Slide => {
+    const { A, B, a } = params;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'display', tex: repeatedFractionTex(params) },
+        {
+          kind: 'prose',
+          text: `The bracket is repeated, so split it as $\\frac{A}{${bracketTex(a)}} + \\frac{B}{(${bracketTex(a)})^{2}}$. Place $A$ and $B$.`,
+        },
+      ],
+      template: 'A = {0}, \\quad B = {1}',
+      // The top's constant term, the signs flipped, and A times a.
+      bank: wholeBank([A, B], [A * a + B, -B, -A, A * a]),
+      answer: [`${A}`, `${B}`],
+    };
+  },
+  solution: repeatedSolution,
+};
+
+/** A repeated bracket integrated: a logarithm, and a power that is not one. */
+const repeatedIntegrate: Generator<RepeatedParams> = {
+  id: 'int-pf-repeated-integrate',
+  sample: (rng, difficulty) => sampleRepeated(rng, difficulty, true),
+  choices: (params) => {
+    const { A, B, a } = params;
+    const ln = lnTermTex(A, a, true);
+    const inside = bracketAnswer(a);
+    const withSecond = (tex: string, answer: string) => ({
+      tex: `${ln}${tex} + C`,
+      answer: `(${A}) * log${inside} + ${answer}`,
+    });
+    return steered(
+      options(
+        withSecond(fractionTermTex(-B, a, false), `(${-B}) / ${inside}`),
+        // The sign of the power rule lost; the square kept; a log for the square too.
+        withSecond(fractionTermTex(B, a, false), `(${B}) / ${inside}`),
+        withSecond(fractionTermTex(-B, a, false, true), `(${-B}) / ${inside}^2`),
+        withSecond(lnTermTex(B, a, false), `(${B}) * log${inside}`),
+      ),
+      mix(A, B, a),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Split into partial fractions, then integrate, for $x > 0$.' }],
+    lead: `${integralTex(repeatedFractionTex(params))} =`,
+    keypad: EXP_INTEGRAL_KEYS,
+    answer: `(${params.A}) * log${bracketAnswer(params.a)} - (${params.B}) / ${bracketAnswer(params.a)}`,
+    integrand: `(${polyAnswer(repeatedTop(params))}) / ${bracketAnswer(params.a)}^2`,
+    domain: 'positive',
+    mode: 'upToConstant',
+  }),
+  solution: (params) => {
+    const { A, B, a } = params;
+    return [
+      { tex: `${repeatedSplitTex(params)}` },
+      { text: `The first part is a logarithm. The second is $${B}(${bracketTex(a)})^{-2}$, which integrates by the power rule, not to a log.` },
+      { tex: `\\int ${B}(${bracketTex(a)})^{-2} dx = ${B < 0 ? '' : '-'}\\frac{${Math.abs(B)}}{${bracketTex(a)}}` },
+      { tex: `${lnTermTex(A, a, true)}${fractionTermTex(-B, a, false)} + C` },
+    ];
+  },
+};
+
+type FormKind = 'divide' | 'fprime' | 'repeated' | 'distinct';
+
+interface FormParams {
+  kind: FormKind;
+  split: DivideParams;
+  fprime: FprimeParams;
+  repeated: RepeatedParams;
+  /** The bottom multiplied out rather than factorised. */
+  expanded: boolean;
+}
+
+function formIntegrandTex({ kind, split, fprime, repeated, expanded }: FormParams): string {
+  const bottom = expanded ? polyTex(splitBottom(split)) : `(${bracketTex(split.a)})(${bracketTex(split.b)})`;
+  if (kind === 'divide') return `\\frac{${polyTex(divideTop(split))}}{${bottom}}`;
+  if (kind === 'distinct') return `\\frac{${polyTex(splitTop(split))}}{${bottom}}`;
+  if (kind === 'fprime') return `\\frac{${polyTex(fprimeTop(fprime))}}{${polyTex(fprimeBottom(fprime))}}`;
+  const square = expanded ? polyTex([repeated.a * repeated.a, 2 * repeated.a, 1]) : `(${bracketTex(repeated.a)})^{2}`;
+  return `\\frac{${polyTex(repeatedTop(repeated))}}{${square}}`;
+}
+
+const FORM_DIVIDE = 'Divide first, then split the proper fraction that is left.';
+const FORM_FPRIME = 'The top is a multiple of the derivative of the bottom: integrate straight to a logarithm of the bottom.';
+const FORM_REPEATED = 'Split as $\\frac{A}{x + a} + \\frac{B}{(x + a)^{2}}$: a logarithm and a power.';
+const FORM_DISTINCT = 'Split as $\\frac{A}{x + a} + \\frac{B}{x + b}$: two logarithms.';
+
+/**
+ * Which method a fraction calls for, as a route: degree first, then the
+ * derivative shortcut, then whether the bottom has a repeated bracket.
+ *
+ * The outcomes state a method and never judge the route, so a wrong turn
+ * discloses nothing before the answer is checked.
+ */
+const formFlow: Generator<FormParams> = {
+  id: 'int-pf-form-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => ({
+        kind: rng.pick<FormKind>(['divide', 'fprime', 'repeated', 'distinct']),
+        split: { ...sampleSplit(rng, difficulty, false), k: rng.int(1, 3) },
+        fprime: {
+          form: rng.pick<FprimeForm>(['square', 'quad', 'quad']),
+          n: rng.int(1, hard ? 6 : 3),
+          s: rng.int(1, 6),
+          t: rng.int(1, 9),
+        },
+        repeated: sampleRepeated(rng, difficulty, false),
+        expanded: hard && rng.chance(0.5),
+      }),
+      // A distinct pair whose top happens to be a multiple of the bottom's
+      // derivative would have two right routes; leave those out.
+      ({ kind, split }) => {
+        if (kind !== 'distinct') return true;
+        const [q, p] = splitTop(split);
+        return p * (split.a + split.b) !== 2 * q;
+      },
+      {
+        kind: 'distinct',
+        split: { A: 2, B: 3, a: 1, b: 2, k: 1 },
+        fprime: { form: 'square', n: 2, s: 0, t: 1 },
+        repeated: { A: 1, B: 2, a: 1 },
+        expanded: false,
+      },
+    );
+  },
+  render: (params): Slide => {
+    const answer: Record<FormKind, string[]> = {
+      divide: ['No'],
+      fprime: ['Yes', 'Yes'],
+      repeated: ['Yes', 'No', 'Yes'],
+      distinct: ['Yes', 'No', 'No'],
+    };
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Decide how to integrate this fraction. Each answer chooses what gets asked next.',
+        },
+      ],
+      subject: integralTex(formIntegrandTex(params)),
+      steps: [
+        {
+          id: 'degree',
+          ask: "Is the top's degree lower than the bottom's?",
+          branches: [
+            { label: 'Yes', to: 'derivative' },
+            { label: 'No', outcome: FORM_DIVIDE },
+          ],
+        },
+        {
+          id: 'derivative',
+          ask: 'Is the top a number times the derivative of the bottom?',
+          branches: [
+            { label: 'Yes', outcome: FORM_FPRIME },
+            { label: 'No', to: 'repeated' },
+          ],
+        },
+        {
+          id: 'repeated',
+          ask: 'Does the bottom have a repeated bracket?',
+          branches: [
+            { label: 'Yes', outcome: FORM_REPEATED },
+            { label: 'No', outcome: FORM_DISTINCT },
+          ],
+        },
+      ],
+      answer: answer[params.kind],
+    };
+  },
+  solution: (params) => {
+    const { kind, split, fprime, repeated } = params;
+    if (kind === 'divide') {
+      return [
+        { text: 'The top and the bottom are both quadratics, so the top is not lower in degree.' },
+        { text: `Divide first: it becomes $${split.k}${splitAfter(split)}$, and only then does it split.` },
+      ];
+    }
+    if (kind === 'fprime') {
+      const bottom = fprimeBottom(fprime);
+      const derivative = bottom.slice(1).map((value, power) => value * (power + 1));
+      return [
+        { text: 'The top is linear and the bottom quadratic, so the degree is lower.' },
+        { text: `The bottom's derivative is $${polyTex(derivative)}$, and the top is a number times it.` },
+        { text: `So the integral is $${leadingTex(fprimeCoefficient(fprime))}${fprimeLnTex(fprime)} + C$, with no splitting at all.` },
+      ];
+    }
+    if (kind === 'repeated') {
+      return [
+        { text: 'The top is linear and the bottom quadratic, so the degree is lower.' },
+        { text: `The bottom's derivative is $${polyTex([2 * repeated.a, 2])}$, and the top is not a number times it.` },
+        { text: `The bottom is $(${bracketTex(repeated.a)})^{2}$, a repeated bracket, so the split is $${repeatedSplitTex(repeated)}$.` },
+      ];
+    }
+    return [
+      { text: 'The top is linear and the bottom quadratic, so the degree is lower.' },
+      { text: `The bottom's derivative is $${polyTex([split.a + split.b, 2])}$, and the top is not a number times it.` },
+      { text: `The bottom is $(${bracketTex(split.a)})(${bracketTex(split.b)})$, two different brackets, so the split is $${splitTex(split)}$.` },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -4884,4 +6130,21 @@ export const integrationGenerators = [
   volumeConeParts,
   volumeWasher,
   volumeOuterInner,
+  coverUp,
+  splitCoefficients,
+  coverBothTree,
+  poleSlider,
+  recombine,
+  logTerm,
+  integrateSplit,
+  integrateTiles,
+  definiteSplit,
+  substituteLimits,
+  findLimit,
+  fprimeOverF,
+  divideFirst,
+  topHeavy,
+  repeatedSplit,
+  repeatedIntegrate,
+  formFlow,
 ] as unknown as Generator<unknown>[];

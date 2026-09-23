@@ -33,7 +33,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { bankFor, bin, num, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termTex } from './calculus';
-import { bankOf, offer, signedTile } from './quadratics';
+import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
 
 /* ---------- Formatting ---------- */
@@ -1684,7 +1684,7 @@ const words: Generator<WordsParams> = {
   render: (params): Slide => {
     const { form, a, b } = params;
     const c = wordsRight(params);
-    const answer = [`${a}`, signedTile(b), `${c}`];
+    const answer = [numberTile(a), signedTile(b), numberTile(c)];
     return {
       kind: 'tiles',
       prompt: [
@@ -1692,7 +1692,7 @@ const words: Generator<WordsParams> = {
         { kind: 'prose', text: 'Write the equation these words describe.' },
       ],
       template: form === 'times-then-add' ? '{0}x {1} = {2}' : '{0}(x {1}) = {2}',
-      bank: bankOf(answer, [signedTile(-b), `${Math.abs(b)}`, signedTile(a), `${c + b}`, `${c - b}`]),
+      bank: bankOf(answer, [signedTile(-b), `${Math.abs(b)}`, signedTile(a), numberTile(c + b), numberTile(c - b)]),
       answer,
     };
   },

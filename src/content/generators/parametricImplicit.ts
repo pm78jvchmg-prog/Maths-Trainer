@@ -55,6 +55,9 @@ const coef = (c: number): string => (c === 1 ? '' : c === -1 ? '-' : `${c}`);
 /** `+ 3` or `- 3`, for appending to a term the learner reads. */
 const signed = (c: number): string => (c < 0 ? `- ${-c}` : `+ ${c}`);
 
+/** A number standing alone as a tile: a negative spelled as `signed` spells it, since TeX draws `-3` and `- 3` alike. */
+const bareTile = (c: number): string => (c < 0 ? signed(c) : `${c}`);
+
 /** A number that may follow an operator: negatives are bracketed. */
 const bracketed = (n: number): string => (n < 0 ? `(${n})` : `${n}`);
 
@@ -1424,13 +1427,17 @@ function tangentTiles(prompt: Block[], m: number, x0: number, y0: number, slips:
   const c = y0 - m * x0;
   const pick = (values: number[], right: number): number[] =>
     values.filter((v, i) => Number.isInteger(v) && v !== right && v !== 0 && values.indexOf(v) === i).slice(0, 2);
-  const bank = [`${m}`, signed(c), ...pick([-m, ...slips], m).map(String), ...pick([y0 + m * x0, y0, -c], c).map(signed)];
+  const answer = [bareTile(m), signed(c)];
+  // A gradient slip can land on the intercept's spelling, `- 1` for both; the
+  // answer already offers that tile, so it is not offered twice.
+  const slipTiles = [...pick([-m, ...slips], m).map(bareTile), ...pick([y0 + m * x0, y0, -c], c).map(signed)];
+  const bank = [...answer, ...new Set(slipTiles.filter((tile) => !answer.includes(tile)))];
   return {
     kind: 'tiles',
     prompt,
     template: 'y = {0}x {1}',
     bank: bank.sort((a, b) => Number(a.replace(/\s/g, '')) - Number(b.replace(/\s/g, '')) || a.localeCompare(b)),
-    answer: [`${m}`, signed(c)],
+    answer,
   };
 }
 

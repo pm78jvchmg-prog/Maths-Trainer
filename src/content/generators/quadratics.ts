@@ -46,6 +46,15 @@ export function signedTile(value: number, variable = ''): string {
   return `${value < 0 ? '-' : '+'} ${body}`;
 }
 
+/**
+ * A number standing alone as a tile: "4", or "- 4" spelled as signedTile
+ * spells it. TeX draws `-4` and `- 4` alike, so a bank mixing the two shows
+ * two identical tiles and grades only one of them right.
+ */
+export function numberTile(value: number): string {
+  return value < 0 ? signedTile(value) : `${value}`;
+}
+
 /** A linear factor as a tile: "3x + 2", "x - 4". */
 export function factorTile(coefficient: number, constant: number): string {
   const front = coefficient === 1 ? 'x' : `${coefficient}x`;

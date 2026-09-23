@@ -892,10 +892,15 @@ interface ExpandParams {
   br: Bracket;
 }
 
-/** A term's coefficient as a tile: bare for the first term, signed after it. */
+/**
+ * A term's coefficient as a tile: a plus sign only after the first term, and a
+ * minus always spelled `- k`. TeX draws `-81` and `- 81` alike, so a bare `-81`
+ * for the first blank beside `- 81` for a later one put two identical tiles in
+ * the bank, only one of them right where it was dropped.
+ */
 function signedToken(coef: number, first: boolean): string {
-  if (first) return `${coef}`;
-  return coef < 0 ? `- ${-coef}` : `+ ${coef}`;
+  if (coef < 0) return `- ${-coef}`;
+  return first ? `${coef}` : `+ ${coef}`;
 }
 
 /** x to a power as it follows a coefficient in a tiles template: no braces round a digit. */

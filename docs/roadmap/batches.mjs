@@ -19,6 +19,9 @@
  *   Branch: `claude/roadmap-b-complex-numbers-3-ji4c6s`
  *
  *   Free text: what the batch shipped, once it is done.
+ *
+ * A bug fix that is not part of any phase records itself the same way, as
+ * `fix-<name>.md` headed `# fix-<name>: <title>`, and prints in its own table.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -28,7 +31,7 @@ export const batchesDir = join(dirname(fileURLToPath(import.meta.url)), 'batches
 
 export const STATUSES = ['claimed', 'done'];
 
-/** Batch ids sort B2 before B10, and C2 before C2-widget. */
+/** Batch ids sort B2 before B10, and C2 before C2-widget; fixes sort after both. */
 function compareIds(a, b) {
   return a.localeCompare(b, 'en', { numeric: true });
 }
@@ -37,7 +40,7 @@ function compareIds(a, b) {
 export function parseBatch(file, text) {
   const id = file.replace(/\.md$/, '');
   const lines = text.split('\n');
-  const heading = /^# ([BC]\d+(?:-[a-z0-9]+)?): (.+)$/.exec(lines[0] ?? '');
+  const heading = /^# ([BC]\d+(?:-[a-z0-9]+)?|fix-[a-z0-9-]+): (.+)$/.exec(lines[0] ?? '');
   if (!heading) throw new Error(`${file}: the first line should be "# ${id}: <batch title>"`);
   if (heading[1] !== id) throw new Error(`${file}: the heading names ${heading[1]}, but the file is ${id}`);
 
@@ -75,7 +78,16 @@ export function renderTables(batches) {
       .filter((batch) => batch.phase === phase)
       .map((b) => `| ${b.id} | ${b.title} | ${b.status} | ${b.branch} | ${b.notes} |`),
   ];
-  return [...table('B'), '', ...table('C'), ''].join('\n');
+  const fixes = [
+    '### Fixes',
+    '',
+    '| Fix | Title | Status | Branch | Notes |',
+    '| --- | --- | --- | --- | --- |',
+    ...batches
+      .filter((batch) => batch.phase === 'f')
+      .map((b) => `| ${b.id} | ${b.title} | ${b.status} | ${b.branch} | ${b.notes} |`),
+  ];
+  return [...table('B'), '', ...table('C'), '', ...fixes, ''].join('\n');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

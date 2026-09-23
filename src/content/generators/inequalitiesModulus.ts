@@ -34,7 +34,7 @@ import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { markerWindow, plotSvg } from '../figures';
 import { options } from '../choiceVariant';
 import { sumTex, termTex } from './calculus';
-import { bankOf, offer, signedTile } from './quadratics';
+import { bankOf, numberTile, offer, signedTile } from './quadratics';
 import { windowFor } from './numberLine';
 
 /* ---------- The inequality sign ---------- */
@@ -3650,7 +3650,7 @@ const transformTiles: Generator<TransformParams> = {
     const { A, h, k } = params;
     const across = `${Math.abs(h)} ${h > 0 ? 'right' : 'left'}`;
     const up = `${Math.abs(k)} ${k > 0 ? 'up' : 'down'}`;
-    const front = A === 1 ? '' : A === -1 ? '-' : `${A}`;
+    const front = A === 1 ? '' : A === -1 ? '-' : numberTile(A);
     const stretched = A !== 1;
     const how = !stretched
       ? ''
@@ -3660,7 +3660,7 @@ const transformTiles: Generator<TransformParams> = {
           ? `stretched vertically by $${-A}$ and reflected in the $x$-axis, then `
           : `stretched vertically by $${A}$, then `;
     const answer = stretched ? [front, signedTile(-h), signedTile(k)] : [signedTile(-h), signedTile(k)];
-    const fronts = ['2', '3', '-', '-2'].filter((token) => token !== front);
+    const fronts = ['2', '3', '-', numberTile(-2)].filter((token) => token !== front);
     return {
       kind: 'tiles',
       prompt: [

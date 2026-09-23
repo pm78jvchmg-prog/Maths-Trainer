@@ -32,6 +32,12 @@ describe('roadmap batch files', () => {
     expect(batch).toMatchObject({ id: 'C2-widget', phase: 'C', status: 'claimed', notes: '' });
   });
 
+  it('reads a fix id and prints it in the fixes table', () => {
+    const batch = parseBatch('fix-duplicate-tiles.md', '# fix-duplicate-tiles: Two tiles that look the same\n\nStatus: claimed\nBranch: `b`\n');
+    expect(batch).toMatchObject({ id: 'fix-duplicate-tiles', phase: 'f', status: 'claimed' });
+    expect(renderTables([batch])).toMatch(/### Fixes[\s\S]*\| fix-duplicate-tiles \| Two tiles that look the same \| claimed \|/);
+  });
+
   it('reads a later-level batch id', () => {
     const batch = parseBatch('C10-l3.md', '# C10-l3: Exponential Models: Rates in Models\n\nStatus: claimed\nBranch: `b`\n');
     expect(batch).toMatchObject({ id: 'C10-l3', phase: 'C', status: 'claimed' });

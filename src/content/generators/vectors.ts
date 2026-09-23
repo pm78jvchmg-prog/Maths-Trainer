@@ -6419,6 +6419,1535 @@ const linePlaneParallel: Generator<ParallelPlaneParams> = {
   },
 };
 
+/* ---------- Level 10: vectors in mechanics ---------- */
+
+/*
+ * Level 10 gives the vectors of the earlier levels a physical meaning, in two
+ * dimensions and in i, j notation throughout: a position that changes with
+ * time, a velocity whose length is a speed, constant acceleration, forces
+ * that add, and two particles that may or may not collide. It is vector
+ * algebra with units attached, not a mechanics course: nothing here needs a
+ * force diagram, a slope or friction, which belong to the Mechanics tab.
+ *
+ * Units live in the prose only. Every answer is a bare number or a pair of
+ * components, and every question is built outward from the whole numbers it
+ * should end on: the time two particles meet, a speed from a Pythagorean
+ * triple, an acceleration the mass divides exactly.
+ */
+
+const MPS = '\\mathrm{m\\,s^{-1}}';
+const MPS2 = '\\mathrm{m\\,s^{-2}}';
+const PARTICLES = ['A particle', 'A boat', 'A drone', 'A puck', 'A model car'];
+
+/** `3i - 2j`, `-j`, `4i`: a vector the way a mechanics text writes it. */
+function ijOf([x, y]: Vec): string {
+  const term = (c: number, unit: string) => (Math.abs(c) === 1 ? unit : `${Math.abs(c)}${unit}`);
+  if (x === 0 && y === 0) return '\\mathbf{0}';
+  if (x === 0) return `${y < 0 ? '-' : ''}${term(y, '\\mathbf{j}')}`;
+  const first = `${x < 0 ? '-' : ''}${term(x, '\\mathbf{i}')}`;
+  if (y === 0) return first;
+  return `${first} ${y < 0 ? '-' : '+'} ${term(y, '\\mathbf{j}')}`;
+}
+
+/** The same vector in brackets, ready to be multiplied or added to. */
+const ijBr = (v: Vec) => `(${ijOf(v)})`;
+
+/** `r = (a) + (b)t`: where a particle is after `t` seconds. */
+function motionTex(r0: Vec, v: Vec, name = '\\mathbf{r}'): string {
+  if (r0[0] === 0 && r0[1] === 0) return `${name} = ${ijBr(v)}t`;
+  return `${name} = ${ijBr(r0)} + ${ijBr(v)}t`;
+}
+
+/**
+ * One component's working on a line of its own, `i: 3 + (-8) = -5`.
+ *
+ * Solutions are narrower than teaching slides, and a whole vector sum in i, j
+ * form runs off a phone; one component per line always fits. The sum is
+ * braced so a leading minus after the colon reads as a sign.
+ */
+function componentLine(unit: 'i' | 'j', sum: string, value: number | string) {
+  return { tex: `\\mathbf{${unit}}\\colon \\; {${sum}} = ${value}` };
+}
+
+/** Both components of `p + k q`, each on its own line. */
+function sumLines(p: Vec, k: number, q: Vec) {
+  return (['i', 'j'] as const).map((unit, idx) =>
+    componentLine(unit, `${p[idx]} + ${k === 1 ? '' : `${k} \\times `}${paren(q[idx])}`, p[idx] + k * q[idx]),
+  );
+}
+
+/** A whole vector with neither component zero. */
+function vec2(rng: Draw, lo: number, hi: number): Vec {
+  return [nonZero(rng.int(lo, hi), hi), nonZero(rng.int(lo, hi), lo)];
+}
+
+/** A vector of whole length: a Pythagorean triple's legs, signed or not. */
+function tripleVec(rng: Draw, longest: number, signed = true): { v: Vec; c: number } {
+  const [a, b, c] = rng.pick(MAGNITUDE_TRIPLES.filter((row) => row[2] <= longest));
+  return { v: signed ? [a * rng.sign(), b * rng.sign()] : [a, b], c };
+}
+
+/** The vector's two components as tile answers. */
+const tilesOf = (v: Vec) => [`${v[0]}`, `${v[1]}`];
+
+/** `\frac{n}{d}` in lowest terms, or a whole number when it divides. */
+function fracTex(n: number, d: number): string {
+  const g = gcd(Math.abs(n), Math.abs(d)) || 1;
+  const [p, q] = [n / g, d / g];
+  return q === 1 ? `${p}` : `\\frac{${p}}{${q}}`;
+}
+
+/** The squared-magnitude working, one step to a line. */
+function magnitudeLines(v: Vec, c: number) {
+  return [
+    { tex: `\\sqrt{${paren(v[0])}^2 + ${paren(v[1])}^2}` },
+    { tex: `= \\sqrt{${v[0] * v[0]} + ${v[1] * v[1]}} = ${c}` },
+  ];
+}
+
+/* Lesson 1: position and velocity. */
+
+interface PositionParams {
+  who: number;
+  r0: Vec;
+  v: Vec;
+  t: number;
+}
+
+function samplePosition(rng: Draw, difficulty: number): PositionParams {
+  const span = difficulty > 1 ? 9 : 6;
+  const reach = difficulty > 1 ? 5 : 4;
+  return {
+    who: rng.int(0, PARTICLES.length - 1),
+    r0: [rng.int(-span, span), nonZero(rng.int(-span, span), 2)],
+    v: vec2(rng, -reach, reach),
+    t: rng.int(2, difficulty > 1 ? 8 : 5),
+  };
+}
+
+function positionPrompt({ who, r0, v }: PositionParams, ask: string): Block[] {
+  return [
+    {
+      kind: 'prose',
+      text: `${PARTICLES[who]} starts at the point with position vector $${ijOf(r0)}$ and moves with constant velocity $${ijBr(v)} \\; ${MPS}$. ${ask}`,
+    },
+    { kind: 'display', tex: motionTex(r0, v) },
+  ];
+}
+
+function positionSolution({ r0, v, t }: PositionParams) {
+  const p = plus(r0, scaled(t, v));
+  return [
+    {
+      text: 'With a constant velocity the position is the start plus the velocity times the time, $\\mathbf{r} = \\mathbf{r}_0 + \\mathbf{v}t$. Work one component at a time:',
+    },
+    ...sumLines(r0, t, v),
+    {
+      text: `So after $${t}$ seconds it is at $${ijOf(p)}$. Each second adds one more lot of the velocity to where it started.`,
+    },
+  ];
+}
+
+/** Where a particle is after a given time, placed as components. */
+const mechPosition: Generator<PositionParams> = {
+  id: 'mech-position',
+  sample: samplePosition,
+  render: (params): Slide => {
+    const { r0, v, t } = params;
+    const p = plus(r0, scaled(t, v));
+    return {
+      kind: 'tiles',
+      prompt: positionPrompt(params, `Find its position vector after $${t}$ seconds.`),
+      template: VECTOR_TEMPLATE,
+      // The velocity added once instead of t times, and the start left out.
+      bank: bankOf(tilesOf(p), [...tilesOf(plus(r0, v)), ...tilesOf(scaled(t, v))]),
+      answer: tilesOf(p),
+    };
+  },
+  solution: positionSolution,
+};
+
+/** The same position with its working laid out: the displacement, then the sum. */
+const mechPositionSteps: Generator<PositionParams> = {
+  id: 'mech-position-steps',
+  sample: samplePosition,
+  render: (params): Slide => {
+    const { r0, v, t } = params;
+    const moved = scaled(t, v);
+    const p = plus(r0, moved);
+    return {
+      kind: 'steps',
+      prompt: positionPrompt(
+        params,
+        `Work out where it is after $${t}$ seconds: the displacement $\\mathbf{v}t$ first, then add it to the start.`,
+      ),
+      start: [ijBr(r0), '+', `${t}`, ijBr(v)],
+      reductions: [
+        {
+          span: [2, 4],
+          value: ijBr(moved),
+          // Only the first component scaled, the time added on, one second too many.
+          bank: scattered([
+            ijBr(moved),
+            ijBr([moved[0], v[1]]),
+            ijBr(plus(v, [t, t])),
+            ijBr(scaled(t + 1, v)),
+          ]),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: ijOf(p),
+          bank: scattered([ijOf(p), ijOf(minus(r0, moved)), ijOf(plus(r0, v)), ijOf([p[0], p[1] + 1])]),
+        },
+      ],
+    };
+  },
+  solution: positionSolution,
+};
+
+type WhenAsk = 'point' | 'north' | 'east';
+
+interface WhenParams {
+  who: number;
+  p: Vec;
+  v: Vec;
+  t: number;
+  ask: WhenAsk;
+}
+
+const whenStart = ({ p, v, t }: WhenParams): Vec => minus(p, scaled(t, v));
+
+/**
+ * When a particle reaches a place: one component of `r0 + vt` set equal to a
+ * number. Built from the answer, so the time is always whole.
+ */
+const mechWhen: Generator<WhenParams> = {
+  id: 'mech-when',
+  choices: (params) => {
+    const { p, v, t, ask } = params;
+    const r0 = whenStart(params);
+    const idx = ask === 'east' ? 1 : 0;
+    // Forgetting the start, and the start's sign flipped.
+    const slips = [p[idx] / v[idx], (p[idx] + r0[idx]) / v[idx], t + 1];
+    return steered(signedChoices(t, slips.filter((x) => x > 0)), saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 6 : 4;
+    for (let tries = 0; tries < 200; tries += 1) {
+      const ask = rng.pick<WhenAsk>(['point', 'north', 'east']);
+      const v = vec2(rng, -reach, reach);
+      const t = rng.int(difficulty > 1 ? 2 : 1, difficulty > 1 ? 9 : 6);
+      const p: Vec = [rng.int(-8, 8), rng.int(-8, 8)];
+      if (ask === 'north') p[0] = 0;
+      if (ask === 'east') p[1] = 0;
+      const r0 = minus(p, scaled(t, v));
+      if (r0.some((x) => Math.abs(x) > 20) || (r0[0] === 0 && r0[1] === 0)) continue;
+      return { who: rng.int(0, PARTICLES.length - 1), p, v, t, ask };
+    }
+    return { who: 0, p: [5, 3], v: [2, 1], t: 3, ask: 'point' };
+  },
+  render: (params): Slide => {
+    const { who, p, v, ask } = params;
+    const question =
+      ask === 'point'
+        ? `At what time does it pass through the point with position vector $${ijOf(p)}$?`
+        : ask === 'north'
+          ? 'With $\\mathbf{i}$ pointing east and $\\mathbf{j}$ north, at what time is it due north or due south of the origin?'
+          : 'With $\\mathbf{i}$ pointing east and $\\mathbf{j}$ north, at what time is it due east or due west of the origin?';
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${PARTICLES[who]} moves with constant velocity. Its position vector after $t$ seconds is below, in metres. ${question}`,
+        },
+        { kind: 'display', tex: motionTex(whenStart(params), v) },
+      ],
+      lead: '\\text{time } t =',
+      keypad: [],
+      answer: `${params.t}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { p, v, t, ask } = params;
+    const r0 = whenStart(params);
+    const idx = ask === 'east' ? 1 : 0;
+    const unit = idx === 0 ? '\\mathbf{i}' : '\\mathbf{j}';
+    const other = 1 - idx;
+    const lead =
+      ask === 'point'
+        ? `Both components have to match at the same moment. The $${unit}$ component gives an equation in $t$:`
+        : ask === 'north'
+          ? 'Due north or south of the origin means no distance east or west: the $\\mathbf{i}$ component is zero.'
+          : 'Due east or west of the origin means no distance north or south: the $\\mathbf{j}$ component is zero.';
+    return [
+      { text: lead },
+      { tex: `${affTex(r0[idx], v[idx], 't')} = ${p[idx]}` },
+      { tex: `${v[idx]}t = ${p[idx] - r0[idx]} \\implies t = ${t}` },
+      ask === 'point'
+        ? {
+            text: `The $${other === 0 ? '\\mathbf{i}' : '\\mathbf{j}'}$ component checks it: $${r0[other]} + ${paren(v[other])} \\times ${t} = ${p[other]}$, as it should.`,
+          }
+        : { text: `So it is there after $${t}$ seconds, at $${ijOf(p)}$.` },
+    ];
+  },
+};
+
+interface TimeSliderParams {
+  r0: Vec;
+  v: Vec;
+  t: number;
+}
+
+/**
+ * A slider track in seconds from the start, over the part of the path the
+ * figure shows, trimmed so the handle does not rest on the answer.
+ */
+function timeTrack(r0: Vec, v: Vec, t: number): [number, number] | undefined {
+  const range = tRange(r0, v, 8);
+  if (!range) return undefined;
+  const min = Math.max(0, Math.ceil(range[0]));
+  let max = Math.min(8, Math.floor(range[1]));
+  if (min + Math.round((max - min) / 2) === t && max - 1 > t) max -= 1;
+  if (max - min < 4 || min + Math.round((max - min) / 2) === t || t > max) return undefined;
+  return [min, max];
+}
+
+/**
+ * Drag the time until the marker is where the particle is. Its path is drawn
+ * with a dot at each whole second from where it starts, but the point asked
+ * about is given only as a position vector, so the learner has to find it.
+ */
+const mechTimeSlider: Generator<TimeSliderParams> = {
+  id: 'mech-time-slider',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 300; tries += 1) {
+      // Heading rightwards, so the marker's place across the figure is time in order.
+      const v: Vec = [rng.int(1, difficulty > 1 ? 3 : 2), difficulty > 1 ? rng.int(-3, 3) : nonZero(rng.int(-2, 2), 1)];
+      const r0: Vec = [rng.int(-7, -1), rng.int(-6, 6)];
+      const t = rng.int(2, 6);
+      const p = plus(r0, scaled(t, v));
+      if (p.some((x) => Math.abs(x) > 7)) continue;
+      if (!timeTrack(r0, v, t)) continue;
+      return { r0, v, t };
+    }
+    return { r0: [-6, -3], v: [2, 1], t: 3 };
+  },
+  render: ({ r0, v, t }): Slide => {
+    const span = 8;
+    const [min, max] = timeTrack(r0, v, t) ?? [0, 6];
+    const p = plus(r0, scaled(t, v));
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A particle starts at $A$ and moves with constant velocity; its path is drawn with a dot at each whole second. Slide $t$ to the time when it is at the point with position vector $${ijOf(p)}$.`,
+        },
+        { kind: 'display', tex: motionTex(r0, v) },
+      ],
+      min,
+      max,
+      step: 1,
+      answer: t,
+      readout: 't = {v}',
+      figure: {
+        svg: linesSvg([{ a: r0, b: v, dots: true }], [{ at: r0, name: 'A' }], {
+          span,
+          label: 'The path of a particle on squared paper, with a dot at each whole second',
+        }),
+        // In seconds: the marker for a time sits where the particle is then.
+        xMin: (-span - r0[0]) / v[0],
+        xMax: (span - r0[0]) / v[0],
+        axis: 'x',
+        origin: 0,
+      },
+    };
+  },
+  solution: ({ r0, v, t }) => {
+    const p = plus(r0, scaled(t, v));
+    return [
+      { text: 'Match the $\\mathbf{i}$ component of the position with the point\'s:' },
+      { tex: `${affTex(r0[0], v[0], 't')} = ${p[0]} \\implies t = ${t}` },
+      {
+        text: `The $\\mathbf{j}$ component agrees: $${r0[1]} + ${paren(v[1])} \\times ${t} = ${p[1]}$. On the figure that is $${t}$ dots along from $A$, one per second.`,
+      },
+    ];
+  },
+};
+
+interface VelocityFromParams {
+  who: number;
+  a: Vec;
+  v: Vec;
+  t1: number;
+  k: number;
+}
+
+/**
+ * A constant velocity from two sightings: the displacement between them over
+ * the time between them. At the second difficulty the times are clock times,
+ * so the gap has to be worked out too.
+ */
+const mechVelocityFrom: Generator<VelocityFromParams> = {
+  id: 'mech-velocity-from',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 6 : 4;
+    return {
+      who: rng.int(0, PARTICLES.length - 1),
+      a: [rng.int(-8, 8), nonZero(rng.int(-8, 8), -3)],
+      v: vec2(rng, -reach, reach),
+      t1: difficulty > 1 ? rng.int(1, 4) : 0,
+      k: rng.int(2, 5),
+    };
+  },
+  render: ({ who, a, v, t1, k }): Slide => {
+    const b = plus(a, scaled(k, v));
+    const moved = minus(b, a);
+    const text =
+      t1 === 0
+        ? `${PARTICLES[who]} moves with constant velocity. It passes the point with position vector $${ijOf(a)}$, and $${k}$ seconds later the point with position vector $${ijOf(b)}$. Find its velocity.`
+        : `${PARTICLES[who]} moves with constant velocity. When $t = ${t1}$ it is at the point with position vector $${ijOf(a)}$, and when $t = ${t1 + k}$ at $${ijOf(b)}$. Find its velocity.`;
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `${text} Positions are in metres and times in seconds.` }],
+      template: VECTOR_TEMPLATE,
+      // The displacement not divided, and the subtraction the wrong way round.
+      bank: bankOf(tilesOf(v), [...tilesOf(moved), ...tilesOf(scaled(-1, v))]),
+      answer: tilesOf(v),
+    };
+  },
+  solution: ({ a, v, t1, k }) => {
+    const b = plus(a, scaled(k, v));
+    return [
+      {
+        text: `Velocity is displacement per second. The displacement is the second position minus the first, and it took $${t1 === 0 ? k : `${t1 + k} - ${t1} = ${k}`}$ seconds.`,
+      },
+      componentLine('i', `${b[0]} - ${paren(a[0])}`, b[0] - a[0]),
+      componentLine('j', `${b[1]} - ${paren(a[1])}`, b[1] - a[1]),
+      { text: `Dividing each by $${k}$ gives $\\mathbf{v} = ${ijOf(v)}$, in $${MPS}$.` },
+    ];
+  },
+};
+
+/* Lesson 2: speed and direction. */
+
+interface SpeedParams {
+  who: number;
+  v: Vec;
+  c: number;
+  r0?: Vec;
+}
+
+/** Speed as the magnitude of a velocity, sometimes read out of a position. */
+const mechSpeed: Generator<SpeedParams> = {
+  id: 'mech-speed',
+  choices: (params) => {
+    const { v, c } = params;
+    // The components added, the root forgotten, and their difference.
+    const slips = [Math.abs(v[0]) + Math.abs(v[1]), c * c, Math.abs(Math.abs(v[0]) - Math.abs(v[1]))];
+    return steered(signedChoices(c, slips), saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const { v, c } = tripleVec(rng, difficulty > 1 ? 30 : 15);
+    const who = rng.int(0, PARTICLES.length - 1);
+    if (difficulty > 1 && rng.chance(0.5)) return { who, v, c, r0: [rng.int(-9, 9), nonZero(rng.int(-9, 9), 4)] };
+    return { who, v, c };
+  },
+  render: ({ who, v, c, r0 }): Slide => ({
+    kind: 'expression',
+    prompt: r0
+      ? [
+          {
+            kind: 'prose',
+            text: `The position vector of ${PARTICLES[who].toLowerCase()} after $t$ seconds is below, in metres. Find its speed in $${MPS}$.`,
+          },
+          { kind: 'display', tex: motionTex(r0, v) },
+        ]
+      : [
+          {
+            kind: 'prose',
+            text: `${PARTICLES[who]} moves with velocity $${ijBr(v)} \\; ${MPS}$. Find its speed in $${MPS}$.`,
+          },
+        ],
+    lead: '\\text{speed} =',
+    keypad: [],
+    answer: `${c}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ v, c, r0 }) => [
+    ...(r0
+      ? [{ text: `The velocity is what multiplies $t$, $${ijOf(v)}$; the starting position plays no part in how fast it goes.` }]
+      : []),
+    { text: 'Speed is the magnitude of the velocity: its length, with the direction left behind.' },
+    ...magnitudeLines(v, c),
+    { text: `So the speed is $${c} \\; ${MPS}$. A speed is never negative, whichever way the particle is heading.` },
+  ],
+};
+
+interface TravelParams {
+  who: number;
+  v: Vec;
+  c: number;
+  time: number;
+}
+
+/** How far a particle goes: the speed times the time, the speed from a tree. */
+const mechDistanceTree: Generator<TravelParams> = {
+  id: 'mech-distance-tree',
+  sample: (rng, difficulty) => {
+    const { v, c } = tripleVec(rng, difficulty > 1 ? 26 : 13);
+    return { who: rng.int(0, PARTICLES.length - 1), v, c, time: rng.int(2, difficulty > 1 ? 12 : 6) };
+  },
+  render: ({ who, v, c, time }): Slide => {
+    const answer = [`${v[0] * v[0]}`, `${v[1] * v[1]}`, `${c}`, `${c * time}`];
+    const legs = Math.abs(v[0]) + Math.abs(v[1]);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${PARTICLES[who]} moves with constant velocity $${ijBr(v)} \\; ${MPS}$ for $${time}$ seconds. Square each component, find the speed, then how far it travels in metres.`,
+        },
+      ],
+      expression: `${time} \\times \\sqrt{${paren(v[0])}^2 + ${paren(v[1])}^2}`,
+      nodes: [
+        { id: 'x2', from: [] },
+        { id: 'y2', from: [] },
+        { id: 'speed', from: ['x2', 'y2'] },
+        { id: 'far', from: ['speed'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        // The root left off, the components added, and that sum carried through.
+        [`${c * c}`, `${legs}`, `${legs * time}`, `${c + time}`],
+        [`${c + 1}`, `${c * time + time}`, `${c * time - time}`],
+      ),
+      answer,
+    };
+  },
+  solution: ({ v, c, time }) => [
+    { text: 'The speed is the magnitude of the velocity:' },
+    ...magnitudeLines(v, c),
+    { text: `At a constant $${c} \\; ${MPS}$ for $${time}$ seconds it covers $${c} \\times ${time} = ${c * time}$ metres.` },
+  ],
+};
+
+interface SpeedDirectionParams {
+  who: number;
+  d: Vec;
+  c: number;
+  k: number;
+}
+
+/** A velocity from a speed and a direction: the unit vector, scaled. */
+const mechVelocityFromSpeed: Generator<SpeedDirectionParams> = {
+  id: 'mech-velocity-from-speed',
+  sample: (rng, difficulty) => {
+    const { v, c } = tripleVec(rng, difficulty > 1 ? 17 : 13, difficulty > 1 || rng.chance(0.5));
+    return { who: rng.int(0, PARTICLES.length - 1), d: v, c, k: rng.int(2, difficulty > 1 ? 6 : 4) };
+  },
+  render: ({ who, d, c, k }): Slide => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${PARTICLES[who]} moves at $${k * c} \\; ${MPS}$ in the direction of $${ijOf(d)}$. Find its velocity.`,
+      },
+    ],
+    template: VECTOR_TEMPLATE,
+    // The direction itself, the speed times it with no division, and the components crossed.
+    bank: bankOf(tilesOf(scaled(k, d)), [...tilesOf(d), `${k * c * d[0]}`, `${k * d[1] + d[0]}`]),
+    answer: tilesOf(scaled(k, d)),
+  }),
+  solution: ({ d, c, k }) => [
+    { text: `The direction $${ijOf(d)}$ has length $${c}$, so dividing by $${c}$ gives a unit vector: length $1$, the same direction.` },
+    ...magnitudeLines(d, c),
+    {
+      text: `A speed of $${k * c}$ is $${k * c}$ of those unit vectors, which is $${k * c} \\div ${c} = ${k}$ lots of $${ijOf(d)}$:`,
+    },
+    { tex: `\\mathbf{v} = ${k}${ijBr(d)} = ${ijOf(scaled(k, d))}` },
+  ],
+};
+
+interface HeadingParams {
+  who: number;
+  v: Vec;
+  c: number;
+  from?: Vec;
+}
+
+/**
+ * The direction of motion as the tangent of its angle to `i`. Asked as a
+ * tangent rather than in degrees because the exact value is what the
+ * components give; the angle between two general vectors is the next level.
+ */
+const mechHeading: Generator<HeadingParams> = {
+  id: 'mech-heading',
+  choices: (params) => {
+    const [a, b] = params.v;
+    const { c } = params;
+    return steered(
+      options(
+        { tex: fracTex(b, a), answer: `${b}/${a}` },
+        // Upside down, and the sine and cosine in its place.
+        { tex: fracTex(a, b), answer: `${a}/${b}` },
+        { tex: fracTex(b, c), answer: `${b}/${c}` },
+        { tex: fracTex(a, c), answer: `${a}/${c}` },
+      ),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const { v, c } = tripleVec(rng, difficulty > 1 ? 30 : 15, false);
+    const who = rng.int(0, PARTICLES.length - 1);
+    if (difficulty > 1 && rng.chance(0.5)) return { who, v, c, from: [rng.int(-9, 5), rng.int(-9, 5)] };
+    return { who, v, c };
+  },
+  render: ({ who, v, from }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: from
+          ? `${PARTICLES[who]} moves in a straight line from the point with position vector $${ijOf(from)}$ to the point with position vector $${ijOf(plus(from, v))}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`
+          : `${PARTICLES[who]} moves with velocity $${ijBr(v)} \\; ${MPS}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`,
+      },
+    ],
+    lead: '\\tan\\theta =',
+    keypad: [{ insert: '/' }],
+    answer: `${v[1]}/${v[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ v, from }) => [
+    ...(from
+      ? [{ text: `The direction of motion is the displacement, end minus start: $${ijOf(v)}$.` }]
+      : []),
+    {
+      text: `Drawn as a right-angled triangle, the vector goes $${v[0]}$ along $\\mathbf{i}$ and $${v[1]}$ up $\\mathbf{j}$. The angle with $\\mathbf{i}$ is at the start, so the $\\mathbf{j}$ component is opposite it and the $\\mathbf{i}$ component is next to it.`,
+    },
+    { tex: `\\tan\\theta = \\frac{${v[1]}}{${v[0]}}${fracTex(v[1], v[0]) === `\\frac{${v[1]}}{${v[0]}}` ? '' : ` = ${fracTex(v[1], v[0])}`}` },
+    { text: 'The length of the vector is the hypotenuse, which a tangent does not need.' },
+  ],
+};
+
+/* Lesson 3: constant acceleration. */
+
+interface SuvatParams {
+  who: number;
+  u: Vec;
+  a: Vec;
+  t: number;
+}
+
+function sampleSuvat(rng: Draw, difficulty: number): SuvatParams {
+  const u: Vec = [rng.int(-6, 6), nonZero(rng.int(-6, 6), 3)];
+  return {
+    who: rng.int(0, PARTICLES.length - 1),
+    u,
+    a: vec2(rng, difficulty > 1 ? -5 : -3, difficulty > 1 ? 5 : 3),
+    t: rng.int(2, difficulty > 1 ? 8 : 5),
+  };
+}
+
+function suvatSolution({ u, a, t }: SuvatParams) {
+  const v = plus(u, scaled(t, a));
+  return [
+    { text: 'With constant acceleration, each second adds $\\mathbf{a}$ to the velocity: $\\mathbf{v} = \\mathbf{u} + \\mathbf{a}t$.' },
+    ...sumLines(u, t, a),
+    { text: `So $\\mathbf{v} = ${ijOf(v)}$, in $${MPS}$.` },
+  ];
+}
+
+/** The velocity after a time, from `v = u + at`. */
+const mechSuvatV: Generator<SuvatParams> = {
+  id: 'mech-suvat-v',
+  choices: (params) => {
+    const { u, a, t } = params;
+    const right = plus(u, scaled(t, a));
+    const wrong = [plus(u, a), scaled(t, a), minus(u, scaled(t, a)), plus(scaled(t, u), a)].filter(
+      (w) => w[0] !== right[0] || w[1] !== right[1],
+    );
+    const seen = new Set([ijOf(right)]);
+    const picked = wrong.filter((w) => (seen.has(ijOf(w)) ? false : (seen.add(ijOf(w)), true))).slice(0, 3);
+    return steered(options({ tex: ijOf(right) }, ...picked.map((w) => ({ tex: ijOf(w) }))), saltOf(params));
+  },
+  sample: sampleSuvat,
+  render: ({ who, u, a, t }): Slide => {
+    const v = plus(u, scaled(t, a));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${PARTICLES[who]} has initial velocity $${ijBr(u)} \\; ${MPS}$ and constant acceleration $${ijBr(a)} \\; ${MPS2}$. Find its velocity after $${t}$ seconds.`,
+        },
+      ],
+      template: VECTOR_TEMPLATE,
+      // The acceleration added once, and the starting velocity forgotten.
+      bank: bankOf(tilesOf(v), [...tilesOf(plus(u, a)), ...tilesOf(scaled(t, a))]),
+      answer: tilesOf(v),
+    };
+  },
+  solution: suvatSolution,
+};
+
+/** The acceleration from two velocities: the change in velocity per second. */
+const mechAcceleration: Generator<SuvatParams> = {
+  id: 'mech-acceleration',
+  sample: sampleSuvat,
+  render: ({ who, u, a, t }): Slide => {
+    const v = plus(u, scaled(t, a));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${PARTICLES[who]} moves with constant acceleration. In $${t}$ seconds its velocity changes from $${ijBr(u)} \\; ${MPS}$ to $${ijBr(v)} \\; ${MPS}$. Find its acceleration.`,
+        },
+      ],
+      template: VECTOR_TEMPLATE,
+      // The change not divided by the time, and the subtraction reversed.
+      bank: bankOf(tilesOf(a), [...tilesOf(scaled(t, a)), ...tilesOf(scaled(-1, a))]),
+      answer: tilesOf(a),
+    };
+  },
+  solution: ({ u, a, t }) => {
+    const v = plus(u, scaled(t, a));
+    return [
+      { text: 'Rearranging $\\mathbf{v} = \\mathbf{u} + \\mathbf{a}t$ gives $\\mathbf{a} = (\\mathbf{v} - \\mathbf{u}) \\div t$: the change in velocity, per second.' },
+      componentLine('i', `(${v[0]} - ${paren(u[0])}) \\div ${t}`, a[0]),
+      componentLine('j', `(${v[1]} - ${paren(u[1])}) \\div ${t}`, a[1]),
+      { text: `So $\\mathbf{a} = ${ijOf(a)}$, in $${MPS2}$.` },
+    ];
+  },
+};
+
+type ParallelAxis = 'i' | 'j' | 'diagonal';
+
+interface ParallelTimeParams {
+  who: number;
+  u: Vec;
+  a: Vec;
+  t: number;
+  axis: ParallelAxis;
+}
+
+const AXIS_TEX: Record<ParallelAxis, string> = {
+  i: '\\mathbf{i}',
+  j: '\\mathbf{j}',
+  diagonal: '\\mathbf{i} + \\mathbf{j}',
+};
+
+/**
+ * When an accelerating particle is moving parallel to `i`, `j` or `i + j`.
+ * One component of `u + at` is zero, or the two are equal, at a whole time.
+ */
+const mechParallelTime: Generator<ParallelTimeParams> = {
+  id: 'mech-parallel-time',
+  choices: (params) => {
+    const { u, a, t, axis } = params;
+    // The other component's zero, where it has one.
+    const other = axis === 'i' ? -u[0] / a[0] : axis === 'j' ? -u[1] / a[1] : t + 2;
+    return steered(signedChoices(t, [other, t + 1, t - 1].filter((x) => x > 0)), saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    const axes: ParallelAxis[] = difficulty > 1 ? ['i', 'j', 'diagonal'] : ['i', 'j'];
+    for (let tries = 0; tries < 300; tries += 1) {
+      const axis = rng.pick(axes);
+      const t = rng.int(1, difficulty > 1 ? 8 : 6);
+      const a = vec2(rng, -4, 4);
+      let u: Vec;
+      if (axis === 'diagonal') {
+        if (a[0] === a[1]) continue;
+        const k = rng.int(1, 6);
+        u = [k - a[0] * t, k - a[1] * t];
+      } else {
+        const zero = axis === 'i' ? 1 : 0;
+        u = [0, 0];
+        u[zero] = -a[zero] * t;
+        u[1 - zero] = rng.int(-6, 6);
+        if (u[1 - zero] + a[1 - zero] * t === 0) continue;
+      }
+      if (u.some((x) => Math.abs(x) > 20) || (u[0] === 0 && u[1] === 0)) continue;
+      return { who: rng.int(0, PARTICLES.length - 1), u, a, t, axis };
+    }
+    return { who: 0, u: [2, -6], a: [1, 2], t: 3, axis: 'i' };
+  },
+  render: ({ who, u, a, t, axis }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${PARTICLES[who]} has initial velocity $${ijBr(u)} \\; ${MPS}$ and constant acceleration $${ijBr(a)} \\; ${MPS2}$. At what time, in seconds, is it moving parallel to $${AXIS_TEX[axis]}$?`,
+      },
+    ],
+    lead: '\\text{time } t =',
+    keypad: [],
+    answer: `${t}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ u, a, t, axis }) => {
+    const v = plus(u, scaled(t, a));
+    const x = affTex(u[0], a[0], 't');
+    const y = affTex(u[1], a[1], 't');
+    return [
+      { text: 'After $t$ seconds the velocity is $\\mathbf{u} + \\mathbf{a}t$, one component at a time:' },
+      { tex: `\\mathbf{i}\\colon \\; {${x}}` },
+      { tex: `\\mathbf{j}\\colon \\; {${y}}` },
+      axis === 'diagonal'
+        ? { text: 'Parallel to $\\mathbf{i} + \\mathbf{j}$ means the two components are equal (and positive, or it would be heading the opposite way):' }
+        : {
+            text: `Parallel to $${AXIS_TEX[axis]}$ means no $${axis === 'i' ? '\\mathbf{j}' : '\\mathbf{i}'}$ component at all:`,
+          },
+      axis === 'diagonal'
+        ? { tex: `${x} = ${y} \\implies t = ${t}` }
+        : { tex: `${axis === 'i' ? y : x} = 0 \\implies t = ${t}` },
+      { text: `Check: at $t = ${t}$ the velocity is $${ijOf(v)}$.` },
+    ];
+  },
+};
+
+/** The displacement under constant acceleration, as two vectors and their sum. */
+const mechDisplacementTree: Generator<SuvatParams> = {
+  id: 'mech-displacement-tree',
+  sample: (rng, difficulty) => {
+    const t = rng.int(2, difficulty > 1 ? 6 : 4);
+    // An odd time needs an even acceleration, or half of a t^2 is not whole.
+    const a: Vec =
+      t % 2 === 0
+        ? vec2(rng, -3, 3)
+        : [2 * nonZero(rng.int(-2, 2), 1), 2 * nonZero(rng.int(-2, 2), -1)];
+    return { who: rng.int(0, PARTICLES.length - 1), u: vec2(rng, -5, 5), a, t };
+  },
+  render: ({ who, u, a, t }): Slide => {
+    const ut = scaled(t, u);
+    const half = scaled((t * t) / 2, a);
+    const s = plus(ut, half);
+    const answer = [ijOf(ut), ijOf(half), ijOf(s)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${PARTICLES[who]} has initial velocity $${ijBr(u)} \\; ${MPS}$ and constant acceleration $${ijBr(a)} \\; ${MPS2}$. Find $\\mathbf{u}t$ and $\\tfrac{1}{2}\\mathbf{a}t^2$ when $t = ${t}$, then its displacement in metres.`,
+        },
+      ],
+      expression: '\\mathbf{s} = \\mathbf{u}t + \\tfrac{1}{2}\\mathbf{a}t^2',
+      nodes: [
+        { id: 'ut', from: [] },
+        { id: 'half', from: [] },
+        { id: 's', from: ['ut', 'half'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        // The half forgotten, the square forgotten, and the start's velocity left out.
+        [ijOf(scaled(t * t, a)), ijOf(plus(ut, scaled(t * t, a))), ijOf(plus(u, half))],
+        [ijOf([s[0] + 1, s[1]]), ijOf([ut[0], ut[1] - 1]), ijOf([half[0] - 1, half[1]])],
+      ),
+      answer,
+    };
+  },
+  solution: ({ u, a, t }) => {
+    const ut = scaled(t, u);
+    const half = scaled((t * t) / 2, a);
+    return [
+      { text: `With $t = ${t}$, $t^2 = ${t * t}$ and half of that is $${(t * t) / 2}$.` },
+      { tex: `\\mathbf{u}t = ${t}${ijBr(u)} = ${ijOf(ut)}` },
+      { tex: `\\tfrac{1}{2}\\mathbf{a}t^2 = ${(t * t) / 2}${ijBr(a)}` },
+      { tex: `= ${ijOf(half)}` },
+      ...sumLines(ut, 1, half),
+      { text: `So $\\mathbf{s} = ${ijOf(plus(ut, half))}$, in metres, measured from where it started.` },
+    ];
+  },
+};
+
+/* Lesson 4: forces. */
+
+interface ForcesParams {
+  forces: Vec[];
+}
+
+const forceName = (idx: number) => `\\mathbf{F}_${idx + 1}`;
+
+function forceDisplays(forces: Vec[]): Block[] {
+  return forces.map((f, idx) => ({ kind: 'display' as const, tex: `${forceName(idx)} = ${ijOf(f)}` }));
+}
+
+const sumOf = (vs: Vec[]): Vec => vs.reduce((acc, v) => plus(acc, v), [0, 0]);
+
+function sumLinesOf(forces: Vec[]) {
+  return (['i', 'j'] as const).map((unit, idx) =>
+    componentLine(
+      unit,
+      forces.map((f, n) => (n === 0 ? `${f[idx]}` : paren(f[idx]))).join(' + '),
+      sumOf(forces)[idx],
+    ),
+  );
+}
+
+/** The resultant of two or three forces, placed as components. */
+const mechResultant: Generator<ForcesParams> = {
+  id: 'mech-resultant',
+  sample: (rng, difficulty) => {
+    const count = difficulty > 1 ? 3 : 2;
+    for (let tries = 0; tries < 100; tries += 1) {
+      const forces = Array.from({ length: count }, () => vec2(rng, difficulty > 1 ? -9 : -6, difficulty > 1 ? 9 : 6));
+      const r = sumOf(forces);
+      if (r[0] === 0 && r[1] === 0) continue;
+      return { forces };
+    }
+    return { forces: [[3, -2], [4, 5]] };
+  },
+  render: ({ forces }): Slide => {
+    const r = sumOf(forces);
+    const [f, g] = forces;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'The forces below, in newtons, act on a particle. Find the resultant force.' },
+        ...forceDisplays(forces),
+      ],
+      template: VECTOR_TEMPLATE,
+      // A force subtracted, and the answer's signs flipped.
+      bank: bankOf(tilesOf(r), [`${r[0] - 2 * g[0]}`, `${r[1] - 2 * g[1]}`, `${-r[0]}`, `${f[1] * g[1]}`]),
+      answer: tilesOf(r),
+    };
+  },
+  solution: ({ forces }) => [
+    { text: 'The resultant is the single force with the same effect as all of them together: their vector sum. Add the $\\mathbf{i}$ components, then the $\\mathbf{j}$ components.' },
+    ...sumLinesOf(forces),
+    { text: `So the resultant is $${ijOf(sumOf(forces))}$ newtons.` },
+  ],
+};
+
+interface ResultantTreeParams {
+  forces: Vec[];
+  c: number;
+}
+
+/** The resultant's components and then its size, as a tree. */
+const mechResultantTree: Generator<ResultantTreeParams> = {
+  id: 'mech-resultant-tree',
+  sample: (rng, difficulty) => {
+    const count = difficulty > 1 ? 3 : 2;
+    for (let tries = 0; tries < 300; tries += 1) {
+      const { v: r, c } = tripleVec(rng, difficulty > 1 ? 25 : 15);
+      const others = Array.from({ length: count - 1 }, () => vec2(rng, -8, 8));
+      const last = minus(r, sumOf(others));
+      if (last.some((x) => x === 0 || Math.abs(x) > 15)) continue;
+      return { forces: [...others, last], c };
+    }
+    return { forces: [[1, 2], [2, 2]], c: 5 };
+  },
+  render: ({ forces, c }): Slide => {
+    const r = sumOf(forces);
+    const answer = [`${r[0]}`, `${r[1]}`, `${c}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The forces below, in newtons, act on a particle. Find the components of the resultant, then its magnitude.',
+        },
+        ...forceDisplays(forces),
+      ],
+      expression: `\\left|${forces.map((_, idx) => forceName(idx)).join(' + ')}\\right|`,
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'y', from: [] },
+        { id: 'size', from: ['x', 'y'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        // Signs dropped, the components added, and the root left off.
+        [`${-r[0]}`, `${-r[1]}`, `${Math.abs(r[0]) + Math.abs(r[1])}`, `${c * c}`],
+        [`${c + 1}`, `${r[0] + 1}`, `${r[1] - 1}`],
+      ),
+      answer,
+    };
+  },
+  solution: ({ forces, c }) => [
+    { text: 'Add the forces component by component:' },
+    ...sumLinesOf(forces),
+    { text: 'The magnitude of the resultant is the length of that vector:' },
+    ...magnitudeLines(sumOf(forces), c),
+    { text: `So the resultant has magnitude $${c}$ newtons.` },
+  ],
+};
+
+/** The force that holds a particle in equilibrium: the resultant, reversed. */
+const mechEquilibrium: Generator<ForcesParams> = {
+  id: 'mech-equilibrium',
+  choices: (params) => {
+    const [x, y] = sumOf(params.forces);
+    return steered(
+      options(
+        { tex: ijOf([-x, -y]) },
+        // The resultant itself, and each component reversed on its own.
+        { tex: ijOf([x, y]) },
+        { tex: ijOf([-x, y]) },
+        { tex: ijOf([x, -y]) },
+      ),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const count = difficulty > 1 ? 3 : 2;
+    for (let tries = 0; tries < 100; tries += 1) {
+      const forces = Array.from({ length: count }, () => vec2(rng, -8, 8));
+      const r = sumOf(forces);
+      if (r[0] === 0 || r[1] === 0) continue;
+      return { forces };
+    }
+    return { forces: [[3, -2], [4, 5]] };
+  },
+  render: ({ forces }): Slide => {
+    const r = sumOf(forces);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A particle is in equilibrium under the forces below and one more, $${forceName(forces.length)}$. All are in newtons. Find $${forceName(forces.length)}$.`,
+        },
+        ...forceDisplays(forces),
+      ],
+      template: VECTOR_TEMPLATE,
+      // The resultant not reversed.
+      bank: bankOf(tilesOf(scaled(-1, r)), [...tilesOf(r), `${r[0] + r[1]}`]),
+      answer: tilesOf(scaled(-1, r)),
+    };
+  },
+  solution: ({ forces }) => {
+    const r = sumOf(forces);
+    return [
+      { text: 'In equilibrium the resultant of every force is zero, so the missing force cancels the others exactly. First add the ones you have:' },
+      ...sumLinesOf(forces),
+      {
+        text: `The missing force is the reverse of that sum, $${forceName(forces.length)} = ${ijOf(scaled(-1, r))}$, so that adding it brings the total to $\\mathbf{0}$.`,
+      },
+    ];
+  },
+};
+
+type FmaAsk = 'acceleration' | 'force';
+
+interface FmaParams {
+  forces: Vec[];
+  m: number;
+  acc: Vec;
+  ask: FmaAsk;
+}
+
+/**
+ * Newton's second law with vectors: the resultant is the mass times the
+ * acceleration. Built from the acceleration, so dividing by the mass comes
+ * out whole; at the second difficulty it may run backwards, to a force.
+ */
+const mechFma: Generator<FmaParams> = {
+  id: 'mech-fma',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 200; tries += 1) {
+      const acc: Vec = [rng.int(-4, 4), rng.int(-4, 4)];
+      if (acc[0] === 0 && acc[1] === 0) continue;
+      const m = rng.int(2, difficulty > 1 ? 9 : 6);
+      const first = vec2(rng, -9, 9);
+      const second = minus(scaled(m, acc), first);
+      if (second[0] === 0 && second[1] === 0) continue;
+      if (second.some((x) => Math.abs(x) > 30)) continue;
+      const ask: FmaAsk = difficulty > 1 && rng.chance(0.5) ? 'force' : 'acceleration';
+      return { forces: [first, second], m, acc, ask };
+    }
+    return { forces: [[3, 1], [3, 5]], m: 3, acc: [2, 2], ask: 'acceleration' };
+  },
+  render: ({ forces, m, acc, ask }): Slide => {
+    const r = scaled(m, acc);
+    if (ask === 'force') {
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `A particle of mass $${m}$ kg moves with acceleration $${ijBr(acc)} \\; ${MPS2}$ under two forces. One is $\\mathbf{F}_1$ below, in newtons. Find the other, $\\mathbf{F}_2$.`,
+          },
+          { kind: 'display', tex: `\\mathbf{F}_1 = ${ijOf(forces[0])}` },
+        ],
+        template: VECTOR_TEMPLATE,
+        // The whole of ma, and F1 added rather than taken away.
+        bank: bankOf(tilesOf(forces[1]), [...tilesOf(r), ...tilesOf(plus(r, forces[0]))]),
+        answer: tilesOf(forces[1]),
+      };
+    }
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A particle of mass $${m}$ kg is acted on by the forces below, in newtons, and by nothing else. Find its acceleration.`,
+        },
+        ...forceDisplays(forces),
+      ],
+      template: VECTOR_TEMPLATE,
+      // The resultant not divided by the mass, and the signs flipped.
+      bank: bankOf(tilesOf(acc), [...tilesOf(r), ...tilesOf(scaled(-1, acc))]),
+      answer: tilesOf(acc),
+    };
+  },
+  solution: ({ forces, m, acc, ask }) => {
+    const r = scaled(m, acc);
+    if (ask === 'force') {
+      return [
+        { text: 'The resultant is the mass times the acceleration, $\\mathbf{F}_1 + \\mathbf{F}_2 = m\\mathbf{a}$:' },
+        { tex: `m\\mathbf{a} = ${m}${ijBr(acc)} = ${ijOf(r)}` },
+        { text: 'So $\\mathbf{F}_2$ is what is left when $\\mathbf{F}_1$ is taken away from that:' },
+        componentLine('i', `${r[0]} - ${paren(forces[0][0])}`, forces[1][0]),
+        componentLine('j', `${r[1]} - ${paren(forces[0][1])}`, forces[1][1]),
+      ];
+    }
+    return [
+      { text: 'First the resultant, the sum of the forces:' },
+      ...sumLinesOf(forces),
+      { text: `Then $\\mathbf{F} = m\\mathbf{a}$, so $\\mathbf{a} = \\mathbf{F} \\div m$. Dividing each component by $${m}$:` },
+      { tex: `\\mathbf{a} = ${ijOf(acc)}` },
+      { text: `That is in $${MPS2}$, and it points the same way as the resultant.` },
+    ];
+  },
+};
+
+interface ForceKParams {
+  forces: Vec[];
+  pos: number;
+  axis: 'i' | 'j' | 'slant';
+  dir: Vec;
+}
+
+const SLANTS: Vec[] = [
+  [1, 2], [2, 1], [1, -1], [1, 1], [3, 1], [1, 3], [2, -1], [1, -2], [3, -2], [2, 3],
+];
+
+/** A force written with its `pos` component as the unknown `k`. */
+function forceWithK(f: Vec, pos: number): string {
+  if (pos === 0) {
+    return `k\\mathbf{i} ${f[1] < 0 ? '-' : '+'} ${Math.abs(f[1]) === 1 ? '' : Math.abs(f[1])}\\mathbf{j}`;
+  }
+  return `${ijOf([f[0], 0])} + k\\mathbf{j}`;
+}
+
+/**
+ * An unknown component that makes the resultant point a given way. Parallel to
+ * `i` or `j` zeroes one component; parallel to a slanted vector puts the
+ * components in its ratio.
+ */
+const mechForceK: Generator<ForceKParams> = {
+  id: 'mech-force-k',
+  choices: (params) => {
+    const k = params.forces[1][params.pos];
+    return steered(signedChoices(k, [-k, k + params.forces[0][params.pos], k - 1]), saltOf(params));
+  },
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 400; tries += 1) {
+      if (difficulty > 1) {
+        const dir = rng.pick(SLANTS);
+        const s = nonZero(rng.int(-4, 4), 2);
+        const first = vec2(rng, -8, 8);
+        const second = minus(scaled(s, dir), first);
+        if (second.some((x) => x === 0 || Math.abs(x) > 15)) continue;
+        return { forces: [first, second], pos: 0, axis: 'slant', dir };
+      }
+      const axis = rng.pick(['i', 'j'] as const);
+      // Parallel to i: no j component, so the unknown is a j component.
+      const pos = axis === 'i' ? 1 : 0;
+      const forces = [vec2(rng, -8, 8), vec2(rng, -8, 8), vec2(rng, -8, 8)];
+      forces[1][pos] = -(forces[0][pos] + forces[2][pos]);
+      if (forces[1][pos] === 0 || sumOf(forces)[1 - pos] === 0) continue;
+      return { forces, pos, axis, dir: axis === 'i' ? [1, 0] : [0, 1] };
+    }
+    return { forces: [[3, 2], [-1, -2], [4, 0]], pos: 1, axis: 'i', dir: [1, 0] };
+  },
+  render: ({ forces, pos, axis, dir }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `The forces below act on a particle, in newtons. Their resultant is parallel to $${axis === 'slant' ? ijOf(dir) : `\\mathbf{${axis}}`}$. Find $k$.`,
+      },
+      ...forces.map((f, idx) => ({
+        kind: 'display' as const,
+        tex: `${forceName(idx)} = ${idx === 1 ? forceWithK(f, pos) : ijOf(f)}`,
+      })),
+    ],
+    lead: '\\text{the unknown } k =',
+    keypad: [],
+    answer: `${forces[1][pos]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ forces, pos, axis, dir }) => {
+    const k = forces[1][pos];
+    const r = sumOf(forces);
+    if (axis !== 'slant') {
+      const unit = pos === 0 ? 'i' : 'j';
+      const known = forces.filter((_, idx) => idx !== 1).map((f) => f[pos]);
+      return [
+        {
+          text: `A resultant parallel to $\\mathbf{${axis}}$ has no $\\mathbf{${unit}}$ component, so the $\\mathbf{${unit}}$ components add to zero:`,
+        },
+        { tex: `${known[0]} + k + ${paren(known[1])} = 0` },
+        { tex: `k = ${k}` },
+      ];
+    }
+    const s = r[1] / dir[1];
+    return [
+      { text: `Parallel to $${ijOf(dir)}$ means the resultant is a multiple of it, $s${ijBr(dir)}$ for some number $s$. The $\\mathbf{j}$ components have no unknown in them:` },
+      { tex: `${forces[0][1]} + ${paren(forces[1][1])} = ${r[1]} = ${dir[1]}s` },
+      { tex: `s = ${s}` },
+      { text: `So the $\\mathbf{i}$ component of the resultant is $${s} \\times ${paren(dir[0])} = ${r[0]}$:` },
+      { tex: `${forces[0][0]} + k = ${r[0]} \\implies k = ${k}` },
+    ];
+  },
+};
+
+/* Lesson 5: two particles. */
+
+interface TwoParticleParams {
+  a0: Vec;
+  va: Vec;
+  b0: Vec;
+  vb: Vec;
+  time: number;
+}
+
+function twoDisplays({ a0, va, b0, vb }: { a0: Vec; va: Vec; b0: Vec; vb: Vec }): Block[] {
+  return [
+    { kind: 'display', tex: motionTex(a0, va, '\\mathbf{r}_A') },
+    { kind: 'display', tex: motionTex(b0, vb, '\\mathbf{r}_B') },
+  ];
+}
+
+/** Where B is seen from A at a given time: `r_B - r_A`. */
+const mechRelative: Generator<TwoParticleParams> = {
+  id: 'mech-relative',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 5 : 3;
+    for (let tries = 0; tries < 100; tries += 1) {
+      const va = vec2(rng, -reach, reach);
+      const vb = vec2(rng, -reach, reach);
+      if (va[0] === vb[0] && va[1] === vb[1]) continue;
+      const a0: Vec = [rng.int(-8, 8), nonZero(rng.int(-8, 8), 1)];
+      const b0: Vec = [nonZero(rng.int(-8, 8), -2), rng.int(-8, 8)];
+      const time = rng.int(1, difficulty > 1 ? 8 : 5);
+      const d = minus(plus(b0, scaled(time, vb)), plus(a0, scaled(time, va)));
+      if (d[0] === 0 && d[1] === 0) continue;
+      return { a0, va, b0, vb, time };
+    }
+    return { a0: [1, 2], va: [2, 1], b0: [5, -1], vb: [-1, 3], time: 2 };
+  },
+  render: (params): Slide => {
+    const { a0, va, b0, vb, time } = params;
+    const ra = plus(a0, scaled(time, va));
+    const rb = plus(b0, scaled(time, vb));
+    const d = minus(rb, ra);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Particles $A$ and $B$ move with constant velocities. Their position vectors after $t$ seconds are below, in metres. Find the position vector of $B$ relative to $A$ when $t = ${time}$.`,
+        },
+        ...twoDisplays(params),
+      ],
+      template: VECTOR_TEMPLATE,
+      // A relative to B instead, and the gap at the start rather than at the time asked.
+      bank: bankOf(tilesOf(d), [...tilesOf(scaled(-1, d)), ...tilesOf(minus(b0, a0))]),
+      answer: tilesOf(d),
+    };
+  },
+  solution: ({ a0, va, b0, vb, time }) => {
+    const ra = plus(a0, scaled(time, va));
+    const rb = plus(b0, scaled(time, vb));
+    return [
+      { text: `First where each one is when $t = ${time}$:` },
+      { tex: `\\mathbf{r}_A = ${ijOf(ra)}` },
+      { tex: `\\mathbf{r}_B = ${ijOf(rb)}` },
+      { text: 'The position of $B$ relative to $A$ is the journey from $A$ to $B$, destination minus start: $\\mathbf{r}_B - \\mathbf{r}_A$.' },
+      componentLine('i', `${rb[0]} - ${paren(ra[0])}`, rb[0] - ra[0]),
+      componentLine('j', `${rb[1]} - ${paren(ra[1])}`, rb[1] - ra[1]),
+    ];
+  },
+};
+
+interface ApartParams extends TwoParticleParams {
+  c: number;
+}
+
+/** How far apart two particles are: the relative position, then its length. */
+const mechApartTree: Generator<ApartParams> = {
+  id: 'mech-apart-tree',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 300; tries += 1) {
+      const { v: d, c } = tripleVec(rng, difficulty > 1 ? 25 : 15);
+      const va = vec2(rng, -3, 3);
+      const vb = vec2(rng, -3, 3);
+      if (va[0] === vb[0] && va[1] === vb[1]) continue;
+      const time = rng.int(1, difficulty > 1 ? 6 : 4);
+      const a0: Vec = [rng.int(-6, 6), rng.int(-6, 6)];
+      const b0 = minus(plus(a0, d), scaled(time, minus(vb, va)));
+      if (b0.some((x) => Math.abs(x) > 20) || (b0[0] === 0 && b0[1] === 0)) continue;
+      if (a0[0] === 0 && a0[1] === 0) continue;
+      return { a0, va, b0, vb, time, c };
+    }
+    return { a0: [1, 2], va: [2, 1], b0: [4, 6], vb: [2, 1], time: 2, c: 5 };
+  },
+  render: (params): Slide => {
+    const { a0, va, b0, vb, time, c } = params;
+    const d = minus(plus(b0, scaled(time, vb)), plus(a0, scaled(time, va)));
+    const start = minus(b0, a0);
+    const answer = [`${d[0]}`, `${d[1]}`, `${c}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Particles $A$ and $B$ have the position vectors below after $t$ seconds, in metres. Find the components of $\\mathbf{r}_B - \\mathbf{r}_A$ when $t = ${time}$, then how far apart they are.`,
+        },
+        ...twoDisplays(params),
+      ],
+      expression: `\\left|\\mathbf{r}_B - \\mathbf{r}_A\\right| \\text{ at } t = ${time}`,
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'y', from: [] },
+        { id: 'gap', from: ['x', 'y'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        // The gap at the start, the subtraction reversed, and the components added.
+        [`${start[0]}`, `${start[1]}`, `${-d[0]}`, `${-d[1]}`, `${Math.abs(d[0]) + Math.abs(d[1])}`],
+        [`${c + 1}`, `${c * c}`, `${d[0] + 1}`],
+      ),
+      answer,
+    };
+  },
+  solution: ({ a0, va, b0, vb, time, c }) => {
+    const ra = plus(a0, scaled(time, va));
+    const rb = plus(b0, scaled(time, vb));
+    const d = minus(rb, ra);
+    return [
+      { text: `When $t = ${time}$, $\\mathbf{r}_A = ${ijOf(ra)}$ and $\\mathbf{r}_B = ${ijOf(rb)}$. Subtract:` },
+      componentLine('i', `${rb[0]} - ${paren(ra[0])}`, d[0]),
+      componentLine('j', `${rb[1]} - ${paren(ra[1])}`, d[1]),
+      { text: 'The distance between them is the length of that vector:' },
+      ...magnitudeLines(d, c),
+    ];
+  },
+};
+
+interface MeetParamsMotion {
+  p: Vec;
+  va: Vec;
+  vb: Vec;
+  time: number;
+}
+
+/**
+ * Two particles built from where and when they collide. At the first
+ * difficulty they may share one velocity component, so only the other
+ * component says when; at the second both do.
+ */
+function sampleCollision(rng: Draw, difficulty: number): MeetParamsMotion {
+  const reach = difficulty > 1 ? 4 : 3;
+  for (let tries = 0; tries < 300; tries += 1) {
+    const va = vec2(rng, -reach, reach);
+    const vb = vec2(rng, -reach, reach);
+    const differ = [va[0] !== vb[0], va[1] !== vb[1]];
+    if (difficulty > 1 ? !(differ[0] && differ[1]) : !(differ[0] || differ[1])) continue;
+    const time = rng.int(1, difficulty > 1 ? 7 : 5);
+    const p: Vec = [rng.int(-6, 6), rng.int(-6, 6)];
+    const a0 = minus(p, scaled(time, va));
+    const b0 = minus(p, scaled(time, vb));
+    if ([...a0, ...b0].some((x) => Math.abs(x) > 20)) continue;
+    if ((a0[0] === 0 && a0[1] === 0) || (b0[0] === 0 && b0[1] === 0)) continue;
+    return { p, va, vb, time };
+  }
+  return { p: [4, 3], va: [2, 1], vb: [-1, 3], time: 2 };
+}
+
+function collisionLines({ p, va, vb, time }: MeetParamsMotion) {
+  return { a0: minus(p, scaled(time, va)), va, b0: minus(p, scaled(time, vb)), vb };
+}
+
+function collisionSolution(params: MeetParamsMotion) {
+  const { a0, b0 } = collisionLines(params);
+  const { p, va, vb, time } = params;
+  const idx = va[0] !== vb[0] ? 0 : 1;
+  const unit = idx === 0 ? '\\mathbf{i}' : '\\mathbf{j}';
+  const other = 1 - idx;
+  return [
+    {
+      text: `A collision needs both particles in the same place at the same time, so every component matches for one value of $t$. Set the $${unit}$ components equal:`,
+    },
+    { tex: `${affTex(a0[idx], va[idx], 't')} = ${affTex(b0[idx], vb[idx], 't')}` },
+    { tex: `${va[idx] - vb[idx]}t = ${b0[idx] - a0[idx]} \\implies t = ${time}` },
+    {
+      text: `The other component has to agree at that same time, and it does: both come to $${p[other]}$. So they collide when $t = ${time}$, at $${ijOf(p)}$.`,
+    },
+  ];
+}
+
+/** When two particles collide. */
+const mechMeetTime: Generator<MeetParamsMotion> = {
+  id: 'mech-meet-time',
+  choices: (params) => {
+    const { time } = params;
+    const { a0, b0, va, vb } = collisionLines(params);
+    // Velocities added rather than subtracted, where that comes out whole.
+    const summed = (b0[0] - a0[0]) / (va[0] + vb[0]);
+    return steered(signedChoices(time, [summed, time + 1, time - 1].filter((x) => x > 0)), saltOf(params));
+  },
+  sample: sampleCollision,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Particles $A$ and $B$ move with constant velocities, with position vectors after $t$ seconds as below. They collide. At what time?',
+      },
+      ...twoDisplays(collisionLines(params)),
+    ],
+    lead: '\\text{they collide at } t =',
+    keypad: [],
+    answer: `${params.time}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: collisionSolution,
+};
+
+/** Where two particles collide, placed as components. */
+const mechMeetPoint: Generator<MeetParamsMotion> = {
+  id: 'mech-meet-point',
+  sample: sampleCollision,
+  render: (params): Slide => {
+    const lines = collisionLines(params);
+    const { p, time } = params;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Particles $A$ and $B$ move with constant velocities, with position vectors after $t$ seconds as below. They collide. Find the position vector of the point where they do.',
+        },
+        ...twoDisplays(lines),
+      ],
+      template: VECTOR_TEMPLATE,
+      // One second out, and where A started.
+      bank: bankOf(tilesOf(p), [...tilesOf(plus(lines.a0, scaled(time + 1, lines.va))), ...tilesOf(lines.a0)]),
+      answer: tilesOf(p),
+    };
+  },
+  solution: (params) => [
+    ...collisionSolution(params),
+    { text: 'Finding the time comes first; the place is either position vector at that time.' },
+  ],
+};
+
+type CollisionCase = 'collide' | 'miss' | 'never';
+
+interface MeetFlowParams extends MeetParamsMotion {
+  kase: CollisionCase;
+  off: number;
+}
+
+const flowLines = (params: MeetFlowParams) => {
+  const lines = collisionLines(params);
+  if (params.kase === 'miss') return { ...lines, b0: plus(lines.b0, [0, params.off]) };
+  if (params.kase === 'never') return { ...lines, b0: plus(lines.b0, [params.off, 0]) };
+  return lines;
+};
+
+/**
+ * Whether two particles collide, walked as a decision: are they ever level in
+ * the i direction, and if so is the j direction level at that same moment?
+ * Unlike two lines crossing, being at the same place at different times is not
+ * a meeting.
+ */
+const mechMeetFlow: Generator<MeetFlowParams> = {
+  id: 'mech-meet-flow',
+  sample: (rng, difficulty) => {
+    const kase = rng.pick<CollisionCase>(['collide', 'miss', 'never']);
+    for (let tries = 0; tries < 300; tries += 1) {
+      // Level across needs one shared velocity component, which the second
+      // difficulty's sampler rules out; the first's allows it.
+      const base = sampleCollision(rng, kase === 'never' ? 1 : difficulty);
+      const { va, vb } = base;
+      if (kase === 'never') {
+        // Same speed across, so the gap across never closes.
+        if (va[0] !== vb[0]) continue;
+      } else if (va[0] === vb[0]) continue;
+      return { ...base, kase, off: rng.pick([-3, -2, -1, 1, 2, 3]) };
+    }
+    return { p: [4, 3], va: [2, 1], vb: [-1, 3], time: 2, kase: 'collide', off: 1 };
+  },
+  render: (params): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Particles $A$ and $B$ move with constant velocities, with position vectors after $t$ seconds as below. Do they collide? Work down the questions; each answer chooses what gets asked next.',
+      },
+      ...twoDisplays(flowLines(params)),
+    ],
+    subject: '\\mathbf{r}_A \\text{ and } \\mathbf{r}_B',
+    steps: [
+      {
+        id: 'across',
+        ask: 'Is there a time $t \\geq 0$ when their $\\mathbf{i}$ components are equal?',
+        branches: [
+          { label: 'Yes', to: 'up' },
+          { label: 'No', outcome: 'They never collide: they are never level with each other across the page.' },
+        ],
+      },
+      {
+        id: 'up',
+        ask: 'At that same time, are their $\\mathbf{j}$ components equal as well?',
+        branches: [
+          { label: 'Yes', outcome: 'They collide at that time.' },
+          { label: 'No', outcome: 'They do not collide: one passes the other\'s path at a different time.' },
+        ],
+      },
+    ],
+    answer: params.kase === 'collide' ? ['Yes', 'Yes'] : params.kase === 'miss' ? ['Yes', 'No'] : ['No'],
+  }),
+  solution: (params) => {
+    const { a0, va, b0, vb } = flowLines(params);
+    const { time, kase } = params;
+    const ra = plus(a0, scaled(time, va));
+    const rb = plus(b0, scaled(time, vb));
+    if (kase === 'never') {
+      return [
+        {
+          text: `Both $\\mathbf{i}$ components grow by $${va[0]}$ every second, from $${a0[0]}$ and $${b0[0]}$. They start apart and move across at the same rate, so they are never equal, and the particles never collide.`,
+        },
+      ];
+    }
+    return [
+      { text: 'Set the $\\mathbf{i}$ components equal:' },
+      { tex: `${affTex(a0[0], va[0], 't')} = ${affTex(b0[0], vb[0], 't')}` },
+      { tex: `t = ${time}` },
+      { text: `At $t = ${time}$ the $\\mathbf{j}$ components are $${ra[1]}$ for $A$ and $${rb[1]}$ for $B$.` },
+      kase === 'collide'
+        ? { text: `They agree, so the particles are in the same place at the same time: they collide at $${ijOf(ra)}$.` }
+        : { text: 'They differ, so when the particles are level across the page they are apart up it, and they never collide.' },
+    ];
+  },
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -6493,4 +8022,27 @@ export const vectorGenerators = [
   linePlanePointTree,
   linePlaneRelation,
   linePlaneParallel,
+  mechPosition,
+  mechPositionSteps,
+  mechWhen,
+  mechTimeSlider,
+  mechVelocityFrom,
+  mechSpeed,
+  mechDistanceTree,
+  mechVelocityFromSpeed,
+  mechHeading,
+  mechSuvatV,
+  mechAcceleration,
+  mechParallelTime,
+  mechDisplacementTree,
+  mechResultant,
+  mechResultantTree,
+  mechEquilibrium,
+  mechFma,
+  mechForceK,
+  mechRelative,
+  mechApartTree,
+  mechMeetTime,
+  mechMeetPoint,
+  mechMeetFlow,
 ] as unknown as Generator<unknown>[];

@@ -3,7 +3,9 @@ import { binomialExpansion } from './binomialExpansion';
 import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
 import { exponentsRadicals } from './exponentsRadicals';
+import { exponentialModels } from './exponentialModels';
 import { integration } from './integration';
+import { linearEquations } from './linearEquations';
 import { logarithms } from './logarithms';
 import { matrices } from './matrices';
 import { quadratics } from './quadratics';
@@ -22,13 +24,13 @@ export const categories: Category[] = [
     id: 'algebra-fundamentals',
     title: 'Algebra Fundamentals',
     blurb: 'The rules everything later is built on.',
-    courses: [exponentsRadicals, quadratics],
+    courses: [exponentsRadicals, quadratics, linearEquations],
   },
   {
     id: 'advanced-algebra',
     title: 'Advanced Algebra',
     blurb: 'The functions and graphs of later school maths.',
-    courses: [trigonometricFunctions, logarithms, binomialExpansion],
+    courses: [trigonometricFunctions, logarithms, exponentialModels, binomialExpansion],
   },
   {
     id: 'advanced-maths',

@@ -10,7 +10,7 @@
  * substitution, and pairs of equations built from words.
  *
  * Later levels — inequalities, rearranging formulae, modelling — are in the
- * level plan in `docs/ROADMAP.md`.
+ * level plan in `docs/roadmap/levels/linear-equations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -63,6 +63,8 @@ const lines = (
 
 export const linearEquations: Course = {
   id: 'linear-equations',
+  category: 'algebra-fundamentals',
+  position: 30,
   title: 'Linear Equations & Inequalities',
   blurb: 'Undoing what was done to the unknown, for one equation and then for two at once.',
   levels: [

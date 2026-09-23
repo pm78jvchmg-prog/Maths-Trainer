@@ -49,6 +49,8 @@ const working = (...lines: string[]) =>
 
 export const exponentsRadicals: Course = {
   id: 'exponents-radicals',
+  category: 'algebra-fundamentals',
+  position: 10,
   title: 'Exponents & Radicals',
   blurb: 'The index laws by counting copies, then roots, surds, standard form and growth.',
   levels: [

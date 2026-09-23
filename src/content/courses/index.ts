@@ -1,17 +1,40 @@
-import type { Category, Course } from '../types';
-import { binomialExpansion } from './binomialExpansion';
-import { complexNumbers } from './complexNumbers';
-import { differentiation } from './differentiation';
-import { exponentsRadicals } from './exponentsRadicals';
-import { exponentialModels } from './exponentialModels';
-import { integration } from './integration';
-import { linearEquations } from './linearEquations';
-import { logarithms } from './logarithms';
-import { matrices } from './matrices';
-import { parametricImplicit } from './parametricImplicit';
-import { quadratics } from './quadratics';
-import { vectors } from './vectors';
-import { trigonometricFunctions } from './trigonometricFunctions';
+import type { Category, CategoryId, Course } from '../types';
+
+/**
+ * Every course file in this folder, found by the bundler rather than imported
+ * by hand.
+ *
+ * This used to be an import and an entry per course, and with several new
+ * courses on open branches at once every one of them edited the same lines, so
+ * each landing put the others into a merge conflict. Now a course file needs
+ * no wiring here: it exports its one `Course`, and that course's own
+ * `category` and `position` say which tab it sits in and where.
+ */
+const modules = import.meta.glob<Record<string, unknown>>(['./*.ts', '!./index.ts', '!./*.test.ts'], {
+  eager: true,
+});
+
+function isCourse(value: unknown): value is Course {
+  return !!value && typeof value === 'object' && Array.isArray((value as { levels?: unknown }).levels);
+}
+
+function discoverCourses(): Course[] {
+  return Object.entries(modules).map(([path, mod]) => {
+    const found = Object.values(mod).filter(isCourse);
+    if (found.length !== 1) {
+      throw new Error(`${path} should export exactly one course; it exports ${found.length}`);
+    }
+    return found[0];
+  });
+}
+
+const byPlace = (a: Course, b: Course) => a.position - b.position || a.id.localeCompare(b.id);
+
+function tab(id: CategoryId, title: string, blurb: string, all: Course[]): Category {
+  return { id, title, blurb, courses: all.filter((course) => course.category === id).sort(byPlace) };
+}
+
+const discovered = discoverCourses();
 
 /**
  * Courses grouped into the tabs on the home screen.
@@ -21,24 +44,14 @@ import { trigonometricFunctions } from './trigonometricFunctions';
  * levels, not two entries competing for the same name.
  */
 export const categories: Category[] = [
-  {
-    id: 'algebra-fundamentals',
-    title: 'Algebra Fundamentals',
-    blurb: 'The rules everything later is built on.',
-    courses: [exponentsRadicals, quadratics, linearEquations],
-  },
-  {
-    id: 'advanced-algebra',
-    title: 'Advanced Algebra',
-    blurb: 'The functions and graphs of later school maths.',
-    courses: [trigonometricFunctions, logarithms, exponentialModels, binomialExpansion],
-  },
-  {
-    id: 'advanced-maths',
-    title: 'Advanced Maths',
-    blurb: 'Derivatives, complex numbers, and the machinery behind them.',
-    courses: [complexNumbers, differentiation, parametricImplicit, integration, vectors, matrices],
-  },
+  tab('algebra-fundamentals', 'Algebra Fundamentals', 'The rules everything later is built on.', discovered),
+  tab('advanced-algebra', 'Advanced Algebra', 'The functions and graphs of later school maths.', discovered),
+  tab(
+    'advanced-maths',
+    'Advanced Maths',
+    'Derivatives, complex numbers, and the machinery behind them.',
+    discovered,
+  ),
 ];
 
 /** Every course, flattened, in the order the categories list them. */

@@ -45,6 +45,9 @@ export const parametricImplicit: Course = {
   id: 'parametric-implicit',
   title: 'Parametric & Implicit Differentiation',
   blurb: 'Curves traced by a parameter, and gradients of curves that never say y =.',
+  category: 'advanced-maths',
+  // Between Differentiation (20), whose rules it uses, and Integration (30).
+  position: 25,
   levels: [
     {
       id: 'pi-l1',

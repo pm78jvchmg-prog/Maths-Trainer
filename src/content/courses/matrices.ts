@@ -14,11 +14,14 @@
  * and B9 ran side by side, and Vectors took `vm-l4` for its second level so
  * the two could not collide. The fourth, composing transformations, is `vm-l7`
  * for the same reason: batch B18 ran beside B17, which gave Vectors `vm-l6`.
+ * The fifth, systems of equations, is `vm-l9`: batch B27 ran beside B26,
+ * which took `vm-l8` for Vectors.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
 import type { Course, SlideRef } from '../types';
+import { plotSvg } from '../figures';
 import { transformGridSvg } from '../generators/transformFigure';
 
 const teach = (
@@ -50,7 +53,7 @@ const figure = (svg: string) => ({ kind: 'diagram' as const, svg });
 export const matrices: Course = {
   id: 'matrices',
   title: 'Matrices & Linear Transformations',
-  blurb: 'Matrix arithmetic, the determinant and the inverse, and matrices as transformations of the plane.',
+  blurb: 'Matrix arithmetic, the determinant and the inverse, matrices as transformations of the plane, and systems of equations.',
   levels: [
     {
       id: 'vm-l2',
@@ -1237,6 +1240,258 @@ export const matrices: Course = {
         ask('mat-undo-point', 2),
         ask('mat-compose-det', 2),
         ask('mat-compose-orientation', 2),
+      ],
+    },
+    {
+      id: 'vm-l9',
+      title: 'Systems of Equations',
+      lessons: [
+        {
+          id: 'vm-l9-write',
+          title: 'Three Equations, One Matrix',
+          slides: [
+            teach(
+              prose(
+                'Three equations in three unknowns make one matrix equation, just as two in two did. The coefficients form a $3 \\times 3$ matrix $\\mathbf{A}$, the unknowns a column $\\mathbf{x}$, and the right-hand sides a column $\\mathbf{b}$.',
+              ),
+              maths('\\begin{aligned} 2x + y - z &= 3 \\\\ x - 3y &= -4 \\\\ 4y + 5z &= 7 \\end{aligned}'),
+              maths('\\begin{pmatrix} 2 & 1 & -1 \\\\ 1 & -3 & 0 \\\\ 0 & 4 & 5 \\end{pmatrix} \\begin{pmatrix} x \\\\ y \\\\ z \\end{pmatrix}'),
+              maths('= \\begin{pmatrix} 3 \\\\ -4 \\\\ 7 \\end{pmatrix}'),
+              prose(
+                'Each equation is one row. Keep the unknowns in the order $x, y, z$ in every row, and write $0$ where one is missing: the second equation has no $z$, so its row ends in $0$.',
+              ),
+            ),
+            ask('mat-sys-read'),
+            ask('mat-sys-back'),
+            ask('mat-sys-vector'),
+            teach(
+              prose(
+                'A $3 \\times 3$ matrix times a column works as a 2 by 2 did, with one more pair in each row. Each row, multiplied across the column and added, gives one entry of the answer.',
+              ),
+              maths('\\begin{pmatrix} 2 & 1 & -1 \\\\ 1 & -3 & 0 \\\\ 0 & 4 & 5 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 2 \\\\ 1 \\end{pmatrix}'),
+              maths('= \\begin{pmatrix} 3 \\\\ -5 \\\\ 13 \\end{pmatrix}'),
+              prose(
+                'The top entry is $2(1) + 1(2) + (-1)(1) = 3$, the left-hand side of the first equation at $x = 1$, $y = 2$, $z = 1$. Multiplying by $\\mathbf{A}$ substitutes into all three equations at once.',
+              ),
+            ),
+            ask('mat-sys-rhs'),
+            ask('mat-sys-vector+choice'),
+            ask('mat-sys-read', 2),
+            teach(
+              prose(
+                'So $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$ says that these values of $x$, $y$ and $z$ make every equation true. A proposed solution is checked by multiplying it by $\\mathbf{A}$ and comparing with $\\mathbf{b}$, row by row.',
+              ),
+              prose(
+                'Reading back is the same in reverse: row 2 of $\\mathbf{A}$ together with entry 2 of $\\mathbf{b}$ is the second equation, and nothing else.',
+              ),
+            ),
+            ask('mat-sys-back', 2),
+            ask('mat-sys-rhs', 2),
+          ],
+          skillCheck: [ask('mat-sys-read', 2), ask('mat-sys-vector', 2), ask('mat-sys-rhs', 2)],
+        },
+        {
+          id: 'vm-l9-det',
+          title: 'The 3 × 3 Determinant',
+          slides: [
+            teach(
+              prose(
+                'A $3 \\times 3$ matrix has a determinant too, built from 2 by 2 ones. Take an entry of the first row, cross out its row and its column, and the determinant of the four entries left is that entry\'s **minor**.',
+              ),
+              maths('\\mathbf{A} = \\begin{pmatrix} 2 & 1 & 3 \\\\ 0 & 4 & 1 \\\\ 5 & 2 & 1 \\end{pmatrix}'),
+              maths('M_1 = \\begin{vmatrix} 4 & 1 \\\\ 2 & 1 \\end{vmatrix} = 2'),
+              prose('Multiply each entry of the first row by its minor, and combine them with the signs $+ \\; - \\; +$.'),
+              maths('\\det \\mathbf{A} = 2M_1 - 1M_2 + 3M_3'),
+              prose('Here $M_2 = -5$ and $M_3 = -20$, so $\\det \\mathbf{A} = 2(2) - 1(-5) + 3(-20) = -51$.'),
+            ),
+            ask('mat-sys-minor'),
+            ask('mat-sys-det-tree'),
+            ask('mat-sys-det'),
+            teach(
+              prose(
+                'Some determinants are zero on sight. If a row is all zeros, or two rows are equal, or one row is a multiple of another, or one row is two others added, the determinant is $0$.',
+              ),
+              maths('\\det \\begin{pmatrix} 1 & 2 & 3 \\\\ 2 & 4 & 6 \\\\ 5 & 0 & 1 \\end{pmatrix} = 0'),
+              prose(
+                'The reason is the one from two dimensions. The determinant is how much the matrix scales volume, and rows tied together flatten space onto a plane, where volume is zero.',
+              ),
+            ),
+            ask('mat-sys-det-zero'),
+            ask('mat-sys-minor+choice'),
+            teach(
+              prose(
+                'Changing a matrix changes its determinant in predictable ways. Swapping two rows changes its sign. Multiplying one row by $k$ multiplies it by $k$.',
+              ),
+              prose(
+                'Multiplying the whole $3 \\times 3$ matrix by $k$ multiplies all three rows by $k$, so the determinant goes up by $k$ three times over.',
+              ),
+              maths('\\det(k\\mathbf{A}) = k^3 \\det \\mathbf{A}'),
+              prose('And a matrix and its transpose have the same determinant.'),
+            ),
+            ask('mat-sys-det-rule'),
+            ask('mat-sys-det-zero', 2),
+            ask('mat-sys-det-rule+choice', 2),
+          ],
+          skillCheck: [ask('mat-sys-det', 2), ask('mat-sys-det-zero', 2), ask('mat-sys-det-rule', 2)],
+        },
+        {
+          id: 'vm-l9-singular',
+          title: 'When the Determinant Is Zero',
+          slides: [
+            teach(
+              prose(
+                'Back to two equations in two unknowns. Each is a straight line, and a solution is a point on both. Two lines cross once, never meet, or are the same line.',
+              ),
+              figure(
+                plotSvg({
+                  xMin: -4,
+                  xMax: 4,
+                  yMin: -3.5,
+                  yMax: 3.5,
+                  curves: [{ f: (x) => x / 2 + 1 }, { f: (x) => x / 2 - 1, accent: true }],
+                  height: 140,
+                  label: 'Two parallel lines with the same gradient, which never meet',
+                }),
+              ),
+              prose(
+                'A zero determinant means the left-hand sides are multiples of each other, so the lines have the same gradient: parallel, or the same line. The right-hand sides decide which.',
+              ),
+              maths('\\begin{aligned} x + 2y &= 3 \\\\ 2x + 4y &= 6 \\end{aligned}'),
+              prose(
+                'The second equation is exactly twice the first, right-hand side included: one line, and **infinitely many** solutions. With $2x + 4y = 7$ instead they would contradict each other, and there would be **none**.',
+              ),
+            ),
+            ask('mat-sys-lines'),
+            ask('mat-sys-count'),
+            ask('mat-sys-consistent'),
+            teach(
+              prose(
+                'Infinitely many solutions does not mean anything goes. The solutions are exactly the points on that one line, and writing it as $y = mx + c$ describes them all at once.',
+              ),
+              maths('\\begin{aligned} 3x - y &= 2 \\\\ 6x - 2y &= 4 \\end{aligned}'),
+              maths('y = 3x - 2'),
+              prose('Each choice of $x$ gives one solution: $x = 1$ and $y = 1$, or $x = 2$ and $y = 4$, and so on for ever.'),
+            ),
+            ask('mat-sys-line-form'),
+            ask('mat-sys-lines', 2),
+            ask('mat-sys-consistent+choice', 2),
+            teach(
+              prose(
+                'Neither equation has to be a whole-number multiple of the other. In $2x + 6y = 4$ and $3x + 9y = q$ both left-hand sides are multiples of $x + 3y$: two of it, and three of it.',
+              ),
+              prose(
+                'So the first says $x + 3y = 2$, and the second agrees only if $q = 3 \\times 2 = 6$. Divide each equation down to the part they share, then compare.',
+              ),
+            ),
+            ask('mat-sys-count', 2),
+            ask('mat-sys-line-form', 2),
+          ],
+          skillCheck: [ask('mat-sys-lines', 2), ask('mat-sys-consistent', 2), ask('mat-sys-line-form', 2)],
+        },
+        {
+          id: 'vm-l9-solve',
+          title: 'Solving Three Equations',
+          slides: [
+            teach(
+              prose(
+                '**Cramer\'s rule** solves $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$ one unknown at a time. For each unknown, replace its column of $\\mathbf{A}$ by $\\mathbf{b}$, and call the result $\\mathbf{A}_x$, $\\mathbf{A}_y$ or $\\mathbf{A}_z$.',
+              ),
+              maths('x = \\frac{\\det \\mathbf{A}_x}{\\det \\mathbf{A}}'),
+              prose(
+                'For $y$ it is column 2 that is replaced, and for $z$ column 3. The bottom is $\\det \\mathbf{A}$ every time, so it is worked out once, and it must not be zero.',
+              ),
+            ),
+            ask('mat-sys-cramer-swap'),
+            ask('mat-sys-cramer'),
+            ask('mat-sys-cramer-swap', 2),
+            teach(
+              prose(
+                'With the inverse to hand there is a quicker route. Multiply both sides on the left by $\\mathbf{A}^{-1}$, and the solution is one matrix times a column.',
+              ),
+              maths('\\mathbf{x} = \\mathbf{A}^{-1}\\mathbf{b}'),
+              prose(
+                'A $3 \\times 3$ inverse is long to find by hand, so here it is given. It often comes as a fraction times a whole-number matrix: multiply by the matrix first, and divide at the end.',
+              ),
+            ),
+            ask('mat-sys-inverse'),
+            ask('mat-sys-cramer+choice', 2),
+            ask('mat-sys-inverse+choice', 2),
+            teach(
+              prose(
+                'Some systems need neither. When each equation has one unknown fewer than the one above it, the system is **triangular**, and the last line gives $z$ straight away.',
+              ),
+              maths('\\begin{aligned} x + y + z &= 6 \\\\ 2y - z &= 1 \\\\ 3z &= 9 \\end{aligned}'),
+              prose(
+                'So $z = 3$. Then $2y - 3 = 1$ gives $y = 2$, and the top line gives $x = 1$. This is **back substitution**, and elimination on a full system is a way of reaching this shape.',
+              ),
+            ),
+            ask('mat-sys-back-sub'),
+            ask('mat-sys-back-sub-tree'),
+          ],
+          skillCheck: [ask('mat-sys-cramer', 2), ask('mat-sys-inverse', 2), ask('mat-sys-back-sub-tree', 2)],
+        },
+        {
+          id: 'vm-l9-param',
+          title: 'Systems with a Parameter',
+          slides: [
+            teach(
+              prose(
+                'A system can carry a letter, often $k$, in one of its coefficients. Whether it has a unique solution then depends on $k$, and the determinant says which values are the problem.',
+              ),
+              maths('\\mathbf{A} = \\begin{pmatrix} k & 2 & 1 \\\\ 1 & 1 & 0 \\\\ 2 & 0 & 1 \\end{pmatrix}'),
+              prose(
+                'Expand as usual, keeping $k$ as a letter: $\\det \\mathbf{A} = k(1) - 2(1) + 1(-2) = k - 4$. That is zero at $k = 4$, so every other value of $k$ gives exactly one solution.',
+              ),
+            ),
+            ask('mat-sys-param-det'),
+            ask('mat-sys-param-which'),
+            ask('mat-sys-param-k'),
+            teach(
+              prose(
+                'At the bad value the system has no solutions or infinitely many, and, as before, the right-hand sides decide.',
+              ),
+              maths('\\begin{aligned} kx + 4y &= 6 \\\\ x + 2y &= q \\end{aligned}'),
+              prose(
+                'Here $\\det = 2k - 4$, zero at $k = 2$. Then the first equation\'s left-hand side is twice the second\'s, so it needs $6 = 2q$: $q = 3$ gives infinitely many solutions, and any other $q$ gives none.',
+              ),
+            ),
+            ask('mat-sys-param-outcome'),
+            ask('mat-sys-param-k+choice', 2),
+            ask('mat-sys-param-det', 2),
+            teach(
+              prose('When $k$ appears twice the determinant can be a quadratic, with two bad values.'),
+              maths('\\det \\begin{pmatrix} k & 2 \\\\ 3 & k - 1 \\end{pmatrix} = k^2 - k - 6'),
+              maths('= (k - 3)(k + 2)'),
+              prose(
+                'Both $k = 3$ and $k = -2$ make it zero, so a unique solution needs $k \\neq 3$ and $k \\neq -2$. Leaving one of them out is the usual slip.',
+              ),
+            ),
+            ask('mat-sys-param-which', 2),
+            ask('mat-sys-param-outcome', 2),
+          ],
+          skillCheck: [
+            ask('mat-sys-param-k', 2),
+            ask('mat-sys-param-which', 2),
+            ask('mat-sys-param-outcome', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('mat-sys-read', 2),
+        ask('mat-sys-det', 2),
+        ask('mat-sys-lines', 2),
+        ask('mat-sys-cramer-swap', 2),
+        ask('mat-sys-param-k', 2),
+        ask('mat-sys-vector', 2),
+        ask('mat-sys-det-zero', 2),
+        ask('mat-sys-consistent', 2),
+        ask('mat-sys-inverse', 2),
+        ask('mat-sys-param-which', 2),
+        ask('mat-sys-rhs', 2),
+        ask('mat-sys-det-rule', 2),
+        ask('mat-sys-line-form', 2),
+        ask('mat-sys-back-sub', 2),
+        ask('mat-sys-param-outcome', 2),
       ],
     },
   ],

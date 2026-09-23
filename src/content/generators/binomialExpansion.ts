@@ -11,7 +11,9 @@
  * coefficients from x = 1 and x = -1. Level 4 multiplies two expansions:
  * the pairs that make one coefficient, the first three terms of a product,
  * brackets that pair off into (1 - c^2x^2)^n, a trinomial as (1 + u)^n, and
- * equating coefficients across a product.
+ * equating coefficients across a product. Level 5 sizes the error of a
+ * three-term estimate, puts a number in front of x, and expands brackets with
+ * a surd in them into a + b√k, alone, in conjugate pairs and with a number.
  *
  * Every question here has a whole-number n of at most 8 in an expansion (nCr
  * on its own goes to 12), so every coefficient, bank and option is exact. The
@@ -4748,6 +4750,1208 @@ const findATree: Generator<FindAParams> = {
   },
 };
 
+/* ---------- Level 5: estimates and surds ---------- */
+
+/*
+ * Level 5 starts where level 2's estimate stopped. How big its error is, and
+ * so how many decimal places it can be trusted to; a number in front of x, as
+ * in (2.01)^5 = (2 + 0.01)^5; and brackets with a surd in them, whose powers
+ * gather into a whole part and a multiple of the root. Surd arithmetic itself
+ * belongs to Exponents & Radicals and is only pointed at here.
+ *
+ * The same limits hold: n is at most 8, every coefficient, term and option is
+ * exact and under 10000, and a and b in a + b√k come from the row, even
+ * powers into a and odd into b, never from a float.
+ */
+
+/** The first `count` distinct slips that are not already answer tokens. */
+function fewSlips(answer: string[], slips: string[], count = 4): string[] {
+  return [...new Set(slips)].filter((token) => !answer.includes(token)).slice(0, count);
+}
+
+/** Whole slips under 10000 and not the answer itself, for an aimed choice. */
+function wholeSlips(right: number, ...slips: number[]): number[] {
+  return slips.filter((value) => Number.isInteger(value) && value !== right && Math.abs(value) < 10000);
+}
+
+/* --- how big the error is --- */
+
+interface DropParams {
+  n: number;
+  /** x in hundredths, as in level 2: -3 is -0.03. */
+  d: number;
+}
+
+/** The first term the three-term estimate leaves out, nC3 x^3, in millionths. */
+function droppedTerm({ n, d }: DropParams): number {
+  return nCr(n, 3) * d ** 3;
+}
+
+/** How far the three-term estimate is from the power itself: every term past x^2. */
+function estimateError({ n, d }: DropParams): number {
+  let sum = 0;
+  for (let r = 3; r <= n; r += 1) sum += nCr(n, r) * (d / 100) ** r;
+  return sum;
+}
+
+/** Half a unit in the k-th decimal place: 0.0005 for k = 3. */
+function halfUnit(k: number): number {
+  return 5 / 10 ** (k + 1);
+}
+
+/** halfUnit written out in full: String() would turn 0.0000005 into 5e-7. */
+function halfUnitTex(k: number): string {
+  return `0.${'0'.repeat(k)}5`;
+}
+
+/** A whole unit in the k-th decimal place, written out in full. */
+function unitTex(k: number): string {
+  return k === 0 ? '1' : `0.${'0'.repeat(k - 1)}1`;
+}
+
+/** The most decimal places an error this size leaves accurate: it must be under half a unit in the last one. */
+function placesFor(error: number): number {
+  let k = 0;
+  while (Math.abs(error) < halfUnit(k + 1)) k += 1;
+  return k;
+}
+
+/**
+ * Whether the true error and the first term left out agree on the places, and
+ * sit well clear of the boundaries either side, so that "the error is about
+ * the first term left out" gives the right answer and not a lucky one.
+ */
+function clearCut(params: DropParams): boolean {
+  const error = Math.abs(estimateError(params));
+  const k = placesFor(error);
+  return placesFor(droppedTerm(params) / 1e6) === k && error < 0.8 * halfUnit(k) && error > 1.25 * halfUnit(k + 1);
+}
+
+function sampleDrop(rng: Rng, difficulty: number): DropParams {
+  const hard = difficulty > 1;
+  const size = rng.int(1, hard ? 7 : 6);
+  return { n: rng.int(hard ? 4 : 3, 8), d: hard && rng.chance(0.5) ? -size : size };
+}
+
+function sampleClearDrop(rng: Rng, difficulty: number): DropParams {
+  for (;;) {
+    const params = sampleDrop(rng, difficulty);
+    if (clearCut(params)) return params;
+  }
+}
+
+function dropPrompt({ n, d }: DropParams): string {
+  return `You estimate $(${baseOf(d)})^{${n}}$ from the first three terms of $(1 + x)^{${n}}$, with $x = ${dec(d, 100)}$.`;
+}
+
+/** The term left out, worked, and why it is the size of the error. */
+function dropWorking(params: DropParams): SolutionStep[] {
+  const { n, d } = params;
+  const x = inLine(dec(d, 100));
+  return [
+    { text: `The estimate stops at $x^2$, so the first term it leaves out is $${ncrTex(n, 3)}x^3$, and $${ncrTex(n, 3)} = ${nCr(n, 3)}$.` },
+    { tex: `${nCr(n, 3)} \\times ${x}^{3} = ${nCr(n, 3)} \\times ${inLine(dec(d ** 3, 1e6))} = ${dec(droppedTerm(params), 1e6)}` },
+    { text: 'Every term after it carries a higher power of a small number, so the error is about this size.' },
+  ];
+}
+
+interface DropAskParams extends DropParams {
+  /** Whether the question names the first term left out, or leaves it to be found. */
+  hint: boolean;
+}
+
+/**
+ * The first term left out, typed as a decimal. The choice form offers the
+ * wrong entry of the row, x squared where it is cubed, and the decimal point
+ * a place out.
+ */
+const droppedTermGen: Generator<DropAskParams> = {
+  id: 'bin-dropped-term',
+  sample: (rng, difficulty) => ({ ...sampleDrop(rng, difficulty), hint: difficulty < 2 }),
+  choices: (params) => {
+    const { n, d } = params;
+    const right = droppedTerm(params);
+    const option = (units: number): ChoiceOption => ({ tex: dec(units, 1e6), answer: dec(units, 1e6) });
+    const slips = [nCr(n, 2) * d ** 3, 100 * nCr(n, 3) * d * d, 10 * right, n * d ** 3, -right, 100 * right].filter(
+      (units) => Number.isInteger(units) && units !== 0 && units !== right,
+    );
+    return fourOptions(option(right), ...slips.map(option));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${dropPrompt(params)} What is the first term it leaves out, as a decimal?` }],
+    lead: params.hint ? `${ncrTex(params.n, 3)}x^3 =` : '\\text{first term dropped} =',
+    keypad: [],
+    answer: dec(droppedTerm(params), 1e6),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: dropWorking,
+};
+
+/**
+ * The two terms the estimate keeps, the term it leaves out, and the estimate
+ * from the first two. The slips are the decimal point a place out, x left
+ * unsquared, and the term left out one place out.
+ */
+const keptSumTree: Generator<DropParams> = {
+  id: 'bin-kept-sum-tree',
+  sample: sampleDrop,
+  render: (params): Slide => {
+    const { n, d } = params;
+    const c2 = nCr(n, 2);
+    const answer = [dec(n * d, 100), dec(c2 * d * d, 10000), dec(droppedTerm(params), 1e6), dec(threeTerms(params), 10000)];
+    const slips = [
+      dec(n * d, 1000),
+      dec(c2 * d, 100),
+      dec(c2 * d * d, 1000),
+      dec(droppedTerm(params), 1e5),
+      dec(10000 + 100 * n * d, 10000),
+      dec(threeTerms(params) + 9 * c2 * d * d, 10000),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Estimate this from $(1 + x)^{${n}} \\approx 1 + ${n}x + ${c2}x^2$ with $x = ${dec(d, 100)}$. Top row, left to right: the $x$ term, the $x^2$ term, and the first term left out, $${termTex(nCr(n, 3), 3)}$. Then the estimate: $1$ plus the two terms kept.`,
+        },
+      ],
+      expression: `(${baseOf(d)})^{${n}}`,
+      nodes: [
+        { id: 'first', from: [] },
+        { id: 'second', from: [] },
+        { id: 'dropped', from: [] },
+        { id: 'estimate', from: ['first', 'second'] },
+      ],
+      bank: treeBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { n, d } = params;
+    const x = inLine(dec(d, 100));
+    return [
+      {
+        tex: column([
+          [`${n} \\times ${x}`, dec(n * d, 100)],
+          [`${nCr(n, 2)} \\times ${x}^{2}`, dec(nCr(n, 2) * d * d, 10000)],
+          [`${nCr(n, 3)} \\times ${x}^{3}`, dec(droppedTerm(params), 1e6)],
+        ]),
+      },
+      { tex: `1 + ${inLine(dec(n * d, 100))} + ${dec(nCr(n, 2) * d * d, 10000)} = ${dec(threeTerms(params), 10000)}` },
+      { text: `The estimate is out by about the term left out, $${dec(droppedTerm(params), 1e6)}$.` },
+    ];
+  },
+};
+
+/** The error against half a unit in each place, and the places it leaves. */
+function placesWorking(params: DropParams): SolutionStep[] {
+  const k = placesFor(estimateError(params));
+  const size = dec(Math.abs(droppedTerm(params)), 1e6);
+  return [
+    ...dropWorking(params),
+    {
+      text: `An estimate is accurate to $k$ decimal places when its error is under half a unit in place $k$. $${size}$ is under $${halfUnitTex(k)}$ but not under $${halfUnitTex(k + 1)}$, so the estimate is accurate to $${k}$ decimal places.`,
+    },
+  ];
+}
+
+/**
+ * How many decimal places the estimate can be trusted to. Difficulty 1 names
+ * the term left out; difficulty 2 leaves it to be found. The wrong options
+ * are the places either side.
+ */
+const safePlaces: Generator<DropAskParams> = {
+  id: 'bin-safe-places',
+  sample: (rng, difficulty) => ({ ...sampleClearDrop(rng, difficulty), hint: difficulty < 2 }),
+  render: (params): Slide => {
+    const k = placesFor(estimateError(params));
+    const labels = [k, k + 1, k - 1, k + 2].filter((places) => places >= 1).map((places) => `${places}`);
+    const hint = params.hint ? ` The first term it leaves out is $${dec(droppedTerm(params), 1e6)}$.` : '';
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `${dropPrompt(params)}${hint} To how many decimal places is the estimate accurate?` }],
+      ...nativeChoice(labels, mix(params.n, params.d, params.hint ? 1 : 0)),
+    };
+  },
+  solution: placesWorking,
+};
+
+interface EnoughParams extends DropParams {
+  /** The decimal places asked for. */
+  k: number;
+}
+
+/**
+ * Whether three terms give the power to k places: the term left out, half a
+ * unit in place k, and the comparison. The wrong turns are the wrong entry of
+ * the row, x squared, and a whole unit taken for half of one.
+ */
+const enoughFlow: Generator<EnoughParams> = {
+  id: 'bin-enough-terms-flow',
+  sample: (rng, difficulty) => {
+    const params = sampleClearDrop(rng, difficulty);
+    const k = placesFor(estimateError(params));
+    return { ...params, k: rng.chance(0.5) ? k : k + 1 };
+  },
+  render: (params): Slide => {
+    const { n, d, k } = params;
+    const dropped = `$${dec(droppedTerm(params), 1e6)}$`;
+    const size = dec(Math.abs(droppedTerm(params)), 1e6);
+    const half = `$${halfUnitTex(k)}$`;
+    const wrongTerms = [
+      {
+        label: `$${dec(nCr(n, 2) * d ** 3, 1e6)}$`,
+        outcome: `The number in front of $x^3$ is $${ncrTex(n, 3)} = ${nCr(n, 3)}$, the fourth entry of row $${n}$.`,
+      },
+      { label: `$${dec(nCr(n, 3) * d * d, 10000)}$`, outcome: 'The term left out is the $x^3$ term, so $x$ is cubed, not squared.' },
+    ].filter((branch) => branch.label !== dropped);
+    const base = baseOf(d);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Can the first three terms of $(1 + x)^{${n}}$, with $x = ${dec(d, 100)}$, give this correct to $${k}$ decimal places? Decide step by step.`,
+        },
+      ],
+      subject: `(${base})^{${n}}`,
+      steps: [
+        {
+          id: 'dropped',
+          ask: 'What is the first term the three terms leave out?',
+          branches: turned([{ label: dropped, to: 'bound' }, ...wrongTerms], spread(n, d, k)),
+        },
+        {
+          id: 'bound',
+          ask: `Accurate to $${k}$ decimal places means an error under half a unit in place $${k}$. What is that?`,
+          branches: turned(
+            [
+              { label: half, to: 'compare' },
+              { label: `$${unitTex(k)}$`, outcome: 'That is a whole unit in that place. The error has to be under half of one.' },
+              { label: `$${halfUnitTex(k + 1)}$`, outcome: `That is half a unit in place $${k + 1}$, one place too far.` },
+            ],
+            spread(k, n, d, 7),
+          ),
+        },
+        {
+          id: 'compare',
+          ask: `Leaving its sign aside, is $${size}$ less than ${half}?`,
+          branches: [
+            { label: 'Yes', outcome: `Then three terms give $(${base})^{${n}}$ to $${k}$ decimal places.` },
+            { label: 'No', outcome: `Then three terms are not enough for $${k}$ decimal places: the $x^3$ term is needed as well.` },
+          ],
+        },
+      ],
+      answer: [dropped, half, Math.abs(droppedTerm(params)) / 1e6 < halfUnit(k) ? 'Yes' : 'No'],
+    };
+  },
+  solution: (params) => {
+    const { k } = params;
+    const size = dec(Math.abs(droppedTerm(params)), 1e6);
+    const enough = Math.abs(droppedTerm(params)) / 1e6 < halfUnit(k);
+    return [
+      ...dropWorking(params),
+      {
+        text: enough
+          ? `Half a unit in place $${k}$ is $${halfUnitTex(k)}$, and $${size}$ is under it: three terms are enough.`
+          : `Half a unit in place $${k}$ is $${halfUnitTex(k)}$, and $${size}$ is not under it: three terms are not enough.`,
+      },
+    ];
+  },
+};
+
+/* --- a number in front --- */
+
+interface NearParams {
+  /** The whole number the base is near: the bracket is (a + x)^n, or (a - x)^n when `minus`. */
+  a: number;
+  n: number;
+  /** x in hundredths, always positive. */
+  d: number;
+  minus: boolean;
+}
+
+function sampleNear(rng: Rng, difficulty: number): NearParams {
+  const hard = difficulty > 1;
+  const a = rng.pick([2, 2, 3]);
+  const n = a === 2 ? rng.int(hard ? 4 : 3, 8) : rng.int(3, hard ? 7 : 5);
+  return { a, n, d: rng.int(1, hard ? 5 : 4), minus: hard && rng.chance(0.5) };
+}
+
+/** The number being raised to the power: 2.01, or 1.98 below 2. */
+function nearBase({ a, d, minus }: NearParams): string {
+  return dec(100 * a + (minus ? -d : d), 100);
+}
+
+function nearBracket({ a, n, minus }: NearParams): string {
+  return `(${a} ${minus ? '-' : '+'} x)^{${n}}`;
+}
+
+/** The first three coefficients of (a ± x)^n, the sign carried on the x term. */
+function nearCoefs({ a, n, minus }: NearParams): [number, number, number] {
+  return [a ** n, (minus ? -1 : 1) * n * a ** (n - 1), nCr(n, 2) * a ** (n - 2)];
+}
+
+/** The three-term estimate in ten-thousandths. */
+function nearUnits(params: NearParams): number {
+  const [c0, c1, c2] = nearCoefs(params);
+  return 10000 * c0 + 100 * c1 * params.d + c2 * params.d ** 2;
+}
+
+function nearWorking(params: NearParams): SolutionStep[] {
+  const { a, d, minus } = params;
+  const [c0, c1, c2] = nearCoefs(params);
+  const x = dec(d, 100);
+  const sign = minus ? '-' : '+';
+  return [
+    { text: `$${nearBase(params)} = ${a} ${sign} ${x}$, so expand $${nearBracket(params)}$ and put $x = ${x}$. The $${a}$ is raised to a power in every term.` },
+    { tex: expansionTex(nearBracket(params), [termTex(c0, 0), termTex(c1, 1), termTex(c2, 2), '\\dots']) },
+    {
+      tex: chain(
+        `& ${c0} ${sign} ${Math.abs(c1)} \\times ${x}`,
+        `&\\quad + ${c2} \\times ${x}^{2}`,
+        `&= ${c0} ${sign} ${dec(Math.abs(c1) * d, 100)} + ${dec(c2 * d * d, 10000)}`,
+        `&= ${dec(nearUnits(params), 10000)}`,
+      ),
+    },
+  ];
+}
+
+/**
+ * Which bracket and which x estimate the power. The slips are the sign of x,
+ * a 1 in front where the power sits near 2 or 3, and the decimal point a
+ * place out.
+ */
+const nearSetup: Generator<NearParams> = {
+  id: 'bin-near-setup',
+  sample: (rng, difficulty) => ({ ...sampleNear(rng, difficulty), minus: rng.chance(difficulty > 1 ? 0.5 : 0.3) }),
+  render: (params): Slide => {
+    const { a, n, d, minus } = params;
+    const x = dec(d, 100);
+    const flipped = { ...params, minus: !minus };
+    const labels = [
+      `${nearBracket(params)}, \\; x = ${x}`,
+      `${nearBracket(flipped)}, \\; x = ${x}`,
+      `(1 + x)^{${n}}, \\; x = ${dec(100 * (a - 1) + (minus ? -d : d), 100)}`,
+      `${nearBracket(params)}, \\; x = ${dec(d, 10)}`,
+    ];
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `To estimate $(${nearBase(params)})^{${n}}$ from a binomial expansion, which bracket and which small $x$ do you use?` }],
+      ...nativeChoice(labels, mix(a, n, d, minus ? 1 : 0)),
+    };
+  },
+  solution: (params) => [
+    { text: `Write the number as the whole number it is near and a small change: $${nearBase(params)} = ${params.a} ${params.minus ? '-' : '+'} ${dec(params.d, 100)}$.` },
+    { text: `So the bracket is $${nearBracket(params)}$ with $x = ${dec(params.d, 100)}$. A small $x$ is what makes the later terms small enough to drop.` },
+  ],
+};
+
+/**
+ * The first three terms of (a ± x)^n placed with their signs. The slips are
+ * the powers of a forgotten, the sign turned, and a^n written as a times n.
+ */
+const nearTiles: Generator<NearParams> = {
+  id: 'bin-near-tiles',
+  sample: sampleNear,
+  render: (params): Slide => {
+    const { a, n, minus } = params;
+    const [c0, c1, c2] = nearCoefs(params);
+    const s = minus ? -1 : 1;
+    const answer = [signedToken(c0, true), signedToken(c1, false), signedToken(c2, false)];
+    const slips = [
+      signedToken(s * n, false),
+      signedToken(-c1, false),
+      signedToken(nCr(n, 2), false),
+      signedToken(nCr(n, 2) * a ** (n - 1), false),
+      signedToken(-c2, false),
+      `${a * n}`,
+      `${a ** (n - 1)}`,
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `To estimate $(${nearBase(params)})^{${n}}$, expand $${nearBracket(params)}$ as far as the $x^2$ term.` }],
+      template: `(${a} ${minus ? '-' : '+'} x)^${n} = {0} {1}x {2}x^2 + \\dots`,
+      bank: tileBank(answer, fewSlips(answer, slips)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, n } = params;
+    const [c0, c1, c2] = nearCoefs(params);
+    const x = params.minus ? '(-x)' : 'x';
+    return [
+      { text: `Row $${n}$ starts $1, ${n}, ${nCr(n, 2)}$, and the power of $${a}$ drops by one each term as the power of $x$ rises.` },
+      {
+        tex: chain(
+          `& ${a}^{${n}} = ${c0}`,
+          `& ${n} \\times ${a}^{${n - 1}} \\times ${x} = ${termTex(c1, 1)}`,
+          `& ${nCr(n, 2)} \\times ${a}^{${n - 2}} \\times ${x}^{2} = ${termTex(c2, 2)}`,
+        ),
+      },
+    ];
+  },
+};
+
+/**
+ * Putting x into the three terms, a step at a time: the square, the two
+ * products, the sums. Each bank holds the decimal point a place out.
+ */
+const nearSubstituteSteps: Generator<NearParams> = {
+  id: 'bin-near-substitute-steps',
+  sample: sampleNear,
+  render: (params): Slide => {
+    const { d, minus } = params;
+    const [c0, c1, c2] = nearCoefs(params);
+    const size = Math.abs(c1);
+    const x = dec(d, 100);
+    const bank = (right: string, ...wrong: string[]) => [...new Set([right, ...wrong])].sort();
+    const square = dec(d * d, 10000);
+    const second = dec(c2 * d * d, 10000);
+    const first = dec(size * d, 100);
+    const partial = dec(100 * c0 + (minus ? -1 : 1) * size * d, 100);
+    const total = dec(nearUnits(params), 10000);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Estimate $(${nearBase(params)})^{${params.n}}$: put $x = ${x}$ into the first three terms of $${nearBracket(params)}$. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start: [`${c0}`, minus ? '-' : '+', `${size}`, '\\times', x, '+', `${c2}`, '\\times', `${x}^{2}`],
+      reductions: [
+        { span: [8, 9], operator: 8, value: square, bank: bank(square, dec(d * d, 1000), dec(2 * d, 100), dec(d * d, 100000)) },
+        { span: [6, 9], operator: 7, value: second, bank: bank(second, dec(c2 * d * d, 1000), dec(c2 * d * d, 100000), dec(c2 * d, 100)) },
+        { span: [2, 5], operator: 3, value: first, bank: bank(first, dec(size * d, 1000), dec(size * d, 10), dec(size + d, 100)) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: partial,
+          bank: bank(partial, dec(100 * c0 - (minus ? -1 : 1) * size * d, 100), dec(1000 * c0 + (minus ? -1 : 1) * size * d, 1000), dec(100 * c0 + (minus ? -1 : 1) * size * d * 10, 100)),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: total,
+          bank: bank(total, dec(nearUnits(params) - 2 * c2 * d * d, 10000), dec(nearUnits(params) + 9 * c2 * d * d, 10000), dec(nearUnits(params) + 99 * c2 * d * d, 10000)),
+        },
+      ],
+    };
+  },
+  solution: nearWorking,
+};
+
+/**
+ * The estimate typed. The choice form offers the x^2 term dropped, x left
+ * unsquared, the sign turned, and the 1 of level 2 in place of a.
+ */
+const nearEstimate: Generator<NearParams> = {
+  id: 'bin-near-estimate',
+  sample: sampleNear,
+  choices: (params) => {
+    const { n, d } = params;
+    const [c0, c1, c2] = nearCoefs(params);
+    const right = nearUnits(params);
+    return decimalOptions(right, [
+      right - c2 * d * d,
+      10000 * c0 + 100 * c1 * d + 100 * c2 * d,
+      10000 * c0 - 100 * c1 * d + c2 * d * d,
+      threeTerms({ n, d: params.minus ? -d : d }),
+    ]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Use the first three terms of the expansion of $${nearBracket(params)}$ to estimate $(${nearBase(params)})^{${params.n}}$.`,
+      },
+    ],
+    lead: '\\text{estimate} =',
+    keypad: [],
+    answer: dec(nearUnits(params), 10000),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: nearWorking,
+};
+
+/* --- surds --- */
+
+interface SurdParams {
+  /** The bracket is (p + q√k)^n, q negative for a minus. */
+  p: number;
+  q: number;
+  k: number;
+  n: number;
+}
+
+const ROOTS = [2, 3, 5, 6, 7];
+
+/** The r-th term as a whole number, or as the number in front of √k when r is odd: nCr p^(n-r) q^r k^(r div 2). */
+function surdTerm({ p, q, k, n }: SurdParams, r: number): number {
+  return nCr(n, r) * p ** (n - r) * q ** r * k ** Math.floor(r / 2);
+}
+
+/** a + b√k: the even terms gathered into a and the odd into b. */
+function surdParts(params: SurdParams): { a: number; b: number } {
+  let a = 0;
+  let b = 0;
+  for (let r = 0; r <= params.n; r += 1) {
+    if (r % 2 === 0) a += surdTerm(params, r);
+    else b += surdTerm(params, r);
+  }
+  return { a, b };
+}
+
+/** Every term, and a and b, exact and under 10000, with neither part zero. */
+function surdFits(params: SurdParams): boolean {
+  const { a, b } = surdParts(params);
+  const terms = Array.from({ length: params.n + 1 }, (_, r) => surdTerm(params, r));
+  return a !== 0 && b !== 0 && [a, b, ...terms].every((value) => Math.abs(value) < 10000);
+}
+
+function rootTex(k: number): string {
+  return `\\sqrt{${k}}`;
+}
+
+/** c√k as the learner reads it: a 1 left off, a minus kept. */
+function rootTerm(c: number, k: number): string {
+  if (c === 0) return '0';
+  const size = Math.abs(c);
+  return `${c < 0 ? '-' : ''}${size === 1 ? '' : size}${rootTex(k)}`;
+}
+
+function surdInside({ p, q, k }: Pick<SurdParams, 'p' | 'q' | 'k'>): string {
+  return sumTex([`${p}`, rootTerm(q, k)]);
+}
+
+function surdPowTex(params: SurdParams): string {
+  return `(${surdInside(params)})^{${params.n}}`;
+}
+
+/** The same bracket in a tiles template, where no braces may round a digit. */
+function surdPowTemplate({ p, q, k, n }: SurdParams): string {
+  return `(${p} ${q < 0 ? '-' : '+'} ${Math.abs(q) === 1 ? '' : Math.abs(q)}\\sqrt${k})^${n}`;
+}
+
+function abTex(a: number, b: number, k: number): string {
+  return sumTex([`${a}`, rootTerm(b, k)]);
+}
+
+/** What a and b come to if every power of √k is taken as 1: the row alone, the root never squared. */
+function rootForgotten(params: SurdParams): { a: number; b: number } {
+  return surdParts({ ...params, k: 1 });
+}
+
+/** q√k to the power r, as it is written in a line of working. */
+function rootPowTex(q: number, k: number, r: number): string {
+  if (r === 1) return q < 0 ? `(${rootTerm(q, k)})` : rootTerm(q, k);
+  return `(${rootTerm(q, k)})^{${r}}`;
+}
+
+/** label = the values added = their total, broken over lines where a phone needs it. */
+function gatheredTex(label: string, values: number[], total: number): string {
+  const one = `${label} = ${sumTex(values.map(String))} = ${total}`;
+  if (texWidth(one) <= LINE) return one;
+  const sum = expansionTex(label, values.map(String));
+  if (sum.includes('\\begin')) return sum.replace(' \\end{aligned}', ` \\\\ &= ${total} \\end{aligned}`);
+  return chain(`& ${label}`, `&= ${sumTex(values.map(String))}`, `&= ${total}`);
+}
+
+/** Every term worked, then the two groups gathered. */
+function surdWorking(params: SurdParams): SolutionStep[] {
+  const { p, q, k, n } = params;
+  const { a, b } = surdParts(params);
+  const lines = Array.from({ length: n + 1 }, (_, r) => r).flatMap((r) => {
+    // The power of p as its value, and a first power of the root bare: a line wider than a phone hides its result.
+    const front = r === 0 ? [`${p}^{${n}}`] : r === n || p === 1 ? [] : [`${p ** (n - r)}`];
+    const parts = [...(r === 0 || r === n ? [] : [`${nCr(n, r)}`]), ...(p === 1 && r === 0 ? [] : front), ...(r === 0 ? [] : [rootPowTex(q, k, r)])];
+    const value = surdTerm(params, r);
+    const shown = r % 2 === 0 ? `${value}` : rootTerm(value, k);
+    if (parts.length === 0) return [`& ${shown}`];
+    const product = parts.join(' \\times ');
+    return texWidth(`${product} = ${shown}`) > LINE - 2 ? [`& ${product}`, `&\\quad = ${shown}`] : [`& ${product} = ${shown}`];
+  });
+  const evens = Array.from({ length: n + 1 }, (_, r) => r).filter((r) => r % 2 === 0).map((r) => surdTerm(params, r));
+  const odds = Array.from({ length: n + 1 }, (_, r) => r).filter((r) => r % 2 === 1).map((r) => surdTerm(params, r));
+  return [
+    {
+      text: `Row $${n}$ is $${rowTex(pascalRow(n))}$. An even power of $${rootTex(k)}$ is a whole number, since $(${rootTex(k)})^2 = ${k}$; an odd power leaves one $${rootTex(k)}$ over.`,
+    },
+    { tex: chain(...lines) },
+    { text: `The whole numbers make $a$, and the numbers in front of $${rootTex(k)}$ make $b$:` },
+    { tex: gatheredTex('a', evens, a) },
+    { tex: gatheredTex('b', odds, b) },
+    { tex: `${surdPowTex(params)} = ${abTex(a, b, k)}` },
+  ];
+}
+
+/** (1 ± q√k)^n with everything under 10000. */
+function sampleOneSurd(rng: Rng, qs: number[], ks: number[], nMin: number, nMax: number): SurdParams {
+  for (;;) {
+    const params = { p: 1, q: rng.pick(qs), k: rng.pick(ks), n: rng.int(nMin, nMax) };
+    if (surdFits(params)) return params;
+  }
+}
+
+/**
+ * a + b√k placed. The slips are a and b swapped, b's sign turned, and every
+ * power of the root taken as 1.
+ */
+const surdTiles: Generator<SurdParams> = {
+  id: 'bin-surd-tiles',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleOneSurd(rng, [-1, -1, 1, 2], ROOTS, 4, 8) : sampleOneSurd(rng, [1], ROOTS, 3, 8)),
+  render: (params): Slide => {
+    const { a, b } = surdParts(params);
+    const forgot = rootForgotten(params);
+    const answer = [signedToken(a, true), signedToken(b, false)];
+    const slips = [`${Math.abs(b)}`, signedToken(a, false), signedToken(-b, false), `${forgot.a}`, signedToken(forgot.b, false), `${a + Math.abs(b)}`];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Expand and gather the whole numbers and the multiples of $${rootTex(params.k)}$.` }],
+      template: `${surdPowTemplate(params)} = {0} {1}\\sqrt${params.k}`,
+      bank: tileBank(answer, fewSlips(answer, slips)),
+      answer,
+    };
+  },
+  solution: surdWorking,
+};
+
+/**
+ * The terms of a surd bracket, even powers then odd, gathered into a and b.
+ * Four terms at most fit a phone's width in one row, so a bracket starting
+ * with 1 leaves that 1 out of the row and a takes it at the end.
+ */
+function surdTreeSlide(params: SurdParams, lead: string): Slide {
+  const { k, n } = params;
+  const { a, b } = surdParts(params);
+  const one = params.p === 1;
+  const evens = Array.from({ length: n + 1 }, (_, r) => r).filter((r) => r % 2 === 0 && !(one && r === 0));
+  const odds = Array.from({ length: n + 1 }, (_, r) => r).filter((r) => r % 2 === 1);
+  const forgot = rootForgotten(params);
+  const answer = [...evens.map((r) => surdTerm(params, r)), ...odds.map((r) => surdTerm(params, r)), a, b].map(String);
+  // Each term with its root left unsquared, a and b with every root taken as 1, and the two added.
+  const slips = [...evens.filter((r) => r > 0).map((r) => surdTerm({ ...params, k: 1 }, r)), forgot.a, forgot.b, a + b, a - 1, 2 * b].map(String);
+  return {
+    kind: 'tree',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `${lead}Top row, left to right: the whole-number terms, from the even powers of $${rootTex(k)}$, then the numbers on $${rootTex(k)}$ from the odd powers. Then add each group to make $a$ and $b$${one ? ', with the $1$ at the front going into $a$' : ''}.`,
+      },
+    ],
+    expression: `${surdPowTex(params)} = a + b${rootTex(k)}`,
+    nodes: [
+      ...evens.map((r) => ({ id: `t${r}`, from: [] })),
+      ...odds.map((r) => ({ id: `t${r}`, from: [] })),
+      { id: 'a', from: evens.map((r) => `t${r}`) },
+      { id: 'b', from: odds.map((r) => `t${r}`) },
+    ],
+    bank: treeBank(answer, slips),
+    answer,
+  };
+}
+
+const surdPowersTree: Generator<SurdParams> = {
+  id: 'bin-surd-powers-tree',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? sampleOneSurd(rng, [1, 2, 3], [...ROOTS, 10, 11], 3, 4) : sampleOneSurd(rng, [1, 2], [...ROOTS, 10, 11], 3, 4),
+  render: (params) => surdTreeSlide(params, ''),
+  solution: surdWorking,
+};
+
+interface SurdAskParams extends SurdParams {
+  ask: 'a' | 'b';
+}
+
+function surdAskPrompt(params: SurdAskParams): string {
+  return `$${surdPowTex(params)} = a + b${rootTex(params.k)}$, where $a$ and $b$ are whole numbers. Find $${params.ask}$.`;
+}
+
+/** a or b typed. The choice form offers the other one, every root taken as 1, and the two added. */
+function surdAskGenerator(id: string, sample: (rng: Rng, difficulty: number) => SurdParams): Generator<SurdAskParams> {
+  return {
+    id,
+    sample: (rng, difficulty) => ({ ...sample(rng, difficulty), ask: rng.chance(0.5) ? 'a' : 'b' }),
+    choices: (params) => {
+      const { a, b } = surdParts(params);
+      const forgot = rootForgotten(params);
+      const right = params.ask === 'a' ? a : b;
+      const wrong = params.ask === 'a' ? [b, forgot.a, a + b, a - params.p ** params.n] : [a, forgot.b, a + b, b * params.k];
+      return aimedNumbers(right, wholeSlips(right, ...wrong), spread(params.p, params.q, params.k, params.n, params.ask === 'a' ? 1 : 2));
+    },
+    render: (params): Slide => {
+      const { a, b } = surdParts(params);
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: surdAskPrompt(params) }],
+        lead: `${params.ask} =`,
+        keypad: [],
+        answer: `${params.ask === 'a' ? a : b}`,
+        domain: 'real',
+        mode: 'exact',
+      };
+    },
+    solution: surdWorking,
+  };
+}
+
+const surdPart = surdAskGenerator('bin-surd-part', (rng, difficulty) =>
+  difficulty > 1 ? sampleOneSurd(rng, [1, 1, 2], ROOTS, 5, 8) : sampleOneSurd(rng, [1], ROOTS, 3, 6),
+);
+
+/** One term of a sum of products: a number, and optionally a power to work out first. */
+interface ProductTerm {
+  coef: number;
+  power?: { tex: string; value: number; slips: number[] };
+}
+
+/**
+ * The steps of a sum of products worked in order: every power, then every
+ * product, then the sums left to right, each with a bank of four. A
+ * coefficient of 1 is left off, so its term is the power alone.
+ */
+function sumOfProducts(terms: ProductTerm[]): { start: string[]; reductions: Extract<Slide, { kind: 'steps' }>['reductions'] } {
+  const plain = (value: number) => `${value}`;
+  const start: string[] = [];
+  const starts: number[] = [];
+  terms.forEach((term, i) => {
+    if (i > 0) start.push('+');
+    starts.push(start.length);
+    if (term.power && term.coef === 1) start.push(term.power.tex);
+    else {
+      start.push(`${term.coef}`);
+      if (term.power) start.push('\\times', term.power.tex);
+    }
+  });
+  const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [];
+  terms.forEach((term, i) => {
+    if (!term.power) return;
+    const at = starts[i] + (term.coef === 1 ? 0 : 2);
+    const value = term.power.value;
+    reductions.push({ span: [at, at + 1], value: plain(value), bank: stepBank(plain, value, ...wholeSlips(value, ...term.power.slips)) });
+  });
+  let shift = 0;
+  const values = terms.map((term) => term.coef * (term.power?.value ?? 1));
+  terms.forEach((term, i) => {
+    if (!term.power || term.coef === 1) return;
+    const at = starts[i] - shift;
+    const value = values[i];
+    reductions.push({
+      span: [at, at + 3],
+      operator: at + 1,
+      value: plain(value),
+      bank: stepBank(plain, value, ...wholeSlips(value, term.coef + term.power.value, value + term.coef, value - term.coef)),
+    });
+    shift += 2;
+  });
+  let running = values[0];
+  for (const value of values.slice(1)) {
+    const next = running + value;
+    reductions.push({ span: [0, 3], operator: 1, value: plain(next), bank: stepBank(plain, next, ...wholeSlips(next, running * value, next - 1, running - value)) });
+    running = next;
+  }
+  return { start, reductions };
+}
+
+/**
+ * a gathered from the even powers of √k, or b from the odd ones, one step at
+ * a time. The slips on a power are the root never squared away and the power
+ * times k.
+ */
+const surdGatherSteps: Generator<SurdAskParams> = {
+  id: 'bin-surd-gather-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { ...sampleOneSurd(rng, [1], [...ROOTS, 10, 11, 13], hard ? 5 : 3, hard ? 6 : 5), ask: rng.chance(0.5) ? 'b' : 'a' };
+  },
+  render: (params): Slide => {
+    const { k, n, ask } = params;
+    const rs = Array.from({ length: n + 1 }, (_, r) => r).filter((r) => r % 2 === (ask === 'a' ? 0 : 1));
+    const terms: ProductTerm[] = rs.map((r) => {
+      const e = ask === 'a' ? r : r - 1;
+      if (e === 0) return { coef: nCr(n, r) };
+      return { coef: nCr(n, r), power: { tex: `(${rootTex(k)})^{${e}}`, value: k ** (e / 2), slips: [k ** e, k * e, k ** (e / 2) + k] } };
+    });
+    const { start, reductions } = sumOfProducts(terms);
+    const which =
+      ask === 'a'
+        ? `$a$ is the sum of the terms with even powers of $${rootTex(k)}$, written out below.`
+        : `$b$ is the sum of the terms with odd powers of $${rootTex(k)}$, each with one $${rootTex(k)}$ taken out, written out below.`;
+    return {
+      kind: 'steps',
+      prompt: [
+        { kind: 'prose', text: `$${surdPowTex(params)} = a + b${rootTex(k)}$. ${which} Tap the step to do next, then choose what it gives.` },
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: surdWorking,
+};
+
+/* --- conjugate pairs --- */
+
+interface ConjParams {
+  k: number;
+  n: number;
+  /** The sum (1 + √k)^n + (1 - √k)^n, or the difference. */
+  sum: boolean;
+}
+
+function plusTex(k: number, n: number | string): string {
+  return `(1 + ${rootTex(k)})^{${n}}`;
+}
+
+function minusTex(k: number, n: number | string): string {
+  return `(1 - ${rootTex(k)})^{${n}}`;
+}
+
+function conjTex({ k, n, sum }: ConjParams): string {
+  return `${plusTex(k, n)} ${sum ? '+' : '-'} ${minusTex(k, n)}`;
+}
+
+function conjParts({ k, n }: Pick<ConjParams, 'k' | 'n'>): { a: number; b: number } {
+  return surdParts({ p: 1, q: 1, k, n });
+}
+
+function sampleConj(rng: Rng, nMin: number, nMax: number, ks = ROOTS): ConjParams {
+  for (;;) {
+    const params = { k: rng.pick(ks), n: rng.int(nMin, nMax), sum: rng.chance(0.5) };
+    if (surdFits({ p: 1, q: 1, k: params.k, n: params.n }) && surdFits({ p: 1, q: 1, k: params.k, n: params.n + 1 })) return params;
+  }
+}
+
+function conjWorking(params: ConjParams): SolutionStep[] {
+  const { k, n, sum } = params;
+  const { a, b } = conjParts(params);
+  return [
+    { text: `$${plusTex(k, n)} = ${abTex(a, b, k)}$. In $${minusTex(k, n)}$ only the odd powers of $${rootTex(k)}$ turn negative, so it is $${abTex(a, -b, k)}$.` },
+    {
+      text: sum
+        ? `Added, the multiples of $${rootTex(k)}$ cancel and the whole parts double:`
+        : `Subtracted, the whole parts cancel and the multiples of $${rootTex(k)}$ double:`,
+    },
+    { tex: sum ? `${conjTex(params)} = 2 \\times ${a} = ${2 * a}` : `${conjTex(params)} = 2 \\times ${rootTerm(b, k)} = ${rootTerm(2 * b, k)}` },
+  ];
+}
+
+interface ConjWhichParams {
+  k: number;
+  n: number;
+  /** Asks which is whole, or which is a multiple of √k with no whole part. */
+  whole: boolean;
+  /** Offers (√k - 1)^n, which is (1 - √k)^n or its negative by the parity of n. */
+  trap: boolean;
+}
+
+/**
+ * Which combination is whole, or which is a pure multiple of √k. The wrong
+ * ones are the other combination, two different powers, and at difficulty 2
+ * (√k - 1)^n with the sign that makes it the other combination for this n.
+ */
+const conjWhich: Generator<ConjWhichParams> = {
+  id: 'bin-conjugate-which',
+  sample: (rng, difficulty) => {
+    const { k, n } = sampleConj(rng, 3, 8);
+    return { k, n, whole: rng.chance(0.5), trap: difficulty > 1 };
+  },
+  render: ({ k, n, whole, trap }): Slide => {
+    const plus = plusTex(k, n);
+    const S = `${plus} + ${minusTex(k, n)}`;
+    const D = `${plus} - ${minusTex(k, n)}`;
+    const mismatched = `${plus} + ${minusTex(k, n + 1)}`;
+    // (√k - 1)^n is (1 - √k)^n for even n and its negative for odd n, so this
+    // sign makes it the other combination from the one asked for.
+    const flip = `(${rootTex(k)} - 1)^{${n}}`;
+    const flipSign = (n % 2 === 0) === whole ? '-' : '+';
+    const fourth = trap ? `${plus} ${flipSign} ${flip}` : `2${plus}`;
+    const labels = whole ? [S, D, mismatched, fourth] : [D, S, mismatched, fourth];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: whole ? 'Which of these is a whole number?' : `Which of these is a whole-number multiple of $${rootTex(k)}$, with no whole-number part?`,
+        },
+      ],
+      ...nativeChoice(labels, mix(k, n, whole ? 1 : 0, trap ? 1 : 0)),
+    };
+  },
+  solution: ({ k, n, whole, trap }) => [
+    ...conjWorking({ k, n, sum: whole }),
+    ...(trap
+      ? [
+          {
+            text: `$(${rootTex(k)} - 1)^{${n}}$ is $${minusTex(k, n)}$ ${n % 2 === 0 ? 'itself, since the power is even' : 'with its sign turned, since the power is odd'}.`,
+          },
+        ]
+      : []),
+  ],
+};
+
+interface ConjTilesParams {
+  k: number;
+  n: number;
+  /** Whether a + b√k is given, or left to be found. */
+  shown: boolean;
+}
+
+/**
+ * The sum and the difference placed together, the root carried in the tile so
+ * that √10 fits a template. The slips are a and b not doubled, and each
+ * written in the other's form.
+ */
+const conjTiles: Generator<ConjTilesParams> = {
+  id: 'bin-conjugate-tiles',
+  sample: (rng, difficulty) => {
+    const { k, n } = sampleConj(rng, 3, difficulty > 1 ? 6 : 8, [...ROOTS, 10, 11]);
+    return { k, n, shown: difficulty < 2 };
+  },
+  render: ({ k, n, shown }): Slide => {
+    const { a, b } = conjParts({ k, n });
+    const root = (c: number) => rootTerm(c, k);
+    const answer = [`${2 * a}`, root(2 * b)];
+    const given = shown ? `$${plusTex(k, n)} = ${abTex(a, b, k)}$. ` : '';
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `${given}Fill in the sum of these two, and the difference: the first minus the second.` },
+        { kind: 'display', tex: `${plusTex(k, n)}, \\quad ${minusTex(k, n)}` },
+      ],
+      template: '\\text{sum} = {0} \\quad \\text{difference} = {1}',
+      bank: tileBank(answer, fewSlips(answer, [`${a}`, root(b), `${2 * b}`, root(2 * a), '0'])),
+      answer,
+    };
+  },
+  solution: ({ k, n }) => [...conjWorking({ k, n, sum: true }), { tex: `${conjTex({ k, n, sum: false })} = ${rootTerm(2 * conjParts({ k, n }).b, k)}` }],
+};
+
+/** The sum typed, or the number in front of √k in the difference. The choice form offers it undoubled and the other part. */
+const conjValue: Generator<ConjParams> = {
+  id: 'bin-conjugate-value',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleConj(rng, 5, 8) : sampleConj(rng, 3, 5)),
+  choices: (params) => {
+    const { a, b } = conjParts(params);
+    const right = params.sum ? 2 * a : 2 * b;
+    const wrong = params.sum ? [a, 2 * b, 2 * (a + b), a + b] : [b, 2 * a, 2 * (a + b), a + b];
+    return aimedNumbers(right, wholeSlips(right, ...wrong), spread(params.k, params.n, params.sum ? 1 : 2));
+  },
+  render: (params): Slide => {
+    const { a, b } = conjParts(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: params.sum
+            ? `Find the value of $${conjTex(params)}$.`
+            : `$${conjTex(params)} = c${rootTex(params.k)}$ for a whole number $c$. Find $c$.`,
+        },
+      ],
+      lead: params.sum ? '\\text{value} =' : 'c =',
+      keypad: [],
+      answer: `${params.sum ? 2 * a : 2 * b}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: conjWorking,
+};
+
+/**
+ * Why the sum is whole or the difference a multiple of √k: which terms turn
+ * negative, what adding or subtracting does to them, and so what is left.
+ */
+const conjFlow: Generator<ConjParams> = {
+  id: 'bin-conjugate-flow',
+  sample: (rng, difficulty) => sampleConj(rng, difficulty > 1 ? 5 : 3, difficulty > 1 ? 8 : 6),
+  render: (params): Slide => {
+    const { k, n, sum } = params;
+    const root = rootTex(k);
+    const odd = `The odd powers of $${root}$`;
+    const cancel = 'They cancel';
+    const double = 'They double';
+    const whole = 'A whole number';
+    const multiple = `A multiple of $${root}$`;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Is this a whole number, or a multiple of $${root}$? Decide without expanding.` }],
+      subject: conjTex(params),
+      steps: [
+        {
+          id: 'sign',
+          ask: 'Which terms of the second expansion have the opposite sign to the same terms of the first?',
+          branches: turned(
+            [
+              { label: odd, to: 'combine' },
+              { label: `The even powers of $${root}$`, outcome: `An even power of $-${root}$ is positive: $(-${root})^2 = ${k}$.` },
+              { label: 'Every term', outcome: `Only an odd power of $-${root}$ is negative. The even powers keep their sign.` },
+            ],
+            spread(k, n, sum ? 1 : 2),
+          ),
+        },
+        {
+          id: 'combine',
+          ask: sum ? 'The two expansions are added. What happens to those terms?' : 'The second expansion is subtracted. What happens to those terms?',
+          branches: [
+            sum ? { label: cancel, to: 'result' } : { label: cancel, outcome: 'Subtracting a negative term adds it, so each one doubles.' },
+            sum ? { label: double, outcome: 'Each is added to its own negative, so they cancel.' } : { label: double, to: 'result' },
+          ],
+        },
+        {
+          id: 'result',
+          ask: 'So what is left?',
+          branches: turned(
+            [
+              {
+                label: whole,
+                outcome: sum
+                  ? `Right: only the even powers are left, each a whole number. The value is $${2 * conjParts(params).a}$.`
+                  : `The even powers are what cancelled here: every term left carries one $${root}$.`,
+              },
+              {
+                label: multiple,
+                outcome: sum
+                  ? `The terms carrying $${root}$ are gone: everything left is a whole number.`
+                  : `Right: only the odd powers are left, each carrying one $${root}$. The value is $${rootTerm(2 * conjParts(params).b, k)}$.`,
+              },
+            ],
+            spread(n, k, 3),
+          ),
+        },
+      ],
+      answer: [odd, sum ? cancel : double, sum ? whole : multiple],
+    };
+  },
+  solution: conjWorking,
+};
+
+/* --- a number and a surd --- */
+
+/** (p ± q√k)^n with a number in front, everything under 10000. */
+function sampleMixed(rng: Rng, ps: number[], qs: number[], nMin: number, nMax: number): SurdParams {
+  for (;;) {
+    const params = { p: rng.pick(ps), q: rng.pick(qs), k: rng.pick(ROOTS), n: rng.int(nMin, nMax) };
+    if (surdFits(params)) return params;
+  }
+}
+
+/**
+ * (p ± √k)^n as a + b√k. The slips are the powers of p forgotten, a and b
+ * swapped, and b's sign turned.
+ */
+const mixedTiles: Generator<SurdParams> = {
+  id: 'bin-mixed-tiles',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleMixed(rng, [2, 3, 4], [1, -1, -1], 3, 6) : sampleMixed(rng, [2, 3], [1], 2, 5)),
+  render: (params): Slide => {
+    const { a, b } = surdParts(params);
+    const forgot = surdParts({ ...params, p: 1 });
+    const answer = [signedToken(a, true), signedToken(b, false)];
+    const slips = [`${Math.abs(b)}`, signedToken(a, false), signedToken(-b, false), `${forgot.a}`, signedToken(forgot.b, false), `${a + Math.abs(b)}`];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Expand and gather the whole numbers and the multiples of $${rootTex(params.k)}$. The $${params.p}$ is raised to a power in every term.` }],
+      template: `${surdPowTemplate(params)} = {0} {1}\\sqrt${params.k}`,
+      bank: tileBank(answer, fewSlips(answer, slips)),
+      answer,
+    };
+  },
+  solution: surdWorking,
+};
+
+const mixedTermsTree: Generator<SurdParams> = {
+  id: 'bin-mixed-terms-tree',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleMixed(rng, [2, 3, 4, 5], [1, 2], 3, 3) : sampleMixed(rng, [2, 3, 4], [1], 2, 3)),
+  render: (params) => surdTreeSlide(params, `The $${params.p}$ is raised to a power in every term. `),
+  solution: surdWorking,
+};
+
+const mixedPart = surdAskGenerator('bin-mixed-part', (rng, difficulty) =>
+  difficulty > 1 ? sampleMixed(rng, [2, 3, 4, 5], [1], 3, 6) : sampleMixed(rng, [2, 3], [1], 2, 4),
+);
+
+/** Brackets whose product with their conjugate is 1 or -1: (2 + √3)(2 - √3) = 1. */
+const UNIT_PAIRS = [
+  { p: 2, q: 1, k: 3 },
+  { p: 2, q: 1, k: 5 },
+  { p: 3, q: 2, k: 2 },
+  { p: 5, q: 2, k: 6 },
+];
+
+/** p^2 - q^2 k: what (p + q√k)(p - q√k) comes to. */
+function unitValue({ p, q, k }: Pick<SurdParams, 'p' | 'q' | 'k'>): number {
+  return p * p - q * q * k;
+}
+
+/**
+ * (p + q√k)^n (p - q√k)^n as ((p + q√k)(p - q√k))^n = (p^2 - q^2 k)^n, a step
+ * at a time. The slips are the root left unsquared, the minus read as a plus,
+ * and the power one out.
+ */
+const unitSteps: Generator<SurdParams> = {
+  id: 'bin-unit-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const units = hard ? UNIT_PAIRS : UNIT_PAIRS.filter(({ q }) => q === 1);
+    for (;;) {
+      const n = rng.int(hard ? 3 : 2, hard ? 6 : 5);
+      const params = rng.chance(0.35)
+        ? { ...rng.pick(units), n }
+        : { p: rng.int(2, hard ? 7 : 5), q: hard ? rng.pick([1, 2]) : 1, k: rng.pick(ROOTS), n };
+      const m = unitValue(params);
+      if (m !== 0 && Math.abs(m) ** params.n < 10000) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { p, q, k, n } = params;
+    const m = unitValue(params);
+    const plain = (value: number) => `${value}`;
+    const power = (value: number) => value ** n;
+    const root = `${q === 1 ? '' : q}${rootTex(k)}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The two brackets have the same power, so multiply them first: $(${p} + ${root})(${p} - ${root})$ is a difference of two squares. Tap the step to do next, then choose what it gives.`,
+        },
+        { kind: 'display', tex: `(${p} + ${root})^{${n}}(${p} - ${root})^{${n}}` },
+      ],
+      start: ['(', `${p}^{2}`, '-', `(${root})^{2}`, `)^{${n}}`],
+      reductions: [
+        { span: [1, 2], value: plain(p * p), bank: stepBank(plain, p * p, ...wholeSlips(p * p, 2 * p, p + 2)) },
+        { span: [3, 4], value: plain(q * q * k), bank: stepBank(plain, q * q * k, ...wholeSlips(q * q * k, q * k, k * k * q * q, 2 * q * k)) },
+        { span: [1, 4], operator: 2, value: plain(m), bank: stepBank(plain, m, ...wholeSlips(m, p * p + q * q * k, -m, m - 1)) },
+        {
+          span: [0, 3],
+          operator: 2,
+          value: plain(power(m)),
+          bank: stepBank(plain, power(m), ...wholeSlips(power(m), m * n, m ** (n - 1), m ** (n + 1), -power(m))),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { p, q, k, n } = params;
+    const m = unitValue(params);
+    const root = `${q === 1 ? '' : q}${rootTex(k)}`;
+    return [
+      { text: 'Both brackets carry the same power, so they pair off one at a time:' },
+      { tex: `(${p} + ${root})^{${n}}(${p} - ${root})^{${n}} = ((${p} + ${root})(${p} - ${root}))^{${n}}` },
+      { tex: `(${p} + ${root})(${p} - ${root}) = ${p}^{2} - (${root})^{2} = ${p * p} - ${q * q * k} = ${m}` },
+      { tex: `${m < 0 ? `(${m})` : m}^{${n}} = ${m ** n}` },
+      ...(Math.abs(m) === 1
+        ? [{ text: `The product is $${m ** n}$, so $(${p} - ${root})^{${n}}$ is $${m ** n === 1 ? '' : '-'}\\frac{1}{(${p} + ${root})^{${n}}}$: small, where the other is large.` }]
+        : []),
+    ];
+  },
+};
+
 /**
  * A worked line too wide for a phone, broken at its equals signs into an
  * aligned column. Lines already aligned, or with no equals sign at the top
@@ -4853,4 +6057,24 @@ export const binomialGenerators = [
   fitted(findACoeff),
   fitted(findAFlow),
   fitted(findATree),
+  fitted(droppedTermGen),
+  fitted(keptSumTree),
+  fitted(safePlaces),
+  fitted(enoughFlow),
+  fitted(nearSetup),
+  fitted(nearTiles),
+  fitted(nearSubstituteSteps),
+  fitted(nearEstimate),
+  fitted(surdTiles),
+  fitted(surdPowersTree),
+  fitted(surdPart),
+  fitted(surdGatherSteps),
+  fitted(conjWhich),
+  fitted(conjTiles),
+  fitted(conjValue),
+  fitted(conjFlow),
+  fitted(mixedTiles),
+  fitted(mixedTermsTree),
+  fitted(mixedPart),
+  fitted(unitSteps),
 ];

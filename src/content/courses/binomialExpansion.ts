@@ -12,7 +12,10 @@
  * and the number in front of x. Level 4 multiplies two expansions: the pairs
  * that make one coefficient, the first three terms of a product, brackets that
  * pair off into (1 - x^2)^n, three terms in a bracket as (1 + u)^n, and
- * equating coefficients across a product.
+ * equating coefficients across a product. Level 5 goes back to estimates and
+ * on to surds: how big the error of a three-term estimate is, a number in
+ * front of x, (1 + √2)^n as a + b√2, conjugate pairs, and a number and a surd
+ * together.
  *
  * Every n here is a whole number. The series for negative and fractional n,
  * with its range of validity, is a later level of this course.
@@ -775,6 +778,177 @@ export const binomialExpansion: Course = {
         ask('bin-find-a-coeff', 2),
         ask('bin-identity-tiles', 2),
         ask('bin-find-a-tree', 2),
+      ],
+    },
+    {
+      id: 'be-l5',
+      title: 'Estimates and Surds',
+      lessons: [
+        {
+          id: 'be-l5-error',
+          title: 'How Big the Error Is',
+          slides: [
+            teach(
+              prose('Level 2 estimated $(1.02)^5$ from the first three terms of $(1 + x)^5$ with $x = 0.02$: $1 + 0.1 + 0.004 = 1.104$. The first term it leaves out is ${}^{5}C_{3}x^3$:'),
+              maths('10 \\times 0.02^{3} = 0.00008'),
+              prose('Every later term carries a higher power of $0.02$ and is smaller still, so the estimate is out by about $0.00008$.'),
+            ),
+            ask('bin-dropped-term'),
+            ask('bin-kept-sum-tree'),
+            ask('bin-dropped-term+choice', 2),
+            teach(
+              prose('An estimate is accurate to $k$ decimal places when its error is under half a unit in place $k$:'),
+              maths('\\begin{aligned} 3 \\text{ places}&: \\enspace 0.0005 \\\\ 4 \\text{ places}&: \\enspace 0.00005 \\end{aligned}'),
+              prose('$0.00008$ is under $0.0005$ but not under $0.00005$, so $1.104$ is accurate to $3$ decimal places.'),
+            ),
+            ask('bin-safe-places'),
+            ask('bin-enough-terms-flow'),
+            ask('bin-kept-sum-tree', 2),
+            teach(
+              prose('When the term left out is too big for the places asked, three terms are not enough: keep the $x^3$ term as well.'),
+              prose('With $x$ negative the terms alternate in sign and the error is smaller than the first term left out, so the same test is safe. For $(0.98)^6$:'),
+              maths('{}^{6}C_{3} \\times (-0.02)^{3} = -0.00016'),
+              prose('That is under $0.0005$, so three terms give $(0.98)^6 \\approx 0.886$ to $3$ decimal places.'),
+            ),
+            ask('bin-safe-places', 2),
+            ask('bin-enough-terms-flow', 2),
+          ],
+          skillCheck: [ask('bin-dropped-term', 2), ask('bin-safe-places', 2), ask('bin-enough-terms-flow', 2)],
+        },
+        {
+          id: 'be-l5-near',
+          title: 'A Number in Front',
+          slides: [
+            teach(
+              prose('A power of a number near $2$ or $3$ is estimated the same way, with the whole number kept in the bracket. $2.01 = 2 + 0.01$, so $(2.01)^5$ comes from $(2 + x)^5$ with $x = 0.01$.'),
+              prose('A number just below takes a minus: $1.98 = 2 - 0.02$, so $(1.98)^4$ comes from $(2 - x)^4$ with $x = 0.02$.'),
+            ),
+            ask('bin-near-setup'),
+            ask('bin-near-tiles'),
+            ask('bin-near-substitute-steps'),
+            teach(
+              prose('The $2$ is raised to a power in every term, falling as the power of $x$ rises. With $(2 - x)$ the $x$ term turns negative.'),
+              maths('\\begin{aligned} & (2 + x)^{5} \\\\ &= 32 + 80x + 80x^{2} + \\dots \\end{aligned}'),
+              prose('Put $x = 0.01$:'),
+              maths('32 + 0.8 + 0.008 = 32.808'),
+            ),
+            ask('bin-near-estimate'),
+            ask('bin-near-tiles', 2),
+            ask('bin-near-setup', 2),
+            teach(
+              prose('With the minus, the $x$ term is negative and the $x^2$ term positive:'),
+              maths('\\begin{aligned} & (2 - x)^{4} \\\\ &= 16 - 32x + 24x^{2} - \\dots \\end{aligned}'),
+              prose('Put $x = 0.02$:'),
+              maths('16 - 0.64 + 0.0096 = 15.3696'),
+            ),
+            ask('bin-near-substitute-steps', 2),
+            ask('bin-near-estimate+choice', 2),
+          ],
+          skillCheck: [ask('bin-near-tiles', 2), ask('bin-near-substitute-steps', 2), ask('bin-near-estimate', 2)],
+        },
+        {
+          id: 'be-l5-surd',
+          title: 'Surd Expansions',
+          slides: [
+            teach(
+              prose('Powers of $\\sqrt{2}$ alternate: $(\\sqrt{2})^2 = 2$ is whole, and $(\\sqrt{2})^3 = 2\\sqrt{2}$ keeps one root. So an expansion of $(1 + \\sqrt{2})^n$ gathers into $a + b\\sqrt{2}$, with $a$ and $b$ whole.'),
+              maths('\\begin{aligned} & (1 + \\sqrt{2})^{3} \\\\ &= 1 + 3\\sqrt{2} + 6 + 2\\sqrt{2} \\\\ &= 7 + 5\\sqrt{2} \\end{aligned}'),
+              prose('The surd arithmetic is the same as in Exponents & Radicals.'),
+            ),
+            ask('bin-surd-powers-tree'),
+            ask('bin-surd-tiles'),
+            ask('bin-surd-part'),
+            teach(
+              prose('The even powers of $\\sqrt{2}$ make $a$ and the odd powers make $b$. For $(1 + \\sqrt{2})^4$, row $4$ is $1, 4, 6, 4, 1$:'),
+              maths('\\begin{aligned} a &= 1 + 6 \\times 2 + 4 = 17 \\\\ b &= 4 + 4 \\times 2 = 12 \\end{aligned}'),
+              prose('A number on the root is raised with it: $(2\\sqrt{3})^2 = 4 \\times 3 = 12$.'),
+            ),
+            ask('bin-surd-gather-steps'),
+            ask('bin-surd-part+choice', 2),
+            ask('bin-surd-powers-tree', 2),
+            teach(
+              prose('In $(1 - \\sqrt{2})^n$ only the odd powers of $-\\sqrt{2}$ are negative, so $a$ stays the same and $b$ changes sign:'),
+              maths('(1 - \\sqrt{2})^{4} = 17 - 12\\sqrt{2}'),
+            ),
+            ask('bin-surd-tiles', 2),
+            ask('bin-surd-gather-steps', 2),
+          ],
+          skillCheck: [ask('bin-surd-tiles', 2), ask('bin-surd-part', 2), ask('bin-surd-gather-steps', 2)],
+        },
+        {
+          id: 'be-l5-conjugate',
+          title: 'Conjugate Pairs',
+          slides: [
+            teach(
+              prose('$(1 + \\sqrt{2})^4 = 17 + 12\\sqrt{2}$ and $(1 - \\sqrt{2})^4 = 17 - 12\\sqrt{2}$. Added, the roots cancel; subtracted, the whole parts cancel:'),
+              maths('\\begin{aligned} \\text{sum} &= 34 \\\\ \\text{difference} &= 24\\sqrt{2} \\end{aligned}'),
+            ),
+            ask('bin-conjugate-which'),
+            ask('bin-conjugate-tiles'),
+            ask('bin-conjugate-value'),
+            teach(
+              prose('It works for every $n$. Only the odd powers of $\\sqrt{2}$ change sign between the two expansions, so adding cancels them and subtracting doubles them:'),
+              maths('\\begin{aligned} & (1 + \\sqrt{2})^{n} + (1 - \\sqrt{2})^{n} \\\\ &= 2a \\end{aligned}'),
+              maths('\\begin{aligned} & (1 + \\sqrt{2})^{n} - (1 - \\sqrt{2})^{n} \\\\ &= 2b\\sqrt{2} \\end{aligned}'),
+            ),
+            ask('bin-conjugate-flow'),
+            ask('bin-conjugate-value+choice', 2),
+            ask('bin-conjugate-tiles', 2),
+            teach(
+              prose('Watch the order inside the bracket. $\\sqrt{2} - 1 = -(1 - \\sqrt{2})$, so $(\\sqrt{2} - 1)^n$ is $(1 - \\sqrt{2})^n$ when $n$ is even, and its negative when $n$ is odd.'),
+              maths('(\\sqrt{2} - 1)^{3} = -(1 - \\sqrt{2})^{3}'),
+            ),
+            ask('bin-conjugate-which', 2),
+            ask('bin-conjugate-flow', 2),
+          ],
+          skillCheck: [ask('bin-conjugate-value', 2), ask('bin-conjugate-which', 2), ask('bin-conjugate-flow', 2)],
+        },
+        {
+          id: 'be-l5-mixed',
+          title: 'A Number and a Surd',
+          slides: [
+            teach(
+              prose('A number in front of the root works the same way, its powers kept. In $(2 + \\sqrt{3})^2$ the $2$ is squared too:'),
+              maths('\\begin{aligned} (2 + \\sqrt{3})^{2} &= 4 + 4\\sqrt{3} + 3 \\\\ &= 7 + 4\\sqrt{3} \\end{aligned}'),
+            ),
+            ask('bin-mixed-terms-tree'),
+            ask('bin-mixed-tiles'),
+            ask('bin-mixed-part'),
+            teach(
+              prose('A bracket times its conjugate is a difference of two squares:'),
+              maths('\\begin{aligned} & (2 + \\sqrt{3})(2 - \\sqrt{3}) \\\\ &= 4 - 3 = 1 \\end{aligned}'),
+              prose('With the same power on both they pair off, so $(2 + \\sqrt{3})^n(2 - \\sqrt{3})^n = 1^n = 1$. In general the product is $(p^2 - k)^n$.'),
+            ),
+            ask('bin-unit-steps'),
+            ask('bin-mixed-part+choice', 2),
+            ask('bin-mixed-terms-tree', 2),
+            teach(
+              prose('So $(2 - \\sqrt{3})^n$ is $1$ divided by $(2 + \\sqrt{3})^n$: small where the other is large. It has the same $a$ and $b$, with a minus:'),
+              maths('(2 - \\sqrt{3})^{3} = 26 - 15\\sqrt{3}'),
+              prose('Check: $26^2 - 3 \\times 15^2 = 676 - 675 = 1$.'),
+            ),
+            ask('bin-mixed-tiles', 2),
+            ask('bin-unit-steps', 2),
+          ],
+          skillCheck: [ask('bin-mixed-tiles', 2), ask('bin-mixed-part', 2), ask('bin-unit-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('bin-dropped-term', 2),
+        ask('bin-safe-places', 2),
+        ask('bin-enough-terms-flow', 2),
+        ask('bin-near-tiles', 2),
+        ask('bin-near-substitute-steps', 2),
+        ask('bin-near-estimate', 2),
+        ask('bin-surd-tiles', 2),
+        ask('bin-surd-powers-tree', 2),
+        ask('bin-surd-part', 2),
+        ask('bin-conjugate-which', 2),
+        ask('bin-conjugate-value', 2),
+        ask('bin-conjugate-flow', 2),
+        ask('bin-mixed-tiles', 2),
+        ask('bin-mixed-part', 2),
+        ask('bin-unit-steps', 2),
       ],
     },
   ],

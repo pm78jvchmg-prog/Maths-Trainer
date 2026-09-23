@@ -497,7 +497,7 @@ batch rather than waiting on a separate one.
 | # | Batch | Status |
 | ---: | --- | --- |
 | C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
-| C5-widget | Term-table widget for C5 | claimed |
+| C5-widget | Term-table widget for C5 | **done** (`claude/roadmap-c5-widget-table-jccge6`): slide kind `table`, 2 demo generators (`term-table-explicit`, `term-table-recursive`), no lessons yet |
 
 ### When the queue empties
 

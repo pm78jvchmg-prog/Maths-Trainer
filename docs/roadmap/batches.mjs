@@ -37,7 +37,7 @@ function compareIds(a, b) {
 export function parseBatch(file, text) {
   const id = file.replace(/\.md$/, '');
   const lines = text.split('\n');
-  const heading = /^# ([BC]\d+(?:-[a-z]+)?): (.+)$/.exec(lines[0] ?? '');
+  const heading = /^# ([BC]\d+(?:-[a-z0-9]+)?): (.+)$/.exec(lines[0] ?? '');
   if (!heading) throw new Error(`${file}: the first line should be "# ${id}: <batch title>"`);
   if (heading[1] !== id) throw new Error(`${file}: the heading names ${heading[1]}, but the file is ${id}`);
 

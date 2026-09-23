@@ -8,6 +8,7 @@
  */
 import type { Rng } from '../engine/rng';
 import type { Expr } from './expr';
+import type { BaseCurve, Window } from './transform';
 
 /** A unit of rendered content. Prose may embed inline maths between $ signs. */
 export type Block =
@@ -368,6 +369,27 @@ export type Slide =
       answer: string[];
     })
   /**
+   * Move a curve until it is the one asked for.
+   *
+   * The base curve `y = f(x)` is drawn dashed and a live copy of it moves as
+   * the learner taps steppers (move, stretch) and flips. Two directions, one
+   * kind: `apply` names the target equation in the prompt and asks for the
+   * curve; `match` draws the target curve and asks for the transformation,
+   * which the readout writes out as the learner builds it.
+   *
+   * Graded by comparing curves, not parameters (`sameCurve` in
+   * `src/content/transform.ts`): for an even `f` a flip left to right draws
+   * the same curve as no flip, and the learner who drew it is right.
+   */
+  | ({ kind: 'transform' } & Prompted & {
+      direction: 'apply' | 'match';
+      base: BaseCurve;
+      /** Drawn and graded over this window. */
+      window: Window;
+      /** The transformation that draws the target, as `encodeTransform` writes it. */
+      answer: string;
+    })
+  /**
    * Put the steps of a proof in order.
    *
    * The learner builds the proof rather than writing it: numbered slots, one
@@ -400,6 +422,32 @@ export type Slide =
       /** Values offered, including distractors. */
       bank: string[];
       /** Expected value per node, in `nodes` order. */
+      answer: string[];
+    })
+  /**
+   * Fill in a table of terms: a sequence worked row by row.
+   *
+   * The rule sits in the prompt, and the learner fills the gaps from a bank —
+   * the same two taps as `tree`, but laid out as the table a sequence is
+   * written in on paper. It asks for several terms in one slide, which a typed
+   * `expression` cannot without asking for the closed form instead, and it
+   * lets a third column (a difference, a running sum) be asked beside the
+   * terms.
+   *
+   * Every cell is its own KaTeX call, so the `{0}` markers of `tiles` play no
+   * part here and braces round a number are harmless.
+   */
+  | ({ kind: 'table' } & Prompted & {
+      /** Column headers, TeX: `n`, `u_n`, and optionally a third. */
+      columns: string[];
+      /**
+       * One entry per row and column. A string is a given cell, TeX, where the
+       * empty string shows nothing; `null` is a blank for the learner to fill.
+       */
+      rows: (string | null)[][];
+      /** Values offered, including distractors. Sorted, never shuffled. */
+      bank: string[];
+      /** Expected token per blank, reading rows top to bottom, left to right. */
       answer: string[];
     })
   /**

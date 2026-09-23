@@ -42,6 +42,7 @@ import {
 } from './quadratics';
 import { simultaneousGenerators } from './quadraticSimultaneous';
 import { inequalityGenerators } from './quadraticInequalities';
+import { modellingGenerators } from './quadraticModelling';
 
 /**
  * Four whole-number options built from `offer`, the correct one flagged.
@@ -1182,4 +1183,6 @@ export const quadraticShapeGenerators = [
   ...simultaneousGenerators,
   // Level 5, quadratic inequalities, the same way.
   ...inequalityGenerators,
+  // Level 6, modelling with quadratics, the same way.
+  ...modellingGenerators,
 ] as unknown as Generator<unknown>[];

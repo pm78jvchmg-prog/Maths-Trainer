@@ -20,7 +20,7 @@
  *   whole-number results come from choosing the coefficient as a multiple of
  *   the new index rather than from rounding anything.
  */
-import type { Generator, KeypadKey, Slide } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
@@ -3218,6 +3218,1616 @@ const netBetween: Generator<NetParams> = {
   ],
 };
 
+/* ---------- Level 5: volumes of revolution ---------- */
+
+/*
+ * Every volume in this level is a rational multiple of pi, and the answer has
+ * to carry that pi without blinding the quadrature oracle. The oracle reads a
+ * definite integral's answer with `Number()`, so `26*pi/3` reads as NaN there;
+ * stripping the pi out of the question instead ("V = k pi, find k") asks for a
+ * number no textbook asks for. So `answer` holds the volume as a decimal, pi
+ * included, and `alsoAccepts` holds the exact writing, which a test grades
+ * against it under the slide's own mode. The learner types `26pi/3`, as a
+ * textbook leaves it, and the checker compares numbers either way. The
+ * integrand is declared with its pi, `pi * (...)^2`, so the oracle checks the
+ * factor of pi as well as the integral.
+ *
+ * Every curve squared is a polynomial of degree four at most, the root forms
+ * included (clearing the root is what squaring is for), so `sixtyIntegral`
+ * does the arithmetic exactly and nothing is rounded into an answer.
+ */
+
+/** Number entry with a pi key; `/` is what puts the fraction key on the pad. */
+const VOLUME_KEYS: KeypadKey[] = [{ insert: 'pi', label: 'π' }, { insert: '/' }];
+
+function polyMul(a: Poly, b: Poly): Poly {
+  const out: Poly = Array.from({ length: a.length + b.length - 1 }, () => 0);
+  a.forEach((x, i) =>
+    b.forEach((y, j) => {
+      out[i + j] += x * y;
+    }),
+  );
+  return out;
+}
+
+/**
+ * Sixty times the integral of `p` from `a` to `b`.
+ *
+ * `sixIntegral` stops at degree two; a squared quadratic reaches degree four,
+ * whose antiderivative divides by five. Sixty is the smallest number every
+ * one of 1 to 5 divides, so this is whole for whole coefficients and limits,
+ * and a volume can be carried as an exact fraction of pi.
+ */
+function sixtyIntegral(p: Poly, a: number, b: number): number {
+  return p.reduce(
+    (total, value, power) => total + value * (60 / (power + 1)) * (b ** (power + 1) - a ** (power + 1)),
+    0,
+  );
+}
+
+/** A fraction in lowest terms, the sign on top. */
+interface Ratio {
+  n: number;
+  d: number;
+}
+
+const sixtieths = (sixty: number): Ratio => reduce(sixty, 60);
+
+const times = ({ n, d }: Ratio, k: number): Ratio => reduce(n * k, d);
+
+/** A fraction as the learner reads it: `\frac{26}{3}`, `12`. */
+function ratioTex({ n, d }: Ratio): string {
+  if (d === 1) return `${n}`;
+  return `${n < 0 ? '-' : ''}\\frac{${Math.abs(n)}}{${d}}`;
+}
+
+/** The same fraction subtracted from something, bracketed when negative. */
+function subtrahendTex(r: Ratio): string {
+  return r.n < 0 ? `\\left(${ratioTex(r)}\\right)` : ratioTex(r);
+}
+
+/** A multiple of pi as a textbook leaves it: `\frac{26\pi}{3}`, `12\pi`, `\pi`. */
+function piTex({ n, d }: Ratio): string {
+  if (n === 0) return '0';
+  const size = Math.abs(n);
+  const pi = size === 1 ? '\\pi' : `${size}\\pi`;
+  const sign = n < 0 ? '-' : '';
+  return d === 1 ? `${sign}${pi}` : `${sign}\\frac{${pi}}{${d}}`;
+}
+
+/** The grader's copy: a decimal, so the quadrature oracle can read it. See the note above. */
+const piValue = ({ n, d }: Ratio): string => `${(n * Math.PI) / d}`;
+
+/** The exact writing, which a test proves the decimal accepts. */
+const piExact = ({ n, d }: Ratio): string => `(${n}/${d})*pi`;
+
+const piOption = (r: Ratio) => ({ tex: piTex(r), answer: piExact(r) });
+
+/** The right number with the pi left off. */
+const bareOption = (r: Ratio) => ({ tex: ratioTex(r), answer: `${r.n}/${r.d}` });
+
+/** A whole multiple of pi as a tile. */
+function piWhole(n: number): string {
+  return piTex({ n, d: 1 });
+}
+
+/** A polynomial written in y rather than x. `polyTex` writes no other letter. */
+const inY = (tex: string): string => tex.replace(/x/g, 'y');
+
+const mod = (a: number, n: number): number => ((a % n) + n) % n;
+
+/** A slot number spread evenly from a question's parameters. */
+const mix = (...xs: number[]): number =>
+  xs.reduce((h, x) => Math.imul(h ^ (x + 0x9e37), 0x5bd1e995) >>> 0, 17) >>> 7;
+
+/**
+ * Options for a derived `+choice` form, ordered so the answer lands in the slot
+ * the question's own numbers pick.
+ *
+ * `choiceVariant` turns the options by a hash of their labels, and labels that
+ * are multiples of pi share most of their characters, which leaves the hash
+ * uneven. This tries orders of the options until the hash rotation puts the
+ * answer at `salt`. A copy of `steered` in `complexPlane.ts`, which mirrors the
+ * private `rotation` in `choiceVariant.ts`; if that changes, the answer is
+ * still on offer and only its slot drifts.
+ */
+function steered(opts: ChoiceOption[], salt: number): ChoiceOption[] {
+  const turnOf = (list: ChoiceOption[]) => {
+    let hash = 0;
+    for (const option of list) {
+      for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash) % list.length;
+  };
+  const target = mod(salt, opts.length);
+  const orders = (list: ChoiceOption[]): ChoiceOption[][] =>
+    list.length <= 1
+      ? [list]
+      : list.flatMap((head, idx) =>
+          orders([...list.slice(0, idx), ...list.slice(idx + 1)]).map((rest) => [head, ...rest]),
+        );
+  for (const order of orders(opts)) {
+    const at = order.findIndex((option) => option.correct);
+    if (mod(at - turnOf(order), order.length) === target) return order;
+  }
+  return opts;
+}
+
+/** A native choice's options with the right one placed at the slot `salt` picks. */
+function slotted<T>(correct: T, rest: T[], salt: number): T[] {
+  const slot = mod(salt, rest.length + 1);
+  return [...rest.slice(0, slot), correct, ...rest.slice(slot)];
+}
+
+/**
+ * A region and the solid it sweeps out.
+ *
+ * The region is shaded as `betweenSvg` shades it, and the turn is suggested
+ * the way it is drawn by hand: the edges that move carried to the far side of
+ * the axis, dashed, and an ellipse at each flat face. Nothing here is a true
+ * perspective drawing, which would need a 3D renderer for a picture whose job
+ * is only to say "this region, spun round that axis, makes this".
+ *
+ * For a turn about the y-axis an `edges` curve is still y as a function of x,
+ * and its far side is the reflection in the y-axis; a rim's `at` is then a
+ * height and its radius a distance across.
+ */
+export function solidSvg(opts: {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  top: (x: number) => number;
+  bottom?: (x: number) => number;
+  from: number;
+  to: number;
+  axis: 'x' | 'y';
+  edges: { f: (x: number) => number; from: number; to: number }[];
+  rims: { at: number; radius: number }[];
+  label: string;
+  height?: number;
+}): string {
+  const WIDTH = 280;
+  const PAD = 12;
+  const height = opts.height ?? 150;
+  const px = (x: number) => PAD + ((x - opts.xMin) / (opts.xMax - opts.xMin)) * (WIDTH - PAD * 2);
+  const py = (y: number) => PAD + ((opts.yMax - y) / (opts.yMax - opts.yMin)) * (height - PAD * 2);
+  const far = (x: number, y: number): [number, number] => (opts.axis === 'x' ? [x, -y] : [-x, y]);
+  const ghosts = opts.edges.map(({ f, from, to }) => {
+    const points = Array.from({ length: 61 }, (_, i) => {
+      const x = from + ((to - from) * i) / 60;
+      const [gx, gy] = far(x, f(x));
+      return `${px(gx).toFixed(1)},${py(gy).toFixed(1)}`;
+    });
+    return `<path fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6" d="M ${points.join(' L ')}" />`;
+  });
+  const rims = opts.rims.map(({ at, radius }) => {
+    const [cx, cy, rx, ry] =
+      opts.axis === 'x'
+        ? [px(at), py(0), 5, Math.abs(py(radius) - py(0))]
+        : [px(0), py(at), Math.abs(px(radius) - px(0)), 5];
+    return `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.6" />`;
+  });
+  // `plotSvg` draws only the x-axis; a turn about the y-axis needs its own.
+  const spindle =
+    opts.axis === 'y'
+      ? `<line x1="${px(0).toFixed(1)}" y1="${PAD}" x2="${px(0).toFixed(1)}" y2="${height - PAD}" stroke="currentColor" stroke-width="1" opacity="0.55" />`
+      : '';
+  const region = betweenSvg({
+    xMin: opts.xMin,
+    xMax: opts.xMax,
+    yMin: opts.yMin,
+    yMax: opts.yMax,
+    top: opts.top,
+    bottom: opts.bottom ?? (() => 0),
+    from: opts.from,
+    to: opts.to,
+    label: opts.label,
+    height,
+  });
+  const close = region.lastIndexOf('</svg>');
+  return `${region.slice(0, close)}${spindle}${ghosts.join('')}${rims.join('')}${region.slice(close)}`;
+}
+
+/**
+ * The curve that is turned: a polynomial, or k times the square root of one.
+ *
+ * Plain numbers rather than a function, so a question's parameters stay data.
+ * The root forms are the ones squaring was made for: y^2 = k^2 (under) is a
+ * polynomial, so the volume is as easy to find as an area.
+ */
+interface Profile {
+  poly: Poly;
+  root: boolean;
+  k: number;
+}
+
+function profileTex({ poly, root, k }: Profile): string {
+  if (!root) return polyTex(poly);
+  const lead = k === 1 ? '' : `${k}`;
+  // x^3 under a root is written the way a textbook writes it.
+  if (poly.length === 4 && poly.every((value, power) => value === (power === 3 ? 1 : 0))) return `${lead}x\\sqrt{x}`;
+  return `${lead}\\sqrt{${polyTex(poly)}}`;
+}
+
+function profileSquared({ poly, root, k }: Profile): Poly {
+  return root ? polyScale(poly, k * k) : polyMul(poly, poly);
+}
+
+/** y at x: NaN outside a root's domain, which `plotSvg` skips when a curve has `breaks`. */
+function profileAt({ poly, root, k }: Profile, x: number): number {
+  return root ? k * Math.sqrt(polyAt(poly, x)) : polyAt(poly, x);
+}
+
+function profileAnswer({ poly, root, k }: Profile): string {
+  return root ? `(${k}) * sqrt(${polyAnswer(poly)})` : polyAnswer(poly);
+}
+
+/** Each term squared on its own, cross terms lost: the slip squaring a bracket invites. */
+function eachSquared(p: Poly): Poly {
+  const out: Poly = Array.from({ length: 2 * p.length - 1 }, () => 0);
+  p.forEach((value, power) => {
+    out[2 * power] += value * value;
+  });
+  return out;
+}
+
+type ProfileForm = 'line' | 'parabola' | 'root';
+
+function drawProfile(rng: Rng, difficulty: number, form: ProfileForm): Profile {
+  const hard = difficulty > 1;
+  if (form === 'line') {
+    const m = rng.int(1, hard ? 4 : 3);
+    return { poly: [rng.int(hard ? -2 : 0, hard ? 9 : 6), rng.chance(hard ? 0.4 : 0.25) ? -m : m], root: false, k: 1 };
+  }
+  if (form === 'parabola') {
+    if (!hard) {
+      return rng.int(0, 1) === 0
+        ? { poly: [rng.int(0, 5), 0, 1], root: false, k: 1 }
+        : { poly: [0, 0, rng.int(2, 3)], root: false, k: 1 };
+    }
+    return { poly: [rng.int(-2, 6), rng.int(-3, 3), rng.pick([-1, 1, 2])], root: false, k: 1 };
+  }
+  if (!hard) {
+    return rng.int(0, 1) === 0
+      ? { poly: [0, 1], root: true, k: rng.int(1, 4) }
+      : { poly: [rng.int(1, 7), 1], root: true, k: 1 };
+  }
+  const shape = rng.int(0, 2);
+  if (shape === 0) return { poly: [rng.int(-3, 6), rng.int(2, 5)], root: true, k: 1 };
+  if (shape === 1) return { poly: [0, 0, 0, 1], root: true, k: rng.int(1, 2) };
+  return { poly: [rng.int(1, 9), 0, 1], root: true, k: 1 };
+}
+
+/** A curve and the limits it is turned between. */
+interface Turned {
+  profile: Profile;
+  a: number;
+  b: number;
+}
+
+/**
+ * A curve that stays on or above the axis between whole limits, so the region
+ * under it is what gets turned and y is a radius all the way along.
+ */
+function sampleTurned(rng: Rng, difficulty: number, forms: ProfileForm[]): Turned {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const a = rng.int(0, 2);
+      return { profile: drawProfile(rng, difficulty, rng.pick(forms)), a, b: a + rng.int(1, hard ? 3 : 2) };
+    },
+    ({ profile, a, b }) => {
+      const sixty = sixtyIntegral(profileSquared(profile), a, b);
+      return minOn(profile.poly, a, b) >= 0 && sixty > 0 && sixty <= 60 * (hard ? 400 : 160);
+    },
+    { profile: { poly: [1, 1], root: false, k: 1 }, a: 0, b: 2 },
+  );
+}
+
+function turnedVolume({ profile, a, b }: Turned): Ratio {
+  return sixtieths(sixtyIntegral(profileSquared(profile), a, b));
+}
+
+/** The worked solution to a volume about the x-axis: square, integrate, evaluate. */
+function turnedSolution({ profile, a, b }: Turned) {
+  const y = profileTex(profile);
+  const squared = profileSquared(profile);
+  const upper = sixtieths(sixtyIntegral(squared, 0, b));
+  const lower = sixtieths(sixtyIntegral(squared, 0, a));
+  return [
+    { text: 'Square $y$ first, then integrate: the volume is $\\pi \\int_{a}^{b} y^{2} \\, dx$.' },
+    { tex: stacked(`y^{2} = \\left(${y}\\right)^{2}`, `= ${polyTex(squared)}`) },
+    {
+      text: `That integrates to $${antiTex(squared)}$. Put in $x = ${b}$, then $x = ${a}$, and subtract.`,
+    },
+    {
+      tex: stacked(
+        `V = \\pi \\left(${ratioTex(upper)} - ${subtrahendTex(lower)}\\right)`,
+        `= ${piTex(turnedVolume({ profile, a, b }))}`,
+      ),
+    },
+    {
+      text: profile.root
+        ? 'Squaring removes the square root, which is why a root curve is often the easiest one to turn.'
+        : 'Multiply the bracket out before integrating. Squaring each term on its own loses the middle term, and the volume with it.',
+    },
+  ];
+}
+
+/**
+ * The wrong volumes worth offering: squaring term by term, integrating
+ * without dividing by the new power, leaving the pi off, and 2 pi, which
+ * belongs to a circumference rather than an area.
+ */
+function turnedChoices(params: Turned): ChoiceOption[] {
+  const { profile, a, b } = params;
+  const squared = profileSquared(profile);
+  const right = turnedVolume(params);
+  const undivided = reduce(
+    squared.reduce((total, value, power) => total + value * (b ** (power + 1) - a ** (power + 1)), 0),
+    1,
+  );
+  const termwise = profile.root ? times(right, 2) : sixtieths(sixtyIntegral(eachSquared(profile.poly), a, b));
+  return steered(
+    options(piOption(right), piOption(termwise), piOption(undivided), bareOption(right), piOption(times(right, 2))).slice(
+      0,
+      4,
+    ),
+    mix(a, b, ...squared),
+  );
+}
+
+type SolidKind = 'cylinder' | 'cone' | 'frustum' | 'sphere' | 'hemisphere';
+
+interface ShapeParams {
+  kind: SolidKind;
+  /** y = m x + c for the straight edges. For the round solids c is the radius. */
+  m: number;
+  c: number;
+  from: number;
+  to: number;
+}
+
+const SOLID_NAMES: Record<SolidKind, string> = {
+  cylinder: 'A cylinder',
+  cone: 'A cone',
+  frustum: 'A frustum: a cone with its tip cut off',
+  sphere: 'A sphere',
+  hemisphere: 'A hemisphere',
+};
+
+const isRound = (kind: SolidKind): boolean => kind === 'sphere' || kind === 'hemisphere';
+
+function shapeCurve({ kind, m, c }: ShapeParams): (x: number) => number {
+  return isRound(kind) ? (x) => Math.sqrt(c * c - x * x) : (x) => m * x + c;
+}
+
+function shapeTex({ kind, m, c }: ShapeParams): string {
+  return isRound(kind) ? `\\sqrt{${c * c} - x^{2}}` : polyTex([c, m]);
+}
+
+/**
+ * What solid a region makes: the picture before any integral.
+ *
+ * Every solid a learner already has a formula for, so the level can later
+ * check an integral against it. The region is shaded and the solid is not
+ * drawn, since drawing it is the question.
+ */
+const volumeShape: Generator<ShapeParams> = {
+  id: 'int-vol-shape',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick<SolidKind>(
+      hard ? ['cylinder', 'cone', 'frustum', 'sphere', 'hemisphere'] : ['cylinder', 'cone', 'frustum', 'sphere'],
+    );
+    if (kind === 'cylinder') {
+      const from = rng.int(0, 3);
+      return { kind, m: 0, c: rng.int(1, 6), from, to: from + rng.int(1, 5) };
+    }
+    if (kind === 'sphere') {
+      const r = rng.int(1, 7);
+      return { kind, m: 0, c: r, from: -r, to: r };
+    }
+    if (kind === 'hemisphere') {
+      const r = rng.int(1, 7);
+      return rng.int(0, 1) === 0 ? { kind, m: 0, c: r, from: 0, to: r } : { kind, m: 0, c: r, from: -r, to: 0 };
+    }
+    const m = rng.int(1, 3);
+    if (kind === 'cone') {
+      const length = rng.int(1, 5);
+      // The tip at the origin, or at difficulty 2 sometimes at the far end,
+      // where a falling line comes down to meet the axis.
+      return hard && rng.int(0, 1) === 0
+        ? { kind, m: -m, c: m * length, from: 0, to: length }
+        : { kind, m, c: 0, from: 0, to: length };
+    }
+    if (hard && rng.int(0, 1) === 0) {
+      const from = rng.int(1, 3);
+      return { kind, m, c: 0, from, to: from + rng.int(1, 3) };
+    }
+    return { kind, m, c: rng.int(1, 4), from: 0, to: rng.int(1, 4) };
+  },
+  render: (params): Slide => {
+    const { kind, from, to, c } = params;
+    const f = shapeCurve(params);
+    const high = Math.max(f(from), f(to), isRound(kind) ? c : 0);
+    const others = (['cylinder', 'cone', 'frustum', kind === 'hemisphere' ? 'hemisphere' : 'sphere'] as SolidKind[])
+      .filter((other) => other !== kind)
+      .map((other) => ({ id: other, label: SOLID_NAMES[other] }));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The shaded region under $y = ${shapeTex(params)}$, from $x = ${from}$ to $x = ${to}$, is rotated $360^{\\circ}$ about the $x$-axis. What solid does it sweep out?`,
+        },
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: Math.min(from, 0) - 0.6,
+            xMax: Math.max(to, 0) + 0.6,
+            yMin: -0.15 * high - 0.2,
+            yMax: 1.2 * high + 0.2,
+            height: 130,
+            curves: [{ f, breaks: true }],
+            shade: { f, from, to },
+            label: `The region under the curve from x = ${from} to x = ${to}`,
+          }),
+        },
+      ],
+      options: slotted({ id: kind, label: SOLID_NAMES[kind] }, others, mix(params.m, c, from, to, kind.length)),
+      correctId: kind,
+    };
+  },
+  solution: (params) => {
+    const { kind, m, c, from, to } = params;
+    const f = shapeCurve(params);
+    if (kind === 'cylinder') {
+      return [
+        { text: `Every slice across the solid is a disc of radius $${c}$, the height of the line, the same all the way along.` },
+        { text: `So the solid is a cylinder of radius $${c}$ and length $${to - from}$.` },
+      ];
+    }
+    if (isRound(kind)) {
+      return [
+        { text: `$y = \\sqrt{${c * c} - x^{2}}$ is the top half of the circle $x^{2} + y^{2} = ${c * c}$, radius $${c}$.` },
+        kind === 'sphere'
+          ? { text: `From $x = ${-c}$ to $x = ${c}$ that is a semicircle, and a semicircle turned about its diameter is a sphere of radius $${c}$.` }
+          : { text: `From $x = ${from}$ to $x = ${to}$ it is a quarter circle, which turns into half a sphere: a hemisphere of radius $${c}$.` },
+      ];
+    }
+    const [r1, r2] = [f(from), f(to)];
+    return [
+      {
+        text: `A straight edge makes each slice's radius change steadily: here from $${r1}$ at $x = ${from}$ to $${r2}$ at $x = ${to}$.`,
+      },
+      kind === 'cone'
+        ? { text: `One end has radius $0$, a point, so the solid is a cone with its tip at $x = ${r1 === 0 ? from : to}$.` }
+        : { text: `Neither end is a point, so the solid is a cone with its tip cut off: a frustum. The tip would have been where $y = ${polyTex([c, m])}$ meets the axis.` },
+    ];
+  },
+};
+
+/** Which integral gives the volume: the set-up on its own, nothing evaluated. */
+const volumeSetup: Generator<Turned> = {
+  id: 'int-vol-setup',
+  sample: (rng, difficulty) => sampleTurned(rng, difficulty, ['line', 'parabola', 'root']),
+  render: ({ profile, a, b }): Slide => {
+    const y = profileTex(profile);
+    const integral = (factor: string, integrand: string) => `${factor}\\int_{${a}}^{${b}} ${integrand} \\, dx`;
+    const squared = `\\left(${y}\\right)^{2}`;
+    const choices = slotted(
+      { id: 'right', label: integral('\\pi ', squared), tex: true },
+      [
+        { id: 'unsquared', label: integral('\\pi ', y), tex: true },
+        { id: 'two-pi', label: integral('2\\pi ', squared), tex: true },
+        { id: 'no-pi', label: integral('', squared), tex: true },
+      ],
+      mix(a, b, profile.k, ...profile.poly),
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region under $y = ${y}$ from $x = ${a}$ to $x = ${b}$ is rotated $360^{\\circ}$ about the $x$-axis. Which integral gives the volume of the solid?`,
+        },
+      ],
+      options: choices,
+      correctId: 'right',
+    };
+  },
+  solution: ({ profile, a, b }) => [
+    {
+      text: 'Slice the solid across the $x$-axis. The slice at $x$ is a disc of radius $y$, so its area is $\\pi y^{2}$, and a slice $\\delta x$ thick has volume about $\\pi y^{2} \\, \\delta x$.',
+    },
+    { text: `Adding the slices from $x = ${a}$ to $x = ${b}$, and letting them get thinner, turns the sum into an integral.` },
+    { tex: `V = \\pi \\int_{${a}}^{${b}} y^{2} \\, dx` },
+    {
+      text: `Here $y = ${profileTex(profile)}$, and it is squared because the radius is squared in $\\pi r^{2}$. The $\\pi$ comes from the circle; $2\\pi$ belongs to a circumference, not an area.`,
+    },
+  ],
+};
+
+/** The volume integral completed as tiles: the constant in front and y squared, multiplied out. */
+const volumeIntegrand: Generator<Turned> = {
+  id: 'int-vol-integrand',
+  sample: (rng, difficulty) =>
+    sampleTurned(rng, difficulty, difficulty > 1 ? ['line', 'parabola', 'root'] : ['line', 'root']),
+  render: ({ profile, a, b }): Slide => {
+    const squared = profileSquared(profile);
+    const answer = ['\\pi', polyTex(squared)];
+    // Each term squared (cross terms lost), the cross term not doubled, y
+    // itself; for a root, k left unsquared and the root left in.
+    const halfCross = polyScale(polyAdd(squared, eachSquared(profile.poly)), 0.5);
+    const slips = profile.root
+      ? [polyTex(polyScale(profile.poly, profile.k)), profileTex(profile)]
+      : [polyTex(eachSquared(profile.poly)), polyTex(halfCross), polyTex(profile.poly)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region under $y = ${profileTex(profile)}$ from $x = ${a}$ to $x = ${b}$ is rotated $360^{\\circ}$ about the $x$-axis. Complete the volume integral, with the integrand multiplied out.`,
+        },
+      ],
+      template: `V = {0} \\int_${templateLimit(a)}^${templateLimit(b)} ( {1} ) \\, dx`,
+      bank: tokenBank(answer, ['2\\pi', '\\pi^{2}', ...slips]),
+      answer,
+    };
+  },
+  solution: ({ profile, a, b }) => {
+    const y = profileTex(profile);
+    return [
+      { text: 'The volume of a region turned about the $x$-axis is $\\pi$ times the integral of $y^{2}$, between the same limits.' },
+      { tex: `V = \\pi \\int_{${a}}^{${b}} y^{2} \\, dx` },
+      { tex: stacked(`y^{2} = \\left(${y}\\right)^{2}`, `= ${polyTex(profileSquared(profile))}`) },
+      {
+        text: profile.root
+          ? 'Squaring a square root gives back what was under it, and a number in front is squared too.'
+          : 'Every term of the bracket multiplies every other. Squaring each term on its own drops the middle term, which is twice the product of the two.',
+      },
+    ];
+  },
+};
+
+interface SliceParams extends Turned {
+  /** Where the slice is taken. */
+  t: number;
+  /** The top of the slider's track. */
+  top: number;
+}
+
+/** A point inside the limits where the curve's height is whole and not zero. */
+function sampleSlice(rng: Rng, difficulty: number): SliceParams {
+  return drawUntil(
+    () => {
+      const turned = sampleTurned(rng, difficulty, ['line', 'parabola', 'root']);
+      const t = rng.int(turned.a, turned.b);
+      return { ...turned, t, top: Math.ceil(profileAt(turned.profile, t)) + rng.int(2, 5) };
+    },
+    ({ profile, t, top }) => {
+      const r = profileAt(profile, t);
+      return Number.isInteger(r) && r > 0 && r <= 16 && r !== restingOn(0, top);
+    },
+    { profile: { poly: [1, 1], root: false, k: 1 }, a: 0, b: 2, t: 2, top: 7 },
+  );
+}
+
+/**
+ * The radius of one slice, dragged to on a picture.
+ *
+ * The step the whole formula rests on: the slice at x is a disc whose radius is
+ * the height of the curve there. The line across the region marks the slice;
+ * the marker is a height.
+ */
+const volumeSlice: Generator<SliceParams> = {
+  id: 'int-vol-slice',
+  sample: sampleSlice,
+  render: ({ profile, a, b, t, top }): Slide => {
+    const f = (x: number) => profileAt(profile, x);
+    const window = markerWindow(0, top, 'y');
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The shaded region under $y = ${profileTex(profile)}$ is rotated $360^{\\circ}$ about the $x$-axis, and every slice across the solid is a disc. Slide the line to the radius of the disc at $x = ${t}$.`,
+        },
+      ],
+      min: 0,
+      max: top,
+      step: 1,
+      answer: profileAt(profile, t),
+      readout: 'r = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: a - 1,
+          xMax: b + 1,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          curves: [{ f, breaks: true }],
+          shade: { f, from: a, to: b },
+          verticals: [{ x: t, dashed: false }],
+          label: `The region under the curve, with the slice at x = ${t} marked`,
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: ({ profile, t }) => [
+    {
+      text: `At $x = ${t}$ the curve is at height $y = ${profileAt(profile, t)}$: put $x = ${t}$ into $y = ${profileTex(profile)}$.`,
+    },
+    {
+      text: 'Turning the region, that point on the curve sweeps a circle round the axis, and everything below it fills the circle in. So the slice is a disc, and its radius is the height of the curve.',
+    },
+    { tex: `r = y = ${profileAt(profile, t)}` },
+  ],
+};
+
+/** The area of one slice: pi times the radius squared, leaving pi in. */
+const discArea: Generator<SliceParams> = {
+  id: 'int-vol-disc-area',
+  sample: sampleSlice,
+  render: ({ profile, t }): Slide => {
+    const r = profileAt(profile, t);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve $y = ${profileTex(profile)}$ is rotated $360^{\\circ}$ about the $x$-axis. The slice across the solid at $x = ${t}$ is a disc. Find its area, leaving $\\pi$ in your answer.`,
+        },
+      ],
+      lead: '\\text{area} =',
+      keypad: VOLUME_KEYS,
+      answer: piValue({ n: r * r, d: 1 }),
+      alsoAccepts: [piExact({ n: r * r, d: 1 })],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ profile, t }) => {
+    const r = profileAt(profile, t);
+    return [
+      { text: `The disc's radius is the height of the curve at $x = ${t}$, which is $y = ${r}$.` },
+      { tex: `\\pi r^{2} = \\pi \\times ${r}^{2} = ${piWhole(r * r)}` },
+      {
+        text: 'The volume integral is these areas added up along the axis: $\\pi y^{2}$ at every $x$, which is why $y$ is squared and the $\\pi$ sits in front.',
+      },
+    ];
+  },
+};
+
+/** The typed volume of a turned region, shared by the polynomial and root forms. */
+function turnedRender({ profile, a, b }: Turned): Slide {
+  const volume = turnedVolume({ profile, a, b });
+  return {
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `The region under $y = ${profileTex(profile)}$ from $x = ${a}$ to $x = ${b}$ is rotated $360^{\\circ}$ about the $x$-axis. Find the volume of the solid, leaving $\\pi$ in your answer.`,
+      },
+    ],
+    lead: 'V =',
+    keypad: VOLUME_KEYS,
+    answer: piValue(volume),
+    alsoAccepts: [piExact(volume)],
+    integrand: `pi * (${profileAnswer(profile)})^2`,
+    limits: [a, b],
+    domain: 'real',
+    mode: 'exact',
+  };
+}
+
+/** The volume from a polynomial turned about the x-axis: square it, then integrate. */
+const volumeXAxis: Generator<Turned> = {
+  id: 'int-vol-x-axis',
+  sample: (rng, difficulty) => sampleTurned(rng, difficulty, ['line', 'parabola']),
+  choices: turnedChoices,
+  render: turnedRender,
+  solution: turnedSolution,
+};
+
+/**
+ * The same with a square root in the curve, which squaring removes.
+ *
+ * Its own family rather than a form of the one above, because the move is
+ * different: here the square is the step that makes the integral possible,
+ * where for a polynomial it is only arithmetic.
+ */
+const volumeRoot: Generator<Turned> = {
+  id: 'int-vol-root',
+  sample: (rng, difficulty) => sampleTurned(rng, difficulty, ['root']),
+  choices: turnedChoices,
+  render: turnedRender,
+  solution: turnedSolution,
+};
+
+interface SquareParams {
+  m: number;
+  /** Signed, never zero. */
+  c: number;
+  /** y = m x + c, or at difficulty 2 sometimes y = m x^2 + c. */
+  power: 1 | 2;
+}
+
+/**
+ * Squaring the curve before integrating, one coefficient per tile.
+ *
+ * The middle term is the point: it is the one squaring term by term loses,
+ * and the bank carries the product without its factor of two, and the
+ * doubled coefficients, beside it.
+ */
+const volumeSquare: Generator<SquareParams> = {
+  id: 'int-vol-square',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const power = hard && rng.int(0, 1) === 0 ? 2 : 1;
+    return { m: rng.int(1, hard ? 6 : 5), c: rng.sign() * rng.int(1, hard ? 7 : 5), power };
+  },
+  render: ({ m, c, power }): Slide => {
+    const y = power === 1 ? polyTex([c, m]) : polyTex([c, 0, m]);
+    const size = Math.abs(c);
+    const answer = [m * m, 2 * m * size, c * c];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A volume about the $x$-axis integrates $y^{2}$, so it has to be multiplied out first. Square $y = ${y}$ and place the coefficients.`,
+        },
+      ],
+      template:
+        power === 1
+          ? `y^2 = {0}x^2 ${c < 0 ? '-' : '+'} {1}x + {2}`
+          : `y^2 = {0}x^4 ${c < 0 ? '-' : '+'} {1}x^2 + {2}`,
+      bank: wholeBank(answer, [m * size, 2 * m, 2 * size, m * m + size * size]).filter(
+        (token) => Number(token) > 0,
+      ),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ m, c, power }) => {
+    const y = power === 1 ? polyTex([c, m]) : polyTex([c, 0, m]);
+    const squared = power === 1 ? polyMul([c, m], [c, m]) : polyMul([c, 0, m], [c, 0, m]);
+    return [
+      { text: 'Square the first term, double the product of the two terms, and square the last.' },
+      { tex: stacked(`\\left(${y}\\right)^{2}`, `= ${polyTex(squared)}`) },
+      {
+        text: `The middle term is $2 \\times ${m} \\times ${Math.abs(c)} = ${2 * m * Math.abs(c)}$, with the sign of $${c}$. Squaring term by term loses it, and the volume comes out wrong by exactly its integral.`,
+      },
+    ];
+  },
+};
+
+type LimitForm = 'cylinder' | 'cone' | 'root';
+
+interface LimitParams {
+  /** y = k, y = k x or y = sqrt(k x), from x = 0 to x = h. */
+  form: LimitForm;
+  k: number;
+  h: number;
+  /** How far the track runs past the answer. */
+  right: number;
+}
+
+/** The power of h in the volume, and its coefficient as a multiple of pi. */
+function limitLaw({ form, k }: LimitParams): { power: number; coefficient: Ratio } {
+  if (form === 'cylinder') return { power: 1, coefficient: reduce(k * k, 1) };
+  if (form === 'cone') return { power: 3, coefficient: reduce(k * k, 3) };
+  return { power: 2, coefficient: reduce(k, 2) };
+}
+
+function limitVolume(params: LimitParams): Ratio {
+  const { power, coefficient } = limitLaw(params);
+  return times(coefficient, params.h ** power);
+}
+
+function limitTex({ form, k }: LimitParams): string {
+  if (form === 'cylinder') return `${k}`;
+  if (form === 'cone') return polyTex([0, k]);
+  return `\\sqrt{${polyTex([0, k])}}`;
+}
+
+/**
+ * The limit that gives a stated volume, dragged to on the curve.
+ *
+ * The integral run backwards: the volume is known and the length is not. The
+ * track starts at the origin, where every region here starts, and runs a
+ * random distance past the answer, so the answer's place on it is no clue.
+ */
+const volumeFindLimit: Generator<LimitParams> = {
+  id: 'int-vol-find-limit',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const form = rng.pick<LimitForm>(['cylinder', 'cone', 'root']);
+        const k = form === 'cylinder' ? rng.int(1, 5) : form === 'cone' ? rng.int(1, 3) : rng.int(1, 8);
+        return { form, k, h: rng.int(2, difficulty > 1 ? 8 : 6), right: rng.int(2, 4) };
+      },
+      ({ h, right }) => h !== restingOn(0, h + right),
+      { form: 'cone', k: 1, h: 3, right: 2 },
+    ),
+  render: (params): Slide => {
+    const { form, k, h, right } = params;
+    const max = h + right;
+    const f = (x: number) => (form === 'cylinder' ? k : form === 'cone' ? k * x : Math.sqrt(k * x));
+    const high = Math.max(f(max), 1);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region under $y = ${limitTex(params)}$ from $x = 0$ to $x = h$ is rotated $360^{\\circ}$ about the $x$-axis, and the solid has volume $${piTex(limitVolume(params))}$. Slide the marker to $h$.`,
+        },
+      ],
+      min: 0,
+      max,
+      step: 1,
+      answer: h,
+      readout: 'h = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: max,
+          yMin: -0.12 * high,
+          yMax: 1.15 * high,
+          curves: [{ f }],
+          label: 'The curve, starting at the origin',
+        }),
+        ...markerWindow(0, max),
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { h } = params;
+    const { power, coefficient } = limitLaw(params);
+    const squared = params.form === 'cylinder' ? `${params.k ** 2}` : polyTex(params.form === 'cone' ? [0, 0, params.k ** 2] : [0, params.k]);
+    const hPower = power === 1 ? 'h' : `h^{${power}}`;
+    return [
+      { text: `Square $y$ and integrate from $0$ to $h$, leaving $h$ as a letter.` },
+      { tex: stacked(`V = \\pi \\int_{0}^{h} ${squared} \\, dx`, `= ${piTex(coefficient)}${hPower}`) },
+      {
+        text: `Set that equal to $${piTex(limitVolume(params))}$ and the $\\pi$ cancels, leaving $${hPower} = ${h ** power}$, so $h = ${h}$.`,
+      },
+    ];
+  },
+};
+
+/**
+ * A curve turned about the y-axis: y = a x^2 + c, or the line y = x / a
+ * through the origin, which turns into a cone standing on its tip.
+ *
+ * Both give x^2 in terms of y with whole coefficients over a whole
+ * denominator, (y - c)/a or a^2 y^2, so the volume is still exact. Only the
+ * right-hand half, x >= 0, is ever turned.
+ */
+interface Riser {
+  line: boolean;
+  a: number;
+  c: number;
+}
+
+function drawRiser(rng: Rng, difficulty: number): Riser {
+  const hard = difficulty > 1;
+  if (rng.int(0, 3) === 0) return { line: true, a: rng.int(1, hard ? 4 : 3), c: 0 };
+  const a = rng.pick(hard ? [1, 1, 2, 3] : [1, 1, 2, 3]);
+  // At difficulty 1 a parabola is shifted or stretched, not both.
+  const c = hard ? rng.int(-3, 6) : a === 1 ? rng.int(0, 6) : 0;
+  return { line: false, a, c };
+}
+
+function riserTex({ line, a, c }: Riser): string {
+  if (line) return a === 1 ? 'x' : `\\frac{x}{${a}}`;
+  return polyTex([c, 0, a]);
+}
+
+function riserAt({ line, a, c }: Riser, x: number): number {
+  return line ? x / a : a * x * x + c;
+}
+
+/** x at a whole step `u` along the curve: whole, and a whole y there too. */
+function riserX({ line, a }: Riser, u: number): number {
+  return line ? a * u : u;
+}
+
+/** x^2 in terms of y, as a polynomial in y over a whole denominator. */
+function riserSquared({ line, a, c }: Riser): { num: Poly; den: number } {
+  return line ? { num: [0, 0, a * a], den: 1 } : { num: [-c, 1], den: a };
+}
+
+function overTex(num: Poly, den: number): string {
+  const top = inY(polyTex(num));
+  return den === 1 ? top : `\\frac{${top}}{${den}}`;
+}
+
+function riserVolume(riser: Riser, lower: number, upper: number): Ratio {
+  const { num, den } = riserSquared(riser);
+  return reduce(sixtyIntegral(num, lower, upper), 60 * den);
+}
+
+/** Rearranging for x^2, as the lines of working a learner writes. */
+function rearrangeTex(riser: Riser): string {
+  const { num, den } = riserSquared(riser);
+  if (riser.line) {
+    return stacked(`y = ${riserTex(riser)}`, `x = ${inY(polyTex([0, riser.a]))}`, `x^{2} = ${overTex(num, den)}`);
+  }
+  return riser.a === 1
+    ? stacked(`y = ${riserTex(riser)}`, `x^{2} = ${overTex(num, den)}`)
+    : stacked(`y = ${riserTex(riser)}`, `${riser.a}x^{2} = ${inY(polyTex(num))}`, `x^{2} = ${overTex(num, den)}`);
+}
+
+interface RearrangeParams {
+  riser: Riser;
+  /** Whole steps along the curve; x at each is `riserX`. */
+  u1: number;
+  u2: number;
+}
+
+/**
+ * The two changes a turn about the y-axis asks for, placed as tiles: limits in
+ * y rather than x, and x^2 in terms of y.
+ *
+ * The bank holds the x-limits beside the y-limits, and x beside x^2, which are
+ * the two things carried over from the x-axis by habit.
+ */
+const volumeRearrange: Generator<RearrangeParams> = {
+  id: 'int-vol-rearrange',
+  sample: (rng, difficulty) => {
+    const u1 = rng.int(0, 2);
+    return { riser: drawRiser(rng, difficulty), u1, u2: u1 + rng.int(1, difficulty > 1 ? 3 : 2) };
+  },
+  render: ({ riser, u1, u2 }): Slide => {
+    const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+    const [y1, y2] = [riserAt(riser, x1), riserAt(riser, x2)];
+    const { num, den } = riserSquared(riser);
+    const answer = [`${y1}`, `${y2}`, overTex(num, den)];
+    const slips = riser.line
+      ? [inY(polyTex([0, riser.a])), `\\frac{y^{2}}{${riser.a * riser.a}}`, inY(polyTex([0, 0, riser.a])), '\\sqrt{y}']
+      : [
+          overTex([riser.c, 1], den),
+          `\\sqrt{${overTex(num, den)}}`,
+          inY(polyTex(polyScale(num, riser.a))),
+          inY(polyTex([-riser.c, 0, 1])),
+        ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The arc of $y = ${riserTex(riser)}$ from $x = ${x1}$ to $x = ${x2}$ and the $y$-axis bound a region, which is rotated $360^{\\circ}$ about the $y$-axis. Place the limits in $y$, then $x^{2}$ in terms of $y$.`,
+        },
+      ],
+      template: '{0} \\le y \\le {1}, \\quad x^2 = {2}',
+      bank: tokenBank(answer, [`${x1}`, `${x2}`, ...slips]),
+      answer,
+    };
+  },
+  solution: ({ riser, u1, u2 }) => {
+    const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+    return [
+      {
+        text: `Turning about the $y$-axis, the slices are stacked up the $y$-axis, so the limits are heights. At $x = ${x1}$, $y = ${riserAt(riser, x1)}$; at $x = ${x2}$, $y = ${riserAt(riser, x2)}$.`,
+      },
+      { text: 'Each slice is a disc whose radius is $x$, so the integrand is $\\pi x^{2}$, written in terms of $y$.' },
+      { tex: rearrangeTex(riser) },
+      { text: 'There is no need to take the square root: the formula wants $x^{2}$, and that is what rearranging gives.' },
+    ];
+  },
+};
+
+interface YVolumeParams extends RearrangeParams {
+  /** True when the region is given by x-limits on the arc, which the learner converts. */
+  givenInX: boolean;
+}
+
+function yRegionText({ riser, u1, u2, givenInX }: YVolumeParams): string {
+  const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+  return givenInX
+    ? `The arc of $y = ${riserTex(riser)}$ from $x = ${x1}$ to $x = ${x2}$ and the $y$-axis bound a region, which is rotated $360^{\\circ}$ about the $y$-axis.`
+    : `The region between $y = ${riserTex(riser)}$, the $y$-axis and the lines $y = ${riserAt(riser, x1)}$ and $y = ${riserAt(riser, x2)}$ is rotated $360^{\\circ}$ about the $y$-axis.`;
+}
+
+/**
+ * The volume of a region turned about the y-axis.
+ *
+ * The quadrature oracle integrates in a variable it calls x, so the integrand
+ * is declared as x^2-in-terms-of-y with the letter renamed: the same definite
+ * integral over the same interval, which is all the oracle needs.
+ */
+const volumeYAxis: Generator<YVolumeParams> = {
+  id: 'int-vol-y-axis',
+  sample: (rng, difficulty) => {
+    const u1 = rng.int(0, 2);
+    return {
+      riser: drawRiser(rng, difficulty),
+      u1,
+      u2: u1 + rng.int(1, difficulty > 1 ? 3 : 2),
+      givenInX: difficulty > 1 && rng.int(0, 1) === 0,
+    };
+  },
+  choices: (params) => {
+    const { riser, u1, u2 } = params;
+    const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+    const [y1, y2] = [riserAt(riser, x1), riserAt(riser, x2)];
+    const right = riserVolume(riser, y1, y2);
+    const { den } = riserSquared(riser);
+    // x^2 = (y + c)/a: the sign slip in rearranging.
+    // For the line, x = y / a instead of x = a y: the rearranging upside down.
+    const flipped = riser.line
+      ? reduce(sixtyIntegral([0, 0, 1], y1, y2), 60 * riser.a * riser.a)
+      : reduce(sixtyIntegral([riser.c, 1], y1, y2), 60 * den);
+    // pi times the integral of y^2 dx across the x-limits: the x-axis rule.
+    const wrongAxis = riser.line
+      ? reduce(sixtyIntegral([0, 0, 1], x1, x2), 60 * riser.a * riser.a)
+      : sixtieths(sixtyIntegral(polyMul([riser.c, 0, riser.a], [riser.c, 0, riser.a]), x1, x2));
+    return steered(
+      options(piOption(right), piOption(flipped), piOption(wrongAxis), bareOption(right), piOption(times(right, 2))).slice(
+        0,
+        4,
+      ),
+      mix(y1, y2, riser.a, riser.c, x2),
+    );
+  },
+  render: (params): Slide => {
+    const { riser, u1, u2 } = params;
+    const [y1, y2] = [riserAt(riser, riserX(riser, u1)), riserAt(riser, riserX(riser, u2))];
+    const { num, den } = riserSquared(riser);
+    const volume = riserVolume(riser, y1, y2);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${yRegionText(params)} Find the volume, leaving $\\pi$ in your answer.` }],
+      lead: 'V =',
+      keypad: VOLUME_KEYS,
+      answer: piValue(volume),
+      alsoAccepts: [piExact(volume)],
+      integrand: `pi * (${polyAnswer(num)}) / ${den}`,
+      limits: [y1, y2],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ riser, u1, u2, givenInX }) => {
+    const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+    const [y1, y2] = [riserAt(riser, x1), riserAt(riser, x2)];
+    const { num, den } = riserSquared(riser);
+    const anti = inY(antiTex(num));
+    return [
+      {
+        text: 'About the $y$-axis the slices are stacked up the $y$-axis and each radius is an $x$ value, so $V = \\pi \\int x^{2} \\, dy$ with the limits in $y$.',
+      },
+      ...(givenInX ? [{ text: `The limits first: at $x = ${x1}$, $y = ${y1}$, and at $x = ${x2}$, $y = ${y2}$.` }] : []),
+      { tex: rearrangeTex(riser) },
+      { tex: `V = \\pi \\int_{${y1}}^{${y2}} ${overTex(num, den)} \\, dy` },
+      {
+        text: `The top integrates to $${anti}$${den === 1 ? '' : `, over $${den}$`}. Evaluate between $y = ${y1}$ and $y = ${y2}$.`,
+      },
+      { tex: `V = ${piTex(riserVolume(riser, y1, y2))}` },
+    ];
+  },
+};
+
+interface RadiusParams {
+  riser: Riser;
+  u: number;
+  right: number;
+}
+
+/**
+ * The radius of a slice when the turn is about the y-axis: a distance across,
+ * so the marker is a vertical line and the slice is drawn as a height.
+ */
+const volumeYRadius: Generator<RadiusParams> = {
+  id: 'int-vol-y-radius',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ riser: drawRiser(rng, difficulty), u: rng.int(1, difficulty > 1 ? 4 : 3), right: rng.int(2, 4) }),
+      ({ riser, u, right }) => {
+        const x = riserX(riser, u);
+        return x <= 8 && x !== restingOn(0, x + right) && riserAt(riser, x) > 0;
+      },
+      { riser: { line: false, a: 1, c: 1 }, u: 2, right: 3 },
+    ),
+  render: ({ riser, u, right }): Slide => {
+    const x = riserX(riser, u);
+    const height = riserAt(riser, x);
+    const max = x + right;
+    const low = Math.min(0, riserAt(riser, 0));
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve $y = ${riserTex(riser)}$ is rotated $360^{\\circ}$ about the $y$-axis. The slice across the solid at height $y = ${height}$ is a disc. Slide the marker to its radius.`,
+        },
+      ],
+      min: 0,
+      max,
+      step: 1,
+      answer: x,
+      readout: 'r = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: max,
+          yMin: low - 0.15 * (height - low) - 0.3,
+          yMax: height + 0.4 * (height - low) + 0.5,
+          curves: [{ f: (at) => riserAt(riser, at) }],
+          horizontals: [height],
+          label: `The curve for x from 0, with the height y = ${height} marked`,
+        }),
+        ...markerWindow(0, max),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ riser, u }) => {
+    const x = riserX(riser, u);
+    const height = riserAt(riser, x);
+    const { num, den } = riserSquared(riser);
+    const squared = (num.reduce((total, value, power) => total + value * height ** power, 0)) / den;
+    return [
+      {
+        text: 'About the $y$-axis a slice is taken at a height, and its radius is how far the curve is from the $y$-axis there: its $x$ value.',
+      },
+      { tex: stacked(`${riserTex(riser)} = ${height}`, `x^{2} = ${squared}`) },
+      { text: `So $x = ${x}$, taking the positive root, which is the side of the axis the region is on.` },
+    ];
+  },
+};
+
+type AxisLayout = 'x-axis' | 'y-given' | 'x-given';
+
+interface AxisFlowParams extends RearrangeParams {
+  layout: AxisLayout;
+}
+
+const X_AXIS = 'The $x$-axis';
+const Y_AXIS = 'The $y$-axis';
+const DX = '$\\pi y^{2}$, in $x$';
+const DY = '$\\pi x^{2}$, in $y$';
+
+/**
+ * Setting up any volume, as a route: which axis, and so which variable; and
+ * for the y-axis, whether the limits given are heights yet.
+ *
+ * The outcomes state a method and never judge the route taken, so a wrong
+ * turn discloses nothing before the answer is checked.
+ */
+const volumeAxisFlow: Generator<AxisFlowParams> = {
+  id: 'int-vol-axis-flow',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const u1 = rng.int(0, 2);
+        return {
+          riser: drawRiser(rng, difficulty),
+          u1,
+          u2: u1 + rng.int(1, 2),
+          layout: rng.pick<AxisLayout>(['x-axis', 'y-given', 'x-given']),
+        };
+      },
+      ({ riser, u1 }) => riserAt(riser, riserX(riser, u1)) >= 0,
+      { riser: { line: false, a: 1, c: 1 }, u1: 0, u2: 2, layout: 'x-axis' },
+    ),
+  render: ({ riser, u1, u2, layout }): Slide => {
+    const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+    const region =
+      layout === 'x-axis'
+        ? `The region under the curve from $x = ${x1}$ to $x = ${x2}$ is rotated $360^{\\circ}$ about the $x$-axis.`
+        : yRegionText({ riser, u1, u2, givenInX: layout === 'x-given' }).replace(`$y = ${riserTex(riser)}$`, 'the curve');
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${region} Decide how to set up the volume integral. Each answer chooses what gets asked next.`,
+        },
+      ],
+      subject: `y = ${riserTex(riser)}`,
+      steps: [
+        {
+          id: 'axis',
+          ask: 'Which axis does the region turn about?',
+          branches: [
+            { label: X_AXIS, to: 'across' },
+            { label: Y_AXIS, to: 'given' },
+          ],
+        },
+        {
+          id: 'across',
+          ask: 'The slices are stacked along that axis. Which radius, and which variable, does the integral use?',
+          branches: [
+            { label: DX, outcome: 'Integrate $\\pi y^{2}$ with respect to $x$, between the $x$-limits, with $y^{2}$ written in terms of $x$.' },
+            { label: DY, outcome: 'Integrate $\\pi x^{2}$ with respect to $y$, between the $y$-limits, with $x^{2}$ written in terms of $y$.' },
+          ],
+        },
+        {
+          id: 'given',
+          ask: 'The radius is an $x$ value and the slices are stacked up in $y$. Are the limits you were given already $y$ values?',
+          branches: [
+            { label: 'Yes', outcome: 'Rearrange for $x^{2}$ in terms of $y$ and integrate $\\pi x^{2}$ between those limits.' },
+            {
+              label: 'No',
+              outcome: 'Put each $x$-limit into the curve to get the $y$-limits, then rearrange for $x^{2}$ and integrate $\\pi x^{2}$ between them.',
+            },
+          ],
+        },
+      ],
+      answer: layout === 'x-axis' ? [X_AXIS, DX] : [Y_AXIS, layout === 'y-given' ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ riser, u1, u2, layout }) => {
+    const [x1, x2] = [riserX(riser, u1), riserX(riser, u2)];
+    const [y1, y2] = [riserAt(riser, x1), riserAt(riser, x2)];
+    if (layout === 'x-axis') {
+      return [
+        { text: 'The turn is about the $x$-axis, so the slices are stacked along it and each radius is a height, $y$.' },
+        { tex: `V = \\pi \\int_{${x1}}^{${x2}} y^{2} \\, dx` },
+        { text: `The limits $${x1}$ and $${x2}$ are already $x$ values, and $y^{2}$ is the curve squared.` },
+      ];
+    }
+    return [
+      { text: 'The turn is about the $y$-axis, so the slices are stacked up it and each radius is a distance across, $x$.' },
+      layout === 'y-given'
+        ? { text: `The limits are the lines $y = ${y1}$ and $y = ${y2}$: heights already.` }
+        : { text: `The limits are given as $x = ${x1}$ and $x = ${x2}$. Put them into the curve: $y = ${y1}$ and $y = ${y2}$.` },
+      { tex: `V = \\pi \\int_{${y1}}^{${y2}} x^{2} \\, dy` },
+      { tex: rearrangeTex(riser) },
+    ];
+  },
+};
+
+interface ConeParams {
+  /** The radius at x = h, and at x = 0; c = 0 is a cone, anything more a frustum. */
+  r: number;
+  c: number;
+  h: number;
+}
+
+/** The line from (0, c) to (h, r), as the learner reads it. */
+function coneLineTex({ r, c, h }: ConeParams): string {
+  const g = reduce(r - c, h);
+  const slope = g.d === 1 ? termTex(g.n, 1) : `\\frac{${g.n}}{${g.d}}x`;
+  return c === 0 ? slope : `${slope} + ${c}`;
+}
+
+const coneVolume = ({ r, c, h }: ConeParams): Ratio => reduce(h * (c * c + c * r + r * r), 3);
+
+/**
+ * A cone or a frustum found by integration, which the level then checks against
+ * the formula the learner already knows.
+ *
+ * The line's gradient is r/h, a fraction more often than not, so the volume is
+ * worked from the frustum formula rather than through `sixtyIntegral`; the
+ * quadrature oracle integrates the line itself, which is the independent check
+ * that the two agree.
+ */
+const volumeCone: Generator<ConeParams> = {
+  id: 'int-vol-cone',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.int(0, 1) === 0) {
+      const c = rng.int(1, 4);
+      return { c, r: c + rng.int(1, 5), h: rng.int(1, 6) };
+    }
+    return { c: 0, r: rng.int(1, difficulty > 1 ? 9 : 6), h: rng.int(1, 8) };
+  },
+  choices: (params) => {
+    const { r, c, h } = params;
+    const right = coneVolume(params);
+    const cylinder = reduce(r * r * h, 1);
+    // A cone with radius and height swapped; for a frustum, the two end discs averaged.
+    const third = c === 0 ? reduce(r * h * h, 3) : reduce(h * (r * r + c * c), 2);
+    return steered(
+      options(piOption(right), piOption(cylinder), piOption(third), bareOption(right)),
+      mix(r, c, h),
+    );
+  },
+  render: (params): Slide => {
+    const { r, c, h } = params;
+    const volume = coneVolume(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The line $y = ${coneLineTex(params)}$ from $x = 0$ to $x = ${h}$ is rotated $360^{\\circ}$ about the $x$-axis, making ${c === 0 ? 'a cone' : 'a frustum, a cone with its tip cut off'}. Find its volume by integrating, leaving $\\pi$ in your answer.`,
+        },
+      ],
+      lead: 'V =',
+      keypad: VOLUME_KEYS,
+      answer: piValue(volume),
+      alsoAccepts: [piExact(volume)],
+      integrand: `pi * ((${r - c}) / (${h}) * x + (${c}))^2`,
+      limits: [0, h],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { r, c, h } = params;
+    const g = reduce(r - c, h);
+    const squared = sumTex([
+      fracTermTex(g.n * g.n, g.d * g.d, 2),
+      fracTermTex(2 * g.n * c, g.d, 1),
+      c === 0 ? '0' : `${c * c}`,
+    ]);
+    const anti = sumTex([
+      fracTermTex(g.n * g.n, 3 * g.d * g.d, 3),
+      fracTermTex(g.n * c, g.d, 2),
+      c === 0 ? '0' : termTex(c * c, 1),
+    ]);
+    const volume = piTex(coneVolume(params));
+    return [
+      { text: `Square the line: $y^{2} = ${squared}$, which integrates to $${anti}$.` },
+      { tex: stacked(`V = \\pi \\int_{0}^{${h}} y^{2} \\, dx`, `= ${volume}`) },
+      c === 0
+        ? {
+            text: `Check against the cone formula. The radius is the height of the line at $x = ${h}$, which is $${r}$, and the height of the cone is $${h}$: $\\frac{1}{3}\\pi \\times ${r}^{2} \\times ${h} = ${volume}$. The third in that formula is the third from integrating $x^{2}$.`,
+          }
+        : {
+            text: `Check against the frustum formula $\\frac{1}{3}\\pi h\\left(R^{2} + Rr + r^{2}\\right)$, with end radii $${c}$ and $${r}$ and length $${h}$: $\\frac{1}{3}\\pi \\times ${h} \\times ${c * c + c * r + r * r} = ${volume}$.`,
+          },
+    ];
+  },
+};
+
+/**
+ * Reading a cone off its line, as tiles: the radius is the line's height at the
+ * wide end, the height is the length along the axis, and the formula does the
+ * rest. The gradient is in the bank, since it is the number the question shows
+ * and the easiest to mistake for the radius.
+ */
+const volumeConeParts: Generator<ConeParams> = {
+  id: 'int-vol-cone-parts',
+  sample: (rng, difficulty) => ({ c: 0, r: rng.int(1, difficulty > 1 ? 9 : 8), h: rng.int(2, 8) }),
+  render: (params): Slide => {
+    const { r, h } = params;
+    const g = reduce(r, h);
+    const answer = [`${r}`, `${h}`, piTex(coneVolume(params))];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Turning the line $y = ${coneLineTex(params)}$, from $x = 0$ to $x = ${h}$, about the $x$-axis makes a cone. Place its radius and height, then its volume from $\\frac{1}{3}\\pi r^{2} h$.`,
+        },
+      ],
+      template: 'r = {0}, \\quad h = {1}, \\quad V = {2}',
+      bank: tokenBank(answer, [
+        ratioTex(g),
+        piTex(reduce(r * r * h, 1)),
+        piTex(reduce(r * h * h, 3)),
+        `${r + h}`,
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { r, h } = params;
+    return [
+      { text: `The cone's tip is at the origin, where the line meets the axis. Its base is at $x = ${h}$, so its height is $${h}$.` },
+      { text: `The radius of the base is the height of the line there: put $x = ${h}$ into $y = ${coneLineTex(params)}$ to get $${r}$.` },
+      { tex: stacked(`\\frac{1}{3}\\pi r^{2} h`, `= \\frac{1}{3}\\pi \\times ${r}^{2} \\times ${h}`, `= ${piTex(coneVolume(params))}`) },
+      { text: 'Integrating $\\pi y^{2}$ from $0$ to the base gives the same number, which is where the third in the formula comes from.' },
+    ];
+  },
+};
+
+interface WasherParams {
+  top: Poly;
+  bottom: Poly;
+  a: number;
+  b: number;
+  /** True when the question names the lower curve first. */
+  swap: boolean;
+}
+
+/**
+ * Two curves, both on or above the axis, one above the other between whole
+ * limits: the region between them turns into a solid with a hole down it.
+ */
+function sampleWasher(rng: Rng, difficulty: number): WasherParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const a = rng.int(0, 2);
+      const b = a + rng.int(1, hard ? 3 : 2);
+      const swap = rng.int(0, 1) === 1;
+      if (!hard) {
+        const constant = [rng.int(1, 7)];
+        const curve = rng.pick([[rng.int(0, 3), rng.int(1, 2)], [rng.int(0, 2), 0, 1]]);
+        // A flat roof over a rising floor, or a rising roof over a flat floor.
+        return rng.int(0, 1) === 0
+          ? { top: constant, bottom: curve, a, b, swap }
+          : { top: curve, bottom: [rng.int(1, 3)], a, b, swap };
+      }
+      return {
+        top: [rng.int(0, 8), rng.int(-2, 3), rng.pick([0, 0, 1, -1])],
+        bottom: [rng.int(0, 4), rng.int(0, 2), rng.pick([0, 1])],
+        a,
+        b,
+        swap,
+      };
+    },
+    ({ top, bottom, a, b }) => {
+      const sixty = sixtyIntegral(polySub(polyMul(top, top), polyMul(bottom, bottom)), a, b);
+      return (
+        minOn(bottom, a, b) >= 0 &&
+        minOn(polySub(top, bottom), a, b) > 0 &&
+        bottom.some((value) => value !== 0) &&
+        sixty <= 60 * (hard ? 500 : 200)
+      );
+    },
+    { top: [4], bottom: [0, 1], a: 0, b: 2, swap: false },
+  );
+}
+
+function washerVolume({ top, bottom, a, b }: WasherParams): Ratio {
+  return sixtieths(sixtyIntegral(polySub(polyMul(top, top), polyMul(bottom, bottom)), a, b));
+}
+
+/** The volume of a region between two curves turned about the x-axis. */
+const volumeWasher: Generator<WasherParams> = {
+  id: 'int-vol-washer',
+  sample: sampleWasher,
+  choices: (params) => {
+    const { top, bottom, a, b } = params;
+    const gap = polySub(top, bottom);
+    return steered(
+      options(
+        piOption(washerVolume(params)),
+        // Squaring the gap between the curves instead of each curve.
+        piOption(sixtieths(sixtyIntegral(polyMul(gap, gap), a, b))),
+        // The outer curve's solid, with nothing taken out.
+        piOption(sixtieths(sixtyIntegral(polyMul(top, top), a, b))),
+        bareOption(washerVolume(params)),
+        piOption(times(washerVolume(params), 2)),
+      ).slice(0, 4),
+      mix(a, b, ...top, ...bottom),
+    );
+  },
+  render: (params): Slide => {
+    const { top, bottom, a, b, swap } = params;
+    const [first, second] = named(top, bottom, swap);
+    const volume = washerVolume(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region between $y = ${first}$ and $y = ${second}$, from $x = ${a}$ to $x = ${b}$, is rotated $360^{\\circ}$ about the $x$-axis. Find the volume of the solid, leaving $\\pi$ in your answer.`,
+        },
+      ],
+      lead: 'V =',
+      keypad: VOLUME_KEYS,
+      answer: piValue(volume),
+      alsoAccepts: [piExact(volume)],
+      integrand: `pi * ((${polyAnswer(top)})^2 - (${polyAnswer(bottom)})^2)`,
+      limits: [a, b],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { top, bottom, a, b } = params;
+    const at = testPoint(a, b);
+    const difference = polySub(polyMul(top, top), polyMul(bottom, bottom));
+    return [
+      {
+        text: 'The solid has a hole down the middle. Each slice is a washer: a disc as wide as the outer curve, with a disc as wide as the inner curve taken out.',
+      },
+      { tex: `V = \\pi \\int_{${a}}^{${b}} \\left(y_1^{2} - y_2^{2}\\right) dx` },
+      {
+        text: `The outer radius is the upper curve, $y_1 = ${polyTex(top)}$: at $x = ${at}$ it gives $${polyAt(top, at)}$ against $${polyAt(bottom, at)}$ for $y_2 = ${polyTex(bottom)}$.`,
+      },
+      {
+        text: `Square each and subtract: $y_1^{2} - y_2^{2} = ${polyTex(difference)}$, which integrates to $${antiTex(difference)}$.`,
+      },
+      { tex: `V = ${piTex(washerVolume(params))}` },
+      {
+        text: 'Squaring the gap between the curves, $\\left(y_1 - y_2\\right)^{2}$, is the tempting slip. A washer is one disc minus another, $\\pi y_1^{2} - \\pi y_2^{2}$, and that is not the same number.',
+      },
+    ];
+  },
+};
+
+interface HollowParams {
+  top: Poly;
+  bottom: Profile;
+  a: number;
+  b: number;
+}
+
+/**
+ * The hollow solid as two solids, one taken from the other, as a tree.
+ *
+ * The same picture `int-between-tree` gives an area: the volume under the outer
+ * curve less the volume under the inner one. Each box is a whole multiple of
+ * pi, which the sampler insists on by exact arithmetic rather than rounding.
+ */
+const volumeOuterInner: Generator<HollowParams> = {
+  id: 'int-vol-outer-inner',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const a = rng.int(0, 2);
+        return {
+          top: hard && rng.int(0, 1) === 0 ? [rng.int(1, 5), rng.int(1, 2)] : [rng.int(2, 7)],
+          bottom: drawProfile(rng, 1, rng.pick<ProfileForm>(['line', 'root', 'parabola'])),
+          a,
+          b: a + rng.int(1, hard ? 3 : 2),
+        };
+      },
+      ({ top, bottom, a, b }) => {
+        const outer = sixtyIntegral(polyMul(top, top), a, b);
+        const inner = sixtyIntegral(profileSquared(bottom), a, b);
+        return (
+          minOn(bottom.poly, a, b) >= 0 &&
+          inner > 0 &&
+          minOn(polySub(polyMul(top, top), profileSquared(bottom)), a, b) > 0 &&
+          outer % 60 === 0 &&
+          inner % 60 === 0 &&
+          outer <= 60 * 200
+        );
+      },
+      { top: [3], bottom: { poly: [0, 1], root: false, k: 1 }, a: 0, b: 3 },
+    );
+  },
+  render: ({ top, bottom, a, b }): Slide => {
+    const outer = sixtyIntegral(polyMul(top, top), a, b) / 60;
+    const inner = sixtyIntegral(profileSquared(bottom), a, b) / 60;
+    const answer = [outer, inner, outer - inner];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region between $y_1 = ${polyTex(top)}$ and $y_2 = ${profileTex(bottom)}$, from $x = ${a}$ to $x = ${b}$, is rotated $360^{\\circ}$ about the $x$-axis. Fill the top row with the volume each curve sweeps out on its own, $y_1$ first, and the box below with the volume of the hollow solid.`,
+        },
+      ],
+      expression: `\\pi \\int_{${a}}^{${b}} y_1^{2} \\, dx - \\pi \\int_{${a}}^{${b}} y_2^{2} \\, dx`,
+      nodes: [
+        { id: 'outer', from: [] },
+        { id: 'inner', from: [] },
+        { id: 'hollow', from: ['outer', 'inner'] },
+      ],
+      bank: wholeBank(answer, [outer + inner, inner - outer, 2 * inner, outer - 2 * inner]).map((n) =>
+        piWhole(Number(n)),
+      ),
+      answer: answer.map(piWhole),
+    };
+  },
+  solution: ({ top, bottom, a, b }) => {
+    const outer = sixtyIntegral(polyMul(top, top), a, b) / 60;
+    const inner = sixtyIntegral(profileSquared(bottom), a, b) / 60;
+    return [
+      { text: 'The hollow solid is the solid under the outer curve with the solid under the inner curve taken out of it.' },
+      {
+        tex: stacked(
+          `\\pi \\int_{${a}}^{${b}} \\left(${polyTex(top)}\\right)^{2} dx`,
+          `= ${piWhole(outer)}`,
+        ),
+      },
+      {
+        tex: stacked(
+          `\\pi \\int_{${a}}^{${b}} ${polyTex(profileSquared(bottom))} \\, dx`,
+          `= ${piWhole(inner)}`,
+        ),
+      },
+      { tex: `${piWhole(outer)} - ${piWhole(inner)} = ${piWhole(outer - inner)}` },
+      { text: 'Integrating $\\pi\\left(y_1^{2} - y_2^{2}\\right)$ in one go gives the same, and is usually quicker.' },
+    ];
+  },
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -3252,4 +4862,21 @@ export const integrationGenerators = [
   crossingArea,
   crossingTree,
   netBetween,
+  volumeShape,
+  volumeSetup,
+  volumeIntegrand,
+  volumeSlice,
+  discArea,
+  volumeXAxis,
+  volumeRoot,
+  volumeSquare,
+  volumeFindLimit,
+  volumeRearrange,
+  volumeYAxis,
+  volumeYRadius,
+  volumeAxisFlow,
+  volumeCone,
+  volumeConeParts,
+  volumeWasher,
+  volumeOuterInner,
 ] as unknown as Generator<unknown>[];

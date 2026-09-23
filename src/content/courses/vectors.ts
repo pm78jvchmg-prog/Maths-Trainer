@@ -1012,6 +1012,52 @@ export const vectors: Course = {
             ask('cross-check-tree', 2),
           ],
         },
+        {
+          id: 'vm-l8-plane',
+          title: 'The Equation of a Plane',
+          slides: [
+            teach(
+              prose(
+                'A plane is fixed by one point on it and a **normal**: a vector perpendicular to the whole plane.',
+              ),
+              prose(
+                'If $A$ is on the plane, the journey from $A$ to any other point $\\mathbf{r}$ of the plane is perpendicular to the normal $\\mathbf{n}$. So every point of the plane has the same dot product with $\\mathbf{n}$ as $A$ does:',
+              ),
+              maths('\\mathbf{r} \\cdot \\mathbf{n} = \\mathbf{a} \\cdot \\mathbf{n}'),
+              prose('The right-hand side is a number, called $d$. Through $A\\left(1, 2, 3\\right)$ with normal $\\left(2, -1, 1\\right)$:'),
+              maths('d = 1(2) + 2(-1) + 3(1)'),
+              maths('= 2 - 2 + 3 = 3'),
+            ),
+            ask('plane-d'),
+            ask('plane-on'),
+            ask('plane-d', 2),
+            teach(
+              prose(
+                'Writing $\\mathbf{r}$ as $\\left(x, y, z\\right)$ and multiplying out the dot product gives the **Cartesian** form. The normal\'s components become the coefficients.',
+              ),
+              maths('\\mathbf{r} \\cdot \\begin{pmatrix} 2 \\\\ -1 \\\\ 1 \\end{pmatrix} = 3'),
+              maths('2x - y + z = 3'),
+              prose('So the normal can be read straight off a Cartesian equation, and a missing term means a zero component.'),
+            ),
+            ask('plane-cartesian'),
+            ask('plane-vector-form'),
+            ask('plane-on', 2),
+            teach(
+              prose(
+                'A point is on the plane exactly when its coordinates satisfy the equation. With one coordinate unknown, substituting leaves an equation to solve. For $\\left(4, k, 5\\right)$ on $2x - y + z = 3$:',
+              ),
+              maths('2(4) - k + 5 = 3'),
+              maths('13 - k = 3 \\implies k = 10'),
+            ),
+            ask('plane-missing'),
+            ask('plane-cartesian', 2),
+          ],
+          skillCheck: [
+            ask('plane-d', 2),
+            ask('plane-cartesian', 2),
+            ask('plane-missing', 2),
+          ],
+        },
       ],
     },
   ],

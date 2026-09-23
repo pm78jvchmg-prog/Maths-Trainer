@@ -10,6 +10,7 @@
  * is written wrongly fails here even when the generator is consistent with
  * itself.
  */
+import katex from 'katex';
 import { describe, expect, it } from 'vitest';
 import { math } from '../../engine/expression';
 import { makeRng } from '../../engine/rng';
@@ -105,10 +106,14 @@ function workingRows(slide: Slide): string[] {
   if (!('prompt' in slide)) return [];
   const block = slide.prompt.find((b) => b.kind === 'display' && b.tex.includes('aligned'));
   if (!block || block.kind !== 'display') throw new Error('no working shown');
-  return block.tex
-    .replace(/\\begin\{aligned\}|\\end\{aligned\}/g, '')
-    .split('\\\\')
-    .map((row) => row.replace(/&/g, '').trim().replace(/^=\s*/, '').trim());
+  const rows: string[] = [];
+  for (const raw of block.tex.replace(/\\begin\{aligned\}|\\end\{aligned\}/g, '').split('\\\\')) {
+    const row = raw.replace(/&/g, '').trim();
+    // A row carried on from the one above starts with \quad.
+    if (row.startsWith('\\quad')) rows[rows.length - 1] += ` ${row.slice(5).trim()}`;
+    else rows.push(row.replace(/^=\s*/, '').trim());
+  }
+  return rows;
 }
 
 /** The maths after "= " in a step or label, or undefined when it has none. */
@@ -346,6 +351,46 @@ describe('tid-proof-wrong-choice', () => {
       expect(first, `${where}: no wrong line`).toBeGreaterThan(0);
       const correct = slide.options.find((o) => o.id === slide.correctId)?.label.replace(/^=\s*/, '');
       expect(correct, where).toBe(rows[first]);
+    }
+  });
+});
+
+describe('worked solutions', () => {
+  // The property sweep in generators.test.ts renders what a slide shows, not
+  // what "Show me" shows, and a tiles line filled one blank at a time once
+  // wrote the second answer into the first answer's \frac{1}.
+  it('render every line of working without a KaTeX error', () => {
+    const ids = Object.keys(registry).filter((id) => id.startsWith('tid-proof-'));
+    expect(ids.length).toBe(20);
+    for (const id of ids) {
+      const generator = registry[id] as unknown as Generator<unknown>;
+      for (const difficulty of [1, 2]) {
+        for (let seed = 0; seed < SEEDS; seed++) {
+          const where = `${id} seed ${seed} d${difficulty}`;
+          const params = generator.sample(makeRng(seed), difficulty);
+          for (const step of generator.solution(params)) {
+            for (const tex of [...(step.tex ? [step.tex] : []), ...inline(step.text ?? '')]) {
+              expect(() => katex.renderToString(tex, { throwOnError: true, strict: false }), `${where}: ${tex}`).not.toThrow();
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('name the same missing line the tiles are graded on', () => {
+    for (const id of PROOF_TILES) {
+      const generator = registry[id] as unknown as Generator<unknown>;
+      for (const difficulty of [1, 2]) {
+        for (let seed = 0; seed < SEEDS; seed++) {
+          const params = generator.sample(makeRng(seed), difficulty);
+          const slide = generator.render(params);
+          if (slide.kind !== 'tiles') throw new Error('expected tiles');
+          const filled = slide.template.replace(/\{(\d)\}/g, (_, i: string) => slide.answer[Number(i)]).replace(/^=\s*/, '');
+          const named = inline(generator.solution(params)[0].text ?? '')[0];
+          expect(named, `${id} seed ${seed} d${difficulty}`).toBe(filled);
+        }
+      }
     }
   });
 });

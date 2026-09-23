@@ -6751,18 +6751,31 @@ function slippedLine(p: Proof, i: number, slip: string): string {
 
 const claimOf = (p: Proof): string => `${p.start.join(' ')} = ${p.end}`;
 
-/** Lines as a column of working, each row after the first starting "=". */
+/** A row of working too wide for a phone, broken between two brackets or before a sign. */
+function rowPieces(row: string): string[] {
+  if (texWidth(row) <= FIT - 3) return [row];
+  let depth = 0;
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === '(' || row[i] === '{') depth++;
+    else if (row[i] === ')' || row[i] === '}') {
+      depth--;
+      if (depth === 0 && row[i] === ')' && /^\s*\(/.test(row.slice(i + 1))) return [row.slice(0, i + 1), row.slice(i + 1).trim()];
+    }
+  }
+  return breakTerms(row, FIT - 3);
+}
+
+/** Lines as a column of working, each row after the first starting "=", a long one carried onto an indented row. */
 const workingTex = (rows: string[]): string =>
-  `\\begin{aligned} & ${rows[0]} ${rows
-    .slice(1)
-    .map((row) => `\\\\ &= ${row}`)
-    .join(' ')} \\end{aligned}`;
+  `\\begin{aligned} ${rows
+    .flatMap((row, i) => rowPieces(row).map((piece, j) => `${j > 0 ? '& \\quad ' : i === 0 ? '& ' : '&= '}${piece}`))
+    .join(' \\\\ ')} \\end{aligned}`;
 
 /** The two lines of a solution every proof shares: what each move did, then the chain. */
 function proofSolution(p: Proof): SolutionStep[] {
   return [
     { text: p.moves.map((m) => `${m.say}.`).join(' ') },
-    { tex: proofLines(p).join(' = ') },
+    { tex: workingTex(proofLines(p)) },
   ];
 }
 
@@ -7445,12 +7458,11 @@ const DOUBLE_PROOFS: ((v: string) => DoubleProof)[] = [
         { span: [0, 1], value: frac(`${f.c2} - ${f.s2}`, sum), slips: [frac(`${f.s2} - ${f.c2}`, sum), frac(`${f.c} - ${f.s}`, sum), frac(`1 - 2${f.c2}`, sum)], lean: 'double', say: `Use $${f.C} = ${f.c2} - ${f.s2}$` },
         {
           span: [0, 1],
-          value: frac(`(${f.c} - ${f.s})(${sum})`, sum),
-          slips: [frac(`(${f.c} - ${f.s})^2`, sum), frac(`(${sum})^2`, sum), frac(`(${f.s} - ${f.c})(${sum})`, sum)],
+          value: `${f.c} - ${f.s}`,
+          slips: [sum, `${f.s} - ${f.c}`, `(${f.c} - ${f.s})^2`],
           lean: 'algebra',
-          say: 'Factorise the top: a difference of two squares',
+          say: `Factorise the top as $(${f.c} - ${f.s})(${sum})$, then cancel $${sum}$`,
         },
-        { span: [0, 1], value: `${f.c} - ${f.s}`, slips: [sum, `${f.s} - ${f.c}`, `(${f.c} - ${f.s})^2`], lean: 'algebra', say: `Cancel $${sum}$` },
       ],
       across: `Multiply both sides by $${sum}$.`,
     };
@@ -7612,7 +7624,7 @@ function proofNextChoice(id: string, forms: ((v: string) => Proof)[]): Generator
     solution: ({ form, move, v }) => {
       const p = forms[form](PROOF_VARS[v]);
       const lines = proofLines(p);
-      return [{ text: `${p.moves[move].say}.` }, { tex: `${lines[move]} = ${lines[move + 1]}` }];
+      return [{ text: `${p.moves[move].say}.` }, { tex: workingTex([lines[move], lines[move + 1]]) }];
     },
   };
 }
@@ -7666,9 +7678,11 @@ function proofTiles(id: string, forms: ((v: string) => Proof)[]): Generator<GapP
     },
     solution: (params) => {
       const { g, lines } = parts(params);
-      const filled = g.answer.reduce((tex, token, i) => tex.replace(`{${i}}`, token), g.template).replace(/^= /, '');
+      // One pass: filling a blank at a time would write the next answer into
+      // the {1} of a \frac{1}{...} the last one put there.
+      const filled = g.template.replace(/\{(\d)\}/g, (_m, i: string) => g.answer[Number(i)]).replace(/^= /, '');
       const full = [...lines.slice(0, g.at), filled, ...lines.slice(g.replace ? g.at + 1 : g.at)];
-      return [{ text: `The missing line is $${filled}$, equal to the line above it.` }, { tex: full.join(' = ') }];
+      return [{ text: `The missing line is $${filled}$, equal to the line above it.` }, { tex: workingTex(full) }];
     },
   };
 }
@@ -7732,7 +7746,7 @@ const proofStartFlow: Generator<StartParams> = {
         text: `Start from the busier side, $${lines[0]}$, which is on the ${flip ? 'right' : 'left'}: it has more to rewrite. Never work across the equals sign.`,
       },
       { text: `${p.moves[0].say}.` },
-      { tex: lines.join(' = ') },
+      { tex: workingTex(lines) },
     ];
   },
 };
@@ -7811,7 +7825,7 @@ const proofIdentityFlow: Generator<LeanParams> = {
   solution: ({ form, move, v }) => {
     const p = SQUARE_PROOFS[form](PROOF_VARS[v]);
     const lines = proofLines(p);
-    return [{ text: `${p.moves[move].say}.` }, { tex: `${lines[move]} = ${lines[move + 1]}` }];
+    return [{ text: `${p.moves[move].say}.` }, { tex: workingTex([lines[move], lines[move + 1]]) }];
   },
 };
 
@@ -8282,7 +8296,7 @@ const proofWrongChoice: Generator<WrongParams> = {
     return [
       { text: `$= ${wrong}$ is the slip. ${m.say} gives $${m.value}$, not $${m.slips[params.slip]}$.` },
       { text: 'The working should run:' },
-      { tex: lines.join(' = ') },
+      { tex: workingTex(lines) },
     ];
   },
 };

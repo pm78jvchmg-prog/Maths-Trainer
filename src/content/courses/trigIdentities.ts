@@ -1016,7 +1016,7 @@ export const trigIdentities: Course = {
             ask('tid-proof-square-steps', 2),
             teach(
               prose('A squared sum has a middle term. Collect the squares, and the identity tidies them to $1$:'),
-              maths('\\begin{aligned} &(\\sin x + \\cos x)^2 \\\\ &= \\sin^2 x + 2\\sin x \\cos x + \\cos^2 x \\\\ &= 1 + 2\\sin x \\cos x \\end{aligned}'),
+              maths('\\begin{aligned} &(\\sin x + \\cos x)^2 \\\\ &= \\sin^2 x + 2\\sin x \\cos x \\\\ &\\quad + \\cos^2 x \\\\ &= 1 + 2\\sin x \\cos x \\end{aligned}'),
             ),
             ask('tid-proof-square-tiles', 2),
             ask('tid-proof-square-order', 2),

@@ -7,8 +7,10 @@
  * root if the laws are to survive; then surds, which is that second idea used
  * in anger; then standard form, where powers of ten carry the size of very
  * large and very small numbers; then surds back inside expressions —
- * brackets, conjugates, equations and exact lengths; and last, equations with
- * the unknown in an index or under one, hidden quadratics, and substitution.
+ * brackets, conjugates, equations and exact lengths; then equations with
+ * the unknown in an index or under one, hidden quadratics, and substitution;
+ * and last, growth and decay by repeated multiplication, a whole number of
+ * steps at a time.
  *
  * Each level closes with a level check: twelve to fourteen questions, no
  * teaching slides, one attempt each.
@@ -48,7 +50,7 @@ const working = (...lines: string[]) =>
 export const exponentsRadicals: Course = {
   id: 'exponents-radicals',
   title: 'Exponents & Radicals',
-  blurb: 'The index laws by counting copies, then roots, surds and standard form.',
+  blurb: 'The index laws by counting copies, then roots, surds, standard form and growth.',
   levels: [
     {
       id: 'er-l1',
@@ -1456,6 +1458,51 @@ export const exponentsRadicals: Course = {
         ask('ieq-single-index-tiles', 2),
         ask('ieq-surd-power', 2),
         ask('ieq-cross-slider', 2),
+      ],
+    },
+    {
+      id: 'er-l7',
+      title: 'Growth by Repeated Multiplication',
+      lessons: [
+        {
+          id: 'er-l7-multiplier',
+          title: 'A Multiplier per Step',
+          slides: [
+            teach(
+              prose(
+                'Something multiplied by the same number at every step grows by repeated multiplication. Start with 3 cells that double every hour:',
+              ),
+              maths('3 \\to 6 \\to 12 \\to 24 \\to 48'),
+              prose(
+                'After 4 hours the 3 has been multiplied by 2 four times, which is $3 \\times 2^{4} = 48$. A start $a$ multiplied by $r$ at each of $n$ steps becomes',
+              ),
+              maths('V = a \\times r^{n}'),
+            ),
+            ask('grow-chain-tree'),
+            ask('grow-term'),
+            ask('grow-rule-tiles'),
+            teach(
+              prose(
+                'Work out the power first, then multiply by the start. $3 \\times 2^{4}$ is $3 \\times 16 = 48$, while $(3 \\times 2)^{4} = 6^{4} = 1296$ is a different number entirely.',
+              ),
+              prose('How much it grew by is the end value take away the start:'),
+              working('3 \\times 2^{4} - 3 &= 48 - 3', '&= 45'),
+            ),
+            ask('grow-evaluate'),
+            ask('grow-chain-tree', 2),
+            ask('grow-evaluate+choice', 2),
+            teach(
+              prose('Count the steps, not the time. Something that triples every 2 hours for 8 hours triples 4 times:'),
+              working('8 \\div 2 &= 4', '5 \\times 3^{4} &= 405'),
+              prose(
+                'A table may also start part way in. If $V = 15$ at $n = 1$ and the multiplier is 3, step back once to the start, $15 \\div 3 = 5$, so $V = 5 \\times 3^{n}$.',
+              ),
+            ),
+            ask('grow-term+choice', 2),
+            ask('grow-rule-tiles', 2),
+          ],
+          skillCheck: [ask('grow-term', 2), ask('grow-rule-tiles', 2), ask('grow-evaluate', 2)],
+        },
       ],
     },
   ],

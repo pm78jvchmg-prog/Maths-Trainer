@@ -6854,8 +6854,10 @@ const modelBuild: Generator<BuildParams> = {
     const timing = p.halfGiven
       ? `it takes $${p.period / 2}$ ${c.timeUnit} to fall from its greatest to its least`
       : `it repeats every $${p.period}$ ${c.timeUnit}`;
-    const answer = [`${p.d}`, `${p.a}`, `${b}`];
-    const slips = [high, 2 * p.a, p.period, low, ...(p.halfGiven ? [2 * b] : [])].map(String);
+    // The bracket's tile carries its t, which leaves the template one short
+    // fragment after the last blank rather than a "t)" to wrap.
+    const answer = [`${p.d}`, `${p.a}`, `${b}t`];
+    const slips = [`${p.period}t`, `${2 * b}t`, ...[high, 2 * p.a, low].map(String)];
     return {
       kind: 'tiles',
       prompt: [
@@ -6863,8 +6865,12 @@ const modelBuild: Generator<BuildParams> = {
           kind: 'prose',
           text: `${c.subject} rises and falls between $${low}$ and $${high}$ ${c.unit}, and ${timing}. At $t = 0$ it is on its midline and rising. What is its model, with $t$ in ${c.timeUnit}?`,
         },
+        // The model's name sits above the blanks: three blanks and a prefix
+        // did not fit one row on a phone, and the closing bracket wrapped
+        // onto a row of its own.
+        { kind: 'display', tex: `${c.symbol} = d + a\\sin(bt)` },
       ],
-      template: `${c.symbol} = {0} + {1}\\sin({2}t)`,
+      template: '{0} + {1}\\sin({2})',
       bank: modelBank(answer, slips),
       answer,
     };
@@ -6887,7 +6893,8 @@ const modelBuild: Generator<BuildParams> = {
     const c = ctxOf(p);
     return [
       { text: 'The midline is halfway between the extremes, and the amplitude is how far either one is from it.' },
-      { tex: `d = \\frac{${high} + ${paren(low)}}{2} = ${p.d} \\qquad a = \\frac{${high} - ${paren(low)}}{2} = ${p.a}` },
+      { tex: `d = \\frac{${high} + ${paren(low)}}{2} = ${p.d}` },
+      { tex: `a = \\frac{${high} - ${paren(low)}}{2} = ${p.a}` },
       ...(p.halfGiven
         ? [{ text: `Greatest to least is half a cycle, so a whole cycle takes $2 \\times ${p.period / 2} = ${p.period}$ ${c.timeUnit}.` }]
         : []),
@@ -7018,9 +7025,11 @@ const modelExtremesTree: Generator<ExtremesTreeParams> = {
     const low = p.d - p.a;
     return [
       { text: 'The midline is the average of the greatest and least values.' },
-      { tex: `d = \\frac{${high} + ${paren(low)}}{2} = \\frac{${high + low}}{2} = ${p.d}` },
+      { tex: `d = \\frac{${high} + ${paren(low)}}{2}` },
+      { tex: `= \\frac{${high + low}}{2} = ${p.d}` },
       { text: 'The amplitude is half the gap between them: the whole gap is the swing from top to bottom, twice the amplitude.' },
-      { tex: `a = \\frac{${high} - ${paren(low)}}{2} = \\frac{${high - low}}{2} = ${p.a}` },
+      { tex: `a = \\frac{${high} - ${paren(low)}}{2}` },
+      { tex: `= \\frac{${high - low}}{2} = ${p.a}` },
     ];
   },
 };
@@ -7313,7 +7322,7 @@ const modelGraphMatch: Generator<ModelParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Readings of ${lowerFirst(c.subject)} over two cycles, with $t$ in ${c.timeUnit} ${c.clock}. The dashed line is the midline and the solid upright is $t = 0$. Which model fits?`,
+          text: `This graph shows ${lowerFirst(c.subject)} over two cycles, with $t$ in ${c.timeUnit} ${c.clock}. The dashed line is the midline and the solid upright is $t = 0$. Which model fits?`,
         },
         { kind: 'diagram', svg: modelSvg(p, 'Two cycles of a repeating quantity from t = 0, with its midline dashed') },
       ],
@@ -7366,10 +7375,14 @@ const modelShiftTiles: Generator<ModelShiftParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${ctx.subject} ${told}. One cycle takes $${p.period}$ ${ctx.timeUnit}. Complete the model, shifting a cosine to the first time after $t = 0$ that it is greatest.`,
+          text: `${ctx.subject} ${told}. One cycle takes $${p.period}$ ${ctx.timeUnit}. Complete the model below, shifting a cosine to the first time after $t = 0$ that it is greatest.`,
         },
+        // The model sits above the blanks rather than around them: with its
+        // blanks inside the brackets it broke across two rows on a phone,
+        // with the second blank stranded under the first.
+        { kind: 'display', tex: `${ctx.symbol} = ${waveRhs(p.d, p.a, 'cos', 'b(t - c)')}` },
       ],
-      template: `${ctx.symbol} = ${waveRhs(p.d, p.a, 'cos', '{0}(t - {1})')}`,
+      template: 'b = {0} \\qquad c = {1}',
       bank: modelBank(answer, slips),
       answer,
     };
@@ -7381,7 +7394,7 @@ const modelShiftTiles: Generator<ModelShiftParams> = {
       ...(p.fromLeast
         ? [{ text: `It is greatest half a cycle, $${p.period / 2}$, from the least at $t = ${leastTime(p)}$, and the first such time after $0$ is $t = ${p.c}$.` }]
         : []),
-      { text: `Cosine is greatest when its bracket is $0$. Writing the bracket as $${b}(t - ${p.c})$ makes that happen at $t = ${p.c}$ instead of at $t = 0$.` },
+      { text: `Cosine is greatest when its bracket is zero. Writing the bracket as $${b}(t - ${p.c})$ makes that happen at $t = ${p.c}$ instead of at $t = 0$.` },
       { tex: `${ctxOf(p).symbol} = ${waveRhs(p.d, p.a, 'cos', `${b}(t - ${p.c})`)}` },
     ];
   },
@@ -7479,10 +7492,12 @@ function whenSolution(p: WhenParams, window?: { from: number; times: number[] })
   const [first, second] = halfAngles(fn, s);
   const k = whenLevel(p);
   const steps: SolutionStep[] = [
-    { tex: `${START_SIGN[p.start] < 0 ? '-' : ''}${p.a}\\${fn}(${b}t) = ${k} - ${paren(p.d)} = ${k - p.d}` },
+    { text: `Take $${p.d}$ off both sides, then divide by $${START_SIGN[p.start] * p.a}$.` },
+    { tex: `${START_SIGN[p.start] < 0 ? '-' : ''}${p.a === 1 ? '' : p.a}\\${fn}(${b}t) = ${k - p.d}` },
     { tex: `\\${fn}(${b}t) = ${HALVES_TEX[s]}` },
     { text: HALF_ANGLE_TEXT[fn][s] },
-    { tex: `t = \\frac{${first}}{${b}} = ${(first * p.period) / 360} \\qquad t = \\frac{${second}}{${b}} = ${(second * p.period) / 360}` },
+    { tex: `t = \\frac{${first}}{${b}} = ${(first * p.period) / 360}` },
+    { tex: `t = \\frac{${second}}{${b}} = ${(second * p.period) / 360}` },
   ];
   if (window && window.from > 0) {
     steps.push({
@@ -7686,7 +7701,7 @@ const modelPeriodTree: Generator<PeriodTreeParams> = {
           text: `${c.subject} is at its ${w1} at $t = ${p.first}$ and next at its ${w2} at $t = ${second}$, with $t$ in ${c.timeUnit}. Fill in the gap between the two, then the period, then $b$ for a model $${c.symbol} = d + a\\cos(bt)$.`,
         },
       ],
-      expression: `\\text{${w1} at } t = ${p.first}, \\quad \\text{${w2} at } t = ${second}`,
+      expression: `\\text{${w1 === 'greatest' ? 'high' : 'low'} } t = ${p.first}, \\quad \\text{${w2 === 'greatest' ? 'high' : 'low'} } t = ${second}`,
       nodes: [
         { id: 'gap', from: [] },
         { id: 'period', from: ['gap'] },
@@ -7875,7 +7890,7 @@ const modelFitSlider: Generator<FitSliderParams> = {
     const c = (p.twelfth * p.period) / 12;
     if (p.asks === 'peak') {
       return [
-        { text: 'A cosine is greatest when its bracket is $0$, which in $\\cos(b(t - c))$ is at $t = c$.' },
+        { text: 'A cosine is greatest when its bracket is zero, which in $\\cos(b(t - c))$ is at $t = c$.' },
         { text: `The highest reading in the first cycle is at $t = ${c}$, so $c = ${c}$.` },
       ];
     }

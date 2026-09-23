@@ -427,6 +427,7 @@ are green, and one new lesson has been played in a browser.
 | B13 | Trigonometric Functions: Tangent & the Reciprocal Functions | **done** (`claude/roadmap-b-trig-2-147dx4`): level `tf-l5`, 5 lessons, a 15-question level check, 20 new generators and an asymptote-aware curve option in `figures.ts` |
 | B17 | Vectors: Lines in Vector Form | **done** (`claude/roadmap-b-vectors-2-u0463t`): level `vm-l6`, 5 lessons, a 14-question level check, 17 new generators |
 | B18 | Matrices & Linear Transformations: Composing Transformations | **done** (`claude/roadmap-b-matrices-2-taz4dj`): level `vm-l7`, 5 lessons, a 15-question level check, 19 new generators |
+| B27 | Matrices & Linear Transformations: Systems of Equations | claimed (`claude/roadmap-b-matrices-3-eamxgf`) |
 
 ### Phase C — the twenty-one new concepts
 

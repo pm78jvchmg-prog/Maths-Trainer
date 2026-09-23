@@ -5,6 +5,7 @@ import { exponentsRadicals } from './exponentsRadicals';
 import { integration } from './integration';
 import { logarithms } from './logarithms';
 import { matrices } from './matrices';
+import { polynomials } from './polynomials';
 import { quadratics } from './quadratics';
 import { vectors } from './vectors';
 import { trigonometricFunctions } from './trigonometricFunctions';
@@ -21,7 +22,7 @@ export const categories: Category[] = [
     id: 'algebra-fundamentals',
     title: 'Algebra Fundamentals',
     blurb: 'The rules everything later is built on.',
-    courses: [exponentsRadicals, quadratics],
+    courses: [exponentsRadicals, quadratics, polynomials],
   },
   {
     id: 'advanced-algebra',

@@ -15,6 +15,11 @@
  * Level 4 solves linear inequalities: drawn on a number line, turned round
  * on a negative, double, counted in integers, and as a region of the plane.
  *
+ * Level 5 solves three equations in three unknowns by elimination: what a
+ * solution triple is, removing one letter twice to leave a pair, finishing
+ * off and checking, choosing which letter goes first, and three unknowns
+ * from words. The matrix route is in Matrices.
+ *
  * Later levels — regions from several inequalities, modelling — are in the
  * level plan in `docs/roadmap/levels/linear-equations.md`.
  *
@@ -988,6 +993,217 @@ export const linearEquations: Course = {
         ask('lin-int-slider', 2),
         ask('lin-region-choice', 2),
         ask('lin-region-flow', 2),
+      ],
+    },
+    {
+      id: 'le-l5',
+      title: 'Simultaneous Equations in Three Unknowns',
+      lessons: [
+        {
+          id: 'le-l5-solutions',
+          title: 'What a Solution Is',
+          slides: [
+            teach(
+              prose(
+                'Three unknowns need three equations. A **solution** is a triple $(x, y, z)$ that makes all three true at once.',
+              ),
+              maths('\\begin{aligned} x + y + z &= 6 & \\quad (1) \\\\ 2x - y + z &= 3 & \\quad (2) \\\\ x + 2y - z &= 2 & \\quad (3) \\end{aligned}'),
+              prose(
+                '$(1, 2, 3)$ works: $1 + 2 + 3 = 6$, $2 - 2 + 3 = 3$ and $1 + 4 - 3 = 2$. $(3, 3, 0)$ satisfies (1) and (2), but gives $9$ in (3), so it is **not** a solution.',
+              ),
+            ),
+            ask('lin-tri-which'),
+            ask('lin-tri-check-flow'),
+            ask('lin-tri-lhs-tree'),
+            teach(
+              prose(
+                'Once two values are known, the third comes from any one equation. With $x = 1$ and $y = 2$, (3) gives $1 + 4 - z = 2$, so $z = 3$.',
+              ),
+              prose(
+                'Each equation is a flat plane in space, and the solution is the one point on all three planes. Two planes meet along a whole line, which is why passing two equations out of three proves nothing.',
+              ),
+            ),
+            ask('lin-tri-third'),
+            ask('lin-tri-which', 2),
+            ask('lin-tri-check-flow', 2),
+            teach(
+              prose('So a check has three parts, and failing any one of them settles it.'),
+              prose('The next lessons find the triple; this check is how to be sure it is right.'),
+            ),
+            ask('lin-tri-lhs-tree', 2),
+            ask('lin-tri-third+choice'),
+          ],
+          skillCheck: [ask('lin-tri-third', 2), ask('lin-tri-which', 2), ask('lin-tri-lhs-tree', 2)],
+        },
+        {
+          id: 'le-l5-drop',
+          title: 'Dropping One Letter',
+          slides: [
+            teach(
+              prose(
+                'The plan: remove one letter to leave two equations in two letters, a pair you already know how to solve from Simultaneous Linear Equations.',
+              ),
+              maths('\\begin{aligned} x + y + z &= 6 & \\quad (1) \\\\ 2x - y + z &= 3 & \\quad (2) \\\\ x + 2y - z &= 2 & \\quad (3) \\end{aligned}'),
+              prose(
+                'Every $z$ coefficient is $1$ or $-1$. In (1) and (2) the signs match, so subtract; in (1) and (3) they are opposite, so add. That gives (4) from $(2) - (1)$ and (5) from $(1) + (3)$.',
+              ),
+              maths('\\begin{aligned} x - 2y &= -3 & \\quad (4) \\\\ 2x + 3y &= 8 & \\quad (5) \\end{aligned}'),
+            ),
+            ask('lin-tri-drop-flow'),
+            ask('lin-tri-combine'),
+            ask('lin-tri-drop-steps'),
+            teach(
+              prose(
+                'Take away **every** term, the right-hand sides too, and watch the signs: $(2x - y + z) - (x + y + z) = 3 - 6$ is $x - 2y = -3$.',
+              ),
+              prose(
+                'Adding or subtracting true equations gives a true equation, so the solution $(1, 2, 3)$ satisfies (4) and (5) as well: $1 - 4 = -3$ and $2 + 6 = 8$.',
+              ),
+            ),
+            ask('lin-tri-drop-check'),
+            ask('lin-tri-combine+choice'),
+            ask('lin-tri-drop-flow', 2),
+            teach(
+              prose(
+                'Pair (1) with **each** of the others, not (1) with (2) twice: the same pairing gives the same equation, and one equation cannot pin down two letters.',
+              ),
+            ),
+            ask('lin-tri-drop-steps', 2),
+            ask('lin-tri-drop-check+choice'),
+          ],
+          skillCheck: [ask('lin-tri-combine', 2), ask('lin-tri-drop-steps', 2), ask('lin-tri-drop-flow', 2)],
+        },
+        {
+          id: 'le-l5-finish',
+          title: 'Finishing Off',
+          slides: [
+            teach(
+              prose('Removing $z$ from this system leaves the pair (4), from $(2) - (1)$, and (5), from $(1) + (3)$.'),
+              maths('\\begin{aligned} x + 2y + z &= 8 & \\quad (1) \\\\ 2x + y + z &= 7 & \\quad (2) \\\\ x - y - z &= -4 & \\quad (3) \\end{aligned}'),
+              maths('\\begin{aligned} x - y &= -1 & \\quad (4) \\\\ 2x + y &= 4 & \\quad (5) \\end{aligned}'),
+              prose(
+                'Solve the pair as in level 2: $(4) + (5)$ gives $3x = 3$, so $x = 1$. Then put back one letter at a time: (4) gives $1 - y = -1$, so $y = 2$, and (1) gives $1 + 4 + z = 8$, so $z = 3$.',
+              ),
+            ),
+            ask('lin-tri-back-steps'),
+            ask('lin-tri-finish-tree'),
+            ask('lin-tri-solve'),
+            teach(
+              prose(
+                'Then check in an **original** equation you did not use to put back. (2): $2 + 2 + 3 = 7$, so $(1, 2, 3)$ is right.',
+              ),
+              prose('A check against (4) or (5) would pass a slip made while building them, so it proves nothing.'),
+            ),
+            ask('lin-tri-verify'),
+            ask('lin-tri-back-steps', 2),
+            ask('lin-tri-solve+choice'),
+            teach(
+              prose(
+                'The whole route: remove one letter twice, solve the pair, put back to find the third, check in an original.',
+              ),
+            ),
+            ask('lin-tri-finish-tree', 2),
+            ask('lin-tri-verify+choice'),
+          ],
+          skillCheck: [ask('lin-tri-solve', 2), ask('lin-tri-back-steps', 2), ask('lin-tri-finish-tree', 2)],
+        },
+        {
+          id: 'le-l5-choose',
+          title: 'Choosing the Letter',
+          slides: [
+            teach(
+              prose('Any letter can go first, but some are quicker. Check in this order.'),
+              prose(
+                '**Missing** from one equation? Then that equation is already free of it, and one combination of the other two finishes the pair.',
+              ),
+              maths('\\begin{aligned} 2x - y + z &= 5 & \\quad (1) \\\\ 3x + 2z &= 14 & \\quad (2) \\\\ 4x + y + z &= 15 & \\quad (3) \\end{aligned}'),
+              prose(
+                '$y$ is missing from (2). $(1) + (3)$ gives $6x + 2z = 20$, and with (2) that is a pair in $x$ and $z$. Otherwise, a letter the **same size** in all three; otherwise scale.',
+              ),
+            ),
+            ask('lin-tri-letter-flow'),
+            ask('lin-tri-letter-choice'),
+            ask('lin-tri-letter-flow', 2),
+            teach(
+              prose(
+                'To scale, find a letter whose coefficient in one equation divides its coefficient in another. If (1) has $x$ and (3) has $3x$, multiply **every** term of (1) by $3$.',
+              ),
+              maths('\\begin{aligned} x + 2y - z &= 2 \\\\ 3x + 6y - 3z &= 6 \\end{aligned}'),
+              prose('Now subtracting (3) removes $x$, exactly as before.'),
+            ),
+            ask('lin-tri-multiplier'),
+            ask('lin-tri-scale-tiles'),
+            ask('lin-tri-multiplier+choice'),
+            teach(
+              prose(
+                'Missing beats matching, and matching beats scaling. When you do scale, scale the equation with the smaller coefficient, by a whole number.',
+              ),
+            ),
+            ask('lin-tri-scale-tiles+choice'),
+            ask('lin-tri-letter-choice', 2),
+          ],
+          skillCheck: [ask('lin-tri-letter-choice', 2), ask('lin-tri-scale-tiles', 2), ask('lin-tri-multiplier', 2)],
+        },
+        {
+          id: 'le-l5-words',
+          title: 'Three Unknowns from Words',
+          slides: [
+            teach(
+              prose(
+                'Three unknowns need three letters and three facts. Say what each letter stands for, then write each fact as an equation.',
+              ),
+              prose(
+                'With $x$, $y$ and $z$ the prices of an adult, a child and a senior ticket, "$3$ child, $2$ adult and $1$ senior ticket cost £$37$" is',
+              ),
+              maths('2x + 3y + z = 37'),
+              prose(
+                'Each count stays with its own item, whatever order the sentence uses. "Ana gets $2$ more than Ben" is $x = y + 2$: start from Ben and add.',
+              ),
+            ),
+            ask('lin-tri-words-tiles'),
+            ask('lin-tri-words-fact'),
+            ask('lin-tri-words-tiles+choice'),
+            teach(
+              prose(
+                'When every fact is the total of a pair, add all three: each letter then appears twice.',
+              ),
+              maths('\\begin{aligned} x + y &= 70 & \\quad (1) \\\\ y + z &= 50 & \\quad (2) \\\\ x + z &= 60 & \\quad (3) \\end{aligned}'),
+              prose(
+                '$2x + 2y + 2z = 180$, so $x + y + z = 90$. Take away (1) and $z = 20$; take away (2) and $x = 40$; take away (3) and $y = 30$.',
+              ),
+            ),
+            ask('lin-tri-sum-all-steps'),
+            ask('lin-tri-words-fact', 2),
+            ask('lin-tri-sum-all-steps', 2),
+            teach(
+              prose(
+                'A share with a difference and a multiple: write everything in one letter. Ana, Ben and Cal share $30$ sweets, Ana gets $2$ more than Ben and Cal twice what Ben gets.',
+              ),
+              maths('\\begin{gathered} (y + 2) + y + 2y = 30 \\\\ 4y = 28 \\\\ y = 7 \\end{gathered}'),
+              prose('So Ben has $7$, Ana $9$ and Cal $14$. Check against the **words**: $9 + 7 + 14 = 30$.'),
+            ),
+            ask('lin-tri-words-solve'),
+            ask('lin-tri-words-solve+choice', 2),
+          ],
+          skillCheck: [ask('lin-tri-words-solve', 2), ask('lin-tri-words-tiles', 2), ask('lin-tri-sum-all-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('lin-tri-which', 2),
+        ask('lin-tri-third', 2),
+        ask('lin-tri-check-flow', 2),
+        ask('lin-tri-combine', 2),
+        ask('lin-tri-drop-steps', 2),
+        ask('lin-tri-drop-flow', 2),
+        ask('lin-tri-finish-tree', 2),
+        ask('lin-tri-back-steps', 2),
+        ask('lin-tri-solve', 2),
+        ask('lin-tri-letter-flow', 2),
+        ask('lin-tri-scale-tiles', 2),
+        ask('lin-tri-multiplier', 2),
+        ask('lin-tri-words-tiles', 2),
+        ask('lin-tri-words-solve', 2),
+        ask('lin-tri-sum-all-steps', 2),
       ],
     },
   ],

@@ -126,7 +126,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | ---: | --- | --- |
 | 1 | Exponents & Radicals | **12 lessons** |
 | 2 | Quadratics | **12 lessons** |
-| 3 | Linear Equations & Inequalities | new |
+| 3 | Linear Equations & Inequalities | **10 lessons** |
 | 4 | Polynomials & the Factor Theorem | new |
 | 5 | Algebraic Fractions & Partial Fractions | new |
 | 6 | Sequences & Series | new |
@@ -237,6 +237,13 @@ Two Vectors.
 **Matrices & Linear Transformations** (after the split) — has: Matrices,
 Determinants & Inverses. Needs: Matrices as Transformations; Composing
 Transformations; Systems of Equations; Invariant Lines & Points.
+
+**Linear Equations & Inequalities** — has: Solving Linear Equations,
+Simultaneous Linear Equations. Needs: Rearranging Formulae; Linear Inequalities
+(the number-line picture waits on C8's widget, so this level follows C8);
+Simultaneous Equations in Three Unknowns (by elimination; the matrix route stays
+in Matrices vm-l9); Inequalities in Two Variables & Regions; Modelling with
+Linear Equations (break-even, rates, mixtures).
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -482,7 +489,7 @@ batch rather than waiting on a separate one.
 
 | # | Batch | Status |
 | ---: | --- | --- |
-| C1 | Linear Equations & Inequalities | claimed (`claude/roadmap-c-linear-equations-0nml55`) |
+| C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
 
 ### When the queue empties
 

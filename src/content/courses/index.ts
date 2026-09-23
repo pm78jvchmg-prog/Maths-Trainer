@@ -2,6 +2,7 @@ import type { Category, Course } from '../types';
 import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
 import { exponentsRadicals } from './exponentsRadicals';
+import { exponentialModels } from './exponentialModels';
 import { integration } from './integration';
 import { linearEquations } from './linearEquations';
 import { logarithms } from './logarithms';
@@ -28,7 +29,7 @@ export const categories: Category[] = [
     id: 'advanced-algebra',
     title: 'Advanced Algebra',
     blurb: 'The functions and graphs of later school maths.',
-    courses: [trigonometricFunctions, logarithms],
+    courses: [trigonometricFunctions, logarithms, exponentialModels],
   },
   {
     id: 'advanced-maths',

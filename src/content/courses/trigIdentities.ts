@@ -19,6 +19,11 @@
  * least values and its equations are the ones Trigonometric Functions already
  * solves for A sin(bx + c) + d.
  *
+ * Level 4 halves and triples the angle: cos 2A read with A = x/2 gives the
+ * half-angle formulae, with values from cos x and exact values at 15 and 22.5
+ * degrees; sin(2x + x) gives the triple-angle formulae; and equations in x/2
+ * and 3x are solved for the bracket over its own range.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -45,7 +50,7 @@ export const trigIdentities: Course = {
   // Straight after Trigonometric Functions, whose identities it puts to work.
   position: 15,
   title: 'Trigonometric Identities & Equations',
-  blurb: 'Rewriting with identities to solve equations, compound and double angles, and the form R sin(x + α).',
+  blurb: 'Rewriting with identities to solve equations; compound, double, half and triple angles; and the form R sin(x + α).',
   levels: [
     {
       id: 'ti-l1',
@@ -694,6 +699,215 @@ export const trigIdentities: Course = {
         ask('tid-r-solve-steps', 2),
         ask('tid-r-count-flow', 2),
         ask('tid-r-solve-angle', 2),
+      ],
+    },
+    {
+      id: 'ti-l4',
+      title: 'Half-Angle and Multiple-Angle Formulae',
+      lessons: [
+        {
+          id: 'ti-l4-half',
+          title: 'The Half-Angle Formulae',
+          slides: [
+            teach(
+              prose('Both double-angle forms of the cosine hold for any angle $A$:'),
+              maths('\\begin{aligned} \\cos 2A &= 1 - 2\\sin^2 A \\\\ &= 2\\cos^2 A - 1 \\end{aligned}'),
+              prose('Put $A = \\tfrac{x}{2}$, so $2A = x$, and each rearranges to a square of a half angle:'),
+              maths('\\begin{aligned} \\sin^2 \\tfrac{x}{2} &= \\tfrac{1 - \\cos x}{2} \\\\ \\cos^2 \\tfrac{x}{2} &= \\tfrac{1 + \\cos x}{2} \\end{aligned}'),
+            ),
+            ask('tid-half-tiles'),
+            ask('tid-half-simplify-steps'),
+            ask('tid-half-rewrite-flow'),
+            teach(
+              prose('Read the other way, they clear a $1$ from beside a cosine:'),
+              maths('\\begin{aligned} 1 - \\cos x &= 2\\sin^2 \\tfrac{x}{2} \\\\ 1 + \\cos x &= 2\\cos^2 \\tfrac{x}{2} \\\\ \\sin x &= 2\\sin \\tfrac{x}{2}\\cos \\tfrac{x}{2} \\end{aligned}'),
+              prose(
+                'So $\\frac{1 - \\cos x}{\\sin x} = \\frac{2\\sin^2 \\frac{x}{2}}{2\\sin \\frac{x}{2}\\cos \\frac{x}{2}} = \\tan \\tfrac{x}{2}$.',
+              ),
+            ),
+            ask('tid-half-sign-choice'),
+            ask('tid-half-tiles', 2),
+            ask('tid-half-simplify-steps', 2),
+            teach(
+              prose('Taking the square root leaves a choice of sign:'),
+              maths('\\sin \\tfrac{x}{2} = \\pm\\sqrt{\\tfrac{1 - \\cos x}{2}}'),
+              prose(
+                'The sign comes from where the **half** angle lies, not $x$. If $180^{\\circ} < x < 360^{\\circ}$ then $90^{\\circ} < \\tfrac{x}{2} < 180^{\\circ}$, where the sine is positive and the cosine negative.',
+              ),
+            ),
+            ask('tid-half-rewrite-flow', 2),
+            ask('tid-half-sign-choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-half-tiles', 2),
+            ask('tid-half-simplify-steps', 2),
+            ask('tid-half-rewrite-flow', 2),
+          ],
+        },
+        {
+          id: 'ti-l4-value',
+          title: 'Half-Angle Values',
+          slides: [
+            teach(
+              prose('Knowing $\\cos x$ is enough for every ratio of $\\tfrac{x}{2}$. With $\\cos x = \\tfrac{7}{25}$ and $0^{\\circ} < x < 90^{\\circ}$:'),
+              maths('\\begin{aligned} \\sin^2 \\tfrac{x}{2} &= \\tfrac{1 - \\frac{7}{25}}{2} = \\tfrac{9}{25} \\\\ \\cos^2 \\tfrac{x}{2} &= \\tfrac{1 + \\frac{7}{25}}{2} = \\tfrac{16}{25} \\end{aligned}'),
+              prose('So $\\sin \\tfrac{x}{2} = \\tfrac{3}{5}$, $\\cos \\tfrac{x}{2} = \\tfrac{4}{5}$ and $\\tan \\tfrac{x}{2} = \\tfrac{3}{4}$.'),
+            ),
+            ask('tid-half-value'),
+            ask('tid-half-root-steps'),
+            ask('tid-half-square-tree'),
+            teach(
+              prose('The signs come from halving the range. With $270^{\\circ} < x < 360^{\\circ}$:'),
+              maths('135^{\\circ} < \\tfrac{x}{2} < 180^{\\circ}'),
+              prose('That is the second quadrant, so $\\sin \\tfrac{x}{2}$ is positive while $\\cos \\tfrac{x}{2}$ and $\\tan \\tfrac{x}{2}$ are negative.'),
+            ),
+            ask('tid-half-sign-flow'),
+            ask('tid-half-value+choice', 2),
+            ask('tid-half-root-steps', 2),
+            teach(
+              prose(
+                'Given $\\sin x$ instead, find $\\cos x$ first, with its sign from where $x$ lies. If $\\sin x = \\tfrac{24}{25}$ and $x$ is obtuse, $\\cos x = -\\tfrac{7}{25}$, and then',
+              ),
+              maths('\\sin^2 \\tfrac{x}{2} = \\tfrac{1 + \\frac{7}{25}}{2} = \\tfrac{16}{25}'),
+              prose('Two signs to settle, then: the sign of $\\cos x$ from $x$, and the sign of the root from $\\tfrac{x}{2}$.'),
+            ),
+            ask('tid-half-square-tree', 2),
+            ask('tid-half-sign-flow', 2),
+          ],
+          skillCheck: [
+            ask('tid-half-value', 2),
+            ask('tid-half-square-tree', 2),
+            ask('tid-half-sign-flow', 2),
+          ],
+        },
+        {
+          id: 'ti-l4-exact',
+          title: 'Exact Values at 15° and 22.5°',
+          slides: [
+            teach(
+              prose('$15^{\\circ}$ is half of $30^{\\circ}$, whose cosine is exact:'),
+              maths('\\begin{aligned} \\cos^2 15^{\\circ} &= \\tfrac{1 + \\frac{\\sqrt{3}}{2}}{2} = \\tfrac{2 + \\sqrt{3}}{4} \\\\ \\sin^2 15^{\\circ} &= \\tfrac{1 - \\frac{\\sqrt{3}}{2}}{2} = \\tfrac{2 - \\sqrt{3}}{4} \\end{aligned}'),
+              prose('Multiplying top and bottom by $2$ clears the fraction inside the fraction.'),
+            ),
+            ask('tid-half-exact-steps'),
+            ask('tid-half-exact-tiles'),
+            ask('tid-half-exact-choice'),
+            teach(
+              prose('$22.5^{\\circ}$ is half of $45^{\\circ}$ in the same way:'),
+              maths('\\sin 22.5^{\\circ} = \\sqrt{\\tfrac{2 - \\sqrt{2}}{4}} = \\tfrac{\\sqrt{2 - \\sqrt{2}}}{2}'),
+              prose('Both angles are acute, so every root is positive. $67.5^{\\circ}$, $75^{\\circ}$ and the rest are halves too, of $135^{\\circ}$, $150^{\\circ}$ and so on.'),
+            ),
+            ask('tid-half-surd-tree'),
+            ask('tid-half-exact-tiles', 2),
+            ask('tid-half-exact-steps', 2),
+            teach(
+              prose('A tangent needs no root at all:'),
+              maths('\\tan \\tfrac{x}{2} = \\tfrac{1 - \\cos x}{\\sin x}'),
+              prose(
+                'So $\\tan 22.5^{\\circ} = \\frac{1 - \\frac{\\sqrt{2}}{2}}{\\frac{\\sqrt{2}}{2}} = \\sqrt{2} - 1$ and $\\tan 15^{\\circ} = \\frac{1 - \\frac{\\sqrt{3}}{2}}{\\frac{1}{2}} = 2 - \\sqrt{3}$.',
+              ),
+            ),
+            ask('tid-half-exact-choice', 2),
+            ask('tid-half-surd-tree', 2),
+          ],
+          skillCheck: [
+            ask('tid-half-exact-tiles', 2),
+            ask('tid-half-exact-steps', 2),
+            ask('tid-half-exact-choice', 2),
+          ],
+        },
+        {
+          id: 'ti-l4-triple',
+          title: 'The Triple-Angle Formulae',
+          slides: [
+            teach(
+              prose('Split $3x$ as $2x + x$, expand, then write the double angles in $x$:'),
+              maths(
+                '\\begin{aligned} \\sin 3x &= \\sin 2x\\cos x \\\\ &\\quad + \\cos 2x\\sin x \\\\ &= 2\\sin x\\cos^2 x \\\\ &\\quad + \\sin x - 2\\sin^3 x \\\\ &= 3\\sin x - 4\\sin^3 x \\end{aligned}',
+              ),
+              prose('The last line used $\\cos^2 x = 1 - \\sin^2 x$, so only sines are left.'),
+            ),
+            ask('tid-triple-steps'),
+            ask('tid-triple-tiles'),
+            ask('tid-triple-choice'),
+            teach(
+              prose('The cosine goes the same way, keeping only cosines:'),
+              maths('\\cos 3x = 4\\cos^3 x - 3\\cos x'),
+              prose(
+                'Rearranged, they turn a cube into single angles: $\\sin^3 x = \\tfrac{3\\sin x - \\sin 3x}{4}$ and $\\cos^3 x = \\tfrac{3\\cos x + \\cos 3x}{4}$.',
+              ),
+            ),
+            ask('tid-triple-value'),
+            ask('tid-triple-tiles', 2),
+            ask('tid-triple-steps', 2),
+            teach(
+              prose('With one ratio known, the formula gives the triple angle without finding $x$. If $\\sin x = \\tfrac{3}{5}$:'),
+              maths('\\sin 3x = 3 \\cdot \\tfrac{3}{5} - 4 \\cdot \\tfrac{27}{125} = \\tfrac{117}{125}'),
+              prose('For $\\cos 3x$ you need $\\cos x$ first, with its sign from the quadrant.'),
+            ),
+            ask('tid-triple-value+choice', 2),
+            ask('tid-triple-choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-triple-tiles', 2),
+            ask('tid-triple-value', 2),
+            ask('tid-triple-choice', 2),
+          ],
+        },
+        {
+          id: 'ti-l4-equations',
+          title: 'Equations in x/2 and 3x',
+          slides: [
+            teach(
+              prose(
+                'Solve for the whole bracket over **its** range, then undo. For $0^{\\circ} \\le x < 360^{\\circ}$, $3x$ runs over three turns, so $\\sin 3x = \\tfrac{1}{2}$ has a pair in each:',
+              ),
+              maths(
+                '\\begin{aligned} 3x &= 30^{\\circ}, 150^{\\circ} \\\\ 3x &= 390^{\\circ}, 510^{\\circ} \\\\ 3x &= 750^{\\circ}, 870^{\\circ} \\end{aligned}',
+              ),
+              prose('Divide each by $3$: $x = 10^{\\circ}$, $50^{\\circ}$, $130^{\\circ}$, $170^{\\circ}$, $250^{\\circ}$, $290^{\\circ}$.'),
+            ),
+            ask('tid-multi-eq-flow'),
+            ask('tid-multi-eq-slider'),
+            ask('tid-multi-eq-steps'),
+            teach(
+              prose('A half angle goes the other way. For $0^{\\circ} \\le x < 360^{\\circ}$, $\\tfrac{x}{2}$ covers only $0^{\\circ}$ to $180^{\\circ}$:'),
+              maths('\\begin{aligned} \\cos \\tfrac{x}{2} &= \\tfrac{1}{2} \\\\ \\tfrac{x}{2} &= 60^{\\circ} \\\\ x &= 120^{\\circ} \\end{aligned}'),
+              prose('The other table angle, $300^{\\circ}$, lies beyond the half range.'),
+            ),
+            ask('tid-multi-eq-angle'),
+            ask('tid-multi-eq-flow', 2),
+            ask('tid-multi-eq-slider', 2),
+            teach(
+              prose('Count before listing: $3x$ meets each level three times as often as $x$, and a tangent repeats every $180^{\\circ}$. For $0^{\\circ} \\le x < 180^{\\circ}$:'),
+              maths('\\begin{aligned} \\tan 3x &= 1 \\\\ 3x &= 45^{\\circ}, 225^{\\circ}, 405^{\\circ} \\\\ x &= 15^{\\circ}, 75^{\\circ}, 135^{\\circ} \\end{aligned}'),
+            ),
+            ask('tid-multi-eq-steps', 2),
+            ask('tid-multi-eq-angle+choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-multi-eq-flow', 2),
+            ask('tid-multi-eq-steps', 2),
+            ask('tid-multi-eq-angle', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('tid-half-tiles', 2),
+        ask('tid-half-sign-flow', 2),
+        ask('tid-half-value', 2),
+        ask('tid-half-simplify-steps', 2),
+        ask('tid-half-sign-choice', 2),
+        ask('tid-half-square-tree', 2),
+        ask('tid-half-exact-tiles', 2),
+        ask('tid-half-exact-steps', 2),
+        ask('tid-half-exact-choice', 2),
+        ask('tid-triple-value', 2),
+        ask('tid-triple-tiles', 2),
+        ask('tid-triple-choice', 2),
+        ask('tid-multi-eq-flow', 2),
+        ask('tid-multi-eq-steps', 2),
+        ask('tid-multi-eq-angle', 2),
       ],
     },
   ],

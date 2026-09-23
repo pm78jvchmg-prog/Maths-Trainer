@@ -10,7 +10,11 @@
  * and double-angle formulae, and level 3 writes a sin x + b cos x as
  * R sin(x + alpha). There alpha is a table angle wherever an angle is typed or
  * slid to; a Pythagorean triple's alpha, to one decimal place, is only ever an
- * option or a tile, and a surd R is only ever a tile.
+ * option or a tile, and a surd R is only ever a tile. Level 4 runs the
+ * double-angle formulae back to x/2 and on to 3x. Its half-angle values are
+ * drawn backwards from the half angle's triangle so they come out whole, 15 and
+ * 22.5 degrees appear only in a prompt or an option, and a 3x equation that is
+ * typed or slid keeps to 0 and +-1.
  *
  * Every angle is a multiple of 30 or 45 degrees (or half of one, where a double
  * angle is being undone), every value is 0, +-1/2, +-1 or a surd, and every
@@ -4650,6 +4654,1998 @@ const rSolveSlider: Generator<RSolveSliderParams> = {
   },
 };
 
+/* ---------- Level 4: half-angle and multiple-angle formulae ---------- */
+
+/*
+ * The double-angle formulae read with A = x/2: cos x = 1 - 2 sin^2(x/2), and so
+ * on. Every half angle is written `\tfrac{x}2`, with no braces round the 2, so a
+ * tiles template never tears it at a `{2}`.
+ */
+
+/** A half angle as the learner reads it. */
+const halfOf = (v: string): string => `\\tfrac{${v}}2`;
+
+/** A whole angle and its half: x/2, and on to 3x as the half of 6x. */
+const HALF_PAIRS: [string, string][] = [
+  ['x', halfOf('x')],
+  ['\\theta', halfOf('\\theta')],
+  ['A', halfOf('A')],
+  ['3x', halfOf('3x')],
+  ['6x', '3x'],
+];
+
+/** 1 - r and 1 + r with a fraction r, as a line of working reads them: no "- -". */
+const oneMinus = (r: Rat): string => `1 ${r[0] < 0 ? '+' : '-'} ${ratTex([Math.abs(r[0]), r[1]])}`;
+const onePlus = (r: Rat): string => `1 ${r[0] < 0 ? '-' : '+'} ${ratTex([Math.abs(r[0]), r[1]])}`;
+
+/** Where x lies, and so where x/2 lies. The half-range's signs come from its middle. */
+const HALF_RANGES: { lo: number; hi: number }[] = [
+  { lo: 0, hi: 180 },
+  { lo: 180, hi: 360 },
+  { lo: 360, hi: 540 },
+  { lo: 540, hi: 720 },
+  { lo: -180, hi: 0 },
+  { lo: -360, hi: -180 },
+];
+
+const rangeTex = (range: number, v: string): string =>
+  `${deg(HALF_RANGES[range].lo)} < ${v} < ${deg(HALF_RANGES[range].hi)}`;
+
+/** The sign sin, cos or tan takes over the half-range. */
+function halfSign(fn: Fn, range: number): number {
+  const { lo, hi } = HALF_RANGES[range];
+  return Math.sign(trigAt(fn, (lo + hi) / 4)!);
+}
+
+const HALF_LETTERS = ['x', '\\theta', 'A', 'B'];
+
+/* Lesson 1: the half-angle formulae. */
+
+interface HalfTileParams {
+  form: number;
+  pair: number;
+}
+
+interface HalfTileForm {
+  hard: boolean;
+  template: (F: string, H: string) => string;
+  answer: (F: string, H: string) => string[];
+  wrong: (F: string, H: string) => string[];
+  unordered?: boolean;
+  why: (F: string, H: string) => string;
+}
+
+const fromCosSin = (F: string, H: string) => `From $\\cos ${F} = 1 - 2\\sin^2 ${H}$, with $${H}$ half of $${F}$.`;
+const fromCosCos = (F: string, H: string) => `From $\\cos ${F} = 2\\cos^2 ${H} - 1$, with $${H}$ half of $${F}$.`;
+
+const HALF_TILE_FORMS: HalfTileForm[] = [
+  {
+    hard: false,
+    template: (_F, H) => `\\sin^2 ${H} = \\tfrac12(1 - {0})`,
+    answer: (F) => [`\\cos ${F}`],
+    wrong: (F, H) => [`\\cos ${H}`, `\\sin ${F}`, `\\cos^2 ${H}`],
+    why: (F, H) => `${fromCosSin(F, H)} Make $\\sin^2 ${H}$ the subject: $2\\sin^2 ${H} = 1 - \\cos ${F}$, then halve.`,
+  },
+  {
+    hard: false,
+    template: (_F, H) => `\\cos^2 ${H} = \\tfrac12({0})`,
+    answer: (F) => [`1 + \\cos ${F}`],
+    wrong: (F, H) => [`1 - \\cos ${F}`, `1 + \\cos ${H}`, `2 + \\cos ${F}`],
+    why: (F, H) => `${fromCosCos(F, H)} Make $\\cos^2 ${H}$ the subject: $2\\cos^2 ${H} = 1 + \\cos ${F}$, then halve.`,
+  },
+  {
+    hard: false,
+    template: (F) => `\\cos ${F} = 1 - {0}`,
+    answer: (_F, H) => [`2\\sin^2 ${H}`],
+    wrong: (F, H) => [`2\\sin^2 ${F}`, `\\sin^2 ${H}`, `2\\cos^2 ${H}`],
+    why: (F, H) => `It is $\\cos 2A = 1 - 2\\sin^2 A$ with $A = ${H}$, so $2A = ${F}$.`,
+  },
+  {
+    hard: false,
+    template: (F) => `\\cos ${F} = {0} - 1`,
+    answer: (_F, H) => [`2\\cos^2 ${H}`],
+    wrong: (F, H) => [`2\\cos^2 ${F}`, `\\cos^2 ${H}`, `2\\sin^2 ${H}`],
+    why: (F, H) => `It is $\\cos 2A = 2\\cos^2 A - 1$ with $A = ${H}$, so $2A = ${F}$.`,
+  },
+  {
+    hard: false,
+    template: (F, H) => `\\sin ${F} = 2\\sin ${H}\\,{0}`,
+    answer: (_F, H) => [`\\cos ${H}`],
+    wrong: (F, H) => [`\\cos ${F}`, `\\sin ${H}`, `\\cos^2 ${H}`],
+    why: (F, H) => `It is $\\sin 2A = 2\\sin A\\cos A$ with $A = ${H}$, so $2A = ${F}$.`,
+  },
+  {
+    hard: false,
+    template: (F) => `1 - \\cos ${F} = {0}`,
+    answer: (_F, H) => [`2\\sin^2 ${H}`],
+    wrong: (F, H) => [`2\\cos^2 ${H}`, `\\sin^2 ${H}`, `2\\sin^2 ${F}`],
+    why: (F, H) => `${fromCosSin(F, H)} Take $\\cos ${F}$ across and $2\\sin^2 ${H}$ the other way.`,
+  },
+  {
+    hard: false,
+    template: (F) => `1 + \\cos ${F} = {0}`,
+    answer: (_F, H) => [`2\\cos^2 ${H}`],
+    wrong: (F, H) => [`2\\sin^2 ${H}`, `\\cos^2 ${H}`, `2\\cos^2 ${F}`],
+    why: (F, H) => `${fromCosCos(F, H)} Add $1$ to both sides.`,
+  },
+  {
+    hard: true,
+    template: (F, H) => `\\tan ${H} = {0} \\div (1 + \\cos ${F})`,
+    answer: (F) => [`\\sin ${F}`],
+    wrong: (F, H) => [`\\sin ${H}`, `\\cos ${F}`, `1 - \\cos ${F}`],
+    why: (F, H) =>
+      `Multiply the top and bottom of $\\frac{\\sin ${H}}{\\cos ${H}}$ by $2\\cos ${H}$: the top becomes $2\\sin ${H}\\cos ${H} = \\sin ${F}$ and the bottom $2\\cos^2 ${H} = 1 + \\cos ${F}$.`,
+  },
+  {
+    hard: true,
+    template: (F, H) => `\\tan ${H} = (1 - \\cos ${F}) \\div {0}`,
+    answer: (F) => [`\\sin ${F}`],
+    wrong: (F, H) => [`\\sin ${H}`, `\\cos ${F}`, `1 + \\cos ${F}`],
+    why: (F, H) =>
+      `Multiply the top and bottom of $\\frac{\\sin ${H}}{\\cos ${H}}$ by $2\\sin ${H}$: the top becomes $2\\sin^2 ${H} = 1 - \\cos ${F}$ and the bottom $2\\sin ${H}\\cos ${H} = \\sin ${F}$.`,
+  },
+  {
+    hard: true,
+    template: (F, H) => `\\tan^2 ${H} = (1 - \\cos ${F}) \\div ({0})`,
+    answer: (F) => [`1 + \\cos ${F}`],
+    wrong: (F, H) => [`1 - \\cos ${F}`, `1 + \\cos ${H}`, `\\cos ${F}`],
+    why: (F, H) =>
+      `Divide $\\sin^2 ${H} = \\tfrac12(1 - \\cos ${F})$ by $\\cos^2 ${H} = \\tfrac12(1 + \\cos ${F})$; the halves cancel.`,
+  },
+  {
+    hard: true,
+    template: (F) => `\\cos ${F} = {0} - {1}`,
+    answer: (_F, H) => [`\\cos^2 ${H}`, `\\sin^2 ${H}`],
+    wrong: (F, H) => [`\\cos^2 ${F}`, `\\sin^2 ${F}`, `2\\sin^2 ${H}`],
+    why: (F, H) => `It is $\\cos 2A = \\cos^2 A - \\sin^2 A$ with $A = ${H}$, so $2A = ${F}$.`,
+  },
+  {
+    hard: true,
+    template: (_F, H) => `\\sin^2 ${H} - \\cos^2 ${H} = {0}`,
+    answer: (F) => [`-\\cos ${F}`],
+    wrong: (F, H) => [`\\cos ${F}`, `-\\cos ${H}`, `\\sin ${F}`],
+    why: (F, H) => `$\\cos^2 ${H} - \\sin^2 ${H} = \\cos ${F}$, and this is the same thing the other way round, so it is $-\\cos ${F}$.`,
+  },
+];
+
+/** A half-angle formula completed. */
+const halfTiles: Generator<HalfTileParams> = {
+  id: 'tid-half-tiles',
+  sample: (rng, difficulty) => {
+    const forms = HALF_TILE_FORMS.map((f, i) => ({ f, i })).filter(({ f }) => difficulty > 1 || !f.hard);
+    return { form: rng.pick(forms).i, pair: rng.int(0, HALF_PAIRS.length - 1) };
+  },
+  render: ({ form, pair }): Slide => {
+    const f = HALF_TILE_FORMS[form];
+    const [F, H] = HALF_PAIRS[pair];
+    const answer = f.answer(F, H);
+    return {
+      kind: 'tiles',
+      prompt: [prose(`Complete the formula. The whole angle is $${F}$ and the half angle $${H}$.`)],
+      template: f.template(F, H),
+      bank: bankOf(answer, f.wrong(F, H)),
+      answer,
+      ...(f.unordered ? { unordered: true } : {}),
+    };
+  },
+  solution: ({ form, pair }) => {
+    const f = HALF_TILE_FORMS[form];
+    const [F, H] = HALF_PAIRS[pair];
+    let line = f.template(F, H);
+    f.answer(F, H).forEach((token, i) => {
+      line = line.replace(`{${i}}`, token);
+    });
+    return [{ text: f.why(F, H) }, { tex: line }];
+  },
+};
+
+interface HalfStepsParams {
+  form: number;
+  k: number;
+  pair: number;
+}
+
+interface HalfStepsForm {
+  hard: boolean;
+  start: (c: string, F: string, H: string) => string[];
+  reductions: (k: number, F: string, H: string) => { span: [number, number]; value: string; bank: string[] }[];
+  why: (k: number, F: string, H: string) => SolutionStep[];
+}
+
+const HALF_STEPS: HalfStepsForm[] = [
+  {
+    hard: false,
+    start: (c, F, H) => [`${c}(1 - \\cos ${F})`, '\\div', `\\sin ${H}`],
+    reductions: (k, _F, H) => [
+      { span: [0, 1], value: `${2 * k}\\sin^2 ${H}`, bank: [`${co(k)}\\sin^2 ${H}`, `${2 * k}\\cos^2 ${H}`, `${2 * k}\\sin ${H}`] },
+      { span: [0, 3], value: `${2 * k}\\sin ${H}`, bank: [`${co(k)}\\sin ${H}`, `${2 * k}\\cos ${H}`, `${2 * k}\\sin^2 ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `$\\cos ${F} = 1 - 2\\sin^2 ${H}$, so $1 - \\cos ${F} = 2\\sin^2 ${H}$.` },
+      { tex: `${2 * k}\\sin^2 ${H} \\div \\sin ${H} = ${2 * k}\\sin ${H}` },
+    ],
+  },
+  {
+    hard: false,
+    start: (c, F, H) => [`${c}(1 + \\cos ${F})`, '\\div', `\\cos ${H}`],
+    reductions: (k, _F, H) => [
+      { span: [0, 1], value: `${2 * k}\\cos^2 ${H}`, bank: [`${co(k)}\\cos^2 ${H}`, `${2 * k}\\sin^2 ${H}`, `${2 * k}\\cos ${H}`] },
+      { span: [0, 3], value: `${2 * k}\\cos ${H}`, bank: [`${co(k)}\\cos ${H}`, `${2 * k}\\sin ${H}`, `${2 * k}\\cos^2 ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `$\\cos ${F} = 2\\cos^2 ${H} - 1$, so $1 + \\cos ${F} = 2\\cos^2 ${H}$.` },
+      { tex: `${2 * k}\\cos^2 ${H} \\div \\cos ${H} = ${2 * k}\\cos ${H}` },
+    ],
+  },
+  {
+    hard: false,
+    start: (c, F, H) => [`${c}\\sin ${F}`, '\\div', `\\cos ${H}`],
+    reductions: (k, F, H) => [
+      { span: [0, 1], value: `${2 * k}\\sin ${H}\\cos ${H}`, bank: [`${co(k)}\\sin ${H}\\cos ${H}`, `${2 * k}\\sin ${H}`, `${co(k)}\\cos ${F}`] },
+      { span: [0, 3], value: `${2 * k}\\sin ${H}`, bank: [`${co(k)}\\sin ${H}`, `${2 * k}\\cos ${H}`, `${2 * k}\\tan ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `$\\sin ${F} = 2\\sin ${H}\\cos ${H}$, the double-angle formula with $${H}$ as the single angle.` },
+      { tex: `${2 * k}\\sin ${H}\\cos ${H} \\div \\cos ${H} = ${2 * k}\\sin ${H}` },
+    ],
+  },
+  {
+    hard: false,
+    start: (c, F, H) => [`${c}\\sin ${F}`, '\\div', `\\sin ${H}`],
+    reductions: (k, F, H) => [
+      { span: [0, 1], value: `${2 * k}\\sin ${H}\\cos ${H}`, bank: [`${co(k)}\\sin ${H}\\cos ${H}`, `${2 * k}\\cos ${H}`, `${co(k)}\\cos ${F}`] },
+      { span: [0, 3], value: `${2 * k}\\cos ${H}`, bank: [`${co(k)}\\cos ${H}`, `${2 * k}\\sin ${H}`, `${2 * k}\\cot ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `$\\sin ${F} = 2\\sin ${H}\\cos ${H}$, the double-angle formula with $${H}$ as the single angle.` },
+      { tex: `${2 * k}\\sin ${H}\\cos ${H} \\div \\sin ${H} = ${2 * k}\\cos ${H}` },
+    ],
+  },
+  {
+    hard: true,
+    start: (c, F) => [`${c}(1 - \\cos ${F})`, '\\div', `\\sin ${F}`],
+    reductions: (k, F, H) => [
+      { span: [0, 1], value: `${2 * k}\\sin^2 ${H}`, bank: [`${co(k)}\\sin^2 ${H}`, `${2 * k}\\cos^2 ${H}`, `${co(k)}\\sin^2 ${F}`] },
+      { span: [2, 3], value: `2\\sin ${H}\\cos ${H}`, bank: [`2\\sin ${H}`, `\\sin ${H}\\cos ${H}`, `2\\cos^2 ${H}`] },
+      { span: [0, 3], value: `${co(k)}\\tan ${H}`, bank: [`${co(k)}\\cot ${H}`, `${2 * k}\\tan ${H}`, `${co(k)}\\sin ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `Rewrite both: $1 - \\cos ${F} = 2\\sin^2 ${H}$ and $\\sin ${F} = 2\\sin ${H}\\cos ${H}$.` },
+      { tex: `\\frac{${2 * k}\\sin^2 ${H}}{2\\sin ${H}\\cos ${H}} = ${co(k)}\\tan ${H}` },
+    ],
+  },
+  {
+    hard: true,
+    start: (c, F) => [`${c}\\sin ${F}`, '\\div', `(1 + \\cos ${F})`],
+    reductions: (k, F, H) => [
+      { span: [0, 1], value: `${2 * k}\\sin ${H}\\cos ${H}`, bank: [`${co(k)}\\sin ${H}\\cos ${H}`, `${2 * k}\\sin ${H}`, `${co(k)}\\cos ${F}`] },
+      { span: [2, 3], value: `2\\cos^2 ${H}`, bank: [`2\\sin^2 ${H}`, `\\cos^2 ${H}`, `1 + 2\\cos^2 ${H}`] },
+      { span: [0, 3], value: `${co(k)}\\tan ${H}`, bank: [`${co(k)}\\cot ${H}`, `${2 * k}\\tan ${H}`, `${co(k)}\\sin ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `Rewrite both: $\\sin ${F} = 2\\sin ${H}\\cos ${H}$ and $1 + \\cos ${F} = 2\\cos^2 ${H}$.` },
+      { tex: `\\frac{${2 * k}\\sin ${H}\\cos ${H}}{2\\cos^2 ${H}} = ${co(k)}\\tan ${H}` },
+    ],
+  },
+  {
+    hard: true,
+    start: (c, F) => [`${c}(1 - \\cos ${F})`, '\\div', `(1 + \\cos ${F})`],
+    reductions: (k, _F, H) => [
+      { span: [0, 1], value: `${2 * k}\\sin^2 ${H}`, bank: [`${co(k)}\\sin^2 ${H}`, `${2 * k}\\cos^2 ${H}`, `-${2 * k}\\sin^2 ${H}`] },
+      { span: [2, 3], value: `2\\cos^2 ${H}`, bank: [`2\\sin^2 ${H}`, `\\cos^2 ${H}`, `1 + 2\\cos^2 ${H}`] },
+      { span: [0, 3], value: `${co(k)}\\tan^2 ${H}`, bank: [`${co(k)}\\cot^2 ${H}`, `${co(k)}\\tan ${H}`, `${2 * k}\\tan^2 ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `Rewrite both: $1 - \\cos ${F} = 2\\sin^2 ${H}$ and $1 + \\cos ${F} = 2\\cos^2 ${H}$.` },
+      { tex: `\\frac{${2 * k}\\sin^2 ${H}}{2\\cos^2 ${H}} = ${co(k)}\\tan^2 ${H}` },
+    ],
+  },
+  {
+    hard: true,
+    start: (c, F) => [`${c}(1 + \\cos ${F})`, '\\div', `\\sin ${F}`],
+    reductions: (k, F, H) => [
+      { span: [0, 1], value: `${2 * k}\\cos^2 ${H}`, bank: [`${co(k)}\\cos^2 ${H}`, `${2 * k}\\sin^2 ${H}`, `${co(k)}\\cos^2 ${F}`] },
+      { span: [2, 3], value: `2\\sin ${H}\\cos ${H}`, bank: [`2\\sin ${H}`, `\\sin ${H}\\cos ${H}`, `2\\sin^2 ${H}`] },
+      { span: [0, 3], value: `${co(k)}\\cot ${H}`, bank: [`${co(k)}\\tan ${H}`, `${2 * k}\\cot ${H}`, `${co(k)}\\cos ${H}`] },
+    ],
+    why: (k, F, H) => [
+      { text: `Rewrite both: $1 + \\cos ${F} = 2\\cos^2 ${H}$ and $\\sin ${F} = 2\\sin ${H}\\cos ${H}$.` },
+      { tex: `\\frac{${2 * k}\\cos^2 ${H}}{2\\sin ${H}\\cos ${H}} = ${co(k)}\\cot ${H}` },
+    ],
+  },
+];
+
+/** Simplify with a half-angle rewrite: the whole angle becomes its half, then cancel. */
+const halfSimplifySteps: Generator<HalfStepsParams> = {
+  id: 'tid-half-simplify-steps',
+  sample: (rng, difficulty) => {
+    const forms = HALF_STEPS.map((f, i) => ({ f, i })).filter(({ f }) => difficulty > 1 || !f.hard);
+    return { form: rng.pick(forms).i, k: rng.int(1, 6), pair: rng.int(0, 2) };
+  },
+  render: ({ form, k, pair }): Slide => {
+    const f = HALF_STEPS[form];
+    const [F, H] = HALF_PAIRS[pair];
+    return {
+      kind: 'steps',
+      prompt: [prose(`Rewrite in the half angle $${H}$ so that something cancels, then simplify.`)],
+      start: f.start(co(k), F, H),
+      reductions: f.reductions(k, F, H).map((r) => ({ ...r, bank: scatter([...new Set([r.value, ...r.bank])]) })),
+    };
+  },
+  solution: ({ form, k, pair }) => {
+    const [F, H] = HALF_PAIRS[pair];
+    return HALF_STEPS[form].why(k, F, H);
+  },
+};
+
+interface RewriteParams {
+  form: number;
+  k: number;
+  pair: number;
+}
+
+/** The four versions of the double-angle formulae, each read with the half angle as the single one. */
+const halfFormulae = (F: string, H: string): string[] => [
+  `$\\cos ${F} = 1 - 2\\sin^2 ${H}$`,
+  `$\\cos ${F} = 2\\cos^2 ${H} - 1$`,
+  `$\\cos ${F} = \\cos^2 ${H} - \\sin^2 ${H}$`,
+  `$\\sin ${F} = 2\\sin ${H}\\cos ${H}$`,
+];
+
+interface RewriteForm {
+  hard: boolean;
+  evenK?: boolean;
+  subject: (k: number, F: string, H: string) => string;
+  formula: number;
+  right: (k: number, F: string, H: string) => string;
+  slips: (k: number, F: string, H: string) => string[];
+}
+
+const REWRITE_FORMS: RewriteForm[] = [
+  {
+    hard: false,
+    subject: (k, F) => `${k} - ${co(k)}\\cos ${F}`,
+    formula: 0,
+    right: (k, _F, H) => `${2 * k}\\sin^2 ${H}`,
+    slips: (k, _F, H) => [`${co(k)}\\sin^2 ${H}`, `${2 * k}\\cos^2 ${H}`, `-${2 * k}\\sin^2 ${H}`],
+  },
+  {
+    hard: false,
+    subject: (k, F) => `${k} + ${co(k)}\\cos ${F}`,
+    formula: 1,
+    right: (k, _F, H) => `${2 * k}\\cos^2 ${H}`,
+    slips: (k, _F, H) => [`${co(k)}\\cos^2 ${H}`, `${2 * k}\\sin^2 ${H}`, `-${2 * k}\\cos^2 ${H}`],
+  },
+  {
+    hard: false,
+    subject: (k, F) => `${co(k)}\\sin ${F}`,
+    formula: 3,
+    right: (k, _F, H) => `${2 * k}\\sin ${H}\\cos ${H}`,
+    slips: (k, _F, H) => [`${co(k)}\\sin ${H}\\cos ${H}`, `${2 * k}\\sin ${H}`, `${2 * k}\\sin^2 ${H}`],
+  },
+  {
+    hard: false,
+    subject: (k, F) => `${co(k)}\\cos ${F} - ${k}`,
+    formula: 0,
+    right: (k, _F, H) => `-${2 * k}\\sin^2 ${H}`,
+    slips: (k, _F, H) => [`${2 * k}\\sin^2 ${H}`, `-${2 * k}\\cos^2 ${H}`, `-${co(k)}\\sin^2 ${H}`],
+  },
+  {
+    hard: true,
+    subject: (k, _F, H) => `${co(k)}\\cos^2 ${H} - ${co(k)}\\sin^2 ${H}`,
+    formula: 2,
+    right: (k, F) => `${co(k)}\\cos ${F}`,
+    slips: (k, F) => [`-${co(k)}\\cos ${F}`, `${co(k)}\\sin ${F}`, `${k}`],
+  },
+  {
+    hard: true,
+    evenK: true,
+    subject: (k, _F, H) => `${co(k)}\\sin ${H}\\cos ${H}`,
+    formula: 3,
+    right: (k, F) => `${co(k / 2)}\\sin ${F}`,
+    slips: (k, F) => [`${co(k)}\\sin ${F}`, `${co(2 * k)}\\sin ${F}`, `${co(k / 2)}\\cos ${F}`],
+  },
+  {
+    hard: true,
+    subject: (k, _F, H) => `${k} - ${co(2 * k)}\\sin^2 ${H}`,
+    formula: 0,
+    right: (k, F) => `${co(k)}\\cos ${F}`,
+    slips: (k, F) => [`-${co(k)}\\cos ${F}`, `${co(2 * k)}\\cos ${F}`, `${co(k)}\\sin ${F}`],
+  },
+];
+
+/** Which version of the formula rewrites this in one step, and what it becomes. */
+const halfRewriteFlow: Generator<RewriteParams> = {
+  id: 'tid-half-rewrite-flow',
+  sample: (rng, difficulty) => {
+    const forms = REWRITE_FORMS.map((f, i) => ({ f, i })).filter(({ f }) => difficulty > 1 || !f.hard);
+    const form = rng.pick(forms).i;
+    const k = REWRITE_FORMS[form].evenK ? rng.pick([2, 4, 6]) : rng.int(1, 6);
+    return { form, k, pair: rng.int(0, HALF_PAIRS.length - 1) };
+  },
+  render: ({ form, k, pair }): Slide => {
+    const f = REWRITE_FORMS[form];
+    const [F, H] = HALF_PAIRS[pair];
+    const formulae = halfFormulae(F, H);
+    const right = `$${f.right(k, F, H)}$`;
+    const results = scatter([...new Set([right, ...f.slips(k, F, H).map((s) => `$${s}$`)])].slice(0, 4));
+    return {
+      kind: 'flow',
+      prompt: [prose(`Rewrite this in one step with a double-angle formula, where $${H}$ is the single angle and $${F}$ the double.`)],
+      subject: f.subject(k, F, H),
+      steps: [
+        { id: 'formula', ask: 'Which version does it in one step?', branches: formulae.map((label) => ({ label, to: 'becomes' })) },
+        {
+          id: 'becomes',
+          ask: 'So it becomes',
+          branches: results.map((label) => ({ label, outcome: 'One formula swapped in, and nothing left over.' })),
+        },
+      ],
+      answer: [formulae[f.formula], right],
+    };
+  },
+  solution: ({ form, k, pair }) => {
+    const f = REWRITE_FORMS[form];
+    const [F, H] = HALF_PAIRS[pair];
+    const reason = [
+      `The constant has to cancel, so use the version with a $1$ in it and only sines: $\\cos ${F} = 1 - 2\\sin^2 ${H}$.`,
+      `The constant has to cancel, so use the version with a $1$ in it and only cosines: $\\cos ${F} = 2\\cos^2 ${H} - 1$.`,
+      `$\\cos^2 ${H} - \\sin^2 ${H}$ is exactly one side of $\\cos ${F} = \\cos^2 ${H} - \\sin^2 ${H}$.`,
+      `$\\sin ${F} = 2\\sin ${H}\\cos ${H}$ links a sine of $${F}$ to the product of the half angle's sine and cosine.`,
+    ][f.formula];
+    return [{ text: reason }, { tex: `${f.subject(k, F, H)} = ${f.right(k, F, H)}` }];
+  },
+};
+
+interface HalfSignParams {
+  fn: Fn;
+  range: number;
+  v: number;
+}
+
+/** The size of sin, cos or tan of half the angle, from cos of the whole one. */
+function halfRoot(fn: Fn, v: string): string {
+  if (fn === 'sin') return `\\sqrt{\\dfrac{1 - \\cos ${v}}{2}}`;
+  if (fn === 'cos') return `\\sqrt{\\dfrac{1 + \\cos ${v}}{2}}`;
+  return `\\sqrt{\\dfrac{1 - \\cos ${v}}{1 + \\cos ${v}}}`;
+}
+
+/** The root with the wrong fraction under it: cos's for sin, and tan's upside down. */
+function flippedRoot(fn: Fn, v: string): string {
+  if (fn === 'sin') return halfRoot('cos', v);
+  if (fn === 'cos') return halfRoot('sin', v);
+  return `\\sqrt{\\dfrac{1 + \\cos ${v}}{1 - \\cos ${v}}}`;
+}
+
+/** The half-angle formula's sign: which root, and plus or minus, for where x lies. */
+const halfSignChoice: Generator<HalfSignParams> = {
+  id: 'tid-half-sign-choice',
+  sample: (rng, difficulty) => ({
+    fn: rng.pick(difficulty > 1 ? (['sin', 'cos', 'tan'] as const) : (['sin', 'cos'] as const)),
+    range: rng.int(0, difficulty > 1 ? HALF_RANGES.length - 1 : 3),
+    v: rng.int(0, HALF_LETTERS.length - 1),
+  }),
+  render: (p): Slide => {
+    const v = HALF_LETTERS[p.v];
+    const root = halfRoot(p.fn, v);
+    const other = flippedRoot(p.fn, v);
+    const sign = halfSign(p.fn, p.range);
+    const correct = sign > 0 ? root : `-${root}`;
+    return choiceSlide(
+      [prose(`Given that $${rangeTex(p.range, v)}$, which is $\\${p.fn} ${halfOf(v)}$?`)],
+      correct,
+      [sign > 0 ? `-${root}` : root, sign > 0 ? other : `-${other}`, sign > 0 ? `-${other}` : other],
+      saltOf(p),
+    );
+  },
+  solution: (p) => {
+    const v = HALF_LETTERS[p.v];
+    const { lo, hi } = HALF_RANGES[p.range];
+    const sign = halfSign(p.fn, p.range);
+    const root = halfRoot(p.fn, v);
+    const size = {
+      sin: `$\\cos ${v} = 1 - 2\\sin^2 ${halfOf(v)}$ gives $\\sin^2 ${halfOf(v)} = \\frac{1 - \\cos ${v}}{2}$.`,
+      cos: `$\\cos ${v} = 2\\cos^2 ${halfOf(v)} - 1$ gives $\\cos^2 ${halfOf(v)} = \\frac{1 + \\cos ${v}}{2}$.`,
+      tan: `$\\tan^2 ${halfOf(v)}$ is $\\sin^2$ over $\\cos^2$, so the halves cancel: $\\frac{1 - \\cos ${v}}{1 + \\cos ${v}}$.`,
+    }[p.fn];
+    return [
+      { text: size },
+      {
+        text: `Halve the range: $${deg(lo / 2)} < ${halfOf(v)} < ${deg(hi / 2)}$, where $\\${p.fn}$ is ${sign > 0 ? 'positive' : 'negative'}.`,
+      },
+      { tex: `\\${p.fn} ${halfOf(v)} = ${sign > 0 ? root : `-${root}`}` },
+    ];
+  },
+};
+
+/* Lesson 2: half-angle values from cos x. */
+
+/**
+ * Half-angle values come out whole only when drawn backwards: the half angle's
+ * triangle first, then cos x = (b^2 - a^2)/c^2 from it, so sin(x/2) = a/c,
+ * cos(x/2) = b/c and tan(x/2) = a/b.
+ */
+const HALF_TRIPLES: [number, number, number][] = [...TRIPLES, [20, 21, 29]];
+
+interface HalfValueParams {
+  triple: number;
+  swap: boolean;
+  range: number;
+  v: number;
+}
+
+/** Easy draws keep x between 0 and 180 degrees; harder ones put x/2 in each quadrant. */
+const VALUE_RANGES_HARD = [0, 1, 4, 2];
+
+function halfValues({ triple, swap, range }: HalfValueParams): { s: Rat; c: Rat; t: Rat; cosFull: Rat; a: number; b: number; h: number } {
+  const [p, q, h] = HALF_TRIPLES[triple];
+  const [a, b] = swap ? [q, p] : [p, q];
+  const sSign = halfSign('sin', range);
+  const cSign = halfSign('cos', range);
+  return { s: [sSign * a, h], c: [cSign * b, h], t: rat(sSign * cSign * a, b), cosFull: rat(b * b - a * a, h * h), a, b, h };
+}
+
+function sampleHalfValue(rng: Rng, difficulty: number, letters: number): HalfValueParams {
+  return {
+    triple: rng.int(0, HALF_TRIPLES.length - 1),
+    swap: rng.chance(0.5),
+    range: difficulty > 1 ? rng.pick(VALUE_RANGES_HARD) : 0,
+    v: rng.int(0, letters - 1),
+  };
+}
+
+const HALF_VALUE_LETTERS = ['x', '\\theta'];
+
+/** The worked route to one half-angle value: the formula, the fraction, the root, the sign. */
+function halfValueSteps(p: HalfValueParams, ask: Fn, v: string): SolutionStep[] {
+  const { s, c, t, cosFull, a, b, h } = halfValues(p);
+  const H = halfOf(v);
+  const { lo, hi } = HALF_RANGES[p.range];
+  const value = { sin: s, cos: c, tan: t }[ask];
+  const sign = halfSign(ask, p.range);
+  const square =
+    ask === 'sin'
+      ? `\\sin^2 ${H} = \\frac{1 - \\cos ${v}}{2} = \\frac{${oneMinus(cosFull)}}{2} = ${ratTex(rat(a * a, h * h))}`
+      : ask === 'cos'
+        ? `\\cos^2 ${H} = \\frac{1 + \\cos ${v}}{2} = \\frac{${onePlus(cosFull)}}{2} = ${ratTex(rat(b * b, h * h))}`
+        : `\\tan^2 ${H} = \\frac{1 - \\cos ${v}}{1 + \\cos ${v}} = \\frac{${oneMinus(cosFull)}}{${onePlus(cosFull)}} = ${ratTex(rat(a * a, b * b))}`;
+  return [
+    { tex: square },
+    {
+      text: `$${deg(lo)} < ${v} < ${deg(hi)}$, so $${deg(lo / 2)} < ${H} < ${deg(hi / 2)}$, where $\\${ask}$ is ${sign > 0 ? 'positive' : 'negative'}.`,
+    },
+    { tex: `\\${ask} ${H} = ${ratTex(value)}` },
+  ];
+}
+
+interface HalfAskParams extends HalfValueParams {
+  ask: Fn;
+}
+
+/** sin, cos or tan of x/2, typed as a fraction, from cos x and where x lies. */
+const halfValue: Generator<HalfAskParams> = {
+  id: 'tid-half-value',
+  sample: (rng, difficulty) => ({ ...sampleHalfValue(rng, difficulty, HALF_VALUE_LETTERS.length), ask: rng.pick(['sin', 'cos', 'tan'] as const) }),
+  render: (p): Slide => {
+    const v = HALF_VALUE_LETTERS[p.v];
+    const { s, c, t, cosFull } = halfValues(p);
+    const value = { sin: s, cos: c, tan: t }[p.ask];
+    return {
+      kind: 'expression',
+      prompt: [prose(`Given that $\\cos ${v} = ${ratTex(cosFull)}$ and $${rangeTex(p.range, v)}$, find the exact value.`)],
+      lead: `\\${p.ask} ${halfOf(v)} =`,
+      keypad: NUMBER_KEYS,
+      answer: ratAnswer(value),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const { s, c, t, a, b, h } = halfValues(p);
+    const value = { sin: s, cos: c, tan: t }[p.ask];
+    const sign = value[0] < 0 ? -1 : 1;
+    const other: Rat = p.ask === 'sin' ? [sign * b, h] : p.ask === 'cos' ? [sign * a, h] : [sign * b, a];
+    const squared: Rat = p.ask === 'tan' ? rat(sign * a * a, b * b) : rat(sign * Math.abs(value[0]) ** 2, h * h);
+    return ratOptions(value, [[-value[0], value[1]], other, squared, [-other[0], other[1]]]);
+  },
+  solution: (p) => halfValueSteps(p, p.ask, HALF_VALUE_LETTERS[p.v]),
+};
+
+/** sin^2 and cos^2 of x/2 first, then their roots with the right signs, then tan. */
+const halfSquareTree: Generator<HalfValueParams> = {
+  id: 'tid-half-square-tree',
+  sample: (rng, difficulty) => sampleHalfValue(rng, difficulty, HALF_LETTERS.length),
+  render: (p): Slide => {
+    const v = HALF_LETTERS[p.v];
+    const H = halfOf(v);
+    const { s, c, t, cosFull, a, b, h } = halfValues(p);
+    const answer = [ratTex(rat(a * a, h * h)), ratTex(rat(b * b, h * h)), ratTex(s), ratTex(c), ratTex(t)];
+    const distractors = [
+      ratTex([-s[0], s[1]]),
+      ratTex([-c[0], c[1]]),
+      ratTex([-t[0], t[1]]),
+      ratTex(rat(2 * a * a, h * h)),
+      ratTex(rat(t[1], t[0])),
+      ratTex(cosFull),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `$\\cos ${v} = ${ratTex(cosFull)}$ and $${rangeTex(p.range, v)}$. Top row: $\\sin^2 ${H}$, then $\\cos^2 ${H}$. Under each: its root, signed for where $${H}$ lies. Bottom: $\\tan ${H}$.`,
+        ),
+      ],
+      expression: `\\tan ${H} = \\dfrac{\\sin ${H}}{\\cos ${H}}`,
+      nodes: [
+        { id: 's2', from: [] },
+        { id: 'c2', from: [] },
+        { id: 's', from: ['s2'] },
+        { id: 'c', from: ['c2'] },
+        { id: 't', from: ['s', 'c'] },
+      ],
+      bank: bankOf(answer, distractors, 4),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const v = HALF_LETTERS[p.v];
+    const H = halfOf(v);
+    const { s, c, t, cosFull, a, b, h } = halfValues(p);
+    const { lo, hi } = HALF_RANGES[p.range];
+    return [
+      { tex: `\\sin^2 ${H} = \\frac{${oneMinus(cosFull)}}{2} = ${ratTex(rat(a * a, h * h))}` },
+      { tex: `\\cos^2 ${H} = \\frac{${onePlus(cosFull)}}{2} = ${ratTex(rat(b * b, h * h))}` },
+      {
+        text: `$${deg(lo / 2)} < ${H} < ${deg(hi / 2)}$ fixes the signs: $\\sin ${H}$ is ${s[0] > 0 ? 'positive' : 'negative'} and $\\cos ${H}$ ${c[0] > 0 ? 'positive' : 'negative'}.`,
+      },
+      { tex: `\\sin ${H} = ${ratTex(s)} \\qquad \\cos ${H} = ${ratTex(c)}` },
+      { tex: `\\tan ${H} = ${ratTex(s)} \\div ${br(ratTex(c))} = ${ratTex(t)}` },
+    ];
+  },
+};
+
+interface HalfRootParams extends HalfValueParams {
+  fn: 'sin' | 'cos';
+}
+
+/** One half-angle value a line at a time: formula, substitute, simplify, then the root with its sign. */
+const halfRootSteps: Generator<HalfRootParams> = {
+  id: 'tid-half-root-steps',
+  sample: (rng, difficulty) => ({ ...sampleHalfValue(rng, difficulty, HALF_VALUE_LETTERS.length), fn: rng.pick(['sin', 'cos'] as const) }),
+  render: (p): Slide => {
+    const v = HALF_VALUE_LETTERS[p.v];
+    const H = halfOf(v);
+    const { s, c, cosFull, a, b, h } = halfValues(p);
+    const isSin = p.fn === 'sin';
+    const op = isSin ? '-' : '+';
+    const flip = isSin ? '+' : '-';
+    const sub = isSin ? oneMinus(cosFull) : onePlus(cosFull);
+    const subSlip = isSin ? onePlus(cosFull) : oneMinus(cosFull);
+    const [n, m] = isSin ? [a, b] : [b, a];
+    const value = isSin ? s : c;
+    const reductions: { span: [number, number]; value: string; bank: string[] }[] = [
+      {
+        span: [0, 1],
+        value: `\\pm\\sqrt{\\dfrac{1 ${op} \\cos ${v}}{2}}`,
+        bank: [`\\pm\\sqrt{\\dfrac{1 ${flip} \\cos ${v}}{2}}`, `\\pm\\sqrt{1 ${op} \\cos ${v}}`, `\\pm\\dfrac{1 ${op} \\cos ${v}}{2}`],
+      },
+      {
+        span: [0, 1],
+        value: `\\pm\\sqrt{\\dfrac{${sub}}{2}}`,
+        bank: [`\\pm\\sqrt{\\dfrac{${subSlip}}{2}}`, `\\pm\\sqrt{${sub}}`],
+      },
+      {
+        span: [0, 1],
+        value: `\\pm\\sqrt{${ratTex(rat(n * n, h * h))}}`,
+        bank: [`\\pm\\sqrt{${ratTex(rat(m * m, h * h))}}`, `\\pm\\sqrt{${ratTex(rat(2 * n * n, h * h))}}`],
+      },
+      {
+        span: [0, 1],
+        value: ratTex(value),
+        bank: [ratTex([-value[0], value[1]]), ratTex([Math.sign(value[0]) * m, h]), ratTex(rat(n * n, h * h))],
+      },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(`Given that $\\cos ${v} = ${ratTex(cosFull)}$ and $${rangeTex(p.range, v)}$, find $\\${p.fn} ${H}$ a line at a time.`),
+      ],
+      start: [`\\${p.fn} ${H}`],
+      reductions: reductions.map((r) => ({ ...r, bank: scatter([...new Set([r.value, ...r.bank])]) })),
+    };
+  },
+  solution: (p) => halfValueSteps(p, p.fn, HALF_VALUE_LETTERS[p.v]),
+};
+
+interface HalfSignFlowParams extends HalfValueParams {
+  fn: Fn;
+}
+
+/** The quadrants x/2 can land in, as flow labels. */
+const HALF_QUADRANTS: [number, number][] = [
+  [0, 90],
+  [90, 180],
+  [180, 270],
+  [270, 360],
+  [-90, 0],
+];
+
+/** Where x/2 lies first, then the value with the sign that goes with it. */
+const halfSignFlow: Generator<HalfSignFlowParams> = {
+  id: 'tid-half-sign-flow',
+  sample: (rng, difficulty) => ({
+    triple: rng.int(0, HALF_TRIPLES.length - 1),
+    swap: rng.chance(0.5),
+    range: difficulty > 1 ? rng.int(0, 4) : rng.int(0, 1),
+    v: rng.int(0, HALF_VALUE_LETTERS.length - 1),
+    fn: rng.pick(['sin', 'cos', 'tan'] as const),
+  }),
+  render: (p): Slide => {
+    const v = HALF_VALUE_LETTERS[p.v];
+    const H = halfOf(v);
+    const { s, c, t, cosFull, a, b, h } = halfValues(p);
+    const { lo, hi } = HALF_RANGES[p.range];
+    const where = (q: [number, number]) => `$${deg(q[0])}$ and $${deg(q[1])}$`;
+    const right: [number, number] = [lo / 2, hi / 2];
+    const quadrants = [right, ...HALF_QUADRANTS.filter((q) => q[0] !== right[0])].slice(0, 4).sort((x, y) => x[0] - y[0]);
+    const value = { sin: s, cos: c, tan: t }[p.fn];
+    const size: Rat = { sin: [a, h], cos: [b, h], tan: [a, b] }[p.fn] as Rat;
+    const swapped: Rat = { sin: [b, h], cos: [a, h], tan: [b, a] }[p.fn] as Rat;
+    const values = scatter([size, [-size[0], size[1]] as Rat, swapped, [-swapped[0], swapped[1]] as Rat].map((r) => `$${ratTex(r)}$`));
+    return {
+      kind: 'flow',
+      prompt: [prose(`Given that $${rangeTex(p.range, v)}$, find $\\${p.fn} ${H}$ one decision at a time.`)],
+      subject: `\\cos ${v} = ${ratTex(cosFull)}`,
+      steps: [
+        { id: 'where', ask: `First, $${H}$ lies between`, branches: quadrants.map((q) => ({ label: where(q), to: 'value' })) },
+        {
+          id: 'value',
+          ask: `So $\\${p.fn} ${H}$ is`,
+          branches: values.map((label) => ({ label, outcome: 'The formula gives the size; where the half angle lies gives the sign.' })),
+        },
+      ],
+      answer: [where(right), `$${ratTex(value)}$`],
+    };
+  },
+  solution: (p) => halfValueSteps(p, p.fn, HALF_VALUE_LETTERS[p.v]),
+};
+
+/* Lesson 3: exact values at 15 and 22.5 degrees, and the other halves of table angles. */
+
+/**
+ * Half of a table angle. `m` is the surd in cos 2θ = sigma * sqrt(m) / 2, and
+ * `q` the quadrant θ is in: the first four are acute, the rest obtuse, where
+ * cos and tan turn negative. These angles are only ever shown, never typed.
+ */
+interface HalfTable {
+  deg: number;
+  m: 2 | 3;
+  sigma: 1 | -1;
+  q: 1 | 2;
+}
+
+const HALF_TABLE_ANGLES: HalfTable[] = [
+  { deg: 15, m: 3, sigma: 1, q: 1 },
+  { deg: 22.5, m: 2, sigma: 1, q: 1 },
+  { deg: 67.5, m: 2, sigma: -1, q: 1 },
+  { deg: 75, m: 3, sigma: -1, q: 1 },
+  { deg: 105, m: 3, sigma: -1, q: 2 },
+  { deg: 112.5, m: 2, sigma: -1, q: 2 },
+  { deg: 157.5, m: 2, sigma: 1, q: 2 },
+  { deg: 165, m: 3, sigma: 1, q: 2 },
+];
+
+const ACUTE_HALVES = 4;
+
+type ExactFn = 'sin2' | 'cos2' | 'sin' | 'cos' | 'tan';
+
+const EXACT_FNS: ExactFn[] = ['tan', 'sin2', 'cos2', 'sin', 'cos'];
+
+/** 2 plus or minus sqrt(m), as it sits under a root or over 4. */
+const twoPm = (sign: number, m: number): string => `2 ${sign < 0 ? '-' : '+'} \\sqrt{${m}}`;
+
+/**
+ * One exact value at a half-table angle, as the learner reads it and as a
+ * number. The number is worked from the same surds, not from Math.sin, so a
+ * test comparing the two checks the formula rather than itself.
+ */
+function exactValue(e: HalfTable, fn: ExactFn): { tex: string; value: number } {
+  const r = Math.sqrt(e.m);
+  const neg = e.q === 2 ? -1 : 1;
+  switch (fn) {
+    case 'sin2':
+      return { tex: `\\dfrac{${twoPm(-e.sigma, e.m)}}{4}`, value: (2 - e.sigma * r) / 4 };
+    case 'cos2':
+      return { tex: `\\dfrac{${twoPm(e.sigma, e.m)}}{4}`, value: (2 + e.sigma * r) / 4 };
+    case 'sin':
+      return { tex: `\\tfrac12\\sqrt{${twoPm(-e.sigma, e.m)}}`, value: Math.sqrt(2 - e.sigma * r) / 2 };
+    case 'cos':
+      return {
+        tex: `${neg < 0 ? '-' : ''}\\tfrac12\\sqrt{${twoPm(e.sigma, e.m)}}`,
+        value: (neg * Math.sqrt(2 + e.sigma * r)) / 2,
+      };
+    case 'tan': {
+      const [lead, lv] = e.m === 3 ? ['2', 2] : ['\\sqrt{2}', Math.SQRT2];
+      const [tail, tv] = e.m === 3 ? ['\\sqrt{3}', Math.sqrt(3)] : ['1', 1];
+      const coef = -e.sigma * neg;
+      return { tex: `${neg < 0 ? '-' : ''}${lead} ${coef < 0 ? '-' : '+'} ${tail}`, value: neg * lv + coef * tv };
+    }
+  }
+}
+
+/** The angle, and its double, as the learner reads them. */
+const exactAngle = (e: HalfTable, radians: boolean): string => angleTex(e.deg, radians);
+
+const EXACT_NAMES: Record<ExactFn, string> = {
+  sin2: '\\sin^2',
+  cos2: '\\cos^2',
+  sin: '\\sin',
+  cos: '\\cos',
+  tan: '\\tan',
+};
+
+/** The half-angle line that gives each value, with θ the half and 2θ the table angle. */
+function exactFormula(fn: ExactFn, A: string, D: string): string {
+  if (fn === 'sin2' || fn === 'sin') return `\\sin^2 ${A} = \\tfrac12(1 - \\cos ${D})`;
+  if (fn === 'cos2' || fn === 'cos') return `\\cos^2 ${A} = \\tfrac12(1 + \\cos ${D})`;
+  return `\\tan ${A} = \\dfrac{\\sin ${D}}{1 + \\cos ${D}}`;
+}
+
+/** The worked value: formula, table value substituted, answer. */
+function halfExactSolution(e: HalfTable, fn: ExactFn, radians: boolean): SolutionStep[] {
+  const A = exactAngle(e, radians);
+  const D = angleTex(2 * e.deg, radians);
+  const cTex = specialTex(trigAt('cos', 2 * e.deg)!);
+  const sTex = specialTex(trigAt('sin', 2 * e.deg)!);
+  const cos2 = trigAt('cos', 2 * e.deg)!;
+  const plus = (sign: number) => `1 ${sign * cos2 < 0 ? '-' : '+'} ${specialTex(Math.abs(cos2))}`;
+  const steps: SolutionStep[] = [{ text: `$${A}$ is half of $${D}$, and $\\cos ${D} = ${cTex}$, $\\sin ${D} = ${sTex}$.` }];
+  if (fn === 'tan') {
+    steps.push(
+      { tex: `\\tan ${A} = \\dfrac{\\sin ${D}}{1 + \\cos ${D}} = \\dfrac{${sTex}}{${plus(1)}}` },
+      { text: 'Multiply top and bottom by 2, then by the bottom with its sign changed, to clear the surd underneath:' },
+      { tex: `\\tan ${A} = ${exactValue(e, 'tan').tex}` },
+    );
+    return steps;
+  }
+  const square: ExactFn = fn === 'sin' || fn === 'sin2' ? 'sin2' : 'cos2';
+  steps.push({
+    tex: `${EXACT_NAMES[square]} ${A} = \\tfrac12(${plus(square === 'sin2' ? -1 : 1)}) = ${exactValue(e, square).tex}`,
+  });
+  if (fn === 'sin' || fn === 'cos') {
+    steps.push(
+      {
+        text:
+          fn === 'cos' && e.q === 2
+            ? `$${A}$ is obtuse, so its cosine is negative: take the negative root, and $\\sqrt{4} = 2$ comes out of the bottom.`
+            : `Take the positive root; $\\sqrt{4} = 2$ comes out of the bottom.`,
+      },
+      { tex: `${EXACT_NAMES[fn]} ${A} = ${exactValue(e, fn).tex}` },
+    );
+  }
+  return steps;
+}
+
+interface HalfExactTilesParams {
+  e: number;
+  fn: ExactFn;
+  radians: boolean;
+}
+
+/** Surd tiles for one value: 2 minus sqrt 3 over 4, sqrt 2 minus 1, half the root of 2 plus sqrt 2. */
+const halfExactTiles: Generator<HalfExactTilesParams> = {
+  id: 'tid-half-exact-tiles',
+  sample: (rng, difficulty) => ({
+    e: rng.int(0, difficulty > 1 ? HALF_TABLE_ANGLES.length - 1 : ACUTE_HALVES - 1),
+    fn: rng.pick(EXACT_FNS),
+    radians: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const e = HALF_TABLE_ANGLES[p.e];
+    const A = p.radians ? '\\theta' : deg(e.deg);
+    const other = e.m === 3 ? 2 : 3;
+    const neg = e.q === 2 ? -1 : 1;
+    let template: string;
+    let answer: string[];
+    let wrong: string[];
+    if (p.fn === 'tan') {
+      const lead = `${neg < 0 ? '-' : ''}${e.m === 3 ? '2' : '\\sqrt{2}'}`;
+      const coef = -e.sigma * neg;
+      const body = e.m === 3 ? '\\sqrt{3}' : '';
+      template = `\\tan ${A} = {0} {1}`;
+      answer = [lead, signed(coef, body)];
+      wrong = [
+        `${neg < 0 ? '' : '-'}${e.m === 3 ? '2' : '\\sqrt{2}'}`,
+        e.m === 3 ? '\\sqrt{2}' : '2',
+        signed(-coef, body),
+        signed(coef, e.m === 3 ? '' : '\\sqrt{3}'),
+      ];
+    } else if (p.fn === 'sin2' || p.fn === 'cos2') {
+      const s = p.fn === 'sin2' ? -e.sigma : e.sigma;
+      template = `${EXACT_NAMES[p.fn]} ${A} = \\tfrac14(2 {0})`;
+      answer = [signed(s, `\\sqrt{${e.m}}`)];
+      wrong = [signed(-s, `\\sqrt{${e.m}}`), signed(s, `\\sqrt{${other}}`), signed(-s, `\\sqrt{${other}}`)];
+    } else {
+      const inner = p.fn === 'sin' ? -e.sigma : e.sigma;
+      const sign = p.fn === 'cos' ? neg : 1;
+      const root = (i: number, m: number, sg: number) => `${sg < 0 ? '-' : ''}\\tfrac12\\sqrt{${twoPm(i, m)}}`;
+      template = `${EXACT_NAMES[p.fn]} ${A} = {0}`;
+      answer = [root(inner, e.m, sign)];
+      wrong = [root(-inner, e.m, sign), root(inner, other, sign), root(inner, e.m, -sign), root(-inner, other, sign)];
+    }
+    const hint = p.radians ? `Here $\\theta = ${piTex(e.deg)}$. ` : '';
+    return {
+      kind: 'tiles',
+      prompt: [prose(`${hint}Complete the exact value, from the half-angle formula with the whole angle $${angleTex(2 * e.deg, p.radians)}$.`)],
+      template,
+      bank: bankOf(answer, wrong),
+      answer,
+    };
+  },
+  solution: (p) => halfExactSolution(HALF_TABLE_ANGLES[p.e], p.fn, p.radians),
+};
+
+interface HalfExactChoiceParams {
+  e: number;
+  fn: 'sin' | 'cos' | 'tan';
+  radians: boolean;
+  reverse: boolean;
+}
+
+/** Pick the exact value of a half-table angle, or the angle a value belongs to. */
+const halfExactChoice: Generator<HalfExactChoiceParams> = {
+  id: 'tid-half-exact-choice',
+  sample: (rng, difficulty) => ({
+    e: rng.int(0, difficulty > 1 ? HALF_TABLE_ANGLES.length - 1 : ACUTE_HALVES - 1),
+    fn: rng.pick(['sin', 'cos', 'tan'] as const),
+    radians: rng.chance(0.5),
+    reverse: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const e = HALF_TABLE_ANGLES[p.e];
+    const pool = HALF_TABLE_ANGLES.slice(0, p.e < ACUTE_HALVES ? ACUTE_HALVES : HALF_TABLE_ANGLES.length);
+    const target = exactValue(e, p.fn);
+    if (p.reverse) {
+      const others = pool.filter((row) => Math.abs(exactValue(row, p.fn).value - target.value) > 1e-9);
+      return choiceSlide(
+        [prose(`For which angle is $\\${p.fn} \\theta$ exactly this?`), display(target.tex)],
+        exactAngle(e, p.radians),
+        others.map((row) => exactAngle(row, p.radians)),
+        saltOf(p),
+      );
+    }
+    // The nearest slips first: the sibling with the other sign inside, the other surd, then anything else.
+    const sibling = HALF_TABLE_ANGLES.find((row) => row.m === e.m && row.q === e.q && row.sigma !== e.sigma)!;
+    const cousin = HALF_TABLE_ANGLES.find((row) => row.m !== e.m && row.q === e.q && row.sigma === e.sigma)!;
+    const candidates = [
+      exactValue(sibling, p.fn),
+      exactValue(cousin, p.fn),
+      ...(['sin', 'cos', 'tan'] as const).map((fn) => exactValue(e, fn)),
+      ...HALF_TABLE_ANGLES.map((row) => exactValue(row, p.fn)),
+    ].filter((c) => Math.abs(c.value - target.value) > 1e-9);
+    return choiceSlide(
+      [prose(`Which is the exact value of $\\${p.fn} ${exactAngle(e, p.radians)}$?`)],
+      target.tex,
+      candidates.map((c) => c.tex),
+      saltOf(p),
+    );
+  },
+  solution: (p) => halfExactSolution(HALF_TABLE_ANGLES[p.e], p.fn, p.radians),
+};
+
+interface HalfExactStepsParams {
+  e: number;
+  form: 'sin2' | 'cos2' | 'tan1' | 'tan2';
+  radians: boolean;
+}
+
+/** The exact value worked a line at a time: pick the formula, put the table value in, tidy. */
+const halfExactSteps: Generator<HalfExactStepsParams> = {
+  id: 'tid-half-exact-steps',
+  sample: (rng, difficulty) => ({
+    e: rng.int(0, difficulty > 1 ? HALF_TABLE_ANGLES.length - 1 : ACUTE_HALVES - 1),
+    form: rng.pick(['sin2', 'cos2', 'tan1', 'tan2'] as const),
+    radians: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const e = HALF_TABLE_ANGLES[p.e];
+    const A = exactAngle(e, p.radians);
+    const D = angleTex(2 * e.deg, p.radians);
+    const cos2 = trigAt('cos', 2 * e.deg)!;
+    const sin2 = trigAt('sin', 2 * e.deg)!;
+    const cSize = specialTex(Math.abs(cos2));
+    const sTex = specialTex(sin2);
+    const other = e.m === 3 ? 2 : 3;
+    const slipSize = specialTex(e.m === 3 ? Math.SQRT2 / 2 : Math.sqrt(3) / 2);
+    /** 1 plus or minus the size of cos 2θ, the sign already worked out. */
+    const one = (sign: number, size = cSize) => `1 ${sign < 0 ? '-' : '+'} ${size}`;
+    const cSign = Math.sign(cos2);
+    let reductions: { span: [number, number]; value: string; bank: string[] }[];
+    let start: string;
+    if (p.form === 'sin2' || p.form === 'cos2') {
+      const s = p.form === 'sin2' ? -1 : 1;
+      const name = EXACT_NAMES[p.form];
+      start = `${name} ${A}`;
+      reductions = [
+        {
+          span: [0, 1],
+          value: `\\tfrac12(1 ${s < 0 ? '-' : '+'} \\cos ${D})`,
+          bank: [`\\tfrac12(1 ${s < 0 ? '+' : '-'} \\cos ${D})`, `\\tfrac12(1 ${s < 0 ? '-' : '+'} \\cos ${A})`, `1 ${s < 0 ? '-' : '+'} 2\\cos ${D}`],
+        },
+        {
+          span: [0, 1],
+          value: `\\tfrac12(${one(s * cSign)})`,
+          bank: [`\\tfrac12(${one(-s * cSign)})`, `\\tfrac12(${one(s * cSign, slipSize)})`],
+        },
+        {
+          span: [0, 1],
+          value: exactValue(e, p.form).tex,
+          bank: [`\\dfrac{${twoPm(-s * cSign, e.m)}}{4}`, `\\dfrac{${twoPm(s * cSign, other)}}{4}`, `\\dfrac{${twoPm(s * cSign, e.m)}}{2}`],
+        },
+      ];
+    } else {
+      const minus = p.form === 'tan2';
+      const formula = minus ? `\\dfrac{1 - \\cos ${D}}{\\sin ${D}}` : `\\dfrac{\\sin ${D}}{1 + \\cos ${D}}`;
+      const substituted = minus ? `\\dfrac{${one(-cSign)}}{${sTex}}` : `\\dfrac{${sTex}}{${one(cSign)}}`;
+      const slipSub = minus ? `\\dfrac{${one(cSign)}}{${sTex}}` : `\\dfrac{${sTex}}{${one(-cSign)}}`;
+      start = `\\tan ${A}`;
+      reductions = [
+        {
+          span: [0, 1],
+          value: formula,
+          bank: [
+            minus ? `\\dfrac{1 + \\cos ${D}}{\\sin ${D}}` : `\\dfrac{\\sin ${D}}{1 - \\cos ${D}}`,
+            minus ? `\\dfrac{\\sin ${D}}{1 - \\cos ${D}}` : `\\dfrac{\\cos ${D}}{1 + \\sin ${D}}`,
+            minus ? `\\dfrac{1 - \\cos ${A}}{\\sin ${A}}` : `\\dfrac{\\sin ${A}}{1 + \\cos ${A}}`,
+          ],
+        },
+        { span: [0, 1], value: substituted, bank: [slipSub] },
+      ];
+      // Doubling top and bottom: sin 2θ doubles to +-1 or +-sqrt 2, and 1 + cos 2θ to 2 + sqrt m.
+      const top = (sign: number) => (e.m === 3 ? `${sign < 0 ? '-' : ''}1` : `${sign < 0 ? '-' : ''}\\sqrt{2}`);
+      const sSign = Math.sign(sin2);
+      const cleared = minus ? `\\dfrac{${twoPm(-cSign, e.m)}}{${top(sSign)}}` : `\\dfrac{${top(sSign)}}{${twoPm(cSign, e.m)}}`;
+      const clearedSlip = minus ? `\\dfrac{${twoPm(cSign, e.m)}}{${top(sSign)}}` : `\\dfrac{${top(sSign)}}{${twoPm(-cSign, e.m)}}`;
+      // (1 - cos 2θ) / sin 2θ at a 30-degree family has 1 or -1 underneath: nothing left to rationalise.
+      if (!(minus && e.m === 3)) {
+        reductions.push({ span: [0, 1], value: cleared, bank: [clearedSlip, minus ? `\\dfrac{${twoPm(-cSign, e.m)}}{2}` : `\\dfrac{${top(sSign)}}{2}`] });
+      }
+      const sibling = HALF_TABLE_ANGLES.find((row) => row.m === e.m && row.q === e.q && row.sigma !== e.sigma)!;
+      const cousin = HALF_TABLE_ANGLES.find((row) => row.m !== e.m && row.q === e.q && row.sigma === e.sigma)!;
+      reductions.push({
+        span: [0, 1],
+        value: exactValue(e, 'tan').tex,
+        bank: [exactValue(sibling, 'tan').tex, exactValue(cousin, 'tan').tex],
+      });
+    }
+    return {
+      kind: 'steps',
+      prompt: [prose(`Find the exact value a line at a time, using the half-angle formula with the whole angle $${D}$.`)],
+      start: [start],
+      reductions: reductions.map((r) => ({ ...r, bank: scatter([...new Set([r.value, ...r.bank])]) })),
+    };
+  },
+  solution: (p) => {
+    const e = HALF_TABLE_ANGLES[p.e];
+    if (p.form === 'sin2' || p.form === 'cos2') return halfExactSolution(e, p.form, p.radians);
+    const A = exactAngle(e, p.radians);
+    const D = angleTex(2 * e.deg, p.radians);
+    const sTex = specialTex(trigAt('sin', 2 * e.deg)!);
+    const cos2 = trigAt('cos', 2 * e.deg)!;
+    const cSize = specialTex(Math.abs(cos2));
+    const minus = p.form === 'tan2';
+    const line = minus
+      ? `\\tan ${A} = \\dfrac{1 - \\cos ${D}}{\\sin ${D}} = \\dfrac{1 ${cos2 < 0 ? '+' : '-'} ${cSize}}{${sTex}}`
+      : `\\tan ${A} = \\dfrac{\\sin ${D}}{1 + \\cos ${D}} = \\dfrac{${sTex}}{1 ${cos2 < 0 ? '-' : '+'} ${cSize}}`;
+    return [
+      { text: `$${A}$ is half of $${D}$, where $\\sin ${D} = ${sTex}$ and $\\cos ${D} = ${specialTex(cos2)}$.` },
+      { tex: line },
+      {
+        text:
+          minus && e.m === 3
+            ? 'Multiply top and bottom by 2 and the bottom is $\\pm 1$, so nothing is left to tidy.'
+            : 'Multiply top and bottom by 2, then clear the surd from the bottom by multiplying by it with its sign changed.',
+      },
+      { tex: `\\tan ${A} = ${exactValue(e, 'tan').tex}` },
+    ];
+  },
+};
+
+interface HalfSurdTreeParams {
+  e: number;
+  /** 0: tan from sin 2θ over 1 + cos 2θ; 1: tan from 1 - cos 2θ over sin 2θ; 2: sin; 3: cos. */
+  shape: number;
+  radians: boolean;
+}
+
+/** The exact value built from the table: cos 2θ and sin 2θ on top, the value underneath. */
+const halfSurdTree: Generator<HalfSurdTreeParams> = {
+  id: 'tid-half-surd-tree',
+  sample: (rng, difficulty) => ({
+    e: rng.int(0, difficulty > 1 ? HALF_TABLE_ANGLES.length - 1 : ACUTE_HALVES - 1),
+    shape: rng.int(0, 3),
+    radians: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const e = HALF_TABLE_ANGLES[p.e];
+    const A = exactAngle(e, p.radians);
+    const D = angleTex(2 * e.deg, p.radians);
+    const cos2 = trigAt('cos', 2 * e.deg)!;
+    const sin2 = trigAt('sin', 2 * e.deg)!;
+    const cTex = specialTex(cos2);
+    const sTex = specialTex(sin2);
+    const cSign = Math.sign(cos2);
+    const other = e.m === 3 ? 2 : 3;
+    const half = (sign: number, m = e.m) => `\\dfrac{${twoPm(sign, m)}}{2}`;
+    const sibling = HALF_TABLE_ANGLES.find((row) => row.m === e.m && row.q === e.q && row.sigma !== e.sigma)!;
+    if (p.shape < 2) {
+      const minus = p.shape === 1;
+      const d = half(minus ? -cSign : cSign);
+      const answer = [sTex, cTex, d, exactValue(e, 'tan').tex];
+      const distractors = [
+        specialTex(-sin2),
+        specialTex(-cos2),
+        half(minus ? cSign : -cSign),
+        half(minus ? -cSign : cSign, other),
+        exactValue(sibling, 'tan').tex,
+      ];
+      return {
+        kind: 'tree',
+        prompt: [
+          prose(
+            `Top row: $\\sin ${D}$, then $\\cos ${D}$. Under $\\cos ${D}$: $1 ${minus ? '-' : '+'} \\cos ${D}$. Bottom: $\\tan ${A}$, from the two above it.`,
+          ),
+        ],
+        expression: minus ? `\\tan ${A} = \\dfrac{1 - \\cos ${D}}{\\sin ${D}}` : `\\tan ${A} = \\dfrac{\\sin ${D}}{1 + \\cos ${D}}`,
+        nodes: [
+          { id: 's', from: [] },
+          { id: 'c', from: [] },
+          { id: 'd', from: ['c'] },
+          { id: 't', from: minus ? ['d', 's'] : ['s', 'd'] },
+        ],
+        bank: bankOf(answer, distractors, 4),
+        answer,
+      };
+    }
+    const fn: ExactFn = p.shape === 2 ? 'sin' : 'cos';
+    const square: ExactFn = p.shape === 2 ? 'sin2' : 'cos2';
+    const answer = [cTex, exactValue(e, square).tex, exactValue(e, fn).tex];
+    const flipped: ExactFn = p.shape === 2 ? 'cos' : 'sin';
+    const distractors = [
+      specialTex(-cos2),
+      exactValue(e, p.shape === 2 ? 'cos2' : 'sin2').tex,
+      exactValue(e, flipped).tex,
+      `-${exactValue(e, fn).tex}`.replace(/^--/, ''),
+      exactValue(sibling, square).tex,
+    ];
+    return {
+      kind: 'tree',
+      prompt: [prose(`Top: $\\cos ${D}$. Then $${EXACT_NAMES[square]} ${A}$ from it, then $${EXACT_NAMES[fn]} ${A}$ itself.`)],
+      expression: exactFormula(square, A, D),
+      nodes: [
+        { id: 'c', from: [] },
+        { id: 'q', from: ['c'] },
+        { id: 'r', from: ['q'] },
+      ],
+      bank: bankOf(answer, distractors, 4),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const e = HALF_TABLE_ANGLES[p.e];
+    const fn: ExactFn = p.shape < 2 ? 'tan' : p.shape === 2 ? 'sin' : 'cos';
+    return halfExactSolution(e, fn, p.radians);
+  },
+};
+
+/* Lesson 4: the triple-angle formulae. */
+
+const TRIPLE_LETTERS = ['x', '\\theta', 'A', 't'];
+
+/** The single angle, the double and the triple: x, 2x, 3x, or 2x, 4x, 6x. */
+function tripleAngles(v: string, m: number): { X: string; D: string; T: string } {
+  return { X: m === 1 ? v : `${m}${v}`, D: `${2 * m}${v}`, T: `${3 * m}${v}` };
+}
+
+interface TripleStepsParams {
+  fn: 'sin' | 'cos';
+  v: number;
+  m: number;
+  /** 0: expand (2A + A); 1: expand (A + 2A). */
+  route: number;
+  /** Name the formulae to use: the easier draw. */
+  hint: boolean;
+}
+
+/** The triple-angle formula derived: expand sin(2x + x), then everything into one function. */
+const tripleSteps: Generator<TripleStepsParams> = {
+  id: 'tid-triple-steps',
+  sample: (rng, difficulty) => ({
+    fn: rng.pick(['sin', 'cos'] as const),
+    v: rng.int(0, TRIPLE_LETTERS.length - 1),
+    m: rng.int(1, difficulty > 1 ? 3 : 2),
+    route: rng.int(0, 1),
+    hint: difficulty === 1,
+  }),
+  render: (p): Slide => {
+    const { X, D, T } = tripleAngles(TRIPLE_LETTERS[p.v], p.m);
+    const first = p.route === 0;
+    type R = { span: [number, number]; value: string; bank: string[] };
+    let start: string[];
+    let expansion: string;
+    let reductions: R[];
+    if (p.fn === 'sin') {
+      const double: R = {
+        span: [0, 1],
+        value: `2\\sin ${X}\\cos^2 ${X}`,
+        bank: [`2\\sin ${X}\\cos ${X}`, `\\sin ${X}\\cos^2 ${X}`, `2\\sin^2 ${X}\\cos ${X}`],
+      };
+      const doubleSines: R = {
+        span: [0, 1],
+        value: `2\\sin ${X} - 2\\sin^3 ${X}`,
+        bank: [`2\\sin ${X} + 2\\sin^3 ${X}`, `2\\sin ${X} - 2\\sin^2 ${X}`, `2 - 2\\sin^3 ${X}`],
+      };
+      const single: R = {
+        span: [0, 1],
+        value: `\\sin ${X} - 2\\sin^3 ${X}`,
+        bank: [`\\sin ${X} + 2\\sin^3 ${X}`, `\\sin ${X} - 2\\sin^2 ${X}`, `2\\sin^3 ${X} - \\sin ${X}`],
+      };
+      const at = (r: R, i: number): R => ({ ...r, span: [i, i + 1] });
+      if (first) {
+        expansion = `\\sin ${D}\\cos ${X} + \\cos ${D}\\sin ${X}`;
+        start = [`\\sin ${D}\\cos ${X}`, '+', `\\cos ${D}\\sin ${X}`];
+        reductions = [double, doubleSines, at(single, 2)];
+      } else {
+        expansion = `\\sin ${X}\\cos ${D} + \\cos ${X}\\sin ${D}`;
+        start = [`\\sin ${X}\\cos ${D}`, '+', `\\cos ${X}\\sin ${D}`];
+        reductions = [single, at(double, 2), at(doubleSines, 2)];
+      }
+      reductions.push({
+        span: [0, 3],
+        value: `3\\sin ${X} - 4\\sin^3 ${X}`,
+        bank: [`3\\sin ${X} + 4\\sin^3 ${X}`, `\\sin ${X} - 4\\sin^3 ${X}`, `4\\sin^3 ${X} - 3\\sin ${X}`],
+      });
+    } else {
+      expansion = first ? `\\cos ${D}\\cos ${X} - \\sin ${D}\\sin ${X}` : `\\cos ${X}\\cos ${D} - \\sin ${X}\\sin ${D}`;
+      start = first ? [`\\cos ${D}\\cos ${X}`, '-', `\\sin ${D}\\sin ${X}`] : [`\\cos ${X}\\cos ${D}`, '-', `\\sin ${X}\\sin ${D}`];
+      reductions = [
+        {
+          span: [0, 1],
+          value: `2\\cos^3 ${X} - \\cos ${X}`,
+          bank: [`2\\cos^3 ${X} + \\cos ${X}`, `2\\cos^2 ${X} - \\cos ${X}`, `\\cos^3 ${X} - \\cos ${X}`],
+        },
+        {
+          span: [2, 3],
+          value: `2\\sin^2 ${X}\\cos ${X}`,
+          bank: [`2\\sin ${X}\\cos ${X}`, `\\sin^2 ${X}\\cos ${X}`, `2\\sin ${X}\\cos^2 ${X}`],
+        },
+        {
+          span: [2, 3],
+          value: `(2\\cos ${X} - 2\\cos^3 ${X})`,
+          bank: [`(2\\cos ${X} + 2\\cos^3 ${X})`, `(2 - 2\\cos^3 ${X})`, `(2\\cos^3 ${X} - 2\\cos ${X})`],
+        },
+        {
+          span: [0, 3],
+          value: `4\\cos^3 ${X} - 3\\cos ${X}`,
+          bank: [`3\\cos ${X} - 4\\cos^3 ${X}`, `4\\cos^3 ${X} - \\cos ${X}`, `\\cos ${X}`],
+        },
+      ];
+    }
+    const hint =
+      p.hint
+        ? p.fn === 'sin'
+          ? ` Use $\\sin 2A = 2\\sin A\\cos A$, $\\cos 2A = 1 - 2\\sin^2 A$ and $\\cos^2 A = 1 - \\sin^2 A$.`
+          : ` Use $\\cos 2A = 2\\cos^2 A - 1$, $\\sin 2A = 2\\sin A\\cos A$ and $\\sin^2 A = 1 - \\cos^2 A$.`
+        : '';
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(`Write $\\${p.fn} ${T}$ in terms of $\\${p.fn} ${X}$ alone, a piece at a time.${hint}`),
+        display(`\\${p.fn} ${T} = ${expansion}`),
+      ],
+      start,
+      reductions: reductions.map((r) => ({ ...r, bank: scatter([...new Set([r.value, ...r.bank])]) })),
+    };
+  },
+  solution: (p) => {
+    const { X, D, T } = tripleAngles(TRIPLE_LETTERS[p.v], p.m);
+    if (p.fn === 'sin') {
+      return [
+        { text: `Split $${T}$ as $${D} + ${X}$ and expand, then write the double angles in the single one.` },
+        { tex: `\\begin{aligned} &\\sin ${D}\\cos ${X} \\\\ &= 2\\sin ${X}\\cos^2 ${X} \\\\ &= 2\\sin ${X}(1 - \\sin^2 ${X}) \\end{aligned}` },
+        { tex: `\\begin{aligned} &\\cos ${D}\\sin ${X} \\\\ &= (1 - 2\\sin^2 ${X})\\sin ${X} \\end{aligned}` },
+        { tex: `\\sin ${T} = 3\\sin ${X} - 4\\sin^3 ${X}` },
+      ];
+    }
+    return [
+      { text: `Split $${T}$ as $${D} + ${X}$ and expand, then write the double angles in the single one.` },
+      { tex: `\\begin{aligned} &\\cos ${D}\\cos ${X} \\\\ &= (2\\cos^2 ${X} - 1)\\cos ${X} \\end{aligned}` },
+      { tex: `\\begin{aligned} &\\sin ${D}\\sin ${X} \\\\ &= 2\\sin^2 ${X}\\cos ${X} \\\\ &= 2(1 - \\cos^2 ${X})\\cos ${X} \\end{aligned}` },
+      { text: 'Take the second from the first; the minus sign turns both of its terms over.' },
+      { tex: `\\cos ${T} = 4\\cos^3 ${X} - 3\\cos ${X}` },
+    ];
+  },
+};
+
+interface TripleTilesParams {
+  form: number;
+  v: number;
+  m: number;
+}
+
+interface TripleTileForm {
+  hard: boolean;
+  template: (X: string, T: string) => string;
+  answer: (X: string, T: string) => string[];
+  wrong: (X: string, T: string) => string[];
+  unordered?: boolean;
+  why: (X: string, T: string) => string;
+}
+
+const TRIPLE_TILE_FORMS: TripleTileForm[] = [
+  {
+    hard: false,
+    template: (_X, T) => `\\sin ${T} = {0} - {1}`,
+    answer: (X) => [`3\\sin ${X}`, `4\\sin^3 ${X}`],
+    wrong: (X) => [`4\\sin ${X}`, `3\\sin^3 ${X}`, `4\\cos^3 ${X}`],
+    why: (X, T) => `It is $\\sin 3A = 3\\sin A - 4\\sin^3 A$ with $A = ${X}$, so $3A = ${T}$.`,
+  },
+  {
+    hard: false,
+    template: (_X, T) => `\\cos ${T} = {0} - {1}`,
+    answer: (X) => [`4\\cos^3 ${X}`, `3\\cos ${X}`],
+    wrong: (X) => [`3\\cos^3 ${X}`, `4\\cos ${X}`, `3\\sin ${X}`],
+    why: (X, T) => `It is $\\cos 3A = 4\\cos^3 A - 3\\cos A$ with $A = ${X}$, so $3A = ${T}$.`,
+  },
+  {
+    hard: false,
+    template: (X, T) => `\\sin ${T} = \\sin ${X}({0} - {1})`,
+    answer: (X) => ['3', `4\\sin^2 ${X}`],
+    wrong: (X) => ['4', `3\\sin^2 ${X}`, `4\\sin^3 ${X}`],
+    why: (X) => `Take the common factor $\\sin ${X}$ out of $3\\sin ${X} - 4\\sin^3 ${X}$.`,
+  },
+  {
+    hard: false,
+    template: (X, T) => `\\cos ${T} = \\cos ${X}({0} - {1})`,
+    answer: (X) => [`4\\cos^2 ${X}`, '3'],
+    wrong: (X) => ['4', `3\\cos^2 ${X}`, `4\\cos^3 ${X}`],
+    why: (X) => `Take the common factor $\\cos ${X}$ out of $4\\cos^3 ${X} - 3\\cos ${X}$.`,
+  },
+  {
+    hard: false,
+    template: (X) => `4\\sin^3 ${X} = {0} - {1}`,
+    answer: (X, T) => [`3\\sin ${X}`, `\\sin ${T}`],
+    wrong: (X, T) => [`\\cos ${T}`, `3\\cos ${X}`, `4\\sin ${X}`],
+    why: (X, T) => `From $\\sin ${T} = 3\\sin ${X} - 4\\sin^3 ${X}$, move $4\\sin^3 ${X}$ one way and $\\sin ${T}$ the other.`,
+  },
+  {
+    hard: false,
+    template: (X) => `4\\cos^3 ${X} = {0} + {1}`,
+    answer: (X, T) => [`\\cos ${T}`, `3\\cos ${X}`],
+    wrong: (X, T) => [`\\sin ${T}`, `3\\sin ${X}`, `4\\cos ${X}`],
+    unordered: true,
+    why: (X, T) => `From $\\cos ${T} = 4\\cos^3 ${X} - 3\\cos ${X}$, add $3\\cos ${X}$ to both sides.`,
+  },
+  {
+    hard: true,
+    template: (X) => `\\sin^3 ${X} = \\tfrac14({0} - {1})`,
+    answer: (X, T) => [`3\\sin ${X}`, `\\sin ${T}`],
+    wrong: (X, T) => [`4\\sin ${X}`, `\\cos ${T}`, `3\\cos ${X}`],
+    why: (X, T) => `From $\\sin ${T} = 3\\sin ${X} - 4\\sin^3 ${X}$: $4\\sin^3 ${X} = 3\\sin ${X} - \\sin ${T}$, then divide by $4$.`,
+  },
+  {
+    hard: true,
+    template: (X) => `\\cos^3 ${X} = \\tfrac14({0} + {1})`,
+    answer: (X, T) => [`\\cos ${T}`, `3\\cos ${X}`],
+    wrong: (X, T) => [`\\sin ${T}`, `4\\cos ${X}`, `3\\sin ${X}`],
+    unordered: true,
+    why: (X, T) => `From $\\cos ${T} = 4\\cos^3 ${X} - 3\\cos ${X}$: $4\\cos^3 ${X} = \\cos ${T} + 3\\cos ${X}$, then divide by $4$.`,
+  },
+  {
+    hard: true,
+    template: (X, T) => `\\dfrac{\\sin ${T}}{\\sin ${X}} = {0} - {1}`,
+    answer: (X) => [`4\\cos^2 ${X}`, '1'],
+    wrong: (X) => ['3', `4\\sin^2 ${X}`, `3\\cos^2 ${X}`],
+    why: (X) => `Dividing gives $3 - 4\\sin^2 ${X}$, and $\\sin^2 ${X} = 1 - \\cos^2 ${X}$ turns it into $3 - 4 + 4\\cos^2 ${X}$.`,
+  },
+  {
+    hard: true,
+    template: (X, T) => `\\dfrac{\\cos ${T}}{\\cos ${X}} = {0} - {1}`,
+    answer: (X) => ['1', `4\\sin^2 ${X}`],
+    wrong: (X) => ['3', `4\\cos^2 ${X}`, `3\\sin^2 ${X}`],
+    why: (X) => `Dividing gives $4\\cos^2 ${X} - 3$, and $\\cos^2 ${X} = 1 - \\sin^2 ${X}$ turns it into $4 - 4\\sin^2 ${X} - 3$.`,
+  },
+];
+
+/** A triple-angle formula completed, or rearranged. */
+const tripleTiles: Generator<TripleTilesParams> = {
+  id: 'tid-triple-tiles',
+  sample: (rng, difficulty) => {
+    const forms = TRIPLE_TILE_FORMS.map((f, i) => ({ f, i })).filter(({ f }) => difficulty > 1 || !f.hard);
+    return { form: rng.pick(forms).i, v: rng.int(0, 2), m: rng.int(1, 2) };
+  },
+  render: ({ form, v, m }): Slide => {
+    const f = TRIPLE_TILE_FORMS[form];
+    const { X, T } = tripleAngles(TRIPLE_LETTERS[v], m);
+    const answer = f.answer(X, T);
+    return {
+      kind: 'tiles',
+      prompt: [prose(m === 1 ? 'Complete the line.' : `Complete the line. Here the single angle is $${X}$.`)],
+      template: f.template(X, T),
+      bank: bankOf(answer, f.wrong(X, T)),
+      answer,
+      ...(f.unordered ? { unordered: true } : {}),
+    };
+  },
+  solution: ({ form, v, m }) => {
+    const f = TRIPLE_TILE_FORMS[form];
+    const { X, T } = tripleAngles(TRIPLE_LETTERS[v], m);
+    let line = f.template(X, T);
+    f.answer(X, T).forEach((token, i) => {
+      line = line.replace(`{${i}}`, token);
+    });
+    return [{ text: f.why(X, T) }, { tex: line }];
+  },
+};
+
+interface TripleValueParams {
+  /** Only 3-4-5 and 5-12-13: cubing puts c^3 underneath. */
+  triple: number;
+  swap: boolean;
+  given: 'sin' | 'cos';
+  ask: 'sin' | 'cos';
+  quadrant: number;
+  v: number;
+}
+
+const TRIPLE_VALUE_LETTERS = ['x', '\\theta', 'A'];
+
+function quadrantTex(quadrant: number, v: string): string {
+  return [
+    '',
+    `$${v}$ is acute`,
+    `$90^{\\circ} < ${v} < 180^{\\circ}$`,
+    `$180^{\\circ} < ${v} < 270^{\\circ}$`,
+    `$270^{\\circ} < ${v} < 360^{\\circ}$`,
+  ][quadrant];
+}
+
+function tripleRatios(p: TripleValueParams): { s: Rat; c: Rat; h: number } {
+  const [a0, b0, h] = TRIPLES[p.triple];
+  const [a, b] = p.swap ? [b0, a0] : [a0, b0];
+  const sSign = p.quadrant <= 2 ? 1 : -1;
+  const cSign = p.quadrant === 1 || p.quadrant === 4 ? 1 : -1;
+  return { s: [sSign * a, h], c: [cSign * b, h], h };
+}
+
+/** sin 3x = 3s - 4s^3 and cos 3x = 4c^3 - 3c, over h^3. */
+function tripleOf(fn: 'sin' | 'cos', p: TripleValueParams): Rat {
+  const { s, c, h } = tripleRatios(p);
+  if (fn === 'sin') return rat(3 * s[0] * h * h - 4 * s[0] ** 3, h ** 3);
+  return rat(4 * c[0] ** 3 - 3 * c[0] * h * h, h ** 3);
+}
+
+/** sin 3x or cos 3x as a fraction, from one ratio of x. */
+const tripleValue: Generator<TripleValueParams> = {
+  id: 'tid-triple-value',
+  sample: (rng, difficulty) => ({
+    triple: rng.int(0, 1),
+    swap: rng.chance(0.5),
+    given: rng.pick(['sin', 'cos'] as const),
+    ask: rng.pick(['sin', 'cos'] as const),
+    quadrant: difficulty > 1 ? rng.int(2, 4) : 1,
+    v: rng.int(0, TRIPLE_VALUE_LETTERS.length - 1),
+  }),
+  render: (p): Slide => {
+    const v = TRIPLE_VALUE_LETTERS[p.v];
+    const r = tripleRatios(p);
+    const given = p.given === 'sin' ? r.s : r.c;
+    return {
+      kind: 'expression',
+      prompt: [prose(`Given that $\\${p.given} ${v} = ${ratTex(given)}$ and ${quadrantTex(p.quadrant, v)}, find the exact value.`)],
+      lead: `\\${p.ask} 3${v} =`,
+      keypad: NUMBER_KEYS,
+      answer: ratAnswer(tripleOf(p.ask, p)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const { s, c, h } = tripleRatios(p);
+    const value = tripleOf(p.ask, p);
+    const x = p.ask === 'sin' ? s[0] : c[0];
+    const plus: Rat = p.ask === 'sin' ? rat(3 * x * h * h + 4 * x ** 3, h ** 3) : rat(4 * x ** 3 + 3 * x * h * h, h ** 3);
+    return ratOptions(value, [[-value[0], value[1]], plus, tripleOf(p.ask === 'sin' ? 'cos' : 'sin', p), [-plus[0], plus[1]]]);
+  },
+  solution: (p) => {
+    const v = TRIPLE_VALUE_LETTERS[p.v];
+    const { s, c, h } = tripleRatios(p);
+    const [a0, b0] = TRIPLES[p.triple];
+    const need = p.ask === 'sin' ? s : c;
+    const steps: SolutionStep[] = [];
+    if (p.given !== p.ask) {
+      steps.push(
+        { text: `The sides ${a0}, ${b0}, ${h} give the sizes; ${quadrantTex(p.quadrant, v)} gives the signs.` },
+        { tex: `\\${p.ask} ${v} = ${ratTex(need)}` },
+      );
+    }
+    const n = ratTex(need);
+    const line =
+      p.ask === 'sin'
+        ? `\\sin 3${v} = 3\\sin ${v} - 4\\sin^3 ${v} = 3 \\times ${br(n)} - 4 \\times ${br(n)}^3`
+        : `\\cos 3${v} = 4\\cos^3 ${v} - 3\\cos ${v} = 4 \\times ${br(n)}^3 - 3 \\times ${br(n)}`;
+    steps.push({ tex: line }, { tex: `\\${p.ask} 3${v} = ${ratTex(tripleOf(p.ask, p))}` });
+    return steps;
+  },
+};
+
+interface TripleChoiceParams {
+  form: number;
+  v: number;
+  m: number;
+  stem: number;
+}
+
+interface TripleChoiceForm {
+  hard: boolean;
+  expr: (X: string, T: string) => string;
+  right: (X: string, T: string) => string;
+  wrong: (X: string, T: string) => string[];
+  why: (X: string, T: string) => string;
+}
+
+const TRIPLE_CHOICE_FORMS: TripleChoiceForm[] = [
+  {
+    hard: false,
+    expr: (_X, T) => `\\sin ${T}`,
+    right: (X) => `3\\sin ${X} - 4\\sin^3 ${X}`,
+    wrong: (X) => [`4\\sin^3 ${X} - 3\\sin ${X}`, `3\\sin ${X} + 4\\sin^3 ${X}`, `3\\sin^3 ${X} - 4\\sin ${X}`],
+    why: (X, T) => `Split $${T}$ into the double angle plus $${X}$, expand, and write everything in $\\sin ${X}$.`,
+  },
+  {
+    hard: false,
+    expr: (_X, T) => `\\cos ${T}`,
+    right: (X) => `4\\cos^3 ${X} - 3\\cos ${X}`,
+    wrong: (X) => [`3\\cos ${X} - 4\\cos^3 ${X}`, `4\\cos^3 ${X} + 3\\cos ${X}`, `3\\cos^3 ${X} - 4\\cos ${X}`],
+    why: (X, T) => `Split $${T}$ into the double angle plus $${X}$, expand, and write everything in $\\cos ${X}$.`,
+  },
+  {
+    hard: false,
+    expr: (X) => `3\\sin ${X} - 4\\sin^3 ${X}`,
+    right: (_X, T) => `\\sin ${T}`,
+    wrong: (X, T) => [`-\\sin ${T}`, `\\cos ${T}`, `\\sin^3 ${X}`],
+    why: (X, T) => `It is the triple-angle formula for sine with $A = ${X}$, so $3A = ${T}$.`,
+  },
+  {
+    hard: false,
+    expr: (X) => `4\\cos^3 ${X} - 3\\cos ${X}`,
+    right: (_X, T) => `\\cos ${T}`,
+    wrong: (X, T) => [`-\\cos ${T}`, `\\sin ${T}`, `\\cos^3 ${X}`],
+    why: (X, T) => `It is the triple-angle formula for cosine with $A = ${X}$, so $3A = ${T}$.`,
+  },
+  {
+    hard: false,
+    expr: (X, T) => `\\dfrac{\\sin ${T}}{\\sin ${X}}`,
+    right: (X) => `4\\cos^2 ${X} - 1`,
+    wrong: (X) => [`3 - 4\\cos^2 ${X}`, `4\\sin^2 ${X} - 1`, `3 - 4\\sin ${X}`],
+    why: (X) => `The top is $\\sin ${X}(3 - 4\\sin^2 ${X})$, so the quotient is $3 - 4\\sin^2 ${X} = 3 - 4(1 - \\cos^2 ${X}) = 4\\cos^2 ${X} - 1$.`,
+  },
+  {
+    hard: false,
+    expr: (X, T) => `\\dfrac{\\cos ${T}}{\\cos ${X}}`,
+    right: (X) => `1 - 4\\sin^2 ${X}`,
+    wrong: (X) => [`4\\sin^2 ${X} - 1`, `1 - 4\\cos^2 ${X}`, `4\\cos ${X} - 3`],
+    why: (X) => `The top is $\\cos ${X}(4\\cos^2 ${X} - 3)$, so the quotient is $4\\cos^2 ${X} - 3 = 4(1 - \\sin^2 ${X}) - 3 = 1 - 4\\sin^2 ${X}$.`,
+  },
+  {
+    hard: true,
+    expr: (X) => `4\\sin^3 ${X}`,
+    right: (X, T) => `3\\sin ${X} - \\sin ${T}`,
+    wrong: (X, T) => [`\\sin ${T} - 3\\sin ${X}`, `3\\sin ${X} + \\sin ${T}`, `\\sin ${T}`],
+    why: (X, T) => `Rearrange $\\sin ${T} = 3\\sin ${X} - 4\\sin^3 ${X}$ for $4\\sin^3 ${X}$.`,
+  },
+  {
+    hard: true,
+    expr: (X) => `4\\cos^3 ${X}`,
+    right: (X, T) => `\\cos ${T} + 3\\cos ${X}`,
+    wrong: (X, T) => [`\\cos ${T} - 3\\cos ${X}`, `3\\cos ${X} - \\cos ${T}`, `\\cos ${T}`],
+    why: (X, T) => `Rearrange $\\cos ${T} = 4\\cos^3 ${X} - 3\\cos ${X}$ for $4\\cos^3 ${X}$.`,
+  },
+  {
+    hard: true,
+    expr: (X, T) => `\\sin ${T} + 4\\sin^3 ${X}`,
+    right: (X) => `3\\sin ${X}`,
+    wrong: (X) => [`-3\\sin ${X}`, `\\sin ${X}`, `8\\sin^3 ${X}`],
+    why: (X, T) => `$\\sin ${T} = 3\\sin ${X} - 4\\sin^3 ${X}$, so adding $4\\sin^3 ${X}$ leaves $3\\sin ${X}$.`,
+  },
+  {
+    hard: true,
+    expr: (X, T) => `\\cos ${T} + 3\\cos ${X}`,
+    right: (X) => `4\\cos^3 ${X}`,
+    wrong: (X) => [`-4\\cos^3 ${X}`, `\\cos^3 ${X}`, `4\\cos ${X}`],
+    why: (X, T) => `$\\cos ${T} = 4\\cos^3 ${X} - 3\\cos ${X}$, so adding $3\\cos ${X}$ leaves $4\\cos^3 ${X}$.`,
+  },
+];
+
+const TRIPLE_CHOICE_STEMS = ['Which of these is the same as', 'Which is equal to this at every angle?', 'Pick the equal expression.'];
+
+/** Which expression is this equal to, through a triple-angle formula? */
+const tripleChoice: Generator<TripleChoiceParams> = {
+  id: 'tid-triple-choice',
+  sample: (rng, difficulty) => {
+    const forms = TRIPLE_CHOICE_FORMS.map((f, i) => ({ f, i })).filter(({ f }) => difficulty > 1 || !f.hard);
+    return { form: rng.pick(forms).i, v: rng.int(0, 2), m: rng.int(1, 2), stem: rng.int(0, TRIPLE_CHOICE_STEMS.length - 1) };
+  },
+  render: (p): Slide => {
+    const f = TRIPLE_CHOICE_FORMS[p.form];
+    const { X, T } = tripleAngles(TRIPLE_LETTERS[p.v], p.m);
+    return choiceSlide([prose(TRIPLE_CHOICE_STEMS[p.stem]), display(f.expr(X, T))], f.right(X, T), f.wrong(X, T), saltOf(p));
+  },
+  solution: ({ form, v, m }) => {
+    const f = TRIPLE_CHOICE_FORMS[form];
+    const { X, T } = tripleAngles(TRIPLE_LETTERS[v], m);
+    return [{ text: f.why(X, T) }, { tex: `${f.expr(X, T)} = ${f.right(X, T)}` }];
+  },
+};
+
+/* Lesson 5: equations in x/2 and 3x. */
+
+/**
+ * fn(x/2) = k or fn(3x) = k with 0 <= x < top. Solve for the whole bracket over
+ * its own range, then undo the halving or the tripling. A 3x equation that is
+ * typed or slid keeps k to 0 and +-1: sin 3x = 1/2 gives x = 10 degrees, which
+ * is off the 30-and-45 lattice every typed angle here sits on.
+ */
+interface MultiEq {
+  kind: 'half' | 'triple';
+  fn: Fn;
+  value: number;
+  /** x runs over 0 <= x < top. */
+  top: number;
+}
+
+/** An equation with the difficulty it is first asked at. */
+type TaggedEq = MultiEq & { hard: boolean };
+
+/** The bracket, x/2 or 3x, in a given letter. */
+const bracketOf = (kind: 'half' | 'triple', v: string): string => (kind === 'half' ? halfOf(v) : `3${v}`);
+
+/** How far the bracket runs while x runs up to top. */
+const bracketTop = (eq: MultiEq): number => (eq.kind === 'half' ? eq.top / 2 : 3 * eq.top);
+
+/** Every bracket angle below its top where fn takes the value, smallest first. */
+function bracketSolutions(eq: MultiEq): number[] {
+  const out: number[] = [];
+  const top = bracketTop(eq);
+  for (let turn = 0; turn * 360 < top; turn += 1) {
+    for (const d of solutionsOf(eq.fn, eq.value)) if (d + 360 * turn < top) out.push(d + 360 * turn);
+  }
+  return out;
+}
+
+const xOf = (eq: MultiEq, u: number): number => (eq.kind === 'half' ? 2 * u : u / 3);
+
+const xSolutions = (eq: MultiEq): number[] => bracketSolutions(eq).map((u) => xOf(eq, u));
+
+const eqTex = (eq: MultiEq, v: string): string => `\\${eq.fn} ${bracketOf(eq.kind, v)} = ${specialTex(eq.value)}`;
+
+const xRangeTex = (eq: MultiEq, v: string): string => `0^{\\circ} \\le ${v} < ${deg(eq.top)}`;
+
+/** Every special value a sine or cosine takes, and some it cannot reach. */
+const SC_VALUES = [0, 0.5, -0.5, Math.SQRT2 / 2, -Math.SQRT2 / 2, Math.sqrt(3) / 2, -Math.sqrt(3) / 2, 1, -1, 1.5];
+const TAN_VALUES = [0, 1, -1, Math.sqrt(3), -Math.sqrt(3), 1 / Math.sqrt(3), -1 / Math.sqrt(3)];
+
+/** 3x equations whose answers stay on the 30-degree lattice. */
+const TRIPLE_TYPED: [Fn, number][] = [
+  ['sin', 0],
+  ['sin', 1],
+  ['sin', -1],
+  ['cos', 0],
+  ['cos', 1],
+  ['cos', -1],
+];
+
+const MULTI_LETTERS = ['x', '\\theta'];
+
+/** Solve the whole bracket over its own range, then undo it: the working every question here shares. */
+function multiSteps(eq: MultiEq, v: string): SolutionStep[] {
+  const U = bracketOf(eq.kind, v);
+  const us = bracketSolutions(eq);
+  const xs = us.map((u) => xOf(eq, u));
+  const undo = eq.kind === 'half' ? 'Double each one' : 'Divide each one by $3$';
+  const steps: SolutionStep[] = [
+    {
+      text: `As $${v}$ runs from $0^{\\circ}$ up to $${deg(eq.top)}$, $${U}$ runs from $0^{\\circ}$ up to $${deg(bracketTop(eq))}$.`,
+    },
+  ];
+  if (us.length === 0) {
+    steps.push({ text: `$\\${eq.fn}$ never equals $${specialTex(eq.value)}$ there, so there are no solutions.` });
+    return steps;
+  }
+  steps.push(
+    { tex: `${U} = ${angleList(us)}` },
+    { text: `${undo}:` },
+    { tex: `${v} = ${angleList(xs)}` },
+  );
+  return steps;
+}
+
+interface MultiFlowParams {
+  kind: 'half' | 'triple';
+  fn: Fn;
+  vi: number;
+  /** Harder draws change x's range from the usual 0 to 360. */
+  top: number;
+  v: number;
+}
+
+const multiFlowEq = (p: MultiFlowParams): MultiEq => ({
+  kind: p.kind,
+  fn: p.fn,
+  value: (p.fn === 'tan' ? TAN_VALUES : SC_VALUES)[p.vi],
+  top: p.top,
+});
+
+/** How many solutions: first the bracket's range, then the count over it. */
+const multiEqFlow: Generator<MultiFlowParams> = {
+  id: 'tid-multi-eq-flow',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick(['half', 'triple'] as const);
+    const fn = rng.pick(['sin', 'cos', 'tan'] as const);
+    const tops = kind === 'half' ? [360, 720] : [360, 180];
+    return {
+      kind,
+      fn,
+      vi: rng.int(0, (fn === 'tan' ? TAN_VALUES : SC_VALUES).length - 1),
+      top: difficulty > 1 ? rng.pick(tops) : 360,
+      v: rng.int(0, MULTI_LETTERS.length - 1),
+    };
+  },
+  render: (p): Slide => {
+    const eq = multiFlowEq(p);
+    const v = MULTI_LETTERS[p.v];
+    const U = bracketOf(eq.kind, v);
+    const top = bracketTop(eq);
+    const tops = [...new Set([top, eq.top, eq.kind === 'half' ? 2 * eq.top : eq.top / 3, eq.kind === 'half' ? eq.top / 4 : (3 * eq.top) / 2])]
+      .sort((a, b) => a - b)
+      .map((t) => `$${deg(t)}$`);
+    const count = xSolutions(eq).length;
+    const naive = solutionsOf(eq.fn, eq.value).filter((d) => d < eq.top).length;
+    const counts = [count, naive, 2 * count, count + 1, 0, 1, 2, 3, 4, 6];
+    const offered = [...new Set(counts)].slice(0, 4).sort((a, b) => a - b).map((n) => `$${n}$`);
+    return {
+      kind: 'flow',
+      prompt: [prose(`How many solutions has this with $${xRangeTex(eq, v)}$?`)],
+      subject: eqTex(eq, v),
+      steps: [
+        {
+          id: 'range',
+          ask: `As $${v}$ runs up to $${deg(eq.top)}$, $${U}$ runs up to`,
+          branches: tops.map((label) => ({ label, to: 'count' })),
+        },
+        {
+          id: 'count',
+          ask: 'So the number of solutions is',
+          branches: offered.map((label) => ({ label, outcome: 'Count over the range of the whole bracket, not of $x$.' })),
+        },
+      ],
+      answer: [`$${deg(top)}$`, `$${count}$`],
+    };
+  },
+  solution: (p) => multiSteps(multiFlowEq(p), MULTI_LETTERS[p.v]),
+};
+
+/** Equations whose solutions from 0 to 360 are all multiples of 15 degrees. */
+const SLIDER_EQS: TaggedEq[] = [
+  ...(['sin', 'cos', 'tan'] as const).flatMap((fn) =>
+    (fn === 'tan' ? TAN_VALUES : SC_VALUES).map((value) => ({ kind: 'half' as const, fn, value, top: 360, hard: false })),
+  ),
+  ...TRIPLE_TYPED.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: false })),
+  { kind: 'triple', fn: 'tan', value: 0, top: 360, hard: true } as TaggedEq,
+].filter((eq) => sliderEnds(eq, 2).length > 0);
+
+/** Every solution strictly inside 0 to 360. */
+function openSolutions(eq: MultiEq): number[] {
+  return xSolutions(eq).filter((x) => x > 0 && x < 360);
+}
+
+interface MultiSliderParams {
+  eq: number;
+  /** 0: the smallest; 1: the largest; 2: the second smallest, asked only of harder draws. */
+  end: number;
+}
+
+const SLIDER_WORDS = ['smallest', 'largest', 'second smallest'];
+
+/** The solution each word names. */
+function sliderPick(eq: MultiEq, end: number): number {
+  const all = openSolutions(eq);
+  return end === 0 ? all[0] : end === 1 ? all[all.length - 1] : all[1];
+}
+
+/** The words a slider may ask with: never one naming 180, where an untouched handle rests. */
+function sliderEnds(eq: MultiEq, difficulty: number): number[] {
+  const all = openSolutions(eq);
+  if (all.length === 0) return [];
+  const ends = all.length === 1 ? [0] : [0, 1, ...(difficulty > 1 && all.length > 2 ? [2] : [])];
+  return ends.filter((end) => sliderPick(eq, end) !== 180);
+}
+
+/** The curve and the level drawn: slide to one solution, named by its place. */
+const multiEqSlider: Generator<MultiSliderParams> = {
+  id: 'tid-multi-eq-slider',
+  sample: (rng, difficulty) => {
+    const eqs = SLIDER_EQS.map((e, i) => ({ e, i })).filter(({ e }) => (difficulty > 1 || !e.hard) && sliderEnds(e, difficulty).length > 0);
+    const eq = rng.pick(eqs).i;
+    return { eq, end: rng.pick(sliderEnds(SLIDER_EQS[eq], difficulty)) };
+  },
+  render: ({ eq, end }): Slide => {
+    const e = SLIDER_EQS[eq];
+    const all = xSolutions(e).filter((x) => x > 0 && x < 360);
+    const f = { sin: Math.sin, cos: Math.cos, tan: Math.tan }[e.fn];
+    const scale = e.kind === 'half' ? 0.5 : 3;
+    const tall = e.fn === 'tan' ? 3 : 2;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 360,
+      curves: [{ f: (x) => f(scale * x * DEGREE), accent: true, ...(e.fn === 'tan' ? { breaks: true } : {}) }],
+      horizontals: [e.value],
+      yMin: -tall,
+      yMax: tall,
+      label: `The graph of the left-hand side from 0 to 360 degrees, with a dashed level line at the right-hand side`,
+    });
+    const which = all.length === 1 ? 'the solution' : `the ${SLIDER_WORDS[end]} solution`;
+    return {
+      kind: 'slider',
+      prompt: [prose(`The dashed line is the right-hand side. Solve, and slide to ${which} with $0^{\\circ} < x < 360^{\\circ}$.`), display(eqTex(e, 'x'))],
+      min: 0,
+      max: 360,
+      step: 15,
+      answer: sliderPick(e, end),
+      readout: 'x = {v}^{\\circ}',
+      figure: { svg, ...markerWindow(0, 360) },
+    };
+  },
+  solution: ({ eq, end }) => {
+    const e = SLIDER_EQS[eq];
+    const all = xSolutions(e).filter((x) => x > 0 && x < 360);
+    const pick = sliderPick(e, end);
+    return [
+      ...multiSteps(e, 'x'),
+      { text: all.length === 1 ? `So $x = ${deg(pick)}$.` : `Leaving out $0^{\\circ}$, the ${SLIDER_WORDS[end]} is $${deg(pick)}$.` },
+    ];
+  },
+};
+
+interface MultiStepsParams {
+  eq: number;
+  v: number;
+}
+
+/** Equations worked on a line: the first turn, the bracket's whole range, then x. */
+const STEPS_EQS: TaggedEq[] = [
+  ...(['sin', 'cos', 'tan'] as const).flatMap((fn) =>
+    (fn === 'tan' ? TAN_VALUES : SC_VALUES).flatMap((value) =>
+      [360, 720].map((top) => ({ kind: 'half' as const, fn, value, top, hard: value < 0 || top === 720 || (fn === 'tan' && value !== 0 && value !== 1) })),
+    ),
+  ),
+  ...TRIPLE_TYPED.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 180, hard: value < 0 })),
+  { kind: 'triple', fn: 'tan', value: 0, top: 180, hard: true } as TaggedEq,
+].filter((eq) => xSolutions(eq).length > 0);
+
+/** Solve fn(x/2) = k or fn(3x) = k a line at a time: the table's angles, the bracket's range, then x. */
+const multiEqSteps: Generator<MultiStepsParams> = {
+  id: 'tid-multi-eq-steps',
+  sample: (rng, difficulty) => {
+    const eqs = STEPS_EQS.map((e, i) => ({ e, i })).filter(({ e }) => difficulty > 1 || !e.hard);
+    return { eq: rng.pick(eqs).i, v: rng.int(0, MULTI_LETTERS.length - 1) };
+  },
+  render: ({ eq, v: vi }): Slide => {
+    const e = STEPS_EQS[eq];
+    const v = MULTI_LETTERS[vi];
+    const U = bracketOf(e.kind, v);
+    const first = solutionsOf(e.fn, e.value);
+    const us = bracketSolutions(e);
+    const xs = us.map((u) => xOf(e, u));
+    const list = (angles: number[]) => (angles.length === 0 ? '\\text{none}' : angleList(angles));
+    const other: Fn = e.fn === 'sin' ? 'cos' : 'sin';
+    const reductions: { span: [number, number]; value: string; bank: string[] }[] = [
+      {
+        span: [0, 3],
+        value: `${U} = ${list(first)}`,
+        bank: [
+          `${U} = ${list(solutionsOf(other, e.value))}`,
+          `${U} = ${list(solutionsOf(e.fn, -e.value))}`,
+          `${U} = ${list(first.slice(0, 1))}`,
+          `${U} = ${list(first.map((d) => (360 - d) % 360).sort((a, b) => a - b))}`,
+        ],
+      },
+    ];
+    // Only where the bracket's range is not one turn does the list change: more turns for 3x, fewer angles for x/2.
+    if (us.join() !== first.join()) {
+      const turns = (n: number) => Array.from({ length: n }, (_, t) => first.map((d) => d + 360 * t)).flat();
+      const wrong = e.kind === 'half' ? [first, first.map((d) => d + 360)] : [first, turns(2), turns(3)];
+      reductions.push({ span: [0, 1], value: `${U} = ${list(us)}`, bank: wrong.map((w) => `${U} = ${list(w)}`) });
+    }
+    const backwards = us.map((u) => (e.kind === 'half' ? u / 2 : 3 * u));
+    reductions.push({
+      span: [0, 1],
+      value: `${v} = ${list(xs)}`,
+      bank: [`${v} = ${list(backwards)}`, `${v} = ${list(us)}`],
+    });
+    return {
+      kind: 'steps',
+      prompt: [prose(`Solve for $${xRangeTex(e, v)}$, a line at a time: the angles in one turn, then every one in range, then $${v}$.`)],
+      start: [`\\${e.fn} ${U}`, '=', specialTex(e.value)],
+      reductions: reductions.map((r) => ({ ...r, bank: scatter([...new Set([r.value, ...r.bank])]) })),
+    };
+  },
+  solution: ({ eq, v }) => multiSteps(STEPS_EQS[eq], MULTI_LETTERS[v]),
+};
+
+interface MultiAngleParams {
+  eq: number;
+  largest: boolean;
+  radians: boolean;
+  v: number;
+}
+
+/** Equations with at least one solution from 0 to 360 whose every solution can be typed. */
+const ANGLE_EQS: TaggedEq[] = [
+  ...(['sin', 'cos', 'tan'] as const).flatMap((fn) =>
+    (fn === 'tan' ? TAN_VALUES : SC_VALUES).map((value) => ({ kind: 'half' as const, fn, value, top: 360, hard: false })),
+  ),
+  ...TRIPLE_TYPED.map(([fn, value]) => ({ kind: 'triple' as const, fn, value, top: 360, hard: false })),
+  { kind: 'triple', fn: 'tan', value: 0, top: 360, hard: true } as TaggedEq,
+].filter((eq) => xSolutions(eq).length > 0);
+
+/** One solution typed: the smallest or the largest. */
+const multiEqAngle: Generator<MultiAngleParams> = {
+  id: 'tid-multi-eq-angle',
+  sample: (rng, difficulty) => {
+    const eqs = ANGLE_EQS.map((e, i) => ({ e, i })).filter(({ e }) => difficulty > 1 || !e.hard);
+    const eq = rng.pick(eqs).i;
+    return {
+      eq,
+      largest: xSolutions(ANGLE_EQS[eq]).length > 1 && rng.chance(0.5),
+      radians: difficulty > 1 && rng.chance(0.5),
+      v: rng.int(0, MULTI_LETTERS.length - 1),
+    };
+  },
+  render: (p): Slide => {
+    const e = ANGLE_EQS[p.eq];
+    const v = MULTI_LETTERS[p.v];
+    const xs = xSolutions(e);
+    const answer = p.largest ? xs[xs.length - 1] : xs[0];
+    const range = p.radians ? `0 \\le ${v} < 2\\pi` : xRangeTex(e, v);
+    const which = xs.length === 1 ? 'the solution' : `the ${p.largest ? 'largest' : 'smallest'} solution`;
+    return {
+      kind: 'expression',
+      prompt: [prose(`Solve for $${range}$ and give ${which}${p.radians ? ', in radians' : ''}.`), display(eqTex(e, v))],
+      lead: `${v} =`,
+      keypad: p.radians ? PI_KEYS : NUMBER_KEYS,
+      answer: angleAnswer(answer, p.radians),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const e = ANGLE_EQS[p.eq];
+    const us = bracketSolutions(e);
+    const xs = us.map((u) => xOf(e, u));
+    const i = p.largest ? xs.length - 1 : 0;
+    const backwards = e.kind === 'half' ? us[i] / 2 : (3 * us[i]) % 360;
+    return angleOptions(xs[i], [us[i] % 360, backwards, xs[xs.length - 1 - i], (xs[i] + 180) % 360], p.radians);
+  },
+  solution: (p) => {
+    const e = ANGLE_EQS[p.eq];
+    const v = MULTI_LETTERS[p.v];
+    const xs = xSolutions(e);
+    const answer = p.largest ? xs[xs.length - 1] : xs[0];
+    return [...multiSteps(e, v), { text: `The one asked for is $${v} = ${angleTex(answer, p.radians)}$.` }];
+  },
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -4847,4 +6843,24 @@ export const trigIdentityGenerators = [
   fitted(rSolveAngle),
   fitted(rCountFlow),
   fitted(rSolveSlider),
+  fitted(halfTiles),
+  fitted(halfSimplifySteps),
+  fitted(halfRewriteFlow),
+  fitted(halfSignChoice),
+  fitted(halfValue),
+  fitted(halfSquareTree),
+  fitted(halfRootSteps),
+  fitted(halfSignFlow),
+  fitted(halfExactTiles),
+  fitted(halfExactChoice),
+  fitted(halfExactSteps),
+  fitted(halfSurdTree),
+  fitted(tripleSteps),
+  fitted(tripleTiles),
+  fitted(tripleValue),
+  fitted(tripleChoice),
+  fitted(multiEqFlow),
+  fitted(multiEqSlider),
+  fitted(multiEqSteps),
+  fitted(multiEqAngle),
 ];

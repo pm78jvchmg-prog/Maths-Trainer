@@ -2,7 +2,8 @@
 
 Written by C6.
 
-Has: Using Identities, Compound and Double Angles, The Form R sin(x + α).
+Has: Using Identities, Compound and Double Angles, The Form R sin(x + α),
+Half-Angle and Multiple-Angle Formulae.
 
-Needs: Half-Angle and Multiple-Angle Formulae; Proving Identities;
-Sum-to-Product (Factor Formulae); General Solutions & Harder Equations.
+Needs: Proving Identities; Sum-to-Product (Factor Formulae); General
+Solutions & Harder Equations.

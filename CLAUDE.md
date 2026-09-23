@@ -290,6 +290,20 @@ value in these questions is whole**, banks included; a bank of halves turns an
 order question into an arithmetic-with-fractions question, and there is a test
 for it.
 
+**`numberLine`** (batch C8-widget) draws a solution set: a number places or
+removes a dot, a dot toggles filled and hollow, and a tap on the line shades
+the stretch it falls in, running off the edge as a ray beyond the outermost
+dot. The model is `src/content/numberLine.ts`, the widget
+`src/ui/numberLineSlide.tsx`. The draft is one string (`-1c,2o/-1:2`) so
+`Answer` did not grow; `answer` is the set written canonically
+(`(-inf,2]|[5,inf)`), and the reducer compares both after sorting and merging,
+so the order pieces were shaded in cannot matter. Nothing shaded never scores.
+A line holds at most **twelve steps** (`step` 1, or 0.5 with a six-unit
+window), which is what keeps each tick's tap target 24 px wide at 393 px, and
+every end must sit on a tick strictly inside the window. `nl-linear` and
+`nl-modulus` in `generators/numberLine.ts` are demonstrations no lesson asks
+yet.
+
 ## TeX escaping — the recurring hazard
 
 TeX lives inside JavaScript string literals, so **every backslash must be
@@ -343,10 +357,20 @@ proposed replacement was rejected precisely because it turned out not to fire.
 ## Adding content
 
 1. Write a `Generator` in `src/content/generators/`, export it from that file's
-   array, and it is registered automatically.
-2. Reference it by id from a lesson in `src/content/courses/`, then add the
-   course to `src/content/courses/index.ts`.
+   array, and it is registered automatically. A new generator *file* needs no
+   wiring either: `registry.ts` collects every exported array whose name ends in
+   `Generators` from every file in that folder (`import.meta.glob`), keeps an
+   object found twice once, and throws on two different generators sharing an id.
+2. Reference it by id from a lesson in `src/content/courses/`. A new course file
+   is found the same way by `courses/index.ts`; it exports exactly one `Course`,
+   whose `category` names its home-screen tab and whose `position` places it in
+   that tab (smallest first, spaced in tens, a tie broken by id).
 3. Run `npm test` — the property tests pick it up with no wiring.
+
+Neither list is written out by hand on purpose. With several content branches
+open at once, each adding an import and an entry to the same two lists, every
+landing put the others into a merge conflict. The roadmap's batch record is one
+file per batch under `docs/roadmap/batches/` for the same reason.
 
 ## Deployment
 

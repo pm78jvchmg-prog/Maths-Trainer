@@ -253,6 +253,8 @@ function triangleSvg(): string {
 
 export const trigonometricFunctions: Course = {
   id: 'trigonometric-functions',
+  category: 'advanced-algebra',
+  position: 10,
   title: 'Trigonometric Functions',
   blurb: 'Periodic behaviour first, then sine and cosine as circular motion.',
   levels: [

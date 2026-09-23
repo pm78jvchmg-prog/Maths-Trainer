@@ -32,6 +32,8 @@ const maths = (tex: string): Block => ({ kind: 'display', tex });
 
 export const binomialExpansion: Course = {
   id: 'binomial-expansion',
+  category: 'advanced-algebra',
+  position: 40,
   title: 'Binomial Expansion',
   blurb: "Pascal's triangle and nCr: expanding a bracket to a power, picking out one term, and estimating powers.",
   levels: [

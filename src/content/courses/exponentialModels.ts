@@ -15,7 +15,9 @@
  * gap between two models as a quadratic in u. Level 5 is logistic growth,
  * L / (1 + Ae^(-kt)): reading the ceiling, the start and k, values at whole
  * times, half the ceiling as the steepest point, the rate kP(1 - P/L), and the
- * time to reach a value.
+ * time to reach a value. Level 6 is continuous compounding: a nominal rate
+ * paid in steps as A(1 + r/n)^(nt), e as the limit of (1 + 1/n)^n, the limit
+ * Ae^(rt), and the effective annual rate, e^k - 1 for a continuous k.
  *
  * Whole-step growth without e, solving N = N0 r^t by logarithms, linearising
  * and differentiating e^x all belong to other courses and are used here, not
@@ -1007,6 +1009,205 @@ export const exponentialModels: Course = {
         ask('expm-logistic-steepest', 2),
         ask('expm-logistic-rate-tree', 2),
         ask('expm-logistic-u-tiles', 2),
+      ],
+    },
+    {
+      id: 'em-l6',
+      title: 'Continuous Compounding',
+      lessons: [
+        {
+          id: 'em-l6-steps',
+          title: 'Compounding in Steps',
+          slides: [
+            teach(
+              prose(
+                'A rate of 10% a year "compounded twice a year" does not pay 10% twice. It pays half of it, 5%, every six months, and each payment is added to the balance.',
+              ),
+              prose('Each step multiplies by $1.05$, so a year multiplies by $1.05^{2}$. On £800:'),
+              working('1.05^{2} &= 1.1025', '800 \\times 1.1025 &= 882'),
+            ),
+            ask('expm-step-tree'),
+            ask('expm-step-amount'),
+            ask('expm-step-calc'),
+            teach(
+              prose(
+                'Paid once a year, 10% of £800 is £880. Twice a year gives £2 more: the second payment of 5% is also paid on the first £40 of interest.',
+              ),
+              prose('In general, a rate $r$ paid in $n$ steps a year multiplies by $1 + \\frac{r}{n}$ each step, and $t$ years is $nt$ steps:'),
+              maths('B = A\\left(1 + \\frac{r}{n}\\right)^{nt}'),
+            ),
+            ask('expm-step-work-steps'),
+            ask('expm-step-tree', 2),
+            ask('expm-step-amount', 2),
+            teach(
+              prose(
+                'Working backwards undoes the multiplying. If 10% twice a year left £882 after a year, the amount paid in was $882 \\div 1.1025 = 800$.',
+              ),
+              prose('Exponents level 7 grew money one whole step at a time. This is the same idea, with the step a fraction of a year.'),
+            ),
+            ask('expm-step-calc', 2),
+            ask('expm-step-work-steps', 2),
+          ],
+          skillCheck: [ask('expm-step-amount', 2), ask('expm-step-work-steps', 2), ask('expm-step-calc', 2)],
+        },
+        {
+          id: 'em-l6-often',
+          title: 'More Often, More Money',
+          slides: [
+            teach(
+              prose('£1000 for a year at 10%, compounded more and more often:'),
+              working(
+                '\\text{yearly} &: \\; \\text{£1100}',
+                '\\text{twice a year} &: \\; \\text{£1102.50}',
+                '\\text{quarterly} &: \\; \\text{£1103.81}',
+                '\\text{monthly} &: \\; \\text{£1104.71}',
+                '\\text{daily} &: \\; \\text{£1105.16}',
+              ),
+              prose('Each step up pays more, and each pays less extra than the one before.'),
+            ),
+            ask('expm-often-flow'),
+            ask('expm-often-tiles'),
+            ask('expm-often-gain-tree'),
+            teach(
+              prose(
+                'Paid twice a year, £800 at 10% for 3 years is 6 half years, so the power is $2 \\times 3 = 6$:',
+              ),
+              maths('B = 800\\left(1 + \\frac{0.1}{2}\\right)^{6}'),
+              prose('For $t$ years the power is $2t$.'),
+            ),
+            ask('expm-often-order'),
+            ask('expm-often-tiles', 2),
+            ask('expm-often-flow', 2),
+            teach(
+              prose(
+                'Compounding more often never makes up for a lower rate here. Even daily, 10% pays only about 10.52% over a year, less than 11% paid once.',
+              ),
+              prose('So compare the rates first; how often they are paid only decides between equal rates.'),
+            ),
+            ask('expm-often-gain-tree', 2),
+            ask('expm-often-order', 2),
+          ],
+          skillCheck: [ask('expm-often-tiles', 2), ask('expm-often-order', 2), ask('expm-often-gain-tree', 2)],
+        },
+        {
+          id: 'em-l6-e',
+          title: 'e as a Limit',
+          slides: [
+            teach(
+              prose('Put £1 in at 100% a year, paid in $n$ equal steps. Each step multiplies by $1 + \\frac{1}{n}$, so a year gives $\\left(1 + \\frac{1}{n}\\right)^{n}$:'),
+              working(
+                'n = 1 &: \\; 2',
+                'n = 2 &: \\; \\left(\\tfrac{3}{2}\\right)^{2} = \\tfrac{9}{4} = 2.25',
+                'n = 3 &: \\; \\left(\\tfrac{4}{3}\\right)^{3} = \\tfrac{64}{27} \\approx 2.37',
+                'n = 4 &: \\; \\left(\\tfrac{5}{4}\\right)^{4} = \\tfrac{625}{256} \\approx 2.44',
+              ),
+            ),
+            ask('expm-e-value'),
+            ask('expm-bernoulli-tree'),
+            ask('expm-e-limit'),
+            teach(
+              prose(
+                'The values keep climbing, but by less each time. Monthly gives about 2.613 and daily about 2.7146. They never pass one number:',
+              ),
+              maths('\\left(1 + \\frac{1}{n}\\right)^{n} \\to e = 2.71828\\ldots'),
+              prose('That limit is the $e$ in every model $Ae^{kt}$ of this course.'),
+            ),
+            ask('expm-bernoulli-back-steps'),
+            ask('expm-e-value', 2),
+            ask('expm-bernoulli-tree', 2),
+            teach(
+              prose('At 200% the steps multiply by $1 + \\frac{2}{n}$, and the year gets closer and closer to $e^{2}$. In general'),
+              maths('\\left(1 + \\frac{x}{n}\\right)^{n} \\to e^{x}'),
+              prose('That holds for a loss too: $\\left(1 - \\frac{1}{n}\\right)^{n} \\to e^{-1}$. And $t$ years multiply by $e^{x}$ $t$ times, which is $e^{xt}$.'),
+            ),
+            ask('expm-e-limit', 2),
+            ask('expm-bernoulli-back-steps', 2),
+          ],
+          skillCheck: [ask('expm-e-value', 2), ask('expm-bernoulli-tree', 2), ask('expm-e-limit', 2)],
+        },
+        {
+          id: 'em-l6-continuous',
+          title: 'Continuous Compounding',
+          slides: [
+            teach(
+              prose('Compounding "continuously" means taking the steps as small as they go. A power of a power regroups:'),
+              working(
+                '\\left(1 + \\frac{r}{n}\\right)^{nt} &= \\left(\\left(1 + \\frac{r}{n}\\right)^{n}\\right)^{t}',
+                '&\\to \\left(e^{r}\\right)^{t} = e^{rt}',
+              ),
+              prose('So a balance compounded continuously is $B = Ae^{rt}$. £500 at 5% for 3 years is $500e^{0.15}$.'),
+            ),
+            ask('expm-cont-tiles'),
+            ask('expm-cont-flow'),
+            ask('expm-cont-steps'),
+            teach(
+              prose(
+                '$500e^{0.15}$ is the exact answer, and it is about £580.92. Compounded monthly it would be about £580.74, and yearly £578.81.',
+              ),
+              prose('This is the model $Ae^{kt}$ from level 1, with $k$ the rate as a decimal, as in level 3.'),
+            ),
+            ask('expm-cont-exact'),
+            ask('expm-cont-tiles', 2),
+            ask('expm-cont-flow', 2),
+            teach(
+              prose('Time is measured in years, so months become a fraction of a year first. 18 months is 1.5 years, and at 6%:'),
+              working('0.06 \\times 1.5 &= 0.09', 'B &= 400e^{0.09}'),
+            ),
+            ask('expm-cont-steps', 2),
+            ask('expm-cont-exact', 2),
+          ],
+          skillCheck: [ask('expm-cont-exact', 2), ask('expm-cont-steps', 2), ask('expm-cont-tiles', 2)],
+        },
+        {
+          id: 'em-l6-effective',
+          title: 'The Effective Annual Rate',
+          slides: [
+            teach(
+              prose(
+                'The effective annual rate is what a balance really grows by in a year. 10% twice a year multiplies by $1.05^{2} = 1.1025$, so it is 10.25%.',
+              ),
+              prose('Continuously at $k$, a year multiplies by $e^{k}$, so the rate is $e^{k} - 1$. At 5% that is $e^{0.05} - 1$, about 5.13%.'),
+              prose('Offers are compared by this rate. At these rates compounding adds less than one percentage point.'),
+            ),
+            ask('expm-effective'),
+            ask('expm-effective-flow'),
+            ask('expm-effective-best'),
+            teach(
+              prose('Backwards: which continuous rate $k$ matches 6% paid yearly? A year must multiply by the same amount:'),
+              working('e^{k} &= 1.06', 'k &= \\ln 1.06 \\approx 0.0583'),
+              prose('A little under 0.06: compounding continuously needs a slightly lower rate to keep up.'),
+            ),
+            ask('expm-effective-tiles'),
+            ask('expm-effective', 2),
+            ask('expm-effective-best', 2),
+            teach(
+              prose(
+                'Continuously at $k$ always pays more than $k$, and more than the same rate paid in steps, because interest starts earning interest at once.',
+              ),
+              prose('At 10%, continuously pays $e^{0.1} - 1$, about 10.52%, against 10.25% twice a year and 10% yearly.'),
+            ),
+            ask('expm-effective-flow', 2),
+            ask('expm-effective-tiles', 2),
+          ],
+          skillCheck: [ask('expm-effective', 2), ask('expm-effective-best', 2), ask('expm-effective-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('expm-step-tree', 2),
+        ask('expm-step-amount', 2),
+        ask('expm-often-order', 2),
+        ask('expm-often-tiles', 2),
+        ask('expm-bernoulli-back-steps', 2),
+        ask('expm-e-value', 2),
+        ask('expm-e-limit', 2),
+        ask('expm-cont-tiles', 2),
+        ask('expm-cont-exact', 2),
+        ask('expm-cont-flow', 2),
+        ask('expm-effective-best', 2),
+        ask('expm-effective', 2),
+        ask('expm-effective-tiles', 2),
+        ask('expm-often-gain-tree', 2),
+        ask('expm-step-calc', 2),
       ],
     },
   ],

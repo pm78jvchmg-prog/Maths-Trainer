@@ -17,7 +17,10 @@
  * and $f(x) = k$ read as a horizontal line meeting the curve. It closes by
  * moving $\frac{1}{x}$ onto a rule and reading a rule back off a sketch.
  *
- * Later levels — even and odd functions, and the rest — are in
+ * Level 4 asks what a rule does to $-x$ — even functions mirror in the
+ * $y$-axis, odd ones turn a half turn about the origin — then what it does
+ * after a whole period, and closes on rules that change from one stretch of
+ * $x$ to the next. Later levels are in
  * `docs/roadmap/levels/functions-transformations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
@@ -108,6 +111,33 @@ const brokenGraph = (
     label,
   }),
 });
+
+/**
+ * Curves with ringed points on them, the pen lifted wherever a curve has no
+ * value — so a piece of a piecewise rule, `NaN` outside its stretch, stops
+ * where it should.
+ */
+const markedGraph = (
+  fs: ((x: number) => number)[],
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  marks: { x: number; y: number; hollow?: boolean }[],
+  label: string,
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: fs.map((f, idx) => ({ f, accent: idx === 0, breaks: true })),
+    verticals: [{ x: 0, dashed: false }],
+    marks,
+    label,
+  }),
+});
+
+/** A zigzag repeating every 4, peaking at 2: the teaching picture of a period. */
+const zigzag = (x: number): number => {
+  const along = ((x % 4) + 4) % 4;
+  return along < 2 ? along : 4 - along;
+};
 
 export const functionsTransformations: Course = {
   id: 'functions-transformations',
@@ -766,6 +796,212 @@ export const functionsTransformations: Course = {
         ask('fun-meet-tiles', 2),
         ask('fun-sketch-match', 2),
         ask('fun-features-tree', 2),
+      ],
+    },
+    {
+      id: 'fn-l4',
+      title: 'Even, Odd and Periodic Functions',
+      lessons: [
+        {
+          id: 'fn-l4-even',
+          title: 'Even Functions',
+          slides: [
+            teach(
+              prose('A function is **even** when $f(-x) = f(x)$ for every $x$: the input $-2$ gives the same output as $2$, and $-1$ the same as $1$.'),
+              markedGraph(
+                [(x) => x ** 4 - 3 * x ** 2],
+                { xMin: -3, xMax: 3, yMin: -4, yMax: 6 },
+                [
+                  { x: -2, y: 4 },
+                  { x: 2, y: 4 },
+                ],
+                'The curve y = x^4 - 3x^2, the same either side of the y-axis, with the points (-2, 4) and (2, 4) ringed',
+              ),
+              prose('So its graph is its own mirror image in the $y$-axis: $x^4 - 3x^2$ is at $(2, 4)$, and so at $(-2, 4)$ too. $x^2$, $x^4$ and $|x|$ are all even.'),
+            ),
+            ask('fun-even-value'),
+            ask('fun-even-pick'),
+            ask('fun-negx-tiles'),
+            teach(
+              prose('To test a rule, write $(-x)$ in place of every $x$. An even power of $-x$ is positive and an odd power negative:'),
+              maths('\\begin{gathered} (-x)^2 = x^2 \\\\ (-x)^3 = -x^3 \\\\ (-x)^4 = x^4 \\end{gathered}'),
+              prose('So in $f(-x)$ the even powers stay as they were and the odd powers change sign. A constant stays too, and so does $|x|$, since $|-x| = |x|$. $f$ is even when nothing changes at all.'),
+              prose('A curve can mirror in some other line without being even: $(x - 2)^2$ is symmetrical about $x = 2$, not about the $y$-axis.'),
+            ),
+            ask('fun-even-flow'),
+            ask('fun-negx-tiles', 2),
+            ask('fun-even-pick', 2),
+            teach(
+              prose('An even function is fixed by its right-hand half. If $f$ is even and $f(x) = x^2 - 2x$ for $x \\geq 0$, then'),
+              maths('f(-3) = f(3) = 9 - 6 = 3'),
+              prose('Putting $-3$ straight into $x^2 - 2x$ gives $15$ — but that rule is only what $f$ does for $x \\geq 0$.'),
+            ),
+            ask('fun-even-value', 2),
+            ask('fun-even-flow', 2),
+          ],
+          skillCheck: [ask('fun-even-value', 2), ask('fun-even-pick', 2), ask('fun-negx-tiles', 2)],
+        },
+        {
+          id: 'fn-l4-odd',
+          title: 'Odd Functions',
+          slides: [
+            teach(
+              prose('A function is **odd** when $f(-x) = -f(x)$ for every $x$: the output at $-2$ is the output at $2$ with its sign changed.'),
+              markedGraph(
+                [(x) => x ** 3 - 3 * x],
+                { xMin: -3, xMax: 3, yMin: -4, yMax: 4 },
+                [
+                  { x: -2, y: -2 },
+                  { x: 2, y: 2 },
+                ],
+                'The curve y = x^3 - 3x with the points (2, 2) and (-2, -2) ringed, each a half turn of the other about the origin',
+              ),
+              prose('On a graph that is a half turn about the origin: $x^3 - 3x$ is at $(2, 2)$, and so at $(-2, -2)$. $x^3$, $\\frac{1}{x}$ and $\\sin x$ are odd.'),
+              prose('To test a rule, compare $f(-x)$ with $-f(x)$, which changes the sign of every term. If they match, $f$ is odd; if $f(-x)$ matches $f(x)$ instead, $f$ is even. Most rules are neither.'),
+            ),
+            ask('fun-odd-sum-tree'),
+            ask('fun-odd-tiles'),
+            ask('fun-parity-flow'),
+            teach(
+              prose('Reflecting $y = f(x)$ in the $y$-axis draws $y = f(-x)$; reflecting it in the $x$-axis draws $y = -f(x)$. For an odd function those are the same curve, so either flip gets you there.'),
+              graph(
+                [(x) => -(x ** 3) + 3 * x],
+                { xMin: -3, xMax: 3, yMin: -4, yMax: 4 },
+                'The curve y = x^3 - 3x dashed, and its reflection, which is the same whichever axis it is reflected in',
+                [(x) => x ** 3 - 3 * x],
+              ),
+              prose('A number added on spoils it: $x^3 + 1$ is $2$ at $x = 1$ but $0$ at $x = -1$, not $-2$.'),
+            ),
+            ask('fun-odd-apply'),
+            ask('fun-odd-sum-tree', 2),
+            ask('fun-odd-tiles', 2),
+            teach(
+              prose('An odd function that is defined at $0$ passes through the origin, since $f(0) = -f(0)$ forces $f(0) = 0$. That is a quick way to rule one out: $x^3 + 1$ has $f(0) = 1$, so it is not odd.'),
+              prose('It only works one way. $x^3 + x^2$ passes through the origin too, and it is neither.'),
+            ),
+            ask('fun-parity-flow', 2),
+            ask('fun-odd-match', 2),
+          ],
+          skillCheck: [ask('fun-odd-sum-tree', 2), ask('fun-odd-tiles', 2), ask('fun-parity-flow', 2)],
+        },
+        {
+          id: 'fn-l4-test',
+          title: 'Testing a Rule',
+          slides: [
+            teach(
+              prose('Term by term: in $f(-x)$ the even powers stay, the odd powers change sign, and a constant, being $x^0$, stays. So:'),
+              maths('\\begin{gathered} x^4 - 3x^2 + 2 \\text{ is even} \\\\ x^3 + 2x \\text{ is odd} \\\\ x^3 + 1 \\text{ is neither} \\end{gathered}'),
+              prose('Only even powers: even. Only odd powers: odd. Both: neither. To make a rule even, then, every odd power needs a coefficient of $0$.'),
+            ),
+            ask('fun-negx-steps'),
+            ask('fun-parity-choice'),
+            ask('fun-parity-k'),
+            teach(
+              prose('Split a rule into its even-power terms and its odd-power terms. For $f(x) = x^3 + 2x^2 + x + 1$ at $x = 2$, the even ones, $2x^2 + 1$, come to $E = 9$ and the odd ones, $x^3 + x$, to $O = 10$.'),
+              maths('\\begin{gathered} f(2) = E + O = 19 \\\\ f(-2) = E - O = -1 \\end{gathered}'),
+              prose('At $-2$ the odd terms change sign and the even ones do not, so one piece of arithmetic gives both.'),
+            ),
+            ask('fun-split-tree'),
+            ask('fun-negx-steps', 2),
+            ask('fun-parity-k', 2),
+            teach(
+              prose('A product follows the signs. Odd times odd is even, like two minus signs; odd times even is odd; even times even is even.'),
+              maths('\\begin{gathered} x(x^2 + 1) \\text{ is odd} \\\\ x(x^3 - x) = x^4 - x^2 \\text{ is even} \\end{gathered}'),
+              prose('A factor that is neither, such as $x + 1$, makes the product neither.'),
+            ),
+            ask('fun-parity-choice', 2),
+            ask('fun-split-tree', 2),
+          ],
+          skillCheck: [ask('fun-negx-steps', 2), ask('fun-parity-choice', 2), ask('fun-parity-k', 2)],
+        },
+        {
+          id: 'fn-l4-period',
+          title: 'Periodic Functions',
+          slides: [
+            teach(
+              prose('A function is **periodic** when its graph repeats the same pattern over and over. If it repeats every $p$ units, $f(x + p) = f(x)$ for every $x$, and the smallest such $p$ is the **period**.'),
+              graph(
+                [zigzag],
+                { xMin: -6, xMax: 6, yMin: -1, yMax: 3 },
+                'A zigzag that rises to 2 and falls back to 0, repeating every 4 units',
+              ),
+              prose('This zigzag has period $4$. $\\sin x$ has period $360^{\\circ}$; $\\sin 3x$ runs three times as fast, so its period is $\\frac{360}{3} = 120^{\\circ}$.'),
+            ),
+            ask('fun-period-choice'),
+            ask('fun-repeat-flow'),
+            ask('fun-period-slider'),
+            teach(
+              prose('A whole number of periods along lands on the same value. If $f(x + 4) = f(x)$ and $f(1) = 5$, then $f(9) = 5$, since $9 - 1 = 8$ is two periods, and $f(-7) = 5$ too. $f(3)$ is half a period along, and $f(1)$ says nothing about it.'),
+              prose('Measure a period from one point to the next point at the same stage of the pattern, not just at the same height.'),
+              prose('For a wave, $\\sin bx$ has period $\\frac{360}{b}$ degrees and $\\sin \\frac{x}{b}$, which runs slower, has period $360b$.'),
+            ),
+            ask('fun-period-value'),
+            ask('fun-period-choice', 2),
+            ask('fun-repeat-flow', 2),
+            teach(
+              prose('A number in front, or added on, changes the height of a wave but not how often it repeats: $3\\sin 4x - 1$ has period $90^{\\circ}$, the same as $\\sin 4x$.'),
+              prose('Backwards: if $\\sin bx$ has period $40^{\\circ}$, then $\\frac{360}{b} = 40$, so $b = 9$.'),
+              prose('Moving a wave across as well, $a\\sin(bx + c) + d$, is the next level.'),
+            ),
+            ask('fun-period-slider', 2),
+            ask('fun-period-value', 2),
+          ],
+          skillCheck: [ask('fun-period-choice', 2), ask('fun-repeat-flow', 2), ask('fun-period-value', 2)],
+        },
+        {
+          id: 'fn-l4-piecewise',
+          title: 'Piecewise-Defined Functions',
+          slides: [
+            teach(
+              prose('A **piecewise** function uses a different rule on different stretches of $x$:'),
+              maths('f(x) = \\begin{cases} x + 3 & x < 1 \\\\ 3 - x & x \\geq 1 \\end{cases}'),
+              markedGraph(
+                [(x) => (x < 1 ? x + 3 : Number.NaN), (x) => (x >= 1 ? 3 - x : Number.NaN)],
+                { xMin: -4, xMax: 5, yMin: -3, yMax: 5 },
+                [
+                  { x: 1, y: 4, hollow: true },
+                  { x: 1, y: 2 },
+                ],
+                'Two straight pieces: a line rising to a hollow dot at (1, 4), and a line falling from a filled dot at (1, 2)',
+              ),
+              prose('Find the stretch first, then use that rule only: $f(-2) = -2 + 3 = 1$ and $f(4) = 3 - 4 = -1$. The filled dot is on the graph and the hollow one is not, so $f(1) = 2$.'),
+            ),
+            ask('fun-piece-value'),
+            ask('fun-piece-tiles'),
+            ask('fun-piece-choice'),
+            teach(
+              prose('Where two pieces meet, put the number into both rules. In the example, at $x = 1$ the first rule gives $1 + 3 = 4$ and the second $3 - 1 = 2$, so the graph jumps by $2 - 4 = -2$ there.'),
+              prose('When the two agree, the pieces meet and the graph joins up. Either way, the $\\leq$ or $\\geq$ says which piece owns the join itself.'),
+            ),
+            ask('fun-join-tree'),
+            ask('fun-piece-value', 2),
+            ask('fun-piece-tiles', 2),
+            teach(
+              prose('Reading a sketch back to a rule: each straight piece is a line $y = mx + c$, with $m$ how far it rises for each square across and $c$ where it would cross the $y$-axis.'),
+              prose('The filled dot says which piece gets the $\\leq$ or $\\geq$; the piece with the hollow dot gets $<$ or $>$.'),
+            ),
+            ask('fun-piece-choice', 2),
+            ask('fun-join-tree', 2),
+          ],
+          skillCheck: [ask('fun-piece-value', 2), ask('fun-join-tree', 2), ask('fun-piece-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('fun-even-value', 2),
+        ask('fun-even-pick', 2),
+        ask('fun-negx-tiles', 2),
+        ask('fun-odd-sum-tree', 2),
+        ask('fun-parity-flow', 2),
+        ask('fun-odd-match', 2),
+        ask('fun-negx-steps', 2),
+        ask('fun-parity-k', 2),
+        ask('fun-parity-choice', 2),
+        ask('fun-period-slider', 2),
+        ask('fun-repeat-flow', 2),
+        ask('fun-period-value', 2),
+        ask('fun-join-tree', 2),
+        ask('fun-piece-value', 2),
+        ask('fun-piece-choice', 2),
       ],
     },
   ],

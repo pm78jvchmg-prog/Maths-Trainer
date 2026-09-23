@@ -12,7 +12,10 @@
  * evaluated, then about the y-axis, then cones and hollow solids. Level 6
  * splits a fraction into partial fractions and integrates the parts to
  * logarithms: the split, the integral, limits and log laws, then top-heavy
- * fractions and repeated brackets.
+ * fractions and repeated brackets. Level 7 takes a definite integral past the
+ * ends the ordinary method can reach: infinite limits and unbounded
+ * integrands, each put right by a limit, then which of them converge, then
+ * integrals that have to be split to have one troublesome end per piece.
  *
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
@@ -1882,6 +1885,249 @@ export const integration: Course = {
         ask('int-pf-top-heavy', 2),
         ask('int-pf-form-flow', 2),
         ask('int-pf-repeated-integrate', 2),
+      ],
+    },
+    {
+      id: 'in-l7',
+      title: 'Improper Integrals',
+      lessons: [
+        {
+          id: 'in-l7-improper',
+          title: 'What Makes an Integral Improper',
+          slides: [
+            teach(
+              prose(
+                'A definite integral needs two finite limits and an integrand that stays bounded between them. Break either rule and the integral is **improper**.',
+              ),
+              graph({
+                xMin: -0.3,
+                xMax: 6.3,
+                yMin: -0.1,
+                yMax: 1.6,
+                curves: [{ f: (x) => 1 / (x * x), breaks: true }],
+                shade: { f: (x) => 1 / (x * x), from: 1, to: 6.3 },
+                label: 'The area under y = 1/x^2 from x = 1, running on to the right without end',
+              }),
+              maths('\\int_{1}^{\\infty} \\frac{1}{x^{2}} \\, dx'),
+              prose(
+                'Here the upper limit is infinite. In $\\int_{0}^{4} \\frac{1}{\\sqrt{x}} \\, dx$ both limits are finite, but the integrand is unbounded at $x = 0$.',
+              ),
+            ),
+            ask('int-imp-which-flow'),
+            ask('int-imp-problem-point'),
+            ask('int-imp-spot'),
+            teach(
+              prose('To work one out, put $t$ in place of the troublesome end, integrate as usual, then let $t$ go to that end. So'),
+              maths('\\int_{1}^{\\infty} \\frac{1}{x^{2}} \\, dx'),
+              prose('stands for'),
+              maths('\\lim_{t \\to \\infty} \\int_{1}^{t} \\frac{1}{x^{2}} \\, dx'),
+              prose(
+                'At a point where the integrand is unbounded, $t$ approaches it from inside the interval: $t \\to 0^{+}$ from the right, $t \\to 3^{-}$ from the left.',
+              ),
+            ),
+            ask('int-imp-limit-tiles'),
+            ask('int-imp-which-flow', 2),
+            ask('int-imp-problem-point', 2),
+            teach(
+              prose(
+                'Check the whole interval, ends included. $\\frac{1}{(x - 3)^{2}}$ is unbounded at $x = 3$, so it makes $\\int_{0}^{5}$ improper, and $\\int_{0}^{3}$ too, but not $\\int_{4}^{6}$.',
+              ),
+              prose('If the limit exists, the integral **converges** to it. If it does not, the integral **diverges**.'),
+            ),
+            ask('int-imp-spot', 2),
+            ask('int-imp-limit-tiles', 2),
+          ],
+          skillCheck: [
+            ask('int-imp-limit-tiles', 2),
+            ask('int-imp-which-flow', 2),
+            ask('int-imp-spot', 2),
+          ],
+        },
+        {
+          id: 'in-l7-infinite',
+          title: 'An Infinite Limit',
+          slides: [
+            teach(
+              prose('Take $\\int_{1}^{\\infty} \\frac{6}{x^{3}} \\, dx$. Put $t$ in place of $\\infty$ and integrate:'),
+              maths('\\int_{1}^{t} 6x^{-3} \\, dx'),
+              maths('= \\left[-\\frac{3}{x^{2}}\\right]_{1}^{t}'),
+              maths('= 3 - \\frac{3}{t^{2}}'),
+              prose('As $t$ grows, $\\frac{3}{t^{2}}$ shrinks to $0$, so the integral **converges** to $3$.'),
+            ),
+            ask('int-imp-work-steps'),
+            ask('int-imp-power-tail'),
+            ask('int-imp-tail-slider'),
+            teach(
+              prose('A decaying exponential works the same way, because $e^{-t} \\to 0$ as $t$ grows:'),
+              maths('\\int_{0}^{\\infty} e^{-x/2} \\, dx'),
+              maths('= \\left[-2e^{-x/2}\\right]_{0}^{\\infty}'),
+              maths('= 0 - (-2) = 2'),
+              prose('Writing $\\infty$ in the bracket is shorthand for the limit. At the bottom, $e^{0} = 1$.'),
+            ),
+            ask('int-imp-exp-tail'),
+            ask('int-imp-power-tail+choice'),
+            ask('int-imp-work-steps', 2),
+            teach(
+              prose(
+                'Watch the signs. The antiderivative is negative, so its value at the lower limit is subtracted as a negative, and the answer comes out positive, as an area above the axis should.',
+              ),
+              prose(
+                'In $\\int_{-\\infty}^{0} e^{2x} \\, dx$ the troublesome end is the lower one: put $t$ there and use $e^{2t} \\to 0$ as $t \\to -\\infty$.',
+              ),
+            ),
+            ask('int-imp-exp-tail+choice', 2),
+            ask('int-imp-tail-slider', 2),
+          ],
+          skillCheck: [
+            ask('int-imp-power-tail', 2),
+            ask('int-imp-exp-tail', 2),
+            ask('int-imp-work-steps', 2),
+          ],
+        },
+        {
+          id: 'in-l7-converge',
+          title: 'Converge or Diverge',
+          slides: [
+            teach(
+              prose(
+                'Not every improper integral has a value. $\\int_{1}^{t} \\frac{1}{x} \\, dx = \\ln t$, which grows without limit, so $\\int_{1}^{\\infty} \\frac{1}{x} \\, dx$ **diverges**.',
+              ),
+              prose('For $\\frac{1}{x^{p}}$ from $1$ to $\\infty$, integrating leaves $t^{1 - p}$, which dies away only when $1 - p$ is negative:'),
+              maths('p > 1: \\text{ converges}'),
+              maths('p \\le 1: \\text{ diverges}'),
+            ),
+            ask('int-imp-verdict'),
+            ask('int-imp-root-tail'),
+            ask('int-imp-p-flow'),
+            teach(
+              prose(
+                'Fractional powers follow the same rule. $\\frac{1}{x\\sqrt{x}} = x^{-\\frac{3}{2}}$ has $p = \\frac{3}{2}$, so it converges, while $\\frac{1}{\\sqrt{x}}$ has $p = \\frac{1}{2}$ and diverges.',
+              ),
+              maths('\\int_{1}^{\\infty} x^{-\\frac{3}{2}} \\, dx = 2'),
+              prose('An exponential converges on an infinite interval when it decays, and diverges when it grows.'),
+            ),
+            ask('int-imp-root-tail+choice', 2),
+            ask('int-imp-tail-slider'),
+            ask('int-imp-verdict'),
+            teach(
+              prose(
+                '"Diverges" is a full answer, not a failure to find one. The quick test is what the antiderivative does at the troublesome end: settle to a number, or grow without limit.',
+              ),
+            ),
+            ask('int-imp-p-flow'),
+            ask('int-imp-power-tail', 2),
+          ],
+          skillCheck: [
+            ask('int-imp-verdict'),
+            ask('int-imp-root-tail', 2),
+            ask('int-imp-p-flow'),
+          ],
+        },
+        {
+          id: 'in-l7-unbounded',
+          title: 'Unbounded Integrands',
+          slides: [
+            teach(
+              prose(
+                '$\\frac{1}{\\sqrt{x}}$ is unbounded at $x = 0$, so $\\int_{0}^{9} \\frac{1}{\\sqrt{x}} \\, dx$ is improper at its lower limit. Put $t$ there:',
+              ),
+              graph({
+                xMin: -0.3,
+                xMax: 9.3,
+                yMin: -0.1,
+                yMax: 3,
+                curves: [{ f: (x) => 1 / Math.sqrt(x), breaks: true }],
+                shade: { f: (x) => Math.min(3, 1 / Math.sqrt(x)), from: 0.01, to: 9 },
+                label: 'The area under y = 1/sqrt(x) from 0 to 9, rising without bound at x = 0',
+              }),
+              maths('\\int_{t}^{9} x^{-\\frac{1}{2}} \\, dx'),
+              maths('= 6 - 2\\sqrt{t}'),
+              prose('As $t \\to 0^{+}$, $2\\sqrt{t} \\to 0$, so the integral converges to $6$.'),
+            ),
+            ask('int-imp-root-pole'),
+            ask('int-imp-pole-tree'),
+            ask('int-imp-problem-point', 2),
+            teach(
+              prose(
+                'At a pole the rule flips. For $\\frac{1}{x^{p}}$ from $0$ to $1$, the power after integrating, $1 - p$, has to be positive, so it converges only when $p < 1$.',
+              ),
+              prose(
+                '$\\int_{t}^{1} \\frac{1}{x} \\, dx = -\\ln t$, which grows without limit as $t \\to 0$, so $\\frac{1}{x}$ diverges at $0$ just as it does at infinity.',
+              ),
+            ),
+            ask('int-imp-p-flow', 2),
+            ask('int-imp-root-pole+choice', 2),
+            ask('int-imp-verdict', 2),
+            teach(
+              prose(
+                'Cube roots work the same way: $\\int_{0}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx = \\left[3\\sqrt[3]{x}\\right]_{0}^{8} = 6$.',
+              ),
+              prose('A shifted root, such as $\\frac{1}{\\sqrt{x - 2}}$ from $2$, is unbounded at $x = 2$, and is handled with $t \\to 2^{+}$.'),
+            ),
+            ask('int-imp-pole-tree', 2),
+            ask('int-imp-p-flow', 2),
+          ],
+          skillCheck: [
+            ask('int-imp-root-pole', 2),
+            ask('int-imp-pole-tree', 2),
+            ask('int-imp-p-flow', 2),
+          ],
+        },
+        {
+          id: 'in-l7-split',
+          title: 'Splitting an Improper Integral',
+          slides: [
+            teach(
+              prose('With both limits infinite, split at any convenient point, so that each half has one infinite end:'),
+              maths('\\int_{-\\infty}^{\\infty} e^{-|x|} \\, dx'),
+              prose('is the sum of'),
+              maths('\\int_{-\\infty}^{0} e^{x} \\, dx'),
+              maths('+ \\int_{0}^{\\infty} e^{-x} \\, dx'),
+              prose('Each half is $1$, so the whole is $2$.'),
+            ),
+            ask('int-imp-split-tiles'),
+            ask('int-imp-two-sided'),
+            ask('int-imp-halves-tree'),
+            teach(
+              prose('A point inside the interval where the integrand is unbounded is split the same way, at that point, so the trouble sits at one end of each half:'),
+              maths('\\int_{-1}^{8} \\frac{1}{\\sqrt[3]{x^{2}}} \\, dx'),
+              prose('Split at $0$. The left half is $3$ and the right half is $6$, so the integral is $9$.'),
+            ),
+            ask('int-imp-trap'),
+            ask('int-imp-split-tiles', 2),
+            ask('int-imp-two-sided', 2),
+            teach(
+              prose('The whole converges only if **both** halves do. One divergent half is enough to make it diverge.'),
+              prose(
+                'Never integrate straight across such a point. $\\int_{-1}^{1} \\frac{1}{x^{2}} \\, dx$ looks like $\\left[-\\frac{1}{x}\\right]_{-1}^{1} = -2$, a negative answer for a positive integrand, and in fact it diverges.',
+              ),
+            ),
+            ask('int-imp-halves-tree', 2),
+            ask('int-imp-trap', 2),
+          ],
+          skillCheck: [
+            ask('int-imp-two-sided', 2),
+            ask('int-imp-halves-tree', 2),
+            ask('int-imp-trap', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('int-imp-which-flow', 2),
+        ask('int-imp-problem-point', 2),
+        ask('int-imp-limit-tiles', 2),
+        ask('int-imp-power-tail', 2),
+        ask('int-imp-work-steps', 2),
+        ask('int-imp-exp-tail', 2),
+        ask('int-imp-verdict', 2),
+        ask('int-imp-root-tail', 2),
+        ask('int-imp-p-flow', 2),
+        ask('int-imp-root-pole+choice', 2),
+        ask('int-imp-pole-tree', 2),
+        ask('int-imp-split-tiles', 2),
+        ask('int-imp-two-sided', 2),
+        ask('int-imp-halves-tree', 2),
+        ask('int-imp-trap', 2),
       ],
     },
   ],

@@ -145,7 +145,7 @@ gives the live lesson count for every course.
 | 10 | Trigonometric Functions | **15 lessons** |
 | 11 | Trigonometric Identities & Equations | new |
 | 12 | Logarithms | **12 lessons** |
-| 13 | Exponential Models | new |
+| 13 | Exponential Models | **9 lessons** |
 | 14 | Binomial Expansion | new |
 | 15 | Inequalities & the Modulus Function | new |
 

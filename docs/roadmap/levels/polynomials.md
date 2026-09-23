@@ -2,10 +2,11 @@
 
 Written by C4.
 
-Has: Polynomial Arithmetic, The Factor and Remainder Theorems.
+Has: Polynomial Arithmetic, The Factor and Remainder Theorems, Polynomial
+Graphs (roots, repeated roots and end behaviour read off the factors; added by
+C4-l3).
 
-Needs: Polynomial Graphs (roots, repeated roots and end behaviour read off the
-factors); Roots and Coefficients (sums and products of roots, building a cubic
+Needs: Roots and Coefficients (sums and products of roots, building a cubic
 from its roots); Quartics and Repeated Factors (dividing by a quadratic factor,
 factor pairs, a quartic as a quadratic in x²); Polynomial Inequalities (sign
 diagrams from the factors); Modelling with Polynomials (volume-of-a-box cubics

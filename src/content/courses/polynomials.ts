@@ -6,7 +6,9 @@
  * evaluating one; dividing by a linear factor. Then the two theorems division
  * leads to — the remainder on dividing by (x - a) is p(a), and (x - a) is a
  * factor exactly when p(a) = 0 — and what they are for: finding a factor by
- * trial, factorising a cubic fully, and solving it.
+ * trial, factorising a cubic fully, and solving it. Then the graph: where a
+ * factorised curve meets the axis, whether it crosses or touches, where its
+ * arms go, its y-intercept and sign, and back from a sketch to a formula.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -471,6 +473,220 @@ export const polynomials: Course = {
         ask('poly-solve-tiles', 2),
         ask('poly-count-roots', 2),
         ask('poly-root-slider', 2),
+      ],
+    },
+    {
+      id: 'pl-l3',
+      title: 'Polynomial Graphs',
+      lessons: [
+        {
+          id: 'pl-l3-roots',
+          title: 'Roots from the Factors',
+          slides: [
+            teach(
+              prose(
+                'A curve $y = p(x)$ meets the $x$-axis where $y = 0$. Written as factors, that is easy to read: a product is $0$ exactly when one of its factors is.',
+              ),
+              working('&y = (x - 1)(x + 2)(x - 3)', '&x = 1, \\; -2 \\text{ or } 3'),
+              prose('Each sign flips: $(x + 2)$ is $0$ at $x = -2$. So this curve crosses the $x$-axis three times, at $-2$, $1$ and $3$.'),
+            ),
+            ask('poly-graph-roots-tiles'),
+            ask('poly-root-flow'),
+            ask('poly-graph-root-slider'),
+            teach(
+              prose('A bracket can be written other ways round. Its root is still the value that makes it $0$:'),
+              working('(3 - x) &= 0 \\;\\Rightarrow\\; x = 3', '(2x + 4) &= 0 \\;\\Rightarrow\\; x = -2'),
+              prose(
+                'A number in front, like the $2$ in $2(x - 1)(x + 3)(x - 4)$, is never $0$, so it adds no point. A squared bracket, like $(x - 1)^{2}$, still gives just one.',
+              ),
+            ),
+            ask('poly-root-flow', 2),
+            ask('poly-graph-roots-tiles', 2),
+            ask('poly-graph-root-slider', 2),
+            teach(
+              prose(
+                'Going the other way, a curve that crosses at $x = -3$, $1$ and $2$ has the factors $(x + 3)(x - 1)(x - 2)$: read each crossing, then flip its sign into the bracket.',
+              ),
+              working('&y = (x + 3)(x - 1)(x - 2)', '&y = -(x + 3)(x - 1)(x - 2)'),
+              prose(
+                'Both of these cross at the same three points. The minus sign turns the curve upside down: the first rises to the right, the second falls. So check the arms as well as the crossings.',
+              ),
+            ),
+            ask('poly-graph-form'),
+            ask('poly-graph-form', 2),
+          ],
+          skillCheck: [ask('poly-graph-roots-tiles', 2), ask('poly-root-flow', 2), ask('poly-graph-form', 2)],
+        },
+        {
+          id: 'pl-l3-ends',
+          title: 'End Behaviour',
+          slides: [
+            teach(
+              prose(
+                'Far from the origin, the leading term swamps the rest. So where the arms of $y = p(x)$ go depends only on the degree and the sign of the leading coefficient.',
+              ),
+              maths('y = x^{3} \\qquad y = x^{4}'),
+              prose(
+                'The cubic goes down on the left and up on the right; the quartic goes up on both sides. An odd degree sends the arms opposite ways and an even degree sends them the same way. A negative leading coefficient turns either picture upside down.',
+              ),
+            ),
+            ask('poly-ends-flow'),
+            ask('poly-ends-tiles'),
+            ask('poly-ends-graph'),
+            teach(
+              prose(
+                'For a factorised polynomial, the leading term comes from the $x$ in every bracket, times the number in front. The powers add to give the degree.',
+              ),
+              working('&-2(x - 1)(3 - x)(x + 4)', '&(-2)(1)(-1)(1) = 2'),
+              prose('That is degree $3$. Watch for $(3 - x)$, which brings a $-1$, and for $(2x + 4)$, which brings a $2$. Here the leading coefficient is $2$: positive, despite the minus sign in front.'),
+            ),
+            ask('poly-lead-coefficient'),
+            ask('poly-ends-flow', 2),
+            ask('poly-ends-tiles', 2),
+            teach(
+              prose(
+                'A sketch can be read backwards. Arms going opposite ways mean an odd degree, the same way an even one; the right arm going up means a positive leading coefficient.',
+              ),
+              prose(
+                'Counting crossings is not enough to find the degree: a curve that only touches the axis at a squared root meets it once for two factors.',
+              ),
+            ),
+            ask('poly-ends-graph', 2),
+            ask('poly-lead-coefficient+choice', 2),
+          ],
+          skillCheck: [ask('poly-ends-flow', 2), ask('poly-lead-coefficient', 2), ask('poly-ends-graph', 2)],
+        },
+        {
+          id: 'pl-l3-repeated',
+          title: 'Repeated Roots',
+          slides: [
+            teach(
+              prose('A squared bracket changes what the curve does at its root. In'),
+              maths('y = (x - 2)^{2}(x + 1)'),
+              prose(
+                'the curve crosses at $x = -1$ but only touches at $x = 2$. $(x - 2)^{2}$ is never negative, so the curve has the same sign on both sides of $2$: it comes down to the axis and turns back.',
+              ),
+            ),
+            ask('poly-touch-cross'),
+            ask('poly-repeat-tree'),
+            ask('poly-touch-graph'),
+            teach(
+              prose(
+                'The rule is the power of the bracket. An odd power changes sign, so the curve crosses; an even power does not, so it touches.',
+              ),
+              working('(x - 1)&\\!: \\;\\; \\text{crosses}', '(x - 1)^{2}&\\!: \\;\\; \\text{touches}', '(x - 1)^{3}&\\!: \\;\\; \\text{crosses flat}'),
+              prose('A cube crosses, but it flattens out as it goes through its root, like $y = x^{3}$ at the origin.'),
+            ),
+            ask('poly-touch-cross', 2),
+            ask('poly-repeat-tree', 2),
+            ask('poly-sketch-form-tiles'),
+            teach(
+              prose(
+                'To write the equation of a sketch: square the bracket of each root where it touches, keep single brackets where it crosses, and put a minus sign in front if it falls to the right.',
+              ),
+              prose('A cubic that touches at $3$, crosses at $-1$ and falls to the right is'),
+              maths('y = -(x - 3)^{2}(x + 1)'),
+            ),
+            ask('poly-touch-graph', 2),
+            ask('poly-sketch-form-tiles'),
+          ],
+          skillCheck: [ask('poly-touch-cross', 2), ask('poly-repeat-tree', 2), ask('poly-touch-graph', 2)],
+        },
+        {
+          id: 'pl-l3-intercept',
+          title: 'The y-Intercept and the Sign',
+          slides: [
+            teach(
+              prose(
+                'The curve crosses the $y$-axis where $x = 0$. Put $0$ into every bracket and each leaves just its number:',
+              ),
+              maths('y = 2(x - 1)(x + 3)(x - 4)'),
+              prose('At $x = 0$:'),
+              maths('y = 2(-1)(3)(-4) = 24'),
+              prose('That is $p(0)$, which is the constant term of the expanded polynomial, found without expanding anything.'),
+            ),
+            ask('poly-intercept'),
+            ask('poly-intercept-slider'),
+            ask('poly-intercept-slider', 2),
+            teach(
+              prose(
+                'Between two neighbouring roots the curve cannot change sides of the axis, since it would have to cross it at a root to do so. So one test point settles the sign of a whole stretch.',
+              ),
+              prose('For $y = (x + 2)(x - 1)(x - 4)$, test $x = 2$ between the roots $1$ and $4$:'),
+              maths('y = (4)(1)(-2) = -8'),
+              prose('Negative, so the curve is below the axis all the way from $x = 1$ to $x = 4$.'),
+            ),
+            ask('poly-test-point-steps'),
+            ask('poly-sign-flow'),
+            ask('poly-intercept+choice', 2),
+            teach(
+              prose(
+                'Take every piece into account. A number in front multiplies the sign, a squared bracket is never negative, and a bracket written $(r - x)$ is negative for $x$ larger than $r$.',
+              ),
+              prose('For $y = -(x - 3)^{2}(x + 1)$ at $x = 1$:'),
+              maths('y = -(-2)^{2}(2) = -8'),
+            ),
+            ask('poly-sign-flow', 2),
+            ask('poly-test-point-steps', 2),
+          ],
+          skillCheck: [ask('poly-intercept', 2), ask('poly-sign-flow', 2), ask('poly-test-point-steps', 2)],
+        },
+        {
+          id: 'pl-l3-formula',
+          title: 'From Sketch to Formula',
+          slides: [
+            teach(
+              prose(
+                'The roots give the brackets, but not the number in front: $a(x + 1)(x - 2)(x - 3)$ crosses at the same three points for every $a$. One more point on the curve fixes it.',
+              ),
+              prose('For $y = a(x + 1)(x - 2)(x - 3)$ with a $y$-intercept of $12$, put $x = 0$ and $y = 12$:'),
+              working('12 &= a(1)(-2)(-3)', '12 &= 6a', 'a &= 2'),
+            ),
+            ask('poly-find-lead'),
+            ask('poly-describe-graph'),
+            ask('poly-sketch-form-tiles', 2),
+            teach(
+              prose('To write the formula out in full, expand two brackets, then the third, then multiply by $a$:'),
+              working(
+                '&2(x + 1)(x - 2)(x - 3)',
+                '=\\;&2(x^{2} - x - 2)(x - 3)',
+                '=\\;&2(x^{3} - 4x^{2} + x + 6)',
+                '=\\;&2x^{3} - 8x^{2} + 2x + 12',
+              ),
+              prose('The constant term is $12$, the $y$-intercept, which is a quick check on the working.'),
+            ),
+            ask('poly-sketch-expand-steps'),
+            ask('poly-describe-graph', 2),
+            ask('poly-sketch-form-tiles', 2),
+            teach(
+              prose(
+                'A touch in the sketch is a squared bracket, and the point that fixes $a$ need not be on the $y$-axis. Through $(1, 8)$, with the curve touching at $3$ and crossing at $-1$:',
+              ),
+              prose('So $y = a(x - 3)^{2}(x + 1)$, and at $x = 1$:'),
+              working('8 &= a(-2)^{2}(2)', '8 &= 8a', 'a &= 1'),
+            ),
+            ask('poly-sketch-expand-steps', 2),
+            ask('poly-find-lead', 2),
+          ],
+          skillCheck: [ask('poly-find-lead', 2), ask('poly-sketch-form-tiles', 2), ask('poly-sketch-expand-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('poly-graph-roots-tiles', 2),
+        ask('poly-graph-form', 2),
+        ask('poly-root-flow', 2),
+        ask('poly-ends-flow', 2),
+        ask('poly-lead-coefficient', 2),
+        ask('poly-ends-graph', 2),
+        ask('poly-touch-cross', 2),
+        ask('poly-repeat-tree', 2),
+        ask('poly-touch-graph', 2),
+        ask('poly-intercept', 2),
+        ask('poly-sign-flow', 2),
+        ask('poly-test-point-steps', 2),
+        ask('poly-find-lead', 2),
+        ask('poly-sketch-form-tiles', 2),
+        ask('poly-describe-graph', 2),
       ],
     },
   ],

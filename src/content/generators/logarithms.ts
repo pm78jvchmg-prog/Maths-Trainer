@@ -4403,7 +4403,9 @@ const transformTiles: Generator<TransformTilesParams> = {
         { kind: 'diagram', svg },
       ],
       template: `y = {0}\\log_${base}(x) {1}`,
-      bank: bankOf([`${s}`, outer], [`${s + c}`, signedTile(-c), signedTile(s + c), `${base}`]),
+      // p + q is the slip for p, and as a bare number it is spelled as the
+      // tiles for q are, or "−1" appears twice when it is negative.
+      bank: bankOf([`${s}`, outer], [s + c < 0 ? signedTile(s + c) : `${s + c}`, signedTile(-c), signedTile(s + c), `${base}`]),
       answer: [`${s}`, outer],
     };
   },

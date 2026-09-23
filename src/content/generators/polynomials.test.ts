@@ -138,3 +138,109 @@ describe('polynomial division, checked from what the learner sees', () => {
     }
   });
 });
+
+/** The curve a graph question is about: its display, or a prose block that is one inline formula. */
+function curveOf(slide: Slide): string {
+  if (!('prompt' in slide)) return '';
+  for (const block of slide.prompt) {
+    if (block.kind === 'display') return block.tex;
+    if (block.kind === 'prose' && /^\$[^$]+\$$/.test(block.text)) return block.text.slice(1, -1);
+  }
+  return '';
+}
+
+/** A curve's equation as displayed, "y = ..." or "p(x) = ...", evaluated at x. */
+function curveAt(tex: string, x: number): number {
+  return at(tex.replace(/^y\s*=\s*/, ''), x);
+}
+
+/** Degree and leading coefficient from finite differences at whole points: nothing read from the generator. */
+function leading(tex: string): { degree: number; lead: number } {
+  let row = Array.from({ length: 10 }, (_, x) => curveAt(tex, x));
+  let degree = 0;
+  let top = row[0];
+  for (let n = 1; n < 9; n += 1) {
+    row = row.slice(1).map((v, i) => v - row[i]);
+    if (row.every((v) => Math.abs(v) < 1e-6)) break;
+    degree = n;
+    top = row[0];
+  }
+  let factorial = 1;
+  for (let k = 2; k <= degree; k += 1) factorial *= k;
+  return { degree, lead: top / factorial };
+}
+
+describe('polynomial graphs, checked from what the learner sees', () => {
+  it('the roots placed make the curve zero', () => {
+    for (const { slide, seed, difficulty } of slides('poly-graph-roots-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      for (const root of slide.answer) {
+        expect(curveAt(curveOf(slide), Number(root)), `seed ${seed} d${difficulty}: x = ${root}`).toBeCloseTo(0, 9);
+      }
+    }
+  });
+
+  it('the y-intercept is the curve at x = 0', () => {
+    for (const { slide, seed, difficulty } of slides('poly-intercept')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      expect(curveAt(curveOf(slide), 0), `seed ${seed} d${difficulty}`).toBeCloseTo(Number(slide.answer), 9);
+    }
+  });
+
+  it('the leading coefficient is what the curve does for large x', () => {
+    for (const { slide, seed, difficulty } of slides('poly-lead-coefficient')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      expect(leading(curveOf(slide)).lead, `seed ${seed} d${difficulty}`).toBeCloseTo(Number(slide.answer), 6);
+    }
+  });
+
+  it('touch or cross agrees with the sign either side of the root', () => {
+    for (const { slide, seed, difficulty } of slides('poly-touch-cross')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const root = Number(/at \$x = (-?\d+)\$/.exec(prose(slide))![1]);
+      const left = curveAt(curveOf(slide), root - 0.01);
+      const right = curveAt(curveOf(slide), root + 0.01);
+      const touches = slide.options.find((o) => o.id === slide.correctId)!.label.startsWith('Touches');
+      expect(Math.sign(left) === Math.sign(right), `seed ${seed} d${difficulty}: x = ${root}`).toBe(touches);
+    }
+  });
+
+  it('a test point is worked out to the curve there', () => {
+    for (const { slide, seed, difficulty } of slides('poly-test-point-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const text = prose(slide);
+      const curve = /^\$p\(x\) = ([^$]+)\$/.exec(text)![1];
+      const t = Number(/is \$p\((-?\d+)\)\$/.exec(text)![1]);
+      const total = slide.reductions[slide.reductions.length - 1].value;
+      expect(curveAt(curve, t), `seed ${seed} d${difficulty}`).toBeCloseTo(Number(total), 9);
+    }
+  });
+
+  it('the number in front puts the curve through the point it was given', () => {
+    for (const { slide, seed, difficulty } of slides('poly-find-lead')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const text = prose(slide);
+      const point = /point \$\((-?\d+), (-?\d+)\)\$/.exec(text);
+      const [x, y] = point ? [Number(point[1]), Number(point[2])] : [0, Number(/at \$y = (-?\d+)\$/.exec(text)![1])];
+      const withA = curveOf(slide).replace('a', `(${slide.answer})`);
+      expect(curveAt(withA, x), `seed ${seed} d${difficulty}`).toBeCloseTo(y, 9);
+    }
+  });
+
+  it('a sketch written out touches, crosses and cuts the y-axis where it was described', () => {
+    for (const { slide, seed, difficulty } of slides('poly-sketch-form-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const text = prose(slide);
+      const touch = Number(/touches the \$x\$-axis at \$x = (-?\d+)\$/.exec(text)![1]);
+      const cross = Number(/crosses it at \$x = (-?\d+)\$/.exec(text)![1]);
+      const filled = slide.template.replace(/\{(\d)\}/g, (_, i: string) => slide.answer[Number(i)]);
+      const where = `seed ${seed} d${difficulty}`;
+      expect(curveAt(filled, touch), where).toBeCloseTo(0, 9);
+      expect(curveAt(filled, cross), where).toBeCloseTo(0, 9);
+      expect(Math.sign(curveAt(filled, touch - 0.5)), where).toBe(Math.sign(curveAt(filled, touch + 0.5)));
+      const intercept = /\$y\$-axis at \$y = (-?\d+)\$/.exec(text);
+      if (intercept) expect(curveAt(filled, 0), where).toBeCloseTo(Number(intercept[1]), 9);
+      else expect(leading(filled).lead, where).toBeGreaterThan(0);
+    }
+  });
+});

@@ -647,9 +647,13 @@ button {
  * KaTeX raises a superscript or fraction on zero-width struts about 3em tall,
  * and the browser hit-tests them, so a tile or option holding an exponent took
  * taps meant for the one above it. The button's own box still takes every tap.
+ * A flow branch is the same kind of stacked button, and one holding a fraction
+ * reached up over the branch above it.
  */
 .tile .katex,
-.option .katex {
+.option .katex,
+.flow-branch .katex,
+.flow-step .katex {
   pointer-events: none;
 }
 

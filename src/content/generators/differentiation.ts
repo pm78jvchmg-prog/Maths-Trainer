@@ -3426,6 +3426,1420 @@ const inflectionFlow: Generator<InflectionFlowParams> = {
   },
 };
 
+/* ---------- Curve sketching ---------- */
+
+/*
+ * The level after stationary points puts them to use: a sketch is the roots,
+ * how the curve meets the axis at each, where it crosses the y-axis, which way
+ * its ends go, and its turning points, and every question below is one of
+ * those read from an equation or read back off a picture.
+ *
+ * `plotSvg` draws no scale, so no question here asks for a number that could
+ * only be read off a figure. A figure is there to be reasoned about: which
+ * side of the y-axis a root sits, whether the curve crosses or touches, which
+ * way it heads. Where a question needs positions, the prose states them.
+ */
+
+/**
+ * A polynomial as it is sketched: k(x - r)^n (x - s)^m ..., every root a whole
+ * number and no two the same.
+ *
+ * Held factorised because that is the form a sketch is read from. Where the
+ * curve meets the axis, and whether it crosses or only touches there, is
+ * printed on the brackets; expanding first would hide both.
+ */
+export interface Poly {
+  k: number;
+  /** [root, power], in the order they are written. */
+  factors: [number, number][];
+}
+
+export function polyAt({ k, factors }: Poly, x: number): number {
+  return factors.reduce((total, [r, n]) => total * (x - r) ** n, k);
+}
+
+const degreeOf = ({ factors }: Poly): number => factors.reduce((total, [, n]) => total + n, 0);
+
+/** The roots, left to right. */
+const rootsOf = ({ factors }: Poly): number[] => factors.map(([r]) => r).sort((x, y) => x - y);
+
+const polyTex = ({ k, factors }: Poly): string => factoredTex(k, factors);
+
+/** Coefficients of the expanded polynomial, constant first. */
+function polyCoefficients({ k, factors }: Poly): number[] {
+  let coefficients = [k];
+  for (const [r, n] of factors) {
+    for (let i = 0; i < n; i += 1) {
+      const next: number[] = new Array(coefficients.length + 1).fill(0);
+      coefficients.forEach((c, power) => {
+        next[power + 1] += c;
+        next[power] -= r * c;
+      });
+      coefficients = next;
+    }
+  }
+  return coefficients;
+}
+
+/** Whole numbers lo..hi. */
+function between(lo: number, hi: number): number[] {
+  return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+}
+
+/** A polynomial with these powers on its brackets, at distinct roots in -span..span. */
+function samplePoly(rng: Rng, powers: readonly number[], ks: readonly number[], span = 4): Poly {
+  const roots = rng.sample(between(-span, span), powers.length);
+  return { k: rng.pick(ks), factors: roots.map((r, i): [number, number] => [r, powers[i]]) };
+}
+
+/**
+ * Whether a sketch of this polynomial can be read without a scale.
+ *
+ * The roots straddle the y-axis, so which side each lies on is visible; they
+ * are at least 2 apart, so no hump between them is too shallow to show whether
+ * the curve crosses or touches; and no root has its mirror image as another
+ * root, or reflecting the roots would draw the same picture.
+ */
+function readable(poly: Poly): boolean {
+  const roots = rootsOf(poly);
+  if (roots[0] >= 0 || roots[roots.length - 1] <= 0) return false;
+  for (let i = 1; i < roots.length; i += 1) {
+    if (roots[i] - roots[i - 1] < 2) return false;
+  }
+  return roots.every((r) => !roots.includes(-r));
+}
+
+/** The same curve with every root on the other side of the y-axis. */
+const mirrored = ({ k, factors }: Poly): Poly => ({ k, factors: factors.map(([r, n]) => [-r, n]) });
+
+/**
+ * A polynomial drawn around its roots, with the y-axis in and the roots ringed.
+ *
+ * `plotSvg` draws the x-axis only, so the y-axis goes in as a solid vertical:
+ * which side of it a root lies on is a position a learner can read without
+ * numbers. The window is set by the humps between the roots rather than by the
+ * arms, which for a quartic are in the hundreds a unit or two further out.
+ */
+function sketchSvg(poly: Poly, label: string, opts: { accent?: boolean } = {}): string {
+  const roots = rootsOf(poly);
+  const lo = roots[0];
+  const hi = roots[roots.length - 1];
+  let reach = 1;
+  for (let i = 0; i <= 80; i += 1) reach = Math.max(reach, Math.abs(polyAt(poly, lo + ((hi - lo) * i) / 80)));
+  return plotSvg({
+    xMin: Math.min(lo, 0) - 1.5,
+    xMax: Math.max(hi, 0) + 1.5,
+    yMin: -1.35 * reach,
+    yMax: 1.35 * reach,
+    curves: [{ f: (x) => polyAt(poly, x), accent: opts.accent }],
+    verticals: [{ x: 0, dashed: false }],
+    marks: roots.map((x) => ({ x, y: 0 })),
+    label,
+  });
+}
+
+/**
+ * A stable turn for a native choice slide's options, drawn from the question's
+ * own numbers.
+ *
+ * Options written in a fixed order put a fixed answer in a fixed slot, and the
+ * derived `+choice` rotation only reaches generators with `choices()`. Hashing
+ * the parameters keeps one question rendering one way, which the deck
+ * de-duplicator relies on, while spreading the answer across the slots.
+ */
+function turnFor(size: number, ...values: number[]): number {
+  let hash = 0x9e3779b9;
+  for (const value of values) {
+    hash = Math.imul(hash ^ (value + 1013), 0x85ebca6b);
+    hash ^= hash >>> 13;
+  }
+  return (hash >>> 0) % size;
+}
+
+function turned<T>(items: T[], turn: number): T[] {
+  return [...items.slice(turn), ...items.slice(0, turn)];
+}
+
+/** A number in plain text, with a proper minus sign. */
+const plain = (value: number): string => (value < 0 ? `−${-value}` : `${value}`);
+
+/** The roots of a polynomial as they read in a sentence: "$-2$, $1$ and $4$". */
+function listTex(values: number[]): string {
+  const each = values.map((value) => `$${value}$`);
+  return each.length === 1 ? each[0] : `${each.slice(0, -1).join(', ')} and ${each[each.length - 1]}`;
+}
+
+/* ---------- Where a curve meets the axes ---------- */
+
+/**
+ * Where a factorised polynomial meets the x-axis, placed as tiles.
+ *
+ * The bank carries each root with its sign flipped, the slip of reading
+ * $(x + 3)$ as a root at $3$, and the number in front, which is never a root.
+ * A repeated bracket gives one root, not two, so difficulty 2 asks for fewer
+ * tiles than there are brackets.
+ */
+const sketchRoots: Generator<Poly> = {
+  id: 'df-cs-roots',
+  sample: (rng, difficulty) =>
+    difficulty >= 2
+      ? samplePoly(
+          rng,
+          rng.pick([
+            [2, 1],
+            [1, 2, 1],
+            [2, 1, 1],
+            [1, 1, 1],
+          ] as const),
+          [1, 2, 3, -1, -2, -3],
+        )
+      : samplePoly(rng, [1, 1, 1], [1, 2, 3, -1]),
+  render: (poly): Slide => {
+    const roots = rootsOf(poly);
+    const blanks = roots.map((_, i) => `{${i}}`);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Where does this curve meet the $x$-axis? Place each value of $x$ once.' },
+        { kind: 'display', tex: `y = ${polyTex(poly)}` },
+      ],
+      template: `x = ${blanks.slice(0, -1).join(', \\; ')} \\; \\text{and} \\; ${blanks[blanks.length - 1]}`,
+      bank: numberTiles(roots, [...roots.map((r) => -r), poly.k]),
+      answer: roots.map(String),
+      unordered: true,
+    };
+  },
+  solution: (poly) => {
+    const roots = rootsOf(poly);
+    const steps: SolutionStep[] = [
+      {
+        text: 'The curve meets the $x$-axis where $y = 0$, and a product is zero only when one of its factors is.',
+      },
+      {
+        text: `Each bracket is zero at the number that cancels it, which is the number inside with its sign flipped: ${poly.factors
+          .map(([r]) => `$${rootFactorTex(r)}$ gives $x = ${r}$`)
+          .join(', ')}.`,
+        tex: `x = ${roots.join(', \\; ')}`,
+      },
+    ];
+    if (Math.abs(poly.k) !== 1) {
+      steps.push({ text: `The $${poly.k}$ in front is never zero, so it adds no root of its own.` });
+    }
+    const repeated = poly.factors.find(([, n]) => n > 1);
+    if (repeated) {
+      steps.push({
+        text: `$${rootPowerTex(repeated[0], repeated[1])}$ is one bracket used twice, so it still gives only one place on the axis, $x = ${repeated[0]}$.`,
+      });
+    }
+    return steps;
+  },
+};
+
+/**
+ * Where a factorised polynomial crosses the y-axis: put 0 into every bracket.
+ *
+ * The options carry the answer with its sign lost, the product of the roots
+ * as written (every bracket's number without the sign flip), and the product
+ * without the number in front.
+ */
+const sketchYIntercept: Generator<Poly> = {
+  id: 'df-cs-y-int',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const poly =
+        difficulty >= 2
+          ? samplePoly(
+              rng,
+              rng.pick([
+                [1, 1, 1],
+                [2, 1],
+                [1, 2],
+                [2, 1, 1],
+              ] as const),
+              [1, 2, -1, -2],
+            )
+          : samplePoly(rng, [1, 1, 1], [1, 2]);
+      const y = polyAt(poly, 0);
+      if (y !== 0 && Math.abs(y) <= 100) return poly;
+    }
+  },
+  choices: (poly) => {
+    const y = polyAt(poly, 0);
+    const asWritten = poly.factors.reduce((total, [r, n]) => total * r ** n, poly.k);
+    return numberOptions(y, [-y, asWritten, y / poly.k, y + poly.k]);
+  },
+  render: (poly): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Where does this curve cross the $y$-axis? Give the $y$-coordinate.' },
+      { kind: 'display', tex: `y = ${polyTex(poly)}` },
+    ],
+    lead: 'y =',
+    keypad: [],
+    answer: `${polyAt(poly, 0)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (poly) => {
+    const y = polyAt(poly, 0);
+    const each = poly.factors.map(([r, n]) =>
+      n === 1
+        ? `$${rootFactorTex(r)}$ becomes $${-r}$`
+        : `$${rootPowerTex(r, n)}$ becomes $${bracketedNumber(-r)}^{${n}} = ${(-r) ** n}$`,
+    );
+    const negatives = poly.factors.filter(([r, n]) => r > 0 && n % 2 === 1).length + (poly.k < 0 ? 1 : 0);
+    return [
+      { text: `The $y$-axis is the line $x = 0$, so put $0$ into every bracket: ${each.join(', ')}.` },
+      {
+        text: `Multiply those together${poly.k === 1 ? '' : `, with the $${poly.k}$ in front`}. There ${negatives === 1 ? 'is 1 negative' : `are ${negatives} negatives`} in the product, so it is ${negatives % 2 === 0 ? 'positive' : 'negative'}.`,
+        tex: `y = ${y}`,
+      },
+      { text: `So the curve crosses the $y$-axis at $(0, ${y})$.` },
+    ];
+  },
+};
+
+/** One test point inside each stretch of the number line the roots cut out. */
+function stretchPoints(roots: number[]): number[] {
+  return [roots[0] - 1, ...roots.slice(1).map((r, i) => (r + roots[i]) / 2), roots[roots.length - 1] + 1];
+}
+
+/**
+ * The sign of a polynomial on every stretch between its roots, as tiles.
+ *
+ * This is the skeleton of a sketch: above the axis or below it, stretch by
+ * stretch. The roots sit in the template between the blanks, like a sign
+ * chart, so the question is the signs rather than the roots. The bank holds as
+ * many of each sign as there are blanks, so what is left over gives nothing
+ * away, and difficulty 2 brings in repeated roots, where the sign does not
+ * change.
+ */
+const sketchSigns: Generator<Poly> = {
+  id: 'df-cs-signs',
+  sample: (rng, difficulty) =>
+    difficulty >= 2
+      ? samplePoly(
+          rng,
+          rng.pick([
+            [2, 1],
+            [1, 2],
+            [2, 1, 1],
+            [1, 1, 2],
+            [3, 1],
+          ] as const),
+          [1, 2, -1, -2],
+        )
+      : samplePoly(rng, [1, 1, 1], [1, 2, -1, -2]),
+  render: (poly): Slide => {
+    const roots = rootsOf(poly);
+    const signs = stretchPoints(roots).map((x) => SIGN_TOKEN(polyAt(poly, x)));
+    // No spacing round the markers: four blanks and three markers only just
+    // fit one line of a phone, and a wrapped sign chart reads as two charts.
+    const marker = (r: number) => `\\overset{\\scriptstyle ${r}}{|}`;
+    const template = signs
+      .map((_, i) => (i === 0 ? '{0}' : `${marker(roots[i - 1])}{${i}}`))
+      .join('');
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The roots of this curve cut the number line into stretches. Place the sign of $y$ on each stretch, from left to right.',
+        },
+        { kind: 'display', tex: `y = ${polyTex(poly)}` },
+      ],
+      template,
+      bank: [...signs.map(() => '+'), ...signs.map(() => '-')],
+      answer: signs,
+    };
+  },
+  solution: (poly) => {
+    const roots = rootsOf(poly);
+    const signs = stretchPoints(roots).map((x) => SIGN_TOKEN(polyAt(poly, x)));
+    const powerAt = (r: number) => poly.factors.find(([root]) => root === r)?.[1] ?? 1;
+    const kept = roots.filter((r) => powerAt(r) % 2 === 0);
+    return [
+      {
+        text: `Far to the right every bracket is positive, so $y$ takes the sign of the number in front, $${poly.k}$: the last stretch is ${poly.k > 0 ? 'positive' : 'negative'}.`,
+      },
+      {
+        text:
+          kept.length === 0
+            ? 'Every bracket has an odd power, so moving left the sign flips at every root.'
+            : `Moving left the sign flips at each root, except where the bracket has an even power: at ${listTex(kept)} it stays the same, because the curve only touches the axis there.`,
+        tex: signs.join(' \\quad '),
+      },
+    ];
+  },
+};
+
+/** One root of a polynomial, to say how the curve meets the axis there. */
+export interface TouchParams {
+  poly: Poly;
+  /** Which bracket, by its place in `poly.factors`. */
+  at: number;
+}
+
+/** Everything in the product except the asked-about bracket, near its root. */
+function restAt({ poly, at }: TouchParams): number {
+  const [r] = poly.factors[at];
+  return poly.factors.reduce((total, [s, n], i) => (i === at ? total : total * (r - s) ** n), poly.k);
+}
+
+/** The labels along the right path through `df-cs-touch`. */
+function touchPath(params: TouchParams): string[] {
+  const [, n] = params.poly.factors[params.at];
+  if (n % 2 === 1) return ['Odd', n === 1 ? 'Yes' : 'No'];
+  return ['Even', restAt(params) > 0 ? 'Positive' : 'Negative'];
+}
+
+/**
+ * How a curve meets the x-axis at one root, a fork at a time: does the sign
+ * change (odd power or even), and then either how it crosses or from which
+ * side it touches.
+ *
+ * The second fork on the even side is the one a sketch most often gets wrong.
+ * A squared bracket makes a turning point on the axis, and which way up it is
+ * depends on everything *else* in the product, not on the bracket itself.
+ */
+const sketchTouch: Generator<TouchParams> = {
+  id: 'df-cs-touch',
+  sample: (rng, difficulty) => {
+    const powers = rng.pick<readonly number[]>(
+      difficulty >= 2
+        ? ([
+            [2, 1, 1],
+            [1, 2, 1],
+            [3, 1],
+            [2, 2],
+            [3, 2],
+          ] as const)
+        : ([
+            [2, 1],
+            [1, 2],
+            [1, 1, 1],
+            [3, 1],
+          ] as const),
+    );
+    const poly = samplePoly(rng, powers, [1, 2, -1, -2]);
+    // Weighted towards the repeated root, which is where the forks are.
+    const repeated = poly.factors.findIndex(([, n]) => n > 1);
+    const at = repeated >= 0 && rng.chance(0.6) ? repeated : rng.int(0, poly.factors.length - 1);
+    return { poly, at };
+  },
+  render: (params): Slide => {
+    const [r] = params.poly.factors[params.at];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Decide how this curve meets the $x$-axis at $x = ${r}$. Each answer chooses the next question.`,
+        },
+      ],
+      subject: `y = ${polyTex(params.poly)}`,
+      steps: [
+        {
+          id: 'parity',
+          ask: r === 0 ? 'Is the power on $x$ odd or even?' : `Is the power on the bracket $${rootFactorTex(r)}$ odd or even?`,
+          branches: [
+            { label: 'Odd', to: 'once' },
+            { label: 'Even', to: 'side' },
+          ],
+        },
+        {
+          id: 'once',
+          ask: 'Is that power exactly 1?',
+          branches: [
+            { label: 'Yes', outcome: 'The curve crosses the axis at a slant, like any single root.' },
+            {
+              label: 'No',
+              outcome: 'The curve crosses the axis but flattens as it does: a stationary point of inflection on the axis.',
+            },
+          ],
+        },
+        {
+          id: 'side',
+          ask: `Close to $x = ${r}$, is the rest of the product, the number in front included, positive or negative?`,
+          branches: [
+            { label: 'Positive', outcome: 'The curve comes down to touch the axis and goes back up: a minimum on the axis.' },
+            { label: 'Negative', outcome: 'The curve comes up to touch the axis and goes back down: a maximum on the axis.' },
+          ],
+        },
+      ],
+      answer: touchPath(params),
+    };
+  },
+  solution: (params) => {
+    const [r, n] = params.poly.factors[params.at];
+    const steps: SolutionStep[] = [
+      { text: `The bracket for $x = ${r}$ is $${rootPowerTex(r, n)}$, with power $${n}$.` },
+    ];
+    if (n === 1) {
+      steps.push({
+        text: 'A single bracket changes sign at its root, so $y$ does too: the curve crosses the axis there.',
+      });
+      return steps;
+    }
+    if (n % 2 === 1) {
+      steps.push({
+        text: `An odd power still changes sign, so the curve crosses. But a power above 1 leaves the bracket in $\\frac{dy}{dx}$ as well, so the curve is flat as it crosses: a stationary point of inflection.`,
+      });
+      return steps;
+    }
+    const rest = restAt(params);
+    steps.push(
+      {
+        text: 'An even power is never negative, so $y$ keeps the same sign on both sides: the curve touches the axis and turns back.',
+      },
+      {
+        text: `Which way it turns depends on the rest of the product. Put $x = ${r}$ into everything except that bracket:`,
+        tex: `${[params.poly.k, ...params.poly.factors.filter((_, i) => i !== params.at).map(([s, m]) => (r - s) ** m)]
+          .map(bracketedNumber)
+          .join(' \\times ')} = ${rest}`,
+      },
+      {
+        text:
+          rest > 0
+            ? 'Positive, so the curve is above the axis on both sides: it touches from above, a minimum on the axis.'
+            : 'Negative, so the curve is below the axis on both sides: it touches from below, a maximum on the axis.',
+      },
+    );
+    return steps;
+  },
+};
+
+/* ---------- Placing the turning points ---------- */
+
+/**
+ * One turning point of a cubic, found and named, as tiles: its coordinates and
+ * whether it is a maximum or a minimum.
+ *
+ * The question names the point by position — the one on the left — rather
+ * than by kind, so the learner finds both flat places, picks the leftmost, and
+ * only then decides what it is. The bank holds the other turning point's
+ * coordinates, which is exactly what a learner who mixes the two up reaches for.
+ */
+const sketchTurn: Generator<CubicPoint> = {
+  id: 'df-cs-turn',
+  sample: (rng, difficulty) => ({ cubic: sampleCubic(rng, difficulty, { minGap: 2 }), left: rng.chance(0.5) }),
+  render: (params): Slide => {
+    const { cubic, left } = params;
+    const x = pointOf(params);
+    const other = otherOf(params);
+    const y = cubicAt(cubic, x);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the turning point on the **${left ? 'left' : 'right'}** of this curve, and say what kind it is.`,
+        },
+        { kind: 'display', tex: `y = ${cubicTex(cubic)}` },
+      ],
+      // "is a local" pushed the last blank onto a second line on a phone.
+      template: '({0}, {1}) \\; \\text{is a} \\; {2}',
+      bank: [
+        ...numberTiles([x, y], [other, cubicAt(cubic, other), -x, -y]),
+        '\\text{maximum}',
+        '\\text{minimum}',
+      ],
+      answer: [`${x}`, `${y}`, cubicSecondAt(cubic, x) < 0 ? '\\text{maximum}' : '\\text{minimum}'],
+    };
+  },
+  solution: (params) => {
+    const { cubic, left } = params;
+    const x = pointOf(params);
+    const y = cubicAt(cubic, x);
+    const bend = cubicSecondAt(cubic, x);
+    return [
+      {
+        text: 'Differentiate and set the derivative to zero. It factorises:',
+        tex: `${cubicFactoredTex(cubic)} = 0`,
+      },
+      {
+        text: `So the curve is flat at $x = ${cubic.p}$ and $x = ${cubic.q}$, and the one on the ${left ? 'left' : 'right'} is $x = ${x}$. Its height comes from the curve itself:`,
+        tex: `f(${x}) = ${y}`,
+      },
+      {
+        text: `The second derivative is $f''(x) = ${cubicSecondTex(cubic)}$.`,
+        tex: `f''(${x}) = ${bend}`,
+      },
+      {
+        text:
+          bend < 0
+            ? `Negative, so the curve bends downwards there: $(${x}, ${y})$ is a local maximum.`
+            : `Positive, so the curve bends upwards there: $(${x}, ${y})$ is a local minimum.`,
+      },
+    ];
+  },
+};
+
+/** A cubic's two turning points, given as coordinates. */
+export interface CrossingParams {
+  p: number;
+  q: number;
+  /** The height of the turning point at p. */
+  left: number;
+  /** The height of the turning point at q. */
+  right: number;
+}
+
+/** How many times the cubic with these turning points meets the x-axis. */
+export function crossingsOf({ left, right }: CrossingParams): number {
+  if (left === 0 || right === 0) return 2;
+  return left * right < 0 ? 3 : 1;
+}
+
+/**
+ * How many times a cubic meets the axis, from its turning points alone.
+ *
+ * Any two points with the maximum above the minimum are the turning points of
+ * exactly one cubic, so the coordinates can be drawn freely and the count is
+ * decided by their signs: the stretch between them crosses the axis only when
+ * they sit on opposite sides of it, and each outer arm heads off to infinity
+ * one way or the other. The figure is the two points on bare axes, the start
+ * of a sketch the learner finishes in their head. 0 is offered because a
+ * cubic always meets the axis at least once.
+ */
+const sketchCrossings: Generator<CrossingParams> = {
+  id: 'df-cs-crossings',
+  sample: (rng, difficulty) => {
+    const p = rng.int(-4, 2);
+    const q = rng.int(p + 2, 4);
+    const count = rng.pick([1, 2, 3] as const);
+    let high: number;
+    let low: number;
+    if (count === 3) {
+      high = rng.int(1, 9);
+      low = -rng.int(1, 9);
+    } else if (count === 2) {
+      [high, low] = rng.chance(0.5) ? [0, -rng.int(1, 9)] : [rng.int(1, 9), 0];
+    } else {
+      const near = rng.int(1, 8);
+      const far = rng.int(near + 1, 12);
+      [high, low] = rng.chance(0.5) ? [far, near] : [-near, -far];
+    }
+    // Difficulty 2 turns the cubic upside down half the time: the minimum on the left.
+    const upright = difficulty < 2 || rng.chance(0.5);
+    return upright ? { p, q, left: high, right: low } : { p, q, left: low, right: high };
+  },
+  render: (params): Slide => {
+    const { p, q, left, right } = params;
+    const upright = left > right;
+    const max = upright ? [p, left] : [q, right];
+    const min = upright ? [q, right] : [p, left];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A cubic has a local maximum at $(${max[0]}, ${max[1]})$ and a local minimum at $(${min[0]}, ${min[1]})$. How many times does it meet the $x$-axis?`,
+        },
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: -6,
+            xMax: 6,
+            yMin: -14,
+            yMax: 14,
+            curves: [],
+            verticals: [{ x: 0, dashed: false }],
+            marks: [
+              { x: p, y: left },
+              { x: q, y: right },
+            ],
+            label: 'Two turning points marked on a pair of axes',
+          }),
+        },
+      ],
+      options: [0, 1, 2, 3].map((n) => ({ id: `n${n}`, label: `${n}` })),
+      correctId: `n${crossingsOf(params)}`,
+    };
+  },
+  solution: (params) => {
+    const { left, right } = params;
+    const upright = left > right;
+    const count = crossingsOf(params);
+    const shape = upright
+      ? 'It comes up from below on the left, over the maximum, down to the minimum, and away upwards on the right.'
+      : 'It comes down from above on the left, into the minimum, up over the maximum, and away downwards on the right.';
+    const reason =
+      count === 3
+        ? 'The maximum is above the axis and the minimum below it, so the curve crosses once on each outer arm and once on the way between them: 3 times.'
+        : count === 2
+          ? 'One turning point sits on the axis, so the curve touches it there, and crosses once more on the arm beyond the other turning point: 2 times.'
+          : `Both turning points are ${left > 0 ? 'above' : 'below'} the axis, so the stretch between them never reaches it. Only the arm heading ${left > 0 ? 'downwards' : 'upwards'} crosses: once.`;
+    return [
+      { text: shape },
+      { text: reason },
+      { text: 'It is never 0. A cubic heads to opposite ends of the $y$ range, so it meets the axis at least once.' },
+    ];
+  },
+};
+
+/* ---------- Asymptotes and large x ---------- */
+
+/** y = a/(x - h) + v, or at difficulty 2 also y = (px + q)/(x - h). */
+export type RationalParams =
+  | { form: 'shifted'; a: number; h: number; v: number }
+  | { form: 'ratio'; p: number; q: number; h: number };
+
+export function rationalAt(params: RationalParams, x: number): number {
+  if (params.form === 'shifted') return params.a / (x - params.h) + params.v;
+  return (params.p * x + params.q) / (x - params.h);
+}
+
+/** `x - 3`, `x + 2`, or `x`. */
+function denominatorTex(h: number): string {
+  if (h === 0) return 'x';
+  return h > 0 ? `x - ${h}` : `x + ${-h}`;
+}
+
+function rationalTex(params: RationalParams): string {
+  if (params.form === 'ratio') return `\\frac{${lineTex(params.p, params.q)}}{${denominatorTex(params.h)}}`;
+  const { a, h, v } = params;
+  return `${a < 0 ? '-' : ''}\\frac{${Math.abs(a)}}{${denominatorTex(h)}}${constantTex(v)}`;
+}
+
+/** The horizontal asymptote. */
+const levelOf = (params: RationalParams): number => (params.form === 'shifted' ? params.v : params.p);
+
+/** The number on top that a learner might take for an asymptote. */
+const numeratorOf = (params: RationalParams): number => (params.form === 'shifted' ? params.a : params.q);
+
+function sampleRational(rng: Rng, difficulty: number): RationalParams {
+  if (difficulty < 2 || rng.chance(0.5)) {
+    return { form: 'shifted', a: rng.int(1, 6) * (difficulty >= 2 ? rng.sign() : 1), h: rng.int(-5, 5), v: rng.int(-5, 5) };
+  }
+  for (;;) {
+    const p = rng.int(1, 4) * rng.sign();
+    const h = rng.int(-5, 5);
+    const q = rng.int(-9, 9);
+    // q + ph = 0 cancels the bracket, leaving a flat line with a hole in it.
+    if (q + p * h !== 0) return { form: 'ratio', p, q, h };
+  }
+}
+
+const pairTex = (x: number, y: number): string => `x = ${x}, \\; y = ${y}`;
+
+/**
+ * The two asymptotes of a reciprocal curve, as tiles.
+ *
+ * The bank holds both values with their signs flipped, which is the slip of
+ * reading $x = -3$ off $x + 3$, and the number on top, which is what a learner
+ * reaches for when they think the numerator sets the level. The pick-one form
+ * adds the swap: the vertical asymptote's number given as the horizontal one.
+ */
+const sketchAsymptotes: Generator<RationalParams> = {
+  id: 'df-cs-asymptotes',
+  sample: (rng, difficulty) => sampleRational(rng, difficulty),
+  choices: (params) => {
+    const { h } = params;
+    const v = levelOf(params);
+    return options(
+      { tex: pairTex(h, v) },
+      { tex: pairTex(-h, v) },
+      { tex: pairTex(v, h) },
+      { tex: pairTex(h, numeratorOf(params)) },
+      { tex: pairTex(-h, -v) },
+      { tex: pairTex(h, v + 1) },
+    ).slice(0, 4);
+  },
+  render: (params): Slide => {
+    const v = levelOf(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the asymptotes of this curve: the vertical line it never reaches, and the level it settles towards far out.',
+        },
+        { kind: 'display', tex: `y = ${rationalTex(params)}` },
+      ],
+      template: 'x = {0} \\quad \\text{and} \\quad y = {1}',
+      bank: numberTiles([params.h, v], [-params.h, -v, numeratorOf(params), 0]),
+      answer: [`${params.h}`, `${v}`],
+    };
+  },
+  solution: (params) => {
+    const { h } = params;
+    const steps: SolutionStep[] = [
+      {
+        text: `There is no value of $y$ where the denominator is zero, since nothing can be divided by zero. $${denominatorTex(h)} = 0$ at:`,
+        tex: `x = ${h}`,
+      },
+    ];
+    if (params.form === 'shifted') {
+      steps.push({
+        text: `As $x$ grows large in either direction the fraction shrinks towards $0$, so $y$ settles at the number added on${params.v === 0 ? ', which here is nothing at all' : ''}:`,
+        tex: `y = ${params.v}`,
+      });
+    } else {
+      steps.push({
+        text: `For large $x$ the constants on top and bottom are tiny beside the $x$ terms, so $y$ behaves like $\\frac{${termTex(params.p, 1)}}{x}$, which is $${params.p}$:`,
+        tex: `y = ${params.p}`,
+      });
+    }
+    return steps;
+  },
+};
+
+/**
+ * Where a reciprocal curve crosses the y-axis, typed.
+ *
+ * Sampled so the division comes out whole: $h$ divides the number on top.
+ */
+const sketchRationalY: Generator<RationalParams> = {
+  id: 'df-cs-rational-y',
+  sample: (rng, difficulty) => {
+    const h = rng.int(1, 4) * rng.sign();
+    const t = rng.int(1, 3) * rng.sign();
+    if (difficulty < 2 || rng.chance(0.5)) return { form: 'shifted', a: h * t, h, v: rng.int(-5, 5) };
+    for (;;) {
+      const p = rng.int(1, 3) * rng.sign();
+      if (t !== -p) return { form: 'ratio', p, q: h * t, h };
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Where does this curve cross the $y$-axis? Give the $y$-coordinate.' },
+      { kind: 'display', tex: `y = ${rationalTex(params)}` },
+    ],
+    lead: 'y =',
+    keypad: [],
+    answer: `${rationalAt(params, 0)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const y = rationalAt(params, 0);
+    const top = numeratorOf(params);
+    const bottom = -params.h;
+    return [
+      {
+        text: `The $y$-axis is the line $x = 0$, so substitute $0$ for $x$. The bottom becomes $${bottom}$${params.form === 'ratio' ? ` and the top becomes $${top}$` : ''}.`,
+        tex: `\\frac{${top}}{${bottom}} = ${top / bottom}`,
+      },
+      ...(params.form === 'shifted' && params.v !== 0
+        ? [{ text: `Then add the $${params.v}$ on the end:`, tex: `${top / bottom}${constantTex(params.v)} = ${y}` }]
+        : []),
+      { text: `So the curve crosses the $y$-axis at $(0, ${y})$.` },
+    ];
+  },
+};
+
+/** A reciprocal curve and the place it crosses the x-axis. */
+export type RationalRootParams = RationalParams & { root: number };
+
+/**
+ * Where a reciprocal curve crosses the x-axis, found and slid to.
+ *
+ * Built from the root: a/(x - h) + v is zero at x = h - a/v, so choosing the
+ * root and v first makes a whole. The figure draws both asymptotes dashed and
+ * lifts the pen across the vertical one, since a stroke joining its two
+ * branches would be a line the curve never draws.
+ */
+const sketchRationalRoot: Generator<RationalRootParams> = {
+  id: 'df-cs-rational-root',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const root = rng.int(-5, 5);
+      const h = rng.int(-5, 5);
+      if (h === root) continue;
+      if (difficulty < 2 || rng.chance(0.5)) {
+        const v = rng.int(1, 4) * rng.sign();
+        const a = v * (h - root);
+        if (Math.abs(a) <= 12) return { form: 'shifted', a, h, v, root };
+        continue;
+      }
+      const p = rng.int(1, 3) * rng.sign();
+      const q = -p * root;
+      if (q + p * h !== 0) return { form: 'ratio', p, q, h, root };
+    }
+  },
+  render: (params): Slide => {
+    const v = levelOf(params);
+    return {
+      kind: 'slider',
+      prompt: [
+        { kind: 'prose', text: 'Find where this curve crosses the $x$-axis, and slide to it.' },
+        { kind: 'display', tex: `y = ${rationalTex(params)}` },
+      ],
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: params.root,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -6,
+          xMax: 6,
+          yMin: Math.min(0, v) - 6,
+          yMax: Math.max(0, v) + 6,
+          curves: [{ f: (x) => rationalAt(params, x), breaks: true }],
+          verticals: [{ x: params.h }],
+          horizontals: [v],
+          label: 'A reciprocal curve with its two asymptotes dashed',
+        }),
+        ...markerWindow(-6, 6),
+      },
+    };
+  },
+  solution: (params) => {
+    if (params.form === 'ratio') {
+      return [
+        { text: 'The curve crosses the $x$-axis where $y = 0$, and a fraction is zero only when its top is.' },
+        { tex: `${lineTex(params.p, params.q)} = 0` },
+        { tex: `x = ${params.root}` },
+        { text: `The bottom is not zero there, since the vertical asymptote is at $x = ${params.h}$.` },
+      ];
+    }
+    const { a, h, v } = params;
+    return [
+      {
+        text: `The curve crosses the $x$-axis where $y = 0$, so the fraction has to cancel the $${v}$:`,
+        tex: `${rationalTex({ form: 'shifted', a, h, v: 0 })} = ${-v}`,
+      },
+      {
+        text: `Multiply both sides by $${h === 0 ? 'x' : `(${denominatorTex(h)})`}$ and divide by $${-v}$:`,
+        tex: `${denominatorTex(h)} = ${-a / v}`,
+      },
+      { tex: `x = ${params.root}` },
+    ];
+  },
+};
+
+/** A polynomial, and whether it is shown factorised or multiplied out. */
+export interface EndsParams {
+  poly: Poly;
+  /** Multiplied out, and written constant first so the leading term is last. */
+  expanded: boolean;
+}
+
+type EndsId = 'du' | 'ud' | 'uu' | 'dd';
+
+function endsOf({ poly }: EndsParams): EndsId {
+  const odd = degreeOf(poly) % 2 === 1;
+  if (odd) return poly.k > 0 ? 'du' : 'ud';
+  return poly.k > 0 ? 'uu' : 'dd';
+}
+
+/**
+ * Which way a polynomial's two ends go.
+ *
+ * For large x the highest power outweighs every other term together, so the
+ * degree's parity and the leading coefficient's sign are the whole answer. The
+ * factorised form hides both in plain sight: the degree is the sum of the
+ * powers, and the leading coefficient is the number in front. Difficulty 2 also
+ * writes the curve out constant first, so the term that decides is at the far
+ * end of the line rather than the start.
+ */
+const sketchEnds: Generator<EndsParams> = {
+  id: 'df-cs-ends',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const odd = rng.chance(0.5);
+    // Multiplied out, a quartic runs off the side of a phone, so the
+    // constant-first writing stays at cubics and quadratics.
+    const expanded = hard && rng.chance(0.5);
+    const powers = rng.pick<readonly number[]>(
+      expanded
+        ? odd
+          ? ([[1, 1, 1], [2, 1]] as const)
+          : ([[1, 1], [2]] as const)
+        : odd
+          ? hard
+            ? ([[1, 1, 1], [2, 1], [3], [2, 2, 1]] as const)
+            : ([[1, 1, 1], [2, 1]] as const)
+          : hard
+            ? ([[1, 1], [2, 1, 1], [2, 2], [3, 1]] as const)
+            : ([[1, 1], [2, 1, 1], [2, 2]] as const),
+    );
+    return {
+      poly: samplePoly(rng, powers, [1, 2, 3, -1, -2, -3], expanded ? 3 : 4),
+      expanded,
+    };
+  },
+  render: (params): Slide => {
+    const { poly, expanded } = params;
+    const tex = expanded
+      ? sumTex(polyCoefficients(poly).map((c, n) => termTex(c, n)))
+      : polyTex(poly);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Far out to the left and far out to the right, which way does this curve go?' },
+        { kind: 'display', tex: `y = ${tex}` },
+      ],
+      options: [
+        { id: 'du', label: 'Down on the left, up on the right' },
+        { id: 'ud', label: 'Up on the left, down on the right' },
+        { id: 'uu', label: 'Up at both ends' },
+        { id: 'dd', label: 'Down at both ends' },
+      ],
+      correctId: endsOf(params),
+    };
+  },
+  solution: (params) => {
+    const { poly, expanded } = params;
+    const degree = degreeOf(poly);
+    const odd = degree % 2 === 1;
+    return [
+      {
+        text: expanded
+          ? 'For large $x$ the term with the highest power outweighs all the others put together, wherever it is written in the line.'
+          : `For large $x$ the highest power decides. Multiplying out would start with the number in front times one $x$ from every bracket: the powers add to $${degree}$.`,
+        tex: `y \\approx ${termTex(poly.k, degree)}`,
+      },
+      {
+        text: odd
+          ? `An odd power keeps the sign of $x$, so the two ends go opposite ways. With $${poly.k}$ in front, ${poly.k > 0 ? 'the right end goes up and the left end down' : 'the right end goes down and the left end up'}.`
+          : `An even power is positive for large $x$ of either sign, so both ends go the same way: ${poly.k > 0 ? 'up, since the number in front is positive' : 'down, since the number in front is negative'}.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Checking and reading a sketch ---------- */
+
+/** A sketch, and what (if anything) is wrong with it. */
+export interface SpotParams {
+  /** Always a squared root and one or two single roots. */
+  poly: Poly;
+  error: 'none' | 'flipped' | 'swapped' | 'moved';
+}
+
+/** The repeated bracket's power given to the first single root, and theirs to it. */
+function swappedPowers({ k, factors }: Poly): Poly {
+  const repeated = factors.findIndex(([, n]) => n > 1);
+  const single = factors.findIndex(([, n]) => n === 1);
+  return {
+    k,
+    factors: factors.map(([r, n], i): [number, number] =>
+      i === repeated ? [r, factors[single][1]] : i === single ? [r, factors[repeated][1]] : [r, n],
+    ),
+  };
+}
+
+function drawnFor({ poly, error }: SpotParams): Poly {
+  if (error === 'flipped') return { k: -poly.k, factors: poly.factors };
+  if (error === 'swapped') return swappedPowers(poly);
+  if (error === 'moved') {
+    const single = poly.factors.findIndex(([, n]) => n === 1);
+    return { k: poly.k, factors: poly.factors.map(([r, n], i): [number, number] => [i === single ? -r : r, n]) };
+  }
+  return poly;
+}
+
+/**
+ * A sketch to check against its equation, with at most one thing wrong.
+ *
+ * Each wrong sketch differs from the right one in one feature only: drawn
+ * upside down, touching the axis at the wrong root, or with one root on the
+ * wrong side of the y-axis. The other features stay right, so the error has to
+ * be found by checking each in turn, which is the habit a sketch needs.
+ *
+ * A misplaced root is moved across the y-axis rather than every root being
+ * reflected: with no scale on the figure, reflecting (x + 2)^2(x - 3) draws
+ * the same left-to-right pattern — cross, then touch — as swapping which root
+ * is squared, and the two errors could not be told apart.
+ */
+const sketchSpotError: Generator<SpotParams> = {
+  id: 'df-cs-spot-error',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const powers = rng.pick(
+        difficulty >= 2
+          ? ([
+              [2, 1],
+              [1, 2],
+              [2, 1, 1],
+              [1, 2, 1],
+              [1, 1, 2],
+            ] as const)
+          : ([
+              [2, 1],
+              [1, 2],
+            ] as const),
+      );
+      const poly = samplePoly(rng, powers, difficulty >= 2 ? [1, 2, -1, -2] : [1, -1]);
+      if (readable(poly)) return { poly, error: rng.pick(['none', 'flipped', 'swapped', 'moved'] as const) };
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'choice',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Here is a sketch of this curve, with the $y$-axis drawn in and the roots ringed. Is anything wrong with it?',
+      },
+      { kind: 'display', tex: `y = ${polyTex(params.poly)}` },
+      { kind: 'diagram', svg: sketchSvg(drawnFor(params), 'A sketch of a polynomial curve to be checked') },
+    ],
+    options: [
+      { id: 'none', label: 'Nothing: the sketch is right' },
+      { id: 'flipped', label: 'It is upside down' },
+      { id: 'swapped', label: 'It touches the axis at the wrong root' },
+      { id: 'moved', label: 'A root is on the wrong side of the y-axis' },
+    ],
+    correctId: params.error,
+  }),
+  solution: (params) => {
+    const { poly, error } = params;
+    const [touch] = poly.factors.find(([, n]) => n > 1) ?? [0];
+    const [moved] = poly.factors.find(([, n]) => n === 1) ?? [0];
+    const roots = rootsOf(poly);
+    const degree = degreeOf(poly);
+    const verdict = {
+      none: 'All three agree with the sketch, so nothing is wrong.',
+      flipped: 'The roots and the touch are in the right places, but the sketch has the ends the other way: it is upside down.',
+      swapped: `The sketch crosses at $x = ${touch}$ and touches somewhere else instead.`,
+      moved: `The sketch has the root at $x = ${moved}$ on the other side of the $y$-axis.`,
+    }[error];
+    return [
+      {
+        text: `Roots: the brackets give $x = $ ${listTex(roots)}. Check which side of the $y$-axis each lies.`,
+      },
+      {
+        text: `Touching: the squared bracket is at $x = ${touch}$, so the curve touches the axis there and crosses at the others.`,
+      },
+      {
+        text: `Ends: the degree is $${degree}$ and the number in front is $${poly.k}$, so the curve ends ${
+          degree % 2 === 1
+            ? poly.k > 0
+              ? 'down on the left and up on the right'
+              : 'up on the left and down on the right'
+            : poly.k > 0
+              ? 'up at both sides'
+              : 'down at both sides'
+        }.`,
+      },
+      { text: verdict },
+    ];
+  },
+};
+
+/** A curve, drawn, with the equations offered for it. */
+export interface MatchParams {
+  poly: Poly;
+}
+
+/** A near miss that changes how the curve meets the axis without moving any root. */
+function reshaped(poly: Poly): Poly {
+  const powers = poly.factors.map(([, n]) => n);
+  if (powers.some((n) => n > 1) && powers.some((n) => n === 1)) return swappedPowers(poly);
+  if (powers.every((n) => n === 1)) {
+    return { k: poly.k, factors: poly.factors.map(([r, n], i): [number, number] => [r, i === 0 ? 2 : n]) };
+  }
+  return { k: poly.k, factors: poly.factors.map(([r]): [number, number] => [r, 1]) };
+}
+
+/**
+ * The equation of a drawn curve, from four that share its roots.
+ *
+ * Every distractor keeps the same numbers in its brackets and changes one
+ * thing: the sign in front (upside down), the signs inside (roots reflected
+ * in the y-axis), or which root carries the repeated bracket. So nothing can
+ * be matched on numbers alone; the learner reads the shape.
+ */
+const sketchMatch: Generator<MatchParams> = {
+  id: 'df-cs-match',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const powers = rng.pick<readonly number[]>(
+        difficulty >= 2
+          ? ([
+              [2, 1],
+              [1, 1, 1],
+              [2, 1, 1],
+              [1, 2, 1],
+              [2, 2],
+              [3, 1],
+            ] as const)
+          : ([
+              [2, 1],
+              [1, 2],
+              [1, 1, 1],
+            ] as const),
+      );
+      const poly = samplePoly(rng, powers, difficulty >= 2 ? [1, 2, -1, -2] : [1, -1]);
+      if (readable(poly)) return { poly };
+    }
+  },
+  render: ({ poly }): Slide => {
+    const candidates = [
+      { id: 'right', label: polyTex(poly) },
+      { id: 'flipped', label: polyTex({ k: -poly.k, factors: poly.factors }) },
+      { id: 'mirrored', label: polyTex(mirrored(poly)) },
+      { id: 'reshaped', label: polyTex(reshaped(poly)) },
+    ];
+    const turn = turnFor(4, poly.k, ...poly.factors.flat());
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This curve meets the $x$-axis only at $x = $ ${listTex(rootsOf(poly))}. Which equation is it?`,
+        },
+        { kind: 'diagram', svg: sketchSvg(poly, 'A polynomial curve with its roots ringed and the y-axis drawn') },
+      ],
+      options: turned(candidates, turn).map(({ id, label }) => ({ id, label: `y = ${label}`, tex: true })),
+      correctId: 'right',
+    };
+  },
+  solution: ({ poly }) => {
+    const touching = poly.factors.filter(([, n]) => n % 2 === 0).map(([r]) => r);
+    const flattening = poly.factors.filter(([, n]) => n > 1 && n % 2 === 1).map(([r]) => r);
+    const degree = degreeOf(poly);
+    const steps: SolutionStep[] = [
+      {
+        text: `A root at $x = r$ comes from a bracket $(x - r)$, so the brackets hold the roots with their signs flipped. That rules out the reflected equation.`,
+      },
+    ];
+    steps.push({
+      text:
+        touching.length === 0 && flattening.length === 0
+          ? 'The curve crosses cleanly at every root, so every bracket is to the power $1$.'
+          : `${touching.length > 0 ? `It touches the axis at ${listTex(touching)}, so ${touching.length === 1 ? 'that bracket is' : 'those brackets are'} squared.` : ''}${flattening.length > 0 ? ` It flattens as it crosses at ${listTex(flattening)}, so that bracket is cubed.` : ''}`.trim(),
+    });
+    steps.push(
+      {
+        text: `The powers add to $${degree}$, and the curve ends ${
+          degree % 2 === 1
+            ? poly.k > 0
+              ? 'up on the right'
+              : 'down on the right'
+            : poly.k > 0
+              ? 'up at both sides'
+              : 'down at both sides'
+        }, so the number in front is ${poly.k > 0 ? 'positive' : 'negative'}.`,
+      },
+      { tex: `y = ${polyTex(poly)}` },
+    );
+    return steps;
+  },
+};
+
+/** A cubic drawn with its turning points, to say what its gradient function looks like. */
+const sketchGradientShape: Generator<Cubic> = {
+  id: 'df-cs-gradient-shape',
+  sample: (rng, difficulty) => {
+    const cubic = sampleCubic(rng, difficulty, { evenSum: true, minGap: 2 });
+    return difficulty < 2 && rng.chance(0.5) ? { ...cubic, m: -cubic.m } : cubic;
+  },
+  render: (cubic): Slide => {
+    const { p, q, m } = cubic;
+    const mid = (p + q) / 2;
+    const heights = [cubicAt(cubic, p), cubicAt(cubic, q)];
+    const low = Math.min(...heights);
+    const high = Math.max(...heights);
+    const pad = (high - low) * 0.45 + 2;
+    const candidates = [
+      { id: 'up', label: `A U-shaped parabola crossing the x-axis at x = ${plain(p)} and x = ${plain(q)}` },
+      {
+        id: 'down',
+        label: `An upside-down U-shaped parabola crossing the x-axis at x = ${plain(p)} and x = ${plain(q)}`,
+      },
+      { id: 'line', label: `A straight line crossing the x-axis at x = ${plain(mid)}` },
+      { id: 'cubic', label: `A cubic curve with turning points at x = ${plain(p)} and x = ${plain(q)}` },
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is $y = f(x)$, a cubic with turning points at $x = ${p}$ and $x = ${q}$. Which describes the graph of its gradient function, $y = f'(x)$?`,
+        },
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: -5,
+            xMax: 5,
+            yMin: low - pad,
+            yMax: high + pad,
+            curves: [{ f: (x) => cubicAt(cubic, x) }],
+            marks: [
+              { x: p, y: cubicAt(cubic, p) },
+              { x: q, y: cubicAt(cubic, q) },
+            ],
+            label: 'A cubic curve with its two turning points marked',
+          }),
+        },
+      ],
+      options: turned(candidates, turnFor(4, p, q, m, cubic.d)),
+      correctId: m > 0 ? 'up' : 'down',
+    };
+  },
+  solution: (cubic) => {
+    const { p, q, m } = cubic;
+    return [
+      {
+        text: `The gradient function is zero wherever $y = f(x)$ is flat, so its graph meets the $x$-axis at the turning points, $x = ${p}$ and $x = ${q}$.`,
+      },
+      {
+        text:
+          m > 0
+            ? `Left of $x = ${p}$ the curve rises, so $f'(x) > 0$. Between the turning points it falls, so $f'(x) < 0$. After $x = ${q}$ it rises again. Positive, negative, positive: a U shape.`
+            : `Left of $x = ${p}$ the curve falls, so $f'(x) < 0$. Between the turning points it rises, so $f'(x) > 0$. After $x = ${q}$ it falls again. Negative, positive, negative: an upside-down U.`,
+      },
+      {
+        text: 'The derivative of a cubic is a quadratic, which is why the graph is a parabola rather than a line or another cubic.',
+        tex: `f'(x) = ${cubicFactoredTex(cubic)}`,
+      },
+    ];
+  },
+};
+
+/** The gradient function c(x - p)(x - q), drawn, to read the original's turning points from. */
+export interface ReadGradientParams {
+  c: number;
+  p: number;
+  q: number;
+}
+
+/** [where f has its maximum, where it has its minimum]. */
+export function turnsFromGradient({ c, p, q }: ReadGradientParams): [number, number] {
+  // c > 0: f' is positive, negative, positive, so f rises, falls, rises.
+  return c > 0 ? [p, q] : [q, p];
+}
+
+/**
+ * The turning points of f, read from a graph of f'.
+ *
+ * The crossings are given, since the figure has no scale; what the graph
+ * shows is the sign of the gradient either side of each, which is the whole
+ * of deciding maximum from minimum. The learner has to read the picture as a
+ * gradient rather than as a curve, which is the step that goes wrong: the
+ * lowest point of the drawn parabola is not a minimum of f.
+ */
+const sketchReadGradient: Generator<ReadGradientParams> = {
+  id: 'df-cs-read-gradient',
+  sample: (rng, difficulty) => {
+    const span = difficulty >= 2 ? 5 : 4;
+    const [p, q] = rng.sample(between(-span, span), 2).sort((x, y) => x - y);
+    return { c: rng.pick([1, 2, 3]) * rng.sign(), p, q };
+  },
+  render: (params): Slide => {
+    const { c, p, q } = params;
+    const [max, min] = turnsFromGradient(params);
+    const reach = (Math.abs(c) * (q - p) ** 2) / 4;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is the graph of a **gradient function**, $y = f'(x)$, not of $f$ itself. It crosses the $x$-axis at $x = ${p}$ and $x = ${q}$. Where does $y = f(x)$ have its local maximum and its local minimum?`,
+        },
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: -6,
+            xMax: 6,
+            yMin: -1.6 * reach,
+            yMax: 1.6 * reach,
+            curves: [{ f: (x) => c * (x - p) * (x - q), accent: true }],
+            verticals: [{ x: 0, dashed: false }],
+            marks: [
+              { x: p, y: 0 },
+              { x: q, y: 0 },
+            ],
+            label: 'The graph of a gradient function, a parabola crossing the x-axis twice',
+          }),
+        },
+      ],
+      template: '\\text{maximum at } x = {0} \\quad \\text{minimum at } x = {1}',
+      bank: numberTiles([max, min], [(p + q) / 2, -p, -q, 0], 2),
+      answer: [`${max}`, `${min}`],
+    };
+  },
+  solution: (params) => {
+    const { c, p, q } = params;
+    const [max, min] = turnsFromGradient(params);
+    return [
+      { text: `$f$ has a turning point wherever $f'(x) = 0$, which is where this graph crosses the axis: $x = ${p}$ and $x = ${q}$.` },
+      {
+        text:
+          c > 0
+            ? `Left of $x = ${p}$ the graph is above the axis, so $f$ is rising. Between the crossings it is below, so $f$ is falling. After $x = ${q}$ it is above again.`
+            : `Left of $x = ${p}$ the graph is below the axis, so $f$ is falling. Between the crossings it is above, so $f$ is rising. After $x = ${q}$ it is below again.`,
+      },
+      { text: `Rising then falling is a maximum, at $x = ${max}$. Falling then rising is a minimum, at $x = ${min}$.` },
+      {
+        text: `The lowest or highest point of this parabola, at $x = ${(p + q) / 2}$, is not a turning point of $f$. It is where $f$ is steepest.`,
+      },
+    ];
+  },
+};
+
+/**
+ * Where a cubic is steepest, found and slid to.
+ *
+ * Between its turning points a cubic is steepest at its point of inflection:
+ * the gradient function is a parabola, and a parabola is at its lowest or
+ * highest halfway between its roots. `evenSum` keeps that halfway point whole.
+ */
+const sketchSteepest: Generator<Cubic> = {
+  id: 'df-cs-steepest',
+  sample: (rng, difficulty) => {
+    const cubic = sampleCubic(rng, difficulty, { evenSum: true, minGap: 2 });
+    return difficulty < 2 && rng.chance(0.5) ? { ...cubic, m: -cubic.m } : cubic;
+  },
+  render: (cubic): Slide => {
+    const heights = [cubicAt(cubic, cubic.p), cubicAt(cubic, cubic.q)];
+    const low = Math.min(...heights);
+    const high = Math.max(...heights);
+    const pad = (high - low) * 0.45 + 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            cubic.m > 0
+              ? 'Between its turning points this curve falls. Find where it falls **most steeply**, and slide to it.'
+              : 'Between its turning points this curve rises. Find where it rises **most steeply**, and slide to it.',
+        },
+        { kind: 'display', tex: `y = ${cubicTex(cubic)}` },
+      ],
+      min: -5,
+      max: 5,
+      step: 1,
+      answer: (cubic.p + cubic.q) / 2,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -5,
+          xMax: 5,
+          yMin: low - pad,
+          yMax: high + pad,
+          curves: [{ f: (x) => cubicAt(cubic, x) }],
+          label: 'A cubic curve with two turning points',
+        }),
+        ...markerWindow(-5, 5),
+      },
+    };
+  },
+  solution: (cubic) => {
+    const mid = (cubic.p + cubic.q) / 2;
+    return [
+      {
+        text: 'How steep the curve is, is its gradient function. For a cubic that is a parabola:',
+        tex: `f'(x) = ${cubicFactoredTex(cubic)}`,
+      },
+      {
+        text: `A parabola is at its ${cubic.m > 0 ? 'lowest' : 'highest'} where its own derivative is zero, halfway between its roots $x = ${cubic.p}$ and $x = ${cubic.q}$:`,
+        tex: `f''(x) = ${cubicSecondTex(cubic)} = 0`,
+      },
+      { tex: `x = ${mid}` },
+      {
+        text: `That is the curve's point of inflection. A cubic is always steepest where it changes its bend.`,
+      },
+    ];
+  },
+};
+
 export const stationaryPointGenerators = {
   stationaryRoots,
   stationaryY,
@@ -3474,4 +4888,19 @@ export const differentiationGenerators = [
   inflectionX,
   concavity,
   inflectionFlow,
+  sketchRoots,
+  sketchYIntercept,
+  sketchSigns,
+  sketchTouch,
+  sketchTurn,
+  sketchCrossings,
+  sketchAsymptotes,
+  sketchRationalY,
+  sketchRationalRoot,
+  sketchEnds,
+  sketchSpotError,
+  sketchMatch,
+  sketchGradientShape,
+  sketchReadGradient,
+  sketchSteepest,
 ];

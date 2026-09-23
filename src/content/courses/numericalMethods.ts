@@ -6,7 +6,10 @@
  * iterating, the staircase and cobweb pictures of that iteration, and the
  * gradient test that says when it diverges. Level 2 is Newton-Raphson (the
  * tangent step, a root to a stated accuracy, and where it goes wrong) and the
- * trapezium rule, with whether it overestimates or underestimates.
+ * trapezium rule, with whether it overestimates or underestimates. Level 3
+ * is bounds and errors: absolute, relative and percentage error, the bounds
+ * of a calculation on rounded values, and how an error in x_n is carried
+ * through g, one step and then k.
  *
  * The tangent's equation belongs to Differentiation (`df-l1-tangent`) and
  * rectangle sums to Integration (`in-l8`); both are pointed at, not taught
@@ -527,6 +530,187 @@ export const numericalMethods: Course = {
         ask('numer-concavity-choice', 2),
         ask('numer-mean-height-slider', 2),
         ask('numer-error-value', 2),
+      ],
+    },
+    {
+      id: 'nm-l3',
+      title: 'Bounds and Errors',
+      lessons: [
+        {
+          id: 'nm-l3-absolute',
+          title: 'Absolute Error',
+          slides: [
+            teach(
+              prose('An estimate is rarely exact. Its **error** is the estimate minus the exact value.'),
+              prose('Positive means an overestimate, negative an underestimate. The **absolute error** is its size, with the sign dropped.'),
+            ),
+            ask('numer-abs-error'),
+            ask('numer-abs-size-steps'),
+            ask('numer-closest-choice'),
+            teach(
+              prose('$\\frac{5}{8} = 0.625$, estimated as $0.63$:'),
+              working('\\text{error} &= 0.63 - 0.625', '&= 0.005'),
+              prose('Positive, so an overestimate; its size, the absolute error, is also $0.005$.'),
+            ),
+            ask('numer-over-under-flow'),
+            ask('numer-abs-error', 2),
+            ask('numer-abs-size-steps', 2),
+            teach(
+              prose(
+                'A value correctly rounded to 2 decimal places is never out by more than $0.005$, half a unit in the last place; level 2, A Root to a Set Accuracy, turned that into bounds. An estimate out by more than that is not the correctly rounded value, however many places it shows.',
+              ),
+            ),
+            ask('numer-closest-choice', 2),
+            ask('numer-over-under-flow', 2),
+          ],
+          skillCheck: [ask('numer-abs-error', 2), ask('numer-abs-size-steps', 2), ask('numer-over-under-flow', 2)],
+        },
+        {
+          id: 'nm-l3-relative',
+          title: 'Relative and Percentage Error',
+          slides: [
+            teach(
+              prose(
+                'An error of $1$ cm is huge in a $5$ cm pencil and nothing in a $100$ m track. The **relative error** measures the error against the size of the thing:',
+              ),
+              maths('\\frac{\\text{estimate} - \\text{exact value}}{\\text{exact value}}'),
+              prose('Times $100$, it is the **percentage error**.'),
+            ),
+            ask('numer-rel-error'),
+            ask('numer-rel-tiles'),
+            ask('numer-rel-slider'),
+            teach(
+              prose('A length of exactly $40$ cm, measured as $41$ cm:'),
+              working('\\text{error} &= 41 - 40 = 1', '\\text{relative} &= \\tfrac{1}{40} = 0.025', '\\text{percentage} &= 2.5\\%'),
+              prose('Always divide by the exact value, never the estimate.'),
+            ),
+            ask('numer-rel-compare'),
+            ask('numer-rel-error', 2),
+            ask('numer-rel-tiles', 2),
+            teach(
+              prose(
+                'Relative error is what makes different measurements comparable. $2$ g out on $1$ kg is $0.2\\%$; $0.3$ g out on $10$ g is $3\\%$. The second error is smaller, and the first measurement is better.',
+              ),
+            ),
+            ask('numer-rel-slider', 2),
+            ask('numer-rel-compare', 2),
+          ],
+          skillCheck: [ask('numer-rel-error', 2), ask('numer-rel-slider', 2), ask('numer-rel-compare', 2)],
+        },
+        {
+          id: 'nm-l3-bounds',
+          title: 'Bounds on a Result',
+          slides: [
+            teach(
+              prose(
+                'A value rounded to 1 decimal place could be anywhere within $0.05$ of it (level 2, A Root to a Set Accuracy): $a = 3.4$ means $3.35 \\le a < 3.45$. Calculate with rounded values and the result is uncertain too.',
+              ),
+              prose('With $b = 2.7$ as well, the least sum takes both lower bounds and the greatest both upper bounds:'),
+              working('3.35 + 2.65 &= 6.0', '3.45 + 2.75 &= 6.2'),
+            ),
+            ask('numer-bound-tree'),
+            ask('numer-bound-value'),
+            ask('numer-bound-ends'),
+            teach(
+              prose(
+                'Taking away or dividing turns an input round. The least $a - b$ is the least $a$ minus the greatest $b$; the least $\\frac{a}{b}$ is the least $a$ over the greatest $b$.',
+              ),
+              prose('With the same $a$ and $b$, the least and greatest $a - b$:'),
+              working('3.35 - 2.75 &= 0.6', '3.45 - 2.65 &= 0.8'),
+            ),
+            ask('numer-bound-accuracy-flow'),
+            ask('numer-bound-tree', 2),
+            ask('numer-bound-value', 2),
+            teach(
+              prose(
+                'Bounds say how far a result can be trusted. If both bounds round to the same value at some accuracy, the result is known to that accuracy. $a + b$ above runs from $6.0$ to $6.2$: those differ at 1 decimal place but agree as $6$, so $a + b = 6$ to the nearest whole number.',
+              ),
+            ),
+            ask('numer-bound-ends', 2),
+            ask('numer-bound-accuracy-flow', 2),
+          ],
+          skillCheck: [ask('numer-bound-tree', 2), ask('numer-bound-value', 2), ask('numer-bound-ends', 2)],
+        },
+        {
+          id: 'nm-l3-carry',
+          title: 'An Error Carried Through g',
+          slides: [
+            teach(
+              prose(
+                'An iterate is only ever known to so many places, so every step starts from a value with an error in it. If $x_n$ lies between two bounds, run $g$ on both: $x_{n+1}$ lies between the results.',
+              ),
+              prose('For $x_{n+1} = \\sqrt{x_n + 3}$ with $x_n = 2.30$ to 2 decimal places:'),
+              working('\\sqrt{2.295 + 3} &= 2.3011', '\\sqrt{2.305 + 3} &= 2.3033'),
+              prose('The gap of $0.01$ in $x_n$ has shrunk to about $0.002$ in $x_{n+1}$.'),
+            ),
+            ask('numer-carry-tree'),
+            ask('numer-carry-error'),
+            ask('numer-carry-slider'),
+            teach(
+              prose("Near the root each step multiplies the error by about $g'(\\alpha)$ (level 1, When Iteration Fails):"),
+              maths("x_{n+1} - \\alpha \\approx g'(\\alpha)(x_n - \\alpha)"),
+              prose("Above, $g'(x) = \\frac{1}{2\\sqrt{x + 3}}$ and $g'(\\alpha) \\approx 0.22$, so a gap of $0.01$ becomes about $0.002$."),
+            ),
+            ask('numer-shrink-flow'),
+            ask('numer-carry-tree', 2),
+            ask('numer-carry-error', 2),
+            teach(
+              prose(
+                "When $g$ is decreasing, $g'(\\alpha) < 0$: the error changes sign each step, and the upper bound of $x_n$ gives the lower bound of $x_{n+1}$. Its size still shrinks while $|g'(\\alpha)| < 1$.",
+              ),
+            ),
+            ask('numer-carry-slider', 2),
+            ask('numer-shrink-flow', 2),
+          ],
+          skillCheck: [ask('numer-carry-tree', 2), ask('numer-carry-error', 2), ask('numer-shrink-flow', 2)],
+        },
+        {
+          id: 'nm-l3-k-steps',
+          title: 'The Error After k Steps',
+          slides: [
+            teach(
+              prose("Each step multiplies the error by about $r = |g'(\\alpha)|$, so after $k$ steps a starting error of at most $\\delta$ is at most about"),
+              maths('r^{k}\\delta'),
+              prose('To be sure of an accuracy $\\varepsilon$, find the first $k$ with $r^{k}\\delta < \\varepsilon$.'),
+            ),
+            ask('numer-k-count'),
+            ask('numer-k-tiles'),
+            ask('numer-k-logs-steps'),
+            teach(
+              prose('With $r = 0.4$, $\\delta = 0.5$ and $\\varepsilon = 0.001$:'),
+              working('0.4^{k} \\times 0.5 &< 0.001', '0.4^{k} &< 0.002', 'k &> \\frac{\\ln 0.002}{\\ln 0.4} = 6.78'),
+              prose('$\\ln 0.4$ is negative, so dividing by it turns the inequality round. So $k = 7$.'),
+            ),
+            ask('numer-error-iterate'),
+            ask('numer-k-count', 2),
+            ask('numer-k-tiles', 2),
+            teach(
+              prose(
+                "The smaller $r$ is, the faster the error dies away: $r = 0.1$ gains a decimal place every step, while $r = 0.9$ takes about twenty-two steps for each one. A scheme with $|g'(\\alpha)|$ close to $1$ converges, but slowly.",
+              ),
+            ),
+            ask('numer-k-logs-steps', 2),
+            ask('numer-error-iterate', 2),
+          ],
+          skillCheck: [ask('numer-k-count', 2), ask('numer-k-tiles', 2), ask('numer-k-logs-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-abs-error', 2),
+        ask('numer-bound-tree', 2),
+        ask('numer-rel-error+choice', 2),
+        ask('numer-carry-slider', 2),
+        ask('numer-k-tiles', 2),
+        ask('numer-over-under-flow', 2),
+        ask('numer-bound-ends', 2),
+        ask('numer-rel-slider', 2),
+        ask('numer-carry-tree', 2),
+        ask('numer-k-count', 2),
+        ask('numer-closest-choice', 2),
+        ask('numer-shrink-flow', 2),
+        ask('numer-bound-value', 2),
+        ask('numer-rel-compare', 2),
+        ask('numer-error-iterate', 2),
       ],
     },
   ],

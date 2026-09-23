@@ -346,3 +346,283 @@ describe('numer-concavity-flow', () => {
     }
   });
 });
+
+/* ---------- level 3: bounds and errors ---------- */
+
+/** A rounded value's bounds, worked from the rounding rather than taken from the generator. */
+const bounds = (value: number, dp: number): [number, number] => [value - 0.5 / 10 ** dp, value + 0.5 / 10 ** dp];
+
+/** Every corner of a box of bounds: a calculation that is monotone in each input is extreme at one. */
+function corners(boxes: [number, number][]): number[][] {
+  return boxes.reduce<number[][]>((acc, [lo, hi]) => acc.flatMap((c) => [[...c, lo], [...c, hi]]), [[]]);
+}
+
+const close = (a: number, b: number) => Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
+
+type Exact = { kind: 'frac' | 'sqrt' | 'cbrt'; a: number; b: number };
+const exactNumber = ({ kind, a, b }: Exact) => (kind === 'frac' ? a / b : kind === 'sqrt' ? a ** 0.5 : a ** (1 / 3));
+
+describe('Numerical Methods level 3: bounds and errors, against independent arithmetic', () => {
+  it('numer-abs-error is the iterate minus the root, which bisection finds from the equation', () => {
+    type P = { p: number; q: number; r: number; estimate: number };
+    for (const { params, slide, seed } of draws<P>('numer-abs-error')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const f = (x: number) => (params.q * x - params.p) * (x + params.r);
+      const alpha = bisect(f, 0.01, 7);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(params.estimate - alpha, 9);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-abs-size-steps ends on the size of the difference, having passed through its sign', () => {
+    for (const { params, slide, seed } of draws<{ num: number; den: number; estimate: number }>('numer-abs-size-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const error = params.estimate - params.num / params.den;
+      expect(Number(slide.reductions[1].value), `seed ${seed}`).toBeCloseTo(error, 9);
+      expect(Number(slide.reductions[2].value), `seed ${seed}`).toBeCloseTo(Math.abs(error), 9);
+    }
+  });
+
+  it('numer-closest-choice marks the estimate nearest the exact value, and only that one', () => {
+    for (const { params, slide, seed } of draws<{ exact: Exact }>('numer-closest-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const value = exactNumber(params.exact);
+      const gaps = slide.options.map((o) => Math.abs(Number(o.label) - value));
+      const best = gaps.indexOf(Math.min(...gaps));
+      expect(slide.options[best].id, `seed ${seed}`).toBe(slide.correctId);
+      expect(gaps.filter((g) => g < gaps[best] * 1.5).length, `seed ${seed}: a near tie`).toBe(1);
+    }
+  });
+
+  it('numer-over-under-flow reads the sign of the error and whether the estimate is the value rounded', () => {
+    for (const { params, slide, seed } of draws<{ exact: Exact; estimate: string; dp: number }>('numer-over-under-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const value = exactNumber(params.exact);
+      const sign = Number(params.estimate) > value ? 'Positive' : 'Negative';
+      const isRounded = rounded(value, params.dp) === params.estimate;
+      expect(slide.answer, `seed ${seed}`).toEqual([sign, isRounded ? 'Yes' : 'No']);
+    }
+  });
+
+  it('numer-rel-error divides the error by the exact value, never the estimate', () => {
+    type P = { exact: number; rel: number; percent: boolean };
+    for (const { params, slide, seed } of draws<P>('numer-rel-error')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      // The estimate is read back out of the prompt, as the learner reads it.
+      const prose = slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ');
+      const numbers = [...prose.matchAll(/\$(-?\d+(?:\.\d+)?)\$/g)].map((m) => Number(m[1]));
+      const estimate = numbers.find((n) => !close(n, params.exact))!;
+      const rel = (estimate - params.exact) / params.exact;
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(params.percent ? 100 * rel : rel, 9);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-rel-tiles builds a calculation that comes to the value it claims', () => {
+    for (const { params, slide, seed } of draws<{ exact: number; rel: number; percent: boolean }>('numer-rel-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const [estimate, exact, divisor, value] = slide.answer.map(Number);
+      expect(exact, `seed ${seed}`).toBe(params.exact);
+      const worked = ((estimate - exact) / divisor) * (params.percent ? 100 : 1);
+      expect(value, `seed ${seed}`).toBeCloseTo(worked, 9);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-rel-slider asks for the value that gives the stated percentage error', () => {
+    for (const { params, slide, seed } of draws<{ exact: number; pct: number; inverse: boolean }>('numer-rel-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const exact = params.inverse ? slide.answer : params.exact;
+      const estimate = params.inverse ? params.exact * (1 + params.pct / 100) : slide.answer;
+      expect((100 * (estimate - exact)) / exact, `seed ${seed}`).toBeCloseTo(params.pct, 9);
+    }
+  });
+
+  it('numer-rel-compare marks the measurement with the extreme error for its size', () => {
+    for (const { params, slide, seed } of draws<{ largest: boolean }>('numer-rel-compare')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const rels = slide.options.map((o) => {
+        const [exact, measured] = [...o.label.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+        return Math.abs(measured - exact) / exact;
+      });
+      const target = params.largest ? Math.max(...rels) : Math.min(...rels);
+      expect(slide.options[rels.indexOf(target)].id, `seed ${seed}`).toBe(slide.correctId);
+    }
+  });
+
+  it('numer-bound-tree gives the least and greatest result over every pair of ends', () => {
+    type R = { value: number; dp: number };
+    for (const { params, slide, seed } of draws<{ a: R; b: R; op: 'sum' | 'diff' | 'prod' }>('numer-bound-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const op = (x: number, y: number) => (params.op === 'sum' ? x + y : params.op === 'diff' ? x - y : x * y);
+      const results = corners([bounds(params.a.value, params.a.dp), bounds(params.b.value, params.b.dp)]).map(([x, y]) => op(x, y));
+      expect(Number(slide.answer[4]), `seed ${seed}`).toBeCloseTo(Math.min(...results), 9);
+      expect(Number(slide.answer[5]), `seed ${seed}`).toBeCloseTo(Math.max(...results), 9);
+    }
+  });
+
+  it('numer-bound-value is the extreme of the calculation over every corner', () => {
+    type R = { value: number; dp: number };
+    type P = { op: 'sum' | 'diff' | 'prod' | 'prodDiff' | 'diffProd'; xs: R[]; upper: boolean };
+    const calc = {
+      sum: ([x, y]: number[]) => x + y,
+      diff: ([x, y]: number[]) => x - y,
+      prod: ([x, y]: number[]) => x * y,
+      prodDiff: ([x, y, z]: number[]) => x * y - z,
+      diffProd: ([x, y, z]: number[]) => (x - y) * z,
+    };
+    for (const { params, slide, seed } of draws<P>('numer-bound-value')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const results = corners(params.xs.map((x) => bounds(x.value, x.dp))).map(calc[params.op]);
+      const expected = params.upper ? Math.max(...results) : Math.min(...results);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(expected, 9);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-bound-ends marks the calculation that reaches the extreme over every corner', () => {
+    type R = { value: number; dp: number };
+    type P = { shape: 'quot' | 'quotDiff' | 'diffQuot' | 'subQuot'; xs: R[]; lower: boolean };
+    const calc = {
+      quot: ([a, b]: number[]) => a / b,
+      quotDiff: ([a, b, c]: number[]) => a / (b - c),
+      diffQuot: ([a, b, c]: number[]) => (a - b) / c,
+      subQuot: ([a, b, c]: number[]) => a - b / c,
+    };
+    for (const { params, slide, seed } of draws<P>('numer-bound-ends')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const results = corners(params.xs.map((x) => bounds(x.value, x.dp))).map(calc[params.shape]);
+      const extreme = params.lower ? Math.min(...results) : Math.max(...results);
+      // Each option's value, from the numbers written in its label.
+      const values = slide.options.map((o) => calc[params.shape]([...o.label.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]))));
+      for (const [i, option] of slide.options.entries()) {
+        expect(close(values[i], extreme), `seed ${seed}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('numer-bound-accuracy-flow quotes the result only as far as both bounds agree', () => {
+    type R = { value: number; dp: number };
+    for (const { params, slide, seed } of draws<{ op: 'sum' | 'prod'; x: R; y: R }>('numer-bound-accuracy-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const op = (a: number, b: number) => (params.op === 'sum' ? a + b : a * b);
+      const results = corners([bounds(params.x.value, params.x.dp), bounds(params.y.value, params.y.dp)]).map(([a, b]) => op(a, b));
+      const [lo, hi] = [Math.min(...results), Math.max(...results)];
+      expect(Number(slide.answer[0].replace(/\$/g, '')), `seed ${seed}`).toBeCloseTo(lo, 9);
+      const rest = rounded(lo, 1) === rounded(hi, 1) ? ['Yes'] : rounded(lo, 0) === rounded(hi, 0) ? ['No', 'Yes'] : ['No', 'No'];
+      expect(slide.answer.slice(1), `seed ${seed}`).toEqual(rest);
+    }
+  });
+
+  it('numer-carry-tree runs the scheme at both bounds of x_n, and the bracket narrows', () => {
+    for (const { params, slide, seed } of draws<FixedLimitParams & { c: number }>('numer-carry-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { g } = fixedMaths(params);
+      const [lo, hi] = bounds(params.c, params.dp);
+      expect(Number(slide.answer[0]), `seed ${seed}`).toBeCloseTo(lo, 9);
+      expect(Number(slide.answer[1]), `seed ${seed}`).toBeCloseTo(hi, 9);
+      expect(slide.answer[2], `seed ${seed}`).toBe(rounded(g(lo), 4));
+      expect(slide.answer[3], `seed ${seed}`).toBe(rounded(g(hi), 4));
+      expect(Number(slide.answer[4]), `seed ${seed}`).toBeLessThan(hi - lo);
+    }
+  });
+
+  type ExactScheme = { family: 'square' | 'recip' | 'fall'; alpha: number; m: number };
+  const exactG = ({ family, alpha, m }: ExactScheme) =>
+    family === 'square'
+      ? (x: number) => (x * x + alpha * m) / (alpha + m)
+      : family === 'recip'
+        ? (x: number) => (alpha * (alpha + m)) / (x + m)
+        : (x: number) => (alpha * alpha + alpha * m - x * x) / m;
+
+  it('numer-carry-error is the gradient at the root times the error, and one real step agrees', () => {
+    for (const { params, slide, seed } of draws<ExactScheme & { delta: number }>('numer-carry-error')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const g = exactG(params);
+      expect(Math.abs(g(params.alpha) - params.alpha), `seed ${seed}: alpha is not a root`).toBeLessThan(1e-12);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(gradient(g, params.alpha) * params.delta, 6);
+      // The first-order estimate misses a real step by no more than the square of the error, give or take.
+      const real = g(params.alpha + params.delta) - params.alpha;
+      expect(Math.abs(real - Number(slide.answer)), `seed ${seed}`).toBeLessThan(2 * params.delta ** 2);
+    }
+  });
+
+  it('numer-carry-slider asks for the extreme of g across the bounds of x_n', () => {
+    type P = { family: 'square' | 'recip'; a: number; b: number; c: number; upper: boolean };
+    for (const { params, slide, seed } of draws<P>('numer-carry-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const g = params.family === 'square' ? (x: number) => (x ** 2 + params.b) / params.a : (x: number) => params.a / (x + params.b);
+      const values = [params.c - 0.5, params.c + 0.5].map(g);
+      expect(slide.answer, `seed ${seed}`).toBeCloseTo(params.upper ? Math.max(...values) : Math.min(...values), 9);
+    }
+  });
+
+  it('numer-shrink-flow multiplies by the gradient and grows exactly when |g\'(α)| > 1', () => {
+    for (const { params, slide, seed } of draws<ExactScheme & { delta: number }>('numer-shrink-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const g = exactG(params);
+      const slope = gradient(g, params.alpha);
+      expect(Number(slide.answer[0].replace(/\$/g, '')), `seed ${seed}`).toBeCloseTo(slope * params.delta, 6);
+      // Run the scheme from beside the root to see which way the error goes.
+      let x = params.alpha + 1e-4;
+      for (let n = 0; n < 20 && Math.abs(x - params.alpha) < 1; n += 1) x = g(x);
+      const grew = Math.abs(x - params.alpha) > 1e-4;
+      expect(slide.answer[1], `seed ${seed}`).toBe(grew ? 'No' : 'Yes');
+    }
+  });
+
+  /** The first k with r^k δ < ε, found by stepping rather than by logarithms. */
+  function stepsNeeded(r: number, delta: number, eps: number): number {
+    let error = delta;
+    let k = 0;
+    while (error >= eps) {
+      error *= r;
+      k += 1;
+    }
+    return k;
+  }
+
+  it('numer-k-count is the first k for which the error bound is below the target', () => {
+    for (const { params, slide, seed } of draws<{ r: number; delta: number; eps: number; scheme?: ExactScheme }>('numer-k-count')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const r = params.scheme ? Math.abs(gradient(exactG(params.scheme), params.scheme.alpha)) : params.r;
+      expect(Number(slide.answer), `seed ${seed}`).toBe(stepsNeeded(r, params.delta, params.eps));
+    }
+  });
+
+  it('numer-k-tiles builds a condition that holds first at the k stepping finds', () => {
+    for (const { params, slide, seed } of draws<{ r: number; delta: number; eps: number; logs: boolean }>('numer-k-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const k = stepsNeeded(params.r, params.delta, params.eps);
+      const holds = params.logs
+        ? (n: number) => n > Math.log(Number(slide.answer[0])) / Math.log(Number(slide.answer[1]))
+        : (n: number) => Number(slide.answer[0]) ** n * Number(slide.answer[1]) < Number(slide.answer[2]);
+      expect(holds(k) && !holds(k - 1), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('numer-k-logs-steps works out to a quotient whose next whole number is the k stepping finds', () => {
+    for (const { params, slide, seed } of draws<{ r: number; delta: number; eps: number }>('numer-k-logs-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const quotient = Number(slide.reductions[2].value);
+      expect(quotient, `seed ${seed}`).toBeCloseTo(Math.log(params.eps / params.delta) / Math.log(params.r), 2);
+      expect(Math.ceil(quotient), `seed ${seed}`).toBe(stepsNeeded(params.r, params.delta, params.eps));
+    }
+  });
+
+  it('numer-error-iterate writes every row as the scheme gives it, and brackets the root bisection finds', () => {
+    for (const { params, slide, seed } of draws<FixedLimitParams>('numer-error-iterate')) {
+      if (slide.kind !== 'iterate') throw new Error('not an iterate slide');
+      const { g, f } = fixedMaths(params);
+      let x = params.x0;
+      for (let row = 0; row < 4; row += 1) {
+        x = g(x);
+        expect(slide.answer[row], `seed ${seed}, row ${row + 1}`).toBe(rounded(x, params.dp));
+      }
+      let root = x;
+      for (let n = 0; n < 500; n += 1) root = g(root);
+      const tenth = Math.floor(bisect(f, root - 0.01, root + 0.01) * 10);
+      expect(slide.answer[4], `seed ${seed}`).toBe(`${(tenth / 10).toFixed(1)} < \\alpha < ${((tenth + 1) / 10).toFixed(1)}`);
+    }
+  });
+});

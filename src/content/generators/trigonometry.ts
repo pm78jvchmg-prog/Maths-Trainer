@@ -5054,9 +5054,8 @@ function inverseExact(id: string, fns: Inverse[]): Generator<InverseExactParams>
           ? `From the table, $${RATIO_TEX[fn]}\\left(${angleTex(degrees, radians)}\\right) = ${v}$, and that angle is in the range.`
           : negativeInputText(fn, degrees, radians),
       });
-      steps.push({
-        tex: `${INVERSE_TEX[fn]}\\left(${v}\\right) = ${angleTex(degrees, radians)}${radians ? ` \\quad (${degrees}^{\\circ})` : ''}`,
-      });
+      steps.push({ tex: `${INVERSE_TEX[fn]}\\left(${v}\\right) = ${angleTex(degrees, radians)}` });
+      if (radians) steps.push({ text: `In degrees that is $${degrees}^{\\circ}$.` });
       return steps;
     },
   };
@@ -5138,11 +5137,19 @@ interface CrossingSliderParams {
   fn: Inverse;
   degrees: number;
   radians: boolean;
+  /** Two turns rather than one, so more crossings to choose between. */
+  wide: boolean;
 }
 
-/** Slider settings per unit: the window is one turn centred on zero, and the handle rests at zero. */
-const crossingScale = (radians: boolean) =>
-  radians ? { min: -3.2, max: 3.2, step: 0.05, tolerance: 0.1 } : { min: -180, max: 180, step: 1, tolerance: 3 };
+/** Slider settings: one or two turns centred on zero, where the handle rests. */
+function crossingScale({ radians, wide }: CrossingSliderParams) {
+  // Each window's untouched midpoint, min plus a whole number of steps, has
+  // to come out as a clean 0 in floats, or the readout shows the dust.
+  const reach = radians ? (wide ? 6.4 : 3.2) : wide ? 360 : 180;
+  return radians
+    ? { min: -reach, max: reach, step: 0.05, tolerance: 0.1 }
+    : { min: -reach, max: reach, step: 1, tolerance: 3 };
+}
 
 const INVERSE_BASE: Record<Inverse, (x: number) => number> = { sin: Math.sin, cos: Math.cos, tan: Math.tan };
 
@@ -5151,15 +5158,16 @@ const inverseCrossingSlider: Generator<CrossingSliderParams> = {
   id: 'trig-inv-crossing-slider',
   sample: (rng, difficulty) => {
     for (;;) {
-      const fn: Inverse = rng.pick(difficulty > 1 ? INVERSES : (['sin', 'cos'] as const));
-      const p = { fn, degrees: rng.pick(PRINCIPAL[fn]), radians: rng.chance(0.5) };
-      const { min, max, tolerance } = crossingScale(p.radians);
+      const fn: Inverse = difficulty > 1 ? rng.pick(INVERSES) : 'sin';
+      const p = { fn, degrees: rng.pick(PRINCIPAL[fn]), radians: rng.chance(0.5), wide: rng.chance(0.5) };
+      const { min, max, tolerance } = crossingScale(p);
       const value = p.degrees * (p.radians ? DEGREE : 1);
       if (Math.abs(value) > 3 * tolerance && value > min + 3 * tolerance && value < max - 3 * tolerance) return p;
     }
   },
-  render: ({ fn, degrees, radians }): Slide => {
-    const { min, max, step, tolerance } = crossingScale(radians);
+  render: (p): Slide => {
+    const { fn, degrees, radians } = p;
+    const { min, max, step, tolerance } = crossingScale(p);
     const unit = radians ? 1 : DEGREE;
     const k = ratioAt(fn, degrees)!;
     const v = exactTex(k);
@@ -5172,7 +5180,7 @@ const inverseCrossingSlider: Generator<CrossingSliderParams> = {
       verticals: edges.map((d) => ({ x: d * (radians ? DEGREE : 1) })),
       yMin: fn === 'tan' ? -3 : -1.5,
       yMax: fn === 'tan' ? 3 : 1.5,
-      label: `The graph of y = ${fn} x over one turn, with upright dashed lines at the edges of the range of its inverse`,
+      label: `The graph of y = ${fn} x, with upright dashed lines at the edges of the range of its inverse`,
     });
     const line = Math.abs(k) < 1e-9 ? 'the level line is the $x$-axis itself' : `the level one is $y = ${v}$`;
     return {
@@ -5201,9 +5209,8 @@ const inverseCrossingSlider: Generator<CrossingSliderParams> = {
       {
         text: `$${INVERSE_TEX[fn]}$ takes the one crossing inside its range, $${rangeTex(fn, radians)}$, between the upright dashed lines.`,
       },
-      {
-        tex: `${INVERSE_TEX[fn]}\\left(${v}\\right) = ${angleTex(degrees, radians)}${radians ? ` \\approx ${(degrees * DEGREE).toFixed(2)}` : ''}`,
-      },
+      { tex: `${INVERSE_TEX[fn]}\\left(${v}\\right) = ${angleTex(degrees, radians)}` },
+      ...(radians ? [{ text: `On the slider that is about $${(degrees * DEGREE).toFixed(2)}$.` }] : []),
     ];
   },
 };
@@ -5244,16 +5251,24 @@ interface InverseTilesParams {
   phrasing: number;
 }
 
-const SINE_TILE_INSIDE = [-90, -60, -45, -30, 30, 45, 60, 90];
+const SINE_TILE_FIRST = [30, 45, 60, 90];
+const SINE_TILE_INSIDE = [-90, -60, -45, -30, ...SINE_TILE_FIRST];
 const SINE_TILE_OUTSIDE = [120, 135, 150, 210, 225, 240, 300, 315, 330, -120, -135, -150];
 
-/** A sine statement turned round into a sin^-1 one; past difficulty 1 the angle may lie outside the range. */
+const SINE_TILE_PROMPTS: ((angle: string, v: string) => string)[] = [
+  (angle, v) => `$\\sin\\left(${angle}\\right) = ${v}$. Write the statement about $\\sin^{-1}$ that goes with it.`,
+  (angle, v) => `Sine takes $${angle}$ to $${v}$. Fill in what $\\sin^{-1}$ gives back.`,
+  (angle, v) => `Turn this round: $\\sin\\left(${angle}\\right) = ${v}$. What does $\\sin^{-1}$ say?`,
+  (angle, v) => `$${v}$ is the sine of $${angle}$. Complete the line with the inverse sine.`,
+];
+
+/** A sine statement turned round into a sin^-1 one; past difficulty 1 the angle may be negative or lie outside the range. */
 const inverseSinTiles: Generator<InverseTilesParams> = {
   id: 'trig-inv-sin-tiles',
   sample: (rng, difficulty) => ({
-    degrees: rng.pick(difficulty > 1 ? [...SINE_TILE_INSIDE, ...SINE_TILE_OUTSIDE] : SINE_TILE_INSIDE),
+    degrees: rng.pick(difficulty > 1 ? [...SINE_TILE_INSIDE, ...SINE_TILE_OUTSIDE] : SINE_TILE_FIRST),
     radians: rng.chance(0.5),
-    phrasing: rng.int(0, 1),
+    phrasing: rng.int(0, SINE_TILE_PROMPTS.length - 1),
   }),
   render: ({ degrees, radians, phrasing }): Slide => {
     const k = ratioAt('sin', degrees)!;
@@ -5269,18 +5284,9 @@ const inverseSinTiles: Generator<InverseTilesParams> = {
       exactTex(-k),
       exactTex(ratioAt('cos', degrees)!),
     ];
-    const angle = angleTex(degrees, radians);
     return {
       kind: 'tiles',
-      prompt: [
-        {
-          kind: 'prose',
-          text:
-            phrasing === 0
-              ? `$\\sin\\left(${angle}\\right) = ${v}$. Write the statement about $\\sin^{-1}$ that goes with it.`
-              : `Sine takes $${angle}$ to $${v}$. Fill in what $\\sin^{-1}$ gives back.`,
-        },
-      ],
+      prompt: [{ kind: 'prose', text: SINE_TILE_PROMPTS[phrasing](angleTex(degrees, radians), v) }],
       template: '\\sin^{-1}({0}) = {1}',
       bank: sortedBank(answer, [...new Set(distractors)]),
       answer,
@@ -5298,7 +5304,7 @@ const inverseSinTiles: Generator<InverseTilesParams> = {
       });
     } else {
       steps.push({
-        text: `But it only answers in $${rangeTex('sin', radians)}$, and $${angleTex(degrees, radians)}$ is outside that. The angle inside with the same sine is $${partnerWorking('sin', degrees).label}$:`,
+        text: `But it only answers in $${rangeTex('sin', radians)}$, and $${angleTex(degrees, radians)}$ is outside that. The angle inside with the same sine is $${partnerWorking('sin', degrees).label}$, which in degrees is`,
       });
       steps.push({ tex: partnerWorking('sin', degrees).tex });
     }
@@ -5534,10 +5540,17 @@ interface DomainRangeParams {
   a: number;
   b: number;
   radians: boolean;
+  /** Which half is asked: the x that go in, or the y that come out. */
+  part: 'domain' | 'range';
   phrasing: number;
 }
 
-/** The domain and range of y = a sin^-1(x / b), or the same with cos^-1. */
+/**
+ * The domain or the range of y = a sin^-1(x / b), or the same with cos^-1.
+ * One half per question: both together are four blanks, which no phone fits
+ * on a row, and the line broke inside the second inequality wherever it fell.
+ * The bank carries the other half's values, so mixing the two up still costs.
+ */
 const inverseDomainRange: Generator<DomainRangeParams> = {
   id: 'trig-inv-domain-range',
   sample: (rng, difficulty) => ({
@@ -5545,19 +5558,40 @@ const inverseDomainRange: Generator<DomainRangeParams> = {
     a: rng.int(1, 6),
     b: difficulty > 1 ? rng.int(1, 4) : 1,
     radians: rng.chance(0.5),
+    part: rng.pick(['domain', 'range'] as const),
     phrasing: rng.int(0, 1),
   }),
-  render: ({ fn, a, b, radians, phrasing }): Slide => {
+  render: ({ fn, a, b, radians, part, phrasing }): Slide => {
     const inner = b === 1 ? 'x' : `\\frac{x}{${b}}`;
     const curve = `${coefficientTex(a)}${INVERSE_TEX[fn]}\\left(${inner}\\right)`;
     const [lo, hi] = fn === 'sin' ? [-90 * a, 90 * a] : [0, 180 * a];
     const unit = radians ? 'radians' : 'degrees';
-    const answer = [`${-b}`, `${b}`, angleTex(lo, radians), angleTex(hi, radians)];
-    // b forgotten, the other function's range, and a forgotten.
+    const domain = [`${-b}`, `${b}`];
+    const range = [angleTex(lo, radians), angleTex(hi, radians)];
+    if (part === 'domain') {
+      // b forgotten, and the range given instead.
+      const distractors = [...(b === 1 ? ['0'] : ['-1', '1']), ...range];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text:
+              phrasing === 0
+                ? `Give the domain of $y = ${curve}$: every $x$ it accepts.`
+                : `Which $x$ can go into $y = ${curve}$?`,
+          },
+        ],
+        template: '{0} \\le x \\le {1}',
+        bank: sortedBank(domain, [...new Set(distractors)]),
+        answer: domain,
+      };
+    }
+    // The other function's range, a forgotten, and the domain given instead.
     const distractors = [
-      ...(b === 1 ? ['0'] : ['-1', '1']),
       ...(fn === 'sin' ? [angleTex(-180 * a, radians), angleTex(180 * a, radians)] : [angleTex(-90 * a, radians), angleTex(90 * a, radians)]),
       ...(a > 1 ? [angleTex(fn === 'sin' ? 90 : 180, radians)] : []),
+      ...domain,
     ];
     return {
       kind: 'tiles',
@@ -5566,30 +5600,33 @@ const inverseDomainRange: Generator<DomainRangeParams> = {
           kind: 'prose',
           text:
             phrasing === 0
-              ? `Give the domain and range of $y = ${curve}$, with $y$ in ${unit}.`
-              : `Which $x$ can go into $y = ${curve}$, and which $y$ can come out? Give $y$ in ${unit}.`,
+              ? `Give the range of $y = ${curve}$, in ${unit}.`
+              : `Which $y$ can come out of $y = ${curve}$? Give $y$ in ${unit}.`,
         },
       ],
-      template: '{0} \\le x \\le {1} \\qquad {2} \\le y \\le {3}',
-      bank: sortedBank(answer, [...new Set(distractors)]),
-      answer,
+      template: '{0} \\le y \\le {1}',
+      bank: sortedBank(range, [...new Set(distractors)].filter((t) => !range.includes(t))),
+      answer: range,
     };
   },
-  solution: ({ fn, a, b, radians }) => {
+  solution: ({ fn, a, b, radians, part }) => {
+    if (part === 'domain') {
+      return [
+        {
+          text:
+            b === 1
+              ? `$${INVERSE_TEX[fn]}$ only accepts inputs from $-1$ to $1$, since ${RATIO_NAME[fn]} never leaves that interval. Multiplying the output changes the heights, not the inputs.`
+              : `The input to $${INVERSE_TEX[fn]}$ is $\\frac{x}{${b}}$, which has to lie from $-1$ to $1$, so $x$ runs from $${-b}$ to $${b}$.`,
+        },
+        { tex: `${-b} \\le x \\le ${b}` },
+      ];
+    }
     const [baseLo, baseHi] = fn === 'sin' ? [-90, 90] : [0, 180];
     return [
       {
-        text:
-          b === 1
-            ? `$${INVERSE_TEX[fn]}$ only accepts inputs from $-1$ to $1$, since ${RATIO_NAME[fn]} never leaves that interval.`
-            : `The input to $${INVERSE_TEX[fn]}$ is $\\frac{x}{${b}}$, which has to lie from $-1$ to $1$, so $x$ runs from $${-b}$ to $${b}$.`,
+        text: `$${INVERSE_TEX[fn]}$ answers from $${angleTex(baseLo, radians)}$ to $${angleTex(baseHi, radians)}$${a > 1 ? `, and multiplying by $${a}$ stretches that to $${angleTex(baseLo * a, radians)}$ to $${angleTex(baseHi * a, radians)}$` : ''}.${b > 1 ? ` Dividing $x$ by $${b}$ widens the graph sideways but leaves the heights alone.` : ''}`,
       },
-      {
-        text: `$${INVERSE_TEX[fn]}$ answers from $${angleTex(baseLo, radians)}$ to $${angleTex(baseHi, radians)}$${a > 1 ? `, and multiplying by $${a}$ stretches that to $${angleTex(baseLo * a, radians)}$ to $${angleTex(baseHi * a, radians)}$` : ''}.`,
-      },
-      {
-        tex: `${-b} \\le x \\le ${b} \\qquad ${angleTex(baseLo * a, radians)} \\le y \\le ${angleTex(baseHi * a, radians)}`,
-      },
+      { tex: `${angleTex(baseLo * a, radians)} \\le y \\le ${angleTex(baseHi * a, radians)}` },
     ];
   },
 };
@@ -5602,10 +5639,13 @@ interface InverseSliderParams {
   phrasing: number;
 }
 
-/** Each inverse's picture. x = -1 and x = 1 fall on samples, and every edge is a whole number of slider steps. */
+/**
+ * Each inverse's picture. x = -1 and x = 1 fall on samples, every edge is a
+ * whole number of slider steps, and the untouched midpoint is a clean number.
+ */
 const INVERSE_WINDOW: Record<Inverse, { xMin: number; xMax: number; yMin: number; yMax: number }> = {
   sin: { xMin: -2, xMax: 2, yMin: -2, yMax: 2 },
-  cos: { xMin: -2, xMax: 2, yMin: -1.2, yMax: 3.6 },
+  cos: { xMin: -2, xMax: 2, yMin: -1.4, yMax: 3.6 },
   tan: { xMin: -4, xMax: 4, yMin: -2, yMax: 2 },
 };
 
@@ -5691,9 +5731,8 @@ const inverseGraphSlider: Generator<InverseSliderParams> = {
       const v = inputTex(fn, degrees);
       return [
         { text: `The height of the curve above $x = ${v}$ is $${INVERSE_TEX[fn]}\\left(${v}\\right)$ itself.` },
-        {
-          tex: `${INVERSE_TEX[fn]}\\left(${v}\\right) = ${angleTex(degrees, true)} \\approx ${(degrees * DEGREE).toFixed(2)}`,
-        },
+        { tex: `${INVERSE_TEX[fn]}\\left(${v}\\right) = ${angleTex(degrees, true)}` },
+        { text: `That is about $${(degrees * DEGREE).toFixed(2)}$ on the vertical axis.` },
       ];
     }
     if (fn === 'cos') {
@@ -5753,7 +5792,8 @@ const inverseOptionTex = (fn: Inverse, tex: string): string => `${INVERSE_TEX[fn
 const inverseUndefined: Generator<UndefinedParams> = {
   id: 'trig-inv-undefined',
   sample: (rng, difficulty) => {
-    const trap = difficulty > 1 || rng.chance(0.5) ? rng.int(0, TAN_TRAPS.length - 1) : null;
+    // Until tan^-1 has been graphed, the options stay inside what every inverse accepts.
+    const trap = difficulty > 1 ? rng.int(0, TAN_TRAPS.length - 1) : null;
     const good = rng.sample(
       DEFINED_OPTIONS.map((_, i) => i),
       trap === null ? 3 : 2,
@@ -5882,7 +5922,8 @@ const inverseUndo: Generator<UndoParams> = {
       {
         text: `$${angle}$ is outside the range of $${INVERSE_TEX[fn]}$, $${rangeTex(fn, radians)}$, so the answer is not $${angle}$ itself but the angle inside the range with the same ${RATIO_NAME[fn]}.`,
       },
-      { tex: `\\theta = ${degrees}^{\\circ}: \\quad ${partnerWorking(fn, degrees).tex}` },
+      { text: `With $\\theta = ${degrees}^{\\circ}$ that is $${partnerWorking(fn, degrees).label}$:` },
+      { tex: partnerWorking(fn, degrees).tex },
       { tex: `${insideTex(fn, degrees, radians)} = ${angleTex(principal, radians)}` },
     ];
   },
@@ -5942,7 +5983,8 @@ const inverseUndoFlow: Generator<UndoFlowParams> = {
     }
     return [
       { text: `$${degrees}^{\\circ}$ is outside $${rangeTex(fn, false)}$. ${SAME_VALUE_REASON[fn]}` },
-      { tex: `\\theta = ${degrees}^{\\circ}: \\quad ${partnerWorking(fn, degrees).tex}` },
+      { text: `The one inside the range is $${partnerWorking(fn, degrees).label}$:` },
+      { tex: partnerWorking(fn, degrees).tex },
       { tex: `${insideTex(fn, degrees, false)} = ${principal}^{\\circ}` },
     ];
   },
@@ -6018,13 +6060,14 @@ function triangleSolution(p: TriangleParams): SolutionStep[] {
         : `opposite side $${opp}$ and adjacent side $${adj}$`;
   const third =
     inner === 'sin'
-      ? `\\text{adjacent} = \\sqrt{${hyp}^2 - ${opp}^2} = ${adj}`
+      ? `\\sqrt{${hyp}^2 - ${opp}^2} = ${adj}`
       : inner === 'cos'
-        ? `\\text{opposite} = \\sqrt{${hyp}^2 - ${adj}^2} = ${opp}`
-        : `\\text{hypotenuse} = \\sqrt{${opp}^2 + ${adj}^2} = ${hyp}`;
+        ? `\\sqrt{${hyp}^2 - ${adj}^2} = ${opp}`
+        : `\\sqrt{${opp}^2 + ${adj}^2} = ${hyp}`;
+  const missing = inner === 'sin' ? 'adjacent side' : inner === 'cos' ? 'opposite side' : 'hypotenuse';
   const steps: SolutionStep[] = [
     {
-      text: `Let $\\theta = ${composeInnerTex(p)}$. Ignoring the sign for now, draw a right-angled triangle with ${given}.`,
+      text: `Let $\\theta = ${composeInnerTex(p)}$. Ignoring the sign for now, draw a right-angled triangle with ${given}. Pythagoras gives the ${missing}:`,
     },
     { tex: third },
   ];
@@ -6149,10 +6192,18 @@ interface GeneralParams {
   k: number;
 }
 
-function sampleGeneral(rng: Rng, difficulty: number): GeneralParams {
-  const fn = rng.pick(INVERSES);
-  const size = fn === 'tan' ? rng.pick(TAN_TENTHS) : rng.int(1, 9);
-  return { fn, k: difficulty > 1 && rng.chance(0.5) ? -size : size };
+/**
+ * Draws for the tiles and the flow. At difficulty 1 the tiles keep to sine and
+ * cosine, whose rules are taught first; a negative cosine is fine there, since
+ * its calculator angle is still inside the interval.
+ */
+function sampleGeneral(fns: Inverse[]) {
+  return (rng: Rng, difficulty: number): GeneralParams => {
+    const fn = rng.pick(difficulty > 1 ? INVERSES : fns);
+    const size = fn === 'tan' ? rng.pick(TAN_TENTHS) : rng.int(1, 9);
+    const negative = difficulty > 1 ? rng.chance(0.5) : fn === 'cos' && fns.length < 3 && rng.chance(0.5);
+    return { fn, k: negative ? -size : size };
+  };
 }
 
 const kTex = (tenths: number): string => `${tenths / 10}`;
@@ -6177,7 +6228,7 @@ function generalSolution({ fn, k }: GeneralParams): SolutionStep[] {
 /** Both solutions in a turn, from the one angle a calculator gives. */
 const inverseGeneralTiles: Generator<GeneralParams> = {
   id: 'trig-inv-general-tiles',
-  sample: sampleGeneral,
+  sample: sampleGeneral(['sin', 'cos']),
   render: ({ fn, k }): Slide => {
     const alpha = principalTenths(fn, k);
     const answer = generalTenths(fn, alpha).map(tenthsTex);
@@ -6197,7 +6248,7 @@ const inverseGeneralTiles: Generator<GeneralParams> = {
           text: `A calculator gives $${INVERSE_TEX[fn]}(${kTex(k)}) = ${tenthsTex(alpha)}^{\\circ}$, to one decimal place. Solve $${RATIO_TEX[fn]}(x) = ${kTex(k)}$ for $0^{\\circ} \\le x < 360^{\\circ}$.`,
         },
       ],
-      template: 'x = {0}^{\\circ} \\quad \\text{or} \\quad x = {1}^{\\circ}',
+      template: 'x = {0}^{\\circ} \\; \\text{or} \\; {1}^{\\circ}',
       bank: sortedBank(answer, distractors),
       answer,
       unordered: true,
@@ -6224,7 +6275,7 @@ const RULE_OF: Record<Inverse, (alpha: number) => number> = {
 /** From the calculator's angle to both solutions: keep it or move it, then which rule finds the other. */
 const inverseGeneralFlow: Generator<GeneralParams> = {
   id: 'trig-inv-general-flow',
-  sample: sampleGeneral,
+  sample: sampleGeneral(INVERSES),
   render: ({ fn, k }): Slide => {
     const alpha = principalTenths(fn, k);
     const a = `${tenthsTex(alpha)}^{\\circ}`;
@@ -6365,7 +6416,9 @@ const inverseSecondSolution: Generator<SecondParams> = {
       {
         text: `In $${secondIntervalTex(radians, signed)}$ that other angle is:`,
       },
-      { tex: `x = ${rule} = ${halfTurnTex(m, d, radians)}` },
+      // Cosine's rule in a signed interval is just a sign change, and writing
+      // it out as -α = -α says nothing.
+      { tex: fn === 'cos' && signed ? `x = ${halfTurnTex(m, d, radians)}` : `${rule} = ${halfTurnTex(m, d, radians)}` },
     ];
   },
 };
@@ -6378,7 +6431,7 @@ interface SolutionsSliderParams {
 }
 
 const solutionsScale = (radians: boolean) =>
-  radians ? { max: 6.3, step: 0.05, tolerance: 0.1 } : { max: 360, step: 1, tolerance: 3 };
+  radians ? { max: 6.4, step: 0.05, tolerance: 0.1 } : { max: 360, step: 1, tolerance: 3 };
 
 /** The calculator's angle, and the other solution, in the unit of the picture. */
 function solutionsPair({ fn, k, radians }: SolutionsSliderParams): { alpha: number; other: number } {

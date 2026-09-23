@@ -5,7 +5,7 @@
  * Shared formatters and the engine constraints they exist for live in
  * `vectorFormat.ts`, alongside the vector generators these grew out of.
  */
-import type { Block, ChoiceOption, Generator, Slide } from '../types';
+import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import { bin, num } from '../expr';
 import { options } from '../choiceVariant';
 import {
@@ -4423,6 +4423,1569 @@ const detMissing: Generator<DetMissingParams> = {
   },
 };
 
+/* ---------- Level 9: systems of equations (roadmap batch B27) ---------- */
+
+/**
+ * A 3x3 matrix, row by row.
+ *
+ * Every question before this level is about a 2x2, and `matrixTex` in
+ * `vectorFormat.ts` is 2x2 only and shared with Vectors, so the 3x3 helpers
+ * live here. `gridTex` above already renders any rectangular matrix.
+ *
+ * Long arithmetic in a worked solution goes in a prose line as inline maths,
+ * which wraps, rather than in a display, which does not: the *Show me* panel
+ * holds only about twenty characters of display maths on a phone.
+ */
+type Grid = number[][];
+type SampleRng = Parameters<Generator<unknown>['sample']>[0];
+
+const UNKNOWNS = ['x', 'y', 'z'];
+const ORDINALS = ['first', 'second', 'third'];
+
+/** A column of numbers or letters, for prompts only. */
+function stackTex(values: (number | string)[]): string {
+  return `\\begin{pmatrix} ${values.join(' \\\\ ')} \\end{pmatrix}`;
+}
+
+/** Any grid of numbers or letters, for a matrix with a `k` in it. */
+function cellsTex(rows: (number | string)[][]): string {
+  return `\\begin{pmatrix} ${rows.map((row) => row.join(' & ')).join(' \\\\ ')} \\end{pmatrix}`;
+}
+
+const UNKNOWNS_TEX = stackTex(UNKNOWNS);
+
+/** A negative number in brackets, for a product written out. */
+const br = (n: number) => (n < 0 ? `(${n})` : `${n}`);
+
+/** ` + 3` or ` - 3`, and nothing at all for zero. */
+const signedTex = (n: number) => (n === 0 ? '' : n < 0 ? ` - ${-n}` : ` + ${n}`);
+
+/** A pair of numbers multiplied, then summed: `(2)(3) + (-1)(4)`. */
+const productsTex = (left: number[], right: number[]) =>
+  left.map((value, idx) => `(${value})(${right[idx]})`).join(' + ');
+
+const dot = (left: number[], right: number[]) =>
+  left.reduce((sum, value, idx) => sum + value * right[idx], 0);
+
+/** What is left once row `r` and column `c` are crossed out, read row by row. */
+function minorGridAt(m: Grid, r: number, c: number): [number, number, number, number] {
+  const rows = [0, 1, 2].filter((i) => i !== r);
+  const cols = [0, 1, 2].filter((j) => j !== c);
+  return [m[rows[0]][cols[0]], m[rows[0]][cols[1]], m[rows[1]][cols[0]], m[rows[1]][cols[1]]];
+}
+
+function minorAt(m: Grid, r: number, c: number): number {
+  const [a, b, p, q] = minorGridAt(m, r, c);
+  return a * q - b * p;
+}
+
+/** A minor along the first row, which is the only row this level expands along. */
+const minorOf = (m: Grid, c: number) => minorAt(m, 0, c);
+
+/** Expansion along the first row, with the signs going + - +. */
+function det3(m: Grid): number {
+  return m[0][0] * minorOf(m, 0) - m[0][1] * minorOf(m, 1) + m[0][2] * minorOf(m, 2);
+}
+
+const timesVector = (m: Grid, v: number[]) => m.map((row) => dot(row, v));
+const transposed = (m: Grid): Grid => [0, 1, 2].map((c) => m.map((row) => row[c]));
+const copyGrid = (m: Grid): Grid => m.map((row) => [...row]);
+
+/** The adjugate: the transposed matrix of cofactors. */
+function adjugate(m: Grid): Grid {
+  return [0, 1, 2].map((r) => [0, 1, 2].map((c) => ((r + c) % 2 === 0 ? 1 : -1) * minorAt(m, c, r)));
+}
+
+/** `2x - y + 3z`, with zero terms left out and a coefficient of one left bare. */
+function termsTex(coeffs: number[], names: string[]): string {
+  let out = '';
+  coeffs.forEach((c, idx) => {
+    if (c === 0) return;
+    const size = Math.abs(c) === 1 ? '' : `${Math.abs(c)}`;
+    out += out === '' ? `${c < 0 ? '-' : ''}${size}${names[idx]}` : ` ${c < 0 ? '-' : '+'} ${size}${names[idx]}`;
+  });
+  return out === '' ? '0' : out;
+}
+
+/** One equation, its terms written in `order`. */
+function equationTex(coeffs: number[], rhs: number | string, order: number[] = coeffs.map((_, i) => i)): string {
+  return `${termsTex(
+    order.map((i) => coeffs[i]),
+    order.map((i) => UNKNOWNS[i]),
+  )} = ${rhs}`;
+}
+
+/** Equations stacked and lined up on their equals signs. */
+function systemTex(lines: string[]): string {
+  return `\\begin{aligned} ${lines.map((line) => line.replace(' = ', ' &= ')).join(' \\\\ ')} \\end{aligned}`;
+}
+
+/** `y = 3x - 2`, the form a line's gradient and intercept are read from. */
+function lineTex(m: number, c: number): string {
+  return `${m === 1 ? '' : m === -1 ? '-' : m}x${signedTex(c)}`;
+}
+
+/** A 3x3 of whole numbers, none of them zero unless `zeros` asks for some. */
+function drawGrid(rng: SampleRng, span: number, zeros = 0): Grid {
+  const m = [0, 1, 2].map(() => [0, 1, 2].map(() => nonZero(rng.int(-span, span), rng.pick([1, 2, -1]))));
+  for (let i = 0; i < zeros; i += 1) m[rng.int(0, 2)][rng.int(0, 2)] = 0;
+  return m;
+}
+
+/** A 3x3 with a non-zero determinant. */
+function drawInvertible(rng: SampleRng, span: number, zeros: number): Grid {
+  for (let tries = 0; tries < 40; tries += 1) {
+    const m = drawGrid(rng, span, zeros);
+    if (det3(m) !== 0) return m;
+  }
+  return [
+    [2, 1, -1],
+    [1, 3, 2],
+    [-1, 1, 1],
+  ];
+}
+
+/**
+ * A native choice slide whose answer sits in a slot the question's own
+ * numbers choose.
+ *
+ * Several questions here offer labels of one fixed make — "No solutions",
+ * "Infinitely many" — and a rotation hashed from the labels alone would then
+ * pin the answer to a slot or two. Hashing the parameters as well spreads it
+ * over all four, and one question still renders one way.
+ */
+function slotted(right: string, wrong: string[], salt: string, tex = true) {
+  const others = [...new Set(wrong)].filter((label) => label !== right).slice(0, 3);
+  let hash = 7;
+  for (let i = 0; i < salt.length; i += 1) hash = (hash * 31 + salt.charCodeAt(i)) | 0;
+  const at = Math.abs(hash) % (others.length + 1);
+  const labels = [...others.slice(0, at), right, ...others.slice(at)];
+  return {
+    options: labels.map((label, idx) => ({ id: `opt${idx}`, label, tex })),
+    correctId: `opt${at}`,
+  };
+}
+
+/* ----- three equations, one matrix equation ----- */
+
+const IDENTITY = [0, 1, 2];
+const inOrder = (order: number[]) => order.every((value, idx) => value === idx);
+
+interface SysReadParams {
+  m: Grid;
+  b: number[];
+  row: number;
+  /** The order each equation's terms are written in. */
+  orders: number[][];
+}
+
+/**
+ * A row of the matrix and an entry of b, read off a written system.
+ *
+ * The two slips are the ones this question exists for: an unknown missing
+ * from an equation still needs its 0 in the matrix, and at difficulty 2 the
+ * terms are written out of order, so reading coefficients left to right puts
+ * them in the wrong columns.
+ */
+const sysRead: Generator<SysReadParams> = {
+  id: 'mat-sys-read',
+  sample: (rng, difficulty) => {
+    const m = drawGrid(rng, difficulty > 1 ? 9 : 6);
+    const row = rng.int(0, 2);
+    if (rng.chance(0.7)) m[row][rng.int(0, 2)] = 0;
+    const orders = [0, 1, 2].map((i) => {
+      if (difficulty < 2) return IDENTITY;
+      if (i !== row) return rng.chance(0.5) ? IDENTITY : rng.shuffle(IDENTITY);
+      const order = rng.shuffle(IDENTITY);
+      return inOrder(order) ? [2, 0, 1] : order;
+    });
+    return { m, b: [0, 1, 2].map(() => nonZero(rng.int(-15, 15), 7)), row, orders };
+  },
+  render: ({ m, b, row, orders }) => {
+    const answer = [...m[row], b[row]].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Write this system as $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$, with the unknowns in the order $x, y, z$. Fill in the ${ORDINALS[row]} row of $\\mathbf{A}$ and the ${ORDINALS[row]} entry of $\\mathbf{b}$.`,
+        },
+        { kind: 'display', tex: systemTex(m.map((coeffs, i) => equationTex(coeffs, b[i], orders[i]))) },
+      ],
+      template: `\\text{row}: \\; {0} \\quad {1} \\quad {2} \\qquad \\mathbf{b}: \\; {3}`,
+      bank: bankOf(answer, [
+        ...m[row].map((c) => `${-c}`),
+        `${-b[row]}`,
+        // A missing unknown read as a coefficient of one.
+        m[row].includes(0) ? '1' : `${m[(row + 1) % 3][0]}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ m, b, row, orders }) => [
+    {
+      text: `Rewrite the ${ORDINALS[row]} equation with its unknowns in the order $x, y, z$, and a $0$ for any unknown it leaves out.`,
+    },
+    { tex: equationTex(m[row], b[row], orders[row]) },
+    { tex: `${m[row].map((c, i) => `${i === 0 ? c : `${c < 0 ? '-' : '+'} ${Math.abs(c)}`}${UNKNOWNS[i]}`).join(' ')} = ${b[row]}` },
+    {
+      text: `The coefficients in that order are the row, $${m[row].join(', \\; ')}$, and the number on the right, $${b[row]}$, is the entry of $\\mathbf{b}$.`,
+    },
+    {
+      text: 'Reading the coefficients in the order they happen to be written, or skipping a missing unknown instead of writing $0$, puts numbers in the wrong columns.',
+    },
+  ],
+};
+
+interface SysBackParams {
+  m: Grid;
+  b: number[];
+  row: number;
+}
+
+/** The other direction: one equation read back out of a matrix equation. */
+const sysBack: Generator<SysBackParams> = {
+  id: 'mat-sys-back',
+  sample: (rng, difficulty) => ({
+    m: drawGrid(rng, difficulty > 1 ? 9 : 5, difficulty > 1 ? 1 : 0),
+    b: [0, 1, 2].map(() => nonZero(rng.int(-12, 12), -4)),
+    row: rng.int(0, 2),
+  }),
+  render: ({ m, b, row }): Slide => {
+    const { options: offered, correctId } = slotted(
+      equationTex(m[row], b[row]),
+      [
+        // A column read as if it were a row.
+        equationTex(transposed(m)[row], b[row]),
+        // The right-hand side of a different row.
+        equationTex(m[row], b[(row + 1) % 3]),
+        // The coefficients paired with the unknowns the wrong way round.
+        equationTex([...m[row]].reverse(), b[row]),
+        equationTex(m[row], -b[row]),
+      ],
+      `${m.flat().join(',')}|${b.join(',')}|${row}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Which equation does the ${ORDINALS[row]} row of this matrix equation say?` },
+        { kind: 'display', tex: `${gridTex(m)} ${UNKNOWNS_TEX} = ${stackTex(b)}` },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ m, b, row }) => [
+    {
+      text: `Row ${row + 1} of the matrix multiplies the column of unknowns: its first entry goes with $x$, its second with $y$ and its third with $z$.`,
+    },
+    { text: `$${m[row].map((c, i) => `${br(c)}${UNKNOWNS[i]}`).join(' + ')} = ${b[row]}$` },
+    { tex: equationTex(m[row], b[row]) },
+    {
+      text: 'The right-hand side is the same row of $\\mathbf{b}$. Reading a column of the matrix instead of a row is the usual slip.',
+    },
+  ],
+};
+
+interface SysVectorParams {
+  m: Grid;
+  v: number[];
+}
+
+/** A 3x3 matrix times a column: the left-hand side of three equations at once. */
+const sysVector: Generator<SysVectorParams> = {
+  id: 'mat-sys-vector',
+  choices: ({ m, v }) => {
+    const right = timesVector(m, v);
+    return options(
+      { tex: stackTex(right) },
+      // Columns instead of rows, the diagonal only, and upside down.
+      { tex: stackTex(timesVector(transposed(m), v)) },
+      { tex: stackTex(m.map((row, i) => row[i] * v[i])) },
+      { tex: stackTex([...right].reverse()) },
+      { tex: stackTex(right.map((value) => -value)) },
+    ).slice(0, 4);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 6 : 4;
+    return {
+      m: drawGrid(rng, span, difficulty > 1 ? 2 : 1),
+      v: [0, 1, 2].map(() => nonZero(rng.int(-span, span), 2)),
+    };
+  },
+  render: ({ m, v }) => {
+    const answer = timesVector(m, v).map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Work out the three entries of the product, top to bottom.' },
+        { kind: 'display', tex: `${gridTex(m)} ${stackTex(v)}` },
+      ],
+      template: `({0}, \\; {1}, \\; {2})`,
+      bank: bankOf(answer, [...timesVector(transposed(m), v), ...m.map((row, i) => row[i] * v[i])].map(String)),
+      answer,
+    };
+  },
+  solution: ({ m, v }) => {
+    const out = timesVector(m, v);
+    return [
+      {
+        text: 'Each entry of the answer is one *row* of the matrix times the column: multiply pair by pair across, and add.',
+      },
+      ...m.map((row, i) => ({ text: `Row ${i + 1}: $${productsTex(row, v)} = ${out[i]}$` })),
+      { tex: `= ${stackTex(out)}` },
+      {
+        text: 'Using the columns of the matrix instead of the rows is the standard slip, exactly as with a 2 by 2.',
+      },
+    ];
+  },
+};
+
+interface SysRhsParams {
+  m: Grid;
+  /** The solution, chosen first. */
+  s: number[];
+  row: number;
+}
+
+/** A missing right-hand side, from a solution the system is known to have. */
+const sysRhs: Generator<SysRhsParams> = {
+  id: 'mat-sys-rhs',
+  choices: ({ m, s, row }) => {
+    const right = dot(m[row], s);
+    return signedChoices(right, [
+      dot(m[row], [...s].reverse()),
+      -right,
+      dot(m[row], [s[0], s[1], -s[2]]),
+      m[row][0] + m[row][1] + m[row][2],
+    ]);
+  },
+  sample: (rng, difficulty) => ({
+    m: drawGrid(rng, difficulty > 1 ? 7 : 4, 1),
+    s: [0, 1, 2].map(() => nonZero(rng.int(-5, 5), 3)),
+    row: rng.int(0, 2),
+  }),
+  render: ({ m, s, row }) => {
+    const b = timesVector(m, s);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This system has the solution $x = ${s[0]}$, $y = ${s[1]}$, $z = ${s[2]}$. Find the missing number $k$.`,
+        },
+        { kind: 'display', tex: systemTex(m.map((coeffs, i) => equationTex(coeffs, i === row ? 'k' : b[i]))) },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${b[row]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ m, s, row }) => {
+    const value = dot(m[row], s);
+    return [
+      {
+        text: `A solution makes every equation true, so substitute it into the ${ORDINALS[row]} equation: the left-hand side is then $k$.`,
+      },
+      { text: `$${productsTex(m[row], s)} = ${value}$` },
+      { tex: `k = ${value}` },
+      {
+        text: 'In matrix terms this is one row of $\\mathbf{A}\\mathbf{x}$: multiplying the solution by $\\mathbf{A}$ gives back $\\mathbf{b}$.',
+      },
+    ];
+  },
+};
+
+/* ----- the 3x3 determinant ----- */
+
+/** Expanding along the first row, each minor worked out on its own line. */
+function expansionSteps(m: Grid): SolutionStep[] {
+  const [p, q, r] = m[0];
+  const minors = [0, 1, 2].map((c) => minorOf(m, c));
+  return [
+    {
+      text: 'Each entry of the first row times its minor, with the signs going $+ \\; - \\; +$ along the row.',
+    },
+    { tex: `${p}M_1 - ${br(q)}M_2 + ${br(r)}M_3` },
+    ...minors.map((minor, c) => {
+      const [a, b, e, f] = minorGridAt(m, 0, c);
+      return { text: `$M_${c + 1} = (${a})(${f}) - (${b})(${e}) = ${minor}$` };
+    }),
+    {
+      text: `$(${p})(${minors[0]}) - (${q})(${minors[1]}) + (${r})(${minors[2]}) = ${det3(m)}$`,
+    },
+    { text: 'The minus on the middle term is the step most often dropped.' },
+  ];
+}
+
+interface SysMinorParams {
+  m: Grid;
+  col: number;
+}
+
+/** One minor: the 2x2 left once a row and a column are crossed out. */
+const sysMinor: Generator<SysMinorParams> = {
+  id: 'mat-sys-minor',
+  choices: ({ m, col }) => {
+    const right = minorOf(m, col);
+    const [a, b, c, d] = minorGridAt(m, 0, col);
+    return signedChoices(right, [-right, a * d + b * c, minorOf(m, (col + 1) % 3), a * b - c * d]);
+  },
+  sample: (rng, difficulty) => ({ m: drawGrid(rng, difficulty > 1 ? 9 : 5), col: rng.int(0, 2) }),
+  render: ({ m, col }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Cross out the first row and column ${col + 1}. The determinant of what is left is $M_${col + 1}$, the minor of the entry $${m[0][col]}$. Find it.`,
+      },
+      { kind: 'display', tex: `\\mathbf{A} = ${gridTex(m)}` },
+    ],
+    lead: `M_${col + 1} =`,
+    keypad: [],
+    answer: `${minorOf(m, col)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ m, col }) => {
+    const [a, b, c, d] = minorGridAt(m, 0, col);
+    return [
+      {
+        text: `Delete row 1 and column ${col + 1}. The four entries left, kept in their places, make a 2 by 2 matrix.`,
+      },
+      { tex: `M_${col + 1} = \\begin{vmatrix} ${a} & ${b} \\\\ ${c} & ${d} \\end{vmatrix}` },
+      { text: `$(${a})(${d}) - (${b})(${c}) = ${a * d} - ${br(b * c)} = ${a * d - b * c}$` },
+      { text: 'Leading diagonal minus the other one, exactly as for any 2 by 2 determinant.' },
+    ];
+  },
+};
+
+interface SysDetParams {
+  m: Grid;
+}
+
+/** The whole 3x3 determinant, typed. */
+const sysDet: Generator<SysDetParams> = {
+  id: 'mat-sys-det',
+  choices: ({ m }) => {
+    const right = det3(m);
+    return signedChoices(right, [
+      // Every sign a plus, the sign flipped, and the first term alone.
+      m[0][0] * minorOf(m, 0) + m[0][1] * minorOf(m, 1) + m[0][2] * minorOf(m, 2),
+      -right,
+      m[0][0] * minorOf(m, 0),
+      m[0][0] * m[1][1] * m[2][2],
+    ]);
+  },
+  sample: (rng, difficulty) => ({ m: drawGrid(rng, difficulty > 1 ? 5 : 3, difficulty > 1 ? 1 : 2) }),
+  render: ({ m }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the determinant by expanding along the first row.' },
+      { kind: 'display', tex: `\\mathbf{A} = ${gridTex(m)}` },
+    ],
+    lead: '\\det \\mathbf{A} =',
+    keypad: [],
+    answer: `${det3(m)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ m }) => expansionSteps(m),
+};
+
+/**
+ * The same expansion as a tree: three minors, three signed terms, one sum.
+ *
+ * The middle row is where the sign pattern lives, so a learner who drops the
+ * minus on the middle term places a value that is visibly not on offer in the
+ * right place — the bank holds it, but the sum underneath then disagrees.
+ */
+const sysDetTree: Generator<SysDetParams> = {
+  id: 'mat-sys-det-tree',
+  sample: (rng, difficulty) => ({ m: drawGrid(rng, difficulty > 1 ? 4 : 3, 1) }),
+  render: ({ m }): Slide => {
+    const [p, q, r] = m[0];
+    const minors = [0, 1, 2].map((c) => minorOf(m, c));
+    const terms = [p * minors[0], -q * minors[1], r * minors[2]];
+    const answer = [...minors, ...terms, det3(m)].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Top row: the three minors, left to right. Middle row: each one times its entry, with the signs $+ \\; - \\; +$. Bottom: the determinant.',
+        },
+        { kind: 'display', tex: `\\mathbf{A} = ${gridTex(m)}` },
+      ],
+      expression: `${p}M_1 - ${br(q)}M_2 + ${br(r)}M_3`,
+      nodes: [
+        { id: 'm1', from: [] },
+        { id: 'm2', from: [] },
+        { id: 'm3', from: [] },
+        { id: 't1', from: ['m1'] },
+        { id: 't2', from: ['m2'] },
+        { id: 't3', from: ['m3'] },
+        { id: 'det', from: ['t1', 't2', 't3'] },
+      ],
+      bank: bankOf(
+        answer,
+        // The middle sign dropped, both in its term and in the total.
+        [q * minors[1], terms[0] + q * minors[1] + terms[2], -minors[0]].map(String),
+      ),
+      answer,
+    };
+  },
+  solution: ({ m }) => expansionSteps(m),
+};
+
+type ZeroRelation = 'equal' | 'zero' | 'multiple' | 'sum';
+
+interface SysZeroParams {
+  right: Grid;
+  wrong: Grid[];
+  relation: ZeroRelation;
+  /** Row `j` is built from row `i` (and, for a sum, the third row too). */
+  i: number;
+  j: number;
+  t: number;
+}
+
+/**
+ * Which matrix is singular, spotted from its rows rather than expanded.
+ *
+ * The three wrong options are the right one with a single entry of the
+ * dependent row nudged, so the relation between the rows is the only thing
+ * that tells them apart.
+ */
+const sysDetZero: Generator<SysZeroParams> = {
+  id: 'mat-sys-det-zero',
+  sample: (rng, difficulty) => {
+    const relation = rng.pick<ZeroRelation>(difficulty > 1 ? ['multiple', 'sum'] : ['equal', 'zero', 'multiple']);
+    const [i, j] = rng.sample([0, 1, 2], 2);
+    const k = 3 - i - j;
+    const t = relation === 'multiple' ? rng.pick(difficulty > 1 ? [-3, -2, 2, 3] : [2, 3]) : 1;
+    // Nudging an entry of the tied row changes the determinant by its
+    // cofactor, so a draw whose other two rows are themselves tied has no
+    // wrong options to offer. Draw again until all three exist.
+    let right: Grid = [];
+    let wrong: Grid[] = [];
+    for (let tries = 0; tries < 40 && wrong.length < 3; tries += 1) {
+      const g = drawGrid(rng, difficulty > 1 ? 6 : 4);
+      const built =
+        relation === 'equal'
+          ? [...g[i]]
+          : relation === 'zero'
+            ? [0, 0, 0]
+            : relation === 'multiple'
+              ? g[i].map((value) => t * value)
+              : g[i].map((value, c) => value + g[k][c]);
+      right = g.map((row, idx) => (idx === j ? built : [...row]));
+      wrong = [0, 1, 2].map((c) => {
+        const w = copyGrid(right);
+        w[j][c] += rng.pick([1, -1]);
+        return w;
+      });
+      wrong = wrong.filter((w) => det3(w) !== 0);
+    }
+    return { right, wrong, relation, i, j, t };
+  },
+  render: ({ right, wrong }): Slide => {
+    const { options: offered, correctId } = slotted(
+      gridTex(right),
+      wrong.map(gridTex),
+      [right, ...wrong].map((m) => m.flat().join(',')).join('|'),
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Which of these matrices has determinant zero? Look at how the rows are related before expanding anything.',
+        },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ right, wrong, relation, i, j, t }) => {
+    const k = 3 - i - j;
+    const relationText = {
+      equal: `Row ${j + 1} is the same as row ${i + 1}.`,
+      zero: `Row ${j + 1} is all zeros.`,
+      multiple: `Row ${j + 1} is $${t}$ times row ${i + 1}.`,
+      sum: `Row ${j + 1} is row ${i + 1} and row ${k + 1} added together.`,
+    }[relation];
+    return [
+      {
+        text: 'A determinant is zero exactly when one row can be built from the others: the matrix then flattens space, and the volume it scales by is zero.',
+      },
+      { text: relationText },
+      { tex: `\\det ${gridTex(right)} = 0` },
+      {
+        text: `Each of the other three changes one entry of that row, which breaks the tie. Their determinants are $${wrong.map(det3).join('$, $')}$.`,
+      },
+    ];
+  },
+};
+
+type RuleKind = 'scale' | 'swap' | 'row' | 'transpose' | 'swapScale';
+
+interface SysRuleParams {
+  d: number;
+  k: number;
+  rule: RuleKind;
+  rows: [number, number];
+}
+
+function ruleValue({ d, k, rule }: SysRuleParams): number {
+  return {
+    scale: k ** 3 * d,
+    swap: -d,
+    row: k * d,
+    transpose: d,
+    swapScale: -(k ** 3) * d,
+  }[rule];
+}
+
+/**
+ * What a change to a 3x3 matrix does to its determinant, without expanding.
+ *
+ * Scaling the whole matrix is the one to watch: each of the three rows is
+ * scaled, so the determinant goes up by the cube of the factor, not by the
+ * factor once.
+ */
+const sysDetRule: Generator<SysRuleParams> = {
+  id: 'mat-sys-det-rule',
+  choices: (p) => {
+    const right = ruleValue(p);
+    return signedChoices(right, [p.k * p.d, p.k ** 3 * p.d, -right, p.d, 3 * p.k * p.d]);
+  },
+  sample: (rng, difficulty) => {
+    const [r1, r2] = rng.sample([1, 2, 3], 2).sort();
+    return {
+      d: nonZero(rng.int(-9, 9), 4),
+      k: difficulty > 1 ? rng.pick([-3, -2, 2, 3]) : rng.int(2, 3),
+      rule: rng.pick<RuleKind>(
+        difficulty > 1 ? ['scale', 'swapScale', 'row', 'transpose', 'scale'] : ['scale', 'swap', 'row', 'scale'],
+      ),
+      rows: [r1, r2],
+    };
+  },
+  render: (p) => {
+    const { d, k, rule, rows } = p;
+    const given = `$\\mathbf{A}$ is a $3 \\times 3$ matrix with $\\det \\mathbf{A} = ${d}$.`;
+    const asked = {
+      scale: { text: `Find the determinant of $${k}\\mathbf{A}$.`, lead: `\\det(${k}\\mathbf{A}) =` },
+      swap: { text: `$\\mathbf{B}$ is $\\mathbf{A}$ with rows ${rows[0]} and ${rows[1]} swapped.`, lead: '\\det \\mathbf{B} =' },
+      row: { text: `$\\mathbf{B}$ is $\\mathbf{A}$ with row ${rows[0]} multiplied by $${k}$.`, lead: '\\det \\mathbf{B} =' },
+      transpose: { text: 'Find the determinant of its transpose.', lead: '\\det(\\mathbf{A}^{T}) =' },
+      swapScale: {
+        text: `$\\mathbf{B}$ is $${k}\\mathbf{A}$ with rows ${rows[0]} and ${rows[1]} swapped.`,
+        lead: '\\det \\mathbf{B} =',
+      },
+    }[rule];
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${given} ${asked.text}` }],
+      lead: asked.lead,
+      keypad: [],
+      answer: `${ruleValue(p)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const { d, k, rule } = p;
+    const value = ruleValue(p);
+    const cube = `${br(k)}^3`;
+    const lines: Record<RuleKind, SolutionStep[]> = {
+      scale: [
+        {
+          text: `Multiplying the matrix by $${k}$ multiplies all three of its rows by $${k}$, and each row scales the determinant once.`,
+        },
+        { tex: `${cube} \\times ${br(d)} = ${value}` },
+      ],
+      swap: [
+        { text: 'Swapping two rows changes the sign of the determinant and nothing else.' },
+        { tex: `-${br(d)} = ${value}` },
+      ],
+      row: [
+        { text: `Multiplying one row by $${k}$ multiplies the determinant by $${k}$, once.` },
+        { tex: `${k} \\times ${br(d)} = ${value}` },
+      ],
+      transpose: [
+        {
+          text: 'A matrix and its transpose have the same determinant: expanding down the first column gives the same number as along the first row.',
+        },
+        { tex: `\\det(\\mathbf{A}^{T}) = ${d}` },
+      ],
+      swapScale: [
+        { text: `Scaling by $${k}$ multiplies the determinant by $${cube}$, and the swap then changes its sign.` },
+        { text: `$-${cube} \\times ${br(d)} = ${value}$` },
+      ],
+    };
+    return [
+      ...lines[rule],
+      {
+        text: 'Scaling a whole 3 by 3 matrix by $k$ scales the determinant by $k^3$, not by $k$. That is the rule most often misapplied.',
+      },
+    ];
+  },
+};
+
+/* ----- when the determinant is zero ----- */
+
+type LinesRoute = 'cross' | 'same' | 'parallel';
+
+interface SysLinesParams {
+  route: LinesRoute;
+  /** The two lines as y = mx + c, and the multiple each equation is written as. */
+  m: number;
+  c: number;
+  m2: number;
+  c2: number;
+  s: number;
+  t: number;
+}
+
+/** A line y = mx + c, written as `s` times `-mx + y = c`. */
+const lineEquation = (m: number, c: number, s: number) => equationTex([-s * m, s], s * c);
+
+/**
+ * How many solutions two equations have, decided by what their lines look
+ * like.
+ *
+ * `mat-method` walks the same question through the determinant; this one
+ * walks it through the picture, which is where "none" and "infinitely many"
+ * come from.
+ */
+const sysLines: Generator<SysLinesParams> = {
+  id: 'mat-sys-lines',
+  sample: (rng, difficulty) => {
+    const route = rng.pick<LinesRoute>(['cross', 'same', 'parallel']);
+    const multiples = difficulty > 1 ? [-3, -2, -1, 2, 3, 4] : [1, 2, 3];
+    const [s, t] = rng.sample(multiples, 2);
+    const m = nonZero(rng.int(-4, 4), 2);
+    const c = rng.int(-6, 6);
+    const m2 = route === 'cross' ? (m + nonZero(rng.int(-3, 3), 1) || -m) : m;
+    const c2 = route === 'same' ? c : route === 'parallel' ? c + nonZero(rng.int(-4, 4), 3) : rng.int(-6, 6);
+    return { route, m, c, m2, c2, s, t };
+  },
+  render: ({ route, m, c, m2, c2, s, t }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Each equation is a straight line. Work down the questions to decide how many solutions the pair has.',
+      },
+    ],
+    subject: systemTex([lineEquation(m, c, s), lineEquation(m2, c2, t)]),
+    steps: [
+      {
+        id: 'gradient',
+        ask: 'Rearrange each equation as $y = mx + c$. Do the two lines have the same gradient?',
+        branches: [
+          { label: 'No', outcome: 'The lines cross at exactly one point: one solution.' },
+          { label: 'Yes', to: 'intercept' },
+        ],
+      },
+      {
+        id: 'intercept',
+        ask: 'Do they also cross the $y$-axis at the same place?',
+        branches: [
+          { label: 'Yes', outcome: 'They are the same line: infinitely many solutions.' },
+          { label: 'No', outcome: 'They are parallel and never meet: no solutions.' },
+        ],
+      },
+    ],
+    answer: route === 'cross' ? ['No'] : route === 'same' ? ['Yes', 'Yes'] : ['Yes', 'No'],
+  }),
+  solution: ({ route, m, c, m2, c2 }) => [
+    { text: 'Divide each equation through and rearrange it as $y = mx + c$.' },
+    { tex: `y = ${lineTex(m, c)}` },
+    { tex: `y = ${lineTex(m2, c2)}` },
+    {
+      text:
+        route === 'cross'
+          ? `The gradients, $${m}$ and $${m2}$, differ, so the lines cross exactly once and there is one solution.`
+          : route === 'same'
+            ? 'Same gradient and same intercept: the two equations are one line written twice, and every point on it is a solution.'
+            : `Same gradient, $${m}$, but different intercepts: the lines are parallel, never meet, and nothing solves both.`,
+    },
+  ],
+};
+
+interface SysConsistentParams {
+  u: number;
+  v: number;
+  c: number;
+  s: number;
+  t: number;
+}
+
+/**
+ * The right-hand side that turns "no solutions" into "infinitely many".
+ *
+ * Both equations are multiples of one left-hand side, so the determinant is
+ * zero whatever q is; q decides only whether the two agree.
+ */
+const sysConsistent: Generator<SysConsistentParams> = {
+  id: 'mat-sys-consistent',
+  choices: ({ c, s, t }) => signedChoices(t * c, [s * c, t * s * c, c, -t * c]),
+  sample: (rng, difficulty) => {
+    const u = nonZero(rng.int(-5, 5), 2);
+    let v = nonZero(rng.int(-5, 5), 3);
+    if (Math.abs(u) === Math.abs(v)) v = v > 0 ? v + 1 : v - 1;
+    const [s, t] = difficulty > 1 ? rng.sample([-3, -2, 2, 3, 4], 2) : [1, rng.pick([-3, -2, 2, 3, 4])];
+    return { u, v, c: nonZero(rng.int(-6, 6), 5), s, t };
+  },
+  render: ({ u, v, c, s, t }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'For which value of $q$ does this system have infinitely many solutions?' },
+      { kind: 'display', tex: systemTex([equationTex([s * u, s * v], s * c), equationTex([t * u, t * v], 'q')]) },
+    ],
+    lead: 'q =',
+    keypad: [],
+    answer: `${t * c}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ u, v, c, s, t }) => {
+    const base = termsTex([u, v], UNKNOWNS);
+    return [
+      {
+        text: `Both left-hand sides are multiples of $${base}$: the first is $${s}$ times it and the second $${t}$ times it. So the determinant is zero, and there is never exactly one solution.`,
+      },
+      {
+        text:
+          s === 1
+            ? `The first equation says $${base} = ${c}$.`
+            : `The first equation says $${base} = ${s * c} \\div ${br(s)} = ${c}$.`,
+      },
+      { text: `The second then needs $q = ${t} \\times ${br(c)} = ${t * c}$ to say the same thing.` },
+      {
+        text: 'With that value the two equations are one line and every point on it is a solution. Any other value makes them contradict each other, and there are none.',
+      },
+    ];
+  },
+};
+
+interface SysLineFormParams {
+  m: number;
+  c: number;
+  s: number;
+  t: number;
+}
+
+/** Infinitely many solutions, written as the one line they all lie on. */
+const sysLineForm: Generator<SysLineFormParams> = {
+  id: 'mat-sys-line-form',
+  sample: (rng, difficulty) => {
+    const [s, t] = difficulty > 1 ? rng.sample([-3, -2, 2, 3, 4, 5], 2) : [1, rng.pick([-2, 2, 3])];
+    return { m: nonZero(rng.int(-5, 5), 3), c: rng.int(-9, 9), s, t };
+  },
+  render: ({ m, c, s, t }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'These two equations describe the same line, so the system has infinitely many solutions. Write that line in the form $y = mx + c$.',
+      },
+      { kind: 'display', tex: systemTex([lineEquation(m, c, s), lineEquation(m, c, t)]) },
+    ],
+    lead: 'y =',
+    keypad: [{ insert: 'x', tex: true }],
+    answer: `${m}*x + (${c})`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ m, c, s, t }) => [
+    {
+      text:
+        s === 1
+          ? 'Rearrange the first equation to leave $y$ on its own.'
+          : `Divide the first equation by $${s}$ and rearrange to leave $y$ on its own.`,
+    },
+    { tex: `y = ${lineTex(m, c)}` },
+    {
+      text: `The second divided by $${t}$ gives the same line. Every point on it solves both equations, which is what infinitely many solutions looks like.`,
+    },
+  ],
+};
+
+type CountRoute = 'unique' | 'same' | 'none';
+
+interface SysCountParams {
+  route: CountRoute;
+  u: number;
+  v: number;
+  c: number;
+  s: number;
+  t: number;
+  /** The second row and right-hand side, for the draw that has one solution. */
+  e: number;
+  f: number;
+  g: number;
+  /** How far off agreement the right-hand side is, for the draw with none. */
+  miss: number;
+}
+
+function countRows({ route, u, v, c, s, t, e, f, g, miss }: SysCountParams): number[][] {
+  if (route === 'unique') return [[s * u, s * v, s * c], [e, f, g]];
+  return [
+    [s * u, s * v, s * c],
+    [t * u, t * v, t * c + (route === 'none' ? miss : 0)],
+  ];
+}
+
+const COUNT_LABELS: Record<CountRoute, string> = {
+  unique: 'Exactly one solution',
+  same: 'Infinitely many solutions',
+  none: 'No solutions',
+};
+
+/** The same decision as a pick-one, asked of a matrix equation. */
+const sysCount: Generator<SysCountParams> = {
+  id: 'mat-sys-count',
+  sample: (rng, difficulty) => {
+    const route = rng.pick<CountRoute>(['unique', 'same', 'none']);
+    const u = nonZero(rng.int(-5, 5), 2);
+    const v = nonZero(rng.int(-5, 5), -3);
+    const [s, t] = difficulty > 1 ? rng.sample([-3, -2, 2, 3, 4], 2) : [1, rng.pick([-2, 2, 3, 4])];
+    let e = nonZero(rng.int(-6, 6), 1);
+    const f = nonZero(rng.int(-6, 6), 4);
+    // Keep the one-solution draw genuinely invertible.
+    if (s * u * f - s * v * e === 0) e += 1;
+    return {
+      route,
+      u,
+      v,
+      c: rng.int(-6, 6),
+      s,
+      t,
+      e,
+      f,
+      g: rng.int(-12, 12),
+      miss: nonZero(rng.int(-3, 3), 1),
+    };
+  },
+  render: (p): Slide => {
+    const [[a, b, r1], [c, d, r2]] = countRows(p);
+    const { options: offered, correctId } = slotted(
+      COUNT_LABELS[p.route],
+      [...Object.values(COUNT_LABELS), 'Exactly two solutions'],
+      `${a},${b},${c},${d},${r1},${r2}`,
+      false,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'How many solutions does this system have?' },
+        {
+          kind: 'display',
+          tex: `${matrixTex(a, b, c, d)} \\begin{pmatrix} x \\\\ y \\end{pmatrix} = ${columnTex(r1, r2)}`,
+        },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: (p) => {
+    const [[a, b, r1], [c, d, r2]] = countRows(p);
+    const det = a * d - b * c;
+    const steps: SolutionStep[] = [
+      { text: `Start with the determinant: $(${a})(${d}) - (${b})(${c}) = ${det}$.` },
+    ];
+    if (p.route === 'unique') {
+      return [
+        ...steps,
+        { text: 'It is not zero, so the matrix has an inverse and there is exactly one solution.' },
+        { text: 'Two straight lines can never meet at exactly two points: they cross once, never, or all the way along.' },
+      ];
+    }
+    const ratio = p.s === 1 ? `${p.t}` : `\\frac{${p.t}}{${p.s}}`;
+    return [
+      ...steps,
+      {
+        text: `It is zero: the second row is $${ratio}$ times the first. Now check the right-hand side against the same multiple.`,
+      },
+      { text: `$${br(r1)} \\times ${ratio} = ${(r1 * p.t) / p.s}$, against $${r2}$.` },
+      {
+        text:
+          p.route === 'same'
+            ? 'They agree, so the two equations are one line and there are infinitely many solutions.'
+            : 'They disagree, so the equations contradict each other: parallel lines, and no solutions.',
+      },
+    ];
+  },
+};
+
+/* ----- solving three equations ----- */
+
+/** A with column `col` swapped for b: the matrix on top in Cramer's rule. */
+const replaceColumn = (m: Grid, col: number, b: number[]): Grid =>
+  m.map((row, i) => row.map((value, j) => (j === col ? b[i] : value)));
+
+interface SysSwapParams {
+  m: Grid;
+  b: number[];
+  col: number;
+}
+
+/** Which matrix Cramer's rule puts on top for a given unknown. */
+const sysCramerSwap: Generator<SysSwapParams> = {
+  id: 'mat-sys-cramer-swap',
+  sample: (rng, difficulty) => ({
+    m: drawGrid(rng, difficulty > 1 ? 9 : 5),
+    b: [0, 1, 2].map(() => nonZero(rng.int(-9, 9), 6)),
+    col: rng.int(0, 2),
+  }),
+  render: ({ m, b, col }): Slide => {
+    const name = UNKNOWNS[col];
+    const { options: offered, correctId } = slotted(
+      gridTex(replaceColumn(m, col, b)),
+      [
+        // A row replaced instead of a column, the neighbouring column, and b upside down.
+        gridTex(m.map((row, i) => (i === col ? [...b] : [...row]))),
+        gridTex(replaceColumn(m, (col + 1) % 3, b)),
+        gridTex(replaceColumn(m, col, [...b].reverse())),
+      ],
+      `${m.flat().join(',')}|${b.join(',')}|${col}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `By Cramer's rule, $${name} = \\frac{\\det \\mathbf{A}_${name}}{\\det \\mathbf{A}}$. Which matrix is $\\mathbf{A}_${name}$?`,
+        },
+        { kind: 'display', tex: `\\mathbf{A} = ${gridTex(m)}` },
+        { kind: 'display', tex: `\\mathbf{b} = ${stackTex(b)}` },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ m, b, col }) => {
+    const name = UNKNOWNS[col];
+    return [
+      {
+        text: `Column ${col + 1} of $\\mathbf{A}$ holds the coefficients of $${name}$. Replace that column, and only that column, by $\\mathbf{b}$.`,
+      },
+      { tex: `\\mathbf{A}_${name} = ${gridTex(replaceColumn(m, col, b))}` },
+      {
+        text: `Then $${name} = \\frac{\\det \\mathbf{A}_${name}}{\\det \\mathbf{A}}$. The other two unknowns work the same way, each with its own column replaced.`,
+      },
+    ];
+  },
+};
+
+interface SysCramerParams {
+  m: Grid;
+  /** The solution, chosen first so every determinant divides out exactly. */
+  s: number[];
+  col: number;
+}
+
+/** One unknown of a 3x3 system by Cramer's rule, with det A given. */
+const sysCramer: Generator<SysCramerParams> = {
+  id: 'mat-sys-cramer',
+  choices: ({ m, s, col }) =>
+    signedChoices(s[col], [det3(m) * s[col], -s[col], s[(col + 1) % 3], s[(col + 2) % 3]]),
+  sample: (rng, difficulty) => ({
+    m: drawInvertible(rng, difficulty > 1 ? 3 : 2, difficulty > 1 ? 1 : 2),
+    s: [0, 1, 2].map(() => nonZero(rng.int(-5, 5), -2)),
+    col: rng.int(0, 2),
+  }),
+  render: ({ m, s, col }) => {
+    const b = timesVector(m, s);
+    const name = UNKNOWNS[col];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\det \\mathbf{A} = ${det3(m)}$. Use Cramer's rule to find $${name}$.`,
+        },
+        { kind: 'display', tex: `${gridTex(m)} ${UNKNOWNS_TEX} = ${stackTex(b)}` },
+      ],
+      lead: `${name} =`,
+      keypad: [],
+      answer: `${s[col]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ m, s, col }) => {
+    const b = timesVector(m, s);
+    const top = replaceColumn(m, col, b);
+    const name = UNKNOWNS[col];
+    const minors = [0, 1, 2].map((c) => minorOf(top, c));
+    return [
+      { text: `Replace column ${col + 1}, the $${name}$ column, by the right-hand side.` },
+      { tex: `\\mathbf{A}_${name} = ${gridTex(top)}` },
+      {
+        text: `Expand along the first row: the minors are $${minors.join('$, $')}$, so $\\det \\mathbf{A}_${name} = (${top[0][0]})(${minors[0]}) - (${top[0][1]})(${minors[1]}) + (${top[0][2]})(${minors[2]}) = ${det3(top)}$.`,
+      },
+      { tex: `${name} = \\frac{${det3(top)}}{${det3(m)}} = ${s[col]}` },
+      { text: 'Substituting back into any one equation is a quick check.' },
+    ];
+  },
+};
+
+interface SysInverseParams {
+  /** A^-1 is n divided by k. */
+  n: Grid;
+  k: number;
+  b: number[];
+}
+
+/**
+ * A lower and an upper unitriangular matrix multiplied: determinant 1, so its
+ * inverse has whole entries too, which is what lets difficulty 2 put a
+ * fraction in front of the inverse and still land on a whole solution.
+ */
+function drawUnimodular(rng: SampleRng): Grid {
+  for (let tries = 0; tries < 60; tries += 1) {
+    const [p, q, r, u, v, w] = [0, 0, 0, 0, 0, 0].map(() => rng.int(-2, 2));
+    const lower = [
+      [1, 0, 0],
+      [p, 1, 0],
+      [q, r, 1],
+    ];
+    const upper = [
+      [1, u, v],
+      [0, 1, w],
+      [0, 0, 1],
+    ];
+    const n = lower.map((row) => [0, 1, 2].map((c) => dot(row, upper.map((line) => line[c]))));
+    const inverse = adjugate(n);
+    const flat = [...n.flat(), ...inverse.flat()];
+    if (Math.max(...flat.map(Math.abs)) <= 5 && n.flat().filter((x) => x === 0).length <= 3) return n;
+  }
+  return [
+    [1, 1, 0],
+    [1, 2, 1],
+    [0, 1, 2],
+  ];
+}
+
+/** The solution a question's inverse and right-hand side lead to. */
+const inverseSolution = ({ n, k, b }: SysInverseParams) => timesVector(n, b).map((value) => value / k);
+
+/** x = A^-1 b, with the inverse handed over rather than worked out. */
+const sysInverse: Generator<SysInverseParams> = {
+  id: 'mat-sys-inverse',
+  choices: (p) => {
+    const right = inverseSolution(p);
+    const across = timesVector(transposed(p.n), p.b).map((value) => value / p.k);
+    return options(
+      { tex: stackTex(right) },
+      ...(across.every(Number.isInteger) ? [{ tex: stackTex(across) }] : []),
+      { tex: stackTex(right.map((value) => -value)) },
+      { tex: stackTex([...right].reverse()) },
+      { tex: stackTex(p.b) },
+    ).slice(0, 4);
+  },
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) {
+      return {
+        n: drawInvertible(rng, 3, 2),
+        k: 1,
+        b: [0, 1, 2].map(() => nonZero(rng.int(-4, 4), 1)),
+      };
+    }
+    const n = drawUnimodular(rng);
+    const k = rng.pick([2, 3]);
+    const solution = [0, 1, 2].map(() => nonZero(rng.int(-5, 5), 2));
+    // n has determinant 1, so its adjugate is its inverse.
+    const b = timesVector(adjugate(n), solution).map((value) => k * value);
+    return { n, k, b };
+  },
+  render: (p) => {
+    const answer = inverseSolution(p).map(String);
+    const across = timesVector(transposed(p.n), p.b).map((value) => value / p.k);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'The inverse of $\\mathbf{A}$ is given. Solve $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$.' },
+        { kind: 'display', tex: `\\mathbf{A}^{-1} = ${p.k > 1 ? `\\frac{1}{${p.k}}` : ''}${gridTex(p.n)}` },
+        { kind: 'display', tex: `\\mathbf{b} = ${stackTex(p.b)}` },
+      ],
+      template: `x = {0} \\qquad y = {1} \\qquad z = {2}`,
+      bank: bankOf(answer, [...across.filter(Number.isInteger), ...answer.map((value) => -Number(value))].map(String)),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const { n, k, b } = p;
+    const product = timesVector(n, b);
+    const right = inverseSolution(p);
+    return [
+      {
+        text: 'Multiply both sides of $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$ by $\\mathbf{A}^{-1}$ on the left: $\\mathbf{x} = \\mathbf{A}^{-1}\\mathbf{b}$.',
+      },
+      ...n.map((row, i) => ({ text: `Row ${i + 1}: $${productsTex(row, b)} = ${product[i]}$` })),
+      ...(k > 1 ? [{ text: `Then divide each by $${k}$.` }] : []),
+      { tex: `\\mathbf{x} = ${stackTex(right)}` },
+      { text: 'The inverse goes on the left of $\\mathbf{b}$: $\\mathbf{b}\\mathbf{A}^{-1}$ is not even defined for a column.' },
+    ];
+  },
+};
+
+interface SysBackSubParams {
+  /** Upper triangular: a, b, c on the first row, d, e on the second, f alone. */
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+  s: number[];
+  /** Which unknown the typed form asks for. */
+  ask: number;
+}
+
+function backSubRows({ a, b, c, d, e, f, s }: SysBackSubParams): { coeffs: number[]; rhs: number }[] {
+  return [
+    { coeffs: [a, b, c], rhs: dot([a, b, c], s) },
+    { coeffs: [0, d, e], rhs: dot([0, d, e], s) },
+    { coeffs: [0, 0, f], rhs: f * s[2] },
+  ];
+}
+
+function sampleBackSub(rng: SampleRng, difficulty: number): SysBackSubParams {
+  const lead = () => rng.pick(difficulty > 1 ? [-4, -3, -2, 2, 3, 4] : [1, 2, 3, -1]);
+  const other = () => nonZero(rng.int(-4, 4), 1);
+  return {
+    a: lead(),
+    b: other(),
+    c: other(),
+    d: lead(),
+    e: other(),
+    f: lead(),
+    s: [0, 1, 2].map(() => nonZero(rng.int(-6, 6), 2)),
+    ask: difficulty > 1 ? 0 : rng.int(0, 1),
+  };
+}
+
+function backSubSteps(p: SysBackSubParams): SolutionStep[] {
+  const { a, b, c, d, e, f, s } = p;
+  const [first, second, third] = backSubRows(p);
+  return [
+    { text: 'The system is already triangular, so start at the bottom and work up.' },
+    { text: `$${termsTex([f], ['z'])} = ${third.rhs}$, so $z = ${s[2]}$.` },
+    {
+      text: `Put that into the middle equation: $${termsTex([d], ['y'])} + (${e})(${s[2]}) = ${second.rhs}$, so $${termsTex([d], ['y'])} = ${second.rhs - e * s[2]}$ and $y = ${s[1]}$.`,
+    },
+    {
+      text: `Then the top one: $${termsTex([a], ['x'])} + (${b})(${s[1]}) + (${c})(${s[2]}) = ${first.rhs}$, so $${termsTex([a], ['x'])} = ${first.rhs - b * s[1] - c * s[2]}$ and $x = ${s[0]}$.`,
+    },
+    {
+      text: 'Elimination on a full system aims for exactly this staircase shape, because from there each equation has only one new unknown in it.',
+    },
+  ];
+}
+
+const backSubPrompt = (p: SysBackSubParams, lead: string): Block[] => [
+  { kind: 'prose', text: lead },
+  { kind: 'display', tex: systemTex(backSubRows(p).map(({ coeffs, rhs }) => equationTex(coeffs, rhs))) },
+];
+
+/** A triangular system, solved from the bottom up. */
+const sysBackSub: Generator<SysBackSubParams> = {
+  id: 'mat-sys-back-sub',
+  sample: sampleBackSub,
+  render: (p) => ({
+    kind: 'expression',
+    prompt: backSubPrompt(p, `Solve this system by working up from the last equation. Find $${UNKNOWNS[p.ask]}$.`),
+    lead: `${UNKNOWNS[p.ask]} =`,
+    keypad: [],
+    answer: `${p.s[p.ask]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: backSubSteps,
+};
+
+/** The same, as a tree: z feeds y, and both feed x. */
+const sysBackSubTree: Generator<SysBackSubParams> = {
+  id: 'mat-sys-back-sub-tree',
+  sample: sampleBackSub,
+  render: (p): Slide => {
+    const [, second, third] = backSubRows(p);
+    const answer = [p.s[2], p.s[1], p.s[0]].map(String);
+    return {
+      kind: 'tree',
+      prompt: backSubPrompt(p, 'Solve from the bottom up: $z$ first, then $y$ using $z$, then $x$ using both.'),
+      expression: 'z \\;\\to\\; y \\;\\to\\; x',
+      nodes: [
+        { id: 'z', from: [] },
+        { id: 'y', from: ['z'] },
+        { id: 'x', from: ['y', 'z'] },
+      ],
+      // The right-hand sides left undivided, and a sign slip on each.
+      bank: bankOf(answer, [third.rhs, second.rhs - p.e * p.s[2], ...answer.map((value) => -Number(value))].map(String)),
+      answer,
+    };
+  },
+  solution: backSubSteps,
+};
+
+/* ----- systems with a parameter ----- */
+
+/** A 3x3 with `k` standing in for the first-row entry in column `col`. */
+function withK(m: Grid, col: number): (number | string)[][] {
+  return m.map((row, i) => row.map((value, j) => (i === 0 && j === col ? 'k' : value)));
+}
+
+/** det = C k + R, where C is the entry's cofactor and R the rest. */
+function detInK(m: Grid, col: number): { C: number; R: number } {
+  const zeroed = copyGrid(m);
+  zeroed[0][col] = 0;
+  return { C: (col === 1 ? -1 : 1) * minorOf(m, col), R: det3(zeroed) };
+}
+
+interface SysParamParams {
+  /** The entry at [0][col] is ignored: `k` stands there. */
+  m: Grid;
+  col: number;
+}
+
+function paramSteps({ m, col }: SysParamParams): SolutionStep[] {
+  const { C, R } = detInK(m, col);
+  const entries = m[0].map((value, j) => (j === col ? 'k' : `(${value})`));
+  const minors = [0, 1, 2].map((c) => minorOf(m, c));
+  return [
+    { text: 'Expand along the first row, keeping $k$ as a letter.' },
+    {
+      text: `$${entries[0]}(${minors[0]}) - ${entries[1]}(${minors[1]}) + ${entries[2]}(${minors[2]})$`,
+    },
+    { tex: `\\det \\mathbf{A} = ${C === 1 ? '' : C === -1 ? '-' : C}k${signedTex(R)}` },
+  ];
+}
+
+/** The determinant of a 3x3 with a letter in it, as an expression in k. */
+const sysParamDet: Generator<SysParamParams> = {
+  id: 'mat-sys-param-det',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 40; tries += 1) {
+      const m = drawGrid(rng, difficulty > 1 ? 5 : 3, difficulty > 1 ? 0 : 1);
+      const col = rng.int(0, 2);
+      const { C, R } = detInK(m, col);
+      if (C !== 0 && R !== 0) return { m, col };
+    }
+    return { m: [[0, 1, 2], [1, 3, 0], [2, 1, 1]], col: 0 };
+  },
+  render: ({ m, col }) => {
+    const { C, R } = detInK(m, col);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Find the determinant of $\\mathbf{A}$ in terms of $k$.' },
+        { kind: 'display', tex: `\\mathbf{A} = ${cellsTex(withK(m, col))}` },
+      ],
+      lead: '\\det \\mathbf{A} =',
+      keypad: [{ insert: 'k', tex: true }],
+      answer: `(${C})*k + (${R})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => [
+    ...paramSteps(p),
+    { text: 'Only the term with $k$ in it depends on $k$, so the determinant is always a straight-line function of it.' },
+  ],
+};
+
+/** The value of k that makes the matrix singular. */
+const sysParamK: Generator<SysParamParams> = {
+  id: 'mat-sys-param-k',
+  choices: ({ m, col }) => {
+    const { C, R } = detInK(m, col);
+    const k = -R / C;
+    return signedChoices(k, [-k, R, C, -R]);
+  },
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 80; tries += 1) {
+      const m = drawGrid(rng, difficulty > 1 ? 5 : 3, difficulty > 1 ? 0 : 1);
+      const col = rng.int(0, 2);
+      const { C, R } = detInK(m, col);
+      if (C !== 0 && R !== 0 && R % C === 0 && Math.abs(R / C) <= 12) return { m, col };
+    }
+    return { m: [[0, 1, 2], [1, 1, 0], [0, 1, 1]], col: 0 };
+  },
+  render: ({ m, col }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'For which value of $k$ does $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$ fail to have a unique solution?',
+      },
+      { kind: 'display', tex: `\\mathbf{A} = ${cellsTex(withK(m, col))}` },
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${-detInK(m, col).R / detInK(m, col).C}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => {
+    const { C, R } = detInK(p.m, p.col);
+    return [
+      { text: 'A unique solution needs an inverse, so find where the determinant is zero.' },
+      ...paramSteps(p),
+      { tex: `${C}k = ${-R} \\implies k = ${-R / C}` },
+      { text: 'At any other value of $k$ the determinant is not zero and there is exactly one solution.' },
+    ];
+  },
+};
+
+interface SysWhichParams {
+  quadratic: boolean;
+  /** The values of k that make the determinant zero; one for a linear draw. */
+  roots: number[];
+  /** Linear: [[k, b], [c, d]]. Quadratic: [[k, q], [r, k + s]]. */
+  entries: number[];
+}
+
+function whichMatrix({ quadratic, entries }: SysWhichParams): string {
+  if (!quadratic) {
+    const [b, c, d] = entries;
+    return cellsTex([
+      ['k', b],
+      [c, d],
+    ]);
+  }
+  const [q, r, s] = entries;
+  return cellsTex([
+    ['k', q],
+    [r, `k${signedTex(s)}`],
+  ]);
+}
+
+/** Which values of k leave exactly one solution: every value but the roots. */
+const sysParamWhich: Generator<SysWhichParams> = {
+  id: 'mat-sys-param-which',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) {
+      const d = rng.int(1, 5);
+      const t = nonZero(rng.int(-4, 4), 2);
+      const c = nonZero(rng.int(-6, 6), 3);
+      return { quadratic: false, roots: [c * t], entries: [d * t, c, d] };
+    }
+    for (let tries = 0; tries < 40; tries += 1) {
+      const [k1, k2] = rng.sample([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5], 2).sort((x, y) => x - y);
+      // Roots of opposite sign and equal size would make "k is neither of
+      // these" and "k is neither of their negatives" the same statement.
+      if (k1 + k2 === 0) continue;
+      const product = -k1 * k2;
+      const divisors = [1, 2, 3, 4, 5, 6].filter((n) => product % n === 0 && Math.abs(product / n) <= 9);
+      if (divisors.length === 0) continue;
+      const q = rng.pick(divisors) * rng.sign();
+      return { quadratic: true, roots: [k1, k2], entries: [q, product / q, -(k1 + k2)] };
+    }
+    return { quadratic: true, roots: [-2, 3], entries: [2, 3, -1] };
+  },
+  render: (p): Slide => {
+    const { roots } = p;
+    const right = roots.map((k) => `k \\neq ${k}`).join(' \\text{ and } ');
+    const { options: offered, correctId } = slotted(
+      right,
+      [
+        roots.map((k) => `k = ${k}`).join(' \\text{ or } '),
+        roots.map((k) => `k \\neq ${-k}`).join(' \\text{ and } '),
+        '\\text{every value of } k',
+      ],
+      `${p.entries.join(',')}|${roots.join(',')}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'For which values of $k$ does $\\mathbf{A}\\mathbf{x} = \\mathbf{b}$ have exactly one solution?',
+        },
+        { kind: 'display', tex: `\\mathbf{A} = ${whichMatrix(p)}` },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: (p) => {
+    const { quadratic, roots, entries } = p;
+    if (!quadratic) {
+      const [b, c, d] = entries;
+      return [
+        { text: 'Exactly one solution needs a non-zero determinant.' },
+        { text: `$\\det \\mathbf{A} = ${d}k - (${b})(${c}) = ${d === 1 ? '' : d}k${signedTex(-b * c)}$` },
+        { text: `That is zero only at $k = ${roots[0]}$, so every other value of $k$ gives exactly one solution.` },
+      ];
+    }
+    const [q, r, s] = entries;
+    const [k1, k2] = roots;
+    return [
+      { text: 'Exactly one solution needs a non-zero determinant.' },
+      {
+        text: `$\\det \\mathbf{A} = k(k${signedTex(s)}) - (${q})(${r}) = k^2${s === 0 ? '' : `${s < 0 ? ' -' : ' +'} ${Math.abs(s) === 1 ? '' : Math.abs(s)}k`}${signedTex(-q * r)}$`,
+      },
+      { tex: `= (k${signedTex(-k1)})(k${signedTex(-k2)})` },
+      {
+        text: `That is zero at $k = ${k1}$ and at $k = ${k2}$. Every other value of $k$ gives exactly one solution, so both have to be ruled out.`,
+      },
+    ];
+  },
+};
+
+interface SysOutcomeParams {
+  c: number;
+  d: number;
+  t: number;
+  q0: number;
+}
+
+/** First the k that makes the system singular, then the q that rescues it. */
+const sysParamOutcome: Generator<SysOutcomeParams> = {
+  id: 'mat-sys-param-outcome',
+  sample: (rng, difficulty) => ({
+    c: nonZero(rng.int(-6, 6), 2),
+    d: difficulty > 1 ? nonZero(rng.int(-5, 5), 3) : rng.int(1, 5),
+    t: rng.pick(difficulty > 1 ? [-4, -3, -2, 2, 3, 4] : [2, 3, 4]),
+    q0: nonZero(rng.int(-9, 9), 4),
+  }),
+  render: ({ c, d, t, q0 }) => {
+    const answer = [`${c * t}`, `${q0}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the value of $k$ that stops this system having a unique solution. Then find the value of $q$ that gives it infinitely many solutions rather than none.',
+        },
+        {
+          kind: 'display',
+          tex: systemTex([`kx${d * t < 0 ? ' -' : ' +'} ${Math.abs(d * t) === 1 ? '' : Math.abs(d * t)}y = ${t * q0}`, equationTex([c, d], 'q')]),
+        },
+      ],
+      template: `k = {0} \\qquad q = {1}`,
+      bank: bankOf(answer, [`${-c * t}`, `${t * q0}`, `${t * t * q0}`, `${c}`, `${-q0}`]),
+      answer,
+    };
+  },
+  solution: ({ c, d, t, q0 }) => [
+    { text: `The determinant is $${d}k - (${d * t})(${c})$, which is zero when $k = ${c * t}$.` },
+    {
+      text: `At that value the first left-hand side is $${t}$ times the second: $${c * t}x + ${br(d * t)}y = ${t}(${termsTex([c, d], UNKNOWNS)})$.`,
+    },
+    {
+      text: `So the equations agree only if $${t * q0} = ${t}q$, which gives $q = ${q0}$. Any other $q$ makes them contradict each other.`,
+    },
+  ],
+};
+
 export const matrixGenerators = [
   addMatrices,
   combineMatrices,
@@ -4475,4 +6038,26 @@ export const matrixGenerators = [
   composeArea,
   composeOrientation,
   detMissing,
+  sysRead,
+  sysBack,
+  sysVector,
+  sysRhs,
+  sysMinor,
+  sysDet,
+  sysDetTree,
+  sysDetZero,
+  sysDetRule,
+  sysLines,
+  sysConsistent,
+  sysLineForm,
+  sysCount,
+  sysCramerSwap,
+  sysCramer,
+  sysInverse,
+  sysBackSub,
+  sysBackSubTree,
+  sysParamDet,
+  sysParamK,
+  sysParamWhich,
+  sysParamOutcome,
 ] as unknown as Generator<unknown>[];

@@ -5,13 +5,16 @@
  * Level 2 solves, with the three methods in the order they should be reached
  * for — factorise if you can, complete the square to understand why, use the
  * formula when neither works. Level 3 is the graph, where every result from the
- * first two levels turns out to be a feature you can point at.
+ * first two levels turns out to be a feature you can point at. Level 4 puts a
+ * straight line on the same axes: substituting one equation into the other
+ * gives a quadratic whose roots are where the two meet, and its discriminant
+ * says whether they cross, touch or miss before anything is solved.
  *
- * Each level closes with a level check: twelve questions, no teaching slides,
- * one attempt each.
+ * Each level closes with a level check: twelve to fourteen questions, no
+ * teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { parabolaSvg } from '../figures';
+import { parabolaSvg, plotSvg, quadratic } from '../figures';
 
 type TeachBlock = Block;
 
@@ -63,10 +66,39 @@ const graph = (
 });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
+/**
+ * A curve and straight lines on the same axes, for level 4.
+ *
+ * The first line is drawn in the accent colour and any others dashed, so a
+ * slide comparing three lines against one curve can say "the solid one" and
+ * mean something. `curve` is `[a, b, c]` and each line `[m, k]`.
+ */
+const crossing = (
+  curve: [number, number, number],
+  lines: [number, number][],
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  marks: { x: number; y: number }[] = [],
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: [
+      { f: quadratic(...curve) },
+      ...lines.map(([m, k], index) => ({
+        f: (x: number) => m * x + k,
+        accent: index === 0,
+        dashed: index > 0,
+      })),
+    ],
+    marks,
+    label: lines.length === 1 ? 'A parabola and a straight line' : 'A parabola and three parallel lines',
+  }),
+});
+
 export const quadratics: Course = {
   id: 'quadratics',
   title: 'Quadratics',
-  blurb: 'Expanding, factorising, three ways to solve, and the parabola.',
+  blurb: 'Expanding, factorising, three ways to solve, the parabola, and where a line meets it.',
   levels: [
     {
       id: 'qd-l1',
@@ -804,6 +836,305 @@ export const quadratics: Course = {
         ask('quad-turning-point', 2),
         ask('quad-from-roots', 2),
         ask('quad-discriminant-steps', 2),
+      ],
+    },
+    {
+      id: 'qd-l4',
+      title: 'Simultaneous Equations with a Quadratic',
+      lessons: [
+        {
+          id: 'qd-l4-substitute',
+          title: 'Substituting a Line into a Curve',
+          slides: [
+            teach(
+              prose(
+                'Two equations, two unknowns, and one of them has an $x^{2}$ in it. The solutions are the points that sit on both graphs at once: here, the two places where the line crosses the curve.',
+              ),
+              crossing([1, -2, -1], [[1, 3]], { xMin: -3, xMax: 6, yMin: -3, yMax: 10 }, [
+                { x: -1, y: 2 },
+                { x: 4, y: 7 },
+              ]),
+              maths('\\begin{aligned} y &= x^{2} - 2x - 1 \\\\ y &= x + 3 \\end{aligned}'),
+              prose(
+                'Elimination, which works for two straight lines, gets stuck here. **Substitution** does not: both equations say what $y$ is, so where they meet those two expressions are equal.',
+              ),
+              maths('x^{2} - 2x - 1 = x + 3'),
+              prose(
+                'That is one equation in one letter — a quadratic — and every root it has is the $x$ of a meeting point.',
+              ),
+            ),
+            ask('quad-sim-subject'),
+            ask('quad-sim-substitute'),
+            ask('quad-sim-route'),
+            teach(
+              prose(
+                'The line is not always handed over as $y = \\ldots$. Rearrange it first, then substitute.',
+              ),
+              maths('2x + y = 8 \\implies y = 8 - 2x'),
+              maths('x^{2} + 4x + 1 = 8 - 2x'),
+              prose(
+                'Now collect everything on the side with the $x^{2}$. Each term that crosses the equals sign changes sign: $-2x$ arrives as $+2x$, and $8$ arrives as $-8$.',
+              ),
+              maths('x^{2} + 6x - 7 = 0'),
+              prose(
+                'Two curves work the same way. Set them equal and collect on the side with more $x^{2}$, so the leading term stays positive.',
+              ),
+            ),
+            ask('quad-sim-two-curves'),
+            ask('quad-sim-subject'),
+            ask('quad-sim-substitute+choice'),
+            teach(
+              prose(
+                'Which letter to free is a choice. $y$ is usual, because the curve is already written as $y = \\ldots$ — but not when it would mean fractions.',
+              ),
+              maths('x + 2y = 7'),
+              prose(
+                'Getting $y$ alone here means halving everything. Getting $x$ alone takes one step: $x = 7 - 2y$. Substituting that gives a quadratic in $y$ instead, which is solved exactly the same way.',
+              ),
+              prose(
+                'So ask two questions before any algebra: do both equations already say what $y$ is, and if not, which letter comes out cleanly?',
+              ),
+            ),
+            ask('quad-sim-route'),
+            ask('quad-sim-two-curves'),
+          ],
+          skillCheck: [
+            ask('quad-sim-substitute', 2),
+            ask('quad-sim-subject', 2),
+            ask('quad-sim-two-curves', 2),
+          ],
+        },
+        {
+          id: 'qd-l4-solve',
+          title: 'Solving for the Meeting Points',
+          slides: [
+            teach(
+              prose(
+                'Substituting leaves an ordinary quadratic, and everything from the level on solving applies. Factorise if you can.',
+              ),
+              maths('x^{2} - 3x - 4 = 0'),
+              maths('\\left(x - 4\\right)\\left(x + 1\\right) = 0'),
+              prose(
+                'So $x = 4$ or $x = -1$. Those are the $x$-coordinates of the two places the line crosses the curve — not the points themselves yet, which is the next lesson.',
+              ),
+              prose(
+                'The roots flip sign from the brackets, exactly as before. $\\left(x + 1\\right)$ gives $x = -1$.',
+              ),
+            ),
+            ask('quad-sim-x-values'),
+            ask('quad-sim-other-x'),
+            ask('quad-sim-substitute+choice'),
+            teach(
+              prose(
+                'When one meeting point is already known, the other comes quicker than a full factorisation. The two roots of $ax^{2} + bx + c = 0$ always add to $-\\frac{b}{a}$.',
+              ),
+              maths('x^{2} + x - 6 = 0, \\quad x = 2'),
+              prose(
+                'The roots add to $-1$, so the other is $-1 - 2 = -3$. Factorising agrees: $\\left(x - 2\\right)\\left(x + 3\\right)$.',
+              ),
+              prose(
+                'If every term shares a number, divide it out first. $2x^{2} - 2x - 4 = 0$ is $x^{2} - x - 2 = 0$ in disguise, and the smaller one is far easier to factorise.',
+              ),
+            ),
+            ask('quad-sim-two-curves'),
+            ask('quad-sim-other-x+choice'),
+            ask('quad-solve-factorise+choice'),
+            teach(
+              prose(
+                'A quadratic that will not factorise still has roots — the formula finds them. They are simply not whole numbers, so the meeting points sit between grid lines.',
+              ),
+              prose(
+                'Whichever route you take, the check is the same: put each $x$ back into **both** original equations. If the two give different $y$ values, the substitution went wrong somewhere.',
+              ),
+              maths('\\text{curve: } 16 - 8 - 1 = 7'),
+              maths('\\text{line: } 4 + 3 = 7'),
+            ),
+            ask('quad-sim-x-values', 2),
+            ask('quad-sim-substitute', 2),
+          ],
+          skillCheck: [
+            ask('quad-sim-x-values', 2),
+            ask('quad-sim-other-x', 2),
+            ask('quad-sim-substitute', 2),
+          ],
+        },
+        {
+          id: 'qd-l4-pair',
+          title: 'Pairing the Solutions',
+          slides: [
+            teach(
+              prose(
+                'Solving for $x$ is half the job. A pair of equations in $x$ and $y$ is solved only when every solution has both.',
+              ),
+              prose('Put each $x$ back to find its own $y$. Use the **line**: it gives the same answer as the curve with less arithmetic.'),
+              maths('x = 4: \\quad y = 4 + 3 = 7'),
+              maths('x = -1: \\quad y = -1 + 3 = 2'),
+              prose('So the solutions are $\\left(4, 7\\right)$ and $\\left(-1, 2\\right)$.'),
+            ),
+            ask('quad-sim-line-y'),
+            ask('quad-sim-pair'),
+            ask('quad-sim-which-point'),
+            teach(
+              prose(
+                'Each $y$ belongs to the $x$ that made it. Swapping them gives $\\left(4, 2\\right)$, which is on neither graph — the mistake looks tidy and is completely wrong.',
+              ),
+              prose(
+                'A point can be checked in both equations at once. $\\left(4, 7\\right)$ in the curve gives $16 - 8 - 1 = 7$, and in the line $4 + 3 = 7$. Both agree, so it is a solution.',
+              ),
+              prose(
+                'Substituting into the curve is the longer check, since it has a square in it. It is worth doing once, as proof that the line was the easier choice.',
+              ),
+            ),
+            ask('quad-evaluate-steps'),
+            ask('quad-sim-x-values'),
+            ask('quad-sim-line-y+choice'),
+            teach(
+              prose(
+                'Write the answer as pairs, never as four loose numbers.',
+              ),
+              maths('x = 4, \\; y = 7'),
+              prose('or'),
+              maths('x = -1, \\; y = 2'),
+              prose(
+                'Two solutions, not four. The word **or** matters: each line is one solution, and the two cannot be mixed.',
+              ),
+            ),
+            ask('quad-sim-pair', 2),
+            ask('quad-sim-which-point', 2),
+          ],
+          skillCheck: [
+            ask('quad-sim-pair', 2),
+            ask('quad-sim-line-y', 2),
+            ask('quad-sim-which-point', 2),
+          ],
+        },
+        {
+          id: 'qd-l4-meet',
+          title: 'Where a Line Meets a Curve',
+          slides: [
+            teach(
+              prose(
+                'Every solution is a point on the picture. The roots of the combined quadratic are the $x$-coordinates of the crossings, so they can be read straight off the graph.',
+              ),
+              crossing([1, -2, -1], [[1, 3]], { xMin: -3, xMax: 6, yMin: -3, yMax: 10 }, [
+                { x: -1, y: 2 },
+                { x: 4, y: 7 },
+              ]),
+              prose(
+                'The algebra says $x = -1$ and $x = 4$; the picture shows the line cutting the curve at exactly those two places. Each is a check on the other.',
+              ),
+            ),
+            ask('quad-sim-meet-slider'),
+            ask('quad-sim-x-values'),
+            ask('quad-sim-which-point'),
+            teach(
+              prose(
+                'The $y$ of a solution is how high the crossing sits. Following the level across from a crossing to the vertical axis reads it off.',
+              ),
+              prose(
+                'In the picture that opened this lesson, the left-hand crossing is at height 2 and the right-hand one at 7 — the same two numbers the line gave in the last lesson.',
+              ),
+              prose(
+                'A graph gives the rough answer and algebra the exact one. When a crossing falls between grid lines, only the algebra will do.',
+              ),
+            ),
+            ask('quad-sim-height-slider'),
+            ask('quad-sim-pair'),
+            ask('quad-sim-other-x+choice'),
+            teach(
+              prose(
+                'An upside-down curve changes nothing in the method. Collect on the side where $x^{2}$ is positive.',
+              ),
+              crossing([-1, 0, 4], [[1, 2]], { xMin: -4, xMax: 4, yMin: -4, yMax: 6 }, [
+                { x: -2, y: 0 },
+                { x: 1, y: 3 },
+              ]),
+              maths('-x^{2} + 4 = x + 2'),
+              maths('x^{2} + x - 2 = 0'),
+              prose('That factorises as $\\left(x + 2\\right)\\left(x - 1\\right)$, so the crossings are at $x = -2$ and $x = 1$.'),
+            ),
+            ask('quad-sim-meet-slider', 2),
+            ask('quad-sim-height-slider', 2),
+          ],
+          skillCheck: [
+            ask('quad-sim-meet-slider', 2),
+            ask('quad-sim-height-slider', 2),
+            ask('quad-sim-pair', 2),
+          ],
+        },
+        {
+          id: 'qd-l4-tangent',
+          title: 'Tangents and the Discriminant',
+          slides: [
+            teach(
+              prose(
+                'A line can cross a curve twice, touch it once, or miss it. The same three lines, all with gradient 2, against $y = x^{2}$:',
+              ),
+              crossing([1, 0, 0], [[2, -1], [2, 3], [2, -4]], { xMin: -3, xMax: 4, yMin: -5, yMax: 10 }),
+              prose(
+                'Substituting each gives a quadratic, and its discriminant $b^{2} - 4ac$ says which case it is — before anything is solved.',
+              ),
+              maths('x^{2} - 2x - 3 = 0 \\quad \\Delta = 16'),
+              maths('x^{2} - 2x + 1 = 0 \\quad \\Delta = 0'),
+              maths('x^{2} - 2x + 4 = 0 \\quad \\Delta = -12'),
+              prose(
+                'Positive: two crossings. Zero: one repeated root, and the line — the solid one — is a **tangent**. Negative: no real roots, so no meeting at all.',
+              ),
+            ),
+            ask('quad-sim-disc-tree'),
+            ask('quad-sim-count'),
+            ask('quad-sim-tangent-k'),
+            teach(
+              prose(
+                'Run it backwards to find a tangent. Leave the unknown in, and set the discriminant to zero.',
+              ),
+              maths('x^{2} = 2x + k'),
+              maths('x^{2} - 2x - k = 0'),
+              maths('\\left(-2\\right)^{2} - 4 \\times 1 \\times \\left(-k\\right) = 0'),
+              prose(
+                'So $4 + 4k = 0$ and $k = -1$. The line $y = 2x - 1$ touches $y = x^{2}$; it is the solid line in the picture that opened this lesson.',
+              ),
+              prose(
+                'The sign inside the bracket is where this goes wrong: $c$ is $-k$ here, not $k$, because $k$ crossed the equals sign.',
+              ),
+            ),
+            ask('quad-sim-touch-slider'),
+            ask('quad-sim-tangent-k+choice'),
+            ask('quad-sim-disc-tree', 2),
+            teach(
+              prose(
+                'Where does a tangent touch? At the repeated root. A zero discriminant means the quadratic is a perfect square.',
+              ),
+              maths('x^{2} - 2x + 1 = \\left(x - 1\\right)^{2} = 0'),
+              prose(
+                'So the line touches at $x = 1$, and the line gives $y = 2 - 1 = 1$. The point is $\\left(1, 1\\right)$ — one solution, where every other line of that gradient had two or none.',
+              ),
+            ),
+            ask('quad-sim-count', 2),
+            ask('quad-sim-touch-slider', 2),
+          ],
+          skillCheck: [
+            ask('quad-sim-tangent-k', 2),
+            ask('quad-sim-count', 2),
+            ask('quad-sim-disc-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('quad-sim-subject', 2),
+        ask('quad-sim-substitute', 2),
+        ask('quad-sim-which-point', 2),
+        ask('quad-sim-x-values', 2),
+        ask('quad-sim-meet-slider', 2),
+        ask('quad-sim-pair', 2),
+        ask('quad-sim-line-y', 2),
+        ask('quad-sim-other-x', 2),
+        ask('quad-sim-two-curves', 2),
+        ask('quad-sim-height-slider', 2),
+        ask('quad-sim-disc-tree', 2),
+        ask('quad-sim-tangent-k', 2),
+        ask('quad-sim-count', 2),
+        ask('quad-sim-touch-slider', 2),
       ],
     },
   ],

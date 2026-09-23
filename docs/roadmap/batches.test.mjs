@@ -31,4 +31,9 @@ describe('roadmap batch files', () => {
     const batch = parseBatch('C2-widget.md', '# C2-widget: Graph transformations\n\nStatus: claimed\nBranch: `b`\n');
     expect(batch).toMatchObject({ id: 'C2-widget', phase: 'C', status: 'claimed', notes: '' });
   });
+
+  it('reads a later-level batch id', () => {
+    const batch = parseBatch('C10-l3.md', '# C10-l3: Exponential Models: Rates in Models\n\nStatus: claimed\nBranch: `b`\n');
+    expect(batch).toMatchObject({ id: 'C10-l3', phase: 'C', status: 'claimed' });
+  });
 });

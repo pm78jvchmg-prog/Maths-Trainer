@@ -8,11 +8,10 @@ interval and set notation); The Modulus Function (|x| as a distance, sketching
 y = |ax + b|, solving |ax + b| = c and = dx + e, modulus inequalities,
 transformations of modulus graphs); Modulus on Both Sides and Squaring
 (|ax + b| = |cx + d| and |f(x)| < |g(x)| by squaring, and when squaring is
-safe).
+safe); Modulus of Quadratics (sketching y = |f(x)| and y = f(|x|) for
+quadratics and cubics, and solving |f(x)| = c and |f(x)| < c from the graph).
 
-Needs: Modulus of Quadratics
-(sketching y = |f(x)| and y = f(|x|) for quadratics and cubics, and solving
-|x² − 4| = 3 from the graph); Regions with Modulus (shading y ≥ |x − a| and
+Needs: Regions with Modulus (shading y ≥ |x − a| and
 y < k − |x| on the plane, and regions bounded by two modulus graphs);
 Piecewise Functions (defining, sketching and evaluating piecewise functions,
 writing |ax + b| piecewise, and continuity at the joins); Inequalities in

@@ -1847,3 +1847,91 @@ button {
   border-color: var(--accent);
   background: var(--accent);
 }
+
+/*
+ * The number line (`numberLine` slides).
+ *
+ * Everything the learner draws is painted in `--nl-ink`, which is the accent
+ * until the answer is graded and then the verdict colour. Only the learner's
+ * own dots and shading carry it: the expected set is never drawn, so a wrong
+ * answer turns their drawing the wrong colour and discloses nothing else.
+ * The frame's side padding is trimmed so twelve ticks keep a thumb's width
+ * apart on a phone.
+ */
+.answer-frame.number-line-frame {
+  padding: 8px 4px 4px;
+}
+
+.number-line {
+  --nl-ink: var(--accent);
+  width: 100%;
+  height: auto;
+  display: block;
+  color: var(--text-soft);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.number-line.correct {
+  --nl-ink: var(--correct);
+}
+
+.number-line.wrong {
+  --nl-ink: var(--wrong);
+}
+
+.nl-axis {
+  stroke: currentColor;
+  stroke-width: 2;
+  opacity: 0.55;
+}
+
+.nl-tick {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+.nl-label {
+  fill: currentColor;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-shade line {
+  stroke: var(--nl-ink);
+  stroke-width: 6;
+}
+
+.nl-shade polygon {
+  fill: var(--nl-ink);
+}
+
+.nl-dot {
+  stroke: var(--nl-ink);
+  stroke-width: 2.5;
+}
+
+.nl-dot.closed {
+  fill: var(--nl-ink);
+}
+
+.nl-dot.open {
+  fill: var(--surface);
+}
+
+.nl-hit {
+  cursor: pointer;
+}
+
+.number-line.locked .nl-hit {
+  cursor: default;
+}
+
+.nl-hint {
+  text-align: center;
+  margin: 10px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}

@@ -479,6 +479,7 @@ are green, and one new lesson has been played in a browser.
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
 | B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
 | B34 | Integration: Improper Integrals | **done** (`claude/roadmap-b-integration-4-gbuy3r`): level `in-l7`, 5 lessons, a 15-question level check, 17 new generators and an independent numeric check |
+| B29 | Quadratics: Quadratics in Disguise | **done** (`claude/roadmap-b-quadratics-4-xwfezb`): level `qd-l7`, 5 lessons, a 15-question level check, 20 new generators |
 
 ### Phase C — the twenty-one new concepts
 
@@ -500,7 +501,6 @@ Order, by prerequisite and by how much new widget work each needs:
 | C8 | Inequalities & the Modulus Function | Needs a number-line widget |
 | C9 | Algebraic Fractions & Partial Fractions | Depends on C4 |
 | C10 | Exponential Models | Depends on the Logarithms phase B levels |
-| C11-widget | Proof-ordering widget for C11 | **done** (`claude/roadmap-c11-widget-order-zc6vu4`): slide kind `order`, 2 demo generators (`proof-order-direct`, `proof-order-cases`) in `proofOrder.ts`, no lessons yet |
 | C11 | Number & Proof | Needs a proof-step ordering widget |
 | C12 | Parametric & Implicit Differentiation | Depends on the Differentiation phase B levels |
 | C13 | Differential Equations | Depends on C12 and on Integration |
@@ -523,6 +523,8 @@ batch rather than waiting on a separate one.
 | C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
 | C7 | Binomial Expansion | **done** (`claude/roadmap-c-binomial-expansion-e9c0un`): course `binomial-expansion`, levels `be-l1` and `be-l2`, 10 lessons, level checks of 14 and 15 questions, 32 new generators |
 | C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
+| C8-widget | Number-line widget for C8 and the Linear Equations inequalities level | **done** (`claude/roadmap-c8-widget-number-line-6civa1`): slide kind `numberLine` (rays, bounded intervals, unions; open and closed ends; whole or half steps), 2 demo generators asked by no lesson yet |
+| C11-widget | Proof-ordering widget for C11 | **done** (`claude/roadmap-c11-widget-order-zc6vu4`): slide kind `order`, 2 demo generators (`proof-order-direct`, `proof-order-cases`) in `proofOrder.ts`, no lessons yet |
 
 ### When the queue empties
 

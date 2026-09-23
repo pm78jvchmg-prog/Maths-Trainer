@@ -21,9 +21,11 @@
  *   the new index rather than from rounding anything.
  */
 import type { Generator, KeypadKey, Slide } from '../types';
+import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
 import { bin, num, pow } from '../expr';
+import { markerWindow, plotSvg } from '../figures';
 
 /** The algebra keys plus the constant of integration. */
 const INTEGRAL_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'C' }];
@@ -1873,6 +1875,1266 @@ const partsLog: Generator<PartsLogParams> = {
   },
 };
 
+/* ---------- Level 4: area between curves ---------- */
+
+/**
+ * A polynomial as its coefficients, lowest power first: `[c, b, a]` is
+ * a x^2 + b x + c.
+ *
+ * Every curve in this level is a polynomial of degree two at most, and that is
+ * deliberate rather than a limit of the widgets. The quadrature oracle reads a
+ * definite integral's answer as a number, so an exponential area such as
+ * `(e^2 - 1)/2` reads as NaN to it (`eval/plans/TASK6-PLAN.md` found that), and
+ * a whole-number area is only guaranteed where the samplers can do the
+ * arithmetic exactly — which `sixIntegral` below does for these and nothing
+ * else.
+ */
+type Poly = number[];
+
+const coefficientOf = (p: Poly, power: number): number => p[power] ?? 0;
+
+/** A polynomial as the learner reads it, highest power first. */
+function polyTex(p: Poly): string {
+  const terms: string[] = [];
+  for (let power = p.length - 1; power >= 0; power -= 1) {
+    terms.push(termTex(coefficientOf(p, power), power));
+  }
+  return sumTex(terms) || '0';
+}
+
+/** The same polynomial for the grader. */
+function polyAnswer(p: Poly): string {
+  return sumAnswer(p.map((value, power) => termAnswer(value, power)));
+}
+
+function polyAt(p: Poly, x: number): number {
+  return p.reduce((total, value, power) => total + value * Math.pow(x, power), 0);
+}
+
+function polyAdd(a: Poly, b: Poly): Poly {
+  return Array.from(
+    { length: Math.max(a.length, b.length) },
+    (_, power) => coefficientOf(a, power) + coefficientOf(b, power),
+  );
+}
+
+function polyScale(p: Poly, k: number): Poly {
+  // `+ 0` turns a -0 into a 0, so a scaled zero never prints or serialises oddly.
+  return p.map((value) => value * k + 0);
+}
+
+const polySub = (a: Poly, b: Poly): Poly => polyAdd(a, polyScale(b, -1));
+
+/** k(x - p)(x - q), expanded. */
+function fromRoots(k: number, p: number, q: number): Poly {
+  return [k * p * q, -k * (p + q), k];
+}
+
+/**
+ * Six times the integral of `p` from `a` to `b`.
+ *
+ * Always a whole number for whole coefficients and whole limits up to degree
+ * two, since the denominators 1, 2 and 3 all divide six. That is what lets a
+ * sampler *reject* a draw whose area would not be whole, instead of rounding
+ * one into a question whose stated answer is slightly wrong.
+ */
+function sixIntegral(p: Poly, a: number, b: number): number {
+  return p.reduce(
+    (total, value, power) =>
+      total + (value * 6 * (Math.pow(b, power + 1) - Math.pow(a, power + 1))) / (power + 1),
+    0,
+  );
+}
+
+/** The antiderivative with no constant, fractions and all. */
+function antiTex(p: Poly): string {
+  const terms: string[] = [];
+  for (let power = p.length - 1; power >= 0; power -= 1) {
+    terms.push(fracTermTex(coefficientOf(p, power), power + 1, power + 1));
+  }
+  return sumTex(terms) || '0';
+}
+
+/** The smallest value a polynomial of degree two or less takes on [a, b]. */
+function minOn(p: Poly, a: number, b: number): number {
+  const candidates = [a, b];
+  const lead = coefficientOf(p, 2);
+  if (lead !== 0) {
+    const vertex = -coefficientOf(p, 1) / (2 * lead);
+    if (vertex > a && vertex < b) candidates.push(vertex);
+  }
+  return Math.min(...candidates.map((x) => polyAt(p, x)));
+}
+
+/** A factor (x - r), as it would be written by hand. */
+function factorTex(root: number): string {
+  if (root === 0) return 'x';
+  return `(x ${root < 0 ? '+' : '-'} ${Math.abs(root)})`;
+}
+
+/** k(x - p)(x - q), factorised, with a unit k left implied. */
+function factorisedTex(k: number, p: number, q: number): string {
+  const lead = k === 1 ? '' : k === -1 ? '-' : `${k}`;
+  return `${lead}${factorTex(p)}${factorTex(q)}`;
+}
+
+/**
+ * A limit written into a tiles template, where a brace group holding only
+ * digits would be taken for a blank. The limits here stay between -9 and 9, so
+ * a bare digit never runs into a second one.
+ */
+function templateLimit(value: number): string {
+  return value >= 0 ? `${value}` : `{${value}}`;
+}
+
+/**
+ * Draw until `ok` holds.
+ *
+ * Deterministic per seed, since every attempt reads the same stream in the same
+ * order. The fallback is a valid question for the case where no attempt
+ * passes, which none of the samplers below comes near in practice.
+ */
+function drawUntil<T>(make: () => T, ok: (value: T) => boolean, fallback: T): T {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const value = make();
+    if (ok(value)) return value;
+  }
+  return fallback;
+}
+
+/** Options turned by an amount taken from the question, so one draw renders one way. */
+function turned<T>(list: T[], turn: number): T[] {
+  const at = ((turn % list.length) + list.length) % list.length;
+  return [...list.slice(at), ...list.slice(0, at)];
+}
+
+/**
+ * A bank of whole numbers: the answer values, then distinct distractors,
+ * padded from beside the last answer so the right tile never stands out as the
+ * one value unlike the rest.
+ */
+function wholeBank(answer: number[], distractors: number[], atLeast = 3): string[] {
+  const needed = new Set(answer.map(String));
+  const extras: string[] = [];
+  const push = (value: number) => {
+    const token = String(value + 0);
+    if (!Number.isInteger(value) || needed.has(token) || extras.includes(token)) return;
+    extras.push(token);
+  };
+  for (const value of distractors) push(value);
+  const seed = answer[answer.length - 1];
+  for (let step = 1; extras.length < atLeast; step += 1) {
+    push(seed + step);
+    push(seed - step);
+  }
+  return [...answer.map(String), ...extras].sort((x, y) => Number(x) - Number(y));
+}
+
+/** A tile bank of TeX tokens: the answer's, then the distinct distractors, sorted. */
+function tokenBank(answer: string[], distractors: string[]): string[] {
+  const needed = new Set(answer);
+  const extras = [...new Set(distractors)].filter((token) => !needed.has(token));
+  return [...answer, ...extras].sort();
+}
+
+/** A y window covering two curves over [from, to], with a little room. */
+function windowFor(curves: Poly[], from: number, to: number): { yMin: number; yMax: number } {
+  const values = curves.flatMap((p) =>
+    Array.from({ length: 41 }, (_, i) => polyAt(p, from + ((to - from) * i) / 40)),
+  );
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const pad = (hi - lo) * 0.12 || 1;
+  return { yMin: lo - pad, yMax: hi + pad };
+}
+
+/**
+ * Two curves with the region between them shaded.
+ *
+ * `plotSvg` shades between one curve and the axis, and the region this level
+ * is about has a curve on both sides. Rather than widen the shared figure
+ * module from a content batch, the band is drawn here and laid underneath the
+ * plot, through the same frame `plotSvg` maps with: 280 wide, inset 12 at each
+ * edge. The y window is therefore required rather than optional, so the two
+ * agree on the vertical scale instead of `plotSvg` choosing its own.
+ */
+export function betweenSvg(opts: {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  top: (x: number) => number;
+  bottom: (x: number) => number;
+  from: number;
+  to: number;
+  label: string;
+  verticals?: number[];
+  marks?: { x: number; y: number }[];
+  height?: number;
+}): string {
+  const WIDTH = 280;
+  const PAD = 12;
+  const SAMPLES = 80;
+  const height = opts.height ?? 150;
+  const px = (x: number) => PAD + ((x - opts.xMin) / (opts.xMax - opts.xMin)) * (WIDTH - PAD * 2);
+  const py = (y: number) => PAD + ((opts.yMax - y) / (opts.yMax - opts.yMin)) * (height - PAD * 2);
+  const edge = (f: (x: number) => number) =>
+    Array.from({ length: SAMPLES + 1 }, (_, i) => {
+      const x = opts.from + ((opts.to - opts.from) * i) / SAMPLES;
+      return `${px(x).toFixed(1)},${py(f(x)).toFixed(1)}`;
+    });
+  const band = `<path class="plot-shade" d="M ${[...edge(opts.top), ...edge(opts.bottom).reverse()].join(' L ')} Z" />`;
+  const plot = plotSvg({
+    xMin: opts.xMin,
+    xMax: opts.xMax,
+    yMin: opts.yMin,
+    yMax: opts.yMax,
+    height,
+    curves: [{ f: opts.top }, { f: opts.bottom, accent: true }],
+    verticals: (opts.verticals ?? []).map((x) => ({ x })),
+    marks: opts.marks,
+    label: opts.label,
+  });
+  const open = plot.indexOf('>') + 1;
+  return `${plot.slice(0, open)}${band}${plot.slice(open)}`;
+}
+
+interface BetweenParams {
+  top: Poly;
+  bottom: Poly;
+  /** True when the question names the lower curve first. */
+  swap: boolean;
+  lower: number;
+  upper: number;
+}
+
+/**
+ * Two curves, one above the other across given limits.
+ *
+ * The gap between them is drawn first, as 3a x^2 + 2b x + c, whose
+ * antiderivative a x^3 + b x^2 + c x has whole coefficients, so the area is
+ * whole at whole limits with nothing rounded. The lower curve is drawn freely
+ * and the upper one is the lower plus the gap, which is what varies both
+ * curves at once — varying one parameter of a fixed pair is what emptied the
+ * pool in `eval/plans/TASK6-PLAN.md`.
+ */
+function sampleBetween(rng: Rng, difficulty: number): BetweenParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const lower = rng.int(-2, hard ? 3 : 2);
+      const upper = lower + rng.int(1, hard ? 4 : 3);
+      const a = rng.int(hard ? -1 : 0, hard ? 2 : 1);
+      const b = rng.int(-3, 3);
+      const c = rng.int(-4, 9);
+      const bottom = [rng.int(-6, 6), rng.int(-4, 4), rng.pick(hard ? [-2, -1, 0, 1, 2] : [-1, 0, 1])];
+      return { top: polyAdd(bottom, [c, 2 * b, 3 * a]), bottom, swap: rng.int(0, 1) === 1, lower, upper };
+    },
+    ({ top, bottom, lower, upper }) => {
+      const gap = polySub(top, bottom);
+      return (
+        minOn(gap, lower, upper) > 0 &&
+        (coefficientOf(top, 2) !== 0 || coefficientOf(bottom, 2) !== 0) &&
+        bottom.some((value) => value !== 0) &&
+        sixIntegral(gap, lower, upper) <= 6 * 120
+      );
+    },
+    { top: [1, 0, 1], bottom: [-2, 0, 1], swap: false, lower: 0, upper: 2 },
+  );
+}
+
+/** The two curves in the order the question names them. */
+function named(top: Poly, bottom: Poly, swap: boolean): [string, string] {
+  return swap ? [polyTex(bottom), polyTex(top)] : [polyTex(top), polyTex(bottom)];
+}
+
+/** A test point inside [a, b], preferring a whole one so the arithmetic stays clean. */
+function testPoint(a: number, b: number): number {
+  return b - a >= 2 ? a + 1 : (a + b) / 2;
+}
+
+/** The worked solution shared by the questions that give the limits. */
+function betweenSolution({ top, bottom, lower, upper }: BetweenParams) {
+  const gap = polySub(top, bottom);
+  const at = testPoint(lower, upper);
+  const fu = sixIntegral(gap, 0, upper) / 6;
+  const fl = sixIntegral(gap, 0, lower) / 6;
+  return [
+    {
+      text: `First decide which curve is on top. At $x = ${at}$, $y = ${polyTex(top)}$ gives $${polyAt(top, at)}$ and $y = ${polyTex(bottom)}$ gives $${polyAt(bottom, at)}$, so the first of those is the upper one.`,
+    },
+    {
+      tex: `\\left(${polyTex(top)}\\right) - \\left(${polyTex(bottom)}\\right) = ${polyTex(gap)}`,
+    },
+    { text: 'Integrate that difference between the limits: upper curve minus lower curve, one integral.' },
+    {
+      tex: `\\int_{${lower}}^{${upper}} \\left(${polyTex(gap)}\\right) dx = \\left[${antiTex(gap)}\\right]_{${lower}}^{${upper}}`,
+    },
+    { tex: `= ${fu} - \\left(${fl}\\right) = ${fu - fl}` },
+    {
+      text: 'The bracket round the lower curve is the step that goes wrong: every one of its terms changes sign, not just the first.',
+    },
+  ];
+}
+
+/** The area between two curves, with the limits given. */
+const betweenGiven: Generator<BetweenParams> = {
+  id: 'int-between-given',
+  sample: sampleBetween,
+  choices: ({ top, bottom, lower, upper }) => {
+    const gap = polySub(top, bottom);
+    const area = sixIntegral(gap, lower, upper) / 6;
+    const fu = sixIntegral(gap, 0, upper) / 6;
+    const fl = sixIntegral(gap, 0, lower) / 6;
+    return options(
+      { tex: `${area}`, answer: `${area}` },
+      // Lower curve minus upper: the right size with the wrong sign.
+      { tex: `${-area}`, answer: `${-area}` },
+      // Adding the value at the lower limit instead of subtracting it.
+      { tex: `${fu + fl}`, answer: `${fu + fl}` },
+      // Dropping the lower limit's value altogether.
+      { tex: `${fu}`, answer: `${fu}` },
+      { tex: `${area + upper - lower}`, answer: `${area + upper - lower}` },
+    ).slice(0, 4);
+  },
+  render: ({ top, bottom, swap, lower, upper }): Slide => {
+    const [first, second] = named(top, bottom, swap);
+    const gap = polySub(top, bottom);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the area between the curves $y = ${first}$ and $y = ${second}$, from $x = ${lower}$ to $x = ${upper}$.`,
+        },
+      ],
+      lead: '\\text{area} =',
+      keypad: [],
+      answer: `${sixIntegral(gap, lower, upper) / 6}`,
+      integrand: polyAnswer(gap),
+      limits: [lower, upper],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: betweenSolution,
+};
+
+/**
+ * The integrand and the area, placed as tiles.
+ *
+ * The typed form grades only the number, so a learner who subtracted the lower
+ * curve's first term and added the rest sees "wrong" and nothing else. Here the
+ * simplified difference is its own tile, beside the two differences that go
+ * wrong — the reversed one, and the one with the bracket left off.
+ */
+const betweenTiles: Generator<BetweenParams> = {
+  id: 'int-between-tiles',
+  sample: sampleBetween,
+  render: ({ top, bottom, swap, lower, upper }): Slide => {
+    const [first, second] = named(top, bottom, swap);
+    const gap = polySub(top, bottom);
+    const area = sixIntegral(gap, lower, upper) / 6;
+    // The lower curve's leading term subtracted and the rest of it added: what
+    // subtracting without a bracket produces.
+    const unbracketed = [
+      coefficientOf(top, 0) + coefficientOf(bottom, 0),
+      coefficientOf(top, 1) + coefficientOf(bottom, 1),
+      coefficientOf(top, 2) - coefficientOf(bottom, 2),
+    ];
+    const answer = [polyTex(gap), `${area}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region between $y = ${first}$ and $y = ${second}$, from $x = ${lower}$ to $x = ${upper}$. Place the simplified integrand, then the area it gives.`,
+        },
+      ],
+      template: `\\text{area} = \\int_${templateLimit(lower)}^${templateLimit(upper)} ( {0} ) \\, dx = {1}`,
+      bank: tokenBank(answer, [
+        polyTex(polyScale(gap, -1)),
+        polyTex(unbracketed),
+        `${-area}`,
+        `${sixIntegral(gap, 0, upper) / 6}`,
+        `${area + 1}`,
+      ]),
+      answer,
+    };
+  },
+  solution: betweenSolution,
+};
+
+interface TreeParams {
+  top: Poly;
+  bottom: Poly;
+  lower: number;
+  upper: number;
+}
+
+/**
+ * Area between as two areas subtracted: the integral of each curve on its
+ * own, then the difference.
+ *
+ * The idea the whole level rests on, laid out as a picture — the region is
+ * what lies under the top curve and not under the bottom one. Both curves are
+ * built with whole antiderivatives so each box holds a whole number, and a
+ * curve dipping below the axis makes its own box negative, which is the point:
+ * the difference is still the area.
+ */
+const betweenTree: Generator<TreeParams> = {
+  id: 'int-between-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const whole = (): Poly => [rng.int(-5, 6), 2 * rng.int(-3, 3), 3 * rng.pick(hard ? [-1, 0, 1] : [0, 1])];
+    return drawUntil(
+      () => {
+        const lower = rng.int(-2, 2);
+        return { top: whole(), bottom: whole(), lower, upper: lower + rng.int(1, hard ? 3 : 2) };
+      },
+      ({ top, bottom, lower, upper }) =>
+        minOn(polySub(top, bottom), lower, upper) > 0 &&
+        (coefficientOf(top, 2) !== 0 || coefficientOf(bottom, 2) !== 0) &&
+        Math.abs(sixIntegral(top, lower, upper)) <= 6 * 80 &&
+        Math.abs(sixIntegral(bottom, lower, upper)) <= 6 * 80,
+      { top: [4, 0, 3], bottom: [-1, 2, 0], lower: 0, upper: 2 },
+    );
+  },
+  render: ({ top, bottom, lower, upper }): Slide => {
+    const over = sixIntegral(top, lower, upper) / 6;
+    const under = sixIntegral(bottom, lower, upper) / 6;
+    const answer = [over, under, over - under];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Between $x = ${lower}$ and $x = ${upper}$ the curve $y_1 = ${polyTex(top)}$ lies above $y_2 = ${polyTex(bottom)}$. Fill the top row with the integral of each curve on its own, $y_1$ first, and the box below with the area between them.`,
+        },
+      ],
+      expression: `\\int_{${lower}}^{${upper}} y_1 \\, dx - \\int_{${lower}}^{${upper}} y_2 \\, dx`,
+      nodes: [
+        { id: 'upper-curve', from: [] },
+        { id: 'lower-curve', from: [] },
+        { id: 'between', from: ['upper-curve', 'lower-curve'] },
+      ],
+      bank: wholeBank(answer, [over + under, under - over, -over, -under]),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ top, bottom, lower, upper }) => {
+    const over = sixIntegral(top, lower, upper) / 6;
+    const under = sixIntegral(bottom, lower, upper) / 6;
+    return [
+      { text: 'The region between the curves is what lies under the upper one and not under the lower one, so integrate each and subtract.' },
+      { tex: `\\int_{${lower}}^{${upper}} \\left(${polyTex(top)}\\right) dx = \\left[${antiTex(top)}\\right]_{${lower}}^{${upper}} = ${over}` },
+      { tex: `\\int_{${lower}}^{${upper}} \\left(${polyTex(bottom)}\\right) dx = \\left[${antiTex(bottom)}\\right]_{${lower}}^{${upper}} = ${under}` },
+      { tex: `${over} - \\left(${under}\\right) = ${over - under}` },
+      {
+        text:
+          under < 0 || over < 0
+            ? 'One of the integrals is negative because that curve dips below the axis. It does not matter: the difference still measures the gap between the curves, wherever the axis happens to be.'
+            : 'Integrating the difference in one go gives the same number, and is usually quicker: simplify top minus bottom first, then integrate once.',
+      },
+    ];
+  },
+};
+
+interface SidesParams {
+  /** The curves in the order the question names them. */
+  first: Poly;
+  second: Poly;
+  /** Where they meet, whatever the interval. */
+  roots: [number, number];
+  lower: number;
+  upper: number;
+  /** Which is higher across the interval, or whether they cross inside it. */
+  verdict: 'first' | 'second' | 'cross';
+}
+
+/**
+ * Two curves meeting at two whole points, and an interval placed relative to
+ * those points: between them, clear of them, or straddling one.
+ *
+ * The meeting points are never an endpoint of the interval, so "cross in
+ * between" never has to be read against a curve that only touches at the edge.
+ */
+function sampleSides(rng: Rng, difficulty: number, allowCross: boolean): SidesParams {
+  const hard = difficulty > 1;
+  const r1 = rng.int(-4, 1);
+  const r2 = r1 + rng.int(3, 5);
+  const k = rng.sign() * rng.int(1, hard ? 2 : 1);
+  const layout = rng.pick(allowCross ? (['inside', 'outside', 'cross'] as const) : (['inside', 'outside'] as const));
+  let lower: number;
+  let upper: number;
+  if (layout === 'inside') {
+    lower = rng.int(r1 + 1, r2 - 2);
+    upper = rng.int(lower + 1, r2 - 1);
+  } else if (layout === 'outside') {
+    if (rng.int(0, 1) === 0) {
+      lower = r2 + rng.int(1, 2);
+      upper = lower + rng.int(1, 2);
+    } else {
+      upper = r1 - rng.int(1, 2);
+      lower = upper - rng.int(1, 2);
+    }
+  } else if (rng.int(0, 1) === 0) {
+    lower = r1 - rng.int(1, 2);
+    upper = rng.int(r1 + 1, r2 - 1);
+  } else {
+    lower = rng.int(r1 + 1, r2 - 1);
+    upper = r2 + rng.int(1, 2);
+  }
+  const second = [rng.int(-6, 6), rng.int(-3, 3), hard ? rng.pick([-1, 0, 1]) : 0];
+  const first = polyAdd(second, fromRoots(k, r1, r2));
+  const middle = polyAt(polySub(first, second), (lower + upper) / 2);
+  return {
+    first,
+    second,
+    roots: [r1, r2],
+    lower,
+    upper,
+    verdict: layout === 'cross' ? 'cross' : middle > 0 ? 'first' : 'second',
+  };
+}
+
+/** The worked reasoning shared by the questions that ask which curve is higher. */
+function sidesSolution({ first, second, roots, lower, upper, verdict }: SidesParams) {
+  const gap = polySub(first, second);
+  const k = coefficientOf(gap, 2);
+  const inside = roots.find((root) => root > lower && root < upper);
+  const at = testPoint(lower, upper);
+  return [
+    { text: 'Subtract one curve from the other and see where the difference is positive.' },
+    { tex: `\\left(${polyTex(first)}\\right) - \\left(${polyTex(second)}\\right) = ${polyTex(gap)} = ${factorisedTex(k, roots[0], roots[1])}` },
+    {
+      text: `The curves meet where this is zero, at $x = ${roots[0]}$ and $x = ${roots[1]}$, and only there can the higher one change.`,
+    },
+    verdict === 'cross'
+      ? {
+          text: `$x = ${inside}$ lies strictly between $${lower}$ and $${upper}$, so the curves cross inside the interval and each is on top for part of it.`,
+        }
+      : {
+          text: `Neither meeting point lies strictly between $${lower}$ and $${upper}$, so one curve is higher all the way across. At $x = ${at}$ the difference is $${polyAt(gap, at)}$, so $y = ${polyTex(verdict === 'first' ? first : second)}$ is on top.`,
+        },
+  ];
+}
+
+/** Which curve is higher across an interval, or do they cross in it? */
+const whichAbove: Generator<SidesParams> = {
+  id: 'int-which-above',
+  // Crossing is always on offer, but only a correct answer at difficulty 2,
+  // after the lesson on curves that cross.
+  sample: (rng, difficulty) => sampleSides(rng, difficulty, difficulty > 1),
+  render: ({ first, second, lower, upper, verdict }): Slide => {
+    const choices = [
+      { id: 'first', label: `y = ${polyTex(first)}`, tex: true },
+      { id: 'second', label: `y = ${polyTex(second)}`, tex: true },
+      { id: 'cross', label: '\\text{they cross in between}', tex: true },
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Between $x = ${lower}$ and $x = ${upper}$, which curve is higher all the way across, or do they cross in between?`,
+        },
+      ],
+      options: turned(choices, lower + 2 * upper + coefficientOf(second, 0)),
+      correctId: verdict,
+    };
+  },
+  solution: sidesSolution,
+};
+
+/**
+ * The same decision as a route through the method: do they cross, and if not,
+ * which is on top — and so which integral, or pair of integrals, gives the area.
+ */
+const regionFlow: Generator<SidesParams> = {
+  id: 'int-region-flow',
+  sample: (rng, difficulty) => sampleSides(rng, difficulty, true),
+  render: ({ first, second, lower, upper, verdict }): Slide => ({
+    kind: 'flow',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Decide how to find the area between these curves from $x = ${lower}$ to $x = ${upper}$. Each answer chooses what gets asked next.`,
+      },
+    ],
+    subject: `y_1 = ${polyTex(first)}, \\quad y_2 = ${polyTex(second)}`,
+    steps: [
+      {
+        id: 'cross',
+        ask: `Do the curves cross strictly between $x = ${lower}$ and $x = ${upper}$? Solve $y_1 = y_2$ and see whether a solution lies inside.`,
+        branches: [
+          {
+            label: 'Yes',
+            outcome:
+              'Neither curve is on top all the way, so split at the crossing point, integrate $y_1 - y_2$ over each piece, and add the sizes of the two results.',
+          },
+          { label: 'No', to: 'top' },
+        ],
+      },
+      {
+        id: 'top',
+        ask: `Which curve is higher across the interval? Try a value of $x$ between $${lower}$ and $${upper}$.`,
+        branches: [
+          {
+            label: '$y_1$',
+            outcome: `One integral does it: $\\int_{${lower}}^{${upper}} \\left(y_1 - y_2\\right) dx$ is the area.`,
+          },
+          {
+            label: '$y_2$',
+            outcome: `One integral does it: $\\int_{${lower}}^{${upper}} \\left(y_2 - y_1\\right) dx$ is the area.`,
+          },
+        ],
+      },
+    ],
+    answer: verdict === 'cross' ? ['Yes'] : ['No', verdict === 'first' ? '$y_1$' : '$y_2$'],
+  }),
+  solution: sidesSolution,
+};
+
+interface MeetParams {
+  /** Always a parabola. */
+  curve: Poly;
+  /** A line, or at difficulty 2 sometimes a second parabola. */
+  other: Poly;
+  p: number;
+  q: number;
+  /** True when the question names `other` first. */
+  swap: boolean;
+}
+
+/**
+ * A parabola and a line (or a second parabola) meeting at two whole points.
+ *
+ * Built from the meeting points outward: the gap between the curves is
+ * k(x - p)(x - q), and the second curve is drawn freely and added to it. That
+ * varies both curves and the coefficients together, which is what keeps the
+ * pool wide even though the answers are whole numbers from a short range.
+ */
+function sampleMeet(rng: Rng, difficulty: number): MeetParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const p = rng.int(-4, 2);
+      const q = p + rng.int(1, 4);
+      const k = rng.sign() * rng.int(1, hard ? 2 : 1);
+      const other = [rng.int(-6, 6), rng.int(-4, 4), hard ? rng.pick([-1, 0, 0, 1]) : 0];
+      return { curve: polyAdd(other, fromRoots(k, p, q)), other, p, q, swap: rng.int(0, 1) === 1 };
+    },
+    ({ curve, other }) => coefficientOf(curve, 2) !== 0 && other.some((value) => value !== 0),
+    { curve: [-1, 0, 1], other: [1, 1, 0], p: -1, q: 2, swap: false },
+  );
+}
+
+function meetNames({ curve, other, swap }: MeetParams): [string, string] {
+  return swap ? [polyTex(other), polyTex(curve)] : [polyTex(curve), polyTex(other)];
+}
+
+function meetSolution({ curve, other, p, q }: MeetParams) {
+  const gap = polySub(curve, other);
+  const k = coefficientOf(gap, 2);
+  return [
+    { text: 'Where the curves meet they share a $y$ value, so set the two right-hand sides equal and gather everything on one side.' },
+    { tex: `${polyTex(curve)} = ${polyTex(other)}` },
+    { tex: `${polyTex(gap)} = 0` },
+    { tex: `${factorisedTex(k, p, q)} = 0` },
+    {
+      text: `So $x = ${p}$ or $x = ${q}$. These are the limits of the region the curves enclose: it runs from one meeting point to the other.`,
+    },
+  ];
+}
+
+/** Where a parabola and a line (or two parabolas) meet, placed as tiles. */
+const meetPoints: Generator<MeetParams> = {
+  id: 'int-meet-points',
+  sample: sampleMeet,
+  render: (params): Slide => {
+    const { p, q } = params;
+    const [first, second] = meetNames(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Where do $y = ${first}$ and $y = ${second}$ meet? Place the two $x$-coordinates.`,
+        },
+      ],
+      template: 'x = {0} \\quad \\text{and} \\quad x = {1}',
+      // Each root with its sign flipped is the slip factorising invites.
+      bank: wholeBank([p, q], [-p, -q, p + q, p * q]),
+      answer: [`${p}`, `${q}`],
+      unordered: true,
+    };
+  },
+  solution: meetSolution,
+};
+
+/** The slider's track, which is also the figure's width. */
+const MEET_MIN = -5;
+const MEET_MAX = 7;
+
+/**
+ * The right-hand meeting point, dragged to on a picture of the two curves.
+ *
+ * The algebra and the picture are one fact seen twice, and a learner who has
+ * solved for the limits should be able to point at them. The answer is never
+ * where the handle rests before it is touched.
+ */
+const meetSlider: Generator<MeetParams> = {
+  id: 'int-meet-slider',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => sampleMeet(rng, difficulty),
+      ({ q }) => q !== MEET_MIN + Math.round((MEET_MAX - MEET_MIN) / 2),
+      { curve: [-1, 0, 1], other: [1, 1, 0], p: -1, q: 2, swap: false },
+    ),
+  render: (params): Slide => {
+    const { curve, other, p, q } = params;
+    const [first, second] = meetNames(params);
+    const { yMin, yMax } = windowFor([curve, other], p - 1.5, q + 1.5);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curves $y = ${first}$ and $y = ${second}$ meet twice. Slide the marker to the right-hand meeting point.`,
+        },
+      ],
+      min: MEET_MIN,
+      max: MEET_MAX,
+      step: 1,
+      answer: q,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: MEET_MIN,
+          xMax: MEET_MAX,
+          yMin,
+          yMax,
+          curves: [{ f: (x) => polyAt(curve, x) }, { f: (x) => polyAt(other, x), accent: true }],
+          label: 'Two curves crossing each other twice',
+        }),
+        ...markerWindow(MEET_MIN, MEET_MAX),
+        axis: 'x',
+      },
+    };
+  },
+  solution: meetSolution,
+};
+
+/**
+ * Which integral gives the enclosed area?
+ *
+ * The setting-up step on its own: the limits from the meeting points, and the
+ * integrand the right way round. The distractors are the three ways the set-up
+ * goes wrong — upside down, limits with their signs flipped, and the upper curve
+ * integrated as if the lower one were the axis.
+ */
+const setupIntegral: Generator<MeetParams> = {
+  id: 'int-setup-integral',
+  sample: sampleMeet,
+  render: (params): Slide => {
+    const { curve, other, p, q } = params;
+    const [first, second] = meetNames(params);
+    const k = coefficientOf(polySub(curve, other), 2);
+    // Between the roots k(x - p)(x - q) has the opposite sign to k.
+    const top = k < 0 ? curve : other;
+    const gap = fromRoots(-Math.abs(k), p, q);
+    const integral = (from: number, to: number, body: Poly) =>
+      `\\int_{${from}}^{${to}} \\left(${polyTex(body)}\\right) dx`;
+    const wrongLimits = p + q === 0 ? integral(0, q, gap) : integral(-q, -p, gap);
+    const choices = distinctOptions([
+      { id: 'right', label: integral(p, q, gap), tex: true },
+      { id: 'reversed', label: integral(p, q, polyScale(gap, -1)), tex: true },
+      { id: 'limits', label: wrongLimits, tex: true },
+      { id: 'top-only', label: integral(p, q, top), tex: true },
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which integral gives the area of the region enclosed by $y = ${first}$ and $y = ${second}$?`,
+        },
+      ],
+      options: turned(choices, p + 3 * q + coefficientOf(other, 0)),
+      correctId: 'right',
+    };
+  },
+  solution: (params) => {
+    const { curve, other, p, q } = params;
+    const k = coefficientOf(polySub(curve, other), 2);
+    const top = k < 0 ? curve : other;
+    const bottom = k < 0 ? other : curve;
+    const at = testPoint(p, q);
+    return [
+      ...meetSolution(params).slice(0, 4),
+      { text: `So the limits are $${p}$ and $${q}$. Between them, at $x = ${at}$, $y = ${polyTex(top)}$ gives $${polyAt(top, at)}$ and $y = ${polyTex(bottom)}$ gives $${polyAt(bottom, at)}$, so the first is on top.` },
+      { tex: `\\left(${polyTex(top)}\\right) - \\left(${polyTex(bottom)}\\right) = ${polyTex(polySub(top, bottom))}` },
+      { text: 'Upper minus lower, between the meeting points. Nothing about the axis enters into it.' },
+    ];
+  },
+};
+
+interface EnclosedParams {
+  top: Poly;
+  bottom: Poly;
+  p: number;
+  q: number;
+  /** The gap is k(x - p)(q - x), so the area is k(q - p)^3 / 6. */
+  k: number;
+  /** True when the question names the lower curve first. */
+  swap: boolean;
+}
+
+/**
+ * Widths and scales for which the enclosed area k w^3 / 6 is whole.
+ *
+ * Found by listing rather than by rounding: of the pairs a learner would
+ * recognise, only these divide exactly, and restricting to them costs nothing
+ * in the pool because the curves around the gap still vary freely.
+ */
+function wholeSegments(maxWidth: number, maxScale: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let width = 2; width <= maxWidth; width += 1) {
+    for (let scale = 1; scale <= maxScale; scale += 1) {
+      if ((scale * width ** 3) % 6 === 0) out.push([width, scale]);
+    }
+  }
+  return out;
+}
+
+/** A region enclosed by a parabola and a line, or by two parabolas. */
+function sampleEnclosed(rng: Rng, difficulty: number, pair: boolean): EnclosedParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const [width, k] = rng.pick(wholeSegments(hard ? 5 : 4, hard ? 6 : 4));
+      const p = rng.int(-3, 2);
+      const q = p + width;
+      // Positive between the roots: the height of the region at each x.
+      const gap = fromRoots(-k, p, q);
+      const other = [rng.int(-6, 6), rng.int(-4, 4), pair ? rng.pick([-2, -1, 1, 2]) : 0];
+      const otherOnTop = rng.int(0, 1) === 1;
+      return {
+        top: otherOnTop ? other : polyAdd(other, gap),
+        bottom: otherOnTop ? polySub(other, gap) : other,
+        p,
+        q,
+        k,
+        swap: rng.int(0, 1) === 1,
+      };
+    },
+    ({ top, bottom }) =>
+      (pair
+        ? coefficientOf(top, 2) !== 0 && coefficientOf(bottom, 2) !== 0
+        : coefficientOf(top, 2) === 0 || coefficientOf(bottom, 2) === 0) &&
+      top.some((value) => value !== 0) &&
+      bottom.some((value) => value !== 0),
+    pair
+      ? { top: [4, 0, -1], bottom: [-4, 0, 1], p: -2, q: 2, k: 2, swap: false }
+      : { top: [4, 0, 0], bottom: [-5, 0, 1], p: -3, q: 3, k: 1, swap: false },
+  );
+}
+
+const enclosedArea = ({ p, q, k }: EnclosedParams) => (k * (q - p) ** 3) / 6;
+
+/**
+ * The slips of a parabolic segment's area that land on a whole number: the
+ * box round it (width times greatest height, 3/2 of the answer) and the
+ * triangle inside it (3/4 of the answer).
+ */
+function enclosedChoices(params: EnclosedParams) {
+  const { p, q, k } = params;
+  const area = enclosedArea(params);
+  const cube = k * (q - p) ** 3;
+  const whole = [cube / 4, cube / 8].filter((value) => Number.isInteger(value));
+  return options(
+    { tex: `${area}`, answer: `${area}` },
+    { tex: `${-area}`, answer: `${-area}` },
+    ...whole.map((value) => ({ tex: `${value}`, answer: `${value}` })),
+    { tex: `${area + q - p}`, answer: `${area + q - p}` },
+  ).slice(0, 4);
+}
+
+function enclosedRender(params: EnclosedParams): Slide {
+  const { top, bottom, swap, p, q } = params;
+  const [first, second] = named(top, bottom, swap);
+  return {
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Find the area of the region enclosed by $y = ${first}$ and $y = ${second}$.`,
+      },
+    ],
+    lead: '\\text{area} =',
+    keypad: [],
+    answer: `${enclosedArea(params)}`,
+    integrand: polyAnswer(polySub(top, bottom)),
+    limits: [p, q],
+    domain: 'real',
+    mode: 'exact',
+  };
+}
+
+function enclosedSolution(params: EnclosedParams) {
+  const { top, bottom, p, q, k } = params;
+  const gap = polySub(top, bottom);
+  const at = testPoint(p, q);
+  return [
+    { text: 'No limits are given, so they are where the curves meet. Set the curves equal and solve.' },
+    { tex: `${polyTex(gap)} = 0 \\quad \\Rightarrow \\quad ${factorisedTex(-k, p, q)} = 0` },
+    {
+      text: `They meet at $x = ${p}$ and $x = ${q}$. At $x = ${at}$, between them, $y = ${polyTex(top)}$ gives $${polyAt(top, at)}$ and $y = ${polyTex(bottom)}$ gives $${polyAt(bottom, at)}$, so the first is on top.`,
+    },
+    {
+      tex: `\\int_{${p}}^{${q}} \\left(${polyTex(gap)}\\right) dx = \\left[${antiTex(gap)}\\right]_{${p}}^{${q}} = ${enclosedArea(params)}`,
+    },
+    {
+      text: `A check that needs no integrating: when top minus bottom is $k(x - p)(q - x)$ the area is $\\frac{k}{6}(q - p)^{3}$, here $\\frac{${k}}{6} \\times ${q - p}^{3} = ${enclosedArea(params)}$.`,
+    },
+  ];
+}
+
+/** The area enclosed by a parabola and a line: find the limits, then integrate. */
+const enclosedByLine: Generator<EnclosedParams> = {
+  id: 'int-enclosed-area',
+  sample: (rng, difficulty) => sampleEnclosed(rng, difficulty, false),
+  choices: enclosedChoices,
+  render: enclosedRender,
+  solution: enclosedSolution,
+};
+
+/**
+ * The area enclosed by two parabolas.
+ *
+ * The same method with nothing new in it except the moment of doubt: the
+ * difference of two quadratics is another quadratic, and once it is simplified
+ * the question is the one the learner has already done.
+ */
+const enclosedByParabolas: Generator<EnclosedParams> = {
+  id: 'int-parabolas-area',
+  sample: (rng, difficulty) => sampleEnclosed(rng, difficulty, true),
+  choices: enclosedChoices,
+  render: enclosedRender,
+  solution: (params) => [
+    {
+      text: 'Both curves have an $x^{2}$ term, but their difference is still a single quadratic, and that is all the method needs.',
+    },
+    ...enclosedSolution(params),
+  ],
+};
+
+interface SixthParams {
+  k: number;
+  p: number;
+  q: number;
+}
+
+/** (q - x) as it would be written by hand. */
+function rightFactorTex(q: number): string {
+  return q === 0 ? '(-x)' : `(${q} - x)`;
+}
+
+/**
+ * The one-sixth rule, k(q - p)^3 / 6, reduced one piece at a time.
+ *
+ * Every region in this level whose top minus bottom is a quadratic has this
+ * area, which makes it both a shortcut and a check on the long way. As a
+ * `reduce` the order matters — the bracket before the cube, the cube before the
+ * multiplication — and the banks hold the slips each step invites: adding the
+ * limits, multiplying by three instead of cubing, dividing by three.
+ */
+const sixthRule: Generator<SixthParams> = {
+  id: 'int-sixth-rule',
+  sample: (rng, difficulty) => {
+    const [width, k] = rng.pick(wholeSegments(difficulty > 1 ? 6 : 3, 6));
+    const p = rng.int(-3, 3);
+    return { k, p, q: p + width };
+  },
+  choices: ({ k, p, q }) => {
+    const cube = k * (q - p) ** 3;
+    return options(
+      { tex: `${cube / 6}`, answer: `${cube / 6}` },
+      { tex: `${cube / 3}`, answer: `${cube / 3}` },
+      { tex: `${cube / 2}`, answer: `${cube / 2}` },
+      { tex: `${cube}`, answer: `${cube}` },
+    );
+  },
+  render: ({ k, p, q }): Slide => {
+    const width = q - p;
+    const cube = width ** 3;
+    const gap = fromRoots(-k, p, q);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Two curves meet at $x = ${p}$ and $x = ${q}$, and top minus bottom is $${polyTex(gap)}$, which is $${k === 1 ? '' : k}${factorTex(p)}${rightFactorTex(q)}$. For a gap of that shape the area is $\\frac{k}{6}(q - p)^{3}$. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      expr: bin('/', bin('*', num(k), pow(bin('-', num(q), num(p)), num(3))), num(6)),
+      banks: {
+        'r.l.r.b': bank4(width, q + p, p - q, q),
+        'r.l.r': bank4(cube, 3 * width, width * width, (q + p) ** 3),
+        'r.l': bank4(k * cube, k + cube, k * width, cube),
+        r: bank4((k * cube) / 6, (k * cube) / 3, (k * cube) / 2, k * cube),
+      },
+    };
+  },
+  solution: ({ k, p, q }) => {
+    const width = q - p;
+    const area = (k * width ** 3) / 6;
+    return [
+      { text: `The curves meet at $${p}$ and $${q}$, so the width of the region is $${q} - \\left(${p}\\right) = ${width}$.` },
+      { tex: `\\frac{${k}}{6} \\times ${width}^{3} = \\frac{${k} \\times ${width ** 3}}{6} = \\frac{${k * width ** 3}}{6} = ${area}` },
+      {
+        text: `The long way gives the same: $\\int_{${p}}^{${q}} ${k === 1 ? '' : k}${factorTex(p)}${rightFactorTex(q)} \\, dx = ${area}$. The rule is that integral done once in general, which is why it only applies when top minus bottom is a quadratic.`,
+      },
+      { text: 'Cube the width before multiplying, and divide by six, not three: the sixth comes from the integral, not from the number of terms.' },
+    ];
+  },
+};
+
+interface CrossingParams {
+  first: Poly;
+  second: Poly;
+  lower: number;
+  /** Where the curves cross, strictly inside the interval. */
+  cross: number;
+  upper: number;
+}
+
+/**
+ * Two curves crossing once inside an interval, each piece of the region a
+ * whole number.
+ *
+ * The gap is a line through the crossing point, or at difficulty 2 sometimes a
+ * quadratic whose other root lies outside the interval. Drafts whose pieces are
+ * not whole are rejected using `sixIntegral`'s exact arithmetic.
+ *
+ * The widths are 2, 4 and 5 for the oracle's sake. It integrates |gap| by
+ * Simpson's rule on 1000 steps, which is exact on each side of the kink at the
+ * crossing only if the kink falls on an even node — true for these widths at
+ * every whole crossing point, and false for a width of 3.
+ */
+function sampleCrossing(rng: Rng, difficulty: number): CrossingParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const width = rng.pick([2, 4, 5]);
+      const lower = rng.int(-3, 1);
+      const upper = lower + width;
+      const cross = rng.int(lower + 1, upper - 1);
+      let gap: Poly;
+      if (!hard || rng.int(0, 1) === 0) {
+        const slope = rng.sign() * 2 * rng.int(1, 2);
+        gap = [-slope * cross, slope];
+      } else {
+        const beyond = rng.pick([lower - 2, lower - 1, lower, upper, upper + 1, upper + 2]);
+        gap = fromRoots(rng.sign() * rng.int(1, 3), cross, beyond);
+      }
+      const second = [rng.int(-5, 5), rng.int(-3, 3), rng.pick([-1, 1, 2])];
+      return { first: polyAdd(second, gap), second, lower, cross, upper };
+    },
+    ({ first, second, lower, cross, upper }) => {
+      const gap = polySub(first, second);
+      const left = sixIntegral(gap, lower, cross);
+      const right = sixIntegral(gap, cross, upper);
+      return (
+        left % 6 === 0 &&
+        right % 6 === 0 &&
+        Math.abs(left) + Math.abs(right) <= 6 * 60 &&
+        first.some((value) => value !== 0)
+      );
+    },
+    { first: [-3, 2, 1], second: [-1, 0, 1], lower: 0, cross: 1, upper: 2 },
+  );
+}
+
+/** The two signed pieces of the integral, split at the crossing point. */
+function crossingPieces({ first, second, lower, cross, upper }: CrossingParams): [number, number] {
+  const gap = polySub(first, second);
+  return [sixIntegral(gap, lower, cross) / 6, sixIntegral(gap, cross, upper) / 6];
+}
+
+function crossingSolution(params: CrossingParams) {
+  const { first, second, lower, cross, upper } = params;
+  const gap = polySub(first, second);
+  const [left, right] = crossingPieces(params);
+  return [
+    {
+      text: `The curves cross at $x = ${cross}$, inside the interval, so the higher curve changes there. Split the integral at the crossing and integrate the difference over each piece.`,
+    },
+    { tex: `\\left(${polyTex(first)}\\right) - \\left(${polyTex(second)}\\right) = ${polyTex(gap)}` },
+    { tex: `\\int_{${lower}}^{${cross}} \\left(${polyTex(gap)}\\right) dx = ${left}` },
+    { tex: `\\int_{${cross}}^{${upper}} \\left(${polyTex(gap)}\\right) dx = ${right}` },
+    {
+      text: `One piece is negative because the other curve is on top there. Add the sizes: $${Math.abs(left)} + ${Math.abs(right)} = ${Math.abs(left) + Math.abs(right)}$. Integrating straight through gives $${left + right}$, where the two pieces cancel.`,
+    },
+  ];
+}
+
+/** The total area between two curves that cross inside the interval. */
+const crossingArea: Generator<CrossingParams> = {
+  id: 'int-crossing-area',
+  sample: sampleCrossing,
+  choices: (params) => {
+    const [left, right] = crossingPieces(params);
+    const total = Math.abs(left) + Math.abs(right);
+    return options(
+      { tex: `${total}`, answer: `${total}` },
+      // Integrating straight through the crossing.
+      { tex: `${Math.abs(left + right)}`, answer: `${Math.abs(left + right)}` },
+      { tex: `${left + right}`, answer: `${left + right}` },
+      // Only the larger piece.
+      { tex: `${Math.max(Math.abs(left), Math.abs(right))}`, answer: `${Math.max(Math.abs(left), Math.abs(right))}` },
+      { tex: `${total + params.upper - params.lower}`, answer: `${total + params.upper - params.lower}` },
+    ).slice(0, 4);
+  },
+  render: (params): Slide => {
+    const { first, second, lower, cross, upper } = params;
+    const [left, right] = crossingPieces(params);
+    // Given outright at difficulty 1; at difficulty 2 the learner finds it,
+    // and discards the other root of a quadratic gap, which lies outside.
+    const where = (params.first[2] ?? 0) === (params.second[2] ?? 0)
+      ? `cross at $x = ${cross}$`
+      : `cross once between $x = ${lower}$ and $x = ${upper}$`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curves $y = ${polyTex(first)}$ and $y = ${polyTex(second)}$ ${where}. Find the total area between them from $x = ${lower}$ to $x = ${upper}$.`,
+        },
+      ],
+      lead: '\\text{area} =',
+      keypad: [],
+      answer: `${Math.abs(left) + Math.abs(right)}`,
+      integrand: `abs(${polyAnswer(polySub(first, second))})`,
+      limits: [lower, upper],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: crossingSolution,
+};
+
+/**
+ * The two pieces and their total, as a tree.
+ *
+ * The signed pieces go in the top row as they come out of the integral, one of
+ * them negative, and only the box below turns them into an area. That keeps
+ * "integrate" and "take the size" as two visible steps, which is exactly where
+ * the typed question's wrong answers come from.
+ */
+const crossingTree: Generator<CrossingParams> = {
+  id: 'int-crossing-pieces',
+  sample: sampleCrossing,
+  render: (params): Slide => {
+    const { first, second, lower, cross, upper } = params;
+    const [left, right] = crossingPieces(params);
+    const answer = [left, right, Math.abs(left) + Math.abs(right)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curves $y_1 = ${polyTex(first)}$ and $y_2 = ${polyTex(second)}$ cross at $x = ${cross}$. Write $D(x) = y_1 - y_2$. Fill the top row with the integral of $D$ over each piece, left piece first, and the box below with the total area.`,
+        },
+      ],
+      expression: `\\left|\\int_{${lower}}^{${cross}} D \\, dx\\right| + \\left|\\int_{${cross}}^{${upper}} D \\, dx\\right|`,
+      nodes: [
+        { id: 'left-piece', from: [] },
+        { id: 'right-piece', from: [] },
+        { id: 'total', from: ['left-piece', 'right-piece'] },
+      ],
+      bank: wholeBank(answer, [left + right, -left, -right, Math.abs(left) - Math.abs(right)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: crossingSolution,
+};
+
+interface NetParams {
+  lower: number;
+  upper: number;
+  /** Area of the part where y_1 is higher. */
+  above: number;
+  /** Area of the part where y_2 is higher. */
+  below: number;
+  ask: 'net' | 'total' | 'reversed';
+}
+
+/**
+ * The signed integral against the area, with the pieces already known.
+ *
+ * The integration counterpart of `int-signed-area` for two curves: nothing to
+ * integrate, only the question of what the integral of y_1 - y_2 counts. It
+ * counts the part where y_2 is higher as negative, and the area does not.
+ */
+const netBetween: Generator<NetParams> = {
+  id: 'int-net-between',
+  sample: (rng, difficulty) => {
+    const lower = rng.int(-3, 2);
+    return drawUntil(
+      () => ({
+        lower,
+        upper: lower + rng.int(2, 5),
+        above: rng.int(2, 20),
+        below: rng.int(2, 20),
+        ask: rng.pick(difficulty > 1 ? (['net', 'total', 'reversed'] as const) : (['net', 'total'] as const)),
+      }),
+      ({ above, below }) => above !== below,
+      { lower, upper: lower + 3, above: 7, below: 4, ask: 'net' },
+    );
+  },
+  render: ({ lower, upper, above, below, ask }): Slide => {
+    const choices = distinctOptions([
+      { id: 'net', label: `${above - below}`, tex: true },
+      { id: 'reversed', label: `${below - above}`, tex: true },
+      { id: 'total', label: `${above + below}`, tex: true },
+      { id: 'larger', label: `${Math.max(above, below)}`, tex: true },
+    ]);
+    const question =
+      ask === 'total'
+        ? 'the total area between the curves'
+        : ask === 'net'
+          ? `$\\int_{${lower}}^{${upper}} \\left(y_1 - y_2\\right) dx$`
+          : `$\\int_{${lower}}^{${upper}} \\left(y_2 - y_1\\right) dx$`;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curves $y_1$ and $y_2$ cross once between $x = ${lower}$ and $x = ${upper}$. Where $y_1$ is higher the region between them has area $${above}$; where $y_2$ is higher, $${below}$. What is ${question}?`,
+        },
+      ],
+      options: turned(choices, above + 2 * below + lower),
+      correctId: ask,
+    };
+  },
+  solution: ({ lower, upper, above, below, ask }) => [
+    {
+      text: 'The integral of $y_1 - y_2$ counts the part where $y_1$ is higher as positive and the part where $y_2$ is higher as negative, because there the difference is negative.',
+    },
+    { tex: `\\int_{${lower}}^{${upper}} \\left(y_1 - y_2\\right) dx = ${above} - ${below} = ${above - below}` },
+    ask === 'reversed'
+      ? { text: `Swapping the curves swaps every sign, so $\\int \\left(y_2 - y_1\\right) dx = ${below - above}$.` }
+      : { text: `Area counts both parts as positive: $${above} + ${below} = ${above + below}$.` },
+    {
+      text: ask === 'total'
+        ? 'So the area is the sum of the sizes. The integral straight through is a signed total, useful for other things but not for this.'
+        : 'The integral straight through is a signed total, and it is what was asked. The area would be the sum of the sizes.',
+    },
+  ],
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -1893,4 +3155,18 @@ export const integrationGenerators = [
   substitutionGeneral,
   rootPower,
   partsLog,
+  betweenGiven,
+  betweenTiles,
+  betweenTree,
+  whichAbove,
+  regionFlow,
+  meetPoints,
+  meetSlider,
+  setupIntegral,
+  enclosedByLine,
+  enclosedByParabolas,
+  sixthRule,
+  crossingArea,
+  crossingTree,
+  netBetween,
 ] as unknown as Generator<unknown>[];

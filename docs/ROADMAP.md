@@ -479,6 +479,12 @@ Order, by prerequisite and by how much new widget work each needs:
 A concept whose note names a new widget should deliver that widget in its own
 batch rather than waiting on a separate one.
 
+### Phase C batches
+
+| # | Batch | Status |
+| ---: | --- | --- |
+| C6 | Trigonometric Identities & Equations | claimed (`claude/roadmap-c-trig-identities-pj4b64`) |
+
 ### When the queue empties
 
 Phase A, then phases B and C interleaved — take a C batch whenever the concept

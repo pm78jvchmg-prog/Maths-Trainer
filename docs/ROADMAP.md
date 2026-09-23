@@ -422,6 +422,7 @@ are green, and one new lesson has been played in a browser.
 | B6 | Differentiation: Stationary Points & the Second Derivative | **done** (`claude/roadmap-b-differentiation-8b0n1s`): level `df-l5`, 5 lessons, a 14-question level check, 15 new generators and an independent mathjs check |
 | B10 | Exponents & Radicals: Manipulating Surd Expressions | **done** (`claude/roadmap-b-exponents-2-ts8ccs`): level `er-l5`, 5 lessons, a 14-question level check, 19 new generators |
 | B12 | Logarithms: Logarithmic Graphs | **done** (`claude/roadmap-b-logarithms-2-bl64ii`): level `lg-l5`, 4 lessons, a 14-question level check, 16 new generators and a logarithm-graph figure |
+| B13 | Trigonometric Functions: Tangent & the Reciprocal Functions | **done** (`claude/roadmap-b-trig-2-147dx4`): level `tf-l5`, 5 lessons, a 15-question level check, 20 new generators and an asymptote-aware curve option in `figures.ts` |
 | B17 | Vectors: Lines in Vector Form | **done** (`claude/roadmap-b-vectors-2-u0463t`): level `vm-l6`, 5 lessons, a 14-question level check, 17 new generators |
 | B18 | Matrices & Linear Transformations: Composing Transformations | **done** (`claude/roadmap-b-matrices-2-taz4dj`): level `vm-l7`, 5 lessons, a 15-question level check, 19 new generators |
 

@@ -419,7 +419,7 @@ are green, and one new lesson has been played in a browser.
 | B4 | Trigonometric Functions: Radians | **done** (`claude/roadmap-b-trig-functions-dt6rsq`): level `tf-l4`, 4 lessons, a 15-question level check, 16 new generators |
 | B8 | Vectors: Vector Geometry | **done** (`claude/roadmap-b-vectors-k0aou4`): level `vm-l4`, 5 lessons, a 14-question level check, 19 new generators |
 | B9 | Matrices & Linear Transformations: Matrices as Transformations | **done** (`claude/roadmap-b-matrices-fcu036`): level `vm-l5`, 5 lessons, a 15-question level check, 15 new generators and a unit-square figure |
-| B13 | Trigonometric Functions: Tangent & the Reciprocal Functions | claimed (`claude/roadmap-b-trig-2-147dx4`) |
+| B13 | Trigonometric Functions: Tangent & the Reciprocal Functions | **done** (`claude/roadmap-b-trig-2-147dx4`): level `tf-l5`, 5 lessons, a 15-question level check, 20 new generators and an asymptote-aware curve option in `figures.ts` |
 
 ### Phase C — the twenty-one new concepts
 

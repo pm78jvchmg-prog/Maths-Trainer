@@ -67,6 +67,8 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
 export const vectors: Course = {
   id: 'vectors',
+  category: 'advanced-maths',
+  position: 40,
   title: 'Vectors',
   blurb: 'Components, magnitude and the scalar product, then vector geometry, lines, planes and the angles between them.',
   levels: [

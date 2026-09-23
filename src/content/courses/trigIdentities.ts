@@ -36,6 +36,9 @@ const maths = (tex: string): Block => ({ kind: 'display', tex });
 
 export const trigIdentities: Course = {
   id: 'trig-identities',
+  category: 'advanced-algebra',
+  // Straight after Trigonometric Functions, whose identities it puts to work.
+  position: 15,
   title: 'Trigonometric Identities & Equations',
   blurb: 'Rewriting with identities to solve equations, then compound and double angles.',
   levels: [

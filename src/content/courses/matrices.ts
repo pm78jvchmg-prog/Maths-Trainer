@@ -53,6 +53,8 @@ const figure = (svg: string) => ({ kind: 'diagram' as const, svg });
 
 export const matrices: Course = {
   id: 'matrices',
+  category: 'advanced-maths',
+  position: 50,
   title: 'Matrices & Linear Transformations',
   blurb: 'Matrix arithmetic, the determinant and the inverse, matrices as transformations of the plane, systems of equations, and invariant lines and points.',
   levels: [

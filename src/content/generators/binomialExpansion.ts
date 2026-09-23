@@ -6,7 +6,9 @@
  * term picked out without writing the rest. Level 2 names the triangle's
  * entries: factorials and nCr, nCr as the coefficient of a term, the general
  * term, estimates from the first three terms, and a bracket multiplied by an
- * expansion.
+ * expansion. Level 3 works backwards: n, k or a from given coefficients,
+ * neighbouring coefficients equal or in a ratio, and the sum of the
+ * coefficients from x = 1 and x = -1.
  *
  * Every question here has a whole-number n of at most 8 in an expansion (nCr
  * on its own goes to 12), so every coefficient, bank and option is exact. The
@@ -20,6 +22,8 @@ import type { Rng } from '../../engine/rng';
 import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termAnswer, termTex } from './calculus';
+import { markerWindow, plotSvg } from '../figures';
+import { defaultSliderValue } from '../../ui/sliderValue';
 
 /* ---------- shared ---------- */
 
@@ -2301,6 +2305,1279 @@ const productExpandTiles: Generator<ProductParams> = {
   },
 };
 
+/* ---------- Level 3: unknowns and conditions ---------- */
+
+/*
+ * Every question here is drawn from its answer outward: n, k and a first, then
+ * the coefficients and conditions they make. A coefficient given in a prompt
+ * is kept under 10000, and n stays at 8 or below wherever a coefficient is
+ * worked out; where only a condition on neighbouring terms is stated, n goes
+ * to 12, as nCr on its own does.
+ */
+
+function gcd(x: number, y: number): number {
+  return y === 0 ? Math.abs(x) : gcd(y, x % y);
+}
+
+/** p/q in lowest terms, the sign carried on top. */
+function reduced(p: number, q: number): [number, number] {
+  const g = gcd(p, q) || 1;
+  const sign = q < 0 ? -1 : 1;
+  return [(sign * p) / g, (sign * q) / g];
+}
+
+/** A fraction as the learner reads it: whole when it is whole, the sign out in front. */
+function fracTex(p: number, q: number): string {
+  const [top, bottom] = reduced(p, q);
+  if (bottom === 1) return `${top}`;
+  return top < 0 ? `-\\frac{${-top}}{${bottom}}` : `\\frac{${top}}{${bottom}}`;
+}
+
+/** The same fraction for mathjs. */
+function fracAnswer(p: number, q: number): string {
+  const [top, bottom] = reduced(p, q);
+  return bottom === 1 ? `${top}` : `${top}/${bottom}`;
+}
+
+function fracOption(p: number, q: number): ChoiceOption {
+  return { tex: fracTex(p, q), answer: fracAnswer(p, q) };
+}
+
+/** A fraction and three wrong ones, the slips first, then a whole one either side, aimed like aimedNumbers. */
+function fractionOptions(p: number, q: number, salt: number, slips: [number, number][]): ChoiceOption[] {
+  const near: [number, number][] = [
+    [p + q, q],
+    [p - q, q],
+    [p + 2 * q, q],
+  ];
+  return aimed(
+    fracOption(p, q),
+    [...slips, ...near].filter(([top, bottom]) => bottom !== 0 && top !== 0).map(([top, bottom]) => fracOption(top, bottom)),
+    salt,
+  );
+}
+
+/** A power of k in a tiles template, where no braces may round a digit. */
+function kPow(e: number): string {
+  return e === 0 ? '' : e === 1 ? 'k' : `k^${e}`;
+}
+
+/** The same power of k in prose, where braces are free. */
+function kPowTex(e: number): string {
+  return e === 0 ? '' : e === 1 ? 'k' : `k^{${e}}`;
+}
+
+/** A power of x named in a sentence. */
+function termName(e: number): string {
+  return e === 0 ? 'the constant term' : `the coefficient of $${termTex(1, e)}$`;
+}
+
+/** A number as a base, bracketed when negative. */
+function baseTex(value: number): string {
+  return value < 0 ? `(${value})` : `${value}`;
+}
+
+/** A coefficient in front of a letter: 1 is left off, -1 leaves its sign. */
+function times(c: number, letter: string): string {
+  return c === 1 ? letter : c === -1 ? `-${letter}` : `${c}${letter}`;
+}
+
+/**
+ * mix, finished with murmur's fmix32, for choosing a slot: mix alone keeps its
+ * low bits in step with small inputs, so taking it mod 2 or mod 4 put the
+ * answer in the same place more often than not.
+ */
+function spread(...values: number[]): number {
+  let h = mix(...values) >>> 0;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+/**
+ * Where the answer lands once choiceVariant has turned these options. Mirrors
+ * its private rotation(); if that changes, only the slot drifts again.
+ */
+function landing(options: ChoiceOption[]): number {
+  let hash = 0;
+  for (const option of options) {
+    for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+  }
+  const turn = Math.abs(hash) % options.length;
+  const at = options.findIndex((option) => option.correct);
+  return (at - turn + options.length) % options.length;
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]));
+}
+
+/**
+ * The correct option and three wrong ones, chosen and ordered so the derived
+ * choice slide shows the answer in the slot the salt names. Order alone cannot
+ * always get there: the rotation's parity is fixed by which labels are
+ * present, so other wrong options from the pool are tried as well.
+ */
+function aimed(correct: ChoiceOption, wrong: ChoiceOption[], salt: number): ChoiceOption[] {
+  const seen = new Set([correct.tex]);
+  const pool = wrong.filter((option) => {
+    if (seen.has(option.tex)) return false;
+    seen.add(option.tex);
+    return true;
+  });
+  const right = { ...correct, correct: true };
+  const size = Math.min(4, pool.length + 1);
+  const target = salt % size;
+  const choose = (from: number, left: number): ChoiceOption[][] =>
+    left === 0 ? [[]] : pool.slice(from, 7).flatMap((option, i) => choose(from + i + 1, left - 1).map((rest) => [option, ...rest]));
+  for (const set of choose(0, size - 1)) {
+    for (const order of permutations([right, ...set])) if (landing(order) === target) return order;
+  }
+  return [right, ...pool.slice(0, size - 1)];
+}
+
+/** numberOptions, aimed: the slips first in the pool, then near misses. */
+function aimedNumbers(correct: number, slips: number[], salt: number): ChoiceOption[] {
+  const near = [1, -1, 2, -2, 3, -3].map((k) => correct + k);
+  const wrong = [...slips, ...near].filter((value) => Number.isInteger(value) && value !== correct);
+  return aimed(numberOption(correct), wrong.map(numberOption), salt);
+}
+
+/* --- two unknowns from two coefficients --- */
+
+interface TwoUnknownParams {
+  n: number;
+  k: number;
+}
+
+function sampleTwoUnknowns(rng: Rng, difficulty: number): TwoUnknownParams {
+  if (difficulty > 1) return { n: rng.int(4, 8), k: rng.pick([-6, -5, -4, -3, -2, 2, 3, 4, 5, 6]) };
+  return { n: rng.int(3, 8), k: rng.int(2, 6) };
+}
+
+/** The x and x^2 coefficients of (1 + kx)^n. */
+function firstTwo({ n, k }: TwoUnknownParams): { A: number; B: number } {
+  return { A: n * k, B: nCr(n, 2) * k * k };
+}
+
+function twoUnknownsPrompt(params: TwoUnknownParams): string {
+  const { A, B } = firstTwo(params);
+  return `In the expansion of $(1 + kx)^{n}$, the coefficient of $x$ is $${A}$ and the coefficient of $x^2$ is $${B}$.`;
+}
+
+/** The two equations, k from the first, and the one equation in n that is left. */
+function twoUnknownsWorking(params: TwoUnknownParams): SolutionStep[] {
+  const { n, k } = params;
+  const { A, B } = firstTwo(params);
+  const square = A * A;
+  return [
+    { text: 'The $x$ term is $nkx$ and the $x^2$ term is $\\frac{n(n - 1)}{2}k^2x^2$, so' },
+    { tex: chain(`nk &= ${A}`, `\\frac{n(n - 1)}{2}k^2 &= ${B}`) },
+    { text: `The first gives $k = \\frac{${A}}{n}$, so $k^2 = \\frac{${square}}{n^2}$. Put that into the second, and one $n$ cancels:` },
+    {
+      tex: chain(
+        `\\frac{${square}(n - 1)}{2n} &= ${B}`,
+        `${square}(n - 1) &= ${2 * B}n`,
+        `${square - 2 * B}n &= ${square}`,
+        `n &= ${n}`,
+      ),
+    },
+    { text: `Then $k = \\frac{${A}}{${n}} = ${k}$.` },
+  ];
+}
+
+/**
+ * Which equation to rearrange, and where k goes once it is found. The wrong
+ * turns are the square root the x^2 equation would need, and substituting k
+ * back into the equation it came from.
+ */
+const twoUnknownsFlow: Generator<TwoUnknownParams> = {
+  id: 'bin-two-unknowns-flow',
+  sample: sampleTwoUnknowns,
+  render: (params): Slide => {
+    const { n, k } = params;
+    const { A, B } = firstTwo(params);
+    const linear = `$nk = ${A}$, for $k$`;
+    const square = 'The $x^2$ one, for $k$';
+    const onward = 'Into the $x^2$ equation';
+    const back = `Back into $nk = ${A}$`;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${twoUnknownsPrompt(params)} Plan how to find $n$ and $k$.` }],
+      subject: chain(`nk &= ${A}`, `\\frac{n(n - 1)}{2}k^2 &= ${B}`),
+      steps: [
+        {
+          id: 'first',
+          ask: 'Two equations, two unknowns. Which do you rearrange first?',
+          branches: turned(
+            [
+              { label: linear, to: 'next' },
+              {
+                label: square,
+                outcome: 'That needs a square root, with $n$ still inside it. The $x$ equation has $k$ to the power $1$, so start there.',
+              },
+            ],
+            spread(n, k),
+          ),
+        },
+        {
+          id: 'next',
+          ask: `With $k = \\frac{${A}}{n}$, where does it go?`,
+          branches: turned(
+            [
+              {
+                label: onward,
+                outcome: `That leaves one equation with only $n$ in it, which gives $n = ${n}$, and then $k = \\frac{${A}}{${n}} = ${k}$.`,
+              },
+              { label: back, outcome: `That gives $${A} = ${A}$: true, and no help. It has to go into the other equation.` },
+            ],
+            spread(k, n, 3),
+          ),
+        },
+      ],
+      answer: [linear, onward],
+    };
+  },
+  solution: twoUnknownsWorking,
+};
+
+/** n from the formula the substitution leaves, then k from n. */
+const twoUnknownsTree: Generator<TwoUnknownParams> = {
+  id: 'bin-n-then-k-tree',
+  sample: sampleTwoUnknowns,
+  render: (params): Slide => {
+    const { n, k } = params;
+    const { A, B } = firstTwo(params);
+    const square = A * A;
+    const answer = [square, 2 * B, square - 2 * B, n, k].map(String);
+    // A doubled instead of squared, B not doubled, the bottom added, and k off by a sign or one.
+    const slips = [2 * A, B, square + 2 * B, n + 1, n - 1, -k, k + 1];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${twoUnknownsPrompt(params)} Putting $k = \\frac{${A}}{n}$ into the $x^2$ equation and solving gives $n$ below. Fill in $${baseTex(A)}^2$, $2 \\times ${B}$, the bottom of the fraction, $n$ and $k$, in that order.`,
+        },
+      ],
+      expression: chain(`n &= \\frac{${baseTex(A)}^{2}}{${baseTex(A)}^{2} - 2 \\times ${B}}`, `k &= \\frac{${A}}{n}`),
+      nodes: [
+        { id: 'square', from: [] },
+        { id: 'twice', from: [] },
+        { id: 'bottom', from: ['square', 'twice'] },
+        { id: 'n', from: ['square', 'bottom'] },
+        { id: 'k', from: ['n'] },
+      ],
+      bank: treeBank(answer, slips.map(String)),
+      answer,
+    };
+  },
+  solution: twoUnknownsWorking,
+};
+
+interface TwoUnknownAskParams extends TwoUnknownParams {
+  ask: 'n' | 'k';
+}
+
+/** n or k typed. The choice form offers the x^2 coefficient divided by the x one, which is (n - 1)k. */
+const twoUnknowns: Generator<TwoUnknownAskParams> = {
+  id: 'bin-two-unknowns',
+  sample: (rng, difficulty) => ({ ...sampleTwoUnknowns(rng, difficulty), ask: rng.pick<'n' | 'k'>(['n', 'k']) }),
+  choices: ({ n, k, ask }) => {
+    const { A, B } = firstTwo({ n, k });
+    const salt = spread(n, k, ask === 'n' ? 1 : 2);
+    if (ask === 'n') return aimedNumbers(n, [n + 1, n - 1, (2 * B) / A], salt);
+    return aimedNumbers(k, [-k, (2 * B) / A, A / (n + 1), A / (n - 1)], salt);
+  },
+  render: ({ n, k, ask }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${twoUnknownsPrompt({ n, k })} Find $${ask}$.` }],
+    lead: `${ask} =`,
+    keypad: [],
+    answer: `${ask === 'n' ? n : k}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, k }) => twoUnknownsWorking({ n, k }),
+};
+
+interface NextParams extends TwoUnknownParams {
+  /** The power of x asked for next: 3 or 4. */
+  r: number;
+}
+
+/** With n and k found, the next coefficient: nCr, then k to the power, then their product. */
+const nextCoeffSteps: Generator<NextParams> = {
+  id: 'bin-next-coeff-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleTwoUnknowns(rng, difficulty);
+      const r = rng.pick([3, 4]);
+      if (params.n < r + 1) continue;
+      if (Math.abs(nCr(params.n, r) * params.k ** r) < 10000) return { ...params, r };
+    }
+  },
+  render: ({ n, k, r }): Slide => {
+    const c = nCr(n, r);
+    const power = k ** r;
+    const value = c * power;
+    const bank = (...values: number[]) => sortTokens([...new Set(values.map(String))]);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${twoUnknownsPrompt({ n, k })} That makes $n = ${n}$ and $k = ${k}$. Now find the coefficient of $x^{${r}}$: tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start: [ncrTex(n, r), '\\times', `${baseTex(k)}^{${r}}`],
+      reductions: [
+        { span: [0, 1], value: `${c}`, bank: bank(c, nCr(n, r - 1), n * r, nCr(n + 1, r)) },
+        { span: [2, 3], value: `${power}`, bank: bank(power, k * r, k ** (r - 1), -power) },
+        { span: [0, 3], operator: 1, value: `${value}`, bank: bank(value, c + power, -value, nCr(n, r - 1) * power) },
+      ],
+    };
+  },
+  solution: ({ n, k, r }) => [
+    { text: `The $x^{${r}}$ term is $${ncrTex(n, r)}(${k}x)^{${r}}$, so its coefficient is` },
+    { tex: chain(`& ${ncrTex(n, r)} \\times ${baseTex(k)}^{${r}}`, `&= ${nCr(n, r)} \\times ${baseTex(k ** r)}`, `&= ${nCr(n, r) * k ** r}`) },
+  ],
+};
+
+/* --- equal coefficients --- */
+
+interface EqualParams {
+  /**
+   * n: (1 + x)^n with n unknown, so n = 2r + 1. k: (a + kx)^n with n given,
+   * k unknown. nk: (1 + kx)^n with k given, n unknown.
+   */
+  kind: 'n' | 'k' | 'nk';
+  n: number;
+  /** The x^r and x^(r + 1) terms are the equal pair. */
+  r: number;
+  /** The constant in the bracket; 1 unless the kind is k at difficulty 2. */
+  a: number;
+  /** k as a fraction [top, bottom]; for kind nk it is the whole number given. */
+  k: [number, number];
+}
+
+/** C(n, r) a^(n - r) and C(n, r + 1) a^(n - r - 1): what multiplies k^r and k^(r + 1). */
+function equalSides({ n, r, a }: EqualParams): [number, number] {
+  return [nCr(n, r) * a ** (n - r), nCr(n, r + 1) * a ** (n - r - 1)];
+}
+
+function sampleEqualK(rng: Rng, a: number): EqualParams {
+  for (;;) {
+    const n = rng.int(3, 8);
+    const r = rng.int(1, n - 1);
+    const [left, right] = equalSides({ kind: 'k', n, r, a, k: [1, 1] });
+    if (left === right || Math.max(left, right) >= 10000) continue;
+    return { kind: 'k', n, r, a, k: reduced(left, right) };
+  }
+}
+
+function sampleEqualN(rng: Rng): EqualParams {
+  const r = rng.int(1, 5);
+  return { kind: 'n', n: 2 * r + 1, r, a: 1, k: [1, 1] };
+}
+
+/** k given, n unknown: n - r = (r + 1)/k, so k divides r + 1. */
+function sampleEqualNK(rng: Rng): EqualParams {
+  for (;;) {
+    const k = rng.int(2, 5);
+    const r = rng.int(1, 11);
+    if ((r + 1) % k !== 0) continue;
+    const n = r + (r + 1) / k;
+    if (n <= 12) return { kind: 'nk', n, r, a: 1, k: [k, 1] };
+  }
+}
+
+function sampleEqual(rng: Rng, difficulty: number): EqualParams {
+  if (difficulty > 1) return rng.chance(0.6) ? sampleEqualK(rng, rng.int(2, 3)) : sampleEqualNK(rng);
+  return rng.chance(0.25) ? sampleEqualN(rng) : sampleEqualK(rng, 1);
+}
+
+/** The bracket as the prompt writes it: letters for the unknowns. */
+function equalBracketTex({ kind, n, a, k }: EqualParams): string {
+  if (kind === 'n') return '(1 + x)^{n}';
+  if (kind === 'nk') return `(1 + ${k[0]}x)^{n}`;
+  return `(${a} + kx)^{${n}}`;
+}
+
+function equalPrompt(params: EqualParams): string {
+  const { kind, r } = params;
+  const pair = `the coefficients of $${termTex(1, r)}$ and $${termTex(1, r + 1)}$ are equal`;
+  const find = kind === 'k' ? 'Find $k$, given that $k \\neq 0$.' : 'Find $n$.';
+  return `In the expansion of $${equalBracketTex(params)}$, ${pair}. ${find}`;
+}
+
+function equalWorking(params: EqualParams): SolutionStep[] {
+  const { kind, n, r, a, k } = params;
+  if (kind === 'n') {
+    return [
+      { text: `The condition is $${ncrTex('n', r)} = ${ncrTex('n', r + 1)}$. Cancel the factorials:` },
+      { tex: `\\frac{n!}{${r}!\\,(n - ${r})!} = \\frac{n!}{${r + 1}!\\,(n - ${r + 1})!}` },
+      { text: `leaves $${r + 1} = n - ${r}$: a row's numbers match in neighbouring pairs only in the middle of an odd row.` },
+      { tex: `n = ${2 * r + 1}` },
+    ];
+  }
+  if (kind === 'nk') {
+    const [kv] = k;
+    return [
+      { text: `The coefficients are $${ncrTex('n', r)}${kv}^{${r}}$ and $${ncrTex('n', r + 1)}${kv}^{${r + 1}}$. Dividing the second by the first,` },
+      { tex: `\\frac{${ncrTex('n', r + 1)}}{${ncrTex('n', r)}} \\times ${kv} = \\frac{n - ${r}}{${r + 1}} \\times ${kv} = 1` },
+      { tex: chain(`n - ${r} &= ${fracTex(r + 1, kv)}`, `n &= ${n}`) },
+    ];
+  }
+  const [left, right] = equalSides(params);
+  return [
+    {
+      text: `The $x^{${r}}$ term is $${ncrTex(n, r)}${a === 1 ? '' : ` \\times ${a}^{${n - r}}`}k^{${r}}x^{${r}}$, and the next is $${ncrTex(n, r + 1)}${a === 1 || n - r - 1 === 0 ? '' : ` \\times ${a}^{${n - r - 1}}`}k^{${r + 1}}x^{${r + 1}}$. Equal coefficients:`,
+    },
+    { tex: `${left}${kPowTex(r)} = ${right}${kPowTex(r + 1)}` },
+    { text: `Divide by $${kPowTex(r)}$, which is allowed because $k \\neq 0$:` },
+    { tex: `k = ${fracTex(left, right)}` },
+    ...(k[1] === 1 ? [] : [{ text: 'A fraction is fine: nothing says $k$ is whole.' }]),
+  ];
+}
+
+/**
+ * The condition written out and solved: the two coefficients for k, or the
+ * cancelled factorials for n. The bank holds the coefficients without the
+ * powers of a, k upside down, and n off by one.
+ */
+const equalTiles: Generator<EqualParams> = {
+  id: 'bin-equal-tiles',
+  sample: (rng, difficulty) => (difficulty > 1 ? sampleEqualK(rng, rng.int(2, 3)) : rng.chance(0.3) ? sampleEqualN(rng) : sampleEqualK(rng, 1)),
+  render: (params): Slide => {
+    const { kind, n, r, a, k } = params;
+    if (kind === 'n') {
+      const answer = [`${r + 1}`, `${r}`, `${2 * r + 1}`];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `In the expansion of $(1 + x)^{n}$, the coefficients of $${termTex(1, r)}$ and $${termTex(1, r + 1)}$ are equal: $${ncrTex('n', r)} = ${ncrTex('n', r + 1)}$. Cancelling the factorials leaves a simple equation. Fill it in and solve it.`,
+          },
+        ],
+        template: '{0} = n - {1}, \\enspace {2} = n',
+        bank: tileBank(answer, [`${r}`, `${r + 2}`, `${2 * r}`, `${2 * r + 2}`, `${r - 1}`]),
+        answer,
+      };
+    }
+    const [left, right] = equalSides(params);
+    const answer = [`${left}`, `${right}`, fracTex(k[0], k[1])];
+    const slips = [`${nCr(n, r)}`, `${nCr(n, r + 1)}`, fracTex(k[1], k[0]), `${nCr(n, r > 1 ? r - 1 : r + 2)}`, `${n}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the expansion of $(${a} + kx)^{${n}}$, where $k \\neq 0$, the coefficients of $${termTex(1, r)}$ and $${termTex(1, r + 1)}$ are equal. Write the equation that says so, then solve it.`,
+        },
+      ],
+      template: `{0}${kPow(r)} = {1}${kPow(r + 1)}, \\enspace {2} = k`,
+      bank: tileBank(answer, slips),
+      answer,
+    };
+  },
+  solution: equalWorking,
+};
+
+/** n or k from the condition, typed. The choice form offers k upside down and n off by one. */
+const equalCoeff: Generator<EqualParams> = {
+  id: 'bin-equal-coeff',
+  sample: sampleEqual,
+  choices: (params) => {
+    const { kind, n, r, k } = params;
+    const salt = spread(n, r, params.a, k[0], k[1]);
+    if (kind === 'n') return aimedNumbers(n, [2 * r, 2 * r + 2, r + 1], salt);
+    if (kind === 'nk') return aimedNumbers(n, [n + 1, n - 1, 2 * r + 1], salt);
+    return fractionOptions(k[0], k[1], salt, [
+      [k[1], k[0]],
+      [nCr(params.n, r), nCr(params.n, r + 1)],
+      [-k[0], k[1]],
+    ]);
+  },
+  render: (params): Slide => {
+    const { kind, n, k } = params;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: equalPrompt(params) }],
+      lead: kind === 'k' ? 'k =' : 'n =',
+      keypad: kind === 'k' ? [{ insert: '/' }] : [],
+      answer: kind === 'k' ? fracAnswer(k[0], k[1]) : `${n}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: equalWorking,
+};
+
+/**
+ * The condition, then k from it: two forks, each with the slip that catches
+ * people. The powers of k swapped, and k upside down.
+ */
+const equalFlow: Generator<EqualParams> = {
+  id: 'bin-equal-flow',
+  sample: (rng, difficulty) => sampleEqualK(rng, difficulty > 1 ? rng.int(3, 4) : rng.pick([1, 1, 2])),
+  render: (params): Slide => {
+    const { n, r, a } = params;
+    const [left, right] = equalSides(params);
+    const condition = `$${left}${kPowTex(r)} = ${right}${kPowTex(r + 1)}$`;
+    const swapped = `$${left}${kPowTex(r + 1)} = ${right}${kPowTex(r)}$`;
+    const solved = `$k = ${fracTex(left, right)}$`;
+    const flipped = `$k = ${fracTex(right, left)}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the expansion of $(${a} + kx)^{${n}}$, where $k \\neq 0$, the coefficients of $${termTex(1, r)}$ and $${termTex(1, r + 1)}$ are equal. Find $k$.`,
+        },
+      ],
+      subject: `(${a} + kx)^{${n}}`,
+      steps: [
+        {
+          id: 'condition',
+          ask: 'Which equation says the two coefficients are equal?',
+          branches: turned(
+            [
+              { label: condition, to: 'solve' },
+              {
+                label: swapped,
+                outcome: `The power of $k$ always matches the power of $x$: the $${termTex(1, r)}$ term carries $${kPowTex(r)}$.`,
+              },
+            ],
+            spread(n, r, a),
+          ),
+        },
+        {
+          id: 'solve',
+          ask: `Divide both sides by $${kPowTex(r)}$. What is $k$?`,
+          branches: turned(
+            [
+              { label: solved, outcome: `Right: $${right}k = ${left}$, so ${solved}.` },
+              { label: flipped, outcome: `Upside down: $${right}k = ${left}$, so $k$ is $${left}$ over $${right}$.` },
+            ],
+            spread(a, n, r, 5),
+          ),
+        },
+      ],
+      answer: [condition, solved],
+    };
+  },
+  solution: equalWorking,
+};
+
+interface WhichParams {
+  a: number;
+  b: number;
+  n: number;
+  /** The x^r and x^(r + 1) terms are the equal pair. */
+  r: number;
+  /** Where among the four pairs offered the answer sits. */
+  slot: number;
+}
+
+/**
+ * (a + bx)^n with a pair of equal neighbours: b(n - r) = a(r + 1). The slot is
+ * drawn first and the bracket to fit it, since r sits near one end of the
+ * expansion as often as not and would otherwise leave that end's slot empty.
+ */
+function sampleWhich(rng: Rng, difficulty: number): WhichParams {
+  const slot = rng.int(0, 3);
+  for (;;) {
+    const a = difficulty > 1 ? rng.int(2, 5) : rng.int(1, 3);
+    const b = rng.int(1, 9);
+    const n = rng.int(3, 12);
+    if (gcd(a, b) !== 1 || (a === b && a !== 1)) continue;
+    const top = b * n - a;
+    if (top % (a + b) !== 0) continue;
+    const r = top / (a + b);
+    // Four pairs, r the slot-th of them: slot pairs below it and the rest above.
+    if (r >= slot && n - 1 - r >= 3 - slot) return { a, b, n, r, slot };
+  }
+}
+
+function pairLabel(e: number): string {
+  return e === 0 ? '\\text{the constant and } x' : `${termTex(1, e)} \\text{ and } ${termTex(1, e + 1)}`;
+}
+
+/** Which neighbouring pair of terms has equal coefficients: four pairs in a row, in order. */
+const equalWhich: Generator<WhichParams> = {
+  id: 'bin-equal-which',
+  sample: sampleWhich,
+  render: ({ a, b, n, r, slot }): Slide => {
+    const pairs = [0, 1, 2, 3].map((i) => r - slot + i);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which two neighbouring terms in the expansion of $${bracketTex(plainBracket(n, a, b, false))}$ have equal coefficients?`,
+        },
+      ],
+      options: pairs.map((e) => ({ id: e === r ? 'correct' : `pair${e}`, label: pairLabel(e), tex: true })),
+      correctId: 'correct',
+    };
+  },
+  solution: ({ a, b, n, r }) => [
+    {
+      text: `From the $x^r$ term to the next, $${ncrTex(n, 'r')}$ becomes $${ncrTex(n, 'r + 1')}$, which is $\\frac{${n} - r}{r + 1}$ times as big${
+        a === 1 && b === 1 ? '' : a === 1 ? `, and one more factor of $${b}$ comes in` : `, and one factor of $${a}$ is swapped for one of $${b}$`
+      }. So the coefficient is multiplied by`,
+    },
+    { tex: `\\frac{${b === 1 ? `${n} - r` : `${b}(${n} - r)`}}{${a === 1 ? 'r + 1' : `${a}(r + 1)`}}` },
+    { text: 'The two are equal when that is $1$:' },
+    {
+      tex: chain(
+        `${times(b, `(${n} - r)`)} &= ${times(a, '(r + 1)')}`,
+        `${b * n} - ${times(b, 'r')} &= ${times(a, 'r')} + ${a}`,
+        `${times(a + b, 'r')} &= ${b * n - a}`,
+        `r &= ${r}`,
+      ),
+    },
+    { text: `So the pair is $${pairLabel(r)}$.` },
+  ],
+};
+
+/* --- coefficients in a ratio --- */
+
+interface RatioParams {
+  n: number;
+  k: number;
+  /** The coefficient of x^(r + 1) is a multiple of the coefficient of x^r. */
+  r: number;
+}
+
+/** The multiple: k(n - r)/(r + 1), as [top, bottom] in lowest terms. */
+function ratioOf({ n, k, r }: RatioParams): [number, number] {
+  return reduced(k * (n - r), r + 1);
+}
+
+function sampleRatio(rng: Rng, difficulty: number, negative: boolean): RatioParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const n = rng.int(hard ? 4 : 3, 8);
+    const r = hard ? rng.int(1, 2) : 1;
+    const k = hard && negative ? rng.pick([-5, -4, -3, -2, 2, 3, 4, 5]) : rng.int(2, 6);
+    const [p, q] = ratioOf({ n, k, r });
+    // A multiple of 1 is the equal-coefficients lesson, not this one.
+    if (p !== q && n - r >= 1) return { n, k, r };
+  }
+}
+
+function ratioCondition(params: RatioParams): string {
+  const { r } = params;
+  const [p, q] = ratioOf(params);
+  const multiple = q === 1 ? (p === 2 ? 'twice' : `$${p}$ times`) : `$${fracTex(p, q)}$ times`;
+  return `the coefficient of $${termTex(1, r + 1)}$ is ${multiple} the coefficient of $${termTex(1, r)}$`;
+}
+
+/** The ratio of neighbouring coefficients, set equal to the multiple, and solved for whichever is unknown. */
+function ratioWorking(params: RatioParams, unknown: 'k' | 'n'): SolutionStep[] {
+  const { n, k, r } = params;
+  const [p, q] = ratioOf(params);
+  const kv = unknown === 'k' ? 'k' : baseTex(k);
+  const nv = unknown === 'n' ? 'n' : `${n}`;
+  const steps: SolutionStep[] = [
+    {
+      text: `The coefficients are $${ncrTex(nv, r)}${unknown === 'k' ? kPowTex(r) : `${kv}^{${r}}`}$ and $${ncrTex(nv, r + 1)}${unknown === 'k' ? kPowTex(r + 1) : `${kv}^{${r + 1}}`}$. Divide the second by the first: the nCr part leaves $\\frac{n - ${r}}{${r + 1}}$ and one ${unknown === 'k' ? '$k$' : `$${k}$`} is left over.`,
+    },
+  ];
+  if (unknown === 'k') {
+    steps.push({ tex: `\\frac{${n - r}k}{${r + 1}} = ${fracTex(p, q)}` }, { tex: chain(`${n - r}k &= ${fracTex((r + 1) * p, q)}`, `k &= ${k}`) });
+  } else {
+    steps.push(
+      { tex: `\\frac{${k}(n - ${r})}{${r + 1}} = ${fracTex(p, q)}` },
+      { tex: chain(`n - ${r} &= ${fracTex((r + 1) * p, q * k)}`, `n &= ${n}`) },
+    );
+  }
+  return steps;
+}
+
+/** k = (r + 1)p / (q(n - r)), reduced a piece at a time: every piece is whole. */
+const ratioReduce: Generator<RatioParams> = {
+  id: 'bin-ratio-reduce',
+  sample: (rng, difficulty) => sampleRatio(rng, difficulty, false),
+  render: (params): Slide => {
+    const { n, r } = params;
+    const [p, q] = ratioOf(params);
+    const top = r + 1 === 1 ? num(p) : bin('*', num(r + 1), num(p));
+    const gap = bin('-', num(n), num(r));
+    const expr = bin('/', top, q === 1 ? gap : bin('*', num(q), gap));
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the expansion of $(1 + kx)^{${n}}$, ${ratioCondition(params)}. That says $\\frac{${n - r}k}{${r + 1}} = ${fracTex(p, q)}$, so $k$ is worked out below. Tap the part you would work out next, then choose what it comes to.`,
+        },
+      ],
+      expr,
+      banks: banksFor(expr),
+    };
+  },
+  solution: (params) => ratioWorking(params, 'k'),
+};
+
+/** n = (r + 1)m / k + r for a whole multiple m, one operation at a time. */
+const ratioNSteps: Generator<RatioParams> = {
+  id: 'bin-ratio-n-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const r = difficulty > 1 ? rng.int(1, 2) : 1;
+      const k = rng.int(2, difficulty > 1 ? 6 : 5);
+      const n = rng.int(r + 2, 12);
+      const [, q] = ratioOf({ n, k, r });
+      if (q === 1 && k * (n - r) !== r + 1) return { n, k, r };
+    }
+  },
+  render: (params): Slide => {
+    const { n, k, r } = params;
+    const [m] = ratioOf(params);
+    const top = (r + 1) * m;
+    const bank = (...values: number[]) => sortTokens([...new Set(values.map(String))]);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the expansion of $(1 + ${k}x)^{n}$, ${ratioCondition(params)}. The condition $\\frac{${k}(n - ${r})}{${r + 1}} = ${m}$ rearranges to the line below. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start: [`${r + 1}`, '\\times', `${m}`, '\\div', `${k}`, '+', `${r}`],
+      reductions: [
+        { span: [0, 3], operator: 1, value: `${top}`, bank: bank(top, r + 1 + m, top + r + 1, m) },
+        { span: [0, 3], operator: 1, value: `${n - r}`, bank: bank(n - r, top - k, n - r + 1, top * k) },
+        { span: [0, 3], operator: 1, value: `${n}`, bank: bank(n, n - r, n + 1, n - 1) },
+      ],
+    };
+  },
+  solution: (params) => ratioWorking(params, 'n'),
+};
+
+interface RatioAskParams extends RatioParams {
+  ask: 'k' | 'n';
+}
+
+/** k with n given, or n with k given, typed. */
+const ratioCoeff: Generator<RatioAskParams> = {
+  id: 'bin-ratio-coeff',
+  sample: (rng, difficulty) => ({ ...sampleRatio(rng, difficulty, true), ask: rng.pick<'k' | 'n'>(['k', 'n']) }),
+  choices: (params) => {
+    const { n, k, r, ask } = params;
+    const [p, q] = ratioOf(params);
+    const salt = spread(n, k, r, ask === 'n' ? 1 : 2);
+    if (ask === 'n') return aimedNumbers(n, [n - r, n + 1, n - 1], salt);
+    // n used where n - r belongs, and the multiple left upside down.
+    return aimedNumbers(k, [((r + 1) * p) / (q * n), (q * (r + 1)) / (p * (n - r)), -k], salt);
+  },
+  render: (params): Slide => {
+    const { n, k, ask } = params;
+    const bracket = ask === 'k' ? `(1 + kx)^{${n}}` : `(1 ${k < 0 ? '-' : '+'} ${Math.abs(k)}x)^{n}`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `In the expansion of $${bracket}$, ${ratioCondition(params)}. Find $${ask}$.` }],
+      lead: `${ask} =`,
+      keypad: [],
+      answer: `${ask === 'k' ? k : n}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => ratioWorking(params, params.ask),
+};
+
+/** The ratio condition written out with its coefficients, then k. */
+const ratioTiles: Generator<RatioParams> = {
+  id: 'bin-ratio-tiles',
+  sample: (rng, difficulty) => sampleRatio(rng, difficulty, true),
+  render: (params): Slide => {
+    const { n, k, r } = params;
+    const [p, q] = ratioOf(params);
+    const answer = [`${nCr(n, r + 1)}`, fracTex(p, q), `${nCr(n, r)}`, `${k}`];
+    const slips = [fracTex(q, p), `${nCr(n, r + 2)}`, `${n - r}`, `${-k}`, `${nCr(n, r > 1 ? r - 1 : r + 2)}`, `${k + 1}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the expansion of $(1 + kx)^{${n}}$, ${ratioCondition(params)}. Write the equation that says so, then solve it for $k$, given that $k \\neq 0$.`,
+        },
+      ],
+      template: `{0}${kPow(r + 1)} = {1} \\times {2}${kPow(r)}, \\enspace {3} = k`,
+      bank: tileBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (params) => ratioWorking(params, 'k'),
+};
+
+/* --- the sum of the coefficients --- */
+
+interface SumParams {
+  a: number;
+  k: number;
+  n: number;
+}
+
+/** (a + kx)^n with its sum and alternating sum both under 10000. */
+function sampleSum(rng: Rng, difficulty: number, positive = false): SumParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const a = hard ? rng.int(2, 3) : 1;
+    const k = positive ? rng.int(1, 5) : rng.pick(hard ? [-4, -3, -2, -1, 1, 2, 3, 4] : [-5, -4, -3, -2, 2, 3, 4, 5]);
+    const n = rng.int(3, 8);
+    if (a + k === 0 || a - k === 0 || a + k === 1) continue;
+    if (Math.abs((a + k) ** n) < 10000 && Math.abs((a - k) ** n) < 10000) return { a, k, n };
+  }
+}
+
+function sumBracketTex({ a, k, n }: SumParams): string {
+  return bracketTex(plainBracket(n, a, k, false));
+}
+
+/**
+ * The even-power coefficients (or the odd ones) from x = 1 and x = -1: each
+ * bracket, each power, then half their sum or difference.
+ */
+interface SumTreeParams extends SumParams {
+  even: boolean;
+}
+
+const sumTree: Generator<SumTreeParams> = {
+  id: 'bin-sum-tree',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), even: rng.chance(0.5) }),
+  render: ({ a, k, n, even }): Slide => {
+    const plus = a + k;
+    const minus = a - k;
+    const P = plus ** n;
+    const M = minus ** n;
+    const half = even ? (P + M) / 2 : (P - M) / 2;
+    const answer = [plus, minus, P, M, half].map(String);
+    const slips = [a * k, -minus, (P - M) / 2 === half ? (P + M) / 2 : (P - M) / 2, P + M, a ** n + k ** n, -M];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Put $x = 1$ into $${sumBracketTex({ a, k, n })}$ and every term becomes its coefficient. Put $x = -1$ and the odd powers change sign. So the coefficients of the ${even ? 'even powers (the constant, $x^2$, $x^4$, …)' : 'odd powers ($x$, $x^3$, $x^5$, …)'} add up to half the ${even ? 'sum' : 'difference'} of the two. Fill in the tree.`,
+        },
+      ],
+      expression: `\\frac{${baseTex(plus)}^{${n}} ${even ? '+' : '-'} ${baseTex(minus)}^{${n}}}{2}`,
+      nodes: [
+        { id: 'plus', from: [] },
+        { id: 'minus', from: [] },
+        { id: 'P', from: ['plus'] },
+        { id: 'M', from: ['minus'] },
+        { id: 'half', from: ['P', 'M'] },
+      ],
+      bank: treeBank(answer, slips.filter(Number.isInteger).map(String)),
+      answer,
+    };
+  },
+  solution: ({ a, k, n, even }) => {
+    const plus = a + k;
+    const minus = a - k;
+    const P = plus ** n;
+    const M = minus ** n;
+    return [
+      { text: 'With $x = 1$ the expansion adds every coefficient; with $x = -1$ the odd ones are subtracted.' },
+      {
+        tex: column([
+          [`${a === 1 ? '(1 + ' : `(${a} + `}${baseTex(k)})^{${n}}`, `${baseTex(plus)}^{${n}} = ${P}`],
+          [`${a === 1 ? '(1 - ' : `(${a} - `}${baseTex(k)})^{${n}}`, `${baseTex(minus)}^{${n}} = ${M}`],
+        ]),
+      },
+      {
+        text: even
+          ? 'Adding the two doubles the even-power coefficients and cancels the odd ones.'
+          : 'Taking one from the other doubles the odd-power coefficients and cancels the even ones.',
+      },
+      { tex: `\\frac{${P} ${even ? '+' : '-'} ${baseTex(M)}}{2} = ${even ? (P + M) / 2 : (P - M) / 2}` },
+    ];
+  },
+};
+
+interface SumAskParams extends SumParams {
+  kind: 'sum' | 'alt' | 'findk';
+}
+
+function sumWorking({ a, k, n, kind }: SumAskParams): SolutionStep[] {
+  const plus = a + k;
+  if (kind === 'findk') {
+    const S = plus ** n;
+    return [
+      { text: `Put $x = 1$: the coefficients add up to $(${a} + k)^{${n}}$.` },
+      { tex: chain(`(${a} + k)^{${n}} &= ${S}`, `${a} + k &= ${plus}`, `k &= ${k}`) },
+      ...(n % 2 === 0 ? [{ text: `$${a} + k = ${-plus}$ works too, but it makes $k$ negative, and $k > 0$.` }] : []),
+    ];
+  }
+  if (kind === 'sum') {
+    return [
+      { text: 'Put $x = 1$: every term becomes just its coefficient.' },
+      { tex: `(${a} + ${baseTex(k)})^{${n}} = ${baseTex(plus)}^{${n}} = ${plus ** n}` },
+    ];
+  }
+  return [
+    { text: 'Put $x = -1$: the odd powers of $x$ turn negative, so the coefficients come in with alternating signs.' },
+    { tex: `(${a} - ${baseTex(k)})^{${n}} = ${baseTex(a - k)}^{${n}} = ${(a - k) ** n}` },
+  ];
+}
+
+/** The sum, the alternating sum, or k from a given sum, typed. */
+const sumCoeff: Generator<SumAskParams> = {
+  id: 'bin-sum-coeff',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<SumAskParams['kind']>(['sum', 'alt', 'findk']);
+    return { ...sampleSum(rng, difficulty, kind === 'findk'), kind };
+  },
+  choices: (params) => {
+    const { a, k, n, kind } = params;
+    const S = (a + k) ** n;
+    const T = (a - k) ** n;
+    const salt = spread(a, k, n, kind.length);
+    if (kind === 'sum') return aimedNumbers(S, [2 ** n, a ** n + k ** n, T], salt);
+    if (kind === 'alt') return aimedNumbers(T, [S, -T, a ** n - k ** n], salt);
+    return aimedNumbers(k, [a + k, k + 1, -k], salt);
+  },
+  render: (params): Slide => {
+    const { a, k, n, kind } = params;
+    const text =
+      kind === 'sum'
+        ? `Add up all the coefficients in the expansion of $${sumBracketTex(params)}$.`
+        : kind === 'alt'
+          ? `In the expansion of $${sumBracketTex(params)}$, add up the coefficients with alternating signs: the constant, minus the $x$ coefficient, plus the $x^2$ coefficient, and so on.`
+          : `The coefficients in the expansion of $(${a} + kx)^{${n}}$ add up to $${(a + k) ** n}$. Find $k$${n % 2 === 0 ? ', given that $k > 0$' : ''}.`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text }],
+      lead: kind === 'findk' ? 'k =' : '\\text{total} =',
+      keypad: [],
+      answer: `${kind === 'findk' ? k : kind === 'sum' ? (a + k) ** n : (a - k) ** n}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: sumWorking,
+};
+
+interface SumWhichParams extends SumParams {
+  alt: boolean;
+}
+
+/** Which power is the sum (or the alternating sum): the slips are a^n + k^n, 2^n and the other one. */
+const sumWhich: Generator<SumWhichParams> = {
+  id: 'bin-sum-which',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), alt: rng.chance(0.5) }),
+  render: ({ a, k, n, alt }): Slide => {
+    const power = (value: number) => `${baseTex(value)}^{${n}}`;
+    const separate = `${a === 1 ? '1' : power(a)} ${alt ? '-' : '+'} ${power(Math.abs(k))}`;
+    const labels = alt ? [power(a - k), power(a + k), separate, `-${power(a + k)}`] : [power(a + k), `2^{${n}}`, separate, power(a - k)];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: alt
+            ? `Which of these is the constant, minus the $x$ coefficient, plus the $x^2$ coefficient, and so on, all the way through the expansion of $${sumBracketTex({ a, k, n })}$?`
+            : `Which of these is the sum of all the coefficients in the expansion of $${sumBracketTex({ a, k, n })}$?`,
+        },
+      ],
+      ...nativeChoice(labels, spread(a, k, n, alt ? 1 : 0)),
+    };
+  },
+  solution: ({ a, k, n, alt }) => sumWorking({ a, k, n, kind: alt ? 'alt' : 'sum' }),
+};
+
+/** Slide to k: the curve is the sum of the coefficients as k changes. */
+const sumSlider: Generator<SumParams> = {
+  id: 'bin-sum-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const a = difficulty > 1 ? rng.int(2, 3) : 1;
+      const k = rng.int(1, 5);
+      const n = rng.int(2, difficulty > 1 ? 6 : 8);
+      if ((a + k) ** n < 10000) return { a, k, n };
+    }
+  },
+  render: ({ a, k, n }): Slide => {
+    const S = (a + k) ** n;
+    let span = 6;
+    while (defaultSliderValue(0, span, 1) === k) span += 1;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The coefficients in the expansion of $(${a} + kx)^{${n}}$ add up to $${S}$. The curve is that sum for each $k$, and the dashed line is $${S}$. Slide to $k$, which is positive.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 1,
+      answer: k,
+      readout: 'k = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: S * 1.4,
+          curves: [{ f: (t) => Math.min((a + t) ** n, S * 3) }],
+          horizontals: [S],
+          label: `A curve rising steeply from ${a ** n}, with a dashed line at ${S}`,
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: ({ a, k, n }) => sumWorking({ a, k, n, kind: 'findk' }),
+};
+
+/* --- the unknown in front --- */
+
+interface FrontParams {
+  a: number;
+  b: number;
+  n: number;
+  /** The power of x whose coefficient is given. */
+  r: number;
+}
+
+function frontValue({ a, b, n, r }: FrontParams): number {
+  return nCr(n, r) * a ** (n - r) * b ** r;
+}
+
+/** (a + bx)^n with a as the unknown, written as the prompt writes it. */
+function frontBracketTex({ b, n }: FrontParams, power = `${n}`): string {
+  return `(a ${b < 0 ? '-' : '+'} ${Math.abs(b) === 1 ? '' : Math.abs(b)}x)^{${power}}`;
+}
+
+/**
+ * a from one coefficient. Easier: the constant, a^n, or the x^(n - 1) term,
+ * na, of (a + x)^n. Harder: a middle term with a number on x, or the
+ * x^(n - 1) term of (a + bx)^n. An even power of a hides its sign, so a > 0
+ * is stated there.
+ */
+function sampleFront(rng: Rng, difficulty: number, where?: 'constant' | 'top' | 'middle'): FrontParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const kind = where ?? rng.pick(hard ? ['middle', 'top', 'middle'] : ['constant', 'top']);
+    const n = rng.int(3, hard ? 7 : 8);
+    const b = hard ? rng.pick([-3, -2, 2, 3]) : 1;
+    const r = kind === 'constant' ? 0 : kind === 'top' ? n - 1 : rng.int(1, n - 2);
+    const size = rng.int(2, 5);
+    const a = (n - r) % 2 === 0 ? size : rng.chance(0.5) ? size : -size;
+    const params = { a, b, n, r };
+    if (Math.abs(frontValue(params)) < 10000) return params;
+  }
+}
+
+function frontPrompt(params: FrontParams): string {
+  const { r } = params;
+  const name = termName(r);
+  return `In the expansion of $${frontBracketTex(params)}$, ${name} is $${frontValue(params)}$.`;
+}
+
+function frontWorking(params: FrontParams): SolutionStep[] {
+  const { a, b, n, r } = params;
+  const e = n - r;
+  const c = nCr(n, r) * b ** r;
+  const steps: SolutionStep[] = [
+    {
+      text:
+        r === 0
+          ? `The constant term is $a^{${n}}$.`
+          : `The $x^{${r}}$ term is $${ncrTex(n, r)}a^{${e}}(${times(b, 'x')})^{${r}}$, so its coefficient is $${c}${e === 1 ? 'a' : `a^{${e}}`}$.`,
+    },
+  ];
+  if (e === 1) {
+    steps.push({ tex: chain(`${c}a &= ${frontValue(params)}`, `a &= ${a}`) });
+    return steps;
+  }
+  steps.push({ tex: chain(...(c === 1 ? [] : [`${c}a^{${e}} &= ${frontValue(params)}`]), `a^{${e}} &= ${a ** e}`, `a &= ${a}`) });
+  if (e % 2 === 0) steps.push({ text: `$a = ${-a}$ gives the same even power, which is why $a > 0$ had to be given.` });
+  return steps;
+}
+
+const frontA: Generator<FrontParams> = {
+  id: 'bin-front-a',
+  sample: (rng, difficulty) => sampleFront(rng, difficulty),
+  choices: (params) => {
+    const { a, n, r } = params;
+    const c = nCr(n, r) * params.b ** r;
+    return aimedNumbers(a, [-a, frontValue(params) / c, frontValue(params) / n], spread(a, params.b, n, r));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${frontPrompt(params)} Find $a$${(params.n - params.r) % 2 === 0 ? ', given that $a > 0$' : ''}.` }],
+    lead: 'a =',
+    keypad: [],
+    answer: `${params.a}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: frontWorking,
+};
+
+/**
+ * What a can be, with no sign given: both signs when a's power is even, one
+ * when it is odd. The fourth option is a's power itself, the root forgotten.
+ */
+const frontSign: Generator<FrontParams> = {
+  id: 'bin-front-sign',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleFront(rng, difficulty, rng.pick(difficulty > 1 ? ['middle', 'constant'] : ['constant', 'middle']));
+      if (params.n - params.r >= 2) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { a, n, r } = params;
+    const e = n - r;
+    const size = Math.abs(a);
+    const both = `a = \\pm ${size}`;
+    const labels = e % 2 === 0 ? [both, `a = ${size}`, `a = ${-size}`, `a = ${a ** e}`] : [`a = ${a}`, `a = ${-a}`, both, `a = ${a ** e}`];
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `${frontPrompt(params)} What can $a$ be?` }],
+      ...nativeChoice(labels, spread(a, params.b, n, r)),
+    };
+  },
+  solution: (params) => {
+    const { a, n, r } = params;
+    const e = n - r;
+    const steps = frontWorking(params).filter((step) => !step.text?.startsWith(`$a = ${-a}$`));
+    steps.push({
+      text:
+        e % 2 === 0
+          ? `$a^{${e}} = ${a ** e}$ is an even power, so $a = ${Math.abs(a)}$ and $a = ${-Math.abs(a)}$ both work.`
+          : `$a^{${e}} = ${a ** e}$ is an odd power, which keeps the sign: only $a = ${a}$ works.`,
+    });
+    return steps;
+  },
+};
+
+interface FrontPairParams {
+  a: number;
+  b: number;
+  n: number;
+}
+
+/**
+ * a and n together, from the constant a^n and the x coefficient nba^(n - 1):
+ * dividing leaves nb/a, and the pair with that ratio that also makes a^n.
+ */
+const frontFlow: Generator<FrontPairParams> = {
+  id: 'bin-front-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const hard = difficulty > 1;
+      const a = rng.int(2, hard ? 5 : 4);
+      const b = hard ? rng.int(2, 3) : rng.int(1, 2);
+      const n = rng.int(3, 8);
+      if (a ** n < 10000 && n * b * a ** (n - 1) < 10000) return { a, b, n };
+    }
+  },
+  render: ({ a, b, n }): Slide => {
+    const C = a ** n;
+    const D = n * b * a ** (n - 1);
+    const bn = times(b, 'n');
+    const divide = `$\\frac{${bn}}{a} = ${fracTex(D, C)}$`;
+    const slip = `$${bn}a = ${fracTex(D, C)}$`;
+    const pair = `$a = ${a}$, $n = ${n}$`;
+    const doubled = `$a = ${2 * a}$, $n = ${2 * n}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the expansion of $(a + ${times(b, 'x')})^{n}$, where $a$ and $n$ are positive whole numbers, the constant term is $${C}$ and the coefficient of $x$ is $${D}$.`,
+        },
+      ],
+      subject: chain(`a^{n} &= ${C}`, `${bn}a^{n - 1} &= ${D}`),
+      steps: [
+        {
+          id: 'divide',
+          ask: 'Divide the $x$ coefficient by the constant term. What is left?',
+          branches: turned(
+            [
+              { label: divide, to: 'pair' },
+              { label: slip, outcome: '$a^{n - 1}$ over $a^n$ leaves one $a$ underneath, not on top.' },
+            ],
+            spread(a, b, n),
+          ),
+        },
+        {
+          id: 'pair',
+          ask: `Which pair fits that and also makes $a^n = ${C}$?`,
+          branches: turned(
+            [
+              { label: pair, outcome: `$${a}^{${n}} = ${C}$, and $\\frac{${b === 1 ? n : `${b} \\times ${n}`}}{${a}} = ${fracTex(D, C)}$: both fit.` },
+              { label: doubled, outcome: `Same ratio, but $${2 * a}^{${2 * n}}$ is far more than $${C}$.` },
+            ],
+            spread(n, a, b, 7),
+          ),
+        },
+      ],
+      answer: [divide, pair],
+    };
+  },
+  solution: ({ a, b, n }) => {
+    const C = a ** n;
+    const D = n * b * a ** (n - 1);
+    return [
+      { text: `The constant is $a^n$ and the $x$ term is $n a^{n - 1}(${times(b, 'x')})$.` },
+      { tex: chain(`a^{n} &= ${C}`, `${times(b, 'n')}a^{n - 1} &= ${D}`) },
+      { text: 'Divide the second by the first:' },
+      { tex: `\\frac{${times(b, 'n')}}{a} = ${fracTex(D, C)}` },
+      { text: `Then $a^n = ${C}$ settles which pair: $${a}^{${n}} = ${C}$, so $a = ${a}$ and $n = ${n}$.` },
+    ];
+  },
+};
+
+/** The coefficient written as an equation in a, then a's power, then a. */
+const frontTiles: Generator<FrontParams> = {
+  id: 'bin-front-tiles',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleFront(rng, difficulty, 'middle');
+      if (params.b !== 1) return params;
+      // (a + x)^n puts a 1 in the equation, which is no tile at all.
+      params.b = rng.pick(difficulty > 1 ? [-3, -2, 2, 3] : [2, 3]);
+      if (Math.abs(frontValue(params)) < 10000) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, n, r } = params;
+    const e = n - r;
+    const V = frontValue(params);
+    const answer = [`${nCr(n, r)}`, baseTex(b ** r), `${a ** e}`, `${a}`];
+    const slips = [`${nCr(n, r - 1)}`, baseTex(b), baseTex(-(b ** r)), `${-a}`, `${a ** e * nCr(n, r)}`, `${a + 1}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${frontPrompt(params)} Write its coefficient as an equation in $a$, then solve it${e % 2 === 0 ? ', given that $a > 0$' : ''}.`,
+        },
+      ],
+      template: `a^${e} \\times {0} \\times {1} = ${V}, \\enspace {2} = a^${e}, \\enspace {3} = a`,
+      bank: tileBank(answer, slips),
+      answer,
+    };
+  },
+  solution: frontWorking,
+};
+
 /**
  * A worked line too wide for a phone, broken at its equals signs into an
  * aligned column. Lines already aligned, or with no equals sign at the top
@@ -2365,4 +3642,24 @@ export const binomialGenerators = [
   fitted(twoBracketTree),
   fitted(pairFlow),
   fitted(productExpandTiles),
+  fitted(twoUnknownsFlow),
+  fitted(twoUnknownsTree),
+  fitted(twoUnknowns),
+  fitted(nextCoeffSteps),
+  fitted(equalTiles),
+  fitted(equalCoeff),
+  fitted(equalFlow),
+  fitted(equalWhich),
+  fitted(ratioReduce),
+  fitted(ratioNSteps),
+  fitted(ratioCoeff),
+  fitted(ratioTiles),
+  fitted(sumTree),
+  fitted(sumCoeff),
+  fitted(sumWhich),
+  fitted(sumSlider),
+  fitted(frontA),
+  fitted(frontSign),
+  fitted(frontFlow),
+  fitted(frontTiles),
 ];

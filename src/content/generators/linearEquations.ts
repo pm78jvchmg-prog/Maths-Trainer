@@ -5,7 +5,9 @@
  * equation in one unknown: undoing in reverse order, unknowns on both sides,
  * brackets, fractions, and equations built from words. Level 2 solves two
  * equations in two unknowns: what a solution pair is, elimination with and
- * without scaling, substitution, and pairs of equations from words.
+ * without scaling, substitution, and pairs of equations from words. Level 3
+ * rearranges formulae: any letter made the subject, through brackets and
+ * fractions, a subject on both sides, and squares and roots.
  *
  * **Every equation is built outward from a whole solution.** A generator
  * draws the answer first and works the question out from it, so every
@@ -20,7 +22,7 @@
  * whole, banks included; and a `tree` bank keeps at least two distractors
  * once the answers are taken out.
  */
-import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { markerWindow, plotSvg } from '../figures';
 import { options } from '../choiceVariant';
@@ -3427,6 +3429,2239 @@ const sumDiff: Generator<SumDiffParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 3: Rearranging Formulae
+ * ==================================================================== */
+
+/**
+ * A formula, one of its letters to make the subject, and everything the
+ * level's generators ask about getting there.
+ *
+ * Each question shape reads a different part of it — the typed slide the
+ * result, the choice slide the slips, the working slides the lines, the flow
+ * the recipe — so a formula is written out once and its answer, its working
+ * and its wrong turns cannot fall out of step with one another.
+ */
+export interface Formula {
+  /** The formula as the learner reads it. */
+  tex: string;
+  /** The letter being made the subject. */
+  subject: string;
+  /** Every letter in the formula, in reading order: the keypad offers each. */
+  letters: string[];
+  /** Whether π appears, so the keypad offers it too. */
+  pi?: boolean;
+  /** What the subject equals once it is alone: TeX, then mathjs. */
+  resultTex: string;
+  answer: string;
+  /** The same result written another way, equally correct. */
+  altTex?: string;
+  /**
+   * The formula's two sides in mathjs. Never displayed: a test puts `answer`
+   * back in place of the subject and checks the two sides still agree, which
+   * is an independent check on the rearrangement rather than the generator
+   * agreeing with itself.
+   */
+  left: string;
+  right: string;
+  /** Tempting wrong results, each with its mathjs so a test can prove it wrong. */
+  slips: { tex: string; answer: string }[];
+  /** The working after the formula, one whole equation per operation undone. */
+  lines: string[];
+  /** What each line did, in words. */
+  moves: string[];
+  /** Tempting wrong versions of each line, for a steps bank. */
+  lineSlips: string[][];
+}
+
+const fr = (top: string, bottom: string): string => `\\frac{${top}}{${bottom}}`;
+
+/**
+ * A key for one letter of a formula.
+ *
+ * It inserts the letter bracketed, `(a)`, which the answer box shows as the
+ * bare letter (see `applyKey` in `src/ui/mathInput.tsx`). mathjs reads `at` as
+ * one symbol named "at" and `b(l + w)` as a call to a function named b, so a
+ * learner typing $u + at$ or $b(l + w)$ the way it is printed would otherwise
+ * be marked wrong for a right answer.
+ */
+function letterKey(letter: string): KeypadKey {
+  return { insert: `(${letter})`, label: letter };
+}
+
+/** π, bracketed for the same reason as a letter. */
+const PI_KEY: KeypadKey = { insert: '(pi)', label: 'π' };
+
+function formulaKeys(f: Formula, extra: KeypadKey[] = []): KeypadKey[] {
+  return [
+    ...f.letters.map(letterKey),
+    ...(f.pi ? [PI_KEY] : []),
+    { insert: '(' },
+    { insert: ')' },
+    { insert: '/' },
+    { insert: '*', label: '×' },
+    ...extra,
+  ];
+}
+
+/** The formula, each move and line in turn, then the subject on its own. */
+function formulaSolution(f: Formula): SolutionStep[] {
+  const steps: SolutionStep[] = [{ tex: f.tex }];
+  f.moves.forEach((text, idx) => steps.push({ text }, { tex: f.lines[idx] }));
+  const last = f.lines[f.lines.length - 1];
+  if (!last.startsWith(`${f.subject} = `)) steps.push({ tex: `${f.subject} = ${f.resultTex}` });
+  return steps;
+}
+
+/** The typed rearrangement slide every `*-subject` generator renders. */
+function subjectSlide(f: Formula, domain: 'real' | 'positive', text?: string): Slide {
+  return {
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: text ?? `Make $${f.subject}$ the subject of the formula.` },
+      { kind: 'display', tex: f.tex },
+    ],
+    lead: `${f.subject} =`,
+    keypad: formulaKeys(f, domain === 'positive' ? [{ insert: '^' }, { insert: 'sqrt(' }] : []),
+    answer: f.answer,
+    domain,
+    mode: 'exact',
+  };
+}
+
+/** Four rearrangements, the correct one flagged, each carrying its mathjs. */
+function subjectChoices(f: Formula, shown = f.resultTex): ChoiceOption[] {
+  return options(
+    { tex: `${f.subject} = ${shown}`, answer: f.answer },
+    ...f.slips.map((slip) => ({ tex: `${f.subject} = ${slip.tex}`, answer: slip.answer })),
+  );
+}
+
+/** A steps slide walking the formula through its lines, one operation per tap. */
+function rearrangeSteps(f: Formula, parts: string[], operator: number): Slide {
+  return {
+    kind: 'steps',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Make $${f.subject}$ the subject, one operation at a time. ${HOW_TO_STEP}`,
+      },
+    ],
+    start: parts,
+    reductions: f.lines.map((line, idx) => ({
+      span: idx === 0 ? ([0, parts.length] as [number, number]) : ([0, 1] as [number, number]),
+      ...(idx === 0 ? { operator } : {}),
+      value: line,
+      bank: stepBank(line, ...f.lineSlips[idx]),
+    })),
+  };
+}
+
+/* ---------- Lesson 1: changing the subject ---------- */
+
+/**
+ * Letters for the formulae of the first two lessons: `[A, B, C, S]`, read as
+ * $A = B + CS$, so the first set is $v = u + at$. The subject is always the
+ * last. `e` and `i` are never used: mathjs reads them as constants.
+ */
+const LINEAR_SETS: readonly (readonly [string, string, string, string])[] = [
+  ['v', 'u', 'a', 't'],
+  ['y', 'c', 'm', 'x'],
+  ['C', 'F', 'r', 'n'],
+  ['s', 'p', 'q', 'r'],
+  ['T', 'k', 'w', 'h'],
+  ['W', 'b', 'g', 'd'],
+  ['L', 'd', 'b', 'w'],
+];
+
+type LinearForm = 'add' | 'sub' | 'div' | 'mul-letter' | 'minus' | 'div-letter' | 'mul-only' | 'add-only';
+
+interface LinearParams {
+  form: LinearForm;
+  set: number;
+  k: number;
+}
+
+/** What was done to the subject, for the flow that asks which comes off first. */
+interface Recipe {
+  lastIsAdding: boolean;
+  twoSteps: boolean;
+  built: string;
+  undone: string;
+}
+
+/**
+ * The first lesson's formulae: the subject multiplied or divided, then a
+ * term added or taken away — two-step equations with letters where the
+ * numbers were. `mul-letter`, `minus` and `div-letter` are the harder
+ * versions: a letter as the multiplier, or the subject's term subtracted.
+ */
+function linearFormula({ form, set, k }: LinearParams): Formula & { recipe: Recipe; undo?: [string, string, string[]] } {
+  const [A, B, C, S] = LINEAR_SETS[set];
+  const kS = `${k}${S}`;
+  const K = `${k}`;
+  if (form === 'add') {
+    return {
+      tex: `${A} = ${B} + ${kS}`,
+      subject: S,
+      letters: [A, B, S],
+      resultTex: fr(`${A} - ${B}`, K),
+      answer: `(${A} - ${B})/${k}`,
+      altTex: `${fr(A, K)} - ${fr(B, K)}`,
+      left: A,
+      right: `${B} + ${k}*${S}`,
+      slips: [
+        { tex: fr(`${A} + ${B}`, K), answer: `(${A} + ${B})/${k}` },
+        { tex: `${fr(A, K)} - ${B}`, answer: `${A}/${k} - ${B}` },
+        { tex: `${k}(${A} - ${B})`, answer: `${k}*(${A} - ${B})` },
+      ],
+      lines: [`${A} - ${B} = ${kS}`, `${fr(`${A} - ${B}`, K)} = ${S}`],
+      moves: [`Take $${B}$ from both sides.`, `Divide both sides by $${k}$.`],
+      lineSlips: [
+        [`${A} + ${B} = ${kS}`, `${B} - ${A} = ${kS}`, `${A} = ${kS} - ${B}`],
+        [`${A} - ${fr(B, K)} = ${S}`, `${k}(${A} - ${B}) = ${S}`, `${fr(`${A} + ${B}`, K)} = ${S}`],
+      ],
+      recipe: { lastIsAdding: true, twoSteps: true, built: `multiply by $${k}$, then add $${B}$`, undone: `take $${B}$ from both sides, then divide by $${k}$` },
+      undo: [`${A} - ${B}`, kS, [`${A} + ${B}`, `${B} - ${A}`, S, `${k}${A}`]],
+    };
+  }
+  if (form === 'sub') {
+    return {
+      tex: `${A} = ${kS} - ${B}`,
+      subject: S,
+      letters: [A, S, B],
+      resultTex: fr(`${A} + ${B}`, K),
+      answer: `(${A} + ${B})/${k}`,
+      altTex: `${fr(A, K)} + ${fr(B, K)}`,
+      left: A,
+      right: `${k}*${S} - ${B}`,
+      slips: [
+        { tex: fr(`${A} - ${B}`, K), answer: `(${A} - ${B})/${k}` },
+        { tex: `${fr(A, K)} + ${B}`, answer: `${A}/${k} + ${B}` },
+        { tex: `${k}(${A} + ${B})`, answer: `${k}*(${A} + ${B})` },
+      ],
+      lines: [`${A} + ${B} = ${kS}`, `${fr(`${A} + ${B}`, K)} = ${S}`],
+      moves: [`Add $${B}$ to both sides.`, `Divide both sides by $${k}$.`],
+      lineSlips: [
+        [`${A} - ${B} = ${kS}`, `${B} - ${A} = ${kS}`, `${A} = ${kS} + ${B}`],
+        [`${A} + ${fr(B, K)} = ${S}`, `${k}(${A} + ${B}) = ${S}`, `${fr(`${A} - ${B}`, K)} = ${S}`],
+      ],
+      recipe: { lastIsAdding: true, twoSteps: true, built: `multiply by $${k}$, then take away $${B}$`, undone: `add $${B}$ to both sides, then divide by $${k}$` },
+      undo: [`${A} + ${B}`, kS, [`${A} - ${B}`, `${B} - ${A}`, S, `${k}${A}`]],
+    };
+  }
+  if (form === 'div') {
+    return {
+      tex: `${A} = ${fr(S, K)} + ${B}`,
+      subject: S,
+      letters: [A, S, B],
+      resultTex: `${k}(${A} - ${B})`,
+      answer: `${k}*(${A} - ${B})`,
+      altTex: `${k}${A} - ${k}${B}`,
+      left: A,
+      right: `${S}/${k} + ${B}`,
+      slips: [
+        { tex: `${k}${A} - ${B}`, answer: `${k}*${A} - ${B}` },
+        { tex: fr(`${A} - ${B}`, K), answer: `(${A} - ${B})/${k}` },
+        { tex: `${k}(${A} + ${B})`, answer: `${k}*(${A} + ${B})` },
+      ],
+      lines: [`${A} - ${B} = ${fr(S, K)}`, `${k}(${A} - ${B}) = ${S}`],
+      moves: [`Take $${B}$ from both sides.`, `Multiply both sides by $${k}$.`],
+      lineSlips: [
+        [`${A} + ${B} = ${fr(S, K)}`, `${B} - ${A} = ${fr(S, K)}`, `${A} = ${fr(`${S} - ${B}`, K)}`],
+        [`${k}${A} - ${B} = ${S}`, `${fr(`${A} - ${B}`, K)} = ${S}`, `${k}(${A} + ${B}) = ${S}`],
+      ],
+      recipe: { lastIsAdding: true, twoSteps: true, built: `divide by $${k}$, then add $${B}$`, undone: `take $${B}$ from both sides, then multiply by $${k}$` },
+      undo: [`${A} - ${B}`, fr(S, K), [`${A} + ${B}`, `${B} - ${A}`, kS, fr(A, K)]],
+    };
+  }
+  if (form === 'mul-letter') {
+    return {
+      tex: `${A} = ${B} + ${C}${S}`,
+      subject: S,
+      letters: [A, B, C, S],
+      resultTex: fr(`${A} - ${B}`, C),
+      answer: `(${A} - ${B})/${C}`,
+      altTex: `${fr(A, C)} - ${fr(B, C)}`,
+      left: A,
+      right: `${B} + ${C}*${S}`,
+      slips: [
+        { tex: fr(`${A} + ${B}`, C), answer: `(${A} + ${B})/${C}` },
+        { tex: `${fr(A, C)} - ${B}`, answer: `${A}/${C} - ${B}` },
+        { tex: `${C}(${A} - ${B})`, answer: `${C}*(${A} - ${B})` },
+      ],
+      lines: [`${A} - ${B} = ${C}${S}`, `${fr(`${A} - ${B}`, C)} = ${S}`],
+      moves: [`Take $${B}$ from both sides.`, `Divide both sides by $${C}$.`],
+      lineSlips: [
+        [`${A} + ${B} = ${C}${S}`, `${B} - ${A} = ${C}${S}`, `${A} = ${C}${S} - ${B}`],
+        [`${A} - ${fr(B, C)} = ${S}`, `${C}(${A} - ${B}) = ${S}`, `${fr(`${A} + ${B}`, C)} = ${S}`],
+      ],
+      recipe: { lastIsAdding: true, twoSteps: true, built: `multiply by $${C}$, then add $${B}$`, undone: `take $${B}$ from both sides, then divide by $${C}$` },
+      undo: [`${A} - ${B}`, `${C}${S}`, [`${A} + ${B}`, `${B} - ${A}`, S, `${C} + ${S}`]],
+    };
+  }
+  if (form === 'minus') {
+    return {
+      tex: `${A} = ${B} - ${kS}`,
+      subject: S,
+      letters: [A, B, S],
+      resultTex: fr(`${B} - ${A}`, K),
+      answer: `(${B} - ${A})/${k}`,
+      altTex: `${fr(B, K)} - ${fr(A, K)}`,
+      left: A,
+      right: `${B} - ${k}*${S}`,
+      slips: [
+        { tex: fr(`${A} - ${B}`, K), answer: `(${A} - ${B})/${k}` },
+        { tex: fr(`${A} + ${B}`, K), answer: `(${A} + ${B})/${k}` },
+        { tex: `${fr(B, K)} - ${A}`, answer: `${B}/${k} - ${A}` },
+      ],
+      lines: [`${A} - ${B} = -${kS}`, `${fr(`${B} - ${A}`, K)} = ${S}`],
+      moves: [
+        `Take $${B}$ from both sides.`,
+        `Divide both sides by $-${k}$. Dividing by a negative changes both signs on the left, so $${A} - ${B}$ becomes $${B} - ${A}$.`,
+      ],
+      lineSlips: [
+        [`${A} + ${B} = -${kS}`, `${A} - ${B} = ${kS}`, `${B} - ${A} = -${kS}`],
+        [`${fr(`${A} - ${B}`, K)} = ${S}`, `${fr(`${A} + ${B}`, K)} = ${S}`, `-${k}(${A} - ${B}) = ${S}`],
+      ],
+      recipe: { lastIsAdding: true, twoSteps: true, built: `multiply by $${k}$, then take the result away from $${B}$`, undone: `take $${B}$ from both sides, then divide by $-${k}$` },
+      // Not B - A: B - A = kS is the same line with both sides negated, and
+      // tiles grade the form, so offering it would mark a right answer wrong.
+      undo: [`${A} - ${B}`, `-${kS}`, [`${A} + ${B}`, kS, `-${S}`]],
+    };
+  }
+  if (form === 'div-letter') {
+    return {
+      tex: `${A} = ${fr(S, C)} - ${B}`,
+      subject: S,
+      letters: [A, S, C, B],
+      resultTex: `${C}(${A} + ${B})`,
+      answer: `${C}*(${A} + ${B})`,
+      altTex: `${C}${A} + ${C}${B}`,
+      left: A,
+      right: `${S}/${C} - ${B}`,
+      slips: [
+        { tex: `${C}${A} + ${B}`, answer: `${C}*${A} + ${B}` },
+        { tex: fr(`${A} + ${B}`, C), answer: `(${A} + ${B})/${C}` },
+        { tex: `${C}(${A} - ${B})`, answer: `${C}*(${A} - ${B})` },
+      ],
+      lines: [`${A} + ${B} = ${fr(S, C)}`, `${C}(${A} + ${B}) = ${S}`],
+      moves: [`Add $${B}$ to both sides.`, `Multiply both sides by $${C}$.`],
+      lineSlips: [
+        [`${A} - ${B} = ${fr(S, C)}`, `${B} - ${A} = ${fr(S, C)}`, `${A} = ${fr(`${S} - ${B}`, C)}`],
+        [`${C}${A} + ${B} = ${S}`, `${fr(`${A} + ${B}`, C)} = ${S}`, `${C}(${A} - ${B}) = ${S}`],
+      ],
+      recipe: { lastIsAdding: true, twoSteps: true, built: `divide by $${C}$, then take away $${B}$`, undone: `add $${B}$ to both sides, then multiply by $${C}$` },
+      undo: [`${A} + ${B}`, fr(S, C), [`${A} - ${B}`, `${B} - ${A}`, `${C}${S}`, fr(A, C)]],
+    };
+  }
+  if (form === 'mul-only') {
+    return {
+      tex: `${A} = ${kS}`,
+      subject: S,
+      letters: [A, S],
+      resultTex: fr(A, K),
+      answer: `${A}/${k}`,
+      left: A,
+      right: `${k}*${S}`,
+      slips: [
+        { tex: `${k}${A}`, answer: `${k}*${A}` },
+        { tex: `${A} - ${k}`, answer: `${A} - ${k}` },
+        { tex: fr(K, A), answer: `${k}/${A}` },
+      ],
+      lines: [`${fr(A, K)} = ${S}`],
+      moves: [`Divide both sides by $${k}$.`],
+      lineSlips: [[`${k}${A} = ${S}`, `${A} - ${k} = ${S}`, `${fr(K, A)} = ${S}`]],
+      recipe: { lastIsAdding: false, twoSteps: false, built: `multiply by $${k}$`, undone: `divide both sides by $${k}$` },
+    };
+  }
+  return {
+    tex: `${A} = ${S} + ${B}`,
+    subject: S,
+    letters: [A, S, B],
+    resultTex: `${A} - ${B}`,
+    answer: `${A} - ${B}`,
+    left: A,
+    right: `${S} + ${B}`,
+    slips: [
+      { tex: `${A} + ${B}`, answer: `${A} + ${B}` },
+      { tex: `${B} - ${A}`, answer: `${B} - ${A}` },
+      { tex: fr(A, B), answer: `${A}/${B}` },
+    ],
+    lines: [`${A} - ${B} = ${S}`],
+    moves: [`Take $${B}$ from both sides.`],
+    lineSlips: [[`${A} + ${B} = ${S}`, `${B} - ${A} = ${S}`, `${fr(A, B)} = ${S}`]],
+    recipe: { lastIsAdding: true, twoSteps: false, built: `add $${B}$`, undone: `take $${B}$ from both sides` },
+  };
+}
+
+function sampleLinear(rng: Rng, forms: readonly LinearForm[]): LinearParams {
+  return { form: rng.pick(forms), set: rng.int(0, LINEAR_SETS.length - 1), k: rng.int(2, 9) };
+}
+
+const EASY_LINEAR: readonly LinearForm[] = ['add', 'sub', 'div'];
+const HARD_LINEAR: readonly LinearForm[] = ['mul-letter', 'minus', 'div-letter'];
+
+/**
+ * Making a letter the subject of a formula: a two-step equation with letters.
+ *
+ * Nothing new is being done — the subject is undone in the reverse order, as
+ * the first level did for $x$ — but the answer is now an expression, so it is
+ * typed with a key for every letter in the formula. Leaving a letter out, or
+ * typing the subject into its own answer, grades wrong, which is right.
+ * Difficulty 2 has a letter as the multiplier ($v = u + at$) or the subject's
+ * term taken away, where the sign turns round.
+ */
+const makeSubject: Generator<LinearParams> = {
+  id: 'lin-subject',
+  choices: (params) => subjectChoices(linearFormula(params)),
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty > 1 ? HARD_LINEAR : EASY_LINEAR),
+  render: (params): Slide => subjectSlide(linearFormula(params), 'real'),
+  solution: (params) => formulaSolution(linearFormula(params)),
+};
+
+/**
+ * Which operation comes off the subject first?
+ *
+ * The same reading question the first level asked of $x$, now of a letter in
+ * a formula: read the side with the subject as a recipe, and the operation
+ * done last comes off first. Difficulty 1 is the first lesson's formulae;
+ * difficulty 2 is the second lesson's, where a bracket or a fraction bar
+ * makes the last operation a multiplication or a division even though a term
+ * is added inside it.
+ */
+const subjectFlow: Generator<LinearParams | BracketFormulaParams> = {
+  id: 'lin-subject-flow',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? sampleBracketFormula(rng, ['bracket', 'bracket-minus', 'over', 'over-bracket', 'trapezium'])
+      : sampleLinear(rng, ['add', 'sub', 'div', 'mul-letter', 'mul-only', 'add-only']),
+  render: (params): Slide => {
+    const f = recipeFormula(params);
+    const { lastIsAdding, twoSteps } = f.recipe;
+    const S = f.subject;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Before rearranging: in what order do the operations come off $${S}$? Read the side with $${S}$ as a recipe that starts with $${S}$.`,
+        },
+      ],
+      subject: f.tex,
+      steps: [
+        {
+          id: 'last',
+          ask: `What was done to $${S}$ **last**?`,
+          branches: [
+            { label: 'Adding or subtracting a term', to: 'after-adding' },
+            { label: UNDO_TIMES, to: 'after-times' },
+          ],
+        },
+        {
+          id: 'after-adding',
+          ask: `Undo that first. Once it is gone, is $${S}$ still multiplied or divided by something?`,
+          branches: [
+            { label: UNDO_YES, outcome: 'Undo the adding or subtracting, then the multiplying or dividing.' },
+            { label: UNDO_NO, outcome: `Undo the adding or subtracting and $${S}$ is alone.` },
+          ],
+        },
+        {
+          id: 'after-times',
+          ask: `Undo that first. Once it is gone, is a term still added to or taken from $${S}$?`,
+          branches: [
+            { label: UNDO_YES, outcome: 'Undo the multiplying or dividing, then the adding or subtracting.' },
+            { label: UNDO_NO, outcome: `Undo the multiplying or dividing and $${S}$ is alone.` },
+          ],
+        },
+      ],
+      answer: [lastIsAdding ? 'Adding or subtracting a term' : UNDO_TIMES, twoSteps ? UNDO_YES : UNDO_NO],
+    };
+  },
+  solution: (params) => {
+    const f = recipeFormula(params);
+    return [
+      { tex: f.tex },
+      { text: `Starting from $${f.subject}$, the formula says: ${f.recipe.built}.` },
+      { text: `Undo in the reverse order: ${f.recipe.undone}.` },
+      { tex: `${f.subject} = ${f.resultTex}` },
+    ];
+  },
+};
+
+/**
+ * The first undo, placed as tiles.
+ *
+ * One line of working: what is left once the term added to the subject's
+ * side comes off. The bank holds the sign slips and the multiplier stripped
+ * too early, which are the two mistakes the lesson is about.
+ */
+const firstUndoTiles: Generator<LinearParams> = {
+  id: 'lin-first-undo-tiles',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty > 1 ? HARD_LINEAR : EASY_LINEAR),
+  render: (params): Slide => {
+    const f = linearFormula(params);
+    const [left, right, extras] = f.undo ?? ['', '', []];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `To make $${f.subject}$ the subject, the term added to or taken from its side comes off first. What line does that leave?`,
+        },
+        { kind: 'display', tex: f.tex },
+      ],
+      template: '{0} = {1}',
+      bank: bankOf([left, right], extras),
+      answer: [left, right],
+    };
+  },
+  solution: (params) => formulaSolution(linearFormula(params)),
+};
+
+/**
+ * Making the subject as lines of working, one operation per line.
+ *
+ * Each tap collapses the line into the next, so the learner writes down the
+ * working a teacher asks for: $v - u = at$, then $\frac{v - u}{a} = t$. The
+ * start is split so the term that comes off first is the one tapped.
+ * Difficulty 2 is the second lesson's formulae, with a bracket or a fraction.
+ */
+const rearrangeStepsGen: Generator<LinearParams | BracketFormulaParams> = {
+  id: 'lin-rearrange-steps',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? sampleBracketFormula(rng, ['bracket', 'bracket-minus', 'over', 'over-bracket', 'trapezium'])
+      : sampleLinear(rng, ['add', 'sub', 'div', 'mul-letter', 'minus', 'div-letter']),
+  render: (params): Slide => {
+    const f = recipeFormula(params);
+    // Split at the first " = ": the left side, the sign, then the right side
+    // as one fragment, so the whole line is one reduction.
+    const [left, right] = f.tex.split(' = ');
+    return rearrangeSteps(f, [left, '=', right], 2);
+  },
+  solution: (params) => formulaSolution(recipeFormula(params)),
+};
+
+/* ---------- Lesson 2: brackets and fractions ---------- */
+
+/** `[A, B, C, S]` for the second lesson: $P = 2(l + w)$ is the first set. */
+const BRACKET_SETS: readonly (readonly [string, string, string, string])[] = [
+  ['P', 'l', 'b', 'w'],
+  ['A', 'a', 'b', 'h'],
+  ['V', 'p', 'q', 't'],
+  ['M', 'r', 's', 'n'],
+  ['T', 'u', 'v', 'd'],
+  ['Q', 'g', 'h', 'k'],
+];
+
+/** `[A, S]` for the fraction with a bracket on top: $C = \frac{5(F - 32)}{9}$ first. */
+const SCALE_SETS: readonly (readonly [string, string])[] = [
+  ['C', 'F'],
+  ['y', 'x'],
+  ['T', 't'],
+  ['Q', 'p'],
+  ['R', 's'],
+  ['H', 'g'],
+];
+
+/** Multiplier and divisor pairs with nothing in common, so neither cancels. */
+const SCALE_PAIRS: readonly (readonly [number, number])[] = [
+  [5, 9], [2, 3], [3, 2], [3, 4], [4, 3], [2, 5], [5, 2], [3, 5], [5, 3], [4, 7], [7, 4], [2, 7], [7, 2], [5, 6], [6, 5],
+];
+
+type BracketFormulaForm = 'bracket' | 'bracket-minus' | 'over' | 'over-bracket' | 'trapezium';
+
+interface BracketFormulaParams {
+  form: BracketFormulaForm;
+  set: number;
+  k: number;
+  /** For `over-bracket`: an index into SCALE_PAIRS, and the number inside the bracket. */
+  pair: number;
+  n: number;
+}
+
+function sampleBracketFormula(rng: Rng, forms: readonly BracketFormulaForm[]): BracketFormulaParams {
+  const form = rng.pick(forms);
+  return {
+    form,
+    set: rng.int(0, (form === 'over-bracket' ? SCALE_SETS : BRACKET_SETS).length - 1),
+    k: rng.int(2, 9),
+    pair: rng.int(0, SCALE_PAIRS.length - 1),
+    n: rng.int(2, 40),
+  };
+}
+
+/**
+ * The second lesson's formulae: the subject inside a bracket, or on top of a
+ * fraction. The bracket is kept whole — divide by the number outside it
+ * rather than expand — and the fraction is cleared by multiplying.
+ */
+function bracketFormula(params: BracketFormulaParams): Formula & { recipe: Recipe; clear?: [string, string, string[]] } {
+  const { form, set, k } = params;
+  const K = `${k}`;
+  if (form === 'over-bracket') {
+    const [A, S] = SCALE_SETS[set];
+    const [p, m] = SCALE_PAIRS[params.pair];
+    const { n } = params;
+    const P = `${p}`;
+    const mA = `${m}${A}`;
+    return {
+      tex: `${A} = ${fr(`${p}(${S} - ${n})`, `${m}`)}`,
+      subject: S,
+      letters: [A, S],
+      resultTex: `${fr(mA, P)} + ${n}`,
+      answer: `${m}*${A}/${p} + ${n}`,
+      altTex: fr(`${mA} + ${p * n}`, P),
+      left: A,
+      right: `${p}*(${S} - ${n})/${m}`,
+      slips: [
+        { tex: `${fr(`${p}${A}`, `${m}`)} + ${n}`, answer: `${p}*${A}/${m} + ${n}` },
+        { tex: `${fr(mA, P)} - ${n}`, answer: `${m}*${A}/${p} - ${n}` },
+        { tex: fr(`${mA} + ${n}`, P), answer: `(${m}*${A} + ${n})/${p}` },
+      ],
+      lines: [`${mA} = ${p}(${S} - ${n})`, `${fr(mA, P)} = ${S} - ${n}`, `${fr(mA, P)} + ${n} = ${S}`],
+      moves: [`Multiply both sides by $${m}$ to clear the fraction.`, `Divide both sides by $${p}$, keeping the bracket whole.`, `Add $${n}$ to both sides.`],
+      lineSlips: [
+        [`${fr(A, `${m}`)} = ${p}(${S} - ${n})`, `${mA} = ${S} - ${n}`, `${mA} = ${p}(${S} + ${n})`],
+        [`${fr(mA, P)} = ${S} + ${n}`, `${mA} - ${p} = ${S} - ${n}`, `${fr(`${p}${A}`, `${m}`)} = ${S} - ${n}`],
+        [`${fr(mA, P)} - ${n} = ${S}`, `${fr(`${mA} + ${n}`, P)} = ${S}`, `${n} - ${fr(mA, P)} = ${S}`],
+      ],
+      recipe: {
+        lastIsAdding: false,
+        twoSteps: true,
+        built: `take away $${n}$, multiply by $${p}$, then divide by $${m}$`,
+        undone: `multiply by $${m}$ and divide by $${p}$, then add $${n}$`,
+      },
+      clear: [mA, `${p}(${S} - ${n})`, [A, `${m}(${S} - ${n})`, `${p}${A}`, `${m * p}(${S} - ${n})`, `${S} - ${n}`]],
+    };
+  }
+  const [A, B, C, S] = BRACKET_SETS[set];
+  if (form === 'bracket') {
+    return {
+      tex: `${A} = ${k}(${B} + ${S})`,
+      subject: S,
+      letters: [A, B, S],
+      resultTex: `${fr(A, K)} - ${B}`,
+      answer: `${A}/${k} - ${B}`,
+      altTex: fr(`${A} - ${k}${B}`, K),
+      left: A,
+      right: `${k}*(${B} + ${S})`,
+      slips: [
+        { tex: fr(`${A} - ${B}`, K), answer: `(${A} - ${B})/${k}` },
+        { tex: `${fr(A, K)} + ${B}`, answer: `${A}/${k} + ${B}` },
+        { tex: `${k}${A} - ${B}`, answer: `${k}*${A} - ${B}` },
+      ],
+      lines: [`${fr(A, K)} = ${B} + ${S}`, `${fr(A, K)} - ${B} = ${S}`],
+      moves: [`Divide both sides by $${k}$. The bracket stays whole.`, `Take $${B}$ from both sides.`],
+      lineSlips: [
+        [`${A} - ${k} = ${B} + ${S}`, `${k}${A} = ${B} + ${S}`, `${fr(A, K)} = ${k}${B} + ${S}`],
+        [`${fr(A, K)} + ${B} = ${S}`, `${fr(`${A} - ${B}`, K)} = ${S}`, `${B} - ${fr(A, K)} = ${S}`],
+      ],
+      recipe: { lastIsAdding: false, twoSteps: true, built: `add $${B}$, then multiply the whole bracket by $${k}$`, undone: `divide both sides by $${k}$, then take away $${B}$` },
+    };
+  }
+  if (form === 'bracket-minus') {
+    return {
+      tex: `${A} = ${k}(${S} - ${B})`,
+      subject: S,
+      letters: [A, S, B],
+      resultTex: `${fr(A, K)} + ${B}`,
+      answer: `${A}/${k} + ${B}`,
+      altTex: fr(`${A} + ${k}${B}`, K),
+      left: A,
+      right: `${k}*(${S} - ${B})`,
+      slips: [
+        { tex: fr(`${A} + ${B}`, K), answer: `(${A} + ${B})/${k}` },
+        { tex: `${fr(A, K)} - ${B}`, answer: `${A}/${k} - ${B}` },
+        { tex: `${k}${A} + ${B}`, answer: `${k}*${A} + ${B}` },
+      ],
+      lines: [`${fr(A, K)} = ${S} - ${B}`, `${fr(A, K)} + ${B} = ${S}`],
+      moves: [`Divide both sides by $${k}$. The bracket stays whole.`, `Add $${B}$ to both sides.`],
+      lineSlips: [
+        [`${A} - ${k} = ${S} - ${B}`, `${k}${A} = ${S} - ${B}`, `${fr(A, K)} = ${S} + ${B}`],
+        [`${fr(A, K)} - ${B} = ${S}`, `${fr(`${A} + ${B}`, K)} = ${S}`, `${B} - ${fr(A, K)} = ${S}`],
+      ],
+      recipe: { lastIsAdding: false, twoSteps: true, built: `take away $${B}$, then multiply the whole bracket by $${k}$`, undone: `divide both sides by $${k}$, then add $${B}$` },
+    };
+  }
+  if (form === 'over') {
+    const kA = `${k}${A}`;
+    return {
+      tex: `${A} = ${fr(`${B} + ${S}`, K)}`,
+      subject: S,
+      letters: [A, B, S],
+      resultTex: `${kA} - ${B}`,
+      answer: `${k}*${A} - ${B}`,
+      altTex: `-(${B} - ${kA})`,
+      left: A,
+      right: `(${B} + ${S})/${k}`,
+      slips: [
+        { tex: `${fr(A, K)} - ${B}`, answer: `${A}/${k} - ${B}` },
+        { tex: `${k}(${A} - ${B})`, answer: `${k}*(${A} - ${B})` },
+        { tex: `${kA} + ${B}`, answer: `${k}*${A} + ${B}` },
+      ],
+      lines: [`${kA} = ${B} + ${S}`, `${kA} - ${B} = ${S}`],
+      moves: [`Multiply both sides by $${k}$ to clear the fraction.`, `Take $${B}$ from both sides.`],
+      lineSlips: [
+        [`${fr(A, K)} = ${B} + ${S}`, `${kA} = ${k}${B} + ${S}`, `${A} - ${k} = ${B} + ${S}`],
+        [`${kA} + ${B} = ${S}`, `${k}(${A} - ${B}) = ${S}`, `${B} - ${kA} = ${S}`],
+      ],
+      recipe: { lastIsAdding: false, twoSteps: true, built: `add $${B}$, then divide the whole top by $${k}$`, undone: `multiply both sides by $${k}$, then take away $${B}$` },
+      clear: [kA, `${B} + ${S}`, [A, fr(A, K), `${k}${B} + ${S}`, `${B} + ${k}${S}`]],
+    };
+  }
+  // The trapezium: A = (a + b)h / 2, with the divisor drawn.
+  const kA = `${k}${A}`;
+  return {
+    tex: `${A} = ${fr(`(${B} + ${C})${S}`, K)}`,
+    subject: S,
+    letters: [A, B, C, S],
+    resultTex: fr(kA, `${B} + ${C}`),
+    answer: `${k}*${A}/(${B} + ${C})`,
+    altTex: `${kA} \\div (${B} + ${C})`,
+    left: A,
+    right: `(${B} + ${C})*${S}/${k}`,
+    slips: [
+      { tex: fr(A, `${k}(${B} + ${C})`), answer: `${A}/(${k}*(${B} + ${C}))` },
+      { tex: `${kA} - ${B} - ${C}`, answer: `${k}*${A} - ${B} - ${C}` },
+      { tex: `${fr(kA, B)} + ${C}`, answer: `${k}*${A}/${B} + ${C}` },
+    ],
+    lines: [`${kA} = (${B} + ${C})${S}`, `${fr(kA, `${B} + ${C}`)} = ${S}`],
+    moves: [`Multiply both sides by $${k}$ to clear the fraction.`, `Divide both sides by the whole bracket, $${B} + ${C}$.`],
+    lineSlips: [
+      [`${fr(A, K)} = (${B} + ${C})${S}`, `${kA} = ${B} + ${C}${S}`, `${A} - ${k} = (${B} + ${C})${S}`],
+      [`${kA} - ${B} - ${C} = ${S}`, `${fr(kA, B)} + ${C} = ${S}`, `${fr(A, `${k}(${B} + ${C})`)} = ${S}`],
+    ],
+    recipe: { lastIsAdding: false, twoSteps: false, built: `multiply by $(${B} + ${C})$, then divide by $${k}$`, undone: `multiply both sides by $${k}$, then divide by $(${B} + ${C})$` },
+    clear: [kA, `(${B} + ${C})${S}`, [A, fr(A, K), `${B} + ${C}${S}`, `${k}(${B} + ${C})${S}`]],
+  };
+}
+
+/** Either lesson's formula, for the generators the two lessons share by difficulty. */
+function recipeFormula(params: LinearParams | BracketFormulaParams): Formula & { recipe: Recipe } {
+  return 'pair' in params ? bracketFormula(params) : linearFormula(params);
+}
+
+/**
+ * Making the subject when it sits in a bracket or on top of a fraction.
+ *
+ * Difficulty 1 has one bracket or one fraction; difficulty 2 has both at once
+ * ($C = \frac{5(F - 32)}{9}$) or a bracket that multiplies the subject
+ * ($A = \frac{(a + b)h}{2}$), where the whole bracket is the divisor.
+ */
+const bracketSubject: Generator<BracketFormulaParams> = {
+  id: 'lin-bracket-subject',
+  choices: (params) => subjectChoices(bracketFormula(params)),
+  sample: (rng, difficulty) =>
+    sampleBracketFormula(rng, difficulty > 1 ? ['over-bracket', 'trapezium'] : ['bracket', 'bracket-minus', 'over']),
+  render: (params): Slide => subjectSlide(bracketFormula(params), 'real'),
+  solution: (params) => formulaSolution(bracketFormula(params)),
+};
+
+/**
+ * Clearing the fraction, placed as tiles.
+ *
+ * The first move whenever the subject is on top of a fraction: multiply both
+ * sides by the denominator. The slips in the bank are dividing instead, and
+ * multiplying only part of the other side.
+ */
+const clearFractionTiles: Generator<BracketFormulaParams> = {
+  id: 'lin-clear-fraction-tiles',
+  sample: (rng, difficulty) => sampleBracketFormula(rng, difficulty > 1 ? ['over-bracket', 'trapezium'] : ['over']),
+  render: (params): Slide => {
+    const f = bracketFormula(params);
+    const [left, right, extras] = f.clear ?? ['', '', []];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Clear the fraction: multiply both sides by its denominator. What line do you get?`,
+        },
+        { kind: 'display', tex: f.tex },
+      ],
+      template: '{0} = {1}',
+      bank: bankOf([left, right], extras),
+      answer: [left, right],
+    };
+  },
+  solution: (params) => formulaSolution(bracketFormula(params)),
+};
+
+/* ---------- Lesson 3: the subject on both sides ---------- */
+
+/** A fraction whose top may be negative, with the sign written in front. */
+function signedFrac(top: number, bottom: string): string {
+  return top < 0 ? `-${fr(`${-top}`, bottom)}` : fr(`${top}`, bottom);
+}
+
+/** `[a, c, S]` for $ax + m = cx + n$: two letters as coefficients, then the subject. */
+const COLLECT_SETS: readonly (readonly [string, string, string])[] = [
+  ['a', 'b', 'x'],
+  ['p', 'q', 't'],
+  ['m', 'k', 'n'],
+  ['r', 's', 'y'],
+  ['h', 'k', 'w'],
+  ['u', 'v', 'z'],
+];
+
+/** `[A, B, S]` for $A = BS + kS$. */
+const TWICE_SETS: readonly (readonly [string, string, string])[] = [
+  ['T', 'r', 'n'],
+  ['P', 'a', 'x'],
+  ['y', 'm', 't'],
+  ['L', 'g', 'w'],
+  ['R', 'h', 'z'],
+  ['W', 'p', 'q'],
+];
+
+/** `[Y, S]` for $y = \frac{x + 1}{x - 2}$ and its relatives. */
+const RATIO_SETS: readonly (readonly [string, string])[] = [
+  ['y', 'x'],
+  ['k', 't'],
+  ['m', 'n'],
+  ['w', 'z'],
+  ['R', 'r'],
+  ['v', 'u'],
+];
+
+type TwiceForm = 'collect' | 'twice' | 'fraction' | 'fraction2';
+
+/** The moves that make a repeated subject the subject, in the order they come. */
+type TwiceMove = 'multiply' | 'expand' | 'collect' | 'factor' | 'divide';
+
+const TWICE_MOVES: readonly TwiceMove[] = ['multiply', 'expand', 'collect', 'factor', 'divide'];
+
+const TWICE_MOVE_LABEL: Record<TwiceMove, string> = {
+  multiply: 'Multiply both sides by the denominator',
+  expand: 'Expand the bracket',
+  collect: 'Collect the terms containing the subject on one side',
+  factor: 'Take the subject out as a factor',
+  divide: 'Divide both sides by the bracket',
+};
+
+interface TwiceParams {
+  form: TwiceForm;
+  set: number;
+  /** collect: the two numbers, m then n. fraction: p and q. fraction2: a and b. twice: k in `m`. */
+  m: number;
+  n: number;
+}
+
+function sampleTwice(rng: Rng, forms: readonly TwiceForm[]): TwiceParams {
+  const form = rng.pick(forms);
+  if (form === 'collect') {
+    const m = rng.int(1, 20);
+    return { form, set: rng.int(0, COLLECT_SETS.length - 1), m, n: rng.pick(range(1, 20).filter((v) => v !== m)) };
+  }
+  if (form === 'twice') return { form, set: rng.int(0, TWICE_SETS.length - 1), m: rng.int(2, 9), n: 0 };
+  if (form === 'fraction') return { form, set: rng.int(0, RATIO_SETS.length - 1), m: rng.int(1, 9), n: rng.int(1, 9) };
+  const a = rng.int(2, 9);
+  return { form, set: rng.int(0, RATIO_SETS.length - 1), m: a, n: rng.pick(range(1, 9).filter((v) => v !== a)) };
+}
+
+/**
+ * The third lesson's formulae, where the subject appears twice. None of them
+ * can be undone in reverse order, because there is no single order: the
+ * terms have to be collected, the subject taken out as a factor, and the
+ * bracket that leaves divided through.
+ *
+ * `stages` pairs each line with the move it calls for, and `factor` is the
+ * factorised line as a tiles template, the blanks, and slips for the bank.
+ */
+function twiceFormula(params: TwiceParams): Formula & {
+  stages: [string, TwiceMove][];
+  factor: { template: string; answer: string[]; extras: string[] };
+} {
+  const { form, set, m, n } = params;
+  if (form === 'collect') {
+    const [a, c, S] = COLLECT_SETS[set];
+    const d = n - m;
+    const bottom = `${a} - ${c}`;
+    const result = signedFrac(d, bottom);
+    const lines = [`${a}${S} - ${c}${S} = ${d}`, `${S}(${bottom}) = ${d}`, `${S} = ${result}`];
+    return {
+      tex: `${a}${S} + ${m} = ${c}${S} + ${n}`,
+      subject: S,
+      letters: [a, S, c],
+      resultTex: result,
+      answer: `(${d})/(${bottom})`,
+      altTex: signedFrac(-d, `${c} - ${a}`),
+      left: `${a}*${S} + ${m}`,
+      right: `${c}*${S} + ${n}`,
+      slips: [
+        { tex: signedFrac(d, `${a} + ${c}`), answer: `(${d})/(${a} + ${c})` },
+        { tex: fr(`${m + n}`, bottom), answer: `(${m + n})/(${bottom})` },
+        { tex: signedFrac(d, `${c} - ${a}`), answer: `(${d})/(${c} - ${a})` },
+      ],
+      lines,
+      moves: [
+        `Take $${c}${S}$ and $${m}$ from both sides, so the $${S}$ terms are together on the left.`,
+        `Both terms contain $${S}$: take it out as a factor.`,
+        'Divide both sides by the bracket.',
+      ],
+      lineSlips: [
+        [`${a}${S} + ${c}${S} = ${d}`, `${a}${S} - ${c}${S} = ${m + n}`, `${a}${S} - ${c}${S} = ${-d}`],
+        [`${S}(${a} + ${c}) = ${d}`, `${S}(${c} - ${a}) = ${d}`, `${S}(${bottom}) = ${-d}`],
+        [`${S} = ${signedFrac(d, `${a} + ${c}`)}`, `${S} = ${signedFrac(-d, bottom)}`, `${S} = ${d}(${bottom})`],
+      ],
+      stages: [
+        [`${a}${S} + ${m} = ${c}${S} + ${n}`, 'collect'],
+        [lines[0], 'factor'],
+        [lines[1], 'divide'],
+      ],
+      // Not -d beside c - a: S(c - a) = -d is the same line negated, and
+      // tiles grade the form.
+      factor: { template: `${S}({0}) = {1}`, answer: [bottom, `${d}`], extras: [`${a} + ${c}`, `${c} - ${a}`, `${m + n}`, `${n}`] },
+    };
+  }
+  if (form === 'twice') {
+    const [A, B, S] = TWICE_SETS[set];
+    const k = m;
+    const bottom = `${B} + ${k}`;
+    const lines = [`${A} = ${S}(${bottom})`, `${S} = ${fr(A, bottom)}`];
+    return {
+      tex: `${A} = ${B}${S} + ${k}${S}`,
+      subject: S,
+      letters: [A, B, S],
+      resultTex: fr(A, bottom),
+      answer: `${A}/(${bottom})`,
+      altTex: fr(A, `${k} + ${B}`),
+      left: A,
+      right: `${B}*${S} + ${k}*${S}`,
+      slips: [
+        { tex: fr(A, `${k}${B}`), answer: `${A}/(${k}*${B})` },
+        { tex: fr(`${A} - ${k}`, B), answer: `(${A} - ${k})/${B}` },
+        { tex: `${fr(A, B)} - ${k}`, answer: `${A}/${B} - ${k}` },
+      ],
+      lines,
+      moves: [`Both terms on the right contain $${S}$: take it out as a factor.`, 'Divide both sides by the bracket.'],
+      lineSlips: [
+        [`${A} = ${S}(${k}${B})`, `${A} = ${S}(${B} - ${k})`, `${A} = ${S}${B} + ${k}`],
+        [`${S} = ${fr(A, `${k}${B}`)}`, `${S} = ${fr(`${A} - ${k}`, B)}`, `${S} = ${A}(${bottom})`],
+      ],
+      stages: [
+        [`${A} = ${B}${S} + ${k}${S}`, 'factor'],
+        [lines[0], 'divide'],
+      ],
+      factor: { template: `{0} = ${S}({1})`, answer: [A, bottom], extras: [B, `${k}${B}`, `${B} - ${k}`, `${k}${A}`] },
+    };
+  }
+  const [Y, S] = RATIO_SETS[set];
+  if (form === 'fraction') {
+    const p = m;
+    const q = n;
+    const qY = q === 1 ? Y : `${q}${Y}`;
+    const top = `${qY} + ${p}`;
+    const bottom = `${Y} - 1`;
+    const lines = [
+      `${Y}(${S} - ${q}) = ${S} + ${p}`,
+      `${S}${Y} - ${qY} = ${S} + ${p}`,
+      `${S}${Y} - ${S} = ${top}`,
+      `${S}(${bottom}) = ${top}`,
+      `${S} = ${fr(top, bottom)}`,
+    ];
+    return {
+      tex: `${Y} = ${fr(`${S} + ${p}`, `${S} - ${q}`)}`,
+      subject: S,
+      letters: [Y, S],
+      resultTex: fr(top, bottom),
+      answer: `(${q}*${Y} + ${p})/(${Y} - 1)`,
+      altTex: fr(`${p} + ${qY}`, bottom),
+      left: Y,
+      right: `(${S} + ${p})/(${S} - ${q})`,
+      slips: [
+        { tex: fr(`${qY} - ${p}`, bottom), answer: `(${q}*${Y} - ${p})/(${Y} - 1)` },
+        { tex: fr(top, `${Y} + 1`), answer: `(${q}*${Y} + ${p})/(${Y} + 1)` },
+        { tex: fr(`${p} - ${qY}`, bottom), answer: `(${p} - ${q}*${Y})/(${Y} - 1)` },
+      ],
+      lines,
+      moves: [
+        `Multiply both sides by $${S} - ${q}$ to clear the fraction.`,
+        'Expand the bracket.',
+        `Collect the $${S}$ terms on the left: take $${S}$ from both sides and add $${qY}$ to both.`,
+        `Take $${S}$ out as a factor.`,
+        'Divide both sides by the bracket.',
+      ],
+      lineSlips: [
+        [`${Y}${S} - ${q} = ${S} + ${p}`, `${Y}(${S} + ${q}) = ${S} + ${p}`, `${Y} = (${S} + ${p})(${S} - ${q})`],
+        [`${S}${Y} - ${q} = ${S} + ${p}`, `${S}${Y} + ${qY} = ${S} + ${p}`, `${S}${Y} - ${S} = ${S} + ${p}`],
+        [`${S}${Y} + ${S} = ${top}`, `${S}${Y} - ${S} = ${qY} - ${p}`, `${S}${Y} - ${S} = ${p} - ${qY}`],
+        [`${S}(${Y} + 1) = ${top}`, `${S}(${bottom}) = ${qY} - ${p}`, `${S}${Y} = ${top}`],
+        [`${S} = ${fr(top, `${Y} + 1`)}`, `${S} = ${fr(`${qY} - ${p}`, bottom)}`, `${S} = ${top} - ${bottom}`],
+      ],
+      stages: [
+        [`${Y} = ${fr(`${S} + ${p}`, `${S} - ${q}`)}`, 'multiply'],
+        [lines[0], 'expand'],
+        [lines[1], 'collect'],
+        [lines[2], 'factor'],
+        [lines[3], 'divide'],
+      ],
+      // Not 1 - Y: S(1 - y) = -(qy + p) is the same line negated.
+      factor: { template: `${S}({0}) = {1}`, answer: [bottom, top], extras: [`${Y} + 1`, `${qY} - ${p}`, `${Y} - ${q}`, `${p}${Y} + ${q}`] },
+    };
+  }
+  const a = m;
+  const b = n;
+  const bY = b === 1 ? Y : `${b}${Y}`;
+  const aS = `${a}${S}`;
+  const bottom = `${a} - ${Y}`;
+  const lines = [
+    `${Y}(${S} + ${b}) = ${aS}`,
+    `${S}${Y} + ${bY} = ${aS}`,
+    `${bY} = ${aS} - ${S}${Y}`,
+    `${bY} = ${S}(${bottom})`,
+    `${S} = ${fr(bY, bottom)}`,
+  ];
+  return {
+    tex: `${Y} = ${fr(aS, `${S} + ${b}`)}`,
+    subject: S,
+    letters: [Y, S],
+    resultTex: fr(bY, bottom),
+    answer: `${b}*${Y}/(${bottom})`,
+    altTex: `-${fr(bY, `${Y} - ${a}`)}`,
+    left: Y,
+    right: `${a}*${S}/(${S} + ${b})`,
+    slips: [
+      { tex: fr(bY, `${Y} - ${a}`), answer: `${b}*${Y}/(${Y} - ${a})` },
+      { tex: fr(`${a}${Y}`, `${b} - ${Y}`), answer: `${a}*${Y}/(${b} - ${Y})` },
+      { tex: fr(bY, `${a} + ${Y}`), answer: `${b}*${Y}/(${a} + ${Y})` },
+    ],
+    lines,
+    moves: [
+      `Multiply both sides by $${S} + ${b}$ to clear the fraction.`,
+      'Expand the bracket.',
+      `Collect the $${S}$ terms on the right: take $${S}${Y}$ from both sides.`,
+      `Take $${S}$ out as a factor.`,
+      'Divide both sides by the bracket.',
+    ],
+    lineSlips: [
+      [`${Y}${S} + ${b} = ${aS}`, `${Y} = ${aS}(${S} + ${b})`, `${Y}(${S} - ${b}) = ${aS}`],
+      [`${S}${Y} + ${b} = ${aS}`, `${S}${Y} - ${bY} = ${aS}`, `${S}${Y} + ${bY} = ${a}`],
+      [`${bY} = ${aS} + ${S}${Y}`, `-${bY} = ${aS} - ${S}${Y}`, `${bY} = ${a} - ${S}${Y}`],
+      [`${bY} = ${S}(${a} + ${Y})`, `${bY} = ${S}(${Y} - ${a})`, `${bY} = ${S}${a} - ${Y}`],
+      [`${S} = ${fr(bY, `${a} + ${Y}`)}`, `${S} = ${fr(bY, `${Y} - ${a}`)}`, `${S} = ${bY}(${bottom})`],
+    ],
+    stages: [
+      [`${Y} = ${fr(aS, `${S} + ${b}`)}`, 'multiply'],
+      [lines[0], 'expand'],
+      [lines[1], 'collect'],
+      [lines[2], 'factor'],
+      [lines[3], 'divide'],
+    ],
+    // Not -bY: -by = S(y - a) is the same line negated.
+    factor: { template: `{0} = ${S}({1})`, answer: [bY, bottom], extras: [`${Y} - ${a}`, `${a} + ${Y}`, `${a}${Y}`, `${b} + ${Y}`] },
+  };
+}
+
+/**
+ * The subject on both sides, or twice on one side, made the subject.
+ *
+ * Difficulty 1 collects $ax + 3 = cx + 10$ or factorises $T = rn + 3n$;
+ * difficulty 2 clears a fraction first, $y = \frac{x + 1}{x - 2}$, where the
+ * subject turns up on both sides only once the denominator is multiplied out.
+ */
+const twiceSubject: Generator<TwiceParams> = {
+  id: 'lin-twice-subject',
+  choices: (params) => subjectChoices(twiceFormula(params)),
+  sample: (rng, difficulty) => sampleTwice(rng, difficulty > 1 ? ['fraction', 'fraction2'] : ['collect', 'twice']),
+  render: (params): Slide => subjectSlide(twiceFormula(params), 'real'),
+  solution: (params) => formulaSolution(twiceFormula(params)),
+};
+
+/**
+ * Taking the subject out as a factor, placed as tiles.
+ *
+ * The factorised line is a *form* — $x(a - c) = 7$ has the same value as
+ * $ax - cx = 7$ — so it is asked through tiles, where the form is what gets
+ * graded, not typed, where the checker would accept either. The bank never
+ * holds both halves of the line with its signs turned round, which would be
+ * a second right answer the tiles could not accept.
+ */
+const factorOutTiles: Generator<TwiceParams> = {
+  id: 'lin-factor-out-tiles',
+  sample: (rng, difficulty) => sampleTwice(rng, difficulty > 1 ? ['fraction', 'fraction2'] : ['collect', 'twice']),
+  render: (params): Slide => {
+    const f = twiceFormula(params);
+    const { template, answer, extras } = f.factor;
+    const before = f.stages[f.stages.findIndex(([, move]) => move === 'factor')][0];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Making $${f.subject}$ the subject of $${f.tex}$ has reached the line below. Take $${f.subject}$ out as a factor.`,
+        },
+        { kind: 'display', tex: before },
+      ],
+      template,
+      bank: bankOf(answer, extras),
+      answer,
+    };
+  },
+  solution: (params) => formulaSolution(twiceFormula(params)),
+};
+
+interface TwiceNextParams extends TwiceParams {
+  stage: number;
+  /** Which wrong move is left off, so four options remain. */
+  drop: number;
+}
+
+/**
+ * What comes next? One line of the working, and the move it calls for.
+ *
+ * The order is the lesson: clear the fraction, expand, collect, factorise,
+ * divide. A native choice because the options are moves, not values; they
+ * are listed in that order every time, one wrong move left off, so where the
+ * right one sits says nothing.
+ */
+const twiceNext: Generator<TwiceNextParams> = {
+  id: 'lin-twice-next',
+  sample: (rng, difficulty) => {
+    const base = sampleTwice(rng, difficulty > 1 ? ['fraction', 'fraction2'] : ['collect', 'twice']);
+    return { ...base, stage: rng.int(0, twiceFormula(base).stages.length - 1), drop: rng.int(0, 3) };
+  },
+  render: (params): Slide => {
+    const f = twiceFormula(params);
+    const [line, move] = f.stages[params.stage];
+    const wrong = TWICE_MOVES.filter((m) => m !== move);
+    const left = wrong[params.drop];
+    const shown = TWICE_MOVES.filter((m) => m !== left);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Making $${f.subject}$ the subject of $${f.tex}$ has reached this line. What is the next step?` },
+        { kind: 'display', tex: line },
+      ],
+      options: shown.map((m) => ({ id: m, label: TWICE_MOVE_LABEL[m] })),
+      correctId: move,
+    };
+  },
+  solution: (params) => {
+    const f = twiceFormula(params);
+    const [line, move] = f.stages[params.stage];
+    return [
+      { tex: line },
+      { text: `Next: ${TWICE_MOVE_LABEL[move].toLowerCase()}. ${f.moves[params.stage]}` },
+      { tex: f.lines[params.stage] },
+      { text: 'The whole route:' },
+      ...formulaSolution(f),
+    ];
+  },
+};
+
+interface TwiceValueParams {
+  form: 'collect' | 'fraction';
+  set: number;
+  /** collect: a, b, c, d of ax + b = cx + d. fraction: p, q, y of y = (x + p)/(x - q). */
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+/** `[a, b, c, d, S]` for $ax + b = cx + d$ with every coefficient a letter. */
+const VALUE_SETS: readonly (readonly [string, string, string, string, string])[] = [
+  ['a', 'b', 'c', 'd', 'x'],
+  ['p', 'q', 'r', 's', 't'],
+  ['k', 'm', 'n', 'w', 'z'],
+];
+
+/**
+ * Using the rearranged formula: the numbers go in, the tree works them out.
+ *
+ * Difficulty 1 is $x = \frac{d - b}{a - c}$, from $ax + b = cx + d$ with every
+ * coefficient a letter; difficulty 2 is $x = \frac{qy + p}{y - 1}$, from the
+ * fraction. Every value is drawn so the answer and each step to it are whole.
+ */
+const twiceValueTree: Generator<TwiceValueParams> = {
+  id: 'lin-twice-value-tree',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      // x = (q y + p) / (y - 1) is whole when y - 1 divides q + p.
+      return drawUntil(
+        () => {
+          const p = rng.int(1, 9);
+          const q = rng.int(1, 9);
+          const divisors = range(2, p + q).filter((g) => (p + q) % g === 0);
+          const g = divisors.length > 0 ? rng.pick(divisors) : 1;
+          return { form: 'fraction' as const, set: rng.int(0, RATIO_SETS.length - 1), a: p, b: q, c: g + 1, d: 0 };
+        },
+        (v) => v.c > 2,
+        { form: 'fraction', set: 0, a: 3, b: 3, c: 4, d: 0 },
+      );
+    }
+    const gap = rng.int(2, 6);
+    const c = rng.int(1, 6);
+    const x = rng.int(2, 9);
+    const b = rng.int(1, 15);
+    return { form: 'collect', set: rng.int(0, VALUE_SETS.length - 1), a: c + gap, b, c, d: b + gap * x };
+  },
+  render: (params): Slide => {
+    if (params.form === 'fraction') {
+      const { a: p, b: q, c: y } = params;
+      const [Y, S] = RATIO_SETS[params.set];
+      const top = q * y + p;
+      const x = top / (y - 1);
+      const answer = [`${q * y}`, `${top}`, `${y - 1}`, `${x}`];
+      return {
+        kind: 'tree',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Making $${S}$ the subject of $${Y} = ${fr(`${S} + ${p}`, `${S} - ${q}`)}$ gives $${S} = ${fr(`${q === 1 ? '' : q}${Y} + ${p}`, `${Y} - 1`)}$. Find $${S}$ when $${Y} = ${y}$: fill the tree from the top of the fraction down.`,
+          },
+        ],
+        expression: `${S} = ${fr(`${q} \\times ${y} + ${p}`, `${y} - 1`)}`,
+        nodes: [
+          { id: 'times', from: [] },
+          { id: 'top', from: ['times'] },
+          { id: 'bottom', from: [] },
+          { id: 'x', from: ['top', 'bottom'] },
+        ],
+        bank: treeBank(answer, [q + y, q * y - p, y + 1, top / (y + 1)], x),
+        answer,
+      };
+    }
+    const { a, b, c, d } = params;
+    const [A, B, C, D, S] = VALUE_SETS[params.set];
+    const x = (d - b) / (a - c);
+    const answer = [`${d - b}`, `${a - c}`, `${x}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Making $${S}$ the subject of $${A}${S} + ${B} = ${C}${S} + ${D}$ gives $${S} = ${fr(`${D} - ${B}`, `${A} - ${C}`)}$. Find $${S}$ when $${A} = ${a}$, $${B} = ${b}$, $${C} = ${c}$ and $${D} = ${d}$: fill the top, the bottom, then $${S}$.`,
+        },
+      ],
+      expression: `${S} = ${fr(`${d} - ${b}`, `${a} - ${c}`)}`,
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'x', from: ['top', 'bottom'] },
+      ],
+      bank: treeBank(answer, [d + b, a + c, (d + b) / (a - c), d - b - a + c], x),
+      answer,
+    };
+  },
+  solution: (params) => {
+    if (params.form === 'fraction') {
+      const { a: p, b: q, c: y } = params;
+      const [Y, S] = RATIO_SETS[params.set];
+      const top = q * y + p;
+      return [
+        { text: `Put $${Y} = ${y}$ into the rearranged formula.` },
+        { tex: `${S} = ${fr(`${q} \\times ${y} + ${p}`, `${y} - 1`)} = ${fr(`${top}`, `${y - 1}`)} = ${top / (y - 1)}` },
+        { text: `Check in the original: $${fr(`${top / (y - 1)} + ${p}`, `${top / (y - 1)} - ${q}`)} = ${fr(`${top / (y - 1) + p}`, `${top / (y - 1) - q}`)} = ${y}$.` },
+      ];
+    }
+    const { a, b, c, d } = params;
+    const [, , , , S] = VALUE_SETS[params.set];
+    const x = (d - b) / (a - c);
+    return [
+      { text: 'Put the numbers into the rearranged formula: the top first, then the bottom.' },
+      { tex: `${S} = ${fr(`${d} - ${b}`, `${a} - ${c}`)} = ${fr(`${d - b}`, `${a - c}`)} = ${x}` },
+      { text: `Check in the original: $${a} \\times ${x} + ${b} = ${a * x + b}$ and $${c} \\times ${x} + ${d} = ${c * x + d}$.` },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: squares and roots ---------- */
+
+/** `[A, S, what S is]`: the subject is a quantity that cannot be negative. */
+const ROOT_SETS: readonly (readonly [string, string, string])[] = [
+  ['A', 'r', 'the radius of a circle'],
+  ['K', 'v', 'a speed'],
+  ['P', 's', 'the side of a square'],
+  ['H', 't', 'a time'],
+  ['W', 'd', 'a distance'],
+  ['V', 'h', 'a height'],
+];
+
+/** `[B, C, D, S]` for $v^2 = u^2 + 2as$. */
+const SUVAT_SETS: readonly (readonly [string, string, string, string])[] = [
+  ['v', 'u', 'a', 's'],
+  ['p', 'q', 'r', 't'],
+  ['w', 'z', 'g', 'h'],
+  ['m', 'n', 'k', 'd'],
+];
+
+/** `[T, l, g]` for $T = 2\pi\sqrt{\frac{l}{g}}$. */
+const PENDULUM_SETS: readonly (readonly [string, string, string])[] = [
+  ['T', 'l', 'g'],
+  ['P', 'h', 'w'],
+  ['R', 's', 'm'],
+  ['t', 'd', 'q'],
+];
+
+/** `[K, m, S]` for $K = \frac{mv^2}{2}$. */
+const KINETIC_SETS: readonly (readonly [string, string, string])[] = [
+  ['K', 'm', 'v'],
+  ['W', 'p', 'u'],
+  ['Q', 'c', 'w'],
+  ['H', 'n', 'z'],
+];
+
+type RootForm =
+  | 'square'
+  | 'root'
+  | 'coef-root'
+  | 'root-plus'
+  | 'root-inside'
+  | 'bracket-square'
+  | 'suvat'
+  | 'suvat-root'
+  | 'pendulum'
+  | 'kinetic';
+
+interface RootParams {
+  form: RootForm;
+  set: number;
+  /** The number in the formula. For `square`, 0 stands for π. */
+  k: number;
+  n: number;
+}
+
+function sampleRoot(rng: Rng, forms: readonly RootForm[]): RootParams {
+  const form = rng.pick(forms);
+  const sets =
+    form === 'suvat' || form === 'suvat-root'
+      ? SUVAT_SETS
+      : form === 'pendulum'
+        ? PENDULUM_SETS
+        : form === 'kinetic'
+          ? KINETIC_SETS
+          : ROOT_SETS;
+  return {
+    form,
+    set: rng.int(0, sets.length - 1),
+    k: form === 'square' ? rng.pick([0, 2, 3, 4, 5, 6, 7, 8, 9]) : form === 'pendulum' ? rng.int(2, 6) : rng.int(2, 9),
+    n: rng.int(2, 20),
+  };
+}
+
+/** Is the subject under a root or squared, and is that the whole of its side? */
+function rootShape(form: RootForm): { root: boolean; alone: boolean } {
+  if (form === 'root' || form === 'root-inside') return { root: true, alone: true };
+  if (form === 'bracket-square') return { root: false, alone: true };
+  if (form === 'square' || form === 'kinetic' || form === 'suvat-root' || form === 'suvat') return { root: false, alone: false };
+  return { root: true, alone: false };
+}
+
+/**
+ * The fourth lesson's formulae, where a square or a root sits between the
+ * subject and the rest. The rule is the same as ever — undo in reverse order
+ * — with two things added: squaring and rooting undo each other, and they
+ * apply to a whole side, never term by term. Every letter is a positive
+ * quantity, so only the positive root is taken.
+ */
+function rootFormula({ form, set, k, n }: RootParams): Formula {
+  if (form === 'suvat' || form === 'suvat-root') {
+    const [B, C, D, S] = SUVAT_SETS[set];
+    const kDS = `${k}${D}${S}`;
+    if (form === 'suvat') {
+      const top = `${B}^2 - ${C}^2`;
+      return {
+        tex: `${B}^2 = ${C}^2 + ${kDS}`,
+        subject: S,
+        letters: [B, C, D, S],
+        resultTex: fr(top, `${k}${D}`),
+        answer: `(${B}^2 - ${C}^2)/(${k}*${D})`,
+        left: `${B}^2`,
+        right: `${C}^2 + ${k}*${D}*${S}`,
+        slips: [
+          { tex: fr(`${B} - ${C}`, `${k}${D}`), answer: `(${B} - ${C})/(${k}*${D})` },
+          { tex: fr(`${B}^2 + ${C}^2`, `${k}${D}`), answer: `(${B}^2 + ${C}^2)/(${k}*${D})` },
+          { tex: `${top} - ${k}${D}`, answer: `${B}^2 - ${C}^2 - ${k}*${D}` },
+        ],
+        lines: [`${top} = ${kDS}`, `${fr(top, `${k}${D}`)} = ${S}`],
+        moves: [`Take $${C}^2$ from both sides. The squares stay: $${S}$ is not squared, so nothing is square-rooted.`, `Divide both sides by $${k}${D}$.`],
+        lineSlips: [
+          [`${B}^2 + ${C}^2 = ${kDS}`, `${B} - ${C} = ${kDS}`, `${C}^2 - ${B}^2 = ${kDS}`],
+          [`${fr(top, `${k}`)} - ${D} = ${S}`, `${k}${D}(${top}) = ${S}`, `${fr(`${B}^2`, `${k}${D}`)} - ${C}^2 = ${S}`],
+        ],
+      };
+    }
+    const inside = `${B}^2 - ${kDS}`;
+    return {
+      tex: `${B}^2 = ${C}^2 + ${kDS}`,
+      subject: C,
+      letters: [B, C, D, S],
+      resultTex: `\\sqrt{${inside}}`,
+      answer: `sqrt(${B}^2 - ${k}*${D}*${S})`,
+      left: `${B}^2`,
+      right: `${C}^2 + ${k}*${D}*${S}`,
+      slips: [
+        { tex: `${B} - \\sqrt{${kDS}}`, answer: `${B} - sqrt(${k}*${D}*${S})` },
+        { tex: `\\sqrt{${B}^2 + ${kDS}}`, answer: `sqrt(${B}^2 + ${k}*${D}*${S})` },
+        { tex: inside, answer: `${B}^2 - ${k}*${D}*${S}` },
+      ],
+      lines: [`${inside} = ${C}^2`, `\\sqrt{${inside}} = ${C}`],
+      moves: [`Take $${kDS}$ from both sides, so the square is alone.`, 'Take the square root of both sides: of the whole side, not term by term.'],
+      lineSlips: [
+        [`${B}^2 + ${kDS} = ${C}^2`, `${B} - ${kDS} = ${C}^2`, `${kDS} - ${B}^2 = ${C}^2`],
+        [`${B} - \\sqrt{${kDS}} = ${C}`, `(${inside})^2 = ${C}`, `${fr(inside, '2')} = ${C}`],
+      ],
+    };
+  }
+  if (form === 'pendulum') {
+    const [T, L, G] = PENDULUM_SETS[set];
+    const kpi = `${k}\\pi`;
+    const k2pi2 = `${k * k}\\pi^2`;
+    const root = `\\sqrt{${fr(L, G)}}`;
+    return {
+      tex: `${T} = ${kpi}${root}`,
+      subject: L,
+      letters: [T, L, G],
+      pi: true,
+      resultTex: fr(`${G}${T}^2`, k2pi2),
+      answer: `${G}*${T}^2/(${k * k}*pi^2)`,
+      left: T,
+      right: `${k}*pi*sqrt(${L}/${G})`,
+      slips: [
+        { tex: fr(`${G}${T}`, kpi), answer: `${G}*${T}/(${k}*pi)` },
+        { tex: fr(`${T}^2`, `${k2pi2}${G}`), answer: `${T}^2/(${k * k}*pi^2*${G})` },
+        { tex: fr(`${G}${T}^2`, kpi), answer: `${G}*${T}^2/(${k}*pi)` },
+      ],
+      lines: [`${fr(T, kpi)} = ${root}`, `${fr(`${T}^2`, k2pi2)} = ${fr(L, G)}`, `${fr(`${G}${T}^2`, k2pi2)} = ${L}`],
+      moves: [
+        `Divide both sides by $${kpi}$, so the root is alone.`,
+        `Square both sides. The $${kpi}$ is part of the left side, so it is squared too.`,
+        `Multiply both sides by $${G}$.`,
+      ],
+      lineSlips: [
+        [`${T} - ${kpi} = ${root}`, `${kpi} ${T} = ${root}`, `${fr(T, k2pi2)} = ${root}`],
+        [`${fr(`${T}^2`, kpi)} = ${fr(L, G)}`, `${fr(T, k2pi2)} = ${fr(L, G)}`, `${fr(`${T}^2`, k2pi2)} = ${root}`],
+        [`${fr(`${T}^2`, `${k2pi2}${G}`)} = ${L}`, `${fr(`${G}${T}`, k2pi2)} = ${L}`, `${fr(`${T}^2`, k2pi2)} + ${G} = ${L}`],
+      ],
+    };
+  }
+  if (form === 'kinetic') {
+    const [K, M, S] = KINETIC_SETS[set];
+    const kK = `${k}${K}`;
+    return {
+      tex: `${K} = ${fr(`${M}${S}^2`, `${k}`)}`,
+      subject: S,
+      letters: [K, M, S],
+      resultTex: `\\sqrt{${fr(kK, M)}}`,
+      answer: `sqrt(${k}*${K}/${M})`,
+      left: K,
+      right: `${M}*${S}^2/${k}`,
+      slips: [
+        { tex: `\\sqrt{${fr(K, `${k}${M}`)}}`, answer: `sqrt(${K}/(${k}*${M}))` },
+        { tex: fr(kK, M), answer: `${k}*${K}/${M}` },
+        { tex: fr(`\\sqrt{${kK}}`, M), answer: `sqrt(${k}*${K})/${M}` },
+      ],
+      lines: [`${kK} = ${M}${S}^2`, `${fr(kK, M)} = ${S}^2`, `\\sqrt{${fr(kK, M)}} = ${S}`],
+      moves: [`Multiply both sides by $${k}$.`, `Divide both sides by $${M}$, so the square is alone.`, 'Take the square root of both sides.'],
+      lineSlips: [
+        [`${fr(K, `${k}`)} = ${M}${S}^2`, `${K} - ${k} = ${M}${S}^2`, `${kK} = ${M}^2${S}^2`],
+        [`${kK}${M} = ${S}^2`, `${kK} - ${M} = ${S}^2`, `${fr(kK, `${M}^2`)} = ${S}^2`],
+        [`${fr(`\\sqrt{${kK}}`, M)} = ${S}`, `${fr(kK, M)} = ${S}`, `\\left(${fr(kK, M)}\\right)^2 = ${S}`],
+      ],
+    };
+  }
+  const [A, S] = ROOT_SETS[set];
+  if (form === 'square') {
+    const K = k === 0 ? '\\pi' : `${k}`;
+    const kAns = k === 0 ? 'pi' : `${k}`;
+    const over = fr(A, K);
+    return {
+      tex: `${A} = ${K}${k === 0 ? ' ' : ''}${S}^2`,
+      subject: S,
+      letters: [A, S],
+      pi: k === 0,
+      resultTex: `\\sqrt{${over}}`,
+      answer: `sqrt(${A}/${kAns})`,
+      left: A,
+      right: `${kAns}*${S}^2`,
+      slips: [
+        { tex: fr(`\\sqrt{${A}}`, K), answer: `sqrt(${A})/${kAns}` },
+        { tex: fr(A, `2${K}`), answer: `${A}/(2*${kAns})` },
+        { tex: `\\left(${over}\\right)^2`, answer: `(${A}/${kAns})^2` },
+      ],
+      lines: [`${over} = ${S}^2`, `\\sqrt{${over}} = ${S}`],
+      moves: [`Divide both sides by $${K}$, so the square is alone.`, `Take the square root of both sides. $${S}$ is ${ROOT_SETS[set][2]}, so only the positive root.`],
+      lineSlips: [
+        [`${A} - ${K} = ${S}^2`, `${K}${k === 0 ? ' ' : ''}${A} = ${S}^2`, `${fr(A, `2${K}`)} = ${S}^2`],
+        [`${fr(`\\sqrt{${A}}`, K)} = ${S}`, `\\left(${over}\\right)^2 = ${S}`, `${fr(A, `2${K}`)} = ${S}`],
+      ],
+    };
+  }
+  if (form === 'root') {
+    const K = `${k}`;
+    return {
+      tex: `${A} = \\sqrt{${k}${S}}`,
+      subject: S,
+      letters: [A, S],
+      resultTex: fr(`${A}^2`, K),
+      answer: `${A}^2/${k}`,
+      left: A,
+      right: `sqrt(${k}*${S})`,
+      slips: [
+        { tex: `${k}${A}^2`, answer: `${k}*${A}^2` },
+        { tex: fr(`\\sqrt{${A}}`, K), answer: `sqrt(${A})/${k}` },
+        { tex: fr(`${A}^2`, `${k * k}`), answer: `${A}^2/${k * k}` },
+      ],
+      lines: [`${A}^2 = ${k}${S}`, `${fr(`${A}^2`, K)} = ${S}`],
+      moves: ['The root is the whole of its side, so square both sides.', `Divide both sides by $${k}$.`],
+      lineSlips: [
+        [`\\sqrt{${A}} = ${k}${S}`, `${A}^2 = ${k * k}${S}`, `2${A} = ${k}${S}`],
+        [`${k}${A}^2 = ${S}`, `${fr(A, K)} = ${S}`, `${A}^2 - ${k} = ${S}`],
+      ],
+    };
+  }
+  if (form === 'coef-root') {
+    const K = `${k}`;
+    return {
+      tex: `${A} = ${k}\\sqrt{${S}}`,
+      subject: S,
+      letters: [A, S],
+      resultTex: fr(`${A}^2`, `${k * k}`),
+      answer: `${A}^2/${k * k}`,
+      altTex: `\\left(${fr(A, K)}\\right)^2`,
+      left: A,
+      right: `${k}*sqrt(${S})`,
+      slips: [
+        { tex: fr(`${A}^2`, K), answer: `${A}^2/${k}` },
+        { tex: `\\sqrt{${fr(A, K)}}`, answer: `sqrt(${A}/${k})` },
+        { tex: fr(`2${A}`, K), answer: `2*${A}/${k}` },
+      ],
+      lines: [`${fr(A, K)} = \\sqrt{${S}}`, `${fr(`${A}^2`, `${k * k}`)} = ${S}`],
+      moves: [`Divide both sides by $${k}$, so the root is alone.`, `Square both sides: the whole of each side, so the $${k}$ is squared too.`],
+      lineSlips: [
+        [`${A} - ${k} = \\sqrt{${S}}`, `${k}${A} = \\sqrt{${S}}`, `${fr(A, `${k * k}`)} = \\sqrt{${S}}`],
+        [`${fr(`${A}^2`, K)} = ${S}`, `\\sqrt{${fr(A, K)}} = ${S}`, `${fr(`2${A}`, K)} = ${S}`],
+      ],
+    };
+  }
+  if (form === 'root-plus') {
+    return {
+      tex: `${A} = \\sqrt{${S}} + ${n}`,
+      subject: S,
+      letters: [A, S],
+      resultTex: `(${A} - ${n})^2`,
+      answer: `(${A} - ${n})^2`,
+      left: A,
+      right: `sqrt(${S}) + ${n}`,
+      slips: [
+        { tex: `${A}^2 - ${n * n}`, answer: `${A}^2 - ${n * n}` },
+        { tex: `${A}^2 - ${n}`, answer: `${A}^2 - ${n}` },
+        { tex: `(${A} + ${n})^2`, answer: `(${A} + ${n})^2` },
+      ],
+      lines: [`${A} - ${n} = \\sqrt{${S}}`, `(${A} - ${n})^2 = ${S}`],
+      moves: [`Take $${n}$ from both sides, so the root is alone.`, 'Square both sides: the whole of the left, bracket and all.'],
+      lineSlips: [
+        [`${A} + ${n} = \\sqrt{${S}}`, `${A}^2 - ${n} = \\sqrt{${S}}`, `${A} = \\sqrt{${S} + ${n}}`],
+        [`${A}^2 - ${n * n} = ${S}`, `${A}^2 - ${n} = ${S}`, `(${A} + ${n})^2 = ${S}`],
+      ],
+    };
+  }
+  if (form === 'root-inside') {
+    return {
+      tex: `${A} = \\sqrt{${S} + ${n}}`,
+      subject: S,
+      letters: [A, S],
+      resultTex: `${A}^2 - ${n}`,
+      answer: `${A}^2 - ${n}`,
+      left: A,
+      right: `sqrt(${S} + ${n})`,
+      slips: [
+        { tex: `(${A} - ${n})^2`, answer: `(${A} - ${n})^2` },
+        { tex: `${A}^2 + ${n}`, answer: `${A}^2 + ${n}` },
+        { tex: `\\sqrt{${A}} - ${n}`, answer: `sqrt(${A}) - ${n}` },
+      ],
+      lines: [`${A}^2 = ${S} + ${n}`, `${A}^2 - ${n} = ${S}`],
+      moves: ['The root is the whole of its side, so square both sides.', `Take $${n}$ from both sides.`],
+      lineSlips: [
+        [`${A}^2 = ${S} + ${n * n}`, `\\sqrt{${A}} = ${S} + ${n}`, `${A}^2 = ${S}^2 + ${n}`],
+        [`${A}^2 + ${n} = ${S}`, `(${A} - ${n})^2 = ${S}`, `${n} - ${A}^2 = ${S}`],
+      ],
+    };
+  }
+  // bracket-square: A = (S + n)^2
+  return {
+    tex: `${A} = (${S} + ${n})^2`,
+    subject: S,
+    letters: [A, S],
+    resultTex: `\\sqrt{${A}} - ${n}`,
+    answer: `sqrt(${A}) - ${n}`,
+    left: A,
+    right: `(${S} + ${n})^2`,
+    slips: [
+      { tex: `\\sqrt{${A} - ${n}}`, answer: `sqrt(${A} - ${n})` },
+      { tex: `\\sqrt{${A}} + ${n}`, answer: `sqrt(${A}) + ${n}` },
+      { tex: `${A}^2 - ${n}`, answer: `${A}^2 - ${n}` },
+    ],
+    lines: [`\\sqrt{${A}} = ${S} + ${n}`, `\\sqrt{${A}} - ${n} = ${S}`],
+    moves: ['The square is the whole of its side, so take the square root of both sides.', `Take $${n}$ from both sides.`],
+    lineSlips: [
+      [`${A}^2 = ${S} + ${n}`, `\\sqrt{${A}} = ${S} + ${n * n}`, `\\sqrt{${A}} = ${S}^2 + ${n}`],
+      [`\\sqrt{${A}} + ${n} = ${S}`, `\\sqrt{${A} - ${n}} = ${S}`, `${n} - \\sqrt{${A}} = ${S}`],
+    ],
+  };
+}
+
+const EASY_ROOTS: readonly RootForm[] = ['square', 'root', 'coef-root'];
+
+/**
+ * Making the subject when it is squared or under a root. Typed, with `^` and
+ * a root key, and graded over positive values only: every letter here is a
+ * length, a speed or a time, and $\sqrt{A^2}$ is $A$ only when $A$ is not
+ * negative. Difficulty 2 has the named formulae — $v^2 = u^2 + 2as$,
+ * $T = 2\pi\sqrt{\frac{l}{g}}$ — and a root with a number beside it.
+ */
+const rootSubject: Generator<RootParams> = {
+  id: 'lin-root-subject',
+  choices: (params) => subjectChoices(rootFormula(params)),
+  sample: (rng, difficulty) =>
+    sampleRoot(
+      rng,
+      difficulty > 1 ? ['suvat', 'suvat-root', 'pendulum', 'root-plus', 'root-inside', 'kinetic', 'bracket-square'] : EASY_ROOTS,
+    ),
+  render: (params): Slide => subjectSlide(rootFormula(params), 'positive'),
+  solution: (params) => formulaSolution(rootFormula(params)),
+};
+
+/**
+ * The same as lines of working, one operation per line: the order in which
+ * the root or the square comes off is what the lines make visible.
+ */
+const rootSteps: Generator<RootParams> = {
+  id: 'lin-root-steps',
+  sample: (rng, difficulty) =>
+    sampleRoot(rng, difficulty > 1 ? ['suvat-root', 'pendulum', 'root-plus', 'kinetic', 'bracket-square'] : [...EASY_ROOTS, 'root-inside']),
+  render: (params): Slide => {
+    const f = rootFormula(params);
+    const [left, right] = f.tex.split(' = ');
+    return rearrangeSteps(f, [left, '=', right], 2);
+  },
+  solution: (params) => formulaSolution(rootFormula(params)),
+};
+
+const ROOT_UNDER = 'Under a root';
+const ROOT_SQUARED = 'Squared';
+const ROOT_ALONE = 'Yes, that is all of its side';
+const ROOT_NOT_ALONE = 'No, something else is there too';
+
+/**
+ * When does the root or the square come off?
+ *
+ * Squaring undoes a root and rooting undoes a square, but only when the root
+ * or the square is the whole of its side: $\sqrt{s} + 4$ squared is not
+ * $s + 16$. So the question is whether anything else has to come off first.
+ */
+const rootFlow: Generator<RootParams> = {
+  id: 'lin-root-flow',
+  sample: (rng, difficulty) =>
+    sampleRoot(
+      rng,
+      difficulty > 1
+        ? ['pendulum', 'kinetic', 'suvat-root', 'root-plus', 'bracket-square', 'root-inside']
+        : ['square', 'root', 'coef-root', 'root-inside', 'bracket-square', 'root-plus'],
+    ),
+  render: (params): Slide => {
+    const f = rootFormula(params);
+    const { root, alone } = rootShape(params.form);
+    const S = f.subject;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Before rearranging for $${S}$: when does the square or the root come off?` }],
+      subject: f.tex,
+      steps: [
+        {
+          id: 'which',
+          ask: `Is $${S}$ under a root, or squared?`,
+          branches: [
+            { label: ROOT_UNDER, to: 'root' },
+            { label: ROOT_SQUARED, to: 'square' },
+          ],
+        },
+        {
+          id: 'root',
+          ask: 'Is the root the whole of its side of the formula?',
+          branches: [
+            { label: ROOT_ALONE, outcome: 'Square both sides first.' },
+            { label: ROOT_NOT_ALONE, outcome: 'Undo the rest first, so the root is alone. Then square both sides.' },
+          ],
+        },
+        {
+          id: 'square',
+          ask: 'Is the squared part the whole of its side of the formula?',
+          branches: [
+            { label: ROOT_ALONE, outcome: 'Take the square root of both sides first.' },
+            { label: ROOT_NOT_ALONE, outcome: 'Undo the rest first, so the square is alone. Then take the square root.' },
+          ],
+        },
+      ],
+      answer: [root ? ROOT_UNDER : ROOT_SQUARED, alone ? ROOT_ALONE : ROOT_NOT_ALONE],
+    };
+  },
+  solution: (params) => {
+    const f = rootFormula(params);
+    const { root, alone } = rootShape(params.form);
+    const thing = root ? 'root' : 'square';
+    return [
+      {
+        text: alone
+          ? `The ${thing} is the whole of its side, so it comes off first.`
+          : `Something else shares the side with the ${thing}, so that comes off first.`,
+      },
+      ...formulaSolution(f),
+    ];
+  },
+};
+
+interface RootSignParams {
+  form: 'square' | 'shift';
+  set: number;
+  k: number;
+  n: number;
+  /** Whether the subject is a quantity that cannot be negative. */
+  positive: boolean;
+}
+
+/**
+ * Which sign? A square has two square roots, and which to keep depends on
+ * what the letter stands for: a radius is never negative, so only the
+ * positive root; a letter that can be any number keeps both, written $\pm$.
+ * The options are listed in the same order whatever the answer, so their
+ * places say nothing.
+ */
+const rootSign: Generator<RootSignParams> = {
+  id: 'lin-root-sign',
+  sample: (rng, difficulty) => ({
+    form: difficulty > 1 ? rng.pick(['shift', 'shift', 'square'] as const) : 'square',
+    set: rng.int(0, ROOT_SETS.length - 1),
+    k: rng.pick([0, 2, 3, 4, 5, 6, 7, 8, 9]),
+    n: rng.int(2, 20),
+    positive: rng.chance(0.5),
+  }),
+  render: (params): Slide => {
+    const { form, set, k, n, positive } = params;
+    const [A, S, noun] = ROOT_SETS[set];
+    const K = k === 0 ? '\\pi' : `${k}`;
+    const tex = form === 'square' ? `${A} = ${K}${k === 0 ? ' ' : ''}${S}^2` : `${A} = ${S}^2 + ${n}`;
+    const root = form === 'square' ? `\\sqrt{${fr(A, K)}}` : `\\sqrt{${A} - ${n}}`;
+    const slip = form === 'square' ? fr(`\\sqrt{${A}}`, K) : `\\sqrt{${A}} - ${n}`;
+    const slipBoth = form === 'square' ? `\\pm ${slip}` : `\\pm(${slip})`;
+    const labels = [`${S} = ${root}`, `${S} = \\pm ${root}`, `${S} = ${slip}`, `${S} = ${slipBoth}`];
+    const correct = positive ? labels[0] : labels[1];
+    const sorted = [...labels].sort();
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: positive
+            ? `Make $${S}$ the subject. Here $${S}$ is ${noun}, so it cannot be negative.`
+            : `Make $${S}$ the subject. Here $${S}$ can be any number, positive or negative.`,
+        },
+        { kind: 'display', tex },
+      ],
+      options: sorted.map((label, idx) => ({ id: `o${idx}`, label, tex: true })),
+      correctId: `o${sorted.indexOf(correct)}`,
+    };
+  },
+  solution: (params) => {
+    const { form, set, k, n, positive } = params;
+    const [A, S] = ROOT_SETS[set];
+    const K = k === 0 ? '\\pi' : `${k}`;
+    const alone = form === 'square' ? fr(A, K) : `${A} - ${n}`;
+    const root = `\\sqrt{${alone}}`;
+    return [
+      { text: form === 'square' ? `Divide both sides by $${K}$ so the square is alone.` : `Take $${n}$ from both sides so the square is alone.` },
+      { tex: `${alone} = ${S}^2` },
+      {
+        text: 'Undo the square with a square root of the whole side. Both a number and its negative square to the same thing, so there are two roots.',
+      },
+      {
+        text: positive
+          ? `$${S}$ cannot be negative here, so only the positive one: $${S} = ${root}$.`
+          : `$${S}$ can be negative, so both: $${S} = \\pm ${root}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: using the new subject ---------- */
+
+type UseStory = 'speed' | 'perimeter' | 'cost' | 'temperature' | 'trapezium' | 'candle';
+
+interface UseParams {
+  story: UseStory;
+  /** Three drawn values, read per story; the answer is built from them. */
+  p: number;
+  q: number;
+  r: number;
+}
+
+/**
+ * Each story: the formula, the rearranged form, the letters' values, and the
+ * rearranged form as a tree with those values in place. `answer` is the value
+ * the tree comes to, and `slips` the values the usual wrong rearrangements
+ * would give.
+ */
+function formulaInUse({ story, p, q, r }: UseParams): {
+  formula: string;
+  subject: string;
+  rearranged: string;
+  given: string;
+  expr: Expr;
+  answer: number;
+  slips: number[];
+} {
+  if (story === 'speed') {
+    const [a, t, u] = [p, q, r];
+    const v = u + a * t;
+    return {
+      formula: 'v = u + at',
+      subject: 't',
+      rearranged: fr('v - u', 'a'),
+      given: `$v = ${v}$, $u = ${u}$ and $a = ${a}$`,
+      expr: bin('/', bin('-', num(v), num(u)), num(a)),
+      answer: t,
+      slips: [(v + u) / a, v / a - u, v - u - a],
+    };
+  }
+  if (story === 'perimeter') {
+    const [l, w] = [p, q];
+    const P = 2 * (l + w);
+    return {
+      formula: 'P = 2(l + w)',
+      subject: 'w',
+      rearranged: `${fr('P', '2')} - l`,
+      given: `$P = ${P}$ and $l = ${l}$`,
+      expr: bin('-', bin('/', num(P), num(2)), num(l)),
+      answer: w,
+      slips: [P / 2 + l, (P - l) / 2, P - 2 * l],
+    };
+  }
+  if (story === 'cost') {
+    const [rate, n, F] = [p, q, r];
+    const C = F + rate * n;
+    return {
+      formula: 'C = F + rn',
+      subject: 'n',
+      rearranged: fr('C - F', 'r'),
+      given: `$C = ${C}$, $F = ${F}$ and $r = ${rate}$`,
+      expr: bin('/', bin('-', num(C), num(F)), num(rate)),
+      answer: n,
+      slips: [(C + F) / rate, C / rate - F, C - F - rate],
+    };
+  }
+  if (story === 'temperature') {
+    const C = 5 * p;
+    const F = (9 * C) / 5 + 32;
+    return {
+      formula: `C = ${fr('5(F - 32)', '9')}`,
+      subject: 'F',
+      rearranged: `${fr('9C', '5')} + 32`,
+      given: `$C = ${C}$`,
+      expr: bin('+', bin('/', bin('*', num(9), num(C)), num(5)), num(32)),
+      answer: F,
+      slips: [(9 * C) / 5 - 32, (5 * C) / 9 + 32, (9 * (C + 32)) / 5],
+    };
+  }
+  if (story === 'trapezium') {
+    const [a, b, h] = [p, q, r];
+    const A = (h * (a + b)) / 2;
+    return {
+      formula: `A = ${fr('(a + b)h', '2')}`,
+      subject: 'h',
+      rearranged: fr('2A', 'a + b'),
+      given: `$A = ${A}$, $a = ${a}$ and $b = ${b}$`,
+      expr: bin('/', bin('*', num(2), num(A)), bin('+', num(a), num(b))),
+      answer: h,
+      slips: [A / (a + b), 2 * A - a - b, (2 * A) / a + b],
+    };
+  }
+  const [b, k, t] = [p, q, r];
+  const h = b - k * t;
+  return {
+    formula: 'h = b - kt',
+    subject: 't',
+    rearranged: fr('b - h', 'k'),
+    given: `$b = ${b}$, $h = ${h}$ and $k = ${k}$`,
+    expr: bin('/', bin('-', num(b), num(h)), num(k)),
+    answer: t,
+    slips: [(b + h) / k, (h - b) / k, b - h - k],
+  };
+}
+
+/**
+ * Rearrange, then substitute: the rearranged formula with the numbers in,
+ * worked one piece at a time. The numbers are drawn so every piece is whole —
+ * the temperature is a multiple of 5, the trapezium's area comes out even.
+ */
+const useFormula: Generator<UseParams> = {
+  id: 'lin-use-formula',
+  choices: (params) => {
+    const s = formulaInUse(params);
+    return numberChoices(s.answer, ...s.slips);
+  },
+  sample: (rng, difficulty) => {
+    const story = rng.pick(difficulty > 1 ? (['temperature', 'trapezium', 'candle'] as const) : (['speed', 'perimeter', 'cost'] as const));
+    if (story === 'speed') return { story, p: rng.int(2, 9), q: rng.int(2, 12), r: rng.int(1, 20) };
+    if (story === 'perimeter') {
+      const l = rng.int(3, 20);
+      return { story, p: l, q: rng.int(1, l - 1), r: 0 };
+    }
+    if (story === 'cost') return { story, p: rng.int(2, 9), q: rng.int(2, 15), r: rng.int(2, 25) };
+    if (story === 'temperature') return { story, p: rng.int(1, 20), q: 0, r: 0 };
+    if (story === 'trapezium') {
+      return drawUntil(
+        () => ({ story, p: rng.int(2, 12), q: rng.int(2, 12), r: rng.int(2, 12) }),
+        (v) => (v.r * (v.p + v.q)) % 2 === 0 && v.p !== v.q,
+        { story, p: 3, q: 5, r: 4 },
+      );
+    }
+    return drawUntil(
+      () => ({ story, p: rng.int(20, 45), q: rng.int(2, 5), r: rng.int(2, 8) }),
+      (v) => v.p - v.q * v.r >= 2,
+      { story, p: 30, q: 3, r: 4 },
+    );
+  },
+  render: (params): Slide => {
+    const s = formulaInUse(params);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Making $${s.subject}$ the subject of $${s.formula}$ gives $${s.subject} = ${s.rearranged}$. Find $${s.subject}$ when ${s.given}. ${HOW_TO_REDUCE}`,
+        },
+      ],
+      expr: s.expr,
+      banks: banksFor(s.expr),
+    };
+  },
+  solution: (params) => {
+    const s = formulaInUse(params);
+    return [
+      { text: `Rearrange first, so $${s.subject}$ is on its own.` },
+      { tex: `${s.subject} = ${s.rearranged}` },
+      { text: `Then put in ${s.given}, and work the top and the bottom out before dividing.` },
+      { tex: `${s.subject} = ${s.answer}` },
+    ];
+  },
+};
+
+type SliderStory = 'speed' | 'cost' | 'candle' | 'tank';
+
+interface UseSliderParams {
+  story: SliderStory;
+  /** The starting value, the rate, and the answer. */
+  b: number;
+  k: number;
+  x: number;
+}
+
+const SLIDER_STORIES: Record<
+  SliderStory,
+  { formula: string; letters: [string, string, string, string]; text: (b: number, k: number, y: number) => string; down: boolean }
+> = {
+  speed: {
+    formula: 'v = u + at',
+    letters: ['v', 'u', 'a', 't'],
+    text: (b, k, y) => `A car's speed is $v = u + at$, with $u = ${b}$ and $a = ${k}$. The line is $v$ against the time $t$. Slide to the $t$ when $v = ${y}$.`,
+    down: false,
+  },
+  cost: {
+    formula: 'C = F + rn',
+    letters: ['C', 'F', 'r', 'n'],
+    text: (b, k, y) => `A hire charge is $C = F + rn$ pounds for $n$ days, with $F = ${b}$ and $r = ${k}$. The line is $C$ against $n$. Slide to the $n$ when $C = ${y}$.`,
+    down: false,
+  },
+  candle: {
+    formula: 'h = b - kt',
+    letters: ['h', 'b', 'k', 't'],
+    text: (b, k, y) => `A candle's height is $h = b - kt$ cm after $t$ hours, with $b = ${b}$ and $k = ${k}$. The line is $h$ against $t$. Slide to the $t$ when $h = ${y}$.`,
+    down: true,
+  },
+  tank: {
+    formula: 'V = c - rt',
+    letters: ['V', 'c', 'r', 't'],
+    text: (b, k, y) => `A tank drains so that it holds $V = c - rt$ litres after $t$ minutes, with $c = ${b}$ and $r = ${k}$. The line is $V$ against $t$. Slide to the $t$ when $V = ${y}$.`,
+    down: true,
+  },
+};
+
+/**
+ * Rearranging as reading a graph backwards.
+ *
+ * A formula gives its subject from the other letters; asked the other way
+ * round — when does the speed reach 19? — it is the rearranged formula that
+ * answers, and on the graph that is reading across from the height and down.
+ * Difficulty 2 has formulae that count down.
+ */
+const useSlider: Generator<UseSliderParams> = {
+  id: 'lin-use-slider',
+  sample: (rng, difficulty) => {
+    const story = rng.pick(difficulty > 1 ? (['candle', 'tank'] as const) : (['speed', 'cost'] as const));
+    const k = rng.int(1, 5);
+    const x = rng.int(1, 11);
+    // A falling line starts high enough to stay above zero across the window.
+    const b = difficulty > 1 ? rng.int(12 * k + 1, 12 * k + 15) : rng.int(0, 12);
+    return { story, b, k, x };
+  },
+  render: (params): Slide => {
+    const { story, b, k, x } = params;
+    const s = SLIDER_STORIES[story];
+    const f = (t: number) => (s.down ? b - k * t : b + k * t);
+    const y = f(x);
+    const ends = [f(0), f(12)];
+    return {
+      kind: 'slider',
+      prompt: [{ kind: 'prose', text: s.text(b, k, y) }],
+      min: 0,
+      max: 12,
+      step: 1,
+      answer: x,
+      readout: `${s.letters[3]} = {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 12,
+          yMin: Math.min(...ends, 0) - 2,
+          yMax: Math.max(...ends) + 2,
+          curves: [{ f }],
+          horizontals: [y],
+          verticals: [{ x: 0, dashed: false }],
+          label: 'A straight line crossing a dashed horizontal line',
+        }),
+        ...markerWindow(0, 12),
+      },
+    };
+  },
+  solution: (params) => {
+    const { story, b, k, x } = params;
+    const s = SLIDER_STORIES[story];
+    const [Y, B, K, T] = s.letters;
+    const y = s.down ? b - k * x : b + k * x;
+    const rearranged = s.down ? fr(`${B} - ${Y}`, K) : fr(`${Y} - ${B}`, K);
+    const worked = s.down ? fr(`${b} - ${y}`, `${k}`) : fr(`${y} - ${b}`, `${k}`);
+    return [
+      { text: `Make $${T}$ the subject of $${s.formula}$.` },
+      { tex: `${T} = ${rearranged}` },
+      { text: 'Put the numbers in.' },
+      { tex: `${T} = ${worked} = ${x}` },
+      { text: `On the graph, that is where the line reaches the dashed height $${y}$.` },
+    ];
+  },
+};
+
+type WhichSource = 'linear' | 'bracket' | 'twice' | 'root';
+
+interface WhichParams {
+  source: WhichSource;
+  linear: LinearParams;
+  bracket: BracketFormulaParams;
+  twice: TwiceParams;
+  root: RootParams;
+  /** Whether the right option is written the less usual way. */
+  alt: boolean;
+}
+
+function whichFormula(params: WhichParams): Formula {
+  if (params.source === 'linear') return linearFormula(params.linear);
+  if (params.source === 'bracket') return bracketFormula(params.bracket);
+  if (params.source === 'twice') return twiceFormula(params.twice);
+  return rootFormula(params.root);
+}
+
+/**
+ * Pick the correct rearrangement from four.
+ *
+ * Half the time the right one is written the less usual way —
+ * $\frac{v}{a} - \frac{u}{a}$ rather than $\frac{v - u}{a}$ — so the question
+ * cannot be answered by matching a remembered shape: each option has to be
+ * checked. The options are sorted, so where the right one sits says nothing.
+ * Difficulty 1 draws from the first two lessons; difficulty 2 from the third
+ * and fourth.
+ */
+const whichRearrangement: Generator<WhichParams> = {
+  id: 'lin-which-rearrangement',
+  sample: (rng, difficulty) => {
+    const source = rng.pick(difficulty > 1 ? (['twice', 'root', 'root'] as const) : (['linear', 'linear', 'bracket'] as const));
+    return {
+      source,
+      linear: sampleLinear(rng, [...EASY_LINEAR, ...HARD_LINEAR]),
+      bracket: sampleBracketFormula(rng, ['bracket', 'bracket-minus', 'over', 'over-bracket', 'trapezium']),
+      twice: sampleTwice(rng, ['collect', 'twice', 'fraction', 'fraction2']),
+      root: sampleRoot(rng, ['square', 'root', 'coef-root', 'suvat', 'pendulum', 'kinetic', 'root-plus']),
+      alt: rng.chance(0.5),
+    };
+  },
+  render: (params): Slide => {
+    const f = whichFormula(params);
+    const shown = params.alt && f.altTex ? f.altTex : f.resultTex;
+    const offered = subjectChoices(f, shown);
+    const sorted = [...offered].sort((a, b) => (a.tex < b.tex ? -1 : a.tex > b.tex ? 1 : 0));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which of these is a correct rearrangement for $${f.subject}$? The right one may not be written the way you would write it.`,
+        },
+        { kind: 'display', tex: f.tex },
+      ],
+      options: sorted.map((option, idx) => ({ id: `o${idx}`, label: option.tex, tex: true })),
+      correctId: `o${sorted.findIndex((option) => option.correct)}`,
+    };
+  },
+  solution: (params) => {
+    const f = whichFormula(params);
+    const steps = formulaSolution(f);
+    if (params.alt && f.altTex) {
+      steps.push({ text: `Written another way, that is $${f.subject} = ${f.altTex}$: the same value for every choice of the letters.` });
+    }
+    return steps;
+  },
+};
+
+type WordsStory = 'taxi' | 'hire' | 'tank' | 'savings' | 'candle' | 'rectangle' | 'triangle' | 'mean';
+
+interface FormulaWordsParams {
+  story: WordsStory;
+  b: number;
+  k: number;
+}
+
+/**
+ * Each story as a formula: the words, the two letters (the given one, then
+ * the subject), the formula as the words build it, and the rearrangement.
+ */
+function wordsFormula({ story, b, k }: FormulaWordsParams): Formula & { words: string } {
+  const linear = (Y: string, S: string, words: string, down = false): Formula & { words: string } => {
+    const tex = down ? `${Y} = ${b} - ${k}${S}` : `${Y} = ${b} + ${k}${S}`;
+    const top = down ? `${b} - ${Y}` : `${Y} - ${b}`;
+    return {
+      words,
+      tex,
+      subject: S,
+      letters: [Y, S],
+      resultTex: fr(top, `${k}`),
+      answer: `(${top})/${k}`,
+      left: Y,
+      right: down ? `${b} - ${k}*${S}` : `${b} + ${k}*${S}`,
+      slips: [],
+      lines: [down ? `${k}${S} = ${top}` : `${top} = ${k}${S}`, down ? `${S} = ${fr(top, `${k}`)}` : `${fr(top, `${k}`)} = ${S}`],
+      moves: [down ? `Add $${k}${S}$ to both sides and take $${Y}$ from both.` : `Take $${b}$ from both sides.`, `Divide both sides by $${k}$.`],
+      lineSlips: [],
+    };
+  };
+  if (story === 'taxi') {
+    return linear('C', 'm', `A taxi charges £${b} to start, plus £${k} for every mile. A journey of $m$ miles costs $C$ pounds. Write a formula for $m$ in terms of $C$.`);
+  }
+  if (story === 'hire') {
+    return linear('C', 'h', `Hiring a bike costs £${b}, plus £${k} for every hour. Hiring it for $h$ hours costs $C$ pounds. Write a formula for $h$ in terms of $C$.`);
+  }
+  if (story === 'tank') {
+    return linear('V', 't', `A tank holds ${b} litres of water and is filled at ${k} litres a minute. After $t$ minutes it holds $V$ litres. Write a formula for $t$ in terms of $V$.`);
+  }
+  if (story === 'savings') {
+    return linear('T', 'w', `Sam has saved £${b} and puts in £${k} more every week. After $w$ weeks Sam has $T$ pounds. Write a formula for $w$ in terms of $T$.`);
+  }
+  if (story === 'candle') {
+    return linear('h', 't', `A candle is ${b} cm tall and burns down ${k} cm every hour. After $t$ hours it is $h$ cm tall. Write a formula for $t$ in terms of $h$.`, true);
+  }
+  if (story === 'rectangle') {
+    const top = `P - ${2 * k}`;
+    return {
+      words: `A rectangle is ${k} cm longer than it is wide. Its width is $w$ cm and its perimeter is $P$ cm. Write a formula for $w$ in terms of $P$.`,
+      tex: `\\begin{aligned} P &= 2(w + w + ${k}) \\\\ &= 4w + ${2 * k} \\end{aligned}`,
+      subject: 'w',
+      letters: ['P', 'w'],
+      resultTex: fr(top, '4'),
+      answer: `(${top})/4`,
+      left: 'P',
+      right: `4*w + ${2 * k}`,
+      slips: [],
+      lines: [`${top} = 4w`, `${fr(top, '4')} = w`],
+      moves: [`Take $${2 * k}$ from both sides.`, 'Divide both sides by $4$.'],
+      lineSlips: [],
+    };
+  }
+  if (story === 'triangle') {
+    const top = `P + ${k}`;
+    return {
+      words: `An isosceles triangle has two equal sides of $a$ cm, and its base is ${k} cm shorter than each of them. Its perimeter is $P$ cm. Write a formula for $a$ in terms of $P$.`,
+      tex: `\\begin{aligned} P &= a + a + (a - ${k}) \\\\ &= 3a - ${k} \\end{aligned}`,
+      subject: 'a',
+      letters: ['P', 'a'],
+      resultTex: fr(top, '3'),
+      answer: `(${top})/3`,
+      left: 'P',
+      right: `3*a - ${k}`,
+      slips: [],
+      lines: [`${top} = 3a`, `${fr(top, '3')} = a`],
+      moves: [`Add $${k}$ to both sides.`, 'Divide both sides by $3$.'],
+      lineSlips: [],
+    };
+  }
+  return {
+    words: `The mean of $x$ and ${b} is $M$. Write a formula for $x$ in terms of $M$.`,
+    tex: `M = ${fr(`x + ${b}`, '2')}`,
+    subject: 'x',
+    letters: ['M', 'x'],
+    resultTex: `2M - ${b}`,
+    answer: `2*M - ${b}`,
+    left: 'M',
+    right: `(x + ${b})/2`,
+    slips: [],
+    lines: [`2M = x + ${b}`, `2M - ${b} = x`],
+    moves: ['Multiply both sides by $2$.', `Take $${b}$ from both sides.`],
+    lineSlips: [],
+  };
+}
+
+/**
+ * A formula from words, then rearranged: the words say how the given
+ * quantity is built from the subject, and the learner writes the subject in
+ * terms of it. Two steps in one question, typed, so either order of the
+ * working and any equal way of writing the answer is accepted. Difficulty 2
+ * has a quantity that goes down, or a shape where the subject is counted
+ * more than once.
+ */
+const formulaWords: Generator<FormulaWordsParams> = {
+  id: 'lin-formula-words',
+  sample: (rng, difficulty) => ({
+    story: rng.pick(difficulty > 1 ? (['candle', 'rectangle', 'triangle', 'mean'] as const) : (['taxi', 'hire', 'tank', 'savings'] as const)),
+    b: difficulty > 1 ? rng.int(12, 40) : rng.int(2, 20),
+    k: rng.int(2, 9),
+  }),
+  render: (params): Slide => {
+    const f = wordsFormula(params);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: f.words }],
+      lead: `${f.subject} =`,
+      keypad: formulaKeys(f),
+      answer: f.answer,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const f = wordsFormula(params);
+    return [{ text: 'Write the words as a formula first.' }, ...formulaSolution(f)];
+  },
+};
+
+/** The typed rearrangements and the formula each rearranges, for the independent check in the tests. */
+export const rearrangements: Record<string, (params: never) => Formula> = {
+  'lin-subject': linearFormula,
+  'lin-bracket-subject': bracketFormula,
+  'lin-twice-subject': twiceFormula,
+  'lin-root-subject': rootFormula,
+  'lin-formula-words': wordsFormula,
+};
+
 export const linearEquationsGenerators = [
   oneStep,
   twoStep,
@@ -3472,4 +5707,22 @@ export const linearEquationsGenerators = [
   wordsSetup,
   wordsPairSolve,
   sumDiff,
+  makeSubject,
+  subjectFlow,
+  firstUndoTiles,
+  rearrangeStepsGen,
+  bracketSubject,
+  clearFractionTiles,
+  twiceSubject,
+  factorOutTiles,
+  twiceNext,
+  twiceValueTree,
+  rootSubject,
+  rootSteps,
+  rootFlow,
+  rootSign,
+  useFormula,
+  useSlider,
+  whichRearrangement,
+  formulaWords,
 ] as unknown as Generator<unknown>[];

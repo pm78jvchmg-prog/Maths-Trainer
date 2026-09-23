@@ -60,16 +60,7 @@ interface StepperProps {
   up: Tap;
 }
 
-/**
- * A control that changes the curve.
- *
- * The click stops here rather than reaching the question area. After a wrong
- * answer that area treats any tap as "let me try again" and clears the draft,
- * which for this widget would throw away the curve the learner has built and
- * is about to adjust by one step. Changing the answer is already the retry —
- * `onAnswer` dispatches `edit`, which the reducer refuses in a level check —
- * so nothing is lost by keeping the tap to the control.
- */
+/** A control that changes the curve. */
 function TapButton({ tap, className }: { tap: Tap; className: string }) {
   return (
     <button
@@ -77,10 +68,7 @@ function TapButton({ tap, className }: { tap: Tap; className: string }) {
       className={className}
       aria-label={tap.label}
       disabled={tap.disabled}
-      onClick={(event) => {
-        event.stopPropagation();
-        tap.onTap();
-      }}
+      onClick={tap.onTap}
     >
       {tap.face}
     </button>
@@ -237,10 +225,7 @@ export function TransformSlide({ slide, feedback, answer, onAnswer, canEdit }: S
           className="flip-button"
           aria-pressed={t.fy}
           disabled={locked}
-          onClick={(event) => {
-            event.stopPropagation();
-            set({ fy: !t.fy });
-          }}
+          onClick={() => set({ fy: !t.fy })}
         >
           Flip ↕
         </button>
@@ -249,10 +234,7 @@ export function TransformSlide({ slide, feedback, answer, onAnswer, canEdit }: S
           className="flip-button"
           aria-pressed={t.fx}
           disabled={locked}
-          onClick={(event) => {
-            event.stopPropagation();
-            set({ fx: !t.fx });
-          }}
+          onClick={() => set({ fx: !t.fx })}
         >
           Flip ↔
         </button>

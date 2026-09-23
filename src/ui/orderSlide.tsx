@@ -6,7 +6,6 @@
  * slot or not; only the frame round the whole proof is marked after grading,
  * so a wrong answer never shows where any step should have gone.
  */
-import type { MouseEvent } from 'react';
 import { Blocks, Inline } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
@@ -26,29 +25,23 @@ function OrderBody({
   canEdit,
 }: SlideProps & { slide: OrderSlideData }) {
   const locked = isLocked(feedback, canEdit);
-  // Anything that is not a list of ids — the player's '' between slides, or a
-  // retry that cleared the draft — is an empty proof.
+  // Anything that is not a list of ids — the player's '' between slides — is
+  // an empty proof.
   const placed = Array.isArray(answer) ? answer.filter((id) => id !== '') : [];
   const text = new Map(slide.steps.map((step) => [step.id, step.text]));
 
-  // Every control here stops the tap at the widget. The question area treats a
-  // tap as "let me try again" after a wrong answer and clears the draft, so a
-  // tap that reached it would undo the very step it had just placed.
-  const place = (event: MouseEvent, id: string) => {
-    event.stopPropagation();
+  const place = (id: string) => {
     if (placed.length >= slide.answer.length || placed.includes(id)) return;
     onAnswer([...placed, id]);
   };
 
   // Sending a step back closes the gap: the steps below it move up, so the
   // slots always hold one unbroken run from the top.
-  const unplace = (event: MouseEvent, idx: number) => {
-    event.stopPropagation();
+  const unplace = (idx: number) => {
     onAnswer(placed.filter((_, i) => i !== idx));
   };
 
-  const clearAll = (event: MouseEvent) => {
-    event.stopPropagation();
+  const clearAll = () => {
     onAnswer([]);
   };
 
@@ -71,7 +64,7 @@ function OrderBody({
                 className={`answer-slot proof-slot${id ? ' filled' : ''}`}
                 disabled={locked || !id}
                 aria-label={id ? undefined : `Step ${idx + 1}, empty`}
-                onClick={(event) => unplace(event, idx)}
+                onClick={() => unplace(idx)}
               >
                 {id ? <Inline text={text.get(id) ?? ''} /> : null}
               </button>
@@ -89,7 +82,7 @@ function OrderBody({
               type="button"
               className={`tile proof-step${used ? ' used' : ''}`}
               disabled={locked || used}
-              onClick={(event) => place(event, step.id)}
+              onClick={() => place(step.id)}
             >
               <Inline text={step.text} />
             </button>

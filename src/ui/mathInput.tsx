@@ -394,6 +394,19 @@ const ATOM_TEX: Record<string, string> = {
 };
 
 /**
+ * A letter key that inserts its letter bracketed, `(a)`, and reads as the bare
+ * letter.
+ *
+ * The formula keypads need this because of how mathjs reads letters side by
+ * side: `at` is one symbol named "at", not a times t, and `b(l + w)` is a call
+ * to a function named b. So a learner typing $u + at$ or $b(l + w)$ exactly as
+ * it is printed would be marked wrong for a right answer. `(a)(t)` and
+ * `(b)(l + w)` are products. `(pi)` is π, for the same reason: `r pi` would be
+ * read as one symbol too.
+ */
+const BRACKETED_LETTER = /^\(([A-Za-z]|pi)\)$/;
+
+/**
  * How a keypad key becomes an edit.
  *
  * Two keys the generators already declare are templates rather than characters
@@ -406,6 +419,8 @@ export function applyKey(doc: Doc, key: KeypadKey): Doc {
   if (key.insert === '/') return insertFraction(doc);
   if (key.insert === 'sqrt(') return insertRoot(doc);
   if (key.insert === '^') return insertSup(doc);
+  const letter = BRACKETED_LETTER.exec(key.insert)?.[1];
+  if (letter) return insertAtom(doc, letter === 'pi' ? '\\pi ' : letter, key.insert);
   return insertAtom(doc, ATOM_TEX[key.insert] ?? key.insert, key.insert);
 }
 

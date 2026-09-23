@@ -7,7 +7,9 @@
  * equations with fractions in them, and where a fraction is zero or
  * undefined. Level 2 runs addition backwards into partial fractions, over two
  * brackets, three, a repeated one, and after dividing out a whole part, and
- * ends with a look at what the split is for.
+ * ends with a look at what the split is for. Level 3 meets a quadratic factor
+ * that will not split: its part takes an x on top, cover-up finds the linear
+ * part's number, and comparing coefficients finds the rest.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -474,6 +476,200 @@ export const algebraicFractions: Course = {
         ask('frac-improper-steps', 2),
         ask('frac-integrate-tiles', 2),
         ask('frac-series-coefficient', 2),
+      ],
+    },
+    {
+      id: 'af-l3',
+      title: 'Quadratic Factors in the Denominator',
+      lessons: [
+        {
+          id: 'af-l3-irreducible',
+          title: 'A Bracket That Will Not Split',
+          slides: [
+            teach(
+              prose(
+                'Some quadratics never factorise. $x^{2} + 4$ is at least $4$ for every $x$, so it is never zero: it has no real roots, and so no linear factors. In a split it stays whole.',
+              ),
+              working('&\\frac{5x^{2} + 3x + 13}{(x + 1)(x^{2} + 4)}', '=\\;&\\frac{Ax + B}{x^{2} + 4} + \\frac{C}{x + 1}'),
+              prose(
+                'Its part needs a top one degree lower than it, an $x$ term and a number: $Ax + B$. A number alone, $\\frac{A}{x^{2} + 4}$, is the usual slip. But check first: $x^{2} - 9 = (x - 3)(x + 3)$ does split, into two brackets with a number over each.',
+              ),
+            ),
+            ask('frac-quad-parts-tiles'),
+            ask('frac-quad-form-which'),
+            ask('frac-quad-factorise-flow'),
+            teach(
+              prose(
+                'For any quadratic $ax^{2} + bx + c$, the discriminant $b^{2} - 4ac$ settles it. Negative means no real roots, so it stays whole. A square means it factorises into brackets with whole numbers in.',
+              ),
+              working('x^{2} + 2x + 5: &\\quad 4 - 20 = -16', 'x^{2} + x - 6: &\\quad 1 + 24 = 25'),
+              prose('So $x^{2} + 2x + 5$ stays whole, and $x^{2} + x - 6 = (x - 2)(x + 3)$ splits.'),
+            ),
+            ask('frac-discriminant-tree'),
+            ask('frac-quad-factorise-flow', 2),
+            ask('frac-discriminant-tree', 2),
+            teach(
+              prose('A quadratic that stays whole takes the same shape of part whatever its middle term:'),
+              working('&\\frac{3x^{2} + 5x + 8}{(x - 1)(x^{2} + 2x + 5)}', '=\\;&\\frac{Ax + B}{x^{2} + 2x + 5} + \\frac{C}{x - 1}'),
+              prose('Three letters, to match the three coefficients of a quadratic top.'),
+            ),
+            ask('frac-quad-form-which', 2),
+            ask('frac-quad-parts-tiles', 2),
+          ],
+          skillCheck: [ask('frac-quad-parts-tiles', 2), ask('frac-discriminant-tree', 2), ask('frac-quad-factorise-flow', 2)],
+        },
+        {
+          id: 'af-l3-linear-first',
+          title: 'The Linear Part First',
+          slides: [
+            teach(
+              prose('Multiply both sides by the bottom, and the tops agree for every $x$:'),
+              working('&5x^{2} + 3x + 13', '=\\;&(Ax + B)(x + 1)', '&\\quad + C(x^{2} + 4)'),
+              prose(
+                'At $x = -1$ the first bracket is zero, so only $C$ survives: $15 = 5C$, and $C = 3$. That is cover-up, as before: cover $(x + 1)$ and put $x = -1$ into what is left, $\\frac{5 - 3 + 13}{(-1)^{2} + 4} = 3$.',
+              ),
+            ),
+            ask('frac-quad-cover-steps'),
+            ask('frac-quad-c-value'),
+            teach(
+              prose(
+                'No value of $x$ makes $x^{2} + 4$ zero, so cover-up cannot reach $A$ or $B$. Compare coefficients instead: multiply out the right side and match each power of $x$.',
+              ),
+              prose('Multiplied out, $(Ax + B)(x + 1)$ is $Ax^{2} + (A + B)x + B$, and $C(x^{2} + 4)$ is $Cx^{2} + 4C$. So:'),
+              working('x^{2} \\text{ terms:} &\\;\\; A + C = 5', 'x \\text{ terms:} &\\;\\; A + B = 3', '\\text{numbers:} &\\;\\; B + 4C = 13'),
+              prose('The first says $A = 2$, since $C = 3$.'),
+            ),
+            ask('frac-quad-c-and-a-tree'),
+            ask('frac-quad-coefficients-tiles'),
+            ask('frac-quad-cover-steps', 2),
+            teach(
+              prose(
+                'Two slips to watch. A negative squared is positive: at $x = -3$, $x^{2} + 4$ is $9 + 4 = 13$, not $-5$. And $5$ is the whole $x^{2}$ coefficient, $A + C$, so it is not $A$ itself.',
+              ),
+            ),
+            ask('frac-quad-c-value+choice', 2),
+            ask('frac-quad-c-and-a-tree', 2),
+            ask('frac-quad-coefficients-tiles', 2),
+          ],
+          skillCheck: [ask('frac-quad-c-and-a-tree', 2), ask('frac-quad-cover-steps', 2), ask('frac-quad-c-value', 2)],
+        },
+        {
+          id: 'af-l3-finding-b',
+          title: 'Finding B',
+          slides: [
+            teach(
+              prose('The numbers finish it. $(Ax + B)(x + 1)$ puts in $B$, and $C(x^{2} + 4)$ puts in $4C$, so'),
+              working('B + 4C &= 13', 'B &= 13 - 12 = 1'),
+              prose('Putting $x = 0$ into both sides gives the same equation, since every $x$ term vanishes. Either way, find $C$ first.'),
+            ),
+            ask('frac-quad-b-steps'),
+            ask('frac-quad-substitute'),
+            ask('frac-quad-b-value'),
+            teach(
+              prose('So all three come in order: $C$ by cover-up, $A$ from the $x^{2}$ terms, $B$ from the numbers.'),
+              working('&\\frac{5x^{2} + 3x + 13}{(x + 1)(x^{2} + 4)}', '=\\;&\\frac{2x + 1}{x^{2} + 4} + \\frac{3}{x + 1}'),
+              prose(
+                'When $A$ comes out negative, write the part with its minus sign outside: $-\\frac{2x - 1}{x^{2} + 4}$ rather than $\\frac{-2x + 1}{x^{2} + 4}$.',
+              ),
+            ),
+            ask('frac-quad-abc-tree'),
+            ask('frac-quad-split-tiles'),
+            ask('frac-quad-b-steps', 2),
+            teach(
+              prose(
+                'The $x$ terms are left over, and they make a check: $A + B = 3$, and $2 + 1 = 3$. So does any other value of $x$. At $x = 1$ the left is $5 + 3 + 13 = 21$, and the right is',
+              ),
+              working('&(A + B)(1 + 1) + C(1 + 4)', '=\\;&2A + 2B + 5C'),
+              prose('which is $4 + 2 + 15 = 21$ as well.'),
+            ),
+            ask('frac-quad-substitute', 2),
+            ask('frac-quad-abc-tree', 2),
+          ],
+          skillCheck: [ask('frac-quad-abc-tree', 2), ask('frac-quad-b-steps', 2), ask('frac-quad-split-tiles', 2)],
+        },
+        {
+          id: 'af-l3-over-x',
+          title: 'When the Bracket Is x',
+          slides: [
+            teach(
+              prose('When the linear factor is $x$ itself, cover-up uses $x = 0$:'),
+              working('&\\frac{3x^{2} - x + 10}{x(x^{2} + 5)}', '=\\;&\\frac{Ax + B}{x^{2} + 5} + \\frac{C}{x}'),
+              prose(
+                'Multiply up: $3x^{2} - x + 10 = (Ax + B)x + C(x^{2} + 5)$. At $x = 0$ only $C$ survives, $10 = 5C$, so $C = 2$. Then the $x^{2}$ terms give $A + C = 3$, so $A = 1$.',
+              ),
+            ),
+            ask('frac-x-quad-tree'),
+            ask('frac-x-quad-order-flow'),
+            teach(
+              prose(
+                'The rest is quicker than over $(x + a)$: $(Ax + B)x = Ax^{2} + Bx$ has no number in it, so the $x$ terms give $B$ straight away. Here $B = -1$:',
+              ),
+              working('&\\frac{3x^{2} - x + 10}{x(x^{2} + 5)}', '=\\;&\\frac{x - 1}{x^{2} + 5} + \\frac{2}{x}'),
+              prose('A bottom given as $x^{3} + 5x$ factorises by taking out the $x$: $x(x^{2} + 5)$.'),
+            ),
+            ask('frac-x-quad-tiles'),
+            ask('frac-x-quad-cover-steps'),
+            ask('frac-x-quad-tree', 2),
+            teach(
+              prose(
+                'Two slips. The number on top is $5C$, not $C$, so divide it by $5$. And $3$ is $A + C$, the whole $x^{2}$ coefficient, so $A$ is $3$ less $C$.',
+              ),
+            ),
+            ask('frac-x-quad-order-flow', 2),
+            ask('frac-x-quad-tiles', 2),
+            ask('frac-x-quad-cover-steps', 2),
+          ],
+          skillCheck: [ask('frac-x-quad-tree', 2), ask('frac-x-quad-tiles', 2), ask('frac-x-quad-cover-steps', 2)],
+        },
+        {
+          id: 'af-l3-improper',
+          title: 'Improper, with a Quadratic Factor',
+          slides: [
+            teach(
+              prose(
+                'A cubic over $(x + 1)(x^{2} + 4)$ is improper, since the bottom multiplies out to a cubic too, $x^{3} + x^{2} + 4x + 4$. Divide first: the $x^{3}$ terms give the whole number.',
+              ),
+              working('&\\frac{2x^{3} + 7x^{2} + 11x + 21}{(x + 1)(x^{2} + 4)}', '=\\;&2 + \\frac{5x^{2} + 3x + 13}{(x + 1)(x^{2} + 4)}'),
+              prose('Then split what is left exactly as before: $2 + \\frac{2x + 1}{x^{2} + 4} + \\frac{3}{x + 1}$.'),
+            ),
+            ask('frac-quad-degree-flow'),
+            ask('frac-quad-improper-steps'),
+            ask('frac-quad-whole-tiles'),
+            teach(
+              prose(
+                'Cover-up works on the original top as well: at $x = -1$ the whole number times the bottom is zero too. The top there is $-2 + 7 - 11 + 21 = 15$, and $15 = 5C$ again.',
+              ),
+            ),
+            ask('frac-quad-rest-tree'),
+            ask('frac-quad-degree-flow', 2),
+            ask('frac-quad-improper-steps', 2),
+            teach(
+              prose(
+                'The $x^{2}$ terms need more care, because the whole number times the bottom puts in $2x^{2}$ of its own. So they say $2 + A + C = 7$. Forget that $2$ and $A$ comes out $4$ rather than $2$.',
+              ),
+            ),
+            ask('frac-quad-whole-tiles', 2),
+            ask('frac-quad-rest-tree', 2),
+          ],
+          skillCheck: [ask('frac-quad-degree-flow', 2), ask('frac-quad-whole-tiles', 2), ask('frac-quad-rest-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('frac-quad-form-which', 2),
+        ask('frac-discriminant-tree', 2),
+        ask('frac-quad-parts-tiles', 2),
+        ask('frac-quad-cover-steps', 2),
+        ask('frac-quad-c-value', 2),
+        ask('frac-quad-coefficients-tiles', 2),
+        ask('frac-quad-abc-tree', 2),
+        ask('frac-quad-b-value+choice', 2),
+        ask('frac-quad-split-tiles', 2),
+        ask('frac-quad-b-steps', 2),
+        ask('frac-x-quad-order-flow', 2),
+        ask('frac-x-quad-tree', 2),
+        ask('frac-quad-degree-flow', 2),
+        ask('frac-quad-whole-tiles', 2),
+        ask('frac-quad-improper-steps', 2),
       ],
     },
   ],

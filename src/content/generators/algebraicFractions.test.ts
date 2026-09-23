@@ -41,7 +41,8 @@ function toMath(tex: string): string {
     .replace(/(\d)\s*\(/g, '$1*(')
     .replace(/\)\s*\(/g, ')*(')
     .replace(/\)\s*x/g, ')*x')
-    .replace(/(\d)\s*log/g, '$1*log');
+    .replace(/(\d)\s*log/g, '$1*log')
+    .replace(/x\s*\(/g, 'x*(');
 }
 
 function at(tex: string, x: number): number {
@@ -88,6 +89,37 @@ describe('a split, placed from what the learner is shown, adds back to the fract
   it('two brackets', () => {
     for (const { slide, seed, difficulty } of slides('frac-split-tiles')) {
       expectSame(filled(slide), display(slide), `seed ${seed} d${difficulty}`);
+    }
+  });
+
+  it('a quadratic factor and a linear one', () => {
+    for (const id of ['frac-quad-split-tiles', 'frac-x-quad-tiles']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        expectSame(filled(slide), display(slide), `${id} seed ${seed} d${difficulty}`);
+      }
+    }
+  });
+
+  it('a whole number, a quadratic factor and a linear one', () => {
+    for (const { slide, seed, difficulty } of slides('frac-quad-whole-tiles')) {
+      expectSame(filled(slide), display(slide), `seed ${seed} d${difficulty}`);
+    }
+  });
+
+  it('letters found by a tree, put into the form the prompt names', () => {
+    // Which answer slot holds each letter, per tree.
+    const slots: Record<string, Record<string, number>> = {
+      'frac-quad-abc-tree': { C: 2, A: 3, B: 4 },
+      'frac-x-quad-tree': { C: 1, A: 2, B: 3 },
+    };
+    for (const [id, slot] of Object.entries(slots)) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'tree') throw new Error('expected tree');
+        const prose = slide.prompt.map((b) => ('text' in b ? b.text : '')).join(' ');
+        const letters = /\$([^$]*Ax \+ B[^$]*)\$/.exec(prose)![1];
+        const split = letters.replace(/[ABC]/g, (l) => `(${slide.answer[slot[l]]})`);
+        expectSame(split, slide.expression, `${id} seed ${seed} d${difficulty}`);
+      }
     }
   });
 
@@ -205,6 +237,34 @@ describe('dividing by two brackets', () => {
       if (slide.kind !== 'steps') throw new Error('expected steps');
       expectSame(slide.reductions[0].value, slide.start[0], `seed ${seed} d${difficulty}`);
       expectSame(slide.reductions[1].value, slide.start[0], `seed ${seed} d${difficulty}`);
+    }
+  });
+});
+
+describe('quadratic factors, from what the learner is shown', () => {
+  it('every line of working equals the fraction it started from', () => {
+    for (const id of ['frac-quad-improper-steps', 'frac-x-quad-cover-steps']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'steps') throw new Error('expected steps');
+        for (const reduction of slide.reductions) {
+          if (reduction.value.includes('Ax + B')) continue;
+          expectSame(reduction.value, slide.start[0], `${id} seed ${seed} d${difficulty}`);
+        }
+      }
+    }
+  });
+
+  it('a quadratic said to split does, and one said not to has no real roots', () => {
+    for (const { slide, params, seed, difficulty } of slides('frac-quad-factorise-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const q = (params as { q: number[] }).q;
+      const quadratic = (x: number) => valueAt(q, x);
+      if (slide.answer[0] === 'Yes') {
+        const factors = slide.answer[1].slice(1, -1);
+        for (const x of POINTS) expect(at(factors, x), `seed ${seed} d${difficulty}`).toBeCloseTo(quadratic(x), 9);
+      } else {
+        expect(q[1] * q[1] - 4 * q[0] * q[2], `seed ${seed} d${difficulty}`).toBeLessThan(0);
+      }
     }
   });
 });

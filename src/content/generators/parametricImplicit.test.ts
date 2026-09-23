@@ -67,6 +67,15 @@ import {
   type TermTreeParams,
   type TrigGradientParams,
   type TrigSlopeParams,
+  generalSources,
+  inTSources,
+  type AgainParams,
+  type AtKParams,
+  type CrossParams,
+  type GeneralParams,
+  type InTParams,
+  type ParallelParams,
+  type SlopePointsParams,
 } from './parametricImplicit';
 
 const SEEDS = 200;
@@ -677,6 +686,229 @@ describe('second derivatives, checked against mathjs', { timeout: 180_000 }, () 
       const pick = seconds.findIndex((s) => (params.max ? s < 0 : s > 0));
       expect(seconds.filter((s) => (params.max ? s < 0 : s > 0)).length).toBe(1);
       expect(slide.correctId).toBe(pick === 0 ? 'first' : 'second');
+    }
+  });
+});
+
+/* ---------- Level 4: tangents and normals ---------- */
+
+/** The template with the answer's tiles put in, as the learner builds it. */
+const filled = (slide: Slide): string => {
+  if (slide.kind !== 'tiles') throw new Error(`expected a tiles slide, got ${slide.kind}`);
+  return slide.template.replace(/\{(\d+)\}/g, (_, i: string) => slide.answer[Number(i)]);
+};
+
+/**
+ * A line the learner reads, such as `x + 3y = 22`, `ty = x + 3t^2` or
+ * `y = 4x - 22`, as F(x, y, t) = left - right, with mathjs's own gradient
+ * -F_x / F_y.
+ */
+function line(tex: string) {
+  const [left, right] = texToMath(tex.replaceAll('$', ''))
+    .replace(/\\text\{[^}]*\}/g, '')
+    .replace(/([0-9a-z)])\s*(?=[a-z(])/g, '$1 ')
+    .split('=');
+  const F = math.parse(`(${left}) - (${right})`);
+  const Fx = math.derivative(F, 'x');
+  const Fy = math.derivative(F, 'y');
+  const at = (node: { evaluate(scope: Scope): unknown }) => (x: number, y: number, t = 0) => node.evaluate({ x, y, t }) as number;
+  const [f, fx, fy] = [F, Fx, Fy].map(at);
+  return { F: f, slope: (x: number, y: number, t = 0) => -fx(x, y, t) / fy(x, y, t) };
+}
+
+/** The line a prompt says the tangent is parallel or perpendicular to. */
+const givenLine = (slide: Slide): string => /(?:parallel|perpendicular) to (\$[^$]+\$)/.exec(proseOf(slide))![1];
+
+describe('tangents and normals, checked against mathjs', { timeout: 120_000 }, () => {
+  it('the parametric normal is at right angles to the tangent and through the point, however it is asked', () => {
+    const at = (params: SlopeAtParams) => {
+      const { x, y } = curveSources(params.curve);
+      const c = parametric(x, y);
+      return { x0: c.x(params.k), y0: c.y(params.k), dx: c.dx(params.k), dy: c.dy(params.k), m: c.dy(params.k) / c.dx(params.k) };
+    };
+    for (const { params, slide } of draws(g.paramNormalTree as Generator<SlopeAtParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const want = at(params);
+      expect(same(slide.answer.slice(0, 2).map(Number), [want.dy, want.dx])).toBe(true);
+      expect(close(valueOfTex(slide.answer[2]), want.m)).toBe(true);
+      expect(close(valueOfTex(slide.answer[3]) * want.m, -1), slide.answer[3]).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramNormalGrad as Generator<SlopeAtParams>)) {
+      const want = at(params);
+      expect(close(fn(typed(slide)).at({}) * want.m, -1)).toBe(true);
+      expect(close(fn(correctAnswer(g.paramNormalGrad as Generator<SlopeAtParams>, params)).at({}) * want.m, -1)).toBe(true);
+    }
+    const isNormal = (tex: string, want: ReturnType<typeof at>) => {
+      const L = line(tex);
+      return close(L.F(want.x0, want.y0), 0) && close(L.slope(want.x0, want.y0) * want.m, -1);
+    };
+    for (const { params, slide } of draws(g.paramNormalTiles as Generator<SlopeAtParams>)) {
+      expect(isNormal(filled(slide), at(params)), filled(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramNormalFlow as Generator<SlopeAtParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const want = at(params);
+      expect(close(valueOfTex(slide.answer[0]), want.m)).toBe(true);
+      expect(close(valueOfTex(slide.answer[1]) * want.m, -1)).toBe(true);
+      expect(isNormal(slide.answer[2], want), slide.answer[2]).toBe(true);
+      // Every other line on offer is not the normal.
+      for (const branch of slide.steps[2].branches) {
+        if (branch.label !== slide.answer[2]) expect(isNormal(branch.label, want), branch.label).toBe(false);
+      }
+    }
+  });
+
+  it('the implicit normal is F_y / F_x at the point, however it is asked', () => {
+    const at = (curve: CurveParams['curve']) => {
+      const F = implicit(implicitSource(curve));
+      return { x0: curve.p, y0: curve.q, m: -F.Fx(curve.p, curve.q) / F.Fy(curve.p, curve.q) };
+    };
+    for (const { params, slide } of draws(g.implNormalGrad as Generator<CurveParams>)) {
+      const want = at(params.curve);
+      expect(close(fn(typed(slide)).at({}) * want.m, -1)).toBe(true);
+      expect(close(fn(correctAnswer(g.implNormalGrad as Generator<CurveParams>, params)).at({}) * want.m, -1)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implNormalSteps as Generator<CurveParams>)) {
+      expect(close(valueOfTex(lastValue(slide).split('=')[1]) * at(params.curve).m, -1), lastValue(slide)).toBe(true);
+    }
+    const isNormal = (tex: string, want: ReturnType<typeof at>) => {
+      const L = line(tex);
+      return close(L.F(want.x0, want.y0), 0) && close(L.slope(want.x0, want.y0) * want.m, -1);
+    };
+    for (const { params, slide } of draws(g.implNormalTiles as Generator<CurveParams>)) {
+      expect(isNormal(filled(slide), at(params.curve)), filled(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implNormalLine as Generator<CurveParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      for (const option of slide.options) {
+        expect(isNormal(option.label, at(params.curve)), option.label).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the lines at a general point touch (or cross at right angles) at every t', () => {
+    const check = (params: GeneralParams, tex: string) => {
+      const { x, y } = generalSources(params);
+      const c = parametric(x, y);
+      const L = line(tex);
+      for (const t of T_SAMPLES) {
+        const [x0, y0] = [c.x(t), c.y(t)];
+        expect(close(L.F(x0, y0, t), 0), `${tex} at t = ${t}`).toBe(true);
+        const m = c.dy(t) / c.dx(t);
+        expect(close(params.normal ? L.slope(x0, y0, t) * m : L.slope(x0, y0, t), params.normal ? -1 : m), `${tex} at t = ${t}`).toBe(true);
+      }
+    };
+    for (const { params, slide } of draws(g.paramLineInT as Generator<GeneralParams>)) check(params, filled(slide));
+    for (const { params, slide } of draws(g.paramTangentTSteps as Generator<GeneralParams>)) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      check(params, lastValue(slide));
+      const { x, y } = generalSources(params);
+      const c = parametric(x, y);
+      for (const t of T_SAMPLES) {
+        const m = c.dy(t) / c.dx(t);
+        expect(close(valueOfTex(slide.reductions[0].value, { t }), params.normal ? -1 / m : m)).toBe(true);
+      }
+    }
+    for (const { params, slide, seed } of draws(g.paramNormalInT as Generator<InTParams>)) {
+      const { x, y } = inTSources(params);
+      const X = fn(x).by('t');
+      const Y = fn(y).by('t');
+      const oracle = `-(${X.text})/(${Y.text})`;
+      expect(checkAnswer(typed(slide), oracle, { seed }).status, `${oracle} vs ${typed(slide)}`).toBe('correct');
+      const right = correctAnswer(g.paramNormalInT as Generator<InTParams>, params);
+      expect(checkAnswer(right, oracle, { seed }).status).toBe('correct');
+    }
+    for (const { params, slide } of draws(g.paramAtKTree as Generator<AtKParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { x, y } = generalSources(params);
+      const c = parametric(x, y);
+      const { k } = params;
+      const tangent = c.dy(k) / c.dx(k);
+      const m = params.normal ? -1 / tangent : tangent;
+      expect(close(Number(slide.answer[2]), c.y(k) - m * c.x(k)), slide.answer.join()).toBe(true);
+    }
+  });
+
+  it('where the tangent or normal meets the axes and the curve again', () => {
+    const lineAt = (params: CrossParams | AgainParams) => {
+      const { x, y } = curveSources(params.curve);
+      const c = parametric(x, y);
+      const { k } = params;
+      const tangent = c.dy(k) / c.dx(k);
+      const m = 'normal' in params && params.normal ? -1 / tangent : tangent;
+      return { c, x0: c.x(k), y0: c.y(k), m };
+    };
+    for (const { params, slide } of draws(g.paramCrossSlider as Generator<CrossParams>)) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const { x0, y0, m } = lineAt(params);
+      expect(close(0 - y0, m * (slide.answer - x0)), `${slide.answer}`).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramTriangleArea as Generator<CrossParams>)) {
+      const { x0, y0, m } = lineAt(params);
+      const area = Math.abs((x0 - y0 / m) * (y0 - m * x0)) / 2;
+      expect(close(fn(typed(slide)).at({}), area)).toBe(true);
+      expect(close(fn(correctAnswer(g.paramTriangleArea as Generator<CrossParams>, params)).at({}), area)).toBe(true);
+    }
+    // The other root: back on the normal, and not the point it started from.
+    const meetsAgain = (params: AgainParams, s: number) => {
+      const { c, x0, y0 } = lineAt(params);
+      const { k } = params;
+      expect(s).not.toBe(k);
+      expect(close((c.x(s) - x0) * c.dx(k) + (c.y(s) - y0) * c.dy(k), 0), `t = ${s}`).toBe(true);
+    };
+    for (const { params, slide } of draws(g.paramAgainTree as Generator<AgainParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const [p, q, sum, other] = slide.answer.map(Number);
+      meetsAgain(params, other);
+      expect(p).toBeGreaterThan(0);
+      expect(close(sum, -q / p) && close(sum, params.k + other)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramMeetFlow as Generator<AgainParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const other = Number(/t = (-?\d+)/.exec(slide.answer[2])![1]);
+      meetsAgain(params, other);
+      const quadratic = fn(texToMath(slide.answer[1].replaceAll('$', '').replace(' = 0', '')));
+      expect(close(quadratic.at({ t: params.k }), 0) && close(quadratic.at({ t: other }), 0), slide.answer[1]).toBe(true);
+    }
+  });
+
+  it('a tangent with a given gradient has it, read off the line in the prompt', () => {
+    const needed = (slide: Slide) => {
+      const L = line(givenLine(slide));
+      const slope = L.slope(0, 0);
+      return proseOf(slide).includes('perpendicular') ? -1 / slope : slope;
+    };
+    const slopeAt = (params: ParallelParams, t: number) => {
+      const { x, y } = curveSources(params.curve);
+      const c = parametric(x, y);
+      return { m: c.dy(t) / c.dx(t), x0: c.x(t), y0: c.y(t) };
+    };
+    for (const { params, slide } of draws(g.paramParallelT as Generator<ParallelParams>)) {
+      expect(close(slopeAt(params, Number(typed(slide))).m, needed(slide))).toBe(true);
+      expect(close(slopeAt(params, Number(correctAnswer(g.paramParallelT as Generator<ParallelParams>, params))).m, needed(slide))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramParallelSteps as Generator<ParallelParams>)) {
+      const t = Number(/t = (-?\d+)/.exec(lastValue(slide))![1]);
+      expect(close(slopeAt(params, t).m, needed(slide))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramGivenTiles as Generator<ParallelParams>)) {
+      const [m, c] = placed(slide);
+      const want = slopeAt(params, params.t0);
+      expect(close(want.m, needed(slide)) && close(m, want.m)).toBe(true);
+      expect(close(want.y0, m * want.x0 + c), 'the tangent passes through the point').toBe(true);
+      // Not the given line itself.
+      expect(close(line(givenLine(slide)).F(0, c), 0) && close(line(givenLine(slide)).F(1, m + c), 0)).toBe(false);
+    }
+    for (const { params, slide } of draws(g.implSlopePoints as Generator<SlopePointsParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const F = implicit(xyAnswer(conicTerms(params)));
+      const want = needed(slide);
+      const right = (x: number, y: number) => F.F(x, y) === conicRhs(params) && close(-F.Fx(x, y) / F.Fy(x, y), want);
+      for (const option of slide.options) {
+        const points = pointsIn(option.label);
+        expect(points.length).toBe(2);
+        expect(points.every(([x, y]) => right(x, y)), option.label).toBe(option.id === slide.correctId);
+      }
     }
   });
 });

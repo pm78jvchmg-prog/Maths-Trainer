@@ -764,5 +764,206 @@ export const parametricImplicit: Course = {
         ask('impl-d2-point-tree', 2),
       ],
     },
+    {
+      id: 'pi-l4',
+      title: 'Tangents & Normals to Parametric & Implicit Curves',
+      lessons: [
+        {
+          id: 'pi-l4-normal',
+          title: 'The Normal at a Parametric Point',
+          slides: [
+            teach(
+              prose(
+                'The **normal** at a point is the line through it at right angles to the tangent. You found tangents in Parametric Curves; two lines are at right angles when their gradients multiply to $-1$, so where the tangent has gradient $m$ the normal has gradient $-\\frac{1}{m}$.',
+              ),
+              prose('On $x = t^{2} + 1$, $y = t^{3} - 3t$ at $t = 3$ the point is $(10, 18)$ and the tangent\'s gradient is $4$, so the normal\'s is $-\\frac{1}{4}$.'),
+            ),
+            ask('param-normal-tree'),
+            ask('param-normal-grad'),
+            ask('param-normal-tiles'),
+            teach(
+              prose('Write the normal through the point, then multiply by $m$ to clear the fraction:'),
+              display('y - 18 = -\\frac{1}{4}(x - 10)'),
+              display('4y - 72 = -x + 10'),
+              display('x + 4y = 82'),
+              prose('That is always the shape: with tangent gradient $m$ at $(x_1, y_1)$ the normal is $x + my = x_1 + my_1$.'),
+            ),
+            ask('param-normal-flow'),
+            ask('param-normal-grad+choice', 2),
+            ask('param-normal-tree', 2),
+            teach(
+              prose(
+                'Check a normal the way you check a tangent: the point must satisfy it. $10 + 4 \\times 18 = 82$. And keep the two apart: the tangent is $y = 4x - 22$, gradient $4$; the normal is $x + 4y = 82$, gradient $-\\frac{1}{4}$.',
+              ),
+            ),
+            ask('param-normal-tiles', 2),
+            ask('param-normal-flow', 2),
+          ],
+          skillCheck: [ask('param-normal-grad', 2), ask('param-normal-tiles', 2), ask('param-normal-tree', 2)],
+        },
+        {
+          id: 'pi-l4-implicit',
+          title: 'Normals to Implicit Curves',
+          slides: [
+            teach(
+              prose(
+                'On an implicit curve the tangent\'s gradient at a point comes from differentiating implicitly, as in Implicit Differentiation. The normal\'s is $-1$ over it: the fraction turned over, with its sign changed.',
+              ),
+              prose('On the circle $x^{2} + y^{2} = 25$ at $(3, 4)$ the tangent has gradient $-\\frac{3}{4}$, so the normal has gradient $\\frac{4}{3}$.'),
+              figure((t) => [5 * Math.cos(t), 5 * Math.sin(t)], {
+                span: 7,
+                tMin: 0,
+                tMax: 2 * Math.PI,
+                marks: [[3, 4]],
+                label: 'The circle x squared plus y squared equals 25, with the point (3, 4) marked',
+              }),
+            ),
+            ask('impl-normal-grad'),
+            ask('impl-normal-steps'),
+            ask('impl-normal-tiles'),
+            teach(
+              prose('On $x^{2} - y^{2} = 32$ at $(6, 2)$:'),
+              display('2x - 2y' + DYDX + ' = 0'),
+              display(DYDX + ' = \\frac{x}{y} = \\frac{6}{2} = 3'),
+              prose('The normal has gradient $-\\frac{1}{3}$. Cleared of its fraction it is $x + 3y = 6 + 3 \\times 2$:'),
+              display('x + 3y = 12'),
+            ),
+            ask('impl-normal-line'),
+            ask('impl-normal-steps', 2),
+            ask('impl-normal-grad+choice', 2),
+            teach(
+              prose(
+                'Back on the circle, the normal at $(3, 4)$ is $y - 4 = \\frac{4}{3}(x - 3)$, which is $y = \\frac{4}{3}x$: it runs through the centre. Every normal to a circle does, because the radius meets the tangent at right angles.',
+              ),
+            ),
+            ask('impl-normal-tiles', 2),
+            ask('impl-normal-line', 2),
+          ],
+          skillCheck: [ask('impl-normal-grad', 2), ask('impl-normal-tiles', 2), ask('impl-normal-steps', 2)],
+        },
+        {
+          id: 'pi-l4-general',
+          title: 'The Tangent at a General Point',
+          slides: [
+            teach(
+              prose(
+                'Leave $t$ as a letter and one equation gives the tangent at every point at once. On $x = 3t^{2}$, $y = 6t$ the gradient is $\\frac{6}{6t} = \\frac{1}{t}$, so at the point with parameter $t$',
+              ),
+              display('y - 6t = \\frac{1}{t}(x - 3t^{2})'),
+              prose('Multiply by $t$ and tidy:'),
+              display('ty = x + 3t^{2}'),
+            ),
+            ask('param-line-in-t'),
+            ask('param-tangent-t-steps'),
+            ask('param-normal-in-t'),
+            teach(
+              prose('The rectangular hyperbola $x = 2t$, $y = \\frac{2}{t}$ has gradient $-\\frac{2}{t^{2}} \\div 2 = -\\frac{1}{t^{2}}$. Multiplying by $t^{2}$ clears it:'),
+              display('x + t^{2}y = 4t'),
+              prose('Its normal has gradient $t^{2}$, found the same way as any normal: turn over and change the sign.'),
+            ),
+            ask('param-at-k-tree'),
+            ask('param-normal-in-t+choice', 2),
+            ask('param-line-in-t', 2),
+            teach(
+              prose('A general equation answers every point at once: at $t = 2$ the tangent $ty = x + 3t^{2}$ is $2y = x + 12$.'),
+              prose('Normals work the same way. On $x = 3t^{2}$, $y = 6t$ the normal has gradient $-t$:'),
+              display('y - 6t = -t(x - 3t^{2})'),
+              display('y + tx = 6t + 3t^{3}'),
+            ),
+            ask('param-tangent-t-steps', 2),
+            ask('param-at-k-tree', 2),
+          ],
+          skillCheck: [ask('param-line-in-t', 2), ask('param-normal-in-t', 2), ask('param-tangent-t-steps', 2)],
+        },
+        {
+          id: 'pi-l4-meet',
+          title: 'Meeting the Axes and the Curve Again',
+          slides: [
+            teach(
+              prose('A tangent or normal crosses the $x$-axis where $y = 0$ and the $y$-axis where $x = 0$.'),
+              prose(
+                'The normal $x + 4y = 82$ crosses at $(82, 0)$ and $(0, 20.5)$. With the origin those make a right-angled triangle, whose area is half the base times the height.',
+              ),
+            ),
+            ask('param-cross-slider'),
+            ask('param-triangle-area'),
+            ask('param-again-tree'),
+            teach(
+              prose('A normal can cut the curve a second time. On $x = t^{2}$, $y = 2t$ the normal at $t = 1$ is $x + y = 3$. Put the curve into it:'),
+              display('t^{2} + 2t - 3 = 0'),
+              prose('$t = 1$ is a root, since the normal starts on the curve. For $pt^{2} + qt + r = 0$ the roots add up to $-\\frac{q}{p}$, here $-2$, so the other root is $-2 - 1 = -3$: the point $(9, -6)$.'),
+              figure((t) => [t * t, 2 * t], {
+                span: 10,
+                tMin: -4,
+                tMax: 4,
+                marks: [
+                  [1, 2],
+                  [9, -6],
+                ],
+                label: 'The curve x equals t squared, y equals 2t, with the points (1, 2) and (9, -6) marked',
+              }),
+            ),
+            ask('param-meet-flow'),
+            ask('param-triangle-area+choice', 2),
+            ask('param-cross-slider', 2),
+            teach(
+              prose(
+                'Knowing one root is what makes this quick: there is no need to factorise. On $x = at^{2}$, $y = 2at$ the normal at $t = k$ always meets the curve again at $t = -k - \\frac{2}{k}$.',
+              ),
+            ),
+            ask('param-again-tree', 2),
+            ask('param-meet-flow', 2),
+          ],
+          skillCheck: [ask('param-triangle-area', 2), ask('param-again-tree', 2), ask('param-meet-flow', 2)],
+        },
+        {
+          id: 'pi-l4-given',
+          title: 'Tangents with a Given Gradient',
+          slides: [
+            teach(
+              prose(
+                'Parallel lines have equal gradients. To find where a tangent is parallel to $y = 3x + 1$, set $' + DYDX + ' = 3$, which is $' + DYDT + ' = 3' + DXDT + '$.',
+              ),
+              prose('On $x = t + 1$, $y = t^{2} - t$ that is $2t - 1 = 3$, so $t = 2$: the point $(3, 2)$, and the tangent there is $y = 3x - 7$.'),
+            ),
+            ask('param-parallel-t'),
+            ask('param-parallel-steps'),
+            ask('param-given-tiles'),
+            teach(
+              prose(
+                'Perpendicular gradients multiply to $-1$. The line $x + 2y = 5$ is $y = -\\frac{1}{2}x + \\frac{5}{2}$, gradient $-\\frac{1}{2}$, so a tangent at right angles to it needs gradient $2$.',
+              ),
+              prose('A line $ax + by = c$ has gradient $-\\frac{a}{b}$.'),
+            ),
+            ask('param-parallel-t+choice', 2),
+            ask('param-parallel-steps', 2),
+            ask('param-given-tiles', 2),
+            teach(
+              prose('On an implicit curve the same condition picks out points. On $x^{2} + 3y^{2} = 12$ the gradient is $-\\frac{x}{3y}$; it is $1$ where $x = -3y$.'),
+              prose('Substitute: $9y^{2} + 3y^{2} = 12$, so $y = \\pm 1$, at $(-3, 1)$ and $(3, -1)$. On a circle or ellipse centred at the origin these points always come in a pair, each the other reflected through the origin.'),
+            ),
+            ask('impl-slope-points'),
+            ask('impl-slope-points', 2),
+          ],
+          skillCheck: [ask('param-parallel-t', 2), ask('param-given-tiles', 2), ask('impl-slope-points', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('param-normal-tree', 2),
+        ask('impl-normal-grad', 2),
+        ask('param-line-in-t', 2),
+        ask('param-cross-slider', 2),
+        ask('param-parallel-t', 2),
+        ask('impl-normal-line', 2),
+        ask('param-tangent-t-steps', 2),
+        ask('param-again-tree', 2),
+        ask('param-normal-tiles', 2),
+        ask('param-triangle-area+choice', 2),
+        ask('impl-normal-steps', 2),
+        ask('param-normal-in-t', 2),
+        ask('impl-slope-points', 2),
+        ask('param-meet-flow', 2),
+      ],
+    },
   ],
 };

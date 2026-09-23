@@ -16,6 +16,28 @@ export const math = create(all, {});
 math.import({ ln: math.log }, { silent: true });
 
 /**
+ * Trig in degrees, for the keypad's function keys on a degree-mode question.
+ *
+ * mathjs works in radians, so a learner typing `4sin(30)` for a height would be
+ * graded on sin of 30 radians. The editor shows `\sin(30)` either way and
+ * serialises a degree-mode key to one of these instead: the learner reads the
+ * calculator they know, and the checker reads an unambiguous unit. Inverses
+ * hand back degrees for the same reason.
+ */
+const DEGREE = Math.PI / 180;
+math.import(
+  {
+    sind: (x: number) => math.sin(x * DEGREE),
+    cosd: (x: number) => math.cos(x * DEGREE),
+    tand: (x: number) => math.tan(x * DEGREE),
+    asind: (x: number) => (math.asin(x) as number) / DEGREE,
+    acosd: (x: number) => (math.acos(x) as number) / DEGREE,
+    atand: (x: number) => math.atan(x) / DEGREE,
+  },
+  { silent: true },
+);
+
+/**
  * Symbols mathjs resolves on its own. Critically this includes `i`: without
  * excluding it, `3+4i` looks like it has a free variable named `i` and the
  * checker would start assigning it random values.

@@ -405,6 +405,11 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
     case 'tree':
       return gradeSequence(answer, slide.answer);
 
+    // The step ids in slot order. A distractor anywhere, or two steps swapped,
+    // is simply a different sequence.
+    case 'order':
+      return gradeSequence(answer, slide.answer);
+
     /**
      * One number, held against what the expression comes to.
      *

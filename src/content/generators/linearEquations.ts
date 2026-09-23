@@ -9,6 +9,11 @@
  * rearranges formulae: any letter made the subject, through brackets and
  * fractions, a subject on both sides, and squares and roots.
  *
+ * Batch C1-l4 adds level 4, linear inequalities, at the end of the file: one
+ * inequality solved and drawn on a number line, the sign turning round on a
+ * negative, double inequalities, the integers inside a solution set, and a
+ * region of the plane bounded by one straight line.
+ *
  * **Every equation is built outward from a whole solution.** A generator
  * draws the answer first and works the question out from it, so every
  * intermediate value a learner meets on the way — the right-hand side after a
@@ -29,6 +34,7 @@ import { options } from '../choiceVariant';
 import { bankFor, bin, num, type Expr } from '../expr';
 import { ALGEBRA_KEYS, sumTex, termTex } from './calculus';
 import { bankOf, offer, signedTile } from './quadratics';
+import { windowFor } from './numberLine';
 
 /* ---------- Formatting ---------- */
 
@@ -5662,6 +5668,1252 @@ export const rearrangements: Record<string, (params: never) => Formula> = {
   'lin-formula-words': wordsFormula,
 };
 
+/* ======================================================================
+ * Level 4: Linear Inequalities
+ *
+ * Built outward from the answer like everything above: the boundary is drawn
+ * first and the inequality worked out from it, so every end is whole and
+ * lands on a tick of the number line. The checker compares values and cannot
+ * grade `x > 3`, so a solution set goes through `numberLine`, `tiles`,
+ * `choice` or `flow`; `expression` is kept for a number.
+ * ==================================================================== */
+
+type Ineq = '<' | '<=' | '>' | '>=';
+
+const INEQ_TEX: Record<Ineq, string> = { '<': '<', '<=': '\\le', '>': '>', '>=': '\\ge' };
+const TURNED: Record<Ineq, Ineq> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
+const ALL_INEQ: readonly Ineq[] = ['<', '<=', '>', '>='];
+const isStrict = (op: Ineq) => op === '<' || op === '>';
+const pointsUp = (op: Ineq) => op === '>' || op === '>=';
+
+/** Whether `left op right` holds. */
+function holds(left: number, op: Ineq, right: number): boolean {
+  if (op === '<') return left < right;
+  if (op === '<=') return left <= right;
+  if (op === '>') return left > right;
+  return left >= right;
+}
+
+/** The ray `x op k`, written canonically for a number line's answer. */
+function rayOf(k: number, op: Ineq): string {
+  if (pointsUp(op)) return `${isStrict(op) ? '(' : '['}${k},inf)`;
+  return `(-inf,${k}${isStrict(op) ? ')' : ']'}`;
+}
+
+/** What the drawing of `x op k` looks like, in words. */
+function rayWords(k: number, op: Ineq): string {
+  const dot = isStrict(op)
+    ? `$x ${INEQ_TEX[op]} ${k}$ leaves $${k}$ out, so the dot at $${k}$ is hollow`
+    : `$x ${INEQ_TEX[op]} ${k}$ includes $${k}$, so the dot at $${k}$ is filled`;
+  return `${dot}, and the shading runs ${pointsUp(op) ? 'right' : 'left'} from it, off the end of the line.`;
+}
+
+/** m times a number, as a substitution is written out: `3 \times (-2)`, `-4`. */
+function timesTex(m: number, t: number): string {
+  if (m === 1) return br(t);
+  if (m === -1) return `-${br(t)}`;
+  return `${m} \\times ${br(t)}`;
+}
+
+/* ---------- One inequality in one unknown ---------- */
+
+/**
+ * `ax + b op cx + d`, with `c = 0` for a number on the right.
+ *
+ * `d` is not stored: the boundary `k` is drawn first and `d` worked out from
+ * it, so solving always lands on a whole number. `lead` writes the number
+ * first, `5 - 2x`, which is how a negative coefficient usually arrives.
+ */
+interface OneSided {
+  a: number;
+  b: number;
+  c: number;
+  op: Ineq;
+  k: number;
+  lead: boolean;
+}
+
+/** The x coefficient once the x terms are collected on the left. */
+const oneNet = (p: OneSided) => p.a - p.c;
+/** The number on the right-hand side. */
+const oneRight = (p: OneSided) => oneNet(p) * p.k + p.b;
+/** The sign once x is alone: turned round when the net coefficient is negative. */
+const oneSolved = (p: OneSided): Ineq => (oneNet(p) < 0 ? TURNED[p.op] : p.op);
+
+function oneLeftTex({ a, b, lead }: OneSided): string {
+  return lead ? `${b} ${signedTile(a, 'x')}` : linTex(a, b);
+}
+
+function oneTex(p: OneSided): string {
+  const d = oneRight(p);
+  return `${oneLeftTex(p)} ${INEQ_TEX[p.op]} ${p.c === 0 ? d : linTex(p.c, d)}`;
+}
+
+/**
+ * One inequality, drawn so its solution goes the way asked.
+ *
+ * `'up'` keeps the collected coefficient positive, so the sign never turns;
+ * `'down'` makes it negative, which is the next lesson. `both` puts $x$ on
+ * both sides; with `'down'` the side with more $x$ is the right, so collecting
+ * on the left is what forces a division by a negative.
+ */
+function sampleOne(rng: Rng, way: 'up' | 'down', both: boolean): OneSided {
+  const op = rng.pick(ALL_INEQ);
+  const k = rng.int(-6, 6);
+  if (!both) {
+    const size = rng.int(2, 7);
+    const b = rng.pick(nonZeroRange(-9, 9));
+    return way === 'up'
+      ? { a: size, b, c: 0, op, k, lead: false }
+      : { a: -size, b, c: 0, op, k, lead: rng.chance(0.6) };
+  }
+  return drawUntil(
+    () => {
+      const small = rng.int(1, 5);
+      const net = rng.int(2, 5);
+      const b = rng.pick(nonZeroRange(-12, 12));
+      return way === 'up'
+        ? { a: small + net, b, c: small, op, k, lead: false }
+        : { a: small, b, c: small + net, op, k, lead: false };
+    },
+    (p) => oneRight(p) !== 0 && oneRight(p) !== p.b,
+    way === 'up' ? { a: 5, b: 3, c: 2, op, k: 2, lead: false } : { a: 2, b: 5, c: 5, op, k: 4, lead: false },
+  );
+}
+
+/** Solving, one move per line. */
+function oneWorking(p: OneSided): SolutionStep[] {
+  const { b, c, op, k } = p;
+  const n = oneNet(p);
+  const d = oneRight(p);
+  const steps: SolutionStep[] = [{ tex: oneTex(p) }];
+  if (c !== 0) {
+    steps.push({
+      text: `Take $${termTex(c, 1)}$ from both sides, so the $x$ terms are together on the left.`,
+      tex: `${linTex(n, b)} ${INEQ_TEX[op]} ${d}`,
+    });
+  }
+  steps.push({
+    text: b > 0 ? `Take $${b}$ from both sides.` : `Add $${-b}$ to both sides.`,
+    tex: `${termTex(n, 1)} ${INEQ_TEX[op]} ${d - b}`,
+  });
+  steps.push({
+    text:
+      n < 0
+        ? `Divide both sides by $${n}$. Dividing by a negative number turns the sign round.`
+        : `Divide both sides by $${n}$. It is positive, so the sign stays as it is.`,
+    tex: `x ${INEQ_TEX[oneSolved(p)]} ${k}`,
+  });
+  return steps;
+}
+
+interface OneLineParams extends OneSided {
+  min: number;
+  max: number;
+}
+
+function oneLineSlide(p: OneLineParams): Slide {
+  return {
+    kind: 'numberLine',
+    prompt: [
+      { kind: 'prose', text: 'Solve the inequality, then shade its solution set.' },
+      { kind: 'display', tex: oneTex(p) },
+    ],
+    min: p.min,
+    max: p.max,
+    step: 1,
+    answer: rayOf(p.k, oneSolved(p)),
+  };
+}
+
+function oneLineSolution(p: OneSided): SolutionStep[] {
+  return [...oneWorking(p), { text: rayWords(p.k, oneSolved(p)) }];
+}
+
+/**
+ * Solve, then shade: the ray on a number line.
+ *
+ * The coefficient stays positive, so the sign never turns; difficulty 2 puts
+ * $x$ on both sides.
+ */
+const ineqLine: Generator<OneLineParams> = {
+  id: 'lin-ineq-line',
+  sample: (rng, difficulty) => {
+    const p = sampleOne(rng, 'up', difficulty > 1);
+    return { ...p, ...windowFor(rng, p.k, p.k, 10, 2) };
+  },
+  render: oneLineSlide,
+  solution: oneLineSolution,
+};
+
+/**
+ * The same with a negative coefficient, so the sign turns round on the way.
+ * Difficulty 2 has more $x$ on the right, collected on the left.
+ */
+const flipLine: Generator<OneLineParams> = {
+  id: 'lin-flip-line',
+  sample: (rng, difficulty) => {
+    const p = sampleOne(rng, 'down', difficulty > 1);
+    return { ...p, ...windowFor(rng, p.k, p.k, 10, 2) };
+  },
+  render: oneLineSlide,
+  solution: oneLineSolution,
+};
+
+/**
+ * One inequality as a line of working, one move per tap.
+ *
+ * The tempting wrong lines are in each bank: the number moved the wrong way,
+ * and the sign turned round when it should not have been (or kept when it
+ * should).
+ */
+function oneStepsSlide(p: OneSided, text: string): Slide {
+  const { a, b, c, op, k, lead } = p;
+  const T = INEQ_TEX;
+  const n = oneNet(p);
+  const d = oneRight(p);
+  const s = oneSolved(p);
+  const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [];
+  let start: string[];
+  const isolated = `${termTex(n, 1)} ${T[op]} ${d - b}`;
+  const isolatedBank = stepBank(
+    isolated,
+    `${termTex(n, 1)} ${T[op]} ${d + b}`,
+    `${termTex(n, 1)} ${T[TURNED[op]]} ${d - b}`,
+    `x ${T[op]} ${d - b}`,
+  );
+  if (c === 0) {
+    start = lead
+      ? [`${b}`, `{} ${signedTile(a, 'x')}`, T[op], `${d}`]
+      : [termTex(a, 1), `{} ${signedTile(b)}`, T[op], `${d}`];
+    reductions.push({ span: [0, 4], operator: lead ? 0 : 1, value: isolated, bank: isolatedBank });
+  } else {
+    start = [termTex(a, 1), `{} ${signedTile(b)}`, T[op], termTex(c, 1), `{} ${signedTile(d)}`];
+    const collected = `${linTex(n, b)} ${T[op]} ${d}`;
+    reductions.push({
+      span: [0, 5],
+      operator: 3,
+      value: collected,
+      bank: stepBank(
+        collected,
+        `${linTex(a + c, b)} ${T[op]} ${d}`,
+        `${linTex(-n, b)} ${T[op]} ${d}`,
+        `${linTex(n, b)} ${T[TURNED[op]]} ${d}`,
+      ),
+    });
+    reductions.push({ span: [0, 1], value: isolated, bank: isolatedBank });
+  }
+  const solved = `x ${T[s]} ${k}`;
+  reductions.push({
+    span: [0, 1],
+    value: solved,
+    bank: stepBank(solved, `x ${T[n < 0 ? op : TURNED[op]]} ${k}`, `x ${T[s]} ${-k}`, `x ${T[s]} ${d - b}`),
+  });
+  return { kind: 'steps', prompt: [{ kind: 'prose', text: `${text} ${HOW_TO_STEP}` }], start, reductions };
+}
+
+/** Solving an inequality exactly as an equation, while the sign never turns. */
+const ineqSteps: Generator<OneSided> = {
+  id: 'lin-ineq-steps',
+  sample: (rng, difficulty) => sampleOne(rng, 'up', difficulty > 1),
+  render: (p) => oneStepsSlide(p, 'Solve the inequality one move at a time.'),
+  solution: oneWorking,
+};
+
+/** The same with a negative coefficient: the last move turns the sign round. */
+const flipSteps: Generator<OneSided> = {
+  id: 'lin-flip-steps',
+  sample: (rng, difficulty) => sampleOne(rng, 'down', difficulty > 1),
+  render: (p) => oneStepsSlide(p, 'Solve one move at a time, and watch the sign on the last move.'),
+  solution: oneWorking,
+};
+
+const PICTURES: readonly { id: string; label: string; strict: boolean; up: boolean }[] = [
+  { id: 'filled-left', label: 'Filled dot, shaded to the left', strict: false, up: false },
+  { id: 'hollow-left', label: 'Hollow dot, shaded to the left', strict: true, up: false },
+  { id: 'filled-right', label: 'Filled dot, shaded to the right', strict: false, up: true },
+  { id: 'hollow-right', label: 'Hollow dot, shaded to the right', strict: true, up: true },
+];
+
+/**
+ * How the solution is drawn: filled or hollow, left or right.
+ *
+ * All four pictures are always offered, in a fixed order, so the options say
+ * nothing about the answer. Difficulty 2 puts $x$ on both sides.
+ */
+const ineqPicture: Generator<OneSided> = {
+  id: 'lin-ineq-picture',
+  sample: (rng, difficulty) => sampleOne(rng, 'up', difficulty > 1),
+  render: (p): Slide => {
+    const s = oneSolved(p);
+    const correct = PICTURES.find((pic) => pic.strict === isStrict(s) && pic.up === pointsUp(s))!;
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Solve the inequality. How is its solution drawn on a number line?' },
+        { kind: 'display', tex: oneTex(p) },
+      ],
+      options: PICTURES.map((pic) => ({ id: pic.id, label: pic.label })),
+      correctId: correct.id,
+    };
+  },
+  solution: oneLineSolution,
+};
+
+interface TestParams extends OneSided {
+  t: number;
+}
+
+const TEST_SMALLER = 'Smaller';
+const TEST_EQUAL = 'Equal';
+const TEST_BIGGER = 'Bigger';
+const TEST_YES = 'Yes';
+const TEST_NO = 'No';
+
+/**
+ * Is this number in the solution set? Put it in and see.
+ *
+ * The check that needs no solving, and so the one that catches a sign that
+ * should have turned. The number tried is the boundary one time in three,
+ * where only the strictness decides. Difficulty 2 has $x$ on both sides, with
+ * the collected coefficient either sign.
+ */
+const ineqTestFlow: Generator<TestParams> = {
+  id: 'lin-ineq-test-flow',
+  sample: (rng, difficulty) => {
+    const p =
+      difficulty > 1
+        ? sampleOne(rng, rng.chance(0.5) ? 'up' : 'down', true)
+        : sampleOne(rng, 'up', false);
+    return { ...p, t: p.k + rng.pick([-2, -1, 0, 0, 1, 2]) };
+  },
+  render: (p): Slide => {
+    const { a, b, c, op, t } = p;
+    const left = a * t + b;
+    const right = c * t + oneRight(p);
+    const compared = left < right ? TEST_SMALLER : left === right ? TEST_EQUAL : TEST_BIGGER;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Is $x = ${t}$ in the solution set? Find out by putting it in, without solving.`,
+        },
+      ],
+      subject: oneTex(p),
+      steps: [
+        {
+          id: 'compare',
+          ask: `Put $x = ${t}$ into both sides. Compared with the right-hand side, the left-hand side is…`,
+          branches: [
+            { label: TEST_SMALLER, to: 'verdict' },
+            { label: TEST_EQUAL, to: 'verdict' },
+            { label: TEST_BIGGER, to: 'verdict' },
+          ],
+        },
+        {
+          id: 'verdict',
+          ask: 'Does the inequality allow that?',
+          branches: [
+            { label: TEST_YES, outcome: `So $${t}$ is in the solution set.` },
+            { label: TEST_NO, outcome: `So $${t}$ is not in the solution set.` },
+          ],
+        },
+      ],
+      answer: [compared, holds(left, op, right) ? TEST_YES : TEST_NO],
+    };
+  },
+  solution: (p) => {
+    const { a, b, c, op, k, lead, t } = p;
+    const d = oneRight(p);
+    const left = a * t + b;
+    const right = c * t + d;
+    const leftWork = lead ? `${b} ${a < 0 ? '-' : '+'} ${timesTex(Math.abs(a), t)}` : `${timesTex(a, t)} ${signedTile(b)}`;
+    const rightWork = c === 0 ? `${d}` : `${timesTex(c, t)} ${signedTile(d)}`;
+    const ok = holds(left, op, right);
+    const s = oneSolved(p);
+    return [
+      { text: `Left-hand side at $x = ${t}$:`, tex: `${leftWork} = ${left}` },
+      ...(c === 0 ? [] : [{ text: `Right-hand side at $x = ${t}$:`, tex: `${rightWork} = ${right}` }]),
+      {
+        text: `Is $${left} ${INEQ_TEX[op]} ${right}$? ${ok ? 'Yes' : 'No'}, so $${t}$ is ${ok ? '' : 'not '}in the solution set.`,
+      },
+      { text: `Solving agrees: the solution is $x ${INEQ_TEX[s]} ${k}$.` },
+    ];
+  },
+};
+
+type FlipMove = 'shift' | 'scale-up' | 'scale-down';
+
+interface FlipParams {
+  move: FlipMove;
+  /** The subject is `ax + b op r`, or `x/a op k` when `over`. */
+  a: number;
+  b: number;
+  op: Ineq;
+  k: number;
+  over: boolean;
+}
+
+const FLIP_ADD = 'Adds or subtracts';
+const FLIP_TIMES = 'Multiplies or divides';
+const FLIP_YES = 'Yes';
+const FLIP_NO = 'No';
+
+function flipSubject({ a, b, op, k, over }: FlipParams): string {
+  if (over) return `${a < 0 ? '-' : ''}\\frac{x}{${Math.abs(a)}} ${INEQ_TEX[op]} ${k}`;
+  return `${linTex(a, b)} ${INEQ_TEX[op]} ${a * k + b}`;
+}
+
+/** The move named in the prompt, and the line it leads to. */
+function flipMove(p: FlipParams): { says: string; after: string } {
+  const { move, a, b, op, k, over } = p;
+  if (move === 'shift') {
+    return {
+      says: b > 0 ? `take $${b}$ from both sides` : `add $${-b}$ to both sides`,
+      after: `${termTex(a, 1)} ${INEQ_TEX[op]} ${a * k}`,
+    };
+  }
+  const s = a < 0 ? TURNED[op] : op;
+  if (over) return { says: `multiply both sides by $${a}$`, after: `x ${INEQ_TEX[s]} ${a * k}` };
+  return { says: `divide both sides by $${a}$`, after: `x ${INEQ_TEX[s]} ${k}` };
+}
+
+/**
+ * Does this move turn the sign round?
+ *
+ * Only multiplying or dividing by a negative does. The traps are the moves
+ * that look as if they should: taking a number away when the $x$ term is
+ * negative, and dividing by a positive when the other side is negative.
+ * Difficulty 2 leans on those and adds the fraction form, cleared by
+ * multiplying by a negative.
+ */
+const flipFlow: Generator<FlipParams> = {
+  id: 'lin-flip-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const move = rng.pick(['shift', 'scale-up', 'scale-down', 'scale-down'] as const);
+    const op = rng.pick(ALL_INEQ);
+    const size = rng.int(2, 9);
+    if (move === 'shift') {
+      // A negative x term, and at difficulty 2 a negative number to move too.
+      return { move, a: -rng.int(2, 7), b: hard ? -rng.int(1, 12) : rng.int(1, 12), op, k: rng.pick(nonZeroRange(-6, 6)), over: false };
+    }
+    if (move === 'scale-up') {
+      // Dividing by a positive, onto a negative right-hand side at difficulty 2.
+      const k = hard ? -rng.int(1, 8) : rng.int(1, 8);
+      return { move, a: size, b: 0, op, k, over: hard && rng.chance(0.5) };
+    }
+    return { move, a: -size, b: 0, op, k: rng.pick(nonZeroRange(-8, 8)), over: hard && rng.chance(0.5) };
+  },
+  render: (p): Slide => {
+    const { says } = flipMove(p);
+    const answer =
+      p.move === 'shift' ? [FLIP_ADD] : [FLIP_TIMES, p.move === 'scale-down' ? FLIP_YES : FLIP_NO];
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `The next move is to ${says}. Does the inequality sign turn round?` }],
+      subject: flipSubject(p),
+      steps: [
+        {
+          id: 'what',
+          ask: 'What does the move do to both sides?',
+          branches: [
+            { label: FLIP_ADD, outcome: 'Adding or subtracting never turns the sign round, whatever the numbers are.' },
+            { label: FLIP_TIMES, to: 'negative' },
+          ],
+        },
+        {
+          id: 'negative',
+          ask: 'By a negative number?',
+          branches: [
+            { label: FLIP_YES, outcome: 'Turn the sign round.' },
+            { label: FLIP_NO, outcome: 'The sign stays as it is, even if other numbers are negative.' },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (p) => {
+    const { says, after } = flipMove(p);
+    const why =
+      p.move === 'shift'
+        ? 'Adding or subtracting moves both sides the same distance along the number line, so their order stays the same.'
+        : p.move === 'scale-up'
+          ? `Multiplying or dividing by a positive number keeps the order, even though a number here is negative.`
+          : `Multiplying or dividing by a negative number reverses the order: $2 < 5$ but $-2 > -5$. So the sign turns round.`;
+    const first = says.charAt(0).toUpperCase() + says.slice(1);
+    return [{ tex: flipSubject(p) }, { text: why }, { text: `${first}:`, tex: after }];
+  },
+};
+
+/**
+ * The solution placed as tiles: a sign and a number.
+ *
+ * The bank holds all four signs, so the direction and the strictness are both
+ * the learner's to choose. Difficulty 2 has more $x$ on the right.
+ */
+const flipTiles: Generator<OneSided> = {
+  id: 'lin-flip-tiles',
+  sample: (rng, difficulty) => sampleOne(rng, 'down', difficulty > 1),
+  render: (p): Slide => {
+    const s = oneSolved(p);
+    const answer = [INEQ_TEX[s], `${p.k}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Solve the inequality. Place its solution.' },
+        { kind: 'display', tex: oneTex(p) },
+      ],
+      template: 'x {0} {1}',
+      bank: bankOf(answer, [...ALL_INEQ.map((op) => INEQ_TEX[op]), `${-p.k}`, `${oneRight(p) - p.b}`, `${p.k + 1}`]),
+      answer,
+    };
+  },
+  solution: oneLineSolution,
+};
+
+/* ---------- Double inequalities ---------- */
+
+/** The set `lo loOp x hiOp hi`, with `ax + b` in the middle once written out. */
+interface DoubleParams {
+  a: number;
+  b: number;
+  lo: number;
+  hi: number;
+  loOp: '<' | '<=';
+  hiOp: '<' | '<=';
+}
+
+/**
+ * The written form's two ends and signs. With a negative coefficient the
+ * middle falls as $x$ rises, so the left of the written form belongs to the
+ * top of the interval.
+ */
+function doubleParts({ a, b, lo, hi, loOp, hiOp }: DoubleParams) {
+  return a > 0
+    ? { left: a * lo + b, right: a * hi + b, op1: loOp, op2: hiOp }
+    : { left: a * hi + b, right: a * lo + b, op1: hiOp, op2: loOp };
+}
+
+function middleTex(a: number, b: number): string {
+  return a < 0 ? `${b} ${signedTile(a, 'x')}` : linTex(a, b);
+}
+
+function doubleTex(p: DoubleParams): string {
+  const { left, right, op1, op2 } = doubleParts(p);
+  return `${left} ${INEQ_TEX[op1]} ${middleTex(p.a, p.b)} ${INEQ_TEX[op2]} ${right}`;
+}
+
+function intervalTex({ lo, hi, loOp, hiOp }: DoubleParams): string {
+  return `${lo} ${INEQ_TEX[loOp]} x ${INEQ_TEX[hiOp]} ${hi}`;
+}
+
+function intervalSet({ lo, hi, loOp, hiOp }: DoubleParams): string {
+  return `${loOp === '<=' ? '[' : '('}${lo},${hi}${hiOp === '<=' ? ']' : ')'}`;
+}
+
+/** Difficulty 1 keeps the coefficient positive; difficulty 2 makes it negative. */
+function sampleDouble(rng: Rng, difficulty: number, spread: [number, number] = [2, 7]): DoubleParams {
+  const size = rng.int(2, 5);
+  const lo = rng.int(-6, 3);
+  return {
+    a: difficulty > 1 ? -size : size,
+    b: rng.pick(nonZeroRange(-9, 9)),
+    lo,
+    hi: lo + rng.int(spread[0], spread[1]),
+    loOp: rng.pick(['<', '<='] as const),
+    hiOp: rng.pick(['<', '<='] as const),
+  };
+}
+
+function doubleWorking(p: DoubleParams): SolutionStep[] {
+  const { a, b } = p;
+  const { left, right, op1, op2 } = doubleParts(p);
+  const steps: SolutionStep[] = [
+    { tex: doubleTex(p) },
+    {
+      text: `Do the same to all three parts. ${b > 0 ? `Take $${b}$ from each.` : `Add $${-b}$ to each.`}`,
+      tex: `${left - b} ${INEQ_TEX[op1]} ${termTex(a, 1)} ${INEQ_TEX[op2]} ${right - b}`,
+    },
+  ];
+  if (a > 0) {
+    steps.push({ text: `Divide all three by $${a}$.`, tex: intervalTex(p) });
+  } else {
+    steps.push({
+      text: `Divide all three by $${a}$. It is negative, so both signs turn round.`,
+      tex: `${(left - b) / a} ${INEQ_TEX[TURNED[op1]]} x ${INEQ_TEX[TURNED[op2]]} ${(right - b) / a}`,
+    });
+    steps.push({ text: 'Read it from the smaller end, the usual way round.', tex: intervalTex(p) });
+  }
+  return steps;
+}
+
+function endsWords({ lo, hi, loOp, hiOp }: DoubleParams): string {
+  const end = (value: number, op: '<' | '<=') => (op === '<=' ? `a filled dot at $${value}$` : `a hollow dot at $${value}$`);
+  return `On the line: ${end(lo, loOp)}, ${end(hi, hiOp)}, and the stretch between them shaded.`;
+}
+
+interface DoubleLineParams extends DoubleParams {
+  min: number;
+  max: number;
+}
+
+/** A double inequality solved and drawn: a bounded interval. */
+const doubleLine: Generator<DoubleLineParams> = {
+  id: 'lin-double-line',
+  sample: (rng, difficulty) => {
+    const p = sampleDouble(rng, difficulty);
+    return { ...p, ...windowFor(rng, p.lo, p.hi, 10, 1) };
+  },
+  render: (p): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      { kind: 'prose', text: 'Solve the double inequality, then shade its solution set.' },
+      { kind: 'display', tex: doubleTex(p) },
+    ],
+    min: p.min,
+    max: p.max,
+    step: 1,
+    answer: intervalSet(p),
+  }),
+  solution: (p) => [...doubleWorking(p), { text: endsWords(p) }],
+};
+
+/**
+ * A double inequality as working, one move on all three parts at a time.
+ *
+ * The banks hold the move made on one side only, and at difficulty 2 the
+ * division by a negative with the signs left as they were.
+ */
+const doubleSteps: Generator<DoubleParams> = {
+  id: 'lin-double-steps',
+  sample: (rng, difficulty) => sampleDouble(rng, difficulty),
+  render: (p): Slide => {
+    const { a, b, lo, hi, loOp, hiOp } = p;
+    const { left, right, op1, op2 } = doubleParts(p);
+    const T = INEQ_TEX;
+    const start =
+      a > 0
+        ? [`${left}`, T[op1], termTex(a, 1), `{} ${signedTile(b)}`, T[op2], `${right}`]
+        : [`${left}`, T[op1], `${b}`, `{} ${signedTile(a, 'x')}`, T[op2], `${right}`];
+    const shifted = `${left - b} ${T[op1]} ${termTex(a, 1)} ${T[op2]} ${right - b}`;
+    const solved = intervalTex(p);
+    return {
+      kind: 'steps',
+      prompt: [{ kind: 'prose', text: `Solve by doing the same to all three parts. ${HOW_TO_STEP}` }],
+      start,
+      reductions: [
+        {
+          span: [0, 6],
+          operator: a > 0 ? 3 : 2,
+          value: shifted,
+          bank: stepBank(
+            shifted,
+            `${left + b} ${T[op1]} ${termTex(a, 1)} ${T[op2]} ${right + b}`,
+            `${left} ${T[op1]} ${termTex(a, 1)} ${T[op2]} ${right - b}`,
+            `${left - b} ${T[op1]} ${termTex(a, 1)} ${T[op2]} ${right}`,
+          ),
+        },
+        {
+          span: [0, 1],
+          value: solved,
+          bank: stepBank(
+            solved,
+            `${left - b} ${T[loOp]} x ${T[hiOp]} ${right - b}`,
+            a > 0 ? `${lo} ${T[loOp]} x ${T[hiOp]} ${right - b}` : `${hi} ${T[op1]} x ${T[op2]} ${lo}`,
+            `${-hi} ${T[loOp]} x ${T[hiOp]} ${-lo}`,
+            `${lo} ${T[op1]} x ${T[op2]} ${hi}`,
+          ),
+        },
+      ],
+    };
+  },
+  solution: doubleWorking,
+};
+
+/** The solved interval placed as tiles: two numbers and two signs. */
+const doubleTiles: Generator<DoubleParams> = {
+  id: 'lin-double-tiles',
+  sample: (rng, difficulty) => sampleDouble(rng, difficulty),
+  render: (p): Slide => {
+    const { left, right } = doubleParts(p);
+    const answer = [`${p.lo}`, INEQ_TEX[p.loOp], INEQ_TEX[p.hiOp], `${p.hi}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Solve the double inequality. Place the solution, smaller end first.' },
+        { kind: 'display', tex: doubleTex(p) },
+      ],
+      template: '{0} {1} x {2} {3}',
+      bank: bankOf(answer, ['<', '\\le', `${left - p.b}`, `${right - p.b}`, `${-p.lo}`, `${-p.hi}`]),
+      answer,
+    };
+  },
+  solution: doubleWorking,
+};
+
+const ENDS: readonly { id: string; label: string; lo: boolean; hi: boolean }[] = [
+  { id: 'both', label: 'Both ends', lo: true, hi: true },
+  { id: 'lo', label: 'Only the smaller end', lo: true, hi: false },
+  { id: 'hi', label: 'Only the larger end', lo: false, hi: true },
+  { id: 'none', label: 'Neither end', lo: false, hi: false },
+];
+
+/**
+ * Which ends of the interval are included?
+ *
+ * At difficulty 2 the coefficient is negative, so the sign written on the left
+ * ends up on the right once solved, and reading the ends off the question as
+ * written gets it the wrong way round.
+ */
+const doubleEnds: Generator<DoubleParams> = {
+  id: 'lin-double-ends',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => sampleDouble(rng, difficulty),
+      // Three times in four the ends differ, which is where the reading matters.
+      (p) => p.loOp !== p.hiOp || rng.chance(0.25),
+      { a: 2, b: 1, lo: -1, hi: 3, loOp: '<', hiOp: '<=' },
+    ),
+  render: (p): Slide => {
+    const correct = ENDS.find((end) => end.lo === (p.loOp === '<=') && end.hi === (p.hiOp === '<='))!;
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Solve it. Which ends of the solution are included?' },
+        { kind: 'display', tex: doubleTex(p) },
+      ],
+      options: ENDS.map((end) => ({ id: end.id, label: end.label })),
+      correctId: correct.id,
+    };
+  },
+  solution: (p) => [...doubleWorking(p), { text: endsWords(p) }],
+};
+
+/* ---------- Integer solutions ---------- */
+
+/** The integers inside a double inequality's solution. */
+function integersIn({ lo, hi, loOp, hiOp }: DoubleParams): number[] {
+  const first = loOp === '<=' ? lo : lo + 1;
+  const last = hiOp === '<=' ? hi : hi - 1;
+  return range(first, last);
+}
+
+interface IntegerParams extends DoubleParams {
+  /** Whether the question is written with a coefficient to solve first. */
+  solve: boolean;
+}
+
+function integerQuestion(p: IntegerParams): string {
+  return p.solve ? doubleTex(p) : intervalTex(p);
+}
+
+function integerWorking(p: IntegerParams): SolutionStep[] {
+  const found = integersIn(p);
+  const steps = p.solve ? doubleWorking(p) : [{ tex: intervalTex(p) }];
+  const ends = [
+    p.loOp === '<=' ? `$${p.lo}$ is included` : `$${p.lo}$ is left out`,
+    p.hiOp === '<=' ? `$${p.hi}$ is included` : `$${p.hi}$ is left out`,
+  ];
+  return [
+    ...steps,
+    { text: `${ends[0]} and ${ends[1]}.` },
+    { text: `So the integers are $${found.join(', ')}$: that is $${found.length}$ of them.` },
+  ];
+}
+
+/**
+ * List the integers in the solution set, in any order.
+ *
+ * Three to six of them. The bank holds the integers just outside, which are
+ * the ends themselves whenever an end is hollow. Difficulty 2 has a
+ * coefficient to divide out first, either sign.
+ */
+const intList: Generator<IntegerParams> = {
+  id: 'lin-int-list',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const p = sampleDouble(rng, rng.chance(0.5) ? 1 : 2, [2, 6]);
+        return { ...p, solve: difficulty > 1 };
+      },
+      (p) => integersIn(p).length >= 3 && integersIn(p).length <= 6,
+      { a: 2, b: 1, lo: -2, hi: 3, loOp: '<=', hiOp: '<', solve: difficulty > 1 },
+    ),
+  render: (p): Slide => {
+    const found = integersIn(p);
+    const answer = found.map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'List every integer that satisfies this, in any order.' },
+        { kind: 'display', tex: integerQuestion(p) },
+      ],
+      template: found.map((_, i) => `{${i}}`).join(', '),
+      bank: bankOf(answer, [`${found[0] - 1}`, `${found[found.length - 1] + 1}`, `${found[0] - 2}`]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: integerWorking,
+};
+
+/**
+ * How many integers satisfy it?
+ *
+ * Too many to list comfortably, so the count is worked from the ends.
+ * Difficulty 2 has a coefficient to divide out first.
+ */
+const intCount: Generator<IntegerParams> = {
+  id: 'lin-int-count',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return { ...sampleDouble(rng, rng.chance(0.5) ? 1 : 2, [4, 10]), solve: true };
+    const lo = rng.int(-12, 4);
+    return {
+      a: 1,
+      b: 0,
+      lo,
+      hi: lo + rng.int(6, 15),
+      loOp: rng.pick(['<', '<='] as const),
+      hiOp: rng.pick(['<', '<='] as const),
+      solve: false,
+    };
+  },
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'How many integers satisfy this? Call the count $n$.' },
+      { kind: 'display', tex: integerQuestion(p) },
+    ],
+    lead: 'n =',
+    keypad: [],
+    answer: `${integersIn(p).length}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => {
+    const found = integersIn(p);
+    const first = found[0];
+    const last = found[found.length - 1];
+    const steps = p.solve ? doubleWorking(p) : [{ tex: intervalTex(p) }];
+    return [
+      ...steps,
+      { text: `The smallest integer in it is $${first}$ and the largest is $${last}$.` },
+      { text: 'Counting from one to the other, both included, is the difference plus one.', tex: `${last} - ${br(first)} + 1 = ${found.length}` },
+    ];
+  },
+};
+
+/** The largest integer below a boundary, or the smallest above it. */
+function extremeOf(p: OneSided): { value: number; largest: boolean } {
+  const s = oneSolved(p);
+  const largest = !pointsUp(s);
+  const value = isStrict(s) ? (largest ? p.k - 1 : p.k + 1) : p.k;
+  return { value, largest };
+}
+
+function extremeWords(p: OneSided): string {
+  const s = oneSolved(p);
+  const { value, largest } = extremeOf(p);
+  const side = largest ? 'below' : 'above';
+  return isStrict(s)
+    ? `$x ${INEQ_TEX[s]} ${p.k}$ leaves $${p.k}$ out, so the ${largest ? 'largest' : 'smallest'} integer is the next one ${side} it, $${value}$.`
+    : `$x ${INEQ_TEX[s]} ${p.k}$ includes $${p.k}$, so the ${largest ? 'largest' : 'smallest'} integer is $${value}$ itself.`;
+}
+
+/**
+ * The largest (or smallest) integer that satisfies one inequality.
+ *
+ * Which of the two is asked follows the direction of the solution, and a
+ * strict sign moves the answer one integer in. Difficulty 2 has a negative
+ * coefficient, so the direction turns round on the way.
+ */
+const intExtreme: Generator<OneSided> = {
+  id: 'lin-int-extreme',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? sampleOne(rng, 'down', rng.chance(0.5)) : sampleOne(rng, 'up', false),
+  render: (p): Slide => {
+    const { value, largest } = extremeOf(p);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `What is the **${largest ? 'largest' : 'smallest'}** integer that satisfies this?` },
+        { kind: 'display', tex: oneTex(p) },
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: `${value}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => [...oneWorking(p), { text: extremeWords(p) }],
+};
+
+/**
+ * A number line as a picture, for a slider to move over: squared across so
+ * each whole number has a tick, with the solution set drawn when `set` is
+ * given. The set is a band along the line and a dot at its end.
+ */
+function lineFigure(min: number, max: number, set?: { k: number; op: Ineq }): string {
+  const inSet = (x: number) => (set === undefined ? NaN : holds(x, set.op, set.k) ? 0 : NaN);
+  return plotSvg({
+    xMin: min,
+    xMax: max,
+    yMin: -0.9,
+    yMax: 0.9,
+    height: 60,
+    grid: true,
+    curves: set === undefined ? [] : [{ f: inSet, band: true, breaks: true }],
+    marks: set === undefined ? [] : [{ x: set.k, y: 0, hollow: isStrict(set.op) }],
+    label: set === undefined ? 'A number line' : 'A number line with a solution set drawn on it',
+  });
+}
+
+/**
+ * Slide to the largest (or smallest) integer in the solution.
+ *
+ * At difficulty 1 the solution is drawn on the line and the question is how
+ * to read a dot: hollow means the next integer in. At difficulty 2 the line is
+ * bare and the coefficient negative.
+ */
+const intSlider: Generator<OneLineParams> = {
+  id: 'lin-int-slider',
+  sample: (rng, difficulty) => {
+    const p = difficulty > 1 ? sampleOne(rng, 'down', false) : sampleOne(rng, 'up', false);
+    return { ...p, ...windowFor(rng, p.k, p.k, 10, 2) };
+  },
+  render: (p): Slide => {
+    const { value, largest } = extremeOf(p);
+    const drawn = p.a > 0;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: drawn
+            ? `The solution set of $${oneTex(p)}$ is drawn on the line. Slide to the **${largest ? 'largest' : 'smallest'}** integer in it.`
+            : `Slide to the **${largest ? 'largest' : 'smallest'}** integer that satisfies $${oneTex(p)}$.`,
+        },
+      ],
+      min: p.min,
+      max: p.max,
+      step: 1,
+      answer: value,
+      readout: 'x = {v}',
+      figure: {
+        svg: lineFigure(p.min, p.max, drawn ? { k: p.k, op: oneSolved(p) } : undefined),
+        ...markerWindow(p.min, p.max),
+      },
+    };
+  },
+  solution: (p) => [...oneWorking(p), { text: extremeWords(p) }],
+};
+
+/* ---------- Two variables: a region of the plane ---------- */
+
+/**
+ * A half-plane bounded by one straight line: `y op mx + c` in the slope form,
+ * `ax + by op c` in the general one. `(px, py)` is a point, used as the dot in
+ * a picture or the point to test.
+ */
+interface RegionParams {
+  form: 'slope' | 'general';
+  m: number;
+  a: number;
+  b: number;
+  c: number;
+  op: Ineq;
+  px: number;
+  py: number;
+}
+
+/** How far the point sits into the region: positive when inside, by the sign. */
+function residual({ form, m, a, b, c }: RegionParams, x: number, y: number): number {
+  return form === 'slope' ? y - (m * x + c) : a * x + b * y - c;
+}
+
+function regionSideTex({ form, m, a, b, c }: RegionParams): string {
+  return form === 'slope' ? linTex(m, c) : `${termTex(a, 1)} ${signedTile(b, 'y')}`;
+}
+
+function regionTex(p: RegionParams, op: Ineq = p.op): string {
+  return p.form === 'slope'
+    ? `y ${INEQ_TEX[op]} ${regionSideTex(p)}`
+    : `${regionSideTex(p)} ${INEQ_TEX[op]} ${p.c}`;
+}
+
+function boundaryOf({ form, m, a, b, c }: RegionParams): (x: number) => number {
+  return form === 'slope' ? (x: number) => m * x + c : (x: number) => (c - a * x) / b;
+}
+
+/** Slope form at difficulty 1, general form at difficulty 2. */
+function sampleRegionLine(rng: Rng, difficulty: number): Omit<RegionParams, 'px' | 'py'> {
+  const op = rng.pick(ALL_INEQ);
+  if (difficulty > 1) {
+    return { form: 'general', m: 0, a: rng.int(1, 4), b: rng.pick(nonZeroRange(-4, 4)), c: rng.pick(nonZeroRange(-8, 8)), op };
+  }
+  return { form: 'slope', m: rng.int(-3, 3), a: 0, b: 0, c: rng.pick(nonZeroRange(-4, 4)), op };
+}
+
+/** Where the point is, worked out and compared. */
+function testWorking(p: RegionParams): SolutionStep[] {
+  const { form, m, a, b, c, op, px, py } = p;
+  const inside = holds(residual(p, px, py), op, 0);
+  if (form === 'slope') {
+    const value = m * px + c;
+    return [
+      { text: `At $x = ${px}$ the right-hand side is`, tex: `${m === 0 ? `${c}` : `${timesTex(m, px)} ${signedTile(c)}`} = ${value}` },
+      {
+        text: `The point has $y = ${py}$. Is $${py} ${INEQ_TEX[op]} ${value}$? ${inside ? 'Yes' : 'No'}, so $(${px}, ${py})$ is ${inside ? '' : 'not '}in the region.`,
+      },
+    ];
+  }
+  const value = a * px + b * py;
+  return [
+    { text: `At $(${px}, ${py})$:`, tex: `${timesTex(a, px)} ${b < 0 ? '-' : '+'} ${timesTex(Math.abs(b), py)} = ${value}` },
+    {
+      text: `Is $${value} ${INEQ_TEX[op]} ${c}$? ${inside ? 'Yes' : 'No'}, so $(${px}, ${py})$ is ${inside ? '' : 'not '}in the region.`,
+    },
+  ];
+}
+
+const REGION_WINDOW = { xMin: -6, xMax: 6, yMin: -6, yMax: 6 };
+const REGION_HEIGHT = 220;
+
+/**
+ * Which inequality is this region?
+ *
+ * The picture has the boundary, solid or dashed, and a dot inside the region;
+ * the four options are the one boundary with each sign. Dashed decides the
+ * strictness and the dot decides the side. At difficulty 2 the options are in
+ * the form `ax + by`, where a negative `b` turns "above means greater" round
+ * and only testing the dot is safe.
+ */
+const regionChoice: Generator<RegionParams> = {
+  id: 'lin-region-choice',
+  sample: (rng, difficulty) => {
+    const line = sampleRegionLine(rng, difficulty);
+    const norm = line.form === 'slope' ? Math.hypot(line.m, 1) : Math.hypot(line.a, line.b);
+    // Every whole point well inside the region, so the dot is never on the
+    // line or close enough to it to be read as either side.
+    const inside = range(-5, 5)
+      .flatMap((px) => range(-5, 5).map((py) => ({ ...line, px, py })))
+      .filter((p) => {
+        const r = residual(p, p.px, p.py);
+        return holds(r, p.op, 0) && Math.abs(r) / norm >= 0.8;
+      });
+    return rng.pick(inside);
+  },
+  render: (p): Slide => ({
+    kind: 'choice',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'The region is on the side of the line with the dot in it. A dashed line is left out; a solid one is included. Which inequality is it?',
+      },
+      {
+        kind: 'diagram',
+        svg: plotSvg({
+          ...REGION_WINDOW,
+          height: REGION_HEIGHT,
+          grid: true,
+          curves: [{ f: boundaryOf(p), dashed: isStrict(p.op) }],
+          marks: [{ x: p.px, y: p.py }],
+          label: `A ${isStrict(p.op) ? 'dashed' : 'solid'} straight line with a dot at (${p.px}, ${p.py})`,
+        }),
+      },
+    ],
+    options: ALL_INEQ.map((op) => ({ id: op, label: regionTex(p, op), tex: true })),
+    correctId: p.op,
+  }),
+  solution: (p) => [
+    {
+      text: `The line is ${isStrict(p.op) ? 'dashed, so the boundary is left out: the sign is strict' : 'solid, so the boundary is included: the sign has "or equal to"'}.`,
+    },
+    { text: `Test the dot $(${p.px}, ${p.py})$, which is in the region.` },
+    ...testWorking(p).slice(0, 1),
+    { text: `That makes the region $${regionTex(p)}$.` },
+  ],
+};
+
+const REGION_SOLID = 'Solid';
+const REGION_DASHED = 'Dashed';
+const REGION_YES = 'Yes';
+const REGION_NO = 'No';
+
+/**
+ * Drawing the region, as two decisions: solid or dashed, then which side.
+ *
+ * The origin is the test point, and the constant is never zero, so the
+ * boundary never runs through it. Difficulty 2 is the general form.
+ */
+const regionFlow: Generator<RegionParams> = {
+  id: 'lin-region-flow',
+  sample: (rng, difficulty) => ({ ...sampleRegionLine(rng, difficulty), px: 0, py: 0 }),
+  render: (p): Slide => ({
+    kind: 'flow',
+    prompt: [{ kind: 'prose', text: 'How is this region drawn?' }],
+    subject: regionTex(p),
+    steps: [
+      {
+        id: 'line',
+        ask: 'Is the boundary line solid or dashed?',
+        branches: [
+          { label: REGION_SOLID, to: 'side' },
+          { label: REGION_DASHED, to: 'side' },
+        ],
+      },
+      {
+        id: 'side',
+        ask: 'Put in the origin, $(0, 0)$. Does it satisfy the inequality?',
+        branches: [
+          { label: REGION_YES, outcome: 'Shade the side of the line with the origin in it.' },
+          { label: REGION_NO, outcome: 'Shade the side of the line away from the origin.' },
+        ],
+      },
+    ],
+    answer: [isStrict(p.op) ? REGION_DASHED : REGION_SOLID, holds(residual(p, 0, 0), p.op, 0) ? REGION_YES : REGION_NO],
+  }),
+  solution: (p) => {
+    const inside = holds(residual(p, 0, 0), p.op, 0);
+    return [
+      {
+        text: isStrict(p.op)
+          ? `The sign is strict, so points on the line are left out: draw it dashed.`
+          : `The sign includes "or equal to", so points on the line count: draw it solid.`,
+      },
+      {
+        text: `At the origin every $x$ and $y$ term is $0$, so $${regionTex(p)}$ becomes $0 ${INEQ_TEX[p.op]} ${p.c}$, which is ${inside ? 'true' : 'false'}.`,
+      },
+      { text: inside ? 'So shade the side with the origin in it.' : 'So shade the side away from the origin.' },
+    ];
+  },
+};
+
+interface InterceptParams extends RegionParams {
+  axis: 'x' | 'y';
+  at: number;
+}
+
+/**
+ * Where the boundary crosses an axis: the first thing to find when drawing it.
+ *
+ * Difficulty 1 is the slope form, crossing the $x$-axis where $y = 0$.
+ * Difficulty 2 is the general form, `ax + by`, built from its two intercepts
+ * so both are whole, and asks for either.
+ */
+const regionSlider: Generator<InterceptParams> = {
+  id: 'lin-region-slider',
+  sample: (rng, difficulty) => {
+    const op = rng.pick(ALL_INEQ);
+    if (difficulty < 2) {
+      const m = rng.pick([-3, -2, -1, 1, 2, 3]);
+      const x0 = rng.pick(nonZeroRange(-5, 5));
+      return { form: 'slope', m, a: 0, b: 0, c: -m * x0, op, px: 0, py: 0, axis: 'x', at: x0 };
+    }
+    const x0 = rng.pick(nonZeroRange(-5, 5));
+    const y0 = rng.pick(nonZeroRange(-5, 5));
+    const g = gcd(Math.abs(x0), Math.abs(y0));
+    // x/x0 + y/y0 = 1, cleared of fractions, with a positive x coefficient.
+    const flip = y0 < 0 ? -1 : 1;
+    const axis = rng.pick(['x', 'y'] as const);
+    return {
+      form: 'general',
+      m: 0,
+      a: (flip * y0) / g,
+      b: (flip * x0) / g,
+      c: (flip * x0 * y0) / g,
+      op,
+      px: 0,
+      py: 0,
+      axis,
+      at: axis === 'x' ? x0 : y0,
+    };
+  },
+  render: (p): Slide => ({
+    kind: 'slider',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `To draw the boundary of $${regionTex(p)}$, find where it crosses the $${p.axis}$-axis. Slide to that point.`,
+      },
+    ],
+    min: -6,
+    max: 6,
+    step: 1,
+    answer: p.at,
+    readout: `${p.axis} = {v}`,
+    figure: {
+      svg: plotSvg({
+        ...REGION_WINDOW,
+        height: REGION_HEIGHT,
+        grid: true,
+        curves: [],
+        label: 'Empty squared axes',
+      }),
+      ...(p.axis === 'x' ? markerWindow(-6, 6) : markerWindow(-6, 6, 'y', REGION_HEIGHT)),
+      ...(p.axis === 'y' ? { axis: 'y' as const } : {}),
+    },
+  }),
+  solution: (p) => {
+    if (p.form === 'slope') {
+      return [
+        { text: 'The boundary is the line with $=$ in place of the sign. On the $x$-axis, $y = 0$.' },
+        { tex: `0 = ${linTex(p.m, p.c)}` },
+        { tex: `${termTex(p.m, 1)} = ${-p.c}` },
+        { tex: `x = ${p.at}` },
+      ];
+    }
+    const other = p.axis === 'x' ? 'y' : 'x';
+    const coefficient = p.axis === 'x' ? p.a : p.b;
+    return [
+      { text: `The boundary is $${regionSideTex(p)} = ${p.c}$. On the $${p.axis}$-axis, $${other} = 0$.` },
+      { tex: `${coefficient === 1 ? '' : coefficient === -1 ? '-' : coefficient}${p.axis} = ${p.c}` },
+      { tex: `${p.axis} = ${p.at}` },
+    ];
+  },
+};
+
+/**
+ * Testing a point: the number to compare, worked out.
+ *
+ * Difficulty 1 is the slope form, where the right-hand side is worked out at
+ * the point's $x$; difficulty 2 the general form, where the whole left-hand
+ * side is.
+ */
+const regionTest: Generator<RegionParams> = {
+  id: 'lin-region-test',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ ...sampleRegionLine(rng, difficulty), px: rng.pick(nonZeroRange(-5, 5)), py: rng.int(-6, 6) }),
+      (p) => p.form === 'general' || p.m !== 0,
+      { form: 'slope', m: 2, a: 0, b: 0, c: 1, op: '<', px: 3, py: 4 },
+    ),
+  render: (p): Slide => {
+    const slope = p.form === 'slope';
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: slope
+            ? `Is $(${p.px}, ${p.py})$ in the region $${regionTex(p)}$? Start by working out $${regionSideTex(p)}$ at $x = ${p.px}$.`
+            : `Is $(${p.px}, ${p.py})$ in the region $${regionTex(p)}$? Start by working out $${regionSideTex(p)}$ at that point.`,
+        },
+      ],
+      lead: `${regionSideTex(p)} =`,
+      keypad: [],
+      answer: `${slope ? p.m * p.px + p.c : p.a * p.px + p.b * p.py}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: testWorking,
+};
+
 export const linearEquationsGenerators = [
   oneStep,
   twoStep,
@@ -5725,4 +6977,24 @@ export const linearEquationsGenerators = [
   useSlider,
   whichRearrangement,
   formulaWords,
+  ineqLine,
+  ineqSteps,
+  ineqPicture,
+  ineqTestFlow,
+  flipFlow,
+  flipSteps,
+  flipLine,
+  flipTiles,
+  doubleLine,
+  doubleSteps,
+  doubleTiles,
+  doubleEnds,
+  intList,
+  intCount,
+  intExtreme,
+  intSlider,
+  regionChoice,
+  regionFlow,
+  regionSlider,
+  regionTest,
 ] as unknown as Generator<unknown>[];

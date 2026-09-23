@@ -7,8 +7,10 @@
  * root if the laws are to survive; then surds, which is that second idea used
  * in anger; then standard form, where powers of ten carry the size of very
  * large and very small numbers; then surds back inside expressions —
- * brackets, conjugates, equations and exact lengths; and last, equations with
- * the unknown in an index or under one, hidden quadratics, and substitution.
+ * brackets, conjugates, equations and exact lengths; then equations with
+ * the unknown in an index or under one, hidden quadratics, and substitution;
+ * and last, growth and decay by repeated multiplication, a whole number of
+ * steps at a time.
  *
  * Each level closes with a level check: twelve to fourteen questions, no
  * teaching slides, one attempt each.
@@ -48,7 +50,7 @@ const working = (...lines: string[]) =>
 export const exponentsRadicals: Course = {
   id: 'exponents-radicals',
   title: 'Exponents & Radicals',
-  blurb: 'The index laws by counting copies, then roots, surds and standard form.',
+  blurb: 'The index laws by counting copies, then roots, surds, standard form and growth.',
   levels: [
     {
       id: 'er-l1',
@@ -1456,6 +1458,224 @@ export const exponentsRadicals: Course = {
         ask('ieq-single-index-tiles', 2),
         ask('ieq-surd-power', 2),
         ask('ieq-cross-slider', 2),
+      ],
+    },
+    {
+      id: 'er-l7',
+      title: 'Growth by Repeated Multiplication',
+      lessons: [
+        {
+          id: 'er-l7-multiplier',
+          title: 'A Multiplier per Step',
+          slides: [
+            teach(
+              prose(
+                'Something multiplied by the same number at every step grows by repeated multiplication. Start with 3 cells that double every hour:',
+              ),
+              maths('3 \\to 6 \\to 12 \\to 24 \\to 48'),
+              prose(
+                'After 4 hours the 3 has been multiplied by 2 four times, which is $3 \\times 2^{4} = 48$. A start $a$ multiplied by $r$ at each of $n$ steps becomes',
+              ),
+              maths('V = a \\times r^{n}'),
+            ),
+            ask('grow-chain-tree'),
+            ask('grow-term'),
+            ask('grow-rule-tiles'),
+            teach(
+              prose(
+                'Work out the power first, then multiply by the start. $3 \\times 2^{4}$ is $3 \\times 16 = 48$, while $(3 \\times 2)^{4} = 6^{4} = 1296$ is a different number entirely.',
+              ),
+              prose('How much it grew by is the end value take away the start:'),
+              working('3 \\times 2^{4} - 3 &= 48 - 3', '&= 45'),
+            ),
+            ask('grow-evaluate'),
+            ask('grow-chain-tree', 2),
+            ask('grow-evaluate+choice', 2),
+            teach(
+              prose('Count the steps, not the time. Something that triples every 2 hours for 8 hours triples 4 times:'),
+              working('8 \\div 2 &= 4', '5 \\times 3^{4} &= 405'),
+              prose(
+                'A table may also start part way in. If $V = 15$ at $n = 1$ and the multiplier is 3, step back once to the start, $15 \\div 3 = 5$, so $V = 5 \\times 3^{n}$.',
+              ),
+            ),
+            ask('grow-term+choice', 2),
+            ask('grow-rule-tiles', 2),
+          ],
+          skillCheck: [ask('grow-term', 2), ask('grow-rule-tiles', 2), ask('grow-evaluate', 2)],
+        },
+        {
+          id: 'er-l7-percent',
+          title: 'Percentage Change as a Multiplier',
+          slides: [
+            teach(
+              prose(
+                'A percentage change is a multiplier too. Going up 5% keeps all 100% and adds 5%, which makes 105%, so multiply by 1.05.',
+              ),
+              working('\\text{up } 5\\% &\\to \\times 1.05', '\\text{down } 20\\% &\\to \\times 0.8'),
+              prose(
+                'Going down 20% leaves 80%, so multiply by 0.8, not by 0.2. Multiplying by 0.2 would keep only a fifth.',
+              ),
+            ),
+            ask('grow-pct-flow'),
+            ask('grow-pct-value'),
+            ask('grow-pct-tiles'),
+            teach(
+              prose('Over several years the multiplier is applied again each year, so two years at 5% is $1.05^{2}$.'),
+              working('2000 \\times 1.05 &= 2100', '2100 \\times 1.05 &= 2205', '2000 \\times 1.05^{2} &= 2205'),
+              prose(
+                'Not 2200: the second 5% is worked out on 2100. To find when a value first passes a target, keep multiplying, one year at a time.',
+              ),
+            ),
+            ask('grow-pct-slider'),
+            ask('grow-pct-value+choice', 2),
+            ask('grow-pct-tiles', 2),
+            teach(
+              prose(
+                'The power of the multiplier is the overall change. $1.1^{2} = 1.21$, so two years of 10% growth is a 21% rise, not 20%.',
+              ),
+              prose(
+                'So the multiplier for $n$ years is the yearly one to the power $n$, never the yearly one times $n$: $1.1 \\times 2 = 2.2$ would more than double the value.',
+              ),
+            ),
+            ask('grow-pct-flow', 2),
+            ask('grow-pct-slider', 2),
+          ],
+          skillCheck: [ask('grow-pct-value', 2), ask('grow-pct-flow', 2), ask('grow-pct-slider', 2)],
+        },
+        {
+          id: 'er-l7-decay',
+          title: 'Decay and Negative Indices',
+          slides: [
+            teach(
+              prose(
+                'Decay is repeated multiplication by a number less than 1. Halving multiplies by $\\frac{1}{2}$, so halving $n$ times multiplies by',
+              ),
+              maths('\\left(\\frac{1}{2}\\right)^{n} = \\frac{1}{2^{n}} = 2^{-n}'),
+              prose(
+                'A negative index is one over the power, so it makes a value smaller, never negative: $800 \\times 2^{-3} = \\frac{800}{8} = 100$.',
+              ),
+            ),
+            ask('grow-decay-tiles'),
+            ask('grow-trend-flow'),
+            ask('grow-half-life'),
+            teach(
+              prose('The half-life is the time something takes to halve. With a half-life of 6 hours, 18 hours is 3 half-lives:'),
+              working('18 \\div 6 &= 3', '160 \\times 2^{-3} &= 20'),
+              prose(
+                'To find when it first drops below a value, halve and count: $160 \\to 80 \\to 40 \\to 20$ is first below 30 after 3 halvings, which is 18 hours. On a graph, the half-life is where the curve comes down to half its starting height.',
+              ),
+            ),
+            ask('grow-halflife-slider'),
+            ask('grow-decay-tiles', 2),
+            ask('grow-half-life+choice', 2),
+            teach(
+              prose('A quarter is two halvings and an eighth is three, so they take two and three half-lives.'),
+              prose(
+                'A negative index turns a fraction over: $\\left(\\frac{2}{3}\\right)^{-n} = \\left(\\frac{3}{2}\\right)^{n}$, which grows. What decides growth or decay is whether each step multiplies by more or less than 1.',
+              ),
+            ),
+            ask('grow-halflife-slider', 2),
+            ask('grow-trend-flow', 2),
+          ],
+          skillCheck: [ask('grow-half-life', 2), ask('grow-halflife-slider', 2), ask('grow-trend-flow', 2)],
+        },
+        {
+          id: 'er-l7-compare',
+          title: 'Comparing Growth',
+          slides: [
+            teach(
+              prose(
+                'There are two simple ways to grow. Linear growth adds the same amount at every step; exponential growth multiplies by the same number.',
+              ),
+              working('5, 8, 11, 14 &: \\; +3 \\text{ each step}', '5, 10, 20, 40 &: \\; \\times 2 \\text{ each step}'),
+              prose(
+                'Check the gaps first. If they change, check whether each term divided by the one before always gives the same number.',
+              ),
+            ),
+            ask('grow-pattern-flow'),
+            ask('grow-compare-tree'),
+            ask('grow-long-run'),
+            teach(
+              prose('Multiplying starts slowly but wins. $2^{n}$ is behind $10n$ at first:'),
+              maths(
+                '\\begin{array}{c|cccc} n & 4 & 5 & 6 & 7 \\\\ \\hline 2^{n} & 16 & 32 & 64 & 128 \\\\ 10n & 40 & 50 & 60 & 70 \\end{array}',
+              ),
+              prose('From $n = 6$ it is ahead for good: each step doubles it, while the other only gains 10.'),
+            ),
+            ask('grow-overtake-slider'),
+            ask('grow-pattern-flow', 2),
+            ask('grow-compare-tree', 2),
+            teach(
+              prose(
+                'Powers of $n$ lose in the end too. $n^{2}$ is ahead of $2^{n}$ at $n = 3$, they are level at $n = 4$, and from $n = 5$ the power of 2 stays in front.',
+              ),
+              prose(
+                'So compare at the $n$ you are asked about. At small $n$ a big number in front can win; in the long run, repeated multiplication always does.',
+              ),
+            ),
+            ask('grow-long-run', 2),
+            ask('grow-overtake-slider', 2),
+          ],
+          skillCheck: [ask('grow-overtake-slider', 2), ask('grow-compare-tree', 2), ask('grow-long-run', 2)],
+        },
+        {
+          id: 'er-l7-backwards',
+          title: 'Working Backwards',
+          slides: [
+            teach(
+              prose(
+                'Working backwards undoes one part of $V = a \\times r^{n}$. The start was multiplied by $r^{n}$, so divide by it. Tripled 4 times to reach 405 means',
+              ),
+              maths('a = 405 \\div 3^{4} = 405 \\div 81 = 5'),
+              prose(
+                'For the number of steps, divide off the start and match the bases, as in level 2: $5 \\times 2^{n} = 320$ gives $2^{n} = 64 = 2^{6}$, so $n = 6$. A percentage undoes the same way: divide by $1.1^{2}$ to undo two years of 10%.',
+              ),
+            ),
+            ask('grow-find-start'),
+            ask('grow-steps-tiles'),
+            ask('grow-find-start+choice', 2),
+            teach(
+              prose(
+                'For the multiplier, compare two values some steps apart. If $V_{2} = 18$ and $V_{5} = 486$, three steps multiplied by $486 \\div 18 = 27$.',
+              ),
+              working('r^{3} &= 27', 'r &= \\sqrt[3]{27} = 3'),
+              prose('Then step back to the start: $18 \\div 3^{2} = 2$.'),
+            ),
+            ask('grow-multiplier-tree'),
+            ask('grow-steps-tiles', 2),
+            ask('grow-multiplier-tree', 2),
+            teach(
+              prose(
+                'Each unknown in $a \\times r^{n} = V$ has its own undo. Divide off the start first, unless the start is what you are after.',
+              ),
+              working(
+                '\\square \\times r^{n} &: \\div r^{n}',
+                'a \\times \\square^{n} &: \\div a, \\text{ then a root}',
+                'a \\times r^{\\square} &: \\div a, \\text{ match bases}',
+              ),
+            ),
+            ask('grow-undo-flow'),
+            ask('grow-undo-flow', 2),
+          ],
+          skillCheck: [ask('grow-find-start', 2), ask('grow-multiplier-tree', 2), ask('grow-undo-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('grow-term', 2),
+        ask('grow-rule-tiles', 2),
+        ask('grow-evaluate+choice', 2),
+        ask('grow-pct-flow', 2),
+        ask('grow-pct-value', 2),
+        ask('grow-pct-slider', 2),
+        ask('grow-decay-tiles', 2),
+        ask('grow-half-life+choice', 2),
+        ask('grow-trend-flow', 2),
+        ask('grow-compare-tree', 2),
+        ask('grow-overtake-slider', 2),
+        ask('grow-long-run', 2),
+        ask('grow-find-start', 2),
+        ask('grow-multiplier-tree', 2),
+        ask('grow-steps-tiles', 2),
       ],
     },
   ],

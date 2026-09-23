@@ -10,6 +10,8 @@ import {
 } from './format';
 import { PLANE_VIEWBOX, complexPlaneSvg, planeGridSvg, pointPosition, rangeFor } from './plane';
 import { options } from '../choiceVariant';
+import { markerWindow, plotSvg } from '../figures';
+import { TRIG_KEYS as CALCULUS_TRIG_KEYS } from './calculus';
 
 /** The grid every plane question is drawn on. */
 const RANGE = 4;
@@ -5887,6 +5889,2039 @@ export const expformCartesianPower: Generator<CartesianPowerParams> = {
   },
 };
 
+/* ====================================================================== */
+/* Level 8: complex numbers and trigonometric identities                  */
+/* ====================================================================== */
+
+/** The substitution every question in this level starts from, as the learner reads it. */
+const Z_DEF = 'z = \\cos\\theta + i\\sin\\theta';
+
+/** An exact fraction in lowest terms, its denominator positive. */
+interface Rat { n: number; d: number }
+
+function rat(n: number, d = 1): Rat {
+  if (n === 0) return { n: 0, d: 1 };
+  const g = gcd(n, d);
+  const sign = d < 0 ? -1 : 1;
+  return { n: (sign * n) / g, d: Math.abs(d) / g };
+}
+
+const ratAdd = (x: Rat, y: Rat): Rat => rat(x.n * y.d + y.n * x.d, x.d * y.d);
+const ratMul = (x: Rat, y: Rat): Rat => rat(x.n * y.n, x.d * y.d);
+
+/** A fraction as the learner reads it: 3, -\tfrac{1}{2}. */
+function ratTex({ n, d }: Rat): string {
+  if (d === 1) return `${n}`;
+  return `${n < 0 ? '-' : ''}\\tfrac{${Math.abs(n)}}{${d}}`;
+}
+
+const ratAnswer = ({ n, d }: Rat): string => (d === 1 ? `${n}` : `(${n})/(${d})`);
+
+/**
+ * A fraction times a symbol: the symbol alone for 1, the fraction in front of
+ * a trig term, and pi or a surd written over the line, as in \tfrac{3\pi}{8}.
+ */
+function scaledTex(r: Rat, unit: string, over = false): string {
+  const sign = r.n < 0 ? '-' : '';
+  const size = Math.abs(r.n);
+  if (r.d === 1) return `${sign}${size === 1 ? '' : size}${unit}`;
+  if (over) return `${sign}\\tfrac{${size === 1 ? '' : size}${unit}}{${r.d}}`;
+  return `${sign}\\tfrac{${size}}{${r.d}}${unit}`;
+}
+
+/** Terms joined into a sum, a leading minus turning the join into a subtraction. Zero terms drop out. */
+function sumTex(terms: string[]): string {
+  const kept = terms.filter((term) => term !== '0');
+  if (kept.length === 0) return '0';
+  return kept.map((term, i) => (i === 0 ? term : term.startsWith('-') ? `- ${term.slice(1)}` : `+ ${term}`)).join(' ');
+}
+
+/**
+ * Roughly how many characters wide a line of TeX renders. A superscript
+ * counts half, a fraction is as wide as its wider half, `\cos` is its three
+ * letters (held as digits, so a command before it cannot swallow them) and an
+ * operator carries the space either side of it.
+ */
+function texChars(tex: string): number {
+  const flat = tex
+    .replace(/\\[td]?frac\{([^{}]*)\}\{([^{}]*)\}/g, (_match, top: string, bottom: string) => (top.length > bottom.length ? top : bottom))
+    .replace(/\^\{([^{}]*)\}/g, (_match, sup: string) => '0'.repeat(Math.floor(sup.length / 2)))
+    .replace(/\^\S/g, '')
+    .replace(/_\{[^{}]*\}|_\S/g, '')
+    .replace(/\\(?:cos|sin|tan)/g, '000')
+    .replace(/\\left|\\right|\\[,;: ]|\\quad|&/g, '')
+    .replace(/\\[a-zA-Z]+/g, 'x')
+    .replace(/[{}]/g, '');
+  return flat.replace(/\s+/g, '').length + (flat.match(/[+=-]/g)?.length ?? 0);
+}
+
+/**
+ * How wide a display line may run before it scrolls sideways at phone width.
+ * Measured in the browser against `texChars`, not derived.
+ */
+const LINE_FIT = 20;
+
+const aligned = (...lines: string[]): string => `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
+
+/** lhs = the sum of the terms, carried onto further lines when one would not fit a phone screen. */
+function stackedSum(lhs: string, terms: string[]): string {
+  const kept = terms.filter((term) => term !== '0');
+  const whole = `${lhs} = ${sumTex(kept)}`;
+  if (texChars(whole) <= LINE_FIT) return whole;
+  const short = texChars(lhs) <= 9;
+  const room = short ? LINE_FIT - texChars(lhs) - 3 : LINE_FIT - 2;
+  const lines: string[][] = [[]];
+  for (const term of kept) {
+    const line = lines[lines.length - 1];
+    if (line.length > 0 && texChars(sumTex([...line, term])) > room) lines.push([term]);
+    else line.push(term);
+  }
+  const rows = lines.map((line, i) => {
+    const sum = sumTex(line);
+    if (i === 0) return `&= ${sum}`;
+    return `&\\quad ${sum.startsWith('-') ? `- ${sum.slice(1)}` : `+ ${sum}`}`;
+  });
+  return short ? aligned(`${lhs} ${rows[0]}`, ...rows.slice(1)) : aligned(`& ${lhs}`, ...rows);
+}
+
+/**
+ * lhs = a = b, one equals sign to a line when the whole would not fit, and
+ * the left side on a line of its own when even its first step would not.
+ */
+function chainTex(lhs: string, ...rights: string[]): string {
+  const whole = [lhs, ...rights].join(' = ');
+  if (texChars(whole) <= LINE_FIT) return whole;
+  if (texChars(`${lhs} = ${rights[0]}`) > LINE_FIT) return aligned(`& ${lhs}`, ...rights.map((right) => `&= ${right}`));
+  return aligned(`${lhs} &= ${rights[0]}`, ...rights.slice(1).map((right) => `&= ${right}`));
+}
+
+type TrigFn = 'cos' | 'sin';
+
+/** `\cos 3\theta`, a multiple of 1 left unwritten. `v` is the variable as TeX. */
+function multTex(fn: TrigFn, k: number, v = '\\theta'): string {
+  if (k === 1) return `\\${fn}${v.startsWith('\\') ? v : ` ${v}`}`;
+  return `\\${fn} ${k}${v}`;
+}
+
+/** `\cos^4\theta`, `\cos^2\theta\sin\theta`: a power of each, as written by hand. */
+function powTex(a: number, b: number, v = '\\theta'): string {
+  const one = (fn: TrigFn, p: number) =>
+    p === 0 ? '' : `\\${fn}${p === 1 ? '' : `^${p}`}${v.startsWith('\\') ? v : ` ${v}`}`;
+  return `${one('cos', a)}${one('sin', b)}`;
+}
+
+/** A whole number in front of something, 1 left unwritten. */
+const timesTex = (k: number): string => (k === 1 ? '' : `${k}`);
+
+function choose(n: number, k: number): number {
+  let out = 1;
+  for (let i = 1; i <= k; i += 1) out = (out * (n - k + i)) / i;
+  return out;
+}
+
+/* ---------- Laurent polynomials in z ---------- */
+
+/** A polynomial in z and 1/z: each power of z to its coefficient. */
+type ZPoly = Map<number, number>;
+
+const Z_ONE: ZPoly = new Map([[0, 1]]);
+/** z + z^{-1}, which is 2cos θ. */
+const Z_PLUS: ZPoly = new Map([[1, 1], [-1, 1]]);
+/** z - z^{-1}, which is 2i sin θ. */
+const Z_MINUS: ZPoly = new Map([[1, 1], [-1, -1]]);
+
+function zMul(x: ZPoly, y: ZPoly): ZPoly {
+  const out: ZPoly = new Map();
+  for (const [i, a] of x) for (const [j, b] of y) out.set(i + j, (out.get(i + j) ?? 0) + a * b);
+  for (const [e, c] of out) if (c === 0) out.delete(e);
+  return out;
+}
+
+function zPow(base: ZPoly, n: number): ZPoly {
+  let out = Z_ONE;
+  for (let i = 0; i < n; i += 1) out = zMul(out, base);
+  return out;
+}
+
+/** z^{3}, z, z^{-1}: a power of z as written. */
+const zPowTex = (e: number): string => (e === 0 ? '1' : e === 1 ? 'z' : `z^{${e}}`);
+
+/** The terms of a polynomial in z, highest power first. */
+function zTerms(poly: ZPoly): string[] {
+  return [...poly.entries()]
+    .sort((x, y) => y[0] - x[0])
+    .map(([e, c]) => (e === 0 ? `${c}` : scaledTex(rat(c), zPowTex(e))));
+}
+
+/**
+ * The same polynomial with each power beside its reciprocal, and what each
+ * pair comes to: `z^k + z^{-k}` is 2cos kθ and `z^k - z^{-k}` is 2i sin kθ.
+ * Only for polynomials that pair up, which is every one this level builds.
+ */
+function zPairs(poly: ZPoly): { paired: string[]; values: string[] } {
+  const paired: string[] = [];
+  const values: string[] = [];
+  const tops = [...poly.keys()].filter((e) => e > 0).sort((x, y) => y - x);
+  for (const k of tops) {
+    const c = poly.get(k)!;
+    const back = poly.get(-k) ?? 0;
+    const cos = back === c;
+    const pair = `(${zPowTex(k)} ${cos ? '+' : '-'} ${zPowTex(-k)})`;
+    paired.push(`${c < 0 ? '-' : ''}${Math.abs(c) === 1 ? '' : Math.abs(c)}${pair}`);
+    values.push(scaledTex(rat(2 * c), cos ? multTex('cos', k) : `i${multTex('sin', k)}`));
+  }
+  const c0 = poly.get(0);
+  if (c0) {
+    paired.push(`${c0}`);
+    values.push(`${c0}`);
+  }
+  return { paired, values };
+}
+
+/* ---------- Powers of cos and sin in multiple angles ---------- */
+
+/** One term of a multiple-angle form: coef × cos kθ or sin kθ, where k = 0 is the constant. */
+interface AngleTerm { k: number; coef: Rat }
+
+interface AngleForm {
+  /** Cosines when the power of sine is even, sines when it is odd. */
+  fn: TrigFn;
+  /** In the order they are written; see `displayOrder`. */
+  terms: AngleTerm[];
+  /** The smallest multiple of the power that has whole-number coefficients. */
+  scale: number;
+  /** (z + z^{-1})^a (z - z^{-1})^b, multiplied out. */
+  poly: ZPoly;
+}
+
+/**
+ * cos^a θ sin^b θ as a sum of multiple angles.
+ *
+ * (2cos θ)^a (2i sin θ)^b = (z + z^{-1})^a (z - z^{-1})^b, and the right side
+ * pairs into cosines when b is even and sines when it is odd. Dividing by
+ * 2^(a+b) i^b gives the power itself. Computed rather than tabulated, so a
+ * mistyped row cannot produce a plausible wrong identity.
+ */
+function powerForm(a: number, b: number): AngleForm {
+  const poly = zMul(zPow(Z_PLUS, a), zPow(Z_MINUS, b));
+  const n = a + b;
+  const fn: TrigFn = b % 2 === 0 ? 'cos' : 'sin';
+  // 1 / i^b, with the one leftover i of an odd b cancelling the i of 2i sin kθ.
+  const sign = Math.floor(b / 2) % 2 === 0 ? 1 : -1;
+  const terms: AngleTerm[] = [];
+  for (let k = n; k >= 1; k -= 1) {
+    const c = poly.get(k) ?? 0;
+    if (c !== 0) terms.push({ k, coef: rat(sign * 2 * c, 2 ** n) });
+  }
+  const c0 = poly.get(0) ?? 0;
+  if (fn === 'cos' && c0 !== 0) terms.push({ k: 0, coef: rat(sign * c0, 2 ** n) });
+  const ordered = terms[0].coef.n < 0 ? [...terms].reverse() : terms;
+  const scale = terms.reduce((lcm, { coef }) => (lcm * coef.d) / gcd(lcm, coef.d), 1);
+  return { fn, terms: ordered, scale, poly };
+}
+
+/** One term of a multiple-angle form scaled by `by`, as TeX. */
+function angleTermTex(fn: TrigFn, { k, coef }: AngleTerm, by: Rat = rat(1), v = '\\theta'): string {
+  const value = ratMul(coef, by);
+  return k === 0 ? ratTex(value) : scaledTex(value, multTex(fn, k, v));
+}
+
+/** The factor (2cos θ)^a (2i sin θ)^b puts in front: 2^(a+b) i^b, as TeX. */
+function powerLeadTex(a: number, b: number): string {
+  const size = 2 ** (a + b);
+  return [`${size}`, `${size}i`, `-${size}`, `-${size}i`][b % 4];
+}
+
+/** (z + z^{-1})^a (z - z^{-1})^b as written. */
+function zBracketsTex(a: number, b: number): string {
+  const power = (p: number) => (p === 1 ? '' : `^${p}`);
+  return `${a ? `(z + z^{-1})${power(a)}` : ''}${b ? `(z - z^{-1})${power(b)}` : ''}`;
+}
+
+/** The whole derivation of cos^a sin^b in multiple angles, ending on its whole-number form. */
+function anglePowerWorking(a: number, b: number): SolutionStep[] {
+  const pf = powerForm(a, b);
+  const { paired, values } = zPairs(pf.poly);
+  const lead = powerLeadTex(a, b);
+  const uses = [a ? '$z + z^{-1} = 2\\cos\\theta$' : '', b ? '$z - z^{-1} = 2i\\sin\\theta$' : ''].filter(Boolean).join(' and ');
+  return [
+    { text: `With $${Z_DEF}$, ${uses}. So`, tex: chainTex(`${lead}${powTex(a, b)}`, zBracketsTex(a, b)) },
+    { text: 'Multiply out:', tex: stackedSum(zBracketsTex(a, b), zTerms(pf.poly)) },
+    { text: 'Pair each power with its reciprocal:', tex: stackedSum(`${lead}${powTex(a, b)}`, paired) },
+    {
+      text: pf.fn === 'cos' ? 'Each pair is twice a cosine:' : 'Each pair is $2i$ times a sine:',
+      tex: stackedSum(`${lead}${powTex(a, b)}`, values),
+    },
+    {
+      text: `Divide by $${lead}$ and multiply by $${pf.scale}$, for whole numbers:`,
+      tex: stackedSum(`${pf.scale}${powTex(a, b)}`, pf.terms.map((term) => angleTermTex(pf.fn, term, rat(pf.scale)))),
+    },
+  ];
+}
+
+/** Every pair (a, b) with a + b in [lo, hi], optionally with both powers present. */
+function powerPairs(lo: number, hi: number, mixed: boolean | 'any'): [number, number][] {
+  const out: [number, number][] = [];
+  for (let n = lo; n <= hi; n += 1) {
+    for (let a = n; a >= 0; a -= 1) {
+      const b = n - a;
+      const both = a > 0 && b > 0;
+      if (mixed === 'any' || both === mixed) out.push([a, b]);
+    }
+  }
+  return out;
+}
+
+/* ---------- ExactValue values: q·π + r + s√t ---------- */
+
+/** Every integral and trig sum in this level comes to q·π + r + s√t. */
+interface ExactValue { pi: Rat; r: Rat; s: Rat; t: number }
+
+const EXACT_ZERO: ExactValue = { pi: rat(0), r: rat(0), s: rat(0), t: 1 };
+
+function exactOfPart(part: Part): ExactValue {
+  const size = rat(part.sign * part.p, part.q);
+  return part.t === 1 ? { ...EXACT_ZERO, r: size } : { ...EXACT_ZERO, s: size, t: part.t };
+}
+
+function exactAdd(x: ExactValue, y: ExactValue): ExactValue {
+  if (x.s.n !== 0 && y.s.n !== 0 && x.t !== y.t) throw new Error(`cannot add √${x.t} to √${y.t}`);
+  const s = ratAdd(x.s, y.s);
+  return { pi: ratAdd(x.pi, y.pi), r: ratAdd(x.r, y.r), s, t: s.n === 0 ? 1 : x.s.n !== 0 ? x.t : y.t };
+}
+
+const exactScale = (x: ExactValue, k: Rat): ExactValue => {
+  const s = ratMul(x.s, k);
+  return { pi: ratMul(x.pi, k), r: ratMul(x.r, k), s, t: s.n === 0 ? 1 : x.t };
+};
+
+function exactTex(x: ExactValue): string {
+  return sumTex([
+    x.pi.n === 0 ? '0' : scaledTex(x.pi, '\\pi', true),
+    ratTex(x.r),
+    x.s.n === 0 ? '0' : scaledTex(x.s, `\\sqrt{${x.t}}`, true),
+  ]);
+}
+
+const exactAnswer = (x: ExactValue): string =>
+  `(${ratAnswer(x.pi)})*pi + (${ratAnswer(x.r)}) + (${ratAnswer(x.s)})*sqrt(${x.t})`;
+
+const ZERO_PART: Part = { sign: 1, p: 0, q: 1, t: 1 };
+
+/** cos or sin of mπ/d, exactly. */
+const trigPart = (fn: TrigFn, m: number, d: number): Part =>
+  unitPart(fn === 'cos' ? Math.cos((m * Math.PI) / d) : Math.sin((m * Math.PI) / d));
+
+/** kπ/e with the k written in: `\tfrac{2k\pi}{5}`, `k\pi`. For the terms of a sum. */
+function kAngleTex(q: number, e: number): string {
+  const g = gcd(q, e);
+  const top = `${q / g === 1 ? '' : q / g}k\\pi`;
+  return e / g === 1 ? top : `\\tfrac{${top}}{${e / g}}`;
+}
+
+/** A tile bank: the answer's tokens, then up to `extra` distractors that are not among them, sorted. */
+function sortedBank(answer: string[], distractors: string[], extra = 3, key: (token: string) => number | string = (t) => t): string[] {
+  const picked: string[] = [];
+  for (const token of distractors) {
+    if (picked.length >= extra) break;
+    if (answer.includes(token) || picked.includes(token)) continue;
+    picked.push(token);
+  }
+  return [...answer, ...picked].sort((x, y) => {
+    const kx = key(x);
+    const ky = key(y);
+    return kx < ky ? -1 : kx > ky ? 1 : x < y ? -1 : x > y ? 1 : 0;
+  });
+}
+
+/** `3\theta`, or `\theta` alone: a multiple of θ as a tile. */
+const thetaTile = (k: number): string => (k === 1 ? '\\theta' : `${k}\\theta`);
+
+/** The number in front of a tile such as `4\theta`, for sorting a bank numerically. */
+const leadingNumber = (token: string): number => {
+  const match = /^-?\d+/.exec(token);
+  return match ? Number(match[0]) : token.startsWith('\\theta') ? 1 : 1000;
+};
+
+/* ---------- z^n ± z^{-n} as one trig term ---------- */
+
+type ZnKind = 'sum' | 'diff' | 'back';
+interface ZnFormParams { n: number; k: number; kind: ZnKind; frac: boolean; bank: string[] }
+
+/** k(z^n + z^{-n}) and its relatives, with the reciprocal sometimes written as a fraction. */
+function znTex({ n, k, kind, frac }: Omit<ZnFormParams, 'bank'>): string {
+  const up = zPowTex(n);
+  const down = frac ? `\\frac{1}{${up}}` : zPowTex(-n);
+  const inner = kind === 'sum' ? `${up} + ${down}` : kind === 'diff' ? `${up} - ${down}` : `${down} - ${up}`;
+  return k === 1 ? inner : `${k}(${inner})`;
+}
+
+/** A coefficient as it sits in front of a trig function: 2, 2i, -2i, and i or -i for a size of 1. */
+function coefTex(size: number, imag: boolean, negative = false): string {
+  const body = imag ? `${size === 1 ? '' : size}i` : `${size}`;
+  return `${negative ? '-' : ''}${body}`;
+}
+
+/** The single term it comes to, as its three tiles: coefficient, function, multiple. */
+function znParts({ n, k, kind }: { n: number; k: number; kind: ZnKind }): [string, TrigFn, string] {
+  if (kind === 'sum') return [coefTex(2 * k, false), 'cos', `${n}`];
+  return [coefTex(2 * k, true, kind === 'back'), 'sin', `${n}`];
+}
+
+const ZN_KINDS: ZnKind[] = ['sum', 'diff', 'back'];
+
+/**
+ * z^n + z^{-n} = 2cos nθ and z^n - z^{-n} = 2i sin nθ, placed as three tiles:
+ * the coefficient, the function and the multiple. The bank holds the other
+ * function, the coefficient with and without its i, and the doubled
+ * multiple, so each of the usual slips has a tile to land on. Difficulty 2
+ * multiplies by more, reaches higher powers, and writes the difference the
+ * other way round, which turns the sign over.
+ */
+export const trigidZnForm: Generator<ZnFormParams> = {
+  id: 'trigid-zn-form',
+  choices: (params) => {
+    const { n, k, kind } = params;
+    const term = (coef: string, fn: TrigFn, m: number) => ({ tex: `${coef}${multTex(fn, m)}` });
+    const back = kind === 'back';
+    const opts =
+      kind === 'sum'
+        ? options(
+            term(coefTex(2 * k, false), 'cos', n),
+            term(coefTex(2 * k, true), 'sin', n),
+            term(coefTex(k, false).replace(/^1$/, ''), 'cos', n),
+            term(coefTex(2 * k, false), 'sin', n),
+            term(coefTex(2 * k, false), 'cos', 2 * n),
+          )
+        : options(
+            term(coefTex(2 * k, true, back), 'sin', n),
+            term(coefTex(2 * k, false, back), 'sin', n),
+            term(coefTex(2 * k, true, !back), 'sin', n),
+            term(coefTex(2 * k, false, back), 'cos', n),
+            term(coefTex(k, true, back), 'sin', n),
+          );
+    return steered(opts.slice(0, 4), mix(n, k, ZN_KINDS.indexOf(kind), params.frac ? 1 : 0));
+  },
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(2, 6) : rng.int(2, 9);
+    const k = difficulty < 2 ? rng.int(1, 2) : rng.int(1, 4);
+    const kind = rng.pick(difficulty < 2 ? ZN_KINDS.slice(0, 2) : ZN_KINDS);
+    const frac = rng.chance(0.4);
+    const [coef, fn, mult] = znParts({ n, k, kind });
+    const answer = [coef, `\\${fn}`, mult];
+    const distractors = [
+      `\\${fn === 'cos' ? 'sin' : 'cos'}`,
+      fn === 'cos' ? coefTex(2 * k, true) : coefTex(2 * k, false, kind === 'back'),
+      `${2 * n}`,
+      fn === 'cos' ? `${k}` : coefTex(k, true, kind === 'back'),
+      `${n + 1}`,
+    ];
+    return { n, k, kind, frac, bank: sortedBank(answer, distractors, 4) };
+  },
+  render: (params) => {
+    const [coef, fn, mult] = znParts(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `With $${Z_DEF}$, write this as one trig term.` },
+        { kind: 'display', tex: znTex(params) },
+      ],
+      template: '{0}\\,{1}\\,{2}\\theta',
+      bank: params.bank,
+      answer: [coef, `\\${fn}`, mult],
+    };
+  },
+  solution: (params) => {
+    const { n, k, kind, frac } = params;
+    const [coef, fn] = znParts(params);
+    const up = zPowTex(n);
+    const down = zPowTex(-n);
+    const steps: SolutionStep[] = [];
+    if (frac) steps.push({ text: `$\\frac{1}{${up}}$ is $${down}$.` });
+    steps.push(
+      { text: "By De Moivre's theorem the two powers are conjugates:", tex: `${up} = \\cos ${n}\\theta + i\\sin ${n}\\theta` },
+      { tex: `${down} = \\cos ${n}\\theta - i\\sin ${n}\\theta` },
+    );
+    if (kind === 'sum') steps.push({ text: 'Adding them, the sines cancel.', tex: `${up} + ${down} = 2\\cos ${n}\\theta` });
+    else if (kind === 'diff') steps.push({ text: 'Subtracting, the cosines cancel.', tex: `${up} - ${down} = 2i\\sin ${n}\\theta` });
+    else {
+      steps.push({
+        text: 'Subtracting the other way round, the cosines still cancel but the sign turns over.',
+        tex: `${down} - ${up} = -2i\\sin ${n}\\theta`,
+      });
+    }
+    if (k > 1) steps.push({ text: `Multiply by $${k}$.`, tex: `${znTex({ n, k, kind, frac: false })} = ${coef}${multTex(fn, n)}` });
+    return steps;
+  },
+};
+
+/* ---------- z^n ± z^{-n} at a given angle ---------- */
+
+interface ZnValueParams { n: number; q: number; e: number; kind: 'sum' | 'diff' }
+
+/** The value 2cos nθ or 2i sin nθ, as the exact part it multiplies, where nθ = qπ/e. */
+function znValue({ q, e, kind }: ZnValueParams): { unit: Part; value: Part } {
+  const unit = trigPart(kind === 'sum' ? 'cos' : 'sin', q, e);
+  return { unit, value: scalePart({ a: 2, s: 1 }, unit) };
+}
+
+/**
+ * The exact value of z^n + z^{-n} or z^n - z^{-n} at an angle chosen so that
+ * nθ lands on a table angle: θ = π/9 with n = 3, say. Adding the powers out
+ * by hand is hopeless; 2cos nθ is one line.
+ */
+export const trigidZnValue: Generator<ZnValueParams> = {
+  id: 'trigid-zn-value',
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(2, 4) : rng.int(3, 8);
+    const e = rng.pick([1, 2, 3, 4, 6]);
+    return { n, q: rng.int(1, 2 * e - 1), e, kind: rng.pick(['sum', 'diff'] as const) };
+  },
+  render: (params) => {
+    const { n, q, e, kind } = params;
+    const { value } = znValue(params);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `$${Z_DEF}$ with $\\theta = ${angleTex(q, e * n)}$. Find the exact value.` }],
+      lead: `${zPowTex(n)} ${kind === 'sum' ? '+' : '-'} ${zPowTex(-n)} =`,
+      keypad: EXACT_KEYS,
+      answer: kind === 'sum' ? partAnswer(value) : `(${partAnswer(value)})*i`,
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { n, q, e, kind } = params;
+    const { unit, value } = znValue(params);
+    const fn = kind === 'sum' ? '\\cos' : '\\sin';
+    const phi = angleTex(q, e);
+    return [
+      {
+        text: kind === 'sum' ? 'The sines cancel, leaving twice the cosine:' : 'The cosines cancel, leaving $2i$ times the sine:',
+        tex: `${zPowTex(n)} ${kind === 'sum' ? '+' : '-'} ${zPowTex(-n)} = ${kind === 'sum' ? '2' : '2i'}${fn} ${n}\\theta`,
+      },
+      { text: `Here $${n}\\theta = ${phi}$, and $${fn} ${phi} = ${partTex(unit)}$.` },
+      {
+        tex: kind === 'sum'
+          ? `2 \\times ${paren(partTex(unit))} = ${partTex(value)}`
+          : `2i \\times ${paren(partTex(unit))} = ${partsTex(ZERO_PART, value)}`,
+      },
+    ];
+  },
+};
+
+/* ---------- A sum of two such pairs, plotted ---------- */
+
+interface ZnPlotParams { a: number; b: number; q: number; d: number; back: boolean }
+
+/** A whole number, or NaN when it is not one. */
+function snapWhole(x: number): number {
+  const r = Math.round(x);
+  return Math.abs(x - r) < 1e-9 ? r + 0 : NaN;
+}
+
+/** w = (z^a + z^{-a}) + (z^b - z^{-b}) = 2cos aθ + 2i sin bθ, as a point. */
+function znPoint({ a, b, q, d, back }: ZnPlotParams): [number, number] {
+  const t = (q * Math.PI) / d;
+  const re = snapWhole(2 * Math.cos(a * t));
+  const im = snapWhole((back ? -2 : 2) * Math.sin(b * t));
+  return [re === 0 ? 0 : re, im === 0 ? 0 : im];
+}
+
+function znPlotTex({ a, b, back }: ZnPlotParams): string {
+  const second = back ? `${zPowTex(-b)} - ${zPowTex(b)}` : `${zPowTex(b)} - ${zPowTex(-b)}`;
+  return `w = (${zPowTex(a)} + ${zPowTex(-a)}) + (${second})`;
+}
+
+/**
+ * Plot (z^a + z^{-a}) + (z^b - z^{-b}). The first bracket is real and the
+ * second imaginary, so the point is (2cos aθ, 2 sin bθ); only angles putting
+ * both on the lattice are drawn. Difficulty 2 reaches higher powers and
+ * sometimes writes the second bracket the other way round.
+ */
+export const trigidZnPlot: Generator<ZnPlotParams> = {
+  id: 'trigid-zn-plot',
+  sample: (rng, difficulty) => {
+    const top = difficulty < 2 ? 3 : 6;
+    for (;;) {
+      const d = rng.pick([2, 3, 4, 6]);
+      const params = {
+        a: rng.int(1, top),
+        b: rng.int(1, top),
+        q: rng.int(1, 2 * d - 1),
+        d,
+        back: difficulty >= 2 && rng.chance(0.4),
+      };
+      if (params.a === params.b) continue;
+      const [re, im] = znPoint(params);
+      if (Number.isNaN(re) || Number.isNaN(im) || (re === 0 && im === 0)) continue;
+      return params;
+    }
+  },
+  render: (params) => {
+    const [re, im] = znPoint(params);
+    return {
+      kind: 'plot',
+      prompt: [
+        { kind: 'prose', text: `$${Z_DEF}$ with $\\theta = ${angleTex(params.q, params.d)}$. Plot $w$ on the plane.` },
+        { kind: 'display', tex: znPlotTex(params) },
+      ],
+      range: RANGE,
+      answer: { re, im },
+    };
+  },
+  solution: (params) => {
+    const { a, b, q, d, back } = params;
+    const [re, im] = znPoint(params);
+    const sign = back ? '-' : '';
+    return [
+      { text: `The first bracket is real, $2${multTex('cos', a)}$:`, tex: `2\\cos ${angleTex(a * q, d)} = ${re}` },
+      {
+        text: `The second is imaginary, $${sign}2i${multTex('sin', b)}$:`,
+        tex: `${sign}2i\\sin ${angleTex(b * q, d)} = ${im === 0 ? '0' : coeffTex(im)}`,
+      },
+      { text: 'So the point is', tex: `w = ${complexTex(re, im)}` },
+    ];
+  },
+};
+
+/* ---------- Products into sums ---------- */
+
+type ProductKind = 'cc' | 'ss' | 'sc' | 'cs';
+interface ProductSumParams { a: number; b: number; kind: ProductKind; bank: string[] }
+
+/** The two functions in the product 2 f(aθ) g(bθ). */
+const PRODUCT_FNS: Record<ProductKind, [TrigFn, TrigFn]> = {
+  cc: ['cos', 'cos'],
+  ss: ['sin', 'sin'],
+  sc: ['sin', 'cos'],
+  cs: ['cos', 'sin'],
+};
+
+/**
+ * What 2 f(aθ) g(bθ) comes to: a function, the two multiples in the order
+ * written, the sign between them, and whether that order is free.
+ */
+function productResult({ a, b, kind }: { a: number; b: number; kind: ProductKind }) {
+  if (kind === 'cc') return { fn: 'cos' as TrigFn, first: a + b, second: a - b, op: '+', free: true };
+  if (kind === 'ss') return { fn: 'cos' as TrigFn, first: a - b, second: a + b, op: '-', free: false };
+  if (kind === 'sc') return { fn: 'sin' as TrigFn, first: a + b, second: a - b, op: '+', free: true };
+  return { fn: 'sin' as TrigFn, first: a + b, second: a - b, op: '-', free: false };
+}
+
+const productTex = ({ a, b, kind }: { a: number; b: number; kind: ProductKind }): string =>
+  `2${multTex(PRODUCT_FNS[kind][0], a)}${multTex(PRODUCT_FNS[kind][1], b)}`;
+
+const PRODUCT_KINDS: ProductKind[] = ['cc', 'ss', 'sc', 'cs'];
+
+/**
+ * 2cos aθ cos bθ = cos(a+b)θ + cos(a-b)θ and its three relatives, found by
+ * writing each factor with z and multiplying out. The template carries the
+ * function and the sign; the tiles are the two multiples, with the factors'
+ * own multiples and a doubled one as distractors. Where the order matters
+ * (a difference) it is graded. Difficulty 2 adds 2cos aθ sin bθ, whose
+ * minus sign is easily lost, and larger multiples.
+ */
+export const trigidProductSum: Generator<ProductSumParams> = {
+  id: 'trigid-product-sum',
+  choices: (params) => {
+    const { a, b, kind } = params;
+    const { fn, first, second, op } = productResult(params);
+    const other: TrigFn = fn === 'cos' ? 'sin' : 'cos';
+    const pair = (f: TrigFn, x: number, sign: string, y: number) => ({ tex: `${multTex(f, x)} ${sign} ${multTex(f, y)}` });
+    const flip = op === '+' ? '-' : '+';
+    return steered(
+      options(
+        pair(fn, first, op, second),
+        pair(fn, first, flip, second),
+        pair(fn, second, op, first),
+        pair(other, first, op, second),
+        pair(fn, a, op, b),
+      ).slice(0, 4),
+      mix(a, b, PRODUCT_KINDS.indexOf(kind)),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const kind = rng.pick(difficulty < 2 ? PRODUCT_KINDS.slice(0, 3) : PRODUCT_KINDS);
+    const a = rng.int(2, difficulty < 2 ? 5 : 8);
+    const b = rng.int(1, a - 1);
+    const { first, second } = productResult({ a, b, kind });
+    const answer = [thetaTile(first), thetaTile(second)];
+    const bank = sortedBank(answer, [a, b, 2 * a, a * b, 2 * (a + b), a + b + 1].map(thetaTile), 3, leadingNumber);
+    return { a, b, kind, bank };
+  },
+  render: (params) => {
+    const { fn, first, second, op, free } = productResult(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write this product as a sum or difference of two terms.' },
+        { kind: 'display', tex: productTex(params) },
+      ],
+      template: `\\${fn} {0} ${op} \\${fn} {1}`,
+      bank: params.bank,
+      answer: [thetaTile(first), thetaTile(second)],
+      ...(free && { unordered: true }),
+    };
+  },
+  solution: (params) => {
+    const { a, b, kind } = params;
+    const [fa, fb] = PRODUCT_FNS[kind];
+    const { fn, first, second, op } = productResult(params);
+    const pairPoly = (f: TrigFn, k: number): ZPoly => new Map([[k, 1], [-k, f === 'cos' ? 1 : -1]]);
+    const pairTex = (f: TrigFn, k: number) => `(${zPowTex(k)} ${f === 'cos' ? '+' : '-'} ${zPowTex(-k)})`;
+    const twice = (f: TrigFn, k: number) => (f === 'cos' ? `2${multTex('cos', k)}` : `2i${multTex('sin', k)}`);
+    const { paired, values } = zPairs(zMul(pairPoly(fa, a), pairPoly(fb, b)));
+    const imag = (fa === 'sin' ? 1 : 0) + (fb === 'sin' ? 1 : 0);
+    const whole = ['4', '4i', '-4'][imag];
+    const divisor = ['2', '2i', '-2'][imag];
+    return [
+      {
+        text: `Write each factor with $z$: $${pairTex(fa, a)} = ${twice(fa, a)}$ and $${pairTex(fb, b)} = ${twice(fb, b)}$. Multiply them:`,
+        tex: `${pairTex(fa, a)}${pairTex(fb, b)}`,
+      },
+      { text: 'Multiply out and pair each power with its reciprocal:', tex: `= ${sumTex(paired)}` },
+      { text: `Each pair is twice a cosine or $2i$ times a sine, and the left side is $${whole}${multTex(fa, a)}${multTex(fb, b)}$:`, tex: `= ${sumTex(values)}` },
+      {
+        text: `Divide by $${divisor}$:`,
+        tex: stackedSum(productTex(params), [multTex(fn, first), `${op === '-' ? '-' : ''}${multTex(fn, second)}`]),
+      },
+    ];
+  },
+};
+
+/* ---------- A term of (cos θ + i sin θ)^n ---------- */
+
+interface BinomialTermParams { n: number; k: number; conj: boolean }
+
+/** c^{3}s^{2}: a monomial in c and s, powers of 1 and 0 left unwritten. */
+function csTex(p: number, q: number): string {
+  const one = (letter: string, e: number) => (e === 0 ? '' : e === 1 ? letter : `${letter}^{${e}}`);
+  return `${one('c', p)}${one('s', q)}`;
+}
+
+/** C(n, k) (±i)^k, the coefficient of c^{n-k} s^k, as real and imaginary parts. */
+function binomialCoef({ n, k, conj }: BinomialTermParams): [number, number] {
+  const size = choose(n, k) * (conj && k % 2 === 1 ? -1 : 1);
+  const turn: [number, number][] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  const [x, y] = turn[k % 4];
+  return [size * x + 0, size * y + 0];
+}
+
+/**
+ * One coefficient of (c + is)^n: C(n, k) times a power of i. Whether it is
+ * real or imaginary is what decides which of cos nθ and sin nθ it belongs to,
+ * and the power of i is where the minus signs in those identities come from.
+ * Difficulty 1 is up to the sixth power, and half the time the conjugate
+ * (c - is)^n; difficulty 2 goes to the eighth.
+ */
+export const trigidBinomialTerm: Generator<BinomialTermParams> = {
+  id: 'trigid-binomial-term',
+  choices: (params) => {
+    const { n, k } = params;
+    const [re, im] = binomialCoef(params);
+    const opt = (x: number, y: number) => ({ tex: complexTex(x, y), answer: complexAnswer(x, y) });
+    return steered(
+      options(opt(re, im), opt(choose(n, k), 0), opt(-re, -im), opt(-im, re), opt(choose(n, k - 1), 0)).slice(0, 4),
+      mix(n, k, params.conj ? 1 : 0),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(3, 6) : rng.int(5, 8);
+    return { n, k: rng.int(1, n), conj: rng.chance(0.5) };
+  },
+  render: (params) => {
+    const { n, k, conj } = params;
+    const [re, im] = binomialCoef(params);
+    const mono = csTex(n - k, k);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `Write $c = \\cos\\theta$ and $s = \\sin\\theta$. Expanding this, the term in $${mono}$ is $a${mono}$. Find $a$.` },
+        { kind: 'display', tex: `(c ${conj ? '-' : '+'} is)^${n}` },
+      ],
+      lead: 'a =',
+      keypad: I_KEY,
+      answer: complexAnswer(re, im),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { n, k, conj } = params;
+    const [re, im] = binomialCoef(params);
+    // (±i)^k is the coefficient of s^k in (c ± is)^k.
+    const power = complexTex(...binomialCoef({ n: k, k, conj }));
+    return [
+      { text: `The binomial theorem gives the term $\\binom{${n}}{${k}}${csTex(n - k, 0)}(${conj ? '-' : ''}is)^{${k}}$.` },
+      {
+        text: `$(${conj ? '-' : ''}i)^{${k}} = ${power}$, so`,
+        tex: `a = \\binom{${n}}{${k}} \\times ${paren(power)} = ${complexTex(re, im)}`,
+      },
+      {
+        text: im === 0
+          ? `A real coefficient: this term is part of $\\cos ${n}\\theta$.`
+          : `An imaginary coefficient: this term is part of the $i\\sin ${n}\\theta$ half.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Multiple angles in powers: the identity's coefficients ---------- */
+
+type MultipleKind = 'cc' | 'cs' | 'ss' | 'sc';
+interface MultipleFormParams { kind: MultipleKind; n: number; shown: number; bank: string[] }
+
+/** Chebyshev polynomials, coefficients indexed by power: T_n(cos θ) = cos nθ. */
+function chebyshev(n: number, second: boolean): number[] {
+  let before = [1];
+  let now = second ? [0, 2] : [0, 1];
+  if (n === 0) return before;
+  for (let m = 1; m < n; m += 1) {
+    const next = [0, ...now.map((c) => 2 * c)];
+    before.forEach((c, i) => {
+      next[i] -= c;
+    });
+    before = now;
+    now = next;
+  }
+  return now;
+}
+
+/**
+ * The identity as a polynomial in c (or s), terms in the order they are
+ * written: highest power first, unless that opens on a minus.
+ *
+ * cc: cos nθ in cos θ, T_n(c). cs: cos nθ in sin θ for even n, ±T_n(s).
+ * ss: sin nθ in sin θ for odd n, ±T_n(s). sc: sin nθ as sin θ times a
+ * polynomial in cos θ, U_{n-1}(c).
+ */
+function multipleTerms(kind: MultipleKind, n: number): { power: number; coef: number }[] {
+  const poly =
+    kind === 'sc'
+      ? chebyshev(n - 1, true)
+      : chebyshev(n, false).map((c) => (kind === 'cc' ? c : c * (Math.floor(n / 2) % 2 === 0 ? 1 : -1)));
+  const terms = poly
+    .map((coef, power) => ({ power, coef }))
+    .filter(({ coef }) => coef !== 0)
+    .reverse();
+  return terms[0].coef < 0 ? terms.reverse() : terms;
+}
+
+const MULTIPLE_TARGET: Record<MultipleKind, (n: number) => string> = {
+  cc: (n) => `\\cos ${n}\\theta`,
+  cs: (n) => `\\cos ${n}\\theta`,
+  ss: (n) => `\\sin ${n}\\theta`,
+  sc: (n) => `\\sin ${n}\\theta`,
+};
+
+const MULTIPLE_ASK: Record<MultipleKind, string> = {
+  cc: 'in powers of $\\cos\\theta$',
+  cs: 'in powers of $\\sin\\theta$',
+  ss: 'in powers of $\\sin\\theta$',
+  sc: 'as $\\sin\\theta$ times powers of $\\cos\\theta$',
+};
+
+/** The letter the identity is written in, and the power of it as a template piece. */
+const multipleVar = (kind: MultipleKind): TrigFn => (kind === 'cc' || kind === 'sc' ? 'cos' : 'sin');
+
+/**
+ * The identity's template and its answer. Every coefficient is a blank except
+ * the one at `shown` (if any), which is written in as a foothold; the signs
+ * are always written, so what is asked is the sizes.
+ */
+function multipleSlots({ kind, n, shown }: Omit<MultipleFormParams, 'bank'>): { template: string; answer: string[] } {
+  const fn = multipleVar(kind);
+  const answer: string[] = [];
+  const pieces = multipleTerms(kind, n).map(({ power, coef }, i) => {
+    const sign = i === 0 ? (coef < 0 ? '-' : '') : coef < 0 ? ' - ' : ' + ';
+    let size = `${Math.abs(coef)}`;
+    if (i !== shown) {
+      size = `{${answer.length}}`;
+      answer.push(`${Math.abs(coef)}`);
+    }
+    const letter = power === 0 ? '' : `\\${fn}${power === 1 ? '' : `^${power}`}\\theta`;
+    return `${sign}${size}${letter}`;
+  });
+  const body = pieces.join('');
+  const rhs = kind === 'sc' ? `\\sin\\theta\\,(${body})` : body;
+  return { template: `${MULTIPLE_TARGET[kind](n)} = ${rhs}`, answer };
+}
+
+/** Every (kind, n, shown) a difficulty draws from. */
+function multipleCases(difficulty: number): Omit<MultipleFormParams, 'bank'>[] {
+  const pairs: [MultipleKind, number][] =
+    difficulty < 2
+      ? [['cc', 2], ['cc', 3], ['cc', 4], ['cc', 5], ['cs', 2], ['cs', 4], ['cs', 6]]
+      : [['ss', 3], ['ss', 5], ['sc', 2], ['sc', 3], ['sc', 4], ['sc', 5], ['sc', 6], ['cc', 6]];
+  return pairs.flatMap(([kind, n]) => {
+    const count = multipleTerms(kind, n).length;
+    const shown = count < 2 ? [-1] : [-1, ...Array.from({ length: count }, (_, i) => i)];
+    return shown.map((s) => ({ kind, n, shown: s }));
+  });
+}
+
+/** The real or imaginary part of (c + is)^n, as the terms of a polynomial in c and s. */
+function binomialPart(n: number, real: boolean): string[] {
+  const terms: string[] = [];
+  for (let k = real ? 0 : 1; k <= n; k += 2) {
+    const size = choose(n, k) * (Math.floor(k / 2) % 2 === 0 ? 1 : -1);
+    terms.push(scaledTex(rat(size), csTex(n - k, k)));
+  }
+  return terms;
+}
+
+/** An identity's right side in c or s, for the worked solution. */
+function multipleRhs(kind: MultipleKind, n: number): string {
+  const terms = multipleRhsTerms(kind, n);
+  return kind === 'sc' ? `s(${sumTex(terms)})` : sumTex(terms);
+}
+
+/** The terms of that right side, for a sum that may need more than one line. */
+function multipleRhsTerms(kind: MultipleKind, n: number): string[] {
+  const letter = multipleVar(kind) === 'cos' ? 'c' : 's';
+  return multipleTerms(kind, n).map(({ power, coef }) =>
+    power === 0 ? `${coef}` : scaledTex(rat(coef), power === 1 ? letter : `${letter}^{${power}}`),
+  );
+}
+
+/** De Moivre, the binomial theorem, then one Pythagorean swap. */
+function multipleWorking(kind: MultipleKind, n: number): SolutionStep[] {
+  const real = kind === 'cc' || kind === 'cs';
+  const target = MULTIPLE_TARGET[kind](n);
+  const swap: Record<MultipleKind, string> = {
+    cc: 'Only even powers of $s$ appear. Replace each $s^2$ with $1 - c^2$ and collect:',
+    cs: 'Only even powers of $c$ appear. Replace each $c^2$ with $1 - s^2$ and collect:',
+    ss: 'Only even powers of $c$ appear. Replace each $c^2$ with $1 - s^2$ and collect:',
+    sc: 'Take out a factor $s$. What is left has only even powers of $s$, so replace each $s^2$ with $1 - c^2$:',
+  };
+  return [
+    {
+      text: `Write $c = \\cos\\theta$, $s = \\sin\\theta$. By De Moivre, $${target}$ is the ${real ? 'real' : 'imaginary'} part of $(c + is)^{${n}}$:`,
+      tex: stackedSum(target, binomialPart(n, real)),
+    },
+    { text: swap[kind], tex: kind === 'sc' ? chainTex(target, multipleRhs(kind, n)) : stackedSum(target, multipleRhsTerms(kind, n)) },
+  ];
+}
+
+/**
+ * cos nθ or sin nθ as a polynomial, coefficients as tiles. The bank adds the
+ * binomial coefficients from before the swap (the answer to a different
+ * step) and powers of 2 either side of the leading one. Difficulty 1 is
+ * cos nθ, in powers of cos θ or sin θ; difficulty 2 is sin nθ, both ways,
+ * and cos 6θ.
+ */
+export const trigidMultipleForm: Generator<MultipleFormParams> = {
+  id: 'trigid-multiple-form',
+  sample: (rng, difficulty) => {
+    const params = rng.pick(multipleCases(difficulty));
+    const { answer } = multipleSlots(params);
+    const lead = Math.abs(multipleTerms(params.kind, params.n)[0].coef);
+    const distractors = [choose(params.n, 2), 2 ** (params.n - 1), 2 ** params.n, params.n, lead + 1, 2 * params.n, 1, 2].map(String);
+    return { ...params, bank: sortedBank(answer, distractors, 3, Number) };
+  },
+  render: (params) => {
+    const { template, answer } = multipleSlots(params);
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Write $${MULTIPLE_TARGET[params.kind](params.n)}$ ${MULTIPLE_ASK[params.kind]}.` }],
+      template,
+      bank: params.bank,
+      answer,
+    };
+  },
+  solution: ({ kind, n }) => multipleWorking(kind, n),
+};
+
+/* ---------- A multiple angle's value from cos θ or sin θ ---------- */
+
+type ValueKind = 'cos2' | 'cos3' | 'sin3' | 'cos4' | 'cos2s';
+interface MultipleValueParams { kind: ValueKind; p: number; q: number; shown: boolean }
+
+/** Each identity: what is given, what is asked, and the polynomial as [power, coefficient]. */
+const VALUE_IDENTITY: Record<ValueKind, { given: TrigFn; target: string; terms: [number, number][] }> = {
+  cos2: { given: 'cos', target: '\\cos 2\\theta', terms: [[2, 2], [0, -1]] },
+  cos3: { given: 'cos', target: '\\cos 3\\theta', terms: [[3, 4], [1, -3]] },
+  sin3: { given: 'sin', target: '\\sin 3\\theta', terms: [[1, 3], [3, -4]] },
+  cos4: { given: 'cos', target: '\\cos 4\\theta', terms: [[4, 8], [2, -8], [0, 1]] },
+  cos2s: { given: 'sin', target: '\\cos 2\\theta', terms: [[0, 1], [2, -2]] },
+};
+
+function valueIdentityTex(kind: ValueKind, display = false): string {
+  const { given, target, terms } = VALUE_IDENTITY[kind];
+  const texs = terms.map(([power, coef]) => (power === 0 ? `${coef}` : scaledTex(rat(coef), powTex(given === 'cos' ? power : 0, given === 'sin' ? power : 0))));
+  return display ? stackedSum(target, texs) : `${target} = ${sumTex(texs)}`;
+}
+
+/** Each term's value at x = p/q, in the identity's order. */
+function valueTerms({ kind, p, q }: MultipleValueParams): Rat[] {
+  return VALUE_IDENTITY[kind].terms.map(([power, coef]) => rat(coef * p ** power, q ** power));
+}
+
+/**
+ * cos 3θ from cos θ = 1/3, and the like: the identity as a tool rather than
+ * a result. Difficulty 1 prints the identity and asks for the arithmetic;
+ * difficulty 2 leaves the learner to supply it, including cos 4θ and cos 2θ
+ * from a sine.
+ */
+export const trigidMultipleValue: Generator<MultipleValueParams> = {
+  id: 'trigid-multiple-value',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<ValueKind>(difficulty < 2 ? ['cos2', 'cos3', 'sin3'] : ['cos3', 'cos4', 'cos2s']);
+    for (;;) {
+      const q = rng.int(2, 5);
+      const p = rng.int(1, q - 1);
+      if (gcd(p, q) !== 1) continue;
+      return { kind, p: p * rng.sign(), q, shown: difficulty < 2 };
+    }
+  },
+  render: (params) => {
+    const { kind, p, q, shown } = params;
+    const { given, target } = VALUE_IDENTITY[kind];
+    const value = valueTerms(params).reduce(ratAdd, rat(0));
+    const lead = `$\\${given}\\theta = ${ratTex(rat(p, q))}$.`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: shown ? `${lead} Use $${valueIdentityTex(kind)}$ to find the exact value.` : `${lead} Find the exact value.`,
+        },
+      ],
+      lead: `${target} =`,
+      keypad: [{ insert: '/' }],
+      answer: ratAnswer(value),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { kind, shown } = params;
+    const { target } = VALUE_IDENTITY[kind];
+    const terms = valueTerms(params);
+    const value = terms.reduce(ratAdd, rat(0));
+    return [
+      { text: shown ? 'Put the value into the identity:' : 'Use the identity for it in powers:', tex: valueIdentityTex(kind, true) },
+      { text: 'Term by term:', tex: chainTex(target, sumTex(terms.map(ratTex)), ratTex(value)) },
+    ];
+  },
+};
+
+/* ---------- Which part, and which swap ---------- */
+
+type EquateKind = 'cc' | 'cs' | 'ss' | 'sc' | 'tan';
+interface EquateParams { kind: EquateKind; n: number }
+
+const PART_REAL = 'The real part';
+const PART_IMAG = 'The imaginary part';
+const PART_BOTH = 'Both parts';
+const EVEN_POWERS = 'Even powers';
+const ODD_POWERS = 'Odd powers';
+const SWAP_SIN = 'Replace $\\sin^2\\theta$ with $1 - \\cos^2\\theta$';
+const SWAP_COS = 'Replace $\\cos^2\\theta$ with $1 - \\sin^2\\theta$';
+const TAKE_OUT = 'Take out $\\sin\\theta$, then replace $\\sin^2\\theta$';
+
+const EQUATE_SUBJECT: Record<EquateKind, string> = { cc: 'cos', cs: 'cos', ss: 'sin', sc: 'sin', tan: 'tan' };
+const EQUATE_ASK: Record<EquateKind, string> = { ...MULTIPLE_ASK, tan: 'in powers of $\\tan\\theta$' };
+
+/** Whether n suits the kind: cos nθ in sin θ needs n even, sin nθ in sin θ needs n odd. */
+const equateFits = (kind: EquateKind, n: number): boolean =>
+  kind === 'cs' ? n % 2 === 0 : kind === 'ss' ? n % 2 === 1 && n > 1 : true;
+
+const divideLabel = (n: number): string => `Divide top and bottom by $\\cos^{${n}}\\theta$`;
+
+function equateAnswer({ kind, n }: EquateParams): string[] {
+  if (kind === 'cc') return [PART_REAL, EVEN_POWERS, SWAP_SIN];
+  if (kind === 'cs') return [PART_REAL, EVEN_POWERS, SWAP_COS];
+  if (kind === 'ss') return [PART_IMAG, ODD_POWERS, SWAP_COS];
+  if (kind === 'sc') return [PART_IMAG, ODD_POWERS, TAKE_OUT];
+  return [PART_BOTH, divideLabel(n)];
+}
+
+/**
+ * The plan for writing a multiple angle in powers, as three forks: which part
+ * of (cos θ + i sin θ)^n, which powers of sin θ that part holds, and how to
+ * finish. The steps are the same for every n, so the n varies only the
+ * question; what changes the route is what is being asked for. Difficulty 2
+ * leans towards the sine and tangent routes.
+ */
+export const trigidEquateFlow: Generator<EquateParams> = {
+  id: 'trigid-equate-flow',
+  sample: (rng, difficulty) => {
+    const weighted: EquateKind[] =
+      difficulty < 2 ? ['cc', 'cc', 'cc', 'cs', 'cs', 'ss', 'sc', 'tan'] : ['cc', 'cs', 'ss', 'ss', 'sc', 'sc', 'tan', 'tan'];
+    const [lo, hi] = difficulty < 2 ? [2, 8] : [3, 10];
+    for (;;) {
+      const kind = rng.pick(weighted);
+      const n = rng.int(lo, hi);
+      if (equateFits(kind, n)) return { kind, n };
+    }
+  },
+  render: (params) => {
+    const { kind, n } = params;
+    const subject = `\\${EQUATE_SUBJECT[kind]} ${n}\\theta`;
+    const finishes = [SWAP_SIN, SWAP_COS];
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Plan how to write $${subject}$ ${EQUATE_ASK[kind]}, starting from $(\\cos\\theta + i\\sin\\theta)^{${n}}$.` }],
+      subject,
+      steps: [
+        {
+          id: 'part',
+          ask: `Which part of $(\\cos\\theta + i\\sin\\theta)^{${n}}$ do you need?`,
+          branches: [
+            { label: PART_REAL, to: 'real' },
+            { label: PART_IMAG, to: 'imag' },
+            { label: PART_BOTH, to: 'both' },
+          ],
+        },
+        {
+          id: 'real',
+          ask: 'Which powers of $\\sin\\theta$ does it hold?',
+          branches: [
+            { label: EVEN_POWERS, to: 'finishReal' },
+            { label: ODD_POWERS, outcome: 'An odd power of $\\sin\\theta$ comes with an odd power of $i$, which is imaginary.' },
+          ],
+        },
+        {
+          id: 'imag',
+          ask: 'Which powers of $\\sin\\theta$ does it hold?',
+          branches: [
+            { label: EVEN_POWERS, outcome: 'An even power of $i$ is real, so it cannot be in the imaginary part.' },
+            { label: ODD_POWERS, to: 'finishImag' },
+          ],
+        },
+        {
+          id: 'finishReal',
+          ask: 'How do you finish?',
+          branches: finishes.map((label) => ({ label, outcome: 'Collect the powers that are left.' })),
+        },
+        {
+          id: 'finishImag',
+          ask: 'How do you finish?',
+          branches: [SWAP_COS, TAKE_OUT].map((label) => ({ label, outcome: 'Collect the powers that are left.' })),
+        },
+        {
+          id: 'both',
+          ask: 'How do you finish?',
+          branches: [
+            { label: divideLabel(n), outcome: 'Every $\\tfrac{\\sin\\theta}{\\cos\\theta}$ becomes $\\tan\\theta$.' },
+            { label: SWAP_SIN, outcome: 'That leaves a fraction in $\\cos\\theta$.' },
+          ],
+        },
+      ],
+      answer: equateAnswer(params),
+    };
+  },
+  solution: ({ kind, n }) => {
+    const target = `\\${EQUATE_SUBJECT[kind]} ${n}\\theta`;
+    if (kind === 'tan') {
+      return [
+        { text: `$${target}$ is $\\sin ${n}\\theta$ over $\\cos ${n}\\theta$: the imaginary part of $(c + is)^{${n}}$ over the real part, with $c = \\cos\\theta$ and $s = \\sin\\theta$.` },
+        { text: `Every term top and bottom has total power $${n}$, so dividing both by $c^{${n}}$ turns each $\\tfrac{s}{c}$ into $\\tan\\theta$.` },
+      ];
+    }
+    const real = kind === 'cc' || kind === 'cs';
+    const steps: SolutionStep[] = [
+      { text: `By De Moivre, $${target}$ is the ${real ? 'real' : 'imaginary'} part of $(c + is)^{${n}}$, with $c = \\cos\\theta$ and $s = \\sin\\theta$.` },
+    ];
+    if (n <= 5) steps.push({ tex: stackedSum(target, binomialPart(n, real)) });
+    steps.push({
+      text: real
+        ? 'A real term has an even power of $i$, so an even power of $s$.'
+        : 'An imaginary term has an odd power of $i$, so an odd power of $s$.',
+    });
+    const finish: Record<Exclude<EquateKind, 'tan'>, string> = {
+      cc: 'Even powers of $s$ are powers of $s^2 = 1 - c^2$, which leaves only $c$.',
+      cs: `With $${n}$ even, the powers of $c$ are even too, and $c^2 = 1 - s^2$ leaves only $s$.`,
+      ss: `With $${n}$ odd, the powers of $c$ are even, and $c^2 = 1 - s^2$ leaves only $s$.`,
+      sc: 'Taking out one $s$ leaves even powers of $s$, and $s^2 = 1 - c^2$ turns those into $c$.',
+    };
+    steps.push({ text: finish[kind] });
+    return steps;
+  },
+};
+
+/* ---------- Powers in multiple angles: the identity as tiles ---------- */
+
+type PowerPattern = 'coeffs' | 'mults' | 'scale';
+interface PowerFormParams { a: number; b: number; pattern: PowerPattern; bank: string[] }
+
+/**
+ * The template and answer for one blanking of `scale · cos^a sin^b = …`.
+ *
+ * coeffs: every coefficient that is not a plain 1 is a blank.
+ * mults: every multiple of θ is a blank, the coefficients written in.
+ * scale: the number on the left is a blank, and so is the largest
+ * coefficient on the right, which is the one that goes wrong when the
+ * halving is forgotten.
+ */
+function powerSlots({ a, b, pattern }: Omit<PowerFormParams, 'bank'>): { template: string; answer: string[] } | undefined {
+  const pf = powerForm(a, b);
+  const values = pf.terms.map(({ k, coef }) => ({ k, v: (coef.n * pf.scale) / coef.d }));
+  const biggest = values.reduce((best, term, i) => (Math.abs(term.v) > Math.abs(values[best].v) ? i : best), 0);
+  const answer: string[] = [];
+  const blank = (token: string) => {
+    answer.push(token);
+    return `{${answer.length - 1}}`;
+  };
+  const lhs = pattern === 'scale' ? blank(`${pf.scale}`) : `${pf.scale}`;
+  const pieces = values.map(({ k, v }, i) => {
+    const sign = i === 0 ? (v < 0 ? '-' : '') : v < 0 ? ' - ' : ' + ';
+    const size = Math.abs(v);
+    const plain = k > 0 && size === 1 ? '' : `${size}`;
+    const blankSize = pattern === 'coeffs' ? plain !== '' : pattern === 'scale' && i === biggest && size > 1;
+    const coef = blankSize ? blank(`${size}`) : plain;
+    const trig = k === 0 ? '' : pattern === 'mults' ? `\\${pf.fn} ${blank(thetaTile(k))}` : multTex(pf.fn, k);
+    return `${sign}${coef}${trig}`;
+  });
+  if (answer.length === 0) return undefined;
+  return { template: `${lhs}${powTex(a, b)} = ${pieces.join('')}`, answer };
+}
+
+/** Every (a, b, pattern) a difficulty draws from: pure powers at 1, mixed products at 2. */
+function powerFormCases(difficulty: number): Omit<PowerFormParams, 'bank'>[] {
+  const pairs = difficulty < 2 ? powerPairs(2, 6, false) : powerPairs(2, 6, true);
+  return pairs.flatMap(([a, b]) =>
+    (['coeffs', 'mults', 'scale'] as PowerPattern[])
+      .map((pattern) => ({ a, b, pattern }))
+      .filter((params) => powerSlots(params) !== undefined),
+  );
+}
+
+/**
+ * cos^n θ, sin^n θ and their products in multiple angles, as tiles. Three
+ * blankings: the coefficients, the multiples, or the number the power is
+ * scaled by. The bank holds the unhalved coefficients from the expansion
+ * of (z ± z^{-1})^n, which is where the usual slip lands. Difficulty 1 is a
+ * single power; difficulty 2 a product of both.
+ */
+export const trigidPowerForm: Generator<PowerFormParams> = {
+  id: 'trigid-power-form',
+  sample: (rng, difficulty) => {
+    const params = rng.pick(powerFormCases(difficulty));
+    const { answer } = powerSlots(params)!;
+    const pf = powerForm(params.a, params.b);
+    const n = params.a + params.b;
+    const raw = [...pf.poly.values()].map((c) => Math.abs(c));
+    const distractors =
+      params.pattern === 'mults'
+        ? [n + 1, n - 1, 2 * n, n + 2, 1].filter((k) => k >= 1).map(thetaTile)
+        : [...raw, pf.scale / 2, pf.scale * 2, 2 ** n, n, 2 * n].filter((x) => Number.isInteger(x) && x > 0).map(String);
+    return { ...params, bank: sortedBank(answer, distractors, 3, params.pattern === 'mults' ? leadingNumber : Number) };
+  },
+  render: (params) => {
+    const { template, answer } = powerSlots(params)!;
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Write $${powTex(params.a, params.b)}$ in multiple angles of $\\theta$.` }],
+      template,
+      bank: params.bank,
+      answer,
+    };
+  },
+  solution: ({ a, b }) => anglePowerWorking(a, b),
+};
+
+/* ---------- One coefficient of a power in multiple angles ---------- */
+
+interface PowerCoeffParams { a: number; b: number; pick: number }
+
+const COEFF_LETTERS = ['a', 'b', 'c', 'd'];
+
+/** The form with a letter for every coefficient, stacked to fit a phone. */
+function lettersTex(a: number, b: number): string {
+  const pf = powerForm(a, b);
+  return stackedSum(
+    powTex(a, b),
+    pf.terms.map(({ k }, i) => (k === 0 ? COEFF_LETTERS[i] : `${COEFF_LETTERS[i]}${multTex(pf.fn, k)}`)),
+  );
+}
+
+/**
+ * A single coefficient of cos^a θ sin^b θ in multiple angles, typed. A value
+ * rather than a form, so the checker grades it fairly, and the distractors of
+ * its choice form are the halving and doubling slips. Difficulty 1 is a
+ * single power; difficulty 2 a product of both.
+ */
+export const trigidPowerCoefficient: Generator<PowerCoeffParams> = {
+  id: 'trigid-power-coefficient',
+  choices: ({ a, b, pick }) => {
+    const pf = powerForm(a, b);
+    const coef = pf.terms[pick].coef;
+    const opt = (r: Rat) => ({ tex: ratTex(r), answer: ratAnswer(r) });
+    return steered(
+      options(opt(coef), opt(ratMul(coef, rat(2))), opt(ratMul(coef, rat(1, 2))), opt(ratMul(coef, rat(pf.scale))), opt(ratMul(coef, rat(-1)))).slice(0, 4),
+      mix(a, b, pick),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(difficulty < 2 ? powerPairs(2, 6, false) : powerPairs(2, 6, true));
+    return { a, b, pick: rng.int(0, powerForm(a, b).terms.length - 1) };
+  },
+  render: ({ a, b, pick }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Written in multiple angles of $\\theta$,` },
+      { kind: 'display', tex: lettersTex(a, b) },
+      { kind: 'prose', text: `Find $${COEFF_LETTERS[pick]}$.` },
+    ],
+    lead: `${COEFF_LETTERS[pick]} =`,
+    keypad: [{ insert: '/' }],
+    answer: ratAnswer(powerForm(a, b).terms[pick].coef),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ a, b, pick }) => {
+    const pf = powerForm(a, b);
+    const { coef } = pf.terms[pick];
+    const whole = (coef.n * pf.scale) / coef.d;
+    const divided = `${whole < 0 ? '-' : ''}\\tfrac{${Math.abs(whole)}}{${pf.scale}}`;
+    const reduces = divided !== ratTex(coef);
+    return [
+      ...anglePowerWorking(a, b),
+      {
+        text: `Divide by $${pf.scale}$ for $${powTex(a, b)}$ itself:`,
+        tex: reduces ? chainTex(COEFF_LETTERS[pick], divided, ratTex(coef)) : `${COEFF_LETTERS[pick]} = ${divided}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Cosines or sines, a constant, the top multiple ---------- */
+
+interface PowerFlowParams { a: number; b: number }
+
+/**
+ * What cos^a θ sin^b θ looks like in multiple angles, decided before any
+ * multiplying out: an even power of sine gives cosines and an odd one sines;
+ * a constant survives only when a z^0 term does; and the top multiple is
+ * a + b. Difficulty 2 reaches higher total powers.
+ */
+export const trigidPowerFlow: Generator<PowerFlowParams> = {
+  id: 'trigid-power-flow',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(difficulty < 2 ? powerPairs(2, 6, 'any') : powerPairs(4, 8, 'any'));
+    return { a, b };
+  },
+  render: ({ a, b }) => {
+    const n = a + b;
+    const pf = powerForm(a, b);
+    const tops = [...new Set([n - 1, n, 2 * n].filter((k) => k >= 1))].sort((x, y) => x - y);
+    const top = (id: string) => ({
+      id,
+      ask: 'What is the largest multiple of $\\theta$ in it?',
+      branches: tops.map((k) => ({ label: `$${thetaTile(k)}$`, outcome: `The highest power of $z$ is $z^{${k}}$.` })),
+    });
+    const constant = pf.poly.has(0);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Picture it written with $z + z^{-1}$ and $z - z^{-1}$, then multiplied out. Work down the questions.' }],
+      subject: powTex(a, b),
+      steps: [
+        {
+          id: 'kind',
+          ask: 'In multiple angles, is it a sum of cosines or of sines?',
+          branches: [
+            { label: 'Cosines', to: 'constant' },
+            { label: 'Sines', to: 'topSin' },
+          ],
+        },
+        {
+          id: 'constant',
+          ask: 'Does it have a constant term?',
+          branches: [
+            { label: 'Yes', to: 'topCos' },
+            { label: 'No', to: 'topCos' },
+          ],
+        },
+        top('topCos'),
+        top('topSin'),
+      ],
+      answer: pf.fn === 'cos' ? ['Cosines', constant ? 'Yes' : 'No', `$${thetaTile(n)}$`] : ['Sines', `$${thetaTile(n)}$`],
+    };
+  },
+  solution: ({ a, b }) => {
+    const n = a + b;
+    const pf = powerForm(a, b);
+    const steps: SolutionStep[] = [
+      { text: `$${powTex(a, b)}$ is $${zBracketsTex(a, b)}$ divided by $${powerLeadTex(a, b)}$.` },
+      {
+        text: pf.fn === 'cos'
+          ? b === 0
+            ? 'There is no $\\sin\\theta$, so no $i$ appears and the powers of $z$ pair into cosines.'
+            : 'The power of $\\sin\\theta$ is even, so the $i$s multiply to a real number and the powers of $z$ pair into cosines.'
+          : 'The power of $\\sin\\theta$ is odd, so one $i$ is left over and the powers of $z$ pair into sines.',
+      },
+    ];
+    if (pf.fn === 'cos') {
+      steps.push({
+        text: pf.poly.has(0)
+          ? `Every power of $z$ is even, since the total power $${n}$ is, so a $z^0$ term survives: a constant.`
+          : `Every power of $z$ is odd, since the total power $${n}$ is, so nothing is left as a constant.`,
+      });
+    }
+    steps.push({ text: `The highest power of $z$ is $z^{${n}}$, so the largest multiple is $${thetaTile(n)}$.` });
+    return steps;
+  },
+};
+
+/* ---------- The average height is the constant term ---------- */
+
+interface PowerMeanParams { a: number; b: number; m: number }
+
+/**
+ * The bases a slider draws from, each with how many multiples it allows.
+ * The multiplier keeps the average whole: 2cos²θ, 8cos⁴θ, 16cos⁶θ.
+ */
+const MEAN_BASES: Record<'easy' | 'hard', [number, number, number][]> = {
+  easy: [[2, 0, 7], [0, 2, 7], [4, 0, 2], [0, 4, 2], [3, 0, 3], [0, 3, 3], [1, 1, 3], [2, 2, 3]],
+  hard: [[4, 0, 2], [0, 4, 2], [2, 2, 4], [6, 0, 2], [0, 6, 2], [4, 2, 4], [2, 4, 4], [3, 1, 2], [1, 3, 2], [2, 1, 2], [5, 0, 1]],
+};
+
+/** The multiplier k, the constant term of k·cos^a sin^b (its average), and the curve. */
+function meanParts({ a, b, m }: PowerMeanParams) {
+  const pf = powerForm(a, b);
+  const constant = pf.terms.find((term) => term.k === 0)?.coef ?? rat(0);
+  const k = (constant.n === 0 ? pf.scale : constant.d) * m;
+  const f = (t: number) => k * Math.cos(t) ** a * Math.sin(t) ** b;
+  let lo = 0;
+  let hi = 0;
+  for (let i = 0; i <= 400; i += 1) {
+    const y = f((2 * Math.PI * i) / 400);
+    lo = Math.min(lo, y);
+    hi = Math.max(hi, y);
+  }
+  return { pf, k, mean: (constant.n * k) / constant.d, f, min: Math.floor(lo + 1e-9), max: Math.ceil(hi - 1e-9) };
+}
+
+/**
+ * Slide a line to the average height of y = k cos^a θ sin^b θ over a whole
+ * turn. Every cosine and sine term averages to nothing, so the average is the
+ * constant term of the multiple-angle form, and zero when there is none. The
+ * graph shows the shape; the identity gives the number. Difficulty 2 is
+ * higher powers and products of both.
+ */
+export const trigidPowerMean: Generator<PowerMeanParams> = {
+  id: 'trigid-power-mean',
+  sample: (rng, difficulty) => {
+    const [a, b, most] = rng.pick(MEAN_BASES[difficulty < 2 ? 'easy' : 'hard']);
+    return { a, b, m: rng.int(1, most) };
+  },
+  render: (params) => {
+    const { k, mean, f, min, max } = meanParts(params);
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 2 * Math.PI,
+      curves: [{ f }],
+      yMin: min,
+      yMax: max,
+      label: 'One whole turn of the curve',
+    });
+    return {
+      kind: 'slider',
+      prompt: [{ kind: 'prose', text: `Slide to the average height of $y = ${timesTex(k)}${powTex(params.a, params.b)}$ over a whole turn.` }],
+      min,
+      max,
+      step: 1,
+      answer: mean,
+      readout: '\\bar{y} = {v}',
+      figure: { svg, ...markerWindow(min, max, 'y'), axis: 'y' },
+    };
+  },
+  solution: (params) => {
+    const { a, b } = params;
+    const { pf, k, mean } = meanParts(params);
+    const lhs = `${timesTex(k)}${powTex(a, b)}`;
+    return [
+      { text: 'In multiple angles:', tex: stackedSum(lhs, pf.terms.map((term) => angleTermTex(pf.fn, term, rat(k)))) },
+      {
+        text: mean === 0
+          ? 'Every term is a cosine or sine of a multiple of $\\theta$, and each of those averages to zero over a whole turn. There is no constant term, so the average is 0.'
+          : 'Each cosine term averages to zero over a whole turn, so the average is the constant term.',
+      },
+      { tex: `\\bar{y} = ${mean}` },
+    ];
+  },
+};
+
+/* ---------- A cubic that is cos 3θ in disguise ---------- */
+
+type CubicKind = 'cos3' | 'sin3' | 'cos3moved' | 'cos4';
+interface CubicSubParams { kind: CubicKind; k: number; c: number }
+
+const CUBIC_TARGET: Record<CubicKind, string> = {
+  cos3: '\\cos 3\\theta',
+  cos3moved: '\\cos 3\\theta',
+  sin3: '\\sin 3\\theta',
+  cos4: '\\cos 4\\theta',
+};
+
+/** + c or - c at the end of a side, nothing for 0. */
+const tailTex = (c: number): string => (c === 0 ? '' : c > 0 ? ` + ${c}` : ` - ${-c}`);
+
+function cubicTex({ kind, k, c }: CubicSubParams): string {
+  if (kind === 'cos3') return `${4 * k}x^3 - ${timesTex(3 * k)}x = ${c}`;
+  if (kind === 'sin3') return `${timesTex(3 * k)}x - ${4 * k}x^3 = ${c}`;
+  if (kind === 'cos3moved') return `${4 * k}x^3 = ${timesTex(3 * k)}x${tailTex(c)}`;
+  return `${8 * k}x^4 - ${8 * k}x^2 + ${k} = ${c}`;
+}
+
+/** The identity the left side is k times, in θ. */
+const CUBIC_IDENTITY: Record<CubicKind, string> = {
+  cos3: '4\\cos^3\\theta - 3\\cos\\theta = \\cos 3\\theta',
+  cos3moved: '4\\cos^3\\theta - 3\\cos\\theta = \\cos 3\\theta',
+  sin3: '3\\sin\\theta - 4\\sin^3\\theta = \\sin 3\\theta',
+  cos4: stackedSum('\\cos 4\\theta', ['8\\cos^4\\theta', '-8\\cos^2\\theta', '1']),
+};
+
+/**
+ * Substitute x = cos θ (or sin θ) into a polynomial equation whose left side
+ * is a multiple of an identity, and say what the multiple angle equals. A
+ * value, so typed. Difficulty 2 moves a term across first, and adds the
+ * quartic that is cos 4θ.
+ */
+export const trigidCubicSubstitute: Generator<CubicSubParams> = {
+  id: 'trigid-cubic-substitute',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<CubicKind>(difficulty < 2 ? ['cos3', 'sin3'] : ['cos3moved', 'sin3', 'cos4']);
+    const k = rng.int(1, difficulty < 2 ? 4 : 5);
+    return { kind, k, c: rng.int(-k, k) };
+  },
+  render: (params) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Substitute $x = ${params.kind === 'sin3' ? '\\sin' : '\\cos'}\\theta$ into this equation.` },
+      { kind: 'display', tex: cubicTex(params) },
+    ],
+    lead: `${CUBIC_TARGET[params.kind]} =`,
+    keypad: [{ insert: '/' }],
+    answer: ratAnswer(rat(params.c, params.k)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { kind, k, c } = params;
+    const steps: SolutionStep[] = [];
+    if (kind === 'cos3moved') {
+      steps.push({ text: 'Bring the $x$ term across first:', tex: `${4 * k}x^3 - ${timesTex(3 * k)}x = ${c}` });
+    }
+    steps.push(
+      { text: `With $x = ${kind === 'sin3' ? '\\sin' : '\\cos'}\\theta$ the left side is ${k === 1 ? 'exactly' : `$${k}$ times`} a known identity:`, tex: CUBIC_IDENTITY[kind] },
+      { text: k === 1 ? 'So' : `So $${k}${CUBIC_TARGET[kind]} = ${c}$, and`, tex: `${CUBIC_TARGET[kind]} = ${ratTex(rat(c, k))}` },
+    );
+    return steps;
+  },
+};
+
+/* ---------- The three roots of the cubic ---------- */
+
+interface CubicRootsParams { fn: TrigFn; row: number; k: number; bank: string[] }
+
+/** Table values v, with arccos v and arcsin v as fractions of π. */
+const ROOT_ROWS: { cos: [number, number]; sin: [number, number] }[] = [
+  { cos: [1, 3], sin: [1, 6] }, // 1/2
+  { cos: [2, 3], sin: [-1, 6] }, // -1/2
+  { cos: [1, 4], sin: [1, 4] }, // √2/2
+  { cos: [3, 4], sin: [-1, 4] }, // -√2/2
+  { cos: [1, 6], sin: [1, 3] }, // √3/2
+  { cos: [5, 6], sin: [-1, 3] }, // -√3/2
+  { cos: [1, 2], sin: [0, 1] }, // 0
+];
+
+/**
+ * The right side v, the three values 3θ takes in range, and the three θ.
+ *
+ * cos 3θ = v with 0 ≤ θ ≤ π: 3θ = α, 2π - α, 2π + α. sin 3θ = v with
+ * -π/2 ≤ θ ≤ π/2: 3θ = β, π - β, -π - β. Each is held as a numerator over
+ * 3d, so dividing by 3 is exact.
+ */
+function cubicRoots({ fn, row }: { fn: TrigFn; row: number }) {
+  const [m, d] = ROOT_ROWS[row][fn];
+  const v = trigPart(fn, m, d);
+  const tripled = (fn === 'cos' ? [m, 2 * d - m, 2 * d + m] : [m, d - m, -d - m]).sort((x, y) => x - y);
+  return { v, m, d, tripled, roots: tripled.map((t) => angleTex(t, 3 * d)) };
+}
+
+/**
+ * The three roots of 4x³ - 3x = v (or 3x - 4x³ = v) as cosines (or sines)
+ * of angles, one tile each, in any order. The bank holds the angle before
+ * dividing by 3 and the angles a third of a turn off, which is where
+ * forgetting the other solutions of cos 3θ = v lands. Difficulty 2 is mostly
+ * the sine form, whose range runs below zero.
+ */
+export const trigidCubicRoots: Generator<CubicRootsParams> = {
+  id: 'trigid-cubic-roots',
+  sample: (rng, difficulty) => {
+    const fn: TrigFn = difficulty < 2 ? 'cos' : rng.chance(0.7) ? 'sin' : 'cos';
+    const row = rng.int(0, ROOT_ROWS.length - 1);
+    const { m, d, tripled, roots } = cubicRoots({ fn, row });
+    // Each candidate as a numerator over 3d, so the bank can be sorted by size.
+    const over = [3 * m, m + d, d - m, 2 * m, m + 4 * d, -m];
+    const sizes = new Map<string, number>([...tripled, ...over].map((t) => [angleTex(t, 3 * d), t]));
+    const candidates = over.map((t) => angleTex(t, 3 * d));
+    return { fn, row, k: rng.int(1, 4), bank: sortedBank(roots, candidates, 3, (tex) => sizes.get(tex) ?? 0) };
+  },
+  render: (params) => {
+    const { fn, k } = params;
+    const { v, roots } = cubicRoots(params);
+    const rhs = partTex(scalePart({ a: k, s: 1 }, v));
+    const range = fn === 'cos' ? '0 \\le \\theta \\le \\pi' : '-\\tfrac{\\pi}{2} \\le \\theta \\le \\tfrac{\\pi}{2}';
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `Solve by putting $x = \\${fn}\\theta$ with $${range}$.` },
+        { kind: 'display', tex: fn === 'cos' ? `${4 * k}x^3 - ${timesTex(3 * k)}x = ${rhs}` : `${timesTex(3 * k)}x - ${4 * k}x^3 = ${rhs}` },
+      ],
+      template: `x = \\${fn} {0} \\text{ or } \\${fn} {1} \\text{ or } \\${fn} {2}`,
+      bank: params.bank,
+      answer: roots,
+      unordered: true,
+    };
+  },
+  solution: (params) => {
+    const { fn, k } = params;
+    const { v, d, tripled, roots } = cubicRoots(params);
+    const identity = fn === 'cos' ? '4\\cos^3\\theta - 3\\cos\\theta = \\cos 3\\theta' : '3\\sin\\theta - 4\\sin^3\\theta = \\sin 3\\theta';
+    const span = fn === 'cos' ? 'from $0$ to $3\\pi$' : 'from $-\\tfrac{3\\pi}{2}$ to $\\tfrac{3\\pi}{2}$';
+    return [
+      { text: `With $x = \\${fn}\\theta$, the left side is ${k === 1 ? '' : `$${k}$ times `}$${identity.split(' = ')[0]}$, which is $\\${fn} 3\\theta$. So`, tex: `\\${fn} 3\\theta = ${partTex(v)}` },
+      { text: `$3\\theta$ runs ${span}, and in that range it can be`, tex: `3\\theta = ${tripled.map((t) => angleTex(t, d)).join(',\\ ')}` },
+      { text: 'Divide each by 3. Each gives a different value, so these are the three roots:', tex: `\\theta = ${roots.join(',\\ ')}` },
+    ];
+  },
+};
+
+/* ---------- A definite integral of a power, term by term ---------- */
+
+interface IntegralTreeParams { a: number; b: number; u: number; bank: string[] }
+
+/** The upper limit π/u as the learner reads it in a limit. */
+const upperTex = (u: number): string => (u === 1 ? '\\pi' : `\\frac{\\pi}{${u}}`);
+
+/** ∫ from 0 to π/u of each whole-number term, their sum, and that sum over the scale. */
+function integralParts({ a, b, u }: { a: number; b: number; u: number }) {
+  const pf = powerForm(a, b);
+  const leaves = pf.terms.map(({ k, coef }) => {
+    const v = rat(coef.n * pf.scale, coef.d);
+    if (k === 0) return { ...EXACT_ZERO, pi: rat(v.n, u) };
+    if (pf.fn === 'cos') return exactScale(exactOfPart(trigPart('sin', k, u)), rat(v.n, k));
+    const cosAt = exactOfPart(trigPart('cos', k, u));
+    return exactScale(exactAdd({ ...EXACT_ZERO, r: rat(1) }, exactScale(cosAt, rat(-1))), rat(v.n, k));
+  });
+  const sum = leaves.reduce(exactAdd, EXACT_ZERO);
+  return { pf, leaves, sum, result: exactScale(sum, rat(1, pf.scale)) };
+}
+
+const INTEGRAL_BASES: Record<'easy' | 'hard', [number, number][]> = {
+  easy: [[2, 0], [0, 2], [3, 0], [0, 3], [4, 0], [0, 4], [2, 2]],
+  hard: [[4, 0], [0, 4], [5, 0], [0, 5], [2, 2], [2, 1], [1, 2], [3, 1], [1, 3]],
+};
+
+/**
+ * ∫₀^{π/u} cos^a θ sin^b θ dθ as a tree: each term of the whole-number
+ * multiple-angle form integrated, then added, then divided by the scale.
+ * The bank holds the answer's sign flipped and doubled and halved, which is
+ * where a lost minus or a forgotten divide lands. Difficulty 2 has more
+ * terms and limits of π/3 and π/6, whose values carry √3.
+ */
+export const trigidIntegralTree: Generator<IntegralTreeParams> = {
+  id: 'trigid-integral-tree',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(INTEGRAL_BASES[difficulty < 2 ? 'easy' : 'hard']);
+    const u = rng.pick(difficulty < 2 ? [1, 2, 3, 4] : [2, 3, 4, 6]);
+    const { leaves, sum, result } = integralParts({ a, b, u });
+    const answer = [...leaves, sum, result].map(exactTex);
+    const candidates = [
+      exactScale(result, rat(-1)),
+      exactScale(result, rat(2)),
+      exactScale(result, rat(1, 2)),
+      exactScale(sum, rat(-1)),
+      ...leaves.map((leaf) => exactScale(leaf, rat(-1))),
+      { ...EXACT_ZERO, pi: rat(1, u) },
+      { ...EXACT_ZERO, r: rat(1) },
+      { ...EXACT_ZERO, pi: rat(1, 2 * u) },
+    ].map(exactTex);
+    const extras: string[] = [];
+    for (const tex of candidates) {
+      if (extras.length < 3 && !answer.includes(tex) && !extras.includes(tex)) extras.push(tex);
+    }
+    return { a, b, u, bank: [...answer, ...extras].sort() };
+  },
+  render: (params) => {
+    const { a, b, u } = params;
+    const { pf, leaves, sum, result } = integralParts(params);
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'prose', text: `Top row: each term on the right integrated from $0$ to $${upperTex(u).replace('\\frac', '\\tfrac')}$. Then their sum, then divide by $${pf.scale}$.` },
+        { kind: 'display', tex: stackedSum(`${pf.scale}${powTex(a, b)}`, pf.terms.map((term) => angleTermTex(pf.fn, term, rat(pf.scale)))) },
+      ],
+      expression: `\\int_0^{${upperTex(u)}} ${powTex(a, b)}\\,d\\theta`,
+      nodes: [
+        ...leaves.map((_leaf, i) => ({ id: `t${i}`, from: [] })),
+        { id: 'sum', from: leaves.map((_leaf, i) => `t${i}`) },
+        { id: 'result', from: ['sum'] },
+      ],
+      bank: params.bank,
+      answer: [...leaves, sum, result].map(exactTex),
+    };
+  },
+  solution: (params) => {
+    const { a, b, u } = params;
+    const { pf, leaves, sum, result } = integralParts(params);
+    const upper = upperTex(u);
+    const rule = pf.fn === 'cos'
+      ? '$\\cos k\\theta$ integrates to $\\tfrac{1}{k}\\sin k\\theta$, and a constant $c$ to $c\\theta$.'
+      : '$\\sin k\\theta$ integrates to $-\\tfrac{1}{k}\\cos k\\theta$, so from $0$ it gives $\\tfrac{1}{k}(1 - \\cos k\\theta)$.';
+    return [
+      { text: 'In multiple angles:', tex: stackedSum(`${pf.scale}${powTex(a, b)}`, pf.terms.map((term) => angleTermTex(pf.fn, term, rat(pf.scale)))) },
+      { text: `Integrate each term from $0$ to $${upper.replace('\\frac', '\\tfrac')}$. ${rule}` },
+      ...pf.terms.map((term, i) => {
+        const integrand = angleTermTex(pf.fn, term, rat(pf.scale));
+        return { tex: `\\int_0^{${upper}} ${integrand.startsWith('-') ? `(${integrand})` : integrand}\\,d\\theta = ${exactTex(leaves[i])}` };
+      }),
+      { text: 'Add them:', tex: exactTex(sum) },
+      { text: `Divide by $${pf.scale}$:`, tex: `\\int_0^{${upper}} ${powTex(a, b)}\\,d\\theta = ${exactTex(result)}` },
+    ];
+  },
+};
+
+/* ---------- An indefinite integral of a power ---------- */
+
+interface AntiderivParams { a: number; b: number; k: number }
+
+const ANTIDERIVATIVE_KEYS: KeypadKey[] = [...CALCULUS_TRIG_KEYS, { insert: 'C' }];
+
+/** The antiderivative's terms: for mathjs, and as TeX in x. */
+function antiderivParts({ a, b, k }: AntiderivParams) {
+  const pf = powerForm(a, b);
+  const answers: string[] = [];
+  const texs: string[] = [];
+  for (const { k: mult, coef } of pf.terms) {
+    const c = ratMul(coef, rat(k));
+    if (mult === 0) {
+      answers.push(`(${ratAnswer(c)})*x`);
+      texs.push(scaledTex(c, 'x'));
+    } else if (pf.fn === 'cos') {
+      const r = ratMul(c, rat(1, mult));
+      answers.push(`(${ratAnswer(r)})*sin(${mult === 1 ? 'x' : `${mult}*x`})`);
+      texs.push(scaledTex(r, multTex('sin', mult, 'x')));
+    } else {
+      const r = ratMul(c, rat(-1, mult));
+      answers.push(`(${ratAnswer(r)})*cos(${mult === 1 ? 'x' : `${mult}*x`})`);
+      texs.push(scaledTex(r, multTex('cos', mult, 'x')));
+    }
+  }
+  return { pf, answer: answers.join(' + '), texs };
+}
+
+const ANTIDERIV_BASES: Record<'easy' | 'hard', [number, number][]> = {
+  easy: [[2, 0], [0, 2], [3, 0], [0, 3], [4, 0], [0, 4], [1, 1]],
+  hard: [[2, 2], [5, 0], [0, 5], [3, 1], [1, 3], [2, 1], [1, 2], [4, 2]],
+};
+
+/**
+ * ∫ k cos^a x sin^b x dx, typed: write it in multiple angles, then integrate
+ * term by term. The oracle differentiates the answer back to the integrand,
+ * so any correct antiderivative is accepted, including ones found another
+ * way. Difficulty 2 is products of both and fifth powers.
+ */
+export const trigidPowerAntiderivative: Generator<AntiderivParams> = {
+  id: 'trigid-power-antiderivative',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(ANTIDERIV_BASES[difficulty < 2 ? 'easy' : 'hard']);
+    const scale = powerForm(a, b).scale;
+    return { a, b, k: rng.pick([...new Set([1, 2, 3, scale, 2 * scale])]) };
+  },
+  render: (params) => {
+    const { a, b, k } = params;
+    const factor = (p: number, fn: string) => (p === 0 ? [] : [`${fn}(x)^${p}`]);
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: 'Write it in multiple angles of $x$ first, then integrate.' }],
+      lead: `\\int ${timesTex(k)}${powTex(a, b, 'x')}\\,dx =`,
+      keypad: ANTIDERIVATIVE_KEYS,
+      answer: antiderivParts(params).answer,
+      integrand: [`${k}`, ...factor(a, 'cos'), ...factor(b, 'sin')].join('*'),
+      domain: 'real',
+      mode: 'upToConstant',
+    };
+  },
+  solution: (params) => {
+    const { a, b, k } = params;
+    const { pf, texs } = antiderivParts(params);
+    return [
+      {
+        text: 'Multiple angles first:',
+        tex: stackedSum(`${timesTex(k)}${powTex(a, b, 'x')}`, pf.terms.map((term) => angleTermTex(pf.fn, term, rat(k), 'x'))),
+      },
+      {
+        text: pf.fn === 'cos'
+          ? 'Integrate term by term: $\\cos mx$ gives $\\tfrac{1}{m}\\sin mx$, and a constant $c$ gives $cx$.'
+          : 'Integrate term by term: $\\sin mx$ gives $-\\tfrac{1}{m}\\cos mx$.',
+      },
+      { tex: stackedSum(`\\int ${timesTex(k)}${powTex(a, b, 'x')}\\,dx`, [...texs, 'C']) },
+    ];
+  },
+};
+
+/* ---------- A trig series as a geometric series ---------- */
+
+interface GeometricParams { p: number; s: number; count: number; bank: string[] }
+
+/** e^{k iθ} as written: 1 for k = 0, e^{i\theta} for k = 1. */
+const eTex = (k: number): string => (k === 0 ? '1' : k === 1 ? 'e^{i\\theta}' : k === -1 ? 'e^{-i\\theta}' : `e^{${k}i\\theta}`);
+
+function geometricTex({ p, s, count }: Omit<GeometricParams, 'bank'>): string {
+  return `${eTex(p)} + ${eTex(p + s)} + \\dots + ${eTex(p + s * (count - 1))}`;
+}
+
+/**
+ * A run of powers of e^{iθ} is a geometric series: its first term, its
+ * ratio, and how many terms, as tiles. Counting the terms is where it goes
+ * wrong: the powers run from p to p + s(N - 1), not to N. Difficulty 2
+ * starts later, steps further and runs longer.
+ */
+export const trigidSeriesGeometric: Generator<GeometricParams> = {
+  id: 'trigid-series-geometric',
+  sample: (rng, difficulty) => {
+    const p = difficulty < 2 ? rng.int(0, 1) : rng.int(0, 3);
+    const s = difficulty < 2 ? rng.int(1, 2) : rng.int(1, 3);
+    const count = difficulty < 2 ? rng.int(4, 10) : rng.int(5, 12);
+    const last = p + s * (count - 1);
+    const answer = [eTex(p), eTex(s), `${count}`];
+    const distractors = [eTex(p + s), `${count - 1}`, `${last}`, `${count + 1}`, eTex(s + 1), eTex(0)];
+    return { p, s, count, bank: sortedBank(answer, distractors, 4) };
+  },
+  render: (params) => ({
+    kind: 'tiles',
+    prompt: [
+      { kind: 'prose', text: 'This is a geometric series. Fill in its first term $a$, its ratio $r$ and its number of terms $N$.' },
+      { kind: 'display', tex: geometricTex(params) },
+    ],
+    template: 'a = {0},\\quad r = {1},\\quad N = {2}',
+    bank: params.bank,
+    answer: [eTex(params.p), eTex(params.s), `${params.count}`],
+  }),
+  solution: ({ p, s, count }) => {
+    const last = p + s * (count - 1);
+    return [
+      { text: `The first term is $${eTex(p)}$.` },
+      { text: `The powers go up by $${s}i\\theta$ each time, so each term is the one before times $${eTex(s)}$.` },
+      {
+        text: `The powers of $e^{i\\theta}$ run from $${p}$ to $${last}$ in steps of $${s}$:`,
+        tex: `N = ${s === 1 ? `${last} - ${p} + 1` : `\\tfrac{${last} - ${p}}{${s}} + 1`} = ${count}`,
+      },
+      { text: 'So the sum is $\\dfrac{a(r^N - 1)}{r - 1}$.' },
+    ];
+  },
+};
+
+/* ---------- The half-angle trick ---------- */
+
+type HalfKind = 'minus' | 'plus' | 'oneMinus';
+interface HalfAngleParams { m: number; kind: HalfKind; bank: string[] }
+
+/** e^{mθi/2}, the factor taken out, with its sign. */
+function halfExpTex(m: number, sign = 1): string {
+  const minus = sign < 0 ? '-' : '';
+  if (m % 2 === 0) return eTex(sign * (m / 2));
+  return `e^{${minus}\\frac{${m === 1 ? '' : m}i\\theta}{2}}`;
+}
+
+/** cos or sin of mθ/2. */
+const halfTrigTex = (fn: TrigFn, m: number): string =>
+  m % 2 === 0 ? multTex(fn, m / 2) : `\\${fn}\\tfrac{${m === 1 ? '' : m}\\theta}{2}`;
+
+function halfLhs({ m, kind }: { m: number; kind: HalfKind }): string {
+  if (kind === 'minus') return `${eTex(m)} - 1`;
+  if (kind === 'plus') return `${eTex(m)} + 1`;
+  return `1 - ${eTex(m)}`;
+}
+
+/** The answer's three tiles: the factor, the number and the trig term. */
+function halfParts({ m, kind }: { m: number; kind: HalfKind }): string[] {
+  const coef = kind === 'minus' ? '2i' : kind === 'plus' ? '2' : '-2i';
+  return [halfExpTex(m), coef, halfTrigTex(kind === 'plus' ? 'cos' : 'sin', m)];
+}
+
+/**
+ * e^{imθ} ± 1 with half the angle taken out: e^{imθ/2} times 2i sin(mθ/2)
+ * or 2cos(mθ/2). It is the step that turns a geometric sum of exponentials
+ * into something real. The bank holds the factor not halved, the trig term
+ * at the full angle, and the other coefficient. Difficulty 2 adds 1 - e^{imθ}
+ * and larger multiples.
+ */
+export const trigidSeriesHalfAngle: Generator<HalfAngleParams> = {
+  id: 'trigid-series-half-angle',
+  sample: (rng, difficulty) => {
+    const kinds: HalfKind[] = difficulty < 2 ? ['minus', 'plus'] : ['minus', 'plus', 'oneMinus'];
+    const m = rng.int(1, difficulty < 2 ? 13 : 15);
+    const kind = rng.pick(kinds);
+    const answer = halfParts({ m, kind });
+    const fn: TrigFn = kind === 'plus' ? 'cos' : 'sin';
+    const distractors = [eTex(m), multTex(fn, m), kind === 'plus' ? '2i' : '2', halfTrigTex(fn === 'cos' ? 'sin' : 'cos', m), kind === 'oneMinus' ? '2i' : '-2i'];
+    return { m, kind, bank: sortedBank(answer, distractors, 4) };
+  },
+  render: (params) => ({
+    kind: 'tiles',
+    prompt: [{ kind: 'prose', text: 'Take out half the angle. Fill in the factor, the number and the trig term.' }],
+    template: `${halfLhs(params)} = {0}\\,({1}{2})`,
+    bank: params.bank,
+    answer: halfParts(params),
+  }),
+  solution: ({ m, kind }) => {
+    const [factor, coef, trig] = halfParts({ m, kind });
+    const up = halfExpTex(m);
+    const down = halfExpTex(m, -1);
+    const inner = kind === 'plus' ? `${up} + ${down}` : kind === 'minus' ? `${up} - ${down}` : `${down} - ${up}`;
+    const why =
+      kind === 'plus'
+        ? 'The bracket is a power plus its reciprocal, which is twice a cosine, just as $z + z^{-1} = 2\\cos\\theta$.'
+        : kind === 'minus'
+          ? 'The bracket is a power minus its reciprocal, which is $2i$ times a sine, just as $z - z^{-1} = 2i\\sin\\theta$.'
+          : 'The bracket is the reciprocal minus the power, which is $-2i$ times a sine.';
+    return [
+      { text: `Take out $${factor}$, half of $${eTex(m)}$:`, tex: `${halfLhs({ m, kind })} = ${factor}(${inner})` },
+      { text: why, tex: `${halfLhs({ m, kind })} = ${factor}\\,(${coef}${trig})` },
+    ];
+  },
+};
+
+/* ---------- The value of a trig series ---------- */
+
+interface SeriesValueParams { fn: TrigFn; q: number; e: number; n: number }
+
+/** θ = qπ/e: angles whose half, and every multiple of whose half, is a table angle. */
+const SERIES_ANGLES: [number, number][] = [[1, 2], [1, 3], [2, 3], [1, 1]];
+
+/** Σ_{k=1}^{n} cos kθ (or sin kθ), added up term by term, exactly. */
+function seriesSum({ fn, q, e, n }: SeriesValueParams): ExactValue {
+  let total = EXACT_ZERO;
+  for (let k = 1; k <= n; k += 1) total = exactAdd(total, exactOfPart(trigPart(fn, k * q, e)));
+  return total;
+}
+
+/**
+ * Σ cos kθ or Σ sin kθ from k = 1 to n at an angle whose half is a table
+ * angle, so the closed form sin(nθ/2) cos((n+1)θ/2) / sin(θ/2) evaluates
+ * exactly. A value, so typed. The answer is added up term by term and the
+ * worked solution goes through the closed form, which is what makes a test
+ * that the two agree worth having. Difficulty 2 runs longer.
+ */
+export const trigidSeriesValue: Generator<SeriesValueParams> = {
+  id: 'trigid-series-value',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const [q, e] = rng.pick(difficulty < 2 ? SERIES_ANGLES : SERIES_ANGLES.slice(0, 3));
+      const fn = rng.pick<TrigFn>(['cos', 'sin']);
+      if (fn === 'sin' && e === 1) continue;
+      return { fn, q, e, n: difficulty < 2 ? rng.int(3, 8) : rng.int(7, 15) };
+    }
+  },
+  render: (params) => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Find the exact value of this sum.' }],
+    lead: `\\sum_{k=1}^{${params.n}} \\${params.fn} ${kAngleTex(params.q, params.e)} =`,
+    keypad: [{ insert: '/' }, { insert: 'sqrt(', label: '√(' }],
+    answer: exactAnswer(seriesSum(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { fn, q, e, n } = params;
+    const half = (k: number) => angleTex(k * q, 2 * e);
+    const top = trigPart('sin', n * q, 2 * e);
+    const middle = trigPart(fn, (n + 1) * q, 2 * e);
+    const bottom = trigPart('sin', q, 2 * e);
+    return [
+      {
+        text: `The sum is the ${fn === 'cos' ? 'real' : 'imaginary'} part of a geometric series of powers of $e^{i\\theta}$, with $\\theta = ${angleTex(q, e)}$. Taking out half angles top and bottom gives`,
+        tex: `\\dfrac{\\sin\\frac{n\\theta}{2}\\${fn}\\frac{(n + 1)\\theta}{2}}{\\sin\\frac{\\theta}{2}}`,
+      },
+      {
+        text: `With $n = ${n}$, the angles are $${half(n)}$, $${half(n + 1)}$ and $${half(1)}$:`,
+        tex: `\\dfrac{${paren(partTex(top))} \\times ${paren(partTex(middle))}}{${partTex(bottom)}}`,
+      },
+      { tex: `= ${exactTex(seriesSum(params))}` },
+    ];
+  },
+};
+
+/* ---------- Powers of a root of unity add to nothing ---------- */
+
+interface RootsSumParams { fn: TrigFn; n: number; p: number; from: 0 | 1 }
+
+/** The angle per step, 2pπ/n, in lowest terms. */
+function rootStep({ n, p }: { n: number; p: number }): [number, number] {
+  const g = gcd(2 * p, n);
+  return [(2 * p) / g, n / g];
+}
+
+function rootsSum({ fn, n, p, from }: RootsSumParams): number {
+  if (fn === 'sin') return 0;
+  return p % n === 0 ? n - from : -from;
+}
+
+/**
+ * Σ cos(2pkπ/n) over k = 0 (or 1) to n - 1: the real part of the powers of
+ * ω = e^{2pπi/n}, which add to (ω^n - 1)/(ω - 1) = 0 unless ω = 1. Four
+ * options, the usual answers to a different question among them. Difficulty
+ * 2 steps round the circle more than once per term, sometimes a whole
+ * number of times.
+ */
+export const trigidSeriesRoots: Generator<RootsSumParams> = {
+  id: 'trigid-series-roots',
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(3, 12) : rng.int(5, 12);
+    const fn: TrigFn = rng.chance(difficulty < 2 ? 0.25 : 0.2) ? 'sin' : 'cos';
+    const from: 0 | 1 = rng.chance(0.5) ? 1 : 0;
+    if (difficulty < 2) return { fn, n, p: 1, from };
+    const p = rng.chance(0.3) ? n * rng.int(1, 2) : rng.int(2, 2 * n - 1);
+    return { fn, n, p, from };
+  },
+  render: (params) => {
+    const { fn, n, from } = params;
+    const [q, e] = rootStep(params);
+    const value = rootsSum(params);
+    const candidates = [value, 0, -1, 1, n, n - 1];
+    const kept = [...new Set(candidates)].slice(0, 4);
+    return choiceSlide(
+      [
+        { kind: 'prose', text: 'Find the value of this sum.' },
+        { kind: 'display', tex: `\\sum_{k=${from}}^{${n - 1}} \\${fn} ${kAngleTex(q, e)}` },
+      ],
+      kept.map((x) => ({ tex: `${x}`, ...(x === value && { correct: true }) })),
+      mix(n, params.p, from, fn === 'cos' ? 1 : 0),
+    );
+  },
+  solution: (params) => {
+    const { fn, n, p, from } = params;
+    const [q, e] = rootStep(params);
+    const part = fn === 'cos' ? 'real' : 'imaginary';
+    if (p % n === 0) {
+      return [
+        { text: `Each angle $${kAngleTex(q, e)}$ is a whole number of turns, so every ${fn === 'cos' ? 'cosine is 1' : 'sine is 0'}.` },
+        { tex: `\\text{sum} = ${rootsSum(params)}` },
+      ];
+    }
+    const steps: SolutionStep[] = [
+      { text: `Each term is the ${part} part of $\\omega^k$ with $\\omega = e^{${expoTex({ m: q, d: e })}}$, and $\\omega^{${n}} = 1$ while $\\omega \\ne 1$.` },
+      { text: `So the powers from $k = 0$ to $${n - 1}$ add to`, tex: `\\frac{\\omega^{${n}} - 1}{\\omega - 1} = 0` },
+    ];
+    if (from === 1) {
+      steps.push({
+        text: fn === 'cos' ? 'This sum leaves out the $k = 0$ term, $\\cos 0 = 1$, so it is $0 - 1$.' : 'This sum leaves out the $k = 0$ term, $\\sin 0 = 0$, which changes nothing.',
+        tex: `\\text{sum} = ${rootsSum(params)}`,
+      });
+    } else {
+      steps.push({ text: `Its ${part} part is the sum.`, tex: `\\text{sum} = ${rootsSum(params)}` });
+    }
+    return steps;
+  },
+};
+
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
@@ -5965,4 +8000,24 @@ export const planeGenerators = [
   expformMatchPoint,
   expformSum,
   expformCartesianPower,
+  trigidZnForm,
+  trigidZnValue,
+  trigidZnPlot,
+  trigidProductSum,
+  trigidBinomialTerm,
+  trigidMultipleForm,
+  trigidMultipleValue,
+  trigidEquateFlow,
+  trigidPowerForm,
+  trigidPowerCoefficient,
+  trigidPowerFlow,
+  trigidPowerMean,
+  trigidCubicSubstitute,
+  trigidCubicRoots,
+  trigidIntegralTree,
+  trigidPowerAntiderivative,
+  trigidSeriesGeometric,
+  trigidSeriesHalfAngle,
+  trigidSeriesValue,
+  trigidSeriesRoots,
 ];

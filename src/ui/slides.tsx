@@ -33,6 +33,8 @@ import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
+import { IterateSlide } from './iterateSlide';
+import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
 import { NumberLineSlide } from './numberLineSlide';
 import { draftHasShading } from '../content/numberLine';
@@ -546,6 +548,8 @@ export function SlideView(props: SlideProps) {
       return <StepsSlide {...props} />;
     case 'tree':
       return <TreeSlide {...props} />;
+    case 'iterate':
+      return <IterateSlide {...props} />;
     case 'slider':
       return <SliderSlide {...props} />;
     case 'flow':
@@ -554,6 +558,8 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'order':
+      return <OrderSlide {...props} />;
     case 'numberLine':
       return <NumberLineSlide {...props} />;
   }
@@ -563,8 +569,16 @@ export function SlideView(props: SlideProps) {
 export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
+  if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
-  if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') return [];
+  if (
+    slide.kind === 'steps' ||
+    slide.kind === 'flow' ||
+    slide.kind === 'reduce' ||
+    slide.kind === 'order'
+  ) {
+    return [];
+  }
   // A slider too, although its handle is drawn somewhere: where it rests is
   // not something the learner chose, and it can be the answer.
   return '';
@@ -574,9 +588,17 @@ export function initialAnswer(slide: Slide): Answer {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles' || slide.kind === 'tree') {
-    const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
+  if (slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate') {
+    const expected = slide.kind === 'tree' ? slide.nodes.length : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
+  }
+  // A proof is answerable once every slot holds a step.
+  if (slide.kind === 'order') {
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.answer.length &&
+      answer.every((t) => t !== '')
+    );
   }
   // A line with dots on it but nothing shaded is not a set yet, and the
   // untouched line is not an answer at all.

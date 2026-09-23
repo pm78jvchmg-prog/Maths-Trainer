@@ -11,7 +11,9 @@
  * says whether they cross, touch or miss before anything is solved. Level 5
  * asks where a quadratic is positive or negative: the roots split the line,
  * and which way up the curve is says whether the answer is the piece between
- * them or the two pieces outside.
+ * them or the two pieces outside. Level 6 puts all of it to work in a
+ * situation: a ball in flight, a fenced pen, a stall's profit, an arch. The
+ * maths is the same; what is new is saying what each number means.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -19,6 +21,7 @@
 import type { Block, Course, SlideRef } from '../types';
 import { parabolaSvg, plotSvg, quadratic } from '../figures';
 import { signFigure } from '../generators/quadraticInequalities';
+import { flightFigure } from '../generators/quadraticModelling';
 
 type TeachBlock = Block;
 
@@ -110,6 +113,30 @@ const signGraph = (
   q: number,
   opts: Parameters<typeof signFigure>[1],
 ): Block => ({ kind: 'diagram', svg: signFigure({ a, p, q }, opts) });
+
+/**
+ * The area of a pen, $A = x\left(n - x\right)$, for level 6: drawn only from
+ * $x = 0$ to $x = n$, where the model has a pen to describe.
+ */
+const areaGraph = (n: number, marks: { x: number; y: number }[], label: string): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: 0,
+    xMax: n + 1,
+    yMin: -(n * n) / 32,
+    yMax: (n * n) / 4 * 1.2,
+    curves: [{ f: (x: number) => (x <= n ? x * (n - x) : NaN), breaks: true }],
+    verticals: [{ x: 0, dashed: false }],
+    marks,
+    label,
+  }),
+});
+
+/** A flight for level 6, from the throw to the landing. */
+const flightGraph = (h0: number, v: number, opts: Parameters<typeof flightFigure>[2]): Block => ({
+  kind: 'diagram',
+  svg: flightFigure(h0, v, opts),
+});
 
 export const quadratics: Course = {
   id: 'quadratics',
@@ -1448,6 +1475,261 @@ export const quadratics: Course = {
         ask('quad-ineq-param-range', 2),
         ask('quad-ineq-param-disc', 2),
         ask('quad-ineq-param-critical', 2),
+      ],
+    },
+    {
+      id: 'qd-l6',
+      title: 'Modelling with Quadratics',
+      lessons: [
+        {
+          id: 'qd-l6-build',
+          title: 'Building a Model',
+          slides: [
+            teach(
+              prose(
+                'A ball thrown straight up from the ground at 20 m/s climbs $20t$ metres in $t$ seconds, while gravity pulls it back by $\\frac{1}{2}gt^{2}$. With $g = 10$ that is $5t^{2}$:',
+              ),
+              maths('h = 20t - 5t^{2}'),
+              flightGraph(0, 20, { label: 'The height of the ball against time, rising and falling back to the ground' }),
+              prose(
+                'Thrown from a balcony 25 m up instead, every height is 25 m more: $h = 25 + 20t - 5t^{2}$. The constant is where it starts.',
+              ),
+            ),
+            ask('quad-model-launch-tiles'),
+            ask('quad-model-evaluate'),
+            ask('quad-model-meaning'),
+            teach(
+              prose(
+                'Models come from shapes too. A rectangle with a perimeter of 20 m and one side $x$ m has two sides of $x$, so the other two share $20 - 2x$ and each is $10 - x$:',
+              ),
+              maths('A = x(10 - x)'),
+              areaGraph(10, [], 'The area of the pen against the side length, a hill from 0 to 10'),
+              prose('Any correct way of writing it is the same model: $10x - x^{2}$ is just as right.'),
+            ),
+            ask('quad-model-area'),
+            ask('quad-model-evaluate+choice'),
+            ask('quad-model-meaning'),
+            teach(
+              prose(
+                'A model only means something where the situation does. The pen needs both sides to be positive, so $0 < x < 10$.',
+              ),
+              prose(
+                'The ball only counts from the throw, $t \\ge 0$, until it lands. Outside those limits the algebra still gives numbers, but they describe nothing.',
+              ),
+            ),
+            ask('quad-model-launch-tiles', 2),
+            ask('quad-model-area+choice', 2),
+          ],
+          skillCheck: [
+            ask('quad-model-launch-tiles', 2),
+            ask('quad-model-area', 2),
+            ask('quad-model-evaluate', 2),
+          ],
+        },
+        {
+          id: 'qd-l6-graph',
+          title: "Reading a Model's Graph",
+          slides: [
+            teach(
+              prose(
+                'The graph of $h = 25 + 20t - 5t^{2}$ starts at $t = 0$, since nothing happens before the throw, and stops when the ball lands.',
+              ),
+              flightGraph(25, 20, {
+                marks: [
+                  { x: 0, y: 25 },
+                  { x: 2, y: 45 },
+                  { x: 5, y: 0 },
+                ],
+                label: 'The height against time, with the start, the top and the landing ringed',
+              }),
+              prose(
+                'Three points tell the story. Where it meets the $h$-axis is the start, 25 m. The top is the greatest height. Where it comes back to the $t$-axis is the landing.',
+              ),
+            ),
+            ask('quad-model-feature'),
+            ask('quad-model-land'),
+            ask('quad-model-land-slider'),
+            teach(
+              prose('The landing is where $h = 0$. Divide by $-5$ and factorise:'),
+              maths('t^{2} - 4t - 5 = 0'),
+              maths('(t - 5)(t + 1) = 0'),
+              prose(
+                '$t = -1$ is before the throw, so it is thrown away: the ball lands after 5 seconds.',
+              ),
+              prose(
+                'A parabola is symmetrical, so the top is halfway between the two roots, at $t = 2$, even though half the curve is off the picture. There $h = 25 + 40 - 20 = 45$.',
+              ),
+            ),
+            ask('quad-model-peak-tree'),
+            ask('quad-model-land+choice'),
+            ask('quad-model-land-slider', 2),
+            teach(
+              prose(
+                'The same reading works for any model. A stall making $P$ pounds profit at a price of $x$ pounds, with',
+              ),
+              maths('P = -x^{2} + 12x - 20'),
+              prose(
+                'breaks even where the curve meets the $x$-axis, at $x = 2$ and $x = 10$. Its best price is halfway, $x = 6$, and the loss at $x = 0$ is its fixed costs, 20 pounds.',
+              ),
+            ),
+            ask('quad-model-feature', 2),
+            ask('quad-model-peak-tree', 2),
+          ],
+          skillCheck: [
+            ask('quad-model-land', 2),
+            ask('quad-model-land-slider', 2),
+            ask('quad-model-peak-tree', 2),
+          ],
+        },
+        {
+          id: 'qd-l6-max',
+          title: 'Greatest and Least Values',
+          slides: [
+            teach(
+              prose(
+                'The pen $A = x(10 - x)$ has no area at $x = 0$ or $x = 10$. Halfway, $x = 5$, gives the greatest area: $5 \\times 5 = 25$.',
+              ),
+              areaGraph(10, [{ x: 5, y: 25 }], 'The area against the side length, with the top of the hill ringed'),
+              prose('Completing the square shows it in one line:'),
+              maths('A = 25 - (x - 5)^{2}'),
+              prose('The square is never negative and it is taken away, so $A$ is never more than 25.'),
+            ),
+            ask('quad-model-vertex-tiles'),
+            ask('quad-model-max-value'),
+            ask('quad-model-best-slider'),
+            teach(
+              prose(
+                'A cost is the other way up: it has a **least** value. Complete the square on $C = x^{2} - 8x + 20$:',
+              ),
+              maths('C = (x - 4)^{2} + 4'),
+              prose(
+                'Here the square is added, so it can only push $C$ up. The least cost is 4, when $x = 4$.',
+              ),
+            ),
+            ask('quad-model-cost-steps'),
+            ask('quad-model-max-value+choice'),
+            ask('quad-model-vertex-tiles', 2),
+            teach(
+              prose('Keep the two answers apart.'),
+              prose(
+                'The **input** that does best (the side length, the price, the time) is how far along the turning point is.',
+              ),
+              prose(
+                'The **best value** itself (the area, the profit, the height) is how high the turning point is.',
+              ),
+            ),
+            ask('quad-model-best-slider', 2),
+            ask('quad-model-cost-steps', 2),
+          ],
+          skillCheck: [
+            ask('quad-model-vertex-tiles', 2),
+            ask('quad-model-max-value', 2),
+            ask('quad-model-cost-steps', 2),
+          ],
+        },
+        {
+          id: 'qd-l6-reach',
+          title: 'Reaching a Given Height',
+          slides: [
+            teach(
+              prose(
+                'When is the ball from $h = 20t - 5t^{2}$ at 15 m? Set $h = 15$ and bring everything to one side:',
+              ),
+              maths('20t - 5t^{2} = 15'),
+              maths('t^{2} - 4t + 3 = 0'),
+              prose('Dividing by $-5$ changes every sign. It factorises as $(t - 1)(t - 3) = 0$.'),
+              flightGraph(0, 20, {
+                horizontal: 15,
+                marks: [
+                  { x: 1, y: 15 },
+                  { x: 3, y: 15 },
+                ],
+                label: 'The height against time, crossing a dashed line at 15 m twice',
+              }),
+            ),
+            ask('quad-model-reach-tiles'),
+            ask('quad-model-reach-time'),
+            ask('quad-model-reach-flow'),
+            teach(
+              prose(
+                'Both answers are real: the ball passes 15 m after 1 second going up and after 3 seconds coming down. It spends $3 - 1 = 2$ seconds above 15 m.',
+              ),
+              prose(
+                'From a cliff it can be different. One root can be negative, a time before the throw, and then only the positive one counts.',
+              ),
+            ),
+            ask('quad-model-reach-flow', 2),
+            ask('quad-model-reach-time+choice'),
+            ask('quad-model-reach-tiles', 2),
+            teach(
+              prose('Check an answer by putting it back into the model. At $t = 3$:'),
+              maths('20 \\times 3 - 5 \\times 3^{2} = 15'),
+              prose('Square first, then multiply by 5: $5 \\times 9 = 45$, not $15^{2}$.'),
+            ),
+            ask('quad-model-evaluate', 2),
+            ask('quad-model-evaluate+choice', 2),
+          ],
+          skillCheck: [
+            ask('quad-model-reach-tiles', 2),
+            ask('quad-model-reach-time', 2),
+            ask('quad-model-reach-flow', 2),
+          ],
+        },
+        {
+          id: 'qd-l6-fit',
+          title: 'Fitting a Quadratic',
+          slides: [
+            teach(
+              prose(
+                'Now the other way round: find the model from facts about the curve. An arch is highest, 18 m up, at $x = 3$, and one foot is at the origin.',
+              ),
+              prose('The turning point goes straight into the completed square:'),
+              maths('y = a(x - 3)^{2} + 18'),
+              prose('The foot $(0, 0)$ gives $0 = 9a + 18$, so $a = -2$.'),
+            ),
+            ask('quad-model-fit-vertex'),
+            ask('quad-model-fit-span'),
+            ask('quad-model-fit-vertex+choice'),
+            teach(
+              prose('Knowing the roots gives the brackets instead. Roots at 1 and 5, through the point $(3, 8)$:'),
+              maths('y = a(x - 1)(x - 5)'),
+              prose('At $x = 3$ the brackets make $2 \\times (-2) = -4$, so $-4a = 8$ and $a = -2$.'),
+            ),
+            ask('quad-model-fit-a-tree'),
+            ask('quad-model-fit-span', 2),
+            ask('quad-model-fit-a-tree', 2),
+            teach(
+              prose('To write it as $y = ax^{2} + bx + c$, expand the brackets and multiply every term by $a$:'),
+              maths('y = -2(x^{2} - 6x + 5)'),
+              maths('y = -2x^{2} + 12x - 10'),
+              prose('Check with the point: $-18 + 36 - 10 = 8$.'),
+            ),
+            ask('quad-model-fit-abc'),
+            ask('quad-model-fit-abc', 2),
+          ],
+          skillCheck: [
+            ask('quad-model-fit-vertex', 2),
+            ask('quad-model-fit-abc', 2),
+            ask('quad-model-fit-a-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('quad-model-launch-tiles', 2),
+        ask('quad-model-land-slider', 2),
+        ask('quad-model-max-value', 2),
+        ask('quad-model-reach-flow', 2),
+        ask('quad-model-fit-abc', 2),
+        ask('quad-model-area', 2),
+        ask('quad-model-peak-tree', 2),
+        ask('quad-model-cost-steps', 2),
+        ask('quad-model-reach-time', 2),
+        ask('quad-model-fit-vertex', 2),
+        ask('quad-model-meaning', 2),
+        ask('quad-model-vertex-tiles', 2),
+        ask('quad-model-best-slider', 2),
+        ask('quad-model-reach-tiles', 2),
+        ask('quad-model-feature', 2),
       ],
     },
   ],

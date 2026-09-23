@@ -8,9 +8,10 @@
  * know they live under a heading that starts with vectors.
  *
  * Lesson ids keep their `vm-` prefix so that progress recorded against the
- * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`
- * and level 6, Lines in Vector Form, is `vm-l6`: `vm-l2`, `vm-l3`, `vm-l5`
- * and `vm-l7` are the Matrices course's.
+ * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`,
+ * level 6, Lines in Vector Form, is `vm-l6`, and level 8, Planes & the Cross
+ * Product, is `vm-l8`: `vm-l2`, `vm-l3`, `vm-l5`, `vm-l7` and `vm-l9` are the
+ * Matrices course's.
  *
  * Level 4 turns vectors into a way of saying where points are: position
  * vectors, a point part-way along a line, three points on one line, the
@@ -21,6 +22,10 @@
  * two points, whether a point is on it, how two lines sit relative to each
  * other and where they cross. It stays in two dimensions until skew lines
  * need a third.
+ *
+ * Level 8 is three-dimensional throughout: the cross product and what it is
+ * for, perpendicular vectors and areas, then the equation of a plane from a
+ * point and a normal, from three points, and where a line meets one.
  *
  * Each level closes with a level check: twelve or fourteen questions, no
  * teaching slides, one attempt each.
@@ -53,7 +58,7 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
 export const vectors: Course = {
   id: 'vectors',
   title: 'Vectors',
-  blurb: 'Components, magnitude and the scalar product, then vector geometry and lines.',
+  blurb: 'Components, magnitude and the scalar product, then vector geometry, lines and planes.',
   levels: [
     {
       id: 'vm-l1',
@@ -897,6 +902,66 @@ export const vectors: Course = {
         ask('lines-solve', 2),
         ask('lines-meet', 2),
         ask('lines-meet-slider', 2),
+      ],
+    },
+    {
+      id: 'vm-l8',
+      title: 'Planes & the Cross Product',
+      lessons: [
+        {
+          id: 'vm-l8-cross',
+          title: 'The Cross Product',
+          slides: [
+            teach(
+              prose(
+                'The **cross product** $\\mathbf{a} \\times \\mathbf{b}$ of two vectors in three dimensions is another vector. Each of its components is built from the other two components of $\\mathbf{a}$ and $\\mathbf{b}$, cross-multiplied and subtracted.',
+              ),
+              maths(
+                '\\mathbf{a} \\times \\mathbf{b} = \\begin{pmatrix} a_y b_z - a_z b_y \\\\ a_z b_x - a_x b_z \\\\ a_x b_y - a_y b_x \\end{pmatrix}',
+              ),
+              prose(
+                'The letters follow the cycle $x \\to y \\to z \\to x$: the $x$ component starts from $y$, the $y$ component from $z$, and the $z$ component from $x$.',
+              ),
+              maths(
+                '\\begin{pmatrix} 1 \\\\ 2 \\\\ 3 \\end{pmatrix} \\times \\begin{pmatrix} 4 \\\\ 0 \\\\ -1 \\end{pmatrix} = \\begin{pmatrix} -2 \\\\ 13 \\\\ -8 \\end{pmatrix}',
+              ),
+            ),
+            ask('cross-product'),
+            ask('cross-entry-steps'),
+            ask('cross-product+choice'),
+            teach(
+              prose(
+                'Working backwards: if one component of $\\mathbf{a} \\times \\mathbf{b}$ is known, an unknown entry turns that component into an equation.',
+              ),
+              prose(
+                'Take $\\mathbf{a} = \\left(1, k, 2\\right)$ and $\\mathbf{b} = \\left(3, 1, 0\\right)$, with a $z$ component of $-5$. That component is $a_x b_y - a_y b_x$:',
+              ),
+              maths('1 \\times 1 - k \\times 3 = -5'),
+              maths('1 - 3k = -5 \\implies k = 2'),
+            ),
+            ask('cross-unknown'),
+            ask('cross-entry-steps', 2),
+            teach(
+              prose(
+                'The order matters. Swapping the vectors swaps every pair of products, so every component changes sign. A scalar on either vector comes outside the whole product.',
+              ),
+              maths('\\mathbf{b} \\times \\mathbf{a} = -\\left(\\mathbf{a} \\times \\mathbf{b}\\right)'),
+              maths('\\left(k\\mathbf{a}\\right) \\times \\mathbf{b} = k\\left(\\mathbf{a} \\times \\mathbf{b}\\right)'),
+              prose(
+                'A vector crossed with itself is $\\mathbf{0}$. The unit vectors go round the cycle $\\mathbf{i} \\to \\mathbf{j} \\to \\mathbf{k} \\to \\mathbf{i}$: forwards gives the third one, backwards gives its negative.',
+              ),
+              maths('\\mathbf{i} \\times \\mathbf{j} = \\mathbf{k}, \\quad \\mathbf{j} \\times \\mathbf{i} = -\\mathbf{k}'),
+            ),
+            ask('cross-rules'),
+            ask('cross-unknown', 2),
+            ask('cross-rules', 2),
+          ],
+          skillCheck: [
+            ask('cross-product', 2),
+            ask('cross-rules', 2),
+            ask('cross-unknown', 2),
+          ],
+        },
       ],
     },
   ],

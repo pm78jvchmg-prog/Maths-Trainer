@@ -127,7 +127,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 1 | Exponents & Radicals | **12 lessons** |
 | 2 | Quadratics | **12 lessons** |
 | 3 | Linear Equations & Inequalities | new |
-| 4 | Polynomials & the Factor Theorem | new |
+| 4 | Polynomials & the Factor Theorem | **10 lessons** |
 | 5 | Algebraic Fractions & Partial Fractions | new |
 | 6 | Sequences & Series | new |
 | 7 | Functions & Transformations | new |
@@ -237,6 +237,16 @@ Two Vectors.
 **Matrices & Linear Transformations** (after the split) — has: Matrices,
 Determinants & Inverses. Needs: Matrices as Transformations; Composing
 Transformations; Systems of Equations; Invariant Lines & Points.
+
+**Polynomials & the Factor Theorem** — has: Polynomial Arithmetic, The Factor
+and Remainder Theorems. Needs: Polynomial Graphs (roots, repeated roots and end
+behaviour read off the factors); Roots and Coefficients (sums and products of
+roots, building a cubic from its roots); Quartics and Repeated Factors (dividing
+by a quadratic factor, factor pairs, a quartic as a quadratic in x²);
+Polynomial Inequalities (sign diagrams from the factors); Modelling with
+Polynomials (volume-of-a-box cubics and fitted curves). Every level starts from
+small whole roots; the improper algebraic fractions of Integration `in-l6` stay
+there.
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -482,7 +492,7 @@ batch rather than waiting on a separate one.
 
 | # | Batch | Status |
 | ---: | --- | --- |
-| C4 | Polynomials & the Factor Theorem | claimed (`claude/roadmap-c-polynomials-iu11ey`) |
+| C4 | Polynomials & the Factor Theorem | **done** (`claude/roadmap-c-polynomials-iu11ey`): course `polynomials`, levels `pl-l1` and `pl-l2`, 10 lessons, level checks of 15 and 15 questions, 35 new generators |
 
 ### When the queue empties
 

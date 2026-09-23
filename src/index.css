@@ -654,8 +654,16 @@ button {
 
 .keypad-keys {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* minmax(0, …) rather than 1fr, whose floor is the widest key's content: one
+     wide label used to stretch its column and push the seventh off the pad. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+}
+
+/* A function key is two columns wide, so sin⁻¹ fits at the size the digits
+   are read at, and the six of them sit in two rows of three. */
+.key.fn {
+  grid-column: span 2;
 }
 
 /* Editing controls sit on their own row rather than trailing the characters,

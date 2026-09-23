@@ -38,6 +38,7 @@ import {
   MIN_WIDGET_KINDS,
 } from '../shapeVariety';
 import { TRIPLES } from './complexPlane';
+import { docFromKeys, toAnswer } from '../../ui/mathInput';
 import type { Generator, Slide, SlideRef } from '../types';
 
 const SEEDS = 200;
@@ -498,6 +499,19 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         seed,
       });
       expect(verdict.status, `seed ${seed}: ${slide.answer}`).toBe('incorrect');
+    }
+  });
+
+  it('leaves something to type after its prefill', () => {
+    // A prefill is the question's half of the answer. If it graded as a
+    // finished answer on its own, whatever the learner typed next would be
+    // noise, and at worst the untouched box would already be right.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'expression' || !slide.prefill) continue;
+      const untouched = toAnswer(docFromKeys(slide.prefill).nodes);
+      const verdict = checkAnswer(untouched, slide.answer, { domain: slide.domain, mode: slide.mode, seed });
+      expect(verdict.status, `seed ${seed}: ${untouched}`).toBe('invalid');
     }
   });
 

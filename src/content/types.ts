@@ -42,6 +42,13 @@ export interface KeypadKey {
   label?: string;
   /** Rendered as TeX rather than plain text (used for `i`). */
   tex?: boolean;
+  /**
+   * Makes this a function key: `insert` names the function (`sin`, `cos`,
+   * `tan`, `asin`, `acos` or `atan`) and pressing it opens a template, so
+   * what the learner types next lands inside the brackets. The value says
+   * which unit the angle is in, which only the question knows.
+   */
+  fn?: 'degrees' | 'radians';
 }
 
 interface Prompted {
@@ -62,6 +69,13 @@ export type Slide =
       /** Shown to the left of the input, e.g. "3i + 7i =". TeX. */
       lead?: string;
       keypad: KeypadKey[];
+      /**
+       * Keys already pressed when the slide opens, such as `4 sin(` with the
+       * caret inside the brackets, so the learner supplies only the angle or
+       * the ratio. *Start over* returns to this rather than to an empty box.
+       * Graded like anything else typed: by value, against `answer`.
+       */
+      prefill?: KeypadKey[];
       /** The canonical answer; anything equivalent to it is accepted. */
       answer: string;
       /**

@@ -8,14 +8,12 @@
 import { useState, useEffect } from 'react';
 import { Tex, Blocks } from './Math';
 import {
-  EMPTY_DOC,
   MathSlot,
+  applyKey,
   deleteBack,
   docFromAnswer,
-  insertAtom,
-  insertFraction,
-  insertRoot,
-  insertSup,
+  docFromKeys,
+  fnTex,
   isFilled,
   moveLeft,
   moveRight,
@@ -128,30 +126,6 @@ const BASE_KEYS: KeypadKey[] = [
   { insert: '=' },
 ];
 
-/** Keys whose two audiences differ: this one reads as × and parses as *. */
-const ATOM_TEX: Record<string, string> = {
-  '*': '\\times',
-  'ln(': '\\ln(',
-  'sin(': '\\sin(',
-  'cos(': '\\cos(',
-  'log(': '\\log(',
-};
-
-/**
- * How a keypad key becomes an edit.
- *
- * Two keys the generators already declare are templates rather than characters
- * now, so a fraction is stacked and a root has a bar over it while it is being
- * typed. Mapping them here rather than changing every generator means no
- * content file has to know the editor exists.
- */
-function applyKey(doc: Doc, key: KeypadKey): Doc {
-  if (key.insert === '/') return insertFraction(doc);
-  if (key.insert === 'sqrt(') return insertRoot(doc);
-  if (key.insert === '^') return insertSup(doc);
-  return insertAtom(doc, ATOM_TEX[key.insert] ?? key.insert, key.insert);
-}
-
 /**
  * The editor's tree, kept out of the session.
  *
@@ -177,13 +151,17 @@ export function ExpressionSlide({
   const locked = isLocked(feedback, canEdit);
   const current = typeof answer === 'string' ? answer : '';
 
+  // What the box holds before the learner has pressed anything: empty, or the
+  // part of the answer the question has already written in for them.
+  const start = docFromKeys(slide.kind === 'expression' ? slide.prefill : undefined);
+
   // The draft is trusted only while it still serialises to the answer the
   // session holds. Anything else — a fresh slide, or an answer cleared from
   // outside the editor — rebuilds from the string, one atom per character.
   const [doc, setDoc] = useState<Doc>(() => {
     const cached = drafts.get(id);
     if (cached && toAnswer(cached.nodes) === current) return cached;
-    return docFromAnswer(current);
+    return current === '' ? start : docFromAnswer(current);
   });
 
   if (slide.kind !== 'expression') return null;
@@ -195,7 +173,10 @@ export function ExpressionSlide({
     if (locked) return;
     drafts.set(id, next);
     setDoc(next);
-    onAnswer(toAnswer(next.nodes));
+    // Only what was already written in is no answer yet, so Check stays off
+    // rather than grading the question's own half of the expression.
+    const typed = toAnswer(next.nodes);
+    onAnswer(typed === toAnswer(start.nodes) ? '' : typed);
   };
 
   // Moving the caret changes nothing that gets graded, so it does not go
@@ -217,6 +198,7 @@ export function ExpressionSlide({
     if (key.insert === '/') return <Tex tex={'\\tfrac{\\square}{\\square}'} />;
     if (key.insert === 'sqrt(') return <Tex tex={'\\sqrt{\\square}'} />;
     if (key.insert === '^') return <Tex tex={'x^{\\square}'} />;
+    if (key.fn) return <Tex tex={fnTex(key.insert)} />;
     if (key.tex) return <Tex tex={key.insert} />;
     return key.label ?? key.insert;
   };
@@ -238,7 +220,7 @@ export function ExpressionSlide({
             <button
               key={idx}
               type="button"
-              className="key"
+              className={key.fn ? 'key fn' : 'key'}
               disabled={locked}
               onClick={() => apply(applyKey(doc, key))}
             >
@@ -282,7 +264,7 @@ export function ExpressionSlide({
         type="button"
         className="text-button"
         disabled={locked || !filled}
-        onClick={() => apply(EMPTY_DOC)}
+        onClick={() => apply(start)}
       >
         &#8635; Start over
       </button>

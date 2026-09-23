@@ -11,14 +11,20 @@ import { makeRng } from '../../engine/rng';
 import { currentSlide, reduce, startSession, type Session } from '../../engine/session';
 import type { Generator, GeneratorRegistry, Lesson, Slide } from '../types';
 import { orderBank, proofOrderGenerators } from './proofOrder';
+import { numberProofOrders } from './numberProof';
+import { numberDivisibilityOrders } from './numberDivisibility';
 
 type OrderSlide = Extract<Slide, { kind: 'order' }>;
 
 const SEEDS = 60;
 const DIFFICULTIES = [1, 2];
 
+// Every order generator in the library, the demos and the Number & Proof
+// course's own, so each one's proofs are graded the way a learner's are.
+const orderGenerators = [...proofOrderGenerators, ...numberProofOrders, ...numberDivisibilityOrders] as Generator<unknown>[];
+
 const registry: GeneratorRegistry = Object.fromEntries(
-  proofOrderGenerators.map((g) => [g.id, g as unknown as Generator<never>]),
+  orderGenerators.map((g) => [g.id, g as unknown as Generator<never>]),
 );
 
 /** A one-question lesson asking this generator, opened at `seed`. */
@@ -39,7 +45,7 @@ function verdict(session: Session, answer: string[]): string {
   return reduce(session, { type: 'submit', answer }).feedback.kind;
 }
 
-describe.each(proofOrderGenerators.map((g) => [g.id] as const))('%s', (id) => {
+describe.each(orderGenerators.map((g) => [g.id] as const))('%s', (id) => {
   const draws = DIFFICULTIES.flatMap((difficulty) =>
     Array.from({ length: SEEDS }, (_, seed) => ({ difficulty, seed, ...open(id, difficulty, seed) })),
   );
@@ -115,7 +121,7 @@ describe.each(proofOrderGenerators.map((g) => [g.id] as const))('%s', (id) => {
   });
 
   it('renders the same slide from the same seed', () => {
-    const generator = proofOrderGenerators.find((g) => g.id === id) as Generator<unknown>;
+    const generator = orderGenerators.find((g) => g.id === id) as Generator<unknown>;
     for (const difficulty of DIFFICULTIES) {
       for (let seed = 0; seed < SEEDS; seed += 1) {
         const once = generator.render(generator.sample(makeRng(seed), difficulty));

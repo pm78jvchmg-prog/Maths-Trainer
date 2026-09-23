@@ -135,6 +135,27 @@ const areaGraph = (n: number, marks: { x: number; y: number }[], label: string):
   }),
 });
 
+/**
+ * A curve for level 7, with its crossings of the $x$-axis ringed. Any number
+ * of curves, the first solid and the rest dashed, so a slide can show a
+ * quadratic in $u$ beside the same curve slid along.
+ */
+const disguiseGraph = (
+  fs: ((x: number) => number)[],
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  marks: number[],
+  label: string,
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: fs.map((f, index) => ({ f, breaks: true, dashed: index > 0 })),
+    verticals: [{ x: 0, dashed: false }],
+    marks: marks.map((x) => ({ x, y: 0 })),
+    label,
+  }),
+});
+
 /** A flight for level 6, from the throw to the landing. */
 const flightGraph = (h0: number, v: number, opts: Parameters<typeof flightFigure>[2]): Block => ({
   kind: 'diagram',
@@ -1779,6 +1800,58 @@ export const quadratics: Course = {
             ask('quad-disguise-spot', 2),
             ask('quad-disguise-u-tiles', 2),
             ask('quad-disguise-is-it-flow', 2),
+          ],
+        },
+        {
+          id: 'qd-l7-even',
+          title: 'Even Powers',
+          slides: [
+            teach(
+              prose('Solve $x^{4} - 5x^{2} + 4 = 0$. With $u = x^{2}$:'),
+              maths('(u - 1)(u - 4) = 0'),
+              prose(
+                'So $u = 1$ or $u = 4$. Now go back: $x^{2} = 1$ gives $x = \\pm 1$, and $x^{2} = 4$ gives $x = \\pm 2$. Four solutions, one for each crossing:',
+              ),
+              disguiseGraph(
+                [(x) => x ** 4 - 5 * x * x + 4],
+                { xMin: -3, xMax: 3, yMin: -3, yMax: 6 },
+                [-2, -1, 1, 2],
+                'A W-shaped curve crossing the x-axis four times, at -2, -1, 1 and 2',
+              ),
+            ),
+            ask('quad-disguise-even-steps'),
+            ask('quad-disguise-split-tree'),
+            ask('quad-disguise-count'),
+            teach(
+              prose('A negative $u$ gives nothing. In $x^{4} + 3x^{2} - 4 = 0$:'),
+              maths('(u + 4)(u - 1) = 0'),
+              prose(
+                '$x^{2} = -4$ has no real solution, since a square is never negative. $x^{2} = 1$ gives $x = \\pm 1$, so there are only two.',
+              ),
+              disguiseGraph(
+                [(x) => x ** 4 + 3 * x * x - 4],
+                { xMin: -3, xMax: 3, yMin: -6, yMax: 8 },
+                [-1, 1],
+                'A U-shaped curve crossing the x-axis twice, at -1 and 1',
+              ),
+            ),
+            ask('quad-disguise-even-slider'),
+            ask('quad-disguise-count+choice'),
+            ask('quad-disguise-even-steps', 2),
+            teach(
+              prose('$x^{6} - 7x^{3} - 8 = 0$ is a quadratic in $u = x^{3}$:'),
+              maths('(u - 8)(u + 1) = 0'),
+              prose(
+                'A cube root keeps its sign, so $x^{3} = 8$ gives $x = 2$ and $x^{3} = -1$ gives $x = -1$. Each root in $u$ gives exactly one $x$, negative or not.',
+              ),
+            ),
+            ask('quad-disguise-split-tree', 2),
+            ask('quad-disguise-even-slider', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-even-steps', 2),
+            ask('quad-disguise-split-tree', 2),
+            ask('quad-disguise-count', 2),
           ],
         },
       ],

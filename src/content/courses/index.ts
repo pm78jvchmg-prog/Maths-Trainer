@@ -8,6 +8,7 @@ import { matrices } from './matrices';
 import { quadratics } from './quadratics';
 import { vectors } from './vectors';
 import { trigonometricFunctions } from './trigonometricFunctions';
+import { trigIdentities } from './trigIdentities';
 
 /**
  * Courses grouped into the tabs on the home screen.
@@ -27,7 +28,7 @@ export const categories: Category[] = [
     id: 'advanced-algebra',
     title: 'Advanced Algebra',
     blurb: 'The functions and graphs of later school maths.',
-    courses: [trigonometricFunctions, logarithms],
+    courses: [trigonometricFunctions, trigIdentities, logarithms],
   },
   {
     id: 'advanced-maths',

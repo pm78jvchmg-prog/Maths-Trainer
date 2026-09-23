@@ -16,10 +16,10 @@
  * expression is a constant and all twenty-four points are usable. It also
  * happens to be how the topic is taught.
  */
-import type { Generator, KeypadKey, Slide } from '../types';
+import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { bin, num, pow, root, valueOf, type Expr } from '../expr';
 import { options } from '../choiceVariant';
-import { plotSvg } from '../figures';
+import { markerWindow, plotSvg } from '../figures';
 // Where a slider's handle rests before it is touched. Imported rather than
 // restated so a question cannot be built against a rule the widget has moved.
 import { defaultSliderValue } from '../../ui/sliderValue';
@@ -5271,6 +5271,1554 @@ const rectArea: Generator<AreaParams> = {
   },
 };
 
+/* ---------- Level 6: index equations and substitution ---------- */
+
+/*
+ * Two kinds of equation run through this level. In one the unknown sits in the
+ * index, as in 8^{x - 1} = 4^{x}, and is solved by writing both sides over one
+ * base and equating the indices. In the other the unknown is the base, as in
+ * x^{2/3} = 9, and is solved by raising both sides to the reciprocal power.
+ *
+ * Every answer is a number and every typed answer is a number only, so there
+ * is no question to type back. Where an answer can be a fraction the keypad
+ * adds the fraction key and nothing else.
+ */
+
+/** Numeric answers that may be fractions. */
+const FRACTION_KEYS: KeypadKey[] = [{ insert: '/' }];
+
+/** A rational number in lowest terms, the sign carried on top. */
+interface Ratio {
+  n: number;
+  d: number;
+}
+
+function ratio(n: number, d = 1): Ratio {
+  return reduceFraction(n, d);
+}
+
+/** The same, or nothing when the denominator is zero: a slip that has no value. */
+function ratioOf(n: number, d: number): Ratio | undefined {
+  return d === 0 ? undefined : reduceFraction(n, d);
+}
+
+function ratioTex({ n, d }: Ratio): string {
+  return fracIndexTex(n, d);
+}
+
+/** For mathjs. Never displayed. */
+function ratioAnswer({ n, d }: Ratio): string {
+  return d === 1 ? `${n}` : `(${n})/(${d})`;
+}
+
+function sameRatio(a: Ratio, b: Ratio): boolean {
+  return a.n * b.d === b.n * a.d;
+}
+
+/**
+ * A numeric answer and its slips as options. A slip that lands on the answer,
+ * or on another slip, is dropped rather than shown twice.
+ */
+function ratioOptions(right: Ratio, ...slips: (Ratio | undefined)[]): ChoiceOption[] {
+  const kept: Ratio[] = [];
+  for (const slip of slips) {
+    if (!slip || sameRatio(slip, right) || kept.some((k) => sameRatio(k, slip))) continue;
+    kept.push(slip);
+  }
+  return options(
+    { tex: ratioTex(right), answer: ratioAnswer(right) },
+    ...kept.slice(0, 3).map((r) => ({ tex: ratioTex(r), answer: ratioAnswer(r) })),
+  );
+}
+
+/** px + q as it is written by hand: 3x - 3, x, -2x + 1, 5. */
+function lin(p: number, q: number): string {
+  const head = p === 0 ? '' : p === 1 ? 'x' : p === -1 ? '-x' : `${p}x`;
+  if (q === 0) return head || '0';
+  if (!head) return `${q}`;
+  return `${head} ${q < 0 ? '-' : '+'} ${Math.abs(q)}`;
+}
+
+function rootName(n: number): string {
+  if (n === 2) return 'square root';
+  if (n === 3) return 'cube root';
+  return n === 4 ? 'fourth root' : `${n}th root`;
+}
+
+/** Lines of working with any line that merely repeats the one above removed. */
+function distinctLines(...lines: string[]): string[] {
+  return lines.filter((line, idx) => idx === 0 || line.replace(/&/g, '') !== lines[idx - 1].replace(/&/g, ''));
+}
+
+/* Unlike bases: both sides rewritten over one base */
+
+interface UnlikeParams {
+  /** The common base. */
+  r: number;
+  /** The left base is r^a, with index px + q. */
+  a: number;
+  p: number;
+  q: number;
+  /** The right base is r^b, with index sx + t; s = 0 means a plain number. */
+  b: number;
+  s: number;
+  t: number;
+  /** -1 when the right-hand side is a reciprocal, 1/r^b. */
+  e: number;
+}
+
+/** How far up each base goes: 2^6 = 64, 3^4 = 81, 5^3 = 125. */
+const UNLIKE_TOP: Record<number, number> = { 2: 6, 3: 4, 5: 3 };
+/** Smaller when both indices carry an x, so the rewritten indices stay short. */
+const UNLIKE_TOP_HARD: Record<number, number> = { 2: 5, 3: 3, 5: 2 };
+
+function unlikeRoot({ a, p, q, b, s, t, e }: UnlikeParams): Ratio {
+  return ratio(e * b * t - a * q, a * p - e * b * s);
+}
+
+/**
+ * Difficulty 1 is A^x = B or A^x = 1/B, one index and a number. Difficulty 2
+ * puts an x in both indices, or a bracket in the left index against a
+ * reciprocal, which is where multiplying out the index starts to matter.
+ */
+function sampleUnlike(rng: Rng, difficulty: number): UnlikeParams {
+  const r = rng.pick([2, 2, 3, 3, 5]);
+  if (difficulty <= 1) {
+    const top = UNLIKE_TOP[r];
+    const a = rng.int(2, top);
+    let b = rng.int(1, top - 1);
+    if (b >= a) b += 1;
+    return { r, a, p: 1, q: 0, b, s: 0, t: 1, e: rng.chance(0.35) ? -1 : 1 };
+  }
+  const top = UNLIKE_TOP_HARD[r];
+  for (;;) {
+    const a = rng.int(1, top);
+    const b = rng.int(1, top);
+    if (a === b) continue;
+    const p = rng.int(1, 2);
+    const q = rng.int(-3, 3);
+    const params: UnlikeParams = rng.chance(0.2)
+      ? { r, a, p, q, b, s: 0, t: 1, e: -1 }
+      : { r, a, p, q, b, s: rng.int(1, 2), t: rng.int(-3, 3), e: 1 };
+    if (a * p === params.e * b * params.s) continue;
+    if (q === 0 && params.t === 0) continue;
+    const x = unlikeRoot(params);
+    if (x.d > 3 || Math.abs(x.n / x.d) > 6) continue;
+    return params;
+  }
+}
+
+function unlikeSides(params: UnlikeParams) {
+  const { r, a, p, q, b, s, t, e } = params;
+  const A = r ** a;
+  const B = r ** b;
+  const left = `${A}^{${lin(p, q)}}`;
+  const right = s === 0 ? (e < 0 ? `\\frac{1}{${B}}` : `${B}`) : `${B}^{${lin(s, t)}}`;
+  return {
+    A,
+    B,
+    left,
+    right,
+    equation: `${left} = ${right}`,
+    leftIndex: lin(a * p, a * q),
+    rightIndex: lin(e * b * s, e * b * t),
+  };
+}
+
+function unlikeSolution(params: UnlikeParams): SolutionStep[] {
+  const { r, a, p, b, s, e } = params;
+  const { A, B, left, right, leftIndex, rightIndex } = unlikeSides(params);
+  const x = unlikeRoot(params);
+  const k = a * p - e * b * s;
+  const c = e * b * params.t - a * params.q;
+  const facts = [
+    ...(a > 1 ? [`$${A} = ${r}^{${a}}$`] : []),
+    ...(e < 0 ? [`$\\frac{1}{${B}} = ${r}^{-${b}}$`] : b > 1 ? [`$${B} = ${r}^{${b}}$`] : []),
+  ];
+  const rewrites = [
+    ...(a > 1 ? [`${left} &= ${r}^{${leftIndex}}`] : []),
+    ...(b > 1 || e < 0 ? [`${right} &= ${r}^{${rightIndex}}`] : []),
+  ];
+  return [
+    {
+      text: `Write both sides as powers of $${r}$: ${facts.join(' and ')}.${e < 0 ? ' A reciprocal is a negative index.' : ''}`,
+    },
+    { tex: chain(...rewrites) },
+    { text: 'The bases now match, so the indices must be equal.' },
+    {
+      tex: chain(
+        ...distinctLines(`${leftIndex} &= ${rightIndex}`, ...(k === 1 ? [] : [`${lin(k, 0)} &= ${c}`]), `x &= ${ratioTex(x)}`),
+      ),
+    },
+  ];
+}
+
+/** Solving an equation with unlike bases, the answer typed. */
+const unlike: Generator<UnlikeParams> = {
+  id: 'ieq-unlike',
+  choices: (params) => {
+    const { a, p, q, b, s, t, e } = params;
+    const x = unlikeRoot(params);
+    return ratioOptions(
+      x,
+      // The two powers swapped: 4^x = 8 answered as 2/3.
+      ratioOf(e * a * t - b * q, b * p - e * a * s),
+      ratio(-x.n, x.d),
+      // Only the x term multiplied through.
+      ratioOf(e * t - q, a * p - e * b * s),
+      ratio(x.n + x.d, x.d),
+    );
+  },
+  sample: sampleUnlike,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Solve by writing both sides as powers of the same number. The answer may be a fraction or negative.',
+      },
+      { kind: 'display', tex: unlikeSides(params).equation },
+    ],
+    lead: 'x =',
+    keypad: FRACTION_KEYS,
+    answer: ratioAnswer(unlikeRoot(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: unlikeSolution,
+};
+
+/** Both sides rewritten over the common base, placed rather than typed. */
+const unlikeBaseTiles: Generator<UnlikeParams> = {
+  id: 'ieq-base-tiles',
+  sample: sampleUnlike,
+  render: (params): Slide => {
+    const { r, a, p, q, b, s, t, e } = params;
+    const { equation, leftIndex, rightIndex } = unlikeSides(params);
+    const answer = [`${r}^{${leftIndex}}`, `${r}^{${rightIndex}}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Rewrite both sides as powers of $${r}$, multiplying out each index. Nothing needs solving yet.`,
+        },
+        { kind: 'display', tex: equation },
+      ],
+      template: '{0} = {1}',
+      bank: fillBank(answer, [
+        `${r}^{${lin(p, q)}}`,
+        `${r}^{${lin(a * p, q)}}`,
+        `${r}^{${lin(-e * b * s, -e * b * t)}}`,
+        `${r}^{${lin(a * p + 1, a * q)}}`,
+        ...(s === 0 ? [] : [`${r}^{${lin(b * s, t)}}`]),
+      ]),
+      answer,
+    };
+  },
+  solution: unlikeSolution,
+};
+
+/** Choosing the base, the power and the equation, one fork at a time. */
+const unlikeBaseFlow: Generator<UnlikeParams> = {
+  id: 'ieq-base-flow',
+  sample: sampleUnlike,
+  render: (params): Slide => {
+    const { r, a, p, q, b, s, t, e } = params;
+    const { A, B, equation, leftIndex, rightIndex } = unlikeSides(params);
+    const x = unlikeRoot(params);
+    // Ask about whichever side is not already written in the base.
+    const [N, k] = a > 1 ? [A, a] : [B, b];
+    const baseBranches = [2, 3, 5].map((base) =>
+      base === r
+        ? { label: `$${base}$`, to: 'power' }
+        : { label: `$${base}$`, outcome: `$${N}$ is not a power of $${base}$, so this base cannot make the sides match.` },
+    );
+    const powers = [
+      { label: `$${r}^{${k}}$`, to: 'equate' },
+      { label: `$${r}^{${k + 1}}$`, outcome: `That is $${r ** (k + 1)}$, not $${N}$.` },
+      k > 1
+        ? { label: `$${r}^{${k - 1}}$`, outcome: `That is $${r ** (k - 1)}$, not $${N}$.` }
+        : { label: `$${r}^{${k + 2}}$`, outcome: `That is $${r ** (k + 2)}$, not $${N}$.` },
+    ];
+    const right = `$${leftIndex} = ${rightIndex}$`;
+    const raw = `$${lin(p, q)} = ${s === 0 ? (e < 0 ? `\\frac{1}{${B}}` : B) : lin(s, t)}$`;
+    const flipped = `$${leftIndex} = ${lin(-e * b * s, -e * b * t)}$`;
+    const equations = [
+      { label: right, outcome: `Solving it gives $x = ${ratioTex(x)}$.` },
+      { label: raw, outcome: 'That compares the indices before the bases match, so it says nothing about $x$.' },
+      { label: flipped, outcome: 'Check the sign of the right-hand index.' },
+    ].filter((branch, idx, all) => all.findIndex((other) => other.label === branch.label) === idx);
+    const turnP = (a + b + r) % powers.length;
+    const turnE = (a * 2 + b + (p + q + s + t)) % equations.length;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Work out how to solve this. Each answer chooses what gets asked next.' }],
+      subject: equation,
+      steps: [
+        { id: 'base', ask: 'Both sides are powers of which number?', branches: baseBranches },
+        {
+          id: 'power',
+          ask: `Write $${N}$ as a power of $${r}$.`,
+          branches: [...powers.slice(turnP), ...powers.slice(0, turnP)],
+        },
+        {
+          id: 'equate',
+          ask: `With both sides written as powers of $${r}$, which equation do the indices give?`,
+          branches: [...equations.slice(turnE), ...equations.slice(0, turnE)],
+        },
+      ],
+      answer: [`$${r}$`, `$${r}^{${k}}$`, right],
+    };
+  },
+  solution: unlikeSolution,
+};
+
+/** The two indices, then x, on a tree. */
+const unlikeEquateTree: Generator<UnlikeParams> = {
+  id: 'ieq-equate-tree',
+  sample: sampleUnlike,
+  render: (params): Slide => {
+    const { r, a, p, q, b, s, t, e } = params;
+    const { equation, leftIndex, rightIndex } = unlikeSides(params);
+    const x = unlikeRoot(params);
+    const answer = [leftIndex, rightIndex, `x = ${ratioTex(x)}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Write each side as a power of $${r}$. Top row: the two indices, left side first. Bottom: $x$.`,
+        },
+      ],
+      expression: equation,
+      nodes: [
+        { id: 'left', from: [] },
+        { id: 'right', from: [] },
+        { id: 'x', from: ['left', 'right'] },
+      ],
+      bank: fillBank(answer, [
+        lin(p, q),
+        lin(a * p, q),
+        lin(-e * b * s, -e * b * t),
+        ...(s === 0 ? [] : [lin(s, t)]),
+        `x = ${ratioTex(ratio(-x.n, x.d))}`,
+        `x = ${ratioTex(ratio(x.n + x.d, x.d))}`,
+      ]),
+      answer,
+    };
+  },
+  solution: unlikeSolution,
+};
+
+/* Equations with a fractional index on x */
+
+interface FracEqParams {
+  /** x^{p/q} = s^p, so x = s^q. */
+  p: number;
+  q: number;
+  s: number;
+  /** A number multiplying the power, divided off first; 1 for none. */
+  k: number;
+}
+
+/**
+ * Every x^{p/q} = c worth asking, with x = s^q kept under 400 and the
+ * right-hand side under 256. The square root of a square is capped lower than
+ * the rest would allow, or it would be half of every draw.
+ */
+function fracEqPool(hard: boolean): { p: number; q: number; s: number }[] {
+  const out: { p: number; q: number; s: number }[] = [];
+  for (const q of hard ? [2, 3, 4] : [2, 3]) {
+    for (let p = hard ? -4 : 1; p <= (hard ? 4 : 3); p += 1) {
+      if (p === 0 || gcd(Math.abs(p), q) !== 1) continue;
+      const cap = p === 1 && q === 2 ? 12 : Infinity;
+      for (let s = 2; s <= cap && s ** q <= 400 && s ** Math.abs(p) <= 256; s += 1) out.push({ p, q, s });
+    }
+  }
+  return out;
+}
+
+const FRAC_EQ_EASY = fracEqPool(false);
+const FRAC_EQ_HARD = fracEqPool(true);
+
+/** s^p, a fraction when p is negative. */
+function powerRatio(s: number, p: number): Ratio {
+  return p > 0 ? ratio(s ** p) : ratio(1, s ** -p);
+}
+
+/** A number ready to take an index: a fraction is bracketed. */
+function asBase(value: Ratio): string {
+  return value.d === 1 ? `${value.n}` : `\\left(${ratioTex(value)}\\right)`;
+}
+
+function sampleFracEq(rng: Rng, difficulty: number, withCoefficient = false): FracEqParams {
+  const { p, q, s } = rng.pick(difficulty > 1 ? FRAC_EQ_HARD : FRAC_EQ_EASY);
+  return { p, q, s, k: withCoefficient ? rng.int(2, 5) : 1 };
+}
+
+function fracEqTex({ p, q, s, k }: FracEqParams): string {
+  const c = powerRatio(s, p);
+  return `${k === 1 ? '' : k}x^{${fracIndexTex(p, q)}} = ${ratioTex(ratio(k * c.n, c.d))}`;
+}
+
+function fracEqSolution({ p, q, s, k }: FracEqParams): SolutionStep[] {
+  const c = powerRatio(s, p);
+  const index = fracIndexTex(p, q);
+  const undo = fracIndexTex(q, p);
+  const x = s ** q;
+  const explain =
+    p === 1
+      ? `Here the reciprocal is a whole number, so this is just $${s}^{${q}} = ${x}$.`
+      : p === -1
+        ? `A negative index turns the fraction over, so this is $${s}^{${q}} = ${x}$.`
+        : p > 0
+          ? `The ${rootName(p)} of $${c.n}$ is $${s}$, and $${s}^{${q}} = ${x}$.`
+          : `A negative index turns the fraction over, and the ${rootName(-p)} of $${c.d}$ is $${s}$. Then $${s}^{${q}} = ${x}$.`;
+  return [
+    ...(k > 1 ? [{ text: `Divide both sides by $${k}$ first: $x^{${index}} = ${ratioTex(c)}$.` }] : []),
+    {
+      text: `Raise both sides to the power $${undo}$, the reciprocal of $${index}$. The indices multiply to 1, which leaves $x$.`,
+    },
+    { tex: chain(`x &= ${asBase(c)}^{${undo}}`, `&= ${x}`) },
+    { text: explain },
+    ...(p % 2 === 0
+      ? [{ text: `$-${x}$ works too, because the even ${Math.abs(p)} on top hides the sign. That is why the question asks for $x > 0$.` }]
+      : []),
+  ];
+}
+
+/** x^{p/q} = c, solved and typed. */
+const fracPower: Generator<FracEqParams> = {
+  id: 'ieq-frac-power',
+  choices: ({ p, q, s }) =>
+    ratioOptions(
+      ratio(s ** q),
+      ratio(s),
+      powerRatio(s, p),
+      ratio(s ** (q + 1)),
+      ratio(s ** q + 1),
+    ),
+  sample: (rng, difficulty) => sampleFracEq(rng, difficulty),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: params.p % 2 === 0 ? 'Solve for $x$, where $x > 0$.' : 'Solve for $x$.' },
+      { kind: 'display', tex: fracEqTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${params.s ** params.q}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: fracEqSolution,
+};
+
+/** The reciprocal power, then its value, placed. */
+const reciprocalTiles: Generator<FracEqParams> = {
+  id: 'ieq-reciprocal-tiles',
+  sample: (rng, difficulty) => sampleFracEq(rng, difficulty),
+  render: (params): Slide => {
+    const { p, q, s } = params;
+    const c = powerRatio(s, p);
+    const base = asBase(c);
+    const answer = [`${base}^{${fracIndexTex(q, p)}}`, `${s ** q}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Raise both sides to the reciprocal power, then work out the value.${p % 2 === 0 ? ' Take $x > 0$.' : ''}`,
+        },
+        { kind: 'display', tex: fracEqTex(params) },
+      ],
+      template: 'x = {0} = {1}',
+      bank: fillBank(answer, [
+        `${base}^{${fracIndexTex(p, q)}}`,
+        `${base}^{${fracIndexTex(-q, p)}}`,
+        `${s}`,
+        `${s ** (q + 1)}`,
+      ]),
+      answer,
+    };
+  },
+  solution: fracEqSolution,
+};
+
+/** Dividing off the coefficient and undoing the index, on a tree. */
+const undoTree: Generator<FracEqParams> = {
+  id: 'ieq-undo-tree',
+  sample: (rng, difficulty) => sampleFracEq(rng, difficulty, true),
+  render: (params): Slide => {
+    const { p, q, s, k } = params;
+    const c = powerRatio(s, p);
+    const index = fracIndexTex(p, q);
+    const answer = [ratioTex(c), fracIndexTex(q, p), `${s ** q}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Top row: what $x^{${index}}$ equals once the $${k}$ is divided off, and the power that undoes $${index}$. Bottom: $x$.${p % 2 === 0 ? ' Take $x > 0$.' : ''}`,
+        },
+      ],
+      expression: fracEqTex(params),
+      nodes: [
+        { id: 'alone', from: [] },
+        { id: 'undo', from: [] },
+        { id: 'x', from: ['alone', 'undo'] },
+      ],
+      bank: fillBank(answer, [
+        ratioTex(ratio(k * k * c.n, c.d)),
+        fracIndexTex(p, q),
+        fracIndexTex(-q, p),
+        `${s}`,
+        `${s ** (q + 1)}`,
+      ]),
+      answer,
+    };
+  },
+  solution: fracEqSolution,
+};
+
+/* How many solutions: the sign question */
+
+interface SignParams {
+  p: number;
+  q: number;
+  s: number;
+  /** Whether the right-hand side is positive. */
+  positive: boolean;
+}
+
+function signPool(hard: boolean): { p: number; q: number; s: number }[] {
+  const out: { p: number; q: number; s: number }[] = [];
+  for (const q of [2, 3, 5]) {
+    for (let p = hard ? -4 : 1; p <= (hard ? 4 : 3); p += 1) {
+      if (p === 0 || gcd(Math.abs(p), q) !== 1) continue;
+      for (let s = 2; s <= 5 && s ** q <= 125 && s ** Math.abs(p) <= 125; s += 1) out.push({ p, q, s });
+    }
+  }
+  return out;
+}
+
+const SIGN_EASY = signPool(false);
+const SIGN_HARD = signPool(true);
+
+/** The number of solutions and what they are, for the worked solution. */
+function signSolution({ p, q, s, positive }: SignParams): SolutionStep[] {
+  const c = powerRatio(s, p);
+  const rhs = ratioTex(positive ? c : ratio(-c.n, c.d));
+  const x = s ** q;
+  const index = fracIndexTex(p, q);
+  if (p % 2 === 0) {
+    return positive
+      ? [
+          { text: `The top of the index, $${Math.abs(p)}$, is even, so $x$ and $-x$ give the same value.` },
+          { tex: chain(`x^{${index}} &= ${rhs}`, `x &= \\pm ${x}`) },
+          { text: 'Two solutions.' },
+        ]
+      : [
+          { text: `The top of the index, $${Math.abs(p)}$, is even, and an even power is never negative.` },
+          { text: `So nothing gives $${rhs}$: there is no solution.` },
+        ];
+  }
+  if (q % 2 === 0) {
+    return positive
+      ? [
+          { text: `The bottom of the index, $${q}$, is even: an even root, which is never negative.` },
+          { tex: chain(`x^{${index}} &= ${rhs}`, `x &= ${x}`) },
+          { text: `One solution. $-${x}$ has no real ${rootName(q)}, so it cannot work.` },
+        ]
+      : [
+          { text: `The bottom of the index, $${q}$, is even: an even root, which is never negative.` },
+          { text: `So nothing gives $${rhs}$: there is no solution.` },
+        ];
+  }
+  return [
+    { text: `Both $${Math.abs(p)}$ and $${q}$ are odd, so the sign carries straight through.` },
+    { tex: chain(`x^{${index}} &= ${rhs}`, `x &= ${positive ? '' : '-'}${x}`) },
+    { text: 'One solution, with the same sign as the right-hand side.' },
+  ];
+}
+
+/**
+ * How many solutions does x^{p/q} = c have?
+ *
+ * The outcomes on the correct path carry the numbers; a wrong turn reads the
+ * rule it has just taken for granted, rather than asserting a solution that
+ * this equation does not have.
+ */
+const signFlow: Generator<SignParams> = {
+  id: 'ieq-sign-flow',
+  sample: (rng, difficulty) => ({ ...rng.pick(difficulty > 1 ? SIGN_HARD : SIGN_EASY), positive: rng.chance(0.6) }),
+  render: (params): Slide => {
+    const { p, q, s, positive } = params;
+    const c = powerRatio(s, p);
+    const rhs = ratioTex(positive ? c : ratio(-c.n, c.d));
+    const x = s ** q;
+    const evenTop = p % 2 === 0;
+    const evenBottom = q % 2 === 0;
+    const answer = evenTop
+      ? ['Yes', positive ? 'Yes' : 'No']
+      : evenBottom
+        ? ['No', 'Yes', positive ? 'Yes' : 'No']
+        : ['No', 'No'];
+    const here = (path: string[]) => path.join() === answer.join();
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'How many real solutions does this have? Each answer chooses what gets asked next.' }],
+      subject: `x^{${fracIndexTex(p, q)}} = ${rhs}`,
+      steps: [
+        {
+          id: 'top',
+          ask: 'Is the top of the index even?',
+          branches: [
+            { label: 'Yes', to: 'even-rhs' },
+            { label: 'No', to: 'bottom' },
+          ],
+        },
+        {
+          id: 'even-rhs',
+          ask: 'Is the right-hand side positive?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: here(['Yes', 'Yes'])
+                ? `Two solutions, $x = \\pm ${x}$: an even power hides the sign.`
+                : 'Then there would be two solutions, one each side of zero.',
+            },
+            {
+              label: 'No',
+              outcome: here(['Yes', 'No'])
+                ? 'No solution: an even power is never negative.'
+                : 'Then there would be no solution, since an even power is never negative.',
+            },
+          ],
+        },
+        {
+          id: 'bottom',
+          ask: 'Is the bottom of the index even?',
+          branches: [
+            { label: 'Yes', to: 'root-rhs' },
+            {
+              label: 'No',
+              outcome: here(['No', 'No'])
+                ? `One solution, $x = ${positive ? '' : '-'}${x}$: odd powers and odd roots keep the sign.`
+                : 'Then there would be one solution, with the sign of the right-hand side.',
+            },
+          ],
+        },
+        {
+          id: 'root-rhs',
+          ask: 'Is the right-hand side positive?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: here(['No', 'Yes', 'Yes'])
+                ? `One solution, $x = ${x}$: an even root is never negative, so only the positive one works.`
+                : 'Then there would be one solution, the positive one.',
+            },
+            {
+              label: 'No',
+              outcome: here(['No', 'Yes', 'No'])
+                ? 'No solution: an even root is never negative.'
+                : 'Then there would be no solution, since an even root is never negative.',
+            },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: signSolution,
+};
+
+/* Reading a solution off the graph */
+
+interface CrossForm {
+  tex: string;
+  P: number;
+  Q: number;
+}
+
+/** x^{P/Q} written as an index, for lesson 2. */
+const INDEX_FORMS: CrossForm[] = [
+  [1, 2],
+  [3, 2],
+  [1, 3],
+  [2, 3],
+  [1, 4],
+  [3, 4],
+].map(([P, Q]) => ({ tex: `x^{\\frac{${P}}{${Q}}}`, P, Q }));
+
+/** The same powers written with roots, for lesson 5. */
+const SURD_FORMS: CrossForm[] = [
+  { tex: 'x\\sqrt{x}', P: 3, Q: 2 },
+  { tex: '\\sqrt{x^{3}}', P: 3, Q: 2 },
+  { tex: 'x^{2}\\sqrt{x}', P: 5, Q: 2 },
+  { tex: '\\sqrt[3]{x^{2}}', P: 2, Q: 3 },
+  { tex: 'x\\sqrt[3]{x}', P: 4, Q: 3 },
+  { tex: '\\sqrt[4]{x^{3}}', P: 3, Q: 4 },
+  { tex: '\\sqrt{x}\\sqrt[3]{x}', P: 5, Q: 6 },
+];
+
+interface CrossParams {
+  form: CrossForm;
+  s: number;
+  k: number;
+}
+
+/** k times a form, as the left-hand side reads. */
+function formLhs({ form, k }: { form: CrossForm; k: number }): string {
+  return `${k === 1 ? '' : k}${form.tex}`;
+}
+
+function formSolution({ form, s, k }: CrossParams, graph = false): SolutionStep[] {
+  const { P, Q } = form;
+  const c = s ** P;
+  const x = s ** Q;
+  const closing = graph
+    ? ' That is where the dashed line meets the curve.'
+    : P % 2 === 0
+      ? ` $-${x}$ works too, which is why the question asks for $x > 0$.`
+      : '';
+  return [
+    ...(form.tex.includes('\\sqrt')
+      ? [{ text: `A root is a fractional index, so $${form.tex} = x^{${fracIndexTex(P, Q)}}$.` }]
+      : []),
+    ...(k > 1 ? [{ text: `Divide both sides by $${k}$: $x^{${fracIndexTex(P, Q)}} = ${c}$.` }] : []),
+    { text: `Raise both sides to the power $${fracIndexTex(Q, P)}$ to undo the index.` },
+    {
+      tex: P === 1 ? `x = ${c}^{${Q}} = ${x}` : chain(`x &= ${c}^{${fracIndexTex(Q, P)}}`, `&= ${s}^{${Q}} = ${x}`),
+    },
+    {
+      text: `${P === 1 ? `The index $\\frac{1}{${Q}}$ is a ${rootName(Q)}, and the power $${Q}$ undoes it.` : `The ${rootName(P)} of $${c}$ is $${s}$, and $${s}^{${Q}} = ${x}$.`}${closing}`,
+    },
+  ];
+}
+
+/** Every form, s and k giving a crossing at a whole x no further out than 27. */
+function crossPool(forms: CrossForm[]): CrossParams[] {
+  return forms.flatMap((form) =>
+    [2, 3, 4, 5]
+      .filter((s) => s ** form.Q <= 27)
+      .flatMap((s) => [1, 2, 3].map((k) => ({ form, s, k }))),
+  );
+}
+
+const CROSS_EASY = crossPool(INDEX_FORMS);
+const CROSS_HARD = crossPool(SURD_FORMS);
+
+/**
+ * Solve by sliding to where a curve meets a line.
+ *
+ * The same equation as the rest of the level, asked about a picture: the
+ * learner solves it and finds the answer on the graph, which also shows why a
+ * rising curve meets a line once.
+ */
+const crossSlider: Generator<CrossParams> = {
+  id: 'ieq-cross-slider',
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? CROSS_HARD : CROSS_EASY),
+  render: (params): Slide => {
+    const { form, s, k } = params;
+    const x = s ** form.Q;
+    const height = k * s ** form.P;
+    // Framed around the answer, then widened until the untouched handle does
+    // not already sit on it.
+    let span = x + 4;
+    while (defaultSliderValue(0, span, 1) === x) span += 1;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve is $y = ${formLhs(params)}$ and the dashed line is $y = ${height}$. Solve $${formLhs(params)} = ${height}$ and slide to the $x$ where they meet.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 1,
+      answer: x,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: height * 1.6,
+          curves: [{ f: (t) => k * Math.pow(Math.max(t, 0), form.P / form.Q) }],
+          horizontals: [height],
+          label: `A rising curve, with a dashed line at y equals ${height}`,
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: (params) => formSolution(params, true),
+};
+
+/* Hidden quadratics */
+
+interface HiddenParams {
+  /** y = b^x. */
+  b: number;
+  /** The roots in y, u > v. A negative v gives no x. */
+  u: number;
+  v: number;
+  /** How the square term is written: 4^x, 2^{2x} or (2^x)^2. */
+  form: 'square' | 'double' | 'bracket';
+}
+
+const HIDDEN_POWERS: Record<number, number[]> = { 2: [1, 2, 4, 8, 16], 3: [1, 3, 9, 27], 5: [1, 5, 25] };
+
+/** The x a root in y gives, or undefined for a root that gives none. */
+function hiddenX(b: number, y: number): number | undefined {
+  const at = HIDDEN_POWERS[b].indexOf(y);
+  return at < 0 ? undefined : at;
+}
+
+function sampleHidden(rng: Rng, bothValid: boolean, hardForms: boolean): HiddenParams {
+  const b = rng.pick([2, 2, 3, 5]);
+  const form = hardForms ? rng.pick(['double', 'bracket'] as const) : 'square';
+  const powers = HIDDEN_POWERS[b];
+  if (bothValid) {
+    const [m, n] = rng.sample(powers, 2);
+    return { b, u: Math.max(m, n), v: Math.min(m, n), form };
+  }
+  for (;;) {
+    const u = rng.pick(powers);
+    const v = -rng.int(1, 6);
+    if (u + v !== 0) return { b, u, v, form };
+  }
+}
+
+/** A term like -5(2^x), with its sign, as it sits after the first term. */
+function signedTerm(coefficient: number, body: string): string {
+  const size = Math.abs(coefficient);
+  const sign = coefficient < 0 ? '-' : '+';
+  if (size === 1) return `${sign} ${body}`;
+  return `${sign} ${size}${body === 'y' ? 'y' : `(${body})`}`;
+}
+
+function hiddenSquare({ b, form }: HiddenParams): string {
+  if (form === 'square') return `${b * b}^{x}`;
+  return form === 'double' ? `${b}^{2x}` : `(${b}^{x})^{2}`;
+}
+
+function hiddenTex(params: HiddenParams): string {
+  const { b, u, v } = params;
+  const sum = u + v;
+  const product = u * v;
+  return `${hiddenSquare(params)} ${signedTerm(-sum, `${b}^{x}`)} ${product < 0 ? '-' : '+'} ${Math.abs(product)} = 0`;
+}
+
+function quadraticInY({ u, v }: HiddenParams): string {
+  const product = u * v;
+  return `y^{2} ${signedTerm(-(u + v), 'y')} ${product < 0 ? '-' : '+'} ${Math.abs(product)} = 0`;
+}
+
+function factorsInY({ u, v }: HiddenParams): string {
+  const factor = (r: number) => `(y ${r < 0 ? '+' : '-'} ${Math.abs(r)})`;
+  return `${factor(u)}${factor(v)} = 0`;
+}
+
+/** What one root in y says about x, in words. */
+function backSubstitute(b: number, y: number): string {
+  const x = hiddenX(b, y);
+  if (x === undefined) return `$${b}^{x} = ${y}$ has no solution, because a power of $${b}$ is always positive.`;
+  if (x === 0) return `$${b}^{x} = 1$ gives $x = 0$, since any number to the power 0 is 1.`;
+  return `$${b}^{x} = ${y}$ gives $x = ${x}$.`;
+}
+
+function hiddenSolution(params: HiddenParams): SolutionStep[] {
+  const { b, u, v, form } = params;
+  const spot =
+    form === 'square'
+      ? `$${b * b}^{x} = (${b}^{2})^{x} = (${b}^{x})^{2}$`
+      : form === 'double'
+        ? `$${b}^{2x} = (${b}^{x})^{2}$`
+        : `$(${b}^{x})^{2}$ is already a square`;
+  return [
+    { text: `${spot}, so put $y = ${b}^{x}$.` },
+    { tex: chain(`${quadraticInY(params).replace(' = 0', ' &= 0')}`, factorsInY(params).replace(' = 0', ' &= 0')) },
+    { text: `So $y = ${u}$ or $y = ${v}$. Now go back to $x$.` },
+    { text: `${backSubstitute(b, u)} ${backSubstitute(b, v)}` },
+  ];
+}
+
+/** The quadratic in y, placed term by term. */
+const hiddenQuadTiles: Generator<HiddenParams> = {
+  id: 'ieq-quad-tiles',
+  sample: (rng, difficulty) => sampleHidden(rng, rng.chance(0.5), difficulty > 1),
+  render: (params): Slide => {
+    const { b, u, v } = params;
+    const sum = u + v;
+    const product = u * v;
+    const middle = signedTerm(-sum, 'y').replace(' ', '');
+    const last = `${product < 0 ? '-' : '+'}${Math.abs(product)}`;
+    const answer = ['y^{2}', middle, last];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Put $y = ${b}^{x}$ and write this as a quadratic in $y$: the square term, then the $y$ term, then the number.`,
+        },
+        { kind: 'display', tex: hiddenTex(params) },
+      ],
+      template: '{0} {1} {2} = 0',
+      bank: fillBank(answer, [
+        signedTerm(sum, 'y').replace(' ', ''),
+        `${product < 0 ? '+' : '-'}${Math.abs(product)}`,
+        `${b}y`,
+        `y^{${b}}`,
+        '2y',
+      ]),
+      answer,
+    };
+  },
+  solution: hiddenSolution,
+};
+
+/** The two roots in y, then the x each gives, on a tree. */
+const hiddenTree: Generator<HiddenParams> = {
+  id: 'ieq-hidden-tree',
+  sample: (rng, difficulty) => sampleHidden(rng, rng.chance(0.5), difficulty > 1),
+  render: (params): Slide => {
+    const { b, u, v } = params;
+    const xToken = (y: number) => {
+      const x = hiddenX(b, y);
+      return x === undefined ? '\\text{none}' : `x = ${x}`;
+    };
+    const answer = [`y = ${u}`, `y = ${v}`, xToken(u), xToken(v)];
+    const top = hiddenX(b, u) ?? 0;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Put $y = ${b}^{x}$. Top row: the two roots in $y$, larger first. Bottom row: the $x$ each gives, or none.`,
+        },
+      ],
+      expression: hiddenTex(params),
+      nodes: [
+        { id: 'y1', from: [] },
+        { id: 'y2', from: [] },
+        { id: 'x1', from: ['y1'] },
+        { id: 'x2', from: ['y2'] },
+      ],
+      bank: fillBank(answer, [
+        `y = ${-u}`,
+        `y = ${-v}`,
+        `x = ${u}`,
+        ...(top === 0 ? [] : [`x = ${-top}`]),
+        '\\text{none}',
+      ]),
+      answer,
+    };
+  },
+  solution: hiddenSolution,
+};
+
+interface RejectParams {
+  b: number;
+  /** The root in y being tested. */
+  r: number;
+}
+
+const REJECT_POOL: RejectParams[] = [2, 3, 5].flatMap((b) => [
+  ...HIDDEN_POWERS[b].concat(b === 5 ? [125] : b === 3 ? [81] : [32, 64]).map((r) => ({ b, r })),
+  ...[0, -1, -2, -3, -4, -5, -6, -8, -9].map((r) => ({ b, r })),
+]);
+
+/** The power of b a positive root is, or undefined when it is not one. */
+function powerOf(b: number, r: number): number | undefined {
+  for (let k = 0; b ** k <= r; k += 1) if (b ** k === r) return k;
+  return undefined;
+}
+
+/** Keep a root, or reject it: back-substituting y = b^x one root at a time. */
+const rejectFlow: Generator<RejectParams> = {
+  id: 'ieq-reject-flow',
+  sample: (rng) => rng.pick(REJECT_POOL),
+  render: ({ b, r }): Slide => {
+    const k = r > 0 ? powerOf(b, r) : undefined;
+    const powers =
+      k === undefined
+        ? [-1, 0, 1].map((n) => ({
+            label: `$${b}^{${n}}$`,
+            outcome: `That is $${n < 0 ? `\\frac{1}{${b}}` : b ** n}$, which is positive, not $${r}$.`,
+          }))
+        : [
+            { label: `$${b}^{${k}}$`, outcome: `So $x = ${k}$, and this root is kept.` },
+            { label: `$${b}^{${k + 1}}$`, outcome: `That is $${b ** (k + 1)}$, not $${r}$.` },
+            k > 0
+              ? { label: `$${b}^{${k - 1}}$`, outcome: `That is $${b ** (k - 1)}$, not $${r}$.` }
+              : { label: `$${b}^{-1}$`, outcome: `That is $\\frac{1}{${b}}$, not $1$.` },
+          ];
+    const turn = (b + Math.abs(r)) % powers.length;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `After putting $y = ${b}^{x}$, a quadratic gave $y = ${r}$. Decide what this root means for $x$.`,
+        },
+      ],
+      subject: `${b}^{x} = ${r}`,
+      steps: [
+        {
+          id: 'sign',
+          ask: 'Is the right-hand side positive?',
+          branches: [
+            { label: 'Yes', to: 'power' },
+            {
+              label: 'No',
+              outcome:
+                r > 0
+                  ? 'Then the root would be rejected.'
+                  : `No solution: $${b}^{x}$ is positive for every $x$, so this root is rejected.`,
+            },
+          ],
+        },
+        {
+          id: 'power',
+          ask: `Which power of $${b}$ is $${r}$?`,
+          branches: [...powers.slice(turn), ...powers.slice(0, turn)],
+        },
+      ],
+      answer: k === undefined ? ['No'] : ['Yes', `$${b}^{${k}}$`],
+    };
+  },
+  solution: ({ b, r }) => [
+    { text: `A power of a positive number is always positive: $${b}^{x} > 0$ for every $x$.` },
+    r > 0
+      ? { tex: `${b}^{x} = ${r} = ${b}^{${powerOf(b, r)}} \\implies x = ${powerOf(b, r)}` }
+      : { text: `So $${b}^{x} = ${r}$ has no solution, and the root $y = ${r}$ is rejected.` },
+    {
+      text:
+        r > 0
+          ? 'This root is kept. Check the other root of the quadratic the same way.'
+          : 'Rejecting it is not an error in the working: the quadratic had two roots, and only one of them can be a power.',
+    },
+  ],
+};
+
+/** The whole method: substitute, factorise, back-substitute, answer typed. */
+const hiddenSolve: Generator<HiddenParams> = {
+  id: 'ieq-hidden-solve',
+  choices: (params) => {
+    const { b, u, v } = params;
+    const top = hiddenX(b, u) ?? 0;
+    const low = hiddenX(b, v);
+    return ratioOptions(ratio(top), ratio(u), ratio(low ?? v), ratio(top + 1), ratio(-top));
+  },
+  sample: (rng, difficulty) => sampleHidden(rng, difficulty > 1 && rng.chance(0.5), difficulty > 1),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text:
+          hiddenX(params.b, params.v) === undefined
+            ? 'Solve for $x$.'
+            : 'This has two solutions. Give the larger one.',
+      },
+      { kind: 'display', tex: hiddenTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${hiddenX(params.b, params.u) ?? 0}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: hiddenSolution,
+};
+
+/* Substituting into index expressions */
+
+interface EvaluateParams6 {
+  /** x = s^n. */
+  s: number;
+  n: number;
+  a: number;
+  p1: number;
+  b: number;
+  p2: number;
+  op: number;
+}
+
+/** Indices over n in lowest terms, so the fraction shown is the one meant. */
+const TOPS: Record<number, number[]> = { 2: [1, 3], 3: [1, 2, 4] };
+const LOW_TOPS: Record<number, number[]> = { 2: [-1, -3], 3: [-1, -2] };
+
+function sampleEvaluate(rng: Rng, difficulty: number, withB: boolean): EvaluateParams6 {
+  for (;;) {
+    const n = rng.pick([2, 2, 3]);
+    const s = rng.int(2, n === 2 ? 6 : 3);
+    const p1 = rng.pick(TOPS[n]);
+    const p2 = rng.pick(difficulty > 1 ? LOW_TOPS[n] : TOPS[n]);
+    if (p1 === p2 || s ** p1 > 125 || s ** Math.abs(p2) > 125) continue;
+    return { s, n, a: rng.int(2, 5), p1, b: withB ? rng.int(1, 3) : 1, p2, op: rng.sign() };
+  }
+}
+
+function termTex6(coefficient: number, p: number, n: number): string {
+  return `${coefficient === 1 ? '' : coefficient}x^{${fracIndexTex(p, n)}}`;
+}
+
+/** s^p as it is written: a power of 1 is left off. */
+function powerTex6(s: number, p: number): string {
+  return p === 1 ? `${s}` : `${s}^{${p}}`;
+}
+
+function evaluateTex6({ n, a, p1, b, p2, op }: EvaluateParams6): string {
+  return `${termTex6(a, p1, n)} ${op < 0 ? '-' : '+'} ${termTex6(b, p2, n)}`;
+}
+
+function evaluateValue({ s, a, p1, b, p2, op }: EvaluateParams6): Ratio {
+  const second = powerRatio(s, p2);
+  return ratio(a * s ** p1 * second.d + op * b * second.n, second.d);
+}
+
+function evaluateSolution6(params: EvaluateParams6): SolutionStep[] {
+  const { s, n, a, p1, b, p2, op } = params;
+  const x = s ** n;
+  const second = powerRatio(s, p2);
+  return [
+    { text: `Substitute $x = ${x}$ and work each term out on its own, index first. The ${rootName(n)} of $${x}$ is $${s}$.` },
+    {
+      tex: chain(
+        `${x}^{${fracIndexTex(p1, n)}} &= ${[...new Set([powerTex6(s, p1), `${s ** p1}`])].join(' = ')}`,
+        `${x}^{${fracIndexTex(p2, n)}} &= ${[...new Set([p2 > 0 ? powerTex6(s, p2) : `\\frac{1}{${powerTex6(s, -p2)}}`, ratioTex(second)])].join(' = ')}`,
+      ),
+    },
+    {
+      tex: `${a} \\times ${s ** p1} ${op < 0 ? '-' : '+'} ${b === 1 ? '' : `${b} \\times `}${ratioTex(second)} = ${ratioTex(evaluateValue(params))}`,
+    },
+    {
+      text: `${p2 < 0 ? 'The negative index made the second term a fraction, not a negative number. ' : ''}The index is dealt with before multiplying: $${a}x^{${fracIndexTex(p1, n)}}$ is $${a}$ times $x^{${fracIndexTex(p1, n)}}$, not $(${a}x)^{${fracIndexTex(p1, n)}}$.`,
+    },
+  ];
+}
+
+/** Evaluate an index expression at a given x, answer typed. */
+const evaluateAt: Generator<EvaluateParams6> = {
+  id: 'ieq-evaluate',
+  choices: (params) => {
+    const { s, n, a, p1, b, p2, op } = params;
+    const x = s ** n;
+    const right = evaluateValue(params);
+    const second = powerRatio(s, p2);
+    return ratioOptions(
+      right,
+      evaluateValue({ ...params, op: -op }),
+      // A negative index read as a negative number.
+      p2 < 0 ? ratio(a * s ** p1 - op * b * s ** -p2) : ratio(a * s ** p1 + op * b * s ** (p2 + 1)),
+      // The index read as a multiplier.
+      ratioOf(a * x * p1 * n + op * b * x * p2 * n, n * n),
+      ratio(right.n + right.d * second.d, right.d * second.d),
+    );
+  },
+  sample: (rng, difficulty) => sampleEvaluate(rng, difficulty, true),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Find the value when $x = ${params.s ** params.n}$.${params.p2 < 0 ? ' The answer may be a fraction.' : ''}`,
+      },
+    ],
+    lead: `${evaluateTex6(params)} =`,
+    keypad: FRACTION_KEYS,
+    answer: ratioAnswer(evaluateValue(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: evaluateSolution6,
+};
+
+/** The same evaluation as a line of working, one piece at a time. */
+const termSteps: Generator<EvaluateParams6> = {
+  id: 'ieq-term-steps',
+  sample: (rng, difficulty) => sampleEvaluate(rng, difficulty, false),
+  render: (params): Slide => {
+    const { s, n, a, p1, p2, op } = params;
+    const x = s ** n;
+    const v1 = s ** p1;
+    const second = powerRatio(s, p2);
+    const sign = op < 0 ? '-' : '+';
+    const final = evaluateValue(params);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `With $x = ${x}$, $${evaluateTex6(params)}$ becomes the line below. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      start: [`${a}`, '\\times', `${x}^{${fracIndexTex(p1, n)}}`, sign, `${x}^{${fracIndexTex(p2, n)}}`],
+      reductions: [
+        {
+          span: [2, 3],
+          value: `${v1}`,
+          bank: fillBank(
+            [`${v1}`],
+            [`${s}`, `${s * n}`, `${s ** (p1 + 1)}`, `${x * p1}`, ...((x * p1) % n === 0 ? [`${(x * p1) / n}`] : [])],
+          ),
+        },
+        {
+          span: [4, 5],
+          value: ratioTex(second),
+          bank: fillBank(
+            [ratioTex(second)],
+            p2 < 0
+              ? [`-${s ** -p2}`, `${s ** -p2}`, `-\\frac{1}{${s ** -p2}}`]
+              : [`${s}`, `${s ** (p2 + 1)}`, `\\frac{1}{${s ** p2}}`],
+          ),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${a * v1}`,
+          bank: fillBank([`${a * v1}`], [`${a + v1}`, `${a * s}`, `${a * v1 + a}`]),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: ratioTex(final),
+          bank: fillBank(
+            [ratioTex(final)],
+            [
+              ratioTex(evaluateValue({ ...params, op: -op })),
+              ratioTex(ratio(final.n + final.d, final.d)),
+              ratioTex(ratio(a * v1 * second.d, 1)),
+            ],
+          ),
+        },
+      ],
+    };
+  },
+  solution: evaluateSolution6,
+};
+
+interface WholeParams {
+  /** `power`: x^{p/q} is whole. `divide`: c x^{-1/2} is whole. */
+  mode: 'power' | 'divide';
+  p: number;
+  q: number;
+  c: number;
+  right: number;
+  wrong: number[];
+}
+
+const DIVIDE_BY = [12, 18, 20, 24, 30, 36, 40, 42, 48, 60];
+
+function isPower(x: number, q: number): boolean {
+  const root = Math.round(Math.pow(x, 1 / q));
+  return root ** q === x;
+}
+
+/** Which x makes the expression whole? A native pick-one, options in order. */
+const makeWhole: Generator<WholeParams> = {
+  id: 'ieq-make-whole',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.chance(0.6)) {
+      const c = rng.pick(DIVIDE_BY);
+      const roots = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+      const t = rng.pick(roots.filter((r) => c % r === 0));
+      const badSquares = roots.filter((r) => c % r !== 0).map((r) => r * r);
+      const plain = Array.from({ length: 60 }, (_, i) => i + 2).filter((m) => !isPower(m, 2));
+      const wrong = [...rng.sample(badSquares, 2), rng.pick(plain)];
+      return { mode: 'divide', p: -1, q: 2, c, right: t * t, wrong };
+    }
+    const q = rng.pick([2, 3]);
+    const p = rng.pick(q === 2 ? [1, 3] : [1, 2]);
+    const s = rng.int(2, q === 2 ? 10 : 4);
+    const right = s ** q;
+    const others = Array.from({ length: right + 12 }, (_, i) => i + 2).filter((m) => !isPower(m, q));
+    return { mode: 'power', p, q, c: 1, right, wrong: rng.sample(others, 3) };
+  },
+  render: ({ mode, p, q, c, right, wrong }): Slide => {
+    const values = [right, ...wrong].sort((m, n) => m - n);
+    const expression = mode === 'divide' ? `${c}x^{-\\frac{1}{2}}` : `x^{${fracIndexTex(p, q)}}`;
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `For which of these values of $x$ is $${expression}$ a whole number?` }],
+      options: values.map((value) => ({ id: `x${value}`, label: `x = ${value}`, tex: true })),
+      correctId: `x${right}`,
+    };
+  },
+  solution: ({ mode, p, q, c, right, wrong }) => {
+    if (mode === 'divide') {
+      const t = Math.round(Math.sqrt(right));
+      return [
+        { text: `$${c}x^{-\\frac{1}{2}} = \\frac{${c}}{\\sqrt{x}}$, so it is whole when $\\sqrt{x}$ is a whole number that divides $${c}$.` },
+        { tex: `\\frac{${c}}{\\sqrt{${right}}} = \\frac{${c}}{${t}} = ${c / t}` },
+        { text: `The others fail: ${wrong.map((w) => `$${w}$`).join(', ')} either has no whole square root, or its root does not divide $${c}$.` },
+      ];
+    }
+    const s = Math.round(Math.pow(right, 1 / q));
+    const kind = q === 2 ? 'square' : 'cube';
+    return [
+      { text: `$x^{${fracIndexTex(p, q)}}$ is the ${rootName(q)} of $x$${p === 1 ? '' : `, to the power $${p}$`}. That is whole only when $x$ is a perfect ${kind}.` },
+      { tex: `${right}^{${fracIndexTex(p, q)}} = ${s}^{${p}} = ${s ** p}` },
+      { text: `None of ${wrong.map((w) => `$${w}$`).join(', ')} is a perfect ${kind}, so each of those gives a surd.` },
+    ];
+  },
+};
+
+interface KindParams {
+  n: number;
+  p: number;
+  q: number;
+}
+
+/** Whole, fraction or surd? What n^{p/q} turns out to be, decided before working it out. */
+const kindFlow: Generator<KindParams> = {
+  id: 'ieq-kind-flow',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick(difficulty > 1 ? (['whole', 'fraction', 'surd'] as const) : (['whole', 'surd'] as const));
+    const q = rng.pick([2, 3]);
+    const top = rng.pick(q === 2 ? [1, 3] : [1, 2]);
+    const p = kind === 'fraction' || (kind === 'surd' && difficulty > 1 && rng.chance(0.4)) ? -top : top;
+    if (kind === 'surd') {
+      const plain = Array.from({ length: 48 }, (_, i) => i + 2).filter((m) => !isPower(m, q));
+      return { n: rng.pick(plain), p, q };
+    }
+    const s = rng.int(2, q === 2 ? 9 : 4);
+    return { n: s ** q, p, q };
+  },
+  render: ({ n, p, q }): Slide => {
+    const perfect = isPower(n, q);
+    const answer = !perfect ? ['No'] : p < 0 ? ['Yes', 'Yes'] : ['Yes', 'No'];
+    const s = Math.round(Math.pow(n, 1 / q));
+    const value = powerRatio(s, p);
+    const kind = q === 2 ? 'square' : 'cube';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Decide what kind of number this is. Each answer chooses what gets asked next.' }],
+      subject: `${n}^{${fracIndexTex(p, q)}}`,
+      steps: [
+        {
+          id: 'perfect',
+          ask: `Is $${n}$ a perfect ${kind}?`,
+          branches: [
+            { label: 'Yes', to: 'sign' },
+            {
+              label: 'No',
+              outcome: perfect
+                ? 'Then it would be irrational, and left as a surd.'
+                : `So its ${rootName(q)} is irrational, and $${n}^{${fracIndexTex(p, q)}}$ is left as a surd.`,
+            },
+          ],
+        },
+        {
+          id: 'sign',
+          ask: 'Is the index negative?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome:
+                perfect && p < 0 ? `So it is a fraction: $${ratioTex(value)}$.` : 'Then it would be a fraction, one over a whole number.',
+            },
+            {
+              label: 'No',
+              outcome: perfect && p > 0 ? `So it is a whole number: $${value.n}$.` : 'Then it would be a whole number.',
+            },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: ({ n, p, q }) => {
+    const kind = q === 2 ? 'square' : 'cube';
+    if (!isPower(n, q)) {
+      return [
+        { text: `The bottom of the index, $${q}$, asks for the ${rootName(q)} of $${n}$.` },
+        { text: `$${n}$ is not a perfect ${kind}, so that root is irrational, and so is any power of it: $${n}^{${fracIndexTex(p, q)}}$ is a surd.` },
+      ];
+    }
+    const s = Math.round(Math.pow(n, 1 / q));
+    return [
+      { text: `$${n} = ${s}^{${q}}$ is a perfect ${kind}, so the ${rootName(q)} is $${s}$.` },
+      { tex: `${n}^{${fracIndexTex(p, q)}} = ${s}^{${p}} = ${ratioTex(powerRatio(s, p))}` },
+      { text: p < 0 ? 'The negative index makes it one over a whole number: a fraction.' : 'A whole number, since both the root and the power are whole.' },
+    ];
+  },
+};
+
+/* Surds and indices together */
+
+/** Surd forms with a positive index, for placing tiles, and the s and k that suit each. */
+const TILE_FORMS = { easy: SURD_FORMS.slice(0, 2).concat(SURD_FORMS.slice(3, 5)), hard: SURD_FORMS };
+
+function singleIndexPool(forms: CrossForm[]): CrossParams[] {
+  return forms.flatMap((form) =>
+    [2, 3, 4, 5, 6]
+      .filter((s) => s ** form.Q <= 64 && s ** form.P <= 243)
+      .flatMap((s) => [1, 2, 3].map((k) => ({ form, s, k }))),
+  );
+}
+
+const SINGLE_EASY = singleIndexPool(TILE_FORMS.easy);
+const SINGLE_HARD = singleIndexPool(TILE_FORMS.hard);
+
+/** A surd form rewritten as one index, then solved. */
+const singleIndexTiles: Generator<CrossParams> = {
+  id: 'ieq-single-index-tiles',
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? SINGLE_HARD : SINGLE_EASY),
+  render: (params): Slide => {
+    const { form, s, k } = params;
+    const { P, Q } = form;
+    const c = s ** P;
+    const answer = [`x^{${fracIndexTex(P, Q)}}`, `${s ** Q}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Write the left-hand side as a single power of $x$${k > 1 ? `, divide off the $${k}$,` : ''} and solve. Take $x > 0$.`,
+        },
+        { kind: 'display', tex: `${formLhs(params)} = ${k * c}` },
+      ],
+      template: `{0} = ${c} \\implies x = {1}`,
+      bank: fillBank(answer, [
+        `x^{${fracIndexTex(Q, P)}}`,
+        ...((P + 1) % Q === 0 ? [] : [`x^{${fracIndexTex(P + 1, Q)}}`]),
+        `x^{${P}}`,
+        `${s}`,
+        `${s ** (Q + 1)}`,
+        `${c * c}`,
+      ]),
+      answer,
+    };
+  },
+  solution: formSolution,
+};
+
+interface SurdBaseParams {
+  /** The common base. */
+  b: number;
+  /** The left base is b^a. */
+  a: number;
+  /** The right side is b^m times the nth root of b, or one over that. */
+  m: number;
+  n: number;
+  sign: number;
+}
+
+/** The right-hand side's index as a single fraction: m + 1/n, signed. */
+function surdIndex({ m, n, sign }: SurdBaseParams): Ratio {
+  return ratio(sign * (m * n + 1), n);
+}
+
+function surdBaseRoot(params: SurdBaseParams): Ratio {
+  const e = surdIndex(params);
+  return ratio(e.n, e.d * params.a);
+}
+
+function surdBaseTex({ b, a, m, n, sign }: SurdBaseParams): string {
+  const rootTex = n === 2 ? `\\sqrt{${b}}` : `\\sqrt[${n}]{${b}}`;
+  const body = `${m === 0 ? '' : b ** m}${rootTex}`;
+  return `${b ** a}^{x} = ${sign < 0 ? `\\frac{1}{${body}}` : body}`;
+}
+
+const SURD_BASE_TOP: Record<number, number> = { 2: 3, 3: 3, 5: 2 };
+const SURD_LEFT_TOP: Record<number, number> = { 2: 4, 3: 3, 5: 2 };
+
+function sampleSurdBase(rng: Rng, difficulty: number): SurdBaseParams {
+  const b = rng.pick([2, 3, 5]);
+  return {
+    b,
+    a: difficulty > 1 ? rng.int(2, SURD_LEFT_TOP[b]) : 1,
+    m: rng.int(0, SURD_BASE_TOP[b]),
+    n: rng.pick([2, 2, 3]),
+    sign: rng.chance(0.3) ? -1 : 1,
+  };
+}
+
+function surdBaseSolution(params: SurdBaseParams): SolutionStep[] {
+  const { b, a, m, n, sign } = params;
+  const e = surdIndex(params);
+  const x = surdBaseRoot(params);
+  const rootIndex = `\\frac{1}{${n}}`;
+  return [
+    {
+      text: `A root is a fractional index: $${n === 2 ? `\\sqrt{${b}}` : `\\sqrt[${n}]{${b}}`} = ${b}^{${rootIndex}}$.${m === 0 ? '' : ` Multiplying by $${b ** m} = ${b}^{${m}}$ adds $${m}$ to the index.`}${sign < 0 ? ' Being underneath a fraction line makes the index negative.' : ''}`,
+    },
+    ...(m === 0 && sign > 0 ? [] : [{ tex: `${surdBaseTex(params).split(' = ')[1]} = ${b}^{${ratioTex(e)}}` }]),
+    ...(a > 1 ? [{ text: `On the left, $${b ** a}^{x} = (${b}^{${a}})^{x} = ${b}^{${a}x}$.` }] : []),
+    { tex: chain(`${lin(a, 0)} &= ${ratioTex(e)}`, ...(a > 1 ? [`x &= ${ratioTex(x)}`] : [])) },
+  ];
+}
+
+/** b^x (or a power of b) equal to a surd, answer typed. */
+const surdPower: Generator<SurdBaseParams> = {
+  id: 'ieq-surd-power',
+  choices: (params) => {
+    const { a, m, n, sign } = params;
+    const x = surdBaseRoot(params);
+    return ratioOptions(
+      x,
+      // The root read as a power: sqrt(2) taken for 2^2.
+      ratio(sign * (m + n), a),
+      ratio(-x.n, x.d),
+      // The root counted as a whole 1.
+      ratio(sign * (m + 1), a),
+      a > 1 ? surdIndex(params) : ratio(sign * m, 1),
+    );
+  },
+  sample: sampleSurdBase,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Solve for $x$. The answer may be a fraction or negative.' },
+      { kind: 'display', tex: surdBaseTex(params) },
+    ],
+    lead: 'x =',
+    keypad: FRACTION_KEYS,
+    answer: ratioAnswer(surdBaseRoot(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: surdBaseSolution,
+};
+
+/** Both sides as single powers of b, then x, on a tree. */
+const surdBaseTree: Generator<SurdBaseParams> = {
+  id: 'ieq-surd-base-tree',
+  sample: sampleSurdBase,
+  render: (params): Slide => {
+    const { b, a, m, n, sign } = params;
+    const e = surdIndex(params);
+    const x = surdBaseRoot(params);
+    const answer = [`${b}^{${lin(a, 0)}}`, `${b}^{${ratioTex(e)}}`, ratioTex(x)];
+    return {
+      kind: 'tree',
+      prompt: [{ kind: 'prose', text: `Top row: each side as a single power of $${b}$. Bottom: $x$.` }],
+      expression: surdBaseTex(params),
+      nodes: [
+        { id: 'left', from: [] },
+        { id: 'right', from: [] },
+        { id: 'x', from: ['left', 'right'] },
+      ],
+      bank: fillBank(answer, [
+        `${b}^{${lin(a + 1, 0)}}`,
+        `${b}^{${ratioTex(ratio(sign * (m + n)))}}`,
+        `${b}^{${ratioTex(ratio(-e.n, e.d))}}`,
+        ratioTex(ratio(-x.n, x.d)),
+        ratioTex(a > 1 ? e : ratio(e.n + e.d, e.d)),
+      ]),
+      answer,
+    };
+  },
+  solution: surdBaseSolution,
+};
+
 export const indicesGenerators = [
   multiplyPowers,
   dividePowers,
@@ -5339,4 +6887,24 @@ export const indicesGenerators = [
   diagonalSlider,
   perimeter,
   rectArea,
+  unlike,
+  unlikeBaseTiles,
+  unlikeBaseFlow,
+  unlikeEquateTree,
+  fracPower,
+  reciprocalTiles,
+  undoTree,
+  signFlow,
+  crossSlider,
+  hiddenQuadTiles,
+  hiddenTree,
+  rejectFlow,
+  hiddenSolve,
+  evaluateAt,
+  termSteps,
+  makeWhole,
+  kindFlow,
+  singleIndexTiles,
+  surdPower,
+  surdBaseTree,
 ] as unknown as Generator<unknown>[];

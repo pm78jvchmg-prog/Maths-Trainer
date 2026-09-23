@@ -120,6 +120,10 @@ Six registered generator ids are also asked by no lesson:
 Nine exist (Vectors & Matrices counts as two — see the note). Twenty-one are new.
 Categories map to the home-screen tab strip; two tabs are new.
 
+The "State" column is a snapshot and is no longer updated by batches (two
+batches editing neighbouring rows conflicted); `eval/bin/counts.sh --dump-facts`
+gives the live lesson count for every course.
+
 ### Algebra Fundamentals
 
 | # | Concept | State |
@@ -127,7 +131,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 1 | Exponents & Radicals | **12 lessons** |
 | 2 | Quadratics | **12 lessons** |
 | 3 | Linear Equations & Inequalities | **10 lessons** |
-| 4 | Polynomials & the Factor Theorem | new |
+| 4 | Polynomials & the Factor Theorem | **10 lessons** |
 | 5 | Algebraic Fractions & Partial Fractions | new |
 | 6 | Sequences & Series | new |
 | 7 | Functions & Transformations | new |
@@ -238,45 +242,75 @@ Two Vectors.
 Determinants & Inverses. Needs: Matrices as Transformations; Composing
 Transformations; Systems of Equations; Invariant Lines & Points.
 
-**Linear Equations & Inequalities** — has: Solving Linear Equations,
-Simultaneous Linear Equations. Needs: Rearranging Formulae; Linear Inequalities
-(the number-line picture waits on C8's widget, so this level follows C8);
-Simultaneous Equations in Three Unknowns (by elimination; the matrix route stays
-in Matrices vm-l9); Inequalities in Two Variables & Regions; Modelling with
-Linear Equations (break-even, rates, mixtures).
+### Concepts added in phase C
 
-**Exponential Models** (new in C10) — has: The Continuous Model; Fitting and
-Using Models. Needs: Rates in Models (the rate as ky read and compared, average
-against instantaneous rate, when two models grow at the same rate); Comparing
-Models (when one model overtakes another, sums and differences of exponentials);
-Logistic Growth (a ceiling that slows growth, P = L / (1 + Ae^(-kt)), the
-fastest growth at half the ceiling); Continuous Compounding (e as the limit of
-(1 + 1/n)^n, effective annual rate against continuous rate); The
-Limits of a Model (residuals, when a model stops fitting, choosing between two
-fits). Solving dy/dt = ky belongs to Differential Equations (C13).
+Each new concept's level plan is its own file, **`docs/roadmap/levels/<course-id>.md`**
+(for example [`linear-equations.md`](roadmap/levels/linear-equations.md)), not a
+paragraph here. The thread that starts a concept writes that file — the first
+batch for a new concept is "levels 1 and 2 plus a level plan" — and later
+batches for the concept read it. A plan starts `# <Concept>: level plan`, then
+"Has:" (the levels shipped) and "Needs:" (the levels still to come, in order).
 
-**Binomial Expansion** (new in C7) — has: Pascal's Triangle and (a + b)ⁿ; nCr and
-the General Term. Needs: Unknowns and Conditions (finding n, k or a from given
-coefficients, equal and in-ratio coefficients, the sum of the coefficients);
-Products of Expansions ((a + bx)ᵐ(c + dx)ⁿ, (1 + x + x²)ⁿ, and pairing brackets
-such as (1 + x)ⁿ(1 − x)ⁿ = (1 − x²)ⁿ); Estimates and Surds (choosing x to estimate
-a power, how big the error is, (√2 + 1)ⁿ and conjugate pairs); The Binomial Series
-for Rational n ((1 + x)ⁿ for negative and fractional n as an infinite series, valid
-for |x| < 1, and (a + bx)ⁿ taken out as aⁿ(1 + bx/a)ⁿ with its own range);
-Approximating with the Series (roots and reciprocals such as √1.02 and 1/(1 − x)²,
-and the series of a partial-fraction split once C9 has landed). Rational n belongs
-to this course: C14 Series Expansions builds on it and quotes the binomial series
-as a special case of Maclaurin, rather than teaching it again.
-
-New concepts get their level plan written by the thread that starts them — the
-first batch for a new concept is "levels 1 and 2 plus a level plan committed
-into this file".
+It is a file rather than a paragraph for the same reason the batch record is:
+several new concepts are built at once, and each appending a paragraph at the
+same spot put every other branch into a merge conflict.
 
 ## 4. The batch queue
 
-A batch is one thread on one branch. Take the **top row whose status is
-`open`**, set it to `claimed` in this file as your first commit, and do it. No
-owner input required to choose.
+A batch is one thread on one branch, and **its record is one file of its own**,
+`docs/roadmap/batches/<id>.md` (for example `B32.md`, `C4.md`, `C2-widget.md`).
+
+- **First commit:** add your batch file with `Status: claimed`.
+- **Last commit:** change it to `Status: done` and write what shipped beneath.
+- **Do not edit any table in this file** to record a batch, and do not update
+  the lesson counts in sections 1 and 2. Every branch editing the same lines was
+  what kept finished pull requests conflicting with each other for hours; a
+  file per batch is a file nobody else touches.
+- **Do not merge main into an open pull request just because main moved.** The
+  ruleset on main is not strict, so a branch that is behind still lands itself
+  once its build is green. Merge main only when GitHub says the branch
+  conflicts, or when your work needs something that landed there. Each merge is
+  a fresh build and a fresh wait. If Cloudflare never builds a head (its check
+  stays absent), the `Stuck builds` workflow merges main in for you after
+  twenty minutes, which gets the branch a new build.
+
+A batch file is exactly this shape; `npx vitest run docs/roadmap` checks every
+one, and `node docs/roadmap/batches.mjs` prints them all as the phase B and C
+tables:
+
+```markdown
+# B32: Complex Numbers: Complex Numbers and Trigonometric Identities
+
+Status: done
+Branch: `claude/roadmap-b-complex-numbers-4-abc123`
+
+Level `cn-l8`, 5 lessons, a 15-question level check, 20 new generators.
+```
+
+Batch ids come from the thread's brief. Pick the next one yourself only when
+the brief does not name one; a batch that already has a file is taken.
+
+**Merging main into a branch that started before this change.** If `git merge
+origin/main` stops on a conflict in `docs/ROADMAP.md`, `src/content/registry.ts`
+or `src/content/courses/index.ts`, take main's copy of each of those files and
+move your edits out of them:
+
+1. `git checkout origin/main -- docs/ROADMAP.md src/content/registry.ts src/content/courses/index.ts`
+   (name only the files that conflicted). If your branch changed anything in
+   those files besides its table row, level plan, import or list entry, put
+   that change back by hand; a batch rarely has one.
+2. Your batch table row becomes `docs/roadmap/batches/<id>.md`, in the shape above.
+3. A new concept's level-plan paragraph becomes `docs/roadmap/levels/<course-id>.md`.
+4. A new generator file needs nothing in `registry.ts`: every exported array
+   whose name ends in `Generators`, in any file in `src/content/generators/`, is
+   registered automatically.
+5. A new course needs nothing in `courses/index.ts`: give the course object
+   `category` (its home-screen tab: `'algebra-fundamentals'`,
+   `'advanced-algebra'` or `'advanced-maths'`) and `position` (where in the tab,
+   smallest first; existing courses use 10, 20, 30…, so take the next ten up —
+   a tie is broken by id), and it is picked up. The typecheck names the file if
+   either is missing.
+6. Run the three gates, commit the merge, push.
 
 ### Phase A — make what exists meet the bar
 
@@ -442,44 +476,9 @@ are green, and one new lesson has been played in a browser.
 
 ### Phase B batches
 
-| # | Batch | Status |
-| ---: | --- | --- |
-| B1 | Exponents & Radicals: Standard Form | **done** (`claude/roadmap-b-exponents-radicals-8sklxv`): level `er-l4`, 5 lessons, a 14-question level check, 17 new generators |
-| B2 | Quadratics: Simultaneous Equations with a Quadratic | **done** (`claude/roadmap-b-quadratics-sihaf2`): level `qd-l4`, 5 lessons, a 14-question level check, 15 new generators |
-| B3 | Logarithms: Change of Base | **done** (`claude/roadmap-b-logarithms-4nxgsx`): level `lg-l4`, 4 lessons, a 14-question level check, 14 new generators |
-| B4 | Trigonometric Functions: Radians | **done** (`claude/roadmap-b-trig-functions-dt6rsq`): level `tf-l4`, 4 lessons, a 15-question level check, 16 new generators |
-| B8 | Vectors: Vector Geometry | **done** (`claude/roadmap-b-vectors-k0aou4`): level `vm-l4`, 5 lessons, a 14-question level check, 19 new generators |
-| B9 | Matrices & Linear Transformations: Matrices as Transformations | **done** (`claude/roadmap-b-matrices-fcu036`): level `vm-l5`, 5 lessons, a 15-question level check, 15 new generators and a unit-square figure |
-| B5 | Complex Numbers: Roots of Unity | **done** (`claude/roadmap-b-complex-numbers-ad1jwg`): level `cn-l5`, 4 lessons, a 14-question level check, 14 new generators and a unit-circle figure |
-| B7 | Integration: Area Between Curves | **done** (`claude/roadmap-b-integration-azbiyz`): level `in-l4`, 4 lessons, a 14-question level check, 14 new generators and a two-curve shaded figure |
-| B6 | Differentiation: Stationary Points & the Second Derivative | **done** (`claude/roadmap-b-differentiation-8b0n1s`): level `df-l5`, 5 lessons, a 14-question level check, 15 new generators and an independent mathjs check |
-| B10 | Exponents & Radicals: Manipulating Surd Expressions | **done** (`claude/roadmap-b-exponents-2-ts8ccs`): level `er-l5`, 5 lessons, a 14-question level check, 19 new generators |
-| B12 | Logarithms: Logarithmic Graphs | **done** (`claude/roadmap-b-logarithms-2-bl64ii`): level `lg-l5`, 4 lessons, a 14-question level check, 16 new generators and a logarithm-graph figure |
-| B13 | Trigonometric Functions: Tangent & the Reciprocal Functions | **done** (`claude/roadmap-b-trig-2-147dx4`): level `tf-l5`, 5 lessons, a 15-question level check, 20 new generators and an asymptote-aware curve option in `figures.ts` |
-| B17 | Vectors: Lines in Vector Form | **done** (`claude/roadmap-b-vectors-2-u0463t`): level `vm-l6`, 5 lessons, a 14-question level check, 17 new generators |
-| B18 | Matrices & Linear Transformations: Composing Transformations | **done** (`claude/roadmap-b-matrices-2-taz4dj`): level `vm-l7`, 5 lessons, a 15-question level check, 19 new generators |
-| B16 | Integration: Volumes of Revolution | **done** (`claude/roadmap-b-integration-2-ymjv6y`): level `in-l5`, 4 lessons, a 14-question level check, 17 new generators and a solid-of-revolution figure |
-| B15 | Differentiation: Curve Sketching | **done** (`claude/roadmap-b-differentiation-2-66rw3b`): level `df-l6`, 5 lessons, a 15-question level check, 15 new generators |
-| B22 | Trigonometric Functions: Inverse Trigonometric Functions | **done** (`claude/roadmap-b-trig-3-qrhb8h`): level `tf-l6`, 5 lessons, a 15-question level check, 19 new generators |
-| B25 | Integration: Partial Fractions in Integration | **done** (`claude/roadmap-b-integration-3-nvi107`): level `in-l6`, 4 lessons, a 14-question level check, 17 new generators |
-| B14 | Complex Numbers: Loci in the Complex Plane | **done** (`claude/roadmap-b-complex-numbers-2-3bbesx`): level `cn-l6`, 5 lessons, a 15-question level check, 20 new generators and a locus figure |
-| B24 | Differentiation: Rates of Change & Related Rates | **done** (`claude/roadmap-b-differentiation-3-0ce49b`): level `df-l7`, 4 lessons, a 15-question level check, 16 new generators and an independent mathjs check |
-| B19 | Exponents & Radicals: Index Equations & Substitution | **done** (`claude/roadmap-b-exponents-3-vgmwol`): level `er-l6`, 5 lessons, a 14-question level check, 20 new generators |
-| B21 | Logarithms: Linearising a Model | **done** (`claude/roadmap-b-logarithms-3-j7zt1t`): level `lg-l6`, 4 lessons, a 15-question level check, 15 new generators and axis names on the logarithm-graph figure |
-| B26 | Vectors: Planes & the Cross Product | **done** (`claude/roadmap-b-vectors-3-ke6n0q`): level `vm-l8`, 5 lessons, a 14-question level check, 21 new generators |
-| B27 | Matrices & Linear Transformations: Systems of Equations | **done** (`claude/roadmap-b-matrices-3-eamxgf`): level `vm-l9`, 5 lessons, a 15-question level check, 22 new generators |
-| B11 | Quadratics: Quadratic Inequalities | **done** (`claude/roadmap-b-quadratics-2-aoomzy`): level `qd-l5`, 5 lessons, a 15-question level check, 15 new generators |
-| B35 | Vectors: Vectors in Mechanics | **done** (`claude/roadmap-b-vectors-4-kze9i1`): level `vm-l10`, 5 lessons, a 14-question level check, 23 new generators |
-| B20 | Quadratics: Modelling with Quadratics | **done** (`claude/roadmap-b-quadratics-3-ii0cum`): level `qd-l6`, 5 lessons, a 15-question level check, 19 new generators |
-| B28 | Exponents & Radicals: Growth by Repeated Multiplication | **done** (`claude/roadmap-b-exponents-4-te54kq`): level `er-l7`, 5 lessons, a 15-question level check, 20 new generators |
-| B23 | Complex Numbers: The Exponential Form | **done** (`claude/roadmap-b-complex-numbers-3-ji4c6s`): level `cn-l7`, 5 lessons, a 15-question level check, 21 new generators |
-| B30 | Logarithms: Compound Log Equations | **done** (`claude/roadmap-b-logarithms-4-j5p34b`): level `lg-l7`, 5 lessons, a 15-question level check, 19 new generators |
-| B36 | Matrices & Linear Transformations: Invariant Lines & Points | **done** (`claude/roadmap-b-matrices-4-aeufej`): level `vm-l11`, 5 lessons, a 15-question level check, 21 new generators |
-| B31 | Trigonometric Functions: Modelling with Trigonometric Functions | **done** (`claude/roadmap-b-trig-4-8mnjwv`): level `tf-l7`, 5 lessons, a 15-question level check, 16 new generators |
-| B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
-| B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
-| B34 | Integration: Improper Integrals | **done** (`claude/roadmap-b-integration-4-gbuy3r`): level `in-l7`, 5 lessons, a 15-question level check, 17 new generators and an independent numeric check |
-| B29 | Quadratics: Quadratics in Disguise | **done** (`claude/roadmap-b-quadratics-4-xwfezb`): level `qd-l7`, 5 lessons, a 15-question level check, 20 new generators |
+One file per batch in [`docs/roadmap/batches/`](roadmap/batches/), `B1.md`
+onwards; `node docs/roadmap/batches.mjs` prints them as a table. The rows of
+the table that used to stand here were moved into those files.
 
 ### Phase C — the twenty-one new concepts
 
@@ -518,13 +517,8 @@ batch rather than waiting on a separate one.
 
 ### Phase C batches
 
-| # | Batch | Status |
-| ---: | --- | --- |
-| C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
-| C7 | Binomial Expansion | **done** (`claude/roadmap-c-binomial-expansion-e9c0un`): course `binomial-expansion`, levels `be-l1` and `be-l2`, 10 lessons, level checks of 14 and 15 questions, 32 new generators |
-| C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
-| C8-widget | Number-line widget for C8 and the Linear Equations inequalities level | **done** (`claude/roadmap-c8-widget-number-line-6civa1`): slide kind `numberLine` (rays, bounded intervals, unions; open and closed ends; whole or half steps), 2 demo generators asked by no lesson yet |
-| C2 | Functions & Transformations | claimed (`claude/roadmap-c-functions-transformations-uvigpv`) |
+One file per batch in [`docs/roadmap/batches/`](roadmap/batches/), `C1.md`
+onwards, with a widget-only batch named for its concept (`C2-widget.md`).
 
 ### When the queue empties
 
@@ -558,5 +552,6 @@ here because a thread taking a batch should not have to go looking.
    through a heredoc or generator script — write the file directly.
 8. **No engagement mechanics** beyond the per-lesson score and the daily streak
    the owner specified. No XP, no leagues, no persistent points total.
-9. **Update this file** as the first commit of a batch (claim the row) and the
-   last (mark it done, correct any count that has drifted).
+9. **Record the batch in its own file**, `docs/roadmap/batches/<id>.md`: add it
+   with `Status: claimed` as the first commit and set `Status: done` in the
+   last. Never record a batch by editing this file (see section 4).

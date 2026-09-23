@@ -64,6 +64,9 @@ export const functionsTransformations: Course = {
   id: 'functions-transformations',
   title: 'Functions & Transformations',
   blurb: 'A function as a rule to follow, combine and undo, and then as a graph to move.',
+  category: 'algebra-fundamentals',
+  // Straight after Linear Equations, whose undoing it builds on.
+  position: 35,
   levels: [
     {
       id: 'fn-l1',

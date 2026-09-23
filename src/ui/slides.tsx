@@ -33,6 +33,7 @@ import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
+import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
 
 export interface SlideProps {
@@ -552,6 +553,8 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'order':
+      return <OrderSlide {...props} />;
   }
 }
 
@@ -560,7 +563,14 @@ export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
-  if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') return [];
+  if (
+    slide.kind === 'steps' ||
+    slide.kind === 'flow' ||
+    slide.kind === 'reduce' ||
+    slide.kind === 'order'
+  ) {
+    return [];
+  }
   // A slider too, although its handle is drawn somewhere: where it rests is
   // not something the learner chose, and it can be the answer.
   return '';
@@ -573,6 +583,14 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'tiles' || slide.kind === 'tree') {
     const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
+  }
+  // A proof is answerable once every slot holds a step.
+  if (slide.kind === 'order') {
+    return (
+      Array.isArray(answer) &&
+      answer.length === slide.answer.length &&
+      answer.every((t) => t !== '')
+    );
   }
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';

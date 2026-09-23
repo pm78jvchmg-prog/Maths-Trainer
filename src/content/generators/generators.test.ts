@@ -318,6 +318,30 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           `tree bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
         ).toBeGreaterThanOrEqual(2);
       }
+
+      if (slide.kind === 'order') {
+        // Every step of the proof has to be in the bank exactly once, or the
+        // slots cannot be filled; and at least one step has to be a
+        // distractor, or ordering is all there is and nothing is being judged.
+        const ids = slide.steps.map((step) => step.id);
+        expect(new Set(ids).size, 'order bank repeats an id').toBe(ids.length);
+        const texts = slide.steps.map((step) => step.text.trim());
+        expect(new Set(texts).size, 'two order steps read the same').toBe(texts.length);
+        expect(texts.every((text) => text !== ''), 'an order step is blank').toBe(true);
+        expect(slide.answer.length).toBeGreaterThanOrEqual(2);
+        expect(new Set(slide.answer).size, 'order answer repeats a step').toBe(slide.answer.length);
+        for (const id of slide.answer) {
+          expect(ids, `order answer ${id} missing from bank`).toContain(id);
+        }
+        expect(ids.length - slide.answer.length, 'order bank has no distractor').toBeGreaterThanOrEqual(1);
+        // The bank must not read as the proof: its answer steps, in bank
+        // order, may not already be in answer order.
+        const positions = slide.answer.map((id) => ids.indexOf(id));
+        expect(
+          positions.every((at, idx) => idx === 0 || at > positions[idx - 1]),
+          'order bank lists the proof in order',
+        ).toBe(false);
+      }
     }
   });
 
@@ -417,6 +441,19 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       if (slide.kind === 'tree') {
         check(slide.expression, 'tree expression');
         for (const token of slide.bank) check(token, 'tree bank');
+      }
+
+      if (slide.kind === 'order') {
+        // Each step is prose rendered the way a prose block is, so it is the
+        // inline maths between its dollar signs that reaches KaTeX. An odd
+        // number of dollars leaves a stray one printed as text.
+        for (const step of slide.steps) {
+          expect((step.text.match(/\$/g) ?? []).length % 2, `unbalanced $ in ${step.text}`).toBe(0);
+          step.text
+            .split(/\$([^$]+)\$/g)
+            .filter((_, idx) => idx % 2 === 1)
+            .forEach((tex) => check(tex, `order step ${step.id}`));
+        }
       }
     }
   });

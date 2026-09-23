@@ -431,6 +431,7 @@ are green, and one new lesson has been played in a browser.
 | B16 | Integration: Volumes of Revolution | **done** (`claude/roadmap-b-integration-2-ymjv6y`): level `in-l5`, 4 lessons, a 14-question level check, 17 new generators and a solid-of-revolution figure |
 | B15 | Differentiation: Curve Sketching | **done** (`claude/roadmap-b-differentiation-2-66rw3b`): level `df-l6`, 5 lessons, a 15-question level check, 15 new generators |
 | B22 | Trigonometric Functions: Inverse Trigonometric Functions | **done** (`claude/roadmap-b-trig-3-qrhb8h`): level `tf-l6`, 5 lessons, a 15-question level check, 19 new generators |
+| B14 | Complex Numbers: Loci in the Complex Plane | **done** (`claude/roadmap-b-complex-numbers-2-3bbesx`): level `cn-l6`, 5 lessons, a 15-question level check, 20 new generators and a locus figure |
 | B24 | Differentiation: Rates of Change & Related Rates | **done** (`claude/roadmap-b-differentiation-3-0ce49b`): level `df-l7`, 4 lessons, a 15-question level check, 16 new generators and an independent mathjs check |
 | B19 | Exponents & Radicals: Index Equations & Substitution | **done** (`claude/roadmap-b-exponents-3-vgmwol`): level `er-l6`, 5 lessons, a 14-question level check, 20 new generators |
 | B21 | Logarithms: Linearising a Model | **done** (`claude/roadmap-b-logarithms-3-j7zt1t`): level `lg-l6`, 4 lessons, a 15-question level check, 15 new generators and axis names on the logarithm-graph figure |

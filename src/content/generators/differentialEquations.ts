@@ -484,9 +484,10 @@ const deFormRate: Generator<RateParams> = {
     const { ctx, form, top, bottom, value } = params;
     const s = STORIES[ctx].sym;
     const answer = rateValue(params);
+    const sign = answer < 0 ? '-' : '';
     const working =
       form === 'root'
-        ? `${top} \\times \\sqrt{${value}} = ${top} \\times ${Math.sqrt(value)}`
+        ? `${top} \\times \\sqrt{${value}}`
         : form === 'square'
           ? `${decimal(top, bottom)} \\times ${value}^2`
           : form === 'inverse'
@@ -494,7 +495,12 @@ const deFormRate: Generator<RateParams> = {
             : `${decimal(top, bottom)} \\times ${value}`;
     return [
       { text: `The equation gives the rate directly: put $${s} = ${value}$ into the right-hand side.` },
-      { tex: `${answer < 0 ? '-' : ''}${working} = ${answer}` },
+      {
+        tex:
+          form === 'root'
+            ? chain(`&${sign}${working}`, `&= ${sign}${top} \\times ${Math.sqrt(value)}`, `&= ${answer}`)
+            : `${sign}${working} = ${answer}`,
+      },
       { text: answer < 0 ? `It is negative: $${s}$ is falling by $${-answer}$ per ${STORIES[ctx].unit} at that moment.` : `$${s}$ is rising by $${answer}$ per ${STORIES[ctx].unit} at that moment.` },
     ];
   },
@@ -3152,7 +3158,7 @@ const deVerifyConstant: Generator<ConstantParams> = {
     }
     return [
       { text: 'Differentiate: the gradient of $mx + m$ is $m$.', tex: `${rate('y', 'x')} = m` },
-      { text: 'Put $y$ into the right-hand side.', tex: `mx + m ${signed(params.a)}x = (m ${signed(params.a)})x + m` },
+      { text: 'Put $y$ into the right-hand side.', tex: chain(`&mx + m ${signed(params.a)}x`, `&= (m ${signed(params.a)})x + m`) },
       { text: `For that to be $m$ at every $x$, the $x$ term must vanish.`, tex: `${letter} = ${answer}` },
     ];
   },

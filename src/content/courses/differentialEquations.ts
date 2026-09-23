@@ -314,8 +314,8 @@ export const differentialEquations: Course = {
             ask('de-limit-flow'),
             ask('de-limit-steps'),
             teach(
-              prose('Integrating $\\frac{1}{100 - W}$ gives $-\\ln|100 - W|$: the inside differentiates to $-1$. Then'),
-              working('-\\ln|100 - W| &= kt + C', '100 - W &= Ae^{-kt}', 'W &= 100 - Ae^{-kt}'),
+              prose('Integrating $\\frac{1}{100 - W}$ gives $-\\ln|100 - W|$: the inside differentiates to $-1$. Multiplying through by $-1$, and letting the constant absorb the sign,'),
+              working('\\ln|100 - W| &= -kt + C', '100 - W &= Ae^{-kt}', 'W &= 100 - Ae^{-kt}'),
               figure({
                 xMin: 0,
                 xMax: 12,

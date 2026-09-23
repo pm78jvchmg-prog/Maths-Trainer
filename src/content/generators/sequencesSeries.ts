@@ -2935,6 +2935,1671 @@ const firstExceed: Generator<ExceedParams> = {
   },
 };
 
+/* ---------- Level 3: sequences and their limits ---------- */
+
+/*
+ * Level 3 asks where a sequence is going. Most of it is the recurrence
+ * u_{n+1} = pu_n + q, whose terms close in on L = q / (1 - p) exactly when
+ * |p| < 1, because each step multiplies the gap u_n - L by p.
+ *
+ * Every tabled term is whole. A question draws L first, as a multiple of p's
+ * bottom so that q = L(1 - p) is whole too, then starts the terms at L plus a
+ * power of that bottom: L + 16 for p = 1/2 gives five whole terms before the
+ * gap runs out of halves.
+ */
+
+/** A ratio p = a/b, reduced, with b > 0; b is 1 for a whole p. */
+type Ratio = [number, number];
+
+/** Ratios whose recurrences settle, positive and then negative. */
+const SETTLE: Ratio[] = [[1, 2], [1, 3], [2, 3], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5]];
+const SETTLE_NEG: Ratio[] = [[-1, 2], [-1, 3], [-2, 3], [-1, 4], [-3, 4], [-2, 5]];
+
+const NONZERO9 = [-9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const NONZERO12 = [-12, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+/** p times a symbol, as written by hand: `\frac{1}{2}L`, `-u_n`, `2v_n`. */
+function pTimes(a: number, b: number, symbol: string): string {
+  if (a === b) return symbol;
+  if (a === -b) return `-${symbol}`;
+  return `${fracTex(a, b)}${symbol}`;
+}
+
+/** u_{n+1} = pu_n + q. */
+function affineTex(a: number, b: number, q: number, letter = 'u'): string {
+  return `${letter}_{n+1} = ${pTimes(a, b, `${letter}_n`)} ${signed(q)}`;
+}
+
+/** A rule over its starting terms: two lines, so that neither runs off a phone. */
+function startTex(rule: string, first: string): string {
+  return `\\begin{gathered} ${rule} \\\\ ${first} \\end{gathered}`;
+}
+
+/** p ready to be substituted: bracketed when negative. */
+function pBr(a: number, b: number): string {
+  return a < 0 ? `(${fracTex(a, b)})` : fracTex(a, b);
+}
+
+/** L + g p^k for k = 0, 1, …: the terms of a rule with limit L and first term L + g. */
+function towards(L: number, g: number, a: number, b: number, count: number): number[] {
+  return Array.from({ length: count }, (_, k) => L + (g * a ** k) / b ** k);
+}
+
+/** How many terms a table of p = a/b can hold before the gap stops dividing. */
+function rowsFor(b: number): number {
+  return b >= 4 ? 4 : 5;
+}
+
+/** A first gap that b divides into whole numbers for `rows - 1` steps. */
+function wholeGap(rng: Rng, b: number, rows: number): number {
+  return b ** (rows - 1) * (b === 2 ? rng.pick([1, 2]) : 1) * (rng.chance(0.3) ? -1 : 1);
+}
+
+/** A coefficient before a bracket in working: nothing for 1, `-` for -1. */
+function lead(k: number): string {
+  if (k === 1) return '';
+  if (k === -1) return '-';
+  return `${k}`;
+}
+
+/** The correct fraction and up to three wrong ones, distinct by value. */
+function fractionOptions([p, q]: Ratio, slips: Ratio[]): ChoiceOption[] {
+  const out: ChoiceOption[] = [{ tex: fracTex(p, q), answer: fracAnswer(p, q), correct: true }];
+  const seen = new Set([fracTex(p, q)]);
+  const near: Ratio[] = [[p + q, q], [p - q, q], [p + 2 * q, q]];
+  for (const [x, y] of [...slips, ...near]) {
+    if (out.length === 4) break;
+    if (y === 0) continue;
+    const tex = fracTex(x, y);
+    if (seen.has(tex)) continue;
+    seen.add(tex);
+    out.push({ tex, answer: fracAnswer(x, y) });
+  }
+  return out;
+}
+
+/* ---------- Level 3, lesson 1: increasing, decreasing and periodic ---------- */
+
+type Trend = 'increasing' | 'decreasing' | 'neither';
+
+/** What the signs of u_{n+1} - u_n, for n = 1, 2, …, say about the sequence. */
+function trendOf(differences: number[]): Trend {
+  if (differences.every((d) => d > 0)) return 'increasing';
+  if (differences.every((d) => d < 0)) return 'decreasing';
+  return 'neither';
+}
+
+const TREND_WORDS: Record<Trend, string> = {
+  increasing: 'positive for every $n \\geq 1$, so each term is bigger than the one before: the sequence is **increasing**.',
+  decreasing: 'negative for every $n \\geq 1$, so each term is smaller than the one before: the sequence is **decreasing**.',
+  neither: 'negative for some $n$ and positive for others, so the terms turn round: the sequence is **neither** increasing nor decreasing.',
+};
+
+const TREND_LABEL: Record<Trend, string> = {
+  increasing: 'Always positive',
+  decreasing: 'Always negative',
+  neither: 'It changes sign',
+};
+
+interface DiffTilesParams {
+  a: number;
+  b: number;
+  c: number;
+}
+
+/** u_{n+1} - u_n for an^2 + bn + c, which is 2an + (a + b), at n = 1 to 60. */
+function quadDifferences({ a, b }: { a: number; b: number }): number[] {
+  return Array.from({ length: 60 }, (_, i) => 2 * a * (i + 1) + a + b);
+}
+
+/** Expanding a(n + 1)^2 + b(n + 1) + c, the working both difference questions share. */
+function quadShift({ a, b, c }: DiffTilesParams): SolutionStep[] {
+  return [
+    {
+      text: `${c ? `The $${c}$ cancels when $u_n$ is taken away. ` : ''}Putting $n + 1$ in place of $n$, $(n + 1)^2 - n^2 = 2n + 1$ and $(n + 1) - n = 1$, so:`,
+    },
+    { tex: chain(`u_{n+1} - u_n &= ${lead(a)}(2n + 1) ${signed(b)}`, `&= ${linearTex(2 * a, a + b)}`) },
+  ];
+}
+
+/**
+ * u_{n+1} - u_n for a quadratic rule, placed as tiles. The slips are the ones
+ * made expanding (n + 1)^2: dropping its 2n, or its 1.
+ */
+const diffTiles: Generator<DiffTilesParams> = {
+  id: 'seq-diff-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const a = rng.pick(hard ? [-3, -2, 2, 3] : [-1, 1]);
+      const b = rng.pick(NONZERO9);
+      const c = rng.int(-9, 9);
+      if (a + b === 0 || quadDifferences({ a, b }).includes(0)) continue;
+      return { a, b, c };
+    }
+  },
+  render: ({ a, b, c }): Slide => {
+    const answer = [nTerm(2 * a, 1), token(a + b)];
+    const slips = [nTerm(a, 1), nTerm(-2 * a, 1), token(b), token(-(a + b)), token(2 * a + b), token(a - b)].filter(
+      (tile) => tile !== '+0',
+    );
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Find $u_{n+1} - u_n$ for this sequence, simplified.' },
+        { kind: 'display', tex: `u_n = ${quadTex(a, b, c)}` },
+      ],
+      template: 'u_{n+1} - u_n = {0} {1}',
+      bank: tileBank(answer, slips),
+      answer,
+    };
+  },
+  solution: (params) => [
+    ...quadShift(params),
+    { text: `At $n = 1$ it is $${3 * params.a + params.b}$. It is ${TREND_WORDS[trendOf(quadDifferences(params))]}` },
+  ],
+};
+
+type MonoForm = 'quad' | 'power' | 'recip';
+
+interface MonoParams {
+  form: MonoForm;
+  a: number;
+  b: number;
+  c: number;
+}
+
+function monoRule({ form, a, b, c }: MonoParams): string {
+  if (form === 'quad') return `u_n = ${quadTex(a, b, c)}`;
+  if (form === 'power') return `u_n = ${times(a)}2^n ${signed(c)}`;
+  return `u_n = ${c} ${a < 0 ? '-' : '+'} \\frac{${Math.abs(a)}}{n}`;
+}
+
+/** u_{n+1} - u_n written right, written with the usual slip, and its values for n = 1 to 60. */
+function monoDifference({ form, a, b }: MonoParams): { right: string; slip: string; values: number[] } {
+  const ns = Array.from({ length: 60 }, (_, i) => i + 1);
+  if (form === 'quad') return { right: linearTex(2 * a, a + b), slip: linearTex(2 * a, b), values: quadDifferences({ a, b }) };
+  if (form === 'power') return { right: `${times(a)}2^n`, slip: `${2 * a}`, values: ns.map((n) => a * 2 ** n) };
+  const over = `\\frac{${Math.abs(a)}}{n(n + 1)}`;
+  return {
+    right: a > 0 ? `-${over}` : over,
+    slip: a > 0 ? over : `-${over}`,
+    values: ns.map((n) => -a / (n * (n + 1))),
+  };
+}
+
+/**
+ * Increasing, decreasing or neither, read from the sign of u_{n+1} - u_n.
+ * The first fork asks for the difference, beside the slip of dropping the 1
+ * from (n + 1)^2 (or treating 2^{n+1} - 2^n as 2, or losing the sign of a
+ * fraction); the second asks what sign it has for every n.
+ */
+const monotoneFlow: Generator<MonoParams> = {
+  id: 'seq-monotone-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const form: MonoForm = rng.pick(hard ? ['quad', 'quad', 'power', 'recip'] : ['quad', 'quad', 'power']);
+      const c = rng.pick(NONZERO9);
+      let a: number;
+      let b = 0;
+      if (form === 'quad') {
+        a = rng.pick(hard ? [-3, -2, 2, 3] : [-1, 1]);
+        b = rng.pick(NONZERO9);
+      } else if (form === 'power') a = rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]);
+      else a = rng.pick(NONZERO12);
+      const params = { form, a, b, c };
+      if (monoDifference(params).values.includes(0)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { right, slip, values } = monoDifference(params);
+    const rightLabel = `$u_{n+1} - u_n = ${right}$`;
+    const slipLabel = `$u_{n+1} - u_n = ${slip}$`;
+    const signStep = (id: string) => ({
+      id,
+      ask: 'What sign is it, for $n \\geq 1$?',
+      branches: [
+        { label: TREND_LABEL.increasing, outcome: 'Each term is bigger than the one before: the sequence is **increasing**.' },
+        { label: TREND_LABEL.decreasing, outcome: 'Each term is smaller than the one before: the sequence is **decreasing**.' },
+        { label: TREND_LABEL.neither, outcome: 'The terms go one way and then the other: the sequence is **neither**.' },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Is this sequence increasing, decreasing, or neither? Work out $u_{n+1} - u_n$ first.' }],
+      subject: monoRule(params),
+      steps: [
+        {
+          id: 'difference',
+          ask: 'What is $u_{n+1} - u_n$?',
+          branches: turned(
+            [
+              { label: rightLabel, to: 'right' },
+              { label: slipLabel, to: 'slip' },
+            ],
+            mix(params.form, params.a, params.b, params.c),
+          ),
+        },
+        signStep('right'),
+        signStep('slip'),
+      ],
+      answer: [rightLabel, TREND_LABEL[trendOf(values)]],
+    };
+  },
+  solution: (params) => {
+    const { form, a } = params;
+    const { right, values } = monoDifference(params);
+    const verdict = { text: `It is ${TREND_WORDS[trendOf(values)]}` };
+    if (form === 'quad') return [...quadShift(params), verdict];
+    if (form === 'power') {
+      return [
+        { text: '$2^{n+1}$ is $2 \\times 2^n$, so taking $2^n$ away leaves one $2^n$. The constant cancels.' },
+        { tex: chain(`u_{n+1} - u_n &= ${lead(a)}(2^{n+1} - 2^n)`, `&= ${right}`) },
+        verdict,
+      ];
+    }
+    return [
+      {
+        text: `Over a common denominator, $\\frac{1}{n + 1} - \\frac{1}{n} = -\\frac{1}{n(n + 1)}$. The constant cancels, and that fraction is multiplied by $${a}$:`,
+      },
+      { tex: `u_{n+1} - u_n = ${right}` },
+      verdict,
+    ];
+  },
+};
+
+type PeriodForm = 'recip' | 'sign' | 'swap' | 'skip' | 'three';
+
+interface PeriodParams {
+  form: PeriodForm;
+  x: number;
+  y: number;
+  k: number;
+}
+
+const PERIOD: Record<PeriodForm, number> = { recip: 2, sign: 2, swap: 6, skip: 4, three: 3 };
+
+/**
+ * The terms of a periodic rule. `recip` is u_{n+1} = k / u_n from u_1 = x,
+ * `sign` is u_n = k + y(-1)^n, and the rest run from u_1 = x and u_2 = y using
+ * the two terms before: u_{n+1} - u_n (period 6), -u_n (period 4) and
+ * -u_{n+1} - u_n (period 3).
+ */
+function periodTerms({ form, x, y, k }: PeriodParams, count: number): number[] {
+  if (form === 'sign') return Array.from({ length: count }, (_, i) => k + y * (-1) ** (i + 1));
+  const terms = form === 'recip' ? [x] : [x, y];
+  while (terms.length < count) {
+    const u = terms[terms.length - 2];
+    const v = terms[terms.length - 1];
+    terms.push(form === 'recip' ? k / v : form === 'swap' ? v - u : form === 'skip' ? -u : -v - u);
+  }
+  return terms.slice(0, count);
+}
+
+function periodRule({ form, x, y, k }: PeriodParams): string {
+  if (form === 'recip') return startTex(`u_{n+1} = ${k < 0 ? '-' : ''}\\frac{${Math.abs(k)}}{u_n}`, `u_1 = ${x}`);
+  if (form === 'sign') return `u_n = ${k} ${y < 0 ? '-' : '+'} ${lead(Math.abs(y))}(-1)^n`;
+  const rule = form === 'swap' ? 'u_{n+1} - u_n' : form === 'skip' ? '-u_n' : '-u_{n+1} - u_n';
+  return startTex(`u_{n+2} = ${rule}`, `u_1 = ${x}, \\; u_2 = ${y}`);
+}
+
+/** The smallest shift that maps the list onto itself. */
+function smallestPeriod(terms: number[]): number {
+  for (let p = 1; p < terms.length; p += 1) {
+    if (terms.every((t, i) => i + p >= terms.length || terms[i + p] === t)) return p;
+  }
+  return terms.length;
+}
+
+/** First-order rules repeating every two terms, or (harder) rules on the two terms before. */
+function samplePeriod(rng: Rng, hard: boolean): PeriodParams {
+  for (;;) {
+    const form: PeriodForm = rng.pick(hard ? ['swap', 'skip', 'three'] : ['recip', 'sign']);
+    let x = 0;
+    let y = 0;
+    let k = 0;
+    if (form === 'recip') {
+      x = rng.pick([-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]);
+      y = rng.pick([-6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9]);
+      k = x * y;
+    } else if (form === 'sign') {
+      k = rng.int(-5, 12);
+      y = rng.pick([-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6]);
+    } else {
+      x = rng.int(-6, 9);
+      y = rng.int(-6, 9);
+    }
+    const params = { form, x, y, k };
+    const terms = periodTerms(params, 12);
+    if (k === 0 && form === 'sign') continue;
+    if (terms.includes(0) || smallestPeriod(terms) !== PERIOD[form]) continue;
+    return params;
+  }
+}
+
+/** How the terms of a periodic rule are worked, for a worked solution. */
+function periodHow({ form, x, y, k }: PeriodParams): string {
+  if (form === 'recip') return `Divide $${k}$ by each term to get the next: $${k} \\div ${br(x)} = ${y}$, then $${k} \\div ${br(y)} = ${x}$, which is where it started.`;
+  if (form === 'sign') return `$(-1)^n$ is $-1$ when $n$ is odd and $1$ when $n$ is even, so the odd terms are all $${k - y}$ and the even terms all $${k + y}$.`;
+  if (form === 'swap') return 'Each term is the one before it minus the one before that.';
+  if (form === 'skip') return 'Each term is minus the term two places before it.';
+  return 'Each term is minus the sum of the two before it.';
+}
+
+interface PeriodTableParams extends PeriodParams {
+  blanks: number[];
+}
+
+/** A periodic sequence run down a table. Harder rules use the two terms before, so u_2 is given too. */
+const periodTable: Generator<PeriodTableParams> = {
+  id: 'seq-period-table',
+  sample: (rng, difficulty) => {
+    const params = samplePeriod(rng, difficulty > 1);
+    const from = params.form === 'recip' || params.form === 'sign' ? 1 : 2;
+    return { ...params, blanks: positions(rng, from, 5, 3) };
+  },
+  render: (params): Slide => {
+    const terms = periodTerms(params, 6);
+    const answer = params.blanks.map((i) => terms[i]);
+    const slips = params.blanks.flatMap((i) => {
+      const [u, v] = [terms[i - 2] ?? 0, terms[i - 1]];
+      if (params.form === 'recip') return [params.k * v, -v, params.k - v];
+      if (params.form === 'sign') return [params.k, params.y, -params.y, -terms[i]];
+      return [-terms[i], u + v, u - v, v];
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            params.form === 'sign'
+              ? 'This rule gives each term from its position $n$. Fill in the missing terms and look for a repeat.'
+              : 'Fill in the missing terms, each from the terms before it, and look for a repeat.',
+        },
+        { kind: 'display', tex: periodRule(params) },
+      ],
+      columns: ['n', 'u_n'],
+      rows: terms.map((_, i) => [`${i + 1}`, column(terms, params.blanks)[i]]),
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const period = PERIOD[params.form];
+    return [
+      { text: periodHow(params) },
+      { tex: listLines([...periodTerms(params, 7), '\\dots']) },
+      { text: `The terms repeat every $${period}$: $u_{n+${period}} = u_n$, so the sequence is periodic with period $${period}$.` },
+    ];
+  },
+};
+
+interface PeriodAskParams extends PeriodParams {
+  ask: 'period' | 'term';
+  /** The far-off position asked about. */
+  far: number;
+}
+
+/** The period of a repeating rule, or a far-off term found from it. */
+const periodChoice: Generator<PeriodAskParams> = {
+  id: 'seq-period',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      ...samplePeriod(rng, hard),
+      ask: hard && rng.chance(0.5) ? 'period' : 'term',
+      far: rng.int(hard ? 30 : 15, hard ? 150 : 99),
+    };
+  },
+  render: (params): Slide => {
+    const period = PERIOD[params.form];
+    const cycle = periodTerms(params, period);
+    let labels: string[];
+    let text: string;
+    if (params.ask === 'period') {
+      labels = [period, ...[2, 3, 4, 6].filter((p) => p !== period)].map(String);
+      text = 'This sequence repeats. What is its period, the smallest $k$ with $u_{n+k} = u_n$?';
+    } else {
+      const at = (params.far - 1) % period;
+      const near = [cycle[(at + 1) % period], cycle[(at + period - 1) % period], ...cycle];
+      labels = numberOptions(cycle[at], near).map((option) => option.tex);
+      text = `This sequence repeats. Find $u_{${params.far}}$.`;
+    }
+    const { options, correctId } = nativeChoice(labels, mix(...labels, params.far));
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text },
+        { kind: 'display', tex: periodRule(params) },
+      ],
+      options,
+      correctId,
+    };
+  },
+  solution: (params) => {
+    const period = PERIOD[params.form];
+    const terms = periodTerms(params, period + 2);
+    const steps: SolutionStep[] = [
+      { text: periodHow(params) },
+      { tex: listLines([...terms, '\\dots']) },
+      { text: `$u_{${period + 1}} = u_1$, so the terms repeat every $${period}$: the period is $${period}$.` },
+    ];
+    if (params.ask === 'term') {
+      const at = (params.far - 1) % period;
+      steps.push({
+        text: `$${params.far} = ${period} \\times ${Math.floor((params.far - 1) / period)} + ${at + 1}$, so $u_{${params.far}} = u_{${at + 1}} = ${terms[at]}$.`,
+      });
+    }
+    return steps;
+  },
+};
+
+/* ---------- Level 3, lesson 2: the limit of a recurrence ---------- */
+
+interface LimitTableParams {
+  a: number;
+  b: number;
+  L: number;
+  /** u_1 - L. */
+  g: number;
+  blanks: number[];
+}
+
+/** The terms of a converging recurrence, filled in down a table. */
+const limitTable: Generator<LimitTableParams> = {
+  id: 'seq-limit-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const pool: Ratio[] = hard ? [[-1, 2], [-1, 3], [2, 3], [-2, 3], [3, 4], [1, 4]] : [[1, 2], [1, 3]];
+    for (;;) {
+      const [a, b] = rng.pick(pool);
+      const rows = rowsFor(b);
+      const L = b * rng.pick([-3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]);
+      const g = wholeGap(rng, b, rows);
+      if (towards(L, g, a, b, rows).some((t) => Math.abs(t) > 150)) continue;
+      return { a, b, L, g, blanks: positions(rng, 1, rows - 1, hard ? 3 : 2) };
+    }
+  },
+  render: ({ a, b, L, g, blanks }): Slide => {
+    const q = (L * (b - a)) / b;
+    const terms = towards(L, g, a, b, rowsFor(b));
+    const answer = blanks.map((i) => terms[i]);
+    const slips = blanks.flatMap((i) => {
+      const before = terms[i - 1];
+      return [(a * before) / b, (a * (before + q)) / b, before + q, before - q, L];
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        { kind: 'prose', text: 'Fill in the missing terms, each from the one before, and watch where they are heading.' },
+        { kind: 'display', tex: startTex(affineTex(a, b, q), `u_1 = ${L + g}`) },
+      ],
+      columns: ['n', 'u_n'],
+      rows: terms.map((_, i) => [`${i + 1}`, column(terms, blanks)[i]]),
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ a, b, L, g }) => {
+    const q = (L * (b - a)) / b;
+    const terms = towards(L, g, a, b, rowsFor(b));
+    return [
+      { text: `Multiply each term by $${fracTex(a, b)}$, then ${q > 0 ? 'add' : 'take away'} $${Math.abs(q)}$.` },
+      { tex: chain(...terms.slice(1).map((t, i) => `u_{${i + 2}} &= ${fracTex(a, b)} \\times ${br(terms[i])} ${signed(q)} = ${t}`)) },
+      {
+        text: `Their gaps to $${L}$ go $${listTex(terms.map((t) => t - L), false)}$, ${a < 0 ? 'changing sign and ' : ''}shrinking every step: the terms are closing in on $${L}$.`,
+      },
+    ];
+  },
+};
+
+interface FixedPointParams {
+  a: number;
+  b: number;
+  m: number;
+}
+
+/** L = q ÷ (1 - p), worked one operation at a time. The fraction arithmetic is the skill. */
+const fixedPointSteps: Generator<FixedPointParams> = {
+  id: 'seq-fixed-point-steps',
+  sample: (rng, difficulty) => {
+    const pool: Ratio[] = difficulty > 1 ? [...SETTLE_NEG, [2, 3], [3, 4], [2, 5], [3, 5]] : SETTLE;
+    const [a, b] = rng.pick(pool);
+    return { a, b, m: rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) };
+  },
+  render: ({ a, b, m }): Slide => {
+    const L = b * m;
+    const q = m * (b - a);
+    const oneMinus = fracTex(b - a, b);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The terms of $${affineTex(a, b, q)}$ settle on a limit $L$. Once they have, $u_{n+1}$ and $u_n$ are both $L$:`,
+        },
+        { kind: 'display', tex: `L = ${pTimes(a, b, 'L')} ${signed(q)}` },
+        {
+          kind: 'prose',
+          text: 'Gathering the $L$ terms on one side turns this into the line below. Tap the operation to do next, then choose what it gives.',
+        },
+      ],
+      start: [`${q}`, '\\div', '(', '1', '-', pBr(a, b), ')'],
+      reductions: [
+        {
+          span: [2, 7],
+          operator: 4,
+          value: oneMinus,
+          bank: stepsBank([oneMinus, fracTex(b + a, b), fracTex(a - b, b), fracTex(b, b - a)]),
+        },
+        { span: [0, 3], operator: 1, value: `${L}`, bank: valueBank(L, (q * (b - a)) / b, (q * b) / (b + a), -L, q) },
+      ],
+    };
+  },
+  solution: ({ a, b, m }) => {
+    const L = b * m;
+    const q = m * (b - a);
+    return [
+      {
+        tex: chain(
+          `L &= ${pTimes(a, b, 'L')} ${signed(q)}`,
+          `L ${a < 0 ? '+' : '-'} ${pTimes(Math.abs(a), b, 'L')} &= ${q}`,
+          `${fracTex(b - a, b)}L &= ${q}`,
+        ),
+      },
+      { text: `Dividing by a fraction is multiplying by it upside down: $L = ${q} \\times ${fracTex(b, b - a)} = ${L}$.` },
+    ];
+  },
+};
+
+type LimitForm = 'plain' | 'over' | 'minus';
+
+interface LimitParams {
+  form: LimitForm;
+  a: number;
+  b: number;
+  L: number;
+  /** u_1. */
+  s: number;
+}
+
+/** The constant the rule is written with: q in pu_n + q, c in (u_n + c)/b, k in k - (a/b)u_n. */
+function limitConstant({ form, b, a, L }: LimitParams): number {
+  return form === 'over' ? L * (b - 1) : (L * (b - a)) / b;
+}
+
+function limitRuleTex(params: LimitParams): string {
+  const { form, a, b } = params;
+  const c = limitConstant(params);
+  if (form === 'over') return `u_{n+1} = \\frac{u_n ${signed(c)}}{${b}}`;
+  if (form === 'minus') return `u_{n+1} = ${c} - \\frac{${lead(-a)}u_n}{${b}}`;
+  return affineTex(a, b, c);
+}
+
+/** The limit of a converging recurrence, typed. Harder rules hide p inside a fraction. */
+const limitAsk: Generator<LimitParams> = {
+  id: 'seq-limit',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const form: LimitForm = hard ? rng.pick(['plain', 'over', 'minus']) : 'plain';
+    let ratio: Ratio;
+    if (form === 'over') ratio = [1, rng.pick([2, 3, 4, 5])];
+    else if (form === 'minus') ratio = rng.pick<Ratio>([[-1, 2], [-1, 3], [-2, 3], [-1, 4], [-3, 4]]);
+    else ratio = rng.pick(hard ? SETTLE_NEG : SETTLE);
+    const [a, b] = ratio;
+    const L = (form === 'over' ? 1 : b) * rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const s = L + rng.pick([-12, -9, -6, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]);
+    return { form, a, b, L, s };
+  },
+  choices: (params) => {
+    const { a, b, L, s } = params;
+    const c = limitConstant(params);
+    return numberOptions(L, [c, (c * b) / (b + a), s, -L]);
+  },
+  render: (params): Slide =>
+    typed(
+      [
+        { kind: 'prose', text: 'This sequence converges. Find its limit $L$.' },
+        { kind: 'display', tex: startTex(limitRuleTex(params), `u_1 = ${params.s}`) },
+      ],
+      'L =',
+      params.L,
+    ),
+  solution: (params) => {
+    const { form, a, b, L } = params;
+    const c = limitConstant(params);
+    const settle = { text: `At the limit $u_{n+1}$ and $u_n$ are both $L$. (The terms do settle: $|p| = ${fracTex(Math.abs(a), b)} < 1$.)` };
+    if (form === 'over') {
+      return [
+        settle,
+        { tex: chain(`L &= \\frac{L ${signed(c)}}{${b}}`, `${b}L &= L ${signed(c)}`, `${lead(b - 1)}L &= ${c}`, `L &= ${L}`) },
+      ];
+    }
+    if (form === 'minus') {
+      return [settle, { tex: chain(`L &= ${c} - \\frac{${lead(-a)}L}{${b}}`, `${fracTex(b - a, b)}L &= ${c}`, `L &= ${L}`) }];
+    }
+    return [settle, { tex: chain(`L &= ${pTimes(a, b, 'L')} ${signed(c)}`, `${fracTex(b - a, b)}L &= ${c}`, `L &= ${L}`) }];
+  },
+};
+
+interface BackParams {
+  a: number;
+  b: number;
+  m: number;
+  s: number;
+}
+
+/**
+ * The limit run backwards: from L and p, the missing q, then the next term.
+ * L and u_1 are multiples of p's bottom, so every node is whole.
+ */
+const limitBackTree: Generator<BackParams> = {
+  id: 'seq-limit-back-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const [a, b] = rng.pick(difficulty > 1 ? SETTLE_NEG : SETTLE);
+      const m = rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]);
+      const s = rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      if (s === m) continue;
+      return { a, b, m, s };
+    }
+  },
+  render: ({ a, b, m, s }): Slide => {
+    const L = b * m;
+    const q = m * (b - a);
+    const answer = [a * m, q, a * s, a * s + q];
+    const slips = [L + a * m, a * m - L, L, b * s + q, a * s - q, a * s + L];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This sequence converges to $L = ${L}$, but $q$ is missing. Fill the tree: $${pTimes(a, b, 'L')}$, then $q$, then $${pTimes(a, b, 'u_1')}$, then $u_2$.`,
+        },
+      ],
+      expression: startTex(`u_{n+1} = ${pTimes(a, b, 'u_n')} + q`, `u_1 = ${b * s}`),
+      nodes: [
+        { id: 'pL', from: [] },
+        { id: 'q', from: ['pL'] },
+        { id: 'pu', from: [] },
+        { id: 'next', from: ['pu', 'q'] },
+      ],
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ a, b, m, s }) => {
+    const L = b * m;
+    const q = m * (b - a);
+    return [
+      { text: 'At the limit both terms are $L$, so $L = pL + q$, which gives $q = L - pL$.' },
+      { tex: chain(`${pTimes(a, b, 'L')} &= ${fracTex(a, b)} \\times ${br(L)} = ${a * m}`, `q &= ${L} - ${br(a * m)} = ${q}`) },
+      { tex: `u_2 = ${fracTex(a, b)} \\times ${br(b * s)} ${signed(q)} = ${a * s + q}` },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 3: converge, oscillate or diverge ---------- */
+
+type Fate = 'steady' | 'swing' | 'adds' | 'flips' | 'grows' | 'wild';
+
+/** What u_{n+1} = pu_n + q does in the long run, from p = a/b alone. */
+function fateOf(a: number, b: number): Fate {
+  if (Math.abs(a) < b) return a > 0 ? 'steady' : 'swing';
+  if (a === b) return 'adds';
+  if (a === -b) return 'flips';
+  return a > 0 ? 'grows' : 'wild';
+}
+
+const FATE_PATH: Record<Fate, string[]> = {
+  steady: ['$|p| < 1$', 'Positive'],
+  swing: ['$|p| < 1$', 'Negative'],
+  adds: ['$|p| = 1$', '$p = 1$'],
+  flips: ['$|p| = 1$', '$p = -1$'],
+  grows: ['$|p| > 1$', 'Positive'],
+  wild: ['$|p| > 1$', 'Negative'],
+};
+
+type FateForm = 'plain' | 'over' | 'times';
+
+interface FateFlowParams {
+  form: FateForm;
+  a: number;
+  b: number;
+  c: number;
+  s: number;
+}
+
+/**
+ * The rule as written, with q times b (whole in every form). `over` is
+ * (u_n + c)/b or (c - u_n)/b; `times` is |p|(u_n - c) or |p|(c - u_n).
+ */
+function fateRule({ form, a, b, c }: FateFlowParams): { tex: string; qb: number } {
+  if (form === 'over') {
+    return { tex: a > 0 ? `u_{n+1} = \\frac{u_n ${signed(c)}}{${b}}` : `u_{n+1} = \\frac{${c} - u_n}{${b}}`, qb: c };
+  }
+  if (form === 'times') return { tex: a > 0 ? `u_{n+1} = ${a}(u_n ${signed(-c)})` : `u_{n+1} = ${-a}(${c} - u_n)`, qb: -a * c };
+  return { tex: affineTex(a, b, c), qb: c * b };
+}
+
+/** Converge, oscillate or diverge, decided from p before anything is solved. */
+const fateFlow: Generator<FateFlowParams> = {
+  id: 'seq-fate-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const form: FateForm = hard ? rng.pick(['plain', 'over', 'times']) : 'plain';
+      let ratio: Ratio;
+      if (form === 'over') ratio = [rng.pick([-1, 1]), rng.pick([2, 3, 4, 5])];
+      else if (form === 'times') ratio = [rng.pick([-3, -2, 2, 3]), 1];
+      else {
+        ratio = rng.pick<Ratio>(
+          hard
+            ? [[-1, 2], [-2, 3], [3, 2], [-3, 2], [-1, 1], [1, 1], [-4, 3], [3, 4]]
+            : [[1, 2], [1, 3], [2, 3], [-1, 2], [-1, 3], [1, 1], [-1, 1], [2, 1], [3, 1], [-2, 1]],
+        );
+      }
+      const [a, b] = ratio;
+      const params = { form, a, b, c: rng.pick(NONZERO12), s: rng.int(-5, 15) };
+      // Starting on the fixed point would sit still, whatever p is.
+      if (a !== b && params.s * (b - a) === fateRule(params).qb) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'flow',
+    prompt: [{ kind: 'prose', text: 'Read this rule as $u_{n+1} = pu_n + q$, then use $p$ to decide what the terms do in the long run.' }],
+    subject: startTex(fateRule(params).tex, `u_1 = ${params.s}`),
+    steps: [
+      {
+        id: 'size',
+        ask: 'How big is $|p|$?',
+        branches: [
+          { label: '$|p| < 1$', to: 'small' },
+          { label: '$|p| = 1$', to: 'one' },
+          { label: '$|p| > 1$', to: 'big' },
+        ],
+      },
+      {
+        id: 'small',
+        ask: 'Is $p$ positive or negative?',
+        branches: [
+          { label: 'Positive', outcome: 'The gap to the limit shrinks every step: the terms **converge**, closing in from one side.' },
+          { label: 'Negative', outcome: 'The gap shrinks and changes sign every step: the terms **converge**, landing either side of the limit in turn.' },
+        ],
+      },
+      {
+        id: 'one',
+        ask: 'Which is it?',
+        branches: [
+          { label: '$p = 1$', outcome: 'Each step adds the same $q$, so the terms never settle: they **diverge**.' },
+          { label: '$p = -1$', outcome: 'Each step flips the term to the other side: two values repeat for ever, **periodic** with period $2$.' },
+        ],
+      },
+      {
+        id: 'big',
+        ask: 'Is $p$ positive or negative?',
+        branches: [
+          { label: 'Positive', outcome: 'The gap grows every step: the terms run away to one side and **diverge**.' },
+          { label: 'Negative', outcome: 'The gap grows and changes sign: the terms swing either side, further each time, and **diverge**.' },
+        ],
+      },
+    ],
+    answer: FATE_PATH[fateOf(params.a, params.b)],
+  }),
+  solution: (params) => {
+    const { form, a, b, c, s } = params;
+    const { qb } = fateRule(params);
+    const qTex = form === 'over' ? fracTex(c, b) : `${qb / b}`;
+    const L = a === b ? '' : fracTex(qb, b - a);
+    const steps: SolutionStep[] = [];
+    if (form !== 'plain') {
+      steps.push({ text: `Multiplied out, the rule is $u_{n+1} = ${pTimes(a, b, 'u_n')} ${qb < 0 ? '-' : '+'} ${qTex.replace(/^-/, '')}$.` });
+    }
+    const words: Record<Fate, string> = {
+      steady: `$p = ${fracTex(a, b)}$, so $|p| < 1$ and the terms close in on $L = ${L}$ from one side.`,
+      swing: `$p = ${fracTex(a, b)}$, so $|p| < 1$ and the terms close in on $L = ${L}$, landing either side of it in turn.`,
+      adds: `$p = 1$: every step ${qb > 0 ? 'adds' : 'takes away'} $${qTex.replace(/^-/, '')}$, so the terms never settle.`,
+      flips: `$p = -1$: from $${s}$ the terms flip to $${qb / b - s}$ and back again, for ever.`,
+      grows: `$p = ${fracTex(a, b)}$, so $|p| > 1$ and the gap to $${L}$ grows every step. $L = ${L}$ solves $L = pL + q$, but the terms never reach it.`,
+      wild: `$p = ${fracTex(a, b)}$, so $|p| > 1$: the terms swing either side of $${L}$, further each time. $L = ${L}$ solves $L = pL + q$, but the terms never reach it.`,
+    };
+    steps.push({ text: words[fateOf(a, b)] });
+    return steps;
+  },
+};
+
+interface FateSliderParams {
+  a: number;
+  b: number;
+  m: number;
+  g: number;
+}
+
+/** Terms as dots settling on a height; slide to it. Negative p lands them either side. */
+const fateSlider: Generator<FateSliderParams> = {
+  id: 'seq-fate-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const [a, b] = rng.pick(difficulty > 1 ? SETTLE_NEG : SETTLE);
+      const m = rng.int(1, Math.floor(30 / b));
+      const L = b * m;
+      const g = rng.int(1 - L, 30);
+      if (L < 4 || g === 0 || towards(L, g, a, b, 8).some((t) => t < 0.5)) continue;
+      return { a, b, m, g };
+    }
+  },
+  render: ({ a, b, m, g }): Slide => {
+    const L = b * m;
+    const terms = towards(L, g, a, b, 8);
+    const max = Math.ceil((Math.max(L, ...terms) * 1.25) / 5) * 5;
+    const window = markerWindow(0, max, 'y');
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The dots are the first eight terms of $${affineTex(a, b, m * (b - a))}$, from $u_1 = ${L + g}$. Slide to the height they close in on.`,
+        },
+      ],
+      min: 0,
+      max,
+      step: 1,
+      answer: L,
+      readout: 'L = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 9,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          curves: [],
+          marks: terms.map((y, i) => ({ x: i + 1, y })),
+          label: `Terms of a sequence settling towards a height, the first at ${L + g}`,
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: ({ a, b, m, g }) => {
+    const L = b * m;
+    const q = m * (b - a);
+    return [
+      { text: 'At the limit $u_{n+1}$ and $u_n$ are both $L$.' },
+      { tex: chain(`L &= ${pTimes(a, b, 'L')} ${signed(q)}`, `${fracTex(b - a, b)}L &= ${q}`, `L &= ${L}`) },
+      {
+        text:
+          a < 0
+            ? 'With $p$ negative the dots land above and below the limit in turn, closing in from both sides.'
+            : `With $p$ positive the dots close in from ${g > 0 ? 'above' : 'below'}, never crossing it.`,
+      },
+    ];
+  },
+};
+
+interface FateChoiceParams {
+  a: number;
+  b: number;
+  /** The fixed point, q / (1 - p); unused when p = 1. */
+  L: number;
+  q: number;
+  s: number;
+}
+
+/** What the terms do. The trap is the fixed point offered as a limit when |p| >= 1. */
+const fateChoice: Generator<FateChoiceParams> = {
+  id: 'seq-fate',
+  sample: (rng, difficulty) => {
+    const pool: Ratio[] =
+      difficulty > 1
+        ? [[-1, 2], [-1, 3], [-2, 3], [-3, 4], [-2, 1], [-3, 1], [-1, 1], [3, 2], [1, 1]]
+        : [[1, 2], [1, 3], [2, 3], [3, 4], [2, 1], [3, 1], [-1, 1], [1, 1]];
+    for (;;) {
+      const [a, b] = rng.pick(pool);
+      const s = rng.int(-5, 20);
+      if (a === b) {
+        const q = rng.pick(NONZERO9);
+        if (s === q) continue;
+        return { a, b, L: 0, q, s };
+      }
+      const L = b * rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      const q = (L * (b - a)) / b;
+      if (s === L || q === L) continue;
+      return { a, b, L, q, s };
+    }
+  },
+  render: ({ a, b, L, q, s }): Slide => {
+    const to = (value: number) => `\\text{Converges to } ${value}`;
+    const diverges = '\\text{Diverges}';
+    const periodic = '\\text{Periodic, period } 2';
+    const fate = fateOf(a, b);
+    const labels =
+      fate === 'steady' || fate === 'swing'
+        ? [to(L), diverges, periodic, to(q)]
+        : fate === 'flips'
+          ? [periodic, to(L), diverges, to(q)]
+          : fate === 'adds'
+            ? [diverges, periodic, to(s), to(q)]
+            : [diverges, to(L), periodic, to(q)];
+    const { options, correctId } = nativeChoice(labels, mix(...labels, s));
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'What happens to the terms of this sequence as $n$ gets larger?' },
+        { kind: 'display', tex: startTex(affineTex(a, b, q), `u_1 = ${s}`) },
+      ],
+      options,
+      correctId,
+    };
+  },
+  solution: ({ a, b, L, q, s }) => {
+    const p = `$p = ${fracTex(a, b)}$`;
+    const words: Record<Fate, string> = {
+      steady: `${p}, so $|p| < 1$: the gap to the limit shrinks every step and the terms converge. $L = ${pTimes(a, b, 'L')} ${signed(q)}$ gives $L = ${L}$.`,
+      swing: `${p}, so $|p| < 1$: the gap shrinks every step, changing sign, and the terms converge. $L = ${pTimes(a, b, 'L')} ${signed(q)}$ gives $L = ${L}$.`,
+      adds: `${p}: every step ${q > 0 ? 'adds' : 'takes away'} $${Math.abs(q)}$, so the terms go $${s}, ${s + q}, ${s + 2 * q}, \\dots$ and never settle. They diverge.`,
+      flips: `${p}: the terms go $${s}, ${q - s}, ${s}, ${q - s}, \\dots$, repeating every two. $L = ${L}$ solves $L = pL + q$, but the terms only jump over it.`,
+      grows: `${p}, so $|p| > 1$: the gap to $${L}$ grows every step and the terms diverge. $L = ${L}$ does solve $L = pL + q$, but the terms never get there.`,
+      wild: `${p}, so $|p| > 1$: the terms swing either side of $${L}$, further each time, and diverge. $L = ${L}$ does solve $L = pL + q$, but the terms never get there.`,
+    };
+    return [{ text: words[fateOf(a, b)] }];
+  },
+};
+
+interface FateTableParams {
+  /** u's ratio, which settles. */
+  a: number;
+  b: number;
+  /** v's ratio, whole, which does not. */
+  c: number;
+  L: number;
+  g: number;
+  blanksU: number[];
+  blanksV: number[];
+}
+
+/**
+ * Two rules with the same fixed point and the same first term, side by side:
+ * one closes in on L, the other runs away from it or flips about it.
+ */
+const fateTable: Generator<FateTableParams> = {
+  id: 'seq-fate-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const [a, b] = rng.pick<Ratio>(hard ? [[-1, 2], [-1, 3], [2, 3]] : [[1, 2], [1, 3]]);
+    const rows = b === 2 ? 5 : 4;
+    return {
+      a,
+      b,
+      c: rng.pick(hard ? [2, -2, -1] : [2, -1]),
+      L: b * rng.pick([-3, -2, -1, 1, 2, 3, 4, 5, 6]),
+      g: b ** (rows - 1) * (rng.chance(0.3) ? -1 : 1),
+      blanksU: positions(rng, 1, rows - 1, 2),
+      blanksV: positions(rng, 1, rows - 1, hard ? 2 : 1),
+    };
+  },
+  render: ({ a, b, c, L, g, blanksU, blanksV }): Slide => {
+    const rows = b === 2 ? 5 : 4;
+    const qU = (L * (b - a)) / b;
+    const qV = L * (1 - c);
+    const u = towards(L, g, a, b, rows);
+    const v = towards(L, g, c, 1, rows);
+    const answer: number[] = [];
+    u.forEach((_, i) => {
+      if (blanksU.includes(i)) answer.push(u[i]);
+      if (blanksV.includes(i)) answer.push(v[i]);
+    });
+    const slips = [
+      ...blanksU.flatMap((i) => [(a * u[i - 1]) / b, u[i - 1] + qU, 2 * L - u[i]]),
+      ...blanksV.flatMap((i) => [c * v[i - 1], v[i - 1] + qV, -v[i], 2 * L - v[i]]),
+    ];
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Both rules have the fixed point $L = ${L}$, and both start at $${L + g}$. Fill in the table, then see which sequence closes in on $${L}$.`,
+        },
+        { kind: 'display', tex: `\\begin{gathered} ${affineTex(a, b, qU)} \\\\ ${affineTex(c, 1, qV, 'v')} \\end{gathered}` },
+      ],
+      columns: ['n', 'u_n', 'v_n'],
+      rows: u.map((_, i) => [`${i + 1}`, blanksU.includes(i) ? null : `${u[i]}`, blanksV.includes(i) ? null : `${v[i]}`]),
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ a, b, c, L, g }) => {
+    const rows = b === 2 ? 5 : 4;
+    const qU = (L * (b - a)) / b;
+    const qV = L * (1 - c);
+    const u = towards(L, g, a, b, rows);
+    const v = towards(L, g, c, 1, rows);
+    return [
+      { text: `Work each column down from $${L + g}$.` },
+      { tex: chain(...u.slice(1).map((t, i) => `u_{${i + 2}} &= ${fracTex(a, b)} \\times ${br(u[i])} ${signed(qU)} = ${t}`)) },
+      { tex: chain(...v.slice(1).map((t, i) => `v_{${i + 2}} &= ${times(c)}${br(v[i])} ${signed(qV)} = ${t}`)) },
+      {
+        text: `$u_n$ has $|p| = ${fracTex(Math.abs(a), b)}$, less than $1$, so its gap to $${L}$ shrinks and it converges. $v_n$ has $|p| = ${Math.abs(c)}$, so ${
+          c === -1 ? 'it flips between two values for ever' : 'its gap doubles every step and it diverges'
+        }.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 4: limits of position-to-term rules ---------- */
+
+interface DivideParams {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+/**
+ * The limit of (an + b)/(cn + d), with top and bottom already divided by n:
+ * each bracket goes to what it heads for, then the two are divided.
+ */
+const divideSteps: Generator<DivideParams> = {
+  id: 'seq-divide-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const c = rng.pick(hard ? [2, 3, 4, 5] : [1, 2, 3]);
+      const a = hard ? rng.pick(NONZERO9) : c * rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5, 6]);
+      const b = rng.pick(NONZERO9);
+      const d = rng.pick(NONZERO9);
+      if ((hard && a % c === 0) || d <= -c || a * d === b * c) continue;
+      return { a, b, c, d };
+    }
+  },
+  render: ({ a, b, c, d }): Slide => {
+    const small = (k: number) => `\\frac{${Math.abs(k)}}{n}`;
+    const sign = (k: number) => (k < 0 ? '-' : '+');
+    const limit = fracTex(a, c);
+    const finals = [...new Set([limit, fracTex(c, a), fracTex(b, d), fracTex(a + b, c + d), fracTex(a + c, c)])].slice(0, 4);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the limit of $u_n = \\frac{${linearTex(a, b)}}{${linearTex(c, d)}}$. Dividing its top and bottom by $n$ gives the line below, and as $n$ grows $${small(b)}$ and $${small(d)}$ both head for $0$. Tap the operation to do next, then choose what it heads for.`,
+        },
+      ],
+      start: ['(', `${a}`, sign(b), small(b), ')', '\\div', '(', `${c}`, sign(d), small(d), ')'],
+      reductions: [
+        { span: [0, 5], operator: 2, value: `${a}`, bank: valueBank(a, a + b, b, 0) },
+        { span: [2, 7], operator: 4, value: `${c}`, bank: valueBank(c, c + d, d, 0) },
+        { span: [0, 3], operator: 1, value: limit, bank: stepsBank(finals) },
+      ],
+    };
+  },
+  solution: ({ a, b, c, d }) => [
+    {
+      tex: `u_n = \\frac{${linearTex(a, b)}}{${linearTex(c, d)}} = \\frac{${a} ${b < 0 ? '-' : '+'} \\frac{${Math.abs(b)}}{n}}{${c} ${d < 0 ? '-' : '+'} \\frac{${Math.abs(d)}}{n}}`,
+    },
+    { text: `As $n$ grows the two small fractions head for $0$, leaving $${a} \\div ${c}$.` },
+    { tex: `\\lim_{n \\to \\infty} u_n = ${fracTex(a, c)}` },
+  ],
+};
+
+type PosForm = 'ratio' | 'half' | 'recip' | 'square' | 'lower';
+
+interface PosParams {
+  form: PosForm;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+function posTex({ form, a, b, c, d }: PosParams): string {
+  if (form === 'ratio') return `\\frac{${linearTex(a, b)}}{${linearTex(c, d)}}`;
+  if (form === 'half') return `${a} ${b < 0 ? '-' : '+'} \\frac{${Math.abs(b)}}{2^n}`;
+  if (form === 'recip') return `${a} ${b < 0 ? '-' : '+'} \\frac{${Math.abs(b)}}{n}`;
+  if (form === 'square') return `\\frac{${sumTex([`${b}`, nTerm(a, 2)])}}{${sumTex([nTerm(c, 2), nTerm(d, 1)])}}`;
+  return `\\frac{${linearTex(a, b)}}{${sumTex([nTerm(c, 2), `${d}`])}}`;
+}
+
+function posLimit({ form, a, c }: PosParams): Ratio {
+  if (form === 'ratio' || form === 'square') return [a, c];
+  if (form === 'lower') return [0, 1];
+  return [a, 1];
+}
+
+/** The limit of a position-to-term rule, typed. Harder rules carry n^2, or a bottom that outgrows the top. */
+const posLimitAsk: Generator<PosParams> = {
+  id: 'seq-pos-limit',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const form: PosForm = rng.pick(hard ? ['ratio', 'square', 'lower'] : ['ratio', 'half', 'recip']);
+      const c = rng.pick([1, 2, 3, 4, 5]);
+      const a = form === 'ratio' && !hard ? c * rng.pick([-3, -2, -1, 1, 2, 3, 4]) : rng.pick(NONZERO9);
+      const b = rng.pick(NONZERO9);
+      const d = rng.pick(NONZERO9);
+      const bottom = (n: number) =>
+        form === 'ratio' ? c * n + d : form === 'square' ? c * n * n + d * n : form === 'lower' ? c * n * n + d : 1;
+      if (Array.from({ length: 30 }, (_, i) => bottom(i + 1)).includes(0)) continue;
+      if (form === 'ratio' && (a * d === b * c || (hard && a % c === 0))) continue;
+      return { form, a, b, c, d };
+    }
+  },
+  choices: (params) => {
+    const { form, a, b, c, d } = params;
+    const slips: Ratio[] =
+      form === 'half'
+        ? [[2 * a + b, 2], [b, 1], [0, 1]]
+        : form === 'recip'
+          ? [[a + b, 1], [b, 1], [0, 1]]
+          : form === 'lower'
+            ? [[a, c], [b, d], [a + b, c + d]]
+            : [[c, a], [b, d], [a + b, c + d], [0, 1]];
+    return fractionOptions(posLimit(params), slips);
+  },
+  render: (params): Slide => {
+    const [p, q] = posLimit(params);
+    return typed(
+      [{ kind: 'prose', text: `Find the limit of $u_n = ${posTex(params)}$ as $n$ grows.` }],
+      '\\lim_{n \\to \\infty} u_n =',
+      q === 1 ? p : fracAnswer(p, q),
+      FRACTION_KEYS,
+    );
+  },
+  solution: (params) => {
+    const { form, a, b, c, d } = params;
+    const [p, q] = posLimit(params);
+    const limit = { tex: `\\lim_{n \\to \\infty} u_n = ${fracTex(p, q)}` };
+    if (form === 'half') return [{ text: `$2^n$ doubles every step, so $\\frac{${Math.abs(b)}}{2^n}$ heads for $0$ and $u_n$ heads for $${a}$.` }, limit];
+    if (form === 'recip') return [{ text: `$\\frac{${Math.abs(b)}}{n}$ shrinks towards $0$ as $n$ grows, so $u_n$ heads for $${a}$.` }, limit];
+    if (form === 'ratio') {
+      return [
+        { tex: `u_n = \\frac{${a} ${b < 0 ? '-' : '+'} \\frac{${Math.abs(b)}}{n}}{${c} ${d < 0 ? '-' : '+'} \\frac{${Math.abs(d)}}{n}}` },
+        { text: `Dividing top and bottom by $n$ leaves fractions over $n$ that head for $0$, so $u_n$ heads for $${a} \\div ${c}$.` },
+        limit,
+      ];
+    }
+    if (form === 'square') {
+      return [
+        { text: `Divide the top and the bottom by $n^2$, the highest power. $\\frac{${b}}{n^2}$ and $\\frac{${d}}{n}$ head for $0$, which leaves $\\frac{${a}}{${c}}$.` },
+        limit,
+      ];
+    }
+    return [
+      { text: `The bottom has the higher power. Divide the top and the bottom by $n^2$: the top becomes $\\frac{${a}}{n} + \\frac{${b}}{n^2}$, which heads for $0$, while the bottom heads for $${c}$.` },
+      limit,
+    ];
+  },
+};
+
+interface Item {
+  tex: string;
+  /** Where it goes, for the worked solution. TeX. */
+  note: string;
+}
+
+/** A position-to-term rule that converges, of a kind picked by `kind`. */
+function convergingItem(rng: Rng, kind: number): Item {
+  const k = rng.pick(NONZERO9);
+  const m = rng.int(2, 9);
+  if (kind === 0) {
+    const c = rng.pick([1, 2, 3]);
+    const a = rng.pick(NONZERO9);
+    const d = rng.int(1, 9);
+    return { tex: `\\frac{${linearTex(a, rng.pick(NONZERO9))}}{${linearTex(c, d)}}`, note: `\\to ${fracTex(a, c)}` };
+  }
+  if (kind === 1) return { tex: `${k} + \\frac{${m}}{n}`, note: `\\to ${k}` };
+  if (kind === 2) return { tex: `${k} - \\frac{${m}}{2^n}`, note: `\\to ${k}` };
+  if (kind === 3) return { tex: `\\frac{${lead(m - 1)}(-1)^n}{n}`, note: '\\to 0' };
+  if (kind === 4) {
+    const a = rng.pick(NONZERO9);
+    const c = rng.pick([1, 2, 3, 4]);
+    return { tex: `\\frac{${sumTex([nTerm(a, 2), `${rng.pick(NONZERO9)}`])}}{${sumTex([nTerm(c, 2), `${rng.int(1, 9)}`])}}`, note: `\\to ${fracTex(a, c)}` };
+  }
+  return { tex: `\\frac{${linearTex(rng.pick(NONZERO9), rng.pick(NONZERO9))}}{n^{2} + ${rng.int(1, 9)}}`, note: '\\to 0' };
+}
+
+/** A position-to-term rule that does not converge, of a kind picked by `kind`. */
+function divergingItem(rng: Rng, kind: number): Item {
+  const k = rng.pick(NONZERO9);
+  const m = rng.int(2, 9);
+  if (kind === 0) {
+    const a = rng.pick(NONZERO9);
+    return { tex: linearTex(a, rng.pick(NONZERO9)), note: `\\text{ ${a > 0 ? 'grows' : 'falls'} without limit}` };
+  }
+  if (kind === 1) return { tex: `\\frac{n^{2} ${signed(rng.pick(NONZERO9))}}{n + ${rng.int(1, 9)}}`, note: '\\text{ grows without limit}' };
+  if (kind === 2) return { tex: `${m} \\times 2^n ${signed(rng.pick(NONZERO9))}`, note: '\\text{ grows without limit}' };
+  if (kind === 3) return { tex: `${k} + ${lead(m - 1)}(-1)^n`, note: `\\text{ flips between } ${k - m + 1} \\text{ and } ${k + m - 1}` };
+  if (kind === 4) return { tex: `${lead(m - 1)}(-1)^n n`, note: '\\text{ swings further each time}' };
+  return { tex: `\\frac{${nTerm(m, 2)}}{${linearTex(rng.pick([1, 2, 3]), rng.int(1, 9))}}`, note: '\\text{ grows without limit}' };
+}
+
+interface PosConvergeParams {
+  want: 'converges' | 'diverges';
+  /** The right one first. */
+  items: Item[];
+}
+
+/** Which of four position-to-term rules converges (or does not)? */
+const posConverge: Generator<PosConvergeParams> = {
+  id: 'seq-pos-converge',
+  sample: (rng, difficulty) => {
+    const kinds = difficulty > 1 ? [0, 1, 2, 3, 4, 5] : [0, 1, 2];
+    const want = rng.chance(0.5) ? 'converges' : 'diverges';
+    const [right, wrong] = want === 'converges' ? [convergingItem, divergingItem] : [divergingItem, convergingItem];
+    for (;;) {
+      const items = [right(rng, rng.pick(kinds)), ...rng.sample(kinds, 3).map((kind) => wrong(rng, kind))];
+      if (new Set(items.map((item) => item.tex)).size === 4) return { want, items };
+    }
+  },
+  render: ({ want, items }): Slide => {
+    const labels = items.map((item) => `u_n = ${item.tex}`);
+    const { options, correctId } = nativeChoice(labels, mix(...labels));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: want === 'converges' ? 'Which of these sequences converges?' : 'Which of these sequences does **not** converge?',
+        },
+      ],
+      options,
+      correctId,
+    };
+  },
+  solution: ({ want, items }) => [
+    { text: 'Ask where each one heads as $n$ grows: a fraction over $n$ or $2^n$ heads for $0$, a power of $n$ on top grows, and $(-1)^n$ on its own never settles.' },
+    ...items.map((item) => ({ tex: `\\begin{gathered} u_n = ${item.tex} \\\\ u_n ${item.note} \\end{gathered}` })),
+    { text: `So the one that ${want === 'converges' ? 'converges' : 'does not converge'} is $u_n = ${items[0].tex}$.` },
+  ],
+};
+
+interface PowerParams {
+  top: number;
+  bottom: number;
+  A: number;
+  B: number;
+  C: number;
+  D: number;
+  /** An n term on a quadratic top, or 0. */
+  E: number;
+  /** Write the top constant first, so the leading term is not the first one read. */
+  flip: boolean;
+}
+
+function polyTex(leading: number, degree: number, constant: number, middle = 0, flip = false): string {
+  const terms = [nTerm(leading, degree), degree === 2 ? nTerm(middle, 1) : '0', `${constant}`];
+  return sumTex(flip ? terms.reverse() : terms);
+}
+
+const powerOf = (k: number) => (k === 1 ? 'n' : `n^{${k}}`);
+
+/** Compare the highest powers top and bottom: diverges, heads for 0, or the ratio of the leading numbers. */
+const powerFlow: Generator<PowerParams> = {
+  id: 'seq-power-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const [top, bottom] = rng.pick<[number, number]>([[1, 1], [2, 2], [2, 1], [1, 2], [2, 2]]);
+      const A = rng.pick(NONZERO9);
+      const B = rng.pick(NONZERO9);
+      const C = rng.pick([-3, -2, 1, 2, 3, 4, 5]);
+      const D = rng.pick(NONZERO9);
+      const E = hard && top === 2 ? rng.int(-5, 5) : 0;
+      const flip = hard && rng.chance(0.5);
+      if (Array.from({ length: 30 }, (_, i) => C * (i + 1) ** bottom + D).includes(0)) continue;
+      if (top === bottom && E === 0 && A * D === B * C) continue;
+      return { top, bottom, A, B, C, D, E, flip };
+    }
+  },
+  render: ({ top, bottom, A, B, C, D, E, flip }): Slide => {
+    const right = `$${fracTex(A, C)}$`;
+    const offered = [...new Set([fracTex(A, C), fracTex(B, D), fracTex(A + B + E, C + D), fracTex(C, A), fracTex(A + C, C)])]
+      .slice(0, 3)
+      .map((tex) => `$${tex}$`);
+    const answer = top > bottom ? ['Higher on the top'] : top < bottom ? ['Higher on the bottom'] : ['The same on both', right];
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Where does this sequence go as $n$ gets larger?' }],
+      subject: `u_n = \\frac{${polyTex(A, top, B, E, flip)}}{${polyTex(C, bottom, D)}}`,
+      steps: [
+        {
+          id: 'compare',
+          ask: 'Compare the highest power of $n$ on the top with the highest on the bottom.',
+          branches: [
+            { label: 'Higher on the top', outcome: 'The top outgrows the bottom, so $u_n$ runs off without limit: it **diverges**.' },
+            { label: 'The same on both', to: 'same' },
+            { label: 'Higher on the bottom', outcome: 'The bottom outgrows the top, so $u_n$ heads for $0$.' },
+          ],
+        },
+        {
+          id: 'same',
+          ask: 'Divide the top and the bottom by that power. What does $u_n$ head for?',
+          branches: turned(
+            offered.map((label) => ({ label, outcome: `Every other piece heads for $0$, so $u_n$ heads for ${label}.` })),
+            mix(A, B, C, D, E),
+          ),
+        },
+      ],
+      answer,
+    };
+  },
+  solution: ({ top, bottom, A, C }) => {
+    const powers = { text: `The top's highest power is $${powerOf(top)}$ and the bottom's is $${powerOf(bottom)}$.` };
+    if (top > bottom) return [powers, { text: 'The top grows faster than the bottom, so $u_n$ has no limit: it diverges.' }];
+    if (top < bottom) {
+      return [powers, { text: `Dividing top and bottom by $${powerOf(bottom)}$ sends the whole top to $0$ while the bottom heads for $${C}$, so $u_n \\to 0$.` }];
+    }
+    return [
+      powers,
+      { text: `Dividing top and bottom by $${powerOf(top)}$ leaves $${A}$ on top and $${C}$ below once the rest head for $0$, so $u_n \\to ${fracTex(A, C)}$.` },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 5: how close, how soon ---------- */
+
+interface GapTableParams {
+  a: number;
+  b: number;
+  L: number;
+  g: number;
+  /** [row, column] of each blank: column 1 is u_n, column 2 its gap to L. */
+  blanks: [number, number][];
+}
+
+/** A table with a third column, u_n - L, which is multiplied by p every row. */
+const gapTable: Generator<GapTableParams> = {
+  id: 'seq-gap-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const [a, b] = rng.pick<Ratio>(hard ? [[-1, 2], [-1, 3], [2, 3], [3, 4]] : [[1, 2], [1, 3]]);
+      const rows = rowsFor(b);
+      const L = b * rng.pick([-3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]);
+      const g = wholeGap(rng, b, rows);
+      const cells: [number, number][] = [];
+      for (let r = 1; r < rows; r += 1) cells.push([r, 1], [r, 2]);
+      const blanks = rng.sample(cells, hard ? 4 : 3).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+      if (!hard && new Set(blanks.map(([r]) => r)).size < blanks.length) continue;
+      if (towards(L, g, a, b, rows).some((t) => Math.abs(t) > 150)) continue;
+      return { a, b, L, g, blanks };
+    }
+  },
+  render: ({ a, b, L, g, blanks }): Slide => {
+    const q = (L * (b - a)) / b;
+    const terms = towards(L, g, a, b, rowsFor(b));
+    const gaps = terms.map((t) => t - L);
+    const blank = (r: number, col: number) => blanks.some(([x, y]) => x === r && y === col);
+    const answer = blanks.map(([r, col]) => (col === 1 ? terms[r] : gaps[r]));
+    const slips = blanks.flatMap(([r, col]) =>
+      col === 1 ? [terms[r - 1] + q, (a * terms[r - 1]) / b, L - gaps[r]] : [-gaps[r], terms[r], (b * gaps[r - 1]) / a, gaps[r - 1] - gaps[r]],
+    );
+    return {
+      kind: 'table',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This sequence has limit $L = ${L}$. The last column is how far each term is from it. Fill in the missing values.`,
+        },
+        { kind: 'display', tex: startTex(affineTex(a, b, q), `u_1 = ${L + g}`) },
+      ],
+      columns: ['n', 'u_n', 'u_n - L'],
+      rows: terms.map((t, r) => [`${r + 1}`, blank(r, 1) ? null : `${t}`, blank(r, 2) ? null : `${gaps[r]}`]),
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ a, b, L, g }) => {
+    const gaps = towards(L, g, a, b, rowsFor(b)).map((t) => t - L);
+    return [
+      { text: `Take $L$ from both sides of $L = ${pTimes(a, b, 'L')} + q$ and the rule: $u_{n+1} - L = ${fracTex(a, b)}(u_n - L)$. Each gap is $${fracTex(a, b)}$ times the one before.` },
+      { tex: listTex(gaps, false) },
+      { text: `Add $${L}$ back to each gap for the terms themselves.` },
+    ];
+  },
+};
+
+interface GapTreeParams {
+  /** ±1: p is 1/b or -1/b. */
+  a: number;
+  b: number;
+  m: number;
+  g: number;
+  /** The term asked for. */
+  k: number;
+}
+
+/** A far term found from the gap: u_k - L = (u_1 - L)p^{k-1}, with no terms worked in between. */
+const gapTree: Generator<GapTreeParams> = {
+  id: 'seq-gap-tree',
+  sample: (rng, difficulty) => {
+    const a = difficulty > 1 ? -1 : 1;
+    const b = rng.pick([2, 3]);
+    const k = b === 2 ? rng.int(4, 7) : rng.int(4, 5);
+    const g = b ** (k - 1) * rng.pick(b === 2 && k < 7 ? [1, 2, 3, -1, -2] : [1, 2, -1]);
+    return { a, b, m: rng.pick([-3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]), g, k };
+  },
+  render: ({ a, b, m, g, k }): Slide => {
+    const L = b * m;
+    const q = m * (b - a);
+    const f = (b / a) ** (k - 1);
+    const gk = g / f;
+    const answer = [g, f, gk, L + gk];
+    const slips = [f * b, f / b, -f, -gk, L - gk, L + g - gk, gk * b, -g];
+    const divisor = a > 0 ? `${b}^{${k - 1}}` : `(-${b})^{${k - 1}}`;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This sequence converges to $L = ${L}$. Each step multiplies the gap $u_n - L$ by $${fracTex(a, b)}$, so $${k - 1}$ steps divide it by $${divisor}$. Fill the tree: $u_1 - L$, then $${divisor}$, then $u_{${k}} - L$, then $u_{${k}}$.`,
+        },
+      ],
+      expression: startTex(affineTex(a, b, q), `u_1 = ${L + g}`),
+      nodes: [
+        { id: 'first', from: [] },
+        { id: 'factor', from: [] },
+        { id: 'gap', from: ['first', 'factor'] },
+        { id: 'term', from: ['gap'] },
+      ],
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ a, b, m, g, k }) => {
+    const L = b * m;
+    const f = (b / a) ** (k - 1);
+    return [
+      {
+        text: `The gap to $L = ${L}$ is multiplied by $${fracTex(a, b)}$ every step, so after $${k - 1}$ steps it has been divided by $\\left(${fracTex(b, a)}\\right)^{${k - 1}} = ${f}$.`,
+      },
+      {
+        tex: chain(
+          `u_1 - L &= ${L + g} - ${br(L)} = ${g}`,
+          `u_{${k}} - L &= ${g} \\div ${br(f)} = ${g / f}`,
+          `u_{${k}} &= ${L} ${signed(g / f)} = ${L + g / f}`,
+        ),
+      },
+    ];
+  },
+};
+
+interface RateParams {
+  pa: Ratio;
+  pb: Ratio;
+  qa: number;
+  qb: number;
+}
+
+const sizeOf = ([a, b]: Ratio) => Math.abs(a) / b;
+
+/** Which of two rules closes in faster: the smaller |p|, whatever the signs. Harder pairs may not both converge. */
+const rateFlow: Generator<RateParams> = {
+  id: 'seq-rate-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const settle = hard ? [...SETTLE, ...SETTLE_NEG] : SETTLE;
+    const away: Ratio[] = [[2, 1], [-2, 1], [3, 2], [-3, 2], [5, 4]];
+    for (;;) {
+      let pa = rng.pick(settle);
+      let pb = rng.pick(settle);
+      // About a third of hard pairs have a rule that runs away; about a third
+      // of the rest mirror p, so only the sign differs.
+      const twist = !hard ? 'none' : rng.chance(0.3) ? 'away' : rng.chance(0.3) ? 'mirror' : 'none';
+      if (twist === 'away') {
+        if (rng.chance(0.5)) pa = rng.pick(away);
+        else pb = rng.pick(away);
+      } else if (twist === 'mirror') pb = [-pa[0], pa[1]];
+      if (pa[0] === pb[0] && pa[1] === pb[1]) continue;
+      if (!hard && sizeOf(pa) === sizeOf(pb)) continue;
+      return { pa, pb, qa: rng.pick(NONZERO12), qb: rng.pick(NONZERO12) };
+    }
+  },
+  render: ({ pa, pb, qa, qb }): Slide => {
+    const [ca, cb] = [sizeOf(pa) < 1, sizeOf(pb) < 1];
+    const which = sizeOf(pa) < sizeOf(pb) ? '$A$' : sizeOf(pb) < sizeOf(pa) ? '$B$' : 'Neither: the same';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Compare how these two sequences behave in the long run.' }],
+      subject: `\\begin{gathered} A: \\; ${affineTex(pa[0], pa[1], qa)} \\\\ B: \\; ${affineTex(pb[0], pb[1], qb, 'v')} \\end{gathered}`,
+      steps: [
+        {
+          id: 'both',
+          ask: 'Do both sequences converge?',
+          branches: [
+            { label: 'Yes', to: 'which' },
+            { label: 'No: only $A$ does', outcome: 'Then $B$ has $|p| \\geq 1$: its gap never shrinks, so it has no limit to close in on.' },
+            { label: 'No: only $B$ does', outcome: 'Then $A$ has $|p| \\geq 1$: its gap never shrinks, so it has no limit to close in on.' },
+          ],
+        },
+        {
+          id: 'which',
+          ask: 'Which one closes in on its limit faster?',
+          branches: [
+            { label: '$A$', outcome: 'So $A$ reaches any closeness to its limit in fewer steps.' },
+            { label: '$B$', outcome: 'So $B$ reaches any closeness to its limit in fewer steps.' },
+            { label: 'Neither: the same', outcome: 'So both gaps shrink by the same factor each step, whatever the signs.' },
+          ],
+        },
+      ],
+      answer: ca && cb ? ['Yes', which] : ca ? ['No: only $A$ does'] : ['No: only $B$ does'],
+    };
+  },
+  solution: ({ pa, pb }) => {
+    const size = ([a, b]: Ratio) => fracTex(Math.abs(a), b);
+    const [ca, cb] = [sizeOf(pa) < 1, sizeOf(pb) < 1];
+    let verdict: string;
+    if (!ca || !cb) verdict = `Only $${ca ? 'A' : 'B'}$ has $|p| < 1$, so only it converges.`;
+    else if (sizeOf(pa) === sizeOf(pb)) verdict = 'The two sizes are equal, so the gaps shrink at the same rate: the sign of $p$ only decides which side the terms land on.';
+    else verdict = `$${sizeOf(pa) < sizeOf(pb) ? 'A' : 'B'}$ has the smaller $|p|$, so its gap shrinks faster, whatever the sign of $p$.`;
+    return [
+      { text: `Each step multiplies the gap to the limit by $p$, so what matters is $|p|$: $${size(pa)}$ for $A$ and $${size(pb)}$ for $B$.` },
+      { text: verdict },
+    ];
+  },
+};
+
+/** How close is close: the tolerances a gap question asks for. */
+const WITHIN = [
+  { tex: '1', num: 1, den: 1 },
+  { tex: '0.5', num: 1, den: 2 },
+  { tex: '0.1', num: 1, den: 10 },
+  { tex: '0.05', num: 1, den: 20 },
+  { tex: '0.01', num: 1, den: 100 },
+];
+
+interface GapFirstParams {
+  a: number;
+  b: number;
+  m: number;
+  g: number;
+  /** Index into WITHIN. */
+  t: number;
+}
+
+/** The first n with |g p^{n-1}| < t, found exactly; 0 when a gap lands on t, which the wording cannot settle. */
+function firstWithin({ a, b, g, t }: GapFirstParams): number {
+  const { num, den } = WITHIN[t];
+  for (let n = 1; n <= 40; n += 1) {
+    const gap = Math.abs(g) * Math.abs(a) ** (n - 1) * den;
+    const bound = num * b ** (n - 1);
+    if (gap === bound) return 0;
+    if (gap < bound) return n;
+  }
+  return 0;
+}
+
+/** How many steps until the terms are within a tolerance of the limit. */
+const gapFirst: Generator<GapFirstParams> = {
+  id: 'seq-gap-first',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const [a, b] = rng.pick<Ratio>(hard ? [[-1, 2], [2, 3], [3, 4], [-1, 3], [-2, 3], [1, 4]] : [[1, 2], [1, 3]]);
+      const params = {
+        a,
+        b,
+        m: rng.pick([-3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8]),
+        g: rng.int(5, 120) * (rng.chance(0.3) ? -1 : 1),
+        t: rng.pick(hard ? [2, 3, 4] : [0, 1, 2]),
+      };
+      const n = firstWithin(params);
+      const x = Math.log(WITHIN[params.t].num / WITHIN[params.t].den / Math.abs(params.g)) / Math.log(Math.abs(a) / b);
+      if (n < 3 || n > 16 || Math.abs(x - Math.round(x)) < 0.01) continue;
+      return params;
+    }
+  },
+  choices: (params) => {
+    const n = firstWithin(params);
+    return numberOptions(n, [n - 1, n + 1, n + 2]);
+  },
+  render: (params): Slide => {
+    const { a, b, m, g, t } = params;
+    const L = b * m;
+    return typed(
+      [
+        {
+          kind: 'prose',
+          text: `This sequence converges to $L = ${L}$. Which is the first term within $${WITHIN[t].tex}$ of $L$, so that $|u_n - L| < ${WITHIN[t].tex}$? Give its position $n$.`,
+        },
+        { kind: 'display', tex: startTex(affineTex(a, b, m * (b - a)), `u_1 = ${L + g}`) },
+      ],
+      'n =',
+      firstWithin(params),
+    );
+  },
+  solution: (params) => {
+    const { a, b, g, t } = params;
+    const n = firstWithin(params);
+    const size = fracTex(Math.abs(a), b);
+    const tol = WITHIN[t].tex;
+    const x = Math.log(WITHIN[t].num / WITHIN[t].den / Math.abs(g)) / Math.log(Math.abs(a) / b);
+    const gapAt = (k: number) => String(Number((Math.abs(g) * (Math.abs(a) / b) ** (k - 1)).toPrecision(3)));
+    return [
+      {
+        text: `The gap starts at $u_1 - L = ${g}$ and is multiplied by $${fracTex(a, b)}$ every step, so $|u_n - L| = ${Math.abs(g)} \\times \\left(${size}\\right)^{n-1}$.`,
+      },
+      {
+        tex: [
+          '\\begin{gathered}',
+          `${Math.abs(g)} \\times \\left(${size}\\right)^{n-1} < ${tol} \\\\`,
+          `n - 1 > \\frac{\\ln(${tol} \\div ${Math.abs(g)})}{\\ln ${size}} \\\\`,
+          `n - 1 > ${x.toFixed(2)}`,
+          '\\end{gathered}',
+        ].join(' '),
+      },
+      {
+        text: `So $n - 1 = ${n - 1}$ and $n = ${n}$. Check: $|u_{${n - 1}} - L| \\approx ${gapAt(n - 1)}$, not yet below $${tol}$, and $|u_{${n}} - L| \\approx ${gapAt(n)}$.`,
+      },
+    ];
+  },
+};
+
 export const sequenceGenerators = [
   ruleTable,
   ruleKind,
@@ -2977,4 +4642,24 @@ export const sequenceGenerators = [
   contextGp,
   contextFlow,
   firstExceed,
+  diffTiles,
+  monotoneFlow,
+  periodTable,
+  periodChoice,
+  limitTable,
+  fixedPointSteps,
+  limitAsk,
+  limitBackTree,
+  fateFlow,
+  fateSlider,
+  fateChoice,
+  fateTable,
+  divideSteps,
+  posLimitAsk,
+  posConverge,
+  powerFlow,
+  gapTable,
+  gapTree,
+  rateFlow,
+  gapFirst,
 ];

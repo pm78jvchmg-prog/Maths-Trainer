@@ -8,9 +8,12 @@
  * relations. Level 2 adds the terms up: sigma notation, the arithmetic and
  * geometric sums, the sum to infinity, and series met in words.
  *
- * Later levels — limits of sequences, sums of powers and the method of
- * differences, series in context — are in the level plan in
- * `docs/roadmap/levels/sequences-series.md`.
+ * Level 3 asks where a sequence goes: increasing, decreasing or periodic,
+ * the limit L = pL + q of a recurrence and when it is really there, limits of
+ * position-to-term rules, and how fast the gap to a limit closes.
+ *
+ * Later levels — sums of powers and the method of differences, series in
+ * context — are in the level plan in `docs/roadmap/levels/sequences-series.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -478,6 +481,204 @@ export const sequencesSeries: Course = {
         ask('seq-which-converges', 2),
         ask('seq-context', 2),
         ask('seq-context-flow', 2),
+      ],
+    },
+    {
+      id: 'sq-l3',
+      title: 'Sequences and their Limits',
+      lessons: [
+        {
+          id: 'sq-l3-monotonic',
+          title: 'Increasing, Decreasing and Periodic',
+          slides: [
+            teach(
+              prose('To see whether a sequence goes up or down, look at the step from each term to the next, $u_{n+1} - u_n$.'),
+              prose(
+                'If it is positive for every $n$, the sequence is **increasing**. If it is negative for every $n$, it is **decreasing**. For $u_n = n^2 - 4n$:',
+              ),
+              maths('\\begin{aligned} u_{n+1} &= (n + 1)^2 - 4(n + 1) \\\\ &= n^2 - 2n - 3 \\end{aligned}'),
+              prose('Taking $u_n$ away leaves $u_{n+1} - u_n = 2n - 3$. At $n = 1$ that is $-1$, and after that it is positive. The terms fall once, then rise: this sequence is neither.'),
+            ),
+            ask('seq-diff-tiles'),
+            ask('seq-monotone-flow'),
+            ask('seq-diff-tiles', 2),
+            teach(
+              prose('Some sequences come back to where they started. $u_{n+1} = \\frac{12}{u_n}$ from $u_1 = 3$ gives $3, 4, 3, 4, \\dots$'),
+              prose(
+                'A sequence is **periodic** when $u_{n+k} = u_n$ for every $n$, and the smallest such $k$ is its **period**; here it is $2$. $(-1)^n$ does the same: $u_n = 5 + 2(-1)^n$ gives $3, 7, 3, 7, \\dots$',
+              ),
+              prose('For a far-off term, use the period: $25 = 2 \\times 12 + 1$, so $u_{25} = u_1 = 3$.'),
+            ),
+            ask('seq-period-table'),
+            ask('seq-period'),
+            ask('seq-monotone-flow', 2),
+            teach(
+              prose('Some rules use the two terms before. $u_{n+2} = u_{n+1} - u_n$ with $u_1 = 2$ and $u_2 = 5$ gives:'),
+              maths('\\begin{gathered} 2, \\; 5, \\; 3, \\; -2, \\\\ -5, \\; -3, \\; 2, \\; 5, \\; \\dots \\end{gathered}'),
+              prose(
+                'The pair $2, 5$ comes back at $u_7$ and $u_8$, so the period is $6$. Wait for the first **two** terms to come back together, not just one of them.',
+              ),
+            ),
+            ask('seq-period-table', 2),
+            ask('seq-period', 2),
+          ],
+          skillCheck: [ask('seq-diff-tiles', 2), ask('seq-monotone-flow', 2), ask('seq-period', 2)],
+        },
+        {
+          id: 'sq-l3-limit',
+          title: 'The Limit of a Recurrence',
+          slides: [
+            teach(
+              prose('Run $u_{n+1} = \\frac{1}{2}u_n + 6$ from $u_1 = 28$:'),
+              maths('28, \\; 20, \\; 16, \\; 14, \\; 13, \\; 12.5, \\; \\dots'),
+              prose(
+                'The terms close in on $12$, the **limit** $L$. Once they have settled, $u_{n+1}$ and $u_n$ are both $L$, so $L = \\frac{1}{2}L + 6$, which gives $\\frac{1}{2}L = 6$ and $L = 12$.',
+              ),
+            ),
+            ask('seq-limit-table'),
+            ask('seq-fixed-point-steps'),
+            ask('seq-limit'),
+            teach(
+              prose('In general, a sequence $u_{n+1} = pu_n + q$ that settles does so at:'),
+              maths('\\begin{aligned} L &= pL + q \\\\ L - pL &= q \\\\ L &= \\frac{q}{1 - p} \\end{aligned}'),
+              prose(
+                'A negative $p$ works the same way: for $p = -\\frac{1}{2}$, $1 - p = \\frac{3}{2}$. It runs backwards too: knowing $L$ and $p$, the missing $q$ is $L - pL$.',
+              ),
+            ),
+            ask('seq-limit-back-tree'),
+            ask('seq-limit-table', 2),
+            ask('seq-fixed-point-steps', 2),
+            teach(
+              prose('A rule is not always written as $pu_n + q$. Put $L$ in for both terms and solve as it stands:'),
+              maths('\\begin{aligned} u_{n+1} &= \\frac{u_n + 12}{3} \\\\ L &= \\frac{L + 12}{3} \\\\ 3L &= L + 12 \\\\ L &= 6 \\end{aligned}'),
+              prose('Multiplied out it is $u_{n+1} = \\frac{1}{3}u_n + 4$, and $\\frac{4}{1 - \\frac{1}{3}} = 6$ agrees.'),
+            ),
+            ask('seq-limit+choice', 2),
+            ask('seq-limit-back-tree', 2),
+          ],
+          skillCheck: [ask('seq-limit', 2), ask('seq-fixed-point-steps', 2), ask('seq-limit-back-tree', 2)],
+        },
+        {
+          id: 'sq-l3-behaviour',
+          title: 'Converge, Oscillate or Diverge',
+          slides: [
+            teach(
+              prose('Why do the terms settle? Take $L = pL + q$ away from the rule $u_{n+1} = pu_n + q$:'),
+              maths('u_{n+1} - L = p(u_n - L)'),
+              prose(
+                'Every step multiplies the gap to $L$ by $p$. When $|p| < 1$ the gap shrinks and the terms **converge**; a negative $p$ also flips its sign, so they land either side of $L$ in turn. When $|p| > 1$ the gap grows and the terms run away.',
+              ),
+            ),
+            ask('seq-fate-table'),
+            ask('seq-fate-flow'),
+            ask('seq-fate-slider'),
+            teach(
+              prose('$L = pL + q$ has a solution for every $p$ except $1$, so finding $L$ proves nothing. Look at $p$ first:'),
+              maths(
+                '\\begin{aligned} |p| < 1 &: \\text{converges} \\\\ p = -1 &: \\text{period } 2 \\\\ p = 1 &: \\text{diverges} \\\\ |p| > 1 &: \\text{diverges} \\end{aligned}',
+              ),
+              prose('With $p = -1$ the terms flip between two values for ever. With $p = 1$ each step adds the same $q$, so they never settle.'),
+            ),
+            ask('seq-fate'),
+            ask('seq-fate-table', 2),
+            ask('seq-fate-slider', 2),
+            teach(
+              prose('A rule may hide its $p$. Multiply it out before deciding:'),
+              maths('\\begin{aligned} u_{n+1} &= 2(5 - u_n) \\\\ &= -2u_n + 10 \\end{aligned}'),
+              prose('Here $p = -2$: the terms swing either side of $L$, further each time, so they diverge. $\\frac{9 - u_n}{3}$ has $p = -\\frac{1}{3}$ and converges.'),
+            ),
+            ask('seq-fate-flow', 2),
+            ask('seq-fate', 2),
+          ],
+          skillCheck: [ask('seq-fate', 2), ask('seq-fate-flow', 2), ask('seq-fate-slider', 2)],
+        },
+        {
+          id: 'sq-l3-position',
+          title: 'Limits of Position-to-Term Rules',
+          slides: [
+            teach(
+              prose('A position-to-term rule can have a limit too. Try $u_n = \\frac{3n + 1}{n + 2}$ for large $n$:'),
+              maths('\\begin{gathered} u_{10} = \\tfrac{31}{12} \\approx 2.58 \\\\ u_{100} = \\tfrac{301}{102} \\approx 2.95 \\\\ u_{1000} = \\tfrac{3001}{1002} \\approx 2.995 \\end{gathered}'),
+              prose('Divide the top and the bottom by $n$. A number over $n$, or over $2^n$, heads for $0$ as $n$ grows:'),
+              maths('u_n = \\frac{3 + \\frac{1}{n}}{1 + \\frac{2}{n}} \\to \\frac{3 + 0}{1 + 0} = 3'),
+            ),
+            ask('seq-divide-steps'),
+            ask('seq-pos-limit'),
+            ask('seq-divide-steps', 2),
+            teach(
+              prose('The highest powers of $n$ decide it. Divide the top and the bottom by the highest power on the bottom:'),
+              maths(
+                '\\begin{aligned} \\frac{5n^2 - 1}{2n^2 + n} &\\to \\tfrac{5}{2} \\\\ \\frac{4n + 3}{n^2 + 1} &\\to 0 \\\\ \\frac{n^2}{n + 1} &\\to \\text{no limit} \\end{aligned}',
+              ),
+              prose(
+                'The same power on both: the ratio of the numbers in front. Higher on the bottom: $0$. Higher on the top: it grows without limit and **diverges**. Find the highest power wherever it is written: $\\frac{7 - 2n^2}{3n^2 + 1}$ heads for $-\\frac{2}{3}$.',
+              ),
+            ),
+            ask('seq-power-flow'),
+            ask('seq-pos-converge'),
+            ask('seq-power-flow', 2),
+            teach(
+              prose(
+                '$(-1)^n$ flips sign every step, so $3 + (-1)^n$ jumps between $2$ and $4$ and never settles: it diverges.',
+              ),
+              prose('But $\\frac{(-1)^n}{n}$ shrinks towards $0$ while it flips, so it converges, to $0$.'),
+            ),
+            ask('seq-pos-converge', 2),
+            ask('seq-pos-limit', 2),
+          ],
+          skillCheck: [ask('seq-pos-limit', 2), ask('seq-power-flow', 2), ask('seq-pos-converge', 2)],
+        },
+        {
+          id: 'sq-l3-gap',
+          title: 'How Close, How Soon',
+          slides: [
+            teach(
+              prose('Each step multiplies the gap to the limit by $p$, so the gap has a formula:'),
+              maths('u_n - L = (u_1 - L)p^{n-1}'),
+              prose(
+                'For $u_{n+1} = \\frac{1}{2}u_n + 6$ from $u_1 = 28$, $L = 12$ and the gaps go $16, 8, 4, 2, \\dots$ The smaller $|p|$ is, the faster the gap shrinks.',
+              ),
+            ),
+            ask('seq-gap-table'),
+            ask('seq-rate-flow'),
+            ask('seq-gap-tree'),
+            teach(
+              prose('How soon is that sequence within $0.1$ of $12$? The gap $16 \\times (\\frac{1}{2})^{n-1}$ has to drop below $0.1$:'),
+              maths(
+                '\\begin{aligned} \\left(\\tfrac{1}{2}\\right)^{n-1} &< \\tfrac{0.1}{16} \\\\ n - 1 &> \\frac{\\ln(0.1 \\div 16)}{\\ln \\frac{1}{2}} \\\\ &= 7.32 \\end{aligned}',
+              ),
+              prose(
+                'So $n - 1 = 8$, and $u_9$ is the first term within $0.1$. Dividing by the log of a number below $1$ flips the inequality. A negative $p$ changes the sign of the gap, not its size, so use $|p|$.',
+              ),
+            ),
+            ask('seq-gap-first'),
+            ask('seq-rate-flow', 2),
+            ask('seq-gap-table', 2),
+            teach(
+              prose('With $p = -\\frac{1}{2}$ the gap is divided by $-2$ each step, so after $4$ steps it has been divided by $(-2)^4 = 16$, and after $5$ by $(-2)^5 = -32$: it lands on the other side of $L$.'),
+            ),
+            ask('seq-gap-tree', 2),
+            ask('seq-gap-first+choice', 2),
+          ],
+          skillCheck: [ask('seq-gap-first', 2), ask('seq-gap-tree', 2), ask('seq-rate-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('seq-diff-tiles', 2),
+        ask('seq-period', 2),
+        ask('seq-monotone-flow', 2),
+        ask('seq-period-table', 2),
+        ask('seq-limit', 2),
+        ask('seq-fixed-point-steps', 2),
+        ask('seq-limit-back-tree', 2),
+        ask('seq-fate', 2),
+        ask('seq-fate-slider', 2),
+        ask('seq-fate-flow', 2),
+        ask('seq-pos-limit', 2),
+        ask('seq-pos-converge', 2),
+        ask('seq-gap-table', 2),
+        ask('seq-gap-first', 2),
+        ask('seq-rate-flow', 2),
       ],
     },
   ],

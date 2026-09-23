@@ -479,6 +479,7 @@ are green, and one new lesson has been played in a browser.
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
 | B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
 | B34 | Integration: Improper Integrals | **done** (`claude/roadmap-b-integration-4-gbuy3r`): level `in-l7`, 5 lessons, a 15-question level check, 17 new generators and an independent numeric check |
+| B29 | Quadratics: Quadratics in Disguise | **done** (`claude/roadmap-b-quadratics-4-xwfezb`): level `qd-l7`, 5 lessons, a 15-question level check, 20 new generators |
 
 ### Phase C — the twenty-one new concepts
 
@@ -523,6 +524,7 @@ batch rather than waiting on a separate one.
 | C2-widget | Graph-transformation widget for C2, reused by C3 | **done** (`claude/roadmap-c2-widget-transform-tm5x5d`): slide kind `transform` (apply and match), graded by comparing curves, 2 demo generators asked by no lesson yet |
 | C7 | Binomial Expansion | **done** (`claude/roadmap-c-binomial-expansion-e9c0un`): course `binomial-expansion`, levels `be-l1` and `be-l2`, 10 lessons, level checks of 14 and 15 questions, 32 new generators |
 | C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
+| C8-widget | Number-line widget for C8 and the Linear Equations inequalities level | **done** (`claude/roadmap-c8-widget-number-line-6civa1`): slide kind `numberLine` (rays, bounded intervals, unions; open and closed ends; whole or half steps), 2 demo generators asked by no lesson yet |
 
 ### When the queue empties
 

@@ -35,6 +35,8 @@ import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 import { defaultSliderValue } from './sliderValue';
 import { TransformSlide } from './transformSlide';
+import { NumberLineSlide } from './numberLineSlide';
+import { draftHasShading } from '../content/numberLine';
 
 export interface SlideProps {
   slide: Slide;
@@ -555,6 +557,8 @@ export function SlideView(props: SlideProps) {
       return <EvaluateSlide {...props} />;
     case 'transform':
       return <TransformSlide {...props} />;
+    case 'numberLine':
+      return <NumberLineSlide {...props} />;
   }
 }
 
@@ -579,6 +583,9 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
     const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
+  // A line with dots on it but nothing shaded is not a set yet, and the
+  // untouched line is not an answer at all.
+  if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
   // Answerable once any control has been tapped, even back to the identity:

@@ -13,7 +13,10 @@
  * and which way up the curve is says whether the answer is the piece between
  * them or the two pieces outside. Level 6 puts all of it to work in a
  * situation: a ball in flight, a fenced pen, a stall's profit, an arch. The
- * maths is the same; what is new is saying what each number means.
+ * maths is the same; what is new is saying what each number means. Level 7
+ * finds quadratics in disguise: $x^{4}$, $\sqrt{x}$, $\frac{1}{x}$ or a
+ * bracket standing where $x$ usually does. Substitute $u$, solve, and go back,
+ * where one root in $u$ can give two values of $x$, one, or none.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -128,6 +131,27 @@ const areaGraph = (n: number, marks: { x: number; y: number }[], label: string):
     curves: [{ f: (x: number) => (x <= n ? x * (n - x) : NaN), breaks: true }],
     verticals: [{ x: 0, dashed: false }],
     marks,
+    label,
+  }),
+});
+
+/**
+ * A curve for level 7, with its crossings of the $x$-axis ringed. Any number
+ * of curves, the first solid and the rest dashed, so a slide can show a
+ * quadratic in $u$ beside the same curve slid along.
+ */
+const disguiseGraph = (
+  fs: ((x: number) => number)[],
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  marks: number[],
+  label: string,
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: fs.map((f, index) => ({ f, breaks: true, dashed: index > 0 })),
+    verticals: [{ x: 0, dashed: false }],
+    marks: marks.map((x) => ({ x, y: 0 })),
     label,
   }),
 });
@@ -1730,6 +1754,249 @@ export const quadratics: Course = {
         ask('quad-model-best-slider', 2),
         ask('quad-model-reach-tiles', 2),
         ask('quad-model-feature', 2),
+      ],
+    },
+    {
+      id: 'qd-l7',
+      title: 'Quadratics in Disguise',
+      lessons: [
+        {
+          id: 'qd-l7-spot',
+          title: 'Spotting the Disguise',
+          slides: [
+            teach(
+              prose('Some equations are quadratics in disguise. Look at the powers in'),
+              maths('x^{4} - 5x^{2} + 4 = 0'),
+              prose('$x^{4}$ is $\\left(x^{2}\\right)^{2}$. Put $u = x^{2}$ and it becomes an ordinary quadratic:'),
+              maths('u^{2} - 5u + 4 = 0'),
+              prose('Solve that for $u$ first, then go back to $x$.'),
+            ),
+            ask('quad-disguise-spot'),
+            ask('quad-disguise-u-tiles'),
+            ask('quad-disguise-is-it-flow'),
+            teach(
+              prose(
+                'The test is always the same: one term is exactly the square of another, and the third is a plain number. Some other disguises:',
+              ),
+              prose('$x - 5\\sqrt{x} + 6 = 0$ is a quadratic in $u = \\sqrt{x}$, since $x = \\left(\\sqrt{x}\\right)^{2}$.'),
+              prose('$\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$ is a quadratic in $u = \\frac{1}{x}$.'),
+              prose('$(x + 1)^{2} - 5(x + 1) + 6 = 0$ is a quadratic in $u = x + 1$.'),
+            ),
+            ask('quad-disguise-u-roots'),
+            ask('quad-disguise-spot', 2),
+            ask('quad-disguise-u-tiles', 2),
+            teach(
+              prose(
+                'Look-alikes fail the test. In $x^{4} - 5x + 4 = 0$ the square of $x$ is $x^{2}$, not $x^{4}$, so no $u$ turns it into a quadratic.',
+              ),
+              prose(
+                'The same idea turns up in other courses: $4^{x} - 5\\left(2^{x}\\right) + 4 = 0$ is a quadratic in $u = 2^{x}$ (Exponents and Radicals), and $\\left(\\log x\\right)^{2} - 3\\log x + 2 = 0$ is one in $u = \\log x$ (Logarithms).',
+              ),
+            ),
+            ask('quad-disguise-is-it-flow', 2),
+            ask('quad-disguise-u-roots+choice', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-spot', 2),
+            ask('quad-disguise-u-tiles', 2),
+            ask('quad-disguise-is-it-flow', 2),
+          ],
+        },
+        {
+          id: 'qd-l7-even',
+          title: 'Even Powers',
+          slides: [
+            teach(
+              prose('Solve $x^{4} - 5x^{2} + 4 = 0$. With $u = x^{2}$:'),
+              maths('(u - 1)(u - 4) = 0'),
+              prose(
+                'So $u = 1$ or $u = 4$. Now go back: $x^{2} = 1$ gives $x = \\pm 1$, and $x^{2} = 4$ gives $x = \\pm 2$. Four solutions, one for each crossing:',
+              ),
+              disguiseGraph(
+                [(x) => x ** 4 - 5 * x * x + 4],
+                { xMin: -3, xMax: 3, yMin: -3, yMax: 6 },
+                [-2, -1, 1, 2],
+                'A W-shaped curve crossing the x-axis four times, at -2, -1, 1 and 2',
+              ),
+            ),
+            ask('quad-disguise-even-steps'),
+            ask('quad-disguise-split-tree'),
+            ask('quad-disguise-count'),
+            teach(
+              prose('A negative $u$ gives nothing. In $x^{4} + 3x^{2} - 4 = 0$:'),
+              maths('(u + 4)(u - 1) = 0'),
+              prose(
+                '$x^{2} = -4$ has no real solution, since a square is never negative. $x^{2} = 1$ gives $x = \\pm 1$, so there are only two.',
+              ),
+              disguiseGraph(
+                [(x) => x ** 4 + 3 * x * x - 4],
+                { xMin: -3, xMax: 3, yMin: -6, yMax: 8 },
+                [-1, 1],
+                'A U-shaped curve crossing the x-axis twice, at -1 and 1',
+              ),
+            ),
+            ask('quad-disguise-even-slider'),
+            ask('quad-disguise-count+choice'),
+            ask('quad-disguise-even-steps', 2),
+            teach(
+              prose('$x^{6} - 7x^{3} - 8 = 0$ is a quadratic in $u = x^{3}$:'),
+              maths('(u - 8)(u + 1) = 0'),
+              prose(
+                'A cube root keeps its sign, so $x^{3} = 8$ gives $x = 2$ and $x^{3} = -1$ gives $x = -1$. Each root in $u$ gives exactly one $x$, negative or not.',
+              ),
+            ),
+            ask('quad-disguise-split-tree', 2),
+            ask('quad-disguise-even-slider', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-even-steps', 2),
+            ask('quad-disguise-split-tree', 2),
+            ask('quad-disguise-count', 2),
+          ],
+        },
+        {
+          id: 'qd-l7-root',
+          title: 'Square Roots',
+          slides: [
+            teach(
+              prose('In $x - 5\\sqrt{x} + 6 = 0$, $x$ is the square of $\\sqrt{x}$. Put $u = \\sqrt{x}$:'),
+              maths('u^{2} - 5u + 6 = 0'),
+              maths('(u - 2)(u - 3) = 0'),
+              prose('Going back means squaring: $\\sqrt{x} = 2$ gives $x = 4$, and $\\sqrt{x} = 3$ gives $x = 9$.'),
+            ),
+            ask('quad-disguise-root-back-flow'),
+            ask('quad-disguise-root-tree'),
+            ask('quad-disguise-root-solve'),
+            teach(
+              prose('A square root is never negative, so a negative $u$ is rejected. In $x - \\sqrt{x} - 6 = 0$:'),
+              maths('(u + 2)(u - 3) = 0'),
+              prose(
+                '$\\sqrt{x} = -2$ is impossible, so the only solution is $x = 9$. Squaring $-2$ anyway gives $x = 4$, which does not work: $4 - 2 - 6 = -4$, not 0.',
+              ),
+            ),
+            ask('quad-disguise-root-check'),
+            ask('quad-disguise-root-solve+choice'),
+            ask('quad-disguise-root-back-flow', 2),
+            teach(
+              prose('Checking is quick insurance. Put the answer back into the equation, taking the positive square root:'),
+              maths('9 - \\sqrt{9} - 6 = 9 - 3 - 6 = 0'),
+              prose('It comes to 0, so $x = 9$ stands. A rejected root never survives this check.'),
+            ),
+            ask('quad-disguise-root-tree', 2),
+            askWith(
+              'quad-disguise-root-check+choice',
+              'The same check with no working shown: this is the left-hand side with a candidate put in. Pick what it comes to.',
+              2,
+            ),
+          ],
+          skillCheck: [
+            ask('quad-disguise-root-tree', 2),
+            ask('quad-disguise-root-solve', 2),
+            ask('quad-disguise-root-check', 2),
+          ],
+        },
+        {
+          id: 'qd-l7-recip',
+          title: 'Reciprocals',
+          slides: [
+            teach(
+              prose(
+                'In $\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$, $\\frac{1}{x^{2}}$ is the square of $\\frac{1}{x}$. Put $u = \\frac{1}{x}$:',
+              ),
+              maths('6u^{2} - 5u + 1 = 0'),
+              maths('(2u - 1)(3u - 1) = 0'),
+              prose('So $u = \\frac{1}{2}$ or $u = \\frac{1}{3}$. Flip each one to go back: $x = 2$ or $x = 3$.'),
+            ),
+            ask('quad-disguise-recip-tiles'),
+            ask('quad-disguise-recip-solve'),
+            ask('quad-disguise-flip-steps'),
+            teach(
+              prose(
+                'There is a second route. $x$ cannot be 0 here, since $\\frac{1}{0}$ means nothing, so it is safe to multiply every term by $x^{2}$:',
+              ),
+              maths('6 - 5x + x^{2} = 0'),
+              prose('That is $x^{2} - 5x + 6 = 0$, an ordinary quadratic with the same roots, 2 and 3.'),
+              prose('For the same reason $u = \\frac{1}{x}$ is never 0, so a root of 0 in $u$ would have to be rejected.'),
+            ),
+            ask('quad-disguise-clear-tiles'),
+            ask('quad-disguise-recip-solve+choice', 2),
+            ask('quad-disguise-flip-steps', 2),
+            teach(
+              prose('Sometimes the number starts on the other side:'),
+              maths('\\frac{6}{x^{2}} - \\frac{5}{x} = -1'),
+              prose('Bring it over first, sign and all, so one side is zero. Then either route works.'),
+            ),
+            ask('quad-disguise-recip-tiles', 2),
+            ask('quad-disguise-clear-tiles', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-recip-tiles', 2),
+            ask('quad-disguise-recip-solve', 2),
+            ask('quad-disguise-flip-steps', 2),
+          ],
+        },
+        {
+          id: 'qd-l7-bracket',
+          title: 'A Bracket as u',
+          slides: [
+            teach(
+              prose(
+                '$(x + 1)^{2} - 5(x + 1) + 6 = 0$ could be expanded, but the bracket appears squared and on its own. Put $u = x + 1$:',
+              ),
+              maths('u^{2} - 5u + 6 = 0'),
+              maths('(u - 2)(u - 3) = 0'),
+              prose('So $x + 1 = 2$ or $x + 1 = 3$, giving $x = 1$ or $x = 2$. Take the 1 away; do not add it.'),
+            ),
+            ask('quad-disguise-bracket-steps'),
+            ask('quad-disguise-bracket-solve'),
+            ask('quad-disguise-shift-slider'),
+            teach(
+              prose(
+                'As graphs, $y = (x + 1)^{2} - 5(x + 1) + 6$ is the dashed $y = x^{2} - 5x + 6$ moved 1 to the left, so both roots move 1 to the left too:',
+              ),
+              disguiseGraph(
+                [(x) => (x + 1) ** 2 - 5 * (x + 1) + 6, (x) => x * x - 5 * x + 6],
+                { xMin: -1, xMax: 5, yMin: -0.6, yMax: 2.5 },
+                [1, 2],
+                'Two identical parabolas, the solid one a step to the left of the dashed one, crossing at 1 and 2',
+              ),
+            ),
+            ask('quad-disguise-count-flow'),
+            ask('quad-disguise-bracket-solve+choice'),
+            ask('quad-disguise-bracket-steps', 2),
+            teach(
+              prose(
+                'Every disguise works the same way: find $u$, solve in $u$, go back to $x$. What changes is how many values of $x$ each root gives:',
+              ),
+              prose('$u = x^{2}$ gives two for a positive root and none for a negative one. $u = \\sqrt{x}$ gives one, or none for a negative root.'),
+              prose('$u = x^{3}$, $u = \\frac{1}{x}$ and $u = x + k$ give exactly one each time.'),
+            ),
+            ask('quad-disguise-count-flow', 2),
+            ask('quad-disguise-shift-slider', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-bracket-steps', 2),
+            ask('quad-disguise-bracket-solve', 2),
+            ask('quad-disguise-count-flow', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('quad-disguise-u-tiles', 2),
+        ask('quad-disguise-even-slider', 2),
+        ask('quad-disguise-root-solve', 2),
+        ask('quad-disguise-is-it-flow', 2),
+        ask('quad-disguise-flip-steps', 2),
+        ask('quad-disguise-split-tree', 2),
+        ask('quad-disguise-bracket-solve', 2),
+        ask('quad-disguise-root-check', 2),
+        ask('quad-disguise-count-flow', 2),
+        ask('quad-disguise-recip-tiles', 2),
+        ask('quad-disguise-even-steps', 2),
+        ask('quad-disguise-spot', 2),
+        ask('quad-disguise-root-tree', 2),
+        ask('quad-disguise-shift-slider', 2),
+        ask('quad-disguise-recip-solve', 2),
       ],
     },
   ],

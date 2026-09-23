@@ -179,6 +179,30 @@ export type Slide =
         origin?: number;
       };
     })
+  /**
+   * Draw a solution set on a number line.
+   *
+   * The learner builds the set from taps rather than typing it: a number
+   * places or removes a dot, a dot toggles between filled (included) and
+   * hollow (excluded), and a tap on the line shades or clears the stretch it
+   * falls in, running off the edge as a ray beyond the outermost dot. So an
+   * inequality's answer is shown the way it is drawn on paper, and open
+   * against closed ends is a thing the learner has to decide, not read off.
+   *
+   * The model and the grade live in `src/content/numberLine.ts`.
+   */
+  | ({ kind: 'numberLine' } & Prompted & {
+      /** The first and last tick. Both on the `step` lattice. */
+      min: number;
+      max: number;
+      /** Tick spacing, 1 or 0.5. At most twelve steps fit a phone. */
+      step: number;
+      /**
+       * The set, written the canonical way: pieces sorted and merged, joined
+       * by `|`, as in `(-inf,2]|[5,inf)` or `[-1,3)`. Never displayed.
+       */
+      answer: string;
+    })
   /** Drop tokens from a bank into blanks in an equation. */
   | ({ kind: 'tiles' } & Prompted & {
       /**

@@ -31,6 +31,7 @@ import {
   type Expr,
 } from '../expr';
 import { startSession } from '../../engine/session';
+import { canonicalSet, parseSet } from '../numberLine';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
 import {
@@ -291,6 +292,34 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           return Number.isFinite(y) && y >= yMin && y <= yMax;
         });
         expect(inView.length, `${slide.base} ${slide.answer} is mostly off screen`).toBeGreaterThanOrEqual(5);
+      }
+
+      if (slide.kind === 'numberLine') {
+        // Every tick is a tap target as wide as the spacing, so the step count
+        // is what keeps them a thumb apart on a phone: twelve across the line
+        // is the most that fits. Fewer than four is barely a line at all.
+        expect(slide.step).toBeGreaterThan(0);
+        const ticks = (slide.max - slide.min) / slide.step;
+        expect(Math.abs(ticks - Math.round(ticks)), 'window is off the step lattice').toBeLessThan(1e-9);
+        expect(ticks, `${ticks} steps will not fit a phone`).toBeLessThanOrEqual(12);
+        expect(ticks).toBeGreaterThanOrEqual(4);
+        // The answer is stored canonically, so the grade compares like with
+        // like, and holds at least one piece — an empty set cannot be drawn,
+        // since Check waits for something shaded.
+        const pieces = parseSet(slide.answer);
+        expect(pieces, `unreadable set ${slide.answer}`).toBeDefined();
+        expect(pieces!.length, `empty set ${slide.answer}`).toBeGreaterThan(0);
+        expect(canonicalSet(slide.answer), 'answer is not canonical').toBe(slide.answer);
+        // Every end sits on a tick strictly inside the window: on the edge, a
+        // ray would have nowhere to run and an open end nothing beside it.
+        for (const piece of pieces!) {
+          for (const end of [piece.lo, piece.hi].filter(Number.isFinite)) {
+            expect(end, `end ${end} outside ${slide.min}..${slide.max}`).toBeGreaterThan(slide.min);
+            expect(end, `end ${end} outside ${slide.min}..${slide.max}`).toBeLessThan(slide.max);
+            const at = (end - slide.min) / slide.step;
+            expect(Math.abs(at - Math.round(at)), `end ${end} is off a tick`).toBeLessThan(1e-9);
+          }
+        }
       }
 
       if (slide.kind === 'plot') {

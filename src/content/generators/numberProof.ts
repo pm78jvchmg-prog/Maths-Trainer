@@ -1,5 +1,5 @@
 /**
- * Number & Proof, level 1: Proof.
+ * Number & Proof, level 1: Proof, and level 3: Logic and Implication.
  *
  * What a proof is and the four ways this level makes one: direct algebraic
  * proof (even as `2k`, odd as `2k + 1`), proof by exhaustion over remainders,
@@ -26,6 +26,8 @@ import type { Block, Generator, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { orderBank } from './proofOrder';
+import { canonicalPieces, formatSet, type Piece } from '../numberLine';
+import { windowFor } from './numberLine';
 
 /* ---------- shared helpers ---------- */
 
@@ -2299,6 +2301,1587 @@ const prfMethodFlow: Generator<MethodParams> = {
   },
 };
 
+/* ================================================================
+ * Level 3: Logic and Implication
+ *
+ * What `P \Rightarrow Q` says and which way it runs, the converse, the
+ * contrapositive, necessary against sufficient, and proofs of an
+ * "if and only if" one direction at a time.
+ *
+ * Every statement carries a test (`holds`), and whether one implies another
+ * is decided by trying both over a spread of numbers (`breaks`), never read
+ * off the shape of the family: a slide that calls an implication true or
+ * false has checked it first, and its counterexample is the one it found.
+ * ================================================================ */
+
+/** A statement about `x`, or about a whole number `n`, with its negation. */
+interface Statement {
+  /** TeX the learner reads: `x^2 = 9`, `n \\text{ is a multiple of } 4`. */
+  tex: string;
+  /** Its negation, written the same way: `x^2 \\ne 9`. */
+  neg: string;
+  holds: (x: number) => boolean;
+}
+
+interface Pair {
+  p: Statement;
+  q: Statement;
+  /** About a whole number `n` rather than a real `x`. */
+  whole: boolean;
+}
+
+type PairFamily =
+  | 'square'
+  | 'bigger'
+  | 'multiple'
+  | 'factor'
+  | 'sqLess'
+  | 'cube'
+  | 'linear'
+  | 'shift'
+  | 'coprime'
+  | 'bigSquare';
+
+interface PairParams {
+  family: PairFamily;
+  a: number;
+  b: number;
+  c: number;
+}
+
+/** `P \Rightarrow Q` true, its converse false. */
+const ONE_WAY: PairFamily[] = ['square', 'bigger', 'multiple', 'factor', 'sqLess'];
+/** True both ways. */
+const BOTH_WAYS: PairFamily[] = ['cube', 'linear', 'shift'];
+/** False both ways. */
+const NEITHER_WAY: PairFamily[] = ['coprime', 'bigSquare'];
+
+const eqS = (a: number): Statement => ({ tex: `x = ${a}`, neg: `x \\ne ${a}`, holds: (x) => x === a });
+const gtS = (a: number): Statement => ({ tex: `x > ${a}`, neg: `x \\le ${a}`, holds: (x) => x > a });
+const ltS = (a: number): Statement => ({ tex: `x < ${a}`, neg: `x \\ge ${a}`, holds: (x) => x < a });
+const multS = (m: number): Statement => ({
+  tex: `n \\text{ is a multiple of } ${m}`,
+  neg: `n \\text{ is not a multiple of } ${m}`,
+  holds: (n) => mod(n, m) === 0,
+});
+
+/** `(x - 3)(x + 2)`; a root of 0 is written `x` and goes first. */
+function rootsTex(a: number, b: number): string {
+  const bracket = (r: number) => (r === 0 ? 'x' : `(${lin(1, -r, 'x')})`);
+  return b === 0 ? `${bracket(b)}${bracket(a)}` : `${bracket(a)}${bracket(b)}`;
+}
+
+/** A number as it sits after `\times`: brackets round a negative. */
+const at = (n: number) => (n < 0 ? `(${n})` : `${n}`);
+
+function pairOf({ family, a, b, c }: PairParams): Pair {
+  switch (family) {
+    case 'square':
+      return {
+        p: eqS(a),
+        q: { tex: `x^2 = ${a * a}`, neg: `x^2 \\ne ${a * a}`, holds: (x) => x * x === a * a },
+        whole: false,
+      };
+    case 'bigger':
+      return { p: gtS(a), q: gtS(b), whole: false };
+    case 'multiple':
+    case 'coprime':
+      return { p: multS(a), q: multS(b), whole: true };
+    case 'factor': {
+      const tex = rootsTex(a, b);
+      return {
+        p: eqS(a),
+        q: { tex: `${tex} = 0`, neg: `${tex} \\ne 0`, holds: (x) => (x - a) * (x - b) === 0 },
+        whole: false,
+      };
+    }
+    case 'sqLess':
+      return {
+        p: { tex: `x^2 < ${a * a}`, neg: `x^2 \\ge ${a * a}`, holds: (x) => x * x < a * a },
+        q: ltS(a),
+        whole: false,
+      };
+    case 'cube':
+      return {
+        p: eqS(a),
+        q: { tex: `x^3 = ${a ** 3}`, neg: `x^3 \\ne ${a ** 3}`, holds: (x) => x ** 3 === a ** 3 },
+        whole: false,
+      };
+    case 'linear': {
+      // b is the coefficient, c the constant and a the root.
+      const left = lin(b, c, 'x');
+      const v = b * a + c;
+      return {
+        p: { tex: `${left} = ${v}`, neg: `${left} \\ne ${v}`, holds: (x) => b * x + c === v },
+        q: eqS(a),
+        whole: false,
+      };
+    }
+    case 'shift': {
+      const left = lin(1, b, 'x');
+      return {
+        p: gtS(a),
+        q: { tex: `${left} > ${a + b}`, neg: `${left} \\le ${a + b}`, holds: (x) => x + b > a + b },
+        whole: false,
+      };
+    }
+    case 'bigSquare':
+      return {
+        p: gtS(a),
+        q: { tex: `x^2 > ${b * b}`, neg: `x^2 \\le ${b * b}`, holds: (x) => x * x > b * b },
+        whole: false,
+      };
+  }
+}
+
+function samplePair(rng: Rng, family: PairFamily): PairParams {
+  const signed = (lo: number, hi: number) => rng.int(lo, hi) * rng.sign();
+  switch (family) {
+    case 'square':
+    case 'cube':
+      return { family, a: signed(2, 9), b: 0, c: 0 };
+    case 'bigger': {
+      const a = rng.int(-3, 9);
+      return { family, a, b: a - rng.int(1, 6), c: 0 };
+    }
+    case 'multiple': {
+      const m = rng.pick([2, 3, 4, 5]);
+      return { family, a: m * rng.pick([2, 3, 4]), b: m, c: 0 };
+    }
+    case 'factor': {
+      const a = signed(1, 6);
+      let b = rng.int(-6, 6);
+      while (b === a) b = rng.int(-6, 6);
+      return { family, a, b, c: 0 };
+    }
+    case 'sqLess':
+      return { family, a: rng.int(2, 9), b: 0, c: 0 };
+    case 'linear':
+      return { family, a: signed(1, 9), b: rng.int(2, 6), c: signed(1, 9) };
+    case 'shift':
+      return { family, a: rng.int(-5, 9), b: signed(1, 9), c: 0 };
+    case 'coprime': {
+      const [a, b] = rng.sample([2, 3, 5, 7], 2);
+      return { family, a, b, c: 0 };
+    }
+    case 'bigSquare': {
+      const a = rng.int(-2, 3);
+      return { family, a, b: rng.int(Math.max(2, a + 1), a + 4), c: 0 };
+    }
+  }
+}
+
+/** Values to test a statement at, nearest 0 first; halves too, for a real x. */
+function testValues(whole: boolean): number[] {
+  const ints = [0];
+  for (let k = 1; k <= 40; k += 1) ints.push(k, -k);
+  if (whole) return ints;
+  return [...ints, ...ints.filter((k) => k < 40).map((k) => k + 0.5)];
+}
+
+const WHOLE_TESTS = testValues(true);
+const REAL_TESTS = testValues(false);
+
+/** The simplest value making `from` true and `to` false, or undefined if none. */
+function breaks(from: Statement, to: Statement, whole: boolean): number | undefined {
+  return (whole ? WHOLE_TESTS : REAL_TESTS).find((x) => from.holds(x) && !to.holds(x));
+}
+
+const implies = (from: Statement, to: Statement, whole: boolean) => breaks(from, to, whole) === undefined;
+
+/** Why `P \Rightarrow Q` (forward) or `Q \Rightarrow P` holds, for a direction that does. */
+function holdsWhy({ family, a, b, c }: PairParams, forward: boolean): string {
+  switch (family) {
+    case 'square':
+      return `squaring $${a}$ gives $${a * a}$`;
+    case 'bigger':
+      return `every number above $${a}$ is above $${b}$ too`;
+    case 'multiple':
+      return `$${a} = ${b} \\times ${a / b}$, so every multiple of $${a}$ is a multiple of $${b}$`;
+    case 'factor':
+      return `$x = ${a}$ makes the bracket $(${lin(1, -a, 'x')})$ zero`;
+    case 'sqLess':
+      return `$x^2 < ${a * a}$ means $-${a} < x < ${a}$`;
+    case 'cube':
+      return forward ? `cubing $${a}$ gives $${a ** 3}$` : `$${a ** 3}$ has only one real cube root, $${a}$`;
+    case 'linear':
+      return forward
+        ? `${c > 0 ? `taking away $${c}$` : `adding $${-c}$`} and dividing by $${b}$ gives $x = ${a}$`
+        : `putting $x = ${a}$ in gives $${b} \\times ${at(a)} ${c > 0 ? '+' : '-'} ${Math.abs(c)} = ${b * a + c}$`;
+    case 'shift':
+      return forward
+        ? 'adding the same number to both sides keeps an inequality true'
+        : 'taking the same number off both sides keeps an inequality true';
+    default:
+      return 'it holds for every value';
+  }
+}
+
+/** One direction of a pair: true with its reason, or false with a counterexample. */
+function directionText(params: PairParams, forward: boolean): string {
+  const { p, q, whole } = pairOf(params);
+  const [from, to] = forward ? [p, q] : [q, p];
+  const arrow = `$${from.tex} \\Rightarrow ${to.tex}$`;
+  const x = breaks(from, to, whole);
+  if (x === undefined) return `${arrow} is true: ${holdsWhy(params, forward)}.`;
+  return `${arrow} is false: $${whole ? 'n' : 'x'} = ${x}$ makes $${from.tex}$ true but $${to.tex}$ false.`;
+}
+
+/** A reminder that `n` is whole, where the statements are about `n`. */
+const wholeNote = (whole: boolean) => (whole ? ' Here $n$ is a whole number.' : '');
+
+/**
+ * "If P, then Q." in one of several wordings. 0 to 2 put the condition
+ * first; 3 and 4 put it second, which is where learners turn it round; 5 is
+ * the arrow itself.
+ */
+function phrase(p: string, q: string, wording: number): string {
+  const P = `$${p}$`;
+  const Q = `$${q}$`;
+  switch (wording) {
+    case 0:
+      return `If ${P}, then ${Q}.`;
+    case 1:
+      return `${P} implies ${Q}.`;
+    case 2:
+      return `Whenever ${P}, ${Q}.`;
+    case 3:
+      return `${Q} if ${P}.`;
+    case 4:
+      return `${Q} whenever ${P}.`;
+    default:
+      return `$${p} \\Rightarrow ${q}$.`;
+  }
+}
+
+const imp = (a: string, b: string) => `${a} \\Rightarrow ${b}`;
+const iff = (a: string, b: string) => `${a} \\Leftrightarrow ${b}`;
+
+/**
+ * An implication for a display line. Two sentences in words run past a
+ * phone's width on one line, so those stack with the arrow pointing down.
+ */
+const impDisplay = (a: string, b: string) =>
+  `${a}${b}`.includes('\\text')
+    ? `\\begin{gathered} ${a} \\\\ \\Downarrow \\\\ ${b} \\end{gathered}`
+    : imp(a, b);
+
+/* ---------- which way does the arrow run? ---------- */
+
+interface ArrowParams {
+  pair: PairParams;
+  flip: boolean;
+}
+
+const ARROW = {
+  right: '\\Rightarrow\\text{ only}',
+  left: '\\Leftarrow\\text{ only}',
+  both: '\\Leftrightarrow',
+};
+
+const prfArrow: Generator<ArrowParams> = {
+  id: 'prf-arrow',
+  sample(rng, difficulty) {
+    const families = difficulty >= 2 ? [...ONE_WAY, ...BOTH_WAYS] : ONE_WAY;
+    return { pair: samplePair(rng, rng.pick(families)), flip: rng.chance(0.5) };
+  },
+  render({ pair, flip }) {
+    const { p, q, whole } = pairOf(pair);
+    const [left, right] = flip ? [q, p] : [p, q];
+    const rightward = implies(left, right, whole);
+    const leftward = implies(right, left, whole);
+    const correct = rightward && leftward ? ARROW.both : rightward ? ARROW.right : ARROW.left;
+    return choiceSlide(
+      [
+        say(`Which way does the implication run between these two statements?${wholeNote(whole)}`),
+        ...(whole
+          ? [
+              say(`**Left:** $${left.tex}$`),
+              say(`**Right:** $${right.tex}$`),
+              { kind: 'display' as const, tex: '\\text{Left} \\quad \\square \\quad \\text{Right}' },
+            ]
+          : [{ kind: 'display' as const, tex: `${left.tex} \\quad \\square \\quad ${right.tex}` }]),
+        say('Choose $\\Leftrightarrow$ only if it runs both ways.'),
+      ],
+      correct,
+      Object.values(ARROW).filter((label) => label !== correct),
+    );
+  },
+  solution({ pair, flip }) {
+    const { p, q, whole } = pairOf(pair);
+    const [left, right] = flip ? [q, p] : [p, q];
+    const rightward = implies(left, right, whole);
+    const leftward = implies(right, left, whole);
+    const symbol = rightward && leftward ? '\\Leftrightarrow' : rightward ? '\\Rightarrow' : '\\Leftarrow';
+    return [
+      { text: directionText(pair, true) },
+      { text: directionText(pair, false) },
+      { text: `So the gap takes $${symbol}$: $${left.tex} ${symbol} ${right.tex}$.` },
+    ];
+  },
+};
+
+/* ---------- what is assumed, what is shown ---------- */
+
+interface ClaimParams {
+  pair: PairParams;
+  wording: number;
+  hard: boolean;
+}
+
+const prfAssumeShow: Generator<ClaimParams> = {
+  id: 'prf-assume-show',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const families = hard ? [...ONE_WAY, ...BOTH_WAYS] : ONE_WAY;
+    return { pair: samplePair(rng, rng.pick(families)), wording: rng.pick(hard ? [3, 4] : [0, 1, 2, 5]), hard };
+  },
+  render({ pair, wording }) {
+    const { p, q, whole } = pairOf(pair);
+    const m = (tex: string) => `$${tex}$`;
+    const key = `${p.tex}|${q.tex}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Claim: ${phrase(p.tex, q.tex, wording)}${wholeNote(whole)}`),
+        say('Plan a direct proof of it. Each answer chooses what gets asked next.'),
+      ],
+      subject: '\\text{Direct proof}',
+      steps: [
+        {
+          id: 'assume',
+          ask: 'You start by assuming',
+          branches: turned([m(p.tex), m(q.tex), m(p.neg)], `${key}|assume`).map((label) => ({ label, to: 'show' })),
+        },
+        {
+          id: 'show',
+          ask: 'and you have to reach',
+          branches: turned([q.tex, p.tex, q.neg], `${key}|show`).map((tex) => ({
+            label: m(tex),
+            outcome: `The plan ends at $${tex}$.`,
+          })),
+        },
+      ],
+      answer: [m(p.tex), m(q.tex)],
+    };
+  },
+  solution({ pair, wording }) {
+    const { p, q } = pairOf(pair);
+    return [
+      { text: `The claim is $${imp(p.tex, q.tex)}$: assume $${p.tex}$, then work to $${q.tex}$.` },
+      {
+        text:
+          wording >= 3 && wording <= 4
+            ? `The "if" part comes second in this wording, but it is still the part you assume.`
+            : `The part after "if" is what you may assume; the other part is what you must show.`,
+      },
+    ];
+  },
+};
+
+/* ---------- writing a sentence as an arrow ---------- */
+
+const prfWriteArrow: Generator<ClaimParams> = {
+  id: 'prf-write-arrow',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    return { pair: samplePair(rng, rng.pick(ONE_WAY)), wording: rng.pick(hard ? [3, 4] : [0, 1, 2]), hard };
+  },
+  render({ pair, wording }) {
+    const { p, q, whole } = pairOf(pair);
+    const answer = [p.tex, '\\Rightarrow', q.tex];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${phrase(p.tex, q.tex, wording)}${wholeNote(whole)}`), say('Write that with an arrow.')],
+      template: '{0} \\quad {1} \\quad {2}',
+      bank: fillBank(answer, ['\\Leftrightarrow', q.neg]),
+      answer,
+    };
+  },
+  solution({ pair, wording }) {
+    const { p, q } = pairOf(pair);
+    return [
+      {
+        text:
+          wording >= 3
+            ? `The condition is $${p.tex}$, even though it comes second in the sentence. It goes before the arrow:`
+            : `The condition, $${p.tex}$, goes before the arrow, and what follows from it after:`,
+      },
+      { tex: impDisplay(p.tex, q.tex) },
+      { text: `Not $\\Leftrightarrow$, which also claims the converse. ${directionText(pair, false)}` },
+    ];
+  },
+};
+
+/* ---------- following an implication to a value ---------- */
+
+interface ValueParams {
+  a: number;
+  m: number;
+  b: number;
+  c: number;
+  quad: boolean;
+}
+
+const valueExpr = ({ m, b, c, quad }: ValueParams) => (quad ? polyTex([1, b, c], 'x') : lin(m, c, 'x'));
+const valueOfExpr = ({ a, m, b, c, quad }: ValueParams) => (quad ? a * a + b * a + c : m * a + c);
+const signedTail = (n: number) => `${n < 0 ? '-' : '+'} ${Math.abs(n)}`;
+
+const prfImpliesValue: Generator<ValueParams> = {
+  id: 'prf-implies-value',
+  sample(rng, difficulty) {
+    const signed = (lo: number, hi: number) => rng.int(lo, hi) * rng.sign();
+    return difficulty >= 2
+      ? { a: signed(1, 9), m: 1, b: signed(1, 6), c: signed(1, 12), quad: true }
+      : { a: signed(1, 9), m: rng.int(2, 9), b: 0, c: signed(1, 12), quad: false };
+  },
+  render(params) {
+    return {
+      kind: 'expression',
+      prompt: [say('Fill in the number that makes this implication true.')],
+      lead: `x = ${params.a} \\Rightarrow ${valueExpr(params)} =`,
+      keypad: [],
+      answer: String(valueOfExpr(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution(params) {
+    const { a, m, b, c, quad } = params;
+    const v = valueOfExpr(params);
+    const working = quad
+      ? `${at(a)}^2 ${signedTail(b)} \\times ${at(a)} ${signedTail(c)} = ${v}`
+      : `${m} \\times ${at(a)} ${signedTail(c)} = ${v}`;
+    const other = -b - a;
+    return [
+      { text: `If $x = ${a}$, put $${a}$ in for $x$:` },
+      { tex: stackTex(working) },
+      {
+        text: !quad
+          ? `This one runs both ways too: only $x = ${a}$ gives $${v}$.`
+          : other !== a
+            ? `The arrow does not run back: $x = ${other}$ gives $${v}$ as well, so $${valueExpr(params)} = ${v}$ does not force $x = ${a}$.`
+            : `Here only $x = ${a}$ gives $${v}$, so it runs both ways.`,
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * The converse
+ * ================================================================ */
+
+const prfConverse: Generator<ClaimParams> = {
+  id: 'prf-converse',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const families = hard ? [...ONE_WAY, ...BOTH_WAYS] : ONE_WAY;
+    return { pair: samplePair(rng, rng.pick(families)), wording: rng.pick(hard ? [3, 4, 5] : [0, 1, 5]), hard };
+  },
+  render({ pair, wording, hard }) {
+    const { p, q, whole } = pairOf(pair);
+    return choiceSlide(
+      [say(`Statement: ${phrase(p.tex, q.tex, wording)}${wholeNote(whole)}`), say('Which of these is its **converse**?')],
+      imp(q.tex, p.tex),
+      [imp(p.neg, q.neg), iff(p.tex, q.tex), ...(hard ? [imp(q.neg, p.neg)] : [])],
+    );
+  },
+  solution({ pair }) {
+    const { p, q } = pairOf(pair);
+    return [
+      { text: `The converse swaps what is assumed and what is shown: $${imp(q.tex, p.tex)}$.` },
+      { text: `It need not be true when the statement is. ${directionText(pair, false)}` },
+    ];
+  },
+};
+
+/* ---------- the one value that breaks a converse ---------- */
+
+type CounterFamily = 'square' | 'factor' | 'zero' | 'abs' | 'quad';
+
+interface ConverseCounterParams {
+  family: CounterFamily;
+  a: number;
+  b: number;
+}
+
+/** A true `x = a \Rightarrow Q` whose converse fails at exactly one x. */
+function converseCase({ family, a, b }: ConverseCounterParams): { q: string; counter: number; check: string } {
+  switch (family) {
+    case 'square':
+      return { q: `x^2 = ${a * a}`, counter: -a, check: `$(${-a})^2 = ${a * a}$` };
+    case 'factor': {
+      const tex = rootsTex(a, b);
+      return {
+        q: `${tex} = 0`,
+        counter: b,
+        check: `$x = ${b}$ makes ${b === 0 ? 'the factor $x$' : `the bracket $(${lin(1, -b, 'x')})$`} zero`,
+      };
+    }
+    case 'zero':
+      return { q: `x^2 = ${termTex(a, 1, 'x')}`, counter: 0, check: `$0^2 = 0$ and $${a} \\times 0 = 0$` };
+    case 'abs':
+      return { q: `|x| = ${Math.abs(a)}`, counter: -a, check: `$|${-a}| = ${Math.abs(a)}$` };
+    case 'quad':
+      return {
+        q: `${polyTex([1, -(a + b), a * b], 'x')} = 0`,
+        counter: b,
+        check: `$${polyTex([1, -(a + b), a * b], 'x')} = ${rootsTex(a, b)}$, so $x = ${b}$ makes it zero`,
+      };
+  }
+}
+
+const prfCounterConverse: Generator<ConverseCounterParams> = {
+  id: 'prf-counter-converse',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const family = rng.pick<CounterFamily>(hard ? ['quad', 'factor', 'square'] : ['square', 'factor', 'zero', 'abs']);
+    if (family !== 'factor' && family !== 'quad') {
+      return { family, a: rng.int(2, family === 'square' && hard ? 15 : 9) * rng.sign(), b: 0 };
+    }
+    const top = family === 'quad' ? 7 : 6;
+    const a = rng.int(1, top) * rng.sign();
+    let b = rng.int(-top, top);
+    while (b === a) b = rng.int(-top, top);
+    return { family, a, b };
+  },
+  render(params) {
+    const { q } = converseCase(params);
+    const p = `x = ${params.a}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`$${imp(p, q)}$ is true, but its converse, $${imp(q, p)}$, is false.`),
+        say('Which value of $x$ shows the converse is false?'),
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: String(converseCase(params).counter),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution(params) {
+    const { q, counter, check } = converseCase(params);
+    return [
+      { text: `The converse breaks where $${q}$ is true but $x = ${params.a}$ is not.` },
+      { text: `$x = ${counter}$: ${check}, yet $${counter} \\ne ${params.a}$.` },
+      { text: 'One counterexample is enough to show the converse is false.' },
+    ];
+  },
+};
+
+/* ---------- testing a converse, one decision at a time ---------- */
+
+interface PairOnlyParams {
+  pair: PairParams;
+}
+
+/** The counterexample to Q ⇒ P, one value where both hold, one where Q fails. */
+function converseValues(pair: Pair): { counter?: number; offered: number[] } {
+  const { p, q, whole } = pair;
+  const values = whole ? WHOLE_TESTS : REAL_TESTS.filter(Number.isInteger);
+  const counter = breaks(q, p, whole);
+  const both = values.find((x) => p.holds(x) && q.holds(x)) as number;
+  const qFalse = values.find((x) => !q.holds(x)) as number;
+  const spare = counter ?? (values.find((x) => x !== both && x !== qFalse) as number);
+  return { counter, offered: [spare, both, qFalse] };
+}
+
+const prfConverseFlow: Generator<PairOnlyParams> = {
+  id: 'prf-converse-flow',
+  sample(rng, difficulty) {
+    const families = difficulty >= 2 ? [...ONE_WAY, ...ONE_WAY, ...BOTH_WAYS] : ONE_WAY;
+    return { pair: samplePair(rng, rng.pick(families)) };
+  },
+  render({ pair }) {
+    const built = pairOf(pair);
+    const { p, q, whole } = built;
+    const v = whole ? 'n' : 'x';
+    const converse = `$${imp(q.tex, p.tex)}$`;
+    const { counter, offered } = converseValues(built);
+    const key = `${p.tex}|${q.tex}`;
+    const valueLabel = (x: number) => `$${v} = ${x}$`;
+    const describe = (x: number) => {
+      const said = (s: Statement) => `$${s.tex}$ is ${s.holds(x) ? 'true' : 'false'}`;
+      return `At ${valueLabel(x)}, ${said(q)} and ${said(p)}.`;
+    };
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Statement: $${imp(p.tex, q.tex)}$, which is true.${wholeNote(whole)}`),
+        say('Test its converse. Each answer chooses what gets asked next.'),
+      ],
+      subject: imp(p.tex, q.tex),
+      steps: [
+        {
+          id: 'conv',
+          ask: 'The converse of this statement is',
+          branches: turned([converse, `$${imp(p.neg, q.neg)}$`, `$${iff(p.tex, q.tex)}$`], `${key}|conv`).map(
+            (label) => ({ label, to: 'true' }),
+          ),
+        },
+        {
+          id: 'true',
+          ask: 'Is that converse true?',
+          branches: [
+            { label: 'Yes', outcome: 'Then the statement runs both ways.' },
+            { label: 'No', to: 'counter' },
+          ],
+        },
+        {
+          id: 'counter',
+          ask: `Which value of $${v}$ shows it is false?`,
+          branches: turned(offered, `${key}|counter`).map((x) => ({ label: valueLabel(x), outcome: describe(x) })),
+        },
+      ],
+      answer: counter === undefined ? [converse, 'Yes'] : [converse, 'No', valueLabel(counter)],
+    };
+  },
+  solution({ pair }) {
+    const { p, q } = pairOf(pair);
+    return [
+      { text: `The converse swaps the two sides: $${imp(q.tex, p.tex)}$.` },
+      { text: directionText(pair, false) },
+    ];
+  },
+};
+
+/* ---------- every value that breaks a converse, on a number line ---------- */
+
+type LineFamily = 'above' | 'below' | 'square' | 'sqLess';
+
+interface CounterLineParams {
+  family: LineFamily;
+  a: number;
+  b: number;
+  closed: boolean;
+  min: number;
+  max: number;
+}
+
+/** The true statement, and the stretch of the line where its converse breaks. */
+function lineCase({ family, a, b, closed }: CounterLineParams): {
+  p: string;
+  q: string;
+  notP: string;
+  setTex: string;
+  piece: Piece;
+} {
+  const ge = closed ? '\\ge' : '>';
+  const le = closed ? '\\le' : '<';
+  switch (family) {
+    case 'above':
+      // x > a (or x >= a) implies x > b, for b < a.
+      return {
+        p: `x ${ge} ${a}`,
+        q: `x > ${b}`,
+        notP: `x ${closed ? '<' : '\\le'} ${a}`,
+        setTex: `${b} < x ${closed ? '<' : '\\le'} ${a}`,
+        piece: { lo: b, hi: a, loClosed: false, hiClosed: !closed },
+      };
+    case 'below':
+      // x < a (or x <= a) implies x < b, for b > a.
+      return {
+        p: `x ${le} ${a}`,
+        q: `x < ${b}`,
+        notP: `x ${closed ? '>' : '\\ge'} ${a}`,
+        setTex: `${a} ${closed ? '<' : '\\le'} x < ${b}`,
+        piece: { lo: a, hi: b, loClosed: !closed, hiClosed: false },
+      };
+    case 'square':
+      // x > a implies x^2 > a^2, for a > 0.
+      return {
+        p: `x ${ge} ${a}`,
+        q: `x^2 ${ge} ${a * a}`,
+        notP: `x ${closed ? '<' : '\\le'} ${a}`,
+        setTex: `x ${le} -${a}`,
+        piece: { lo: -Infinity, hi: -a, loClosed: false, hiClosed: closed },
+      };
+    case 'sqLess':
+      // x^2 < a^2 implies x < a.
+      return {
+        p: `x^2 ${le} ${a * a}`,
+        q: `x ${le} ${a}`,
+        notP: `x^2 ${closed ? '>' : '\\ge'} ${a * a}`,
+        setTex: `x ${closed ? '<' : '\\le'} -${a}`,
+        piece: { lo: -Infinity, hi: -a, loClosed: false, hiClosed: !closed },
+      };
+  }
+}
+
+const prfCounterLine: Generator<CounterLineParams> = {
+  id: 'prf-counter-line',
+  sample(rng, difficulty) {
+    const family = rng.pick<LineFamily>(difficulty >= 2 ? ['square', 'sqLess'] : ['above', 'below']);
+    const closed = rng.chance(0.5);
+    if (family === 'square' || family === 'sqLess') {
+      const a = rng.int(1, 5);
+      return { family, a, b: 0, closed, ...windowFor(rng, -a, a, 12, 1) };
+    }
+    const a = family === 'above' ? rng.int(-3, 7) : rng.int(-6, 4);
+    const b = family === 'above' ? a - rng.int(2, 6) : a + rng.int(2, 6);
+    return { family, a, b, closed, ...windowFor(rng, Math.min(a, b), Math.max(a, b), 10, 2) };
+  },
+  render(params) {
+    const { p, q, piece } = lineCase(params);
+    return {
+      kind: 'numberLine',
+      prompt: [
+        say(`$${imp(p, q)}$ is true. Its converse, $${imp(q, p)}$, is not.`),
+        say(`Shade every $x$ that breaks the converse: $${q}$ true, but $${p}$ false.`),
+      ],
+      min: params.min,
+      max: params.max,
+      step: 1,
+      answer: formatSet(canonicalPieces([piece])),
+    };
+  },
+  solution(params) {
+    const { p, q, notP, setTex } = lineCase(params);
+    return [
+      { text: `The converse breaks where $${q}$ holds and $${p}$ does not, that is where $${notP}$ as well.` },
+      { tex: setTex },
+      {
+        text: 'A filled dot is a value that breaks it; a hollow dot is one that does not. Every $x$ in there is a counterexample.',
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * The contrapositive
+ * ================================================================ */
+
+const prfContrapositive: Generator<ClaimParams> = {
+  id: 'prf-contrapositive',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const families = hard ? [...ONE_WAY, ...BOTH_WAYS] : ONE_WAY;
+    return { pair: samplePair(rng, rng.pick(families)), wording: rng.pick(hard ? [1, 3, 4] : [0, 5]), hard };
+  },
+  render({ pair, wording }) {
+    const { p, q, whole } = pairOf(pair);
+    const answer = [q.neg, '\\Rightarrow', p.neg];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Statement: ${phrase(p.tex, q.tex, wording)}${wholeNote(whole)}`),
+        say('Build its **contrapositive**.'),
+      ],
+      template: '{0} \\quad {1} \\quad {2}',
+      bank: fillBank(answer, [p.tex, q.tex, '\\Leftrightarrow']),
+      answer,
+    };
+  },
+  solution({ pair }) {
+    const { p, q } = pairOf(pair);
+    return [
+      { text: 'Swap the two sides and negate both:' },
+      { tex: impDisplay(q.neg, p.neg) },
+      { text: `It is true exactly when the statement is, and here ${directionText(pair, true)}` },
+    ];
+  },
+};
+
+/* ---------- a proof through the contrapositive, in order ---------- */
+
+type ParityShape = 'square' | 'linear';
+
+interface ParityClaim {
+  shape: ParityShape;
+  /** The coefficient of n in the linear shape: 3, 5 or 7. */
+  a: number;
+  c: number;
+}
+
+const parityWord = (r: number) => (r === 1 ? 'odd' : 'even');
+const parityExprTex = ({ shape, a, c }: ParityClaim) => (shape === 'square' ? `n^2 + ${c}` : `${a}n + ${c}`);
+
+/** The expression with n = 2k + r, as coefficients in k. */
+const parityCoefs = ({ shape, a, c }: ParityClaim, r: number) =>
+  shape === 'square' ? [4, 4 * r, r + c] : [2 * a, a * r + c];
+
+/** Its parity when n has parity r: a is odd, so the same as r + c. */
+const parityOf = ({ c }: ParityClaim, r: number) => (r + c) % 2;
+
+/** `2(2k^2 + 2k + 4) + 1`: two times a whole number, plus what is left. */
+function parityFactored(coefs: number[]): string {
+  const s = coefs[coefs.length - 1];
+  const inside = [...coefs.slice(0, -1).map((x) => x / 2), Math.floor(s / 2)];
+  return `2(${polyTex(inside)})${s % 2 ? ' + 1' : ''}`;
+}
+
+/** An algebra slip in the expansion: `2k` squared as `2k^2`, or the `2` lost. */
+function paritySlip(claim: ParityClaim, r: number): string {
+  const [first, ...rest] = parityCoefs(claim, r);
+  if (claim.shape === 'linear') return polyTex([first / 2, ...rest]);
+  return r === 0 ? polyTex([2, 0, claim.c]) : polyTex([4, 0, 1 + claim.c]);
+}
+
+type ContraOrderFamily = { family: 'parity'; e: 0 | 1 } & ParityClaim;
+type ContraClaim = ContraOrderFamily | { family: 'multiple'; p: number };
+type ContraProofParams = ContraClaim & { difficulty: number; picks: number[] };
+
+/** "If E is e, then n is t", t worked out from e so the claim is true. */
+function parityClaimParts(claim: ContraOrderFamily) {
+  const E = parityExprTex(claim);
+  const t = (claim.e + claim.c) % 2;
+  return { E, t, r: 1 - t, eBar: 1 - claim.e };
+}
+
+function contraClaimText(claim: ContraClaim): string {
+  if (claim.family === 'multiple') {
+    return `If $n^2$ is not a multiple of $${claim.p}$, then $n$ is not a multiple of $${claim.p}$.`;
+  }
+  const { E, t } = parityClaimParts(claim);
+  return `If $${E}$ is ${parityWord(claim.e)}, then $n$ is ${parityWord(t)}.`;
+}
+
+function contraOrderProof(params: ContraProofParams): Proof {
+  const hard = params.difficulty >= 2;
+  if (params.family === 'multiple') {
+    const { p } = params;
+    const middle = hard
+      ? [
+          `Then $n^2 = ${p * p}k^2$.`,
+          `That is $${p}(${p}k^2)$, and $${p}k^2$ is a whole number, so $n^2$ is a multiple of $${p}$.`,
+        ]
+      : [`Then $n^2 = ${p * p}k^2 = ${p}(${p}k^2)$, a multiple of $${p}$.`];
+    return {
+      claim: `Prove: ${contraClaimText(params)}`,
+      steps: [
+        `First, prove the contrapositive: if $n$ is a multiple of $${p}$, then so is $n^2$.`,
+        `Assume $n$ is a multiple of $${p}$, so $n = ${p}k$ for some whole number $k$.`,
+        ...middle,
+        'So the contrapositive is true, and a statement and its contrapositive stand or fall together: the claim is true.',
+      ],
+      pool: [
+        {
+          text: `First, prove the converse: if $n$ is not a multiple of $${p}$, then neither is $n^2$.`,
+          why: 'That is the converse, a different statement: proving it says nothing about the claim.',
+        },
+        {
+          text: `Assume $n^2$ is not a multiple of $${p}$, so $n$ is not one either.`,
+          why: 'That assumes what is being proved.',
+        },
+        { text: `Then $n^2 = ${p}k^2$.`, why: `$(${p}k)^2 = ${p * p}k^2$: the $${p}$ is squared as well.` },
+        {
+          text: `Checking $n = ${p + 1}$: $n^2 = ${(p + 1) ** 2}$, which is not a multiple of $${p}$.`,
+          why: 'One example is not a proof.',
+        },
+      ],
+    };
+  }
+  const { E, t, r, eBar } = parityClaimParts(params);
+  const coefs = parityCoefs(params, r);
+  const expanded = polyTex(coefs);
+  const factored = parityFactored(coefs);
+  const middle = hard
+    ? [`Then $${E} = ${expanded}$.`, `That is $${factored}$, which is ${parityWord(eBar)}.`]
+    : [`Then $${E} = ${expanded} = ${factored}$, which is ${parityWord(eBar)}.`];
+  const sample = r === 1 ? 3 : 4;
+  const sampleValue = params.shape === 'square' ? sample * sample + params.c : params.a * sample + params.c;
+  return {
+    claim: `Prove: ${contraClaimText(params)}`,
+    steps: [
+      `First, prove the contrapositive: if $n$ is ${parityWord(r)}, then $${E}$ is ${parityWord(eBar)}.`,
+      `Assume $n$ is ${parityWord(r)}, so $n = ${lin(2, r)}$ for some whole number $k$.`,
+      ...middle,
+      'So the contrapositive is true.',
+      `A statement and its contrapositive stand or fall together, so if $${E}$ is ${parityWord(params.e)}, $n$ is ${parityWord(t)}.`,
+    ],
+    pool: [
+      {
+        text: `First, prove the converse: if $n$ is ${parityWord(t)}, then $${E}$ is ${parityWord(params.e)}.`,
+        why: 'That is the converse, a different statement: proving it says nothing about the claim.',
+      },
+      {
+        text: `Assume $${E}$ is ${parityWord(params.e)}, so $${E} = ${params.e ? '2m + 1' : '2m'}$.`,
+        why: 'That starts a direct proof, and nothing turns it into a fact about $n$.',
+      },
+      {
+        text: `Then $${E} = ${paritySlip(params, r)}$.`,
+        why: `The algebra slips: $n = ${lin(2, r)}$ gives $${E} = ${expanded}$.`,
+      },
+      {
+        text: `Checking $n = ${sample}$: $${E} = ${sampleValue}$, which is ${parityWord(eBar)}.`,
+        why: 'One example is not a proof.',
+      },
+    ],
+  };
+}
+
+function sampleContraClaim(rng: Rng): ContraClaim {
+  if (rng.chance(0.3)) return { family: 'multiple', p: rng.int(2, 12) };
+  const shape = rng.pick<ParityShape>(['square', 'linear']);
+  return {
+    family: 'parity',
+    shape,
+    a: shape === 'linear' ? rng.pick([3, 5, 7]) : 1,
+    c: rng.int(1, 11),
+    e: rng.pick([0, 1] as const),
+  };
+}
+
+const prfOrderContrapositive: Generator<ContraProofParams> = {
+  id: 'prf-order-contrapositive',
+  sample(rng, difficulty) {
+    const base = { ...sampleContraClaim(rng), difficulty, picks: [] };
+    return { ...base, picks: pickDistractors(rng, contraOrderProof(base), difficulty) };
+  },
+  render(params) {
+    return orderSlide(contraOrderProof(params), params.picks);
+  },
+  solution(params) {
+    return orderSolution(contraOrderProof(params), params.picks);
+  },
+};
+
+/* ---------- planning a contrapositive proof ---------- */
+
+const prfContraPlan: Generator<{ claim: ContraClaim }> = {
+  id: 'prf-contra-plan',
+  sample(rng) {
+    return { claim: sampleContraClaim(rng) };
+  },
+  render({ claim }) {
+    const claimText = contraClaimText(claim);
+    let start: string;
+    let plans: string[];
+    let assumes: string[];
+    let forms: string[];
+    if (claim.family === 'multiple') {
+      const { p } = claim;
+      start = `$n^2$ not being a multiple of $${p}$`;
+      plans = [
+        `If $n$ is a multiple of $${p}$, so is $n^2$`,
+        `If $n$ is not a multiple of $${p}$, nor is $n^2$`,
+        `If $n^2$ is a multiple of $${p}$, so is $n$`,
+      ];
+      assumes = [
+        `$n$ is a multiple of $${p}$`,
+        `$n^2$ is a multiple of $${p}$`,
+        `$n$ is not a multiple of $${p}$`,
+      ];
+      forms = [`$n = ${p}k$`, `$n^2 = ${p}k$`, `$n = k + ${p}$`];
+    } else {
+      const { E, t, r, eBar } = parityClaimParts(claim);
+      start = `$${E}$ being ${parityWord(claim.e)}`;
+      plans = [
+        `If $n$ is ${parityWord(r)}, then $${E}$ is ${parityWord(eBar)}`,
+        `If $n$ is ${parityWord(t)}, then $${E}$ is ${parityWord(claim.e)}`,
+        `If $${E}$ is ${parityWord(eBar)}, then $n$ is ${parityWord(r)}`,
+      ];
+      assumes = [`$n$ is ${parityWord(r)}`, `$n$ is ${parityWord(t)}`, `$${E}$ is ${parityWord(eBar)}`];
+      forms = [`$n = ${lin(2, r)}$`, `$n = ${lin(2, t)}$`, `$${E} = 2k$`];
+    }
+    const key = claimText;
+    return {
+      kind: 'flow',
+      prompt: [say(`Claim: ${claimText}`), say('Plan its proof. Each answer chooses what gets asked next.')],
+      subject: '\\text{Plan the proof}',
+      steps: [
+        {
+          id: 'which',
+          ask: `A direct proof starts from ${start}, which says little about $n$ itself. So prove this instead:`,
+          branches: turned(plans, `${key}|which`).map((label) => ({ label, to: 'assume' })),
+        },
+        {
+          id: 'assume',
+          ask: 'You start by assuming',
+          branches: turned(assumes, `${key}|assume`).map((label) => ({ label, to: 'form' })),
+        },
+        {
+          id: 'form',
+          ask: 'and so you write',
+          branches: turned(forms, `${key}|form`).map((label) => ({
+            label,
+            outcome: `The proof goes on from ${label}.`,
+          })),
+        },
+      ],
+      answer: [plans[0], assumes[0], forms[0]],
+    };
+  },
+  solution({ claim }) {
+    if (claim.family === 'multiple') {
+      const { p } = claim;
+      return [
+        { text: `Prove the contrapositive: if $n$ is a multiple of $${p}$, so is $n^2$.` },
+        { text: `Assume that, and write $n = ${p}k$. Then $n^2 = ${p * p}k^2 = ${p}(${p}k^2)$, a multiple of $${p}$.` },
+      ];
+    }
+    const { E, r, eBar } = parityClaimParts(claim);
+    const coefs = parityCoefs(claim, r);
+    return [
+      { text: `Prove the contrapositive: if $n$ is ${parityWord(r)}, then $${E}$ is ${parityWord(eBar)}.` },
+      { text: `Assume that, and write $n = ${lin(2, r)}$. Then:` },
+      { tex: stackTex(`${E} = ${polyTex(coefs)} = ${parityFactored(coefs)}`) },
+      { text: `That is ${parityWord(eBar)}, as the contrapositive says.` },
+    ];
+  },
+};
+
+/* ---------- converse, inverse or contrapositive? ---------- */
+
+type Relative = 'converse' | 'inverse' | 'contrapositive' | 'none';
+
+interface RelativeParams {
+  pair: PairParams;
+  shown: Relative;
+  hard: boolean;
+}
+
+const RELATIVE_LABEL: Record<Relative, string> = {
+  converse: 'Its converse',
+  inverse: 'Its inverse',
+  contrapositive: 'Its contrapositive',
+  none: 'None of these',
+};
+
+function relativeTex(pair: Pair, shown: Relative): string {
+  const { p, q } = pair;
+  switch (shown) {
+    case 'converse':
+      return imp(q.tex, p.tex);
+    case 'inverse':
+      return imp(p.neg, q.neg);
+    case 'contrapositive':
+      return imp(q.neg, p.neg);
+    case 'none':
+      return imp(p.tex, q.neg);
+  }
+}
+
+const prfNameRelative: Generator<RelativeParams> = {
+  id: 'prf-name-relative',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const families = hard ? [...ONE_WAY, ...BOTH_WAYS] : ONE_WAY;
+    const shown = rng.pick<Relative>(hard ? ['converse', 'inverse', 'contrapositive', 'none'] : ['converse', 'inverse', 'contrapositive']);
+    return { pair: samplePair(rng, rng.pick(families)), shown, hard };
+  },
+  render({ pair, shown, hard }) {
+    const built = pairOf(pair);
+    const { p, q, whole } = built;
+    const labels = (hard ? ['converse', 'inverse', 'contrapositive', 'none'] : ['converse', 'inverse', 'contrapositive']) as Relative[];
+    return choiceSlide(
+      [
+        say(`Statement: $${imp(p.tex, q.tex)}$.${wholeNote(whole)}`),
+        say(`What is $${relativeTex(built, shown)}$ to that statement?`),
+      ],
+      RELATIVE_LABEL[shown],
+      labels.filter((label) => label !== shown).map((label) => RELATIVE_LABEL[label]),
+      true,
+    );
+  },
+  solution({ pair, shown }) {
+    const built = pairOf(pair);
+    const line = `$${relativeTex(built, shown)}$`;
+    const why: Record<Relative, string> = {
+      converse: `${line} swaps the sides and negates neither: the converse. It can be false when the statement is true.`,
+      inverse: `${line} negates both sides but keeps them where they were: the inverse. It can be false when the statement is true.`,
+      contrapositive: `${line} swaps the sides and negates both: the contrapositive. It is true exactly when the statement is.`,
+      none: `${line} negates only one side, which none of the three does.`,
+    };
+    return [{ text: why[shown] }, { text: `The statement itself: ${directionText(pair, true)}` }];
+  },
+};
+
+/* ================================================================
+ * Necessary and sufficient
+ * ================================================================ */
+
+interface CondParams {
+  pair: PairParams;
+  flip: boolean;
+}
+
+type Verdict = 'suff' | 'nec' | 'both' | 'neither';
+
+const VERDICT_LABEL: Record<Verdict, string> = {
+  suff: 'Sufficient, not necessary',
+  nec: 'Necessary, not sufficient',
+  both: 'Necessary and sufficient',
+  neither: 'Neither',
+};
+
+/** The condition P and the statement Q, and how they stand. */
+function condition({ pair, flip }: CondParams) {
+  const { p, q, whole } = pairOf(pair);
+  const [P, Q] = flip ? [q, p] : [p, q];
+  const sufficient = implies(P, Q, whole);
+  const necessary = implies(Q, P, whole);
+  const verdict: Verdict = sufficient ? (necessary ? 'both' : 'suff') : necessary ? 'nec' : 'neither';
+  return { P, Q, whole, sufficient, necessary, verdict };
+}
+
+function sampleCondition(rng: Rng, difficulty: number): CondParams {
+  const families = difficulty >= 2 ? [...ONE_WAY, ...BOTH_WAYS, ...NEITHER_WAY] : ONE_WAY;
+  return { pair: samplePair(rng, rng.pick(families)), flip: rng.chance(0.5) };
+}
+
+function conditionSolution(params: CondParams): SolutionStep[] {
+  const { P, Q, verdict } = condition(params);
+  return [
+    { text: `Sufficient means $${imp(P.tex, Q.tex)}$. ${directionText(params.pair, !params.flip)}` },
+    { text: `Necessary means $${imp(Q.tex, P.tex)}$. ${directionText(params.pair, params.flip)}` },
+    { text: `So $${P.tex}$ is ${VERDICT_LABEL[verdict].toLowerCase()} for $${Q.tex}$.` },
+  ];
+}
+
+const prfNecSuff: Generator<CondParams> = {
+  id: 'prf-nec-suff',
+  sample: sampleCondition,
+  render(params) {
+    const { P, Q, whole, verdict } = condition(params);
+    return choiceSlide(
+      [
+        say(`Condition: $${P.tex}$. Statement: $${Q.tex}$.${wholeNote(whole)}`),
+        say('Is the condition **sufficient** for the statement, **necessary** for it, both, or neither?'),
+      ],
+      VERDICT_LABEL[verdict],
+      Object.values(VERDICT_LABEL).filter((label) => label !== VERDICT_LABEL[verdict]),
+      true,
+    );
+  },
+  solution: conditionSolution,
+};
+
+const prfNecSuffFlow: Generator<CondParams> = {
+  id: 'prf-nec-suff-flow',
+  sample: sampleCondition,
+  render(params) {
+    const { P, Q, whole, sufficient, necessary, verdict } = condition(params);
+    const yesNo = (to: string) => [
+      { label: 'Yes', to },
+      { label: 'No', to },
+    ];
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Condition: $${P.tex}$. Statement: $${Q.tex}$.${wholeNote(whole)}`),
+        say('Sort the condition. Each answer chooses what gets asked next.'),
+      ],
+      subject: '\\text{Necessary or sufficient?}',
+      steps: [
+        { id: 'fwd', ask: `Does $${imp(P.tex, Q.tex)}$ hold for every value?`, branches: yesNo('back') },
+        { id: 'back', ask: `Does $${imp(Q.tex, P.tex)}$ hold for every value?`, branches: yesNo('name') },
+        {
+          id: 'name',
+          ask: `So, for $${Q.tex}$, the condition $${P.tex}$ is`,
+          branches: (Object.keys(VERDICT_LABEL) as Verdict[]).map((key) => ({
+            label: VERDICT_LABEL[key],
+            outcome: `Sorted as: ${VERDICT_LABEL[key].toLowerCase()}.`,
+          })),
+        },
+      ],
+      answer: [sufficient ? 'Yes' : 'No', necessary ? 'Yes' : 'No', VERDICT_LABEL[verdict]],
+    };
+  },
+  solution: conditionSolution,
+};
+
+/* ---------- which condition does each number meet? ---------- */
+
+type MeetsFamily = 'gt' | 'lt' | 'eq' | 'ge';
+
+interface MeetsParams {
+  family: MeetsFamily;
+  a: number;
+  xs: number[];
+}
+
+function meetsPair(family: MeetsFamily, a: number): { p: Statement; q: Statement } {
+  const s = a * a;
+  switch (family) {
+    case 'gt':
+      return { p: { tex: `x^2 > ${s}`, neg: '', holds: (x) => x * x > s }, q: gtS(a) };
+    case 'lt':
+      return { p: { tex: `x^2 < ${s}`, neg: '', holds: (x) => x * x < s }, q: ltS(a) };
+    case 'eq':
+      return { p: { tex: `x^2 = ${s}`, neg: '', holds: (x) => x * x === s }, q: eqS(a) };
+    case 'ge':
+      return {
+        p: { tex: `x^2 \\ge ${s}`, neg: '', holds: (x) => x * x >= s },
+        q: { tex: `x \\ge ${a}`, neg: '', holds: (x) => x >= a },
+      };
+  }
+}
+
+const MEETS = {
+  both: '\\text{both}',
+  p: 'P\\text{ only}',
+  q: 'Q\\text{ only}',
+  neither: '\\text{neither}',
+};
+
+function meets(pq: { p: Statement; q: Statement }, x: number): keyof typeof MEETS {
+  const p = pq.p.holds(x);
+  const q = pq.q.holds(x);
+  return p ? (q ? 'both' : 'p') : q ? 'q' : 'neither';
+}
+
+const prfMeetsTree: Generator<MeetsParams> = {
+  id: 'prf-meets-tree',
+  sample(rng, difficulty) {
+    const hard = difficulty >= 2;
+    const family = rng.pick<MeetsFamily>(hard ? ['gt', 'lt', 'eq', 'ge'] : ['gt', 'lt', 'eq']);
+    const a = rng.int(2, 5);
+    const pq = meetsPair(family, a);
+    const top = hard ? 9 : 7;
+    const range = Array.from({ length: 2 * top + 1 }, (_, i) => i - top);
+    for (;;) {
+      const xs = rng.sample(range, 3).sort((x, y) => x - y);
+      const kinds = xs.map((x) => meets(pq, x));
+      if (!kinds.includes('p') && !kinds.includes('q')) continue;
+      if (new Set(kinds).size < 2) continue;
+      return { family, a, xs };
+    }
+  },
+  render({ family, a, xs }) {
+    const pq = meetsPair(family, a);
+    const squares = xs.map((x) => String(x * x));
+    const kinds = xs.map((x) => MEETS[meets(pq, x)]);
+    const slips = xs.flatMap((x) => [String(2 * x), ...(x < 0 ? [String(-x * x)] : [])]);
+    const answer = [...squares, ...kinds];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Left to right, $x = ${xs[0]}$, $x = ${xs[1]}$ and $x = ${xs[2]}$. Top row: $x^2$. Underneath: which of $P$ and $Q$ that $x$ makes true.`,
+        ),
+      ],
+      expression: `P\\colon ${pq.p.tex} \\quad Q\\colon ${pq.q.tex}`,
+      nodes: [...xs.map((_, i) => ({ id: `s${i}`, from: [] })), ...xs.map((_, i) => ({ id: `m${i}`, from: [`s${i}`] }))],
+      bank: fillBank(answer, [...Object.values(MEETS), ...slips], 2, 4),
+      answer,
+    };
+  },
+  solution({ family, a, xs }) {
+    const pq = meetsPair(family, a);
+    const word = (b: boolean) => (b ? 'true' : 'false');
+    const sufficient = implies(pq.p, pq.q, false);
+    const necessary = implies(pq.q, pq.p, false);
+    return [
+      ...xs.map((x) => ({
+        text: `$x = ${x}$: $x^2 = ${x * x}$, so $P$ is ${word(pq.p.holds(x))} and $Q$ is ${word(pq.q.holds(x))}.`,
+      })),
+      {
+        text: `A value meeting $P$ only would show $P$ is not sufficient for $Q$; one meeting $Q$ only, that $P$ is not necessary. Here $P$ is ${sufficient ? '' : 'not '}sufficient and ${necessary ? '' : 'not '}necessary for $Q$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- "necessary", "sufficient", "only if", as an arrow ---------- */
+
+type NecWording = 'suff' | 'nec' | 'onlyIf' | 'if';
+
+interface NecArrowParams {
+  pair: PairParams;
+  wording: NecWording;
+}
+
+function necSentence({ pair, wording }: NecArrowParams): { sentence: string; why: string } {
+  const { p, q } = pairOf(pair);
+  const P = `$${p.tex}$`;
+  const Q = `$${q.tex}$`;
+  switch (wording) {
+    case 'suff':
+      return { sentence: `${P} is sufficient for ${Q}.`, why: `"Sufficient" means ${P} is enough to guarantee ${Q}.` };
+    case 'nec':
+      return {
+        sentence: `${Q} is necessary for ${P}.`,
+        why: `"Necessary" means ${P} cannot happen without ${Q}, so ${P} brings ${Q} with it.`,
+      };
+    case 'onlyIf':
+      return { sentence: `${P} only if ${Q}.`, why: `"Only if" means ${P} can only happen when ${Q} does.` };
+    case 'if':
+      return { sentence: `${Q} if ${P}.`, why: `The condition ${P} comes second in the sentence, but it is still the "if" part.` };
+  }
+}
+
+const prfNecArrow: Generator<NecArrowParams> = {
+  id: 'prf-nec-arrow',
+  sample(rng, difficulty) {
+    const wording = rng.pick<NecWording>(difficulty >= 2 ? ['nec', 'onlyIf', 'if'] : ['suff', 'nec']);
+    return { pair: samplePair(rng, rng.pick(ONE_WAY)), wording };
+  },
+  render(params) {
+    const { p, q, whole } = pairOf(params.pair);
+    const answer = [p.tex, '\\Rightarrow', q.tex];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${necSentence(params).sentence}${wholeNote(whole)}`), say('Write that as an implication.')],
+      template: '{0} \\quad {1} \\quad {2}',
+      bank: fillBank(answer, ['\\Leftrightarrow', p.neg]),
+      answer,
+    };
+  },
+  solution(params) {
+    const { p, q } = pairOf(params.pair);
+    return [{ text: necSentence(params).why }, { tex: impDisplay(p.tex, q.tex) }];
+  },
+};
+
+/* ================================================================
+ * If and only if
+ * ================================================================ */
+
+type IffOrderParams =
+  | { family: 'linear'; m: number; c: number; a: number; difficulty: number; picks: number[] }
+  | ({ family: 'parity'; t: 0 | 1; difficulty: number; picks: number[] } & ParityClaim);
+
+function iffOrderProof(params: IffOrderParams): Proof {
+  const hard = params.difficulty >= 2;
+  if (params.family === 'linear') {
+    const { m, c, a } = params;
+    const left = lin(m, c, 'x');
+    const v = m * a + c;
+    const P = `${left} = ${v}`;
+    const move = c > 0 ? `Taking away $${c}$` : `Adding $${-c}$`;
+    const solve = hard
+      ? [`${move} gives $${m}x = ${m * a}$.`, `Dividing by $${m}$ gives $x = ${a}$.`]
+      : [`${move} gives $${m}x = ${m * a}$, so $x = ${a}$.`];
+    return {
+      claim: `Prove that $${iff(P, `x = ${a}`)}$.`,
+      steps: [
+        `First ($\\Rightarrow$): assume $${P}$.`,
+        ...solve,
+        `Now ($\\Leftarrow$): assume $x = ${a}$.`,
+        `Then $${left} = ${m} \\times ${at(a)} ${signedTail(c)} = ${v}$.`,
+        `Both directions hold, so $${iff(P, `x = ${a}`)}$.`,
+      ],
+      pool: [
+        {
+          text: `Assume $${P}$ and $x = ${a}$.`,
+          why: 'Each direction assumes one side and shows the other, never both at once.',
+        },
+        {
+          text: `${move} gives $${m}x = ${v + c}$.`,
+          why: `$${c}$ comes off both sides the same way: $${m}x = ${v - c}$.`,
+        },
+        { text: `Now ($\\Leftarrow$): assume $${P}$.`, why: `That is the first half again: the second starts from $x = ${a}$.` },
+        { text: `So $x^2 = ${a * a}$.`, why: 'True, but no step of the proof needs it.' },
+      ],
+    };
+  }
+  const { t } = params;
+  const E = parityExprTex(params);
+  const e = parityOf(params, t);
+  const u = 1 - t;
+  const there = parityCoefs(params, t);
+  const back = parityCoefs(params, u);
+  const firstHalf = hard
+    ? [`Then $${E} = ${polyTex(there)}$.`, `That is $${parityFactored(there)}$, which is ${parityWord(e)}.`]
+    : [`Then $${E} = ${polyTex(there)} = ${parityFactored(there)}$, which is ${parityWord(e)}.`];
+  const sample = t === 1 ? 3 : 4;
+  const sampleValue = params.shape === 'square' ? sample * sample + params.c : params.a * sample + params.c;
+  const claim = `$n$ is ${parityWord(t)} $\\Leftrightarrow$ $${E}$ is ${parityWord(e)}`;
+  return {
+    claim: `Prove: ${claim}.`,
+    steps: [
+      `First ($\\Rightarrow$): assume $n$ is ${parityWord(t)}, so $n = ${lin(2, t)}$.`,
+      ...firstHalf,
+      `Now ($\\Leftarrow$), by the contrapositive: assume $n$ is ${parityWord(u)}, so $n = ${lin(2, u)}$.`,
+      `Then $${E} = ${polyTex(back)} = ${parityFactored(back)}$, which is ${parityWord(1 - e)}.`,
+      `So if $${E}$ is ${parityWord(e)}, $n$ is ${parityWord(t)}, and both directions hold.`,
+    ],
+    pool: [
+      {
+        text: `Now ($\\Leftarrow$): assume $${E}$ is ${parityWord(e)}, so $n$ is ${parityWord(t)}.`,
+        why: 'That assumes what this half has to prove.',
+      },
+      {
+        text: `Assume $n$ is ${parityWord(t)} and $${E}$ is ${parityWord(e)}.`,
+        why: 'Each direction assumes one side and shows the other, never both at once.',
+      },
+      {
+        text: `Then $${E} = ${paritySlip(params, t)}$.`,
+        why: `The algebra slips: $n = ${lin(2, t)}$ gives $${E} = ${polyTex(there)}$.`,
+      },
+      {
+        text: `Checking $n = ${sample}$: $${E} = ${sampleValue}$, which is ${parityWord(e)}.`,
+        why: 'One example is not a proof.',
+      },
+    ],
+  };
+}
+
+const prfOrderIff: Generator<IffOrderParams> = {
+  id: 'prf-order-iff',
+  sample(rng, difficulty) {
+    const base: IffOrderParams = rng.chance(0.5)
+      ? { family: 'linear', m: rng.int(2, 6), c: rng.int(1, 9) * rng.sign(), a: rng.int(1, 9) * rng.sign(), difficulty, picks: [] }
+      : (() => {
+          const shape = rng.pick<ParityShape>(['square', 'linear']);
+          return {
+            family: 'parity' as const,
+            shape,
+            a: shape === 'linear' ? rng.pick([3, 5, 7]) : 1,
+            c: rng.int(1, 11),
+            t: rng.pick([0, 1] as const),
+            difficulty,
+            picks: [],
+          };
+        })();
+    return { ...base, picks: pickDistractors(rng, iffOrderProof(base), difficulty) };
+  },
+  render(params) {
+    return orderSlide(iffOrderProof(params), params.picks);
+  },
+  solution(params) {
+    return orderSolution(iffOrderProof(params), params.picks);
+  },
+};
+
+/* ---------- which half is which ---------- */
+
+type IffClaim =
+  | { kind: 'pair'; pair: PairParams }
+  | ({ kind: 'parity'; t: 0 | 1 } & ParityClaim);
+
+/** The two sides of an "if and only if", each with its negation. */
+function iffSides(claim: IffClaim): { p: Statement; q: Statement; whole: boolean } {
+  if (claim.kind === 'pair') return pairOf(claim.pair);
+  const E = parityExprTex(claim);
+  const e = parityOf(claim, claim.t);
+  const said = (subject: string, r: number): Statement => ({
+    tex: `${subject} \\text{ is ${parityWord(r)}}`,
+    neg: `${subject} \\text{ is ${parityWord(1 - r)}}`,
+    holds: () => true,
+  });
+  return { p: said('n', claim.t), q: said(E, e), whole: true };
+}
+
+function sampleIff(rng: Rng): IffClaim {
+  if (rng.chance(0.5)) return { kind: 'pair', pair: samplePair(rng, rng.pick(BOTH_WAYS)) };
+  const shape = rng.pick<ParityShape>(['square', 'linear']);
+  return {
+    kind: 'parity',
+    shape,
+    a: shape === 'linear' ? rng.pick([3, 5, 7]) : 1,
+    c: rng.int(1, 11),
+    t: rng.pick([0, 1] as const),
+  };
+}
+
+interface DirectionParams {
+  claim: IffClaim;
+  /** The half already written proves P ⇒ Q (fwd) or Q ⇒ P. */
+  half: 'fwd' | 'back';
+  /** It was written through the contrapositive. */
+  contra: boolean;
+}
+
+function directionParts({ claim, half, contra }: DirectionParams) {
+  const { p, q, whole } = iffSides(claim);
+  const [R, S] = half === 'fwd' ? [p, q] : [q, p];
+  const [from, to] = contra ? [S.neg, R.neg] : [R.tex, S.tex];
+  return { p, q, whole, done: imp(R.tex, S.tex), left: imp(S.tex, R.tex), from, to, R, S };
+}
+
+const prfDirectionFlow: Generator<DirectionParams> = {
+  id: 'prf-direction-flow',
+  sample(rng, difficulty) {
+    return {
+      claim: sampleIff(rng),
+      half: rng.pick(['fwd', 'back'] as const),
+      contra: difficulty >= 2 ? rng.chance(0.6) : false,
+    };
+  },
+  render(params) {
+    const { p, q, whole, done, left, from, to, R, S } = directionParts(params);
+    const m = (tex: string) => `$${tex}$`;
+    const key = `${p.tex}|${q.tex}`;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Claim: $${iff(p.tex, q.tex)}$.${wholeNote(whole)}`),
+        say(`The first half of its proof assumes $${from}$ and reaches $${to}$.`),
+        say('Each answer chooses what gets asked next.'),
+      ],
+      subject: '\\text{Which half is done?}',
+      steps: [
+        {
+          id: 'shown',
+          ask: 'That half proves',
+          branches: turned([m(done), m(left), m(iff(p.tex, q.tex))], `${key}|shown`).map((label) => ({ label, to: 'left' })),
+        },
+        {
+          id: 'left',
+          ask: 'Still to prove:',
+          branches: [
+            ...turned([m(left), m(done)], `${key}|left`).map((label) => ({ label, to: 'start' })),
+            { label: 'Nothing: it is done', outcome: 'The proof would end here.' },
+          ],
+        },
+        {
+          id: 'start',
+          ask: 'To prove that through its contrapositive, you start by assuming',
+          branches: turned([R.neg, S.neg, S.tex], `${key}|start`).map((tex) => ({
+            label: m(tex),
+            outcome: `The second half starts from $${tex}$.`,
+          })),
+        },
+      ],
+      answer: [m(done), m(left), m(R.neg)],
+    };
+  },
+  solution(params) {
+    const { done, left, from, to, R, S } = directionParts(params);
+    return [
+      {
+        text: params.contra
+          ? `Assuming $${from}$ and reaching $${to}$ proves the contrapositive of $${done}$, so it proves $${done}$.`
+          : `Assuming $${from}$ and reaching $${to}$ proves $${done}$.`,
+      },
+      {
+        text: `That leaves $${left}$. Through its contrapositive: assume $${R.neg}$ and reach $${S.neg}$.`,
+      },
+    ];
+  },
+};
+
+interface HalfParams {
+  claim: IffClaim;
+  line: 'p' | 'q' | 'np' | 'nq';
+}
+
+const prfDirectionChoice: Generator<HalfParams> = {
+  id: 'prf-direction-choice',
+  sample(rng, difficulty) {
+    return { claim: sampleIff(rng), line: rng.pick(difficulty >= 2 ? (['np', 'nq'] as const) : (['p', 'q'] as const)) };
+  },
+  render({ claim, line }) {
+    const { p, q, whole } = iffSides(claim);
+    const opening = { p: p.tex, q: q.tex, np: p.neg, nq: q.neg }[line];
+    const forward = line === 'p' || line === 'nq';
+    const pq = imp(p.tex, q.tex);
+    const qp = imp(q.tex, p.tex);
+    return choiceSlide(
+      [
+        say(`A proof of $${iff(p.tex, q.tex)}$ has two halves.${wholeNote(whole)}`),
+        say(`One half starts: “Assume $${opening}$.” Which implication is that half proving?`),
+      ],
+      forward ? pq : qp,
+      [forward ? qp : pq],
+    );
+  },
+  solution({ claim, line }) {
+    const { p, q } = iffSides(claim);
+    const text = {
+      p: `Assuming $${p.tex}$, it works towards $${q.tex}$: that proves $${imp(p.tex, q.tex)}$.`,
+      q: `Assuming $${q.tex}$, it works towards $${p.tex}$: that proves $${imp(q.tex, p.tex)}$.`,
+      np: `Assuming $${p.neg}$, it works towards $${q.neg}$: that is the contrapositive of $${imp(q.tex, p.tex)}$, so it proves that.`,
+      nq: `Assuming $${q.neg}$, it works towards $${p.neg}$: that is the contrapositive of $${imp(p.tex, q.tex)}$, so it proves that.`,
+    }[line];
+    return [{ text }];
+  },
+};
+
 export const numberProofGenerators = [
   prfAlways,
   prfParity,
@@ -2318,7 +3901,29 @@ export const numberProofGenerators = [
   prfMissingLine,
   prfFindFlaw,
   prfMethodFlow,
+  prfArrow,
+  prfAssumeShow,
+  prfWriteArrow,
+  prfImpliesValue,
+  prfConverse,
+  prfCounterConverse,
+  prfConverseFlow,
+  prfCounterLine,
+  prfContrapositive,
+  prfOrderContrapositive,
+  prfContraPlan,
+  prfNameRelative,
+  prfNecSuff,
+  prfNecSuffFlow,
+  prfMeetsTree,
+  prfNecArrow,
+  prfOrderIff,
+  prfDirectionFlow,
+  prfDirectionChoice,
 ];
 
 /** The order generators, for the reducer harness in `proofOrder.test.ts`. */
-export const numberProofOrders = [prfOrderContradiction];
+export const numberProofOrders = [prfOrderContradiction, prfOrderContrapositive, prfOrderIff];
+
+/** Level 3's statement families, for `numberLogic.test.ts`. */
+export const logicTesting = { ONE_WAY, BOTH_WAYS, NEITHER_WAY, samplePair, pairOf, implies, converseCase, lineCase };

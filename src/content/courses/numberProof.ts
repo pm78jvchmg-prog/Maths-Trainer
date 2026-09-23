@@ -8,7 +8,10 @@
  * faulty line and choosing a method. Level 2 turns the same habits on whole
  * numbers: primes and prime factors, HCF and LCM, divisibility tests and
  * remainders, odd, even and multiples in algebra, and rational against
- * irrational numbers.
+ * irrational numbers. Level 3 is the logic underneath both: what an
+ * implication says and which way it runs, the converse, the contrapositive,
+ * necessary against sufficient, and "if and only if" proved one half at a
+ * time.
  *
  * Surds and rationalising denominators are taught in Exponents & Radicals
  * (`er-l3`, `er-l5`), not here. Later levels are in the level plan in
@@ -478,6 +481,225 @@ export const numberProof: Course = {
         ask('num-parity-steps', 2),
         ask('num-rational-choice', 2),
         ask('num-recurring', 2),
+      ],
+    },
+    {
+      id: 'np-l3',
+      title: 'Logic and Implication',
+      lessons: [
+        {
+          id: 'np-l3-implication',
+          title: 'Implication',
+          slides: [
+            teach(
+              prose(
+                '$P \\Rightarrow Q$ reads "$P$ implies $Q$", or "if $P$, then $Q$". It says that whenever $P$ is true, $Q$ is true as well.',
+              ),
+              maths('x = 3 \\Rightarrow x^2 = 9'),
+              prose(
+                'The arrow points from what you know to what follows. It does not run back: $x^2 = 9$ is also true when $x = -3$, so $x^2 = 9$ does not imply $x = 3$.',
+              ),
+            ),
+            ask('prf-arrow'),
+            ask('prf-assume-show'),
+            ask('prf-implies-value'),
+            teach(
+              prose(
+                'To prove $P \\Rightarrow Q$ directly, assume $P$ and work step by step until you reach $Q$. The "if" part is what you assume, wherever it sits in the sentence.',
+              ),
+              prose(
+                '"$Q$ if $P$" and "$Q$ whenever $P$" both put the condition second, and both still mean $P \\Rightarrow Q$.',
+              ),
+            ),
+            ask('prf-write-arrow'),
+            ask('prf-assume-show', 2),
+            ask('prf-implies-value', 2),
+            teach(
+              prose(
+                'When the arrow runs both ways, write $\\Leftrightarrow$, read "if and only if". Solving a linear equation keeps it:',
+              ),
+              maths('2x + 1 = 7 \\Leftrightarrow x = 3'),
+              prose(
+                'Squaring does not, since it loses the sign. Before writing $\\Leftrightarrow$, check each direction on its own.',
+              ),
+            ),
+            ask('prf-arrow', 2),
+            ask('prf-write-arrow', 2),
+          ],
+          skillCheck: [ask('prf-arrow', 2), ask('prf-write-arrow', 2), ask('prf-assume-show', 2)],
+        },
+        {
+          id: 'np-l3-converse',
+          title: 'The Converse',
+          slides: [
+            teach(
+              prose('The **converse** of $P \\Rightarrow Q$ swaps the two sides: $Q \\Rightarrow P$.'),
+              maths('\\begin{gathered} x = 2 \\Rightarrow x^2 = 4 \\\\ x^2 = 4 \\Rightarrow x = 2 \\end{gathered}'),
+              prose(
+                'The first is true and its converse is false: $x = -2$ makes $x^2 = 4$ true and $x = 2$ false. A statement and its converse are two different claims, and each needs its own proof.',
+              ),
+            ),
+            ask('prf-converse'),
+            ask('prf-counter-converse'),
+            ask('prf-converse-flow'),
+            teach(
+              prose(
+                'One counterexample is enough to sink a converse: a value that makes $Q$ true and $P$ false.',
+              ),
+              prose(
+                'Sometimes a whole stretch of values does it. $x > 5 \\Rightarrow x > 2$ is true, but its converse fails for every $x$ with $2 < x \\le 5$.',
+              ),
+            ),
+            ask('prf-counter-line'),
+            ask('prf-converse', 2),
+            ask('prf-counter-converse', 2),
+            teach(
+              prose(
+                'When the converse is true as well, the statement runs both ways and $\\Leftrightarrow$ fits:',
+              ),
+              maths('x = 4 \\Leftrightarrow x^3 = 64'),
+              prose('$64$ has only one real cube root, so nothing but $x = 4$ gives $x^3 = 64$.'),
+            ),
+            ask('prf-converse-flow', 2),
+            ask('prf-counter-line', 2),
+          ],
+          skillCheck: [ask('prf-converse', 2), ask('prf-counter-converse', 2), ask('prf-counter-line', 2)],
+        },
+        {
+          id: 'np-l3-contrapositive',
+          title: 'The Contrapositive',
+          slides: [
+            teach(
+              prose('Three statements come from $P \\Rightarrow Q$. Write "not $P$" as $\\lnot P$:'),
+              maths(
+                '\\begin{aligned} &\\text{converse} && Q \\Rightarrow P \\\\ &\\text{inverse} && \\lnot P \\Rightarrow \\lnot Q \\\\ &\\text{contrapositive} && \\lnot Q \\Rightarrow \\lnot P \\end{aligned}',
+              ),
+              prose(
+                'The **contrapositive** says the same as the statement. If $Q$ is false, $P$ cannot have been true, since $P$ would have made $Q$ true. So $x = 3 \\Rightarrow x^2 = 9$ and $x^2 \\ne 9 \\Rightarrow x \\ne 3$ stand or fall together.',
+              ),
+            ),
+            ask('prf-contrapositive'),
+            ask('prf-name-relative'),
+            ask('prf-contrapositive', 2),
+            teach(
+              prose(
+                'Claim: if $n^2$ is even, then $n$ is even. Starting from $n^2 = 2m$ gets stuck, since nothing turns it into a fact about $n$. Prove the contrapositive instead: if $n$ is odd, then $n^2$ is odd.',
+              ),
+              maths('\\begin{aligned} n &= 2k + 1 \\\\ n^2 &= 4k^2 + 4k + 1 \\\\ &= 2(2k^2 + 2k) + 1 \\end{aligned}'),
+              prose('So $n^2$ is odd, the contrapositive is true, and with it the claim.'),
+            ),
+            ask('prf-contra-plan'),
+            ask('prf-order-contrapositive'),
+            ask('prf-name-relative', 2),
+            teach(
+              prose(
+                'Reach for the contrapositive when the claim starts from something hard to use: a "not", or a fact about $n^2$ when you want one about $n$.',
+              ),
+              prose(
+                'If $n^2$ is not a multiple of $5$, then neither is $n$. The contrapositive starts from $n = 5k$, and then $n^2 = 25k^2 = 5(5k^2)$.',
+              ),
+            ),
+            ask('prf-order-contrapositive', 2),
+            ask('prf-contra-plan', 2),
+          ],
+          skillCheck: [
+            ask('prf-contrapositive', 2),
+            ask('prf-order-contrapositive', 2),
+            ask('prf-name-relative', 2),
+          ],
+        },
+        {
+          id: 'np-l3-necessary',
+          title: 'Necessary and Sufficient',
+          slides: [
+            teach(
+              prose(
+                'When $P \\Rightarrow Q$, $P$ is **sufficient** for $Q$: $P$ is enough to guarantee $Q$. And $Q$ is **necessary** for $P$: $P$ cannot happen without $Q$.',
+              ),
+              maths('x > 3 \\Rightarrow x > 0'),
+              prose(
+                'So $x > 3$ is sufficient for $x > 0$. It is not necessary: $x = 1$ makes $x > 0$ true without $x > 3$.',
+              ),
+            ),
+            ask('prf-nec-suff'),
+            ask('prf-nec-arrow'),
+            ask('prf-meets-tree'),
+            teach(
+              prose(
+                'To sort a condition $P$ for a statement $Q$, test both arrows. $P \\Rightarrow Q$ makes it sufficient, $Q \\Rightarrow P$ makes it necessary.',
+              ),
+              prose(
+                'Both arrows: necessary and sufficient, which is $P \\Leftrightarrow Q$. Neither: it is neither. "$P$ only if $Q$" is one more way of writing $P \\Rightarrow Q$.',
+              ),
+            ),
+            ask('prf-nec-suff-flow'),
+            ask('prf-nec-arrow', 2),
+            ask('prf-meets-tree', 2),
+            teach(
+              prose(
+                'One value settles each arrow. A value that meets $P$ but not $Q$ shows $P$ is not sufficient; one that meets $Q$ but not $P$ shows $P$ is not necessary.',
+              ),
+              prose(
+                'For $x^2 > 9$ and $x > 3$: $x = -4$ meets the first only, so $x^2 > 9$ is not sufficient for $x > 3$, but it is necessary.',
+              ),
+            ),
+            ask('prf-nec-suff', 2),
+            ask('prf-nec-suff-flow', 2),
+          ],
+          skillCheck: [ask('prf-nec-suff', 2), ask('prf-nec-arrow', 2), ask('prf-meets-tree', 2)],
+        },
+        {
+          id: 'np-l3-iff',
+          title: 'If and Only If',
+          slides: [
+            teach(
+              prose(
+                '$P \\Leftrightarrow Q$, "$P$ if and only if $Q$", is two implications at once: $P \\Rightarrow Q$ and $Q \\Rightarrow P$.',
+              ),
+              prose(
+                'So its proof has two halves, each proved on its own. The $\\Rightarrow$ half starts from $P$, or from not $Q$ if it goes through the contrapositive; the $\\Leftarrow$ half starts from $Q$, or from not $P$.',
+              ),
+            ),
+            ask('prf-direction-choice'),
+            ask('prf-order-iff'),
+            ask('prf-arrow', 2),
+            teach(
+              prose('Claim: $n$ is even $\\Leftrightarrow$ $n^2$ is even.'),
+              prose('($\\Rightarrow$) Assume $n$ is even, so $n = 2k$. Then $n^2 = 4k^2 = 2(2k^2)$, which is even.'),
+              prose(
+                '($\\Leftarrow$) By the contrapositive: assume $n$ is odd, so $n = 2k + 1$. Then $n^2 = 2(2k^2 + 2k) + 1$, which is odd. Both halves hold, so the claim does.',
+              ),
+            ),
+            ask('prf-direction-flow'),
+            ask('prf-order-iff', 2),
+            ask('prf-direction-choice', 2),
+            teach(
+              prose(
+                'Two slips to watch for: proving the same half twice, and assuming both sides at once. Each half assumes one side, or the negation of one, and reaches the other.',
+              ),
+            ),
+            ask('prf-direction-flow', 2),
+            ask('prf-nec-suff', 2),
+          ],
+          skillCheck: [ask('prf-order-iff', 2), ask('prf-direction-flow', 2), ask('prf-direction-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('prf-arrow', 2),
+        ask('prf-write-arrow', 2),
+        ask('prf-implies-value', 2),
+        ask('prf-converse', 2),
+        ask('prf-counter-line', 2),
+        ask('prf-counter-converse', 2),
+        ask('prf-contrapositive', 2),
+        ask('prf-name-relative', 2),
+        ask('prf-order-contrapositive', 2),
+        ask('prf-nec-suff-flow', 2),
+        ask('prf-meets-tree', 2),
+        ask('prf-nec-arrow', 2),
+        ask('prf-nec-suff', 2),
+        ask('prf-order-iff', 2),
+        ask('prf-direction-flow', 2),
       ],
     },
   ],

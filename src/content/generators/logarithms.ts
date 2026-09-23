@@ -3288,6 +3288,12 @@ export type LogGraphOptions = Omit<PlotOptions, 'yMin' | 'yMax'> & {
   yMin: number;
   yMax: number;
   labels?: GraphLabel[];
+  /**
+   * Names printed at the far end of each axis, for a graph whose axes are not
+   * plain x and y: a straightened model plots log y against log x, and the
+   * picture has to say so or its gradient means nothing.
+   */
+  axisNames?: { x: string; y: string };
 };
 
 /**
@@ -3299,7 +3305,7 @@ export type LogGraphOptions = Omit<PlotOptions, 'yMin' | 'yMax'> & {
  * point beside it; the label is placed with plotSvg's own mapping, which is
  * why its width and inset are repeated above.
  */
-export function logGraphSvg({ labels = [], ...opts }: LogGraphOptions): string {
+export function logGraphSvg({ labels = [], axisNames, ...opts }: LogGraphOptions): string {
   const span = opts.yMax - opts.yMin;
   // Far enough off the picture to read as a curve leaving it, near enough that
   // the path stays a sensible size. A sample where the curve is undefined
@@ -3316,7 +3322,7 @@ export function logGraphSvg({ labels = [], ...opts }: LogGraphOptions): string {
     curves: opts.curves.map((curve) => ({ ...curve, f: tame(curve.f) })),
     verticals: [...yAxis, ...(opts.verticals ?? [])],
   });
-  if (labels.length === 0) return svg;
+  if (labels.length === 0 && !axisNames) return svg;
 
   const height = opts.height ?? 150;
   const px = (x: number) => PLOT_PAD + ((x - opts.xMin) / (opts.xMax - opts.xMin)) * (PLOT_WIDTH - 2 * PLOT_PAD);
@@ -3335,7 +3341,14 @@ export function logGraphSvg({ labels = [], ...opts }: LogGraphOptions): string {
       return `<text x="${(left ? cx - 8 : cx + 8).toFixed(1)}" y="${ty.toFixed(1)}" font-size="12" fill="currentColor" text-anchor="${left ? 'end' : 'start'}">${words}</text>`;
     })
     .join('');
-  return svg.replace('</svg>', `${text}</svg>`);
+  // The horizontal name sits just above the right-hand end of the x-axis and
+  // the vertical one at the top of the y-axis: the corners a rising line
+  // leaves empty.
+  const names = axisNames
+    ? `<text x="${PLOT_WIDTH - PLOT_PAD}" y="${(py(0) - 6).toFixed(1)}" font-size="12" font-style="italic" fill="currentColor" text-anchor="end">${axisNames.x}</text>` +
+      `<text x="${(px(0) + 6).toFixed(1)}" y="${PLOT_PAD + 10}" font-size="12" font-style="italic" fill="currentColor" text-anchor="start">${axisNames.y}</text>`
+    : '';
+  return svg.replace('</svg>', `${text}${names}</svg>`);
 }
 
 /** Every (base, k) with base^k no larger than `cap`. */
@@ -4834,6 +4847,1348 @@ const inequalityTiles: Generator<InequalityParams> = {
   },
 };
 
+/* ---------- Level 6: linearising a model ---------- */
+
+/*
+ * Taking logarithms turns a power model y = kx^n, or an exponential model
+ * y = ab^x, into a straight line; reading the line back gives the model. The
+ * whole level is about which logarithm goes where, so every logarithm the
+ * learner is asked to work out is whole: the constants are powers of 10, or of
+ * e for natural logarithms, and so every intercept, gradient and plotted point
+ * is a whole number. The real-life version, with ln 5 / ln 2 in it, is a
+ * calculator's job rather than this level's.
+ *
+ * `log` means log base 10 throughout, as it does on a calculator. A tiles
+ * template could not hold `\log_{10}` anyway: the braced 10 would be taken for
+ * a blank.
+ */
+
+/** Which logarithm a model is straightened with. */
+type LogKind = 'log' | 'ln';
+
+/** A power model y = kx^n, or an exponential y = ab^x. */
+type ModelKind = 'power' | 'exp';
+
+/** Typing a power of 10 or of e needs the power key, and e. */
+const POWER_KEYS: KeypadKey[] = [{ insert: '^' }, { insert: '(' }, { insert: ')' }];
+const E_POWER_KEYS: KeypadKey[] = [{ insert: 'e', tex: true }, ...POWER_KEYS];
+
+/** The logarithm of something, as written: `\log y` or `\ln y`. */
+function lg(kind: LogKind, of: string): string {
+  return kind === 'log' ? `\\log ${of}` : `\\ln ${of}`;
+}
+
+/** How the prose names the logarithm being taken. */
+function logWords(kind: LogKind): string {
+  return kind === 'log' ? 'logs to base 10' : 'natural logs';
+}
+
+/** The number whose logarithm is `c`, as the learner reads it: 10^c, or e^c. */
+function unlogTex(kind: LogKind, c: number): string {
+  if (kind === 'log') return `${Math.pow(10, c)}`;
+  return c === 0 ? '1' : c === 1 ? 'e' : `e^{${c}}`;
+}
+
+/** The same number for the checker. Never displayed. */
+function unlogAnswer(kind: LogKind, c: number): string {
+  return kind === 'log' ? `${Math.pow(10, c)}` : `e^(${c})`;
+}
+
+/** Undoing a logarithm in the working: 10^2 = 100, or just e^2. */
+function undoTex(kind: LogKind, c: number): string {
+  return kind === 'log' ? `10^{${c}} = ${Math.pow(10, c)}` : c === 1 ? 'e^{1} = e' : `e^{${c}}`;
+}
+
+/** A power of 10 or of e left as a power, for a value too big to print whole. */
+function powerOfTex(kind: LogKind, c: number): string {
+  return kind === 'log' ? `10^{${c}}` : `e^{${c}}`;
+}
+
+/** The same, for the checker. */
+function powerOfAnswer(kind: LogKind, c: number): string {
+  return kind === 'log' ? `10^(${c})` : `e^(${c})`;
+}
+
+/** The model as it is written: y = 100x^3, y = 100 × 1000^x, y = e^2 e^(3x). */
+function modelTex(model: ModelKind, kind: LogKind, c: number, m: number): string {
+  // A thin space after an e, so e x^3 does not read as a word.
+  const gap = kind === 'ln' ? '\\,' : '';
+  const coefficient = c === 0 ? '' : `${unlogTex(kind, c)}${gap}`;
+  if (model === 'power') return `y = ${coefficient}x^{${m}}`;
+  if (kind === 'ln') return `y = ${coefficient}e^{${m === 1 ? '' : m}x}`;
+  const growth = `${unlogTex(kind, m)}^{x}`;
+  return c === 0 ? `y = ${growth}` : `y = ${unlogTex(kind, c)} \\times ${growth}`;
+}
+
+/** What goes along the bottom: log x for a power model, x itself for an exponential. */
+function across(model: ModelKind, kind: LogKind): string {
+  return model === 'power' ? lg(kind, 'x') : 'x';
+}
+
+/** The straight line a model becomes: log y = 2 + 3 log x, or log y = 2 + 3x. */
+function lineTex(model: ModelKind, kind: LogKind, c: number, m: number): string {
+  const run = across(model, kind);
+  const slope = m === 1 ? run : `${m}${run}`;
+  return c === 0 ? `${lg(kind, 'y')} = ${slope}` : `${lg(kind, 'y')} = ${c} + ${slope}`;
+}
+
+/** The general form of each model and of its straight line. */
+function formTex(model: ModelKind): string {
+  return model === 'power' ? 'y = kx^{n}' : 'y = ab^{x}';
+}
+
+function generalLineTex(model: ModelKind, kind: LogKind): string {
+  return model === 'power'
+    ? `${lg(kind, 'y')} = ${lg(kind, 'k')} + n${lg(kind, 'x')}`
+    : `${lg(kind, 'y')} = ${lg(kind, 'a')} + x${lg(kind, 'b')}`;
+}
+
+/** The constant the intercept gives: k for a power model, a for an exponential. */
+function constantOf(model: ModelKind): string {
+  return model === 'power' ? 'k' : 'a';
+}
+
+/**
+ * Taller than plotSvg's default, so a labelled point low on a steep line still
+ * has room for its label above the x-axis.
+ */
+const LINE_HEIGHT = 190;
+
+/** The window a line figure is drawn in: the origin in view and the line rising to the top-right. */
+function lineWindow(c: number, m: number, right: number): { xMin: number; xMax: number; yMin: number; yMax: number } {
+  const top = c + m * right;
+  return { xMin: -0.08 * right, xMax: right, yMin: -0.15 * top, yMax: top * 1.08 + 0.4 };
+}
+
+interface LineView {
+  model: ModelKind;
+  kind: LogKind;
+  c: number;
+  m: number;
+  /** The right-hand edge, in the plotted horizontal units. */
+  right: number;
+  labelled?: { x: number; y: number }[];
+  horizontals?: number[];
+  verticals?: number[];
+}
+
+/** A straightened model: its line, on axes named for what is plotted. */
+function lineSvg({ model, kind, c, m, right, labelled = [], horizontals = [], verticals = [] }: LineView): string {
+  const bottom = model === 'power' ? `${kind} x` : 'x';
+  return logGraphSvg({
+    ...lineWindow(c, m, right),
+    curves: [{ f: (x) => c + m * x }],
+    marks: labelled,
+    labels: labelled.map((point) => ({ ...point, text: `(${point.x}, ${point.y})` })),
+    horizontals,
+    verticals: verticals.map((x) => ({ x })),
+    axisNames: { x: bottom, y: `${kind} y` },
+    height: LINE_HEIGHT,
+    label: `A straight line on a graph of ${kind} y against ${bottom}`,
+  });
+}
+
+interface LineParams {
+  model: ModelKind;
+  kind: LogKind;
+  /** The intercept: log k, or log a. */
+  c: number;
+  /** The gradient: n, or log b. */
+  m: number;
+  /** Horizontal coordinates of the two points given, x1 < x2. */
+  x1: number;
+  x2: number;
+}
+
+function sampleLine(rng: Rng, difficulty: number, model: ModelKind): LineParams {
+  const hard = difficulty > 1;
+  const kind: LogKind = rng.chance(hard ? 0.5 : 0.3) ? 'ln' : 'log';
+  // b = 10^m has to stay a number worth printing.
+  const steepest = model === 'exp' && kind === 'log' ? 3 : hard ? 6 : 4;
+  const x1 = rng.int(1, hard ? 4 : 3);
+  return { model, kind, c: rng.int(1, hard ? 4 : 3), m: rng.int(1, steepest), x1, x2: x1 + rng.int(1, 3) };
+}
+
+/** The heights of a line's two given points. */
+function heights({ c, m, x1, x2 }: LineParams): [number, number] {
+  return [c + m * x1, c + m * x2];
+}
+
+/** The gradient and intercept of a line through two points, worked. */
+function gradientSteps(params: LineParams): { tex: string }[] {
+  const { c, m, x1, x2 } = params;
+  const [y1, y2] = heights(params);
+  return [
+    { tex: `\\text{gradient} = \\frac{${y2} - ${y1}}{${x2} - ${x1}} = ${m}` },
+    { tex: `\\text{intercept} = ${y1} - ${m} \\times ${x1} = ${c}` },
+  ];
+}
+
+/**
+ * The options in an order that puts the answer in the slot `salt` picks, once
+ * `choiceVariant` has turned them.
+ *
+ * That turn is a hash of the labels, and these labels are short numbers, so
+ * left alone the answer bunches into one or two slots. This tries the orders
+ * until one lands where it should, the same way `steered` in complexPlane.ts
+ * does; `turnOf` mirrors the private `rotation` in `choiceVariant.ts`.
+ */
+function steeredOptions(opts: ChoiceOption[], salt: number): ChoiceOption[] {
+  const turnOf = (list: ChoiceOption[]) => {
+    let hash = 0;
+    for (const option of list) {
+      for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash) % list.length;
+  };
+  const size = opts.length;
+  const target = salt % size;
+  const orders = (list: ChoiceOption[]): ChoiceOption[][] =>
+    list.length <= 1
+      ? [list]
+      : list.flatMap((head, idx) => orders([...list.slice(0, idx), ...list.slice(idx + 1)]).map((rest) => [head, ...rest]));
+  for (const order of orders(opts)) {
+    const at = order.findIndex((option) => option.correct);
+    if ((((at - turnOf(order)) % size) + size) % size === target) return order;
+  }
+  return opts;
+}
+
+interface ReadParams extends LineParams {
+  /** The gradient's constant (n, or b) or the intercept's (k, or a). */
+  ask: 'slope' | 'constant';
+}
+
+/** What a read question asks for: its name, and the answer for the checker. */
+function readAsked({ model, kind, c, m, ask }: ReadParams): { name: string; answer: string } {
+  if (ask === 'constant') return { name: constantOf(model), answer: unlogAnswer(kind, c) };
+  return model === 'power' ? { name: 'n', answer: `${m}` } : { name: 'b', answer: unlogAnswer(kind, m) };
+}
+
+/** The options for a read question: the answer, the log left un-undone, and the lines mixed up. */
+function readOptions(model: ModelKind, params: ReadParams): ChoiceOption[] {
+  const { kind, c, m, x2, ask } = params;
+  const [y1, y2] = heights(params);
+  if (model === 'power' && ask === 'slope') {
+    return fourOptions(
+      numberOption(m),
+      numberOption(y2 - y1),
+      ...(Number.isInteger(y2 / x2) ? [numberOption(y2 / x2)] : []),
+      numberOption(m + 1),
+      numberOption(c),
+      numberOption(y1),
+    );
+  }
+  const value = ask === 'constant' ? c : m;
+  const other = ask === 'constant' ? m : c;
+  const undone = (n: number): ChoiceOption => ({ tex: unlogTex(kind, n), answer: unlogAnswer(kind, n) });
+  return fourOptions(
+    undone(value),
+    numberOption(value),
+    undone(other),
+    kind === 'log' ? numberOption(10 * value) : { tex: `${value + 1}e`, answer: `${value + 1} * e` },
+    undone(value + 1),
+    undone(value + 2),
+  );
+}
+
+/**
+ * Read a model's constants off its straight line, through two marked points.
+ *
+ * The gradient of log y against log x is the power n itself; everything else
+ * is a logarithm and has to be undone. That asymmetry is the lesson, and the
+ * distractors are the logarithm left un-undone and the two lines mixed up.
+ */
+function lineRead(model: ModelKind): Generator<ReadParams> {
+  return {
+    id: `log-lin-${model}-read`,
+    choices: (params) => steeredOptions(readOptions(model, params), mix(params.c, params.m, params.x1, params.x2)),
+    sample: (rng, difficulty) => ({
+      ...sampleLine(rng, difficulty, model),
+      ask: rng.pick(['slope', 'constant'] as const),
+    }),
+    render: (params): Slide => {
+      const { kind, c, m, x1, x2, ask } = params;
+      const [y1, y2] = heights(params);
+      const { name, answer } = readAsked(params);
+      const typesPower = !(model === 'power' && ask === 'slope');
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Taking ${logWords(kind)} of $${formTex(model)}$ gives a straight line. Its graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ passes through $(${x1}, ${y1})$ and $(${x2}, ${y2})$. Find $${name}$.`,
+          },
+          {
+            kind: 'diagram',
+            svg: lineSvg({ model, kind, c, m, right: x2 + 1, labelled: [{ x: x1, y: y1 }, { x: x2, y: y2 }] }),
+          },
+        ],
+        lead: `${name} =`,
+        keypad: !typesPower ? [] : kind === 'ln' ? E_POWER_KEYS : POWER_KEYS,
+        answer,
+        domain: 'real',
+        mode: 'exact',
+      };
+    },
+    solution: (params) => {
+      const { kind, c, m, ask } = params;
+      const [gradient, intercept] = gradientSteps(params);
+      const slopeName = model === 'power' ? 'n' : lg(kind, 'b');
+      const opening = {
+        text: `Taking logs gives $${generalLineTex(model, kind)}$: the gradient is $${slopeName}$ and the intercept is $${lg(kind, constantOf(model))}$.`,
+      };
+      if (ask === 'slope') {
+        return model === 'power'
+          ? [opening, gradient, { text: `So $n = ${m}$. The power comes straight off the gradient, with nothing to undo.` }]
+          : [opening, gradient, { text: `So $${lg(kind, 'b')} = ${m}$, and undoing the log gives $b$:` }, { tex: `b = ${undoTex(kind, m)}` }];
+      }
+      const name = constantOf(model);
+      return [
+        opening,
+        gradient,
+        intercept,
+        { text: `So $${lg(kind, name)} = ${c}$, and undoing the log gives $${name}$:` },
+        { tex: `${name} = ${undoTex(kind, c)}` },
+      ];
+    },
+  };
+}
+
+interface LineEvalParams {
+  base: number;
+  /** The constant is base^c. */
+  c: number;
+  /** Power model: the power n. Exponential: b is base^m. */
+  m: number;
+  /** Power model: x is base^p. Exponential: x is p. */
+  p: number;
+}
+
+/** The highest power of each base worth printing inside a logarithm. */
+function evalCap(base: number): number {
+  return base === 10 ? 4 : base === 3 ? 6 : 10;
+}
+
+/** log_B(B^c) + m log_B(B^p), or log_B(B^c) + p log_B(B^m). */
+function lineEvalExpr(model: ModelKind, { base, c, m, p }: LineEvalParams): Expr {
+  const constant = log(num(base), num(Math.pow(base, c)));
+  const term =
+    model === 'power'
+      ? bin('*', num(m), log(num(base), num(Math.pow(base, p))))
+      : bin('*', num(p), log(num(base), num(Math.pow(base, m))));
+  return bin('+', constant, term);
+}
+
+/** The multiplier and the logarithm's value in the second term. */
+function evalTerm(model: ModelKind, { m, p }: LineEvalParams): { times: number; inner: number } {
+  return model === 'power' ? { times: m, inner: p } : { times: p, inner: m };
+}
+
+/**
+ * Use the straight-line form to find log y at a given x.
+ *
+ * This is what linearising is for: the line is easy to work with where the
+ * curve is not. The logs are of powers of the base so every value is whole, as
+ * a reduce slide needs; the slip worth catching is multiplying before the
+ * logarithm is taken, which the bank on the product offers.
+ */
+function lineEvaluate(model: ModelKind): Generator<LineEvalParams> {
+  return {
+    id: `log-lin-${model}-evaluate`,
+    choices: (params) => {
+      const { c } = params;
+      const { times, inner } = evalTerm(model, params);
+      return steeredOptions(
+        wholeOptions(c + times * inner, (c + times) * inner, c + times + inner, times * inner, c * times * inner),
+        mix(params.base, c, params.m, params.p),
+      );
+    },
+    sample: (rng, difficulty) => {
+      const hard = difficulty > 1;
+      const base = hard ? rng.pick([10, 2, 3]) : 10;
+      const cap = evalCap(base);
+      const c = rng.int(1, Math.min(cap, hard ? 5 : 3));
+      if (model === 'power') {
+        return { base, c, m: rng.int(2, hard ? 7 : 5), p: rng.int(1, Math.min(cap, hard ? 6 : 4)) };
+      }
+      return { base, c, m: rng.int(1, Math.min(cap, hard ? 4 : 3)), p: rng.int(2, hard ? 8 : 6) };
+    },
+    render: (params): Slide => {
+      const { base, c, m, p } = params;
+      const { times, inner } = evalTerm(model, params);
+      const total = c + times * inner;
+      const k = Math.pow(base, c);
+      const innerArg = Math.pow(base, inner);
+      const L = `\\log_{${base}}`;
+      const text =
+        model === 'power'
+          ? `Taking logs to base ${base} of $y = ${k}x^{${m}}$ gives $${L} y = ${L} ${k} + ${m}${L} x$. Put in $x = ${innerArg}$ to find $${L} y$.`
+          : `Taking logs to base ${base} of $y = ${k} \\times ${innerArg}^{x}$ gives $${L} y = ${L} ${k} + x${L} ${innerArg}$. Put in $x = ${p}$ to find $${L} y$.`;
+      return {
+        kind: 'reduce',
+        prompt: [{ kind: 'prose', text }],
+        expr: lineEvalExpr(model, params),
+        banks: {
+          r: wholeBank(total, (c + times) * inner, c + times + inner, c * times * inner),
+          'r.l': wholeBank(c, c + 1, base * c, ...(k <= 100 ? [k] : [])),
+          'r.r': wholeBank(times * inner, times + inner, times * innerArg, times * inner + times),
+          'r.r.r': wholeBank(inner, inner + 1, base * inner, ...(innerArg <= 100 ? [innerArg] : [])),
+        },
+      };
+    },
+    solution: (params) => {
+      const { base, c } = params;
+      const { times, inner } = evalTerm(model, params);
+      const L = `\\log_{${base}}`;
+      const total = c + times * inner;
+      return [
+        { text: `Each logarithm is of a power of ${base}, so each is just that power.` },
+        { tex: `${L} ${Math.pow(base, c)} = ${c}` },
+        { tex: `${L} ${Math.pow(base, inner)} = ${inner}` },
+        { tex: `${c} + ${times} \\times ${inner} = ${c} + ${times * inner} = ${total}` },
+        { text: `So $${L} y = ${total}$, which means $y = ${base}^{${total}}$. On the straight line that is one point, read off with no powers of $x$ at all.` },
+      ];
+    },
+  };
+}
+
+interface LineSliderParams {
+  kind: LogKind;
+  c: number;
+  m: number;
+  /** Where the line meets a dashed level, or how high it is above a dashed position. */
+  ask: 'meet' | 'height';
+  /** The horizontal coordinate asked about, or that gives the level. */
+  at: number;
+  /** Room right of it, so the answer is not at the end of the picture. */
+  extra: number;
+}
+
+/**
+ * Find a point on a straightened model's line: where it reaches a level, or
+ * its height at a position. The line is the model, so either is a prediction
+ * made with a ruler instead of a power.
+ */
+function lineSlider(model: ModelKind): Generator<LineSliderParams> {
+  return {
+    id: `log-lin-${model}-slider`,
+    sample: (rng, difficulty) => {
+      const hard = difficulty > 1;
+      const kind: LogKind = rng.chance(hard ? 0.5 : 0.3) ? 'ln' : 'log';
+      const steepest = model === 'exp' && kind === 'log' ? 3 : hard ? 5 : 3;
+      return {
+        kind,
+        c: rng.int(1, hard ? 4 : 3),
+        m: rng.int(1, steepest),
+        ask: rng.pick(['meet', 'height'] as const),
+        at: rng.int(1, hard ? 5 : 4),
+        extra: rng.int(0, 2),
+      };
+    },
+    render: ({ kind, c, m, ask, at, extra }): Slide => {
+      const right = at + 1 + extra;
+      const level = c + m * at;
+      const window = lineWindow(c, m, right);
+      const X = across(model, kind);
+      const Y = lg(kind, 'y');
+      const opening = `Taking ${logWords(kind)} of $${modelTex(model, kind, c, m)}$ gives the straight line $${lineTex(model, kind, c, m)}$.`;
+      if (ask === 'meet') {
+        return {
+          kind: 'slider',
+          prompt: [
+            {
+              kind: 'prose',
+              text: `${opening} The dashed line is $${Y} = ${level}$. Slide to the value of $${X}$ where they meet.`,
+            },
+          ],
+          min: 0,
+          max: right,
+          step: 1,
+          answer: at,
+          readout: `${X} = {v}`,
+          figure: {
+            svg: lineSvg({ model, kind, c, m, right, horizontals: [level] }),
+            ...markerWindow(window.xMin, window.xMax),
+          },
+        };
+      }
+      return {
+        kind: 'slider',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${opening} The dashed line is $${X} = ${at}$. Slide to the height of the line there: the value of $${Y}$.`,
+          },
+        ],
+        min: 0,
+        max: Math.floor(window.yMax),
+        step: 1,
+        answer: level,
+        readout: `${Y} = {v}`,
+        figure: {
+          svg: lineSvg({ model, kind, c, m, right, verticals: [at] }),
+          ...markerWindow(window.yMin, window.yMax, 'y', LINE_HEIGHT),
+          axis: 'y',
+        },
+      };
+    },
+    solution: ({ kind, c, m, ask, at }) => {
+      const level = c + m * at;
+      const X = across(model, kind);
+      const Y = lg(kind, 'y');
+      const xValue = model === 'power' ? `x = ${powerOfTex(kind, at)}` : `x = ${at}`;
+      if (ask === 'meet') {
+        return [
+          { text: `The line reaches $${Y} = ${level}$ where` },
+          { tex: `${c} + ${m === 1 ? '' : m}${X} = ${level}` },
+          { tex: `${X} = \\frac{${level} - ${c}}{${m}} = ${at}` },
+          { text: `So the model gives $y = ${powerOfTex(kind, level)}$ at $${xValue}$.` },
+        ];
+      }
+      return [
+        { text: `Put $${X} = ${at}$ into the line.` },
+        { tex: `${Y} = ${c} + ${m} \\times ${at} = ${level}` },
+        { text: `So at $${xValue}$ the model gives $y = ${powerOfTex(kind, level)}$.` },
+      ];
+    },
+  };
+}
+
+interface PowerTilesParams {
+  kind: LogKind;
+  /** split: y = kx^n with k left inside a log. whole: k = 10^c, so its log is c. */
+  form: 'split' | 'whole';
+  k: number;
+  c: number;
+  n: number;
+}
+
+/** Constants that are not powers of 10, so their logarithm stays a logarithm. */
+const PLAIN = [2, 3, 4, 5, 6, 7, 8, 9, 12, 15, 20, 25, 30, 40, 50];
+const PLAIN_HARD = [...PLAIN, 11, 13, 16, 18, 24, 35, 60, 75, 80];
+
+/**
+ * Take logs of y = kx^n and split it with the laws: the product law peels off
+ * k, the power law brings n down in front of log x. Swapping the two is the
+ * slip, and both numbers are in the bank to make it.
+ */
+const linPowerTiles: Generator<PowerTilesParams> = {
+  id: 'log-lin-power-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      kind: rng.chance(hard ? 0.5 : 0.3) ? 'ln' : 'log',
+      form: rng.pick(['split', 'whole'] as const),
+      k: rng.pick(hard ? PLAIN_HARD : PLAIN),
+      c: rng.int(1, hard ? 4 : 3),
+      n: rng.int(2, hard ? 7 : 5),
+    };
+  },
+  render: ({ kind, form, k, c, n }): Slide => {
+    const Y = lg(kind, 'y');
+    const X = lg(kind, 'x');
+    if (form === 'split') {
+      const answer = [`${k}`, `${n}`];
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Take ${logWords(kind)} of both sides of $y = ${k}x^{${n}}$, and split the right-hand side with the laws of logs.`,
+          },
+        ],
+        template: `${Y} = ${lg(kind, '{0}')} {} + {} {1}${X}`,
+        bank: bankOf(answer, [`${k * n}`, `${n + 1}`, `${k + n}`]),
+        answer,
+      };
+    }
+    const answer = [`${c}`, `${n}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Take ${logWords(kind)} of both sides of $${modelTex('power', kind, c, n)}$. The constant is a power of ${kind === 'log' ? '10' : '$e$'}, so its logarithm is a whole number.`,
+        },
+      ],
+      template: `${Y} = {0} {} + {} {1}${X}`,
+      bank: bankOf(answer, [unlogTex(kind, c), `${c + 1}`, `${n + 1}`, `${c * n}`]),
+      answer,
+    };
+  },
+  solution: ({ kind, form, k, c, n }) => {
+    const Y = lg(kind, 'y');
+    const X = lg(kind, 'x');
+    const constant = form === 'split' ? `${k}` : unlogTex(kind, c);
+    const logged = form === 'split' ? lg(kind, `${k}`) : `${c}`;
+    return [
+      { text: 'The product law splits the logarithm of a product into a sum of logarithms.' },
+      { tex: `${Y} = ${lg(kind, `\\left(${constant}x^{${n}}\\right)`)}` },
+      { tex: `${Y} = ${lg(kind, constant)} + ${lg(kind, `x^{${n}}`)}` },
+      { text: `The power law brings the $${n}$ down in front.` },
+      { tex: `${Y} = ${logged} + ${n}${X}` },
+      {
+        text:
+          form === 'split'
+            ? `A straight line in $${X}$: gradient $${n}$, intercept $${lg(kind, `${k}`)}$.`
+            : `$${lg(kind, constant)} = ${c}$, so the line has gradient $${n}$ and intercept $${c}$.`,
+      },
+    ];
+  },
+};
+
+interface ExpTilesParams {
+  kind: LogKind;
+  /**
+   * split: y = a × b^x, or y = a e^(gx) for natural logs, with a left inside a
+   * log. whole: every constant a power of 10 or of e, so its log is whole.
+   */
+  form: 'split' | 'whole';
+  a: number;
+  b: number;
+  c: number;
+  g: number;
+}
+
+/**
+ * Take logs of an exponential model. Here x is the one that comes down in
+ * front, since it is the power, and b stays inside a logarithm: the gradient
+ * is log b, not b. With e as the base that logarithm is 1 and the gradient is
+ * the number in the power.
+ */
+const linExpTiles: Generator<ExpTilesParams> = {
+  id: 'log-lin-exp-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const a = rng.pick(hard ? PLAIN_HARD : PLAIN);
+    const b = rng.int(2, 9);
+    const kind: LogKind = rng.chance(hard ? 0.5 : 0.4) ? 'ln' : 'log';
+    const form = rng.pick(['split', 'whole'] as const);
+    return {
+      kind,
+      form,
+      a,
+      // y = 9 × 9^x would put the same number in both blanks, and swapping
+      // them is the slip this is here to catch.
+      b: b === a ? b + 1 : b,
+      c: rng.int(1, hard ? 4 : 3),
+      // A base of 10^g is printed in full, so it stops at 1000.
+      g: rng.int(2, kind === 'log' && form === 'whole' ? 3 : hard ? 6 : 4),
+    };
+  },
+  render: ({ kind, form, a, b, c, g }): Slide => {
+    const Y = lg(kind, 'y');
+    const say = (model: string, extra = '') => [
+      {
+        kind: 'prose' as const,
+        text: `Take ${logWords(kind)} of both sides of $${model}$, and split the right-hand side with the laws of logs.${extra}`,
+      },
+    ];
+    if (form === 'split' && kind === 'log') {
+      const answer = [`${a}`, `${b}`];
+      return {
+        kind: 'tiles',
+        prompt: say(`y = ${a} \\times ${b}^{x}`),
+        template: `${Y} = \\log {0} {} + {} x\\log {1}`,
+        bank: bankOf(answer, [`${a * b}`, `${a + b}`, `${b + 1}`]),
+        answer,
+      };
+    }
+    if (form === 'split') {
+      const answer = [`${a}`, `${g}`];
+      return {
+        kind: 'tiles',
+        prompt: say(`y = ${a}e^{${g}x}`, ' Remember that $\\ln e = 1$.'),
+        template: `${Y} = \\ln {0} {} + {} {1}x`,
+        bank: bankOf(answer, [`${a * g}`, `${g + 1}`, unlogTex('ln', g)]),
+        answer,
+      };
+    }
+    const answer = [`${c}`, `${g}`];
+    if (kind === 'log') {
+      return {
+        kind: 'tiles',
+        prompt: say(modelTex('exp', 'log', c, g)),
+        template: `${Y} = {0} {} + {} {1}x`,
+        bank: bankOf(answer, [unlogTex('log', c), unlogTex('log', g), `${c + g}`, `${c + 1}`]),
+        answer,
+      };
+    }
+    return {
+      kind: 'tiles',
+      prompt: say(`y = e^{${c} + ${g}x}`),
+      template: `${Y} = {0} {} + {} {1}x`,
+      bank: bankOf(answer, [unlogTex('ln', c), `${c + g}`, `${g + 1}`, `${c * g}`]),
+      answer,
+    };
+  },
+  solution: ({ kind, form, a, b, c, g }) => {
+    if (form === 'split' && kind === 'log') {
+      return [
+        { text: 'The product law splits off the constant, and the power law brings $x$ down in front.' },
+        { tex: `\\log y = \\log ${a} + \\log\\left(${b}^{x}\\right)` },
+        { tex: `\\log y = \\log ${a} + x\\log ${b}` },
+        { text: `A straight line in $x$: gradient $\\log ${b}$, intercept $\\log ${a}$. The gradient is the log of $${b}$, not $${b}$ itself.` },
+      ];
+    }
+    if (form === 'split') {
+      return [
+        { text: 'The product law splits off the constant, and the power law brings the power down in front.' },
+        { tex: `\\ln y = \\ln ${a} + \\ln\\left(e^{${g}x}\\right)` },
+        { tex: `\\ln y = \\ln ${a} + ${g}x\\ln e` },
+        { text: `Since $\\ln e = 1$, the gradient is $${g}$ and the intercept is $\\ln ${a}$.` },
+      ];
+    }
+    if (kind === 'log') {
+      return [
+        { text: `Both constants are powers of 10: $${unlogTex('log', c)} = 10^{${c}}$ and $${unlogTex('log', g)} = 10^{${g}}$.` },
+        { tex: `\\log y = \\log ${unlogTex('log', c)} + x\\log ${unlogTex('log', g)}` },
+        { tex: `\\log y = ${c} + ${g}x` },
+        { text: `A straight line in $x$ with gradient $${g}$ and intercept $${c}$.` },
+      ];
+    }
+    return [
+      { text: 'The natural log undoes $e$, so it hands back the whole power.' },
+      { tex: `\\ln y = \\ln\\left(e^{${c} + ${g}x}\\right) = ${c} + ${g}x` },
+      { text: `A straight line in $x$ with gradient $${g}$ and intercept $${c}$. As a model, $y = e^{${c}}e^{${g}x}$.` },
+    ];
+  },
+};
+
+/**
+ * Two points on the line to the model, as a tree: the rise and the run, the
+ * gradient, the gradient times the first x, and what that leaves of the first
+ * height, which is the intercept. Leaves are slots too, so the rise and the run
+ * are worked out rather than read.
+ */
+const linGradientTree: Generator<LineParams> = {
+  id: 'log-lin-gradient-tree',
+  sample: (rng, difficulty) => sampleLine(rng, difficulty, rng.pick(['power', 'exp'] as const)),
+  render: (params): Slide => {
+    const { model, kind, c, m, x1, x2 } = params;
+    const [y1, y2] = heights(params);
+    const answer = [`${y2 - y1}`, `${x2 - x1}`, `${m}`, `${m * x1}`, `${c}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Two points on the graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ are $(${x1}, ${y1})$ and $(${x2}, ${y2})$. Fill in the rise and the run, then the gradient, then the gradient times $${x1}$, then the intercept.`,
+        },
+      ],
+      expression: `${lg(kind, constantOf(model))} = ${y1} - \\frac{${y2} - ${y1}}{${x2} - ${x1}} \\times ${x1}`,
+      nodes: [
+        { id: 'rise', from: [] },
+        { id: 'run', from: [] },
+        { id: 'gradient', from: ['rise', 'run'] },
+        { id: 'times', from: ['gradient'] },
+        { id: 'intercept', from: ['times'] },
+      ],
+      bank: treeBank(answer, [
+        // Adding the heights rather than subtracting, reading the gradient as
+        // the second height over the second x, and adding the product back on.
+        `${y2 + y1}`,
+        `${x2 + x1}`,
+        `${y1 + m * x1}`,
+        `${m + x1}`,
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { model, kind, c } = params;
+    const [gradient, intercept] = gradientSteps(params);
+    const name = constantOf(model);
+    return [
+      gradient,
+      { text: 'The intercept is the height where the horizontal coordinate is 0: go back from the first point by the gradient times its horizontal coordinate.' },
+      intercept,
+      { text: `So $${lg(kind, name)} = ${c}$, and $${name} = ${undoTex(kind, c)}$.` },
+    ];
+  },
+};
+
+/** A steps bank: distinct, in a fixed order so one question renders one way. */
+function stepsBank(values: string[]): string[] {
+  return [...new Set(values)].sort();
+}
+
+/**
+ * The model's constant from the gradient and one point, one step at a time:
+ * the product, the subtraction that leaves the intercept, and undoing the
+ * logarithm. The last step is the one a learner forgets, and its bank offers
+ * the intercept itself as though it were the constant.
+ */
+const linConstantSteps: Generator<LineParams> = {
+  id: 'log-lin-constant-steps',
+  sample: (rng, difficulty) => {
+    const params = sampleLine(rng, difficulty, rng.pick(['power', 'exp'] as const));
+    // A gradient of 1 leaves the multiplication with nothing to do.
+    return params.m === 1 ? { ...params, m: 2 } : params;
+  },
+  render: (params): Slide => {
+    const { model, kind, c, m, x1 } = params;
+    const [y1] = heights(params);
+    const name = constantOf(model);
+    const is = (n: number | string) => `${name} = ${n}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `On the graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ for $${formTex(model)}$, the line has gradient $${m}$ and passes through $(${x1}, ${y1})$. Find $${name}$ one step at a time: tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start: [lg(kind, name), '=', `${y1}`, '-', `${m}`, '\\times', `${x1}`],
+      reductions: [
+        {
+          span: [4, 7],
+          operator: 5,
+          value: `${m * x1}`,
+          bank: stepsBank([`${m * x1}`, `${m + x1}`, `${m * x1 + 1}`, `${m * x1 - 1}`, `${Math.max(m, x1) * 2 + 1}`]),
+        },
+        {
+          span: [2, 5],
+          operator: 3,
+          value: `${c}`,
+          bank: stepsBank([`${c}`, `${y1 + m * x1}`, `${c + 1}`, `${y1}`]),
+        },
+        {
+          span: [0, 3],
+          operator: 0,
+          value: is(unlogTex(kind, c)),
+          bank: stepsBank([
+            is(unlogTex(kind, c)),
+            is(c),
+            is(unlogTex(kind, c + 1)),
+            kind === 'log' ? is(10 * c) : is(`${c + 1}e`),
+          ]),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { model, kind, c, m, x1 } = params;
+    const [y1] = heights(params);
+    const name = constantOf(model);
+    return [
+      { text: `The intercept is $${lg(kind, name)}$. Go back from the point by the gradient times its horizontal coordinate, $${m} \\times ${x1} = ${m * x1}$.` },
+      { tex: `${lg(kind, name)} = ${y1} - ${m * x1} = ${c}` },
+      { text: `That is still a logarithm. Undo it to get $${name}$ itself.` },
+      { tex: `${name} = ${undoTex(kind, c)}` },
+    ];
+  },
+};
+
+/**
+ * Which model does this line come from? The axes say power or exponential,
+ * the two points say the numbers. The wrong answers are the other model with
+ * the same numbers, the gradient and intercept swapped, and the logarithms
+ * left un-undone.
+ */
+const linModelMatch: Generator<LineParams> = {
+  id: 'log-lin-model-match',
+  sample: (rng, difficulty) => sampleLine(rng, difficulty, rng.pick(['power', 'exp'] as const)),
+  render: (params): Slide => {
+    const { model, kind, c, m, x1, x2 } = params;
+    const [y1, y2] = heights(params);
+    const other: ModelKind = model === 'power' ? 'exp' : 'power';
+    const raw =
+      model === 'power'
+        ? `y = ${c === 1 ? '' : c}x^{${m}}`
+        : kind === 'ln'
+          ? `y = ${c === 1 ? '' : c}e^{${m === 1 ? '' : m}x}`
+          : m > 1
+            ? `y = ${c} \\times ${m}^{x}`
+            : modelTex(model, kind, c + 2, m);
+    const labels = [
+      ...new Set([
+        modelTex(model, kind, c, m),
+        modelTex(other, kind, c, m),
+        m !== c ? modelTex(model, kind, m, c) : modelTex(model, kind, c + 1, m),
+        raw,
+        modelTex(model, kind, c + 1, m),
+      ]),
+    ].slice(0, 4);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ is a straight line through $(${x1}, ${y1})$ and $(${x2}, ${y2})$. Which model does it come from?`,
+        },
+        {
+          kind: 'diagram',
+          svg: lineSvg({ model, kind, c, m, right: x2 + 1, labelled: [{ x: x1, y: y1 }, { x: x2, y: y2 }] }),
+        },
+      ],
+      options: turned(
+        labels.map((label, i) => ({ id: i === 0 ? 'correct' : `wrong${i}`, label, tex: true })),
+        mix(c, m, x1, x2, model === 'power' ? 1 : 2, kind === 'log' ? 1 : 2),
+      ),
+      correctId: 'correct',
+    };
+  },
+  solution: (params) => {
+    const { model, kind, c, m } = params;
+    const [gradient, intercept] = gradientSteps(params);
+    const name = constantOf(model);
+    return [
+      {
+        text:
+          model === 'power'
+            ? `Against $${lg(kind, 'x')}$ the line is a power model, $${generalLineTex(model, kind)}$.`
+            : `Against $x$ itself the line is an exponential model, $${generalLineTex(model, kind)}$.`,
+      },
+      gradient,
+      intercept,
+      {
+        text:
+          model === 'power'
+            ? `So $n = ${m}$ and $${lg(kind, name)} = ${c}$, giving $k = ${undoTex(kind, c)}$.`
+            : `So $${lg(kind, 'b')} = ${m}$ and $${lg(kind, name)} = ${c}$: undo both.`,
+      },
+      { tex: modelTex(model, kind, c, m) },
+    ];
+  },
+};
+
+interface ModelTilesParams extends LineParams {
+  /** For an exponential, which constant is asked for at the end. */
+  which: 'a' | 'b';
+}
+
+/** Two rows of a table, as the learner reads it. */
+function tableTex(model: ModelKind, kind: LogKind, rows: [number, number][]): string {
+  const body = rows.map(([x, y]) => `${x} & ${y}`).join(' \\\\ ');
+  return `\\begin{array}{c|c} ${across(model, kind)} & ${lg(kind, 'y')} \\\\ \\hline ${body} \\end{array}`;
+}
+
+/**
+ * From a two-row table to the line and then the model: gradient, intercept,
+ * and one constant undone. The bank carries the rise (a gradient not divided
+ * by the run) and the intercept left as a logarithm.
+ */
+const linModelTiles: Generator<ModelTilesParams> = {
+  id: 'log-lin-model-tiles',
+  sample: (rng, difficulty) => ({
+    ...sampleLine(rng, difficulty, rng.pick(['power', 'exp'] as const)),
+    which: rng.pick(['a', 'b'] as const),
+  }),
+  render: (params): Slide => {
+    const { model, kind, c, m, x1, x2, which } = params;
+    const [y1, y2] = heights(params);
+    const Y = lg(kind, 'y');
+    const name = model === 'power' ? 'k' : which;
+    const undone = model === 'exp' && which === 'b' ? m : c;
+    const answer = [`${m}`, `${c}`, unlogTex(kind, undone)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The table gives two points on the straight line for a model $${formTex(model)}$. Fill in the line's equation, then $${name}$.`,
+        },
+        { kind: 'display', tex: tableTex(model, kind, [[x1, y1], [x2, y2]]) },
+      ],
+      template:
+        model === 'power'
+          ? `${Y} = {0}${lg(kind, 'x')} + {} {1} \\quad k = {2}`
+          : `${Y} = {0}x + {} {1} \\quad ${name} = {2}`,
+      bank: bankOf(answer, [
+        `${y2 - y1}`,
+        `${y1}`,
+        `${c + 1}`,
+        unlogTex(kind, undone + 1),
+        unlogTex(kind, undone === c ? m : c),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { model, kind, c, m, which } = params;
+    const [gradient, intercept] = gradientSteps(params);
+    const name = model === 'power' ? 'k' : which;
+    const undone = model === 'exp' && which === 'b' ? m : c;
+    return [
+      gradient,
+      intercept,
+      { tex: lineTex(model, kind, c, m) },
+      {
+        text:
+          model === 'power'
+            ? `Matching $${generalLineTex(model, kind)}$, the intercept is $${lg(kind, 'k')} = ${c}$.`
+            : `Matching $${generalLineTex(model, kind)}$, $${lg(kind, name)} = ${undone}$.`,
+      },
+      { tex: `${name} = ${undoTex(kind, undone)}` },
+    ];
+  },
+};
+
+interface AxesFlowParams {
+  form: 'power' | 'recip' | 'root' | 'exp' | 'exp-e' | 'sum-power' | 'sum-exp' | 'linear';
+  a: number;
+  n: number;
+  d: number;
+}
+
+function axesSubject({ form, a, n, d }: AxesFlowParams): string {
+  if (form === 'power') return `y = ${a}x^{${n}}`;
+  if (form === 'recip') return `y = \\frac{${a}}{x^{${n}}}`;
+  if (form === 'root') return `y = ${a}\\sqrt{x}`;
+  if (form === 'exp') return `y = ${a} \\times ${n}^{x}`;
+  if (form === 'exp-e') return `y = ${a}e^{${n}x}`;
+  if (form === 'sum-power') return `y = ${a}x^{${n}} + ${d}`;
+  if (form === 'sum-exp') return `y = ${a} \\times ${n}^{x} + ${d}`;
+  return `y = ${a}x + ${d}`;
+}
+
+/**
+ * Which graph straightens this model, if any? Two questions settle it: is the
+ * right-hand side a single product (logs cannot split a sum), and is x the
+ * power or the thing raised to one. A reciprocal and a square root are power
+ * models in disguise, which is the harder end.
+ */
+const linAxesFlow: Generator<AxesFlowParams> = {
+  id: 'log-lin-axes-flow',
+  sample: (rng, difficulty) => {
+    const forms =
+      difficulty > 1
+        ? (['power', 'recip', 'root', 'exp', 'exp-e', 'sum-power', 'sum-exp', 'linear'] as const)
+        : (['power', 'power', 'exp', 'exp-e', 'sum-power', 'linear'] as const);
+    return { form: rng.pick(forms), a: rng.int(2, 9), n: rng.int(2, difficulty > 1 ? 7 : 5), d: rng.int(1, 9) };
+  },
+  render: (params): Slide => {
+    const { form } = params;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Which graph, if any, turns this model into a straight line? Work down the questions.',
+        },
+      ],
+      subject: axesSubject(params),
+      steps: [
+        {
+          id: 'single',
+          ask: 'Is the right-hand side one product: a constant times a single power, with nothing added on?',
+          branches: [
+            { label: 'Yes', to: 'index' },
+            {
+              label: 'No',
+              outcome: 'Neither graph straightens it. The log of a sum does not split into a sum of logs.',
+            },
+          ],
+        },
+        {
+          id: 'index',
+          ask: 'Is $x$ the index, up in the power?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: 'An exponential model. Plot $\\log y$ against $x$: gradient $\\log b$, intercept $\\log a$.',
+            },
+            {
+              label: 'No',
+              outcome: 'A power model. Plot $\\log y$ against $\\log x$: gradient $n$, intercept $\\log k$.',
+            },
+          ],
+        },
+      ],
+      answer:
+        form === 'power' || form === 'recip' || form === 'root'
+          ? ['Yes', 'No']
+          : form === 'exp' || form === 'exp-e'
+            ? ['Yes', 'Yes']
+            : ['No'],
+    };
+  },
+  solution: (params) => {
+    const { form, a, n } = params;
+    const subject = axesSubject(params);
+    if (form === 'sum-power' || form === 'sum-exp' || form === 'linear') {
+      return [
+        { text: `$${subject}$ has a term added on, so taking logs gives the log of a sum.` },
+        { tex: `\\log(p + q) \\ne \\log p + \\log q` },
+        { text: 'Nothing splits, so neither $\\log y$ against $x$ nor against $\\log x$ is straight.' },
+      ];
+    }
+    if (form === 'exp' || form === 'exp-e') {
+      const b = form === 'exp' ? `${n}` : 'e';
+      return [
+        { text: `$${subject}$ is a constant times a power with $x$ in the index: an exponential.` },
+        {
+          tex:
+            form === 'exp'
+              ? `\\log y = \\log ${a} + x\\log ${b}`
+              : `\\ln y = \\ln ${a} + ${n}x`,
+        },
+        { text: 'A straight line in $x$, so plot the log of $y$ against $x$ itself.' },
+      ];
+    }
+    const power = form === 'recip' ? -n : form === 'root' ? '\\frac{1}{2}' : n;
+    return [
+      {
+        text:
+          form === 'recip'
+            ? `Dividing by $x^{${n}}$ is multiplying by $x^{-${n}}$, so this is a constant times a power of $x$.`
+            : form === 'root'
+              ? 'A square root is the power $\\frac{1}{2}$, so this is a constant times a power of $x$.'
+              : `$${subject}$ is a constant times a fixed power of $x$: a power model.`,
+      },
+      { tex: `\\log y = \\log ${a} + ${power}\\log x` },
+      { text: `A straight line in $\\log x$, with gradient $${power}$.` },
+    ];
+  },
+};
+
+interface StraightParams {
+  mode: 'axes' | 'model' | 'meaning';
+  model: ModelKind;
+  a: number;
+  n: number;
+  d: number;
+  /** For `meaning`: which feature of the line is asked about. */
+  feature: 'gradient' | 'intercept';
+}
+
+/** A power or an exponential model with plain numbers, for choosing between. */
+function plainModelTex(model: ModelKind, a: number, n: number): string {
+  return model === 'power' ? `y = ${a}x^{${n}}` : `y = ${a} \\times ${n}^{x}`;
+}
+
+/**
+ * Choosing the transformation, three ways round: the axes that straighten a
+ * given model, the model a given pair of axes straightens, and what the
+ * gradient or intercept of the straight line means.
+ */
+const linStraightChoice: Generator<StraightParams> = {
+  id: 'log-lin-straight-choice',
+  sample: (rng, difficulty) => {
+    const a = rng.int(2, difficulty > 1 ? 30 : 12);
+    let n = rng.int(2, difficulty > 1 ? 9 : 6);
+    if (n === a) n += 1;
+    return {
+      mode: rng.pick(['axes', 'model', 'meaning'] as const),
+      model: rng.pick(['power', 'exp'] as const),
+      a,
+      n,
+      d: rng.int(1, 9),
+      feature: rng.pick(['gradient', 'intercept'] as const),
+    };
+  },
+  render: ({ mode, model, a, n, d, feature }): Slide => {
+    let text: string;
+    let display: string | undefined;
+    let labels: string[];
+    if (mode === 'axes') {
+      text = 'Which graph of this model is a straight line?';
+      display = plainModelTex(model, a, n);
+      const logLog = '\\log y \\text{ against } \\log x';
+      const logLin = '\\log y \\text{ against } x';
+      labels = [
+        model === 'power' ? logLog : logLin,
+        model === 'power' ? logLin : logLog,
+        'y \\text{ against } \\log x',
+        'y \\text{ against } x',
+      ];
+    } else if (mode === 'model') {
+      text =
+        model === 'power'
+          ? 'Plotting $\\log y$ against $\\log x$ gives a straight line for which of these?'
+          : 'Plotting $\\log y$ against $x$ gives a straight line for which of these?';
+      labels = [
+        plainModelTex(model, a, n),
+        plainModelTex(model === 'power' ? 'exp' : 'power', a, n),
+        model === 'power' ? `y = ${a}x^{${n}} + ${d}` : `y = ${a} \\times ${n}^{x} + ${d}`,
+        `y = ${a}x + ${d}`,
+      ];
+    } else {
+      display = plainModelTex(model, a, n);
+      const against = model === 'power' ? '$\\log y$ against $\\log x$' : '$\\log y$ against $x$';
+      text = `This model plots as a straight line on a graph of ${against}. What is its ${feature}?`;
+      const right =
+        model === 'power'
+          ? feature === 'gradient'
+            ? `${n}`
+            : `\\log ${a}`
+          : feature === 'gradient'
+            ? `\\log ${n}`
+            : `\\log ${a}`;
+      labels = [...new Set([right, `\\log ${a}`, `\\log ${n}`, `${n}`, `${a}`])].slice(0, 4);
+    }
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text }, ...(display ? [{ kind: 'display' as const, tex: display }] : [])],
+      options: turned(
+        labels.map((label, i) => ({ id: i === 0 ? 'correct' : `wrong${i}`, label, tex: true })),
+        mix(a, n, d, mode.length, model.length, feature.length),
+      ),
+      correctId: 'correct',
+    };
+  },
+  solution: ({ mode, model, a, n, feature }) => {
+    const line = model === 'power' ? `\\log y = \\log ${a} + ${n}\\log x` : `\\log y = \\log ${a} + x\\log ${n}`;
+    const opening = {
+      text:
+        model === 'power'
+          ? `$${plainModelTex(model, a, n)}$ is a power model: take logs and the power comes down in front of $\\log x$.`
+          : `$${plainModelTex(model, a, n)}$ is an exponential model: take logs and $x$ comes down in front of $\\log ${n}$.`,
+    };
+    if (mode === 'model') {
+      return [
+        opening,
+        { tex: line },
+        { text: 'The others do not straighten: a sum does not split under a log, and the other model is straight on the other graph.' },
+      ];
+    }
+    if (mode === 'axes') {
+      return [
+        opening,
+        { tex: line },
+        {
+          text:
+            model === 'power'
+              ? 'That is a straight line in $\\log x$, so plot $\\log y$ against $\\log x$.'
+              : 'That is a straight line in $x$, so plot $\\log y$ against $x$.',
+        },
+      ];
+    }
+    return [
+      opening,
+      { tex: line },
+      {
+        text:
+          feature === 'intercept'
+            ? `The intercept is the constant term, $\\log ${a}$: the constant's logarithm, not the constant.`
+            : model === 'power'
+              ? `The gradient is what multiplies $\\log x$: the power, $${n}$.`
+              : `The gradient is what multiplies $x$: $\\log ${n}$, the logarithm of the base.`,
+      },
+    ];
+  },
+};
+
+interface PredictParams {
+  model: ModelKind;
+  kind: LogKind;
+  c: number;
+  m: number;
+  /** Predict y at a given x, or the x that gives a given y. */
+  ask: 'y' | 'x';
+  /** The horizontal coordinate: log x for a power model, x for an exponential. */
+  p: number;
+}
+
+/** x as the prompt gives it: 100, e^2, or a plain 3 for an exponential model. */
+function predictXTex({ model, kind, p }: PredictParams): string {
+  return model === 'power' ? unlogTex(kind, p) : `${p}`;
+}
+
+/** The options for a prediction: the answer, log y left as it is, and near misses. */
+function predictOptions(params: PredictParams): ChoiceOption[] {
+  const { model, kind, c, m, ask, p } = params;
+  const level = c + m * p;
+  const as = (v: number): ChoiceOption => ({ tex: powerOfTex(kind, v), answer: powerOfAnswer(kind, v) });
+  const undone = (v: number): ChoiceOption => ({ tex: unlogTex(kind, v), answer: unlogAnswer(kind, v) });
+  if (ask === 'y') {
+    return fourOptions(as(level), numberOption(level), as(level + 1), as(c + m + p), as(level - 1));
+  }
+  const back = (level + c) / m;
+  const extras = [back, level / m].filter((v) => Number.isInteger(v) && v !== p && v >= 0);
+  if (model === 'power') {
+    return fourOptions(undone(p), numberOption(p), ...extras.map(undone), undone(p + 1), undone(p + 2));
+  }
+  return fourOptions(numberOption(p), undone(p), ...extras.map(numberOption), numberOption(p + 1), numberOption(p + 2));
+}
+
+/**
+ * Use a line of best fit to predict. Along the line everything is a logarithm,
+ * so a prediction is a height on it undone at the end; forgetting that last
+ * step answers with log y instead of y, which is the first distractor.
+ */
+const linPredict: Generator<PredictParams> = {
+  id: 'log-lin-predict',
+  choices: (params) => steeredOptions(predictOptions(params), mix(params.c, params.m, params.p, params.ask === 'y' ? 1 : 2)),
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const model = rng.pick(['power', 'exp'] as const);
+    const kind: LogKind = rng.chance(hard ? 0.5 : 0.3) ? 'ln' : 'log';
+    // log y stays at 7 or below: the checker grades whole numbers reliably only
+    // up to about 10^8.
+    for (;;) {
+      const c = rng.int(1, 3);
+      const m = rng.int(1, hard ? 4 : 3);
+      const p = rng.int(1, hard ? 4 : 3);
+      if (c + m * p <= 7) return { model, kind, c, m, ask: rng.pick(['y', 'x'] as const), p };
+    }
+  },
+  render: (params): Slide => {
+    const { model, kind, c, m, ask, p } = params;
+    const level = c + m * p;
+    const opening = `A line of best fit on a graph of $${lg(kind, 'y')}$ against $${across(model, kind)}$ is $${lineTex(model, kind, c, m)}$.`;
+    const power = kind === 'log' ? 'a power of 10' : 'a power of $e$';
+    if (ask === 'y') {
+      return {
+        kind: 'expression',
+        prompt: [{ kind: 'prose', text: `${opening} Predict $y$ when $x = ${predictXTex(params)}$. Give it as ${power}.` }],
+        lead: 'y =',
+        keypad: kind === 'ln' ? E_POWER_KEYS : POWER_KEYS,
+        answer: powerOfAnswer(kind, level),
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: `${opening} Predict the value of $x$ that gives $y = ${powerOfTex(kind, level)}$.` }],
+      lead: 'x =',
+      keypad: model === 'exp' ? [] : kind === 'ln' ? E_POWER_KEYS : POWER_KEYS,
+      answer: model === 'power' ? unlogAnswer(kind, p) : `${p}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { model, kind, c, m, ask, p } = params;
+    const level = c + m * p;
+    const X = across(model, kind);
+    const Y = lg(kind, 'y');
+    if (ask === 'y') {
+      return [
+        {
+          text:
+            model === 'power'
+              ? `Work along the line in logs: $${X} = ${lg(kind, predictXTex(params))} = ${p}$.`
+              : `Put $x = ${p}$ into the line.`,
+        },
+        { tex: `${Y} = ${c} + ${m} \\times ${p} = ${level}` },
+        { text: `That is $${Y}$, not $y$. Undo the log: $y = ${powerOfTex(kind, level)}$.` },
+      ];
+    }
+    return [
+      { text: `$y = ${powerOfTex(kind, level)}$ means $${Y} = ${level}$. Solve along the line.` },
+      { tex: `${c} + ${m === 1 ? '' : m}${X} = ${level}` },
+      { tex: `${X} = ${p}` },
+      {
+        text:
+          model === 'power'
+            ? `That is $${X}$. Undo the log: $x = ${undoTex(kind, p)}$.`
+            : `The horizontal axis is $x$ itself, so $x = ${p}$ with nothing to undo.`,
+      },
+    ];
+  },
+};
+
+const linPowerRead = lineRead('power');
+const linExpRead = lineRead('exp');
+const linPowerEvaluate = lineEvaluate('power');
+const linExpEvaluate = lineEvaluate('exp');
+const linPowerSlider = lineSlider('power');
+const linExpSlider = lineSlider('exp');
+
 export const logarithmGenerators = [
   evaluateLog,
   logToIndex,
@@ -4886,4 +6241,19 @@ export const logarithmGenerators = [
   meetSlider,
   compareBases,
   inequalityTiles,
+  linPowerTiles,
+  linPowerRead,
+  linPowerEvaluate,
+  linPowerSlider,
+  linExpTiles,
+  linExpRead,
+  linExpEvaluate,
+  linExpSlider,
+  linGradientTree,
+  linConstantSteps,
+  linModelMatch,
+  linModelTiles,
+  linAxesFlow,
+  linStraightChoice,
+  linPredict,
 ] as unknown as Generator<unknown>[];

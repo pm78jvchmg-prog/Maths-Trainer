@@ -6189,6 +6189,1607 @@ const linExpEvaluate = lineEvaluate('exp');
 const linPowerSlider = lineSlider('power');
 const linExpSlider = lineSlider('exp');
 
+/* ---------- Level 7: compound log equations ---------- */
+
+/*
+ * Equations that need several of the earlier ideas at once: the laws to
+ * collapse two logarithms into one, index form or matching logarithms to drop
+ * them, a quadratic, and the domain to throw out a root that the quadratic
+ * produces but the logarithms cannot take.
+ *
+ * Every equation is built outward from its answers. The root comes first, then
+ * the shifts and the base, and the constants are whatever expanding gives, so
+ * every answer is whole and every impostor is an integer the learner can test.
+ * `\log` with no base written is base 10, as in level 6.
+ */
+
+/** x shifted by p, as written: x + 3, x - 1, or x alone. */
+function shifted(p: number): string {
+  return p === 0 ? 'x' : p > 0 ? `x + ${p}` : `x - ${-p}`;
+}
+
+/** ax + c, as written. */
+function linearTex(a: number, c: number): string {
+  const head = a === 1 ? 'x' : a === -1 ? '-x' : `${a}x`;
+  return c === 0 ? head : c > 0 ? `${head} + ${c}` : `${head} - ${-c}`;
+}
+
+/**
+ * log_b of something. No base is written for 10. Brackets are plain, so the
+ * logarithm is valid TeX on its own as one fragment of a steps line; a fraction
+ * gets sized brackets, which is safe because both halves are in this fragment.
+ */
+function logb(base: number, arg: string): string {
+  const head = base === 10 ? '\\log' : `\\log_{${base}}`;
+  if (/^([a-z]|\d+)$/.test(arg)) return `${head} ${arg}`;
+  return arg.includes('\\frac') ? `${head}\\left(${arg}\\right)` : `${head}(${arg})`;
+}
+
+/** A term added or taken away: " + 5x", " - x", " + 3", or nothing for zero. */
+function signed(value: number, variable = ''): string {
+  if (value === 0) return '';
+  const size = Math.abs(value) === 1 && variable ? variable : `${Math.abs(value)}${variable}`;
+  return value > 0 ? ` + ${size}` : ` - ${size}`;
+}
+
+/** a2 v^2 + a1 v + a0 = 0, with the square written as `square`. */
+function quadraticTex(a1: number, a0: number, square = 'x^2', variable = 'x'): string {
+  return `${square}${signed(a1, variable)}${signed(a0)} = 0`;
+}
+
+/** (x - r), or the variable alone when r is 0. */
+function factorTex(root: number, variable = 'x'): string {
+  return root === 0 ? variable : root > 0 ? `(${variable} - ${root})` : `(${variable} + ${-root})`;
+}
+
+/** The factorised quadratic with these roots, a lone variable first. */
+function factorisedTex(r1: number, r2: number, variable = 'x'): string {
+  const [first, second] = r2 === 0 ? [r2, r1] : [r1, r2];
+  return `${factorTex(first, variable)}${factorTex(second, variable)} = 0`;
+}
+
+/** (x + p)(x + q), or x(x + q) when a shift is 0. */
+function productTex(p: number, q: number): string {
+  if (p === 0) return `x(${shifted(q)})`;
+  if (q === 0) return `x(${shifted(p)})`;
+  return `(${shifted(p)})(${shifted(q)})`;
+}
+
+function quotientTex(p: number, q: number): string {
+  return `\\frac{${shifted(p)}}{${shifted(q)}}`;
+}
+
+/** Both roots, as a line of working. */
+function eitherTex(r1: number, r2: number, variable = 'x'): string {
+  return `${variable} = ${r1} \\text{ or } ${variable} = ${r2}`;
+}
+
+/** The answer and three wrong values, each written `x = n`, first distinct ones first. */
+function valueOptions(name: string, right: number, wrong: (number | ChoiceOption)[]): ChoiceOption[] {
+  const labelled = (n: number): ChoiceOption => ({ tex: `${name} = ${n}`, answer: `${n}` });
+  const fallbacks = [right + 1, right + 2, right + 3, right - 1].filter((n) => n !== right);
+  return fourOptions(
+    labelled(right),
+    ...wrong.map((w) => (typeof w === 'number' ? labelled(w) : w)).filter((o) => o.answer !== `${right}`),
+    ...fallbacks.map(labelled),
+  );
+}
+
+/** Keeps a native choice's labels in a fixed order per question, answer first. */
+function choiceOf(labels: string[], salt: number): { id: string; label: string; tex: boolean }[] {
+  return turned(
+    labels.map((label, i) => ({ id: i === 0 ? 'correct' : `wrong${i}`, label, tex: true })),
+    salt,
+  );
+}
+
+interface SumLogParams {
+  base: number;
+  /** The shifts inside the two logarithms, in the order written. */
+  p: number;
+  q: number;
+  /** The root that keeps both arguments positive. */
+  r: number;
+  /** log: the right-hand side is log_b N. number: it is k, so N = b^k. */
+  rhs: 'log' | 'number';
+  k: number;
+}
+
+/** The product the logarithms collapse to at the kept root. */
+function pairN({ p, q, r }: SumLogParams): number {
+  return (r + p) * (r + q);
+}
+
+/**
+ * The quadratic's other root. At it x + p = -(r + q) and x + q = -(r + p), so
+ * both arguments are negative, always: the sum of two logarithms always has
+ * exactly one root to throw away.
+ */
+function impostorOf({ p, q, r }: SumLogParams): number {
+  return -(p + q) - r;
+}
+
+function pairLhs({ base, p, q }: SumLogParams): string {
+  return `${logb(base, shifted(p))} + ${logb(base, shifted(q))}`;
+}
+
+/**
+ * An equation with a logarithm on each side, set on two lines. At phone width
+ * three logarithms with bases written run past the edge of the screen, so the
+ * right-hand side drops to a second line, under its equals sign.
+ */
+function twoLines(lhs: string, rhs: string): string {
+  return `\\begin{aligned} &${lhs} \\\\ &\\quad = ${rhs} \\end{aligned}`;
+}
+
+function pairTex(params: SumLogParams): string {
+  if (params.rhs === 'log') return twoLines(pairLhs(params), logb(params.base, `${pairN(params)}`));
+  return `${pairLhs(params)} = ${params.k}`;
+}
+
+/** Powers of a base small enough to factor into two shifts. */
+const PAIR_POWERS = [
+  { base: 2, k: 1 },
+  { base: 2, k: 2 },
+  { base: 2, k: 3 },
+  { base: 2, k: 4 },
+  { base: 3, k: 1 },
+  { base: 3, k: 2 },
+  { base: 10, k: 1 },
+];
+const PAIR_POWERS_HARD = [...PAIR_POWERS, { base: 2, k: 5 }, { base: 3, k: 3 }, { base: 4, k: 2 }, { base: 5, k: 1 }, { base: 6, k: 2 }];
+
+/**
+ * log_b(x + p) + log_b(x + q) = log_b N, or = k. The arguments at the root, A
+ * and B, are chosen first; N is their product, or b^k is split into them.
+ * `positive` asks for an impostor above zero, which is the one that looks safe.
+ */
+function samplePair(rng: Rng, difficulty: number, rhs: 'log' | 'number', positive = false): SumLogParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    let base: number;
+    let k = 0;
+    let A: number;
+    let B: number;
+    if (rhs === 'number') {
+      const power = rng.pick(hard ? PAIR_POWERS_HARD : PAIR_POWERS);
+      base = power.base;
+      k = power.k;
+      const N = Math.pow(base, k);
+      const divisors = [...Array(N).keys()].map((i) => i + 1).filter((d) => N % d === 0 && d <= 16 && N / d <= 16);
+      A = rng.pick(divisors);
+      B = N / A;
+    } else {
+      base = rng.pick(hard ? [10, 2, 3, 5, 7] : [10, 10, 2, 3]);
+      A = rng.int(1, hard ? 9 : 6);
+      B = rng.int(1, hard ? 9 : 6);
+    }
+    const r = positive ? A + B + rng.int(1, 4) : rng.int(1, hard ? 9 : 6);
+    const p = A - r;
+    const q = B - r;
+    // Equal arguments are one logarithm doubled, no x term leaves nothing to
+    // tile, and a zero root is a constant term of 0.
+    if (A === B || p + q === 0 || r === A + B || Math.abs(p) > 12 || Math.abs(q) > 12) continue;
+    return { base, p, q, r, rhs, k };
+  }
+}
+
+/** The working shared by every sum-of-logs question: collapse, drop, factorise, check. */
+function pairSolution(params: SumLogParams): { text?: string; tex?: string }[] {
+  const { base, p, q, r, rhs, k } = params;
+  const N = pairN(params);
+  const lost = impostorOf(params);
+  const product = productTex(p, q);
+  return [
+    { text: 'The product law adds two logarithms by multiplying their arguments.' },
+    { tex: rhs === 'log' ? twoLines(logb(base, product), logb(base, `${N}`)) : `${logb(base, product)} = ${k}` },
+    {
+      text:
+        rhs === 'log'
+          ? 'A logarithm on each side, same base: the arguments are equal.'
+          : `Index form: the argument is ${base} to the power ${k}.`,
+    },
+    { tex: rhs === 'log' ? `${product} = ${N}` : `${product} = ${base}^{${k}} = ${N}` },
+    { tex: quadraticTex(p + q, p * q - N) },
+    { tex: factorisedTex(r, lost) },
+    {
+      text: `At $x = ${lost}$, $${shifted(p)} = ${lost + p}$, and a logarithm needs a positive argument. So $x = ${r}$ is the only solution.`,
+    },
+  ];
+}
+
+/**
+ * Logs on both sides, collapsed one step at a time: the product law, then the
+ * logarithms dropped, then the quadratic, then the root that survives. Each
+ * bank carries the step's usual slip: adding the arguments, undoing the log on
+ * the right as if it were a number, forgetting to move N across, keeping both.
+ */
+const cmpCollapse: Generator<SumLogParams> = {
+  id: 'log-cmp-collapse-steps',
+  sample: (rng, difficulty) => samplePair(rng, difficulty, 'log'),
+  render: (params): Slide => {
+    const { base, p, q, r } = params;
+    const N = pairN(params);
+    const lost = impostorOf(params);
+    const product = productTex(p, q);
+    const added = linearTex(2, p + q);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Solve it one step at a time: tap the step to do next, then choose what it gives.',
+        },
+      ],
+      start: [logb(base, shifted(p)), '+', logb(base, shifted(q)), '=', logb(base, `${N}`)],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: logb(base, product),
+          bank: stepsBank([
+            logb(base, product),
+            logb(base, added),
+            logb(base, quotientTex(p, q)),
+            `${logb(base, shifted(p))} \\times ${logb(base, shifted(q))}`,
+          ]),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${product} = ${N}`,
+          bank: stepsBank([`${product} = ${N}`, `${product} = ${base}^{${N}}`, `${added} = ${N}`, `${product} = 0`]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: quadraticTex(p + q, p * q - N),
+          bank: stepsBank([
+            quadraticTex(p + q, p * q - N),
+            quadraticTex(p + q, p * q),
+            quadraticTex(p + q, p * q + N),
+            quadraticTex(-(p + q), p * q - N),
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `x = ${r}`,
+          bank: stepsBank([`x = ${r}`, `x = ${lost}`, eitherTex(r, lost), `x = ${-lost}`]),
+        },
+      ],
+    };
+  },
+  solution: pairSolution,
+};
+
+interface CollapseParams {
+  base: number;
+  /** What the left-hand side collapses to. */
+  left: 'sum' | 'difference' | 'double';
+  /** How the right-hand side's argument is written. */
+  right: 'plain' | 'sum' | 'double' | 'difference';
+  p: number;
+  q: number;
+  /** The single argument the right-hand side comes to. */
+  N: number;
+  /** The pieces the right-hand side is written in, when it is not plain. */
+  a: number;
+  c: number;
+}
+
+function combineLeftTex({ base, left, p, q }: CollapseParams): string {
+  if (left === 'double') return `2${logb(base, shifted(p))}`;
+  return `${logb(base, shifted(p))} ${left === 'sum' ? '+' : '-'} ${logb(base, shifted(q))}`;
+}
+
+function combineRightTex({ base, right, N, a, c }: CollapseParams): string {
+  if (right === 'plain') return logb(base, `${N}`);
+  if (right === 'double') return `2${logb(base, `${a}`)}`;
+  return `${logb(base, `${a}`)} ${right === 'sum' ? '+' : '-'} ${logb(base, `${c}`)}`;
+}
+
+/** The left-hand side's single argument, as the learner builds it. */
+function combinedArgument({ left, p, q }: CollapseParams): string {
+  if (left === 'double') return `(${shifted(p)})^2`;
+  return left === 'sum' ? productTex(p, q) : quotientTex(p, q);
+}
+
+/**
+ * Collapse both sides into one logarithm each and drop them. The left is a
+ * sum, a difference or a doubled logarithm; the right is a number's logarithm
+ * written plainly or through the same laws. Adding arguments where they
+ * multiply, subtracting where they divide and doubling where they square are
+ * all in the bank.
+ */
+const cmpCombineTiles: Generator<CollapseParams> = {
+  id: 'log-cmp-combine-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const left = rng.pick(hard ? (['sum', 'difference', 'double'] as const) : (['sum', 'difference'] as const));
+    // Each built from its root like the rest of the level, so a learner who
+    // carries on past the tiles reaches a whole answer.
+    let base: number;
+    let p: number;
+    let q = 0;
+    let N: number;
+    if (left === 'sum') {
+      const pair = samplePair(rng, difficulty, 'log');
+      ({ base, p, q } = pair);
+      N = pairN(pair);
+    } else if (left === 'difference') {
+      const quotient = sampleQuotient(rng, difficulty, 'log');
+      ({ base, p, q } = quotient);
+      N = quotient.K;
+    } else {
+      base = rng.pick(hard ? [10, 2, 3, 5] : [10, 10, 2, 3]);
+      p = rng.pick([-4, -3, -2, -1, 1, 2, 3, 4, 5]);
+      N = Math.pow(rng.int(2, hard ? 9 : 6), 2);
+    }
+    // A difference on the right multiplies N up, so it is kept for small N.
+    const rights: CollapseParams['right'][] = N <= 20 ? ['plain', 'difference'] : ['plain'];
+    const factors = [2, 3, 4, 5, 6, 7].filter((f) => N % f === 0 && N / f > 1 && N / f !== f);
+    if (factors.length > 0) rights.push('sum');
+    if (Number.isInteger(Math.sqrt(N))) rights.push('double');
+    const right = hard ? rng.pick(rights) : rng.pick(rights.filter((r) => r !== 'double'));
+    let a = 0;
+    let c = 0;
+    if (right === 'sum') {
+      a = rng.pick(factors);
+      c = N / a;
+    } else if (right === 'double') {
+      a = Math.sqrt(N);
+    } else if (right === 'difference') {
+      c = rng.int(2, 5);
+      a = N * c;
+    }
+    return { base, left, right, p, q, N, a, c };
+  },
+  render: (params): Slide => {
+    const { left, right, p, q, N, a, c } = params;
+    const answer = [combinedArgument(params), `${N}`];
+    const wrongLeft =
+      left === 'double'
+        ? [`2(${shifted(p)})`, `x^2${signed(p * p)}`]
+        : left === 'sum'
+          ? [linearTex(2, p + q), quotientTex(p, q)]
+          : [`${p - q}`, productTex(p, q)];
+    const wrongRight =
+      right === 'sum' ? [`${a + c}`] : right === 'double' ? [`${2 * a}`] : right === 'difference' ? [`${a - c}`] : [`${N + 1}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Collapse each side into a single logarithm, then drop the logarithms. What equation is left?',
+        },
+        { kind: 'display', tex: twoLines(combineLeftTex(params), combineRightTex(params)) },
+      ],
+      template: '{0} = {1}',
+      bank: bankOf(answer, [...wrongLeft, ...wrongRight]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { base, left, right, p, N, a, c } = params;
+    const law =
+      left === 'sum'
+        ? 'The product law: adding logarithms multiplies their arguments.'
+        : left === 'difference'
+          ? 'The quotient law: subtracting logarithms divides their arguments, the first on top.'
+          : `The power law: the $2$ goes back inside as a square, $(${shifted(p)})^2$, not a doubling.`;
+    const rightWork =
+      right === 'plain'
+        ? `The right is already one logarithm, of $${N}$.`
+        : right === 'sum'
+          ? `On the right, $${a} \\times ${c} = ${N}$.`
+          : right === 'double'
+            ? `On the right, $${a}^2 = ${N}$.`
+            : `On the right, $${a} \\div ${c} = ${N}$.`;
+    return [
+      { text: law },
+      { text: rightWork },
+      { tex: twoLines(logb(base, combinedArgument(params)), logb(base, `${N}`)) },
+      { text: 'Same base on both sides, so the arguments are equal.' },
+      { tex: `${combinedArgument(params)} = ${N}` },
+    ];
+  },
+};
+
+/**
+ * Solve a sum of logarithms equal to a logarithm, typed. The multiple-choice
+ * form offers the impostor alone, both roots together, and the root with its
+ * sign slipped.
+ */
+const cmpBoth: Generator<SumLogParams> = {
+  id: 'log-cmp-both',
+  choices: (params) => {
+    const { r } = params;
+    const lost = impostorOf(params);
+    return steeredOptions(
+      valueOptions('x', r, [lost, { tex: eitherTex(r, lost) }, -lost, -r]),
+      mix(params.base, params.p, params.q, r),
+    );
+  },
+  sample: (rng, difficulty) => samplePair(rng, difficulty, 'log'),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Solve for $x$. Keep only a root at which every logarithm is defined.' },
+      { kind: 'display', tex: pairTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${params.r}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: pairSolution,
+};
+
+interface DifferenceParams {
+  base: number;
+  p: number;
+  q: number;
+  /** The root. */
+  x0: number;
+  /** The argument's ratio, K = b^c when the right-hand side is a number c. */
+  K: number;
+  rhs: 'log' | 'number';
+  c: number;
+}
+
+/** log_b(x + p) - log_b(x + q) = log_b K, or = c. Built from the root: p = K(x0 + q) - x0. */
+function sampleQuotient(rng: Rng, difficulty: number, rhs: 'log' | 'number'): DifferenceParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    let base: number;
+    let K: number;
+    let c = 0;
+    if (rhs === 'number') {
+      const power = rng.pick(
+        hard
+          ? [
+              { base: 2, c: 1 },
+              { base: 2, c: 2 },
+              { base: 2, c: 3 },
+              { base: 3, c: 1 },
+              { base: 3, c: 2 },
+              { base: 5, c: 1 },
+              { base: 10, c: 1 },
+            ]
+          : [
+              { base: 2, c: 1 },
+              { base: 2, c: 2 },
+              { base: 3, c: 1 },
+              { base: 5, c: 1 },
+            ],
+      );
+      base = power.base;
+      c = power.c;
+      K = Math.pow(base, c);
+    } else {
+      base = rng.pick(hard ? [10, 2, 3, 5] : [10, 10, 2, 3]);
+      K = rng.int(2, hard ? 6 : 4);
+    }
+    const x0 = rng.int(1, hard ? 9 : 6);
+    const q = rng.int(1 - x0, hard ? 6 : 4);
+    const p = K * (x0 + q) - x0;
+    // q = 0 would put K(x) in the working.
+    if (q === 0 || p === q || p > 30) continue;
+    return { base, p, q, x0, K, rhs, c };
+  }
+}
+
+function quotientEquationTex({ base, p, q, K, rhs, c }: DifferenceParams): string {
+  const lhs = `${logb(base, shifted(p))} - ${logb(base, shifted(q))}`;
+  return rhs === 'log' ? twoLines(lhs, logb(base, `${K}`)) : `${lhs} = ${c}`;
+}
+
+/** A number in a product, bracketed when negative. */
+function factorOf(n: number): string {
+  return n < 0 ? `(${n})` : `${n}`;
+}
+
+/**
+ * A difference of logarithms drops to a linear equation, x + p = K(x + q), and
+ * the tree solves it: K times q from expanding, K - 1 from gathering the x
+ * terms, what is left on the right, and x.
+ */
+const cmpQuotientTree: Generator<DifferenceParams> = {
+  id: 'log-cmp-quotient-tree',
+  sample: (rng, difficulty) => sampleQuotient(rng, difficulty, rng.chance(difficulty > 1 ? 0.5 : 0.2) ? 'number' : 'log'),
+  render: (params): Slide => {
+    const { p, q, x0, K } = params;
+    const answer = [`${K * q}`, `${K - 1}`, `${p - K * q}`, `${x0}`];
+    const plus = (p + K * q) / (K - 1);
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'display', tex: quotientEquationTex(params) },
+        {
+          kind: 'prose',
+          text: `The quotient law and dropping the logarithms leave the equation below. Expand it, gather the $x$ terms on the right, and solve. Fill in $${K} \\times ${factorOf(q)}$, then the coefficient of $x$, then the number it equals, then $x$.`,
+        },
+      ],
+      expression: `${shifted(p)} = ${K}(${shifted(q)})`,
+      nodes: [
+        { id: 'expand', from: [] },
+        { id: 'coefficient', from: [] },
+        { id: 'rest', from: ['expand'] },
+        { id: 'x', from: ['rest', 'coefficient'] },
+      ],
+      bank: treeBank(answer, [
+        `${-K * q}`,
+        `${K + 1}`,
+        `${p + K * q}`,
+        ...(Number.isInteger(plus) ? [`${plus}`] : []),
+        `${x0 + 1}`,
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { base, p, q, x0, K, rhs, c } = params;
+    return [
+      { text: 'The quotient law: subtracting logarithms divides their arguments.' },
+      {
+        tex: rhs === 'log' ? twoLines(logb(base, quotientTex(p, q)), logb(base, `${K}`)) : `${logb(base, quotientTex(p, q))} = ${c}`,
+      },
+      { tex: rhs === 'log' ? `${quotientTex(p, q)} = ${K}` : `${quotientTex(p, q)} = ${base}^{${c}} = ${K}` },
+      { tex: `${shifted(p)} = ${K}x${signed(K * q)}` },
+      { tex: `${p - K * q} = ${K - 1}x` },
+      { tex: `x = ${x0}` },
+      { text: `Check: at $x = ${x0}$ both arguments are positive, $${p + x0}$ and $${q + x0}$.` },
+    ];
+  },
+};
+
+interface IndexTilesParams {
+  form: 'sum' | 'difference';
+  pair: SumLogParams;
+  quotient: DifferenceParams;
+}
+
+/**
+ * Logarithms equal to a number: collapse the left, then write it in index
+ * form. The bank holds the number itself, the base times it, and it to the
+ * power of the base, which is the usual slip (3^2 for 2^3).
+ */
+const cmpIndexTiles: Generator<IndexTilesParams> = {
+  id: 'log-cmp-index-tiles',
+  sample: (rng, difficulty) => ({
+    form: rng.chance(0.6) ? 'sum' : 'difference',
+    pair: samplePair(rng, difficulty, 'number'),
+    quotient: sampleQuotient(rng, difficulty, 'number'),
+  }),
+  render: ({ form, pair, quotient }): Slide => {
+    const base = form === 'sum' ? pair.base : quotient.base;
+    const k = form === 'sum' ? pair.k : quotient.c;
+    const value = form === 'sum' ? pairN(pair) : quotient.K;
+    const argument = form === 'sum' ? productTex(pair.p, pair.q) : quotientTex(quotient.p, quotient.q);
+    const answer = [argument, `${value}`];
+    const slips =
+      form === 'sum'
+        ? [linearTex(2, pair.p + pair.q), quotientTex(pair.p, pair.q)]
+        : [`${quotient.p - quotient.q}`, productTex(quotient.p, quotient.q)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Collapse the left into one logarithm, then write the equation in index form.' },
+        { kind: 'display', tex: form === 'sum' ? pairTex(pair) : quotientEquationTex(quotient) },
+      ],
+      template: '{0} = {1}',
+      bank: bankOf(answer, [...slips, `${k}`, `${base * k}`, `${Math.pow(k, base)}`, `${Math.pow(base, k + 1)}`]),
+      answer,
+    };
+  },
+  solution: ({ form, pair, quotient }) => {
+    if (form === 'sum') {
+      const { base, p, q, k } = pair;
+      return [
+        { text: 'The product law collapses the left.' },
+        { tex: `${logb(base, productTex(p, q))} = ${k}` },
+        { text: `In index form the argument is the base to the power on the right: $${base}^{${k}} = ${pairN(pair)}$.` },
+        { tex: `${productTex(p, q)} = ${pairN(pair)}` },
+      ];
+    }
+    const { base, p, q, c, K } = quotient;
+    return [
+      { text: 'The quotient law collapses the left, the first argument on top.' },
+      { tex: `${logb(base, quotientTex(p, q))} = ${c}` },
+      { text: `In index form the argument is $${base}^{${c}} = ${K}$.` },
+      { tex: `${quotientTex(p, q)} = ${K}` },
+    ];
+  },
+};
+
+interface NumberParams {
+  form: 'sum' | 'difference';
+  pair: SumLogParams;
+  quotient: DifferenceParams;
+}
+
+/**
+ * Logarithms equal to a number, solved and typed. The choice form offers the
+ * impostor, both roots, and the root of the equation with the number left
+ * un-powered where that comes out whole.
+ */
+const cmpNumber: Generator<NumberParams> = {
+  id: 'log-cmp-number',
+  choices: ({ form, pair, quotient }) => {
+    if (form === 'sum') {
+      const lost = impostorOf(pair);
+      return steeredOptions(
+        valueOptions('x', pair.r, [lost, { tex: eitherTex(pair.r, lost) }, -lost, pair.r * 2]),
+        mix(pair.base, pair.p, pair.q, pair.r, pair.k),
+      );
+    }
+    const { p, q, x0, c } = quotient;
+    const raw = c > 1 ? (p - c * q) / (c - 1) : NaN;
+    return steeredOptions(
+      valueOptions('x', x0, [...(Number.isInteger(raw) ? [raw] : []), -x0, x0 + q, x0 * 2]),
+      mix(quotient.base, p, q, x0, c),
+    );
+  },
+  sample: (rng, difficulty) => ({
+    form: rng.chance(0.65) ? 'sum' : 'difference',
+    pair: samplePair(rng, difficulty, 'number'),
+    quotient: sampleQuotient(rng, difficulty, 'number'),
+  }),
+  render: ({ form, pair, quotient }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Solve for $x$.' },
+      { kind: 'display', tex: form === 'sum' ? pairTex(pair) : quotientEquationTex(quotient) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${form === 'sum' ? pair.r : quotient.x0}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ form, pair, quotient }) => {
+    if (form === 'sum') return pairSolution(pair);
+    const { base, p, q, x0, K, c } = quotient;
+    return [
+      { text: 'The quotient law collapses the left, then index form drops the logarithm.' },
+      { tex: `${quotientTex(p, q)} = ${base}^{${c}} = ${K}` },
+      { tex: `${shifted(p)} = ${K}(${shifted(q)})` },
+      { tex: `${p - K * q} = ${K - 1}x \\implies x = ${x0}` },
+      { text: `Check: at $x = ${x0}$ both arguments are positive, so it stands.` },
+    ];
+  },
+};
+
+interface MeetCurveParams extends SumLogParams {
+  extra: number;
+}
+
+/**
+ * The same equation as a picture: the left-hand side drawn as a curve, the
+ * right as a horizontal line, and the solution where they cross. The impostor
+ * has nowhere to appear, because the curve does not exist left of its
+ * asymptote.
+ */
+const cmpMeetSlider: Generator<MeetCurveParams> = {
+  id: 'log-cmp-meet-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const pair = samplePair(rng, difficulty, 'number');
+      if (pair.r <= 10) return { ...pair, extra: rng.int(0, 2) };
+    }
+  },
+  render: (params): Slide => {
+    const { base, p, q, r, k, extra } = params;
+    const f = (x: number) => logOf(base, x + p) + logOf(base, x + q);
+    // The untouched handle rests mid-track; widen the track if that would put
+    // its marker straight on the crossing.
+    const right = r + 2 + extra + (Math.round((r + 2 + extra) / 2) === r ? 2 : 0);
+    const left = -0.08 * right;
+    const svg = logGraphSvg({
+      xMin: left,
+      xMax: right,
+      yMin: Math.min(-2, k - 3),
+      yMax: Math.max(f(right), k) + 1,
+      curves: [{ f }, { f: () => k }],
+      label: `The curve y = ${pairLhs(params)} and the line y = ${k}`,
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve is $y = ${pairLhs(params)}$ and the flat line is $y = ${k}$. Solve the equation they make, then slide to where they meet.`,
+        },
+      ],
+      min: 0,
+      max: right,
+      step: 1,
+      answer: r,
+      readout: 'x = {v}',
+      figure: { svg, ...markerWindow(left, right) },
+    };
+  },
+  solution: (params) => [
+    ...pairSolution(params),
+    { text: `The curve starts at its asymptote, $x = ${Math.max(-params.p, -params.q)}$, so the impostor is not on it at all.` },
+  ],
+};
+
+/**
+ * From the equation to the quadratic it becomes, as the x term and the
+ * constant. The constant is where the slips are: the product of the shifts
+ * with N left behind, N added instead, and for a number on the right, that
+ * number used in place of the power it stands for.
+ */
+const cmpQuadTiles: Generator<SumLogParams> = {
+  id: 'log-cmp-quad-tiles',
+  sample: (rng, difficulty) => samplePair(rng, difficulty, rng.chance(0.5) ? 'number' : 'log'),
+  render: (params): Slide => {
+    const { p, q, rhs, k } = params;
+    const N = pairN(params);
+    const s = p + q;
+    const t = p * q - N;
+    const term = (n: number) => signed(n, 'x').trim();
+    const constant = (n: number) => (n === 0 ? '+ 0' : signed(n).trim());
+    const answer = [term(s), constant(t)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Collapse the logarithms, drop them, and rearrange into a quadratic equal to zero.' },
+        { kind: 'display', tex: pairTex(params) },
+      ],
+      template: 'x^2 {0} {1} = 0',
+      bank: bankOf(answer, [
+        term(-s),
+        constant(p * q),
+        constant(p * q + N),
+        constant(-t),
+        ...(rhs === 'number' ? [constant(p * q - k)] : []),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { base, p, q, rhs, k } = params;
+    const N = pairN(params);
+    return [
+      { text: 'Collapse with the product law and drop the logarithms.' },
+      {
+        tex:
+          rhs === 'log'
+            ? twoLines(logb(base, productTex(p, q)), logb(base, `${N}`))
+            : `${logb(base, productTex(p, q))} = ${k}`,
+      },
+      { tex: `${productTex(p, q)} = ${N}` },
+      { text: `Expand, then take $${N}$ from both sides so the right is zero.` },
+      { tex: `x^2${signed(p + q, 'x')}${signed(p * q)} = ${N}` },
+      { tex: quadraticTex(p + q, p * q - N) },
+    ];
+  },
+};
+
+interface SquareParams {
+  base: number;
+  p: number;
+  /** The quadratic's roots: x1 always keeps x + p positive, x2 may not. */
+  x1: number;
+  x2: number;
+  /** Written with the doubled logarithm on the right rather than the left. */
+  flip: boolean;
+}
+
+/**
+ * 2log_b(x + p) = log_b(ax + c). With a = 2p + x1 + x2 and c = p^2 - x1x2 the
+ * quadratic's roots are x1 and x2, and ax + c = (x + p)^2 at both, so it is
+ * always positive there: the only argument that can fail is x + p. Both roots
+ * can survive, which is what makes this the honest test of checking.
+ */
+function sampleSquare(rng: Rng, difficulty: number, both: boolean): SquareParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const base = rng.pick(hard ? [10, 2, 3, 5, 7] : [10, 10, 2, 3]);
+    const p = rng.int(0, hard ? 4 : 3);
+    const y1 = rng.int(1, hard ? 7 : 5);
+    const y2 = both ? rng.int(1, hard ? 7 : 5) : -rng.int(1, hard ? 5 : 3);
+    const x1 = y1 - p;
+    const x2 = y2 - p;
+    const c = p * p - x1 * x2;
+    if (y1 === y2 || y1 + y2 < 1 || x1 === 0 || x2 === 0 || Math.abs(c) > 40) continue;
+    return { base, p, x1, x2, flip: rng.chance(0.5) };
+  }
+}
+
+function squareSides({ base, p, x1, x2 }: SquareParams): [string, string] {
+  return [`2${logb(base, shifted(p))}`, logb(base, linearTex(2 * p + x1 + x2, p * p - x1 * x2))];
+}
+
+function squareTex(params: SquareParams): string {
+  const [doubled, single] = squareSides(params);
+  return params.flip ? `${single} = ${doubled}` : `${doubled} = ${single}`;
+}
+
+/** Each logarithm's argument as written, left to right, with its value at x. */
+function squareArgs({ p, x1, x2, flip }: SquareParams): { tex: string; at: (x: number) => number }[] {
+  const a = 2 * p + x1 + x2;
+  const c = p * p - x1 * x2;
+  const doubled = { tex: shifted(p), at: (x: number) => x + p };
+  const single = { tex: linearTex(a, c), at: (x: number) => a * x + c };
+  return flip ? [single, doubled] : [doubled, single];
+}
+
+function squareSolution(params: SquareParams): { text?: string; tex?: string }[] {
+  const { base, p, x1, x2 } = params;
+  const a = 2 * p + x1 + x2;
+  const c = p * p - x1 * x2;
+  const verdict = (x: number) =>
+    x + p > 0
+      ? `At $x = ${x}$, $${shifted(p)} = ${x + p}$: positive, so it stands.`
+      : `At $x = ${x}$, $${shifted(p)} = ${x + p}$: not positive, so it goes.`;
+  return [
+    {
+      text: `The power law puts the 2 back inside as a square, $${logb(base, `(${shifted(p)})^2`)}$, and then the logarithms drop.`,
+    },
+    { tex: `(${shifted(p)})^2 = ${linearTex(a, c)}` },
+    { tex: quadraticTex(2 * p - a, p * p - c) },
+    { tex: factorisedTex(x1, x2) },
+    { text: `The right-hand argument equals the square, so it is positive at both. Check $${shifted(p)}$.` },
+    { text: verdict(x1) },
+    { text: verdict(x2) },
+  ];
+}
+
+interface ImpostorParams {
+  form: 'sum' | 'square';
+  pair: SumLogParams;
+  square: SquareParams;
+  /** Flow only: whether the candidate given is the root that survives. */
+  kept: boolean;
+}
+
+/** The equation, its arguments in the order written, and its two roots. */
+function impostorCase({ form, pair, square }: ImpostorParams): {
+  tex: string;
+  args: { tex: string; at: (x: number) => number }[];
+  roots: [number, number];
+} {
+  if (form === 'sum') {
+    return {
+      tex: pairTex(pair),
+      args: [
+        { tex: shifted(pair.p), at: (x) => x + pair.p },
+        { tex: shifted(pair.q), at: (x) => x + pair.q },
+      ],
+      roots: [pair.r, impostorOf(pair)],
+    };
+  }
+  return { tex: squareTex(square), args: squareArgs(square), roots: [square.x1, square.x2] };
+}
+
+/**
+ * Keep or reject one root, by testing each argument in turn. A doubled
+ * logarithm written on the right puts the failing argument second, so the
+ * walk does not always stop at the first question; a sum of logarithms fails
+ * both at once, and some of its impostors are positive, which is the case
+ * that catches people who only check the sign of x.
+ */
+const cmpImpostorFlow: Generator<ImpostorParams> = {
+  id: 'log-cmp-impostor-flow',
+  sample: (rng, difficulty) => ({
+    form: rng.chance(0.5) ? 'sum' : 'square',
+    pair: samplePair(rng, difficulty, rng.chance(0.5) ? 'log' : 'number', rng.chance(0.4)),
+    square: sampleSquare(rng, difficulty, false),
+    kept: rng.chance(0.4),
+  }),
+  render: (params): Slide => {
+    const { tex, args, roots } = impostorCase(params);
+    const x = params.kept ? roots[0] : roots[1];
+    const [first, second] = args;
+    const reject = `Reject it. A logarithm needs a positive argument, so $x = ${x}$ is an impostor.`;
+    const answer = first.at(x) <= 0 ? ['No'] : second.at(x) <= 0 ? ['Yes', 'No'] : ['Yes', 'Yes'];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Dropping the logarithms gives a quadratic with $x = ${x}$ as one root. Does it solve the original equation? Test each argument in turn.`,
+        },
+      ],
+      // The subject box is narrower than a prompt, so a sum is always set on
+      // two lines here, even with a number on the right.
+      subject: params.form === 'sum' && params.pair.rhs === 'number' ? twoLines(pairLhs(params.pair), `${params.pair.k}`) : tex,
+      steps: [
+        {
+          id: 'first',
+          ask: `At $x = ${x}$, is $${first.tex}$ positive?`,
+          branches: [
+            { label: 'Yes', to: 'second' },
+            { label: 'No', outcome: reject },
+          ],
+        },
+        {
+          id: 'second',
+          ask: `At $x = ${x}$, is $${second.tex}$ positive?`,
+          branches: [
+            { label: 'Yes', outcome: `Keep it. Every logarithm is defined at $x = ${x}$.` },
+            { label: 'No', outcome: reject },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { args, roots } = impostorCase(params);
+    const x = params.kept ? roots[0] : roots[1];
+    return [
+      { text: 'Put the root into each argument, not into the quadratic: the quadratic is satisfied by both roots.' },
+      ...args.map(({ tex, at }) => ({ tex: `${tex} = ${at(x)}` })),
+      {
+        text: args.every(({ at }) => at(x) > 0)
+          ? `Both are positive, so $x = ${x}$ solves the original equation.`
+          : `A logarithm of a number that is not positive is undefined, so $x = ${x}$ is rejected.`,
+      },
+    ];
+  },
+};
+
+/**
+ * Of the quadratic's two roots, which solve the equation: one, the other, or
+ * both. The roots are given in increasing order, so their position says
+ * nothing, and a doubled logarithm sometimes keeps both.
+ */
+const cmpImpostor: Generator<ImpostorParams> = {
+  id: 'log-cmp-impostor',
+  sample: (rng, difficulty) => ({
+    form: rng.chance(0.5) ? 'sum' : 'square',
+    pair: samplePair(rng, difficulty, rng.chance(0.5) ? 'log' : 'number', rng.chance(0.5)),
+    square: sampleSquare(rng, difficulty, rng.chance(0.4)),
+    kept: true,
+  }),
+  render: (params): Slide => {
+    const { tex, args, roots } = impostorCase(params);
+    const [lo, hi] = [...roots].sort((m, n) => m - n);
+    const works = (x: number) => args.every(({ at }) => at(x) > 0);
+    const only = (x: number) => `x = ${x} \\text{ only}`;
+    const all = [only(lo), only(hi), '\\text{both}', '\\text{neither}'];
+    const right = works(lo) && works(hi) ? '\\text{both}' : works(lo) ? only(lo) : only(hi);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Dropping the logarithms gives a quadratic with roots $x = ${lo}$ and $x = ${hi}$. Which of them solve the original equation?`,
+        },
+        { kind: 'display', tex },
+      ],
+      options: choiceOf([right, ...all.filter((label) => label !== right)], mix(lo, hi, args.length, params.form === 'sum' ? 1 : 2)),
+      correctId: 'correct',
+    };
+  },
+  solution: (params) => {
+    if (params.form === 'square') return squareSolution(params.square);
+    const { pair } = params;
+    const lost = impostorOf(pair);
+    return [
+      { text: 'Put each root into both arguments.' },
+      { text: `At $x = ${pair.r}$: $${shifted(pair.p)} = ${pair.r + pair.p}$ and $${shifted(pair.q)} = ${pair.r + pair.q}$.` },
+      { text: `At $x = ${lost}$: $${shifted(pair.p)} = ${lost + pair.p}$ and $${shifted(pair.q)} = ${lost + pair.q}$.` },
+      { text: `Only $x = ${pair.r}$ keeps both positive.${lost > 0 ? ` A positive root can still be an impostor: it is the arguments that must be positive, not $x$.` : ''}` },
+    ];
+  },
+};
+
+/**
+ * A doubled logarithm equal to a single one, solved and typed. There is always
+ * exactly one root to keep here; the choice form offers the one to reject.
+ */
+const cmpSquare: Generator<SquareParams> = {
+  id: 'log-cmp-square',
+  choices: (params) =>
+    steeredOptions(
+      valueOptions('x', params.x1, [params.x2, { tex: eitherTex(params.x1, params.x2) }, -params.x2, params.x1 + params.p]),
+      mix(params.base, params.p, params.x1, params.x2, params.flip ? 1 : 2),
+    ),
+  sample: (rng, difficulty) => sampleSquare(rng, difficulty, false),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Solve for $x$. Only one root survives the check.' },
+      { kind: 'display', tex: squareTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${params.x1}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: squareSolution,
+};
+
+interface SubParams {
+  base: number;
+  /** The values of log_b x, smaller first. */
+  u1: number;
+  u2: number;
+  form: 'standard' | 'moved' | 'power' | 'fraction';
+}
+
+/** The largest power of each base printed in full. */
+function subCap(base: number): number {
+  return base === 10 ? 3 : base === 2 ? 6 : base === 3 ? 4 : 3;
+}
+
+/**
+ * A quadratic in log_b x, built from its two values of u = log_b x. `negative`
+ * lets a root fall below zero, which makes x a fraction; `nonZero` keeps both
+ * away from 0, for forms that divide by u or need a constant term.
+ */
+function sampleSub(
+  rng: Rng,
+  difficulty: number,
+  forms: SubParams['form'][],
+  { negative = false, nonZero = false } = {},
+): SubParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const base = rng.pick(hard ? [10, 2, 3, 4, 5] : [10, 2, 2, 3]);
+    const low = negative && hard ? -2 : negative ? -1 : 0;
+    const a = rng.int(low, subCap(base));
+    const b = rng.int(low, subCap(base));
+    const [u1, u2] = a < b ? [a, b] : [b, a];
+    const form = rng.pick(forms);
+    const s = u1 + u2;
+    if (u1 === u2 || s === 0) continue;
+    if ((nonZero || form === 'fraction') && u1 * u2 === 0) continue;
+    if (form === 'power' && s < 2) continue;
+    return { base, u1, u2, form };
+  }
+}
+
+/** b^u as the learner reads it: a whole number, or one over one. */
+function subX(base: number, u: number): string {
+  return u >= 0 ? `${Math.pow(base, u)}` : `\\frac{1}{${Math.pow(base, -u)}}`;
+}
+
+/** The coefficient of a term: nothing for 1, a minus for -1. */
+function coefficientTex(n: number): string {
+  return n === 1 ? '' : n === -1 ? '-' : `${n}`;
+}
+
+function subTex({ base, u1, u2, form }: SubParams): string {
+  const L = logb(base, 'x');
+  const square = `(${L})^2`;
+  const s = u1 + u2;
+  const t = u1 * u2;
+  if (form === 'moved') return `${square}${signed(t)} = ${coefficientTex(s)}${L}`;
+  if (form === 'power') return `${square} - ${logb(base, `x^{${s}}`)}${signed(t)} = 0`;
+  if (form === 'fraction') return `${L} ${t > 0 ? '+' : '-'} \\frac{${Math.abs(t)}}{${L}} = ${s}`;
+  return quadraticTex(-s, t, square, L);
+}
+
+function subSolution(params: SubParams): { text?: string; tex?: string }[] {
+  const { base, u1, u2, form } = params;
+  const L = logb(base, 'x');
+  const s = u1 + u2;
+  const t = u1 * u2;
+  const opening =
+    form === 'power'
+      ? `Let $u = ${L}$. The power law makes $${logb(base, `x^{${s}}`)} = ${s}${L} = ${s}u$.`
+      : form === 'fraction'
+        ? `Let $u = ${L}$ and multiply through by $u$, which is not zero at either root.`
+        : form === 'moved'
+          ? `Let $u = ${L}$ and bring every term to one side. Do not divide by $u$: that loses a root.`
+          : `Let $u = ${L}$.`;
+  return [
+    { text: opening },
+    { tex: quadraticTex(-s, t, 'u^2', 'u') },
+    { tex: factorisedTex(u1, u2, 'u') },
+    { text: `So $u = ${u1}$ or $u = ${u2}$. Each is a value of $${L}$, so undo it.` },
+    { tex: `x = ${base}^{${u1}} = ${subX(base, u1)}` },
+    { tex: `x = ${base}^{${u2}} = ${subX(base, u2)}` },
+  ];
+}
+
+/**
+ * Both solutions of a quadratic in log x. The bank holds the values of u
+ * themselves, which is where the working stops if the substitution is not
+ * undone, and u to the power of the base, which is b^u turned round.
+ */
+const cmpSubTiles: Generator<SubParams> = {
+  id: 'log-cmp-sub-tiles',
+  sample: (rng, difficulty) =>
+    sampleSub(rng, difficulty, difficulty > 1 ? ['standard', 'moved', 'power'] : ['standard', 'moved'], { negative: true }),
+  render: (params): Slide => {
+    const { base, u1, u2 } = params;
+    const answer = [subX(base, u1), subX(base, u2)];
+    const flipped = [u1, u2].filter((u) => u > 1 && Math.pow(u, base) <= 1000).map((u) => `${Math.pow(u, base)}`);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `Solve for $x$. Let $u = ${logb(base, 'x')}$ first.` },
+        { kind: 'display', tex: subTex(params) },
+      ],
+      template: 'x = {0} \\text{ or } x = {1}',
+      bank: bankOf(answer, [`${u1}`, `${u2}`, ...flipped, `${base * u2}`, `${Math.pow(base, u2 + 1)}`]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: subSolution,
+};
+
+/**
+ * The substitution one step at a time: the square becomes u^2, the other
+ * logarithm a multiple of u, then the factorised quadratic and both values of
+ * x. The first two banks carry the swap that trips people: (log x)^2 is u^2,
+ * while log(x^3) is 3u.
+ */
+const cmpSubSteps: Generator<SubParams> = {
+  id: 'log-cmp-sub-steps',
+  sample: (rng, difficulty) =>
+    sampleSub(rng, difficulty, difficulty > 1 ? ['standard', 'power'] : ['standard'], { negative: true, nonZero: true }),
+  render: (params): Slide => {
+    const { base, u1, u2, form } = params;
+    const L = logb(base, 'x');
+    const s = u1 + u2;
+    const t = u1 * u2;
+    const m = Math.abs(s);
+    const middle = form === 'power' ? logb(base, `x^{${m}}`) : `${m === 1 ? '' : m}${L}`;
+    const mu = m === 1 ? 'u' : `${m}u`;
+    const either = (f: (u: number) => string) => `x = ${f(u1)} \\text{ or } x = ${f(u2)}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve by letting $u = ${L}$. Tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start: [`(${L})^2`, s > 0 ? '-' : '+', middle, t > 0 ? '+' : '-', `${Math.abs(t)}`, '=', '0'],
+      reductions: [
+        { span: [0, 1], operator: 0, value: 'u^2', bank: stepsBank(['u^2', '2u', 'u', '2u^2']) },
+        {
+          span: [2, 3],
+          operator: 2,
+          value: mu,
+          bank: stepsBank([mu, m === 1 ? 'u^2' : `u^{${m}}`, `${m} + u`, `${m + 1}u`]),
+        },
+        {
+          span: [0, 7],
+          operator: 5,
+          value: factorisedTex(u1, u2, 'u'),
+          bank: stepsBank([
+            factorisedTex(u1, u2, 'u'),
+            factorisedTex(-u1, -u2, 'u'),
+            factorisedTex(u1, -u2, 'u'),
+            factorisedTex(-u1, u2, 'u'),
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: either((u) => subX(base, u)),
+          bank: stepsBank([
+            either((u) => subX(base, u)),
+            either((u) => `${u}`),
+            either((u) => subX(base, -u)),
+            either((u) => `${base * u}`),
+          ]),
+        },
+      ],
+    };
+  },
+  solution: subSolution,
+};
+
+/**
+ * The larger solution of a quadratic in log x, typed. At the harder end the
+ * quadratic is hidden behind the power law or a fraction.
+ */
+const cmpSubRoot: Generator<SubParams> = {
+  id: 'log-cmp-sub-root',
+  choices: ({ base, u1, u2, form }) =>
+    steeredOptions(
+      valueOptions('x', Math.pow(base, u2), [
+        u2,
+        Math.pow(base, u1),
+        ...(Math.pow(u2, base) <= 1000 ? [Math.pow(u2, base)] : []),
+        base * u2,
+      ]),
+      mix(base, u1, u2, form.length),
+    ),
+  sample: (rng, difficulty) =>
+    sampleSub(rng, difficulty, difficulty > 1 ? ['standard', 'moved', 'power', 'fraction'] : ['standard', 'moved']),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find the larger solution for $x$.' },
+      { kind: 'display', tex: subTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${Math.pow(params.base, params.u2)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => [
+    ...subSolution(params),
+    { text: `The larger is $x = ${subX(params.base, params.u2)}$.` },
+  ],
+};
+
+interface HiddenParams {
+  base: number;
+  /**
+   * power: (log x)^2 - log(x^s) + t = 0. product: log x · log(b^j x) = c.
+   * quotient: (log x)^2 = log(x^m / b^j).
+   */
+  form: 'power' | 'product' | 'quotient';
+  u1: number;
+  u2: number;
+}
+
+function hiddenTex({ base, form, u1, u2 }: HiddenParams): string {
+  const L = logb(base, 'x');
+  const s = u1 + u2;
+  const t = u1 * u2;
+  if (form === 'power') return `(${L})^2 - ${logb(base, `x^{${s}}`)}${signed(t)} = 0`;
+  if (form === 'product') return `${L} \\cdot ${logb(base, `${Math.pow(base, -s)}x`)} = ${-t}`;
+  return `(${L})^2 = ${logb(base, `\\frac{x^{${s}}}{${Math.pow(base, t)}}`)}`;
+}
+
+/**
+ * Which quadratic in u = log x the equation becomes. Each form hides u behind a
+ * different law: the power law in log(x^s), the product law in log(b^j x), the
+ * quotient law in a fraction. The wrong options forget the law (b^j left as a
+ * number, the power left off) or slip a sign moving a term across.
+ */
+const cmpHidden: Generator<HiddenParams> = {
+  id: 'log-cmp-hidden',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const base = rng.pick(hard ? [10, 2, 3, 5] : [10, 2, 3]);
+      const form = rng.pick(['power', 'product', 'quotient'] as const);
+      const a = rng.int(-3, 4);
+      const b = rng.int(-3, 4);
+      const [u1, u2] = a < b ? [a, b] : [b, a];
+      const s = u1 + u2;
+      const t = u1 * u2;
+      if (u1 === u2 || t === 0) continue;
+      if (form === 'power' && s < 2) continue;
+      if (form === 'product' && (-s < 1 || Math.pow(base, -s) > 100)) continue;
+      if (form === 'quotient' && (s < 2 || t < 1 || Math.pow(base, t) > 1000)) continue;
+      return { base, form, u1, u2 };
+    }
+  },
+  render: (params): Slide => {
+    const { base, form, u1, u2 } = params;
+    const s = u1 + u2;
+    const t = u1 * u2;
+    const q = (one: number, zero: number) => quadraticTex(one, zero, 'u^2', 'u');
+    const wrong =
+      form === 'power'
+        ? [q(-1, t), q(s, t), q(-s, -t), q(-(s + 1), t)]
+        : form === 'product'
+          ? [q(Math.pow(base, -s), t), q(s, t), q(-s, -t), q(-s + 1, t)]
+          : [q(-s, -t), q(-s, Math.pow(base, t)), q(-1, t), q(-(s + 1), t)];
+    const right = q(-s, t);
+    const labels = [right, ...[...new Set(wrong)].filter((label) => label !== right)].slice(0, 4);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Let $u = ${logb(base, 'x')}$. Which quadratic in $u$ does this equation become?` },
+        { kind: 'display', tex: hiddenTex(params) },
+      ],
+      options: choiceOf(labels, mix(base, u1, u2, form.length)),
+      correctId: 'correct',
+    };
+  },
+  solution: (params) => {
+    const { base, form, u1, u2 } = params;
+    const L = logb(base, 'x');
+    const s = u1 + u2;
+    const t = u1 * u2;
+    const law =
+      form === 'power'
+        ? { text: `The power law: $${logb(base, `x^{${s}}`)} = ${s}${L} = ${s}u$, and $(${L})^2 = u^2$.` }
+        : form === 'product'
+          ? {
+              text: `The product law: $${logb(base, `${Math.pow(base, -s)}x`)} = ${logb(base, `${Math.pow(base, -s)}`)} + ${L} = ${-s} + u$.`,
+            }
+          : {
+              text: `The quotient and power laws: $${logb(base, `\\frac{x^{${s}}}{${Math.pow(base, t)}}`)} = ${s}u - ${t}$.`,
+            };
+    const middle =
+      form === 'product' ? `u(u${signed(-s)}) = ${-t}` : form === 'quotient' ? `u^2 = ${s}u - ${t}` : `u^2 - ${s}u${signed(t)} = 0`;
+    return [
+      law,
+      { tex: middle },
+      { tex: quadraticTex(-s, t, 'u^2', 'u') },
+      { text: `It factorises as $${factorisedTex(u1, u2, 'u').replace(' = 0', '')}$, so $x = ${subX(base, u1)}$ or $x = ${subX(base, u2)}$.` },
+    ];
+  },
+};
+
+interface SystemParams {
+  base: number;
+  /** log_b x and log_b y. */
+  u: number;
+  v: number;
+  /**
+   * split: log x + log y = S, log x - log y = D. merged: log(xy) = S and
+   * log(x/y) = D. weighted: 2log x + log y = S', log x - log y = D.
+   */
+  form: 'split' | 'merged' | 'weighted';
+  ask: 'x' | 'y';
+}
+
+function sampleSystem(rng: Rng, difficulty: number, forms: SystemParams['form'][]): SystemParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const base = rng.pick(hard ? [10, 2, 3, 5] : [10, 10, 2, 3]);
+    const u = rng.int(1, subCap(base));
+    const v = rng.int(0, subCap(base));
+    if (u === v) continue;
+    return { base, u, v, form: rng.pick(forms), ask: rng.chance(0.5) ? 'x' : 'y' };
+  }
+}
+
+function systemLines({ base, u, v, form }: SystemParams): [string, string] {
+  const X = logb(base, 'x');
+  const Y = logb(base, 'y');
+  if (form === 'merged') {
+    return [`${logb(base, 'xy')} &= ${u + v}`, `${logb(base, '\\frac{x}{y}')} &= ${u - v}`];
+  }
+  if (form === 'weighted') return [`2${X} + ${Y} &= ${2 * u + v}`, `${X} - ${Y} &= ${u - v}`];
+  return [`${X} + ${Y} &= ${u + v}`, `${X} - ${Y} &= ${u - v}`];
+}
+
+function systemTex(params: SystemParams): string {
+  const [first, second] = systemLines(params);
+  return `\\begin{aligned} ${first} \\\\ ${second} \\end{aligned}`;
+}
+
+function systemSolution(params: SystemParams): { text?: string; tex?: string }[] {
+  const { base, u, v, form } = params;
+  const X = logb(base, 'x');
+  const Y = logb(base, 'y');
+  const split =
+    form === 'merged'
+      ? [{ text: `Split each with the laws: $${X} + ${Y} = ${u + v}$ and $${X} - ${Y} = ${u - v}$.` }]
+      : [];
+  const add =
+    form === 'weighted'
+      ? { tex: `3${X} = ${2 * u + v} + ${factorOf(u - v)} = ${3 * u}` }
+      : { tex: `2${X} = ${u + v} + ${factorOf(u - v)} = ${2 * u}` };
+  return [
+    ...split,
+    { text: 'Add the two equations: the $y$ logarithms cancel.' },
+    add,
+    { tex: `${X} = ${u} \\qquad ${Y} = ${v}` },
+    { text: 'Each is a logarithm, so undo it.' },
+    { tex: `x = ${base}^{${u}} = ${Math.pow(base, u)}` },
+    { tex: `y = ${base}^{${v}} = ${Math.pow(base, v)}` },
+  ];
+}
+
+/**
+ * Two logarithms, two unknowns, as a tree: add the equations for twice log x,
+ * halve it, take it from the sum for log y, and undo both. Subtracting the
+ * equations instead, and stopping at the logarithms, are in the bank.
+ */
+const cmpPairTree: Generator<SystemParams> = {
+  id: 'log-cmp-pair-tree',
+  sample: (rng, difficulty) => sampleSystem(rng, difficulty, difficulty > 1 ? ['split', 'merged'] : ['split']),
+  render: (params): Slide => {
+    const { base, u, v, form } = params;
+    const answer = [`${2 * u}`, `${u}`, `${v}`, `${Math.pow(base, u)}`, `${Math.pow(base, v)}`];
+    const X = logb(base, 'x');
+    const Y = logb(base, 'y');
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${form === 'merged' ? 'Split each logarithm with the laws first. Then add' : 'Add'} the two equations. Fill in $2${X}$, then $${X}$, then $${Y}$, then $x$, then $y$.`,
+        },
+      ],
+      expression: systemTex(params),
+      nodes: [
+        { id: 'twice', from: [] },
+        { id: 'logx', from: ['twice'] },
+        { id: 'logy', from: ['logx'] },
+        { id: 'x', from: ['logx'] },
+        { id: 'y', from: ['logy'] },
+      ],
+      bank: treeBank(answer, [`${2 * v}`, `${base * u}`, `${u + v}`, `${Math.pow(base, u + v)}`]),
+      answer,
+    };
+  },
+  solution: systemSolution,
+};
+
+/**
+ * One of the two unknowns, typed. The weighted form, where log x appears
+ * twice, means adding gives three of it rather than two.
+ */
+const cmpSystem: Generator<SystemParams> = {
+  id: 'log-cmp-system',
+  choices: (params) => {
+    const { base, u, v, ask } = params;
+    const [mine, other] = ask === 'x' ? [u, v] : [v, u];
+    return steeredOptions(
+      valueOptions(ask, Math.pow(base, mine), [mine, Math.pow(base, other), Math.pow(base, mine + 1), base * mine]),
+      mix(base, u, v, ask === 'x' ? 1 : 2, params.form.length),
+    );
+  },
+  sample: (rng, difficulty) =>
+    sampleSystem(rng, difficulty, difficulty > 1 ? ['split', 'merged', 'weighted'] : ['split', 'merged']),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Solve the pair of equations for $${params.ask}$.` },
+      { kind: 'display', tex: systemTex(params) },
+    ],
+    lead: `${params.ask} =`,
+    keypad: [],
+    answer: `${Math.pow(params.base, params.ask === 'x' ? params.u : params.v)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: systemSolution,
+};
+
+interface MixedParams {
+  base: number;
+  /** The other base is base^k. */
+  k: number;
+  /** log_base x. */
+  u: number;
+  /** Added or taken away. */
+  sign: 1 | -1;
+  /** The base^k logarithm written first. */
+  bigFirst: boolean;
+}
+
+/** Every base, power and root where log_{b^k} x comes out whole. */
+const MIXED = [2, 3, 5].flatMap((base) =>
+  [2, 3].flatMap((k) =>
+    [...Array(9).keys()]
+      .map((i) => (i + 1) * k)
+      .filter((u) => Math.pow(base, u) <= 729)
+      .map((u) => ({ base, k, u })),
+  ),
+);
+
+function sampleMixed(rng: Rng, difficulty: number): MixedParams {
+  const hard = difficulty > 1;
+  const pick = rng.pick(MIXED);
+  const sign = rng.chance(hard ? 0.4 : 0.25) ? -1 : 1;
+  return { ...pick, sign, bigFirst: rng.chance(0.5) };
+}
+
+/** The two coefficients of log_b x, in the order written, once the other logarithm is rebased. */
+function mixedTerms({ k, sign, bigFirst }: MixedParams): [[number, number], [number, number]] {
+  const small: [number, number] = [1, 1];
+  const big: [number, number] = [1, k];
+  const second = bigFirst ? small : big;
+  return [bigFirst ? big : small, [sign * second[0], second[1]]];
+}
+
+/** The total coefficient of log_b x, as a fraction [numerator, denominator]. */
+function mixedCoefficient(params: MixedParams): [number, number] {
+  const [[a, b], [c, d]] = mixedTerms(params);
+  return [a * d + c * b, b * d];
+}
+
+function mixedTarget(params: MixedParams): number {
+  const [n, d] = mixedCoefficient(params);
+  return (params.u * n) / d;
+}
+
+function fractionTex(n: number, d: number): string {
+  if (d === 1) return `${n}`;
+  return n < 0 ? `-\\frac{${-n}}{${d}}` : `\\frac{${n}}{${d}}`;
+}
+
+/** d/n, with the sign kept on top. */
+function reciprocalTex(n: number, d: number): string {
+  return fractionTex(Math.sign(n) * d, Math.abs(n));
+}
+
+function mixedTex(params: MixedParams): string {
+  const { base, k, sign, bigFirst } = params;
+  const small = logb(base, 'x');
+  const big = logb(Math.pow(base, k), 'x');
+  const [first, second] = bigFirst ? [big, small] : [small, big];
+  return `${first} ${sign > 0 ? '+' : '-'} ${second} = ${mixedTarget(params)}`;
+}
+
+function mixedSolution(params: MixedParams): { text?: string; tex?: string }[] {
+  const { base, k, u } = params;
+  const bigBase = Math.pow(base, k);
+  const [n, d] = mixedCoefficient(params);
+  const T = mixedTarget(params);
+  return [
+    {
+      text: `Change the base of $${logb(bigBase, 'x')}$ to ${base}: since $${bigBase} = ${base}^{${k}}$, it is $\\frac{${logb(base, 'x')}}{${k}}$.`,
+    },
+    { tex: `${fractionTex(n, d)}${logb(base, 'x')} = ${T}` },
+    { tex: `${logb(base, 'x')} = ${factorOf(T)} \\times ${reciprocalTex(n, d)} = ${u}` },
+    { tex: `x = ${base}^{${u}} = ${Math.pow(base, u)}` },
+  ];
+}
+
+/**
+ * Two logarithms in different bases, one a power of the other, typed. Change
+ * of base folds them into one; the wrong answers stop at the logarithm or at
+ * the number on the right.
+ */
+const cmpMixed: Generator<MixedParams> = {
+  id: 'log-cmp-mixed',
+  choices: (params) => {
+    const { base, u } = params;
+    const T = mixedTarget(params);
+    return steeredOptions(
+      valueOptions('x', Math.pow(base, u), [
+        u,
+        ...(T > 0 && Math.pow(base, T) <= 1_000_000 ? [Math.pow(base, T)] : []),
+        T,
+        Math.pow(base, u + 1),
+      ]),
+      mix(base, params.k, u, params.sign, params.bigFirst ? 1 : 2),
+    );
+  },
+  sample: sampleMixed,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Solve for $x$.' },
+      { kind: 'display', tex: mixedTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${Math.pow(params.base, params.u)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: mixedSolution,
+};
+
+/**
+ * The same equation as tiles: the total coefficient once both logarithms are
+ * in the small base, then x. Treating log_{b^k} as if it were log_b (a
+ * coefficient of 2) and the reciprocal of the right fraction are in the bank.
+ */
+const cmpBaseTiles: Generator<MixedParams> = {
+  id: 'log-cmp-base-tiles',
+  sample: sampleMixed,
+  render: (params): Slide => {
+    const { base, k, u } = params;
+    const [n, d] = mixedCoefficient(params);
+    const T = mixedTarget(params);
+    const answer = [fractionTex(n, d), `${Math.pow(base, u)}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Change $${logb(Math.pow(base, k), 'x')}$ to base ${base}, collect the logarithms, then solve.`,
+        },
+        { kind: 'display', tex: mixedTex(params) },
+      ],
+      template: `{0}\\log_${base} x = ${T} \\qquad x = {1}`,
+      bank: bankOf(answer, [reciprocalTex(n, d), `${params.sign > 0 ? 2 : 0}`, `\\frac{1}{${k}}`, `${u}`, `${Math.pow(base, u + 1)}`]),
+      answer,
+    };
+  },
+  solution: mixedSolution,
+};
+
 export const logarithmGenerators = [
   evaluateLog,
   logToIndex,
@@ -6256,4 +7857,23 @@ export const logarithmGenerators = [
   linAxesFlow,
   linStraightChoice,
   linPredict,
+  cmpCollapse,
+  cmpCombineTiles,
+  cmpBoth,
+  cmpQuotientTree,
+  cmpIndexTiles,
+  cmpNumber,
+  cmpMeetSlider,
+  cmpQuadTiles,
+  cmpImpostorFlow,
+  cmpImpostor,
+  cmpSquare,
+  cmpSubTiles,
+  cmpSubSteps,
+  cmpSubRoot,
+  cmpHidden,
+  cmpPairTree,
+  cmpSystem,
+  cmpMixed,
+  cmpBaseTiles,
 ] as unknown as Generator<unknown>[];

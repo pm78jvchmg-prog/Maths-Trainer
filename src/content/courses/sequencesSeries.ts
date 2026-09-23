@@ -12,8 +12,12 @@
  * the limit L = pL + q of a recurrence and when it is really there, limits of
  * position-to-term rules, and how fast the gap to a limit closes.
  *
- * Later levels — sums of powers and the method of differences, series in
- * context — are in the level plan in `docs/roadmap/levels/sequences-series.md`.
+ * Level 4 adds up powers: the standard results for Σr, Σr² and Σr³, sums
+ * built from them, sums that do not start at 1, and the method of
+ * differences, finite and to infinity, with the split always given.
+ *
+ * Later levels — proof by induction, series in context — are in the level
+ * plan in `docs/roadmap/levels/sequences-series.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -679,6 +683,176 @@ export const sequencesSeries: Course = {
         ask('seq-gap-table', 2),
         ask('seq-gap-first', 2),
         ask('seq-rate-flow', 2),
+      ],
+    },
+    {
+      id: 'sq-l4',
+      title: 'Sums of Powers and the Method of Differences',
+      lessons: [
+        {
+          id: 'sq-l4-standard',
+          title: 'The Standard Results',
+          slides: [
+            teach(
+              prose('Write $1 + 2 + \\dots + n$ forwards and backwards and add the two lines: every column makes $n + 1$, and there are $n$ columns. That is twice the sum, so:'),
+              maths('\\sum_{r=1}^{n} r = \\frac{1}{2}n(n + 1)'),
+              prose('Two more are worth knowing by heart:'),
+              maths('\\begin{aligned} \\sum_{r=1}^{n} r^2 &= \\frac{1}{6}n(n + 1)(2n + 1) \\\\ \\sum_{r=1}^{n} r^3 &= \\frac{1}{4}n^2(n + 1)^2 \\end{aligned}'),
+            ),
+            ask('seq-power-sum-tiles'),
+            ask('seq-power-sum'),
+            ask('seq-power-sum-table'),
+            teach(
+              prose('Put the top of the sum in for $n$. For $\\sum_{r=1}^{10} r^2$, $n = 10$:'),
+              maths('\\frac{1}{6} \\times 10 \\times 11 \\times 21 = 385'),
+              prose('The sum of cubes is the square of the sum: $\\sum r^3 = \\left(\\sum r\\right)^2$. Up to $4$: $1 + 8 + 27 + 64 = 100 = 10^2$.'),
+            ),
+            ask('seq-formula-reduce'),
+            ask('seq-power-sum-tiles', 2),
+            ask('seq-power-sum-table', 2),
+            teach(
+              prose('The top of a sum can be an expression, and every $n$ in the result becomes it. For a sum to $2n$:'),
+              maths('\\begin{aligned} \\sum_{r=1}^{2n} r &= \\frac{1}{2}(2n)(2n + 1) \\\\ &= n(2n + 1) \\end{aligned}'),
+              prose('Check with $n = 2$: $1 + 2 + 3 + 4 = 10$, and $2 \\times 5 = 10$.'),
+            ),
+            ask('seq-formula-reduce', 2),
+            ask('seq-power-sum', 2),
+          ],
+          skillCheck: [ask('seq-power-sum', 2), ask('seq-power-sum-table', 2), ask('seq-power-sum-tiles', 2)],
+        },
+        {
+          id: 'sq-l4-built',
+          title: 'Sums Built from the Standard Results',
+          slides: [
+            teach(
+              prose('A sum splits the way its terms do, and a number in front comes out of the sigma:'),
+              maths('\\sum_{r=1}^{n} (3r + 4) = 3\\sum_{r=1}^{n} r + \\sum_{r=1}^{n} 4'),
+              prose('The $4$ is added once for each of the $n$ terms, so $\\sum_{r=1}^{n} 4 = 4n$, not $4$. Up to $10$: $3 \\times 55 + 40 = 205$.'),
+            ),
+            ask('seq-split-tiles'),
+            ask('seq-split-tree'),
+            ask('seq-built-sum'),
+            teach(
+              prose('Multiply the term out first, then split it:'),
+              maths('\\begin{gathered} \\sum_{r=1}^{n} r(r + 2) \\\\ = \\sum_{r=1}^{n} r^2 + 2\\sum_{r=1}^{n} r \\end{gathered}'),
+              prose('Up to $5$: $55 + 2 \\times 15 = 85$. Check: $3 + 8 + 15 + 24 + 35 = 85$.'),
+            ),
+            ask('seq-split-tree', 2),
+            ask('seq-split-tiles', 2),
+            ask('seq-built-sum', 2),
+            teach(
+              prose('To write the answer as one expression in $n$, take out what the parts share. Both $\\sum r^2$ and $\\sum r$ carry $\\frac{1}{6}n(n + 1)$, since $\\sum r = \\frac{1}{6}n(n + 1) \\times 3$:'),
+              maths('\\begin{aligned} &\\sum_{r=1}^{n} (r^2 + r) \\\\ &= \\frac{1}{6}n(n + 1)\\big((2n + 1) + 3\\big) \\\\ &= \\frac{1}{6}n(n + 1)(2n + 4) \\end{aligned}'),
+            ),
+            ask('seq-factor-tiles'),
+            ask('seq-factor-tiles', 2),
+          ],
+          skillCheck: [ask('seq-built-sum', 2), ask('seq-split-tree', 2), ask('seq-factor-tiles', 2)],
+        },
+        {
+          id: 'sq-l4-from-m',
+          title: 'Sums that Do Not Start at 1',
+          slides: [
+            teach(
+              prose('The standard results all start at $r = 1$. For a sum starting later, add up everything to the top and take away the terms you did not want. Write $S_n$ for the sum from $1$ to $n$:'),
+              maths('\\sum_{r=m}^{n} u_r = S_n - S_{m-1}'),
+              prose('For $\\sum_{r=5}^{10} r^2$: $S_{10} - S_4 = 385 - 30 = 355$.'),
+            ),
+            ask('seq-subtract-flow'),
+            ask('seq-drop-tree'),
+            ask('seq-from-m'),
+            teach(
+              prose('The slip is taking away $S_m$. That removes the first term you wanted as well:'),
+              maths('S_{10} - S_5 = 6^2 + \\dots + 10^2'),
+              prose('which starts at $6$, not $5$. The terms to remove are the ones before the bottom of the sum, $r = 1$ to $m - 1$.'),
+            ),
+            ask('seq-from-m-slip'),
+            ask('seq-drop-tree', 2),
+            ask('seq-from-m', 2),
+            teach(
+              prose('The ends can be expressions too. The terms before $r = n + 1$ run up to $r = n$, so:'),
+              maths('\\begin{aligned} \\sum_{r=n+1}^{2n} r &= S_{2n} - S_n \\\\ &= n(2n + 1) \\\\ &\\quad - \\frac{1}{2}n(n + 1) \\end{aligned}'),
+            ),
+            ask('seq-from-m-slip', 2),
+            ask('seq-subtract-flow', 2),
+          ],
+          skillCheck: [ask('seq-from-m', 2), ask('seq-from-m-slip', 2), ask('seq-drop-tree', 2)],
+        },
+        {
+          id: 'sq-l4-telescoping',
+          title: 'The Method of Differences',
+          slides: [
+            teach(
+              prose('Some terms split into a difference. You will be given the split here:'),
+              maths('\\frac{1}{r(r + 1)} = \\frac{1}{r} - \\frac{1}{r + 1}'),
+              prose('Write the sum out and each fraction taken away is added straight back by the next term:'),
+              maths('\\begin{aligned} &\\left(1 - \\tfrac{1}{2}\\right) + \\left(\\tfrac{1}{2} - \\tfrac{1}{3}\\right) \\\\ &\\quad + \\dots + \\left(\\tfrac{1}{n} - \\tfrac{1}{n + 1}\\right) \\\\ &= 1 - \\frac{1}{n + 1} \\end{aligned}'),
+            ),
+            ask('seq-telescope-steps'),
+            ask('seq-telescope-tiles'),
+            ask('seq-telescope-table'),
+            teach(
+              prose('This is the **method of differences**: only the ends survive. So $\\sum_{r=1}^{n} \\frac{1}{r(r + 1)} = \\frac{n}{n + 1}$, and up to $9$ it is $\\frac{9}{10}$.'),
+              prose('A sum starting at $r = 3$ keeps its first fraction, $\\frac{1}{3}$, instead of $1$.'),
+            ),
+            ask('seq-telescope-sum+choice'),
+            ask('seq-telescope-steps', 2),
+            ask('seq-telescope-table', 2),
+            teach(
+              prose('When the split jumps two places, a fraction comes back two terms later:'),
+              maths('\\frac{2}{r(r + 2)} = \\frac{1}{r} - \\frac{1}{r + 2}'),
+              prose('So **two** fractions survive at each end:'),
+              maths('\\begin{aligned} &\\sum_{r=1}^{n} \\frac{2}{r(r + 2)} \\\\ &= 1 + \\frac{1}{2} - \\frac{1}{n + 1} - \\frac{1}{n + 2} \\end{aligned}'),
+            ),
+            ask('seq-telescope-tiles', 2),
+            ask('seq-telescope-sum+choice', 2),
+          ],
+          skillCheck: [ask('seq-telescope-steps', 2), ask('seq-telescope-tiles', 2), ask('seq-telescope-sum+choice', 2)],
+        },
+        {
+          id: 'sq-l4-infinity',
+          title: 'Sums to Infinity by Differences',
+          slides: [
+            teach(
+              prose('In $\\sum_{r=1}^{n} \\frac{1}{r(r + 1)} = 1 - \\frac{1}{n + 1}$, the leftover $\\frac{1}{n + 1}$ tends to $0$ as $n$ grows. So the sum to infinity is $1$.'),
+              prose('Not every leftover dies. $\\sum_{r=1}^{n} \\left(\\sqrt{r + 1} - \\sqrt{r}\\right) = \\sqrt{n + 1} - 1$, and $\\sqrt{n + 1}$ grows without limit: that series has no sum to infinity.'),
+            ),
+            ask('seq-leftover-flow'),
+            ask('seq-telescope-slider'),
+            ask('seq-infinity-sum'),
+            teach(
+              prose('For a sum to infinity, find what survives at the front; the fractions at the far end all tend to $0$. With $\\frac{1}{(r + 1)(r + 3)} = \\frac{1}{2}\\left(\\frac{1}{r + 1} - \\frac{1}{r + 3}\\right)$, the front two, $\\frac{1}{2}$ and $\\frac{1}{3}$, never cancel:'),
+              maths('\\begin{aligned} &\\sum_{r=1}^{\\infty} \\frac{1}{(r + 1)(r + 3)} \\\\ &= \\frac{1}{2}\\left(\\frac{1}{2} + \\frac{1}{3}\\right) = \\frac{5}{12} \\end{aligned}'),
+            ),
+            ask('seq-survivor-tree'),
+            ask('seq-infinity-sum', 2),
+            ask('seq-leftover-flow', 2),
+            teach(
+              prose('The partial sums can creep up very slowly. For $\\sum \\frac{7}{(r + 6)(r + 7)}$ the eighth is only just past half the limit, so read the limit from the algebra, not from the picture.'),
+              prose('Proving a sum formula for every $n$ is the next level: induction.'),
+            ),
+            ask('seq-survivor-tree', 2),
+            ask('seq-telescope-slider', 2),
+          ],
+          skillCheck: [ask('seq-infinity-sum', 2), ask('seq-survivor-tree', 2), ask('seq-leftover-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('seq-power-sum-tiles', 2),
+        ask('seq-power-sum', 2),
+        ask('seq-power-sum-table', 2),
+        ask('seq-split-tree', 2),
+        ask('seq-built-sum', 2),
+        ask('seq-factor-tiles', 2),
+        ask('seq-subtract-flow', 2),
+        ask('seq-from-m', 2),
+        ask('seq-from-m-slip', 2),
+        ask('seq-telescope-steps', 2),
+        ask('seq-telescope-tiles', 2),
+        ask('seq-telescope-table', 2),
+        ask('seq-leftover-flow', 2),
+        ask('seq-infinity-sum', 2),
+        ask('seq-survivor-tree', 2),
       ],
     },
   ],

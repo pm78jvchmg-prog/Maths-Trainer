@@ -146,6 +146,7 @@ function drawUntil<P>(draw: () => P, accept: (params: P) => boolean, fallback: P
 }
 
 const HOW_TO_REDUCE = 'Tap the part you would do **next**, then choose what it comes to.';
+const HOW_TO_STEP = 'Tap the line, then choose what it becomes after the **next** step.';
 
 /* ======================================================================
  * Level 1: Solving Linear Equations
@@ -321,10 +322,10 @@ const twoStepSteps: Generator<TwoStepParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Solve one undo at a time. ${HOW_TO_REDUCE}`,
+          text: `Solve one undo at a time. ${HOW_TO_STEP}`,
         },
       ],
-      start: [front, signedTile(b), '=', `${c}`],
+      start: [front, `{} ${signedTile(b)}`, '=', `${c}`],
       reductions: [
         {
           span: [0, 4],
@@ -588,11 +589,9 @@ const checkSolution: Generator<CheckParams> = {
     return [
       { text: `Replace $x$ by $${k}$ on the left.` },
       {
-        tex:
-          form === 'plus'
-            ? `${a} \\times ${br(k)} ${signedTile(b)} = ${a * k} ${signedTile(b)} = ${v}`
-            : `${a} \\times (${k} ${signedTile(b)}) = ${a} \\times ${br(k + b)} = ${v}`,
+        tex: form === 'plus' ? `${a} \\times ${br(k)} ${signedTile(b)}` : `${a} \\times (${k} ${signedTile(b)})`,
       },
+      { tex: form === 'plus' ? `= ${a * k} ${signedTile(b)} = ${v}` : `= ${a} \\times ${br(k + b)} = ${v}` },
       {
         text: ok
           ? `That is $${shown}$, the right-hand side, so $x = ${k}$ **is** a solution.`
@@ -713,10 +712,10 @@ const bothSidesSteps: Generator<BothParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Solve one line at a time: collect the $x$ terms on the left, then clear the number, then divide. ${HOW_TO_REDUCE}`,
+          text: `Solve one line at a time: collect the $x$ terms on the left, then clear the number, then divide. ${HOW_TO_STEP}`,
         },
       ],
-      start: [termTex(a, 1), signedTile(b), '=', termTex(c, 1), signedTile(d)],
+      start: [termTex(a, 1), `{} ${signedTile(b)}`, '=', termTex(c, 1), `{} ${signedTile(d)}`],
       reductions: [
         {
           span: [0, 5],
@@ -1353,7 +1352,7 @@ const fractionSteps: Generator<FractionParams> = {
     const top = fractionTop(params);
     return {
       kind: 'steps',
-      prompt: [{ kind: 'prose', text: `Clear the fraction, then finish. ${HOW_TO_REDUCE}` }],
+      prompt: [{ kind: 'prose', text: `Clear the fraction, then finish. ${HOW_TO_STEP}` }],
       start: [`\\frac{${top}}{${a}}`, '=', `${v}`],
       reductions: [
         {
@@ -1498,8 +1497,8 @@ const multiplier: Generator<MultiplierParams> = {
   sample: (rng, difficulty) =>
     drawUntil(
       () => {
-        const a = rng.int(2, difficulty > 1 ? 10 : 6);
-        const b = rng.int(3, difficulty > 1 ? 12 : 9);
+        const a = rng.int(2, difficulty > 1 ? 8 : 6);
+        const b = rng.int(3, difficulty > 1 ? 10 : 9);
         return { a: Math.min(a, b), b: Math.max(a, b), k: rng.int(1, 4), minus: difficulty > 1 && rng.chance(0.5) };
       },
       (p) => p.a !== p.b && lcm(p.a, p.b) !== p.b,
@@ -1531,7 +1530,8 @@ const multiplier: Generator<MultiplierParams> = {
     const x = l * k;
     return [
       { text: `The number has to be a multiple of both $${a}$ and $${b}$. The smallest such is their lowest common multiple, $${l}$.` },
-      { tex: `${l} \\times \\frac{x}{${a}} = ${l / a}x, \\quad ${l} \\times \\frac{x}{${b}} = ${l / b}x` },
+      { tex: `${l} \\times \\frac{x}{${a}} = ${l / a}x` },
+      { tex: `${l} \\times \\frac{x}{${b}} = ${l / b}x` },
       { tex: `${l / a}x ${minus ? '-' : '+'} ${l / b}x = ${(minus ? x / a - x / b : x / a + x / b) * l}` },
       { text: `So $x = ${x}$. Multiplying by $${a * b}$ also clears them${a * b === l ? ', and here it is the same number' : ', but every number is bigger than it needs to be'}.` },
     ];
@@ -1760,7 +1760,7 @@ const wordsSolve: Generator<WordsSolveParams> = {
     const t = wordsSolveTotal(params);
     const other = linTex(m, d);
     if (story === 'consecutive') {
-      const terms = Array.from({ length: m }, (_, i) => (i === 0 ? 'x' : `(x + ${i})`)).join(' + ');
+      const terms = m === 3 ? 'x + (x + 1) + (x + 2)' : `x + \\cdots + (x + ${m - 1})`;
       return [
         { text: 'Call the smallest $x$. The others are one more each time.' },
         { tex: `${terms} = ${t}` },
@@ -2110,7 +2110,8 @@ const simCheck: Generator<CheckPairParams> = {
     const value = a * px + b * py;
     const onFirst = params.which === 1 || params.real;
     return [
-      { tex: `${a} \\times ${br(px)} ${b < 0 ? '-' : '+'} ${Math.abs(b)} \\times ${br(py)} = ${a * px} ${signedTile(b * py)} = ${value}` },
+      { tex: `${a} \\times ${br(px)} ${b < 0 ? '-' : '+'} ${Math.abs(b)} \\times ${br(py)}` },
+      { tex: `= ${a * px} ${signedTile(b * py)} = ${value}` },
       {
         text:
           value === c
@@ -2165,8 +2166,10 @@ const whichPair: Generator<WhichPairParams> = {
     const { a1, b1, a2, b2, x, y } = params;
     return [
       { text: 'A solution has to make both equations true at once. Test each pair in both.' },
-      { tex: `(1): ${a1} \\times ${br(x)} ${b1 < 0 ? '-' : '+'} ${Math.abs(b1)} \\times ${br(y)} = ${c1Of(params)}` },
-      { tex: `(2): ${a2} \\times ${br(x)} ${b2 < 0 ? '-' : '+'} ${Math.abs(b2)} \\times ${br(y)} = ${c2Of(params)}` },
+      { text: 'Equation (1):' },
+      { tex: `${a1} \\times ${br(x)} ${b1 < 0 ? '-' : '+'} ${Math.abs(b1)} \\times ${br(y)} = ${c1Of(params)}` },
+      { text: 'Equation (2):' },
+      { tex: `${a2} \\times ${br(x)} ${b2 < 0 ? '-' : '+'} ${Math.abs(b2)} \\times ${br(y)} = ${c2Of(params)}` },
       {
         text: `So $${pointTex(x, y)}$ works in both. $${pointTex(x + b1, y - a1)}$ satisfies (1) only, and $${pointTex(y, x)}$ has the values the wrong way round.`,
       },
@@ -2246,7 +2249,8 @@ const satisfiesFlow: Generator<SatisfiesParams> = {
     const left1 = a1 * px + b1 * py;
     const left2 = a2 * px + b2 * py;
     return [
-      { tex: `(1): ${a1} \\times ${br(px)} ${b1 < 0 ? '-' : '+'} ${Math.abs(b1)} \\times ${br(py)} = ${left1}` },
+      { text: 'Equation (1):' },
+      { tex: `${a1} \\times ${br(px)} ${b1 < 0 ? '-' : '+'} ${Math.abs(b1)} \\times ${br(py)} = ${left1}` },
       {
         text:
           left1 === c1Of(params)
@@ -2255,7 +2259,8 @@ const satisfiesFlow: Generator<SatisfiesParams> = {
       },
       ...(left1 === c1Of(params)
         ? [
-            { tex: `(2): ${a2} \\times ${br(px)} ${b2 < 0 ? '-' : '+'} ${Math.abs(b2)} \\times ${br(py)} = ${left2}` },
+            { text: 'Equation (2):' },
+      { tex: `${a2} \\times ${br(px)} ${b2 < 0 ? '-' : '+'} ${Math.abs(b2)} \\times ${br(py)} = ${left2}` },
             {
               text:
                 left2 === c2Of(params)
@@ -2808,21 +2813,21 @@ const scaleTree: Generator<Sys> = {
     const q = s.a2 * c1Of(s);
     const r = s.a1 * s.b2;
     const t = s.a1 * c2Of(s);
-    const answer = [`${p}`, `${q}`, `${r}`, `${t}`, `${p - r}`, `${q - t}`, `${s.y}`];
+    const answer = [`${p}`, `${r}`, `${q}`, `${t}`, `${p - r}`, `${q - t}`, `${s.y}`];
     return {
       kind: 'tree',
       prompt: [
         {
           kind: 'prose',
-          text: `Eliminate $x$: multiply (1) by $${s.a2}$ and (2) by $${s.a1}$, then subtract. Fill the tree: each strand's new $y$ coefficient and right-hand side, what subtracting leaves of each, and then $y$.`,
+          text: `Eliminate $x$: multiply (1) by $${s.a2}$ and (2) by $${s.a1}$, then subtract. Fill the tree: the two new $y$ coefficients, the two new right-hand sides, what subtracting leaves of each, and then $y$.`,
         },
         { kind: 'display', tex: sysTex(s) },
       ],
       expression: `${s.a2} \\times (1) - ${s.a1} \\times (2)`,
       nodes: [
         { id: 'y1', from: [] },
-        { id: 'c1', from: [] },
         { id: 'y2', from: [] },
+        { id: 'c1', from: [] },
         { id: 'c2', from: [] },
         { id: 'y', from: ['y1', 'y2'] },
         { id: 'c', from: ['c1', 'c2'] },
@@ -3069,10 +3074,10 @@ const substitutionSteps: Generator<SubAskParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `(1) has been put into (2) in place of $y$, where (1) is $y = ${linTex(m, k)}$. Finish solving for $x$. ${HOW_TO_REDUCE}`,
+          text: `(1) has been put into (2) in place of $y$, where (1) is $y = ${linTex(m, k)}$. Finish solving for $x$. ${HOW_TO_STEP}`,
         },
       ],
-      start: [lead, `${b < 0 ? '-' : '+'} ${Math.abs(b)}(${linTex(m, k)})`, '=', `${c}`],
+      start: [lead, `{} ${b < 0 ? '-' : '+'} ${Math.abs(b)}(${linTex(m, k)})`, '=', `${c}`],
       reductions: [
         {
           span: [0, 4],

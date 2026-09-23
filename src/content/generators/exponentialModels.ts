@@ -15,7 +15,7 @@
  * appears only where nothing has to be evaluated: reading a model, building
  * one from a percentage, and the rate ky, which stays exact.
  */
-import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
+import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import { bin, num, pow, type Expr } from '../expr';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
@@ -2905,6 +2905,1568 @@ const expmNextTree: Generator<NextParams> = {
   },
 };
 
+/* ---------- Level 3, lesson 1: the rate as a percentage ---------- */
+
+interface PercentParams {
+  a: number;
+  /** The rate as a percentage of the amount: k = p / 100. */
+  p: number;
+  down: boolean;
+  ctx: number;
+}
+
+const HALF_PERCENTS = [0.5, 1.5, 2.5, 3.5, 7.5, 12.5];
+
+function samplePercent(rng: Rng, difficulty: number): PercentParams {
+  return {
+    a: rng.pick(READ_STARTS),
+    p: rng.pick(difficulty > 1 ? [...READ_PERCENTS.slice(0, 8), ...HALF_PERCENTS] : READ_PERCENTS),
+    down: rng.chance(0.5),
+    ctx: rng.int(0, 3),
+  };
+}
+
+/** "the number of bacteria in a dish", for the middle of a sentence. */
+function lowerSubject(story: Story): string {
+  return story.subject.charAt(0).toLowerCase() + story.subject.slice(1);
+}
+
+/**
+ * Four decimal options: the answer, then the slips in the order given. A slip
+ * that collides with one already taken is dropped and the gap filled with
+ * multiples of the answer.
+ */
+function decimalOptions(correct: number, slips: number[]): ChoiceOption[] {
+  const seen = new Set([dec(correct)]);
+  const picked: string[] = [];
+  for (const value of [...slips, correct * 2, correct / 2, correct * 10, correct * 3]) {
+    if (picked.length === 3) break;
+    const shown = dec(value);
+    if (!Number.isFinite(value) || seen.has(shown)) continue;
+    seen.add(shown);
+    picked.push(shown);
+  }
+  return options({ tex: dec(correct), answer: dec(correct) }, ...picked.map((shown) => ({ tex: shown, answer: shown })));
+}
+
+/** Build the rate equation from a sentence, then the model it gives. */
+const expmPercentTiles: Generator<PercentParams> = {
+  id: 'expm-percent-tiles',
+  sample: samplePercent,
+  render: ({ a, p, down, ctx }): Slide => {
+    const story = storyOf(down, ctx);
+    const { sym } = story;
+    const k = dec(p / 100);
+    const s = down ? '-' : '';
+    const flip = down ? '' : '-';
+    const answer = [`${s}${k}${sym}`, `${texNum(a)}e^{${s}${k}t}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story.subject} starts at ${a}, and ${down ? 'falls' : 'grows'} at a rate equal to ${p}% of its current size per ${story.unit}. Build the rate equation, then the model for $${sym}$ after $t$ ${story.unit}s.`,
+        },
+      ],
+      template: `\\frac{d${sym}}{dt} = {0} \\qquad ${sym} = {1}`,
+      bank: fillBank(answer, [
+        `${s}${p}${sym}`,
+        `${s}${k}t`,
+        `${flip}${k}${sym}`,
+        `${texNum(a)}e^{${s}${p}t}`,
+        `${s}${dec((a * p) / 100)}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ a, p, down, ctx }) => {
+    const { sym } = storyOf(down, ctx);
+    const k = `${down ? '-' : ''}${dec(p / 100)}`;
+    return [
+      {
+        text: `${p}% of its current size is $${dec(p / 100)}$ times $${sym}$, and ${down ? 'falling makes the rate negative' : 'growing makes the rate positive'}.`,
+      },
+      { tex: `\\frac{d${sym}}{dt} = ${k}${sym}` },
+      { text: `A rate of $k${sym}$ belongs to the model $Ae^{kt}$ with that same $k$, and it starts from $${texNum(a)}$.` },
+      { tex: `${sym} = ${decimalModel(a, p / 100, down)}` },
+    ];
+  },
+};
+
+type PercentKParams = PercentParams & { reverse: boolean };
+
+/** k as a decimal from a percentage, and at difficulty 2 the percentage back from a model. */
+const expmPercentK: Generator<PercentKParams> = {
+  id: 'expm-percent-k',
+  sample: (rng, difficulty) => ({ ...samplePercent(rng, difficulty), reverse: difficulty > 1 && rng.chance(0.5) }),
+  choices: ({ p, down, reverse }) => {
+    if (reverse) return decimalOptions(p, [p / 100, down ? 100 - p : 100 + p, p * 10]);
+    const k = ((down ? -1 : 1) * p) / 100;
+    return decimalOptions(k, [(down ? -1 : 1) * p, k / 10, -k]);
+  },
+  render: ({ a, p, down, ctx, reverse }): Slide => {
+    const story = storyOf(down, ctx);
+    if (reverse) {
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `${opening(story, decimalModel(a, p / 100, down))} At any moment it is ${down ? 'falling' : 'growing'} at what percentage of its current size per ${story.unit}?`,
+          },
+        ],
+        lead: '\\text{percentage} =',
+        keypad: [],
+        answer: dec(p),
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story.subject} ${down ? 'falls' : 'grows'} at a rate equal to ${p}% of its current size per ${story.unit}. Its model is $${story.sym} = Ae^{kt}$. What is $k$, as a decimal?`,
+        },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${down ? '-' : ''}${dec(p / 100)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ p, down, reverse }) => {
+    const k = `${down ? '-' : ''}${dec(p / 100)}`;
+    if (reverse) {
+      return [
+        { text: `$k = ${k}$ is the rate as a decimal of the amount. Times 100 makes it a percentage.` },
+        { tex: `${dec(p / 100)} \\times 100 = ${dec(p)}\\%` },
+        { text: `The sign only says which way: ${down ? 'negative, so it is falling' : 'positive, so it is growing'}.` },
+      ];
+    }
+    return [
+      { text: `A percentage is out of 100: $${dec(p)}\\% = ${dec(p)} \\div 100 = ${dec(p / 100)}$.` },
+      { text: `${down ? 'Falling makes $k$ negative' : 'Growing makes $k$ positive'}, so $k = ${k}$.` },
+    ];
+  },
+};
+
+type PercentFlowParams = PercentParams & { v: number };
+
+/**
+ * Read the rate from a model one fork at a time: the sign of k, its size as a
+ * percentage, what that is a percentage of, and at difficulty 2 the rate at a
+ * given moment.
+ */
+const expmPercentFlow: Generator<PercentFlowParams> = {
+  id: 'expm-percent-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base = samplePercent(rng, difficulty);
+      if (difficulty === 1) return { ...base, v: 0 };
+      const v = rng.pick(RATE_AT_VALUES);
+      if (base.down ? v >= base.a : v <= base.a) continue;
+      if (!Number.isInteger((v * base.p) / 100) || !Number.isInteger((base.a * base.p) / 100)) continue;
+      return { ...base, v };
+    }
+  },
+  render: ({ a, p, down, ctx, v }): Slide => {
+    const story = storyOf(down, ctx);
+    const { sym, unit } = story;
+    const key = `${a}-${p}-${down}-${ctx}-${v}`;
+    const now = dec((v * p) / 100);
+    const forks = (dir: 'up' | 'down') => {
+      const ing = dir === 'up' ? 'growing' : 'falling';
+      const size = [
+        { label: `${dec(p)}%`, to: `${dir}Of` },
+        { label: `${dec(p / 100)}%`, outcome: '$k$ is already a decimal of the amount. Times 100 makes it a percentage.' },
+        {
+          label: `${dec(dir === 'up' ? 100 + p : 100 - p)}%`,
+          outcome: 'That is a multiplier for step-by-step growth. A continuous $k$ is the rate itself.',
+        },
+      ];
+      const what = [
+        v === 0
+          ? { label: 'Its size at that moment', outcome: `So the rate keeps pace with $${sym}$: the more there is, the faster it changes.` }
+          : { label: 'Its size at that moment', to: `${dir}Now` },
+        { label: 'Its size at the start', outcome: `That would change it by the same amount every ${unit}: a straight line, not an exponential.` },
+        { label: `Its size one ${unit} earlier`, outcome: `That is step-by-step growth, applied once a ${unit}. A continuous rate applies at every instant.` },
+      ];
+      const steps = [
+        { id: dir, ask: 'As a percentage of the amount, how big is $k$?', branches: turned(size, `${key}-${dir}`) },
+        { id: `${dir}Of`, ask: `So at any moment, $${sym}$ is ${ing} at ${dec(p)}% of what, per ${unit}?`, branches: turned(what, `${key}-${dir}-of`) },
+      ];
+      if (v !== 0) {
+        steps.push({
+          id: `${dir}Now`,
+          ask: `So when $${sym} = ${texNum(v)}$, how fast is it ${ing}, in ${story.of} per ${unit}?`,
+          branches: turned(
+            [
+              { label: `$${now}$`, outcome: `$${dec(p)}\\%$ of $${texNum(v)}$, the amount at that moment.` },
+              { label: `$${dec((a * p) / 100)}$`, outcome: 'That uses the start. The rate uses the amount right then.' },
+              { label: `$${texNum(v * p)}$`, outcome: 'That multiplies by the percentage rather than by $k$.' },
+            ],
+            `${key}-${dir}-now`,
+          ),
+        });
+      }
+      return steps;
+    };
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, decimalModel(a, p / 100, down))} Read its rate one question at a time. Each answer chooses what gets asked next.`,
+        },
+      ],
+      subject: `${sym} = ${decimalModel(a, p / 100, down)}`,
+      steps: [
+        {
+          id: 'sign',
+          ask: 'Is $k$, the number multiplying $t$ in the power, positive or negative?',
+          branches: [
+            { label: 'Positive', to: 'up' },
+            { label: 'Negative', to: 'down' },
+          ],
+        },
+        ...forks('up'),
+        ...forks('down'),
+      ],
+      answer: [down ? 'Negative' : 'Positive', `${dec(p)}%`, 'Its size at that moment', ...(v === 0 ? [] : [`$${now}$`])],
+    };
+  },
+  solution: ({ p, down, ctx, v }) => {
+    const { sym } = storyOf(down, ctx);
+    const k = `${down ? '-' : ''}${dec(p / 100)}`;
+    const steps: SolutionStep[] = [
+      { text: `$k = ${k}$ is ${down ? 'negative, so it falls' : 'positive, so it grows'}, and $${dec(p / 100)} = ${dec(p)}\\%$.` },
+      { text: `Its rate is $\\frac{d${sym}}{dt} = ${k}${sym}$: ${dec(p)}% of whatever $${sym}$ is at that moment.` },
+    ];
+    if (v !== 0) steps.push({ tex: `${k} \\times ${texNum(v)} = ${dec(((down ? -1 : 1) * v * p) / 100)}` });
+    return steps;
+  },
+};
+
+type WordsParams = PercentParams & { fromModel: boolean };
+
+/** Which sentence says what a rate equation, or at difficulty 2 a model, says. */
+const expmRateWords: Generator<WordsParams> = {
+  id: 'expm-rate-words',
+  sample: (rng, difficulty) => ({ ...samplePercent(rng, difficulty), fromModel: difficulty > 1 }),
+  render: ({ a, p, down, ctx, fromModel }): Slide => {
+    const story = storyOf(down, ctx);
+    const { sym, unit, of } = story;
+    const k = dec(p / 100);
+    const verb = down ? 'falls' : 'grows';
+    const given = fromModel
+      ? opening(story, decimalModel(a, p / 100, down))
+      : `$${sym}$ is ${lowerSubject(story)} after $t$ ${unit}s, and $\\frac{d${sym}}{dt} = ${down ? '-' : ''}${k}${sym}$.`;
+    // Plain text: a choice label is TeX throughout or not at all.
+    const right = `${sym} ${verb} at ${dec(p)}% of its current size per ${unit}`;
+    const labels = [
+      right,
+      `${sym} ${verb} by ${dec(p)} ${of} every ${unit}`,
+      `${sym} ${verb} at ${dec(p / 100)}% of its current size per ${unit}`,
+      fromModel
+        ? `${sym} ${verb} by ${dec((a * p) / 100)} ${of} every ${unit}`
+        : `${sym} ${verb} at ${dec(p)}% of its starting size per ${unit}`,
+    ];
+    const ordered = turned(labels, labels.join('|'));
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `${given} Which sentence says the same thing about its rate?` }],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${ordered.indexOf(right)}`,
+    };
+  },
+  solution: ({ a, p, down, ctx, fromModel }) => {
+    const { sym } = storyOf(down, ctx);
+    const k = `${down ? '-' : ''}${dec(p / 100)}`;
+    const steps: SolutionStep[] = [];
+    if (fromModel) {
+      steps.push({ text: `Differentiating brings $k$ down in front, so the rate is $k$ times the model itself:` });
+      steps.push({ tex: chain(`\\frac{d${sym}}{dt} &= ${k} \\times ${decimalModel(a, p / 100, down)}`, `&= ${k}${sym}`) });
+    }
+    steps.push({ text: `$${dec(p / 100)}$ times $${sym}$ is ${dec(p)}% of $${sym}$, and $${sym}$ is its size at that moment, not at the start.` });
+    steps.push({ text: `So it ${down ? 'falls' : 'grows'} at ${dec(p)}% of its current size: the amount it changes by is not fixed.` });
+    return steps;
+  },
+};
+
+/* ---------- Level 3, lesson 2: the average rate over an interval ---------- */
+
+interface AvgParams extends Rate {
+  a: number;
+  /** The interval runs from t = m1 × h to t = m2 × h. */
+  m1: number;
+  m2: number;
+  ctx: number;
+}
+
+/** The model at t = m × h, which is a whole power of b away from the start. */
+function lotsValue({ a, b, down }: Rate & { a: number }, m: number): number {
+  return down ? a / b ** m : a * b ** m;
+}
+
+function avgRate(params: AvgParams): number {
+  const { h, m1, m2 } = params;
+  return (lotsValue(params, m2) - lotsValue(params, m1)) / ((m2 - m1) * h);
+}
+
+/**
+ * A model and an interval whose average rate is whole. The ends are drawn
+ * first, as whole numbers of h, and the start is built to divide out.
+ */
+function sampleAvg(rng: Rng, difficulty: number, from: number, decay: boolean): AvgParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = rng.pick(hard ? [2, 3] : [2]);
+    const h = rng.int(1, hard ? 6 : 4);
+    const down = decay && rng.chance(0.4);
+    const m1 = rng.int(from, hard ? 2 : 1);
+    const m2 = rng.int(m1 + 1, b === 2 ? 5 : 3);
+    const a = down ? rng.int(1, 6) * b ** m2 : rng.int(2, hard ? 20 : 12);
+    const params = { a, b, h, down, m1, m2, ctx: rng.int(0, 3) };
+    if ((down ? a : a * b ** m2) > 4000) continue;
+    if (!Number.isInteger(avgRate(params))) continue;
+    return params;
+  }
+}
+
+/** b^t, b^{t/h}, or one over it: what e^{kt} is once k is (ln b)/h. */
+function everyTex({ b, h, down }: Rate): string {
+  const power = h === 1 ? `${b}^{t}` : `${b}^{t/${h}}`;
+  return down ? `\\frac{1}{${power}}` : power;
+}
+
+/** The value at t = m × h, worked: 40 \times 2^{3} = 320. */
+function lotsLine(params: Rate & { a: number }, m: number, sym: string): string {
+  const { a, b, h, down } = params;
+  return `${sym}(${m * h}) &= ${texNum(a)} ${down ? '\\div' : '\\times'} ${b}^{${m}} = ${texNum(lotsValue(params, m))}`;
+}
+
+/** The model's curve and the chord joining it at two times, dashed. */
+function chordFigure(f: (t: number) => number, t1: number, t2: number, span: number, label: string): Block {
+  const y1 = f(t1);
+  const y2 = f(t2);
+  const top = Math.max(f(0), y1, y2) * 1.25;
+  const slope = (y2 - y1) / (t2 - t1);
+  return {
+    kind: 'diagram',
+    svg: plotSvg({
+      xMin: 0,
+      xMax: span,
+      yMin: 0,
+      yMax: top,
+      curves: [
+        { f: (t) => Math.min(f(t), top * 2) },
+        // Only between the two points; the pen lifts outside them.
+        { f: (t) => (t >= t1 && t <= t2 ? y1 + slope * (t - t1) : NaN), dashed: true, breaks: true },
+      ],
+      marks: [
+        { x: t1, y: y1 },
+        { x: t2, y: y2 },
+      ],
+      label,
+    }),
+  };
+}
+
+function avgSolution(params: AvgParams): SolutionStep[] {
+  const { h, m1, m2, down, ctx } = params;
+  const { sym } = storyOf(down, ctx);
+  const y1 = lotsValue(params, m1);
+  const y2 = lotsValue(params, m2);
+  const t1 = m1 * h;
+  const t2 = m2 * h;
+  return [
+    { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$, so at a whole number of ${h === 1 ? 'units' : `lots of ${h}`} it is a whole power of $${params.b}$.` },
+    { tex: chain(lotsLine(params, m2, sym), lotsLine(params, m1, sym)) },
+    { text: 'The average rate is the change divided by the time it took:' },
+    { tex: `\\frac{${texNum(y2)} - ${texNum(y1)}}{${t2} - ${t1}} = \\frac{${texNum(y2 - y1)}}{${t2 - t1}} = ${texNum(avgRate(params))}` },
+  ];
+}
+
+/** The average rate as a tree: each end, the change, the time between, then the rate. */
+const expmAvgTree: Generator<AvgParams> = {
+  id: 'expm-avg-tree',
+  sample: (rng, difficulty) => sampleAvg(rng, difficulty, difficulty > 1 ? 1 : 0, difficulty > 1),
+  render: (params): Slide => {
+    const { a, h, m1, m2, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const { sym } = story;
+    const t1 = m1 * h;
+    const t2 = m2 * h;
+    const y1 = lotsValue(params, m1);
+    const y2 = lotsValue(params, m2);
+    const answer = [y2, y1, y2 - y1, t2 - t1, avgRate(params)].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} Find its average rate of change from $t = ${t1}$ to $t = ${t2}$. Fill in $${sym}$ at each end, the change, the time between, then the average rate.`,
+        },
+      ],
+      expression: `\\frac{${sym}(${t2}) - ${sym}(${t1})}{${t2} - ${t1}}`,
+      nodes: [
+        { id: 'late', from: [] },
+        { id: 'early', from: [] },
+        { id: 'change', from: ['late', 'early'] },
+        { id: 'gap', from: [] },
+        { id: 'average', from: ['change', 'gap'] },
+      ],
+      bank: treeBank(answer, [String(y2 + y1), String(t2 + t1), String(m2 - m1), String(lotsValue(params, m2 + 1))]),
+      answer,
+    };
+  },
+  solution: avgSolution,
+};
+
+function avgExpr(params: AvgParams): Expr {
+  const { a, b, h, m1, m2 } = params;
+  const at = (m: number): Expr => {
+    if (m === 0) return num(a);
+    if (m === 1) return bin('*', num(a), num(b));
+    return bin('*', num(a), pow(num(b), num(m)));
+  };
+  return bin('/', bin('-', at(m2), at(m1)), m1 === 0 ? num(m2 * h) : bin('-', num(m2 * h), num(m1 * h)));
+}
+
+/**
+ * The average rate of a growing model, reduced a piece at a time. The powers
+ * come first; the slips on offer are the ones the order invites.
+ */
+const expmAvgReduce: Generator<AvgParams> = {
+  id: 'expm-avg-reduce',
+  sample: (rng, difficulty) => sampleAvg(rng, difficulty, difficulty > 1 ? 1 : 0, false),
+  render: (params): Slide => {
+    const { a, b, h, m1, m2, ctx } = params;
+    const story = storyOf(false, ctx);
+    const y1 = lotsValue(params, m1);
+    const y2 = lotsValue(params, m2);
+    const t1 = m1 * h;
+    const t2 = m2 * h;
+    const banks: Record<string, string[]> = {
+      r: offer(avgRate(params), (y2 - y1) / t2, (y2 + y1) / (t2 - t1), y2 - y1, (y2 - y1) / (m2 - m1)),
+      'r.l': offer(y2 - y1, y2 + y1, y2, a * b ** (m2 - m1), y2 - a),
+    };
+    const valueBanks = (path: string, m: number) => {
+      if (m === 0) return;
+      banks[path] = offer(lotsValue(params, m), (a * b) ** m, a * b * m, a + b ** m, b ** m, a * b ** (m + 1));
+      if (m > 1) banks[`${path}.r`] = offer(b ** m, b * m, b + m, b ** (m - 1), b ** (m + 1));
+    };
+    valueBanks('r.l.l', m2);
+    valueBanks('r.l.r', m1);
+    if (m1 > 0) banks['r.r'] = offer(t2 - t1, t2 + t1, m2 - m1, t2, t1);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} The line below is its average rate of change from $t = ${t1}$ to $t = ${t2}$, with $e^{${ktTex(params)}}$ written as $${everyTex(params)}$. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      expr: avgExpr(params),
+      banks,
+    };
+  },
+  solution: avgSolution,
+};
+
+type StretchParams = Rate & { a: number; j: number; ctx: number };
+
+/** The size of the average rate over the h units starting at t = j × h. */
+function stretchRate(params: StretchParams): number {
+  return Math.abs(lotsValue(params, params.j + 1) - lotsValue(params, params.j)) / params.h;
+}
+
+/**
+ * Slide to the start of the stretch, one step of h long, over which the model
+ * changes by a given average rate. Equal stretches do not change by equal
+ * amounts: that is the point of the question.
+ */
+const expmAvgSlider: Generator<StretchParams> = {
+  id: 'expm-avg-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const hard = difficulty > 1;
+      const b = rng.pick(hard ? [2, 3] : [2]);
+      const h = rng.int(1, hard ? 5 : 4);
+      const j = rng.int(1, b === 2 ? 4 : 2);
+      const down = hard && rng.chance(0.5);
+      const a = down ? rng.int(1, 5) * b ** (j + 1) : rng.int(1, 12);
+      const params = { a, b, h, down, j, ctx: rng.int(0, 3) };
+      if (!down && a === 1) continue;
+      if ((down ? a : a * b ** (j + 2)) > 6000) continue;
+      if (!Number.isInteger(stretchRate(params))) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, h, j, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const answer = j * h;
+    let lots = j + 3;
+    while (defaultSliderValue(0, lots * h, h) === answer) lots += 1;
+    const span = lots * h;
+    const k = ((down ? -1 : 1) * Math.log(b)) / h;
+    const f = (t: number) => a * Math.exp(k * t);
+    const top = down ? a * 1.1 : lotsValue(params, j + 2) * 1.1;
+    const stretch = h === 1 ? `one-${story.unit}` : `${h}-${story.unit}`;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} Each dot is $${story.sym}$ ${h === 1 ? `every ${story.unit}` : `every ${h} ${story.unit}s`}. Slide to the start of the ${stretch} stretch over which it ${down ? 'falls' : 'grows'} at an average of ${texNum(stretchRate(params))} ${story.of} per ${story.unit}.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: h,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: top,
+          curves: [{ f: (t) => Math.min(f(t), top * 2) }],
+          marks: Array.from({ length: lots + 1 }, (_, i) => ({ x: i * h, y: lotsValue(params, i) })).filter((mark) => mark.y <= top),
+          label: `A curve ${down ? 'falling' : 'rising'} from ${a}, with a dot every ${h} units of time`,
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: (params) => {
+    const { b, h, j, down, ctx } = params;
+    const { sym } = storyOf(down, ctx);
+    const row = (i: number) => {
+      const y0 = lotsValue(params, i);
+      const y1 = lotsValue(params, i + 1);
+      return `t = ${i * h}: \\quad \\frac{${texNum(y1)} - ${texNum(y0)}}{${h}} &= ${texNum((y1 - y0) / h)}`;
+    };
+    return [
+      { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$, so every ${h === 1 ? '' : `${h} `}step ${down ? 'divides' : 'multiplies'} $${sym}$ by $${b}$. Work out the average rate over each stretch in turn.` },
+      { tex: chain(row(j - 1), row(j)) },
+      { text: `So the stretch starts at $t = ${j * h}$. ${down ? 'A decaying model changes fastest early on.' : 'A growing model changes faster the later the stretch.'}` },
+    ];
+  },
+};
+
+/** The average rate over an interval, typed, with the chord drawn. */
+const expmAvgRate: Generator<AvgParams> = {
+  id: 'expm-avg-rate',
+  sample: (rng, difficulty) => sampleAvg(rng, difficulty, difficulty > 1 ? 1 : 0, difficulty > 1),
+  choices: (params) => {
+    const { h, m1, m2 } = params;
+    const y1 = lotsValue(params, m1);
+    const y2 = lotsValue(params, m2);
+    const avg = avgRate(params);
+    return wholeOptions(avg, [y2 - y1, (y2 - y1) / (m2 * h), (y2 + y1) / ((m2 - m1) * h), -avg, (y2 - y1) / (m2 - m1)]);
+  },
+  render: (params): Slide => {
+    const { a, b, h, m1, m2, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const t1 = m1 * h;
+    const t2 = m2 * h;
+    const k = ((down ? -1 : 1) * Math.log(b)) / h;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} What is its average rate of change from $t = ${t1}$ to $t = ${t2}$, in ${story.of} per ${story.unit}? The dashed chord joins those two points.`,
+        },
+        chordFigure(
+          (t) => a * Math.exp(k * t),
+          t1,
+          t2,
+          t2 + Math.max(h, 2),
+          `A curve ${down ? 'falling' : 'rising'} from ${a}, with a dashed chord from t = ${t1} to t = ${t2}`,
+        ),
+      ],
+      lead: '\\text{average rate} =',
+      keypad: [],
+      answer: String(avgRate(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: avgSolution,
+};
+
+/** Whole-number options that may be negative: the answer, then the slips. */
+function wholeOptions(correct: number, slips: number[]): ChoiceOption[] {
+  const seen = new Set([correct]);
+  const picked: number[] = [];
+  for (const value of slips) {
+    if (picked.length === 3) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    picked.push(value);
+  }
+  const unit = Math.max(1, Math.round(Math.abs(correct) / 10));
+  for (let step = 1; picked.length < 3; step += 1) {
+    for (const candidate of [correct + step * unit, correct - step * unit]) {
+      if (picked.length === 3 || seen.has(candidate)) continue;
+      seen.add(candidate);
+      picked.push(candidate);
+    }
+  }
+  return options(
+    { tex: texNum(correct), answer: String(correct) },
+    ...picked.sort((x, y) => x - y).map((value) => ({ tex: texNum(value), answer: String(value) })),
+  );
+}
+
+interface CompareParams extends Rate {
+  a: number;
+  /** Each stretch as [start, end] in lots of h. */
+  first: [number, number];
+  second: [number, number];
+  ctx: number;
+}
+
+function stretchAverage(params: CompareParams, [from, to]: [number, number]): number {
+  return (lotsValue(params, to) - lotsValue(params, from)) / ((to - from) * params.h);
+}
+
+/**
+ * Which of two stretches changes faster on average. Equal lengths at
+ * difficulty 1, where the shape of the curve decides it; different lengths at
+ * difficulty 2, where it has to be worked out.
+ */
+const expmAvgCompare: Generator<CompareParams> = {
+  id: 'expm-avg-compare',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const hard = difficulty > 1;
+      const b = rng.pick(hard ? [2, 3] : [2]);
+      const top = b === 2 ? 5 : 3;
+      const h = rng.int(1, 4);
+      const down = rng.chance(0.5);
+      let first: [number, number];
+      let second: [number, number];
+      if (!hard) {
+        const length = rng.int(1, 2);
+        const s1 = rng.int(0, top - length - 1);
+        const s2 = rng.int(s1 + 1, top - length);
+        first = [s1, s1 + length];
+        second = [s2, s2 + length];
+      } else {
+        const p1 = rng.int(0, top - 1);
+        first = [p1, rng.int(p1 + 1, top)];
+        const p2 = rng.int(0, top - 1);
+        second = [p2, rng.int(p2 + 1, top)];
+        if (second[0] < first[0] || (second[0] === first[0] && second[1] <= first[1])) continue;
+        if (second[1] - second[0] === first[1] - first[0]) continue;
+      }
+      const end = Math.max(first[1], second[1]);
+      const a = down ? rng.int(1, 4) * b ** end : rng.int(2, 12);
+      const params = { a, b, h, down, first, second, ctx: rng.int(0, 3) };
+      if ((down ? a : a * b ** end) > 5000) continue;
+      const one = stretchAverage(params, first);
+      const two = stretchAverage(params, second);
+      if (!Number.isInteger(one) || !Number.isInteger(two) || Math.abs(one) === Math.abs(two)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { a, h, first, second, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const span = ([from, to]: [number, number]) => `t = ${from * h} \\text{ to } t = ${to * h}`;
+    const faster = Math.abs(stretchAverage(params, first)) > Math.abs(stretchAverage(params, second)) ? 'first' : 'second';
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} Over which of these does $${story.sym}$ change faster, on average?`,
+        },
+      ],
+      options: [
+        { id: 'first', label: span(first), tex: true },
+        { id: 'second', label: span(second), tex: true },
+        { id: 'same', label: 'Both at the same average rate' },
+      ],
+      correctId: faster,
+    };
+  },
+  solution: (params) => {
+    const { h, first, second, down, ctx } = params;
+    const { sym } = storyOf(down, ctx);
+    const line = (stretch: [number, number]) => {
+      const [from, to] = stretch;
+      return `\\frac{${texNum(lotsValue(params, to))} - ${texNum(lotsValue(params, from))}}{${to * h} - ${from * h}} &= ${texNum(stretchAverage(params, stretch))}`;
+    };
+    return [
+      { text: `$e^{${ktTex(params)}} = ${everyTex(params)}$. Work out $${sym}$ at each end, then each average rate.` },
+      { tex: chain(line(first), line(second)) },
+      {
+        text: down
+          ? 'A decaying model flattens out, so the size of its rate is what counts: the bigger size changes faster.'
+          : 'A growing model gets steeper, so a later stretch tends to change faster; a longer one can still average less.',
+      },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 3: average against instantaneous ---------- */
+
+interface InstantParams extends Rate {
+  a: number;
+  /** The moment is t = m × h, where the model is a whole power of b from its start. */
+  m: number;
+  ctx: number;
+}
+
+/**
+ * A model and a moment at which its rate, (ln b / h) times the value, is a
+ * whole multiple of ln b: the value is drawn first and made to divide by h.
+ */
+function sampleInstant(rng: Rng, difficulty: number, minM = 1): InstantParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = rng.pick(hard ? [2, 3] : [2]);
+    const h = rng.int(1, hard ? 8 : 6);
+    const m = rng.int(minM, b === 2 ? 4 : 3);
+    const down = hard && rng.chance(0.5);
+    const a = down ? rng.int(1, 8) * b ** m : rng.int(2, 15);
+    const params = { a, b, h, m, down, ctx: rng.int(0, 3) };
+    const y = lotsValue(params, m);
+    if (y % h !== 0 || (down ? a : y) > 5000) continue;
+    return params;
+  }
+}
+
+/** c ln b as the learner reads it: \ln 2, 64\ln 2, -\ln 3. */
+function lnTex(c: number, b: number): string {
+  if (c === 1) return `\\ln ${b}`;
+  if (c === -1) return `-\\ln ${b}`;
+  return `${texNum(c)}\\ln ${b}`;
+}
+
+/** (n ln b) / h, as a whole multiple of ln b where it divides. */
+function lnOver(n: number, b: number, h: number): string {
+  if (n % h === 0) return lnTex(n / h, b);
+  return `${n < 0 ? '-' : ''}\\frac{${texNum(Math.abs(n))}\\ln ${b}}{${h}}`;
+}
+
+/** The signed whole multiple of ln b that the rate comes to at t = m × h. */
+function instantC(params: InstantParams): number {
+  return ((params.down ? -1 : 1) * lotsValue(params, params.m)) / params.h;
+}
+
+function instantSolution(params: InstantParams): SolutionStep[] {
+  const { b, m, down, ctx } = params;
+  const { sym } = storyOf(down, ctx);
+  const y = lotsValue(params, m);
+  return [
+    { text: `The rate is $k${sym}$: $k = ${kTex(params)}$ times the amount at that moment.` },
+    {
+      tex: chain(
+        lotsLine(params, m, sym),
+        `\\frac{d${sym}}{dt} &= ${kTex(params)} \\times ${texNum(y)} = ${lnTex(instantC(params), b)}`,
+      ),
+    },
+    { text: `Leave $\\ln ${b}$ as it is: that keeps the rate exact, where any decimal for it is rounded.` },
+  ];
+}
+
+/** The exact rate at a moment, typed with the ln key. */
+const expmInstant: Generator<InstantParams> = {
+  id: 'expm-instant',
+  sample: (rng, difficulty) => sampleInstant(rng, difficulty),
+  choices: (params) => {
+    const { a, b, h, m, down } = params;
+    const s = down ? -1 : 1;
+    const c = instantC(params);
+    const y = lotsValue(params, m);
+    const start =
+      a % h === 0
+        ? { tex: lnTex((s * a) / h, b), answer: `${(s * a) / h}*log(${b})` }
+        : { tex: `${down ? '-' : ''}\\frac{${a}\\ln ${b}}{${h}}`, answer: `${s * a}*log(${b})/${h}` };
+    return options(
+      { tex: lnTex(c, b), answer: `${c}*log(${b})` },
+      { tex: texNum(c), answer: String(c) },
+      h === 1 ? { tex: lnTex(-c, b), answer: `${-c}*log(${b})` } : { tex: lnTex(s * y, b), answer: `${s * y}*log(${b})` },
+      start,
+    );
+  },
+  render: (params): Slide => {
+    const { a, b, h, m, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} Find the exact rate at which it is changing at $t = ${m * h}$, in terms of $\\ln ${b}$.`,
+        },
+      ],
+      lead: `\\frac{d${story.sym}}{dt} =`,
+      keypad: LN_KEYS,
+      answer: `${instantC(params)}*log(${b})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: instantSolution,
+};
+
+/** The rate at a moment built as k times the value there, then the exact product. */
+const expmInstantTiles: Generator<InstantParams> = {
+  id: 'expm-instant-tiles',
+  sample: (rng, difficulty) => sampleInstant(rng, difficulty),
+  render: (params): Slide => {
+    const { a, b, h, m, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const y = lotsValue(params, m);
+    const c = instantC(params);
+    const answer = [kTex(params), texNum(y), lnTex(c, b)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} Build its rate of change at $t = ${m * h}$: $k$, times $${story.sym}$ at that moment, then the exact rate.`,
+        },
+      ],
+      template: `\\frac{d${story.sym}}{dt} = {0} \\times {1} = {2}`,
+      bank: fillBank(answer, [
+        kTex({ ...params, down: !down }),
+        h === 1 ? `\\frac{1}{\\ln ${b}}` : `\\frac{${h}}{\\ln ${b}}`,
+        texNum(a),
+        lnTex((down ? -1 : 1) * y, b),
+        texNum(c),
+      ]),
+      answer,
+    };
+  },
+  solution: instantSolution,
+};
+
+interface CurveParams {
+  a: number;
+  /** The rate as a percentage: k = p / 100. */
+  p: number;
+  down: boolean;
+  t1: number;
+  t2: number;
+  atEnd: boolean;
+  ctx: number;
+}
+
+/**
+ * The chord against the tangent, one fork at a time: which way the model
+ * goes, whether its curve steepens, and so how the rate at one end of a
+ * stretch compares with the average over it.
+ */
+const expmRateCompareFlow: Generator<CurveParams> = {
+  id: 'expm-rate-compare-flow',
+  sample: (rng, difficulty) => {
+    const t1 = rng.int(0, 4);
+    return {
+      a: rng.pick(READ_STARTS),
+      p: rng.pick([5, 10, 15, 20, 25, 30]),
+      down: rng.chance(0.5),
+      t1,
+      t2: t1 + rng.int(2, 6),
+      atEnd: difficulty === 1 || rng.chance(0.5),
+      ctx: rng.int(0, 3),
+    };
+  },
+  render: ({ a, p, down, t1, t2, atEnd, ctx }): Slide => {
+    const story = storyOf(down, ctx);
+    const model = decimalModel(a, p / 100, down);
+    const k = ((down ? -1 : 1) * p) / 100;
+    const at = atEnd ? t2 : t1;
+    const where = `So at $t = ${at}$, the ${atEnd ? 'end' : 'start'} of the stretch from $t = ${t1}$ to $t = ${t2}$, is it changing faster or slower than its average rate over the stretch?`;
+    const compare = (curveSteepens: boolean) =>
+      [
+        {
+          label: 'Faster',
+          outcome: curveSteepens === atEnd ? 'There the curve is steeper than the chord joining the ends of the stretch.' : 'That would need the curve steeper there than the chord.',
+        },
+        {
+          label: 'Slower',
+          outcome: curveSteepens === atEnd ? 'That would need the curve shallower there than the chord.' : 'There the curve is shallower than the chord joining the ends of the stretch.',
+        },
+        { label: 'At the same rate', outcome: 'An exponential never runs straight, so its chord and its curve part company at the ends.' },
+      ];
+    const expected = down !== atEnd ? 'Faster' : 'Slower';
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, model)} The dashed chord joins $t = ${t1}$ and $t = ${t2}$. Compare its rate at one end with the average, one question at a time.`,
+        },
+        chordFigure(
+          (t) => a * Math.exp(k * t),
+          t1,
+          t2,
+          t2 + 2,
+          `A curve ${down ? 'falling' : 'rising'} from ${a}, with a dashed chord from t = ${t1} to t = ${t2}`,
+        ),
+      ],
+      subject: `${story.sym} = ${model}`,
+      steps: [
+        {
+          id: 'dir',
+          ask: 'Is the model growing or decaying?',
+          branches: [
+            { label: 'Growing', to: 'growSteep' },
+            { label: 'Decaying', to: 'decaySteep' },
+          ],
+        },
+        {
+          id: 'growSteep',
+          ask: 'As $t$ increases, does its curve get steeper or shallower?',
+          branches: [
+            { label: 'Steeper', to: 'growWhere' },
+            { label: 'Shallower', outcome: 'A growing exponential never flattens: its rate is $k$ times an amount that keeps rising.' },
+          ],
+        },
+        {
+          id: 'decaySteep',
+          ask: 'As $t$ increases, does its curve get steeper or shallower?',
+          branches: [
+            { label: 'Steeper', outcome: 'A decaying exponential never steepens: its rate is $k$ times an amount that keeps shrinking.' },
+            { label: 'Shallower', to: 'decayWhere' },
+          ],
+        },
+        { id: 'growWhere', ask: where, branches: compare(true) },
+        { id: 'decayWhere', ask: where, branches: compare(false) },
+      ],
+      answer: [down ? 'Decaying' : 'Growing', down ? 'Shallower' : 'Steeper', expected],
+    };
+  },
+  solution: ({ a, p, down, t1, t2, atEnd, ctx }) => {
+    const { sym } = storyOf(down, ctx);
+    const k = ((down ? -1 : 1) * p) / 100;
+    const f = (t: number) => a * Math.exp(k * t);
+    const avg = (f(t2) - f(t1)) / (t2 - t1);
+    const at = atEnd ? t2 : t1;
+    const rate = k * f(at);
+    return [
+      {
+        text: down
+          ? `It decays, so its rate $k${sym}$ shrinks in size as $${sym}$ does: the curve flattens.`
+          : `It grows, so its rate $k${sym}$ rises with $${sym}$: the curve steepens.`,
+      },
+      {
+        text: `The average over the stretch is the chord's gradient, about $${dec(Number(avg.toFixed(1)))}$. At $t = ${at}$ the rate is about $${dec(Number(rate.toFixed(1)))}$, so it is changing ${down !== atEnd ? 'faster' : 'slower'} there.`,
+      },
+    ];
+  },
+};
+
+type WhichAsk = 'average' | 'instant';
+
+type WhichParams = AvgParams & { ask: WhichAsk; atStart: boolean };
+
+/** Which calculation a question about the rate calls for: a chord, or k times the value. */
+const expmWhichRate: Generator<WhichParams> = {
+  id: 'expm-which-rate',
+  sample: (rng, difficulty) => {
+    const base = sampleAvg(rng, difficulty, difficulty > 1 ? 1 : 0, difficulty > 1);
+    return { ...base, ask: rng.pick(['average', 'instant'] as const), atStart: difficulty > 1 && rng.chance(0.5) };
+  },
+  render: (params): Slide => {
+    const { a, h, m1, m2, down, ctx, ask, atStart } = params;
+    const story = storyOf(down, ctx);
+    const t1 = m1 * h;
+    const t2 = m2 * h;
+    const y1 = texNum(lotsValue(params, m1));
+    const y2 = texNum(lotsValue(params, m2));
+    const ing = down ? 'falling' : 'growing';
+    const question =
+      ask === 'average'
+        ? `On average, how fast was it ${ing} per ${story.unit} between $t = ${t1}$ and $t = ${t2}$?`
+        : `How fast is it ${ing} at the moment $t = ${atStart ? t1 : t2}$?`;
+    const labels = {
+      average: `\\frac{${y2} - ${y1}}{${t2} - ${t1}}`,
+      end: `${kTex(params)} \\times ${y2}`,
+      start: `${kTex(params)} \\times ${y1}`,
+      ratio: `\\frac{${y2}}{${t2}}`,
+    };
+    const right = ask === 'average' ? labels.average : atStart ? labels.start : labels.end;
+    const all = [labels.average, labels.end, labels.start, labels.ratio];
+    const ordered = turned(all, `${all.join('|')}-${ask}-${atStart}`);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} ${question} Which calculation answers that?`,
+        },
+      ],
+      options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
+      correctId: `opt${ordered.indexOf(right)}`,
+    };
+  },
+  solution: (params) => {
+    const { h, m1, m2, ask, atStart, down, ctx } = params;
+    const { sym } = storyOf(down, ctx);
+    if (ask === 'average') {
+      return [
+        { text: 'An average over a stretch is the change divided by the time: the gradient of the chord.' },
+        { tex: `\\frac{${texNum(lotsValue(params, m2))} - ${texNum(lotsValue(params, m1))}}{${m2 * h} - ${m1 * h}} = ${texNum(avgRate(params))}` },
+      ];
+    }
+    const m = atStart ? m1 : m2;
+    return [
+      { text: `How fast at one moment is the rate there, $k${sym}$, using $${sym}$ at that moment: the gradient of the tangent.` },
+      { tex: `${kTex(params)} \\times ${texNum(lotsValue(params, m))} = ${lnOver((down ? -1 : 1) * lotsValue(params, m), params.b, h)}` },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 4: from the rate back ---------- */
+
+interface KFromParams {
+  v: number;
+  p: number;
+  down: boolean;
+  ctx: number;
+}
+
+/** k from a rate and the amount at that moment. */
+const expmKFromRate: Generator<KFromParams> = {
+  id: 'expm-k-from-rate',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const hard = difficulty > 1;
+      const p = rng.pick(hard ? [2, 3, 4, 5, 8, 10, ...HALF_PERCENTS] : [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25]);
+      const v = rng.pick(RATE_AT_VALUES);
+      if (!Number.isInteger((v * p) / 100)) continue;
+      return { v, p, down: hard && rng.chance(0.5), ctx: rng.int(0, 3) };
+    }
+  },
+  choices: ({ v, p, down }) => {
+    const s = down ? -1 : 1;
+    const k = (s * p) / 100;
+    return decimalOptions(k, [s * p, (s * v) / ((v * p) / 100), -k]);
+  },
+  render: ({ v, p, down, ctx }): Slide => {
+    const story = storyOf(down, ctx);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story.subject} is modelled by $${story.sym} = Ae^{kt}$, with $t$ in ${story.unit}s. At the moment $${story.sym} = ${texNum(v)}$, it is ${down ? 'falling' : 'growing'} at ${texNum((v * p) / 100)} ${story.of} per ${story.unit}. What is $k$?`,
+        },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: dec(((down ? -1 : 1) * p) / 100),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ v, p, down, ctx }) => {
+    const { sym } = storyOf(down, ctx);
+    const r = ((down ? -1 : 1) * v * p) / 100;
+    return [
+      { text: `The rate is $\\frac{d${sym}}{dt} = k${sym}$, so $k$ is the rate divided by the amount at that moment.` },
+      { tex: `k = \\frac{${texNum(r)}}{${texNum(v)}} = ${dec(r / v)}` },
+      { text: `That is ${dec(p)}% of the amount per unit of time, ${down ? 'negative because it is falling' : 'positive because it is growing'}.` },
+    ];
+  },
+};
+
+type AmountParams = InstantParams & { lnForm: boolean; p: number; v: number };
+
+/**
+ * The amount at a moment from the rate there and k: rate divided by k. With a
+ * decimal k at difficulty 1; at difficulty 2, often with k = (ln b)/h and the
+ * rate a multiple of ln b.
+ */
+const expmAmountFromRate: Generator<AmountParams> = {
+  id: 'expm-amount-from-rate',
+  sample: (rng, difficulty) => {
+    const instant = sampleInstant(rng, difficulty);
+    const lnForm = difficulty > 1 && rng.chance(0.6);
+    for (;;) {
+      const p = rng.pick([2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 40]);
+      const v = rng.pick(RATE_AT_VALUES);
+      if (!Number.isInteger((v * p) / 100)) continue;
+      return { ...instant, down: lnForm ? instant.down : difficulty > 1 && rng.chance(0.5), lnForm, p, v };
+    }
+  },
+  choices: (params) => {
+    if (params.lnForm) {
+      const { a, b, h } = params;
+      const c = Math.abs(instantC(params));
+      return numberOptions(c * h, [c, c * b * h, a, c * h * h]);
+    }
+    const { p, v } = params;
+    const r = (v * p) / 100;
+    return numberOptions(v, [r, v / 10, v * 10, r * p, v + r]);
+  },
+  render: (params): Slide => {
+    const { a, b, p, v, down, ctx, lnForm } = params;
+    const story = storyOf(down, ctx);
+    const ing = down ? 'falling' : 'growing';
+    const text = lnForm
+      ? `${opening(story, modelTex(a, params))} At one moment it is ${ing} at $${lnTex(Math.abs(instantC(params)), b)}$ ${story.of} per ${story.unit}. What is $${story.sym}$ at that moment?`
+      : `${story.subject} is modelled by $${story.sym} = Ae^{${down ? '-' : ''}${dec(p / 100)}t}$, with $t$ in ${story.unit}s. At one moment it is ${ing} at ${texNum((v * p) / 100)} ${story.of} per ${story.unit}. What is $${story.sym}$ at that moment?`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text }],
+      lead: `${story.sym} =`,
+      keypad: [],
+      answer: String(lnForm ? lotsValue(params, params.m) : v),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { b, h, p, v, down, ctx, lnForm } = params;
+    const { sym } = storyOf(down, ctx);
+    const steps: SolutionStep[] = [{ text: `The rate is $k${sym}$, so $${sym}$ is the rate divided by $k$. The signs cancel for a fall.` }];
+    if (lnForm) {
+      const c = Math.abs(instantC(params));
+      steps.push({
+        tex: chain(`${sym} &= ${lnTex(c, b)} \\div ${h === 1 ? `\\ln ${b}` : `\\frac{\\ln ${b}}{${h}}`}`, `&= ${texNum(c)} \\times ${h} = ${texNum(c * h)}`),
+      });
+      steps.push({ text: `The $\\ln ${b}$ cancels: that is why the rate was given as a multiple of it.` });
+    } else {
+      steps.push({ tex: `${sym} = ${texNum((v * p) / 100)} \\div ${dec(p / 100)} = ${texNum(v)}` });
+    }
+    return steps;
+  },
+};
+
+/** "e^{kt} = 8" and "e^{kt} = \frac{1}{8}" alike. */
+function ratioTex(params: InstantParams): string {
+  const power = params.b ** params.m;
+  return params.down ? `\\frac{1}{${power}}` : `${power}`;
+}
+
+function rateTimeSolution(params: InstantParams): SolutionStep[] {
+  const { a, b, h, m, down, ctx } = params;
+  const { sym } = storyOf(down, ctx);
+  const y = lotsValue(params, m);
+  return [
+    { text: `The rate is $k${sym}$, so first find $${sym}$ itself: divide the rate by $k = ${kTex(params)}$.` },
+    { tex: `${sym} = ${lnTex(instantC(params), b)} \\div ${kTex(params)} = ${texNum(y)}` },
+    { text: `Then it is a question of when $${sym}$ reaches $${texNum(y)}$:` },
+    {
+      tex: chain(
+        `e^{${ktTex(params)}} &= ${texNum(y)} \\div ${texNum(a)} = ${ratioTex(params)}`,
+        `${ktTex(params)} &= ${down ? '-' : ''}${m}\\ln ${b}`,
+        `t &= ${m * h}`,
+      ),
+    },
+  ];
+}
+
+/**
+ * When the rate reaches a value, solved one step at a time: divide off k,
+ * divide off the start, take ln, then t.
+ */
+const expmRateSolveSteps: Generator<InstantParams> = {
+  id: 'expm-rate-solve-steps',
+  sample: (rng, difficulty) => sampleInstant(rng, difficulty, 2),
+  render: (params): Slide => {
+    const { a, b, h, m, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const y = lotsValue(params, m);
+    const c = instantC(params);
+    const model = modelTex(a, params);
+    const kt = ktTex(params);
+    const ratio = ratioTex(params);
+    const minus = down ? '-' : '';
+    const power = b ** m;
+    const sameLog = (x: number, z: number) => Math.abs(Math.log(x) - Math.log(z)) < 1e-9;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, model)} Its rate is $\\frac{d${story.sym}}{dt} = ${kTex(params)} \\times ${story.sym}$. Find when $\\frac{d${story.sym}}{dt} = ${lnTex(c, b)}$ one step at a time: tap the step to do next, then choose what it gives.`,
+        },
+      ],
+      start: [`${kTex(params)} \\times ${model}`, '=', lnTex(c, b)],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${model} = ${texNum(y)}`,
+          bank: stepsBank([
+            `${model} = ${texNum(y)}`,
+            `${model} = ${texNum(Math.abs(c))}`,
+            `${model} = ${lnTex(y, b)}`,
+            `${model} = ${texNum(Math.abs(c) * b)}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `e^{${kt}} = ${ratio}`,
+          bank: stepsBank([
+            `e^{${kt}} = ${ratio}`,
+            `e^{${kt}} = ${texNum(Math.abs(y - a))}`,
+            `e^{${kt}} = ${texNum(y * a)}`,
+            `${kt} = ${ratio}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `${kt} = ${minus}${m}\\ln ${b}`,
+          bank: stepsBank([
+            `${kt} = ${minus}${m}\\ln ${b}`,
+            ...(sameLog(m ** b, power) ? [] : [`${kt} = ${minus}${b}\\ln ${m}`]),
+            `${kt} = ${minus}${m + 1}\\ln ${b}`,
+            `${kt} = e^{${power}}`,
+          ]),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: `t = ${m * h}`,
+          bank: stepsBank([`t = ${m * h}`, `t = ${m}`, `t = ${m * h + h}`, `t = ${h}`, `t = ${m * h - 1}`]),
+        },
+      ],
+    };
+  },
+  solution: rateTimeSolution,
+};
+
+/**
+ * When the rate reaches a value, as a tree: the amount at that moment, how
+ * many times the start it is, that as a power of b, then the time.
+ */
+const expmRateReachTree: Generator<InstantParams> = {
+  id: 'expm-rate-reach-tree',
+  sample: (rng, difficulty) => sampleInstant(rng, difficulty, 2),
+  render: (params): Slide => {
+    const { a, b, h, m, down, ctx } = params;
+    const story = storyOf(down, ctx);
+    const y = lotsValue(params, m);
+    const c = instantC(params);
+    const answer = [y, b ** m, m, m * h].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${opening(story, modelTex(a, params))} When is it ${down ? 'falling' : 'growing'} at $${lnTex(Math.abs(c), b)}$ ${story.of} per ${story.unit}? Fill in $${story.sym}$ at that moment, how many times ${down ? 'smaller than the start' : 'the start'} that is, that as a power of $${b}$, then the time.`,
+        },
+      ],
+      expression: `\\frac{d${story.sym}}{dt} = ${kTex(params)} \\times ${story.sym} = ${lnTex(c, b)}`,
+      nodes: [
+        { id: 'amount', from: [] },
+        { id: 'factor', from: ['amount'] },
+        { id: 'power', from: ['factor'] },
+        { id: 'time', from: ['power'] },
+      ],
+      bank: treeBank(answer, [String(Math.abs(c)), String(y * b), String(m + 1), String((m + 1) * h), String(b * m)]),
+      answer,
+    };
+  },
+  solution: rateTimeSolution,
+};
+
+/* ---------- Level 3, lesson 5: two models at the same rate ---------- */
+
+interface TwoStory {
+  what: string;
+  syms: [string, string];
+  unit: string;
+}
+
+const TWO_STORIES: TwoStory[] = [
+  { what: 'The populations of two towns', syms: ['P', 'Q'], unit: 'year' },
+  { what: 'Two cultures of bacteria', syms: ['M', 'N'], unit: 'hour' },
+  { what: 'Two savings accounts, in pounds,', syms: ['S', 'V'], unit: 'year' },
+  { what: 'The followers of two new accounts', syms: ['F', 'G'], unit: 'week' },
+];
+
+interface TwoRatesParams {
+  a1: number;
+  p1: number;
+  a2: number;
+  p2: number;
+  /** Ask about the long run too, not just t = 0. */
+  later: boolean;
+  ctx: number;
+}
+
+/** Two decimal-k models whose rates at t = 0 differ, and whose k differ. */
+function sampleTwoRates(rng: Rng, difficulty: number): TwoRatesParams {
+  for (;;) {
+    const a1 = rng.pick(READ_STARTS);
+    const a2 = rng.pick(READ_STARTS);
+    const p1 = rng.pick(READ_PERCENTS);
+    const p2 = rng.pick(READ_PERCENTS);
+    if (a1 === a2 || p1 === p2 || a1 * p1 === a2 * p2) continue;
+    return { a1, p1, a2, p2, later: difficulty > 1, ctx: rng.int(0, 3) };
+  }
+}
+
+function twoRatesOpening({ a1, p1, a2, p2, ctx }: TwoRatesParams): string {
+  const story = TWO_STORIES[ctx % TWO_STORIES.length];
+  const [s1, s2] = story.syms;
+  return `${story.what} after $t$ ${story.unit}s are $${s1} = ${decimalModel(a1, p1 / 100, false)}$ and $${s2} = ${decimalModel(a2, p2 / 100, false)}$.`;
+}
+
+function twoRatesSolution({ a1, p1, a2, p2, ctx }: TwoRatesParams): SolutionStep[] {
+  const [s1, s2] = TWO_STORIES[ctx % TWO_STORIES.length].syms;
+  const r1 = (a1 * p1) / 100;
+  const r2 = (a2 * p2) / 100;
+  return [
+    { text: 'At $t = 0$ each rate is $k$ times the start:' },
+    { tex: chain(`\\frac{d${s1}}{dt} &= ${dec(p1 / 100)} \\times ${texNum(a1)} = ${dec(r1)}`, `\\frac{d${s2}}{dt} &= ${dec(p2 / 100)} \\times ${texNum(a2)} = ${dec(r2)}`) },
+    { text: `So $${r1 > r2 ? s1 : s2}$ is growing faster at the start.` },
+    {
+      text: `In the long run the bigger $k$ wins, whatever the starts: $${p1 > p2 ? s1 : s2}$, with $k = ${dec(Math.max(p1, p2) / 100)}$.`,
+    },
+  ];
+}
+
+/** Which of two models is growing faster at the start, and at difficulty 2 later on too. */
+const expmTwoFaster: Generator<TwoRatesParams> = {
+  id: 'expm-two-faster',
+  sample: sampleTwoRates,
+  render: (params): Slide => {
+    const { a1, p1, a2, p2, later, ctx } = params;
+    const [s1, s2] = TWO_STORIES[ctx % TWO_STORIES.length].syms;
+    const start = a1 * p1 > a2 * p2 ? s1 : s2;
+    const long = p1 > p2 ? s1 : s2;
+    const other = (s: string) => (s === s1 ? s2 : s1);
+    let labels: string[];
+    let right: string;
+    if (!later) {
+      right = `${start} is growing faster`;
+      labels = [`${s1} is growing faster`, `${s2} is growing faster`, 'They are growing at the same rate'];
+    } else {
+      right = start === long ? `${start} all the time` : `${start} at first, ${long} later`;
+      labels = [`${s1} at first, ${s2} later`, `${s2} at first, ${s1} later`, `${s1} all the time`, `${s2} all the time`];
+      // Name the right one first, then turn, so it is not always in one place.
+      labels = [right, ...labels.filter((label) => label !== right)];
+      labels = turned(labels, `${a1}-${p1}-${a2}-${p2}-${other(start)}`);
+    }
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${twoRatesOpening(params)} ${later ? 'Which is growing faster at $t = 0$, and which in the long run?' : 'Which is growing faster at $t = 0$?'}`,
+        },
+      ],
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${labels.indexOf(right)}`,
+    };
+  },
+  solution: twoRatesSolution,
+};
+
+/**
+ * Two models compared one fork at a time: faster at the start, bigger k, so
+ * faster later, and at difficulty 2 whether their rates are ever equal.
+ */
+const expmTwoFlow: Generator<TwoRatesParams> = {
+  id: 'expm-two-flow',
+  sample: sampleTwoRates,
+  render: (params): Slide => {
+    const { a1, p1, a2, p2, later, ctx } = params;
+    const [s1, s2] = TWO_STORIES[ctx % TWO_STORIES.length].syms;
+    const start = a1 * p1 > a2 * p2 ? s1 : s2;
+    const long = p1 > p2 ? s1 : s2;
+    const pair = (to?: string, outcome?: string) =>
+      [s1, s2].map((s) => (to ? { label: `$${s}$`, to } : { label: `$${s}$`, outcome: outcome ?? '' }));
+    const future = 'An $e^{kt}$ with the bigger $k$ always ends up ahead, however far behind it starts.';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${twoRatesOpening(params)} Compare how fast they grow, one question at a time.` }],
+      subject: `${s1} \\text{ and } ${s2}`,
+      steps: [
+        { id: 'zero', ask: 'At $t = 0$ each rate is $k$ times the start. Which is growing faster then?', branches: pair('k') },
+        { id: 'k', ask: 'Which has the bigger $k$?', branches: pair('later') },
+        {
+          id: 'later',
+          ask: 'So which is growing faster far into the future?',
+          branches: later ? pair('cross') : pair(undefined, future),
+        },
+        {
+          id: 'cross',
+          ask: 'Are they ever growing at exactly the same rate?',
+          branches: [
+            { label: 'Yes, once', outcome: 'The one behind at the start catches up, and at that moment the two rates are equal.' },
+            { label: 'Never', outcome: 'One ahead at the start with the bigger $k$ as well stays ahead for good.' },
+          ],
+        },
+      ],
+      answer: [`$${start}$`, `$${long}$`, `$${long}$`, ...(later ? [start === long ? 'Never' : 'Yes, once'] : [])],
+    };
+  },
+  solution: (params) => {
+    const steps = twoRatesSolution(params);
+    if (!params.later) return steps;
+    const faster = params.a1 * params.p1 > params.a2 * params.p2;
+    const bigger = params.p1 > params.p2;
+    steps.push({
+      text: faster === bigger ? 'The same one leads at the start and in the long run, so the rates are never equal.' : 'One leads at the start and the other later, so somewhere between, the rates are equal.',
+    });
+    return steps;
+  },
+};
+
+interface TwoParams {
+  b: number;
+  h: number;
+  /** The models' k are p × (ln b)/h and q × (ln b)/h, with p = q + 1. */
+  p: number;
+  q: number;
+  /** The start of the model with the bigger k. */
+  a1: number;
+  /** The rates are equal at t = m × h. */
+  m: number;
+  /** Whether the model with the bigger k is named first. */
+  fastFirst: boolean;
+  ctx: number;
+}
+
+/** The start of the model with the smaller k: q × a2 = p × a1 × b^m. */
+function twoSlowStart({ b, p, q, a1, m }: TwoParams): number {
+  return (p * a1 * b ** m) / q;
+}
+
+/**
+ * Two models whose rates are equal at a whole time. The bigger k starts
+ * smaller, so the other is ahead on rate until t = m h, when
+ * p a1 b^{ps} = q a2 b^{qs} with s = m.
+ */
+function sampleTwo(rng: Rng, difficulty: number): TwoParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const b = rng.pick(hard ? [2, 3] : [2]);
+    const [p, q] = hard ? rng.pick([[2, 1], [3, 2]] as const) : [2, 1];
+    const h = rng.int(1, hard ? 6 : 4);
+    const m = rng.int(1, b === 2 ? 3 : 2);
+    const a1 = rng.int(1, 12) * q;
+    const params = { b, h, p, q, a1, m, fastFirst: rng.chance(0.5), ctx: rng.int(0, 3) };
+    if (a1 < 2 || twoSlowStart(params) > 3000) continue;
+    return params;
+  }
+}
+
+/** c × (ln b)/h as the coefficient of t. */
+function twoK(c: number, b: number, h: number): string {
+  const top = c === 1 ? `\\ln ${b}` : `${c}\\ln ${b}`;
+  return h === 1 ? top : `\\frac{${top}}{${h}}`;
+}
+
+function twoModelTex(start: number, c: number, { b, h }: TwoParams): string {
+  const power = h === 1 ? `${c === 1 ? '' : c}t\\ln ${b}` : `${twoK(c, b, h)}t`;
+  return `${texNum(start)}e^{${power}}`;
+}
+
+function twoOpening(params: TwoParams): { text: string; fast: string; slow: string } {
+  const { p, q, a1, fastFirst, ctx } = params;
+  const story = TWO_STORIES[ctx % TWO_STORIES.length];
+  const [s1, s2] = story.syms;
+  const fast = fastFirst ? s1 : s2;
+  const slow = fastFirst ? s2 : s1;
+  const models: Record<string, string> = {
+    [fast]: twoModelTex(a1, p, params),
+    [slow]: twoModelTex(twoSlowStart(params), q, params),
+  };
+  return {
+    text: `${story.what} after $t$ ${story.unit}s are $${s1} = ${models[s1]}$ and $${s2} = ${models[s2]}$.`,
+    fast,
+    slow,
+  };
+}
+
+function twoSolution(params: TwoParams): SolutionStep[] {
+  const { b, h, p, q, a1, m } = params;
+  const { fast, slow } = twoOpening(params);
+  const a2 = twoSlowStart(params);
+  const u = h === 1 ? `${b}^{t}` : `${b}^{t/${h}}`;
+  const uPow = (n: number) => (n === 1 ? 'u' : `u^{${n}}`);
+  return [
+    { text: `Write $u = ${u}$, so $${fast} = ${texNum(a1)}${uPow(p)}$ and $${slow} = ${texNum(a2)}${uPow(q)}$.` },
+    { text: `Each rate is $k$ times the amount, and both $k$ are whole multiples of $${twoK(1, b, h)}$, which cancels:` },
+    {
+      tex: chain(`${p} \\times ${texNum(a1)}${uPow(p)} &= ${q} \\times ${texNum(a2)}${uPow(q)}`, `u &= \\frac{${texNum(q * a2)}}{${texNum(p * a1)}} = ${b ** m}`),
+    },
+    { text: `$${u} = ${b}^{${m}}$, so $t = ${m * h}$. That is when the rates match, not the sizes.` },
+  ];
+}
+
+/** Slide to the time two models grow at the same rate, over a plot of both. */
+const expmTwoSlider: Generator<TwoParams> = {
+  id: 'expm-two-slider',
+  sample: sampleTwo,
+  render: (params): Slide => {
+    const { b, h, p, q, a1, m } = params;
+    const { text } = twoOpening(params);
+    const a2 = twoSlowStart(params);
+    const answer = m * h;
+    const span = sliderSpan(answer, Math.max(answer + 3, Math.ceil(answer * 1.6)));
+    const base = Math.log(b) / h;
+    const fastCurve = (t: number) => a1 * Math.exp(p * base * t);
+    const slowCurve = (t: number) => a2 * Math.exp(q * base * t);
+    const top = slowCurve(answer) * 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${text} The curves are their sizes; the coloured one has the bigger $k$. Slide to the time at which they are growing at the same rate.`,
+        },
+      ],
+      min: 0,
+      max: span,
+      step: 1,
+      answer,
+      readout: 't = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: top,
+          curves: [{ f: (t) => Math.min(slowCurve(t), top * 2) }, { f: (t) => Math.min(fastCurve(t), top * 2), accent: true }],
+          label: 'Two rising curves, one starting lower and climbing faster',
+        }),
+        ...markerWindow(0, span),
+      },
+    };
+  },
+  solution: twoSolution,
+};
+
+/** The whole time at which two models grow at the same rate, typed. */
+const expmTwoEqual: Generator<TwoParams> = {
+  id: 'expm-two-equal',
+  sample: sampleTwo,
+  choices: ({ h, m }) => numberOptions(m * h, [(m + 1) * h, m, h, 2 * m * h]),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${twoOpening(params).text} At what time are they growing at the same rate?` }],
+    lead: 't =',
+    keypad: [],
+    answer: String(params.m * params.h),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: twoSolution,
+};
+
 /* ---------- registry ---------- */
 
 export const exponentialModelGenerators = [
@@ -2943,4 +4505,25 @@ export const exponentialModelGenerators = [
   expmModelFlow,
   expmModelChoice,
   expmNextTree,
+  expmPercentTiles,
+  expmPercentK,
+  expmPercentFlow,
+  expmRateWords,
+  expmAvgTree,
+  expmAvgReduce,
+  expmAvgSlider,
+  expmAvgRate,
+  expmAvgCompare,
+  expmInstant,
+  expmInstantTiles,
+  expmRateCompareFlow,
+  expmWhichRate,
+  expmKFromRate,
+  expmAmountFromRate,
+  expmRateSolveSteps,
+  expmRateReachTree,
+  expmTwoFaster,
+  expmTwoFlow,
+  expmTwoSlider,
+  expmTwoEqual,
 ];

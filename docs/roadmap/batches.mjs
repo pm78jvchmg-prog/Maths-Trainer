@@ -28,10 +28,7 @@ export const batchesDir = join(dirname(fileURLToPath(import.meta.url)), 'batches
 
 export const STATUSES = ['claimed', 'done'];
 
-/**
- * Batch ids sort B2 before B10, and C2 before C2-widget. A suffix names a
- * widget batch (`C2-widget`) or a concept's later level (`C1-l3`).
- */
+/** Batch ids sort B2 before B10, and C2 before C2-widget. */
 function compareIds(a, b) {
   return a.localeCompare(b, 'en', { numeric: true });
 }
@@ -40,7 +37,7 @@ function compareIds(a, b) {
 export function parseBatch(file, text) {
   const id = file.replace(/\.md$/, '');
   const lines = text.split('\n');
-  const heading = /^# ([BC]\d+(?:-[a-z][a-z0-9]*)?): (.+)$/.exec(lines[0] ?? '');
+  const heading = /^# ([BC]\d+(?:-[a-z0-9]+)?): (.+)$/.exec(lines[0] ?? '');
   if (!heading) throw new Error(`${file}: the first line should be "# ${id}: <batch title>"`);
   if (heading[1] !== id) throw new Error(`${file}: the heading names ${heading[1]}, but the file is ${id}`);
 

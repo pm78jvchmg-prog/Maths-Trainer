@@ -36,6 +36,7 @@ import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 import { IterateSlide } from './iterateSlide';
 import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
+import { TransformSlide } from './transformSlide';
 import { NumberLineSlide } from './numberLineSlide';
 import { draftHasShading } from '../content/numberLine';
 
@@ -521,6 +522,159 @@ export function SliderSlide({ slide, feedback, answer, onAnswer, canEdit }: Slid
   );
 }
 
+/* ---------- Table: fill in a table of terms ---------- */
+
+type TableSlideData = Extract<Slide, { kind: 'table' }>;
+
+/** How many blanks a table holds, which is also the length of its answer. */
+function tableBlanks(slide: TableSlideData): number {
+  return slide.rows.reduce((count, row) => count + row.filter((cell) => cell === null).length, 0);
+}
+
+export function TableSlide(props: SlideProps) {
+  // Narrowed here so the body's hooks never sit behind a conditional return.
+  if (props.slide.kind !== 'table') return null;
+  return <TableBody {...props} slide={props.slide} />;
+}
+
+/**
+ * The table, with its blanks as tap targets and a bank beneath.
+ *
+ * Tap a blank to choose where the next value goes, then a value; tap a filled
+ * blank to take its value back. With no blank chosen a value lands in the first
+ * empty one, so a learner working down the column never has to aim.
+ *
+ * Which blank is chosen is presentation only, like the armed span in
+ * `StepsSlide`. After a wrong answer no cell is marked either way — the frame
+ * says the table is wrong, and which entries are right would be a disclosure.
+ */
+function TableBody({
+  slide,
+  feedback,
+  answer,
+  onAnswer,
+  canEdit,
+}: SlideProps & { slide: TableSlideData }) {
+  const locked = isLocked(feedback, canEdit);
+  const blanks = tableBlanks(slide);
+  const given = Array.isArray(answer) ? answer : [];
+  const filled = Array.from({ length: blanks }, (_, idx) => given[idx] ?? '');
+  const [chosen, setChosen] = useState<number | null>(null);
+
+  // The blank the next value goes into: the chosen one while it is still
+  // empty, otherwise the first empty blank.
+  const target = chosen !== null && filled[chosen] === '' ? chosen : filled.indexOf('');
+
+  const spent = new Map<string, number>();
+  for (const token of filled) {
+    if (token) spent.set(token, (spent.get(token) ?? 0) + 1);
+  }
+
+  const place = (value: string) => {
+    if (locked || target === -1) return;
+    const next = [...filled];
+    next[target] = value;
+    // Carry on from where the learner is working rather than jumping back to
+    // the top: the next empty blank after this one, wrapping round.
+    const after = [...next.keys()].map((step) => (target + 1 + step) % blanks);
+    setChosen(after.find((idx) => next[idx] === '') ?? null);
+    onAnswer(next);
+  };
+
+  const tapBlank = (idx: number) => {
+    if (locked) return;
+    setChosen(idx);
+    if (filled[idx] === '') return;
+    const next = [...filled];
+    next[idx] = '';
+    onAnswer(next);
+  };
+
+  // Blank numbers in reading order, so each null cell knows its answer slot.
+  let counter = 0;
+  const slots = slide.rows.map((row) => row.map((cell) => (cell === null ? counter++ : -1)));
+
+  return (
+    <>
+      <div className="prompt">
+        <Blocks blocks={slide.prompt} />
+      </div>
+
+      <div className={`${frameClass(feedback)} table-frame`}>
+        <table className="term-table">
+          <thead>
+            <tr>
+              {slide.columns.map((header, col) => (
+                <th key={col} scope="col">
+                  <Tex tex={header} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {slide.rows.map((row, r) => (
+              <tr key={r}>
+                {row.map((cell, col) => {
+                  if (cell !== null) {
+                    return <td key={col}>{cell ? <Tex tex={cell} /> : null}</td>;
+                  }
+                  const slot = slots[r][col];
+                  const token = filled[slot];
+                  const focus = !locked && slot === target;
+                  return (
+                    <td key={col}>
+                      <button
+                        type="button"
+                        className={`answer-slot${token ? ' filled' : ''}${focus ? ' focus' : ''}`}
+                        aria-label={token ? `Clear ${token}` : 'Choose this blank'}
+                        disabled={locked}
+                        onClick={() => tapBlank(slot)}
+                      >
+                        {token ? <Tex tex={token} /> : ' '}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="tile-bank">
+        {slide.bank.map((value, idx) => {
+          const placed = spent.get(value) ?? 0;
+          const earlier = slide.bank.slice(0, idx).filter((other) => other === value).length;
+          const used = earlier < placed;
+          return (
+            <button
+              key={idx}
+              type="button"
+              className={`tile${used ? ' used' : ''}`}
+              disabled={locked || used || target === -1}
+              onClick={() => place(value)}
+            >
+              <Tex tex={value} />
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        className="text-button"
+        disabled={locked || filled.every((slot) => slot === '')}
+        onClick={() => {
+          setChosen(null);
+          onAnswer(Array.from({ length: blanks }, () => ''));
+        }}
+      >
+        &#8635; Start over
+      </button>
+    </>
+  );
+}
+
 /* ---------- Dispatcher ---------- */
 
 export function SlideView(props: SlideProps) {
@@ -558,10 +712,14 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'transform':
+      return <TransformSlide {...props} />;
     case 'order':
       return <OrderSlide {...props} />;
     case 'numberLine':
       return <NumberLineSlide {...props} />;
+    case 'table':
+      return <TableSlide {...props} />;
   }
 }
 
@@ -569,6 +727,7 @@ export function SlideView(props: SlideProps) {
 export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
+  if (slide.kind === 'table') return Array.from({ length: tableBlanks(slide) }, () => '');
   if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
   if (
@@ -580,7 +739,9 @@ export function initialAnswer(slide: Slide): Answer {
     return [];
   }
   // A slider too, although its handle is drawn somewhere: where it rests is
-  // not something the learner chose, and it can be the answer.
+  // not something the learner chose, and it can be the answer. A transform
+  // likewise: its live curve is drawn at the identity, which is a curve but
+  // not an answer.
   return '';
 }
 
@@ -588,8 +749,13 @@ export function initialAnswer(slide: Slide): Answer {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate') {
-    const expected = slide.kind === 'tree' ? slide.nodes.length : slide.answer.length;
+  if (
+    slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate' || slide.kind === 'table'
+  ) {
+    const expected =
+      slide.kind === 'tree' ? slide.nodes.length
+        : slide.kind === 'table' ? tableBlanks(slide)
+          : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
   // A proof is answerable once every slot holds a step.
@@ -605,6 +771,9 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
+  // Answerable once any control has been tapped, even back to the identity:
+  // that is a choice, where the untouched curve is not.
+  if (slide.kind === 'transform') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:
   // an illegal reduction still settles its line, and Check has to be reachable
   // or the learner could never find out that it was illegal.

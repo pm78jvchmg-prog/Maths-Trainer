@@ -33,7 +33,7 @@ describe('roadmap batch files', () => {
   });
 
   it('reads a later-level batch id', () => {
-    const batch = parseBatch('C1-l3.md', '# C1-l3: Linear Equations & Inequalities: Rearranging Formulae\n\nStatus: claimed\nBranch: `b`\n');
-    expect(batch).toMatchObject({ id: 'C1-l3', phase: 'C', title: 'Linear Equations & Inequalities: Rearranging Formulae' });
+    const batch = parseBatch('C10-l3.md', '# C10-l3: Exponential Models: Rates in Models\n\nStatus: claimed\nBranch: `b`\n');
+    expect(batch).toMatchObject({ id: 'C10-l3', phase: 'C', status: 'claimed' });
   });
 });

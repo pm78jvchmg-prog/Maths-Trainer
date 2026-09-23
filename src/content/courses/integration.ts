@@ -1119,12 +1119,13 @@ export const integration: Course = {
               prose(
                 'Subtracting two integrals works, but it is quicker to subtract the curves first and integrate once.',
               ),
-              maths('\\left(x^{2} + 4\\right) - \\left(2x - 1\\right) = x^{2} - 2x + 5'),
+              maths('\\left(x^{2} + 4\\right) - \\left(2x - 1\\right)'),
+              maths('= x^{2} - 2x + 5'),
               prose(
                 'The bracket round the bottom curve is the step that goes wrong. Every term of it changes sign: $-(2x - 1)$ is $-2x + 1$, not $-2x - 1$.',
               ),
-              maths('\\int_{0}^{3} \\left(x^{2} - 2x + 5\\right) dx = \\left[\\frac{x^{3}}{3} - x^{2} + 5x\\right]_{0}^{3}'),
-              maths('= 15 - 0 = 15'),
+              maths('\\int_{0}^{3} \\left(x^{2} - 2x + 5\\right) dx'),
+              maths('= \\left[\\frac{x^{3}}{3} - x^{2} + 5x\\right]_{0}^{3} = 15'),
             ),
             ask('int-between-tiles'),
             ask('int-between-given+choice'),
@@ -1179,7 +1180,8 @@ export const integration: Course = {
               },
               prose('Where the curves meet they have the same $y$, so the limits come from setting them equal.'),
               maths('2x^{2} - 3 = 2x + 1'),
-              maths('2x^{2} - 2x - 4 = 0 \\quad \\Rightarrow \\quad 2(x + 1)(x - 2) = 0'),
+              maths('2x^{2} - 2x - 4 = 0'),
+              maths('2(x + 1)(x - 2) = 0'),
               prose('So they meet at $x = -1$ and $x = 2$, and those are the limits.'),
             ),
             askAfter(
@@ -1192,8 +1194,9 @@ export const integration: Course = {
               prose(
                 'With the limits found, the rest is the method from the last lesson. Test a value between them: at $x = 0$ the line gives $1$ and the parabola $-3$, so the line is on top.',
               ),
-              maths('\\left(2x + 1\\right) - \\left(2x^{2} - 3\\right) = -2x^{2} + 2x + 4'),
-              maths('\\int_{-1}^{2} \\left(-2x^{2} + 2x + 4\\right) dx = \\left[-\\frac{2x^{3}}{3} + x^{2} + 4x\\right]_{-1}^{2}'),
+              maths('\\left(2x + 1\\right) - \\left(2x^{2} - 3\\right)'),
+              maths('= -2x^{2} + 2x + 4'),
+              maths('\\left[-\\frac{2x^{3}}{3} + x^{2} + 4x\\right]_{-1}^{2}'),
               maths('= \\frac{20}{3} - \\left(-\\frac{7}{3}\\right) = 9'),
             ),
             ask('int-enclosed-area'),
@@ -1240,8 +1243,9 @@ export const integration: Course = {
                   label: 'The parabolas y = 3 - x^2 and y = 2x^2 enclosing a region between x = -1 and x = 1',
                 }),
               },
-              maths('2x^{2} = 3 - x^{2} \\quad \\Rightarrow \\quad x^{2} = 1 \\quad \\Rightarrow \\quad x = \\pm 1'),
-              maths('\\int_{-1}^{1} \\left(3 - 3x^{2}\\right) dx = \\left[3x - x^{3}\\right]_{-1}^{1} = 2 - (-2) = 4'),
+              maths('2x^{2} = 3 - x^{2}, \\quad x = \\pm 1'),
+              maths('\\int_{-1}^{1} \\left(3 - 3x^{2}\\right) dx'),
+              maths('= \\left[3x - x^{3}\\right]_{-1}^{1} = 4'),
             ),
             ask('int-meet-points', 2),
             ask('int-parabolas-area'),
@@ -1250,7 +1254,8 @@ export const integration: Course = {
               prose(
                 'In every enclosed region so far, top minus bottom has been a quadratic that is zero at both limits. Any such quadratic can be written as $k(x - p)(q - x)$, where $p$ and $q$ are the meeting points, and its integral between them is always the same shape of number.',
               ),
-              maths('\\int_{p}^{q} k(x - p)(q - x) \\, dx = \\frac{k}{6}(q - p)^{3}'),
+              maths('\\int_{p}^{q} k(x - p)(q - x) \\, dx'),
+              maths('= \\frac{k}{6}(q - p)^{3}'),
               prose(
                 'Here $3 - 3x^{2} = 3(x + 1)(1 - x)$, so $k = 3$ and the width is $2$: the area is $\\frac{3}{6} \\times 2^{3} = 4$, as before.',
               ),
@@ -1311,7 +1316,8 @@ export const integration: Course = {
               prose(
                 'Integrating straight through then goes wrong. Here $x^{2} - \\left(x^{2} - 2x + 2\\right) = 2x - 2$, which is negative before the crossing and positive after it.',
               ),
-              maths('\\int_{0}^{2} \\left(2x - 2\\right) dx = \\left[x^{2} - 2x\\right]_{0}^{2} = 0'),
+              maths('\\int_{0}^{2} \\left(2x - 2\\right) dx'),
+              maths('= \\left[x^{2} - 2x\\right]_{0}^{2} = 0'),
               prose('Zero, for a region that plainly has area. The two halves are the same size and opposite in sign.'),
             ),
             askAfter(

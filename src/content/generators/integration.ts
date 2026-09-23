@@ -2002,6 +2002,18 @@ function drawUntil<T>(make: () => T, ok: (value: T) => boolean, fallback: T): T 
   return fallback;
 }
 
+/**
+ * Several short lines of working as one display, left-aligned.
+ *
+ * A phone shows about twenty characters of display maths before a line is cut
+ * off at the edge of the solution panel, and two bracketed quadratics
+ * subtracted run well past that. Breaking the working onto lines of its own is
+ * what keeps every step on screen.
+ */
+function stacked(...rows: string[]): string {
+  return `\\begin{aligned} ${rows.map((row) => `& ${row}`).join(' \\\\ ')} \\end{aligned}`;
+}
+
 /** Options turned by an amount taken from the question, so one draw renders one way. */
 function turned<T>(list: T[], turn: number): T[] {
   const at = ((turn % list.length) + list.length) % list.length;
@@ -2164,13 +2176,16 @@ function betweenSolution({ top, bottom, lower, upper }: BetweenParams) {
       text: `First decide which curve is on top. At $x = ${at}$, $y = ${polyTex(top)}$ gives $${polyAt(top, at)}$ and $y = ${polyTex(bottom)}$ gives $${polyAt(bottom, at)}$, so the first of those is the upper one.`,
     },
     {
-      tex: `\\left(${polyTex(top)}\\right) - \\left(${polyTex(bottom)}\\right) = ${polyTex(gap)}`,
+      tex: stacked(`\\left(${polyTex(top)}\\right)`, `- \\left(${polyTex(bottom)}\\right)`, `= ${polyTex(gap)}`),
     },
     { text: 'Integrate that difference between the limits: upper curve minus lower curve, one integral.' },
     {
-      tex: `\\int_{${lower}}^{${upper}} \\left(${polyTex(gap)}\\right) dx = \\left[${antiTex(gap)}\\right]_{${lower}}^{${upper}}`,
+      tex: stacked(
+        `\\int_{${lower}}^{${upper}} \\left(${polyTex(gap)}\\right) dx`,
+        `= \\left[${antiTex(gap)}\\right]_{${lower}}^{${upper}}`,
+        `= ${fu} - \\left(${fl}\\right) = ${fu - fl}`,
+      ),
     },
-    { tex: `= ${fu} - \\left(${fl}\\right) = ${fu - fl}` },
     {
       text: 'The bracket round the lower curve is the step that goes wrong: every one of its terms changes sign, not just the first.',
     },
@@ -2327,8 +2342,18 @@ const betweenTree: Generator<TreeParams> = {
     const under = sixIntegral(bottom, lower, upper) / 6;
     return [
       { text: 'The region between the curves is what lies under the upper one and not under the lower one, so integrate each and subtract.' },
-      { tex: `\\int_{${lower}}^{${upper}} \\left(${polyTex(top)}\\right) dx = \\left[${antiTex(top)}\\right]_{${lower}}^{${upper}} = ${over}` },
-      { tex: `\\int_{${lower}}^{${upper}} \\left(${polyTex(bottom)}\\right) dx = \\left[${antiTex(bottom)}\\right]_{${lower}}^{${upper}} = ${under}` },
+      {
+        tex: stacked(
+          `\\int_{${lower}}^{${upper}} \\left(${polyTex(top)}\\right) dx`,
+          `= \\left[${antiTex(top)}\\right]_{${lower}}^{${upper}} = ${over}`,
+        ),
+      },
+      {
+        tex: stacked(
+          `\\int_{${lower}}^{${upper}} \\left(${polyTex(bottom)}\\right) dx`,
+          `= \\left[${antiTex(bottom)}\\right]_{${lower}}^{${upper}} = ${under}`,
+        ),
+      },
       { tex: `${over} - \\left(${under}\\right) = ${over - under}` },
       {
         text:
@@ -2406,7 +2431,14 @@ function sidesSolution({ first, second, roots, lower, upper, verdict }: SidesPar
   const at = testPoint(lower, upper);
   return [
     { text: 'Subtract one curve from the other and see where the difference is positive.' },
-    { tex: `\\left(${polyTex(first)}\\right) - \\left(${polyTex(second)}\\right) = ${polyTex(gap)} = ${factorisedTex(k, roots[0], roots[1])}` },
+    {
+      tex: stacked(
+        `\\left(${polyTex(first)}\\right)`,
+        `- \\left(${polyTex(second)}\\right)`,
+        `= ${polyTex(gap)}`,
+        `= ${factorisedTex(k, roots[0], roots[1])}`,
+      ),
+    },
     {
       text: `The curves meet where this is zero, at $x = ${roots[0]}$ and $x = ${roots[1]}$, and only there can the higher one change.`,
     },
@@ -2462,7 +2494,7 @@ const regionFlow: Generator<SidesParams> = {
         text: `Decide how to find the area between these curves from $x = ${lower}$ to $x = ${upper}$. Each answer chooses what gets asked next.`,
       },
     ],
-    subject: `y_1 = ${polyTex(first)}, \\quad y_2 = ${polyTex(second)}`,
+    subject: `\\begin{aligned} y_1 &= ${polyTex(first)} \\\\ y_2 &= ${polyTex(second)} \\end{aligned}`,
     steps: [
       {
         id: 'cross',
@@ -2539,9 +2571,8 @@ function meetSolution({ curve, other, p, q }: MeetParams) {
   const k = coefficientOf(gap, 2);
   return [
     { text: 'Where the curves meet they share a $y$ value, so set the two right-hand sides equal and gather everything on one side.' },
-    { tex: `${polyTex(curve)} = ${polyTex(other)}` },
-    { tex: `${polyTex(gap)} = 0` },
-    { tex: `${factorisedTex(k, p, q)} = 0` },
+    { tex: stacked(`${polyTex(curve)}`, `= ${polyTex(other)}`) },
+    { tex: stacked(`${polyTex(gap)} = 0`, `${factorisedTex(k, p, q)} = 0`) },
     {
       text: `So $x = ${p}$ or $x = ${q}$. These are the limits of the region the curves enclose: it runs from one meeting point to the other.`,
     },
@@ -2573,29 +2604,38 @@ const meetPoints: Generator<MeetParams> = {
   solution: meetSolution,
 };
 
-/** The slider's track, which is also the figure's width. */
-const MEET_MIN = -5;
-const MEET_MAX = 7;
+interface MeetSliderParams extends MeetParams {
+  /** How far the track runs past each meeting point, so the answer's place on it varies. */
+  left: number;
+  right: number;
+}
+
+/** Where the handle rests before it is touched: the snapped middle of the track. */
+const restingOn = (min: number, max: number): number => min + Math.round((max - min) / 2);
 
 /**
  * The right-hand meeting point, dragged to on a picture of the two curves.
  *
  * The algebra and the picture are one fact seen twice, and a learner who has
- * solved for the limits should be able to point at them. The answer is never
- * where the handle rests before it is touched.
+ * solved for the limits should be able to point at them. The track is framed
+ * round the meeting points with a margin drawn each side, so the picture is
+ * about the region rather than mostly empty, and the answer sits at no fixed
+ * distance from either end. It is never where the handle rests.
  */
-const meetSlider: Generator<MeetParams> = {
+const meetSlider: Generator<MeetSliderParams> = {
   id: 'int-meet-slider',
   sample: (rng, difficulty) =>
     drawUntil(
-      () => sampleMeet(rng, difficulty),
-      ({ q }) => q !== MEET_MIN + Math.round((MEET_MAX - MEET_MIN) / 2),
-      { curve: [-1, 0, 1], other: [1, 1, 0], p: -1, q: 2, swap: false },
+      () => ({ ...sampleMeet(rng, difficulty), left: rng.int(2, 4), right: rng.int(2, 4) }),
+      ({ p, q, left, right }) => q !== restingOn(p - left, q + right),
+      { curve: [-1, 0, 1], other: [1, 1, 0], p: -1, q: 2, swap: false, left: 2, right: 3 },
     ),
   render: (params): Slide => {
-    const { curve, other, p, q } = params;
+    const { curve, other, p, q, left, right } = params;
     const [first, second] = meetNames(params);
-    const { yMin, yMax } = windowFor([curve, other], p - 1.5, q + 1.5);
+    const min = p - left;
+    const max = q + right;
+    const { yMin, yMax } = windowFor([curve, other], p - 1, q + 1);
     return {
       kind: 'slider',
       prompt: [
@@ -2604,21 +2644,21 @@ const meetSlider: Generator<MeetParams> = {
           text: `The curves $y = ${first}$ and $y = ${second}$ meet twice. Slide the marker to the right-hand meeting point.`,
         },
       ],
-      min: MEET_MIN,
-      max: MEET_MAX,
+      min,
+      max,
       step: 1,
       answer: q,
       readout: 'x = {v}',
       figure: {
         svg: plotSvg({
-          xMin: MEET_MIN,
-          xMax: MEET_MAX,
+          xMin: min,
+          xMax: max,
           yMin,
           yMax,
           curves: [{ f: (x) => polyAt(curve, x) }, { f: (x) => polyAt(other, x), accent: true }],
           label: 'Two curves crossing each other twice',
         }),
-        ...markerWindow(MEET_MIN, MEET_MAX),
+        ...markerWindow(min, max),
         axis: 'x',
       },
     };
@@ -2672,9 +2712,15 @@ const setupIntegral: Generator<MeetParams> = {
     const bottom = k < 0 ? other : curve;
     const at = testPoint(p, q);
     return [
-      ...meetSolution(params).slice(0, 4),
+      ...meetSolution(params).slice(0, 3),
       { text: `So the limits are $${p}$ and $${q}$. Between them, at $x = ${at}$, $y = ${polyTex(top)}$ gives $${polyAt(top, at)}$ and $y = ${polyTex(bottom)}$ gives $${polyAt(bottom, at)}$, so the first is on top.` },
-      { tex: `\\left(${polyTex(top)}\\right) - \\left(${polyTex(bottom)}\\right) = ${polyTex(polySub(top, bottom))}` },
+      {
+        tex: stacked(
+          `\\left(${polyTex(top)}\\right)`,
+          `- \\left(${polyTex(bottom)}\\right)`,
+          `= ${polyTex(polySub(top, bottom))}`,
+        ),
+      },
       { text: 'Upper minus lower, between the meeting points. Nothing about the axis enters into it.' },
     ];
   },
@@ -2753,9 +2799,17 @@ function enclosedChoices(params: EnclosedParams) {
   const area = enclosedArea(params);
   const cube = k * (q - p) ** 3;
   const whole = [cube / 4, cube / 8].filter((value) => Number.isInteger(value));
+  // Subtracting only the lower curve's leading term and adding the rest of it,
+  // integrated between the right limits. It depends on the curves themselves,
+  // which also spreads the correct answer across the four slots: the other
+  // options depend only on the width and the scale, so on their own they
+  // rotate the same way for every question of one size.
+  const [b0, b1] = [coefficientOf(params.bottom, 0), coefficientOf(params.bottom, 1)];
+  const unbracketed = area + 2 * b0 * (q - p) + b1 * (q * q - p * p);
   return options(
     { tex: `${area}`, answer: `${area}` },
     { tex: `${-area}`, answer: `${-area}` },
+    { tex: `${unbracketed}`, answer: `${unbracketed}` },
     ...whole.map((value) => ({ tex: `${value}`, answer: `${value}` })),
     { tex: `${area + q - p}`, answer: `${area + q - p}` },
   ).slice(0, 4);
@@ -2788,12 +2842,16 @@ function enclosedSolution(params: EnclosedParams) {
   const at = testPoint(p, q);
   return [
     { text: 'No limits are given, so they are where the curves meet. Set the curves equal and solve.' },
-    { tex: `${polyTex(gap)} = 0 \\quad \\Rightarrow \\quad ${factorisedTex(-k, p, q)} = 0` },
+    { tex: stacked(`${polyTex(gap)} = 0`, `${factorisedTex(-k, p, q)} = 0`) },
     {
       text: `They meet at $x = ${p}$ and $x = ${q}$. At $x = ${at}$, between them, $y = ${polyTex(top)}$ gives $${polyAt(top, at)}$ and $y = ${polyTex(bottom)}$ gives $${polyAt(bottom, at)}$, so the first is on top.`,
     },
     {
-      tex: `\\int_{${p}}^{${q}} \\left(${polyTex(gap)}\\right) dx = \\left[${antiTex(gap)}\\right]_{${p}}^{${q}} = ${enclosedArea(params)}`,
+      tex: stacked(
+        `\\int_{${p}}^{${q}} \\left(${polyTex(gap)}\\right) dx`,
+        `= \\left[${antiTex(gap)}\\right]_{${p}}^{${q}}`,
+        `= ${enclosedArea(params)}`,
+      ),
     },
     {
       text: `A check that needs no integrating: when top minus bottom is $k(x - p)(q - x)$ the area is $\\frac{k}{6}(q - p)^{3}$, here $\\frac{${k}}{6} \\times ${q - p}^{3} = ${enclosedArea(params)}$.`,
@@ -2838,7 +2896,7 @@ interface SixthParams {
 
 /** (q - x) as it would be written by hand. */
 function rightFactorTex(q: number): string {
-  return q === 0 ? '(-x)' : `(${q} - x)`;
+  return `(${q} - x)`;
 }
 
 /**
@@ -2859,12 +2917,17 @@ const sixthRule: Generator<SixthParams> = {
   },
   choices: ({ k, p, q }) => {
     const cube = k * (q - p) ** 3;
+    // Cubing each limit and subtracting, k(q^3 - p^3)/6. Always whole, since
+    // k(q - p) is a multiple of six whenever k(q - p)^3 is, and it is the one
+    // option that moves with the limits rather than only with the width.
+    const eachCubed = (k * (q ** 3 - p ** 3)) / 6;
     return options(
       { tex: `${cube / 6}`, answer: `${cube / 6}` },
+      { tex: `${eachCubed}`, answer: `${eachCubed}` },
       { tex: `${cube / 3}`, answer: `${cube / 3}` },
       { tex: `${cube / 2}`, answer: `${cube / 2}` },
       { tex: `${cube}`, answer: `${cube}` },
-    );
+    ).slice(0, 4);
   },
   render: ({ k, p, q }): Slide => {
     const width = q - p;
@@ -2892,7 +2955,13 @@ const sixthRule: Generator<SixthParams> = {
     const area = (k * width ** 3) / 6;
     return [
       { text: `The curves meet at $${p}$ and $${q}$, so the width of the region is $${q} - \\left(${p}\\right) = ${width}$.` },
-      { tex: `\\frac{${k}}{6} \\times ${width}^{3} = \\frac{${k} \\times ${width ** 3}}{6} = \\frac{${k * width ** 3}}{6} = ${area}` },
+      {
+        tex: stacked(
+          `\\frac{${k}}{6} \\times ${width}^{3}`,
+          `= \\frac{${k} \\times ${width ** 3}}{6}`,
+          `= \\frac{${k * width ** 3}}{6} = ${area}`,
+        ),
+      },
       {
         text: `The long way gives the same: $\\int_{${p}}^{${q}} ${k === 1 ? '' : k}${factorTex(p)}${rightFactorTex(q)} \\, dx = ${area}$. The rule is that integral done once in general, which is why it only applies when top minus bottom is a quadratic.`,
       },
@@ -2971,9 +3040,11 @@ function crossingSolution(params: CrossingParams) {
     {
       text: `The curves cross at $x = ${cross}$, inside the interval, so the higher curve changes there. Split the integral at the crossing and integrate the difference over each piece.`,
     },
-    { tex: `\\left(${polyTex(first)}\\right) - \\left(${polyTex(second)}\\right) = ${polyTex(gap)}` },
-    { tex: `\\int_{${lower}}^{${cross}} \\left(${polyTex(gap)}\\right) dx = ${left}` },
-    { tex: `\\int_{${cross}}^{${upper}} \\left(${polyTex(gap)}\\right) dx = ${right}` },
+    {
+      tex: stacked(`\\left(${polyTex(first)}\\right)`, `- \\left(${polyTex(second)}\\right)`, `= ${polyTex(gap)}`),
+    },
+    { tex: stacked(`\\int_{${lower}}^{${cross}} \\left(${polyTex(gap)}\\right) dx`, `= ${left}`) },
+    { tex: stacked(`\\int_{${cross}}^{${upper}} \\left(${polyTex(gap)}\\right) dx`, `= ${right}`) },
     {
       text: `One piece is negative because the other curve is on top there. Add the sizes: $${Math.abs(left)} + ${Math.abs(right)} = ${Math.abs(left) + Math.abs(right)}$. Integrating straight through gives $${left + right}$, where the two pieces cancel.`,
     },
@@ -2985,16 +3056,28 @@ const crossingArea: Generator<CrossingParams> = {
   id: 'int-crossing-area',
   sample: sampleCrossing,
   choices: (params) => {
+    const { first, second, lower, cross, upper } = params;
     const [left, right] = crossingPieces(params);
     const total = Math.abs(left) + Math.abs(right);
+    // Splitting one step away from the crossing, where the interval allows it:
+    // the method right and the crossing point wrong. It depends on the shape
+    // of the curves rather than only on the two pieces, which is also what
+    // keeps the correct option from settling into the same slots.
+    const gap = polySub(first, second);
+    const wrong = cross + 1 < upper ? cross + 1 : cross - 1;
+    const misplaced =
+      wrong > lower
+        ? (Math.abs(sixIntegral(gap, lower, wrong)) + Math.abs(sixIntegral(gap, wrong, upper))) / 6
+        : Number.NaN;
     return options(
       { tex: `${total}`, answer: `${total}` },
       // Integrating straight through the crossing.
       { tex: `${Math.abs(left + right)}`, answer: `${Math.abs(left + right)}` },
-      { tex: `${left + right}`, answer: `${left + right}` },
+      ...(Number.isInteger(misplaced) ? [{ tex: `${misplaced}`, answer: `${misplaced}` }] : []),
       // Only the larger piece.
       { tex: `${Math.max(Math.abs(left), Math.abs(right))}`, answer: `${Math.max(Math.abs(left), Math.abs(right))}` },
-      { tex: `${total + params.upper - params.lower}`, answer: `${total + params.upper - params.lower}` },
+      { tex: `${left + right}`, answer: `${left + right}` },
+      { tex: `${total + upper - lower}`, answer: `${total + upper - lower}` },
     ).slice(0, 4);
   },
   render: (params): Slide => {
@@ -3123,7 +3206,7 @@ const netBetween: Generator<NetParams> = {
     {
       text: 'The integral of $y_1 - y_2$ counts the part where $y_1$ is higher as positive and the part where $y_2$ is higher as negative, because there the difference is negative.',
     },
-    { tex: `\\int_{${lower}}^{${upper}} \\left(y_1 - y_2\\right) dx = ${above} - ${below} = ${above - below}` },
+    { tex: stacked(`\\int_{${lower}}^{${upper}} \\left(y_1 - y_2\\right) dx`, `= ${above} - ${below} = ${above - below}`) },
     ask === 'reversed'
       ? { text: `Swapping the curves swaps every sign, so $\\int \\left(y_2 - y_1\\right) dx = ${below - above}$.` }
       : { text: `Area counts both parts as positive: $${above} + ${below} = ${above + below}$.` },

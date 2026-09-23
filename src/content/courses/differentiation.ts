@@ -1889,5 +1889,311 @@ export const differentiation: Course = {
         ask('df-rc-method-flow', 2),
       ],
     },
+    {
+      id: 'df-l8',
+      title: 'Optimisation',
+      lessons: [
+        {
+          id: 'df-l8-build',
+          title: 'Building the Function',
+          slides: [
+            teach(
+              prose(
+                '**Optimisation** means finding the best value of something: the largest area, the least cost. The first job is to write that quantity as a function of **one** variable.',
+              ),
+              prose(
+                'A rectangle with a perimeter of $40$ cm has sides $x$ and $y$, so $2x + 2y = 40$. That **constraint** gives $y = 20 - x$, and the area becomes',
+              ),
+              { kind: 'display', tex: 'A = xy = x(20 - x)' },
+              graph({
+                xMin: -0.5,
+                xMax: 21,
+                yMin: -8,
+                yMax: 115,
+                curves: [{ f: (x) => x * (20 - x) }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [{ x: 5, y: 75 }],
+                label: 'The area of the rectangle against x, a hump from x = 0 to x = 20',
+              }),
+              prose('Check it with a number you can picture: at $x = 5$ the rectangle is $5$ by $15$, and $A = 75$.'),
+            ),
+            ask('df-op-build'),
+            ask('df-op-build+choice', 2),
+            ask('df-op-value'),
+            teach(
+              prose(
+                'An open box is made from a square sheet $30$ cm wide by cutting a square of side $x$ from each corner and folding up the sides. The base is $30 - 2x$ wide and the box is $x$ tall:',
+              ),
+              { kind: 'display', tex: 'V = x(30 - 2x)^{2}' },
+              prose(
+                'At $x = 5$ that is $5 \\times 20^{2} = 2000$ $\\text{cm}^{3}$: the bracket first, then the square, then the height.',
+              ),
+              prose(
+                'When an **area** is fixed rather than a perimeter, the constraint divides instead. A rectangle of area $50$ has $xy = 50$, so $y = \\frac{50}{x}$ and its perimeter is $2x + \\frac{100}{x}$.',
+              ),
+            ),
+            ask('df-op-eliminate'),
+            ask('df-op-value+choice', 2),
+            ask('df-op-eliminate', 2),
+            teach(
+              prose(
+                'Every length in the story has to be positive, and that bounds $x$. For the box, $x > 0$, and the base $30 - 2x$ must be more than zero too:',
+              ),
+              { kind: 'display', tex: '0 < x < 15' },
+              graph({
+                xMin: -0.5,
+                xMax: 16,
+                yMin: -150,
+                yMax: 2300,
+                curves: [{ f: (x) => x * (30 - 2 * x) ** 2 }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: 0, y: 0, hollow: true },
+                  { x: 15, y: 0, hollow: true },
+                ],
+                label: 'The volume of the box against x, zero at x = 0 and x = 15 with a hump between',
+              }),
+              prose('At either end there is no box at all, so the best $x$ is somewhere strictly between.'),
+            ),
+            ask('df-op-domain'),
+            ask('df-op-domain', 2),
+          ],
+          skillCheck: [ask('df-op-build', 2), ask('df-op-eliminate', 2), ask('df-op-domain', 2)],
+        },
+
+        {
+          id: 'df-l8-optimum',
+          title: 'Finding the Optimum',
+          slides: [
+            teach(
+              prose(
+                'At the best value the graph is flat, so **differentiate and set it to zero**. For the rectangle, $A = 20x - x^{2}$:',
+              ),
+              { kind: 'display', tex: '\\frac{dA}{dx} = 20 - 2x = 0' },
+              prose('So $x = 10$ and $A = 10 \\times 10 = 100$: the best rectangle is a square.'),
+              prose(
+                'A fixed area gives a fraction. With $P = 2x + \\frac{100}{x}$, write the fraction as $100x^{-1}$ and use the power rule:',
+              ),
+              { kind: 'display', tex: '\\frac{dP}{dx} = 2 - \\frac{100}{x^{2}}' },
+            ),
+            ask('df-op-derivative'),
+            ask('df-op-derivative+choice', 2),
+            ask('df-op-best-value'),
+            teach(
+              prose('For the box, $V = x(30 - 2x)^{2} = 4x^{3} - 120x^{2} + 900x$, and the derivative factorises:'),
+              { kind: 'display', tex: '\\frac{dV}{dx} = 12(x - 5)(x - 15)' },
+              graph({
+                xMin: -0.5,
+                xMax: 16,
+                yMin: -150,
+                yMax: 2300,
+                curves: [{ f: (x) => x * (30 - 2 * x) ** 2 }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [{ x: 5, y: 2000 }],
+                label: 'The volume of the box against x, peaking at x = 5',
+              }),
+              prose(
+                'At $x = 15$ the base is $0$ wide and there is no box, so the best is $x = 5$: a base $20$ cm wide and $V = 2000$ $\\text{cm}^{3}$.',
+              ),
+            ),
+            ask('df-op-box-tree'),
+            ask('df-op-slider'),
+            ask('df-op-box-tree', 2),
+            teach(
+              prose(
+                'An open box with a square base $x$ cm wide that must hold $32$ $\\text{cm}^{3}$ has height $\\frac{32}{x^{2}}$, so its surface area is',
+              ),
+              { kind: 'display', tex: 'S = x^{2} + \\frac{128}{x}' },
+              { kind: 'display', tex: '\\frac{dS}{dx} = 2x - \\frac{128}{x^{2}} = 0' },
+              prose(
+                'That gives $x^{3} = 64$, so $x = 4$ and $S = 16 + 32 = 48$. A question asking for the least surface area wants $48$, not $4$.',
+              ),
+            ),
+            ask('df-op-slider', 2),
+            ask('df-op-best-value+choice', 2),
+          ],
+          skillCheck: [ask('df-op-derivative', 2), ask('df-op-box-tree', 2), ask('df-op-best-value', 2)],
+        },
+
+        {
+          id: 'df-l8-nature',
+          title: 'Is It a Maximum?',
+          slides: [
+            teach(
+              prose(
+                'Setting the derivative to zero finds **every** stationary point, the lowest as well as the highest. The second derivative tells them apart:',
+              ),
+              { kind: 'display', tex: '\\frac{d^{2}y}{dx^{2}} < 0 \\text{: a maximum}' },
+              { kind: 'display', tex: '\\frac{d^{2}y}{dx^{2}} > 0 \\text{: a minimum}' },
+              prose(
+                'A profit $P = -2x^{3} + 27x^{2} - 84x + 100$ has $\\frac{d^{2}P}{dx^{2}} = -12x + 54$. At $x = 2$ that is $30$, a minimum; at $x = 7$ it is $-30$, a maximum.',
+              ),
+              graph({
+                xMin: -0.4,
+                xMax: 9.2,
+                yMin: -10,
+                yMax: 170,
+                curves: [{ f: (x) => -2 * x ** 3 + 27 * x * x - 84 * x + 100 }],
+                verticals: [{ x: 0, dashed: false }],
+                marks: [
+                  { x: 2, y: 24 },
+                  { x: 7, y: 149 },
+                ],
+                label: 'The profit against x, dipping to a low at x = 2 and rising to a peak at x = 7',
+              }),
+            ),
+            ask('df-op-second'),
+            ask('df-op-nature-flow'),
+            ask('df-op-second', 2),
+            teach(
+              prose(
+                'A cubic has one of each, and the sign in front says which comes first. With a **positive** $x^{3}$ term the curve rises to its maximum and then dips to its minimum; with a **negative** one it is the other way round.',
+              ),
+              prose(
+                'So for $y = 2x^{3} - 15x^{2} + 36x$, whose derivative is $6(x - 2)(x - 3)$, the maximum is at $x = 2$ and the minimum at $x = 3$. The second derivative confirms it: $-6$ at $x = 2$ and $6$ at $x = 3$.',
+              ),
+            ),
+            ask('df-op-cubic-best'),
+            ask('df-op-nature-flow', 2),
+            ask('df-op-cubic-best+choice', 2),
+            teach(
+              prose(
+                'When $x$ is limited to an interval, the **ends** can beat the stationary points. For $y = x^{3} - 12x + 5$ on $0 \\le x \\le 4$, the only stationary point inside is a minimum at $x = 2$, where $y = -11$.',
+              ),
+              graph({
+                xMin: -0.4,
+                xMax: 4.4,
+                yMin: -14,
+                yMax: 24,
+                curves: [{ f: (x) => x ** 3 - 12 * x + 5 }],
+                verticals: [
+                  { x: 0, dashed: false },
+                  { x: 4, dashed: true },
+                ],
+                marks: [
+                  { x: 0, y: 5 },
+                  { x: 2, y: -11 },
+                  { x: 4, y: 21 },
+                ],
+                label: 'y = x cubed minus 12x plus 5 between x = 0 and x = 4, lowest at x = 2 and highest at the right-hand end',
+              }),
+              prose('The greatest value is at an end: $y = 5$ at $x = 0$ and $y = 21$ at $x = 4$, so it is $21$.'),
+            ),
+            ask('df-op-endpoint'),
+            ask('df-op-endpoint+choice', 2),
+          ],
+          skillCheck: [ask('df-op-second', 2), ask('df-op-cubic-best', 2), ask('df-op-endpoint', 2)],
+        },
+
+        {
+          id: 'df-l8-product',
+          title: 'Product Constraints',
+          slides: [
+            teach(
+              prose(
+                'When a **product** is fixed, a sum can be made least. Positive $x$ and $y$ with $xy = 36$ have $y = \\frac{36}{x}$, so',
+              ),
+              { kind: 'display', tex: 'x + y = x + \\frac{36}{x}' },
+              { kind: 'display', tex: '1 - \\frac{36}{x^{2}} = 0' },
+              prose(
+                'So $x = 6$, $y = 6$ and the least sum is $12$. With weights, say $2x + y$, the same steps move the balance: the best is where the two parts are equal, $2x = y$.',
+              ),
+            ),
+            ask('df-op-sum-least'),
+            ask('df-op-eliminate'),
+            ask('df-op-sum-least+choice', 2),
+            teach(
+              prose(
+                'Fixing a solid\'s volume ties its height to its width. A cylinder holding $128\\pi$ has $\\pi r^{2}h = 128\\pi$, so $h = \\frac{128}{r^{2}}$, and its surface area becomes one term that grows with $r$ and one that shrinks.',
+              ),
+              prose('Every function like that has the same shape. A cost $C = 3x + \\frac{48}{x}$:'),
+              graph({
+                xMin: 0,
+                xMax: 10,
+                yMin: 0,
+                yMax: 60,
+                curves: [{ f: (x) => 3 * x + 48 / x, breaks: true }],
+                marks: [{ x: 4, y: 24 }],
+                label: 'C = 3x + 48 over x, falling steeply from the left to a lowest point at x = 4, then rising',
+              }),
+              prose('$\\frac{dC}{dx} = 3 - \\frac{48}{x^{2}} = 0$ gives $x = 4$, where $C = 24$.'),
+            ),
+            ask('df-op-eliminate', 2),
+            ask('df-op-cost-slider'),
+            ask('df-op-cost-slider', 2),
+            teach(
+              prose(
+                'A closed cylinder made from $150\\pi$ $\\text{cm}^{2}$ of sheet has $2\\pi r^{2} + 2\\pi rh = 150\\pi$, so $h = \\frac{75 - r^{2}}{r}$ and',
+              ),
+              { kind: 'display', tex: 'V = \\pi r^{2}h = \\pi(75r - r^{3})' },
+              { kind: 'display', tex: '\\frac{dV}{dr} = \\pi(75 - 3r^{2}) = 0' },
+              prose(
+                'So $r^{2} = 25$ and, as a radius is positive, $r = 5$. Then $h = 10$ and $V = \\pi \\times 25 \\times 10 = 250\\pi$. The best can is as tall as it is wide.',
+              ),
+            ),
+            ask('df-op-cylinder-tree'),
+            ask('df-op-cylinder-tree', 2),
+          ],
+          skillCheck: [ask('df-op-sum-least', 2), ask('df-op-cost-slider', 2), ask('df-op-cylinder-tree', 2)],
+        },
+
+        {
+          id: 'df-l8-reading',
+          title: 'Reading the Answer',
+          slides: [
+            teach(
+              prose(
+                'The stationary point gives the best $x$, which is often not what the question asked for. A pen against a wall with $40$ m of fencing has $A = x(40 - 2x)$, and $\\frac{dA}{dx} = 40 - 4x = 0$ gives $x = 10$.',
+              ),
+              { kind: 'display', tex: '\\text{side along the wall} = 40 - 20 = 20' },
+              { kind: 'display', tex: 'A = 10 \\times 20 = 200' },
+              prose(
+                '"How long should the sides be?" wants $10$ m and $20$ m. "What is the greatest area?" wants $200$ $\\text{m}^{2}$. Read the last line of the question again before answering.',
+              ),
+            ),
+            ask('df-op-which-quantity'),
+            ask('df-op-best-value'),
+            ask('df-op-which-quantity', 2),
+            teach(
+              prose(
+                'The derivative can have roots that make no sense in the story. For the box, $\\frac{dV}{dx} = 12(x - 5)(x - 15)$, but $x = 15$ leaves a base $0$ wide. For the can, $r^{2} = 25$ gives $r = \\pm 5$, and a radius cannot be negative.',
+              ),
+              prose(
+                'So the method runs: build the function in one variable, differentiate, keep the root that fits the story, check it is the kind of point you want, then give the quantity asked for.',
+              ),
+            ),
+            ask('df-op-method-flow'),
+            ask('df-op-domain'),
+            ask('df-op-method-flow', 2),
+            teach(
+              prose(
+                'The sensible domain is a check on everything: the answer must lie inside it, and the value at the answer must beat the values near its ends. For the box, $0 < x < 15$, and $x = 5$ gives far more than $x = 1$ or $x = 14$:',
+              ),
+              { kind: 'display', tex: 'V(1) = 784, \\quad V(14) = 56' },
+            ),
+            ask('df-op-domain', 2),
+            ask('df-op-best-value+choice', 2),
+          ],
+          skillCheck: [ask('df-op-which-quantity', 2), ask('df-op-method-flow', 2), ask('df-op-domain', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('df-op-build', 2),
+        ask('df-op-value+choice', 2),
+        ask('df-op-derivative', 2),
+        ask('df-op-box-tree', 2),
+        ask('df-op-slider', 2),
+        ask('df-op-best-value', 2),
+        ask('df-op-second', 2),
+        ask('df-op-nature-flow', 2),
+        ask('df-op-endpoint', 2),
+        ask('df-op-cubic-best+choice', 2),
+        ask('df-op-sum-least', 2),
+        ask('df-op-cylinder-tree', 2),
+        ask('df-op-cost-slider', 2),
+        ask('df-op-which-quantity', 2),
+        ask('df-op-method-flow', 2),
+      ],
+    },
   ],
 };

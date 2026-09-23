@@ -1618,6 +1618,47 @@ export const exponentsRadicals: Course = {
           ],
           skillCheck: [ask('grow-overtake-slider', 2), ask('grow-compare-tree', 2), ask('grow-long-run', 2)],
         },
+        {
+          id: 'er-l7-backwards',
+          title: 'Working Backwards',
+          slides: [
+            teach(
+              prose(
+                'Working backwards undoes one part of $V = a \\times r^{n}$. The start was multiplied by $r^{n}$, so divide by it. Tripled 4 times to reach 405 means',
+              ),
+              maths('a = 405 \\div 3^{4} = 405 \\div 81 = 5'),
+              prose(
+                'For the number of steps, divide off the start and match the bases, as in level 2: $5 \\times 2^{n} = 320$ gives $2^{n} = 64 = 2^{6}$, so $n = 6$. A percentage undoes the same way: divide by $1.1^{2}$ to undo two years of 10%.',
+              ),
+            ),
+            ask('grow-find-start'),
+            ask('grow-steps-tiles'),
+            ask('grow-find-start+choice', 2),
+            teach(
+              prose(
+                'For the multiplier, compare two values some steps apart. If $V_{2} = 18$ and $V_{5} = 486$, three steps multiplied by $486 \\div 18 = 27$.',
+              ),
+              working('r^{3} &= 27', 'r &= \\sqrt[3]{27} = 3'),
+              prose('Then step back to the start: $18 \\div 3^{2} = 2$.'),
+            ),
+            ask('grow-multiplier-tree'),
+            ask('grow-steps-tiles', 2),
+            ask('grow-multiplier-tree', 2),
+            teach(
+              prose(
+                'Each unknown in $a \\times r^{n} = V$ has its own undo. Divide off the start first, unless the start is what you are after.',
+              ),
+              working(
+                '\\square \\times r^{n} &: \\div r^{n}',
+                'a \\times \\square^{n} &: \\div a, \\text{ then a root}',
+                'a \\times r^{\\square} &: \\div a, \\text{ match bases}',
+              ),
+            ),
+            ask('grow-undo-flow'),
+            ask('grow-undo-flow', 2),
+          ],
+          skillCheck: [ask('grow-find-start', 2), ask('grow-multiplier-tree', 2), ask('grow-undo-flow', 2)],
+        },
       ],
     },
   ],

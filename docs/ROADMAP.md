@@ -445,6 +445,7 @@ are green, and one new lesson has been played in a browser.
 | B30 | Logarithms: Compound Log Equations | **done** (`claude/roadmap-b-logarithms-4-j5p34b`): level `lg-l7`, 5 lessons, a 15-question level check, 19 new generators |
 | B36 | Matrices & Linear Transformations: Invariant Lines & Points | **done** (`claude/roadmap-b-matrices-4-aeufej`): level `vm-l11`, 5 lessons, a 15-question level check, 21 new generators |
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
+| B44 | Vectors: The Angle Between Two Vectors | **done** (`claude/roadmap-b-vectors-5-coq1qw`): level `vm-l12`, 5 lessons, a 14-question level check, 22 new generators |
 
 ### Phase C — the twenty-one new concepts
 

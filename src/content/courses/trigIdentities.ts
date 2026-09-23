@@ -238,5 +238,232 @@ export const trigIdentities: Course = {
         ask('tid-tan-slider', 2),
       ],
     },
+    {
+      id: 'ti-l2',
+      title: 'Compound and Double Angles',
+      lessons: [
+        {
+          id: 'ti-l2-compound',
+          title: 'The Compound-Angle Formulae',
+          slides: [
+            teach(
+              prose(
+                'The sine of a sum is not the sum of the sines: $\\sin(30^{\\circ} + 60^{\\circ}) = 1$, but $\\sin 30^{\\circ} + \\sin 60^{\\circ}$ is more than $1$. The true formulae are',
+              ),
+              maths('\\sin(A \\pm B) = \\sin A\\cos B \\pm \\cos A\\sin B'),
+              maths('\\cos(A \\pm B) = \\cos A\\cos B \\mp \\sin A\\sin B'),
+              prose('Sine keeps the sign and mixes the functions. Cosine flips the sign and keeps them paired.'),
+            ),
+            ask('tid-formula-choice'),
+            ask('tid-expand-tiles'),
+            ask('tid-expand-tiles', 2),
+            teach(
+              prose('Read backwards, the formulae collapse two products into one function of one angle:'),
+              maths('\\cos 25^{\\circ}\\cos 35^{\\circ} - \\sin 25^{\\circ}\\sin 35^{\\circ} = \\cos 60^{\\circ} = \\frac{1}{2}'),
+              prose(
+                'Cosine times cosine first means cosine, and the minus means the angles add. Sine times cosine first means sine, with the same sign in the bracket.',
+              ),
+            ),
+            ask('tid-collapse-tiles'),
+            ask('tid-formula-choice', 2),
+            ask('tid-collapse-tiles', 2),
+            teach(
+              prose(
+                'The formulae need all four of $\\sin A$, $\\cos A$, $\\sin B$ and $\\cos B$. Given one, find its partner from $\\sin^2 + \\cos^2 = 1$. If $\\sin A = \\frac{3}{5}$ and $A$ is acute,',
+              ),
+              maths('\\cos A = \\sqrt{1 - \\tfrac{9}{25}} = \\frac{4}{5}'),
+              prose('Acute means the positive root; the 3, 4, 5 triangle is doing the work.'),
+            ),
+            ask('tid-compound-tree'),
+            ask('tid-compound-tree', 2),
+          ],
+          skillCheck: [
+            ask('tid-expand-tiles', 2),
+            ask('tid-collapse-tiles', 2),
+            ask('tid-compound-tree', 2),
+          ],
+        },
+        {
+          id: 'ti-l2-tan',
+          title: 'The Tangent Formula',
+          slides: [
+            teach(
+              prose('Dividing $\\sin(A + B)$ by $\\cos(A + B)$, then top and bottom by $\\cos A\\cos B$, gives'),
+              maths('\\tan(A \\pm B) = \\frac{\\tan A \\pm \\tan B}{1 \\mp \\tan A\\tan B}'),
+              prose(
+                'The top keeps the sign, the bottom flips it. With $\\tan A = 2$ and $\\tan B = 3$, $\\tan(A + B) = \\frac{5}{1 - 6} = -1$.',
+              ),
+            ),
+            ask('tid-tan-compound-tree'),
+            ask('tid-formula-choice', 2),
+            ask('tid-tan-compound'),
+            teach(
+              prose('When one angle is a table angle, its tangent goes straight in. With $\\tan 45^{\\circ} = 1$,'),
+              maths('\\tan(x + 45^{\\circ}) = \\frac{\\tan x + 1}{1 - \\tan x}'),
+              prose(
+                'With $\\tan 30^{\\circ} = \\frac{1}{\\sqrt{3}}$, multiply top and bottom by $\\sqrt{3}$ to clear the fraction inside the fraction.',
+              ),
+            ),
+            ask('tid-tan-expand-tiles'),
+            ask('tid-formula-choice', 2),
+            ask('tid-tan-expand-tiles', 2),
+            teach(
+              prose('Run the formula backwards to solve. Write $t$ for $\\tan x$:'),
+              maths('\\tan(x + 45^{\\circ}) = 3 \\quad \\Rightarrow \\quad \\frac{t + 1}{1 - t} = 3'),
+              prose('Multiply out: $t + 1 = 3 - 3t$, so $4t = 2$ and $\\tan x = \\frac{1}{2}$.'),
+            ),
+            ask('tid-tan-shift-solve'),
+            ask('tid-tan-shift-solve+choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-tan-compound', 2),
+            ask('tid-tan-expand-tiles', 2),
+            ask('tid-tan-shift-solve', 2),
+          ],
+        },
+        {
+          id: 'ti-l2-exact',
+          title: 'Exact Values from Compound Angles',
+          slides: [
+            teach(
+              prose(
+                '$75^{\\circ}$ is not in the table, but $45^{\\circ} + 30^{\\circ}$ is two angles that are, so the formula gives an exact value:',
+              ),
+              maths(
+                '\\sin 75^{\\circ} = \\sin 45^{\\circ}\\cos 30^{\\circ} + \\cos 45^{\\circ}\\sin 30^{\\circ} = \\frac{\\sqrt{2}}{2} \\cdot \\frac{\\sqrt{3}}{2} + \\frac{\\sqrt{2}}{2} \\cdot \\frac{1}{2}',
+              ),
+              maths('= \\frac{\\sqrt{6} + \\sqrt{2}}{4}'),
+            ),
+            ask('tid-exact-steps'),
+            ask('tid-exact-tiles'),
+            ask('tid-collapse-tiles', 2),
+            teach(
+              prose(
+                'Any angle between table angles can be split this way: $15^{\\circ} = 45^{\\circ} - 30^{\\circ}$, $105^{\\circ} = 60^{\\circ} + 45^{\\circ}$, $165^{\\circ} = 120^{\\circ} + 45^{\\circ}$.',
+              ),
+              prose(
+                'Past $90^{\\circ}$ some table values are negative, and the sign has to go in with the value. Every answer is a quarter of $\\sqrt{6}$ and $\\sqrt{2}$, added or subtracted.',
+              ),
+            ),
+            ask('tid-exact-tiles+choice', 2),
+            ask('tid-exact-steps', 2),
+            ask('tid-collapse-tiles', 2),
+            teach(
+              prose('The tangent formula does the same for tangents:'),
+              maths(
+                '\\tan 15^{\\circ} = \\frac{1 - \\frac{1}{\\sqrt{3}}}{1 + \\frac{1}{\\sqrt{3}}} = \\frac{\\sqrt{3} - 1}{\\sqrt{3} + 1} = 2 - \\sqrt{3}',
+              ),
+              prose('The last step multiplies top and bottom by $\\sqrt{3} - 1$. In the same way $\\tan 75^{\\circ} = 2 + \\sqrt{3}$.'),
+            ),
+            ask('tid-tan-exact-choice'),
+            ask('tid-tan-exact-choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-exact-tiles', 2),
+            ask('tid-exact-steps', 2),
+            ask('tid-tan-exact-choice', 2),
+          ],
+        },
+        {
+          id: 'ti-l2-double',
+          title: 'The Double-Angle Formulae',
+          slides: [
+            teach(
+              prose('Put $B = A$ in the compound-angle formulae:'),
+              maths('\\sin 2A = 2\\sin A\\cos A \\qquad \\tan 2A = \\frac{2\\tan A}{1 - \\tan^2 A}'),
+              maths('\\cos 2A = \\cos^2 A - \\sin^2 A = 2\\cos^2 A - 1 = 1 - 2\\sin^2 A'),
+              prose('The three forms of $\\cos 2A$ come from swapping $\\sin^2 A$ or $\\cos^2 A$ with $\\sin^2 + \\cos^2 = 1$.'),
+            ),
+            ask('tid-double-tiles'),
+            ask('tid-double-collapse-choice'),
+            ask('tid-double-tiles', 2),
+            teach(
+              prose('Backwards, they collapse an expression to one function of twice the angle:'),
+              maths('2\\sin 15^{\\circ}\\cos 15^{\\circ} = \\sin 30^{\\circ} = \\frac{1}{2}'),
+              prose(
+                'They also simplify. Pick the form of $\\cos 2x$ that cancels what is there: $1 - \\cos 2x = 2\\sin^2 x$, and $\\frac{\\sin 2x}{\\sin x} = 2\\cos x$.',
+              ),
+            ),
+            ask('tid-double-collapse-choice', 2),
+            ask('tid-double-steps'),
+            ask('tid-double-steps', 2),
+            teach(
+              prose(
+                'Given $\\cos x = \\frac{3}{5}$ with $x$ acute, $\\sin x = \\frac{4}{5}$ from the 3, 4, 5 triangle, so',
+              ),
+              maths('\\sin 2x = 2 \\cdot \\frac{4}{5} \\cdot \\frac{3}{5} = \\frac{24}{25}'),
+              prose(
+                'Outside the first quadrant, take the triangle for the sizes and the quadrant for the signs.',
+              ),
+            ),
+            ask('tid-double-value'),
+            ask('tid-double-value+choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-double-tiles', 2),
+            ask('tid-double-steps', 2),
+            ask('tid-double-value', 2),
+          ],
+        },
+        {
+          id: 'ti-l2-double-eq',
+          title: 'Double-Angle Equations',
+          slides: [
+            teach(
+              prose('An equation mixing $2x$ and $x$ needs one angle only. Expand the double angle:'),
+              maths('\\sin 2x = \\sin x \\quad \\Rightarrow \\quad 2\\sin x\\cos x - \\sin x = 0'),
+              maths('\\sin x(2\\cos x - 1) = 0'),
+              prose(
+                'So $\\sin x = 0$ or $\\cos x = \\frac{1}{2}$. Dividing by $\\sin x$ instead would have lost every angle where $\\sin x = 0$.',
+              ),
+            ),
+            ask('tid-double-eq-flow'),
+            ask('tid-double-eq-slider'),
+            ask('tid-double-eq-flow', 2),
+            teach(
+              prose(
+                'With $\\cos 2x$, choose the form that leaves one function. Next to $\\cos x$, use $2\\cos^2 x - 1$:',
+              ),
+              maths('\\cos 2x - 3\\cos x + 2 = 0 \\quad \\Rightarrow \\quad 2\\cos^2 x - 3\\cos x + 1 = 0'),
+              prose('Next to $\\sin x$, use $1 - 2\\sin^2 x$. Either way it is a quadratic you already know how to finish.'),
+            ),
+            ask('tid-double-quadratic-tiles'),
+            ask('tid-double-eq-slider', 2),
+            ask('tid-double-quadratic-tiles', 2),
+            teach(
+              prose(
+                'When the equation is in $2x$ alone, solve for $2x$ first, over the doubled range, then halve. For $0^{\\circ} \\le x < 360^{\\circ}$, $2x$ runs from $0^{\\circ}$ to $720^{\\circ}$:',
+              ),
+              maths('\\sin 2x = \\tfrac{1}{2} \\quad \\Rightarrow \\quad 2x = 30^{\\circ}, 150^{\\circ}, 390^{\\circ}, 510^{\\circ}'),
+              prose('So $x = 15^{\\circ}, 75^{\\circ}, 195^{\\circ}, 255^{\\circ}$: twice as many solutions as $\\sin x = \\frac{1}{2}$ has.'),
+            ),
+            ask('tid-double-eq-tree'),
+            ask('tid-double-eq-tree', 2),
+          ],
+          skillCheck: [
+            ask('tid-double-eq-flow', 2),
+            ask('tid-double-quadratic-tiles', 2),
+            ask('tid-double-eq-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('tid-expand-tiles', 2),
+        ask('tid-collapse-tiles', 2),
+        ask('tid-compound-tree', 2),
+        ask('tid-tan-compound+choice', 2),
+        ask('tid-tan-expand-tiles', 2),
+        ask('tid-tan-shift-solve', 2),
+        ask('tid-exact-tiles', 2),
+        ask('tid-exact-steps', 2),
+        ask('tid-tan-exact-choice', 2),
+        ask('tid-double-value', 2),
+        ask('tid-double-collapse-choice', 2),
+        ask('tid-double-steps', 2),
+        ask('tid-double-eq-flow', 2),
+        ask('tid-double-quadratic-tiles', 2),
+        ask('tid-double-eq-tree', 2),
+      ],
+    },
   ],
 };

@@ -56,7 +56,7 @@ const graph = (
 export const differentiation: Course = {
   id: 'differentiation',
   title: 'Differentiation',
-  blurb: 'Rates of change, from the power rule to the chain rule.',
+  blurb: 'Rates of change, from the power rule to stationary points.',
   levels: [
     {
       id: 'df-l1',
@@ -1031,6 +1031,299 @@ export const differentiation: Course = {
         ask('trig-derivative', 2),
         ask('exp-log-derivative', 2),
         ask('df-product-mixed', 2),
+      ],
+    },
+    {
+      id: 'df-l5',
+      title: 'Stationary Points & the Second Derivative',
+      lessons: [
+        {
+          id: 'df-l5-stationary',
+          title: 'Finding Stationary Points',
+          slides: [
+            teach(
+              prose(
+                'A curve is **stationary** wherever its gradient is zero. For an instant it is neither rising nor falling, and its tangent is horizontal.',
+              ),
+              graph({
+                xMin: -3,
+                xMax: 5,
+                yMin: -28,
+                yMax: 16,
+                curves: [{ f: (x) => x ** 3 - 3 * x ** 2 - 9 * x + 5 }],
+                marks: [
+                  { x: -1, y: 10 },
+                  { x: 3, y: -22 },
+                ],
+                label: 'A cubic curve with its two stationary points marked',
+              }),
+              prose(
+                'So finding stationary points is solving one equation: differentiate, then set the derivative equal to zero.',
+              ),
+              { kind: 'display', tex: '\\frac{dy}{dx} = 0' },
+              prose(
+                'For a cubic the derivative is a quadratic, so there are usually two answers, and factorising is the quickest way to both.',
+              ),
+            ),
+            ask('df-sp-roots'),
+            ask('df-sp-slider'),
+            ask('df-sp-roots', 2),
+            teach(
+              prose(
+                'A stationary point is a *point*, so it needs a $y$-coordinate too. That comes from the curve: put the $x$ you found back into $y$, not into $\\frac{dy}{dx}$.',
+              ),
+              { kind: 'display', tex: 'y = x^{3} - 3x^{2} - 9x + 5' },
+              { kind: 'display', tex: 'x = 3: \\quad y = 27 - 27 - 27 + 5 = -22' },
+              prose(
+                'Putting it into the derivative instead gives $0$ every time. That is how the point was found in the first place, and it says nothing about its height.',
+              ),
+            ),
+            ask('df-sp-y'),
+            ask('df-sp-y-tree'),
+            ask('df-sp-slider', 2),
+            teach(
+              prose(
+                'You can say how many stationary points a cubic has before solving anything. Its derivative is a quadratic, and a quadratic\'s discriminant counts its roots.',
+              ),
+              { kind: 'display', tex: '\\frac{d}{dx}\\left(ax^{3} + bx^{2} + cx + d\\right) = 3ax^{2} + 2bx + c' },
+              prose(
+                'A positive discriminant means two stationary points, zero means one, and negative means none at all: the curve runs the same way from end to end.',
+              ),
+              prose(
+                'Take the discriminant of the *derivative*. The cubic\'s own roots are where it crosses the axis, which is a different question.',
+              ),
+            ),
+            ask('df-sp-count'),
+            ask('df-sp-count', 2),
+          ],
+          skillCheck: [ask('df-sp-roots', 2), ask('df-sp-y+choice'), ask('df-sp-count', 2)],
+        },
+
+        {
+          id: 'df-l5-second',
+          title: 'The Second Derivative',
+          slides: [
+            teach(
+              prose(
+                'Differentiating the derivative gives the **second derivative**, written $f\'\'(x)$ or $\\frac{d^{2}y}{dx^{2}}$. It measures how fast the gradient itself is changing.',
+              ),
+              { kind: 'display', tex: 'y = x^{3} - 3x^{2}' },
+              { kind: 'display', tex: '\\frac{dy}{dx} = 3x^{2} - 6x' },
+              { kind: 'display', tex: '\\frac{d^{2}y}{dx^{2}} = 6x - 6' },
+              prose('Nothing new is needed: the same rules, used twice.'),
+            ),
+            ask('df-second-derivative'),
+            ask('df-second-derivative+choice', 2),
+            ask('df-sp-roots'),
+            teach(
+              prose(
+                'At a stationary point the gradient is zero, and the second derivative says which way it is heading as it passes through.',
+              ),
+              prose(
+                'If $f\'\'(x) < 0$ the gradient is falling: the curve rises, flattens and falls, which is a local **maximum**. If $f\'\'(x) > 0$ the gradient is rising, which is a local **minimum**.',
+              ),
+              graph({
+                xMin: -3,
+                xMax: 5,
+                yMin: -28,
+                yMax: 16,
+                curves: [{ f: (x) => x ** 3 - 3 * x ** 2 - 9 * x + 5 }],
+                marks: [
+                  { x: -1, y: 10 },
+                  { x: 3, y: -22 },
+                ],
+                label: 'A cubic with a maximum on the left and a minimum on the right',
+              }),
+              { kind: 'display', tex: 'f\'\'(-1) = -12, \\quad f\'\'(3) = 12' },
+            ),
+            ask('df-second-at'),
+            ask('df-nature-flow'),
+            ask('df-second-at+choice', 2),
+            teach(
+              prose(
+                'When $f\'\'(x) = 0$ at a stationary point, the test says nothing at all. It does not mean a point of inflection.',
+              ),
+              prose(
+                '$y = x^{4}$ and $y = x^{3}$ both have $f\'(0) = 0$ and $f\'\'(0) = 0$, yet the first has a minimum there and the second does not. The next lesson has a test that always works.',
+              ),
+            ),
+            ask('df-nature-flow', 2),
+            ask('df-sp-y+choice', 2),
+          ],
+          skillCheck: [ask('df-second-derivative', 2), ask('df-second-at'), ask('df-nature-flow', 2)],
+        },
+
+        {
+          id: 'df-l5-sign',
+          title: 'Nature by Sign Change',
+          slides: [
+            teach(
+              prose(
+                'The second derivative is quick, but one test never fails: look at the sign of the gradient just before and just after the point.',
+              ),
+              prose(
+                'Positive then negative is rising then falling: a **maximum**. Negative then positive is a **minimum**. The same sign on both sides means the curve only pauses, which is a **stationary point of inflection**.',
+              ),
+              prose(
+                'Test close enough to the point that no other stationary point lies in between, or the sign you find belongs to a different stretch of the curve.',
+              ),
+            ),
+            ask('df-sign-tiles'),
+            ask('df-factored-nature'),
+            ask('df-sign-tiles', 2),
+            teach(
+              prose(
+                'Here are $y = x^{4}$ and $y = x^{3}$ (dashed). Both are flat at $x = 0$, and both have $f\'\'(0) = 0$.',
+              ),
+              graph({
+                xMin: -1.6,
+                xMax: 1.6,
+                yMin: -2.5,
+                yMax: 3,
+                curves: [{ f: (x) => x ** 4 }, { f: (x) => x ** 3, dashed: true }],
+                marks: [{ x: 0, y: 0 }],
+                label: 'The curves x to the fourth and x cubed, both flat at the origin',
+              }),
+              prose(
+                '$x^{4}$ has gradient $4x^{3}$, negative before $0$ and positive after: a minimum. $x^{3}$ has gradient $3x^{2}$, positive on both sides: it pauses and carries on climbing.',
+              ),
+            ),
+            ask('df-nature-flow', 2),
+            ask('df-factored-nature', 2),
+            ask('df-second-at'),
+            teach(
+              prose(
+                'When the derivative comes factorised, the signs can be read without substituting. A factor raised to an **odd** power changes sign at its root; one raised to an **even** power does not.',
+              ),
+              { kind: 'display', tex: '\\frac{dy}{dx} = (x - 2)^{2}(x + 1)' },
+              prose(
+                'At $x = 2$ the squared bracket keeps its sign, so the gradient does too: a stationary point of inflection. At $x = -1$ the single bracket flips from negative to positive: a minimum.',
+              ),
+            ),
+            ask('df-sp-slider'),
+            ask('df-second-at+choice', 2),
+          ],
+          skillCheck: [ask('df-sign-tiles'), ask('df-factored-nature', 2), ask('df-sign-tiles', 2)],
+        },
+
+        {
+          id: 'df-l5-increasing',
+          title: 'Increasing and Decreasing',
+          slides: [
+            teach(
+              prose(
+                'A function is **increasing** where its gradient is positive and **decreasing** where it is negative. One substitution into $f\'(x)$ settles it at any point.',
+              ),
+              prose(
+                'Only the sign matters, so once you can see which way the arithmetic will come out there is no need to finish it.',
+              ),
+              prose(
+                'Where $f\'(x) = 0$ the function is doing neither: it is stationary.',
+              ),
+            ),
+            ask('df-increasing-at'),
+            askAfter(
+              [
+                prose(
+                  'The number itself, this time. Its sign is the whole of the answer to "going up or going down?".',
+                ),
+              ],
+              'evaluate-derivative',
+            ),
+            ask('df-increasing-at', 2),
+            teach(
+              prose(
+                'A smooth function can only switch direction where its gradient is zero. So the stationary points cut the number line into stretches, and the gradient keeps one sign along each.',
+              ),
+              { kind: 'display', tex: 'f\'(x) = 3(x + 1)(x - 3)' },
+              prose(
+                'This is positive for $x < -1$ and for $x > 3$, and negative for $-1 < x < 3$. The function rises, falls, then rises again.',
+              ),
+            ),
+            ask('df-sp-roots'),
+            ask('df-increasing-tiles'),
+            ask('df-sp-slider', 2),
+            teach(
+              prose(
+                'Some functions never turn at all. If $f\'(x)$ is positive everywhere, the function is increasing everywhere.',
+              ),
+              { kind: 'display', tex: 'f(x) = x^{3} + 3x \\quad \\Rightarrow \\quad f\'(x) = 3x^{2} + 3' },
+              prose(
+                'A square is never negative, so $f\'(x)$ is always at least $3$: no stationary points, and the curve climbs from left to right without a pause.',
+              ),
+            ),
+            ask('df-increasing-tiles', 2),
+            ask('df-sp-count', 2),
+          ],
+          skillCheck: [ask('df-increasing-at', 2), ask('df-increasing-tiles', 2), ask('df-increasing-at')],
+        },
+
+        {
+          id: 'df-l5-inflection',
+          title: 'Points of Inflection',
+          slides: [
+            teach(
+              prose(
+                'The second derivative describes how a curve bends. Where $f\'\'(x) > 0$ the gradient is increasing and the curve is **convex**, bending upwards like a bowl.',
+              ),
+              prose(
+                'Where $f\'\'(x) < 0$ the gradient is decreasing and the curve is **concave**, bending downwards like an arch.',
+              ),
+              graph({
+                xMin: -0.5,
+                xMax: 4.5,
+                yMin: -1.5,
+                yMax: 6,
+                curves: [{ f: (x) => x ** 3 - 6 * x ** 2 + 9 * x }],
+                marks: [{ x: 2, y: 2 }],
+                label: 'A cubic that bends downwards on the left and upwards on the right',
+              }),
+            ),
+            ask('df-concavity'),
+            ask('df-second-derivative', 2),
+            ask('df-concavity', 2),
+            teach(
+              prose(
+                'A **point of inflection** is where the bend changes over: $f\'\'(x) = 0$, *and* it changes sign there.',
+              ),
+              { kind: 'display', tex: 'y = x^{3} - 6x^{2} + 9x' },
+              { kind: 'display', tex: '\\frac{d^{2}y}{dx^{2}} = 6x - 12' },
+              prose(
+                'That is zero at $x = 2$ and changes sign there, so $(2, 2)$ is the point of inflection marked above. On a cubic it always sits exactly halfway between the turning points, here at $x = 1$ and $x = 3$.',
+              ),
+            ),
+            ask('df-inflection-x'),
+            ask('df-inflection-flow'),
+            ask('df-inflection-x+choice', 2),
+            teach(
+              prose(
+                'Both conditions matter. $y = x^{4}$ has $f\'\'(0) = 0$ but bends upwards on both sides, so it has no inflection at all.',
+              ),
+              prose(
+                'And an inflection may or may not be flat. If $f\'(x) = 0$ there too, it is a **stationary** point of inflection, like $x^{3}$ at $0$. Otherwise it is non-stationary, like the cubic above at $x = 2$.',
+              ),
+            ),
+            ask('df-inflection-flow', 2),
+            ask('df-second-derivative+choice', 2),
+          ],
+          skillCheck: [ask('df-inflection-x', 2), ask('df-concavity', 2), ask('df-inflection-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('df-sp-roots', 2),
+        ask('df-second-at', 2),
+        ask('df-increasing-tiles', 2),
+        ask('df-nature-flow', 2),
+        ask('df-sp-y+choice', 2),
+        ask('df-concavity', 2),
+        ask('df-sign-tiles', 2),
+        ask('df-second-derivative', 2),
+        ask('df-factored-nature', 2),
+        ask('df-inflection-x', 2),
+        ask('df-sp-slider', 2),
+        ask('df-increasing-at', 2),
+        ask('df-inflection-flow', 2),
+        ask('df-sp-count', 2),
       ],
     },
   ],

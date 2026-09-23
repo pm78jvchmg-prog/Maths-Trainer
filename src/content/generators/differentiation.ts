@@ -8,7 +8,8 @@
  * Throughout, `*Tex` values are what the learner reads and `answer` is what
  * mathjs grades — the two are never the same string.
  */
-import type { Generator, Slide, SolutionStep } from '../types';
+import type { ChoiceOption, Generator, Slide, SolutionStep } from '../types';
+import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import {
   ALGEBRA_KEYS,
@@ -21,7 +22,8 @@ import {
   sumAnswer,
   ddx,
 } from './calculus';
-import { bin, num, pow } from '../expr';
+import { bin, num, pow, valueOf, type Expr } from '../expr';
+import { markerWindow, plotSvg } from '../figures';
 
 /** A non-zero integer, for sampling where 0 would make a degenerate question. */
 function nonZero(value: number, fallback: number): number {
@@ -1660,6 +1662,1771 @@ const tangentLine: Generator<TangentParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 5: stationary points and the second derivative
+ *
+ * Everything below asks about the *shape* of a curve through its
+ * derivatives: where it is flat, which way it is going, which way it bends.
+ * Most of these answers are a number, a position or a verdict rather than a
+ * derivative, so the `source` oracle in `generators.test.ts` only reaches the
+ * one generator that answers with a derivative (`df-second-derivative`).
+ * `stationaryPoints.test.ts` covers the rest: it differentiates each question's
+ * function with mathjs and checks every claimed position, value and verdict
+ * against it, so a generator that disagrees with calculus fails there rather
+ * than in front of a learner.
+ * ====================================================================== */
+
+/**
+ * A cubic whose stationary points sit on whole numbers.
+ *
+ * Built from its derivative rather than from its coefficients. Choosing
+ * f'(x) = 3m(x - p)(x - q) and integrating gives
+ * f(x) = mx^3 - (3m(p + q)/2)x^2 + 3mpq x + d, whose coefficients are whole
+ * whenever m(p + q) is even. Sampling whole coefficients first almost never
+ * lands a turning point on an integer, and a question whose answer is
+ * x = 1.1547 is a calculator exercise rather than calculus.
+ *
+ * `p < q` always, so for m > 0 the left-hand turning point is the maximum.
+ */
+export interface Cubic {
+  m: number;
+  p: number;
+  q: number;
+  d: number;
+}
+
+export function cubicCoefficients({ m, p, q, d }: Cubic): [number, number, number, number] {
+  return [m, (-3 * m * (p + q)) / 2, 3 * m * p * q, d];
+}
+
+export function cubicAt(cubic: Cubic, x: number): number {
+  const [a, b, c, d] = cubicCoefficients(cubic);
+  return a * x ** 3 + b * x ** 2 + c * x + d;
+}
+
+/** f''(x) = 6ax + 2b. */
+function cubicSecondAt(cubic: Cubic, x: number): number {
+  const [a, b] = cubicCoefficients(cubic);
+  return 6 * a * x + 2 * b;
+}
+
+function cubicTex(cubic: Cubic): string {
+  const [a, b, c, d] = cubicCoefficients(cubic);
+  return sumTex([termTex(a, 3), termTex(b, 2), termTex(c, 1), termTex(d, 0)]);
+}
+
+/** The cubic in mathjs syntax, for the independent check. Never displayed. */
+export function cubicSource(cubic: Cubic): string {
+  const [a, b, c, d] = cubicCoefficients(cubic);
+  return sumAnswer([termAnswer(a, 3), termAnswer(b, 2), termAnswer(c, 1), termAnswer(d, 0)]);
+}
+
+function cubicDerivativeTex(cubic: Cubic): string {
+  const [a, b, c] = cubicCoefficients(cubic);
+  return sumTex([termTex(3 * a, 2), termTex(2 * b, 1), termTex(c, 0)]);
+}
+
+function cubicSecondTex(cubic: Cubic): string {
+  const [a, b] = cubicCoefficients(cubic);
+  return lineTex(6 * a, 2 * b);
+}
+
+/** A coefficient written in front of a bracket: 1 and -1 are implied. */
+function leadingTex(k: number): string {
+  return k === 1 ? '' : k === -1 ? '-' : `${k}`;
+}
+
+/** The factor whose root is r: `(x - 2)`, `(x + 3)`, or plain `x`. */
+function rootFactorTex(r: number): string {
+  if (r === 0) return 'x';
+  return r > 0 ? `(x - ${r})` : `(x + ${-r})`;
+}
+
+/** That factor raised to a power, with the bracket kept wherever it is needed. */
+function rootPowerTex(r: number, n: number): string {
+  if (n === 1) return rootFactorTex(r);
+  return r === 0 ? `x^{${n}}` : `${rootFactorTex(r)}^{${n}}`;
+}
+
+/**
+ * k(x - r)^i (x - t)^j as it would be written by hand.
+ *
+ * A bare `x` factor goes first, since `(x - 3)x` reads as a mistake.
+ */
+function factoredTex(k: number, factors: [number, number][]): string {
+  const ordered = [...factors].sort((f, g) => (f[0] === 0 ? -1 : g[0] === 0 ? 1 : 0));
+  return `${leadingTex(k)}${ordered.map(([r, n]) => rootPowerTex(r, n)).join('')}`;
+}
+
+/** The same product in mathjs syntax. */
+function factoredAnswer(k: number, factors: [number, number][]): string {
+  return [`(${k})`, ...factors.map(([r, n]) => `(x - (${r}))^(${n})`)].join(' * ');
+}
+
+/** The derivative of a sampled cubic, factorised: 3m(x - p)(x - q). */
+function cubicFactoredTex({ m, p, q }: Cubic): string {
+  return factoredTex(3 * m, [
+    [p, 1],
+    [q, 1],
+  ]);
+}
+
+/** A trailing constant, signed: `+ 4`, `- 3`, or nothing at all. */
+function constantTex(d: number): string {
+  if (d === 0) return '';
+  return d > 0 ? ` + ${d}` : ` - ${-d}`;
+}
+
+/**
+ * A cubic with whole-number stationary points, at a size worth doing by hand.
+ *
+ * Difficulty 1 keeps m positive, so the maximum is always the left turning
+ * point; difficulty 2 lets the curve turn upside down. `evenSum` asks for a
+ * whole-number point of inflection too, which sits midway between the two.
+ */
+function sampleCubic(
+  rng: Rng,
+  difficulty: number,
+  opts: { evenSum?: boolean; minGap?: number } = {},
+): Cubic {
+  const hard = difficulty >= 2;
+  const span = hard ? 4 : 3;
+  const minGap = opts.minGap ?? 1;
+  for (;;) {
+    const p = rng.int(-span, span);
+    const q = rng.int(-span, span);
+    if (q - p < minGap) continue;
+    const odd = (p + q) % 2 !== 0;
+    if (odd && opts.evenSum) continue;
+    const size = odd ? 2 : rng.pick(hard ? [1, 1, 2] : [1]);
+    // m = 2 with a turning point out at 4 sends the curve past two hundred,
+    // which is arithmetic for its own sake rather than calculus.
+    if (size === 2 && Math.max(Math.abs(p), Math.abs(q)) > 3) continue;
+    return {
+      m: hard ? size * rng.sign() : size,
+      p,
+      q,
+      d: hard ? rng.int(-9, 9) : rng.int(-5, 5),
+    };
+  }
+}
+
+/**
+ * Whole-number tiles: the answer's values, then distractors, topped up with
+ * near misses so there is always something wrong left to place.
+ *
+ * Sorted numerically rather than shuffled, for the same reason every bank in
+ * this course is: `render` has no rng, and a bank that moved between draws of
+ * one question would defeat the deck de-duplicator.
+ */
+function numberTiles(answer: number[], distractors: number[], spare = 3): string[] {
+  const needed = new Set(answer);
+  const extras: number[] = [];
+  const add = (value: number) => {
+    if (!Number.isInteger(value) || needed.has(value) || extras.includes(value)) return;
+    extras.push(value);
+  };
+  for (const value of distractors) {
+    if (extras.length >= spare) break;
+    add(value);
+  }
+  for (let step = 1; extras.length < spare; step += 1) {
+    for (const value of answer) {
+      add(value + step);
+      add(value - step);
+    }
+  }
+  return [...answer, ...extras].sort((x, y) => x - y).map(String);
+}
+
+/** Four whole-number options: the answer, the slips given, then near misses. */
+function numberOptions(correct: number, wrong: number[]): ChoiceOption[] {
+  const seen = new Set([correct]);
+  const picked: number[] = [];
+  for (const value of wrong) {
+    if (picked.length === 3) break;
+    if (!Number.isInteger(value) || seen.has(value)) continue;
+    seen.add(value);
+    picked.push(value);
+  }
+  for (let step = 1; picked.length < 3; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (picked.length === 3) break;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      picked.push(candidate);
+    }
+  }
+  return options(
+    { tex: `${correct}`, answer: `${correct}` },
+    ...picked.sort((x, y) => x - y).map((value) => ({ tex: `${value}`, answer: `${value}` })),
+  );
+}
+
+/** Which of a cubic's two stationary points a question is about. */
+export interface CubicPoint {
+  cubic: Cubic;
+  /** The turning point at p when true, the one at q otherwise. */
+  left: boolean;
+}
+
+export const pointOf = ({ cubic, left }: CubicPoint): number => (left ? cubic.p : cubic.q);
+
+/** The other turning point, which a stationary-point question never asks about. */
+const otherOf = ({ cubic, left }: CubicPoint): number => (left ? cubic.q : cubic.p);
+
+/* ---------- Finding the stationary points ---------- */
+
+/**
+ * Where a cubic is flat, placed as two tiles.
+ *
+ * Unordered, because the two answers of `f'(x) = 0` have no order to them. The
+ * bank carries both roots with their signs flipped — reading the root of
+ * $(x + 3)$ as $3$ is the slip that turns a correct factorisation into two
+ * wrong answers — alongside their sum and product, which are what a learner
+ * reaches for when they half-remember a quadratic's roots.
+ */
+const stationaryRoots: Generator<Cubic> = {
+  id: 'df-sp-roots',
+  sample: (rng, difficulty) => sampleCubic(rng, difficulty),
+  render: (cubic): Slide => ({
+    kind: 'tiles',
+    prompt: [
+      {
+        kind: 'prose',
+        text: 'Find where this curve is flat: differentiate, set the derivative equal to zero, and place both values of $x$.',
+      },
+      { kind: 'display', tex: `y = ${cubicTex(cubic)}` },
+    ],
+    template: 'x = {0} \\quad \\text{and} \\quad x = {1}',
+    bank: numberTiles([cubic.p, cubic.q], [-cubic.p, -cubic.q, cubic.p + cubic.q, cubic.p * cubic.q]),
+    answer: [`${cubic.p}`, `${cubic.q}`],
+    unordered: true,
+  }),
+  solution: (cubic) => {
+    const { m, p, q } = cubic;
+    const steps: SolutionStep[] = [
+      {
+        text: 'A stationary point is where the gradient is zero, so differentiate first.',
+        tex: `\\frac{dy}{dx} = ${cubicDerivativeTex(cubic)}`,
+      },
+      {
+        text: `Set that equal to zero. Every term shares a factor of $${3 * m}$, and what is left factorises.`,
+        tex: `${cubicFactoredTex(cubic)} = 0`,
+      },
+      {
+        text: 'A product is zero only when one of its factors is, which gives both answers at once.',
+        tex: `x = ${p} \\quad \\text{or} \\quad x = ${q}`,
+      },
+    ];
+    if (p !== 0 && q !== 0 && p !== -q) {
+      steps.push({
+        text: `The root of $${rootFactorTex(p)}$ is the number that makes it zero, which is $${p}$ and not $${-p}$. Reading the sign straight off the bracket is how $${-p}$ and $${-q}$ end up in an answer.`,
+      });
+    }
+    return steps;
+  },
+};
+
+/** f(s) as an expression tree, with each term's sign carried by the operator in front of it. */
+function substitutedCubic(cubic: Cubic, s: number): Expr {
+  const [a, b, c, d] = cubicCoefficients(cubic);
+  const scaled = (coefficient: number, inner: Expr): Expr =>
+    Math.abs(coefficient) === 1 ? inner : bin('*', num(Math.abs(coefficient)), inner);
+
+  let expr: Expr =
+    a < 0 ? bin('*', num(a), pow(num(s), num(3))) : scaled(a, pow(num(s), num(3)));
+  const rest: [number, Expr | undefined][] = [
+    [b, pow(num(s), num(2))],
+    [c, num(s)],
+    [d, undefined],
+  ];
+  for (const [coefficient, inner] of rest) {
+    if (coefficient === 0) continue;
+    const term = inner === undefined ? num(Math.abs(coefficient)) : scaled(coefficient, inner);
+    expr = bin(coefficient < 0 ? '-' : '+', expr, term);
+  }
+  return expr;
+}
+
+/**
+ * A bank for every piece of a substitution, built from the slips that piece
+ * invites: a power taken as a product, a negative lost in the square, the
+ * wrong one of adding and subtracting.
+ */
+function substitutionBanks(expr: Expr, path = 'r', out: Record<string, string[]> = {}): Record<string, string[]> {
+  if (expr.kind === 'num') return out;
+  const value = valueOf(expr);
+  const sorted = (bank: string[]) => bank.map(Number).sort((x, y) => x - y).map(String);
+  if (expr.kind === 'power') {
+    const base = valueOf(expr.base);
+    const exponent = valueOf(expr.exponent);
+    out[path] = sorted(bank4(value, -value, base * exponent, base ** (exponent - 1)));
+    substitutionBanks(expr.base, `${path}.b`, out);
+    substitutionBanks(expr.exponent, `${path}.e`, out);
+    return out;
+  }
+  if (expr.kind === 'binary') {
+    const left = valueOf(expr.left);
+    const right = valueOf(expr.right);
+    const slips =
+      expr.op === '*'
+        ? [-value, left + right, left * Math.abs(right)]
+        : expr.op === '+'
+          ? [left - right, right - left, value + 2 * left]
+          : [left + right, right - left, -value];
+    out[path] = sorted(bank4(value, ...slips));
+    substitutionBanks(expr.left, `${path}.l`, out);
+    substitutionBanks(expr.right, `${path}.r`, out);
+  }
+  return out;
+}
+
+/**
+ * The y-coordinate of a stationary point, worked one piece at a time.
+ *
+ * The step after finding x, and the one that most often goes to the wrong
+ * function: $x$ came from $f'(x) = 0$, so it is tempting to substitute back
+ * into $f'$ — which gives $0$ every time, since that is how the point was
+ * found. The prompt shows $f$ alone. The `evaluate` form offers $0$ among its
+ * options for exactly that reason, next to the two sign slips a negative $x$
+ * invites.
+ */
+const stationaryY: Generator<CubicPoint> = {
+  id: 'df-sp-y',
+  sample: (rng, difficulty) => ({ cubic: sampleCubic(rng, difficulty), left: rng.chance(0.5) }),
+  choices: (params) => {
+    const { cubic } = params;
+    const s = pointOf(params);
+    const [a, b] = cubicCoefficients(cubic);
+    const y = cubicAt(cubic, s);
+    return numberOptions(y, [y - 2 * a * s ** 3, y - 2 * b * s ** 2, y - cubic.d, 0]);
+  },
+  render: (params): Slide => {
+    const { cubic } = params;
+    const s = pointOf(params);
+    const expr = substitutedCubic(cubic, s);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This curve is flat at $x = ${s}$. Its $y$-coordinate comes from the curve itself, so substitute into $f(x)$. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+        { kind: 'display', tex: `f(x) = ${cubicTex(cubic)}` },
+      ],
+      expr,
+      banks: substitutionBanks(expr),
+    };
+  },
+  solution: (params) => {
+    const { cubic } = params;
+    const s = pointOf(params);
+    const [a, b, c, d] = cubicCoefficients(cubic);
+    const y = cubicAt(cubic, s);
+    const at = `\\left(${s}\\right)`;
+    const substituted = sumTex([
+      `${leadingTex(a)}${at}^{3}`,
+      b === 0 ? '0' : `${leadingTex(b)}${at}^{2}`,
+      c === 0 ? '0' : `${leadingTex(c)}${at}`,
+      `${d}`,
+    ]);
+    const worked = sumTex([`${a * s ** 3}`, `${b * s ** 2}`, `${c * s}`, `${d}`]);
+    return [
+      {
+        text: `The $x$-coordinate came from $f'(x) = 0$. The $y$-coordinate is the height of the curve there, so it comes from $f$ itself.`,
+        tex: `f(${s}) = ${substituted}`,
+      },
+      {
+        text: 'Powers first, then each multiplication, then the additions from left to right.',
+        tex: `= ${worked === '' ? '0' : worked}`,
+      },
+      {
+        text: 'So the stationary point is:',
+        tex: `\\left(${s}, ${y}\\right)`,
+      },
+      {
+        text: `Substituting into $f'(x)$ instead would give $0$ — which is only a check that $x = ${s}$ really is stationary, not its height.`,
+      },
+    ];
+  },
+};
+
+export interface SymmetricParams {
+  /** f(x) = mx^3 - 3mr^2 x + d, flat at x = r and x = -r. */
+  m: number;
+  r: number;
+  d: number;
+  /** The point at -r when true. */
+  left: boolean;
+}
+
+/**
+ * The same substitution, as the tree the arithmetic really is.
+ *
+ * The cubic has no $x^{2}$ term, so its stationary points are $\pm r$ and the
+ * substitution is two products and a sum: small enough to fit one row of two
+ * on a phone. m is never 1, or the cube and the cubed term would be the same
+ * number in two boxes.
+ */
+const stationaryYTree: Generator<SymmetricParams> = {
+  id: 'df-sp-y-tree',
+  sample: (rng, difficulty) => ({
+    m: difficulty >= 2 ? rng.pick([-3, -2, 2, 3]) : rng.pick([2, 3]),
+    r: rng.int(1, 3),
+    d: difficulty >= 2 ? rng.int(-9, 9) : rng.int(-5, 5),
+    left: rng.chance(0.5),
+  }),
+  render: ({ m, r, d, left }): Slide => {
+    const s = left ? -r : r;
+    const c = -3 * m * r * r;
+    const cube = s ** 3;
+    const cubeTerm = m * cube;
+    const linear = Math.abs(c) * s;
+    const total = cubeTerm + Math.sign(c) * linear + d;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$f(x) = ${sumTex([termTex(m, 3), termTex(c, 1), termTex(d, 0)])}$ is flat at $x = ${s}$. Fill the tree to find the height of the curve there: the top row is what can be done straight away.`,
+        },
+      ],
+      expression: `f(${s}) = ${m} \\times ${bracketedNumber(s)}^{3} ${c < 0 ? '-' : '+'} ${Math.abs(c)} \\times ${bracketedNumber(s)}${constantTex(d)}`,
+      nodes: [
+        { id: 'cube', from: [] },
+        { id: 'linear', from: [] },
+        { id: 'cubeTerm', from: ['cube'] },
+        { id: 'total', from: ['cubeTerm', 'linear'] },
+      ],
+      bank: numberTiles(
+        [cube, linear, cubeTerm, total],
+        [3 * s, -cube, cubeTerm - Math.sign(c) * linear + d, total - d, 0],
+      ),
+      answer: [cube, linear, cubeTerm, total].map(String),
+    };
+  },
+  solution: ({ m, r, d, left }) => {
+    const s = left ? -r : r;
+    const c = -3 * m * r * r;
+    const cubeTerm = m * s ** 3;
+    const linearTerm = c * s;
+    return [
+      {
+        text: 'The derivative has no $x$ term, so it factorises as a difference of two squares, and the curve is flat at a matching pair of points.',
+        tex: `f'(x) = ${sumTex([termTex(3 * m, 2), termTex(c, 0)])} = ${factoredTex(3 * m, [
+          [-r, 1],
+          [r, 1],
+        ])}`,
+      },
+      {
+        text: `Cube $${s}$ before multiplying by $${m}$: $${bracketedNumber(s)}^{3} = ${s ** 3}$${s < 0 ? ', and the cube of a negative stays negative' : ''}.`,
+        tex: `${m} \\times ${s ** 3} = ${cubeTerm}`,
+      },
+      {
+        text: `The other product is $${Math.abs(c)} \\times ${bracketedNumber(s)} = ${Math.abs(c) * s}$, taken ${c < 0 ? 'away' : 'added on'} in the last box along with the constant.`,
+        tex: `f(${s}) = ${cubeTerm} ${linearTerm < 0 ? '-' : '+'} ${Math.abs(linearTerm)}${constantTex(d)} = ${cubeTerm + linearTerm + d}`,
+      },
+    ];
+  },
+};
+
+/** A number as it reads inside a product: negatives get brackets. */
+function bracketedNumber(value: number): string {
+  return value < 0 ? `\\left(${value}\\right)` : `${value}`;
+}
+
+export interface SliderPointParams {
+  cubic: Cubic;
+  want: 'max' | 'min';
+}
+
+/** Where a cubic's local maximum or minimum is. For m > 0 the maximum is on the left. */
+export const extremumOf = ({ cubic, want }: SliderPointParams): number =>
+  (want === 'max') === (cubic.m > 0) ? cubic.p : cubic.q;
+
+/**
+ * A cubic's turning point, found and then dragged to.
+ *
+ * The figure is the point of the widget: a cubic has two flat places and the
+ * question names one, so the learner has to know which hump is the maximum as
+ * well as where the flat places are. The answer is never 0, since an untouched
+ * slider already rests there.
+ */
+const stationarySliderCubic: Generator<SliderPointParams> = {
+  id: 'df-sp-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = { cubic: sampleCubic(rng, difficulty), want: rng.pick(['max', 'min'] as const) };
+      if (extremumOf(params) !== 0) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { cubic, want } = params;
+    const heights = [cubicAt(cubic, cubic.p), cubicAt(cubic, cubic.q)];
+    const low = Math.min(...heights);
+    const high = Math.max(...heights);
+    const pad = (high - low) * 0.45 + 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            want === 'max'
+              ? 'Find the **local maximum** of this curve, the top of its hump, and slide to its $x$-coordinate.'
+              : 'Find the **local minimum** of this curve, the bottom of its dip, and slide to its $x$-coordinate.',
+        },
+        { kind: 'display', tex: `y = ${cubicTex(cubic)}` },
+      ],
+      min: -5,
+      max: 5,
+      step: 1,
+      answer: extremumOf(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -5,
+          xMax: 5,
+          yMin: low - pad,
+          yMax: high + pad,
+          curves: [{ f: (x) => cubicAt(cubic, x) }],
+          label: 'A cubic curve with two turning points',
+        }),
+        ...markerWindow(-5, 5),
+      },
+    };
+  },
+  solution: (params) => {
+    const { cubic, want } = params;
+    const x = extremumOf(params);
+    const other = x === cubic.p ? cubic.q : cubic.p;
+    const second = cubicSecondAt(cubic, x);
+    return [
+      {
+        text: 'Differentiate and set the derivative to zero to find both flat places.',
+        tex: `${cubicFactoredTex(cubic)} = 0 \\quad \\Rightarrow \\quad x = ${cubic.p}, \\; x = ${cubic.q}`,
+      },
+      {
+        text: `The second derivative says which is which: $f''(x) = ${cubicSecondTex(cubic)}$.`,
+        tex: `f''(${x}) = ${second}`,
+      },
+      {
+        text:
+          want === 'max'
+            ? `Negative, so the curve bends downwards at $x = ${x}$: that is the top of the hump. The other flat place, $x = ${other}$, is the bottom of the dip.`
+            : `Positive, so the curve bends upwards at $x = ${x}$: that is the bottom of the dip. The other flat place, $x = ${other}$, is the top of the hump.`,
+      },
+    ];
+  },
+};
+
+export interface CountParams {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  count: 0 | 1 | 2;
+}
+
+/**
+ * How many stationary points a cubic has, without finding them.
+ *
+ * The derivative of a cubic is a quadratic, so the count is its discriminant's
+ * sign. Three is offered because a cubic can have three *roots*, and mixing up
+ * where a curve crosses the axis with where it is flat is the confusion this
+ * question exists to catch.
+ */
+const stationaryCount: Generator<CountParams> = {
+  id: 'df-sp-count',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const count = rng.pick([0, 1, 2] as const);
+    const d = hard ? rng.int(-9, 9) : rng.int(-5, 5);
+    if (count === 2) {
+      const [a, b, c] = cubicCoefficients(sampleCubic(rng, difficulty));
+      return { a, b, c, d, count };
+    }
+    if (count === 1) {
+      // f'(x) = 3a(x - r)^2: a repeated root, flat once.
+      const a = hard ? rng.pick([1, 2, -1, -2]) : rng.pick([1, 2]);
+      const r = rng.int(-3, 3);
+      return { a, b: -3 * a * r, c: 3 * a * r * r, d, count };
+    }
+    for (;;) {
+      const a = hard ? rng.pick([1, 2, 3, -1, -2]) : rng.pick([1, 2]);
+      const b = rng.int(-4, 4);
+      const c = rng.int(1, 12) * Math.sign(a);
+      if (b * b < 3 * a * c) return { a, b, c, d, count: 0 as const };
+    }
+  },
+  render: ({ a, b, c, d, count }): Slide => ({
+    kind: 'choice',
+    prompt: [
+      { kind: 'prose', text: 'How many stationary points does this curve have?' },
+      { kind: 'display', tex: `y = ${sumTex([termTex(a, 3), termTex(b, 2), termTex(c, 1), termTex(d, 0)])}` },
+    ],
+    options: [0, 1, 2, 3].map((n) => ({ id: `n${n}`, label: `${n}` })),
+    correctId: `n${count}`,
+  }),
+  solution: ({ a, b, c, count }) => {
+    const discriminant = 4 * b * b - 12 * a * c;
+    return [
+      {
+        text: 'The curve is flat wherever its derivative is zero, and the derivative of a cubic is a quadratic.',
+        tex: `\\frac{dy}{dx} = ${sumTex([termTex(3 * a, 2), termTex(2 * b, 1), termTex(c, 0)])}`,
+      },
+      {
+        text: 'Its discriminant counts how many times that quadratic is zero.',
+        tex: `\\left(${2 * b}\\right)^{2} - 4 \\times ${bracketedNumber(3 * a)} \\times ${bracketedNumber(c)} = ${discriminant}`,
+      },
+      {
+        text:
+          count === 2
+            ? 'Positive, so the gradient is zero twice: two stationary points.'
+            : count === 1
+              ? 'Zero, so the gradient touches zero once without crossing it: one stationary point.'
+              : 'Negative, so the gradient is never zero: no stationary points at all, and the curve runs one way throughout.',
+      },
+      {
+        text: 'Three is never the answer. A cubic can cross the $x$-axis three times, but its derivative is a quadratic and can be zero at most twice.',
+      },
+    ];
+  },
+};
+
+/* ---------- The second derivative ---------- */
+
+export interface SecondParams {
+  form: 'cubic' | 'quartic' | 'exp' | 'sin' | 'cos' | 'recip';
+  a: number;
+  b: number;
+  c: number;
+  e: number;
+  /** Coefficient of the exponential, trig or reciprocal term. */
+  A: number;
+  /** Inner multiplier of the exponential or trig term. */
+  k: number;
+}
+
+/** A multiplier in front of a function: `3\sin(2x)`, `-\sin(2x)`. */
+function scaledTex(coefficient: number, body: string): string {
+  return `${leadingTex(coefficient)}${body}`;
+}
+
+/** f, f' and f'' in both audiences, worked out once so the prompt, the answer and the solution agree. */
+function secondForms({ form, a, b, c, e, A, k }: SecondParams) {
+  if (form === 'cubic') {
+    return {
+      f: sumTex([termTex(a, 3), termTex(b, 2), termTex(c, 1), termTex(e, 0)]),
+      source: sumAnswer([termAnswer(a, 3), termAnswer(b, 2), termAnswer(c, 1), termAnswer(e, 0)]),
+      first: sumTex([termTex(3 * a, 2), termTex(2 * b, 1), termTex(c, 0)]),
+      firstAnswer: sumAnswer([termAnswer(3 * a, 2), termAnswer(2 * b, 1), termAnswer(c, 0)]),
+      second: lineTex(6 * a, 2 * b),
+      secondAnswer: sumAnswer([termAnswer(6 * a, 1), termAnswer(2 * b, 0)]),
+      keypad: ALGEBRA_KEYS,
+      slips: [
+        {
+          tex: sumTex([termTex(6 * a, 2), termTex(2 * b, 1)]),
+          answer: sumAnswer([termAnswer(6 * a, 2), termAnswer(2 * b, 1)]),
+        },
+        { tex: termTex(6 * a, 1), answer: termAnswer(6 * a, 1) },
+      ],
+    };
+  }
+  if (form === 'quartic') {
+    return {
+      f: sumTex([termTex(a, 4), termTex(b, 3), termTex(c, 2), termTex(e, 1)]),
+      source: sumAnswer([termAnswer(a, 4), termAnswer(b, 3), termAnswer(c, 2), termAnswer(e, 1)]),
+      first: sumTex([termTex(4 * a, 3), termTex(3 * b, 2), termTex(2 * c, 1), termTex(e, 0)]),
+      firstAnswer: sumAnswer([termAnswer(4 * a, 3), termAnswer(3 * b, 2), termAnswer(2 * c, 1), termAnswer(e, 0)]),
+      second: sumTex([termTex(12 * a, 2), termTex(6 * b, 1), termTex(2 * c, 0)]),
+      secondAnswer: sumAnswer([termAnswer(12 * a, 2), termAnswer(6 * b, 1), termAnswer(2 * c, 0)]),
+      keypad: ALGEBRA_KEYS,
+      slips: [
+        {
+          tex: sumTex([termTex(12 * a, 3), termTex(6 * b, 2), termTex(2 * c, 1)]),
+          answer: sumAnswer([termAnswer(12 * a, 3), termAnswer(6 * b, 2), termAnswer(2 * c, 1)]),
+        },
+        {
+          tex: sumTex([termTex(12 * a, 2), termTex(6 * b, 1)]),
+          answer: sumAnswer([termAnswer(12 * a, 2), termAnswer(6 * b, 1)]),
+        },
+      ],
+    };
+  }
+  if (form === 'recip') {
+    // f = ax^2 + A/x, so f' = 2ax - A/x^2 and f'' = 2a + 2A/x^3.
+    const over = (top: number, power: number) =>
+      `${top < 0 ? '-' : ''}\\frac{${Math.abs(top)}}{x^{${power}}}`;
+    return {
+      f: sumTex([termTex(a, 2), over(A, 1).replace('x^{1}', 'x')]),
+      source: `(${a}) * x^2 + (${A}) / x`,
+      first: sumTex([termTex(2 * a, 1), over(-A, 2)]),
+      firstAnswer: `(${2 * a}) * x - (${A}) / x^2`,
+      second: sumTex([`${2 * a}`, over(2 * A, 3)]),
+      secondAnswer: `(${2 * a}) + (${2 * A}) / x^3`,
+      keypad: ALGEBRA_KEYS,
+      slips: [
+        { tex: sumTex([`${2 * a}`, over(-2 * A, 3)]), answer: `(${2 * a}) - (${2 * A}) / x^3` },
+        { tex: sumTex([`${2 * a}`, over(-A, 3)]), answer: `(${2 * a}) - (${A}) / x^3` },
+      ],
+    };
+  }
+  // A cubic term plus one exponential or trig term, each differentiated twice.
+  const cubicPart = termTex(a, 3);
+  const cubicSource = termAnswer(a, 3);
+  const firstCubic = termTex(3 * a, 2);
+  const firstCubicAnswer = termAnswer(3 * a, 2);
+  const secondCubic = termTex(6 * a, 1);
+  const secondCubicAnswer = termAnswer(6 * a, 1);
+  const inner = `${k}x`;
+  if (form === 'exp') {
+    const term = (coefficient: number) => scaledTex(coefficient, `e^{${inner}}`);
+    const answer = (coefficient: number) => `(${coefficient}) * exp(${k} * x)`;
+    return {
+      f: sumTex([cubicPart, term(A)]),
+      source: `${cubicSource} + ${answer(A)}`,
+      first: sumTex([firstCubic, term(A * k)]),
+      firstAnswer: `${firstCubicAnswer} + ${answer(A * k)}`,
+      second: sumTex([secondCubic, term(A * k * k)]),
+      secondAnswer: `${secondCubicAnswer} + ${answer(A * k * k)}`,
+      keypad: EXP_KEYS,
+      slips: [
+        { tex: sumTex([secondCubic, term(A * k)]), answer: `${secondCubicAnswer} + ${answer(A * k)}` },
+        { tex: sumTex([secondCubic, term(A)]), answer: `${secondCubicAnswer} + ${answer(A)}` },
+      ],
+    };
+  }
+  const fn = form;
+  const other = fn === 'sin' ? 'cos' : 'sin';
+  const term = (coefficient: number, name: string) => scaledTex(coefficient, `\\${name}(${inner})`);
+  const answer = (coefficient: number, name: string) => `(${coefficient}) * ${name}(${k} * x)`;
+  // sin -> k cos -> -k^2 sin; cos -> -k sin -> -k^2 cos.
+  const firstCoefficient = fn === 'sin' ? A * k : -A * k;
+  return {
+    f: sumTex([cubicPart, term(A, fn)]),
+    source: `${cubicSource} + ${answer(A, fn)}`,
+    first: sumTex([firstCubic, term(firstCoefficient, other)]),
+    firstAnswer: `${firstCubicAnswer} + ${answer(firstCoefficient, other)}`,
+    second: sumTex([secondCubic, term(-A * k * k, fn)]),
+    secondAnswer: `${secondCubicAnswer} + ${answer(-A * k * k, fn)}`,
+    keypad: TRIG_KEYS,
+    slips: [
+      { tex: sumTex([secondCubic, term(A * k * k, fn)]), answer: `${secondCubicAnswer} + ${answer(A * k * k, fn)}` },
+      { tex: sumTex([secondCubic, term(-A * k, fn)]), answer: `${secondCubicAnswer} + ${answer(-A * k, fn)}` },
+    ],
+  };
+}
+
+/** The function a second-derivative question is about, in mathjs syntax. Never displayed. */
+export const secondDerivativeFunction = (params: SecondParams): string => secondForms(params).source;
+
+/**
+ * Differentiating twice.
+ *
+ * `source` is the *first* derivative, so the oracle in `generators.test.ts`
+ * differentiates it once more and must land on this answer; the independent
+ * check in `stationaryPoints.test.ts` differentiates the original function
+ * twice. The distractors are the three ways of stopping short: the first
+ * derivative itself, a second pass that forgets to lower the powers (or to
+ * bring the chain rule's factor down a second time), and a lost constant or a
+ * lost sign.
+ */
+const secondDerivative: Generator<SecondParams> = {
+  id: 'df-second-derivative',
+  sample: (rng, difficulty) => {
+    const form =
+      difficulty >= 2
+        ? rng.pick(['quartic', 'exp', 'sin', 'cos', 'recip'] as const)
+        : ('cubic' as const);
+    const hard = difficulty >= 2;
+    return {
+      form,
+      a: rng.int(1, hard ? 4 : 5) * (hard ? rng.sign() : 1),
+      b: nonZero(rng.int(-6, 6), 3),
+      c: nonZero(rng.int(-9, 9), -4),
+      e: rng.int(-9, 9),
+      A: rng.int(1, 5) * (hard ? rng.sign() : 1),
+      k: form === 'exp' ? rng.pick([2, 3, -2, -3]) : rng.int(2, 4),
+    };
+  },
+  choices: (params) => {
+    const forms = secondForms(params);
+    return options(
+      { tex: forms.second, answer: forms.secondAnswer },
+      { tex: forms.first, answer: forms.firstAnswer },
+      ...forms.slips,
+    );
+  },
+  render: (params): Slide => {
+    const forms = secondForms(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: 'Differentiate twice to find the second derivative.' },
+        { kind: 'display', tex: `y = ${forms.f}` },
+      ],
+      lead: '\\frac{d^{2}y}{dx^{2}} =',
+      keypad: forms.keypad,
+      answer: forms.secondAnswer,
+      source: forms.firstAnswer,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const forms = secondForms(params);
+    const { form, k } = params;
+    return [
+      {
+        text: 'Differentiate once, exactly as before.',
+        tex: `\\frac{dy}{dx} = ${forms.first}`,
+      },
+      {
+        text: 'Then differentiate that result again, term by term.',
+        tex: `\\frac{d^{2}y}{dx^{2}} = ${forms.second}`,
+      },
+      {
+        text:
+          form === 'cubic' || form === 'quartic'
+            ? 'Each power drops twice and brings two multipliers down with it, so the constant term of the first derivative vanishes on the second pass.'
+            : form === 'recip'
+              ? 'The reciprocal is $x$ to a negative power, and each pass takes the power one further from zero: $-1$, then $-2$, then $-3$, with two sign changes on the way.'
+              : form === 'exp'
+                ? `The chain rule brings down a factor of $${k}$ on each pass, so the exponential term ends up multiplied by $${k}^{2} = ${k * k}$.`
+                : `The chain rule brings down a factor of $${k}$ on each pass, and going from $\\sin$ to $\\cos$ and back picks up exactly one minus sign.`,
+      },
+    ];
+  },
+};
+
+/**
+ * The second derivative at a stationary point: a number whose sign says which
+ * kind of point it is.
+ *
+ * $0$ is among the options because it is $f'$ at that point, which is the
+ * number already known and the one most often written down by mistake.
+ */
+const secondAt: Generator<CubicPoint> = {
+  id: 'df-second-at',
+  sample: (rng, difficulty) => ({ cubic: sampleCubic(rng, difficulty), left: rng.chance(0.5) }),
+  choices: (params) => {
+    const s = pointOf(params);
+    const [a] = cubicCoefficients(params.cubic);
+    const value = cubicSecondAt(params.cubic, s);
+    return numberOptions(value, [0, -value, 6 * a * s, 3 * a * s]);
+  },
+  render: (params): Slide => {
+    const s = pointOf(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This curve is flat at $x = ${params.cubic.p}$ and $x = ${params.cubic.q}$. Find the second derivative at $x = ${s}$.`,
+        },
+        { kind: 'display', tex: `f(x) = ${cubicTex(params.cubic)}` },
+      ],
+      lead: `f''(${s}) =`,
+      keypad: [],
+      answer: `${cubicSecondAt(params.cubic, s)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { cubic } = params;
+    const s = pointOf(params);
+    const [a, b] = cubicCoefficients(cubic);
+    const value = cubicSecondAt(cubic, s);
+    return [
+      {
+        text: 'Differentiate twice.',
+        tex: `f'(x) = ${cubicDerivativeTex(cubic)}, \\quad f''(x) = ${cubicSecondTex(cubic)}`,
+      },
+      {
+        text: `Substitute $x = ${s}$ into the second derivative.`,
+        tex: `f''(${s}) = ${6 * a} \\times ${bracketedNumber(s)}${constantTex(2 * b)} = ${value}`,
+      },
+      {
+        text:
+          value < 0
+            ? `Negative: the gradient is falling as it passes through zero, so $x = ${s}$ is a local maximum.`
+            : `Positive: the gradient is rising as it passes through zero, so $x = ${s}$ is a local minimum.`,
+      },
+      {
+        text: `The other point, $x = ${otherOf(params)}$, gives $f''(${otherOf(params)}) = ${cubicSecondAt(cubic, otherOf(params))}$ — the opposite sign, as it must be for a cubic with two turning points.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Deciding the nature of a stationary point ---------- */
+
+/**
+ * A curve and a point on it, in one of the shapes the nature questions need:
+ * a cubic at a turning point, a cubic somewhere it is not flat, and the two
+ * powers where the second derivative is zero and the test says nothing —
+ * $(x - r)^{4}$, which still has a minimum, and $(x - r)^{3}$, which does not.
+ */
+export type NatureParams =
+  | { form: 'turn'; cubic: Cubic; left: boolean }
+  | { form: 'off'; cubic: Cubic; t: number }
+  | { form: 'quartic' | 'cubed'; k: number; r: number; d: number };
+
+export function natureFunction(params: NatureParams): { tex: string; source: string; at: number } {
+  if (params.form === 'turn') {
+    return { tex: cubicTex(params.cubic), source: cubicSource(params.cubic), at: pointOf(params) };
+  }
+  if (params.form === 'off') {
+    return { tex: cubicTex(params.cubic), source: cubicSource(params.cubic), at: params.t };
+  }
+  const { k, r, d } = params;
+  const n = params.form === 'quartic' ? 4 : 3;
+  return {
+    tex: `${leadingTex(k)}${rootPowerTex(r, n)}${constantTex(d)}`,
+    source: `(${k}) * (x - (${r}))^${n} + (${d})`,
+    at: r,
+  };
+}
+
+/** The labels along the right path through `df-nature-flow`. */
+function naturePath(params: NatureParams): string[] {
+  if (params.form === 'off') return ['No'];
+  if (params.form === 'turn') {
+    return ['Yes', cubicSecondAt(params.cubic, pointOf(params)) < 0 ? 'Negative' : 'Positive'];
+  }
+  if (params.form === 'cubed') return ['Yes', 'Zero', 'It does not change'];
+  return ['Yes', 'Zero', params.k > 0 ? 'Negative to positive' : 'Positive to negative'];
+}
+
+/**
+ * The whole decision, one fork at a time: is it stationary at all, what does
+ * the second derivative say, and — only when that is zero — what does the
+ * sign of the gradient either side say instead.
+ *
+ * The third fork is the one worth a tree. A learner who has only met the
+ * second-derivative test tends to read $f'' = 0$ as "point of inflection",
+ * and $(x - r)^{4}$ is the standing counterexample: flat, $f'' = 0$, and a
+ * perfectly ordinary minimum.
+ */
+const natureFlow: Generator<NatureParams> = {
+  id: 'df-nature-flow',
+  sample: (rng, difficulty) => {
+    const forms =
+      difficulty >= 2
+        ? (['turn', 'turn', 'off', 'quartic', 'cubed'] as const)
+        : (['turn', 'turn', 'off'] as const);
+    const form = rng.pick(forms);
+    if (form === 'turn') return { form, cubic: sampleCubic(rng, difficulty), left: rng.chance(0.5) };
+    if (form === 'off') {
+      const cubic = sampleCubic(rng, difficulty);
+      for (;;) {
+        const t = rng.int(-4, 4);
+        if (t !== cubic.p && t !== cubic.q) return { form, cubic, t };
+      }
+    }
+    return {
+      form,
+      k: rng.pick([1, 2, 3]) * rng.sign(),
+      r: rng.int(-3, 3),
+      d: rng.int(-9, 9),
+    };
+  },
+  render: (params): Slide => {
+    const { tex, at } = natureFunction(params);
+    const minimum = 'A local minimum: the gradient goes from negative, through zero, to positive.';
+    const maximum = 'A local maximum: the gradient goes from positive, through zero, to negative.';
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Decide what happens on this curve at $x = ${at}$. Each answer chooses the next question.`,
+        },
+      ],
+      subject: `f(x) = ${tex}`,
+      steps: [
+        {
+          id: 'flat',
+          ask: `Is $f'(${at}) = 0$?`,
+          branches: [
+            { label: 'Yes', to: 'second' },
+            { label: 'No', outcome: 'Not a stationary point: the curve is still rising or falling there.' },
+          ],
+        },
+        {
+          id: 'second',
+          ask: `What sign is $f''(${at})$?`,
+          branches: [
+            { label: 'Negative', outcome: maximum },
+            { label: 'Positive', outcome: minimum },
+            { label: 'Zero', to: 'sides' },
+          ],
+        },
+        {
+          id: 'sides',
+          ask: `The second derivative cannot tell, so look at $f'(x)$ just either side of $x = ${at}$. How does its sign change?`,
+          branches: [
+            { label: 'Positive to negative', outcome: maximum },
+            { label: 'Negative to positive', outcome: minimum },
+            {
+              label: 'It does not change',
+              outcome: 'A stationary point of inflection: flat for a moment, then carrying on the same way.',
+            },
+          ],
+        },
+      ],
+      answer: naturePath(params),
+    };
+  },
+  solution: (params) => {
+    const { at } = natureFunction(params);
+    if (params.form === 'off') {
+      const [a, b, c] = cubicCoefficients(params.cubic);
+      const gradient = 3 * a * at * at + 2 * b * at + c;
+      return [
+        { text: 'Differentiate and substitute.', tex: `f'(x) = ${cubicDerivativeTex(params.cubic)}` },
+        {
+          text: `The gradient there is not zero, so the question of which kind of stationary point never arises.`,
+          tex: `f'(${at}) = ${gradient}`,
+        },
+        {
+          text: `The curve is flat at $x = ${params.cubic.p}$ and $x = ${params.cubic.q}$ only, and is ${gradient > 0 ? 'rising' : 'falling'} at $x = ${at}$.`,
+        },
+      ];
+    }
+    if (params.form === 'turn') {
+      const value = cubicSecondAt(params.cubic, at);
+      return [
+        {
+          text: `The derivative factorises, and $x = ${at}$ is one of its roots, so the curve is flat there.`,
+          tex: `f'(x) = ${cubicFactoredTex(params.cubic)}`,
+        },
+        {
+          text: 'The second derivative decides the rest.',
+          tex: `f''(x) = ${cubicSecondTex(params.cubic)}, \\quad f''(${at}) = ${value}`,
+        },
+        {
+          text:
+            value < 0
+              ? 'Negative, so the curve bends downwards there: a local maximum.'
+              : 'Positive, so the curve bends upwards there: a local minimum.',
+        },
+      ];
+    }
+    const { k, r } = params;
+    const n = params.form === 'quartic' ? 4 : 3;
+    return [
+      {
+        text: 'Differentiate twice. Both derivatives still contain the bracket, so both are zero at its root.',
+        tex: `f'(x) = ${leadingTex(n * k)}${rootPowerTex(r, n - 1)}, \\quad f''(x) = ${leadingTex(n * (n - 1) * k)}${rootPowerTex(r, n - 2)}`,
+      },
+      {
+        text: `So $f''(${r}) = 0$, and the second derivative says nothing. Look at the sign of $f'(x)$ either side instead.`,
+      },
+      {
+        text:
+          params.form === 'cubed'
+            ? `The bracket in $f'(x)$ is squared, so it is never negative: $f'(x)$ has the sign of $${3 * k}$ on both sides. No change of sign, so this is a stationary point of inflection.`
+            : `The bracket in $f'(x)$ is cubed, so it changes sign at $x = ${r}$: $f'(x)$ goes from ${k > 0 ? 'negative to positive, a minimum' : 'positive to negative, a maximum'}. A zero second derivative did not mean inflection here.`,
+      },
+    ];
+  },
+};
+
+/** A derivative given ready-factorised, and the stationary point to classify. */
+export interface SignParams {
+  form: 'pair' | 'cubed' | 'squared';
+  k: number;
+  r: number;
+  /** The other root, used by `pair` only. */
+  t: number;
+}
+
+function signFactors({ form, r, t }: SignParams): [number, number][] {
+  if (form === 'pair') {
+    return [
+      [r, 1],
+      [t, 1],
+    ];
+  }
+  return [[r, form === 'cubed' ? 3 : 2]];
+}
+
+/** f'(x) in mathjs syntax. Never displayed. */
+export const signDerivative = (params: SignParams): string => factoredAnswer(params.k, signFactors(params));
+
+function signDerivativeAt(params: SignParams, x: number): number {
+  return signFactors(params).reduce((total, [root, n]) => total * (x - root) ** n, params.k);
+}
+
+const SIGN_TOKEN = (value: number) => (value > 0 ? '+' : '-');
+
+/** The verdict a pair of signs gives, as the tile that names it. */
+function verdictToken(before: number, after: number): string {
+  if (before > 0 && after < 0) return '\\text{maximum}';
+  if (before < 0 && after > 0) return '\\text{minimum}';
+  return '\\text{inflection}';
+}
+
+/**
+ * The sign test, with the working in tiles: the sign before, the sign after,
+ * and what the pair of them means.
+ *
+ * The points tested are one either side of the stationary point, which only
+ * works while no other root sits between them — hence the gap of at least 2
+ * between the two roots of a `pair`. Every bank holds two of each sign and all
+ * three verdicts, so which tiles are left over says nothing about the answer.
+ */
+const signTiles: Generator<SignParams> = {
+  id: 'df-sign-tiles',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(
+      difficulty >= 2 ? (['pair', 'cubed', 'squared'] as const) : (['pair', 'pair', 'squared'] as const),
+    );
+    const k = rng.int(1, difficulty >= 2 ? 4 : 3) * rng.sign();
+    const r = rng.int(-4, 4);
+    for (;;) {
+      const t = rng.int(-4, 4);
+      if (form !== 'pair' || Math.abs(t - r) >= 2) return { form, k, r, t };
+    }
+  },
+  render: (params): Slide => {
+    const { r } = params;
+    const before = signDerivativeAt(params, r - 1);
+    const after = signDerivativeAt(params, r + 1);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This curve is flat at $x = ${r}$. Find the sign of the gradient just before it, at $x = ${r - 1}$, and just after it, at $x = ${r + 1}$. Then name the point.`,
+        },
+        { kind: 'display', tex: `f'(x) = ${factoredTex(params.k, signFactors(params))}` },
+      ],
+      template: '\\text{before } {0} \\quad \\text{after } {1} \\quad {2}',
+      bank: ['+', '+', '-', '-', '\\text{inflection}', '\\text{maximum}', '\\text{minimum}'],
+      answer: [SIGN_TOKEN(before), SIGN_TOKEN(after), verdictToken(before, after)],
+    };
+  },
+  solution: (params) => {
+    const { r } = params;
+    const before = signDerivativeAt(params, r - 1);
+    const after = signDerivativeAt(params, r + 1);
+    const verdict =
+      before > 0 && after < 0
+        ? 'Rising, then falling: a local maximum.'
+        : before < 0 && after > 0
+          ? 'Falling, then rising: a local minimum.'
+          : `${before > 0 ? 'Rising' : 'Falling'} on both sides, so the curve only pauses: a stationary point of inflection.`;
+    return [
+      {
+        text: `Substitute a value just before $x = ${r}$. Only the sign matters, so there is no need to tidy the number.`,
+        tex: `f'(${r - 1}) = ${before}`,
+      },
+      {
+        text: 'And one just after.',
+        tex: `f'(${r + 1}) = ${after}`,
+      },
+      { text: verdict },
+      {
+        text:
+          params.form === 'squared'
+            ? 'A squared bracket is never negative, which is why the sign could not change: the gradient touches zero and comes straight back.'
+            : 'Neither test point may be past the next place the gradient is zero, or the sign there belongs to a different part of the curve.',
+      },
+    ];
+  },
+};
+
+/** f'(x) = k(x - r)^i (x - t)^j, asked about the point at r. */
+export interface FactoredParams {
+  k: number;
+  r: number;
+  t: number;
+  i: number;
+  j: number;
+}
+
+export const factoredDerivative = ({ k, r, t, i, j }: FactoredParams): string =>
+  factoredAnswer(k, [
+    [r, i],
+    [t, j],
+  ]);
+
+function factoredNatureOf({ k, r, t, i, j }: FactoredParams): 'max' | 'min' | 'inflection' {
+  const at = (x: number) => k * (x - r) ** i * (x - t) ** j;
+  // t is at least 1 away, so half a unit either side stays on r's side of it.
+  const before = at(r - 0.5);
+  const after = at(r + 0.5);
+  if (before > 0 && after < 0) return 'max';
+  if (before < 0 && after > 0) return 'min';
+  return 'inflection';
+}
+
+/**
+ * The nature of a stationary point read off a factorised derivative, without
+ * substituting anything.
+ *
+ * A factor raised to an even power keeps its sign through its root, and one
+ * raised to an odd power flips it; everything else in the product holds its
+ * sign near the point. That is the whole sign test, done by reasoning rather
+ * than arithmetic, and the repeated factors are what make it worth asking.
+ */
+const factoredNature: Generator<FactoredParams> = {
+  id: 'df-factored-nature',
+  sample: (rng, difficulty) => {
+    const [i, j] = rng.pick(
+      difficulty >= 2
+        ? ([
+            [1, 1],
+            [2, 1],
+            [3, 1],
+            [2, 2],
+            [1, 2],
+          ] as const)
+        : ([
+            [1, 1],
+            [2, 1],
+            [1, 2],
+          ] as const),
+    );
+    const r = rng.int(-4, 4);
+    for (;;) {
+      const t = rng.int(-4, 4);
+      if (t !== r) return { k: rng.int(1, 3) * rng.sign(), r, t, i, j };
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'choice',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `A curve has this gradient function. What kind of stationary point does it have at $x = ${params.r}$?`,
+      },
+      {
+        kind: 'display',
+        tex: `\\frac{dy}{dx} = ${factoredTex(params.k, [
+          [params.r, params.i],
+          [params.t, params.j],
+        ])}`,
+      },
+    ],
+    options: [
+      { id: 'max', label: 'A local maximum' },
+      { id: 'min', label: 'A local minimum' },
+      { id: 'inflection', label: 'A stationary point of inflection' },
+    ],
+    correctId: factoredNatureOf(params),
+  }),
+  solution: (params) => {
+    const { k, r, t, i, j } = params;
+    const nature = factoredNatureOf(params);
+    const rest = k * (r - t) ** j;
+    return [
+      {
+        text: `Near $x = ${r}$, every factor except $${rootPowerTex(r, i)}$ keeps its sign. Together they come to about $${k} \\times ${bracketedNumber(r - t)}${j > 1 ? `^{${j}}` : ''} = ${rest}$, which is ${rest > 0 ? 'positive' : 'negative'}.`,
+      },
+      {
+        text:
+          i % 2 === 0
+            ? `$${rootPowerTex(r, i)}$ is an even power, so it is positive on both sides of $x = ${r}$: the gradient keeps the same sign.`
+            : `$${rootPowerTex(r, i)}$ is an odd power, so it is negative before $x = ${r}$ and positive after: the gradient changes sign.`,
+      },
+      {
+        text:
+          nature === 'max'
+            ? 'Positive, then negative: the curve rises, stops and falls. A local maximum.'
+            : nature === 'min'
+              ? 'Negative, then positive: the curve falls, stops and rises. A local minimum.'
+              : 'The same sign on both sides: the curve pauses and carries on. A stationary point of inflection.',
+      },
+    ];
+  },
+};
+
+/* ---------- Increasing and decreasing ---------- */
+
+export interface AtParams {
+  cubic: Cubic;
+  t: number;
+}
+
+function gradientAt(cubic: Cubic, x: number): number {
+  const [a, b, c] = cubicCoefficients(cubic);
+  return 3 * a * x * x + 2 * b * x + c;
+}
+
+/**
+ * Increasing or decreasing at one point: the sign of one number.
+ *
+ * Stationary is offered, and is the answer about one time in five, so that
+ * "not increasing" is not taken to mean "decreasing".
+ */
+const increasingAt: Generator<AtParams> = {
+  id: 'df-increasing-at',
+  sample: (rng, difficulty) => {
+    const cubic = sampleCubic(rng, difficulty);
+    if (rng.chance(0.2)) return { cubic, t: rng.pick([cubic.p, cubic.q]) };
+    for (;;) {
+      const t = rng.int(-4, 4);
+      if (t !== cubic.p && t !== cubic.q) return { cubic, t };
+    }
+  },
+  render: ({ cubic, t }): Slide => {
+    const gradient = gradientAt(cubic, t);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `At $x = ${t}$, is this function increasing, decreasing, or stationary?` },
+        { kind: 'display', tex: `f(x) = ${cubicTex(cubic)}` },
+      ],
+      options: [
+        { id: 'up', label: 'Increasing' },
+        { id: 'down', label: 'Decreasing' },
+        { id: 'flat', label: 'Stationary' },
+      ],
+      correctId: gradient > 0 ? 'up' : gradient < 0 ? 'down' : 'flat',
+    };
+  },
+  solution: ({ cubic, t }) => {
+    const gradient = gradientAt(cubic, t);
+    return [
+      {
+        text: 'Whether a function is going up or down is the sign of its derivative.',
+        tex: `f'(x) = ${cubicDerivativeTex(cubic)}`,
+      },
+      {
+        text: `Substitute $x = ${t}$. Only the sign of the answer matters.`,
+        tex: `f'(${t}) = ${gradient}`,
+      },
+      {
+        text:
+          gradient > 0
+            ? 'Positive, so the function is increasing there.'
+            : gradient < 0
+              ? 'Negative, so the function is decreasing there.'
+              : `Zero, so the function is stationary there: $x = ${t}$ is one of its turning points.`,
+      },
+    ];
+  },
+};
+
+export interface IntervalParams {
+  cubic: Cubic;
+  ask: 'increasing' | 'decreasing';
+}
+
+/** Whether the asked-for stretch is the one between the turning points. */
+export const betweenTurns = ({ cubic, ask }: IntervalParams): boolean =>
+  (ask === 'decreasing') === (cubic.m > 0);
+
+/**
+ * Where a cubic goes up and where it comes down, as the boundaries of an
+ * inequality.
+ *
+ * A cubic changes direction only at its turning points, so the answer is
+ * always either the stretch between them or the two stretches outside. Which
+ * one depends on the sign of $m$ — at difficulty 2 the curve can be upside
+ * down — and the template changes to match, so the learner has to decide the
+ * shape of the answer as well as its numbers.
+ */
+const increasingTiles: Generator<IntervalParams> = {
+  id: 'df-increasing-tiles',
+  sample: (rng, difficulty) => ({
+    cubic: sampleCubic(rng, difficulty),
+    ask: rng.pick(['increasing', 'decreasing'] as const),
+  }),
+  render: (params): Slide => {
+    const { cubic, ask } = params;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `For which values of $x$ is this function **${ask}**? Place the boundaries.`,
+        },
+        { kind: 'display', tex: `f(x) = ${cubicTex(cubic)}` },
+      ],
+      template: betweenTurns(params) ? '{0} < x < {1}' : 'x < {0} \\quad \\text{or} \\quad x > {1}',
+      bank: numberTiles([cubic.p, cubic.q], [-cubic.p, -cubic.q, cubic.p + cubic.q, cubic.q - cubic.p]),
+      answer: [`${cubic.p}`, `${cubic.q}`],
+    };
+  },
+  solution: (params) => {
+    const { cubic, ask } = params;
+    const between = betweenTurns(params);
+    return [
+      {
+        text: 'A function can only change direction where its gradient is zero, so find those places first.',
+        tex: `f'(x) = ${cubicFactoredTex(cubic)} = 0 \\quad \\Rightarrow \\quad x = ${cubic.p}, \\; x = ${cubic.q}`,
+      },
+      {
+        text: `Between them the gradient has one sign and outside them the other, so one test point settles both. Beyond the right-hand one, $f'(${cubic.q + 1}) = ${gradientAt(cubic, cubic.q + 1)}$, so the function is ${cubic.m > 0 ? 'increasing' : 'decreasing'} outside the turning points and ${cubic.m > 0 ? 'decreasing' : 'increasing'} between them.`,
+      },
+      {
+        text: `So the function is ${ask} ${between ? 'between' : 'outside'} the turning points:`,
+        tex: between ? `${cubic.p} < x < ${cubic.q}` : `x < ${cubic.p} \\quad \\text{or} \\quad x > ${cubic.q}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Points of inflection ---------- */
+
+export type InflectionParams =
+  | { form: 'cubic'; cubic: Cubic }
+  /** f''(x) = 12a(x - r)(x - s): two points of inflection, one of them given. */
+  | { form: 'quartic'; a: number; r: number; s: number; e: number };
+
+function quarticCoefficients({ a, r, s, e }: { a: number; r: number; s: number; e: number }): number[] {
+  return [a, -2 * a * (r + s), 6 * a * r * s, e];
+}
+
+export function inflectionFunction(params: InflectionParams): string {
+  if (params.form === 'cubic') return cubicSource(params.cubic);
+  const [a, b, c, e] = quarticCoefficients(params);
+  return sumAnswer([termAnswer(a, 4), termAnswer(b, 3), termAnswer(c, 2), termAnswer(e, 1)]);
+}
+
+export const inflectionAnswer = (params: InflectionParams): number =>
+  params.form === 'cubic' ? (params.cubic.p + params.cubic.q) / 2 : params.s;
+
+/**
+ * Where the curve changes its bend.
+ *
+ * A cubic has exactly one point of inflection, midway between its turning
+ * points, which is why the distractors include the turning points themselves:
+ * solving $f'(x) = 0$ when the question needed $f''(x) = 0$. The quartic form
+ * gives one point and asks for the other, which rules out guessing the
+ * midpoint and makes the learner solve $f''(x) = 0$ properly.
+ */
+const inflectionX: Generator<InflectionParams> = {
+  id: 'df-inflection-x',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2 || rng.chance(0.5)) {
+      return { form: 'cubic', cubic: sampleCubic(rng, difficulty, { evenSum: true, minGap: 2 }) };
+    }
+    for (;;) {
+      const r = rng.int(-3, 3);
+      const s = rng.int(-3, 3);
+      if (r !== s) return { form: 'quartic', a: rng.pick([1, -1]), r, s, e: rng.int(-9, 9) };
+    }
+  },
+  choices: (params) => {
+    const answer = inflectionAnswer(params);
+    return numberOptions(
+      answer,
+      params.form === 'cubic'
+        ? [params.cubic.p, params.cubic.q, -answer]
+        : [params.r, -params.s, params.r + params.s],
+    );
+  },
+  render: (params): Slide => {
+    if (params.form === 'cubic') {
+      return {
+        kind: 'expression',
+        prompt: [
+          { kind: 'prose', text: 'Find the $x$-coordinate of the point of inflection on this curve.' },
+          { kind: 'display', tex: `y = ${cubicTex(params.cubic)}` },
+        ],
+        lead: 'x =',
+        keypad: [],
+        answer: `${inflectionAnswer(params)}`,
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    const [a, b, c, e] = quarticCoefficients(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This curve has two points of inflection, and one of them is at $x = ${params.r}$. Find the $x$-coordinate of the other.`,
+        },
+        { kind: 'display', tex: `y = ${sumTex([termTex(a, 4), termTex(b, 3), termTex(c, 2), termTex(e, 1)])}` },
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: `${params.s}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    if (params.form === 'cubic') {
+      const { cubic } = params;
+      const answer = inflectionAnswer(params);
+      return [
+        {
+          text: 'A point of inflection is where the second derivative is zero and changes sign, so differentiate twice.',
+          tex: `f''(x) = ${cubicSecondTex(cubic)}`,
+        },
+        {
+          text: 'Set it to zero and solve. It is a straight line with a non-zero gradient, so it does change sign there.',
+          tex: `${cubicSecondTex(cubic)} = 0 \\quad \\Rightarrow \\quad x = ${answer}`,
+        },
+        {
+          text: `That is exactly halfway between the turning points at $x = ${cubic.p}$ and $x = ${cubic.q}$, which is true of every cubic with two turning points.`,
+        },
+      ];
+    }
+    const { a, r, s } = params;
+    const [, b, c] = quarticCoefficients(params);
+    return [
+      {
+        text: 'Differentiate twice.',
+        tex: `f''(x) = ${sumTex([termTex(12 * a, 2), termTex(6 * b, 1), termTex(2 * c, 0)])}`,
+      },
+      {
+        text: `Take out the common factor of $${12 * a}$, and the quadratic that is left factorises.`,
+        tex: `${factoredTex(12 * a, [
+          [r, 1],
+          [s, 1],
+        ])} = 0`,
+      },
+      {
+        text: `One root is the $x = ${r}$ you were given; the other is the answer. Each is a single root, so $f''(x)$ changes sign at both.`,
+        tex: `x = ${s}`,
+      },
+    ];
+  },
+};
+
+/**
+ * Convex or concave at a point: the sign of the second derivative.
+ *
+ * "Neither" is there for the one point on a cubic where $f''$ is zero, so a
+ * learner cannot pass by treating the question as a two-way guess.
+ */
+const concavity: Generator<AtParams> = {
+  id: 'df-concavity',
+  sample: (rng, difficulty) => {
+    const cubic = sampleCubic(rng, difficulty);
+    const middle = (cubic.p + cubic.q) / 2;
+    if (Number.isInteger(middle) && rng.chance(0.2)) return { cubic, t: middle };
+    for (;;) {
+      const t = rng.int(-4, 4);
+      if (t !== middle) return { cubic, t };
+    }
+  },
+  render: ({ cubic, t }): Slide => {
+    const bend = cubicSecondAt(cubic, t);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `At $x = ${t}$, which way is this curve bending?` },
+        { kind: 'display', tex: `y = ${cubicTex(cubic)}` },
+      ],
+      options: [
+        { id: 'convex', label: 'Convex: bending upwards' },
+        { id: 'concave', label: 'Concave: bending downwards' },
+        { id: 'neither', label: 'Neither: it is changing its bend there' },
+      ],
+      correctId: bend > 0 ? 'convex' : bend < 0 ? 'concave' : 'neither',
+    };
+  },
+  solution: ({ cubic, t }) => {
+    const [a, b] = cubicCoefficients(cubic);
+    const bend = cubicSecondAt(cubic, t);
+    return [
+      {
+        text: 'Which way a curve bends is the sign of its second derivative.',
+        tex: `\\frac{d^{2}y}{dx^{2}} = ${cubicSecondTex(cubic)}`,
+      },
+      {
+        text: `Substitute $x = ${t}$.`,
+        tex: `${6 * a} \\times ${bracketedNumber(t)}${constantTex(2 * b)} = ${bend}`,
+      },
+      {
+        text:
+          bend > 0
+            ? 'Positive: the gradient is increasing, so the curve is convex there, bending upwards like the inside of a bowl.'
+            : bend < 0
+              ? 'Negative: the gradient is decreasing, so the curve is concave there, bending downwards like an arch.'
+              : 'Zero, and a cubic\'s second derivative is a straight line, so it changes sign here: this is the point of inflection.',
+      },
+    ];
+  },
+};
+
+export type InflectionFlowParams =
+  | { form: 'middle'; cubic: Cubic }
+  | { form: 'turn'; cubic: Cubic; left: boolean }
+  /** k(x - r)^n + cx + d. The cx term tilts the curve without touching f''. */
+  | { form: 'power'; k: number; r: number; n: 3 | 4 | 5; c: number; d: number };
+
+export function inflectionFlowFunction(params: InflectionFlowParams): { tex: string; source: string; at: number } {
+  if (params.form === 'middle') {
+    return {
+      tex: cubicTex(params.cubic),
+      source: cubicSource(params.cubic),
+      at: (params.cubic.p + params.cubic.q) / 2,
+    };
+  }
+  if (params.form === 'turn') {
+    return { tex: cubicTex(params.cubic), source: cubicSource(params.cubic), at: pointOf(params) };
+  }
+  const { k, r, n, c, d } = params;
+  return {
+    tex: sumTex([`${leadingTex(k)}${rootPowerTex(r, n)}`, termTex(c, 1), termTex(d, 0)]),
+    source: `(${k}) * (x - (${r}))^${n} + (${c}) * x + (${d})`,
+    at: r,
+  };
+}
+
+function inflectionPath(params: InflectionFlowParams): string[] {
+  if (params.form === 'turn') return ['No'];
+  if (params.form === 'middle') return ['Yes', 'Yes', 'No'];
+  if (params.n === 4) return ['Yes', 'No'];
+  return ['Yes', 'Yes', params.c === 0 ? 'Yes' : 'No'];
+}
+
+/**
+ * Is this a point of inflection, and is it a stationary one?
+ *
+ * The three forks are the three conditions in order, and each has a curve
+ * that stops at it: a turning point, where $f''$ is not zero; $(x - r)^{4}$,
+ * where $f''$ is zero but keeps its sign; and the two kinds of genuine
+ * inflection, told apart by whether the curve is also flat there.
+ */
+const inflectionFlow: Generator<InflectionFlowParams> = {
+  id: 'df-inflection-flow',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(['middle', 'turn', 'power', 'power'] as const);
+    if (form === 'middle') return { form, cubic: sampleCubic(rng, difficulty, { evenSum: true, minGap: 2 }) };
+    if (form === 'turn') return { form, cubic: sampleCubic(rng, difficulty), left: rng.chance(0.5) };
+    const n = difficulty >= 2 ? rng.pick([3, 4, 5] as const) : rng.pick([3, 3, 4] as const);
+    return {
+      form,
+      k: rng.int(1, 3) * rng.sign(),
+      r: rng.int(-3, 3),
+      n,
+      c: rng.chance(0.5) ? 0 : nonZero(rng.int(-6, 6), 2),
+      d: rng.int(-9, 9),
+    };
+  },
+  render: (params): Slide => {
+    const { tex, at } = inflectionFlowFunction(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Is there a point of inflection on this curve at $x = ${at}$? Each answer chooses the next question.`,
+        },
+      ],
+      subject: `f(x) = ${tex}`,
+      steps: [
+        {
+          id: 'zero',
+          ask: `Is $f''(${at}) = 0$?`,
+          branches: [
+            { label: 'Yes', to: 'change' },
+            {
+              label: 'No',
+              outcome: 'Not a point of inflection: the curve is bending firmly one way there.',
+            },
+          ],
+        },
+        {
+          id: 'change',
+          ask: `Does $f''(x)$ change sign as $x$ passes through $${at}$?`,
+          branches: [
+            { label: 'Yes', to: 'flat' },
+            {
+              label: 'No',
+              outcome: 'Not a point of inflection: the curve bends the same way on both sides, as $x^{4}$ does at $0$.',
+            },
+          ],
+        },
+        {
+          id: 'flat',
+          ask: `Is $f'(${at}) = 0$ as well?`,
+          branches: [
+            { label: 'Yes', outcome: 'A stationary point of inflection: flat, and changing its bend.' },
+            {
+              label: 'No',
+              outcome: 'A point of inflection that is not stationary: still sloping as it changes its bend.',
+            },
+          ],
+        },
+      ],
+      answer: inflectionPath(params),
+    };
+  },
+  solution: (params) => {
+    const { at } = inflectionFlowFunction(params);
+    if (params.form !== 'power') {
+      const { cubic } = params;
+      const bend = cubicSecondAt(cubic, at);
+      const steps: SolutionStep[] = [
+        { text: 'Differentiate twice.', tex: `f''(x) = ${cubicSecondTex(cubic)}` },
+        { text: `Substitute $x = ${at}$.`, tex: `f''(${at}) = ${bend}` },
+      ];
+      if (params.form === 'turn') {
+        steps.push({
+          text: `Not zero, so the curve is bending ${bend > 0 ? 'upwards' : 'downwards'} at $x = ${at}$. It is a turning point, not a point of inflection.`,
+        });
+        return steps;
+      }
+      steps.push(
+        {
+          text: 'Zero, and the second derivative is a straight line through that point, so it changes sign there.',
+        },
+        {
+          text: `But the gradient is not zero: $f'(${at}) = ${gradientAt(cubic, at)}$. So the curve is still sloping as it changes its bend.`,
+        },
+      );
+      return steps;
+    }
+    const { k, r, n, c } = params;
+    return [
+      {
+        text: 'Differentiate twice. The $x$ term only affects the first derivative.',
+        tex: `f'(x) = ${sumTex([`${leadingTex(n * k)}${rootPowerTex(r, n - 1)}`, termTex(c, 0)])}, \\quad f''(x) = ${leadingTex(n * (n - 1) * k)}${rootPowerTex(r, n - 2)}`,
+      },
+      {
+        text:
+          n === 4
+            ? `$f''(${r}) = 0$, but the bracket in $f''(x)$ is squared, so it never changes sign. The curve bends the same way on both sides: no inflection.`
+            : `$f''(${r}) = 0$, and the bracket in $f''(x)$ is raised to an odd power, so it changes sign there: a point of inflection.`,
+      },
+      ...(n === 4
+        ? []
+        : [
+            {
+              text:
+                c === 0
+                  ? `And $f'(${r}) = 0$ too, since every term of $f'(x)$ still has the bracket in it: a stationary point of inflection.`
+                  : `But $f'(${r}) = ${c}$, not zero, so the curve is still sloping there: a non-stationary point of inflection.`,
+            },
+          ]),
+    ];
+  },
+};
+
+export const stationaryPointGenerators = {
+  stationaryRoots,
+  stationaryY,
+  stationaryYTree,
+  stationarySliderCubic,
+  stationaryCount,
+  secondDerivative,
+  secondAt,
+  natureFlow,
+  signTiles,
+  factoredNature,
+  increasingAt,
+  increasingTiles,
+  inflectionX,
+  concavity,
+  inflectionFlow,
+};
+
 export const differentiationGenerators = [
   powerRule,
   sumRule,
@@ -1675,4 +3442,19 @@ export const differentiationGenerators = [
   chainRoot,
   productMixed,
   tangentLine,
+  stationaryRoots,
+  stationaryY,
+  stationaryYTree,
+  stationarySliderCubic,
+  stationaryCount,
+  secondDerivative,
+  secondAt,
+  natureFlow,
+  signTiles,
+  factoredNature,
+  increasingAt,
+  increasingTiles,
+  inflectionX,
+  concavity,
+  inflectionFlow,
 ];

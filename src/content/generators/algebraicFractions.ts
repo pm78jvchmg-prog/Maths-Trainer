@@ -7,7 +7,9 @@
  * is zero or undefined. Level 2 runs the addition backwards: a fraction split
  * into partial fractions over two linear factors, over three, over a repeated
  * factor, and after dividing out a whole part; then a preview of what the
- * split is for, integrating it and expanding it as a series.
+ * split is for, integrating it and expanding it as a series. Level 3 meets a
+ * quadratic factor that will not split. Level 4 solves inequalities with
+ * fractions in them, drawn on the number line.
  *
  * Every fraction is built outward from its answer: the factors that cancel,
  * the root that solves the equation, the numerators of the split and the
@@ -27,8 +29,10 @@ import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
+import { canonicalPieces, formatSet, type Piece } from '../numberLine';
 import { termTex } from './calculus';
 import { type Poly, addPoly, divideBy, fromRoots, mulPoly, polyTex, scalePoly, valueAt } from './polynomials';
+import { windowFor } from './numberLine';
 
 /* ---------- display ---------- */
 
@@ -3971,6 +3975,1296 @@ const fracQuadRestTree: Generator<QuadImproperParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: inequalities with fractions
+ *
+ * A fraction against a number, then against another fraction. The bottom's
+ * sign is not known, so the inequality is never multiplied through by it:
+ * either everything comes to one side and a sign table reads it, or both
+ * sides are multiplied by the bottom squared, which is positive everywhere
+ * the fraction has a value.
+ *
+ * Built outward like the rest of the file: the number k, the pole and the
+ * crossing (where the fraction equals k) are drawn first and the top worked
+ * out from them, so every critical value is whole and sits on a tick of the
+ * number line. A fraction against zero is Inequalities & the Modulus
+ * Function's `im-l1`, and is pointed at rather than taught again.
+ * ================================================================ */
+
+type Op = '<' | '<=' | '>' | '>=';
+
+const OPS: readonly Op[] = ['<', '<=', '>', '>='];
+const OP_TEX: Record<Op, string> = { '<': '<', '<=': '\\le', '>': '>', '>=': '\\ge' };
+const FLIP: Record<Op, Op> = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
+const isStrict = (op: Op): boolean => op === '<' || op === '>';
+/** Whether the inequality asks for the bigger side, `>` or `\ge`. */
+const pointsUp = (op: Op): boolean => op === '>' || op === '>=';
+/** `<` or `\le`, for an end that is left out or included. */
+const le = (closed: boolean): string => (closed ? '\\le' : '<');
+
+/** Whether `left op right` is true. */
+function compare(left: number, op: Op, right: number): boolean {
+  if (op === '<') return left < right;
+  if (op === '<=') return left <= right;
+  if (op === '>') return left > right;
+  return left >= right;
+}
+
+const POSITIVE = 'Positive';
+const YES = 'Yes';
+const NO = 'No';
+const NEGATIVE = 'Negative';
+
+/** A bracket as a factor: x itself, or (x + c). */
+const factorOf = (c: number): string => (c === 0 ? 'x' : pbr(c));
+
+/** (x + c)(x + d) as the learner reads it, a bare x put first. */
+function productTex(c: number, d: number): string {
+  if (c === 0 && d === 0) return 'x^{2}';
+  if (d === 0) return `x${pbr(c)}`;
+  return `${factorOf(c)}${factorOf(d)}`;
+}
+
+/** k(x + b) as the learner reads it: 3(x - 2), or 3x when the bottom is x. */
+const timesBottom = (k: number, b: number): string => (b === 0 ? polyTex([k, 0]) : timesTex(k, br(b)));
+
+/** lead(x - z)... for zeros z, a bare x first and a lead of 1 dropped. */
+function factoredTex(lead: number, ...zeros: number[]): string {
+  const body = [...zeros.filter((z) => z === 0).map(() => 'x'), ...zeros.filter((z) => z !== 0).map((z) => pbr(-z))].join('');
+  if (lead === 1) return body;
+  if (lead === -1) return `-${body}`;
+  return `${lead}${body}`;
+}
+
+/**
+ * Where `sign (x - zero) / prod (x - pole)` satisfies `op 0`.
+ *
+ * Each region between neighbouring critical values is tested at a point
+ * inside it; a zero joins the set when the inequality is not strict, and a
+ * pole never does, since the fraction has no value there. The same rule as
+ * `signSet` in `inequalitiesModulus.ts`, which is file-local there.
+ */
+function regionSet(zeros: number[], poles: number[], sign: number, op: Op): Piece[] {
+  const critical = [...new Set([...zeros, ...poles])].sort((x, y) => x - y);
+  const value = (x: number) => (sign * zeros.reduce((acc, z) => acc * (x - z), 1)) / poles.reduce((acc, p) => acc * (x - p), 1);
+  const ends = [-Infinity, ...critical, Infinity];
+  const pieces: Piece[] = [];
+  for (let i = 0; i + 1 < ends.length; i += 1) {
+    const [lo, hi] = [ends[i], ends[i + 1]];
+    const probe = lo === -Infinity ? hi - 1 : hi === Infinity ? lo + 1 : (lo + hi) / 2;
+    if (pointsUp(op) ? value(probe) > 0 : value(probe) < 0) pieces.push({ lo, hi, loClosed: false, hiClosed: false });
+  }
+  if (!isStrict(op)) for (const z of zeros) pieces.push({ lo: z, hi: z, loClosed: true, hiClosed: true });
+  return canonicalPieces(pieces);
+}
+
+/** One piece as an inequality: `x < 2`, `x \ge -1`, `-3 < x \le 4`. */
+function pieceTex(p: Piece): string {
+  if (p.lo === -Infinity) return `x ${le(p.hiClosed)} ${p.hi}`;
+  if (p.hi === Infinity) return `x ${p.loClosed ? '\\ge' : '>'} ${p.lo}`;
+  return `${p.lo} ${le(p.loClosed)} x ${le(p.hiClosed)} ${p.hi}`;
+}
+
+/** A whole set as inequalities joined by "or". */
+const setTex = (pieces: Piece[]): string => canonicalPieces(pieces).map(pieceTex).join(' \\text{ or } ');
+
+/** The canonical answer a `numberLine` slide stores. */
+const setOf = (pieces: Piece[]): string => formatSet(canonicalPieces(pieces));
+
+/** A region between critical values, in words for a sign table or a solution. */
+function regionTex(lo: number, hi: number): string {
+  if (lo === -Infinity) return `x < ${hi}`;
+  if (hi === Infinity) return `x > ${lo}`;
+  return `${lo} < x < ${hi}`;
+}
+
+/** Each region with a point inside it, left to right. */
+function regionsOf(zeros: number[], poles: number[]): { lo: number; hi: number; probe: number }[] {
+  const ends = [-Infinity, ...[...zeros, ...poles].sort((x, y) => x - y), Infinity];
+  return ends.slice(0, -1).map((lo, i) => {
+    const hi = ends[i + 1];
+    return { lo, hi, probe: lo === -Infinity ? hi - 1 : hi === Infinity ? lo + 1 : (lo + hi) / 2 };
+  });
+}
+
+/**
+ * A fraction against zero, read region by region: the working the whole
+ * level ends in, whichever way it got there.
+ */
+function readSteps(zeros: number[], poles: number[], sign: number, op: Op): SolutionStep[] {
+  const value = (x: number) => (sign * zeros.reduce((acc, z) => acc * (x - z), 1)) / poles.reduce((acc, p) => acc * (x - p), 1);
+  const regions = regionsOf(zeros, poles).map(({ lo, hi, probe }) => `$${regionTex(lo, hi)}$: ${value(probe) > 0 ? 'positive' : 'negative'}`);
+  const polesSaid = poles.length > 1 ? `$x = ${poles[0]}$ and $x = ${poles[1]}$ make` : `$x = ${poles[0]}$ makes`;
+  return [
+    { text: `Test one value in each region. ${regions.join('; ')}.` },
+    {
+      text: `${polesSaid} the bottom zero, so the fraction has no value there: ${poles.length > 1 ? 'those dots are' : 'that dot is'} hollow. ${
+        isStrict(op)
+          ? `The inequality is strict, so $x = ${zeros[0]}$, where the top is zero, is left out too.`
+          : `The inequality is not strict, so $x = ${zeros[0]}$, where the top is zero, is in.`
+      }`,
+    },
+    { tex: setTex(regionSet(zeros, poles, sign, op)) },
+  ];
+}
+
+/* ---------- a fraction against a number ---------- */
+
+interface AgainstParams {
+  /** The top is mx + a; m is 1 except at difficulty 2. */
+  m: number;
+  a: number;
+  /** The bottom is x + b, so the pole is at -b. */
+  b: number;
+  /** The number the fraction is compared with: never 0, which is `im-l1`, and never m. */
+  k: number;
+  /** The crossing, where the fraction equals k. */
+  r: number;
+  op: Op;
+  /** The number line's window. */
+  min: number;
+  max: number;
+}
+
+const againstTop = ({ m, a }: AgainstParams): Poly => [m, a];
+const againstFracTex = (params: AgainstParams): string => frac(polyTex(againstTop(params)), br(params.b));
+const againstTex = (params: AgainstParams): string => `${againstFracTex(params)} ${OP_TEX[params.op]} ${params.k}`;
+/** The top once k has come over: (m - k)x + (a - kb). */
+const oneSideTop = ({ m, a, b, k }: AgainstParams): Poly => [m - k, a - k * b];
+const againstSet = (params: AgainstParams): Piece[] => regionSet([params.r], [-params.b], params.m - params.k, params.op);
+const againstAt = ({ m, a, b }: AgainstParams, x: number): number => (m * x + a) / (x + b);
+
+/**
+ * The pole and the crossing first, then the top from them: the fraction
+ * less k is (m - k)(x - r)/(x + b), which fixes a = kb - (m - k)r. Difficulty
+ * 2 puts a number in front of the top's x and allows a negative k.
+ */
+function sampleAgainst(rng: Rng, difficulty: number): AgainstParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const m = hard && rng.chance(0.5) ? rng.int(2, 3) : 1;
+    const k = rng.pick(hard ? [-3, -2, -1, 2, 3, 4, 5] : [-2, -1, 2, 3, 4]);
+    const pole = rng.int(-5, 5);
+    const r = rng.int(-5, 5);
+    const span = Math.abs(r - pole);
+    if (k === m || span === 0 || span > 8) continue;
+    const b = -pole || 0;
+    const a = k * b - (m - k) * r;
+    if (Math.abs(a) > 25) continue;
+    const [lo, hi] = [Math.min(pole, r), Math.max(pole, r)];
+    return { m, a, b, k, r, op: rng.pick(OPS), ...windowFor(rng, lo, hi, span <= 6 ? 10 : 12, 2) };
+  }
+}
+
+/** The usual working: to one side, then the sign table. */
+function againstSolution(params: AgainstParams): SolutionStep[] {
+  const { b, k, m, r, op } = params;
+  return [
+    { text: `Never multiply through by $${br(b)}$: its sign changes at $x = ${-b}$. Take $${k}$ over to the left and write one fraction over $${br(b)}$:` },
+    { tex: `${againstFracTex(params)} ${signed(-k)} = ${frac(polyTex(oneSideTop(params)), br(b))} ${OP_TEX[op]} 0` },
+    { text: `The top is zero at $x = ${r}$ and the bottom at $x = ${-b}$.` },
+    ...readSteps([r], [-b], m - k, op),
+  ];
+}
+
+/**
+ * Solving by cases: on the side of the pole the crossing is on, is the bottom
+ * positive, which way does multiplying by it leave the sign, and which part
+ * of that side is in the set?
+ */
+const fracIneqCasesFlow: Generator<AgainstParams> = {
+  id: 'frac-ineq-cases-flow',
+  sample: sampleAgainst,
+  render: (params): Slide => {
+    const { m, b, k, r, op } = params;
+    const p = -b;
+    const right = r > p;
+    const caseTex = `x ${right ? '>' : '<'} ${p}`;
+    const top = polyTex(againstTop(params));
+    const times = timesBottom(k, b);
+    const keep = `$${top} ${OP_TEX[op]} ${times}$`;
+    const turn = `$${top} ${OP_TEX[FLIP[op]]} ${times}$`;
+    const multiplied: Op = right ? op : FLIP[op];
+    const solved: Op = m - k > 0 ? multiplied : FLIP[multiplied];
+    const closed = !isStrict(op);
+    const near = right ? `$${p} < x ${le(closed)} ${r}$` : `$${r} ${le(closed)} x < ${p}$`;
+    const far = right ? `$x ${closed ? '\\ge' : '>'} ${r}$` : `$x ${le(closed)} ${r}$`;
+    const all = `All of $${caseTex}$`;
+    const none = 'None of it';
+    const towardPole = right ? !pointsUp(solved) : pointsUp(solved);
+    const correct = towardPole ? near : far;
+    const multiply = {
+      ask: `Multiply both sides by $${br(b)}$. Which inequality holds for $${caseTex}$?`,
+      branches: turned([keep, turn], `${keep}|${p}`).map((label) => ({ label, to: 'solve' })),
+    };
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Solve this by cases. Take the side of the pole, $x = ${p}$, that the crossing $x = ${r}$ is on, and work one decision at a time.`),
+      ],
+      subject: againstTex(params),
+      steps: [
+        {
+          id: 'sign',
+          ask: `For $${caseTex}$, is the bottom, $${br(b)}$, positive or negative?`,
+          branches: [
+            { label: POSITIVE, to: 'pos' },
+            { label: NEGATIVE, to: 'neg' },
+          ],
+        },
+        { id: 'pos', ...multiply },
+        { id: 'neg', ...multiply },
+        {
+          id: 'solve',
+          ask: `Solve that for $x$. Which part of $${caseTex}$ is in the set?`,
+          branches: turned([near, far, all, none], `${near}|${op}`).map((label) => ({
+            label,
+            outcome: label === none ? `So nothing with $${caseTex}$ is in the set.` : `So the set holds ${label === all ? `all of $${caseTex}$` : label} on this side.`,
+          })),
+        },
+      ],
+      answer: [right ? POSITIVE : NEGATIVE, right ? keep : turn, correct],
+    };
+  },
+  solution: (params) => {
+    const { m, a, b, k, r, op } = params;
+    const p = -b;
+    const right = r > p;
+    const multiplied: Op = right ? op : FLIP[op];
+    const solved: Op = m - k > 0 ? multiplied : FLIP[multiplied];
+    const steps: SolutionStep[] = [
+      {
+        text: `For $x ${right ? '>' : '<'} ${p}$ the bottom $${br(b)}$ is ${right ? 'positive, so multiplying by it keeps the sign' : 'negative, so multiplying by it turns the sign round'}:`,
+      },
+      { tex: `${polyTex(againstTop(params))} ${OP_TEX[multiplied]} ${timesBottom(k, b)}` },
+      { text: 'Collect the $x$ terms on the left:' },
+      { tex: `${termTex(m - k, 1)} ${OP_TEX[multiplied]} ${k * b - a}` },
+    ];
+    if (m - k !== 1) {
+      steps.push({
+        text: `Divide by $${m - k}$${m - k < 0 ? ', which is negative, so the sign turns again' : ''}: $x ${OP_TEX[solved]} ${r}$.`,
+      });
+    }
+    const piece = regionSet([r], [p], m - k, op).find((q) => (right ? q.lo >= p : q.hi <= p));
+    steps.push({ text: piece ? `Inside $x ${right ? '>' : '<'} ${p}$ that leaves $${pieceTex(piece)}$.` : 'Nothing on that side is in the set.' });
+    return steps;
+  },
+};
+
+interface TestParams extends AgainstParams {
+  /** A test value where the bottom is negative, and the fraction whole. */
+  t: number;
+}
+
+/**
+ * The fraction at a point where its bottom is negative, beside what
+ * multiplying through compares: k times the bottom. The two verdicts always
+ * disagree there, which is the whole reason not to multiply through.
+ */
+const fracIneqTestTree: Generator<TestParams> = {
+  id: 'frac-ineq-test-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleAgainst(rng, difficulty);
+      const { m, a, b, r } = params;
+      const tests = [1, 2, 3, 4, 5, 6]
+        .map((gap) => -b - gap)
+        .filter((t) => t !== r && (m * t + a) % (t + b) === 0 && Math.abs((m * t + a) / (t + b)) <= 12);
+      if (tests.length === 0) continue;
+      return { ...params, t: rng.pick(tests) };
+    }
+  },
+  render: (params): Slide => {
+    const { m, a, b, k, t } = params;
+    const top = m * t + a;
+    const bottom = t + b;
+    const value = top / bottom;
+    const answer = [top, bottom, k * bottom, value];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Test $x = ${t}$, where the bottom is negative. Top row: the top and the bottom there. Below: $${k}$ times the bottom, which multiplying through compares the top with, and the value of the fraction itself.`,
+        ),
+      ],
+      expression: againstTex(params),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'kb', from: ['bottom'] },
+        { id: 'value', from: ['top', 'bottom'] },
+      ],
+      bank: numberBank(answer, [-top, -bottom, -k * bottom, -value, top - bottom, k + bottom]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { m, a, b, k, t, op } = params;
+    const top = m * t + a;
+    const bottom = t + b;
+    const value = top / bottom;
+    const inSet = compare(value, op, k);
+    return [
+      { text: `At $x = ${t}$ the top is $${top}$ and the bottom is $${bottom}$, so $${k}$ times the bottom is $${k * bottom}$ and the fraction is $${frac(String(top), String(bottom))} = ${value}$.` },
+      { text: `Multiplying through compares $${top}$ with $${k * bottom}$: $${top} ${OP_TEX[op]} ${k * bottom}$ is ${compare(top, op, k * bottom) ? 'true' : 'false'}.` },
+      {
+        text: `The fraction itself compares $${value}$ with $${k}$: $${value} ${OP_TEX[op]} ${k}$ is ${inSet ? 'true' : 'false'}. The two disagree because the bottom is negative, and multiplying by a negative turns the sign. So $x = ${t}$ ${inSet ? 'is' : 'is not'} in the set.`,
+      },
+    ];
+  },
+};
+
+/**
+ * Multiplying through as if the bottom were positive gives one ray; the real
+ * set is two pieces, or a stretch between the pole and the crossing.
+ * Distractors: that ray, the real set with the pole filled in, and the
+ * regions the real set leaves out.
+ */
+const fracIneqSlipWhich: Generator<AgainstParams> = {
+  id: 'frac-ineq-slip-which',
+  sample: sampleAgainst,
+  render: (params): Slide => {
+    const { m, a, b, k, r, op } = params;
+    const p = -b;
+    const real = againstSet(params);
+    const solved: Op = m - k > 0 ? op : FLIP[op];
+    const slip: Piece[] = [pointsUp(solved) ? { lo: r, hi: Infinity, loClosed: !isStrict(op), hiClosed: false } : { lo: -Infinity, hi: r, loClosed: false, hiClosed: !isStrict(op) }];
+    const poleIn = real.map((q) => ({ ...q, loClosed: q.lo === p || q.loClosed, hiClosed: q.hi === p || q.hiClosed }));
+    const others = regionSet([r], [p], m - k, FLIP[op]);
+    const working = [`${polyTex(againstTop(params))} ${OP_TEX[op]} ${timesBottom(k, b)}`, `${termTex(m - k, 1)} ${OP_TEX[op]} ${k * b - a}`];
+    if (m - k !== 1) working.push(`x ${OP_TEX[solved]} ${r}`);
+    return choiceSlide(
+      [
+        show(againstTex(params)),
+        say(`Multiplying both sides by $${br(b)}$ gives this:`),
+        show(chain(...working.map((line) => `&${line}`))),
+        say(`That treats $${br(b)}$ as positive for every $x$. Which is the real solution set?`),
+      ],
+      options({ tex: setTex(real) }, { tex: setTex(slip) }, { tex: setTex(poleIn) }, { tex: setTex(others) }),
+    );
+  },
+  solution: againstSolution,
+};
+
+/** Where the fraction equals k: the one place besides the pole where the answer can change. */
+const fracIneqCrossing: Generator<AgainstParams> = {
+  id: 'frac-ineq-crossing',
+  sample: sampleAgainst,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      show(`${againstFracTex(params)} = ${params.k}`),
+      say(
+        `A fraction can only get from one side of $${params.k}$ to the other where it equals $${params.k}$, or at its pole. Where does this one equal $${params.k}$?`,
+      ),
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: String(params.r),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { m, a, b, k, r } = params;
+    const steps: SolutionStep[] = [
+      { text: `Multiply both sides by $${br(b)}$. In an equation that is safe: there is no sign to turn round.` },
+      { tex: `${polyTex(againstTop(params))} = ${timesBottom(k, b)}` },
+      { tex: `${termTex(m - k, 1)} = ${k * b - a}` },
+    ];
+    if (m - k !== 1) steps.push({ tex: `x = ${r}` });
+    return steps;
+  },
+};
+
+/* ---------- to one side ---------- */
+
+/** The fraction less k as one fraction, in two taps: k over the bottom, then the difference. */
+const fracIneqOneSideSteps: Generator<AgainstParams> = {
+  id: 'frac-ineq-one-side-steps',
+  sample: sampleAgainst,
+  render: (params): Slide => {
+    const { m, a, b, k } = params;
+    const size = Math.abs(k);
+    const bottom = br(b);
+    const over = (p: Poly) => frac(polyTex(p), bottom);
+    const kOver = over([size, size * b]);
+    return {
+      kind: 'steps',
+      prompt: [
+        show(againstTex(params)),
+        say(
+          `Take $${k}$ over to the left, so the right side is $0$, and write the left as one fraction. Tap the part you would work out **next**, then choose what it becomes.`,
+        ),
+      ],
+      start: [over(againstTop(params)), k > 0 ? '-' : '+', String(size)],
+      reductions: [
+        {
+          span: [2, 3],
+          value: kOver,
+          bank: stepBank(kOver, over([size, b]), frac(String(size), bottom), over([size, -size * b]), frac(bottom, String(size))),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: over(oneSideTop(params)),
+          bank: stepBank(over(oneSideTop(params)), over([m - k, a + k * b]), over([m + k, a + k * b]), over([k - m, k * b - a])),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { b, k } = params;
+    const size = Math.abs(k);
+    const kOver = frac(polyTex([size, size * b]), br(b));
+    return [
+      { text: `Write $${size}$ over the bottom: $${size} = ${kOver}$.` },
+      {
+        tex: chain(
+          `&${againstFracTex(params)} ${k > 0 ? '-' : '+'} ${kOver}`,
+          `=\\;&${frac(`${polyTex(againstTop(params))} ${k > 0 ? '-' : '+'} (${polyTex([size, size * b])})`, br(b))}`,
+        ),
+      },
+      { text: `Clear the bracket, minding the sign in front of it:` },
+      { tex: frac(polyTex(oneSideTop(params)), br(b)) },
+      { text: `So the inequality is $${frac(polyTex(oneSideTop(params)), br(b))} ${OP_TEX[params.op]} 0$, a fraction against zero, which a sign table reads.` },
+    ];
+  },
+};
+
+/** The top of the fraction less k, placed as two terms. */
+const fracIneqNewTopTiles: Generator<AgainstParams> = {
+  id: 'frac-ineq-new-top-tiles',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleAgainst(rng, difficulty);
+      if (params.r !== 0) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { m, a, b, k } = params;
+    const answer = termTiles(oneSideTop(params));
+    return {
+      kind: 'tiles',
+      prompt: [
+        show(`${againstFracTex(params)} ${signed(-k)}`),
+        say(`Write this as one fraction over $${br(b)}$. Place its top.`),
+      ],
+      template: '\\text{top: } {0} {1}',
+      bank: tileBank(answer, [
+        ...termTiles([m - k, a + k * b]),
+        ...termTiles([m + k, a + k * b]),
+        ...termTiles([m - k, a - b]),
+        ...termTiles([k - m, k * b - a]),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { b, k } = params;
+    return [
+      { text: `Over $${br(b)}$, $${k}$ is $${frac(timesBottom(k, b), br(b))}$, so the top is the old top less $${timesBottom(k, b)}$:` },
+      {
+        tex: chain(
+          `&${polyTex(againstTop(params))} - ${k === 1 ? factorOf(b) : `${paren(k)}${factorOf(b)}`}`,
+          `=\\;&${polyTex(oneSideTop(params))}`,
+        ),
+      },
+    ];
+  },
+};
+
+/** The critical values from the one-side form: the top's two numbers, the pole, and the crossing. */
+const fracIneqCriticalTree: Generator<AgainstParams> = {
+  id: 'frac-ineq-critical-tree',
+  sample: sampleAgainst,
+  render: (params): Slide => {
+    const { a, b, k, m, r } = params;
+    const [coef, num] = oneSideTop(params);
+    const answer = [coef, num, -b, r];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Bring it to one side over $${br(b)}$. Top row: the $x$ coefficient and the number in the new top, then where the bottom is zero. Below: where the top is zero.`,
+        ),
+      ],
+      expression: againstTex(params),
+      nodes: [
+        { id: 'coef', from: [] },
+        { id: 'num', from: [] },
+        { id: 'pole', from: [] },
+        { id: 'cross', from: ['coef', 'num'] },
+      ],
+      bank: numberBank(answer, [-coef, -num, b, -r, a + k * b, m + k]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { b, r } = params;
+    const top = oneSideTop(params);
+    return [
+      { tex: `${againstFracTex(params)} ${signed(-params.k)} = ${frac(polyTex(top), br(b))}` },
+      { text: `The new top is $${polyTex(top)}$: $x$ coefficient $${top[0]}$, number $${top[1]}$. The bottom is zero at $x = ${-b}$.` },
+      { text: `The top is zero where $${termTex(top[0], 1)} = ${-top[1]}$, at $x = ${r}$.` },
+    ];
+  },
+};
+
+/** A fraction against a number, shaded on the line. */
+const fracIneqLine: Generator<AgainstParams> = {
+  id: 'frac-ineq-line',
+  sample: sampleAgainst,
+  render: (params): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      say('Shade the solution set. Bring everything to one side first, and never multiply through by the bottom.'),
+      show(againstTex(params)),
+    ],
+    min: params.min,
+    max: params.max,
+    step: 1,
+    answer: setOf(againstSet(params)),
+  }),
+  solution: againstSolution,
+};
+
+/* ---------- multiplying by the square ---------- */
+
+/** k(x + b) on the right, bracketed so a minus in front of it reads right. */
+function kBracket(size: number, b: number): string {
+  if (b === 0) return polyTex([size, 0]);
+  return size === 1 ? pbr(b) : `${size}${pbr(b)}`;
+}
+
+/** The top as a factor: (x + 3), or 2x when it has no number. */
+const topFactor = (params: AgainstParams): string => (params.a === 0 ? polyTex(againstTop(params)) : `(${polyTex(againstTop(params))})`);
+
+/** (x + b)^2 as the learner reads it. */
+const squareTex = (b: number): string => `${factorOf(b)}^{2}`;
+
+/** The line multiplying by the square leaves: top times bottom, less k times the square. */
+function squaredLine(params: AgainstParams): string[] {
+  const { b, k } = params;
+  const size = Math.abs(k);
+  const first = b === 0 ? `x${topFactor(params)}` : `${topFactor(params)}${pbr(b)}`;
+  return [first, k > 0 ? '-' : '+', `${size === 1 ? '' : size}${squareTex(b)}`];
+}
+
+function squareSolution(params: AgainstParams): SolutionStep[] {
+  const { m, b, k, r, op } = params;
+  const p = -b;
+  return [
+    { text: `$${squareTex(b)}$ is positive for every $x$ except $${p}$, so multiplying by it keeps the sign:` },
+    { tex: chain(`&${squaredLine(params)[0]}`, `&${squaredLine(params).slice(1).join(' ')} ${OP_TEX[op]} 0`) },
+    { text: `Take out the common bracket $${factorOf(b)}$ and tidy what is left:` },
+    { tex: `${factoredTex(m - k, p, r)} ${OP_TEX[op]} 0` },
+    {
+      text: `A quadratic with roots $${Math.min(p, r)}$ and $${Math.max(p, r)}$. But the fraction has no value at $x = ${p}$, so that end is always hollow.`,
+    },
+    { tex: setTex(againstSet(params)) },
+  ];
+}
+
+/** Factorising top times bottom less k times the square, one tap at a time. */
+const fracIneqSquareSteps: Generator<AgainstParams> = {
+  id: 'frac-ineq-square-steps',
+  sample: sampleAgainst,
+  render: (params): Slide => {
+    const { m, a, b, k, r, op } = params;
+    const p = -b;
+    const size = Math.abs(k);
+    const [sign, other] = k > 0 ? ['-', '+'] : ['+', '-'];
+    const top = polyTex(againstTop(params));
+    const out = factorOf(b);
+    const inner = `${out}[${top} ${sign} ${kBracket(size, b)}]`;
+    const tidy = (q: Poly) => `${out}(${polyTex(q)})`;
+    const factored = factoredTex(m - k, p, r);
+    const lastSlips = [factoredTex(m - k, p, -r), factoredTex(k - m, p, r)];
+    if (Math.abs(m - k) !== 1) lastSlips.push(factoredTex(1, p, r));
+    else lastSlips.push(factoredTex(m - k, -p, r));
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Multiply both sides of $${againstTex(params)}$ by $${squareTex(b)}$, which is never negative, and bring everything to the left: the line below is $${OP_TEX[op]} 0$. Factorise it. Tap the part you would work out **next**, then choose what it becomes.`,
+        ),
+      ],
+      start: squaredLine(params),
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: inner,
+          bank: stepBank(inner, `${out}[${top} ${sign} ${size}]`, `${out}[${top} ${other} ${kBracket(size, b)}]`, `${squareTex(b)}[${top} ${sign} ${size}]`),
+        },
+        {
+          span: [0, 1],
+          value: tidy(oneSideTop(params)),
+          bank: stepBank(tidy(oneSideTop(params)), tidy([m - k, a + k * b]), tidy([m + k, a + k * b]), tidy([m - k, a - b]), tidy([k - m, k * b - a])),
+        },
+        { span: [0, 1], value: factored, bank: stepBank(factored, ...lastSlips) },
+      ],
+    };
+  },
+  solution: squareSolution,
+};
+
+/** Top times bottom less k times the square, multiplied out. */
+const fracIneqSquareTiles: Generator<AgainstParams> = {
+  id: 'frac-ineq-square-tiles',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleAgainst(rng, difficulty);
+      if (params.b !== 0 && params.r !== 0 && params.b !== params.r) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { b, k, op } = params;
+    const times = mulPoly(againstTop(params), lin(b));
+    const answer = termTiles(addPoly(times, scalePoly(quad(b, b), -k)));
+    return {
+      kind: 'tiles',
+      prompt: [
+        show(againstTex(params)),
+        say(
+          `Multiply both sides by $${pbr(b)}^{2}$, which is positive wherever the fraction has a value, and bring everything to the left. Place the quadratic, multiplied out.`,
+        ),
+      ],
+      template: `{0} {1} {2} ${OP_TEX[op]} 0`,
+      bank: tileBank(answer, [
+        ...termTiles(addPoly(times, scalePoly([1, 0, b * b], -k))),
+        ...termTiles(addPoly(times, scalePoly(quad(b, b), k))),
+        ...termTiles(addPoly(times, scalePoly(lin(b), -k))),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { b, k, op } = params;
+    const times = mulPoly(againstTop(params), lin(b));
+    const square = scalePoly(quad(b, b), k);
+    return [
+      { text: `Multiply both sides by $${pbr(b)}^{2}$. On the left the bottom cancels one of its two factors:` },
+      { tex: `${topFactor(params)}${pbr(b)} ${OP_TEX[op]} ${k === 1 ? '' : k === -1 ? '-' : k}${pbr(b)}^{2}` },
+      { text: `Multiply out: the left is $${polyTex(times)}$ and the right is $${polyTex(square)}$. Take the right from both sides:` },
+      { tex: `${polyTex(addPoly(times, scalePoly(square, -1)))} ${OP_TEX[op]} 0` },
+    ];
+  },
+};
+
+/**
+ * The squared form given factorised, and the set shaded. The pole is a root
+ * of the quadratic, so with `\le` or `\ge` the quadratic includes it and the
+ * fraction does not. Difficulty 2 is always one of those.
+ */
+const fracIneqSquareLine: Generator<AgainstParams> = {
+  id: 'frac-ineq-square-line',
+  sample: (rng, difficulty) => {
+    const params = sampleAgainst(rng, difficulty);
+    return difficulty > 1 ? { ...params, op: rng.pick<Op>(['<=', '>=']) } : params;
+  },
+  render: (params): Slide => {
+    const { m, b, k, r, op } = params;
+    return {
+      kind: 'numberLine',
+      prompt: [
+        show(againstTex(params)),
+        say(
+          `Multiplied by $${squareTex(b)}$, it becomes $${factoredTex(m - k, -b, r)} ${OP_TEX[op]} 0$. Shade the solution set of the fraction inequality.`,
+        ),
+      ],
+      min: params.min,
+      max: params.max,
+      step: 1,
+      answer: setOf(againstSet(params)),
+    };
+  },
+  solution: squareSolution,
+};
+
+const UP = 'Upwards, like a U';
+const DOWN = 'Downwards, like an n';
+const BETWEEN = 'Between the roots';
+const OUTSIDE = 'Outside the roots';
+const POLE_IN = 'Yes, the quadratic is zero there';
+const POLE_OUT = 'No, the fraction has no value there';
+const FILLED = 'Yes, a filled dot';
+const HOLLOW = 'No, a hollow dot';
+
+/** Reading the squared form: which way it opens, which side of the roots, and each end. */
+const fracIneqShapeFlow: Generator<AgainstParams> = {
+  id: 'frac-ineq-shape-flow',
+  sample: sampleAgainst,
+  render: (params): Slide => {
+    const { m, b, k, r, op } = params;
+    const p = -b;
+    const lead = m - k;
+    const between = lead > 0 !== pointsUp(op);
+    const key = `${p}|${r}|${op}|${lead}`;
+    return {
+      kind: 'flow',
+      prompt: [say(`Multiplying $${againstTex(params)}$ by $${squareTex(b)}$ gave the inequality below. Read its solution set one decision at a time.`)],
+      subject: `${factoredTex(lead, p, r)} ${OP_TEX[op]} 0`,
+      steps: [
+        {
+          id: 'shape',
+          ask: `Its $x^{2}$ coefficient is $${lead}$. Which way does the graph of the left side open?`,
+          branches: turned([UP, DOWN], key).map((label) => ({ label, to: 'where' })),
+        },
+        {
+          id: 'where',
+          ask: `It asks for ${pointsUp(op) ? 'positive' : 'negative'} values${isStrict(op) ? '' : ', or zero'}. Where are they?`,
+          branches: turned([BETWEEN, OUTSIDE], `${key}|where`).map((label) => ({ label, to: 'pole' })),
+        },
+        {
+          id: 'pole',
+          ask: `The roots are $x = ${p}$ and $x = ${r}$. Is $x = ${p}$ in the set of the fraction inequality?`,
+          branches: turned([POLE_IN, POLE_OUT], `${key}|pole`).map((label) => ({ label, to: 'cross' })),
+        },
+        {
+          id: 'cross',
+          ask: `And $x = ${r}$, where the fraction equals $${k}$?`,
+          branches: turned([FILLED, HOLLOW], `${key}|cross`).map((label) => ({
+            label,
+            outcome: label === FILLED ? `So $x = ${r}$ is in the set.` : `So $x = ${r}$ is left out.`,
+          })),
+        },
+      ],
+      answer: [lead > 0 ? UP : DOWN, between ? BETWEEN : OUTSIDE, POLE_OUT, isStrict(op) ? HOLLOW : FILLED],
+    };
+  },
+  solution: (params) => {
+    const { m, b, k, r, op } = params;
+    const p = -b;
+    const lead = m - k;
+    const between = lead > 0 !== pointsUp(op);
+    return [
+      { text: `The $x^{2}$ coefficient is $${lead}$, so the graph opens ${lead > 0 ? 'upwards' : 'downwards'}: it is ${lead > 0 ? 'negative between the roots and positive outside' : 'positive between the roots and negative outside'}.` },
+      { text: `It asks for ${pointsUp(op) ? 'positive' : 'negative'} values, so the set is ${between ? 'between' : 'outside'} the roots.` },
+      { text: `$x = ${p}$ is the pole: the fraction has no value there, so it is hollow whatever the quadratic does. $x = ${r}$ is ${isStrict(op) ? 'left out, since the inequality is strict' : 'in, since the inequality is not strict'}.` },
+      { tex: setTex(againstSet(params)) },
+    ];
+  },
+};
+
+/* ---------- a fraction against a fraction ---------- */
+
+interface TwoParams {
+  /** (x + a)/(x + b) against (x + c)/(x + d). */
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  /** The x coefficient of the difference's top, a + d - b - c. */
+  s: number;
+  /** Where the two fractions are equal. */
+  r: number;
+  op: Op;
+  min: number;
+  max: number;
+}
+
+const twoTex = ({ a, b, c, d, op }: TwoParams): string => `${frac(br(a), br(b))} ${OP_TEX[op]} ${frac(br(c), br(d))}`;
+const twoDifferenceTex = ({ a, b, c, d }: TwoParams): string => `${frac(br(a), br(b))} - ${frac(br(c), br(d))}`;
+/** The top of the difference over (x + b)(x + d): the x^2 terms cancel. */
+const twoTop = ({ a, b, c, d, s }: TwoParams): Poly => [s, a * d - b * c];
+const twoSet = (params: TwoParams): Piece[] => regionSet([params.r], [-params.b, -params.d], params.s, params.op);
+
+/**
+ * Two poles and a crossing first, and the top's x coefficient s. The top is
+ * (x + a)(x + d) - (x + c)(x + b) = s(x - r), which fixes c = d - s(r + d)/(d - b)
+ * and a = c + s - d + b: redrawn until c is whole.
+ */
+function sampleTwo(rng: Rng, difficulty: number): TwoParams {
+  for (;;) {
+    const hard = difficulty > 1;
+    const p1 = rng.int(-5, 5);
+    const p2 = rng.int(-5, 5);
+    const r = rng.int(-5, 5);
+    const s = hard ? rng.int(2, 3) * rng.sign() : nonZero(rng, 2);
+    if (new Set([p1, p2, r]).size < 3 || (hard && (p1 === 0 || p2 === 0))) continue;
+    const lo = Math.min(p1, p2, r);
+    const hi = Math.max(p1, p2, r);
+    if (hi - lo > 8) continue;
+    const b = -p1 || 0;
+    const d = -p2 || 0;
+    const shift = s * (r + d);
+    if (shift % (d - b) !== 0) continue;
+    const c = d - shift / (d - b) || 0;
+    const a = c + s - d + b;
+    if (a === b || c === d || Math.abs(a) > 12 || Math.abs(c) > 12 || (hard && (a === 0 || c === 0))) continue;
+    return { a, b, c, d, s, r, op: rng.pick(OPS), ...windowFor(rng, lo, hi, hi - lo <= 6 ? 10 : 12, 2) };
+  }
+}
+
+/** The difference's top multiplied out, a line at a time so it fits a phone. */
+function twoTopWorking(params: TwoParams): string {
+  const { a, b, c, d } = params;
+  return chain(`&${polyTex(mulPoly(lin(a), lin(d)))}`, `-\\;&(${polyTex(mulPoly(lin(c), lin(b)))})`, `=\\;&${polyTex(twoTop(params))}`);
+}
+
+function twoSolution(params: TwoParams): SolutionStep[] {
+  const { a, b, c, d, s, r, op } = params;
+  return [
+    {
+      text: `Take the right-hand fraction to the left and put both over $${productTex(b, d)}$. The top is $${productTex(a, d)} - ${productTex(c, b)}$, multiplied out:`,
+    },
+    { tex: twoTopWorking(params) },
+    { text: `The $x^{2}$ terms cancel, so the top is linear, zero at $x = ${r}$. The bottom is zero at $x = ${-b}$ and $x = ${-d}$.` },
+    { tex: `${frac(polyTex(twoTop(params)), productTex(b, d))} ${OP_TEX[op]} 0` },
+    ...readSteps([r], [-b, -d].sort((x, y) => x - y), s, op),
+  ];
+}
+
+/** The difference over the product of the bottoms, then its top tidied. */
+const fracIneqTwoSteps: Generator<TwoParams> = {
+  id: 'frac-ineq-two-steps',
+  sample: sampleTwo,
+  render: (params): Slide => {
+    const { a, b, c, d, s } = params;
+    const bottom = productTex(b, d);
+    const over = (top: string) => frac(top, bottom);
+    const combined = over(`${productTex(a, d)} - ${productTex(c, b)}`);
+    const tidied = over(polyTex(twoTop(params)));
+    return {
+      kind: 'steps',
+      prompt: [
+        show(twoTex(params)),
+        say('Take the right-hand fraction over to the left and write the difference as one fraction. Tap the part you would work out **next**, then choose what it becomes.'),
+      ],
+      start: [frac(br(a), br(b)), '-', frac(br(c), br(d))],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: combined,
+          bank: stepBank(combined, over(`${productTex(a, b)} - ${productTex(c, d)}`), over(`${factorOf(a)} - ${factorOf(c)}`), over(`${productTex(a, d)} + ${productTex(c, b)}`)),
+        },
+        {
+          span: [0, 1],
+          value: tidied,
+          bank: stepBank(tidied, over(polyTex([s, a * d + b * c])), over(polyTex([a + d + b + c, a * d + b * c])), over(polyTex([-s, b * c - a * d]))),
+        },
+      ],
+    };
+  },
+  solution: twoSolution,
+};
+
+/** The numbers in the difference's top, then where it is zero. */
+const fracIneqTwoTopTree: Generator<TwoParams> = {
+  id: 'frac-ineq-two-top-tree',
+  sample: sampleTwo,
+  render: (params): Slide => {
+    const { a, b, c, d, s, r } = params;
+    const answer = [a * d, c * b, s, a * d - b * c, r];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Over $${productTex(b, d)}$ the top is $${productTex(a, d)} - ${productTex(c, b)}$, and its $x^{2}$ terms cancel. Top row: the number from each product, then the $x$ coefficient left over. Below: the number in the top. Last: where the top is zero.`,
+        ),
+      ],
+      expression: twoTex(params),
+      nodes: [
+        { id: 'ad', from: [] },
+        { id: 'cb', from: [] },
+        { id: 'x', from: [] },
+        { id: 'num', from: ['ad', 'cb'] },
+        { id: 'cross', from: ['x', 'num'] },
+      ],
+      bank: numberBank(answer, [a * d + b * c, -s, a - c, b * d, -r, b * c - a * d]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { a, b, c, d, s, r } = params;
+    return [
+      { text: `The numbers: $${a} \\times ${paren(d)} = ${a * d}$ and $${c} \\times ${paren(b)} = ${c * b}$, so the top's number is $${a * d} - ${paren(c * b)} = ${a * d - b * c}$.` },
+      { text: `The $x$ terms: $${a} + ${paren(d)}$ from the first product less $${c} + ${paren(b)}$ from the second, which is $${s}$.` },
+      { tex: `${polyTex(twoTop(params))} = 0 \\;\\Rightarrow\\; x = ${r}` },
+    ];
+  },
+};
+
+/** Two fractions against each other, shaded on the line: two poles and a crossing. */
+const fracIneqTwoLine: Generator<TwoParams> = {
+  id: 'frac-ineq-two-line',
+  sample: sampleTwo,
+  render: (params): Slide => ({
+    kind: 'numberLine',
+    prompt: [say('Shade the solution set. Bring it to one side over the product of the bottoms, then read the signs.'), show(twoTex(params))],
+    min: params.min,
+    max: params.max,
+    step: 1,
+    answer: setOf(twoSet(params)),
+  }),
+  solution: twoSolution,
+};
+
+/**
+ * The difference as one fraction, from four. Distractors: the products
+ * crossed the wrong way, the minus reaching only the first term, and the
+ * two fractions added.
+ */
+const fracIneqTwoTopWhich: Generator<TwoParams> = {
+  id: 'frac-ineq-two-top-which',
+  sample: sampleTwo,
+  render: (params): Slide => {
+    const { a, b, c, d } = params;
+    const over = (top: Poly) => frac(polyTex(top), productTex(b, d));
+    return choiceSlide(
+      [show(twoDifferenceTex(params)), say(`Which is this written as one fraction over $${productTex(b, d)}$?`)],
+      options(
+        { tex: over(twoTop(params)) },
+        ...[
+          [a + b - c - d, a * b - c * d],
+          [a + d + b + c, a * d + b * c],
+          [2, a + d + b + c, a * d + b * c],
+          [params.s, a * d + b * c],
+          [-params.s, b * c - a * d],
+        ].map((top) => ({ tex: over(top) })),
+      ).slice(0, 4),
+    );
+  },
+  solution: (params) => {
+    const { a, b, c, d } = params;
+    return [
+      {
+        text: `Over $${productTex(b, d)}$ the top is $${productTex(a, d)} - ${productTex(c, b)}$. Multiply out each product, and let the minus reach every term of the second:`,
+      },
+      { tex: twoTopWorking(params) },
+      { text: 'The $x^{2}$ terms cancel, so the top is linear.' },
+    ];
+  },
+};
+
+/* ---------- reading the answer ---------- */
+
+interface ReadParams {
+  /** One fraction against a number, or two fractions against each other. */
+  one?: AgainstParams;
+  two?: TwoParams;
+}
+
+/** What every reading question needs, from either shape. */
+function readModel({ one, two }: ReadParams) {
+  if (one) {
+    return {
+      tex: againstTex(one),
+      overOne: frac(polyTex(oneSideTop(one)), br(one.b)),
+      zeros: [one.r],
+      poles: [-one.b],
+      sign: one.m - one.k,
+      op: one.op,
+      top: (x: number) => valueAt(oneSideTop(one), x),
+      bottom: (x: number) => x + one.b,
+      min: one.min,
+      max: one.max,
+      solution: againstSolution(one),
+    };
+  }
+  const params = two!;
+  return {
+    tex: twoTex(params),
+    overOne: frac(polyTex(twoTop(params)), productTex(params.b, params.d)),
+    zeros: [params.r],
+    poles: [-params.b, -params.d].sort((x, y) => x - y),
+    sign: params.s,
+    op: params.op,
+    top: (x: number) => valueAt(twoTop(params), x),
+    bottom: (x: number) => (x + params.b) * (x + params.d),
+    min: params.min,
+    max: params.max,
+    solution: twoSolution(params),
+  };
+}
+
+const sampleRead = (rng: Rng, difficulty: number): ReadParams =>
+  difficulty > 1 ? { two: sampleTwo(rng, difficulty) } : { one: sampleAgainst(rng, difficulty) };
+
+const signCell = (value: number): string => (value > 0 ? '+' : '-');
+
+/**
+ * A region as a row of the sign table: below -5, -5 to -2, above 0. In words
+ * rather than as inequalities, which run a four-region table off a phone.
+ */
+function rowTex(lo: number, hi: number): string {
+  if (lo === -Infinity) return `\\text{below } {${hi}}`;
+  if (hi === Infinity) return `\\text{above } {${lo}}`;
+  return `{${lo}} \\text{ to } {${hi}}`;
+}
+
+/**
+ * The sign table given, one row per region, and the set to shade from it.
+ * What is left is the reading: which rows the inequality wants, and which
+ * dots are filled. Difficulty 2 is two fractions, with four regions.
+ */
+const fracIneqTableLine: Generator<ReadParams> = {
+  id: 'frac-ineq-table-line',
+  sample: sampleRead,
+  render: (params): Slide => {
+    const model = readModel(params);
+    const rows = regionsOf(model.zeros, model.poles).map(
+      ({ lo, hi, probe }) => `${rowTex(lo, hi)} & ${signCell(model.top(probe))} & ${signCell(model.bottom(probe))}`,
+    );
+    return {
+      kind: 'numberLine',
+      prompt: [
+        show(model.tex),
+        say(
+          `Over one bottom it is $${model.overOne} ${OP_TEX[model.op]} 0$. The table gives the signs of its top and bottom in each region. Shade the solution set.`,
+        ),
+        show(`\\def\\arraystretch{1.3}\\begin{array}{c|c|c} & \\text{top} & \\text{bottom} \\\\ \\hline ${rows.join(' \\\\ ')} \\end{array}`),
+      ],
+      min: model.min,
+      max: model.max,
+      step: 1,
+      answer: setOf(regionSet(model.zeros, model.poles, model.sign, model.op)),
+    };
+  },
+  solution: (params) => {
+    const model = readModel(params);
+    return [
+      {
+        text: `Same signs on top and bottom make the fraction positive; different signs make it negative. The inequality wants it ${pointsUp(model.op) ? 'positive' : 'negative'}. ${
+          model.poles.length > 1 ? `The poles, $${model.poles[0]}$ and $${model.poles[1]}$, are` : `The pole, $${model.poles[0]}$, is`
+        } always hollow; the zero of the top, $${model.zeros[0]}$, is ${isStrict(model.op) ? 'hollow, since the inequality is strict' : 'filled, since the inequality is not strict'}.`,
+      },
+      { tex: setTex(regionSet(model.zeros, model.poles, model.sign, model.op)) },
+    ];
+  },
+};
+
+interface LeastParams extends ReadParams {
+  which: 'least' | 'greatest';
+}
+
+/** The least or greatest whole number in a set, when it has one. */
+function wholeEnd(pieces: Piece[], which: 'least' | 'greatest'): number | undefined {
+  const ordered = which === 'least' ? pieces : [...pieces].reverse();
+  const end = which === 'least' ? ordered[0]?.lo : ordered[0]?.hi;
+  if (end === undefined || !Number.isFinite(end)) return undefined;
+  const inSet = (n: number) =>
+    pieces.some((q) => (n > q.lo || (n === q.lo && q.loClosed)) && (n < q.hi || (n === q.hi && q.hiClosed)));
+  const step = which === 'least' ? 1 : -1;
+  for (let n = end, tries = 0; tries < 40; n += step, tries += 1) if (inSet(n)) return n;
+  return undefined;
+}
+
+/**
+ * The least (or greatest) whole number satisfying it: a set with a pole at
+ * that end gives the number next to it, not the pole. Drawn only where the
+ * set has such an end.
+ */
+const fracIneqLeastWhole: Generator<LeastParams> = {
+  id: 'frac-ineq-least-whole',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleRead(rng, difficulty);
+      const model = readModel(params);
+      const pieces = regionSet(model.zeros, model.poles, model.sign, model.op);
+      const ways = (['least', 'greatest'] as const).filter((which) => wholeEnd(pieces, which) !== undefined);
+      if (ways.length === 0) continue;
+      return { ...params, which: rng.pick(ways) };
+    }
+  },
+  render: (params): Slide => {
+    const model = readModel(params);
+    const pieces = regionSet(model.zeros, model.poles, model.sign, model.op);
+    return {
+      kind: 'expression',
+      prompt: [show(model.tex), say(`What is the ${params.which} whole number $x$ that satisfies this?`)],
+      lead: 'x =',
+      keypad: [],
+      answer: String(wholeEnd(pieces, params.which)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const model = readModel(params);
+    const pieces = regionSet(model.zeros, model.poles, model.sign, model.op);
+    const n = wholeEnd(pieces, params.which)!;
+    const piece = params.which === 'least' ? pieces[0] : pieces[pieces.length - 1];
+    const end = params.which === 'least' ? piece.lo : piece.hi;
+    const closed = params.which === 'least' ? piece.loClosed : piece.hiClosed;
+    const holds = n >= piece.lo && n <= piece.hi;
+    let why = '.';
+    if (!holds) why = `: $${pieceTex(piece)}$ holds no whole number at all.`;
+    else if (!closed && n !== end) {
+      why = `, not $${end}$: ${model.poles.includes(end) ? 'that is a pole, where the fraction has no value' : 'the inequality is strict, so the end itself is left out'}.`;
+    }
+    return [...model.solution, { text: `The ${params.which} whole number in it is $${n}$${why}` }];
+  },
+};
+
+interface MemberParams extends AgainstParams {
+  v: number;
+  what: 'pole' | 'cross' | 'other';
+}
+
+const AT_POLE = 'The bottom is zero';
+const NEITHER = 'Neither';
+const ABOVE = 'Above';
+const BELOW = 'Below';
+
+/** Is one value in the set? The pole never; the crossing when not strict; anything else by a test. */
+const fracIneqMemberFlow: Generator<MemberParams> = {
+  id: 'frac-ineq-member-flow',
+  sample: (rng, difficulty) => {
+    const params = sampleAgainst(rng, difficulty);
+    const what = rng.pick<MemberParams['what']>(['pole', 'cross', 'other', 'other']);
+    if (what === 'pole') return { ...params, what, v: -params.b };
+    if (what === 'cross') return { ...params, what, v: params.r };
+    const values = [];
+    for (let x = params.min + 1; x < params.max; x += 1) if (x !== -params.b && x !== params.r) values.push(x);
+    return { ...params, what, v: rng.pick(values) };
+  },
+  render: (params): Slide => {
+    const { k, v, op, what } = params;
+    const equals = `The fraction equals $${k}$`;
+    const member = (id: string) => ({
+      id,
+      ask: `So is $x = ${v}$ in the solution set?`,
+      branches: [
+        { label: YES, outcome: `Yes: $x = ${v}$ is in the set.` },
+        { label: NO, outcome: `No: $x = ${v}$ is left out.` },
+      ],
+    });
+    const above = what === 'other' && againstAt(params, v) > k;
+    const inSet = what === 'pole' ? false : what === 'cross' ? !isStrict(op) : compare(againstAt(params, v), op, k);
+    const first = what === 'pole' ? AT_POLE : what === 'cross' ? equals : NEITHER;
+    return {
+      kind: 'flow',
+      prompt: [say(`Decide whether $x = ${v}$ satisfies this, one question at a time.`)],
+      subject: againstTex(params),
+      steps: [
+        {
+          id: 'what',
+          ask: `What happens at $x = ${v}$?`,
+          branches: turned(
+            [
+              { label: AT_POLE, to: 'pole' },
+              { label: equals, to: 'cross' },
+              { label: NEITHER, to: 'test' },
+            ],
+            `${v}|${k}|${op}`,
+          ),
+        },
+        member('pole'),
+        member('cross'),
+        {
+          id: 'test',
+          ask: `Is the fraction above or below $${k}$ at $x = ${v}$?`,
+          branches: [
+            { label: ABOVE, to: 'in-above' },
+            { label: BELOW, to: 'in-below' },
+          ],
+        },
+        member('in-above'),
+        member('in-below'),
+      ],
+      answer: what === 'other' ? [first, above ? ABOVE : BELOW, inSet ? YES : NO] : [first, inSet ? YES : NO],
+    };
+  },
+  solution: (params) => {
+    const { m, a, b, k, v, op, what } = params;
+    if (what === 'pole') {
+      return [{ text: `At $x = ${v}$ the bottom $${br(b)}$ is zero, so the fraction has no value there. A pole is never in the set, whatever the sign says.` }];
+    }
+    if (what === 'cross') {
+      return [
+        { text: `At $x = ${v}$ the top is $${m * v + a}$ and the bottom is $${v + b}$, so the fraction is exactly $${k}$.` },
+        { text: `${isStrict(op) ? 'The inequality is strict, so equal is not enough: it is left out.' : 'The inequality is not strict, so equal counts: it is in.'}` },
+      ];
+    }
+    const top = m * v + a;
+    const bottom = v + b;
+    const inSet = compare(againstAt(params, v), op, k);
+    return [
+      { text: `At $x = ${v}$ the fraction is $${frac(String(top), String(bottom))}$, which is neither undefined nor $${k}$.` },
+      { text: `It is ${againstAt(params, v) > k ? 'above' : 'below'} $${k}$, so $x = ${v}$ ${inSet ? 'is' : 'is not'} in the set of $${againstTex(params)}$.` },
+    ];
+  },
+};
+
+interface GraphParams extends AgainstParams {
+  which: 'pole' | 'crossing';
+  left: number;
+  right: number;
+}
+
+const graphTrack = ({ b, r, left, right }: GraphParams): [number, number] => [Math.min(-b, r) - left, Math.max(-b, r) + right];
+const graphAsked = (params: GraphParams): number => (params.which === 'pole' ? -params.b : params.r);
+
+/**
+ * The curve and the line y = k: the answer changes only where they meet and
+ * where the curve shoots off. The marker goes to the one asked for.
+ */
+const fracIneqGraphSlider: Generator<GraphParams> = {
+  id: 'frac-ineq-graph-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params: GraphParams = {
+        ...sampleAgainst(rng, difficulty),
+        which: rng.pick<GraphParams['which']>(['pole', 'crossing']),
+        left: rng.int(1, 3),
+        right: rng.int(1, 3),
+      };
+      const [min, max] = graphTrack(params);
+      if (max - min > 12 || graphAsked(params) === restingOn(min, max)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { k, which } = params;
+    const [min, max] = graphTrack(params);
+    const window = markerWindow(min, max);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The curve is $y = ${againstFracTex(params)}$ and the dashed line is $y = ${k}$. The answer to $${againstTex(params)}$ can only change where the curve meets the line, or where it shoots off. ${
+            which === 'pole' ? 'Slide the marker to where it shoots off.' : 'Slide the marker to where it meets the line.'
+          }`,
+        ),
+      ],
+      min,
+      max,
+      step: 1,
+      answer: graphAsked(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: window.xMin,
+          xMax: window.xMax,
+          yMin: k - 6,
+          yMax: k + 6,
+          curves: [{ f: (x: number) => againstAt(params, x), breaks: true }],
+          horizontals: [k],
+          label: 'The graph of the fraction, and a flat dashed line at the number it is compared with',
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { b, k, r, which } = params;
+    return which === 'pole'
+      ? [
+          { text: `The curve shoots off where the bottom is zero: $${br(b)} = 0$ at $x = ${-b}$.` },
+          { text: 'That end of any piece of the set is hollow, since the fraction has no value there.' },
+        ]
+      : [
+          { text: `The curve meets the line where the fraction equals $${k}$:` },
+          ...fracIneqCrossing.solution(params),
+          { text: `So the marker goes to $x = ${r}$.` },
+        ];
+  },
+};
+
 export const algebraicFractionGenerators = [
   fracCancel,
   fracCancelWhich,
@@ -4034,4 +5328,24 @@ export const algebraicFractionGenerators = [
   fracQuadWholeTiles,
   fracQuadImproperSteps,
   fracQuadRestTree,
+  fracIneqCasesFlow,
+  fracIneqTestTree,
+  fracIneqSlipWhich,
+  fracIneqCrossing,
+  fracIneqOneSideSteps,
+  fracIneqNewTopTiles,
+  fracIneqCriticalTree,
+  fracIneqLine,
+  fracIneqSquareSteps,
+  fracIneqSquareTiles,
+  fracIneqSquareLine,
+  fracIneqShapeFlow,
+  fracIneqTwoSteps,
+  fracIneqTwoTopTree,
+  fracIneqTwoLine,
+  fracIneqTwoTopWhich,
+  fracIneqTableLine,
+  fracIneqLeastWhole,
+  fracIneqMemberFlow,
+  fracIneqGraphSlider,
 ];

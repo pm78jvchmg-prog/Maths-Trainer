@@ -9,7 +9,10 @@
  * brackets, three, a repeated one, and after dividing out a whole part, and
  * ends with a look at what the split is for. Level 3 meets a quadratic factor
  * that will not split: its part takes an x on top, cover-up finds the linear
- * part's number, and comparing coefficients finds the rest.
+ * part's number, and comparing coefficients finds the rest. Level 4 solves
+ * inequalities with a fraction in them: why the bottom cannot be multiplied
+ * through, bringing everything to one side, multiplying by the bottom
+ * squared, a fraction against a fraction, and reading the set at the end.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -670,6 +673,197 @@ export const algebraicFractions: Course = {
         ask('frac-quad-degree-flow', 2),
         ask('frac-quad-whole-tiles', 2),
         ask('frac-quad-improper-steps', 2),
+      ],
+    },
+    {
+      id: 'af-l4',
+      title: 'Inequalities with Fractions',
+      lessons: [
+        {
+          id: 'af-l4-no-multiplying',
+          title: 'Why You Cannot Multiply Through',
+          slides: [
+            teach(
+              prose(
+                'In an equation you can multiply both sides by the bottom. In an inequality you cannot, unless you know its sign: multiplying by a negative number turns the sign round, and $x - 2$ is negative for $x < 2$ and positive for $x > 2$.',
+              ),
+              working('\\frac{x + 4}{x - 2} &< 3', 'x + 4 &< 3(x - 2)', 'x &> 5'),
+              prose('That working is wrong. Try $x = 0$: $\\frac{4}{-2} = -2$, which is less than $3$, so $0$ is in the set, and $x > 5$ missed it.'),
+            ),
+            ask('frac-ineq-cases-flow'),
+            ask('frac-ineq-test-tree'),
+            ask('frac-ineq-crossing'),
+            teach(
+              prose('One safe way is to take each side of the pole in turn. For $x > 2$ the bottom is positive, so the sign stays:'),
+              working('x + 4 &< 3x - 6', 'x &> 5'),
+              prose(
+                'For $x < 2$ it is negative, so the sign turns: $x + 4 > 3x - 6$, which gives $x < 5$, and all of $x < 2$ fits that. Together: $x < 2$ or $x > 5$.',
+              ),
+            ),
+            ask('frac-ineq-slip-which'),
+            ask('frac-ineq-cases-flow', 2),
+            ask('frac-ineq-test-tree', 2),
+            teach(
+              prose(
+                'The answer can only change in two places: the pole, where the bottom is zero, and the crossing, where the fraction equals the number. Here those are $x = 2$ and $x = 5$.',
+              ),
+              prose('The pole is never in the set, since the fraction has no value there.'),
+            ),
+            ask('frac-ineq-crossing', 2),
+            ask('frac-ineq-slip-which', 2),
+          ],
+          skillCheck: [ask('frac-ineq-cases-flow', 2), ask('frac-ineq-test-tree', 2), ask('frac-ineq-slip-which', 2)],
+        },
+        {
+          id: 'af-l4-one-side',
+          title: 'Bringing It to One Side',
+          slides: [
+            teach(
+              prose('A tidier way: take the number over to the left, so the right side is $0$, and write the left as one fraction.'),
+              working('&\\frac{x + 4}{x - 2} - 3', '=\\;&\\frac{x + 4 - 3(x - 2)}{x - 2}', '=\\;&\\frac{-2x + 10}{x - 2}'),
+              prose(
+                'Now it is a fraction against zero, which a sign table reads, as in the first level of Inequalities & the Modulus Function.',
+              ),
+            ),
+            ask('frac-ineq-one-side-steps'),
+            ask('frac-ineq-new-top-tiles'),
+            ask('frac-ineq-critical-tree'),
+            teach(
+              prose(
+                'The critical values are where the top is zero, $x = 5$, and where the bottom is zero, $x = 2$. Test a value in each region:',
+              ),
+              working('x = 0: &\\quad \\tfrac{10}{-2} \\text{ is negative}', 'x = 3: &\\quad \\tfrac{4}{1} \\text{ is positive}', 'x = 6: &\\quad \\tfrac{-2}{4} \\text{ is negative}'),
+              prose('We want it negative, so $x < 2$ or $x > 5$, both dots hollow.'),
+            ),
+            ask('frac-ineq-line'),
+            ask('frac-ineq-one-side-steps', 2),
+            ask('frac-ineq-new-top-tiles', 2),
+            teach(
+              prose(
+                'Mind the minus in front of the bracket: $-3(x - 2)$ is $-3x + 6$, not $-3x - 6$. And with $\\le$ or $\\ge$, the zero of the top is filled in, while the pole stays hollow.',
+              ),
+            ),
+            ask('frac-ineq-critical-tree', 2),
+            ask('frac-ineq-line', 2),
+          ],
+          skillCheck: [ask('frac-ineq-line', 2), ask('frac-ineq-one-side-steps', 2), ask('frac-ineq-critical-tree', 2)],
+        },
+        {
+          id: 'af-l4-square',
+          title: 'Multiplying by the Square',
+          slides: [
+            teach(
+              prose('$(x - 2)^{2}$ is positive for every $x$ except $2$, so multiplying both sides by it never turns the sign:'),
+              working('\\frac{x + 4}{x - 2} &< 3', '(x + 4)(x - 2) &< 3(x - 2)^{2}'),
+              prose('Bring everything to the left and take out the common bracket:'),
+              working('(x - 2)[x + 4 - 3(x - 2)] &< 0', '(x - 2)(-2x + 10) &< 0'),
+            ),
+            ask('frac-ineq-square-steps'),
+            ask('frac-ineq-square-tiles'),
+            ask('frac-ineq-shape-flow'),
+            teach(
+              prose(
+                'That is $-2(x - 2)(x - 5) < 0$, a quadratic whose graph opens downwards, with roots $2$ and $5$. It is negative outside the roots: $x < 2$ or $x > 5$, the same answer as before.',
+              ),
+              prose('Take out the bracket rather than multiplying everything out: it hands you the pole as one of the roots.'),
+            ),
+            ask('frac-ineq-square-line'),
+            ask('frac-ineq-square-steps', 2),
+            ask('frac-ineq-square-tiles', 2),
+            teach(
+              prose(
+                'One catch. With $\\le$ or $\\ge$ the quadratic is zero at the pole, so it counts the pole in. The fraction has no value there, so the pole is always a hollow dot. Only the crossing can be filled.',
+              ),
+            ),
+            ask('frac-ineq-shape-flow', 2),
+            ask('frac-ineq-square-line', 2),
+          ],
+          skillCheck: [ask('frac-ineq-square-steps', 2), ask('frac-ineq-shape-flow', 2), ask('frac-ineq-square-line', 2)],
+        },
+        {
+          id: 'af-l4-two-fractions',
+          title: 'Fraction against Fraction',
+          slides: [
+            teach(
+              prose(
+                'With a fraction on each side, take the right one over and put both over the product of the bottoms. For $\\frac{x + 1}{x - 1} - \\frac{x + 3}{x + 2}$ that is $(x - 1)(x + 2)$, and the top is $(x + 1)(x + 2) - (x + 3)(x - 1)$:',
+              ),
+              working('&x^{2} + 3x + 2', '-\\;&(x^{2} + 2x - 3)', '=\\;&x + 5'),
+              prose('The $x^{2}$ terms cancel, so the top is linear.'),
+            ),
+            ask('frac-ineq-two-steps'),
+            ask('frac-ineq-two-top-tree'),
+            ask('frac-ineq-two-top-which'),
+            teach(
+              prose(
+                'So $\\frac{x + 1}{x - 1} \\le \\frac{x + 3}{x + 2}$ is $\\frac{x + 5}{(x - 1)(x + 2)} \\le 0$. Three critical values now: $-5$ from the top, and $-2$ and $1$ from the bottom. Test each of the four regions:',
+              ),
+              working('x < -5: &\\quad \\text{negative}', '-5 < x < -2: &\\quad \\text{positive}', '-2 < x < 1: &\\quad \\text{negative}', 'x > 1: &\\quad \\text{positive}'),
+              prose('So $x \\le -5$ or $-2 < x < 1$.'),
+            ),
+            ask('frac-ineq-two-line'),
+            ask('frac-ineq-two-steps', 2),
+            ask('frac-ineq-two-top-tree', 2),
+            teach(
+              prose(
+                'Multiplying through by both bottoms fails for the same reason as before: their product changes sign at each pole. Two poles, so two hollow dots.',
+              ),
+            ),
+            ask('frac-ineq-two-top-which', 2),
+            ask('frac-ineq-two-line', 2),
+          ],
+          skillCheck: [ask('frac-ineq-two-line', 2), ask('frac-ineq-two-steps', 2), ask('frac-ineq-two-top-tree', 2)],
+        },
+        {
+          id: 'af-l4-reading',
+          title: 'Reading the Answer',
+          slides: [
+            teach(
+              prose(
+                'Each end of the set is settled by what happens there. At a pole the dot is always hollow. At the crossing it is filled for $\\le$ or $\\ge$, and hollow for $<$ or $>$.',
+              ),
+              prose(
+                'Read whole numbers with care. $-2 < x \\le 3$ holds $-1, 0, 1, 2, 3$: the least is $-1$, since $-2$ is left out.',
+              ),
+            ),
+            ask('frac-ineq-table-line'),
+            ask('frac-ineq-member-flow'),
+            ask('frac-ineq-least-whole'),
+            teach(
+              prose(
+                'On a graph, $\\frac{x + 4}{x - 2} < 3$ is where the curve is below the line $y = 3$. The curve gets from one side of the line to the other only where it meets the line, at $x = 5$, or where it shoots off, at the pole $x = 2$.',
+              ),
+            ),
+            ask('frac-ineq-graph-slider'),
+            ask('frac-ineq-table-line', 2),
+            ask('frac-ineq-member-flow', 2),
+            teach(
+              prose(
+                'A piece of the set can hold no whole number at all: $-1 < x < 0$ is a real stretch of the line, but nothing whole sits in it. So look past it for the least or greatest whole number.',
+              ),
+            ),
+            ask('frac-ineq-least-whole', 2),
+            ask('frac-ineq-graph-slider', 2),
+          ],
+          skillCheck: [ask('frac-ineq-table-line', 2), ask('frac-ineq-least-whole', 2), ask('frac-ineq-member-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('frac-ineq-cases-flow', 2),
+        ask('frac-ineq-test-tree', 2),
+        ask('frac-ineq-crossing', 2),
+        ask('frac-ineq-one-side-steps', 2),
+        ask('frac-ineq-new-top-tiles', 2),
+        ask('frac-ineq-line', 2),
+        ask('frac-ineq-square-steps', 2),
+        ask('frac-ineq-shape-flow', 2),
+        ask('frac-ineq-square-line', 2),
+        ask('frac-ineq-two-top-tree', 2),
+        ask('frac-ineq-two-top-which', 2),
+        ask('frac-ineq-two-line', 2),
+        ask('frac-ineq-least-whole', 2),
+        ask('frac-ineq-table-line', 2),
+        ask('frac-ineq-graph-slider', 2),
       ],
     },
   ],

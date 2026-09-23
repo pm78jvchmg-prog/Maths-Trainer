@@ -1475,7 +1475,8 @@ export const vectors: Course = {
               ),
               maths('\\mathbf{a} \\cdot (\\mathbf{b} + \\mathbf{c}) = \\mathbf{a} \\cdot \\mathbf{b} + \\mathbf{a} \\cdot \\mathbf{c}'),
               prose('A vector dotted with itself is its length squared, $\\mathbf{a} \\cdot \\mathbf{a} = |\\mathbf{a}|^2$. So with $|\\mathbf{a}| = 3$, $|\\mathbf{b}| = 4$ and $\\mathbf{a} \\cdot \\mathbf{b} = 2$:'),
-              maths('|\\mathbf{a} + \\mathbf{b}|^2 = |\\mathbf{a}|^2 + 2\\,\\mathbf{a} \\cdot \\mathbf{b} + |\\mathbf{b}|^2'),
+              maths('|\\mathbf{a} + \\mathbf{b}|^2'),
+              maths('= |\\mathbf{a}|^2 + 2\\,\\mathbf{a} \\cdot \\mathbf{b} + |\\mathbf{b}|^2'),
               maths('= 9 + 4 + 16 = 29'),
             ),
             ask('angle-dot-algebra'),
@@ -1497,7 +1498,7 @@ export const vectors: Course = {
               ),
               maths('\\cos\\theta = \\frac{\\mathbf{a} \\cdot \\mathbf{b}}{|\\mathbf{a}| \\, |\\mathbf{b}|}'),
               prose(
-                'Take $\\mathbf{a} = \\left(1, 2, 2\\right)$ and $\\mathbf{b} = \\left(2, 3, 6\\right)$. Both lengths are whole: $|\\mathbf{a}| = \\sqrt{1 + 4 + 4} = 3$ and $|\\mathbf{b}| = \\sqrt{4 + 9 + 36} = 7$.',
+                'Take $\\mathbf{a} = \\left(1, 2, 2\\right)$ and $\\mathbf{b} = \\left(2, 3, 6\\right)$. Both lengths are whole: ${|\\mathbf{a}| = \\sqrt{1 + 4 + 4} = 3}$ and ${|\\mathbf{b}| = \\sqrt{4 + 9 + 36} = 7}$.',
               ),
               maths('\\mathbf{a} \\cdot \\mathbf{b} = 2 + 6 + 12 = 20'),
               maths('\\cos\\theta = \\frac{20}{3 \\times 7} = \\frac{20}{21}'),
@@ -1649,7 +1650,7 @@ export const vectors: Course = {
               prose('Since $\\cos\\phi = \\sin\\theta$, that is one step:'),
               maths('\\sin\\theta = \\frac{|\\mathbf{b} \\cdot \\mathbf{n}|}{|\\mathbf{b}| \\, |\\mathbf{n}|}'),
               prose(
-                'Direction $\\left(1, 1, 0\\right)$ against the plane $y + z = 3$, normal $\\left(0, 1, 1\\right)$, gives $\\sin\\theta = \\tfrac{1}{2}$, so $\\theta = 30^\\circ$.',
+                'Direction $\\left(1, 1, 0\\right)$ against the plane ${y + z = 3}$, normal $\\left(0, 1, 1\\right)$, gives $\\sin\\theta = \\tfrac{1}{2}$, so $\\theta = 30^\\circ$.',
               ),
               prose(
                 'Two special cases: $\\mathbf{b}$ a multiple of $\\mathbf{n}$ means the line is perpendicular to the plane, and $\\mathbf{b} \\cdot \\mathbf{n} = 0$ means it is parallel.',
@@ -1660,7 +1661,7 @@ export const vectors: Course = {
             ask('angle-line-plane-kind'),
             teach(
               prose(
-                'The angle between two planes is the angle between their normals, and like lines it is the acute one. For $x + y = 4$ and $y + z = 1$:',
+                'The angle between two planes is the angle between their normals, and like lines it is the acute one. For ${x + y = 4}$ and ${y + z = 1}$:',
               ),
               maths('\\cos\\theta = \\frac{(1, 1, 0) \\cdot (0, 1, 1)}{\\sqrt{2}\\sqrt{2}} = \\tfrac{1}{2}'),
               prose(

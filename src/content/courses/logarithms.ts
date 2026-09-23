@@ -1405,6 +1405,46 @@ export const logarithms: Course = {
             ask('log-lin-constant-steps', 2),
           ],
         },
+        {
+          id: 'lg-l6-choosing',
+          title: 'Choosing the Transformation',
+          slides: [
+            teach(
+              prose('Which graph straightens a model depends on where $x$ is.'),
+              prose('For a power model $y = kx^{n}$, plot $\\log y$ against $\\log x$.'),
+              prose('For an exponential model $y = ab^{x}$, plot $\\log y$ against $x$ itself.'),
+              prose(
+                'A model with a term added on, like $y = 3x^{2} + 5$, is straightened by neither. The log of a sum does not split.',
+              ),
+            ),
+            ask('log-lin-axes-flow'),
+            ask('log-lin-straight-choice'),
+            ask('log-lin-predict'),
+            teach(
+              prose(
+                'A line of best fit through real data predicts the same way. Work along the line in logs, then undo the log at the end.',
+              ),
+              maths('\\log y = 1 + 2\\log x'),
+              prose('At $x = 100$, $\\log x = 2$, so $\\log y = 1 + 2 \\times 2 = 5$ and $y = 10^{5}$.'),
+              prose('Stopping at $5$ answers with $\\log y$, not $y$.'),
+            ),
+            ask('log-lin-predict+choice'),
+            ask('log-lin-power-slider'),
+            ask('log-lin-axes-flow'),
+            teach(
+              prose(
+                'Backwards works too. To find the $x$ that gives $y = 10^{7}$ on the line $\\log y = 1 + 3x$, solve $1 + 3x = 7$: $x = 2$.',
+              ),
+            ),
+            ask('log-lin-straight-choice'),
+            ask('log-lin-exp-slider'),
+          ],
+          skillCheck: [
+            ask('log-lin-axes-flow', 2),
+            ask('log-lin-straight-choice', 2),
+            ask('log-lin-predict', 2),
+          ],
+        },
       ],
     },
   ],

@@ -5,7 +5,7 @@
  * Shared formatters and the engine constraints they exist for live in
  * `vectorFormat.ts`, alongside the vector generators these grew out of.
  */
-import type { Block, Generator, Slide } from '../types';
+import type { Block, ChoiceOption, Generator, Slide } from '../types';
 import { bin, num } from '../expr';
 import { options } from '../choiceVariant';
 import {
@@ -2790,6 +2790,1639 @@ const orientation: Generator<OrientationParams> = {
   },
 };
 
+/* ---------- Level 7: composing transformations (roadmap batch B18) ---------- */
+
+/**
+ * The matrix for "n, then m": the product mn.
+ *
+ * Read right to left, because the matrix nearest the point acts on it first.
+ * Every question in this level turns on that one convention, so it is written
+ * down once, here, and every generator goes through it.
+ */
+function mul(m: Matrix, n: Matrix): Matrix {
+  return [
+    m[0] * n[0] + m[1] * n[2],
+    m[0] * n[1] + m[1] * n[3],
+    m[2] * n[0] + m[3] * n[2],
+    m[2] * n[1] + m[3] * n[3],
+  ];
+}
+
+const sameMatrix = (m: Matrix, n: Matrix) => m.every((value, idx) => value === n[idx]);
+
+/** Entry by entry: the slip every product question here is built to catch. */
+const entrywise = (m: Matrix, n: Matrix): Matrix => [m[0] * n[0], m[1] * n[1], m[2] * n[2], m[3] * n[3]];
+
+const negated = (m: Matrix): Matrix => [-m[0], -m[1], -m[2], -m[3]];
+
+/** Which of the seven standard transformations a matrix is, if any. */
+function standardKeyOf(m: Matrix): Standard | undefined {
+  return STANDARD_KEYS.find((key) => sameMatrix(STANDARD[key].matrix, m));
+}
+
+const STANDARDS: Transform[] = STANDARD_KEYS.map((key) => ({ kind: 'standard', key }));
+
+/** Small scalings, kept small so a composition still fits on the grid. */
+const SCALINGS: Transform[] = [
+  { kind: 'enlarge', k: 2 },
+  { kind: 'enlarge', k: 3 },
+  { kind: 'enlarge', k: -2 },
+  { kind: 'stretch-x', k: 2 },
+  { kind: 'stretch-x', k: 3 },
+  { kind: 'stretch-y', k: 2 },
+  { kind: 'stretch-y', k: 3 },
+];
+
+/** Every transformation this level composes by name. */
+const COMPOSABLE: Transform[] = [...STANDARDS, ...SCALINGS];
+
+/** Shears have no name among the standard ones, so they are only ever shown. */
+const SHEARS: Matrix[] = [
+  [1, 1, 0, 1],
+  [1, -1, 0, 1],
+  [1, 2, 0, 1],
+  [1, -2, 0, 1],
+  [1, 0, 1, 1],
+  [1, 0, -1, 1],
+  [1, 0, 2, 1],
+  [1, 0, -2, 1],
+];
+
+/** Every unordered pair of distinct items, split by whether the two commute. */
+function splitPairs<T>(items: readonly T[], matrix: (item: T) => Matrix): { agree: [T, T][]; clash: [T, T][] } {
+  const agree: [T, T][] = [];
+  const clash: [T, T][] = [];
+  for (let i = 0; i < items.length; i += 1) {
+    for (let j = i + 1; j < items.length; j += 1) {
+      const [p, q] = [matrix(items[i]), matrix(items[j])];
+      (sameMatrix(mul(p, q), mul(q, p)) ? agree : clash).push([items[i], items[j]]);
+    }
+  }
+  return { agree, clash };
+}
+
+const NAMED_PAIRS = splitPairs(COMPOSABLE, matrixOf);
+const MOVE_PAIRS = splitPairs(COMPOSABLE.map(matrixOf), (m) => m);
+const SHOWN_PAIRS = splitPairs([...COMPOSABLE.map(matrixOf), ...SHEARS], (m) => m);
+
+/** Letters a question may call its matrices by. */
+const LETTERS = ['A', 'B', 'C', 'M', 'N', 'P', 'Q', 'R', 'S', 'T'];
+
+const bold = (word: string) => `\\mathbf{${word}}`;
+const inverseOfLetter = (letter: string) => `${bold(letter)}^{-1}`;
+const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
+/**
+ * A choice slide's options, turned by a hash of every label.
+ *
+ * The same idea as the rotation `choiceVariant` applies, for the native choice
+ * slides of this level, so the answer is not always first and one question
+ * still renders one way. The prompt goes in as a salt: several of these
+ * questions offer the same few labels in every draw, and a hash of the labels
+ * alone would then pin the answer to one or two slots.
+ */
+function turned<T extends { label: string }>(offered: T[], salt: string): T[] {
+  let hash = 17;
+  for (const text of [salt, ...offered.map((option) => option.label)]) {
+    for (let i = 0; i < text.length; i += 1) {
+      hash = (hash * 37 + text.charCodeAt(i)) | 0;
+    }
+  }
+  const turn = Math.abs(hash) % offered.length;
+  return [...offered.slice(turn), ...offered.slice(0, turn)];
+}
+
+/**
+ * Choose which three slips a derived choice slide offers, so that the answer
+ * lands in the slot `target` asks for.
+ *
+ * `choiceVariant` turns the options by a hash of their labels, which is fine
+ * while every draw offers different labels. Two questions here offer only a
+ * handful of label sets — the seven standard matrices, or angles that are all
+ * multiples of 90 — and there the hash put the answer in one or two slots
+ * nearly every time. So this mirrors that hash, tries each run of three
+ * consecutive slips, and keeps the first whose turn lands the answer on
+ * `target`. Failing that it tries runs of two, since four labels of the same
+ * make can fix the parity of the hash and so rule out half the slots; failing
+ * that, the first three. The target comes from the question's own parameters,
+ * so one question still renders one way.
+ */
+function aimedOptions(correct: ChoiceOption, slips: ChoiceOption[], target: number): ChoiceOption[] {
+  const tried: ChoiceOption[][] = [];
+  for (const count of [3, 2]) {
+    for (let start = 0; start < Math.max(1, slips.length); start += 1) {
+      const picked = [...slips.slice(start), ...slips.slice(0, start)].slice(0, count);
+      const offered = options(correct, ...picked);
+      tried.push(offered);
+      let hash = 0;
+      for (const option of offered) {
+        for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+      }
+      const turn = Math.abs(hash) % offered.length;
+      if ((offered.length - turn) % offered.length === target % offered.length) return offered;
+    }
+  }
+  return tried[0];
+}
+
+/** A point off both axes and off both diagonals, so every image is distinct. */
+function offAxisPoint(
+  rng: Parameters<Generator<unknown>['sample']>[0],
+  span: number,
+): [number, number] {
+  for (let tries = 0; tries < 40; tries += 1) {
+    const x = nonZero(rng.int(-span, span), 2);
+    const y = nonZero(rng.int(-span, span), -1);
+    if (Math.abs(x) !== Math.abs(y)) return [x, y];
+  }
+  return [2, -1];
+}
+
+/** The same sentence three ways: `first` is applied, then `second`. */
+function thenSentence(first: string, second: string, phrase: number): string {
+  return [
+    `$${bold(first)}$ is applied first, then $${bold(second)}$.`,
+    `A point is transformed by $${bold(first)}$, and the result by $${bold(second)}$.`,
+    `$${bold(second)}$ is applied after $${bold(first)}$.`,
+  ][phrase % 3];
+}
+
+/** The two matrices of a question, one per display, in alphabetical order. */
+function namedDisplays(pairs: [string, Matrix][]): Block[] {
+  return [...pairs]
+    .sort(([p], [q]) => p.localeCompare(q))
+    .map(([letter, m]) => ({ kind: 'display', tex: `${bold(letter)} = ${texOf(m)}` }) as const);
+}
+
+/* ----- a product is a composition ----- */
+
+interface ComposeMatrixParams {
+  first: Matrix;
+  second: Matrix;
+  /** The letters of the matrix applied first and the one applied second. */
+  names: [string, string];
+  phrase: number;
+}
+
+/**
+ * The single matrix for one transformation followed by another.
+ *
+ * The words give the order of events and the answer has to reverse it: the
+ * first transformation is written on the right. Every draw is a pair whose
+ * product changes with the order, so writing them left to right as read is
+ * always marked wrong.
+ */
+const composeMatrix: Generator<ComposeMatrixParams> = {
+  id: 'mat-compose-matrix',
+  choices: ({ first, second }) =>
+    options(
+      { tex: texOf(mul(second, first)) },
+      // Multiplied in the order they are read, entry by entry, and added.
+      { tex: texOf(mul(first, second)) },
+      { tex: texOf(entrywise(second, first)) },
+      { tex: texOf([first[0] + second[0], first[1] + second[1], first[2] + second[2], first[3] + second[3]]) },
+    ),
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 4 : 3;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const first = sampleTransform(rng, span, true);
+      const second = sampleTransform(rng, span, true);
+      if (sameMatrix(mul(second, first), mul(first, second))) continue;
+      const [p, q] = rng.sample(LETTERS, 2);
+      return { first, second, names: [p, q], phrase: rng.int(0, 2) };
+    }
+    return { first: [1, 2, 0, 1], second: [0, -1, 1, 0], names: ['A', 'B'], phrase: 0 };
+  },
+  render: ({ first, second, names, phrase }) => {
+    const [f, s] = names;
+    const answer = mul(second, first);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `${thenSentence(f, s, phrase)} Find the single matrix that does both.` },
+        ...namedDisplays([
+          [f, first],
+          [s, second],
+        ]),
+      ],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf(answer.map(String), [...mul(first, second), entrywise(second, first)[0]].map(String)),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ first, second, names }) => {
+    const [f, s] = names;
+    const answer = mul(second, first);
+    return [
+      {
+        text: `The matrix applied first sits on the right, next to the point it acts on. So $${bold(f)}$ then $${bold(s)}$ is the product $${bold(s + f)}$.`,
+      },
+      { tex: `${bold(s + f)} = ${texOf(second)} ${texOf(first)}` },
+      { tex: `= ${texOf(answer)}` },
+      {
+        text: `Each entry pairs a row of $${bold(s)}$ with a column of $${bold(f)}$: row 1 with column 1 gives the top-left entry, $${answer[0]}$.`,
+      },
+      {
+        text: `Multiplying in the order the words are read gives $${bold(f + s)}$ instead, which here is $${texOf(mul(first, second))}$: a different transformation, $${bold(s)}$ first and then $${bold(f)}$.`,
+      },
+    ];
+  },
+};
+
+interface ComposePointParams {
+  first: Matrix;
+  second: Matrix;
+  names: [string, string];
+  x: number;
+  y: number;
+  phrase: number;
+}
+
+/**
+ * A point moved by one matrix, then by another, one stage at a time.
+ *
+ * Both stages are asked for, so the answer shows the order the transformations
+ * happen in. The single-matrix question comes after this one in the lesson:
+ * this is what that product is a shortcut for.
+ */
+const composePoint: Generator<ComposePointParams> = {
+  id: 'mat-compose-point',
+  sample: (rng, difficulty) => {
+    const pool = COMPOSABLE.map(matrixOf);
+    for (let tries = 0; tries < 60; tries += 1) {
+      const first = difficulty > 1 ? sampleTransform(rng, 2, true) : rng.pick(pool);
+      const second = difficulty > 1 ? sampleTransform(rng, 2, true) : rng.pick(pool);
+      if (sameMatrix(mul(second, first), mul(first, second))) continue;
+      const [x, y] = offAxisPoint(rng, difficulty > 1 ? 3 : 2);
+      const [p, q] = rng.sample(LETTERS, 2);
+      return { first, second, names: [p, q], x, y, phrase: rng.int(0, 2) };
+    }
+    return { first: [0, -1, 1, 0], second: [1, 0, 0, -1], names: ['A', 'B'], x: 2, y: 1, phrase: 0 };
+  },
+  render: ({ first, second, names, x, y, phrase }) => {
+    const [f, s] = names;
+    const [px, py] = apply(first, x, y);
+    const [qx, qy] = apply(second, px, py);
+    const wrong = apply(first, ...apply(second, x, y));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${thenSentence(f, s, phrase)} Follow the point $P(${x}, ${y})$: give $P'$, where $${bold(f)}$ sends it, and then $P''$, where $${bold(s)}$ sends $P'$.`,
+        },
+        ...namedDisplays([
+          [f, first],
+          [s, second],
+        ]),
+      ],
+      // No brackets round the pairs: the two pairs do not fit on one line at
+      // phone width, and a bracket would be left stranded on the wrong one.
+      template: `P': \\; {0}, \\; {1} \\qquad P'': \\; {2}, \\; {3}`,
+      bank: bankOf([px, py, qx, qy].map(String), [...wrong, ...apply(second, x, y)].map(String)),
+      answer: [px, py, qx, qy].map(String),
+    };
+  },
+  solution: ({ first, second, names, x, y }) => {
+    const [f, s] = names;
+    const [px, py] = apply(first, x, y);
+    const [qx, qy] = apply(second, px, py);
+    return [
+      { text: `$${bold(f)}$ acts first, so multiply $P$ by it.` },
+      { tex: `${texOf(first)} ${columnTex(x, y)} = ${columnTex(px, py)}` },
+      { text: `Then $${bold(s)}$ acts on that result, not on $P$.` },
+      { tex: `${texOf(second)} ${columnTex(px, py)} = ${columnTex(qx, qy)}` },
+      {
+        text: `So $P'' = ${pairTex(qx, qy)}$. The single matrix $${bold(s + f)}$, with the first one on the right, sends $P$ straight there: $${bold(s + f)} = ${texOf(mul(second, first))}$.`,
+      },
+    ];
+  },
+};
+
+/** The transformations a composition may start with: named ones, and shears. */
+const FIRST_MOVES: Matrix[] = COMPOSABLE.map(matrixOf);
+const FIRST_MOVES_WIDE: Matrix[] = [...FIRST_MOVES, ...SHEARS];
+
+interface ComposeSlideParams {
+  first: Matrix;
+  second: Standard;
+  phrase: number;
+  basis: 'i' | 'j';
+  axis: 'x' | 'y';
+}
+
+/**
+ * Where i or j ends up after two transformations, found on the picture.
+ *
+ * The figure shows the unit square after the first one, arrows and all; the
+ * second is named in words, with its mirror line drawn when it is a
+ * reflection. So the learner applies the second to the arrow tip in front of
+ * them, which is the composition done the way it happens: first, then second.
+ *
+ * Only a non-zero coordinate is asked, since the handle rests at zero.
+ */
+const composeSlide: Generator<ComposeSlideParams> = {
+  id: 'mat-compose-slide',
+  sample: (rng, difficulty) => {
+    const first = rng.pick(difficulty > 1 ? FIRST_MOVES_WIDE : FIRST_MOVES);
+    const second = rng.pick(STANDARD_KEYS);
+    const basis = rng.pick(['i', 'j'] as const);
+    const final = mul(STANDARD[second].matrix, first);
+    const tip = basis === 'i' ? [final[0], final[2]] : [final[1], final[3]];
+    const axis = rng.pick((['x', 'y'] as const).filter((_, k) => tip[k] !== 0));
+    return { first, second, phrase: rng.int(0, STANDARD[second].phrases.length - 1), basis, axis };
+  },
+  render: ({ first, second, phrase, basis, axis }): Slide => {
+    const final = mul(STANDARD[second].matrix, first);
+    const tip = basis === 'i' ? [final[0], final[2]] : [final[1], final[3]];
+    const span = spanFor(...first, first[0] + first[1], first[2] + first[3], ...final);
+    const mirror = STANDARD[second].mirror;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The shaded shape is the unit square after a first transformation, and the arrows show where $\\mathbf{i}$ and $\\mathbf{j}$ are now. Next comes ${STANDARD[second].phrases[phrase]}${mirror ? ', whose mirror line is dashed' : ''}. Slide to the $${axis}$-coordinate of where $\\mathbf{${basis}}$ finally lands.`,
+        },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: axis === 'x' ? tip[0] : tip[1],
+      readout: `${axis}\\text{-coordinate of } \\mathbf{${basis}} = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          image: first,
+          square: true,
+          arrows: [
+            { x: first[0], y: first[2], label: 'i', accent: true },
+            { x: first[1], y: first[3], label: 'j' },
+          ],
+          mirror,
+          label: 'The unit square after the first transformation, with arrows showing where i and j are now',
+        }),
+        xMin: -span,
+        xMax: span,
+        axis,
+      },
+    };
+  },
+  solution: ({ first, second, phrase, basis, axis }) => {
+    const m = STANDARD[second].matrix;
+    const now = basis === 'i' ? [first[0], first[2]] : [first[1], first[3]];
+    const final = mul(m, first);
+    const tip = basis === 'i' ? [final[0], final[2]] : [final[1], final[3]];
+    return [
+      { text: `After the first transformation the $\\mathbf{${basis}}$ arrow ends at $${pairTex(now[0], now[1])}$. Read it off the picture.` },
+      { text: `The second transformation is ${STANDARD[second].phrases[phrase]}, with matrix $${texOf(m)}$. Apply it to that tip.` },
+      { tex: `${texOf(m)} ${columnTex(now[0], now[1])} = ${columnTex(tip[0], tip[1])}` },
+      { text: `So $\\mathbf{${basis}}$ finally lands at $${pairTex(tip[0], tip[1])}$, and its $${axis}$-coordinate is $${axis === 'x' ? tip[0] : tip[1]}$.` },
+      { text: 'The whole journey is one matrix, the second times the first, and its columns are where $\\mathbf{i}$ and $\\mathbf{j}$ end up:' },
+      { tex: `${texOf(m)} ${texOf(first)}` },
+      { tex: `= ${texOf(final)}` },
+    ];
+  },
+};
+
+interface ComposeOrderParams {
+  /** The letters in the order their transformations happen. */
+  applied: string[];
+  phrase: number;
+}
+
+/**
+ * Which product is "this, then that" — the convention on its own, no entries.
+ *
+ * Three steps at difficulty 2, where writing the letters as read is wrong in a
+ * way that is easier to see: the whole word has to be reversed, not just its
+ * ends swapped.
+ */
+const composeOrder: Generator<ComposeOrderParams> = {
+  id: 'mat-compose-order',
+  sample: (rng, difficulty) => ({
+    applied: rng.sample(LETTERS, difficulty > 1 && rng.chance(0.5) ? 3 : 2),
+    phrase: rng.int(0, 2),
+  }),
+  render: ({ applied, phrase }): Slide => {
+    const [p, q, r] = applied;
+    const sentence =
+      r === undefined
+        ? [
+            `$${bold(p)}$ is applied first, then $${bold(q)}$.`,
+            `$${bold(q)}$ is applied after $${bold(p)}$.`,
+            `A shape is transformed by $${bold(p)}$, followed by $${bold(q)}$.`,
+          ][phrase]
+        : [
+            `$${bold(p)}$ is applied first, then $${bold(q)}$, then $${bold(r)}$.`,
+            `A shape is transformed by $${bold(p)}$, $${bold(q)}$ and $${bold(r)}$, in that order.`,
+            `$${bold(r)}$ is applied after $${bold(q)}$, which is applied after $${bold(p)}$.`,
+          ][phrase];
+    const offered =
+      r === undefined
+        ? [
+            { id: 'right', label: bold(q + p), tex: true },
+            { id: 'read', label: bold(p + q), tex: true },
+            { id: 'sum', label: `${bold(p)} + ${bold(q)}`, tex: true },
+            { id: 'either', label: `\\text{either, as } ${bold(p + q)} = ${bold(q + p)}`, tex: true },
+          ]
+        : [
+            { id: 'right', label: bold(r + q + p), tex: true },
+            { id: 'read', label: bold(p + q + r), tex: true },
+            { id: 'ends', label: bold(r + p + q), tex: true },
+            { id: 'middle', label: bold(q + r + p), tex: true },
+          ];
+    const question = `${sentence} Which single matrix does all of it?`;
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: question }],
+      options: turned(offered, question),
+      correctId: 'right',
+    };
+  },
+  solution: ({ applied }) => {
+    const word = [...applied].reverse().join('');
+    return [
+      {
+        text: 'A matrix acts on the point to its right, so the one applied first has to be nearest the point: on the far right.',
+      },
+      { tex: `${bold(word)}\\,\\mathbf{v}` },
+      {
+        text: `Reading that from the point outwards gives ${applied.map((letter) => `$${bold(letter)}$`).join(', then ')}, which is the order they happen in. So the product is $${bold(word)}$, the letters of the story reversed.`,
+      },
+      {
+        text: `Writing them in the order they happen, $${bold(applied.join(''))}$, describes the steps the other way round, and matrix products usually change when the order does.`,
+      },
+    ];
+  },
+};
+
+/* ----- order matters ----- */
+
+const SAME = '\\text{same}';
+const DIFFERENT = '\\text{different}';
+
+interface CommuteTreeParams {
+  a: Matrix;
+  b: Matrix;
+}
+
+/**
+ * Both products of a pair, and whether they agree.
+ *
+ * Half the draws commute and half do not, so the bottom of the tree cannot be
+ * guessed from the lesson's title. Difficulty 2 lets a shear in, which has no
+ * name to reason from and has to be multiplied out.
+ */
+const commuteTree: Generator<CommuteTreeParams> = {
+  id: 'mat-commute-tree',
+  sample: (rng, difficulty) => {
+    const pairs = difficulty > 1 ? SHOWN_PAIRS : MOVE_PAIRS;
+    const [p, q] = rng.pick(rng.chance(0.5) ? pairs.agree : pairs.clash);
+    return rng.chance(0.5) ? { a: p, b: q } : { a: q, b: p };
+  },
+  render: ({ a, b }): Slide => {
+    const ab = mul(a, b);
+    const ba = mul(b, a);
+    const agree = sameMatrix(ab, ba);
+    const answer = [texOf(ab), texOf(ba), agree ? SAME : DIFFERENT];
+    const extras = [
+      agree ? DIFFERENT : SAME,
+      texOf(entrywise(a, b)),
+      texOf(negated(ab)),
+      texOf([a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]]),
+    ].filter((token, idx, all) => !answer.includes(token) && all.indexOf(token) === idx);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Work out $\\mathbf{AB}$ and $\\mathbf{BA}$ on the top row, then say underneath whether the order made a difference.',
+        },
+        ...namedDisplays([
+          ['A', a],
+          ['B', b],
+        ]),
+      ],
+      expression: '\\mathbf{AB} \\overset{?}{=} \\mathbf{BA}',
+      nodes: [
+        { id: 'ab', from: [] },
+        { id: 'ba', from: [] },
+        { id: 'same', from: ['ab', 'ba'] },
+      ],
+      bank: [...answer, ...extras.slice(0, 3)].sort(),
+      answer,
+    };
+  },
+  solution: ({ a, b }) => {
+    const ab = mul(a, b);
+    const ba = mul(b, a);
+    const agree = sameMatrix(ab, ba);
+    return [
+      { text: '$\\mathbf{AB}$ is $\\mathbf{B}$ first, then $\\mathbf{A}$. $\\mathbf{BA}$ is the other way round.' },
+      { tex: `\\mathbf{AB} = ${texOf(ab)}` },
+      { tex: `\\mathbf{BA} = ${texOf(ba)}` },
+      {
+        text: agree
+          ? 'They are the same, so for this pair the order does not matter. That is the exception: two rotations, an enlargement with anything, and two stretches along the axes are the usual pairs that agree.'
+          : 'They are different, so doing these two transformations in the other order moves points somewhere else. That is the normal state of affairs for matrices.',
+      },
+    ];
+  },
+};
+
+interface OrderPointParams {
+  a: Transform;
+  b: Transform;
+  pa: number;
+  pb: number;
+  x: number;
+  y: number;
+}
+
+/** One point under both orders of the same two transformations. */
+const orderPoint: Generator<OrderPointParams> = {
+  id: 'mat-order-point',
+  sample: (rng, difficulty) => {
+    const pool = difficulty > 1 ? COMPOSABLE : STANDARDS;
+    const [a, b] = rng.sample(pool, 2);
+    const scaled = a.kind !== 'standard' || b.kind !== 'standard';
+    const [x, y] = offAxisPoint(rng, scaled ? 2 : 4);
+    return { a, b, pa: rng.int(0, phraseCount(a) - 1), pb: rng.int(0, phraseCount(b) - 1), x, y };
+  },
+  render: ({ a, b, pa, pb, x, y }) => {
+    const [ma, mb] = [matrixOf(a), matrixOf(b)];
+    const ab = apply(mul(ma, mb), x, y);
+    const ba = apply(mul(mb, ma), x, y);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\mathbf{A}$ is ${phraseOf(a, pa)}, and $\\mathbf{B}$ is ${phraseOf(b, pb)}. Where does $P(${x}, ${y})$ go under $\\mathbf{AB}$, and where under $\\mathbf{BA}$?`,
+        },
+      ],
+      template: `\\mathbf{AB}: \\; {0}, \\; {1} \\qquad \\mathbf{BA}: \\; {2}, \\; {3}`,
+      bank: bankOf([...ab, ...ba].map(String), [...apply(ma, x, y), ...apply(mb, x, y)].map(String)),
+      answer: [...ab, ...ba].map(String),
+    };
+  },
+  solution: ({ a, b, pa, pb, x, y }) => {
+    const [ma, mb] = [matrixOf(a), matrixOf(b)];
+    const ab = apply(mul(ma, mb), x, y);
+    const ba = apply(mul(mb, ma), x, y);
+    const viaB = apply(mb, x, y);
+    const viaA = apply(ma, x, y);
+    return [
+      { text: `Write down both matrices: $\\mathbf{A} = ${texOf(ma)}$ for ${phraseOf(a, pa)}, and $\\mathbf{B} = ${texOf(mb)}$ for ${phraseOf(b, pb)}.` },
+      { text: '$\\mathbf{AB}$ does $\\mathbf{B}$ first, so multiply by $\\mathbf{B}$ and then by $\\mathbf{A}$.' },
+      { tex: `(${x}, ${y}) \\to (${viaB[0]}, ${viaB[1]}) \\to (${ab[0]}, ${ab[1]})` },
+      { text: '$\\mathbf{BA}$ does $\\mathbf{A}$ first.' },
+      { tex: `(${x}, ${y}) \\to (${viaA[0]}, ${viaA[1]}) \\to (${ba[0]}, ${ba[1]})` },
+      {
+        text:
+          ab[0] === ba[0] && ab[1] === ba[1]
+            ? 'The two routes arrive at the same place, so this pair can be done in either order.'
+            : 'The two routes arrive at different places: the order changed the answer.',
+      },
+    ];
+  },
+};
+
+interface CommuteWhichParams {
+  /** True asks for the pair that agrees, false for the pair that does not. */
+  askSame: boolean;
+  right: [Transform, Transform];
+  wrong: [Transform, Transform][];
+}
+
+/** A pair of transformations as a choice label reads it. */
+const pairName = ([p, q]: [Transform, Transform]) => `${nameOf(p)}, and ${lowerFirst(nameOf(q))}`;
+
+/**
+ * Which pair can be done in either order — or which cannot.
+ *
+ * No numbers to multiply, so it asks for the reasoning the lesson teaches:
+ * turns combine with turns, an enlargement combines with anything, and a
+ * reflection usually cares what came before it.
+ */
+const commuteWhich: Generator<CommuteWhichParams> = {
+  id: 'mat-commute-which',
+  sample: (rng) => {
+    const askSame = rng.chance(0.5);
+    const [yes, no] = askSame ? [NAMED_PAIRS.agree, NAMED_PAIRS.clash] : [NAMED_PAIRS.clash, NAMED_PAIRS.agree];
+    return { askSame, right: rng.pick(yes), wrong: rng.sample(no, 3) };
+  },
+  render: ({ askSame, right, wrong }): Slide => ({
+    kind: 'choice',
+    prompt: [
+      {
+        kind: 'prose',
+        text: askSame
+          ? 'Which pair of transformations gives the same result whichever one is done first?'
+          : 'Which pair of transformations gives a different result depending on which one is done first?',
+      },
+    ],
+    options: turned(
+      [
+        { id: 'right', label: pairName(right), tex: false },
+        ...wrong.map((pair, idx) => ({ id: `other${idx}`, label: pairName(pair), tex: false })),
+      ],
+      `${askSame}`,
+    ),
+    correctId: 'right',
+  }),
+  solution: ({ askSame, right }) => {
+    const [p, q] = right.map(matrixOf);
+    return [
+      { text: 'Multiply the two matrices both ways round and compare.' },
+      { tex: `${texOf(p)} ${texOf(q)}` },
+      { tex: `= ${texOf(mul(p, q))}` },
+      { text: 'The other way round:' },
+      { tex: `${texOf(q)} ${texOf(p)}` },
+      { tex: `= ${texOf(mul(q, p))}` },
+      {
+        text: askSame
+          ? 'For this pair the two products agree. Turns about the same point combine the same way in either order, an enlargement about $O$ commutes with everything, and so does a half turn.'
+          : 'For this pair the two products differ. A reflection is the usual culprit: it reverses the sense of a turn, so which comes first changes where things end up.',
+      },
+    ];
+  },
+};
+
+/* ----- composing the standard matrices ----- */
+
+interface ComposeStandardParams {
+  first: Transform;
+  second: Transform;
+  pf: number;
+  ps: number;
+}
+
+/** The single matrix for two named transformations in turn. */
+const composeStandard: Generator<ComposeStandardParams> = {
+  id: 'mat-compose-standard',
+  choices: ({ first, second }) => {
+    const [f, s] = [matrixOf(first), matrixOf(second)];
+    const product = mul(s, f);
+    return options(
+      { tex: texOf(product) },
+      // The wrong way round, every sign flipped, one step forgotten, and the
+      // product read by rows. Seven of the standard pairs commute, so the
+      // spares keep four options on the slide when the first slip is no slip.
+      { tex: texOf(mul(f, s)) },
+      { tex: texOf(negated(product)) },
+      { tex: texOf(f) },
+      { tex: texOf(s) },
+      { tex: texOf([product[0], product[2], product[1], product[3]]) },
+    ).slice(0, 4);
+  },
+  sample: (rng, difficulty) => {
+    const pool = difficulty > 1 ? COMPOSABLE : STANDARDS;
+    const first = rng.pick(pool);
+    const second = rng.pick(pool);
+    return { first, second, pf: rng.int(0, phraseCount(first) - 1), ps: rng.int(0, phraseCount(second) - 1) };
+  },
+  render: ({ first, second, pf, ps }) => {
+    const [f, s] = [matrixOf(first), matrixOf(second)];
+    const answer = mul(s, f);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the single matrix for ${phraseOf(first, pf)}, followed by ${phraseOf(second, ps)}.`,
+        },
+      ],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf(answer.map(String), [...mul(f, s), ...negated(answer)].map(String)),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ first, second, pf, ps }) => {
+    const [f, s] = [matrixOf(first), matrixOf(second)];
+    const answer = mul(s, f);
+    const named = standardKeyOf(answer);
+    return [
+      { text: `Write down each matrix from where $\\mathbf{i}$ and $\\mathbf{j}$ go: $${texOf(f)}$ for ${phraseOf(first, pf)}, and $${texOf(s)}$ for ${phraseOf(second, ps)}.` },
+      { text: 'The first one goes on the right.' },
+      { tex: `${texOf(s)} ${texOf(f)}` },
+      { tex: `= ${texOf(answer)}` },
+      {
+        text: sameMatrix(answer, [1, 0, 0, 1])
+          ? 'That is the identity: the second transformation undoes the first, and every point ends where it started.'
+          : named
+            ? `Its columns say where $\\mathbf{i}$ and $\\mathbf{j}$ end up, and they are the columns of one of the standard matrices: the pair together is a single ${lowerFirst(STANDARD[named].name)}.`
+            : 'Its columns say where $\\mathbf{i}$ and $\\mathbf{j}$ end up after both steps, which is a quick check on the multiplication.',
+      },
+    ];
+  },
+};
+
+interface ComposeNameParams {
+  first: Standard;
+  second: Standard;
+  pf: number;
+  ps: number;
+}
+
+/**
+ * Naming the single transformation two standard ones make together.
+ *
+ * The figure is the product's image of the unit square, so there are two
+ * routes to the name: multiply the matrices, or read the arrows. Pairs that
+ * cancel to the identity are left out; there is nothing to name.
+ */
+const composeName: Generator<ComposeNameParams> = {
+  id: 'mat-compose-name',
+  sample: (rng) => {
+    for (let tries = 0; tries < 40; tries += 1) {
+      const first = rng.pick(STANDARD_KEYS);
+      const second = rng.pick(STANDARD_KEYS);
+      if (!standardKeyOf(mul(STANDARD[second].matrix, STANDARD[first].matrix))) continue;
+      return {
+        first,
+        second,
+        pf: rng.int(0, STANDARD[first].phrases.length - 1),
+        ps: rng.int(0, STANDARD[second].phrases.length - 1),
+      };
+    }
+    return { first: 'refl-x', second: 'refl-y', pf: 0, ps: 0 };
+  },
+  render: ({ first, second, pf, ps }): Slide => {
+    const product = mul(STANDARD[second].matrix, STANDARD[first].matrix);
+    const key = standardKeyOf(product) as Standard;
+    const backwards = standardKeyOf(mul(STANDARD[first].matrix, STANDARD[second].matrix));
+    const others = [backwards, ...CONFUSED_WITH[key], first, second].filter(
+      (other, idx, all): other is Standard => other !== undefined && other !== key && all.indexOf(other) === idx,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${upperFirst(STANDARD[first].phrases[pf])}, followed by ${STANDARD[second].phrases[ps]}, is a single transformation. The figure shows the dashed unit square and its image after both. Which transformation is it?`,
+        },
+        {
+          kind: 'diagram',
+          svg: transformGridSvg({
+            span: 2,
+            image: product,
+            square: true,
+            arrows: [
+              { x: product[0], y: product[2], label: 'i', accent: true },
+              { x: product[1], y: product[3], label: 'j' },
+            ],
+            maxWidth: 220,
+            label: 'The unit square and its image after both transformations, with the images of i and j drawn as arrows',
+          }),
+        },
+      ],
+      options: turned(
+        [
+          { id: 'right', label: STANDARD[key].name, tex: false },
+          ...others.slice(0, 3).map((other) => ({ id: other, label: STANDARD[other].name, tex: false })),
+        ],
+        `${first} ${second} ${pf} ${ps}`,
+      ),
+      correctId: 'right',
+    };
+  },
+  solution: ({ first, second }) => {
+    const [f, s] = [STANDARD[first].matrix, STANDARD[second].matrix];
+    const product = mul(s, f);
+    const key = standardKeyOf(product) as Standard;
+    return [
+      { text: 'Multiply, with the first transformation on the right.' },
+      { tex: `${texOf(s)} ${texOf(f)}` },
+      { tex: `= ${texOf(product)}` },
+      { tex: columnsLine(product) },
+      {
+        text: `Those are the columns of the ${lowerFirst(STANDARD[key].name)}, which the picture confirms: follow the $\\mathbf{i}$ arrow and see where it has gone.`,
+      },
+      {
+        text: `A useful check without multiplying: two reflections make a rotation, and a rotation with a reflection makes a reflection.`,
+      },
+    ];
+  },
+};
+
+/** Mirror lines through the origin, by their angle to the positive x-axis. */
+const MIRROR_ANGLES_AXES = [0, 45, 90, 135];
+const MIRROR_ANGLES = [0, 30, 45, 60, 90, 120, 135, 150];
+
+function mirrorPhrase(angle: number): string {
+  switch (angle) {
+    case 0:
+      return 'the $x$-axis';
+    case 90:
+      return 'the $y$-axis';
+    case 45:
+      return 'the line $y = x$';
+    case 135:
+      return 'the line $y = -x$';
+    default:
+      return `the line through $O$ at $${angle}^\\circ$ to the positive $x$-axis`;
+  }
+}
+
+/** An angle in degrees, turned into the range 0 to 360. */
+const turnOf = (degrees: number) => ((degrees % 360) + 360) % 360;
+
+interface ReflectPairParams {
+  /** The first mirror's angle, then the second's. */
+  from: number;
+  to: number;
+  phrase: number;
+}
+
+/**
+ * Two reflections make a rotation: through twice the angle from the first
+ * mirror to the second.
+ *
+ * Difficulty 1 keeps to the four mirrors with standard matrices, so the answer
+ * can be checked by multiplying; difficulty 2 adds lines at 30 and 60 degrees
+ * to the axes, where the rule is the only practical route.
+ */
+const reflectPair: Generator<ReflectPairParams> = {
+  id: 'mat-reflect-pair',
+  choices: ({ from, to, phrase }) => {
+    const angle = turnOf(2 * (to - from));
+    // The wrong order and the forgotten doubling always, then near misses
+    // chosen by the wording. At difficulty 1 every answer is a multiple of 90,
+    // and a fixed list offered so few label sets that the rotation choiceVariant
+    // hashes from them put the answer in the same two slots every time.
+    const near = [turnOf(angle + 90), turnOf(angle + 180), turnOf(angle - 90), turnOf(from - to)];
+    const slips = [
+      360 - angle,
+      turnOf(to - from),
+      ...near.slice(phrase),
+      ...near.slice(0, phrase),
+    ].filter(
+      (value, idx, all) => value !== angle && value !== 0 && all.indexOf(value) === idx,
+    );
+    return aimedOptions(
+      { tex: `${angle}^\\circ`, answer: `${angle}` },
+      slips.map((value) => ({ tex: `${value}^\\circ`, answer: `${value}` })),
+      from / 15 + to / 15 + phrase,
+    );
+  },
+  sample: (rng, difficulty) => {
+    const [from, to] = rng.sample(difficulty > 1 ? MIRROR_ANGLES : MIRROR_ANGLES_AXES, 2);
+    return { from, to, phrase: rng.int(0, 2) };
+  },
+  render: ({ from, to, phrase }) => {
+    const [first, second] = [mirrorPhrase(from), mirrorPhrase(to)];
+    const sentence = [
+      `A shape is reflected in ${first}, and then in ${second}.`,
+      `Reflection in ${second} is applied after reflection in ${first}.`,
+      `The plane is reflected in ${first}, followed by ${second}.`,
+    ][phrase];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${sentence} Together they make a single rotation about $O$. Through what angle, anticlockwise? Give it in degrees, between $0$ and $360$.`,
+        },
+      ],
+      lead: '\\text{angle} =',
+      keypad: [],
+      answer: `${turnOf(2 * (to - from))}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ from, to }) => {
+    const raw = 2 * (to - from);
+    const angle = turnOf(raw);
+    return [
+      {
+        text: 'Two reflections in lines through $O$ make a rotation about $O$, through twice the angle from the first mirror to the second.',
+      },
+      { text: `The first mirror is at $${from}^\\circ$ to the $x$-axis and the second at $${to}^\\circ$.` },
+      { tex: `2 \\times \\left(${to}^\\circ - ${from}^\\circ\\right) = ${raw}^\\circ` },
+      raw === angle
+        ? { text: `So the rotation is $${angle}^\\circ$ anticlockwise.` }
+        : { text: `Turned into the range $0^\\circ$ to $360^\\circ$, that is $${angle}^\\circ$ anticlockwise.` },
+      {
+        text: `The order matters: reflecting in the other order turns the other way, by $${turnOf(-raw)}^\\circ$ anticlockwise. Forgetting to double gives $${turnOf(to - from)}^\\circ$.`,
+      },
+    ];
+  },
+};
+
+interface ComposeLocateParams {
+  first: Standard;
+  second: Standard;
+  pf: number;
+  ps: number;
+  x: number;
+  y: number;
+  axis: 'x' | 'y';
+}
+
+/**
+ * A point given two standard transformations in turn, placed on the grid.
+ *
+ * The first mirror is drawn when there is one, so the first step can be
+ * pictured; the second has to be carried out in the head or by multiplying,
+ * which is the composition.
+ */
+const composeLocate: Generator<ComposeLocateParams> = {
+  id: 'mat-compose-locate',
+  sample: (rng, difficulty) => {
+    const first = rng.pick(STANDARD_KEYS);
+    const second = rng.pick(STANDARD_KEYS.filter((key) => key !== first));
+    const [x, y] = offAxisPoint(rng, difficulty > 1 ? 4 : 3);
+    return {
+      first,
+      second,
+      pf: rng.int(0, STANDARD[first].phrases.length - 1),
+      ps: rng.int(0, STANDARD[second].phrases.length - 1),
+      x,
+      y,
+      axis: rng.pick(['x', 'y'] as const),
+    };
+  },
+  render: ({ first, second, pf, ps, x, y, axis }): Slide => {
+    const [fx, fy] = apply(mul(STANDARD[second].matrix, STANDARD[first].matrix), x, y);
+    const span = spanFor(x, y, fx, fy);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$P(${x}, ${y})$ is given ${STANDARD[first].phrases[pf]}, followed by ${STANDARD[second].phrases[ps]}. Slide to the $${axis}$-coordinate of where it ends up.`,
+        },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: axis === 'x' ? fx : fy,
+      readout: `${axis}\\text{-coordinate of } P'' = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          marks: [{ x, y, label: 'P' }],
+          mirror: STANDARD[first].mirror,
+          label: 'The point P on a grid',
+        }),
+        xMin: -span,
+        xMax: span,
+        axis,
+      },
+    };
+  },
+  solution: ({ first, second, pf, ps, x, y, axis }) => {
+    const [f, s] = [STANDARD[first].matrix, STANDARD[second].matrix];
+    const [mx, my] = apply(f, x, y);
+    const [fx, fy] = apply(s, mx, my);
+    return [
+      { text: `First, ${STANDARD[first].phrases[pf]}.` },
+      { tex: `${texOf(f)} ${columnTex(x, y)} = ${columnTex(mx, my)}` },
+      { text: `Then ${STANDARD[second].phrases[ps]}, applied to that point.` },
+      { tex: `${texOf(s)} ${columnTex(mx, my)} = ${columnTex(fx, fy)}` },
+      { text: `So the point ends at $${pairTex(fx, fy)}$, and its $${axis}$-coordinate is $${axis === 'x' ? fx : fy}$.` },
+      { text: `In one step, the single matrix is $${texOf(mul(s, f))}$, the second times the first.` },
+    ];
+  },
+};
+
+/* ----- undoing a transformation ----- */
+
+/** An entry that is a whole number or a unit fraction, as TeX. */
+function entryTex(value: number): string {
+  if (Number.isInteger(value)) return `${value === 0 ? 0 : value}`;
+  return `${value < 0 ? '-' : ''}\\frac{1}{${Math.round(1 / Math.abs(value))}}`;
+}
+
+const entriesTex = (m: readonly number[]) =>
+  `\\begin{pmatrix} ${entryTex(m[0])} & ${entryTex(m[1])} \\\\ ${entryTex(m[2])} & ${entryTex(m[3])} \\end{pmatrix}`;
+
+/** The transformation that undoes a named one, still as a matrix. */
+function undoMatrix(t: Transform): [number, number, number, number] {
+  switch (t.kind) {
+    case 'standard': {
+      const [a, b, c, d] = STANDARD[t.key].matrix;
+      // Every one of the seven has determinant 1 or -1, and is undone by its transpose.
+      return [a, c, b, d];
+    }
+    case 'enlarge':
+      return [1 / t.k, 0, 0, 1 / t.k];
+    case 'stretch-x':
+      return [1 / t.k, 0, 0, 1];
+    case 'stretch-y':
+      return [1, 0, 0, 1 / t.k];
+    case 'stretch-xy':
+      return [1 / t.k, 0, 0, 1 / t.q];
+  }
+}
+
+/** The undoing transformation in words. */
+function undoWords(t: Transform): string {
+  switch (t.kind) {
+    case 'standard':
+      if (t.key === 'rot90' || t.key === 'rot270') return 'the same quarter turn the other way';
+      if (t.key === 'rot180') return 'another half turn';
+      return 'the same reflection again: reflecting twice puts everything back';
+    case 'enlarge':
+      return `an enlargement of scale factor $\\frac{1}{${t.k}}$`;
+    case 'stretch-x':
+    case 'stretch-y':
+      return `a stretch in the same direction with scale factor $\\frac{1}{${t.k}}$`;
+    case 'stretch-xy':
+      return 'stretches by the reciprocal factors';
+  }
+}
+
+interface UndoMatrixParams {
+  t: Transform;
+  phrase: number;
+}
+
+/**
+ * The inverse of a named transformation, written down without the formula.
+ *
+ * The point is that it can be: a rotation is undone by turning back, a
+ * reflection by itself, a scaling by the reciprocal factor.
+ */
+const undoMatrixGen: Generator<UndoMatrixParams> = {
+  id: 'mat-undo-matrix',
+  choices: ({ t, phrase }) => {
+    const inv = undoMatrix(t);
+    const m = matrixOf(t);
+    const wrong: (readonly number[])[] =
+      t.kind === 'standard'
+        ? [m, negated(m), ...CONFUSED_WITH[t.key].map((other) => [...STANDARD[other].matrix])]
+        : [m, inv.map((v) => -v), [inv[3], 0, 0, inv[0]], [1, 0, 0, 1]];
+    const target = t.kind === 'standard' ? STANDARD_KEYS.indexOf(t.key) + phrase : Math.abs(inv[0] * 60) + phrase + t.kind.length;
+    return aimedOptions(
+      { tex: entriesTex(inv) },
+      options({ tex: entriesTex(inv) }, ...wrong.map((w) => ({ tex: entriesTex(w) }))).slice(1),
+      Math.round(target),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const pool: Transform[] = [
+      ...STANDARDS,
+      ...[2, 3, 4, 5].map((k): Transform => ({ kind: 'enlarge', k })),
+      ...[2, 3, 4].flatMap((k): Transform[] => [
+        { kind: 'stretch-x', k },
+        { kind: 'stretch-y', k },
+      ]),
+      ...(difficulty > 1 ? [-2, -3, -4].map((k): Transform => ({ kind: 'enlarge', k })) : []),
+    ];
+    const t = rng.pick(pool);
+    return { t, phrase: rng.int(0, phraseCount(t) - 1) };
+  },
+  render: ({ t, phrase }) => {
+    const answer = undoMatrix(t).map(entryTex);
+    const m = matrixOf(t);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Without using the inverse formula, write down the matrix that undoes ${phraseOf(t, phrase)}.`,
+        },
+      ],
+      template: MATRIX_TEMPLATE,
+      bank: bankOf(answer, [...m.map(entryTex), ...undoMatrix(t).map((v) => entryTex(-v))]),
+      answer,
+    };
+  },
+  solution: ({ t, phrase }) => {
+    const inv = undoMatrix(t);
+    return [
+      { text: `To undo ${phraseOf(t, phrase)}, do ${undoWords(t)}.` },
+      { text: 'Write that down from where $\\mathbf{i}$ and $\\mathbf{j}$ go, as for any transformation.' },
+      { tex: `${texOf(matrixOf(t))}^{-1} = ${entriesTex(inv)}` },
+      {
+        text: 'Check by multiplying the two together: undoing a transformation leaves every point where it was, so the product is the identity, $\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}$.',
+      },
+    ];
+  },
+};
+
+interface InverseOrderParams {
+  /** The letters as the product is written. */
+  letters: string[];
+  phrase: number;
+}
+
+/** The inverse of a product: the inverses, in the reverse order. */
+const inverseOrder: Generator<InverseOrderParams> = {
+  id: 'mat-inverse-order',
+  choices: ({ letters }) => {
+    const reversed = [...letters].reverse();
+    return options(
+      { tex: reversed.map(inverseOfLetter).join('') },
+      { tex: letters.map(inverseOfLetter).join('') },
+      { tex: bold(reversed.join('')) },
+      // One step undone and the rest forgotten. Its letters are not the same
+      // as the other options', which is what keeps the rotation choiceVariant
+      // hashes from the labels off a single slot: with every option a
+      // rearrangement of the same letters it put the answer third every time.
+      { tex: inverseOfLetter(letters[0]) },
+    );
+  },
+  sample: (rng, difficulty) => ({
+    letters: rng.sample(LETTERS, difficulty > 1 && rng.chance(0.5) ? 3 : 2),
+    phrase: rng.int(0, 2),
+  }),
+  render: ({ letters, phrase }) => {
+    const word = letters.join('');
+    const answer = [...letters].reverse().map(inverseOfLetter);
+    const sentence = [
+      `$${bold(word)}$ applies $${bold(letters[letters.length - 1])}$ first. Which product of inverses undoes it?`,
+      `Every matrix in $${bold(word)}$ has an inverse. Write $(${bold(word)})^{-1}$ in terms of those inverses.`,
+      `A shape is transformed by $${bold(word)}$. Which product of inverses brings it back?`,
+    ][phrase];
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: sentence }],
+      template: `(${bold(word)})^{-1} = ${answer.map((_, idx) => `{${idx}}`).join(' ')}`,
+      bank: [...answer, ...letters.map(bold)].sort(),
+      answer,
+    };
+  },
+  solution: ({ letters }) => {
+    const word = letters.join('');
+    const reversed = [...letters].reverse();
+    return [
+      {
+        text: `$${bold(word)}$ does ${reversed.map((letter) => `$${bold(letter)}$`).join(', then ')}. To undo it, undo the last step first, like taking off shoes before socks.`,
+      },
+      { tex: `(${bold(word)})^{-1} = ${reversed.map(inverseOfLetter).join('')}` },
+      {
+        text: `Check by multiplying: the inverses meet their own matrices in the middle, and each pair cancels to the identity.`,
+      },
+      { tex: `${bold(word)}\\,${reversed.map(inverseOfLetter).join('')} = \\mathbf{I}` },
+    ];
+  },
+};
+
+/** A matrix with determinant 1 or -1, and so an inverse with whole entries. */
+function sampleUnimodular(rng: Parameters<Generator<unknown>['sample']>[0], span: number): Matrix {
+  for (let tries = 0; tries < 400; tries += 1) {
+    const m: Matrix = [rng.int(-span, span), rng.int(-span, span), rng.int(-span, span), rng.int(-span, span)];
+    if (Math.abs(detOf(m)) === 1 && m.some((v) => Math.abs(v) > 1)) return m;
+  }
+  return [2, 1, 1, 1];
+}
+
+/** The inverse of a matrix with determinant 1 or -1. */
+function unitInverse(m: Matrix): Matrix {
+  const det = detOf(m);
+  return [det * m[3] + 0, -det * m[1] + 0, -det * m[2] + 0, det * m[0] + 0];
+}
+
+interface InverseTreeParams {
+  a: Matrix;
+  b: Matrix;
+  names: [string, string];
+}
+
+/**
+ * The inverse of a product, built from the inverses of its parts.
+ *
+ * Determinants of 1 or -1 only, so both inverses and their product have whole
+ * entries, and pairs that commute are left out, so the product taken in the
+ * wrong order is always a wrong tile.
+ */
+const inverseTree: Generator<InverseTreeParams> = {
+  id: 'mat-inverse-tree',
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 3 : 2;
+    for (let tries = 0; tries < 60; tries += 1) {
+      const a = sampleUnimodular(rng, span);
+      const b = sampleUnimodular(rng, span);
+      if (sameMatrix(mul(a, b), mul(b, a))) continue;
+      const [p, q] = rng.sample(LETTERS, 2);
+      return { a, b, names: [p, q] };
+    }
+    return { a: [2, 1, 1, 1], b: [1, 2, 0, 1], names: ['A', 'B'] };
+  },
+  render: ({ a, b, names }): Slide => {
+    const [p, q] = names;
+    const [ai, bi] = [unitInverse(a), unitInverse(b)];
+    const answer = [texOf(bi), texOf(ai), texOf(mul(bi, ai))];
+    const extras = [
+      texOf(mul(ai, bi)),
+      texOf([b[3], b[1], b[2], b[0]]),
+      texOf(b),
+      texOf(negated(mul(bi, ai))),
+    ].filter((token, idx, all) => !answer.includes(token) && all.indexOf(token) === idx);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Both matrices have determinant $1$ or $-1$, so their inverses have whole entries. Fill the tree: the two inverses on the top row, in the order written, then their product.`,
+        },
+        ...namedDisplays([
+          [p, a],
+          [q, b],
+        ]),
+      ],
+      expression: `(${bold(p + q)})^{-1} = ${inverseOfLetter(q)}${inverseOfLetter(p)}`,
+      nodes: [
+        { id: 'right', from: [] },
+        { id: 'left', from: [] },
+        { id: 'product', from: ['right', 'left'] },
+      ],
+      bank: [...answer, ...extras.slice(0, 3)].sort(),
+      answer,
+    };
+  },
+  solution: ({ a, b, names }) => {
+    const [p, q] = names;
+    const [ai, bi] = [unitInverse(a), unitInverse(b)];
+    return [
+      { text: 'Swap the leading diagonal, change the signs of the other two, and divide by the determinant, which here is $1$ or $-1$.' },
+      { tex: `${inverseOfLetter(q)} = ${texOf(bi)}` },
+      { tex: `${inverseOfLetter(p)} = ${texOf(ai)}` },
+      { text: `$${bold(p + q)}$ does $${bold(q)}$ first, so undoing it starts by undoing $${bold(p)}$: the product is $${inverseOfLetter(q)}${inverseOfLetter(p)}$, with $${inverseOfLetter(p)}$ on the right.` },
+      { tex: `${texOf(bi)} ${texOf(ai)}` },
+      { tex: `= ${texOf(mul(bi, ai))}` },
+      {
+        text: `The other order gives $${texOf(mul(ai, bi))}$, which undoes $${bold(q + p)}$ instead.`,
+      },
+    ];
+  },
+};
+
+interface UndoPointParams {
+  moves: { t: Transform; phrase: number }[];
+  x: number;
+  y: number;
+  axis: 'x' | 'y';
+}
+
+/**
+ * Where a point started, from where it ended up.
+ *
+ * The starting point is drawn first and the image computed from it, so undoing
+ * always lands on the grid even through a scaling. With two moves, the last
+ * one is undone first.
+ */
+const undoPoint: Generator<UndoPointParams> = {
+  id: 'mat-undo-point',
+  sample: (rng, difficulty) => {
+    const first = rng.pick(COMPOSABLE);
+    const moves =
+      difficulty > 1 ? [first, rng.pick(STANDARDS.filter((t) => !sameMatrix(matrixOf(t), matrixOf(first))))] : [first];
+    const scaled = moves.some((t) => t.kind !== 'standard');
+    const [x, y] = offAxisPoint(rng, scaled ? 2 : 4);
+    return {
+      moves: moves.map((t) => ({ t, phrase: rng.int(0, phraseCount(t) - 1) })),
+      x,
+      y,
+      axis: rng.pick(['x', 'y'] as const),
+    };
+  },
+  render: ({ moves, x, y, axis }): Slide => {
+    const total = moves.reduce<Matrix>((m, move) => mul(matrixOf(move.t), m), [1, 0, 0, 1]);
+    const [px, py] = apply(total, x, y);
+    const span = spanFor(x, y, px, py);
+    const last = moves[moves.length - 1].t;
+    const story =
+      moves.length === 1
+        ? `The point $P$ is given ${phraseOf(moves[0].t, moves[0].phrase)}`
+        : `The point $P$ is given ${phraseOf(moves[0].t, moves[0].phrase)}, followed by ${phraseOf(moves[1].t, moves[1].phrase)},`;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${story} and lands at $P'(${px}, ${py})$. Slide to the $${axis}$-coordinate of where $P$ started.`,
+        },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: axis === 'x' ? x : y,
+      readout: `${axis}\\text{-coordinate of } P = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          marks: [{ x: px, y: py, label: "P'" }],
+          mirror: last.kind === 'standard' ? STANDARD[last.key].mirror : undefined,
+          label: "The image P' on a grid",
+        }),
+        xMin: -span,
+        xMax: span,
+        axis,
+      },
+    };
+  },
+  solution: ({ moves, x, y, axis }) => {
+    const total = moves.reduce<Matrix>((m, move) => mul(matrixOf(move.t), m), [1, 0, 0, 1]);
+    const [px, py] = apply(total, x, y);
+    const undo = [...moves].reverse();
+    const steps = undo.map(({ t, phrase }) => `undo ${phraseOf(t, phrase)} with ${undoWords(t)}`);
+    return [
+      {
+        text:
+          moves.length === 1
+            ? `Work backwards from $P'$: ${steps[0]}.`
+            : `Work backwards from $P'$, last step first: ${steps[0]}; then ${steps[1]}.`,
+      },
+      // The undoing matrices multiply in the order they act: the last move's
+      // undoing acts first, so it sits on the right.
+      { tex: `${entriesTex(undo.reduce<Matrix>((m, { t }) => mul(undoMatrix(t), m), [1, 0, 0, 1]))} ${columnTex(px, py)} = ${columnTex(x, y)}` },
+      { text: `So $P$ was $${pairTex(x, y)}$, and its $${axis}$-coordinate is $${axis === 'x' ? x : y}$.` },
+      { text: `Check by doing the moves forwards from $${pairTex(x, y)}$: they should land on $${pairTex(px, py)}$.` },
+    ];
+  },
+};
+
+/* ----- area under a composition ----- */
+
+interface ComposeDetParams {
+  a: Matrix;
+  b: Matrix;
+  names: [string, string];
+  ask: 'product' | 'reverse' | 'square';
+}
+
+/**
+ * The determinant of a product, from the two determinants.
+ *
+ * Asked both ways round and as a square, so that "multiply the determinants"
+ * is learned as the rule rather than "multiply the matrices, then find it".
+ */
+const composeDet: Generator<ComposeDetParams> = {
+  id: 'mat-compose-det',
+  choices: ({ a, b, ask }) => {
+    const [da, db] = [detOf(a), ask === 'square' ? detOf(a) : detOf(b)];
+    return signedChoices(da * db, [da + db, -da * db, detOf(entrywise(a, ask === 'square' ? a : b))]);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 4 : 3;
+    const [p, q] = rng.sample(LETTERS, 2);
+    return {
+      a: sampleTransform(rng, span, true),
+      b: sampleTransform(rng, span, true),
+      names: [p, q],
+      ask: rng.pick(['product', 'reverse', 'square'] as const),
+    };
+  },
+  render: ({ a, b, names, ask }) => {
+    const [p, q] = names;
+    const asked = ask === 'square' ? `${bold(p)}^2` : ask === 'product' ? bold(p + q) : bold(q + p);
+    const answer = ask === 'square' ? detOf(a) ** 2 : detOf(a) * detOf(b);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `Find $\\det\\left(${asked}\\right)$ without multiplying the matrices together.` },
+        ...(ask === 'square'
+          ? [{ kind: 'display', tex: `${bold(p)} = ${texOf(a)}` } as const]
+          : namedDisplays([
+              [p, a],
+              [q, b],
+            ])),
+      ],
+      lead: `\\det\\left(${asked}\\right) =`,
+      keypad: [],
+      answer: `${answer}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ a, b, names, ask }) => {
+    const [p, q] = names;
+    const [da, db] = [detOf(a), detOf(b)];
+    const [x0, x1, x2, x3] = a;
+    return [
+      { text: 'Each transformation scales area by its determinant, so doing one after the other multiplies the two factors.' },
+      { tex: `\\det ${bold(p)} = \\left(${x0}\\right)\\left(${x3}\\right) - \\left(${x1}\\right)\\left(${x2}\\right)` },
+      { tex: `= ${da}` },
+      ask === 'square'
+        ? { tex: `\\det\\left(${bold(p)}^2\\right) = \\left(${da}\\right)^2 = ${da * da}` }
+        : {
+            tex: `\\det ${bold(q)} = \\left(${b[0]}\\right)\\left(${b[3]}\\right) - \\left(${b[1]}\\right)\\left(${b[2]}\\right)`,
+          },
+      ...(ask === 'square' ? [] : [{ tex: `= ${db}` }]),
+      ...(ask === 'square'
+        ? []
+        : [{ tex: `\\det\\left(${ask === 'product' ? bold(p + q) : bold(q + p)}\\right) = ${da} \\times \\left(${db}\\right) = ${da * db}` }]),
+      {
+        text: 'The order of the product does not matter here, even though the product itself usually changes: the determinants are ordinary numbers, and those commute.',
+      },
+    ];
+  },
+};
+
+interface ComposeAreaParams {
+  a: Matrix;
+  b: Matrix;
+  area: number;
+}
+
+/** A matrix with a positive determinant, for the area questions. */
+function samplePositive(rng: Parameters<Generator<unknown>['sample']>[0], span: number): Matrix {
+  for (let tries = 0; tries < 60; tries += 1) {
+    const m: Matrix = [
+      nonZero(rng.int(-span, span), 2),
+      rng.int(-span, span),
+      rng.int(-span, span),
+      nonZero(rng.int(-span, span), 3),
+    ];
+    if (detOf(m) > 0 && detOf(m) <= 12) return m;
+  }
+  return [2, 1, 1, 3];
+}
+
+/**
+ * The area after two transformations, one piece at a time.
+ *
+ * Two determinants, each waiting on its two diagonals, then their product,
+ * then the original area. Positive determinants only, so the line holds the
+ * area itself with no size to take at the end.
+ */
+const composeArea: Generator<ComposeAreaParams> = {
+  id: 'mat-compose-area',
+  choices: ({ a, b, area }) => {
+    const [da, db] = [detOf(a), detOf(b)];
+    return signedChoices(da * db * area, [(da + db) * area, da * db, da * area + db]);
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 4 : 3;
+    return { a: samplePositive(rng, span), b: samplePositive(rng, span), area: rng.int(2, difficulty > 1 ? 6 : 4) };
+  },
+  render: ({ a, b, area }): Slide => {
+    const [da, db] = [detOf(a), detOf(b)];
+    const det = (m: Matrix) => bin('-', bin('*', num(m[0]), num(m[3])), bin('*', num(m[1]), num(m[2])));
+    const diagonals = (m: Matrix, path: string) => ({
+      [`${path}.l`]: signedOffer(m[0] * m[3], m[0] + m[3], -m[0] * m[3], Math.abs(m[0] * m[3]) + 1),
+      [`${path}.r`]: signedOffer(m[1] * m[2], m[1] + m[2], -m[1] * m[2], Math.abs(m[1] * m[2]) + 1),
+      [path]: signedOffer(detOf(m), m[0] * m[3] + m[1] * m[2], -detOf(m), m[1] * m[2] - m[0] * m[3]),
+    });
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A shape of area $${area}$ is transformed by $\\mathbf{A}$ and then by $\\mathbf{B}$, both with positive determinants. Its final area is $\\det\\mathbf{A} \\times \\det\\mathbf{B} \\times ${area}$. Tap the part you would work out **next**, then choose what it comes to.`,
+        },
+        ...namedDisplays([
+          ['A', a],
+          ['B', b],
+        ]),
+      ],
+      expr: bin('*', bin('*', det(a), det(b)), num(area)),
+      banks: {
+        ...diagonals(a, 'r.l.l'),
+        ...diagonals(b, 'r.l.r'),
+        'r.l': signedOffer(da * db, da + db, da * db + 1, -da * db),
+        r: signedOffer(da * db * area, (da + db) * area, da * db + area, da * area),
+      },
+    };
+  },
+  solution: ({ a, b, area }) => {
+    const [da, db] = [detOf(a), detOf(b)];
+    return [
+      { text: 'Each determinant needs its two diagonals first; the two determinants can be done in either order.' },
+      { tex: `\\det\\mathbf{A} = ${a[0] * a[3]} - \\left(${a[1] * a[2]}\\right) = ${da}` },
+      { tex: `\\det\\mathbf{B} = ${b[0] * b[3]} - \\left(${b[1] * b[2]}\\right) = ${db}` },
+      { tex: `${da} \\times ${db} \\times ${area} = ${da * db * area}` },
+      {
+        text: `Together the two transformations scale area by $${da * db}$, which is $\\det\\left(\\mathbf{BA}\\right)$. Adding the determinants instead, $${da + db}$, is the slip: scale factors multiply.`,
+      },
+    ];
+  },
+};
+
+interface ComposeOrientationParams {
+  first: Transform;
+  second: Transform;
+  pf: number;
+  ps: number;
+  area: number;
+}
+
+/**
+ * What two named transformations do to a shape's area and its orientation.
+ *
+ * Reflections are drawn often, because two of them together is the case that
+ * catches people: each turns the shape over, and together they turn it back.
+ */
+const composeOrientation: Generator<ComposeOrientationParams> = {
+  id: 'mat-compose-orientation',
+  sample: (rng) => {
+    const first = rng.pick(COMPOSABLE);
+    const second = rng.pick(COMPOSABLE);
+    return {
+      first,
+      second,
+      pf: rng.int(0, phraseCount(first) - 1),
+      ps: rng.int(0, phraseCount(second) - 1),
+      area: rng.int(2, 9),
+    };
+  },
+  render: ({ first, second, pf, ps, area }): Slide => {
+    const [df, ds] = [detOf(matrixOf(first)), detOf(matrixOf(second))];
+    const right = Math.abs(df * ds) * area;
+    const added = (Math.abs(df) + Math.abs(ds)) * area;
+    const wrong = added === right ? right + area : added;
+    const kept = df * ds > 0;
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A triangle of area $${area}$ is given ${phraseOf(first, pf)}, followed by ${phraseOf(second, ps)}. Which describes the final image?`,
+        },
+      ],
+      options: turned(
+        [
+          { id: kept ? 'right' : 'size', label: `Area ${right}, the same way round`, tex: false },
+          { id: kept ? 'sign' : 'right', label: `Area ${right}, turned over`, tex: false },
+          { id: 'kept', label: `Area ${wrong}, the same way round`, tex: false },
+          { id: 'flipped', label: `Area ${wrong}, turned over`, tex: false },
+        ],
+        `${pf} ${ps} ${area} ${nameOf(first)} ${nameOf(second)}`,
+      ),
+      correctId: 'right',
+    };
+  },
+  solution: ({ first, second, pf, ps, area }) => {
+    const [f, s] = [matrixOf(first), matrixOf(second)];
+    const [df, ds] = [detOf(f), detOf(s)];
+    return [
+      { text: `The determinants: $${df}$ for ${phraseOf(first, pf)}, and $${ds}$ for ${phraseOf(second, ps)}.` },
+      { tex: `\\det(\\text{both}) = ${df} \\times \\left(${ds}\\right) = ${df * ds}` },
+      { tex: `\\text{area} = ${Math.abs(df * ds)} \\times ${area} = ${Math.abs(df * ds) * area}` },
+      {
+        text:
+          df * ds > 0
+            ? df < 0
+              ? 'Both transformations turn the shape over, so together they turn it back: the combined determinant is positive.'
+              : 'The combined determinant is positive, so the image is the same way round.'
+            : 'The combined determinant is negative, so the image is turned over: exactly one of the two transformations flips it.',
+      },
+    ];
+  },
+};
+
+interface DetMissingParams {
+  da: number;
+  db: number;
+  names: [string, string];
+  reverse: boolean;
+}
+
+/** A missing determinant, from the determinant of a product. */
+const detMissing: Generator<DetMissingParams> = {
+  id: 'mat-det-missing',
+  choices: ({ da, db }) => signedChoices(db, [da * db - da, -db, da * db * da, da * db + da]),
+  sample: (rng, difficulty) => {
+    const [p, q] = rng.sample(LETTERS, 2);
+    return {
+      da: difficulty > 1 ? rng.pick([-6, -5, -4, -3, -2, 2, 3, 4, 5, 6]) : rng.int(2, 6),
+      db: nonZero(rng.int(-7, 7), -3),
+      names: [p, q],
+      reverse: rng.chance(0.5),
+    };
+  },
+  render: ({ da, db, names, reverse }) => {
+    const [p, q] = names;
+    const product = reverse ? bold(q + p) : bold(p + q);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\det${bold(p)} = ${da}$ and $\\det\\left(${product}\\right) = ${da * db}$. Find $\\det${bold(q)}$.`,
+        },
+      ],
+      lead: `\\det${bold(q)} =`,
+      keypad: [],
+      answer: `${db}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ da, db, names, reverse }) => {
+    const [p, q] = names;
+    const product = reverse ? bold(q + p) : bold(p + q);
+    return [
+      { text: `The determinant of a product is the product of the determinants, whichever way round the product is taken.` },
+      { tex: `\\det\\left(${product}\\right) = \\det${bold(p)} \\times \\det${bold(q)}` },
+      { tex: `${da * db} = ${da} \\times \\det${bold(q)}` },
+      { tex: `\\det${bold(q)} = \\frac{${da * db}}{${da}} = ${db}` },
+      {
+        text: db < 0
+          ? `The sign matters: $${bold(q)}$ turns shapes over, ${da > 0 ? `and $${bold(p)}$ does not, so the product does too` : `and so does $${bold(p)}$, so in the product the two flips cancel`}.`
+          : `So $${bold(q)}$ scales area by $${db}$.`,
+      },
+    ];
+  },
+};
+
 export const matrixGenerators = [
   addMatrices,
   combineMatrices,
@@ -2823,4 +4456,23 @@ export const matrixGenerators = [
   areaSteps,
   areaK,
   orientation,
+  composeMatrix,
+  composePoint,
+  composeSlide,
+  composeOrder,
+  commuteTree,
+  orderPoint,
+  commuteWhich,
+  composeStandard,
+  composeName,
+  reflectPair,
+  composeLocate,
+  undoMatrixGen,
+  inverseOrder,
+  inverseTree,
+  undoPoint,
+  composeDet,
+  composeArea,
+  composeOrientation,
+  detMissing,
 ] as unknown as Generator<unknown>[];

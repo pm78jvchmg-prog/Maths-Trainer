@@ -3,11 +3,9 @@
 Written by C9.
 
 Has: Algebraic Fractions, Partial Fractions, Quadratic Factors in the
-Denominator.
+Denominator, Inequalities with Fractions.
 
-Needs: Inequalities with
-Fractions (multiply through by the square of the bottom, or a sign table, drawn
-on the number-line widget); Graphs of Rational Functions (vertical and
+Needs: Graphs of Rational Functions (vertical and
 horizontal asymptotes, holes, intercepts and a sketch); The Method of
 Differences (a split that telescopes, such as $\sum 1/(r(r + 1))$); Rational
 Equations in Context (rates, shared work, lenses and resistors in parallel).

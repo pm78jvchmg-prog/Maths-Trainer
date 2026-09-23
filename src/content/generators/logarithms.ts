@@ -25,8 +25,8 @@
 import type { Rng } from '../../engine/rng';
 import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { options } from '../choiceVariant';
-import { bin, log, num, pow } from '../expr';
-import { plotSvg } from '../figures';
+import { bin, log, num, pow, type Expr } from '../expr';
+import { markerWindow, plotSvg, type PlotOptions } from '../figures';
 import { EXP_KEYS } from './calculus';
 
 /** Solving for an index needs a logarithm key. */
@@ -3172,6 +3172,1668 @@ const baseFlow: Generator<BaseFlowParams> = {
   },
 };
 
+/* ---------- Level 5: logarithmic graphs ---------- */
+
+/*
+ * Level 5 is about the picture: the curve y = log_a(x), its mirror image
+ * y = a^x, what a transformation does to it, and reading a solution off it.
+ *
+ * Every curve here is drawn through `logGraphSvg`, which wraps `plotSvg` for
+ * the two things a logarithm needs that a wave or a parabola does not. The
+ * curve is undefined left of its asymptote, and plotSvg samples every curve
+ * across the whole window, so a sample there has to go somewhere harmless
+ * rather than into the path as NaN. And the asymptote is usually the y-axis,
+ * which plotSvg does not draw, so the helper draws it whenever it is in view.
+ *
+ * Every window names its own y range. plotSvg's automatic window fits the
+ * sampled extremes, and a logarithm plunging towards its asymptote would set
+ * the scale and squash the part of the curve the question is about.
+ */
+
+/** log_b(v) as a plain number, for drawing and for bounds. */
+function logOf(base: number, value: number): number {
+  return Math.log(value) / Math.log(base);
+}
+
+/** b^k as the learner reads it: a whole number, or one over one. */
+function powTex(base: number, k: number): string {
+  return k >= 0 ? `${Math.pow(base, k)}` : `\\frac{1}{${Math.pow(base, -k)}}`;
+}
+
+/** The same number for the checker. Never displayed. */
+function powAnswer(base: number, k: number): string {
+  return k >= 0 ? `${Math.pow(base, k)}` : `1 / ${Math.pow(base, -k)}`;
+}
+
+/** The same number inside a figure, where there is no TeX. */
+function powText(base: number, k: number): string {
+  return k >= 0 ? `${Math.pow(base, k)}` : `1/${Math.pow(base, -k)}`;
+}
+
+/** A signed whole number inside a figure, with a true minus sign. */
+function figNum(value: number): string {
+  return value < 0 ? `−${-value}` : `${value}`;
+}
+
+/** x shifted inside a bracket, as it is written: x, x - 3 or x + 3. */
+function shiftedX(k: number): string {
+  return k === 0 ? 'x' : k > 0 ? `x - ${k}` : `x + ${-k}`;
+}
+
+/** A constant added after the logarithm: nothing, + 2 or - 2. */
+function tail(c: number): string {
+  return c === 0 ? '' : c > 0 ? ` + ${c}` : ` - ${-c}`;
+}
+
+/** log_b(x - k) + c, the right-hand side as it is written. */
+function shiftedLogTex(base: number, k: number, c = 0): string {
+  const inner = k === 0 ? `\\log_{${base}} x` : `\\log_{${base}}\\left(${shiftedX(k)}\\right)`;
+  return `${inner}${tail(c)}`;
+}
+
+/** The curve y = s log_b(x - k) + c, as a function to draw. */
+function logCurve(base: number, k = 0, c = 0, s = 1): (x: number) => number {
+  return (x) => s * logOf(base, x - k) + c;
+}
+
+/**
+ * A stable number from a question's own parameters, for ordering the options
+ * of a native choice slide. Not the rng: one question must render one way, or
+ * the deck de-duplicator sees two questions where there is one.
+ */
+function mix(...values: number[]): number {
+  let hash = 7;
+  for (const value of values) hash = (hash * 31 + Math.round(value * 3) + 101) | 0;
+  return Math.abs(hash);
+}
+
+/** The list turned by `turn` places, so the answer is not always first. */
+function turned<T>(items: T[], turn: number): T[] {
+  const at = turn % items.length;
+  return [...items.slice(at), ...items.slice(0, at)];
+}
+
+/** A whole number as a choice option, with its value for the distractor test. */
+function numberOption(value: number): ChoiceOption {
+  return { tex: `${value}`, answer: `${value}` };
+}
+
+/** The correct option and up to three distinct wrong ones, compared by label. */
+function fourOptions(correct: ChoiceOption, ...wrong: ChoiceOption[]): ChoiceOption[] {
+  const seen = new Set([correct.tex]);
+  const out: ChoiceOption[] = [{ ...correct, correct: true }];
+  for (const option of wrong) {
+    if (out.length === 4) break;
+    if (seen.has(option.tex)) continue;
+    seen.add(option.tex);
+    out.push(option);
+  }
+  return out;
+}
+
+/** plotSvg's own geometry, needed to put a label where it puts a point. */
+const PLOT_WIDTH = 280;
+const PLOT_PAD = 12;
+
+/** Text beside a point in a figure: its coordinates, usually. */
+export interface GraphLabel {
+  x: number;
+  y: number;
+  text: string;
+  /** Where the text sits against the point, when the default would collide. */
+  place?: 'above-left' | 'below-right';
+}
+
+export type LogGraphOptions = Omit<PlotOptions, 'yMin' | 'yMax'> & {
+  yMin: number;
+  yMax: number;
+  labels?: GraphLabel[];
+};
+
+/**
+ * A figure for a logarithm or an exponential: plotSvg, plus the y-axis, a
+ * curve that is safe to sample left of its asymptote, and labelled points.
+ *
+ * Labels are the reason a point can carry its coordinates at all. plotSvg draws
+ * no scale, so a question about reading a point off a curve has to print the
+ * point beside it; the label is placed with plotSvg's own mapping, which is
+ * why its width and inset are repeated above.
+ */
+export function logGraphSvg({ labels = [], ...opts }: LogGraphOptions): string {
+  const span = opts.yMax - opts.yMin;
+  // Far enough off the picture to read as a curve leaving it, near enough that
+  // the path stays a sensible size. A sample where the curve is undefined
+  // (left of the asymptote) goes to the bottom, which is where the curve went.
+  const low = opts.yMin - span;
+  const high = opts.yMax + span;
+  const tame = (f: (x: number) => number) => (x: number) => {
+    const y = f(x);
+    return Number.isFinite(y) ? Math.min(high, Math.max(low, y)) : low;
+  };
+  const yAxis = opts.xMin < 0 && opts.xMax > 0 ? [{ x: 0, dashed: false }] : [];
+  const svg = plotSvg({
+    ...opts,
+    curves: opts.curves.map((curve) => ({ ...curve, f: tame(curve.f) })),
+    verticals: [...yAxis, ...(opts.verticals ?? [])],
+  });
+  if (labels.length === 0) return svg;
+
+  const height = opts.height ?? 150;
+  const px = (x: number) => PLOT_PAD + ((x - opts.xMin) / (opts.xMax - opts.xMin)) * (PLOT_WIDTH - 2 * PLOT_PAD);
+  const py = (y: number) => PLOT_PAD + ((opts.yMax - y) / span) * (height - 2 * PLOT_PAD);
+  const text = labels
+    .map(({ x, y, text: words, place }) => {
+      const cx = px(x);
+      const cy = py(y);
+      // Every curve here rises left to right, so the empty space beside a
+      // point is below and to its right, or above and to its left. Below-right
+      // unless that runs off the edge; then above-left, unless that runs off
+      // the top.
+      const left = place ? place === 'above-left' : cx > PLOT_WIDTH * 0.6;
+      const below = place ? place === 'below-right' : left ? cy < 26 : cy < height - 30;
+      const ty = below ? cy + 18 : cy - 9;
+      return `<text x="${(left ? cx - 8 : cx + 8).toFixed(1)}" y="${ty.toFixed(1)}" font-size="12" fill="currentColor" text-anchor="${left ? 'end' : 'start'}">${words}</text>`;
+    })
+    .join('');
+  return svg.replace('</svg>', `${text}</svg>`);
+}
+
+/** Every (base, k) with base^k no larger than `cap`. */
+function logPoints(bases: number[], ks: number[], cap: number): { base: number; k: number }[] {
+  return bases.flatMap((base) => ks.filter((k) => Math.pow(base, k) <= cap).map((k) => ({ base, k })));
+}
+
+/** y = log_b(x) round one marked point, with the whole shape of the curve in view. */
+function pointFigure(base: number, k: number, label: string): string {
+  const x = Math.pow(base, k);
+  const xMax = Math.max(x, base, 2) * 1.3;
+  return logGraphSvg({
+    xMin: -0.06 * xMax,
+    xMax,
+    yMin: Math.min(-2.5, k - 1),
+    yMax: Math.max(logOf(base, xMax), k) + 0.8,
+    curves: [{ f: logCurve(base) }],
+    marks: [{ x, y: k }],
+    labels: [{ x, y: k, text: label }],
+    label: 'A logarithm curve with one point marked',
+  });
+}
+
+interface GraphReadParams {
+  base: number;
+  /** The point asked about is (base^k, k). */
+  k: number;
+  ask: 'y' | 'x' | 'base';
+}
+
+const READ_POINTS = logPoints([2, 3, 4, 5, 6, 7], [0, 1, 2, 3], 64);
+const READ_POINTS_HARD = logPoints([2, 3, 4, 5, 6, 7, 8, 9, 10], [-1, 0, 1, 2, 3, 4], 100);
+
+/**
+ * A point on y = log_b(x): its height, its position, or the base it gives away.
+ *
+ * Every point on the curve is (b^k, k), and each direction of reading it is
+ * one of the ways the curve is used: the height is the logarithm, the position
+ * is the power, and a point with height 1 sits exactly at the base.
+ */
+const graphRead: Generator<GraphReadParams> = {
+  id: 'log-graph-read',
+  choices: ({ base, k, ask }) => {
+    const x = Math.pow(base, k);
+    if (ask === 'y') {
+      return fourOptions(
+        numberOption(k),
+        ...(k >= 1 ? [numberOption(x)] : []),
+        numberOption(base),
+        numberOption(k + 1),
+        numberOption(k - 1),
+      );
+    }
+    if (ask === 'base') {
+      return fourOptions(
+        numberOption(base),
+        ...(Number.isInteger(x / k) ? [numberOption(x / k)] : []),
+        numberOption(x),
+        numberOption(x - k),
+        numberOption(base + 1),
+        numberOption(k),
+      );
+    }
+    if (k < 0) {
+      return fourOptions(
+        { tex: powTex(base, k), answer: powAnswer(base, k) },
+        numberOption(-Math.pow(base, -k)),
+        numberOption(Math.pow(base, -k)),
+        { tex: `\\frac{1}{${2 * Math.pow(base, -k)}}`, answer: `1 / ${2 * Math.pow(base, -k)}` },
+      );
+    }
+    return fourOptions(
+      numberOption(x),
+      numberOption(base * k),
+      ...(k >= 2 && Math.pow(k, base) <= 10_000 ? [numberOption(Math.pow(k, base))] : []),
+      numberOption(Math.pow(base, k + 1)),
+      numberOption(k === 0 ? 0 : Math.pow(base, k - 1)),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const ask = rng.pick(['y', 'x', 'base'] as const);
+    const pool = (difficulty > 1 ? READ_POINTS_HARD : READ_POINTS).filter(
+      // Reading a base needs a point above the axis; (1, 0) is on every curve.
+      (point) => ask !== 'base' || point.k >= 1,
+    );
+    return { ...rng.pick(pool), ask };
+  },
+  render: ({ base, k, ask }): Slide => {
+    const label =
+      ask === 'y'
+        ? `(${powText(base, k)}, ?)`
+        : ask === 'x'
+          ? `(?, ${figNum(k)})`
+          : `(${powText(base, k)}, ${k})`;
+    const svg = pointFigure(base, k, label);
+    return {
+      kind: 'expression',
+      prompt:
+        ask === 'base'
+          ? [
+              {
+                kind: 'prose',
+                text: `The curve is $y = \\log_{a} x$ for some base $a$, and the marked point on it is $(${powTex(base, k)}, ${k})$. Find $a$.`,
+              },
+              { kind: 'diagram', svg },
+            ]
+          : [
+              {
+                kind: 'prose',
+                text:
+                  ask === 'y'
+                    ? `The curve is $y = \\log_{${base}} x$. The marked point is $(${powTex(base, k)}, y)$. Find $y$.`
+                    : `The curve is $y = \\log_{${base}} x$. The marked point is $(x, ${k})$. Find $x$.`,
+              },
+              { kind: 'diagram', svg },
+            ],
+      lead: ask === 'y' ? 'y =' : ask === 'x' ? 'x =' : 'a =',
+      keypad: ask === 'x' && k < 0 ? FRACTION_KEYS : [],
+      answer: ask === 'y' ? `${k}` : ask === 'x' ? powAnswer(base, k) : `${base}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ base, k, ask }) => {
+    const x = powTex(base, k);
+    if (ask === 'y') {
+      return [
+        { text: `The height of $y = \\log_{${base}} x$ above any $x$ is the power of $${base}$ that gives that $x$.` },
+        { tex: `${base}^{${k}} = ${x}` },
+        { tex: `\\log_{${base}}\\left(${x}\\right) = ${k}` },
+        {
+          text:
+            k === 0
+              ? 'So $y = 0$. Every logarithm curve crosses the $x$-axis at $x = 1$, whatever its base.'
+              : `So $y = ${k}$, and the point is $(${x}, ${k})$.`,
+        },
+      ];
+    }
+    if (ask === 'x') {
+      return [
+        { text: `A height of $${k}$ means $\\log_{${base}} x = ${k}$. Turn that into index form.` },
+        { tex: `\\log_{${base}} x = ${k}` },
+        { tex: `x = ${base}^{${k}} = ${x}` },
+        {
+          text:
+            k < 0
+              ? 'A negative height means a power below zero, so $x$ is a fraction between 0 and 1. The curve is below the axis there.'
+              : `So the point is $(${x}, ${k})$.`,
+        },
+      ];
+    }
+    return [
+      { text: `The point says $\\log_{a}\\left(${x}\\right) = ${k}$, which in index form is $a^{${k}} = ${x}$.` },
+      k === 1
+        ? { tex: `a^{1} = ${x} \\implies a = ${base}` }
+        : { tex: `a^{${k}} = ${x} \\implies a = ${base}` },
+      {
+        text:
+          k === 1
+            ? `A height of 1 always sits at the base: $y = \\log_{a} x$ passes through $(a, 1)$.`
+            : `Check: $${base}^{${k}} = ${x}$. The point at height 1 would be $(${base}, 1)$.`,
+      },
+    ];
+  },
+};
+
+interface GraphSliderParams {
+  base: number;
+  /** The height of the dashed line. The answer is base^level. */
+  level: number;
+  /** Whether the prompt names the base; when not, the slide asks for it. */
+  named: boolean;
+  /** Extra room right of the answer, so the track is not framed on it exactly. */
+  extra: number;
+}
+
+function graphSliderPool(bases: number[], cap: number): Omit<GraphSliderParams, 'extra'>[] {
+  const out: Omit<GraphSliderParams, 'extra'>[] = [];
+  for (const base of bases) {
+    out.push({ base, level: 1, named: false }, { base, level: 0, named: true });
+    for (let level = 2; Math.pow(base, level) <= cap; level += 1) out.push({ base, level, named: true });
+  }
+  return out;
+}
+
+const GRAPH_SLIDES = graphSliderPool([2, 3, 4, 5, 6, 7, 8, 9], 32);
+const GRAPH_SLIDES_HARD = graphSliderPool([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 40);
+
+/**
+ * Where y = log_b(x) crosses a level, found on the curve.
+ *
+ * Three of them: the x-axis, which every such curve crosses at 1; the line
+ * y = 1, which it crosses at the base, and which is how a base is read off a
+ * graph; and a higher line, crossed at a power of the base.
+ */
+const graphSlider: Generator<GraphSliderParams> = {
+  id: 'log-graph-slider',
+  sample: (rng, difficulty) => ({
+    ...rng.pick(difficulty > 1 ? GRAPH_SLIDES_HARD : GRAPH_SLIDES),
+    extra: rng.int(0, 2),
+  }),
+  render: ({ base, level, named, extra }): Slide => {
+    const answer = Math.pow(base, level);
+    const top = answer + 2 + extra + Math.ceil(answer * 0.25);
+    const left = -0.06 * top;
+    const svg = logGraphSvg({
+      xMin: left,
+      xMax: top,
+      yMin: -2.5,
+      yMax: Math.max(logOf(base, top), level) + 0.8,
+      curves: [{ f: logCurve(base) }],
+      horizontals: level === 0 ? [] : [level],
+      label: 'A logarithm curve and a level to find it at',
+    });
+    const text = !named
+      ? 'The curve is $y = \\log_{a} x$ for a base $a$ that is not given, and the dashed line is $y = 1$. Slide to the value of $a$.'
+      : level === 0
+        ? `The curve is $y = \\log_{${base}} x$. Slide to where it crosses the $x$-axis.`
+        : `The curve is $y = \\log_{${base}} x$ and the dashed line is $y = ${level}$. Slide to where they meet.`;
+    return {
+      kind: 'slider',
+      prompt: [{ kind: 'prose', text }],
+      min: 0,
+      max: top,
+      step: 1,
+      answer,
+      readout: named ? 'x = {v}' : 'a = {v}',
+      figure: { svg, ...markerWindow(left, top) },
+    };
+  },
+  solution: ({ base, level, named }) => {
+    if (!named) {
+      return [
+        { text: 'The curve meets $y = 1$ where $\\log_{a} x = 1$, which in index form is $x = a^{1} = a$.' },
+        { tex: `\\log_{a} x = 1 \\iff x = a` },
+        { text: `So the crossing is at the base itself: here $a = ${base}$. Every curve $y = \\log_{a} x$ passes through $(a, 1)$.` },
+      ];
+    }
+    if (level === 0) {
+      return [
+        { text: `The curve meets the $x$-axis where $\\log_{${base}} x = 0$.` },
+        { tex: `\\log_{${base}} x = 0 \\iff x = ${base}^{0} = 1` },
+        { text: 'So it crosses at $x = 1$. That is true of every base, because any number to the power 0 is 1.' },
+      ];
+    }
+    return [
+      { text: `The curve meets the line where $\\log_{${base}} x = ${level}$. Turn that into index form.` },
+      { tex: `\\log_{${base}} x = ${level} \\iff x = ${base}^{${level}} = ${Math.pow(base, level)}` },
+      { text: `Each step of 1 up the curve multiplies $x$ by $${base}$, which is why it climbs so slowly.` },
+    ];
+  },
+};
+
+interface PointsTilesParams {
+  base: number;
+  /** The three points are (base^k, k) for these k, in order. */
+  ks: number[];
+  /** Which coordinate of each point is blank. */
+  blanks: ('x' | 'y')[];
+}
+
+/**
+ * Three points on y = log_b(x), with one coordinate of each to fill in.
+ *
+ * The pattern is the thing: (1, 0), (b, 1), (b^2, 2). Multiplying x by the base
+ * adds one to the height, and a learner who sees that has the whole curve.
+ */
+const pointsTiles: Generator<PointsTilesParams> = {
+  id: 'log-graph-points-tiles',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 6);
+    const cap = difficulty > 1 ? 200 : 100;
+    const ks = (difficulty > 1 ? [-1, 0, 1, 2, 3] : [0, 1, 2, 3]).filter((k) => Math.pow(base, k) <= cap);
+    const chosen = rng.sample(ks, 3).sort((a, b) => a - b);
+    // A fraction cannot sit in the template, where `\frac{1}{3}` would lose its
+    // `{1}` to the blank-marker split, so the x of a point below the axis is
+    // always the blank.
+    return { base, ks: chosen, blanks: chosen.map((k) => (k < 0 ? 'x' : rng.pick(['x', 'y'] as const))) };
+  },
+  render: ({ base, ks, blanks }): Slide => {
+    const answer = ks.map((k, i) => (blanks[i] === 'x' ? powTex(base, k) : `${k}`));
+    const template = ks
+      .map((k, i) => (blanks[i] === 'x' ? `({${i}}, ${k})` : `(${Math.pow(base, k)}, {${i}})`))
+      .join(' \\quad ');
+    const distractors = ks.flatMap((k, i) => {
+      if (blanks[i] === 'y') return [`${Math.pow(base, k)}`, `${k + 1}`, `${base}`];
+      if (k < 0) return [`${-Math.pow(base, -k)}`];
+      if (k === 0) return ['0', `${base}`];
+      return [`${base * k}`, `${base + k}`];
+    });
+    const xs = ks.map((k) => Math.pow(base, k));
+    const xMax = Math.max(...xs) * 1.2 + 0.5;
+    const svg = logGraphSvg({
+      xMin: -0.06 * xMax,
+      xMax,
+      yMin: Math.min(-1.5, ks[0] - 1.2),
+      yMax: ks[2] + 1,
+      curves: [{ f: logCurve(base) }],
+      marks: ks.map((k) => ({ x: Math.pow(base, k), y: k })),
+      label: 'A logarithm curve with three points marked',
+    });
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `All three points lie on $y = \\log_{${base}} x$. Fill in the missing coordinates.` },
+        { kind: 'diagram', svg },
+      ],
+      template,
+      bank: bankOf(answer, distractors),
+      answer,
+    };
+  },
+  solution: ({ base, ks }) => [
+    { text: `Every point on $y = \\log_{${base}} x$ has the form $(${base}^{k}, k)$: the height is the power of $${base}$ that gives $x$.` },
+    { tex: ks.map((k) => `\\left(${powTex(base, k)}, ${k}\\right)`).join(' \\quad ') },
+    {
+      text: `Multiplying $x$ by $${base}$ adds 1 to the height. ${
+        ks[0] <= 0
+          ? 'And $(1, 0)$ is on every logarithm curve, whatever the base.'
+          : ks[0] === 1
+            ? 'One step further back is $(1, 0)$, which is on every logarithm curve.'
+            : `So going back, $(${base}, 1)$ and $(1, 0)$ are on it too.`
+      }`,
+    },
+  ],
+};
+
+interface OnCurveParams {
+  base: number;
+  k: number;
+  kind: 'on' | 'swapped' | 'off' | 'negative' | 'zero';
+}
+
+/** The point an `OnCurveParams` describes, as it is written and as a height. */
+function onCurvePoint({ base, k, kind }: OnCurveParams): { x: string; y: number } {
+  if (kind === 'swapped') return { x: `${k}`, y: Math.pow(base, k) };
+  if (kind === 'negative') return { x: `${-Math.pow(base, k)}`, y: k };
+  if (kind === 'zero') return { x: '0', y: k };
+  return { x: powTex(base, k), y: kind === 'off' ? k + 1 : k };
+}
+
+/**
+ * Is this point on y = log_b(x)?
+ *
+ * Two questions settle it, in order: is x positive at all, and does the base to
+ * the height give x. The swapped point (k, b^k) is the one worth catching,
+ * since it is on the *exponential* curve instead.
+ */
+const onCurveFlow: Generator<OnCurveParams> = {
+  id: 'log-on-curve-flow',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 6);
+    const kind = rng.pick(['on', 'on', 'swapped', 'off', 'negative', 'zero'] as const);
+    const ks = (kind === 'swapped' ? [2, 3] : difficulty > 1 ? [-1, 0, 1, 2, 3] : [0, 1, 2, 3]).filter(
+      (k) => Math.pow(base, k) <= 200,
+    );
+    return { base, k: rng.pick(ks), kind };
+  },
+  render: (params): Slide => {
+    const { base, kind } = params;
+    const point = onCurvePoint(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Is this point on the curve $y = \\log_{${base}} x$? Work down the questions to decide.`,
+        },
+      ],
+      subject: `\\left(${point.x}, ${point.y}\\right)`,
+      steps: [
+        {
+          id: 'domain',
+          ask: 'Is the $x$-coordinate greater than 0?',
+          branches: [
+            { label: 'Yes', to: 'power' },
+            {
+              label: 'No',
+              outcome: 'Not on the curve. A logarithm only takes positive inputs, so the curve never reaches $x \\le 0$.',
+            },
+          ],
+        },
+        {
+          id: 'power',
+          ask: `Does $${base}$ to the power of the $y$-coordinate give the $x$-coordinate?`,
+          branches: [
+            { label: 'Yes', outcome: 'On the curve.' },
+            { label: 'No', outcome: 'Not on the curve. At that $x$ the curve is at a different height.' },
+          ],
+        },
+      ],
+      answer: kind === 'negative' || kind === 'zero' ? ['No'] : kind === 'on' ? ['Yes', 'Yes'] : ['Yes', 'No'],
+    };
+  },
+  solution: (params) => {
+    const { base, k, kind } = params;
+    const point = onCurvePoint(params);
+    if (kind === 'negative' || kind === 'zero') {
+      return [
+        { text: `The $x$-coordinate is $${point.x}$, and $\\log_{${base}}$ of a number that is not positive does not exist.` },
+        { tex: `${base}^{y} > 0 \\text{ for every } y` },
+        { text: 'So the whole curve sits to the right of the $y$-axis, which it approaches but never meets.' },
+      ];
+    }
+    if (kind === 'on') {
+      return [
+        { text: `The $x$-coordinate is positive, so check the height.` },
+        { tex: `${base}^{${k}} = ${powTex(base, k)}` },
+        { text: `The height matches, so $(${point.x}, ${point.y})$ is on the curve.` },
+      ];
+    }
+    return [
+      { text: `The $x$-coordinate is positive, so check the height.` },
+      {
+        // The swapped point's height is a power of the base, so the base to that
+        // power is far too big to print; it is enough that it is not k.
+        tex:
+          kind === 'swapped'
+            ? `${base}^{${point.y}} \\ne ${point.x}`
+            : `${base}^{${point.y}} = ${Math.pow(base, point.y)} \\ne ${point.x}`,
+      },
+      {
+        text:
+          kind === 'swapped'
+            ? `So it is not on the curve. $(${k}, ${point.y})$ is on $y = ${base}^{x}$ instead: the coordinates are the wrong way round.`
+            : `So it is not on the curve. At $x = ${point.x}$ the curve's height is $${k}$.`,
+      },
+    ];
+  },
+};
+
+interface GraphMatchParams {
+  base: number;
+  k: number;
+  shape: 'log' | 'exp';
+}
+
+const MATCH_POINTS = logPoints([2, 3, 4, 5, 6, 7], [1, 2, 3], 64);
+const MATCH_POINTS_HARD = logPoints([2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3], 100);
+
+/**
+ * Which equation is this curve?
+ *
+ * The shape says logarithm or exponential; the marked point says the base. The
+ * distractors are the other shape with the same base, and bases read off the
+ * wrong coordinate.
+ */
+const graphMatch: Generator<GraphMatchParams> = {
+  id: 'log-graph-match',
+  sample: (rng, difficulty) => ({
+    ...rng.pick(difficulty > 1 ? MATCH_POINTS_HARD : MATCH_POINTS),
+    shape: rng.pick(['log', 'exp'] as const),
+  }),
+  render: ({ base, k, shape }): Slide => {
+    const value = Math.pow(base, k);
+    const logTexOf = (b: number) => `y = \\log_{${b}} x`;
+    const expTexOf = (b: number) => `y = ${b}^{x}`;
+    const labels =
+      shape === 'log'
+        ? [
+            logTexOf(base),
+            expTexOf(base),
+            logTexOf(k >= 2 ? value : base + 1),
+            logTexOf(k >= 2 && k !== base ? k : base + 2),
+          ]
+        : [
+            expTexOf(base),
+            logTexOf(base),
+            expTexOf(k >= 2 ? value : base + 1),
+            // x^b passes through (k, b^k) exactly when k^b = b^k, as 4^2 = 2^4 does.
+            Math.pow(k, base) !== value ? `y = x^{${base}}` : expTexOf(base + 2),
+          ];
+    const unique = [...new Set(labels)];
+    const options = turned(
+      unique.map((label, i) => ({ id: i === 0 ? 'correct' : `wrong${i}`, label, tex: true })),
+      mix(base, k, shape === 'log' ? 1 : 2),
+    );
+    const xMax = shape === 'log' ? value * 1.3 : k + 1.2;
+    const xMin = shape === 'log' ? -0.06 * xMax : -2.5;
+    const point = shape === 'log' ? { x: value, y: k } : { x: k, y: value };
+    const svg = logGraphSvg({
+      xMin,
+      xMax,
+      yMin: shape === 'log' ? -2.5 : -0.12 * value * 1.3,
+      yMax: shape === 'log' ? Math.max(logOf(base, xMax), k) + 0.8 : value * 1.3,
+      curves: [{ f: shape === 'log' ? logCurve(base) : (x) => Math.pow(base, x) }],
+      marks: [point],
+      labels: [{ ...point, text: `(${point.x}, ${point.y})` }],
+      label: 'A curve with one point marked',
+    });
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Which equation does this curve have? The marked point is $(${point.x}, ${point.y})$.` },
+        { kind: 'diagram', svg },
+      ],
+      options,
+      correctId: 'correct',
+    };
+  },
+  solution: ({ base, k, shape }) => {
+    const value = Math.pow(base, k);
+    return shape === 'log'
+      ? [
+          { text: 'The curve rises ever more slowly and runs down beside the $y$-axis without touching it: the shape of a logarithm.' },
+          { tex: `\\log_{a}\\left(${value}\\right) = ${k}` },
+          { tex: `a^{${k}} = ${value} \\implies a = ${base}` },
+          { text: `So it is $y = \\log_{${base}} x$. Its mirror image in $y = x$ is $y = ${base}^{x}$, which passes through $(${k}, ${value})$ instead.` },
+        ]
+      : [
+          { text: 'The curve rises ever faster and flattens towards the $x$-axis on the left: the shape of an exponential.' },
+          { tex: `a^{${k}} = ${value} \\implies a = ${base}` },
+          { text: `So it is $y = ${base}^{x}$. Its mirror image in $y = x$ is $y = \\log_{${base}} x$, which passes through $(${value}, ${k})$ instead.` },
+        ];
+  },
+};
+
+interface InversePointParams {
+  base: number;
+  k: number;
+  /** Which curve the given point is on. The answer is on the other. */
+  from: 'exp' | 'log';
+}
+
+/**
+ * Reflecting a point in y = x: the coordinates swap.
+ *
+ * That is all "inverse" means on a graph, and it is why every fact about
+ * y = b^x has a twin on y = log_b(x): (0, 1) becomes (1, 0), (1, b) becomes
+ * (b, 1), and a point with a fractional height becomes one near the asymptote.
+ */
+const inversePoint: Generator<InversePointParams> = {
+  id: 'log-inverse-point',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 6);
+    const ks = (difficulty > 1 ? [-2, -1, 0, 1, 2, 3] : [0, 1, 2, 3]).filter(
+      (k) => Math.pow(base, Math.abs(k)) <= 100,
+    );
+    return { base, k: rng.pick(ks), from: rng.pick(['exp', 'log'] as const) };
+  },
+  render: ({ base, k, from }): Slide => {
+    const power = powTex(base, k);
+    const given = from === 'exp' ? `\\left(${k}, ${power}\\right)` : `\\left(${power}, ${k}\\right)`;
+    const answer = from === 'exp' ? [power, `${k}`] : [`${k}`, power];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            from === 'exp'
+              ? `This point is on $y = ${base}^{x}$. Reflect it in the line $y = x$ to get a point on $y = \\log_{${base}} x$.`
+              : `This point is on $y = \\log_{${base}} x$. Reflect it in the line $y = x$ to get a point on $y = ${base}^{x}$.`,
+        },
+        { kind: 'display', tex: given },
+      ],
+      template: '({0}, {1})',
+      bank: bankOf(answer, [
+        `${-k}`,
+        k >= 0 ? `${-Math.pow(base, k)}` : `${Math.pow(base, -k)}`,
+        `${base}`,
+        `${k + 1}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ base, k, from }) => {
+    const power = powTex(base, k);
+    return [
+      { text: 'Reflecting in $y = x$ swaps the two coordinates, and nothing else.' },
+      {
+        tex:
+          from === 'exp'
+            ? `\\left(${k}, ${power}\\right) \\to \\left(${power}, ${k}\\right)`
+            : `\\left(${power}, ${k}\\right) \\to \\left(${k}, ${power}\\right)`,
+      },
+      {
+        text: `Check: $${base}^{${k}} = ${power}$, so $\\log_{${base}}\\left(${power}\\right) = ${k}$. The two statements are the same fact, which is why the two curves are mirror images.`,
+      },
+    ];
+  },
+};
+
+interface MirrorSliderParams {
+  base: number;
+  k: number;
+  /** The marked point is on this curve; the learner finds its reflection on the other. */
+  from: 'exp' | 'log';
+}
+
+/** Where the figure's left and bottom edges sit, so negative answers fit. */
+const MIRROR_MARGIN = 3;
+/** Tall enough that the two axes can share one scale. */
+const MIRROR_HEIGHT = 240;
+
+function mirrorPool(bases: number[], cap: number): MirrorSliderParams[] {
+  const out: MirrorSliderParams[] = [];
+  for (const base of bases) {
+    for (let k = 0; Math.pow(base, k) <= cap; k += 1) out.push({ base, k, from: 'exp' });
+    for (let k = -2; Math.pow(base, k) <= cap; k += 1) out.push({ base, k, from: 'log' });
+  }
+  return out;
+}
+
+const MIRRORS = mirrorPool([2, 3, 4, 5], 16);
+const MIRRORS_HARD = mirrorPool([2, 3, 4, 5, 6, 7, 8], 27);
+
+/**
+ * Both curves and the mirror between them, drawn to one scale.
+ *
+ * plotSvg stretches x and y independently, and a reflection in y = x only
+ * looks like one when a unit is the same length both ways — otherwise the
+ * dashed line is not at 45 degrees and the two curves do not look alike. So
+ * the window is worked out from the figure's shape rather than the other way
+ * round: whatever x range the points need, the y range follows from it.
+ */
+const mirrorSlider: Generator<MirrorSliderParams> = {
+  id: 'log-mirror-slider',
+  sample: (rng, difficulty) => rng.pick(difficulty > 1 ? MIRRORS_HARD : MIRRORS),
+  render: ({ base, k, from }): Slide => {
+    const power = Math.pow(base, k);
+    const ratio = (MIRROR_HEIGHT - 2 * PLOT_PAD) / (PLOT_WIDTH - 2 * PLOT_PAD);
+    const need = Math.max(power, k) + 1.5;
+    const right = Math.max(need, (need + MIRROR_MARGIN) / ratio - MIRROR_MARGIN);
+    const top = -MIRROR_MARGIN + (right + MIRROR_MARGIN) * ratio;
+    const point = from === 'exp' ? { x: k, y: power } : { x: power, y: k };
+    const svg = logGraphSvg({
+      xMin: -MIRROR_MARGIN,
+      xMax: right,
+      yMin: -MIRROR_MARGIN,
+      yMax: top,
+      height: MIRROR_HEIGHT,
+      curves: [
+        // Neither curve in the accent colour: the slider's marker is drawn in
+        // it, and a purple curve beside a purple marker reads as one thing.
+        { f: (x) => Math.pow(base, x) },
+        { f: logCurve(base) },
+        { f: (x) => x, dashed: true },
+      ],
+      // No coordinates beside the point: the prompt gives them, and between
+      // two curves and a diagonal there is no clear space to print them in.
+      marks: [point],
+      label: 'An exponential curve and a logarithm curve, reflected in the line y = x',
+    });
+    const given = from === 'exp' ? `(${k}, ${powTex(base, k)})` : `(${powTex(base, k)}, ${k})`;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            from === 'exp'
+              ? `The curves are $y = ${base}^{x}$ and $y = \\log_{${base}} x$, mirror images in the dashed line $y = x$. The marked point $${given}$ is on $y = ${base}^{x}$. Slide to the $x$-coordinate of its reflection.`
+              : `The curves are $y = ${base}^{x}$ and $y = \\log_{${base}} x$, mirror images in the dashed line $y = x$. The marked point $${given}$ is on $y = \\log_{${base}} x$. Slide to the $x$-coordinate of its reflection.`,
+        },
+      ],
+      min: -MIRROR_MARGIN,
+      max: Math.floor(right),
+      step: 1,
+      answer: from === 'exp' ? power : k,
+      readout: 'x = {v}',
+      figure: { svg, ...markerWindow(-MIRROR_MARGIN, right) },
+    };
+  },
+  solution: ({ base, k, from }) => {
+    const power = powTex(base, k);
+    return [
+      { text: 'Reflecting in $y = x$ swaps the coordinates, so the reflected point is the marked one written the other way round.' },
+      {
+        tex:
+          from === 'exp'
+            ? `\\left(${k}, ${power}\\right) \\to \\left(${power}, ${k}\\right)`
+            : `\\left(${power}, ${k}\\right) \\to \\left(${k}, ${power}\\right)`,
+      },
+      {
+        text:
+          from === 'exp'
+            ? `So its $x$-coordinate is $${power}$, and indeed $\\log_{${base}}\\left(${power}\\right) = ${k}$.`
+            : `So its $x$-coordinate is $${k}$, and indeed $${base}^{${k}} = ${power}$.`,
+      },
+    ];
+  },
+};
+
+interface UndoParams {
+  base: number;
+  /** A power inside a logarithm: log_b(b^k). */
+  k: number;
+  /** A logarithm inside a power, b^(log_b(b^j)), or the second base's power. */
+  j: number;
+  /** The second base, for the form that adds one of each. */
+  other: number;
+  form: 'log-of-power' | 'power-of-log' | 'sum' | 'scaled';
+}
+
+/** The expression an `UndoParams` describes. */
+function undoExpr({ base, k, j, other, form }: UndoParams): Expr {
+  const logOfPower = log(num(base), pow(num(base), num(k)));
+  if (form === 'log-of-power') return logOfPower;
+  if (form === 'power-of-log') return pow(num(base), log(num(base), num(Math.pow(base, j))));
+  if (form === 'scaled') return bin('*', num(j), logOfPower);
+  return bin('+', logOfPower, pow(num(other), log(num(other), num(Math.pow(other, j)))));
+}
+
+/**
+ * The logarithm and the exponential undo each other.
+ *
+ * That is the algebra of the reflection: log_b(b^k) = k and b^(log_b(n)) = n.
+ * Asked as an `evaluate` slide, in the head, because the point is to see the
+ * two cancel rather than to work either one out. The numbers inside are
+ * powers of the base so every value on the slide is whole, as this widget
+ * requires; the reason it cancels does not depend on that.
+ */
+const undoEvaluate: Generator<UndoParams> = {
+  id: 'log-undo-evaluate',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 5);
+    const form = rng.pick(['log-of-power', 'power-of-log', 'sum', 'scaled'] as const);
+    const others = [2, 3, 4, 5, 6, 7].filter((b) => b !== base);
+    const other = rng.pick(others);
+    const j = form === 'scaled' ? rng.int(2, 5) : rng.int(1, other > 4 || base > 4 ? 2 : 3);
+    return { base, k: rng.int(2, difficulty > 1 ? 9 : 6), j, other, form };
+  },
+  render: (params): Slide => {
+    const { base, k, j, other, form } = params;
+    const power = Math.pow(base, k);
+    const [correct, ...wrong] =
+      form === 'log-of-power'
+        ? [k, power, base * k, k + 1]
+        : form === 'power-of-log'
+          ? [Math.pow(base, j), j, base * j, Math.pow(base, j + 1)]
+          : form === 'scaled'
+            ? [j * k, j + k, j * power, k]
+            : [k + Math.pow(other, j), k + j, power + Math.pow(other, j), k * Math.pow(other, j)];
+    const choices = [...new Set([correct, ...wrong])];
+    for (let gap = 1; choices.length < 4; gap += 1) {
+      if (!choices.includes(correct + gap)) choices.push(correct + gap);
+    }
+    return {
+      kind: 'evaluate',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Evaluate the expression. A logarithm and a power of the same base undo each other.',
+        },
+      ],
+      expr: undoExpr(params),
+      options: turned(choices.slice(0, 4).map(String), mix(base, k, j, other)),
+    };
+  },
+  solution: ({ base, k, j, other, form }) => {
+    const power = Math.pow(base, k);
+    if (form === 'log-of-power') {
+      return [
+        { text: `$\\log_{${base}}$ asks what power of $${base}$ gives the number inside, and the number inside is written as a power of $${base}$ already.` },
+        { tex: `\\log_{${base}}\\left(${base}^{${k}}\\right) = ${k}` },
+        { text: `Working out $${base}^{${k}} = ${power}$ first gets there too, but the logarithm only hands the $${k}$ back.` },
+      ];
+    }
+    if (form === 'power-of-log') {
+      const inside = Math.pow(base, j);
+      return [
+        { text: `$\\log_{${base}}\\left(${inside}\\right)$ is the power of $${base}$ that gives $${inside}$, and raising $${base}$ to that power gives $${inside}$ back.` },
+        { tex: `${base}^{\\log_{${base}}\\left(${inside}\\right)} = ${inside}` },
+        { text: `That holds for any positive number inside, not only a power: $${base}^{\\log_{${base}} x} = x$.` },
+      ];
+    }
+    if (form === 'scaled') {
+      return [
+        { text: 'The logarithm of a power of its own base is just that power.' },
+        { tex: `${j} \\times \\log_{${base}}\\left(${base}^{${k}}\\right) = ${j} \\times ${k} = ${j * k}` },
+        { text: 'The multiplication waits until the logarithm is a number.' },
+      ];
+    }
+    const inside = Math.pow(other, j);
+    return [
+      { text: 'Each half undoes itself: a logarithm of a power of its base, and a power of a logarithm with the same base.' },
+      { tex: `\\log_{${base}}\\left(${base}^{${k}}\\right) = ${k}` },
+      { tex: `${other}^{\\log_{${other}}\\left(${inside}\\right)} = ${inside}` },
+      { tex: `${k} + ${inside} = ${k + inside}` },
+    ];
+  },
+};
+
+interface TransformSliderParams {
+  base: number;
+  /** The curve is y = log_b(x - k) + c. */
+  k: number;
+  c: number;
+  ask: 'asymptote' | 'intercept';
+  extra: number;
+}
+
+/**
+ * The asymptote and the x-intercept after a translation.
+ *
+ * The asymptote is where the inside of the logarithm is zero, so only a change
+ * inside moves it; the intercept is where the whole thing is zero, so either
+ * change moves that. Asked on the curve so the learner sees both move.
+ */
+const transformSlider: Generator<TransformSliderParams> = {
+  id: 'log-transform-slider',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 4 : 3);
+    const ask = rng.pick(['asymptote', 'intercept'] as const);
+    // An intercept is whole only when the constant is not positive: it sits at
+    // k + b^(-c).
+    const cs = ask === 'asymptote' ? [-2, -1, 0, 1, 2] : [0, -1, ...(base <= 3 ? [-2] : [])];
+    return { base, k: rng.int(-3, difficulty > 1 ? 6 : 5), c: rng.pick(cs), ask, extra: rng.int(0, 2) };
+  },
+  render: ({ base, k, c, ask, extra }): Slide => {
+    const answer = ask === 'asymptote' ? k : k + Math.pow(base, -c);
+    const min = Math.min(k, 0) - 2;
+    const max = Math.max(answer, k, 0) + 3 + extra;
+    const left = min - 0.5;
+    const f = logCurve(base, k, c);
+    const svg = logGraphSvg({
+      xMin: left,
+      xMax: max,
+      yMin: Math.min(-3, c - 2),
+      yMax: Math.max(f(max), c, 1) + 1,
+      curves: [{ f }],
+      verticals: ask === 'intercept' ? [{ x: k }] : [],
+      label: 'A translated logarithm curve',
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            ask === 'asymptote'
+              ? `The curve is $y = ${shiftedLogTex(base, k, c)}$. Slide to its vertical asymptote.`
+              : `The curve is $y = ${shiftedLogTex(base, k, c)}$, and its asymptote is dashed. Slide to where it crosses the $x$-axis.`,
+        },
+      ],
+      min,
+      max,
+      step: 1,
+      answer,
+      readout: 'x = {v}',
+      figure: { svg, ...markerWindow(left, max) },
+    };
+  },
+  solution: ({ base, k, c, ask }) => {
+    if (ask === 'asymptote') {
+      return [
+        { text: 'The curve runs down beside the line where the inside of the logarithm reaches zero.' },
+        { tex: `${shiftedX(k)} = 0 \\implies x = ${k}` },
+        {
+          text:
+            c === 0
+              ? `The asymptote is $x = ${k}$.`
+              : `The asymptote is $x = ${k}$. The $${tail(c).trim()}$ outside moves the curve ${c > 0 ? 'up' : 'down'}, which leaves a vertical line where it was.`,
+        },
+      ];
+    }
+    const across = Math.pow(base, -c);
+    return [
+      { text: 'The curve crosses the $x$-axis where $y = 0$.' },
+      { tex: `${shiftedLogTex(base, k, c)} = 0` },
+      { tex: `\\log_{${base}}\\left(${shiftedX(k)}\\right) = ${-c}` },
+      { tex: `${shiftedX(k)} = ${base}^{${-c}} = ${across} \\implies x = ${k + across}` },
+    ];
+  },
+};
+
+interface TransformMatchParams {
+  base: number;
+  n: number;
+  type: 'right' | 'left' | 'up' | 'down' | 'vstretch' | 'hstretch';
+}
+
+/** The equation a `TransformMatchParams` describes, right-hand side only. */
+function transformedTex({ base, n, type }: TransformMatchParams): string {
+  if (type === 'right') return shiftedLogTex(base, n);
+  if (type === 'left') return shiftedLogTex(base, -n);
+  if (type === 'up') return shiftedLogTex(base, 0, n);
+  if (type === 'down') return shiftedLogTex(base, 0, -n);
+  if (type === 'vstretch') return `${n}\\log_{${base}} x`;
+  return `\\log_{${base}}\\left(${n}x\\right)`;
+}
+
+/**
+ * What does this change do to the graph?
+ *
+ * Inside the bracket acts on x, and backwards: x - 3 moves the curve right, and
+ * 3x squeezes it by a factor of 3. Outside acts on y, and the way it reads.
+ */
+const transformMatch: Generator<TransformMatchParams> = {
+  id: 'log-transform-match',
+  sample: (rng, difficulty) => ({
+    base: rng.int(2, difficulty > 1 ? 9 : 5),
+    n: rng.int(2, difficulty > 1 ? 7 : 5),
+    type: rng.pick(['right', 'left', 'up', 'down', 'vstretch', 'hstretch'] as const),
+  }),
+  render: (params): Slide => {
+    const { base, n, type } = params;
+    const moved = (way: string) => `Translated ${n} units ${way}`;
+    const vertical = `Stretched vertically, scale factor ${n}`;
+    const wide = `Stretched horizontally, scale factor ${n}`;
+    const narrow = `Stretched horizontally, scale factor 1/${n}`;
+    const labels =
+      type === 'right'
+        ? [moved('right'), moved('left'), moved('up'), moved('down')]
+        : type === 'left'
+          ? [moved('left'), moved('right'), moved('up'), moved('down')]
+          : type === 'up'
+            ? [moved('up'), moved('down'), moved('right'), moved('left')]
+            : type === 'down'
+              ? [moved('down'), moved('up'), moved('left'), moved('right')]
+              : type === 'vstretch'
+                ? [vertical, wide, narrow, moved('up')]
+                : [narrow, wide, vertical, moved('right')];
+    const options = turned(
+      labels.map((label, i) => ({ id: i === 0 ? 'correct' : `wrong${i}`, label, tex: false })),
+      mix(base, n, labels[0].length),
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `How does this graph compare with $y = \\log_{${base}} x$?` },
+        { kind: 'display', tex: `y = ${transformedTex(params)}` },
+      ],
+      options,
+      correctId: 'correct',
+    };
+  },
+  solution: (params) => {
+    const { base, n, type } = params;
+    if (type === 'right' || type === 'left') {
+      return [
+        { text: 'A number added to $x$ inside the bracket moves the curve sideways, and the opposite way to its sign.' },
+        { tex: `y = ${transformedTex(params)}` },
+        {
+          text: `The curve now reaches the height $\\log_{${base}} x$ used to have ${n} units ${type === 'right' ? 'later, so it has moved right' : 'sooner, so it has moved left'}. The asymptote moves with it, to $x = ${type === 'right' ? n : -n}$.`,
+        },
+      ];
+    }
+    if (type === 'up' || type === 'down') {
+      return [
+        { text: 'A number added after the logarithm changes every height by the same amount.' },
+        { tex: `y = ${transformedTex(params)}` },
+        { text: `So the curve moves ${n} units ${type}. The asymptote $x = 0$ is a vertical line, so it stays where it is.` },
+      ];
+    }
+    if (type === 'vstretch') {
+      return [
+        { text: 'Multiplying the whole logarithm by a number multiplies every height by it.' },
+        { tex: `y = ${transformedTex(params)}` },
+        { text: `That is a vertical stretch, scale factor $${n}$. Height 0 stays 0, so the curve still crosses at $(1, 0)$.` },
+      ];
+    }
+    return [
+      { text: `Multiplying $x$ by $${n}$ inside the bracket means the curve reaches each height at $\\frac{1}{${n}}$ of the old $x$.` },
+      { tex: `y = ${transformedTex(params)}` },
+      { text: `That is a horizontal stretch, scale factor $\\frac{1}{${n}}$, and the curve now crosses the axis at $x = \\frac{1}{${n}}$. The asymptote stays at $x = 0$.` },
+    ];
+  },
+};
+
+interface TransformTilesParams {
+  /** One digit, since a tiles template cannot hold a braced subscript. */
+  base: number;
+  mode: 'shift' | 'stretch';
+  /** shift: y = log_b(x - k) + c. stretch: y = s log_b(x) + c. */
+  k: number;
+  c: number;
+  s: number;
+}
+
+/** A number as a tile added or subtracted: "+ 3" or "- 3". */
+function signedTile(value: number): string {
+  return value >= 0 ? `+ ${value}` : `- ${-value}`;
+}
+
+/**
+ * Build the equation of a transformed curve from what the graph shows.
+ *
+ * The asymptote gives the shift inside the bracket and the point where the old
+ * (1, 0) landed gives the one outside; or, for a stretch, two points give the
+ * scale factor and the constant.
+ */
+const transformTiles: Generator<TransformTilesParams> = {
+  id: 'log-transform-tiles',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 9 : 5);
+    const nonZero = (lo: number, hi: number) => rng.pick([...Array(hi - lo + 1).keys()].map((i) => i + lo).filter((v) => v !== 0));
+    return {
+      base,
+      mode: rng.pick(['shift', 'shift', 'stretch'] as const),
+      k: nonZero(-4, 5),
+      c: nonZero(-3, 4),
+      s: rng.int(2, difficulty > 1 ? 5 : 4),
+    };
+  },
+  render: ({ base, mode, k, c, s }): Slide => {
+    if (mode === 'shift') {
+      const inner = signedTile(-k);
+      const outer = signedTile(c);
+      const left = Math.min(k, 0) - 1.5;
+      const right = Math.max(k, 0) + 6;
+      const f = logCurve(base, k, c);
+      const svg = logGraphSvg({
+        xMin: left,
+        xMax: right,
+        yMin: Math.min(-2.5, c - 2.5),
+        yMax: Math.max(f(right), c, 0) + 1,
+        curves: [{ f }],
+        verticals: [{ x: k }],
+        marks: [{ x: k + 1, y: c }],
+        labels: [{ x: k + 1, y: c, text: `(${figNum(k + 1)}, ${figNum(c)})` }],
+        label: 'A translated logarithm curve with its asymptote dashed',
+      });
+      return {
+        kind: 'tiles',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `This is $y = \\log_{${base}} x$ translated. Its asymptote is the dashed line $x = ${k}$, and the point $(1, 0)$ has moved to $(${k + 1}, ${c})$. Complete its equation.`,
+          },
+          { kind: 'diagram', svg },
+        ],
+        template: `y = \\log_${base}(x {0}) {1}`,
+        bank: bankOf([inner, outer], [signedTile(k), signedTile(-c), signedTile(-(k + 1))]),
+        answer: [inner, outer],
+      };
+    }
+    const outer = signedTile(c);
+    const f = logCurve(base, 0, c, s);
+    const right = base * 1.4 + 0.5;
+    const svg = logGraphSvg({
+      xMin: -0.06 * right,
+      xMax: right,
+      yMin: Math.min(-3, c - 3),
+      yMax: Math.max(s + c, c, 0) + 1.2,
+      curves: [{ f }],
+      marks: [
+        { x: 1, y: c },
+        { x: base, y: s + c },
+      ],
+      labels: [{ x: base, y: s + c, text: `(${base}, ${figNum(s + c)})` }],
+      label: 'A stretched and translated logarithm curve',
+    });
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This curve has the form $y = p\\log_{${base}} x + q$ and passes through $(1, ${c})$ and $(${base}, ${s + c})$. Complete its equation.`,
+        },
+        { kind: 'diagram', svg },
+      ],
+      template: `y = {0}\\log_${base}(x) {1}`,
+      bank: bankOf([`${s}`, outer], [`${s + c}`, signedTile(-c), signedTile(s + c), `${base}`]),
+      answer: [`${s}`, outer],
+    };
+  },
+  solution: ({ base, mode, k, c, s }) => {
+    if (mode === 'shift') {
+      return [
+        { text: `The asymptote is where the bracket is zero, so the bracket is $${shiftedX(k)}$.` },
+        { text: `$(1, 0)$ is where $\\log_{${base}}$ of the bracket is 0, and it now sits at height $${c}$, so $${c}$ is added outside.` },
+        { tex: `y = ${shiftedLogTex(base, k, c)}` },
+      ];
+    }
+    return [
+      { text: `At $x = 1$ the logarithm is 0, so the height there is $q$ alone: $q = ${c}$.` },
+      { text: `At $x = ${base}$ the logarithm is 1, so the height is $p + q = ${s + c}$, giving $p = ${s}$.` },
+      { tex: `y = ${s}\\log_{${base}} x${tail(c)}` },
+    ];
+  },
+};
+
+interface TransformFlowParams {
+  base: number;
+  n: number;
+  type: 'shift-in' | 'stretch-in' | 'stretch-out' | 'shift-out';
+  /** The direction of a shift. */
+  sign: number;
+}
+
+/**
+ * What does this transformation do to the asymptote and the intercept?
+ *
+ * The deciding question is inside or outside the logarithm, then add or
+ * multiply. Only one of the four moves the asymptote, which is the fact a
+ * learner most often gets wrong.
+ */
+const transformFlow: Generator<TransformFlowParams> = {
+  id: 'log-transform-flow',
+  sample: (rng, difficulty) => ({
+    base: rng.int(2, difficulty > 1 ? 9 : 5),
+    n: rng.int(2, difficulty > 1 ? 8 : 6),
+    type: rng.pick(['shift-in', 'stretch-in', 'stretch-out', 'shift-out'] as const),
+    sign: rng.sign(),
+  }),
+  render: ({ base, n, type, sign }): Slide => {
+    const equation =
+      type === 'shift-in'
+        ? shiftedLogTex(base, sign * n)
+        : type === 'shift-out'
+          ? shiftedLogTex(base, 0, sign * n)
+          : type === 'stretch-in'
+            ? `\\log_{${base}}\\left(${n}x\\right)`
+            : `${n}\\log_{${base}} x`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Work down the questions to decide what this change does to the graph of $y = \\log_{${base}} x$.`,
+        },
+      ],
+      subject: `y = ${equation}`,
+      steps: [
+        {
+          id: 'inside',
+          ask: 'Is the change made to $x$, inside the logarithm?',
+          branches: [
+            { label: 'Yes', to: 'inside-kind' },
+            { label: 'No', to: 'outside-kind' },
+          ],
+        },
+        {
+          id: 'inside-kind',
+          ask: 'Is a number added to or taken from $x$?',
+          branches: [
+            { label: 'Yes', outcome: 'A horizontal translation. The asymptote moves with the curve.' },
+            {
+              label: 'No',
+              outcome: 'A horizontal stretch. The asymptote stays at $x = 0$ and the $x$-intercept moves.',
+            },
+          ],
+        },
+        {
+          id: 'outside-kind',
+          ask: 'Is the whole logarithm multiplied by a number?',
+          branches: [
+            {
+              label: 'Yes',
+              outcome: 'A vertical stretch. The asymptote and the $x$-intercept both stay where they were.',
+            },
+            {
+              label: 'No',
+              outcome: 'A vertical translation. The asymptote stays at $x = 0$ and the $x$-intercept moves.',
+            },
+          ],
+        },
+      ],
+      answer:
+        type === 'shift-in'
+          ? ['Yes', 'Yes']
+          : type === 'stretch-in'
+            ? ['Yes', 'No']
+            : type === 'stretch-out'
+              ? ['No', 'Yes']
+              : ['No', 'No'],
+    };
+  },
+  solution: ({ base, n, type, sign }) => {
+    if (type === 'shift-in') {
+      const k = sign * n;
+      return [
+        { text: `The $${sign > 0 ? '-' : '+'} ${n}$ is inside the bracket, added to $x$: a horizontal translation.` },
+        { tex: `${shiftedX(k)} = 0 \\implies x = ${k}` },
+        { text: `So the asymptote moves to $x = ${k}$, and $(1, 0)$ moves to $(${k + 1}, 0)$.` },
+      ];
+    }
+    if (type === 'stretch-in') {
+      return [
+        { text: `The $${n}$ multiplies $x$ inside the bracket: a horizontal stretch, scale factor $\\frac{1}{${n}}$.` },
+        { tex: `${n}x = 1 \\implies x = \\frac{1}{${n}}` },
+        { text: `The inside is still zero only at $x = 0$, so the asymptote stays, while the intercept moves to $x = \\frac{1}{${n}}$.` },
+      ];
+    }
+    if (type === 'stretch-out') {
+      return [
+        { text: `The $${n}$ multiplies the whole logarithm: a vertical stretch, scale factor $${n}$.` },
+        { tex: `${n} \\times 0 = 0` },
+        { text: 'Height 0 stays 0, so the intercept stays at $x = 1$, and the asymptote $x = 0$ is untouched.' },
+      ];
+    }
+    const c = sign * n;
+    return [
+      { text: `The $${tail(c).trim()}$ is outside the logarithm: a vertical translation, ${n} units ${c > 0 ? 'up' : 'down'}.` },
+      { tex: `\\log_{${base}} x${tail(c)} = 0 \\implies x = ${base}^{${-c}}` },
+      { text: 'A vertical line moved up or down is the same line, so the asymptote stays at $x = 0$. The intercept moves.' },
+    ];
+  },
+};
+
+interface SolveGraphParams {
+  base: number;
+  /** The curve is y = log_b(x - k); the line is y = c. */
+  k: number;
+  c: number;
+}
+
+/**
+ * Solve log_b(x - k) = c, with the curve and the line drawn.
+ *
+ * The graph shows where the answer is and roughly what size it is; the index
+ * form gives it exactly. The shift is what the question is about: forgetting
+ * it gives b^c, which is where the *unshifted* curve would meet the line.
+ */
+const solveGraph: Generator<SolveGraphParams> = {
+  id: 'log-solve-graph',
+  choices: ({ base, k, c }) => {
+    const power = Math.pow(base, c);
+    return fourOptions(
+      numberOption(k + power),
+      numberOption(power),
+      numberOption(power - k),
+      numberOption(k + base * c),
+      numberOption(k + Math.pow(c, base)),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 5 : 4);
+    const cs = [0, 1, 2, 3].filter((c) => Math.pow(base, c) <= (difficulty > 1 ? 64 : 27));
+    const ks = [-4, -3, -2, -1, 1, 2, 3, 4, 5, 6];
+    return { base, k: rng.pick(ks), c: rng.pick(cs) };
+  },
+  render: ({ base, k, c }): Slide => {
+    const answer = k + Math.pow(base, c);
+    const left = Math.min(k, 0) - 1;
+    const right = answer + 2 + Math.ceil(Math.pow(base, c) * 0.2);
+    const f = logCurve(base, k);
+    const svg = logGraphSvg({
+      xMin: left,
+      xMax: right,
+      yMin: -3,
+      yMax: Math.max(f(right), c) + 1,
+      curves: [{ f }],
+      horizontals: c === 0 ? [] : [c],
+      verticals: [{ x: k }],
+      marks: [{ x: answer, y: c, hollow: true }],
+      label: 'A translated logarithm curve meeting a level',
+    });
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph shows $y = ${shiftedLogTex(base, k)}$, its asymptote dashed, meeting ${c === 0 ? 'the $x$-axis' : `the line $y = ${c}$`}. Solve the equation.`,
+        },
+        { kind: 'diagram', svg },
+        { kind: 'display', tex: `${shiftedLogTex(base, k)} = ${c}` },
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: `${answer}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ base, k, c }) => {
+    const power = Math.pow(base, c);
+    return [
+      { text: 'Write the logarithm in index form: the bracket is the base to the power on the right.' },
+      { tex: `${shiftedX(k)} = ${base}^{${c}} = ${power}` },
+      { tex: `x = ${power} ${k > 0 ? '+' : '-'} ${Math.abs(k)} = ${k + power}` },
+      {
+        text: `On the graph, the asymptote at $x = ${k}$ is where the curve starts from, and the crossing is $${power}$ to the right of it.`,
+      },
+    ];
+  },
+};
+
+interface MeetParams {
+  base: number;
+  c: number;
+  /** The second curve is log_b(x - shift) + c when shift > 0, log_b(x - shift) - c when shift < 0. */
+  shift: number;
+  extra: number;
+}
+
+/** Where log_b(x) meets the second curve of a `MeetParams`. */
+function meetAt({ base, c, shift }: Omit<MeetParams, 'extra'>): number {
+  const power = Math.pow(base, c);
+  return shift > 0 ? (power * shift) / (power - 1) : -shift / (power - 1);
+}
+
+function meetPool(bases: number[], cap: number): Omit<MeetParams, 'extra'>[] {
+  const out: Omit<MeetParams, 'extra'>[] = [];
+  for (const base of bases) {
+    for (const c of [1, 2]) {
+      for (let size = 1; size <= 12; size += 1) {
+        for (const shift of [size, -size]) {
+          const x = meetAt({ base, c, shift });
+          if (Number.isInteger(x) && x >= 1 && x <= cap) out.push({ base, c, shift });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+const MEETS = meetPool([2, 3, 4], 12);
+const MEETS_HARD = meetPool([2, 3, 4, 5], 16);
+
+/**
+ * Where two logarithm curves meet.
+ *
+ * One is y = log_b(x); the other is it moved sideways and up or down, so the
+ * two cross exactly once. Setting them equal and using the quotient law gives
+ * a single logarithm, and the crossing falls out of index form.
+ */
+const meetSlider: Generator<MeetParams> = {
+  id: 'log-meet-slider',
+  sample: (rng, difficulty) => ({ ...rng.pick(difficulty > 1 ? MEETS_HARD : MEETS), extra: rng.int(0, 2) }),
+  render: ({ base, c, shift, extra }): Slide => {
+    const answer = meetAt({ base, c, shift });
+    const lift = shift > 0 ? c : -c;
+    const other = logCurve(base, shift, lift);
+    const right = answer + 3 + extra;
+    const left = -0.08 * right;
+    const svg = logGraphSvg({
+      xMin: left,
+      xMax: right,
+      yMin: -3,
+      yMax: Math.max(logOf(base, right), other(right)) + 1,
+      // The reference curve dashed rather than the other in the accent colour,
+      // which is the slider marker's colour.
+      curves: [{ f: logCurve(base), dashed: true }, { f: other }],
+      label: 'Two logarithm curves that cross once',
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curves are $y = \\log_{${base}} x$ and $y = ${shiftedLogTex(base, shift, lift)}$. Slide to the $x$-coordinate where they meet.`,
+        },
+      ],
+      min: 0,
+      max: right,
+      step: 1,
+      answer,
+      readout: 'x = {v}',
+      figure: { svg, ...markerWindow(left, right) },
+    };
+  },
+  solution: ({ base, c, shift }) => {
+    const power = Math.pow(base, c);
+    const answer = meetAt({ base, c, shift });
+    if (shift > 0) {
+      return [
+        { text: 'Set the two equal and gather the logarithms on one side.' },
+        { tex: `\\log_{${base}} x - \\log_{${base}}\\left(${shiftedX(shift)}\\right) = ${c}` },
+        { tex: `\\frac{x}{${shiftedX(shift)}} = ${base}^{${c}} = ${power}` },
+        { tex: `x = ${power}x - ${power * shift} \\implies x = ${answer}` },
+      ];
+    }
+    return [
+      { text: 'Set the two equal and gather the logarithms on one side.' },
+      { tex: `\\log_{${base}}\\left(${shiftedX(shift)}\\right) - \\log_{${base}} x = ${c}` },
+      { tex: `\\frac{${shiftedX(shift)}}{x} = ${base}^{${c}} = ${power}` },
+      { tex: `${shiftedX(shift)} = ${power}x \\implies x = ${answer}` },
+    ];
+  },
+};
+
+interface CompareParams {
+  /** The two bases, smaller first. */
+  low: number;
+  high: number;
+  /** The x asked about: n itself, or 1/n when `below` is set; 1 when n is 1. */
+  n: number;
+  below: boolean;
+}
+
+/**
+ * Which base gives the higher curve at a given x?
+ *
+ * Right of 1, a smaller base climbs faster, because it needs a larger power to
+ * reach the same x. Left of 1 the order flips, since both curves are negative
+ * and the smaller base is further below. At 1 they meet. The flip is what the
+ * question is for.
+ */
+const compareBases: Generator<CompareParams> = {
+  id: 'log-compare-bases',
+  sample: (rng, difficulty) => {
+    const [low, high] = rng.sample([2, 3, 4, 5, 6, 7, 8, 9, 10].slice(0, difficulty > 1 ? 9 : 7), 2).sort((a, b) => a - b);
+    const where = rng.pick(['above', 'above', 'below', 'below', 'one'] as const);
+    if (where === 'one') return { low, high, n: 1, below: false };
+    return { low, high, n: rng.int(where === 'above' ? 3 : 2, difficulty > 1 ? 60 : 30), below: where === 'below' };
+  },
+  render: ({ low, high, n, below }): Slide => {
+    const at = n === 1 ? '1' : below ? `\\frac{1}{${n}}` : `${n}`;
+    const answer = n === 1 ? 'meet' : below ? 'high' : 'low';
+    const all = [
+      { id: 'low', label: `y = \\log_{${low}} x`, tex: true },
+      { id: 'high', label: `y = \\log_{${high}} x`, tex: true },
+      { id: 'meet', label: 'They are at the same height', tex: false },
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which curve is higher at $x = ${at}$? Decide from the shapes of the curves, without working either one out.`,
+        },
+      ],
+      options: turned(all, mix(low, high, n, below ? 1 : 0)),
+      correctId: answer,
+    };
+  },
+  solution: ({ low, high, n, below }) => {
+    if (n === 1) {
+      return [
+        { text: 'Every logarithm is 0 at $x = 1$, whatever its base.' },
+        { tex: `\\log_{${low}}\\left(1\\right) = \\log_{${high}}\\left(1\\right) = 0` },
+        { text: 'So the two curves cross there. It is the only place they meet.' },
+      ];
+    }
+    const x = below ? `\\frac{1}{${n}}` : `${n}`;
+    return [
+      { text: `Reaching $x = ${x}$ from 1 takes a larger power of a smaller base: $${low}$ has to be raised further than $${high}$ to get as far.` },
+      { tex: `\\log_{${low}}\\left(${x}\\right) \\approx ${(Math.log(below ? 1 / n : n) / Math.log(low)).toFixed(2)}` },
+      { tex: `\\log_{${high}}\\left(${x}\\right) \\approx ${(Math.log(below ? 1 / n : n) / Math.log(high)).toFixed(2)}` },
+      {
+        text: below
+          ? `Left of 1 both are negative, so the larger size puts $y = \\log_{${low}} x$ further *below*. The higher curve is $y = \\log_{${high}} x$.`
+          : `Right of 1 both are positive, so the smaller base is higher: $y = \\log_{${low}} x$.`,
+      },
+    ];
+  },
+};
+
+interface InequalityParams {
+  base: number;
+  c: number;
+  sense: 'less' | 'more';
+}
+
+/**
+ * Solve log_b(x) < c or > c from the curve.
+ *
+ * The curve always rises, so the inequality keeps its direction when it goes
+ * into index form. And a logarithm only exists right of 0, which is where the
+ * lower end of a "less than" comes from: 0, not minus infinity.
+ */
+const inequalityTiles: Generator<InequalityParams> = {
+  id: 'log-inequality-tiles',
+  sample: (rng, difficulty) => {
+    const base = rng.int(2, difficulty > 1 ? 7 : 6);
+    const cs = (difficulty > 1 ? [-1, 0, 1, 2, 3] : [0, 1, 2, 3]).filter((c) => Math.pow(base, c) <= 125);
+    return { base, c: rng.pick(cs), sense: rng.pick(['less', 'more'] as const) };
+  },
+  render: ({ base, c, sense }): Slide => {
+    const bound = powTex(base, c);
+    const answer = sense === 'less' ? ['0', bound] : [bound];
+    const xMax = Math.max(Math.pow(base, c), 1) * 1.6 + 1;
+    const svg = logGraphSvg({
+      xMin: -0.06 * xMax,
+      xMax,
+      yMin: Math.min(-2.5, c - 1.5),
+      yMax: Math.max(logOf(base, xMax), c) + 0.8,
+      curves: [{ f: logCurve(base) }],
+      horizontals: c === 0 ? [] : [c],
+      marks: [{ x: Math.pow(base, c), y: c, hollow: true }],
+      label: 'A logarithm curve and a level',
+    });
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `Use the graph of $y = \\log_{${base}} x$ to solve the inequality.` },
+        { kind: 'display', tex: `\\log_{${base}} x ${sense === 'less' ? '<' : '>'} ${c}` },
+        { kind: 'diagram', svg },
+      ],
+      template: sense === 'less' ? '{0} < x < {1}' : 'x > {0}',
+      bank: bankOf(answer, [
+        '-\\infty',
+        `${c}`,
+        `${base * c}`,
+        '1',
+        c >= 0 ? `${-Math.pow(base, c)}` : `${Math.pow(base, -c)}`,
+      ]),
+      answer,
+    };
+  },
+  solution: ({ base, c, sense }) => {
+    const bound = powTex(base, c);
+    return [
+      { text: `The curve meets the level $y = ${c}$ at $x = ${base}^{${c}} = ${bound}$, and it rises the whole way.` },
+      { tex: `\\log_{${base}} x ${sense === 'less' ? '<' : '>'} ${c} \\iff x ${sense === 'less' ? '<' : '>'} ${bound}` },
+      {
+        text:
+          sense === 'less'
+            ? `But the curve only exists for $x > 0$, so the solution is $0 < x < ${bound}$. Below 0 there is no logarithm to be less than anything.`
+            : `So the solution is $x > ${bound}$: everywhere the curve is above the line.`,
+      },
+    ];
+  },
+};
+
 export const logarithmGenerators = [
   evaluateLog,
   logToIndex,
@@ -3208,4 +4870,20 @@ export const logarithmGenerators = [
   solveCommon,
   commonBaseTiles,
   baseFlow,
+  graphRead,
+  graphSlider,
+  pointsTiles,
+  onCurveFlow,
+  graphMatch,
+  inversePoint,
+  mirrorSlider,
+  undoEvaluate,
+  transformSlider,
+  transformMatch,
+  transformTiles,
+  transformFlow,
+  solveGraph,
+  meetSlider,
+  compareBases,
+  inequalityTiles,
 ] as unknown as Generator<unknown>[];

@@ -430,9 +430,11 @@ are green, and one new lesson has been played in a browser.
 | B18 | Matrices & Linear Transformations: Composing Transformations | **done** (`claude/roadmap-b-matrices-2-taz4dj`): level `vm-l7`, 5 lessons, a 15-question level check, 19 new generators |
 | B16 | Integration: Volumes of Revolution | **done** (`claude/roadmap-b-integration-2-ymjv6y`): level `in-l5`, 4 lessons, a 14-question level check, 17 new generators and a solid-of-revolution figure |
 | B15 | Differentiation: Curve Sketching | **done** (`claude/roadmap-b-differentiation-2-66rw3b`): level `df-l6`, 5 lessons, a 15-question level check, 15 new generators |
+| B19 | Exponents & Radicals: Index Equations & Substitution | **done** (`claude/roadmap-b-exponents-3-vgmwol`): level `er-l6`, 5 lessons, a 14-question level check, 20 new generators |
 | B21 | Logarithms: Linearising a Model | **done** (`claude/roadmap-b-logarithms-3-j7zt1t`): level `lg-l6`, 4 lessons, a 15-question level check, 15 new generators and axis names on the logarithm-graph figure |
 | B26 | Vectors: Planes & the Cross Product | **done** (`claude/roadmap-b-vectors-3-ke6n0q`): level `vm-l8`, 5 lessons, a 14-question level check, 21 new generators |
 | B27 | Matrices & Linear Transformations: Systems of Equations | **done** (`claude/roadmap-b-matrices-3-eamxgf`): level `vm-l9`, 5 lessons, a 15-question level check, 22 new generators |
+| B11 | Quadratics: Quadratic Inequalities | **done** (`claude/roadmap-b-quadratics-2-aoomzy`): level `qd-l5`, 5 lessons, a 15-question level check, 15 new generators |
 
 ### Phase C — the twenty-one new concepts
 

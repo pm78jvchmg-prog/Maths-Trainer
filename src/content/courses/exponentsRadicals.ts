@@ -1503,6 +1503,45 @@ export const exponentsRadicals: Course = {
           ],
           skillCheck: [ask('grow-term', 2), ask('grow-rule-tiles', 2), ask('grow-evaluate', 2)],
         },
+        {
+          id: 'er-l7-percent',
+          title: 'Percentage Change as a Multiplier',
+          slides: [
+            teach(
+              prose(
+                'A percentage change is a multiplier too. Going up 5% keeps all 100% and adds 5%, which makes 105%, so multiply by 1.05.',
+              ),
+              working('\\text{up } 5\\% &\\to \\times 1.05', '\\text{down } 20\\% &\\to \\times 0.8'),
+              prose(
+                'Going down 20% leaves 80%, so multiply by 0.8, not by 0.2. Multiplying by 0.2 would keep only a fifth.',
+              ),
+            ),
+            ask('grow-pct-flow'),
+            ask('grow-pct-value'),
+            ask('grow-pct-tiles'),
+            teach(
+              prose('Over several years the multiplier is applied again each year, so two years at 5% is $1.05^{2}$.'),
+              working('2000 \\times 1.05 &= 2100', '2100 \\times 1.05 &= 2205', '2000 \\times 1.05^{2} &= 2205'),
+              prose(
+                'Not 2200: the second 5% is worked out on 2100. To find when a value first passes a target, keep multiplying, one year at a time.',
+              ),
+            ),
+            ask('grow-pct-slider'),
+            ask('grow-pct-value+choice', 2),
+            ask('grow-pct-tiles', 2),
+            teach(
+              prose(
+                'The power of the multiplier is the overall change. $1.1^{2} = 1.21$, so two years of 10% growth is a 21% rise, not 20%.',
+              ),
+              prose(
+                'So the multiplier for $n$ years is the yearly one to the power $n$, never the yearly one times $n$: $1.1 \\times 2 = 2.2$ would more than double the value.',
+              ),
+            ),
+            ask('grow-pct-flow', 2),
+            ask('grow-pct-slider', 2),
+          ],
+          skillCheck: [ask('grow-pct-value', 2), ask('grow-pct-flow', 2), ask('grow-pct-slider', 2)],
+        },
       ],
     },
   ],

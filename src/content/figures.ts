@@ -28,6 +28,18 @@ export interface Curve {
   dashed?: boolean;
   /** Drawn in the accent colour rather than in the text colour. */
   accent?: boolean;
+  /**
+   * Lift the pen at an asymptote.
+   *
+   * A curve is otherwise one path through every sample, so `tan x` drawn
+   * across $x = 90^{\circ}$ gets a near-vertical stroke joining $+\infty$ to
+   * $-\infty$ — a line the function never draws. With this set, the path
+   * breaks wherever one sample and the next sit on opposite sides of the
+   * window's middle and further apart than the window is tall, and at any
+   * sample with no value; points far off the window are also pulled in to
+   * just past its edge, which keeps the numbers in the SVG sane.
+   */
+  breaks?: boolean;
 }
 
 /** A ringed point: a root, an intercept, a turning point. */
@@ -171,12 +183,32 @@ export function plotSvg(options: PlotOptions): string {
     );
   }
 
+  /** A path that lifts the pen at each asymptote; see `Curve.breaks`. */
+  const brokenPath = (f: (x: number) => number) => {
+    const middle = (hi + lo) / 2;
+    const clamp = (y: number) => Math.min(hi + span, Math.max(lo - span, y));
+    const pieces: string[] = [];
+    let previous: number | undefined;
+    for (let i = 0; i <= SAMPLES; i += 1) {
+      const x = xMin + ((xMax - xMin) * i) / SAMPLES;
+      const y = f(x);
+      if (!Number.isFinite(y)) {
+        previous = undefined;
+        continue;
+      }
+      const jumped =
+        previous !== undefined && (previous - middle) * (y - middle) < 0 && Math.abs(y - previous) > span;
+      pieces.push(`${previous === undefined || jumped ? 'M' : 'L'} ${px(x).toFixed(1)},${py(clamp(y)).toFixed(1)}`);
+      previous = y;
+    }
+    return pieces.join(' ');
+  };
+
   for (const curve of curves) {
     const dash = curve.dashed ? ' stroke-dasharray="5 4" opacity="0.6"' : '';
     const stroke = curve.accent ? 'class="plot-accent" ' : '';
-    parts.push(
-      `<path ${stroke}fill="none" stroke="currentColor" stroke-width="2"${dash} d="M ${path(curve.f)}" />`,
-    );
+    const d = curve.breaks ? brokenPath(curve.f) : `M ${path(curve.f)}`;
+    parts.push(`<path ${stroke}fill="none" stroke="currentColor" stroke-width="2"${dash} d="${d}" />`);
   }
 
   for (const mark of marks) {

@@ -6659,7 +6659,14 @@ const workSteps: Generator<PowerTailParams> = {
           // A sign lost; the power taken down instead of up; multiplied by n - 1 instead of divided.
           bank: tokenBank(
             [bracket(`${c}`, n - 1)],
-            [bracket(`${c}`, n - 1, ''), bracket(`${k}`, n + 1), bracket(`${k * (n - 1)}`, n - 1), bracket(`${k}`, n - 1, '')],
+            [
+              bracket(`${c}`, n - 1, ''),
+              bracket(`${k}`, n + 1),
+              bracket(`${k * (n - 1)}`, n - 1),
+              bracket(`${k}`, n - 1, ''),
+              // A logarithm, as if every power of x went that way.
+              `\\left[${k}\\ln x\\right]_{${a}}^{t}`,
+            ],
           ),
         },
         {
@@ -7231,7 +7238,7 @@ const poleTree: Generator<PoleTreeParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `Integrate, then let $t \\to 0^{+}$. Top row: the number in front of $x^{${after}}$ after integrating, then $${upper}^{${after}}$, then what the antiderivative at $x = t$ tends to. Below: its value at $x = ${upper}$, then the integral.`,
+          text: `Top row: the number in front of $x^{${after}}$ after integrating, then $${upper}^{${after}}$, then the antiderivative at $t$ as $t \\to 0^{+}$. Below: its value at $${upper}$, then the integral.`,
         },
       ],
       expression: improperTex(`\\frac{${k}}{${powerOfTex(power)}}`, 0, upper),
@@ -7319,10 +7326,10 @@ const splitTiles: Generator<SplitTilesParams> = {
         { kind: 'display', tex: improperTex('f(x)', lower, upper) },
         {
           kind: 'prose',
-          text: `Here $f(x) = ${integrand}$. Split the integral into two, so that each has just one troublesome end.`,
+          text: `Here $f(x) = ${integrand}$. Split it into two integrals of $f(x)$, each with just one troublesome end.`,
         },
       ],
-      template: '{0} f(x) \\, dx + {1} f(x) \\, dx',
+      template: '{0} \\; + \\; {1}',
       bank: tokenBank(answer, wrong),
       answer,
     };
@@ -7449,7 +7456,7 @@ const halvesTree: Generator<HalvesParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `The integrand is unbounded at $x = 0$, so split there. Here ${halvesAntiderivative(params, K)}, and $F(0) = 0$. Top row: $F$ at each limit. Then each half, then the integral.`,
+          text: `Split at $0$, where the integrand is unbounded. Here ${halvesAntiderivative(params, K)}, and $F(0) = 0$. Top row: $F$ at each limit. Then each half, then the integral.`,
         },
       ],
       expression: improperTex(integrand, lower, upper),

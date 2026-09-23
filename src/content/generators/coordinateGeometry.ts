@@ -10,7 +10,10 @@
  * Level 3 is lines meeting circles: substituting the line into the circle,
  * the discriminant deciding whether it cuts, touches or misses, the tangent
  * condition `k^2 = r^2(1 + m^2)`, the tangents from a point outside, and
- * chords cut off by a line.
+ * chords cut off by a line. Level 4 is circle theorems on axes: the angle
+ * in a semicircle as two gradients multiplying to -1, a circle from its
+ * diameter, the circle through three points, chords and tangents together,
+ * and the far end of a diameter with the parallel tangents at its ends.
  *
  * Every given point is a lattice point, and every question is built outward
  * from its answer — a crossing point, a centre, a whole-number `c` — so the
@@ -4355,6 +4358,1317 @@ const coordChordSlider: Generator<ChordSliderParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: circle theorems on axes
+ *
+ * The facts are level 2's — a tangent meets the radius square on, the line
+ * from the centre to a chord's midpoint meets the chord square on — joined
+ * by the angle in a semicircle, and then used together. Every point is a
+ * lattice point of a circle from `CHORD_RADII`, found by `onCircle` and moved
+ * to a lattice centre, so every gradient is a fraction of whole numbers and
+ * every centre and r^2 is whole. A right angle is `mul(m1, m2)` equal to
+ * `-1` as fractions, never a float compared with one.
+ * ================================================================ */
+
+type Pt = [number, number];
+
+const samePt = (p: Pt, r: Pt): boolean => p[0] === r[0] && p[1] === r[1];
+
+const offsetBy = (a: number, b: number, [x, y]: Pt): Pt => [a + x, b + y];
+
+const namedAt = (name: string, [x, y]: Pt): string => named(name, x, y);
+
+/** The gradient from one point to another, as a fraction. */
+const slopeOf = ([x1, y1]: Pt, [x2, y2]: Pt): Q => q(y2 - y1, x2 - x1);
+
+/** Neither straight across nor straight up from each other: a gradient that is a number and not zero. */
+const slanted = ([x1, y1]: Pt, [x2, y2]: Pt): boolean => x1 !== x2 && y1 !== y2;
+
+/** (y_2 - y_1)/(x_2 - x_1) with the learner's numbers in. */
+const slopeFormula = ([x1, y1]: Pt, [x2, y2]: Pt): string => gradientFormula({ x1, y1, x2, y2 });
+
+/** A fraction as it sits after a times or divide sign: a negative one bracketed. */
+function qParen(v: Q): string {
+  return v.n < 0 ? `\\left(${qTex(v)}\\right)` : qTex(v);
+}
+
+/** The radii a level 4 circle is drawn from: the smaller ones at difficulty 1. */
+const radiiFor = (difficulty: number): number[] => (difficulty > 1 ? CHORD_RADII : [5, 10, 13, 25]);
+
+/** The circle's equation as the learner reads it: centred form, or multiplied out. */
+function circleShown(a: number, b: number, r2: number, expanded: boolean): string {
+  return expanded ? expandedTex(a, b, r2) : circleTex(a, b, r2);
+}
+
+/** Where the centre comes from, as the first line of a solution. */
+function centreFrom(a: number, b: number, r2: number, expanded: boolean): SolutionStep[] {
+  if (!expanded) return [];
+  return [{ text: `Complete the square to read the circle: $${circleTex(a, b, r2)}$, so the centre is $${named('C', a, b)}$.` }];
+}
+
+interface Diameter {
+  a: number;
+  b: number;
+  /** From the centre to B; A is the same distance the other way. */
+  v: Pt;
+}
+
+const endA = ({ a, b, v }: Diameter): Pt => [a - v[0], b - v[1]];
+const endB = ({ a, b, v }: Diameter): Pt => [a + v[0], b + v[1]];
+
+/** The gradients of AP and BP, worked out, then multiplied. */
+function semicircleSolution(A: Pt, B: Pt, P: Pt): SolutionStep[] {
+  const m1 = slopeOf(A, P);
+  const m2 = slopeOf(B, P);
+  return [
+    { tex: chain(`m_{AP} &= ${slopeFormula(A, P)} = ${qTex(m1)}`, `m_{BP} &= ${slopeFormula(B, P)} = ${qTex(m2)}`) },
+    { text: `Multiplied: $${qTex(m1)} \\times ${qParen(m2)} = ${qTex(mul(m1, m2))}$.` },
+  ];
+}
+
+/* ---------- lesson 1: the angle in a semicircle ---------- */
+
+interface SemicircleParams extends Diameter {
+  r2: number;
+  /** From the centre to P. */
+  p: Pt;
+}
+
+const pointP = ({ a, b, p }: SemicircleParams): Pt => offsetBy(a, b, p);
+
+/**
+ * A diameter AB and a point P on the circle, with neither AP nor BP straight
+ * across or straight up. Centred at the origin at difficulty 1; moved to a
+ * centre up to 4 away, with the larger radii, at difficulty 2.
+ */
+function sampleSemicircle(rng: Rng, difficulty: number): SemicircleParams {
+  for (;;) {
+    const r2 = rng.pick(radiiFor(difficulty));
+    const points = onCircle(r2);
+    const v = rng.pick(points);
+    const p = rng.pick(points);
+    const [a, b] = difficulty > 1 ? [rng.int(-4, 4), rng.int(-4, 4)] : [0, 0];
+    const params = { a, b, r2, v, p };
+    const P = pointP(params);
+    if (!slanted(endA(params), P) || !slanted(endB(params), P)) continue;
+    return params;
+  }
+}
+
+interface SemicircleTreeParams extends SemicircleParams {
+  /** Difficulty 2 gives the circle and A only, so B has to be found first. */
+  fromCircle: boolean;
+}
+
+/** The gradients of AP and BP, then their product: always -1. */
+const coordSemicircleTree: Generator<SemicircleTreeParams> = {
+  id: 'coord-semicircle-tree',
+  sample: (rng, difficulty) => ({ ...sampleSemicircle(rng, difficulty), fromCircle: difficulty > 1 }),
+  render: (params): Slide => {
+    const A = endA(params);
+    const B = endB(params);
+    const P = pointP(params);
+    const m1 = slopeOf(A, P);
+    const m2 = slopeOf(B, P);
+    const answer = [qTex(m1), qTex(m2), '-1'];
+    const given = params.fromCircle
+      ? `The circle $${circleTex(params.a, params.b, params.r2)}$ has a diameter $AB$ with $${namedAt('A', A)}$, and $${namedAt('P', P)}$ is on the circle.`
+      : `$AB$ is a diameter of a circle, with $${namedAt('A', A)}$ and $${namedAt('B', B)}$, and $${namedAt('P', P)}$ is on the circle.`;
+    return {
+      kind: 'tree',
+      prompt: [say(`${given} Top row: the gradients of $AP$ and $BP$. Underneath: their product.`)],
+      expression: 'm_{AP} \\times m_{BP}',
+      nodes: [
+        { id: 'ap', from: [] },
+        { id: 'bp', from: [] },
+        { id: 'product', from: ['ap', 'bp'] },
+      ],
+      bank: bank(answer, [qTex(neg(m1)), qTex(inv(m1)), qTex(neg(m2)), qTex(inv(m2)), '1'], [-1]),
+      answer,
+    };
+  },
+  solution: (params) => [
+    ...(params.fromCircle
+      ? [
+          {
+            text: `The centre $${named('C', params.a, params.b)}$ is the midpoint of the diameter, so $B$ is as far past $C$ as $A$ is short of it: $${namedAt('B', endB(params))}$.`,
+          },
+        ]
+      : []),
+    ...semicircleSolution(endA(params), endB(params), pointP(params)),
+    { text: 'The product is $-1$, so $AP$ and $BP$ are perpendicular: the angle in a semicircle is a right angle.' },
+  ],
+};
+
+interface RightAngleParams extends SemicircleParams {
+  /** How far P is moved off the circle; [0, 0] leaves it on. */
+  off: Pt;
+}
+
+/** One step in each of the eight directions. */
+const NUDGES: Pt[] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [-1, -1],
+  [1, -1],
+  [-1, 1],
+];
+
+const movedP = (params: RightAngleParams): Pt => offsetBy(params.off[0], params.off[1], pointP(params));
+
+/**
+ * Right angle or not: multiply the gradients of AP and BP, then decide. P is
+ * on the circle with diameter AB half the time, and a step off it otherwise.
+ */
+const coordRightAngleFlow: Generator<RightAngleParams> = {
+  id: 'coord-right-angle-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base = sampleSemicircle(rng, difficulty);
+      const off: Pt = rng.chance(0.5) ? [0, 0] : rng.pick(NUDGES);
+      const params = { ...base, off };
+      const P = movedP(params);
+      if (!slanted(endA(params), P) || !slanted(endB(params), P)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const A = endA(params);
+    const B = endB(params);
+    const P = movedP(params);
+    const m1 = slopeOf(A, P);
+    const m2 = slopeOf(B, P);
+    const product = mul(m1, m2);
+    const right = same(product, q(-1));
+    const labels = forkLabels(
+      right ? [product, q(1), add(m1, m2), sub(m1, m2), q(0)] : [product, q(-1), neg(product), add(m1, m2), sub(m1, m2)],
+    ).slice(0, 4);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `$AB$ is a diameter of a circle, with $${namedAt('A', A)}$ and $${namedAt('B', B)}$. Is the angle $APB$ at $${namedAt('P', P)}$ a right angle?`,
+        ),
+      ],
+      subject: 'm_{AP} \\times m_{BP}',
+      steps: [
+        {
+          id: 'product',
+          ask: 'Work out the gradients of $AP$ and $BP$ and multiply them. What do you get?',
+          branches: turned(labels, labels.join('|')).map((label) => ({ label, to: 'verdict' })),
+        },
+        {
+          id: 'verdict',
+          ask: 'So is the angle $APB$ a right angle?',
+          branches: [
+            { label: 'Yes', outcome: 'So $P$ is on the circle with diameter $AB$.' },
+            { label: 'No', outcome: 'So $P$ is not on the circle with diameter $AB$.' },
+          ],
+        },
+      ],
+      answer: [labels[0], right ? 'Yes' : 'No'],
+    };
+  },
+  solution: (params) => {
+    const P = movedP(params);
+    const right = same(mul(slopeOf(endA(params), P), slopeOf(endB(params), P)), q(-1));
+    return [
+      ...semicircleSolution(endA(params), endB(params), P),
+      {
+        text: right
+          ? 'That is $-1$, so $AP$ and $BP$ are perpendicular and the angle at $P$ is a right angle: $P$ is on the circle with diameter $AB$.'
+          : 'That is not $-1$, so the angle at $P$ is not a right angle, and $P$ is not on the circle with diameter $AB$.',
+      },
+    ];
+  },
+};
+
+/**
+ * The missing coordinate of B, the far end of a diameter: BP is perpendicular
+ * to AP, and B's x is given, so its y follows from the gradient.
+ */
+const coordSemicircleMissing: Generator<SemicircleParams> = {
+  id: 'coord-semicircle-missing',
+  sample: sampleSemicircle,
+  render: (params): Slide => {
+    const A = endA(params);
+    const B = endB(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `$${namedAt('A', A)}$ and $B(${B[0]}, k)$ are the ends of a diameter of a circle, and $${namedAt('P', pointP(params))}$ is on the circle. Find $k$.`,
+        ),
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: String(B[1]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (params) => {
+    const A = endA(params);
+    const B = endB(params);
+    const P = pointP(params);
+    const m = slopeOf(A, P);
+    const run = q(B[0] - P[0]);
+    return intOptions(B[1], [value(add(q(P[1]), mul(m, run))), value(sub(q(P[1]), mul(perp(m), run))), -B[1], A[1]]);
+  },
+  solution: (params) => {
+    const A = endA(params);
+    const B = endB(params);
+    const P = pointP(params);
+    const m = slopeOf(A, P);
+    const mB = perp(m);
+    return [
+      { text: 'The angle in a semicircle is a right angle, so $BP$ is perpendicular to $AP$:' },
+      { tex: chain(`m_{AP} &= ${slopeFormula(A, P)} = ${qTex(m)}`, `m_{BP} &= -1 \\div ${qParen(m)} = ${qTex(mB)}`) },
+      { text: 'Write the gradient of $BP$ with $k$ in it, and solve:' },
+      {
+        tex: chain(
+          `\\frac{k - ${paren(P[1])}}{${B[0]} - ${paren(P[0])}} &= ${qTex(mB)}`,
+          `k - ${paren(P[1])} &= ${qTex(mB)} \\times ${paren(B[0] - P[0])}`,
+          `&= ${B[1] - P[1]}`,
+          `k &= ${B[1]}`,
+        ),
+      },
+    ];
+  },
+};
+
+interface RightPointParams extends SemicircleParams {
+  /** Lattice points a step off the circle, for the wrong options. */
+  wrongs: Pt[];
+}
+
+/**
+ * Which point makes APB a right angle. The wrong options are other points of
+ * the circle moved a step off it, so they sit round the circle rather than
+ * clustering about the answer.
+ */
+const coordRightAnglePoint: Generator<RightPointParams> = {
+  id: 'coord-right-angle-point',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base = sampleSemicircle(rng, difficulty);
+      const A = endA(base);
+      const B = endB(base);
+      const P = pointP(base);
+      const others = onCircle(base.r2)
+        .map((v) => offsetBy(base.a, base.b, v))
+        .filter((X) => !samePt(X, A) && !samePt(X, B) && !samePt(X, P));
+      const wrongs: Pt[] = [];
+      for (let tries = 0; tries < 30 && wrongs.length < 3; tries += 1) {
+        const W = offsetBy(...rng.pick(NUDGES.slice(0, 4)), rng.pick(others));
+        const d2 = (W[0] - base.a) ** 2 + (W[1] - base.b) ** 2;
+        if (d2 === base.r2 || samePt(W, A) || samePt(W, B) || wrongs.some((X) => samePt(X, W))) continue;
+        wrongs.push(W);
+      }
+      if (wrongs.length < 3) continue;
+      return { ...base, wrongs };
+    }
+  },
+  render: (params): Slide =>
+    choiceSlide(
+      [
+        say(
+          `$AB$ is a diameter of a circle, with $${namedAt('A', endA(params))}$ and $${namedAt('B', endB(params))}$. Which point $P$ makes the angle $APB$ a right angle?`,
+        ),
+      ],
+      pointOptions(pointP(params), params.wrongs, () => true),
+    ),
+  solution: (params) => {
+    const P = pointP(params);
+    return [
+      {
+        text: `The angle $APB$ is a right angle exactly when $P$ is on the circle with diameter $AB$, which is when the gradients of $AP$ and $BP$ multiply to $-1$. For $${pt(...P)}$:`,
+      },
+      ...semicircleSolution(endA(params), endB(params), P),
+      { text: `The other points are each a step off the circle, and their products are not $-1$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 2: a circle from its diameter ---------- */
+
+interface DiameterParams extends Diameter {
+  r2: number;
+}
+
+/** A diameter AB about a centre off both axes, neither straight across nor straight up. */
+function sampleDiameter(rng: Rng, difficulty: number, keep: (p: DiameterParams) => boolean = () => true): DiameterParams {
+  for (;;) {
+    const r2 = rng.pick(radiiFor(difficulty));
+    const v = rng.pick(latticeVectors(r2));
+    const [a, b] = sampleCentre(rng, 1);
+    const params = { a, b, r2, v };
+    if (!keep(params)) continue;
+    return params;
+  }
+}
+
+/** The centre as the midpoint, then r^2 as a quarter of AB^2. */
+function diameterSolution(p: DiameterParams): SolutionStep[] {
+  const A = endA(p);
+  const B = endB(p);
+  const [dx, dy] = [2 * p.v[0], 2 * p.v[1]];
+  return [
+    { text: 'The centre is the midpoint of the diameter:' },
+    { tex: chain(`a &= \\frac{${A[0]} + ${paren(B[0])}}{2} = ${p.a}`, `b &= \\frac{${A[1]} + ${paren(B[1])}}{2} = ${p.b}`) },
+    { text: 'The radius is half of $AB$, so $r^2$ is a quarter of $AB^2$:' },
+    { tex: chain(`AB^2 &= ${paren(dx)}^2 + ${paren(dy)}^2`, `&= ${4 * p.r2}`, `r^2 &= ${4 * p.r2} \\div 4 = ${p.r2}`) },
+  ];
+}
+
+/** The circle on a diameter, as three tiles. */
+const coordDiameterTiles: Generator<DiameterParams> = {
+  id: 'coord-diameter-tiles',
+  sample: (rng, difficulty) => sampleDiameter(rng, difficulty),
+  render: (p): Slide => {
+    const A = endA(p);
+    const B = endB(p);
+    const answer = [signedN(-p.a), signedN(-p.b), String(p.r2)];
+    const slips = [signedN(p.a), signedN(p.b), String(4 * p.r2), String(2 * p.r2)];
+    if (A[0] !== 0) slips.push(signedN(-A[0]));
+    return {
+      kind: 'tiles',
+      prompt: [say(`$AB$ is a diameter of a circle, with $${namedAt('A', A)}$ and $${namedAt('B', B)}$. Write the circle's equation.`)],
+      template: '(x {0})^2 + (y {1})^2 = {2}',
+      bank: bank(answer, slips, [p.r2], 2),
+      answer,
+    };
+  },
+  solution: (p) => [...diameterSolution(p), { tex: circleTex(p.a, p.b, p.r2) }],
+};
+
+interface DiameterR2Params extends DiameterParams {
+  /** Difficulty 2 gives the circle multiplied out, its number unknown. */
+  expanded: boolean;
+}
+
+/** r^2 of the circle on a diameter; at difficulty 2 the number in its expanded form. */
+const coordDiameterR2: Generator<DiameterR2Params> = {
+  id: 'coord-diameter-r2',
+  sample: (rng, difficulty) => ({
+    ...sampleDiameter(rng, difficulty, (p) => p.a * p.a + p.b * p.b !== p.r2),
+    expanded: difficulty > 1,
+  }),
+  render: (p): Slide => {
+    const A = namedAt('A', endA(p));
+    const B = namedAt('B', endB(p));
+    return {
+      kind: 'expression',
+      prompt: p.expanded
+        ? [
+            say(`The circle with diameter $AB$, where $${A}$ and $${B}$, is written below. Find $k$.`),
+            wrapped(`${sumTex(['x^2', 'y^2', termOf(q(-2 * p.a)), termOf(q(-2 * p.b), 'y')])} + k = 0`),
+          ]
+        : [say(`$${A}$ and $${B}$ are the ends of a diameter of a circle. Find $r^2$.`)],
+      lead: p.expanded ? 'k =' : 'r^2 =',
+      keypad: [],
+      answer: String(p.expanded ? p.a * p.a + p.b * p.b - p.r2 : p.r2),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const centre = p.a * p.a + p.b * p.b;
+    if (p.expanded) return intOptions(centre - p.r2, [centre - 4 * p.r2, centre + p.r2, -p.r2, p.r2]);
+    return intOptions(p.r2, [4 * p.r2, 2 * p.r2, 2 * Math.abs(p.v[0]) + 2 * Math.abs(p.v[1])], 1);
+  },
+  solution: (p) => [
+    ...diameterSolution(p),
+    ...(p.expanded
+      ? [
+          {
+            text: `Multiplied out, $(x - a)^2 + (y - b)^2 = r^2$ has the number $a^2 + b^2 - r^2$, so $k = ${p.a * p.a} + ${p.b * p.b} - ${p.r2} = ${p.a * p.a + p.b * p.b - p.r2}$.`,
+          },
+        ]
+      : []),
+  ],
+};
+
+/** The centre, then r^2, then the circle, one tap at a time. */
+const coordDiameterSteps: Generator<DiameterParams> = {
+  id: 'coord-diameter-steps',
+  sample: (rng, difficulty) => sampleDiameter(rng, difficulty),
+  render: (p): Slide => {
+    const A = endA(p);
+    const B = endB(p);
+    const centre = `C = ${pt(p.a, p.b)}`;
+    const radius = `r^2 = ${p.r2}`;
+    const circle = circleTex(p.a, p.b, p.r2);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$AB$ is a diameter of a circle, with $${namedAt('A', A)}$ and $${namedAt('B', B)}$. Find the circle's equation: tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [
+        `C = \\left(\\frac{${A[0]} + ${paren(B[0])}}{2}, \\frac{${A[1]} + ${paren(B[1])}}{2}\\right)`,
+        ',',
+        'r^2 = \\tfrac{1}{4}AB^2',
+      ],
+      reductions: [
+        {
+          span: [0, 1],
+          value: centre,
+          bank: stepBank(centre, `C = ${pt(A[0] + B[0], A[1] + B[1])}`, `C = ${pt(p.v[0], p.v[1])}`, `C = ${pt(-p.a, -p.b)}`),
+        },
+        {
+          span: [2, 3],
+          value: radius,
+          bank: stepBank(radius, `r^2 = ${4 * p.r2}`, `r^2 = ${2 * p.r2}`, `r^2 = ${16 * p.r2}`),
+        },
+        {
+          span: [0, 3],
+          value: circle,
+          bank: stepBank(circle, circleTex(-p.a, -p.b, p.r2), circleTex(p.a, p.b, 4 * p.r2), circleTex(-p.a, -p.b, 4 * p.r2)),
+        },
+      ],
+    };
+  },
+  solution: (p) => [...diameterSolution(p), { tex: circleTex(p.a, p.b, p.r2) }],
+};
+
+interface DiameterSliderParams extends DiameterParams {
+  axis: 'x' | 'y';
+}
+
+/** The circle and its diameter drawn: slide to the centre, across (difficulty 1) or up (difficulty 2). */
+const coordDiameterSlider: Generator<DiameterSliderParams> = {
+  id: 'coord-diameter-slider',
+  sample: (rng, difficulty) => ({
+    ...sampleDiameter(rng, difficulty, (p) => fits(p.a, p.b, p.r2)),
+    axis: difficulty > 1 ? 'y' : 'x',
+  }),
+  render: (p): Slide => {
+    const A = endA(p);
+    const B = endB(p);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$AB$ is a diameter of the circle drawn, with $${namedAt('A', A)}$ and $${namedAt('B', B)}$. Find the centre, and slide to its ${p.axis === 'x' ? '$x$-coordinate' : 'height'}.`,
+        ),
+      ],
+      min: -9,
+      max: 9,
+      step: 1,
+      answer: p.axis === 'x' ? p.a : p.b,
+      readout: `${p.axis} = {v}`,
+      figure: {
+        svg: plotWithCircles(
+          {
+            xMin: -10,
+            xMax: 10,
+            yMin: -10,
+            yMax: 10,
+            curves: [segment(A[0], A[1], B[0], B[1])],
+            marks: [
+              { x: A[0], y: A[1] },
+              { x: B[0], y: B[1] },
+            ],
+            label: 'A circle with a diameter drawn across it between two marked points',
+          },
+          [{ h: p.a, k: p.b, r2: p.r2 }],
+        ),
+        axis: p.axis,
+        ...markerWindow(-10, 10, p.axis, SQUARE),
+      },
+    };
+  },
+  solution: (p) => [...diameterSolution(p).slice(0, 2), { text: `So the centre is $${named('C', p.a, p.b)}$.` }],
+};
+
+/* ---------- lesson 3: a circle through three points ---------- */
+
+interface ThreeParams {
+  a: number;
+  b: number;
+  r2: number;
+  /** From the centre to P, Q and R. */
+  u: Pt;
+  v: Pt;
+  w: Pt;
+}
+
+const threeOf = ({ a, b, u, v, w }: ThreeParams): [Pt, Pt, Pt] => [offsetBy(a, b, u), offsetBy(a, b, v), offsetBy(a, b, w)];
+
+/** The perpendicular bisector of the chord XY of a circle centred at (a, b): it runs through the centre. */
+function bisectorOf(a: number, b: number, X: Pt, Y: Pt): { m: Q; c: Q } {
+  const m = perp(slopeOf(X, Y));
+  return { m, c: sub(q(b), mul(m, q(a))) };
+}
+
+/** A chord's perpendicular bisector as the learner writes it, including the upright and level ones. */
+function bisectorLine(a: number, b: number, X: Pt, Y: Pt): string {
+  if (X[1] === Y[1]) return `x = ${(X[0] + Y[0]) / 2}`;
+  if (X[0] === Y[0]) return `y = ${(X[1] + Y[1]) / 2}`;
+  const { m, c } = bisectorOf(a, b, X, Y);
+  return lineTex(m, c);
+}
+
+const threeNamed = ([P, Q2, R]: [Pt, Pt, Pt]): string => `$${namedAt('P', P)}$, $${namedAt('Q', Q2)}$ and $${namedAt('R', R)}$`;
+
+/**
+ * Three lattice points of a circle about a centre off both axes, with PQ and
+ * QR each slanted and each bisector's c whole, so the working stays in whole
+ * numbers and small fractions.
+ */
+function sampleThree(rng: Rng, difficulty: number, keep: (p: ThreeParams) => boolean = () => true): ThreeParams {
+  for (;;) {
+    const r2 = rng.pick(radiiFor(difficulty));
+    const points = onCircle(r2);
+    const params = { a: nz(rng, 4), b: nz(rng, 4), r2, u: rng.pick(points), v: rng.pick(points), w: rng.pick(points) };
+    const [P, Q2, R] = threeOf(params);
+    if (!slanted(P, Q2) || !slanted(Q2, R) || samePt(P, R)) continue;
+    if (bisectorOf(params.a, params.b, P, Q2).c.d !== 1 || bisectorOf(params.a, params.b, Q2, R).c.d !== 1) continue;
+    if (!keep(params)) continue;
+    return params;
+  }
+}
+
+/** Two bisectors, where they meet, and r^2 from the centre to P. */
+function threeSolution(p: ThreeParams): SolutionStep[] {
+  const [P, Q2, R] = threeOf(p);
+  return [
+    { text: 'The centre is on the perpendicular bisector of every chord, so two chords are enough. The bisectors of $PQ$ and $QR$ are' },
+    { tex: `\\begin{gathered} ${bisectorLine(p.a, p.b, P, Q2)} \\\\ ${bisectorLine(p.a, p.b, Q2, R)} \\end{gathered}` },
+    { text: `They meet at the centre, $${named('C', p.a, p.b)}$. The radius runs from $C$ to any of the points, say $P$:` },
+    { tex: narrowDistance('r', P[0], p.a, P[1], p.b) },
+  ];
+}
+
+/** The perpendicular bisector of PQ, one piece at a time: midpoint, gradient, line. */
+const coordThreeBisectorSteps: Generator<ThreeParams> = {
+  id: 'coord-three-bisector-steps',
+  sample: (rng, difficulty) =>
+    sampleThree(rng, difficulty, (p) => {
+      const [P, Q2] = threeOf(p);
+      const { m, c } = bisectorOf(p.a, p.b, P, Q2);
+      const even = (P[0] + Q2[0]) % 2 === 0 && (P[1] + Q2[1]) % 2 === 0;
+      return even && c.n !== 0 && (difficulty > 1 ? m.d > 1 : m.d === 1);
+    }),
+  render: (p): Slide => {
+    const [P, Q2, R] = threeOf(p);
+    const mid: Pt = [(P[0] + Q2[0]) / 2, (P[1] + Q2[1]) / 2];
+    const mPQ = slopeOf(P, Q2);
+    const { m, c } = bisectorOf(p.a, p.b, P, Q2);
+    const midStep = `M = ${pt(...mid)}`;
+    const gradStep = `m = ${qTex(m)}`;
+    const line = lineTex(m, c);
+    const through = (g: Q) => sub(q(mid[1]), mul(g, q(mid[0])));
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `${threeNamed([P, Q2, R])} lie on a circle, so its centre is on the perpendicular bisector of $PQ$. Find that bisector: tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [
+        `M = \\left(\\frac{${P[0]} + ${paren(Q2[0])}}{2}, \\frac{${P[1]} + ${paren(Q2[1])}}{2}\\right)`,
+        ',',
+        `m = -1 \\div ${slopeFormula(P, Q2)}`,
+      ],
+      reductions: [
+        {
+          span: [0, 1],
+          value: midStep,
+          bank: stepBank(
+            midStep,
+            `M = ${pt(P[0] + Q2[0], P[1] + Q2[1])}`,
+            `M = ${pt((Q2[0] - P[0]) / 2, (Q2[1] - P[1]) / 2)}`,
+            `M = ${pt(mid[1], mid[0])}`,
+          ),
+        },
+        {
+          span: [2, 3],
+          value: gradStep,
+          bank: stepBank(gradStep, `m = ${qTex(mPQ)}`, `m = ${qTex(neg(m))}`, `m = ${qTex(neg(mPQ))}`),
+        },
+        {
+          span: [0, 3],
+          value: line,
+          bank: stepBank(line, lineTex(m, neg(c)), lineTex(mPQ, through(mPQ)), lineTex(neg(m), through(neg(m)))),
+        },
+      ],
+    };
+  },
+  solution: (p) => {
+    const [P, Q2] = threeOf(p);
+    const mid: Pt = [(P[0] + Q2[0]) / 2, (P[1] + Q2[1]) / 2];
+    const mPQ = slopeOf(P, Q2);
+    const { m, c } = bisectorOf(p.a, p.b, P, Q2);
+    return [
+      { text: 'The perpendicular bisector of $PQ$ passes through its midpoint $M$, at a right angle to $PQ$:' },
+      { tex: chain(`M &= ${pt(...mid)}`, `m_{PQ} &= ${slopeFormula(P, Q2)} = ${qTex(mPQ)}`, `m &= -1 \\div ${qParen(mPQ)} = ${qTex(m)}`) },
+      { tex: chain(`${mid[1]} &= ${qTex(m)} \\times ${paren(mid[0])} + c`, `c &= ${qTex(c)}`) },
+      { tex: lineTex(m, c) },
+    ];
+  },
+};
+
+/** The two bisectors given: where they meet, then the centre's y, then r^2. */
+const coordCircumcentreTree: Generator<ThreeParams> = {
+  id: 'coord-circumcentre-tree',
+  sample: (rng, difficulty) =>
+    sampleThree(rng, difficulty, (p) => {
+      const [P, Q2, R] = threeOf(p);
+      const whole = bisectorOf(p.a, p.b, P, Q2).m.d === 1 && bisectorOf(p.a, p.b, Q2, R).m.d === 1;
+      return difficulty > 1 ? !whole : whole;
+    }),
+  render: (p): Slide => {
+    const [P, Q2, R] = threeOf(p);
+    const answer = [String(p.a), String(p.b), String(p.r2)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${threeNamed([P, Q2, R])} lie on a circle. The perpendicular bisectors of $PQ$ and $QR$ are shown; both pass through its centre $C$. Top row: the $x$-coordinate of $C$, where they meet. Then its $y$-coordinate. Then $r^2 = CP^2$.`,
+        ),
+      ],
+      expression: `\\begin{gathered} ${bisectorLine(p.a, p.b, P, Q2)} \\\\ ${bisectorLine(p.a, p.b, Q2, R)} \\end{gathered}`,
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'y', from: ['x'] },
+        { id: 'r2', from: ['x', 'y'] },
+      ],
+      bank: bank(answer, [String(-p.a), String(-p.b), String(2 * p.r2), String(P[0] * P[0] + P[1] * P[1])], [p.a, p.b]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const [P, Q2, R] = threeOf(p);
+    const one = bisectorOf(p.a, p.b, P, Q2);
+    const two = bisectorOf(p.a, p.b, Q2, R);
+    return [
+      { text: 'The centre is on both bisectors, so their right-hand sides are equal there:' },
+      { tex: chain(`${rhsTex(one.m, one.c)} &= ${rhsTex(two.m, two.c)}`, `x &= ${p.a}`) },
+      { text: `Then $y = ${qTex(one.m)} \\times ${paren(p.a)} ${signed(qTex(one.c))} = ${p.b}$, so the centre is $${named('C', p.a, p.b)}$.` },
+      { tex: narrowDistance('CP', P[0], p.a, P[1], p.b) },
+    ];
+  },
+};
+
+/**
+ * The circle through three points, as three tiles. At difficulty 1, PQ runs
+ * straight across and QR straight up, so the two bisectors are a vertical and
+ * a horizontal line; at difficulty 2 both are slanted.
+ */
+const coordThreePointsTiles: Generator<ThreeParams> = {
+  id: 'coord-three-points-tiles',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) return sampleThree(rng, difficulty);
+    const r2 = rng.pick(radiiFor(1));
+    const [x, y] = rng.pick(latticeVectors(r2));
+    return { a: nz(rng, 4), b: nz(rng, 4), r2, u: [-x, y], v: [x, y], w: [x, -y] };
+  },
+  render: (p): Slide => {
+    const [P] = threeOf(p);
+    const answer = [signedN(-p.a), signedN(-p.b), String(p.r2)];
+    return {
+      kind: 'tiles',
+      prompt: [say(`Find the circle through ${threeNamed(threeOf(p))}.`)],
+      template: '(x {0})^2 + (y {1})^2 = {2}',
+      bank: bank(answer, [signedN(p.a), signedN(p.b), String(2 * p.r2), String(P[0] * P[0] + P[1] * P[1])], [p.r2], 2),
+      answer,
+    };
+  },
+  solution: (p) => [...threeSolution(p), { tex: circleTex(p.a, p.b, p.r2) }],
+};
+
+interface ThreeR2Params extends ThreeParams {
+  /** Difficulty 1 shows the two bisectors; difficulty 2 only the points. */
+  withBisectors: boolean;
+}
+
+/** r^2 of the circle through three points. */
+const coordThreePointsR2: Generator<ThreeR2Params> = {
+  id: 'coord-three-points-r2',
+  sample: (rng, difficulty) => ({ ...sampleThree(rng, difficulty), withBisectors: difficulty === 1 }),
+  render: (p): Slide => {
+    const [P, Q2, R] = threeOf(p);
+    return {
+      kind: 'expression',
+      prompt: p.withBisectors
+        ? [
+            say(`A circle passes through ${threeNamed([P, Q2, R])}. The perpendicular bisectors of $PQ$ and $QR$ are below. Find $r^2$.`),
+            show(`\\begin{gathered} ${bisectorLine(p.a, p.b, P, Q2)} \\\\ ${bisectorLine(p.a, p.b, Q2, R)} \\end{gathered}`),
+          ]
+        : [say(`A circle passes through ${threeNamed([P, Q2, R])}. Find $r^2$.`)],
+      lead: 'r^2 =',
+      keypad: [],
+      answer: String(p.r2),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const [P] = threeOf(p);
+    return intOptions(p.r2, [2 * p.r2, P[0] * P[0] + P[1] * P[1], (P[0] + p.a) ** 2 + (P[1] + p.b) ** 2], 1);
+  },
+  solution: threeSolution,
+};
+
+/* ---------- lesson 4: chords and tangents together ---------- */
+
+type Fact = 'chord' | 'tangent' | 'semicircle';
+
+const FACTS: Record<Fact, string> = {
+  chord: 'The line from the centre to the midpoint of a chord is perpendicular to it',
+  tangent: 'The tangent is perpendicular to the radius',
+  semicircle: 'The angle in a semicircle is a right angle',
+};
+
+interface FactParams extends Diameter {
+  fact: Fact;
+  r2: number;
+  /** chord: centre to M; tangent: centre to T; semicircle: centre to P. */
+  s: Pt;
+  /** Difficulty 2 gives the circle multiplied out. */
+  expanded: boolean;
+}
+
+/** The gradient that is known: CM, CT, or AP. */
+function knownSlope(p: FactParams): Q {
+  const S = offsetBy(p.a, p.b, p.s);
+  return p.fact === 'semicircle' ? slopeOf(endA(p), S) : slopeOf([p.a, p.b], S);
+}
+
+/** Which fact, then the gradient it gives: a chord's, a tangent's, or BP's in a semicircle. */
+const coordChordFactFlow: Generator<FactParams> = {
+  id: 'coord-chord-fact-flow',
+  sample: (rng, difficulty) => {
+    const fact = rng.pick(['chord', 'tangent', 'semicircle'] as const);
+    const expanded = difficulty > 1;
+    if (fact === 'semicircle') {
+      const { a, b, r2, v, p } = sampleSemicircle(rng, difficulty);
+      return { fact, a, b, r2, v, s: p, expanded };
+    }
+    const [a, b] = sampleCentre(rng, 1);
+    if (fact === 'chord') {
+      const s: Pt = [nz(rng, 4), nz(rng, 4)];
+      return { fact, a, b, r2: s[0] * s[0] + s[1] * s[1] + rng.int(1, 5) ** 2, v: [0, 0], s, expanded };
+    }
+    const r2 = rng.pick(radiiFor(difficulty));
+    return { fact, a, b, r2, v: [0, 0], s: rng.pick(latticeVectors(r2)), expanded };
+  },
+  render: (p): Slide => {
+    const known = knownSlope(p);
+    const answer = perp(known);
+    const S = offsetBy(p.a, p.b, p.s);
+    const circle = circleShown(p.a, p.b, p.r2, p.expanded);
+    const scene: Record<Fact, string> = {
+      chord: p.expanded
+        ? `$${namedAt('M', S)}$ is the midpoint of a chord $AB$ of the circle $${circle}$. What is the gradient of $AB$?`
+        : `$${namedAt('M', S)}$ is the midpoint of a chord $AB$ of a circle with centre $${named('C', p.a, p.b)}$. What is the gradient of $AB$?`,
+      tangent: `$${namedAt('T', S)}$ lies on the circle $${circle}$. What is the gradient of the tangent at $T$?`,
+      semicircle: `$AB$ is a diameter of a circle, with $${namedAt('A', endA(p))}$, and $${namedAt('P', S)}$ is on the circle. What is the gradient of $BP$?`,
+    };
+    const subject: Record<Fact, string> = { chord: 'm_{AB}', tangent: 'm_{\\text{tangent}}', semicircle: 'm_{BP}' };
+    const labels = forkLabels([answer, known, neg(answer), neg(known)]);
+    const facts = turned(Object.values(FACTS), `${p.fact}|${S}|${p.a}|${p.b}`);
+    return {
+      kind: 'flow',
+      prompt: [say(scene[p.fact])],
+      subject: subject[p.fact],
+      steps: [
+        { id: 'fact', ask: 'Which fact gives it?', branches: facts.map((label) => ({ label, to: 'gradient' })) },
+        {
+          id: 'gradient',
+          ask: 'Then what is the gradient?',
+          branches: turned(labels, labels.join('|')).map((label) => ({ label, outcome: `So the gradient is ${label}.` })),
+        },
+      ],
+      answer: [FACTS[p.fact], labels[0]],
+    };
+  },
+  solution: (p) => {
+    const known = knownSlope(p);
+    const S = offsetBy(p.a, p.b, p.s);
+    const lead: Record<Fact, SolutionStep[]> = {
+      chord: [
+        ...centreFrom(p.a, p.b, p.r2, p.expanded),
+        { text: 'The line from the centre to the midpoint of a chord meets the chord at a right angle.' },
+        { tex: `m_{CM} = ${slopeFormula([p.a, p.b], S)} = ${qTex(known)}` },
+      ],
+      tangent: [
+        ...centreFrom(p.a, p.b, p.r2, p.expanded),
+        { text: `The tangent at $T$ is perpendicular to the radius $CT$, from $${named('C', p.a, p.b)}$.` },
+        { tex: `m_{CT} = ${slopeFormula([p.a, p.b], S)} = ${qTex(known)}` },
+      ],
+      semicircle: [
+        { text: 'The angle in a semicircle is a right angle, so $BP$ is perpendicular to $AP$.' },
+        { tex: `m_{AP} = ${slopeFormula(endA(p), S)} = ${qTex(known)}` },
+      ],
+    };
+    return [...lead[p.fact], { tex: `m = -1 \\div ${qParen(known)} = ${qTex(perp(known))}` }];
+  },
+};
+
+interface ChordDistanceParams {
+  a: number;
+  b: number;
+  /** From the centre to the chord's midpoint M, of whole length d. */
+  u: Pt;
+  d: number;
+  /** From M to B; A is the other way. */
+  w: Pt;
+  /** Difficulty 2 gives the circle multiplied out rather than its centre. */
+  expanded: boolean;
+}
+
+const chordEnds = ({ a, b, u, w }: ChordDistanceParams): [Pt, Pt] => [
+  [a + u[0] - w[0], b + u[1] - w[1]],
+  [a + u[0] + w[0], b + u[1] + w[1]],
+];
+
+const chordR2 = ({ u, w }: ChordDistanceParams): number => u[0] * u[0] + u[1] * u[1] + w[0] * w[0] + w[1] * w[1];
+
+/**
+ * How far a chord is from the centre: CM, where M is its midpoint. CM runs
+ * straight across or up, or along a 3-4-5 triple from the table at
+ * difficulty 2, so the distance is whole without rooting anything but a
+ * square.
+ */
+const coordChordDistance: Generator<ChordDistanceParams> = {
+  id: 'coord-chord-distance',
+  sample: (rng, difficulty) => {
+    const [a, b] = sampleCentre(rng, 1);
+    if (difficulty > 1 && rng.chance(0.6)) {
+      const [x, y, c] = rng.pick(TRIPLES.filter((row) => row[2] === 5));
+      const u: Pt = [x * rng.sign(), y * rng.sign()];
+      const t = rng.sign();
+      return { a, b, u, d: c, w: [-u[1] * t, u[0] * t], expanded: true };
+    }
+    const d = rng.int(1, 6);
+    const t = rng.int(1, 6) * rng.sign();
+    const across = rng.chance(0.5);
+    const u: Pt = across ? [0, d * rng.sign()] : [d * rng.sign(), 0];
+    return { a, b, u, d, w: across ? [t, 0] : [0, t], expanded: difficulty > 1 };
+  },
+  render: (p): Slide => {
+    const [A, B] = chordEnds(p);
+    const where = p.expanded
+      ? `the circle $${expandedTex(p.a, p.b, chordR2(p))}$`
+      : `a circle with centre $${named('C', p.a, p.b)}$`;
+    return {
+      kind: 'expression',
+      prompt: [say(`$${namedAt('A', A)}$ and $${namedAt('B', B)}$ lie on ${where}. How far is the chord $AB$ from the centre?`)],
+      lead: 'd =',
+      keypad: [],
+      answer: String(p.d),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    // Half the chord: |w|, which is d again for the 3-4-5 chords.
+    const half = p.w[0] === 0 || p.w[1] === 0 ? Math.abs(p.w[0] + p.w[1]) : p.d;
+    return intOptions(p.d, [p.d * p.d, half, 2 * p.d, p.d + half], 1);
+  },
+  solution: (p) => {
+    const [A, B] = chordEnds(p);
+    const M = offsetBy(p.a, p.b, p.u);
+    return [
+      ...centreFrom(p.a, p.b, chordR2(p), p.expanded),
+      { text: 'The perpendicular from the centre to a chord meets it at the chord\'s midpoint $M$, so the distance is $CM$:' },
+      { tex: chain(`x_M &= \\frac{${A[0]} + ${paren(B[0])}}{2} = ${M[0]}`, `y_M &= \\frac{${A[1]} + ${paren(B[1])}}{2} = ${M[1]}`) },
+      { tex: narrowDistance('CM', M[0], p.a, M[1], p.b) },
+      { text: `So $CM = \\sqrt{${p.d * p.d}} = ${p.d}$.` },
+    ];
+  },
+};
+
+type CentreLine = 'y-axis' | 'diagonal';
+
+interface ChordTangentParams {
+  /** The centre is (0, t) on the y-axis, or (t, t) on y = x. */
+  t: number;
+  line: CentreLine;
+  r2: number;
+  /** From the centre to A and to B. */
+  u: Pt;
+  v: Pt;
+}
+
+const chordTangentCentre = ({ t, line }: ChordTangentParams): Pt => (line === 'y-axis' ? [0, t] : [t, t]);
+
+/** The tangent at A: perpendicular to CA, through A. */
+function chordTangentLine(p: ChordTangentParams): { m: Q; c: Q } {
+  const C = chordTangentCentre(p);
+  const A = offsetBy(C[0], C[1], p.u);
+  const m = perp(slopeOf(C, A));
+  return { m, c: sub(q(A[1]), mul(m, q(A[0]))) };
+}
+
+/**
+ * A chord AB of a circle whose centre is known only to lie on a line: the
+ * chord's bisector meets that line at the centre, and then the tangent at A
+ * is perpendicular to CA. The y-axis at difficulty 1, the line y = x at 2.
+ */
+const coordChordTangentTiles: Generator<ChordTangentParams> = {
+  id: 'coord-chord-tangent-tiles',
+  sample: (rng, difficulty) => {
+    const line: CentreLine = difficulty > 1 ? 'diagonal' : 'y-axis';
+    for (;;) {
+      const r2 = rng.pick(radiiFor(difficulty));
+      const points = onCircle(r2);
+      const params = { t: nz(rng, 4), line, r2, u: rng.pick(points), v: rng.pick(points) };
+      const [du, dv] = [params.v[0] - params.u[0], params.v[1] - params.u[1]];
+      if (du === 0 && dv === 0) continue;
+      // The chord's bisector has to cross the centre's line at one point.
+      if (line === 'y-axis' ? dv === 0 : du === -dv) continue;
+      if (params.u[0] === 0 || params.u[1] === 0) continue;
+      const { c } = chordTangentLine(params);
+      if (c.d !== 1 || c.n === 0) continue;
+      return params;
+    }
+  },
+  render: (p): Slide => {
+    const C = chordTangentCentre(p);
+    const A = offsetBy(C[0], C[1], p.u);
+    const B = offsetBy(C[0], C[1], p.v);
+    const { m, c } = chordTangentLine(p);
+    const radius = slopeOf(C, A);
+    const answer = [termOf(m), signedN(c.n)];
+    const slips = [termOf(radius), termOf(neg(m)), signedN(-c.n)];
+    const wrongC = sub(q(A[1]), mul(radius, q(A[0])));
+    if (wrongC.d === 1 && wrongC.n !== 0) slips.push(signedN(wrongC.n));
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `The circle through $${namedAt('A', A)}$ and $${namedAt('B', B)}$ has its centre on ${p.line === 'y-axis' ? 'the $y$-axis' : 'the line $y = x$'}. Find the tangent to the circle at $A$.`,
+        ),
+      ],
+      template: 'y = {0} {1}',
+      bank: signedBank(answer, slips, [c.n]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const C = chordTangentCentre(p);
+    const [A, B] = [offsetBy(C[0], C[1], p.u), offsetBy(C[0], C[1], p.v)];
+    const { m, c } = chordTangentLine(p);
+    const onAxis = p.line === 'y-axis';
+    const side = ([x, y]: Pt) => (onAxis ? `${paren(x)}^2 + (${y} - t)^2` : `(${x} - t)^2 + (${y} - t)^2`);
+    const k = onAxis ? 2 * (B[1] - A[1]) : 2 * (B[0] + B[1] - A[0] - A[1]);
+    const rhs = B[0] ** 2 + B[1] ** 2 - A[0] ** 2 - A[1] ** 2;
+    return [
+      {
+        text: `The centre is on the perpendicular bisector of the chord $AB$, so it is as far from $A$ as from $B$. Call it $${onAxis ? 'C(0, t)' : 'C(t, t)'}$ and set $CA^2 = CB^2$; the $t^2$ terms cancel:`,
+      },
+      { tex: chain(`&${side(A)}`, `&\\quad = ${side(B)}`, `&${termOf(q(k), 't')} = ${rhs}`, `&t = ${p.t}`) },
+      {
+        text: `So the centre is $${namedAt('C', C)}$. The radius $CA$ has gradient $${qTex(slopeOf(C, A))}$, and the tangent at $A$ is perpendicular to it, with gradient $${qTex(m)}$.`,
+      },
+      { tex: chain(`${A[1]} &= ${qTex(m)} \\times ${paren(A[0])} + c`, `c &= ${c.n}`) },
+      { tex: lineTex(m, c) },
+    ];
+  },
+};
+
+interface MidChordParams {
+  a: number;
+  b: number;
+  /** From the centre to the chord's midpoint M. */
+  u: Pt;
+  /** Half the chord, for a circle that M is inside. */
+  h: number;
+  /** Difficulty 2 gives the circle multiplied out rather than its centre. */
+  expanded: boolean;
+}
+
+/** The chord through M: perpendicular to CM, through M. */
+function midChord({ a, b, u }: MidChordParams): { cm: Q; m: Q; c: Q } {
+  const cm = q(u[1], u[0]);
+  const m = perp(cm);
+  return { cm, m, c: sub(q(b + u[1]), mul(m, q(a + u[0]))) };
+}
+
+/** The chord with a given midpoint: CM's gradient, the chord's, then its c. */
+const coordChordFromMidpointTree: Generator<MidChordParams> = {
+  id: 'coord-chord-from-midpoint-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const [a, b] = sampleCentre(rng, 1);
+      const top = difficulty > 1 ? 6 : 4;
+      const params = { a, b, u: [nz(rng, top), nz(rng, top)] as Pt, h: rng.int(1, 5), expanded: difficulty > 1 };
+      if (midChord(params).c.d !== 1) continue;
+      return params;
+    }
+  },
+  render: (p): Slide => {
+    const M = offsetBy(p.a, p.b, p.u);
+    const { cm, m, c } = midChord(p);
+    const r2 = p.u[0] ** 2 + p.u[1] ** 2 + p.h * p.h;
+    const answer = [qTex(cm), qTex(m), String(c.n)];
+    const slips = [qTex(neg(cm)), qTex(inv(cm)), qTex(neg(m)), String(-c.n)];
+    const wrongC = sub(q(M[1]), mul(cm, q(M[0])));
+    if (wrongC.d === 1) slips.push(String(wrongC.n));
+    const where = p.expanded ? `the circle $${expandedTex(p.a, p.b, r2)}$` : `a circle with centre $${named('C', p.a, p.b)}$`;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$${namedAt('M', M)}$ is the midpoint of a chord $AB$ of ${where}. Find the chord's equation. Top row: the gradient of $CM$. Then the gradient of $AB$. Then $c$.`,
+        ),
+      ],
+      expression: 'AB:\\ y = mx + c',
+      nodes: [
+        { id: 'cm', from: [] },
+        { id: 'ab', from: ['cm'] },
+        { id: 'c', from: ['ab'] },
+      ],
+      bank: bank(answer, slips, [c.n]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const M = offsetBy(p.a, p.b, p.u);
+    const { cm, m, c } = midChord(p);
+    const r2 = p.u[0] ** 2 + p.u[1] ** 2 + p.h * p.h;
+    return [
+      ...centreFrom(p.a, p.b, r2, p.expanded),
+      { text: 'The line from the centre to the midpoint of a chord is perpendicular to the chord:' },
+      { tex: chain(`m_{CM} &= ${slopeFormula([p.a, p.b], M)} = ${qTex(cm)}`, `m_{AB} &= -1 \\div ${qParen(cm)} = ${qTex(m)}`) },
+      { tex: chain(`${M[1]} &= ${qTex(m)} \\times ${paren(M[0])} + c`, `c &= ${c.n}`) },
+      { tex: lineTex(m, c) },
+    ];
+  },
+};
+
+/* ---------- lesson 5: putting it together ---------- */
+
+type Theorem = 'semicircle' | 'bisector' | 'tangent' | 'diameter';
+
+const THEOREMS: Record<Theorem, string> = {
+  semicircle: 'The angle in a semicircle is a right angle',
+  bisector: 'The perpendicular bisector of a chord passes through the centre',
+  tangent: 'The tangent is perpendicular to the radius',
+  diameter: 'The centre is the midpoint of a diameter',
+};
+
+interface TheoremParams {
+  theorem: Theorem;
+  a: number;
+  b: number;
+  r2: number;
+  /** semicircle: diameter and P; bisector: P, Q, R; tangent: T; diameter: B. */
+  u: Pt;
+  v: Pt;
+  w: Pt;
+  expanded: boolean;
+}
+
+/** Which fact does the work: from a scene with the learner's numbers in it. */
+const coordWhichTheorem: Generator<TheoremParams> = {
+  id: 'coord-which-theorem',
+  sample: (rng, difficulty) => {
+    const theorem = rng.pick(['semicircle', 'bisector', 'tangent', 'diameter'] as const);
+    const expanded = difficulty > 1;
+    if (theorem === 'semicircle') {
+      const { a, b, r2, v, p } = sampleSemicircle(rng, difficulty);
+      return { theorem, a, b, r2, u: v, v: p, w: [0, 0], expanded };
+    }
+    if (theorem === 'bisector') return { theorem, ...sampleThree(rng, difficulty), expanded };
+    const [a, b] = sampleCentre(rng, 1);
+    const r2 = rng.pick(radiiFor(difficulty));
+    return { theorem, a, b, r2, u: rng.pick(latticeVectors(r2)), v: [0, 0], w: [0, 0], expanded };
+  },
+  render: (p): Slide => {
+    const at = (s: Pt) => offsetBy(p.a, p.b, s);
+    const circle = circleShown(p.a, p.b, p.r2, p.expanded);
+    const scene: Record<Theorem, () => string> = {
+      semicircle: () =>
+        `$${namedAt('A', endA({ a: p.a, b: p.b, v: p.u }))}$ and $${namedAt('B', at(p.u))}$ are the ends of a diameter of a circle through $${namedAt('P', at(p.v))}$. Which fact says at once what the angle $APB$ is?`,
+      bisector: () => `A circle passes through ${threeNamed([at(p.u), at(p.v), at(p.w)])}. Which fact leads to its centre?`,
+      tangent: () => `$${namedAt('T', at(p.u))}$ is on the circle $${circle}$. Which fact gives the gradient of the tangent at $T$?`,
+      diameter: () => `$${namedAt('A', endA({ a: p.a, b: p.b, v: p.u }))}$ is one end of a diameter $AB$ of the circle $${circle}$. Which fact finds $B$?`,
+    };
+    const text = scene[p.theorem]();
+    const order = turned(['semicircle', 'bisector', 'tangent', 'diameter'] as Theorem[], text);
+    return {
+      kind: 'choice',
+      prompt: [say(text)],
+      options: order.map((t, idx) => ({ id: `opt${idx}`, label: THEOREMS[t] })),
+      correctId: `opt${order.indexOf(p.theorem)}`,
+    };
+  },
+  solution: (p) => {
+    const at = (s: Pt) => offsetBy(p.a, p.b, s);
+    const centre = centreFrom(p.a, p.b, p.r2, p.expanded);
+    if (p.theorem === 'semicircle') {
+      const A = endA({ a: p.a, b: p.b, v: p.u });
+      return [
+        { text: 'A point on a circle sees a diameter at a right angle, so the angle $APB$ is $90^\\circ$. The gradients show it:' },
+        ...semicircleSolution(A, at(p.u), at(p.v)),
+      ];
+    }
+    if (p.theorem === 'bisector') return threeSolution({ a: p.a, b: p.b, r2: p.r2, u: p.u, v: p.v, w: p.w });
+    if (p.theorem === 'tangent') {
+      const radius = q(p.u[1], p.u[0]);
+      return [
+        ...centre,
+        { text: `The tangent at $T$ is perpendicular to the radius $CT$, whose gradient is $${slopeFormula([p.a, p.b], at(p.u))} = ${qTex(radius)}$.` },
+        { tex: `m = -1 \\div ${qParen(radius)} = ${qTex(perp(radius))}` },
+      ];
+    }
+    const A = endA({ a: p.a, b: p.b, v: p.u });
+    const B = at(p.u);
+    return [
+      ...centre,
+      { text: `The centre $${named('C', p.a, p.b)}$ is the midpoint of $AB$, so $B$ is as far past $C$ as $A$ is short of it:` },
+      { tex: chain(`x_B &= 2 \\times ${paren(p.a)} - ${paren(A[0])} = ${B[0]}`, `y_B &= 2 \\times ${paren(p.b)} - ${paren(A[1])} = ${B[1]}`) },
+    ];
+  },
+};
+
+interface OtherEndParams extends DiameterParams {
+  /** Difficulty 2 gives the circle multiplied out. */
+  expanded: boolean;
+}
+
+/** x_B = 2a - x_A, y_B = 2b - y_A, then the point. */
+function otherEndSolution(p: OtherEndParams): SolutionStep[] {
+  const A = endA(p);
+  const B = endB(p);
+  return [
+    ...centreFrom(p.a, p.b, p.r2, p.expanded),
+    { text: `The centre $${named('C', p.a, p.b)}$ is the midpoint of $AB$, so $B$ is as far past $C$ as $A$ is short of it:` },
+    { tex: chain(`x_B &= 2 \\times ${paren(p.a)} - ${paren(A[0])} = ${B[0]}`, `y_B &= 2 \\times ${paren(p.b)} - ${paren(A[1])} = ${B[1]}`) },
+    { text: `So $${namedAt('B', B)}$.` },
+  ];
+}
+
+/** The far end of a diameter, one coordinate at a time. */
+const coordOtherEndSteps: Generator<OtherEndParams> = {
+  id: 'coord-other-end-steps',
+  sample: (rng, difficulty) => ({ ...sampleDiameter(rng, difficulty), expanded: difficulty > 1 }),
+  render: (p): Slide => {
+    const A = endA(p);
+    const B = endB(p);
+    const xs = `x_B = ${B[0]}`;
+    const ys = `y_B = ${B[1]}`;
+    const point = `B = ${pt(...B)}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$${namedAt('A', A)}$ is one end of a diameter $AB$ of the circle below. Its centre $C(a, b)$ is the midpoint of $AB$. Find $B$: tap the part you would work out **next**, then choose its value.`,
+        ),
+        p.expanded ? wrapped(expandedTex(p.a, p.b, p.r2)) : show(circleTex(p.a, p.b, p.r2)),
+      ],
+      start: ['x_B = 2a - x_A', ',', 'y_B = 2b - y_A'],
+      reductions: [
+        { span: [0, 1], value: xs, bank: stepBank(xs, `x_B = ${-2 * p.a - A[0]}`, `x_B = ${p.a - A[0]}`, `x_B = ${2 * p.a + A[0]}`) },
+        { span: [2, 3], value: ys, bank: stepBank(ys, `y_B = ${-2 * p.b - A[1]}`, `y_B = ${p.b - A[1]}`, `y_B = ${2 * p.b + A[1]}`) },
+        {
+          span: [0, 3],
+          value: point,
+          bank: stepBank(point, `B = ${pt(B[1], B[0])}`, `B = ${pt(A[0] + p.a, A[1] + p.b)}`, `B = ${pt(-B[0], -B[1])}`),
+        },
+      ],
+    };
+  },
+  solution: otherEndSolution,
+};
+
+/** The tangent at A: perpendicular to the radius, so its gradient is -v_x / v_y. */
+function endTangents(p: DiameterParams): { m: Q; cA: Q; cB: Q } {
+  const m = q(-p.v[0], p.v[1]);
+  const [A, B] = [endA(p), endB(p)];
+  return { m, cA: sub(q(A[1]), mul(m, q(A[0]))), cB: sub(q(B[1]), mul(m, q(B[0]))) };
+}
+
+/**
+ * The tangents at the two ends of a diameter are parallel: given the one at
+ * A, find c for the one at B.
+ */
+const coordParallelTangent: Generator<OtherEndParams> = {
+  id: 'coord-parallel-tangent',
+  sample: (rng, difficulty) => ({
+    ...sampleDiameter(rng, difficulty, (p) => {
+      const { cA, cB } = endTangents(p);
+      return cA.d === 1 && cB.d === 1;
+    }),
+    expanded: difficulty > 1,
+  }),
+  render: (p): Slide => {
+    const { m, cA } = endTangents(p);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `$AB$ is a diameter of the circle $${circleShown(p.a, p.b, p.r2, p.expanded)}$. The tangent at $${namedAt('A', endA(p))}$ is $${lineTex(m, cA)}$, and the tangent at $B$ is $y = ${termOf(m)} + c$. Find $c$.`,
+        ),
+      ],
+      lead: 'c =',
+      keypad: [],
+      answer: String(endTangents(p).cB.n),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const { cA, cB } = endTangents(p);
+    return intOptions(cB.n, [-cA.n, 2 * p.b - cA.n, cA.n, cB.n + 2 * (p.b - cB.n)]);
+  },
+  solution: (p) => {
+    const { m, cB } = endTangents(p);
+    const B = endB(p);
+    return [
+      ...otherEndSolution(p).slice(0, -1),
+      { text: `Both tangents are perpendicular to the diameter $AB$, so they are parallel: the tangent at $B$ also has gradient $${qTex(m)}$. Through $B$:` },
+      { tex: chain(`${B[1]} &= ${qTex(m)} \\times ${paren(B[0])} + c`, `c &= ${cB.n}`) },
+    ];
+  },
+};
+
+interface OtherEndSliderParams extends OtherEndParams {
+  axis: 'x' | 'y';
+}
+
+/** The circle drawn with A marked: slide to the far end of the diameter, across (difficulty 1) or up (difficulty 2). */
+const coordOtherEndSlider: Generator<OtherEndSliderParams> = {
+  id: 'coord-other-end-slider',
+  sample: (rng, difficulty) => ({
+    ...sampleDiameter(rng, difficulty, (p) => fits(p.a, p.b, p.r2)),
+    expanded: difficulty > 1,
+    axis: difficulty > 1 ? 'y' : 'x',
+  }),
+  render: (p): Slide => {
+    const A = endA(p);
+    const B = endB(p);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$${namedAt('A', A)}$ is one end of a diameter $AB$ of the circle $${circleShown(p.a, p.b, p.r2, p.expanded)}$, drawn with its centre. Find $B$, and slide to its ${p.axis === 'x' ? '$x$-coordinate' : 'height'}.`,
+        ),
+      ],
+      min: -9,
+      max: 9,
+      step: 1,
+      answer: p.axis === 'x' ? B[0] : B[1],
+      readout: `${p.axis} = {v}`,
+      figure: {
+        svg: circleFigure(p.a, p.b, p.r2, [], [{ x: A[0], y: A[1] }], 'A circle with its centre and one marked point on it'),
+        axis: p.axis,
+        ...markerWindow(-10, 10, p.axis, SQUARE),
+      },
+    };
+  },
+  solution: otherEndSolution,
+};
+
 export const coordinateGeometryGenerators = [
   coordGradient,
   coordRiseRunTree,
@@ -4418,4 +5732,24 @@ export const coordinateGeometryGenerators = [
   coordChordRadius,
   coordChordMidpointSteps,
   coordChordSlider,
+  coordSemicircleTree,
+  coordRightAngleFlow,
+  coordSemicircleMissing,
+  coordRightAnglePoint,
+  coordDiameterTiles,
+  coordDiameterR2,
+  coordDiameterSteps,
+  coordDiameterSlider,
+  coordThreeBisectorSteps,
+  coordCircumcentreTree,
+  coordThreePointsTiles,
+  coordThreePointsR2,
+  coordChordFactFlow,
+  coordChordDistance,
+  coordChordTangentTiles,
+  coordChordFromMidpointTree,
+  coordWhichTheorem,
+  coordOtherEndSteps,
+  coordParallelTangent,
+  coordOtherEndSlider,
 ];

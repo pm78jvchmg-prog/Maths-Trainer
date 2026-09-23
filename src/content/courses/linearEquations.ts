@@ -20,8 +20,13 @@
  * off and checking, choosing which letter goes first, and three unknowns
  * from words. The matrix route is in Matrices.
  *
- * Later levels — regions from several inequalities, modelling — are in the
- * level plan in `docs/roadmap/levels/linear-equations.md`.
+ * Level 6 takes several inequalities at once: the overlap of two
+ * half-planes, a pictured region read back as its inequalities, the corners
+ * where boundaries meet, the whole-number points inside, and regions from
+ * words.
+ *
+ * The last level, modelling, is in the level plan in
+ * `docs/roadmap/levels/linear-equations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -111,6 +116,33 @@ const region = (f: (x: number) => number, dashed: boolean, dot: { x: number; y: 
     label,
   }),
 });
+
+/** Several boundaries on squared axes, each dashed when it is left out, with dots where wanted. */
+const boundaries = (
+  sides: { f: (x: number) => number; dashed: boolean }[],
+  dots: { x: number; y: number; hollow?: boolean }[],
+  label: string,
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: -6,
+    xMax: 6,
+    yMin: -6,
+    yMax: 6,
+    height: 220,
+    grid: true,
+    curves: sides,
+    marks: dots,
+    label,
+  }),
+});
+
+/** The region the level 6 teaching comes back to: $y \le x$, $y < -x + 2$ and $y \ge -2$. */
+const TRIANGLE = [
+  { f: (x: number) => x, dashed: false },
+  { f: (x: number) => -x + 2, dashed: true },
+  { f: () => -2, dashed: false },
+];
 
 export const linearEquations: Course = {
   id: 'linear-equations',
@@ -1204,6 +1236,219 @@ export const linearEquations: Course = {
         ask('lin-tri-words-tiles', 2),
         ask('lin-tri-words-solve', 2),
         ask('lin-tri-sum-all-steps', 2),
+      ],
+    },
+    {
+      id: 'le-l6',
+      title: 'Inequalities in Two Variables & Regions',
+      lessons: [
+        {
+          id: 'le-l6-overlap',
+          title: 'Two at Once',
+          slides: [
+            teach(
+              prose(
+                'Each inequality in $x$ and $y$ is a half-plane, as in Linear Inequalities. With two at once, the region is where **both** hold: the overlap.',
+              ),
+              boundaries(
+                [
+                  { f: (x) => x - 1, dashed: false },
+                  { f: (x) => -x + 3, dashed: true },
+                ],
+                [{ x: 0, y: 1 }],
+                'A solid line y = x - 1 and a dashed line y = -x + 3 crossing at (2, 1), with a dot at (0, 1)',
+              ),
+              maths('\\begin{gathered} y \\ge x - 1 \\\\ y < -x + 3 \\end{gathered}'),
+              prose(
+                'A point is in only if it passes both tests. $(0, 1)$ gives $1 \\ge -1$ and $1 < 3$, so it is in. $(3, 3)$ passes the first but gives $3 < 0$ in the second, so it is out.',
+              ),
+            ),
+            ask('lin-overlap-flow'),
+            ask('lin-overlap-which'),
+            ask('lin-overlap-tree'),
+            teach(
+              prose(
+                'Test the first; only if it passes is the second worth doing. In the form $ax + by$, work out the left-hand side and compare it with the right.',
+              ),
+              maths('\\begin{gathered} 2x + y \\le 6 \\\\ x - 3y > -3 \\end{gathered}'),
+              prose(
+                'At $(1, 2)$: $2 + 2 = 4$, and $4 \\le 6$ is true. Then $1 - 6 = -5$, and $-5 > -3$ is false. So $(1, 2)$ is not in the region.',
+              ),
+            ),
+            ask('lin-overlap-side'),
+            ask('lin-overlap-flow', 2),
+            ask('lin-overlap-which', 2),
+            teach(
+              prose(
+                'A point on a boundary passes when the sign has "or equal to" and fails when it is strict. $(2, 1)$ is where the lines of the first example cross: $y \\ge x - 1$ gives $1 \\ge 1$, true, but $y < -x + 3$ gives $1 < 1$, false, so it is left out.',
+              ),
+            ),
+            ask('lin-overlap-tree', 2),
+            ask('lin-overlap-side', 2),
+          ],
+          skillCheck: [ask('lin-overlap-which', 2), ask('lin-overlap-flow', 2), ask('lin-overlap-tree', 2)],
+        },
+        {
+          id: 'le-l6-read',
+          title: 'Reading a Region',
+          slides: [
+            teach(
+              prose(
+                'To read a pictured region, write one inequality per boundary. A dashed line is strict; a solid one has "or equal to". The dot shows the side.',
+              ),
+              boundaries(TRIANGLE, [{ x: 1, y: -1 }], 'A triangle: solid y = x, dashed y = -x + 2, solid y = -2, with a dot at (1, -1)'),
+              prose(
+                'The dot $(1, -1)$ is below $y = x$ and below $y = -x + 2$, and above $y = -2$. So the region is',
+              ),
+              maths('\\begin{gathered} y \\le x \\\\ y < -x + 2 \\\\ y \\ge -2 \\end{gathered}'),
+            ),
+            ask('lin-read-flow'),
+            ask('lin-read-signs'),
+            ask('lin-read-system'),
+            teach(
+              prose(
+                'In the form $ax + by$, "below" need not mean "less". $y \\le x$ is also $x - y \\ge 0$: at the dot, $1 - (-1) = 2$, which is more than $0$.',
+              ),
+              prose('So put the dot in and compare, rather than reading the side from the sign.'),
+            ),
+            ask('lin-read-flow', 2),
+            ask('lin-read-signs', 2),
+            ask('lin-read-system', 2),
+            teach(
+              prose(
+                'To name a boundary, read it off the grid as $y = mx + c$: $c$ is where it crosses the $y$-axis, $m$ how far it rises for each $1$ across.',
+              ),
+              prose(
+                'The dashed line crosses the $y$-axis at $2$ and drops $1$ for each $1$ across, so it is $y = -x + 2$.',
+              ),
+            ),
+            ask('lin-read-line'),
+            ask('lin-read-line', 2),
+          ],
+          skillCheck: [ask('lin-read-signs', 2), ask('lin-read-system', 2), ask('lin-read-flow', 2)],
+        },
+        {
+          id: 'le-l6-corners',
+          title: 'Corners',
+          slides: [
+            teach(
+              prose(
+                'A corner of a region is where two boundaries meet, found as in Simultaneous Linear Equations. Where $y = x$ meets $y = -x + 2$ the two $y$ values are equal:',
+              ),
+              maths('\\begin{gathered} x = -x + 2 \\\\ 2x = 2 \\\\ x = 1 \\end{gathered}'),
+              boundaries(TRIANGLE, [{ x: 1, y: 1 }], 'The same triangle with its top corner, (1, 1), marked'),
+              prose('Either line then gives $y = 1$, so the corner is $(1, 1)$.'),
+            ),
+            ask('lin-corner-steps'),
+            ask('lin-corner-value'),
+            ask('lin-corner-slider'),
+            teach(
+              prose(
+                'Check a corner in **both** boundaries. At $x = 1$, $y = x$ gives $1$ and $y = -x + 2$ gives $-1 + 2 = 1$. They agree, so $(1, 1)$ is on both.',
+              ),
+              prose('A point that fits one line only is somewhere else along it, not the corner.'),
+            ),
+            ask('lin-corner-check-tree'),
+            ask('lin-corner-steps', 2),
+            ask('lin-corner-slider', 2),
+            teach(
+              prose('In the form $ax + by$, eliminate a letter.'),
+              maths('\\begin{aligned} x + y &= 2 & \\quad (1) \\\\ x - 2y &= -4 & \\quad (2) \\end{aligned}'),
+              prose('$(1) - (2)$ gives $3y = 6$, so $y = 2$, and (1) gives $x = 0$. The corner is $(0, 2)$.'),
+            ),
+            ask('lin-corner-value', 2),
+            ask('lin-corner-check-tree', 2),
+          ],
+          skillCheck: [ask('lin-corner-value', 2), ask('lin-corner-steps', 2), ask('lin-corner-slider', 2)],
+        },
+        {
+          id: 'le-l6-points',
+          title: 'Whole-Number Points',
+          slides: [
+            teach(
+              prose(
+                'The points with whole-number coordinates in a region are found column by column, as the integers in a set were in Linear Inequalities.',
+              ),
+              boundaries(TRIANGLE, [], 'The triangle: solid y = x, dashed y = -x + 2, solid y = -2'),
+              prose(
+                'In the column $x = 0$: $y \\ge -2$, $y \\le 0$ and $y < 2$, so $y = -2, -1, 0$. A point on a solid line counts; one on a dashed line does not.',
+              ),
+            ),
+            ask('lin-lattice-which'),
+            ask('lin-lattice-column'),
+            ask('lin-lattice-count'),
+            teach(
+              prose(
+                'Corners are whole points on two lines at once, so check them with care. $(1, 1)$ is on the dashed $y = -x + 2$, so it is out. $(-2, -2)$ is on two solid lines and passes the third, so it counts.',
+              ),
+            ),
+            ask('lin-lattice-flow'),
+            ask('lin-lattice-which', 2),
+            ask('lin-lattice-column', 2),
+            teach(
+              prose('Then add the columns. From $x = -2$ to $x = 3$ this triangle has'),
+              maths('1 + 2 + 3 + 3 + 2 + 1 = 12'),
+              prose('points. The column $x = 4$ is empty, since its only candidate, the corner $(4, -2)$, is on the dashed line.'),
+            ),
+            ask('lin-lattice-count', 2),
+            ask('lin-lattice-flow', 2),
+          ],
+          skillCheck: [ask('lin-lattice-count', 2), ask('lin-lattice-which', 2), ask('lin-lattice-flow', 2)],
+        },
+        {
+          id: 'le-l6-words',
+          title: 'Regions from Words',
+          slides: [
+            teach(
+              prose(
+                'In a story, say what $x$ and $y$ count, then write each sentence as an inequality: "at most" is $\\le$, "at least" is $\\ge$, "less than" and "more than" are $<$ and $>$.',
+              ),
+              prose(
+                'Adult tickets cost £$3$ and child tickets £$2$. With $x$ adults and $y$ children, spending at most £$24$ and taking at least $3$ children is',
+              ),
+              maths('\\begin{gathered} 3x + 2y \\le 24 \\\\ y \\ge 3 \\end{gathered}'),
+              prose('A count cannot be negative, so $x \\ge 0$ and $y \\ge 0$ come with it.'),
+            ),
+            ask('lin-story-tiles'),
+            ask('lin-story-system'),
+            ask('lin-story-meet-steps'),
+            teach(
+              prose(
+                'The corners are where the boundaries meet. $y = 3$ meets the $y$-axis at $(0, 3)$, and $3x + 2y = 24$ meets it at $(0, 12)$. The last is where $3x + 2y = 24$ meets $y = 3$:',
+              ),
+              maths('\\begin{gathered} 3x + 2 \\times 3 = 24 \\\\ 3x = 18 \\\\ x = 6 \\end{gathered}'),
+              prose('So the corners are $(0, 3)$, $(0, 12)$ and $(6, 3)$.'),
+            ),
+            ask('lin-story-most'),
+            ask('lin-story-tiles', 2),
+            ask('lin-story-system', 2),
+            teach(
+              prose(
+                'The most tickets altogether, $x + y$, is at a corner: $3$, $12$ and $9$ at the three. So $12$ is the most, all of them child tickets.',
+              ),
+            ),
+            ask('lin-story-meet-steps', 2),
+            ask('lin-story-most', 2),
+          ],
+          skillCheck: [ask('lin-story-tiles', 2), ask('lin-story-system', 2), ask('lin-story-most', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('lin-overlap-flow', 2),
+        ask('lin-overlap-which', 2),
+        ask('lin-overlap-side', 2),
+        ask('lin-read-signs', 2),
+        ask('lin-read-system', 2),
+        ask('lin-read-line', 2),
+        ask('lin-corner-steps', 2),
+        ask('lin-corner-slider', 2),
+        ask('lin-corner-check-tree', 2),
+        ask('lin-lattice-count', 2),
+        ask('lin-lattice-column', 2),
+        ask('lin-lattice-flow', 2),
+        ask('lin-story-tiles', 2),
+        ask('lin-story-most', 2),
+        ask('lin-story-meet-steps', 2),
       ],
     },
   ],

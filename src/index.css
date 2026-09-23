@@ -253,17 +253,28 @@ button {
   transition: width 260ms cubic-bezier(0.32, 0.72, 0.28, 1);
 }
 
-/* The skill check swaps the bar for dots, so the change of mode is visible. */
+/* The skill check swaps the bar for dots, so the change of mode is visible.
+
+   A level check runs to fifteen questions, and fifteen 13px dots at a 12px gap
+   need 363px, which is wider than the header leaves on a phone, so the row ran
+   off the right edge. The gap now scales with the count (`--count`, set by
+   LessonPlayer) and the dots shrink into whatever room is left, so any length
+   stays on one line. A three-question skill check still gets the full 12px gap
+   and 13px dots. `min-width: 0` is what lets a flex item shrink below its
+   content at all. */
 .dots {
   flex: 1;
+  min-width: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: min(12px, calc(40% / var(--count, 3)));
 }
 
 .dot {
-  width: 13px;
-  height: 13px;
+  flex: 0 1 13px;
+  min-width: 0;
+  aspect-ratio: 1;
   border-radius: 50%;
   background: var(--surface-raised);
 }

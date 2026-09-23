@@ -9,7 +9,10 @@
  * back to area with a second curve in place of the axis: given limits, then
  * limits found where the curves meet, then curves that cross. Level 5 turns a
  * region about an axis and integrates the solid it sweeps out: set up, then
- * evaluated, then about the y-axis, then cones and hollow solids.
+ * evaluated, then about the y-axis, then cones and hollow solids. Level 6
+ * splits a fraction into partial fractions and integrates the parts to
+ * logarithms: the split, the integral, limits and log laws, then top-heavy
+ * fractions and repeated brackets.
  *
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
@@ -1674,6 +1677,209 @@ export const integration: Course = {
         ask('int-vol-cone+choice', 2),
         ask('int-vol-outer-inner', 2),
         ask('int-vol-washer', 2),
+      ],
+    },
+    {
+      id: 'in-l6',
+      title: 'Partial Fractions in Integration',
+      lessons: [
+        {
+          id: 'in-l6-split',
+          title: 'Splitting a Fraction',
+          slides: [
+            teach(
+              prose('Adding two fractions puts them over a common bottom:'),
+              maths('\\frac{2}{x + 1} + \\frac{3}{x + 2}'),
+              maths('= \\frac{5x + 7}{(x + 1)(x + 2)}'),
+              prose(
+                '**Partial fractions** runs this backwards. The single fraction has no standard integral, but the two simple ones each have one.',
+              ),
+              prose(
+                'To find the tops, write $5x + 7 = A(x + 2) + B(x + 1)$ and choose $x$ to make a bracket zero. $x = -1$ wipes out the $B$ term and leaves $2 = A$.',
+              ),
+            ),
+            ask('int-pf-recombine'),
+            ask('int-pf-pole-slider'),
+            ask('int-pf-cover-up'),
+            teach(
+              prose(
+                '**Cover-up** is that substitution done by eye. To find the top over $x + 1$, cover that bracket and put $x = -1$ into what is left:',
+              ),
+              maths('A = \\frac{5(-1) + 7}{(-1) + 2} = 2'),
+              prose('Then cover $x + 2$ and put $x = -2$:'),
+              maths('B = \\frac{5(-2) + 7}{(-2) + 1} = 3'),
+            ),
+            ask('int-pf-coefficients'),
+            ask('int-pf-both-tree'),
+            askAfter(
+              [prose('Cover-up with the working taken away: find the numerator this calculation gives.')],
+              'int-pf-cover-up+choice',
+            ),
+            teach(
+              prose(
+                'Signs are where cover-up goes wrong. The bracket $x + 3$ needs $x = -3$, and $x - 3$ needs $x = 3$.',
+              ),
+              prose('A top can come out negative, and the fraction may have no $x$ on top at all:'),
+              maths('\\frac{2}{(x + 1)(x + 3)}'),
+              maths('= \\frac{1}{x + 1} - \\frac{1}{x + 3}'),
+              prose('Adding the two back up is always a quick check.'),
+            ),
+            ask('int-pf-pole-slider', 2),
+            ask('int-pf-coefficients', 2),
+          ],
+          skillCheck: [
+            ask('int-pf-coefficients', 2),
+            ask('int-pf-cover-up+choice', 2),
+            ask('int-pf-both-tree', 2),
+          ],
+        },
+        {
+          id: 'in-l6-integrate',
+          title: 'Integrating the Split',
+          slides: [
+            teach(
+              prose('A number over a linear bracket integrates to a logarithm, just as $\\frac{1}{x}$ does:'),
+              maths('\\int \\frac{1}{x + a} \\, dx = \\ln|x + a| + C'),
+              prose(
+                'When the $x$ has a coefficient, divide by it, as for any linear bracket: $\\int \\frac{6}{2x + 1} \\, dx = 3\\ln|2x + 1| + C$.',
+              ),
+              prose(
+                'Where $x > 0$ and every bracket is positive, the bars can be left off. Type $\\ln(2x + 1)$ with the $\\ln$ key.',
+              ),
+            ),
+            ask('int-pf-log-term'),
+            ask('int-pf-log-term+choice'),
+            askAfter([prose('Before a fraction over two brackets can be integrated, it has to be split.')], 'int-pf-coefficients'),
+            teach(
+              prose('So a fraction over two brackets integrates in two moves: split it, then integrate each part.'),
+              maths('\\int \\frac{5x + 7}{(x + 1)(x + 2)} \\, dx'),
+              maths('= \\int \\left(\\frac{2}{x + 1} + \\frac{3}{x + 2}\\right) dx'),
+              maths('= 2\\ln|x + 1|'),
+              maths('+ 3\\ln|x + 2| + C'),
+            ),
+            ask('int-pf-integrate-tiles'),
+            ask('int-pf-integrate'),
+            askAfter(
+              [prose('The split still rests on cover-up. Find the numerator this calculation gives.')],
+              'int-pf-cover-up+choice',
+            ),
+            teach(
+              prose('If the bottom comes multiplied out, factorise it first: $x^{2} + 3x + 2 = (x + 1)(x + 2)$.'),
+              prose(
+                'Check an answer by differentiating it: each logarithm gives back its own fraction, and together they add up to the one you started with.',
+              ),
+            ),
+            ask('int-pf-integrate+choice', 2),
+            ask('int-pf-integrate-tiles', 2),
+          ],
+          skillCheck: [
+            ask('int-pf-integrate', 2),
+            ask('int-pf-integrate+choice', 2),
+            ask('int-pf-log-term', 2),
+          ],
+        },
+        {
+          id: 'in-l6-definite',
+          title: 'Definite Integrals and Log Laws',
+          slides: [
+            teach(
+              prose('With limits, put the numbers into the logarithms and subtract, as for any definite integral.'),
+              maths('\\int_{0}^{1} \\frac{2x + 3}{(x + 1)(x + 2)} \\, dx'),
+              maths('= \\left[\\ln|x + 1| + \\ln|x + 2|\\right]_{0}^{1}'),
+              maths('= \\ln 2 + \\ln 3 - \\ln 1 - \\ln 2'),
+              prose('That is $\\ln 3$, since $\\ln 1 = 0$. Taking one log from another divides inside them: $\\ln 6 - \\ln 2 = \\ln 3$.'),
+            ),
+            ask('int-pf-substitute'),
+            ask('int-pf-find-limit'),
+            ask('int-pf-definite'),
+            teach(
+              prose('An answer is usually left as a single logarithm. Three laws do the collapsing:'),
+              maths('\\ln p + \\ln q = \\ln pq'),
+              maths('\\ln p - \\ln q = \\ln\\frac{p}{q}'),
+              maths('k\\ln p = \\ln p^{k}'),
+              prose(
+                'A number in front goes in as a power first, then the logs combine: $2\\ln 3 - \\ln 2 = \\ln 9 - \\ln 2 = \\ln\\frac{9}{2}$.',
+              ),
+            ),
+            ask('int-pf-definite', 2),
+            ask('int-pf-substitute', 2),
+            ask('int-pf-find-limit', 2),
+            teach(
+              prose(
+                'One shortcut skips the splitting altogether. When the top is a number times the derivative of the bottom, the integral is that number times the log of the bottom:',
+              ),
+              maths("\\int \\frac{f'(x)}{f(x)} \\, dx = \\ln|f(x)| + C"),
+              prose(
+                'In $\\int \\frac{x}{x^{2} + 1} \\, dx$ the derivative of the bottom is $2x$ and the top is half of it, so the answer is $\\frac{1}{2}\\ln(x^{2} + 1) + C$.',
+              ),
+            ),
+            ask('int-pf-fprime'),
+            ask('int-pf-fprime+choice'),
+          ],
+          skillCheck: [
+            ask('int-pf-definite', 2),
+            ask('int-pf-fprime', 2),
+            ask('int-pf-substitute', 2),
+          ],
+        },
+        {
+          id: 'in-l6-forms',
+          title: 'Top-Heavy Fractions and Repeated Brackets',
+          slides: [
+            teach(
+              prose('Splitting needs the top lower in degree than the bottom. When it is not, divide first.'),
+              maths('\\frac{x^{2} + 3x + 5}{(x + 1)(x + 2)}'),
+              maths('= 1 + \\frac{3}{(x + 1)(x + 2)}'),
+              maths('= 1 + \\frac{3}{x + 1} - \\frac{3}{x + 2}'),
+              prose(
+                'The bottom, $x^{2} + 3x + 2$, goes into the top once with $3$ left over, and only the leftover is split. The $1$ integrates to $x$.',
+              ),
+            ),
+            ask('int-pf-divide'),
+            ask('int-pf-top-heavy'),
+            ask('int-pf-form-flow'),
+            teach(
+              prose('A repeated bracket needs one fraction for each power of it:'),
+              maths('\\frac{3x + 5}{(x + 1)^{2}}'),
+              maths('= \\frac{3}{x + 1} + \\frac{2}{(x + 1)^{2}}'),
+              prose(
+                'The first part integrates to a logarithm. The second is a power, $2(x + 1)^{-2}$, which integrates to $-\\frac{2}{x + 1}$ with no logarithm in it.',
+              ),
+            ),
+            ask('int-pf-repeated'),
+            ask('int-pf-repeated-integrate'),
+            ask('int-pf-top-heavy+choice'),
+            teach(
+              prose(
+                'Before splitting anything, ask in this order. Is the top lower in degree? Is it a number times the derivative of the bottom? Is a bracket repeated?',
+              ),
+              prose('The answers pick the method: divide first, the logarithm shortcut, or a split with one fraction for each power.'),
+            ),
+            ask('int-pf-form-flow', 2),
+            ask('int-pf-repeated-integrate+choice', 2),
+          ],
+          skillCheck: [
+            ask('int-pf-top-heavy', 2),
+            ask('int-pf-repeated-integrate+choice', 2),
+            ask('int-pf-divide', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('int-pf-coefficients', 2),
+        ask('int-pf-log-term', 2),
+        ask('int-pf-pole-slider', 2),
+        ask('int-pf-integrate', 2),
+        ask('int-pf-recombine', 2),
+        ask('int-pf-cover-up', 2),
+        ask('int-pf-integrate-tiles', 2),
+        ask('int-pf-definite', 2),
+        ask('int-pf-find-limit', 2),
+        ask('int-pf-fprime+choice', 2),
+        ask('int-pf-divide', 2),
+        ask('int-pf-top-heavy', 2),
+        ask('int-pf-form-flow', 2),
+        ask('int-pf-repeated-integrate', 2),
       ],
     },
   ],

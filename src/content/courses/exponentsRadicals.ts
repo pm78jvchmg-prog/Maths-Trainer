@@ -1542,6 +1542,43 @@ export const exponentsRadicals: Course = {
           ],
           skillCheck: [ask('grow-pct-value', 2), ask('grow-pct-flow', 2), ask('grow-pct-slider', 2)],
         },
+        {
+          id: 'er-l7-decay',
+          title: 'Decay and Negative Indices',
+          slides: [
+            teach(
+              prose(
+                'Decay is repeated multiplication by a number less than 1. Halving multiplies by $\\frac{1}{2}$, so halving $n$ times multiplies by',
+              ),
+              maths('\\left(\\frac{1}{2}\\right)^{n} = \\frac{1}{2^{n}} = 2^{-n}'),
+              prose(
+                'A negative index is one over the power, so it makes a value smaller, never negative: $800 \\times 2^{-3} = \\frac{800}{8} = 100$.',
+              ),
+            ),
+            ask('grow-decay-tiles'),
+            ask('grow-trend-flow'),
+            ask('grow-half-life'),
+            teach(
+              prose('The half-life is the time something takes to halve. With a half-life of 6 hours, 18 hours is 3 half-lives:'),
+              working('18 \\div 6 &= 3', '160 \\times 2^{-3} &= 20'),
+              prose(
+                'To find when it first drops below a value, halve and count: $160 \\to 80 \\to 40 \\to 20$ is first below 30 after 3 halvings, which is 18 hours. On a graph, the half-life is where the curve comes down to half its starting height.',
+              ),
+            ),
+            ask('grow-halflife-slider'),
+            ask('grow-decay-tiles', 2),
+            ask('grow-half-life+choice', 2),
+            teach(
+              prose('A quarter is two halvings and an eighth is three, so they take two and three half-lives.'),
+              prose(
+                'A negative index turns a fraction over: $\\left(\\frac{2}{3}\\right)^{-n} = \\left(\\frac{3}{2}\\right)^{n}$, which grows. What decides growth or decay is whether each step multiplies by more or less than 1.',
+              ),
+            ),
+            ask('grow-halflife-slider', 2),
+            ask('grow-trend-flow', 2),
+          ],
+          skillCheck: [ask('grow-half-life', 2), ask('grow-halflife-slider', 2), ask('grow-trend-flow', 2)],
+        },
       ],
     },
   ],

@@ -45,6 +45,8 @@ const working = (...lines: string[]) =>
 
 export const polynomials: Course = {
   id: 'polynomials',
+  category: 'algebra-fundamentals',
+  position: 40,
   title: 'Polynomials & the Factor Theorem',
   blurb: 'Cubics and beyond: their arithmetic, dividing them, and the theorem that finds their factors.',
   levels: [

@@ -12,8 +12,13 @@
  * than the widget, since the widget grades curves and for a symmetrical curve
  * the two reflections draw the same thing.
  *
- * Later levels — graphs of functions, even and odd functions, and the rest —
- * are in `docs/roadmap/levels/functions-transformations.md`.
+ * Level 3 sketches graphs from their features: where a curve crosses the
+ * axes, the asymptotes of $\frac{a}{x - h} + k$, what happens at the ends,
+ * and $f(x) = k$ read as a horizontal line meeting the curve. It closes by
+ * moving $\frac{1}{x}$ onto a rule and reading a rule back off a sketch.
+ *
+ * Later levels — even and odd functions, and the rest — are in
+ * `docs/roadmap/levels/functions-transformations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -62,6 +67,44 @@ const graph = (
       ...dashed.map((f) => ({ f, dashed: true })),
     ],
     verticals: [{ x: 0, dashed: false }],
+    label,
+  }),
+});
+
+/** A curve with a dashed horizontal line across it: the line y = k. */
+const diagram = (
+  fs: ((x: number) => number)[],
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  horizontals: number[],
+  label: string,
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: fs.map((f, idx) => ({ f, accent: idx === 0 })),
+    verticals: [{ x: 0, dashed: false }],
+    horizontals,
+    label,
+  }),
+});
+
+/**
+ * A reciprocal-type curve in its two pieces, with its asymptotes dashed. The
+ * pen lifts at the vertical asymptote so no stroke joins the arms.
+ */
+const brokenGraph = (
+  f: (x: number) => number,
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  asymptotes: { x: number; y: number },
+  label: string,
+  dashed: ((x: number) => number)[] = [],
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: [{ f, accent: true, breaks: true }, ...dashed.map((g) => ({ f: g, dashed: true, breaks: true }))],
+    verticals: [{ x: 0, dashed: false }, { x: asymptotes.x }],
+    horizontals: [asymptotes.y],
     label,
   }),
 });
@@ -526,6 +569,203 @@ export const functionsTransformations: Course = {
         ask('fun-describe-form', 2),
         ask('fun-describe-words', 2),
         ask('fun-combine-apply', 2),
+      ],
+    },
+    {
+      id: 'fn-l3',
+      title: 'Graphs of Functions',
+      lessons: [
+        {
+          id: 'fn-l3-intercepts',
+          title: 'Intercepts',
+          slides: [
+            teach(
+              prose('A curve crosses the $y$-axis where $x = 0$, so at the point $(0, f(0))$. Write $0$ for every $x$:'),
+              maths('\\begin{gathered} f(x) = (x - 3)(x + 2) \\\\ f(0) = (-3)(2) = -6 \\end{gathered}'),
+              graph(
+                [(x) => (x - 3) * (x + 2)],
+                { xMin: -4, xMax: 5, yMin: -8, yMax: 6 },
+                'The parabola y = (x - 3)(x + 2), crossing the y-axis at -6 and the x-axis at -2 and 3',
+              ),
+            ),
+            ask('fun-y-intercept'),
+            ask('fun-root-slider'),
+            ask('fun-intercepts'),
+            teach(
+              prose('It crosses the $x$-axis where $y = 0$, so solve $f(x) = 0$. A product is zero when one of its brackets is:'),
+              maths('\\begin{gathered} (x - 3)(x + 2) = 0 \\\\ x = 3 \\text{ or } x = -2 \\end{gathered}'),
+              prose('Each root is its bracket\'s number with the sign turned round. Read the other way, a root at $x = 3$ means a bracket $(x - 3)$.'),
+            ),
+            ask('fun-graph-rule'),
+            ask('fun-y-intercept+choice', 2),
+            ask('fun-root-slider', 2),
+            teach(
+              prose('The same two moves work on any rule. For $y = \\frac{6}{x - 3} + 1$:'),
+              maths('x = 0: \\quad y = \\frac{6}{-3} + 1 = -1'),
+              maths('\\begin{gathered} y = 0: \\quad \\frac{6}{x - 3} = -1 \\\\ x - 3 = -6 \\\\ x = -3 \\end{gathered}'),
+              prose('So it meets the axes at $(0, -1)$ and $(-3, 0)$.'),
+            ),
+            ask('fun-intercepts', 2),
+            ask('fun-graph-rule', 2),
+          ],
+          skillCheck: [ask('fun-y-intercept', 2), ask('fun-root-slider', 2), ask('fun-intercepts', 2)],
+        },
+        {
+          id: 'fn-l3-reciprocal',
+          title: 'Graphs of a/(x - h) + k',
+          slides: [
+            teach(
+              prose('$y = \\frac{1}{x}$ comes in two pieces. There is no $\\frac{1}{0}$, so the curve never touches $x = 0$; and a fraction with $1$ on top is never $0$, so it never touches $y = 0$ either.'),
+              brokenGraph(
+                (x) => 1 / x,
+                { xMin: -5, xMax: 5, yMin: -5, yMax: 5 },
+                { x: 0, y: 0 },
+                'The curve y = 1/x, in two pieces either side of the axes',
+              ),
+              prose('A line a curve gets closer and closer to without reaching is an **asymptote**. Here they are the two axes.'),
+            ),
+            ask('fun-asymptote-slider'),
+            ask('fun-asymptote-tiles'),
+            ask('fun-asymptote-flow'),
+            teach(
+              prose('$y = \\frac{a}{x - h} + k$ is the same shape moved. Its asymptotes move with it:'),
+              prose('**vertical**, where the bottom is zero: $x = h$; **horizontal**, since the fraction heads for $0$ as $x$ grows: $y = k$.'),
+              brokenGraph(
+                (x) => 2 / (x - 1) + 2,
+                { xMin: -4, xMax: 6, yMin: -4, yMax: 8 },
+                { x: 1, y: 2 },
+                'The curve y = 2/(x - 1) + 2, with dashed asymptotes x = 1 and y = 2',
+              ),
+            ),
+            ask('fun-asymptote-k'),
+            ask('fun-asymptote-slider', 2),
+            ask('fun-asymptote-flow', 2),
+            teach(
+              prose('Find $h$ from the bottom, not from the number on show. In $y = \\frac{3}{2x - 6}$ the bottom is zero when $x = 3$, and in $y = \\frac{3}{4 - x}$ when $x = 4$.'),
+              prose('A missing number comes from any point on the curve: put its coordinates in. If $y = \\frac{4}{x - 1} + k$ passes through $(3, 5)$, then $5 = 2 + k$, so $k = 3$.'),
+            ),
+            ask('fun-asymptote-tiles', 2),
+            ask('fun-asymptote-k', 2),
+          ],
+          skillCheck: [ask('fun-asymptote-slider', 2), ask('fun-asymptote-tiles', 2), ask('fun-asymptote-k', 2)],
+        },
+        {
+          id: 'fn-l3-ends',
+          title: 'The Ends of a Graph',
+          slides: [
+            teach(
+              prose('What a curve does far out to the left and right is part of its shape. Write $x \\to \\infty$ for "as $x$ grows without limit".'),
+              prose('As $x \\to \\infty$: $x^2$ runs away, $y \\to \\infty$; $\\frac{1}{x}$ dies away, $y \\to 0$; and $\\frac{2x + 1}{x - 3}$ settles, $y \\to 2$.'),
+              prose('A curve that settles on a number has a horizontal asymptote there.'),
+            ),
+            ask('fun-end-choice'),
+            ask('fun-leading-flow'),
+            ask('fun-limit-tiles'),
+            teach(
+              prose('For a fraction, only the highest powers matter once $x$ is large. Divide every term by $x$ to see it:'),
+              maths('\\begin{gathered} \\frac{6x + 1}{2x - 3} = \\frac{6 + \\frac{1}{x}}{2 - \\frac{3}{x}} \\\\ \\to \\frac{6 + 0}{2 - 0} = 3 \\end{gathered}'),
+              prose('So: the same highest power on top and bottom, $y$ heads for the ratio of their numbers; a higher power on the bottom, $y \\to 0$; on the top, $y$ runs away.'),
+            ),
+            ask('fun-divide-steps'),
+            ask('fun-end-choice', 2),
+            ask('fun-leading-flow', 2),
+            teach(
+              prose('The two ends need not agree. $x^3$ keeps the sign of $x$, so $y \\to -\\infty$ on the left and $y \\to \\infty$ on the right.'),
+              prose('$2^x$ runs away on the right, but on the left it shrinks towards $0$ — so $2^x + 3$ heads for $3$ on the left and has a horizontal asymptote there only.'),
+            ),
+            ask('fun-limit-tiles', 2),
+            ask('fun-divide-steps', 2),
+          ],
+          skillCheck: [ask('fun-end-choice', 2), ask('fun-limit-tiles', 2), ask('fun-leading-flow', 2)],
+        },
+        {
+          id: 'fn-l3-meet',
+          title: 'Solving f(x) = k with a Line',
+          slides: [
+            teach(
+              prose('A solution of $f(x) = k$ is an $x$ where the curve is at height $k$. So draw the line $y = k$: each place it meets the curve is one solution.'),
+              diagram(
+                [(x) => (x - 1) ** 2 - 3],
+                { xMin: -3, xMax: 5, yMin: -4, yMax: 6 },
+                [2],
+                'The parabola y = (x - 1)^2 - 3 and the dashed line y = 2, meeting twice',
+              ),
+              prose('Here $f(x) = 2$ has two solutions, one on each arm.'),
+            ),
+            ask('fun-meet-count'),
+            ask('fun-meet-flow'),
+            ask('fun-meet-solve'),
+            teach(
+              prose('$(x - h)^2 + c$ is lowest at its vertex, at height $c$. A line above the vertex meets it twice, a line through it once, a line below it not at all. With the square taken away, $c - (x - h)^2$, the curve opens downwards and that turns round.'),
+              prose('To find them, undo the rule one step at a time — and a square root gives two answers:'),
+              maths('\\begin{gathered} (x - 1)^2 - 3 = 6 \\\\ (x - 1)^2 = 9 \\\\ x - 1 = \\pm 3 \\end{gathered}'),
+              prose('So $x = 4$ or $x = -2$.'),
+            ),
+            ask('fun-meet-tiles'),
+            ask('fun-meet-count', 2),
+            ask('fun-meet-flow', 2),
+            teach(
+              prose('When the rule is multiplied out, take $k$ across first so one side is $0$, then factorise:'),
+              maths('\\begin{gathered} x^2 - 2x - 1 = 2 \\\\ x^2 - 2x - 3 = 0 \\\\ (x - 3)(x + 1) = 0 \\end{gathered}'),
+              prose('Factorising $f(x)$ itself would find where the curve meets $y = 0$ — a different line.'),
+            ),
+            ask('fun-meet-solve+choice', 2),
+            ask('fun-meet-tiles', 2),
+          ],
+          skillCheck: [ask('fun-meet-count', 2), ask('fun-meet-solve', 2), ask('fun-meet-tiles', 2)],
+        },
+        {
+          id: 'fn-l3-sketch',
+          title: 'Sketching and Reading Graphs',
+          slides: [
+            teach(
+              prose('To sketch $y = \\frac{1}{x - 2} + 1$, start from $y = \\frac{1}{x}$ and move it $2$ right and $1$ up. The asymptotes go with it, to $x = 2$ and $y = 1$.'),
+              brokenGraph(
+                (x) => 1 / (x - 2) + 1,
+                { xMin: -3, xMax: 6, yMin: -4, yMax: 5 },
+                { x: 2, y: 1 },
+                'The curve y = 1/x, dashed, and the same curve moved 2 right and 1 up',
+                [(x) => 1 / x],
+              ),
+              prose('Draw the asymptotes first, then a branch in each of two opposite corners.'),
+            ),
+            ask('fun-sketch-apply'),
+            ask('fun-sketch-rule'),
+            ask('fun-features-tree'),
+            teach(
+              prose('Reading a sketch runs the other way: the dashed lines give $h$ and $k$, the vertical one with its sign turned round inside the bracket.'),
+              prose('A number on top stretches the branches away from the corner: $\\frac{3}{x}$ is three times as far out as $\\frac{1}{x}$. A minus in front, $-\\frac{1}{x}$, flips them into the other two corners.'),
+            ),
+            ask('fun-sketch-match'),
+            ask('fun-features-tree', 2),
+            ask('fun-sketch-apply', 2),
+            teach(
+              prose('To find the number on top, take $k$ across:'),
+              maths('\\begin{gathered} y - k = \\frac{a}{x - h} \\\\ a = (x - h)(y - k) \\end{gathered}'),
+              prose('So at any point on the curve, $a$ is how far across it is from $x = h$ times how far up from $y = k$. Through $(4, 5)$ with asymptotes $x = 2$ and $y = 1$: $a = 2 \\times 4 = 8$.'),
+            ),
+            ask('fun-sketch-rule', 2),
+            ask('fun-sketch-match', 2),
+          ],
+          skillCheck: [ask('fun-sketch-apply', 2), ask('fun-sketch-rule', 2), ask('fun-features-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('fun-y-intercept', 2),
+        ask('fun-root-slider', 2),
+        ask('fun-graph-rule', 2),
+        ask('fun-intercepts', 2),
+        ask('fun-asymptote-slider', 2),
+        ask('fun-asymptote-k', 2),
+        ask('fun-asymptote-flow', 2),
+        ask('fun-end-choice', 2),
+        ask('fun-limit-tiles', 2),
+        ask('fun-leading-flow', 2),
+        ask('fun-meet-count', 2),
+        ask('fun-meet-solve', 2),
+        ask('fun-meet-tiles', 2),
+        ask('fun-sketch-match', 2),
+        ask('fun-features-tree', 2),
       ],
     },
   ],

@@ -2,11 +2,9 @@
 
 Written by C2.
 
-Has: Functions; Transformations.
+Has: Functions; Transformations; Graphs of Functions.
 
-Needs: Graphs of Functions (sketching from key features: intercepts,
-asymptotes of 1/x-type graphs, behaviour at the ends, reading f(x) = k as a
-horizontal line meeting the curve); Even, Odd and Periodic Functions (f(-x)
+Needs: Even, Odd and Periodic Functions (f(-x)
 against f(x) and -f(x), symmetry in the y-axis and about the origin, period from
 the graph and from the rule, piecewise-defined functions); Transformations of
 Trigonometric Graphs (y = a sin(bx + c) + d read as stretches and translations,

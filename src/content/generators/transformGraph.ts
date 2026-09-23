@@ -164,13 +164,18 @@ function moveStep({ t }: TransformParams, move: Move): SolutionStep {
   }
 }
 
-function solution(params: TransformParams, direction: 'apply' | 'match'): SolutionStep[] {
+function solution(
+  params: TransformParams,
+  direction: 'apply' | 'match',
+  targetTex?: (t: Transform) => string,
+): SolutionStep[] {
   const steps: SolutionStep[] = [
     direction === 'apply'
       ? { text: `Start from $y = f(x)$ with $f(x) = ${BASES[params.base].tex}$ and read the target one change at a time.` }
       : { text: `Start from $y = f(x)$ with $f(x) = ${BASES[params.base].tex}$ and compare it with the shaded curve.` },
     ...params.moves.map((move) => moveStep(params, move)),
     { tex: transformTex(params.t) },
+    ...(targetTex ? [{ tex: targetTex(params.t) }] : []),
   ];
   if (direction === 'match') {
     steps.push({ text: 'Any set of moves that draws the same curve is marked right.' });
@@ -178,12 +183,16 @@ function solution(params: TransformParams, direction: 'apply' | 'match'): Soluti
   return steps;
 }
 
-function render(params: TransformParams, direction: 'apply' | 'match'): Slide {
+function render(
+  params: TransformParams,
+  direction: 'apply' | 'match',
+  targetTex?: (t: Transform) => string,
+): Slide {
   const prompt: Block[] =
     direction === 'apply'
       ? [
           { kind: 'prose', text: `${curveIs(params.base)} Move your curve onto` },
-          { kind: 'display', tex: transformTex(params.t) },
+          { kind: 'display', tex: (targetTex ?? transformTex)(params.t) },
         ]
       : [
           {
@@ -225,9 +234,9 @@ const transformMatch: Generator<TransformParams> = {
  * left to right on a curve already moved across, never the untouched curve,
  * and enough of the target on screen to lay a curve onto.
  */
-function sampleWith(rng: Rng, pick: (rng: Rng) => Move[]): TransformParams {
+function sampleWith(rng: Rng, pick: (rng: Rng) => Move[], bases: BaseCurve[] = CURVES): TransformParams {
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    const base = rng.pick(CURVES);
+    const base = rng.pick(bases);
     const picked = pick(rng);
     if (picked.some((move) => (DUPLICATE_MOVES[base] ?? []).includes(move))) continue;
     if (picked.includes('flipX') && picked.includes('moveX')) continue;
@@ -241,21 +250,32 @@ function sampleWith(rng: Rng, pick: (rng: Rng) => Move[]): TransformParams {
   return { base: 'square', moves: ['moveY'], t: { ...IDENTITY, k: 2 } };
 }
 
+interface PairOptions {
+  /** The curves a question may start from; every curve when left out. */
+  bases?: BaseCurve[];
+  /** The target written out in full, in place of `y = f(...)`, where the lesson is about the rule itself. */
+  targetTex?: (t: Transform) => string;
+}
+
 /** One lesson's pair: the target named and the curve asked for, then the reverse. */
-function lessonPair(name: string, pick: (rng: Rng, difficulty: number) => Move[]): Generator<TransformParams>[] {
-  const draw = (rng: Rng, difficulty: number) => sampleWith(rng, (r) => pick(r, difficulty));
+function lessonPair(
+  name: string,
+  pick: (rng: Rng, difficulty: number) => Move[],
+  { bases, targetTex }: PairOptions = {},
+): Generator<TransformParams>[] {
+  const draw = (rng: Rng, difficulty: number) => sampleWith(rng, (r) => pick(r, difficulty), bases);
   return [
     {
       id: `fun-${name}-apply`,
       sample: draw,
-      render: (params) => render(params, 'apply'),
-      solution: (params) => solution(params, 'apply'),
+      render: (params) => render(params, 'apply', targetTex),
+      solution: (params) => solution(params, 'apply', targetTex),
     },
     {
       id: `fun-${name}-match`,
       sample: draw,
       render: (params) => render(params, 'match'),
-      solution: (params) => solution(params, 'match'),
+      solution: (params) => solution(params, 'match', targetTex),
     },
   ];
 }
@@ -297,6 +317,31 @@ const combinePair = lessonPair('combine', (rng, difficulty) => {
   return difficulty > 1 ? [shape, 'moveX', 'moveY'] : [shape, rng.pick(ACROSS_OR_UP)];
 });
 
+/**
+ * `a/(x - h) + k` written out, for a reciprocal moved and stretched upwards:
+ * `\frac{1}{x - 2} + 3`, `-\frac{3}{x + 1}`, `\frac{1}{2(x - 4)} - 1`.
+ */
+function reciprocalTex(t: Transform): string {
+  const across = t.h === 0 ? 'x' : t.h > 0 ? `x - ${t.h}` : `x + ${-t.h}`;
+  const whole = Number.isInteger(t.sy);
+  const squash = Math.round(1 / t.sy);
+  const bottom = whole ? across : t.h === 0 ? `${squash}x` : `${squash}(${across})`;
+  const tail = t.k === 0 ? '' : t.k > 0 ? ` + ${t.k}` : ` - ${-t.k}`;
+  return `y = ${t.fy ? '-' : ''}\\frac{${whole ? t.sy : 1}}{${bottom}}${tail}`;
+}
+
+/**
+ * Sketching `a/(x - h) + k` from `1/x` (batch C2-l3): the asymptotes move to
+ * `x = h` and `y = k`, one at difficulty 1 each way; difficulty 2 stretches or
+ * flips the curve too, which is the `a`. Always both moves, since the lesson
+ * is about placing both asymptotes.
+ */
+const sketchPair = lessonPair(
+  'sketch',
+  (rng, difficulty) => (difficulty > 1 ? [rng.pick<Move>(['stretchY', 'flipY']), 'moveX', 'moveY'] : ['moveX', 'moveY']),
+  { bases: ['recip'], targetTex: reciprocalTex },
+);
+
 export const transformGraphGenerators = [
   transformApply,
   transformMatch,
@@ -304,4 +349,5 @@ export const transformGraphGenerators = [
   ...stretchPair,
   ...reflectPair,
   ...combinePair,
+  ...sketchPair,
 ];

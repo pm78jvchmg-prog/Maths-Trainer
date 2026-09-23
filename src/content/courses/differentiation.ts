@@ -1073,7 +1073,7 @@ export const differentiation: Course = {
                 'A stationary point is a *point*, so it needs a $y$-coordinate too. That comes from the curve: put the $x$ you found back into $y$, not into $\\frac{dy}{dx}$.',
               ),
               { kind: 'display', tex: 'y = x^{3} - 3x^{2} - 9x + 5' },
-              { kind: 'display', tex: 'x = 3: \\quad y = 27 - 27 - 27 + 5 = -22' },
+              prose('At $x = 3$ that gives $y = 27 - 27 - 27 + 5 = -22$, so the point is $(3, -22)$.'),
               prose(
                 'Putting it into the derivative instead gives $0$ every time. That is how the point was found in the first place, and it says nothing about its height.',
               ),
@@ -1085,7 +1085,8 @@ export const differentiation: Course = {
               prose(
                 'You can say how many stationary points a cubic has before solving anything. Its derivative is a quadratic, and a quadratic\'s discriminant counts its roots.',
               ),
-              { kind: 'display', tex: '\\frac{d}{dx}\\left(ax^{3} + bx^{2} + cx + d\\right) = 3ax^{2} + 2bx + c' },
+              { kind: 'display', tex: 'y = ax^{3} + bx^{2} + cx + d' },
+              { kind: 'display', tex: '\\frac{dy}{dx} = 3ax^{2} + 2bx + c' },
               prose(
                 'A positive discriminant means two stationary points, zero means one, and negative means none at all: the curve runs the same way from end to end.',
               ),
@@ -1247,7 +1248,8 @@ export const differentiation: Course = {
               prose(
                 'Some functions never turn at all. If $f\'(x)$ is positive everywhere, the function is increasing everywhere.',
               ),
-              { kind: 'display', tex: 'f(x) = x^{3} + 3x \\quad \\Rightarrow \\quad f\'(x) = 3x^{2} + 3' },
+              { kind: 'display', tex: 'f(x) = x^{3} + 3x' },
+              { kind: 'display', tex: 'f\'(x) = 3x^{2} + 3' },
               prose(
                 'A square is never negative, so $f\'(x)$ is always at least $3$: no stationary points, and the curve climbs from left to right without a pause.',
               ),

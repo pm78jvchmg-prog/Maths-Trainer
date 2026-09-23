@@ -2025,21 +2025,23 @@ const stationaryY: Generator<CubicPoint> = {
     const [a, b, c, d] = cubicCoefficients(cubic);
     const y = cubicAt(cubic, s);
     const at = `\\left(${s}\\right)`;
-    const substituted = sumTex([
-      `${leadingTex(a)}${at}^{3}`,
-      b === 0 ? '0' : `${leadingTex(b)}${at}^{2}`,
-      c === 0 ? '0' : `${leadingTex(c)}${at}`,
-      `${d}`,
-    ]);
+    // One term per line: the whole substitution on one line runs off the side
+    // of a phone, and so does even a pair of terms.
+    const terms = [
+      `${leadingTex(a)}${at}^{3} = ${a * s ** 3}`,
+      b === 0 ? '' : `${leadingTex(b)}${at}^{2} = ${b * s ** 2}`,
+      c === 0 ? '' : `${leadingTex(c)}${at} = ${c * s}`,
+    ].filter((term) => term !== '');
     const worked = sumTex([`${a * s ** 3}`, `${b * s ** 2}`, `${c * s}`, `${d}`]);
     return [
       {
-        text: `The $x$-coordinate came from $f'(x) = 0$. The $y$-coordinate is the height of the curve there, so it comes from $f$ itself.`,
-        tex: `f(${s}) = ${substituted}`,
+        text: `The $x$-coordinate came from $f'(x) = 0$. The $y$-coordinate is the height of the curve there, so it comes from $f$ itself. Powers first, then each multiplication:`,
+        tex: terms[0],
       },
+      ...terms.slice(1).map((tex) => ({ tex })),
       {
-        text: 'Powers first, then each multiplication, then the additions from left to right.',
-        tex: `= ${worked === '' ? '0' : worked}`,
+        text: `Then the additions, from left to right: $${worked === '' ? '0' : worked}$.`,
+        tex: `f(${s}) = ${y}`,
       },
       {
         text: 'So the stationary point is:',
@@ -2089,10 +2091,13 @@ const stationaryYTree: Generator<SymmetricParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `$f(x) = ${sumTex([termTex(m, 3), termTex(c, 1), termTex(d, 0)])}$ is flat at $x = ${s}$. Fill the tree to find the height of the curve there: the top row is what can be done straight away.`,
+          text: `This curve is flat at $x = ${s}$. Fill the tree to find its height there, $f(${s})$: the top row is what can be done straight away.`,
         },
+        { kind: 'display', tex: `f(x) = ${sumTex([termTex(m, 3), termTex(c, 1), termTex(d, 0)])}` },
       ],
-      expression: `f(${s}) = ${m} \\times ${bracketedNumber(s)}^{3} ${c < 0 ? '-' : '+'} ${Math.abs(c)} \\times ${bracketedNumber(s)}${constantTex(d)}`,
+      // No `f(s) =` in front: on a phone the line then runs out of room
+      // before its last term.
+      expression: `${m} \\times ${bracketedNumber(s)}^{3} ${c < 0 ? '-' : '+'} ${Math.abs(c)} \\times ${bracketedNumber(s)}${constantTex(d)}`,
       nodes: [
         { id: 'cube', from: [] },
         { id: 'linear', from: [] },
@@ -2114,7 +2119,10 @@ const stationaryYTree: Generator<SymmetricParams> = {
     return [
       {
         text: 'The derivative has no $x$ term, so it factorises as a difference of two squares, and the curve is flat at a matching pair of points.',
-        tex: `f'(x) = ${sumTex([termTex(3 * m, 2), termTex(c, 0)])} = ${factoredTex(3 * m, [
+        tex: `f'(x) = ${sumTex([termTex(3 * m, 2), termTex(c, 0)])}`,
+      },
+      {
+        tex: `= ${factoredTex(3 * m, [
           [-r, 1],
           [r, 1],
         ])}`,
@@ -2124,8 +2132,8 @@ const stationaryYTree: Generator<SymmetricParams> = {
         tex: `${m} \\times ${s ** 3} = ${cubeTerm}`,
       },
       {
-        text: `The other product is $${Math.abs(c)} \\times ${bracketedNumber(s)} = ${Math.abs(c) * s}$, taken ${c < 0 ? 'away' : 'added on'} in the last box along with the constant.`,
-        tex: `f(${s}) = ${cubeTerm} ${linearTerm < 0 ? '-' : '+'} ${Math.abs(linearTerm)}${constantTex(d)} = ${cubeTerm + linearTerm + d}`,
+        text: `The other product is $${Math.abs(c)} \\times ${bracketedNumber(s)} = ${Math.abs(c) * s}$, taken ${c < 0 ? 'away' : 'added on'} in the last box along with the constant: $${cubeTerm} ${linearTerm < 0 ? '-' : '+'} ${Math.abs(linearTerm)}${constantTex(d)}$.`,
+        tex: `f(${s}) = ${cubeTerm + linearTerm + d}`,
       },
     ];
   },
@@ -2205,8 +2213,9 @@ const stationarySliderCubic: Generator<SliderPointParams> = {
     return [
       {
         text: 'Differentiate and set the derivative to zero to find both flat places.',
-        tex: `${cubicFactoredTex(cubic)} = 0 \\quad \\Rightarrow \\quad x = ${cubic.p}, \\; x = ${cubic.q}`,
+        tex: `${cubicFactoredTex(cubic)} = 0`,
       },
+      { tex: `x = ${cubic.p}, \\quad x = ${cubic.q}` },
       {
         text: `The second derivative says which is which: $f''(x) = ${cubicSecondTex(cubic)}$.`,
         tex: `f''(${x}) = ${second}`,
@@ -2277,8 +2286,8 @@ const stationaryCount: Generator<CountParams> = {
         tex: `\\frac{dy}{dx} = ${sumTex([termTex(3 * a, 2), termTex(2 * b, 1), termTex(c, 0)])}`,
       },
       {
-        text: 'Its discriminant counts how many times that quadratic is zero.',
-        tex: `\\left(${2 * b}\\right)^{2} - 4 \\times ${bracketedNumber(3 * a)} \\times ${bracketedNumber(c)} = ${discriminant}`,
+        text: `Its discriminant counts how many times that quadratic is zero: $\\left(${2 * b}\\right)^{2} - 4 \\times ${bracketedNumber(3 * a)} \\times ${bracketedNumber(c)}$.`,
+        tex: `b^{2} - 4ac = ${discriminant}`,
       },
       {
         text:
@@ -2336,10 +2345,12 @@ function secondForms({ form, a, b, c, e, A, k }: SecondParams) {
   }
   if (form === 'quartic') {
     return {
-      f: sumTex([termTex(a, 4), termTex(b, 3), termTex(c, 2), termTex(e, 1)]),
-      source: sumAnswer([termAnswer(a, 4), termAnswer(b, 3), termAnswer(c, 2), termAnswer(e, 1)]),
-      first: sumTex([termTex(4 * a, 3), termTex(3 * b, 2), termTex(2 * c, 1), termTex(e, 0)]),
-      firstAnswer: sumAnswer([termAnswer(4 * a, 3), termAnswer(3 * b, 2), termAnswer(2 * c, 1), termAnswer(e, 0)]),
+      // Three terms, not four: a four-term first derivative runs off the side
+      // of a phone in the worked solution.
+      f: sumTex([termTex(a, 4), termTex(b, 3), termTex(c, 2)]),
+      source: sumAnswer([termAnswer(a, 4), termAnswer(b, 3), termAnswer(c, 2)]),
+      first: sumTex([termTex(4 * a, 3), termTex(3 * b, 2), termTex(2 * c, 1)]),
+      firstAnswer: sumAnswer([termAnswer(4 * a, 3), termAnswer(3 * b, 2), termAnswer(2 * c, 1)]),
       second: sumTex([termTex(12 * a, 2), termTex(6 * b, 1), termTex(2 * c, 0)]),
       secondAnswer: sumAnswer([termAnswer(12 * a, 2), termAnswer(6 * b, 1), termAnswer(2 * c, 0)]),
       keypad: ALGEBRA_KEYS,
@@ -2543,11 +2554,12 @@ const secondAt: Generator<CubicPoint> = {
     return [
       {
         text: 'Differentiate twice.',
-        tex: `f'(x) = ${cubicDerivativeTex(cubic)}, \\quad f''(x) = ${cubicSecondTex(cubic)}`,
+        tex: `f'(x) = ${cubicDerivativeTex(cubic)}`,
       },
+      { tex: `f''(x) = ${cubicSecondTex(cubic)}` },
       {
-        text: `Substitute $x = ${s}$ into the second derivative.`,
-        tex: `f''(${s}) = ${6 * a} \\times ${bracketedNumber(s)}${constantTex(2 * b)} = ${value}`,
+        text: `Substitute $x = ${s}$ into the second derivative: $${6 * a} \\times ${bracketedNumber(s)}${constantTex(2 * b)}$.`,
+        tex: `f''(${s}) = ${value}`,
       },
       {
         text:
@@ -2705,8 +2717,8 @@ const natureFlow: Generator<NatureParams> = {
           tex: `f'(x) = ${cubicFactoredTex(params.cubic)}`,
         },
         {
-          text: 'The second derivative decides the rest.',
-          tex: `f''(x) = ${cubicSecondTex(params.cubic)}, \\quad f''(${at}) = ${value}`,
+          text: `The second derivative decides the rest: $f''(x) = ${cubicSecondTex(params.cubic)}$.`,
+          tex: `f''(${at}) = ${value}`,
         },
         {
           text:
@@ -2721,8 +2733,9 @@ const natureFlow: Generator<NatureParams> = {
     return [
       {
         text: 'Differentiate twice. Both derivatives still contain the bracket, so both are zero at its root.',
-        tex: `f'(x) = ${leadingTex(n * k)}${rootPowerTex(r, n - 1)}, \\quad f''(x) = ${leadingTex(n * (n - 1) * k)}${rootPowerTex(r, n - 2)}`,
+        tex: `f'(x) = ${leadingTex(n * k)}${rootPowerTex(r, n - 1)}`,
       },
+      { tex: `f''(x) = ${leadingTex(n * (n - 1) * k)}${rootPowerTex(r, n - 2)}` },
       {
         text: `So $f''(${r}) = 0$, and the second derivative says nothing. Look at the sign of $f'(x)$ either side instead.`,
       },
@@ -2806,7 +2819,9 @@ const signTiles: Generator<SignParams> = {
         },
         { kind: 'display', tex: `f'(x) = ${factoredTex(params.k, signFactors(params))}` },
       ],
-      template: '\\text{before } {0} \\quad \\text{after } {1} \\quad {2}',
+      // A phone wraps the verdict onto a second line, so it carries its own
+      // words rather than sitting there as an unlabelled blank.
+      template: '\\text{before } {0} \\quad \\text{after } {1} \\quad \\text{so it is a } {2}',
       bank: ['+', '+', '-', '-', '\\text{inflection}', '\\text{maximum}', '\\text{minimum}'],
       answer: [SIGN_TOKEN(before), SIGN_TOKEN(after), verdictToken(before, after)],
     };
@@ -3061,8 +3076,9 @@ const increasingTiles: Generator<IntervalParams> = {
     return [
       {
         text: 'A function can only change direction where its gradient is zero, so find those places first.',
-        tex: `f'(x) = ${cubicFactoredTex(cubic)} = 0 \\quad \\Rightarrow \\quad x = ${cubic.p}, \\; x = ${cubic.q}`,
+        tex: `f'(x) = ${cubicFactoredTex(cubic)}`,
       },
+      { tex: `x = ${cubic.p}, \\quad x = ${cubic.q}` },
       {
         text: `Between them the gradient has one sign and outside them the other, so one test point settles both. Beyond the right-hand one, $f'(${cubic.q + 1}) = ${gradientAt(cubic, cubic.q + 1)}$, so the function is ${cubic.m > 0 ? 'increasing' : 'decreasing'} outside the turning points and ${cubic.m > 0 ? 'decreasing' : 'increasing'} between them.`,
       },
@@ -3166,8 +3182,8 @@ const inflectionX: Generator<InflectionParams> = {
           tex: `f''(x) = ${cubicSecondTex(cubic)}`,
         },
         {
-          text: 'Set it to zero and solve. It is a straight line with a non-zero gradient, so it does change sign there.',
-          tex: `${cubicSecondTex(cubic)} = 0 \\quad \\Rightarrow \\quad x = ${answer}`,
+          text: `Set $${cubicSecondTex(cubic)} = 0$ and solve. It is a straight line with a non-zero gradient, so it does change sign there.`,
+          tex: `x = ${answer}`,
         },
         {
           text: `That is exactly halfway between the turning points at $x = ${cubic.p}$ and $x = ${cubic.q}$, which is true of every cubic with two turning points.`,
@@ -3238,8 +3254,8 @@ const concavity: Generator<AtParams> = {
         tex: `\\frac{d^{2}y}{dx^{2}} = ${cubicSecondTex(cubic)}`,
       },
       {
-        text: `Substitute $x = ${t}$.`,
-        tex: `${6 * a} \\times ${bracketedNumber(t)}${constantTex(2 * b)} = ${bend}`,
+        text: `Substitute $x = ${t}$: $${6 * a} \\times ${bracketedNumber(t)}${constantTex(2 * b)}$.`,
+        tex: `f''(${t}) = ${bend}`,
       },
       {
         text:
@@ -3387,8 +3403,9 @@ const inflectionFlow: Generator<InflectionFlowParams> = {
     return [
       {
         text: 'Differentiate twice. The $x$ term only affects the first derivative.',
-        tex: `f'(x) = ${sumTex([`${leadingTex(n * k)}${rootPowerTex(r, n - 1)}`, termTex(c, 0)])}, \\quad f''(x) = ${leadingTex(n * (n - 1) * k)}${rootPowerTex(r, n - 2)}`,
+        tex: `f'(x) = ${sumTex([`${leadingTex(n * k)}${rootPowerTex(r, n - 1)}`, termTex(c, 0)])}`,
       },
+      { tex: `f''(x) = ${leadingTex(n * (n - 1) * k)}${rootPowerTex(r, n - 2)}` },
       {
         text:
           n === 4

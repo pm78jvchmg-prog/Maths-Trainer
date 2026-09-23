@@ -1163,7 +1163,10 @@ describe('course integrity', () => {
     expect(
       offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
     ).toBe('');
-  });
+    // Resolving every lesson in the library at 40 seeds grows with the
+    // library, and reached vitest's 5s default at about 4.8s on its own. The
+    // budget is raised rather than the seed count cut, as for the oracle test.
+  }, 60_000);
 
   it('never repeats a question inside a level check', () => {
     const checks = courses.flatMap((course) =>
@@ -1173,7 +1176,7 @@ describe('course integrity', () => {
     expect(
       offenders.map(([id, n]) => `${id}: ${n} duplicate(s) across 40 seeds`).join('\n'),
     ).toBe('');
-  });
+  }, 60_000);
 
   it('varies the shape of the questions inside a lesson', () => {
     // Seven questions through one widget reads as the same question seven

@@ -4886,6 +4886,1539 @@ const linesMeetSlider: Generator<MeetParams> = {
   solution: meetSolution,
 };
 
+/* ---------- Level 8: planes and the cross product ---------- */
+
+/*
+ * Level 8 is three-dimensional throughout. It opens with the cross product,
+ * the one operation that makes a vector perpendicular to two others, and then
+ * uses it for what it is for: areas, the normal to a plane, and the equation
+ * of a plane through three points, closing where a line from level 6 meets a
+ * plane.
+ *
+ * As in level 6, every question is built outward from the numbers it wants
+ * to end on: the unknown that makes a component come out, the point a line
+ * meets a plane at, the pair of vectors whose cross product has a whole
+ * length. Nothing here rejects random draws until one happens to be whole,
+ * except the areas, where a whole magnitude is rare enough to sample for and
+ * common enough to find within a few dozen tries.
+ *
+ * Answers stay scalars or tiles for the reason `vectorFormat.ts` gives. A
+ * three-component answer is placed as three labelled tiles, `\mathbf{i}`,
+ * `\mathbf{j}` and `\mathbf{k}`, the same way a two-component one is; a whole
+ * column may also be one tile, as in level 6.
+ */
+
+type Draw = Parameters<Generator['sample']>[0];
+
+const AXES = ['x', 'y', 'z'];
+const UNITS = ['\\mathbf{i}', '\\mathbf{j}', '\\mathbf{k}'];
+
+/**
+ * The component template for a three-component answer, written as a row.
+ *
+ * Not the labelled `\\mathbf{i}: {0}` form two components use: three labels
+ * and three two-digit tiles are wider than a phone, and the row wraps with
+ * the last label on one line and its blank on the next.
+ */
+const CROSS_TEMPLATE = '( {0} , \\; {1} , \\; {2} )';
+
+/**
+ * The coordinate template for a point in space: the same row, unnamed. A name
+ * in front, `P = (`, pushes the closing bracket onto a line of its own.
+ */
+const POINT3_TEMPLATE = CROSS_TEMPLATE;
+
+/** `a x b`, each component from the other two, in the cyclic order x, y, z. */
+function crossOf(u: Vec, v: Vec): Vec {
+  return [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+}
+
+function dotOf(u: Vec, v: Vec): number {
+  return u.reduce((sum, x, i) => sum + x * v[i], 0);
+}
+
+function vec3(rng: Draw, lo: number, hi: number): Vec {
+  return [rng.int(lo, hi), rng.int(lo, hi), rng.int(lo, hi)];
+}
+
+const nonZeroCount = (v: Vec) => v.filter((x) => x !== 0).length;
+
+/** The whole square root of `n`, or undefined when it is not a perfect square. */
+function wholeRoot(n: number): number | undefined {
+  const r = Math.round(Math.sqrt(n));
+  return r * r === n ? r : undefined;
+}
+
+function point3Tex(v: Vec | string[]): string {
+  return `\\left(${v.join(', ')}\\right)`;
+}
+
+/** `2x - y + 3z`, as written by hand, dropping any term with a zero coefficient. */
+function linearTex(n: Vec): string {
+  let out = '';
+  n.forEach((c, i) => {
+    if (c === 0) return;
+    const size = Math.abs(c) === 1 ? '' : `${Math.abs(c)}`;
+    out += out === '' ? `${c < 0 ? '-' : ''}${size}${AXES[i]}` : ` ${c < 0 ? '-' : '+'} ${size}${AXES[i]}`;
+  });
+  return out;
+}
+
+/** A plane in Cartesian form. */
+function planeTex(n: Vec, d: number): string {
+  return `${linearTex(n)} = ${d}`;
+}
+
+/** A plane in scalar-product form. */
+function planeVectorTex(n: Vec, d: number): string {
+  return `\\mathbf{r} \\cdot ${colTex(n)} = ${d}`;
+}
+
+/**
+ * A number in brackets when it is negative, for products written side by
+ * side. Plain brackets rather than `\\left(`, whose extra spacing is the
+ * difference between a line of working fitting a phone and not.
+ */
+function bracket(x: number): string {
+  return x < 0 ? `(${x})` : `${x}`;
+}
+
+/**
+ * Values put into `n_x x + n_y y + n_z z` as a learner writes it on paper,
+ * `2(3) - k - (-2)`, skipping the terms with a zero coefficient. Short enough
+ * to sit on one line of a phone, which the same sum written with a times sign
+ * between every pair is not.
+ */
+function substituteTex(n: Vec, entries: string[]): string {
+  let out = '';
+  n.forEach((c, i) => {
+    if (c === 0) return;
+    const size = Math.abs(c) === 1 ? '' : `${Math.abs(c)}`;
+    const entry = entries[i];
+    const numeric = !Number.isNaN(Number(entry));
+    const value = numeric && (size !== '' || Number(entry) < 0) ? `(${entry})` : entry;
+    const sign = c < 0 ? '-' : out === '' ? '' : '+';
+    out += out === '' ? `${sign}${size}${value}` : ` ${sign} ${size}${value}`;
+  });
+  return out === '' ? '0' : out;
+}
+
+/** The plane as a display, in whichever form the question uses. */
+function planeDisplay(n: Vec, d: number, form: 'cartesian' | 'vector'): Block {
+  // Braced, so a leading minus after the colon reads as a sign, not a subtraction.
+  return { kind: 'display', tex: `\\Pi\\colon \\; {${form === 'cartesian' ? planeTex(n, d) : planeVectorTex(n, d)}}` };
+}
+
+/** Whether `m . r = e` and `n . r = d` are one plane: the same equation, rescaled. */
+function samePlane(m: Vec, e: number, n: Vec, d: number): boolean {
+  return nonZeroCount(m) > 0 && crossOf(m, n).every((x) => x === 0) && m.every((x, i) => x * d === e * n[i]);
+}
+
+/** Two vectors side by side. Two three-component columns fit a phone; three do not. */
+function pairTex(a: Vec, b: Vec, names = ['\\mathbf{a}', '\\mathbf{b}']): string {
+  return `${names[0]} = ${colTex(a)}, \\quad ${names[1]} = ${colTex(b)}`;
+}
+
+/** The three component calculations of `a x b`, for worked solutions. */
+function crossSteps(a: Vec, b: Vec): { text?: string; tex?: string }[] {
+  const n = crossOf(a, b);
+  return [0, 1, 2].flatMap((i) => {
+    const j = (i + 1) % 3;
+    const k = (i + 2) % 3;
+    return [
+      // The second factor always bracketed, or 2 times 3 would read as 23.
+      { tex: `${AXES[i]}\\colon \\; {${a[j]}(${b[k]}) - ${bracket(a[k])}(${b[j]})}` },
+      { tex: `= ${a[j] * b[k]} - ${paren(a[k] * b[j])} = ${n[i]}` },
+    ];
+  });
+}
+
+/** `n` divided through by its common factor, first non-zero entry positive. */
+function simplest(n: Vec): Vec {
+  const g = n.reduce((acc, x) => gcd(acc, x), 0) || 1;
+  const lead = n.find((x) => x !== 0) ?? 1;
+  return n.map((x) => ((lead < 0 ? -1 : 1) * x) / g);
+}
+
+interface CrossParams {
+  a: Vec;
+  b: Vec;
+}
+
+/** Two vectors whose cross product has no zero component, so no entry is free. */
+function sampleCross(rng: Draw, difficulty: number): CrossParams {
+  const span = difficulty > 1 ? 5 : 3;
+  for (let tries = 0; tries < 200; tries += 1) {
+    const a = vec3(rng, -span, span);
+    const b = vec3(rng, -span, span);
+    if (nonZeroCount(crossOf(a, b)) === 3) return { a, b };
+  }
+  return { a: [1, 2, 3], b: [2, -1, 1] };
+}
+
+function crossSolution({ a, b }: CrossParams) {
+  return [
+    {
+      text: 'Each component of $\\mathbf{a} \\times \\mathbf{b}$ is built from the other two components of each vector, cross-multiplied and subtracted, following the cycle $x \\to y \\to z \\to x$.',
+    },
+    ...crossSteps(a, b),
+    { tex: `\\mathbf{a} \\times \\mathbf{b} = ${colTex(crossOf(a, b))}` },
+    {
+      text: 'The middle component is where a sign usually goes wrong. Following the cycle it is $a_z b_x - a_x b_z$, starting from $z$ rather than from $x$.',
+    },
+  ];
+}
+
+/** The cross product, placed as three component tiles. */
+const crossProduct: Generator<CrossParams> = {
+  id: 'cross-product',
+  choices: (params) => {
+    const { a, b } = params;
+    const n = crossOf(a, b);
+    return steered(
+      options(
+        { tex: colTex(n) },
+        // b x a, the middle sign, and multiplying matching components.
+        { tex: colTex(scaled(-1, n)) },
+        { tex: colTex([n[0], -n[1], n[2]]) },
+        { tex: colTex([a[0] * b[0], a[1] * b[1], a[2] * b[2]]) },
+      ),
+      saltOf(params),
+    );
+  },
+  sample: sampleCross,
+  render: ({ a, b }): Slide => {
+    const n = crossOf(a, b);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Work out $\\mathbf{a} \\times \\mathbf{b}$.' },
+        { kind: 'display', tex: pairTex(a, b) },
+      ],
+      template: CROSS_TEMPLATE,
+      // The slips: the middle sign, adding where the formula subtracts, the
+      // whole thing the wrong way round, and matching components multiplied.
+      bank: bankOf(
+        n.map(String),
+        [`${-n[1]}`, `${a[1] * b[2] + a[2] * b[1]}`, `${-n[0]}`, `${a[0] * b[0]}`],
+      ),
+      answer: n.map(String),
+    };
+  },
+  solution: crossSolution,
+};
+
+interface EntryParams extends CrossParams {
+  i: number;
+}
+
+/**
+ * One component of a cross product with its working shown, starting from the
+ * formula in letters: which two entries pair up is half of what is being
+ * practised, so the line opens as `a_y b_z - a_z b_y` rather than as numbers.
+ */
+const crossEntrySteps: Generator<EntryParams> = {
+  id: 'cross-entry-steps',
+  sample: (rng, difficulty) => ({ ...sampleCross(rng, difficulty), i: rng.int(0, 2) }),
+  render: ({ a, b, i }): Slide => {
+    const j = (i + 1) % 3;
+    const k = (i + 2) % 3;
+    const p = a[j] * b[k];
+    const q = a[k] * b[j];
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The $${AXES[i]}$ component of $\\mathbf{a} \\times \\mathbf{b}$ is $a_${AXES[j]} b_${AXES[k]} - a_${AXES[k]} b_${AXES[j]}$. Read each product off the vectors, then subtract.`,
+        },
+        { kind: 'display', tex: pairTex(a, b) },
+      ],
+      start: [`a_${AXES[j]} b_${AXES[k]}`, '-', `a_${AXES[k]} b_${AXES[j]}`],
+      reductions: [
+        {
+          span: [0, 1],
+          value: `${p}`,
+          // Matching components, which is the dot product's pattern.
+          bank: scattered([`${p}`, `${a[j] * b[j]}`, `${a[k] * b[k]}`, `${-p}`, `${a[j] + b[k]}`]),
+        },
+        {
+          span: [2, 3],
+          value: paren(q),
+          bank: scattered([paren(q), paren(-q), paren(a[j] * b[j]), paren(a[k] + b[j])]),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${p - q}`,
+          bank: scattered([`${p - q}`, `${p + q}`, `${q - p}`, `${p - q + 1}`]),
+        },
+      ],
+    };
+  },
+  solution: ({ a, b, i }) => {
+    const j = (i + 1) % 3;
+    const k = (i + 2) % 3;
+    return [
+      {
+        text: `For the $${AXES[i]}$ component, leave out the $${AXES[i]}$ entries and cross-multiply the other two, in the order the cycle $x \\to y \\to z$ gives.`,
+      },
+      { tex: `a_${AXES[j]} b_${AXES[k]} = ${a[j]} \\times ${paren(b[k])} = ${a[j] * b[k]}` },
+      { tex: `a_${AXES[k]} b_${AXES[j]} = ${a[k]} \\times ${paren(b[j])} = ${a[k] * b[j]}` },
+      { tex: `${a[j] * b[k]} - ${paren(a[k] * b[j])} = ${a[j] * b[k] - a[k] * b[j]}` },
+    ];
+  },
+};
+
+type RuleCase = 'swap' | 'scale' | 'scale-second' | 'swap-scale' | 'unit';
+
+interface RuleParams {
+  rule: RuleCase;
+  n: Vec;
+  k: number;
+  u: number;
+  v: number;
+}
+
+/**
+ * The algebra of the cross product: the order matters, scalars come out, and
+ * the unit vectors go round in a cycle. Each question gives one cross product
+ * and asks for a relative of it, so nothing is recomputed from scratch.
+ */
+const crossRules: Generator<RuleParams> = {
+  id: 'cross-rules',
+  sample: (rng, difficulty) => {
+    const rules: RuleCase[] = difficulty > 1 ? ['swap-scale', 'scale', 'scale-second', 'unit'] : ['swap', 'swap', 'unit'];
+    const n = [nonZero(rng.int(-6, 6), 2), nonZero(rng.int(-6, 6), -3), nonZero(rng.int(-6, 6), 1)];
+    return {
+      rule: rng.pick(rules),
+      n,
+      k: rng.pick(difficulty > 1 ? [-3, -2, 2, 3, 4] : [2, 3]),
+      u: rng.int(0, 2),
+      v: rng.int(0, 2),
+    };
+  },
+  render: (params): Slide => {
+    const { rule, n, k, u, v } = params;
+    const salt = saltOf(params);
+    if (rule === 'unit') {
+      const self = u === v;
+      const w = 3 - u - v;
+      const forwards = v === (u + 1) % 3;
+      const answer = self ? '\\mathbf{0}' : `${forwards ? '' : '-'}${UNITS[w]}`;
+      const wrong = self
+        ? [UNITS[u], '1', UNITS[(u + 1) % 3]]
+        : [`${forwards ? '-' : ''}${UNITS[w]}`, '\\mathbf{0}', UNITS[u]];
+      return {
+        kind: 'choice',
+        prompt: [{ kind: 'prose', text: `Find $${UNITS[u]} \\times ${UNITS[v]}$.` }],
+        options: placeAnswer(
+          { id: 'answer', label: answer },
+          wrong.map((label, idx) => ({ id: `slip${idx}`, label })),
+          salt,
+        ),
+        correctId: 'answer',
+      };
+    }
+    const target = {
+      swap: '\\mathbf{b} \\times \\mathbf{a}',
+      scale: `\\left(${k}\\mathbf{a}\\right) \\times \\mathbf{b}`,
+      'scale-second': `\\mathbf{a} \\times \\left(${k}\\mathbf{b}\\right)`,
+      'swap-scale': `\\left(${k}\\mathbf{b}\\right) \\times \\mathbf{a}`,
+    }[rule];
+    const factor = { swap: -1, scale: k, 'scale-second': k, 'swap-scale': -k }[rule];
+    const answer = scaled(factor, n);
+    // The same numbers with the order ignored, the scalar ignored or applied
+    // to one component, and the order and scalar both reversed.
+    const wrong =
+      rule === 'swap'
+        ? [n, [n[2], n[1], n[0]], [-n[0], n[1], -n[2]]]
+        : [scaled(-factor, n), rule === 'swap-scale' ? scaled(-1, n) : n, [factor * n[0], n[1], n[2]]];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'You are told that' },
+        { kind: 'display', tex: `\\mathbf{a} \\times \\mathbf{b} = ${colTex(n)}` },
+        { kind: 'prose', text: `Find $${target}$.` },
+      ],
+      options: placeAnswer(
+        { id: 'answer', label: colTex(answer) },
+        wrong.map((w, idx) => ({ id: `slip${idx}`, label: colTex(w) })),
+        salt,
+      ),
+      correctId: 'answer',
+    };
+  },
+  solution: ({ rule, n, k, u, v }) => {
+    if (rule === 'unit') {
+      if (u === v) {
+        return [
+          { text: 'A vector crossed with itself is the zero vector: it is parallel to itself, and parallel vectors span no area.' },
+          { tex: `${UNITS[u]} \\times ${UNITS[u]} = \\mathbf{0}` },
+          { text: 'The answer $1$ belongs to the dot product, $\\mathbf{i} \\cdot \\mathbf{i} = 1$, which gives a number rather than a vector.' },
+        ];
+      }
+      const w = 3 - u - v;
+      const forwards = v === (u + 1) % 3;
+      return [
+        { text: 'The unit vectors follow the cycle $\\mathbf{i} \\to \\mathbf{j} \\to \\mathbf{k} \\to \\mathbf{i}$. Going round the cycle gives the third one; going against it gives its negative.' },
+        { text: 'So $\\mathbf{i} \\times \\mathbf{j} = \\mathbf{k}$, $\\mathbf{j} \\times \\mathbf{k} = \\mathbf{i}$ and $\\mathbf{k} \\times \\mathbf{i} = \\mathbf{j}$.' },
+        { tex: `${UNITS[u]} \\times ${UNITS[v]} = ${forwards ? '' : '-'}${UNITS[w]}` },
+      ];
+    }
+    const factor = { swap: -1, scale: k, 'scale-second': k, 'swap-scale': -k }[rule];
+    const steps: { text?: string; tex?: string }[] = [];
+    if (rule === 'swap' || rule === 'swap-scale') {
+      steps.push({ text: 'Swapping the order of a cross product reverses it: $\\mathbf{b} \\times \\mathbf{a} = -\\left(\\mathbf{a} \\times \\mathbf{b}\\right)$.' });
+    }
+    if (rule !== 'swap') {
+      steps.push({ text: `A scalar on either vector comes outside the whole product, once: it multiplies every component by $${k}$.` });
+    }
+    steps.push({ tex: `${factor}${colTex(n)} = ${colTex(scaled(factor, n))}` });
+    return steps;
+  },
+};
+
+interface UnknownParams extends CrossParams {
+  i: number;
+  side: 'a' | 'b';
+  pos: number;
+}
+
+/** How the unknown entry enters component `i`: `coef * k + rest`. */
+function unknownTerms({ a, b, i, side, pos }: UnknownParams): { coef: number; rest: number; value: number } {
+  const j = (i + 1) % 3;
+  const k = (i + 2) % 3;
+  const n = crossOf(a, b)[i];
+  const coef = side === 'a' ? (pos === j ? b[k] : -b[j]) : pos === k ? a[j] : -a[k];
+  const value = side === 'a' ? a[pos] : b[pos];
+  return { coef, rest: n - coef * value, value };
+}
+
+/** An unknown entry, found from one component of the cross product. */
+const crossUnknown: Generator<UnknownParams> = {
+  id: 'cross-unknown',
+  choices: (params) => {
+    const { coef, rest, value } = unknownTerms(params);
+    const n = crossOf(params.a, params.b)[params.i];
+    return steered(
+      // The component taken the wrong way round, which negates it.
+      signedChoices(value, [-value, (-n - rest) / coef, value + 1, n]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const span = difficulty > 1 ? 5 : 3;
+    for (let tries = 0; tries < 200; tries += 1) {
+      const a = vec3(rng, -span, span);
+      const b = vec3(rng, -span, span);
+      const i = rng.int(0, 2);
+      const side = rng.pick(['a', 'b'] as const);
+      const pos = rng.pick([(i + 1) % 3, (i + 2) % 3]);
+      const params = { a, b, i, side, pos };
+      const { coef, value } = unknownTerms(params);
+      if (coef === 0 || value === 0) continue;
+      return params;
+    }
+    return { a: [1, 2, 3], b: [2, -1, 1], i: 2, side: 'a', pos: 1 };
+  },
+  render: (params): Slide => {
+    const { a, b, i, side, pos } = params;
+    const entries = (v: Vec, name: 'a' | 'b') => columnOf(v.map((x, idx) => (name === side && idx === pos ? 'k' : `${x}`)));
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The $${AXES[i]}$ component of $\\mathbf{a} \\times \\mathbf{b}$ is $${crossOf(a, b)[i]}$. Find $k$.`,
+        },
+        { kind: 'display', tex: `\\mathbf{a} = ${entries(a, 'a')}, \\quad \\mathbf{b} = ${entries(b, 'b')}` },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${unknownTerms(params).value}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { a, b, i, side, pos } = params;
+    const j = (i + 1) % 3;
+    const k = (i + 2) % 3;
+    const { coef, rest, value } = unknownTerms(params);
+    const n = crossOf(a, b)[i];
+    const entry = (v: Vec, name: 'a' | 'b', idx: number) =>
+      name === side && idx === pos ? 'k' : `(${v[idx]})`;
+    return [
+      { text: `Write the $${AXES[i]}$ component with $k$ in place: $a_${AXES[j]} b_${AXES[k]} - a_${AXES[k]} b_${AXES[j]}$.` },
+      { tex: `${entry(a, 'a', j)}${entry(b, 'b', k)} - ${entry(a, 'a', k)}${entry(b, 'b', j)} = ${n}` },
+      { tex: `${affTex(rest, coef, 'k')} = ${n}` },
+      { tex: `${coef}k = ${n - rest} \\implies k = ${value}` },
+    ];
+  },
+};
+
+interface PerpParams extends CrossParams {
+  m: number;
+}
+
+/** Which vector is perpendicular to both: any multiple of the cross product. */
+const crossPerpendicular: Generator<PerpParams> = {
+  id: 'cross-perpendicular',
+  sample: (rng, difficulty) => ({
+    ...sampleCross(rng, difficulty > 1 ? 2 : 1),
+    m: difficulty > 1 ? rng.pick([1, -1, 2]) : 1,
+  }),
+  render: (params): Slide => {
+    const { a, b, m } = params;
+    const n = crossOf(a, b);
+    const answer = scaled(m, simplest(n));
+    const perpendicular = (w: Vec) => dotOf(w, a) === 0 && dotOf(w, b) === 0;
+    const wrong = [
+      [n[0], -n[1], n[2]],
+      plus(a, b),
+      [a[0] * b[0], a[1] * b[1], a[2] * b[2]],
+      [n[0], n[1], -n[2]],
+      plus(n, [1, 0, 0]),
+    ]
+      .filter((w) => nonZeroCount(w) > 0 && !perpendicular(w))
+      .slice(0, 3);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which of these vectors is perpendicular to both $\\mathbf{a}$ and $\\mathbf{b}$?' },
+        { kind: 'display', tex: pairTex(a, b) },
+      ],
+      options: placeAnswer(
+        { id: 'normal', label: colTex(answer) },
+        wrong.map((w, idx) => ({ id: `slip${idx}`, label: colTex(w) })),
+        saltOf(params),
+      ),
+      correctId: 'normal',
+    };
+  },
+  solution: ({ a, b, m }) => {
+    const n = crossOf(a, b);
+    const answer = scaled(m, simplest(n));
+    return [
+      { text: 'The cross product is perpendicular to both vectors it is made from.' },
+      { tex: `\\mathbf{a} \\times \\mathbf{b} = ${colTex(n)}` },
+      {
+        text:
+          answer.join() === n.join()
+            ? 'That is the answer as it stands.'
+            : 'Any non-zero multiple points along the same line, so it is perpendicular to both as well. The option offered is this one:',
+      },
+      ...(answer.join() === n.join() ? [] : [{ tex: `${colTex(answer)}` }]),
+      { text: 'Check with the dot product, which is zero for perpendicular vectors. Against $\\mathbf{a}$:' },
+      ...dotLines(a, answer),
+      { text: 'Against $\\mathbf{b}$:' },
+      ...dotLines(b, answer),
+    ];
+  },
+};
+
+interface CheckParams extends CrossParams {
+  slip: number;
+  m: number;
+}
+
+function checkCandidate({ a, b, slip, m }: CheckParams): Vec {
+  const n = crossOf(a, b);
+  if (slip === 1) return [n[0], -n[1], n[2]];
+  if (slip === 2) return [-n[0], n[1], n[2]];
+  return scaled(m, n);
+}
+
+const PERP_BOTH = '\\text{perpendicular to both}';
+const NOT_PERP_BOTH = '\\text{not perpendicular to both}';
+
+/**
+ * Is a proposed vector perpendicular to both? Two dot products, then a
+ * verdict. Half the candidates are a cross product with one sign slipped,
+ * which is how a wrong normal usually arrives, and the dot products are what
+ * catch it.
+ */
+const crossCheckTree: Generator<CheckParams> = {
+  id: 'cross-check-tree',
+  sample: (rng, difficulty) => ({
+    ...sampleCross(rng, difficulty > 1 ? 2 : 1),
+    slip: rng.chance(0.5) ? 0 : rng.pick([1, 2]),
+    m: rng.pick([1, -1]),
+  }),
+  render: (params): Slide => {
+    const { a, b } = params;
+    const c = checkCandidate(params);
+    const ca = dotOf(c, a);
+    const cb = dotOf(c, b);
+    const both = ca === 0 && cb === 0;
+    const answer = [`${ca}`, `${cb}`, both ? PERP_BOTH : NOT_PERP_BOTH];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Is $\\mathbf{c}$ perpendicular to both $\\mathbf{a}$ and $\\mathbf{b}$? Work out both dot products, then decide.',
+        },
+        { kind: 'display', tex: pairTex(a, b) },
+        { kind: 'display', tex: `\\mathbf{c} = ${colTex(c)}` },
+      ],
+      expression: '\\mathbf{c} \\cdot \\mathbf{a} \\quad \\text{and} \\quad \\mathbf{c} \\cdot \\mathbf{b}',
+      nodes: [
+        { id: 'ca', from: [] },
+        { id: 'cb', from: [] },
+        { id: 'verdict', from: ['ca', 'cb'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [both ? NOT_PERP_BOTH : PERP_BOTH, `${-ca}`, `${-cb}`, '1'],
+        [`${ca + 1}`, `${cb + 2}`, `${ca - 2}`],
+      ),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, b } = params;
+    const c = checkCandidate(params);
+    const ca = dotOf(c, a);
+    const cb = dotOf(c, b);
+    return [
+      { text: 'Perpendicular vectors have a dot product of zero, so test $\\mathbf{c}$ against each vector in turn. First $\\mathbf{c} \\cdot \\mathbf{a}$:' },
+      ...dotLines(a, c),
+      { text: 'Then $\\mathbf{c} \\cdot \\mathbf{b}$:' },
+      ...dotLines(b, c),
+      ca === 0 && cb === 0
+        ? { text: 'Both are zero, so $\\mathbf{c}$ is perpendicular to both. It is a multiple of $\\mathbf{a} \\times \\mathbf{b}$.' }
+        : {
+            text: `Both have to be zero, and they are not, so $\\mathbf{c}$ is not perpendicular to both. The cross product itself is $${colTex(crossOf(a, b))}$: $\\mathbf{c}$ has one of its signs the wrong way.`,
+          },
+    ];
+  },
+};
+
+interface AreaParams extends CrossParams {
+  shape: 'parallelogram' | 'triangle';
+  /** A corner, when the question gives points rather than side vectors. */
+  from?: Vec;
+}
+
+/**
+ * Two sides whose cross product has a whole length, and an even one for a
+ * triangle, so the area is whole. Roughly one random pair in twenty-five has
+ * a whole length and one in eighty an even one, so a few hundred draws always
+ * find one.
+ */
+function sampleArea(rng: Draw, difficulty: number, points: boolean): AreaParams {
+  const span = difficulty > 1 ? 4 : 3;
+  const shape = rng.pick(['parallelogram', 'triangle'] as const);
+  for (let tries = 0; tries < 3000; tries += 1) {
+    const a = vec3(rng, -span, span);
+    const b = vec3(rng, -span, span);
+    const n = crossOf(a, b);
+    if (nonZeroCount(n) < 2) continue;
+    const r = wholeRoot(dotOf(n, n));
+    if (r === undefined || (shape === 'triangle' && r % 2 !== 0)) continue;
+    if (!points) return { a, b, shape };
+    const from = vec3(rng, -4, 4);
+    if ([...plus(from, a), ...plus(from, b)].some((x) => Math.abs(x) > 9)) continue;
+    return { a, b, shape, from };
+  }
+  return { a: [2, 0, 1], b: [0, 2, 2], shape, from: points ? [1, 1, 1] : undefined };
+}
+
+function areaOf({ a, b, shape }: AreaParams): { square: number; length: number; area: number } {
+  const n = crossOf(a, b);
+  const square = dotOf(n, n);
+  const length = wholeRoot(square) ?? Math.sqrt(square);
+  return { square, length, area: shape === 'triangle' ? length / 2 : length };
+}
+
+function areaPrompt({ a, b, shape, from }: AreaParams): Block[] {
+  if (from) {
+    const B = plus(from, a);
+    const other = plus(from, b);
+    return [
+      {
+        kind: 'prose',
+        text:
+          shape === 'triangle'
+            ? `Find the area of the triangle with corners $A${point3Tex(from)}$, $B${point3Tex(B)}$ and $C${point3Tex(other)}$.`
+            : `$ABCD$ is a parallelogram with $A${point3Tex(from)}$, $B${point3Tex(B)}$ and $D${point3Tex(other)}$. Find its area.`,
+      },
+    ];
+  }
+  return [
+    {
+      kind: 'prose',
+      text:
+        shape === 'triangle'
+          ? 'A triangle has two of its sides along $\\mathbf{a}$ and $\\mathbf{b}$, from one corner. Find its area.'
+          : 'A parallelogram has its sides along $\\mathbf{a}$ and $\\mathbf{b}$, from one corner. Find its area.',
+    },
+    { kind: 'display', tex: pairTex(a, b) },
+  ];
+}
+
+function areaSolution(params: AreaParams) {
+  const { a, b, shape, from } = params;
+  const n = crossOf(a, b);
+  const { square, length, area } = areaOf(params);
+  const other = shape === 'triangle' ? 'C' : 'D';
+  return [
+    ...(from
+      ? [
+          { text: `The two sides from $A$ are the journeys to the neighbouring corners, destination minus start:` },
+          { tex: `\\overrightarrow{AB} = ${colTex(a)}` },
+          { tex: `\\overrightarrow{A${other}} = ${colTex(b)}` },
+        ]
+      : []),
+    { text: 'The length of the cross product of two sides is the area of the parallelogram they make.' },
+    { tex: `\\mathbf{n} = ${from ? `\\overrightarrow{AB} \\times \\overrightarrow{A${other}}` : '\\mathbf{a} \\times \\mathbf{b}'} = ${colTex(n)}` },
+    { tex: `\\left|\\mathbf{n}\\right|^2 = ${n.map((x) => x * x).join(' + ')}` },
+    { tex: `\\left|\\mathbf{n}\\right| = \\sqrt{${square}} = ${length}` },
+    shape === 'triangle'
+      ? { text: `A triangle on the same two sides is half the parallelogram, so its area is $\\tfrac{1}{2} \\times ${length} = ${area}$.` }
+      : { text: `So the parallelogram has area $${area}$. A triangle on the same two sides would have half that.` },
+  ];
+}
+
+/** The area of a parallelogram or triangle from the length of a cross product. */
+const crossArea: Generator<AreaParams> = {
+  id: 'cross-area',
+  choices: (params) => {
+    const { square, length, area } = areaOf(params);
+    const n = crossOf(params.a, params.b);
+    return steered(
+      signedChoices(area, [
+        // No square root, the other shape, and the components simply added.
+        square,
+        params.shape === 'triangle' ? length : length / 2,
+        Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]),
+        area + 1,
+      ]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => sampleArea(rng, difficulty, difficulty > 1 && rng.chance(0.5)),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: areaPrompt(params),
+    lead: '\\text{area} =',
+    keypad: [],
+    answer: `${areaOf(params).area}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: areaSolution,
+};
+
+/**
+ * The same area as working: the cross product, its length squared, then the
+ * area. The squared length is its own step because leaving out the square
+ * root is the slip it catches.
+ */
+const crossAreaTree: Generator<AreaParams> = {
+  id: 'cross-area-tree',
+  sample: (rng, difficulty) => {
+    const params = sampleArea(rng, difficulty, false);
+    // Triangles come with the harder draws, after the lesson has taught them.
+    return difficulty > 1 ? params : { ...params, shape: 'parallelogram' };
+  },
+  render: (params): Slide => {
+    const { a, b, shape } = params;
+    const n = crossOf(a, b);
+    const { square, length, area } = areaOf(params);
+    const answer = [colTex(n), `${square}`, `${area}`];
+    const otherShape = shape === 'triangle' ? length : length / 2;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the area of the ${shape} with sides along $\\mathbf{a}$ and $\\mathbf{b}$: the cross product, its length squared, then the area.`,
+        },
+        { kind: 'display', tex: pairTex(a, b) },
+      ],
+      expression:
+        shape === 'triangle'
+          ? '\\text{area} = \\tfrac{1}{2}\\left|\\mathbf{a} \\times \\mathbf{b}\\right|'
+          : '\\text{area} = \\left|\\mathbf{a} \\times \\mathbf{b}\\right|',
+      nodes: [
+        { id: 'n', from: [] },
+        { id: 'square', from: ['n'] },
+        { id: 'area', from: ['square'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [
+          colTex([n[0], -n[1], n[2]]),
+          ...(Number.isInteger(otherShape) ? [`${otherShape}`] : []),
+          `${Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2])}`,
+        ],
+        [`${square + 1}`, `${area + 1}`, `${area + 2}`],
+      ),
+      answer,
+    };
+  },
+  solution: areaSolution,
+};
+
+/* ---------- the equation of a plane ---------- */
+
+interface PlanePointParams {
+  p: Vec;
+  n: Vec;
+}
+
+/** A point and a normal with the plane's constant non-zero. */
+function samplePlanePoint(rng: Draw, difficulty: number): PlanePointParams {
+  const span = difficulty > 1 ? 6 : 4;
+  const reach = difficulty > 1 ? 5 : 3;
+  for (let tries = 0; tries < 200; tries += 1) {
+    const p = vec3(rng, -span, span);
+    const n = vec3(rng, -reach, reach);
+    // Every term present at first; a missing one is a harder read.
+    if (nonZeroCount(n) < (difficulty > 1 ? 2 : 3)) continue;
+    if (dotOf(p, n) === 0 || nonZeroCount(p) < 2) continue;
+    return { p, n };
+  }
+  return { p: [1, 2, 3], n: [2, -1, 1] };
+}
+
+/**
+ * `p . n` worked in two lines, the values of `p` put into the terms of `n`
+ * and then the products added. One line would run off a phone.
+ */
+function dotLines(p: Vec, n: Vec): { tex: string }[] {
+  const products = n.map((c, i) => c * p[i]).filter((_, i) => n[i] !== 0);
+  const sum = products.map((x, i) => (i === 0 ? `${x}` : x < 0 ? `- ${-x}` : `+ ${x}`)).join(' ');
+  return [
+    { tex: substituteTex(n, p.map(String)) },
+    { tex: products.length > 1 ? `= ${sum} = ${dotOf(p, n)}` : `= ${dotOf(p, n)}` },
+  ];
+}
+
+/** A sign slipped on one term of `p . n`: the first term with something to slip. */
+function slippedDot(p: Vec, n: Vec): number {
+  const i = [2, 1, 0].find((idx) => p[idx] * n[idx] !== 0) ?? 0;
+  return dotOf(p, n) - 2 * p[i] * n[i];
+}
+
+/** The constant in `r . n = d`, from a point on the plane. */
+const planeD: Generator<PlanePointParams> = {
+  id: 'plane-d',
+  choices: (params) => {
+    const { p, n } = params;
+    const d = dotOf(p, n);
+    return steered(signedChoices(d, [-d, slippedDot(p, n), dotOf(n, n), d + 1]), saltOf(params));
+  },
+  sample: samplePlanePoint,
+  render: ({ p, n }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `The plane $\\Pi$ passes through $A${point3Tex(p)}$ and is perpendicular to $\\mathbf{n}$. Its equation is $\\mathbf{r} \\cdot \\mathbf{n} = d$. Find $d$.`,
+      },
+      { kind: 'display', tex: `\\mathbf{n} = ${colTex(n)}` },
+    ],
+    lead: 'd =',
+    keypad: [],
+    answer: `${dotOf(p, n)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ p, n }) => [
+    { text: 'Every point of the plane has the same dot product with the normal, and $A$ is one of them. So $d$ is $\\mathbf{a} \\cdot \\mathbf{n}$:' },
+    ...dotLines(p, n),
+    { tex: planeVectorTex(n, dotOf(p, n)) },
+  ],
+};
+
+/** The Cartesian equation from a point and a normal. */
+const planeCartesian: Generator<PlanePointParams> = {
+  id: 'plane-cartesian',
+  sample: samplePlanePoint,
+  render: (params): Slide => {
+    const { p, n } = params;
+    const d = dotOf(p, n);
+    // The constant's sign, the point and normal swapped, a slipped sign.
+    const wrong: [Vec, number][] = [
+      [n, -d],
+      [p, d],
+      [n, slippedDot(p, n)],
+      [n, d + nonZero(n[0], 1)],
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which is the Cartesian equation of the plane through $A${point3Tex(p)}$ perpendicular to $\\mathbf{n}$?`,
+        },
+        { kind: 'display', tex: `\\mathbf{n} = ${colTex(n)}` },
+      ],
+      options: placeAnswer(
+        { id: 'plane', label: planeTex(n, d) },
+        wrong
+          .filter(([m, e]) => !samePlane(m, e, n, d))
+          .slice(0, 3)
+          .map(([m, e], idx) => ({ id: `slip${idx}`, label: planeTex(m, e) })),
+        saltOf(params),
+      ),
+      correctId: 'plane',
+    };
+  },
+  solution: ({ p, n }) => [
+    { text: 'Write $\\mathbf{r}$ as $\\left(x, y, z\\right)$. Then $\\mathbf{r} \\cdot \\mathbf{n}$ is the normal\'s components times $x$, $y$ and $z$, so the normal gives the coefficients.' },
+    { tex: `${linearTex(n)} = d` },
+    { text: 'The point gives the constant $d$: put $A$ in.' },
+    ...dotLines(p, n),
+    { tex: planeTex(n, dotOf(p, n)) },
+  ],
+};
+
+interface PlaneOnParams {
+  q: Vec;
+  n: Vec;
+  off: number;
+  form: 'cartesian' | 'vector';
+}
+
+/**
+ * Does a point lie on the plane? Each option carries a value, so a guess
+ * between yes and no is not enough: the learner has to have worked out what
+ * the point gives.
+ */
+const planeOn: Generator<PlaneOnParams> = {
+  id: 'plane-on',
+  sample: (rng, difficulty) => {
+    const { p, n } = samplePlanePoint(rng, difficulty);
+    return {
+      q: p,
+      n,
+      off: rng.chance(0.5) ? 0 : rng.pick([-3, -2, -1, 1, 2, 3]),
+      form: difficulty > 1 && rng.chance(0.5) ? 'cartesian' : 'vector',
+    };
+  },
+  render: (params): Slide => {
+    const { q, n, off, form } = params;
+    const value = dotOf(q, n);
+    const d = value + off;
+    // Braced for the same reason as `planeDisplay`: -7 after words is a sign.
+    const yes = (v: number) => `\\text{Yes, it gives } {${v}}`;
+    const no = (v: number) => `\\text{No, it gives } {${v}}`;
+    const slips = [slippedDot(q, n), -value, value + nonZero(q[0], 1)].filter((v) => v !== value && v !== d);
+    const offered =
+      off === 0
+        ? placeAnswer(
+            { id: 'answer', label: yes(value) },
+            slips.slice(0, 2).map((v, idx) => ({ id: `slip${idx}`, label: no(v) })),
+            saltOf(params),
+          )
+        : placeAnswer(
+            { id: 'answer', label: no(value) },
+            [
+              { id: 'yes', label: yes(d) },
+              ...slips.slice(0, 1).map((v, idx) => ({ id: `slip${idx}`, label: no(v) })),
+            ],
+            saltOf(params),
+          );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Does $P${point3Tex(q)}$ lie on the plane $\\Pi$?` },
+        planeDisplay(n, d, form),
+      ],
+      options: offered,
+      correctId: 'answer',
+    };
+  },
+  solution: ({ q, n, off, form }) => {
+    const value = dotOf(q, n);
+    return [
+      {
+        text:
+          form === 'cartesian'
+            ? 'Put the coordinates of $P$ into the left-hand side and compare with the right.'
+            : 'Work out $\\mathbf{p} \\cdot \\mathbf{n}$ and compare it with the constant on the right.',
+      },
+      ...dotLines(q, n),
+      off === 0
+        ? { text: `That is $${value}$, the plane's own constant, so $P$ lies on $\\Pi$.` }
+        : { text: `That is $${value}$, but the plane needs $${value + off}$, so $P$ is not on $\\Pi$.` },
+    ];
+  },
+};
+
+interface MissingPlaneParams {
+  q: Vec;
+  n: Vec;
+  pos: number;
+  form: 'cartesian' | 'vector';
+}
+
+/** A missing coordinate that puts a point on a plane. */
+const planeMissing: Generator<MissingPlaneParams> = {
+  id: 'plane-missing',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 100; tries += 1) {
+      const { p, n } = samplePlanePoint(rng, difficulty);
+      const pos = rng.int(0, 2);
+      if (n[pos] === 0 || p[pos] === 0) continue;
+      return { q: p, n, pos, form: difficulty > 1 && rng.chance(0.5) ? 'vector' : 'cartesian' };
+    }
+    return { q: [1, 2, 3], n: [2, -1, 1], pos: 1, form: 'cartesian' };
+  },
+  render: ({ q, n, pos, form }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$P${point3Tex(q.map((x, idx) => (idx === pos ? 'k' : `${x}`)))}$ lies on the plane $\\Pi$. Find $k$.`,
+      },
+      planeDisplay(n, dotOf(q, n), form),
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${q[pos]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ q, n, pos }) => {
+    const d = dotOf(q, n);
+    const rest = d - n[pos] * q[pos];
+    const terms = q.map((x, idx) => (idx === pos ? 'k' : `${x}`));
+    return [
+      { text: 'A point on the plane satisfies its equation, so substitute its coordinates with $k$ in place.' },
+      { tex: `${substituteTex(n, terms)} = ${d}` },
+      { tex: `${affTex(rest, n[pos], 'k')} = ${d}` },
+      { tex: `${n[pos]}k = ${d - rest} \\implies k = ${q[pos]}` },
+    ];
+  },
+};
+
+interface VectorFormParams {
+  n: Vec;
+  d: number;
+}
+
+/**
+ * From Cartesian form to `r . n = d`, assembled from a column tile and a
+ * number tile. No multiple of the normal but the one asked for is offered,
+ * because `r . (-n) = -d` is the same plane and the widget would mark it wrong.
+ */
+const planeVectorForm: Generator<VectorFormParams> = {
+  id: 'plane-vector-form',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 6 : 4;
+    for (let tries = 0; tries < 100; tries += 1) {
+      const n = vec3(rng, -reach, reach);
+      if (nonZeroCount(n) < (difficulty > 1 ? 2 : 3)) continue;
+      return { n, d: nonZero(rng.int(-12, 12), 5) };
+    }
+    return { n: [2, -1, 3], d: 5 };
+  },
+  render: ({ n, d }): Slide => {
+    const columns = [n.map(Math.abs), [n[0], n[1], d], [n[1], n[2], n[0]], [n[0], n[1], -n[2]]]
+      .filter((v) => nonZeroCount(crossOf(v, n)) > 0)
+      .map(colTex)
+      .filter((tex, idx, all) => all.indexOf(tex) === idx)
+      .slice(0, 2);
+    const numbers = [-d, d + n[0], n[0] + n[1] + n[2]]
+      .filter((v, idx, all) => v !== d && all.indexOf(v) === idx)
+      .slice(0, 2)
+      .map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write the plane $\\Pi$ in the form $\\mathbf{r} \\cdot \\mathbf{n} = d$.' },
+        planeDisplay(n, d, 'cartesian'),
+      ],
+      template: '\\mathbf{r} \\cdot {0} = {1}',
+      bank: [colTex(n), `${d}`, ...columns, ...numbers].sort(),
+      answer: [colTex(n), `${d}`],
+    };
+  },
+  solution: ({ n, d }) => [
+    { text: 'The coefficients of $x$, $y$ and $z$ are the components of the normal, a missing term being a zero. The constant stays as it is.' },
+    { tex: planeVectorTex(n, d) },
+    { text: 'Multiplying out $\\mathbf{r} \\cdot \\mathbf{n}$ with $\\mathbf{r} = \\left(x, y, z\\right)$ gives back the Cartesian form, which is the check.' },
+  ],
+};
+
+/* ---------- a plane through three points ---------- */
+
+interface ThreeParams {
+  A: Vec;
+  u: Vec;
+  v: Vec;
+}
+
+/** Three corners built from `A` and the two journeys out of it. */
+function sampleThree(rng: Draw, difficulty: number): ThreeParams {
+  const reach = difficulty > 1 ? 3 : 2;
+  for (let tries = 0; tries < 300; tries += 1) {
+    const A = vec3(rng, -4, 4);
+    const u = vec3(rng, -reach, reach);
+    const v = vec3(rng, -reach, reach);
+    const n = crossOf(u, v);
+    if (nonZeroCount(n) < (difficulty > 1 ? 2 : 3)) continue;
+    if ([...plus(A, u), ...plus(A, v)].some((x) => Math.abs(x) > 9)) continue;
+    // A plane through the origin holds the position vectors too, which would
+    // make the position-vector slip a right answer and the constant zero.
+    if (dotOf(A, n) === 0) continue;
+    return { A, u, v };
+  }
+  return { A: [1, 0, 2], u: [1, 2, -1], v: [2, 1, 1] };
+}
+
+function threePoints({ A, u, v }: ThreeParams): string {
+  return `$A${point3Tex(A)}$, $B${point3Tex(plus(A, u))}$ and $C${point3Tex(plus(A, v))}$`;
+}
+
+function threeNormalSolution({ u, v }: ThreeParams) {
+  return [
+    { text: 'Two directions in the plane are the journeys from $A$ to the other two points: destination minus start.' },
+    { tex: `\\overrightarrow{AB} = ${colTex(u)}` },
+    { tex: `\\overrightarrow{AC} = ${colTex(v)}` },
+    { text: 'Their cross product is perpendicular to both, so it is a normal to the plane.' },
+    ...crossSteps(u, v),
+    { tex: `\\mathbf{n} = ${colTex(crossOf(u, v))}` },
+  ];
+}
+
+function threeSolution(params: ThreeParams) {
+  const { A, u, v } = params;
+  const n = crossOf(u, v);
+  const s = simplest(n);
+  return [
+    ...threeNormalSolution(params),
+    { text: 'Any of the three points gives the constant $d$. Using $A$:' },
+    ...dotLines(A, n),
+    { tex: planeTex(n, dotOf(A, n)) },
+    ...(s.join() === n.join()
+      ? []
+      : [{ text: `Dividing through by a common factor, or by $-1$, gives the same plane: $${planeTex(s, dotOf(A, s))}$.` }]),
+  ];
+}
+
+/** The normal of a plane through three points, as `AB x AC`. */
+const planeThreeNormal: Generator<ThreeParams> = {
+  id: 'plane-three-normal',
+  choices: (params) => {
+    const { A, u, v } = params;
+    const n = crossOf(u, v);
+    return steered(
+      options(
+        { tex: colTex(n) },
+        // Position vectors crossed, the middle sign, and AC x AB.
+        { tex: colTex(crossOf(A, plus(A, u))) },
+        { tex: colTex([n[0], -n[1], n[2]]) },
+        { tex: colTex(scaled(-1, n)) },
+      ),
+      saltOf(params),
+    );
+  },
+  sample: sampleThree,
+  render: (params): Slide => {
+    const { A, u, v } = params;
+    const n = crossOf(u, v);
+    const slip = crossOf(A, plus(A, u));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The plane $\\Pi$ passes through ${threePoints(params)}. Find the normal $\\overrightarrow{AB} \\times \\overrightarrow{AC}$.`,
+        },
+      ],
+      template: CROSS_TEMPLATE,
+      bank: bankOf(n.map(String), [`${-n[1]}`, `${slip[0]}`, `${slip[2]}`, `${-n[2]}`]),
+      answer: n.map(String),
+    };
+  },
+  solution: threeNormalSolution,
+};
+
+/** The plane through three points, the whole route laid out as a tree. */
+const planeThreeTree: Generator<ThreeParams> = {
+  id: 'plane-three-tree',
+  sample: sampleThree,
+  render: (params): Slide => {
+    const { A, u, v } = params;
+    const n = crossOf(u, v);
+    const d = dotOf(A, n);
+    const answer = [colTex(u), colTex(v), colTex(n), `${d}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the plane through ${threePoints(params)}: the two directions from $A$, their cross product, then $d$ from $A$.`,
+        },
+      ],
+      expression: '\\mathbf{r} \\cdot \\left(\\overrightarrow{AB} \\times \\overrightarrow{AC}\\right) = d',
+      nodes: [
+        { id: 'ab', from: [] },
+        { id: 'ac', from: [] },
+        { id: 'n', from: ['ab', 'ac'] },
+        { id: 'd', from: ['n'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [colTex(scaled(-1, u)), colTex([n[0], -n[1], n[2]]), `${-d}`, colTex(plus(A, v))],
+        [`${d + 1}`, colTex(minus(v, u))],
+      ),
+      answer,
+    };
+  },
+  solution: threeSolution,
+};
+
+/** Which Cartesian equation is the plane through three points? */
+const planeThreeEquation: Generator<ThreeParams> = {
+  id: 'plane-three-equation',
+  sample: sampleThree,
+  render: (params): Slide => {
+    const { A, u, v } = params;
+    const s = simplest(crossOf(u, v));
+    const d = dotOf(A, s);
+    const positions = simplest(crossOf(A, plus(A, u)));
+    const signSlip = simplest([s[0], -s[1], s[2]]);
+    // Position vectors instead of directions; a slipped sign in the normal;
+    // the constant from a direction rather than a point, which is always 0.
+    const wrong: [Vec, number][] = [
+      [positions, dotOf(A, positions)],
+      [signSlip, dotOf(A, signSlip)],
+      [s, 0],
+      [s, -d],
+    ];
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which is an equation of the plane through ${threePoints(params)}?` }],
+      options: placeAnswer(
+        { id: 'plane', label: planeTex(s, d) },
+        wrong
+          .filter(([m, e]) => nonZeroCount(m) > 0 && !samePlane(m, e, s, d))
+          .slice(0, 3)
+          .map(([m, e], idx) => ({ id: `slip${idx}`, label: planeTex(m, e) })),
+        saltOf(params),
+      ),
+      correctId: 'plane',
+    };
+  },
+  solution: (params) => [
+    ...threeSolution(params),
+    { text: 'A last check: $B$ and $C$ should satisfy the equation too.' },
+  ],
+};
+
+/* ---------- a line meets a plane ---------- */
+
+interface LinePlaneParams {
+  a: Vec;
+  b: Vec;
+  n: Vec;
+  t: number;
+  form: 'cartesian' | 'vector';
+}
+
+/** A line and a plane built from the point where they meet and the `t` that reaches it. */
+function sampleLinePlane(rng: Draw, difficulty: number, form?: 'cartesian' | 'vector'): LinePlaneParams {
+  const ts = difficulty > 1 ? [-3, -2, -1, 1, 2, 3, 4] : [-2, -1, 1, 2, 3];
+  for (let tries = 0; tries < 300; tries += 1) {
+    const n = vec3(rng, -3, 3);
+    if (nonZeroCount(n) < (difficulty > 1 ? 2 : 3)) continue;
+    const b = vec3(rng, -3, 3);
+    if (nonZeroCount(b) < 2 || dotOf(b, n) === 0) continue;
+    const t = rng.pick(ts);
+    const P = vec3(rng, -4, 4);
+    const a = minus(P, scaled(t, b));
+    if (a.some((x) => Math.abs(x) > 9)) continue;
+    return { a, b, n, t, form: form ?? (difficulty > 1 && rng.chance(0.5) ? 'vector' : 'cartesian') };
+  }
+  return { a: [1, 0, 2], b: [1, 1, 1], n: [1, 2, -1], t: 2, form: form ?? 'cartesian' };
+}
+
+function linePlaneValues({ a, b, n, t }: LinePlaneParams) {
+  const P = plus(a, scaled(t, b));
+  return { P, d: dotOf(P, n), an: dotOf(a, n), bn: dotOf(b, n) };
+}
+
+function linePlanePrompt(params: LinePlaneParams, text: string): Block[] {
+  const { a, b, n, form } = params;
+  return [
+    { kind: 'prose', text },
+    // Unlabelled: a name in front of two three-component columns runs off a phone.
+    { kind: 'display', tex: lineTex(a, b) },
+    planeDisplay(n, linePlaneValues(params).d, form),
+  ];
+}
+
+function linePlaneSolution(params: LinePlaneParams) {
+  const { a, b, t } = params;
+  const { P, d, an, bn } = linePlaneValues(params);
+  return [
+    { text: 'Every point of the line is $\\mathbf{a} + t\\mathbf{b}$. Write it as one column in terms of $t$:' },
+    { tex: `\\mathbf{r} = ${columnOf(a.map((x, i) => affTex(x, b[i], 't')))}` },
+    { text: 'Put it into the plane\'s equation. The terms without $t$ come from $\\mathbf{a} \\cdot \\mathbf{n}$ and the terms in $t$ from $\\mathbf{b} \\cdot \\mathbf{n}$:' },
+    { tex: `${affTex(an, bn, 't')} = ${d}` },
+    { tex: `${bn}t = ${d - an} \\implies t = ${t}` },
+    { text: `Put $t = ${t}$ back into the line to find the point.` },
+    { tex: `${addMultipleTex(colTex(a), t, colTex(b))} = ${colTex(P)}` },
+    { text: `So they meet at $${point3Tex(P)}$.` },
+  ];
+}
+
+/** The value of `t` where a line meets a plane. */
+const linePlaneT: Generator<LinePlaneParams> = {
+  id: 'line-plane-t',
+  choices: (params) => {
+    const { t } = params;
+    const { d, an, bn } = linePlaneValues(params);
+    return steered(
+      // The line's start left out, and its terms moved across with the wrong sign.
+      signedChoices(t, [-t, d / bn, (d + an) / bn, t + 1]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => sampleLinePlane(rng, difficulty),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: linePlanePrompt(params, 'The line below meets the plane $\\Pi$ at one point. Find the value of $t$ there.'),
+    lead: '\\text{where they meet, } t =',
+    keypad: [],
+    answer: `${params.t}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => linePlaneSolution(params).slice(0, 5),
+};
+
+/** The point where a line meets a plane, placed as coordinate tiles. */
+const linePlanePoint: Generator<LinePlaneParams> = {
+  id: 'line-plane-point',
+  sample: (rng, difficulty) => sampleLinePlane(rng, difficulty),
+  render: (params): Slide => {
+    const { a, b, t } = params;
+    const { P } = linePlaneValues(params);
+    const behind = minus(a, scaled(t, b));
+    return {
+      kind: 'tiles',
+      prompt: linePlanePrompt(params, 'Find the point where the line below meets the plane $\\Pi$.'),
+      template: POINT3_TEMPLATE,
+      // The point reached going the wrong way, and the parameter itself.
+      bank: bankOf(P.map(String), [`${behind[0]}`, `${behind[2]}`, `${t}`]),
+      answer: P.map(String),
+    };
+  },
+  solution: linePlaneSolution,
+};
+
+/**
+ * The same meeting point through the scalar-product form: `a . n` and
+ * `b . n`, then `t`, then the point. Always shown in vector form, so `n` is
+ * on the page.
+ */
+const linePlanePointTree: Generator<LinePlaneParams> = {
+  id: 'line-plane-point-tree',
+  sample: (rng, difficulty) => sampleLinePlane(rng, difficulty, 'vector'),
+  render: (params): Slide => {
+    const { a, b, t } = params;
+    const { P, d, an, bn } = linePlaneValues(params);
+    const answer = [`${an}`, `${bn}`, `${t}`, point3Tex(P)];
+    return {
+      kind: 'tree',
+      prompt: linePlanePrompt(
+        params,
+        'Find where the line meets $\\Pi$: the dot products of $\\mathbf{a}$ and $\\mathbf{b}$ with the normal, then $t$, then the point.',
+      ),
+      expression: `\\mathbf{a} \\cdot \\mathbf{n} + t \\, \\mathbf{b} \\cdot \\mathbf{n} = ${d}`,
+      nodes: [
+        { id: 'an', from: [] },
+        { id: 'bn', from: [] },
+        { id: 't', from: ['an', 'bn'] },
+        { id: 'p', from: ['t'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [`${-t}`, point3Tex(plus(a, scaled(t + 1, b))), `${-bn}`, `${-an}`],
+        [`${t + 1}`, `${an + 1}`, `${bn + 2}`],
+      ),
+      answer,
+    };
+  },
+  solution: linePlaneSolution,
+};
+
+type LinePlaneRelation = 'meet' | 'parallel' | 'inside';
+
+interface RelationPlaneParams {
+  rel: LinePlaneRelation;
+  a: Vec;
+  b: Vec;
+  n: Vec;
+  d: number;
+  form: 'cartesian' | 'vector';
+}
+
+const LINE_PLANE_LABELS: Record<LinePlaneRelation, string> = {
+  meet: '\\text{Meets it at one point}',
+  parallel: '\\text{Parallel, never meeting}',
+  inside: '\\text{Lies in the plane}',
+};
+
+/**
+ * How a line sits against a plane. A direction along the plane is a cross
+ * product of the normal with something else, divided down, which is how the
+ * parallel and lying-in cases are built.
+ */
+const linePlaneRelation: Generator<RelationPlaneParams> = {
+  id: 'line-plane-relation',
+  choices: (params) =>
+    steered(
+      options(
+        { tex: LINE_PLANE_LABELS[params.rel] },
+        ...(Object.keys(LINE_PLANE_LABELS) as LinePlaneRelation[])
+          .filter((rel) => rel !== params.rel)
+          .map((rel) => ({ tex: LINE_PLANE_LABELS[rel] })),
+      ),
+      saltOf(params),
+    ),
+  sample: (rng, difficulty) => {
+    const rel = rng.pick<LinePlaneRelation>(['meet', 'parallel', 'inside']);
+    const form = difficulty > 1 && rng.chance(0.5) ? 'vector' : 'cartesian';
+    for (let tries = 0; tries < 300; tries += 1) {
+      const n = vec3(rng, -3, 3);
+      if (nonZeroCount(n) < (difficulty > 1 ? 2 : 3)) continue;
+      const a = vec3(rng, -4, 4);
+      let b: Vec;
+      if (rel === 'meet') {
+        b = vec3(rng, -3, 3);
+        if (dotOf(b, n) === 0) continue;
+      } else {
+        const e = vec3(rng, -2, 2);
+        const raw = crossOf(n, e);
+        if (nonZeroCount(raw) === 0) continue;
+        b = simplest(raw);
+      }
+      if (nonZeroCount(b) < 2 || b.some((x) => Math.abs(x) > 6)) continue;
+      const d = dotOf(a, n) + (rel === 'parallel' ? rng.pick([-3, -2, -1, 1, 2, 3]) : rel === 'meet' ? rng.int(-3, 3) : 0);
+      return { rel, a, b, n, d, form };
+    }
+    return { rel: 'meet', a: [1, 0, 2], b: [1, 1, 1], n: [1, 2, -1], d: 3, form };
+  },
+  render: (params): Slide => {
+    const { rel, a, b, n, d, form } = params;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'How does the line below sit against the plane $\\Pi$? Work down the questions; each answer chooses what gets asked next.',
+        },
+        { kind: 'display', tex: lineTex(a, b) },
+        planeDisplay(n, d, form),
+      ],
+      subject: pairTex(b, n, ['\\mathbf{b}', '\\mathbf{n}']),
+      steps: [
+        {
+          id: 'direction',
+          ask: 'Is $\\mathbf{b} \\cdot \\mathbf{n}$, the line\'s direction dotted with the plane\'s normal, zero?',
+          branches: [
+            { label: 'Yes', to: 'point' },
+            { label: 'No', outcome: 'The line meets the plane at exactly one point.' },
+          ],
+        },
+        {
+          id: 'point',
+          ask: 'Does the line\'s starting point satisfy the plane\'s equation?',
+          branches: [
+            { label: 'Yes', outcome: 'The line lies in the plane.' },
+            { label: 'No', outcome: 'The line is parallel to the plane and never meets it.' },
+          ],
+        },
+      ],
+      answer: rel === 'meet' ? ['No'] : rel === 'inside' ? ['Yes', 'Yes'] : ['Yes', 'No'],
+    };
+  },
+  solution: ({ rel, a, b, n, d }) => {
+    const bn = dotOf(b, n);
+    const steps: { text?: string; tex?: string }[] = [
+      { text: 'The direction decides first. A line runs along a plane exactly when its direction is perpendicular to the normal, so work out $\\mathbf{b} \\cdot \\mathbf{n}$:' },
+      ...dotLines(b, n),
+    ];
+    if (rel === 'meet') {
+      steps.push({ text: `That is $${bn}$, not zero, so the line crosses the plane and meets it at exactly one point.` });
+      return steps;
+    }
+    steps.push(
+      { text: 'That is zero, so the line runs parallel to the plane. It is either in the plane or never meets it: test the starting point with $\\mathbf{a} \\cdot \\mathbf{n}$.' },
+      ...dotLines(a, n),
+      rel === 'inside'
+        ? { text: `That is $${d}$, the plane's constant, so the start is on the plane, and so is every other point of the line.` }
+        : { text: `The plane needs $${d}$, so the start is off the plane, and the line never reaches it.` },
+    );
+    return steps;
+  },
+};
+
+interface ParallelPlaneParams {
+  a: Vec;
+  b: Vec;
+  n: Vec;
+  pos: number;
+  off: number;
+}
+
+/** An unknown in a line's direction that makes it parallel to a plane. */
+const linePlaneParallel: Generator<ParallelPlaneParams> = {
+  id: 'line-plane-parallel',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 400; tries += 1) {
+      const n = vec3(rng, -3, 3);
+      if (nonZeroCount(n) < (difficulty > 1 ? 2 : 3)) continue;
+      const pos = rng.int(0, 2);
+      // A unit coefficient at first, so the unknown is always whole.
+      if (n[pos] === 0 || (difficulty === 1 && Math.abs(n[pos]) !== 1)) continue;
+      const b = vec3(rng, -4, 4);
+      b[pos] = 0;
+      const rest = dotOf(b, n);
+      if (rest % n[pos] !== 0) continue;
+      b[pos] = -rest / n[pos];
+      if (b[pos] === 0 || Math.abs(b[pos]) > 12 || nonZeroCount(b) < 2) continue;
+      return { a: vec3(rng, -4, 4), b, n, pos, off: rng.pick([-3, -2, -1, 1, 2, 3]) };
+    }
+    return { a: [1, 0, 2], b: [1, 1, 1], n: [1, -2, 1], pos: 1, off: 2 };
+  },
+  render: ({ a, b, n, pos, off }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'The line below is parallel to the plane $\\Pi$. Find $k$.' },
+      {
+        kind: 'display',
+        tex: `\\mathbf{r} = ${colTex(a)} + t${columnOf(b.map((x, i) => (i === pos ? 'k' : `${x}`)))}`,
+      },
+      planeDisplay(n, dotOf(a, n) + off, 'cartesian'),
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${b[pos]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ b, n, pos }) => {
+    const rest = dotOf(b, n) - b[pos] * n[pos];
+    const terms = b.map((x, i) => (i === pos ? 'k' : `${x}`));
+    return [
+      { text: 'A line parallel to a plane runs along it, so its direction is perpendicular to the normal: $\\mathbf{b} \\cdot \\mathbf{n} = 0$. The normal is read from the coefficients.' },
+      { tex: `${substituteTex(n, terms)} = 0` },
+      { tex: `${affTex(rest, n[pos], 'k')} = 0 \\implies k = ${b[pos]}` },
+    ];
+  },
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -4939,4 +6472,25 @@ export const vectorGenerators = [
   linesMeet,
   linesMeetTree,
   linesMeetSlider,
+  crossProduct,
+  crossEntrySteps,
+  crossRules,
+  crossUnknown,
+  crossPerpendicular,
+  crossCheckTree,
+  crossArea,
+  crossAreaTree,
+  planeD,
+  planeCartesian,
+  planeOn,
+  planeMissing,
+  planeVectorForm,
+  planeThreeNormal,
+  planeThreeTree,
+  planeThreeEquation,
+  linePlaneT,
+  linePlanePoint,
+  linePlanePointTree,
+  linePlaneRelation,
+  linePlaneParallel,
 ] as unknown as Generator<unknown>[];

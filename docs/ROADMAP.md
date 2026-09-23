@@ -141,7 +141,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | 10 | Trigonometric Functions | **15 lessons** |
 | 11 | Trigonometric Identities & Equations | new |
 | 12 | Logarithms | **12 lessons** |
-| 13 | Exponential Models | new |
+| 13 | Exponential Models | **9 lessons** |
 | 14 | Binomial Expansion | new |
 | 15 | Inequalities & the Modulus Function | new |
 
@@ -237,6 +237,16 @@ Two Vectors.
 **Matrices & Linear Transformations** (after the split) — has: Matrices,
 Determinants & Inverses. Needs: Matrices as Transformations; Composing
 Transformations; Systems of Equations; Invariant Lines & Points.
+
+**Exponential Models** (new in C10) — has: The Continuous Model; Fitting and
+Using Models. Needs: Rates in Models (the rate as ky read and compared, average
+against instantaneous rate, when two models grow at the same rate); Comparing
+Models (when one model overtakes another, sums and differences of exponentials);
+Logistic Growth (a ceiling that slows growth, P = L / (1 + Ae^(-kt)), the
+fastest growth at half the ceiling); Continuous Compounding (e as the limit of
+(1 + 1/n)^n, effective annual rate against continuous rate); The
+Limits of a Model (residuals, when a model stops fitting, choosing between two
+fits). Solving dy/dt = ky belongs to Differential Equations (C13).
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -483,7 +493,7 @@ batch rather than waiting on a separate one.
 
 | # | Batch | Status |
 | --- | --- | --- |
-| C10 | Exponential Models | claimed (`claude/roadmap-c-exponential-models-ew5yps`) |
+| C10 | Exponential Models | **done** (`claude/roadmap-c-exponential-models-ew5yps`): course `exponential-models`, levels `em-l1` and `em-l2`, 9 lessons, level checks of 15 and 15 questions, 35 new generators |
 
 ### When the queue empties
 

@@ -1103,6 +1103,56 @@ export const vectors: Course = {
             ask('plane-three-equation', 2),
           ],
         },
+        {
+          id: 'vm-l8-line-plane',
+          title: 'Where a Line Meets a Plane',
+          slides: [
+            teach(
+              prose(
+                'Every point of a line $\\mathbf{r} = \\mathbf{a} + t\\mathbf{b}$ is $\\mathbf{a} + t\\mathbf{b}$ for some $t$. Put that into the plane\'s equation and solve for $t$.',
+              ),
+              maths(
+                '\\mathbf{r} = \\begin{pmatrix} 1 \\\\ 0 \\\\ 2 \\end{pmatrix} + t\\begin{pmatrix} 1 \\\\ 1 \\\\ -1 \\end{pmatrix}',
+              ),
+              prose(
+                'Its general point is $\\left(1 + t, \\, t, \\, 2 - t\\right)$. Into the plane $x + 2y + z = 9$:',
+              ),
+              maths('\\left(1 + t\\right) + 2t + \\left(2 - t\\right) = 9'),
+              maths('3 + 2t = 9 \\implies t = 3'),
+              prose(
+                'Then $t = 3$ in the line gives the point, $\\left(4, 3, -1\\right)$. The value of $t$ is a step, not the answer.',
+              ),
+            ),
+            ask('line-plane-t'),
+            ask('line-plane-point'),
+            ask('line-plane-t+choice', 2),
+            teach(
+              prose(
+                'If the line\'s direction is perpendicular to the normal, $\\mathbf{b} \\cdot \\mathbf{n} = 0$, the $t$ terms cancel and there is nothing to solve. The line runs parallel to the plane.',
+              ),
+              prose(
+                'Then either every point of the line is on the plane or none is. Test the starting point: if it satisfies the equation, the line lies in the plane; if not, the line never meets it.',
+              ),
+            ),
+            ask('line-plane-relation'),
+            ask('line-plane-parallel'),
+            ask('line-plane-relation+choice', 2),
+            teach(
+              prose('In the form $\\mathbf{r} \\cdot \\mathbf{n} = d$, the substitution splits into two dot products:'),
+              maths('\\mathbf{a} \\cdot \\mathbf{n} + t \\, \\mathbf{b} \\cdot \\mathbf{n} = d'),
+              prose(
+                'Two numbers and one equation in $t$. When $\\mathbf{b} \\cdot \\mathbf{n}$ is zero, this is the parallel case again.',
+              ),
+            ),
+            ask('line-plane-point-tree'),
+            ask('line-plane-parallel', 2),
+          ],
+          skillCheck: [
+            ask('line-plane-point', 2),
+            ask('line-plane-relation', 2),
+            ask('line-plane-t', 2),
+          ],
+        },
       ],
     },
   ],

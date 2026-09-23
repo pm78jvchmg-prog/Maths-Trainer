@@ -2,10 +2,10 @@
 
 Written by C7.
 
-Has: Pascal's Triangle and (a + b)ⁿ; nCr and the General Term.
+Has: Pascal's Triangle and (a + b)ⁿ; nCr and the General Term; Unknowns and
+Conditions (C7-l3).
 
-Needs: Unknowns and Conditions (finding n, k or a from given coefficients, equal
-and in-ratio coefficients, the sum of the coefficients); Products of Expansions
+Needs: Products of Expansions
 ((a + bx)ᵐ(c + dx)ⁿ, (1 + x + x²)ⁿ, and pairing brackets such as (1 + x)ⁿ(1 −
 x)ⁿ = (1 − x²)ⁿ); Estimates and Surds (choosing x to estimate a power, how big
 the error is, (√2 + 1)ⁿ and conjugate pairs); The Binomial Series for Rational n

@@ -8,8 +8,14 @@
  * Level 2 solves two equations in two unknowns: what it means for a pair of
  * values to be a solution, elimination with and without scaling,
  * substitution, and pairs of equations built from words.
+ * Level 3 rearranges formulae: the same undoing with letters where the
+ * numbers were, then brackets and fractions, the subject on both sides,
+ * squares and roots, and using the rearranged formula once it is found.
  *
- * Later levels — inequalities, rearranging formulae, modelling — are in the
+ * Level 4 solves linear inequalities: drawn on a number line, turned round
+ * on a negative, double, counted in integers, and as a region of the plane.
+ *
+ * Later levels — regions from several inequalities, modelling — are in the
  * level plan in `docs/roadmap/levels/linear-equations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
@@ -106,7 +112,7 @@ export const linearEquations: Course = {
   category: 'algebra-fundamentals',
   position: 30,
   title: 'Linear Equations & Inequalities',
-  blurb: 'Undoing what was done to the unknown, for one equation and then for two at once.',
+  blurb: 'Undoing what was done to the unknown, for one equation, for two at once, and for any letter in a formula.',
   levels: [
     {
       id: 'le-l1',
@@ -559,6 +565,208 @@ export const linearEquations: Course = {
         ask('lin-sub', 2),
         ask('lin-sim-words-solve', 2),
         ask('lin-sum-diff', 2),
+      ],
+    },
+    {
+      id: 'le-l3',
+      title: 'Rearranging Formulae',
+      lessons: [
+        {
+          id: 'le-l3-subject',
+          title: 'Changing the Subject',
+          slides: [
+            teach(
+              prose(
+                'A formula links quantities with letters. $v = u + at$ gives a speed $v$ from $u$, $a$ and $t$. Making $t$ the **subject** means rearranging it into $t = \\ldots$, with $t$ alone on one side.',
+              ),
+              prose('That is solving an equation, with letters where the numbers were. The same two steps, with numbers and then with letters:'),
+              maths('\\begin{aligned} 17 &= 5 + 3t \\\\ 12 &= 3t \\\\ t &= 4 \\end{aligned}'),
+              maths('\\begin{aligned} v &= u + 3t \\\\ v - u &= 3t \\\\ t &= \\frac{v - u}{3} \\end{aligned}'),
+              prose('Undo in the reverse order, as before: the $3$ multiplied $t$ first and the $u$ was added last, so the $u$ comes off first.'),
+            ),
+            ask('lin-subject-flow'),
+            ask('lin-first-undo-tiles'),
+            ask('lin-subject'),
+            teach(
+              prose('A letter can be the multiplier. In $v = u + at$ divide by $a$ exactly as you would divide by $3$.'),
+              maths('v - u = at \\implies t = \\frac{v - u}{a}'),
+              prose(
+                'When the subject\'s term is taken **away**, dividing by the negative turns the signs round. From $h = b - kt$:',
+              ),
+              maths('h - b = -kt \\implies t = \\frac{b - h}{k}'),
+            ),
+            ask('lin-rearrange-steps'),
+            ask('lin-subject+choice', 2),
+            ask('lin-first-undo-tiles', 2),
+            teach(
+              prose(
+                'Check a rearrangement by putting numbers in. With $u = 5$, $a = 3$ and $t = 4$ the formula gives $v = 17$; then $\\frac{v - u}{a} = \\frac{17 - 5}{3} = 4$ leads back to $t$.',
+              ),
+              prose('An answer is marked right whenever it has the same value, so $\\frac{v}{a} - \\frac{u}{a}$ is as good as $\\frac{v - u}{a}$.'),
+            ),
+            ask('lin-rearrange-steps'),
+            ask('lin-subject-flow'),
+          ],
+          skillCheck: [ask('lin-subject', 2), ask('lin-first-undo-tiles', 2), ask('lin-subject-flow')],
+        },
+        {
+          id: 'le-l3-brackets',
+          title: 'Brackets and Fractions',
+          slides: [
+            teach(
+              prose(
+                'When the subject is inside a bracket, the multiplier outside was applied **last**, so it comes off first. Keep the bracket whole and divide.',
+              ),
+              maths('\\begin{aligned} P &= 2(l + w) \\\\ \\frac{P}{2} &= l + w \\\\ w &= \\frac{P}{2} - l \\end{aligned}'),
+              prose('A fraction bar is a division done last, so multiply both sides by the denominator first.'),
+              maths('\\begin{aligned} A &= \\frac{b + h}{3} \\\\ 3A &= b + h \\\\ h &= 3A - b \\end{aligned}'),
+            ),
+            ask('lin-bracket-subject'),
+            ask('lin-clear-fraction-tiles'),
+            ask('lin-bracket-subject+choice'),
+            teach(
+              prose('Both at once: clear the fraction, then divide by the number outside the bracket, then undo what is inside.'),
+              maths('\\begin{aligned} C &= \\frac{5(F - 32)}{9} \\\\ 9C &= 5(F - 32) \\\\ \\frac{9C}{5} &= F - 32 \\\\ F &= \\frac{9C}{5} + 32 \\end{aligned}'),
+              prose(
+                'In $A = \\frac{(a + b)h}{2}$ the bracket multiplies $h$, so once the $2$ is cleared the **whole** bracket divides: $h = \\frac{2A}{a + b}$.',
+              ),
+            ),
+            ask('lin-rearrange-steps', 2),
+            ask('lin-subject-flow', 2),
+            ask('lin-clear-fraction-tiles', 2),
+            teach(
+              prose(
+                'Expanding first also works: $P = 2l + 2w$ gives $w = \\frac{P - 2l}{2}$, the same as $\\frac{P}{2} - l$. Dividing first is usually shorter, because the bracket never has to be multiplied out.',
+              ),
+            ),
+            ask('lin-rearrange-steps', 2),
+            ask('lin-subject-flow', 2),
+          ],
+          skillCheck: [ask('lin-bracket-subject', 2), ask('lin-clear-fraction-tiles', 2), ask('lin-rearrange-steps', 2)],
+        },
+        {
+          id: 'le-l3-both',
+          title: 'The Subject on Both Sides',
+          slides: [
+            teach(
+              prose(
+                'In $ax + 3 = cx + 10$ the subject $x$ appears twice, so there is no single order to undo. Collect the $x$ terms on one side instead, then take $x$ out as a factor.',
+              ),
+              maths('\\begin{aligned} ax - cx &= 7 \\\\ x(a - c) &= 7 \\\\ x &= \\frac{7}{a - c} \\end{aligned}'),
+              prose('The bracket is one number whatever $a$ and $c$ are, so dividing by it is the last step.'),
+            ),
+            ask('lin-twice-next'),
+            ask('lin-factor-out-tiles'),
+            ask('lin-twice-subject'),
+            teach(
+              prose(
+                'A subject in the denominator: multiply it out first. Then it is on both sides, and the same collect, factorise, divide finishes it.',
+              ),
+              maths('\\begin{aligned} y &= \\frac{x + 1}{x - 2} \\\\ y(x - 2) &= x + 1 \\\\ xy - 2y &= x + 1 \\\\ xy - x &= 2y + 1 \\\\ x(y - 1) &= 2y + 1 \\\\ x &= \\frac{2y + 1}{y - 1} \\end{aligned}'),
+            ),
+            ask('lin-twice-next', 2),
+            ask('lin-factor-out-tiles', 2),
+            ask('lin-twice-value-tree', 2),
+            teach(
+              prose(
+                'The rearranged formula answers the question the other way round. With $x = \\frac{7}{a - c}$, $a = 10$ and $c = 3$ give $x = \\frac{7}{7} = 1$ with no equation to solve.',
+              ),
+              prose('Work the top and the bottom out first, then divide.'),
+            ),
+            ask('lin-twice-value-tree'),
+            ask('lin-twice-subject+choice', 2),
+          ],
+          skillCheck: [ask('lin-twice-subject', 2), ask('lin-factor-out-tiles', 2), ask('lin-twice-next', 2)],
+        },
+        {
+          id: 'le-l3-roots',
+          title: 'Squares and Roots',
+          slides: [
+            teach(
+              prose(
+                'Squaring and taking a square root undo each other. In $A = \\pi r^2$ the square was done first and the $\\pi$ last, so the $\\pi$ comes off first and the root last.',
+              ),
+              maths('\\begin{aligned} A &= \\pi r^2 \\\\ \\frac{A}{\\pi} &= r^2 \\\\ r &= \\sqrt{\\frac{A}{\\pi}} \\end{aligned}'),
+              prose('A radius is never negative, so only the positive root.'),
+            ),
+            ask('lin-root-flow'),
+            ask('lin-root-subject'),
+            ask('lin-root-sign'),
+            teach(
+              prose(
+                'Square or root only once the square or the root is the **whole** of its side. In $T = 2\\pi\\sqrt{\\frac{l}{g}}$ divide by $2\\pi$ first, then square, and the $2\\pi$ is squared too.',
+              ),
+              maths('\\begin{aligned} \\frac{T}{2\\pi} &= \\sqrt{\\frac{l}{g}} \\\\ \\frac{T^2}{4\\pi^2} &= \\frac{l}{g} \\\\ l &= \\frac{gT^2}{4\\pi^2} \\end{aligned}'),
+              prose(
+                'A root covers the whole side, never term by term: from $v^2 = u^2 + 2as$, $u = \\sqrt{v^2 - 2as}$, which is **not** $v - \\sqrt{2as}$.',
+              ),
+            ),
+            ask('lin-root-steps'),
+            ask('lin-root-subject+choice', 2),
+            ask('lin-root-flow', 2),
+            teach(
+              prose(
+                'Every positive number has two square roots: $3^2$ and $(-3)^2$ are both $9$. When the letter can be negative, keep both and write $\\pm$. From $y = x^2 + 5$:',
+              ),
+              maths('\\begin{aligned} x^2 &= y - 5 \\\\ x &= \\pm\\sqrt{y - 5} \\end{aligned}'),
+              prose('A length, a speed or a time cannot be negative, so there only the positive root is kept.'),
+            ),
+            ask('lin-root-steps', 2),
+            ask('lin-root-sign', 2),
+          ],
+          skillCheck: [ask('lin-root-subject', 2), ask('lin-root-steps', 2), ask('lin-root-sign', 2)],
+        },
+        {
+          id: 'le-l3-using',
+          title: 'Using the New Subject',
+          slides: [
+            teach(
+              prose(
+                'A formula gives its subject from the other letters. To find a different letter, rearrange first, then put the numbers in.',
+              ),
+              prose('How long does a car starting at $u = 5$ take to reach $v = 35$ if $a = 6$? Rearrange $v = u + at$, then substitute.'),
+              maths('t = \\frac{v - u}{a} = \\frac{35 - 5}{6} = 5'),
+            ),
+            ask('lin-use-formula'),
+            ask('lin-which-rearrangement'),
+            ask('lin-formula-words'),
+            teach(
+              prose(
+                'On a graph of $v$ against $t$, the rearranged formula is reading **backwards**: across from the speed to the line, then down to the time.',
+              ),
+              lines([(t) => 5 + 6 * t], { xMin: 0, xMax: 8, yMin: 0, yMax: 55 }, 'The line v = 5 + 6t reaching the height 35 at t = 5', [35]),
+              prose('Words become a formula the same way: "£$3$ to start and £$2$ a mile" is $C = 3 + 2m$, and then $m = \\frac{C - 3}{2}$.'),
+            ),
+            ask('lin-use-slider'),
+            ask('lin-use-formula+choice', 2),
+            ask('lin-formula-words', 2),
+            teach(
+              prose(
+                'To test a rearrangement, pick numbers for the other letters, work the subject out from the original, then see whether the rearrangement gives it back.',
+              ),
+            ),
+            ask('lin-which-rearrangement', 2),
+            ask('lin-use-slider', 2),
+          ],
+          skillCheck: [ask('lin-use-formula', 2), ask('lin-formula-words', 2), ask('lin-which-rearrangement', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('lin-subject', 2),
+        ask('lin-first-undo-tiles', 2),
+        ask('lin-subject-flow', 2),
+        ask('lin-bracket-subject', 2),
+        ask('lin-clear-fraction-tiles', 2),
+        ask('lin-rearrange-steps', 2),
+        ask('lin-twice-subject', 2),
+        ask('lin-factor-out-tiles', 2),
+        ask('lin-twice-next', 2),
+        ask('lin-root-subject', 2),
+        ask('lin-root-sign', 2),
+        ask('lin-root-steps', 2),
+        ask('lin-use-formula', 2),
+        ask('lin-which-rearrangement', 2),
+        ask('lin-formula-words', 2),
       ],
     },
     {

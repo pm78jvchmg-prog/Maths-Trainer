@@ -17,6 +17,7 @@
 import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
 import { isSolved, valueOf, type Move } from '../content/expr';
+import { draftMatches } from '../content/numberLine';
 import type {
   Lesson,
   Slide,
@@ -347,6 +348,15 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
         ? { kind: 'correct' }
         : { kind: 'incorrect' };
     }
+
+    /**
+     * The drawn set against the expected one, both canonicalised first, so
+     * the order the pieces were shaded in cannot matter and neither can a
+     * piece shaded in two halves. An empty or unshaded line never matches.
+     */
+    case 'numberLine':
+      if (typeof answer !== 'string') return { kind: 'incorrect' };
+      return draftMatches(answer, slide.answer) ? { kind: 'correct' } : { kind: 'incorrect' };
 
     case 'tiles': {
       // Tiles always arrive as an array of tokens; anything else is not an answer.

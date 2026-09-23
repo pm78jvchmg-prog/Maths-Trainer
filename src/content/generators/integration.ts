@@ -24,7 +24,7 @@ import type { ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import type { Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { ALGEBRA_KEYS, EXP_KEYS, TRIG_KEYS, ROOT_KEYS, termTex, termAnswer, sumTex, sumAnswer } from './calculus';
-import { bin, num, pow, type Expr } from '../expr';
+import { bin, num, pow, valueOf, type Expr } from '../expr';
 import { markerWindow, plotSvg } from '../figures';
 
 /** The algebra keys plus the constant of integration. */
@@ -7571,6 +7571,1421 @@ export const improperGenerators = {
   trap,
 };
 
+/* ---------- Level 8: integration as a limit of a sum ---------- */
+
+/*
+ * A definite integral is the limit of a sum of thin rectangles. The level
+ * builds that up a strip at a time: the heights at the left or right edge of
+ * each strip and their total, then the sum written in terms of n and its
+ * limit, then reading an integral off a limit of a sum, then which sums over-
+ * or under-estimate, and last the same area by the limit and by the
+ * antiderivative.
+ *
+ * Every function is a polynomial with whole coefficients, every strip width is
+ * whole and every x a sum reads is whole, so each rectangle sum is a whole
+ * number without rounding. Limits are built from their answer or filtered with
+ * `sixIntegral`.
+ *
+ * The typed limit, `int-lim-sum-value`, declares `integrand` and `limits`, so
+ * the quadrature oracle in `generators.test.ts` checks it. The other values
+ * are checked by `limitSum.test.ts`, which adds each rectangle sum up from the
+ * function itself and finds each limit by quadrature.
+ */
+
+export type Side = 'left' | 'right';
+
+const otherSide = (side: Side): Side => (side === 'left' ? 'right' : 'left');
+
+/** The x at which each strip's height is read: its left edge or its right edge. */
+function stripXs(a: number, h: number, n: number, side: Side): number[] {
+  return Array.from({ length: n }, (_, k) => a + (side === 'left' ? k : k + 1) * h);
+}
+
+/** h times the sum of the heights: a left or right rectangle sum. */
+function rectSum(f: Poly, a: number, h: number, n: number, side: Side): number {
+  return h * stripXs(a, h, n, side).reduce((total, x) => total + polyAt(f, x), 0);
+}
+
+/** Every x from a to b in steps of h, both ends included. */
+const gridXs = (a: number, h: number, n: number): number[] => Array.from({ length: n + 1 }, (_, k) => a + k * h);
+
+/** The heights a sum adds, as the learner writes them: `2\left[f(0) + f(2) + f(4)\right]`. */
+function heightsTex(xs: number[], h: number): string {
+  const inside = xs.map((x) => `f(${x})`).join(' + ');
+  return h === 1 ? inside : `${h}\\left[${inside}\\right]`;
+}
+
+/** A rectangle sum's name: `L_{4}` or `R_{4}`. */
+const sumName = (side: Side, n: number): string => `${side === 'left' ? 'L' : 'R'}_{${n}}`;
+
+/** A y window over [a, b] that keeps the axis and the whole curve in view. */
+function stripWindow(f: (x: number) => number, a: number, b: number): { yMin: number; yMax: number } {
+  const values = Array.from({ length: 41 }, (_, i) => f(a + ((b - a) * i) / 40));
+  const lo = Math.min(0, ...values);
+  const hi = Math.max(0, ...values);
+  const pad = (hi - lo) * 0.1 || 1;
+  return { yMin: lo - pad, yMax: hi + pad };
+}
+
+/**
+ * A curve with the rectangles of a left or right sum drawn under it.
+ *
+ * Laid underneath `plotSvg` the way `betweenSvg` lays its band, through the
+ * same frame (280 wide, inset 12 at each edge), so the y window is required.
+ * Each rectangle is shaded and outlined, so neighbours of equal height still
+ * read as separate strips.
+ */
+export function stripsSvg(opts: {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  f: (x: number) => number;
+  a: number;
+  h: number;
+  n: number;
+  side: Side;
+  label: string;
+  height?: number;
+}): string {
+  const WIDTH = 280;
+  const PAD = 12;
+  const height = opts.height ?? 150;
+  const px = (x: number) => PAD + ((x - opts.xMin) / (opts.xMax - opts.xMin)) * (WIDTH - PAD * 2);
+  const py = (y: number) => PAD + ((opts.yMax - y) / (opts.yMax - opts.yMin)) * (height - PAD * 2);
+  const rects = stripXs(opts.a, opts.h, opts.n, opts.side).map((x, k) => {
+    const left = px(opts.a + k * opts.h);
+    const right = px(opts.a + (k + 1) * opts.h);
+    const y = opts.f(x);
+    const top = py(Math.max(0, y));
+    const bottom = py(Math.min(0, y));
+    const box = `x="${left.toFixed(1)}" y="${top.toFixed(1)}" width="${(right - left).toFixed(1)}" height="${(bottom - top).toFixed(1)}"`;
+    return `<rect class="plot-shade" ${box} /><rect ${box} fill="none" stroke="currentColor" stroke-width="1" opacity="0.6" />`;
+  });
+  const plot = plotSvg({
+    xMin: opts.xMin,
+    xMax: opts.xMax,
+    yMin: opts.yMin,
+    yMax: opts.yMax,
+    height,
+    curves: [{ f: opts.f, accent: true }],
+    label: opts.label,
+  });
+  const open = plot.indexOf('>') + 1;
+  return `${plot.slice(0, open)}${rects.join('')}${plot.slice(open)}`;
+}
+
+/** The strips of a sum over [a, a + nh], framed with a little room either side. */
+function stripFigure({ f, a, h, n, side }: StripParams): string {
+  const b = a + n * h;
+  const at = (x: number) => polyAt(f, x);
+  return stripsSvg({
+    xMin: a - 0.3 * h,
+    xMax: b + 0.3 * h,
+    ...stripWindow(at, a - 0.3 * h, b + 0.3 * h),
+    f: at,
+    a,
+    h,
+    n,
+    side,
+    label: `The curve with the rectangles of the ${side} sum drawn under it`,
+  });
+}
+
+/**
+ * Four whole or half-unit options for a derived choice form, placed at the slot
+ * `salt` picks. Anything that is not a whole number or a half is left out, so
+ * no option is a recurring decimal.
+ */
+function halvesChoices(correct: number, slips: number[], salt: number): ChoiceOption[] {
+  const ok = (v: number) => Number.isFinite(v) && Number.isInteger(2 * v);
+  const picked: number[] = [];
+  for (const value of slips) {
+    if (picked.length === 3) break;
+    if (!ok(value) || value === correct || picked.includes(value)) continue;
+    picked.push(value + 0);
+  }
+  for (let step = 1; picked.length < 3; step += 1) {
+    for (const candidate of [correct + step, correct - step]) {
+      if (picked.length < 3 && !picked.includes(candidate)) picked.push(candidate);
+    }
+  }
+  const option = (v: number) => ({ tex: `${v}`, answer: `${v}` });
+  return steered(options(option(correct), ...picked.map(option)), salt);
+}
+
+/* Area by strips. */
+
+export interface StripParams {
+  f: Poly;
+  a: number;
+  h: number;
+  n: number;
+  side: Side;
+}
+
+type StripCurve = 'line' | 'square' | 'quad';
+
+/** A small polynomial: a line, a shifted x^2, or a quadratic. */
+function drawStripCurve(rng: Rng, forms: StripCurve[]): Poly {
+  const form = rng.pick(forms);
+  if (form === 'line') return [rng.int(0, 8), nonZero(rng.int(-3, 3), 2)];
+  if (form === 'square') return [rng.int(0, 12), 0, rng.pick([1, 1, -1])];
+  return [rng.int(-2, 9), nonZero(rng.int(-4, 4), 1), 1];
+}
+
+/** Heights at every grid point, both ends included, all positive and not too tall. */
+function heightsFit({ f, a, h, n }: StripParams, most: number): boolean {
+  return gridXs(a, h, n).every((x) => polyAt(f, x) >= 1 && polyAt(f, x) <= most);
+}
+
+/** Whether f only rises, or only falls, from a to b. */
+function trendOf(f: Poly, a: number, b: number): 'up' | 'down' | 'turns' {
+  const lead = coefficientOf(f, 2);
+  if (lead !== 0) {
+    const vertex = -coefficientOf(f, 1) / (2 * lead);
+    if (vertex > a && vertex < b) return 'turns';
+  }
+  const slope = coefficientOf(f, 1) + 2 * lead * ((a + b) / 2);
+  return slope > 0 ? 'up' : 'down';
+}
+
+function sampleStrips(rng: Rng, difficulty: number, monotone: boolean): StripParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => ({
+      f: drawStripCurve(rng, hard ? ['square', 'quad', 'quad'] : ['line', 'square']),
+      a: rng.int(-2, 3),
+      // A quadratic seldom stays one way over twelve units, so a monotone hard draw uses narrower strips.
+      h: monotone && hard ? rng.int(1, 2) : rng.int(2, 3),
+      n: hard ? 4 : 3,
+      side: rng.pick<Side>(['left', 'right']),
+    }),
+    (params) =>
+      heightsFit(params, hard ? 60 : 40) &&
+      (!monotone || trendOf(params.f, params.a, params.a + params.n * params.h) !== 'turns'),
+    { f: [1, 0, 1], a: 0, h: 2, n: hard ? 4 : 3, side: 'left' },
+  );
+}
+
+/** The heights, their total and the sum, in words and working. */
+function stripSolution({ f, a, h, n, side }: StripParams) {
+  const xs = stripXs(a, h, n, side);
+  const heights = xs.map((x) => polyAt(f, x));
+  const total = heights.reduce((s, v) => s + v, 0);
+  return [
+    {
+      text: `The strips run from $x = ${a}$ to $x = ${a + n * h}$ in steps of $${h}$. The ${side} sum reads each height at the ${side} edge of its strip: $x = ${xs.join(', ')}$.`,
+    },
+    { text: `With $f(x) = ${polyTex(f)}$ those heights are $${heights.join(', ')}$, which add to $${total}$.` },
+    { tex: `${sumName(side, n)} = ${h} \\times ${total} = ${h * total}` },
+  ];
+}
+
+/** A left or right sum built as a tree: each height, their total, then times the width. */
+const stripTree: Generator<StripParams> = {
+  id: 'int-lim-strip-tree',
+  sample: (rng, difficulty) => sampleStrips(rng, difficulty, false),
+  render: (params): Slide => {
+    const { f, a, h, n, side } = params;
+    const xs = stripXs(a, h, n, side);
+    const heights = xs.map((x) => polyAt(f, x));
+    const total = heights.reduce((s, v) => s + v, 0);
+    const answer = [...heights, total, h * total];
+    const otherTotal = rectSum(f, a, h, n, otherSide(side)) / h;
+    // The height the other sum reads, the other sum, and the width added rather than multiplied.
+    const extra = polyAt(f, side === 'left' ? a + n * h : a);
+    const hard = n > 3;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Here $f(x) = ${polyTex(f)}$, cut from $x = ${a}$ to $x = ${a + n * h}$ into ${n} strips of width $${h}$. Top row: each strip's height at its ${side} edge. Then their total, then the ${side} sum.`,
+        },
+      ],
+      expression: hard ? sumName(side, n) : heightsTex(xs, h),
+      nodes: [
+        ...xs.map((_, k) => ({ id: `h${k}`, from: [] as string[] })),
+        { id: 'total', from: xs.map((_, k) => `h${k}`) },
+        { id: 'sum', from: ['total'] },
+      ],
+      bank: wholeBank(answer, [extra, otherTotal, h * otherTotal, total + extra, total + h]),
+      answer: answer.map(String),
+    };
+  },
+  solution: stripSolution,
+};
+
+export interface RectSumParams {
+  power: number;
+  a: number;
+  h: number;
+  n: number;
+  side: Side;
+}
+
+function rectSumExpr({ power, a, h, n, side }: RectSumParams): Expr {
+  const terms = stripXs(a, h, n, side).map((x) => pow(num(x), num(power)));
+  const inside = terms.slice(1).reduce((acc, term) => bin('+', acc, term), terms[0]);
+  return bin('*', num(h), inside);
+}
+
+/**
+ * Banks for a sum of powers times a width, at every node: a power taken as a
+ * product or one too far, a total with a carry dropped or added, and a product
+ * with the width added instead.
+ */
+function rectSumBanks(expr: Expr, path = 'r', out: Record<string, string[]> = {}): Record<string, string[]> {
+  if (expr.kind === 'num') return out;
+  const value = valueOf(expr);
+  if (expr.kind === 'power') {
+    const base = valueOf(expr.base);
+    const index = valueOf(expr.exponent);
+    out[path] = bank4(value, base * index, base ** (index + 1), base + index);
+    rectSumBanks(expr.base, `${path}.b`, out);
+    rectSumBanks(expr.exponent, `${path}.e`, out);
+  } else if (expr.kind === 'binary') {
+    const left = valueOf(expr.left);
+    const right = valueOf(expr.right);
+    out[path] = expr.op === '*' ? bank4(value, left + right, right, value + left) : bank4(value, value + 10, value - 10);
+    rectSumBanks(expr.left, `${path}.l`, out);
+    rectSumBanks(expr.right, `${path}.r`, out);
+  }
+  return out;
+}
+
+const rectPowerTex = (power: number): string => (power === 1 ? 'x' : `x^{${power}}`);
+
+/** A left or right sum of x^2 or x^3 worked on a reduce line, or picked from four. */
+const rectSumLine: Generator<RectSumParams> = {
+  id: 'int-lim-rect-sum',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({
+        power: difficulty > 1 ? rng.pick([2, 3]) : 2,
+        a: rng.int(0, 4),
+        h: rng.int(1, 3),
+        n: rng.int(3, 4),
+        side: rng.pick<Side>(['left', 'right']),
+      }),
+      ({ power, a, h, n }) => (a + n * h) ** power <= (power === 3 ? 350 : 150),
+      { power: 2, a: 0, h: 2, n: 3, side: 'right' },
+    ),
+  choices: (params) => {
+    const { power, a, h, n, side } = params;
+    const f: Poly = power === 3 ? [0, 0, 0, 1] : [0, 0, 1];
+    const total = rectSum(f, a, h, n, side);
+    // The other edge, the width left off, and every grid point added.
+    const all = h * gridXs(a, h, n).reduce((s, x) => s + x ** power, 0);
+    return numberChoices(total, [rectSum(f, a, h, n, otherSide(side)), total / h, all], mix(power, a, h, n, side.length));
+  },
+  render: (params): Slide => {
+    const { power, a, h, n, side } = params;
+    const expr = rectSumExpr(params);
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The ${side} sum for $y = ${rectPowerTex(power)}$ from $x = ${a}$ to $x = ${a + n * h}$, with ${n} strips of width $${h}$. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      expr,
+      banks: rectSumBanks(expr),
+    };
+  },
+  solution: ({ power, a, h, n, side }) => {
+    const xs = stripXs(a, h, n, side);
+    const heights = xs.map((x) => x ** power);
+    const total = heights.reduce((s, v) => s + v, 0);
+    return [
+      { text: `The ${side} edges are at $x = ${xs.join(', ')}$, so the heights are $${heights.join(', ')}$.` },
+      { text: `They add to $${total}$. Each rectangle is $${h}$ wide, so multiply by $${h}$.` },
+      { tex: `${sumName(side, n)} = ${h} \\times ${total} = ${h * total}` },
+    ];
+  },
+};
+
+/** Which written sum the drawn rectangles add up. */
+const whichSum: Generator<StripParams> = {
+  id: 'int-lim-which-sum',
+  sample: (rng, difficulty) => sampleStrips(rng, difficulty, false),
+  render: (params): Slide => {
+    const { a, h, n, side } = params;
+    const right = heightsTex(stripXs(a, h, n, side), h);
+    const other = heightsTex(stripXs(a, h, n, otherSide(side)), h);
+    const noWidth = stripXs(a, h, n, side)
+      .map((x) => `f(${x})`)
+      .join(' + ');
+    // Stepping along in ones rather than in strip widths.
+    const unitSteps = heightsTex(stripXs(a, 1, n, side), h);
+    const opts = [right, other, noWidth, unitSteps].map((tex) => ({ tex }));
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The rectangles cover $x = ${a}$ to $x = ${a + n * h}$ in ${n} strips of equal width, under $y = f(x)$. Which sum do they add up?`,
+        },
+        { kind: 'diagram', svg: stripFigure(params) },
+      ],
+      ...placedChoices(opts, mix(a, h, n, side.length, ...params.f)),
+    };
+  },
+  solution: ({ a, h, n, side }) => {
+    const xs = stripXs(a, h, n, side);
+    return [
+      { text: `${n} strips from $x = ${a}$ to $x = ${a + n * h}$ are each $${h}$ wide.` },
+      {
+        text: `Each rectangle meets the curve at its ${side} edge, so the heights are read at $x = ${xs.join(', ')}$. That is the ${side} sum.`,
+      },
+      { tex: `${h}\\left[f(${xs[0]}) + \\dots + f(${xs[n - 1]})\\right]` },
+      { text: 'Each height is multiplied by the width, which is the same for every strip, so it comes outside the bracket.' },
+    ];
+  },
+};
+
+export interface EndsParams {
+  a: number;
+  h: number;
+  n: number;
+  side: Side;
+  /** Whether the prompt states the width, or leaves it to be found. */
+  given: boolean;
+}
+
+/** The first and last x a left or right sum reads, as tiles. */
+const sumEnds: Generator<EndsParams> = {
+  id: 'int-lim-sum-ends',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const hard = difficulty > 1;
+        return {
+          a: rng.int(-3, 4),
+          h: rng.int(1, hard ? 4 : 3),
+          n: rng.int(hard ? 4 : 3, hard ? 8 : 5),
+          side: rng.pick<Side>(['left', 'right']),
+          given: !hard,
+        };
+      },
+      ({ a, h, n }) => a + n * h <= 16,
+      { a: 0, h: 2, n: 4, side: 'left', given: difficulty <= 1 },
+    ),
+  render: ({ a, h, n, side, given }): Slide => {
+    const b = a + n * h;
+    const xs = stripXs(a, h, n, side);
+    const answer = [xs[0], xs[n - 1]];
+    const width = given ? `${n} strips of width $${h}$` : `${n} equal strips`;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Cut $x = ${a}$ to $x = ${b}$ into ${width}. The ${side} sum adds $f(x)$ at the ${side} edge of each strip, times the width. Which $x$ does it start and end on?`,
+        },
+      ],
+      template: 'f({0}) + \\dots + f({1})',
+      bank: wholeBank(answer, [a, a + h, b - h, b, a + 1, b - 1]),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ a, h, n, side }) => {
+    const b = a + n * h;
+    const xs = stripXs(a, h, n, side);
+    return [
+      { text: `Each strip is $\\frac{${b} - (${a})}{${n}} = ${h}$ wide, so the edges are $x = ${gridXs(a, h, n).join(', ')}$.` },
+      {
+        text:
+          side === 'left'
+            ? `The left sum uses every edge but the last, $x = ${b}$, since no strip starts there.`
+            : `The right sum uses every edge but the first, $x = ${a}$, since no strip ends there.`,
+      },
+      { tex: `${h}\\left[f(${xs[0]}) + \\dots + f(${xs[n - 1]})\\right]` },
+    ];
+  },
+};
+
+/* The sum as n grows. */
+
+type SigmaForm = 'k' | 'lin' | 'k2' | 'quad';
+
+export interface SigmaParams {
+  form: SigmaForm;
+  n: number;
+  a: number;
+  b: number;
+}
+
+const sumK = (n: number): number => (n * (n + 1)) / 2;
+const sumK2 = (n: number): number => (n * (n + 1) * (2 * n + 1)) / 6;
+
+/** a k + b or a k^2 + b, as the learner reads it inside a sum. */
+function sigmaTermTex({ form, a, b }: { form: SigmaForm; a: number; b: number }): string {
+  const lead = `${a === 1 ? '' : a}k${form === 'k2' || form === 'quad' ? '^{2}' : ''}`;
+  if (form === 'k' || form === 'k2') return lead;
+  return `(${lead} ${b < 0 ? '-' : '+'} ${Math.abs(b)})`;
+}
+
+export function sigmaValue({ form, n, a, b }: SigmaParams): number {
+  const squares = form === 'k2' || form === 'quad';
+  const constant = form === 'lin' || form === 'quad' ? b : 0;
+  return a * (squares ? sumK2(n) : sumK(n)) + constant * n;
+}
+
+const sigmaTex = (params: SigmaParams): string => `\\sum_{k=1}^{${params.n}} ${sigmaTermTex(params)}`;
+
+/** A sum of k or k^2 terms to a given n, typed as a number. */
+const sigma: Generator<SigmaParams> = {
+  id: 'int-lim-sigma',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const form = rng.pick<SigmaForm>(hard ? ['k2', 'quad', 'quad'] : ['k', 'lin', 'lin']);
+    const squares = form === 'k2' || form === 'quad';
+    return {
+      form,
+      n: squares ? rng.int(4, 12) : rng.int(5, 20),
+      a: rng.int(form === 'k' || form === 'k2' ? 2 : 1, 6),
+      b: nonZero(rng.int(-5, 9), 3),
+    };
+  },
+  choices: (params) => {
+    const { form, n, a, b } = params;
+    const V = sigmaValue(params);
+    const squares = form === 'k2' || form === 'quad';
+    const constant = form === 'lin' || form === 'quad' ? b : 0;
+    // One term short, the constant added once instead of n times, and the other formula.
+    const short = sigmaValue({ ...params, n: n - 1 });
+    const other = a * (squares ? sumK(n) : sumK2(n)) + constant * n;
+    return numberChoices(V, [short, V - constant * n + constant, other], mix(n, a, b, form.length));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text:
+          params.form === 'k' || params.form === 'lin'
+            ? 'Evaluate, using $\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}$. The answer is a whole number.'
+            : 'Evaluate. The answer is a whole number.',
+      },
+    ],
+    lead: `${sigmaTex(params)} =`,
+    keypad: [],
+    answer: `${sigmaValue(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { form, n, a, b } = params;
+    const squares = form === 'k2' || form === 'quad';
+    const base = squares ? sumK2(n) : sumK(n);
+    const formula = squares ? `\\frac{${n}(${n + 1})(${2 * n + 1})}{6}` : `\\frac{${n}(${n + 1})}{2}`;
+    const steps: { text?: string; tex?: string }[] = [
+      { text: `Split the sum term by term. The $k${squares ? '^{2}' : ''}$ part uses the formula with $n = ${n}$:` },
+      { tex: stacked(`\\sum_{k=1}^{${n}} k${squares ? '^{2}' : ''} = ${formula}`, `= ${base}`) },
+      { text: `Each term carries a factor of $${a}$, so that part is $${a} \\times ${base} = ${a * base}$.` },
+    ];
+    if (form === 'lin' || form === 'quad') {
+      steps.push({ text: `The constant $${b}$ is added once for each of the $${n}$ terms, giving $${b * n}$.` });
+    }
+    steps.push({ tex: `${sigmaTex(params)} = ${sigmaValue(params)}` });
+    return steps;
+  },
+};
+
+type InNForm = 'lin' | 'quad' | 'mixed';
+
+export interface InNParams {
+  form: InNForm;
+  a: number;
+  b: number;
+}
+
+/** The terms of a sum in n as the learner reads them: `(3k + 2)`, `(2k^{2} - k)`. */
+function inNTermTex({ form, a, b }: InNParams): string {
+  const lead = `${a === 1 ? '' : a}k${form === 'lin' ? '' : '^{2}'}`;
+  if (b === 0) return lead;
+  const tail = form === 'mixed' ? `${Math.abs(b) === 1 ? '' : Math.abs(b)}k` : `${Math.abs(b)}`;
+  return `(${lead} ${b < 0 ? '-' : '+'} ${tail})`;
+}
+
+/** The sum as a formula in n, for the grader. */
+export function inNAnswer({ form, a, b }: InNParams): string {
+  if (form === 'lin') return `(${a}) * n * (n + 1) / 2 + (${b}) * n`;
+  if (form === 'quad') return `(${a}) * n * (n + 1) * (2 * n + 1) / 6 + (${b}) * n`;
+  return `(${a}) * n * (n + 1) * (2 * n + 1) / 6 + (${b}) * n * (n + 1) / 2`;
+}
+
+const N_KEYS: KeypadKey[] = [
+  { insert: 'n', tex: true },
+  { insert: '^' },
+  { insert: '(' },
+  { insert: ')' },
+  { insert: '/' },
+  { insert: '*', label: '×' },
+];
+
+/** A sum to n written as a formula in n, typed. */
+const sumInN: Generator<InNParams> = {
+  id: 'int-lim-sum-in-n',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { form: rng.pick<InNForm>(['quad', 'mixed']), a: rng.int(1, 6), b: nonZero(rng.int(-6, 6), 2) }
+      : { form: 'lin', a: rng.int(1, 9), b: rng.int(-6, 9) },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Write the sum as a formula in $n$, using the $n$ key.' }],
+    lead: `\\sum_{k=1}^{n} ${inNTermTex(params)} =`,
+    keypad: N_KEYS,
+    answer: inNAnswer(params),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ form, a, b }) => {
+    const first = form === 'lin' ? `\\frac{n(n+1)}{2}` : `\\frac{n(n+1)(2n+1)}{6}`;
+    const lead = a === 1 ? '' : `${a} \\times `;
+    const steps: { text?: string; tex?: string }[] = [
+      { text: `Take the sum apart term by term. The $k${form === 'lin' ? '' : '^{2}'}$ part is ${lead ? `$${a}$ times ` : ''}the standard formula:` },
+      { tex: `${lead}${first}` },
+    ];
+    if (b !== 0 && form === 'mixed') {
+      steps.push({ text: `The $k$ part is $${b}$ times $\\frac{n(n+1)}{2}$.` });
+    } else if (b !== 0) {
+      steps.push({ text: `The constant $${b}$ appears once in each of the $n$ terms, so it adds $${b === 1 ? '' : b === -1 ? '-' : b}n$.` });
+    }
+    steps.push({ text: 'Any equivalent formula is fine: the answer is checked by value.' });
+    return steps;
+  },
+};
+
+export interface SumLimitParams {
+  /** The power of x in c x^power, integrated from 0 to b. */
+  power: number;
+  c: number;
+  b: number;
+}
+
+/** c b^(p + 1), the number in front once the widths and heights are multiplied out. */
+const sumLimitA = ({ power, c, b }: SumLimitParams): number => c * b ** (power + 1);
+
+/** The limit of the right sum, which is the integral: A / (p + 1). */
+export const sumLimitValue = (params: SumLimitParams): Ratio => reduce(sumLimitA(params), params.power + 1);
+
+const sumLimitIntegral = ({ power, c, b }: SumLimitParams): string => `\\int_{0}^{${b}} ${termTex(c, power)} \\, dx`;
+
+/** The right sum simplified, with the formula for its sum of k or k^2 put in. */
+function sumLimitForm(params: SumLimitParams, sign: '+' | '-' = '+'): string {
+  const A = sumLimitA(params);
+  if (params.power === 1) return `${leadingTex(reduce(A, 2))}\\left(1 ${sign} \\frac{1}{n}\\right)`;
+  return `${leadingTex(reduce(A, 6))}\\left(1 ${sign} \\frac{1}{n}\\right)\\left(2 ${sign} \\frac{1}{n}\\right)`;
+}
+
+function sumLimitSolution(params: SumLimitParams) {
+  const { power, c, b } = params;
+  const A = sumLimitA(params);
+  const kPower = power === 1 ? 'k' : 'k^{2}';
+  return [
+    {
+      text: `Strips of width $\\frac{${b}}{n}$ have right edges at $x = \\frac{${b}k}{n}$, so the $k$th height is $${c === 1 ? '' : c}\\left(\\frac{${b}k}{n}\\right)^{${power}}$. Width times height, added up:`,
+    },
+    { tex: `\\frac{${A}}{n^{${power + 1}}} \\sum_{k=1}^{n} ${kPower}` },
+    {
+      text: `Put in $\\sum ${kPower} = ${power === 1 ? '\\frac{n(n+1)}{2}' : '\\frac{n(n+1)(2n+1)}{6}'}$ and divide each bracket by $n$:`,
+    },
+    { tex: sumLimitForm(params) },
+    { text: 'As $n$ grows, $\\frac{1}{n} \\to 0$, which leaves the integral.' },
+    { tex: `${sumLimitIntegral(params)} = ${ratioTex(sumLimitValue(params))}` },
+  ];
+}
+
+function sampleSumLimit(rng: Rng, difficulty: number): SumLimitParams {
+  const power = difficulty > 1 ? 2 : 1;
+  return drawUntil(
+    () => ({ power, c: rng.int(1, 9), b: rng.int(1, power === 1 ? 6 : 4) }),
+    (params) => sumLimitA(params) <= 300 && (power === 2 || sumLimitA(params) % 2 === 0),
+    { power, c: 2, b: 3 },
+  );
+}
+
+/** The right sum for c x or c x^2 from 0, simplified a move at a time, then its limit. */
+const sumLimitSteps: Generator<SumLimitParams> = {
+  id: 'int-lim-sum-limit-steps',
+  sample: sampleSumLimit,
+  render: (params): Slide => {
+    const { power, b } = params;
+    const A = sumLimitA(params);
+    const over = `\\frac{${A}}{n^{${power + 1}}}`;
+    const withK = (formula: string) => `${over} \\cdot ${formula}`;
+    const S1 = '\\frac{n(n+1)}{2}';
+    const S2 = '\\frac{n(n+1)(2n+1)}{6}';
+    const limit = sumLimitValue(params);
+    const first =
+      power === 1
+        ? { value: withK(S1), wrong: [withK('\\frac{n(n-1)}{2}'), withK('n'), withK(S2)] }
+        : { value: withK(S2), wrong: [withK(S1), withK('\\frac{n(n-1)(2n-1)}{6}'), withK('\\frac{n^{2}(n+1)^{2}}{4}')] };
+    const second =
+      power === 1
+        ? {
+            value: sumLimitForm(params),
+            wrong: [
+              `${leadingTex(reduce(A, 2))}\\left(1 + \\frac{1}{n^{2}}\\right)`,
+              `${leadingTex(reduce(A, 1))}\\left(1 + \\frac{1}{n}\\right)`,
+              `${leadingTex(reduce(A, 2))}(n + 1)`,
+            ],
+          }
+        : {
+            value: sumLimitForm(params),
+            wrong: [
+              `${leadingTex(reduce(A, 6))}(n + 1)(2n + 1)`,
+              `${leadingTex(reduce(A, 3))}\\left(1 + \\frac{1}{n}\\right)\\left(2 + \\frac{1}{n}\\right)`,
+              `${leadingTex(reduce(A, 6))}\\left(1 + \\frac{1}{n}\\right)\\left(1 + \\frac{2}{n}\\right)`,
+            ],
+          };
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The right sum for $${sumLimitIntegral(params)}$ with $n$ strips of width $\\frac{${b}}{n}$ is below. Tap the part you would do **next**, then choose what it comes to.`,
+        },
+      ],
+      start: ['\\lim_{n \\to \\infty}', `${over} \\sum_{k=1}^{n} ${power === 1 ? 'k' : 'k^{2}'}`],
+      reductions: [
+        { span: [1, 2], value: first.value, bank: tokenBank([first.value], first.wrong) },
+        { span: [1, 2], value: second.value, bank: tokenBank([second.value], second.wrong) },
+        {
+          span: [0, 2],
+          value: ratioTex(limit),
+          // Not divided at all, the sum taken to grow for ever, and the bracket's 2 dropped.
+          bank: tokenBank([ratioTex(limit)], [`${A}`, '\\infty', '0', ratioTex(reduce(A, power === 1 ? 4 : 6))]),
+        },
+      ],
+    };
+  },
+  solution: sumLimitSolution,
+};
+
+export interface ApproachParams extends SumLimitParams {
+  side: Side;
+  /** The top of the slider's track. */
+  top: number;
+}
+
+/** The sum with n strips, as a number, for the plotted points. */
+export function approachAt({ power, side, ...rest }: ApproachParams, n: number): number {
+  const A = sumLimitA({ power, ...rest });
+  const s = side === 'right' ? 1 : -1;
+  return power === 1 ? (A / 2) * (1 + s / n) : (A / 6) * (1 + s / n) * (2 + s / n);
+}
+
+/**
+ * Left or right sums plotted against n, with the formula given: slide to the
+ * value they close in on, which is the integral.
+ */
+const approachSlider: Generator<ApproachParams> = {
+  id: 'int-lim-approach-slider',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const power = difficulty > 1 ? rng.pick([1, 2, 2]) : 1;
+        const c = rng.int(1, 9);
+        const b = rng.int(1, power === 1 ? 4 : 3);
+        const L = (c * b ** (power + 1)) / (power + 1);
+        return { power, c, b, side: rng.pick<Side>(['left', 'right']), top: Math.ceil(L) + rng.int(2, 4) };
+      },
+      (params) => {
+        const L = sumLimitA(params) / (params.power + 1);
+        return Number.isInteger(L) && L >= 2 && L <= 18 && L !== restingOn(0, params.top);
+      },
+      { power: 1, c: 2, b: 3, side: 'right', top: 12 },
+    ),
+  render: (params): Slide => {
+    const { side, top } = params;
+    const L = sumLimitA(params) / (params.power + 1);
+    const window = markerWindow(0, top, 'y');
+    const name = side === 'left' ? 'L_{n}' : 'R_{n}';
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The ${side} sums for $${sumLimitIntegral(params)}$ are $${name} = ${sumLimitForm(params, side === 'right' ? '+' : '-')}$, plotted for $n = 1$ to $10$. Slide the line to the value they close in on.`,
+        },
+      ],
+      min: 0,
+      max: top,
+      step: 1,
+      answer: L,
+      readout: '\\text{limit} = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 11,
+          yMin: window.xMin,
+          yMax: window.xMax,
+          curves: [],
+          marks: Array.from({ length: 10 }, (_, i) => ({ x: i + 1, y: approachAt(params, i + 1) })),
+          label: `The ${side} sums plotted against the number of strips, closing in on a value`,
+        }),
+        ...window,
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const { side } = params;
+    const L = sumLimitA(params) / (params.power + 1);
+    return [
+      { text: 'As $n$ grows, each $\\frac{1}{n}$ shrinks to $0$, so every bracket settles to the number in it.' },
+      { tex: `${sumLimitForm(params, side === 'right' ? '+' : '-')} \\to ${L}` },
+      {
+        text: `The ${side} sums close in ${side === 'right' ? 'from above' : 'from below'}, since the curve rises and the ${side} edge is each strip's ${side === 'right' ? 'highest' : 'lowest'} point.`,
+      },
+      { tex: `${sumLimitIntegral(params)} = ${L}` },
+    ];
+  },
+};
+
+/* Reading the integral from the sum. */
+
+export interface ReadParams {
+  a: number;
+  w: number;
+  p: number;
+  c: number;
+}
+
+/** a + wk/n, the right edge of the kth strip, as the learner reads it. */
+function edgeTex(a: number, w: number): string {
+  const step = `\\frac{${w === 1 ? '' : w}k}{n}`;
+  if (a === 0) return step;
+  return `${a} + ${step}`;
+}
+
+/** lim sum (w/n) c(a + wk/n)^p, displayed. */
+function readSumTex({ a, w, p, c }: ReadParams): string {
+  const power = p === 1 ? '' : `^{${p}}`;
+  return `\\lim_{n \\to \\infty} \\sum_{k=1}^{n} \\frac{${w}}{n} \\cdot ${c === 1 ? '' : c}\\left(${edgeTex(a, w)}\\right)${power}`;
+}
+
+/** The integral a limit of a sum stands for, as two tiles: the limits, then the integrand. */
+const readTiles: Generator<ReadParams> = {
+  id: 'int-lim-read-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      a: rng.int(hard ? -3 : 0, 4),
+      w: rng.int(1, 5),
+      p: hard ? rng.int(2, 3) : rng.int(1, 2),
+      c: hard ? rng.int(2, 5) : 1,
+    };
+  },
+  render: (params): Slide => {
+    const { a, w, p, c } = params;
+    const answer = [intTok(a, a + w), termTex(c, p)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Write this limit as a definite integral.' },
+        { kind: 'display', tex: readSumTex(params) },
+      ],
+      template: '{0} \\, {1} \\, dx',
+      bank: tokenBank(answer, [
+        // Limits read as 0 to the width, the width as the top, or 0 to the far end.
+        intTok(0, w),
+        intTok(a, w),
+        intTok(0, a + w),
+        // The power raised, and the width folded into the integrand.
+        termTex(c, p + 1),
+        termTex(c * w, p),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ a, w, p, c }) => [
+    { text: `The factor $\\frac{${w}}{n}$ is the strip width, $\\frac{b - a}{n}$, so the interval is $${w}$ long.` },
+    { text: `The bracket is $x$ at the right edge of strip $k$. At $k = 0$ it is $${a}$, where the strips start, so $a = ${a}$ and $b = ${a + w}$.` },
+    { text: `Writing $x$ for the bracket, the height is $${termTex(c, p)}$.` },
+    { tex: `\\int_{${a}}^{${a + w}} ${termTex(c, p)} \\, dx` },
+  ],
+};
+
+export interface WhichIntegralParams {
+  a: number;
+  w: number;
+  /** 0 for a general f, or the power of x written into the terms. */
+  p: number;
+}
+
+/** One term of the sum: (width/n) f(start + step k/n), general or with x^p written in. */
+function termOptionTex(width: number, start: number, step: number, p: number): string {
+  const inside = edgeTex(start, step);
+  const height = p === 0 ? `f\\left(${inside}\\right)` : `\\left(${inside}\\right)^{${p}}`;
+  return `\\frac{${width}}{n} ${height}`;
+}
+
+/** Which term, summed and taken to the limit, gives a stated integral. */
+const whichIntegral: Generator<WhichIntegralParams> = {
+  id: 'int-lim-which-integral',
+  // The far end stays positive, so the slip that uses it as the width is a width at all.
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ a: nonZero(rng.int(-3, 5), 2), w: rng.int(2, 6), p: difficulty > 1 ? rng.int(2, 3) : 0 }),
+      // With x^p written in, a wrong term can still land on the right number (an odd
+      // power across 0 gives 0 either way), so every slip's limit must differ.
+      ({ a, w, p }) => {
+        if (a + w < 1) return false;
+        if (p === 0) return true;
+        const limitOf = (width: number, start: number, step: number) =>
+          (width / step) * (((start + step) ** (p + 1) - start ** (p + 1)) / (p + 1));
+        const right = limitOf(w, a, w);
+        return [limitOf(1, a, w), limitOf(w, 0, w), limitOf(a + w, a, a + w), limitOf(w, a, 1)].every(
+          (slip) => Math.abs(slip - right) > 0.5,
+        );
+      },
+      { a: 1, w: 3, p: difficulty > 1 ? 2 : 0 },
+    ),
+  render: ({ a, w, p }): Slide => {
+    const b = a + w;
+    const integrand = p === 0 ? 'f(x)' : `x^{${p}}`;
+    const opts = [
+      termOptionTex(w, a, w, p),
+      // The width taken as 1/n, the start left off, the far end used as the width, and the step left as k/n.
+      termOptionTex(1, a, w, p),
+      termOptionTex(w, 0, w, p),
+      termOptionTex(b, a, b, p),
+      termOptionTex(w, a, 1, p),
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which term, summed from $k = 1$ to $n$, tends to $\\int_{${a}}^{${b}} ${integrand} \\, dx$ as $n$ grows?`,
+        },
+      ],
+      ...placedChoices(
+        [...new Set(opts)].slice(0, 4).map((tex) => ({ tex })),
+        mix(a, w, p),
+      ),
+    };
+  },
+  solution: ({ a, w, p }) => {
+    const b = a + w;
+    return [
+      { text: `The interval is $${b} - (${a}) = ${w}$ long, so each of the $n$ strips is $\\frac{${w}}{n}$ wide.` },
+      { text: `The right edge of strip $k$ is $${a} + \\frac{${w}k}{n}$: it starts at $${a}$ and steps by the width.` },
+      { text: 'Width times the height at that edge:' },
+      { tex: termOptionTex(w, a, w, p) },
+    ];
+  },
+};
+
+export interface SumValueParams {
+  f: Poly;
+  a: number;
+  w: number;
+}
+
+/** The value of the integral the limit stands for. */
+export const sumValue = ({ f, a, w }: SumValueParams): number => sixIntegral(f, a, a + w) / 6;
+
+/** lim sum (w/n) f(a + wk/n), with f given in the prompt. */
+const sumValueTex = ({ a, w }: SumValueParams): string =>
+  `\\lim_{n \\to \\infty} \\sum_{k=1}^{n} \\frac{${w}}{n} f\\left(${edgeTex(a, w)}\\right)`;
+
+/** A limit of a sum recognised as an integral and evaluated: typed, checked by quadrature. */
+const sumValueTyped: Generator<SumValueParams> = {
+  id: 'int-lim-sum-value',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const c = nonZero(rng.int(-3, 4), 2);
+        const f: Poly = hard
+          ? [rng.int(-4, 6), nonZero(rng.int(-4, 4), 1), c]
+          : rng.pick<Poly>([[0, rng.int(1, 6)], [0, 0, rng.int(1, 3)], [rng.int(1, 5), rng.int(1, 4)]]);
+        return { f, a: rng.int(hard ? -2 : 0, 3), w: rng.int(1, 4) };
+      },
+      (params) => {
+        const six = sixIntegral(params.f, params.a, params.a + params.w);
+        return hard ? six % 3 === 0 && Math.abs(six) <= 600 : six % 6 === 0 && six <= 360;
+      },
+      { f: [0, 2], a: 1, w: 2 },
+    );
+  },
+  choices: (params) => {
+    const { f, a, w } = params;
+    const V = sumValue(params);
+    // Integrated from 0 instead of from a, the top limit alone, and one wide rectangle.
+    const fromZero = sixIntegral(f, 0, w) / 6;
+    const topOnly = sixIntegral(f, 0, a + w) / 6;
+    return halvesChoices(V, [fromZero, topOnly, w * polyAt(f, a + w)], mix(a, w, ...f));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `Here $f(x) = ${polyTex(params.f)}$. Call this limit $L$ and write it as an integral, then evaluate it. ${
+          Number.isInteger(sumValue(params)) ? 'The answer is a whole number.' : 'The answer ends in $.5$.'
+        }`,
+      },
+      { kind: 'display', tex: sumValueTex(params) },
+    ],
+    lead: 'L =',
+    keypad: [],
+    answer: `${sumValue(params)}`,
+    integrand: polyAnswer(params.f),
+    limits: [params.a, params.a + params.w],
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { f, a, w } = params;
+    const b = a + w;
+    return [
+      { text: `The width is $\\frac{${w}}{n}$ and the edges start at $${a}$, so this is the integral from $${a}$ to $${b}$.` },
+      { tex: `\\int_{${a}}^{${b}} (${polyTex(f)}) \\, dx` },
+      { tex: `= \\left[${antiTex(f)}\\right]_{${a}}^{${b}}` },
+      { tex: `L = ${sumValue(params)}` },
+    ];
+  },
+};
+
+/** Reading a limit of a sum one piece at a time: the width, the start, then the integrand. */
+const identifyFlow: Generator<ReadParams> = {
+  id: 'int-lim-identify-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { a: rng.int(hard ? -3 : 0, 4), w: rng.int(1, 5), p: hard ? rng.int(2, 3) : rng.int(1, 2), c: hard ? rng.int(2, 5) : 1 };
+  },
+  render: (params): Slide => {
+    const { a, w, p, c } = params;
+    const b = a + w;
+    const salt = mix(a, w, p, c);
+    const distinct = (values: number[]) => [...new Set(values)];
+    const widths = distinct([w, a + w, w + 1, w + 2]).slice(0, 3);
+    const starts = distinct([a, a === 0 ? w : 0, b, a + 1]).slice(0, 3);
+    const integrand = termTex(c, p);
+    const wrongWidth = 'Not quite: $\\frac{b - a}{n}$ is the width, so $b - a$ is the number over $n$.';
+    const wrongStart = 'Not quite: at $k = 0$ the bracket gives the left end of the first strip, which is $a$.';
+    const wrongF = 'Not quite: the width becomes the $dx$, and $x$ replaces the whole bracket.';
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Read the integral off this limit, one piece at a time.' }],
+      subject: readSumTex(params),
+      steps: [
+        {
+          id: 'width',
+          ask: `The factor $\\frac{${w}}{n}$ is the strip width, $\\frac{b - a}{n}$. So what is $b - a$?`,
+          branches: turned(
+            widths.map((v) => (v === w ? { label: `$${v}$`, to: 'start' } : { label: `$${v}$`, outcome: wrongWidth })),
+            salt,
+          ),
+        },
+        {
+          id: 'start',
+          ask: 'Where do the strips start? That is the lower limit $a$.',
+          branches: turned(
+            starts.map((v) => (v === a ? { label: `$${v}$`, to: 'height' } : { label: `$${v}$`, outcome: wrongStart })),
+            salt + 1,
+          ),
+        },
+        {
+          id: 'height',
+          ask: 'Write $x$ for the bracket. What is being integrated?',
+          branches: turned(
+            [...new Set([integrand, termTex(c * w, p), termTex(c, p + 1), termTex(c + 1, p)])].slice(0, 3).map((tex) =>
+              tex === integrand
+                ? { label: `$${tex}$`, outcome: `The limit is $\\int_{${a}}^{${b}} ${integrand} \\, dx$.` }
+                : { label: `$${tex}$`, outcome: wrongF },
+            ),
+            salt + 2,
+          ),
+        },
+      ],
+      answer: [`$${w}$`, `$${a}$`, `$${integrand}$`],
+    };
+  },
+  solution: ({ a, w, p, c }) => [
+    { text: `The width is $\\frac{${w}}{n}$, so $b - a = ${w}$.` },
+    { text: `At $k = 0$ the bracket is $${a}$, so the strips start at $a = ${a}$, and $b = ${a + w}$.` },
+    { text: `With $x$ for the bracket, the height is $${termTex(c, p)}$.` },
+    { tex: `\\int_{${a}}^{${a + w}} ${termTex(c, p)} \\, dx` },
+  ],
+};
+
+/* Over or under. */
+
+const UNDER = 'Under-estimate: every rectangle sits below the curve.';
+const OVER = 'Over-estimate: every rectangle pokes above the curve.';
+const NEITHER = 'Neither is certain: some rectangles sit below the curve and some above.';
+
+/** Over or under for a monotone f: the side's edge is each strip's lowest point, or its highest. */
+function isUnder(trend: 'up' | 'down', side: Side): boolean {
+  return (trend === 'up') === (side === 'left');
+}
+
+export interface BoundParams {
+  f: Poly;
+  a: number;
+  h: number;
+  n: number;
+  side: Side;
+}
+
+function sampleBound(rng: Rng, difficulty: number, allowTurn: boolean): BoundParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const f = rng.chance(hard ? 0.3 : 0.5) ? [rng.int(1, 9), nonZero(rng.int(-4, 4), 1)] : [rng.int(-3, 12), rng.int(-6, 6), rng.pick([1, -1])];
+      return { f, a: rng.int(-2, 3), h: 1, n: rng.int(3, 6), side: rng.pick<Side>(['left', 'right']) };
+    },
+    (params) => {
+      const trend = trendOf(params.f, params.a, params.a + params.n);
+      return heightsFit(params, 40) && (trend !== 'turns' || (allowTurn && hard && rng.chance(0.5)));
+    },
+    { f: [2, 1], a: 0, h: 1, n: 4, side: 'left' },
+  );
+}
+
+const boundTex = ({ f, a, h, n }: BoundParams): string => `\\int_{${a}}^{${a + n * h}} (${polyTex(f)}) \\, dx`;
+
+/** Over, under or neither, walked: which way f goes, then where the side's edge sits. */
+const overUnder: Generator<BoundParams> = {
+  id: 'int-lim-over-under',
+  sample: (rng, difficulty) => sampleBound(rng, difficulty, true),
+  render: (params): Slide => {
+    const { f, a, h, n, side } = params;
+    const trend = trendOf(f, a, a + n * h);
+    const edge = (id: string) => ({
+      id,
+      ask: `So on each strip, the ${side} edge is where $f$ is`,
+      branches: [
+        { label: 'lowest', outcome: UNDER },
+        { label: 'highest', outcome: OVER },
+      ],
+    });
+    const answer =
+      trend === 'turns' ? ['It turns'] : [trend === 'up' ? 'Rising' : 'Falling', isUnder(trend, side) ? 'lowest' : 'highest'];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The ${side} sum with ${n} strips estimates this integral. Does it over- or under-estimate?`,
+        },
+      ],
+      subject: boundTex(params),
+      steps: [
+        {
+          id: 'trend',
+          ask: `From $x = ${a}$ to $x = ${a + n * h}$, is $f(x) = ${polyTex(f)}$ rising or falling?`,
+          branches: [
+            { label: 'Rising', to: 'up' },
+            { label: 'Falling', to: 'down' },
+            { label: 'It turns', outcome: NEITHER },
+          ],
+        },
+        edge('up'),
+        edge('down'),
+      ],
+      answer,
+    };
+  },
+  solution: ({ f, a, h, n, side }) => {
+    const b = a + n * h;
+    const trend = trendOf(f, a, b);
+    const slope = coefficientOf(f, 2) === 0 ? `f'(x) = ${coefficientOf(f, 1)}` : `f'(x) = ${polyTex([coefficientOf(f, 1), 2 * coefficientOf(f, 2)])}`;
+    if (trend === 'turns') {
+      const vertex = -coefficientOf(f, 1) / (2 * coefficientOf(f, 2));
+      return [
+        { text: `$${slope}$, which is zero at $x = ${vertex}$, inside the interval. So $f$ turns there.` },
+        { text: 'On one side of the turn the rectangles sit below the curve and on the other they poke above, so the sum could land either side of the area.' },
+      ];
+    }
+    const under = isUnder(trend, side);
+    return [
+      { text: `$${slope}$, which keeps one sign from $x = ${a}$ to $x = ${b}$, so $f$ is ${trend === 'up' ? 'rising' : 'falling'} throughout.` },
+      {
+        text: `On each strip the ${side} edge is then the ${under ? 'lowest' : 'highest'} point, so each rectangle is ${under ? 'below' : 'above'} the curve.`,
+      },
+      { text: under ? UNDER : OVER },
+    ];
+  },
+};
+
+const BOUND_OPTIONS = {
+  underUp: '\\text{Under, as } f \\text{ rises}',
+  underDown: '\\text{Under, as } f \\text{ falls}',
+  overUp: '\\text{Over, as } f \\text{ rises}',
+  overDown: '\\text{Over, as } f \\text{ falls}',
+};
+
+/** Over or under, and why, from the drawn rectangles (or at difficulty 2 from the formula alone). */
+const boundChoice: Generator<BoundParams & { drawn: boolean }> = {
+  id: 'int-lim-bound-choice',
+  sample: (rng, difficulty) => ({ ...sampleBound(rng, difficulty, false), drawn: difficulty <= 1 }),
+  render: (params): Slide => {
+    const { f, a, h, n, side, drawn } = params;
+    const trend = trendOf(f, a, a + n * h) as 'up' | 'down';
+    const under = isUnder(trend, side);
+    const key = `${under ? 'under' : 'over'}${trend === 'up' ? 'Up' : 'Down'}` as keyof typeof BOUND_OPTIONS;
+    const rest = (Object.keys(BOUND_OPTIONS) as (keyof typeof BOUND_OPTIONS)[]).filter((k) => k !== key);
+    const opts = [key, ...rest].map((k) => ({ tex: BOUND_OPTIONS[k] }));
+    return {
+      kind: 'choice',
+      prompt: drawn
+        ? [
+            {
+              kind: 'prose',
+              text: `The rectangles make the ${side} sum for the area under $y = ${polyTex(f)}$ from $x = ${a}$ to $x = ${a + n * h}$. Over- or under-estimate?`,
+            },
+            { kind: 'diagram', svg: stripFigure(params) },
+          ]
+        : [
+            {
+              kind: 'prose',
+              text: `The ${side} sum with ${n} strips estimates this integral. Over- or under-estimate?`,
+            },
+            { kind: 'display', tex: boundTex(params) },
+          ],
+      ...placedChoices(opts, mix(a, n, side.length, ...f)),
+    };
+  },
+  solution: ({ f, a, h, n, side }) => {
+    const trend = trendOf(f, a, a + n * h) as 'up' | 'down';
+    const under = isUnder(trend, side);
+    return [
+      { text: `From $x = ${a}$ to $x = ${a + n * h}$, $f$ is ${trend === 'up' ? 'rising' : 'falling'}.` },
+      { text: `So the ${side} edge of each strip is its ${under ? 'lowest' : 'highest'} point, and the rectangle ${under ? 'misses a sliver of' : 'takes in a sliver more than'} the area.` },
+      { tex: BOUND_OPTIONS[`${under ? 'under' : 'over'}${trend === 'up' ? 'Up' : 'Down'}` as keyof typeof BOUND_OPTIONS] },
+    ];
+  },
+};
+
+export interface TurnParams {
+  /** 1 for a cup, -1 for a cap. */
+  s: number;
+  k: number;
+  p: number;
+  q: number;
+  a: number;
+  b: number;
+  side: Side;
+}
+
+/** s k (x - p)^2 + q, expanded. */
+export const turnPoly = ({ s, k, p, q }: TurnParams): Poly => [s * k * p * p + q, -2 * s * k * p, s * k];
+
+/** Where the rectangles stop sitting on one side of the curve: slide to the turning point. */
+const turnSlider: Generator<TurnParams> = {
+  id: 'int-lim-turn-slider',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const hard = difficulty > 1;
+        const s = rng.pick([1, -1]);
+        const k = hard ? rng.int(1, 2) : 1;
+        const p = rng.int(-2, 5);
+        const a = p - rng.int(1, 4);
+        const b = p + rng.int(1, 4);
+        const reach = Math.max(p - a, b - p);
+        const q = s === 1 ? rng.int(1, 6) : k * reach * reach + rng.int(1, 6);
+        return { s, k, p, q, a, b, side: hard ? rng.pick<Side>(['left', 'right']) : 'left' };
+      },
+      ({ p, a, b }) => b - a >= 4 && p !== restingOn(a, b),
+      { s: -1, k: 1, p: 2, q: 10, a: -1, b: 4, side: 'left' },
+    ),
+  render: (params): Slide => {
+    const { s, a, b, side } = params;
+    const f = turnPoly(params);
+    const window = markerWindow(a, b);
+    const at = (x: number) => polyAt(f, x);
+    const rising = s === -1;
+    const firstHalf = isUnder(rising ? 'up' : 'down', side) ? 'under-estimates' : 'over-estimates';
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Here $f(x) = ${polyTex(f)}$, and the ${side} sum on each strip ${firstHalf} while $f$ ${rising ? 'rises' : 'falls'}. Slide the marker to where $f$ stops ${rising ? 'rising' : 'falling'}.`,
+        },
+      ],
+      min: a,
+      max: b,
+      step: 1,
+      answer: params.p,
+      readout: 'x = {v}',
+      figure: {
+        svg: stripsSvg({
+          xMin: window.xMin,
+          xMax: window.xMax,
+          ...stripWindow(at, window.xMin, window.xMax),
+          f: at,
+          a,
+          h: 1,
+          n: b - a,
+          side,
+          label: `The curve with the ${side} sum's rectangles, turning inside the interval`,
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { s, k, p } = params;
+    const f = turnPoly(params);
+    return [
+      { text: `$f'(x) = ${polyTex([coefficientOf(f, 1), 2 * coefficientOf(f, 2)])}$, which is zero at $x = ${p}$.` },
+      {
+        text: `The $x^{2}$ coefficient is ${s * k > 0 ? 'positive, so $f$ falls to a minimum there and then rises' : 'negative, so $f$ rises to a maximum there and then falls'}.`,
+      },
+      { tex: `x = ${p}` },
+      { text: 'Either side of it the rectangles sit on opposite sides of the curve, so this sum is neither a sure over- nor a sure under-estimate.' },
+    ];
+  },
+};
+
+/** The left and right sums of a monotone f as the two bounds on its area, as tiles. */
+const betweenTilesSum: Generator<StripParams> = {
+  id: 'int-lim-between-tiles',
+  sample: (rng, difficulty) => sampleStrips(rng, difficulty, true),
+  render: (params): Slide => {
+    const { f, a, h, n } = params;
+    const left = rectSum(f, a, h, n, 'left');
+    const right = rectSum(f, a, h, n, 'right');
+    const answer = [Math.min(left, right), Math.max(left, right)];
+    const all = h * gridXs(a, h, n).reduce((s, x) => s + polyAt(f, x), 0);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Here $f(x) = ${polyTex(f)}$, and $A$ is the area under it from $x = ${a}$ to $x = ${a + n * h}$. Work out the left and right sums with ${n} strips of width $${h}$, then fill in the bounds they give.`,
+        },
+      ],
+      template: '{0} < A < {1}',
+      // Each sum without its width, and every grid point added.
+      bank: wholeBank(answer, [left / h, right / h, all]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { f, a, h, n } = params;
+    const left = rectSum(f, a, h, n, 'left');
+    const right = rectSum(f, a, h, n, 'right');
+    const trend = trendOf(f, a, a + n * h);
+    return [
+      { text: `Left edges $x = ${stripXs(a, h, n, 'left').join(', ')}$ give $L_{${n}} = ${left}$. Right edges $x = ${stripXs(a, h, n, 'right').join(', ')}$ give $R_{${n}} = ${right}$.` },
+      {
+        text: `$f$ is ${trend === 'up' ? 'rising, so the left sum is under and the right sum over' : 'falling, so the left sum is over and the right sum under'} the area.`,
+      },
+      { tex: `${Math.min(left, right)} < A < ${Math.max(left, right)}` },
+    ];
+  },
+};
+
+/* Closing the loop. */
+
+export interface PiecesParams {
+  c: number;
+  d: number;
+  e: number;
+  a: number;
+  b: number;
+}
+
+/** Each term's limit: c(b^3 - a^3)/3, d(b^2 - a^2)/2 and e(b - a). */
+export function piecesOf({ c, d, e, a, b }: PiecesParams): { sq: number; lin: number; con: number } {
+  return { sq: (c * (b ** 3 - a ** 3)) / 3, lin: (d * (b ** 2 - a ** 2)) / 2, con: e * (b - a) };
+}
+
+const piecesPoly = ({ c, d, e }: PiecesParams): Poly => [e, d, c];
+
+/** The limit of a sum taken term by term, which is the antiderivative taken term by term. */
+const piecesTree: Generator<PiecesParams> = {
+  id: 'int-lim-pieces-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const a = hard ? rng.int(0, 2) : 0;
+        return { c: rng.int(1, 6), d: hard ? nonZero(rng.int(-4, 4), 2) : 0, e: rng.int(1, 9), a, b: a + rng.int(1, 3) };
+      },
+      (params) => {
+        const { sq, lin } = piecesOf(params);
+        return Number.isInteger(sq) && Number.isInteger(lin) && sq <= 150;
+      },
+      { c: 3, d: 0, e: 2, a: 0, b: 2 },
+    );
+  },
+  render: (params): Slide => {
+    const { c, d, e, a, b } = params;
+    const { sq, lin, con } = piecesOf(params);
+    const three = d !== 0;
+    const values = three ? [sq, lin, con] : [sq, con];
+    const total = values.reduce((s, v) => s + v, 0);
+    const answer = [...values, total];
+    const ids = three ? ['sq', 'lin', 'con'] : ['sq', 'con'];
+    const rule =
+      a === 0
+        ? `$x^{2}$ gives $\\frac{${b}^{3}}{3}$${three ? `, $x$ gives $\\frac{${b}^{2}}{2}$` : ''} and a constant gives $${b}$`
+        : `$x^{2}$ gives $\\frac{${b}^{3} - ${a}^{3}}{3}$${three ? `, $x$ gives $\\frac{${b}^{2} - ${a}^{2}}{2}$` : ''} and a constant gives $${b} - ${a}$`;
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The limit of the sum splits term by term: ${rule}, each times its coefficient. Top row: each term's limit. Then the integral.`,
+        },
+      ],
+      expression: `\\int_{${a}}^{${b}} (${polyTex(piecesPoly(params))}) \\, dx`,
+      nodes: [...ids.map((id) => ({ id, from: [] as string[] })), { id: 'total', from: ids }],
+      // Not divided by 3 or 2, the constant not multiplied by the width, and the top limit alone.
+      bank: wholeBank(answer, [c * (b ** 3 - a ** 3), ...(three ? [d * (b ** 2 - a ** 2)] : []), e, c * b ** 3, total + e]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { a, b } = params;
+    const { sq, lin, con } = piecesOf(params);
+    const f = piecesPoly(params);
+    const total = sq + lin + con;
+    return [
+      { text: `Term by term: $${sq}$ from the $x^{2}$ term${params.d !== 0 ? `, $${lin}$ from the $x$ term` : ''} and $${con}$ from the constant.` },
+      { tex: `\\text{Total} = ${total}` },
+      { text: 'The same number comes from the antiderivative, which is the point: the limit of the sum is the integral.' },
+      { tex: stacked(`\\left[${antiTex(f)}\\right]_{${a}}^{${b}}`, `= ${total}`) },
+    ];
+  },
+};
+
+/** This level's generators by name, for `limitSum.test.ts`. */
+export const limitSumGenerators = {
+  stripTree,
+  rectSumLine,
+  whichSum,
+  sumEnds,
+  sigma,
+  sumInN,
+  sumLimitSteps,
+  approachSlider,
+  readTiles,
+  whichIntegral,
+  sumValueTyped,
+  identifyFlow,
+  overUnder,
+  boundChoice,
+  turnSlider,
+  betweenTilesSum,
+  piecesTree,
+};
+
 export const integrationGenerators = [
   antiderivativeFamily,
   integratePower,
@@ -7640,4 +9055,5 @@ export const integrationGenerators = [
   repeatedIntegrate,
   formFlow,
   ...Object.values(improperGenerators),
+  ...Object.values(limitSumGenerators),
 ] as unknown as Generator<unknown>[];

@@ -500,6 +500,7 @@ Order, by prerequisite and by how much new widget work each needs:
 | C8 | Inequalities & the Modulus Function | Needs a number-line widget |
 | C9 | Algebraic Fractions & Partial Fractions | Depends on C4 |
 | C10 | Exponential Models | Depends on the Logarithms phase B levels |
+| C11-widget | Proof-ordering widget for C11 | claimed |
 | C11 | Number & Proof | Needs a proof-step ordering widget |
 | C12 | Parametric & Implicit Differentiation | Depends on the Differentiation phase B levels |
 | C13 | Differential Equations | Depends on C12 and on Integration |

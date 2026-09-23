@@ -2,10 +2,10 @@
 
 Written by C9.
 
-Has: Algebraic Fractions, Partial Fractions.
+Has: Algebraic Fractions, Partial Fractions, Quadratic Factors in the
+Denominator.
 
-Needs: Quadratic Factors in the Denominator (an irreducible $x^2 + c$ takes a
-part $(Ax + B)/(x^2 + c)$, found by comparing coefficients); Inequalities with
+Needs: Inequalities with
 Fractions (multiply through by the square of the bottom, or a sign table, drawn
 on the number-line widget); Graphs of Rational Functions (vertical and
 horizontal asymptotes, holes, intercepts and a sketch); The Method of

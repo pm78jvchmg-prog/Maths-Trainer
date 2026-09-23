@@ -2881,6 +2881,1096 @@ const fracSeriesCoefficient: Generator<SeriesParams> = {
   },
 };
 
+/* ================================================================
+ * Level 3, lesson 1: a bracket that will not split
+ * ================================================================ */
+
+type Reductions = Extract<Slide, { kind: 'steps' }>['reductions'];
+
+/** x^2 + c. */
+const sq = (c: number): Poly => [1, 0, c];
+
+const sqTex = (c: number): string => polyTex(sq(c));
+
+/** A square root as the learner reads it: 3, or the radical when it is not whole. */
+function rootTex(n: number): string {
+  const r = Math.round(Math.sqrt(n));
+  return r * r === n ? String(r) : `\\sqrt{${n}}`;
+}
+
+/**
+ * Numbers times letters, summed, as the learner reads it: 2A + B, -B + 5C.
+ * Every letter-sum tile and option goes through here, so a distractor is
+ * spelled the way the answer is. A zero drops its letter, a one its number.
+ */
+function lettersCombo(terms: [number, string][]): string {
+  return terms
+    .filter(([k]) => k !== 0)
+    .map(([k, letter], i) => {
+      const size = Math.abs(k) === 1 ? '' : String(Math.abs(k));
+      if (i === 0) return `${k < 0 ? '-' : ''}${size}${letter}`;
+      return `${k < 0 ? '-' : '+'} ${size}${letter}`;
+    })
+    .join(' ');
+}
+
+/** One letter after another term, its sign shown: + 2B, - B. */
+function moreLetters(k: number, letter: string): string {
+  return `${k < 0 ? '-' : '+'} ${Math.abs(k) === 1 ? '' : Math.abs(k)}${letter}`;
+}
+
+/** Two brackets with these constants, the smaller first: (x - 3)(x + 3). */
+function pairTex(s: number, t: number): string {
+  const [u, v] = [s, t].sort((x, y) => x - y);
+  return `${pbr(u)}${pbr(v)}`;
+}
+
+/**
+ * Ax + B over a bottom, the minus sign outside when A is negative, as a lone
+ * term or after another. Every quadratic part goes through here, so a
+ * distractor tile is spelled the way the answer is.
+ */
+function quadPart(A: number, B: number, bottom: string, first: boolean): string {
+  const body = frac(polyTex(A < 0 ? [-A, -B] : [A, B]), bottom);
+  if (A < 0) return first ? `-${body}` : `- ${body}`;
+  return first ? body : `+ ${body}`;
+}
+
+interface FormParams {
+  /** The linear bracket is (x + a). */
+  a: number;
+  /** The quadratic factor, monic. */
+  q: Poly;
+  /** Its bracket constants, smaller first, when it factorises; null when it will not split. */
+  s: [number, number] | null;
+  /** Numerators, only so that the top shown is a real top for this bottom. */
+  K: [number, number, number];
+}
+
+function formTop({ a, q, s, K }: FormParams): Poly {
+  if (s === null) return addPoly(mulPoly([K[0], K[1]], lin(a)), scalePoly(q, K[2]));
+  return addPoly(
+    addPoly(scalePoly(quad(s[1], a), K[0]), scalePoly(quad(s[0], a), K[1])),
+    scalePoly(quad(s[0], s[1]), K[2]),
+  );
+}
+
+const formBottomTex = ({ a, q }: FormParams): string => `${pbr(a)}(${polyTex(q)})`;
+
+const formFractionTex = (params: FormParams): string => frac(polyTex(formTop(params)), formBottomTex(params));
+
+/** The form the split takes, with letters. */
+function formLettersTex({ a, q, s }: FormParams): string {
+  if (s === null) return `${frac('Ax + B', polyTex(q))} + ${frac('C', br(a))}`;
+  return `${frac('A', br(s[0]))} + ${frac('B', br(s[1]))} + ${frac('C', br(a))}`;
+}
+
+/**
+ * A bottom (x + a) times a quadratic. Difficulty 1 takes x^2 + c, which will
+ * not split, or x^2 - k^2, which will; difficulty 2 any monic quadratic, told
+ * apart by its discriminant. `splits` says which.
+ */
+function sampleForm(rng: Rng, difficulty: number, splits: boolean): FormParams {
+  for (;;) {
+    const a = nonZero(rng, 5);
+    let q: Poly;
+    let s: [number, number] | null = null;
+    if (difficulty > 1 && splits) {
+      const [u, v] = distinct(rng, 2, 5);
+      s = [Math.min(u, v), Math.max(u, v)];
+      q = quad(u, v);
+    } else if (difficulty > 1) {
+      const p = nonZero(rng, 6);
+      q = [1, p, Math.floor((p * p) / 4) + rng.int(1, 6)];
+    } else if (splits) {
+      const k = rng.int(1, 5);
+      s = [-k, k];
+      q = [1, 0, -k * k];
+    } else q = sq(rng.int(1, 9));
+    if (s !== null && s.includes(a)) continue;
+    const K: [number, number, number] = [nonZero(rng, 4), nonZero(rng, 4), nonZero(rng, 4)];
+    if (formTop({ a, q, s, K }).length !== 3) continue;
+    return { a, q, s, K };
+  }
+}
+
+/**
+ * Wrong factorisations: the signs flipped, a bracket squared, factors of the
+ * constant that do not add up, and x^2 + c read as a difference of squares.
+ */
+function factorSlips({ q, s }: FormParams): string[] {
+  const [, p, k] = q;
+  const out: string[] = [];
+  if (s !== null) out.push(pairTex(-s[0], -s[1]), `${pbr(s[0])}^{2}`, `${pbr(s[1])}^{2}`);
+  else if (p === 0) out.push(`(x - ${rootTex(k)})(x + ${rootTex(k)})`);
+  out.push(pairTex(1, k), pairTex(-1, -k));
+  return out;
+}
+
+function formSolution(params: FormParams): SolutionStep[] {
+  const { q, s } = params;
+  const [, p, k] = q;
+  const qTex = polyTex(q);
+  const disc = p * p - 4 * k;
+  const steps: SolutionStep[] = [];
+  if (p !== 0) steps.push({ text: `For $${qTex}$, $b^{2} - 4ac = ${paren(p)}^{2} - 4 \\times ${paren(k)} = ${disc}$.` });
+  if (s === null) {
+    steps.push({
+      text:
+        p === 0
+          ? `$${qTex}$ is at least $${k}$ for every $x$, so it is never zero: it has no real roots and will not split.`
+          : `That is negative, so $${qTex}$ has no real roots and will not split.`,
+    });
+    steps.push({ text: 'A quadratic that stays whole takes a top one degree lower: an $x$ term and a number, not a number alone.' });
+  } else {
+    steps.push({
+      text: `${p === 0 ? 'It is a difference of two squares' : 'That is a square, so it factorises'}: $${qTex} = ${pairTex(s[0], s[1])}$. The bottom is three linear brackets, each with a number over it.`,
+    });
+  }
+  steps.push({ tex: formLettersTex(params) });
+  return steps;
+}
+
+/**
+ * Does the quadratic split, and so what form does the fraction take? The two
+ * wrong turns are a number alone over x^2 + c, and x^2 - 9 kept whole as if it
+ * would not split.
+ */
+const fracQuadFactoriseFlow: Generator<FormParams> = {
+  id: 'frac-quad-factorise-flow',
+  sample: (rng, difficulty) => sampleForm(rng, difficulty, rng.chance(0.5)),
+  render: (params): Slide => {
+    const { a, q, s } = params;
+    const qTex = polyTex(q);
+    const factors = s === null ? null : pairTex(s[0], s[1]);
+    const factorings = [...new Set([...(factors === null ? [] : [factors]), ...factorSlips(params)])].slice(0, 4);
+    const forms = [frac('Ax + B', qTex), frac('A', qTex), frac('Ax^{2} + Bx + D', qTex)];
+    return {
+      kind: 'flow',
+      prompt: [say('Decide what the split of this fraction looks like. Each answer decides what is asked next.')],
+      subject: formFractionTex(params),
+      steps: [
+        {
+          id: 'splits',
+          ask: `Does $${qTex}$ factorise into two brackets?`,
+          branches: [
+            { label: 'Yes', to: 'factors' },
+            { label: 'No', to: 'form' },
+          ],
+        },
+        {
+          id: 'factors',
+          ask: `What does $${qTex}$ factorise into?`,
+          branches: turned(factorings, qTex).map((tex) => ({
+            label: `$${tex}$`,
+            outcome: `So the bottom is $${pbr(a)}${tex}$, and each bracket gets a number over it.`,
+          })),
+        },
+        {
+          id: 'form',
+          ask: `So what goes over $${qTex}$?`,
+          branches: turned(forms, `${qTex}|${a}`).map((tex) => ({
+            label: `$${tex}$`,
+            outcome: `So the split is $${tex} + ${frac('C', br(a))}$.`,
+          })),
+        },
+      ],
+      answer: factors === null ? ['No', `$${forms[0]}$`] : ['Yes', `$${factors}$`],
+    };
+  },
+  solution: formSolution,
+};
+
+/** The two parts of a split over a quadratic that will not split, placed as tiles. */
+const fracQuadPartsTiles: Generator<FormParams> = {
+  id: 'frac-quad-parts-tiles',
+  sample: (rng, difficulty) => sampleForm(rng, difficulty, false),
+  render: (params): Slide => {
+    const { a, q } = params;
+    const qTex = polyTex(q);
+    const answer = [frac('Ax + B', qTex), frac('C', br(a))];
+    return {
+      kind: 'tiles',
+      prompt: [say('Place the two parts this fraction splits into, with letters for the numbers still to find.'), show(formFractionTex(params))],
+      template: '{0} + {1}',
+      unordered: true,
+      bank: tileBank(answer, [frac('A', qTex), frac('C', qTex), frac('Cx + D', br(a)), frac('Ax + B', br(a))]),
+      answer,
+    };
+  },
+  solution: formSolution,
+};
+
+/** Which form does the split take? Forgetting the x on top, or splitting what will not split. */
+const fracQuadFormWhich: Generator<FormParams> = {
+  id: 'frac-quad-form-which',
+  sample: (rng, difficulty) => sampleForm(rng, difficulty, rng.chance(0.5)),
+  render: (params): Slide => {
+    const { a, q, s } = params;
+    const qTex = polyTex(q);
+    const linear = frac('C', br(a));
+    const wrong =
+      s === null
+        ? [
+            `${frac('A', qTex)} + ${frac('B', br(a))}`,
+            ...(q[1] === 0 ? [`${frac('A', `x - ${rootTex(q[2])}`)} + ${frac('B', `x + ${rootTex(q[2])}`)} + ${linear}`] : []),
+            `${frac('Ax + B', qTex)} + ${frac('Cx + D', br(a))}`,
+            frac('Ax + B', qTex),
+          ]
+        : [`${frac('Ax + B', qTex)} + ${linear}`, `${frac('A', qTex)} + ${frac('B', br(a))}`, `${frac('A', br(s[0]))} + ${frac('B', br(s[1]))}`];
+    return choiceSlide(
+      [say('Which form does this fraction split into?'), show(formFractionTex(params))],
+      firstFour(formLettersTex(params), ...wrong),
+    );
+  },
+  solution: formSolution,
+};
+
+interface DiscriminantParams {
+  /** The quadratic kx^2 + px + q. */
+  k: number;
+  p: number;
+  q: number;
+}
+
+/**
+ * b^2 - 4ac as a tree. Difficulty 2 has a leading coefficient other than 1.
+ * The discriminant is drawn negative or a square, never a positive that
+ * splits into surds, so "will it split?" has a plain answer.
+ */
+const fracDiscriminantTree: Generator<DiscriminantParams> = {
+  id: 'frac-discriminant-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const k = difficulty > 1 ? rng.int(2, 3) : 1;
+      const p = nonZero(rng, difficulty > 1 ? 7 : 6);
+      const q = rng.chance(0.6) ? rng.int(1, 12) : -rng.int(1, 9);
+      const disc = p * p - 4 * k * q;
+      if (disc < 0 || Math.round(Math.sqrt(disc)) ** 2 === disc) return { k, p, q };
+    }
+  },
+  render: ({ k, p, q }): Slide => {
+    const answer = [p * p, 4 * k * q, p * p - 4 * k * q];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Will this quadratic split? Here $a = ${k}$, $b = ${p}$ and $c = ${q}$. Top row: $b^{2}$, then $4ac$. Below: $b^{2} - 4ac$, which is negative exactly when it has no real roots.`,
+        ),
+      ],
+      expression: polyTex([k, p, q]),
+      nodes: [
+        { id: 'b2', from: [] },
+        { id: 'ac', from: [] },
+        { id: 'disc', from: ['b2', 'ac'] },
+      ],
+      bank: numberBank(answer, [-p * p, 2 * k * q, 4 * q, p * p + 4 * k * q, 2 * p]),
+      answer: answer.map(String),
+    };
+  },
+  solution: ({ k, p, q }) => {
+    const disc = p * p - 4 * k * q;
+    const tex = polyTex([k, p, q]);
+    const verdict =
+      disc < 0
+        ? `negative, so $${tex}$ has no real roots. It will not split, and its part in a split is $${frac('Ax + B', tex)}$.`
+        : `$${Math.sqrt(disc)}^{2}$, a square, so it factorises into brackets with whole numbers in them.`;
+    return [
+      { text: `$b^{2} = ${paren(p)}^{2} = ${p * p}$ and $4ac = 4 \\times ${k} \\times ${paren(q)} = ${4 * k * q}$.` },
+      { tex: `b^{2} - 4ac = ${p * p} - ${paren(4 * k * q)} = ${disc}` },
+      { text: `That is ${verdict}` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 2: the linear part first
+ * ================================================================ */
+
+interface QuadSplit {
+  /** The fraction is (Ax + B)/(x^2 + c) + C/(x + a), added up; a = 0 puts C over x. */
+  A: number;
+  B: number;
+  C: number;
+  a: number;
+  c: number;
+  /** The bottom shown multiplied out, to be factorised first. */
+  expanded: boolean;
+}
+
+/** (Ax + B)(x + a) + C(x^2 + c). */
+const quadSplitTop = ({ A, B, C, a, c }: QuadSplit): Poly => addPoly(mulPoly([A, B], lin(a)), scalePoly(sq(c), C));
+
+/** Both sides multiplied by the bottom, over three lines so it fits a phone. */
+function multipliedTex(params: QuadSplit): string {
+  return chain(`&${polyTex(quadSplitTop(params))}`, `=\\;&(Ax + B)${quadLinearTex(params.a)}`, `&\\quad + C(${sqTex(params.c)})`);
+}
+
+/** The linear bracket as a factor: (x + 2), or x itself. */
+const quadLinearTex = (a: number): string => (a === 0 ? 'x' : pbr(a));
+
+/** The first `count` distractors that differ from the answer and from each other. */
+function fewest(answer: string[], count: number, distractors: string[]): string[] {
+  const seen = new Set(answer.map(bare));
+  const out: string[] = [];
+  for (const token of distractors) {
+    if (out.length === count || seen.has(bare(token))) continue;
+    seen.add(bare(token));
+    out.push(token);
+  }
+  return out;
+}
+
+/** (x + a)(x^2 + c) multiplied out. */
+const quadCubic = ({ a, c }: QuadSplit): Poly => mulPoly(lin(a), sq(c));
+
+function quadBottomTex(params: QuadSplit): string {
+  if (params.expanded) return polyTex(quadCubic(params));
+  return params.a === 0 ? `x(${sqTex(params.c)})` : `${pbr(params.a)}(${sqTex(params.c)})`;
+}
+
+const quadFractionTex = (params: QuadSplit): string => frac(polyTex(quadSplitTop(params)), quadBottomTex(params));
+
+const quadLettersTex = ({ a, c }: QuadSplit): string => `${frac('Ax + B', sqTex(c))} + ${frac('C', br(a))}`;
+
+const quadAnswerTex = ({ A, B, C, a, c }: QuadSplit): string => `${quadPart(A, B, sqTex(c), true)} ${signedFracTerm(C, br(a))}`;
+
+/** The top's coefficients, and what cover-up meets at x = -a. */
+function quadValues(params: QuadSplit) {
+  const top = quadSplitTop(params);
+  return { top, x2: top[0], x1: top[1], x0: top[2], t: valueAt(top, -params.a), square: params.a * params.a + params.c };
+}
+
+/**
+ * The letters, drawn first, the top multiplied up from them. Difficulty 1
+ * keeps A and C positive and the brackets small; difficulty 2 signs them all.
+ * `overX` makes the linear bracket x itself.
+ */
+function sampleQuadSplit(rng: Rng, difficulty: number, overX = false): QuadSplit {
+  const hard = difficulty > 1;
+  for (;;) {
+    const a = overX ? 0 : nonZero(rng, hard ? 5 : 3);
+    const c = rng.int(1, hard ? 9 : 5);
+    const A = hard ? nonZero(rng, 5) : rng.int(1, 3);
+    const B = nonZero(rng, hard ? 5 : 4);
+    const C = hard ? nonZero(rng, 5) : rng.int(1, 3);
+    // A top with no x^2 term, or a cover-up value past two digits, is a different question.
+    if (A + C === 0 || Math.abs(C) * (a * a + c) > 99) continue;
+    return { A, B, C, a, c, expanded: overX && hard };
+  }
+}
+
+function quadCoverSolution(params: QuadSplit): SolutionStep[] {
+  const { C, a, c } = params;
+  const { top, t, square } = quadValues(params);
+  return [
+    { text: `Multiply both sides by the bottom: $${polyTex(top)} = (Ax + B)${pbr(a)} + C(${sqTex(c)})$.` },
+    {
+      text: `Put $x = ${-a}$: the first bracket is zero, so only $C$ survives. The top is $${t}$ there, and $${sqTex(c)}$ is $${paren(-a)}^{2} + ${c} = ${square}$.`,
+    },
+    { tex: `C = ${frac(String(t), String(square))} = ${C}` },
+    { text: `That is cover-up: cover $${pbr(a)}$ and put $x = ${-a}$ into what is left.` },
+  ];
+}
+
+function quadSolution(params: QuadSplit): SolutionStep[] {
+  const { A, B, C, a, c } = params;
+  const { top, x2, x0, t, square } = quadValues(params);
+  return [
+    { text: `Multiply both sides by the bottom: $${polyTex(top)} = (Ax + B)${pbr(a)} + C(${sqTex(c)})$.` },
+    { text: `Put $x = ${-a}$, which makes $${pbr(a)}$ zero: $${t} = ${lettersCombo([[square, 'C']])}$, so $C = ${C}$.` },
+    { text: `The $x^{2}$ terms: $A + C = ${x2}$, so $A = ${A}$.` },
+    { text: `The numbers: $${lettersCombo([[a, 'B'], [c, 'C']])} = ${x0}$, so $B = ${B}$.` },
+    { tex: quadAnswerTex(params) },
+  ];
+}
+
+/** C by cover-up, then A from the x^2 terms, as a tree. */
+const fracQuadCAndATree: Generator<QuadSplit> = {
+  id: 'frac-quad-c-and-a-tree',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { A, C, a, c } = params;
+    const { top, x2, t, square } = quadValues(params);
+    const answer = [t, square, C, A];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `This splits as $${quadLettersTex(params)}$. Cover $${pbr(a)}$ and put $x = ${-a}$ into the rest. Top row: the top there, then $${sqTex(c)}$ there. Below: $C$. Last: $A$, from the $x^{2}$ terms, $A + C = ${x2}$.`,
+        ),
+      ],
+      expression: quadFractionTex(params),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'square', from: [] },
+        { id: 'C', from: ['top', 'square'] },
+        { id: 'A', from: ['C'] },
+      ],
+      bank: numberBank(answer, [-C, c - a * a, x2 + C, -A, valueAt(top, a)]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => [
+    ...quadCoverSolution(params).slice(0, 3),
+    { text: `Then the $x^{2}$ terms: $A + C = ${quadValues(params).x2}$, so $A = ${params.A}$.` },
+  ],
+};
+
+/** Cover-up as a line of working, where (-a)^2 is the step that goes wrong. */
+const fracQuadCoverSteps: Generator<QuadSplit> = {
+  id: 'frac-quad-cover-steps',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { C, a, c } = params;
+    const { t, square } = quadValues(params);
+    const aa = a * a;
+    return {
+      kind: 'steps',
+      prompt: [
+        show(quadFractionTex(params)),
+        say(
+          `This splits as $${quadLettersTex(params)}$. Cover $${pbr(a)}$ and put $x = ${-a}$ into the rest: the top there is $${t}$. Tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [String(t), '\\div', `(${paren(-a)}^{2} + ${c})`],
+      reductions: [
+        {
+          span: [2, 3],
+          value: `(${aa} + ${c})`,
+          bank: stepBank(`(${aa} + ${c})`, `(${-aa} + ${c})`, `(${-2 * a} + ${c})`, `(${2 * Math.abs(a)} + ${c})`),
+        },
+        { span: [2, 3], value: String(square), bank: stepBank(String(square), String(c - aa), String(aa * c), String(square + 1)) },
+        { span: [0, 3], operator: 1, value: String(C), bank: stepBank(String(C), String(-C), String(t - square), String(C + 1)) },
+      ],
+    };
+  },
+  solution: quadCoverSolution,
+};
+
+interface QuadAskParams extends QuadSplit {
+  ask: 'A' | 'C';
+}
+
+/** One letter, typed: C by cover-up, and at difficulty 2 sometimes A after it. */
+const fracQuadCValue: Generator<QuadAskParams> = {
+  id: 'frac-quad-c-value',
+  sample: (rng, difficulty) => ({ ...sampleQuadSplit(rng, difficulty), ask: difficulty > 1 ? rng.pick<'A' | 'C'>(['A', 'C']) : 'C' }),
+  choices: (params) => {
+    const { A, C, a, c } = params;
+    const { x2, t } = quadValues(params);
+    return params.ask === 'C' ? intOptions(C, [-C, t, x2, t / (c - a * a)]) : intOptions(A, [x2, x2 + C, -A, C]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [show(quadFractionTex(params)), say(`This splits as $${quadLettersTex(params)}$. Find $${params.ask}$.`)],
+    lead: `${params.ask} =`,
+    keypad: [],
+    answer: String(params.ask === 'C' ? params.C : params.A),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) =>
+    params.ask === 'C'
+      ? quadCoverSolution(params)
+      : [...quadCoverSolution(params).slice(0, 3), { text: `Then the $x^{2}$ terms: $A + C = ${quadValues(params).x2}$, so $A = ${params.A}$.` }],
+};
+
+/** What each power of x says once the right side is multiplied out, as letter sums. */
+const fracQuadCoefficientsTiles: Generator<QuadSplit> = {
+  id: 'frac-quad-coefficients-tiles',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { a, c } = params;
+    const { x2, x1, x0 } = quadValues(params);
+    const answer = [lettersCombo([[1, 'A'], [1, 'C']]), lettersCombo([[a, 'A'], [1, 'B']]), lettersCombo([[a, 'B'], [c, 'C']])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          'Multiplied by the bottom, the two tops agree for every $x$. Multiply out the right, then place what its $x^{2}$ terms, its $x$ terms and its numbers come to, in that order.',
+        ),
+        show(multipliedTex(params)),
+      ],
+      template: `{0} = ${x2}, \\quad {1} = ${x1}, \\quad {2} = ${x0}`,
+      bank: tileBank(
+        answer,
+        fewest(answer, 4, [
+          lettersCombo([[1, 'A'], [1, 'B']]),
+          lettersCombo([[c, 'B'], [a, 'C']]),
+          lettersCombo([[a, 'B'], [1, 'C']]),
+          lettersCombo([[-a, 'A'], [1, 'B']]),
+          lettersCombo([[1, 'A'], [a, 'B']]),
+          lettersCombo([[1, 'B'], [c, 'C']]),
+          lettersCombo([[a, 'B'], [-c, 'C']]),
+        ]),
+      ),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, c } = params;
+    const { x2, x1, x0 } = quadValues(params);
+    return [
+      {
+        text: `Multiply out: $(Ax + B)${pbr(a)} = Ax^{2} + (${lettersCombo([[a, 'A'], [1, 'B']])})x ${moreLetters(a, 'B')}$, and $C(${sqTex(c)}) = Cx^{2} ${moreLetters(c, 'C')}$.`,
+      },
+      {
+        tex: chain(
+          `x^{2} \\text{ terms:} &\\;\\; A + C = ${x2}`,
+          `x \\text{ terms:} &\\;\\; ${lettersCombo([[a, 'A'], [1, 'B']])} = ${x1}`,
+          `\\text{numbers:} &\\;\\; ${lettersCombo([[a, 'B'], [c, 'C']])} = ${x0}`,
+        ),
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 3: finding B
+ * ================================================================ */
+
+/** B from the numbers, once C is known, as a line of working. */
+const fracQuadBSteps: Generator<QuadSplit> = {
+  id: 'frac-quad-b-steps',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { B, C, a, c } = params;
+    const { x0 } = quadValues(params);
+    const cC = c * C;
+    const rest = x0 - cC;
+    return {
+      kind: 'steps',
+      prompt: [
+        show(quadFractionTex(params)),
+        say(
+          `This splits as $${quadLettersTex(params)}$, and cover-up gives $C = ${C}$. The numbers say $${lettersCombo([[a, 'B'], [c, 'C']])} = ${x0}$. Tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [lettersCombo([[a, 'B']]), `+ ${c} \\times ${paren(C)}`, '=', String(x0)],
+      reductions: [
+        { span: [1, 2], value: signed(cC), bank: stepBank(signed(cC), signed(-cC), signed(c + C), signed(cC + c)) },
+        { span: [1, 4], operator: 2, value: `= ${rest}`, bank: stepBank(`= ${rest}`, `= ${x0 + cC}`, `= ${-rest}`) },
+        { span: [0, 2], value: `B = ${B}`, bank: stepBank(`B = ${B}`, `B = ${-B}`, `B = ${rest}`, `B = ${x0}`, `B = ${rest * a}`) },
+      ],
+    };
+  },
+  solution: quadSolution,
+};
+
+/** All three letters in one tree: cover-up for C, then A and B from it. */
+const fracQuadAbcTree: Generator<QuadSplit> = {
+  id: 'frac-quad-abc-tree',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { A, B, C, a, c } = params;
+    const { x2, x1, x0, t, square } = quadValues(params);
+    const answer = [t, square, C, A, B];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Split into $${quadLettersTex(params)}$. Top row: the top at $x = ${-a}$, then $${sqTex(c)}$ there. Below: $C$. Then $A$, from the $x^{2}$ terms, $A + C = ${x2}$; and $B$, from the numbers, $${lettersCombo([[a, 'B'], [c, 'C']])} = ${x0}$.`,
+        ),
+      ],
+      expression: quadFractionTex(params),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'square', from: [] },
+        { id: 'C', from: ['top', 'square'] },
+        { id: 'A', from: ['C'] },
+        { id: 'B', from: ['C'] },
+      ],
+      bank: numberBank(answer, [-C, -B, x0 - c * C, x2 + C, x1]),
+      answer: answer.map(String),
+    };
+  },
+  solution: quadSolution,
+};
+
+interface SubstituteParams extends QuadSplit {
+  /** The value of x put into both sides. */
+  at: 0 | 1;
+}
+
+/**
+ * Which equation does a value of x give? x = 0 gives the numbers' equation,
+ * which is the quick way to B; at difficulty 2, x = 1 gives one with every
+ * letter in it, the check.
+ */
+const fracQuadSubstitute: Generator<SubstituteParams> = {
+  id: 'frac-quad-substitute',
+  sample: (rng, difficulty) => ({ ...sampleQuadSplit(rng, difficulty), at: difficulty > 1 ? 1 : 0 }),
+  render: (params): Slide => {
+    const { a, c, at } = params;
+    const { top } = quadValues(params);
+    const left = valueAt(top, at);
+    const eq = (...terms: [number, string][]) => `${left} = ${lettersCombo(terms)}`;
+    const right = at === 0 ? eq([a, 'B'], [c, 'C']) : eq([1 + a, 'A'], [1 + a, 'B'], [1 + c, 'C']);
+    const wrong =
+      at === 0
+        ? [
+            eq([a, 'B'], [1, 'C']),
+            eq([1, 'B'], [c, 'C']),
+            eq([c, 'B'], [a, 'C']),
+            eq([a, 'A'], [c, 'C']),
+            eq([a, 'B'], [-c, 'C']),
+            eq([1, 'A'], [1, 'B'], [c, 'C']),
+            eq([a, 'B']),
+          ]
+        : [
+            eq([1 + a, 'A'], [1, 'B'], [1 + c, 'C']),
+            eq([1 + a, 'A'], [1 + a, 'B'], [c, 'C']),
+            eq([a, 'A'], [a, 'B'], [1 + c, 'C']),
+            eq([1, 'A'], [1, 'B'], [1 + c, 'C']),
+          ];
+    return choiceSlide(
+      [
+        say(`Multiplied by the bottom, the tops agree for every $x$. Put $x = ${at}$ into both sides. Which equation comes out?`),
+        show(multipliedTex(params)),
+      ],
+      firstFour(right, ...wrong),
+    );
+  },
+  solution: (params) => {
+    const { A, B, C, a, c, at } = params;
+    const left = valueAt(quadValues(params).top, at);
+    if (at === 0) {
+      return [
+        { text: `At $x = 0$ the left is its number, $${left}$.` },
+        { text: `On the right, $(A \\times 0 + B)(0 ${signed(a)})$ is $${lettersCombo([[a, 'B']])}$ and $C(0 + ${c})$ is $${lettersCombo([[c, 'C']])}$.` },
+        { tex: `${left} = ${lettersCombo([[a, 'B'], [c, 'C']])}` },
+        { text: `It is the equation the numbers give, since $x = 0$ wipes out every $x$ term. With $C = ${C}$ it gives $B = ${B}$.` },
+      ];
+    }
+    return [
+      { text: `At $x = 1$ the left is its coefficients added up, $${left}$.` },
+      { text: `On the right, $(A + B)(1 ${signed(a)})$ and $C(1 + ${c})$:` },
+      { tex: `${left} = ${lettersCombo([[1 + a, 'A'], [1 + a, 'B'], [1 + c, 'C']])}` },
+      { text: `That is the check: $A = ${A}$, $B = ${B}$ and $C = ${C}$ satisfy it.` },
+    ];
+  },
+};
+
+/** B, typed. */
+const fracQuadBValue: Generator<QuadSplit> = {
+  id: 'frac-quad-b-value',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  choices: (params) => {
+    const { B, C, c } = params;
+    const { x0, x1 } = quadValues(params);
+    return intOptions(B, [-B, x0 - c * C, x1, x0]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [show(quadFractionTex(params)), say(`This splits as $${quadLettersTex(params)}$. Find $B$.`)],
+    lead: 'B =',
+    keypad: [],
+    answer: String(params.B),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: quadSolution,
+};
+
+/** The whole split placed as tiles, the quadratic part first. */
+const fracQuadSplitTiles: Generator<QuadSplit> = {
+  id: 'frac-quad-split-tiles',
+  sample: (rng, difficulty) => sampleQuadSplit(rng, difficulty),
+  render: (params): Slide => {
+    const { A, B, C, a, c } = params;
+    const { x2, t } = quadValues(params);
+    const s = sqTex(c);
+    const answer = [quadPart(A, B, s, true), signedFracTerm(C, br(a))];
+    return {
+      kind: 'tiles',
+      prompt: [say(`Split into partial fractions, the part over $${s}$ first.`), show(quadFractionTex(params))],
+      template: '{0} {1}',
+      bank: tileBank(answer, [
+        quadPart(A, -B, s, true),
+        quadPart(x2, B, s, true),
+        quadPart(B, A, s, true),
+        signedFracTerm(-C, br(a)),
+        signedFracTerm(t, br(a)),
+      ]),
+      answer,
+    };
+  },
+  solution: quadSolution,
+};
+
+/* ================================================================
+ * Level 3, lesson 4: a bottom of x(x^2 + c)
+ * ================================================================ */
+
+const sampleOverX = (rng: Rng, difficulty: number): QuadSplit => sampleQuadSplit(rng, difficulty, true);
+
+function overXSolution(params: QuadSplit): SolutionStep[] {
+  const { A, B, C, c, expanded } = params;
+  const { top, x2, x0 } = quadValues(params);
+  return [
+    ...(expanded ? [{ text: `Take out the $x$: $${polyTex(quadCubic(params))} = x(${sqTex(c)})$.` }] : []),
+    { text: `Multiply both sides by the bottom: $${polyTex(top)} = (Ax + B)x + C(${sqTex(c)})$.` },
+    { text: `Put $x = 0$: only $C$ survives, $${x0} = ${lettersCombo([[c, 'C']])}$, so $C = ${C}$.` },
+    {
+      text: `$(Ax + B)x$ is $Ax^{2} + Bx$, with no number, so the $x$ terms give $B = ${B}$ straight away, and the $x^{2}$ terms give $A + C = ${x2}$, so $A = ${A}$.`,
+    },
+    { tex: quadAnswerTex(params) },
+  ];
+}
+
+/** Cover-up at x = 0, then A and B, as a tree. */
+const fracXQuadTree: Generator<QuadSplit> = {
+  id: 'frac-x-quad-tree',
+  sample: sampleOverX,
+  render: (params): Slide => {
+    const { A, B, C, c } = params;
+    const { x2, x0 } = quadValues(params);
+    const answer = [x0, C, A, B];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Split into $${quadLettersTex(params)}$. First: the top at $x = 0$, which is $${lettersCombo([[c, 'C']])}$. Then $C$. Then $A$, from the $x^{2}$ terms, $A + C = ${x2}$. Last: $B$, from the $x$ terms.`,
+        ),
+      ],
+      expression: quadFractionTex(params),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'C', from: ['top'] },
+        { id: 'A', from: ['C'] },
+        { id: 'B', from: [] },
+      ],
+      bank: numberBank(answer, [-C, x2, x2 + C, -B, x0 - c]),
+      answer: answer.map(String),
+    };
+  },
+  solution: overXSolution,
+};
+
+/** The line rewritten: the bottom factorised at difficulty 2, then C in place, then A and B. */
+const fracXQuadCoverSteps: Generator<QuadSplit> = {
+  id: 'frac-x-quad-cover-steps',
+  sample: sampleOverX,
+  render: (params): Slide => {
+    const { A, B, C, c, expanded } = params;
+    const { top, x2, x0 } = quadValues(params);
+    const s = sqTex(c);
+    const withC = (k: number) => `${frac('Ax + B', s)} ${signedFracTerm(k, 'x')}`;
+    const withAll = (a: number, b: number, k: number) => `${quadPart(a, b, s, true)} ${signedFracTerm(k, 'x')}`;
+    const factored = frac(polyTex(top), `x(${s})`);
+    const reductions: Reductions = [
+      { span: [0, 1], value: withC(C), bank: stepBank(withC(C), withC(x0), withC(-C), withC(x2)) },
+      { span: [0, 1], value: withAll(A, B, C), bank: stepBank(withAll(A, B, C), withAll(x2, B, C), withAll(A, -B, C), withAll(B, A, C)) },
+    ];
+    if (expanded) {
+      reductions.unshift({
+        span: [0, 1],
+        value: factored,
+        bank: stepBank(factored, frac(polyTex(top), `x^{2}(x + ${c})`), frac(polyTex(top), `x(${polyTex([1, 0, -c])})`)),
+      });
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Split this fraction: ${expanded ? 'factorise the bottom, then ' : ''}put $C$ in by cover-up, then $A$ and $B$. Tap the line to take the next step, then choose what it becomes.`,
+        ),
+      ],
+      start: [quadFractionTex(params)],
+      reductions,
+    };
+  },
+  solution: overXSolution,
+};
+
+/** The split over x(x^2 + c) placed as tiles. */
+const fracXQuadTiles: Generator<QuadSplit> = {
+  id: 'frac-x-quad-tiles',
+  sample: sampleOverX,
+  render: (params): Slide => {
+    const { A, B, C, c } = params;
+    const { x2, x0 } = quadValues(params);
+    const s = sqTex(c);
+    const answer = [quadPart(A, B, s, true), signedFracTerm(C, 'x')];
+    return {
+      kind: 'tiles',
+      prompt: [say(`Split into partial fractions, the part over $${s}$ first.`), show(quadFractionTex(params))],
+      template: '{0} {1}',
+      bank: tileBank(answer, [quadPart(x2, B, s, true), quadPart(A, -B, s, true), signedFracTerm(x0, 'x'), signedFracTerm(-C, 'x')]),
+      answer,
+    };
+  },
+  solution: overXSolution,
+};
+
+/** The order of the work: the form, which letter first, then C, then A. */
+const fracXQuadOrderFlow: Generator<QuadSplit> = {
+  id: 'frac-x-quad-order-flow',
+  sample: sampleOverX,
+  render: (params): Slide => {
+    const { A, C, c } = params;
+    const { x2, x0 } = quadValues(params);
+    const s = sqTex(c);
+    const right = `${frac('Ax + B', s)} + ${frac('C', 'x')}`;
+    const forms = [right, `${frac('A', s)} + ${frac('C', 'x')}`, `${frac('Ax + B', s)} + ${frac('Cx + D', 'x')}`];
+    const firsts = ['$C$, with $x = 0$', '$A$, with $x = 0$', '$B$, with $x = 1$'];
+    const cs = [...new Set([C, x0, -C, x2])].map((v) => `$${v}$`);
+    const as = [...new Set([A, x2, x2 + C, -A])].map((v) => `$${v}$`);
+    return {
+      kind: 'flow',
+      prompt: [say('Plan the split of this fraction one decision at a time. Each answer decides what is asked next.')],
+      subject: quadFractionTex(params),
+      steps: [
+        {
+          id: 'form',
+          ask: 'What form does the split take?',
+          branches: turned(forms, `${s}|${x0}`).map((tex) =>
+            tex === right ? { label: `$${tex}$`, to: 'first' } : { label: `$${tex}$`, outcome: `So you would look for the numbers in $${tex}$.` },
+          ),
+        },
+        {
+          id: 'first',
+          ask: 'Which letter can be found first, from one value of $x$?',
+          branches: turned(firsts, `${x0}|${x2}`).map((label) =>
+            label === firsts[0] ? { label, to: 'c' } : { label, outcome: `So you would start with ${label}.` },
+          ),
+        },
+        { id: 'c', ask: 'Put $x = 0$ into both sides. What is $C$?', branches: turned(cs, cs.join()).map((label) => ({ label, to: 'a' })) },
+        {
+          id: 'a',
+          ask: 'And $A$, from the $x^{2}$ terms?',
+          branches: turned(as, as.join()).map((label) => ({ label, outcome: `So $A = ${label.slice(1, -1)}$.` })),
+        },
+      ],
+      answer: [`$${right}$`, firsts[0], `$${C}$`, `$${A}$`],
+    };
+  },
+  solution: overXSolution,
+};
+
+/* ================================================================
+ * Level 3, lesson 5: improper, with a quadratic factor
+ * ================================================================ */
+
+interface QuadImproperParams extends QuadSplit {
+  /** The whole number in front. */
+  Q: number;
+  /** For the flow: a fraction with no whole part at all. */
+  proper: boolean;
+}
+
+function quadImproperTop(params: QuadImproperParams): Poly {
+  const rest = quadSplitTop(params);
+  return params.proper ? rest : addPoly(scalePoly(quadCubic(params), params.Q), rest);
+}
+
+/**
+ * Smaller letters than the proper lessons, since the whole part adds to every
+ * coefficient. Difficulty 2 signs the letters and the whole number, and may
+ * make the linear bracket x.
+ */
+function sampleQuadImproper(rng: Rng, difficulty: number, proper = false): QuadImproperParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const a = hard ? rng.int(-3, 3) : nonZero(rng, 3);
+    const c = rng.int(1, hard ? 5 : 4);
+    const A = hard ? nonZero(rng, 3) : rng.int(1, 2);
+    const B = nonZero(rng, 3);
+    const C = hard ? nonZero(rng, 3) : rng.int(1, 2);
+    if (A + C === 0) continue;
+    const Q = hard ? rng.pick([2, 3, -1, -2]) : rng.pick([1, 2, 3]);
+    return { A, B, C, a, c, Q, expanded: false, proper };
+  }
+}
+
+const quadImproperFractionTex = (params: QuadImproperParams): string => frac(polyTex(quadImproperTop(params)), quadBottomTex(params));
+
+const quadImproperAnswerTex = ({ A, B, C, a, c, Q }: QuadImproperParams): string =>
+  `${Q} ${quadPart(A, B, sqTex(c), false)} ${signedFracTerm(C, br(a))}`;
+
+function quadImproperSolution(params: QuadImproperParams): SolutionStep[] {
+  const { A, B, C, Q } = params;
+  const cubic = polyTex(quadCubic(params));
+  return [
+    { text: `The bottom multiplies out to $${cubic}$, a cubic like the top, so divide first. The $x^{3}$ terms give the whole number, $${Q}$.` },
+    { tex: chain(`&${polyTex(quadImproperTop(params))}`, `=\\;&${paren(Q)}(${cubic})`, `&\\quad + (${polyTex(quadSplitTop(params))})`) },
+    { text: `Split what is left as before: cover-up gives $C = ${C}$, and comparing coefficients gives $A = ${A}$ and $B = ${B}$.` },
+    { tex: quadImproperAnswerTex(params) },
+  ];
+}
+
+/** Proper or improper, and if improper, the whole number and what is left. */
+const fracQuadDegreeFlow: Generator<QuadImproperParams> = {
+  id: 'frac-quad-degree-flow',
+  sample: (rng, difficulty) => sampleQuadImproper(rng, difficulty, rng.chance(difficulty > 1 ? 0.25 : 0.4)),
+  render: (params): Slide => {
+    const { Q } = params;
+    const top = quadImproperTop(params);
+    const bottom = quadBottomTex(params);
+    const rest = quadSplitTop(params);
+    const restTex = frac(polyTex(rest), bottom);
+    const wholes = [...new Set([Q, -Q, Q + 1, top[1]])].map((v) => `$${v}$`);
+    const rests = [
+      ...new Set([
+        restTex,
+        frac(polyTex(scalePoly(rest, -1)), bottom),
+        frac(polyTex([rest[0], rest[1], -rest[2]]), bottom),
+        frac(polyTex(top.slice(1)), bottom),
+      ]),
+    ];
+    return {
+      kind: 'flow',
+      prompt: [say('Before splitting, decide whether there is a whole part to divide out. Each answer decides what is asked next.')],
+      subject: quadImproperFractionTex(params),
+      steps: [
+        {
+          id: 'degree',
+          ask: 'Is the degree of the top at least the degree of the bottom?',
+          branches: [
+            { label: 'Yes', to: 'whole' },
+            { label: 'No', outcome: 'Then it is proper: it splits straight away, with no whole part.' },
+          ],
+        },
+        {
+          id: 'whole',
+          ask: 'Divide the top by the bottom. What is the whole number in front?',
+          branches: turned(wholes, wholes.join()).map((label) => ({ label, to: 'rest' })),
+        },
+        {
+          id: 'rest',
+          ask: 'And what proper fraction is left over to split?',
+          branches: turned(rests, restTex).map((tex) => ({ label: `$${tex}$`, outcome: `So it splits as a whole number plus the parts of $${tex}$.` })),
+        },
+      ],
+      answer: params.proper ? ['No'] : ['Yes', `$${Q}$`, `$${restTex}$`],
+    };
+  },
+  solution: (params) =>
+    params.proper
+      ? [
+          { text: `The top, $${polyTex(quadSplitTop(params))}$, has degree 2, and the bottom multiplies out to $${polyTex(quadCubic(params))}$, degree 3.` },
+          { text: 'The top is lower, so the fraction is proper and splits straight away:' },
+          { tex: quadAnswerTex(params) },
+        ]
+      : quadImproperSolution(params),
+};
+
+/** The whole number and both parts placed as tiles. */
+const fracQuadWholeTiles: Generator<QuadImproperParams> = {
+  id: 'frac-quad-whole-tiles',
+  sample: (rng, difficulty) => sampleQuadImproper(rng, difficulty),
+  render: (params): Slide => {
+    const { A, B, C, a, c, Q } = params;
+    const s = sqTex(c);
+    const answer = [String(Q), quadPart(A, B, s, false), signedFracTerm(C, br(a))];
+    // Forgetting that the whole part puts Qa into the x^2 terms.
+    const unstripped = A + Q * a;
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Divide first, then split. Place the whole number, then the part over $${s}$, then the part over $${br(a)}$.`),
+        show(quadImproperFractionTex(params)),
+      ],
+      template: '{0} {1} {2}',
+      bank: tileBank(answer, [
+        String(-Q),
+        String(Q + 1),
+        quadPart(A, -B, s, false),
+        ...(unstripped !== 0 ? [quadPart(unstripped, B, s, false)] : []),
+        signedFracTerm(-C, br(a)),
+      ]),
+      answer,
+    };
+  },
+  solution: quadImproperSolution,
+};
+
+/** Divide, then split, as a line rewritten twice. */
+const fracQuadImproperSteps: Generator<QuadImproperParams> = {
+  id: 'frac-quad-improper-steps',
+  sample: (rng, difficulty) => sampleQuadImproper(rng, difficulty),
+  render: (params): Slide => {
+    const { A, B, C, a, c, Q } = params;
+    const s = sqTex(c);
+    const bottom = quadBottomTex(params);
+    const rest = polyTex(quadSplitTop(params));
+    const flipped = polyTex(scalePoly(quadSplitTop(params), -1));
+    const divided = `${Q} + ${frac(rest, bottom)}`;
+    const split = quadImproperAnswerTex(params);
+    return {
+      kind: 'steps',
+      prompt: [say('Divide out the whole number first, then split what is left. Tap the line to take the next step, then choose what it becomes.')],
+      start: [quadImproperFractionTex(params)],
+      reductions: [
+        { span: [0, 1], value: divided, bank: stepBank(divided, `${-Q} + ${frac(rest, bottom)}`, `${Q} + ${frac(flipped, bottom)}`, frac(rest, bottom)) },
+        {
+          span: [0, 1],
+          value: split,
+          bank: stepBank(
+            split,
+            `${Q} ${quadPart(A, -B, s, false)} ${signedFracTerm(C, br(a))}`,
+            `${Q} ${quadPart(A, B, s, false)} ${signedFracTerm(-C, br(a))}`,
+            quadAnswerTex(params),
+          ),
+        },
+      ],
+    };
+  },
+  solution: quadImproperSolution,
+};
+
+/**
+ * The numbers of an improper split as a tree: the whole number, cover-up on
+ * the original top (the whole part vanishes at x = -a too), then A from the
+ * x^2 terms, which now include the whole part's.
+ */
+const fracQuadRestTree: Generator<QuadImproperParams> = {
+  id: 'frac-quad-rest-tree',
+  sample: (rng, difficulty) => sampleQuadImproper(rng, difficulty),
+  render: (params): Slide => {
+    const { A, C, a, c, Q } = params;
+    const top = quadImproperTop(params);
+    const t = valueAt(top, -a);
+    const square = a * a + c;
+    const answer = [Q, t, square, C, A];
+    const x2Line = `${Q * a === 0 ? '' : `${Q * a} + `}A + C = ${top[1]}`;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `This is a whole number plus $${quadLettersTex(params)}$. Top row: the whole number, from the $x^{3}$ terms; the top at $x = ${-a}$; and $${sqTex(c)}$ there. Below: $C$. Last: $A$, from the $x^{2}$ terms, $${x2Line}$.`,
+        ),
+      ],
+      expression: quadImproperFractionTex(params),
+      nodes: [
+        { id: 'Q', from: [] },
+        { id: 'top', from: [] },
+        { id: 'square', from: [] },
+        { id: 'C', from: ['top', 'square'] },
+        { id: 'A', from: ['Q', 'C'] },
+      ],
+      bank: numberBank(answer, [-Q, -C, top[1] - C, t - Q, Q + 1]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { A, C, a, c, Q } = params;
+    const top = quadImproperTop(params);
+    const square = a * a + c;
+    return [
+      { text: `The bottom multiplies out to $${polyTex(quadCubic(params))}$, so the $x^{3}$ terms give the whole number, $${Q}$.` },
+      {
+        text: `Put $x = ${-a}$: the whole number times the bottom is zero there too, so only $C$ survives. $${valueAt(top, -a)} = ${lettersCombo([[square, 'C']])}$, so $C = ${C}$.`,
+      },
+      {
+        text: `The $x^{2}$ terms: the whole number times the bottom puts in ${Q * a === 0 ? 'no $x^{2}$ term' : `$${Q * a}x^{2}$`}, so $${Q * a === 0 ? '' : `${Q * a} + `}A + C = ${top[1]}$ and $A = ${A}$.`,
+      },
+      { tex: quadImproperAnswerTex(params) },
+    ];
+  },
+};
+
 export const algebraicFractionGenerators = [
   fracCancel,
   fracCancelWhich,
@@ -2923,4 +4013,25 @@ export const algebraicFractionGenerators = [
   fracIntegrateWhich,
   fracSeriesTiles,
   fracSeriesCoefficient,
+  fracQuadFactoriseFlow,
+  fracQuadPartsTiles,
+  fracQuadFormWhich,
+  fracDiscriminantTree,
+  fracQuadCAndATree,
+  fracQuadCoverSteps,
+  fracQuadCValue,
+  fracQuadCoefficientsTiles,
+  fracQuadBSteps,
+  fracQuadAbcTree,
+  fracQuadSubstitute,
+  fracQuadBValue,
+  fracQuadSplitTiles,
+  fracXQuadTree,
+  fracXQuadCoverSteps,
+  fracXQuadTiles,
+  fracXQuadOrderFlow,
+  fracQuadDegreeFlow,
+  fracQuadWholeTiles,
+  fracQuadImproperSteps,
+  fracQuadRestTree,
 ];

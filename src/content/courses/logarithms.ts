@@ -9,9 +9,11 @@
  * the formula, what it cancels, solving with it, and choosing the base that
  * makes an answer exact. Level 5 draws the curve: its shape and key points,
  * its reflection y = a^x, what transformations do to it, and reading
- * solutions off it.
+ * solutions off it. Level 6 straightens a curve with logs: a power model
+ * against log x, an exponential against x, the model back from two points on
+ * the line, and choosing which graph to plot.
  *
- * Each level closes with a level check: twelve to fourteen questions, no
+ * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
@@ -47,7 +49,7 @@ const logf =
 export const logarithms: Course = {
   id: 'logarithms',
   title: 'Logarithms',
-  blurb: 'A logarithm is an index. Then the three laws, solving with them, changing base, and the graph.',
+  blurb: 'A logarithm is an index. Then the three laws, solving with them, changing base, the graph, and straightening a model.',
   levels: [
     {
       id: 'lg-l1',
@@ -1247,6 +1249,69 @@ export const logarithms: Course = {
         ask('log-meet-slider', 2),
         ask('log-compare-bases', 2),
         ask('log-inequality-tiles', 2),
+      ],
+    },
+    {
+      id: 'lg-l6',
+      title: 'Linearising a Model',
+      lessons: [
+        {
+          id: 'lg-l6-power',
+          title: 'Power Models',
+          slides: [
+            teach(
+              prose(
+                'A **power model** $y = kx^{n}$ is a curve, so its constants are hard to read off a graph. Take logs of both sides and it straightens:',
+              ),
+              maths('\\log y = \\log k + n\\log x'),
+              prose(
+                'The product law split off $k$ and the power law brought $n$ down. In this level $\\log$ means $\\log_{10}$.',
+              ),
+              prose('So $\\log y$ plotted against $\\log x$ is a straight line: gradient $n$, intercept $\\log k$.'),
+            ),
+            ask('log-lin-power-tiles'),
+            ask('log-lin-power-read'),
+            ask('log-lin-power-evaluate'),
+            teach(
+              prose('Take $y = 100x^{3}$. Its logs are $\\log y = 2 + 3\\log x$.'),
+              graph({
+                xMin: -0.32,
+                xMax: 4,
+                yMin: -3,
+                yMax: 15.5,
+                curves: [{ f: (x) => 2 + 3 * x }],
+                marks: [
+                  { x: 0, y: 2 },
+                  { x: 2, y: 8 },
+                ],
+                // The intercept is ringed but not labelled: that close to the
+                // x-axis there is no room, and the prose names it.
+                labels: [{ x: 2, y: 8, text: '(2, 8)' }],
+                axisNames: { x: 'log x', y: 'log y' },
+                label: 'The straight line log y = 2 + 3 log x',
+              }),
+              prose(
+                'The gradient is the power itself: $n = 3$. The intercept is $\\log k = 2$, still a logarithm, so undo it: $k = 10^{2} = 100$.',
+              ),
+            ),
+            ask('log-lin-power-read+choice'),
+            ask('log-lin-power-slider'),
+            ask('log-lin-power-tiles'),
+            teach(
+              prose(
+                'The line does the model\'s work in logs. At $x = 1000$, $\\log x = 3$, so $\\log y = 2 + 3 \\times 3 = 11$ and $y = 10^{11}$.',
+              ),
+              prose('Natural logs work the same way: $y = e^{2}x^{3}$ gives $\\ln y = 2 + 3\\ln x$.'),
+            ),
+            ask('log-lin-power-evaluate+choice'),
+            ask('log-lin-power-slider'),
+          ],
+          skillCheck: [
+            ask('log-lin-power-read', 2),
+            ask('log-lin-power-tiles', 2),
+            ask('log-lin-power-evaluate', 2),
+          ],
+        },
       ],
     },
   ],

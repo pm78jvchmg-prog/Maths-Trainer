@@ -6,7 +6,10 @@
  * variables: one constant in the general solution, a condition to fix it, and
  * growth and decay as `dy/dt = ky`. Level 2 models with them: Newton's
  * cooling, growth towards a limit, mixing tanks, what happens in the long
- * run, and checking a solution by putting it back in.
+ * run, and checking a solution by putting it back in. Level 3 takes the
+ * equations that do not separate, `dy/dx + Py = Q`, and solves them with an
+ * integrating factor: the product rule read backwards, finding the factor,
+ * a constant P, P = n/x, and particular solutions.
  *
  * Integration and the exponential model are used here, not taught again:
  * `dy/dx = ky` read off a model belongs to Exponential Models' rate lesson,
@@ -42,7 +45,7 @@ export const differentialEquations: Course = {
   // After Integration (30), Vectors (40) and Matrices (50) — and Exponential Models, whose model it solves for.
   position: 70,
   title: 'Differential Equations',
-  blurb: 'Equations for a rate: forming them, separating the variables, and modelling cooling, limits and mixing.',
+  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, and the integrating factor.',
   levels: [
     {
       id: 'de-l1',
@@ -471,6 +474,205 @@ export const differentialEquations: Course = {
         ask('de-mix-limit', 2),
         ask('de-long-flow', 2),
         ask('de-verify-constant', 2),
+      ],
+    },
+
+    {
+      id: 'de-l3',
+      title: 'The Integrating Factor',
+      lessons: [
+        {
+          id: 'de-l3-product',
+          title: 'The Product Rule Backwards',
+          slides: [
+            teach(
+              prose(
+                'Not every equation separates. $\\frac{dy}{dx} + \\frac{2}{x}y = 5x^{2}$ cannot be split into a function of $x$ times a function of $y$.',
+              ),
+              prose('It is **linear**: it has the form'),
+              display('\\frac{dy}{dx} + Py = Q'),
+              prose(
+                'with $P$ and $Q$ functions of $x$ alone. $\\frac{dy}{dx}$ has to stand on its own before $P$ and $Q$ are read, so divide by whatever multiplies it first.',
+              ),
+            ),
+            ask('de-if-read'),
+            ask('de-if-divide'),
+            ask('de-if-product'),
+            teach(
+              prose('The product rule, with $y$ as one of the two factors:'),
+              display('\\frac{d}{dx}(x^{2}y) = x^{2}\\frac{dy}{dx} + 2xy'),
+              prose(
+                "Read backwards: a left side of the form $I\\frac{dy}{dx} + I'y$ is the derivative of $Iy$, and it integrates in one step.",
+              ),
+            ),
+            ask('de-if-multiply-tree'),
+            ask('de-if-read', 2),
+            ask('de-if-product', 2),
+            teach(
+              prose(
+                "So multiply $\\frac{dy}{dx} + Py = Q$ by a function $I$ whose derivative is $PI$. The left side becomes $I\\frac{dy}{dx} + I'y$, which is $\\frac{d}{dx}(Iy)$.",
+              ),
+              prose("For $P = \\frac{2}{x}$, $I = x^{2}$ works, since $(x^{2})' = 2x = \\frac{2}{x} \\times x^{2}$:"),
+              working('x^{2}\\frac{dy}{dx} + 2xy &= 5x^{4}', '\\frac{d}{dx}(x^{2}y) &= 5x^{4}'),
+            ),
+            ask('de-if-divide', 2),
+            ask('de-if-multiply-tree', 2),
+          ],
+          skillCheck: [ask('de-if-read', 2), ask('de-if-product', 2), ask('de-if-multiply-tree', 2)],
+        },
+        {
+          id: 'de-l3-factor',
+          title: 'Finding the Factor',
+          slides: [
+            teach(
+              prose("The function $I$ with $I' = PI$ is the **integrating factor**:"),
+              display('I = e^{\\int P\\,dx}'),
+              prose(
+                'Leave out the constant of integration. $e^{C}$ only multiplies $I$, and any multiple of $I$ works just as well. For $P = 3$, $I = e^{3x}$.',
+              ),
+            ),
+            ask('de-if-factor'),
+            ask('de-if-shape'),
+            ask('de-if-lhs'),
+            teach(
+              prose(
+                'For $P = \\frac{n}{x}$, with $x > 0$, $\\int P\\,dx = n\\ln x$. A multiple of a logarithm is the logarithm of a power, and $e$ undoes $\\ln$:',
+              ),
+              working('I &= e^{2\\ln x}', '&= e^{\\ln x^{2}}', '&= x^{2}'),
+              prose('The same happens for $\\frac{n}{x + a}$, which gives $(x + a)^{n}$.'),
+            ),
+            ask('de-if-exponent-steps'),
+            ask('de-if-factor', 2),
+            ask('de-if-shape', 2),
+            teach(
+              prose('With the factor found, multiply every term by it. The left side is always $\\frac{d}{dx}(Iy)$ and the right side is $IQ$:'),
+              working('\\frac{dy}{dx} + 3y &= 6', '\\frac{d}{dx}(ye^{3x}) &= 6e^{3x}'),
+            ),
+            ask('de-if-exponent-steps', 2),
+            ask('de-if-lhs', 2),
+          ],
+          skillCheck: [ask('de-if-factor', 2), ask('de-if-exponent-steps', 2), ask('de-if-shape', 2)],
+        },
+        {
+          id: 'de-l3-constant',
+          title: 'A Constant P',
+          slides: [
+            teach(
+              prose('With $P$ a constant $k$, the factor is $e^{kx}$. For $\\frac{dy}{dx} + 2y = 6e^{x}$, multiply through by $e^{2x}$ and integrate:'),
+              working('\\frac{d}{dx}(ye^{2x}) &= 6e^{3x}', 'ye^{2x} &= 2e^{3x} + C'),
+            ),
+            ask('de-if-constp-steps'),
+            ask('de-if-exponents-tree'),
+            ask('de-if-integrate'),
+            teach(
+              prose('Then divide by the factor. Every term is divided, the constant as well:'),
+              display('y = 2e^{x} + Ce^{-2x}'),
+              prose('$Ce^{-2x}$ is not a constant any more. It dies away as $x$ grows, so every solution closes in on $2e^{x}$.'),
+              figure({
+                xMin: 0,
+                xMax: 1.5,
+                yMin: -1,
+                yMax: 10,
+                curves: [
+                  { f: (x: number) => 2 * Math.exp(x) + 3 * Math.exp(-2 * x) },
+                  { f: (x: number) => 2 * Math.exp(x), dashed: true },
+                  { f: (x: number) => 2 * Math.exp(x) - 2 * Math.exp(-2 * x) },
+                ],
+                label: 'Two solution curves, one starting at 5 and one at 0, closing in on a dashed curve that starts at 2',
+              }),
+            ),
+            ask('de-if-general'),
+            ask('de-if-constp-steps', 2),
+            ask('de-if-exponents-tree', 2),
+            teach(
+              prose('A constant $Q$ is the case $m = 0$ of $e^{mx}$. For $\\frac{dy}{dx} + 3y = 12$,'),
+              working('\\frac{d}{dx}(ye^{3x}) &= 12e^{3x}', 'ye^{3x} &= 4e^{3x} + C', 'y &= 4 + Ce^{-3x}'),
+              prose('The $4$ is where $\\frac{dy}{dx} = 0$: the level every solution settles at.'),
+            ),
+            ask('de-if-general', 2),
+            ask('de-if-integrate', 2),
+          ],
+          skillCheck: [ask('de-if-constp-steps', 2), ask('de-if-general', 2), ask('de-if-integrate', 2)],
+        },
+        {
+          id: 'de-l3-power',
+          title: 'When the Factor Is a Power of x',
+          slides: [
+            teach(
+              prose('For $P = \\frac{n}{x}$, with $x > 0$, the factor is $x^{n}$. For $\\frac{dy}{dx} + \\frac{2}{x}y = 5x^{2}$:'),
+              working('\\frac{d}{dx}(x^{2}y) &= 5x^{4}', 'x^{2}y &= x^{5} + C'),
+            ),
+            ask('de-if-power-steps'),
+            ask('de-if-powers-tree'),
+            ask('de-if-cterm'),
+            teach(
+              prose('Divide by $x^{2}$, the constant too:'),
+              display('y = x^{3} + \\frac{C}{x^{2}}'),
+              prose(
+                'In general, multiplying by $x^{n}$ adds $n$ to the power on the right, integrating adds one more, and dividing takes $n$ away again, leaving $C$ over $x^{n}$.',
+              ),
+            ),
+            ask('de-if-power-tiles'),
+            ask('de-if-power-steps', 2),
+            ask('de-if-powers-tree', 2),
+            teach(
+              prose(
+                'These equations often come multiplied by $x$, as $x\\frac{dy}{dx} + 2y = 5x^{3}$. Divide by $x$ first: read as it stands, $P$ would look like $2$ and the factor like $e^{2x}$, which does not make a product.',
+              ),
+            ),
+            ask('de-if-power-tiles', 2),
+            ask('de-if-cterm', 2),
+          ],
+          skillCheck: [ask('de-if-power-steps', 2), ask('de-if-power-tiles', 2), ask('de-if-powers-tree', 2)],
+        },
+        {
+          id: 'de-l3-particular',
+          title: 'Particular Solutions',
+          slides: [
+            teach(
+              prose('A condition fixes $C$. Find the general solution, divide by the factor, then put the condition in. For $\\frac{dy}{dx} + 3y = 12$ with $y(0) = 7$:'),
+              working('y &= 4 + Ce^{-3x}', '7 &= 4 + C', 'C &= 3'),
+              prose('So $y = 4 + 3e^{-3x}$.'),
+            ),
+            ask('de-if-constant'),
+            ask('de-if-condition-steps'),
+            ask('de-if-fit'),
+            teach(
+              prose(
+                'With $P = \\frac{n}{x}$ the condition is often at $x = 1$ or $x = 2$. At $x = 2$ the $C$ term is divided too. For $y = x^{3} + \\frac{C}{x^{2}}$ with $y(2) = 10$:',
+              ),
+              working('10 &= 8 + \\tfrac{C}{4}', 'C &= 8'),
+            ),
+            ask('de-if-value-tree'),
+            ask('de-if-constant', 2),
+            ask('de-if-condition-steps', 2),
+            teach(
+              prose(
+                'A particular solution can be checked twice: it has to meet the condition, and put back into the equation it has to make both sides agree.',
+              ),
+            ),
+            ask('de-if-fit', 2),
+            ask('de-if-value-tree', 2),
+          ],
+          skillCheck: [ask('de-if-constant', 2), ask('de-if-condition-steps', 2), ask('de-if-fit', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-if-read', 2),
+        ask('de-if-factor', 2),
+        ask('de-if-constp-steps', 2),
+        ask('de-if-power-tiles', 2),
+        ask('de-if-constant', 2),
+        ask('de-if-product', 2),
+        ask('de-if-exponent-steps', 2),
+        ask('de-if-general', 2),
+        ask('de-if-powers-tree', 2),
+        ask('de-if-fit', 2),
+        ask('de-if-multiply-tree', 2),
+        ask('de-if-lhs', 2),
+        ask('de-if-integrate', 2),
+        ask('de-if-cterm', 2),
+        ask('de-if-value-tree', 2),
       ],
     },
   ],

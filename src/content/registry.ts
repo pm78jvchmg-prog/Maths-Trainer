@@ -12,6 +12,7 @@ import { integrationGenerators } from './generators/integration';
 import { integrationShapeGenerators } from './generators/integrationShapes';
 import { linearEquationsGenerators } from './generators/linearEquations';
 import { logarithmGenerators } from './generators/logarithms';
+import { proofOrderGenerators } from './generators/proofOrder';
 import { matrixGenerators } from './generators/matrices';
 import { numberLineGenerators } from './generators/numberLine';
 import { quadraticsGenerators } from './generators/quadratics';
@@ -43,6 +44,9 @@ export const allGenerators = [
   ...matrixGenerators,
   ...trigonometryGenerators,
   ...binomialGenerators,
+  // The `order` widget's demo proofs. No lesson asks them yet; Number & Proof
+  // (C11) will.
+  ...proofOrderGenerators,
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.
   ...workingGenerators,

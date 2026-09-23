@@ -9,9 +9,11 @@
  * the formula, what it cancels, solving with it, and choosing the base that
  * makes an answer exact. Level 5 draws the curve: its shape and key points,
  * its reflection y = a^x, what transformations do to it, and reading
- * solutions off it.
+ * solutions off it. Level 6 straightens a curve with logs: a power model
+ * against log x, an exponential against x, the model back from two points on
+ * the line, and choosing which graph to plot.
  *
- * Each level closes with a level check: twelve to fourteen questions, no
+ * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
@@ -47,7 +49,7 @@ const logf =
 export const logarithms: Course = {
   id: 'logarithms',
   title: 'Logarithms',
-  blurb: 'A logarithm is an index. Then the three laws, solving with them, changing base, and the graph.',
+  blurb: 'A logarithm is an index. Then the three laws, solving with them, changing base, the graph, and straightening a model.',
   levels: [
     {
       id: 'lg-l1',
@@ -1247,6 +1249,219 @@ export const logarithms: Course = {
         ask('log-meet-slider', 2),
         ask('log-compare-bases', 2),
         ask('log-inequality-tiles', 2),
+      ],
+    },
+    {
+      id: 'lg-l6',
+      title: 'Linearising a Model',
+      lessons: [
+        {
+          id: 'lg-l6-power',
+          title: 'Power Models',
+          slides: [
+            teach(
+              prose(
+                'A **power model** $y = kx^{n}$ is a curve, so its constants are hard to read off a graph. Take logs of both sides and it straightens:',
+              ),
+              maths('\\log y = \\log k + n\\log x'),
+              prose(
+                'The product law split off $k$ and the power law brought $n$ down. In this level $\\log$ means $\\log_{10}$.',
+              ),
+              prose('So $\\log y$ plotted against $\\log x$ is a straight line: gradient $n$, intercept $\\log k$.'),
+            ),
+            ask('log-lin-power-tiles'),
+            ask('log-lin-power-read'),
+            ask('log-lin-power-evaluate'),
+            teach(
+              prose('Take $y = 100x^{3}$. Its logs are $\\log y = 2 + 3\\log x$.'),
+              graph({
+                xMin: -0.32,
+                xMax: 4,
+                yMin: -3,
+                yMax: 15.5,
+                curves: [{ f: (x) => 2 + 3 * x }],
+                marks: [
+                  { x: 0, y: 2 },
+                  { x: 2, y: 8 },
+                ],
+                // The intercept is ringed but not labelled: that close to the
+                // x-axis there is no room, and the prose names it.
+                labels: [{ x: 2, y: 8, text: '(2, 8)' }],
+                axisNames: { x: 'log x', y: 'log y' },
+                label: 'The straight line log y = 2 + 3 log x',
+              }),
+              prose(
+                'The gradient is the power itself: $n = 3$. The intercept is $\\log k = 2$, still a logarithm, so undo it: $k = 10^{2} = 100$.',
+              ),
+            ),
+            ask('log-lin-power-read+choice'),
+            ask('log-lin-power-slider'),
+            ask('log-lin-power-tiles'),
+            teach(
+              prose(
+                'The line does the model\'s work in logs. At $x = 1000$, $\\log x = 3$, so $\\log y = 2 + 3 \\times 3 = 11$ and $y = 10^{11}$.',
+              ),
+              prose('Natural logs work the same way: $y = e^{2}x^{3}$ gives $\\ln y = 2 + 3\\ln x$.'),
+            ),
+            ask('log-lin-power-evaluate+choice'),
+            ask('log-lin-power-slider'),
+          ],
+          skillCheck: [
+            ask('log-lin-power-read', 2),
+            ask('log-lin-power-tiles', 2),
+            ask('log-lin-power-evaluate', 2),
+          ],
+        },
+        {
+          id: 'lg-l6-exponential',
+          title: 'Exponential Models',
+          slides: [
+            teach(
+              prose('An **exponential model** $y = ab^{x}$ has $x$ in the power. Taking logs brings $x$ down instead:'),
+              maths('\\log y = \\log a + x\\log b'),
+              prose(
+                'Now the straight line is $\\log y$ against $x$ itself, not against $\\log x$. Its gradient is $\\log b$ and its intercept is $\\log a$.',
+              ),
+            ),
+            ask('log-lin-exp-tiles'),
+            ask('log-lin-exp-read'),
+            ask('log-lin-exp-evaluate'),
+            teach(
+              prose('Take $y = 10 \\times 100^{x}$. Its logs are $\\log y = 1 + 2x$.'),
+              graph({
+                xMin: -0.32,
+                xMax: 4,
+                yMin: -2,
+                yMax: 10,
+                curves: [{ f: (x) => 1 + 2 * x }],
+                marks: [
+                  { x: 0, y: 1 },
+                  { x: 3, y: 7 },
+                ],
+                labels: [{ x: 3, y: 7, text: '(3, 7)' }],
+                axisNames: { x: 'x', y: 'log y' },
+                label: 'The straight line log y = 1 + 2x',
+              }),
+              prose(
+                'This time both are logarithms. $\\log b = 2$ gives $b = 10^{2} = 100$, and $\\log a = 1$ gives $a = 10$.',
+              ),
+            ),
+            ask('log-lin-exp-read+choice'),
+            ask('log-lin-exp-slider'),
+            ask('log-lin-exp-tiles'),
+            teach(
+              prose(
+                'With $e$ as the base, the model is usually written $y = ae^{kx}$. Since $\\ln e = 1$, natural logs give a gradient of $k$ itself:',
+              ),
+              maths('y = 5e^{2x}'),
+              maths('\\ln y = \\ln 5 + 2x'),
+            ),
+            ask('log-lin-exp-evaluate+choice'),
+            ask('log-lin-exp-slider'),
+          ],
+          skillCheck: [
+            ask('log-lin-exp-read', 2),
+            ask('log-lin-exp-tiles', 2),
+            ask('log-lin-exp-evaluate', 2),
+          ],
+        },
+        {
+          id: 'lg-l6-points',
+          title: 'From Two Points to the Model',
+          slides: [
+            teach(
+              prose(
+                'Two points on the straight line are enough to find the model. Take $(1, 5)$ and $(3, 11)$ on a graph of $\\log y$ against $\\log x$.',
+              ),
+              maths('\\text{gradient} = \\frac{11 - 5}{3 - 1} = 3'),
+              maths('\\text{intercept} = 5 - 3 \\times 1 = 2'),
+              prose('So the line is $\\log y = 2 + 3\\log x$, and the model is $y = 100x^{3}$.'),
+            ),
+            ask('log-lin-gradient-tree'),
+            ask('log-lin-model-tiles'),
+            ask('log-lin-model-match'),
+            teach(
+              prose('The intercept is a logarithm, so the last step is always to undo it.'),
+              maths('\\log k = 2 \\implies k = 100'),
+              maths('\\ln k = 2 \\implies k = e^{2}'),
+              prose('Stopping at $k = 2$ is the most common slip in this topic.'),
+            ),
+            ask('log-lin-constant-steps'),
+            ask('log-lin-gradient-tree'),
+            ask('log-lin-model-match'),
+            teach(
+              prose(
+                'Against $x$ rather than $\\log x$, the same working gives an exponential model. There the gradient is a logarithm too, so undo both.',
+              ),
+              maths('\\log y = 1 + 2x'),
+              prose('So $\\log a = 1$ and $\\log b = 2$, which give $a = 10$ and $b = 100$.'),
+            ),
+            ask('log-lin-model-tiles'),
+            ask('log-lin-constant-steps'),
+          ],
+          skillCheck: [
+            ask('log-lin-model-match', 2),
+            ask('log-lin-model-tiles', 2),
+            ask('log-lin-constant-steps', 2),
+          ],
+        },
+        {
+          id: 'lg-l6-choosing',
+          title: 'Choosing the Transformation',
+          slides: [
+            teach(
+              prose('Which graph straightens a model depends on where $x$ is.'),
+              prose('For a power model $y = kx^{n}$, plot $\\log y$ against $\\log x$.'),
+              prose('For an exponential model $y = ab^{x}$, plot $\\log y$ against $x$ itself.'),
+              prose(
+                'A model with a term added on, like $y = 3x^{2} + 5$, is straightened by neither. The log of a sum does not split.',
+              ),
+            ),
+            ask('log-lin-axes-flow'),
+            ask('log-lin-straight-choice'),
+            ask('log-lin-predict'),
+            teach(
+              prose(
+                'A line of best fit through real data predicts the same way. Work along the line in logs, then undo the log at the end.',
+              ),
+              maths('\\log y = 1 + 2\\log x'),
+              prose('At $x = 100$, $\\log x = 2$, so $\\log y = 1 + 2 \\times 2 = 5$ and $y = 10^{5}$.'),
+              prose('Stopping at $5$ answers with $\\log y$, not $y$.'),
+            ),
+            ask('log-lin-predict+choice'),
+            ask('log-lin-power-slider'),
+            ask('log-lin-axes-flow'),
+            teach(
+              prose(
+                'Backwards works too. To find the $x$ that gives $y = 10^{7}$ on the line $\\log y = 1 + 3x$, solve $1 + 3x = 7$: $x = 2$.',
+              ),
+            ),
+            ask('log-lin-straight-choice'),
+            ask('log-lin-exp-slider'),
+          ],
+          skillCheck: [
+            ask('log-lin-axes-flow', 2),
+            ask('log-lin-straight-choice', 2),
+            ask('log-lin-predict', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('log-lin-power-tiles', 2),
+        ask('log-lin-power-read+choice', 2),
+        ask('log-lin-power-evaluate', 2),
+        ask('log-lin-power-slider', 2),
+        ask('log-lin-exp-tiles', 2),
+        ask('log-lin-exp-read', 2),
+        ask('log-lin-exp-evaluate+choice', 2),
+        ask('log-lin-exp-slider', 2),
+        ask('log-lin-gradient-tree', 2),
+        ask('log-lin-constant-steps', 2),
+        ask('log-lin-model-match', 2),
+        ask('log-lin-model-tiles', 2),
+        ask('log-lin-axes-flow', 2),
+        ask('log-lin-predict', 2),
+        ask('log-lin-straight-choice', 2),
       ],
     },
   ],

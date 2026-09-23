@@ -1,7 +1,7 @@
 /**
  * Complex Numbers, Levels 3 and 4: the plane, modulus, argument and powers.
  */
-import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
+import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { bin, num, pow, root } from '../expr';
 import {
@@ -1653,6 +1653,1173 @@ export const powerArgument: Generator<PowerArgumentParams> = {
   },
 };
 
+/* ====================================================================== */
+/* Level 5: roots of unity, and the roots of any z^n = w                  */
+/* ====================================================================== */
+
+/** "cube", "fifth", "twelfth": how the roots of z^n = 1 are named aloud. */
+const ORDINALS: Record<number, string> = {
+  2: 'square', 3: 'cube', 4: 'fourth', 5: 'fifth', 6: 'sixth', 7: 'seventh', 8: 'eighth',
+  9: 'ninth', 10: 'tenth', 11: 'eleventh', 12: 'twelfth', 13: 'thirteenth', 14: 'fourteenth',
+  15: 'fifteenth', 16: 'sixteenth', 17: 'seventeenth', 18: 'eighteenth', 19: 'nineteenth',
+  20: 'twentieth',
+};
+
+const ordinal = (n: number): string => ORDINALS[n] ?? `${n}th`;
+
+/** Exponents written in `a mod n` style never go negative. */
+const mod = (a: number, n: number): number => ((a % n) + n) % n;
+
+/** `\omega^{k}`, with the zeroth power written as the 1 it is. */
+const omegaTex = (k: number): string => (k === 0 ? '1' : k === 1 ? '\\omega' : `\\omega^{${k}}`);
+
+/** The kth nth root of unity as mathjs reads it. Only the choice tests read this. */
+const omegaAnswer = (k: number, n: number): string => `exp(2*pi*i*${k}/${n})`;
+
+/** The kth nth root of unity as a point, for telling apart two options that print differently. */
+const omegaPoint = (k: number, n: number): [number, number] => [
+  Math.cos((2 * Math.PI * k) / n),
+  Math.sin((2 * Math.PI * k) / n),
+];
+
+/**
+ * The first `count` candidates that are genuinely different numbers.
+ *
+ * `options()` only de-duplicates on the printed label, and two labels built
+ * from roots of unity can differ while naming one point: with n = 6, the
+ * printed `\omega^{3}` and `-1` are the same number. A native choice slide has
+ * no checker behind it to catch that, so it is caught here, by value.
+ */
+function distinctByValue(
+  candidates: { tex: string; value: [number, number]; correct?: boolean }[],
+  count: number,
+): ChoiceOption[] {
+  const kept: { tex: string; value: [number, number]; correct?: boolean }[] = [];
+  for (const candidate of candidates) {
+    if (kept.length === count) break;
+    const clash = kept.some(
+      (other) =>
+        other.tex === candidate.tex ||
+        (Math.abs(other.value[0] - candidate.value[0]) < 1e-9 &&
+          Math.abs(other.value[1] - candidate.value[1]) < 1e-9),
+    );
+    if (!clash) kept.push(candidate);
+  }
+  return kept.map(({ tex, correct }) => (correct ? { tex, correct } : { tex }));
+}
+
+/**
+ * A native choice slide, with the right option at a slot fixed by the
+ * question's own numbers.
+ *
+ * Not the label hash `choiceVariant` rotates by: when every option is a power
+ * of the same symbol, the hash leans on a few characters and the answer sits
+ * in the same two slots far more often than a quarter of the time.
+ */
+function choiceSlide(prompt: Block[], opts: ChoiceOption[], salt: number): Slide {
+  const correct = opts.find((option) => option.correct)!;
+  const rest = opts.filter((option) => !option.correct);
+  const slot = mod(salt, opts.length);
+  const ordered = [...rest.slice(0, slot), correct, ...rest.slice(slot)];
+  return {
+    kind: 'choice',
+    prompt,
+    options: ordered.map((option, idx) => ({ id: `opt${idx}`, label: option.tex, tex: true })),
+    correctId: `opt${slot}`,
+  };
+}
+
+/** A slot number spread evenly from a question's parameters. */
+const mix = (...xs: number[]): number =>
+  xs.reduce((h, x) => Math.imul(h ^ (x + 0x9e37), 0x5bd1e995) >>> 0, 17) >>> 7;
+
+/**
+ * Options for a derived `+choice` form, ordered so the answer lands at a slot
+ * fixed by the question's own numbers.
+ *
+ * `choiceVariant` turns the options by a hash of their labels, and when the
+ * labels are small whole numbers or powers of one symbol that hash is far from
+ * even: `unity-count+choice` put its answer first nine times in ten. The turn
+ * depends on the order the labels arrive in, so this tries the orders of the
+ * options until one comes out where the question says it should, and keeps
+ * the list as it was when none does. `turnOf` mirrors `rotation` in
+ * `choiceVariant.ts`; if that ever changes, the answer is still always on
+ * offer, only its slot drifts again.
+ */
+function steered(opts: ChoiceOption[], salt: number): ChoiceOption[] {
+  const turnOf = (list: ChoiceOption[]) => {
+    let hash = 0;
+    for (const option of list) {
+      for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash) % list.length;
+  };
+  const target = mod(salt, opts.length);
+  const orders = (list: ChoiceOption[]): ChoiceOption[][] =>
+    list.length <= 1
+      ? [list]
+      : list.flatMap((head, idx) => orders([...list.slice(0, idx), ...list.slice(idx + 1)]).map((rest) => [head, ...rest]));
+  for (const order of orders(opts)) {
+    const at = order.findIndex((option) => option.correct);
+    if (mod(at - turnOf(order), order.length) === target) return order;
+  }
+  return opts;
+}
+
+/**
+ * The nth roots of unity on the unit circle, one of them highlighted.
+ *
+ * Its own drawing rather than `complexPlaneSvg`, because none of these points
+ * sits on the lattice that plane is built round: what matters here is the
+ * circle and the even spacing, and a grid behind it would only be noise. The
+ * root at 1 and the one labelled ω are named on the figure, so "which power
+ * is this" is a question about counting steps round from a known start.
+ */
+export function unityCircleSvg(n: number, highlight: number, labelled = 1): string {
+  const size = 260;
+  const c = size / 2;
+  const radius = 88;
+  const at = (k: number, out = 0) => {
+    const t = (2 * Math.PI * k) / n;
+    return {
+      x: +(c + (radius + out) * Math.cos(t)).toFixed(2),
+      y: +(c - (radius + out) * Math.sin(t)).toFixed(2),
+    };
+  };
+  const parts: string[] = [
+    `<line x1="10" y1="${c}" x2="${size - 10}" y2="${c}" stroke="var(--border)" stroke-width="1"/>`,
+    `<line x1="${c}" y1="10" x2="${c}" y2="${size - 10}" stroke="var(--border)" stroke-width="1"/>`,
+    `<circle cx="${c}" cy="${c}" r="${radius}" fill="none" stroke="var(--text-dim)" stroke-width="1"/>`,
+  ];
+  const corners = Array.from({ length: n }, (_, k) => at(k));
+  parts.push(
+    `<polygon points="${corners.map(({ x, y }) => `${x},${y}`).join(' ')}" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>`,
+  );
+  for (let k = 0; k < n; k += 1) {
+    const { x, y } = corners[k];
+    const lit = k === highlight;
+    parts.push(
+      `<circle cx="${x}" cy="${y}" r="${lit ? 7 : 4.5}" fill="${lit ? 'var(--accent)' : 'var(--text-dim)'}"/>`,
+    );
+  }
+  const label = (k: number, text: string) => {
+    const { x, y } = at(k, 17);
+    return `<text x="${x}" y="${y}" fill="var(--text)" font-size="15" font-style="italic" text-anchor="middle" dominant-baseline="central">${text}</text>`;
+  };
+  parts.push(label(0, '1'));
+  if (labelled !== 0) parts.push(label(labelled, 'ω'));
+  return `<svg viewBox="0 0 ${size} ${size}" width="100%" style="max-width:${size}px" role="img" aria-label="Roots of unity on the unit circle">${parts.join('')}</svg>`;
+}
+
+/* ---------- The argument of a power of omega ---------- */
+
+interface UnityArgParams { n: number; k: number }
+
+/**
+ * $\arg(\omega^k)$: k steps of $\tfrac{2\pi}{n}$ round from 1, then back inside
+ * $(-\pi, \pi]$ when that went past a half turn.
+ *
+ * Difficulty 1 keeps k to the upper half of the circle, so the answer is the
+ * multiplication alone; difficulty 2 mostly draws from the lower half, where
+ * the principal argument is negative and the reduction is the question.
+ */
+export const unityArgument: Generator<UnityArgParams> = {
+  id: 'unity-argument',
+  choices: ({ n, k }) => {
+    const ang = (m: number, d: number) => ({ tex: angleTex(m, d), answer: angleAnswer(m, d) });
+    return steered(options(
+      ang(principal(2 * k, n), n),
+      // Left unreduced, the 2 forgotten, the sign flipped, one root too far.
+      ang(2 * k, n),
+      ang(principal(k, n), n),
+      ang(principal(-2 * k, n), n),
+      ang(principal(2 * k + 2, n), n),
+    ).slice(0, 4), mix(n, k));
+  },
+  sample: (rng, difficulty) => {
+    const n = rng.int(3, 12);
+    if (difficulty < 2) return { n, k: rng.int(1, Math.floor(n / 2)) };
+    const k = rng.chance(0.75) ? rng.int(Math.floor(n / 2) + 1, n - 1) : rng.int(1, n - 1);
+    return { n, k };
+  },
+  render: ({ n, k }) => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$\\omega$ is the ${ordinal(n)} root of unity with argument $${angleTex(2, n)}$, the first one anticlockwise from $1$. What is the principal argument of $${omegaTex(k)}$?`,
+      },
+    ],
+    lead: `\\arg\\left(${omegaTex(k)}\\right) =`,
+    keypad: ANGLE_KEYS,
+    answer: angleAnswer(principal(2 * k, n), n),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, k }) => {
+    const raw = angleTex(2 * k, n);
+    const reduced = angleTex(principal(2 * k, n), n);
+    const steps: SolutionStep[] = [
+      {
+        text: `Each power of $\\omega$ turns a further $${angleTex(2, n)}$, so $${omegaTex(k)}$ is ${k} step${k === 1 ? '' : 's'} round from $1$.`,
+        tex: `\\arg\\left(${omegaTex(k)}\\right) = ${k} \\times ${angleTex(2, n)} = ${raw}`,
+      },
+    ];
+    if (raw !== reduced) {
+      steps.push({
+        text: 'That is past a half turn, so take one whole turn off to land in $(-\\pi, \\pi]$. The point is the same; only the label changes.',
+        tex: `${raw} - 2\\pi = ${reduced}`,
+      });
+    } else {
+      steps.push({ text: 'That is already between $-\\pi$ and $\\pi$, so it is the principal argument.' });
+    }
+    return steps;
+  },
+};
+
+/* ---------- Which of these is a root of unity? ---------- */
+
+interface UnityWhichParams { n: number; k: number }
+
+/** `\cos\theta + i\sin\theta` for θ = mπ/d, as the learner reads it. */
+const cisTex = (m: number, d: number): string => {
+  const t = paren(angleTex(m, d));
+  return `\\cos ${t} + i\\sin ${t}`;
+};
+
+/**
+ * Pick the root of $z^n = 1$ out of four numbers on the unit circle.
+ *
+ * Every option has modulus 1, so only the argument can decide it, and the
+ * distractors are the near-misses the definition produces: an odd multiple of
+ * $\tfrac{\pi}{n}$ (a root of $z^n = -1$, not of $z^n = 1$), and a multiple
+ * of $2\pi$ over the wrong denominator. A candidate that happens to be a root
+ * after all is dropped, which is what `isRoot` is for.
+ */
+export const unityWhich: Generator<UnityWhichParams> = {
+  id: 'unity-which',
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(3, 8) : rng.int(5, 12);
+    return { n, k: rng.int(1, n - 1) };
+  },
+  render: ({ n, k }) => {
+    // mπ/d is a root of z^n = 1 exactly when n·m/d is an even whole number.
+    const isRoot = (m: number, d: number) => (n * m) % (2 * d) === 0;
+    const point = (m: number, d: number): [number, number] => [
+      Math.cos((m * Math.PI) / d),
+      Math.sin((m * Math.PI) / d),
+    ];
+    const right = principal(2 * k, n);
+    const candidates = [
+      { m: right, d: n, correct: true },
+      { m: principal(2 * k + 1, n), d: n },
+      { m: principal(2 * k, n + 1), d: n + 1 },
+      { m: principal(2 * k - 1, n), d: n },
+      { m: principal(2 * k, n - 1), d: n - 1 },
+      { m: principal(k, n), d: n },
+    ].filter((c) => c.correct || !isRoot(c.m, c.d));
+    const opts = distinctByValue(
+      candidates.map((c) => ({ tex: cisTex(c.m, c.d), value: point(c.m, c.d), correct: c.correct })),
+      4,
+    );
+    return choiceSlide(
+      [{ kind: 'prose', text: `Which of these is a root of $z^{${n}} = 1$?` }],
+      opts,
+      mix(n, k),
+    );
+  },
+  solution: ({ n, k }) => [
+    {
+      text: `$z = \\cos\\theta + i\\sin\\theta$ solves $z^{${n}} = 1$ exactly when $${n}\\theta$ is a whole number of turns, so $\\theta$ must be a multiple of $\\tfrac{2\\pi}{${n}}$.`,
+      tex: `\\theta = ${k} \\times \\tfrac{2\\pi}{${n}} = ${angleTex(2 * k, n)}`,
+    },
+    ...(angleTex(2 * k, n) !== angleTex(principal(2 * k, n), n)
+      ? [{ text: 'Written as a principal argument, that angle is:', tex: angleTex(principal(2 * k, n), n) }]
+      : []),
+    {
+      text: `An odd multiple of $\\tfrac{\\pi}{${n}}$ is the usual trap: ${n} times it is an odd number of half turns, which lands on $-1$, not $1$.`,
+    },
+  ],
+};
+
+/* ---------- A root of unity in the form a + bi ---------- */
+
+/** One exact trig value, both as read and as parsed. */
+interface Exact { tex: string; ans: string; zero: boolean; unit: boolean; neg: boolean }
+
+const EXACT_TABLE: { v: number; tex: string; ans: string }[] = [
+  { v: 0, tex: '0', ans: '0' },
+  { v: 0.5, tex: '\\tfrac{1}{2}', ans: '1/2' },
+  { v: Math.SQRT1_2, tex: '\\tfrac{\\sqrt{2}}{2}', ans: 'sqrt(2)/2' },
+  { v: Math.sqrt(3) / 2, tex: '\\tfrac{\\sqrt{3}}{2}', ans: 'sqrt(3)/2' },
+  { v: 1, tex: '1', ans: '1' },
+];
+
+/** cos or sin of a multiple of π/4 or π/6, looked up rather than computed as a decimal. */
+function exact(x: number): Exact {
+  const row = EXACT_TABLE.find(({ v }) => Math.abs(Math.abs(x) - v) < 1e-9);
+  if (!row) throw new Error(`no exact value for ${x}`);
+  const neg = x < 0 && row.v !== 0;
+  return { tex: row.tex, ans: neg ? `-(${row.ans})` : row.ans, zero: row.v === 0, unit: row.v === 1, neg };
+}
+
+/** "a + bi" with exact parts, collapsing signs the way `complexTex` does. */
+function exactComplexTex(re: Exact, im: Exact): string {
+  const imag = im.unit ? 'i' : `${im.tex}i`;
+  if (im.zero) return `${re.neg ? '-' : ''}${re.tex}`;
+  if (re.zero) return `${im.neg ? '-' : ''}${imag}`;
+  return `${re.neg ? '-' : ''}${re.tex} ${im.neg ? '-' : '+'} ${imag}`;
+}
+
+const exactComplexAnswer = (re: Exact, im: Exact): string => `(${re.ans}) + (${im.ans})*i`;
+
+interface UnityCartesianParams { n: number; m: number; phrasing: 'power' | 'angle' }
+
+/** Fractions and roots, for typing the exact values; `i` for the imaginary part. */
+const EXACT_KEYS: KeypadKey[] = [{ insert: '/' }, { insert: 'sqrt(', label: '√(' }, ...I_KEY];
+
+/**
+ * A root of unity written out as $a + bi$.
+ *
+ * Only the orders whose roots sit at multiples of $\tfrac{\pi}{4}$ or
+ * $\tfrac{\pi}{6}$ are drawn, so both parts are exact values the learner
+ * knows, and none on an axis, where the question would be a single digit.
+ */
+export const unityCartesian: Generator<UnityCartesianParams> = {
+  id: 'unity-cartesian',
+  choices: (params) => {
+    const { c, s } = unityCartesianParts(params);
+    const opt = (re: Exact, im: Exact) => ({ tex: exactComplexTex(re, im), answer: exactComplexAnswer(re, im) });
+    const flip = (x: Exact): Exact => ({ ...x, neg: !x.neg, ans: x.neg ? x.ans.slice(2, -1) : `-(${x.ans})` });
+    // The conjugate, cosine and sine swapped, and the real part's sign lost.
+    return steered(options(opt(c, s), opt(c, flip(s)), opt(s, c), opt(flip(c), s)), mix(params.n, params.m, params.phrasing.length));
+  },
+  sample: (rng, difficulty) => {
+    const n = rng.pick([3, 6, 8, 12]);
+    let k = rng.int(1, n - 1);
+    while ((4 * k) % n === 0) k = rng.int(1, n - 1);
+    if (difficulty < 2) return { n, m: k, phrasing: rng.pick(['power', 'angle'] as const) };
+    // A power past n, or a negative one: reducing it is part of the question.
+    const m = rng.chance(0.7) ? k + n * rng.int(1, 3) : k - n;
+    return { n, m, phrasing: 'power' };
+  },
+  render: (params) => {
+    const { n, m, phrasing } = params;
+    const { c, s } = unityCartesianParts(params);
+    const subject = phrasing === 'power'
+      ? `$\\omega = \\cos ${angleTex(2, n)} + i\\sin ${angleTex(2, n)}$ is one of the ${ordinal(n)} roots of unity. Write $${omegaTex(m)}$ in the form $a + bi$.`
+      : `$z$ is the ${ordinal(n)} root of unity with principal argument $${angleTex(principal(2 * m, n), n)}$. Write it in the form $a + bi$.`;
+    return {
+      kind: 'expression',
+      prompt: [{ kind: 'prose', text: subject }],
+      lead: phrasing === 'power' ? `${omegaTex(m)} =` : 'z =',
+      keypad: EXACT_KEYS,
+      answer: exactComplexAnswer(c, s),
+      domain: 'complex',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { n, m, phrasing } = params;
+    const { c, s } = unityCartesianParts(params);
+    const theta = angleTex(principal(2 * m, n), n);
+    const steps: SolutionStep[] = [];
+    if (phrasing === 'power') {
+      if (m !== mod(m, n)) {
+        steps.push({
+          text: `$\\omega^{${n}} = 1$, so whole turns can be dropped from the power first.`,
+          tex: `${omegaTex(m)} = ${omegaTex(mod(m, n))}`,
+        });
+      }
+      steps.push({
+        text: 'Its argument, as a principal angle:',
+        tex: `\\theta = ${mod(m, n)} \\times ${angleTex(2, n)} \\;\\to\\; ${theta}`,
+      });
+    }
+    steps.push(
+      {
+        text: 'A root of unity has modulus 1, so its real part is the cosine of its argument',
+        tex: `\\cos ${paren(theta)} = ${c.neg ? '-' : ''}${c.tex}`,
+      },
+      { text: 'and its imaginary part is the sine.', tex: `\\sin ${paren(theta)} = ${s.neg ? '-' : ''}${s.tex}` },
+      { tex: `${phrasing === 'power' ? omegaTex(m) : 'z'} = ${exactComplexTex(c, s)}` },
+    );
+    return steps;
+  },
+};
+
+function unityCartesianParts({ n, m }: UnityCartesianParams): { c: Exact; s: Exact } {
+  const t = (Math.PI * principal(2 * m, n)) / n;
+  return { c: exact(Math.cos(t)), s: exact(Math.sin(t)) };
+}
+
+/* ---------- Which power of omega is marked? ---------- */
+
+interface UnitySliderParams { n: number; g: number; j: number }
+
+/**
+ * Read a root of unity off the circle, as a power of ω.
+ *
+ * At difficulty 1 the labelled ω is the first root anticlockwise, so the
+ * answer is a count of steps. At difficulty 2 it is some other root that still
+ * reaches all of them, and the learner steps round by ω's own angle, wrapping
+ * past 1 as often as it takes — the idea the Argand diagram lesson builds on.
+ *
+ * The answer is never the slider's resting value, since the handle would
+ * otherwise start the question sitting on it.
+ */
+export const unitySlider: Generator<UnitySliderParams> = {
+  id: 'unity-slider',
+  sample: (rng, difficulty) => {
+    const n = rng.int(5, 12);
+    const rest = Math.round((n - 1) / 2);
+    const coprime = Array.from({ length: n - 2 }, (_, idx) => idx + 2).filter((g) => gcd(g, n) === 1);
+    const g = difficulty < 2 ? 1 : rng.pick(coprime);
+    let j = rng.int(2, n - 1);
+    while (j === rest) j = rng.int(2, n - 1);
+    return { n, g, j };
+  },
+  render: ({ n, g, j }) => ({
+    kind: 'slider',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `The ${ordinal(n)} roots of unity, with $\\omega$ labelled. Which power of $\\omega$ is the highlighted root?`,
+      },
+      { kind: 'diagram', svg: unityCircleSvg(n, mod(g * j, n), g) },
+    ],
+    min: 0,
+    max: n - 1,
+    step: 1,
+    answer: j,
+    readout: '\\omega^{{v}}',
+  }),
+  solution: ({ n, g, j }) => {
+    const p = mod(g * j, n);
+    if (g === 1) {
+      return [
+        {
+          text: `$\\omega$ is one step anticlockwise from $1$, and each further power of $\\omega$ is one more step. The highlighted root is ${j} steps round.`,
+          tex: `\\text{highlighted} = \\omega^{${j}}`,
+        },
+      ];
+    }
+    return [
+      {
+        text: `Here $\\omega$ is ${g} steps round from $1$, so each power of $\\omega$ moves on ${g} more, wrapping past $1$ after ${n}.`,
+        tex: `\\omega^{${j}} \\text{ is } ${g} \\times ${j} = ${g * j} \\text{ steps round}`,
+      },
+      {
+        text: `Taking off whole turns of ${n} steps leaves ${p}, which is the highlighted root.`,
+        tex: `${g * j} - ${g * j - p} = ${p}`,
+      },
+    ];
+  },
+};
+
+/* ---------- The conjugate of a root of unity ---------- */
+
+interface UnityConjugateParams { n: number; k: number }
+
+/**
+ * The conjugate as a reflection in the real axis, named as a power of ω.
+ *
+ * The polygon of roots is symmetric about the real axis, so reflecting
+ * $\omega^k$ lands on another root, $\omega^{n-k}$. Every option is written
+ * with an exponent between 0 and n − 1, so $\omega^{-k}$ — right, but not in
+ * that form — is never on offer to be marked wrong.
+ */
+export const unityConjugate: Generator<UnityConjugateParams> = {
+  id: 'unity-conjugate',
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(4, 9) : rng.int(7, 12);
+    let k = rng.int(1, n - 1);
+    while (2 * k === n) k = rng.int(1, n - 1);
+    return { n, k };
+  },
+  render: ({ n, k }) => {
+    const right = n - k;
+    const exps = [right, k, mod(right + 1, n), mod(right - 1, n), mod(k + Math.floor(n / 2), n), mod(n - 2 * k, n)];
+    const opts = distinctByValue(
+      exps
+        .filter((e, idx) => idx === 0 || e !== 0)
+        .map((e, idx) => ({ tex: omegaTex(e), value: omegaPoint(e, n), correct: idx === 0 })),
+      4,
+    );
+    return choiceSlide(
+      [
+        {
+          kind: 'prose',
+          text: `The ${ordinal(n)} roots of unity, with $${omegaTex(k)}$ highlighted. Which root is its conjugate $\\overline{${omegaTex(k)}}$?`,
+        },
+        { kind: 'diagram', svg: unityCircleSvg(n, k) },
+      ],
+      opts,
+      mix(n, k),
+    );
+  },
+  solution: ({ n, k }) => [
+    {
+      text: 'Conjugating reflects a point in the real axis. The roots are symmetric about that axis, so the reflection is another root.',
+    },
+    {
+      text: `$${omegaTex(k)}$ is ${k} step${k === 1 ? '' : 's'} anticlockwise from $1$; its reflection is ${k} step${k === 1 ? '' : 's'} clockwise, which is ${n - k} anticlockwise.`,
+      tex: `\\overline{${omegaTex(k)}} = \\omega^{-${k}} = \\omega^{${n} - ${k}} = ${omegaTex(n - k)}`,
+    },
+  ],
+};
+
+/* ---------- Counting roots by region ---------- */
+
+type Region = 'real' | 'upper' | 'first' | 'left' | 'imaginary';
+
+interface UnityCountParams { n: number; region: Region }
+
+const REGION_TEXT: Record<Region, string> = {
+  real: 'lie on the real axis',
+  upper: 'lie strictly above the real axis',
+  first: 'lie strictly inside the first quadrant',
+  left: 'have a negative real part',
+  imaginary: 'lie on the imaginary axis',
+};
+
+/**
+ * How many roots of $z^n = 1$ fall in a region, counted with integers: root k
+ * sits $\tfrac{k}{n}$ of a turn round, so comparing $4k$ against $n$ and $3n$
+ * decides every quadrant boundary with no floating point at all.
+ */
+function countIn(n: number, region: Region): number {
+  let count = 0;
+  for (let k = 0; k < n; k += 1) {
+    const q = 4 * k; // quarter turns, times n
+    const inside =
+      region === 'real' ? q === 0 || q === 2 * n
+      : region === 'upper' ? q > 0 && q < 2 * n
+      : region === 'first' ? q > 0 && q < n
+      : region === 'left' ? q > n && q < 3 * n
+      : q === n || q === 3 * n;
+    if (inside) count += 1;
+  }
+  return count;
+}
+
+/**
+ * The shape of the whole set, without drawing it.
+ *
+ * Counting how many roots sit on an axis or in a quadrant is answered by the
+ * picture of a regular polygon with a corner at 1 — whether n is odd or even,
+ * whether it is a multiple of 4 — and not by listing arguments one by one,
+ * which is why there is no figure: the figure would be the answer.
+ */
+export const unityCount: Generator<UnityCountParams> = {
+  id: 'unity-count',
+  choices: ({ n, region }) => {
+    const c = countIn(n, region);
+    const num = (v: number) => ({ tex: `${v}`, answer: `${v}` });
+    const salt = mix(n, ['real', 'upper', 'first', 'left', 'imaginary'].indexOf(region));
+    return steered(options(num(c), num(c + 1), num(Math.abs(c - 1)), num(c + 2), num(n - c)).slice(0, 4), salt);
+  },
+  sample: (rng, difficulty) => ({
+    n: difficulty < 2 ? rng.int(3, 12) : rng.int(7, 20),
+    region: rng.pick(['real', 'upper', 'first', 'left', 'imaginary'] as const),
+  }),
+  render: ({ n, region }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `$N$ of the ${n} roots of $z^{${n}} = 1$ ${REGION_TEXT[region]}. What is $N$?` },
+    ],
+    lead: 'N =',
+    keypad: [],
+    answer: `${countIn(n, region)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, region }) => {
+    const c = countIn(n, region);
+    const where = {
+      real: `Only $1$ and, when $n$ is even, $-1$ can be real. ${n} is ${n % 2 === 0 ? 'even, so both are roots' : 'odd, so only $1$ is'}.`,
+      upper: `Take away the real roots (${countIn(n, 'real')}) and the rest pair up as conjugates, half above the axis and half below.`,
+      first: `Root $k$ is $\\tfrac{k}{${n}}$ of a turn round. The first quadrant is strictly between $0$ and a quarter turn, so $0 < \\tfrac{k}{${n}} < \\tfrac{1}{4}$.`,
+      left: `A negative real part means strictly between a quarter and three quarters of a turn: $\\tfrac{1}{4} < \\tfrac{k}{${n}} < \\tfrac{3}{4}$.`,
+      imaginary: `$\\pm i$ are roots only when a quarter turn is a whole number of steps, which needs ${n} to be a multiple of 4. ${n % 4 === 0 ? 'It is' : 'It is not'}.`,
+    }[region];
+    return [
+      { text: `The roots are the corners of a regular ${n}-sided polygon on the unit circle, with one corner at $1$.` },
+      { text: where, tex: `N = ${c}` },
+    ];
+  },
+};
+
+/* ---------- Reducing a power of omega ---------- */
+
+type PowerForm = 'big' | 'product' | 'power' | 'negative' | 'quotient';
+
+interface UnityPowerParams { n: number; form: PowerForm; a: number; b: number }
+
+/** The exponent before reduction, and how it is written. */
+function unityPowerParts({ n, form, a, b }: UnityPowerParams): { raw: number; tex: string; working: string } {
+  switch (form) {
+    case 'big':
+      return { raw: a, tex: omegaTex(a), working: `${a}` };
+    case 'product':
+      return { raw: a + b, tex: `${omegaTex(a)} \\times ${omegaTex(b)}`, working: `${a} + ${b} = ${a + b}` };
+    case 'power':
+      return { raw: a * b, tex: `\\left(${omegaTex(a)}\\right)^{${b}}`, working: `${a} \\times ${b} = ${a * b}` };
+    case 'negative':
+      return { raw: -a, tex: `\\omega^{-${a}}`, working: `-${a}` };
+    case 'quotient':
+      return { raw: a - b, tex: `\\dfrac{${omegaTex(a)}}{${omegaTex(b)}}`, working: `${a} - ${b} = ${a - b}` };
+  }
+  return { raw: 0, tex: '1', working: `${n}` };
+}
+
+/**
+ * Any product, power or quotient of powers of ω, brought back to
+ * $\omega^j$ with $0 \le j < n$.
+ *
+ * On the diagram this is stepping round the polygon and noticing that n steps
+ * is a full turn; algebraically it is $\omega^n = 1$. Both are the fact that
+ * makes the sums in the next lesson collapse.
+ */
+export const unityPower: Generator<UnityPowerParams> = {
+  id: 'unity-power',
+  choices: (params) => {
+    const { n, form, a, b } = params;
+    const j = mod(unityPowerParts(params).raw, n);
+    // The exponents combined the wrong way for this form, or reduced by one too few or many.
+    const slip =
+      form === 'product' ? a * b
+      : form === 'power' ? a + b
+      : form === 'negative' ? a
+      : form === 'quotient' ? b - a
+      : Math.floor(a / n);
+    const candidates = [j, mod(slip, n), mod(j + 1, n), mod(j - 1, n), mod(j + 2, n)];
+    const seen = new Set<number>();
+    const out: ChoiceOption[] = [];
+    for (const [idx, e] of candidates.entries()) {
+      if (seen.has(e) || out.length === 4) continue;
+      seen.add(e);
+      out.push({ tex: `\\omega^{${e}}`, answer: omegaAnswer(e, n), ...(idx === 0 ? { correct: true } : {}) });
+    }
+    return steered(out, mix(n, a, b, form.length));
+  },
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(3, 8) : rng.int(5, 12);
+    const forms: PowerForm[] = difficulty < 2 ? ['big', 'product'] : ['big', 'product', 'power', 'negative', 'quotient'];
+    const form = rng.pick(forms);
+    switch (form) {
+      case 'big':
+        return { n, form, a: rng.int(n + 1, 4 * n), b: 0 };
+      case 'product': {
+        const a = rng.int(2, n - 1);
+        return { n, form, a, b: rng.int(Math.max(2, n - a), n - 1) };
+      }
+      case 'power':
+        return { n, form, a: rng.int(2, n - 1), b: rng.int(2, 5) };
+      case 'negative':
+        return { n, form, a: rng.int(1, n - 1), b: 0 };
+      case 'quotient': {
+        const a = rng.int(1, n - 2);
+        return { n, form, a, b: rng.int(a + 1, n - 1) };
+      }
+    }
+    return { n, form: 'big', a: n + 1, b: 0 };
+  },
+  render: (params) => {
+    const { n } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\omega$ is the ${ordinal(n)} root of unity with argument $${angleTex(2, n)}$, so $\\omega^{${n}} = 1$. Write this as $\\omega^{j}$ with $0 \\le j < ${n}$.`,
+        },
+        { kind: 'display', tex: unityPowerParts(params).tex },
+      ],
+      lead: 'j =',
+      keypad: [],
+      answer: `${mod(unityPowerParts(params).raw, n)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { n } = params;
+    const { raw, tex, working } = unityPowerParts(params);
+    const j = mod(raw, n);
+    return [
+      ...(params.form === 'big'
+        ? []
+        : [{ text: 'Combine the powers by the usual index laws first.', tex: `${tex} = \\omega^{${raw}} \\quad (${working})` }]),
+      {
+        text: `$\\omega^{${n}} = 1$, so adding or taking away ${n} from the power changes nothing. Do it until the power lies between $0$ and ${n - 1}.`,
+        tex: `\\omega^{${raw}} = \\omega^{${raw} ${raw > j ? '-' : '+'} ${Math.abs(raw - j)}} = \\omega^{${j}}`,
+      },
+    ];
+  },
+};
+
+/* ---------- The sum of all but some of the roots ---------- */
+
+interface SumExceptParams { n: number; left: number[] }
+
+/**
+ * $1 + \omega + \dots + \omega^{n-1} = 0$, read backwards: whatever is left
+ * out, the rest adds up to minus it.
+ */
+export const unitySumExcept: Generator<SumExceptParams> = {
+  id: 'unity-sum-except',
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(3, 10) : rng.int(5, 12);
+    const all = Array.from({ length: n }, (_, k) => k);
+    const left = difficulty < 2 ? [rng.int(0, n - 1)] : rng.sample(all, 2).sort((x, y) => x - y);
+    return { n, left };
+  },
+  render: ({ n, left }) => {
+    const sumTex = (ks: number[], sign: 1 | -1) =>
+      ks.map((k, idx) => `${sign < 0 ? '-' : idx === 0 ? '' : '+'}${idx === 0 || sign < 0 ? '' : ' '}${omegaTex(k)}`).join(' ');
+    const sumValue = (ks: number[], sign: number): [number, number] => {
+      const [x, y] = ks.map((k) => omegaPoint(k, n)).reduce(([p, q], [u, v]) => [p + u, q + v], [0, 0]);
+      return [sign * x, sign * y];
+    };
+    const candidates = [
+      { tex: sumTex(left, -1), value: sumValue(left, -1), correct: true },
+      { tex: '0', value: [0, 0] as [number, number] },
+      { tex: sumTex(left, 1), value: sumValue(left, 1) },
+      { tex: '-1', value: [-1, 0] as [number, number] },
+      { tex: '1', value: [1, 0] as [number, number] },
+      { tex: sumTex(left.map((k) => mod(-k, n)), -1), value: sumValue(left.map((k) => mod(-k, n)), -1) },
+    ];
+    const listed = n <= 4
+      ? Array.from({ length: n }, (_, k) => omegaTex(k)).join(', ')
+      : `1, \\omega, \\omega^{2}, \\ldots, \\omega^{${n - 1}}`;
+    const skipped = left.map((k) => `$${omegaTex(k)}$`).join(' and ');
+    return choiceSlide(
+      [
+        { kind: 'prose', text: `The ${ordinal(n)} roots of unity are $${listed}$.` },
+        { kind: 'prose', text: `What do they add up to if ${skipped} ${left.length === 1 ? 'is' : 'are'} left out?` },
+      ],
+      distinctByValue(candidates, 4),
+      mix(n, ...left),
+    );
+  },
+  solution: ({ n, left }) => {
+    const shown = left.map(omegaTex);
+    return [
+      {
+        text: `All ${n} roots together add up to $0$: the polygon they make is balanced about the origin.`,
+        tex: `1 + \\omega + \\cdots + \\omega^{${n - 1}} = 0`,
+      },
+      {
+        text: `So the ones that are left make up whatever cancels ${left.length === 1 ? 'the missing root' : 'the two missing roots'}.`,
+        tex: `\\text{rest} = ${shown.map((s) => `-${s}`).join(' ')}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Sums of powers of the roots ---------- */
+
+interface SumPowerParams { n: number; p: number; phrasing: 'omega' | 'roots' }
+
+/**
+ * $1 + \omega^p + \omega^{2p} + \dots + \omega^{(n-1)p}$: 0, unless p is a
+ * multiple of n, when every term is 1 and the sum is n.
+ *
+ * Multiples of n are drawn often on purpose. Were they rare, "0" would be a
+ * reflex rather than a conclusion, and the one case where the rule does not
+ * apply is the case that shows whether the reason was understood.
+ */
+export const unitySumPower: Generator<SumPowerParams> = {
+  id: 'unity-sum-power',
+  choices: ({ n, p }) => {
+    const s = p % n === 0 ? n : 0;
+    const num = (v: number) => ({ tex: `${v}`, answer: `${v}` });
+    return steered(options(num(s), num(s === 0 ? n : 0), num(1), num(-1)), mix(n, p));
+  },
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(3, 6) : rng.int(4, 10);
+    const top = difficulty < 2 ? 2 * n : 3 * n;
+    const p = rng.chance(0.4) ? n * rng.int(1, Math.floor(top / n)) : (() => {
+      let q = rng.int(2, top);
+      while (q % n === 0) q = rng.int(2, top);
+      return q;
+    })();
+    return { n, p, phrasing: rng.pick(['omega', 'roots'] as const) };
+  },
+  render: ({ n, p, phrasing }) => {
+    const term = (j: number) => (j === 0 ? '1' : omegaTex(j * p));
+    const terms = n <= 4
+      ? Array.from({ length: n }, (_, j) => term(j)).join(' + ')
+      : `${term(0)} + ${term(1)} + ${term(2)} + \\cdots + ${term(n - 1)}`;
+    const prompt: Block[] = phrasing === 'omega'
+      ? [{ kind: 'prose', text: `$\\omega$ is the ${ordinal(n)} root of unity with argument $${angleTex(2, n)}$. Evaluate this sum.` }]
+      : [
+          {
+            kind: 'prose',
+            text: `Raise each of the ${n} roots of $z^{${n}} = 1$ to the power ${p}. What do the results add up to?`,
+          },
+        ];
+    return {
+      kind: 'expression',
+      prompt,
+      lead: phrasing === 'omega' ? `${terms} =` : `\\sum z^{${p}} =`,
+      keypad: [],
+      answer: `${p % n === 0 ? n : 0}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ n, p }) => {
+    if (p % n === 0) {
+      return [
+        { text: `The roots are $\\omega^{k}$ for $k = 0, \\ldots, ${n - 1}$, so raised to the power ${p} they become $\\omega^{${p}k}$.` },
+        {
+          text: `${p} is a multiple of ${n}, so every one of those is $\\left(\\omega^{${n}}\\right)^{${p / n}k} = 1$.`,
+          tex: `\\underbrace{1 + 1 + \\cdots + 1}_{${n}} = ${n}`,
+        },
+      ];
+    }
+    return [
+      { text: `The roots are $\\omega^{k}$ for $k = 0, \\ldots, ${n - 1}$, so raised to the power ${p} they become $\\omega^{${p}k}$.` },
+      {
+        text: `$\\omega^{${p}} \\neq 1$, since ${p} is not a multiple of ${n}, so the sum is a geometric series with ratio $\\omega^{${p}}$. Its top line vanishes:`,
+        tex: `\\left(\\omega^{${p}}\\right)^{${n}} = \\left(\\omega^{${n}}\\right)^{${p}} = 1`,
+      },
+      { tex: `\\text{sum} = \\frac{1 - 1}{\\omega^{${p}} - 1} = 0` },
+    ];
+  },
+};
+
+/* ---------- The missing fourth root, from the sum ---------- */
+
+interface MissingParams { a: number; b: number; missing: number; hint: boolean }
+
+/** The four fourth roots of (a + bi)^4, in order round the origin. */
+const quarterTurns = (a: number, b: number): [number, number][] => [[a, b], [-b, a], [-a, -b], [b, -a]];
+
+/**
+ * Three of the roots of $z^4 = w$ are given; the fourth is minus their sum.
+ *
+ * Fourth roots are the one family of roots besides square roots that can all
+ * sit on the lattice together — a quarter turn of a lattice point is a lattice
+ * point — which is what lets the answer be placed rather than typed.
+ */
+export const rootsMissingPlot: Generator<MissingParams> = {
+  id: 'roots-missing-plot',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) {
+      return { a: rng.int(1, 3) * rng.sign(), b: rng.int(1, 3) * rng.sign(), missing: rng.int(0, 3), hint: true };
+    }
+    let a = rng.int(-RANGE, RANGE);
+    let b = rng.int(-RANGE, RANGE);
+    while ((a === 0 && b === 0) || Math.abs(a) + Math.abs(b) < 2) {
+      a = rng.int(-RANGE, RANGE);
+      b = rng.int(-RANGE, RANGE);
+    }
+    return { a, b, missing: rng.int(0, 3), hint: false };
+  },
+  render: ({ a, b, missing, hint }) => {
+    const roots = quarterTurns(a, b);
+    const [wr, wi] = powersOf(a, b, 4)[3];
+    const given = roots.filter((_, idx) => idx !== missing).map(([x, y]) => `$${complexTex(x, y)}$`);
+    const [ar, ai] = roots[missing];
+    return {
+      kind: 'plot',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Three of the four roots of $z^{4} = ${complexTex(wr, wi)}$ are ${given[0]}, ${given[1]} and ${given[2]}.${hint ? ' All four add up to $0$.' : ''} Plot the fourth.`,
+        },
+      ],
+      range: RANGE,
+      answer: { re: ar, im: ai },
+    };
+  },
+  solution: ({ a, b, missing }) => {
+    const roots = quarterTurns(a, b);
+    const others = roots.filter((_, idx) => idx !== missing);
+    const sx = others.reduce((s, [x]) => s + x, 0);
+    const sy = others.reduce((s, [, y]) => s + y, 0);
+    return [
+      { text: 'The roots of $z^{4} = w$ add up to $0$, just like the roots of unity: they are one root times each of $1, i, -1, -i$.' },
+      {
+        text: 'Add the three you have, real parts first.',
+        tex: `${others.map(([x]) => paren(`${x}`)).join(' + ')} = ${sx}`,
+      },
+      {
+        text: 'Then the imaginary parts.',
+        tex: `${others.map(([, y]) => paren(`${y}`)).join(' + ')} = ${sy}`,
+      },
+      { text: 'The fourth cancels that sum.', tex: `z = -\\left(${complexTex(sx, sy)}\\right) = ${complexTex(-sx, -sy)}` },
+    ];
+  },
+};
+
+/* ---------- Roots of z^n = w ---------- */
+
+/** Arguments for w: the standard angles, plus 0. `index` into this. */
+const W_ANGLES: { k: number; d: number }[] = [{ k: 0, d: 1 }, ...POLAR_ANGLES];
+
+/**
+ * w as the learner reads it: plainly when it lies on an axis, since
+ * $8(\cos 0 + i\sin 0)$ for 8 would be a strange way to write it, and
+ * otherwise by its modulus and argument. The full modulus-argument form of,
+ * say, $32(\cos(-\tfrac{2\pi}{3}) + i\sin(-\tfrac{2\pi}{3}))$ runs off the
+ * side of a phone, and those two numbers are all any of these questions read.
+ */
+function wDisplay(R: number, index: number): string {
+  const { k, d } = W_ANGLES[index];
+  if (k === 0) return `w = ${R}`;
+  if (k === 1 && d === 1) return `w = -${R}`;
+  if (d === 2) return k > 0 ? `w = ${R}i` : `w = -${R}i`;
+  return `|w| = ${R}, \\quad \\arg w = ${angleTex(k, d)}`;
+}
+
+interface RootModulusParams { n: number; r: number; index: number }
+
+/**
+ * The modulus of every root of $z^n = w$ is $|w|^{1/n}$, the one number all
+ * n roots share. Drawn so it is always whole.
+ */
+export const rootModulus: Generator<RootModulusParams> = {
+  id: 'root-modulus',
+  choices: ({ n, r, index }) => {
+    const R = r ** n;
+    const whole = (v: number) => ({ tex: `${v}`, answer: `${v}` });
+    const divided = R % n === 0 ? whole(R / n) : { tex: `\\tfrac{${R}}{${n}}`, answer: `${R}/${n}` };
+    const sq = Math.sqrt(R);
+    const rooted = Number.isInteger(sq) ? whole(sq) : { tex: `\\sqrt{${R}}`, answer: `sqrt(${R})` };
+    return steered(options(whole(r), divided, whole(R), rooted, whole(r * n), whole(r + 1)).slice(0, 4), mix(n, r, index));
+  },
+  sample: (rng, difficulty) =>
+    difficulty < 2
+      ? { n: rng.int(2, 3), r: rng.int(2, 4), index: rng.int(0, W_ANGLES.length - 1) }
+      : { n: rng.int(3, 6), r: rng.int(2, 3), index: rng.int(0, W_ANGLES.length - 1) },
+  render: ({ n, r, index }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Every root of $z^{${n}} = w$ has the same modulus. What is it, for this $w$?` },
+      { kind: 'display', tex: wDisplay(r ** n, index) },
+    ],
+    lead: '|z| =',
+    keypad: SQRT_KEYS,
+    answer: `${r}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ n, r }) => [
+    { text: `Take the modulus of both sides: $|z^{${n}}| = |z|^{${n}}$, and that must equal $|w| = ${r ** n}$.` },
+    { tex: `|z| = \\sqrt[${n}]{${r ** n}} = ${r}` },
+    { text: 'The argument of $w$ plays no part here; it only decides where round the circle the roots sit.' },
+  ],
+};
+
+interface RootArgParams { n: number; r: number; index: number; k: number }
+
+/** θ_k = (φ + 2kπ)/n for φ = W_ANGLES[index], as a numerator over n·d. */
+function rootAngle(n: number, index: number, k: number): { m: number; d: number } {
+  const { k: p, d } = W_ANGLES[index];
+  return { m: p + 2 * k * d, d: n * d };
+}
+
+/**
+ * One root's argument from $\theta_k = \tfrac{\arg w + 2k\pi}{n}$, brought
+ * inside $(-\pi, \pi]$.
+ */
+export const rootArgument: Generator<RootArgParams> = {
+  id: 'root-argument',
+  choices: ({ n, index, k }) => {
+    const { m, d } = rootAngle(n, index, k);
+    const { k: p, d: dw } = W_ANGLES[index];
+    const ang = (mm: number, dd: number) => ({ tex: angleTex(mm, dd), answer: angleAnswer(mm, dd) });
+    return steered(options(
+      ang(principal(m, d), d),
+      // 2kπ not divided by n; arg w not divided by n; k ignored; left unreduced.
+      ang(principal(p + 2 * k * d, d), d),
+      ang(principal(n * p + 2 * k * dw, d), d),
+      ang(principal(p, d), d),
+      ang(m, d),
+      ang(principal(m + 2 * dw, d), d),
+      ang(principal(m - 2 * dw, d), d),
+      ang(principal(-m, d), d),
+    ).slice(0, 4), mix(n, k, index));
+  },
+  sample: (rng, difficulty) => {
+    const index = rng.int(1, W_ANGLES.length - 1);
+    if (difficulty < 2) return { n: rng.int(2, 3), r: rng.int(2, 3), index, k: rng.int(0, 1) };
+    const n = rng.int(2, 4);
+    return { n, r: rng.int(2, 3), index, k: rng.int(1, n - 1) };
+  },
+  render: ({ n, r, index, k }) => {
+    const { m, d } = rootAngle(n, index, k);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The roots of $z^{${n}} = w$ have arguments $\\theta_k = \\tfrac{\\arg w + 2k\\pi}{${n}}$. Find $\\theta_{${k}}$ as a principal argument, for this $w$:`,
+        },
+        { kind: 'display', tex: wDisplay(r ** n, index) },
+      ],
+      lead: `\\theta_{${k}} =`,
+      keypad: ANGLE_KEYS,
+      answer: angleAnswer(principal(m, d), d),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ n, index, k }) => {
+    const { k: p, d: dw } = W_ANGLES[index];
+    const { m, d } = rootAngle(n, index, k);
+    const raw = angleTex(m, d);
+    const reduced = angleTex(principal(m, d), d);
+    const steps: SolutionStep[] = [
+      { text: 'Read the argument of $w$.', tex: `\\arg w = ${angleTex(p, dw)}` },
+      {
+        text: k === 0 ? `With $k = 0$ there is nothing to add: divide it by ${n}.` : `Add $${k} \\times 2\\pi$ and divide the whole thing by ${n}.`,
+        tex: `\\theta_{${k}} = \\frac{${angleTex(p, dw)}${k === 0 ? '' : ` + ${angleTex(2 * k, 1)}`}}{${n}} = ${raw}`,
+      },
+    ];
+    steps.push(
+      raw === reduced
+        ? { text: 'That is already between $-\\pi$ and $\\pi$.' }
+        : { text: 'That is past $\\pi$, so take off a whole turn.', tex: `${raw} - 2\\pi = ${reduced}` },
+    );
+    return steps;
+  },
+};
+
+interface RootArgsParams { n: number; r: number; index: number; bank: string[] }
+
+/**
+ * All n arguments at once, placed from a bank in any order.
+ *
+ * Asking for the whole set by typing would mean n answers in one box, which
+ * the checker cannot grade; tiles grade a set naturally. The distractors are
+ * the set's characteristic mistakes: arg w left undivided, a step of
+ * $\tfrac{\pi}{n}$ instead of $\tfrac{2\pi}{n}$, and an argument past $\pi$
+ * left unreduced.
+ */
+export const rootArgsTiles: Generator<RootArgsParams> = {
+  id: 'root-args-tiles',
+  sample: (rng, difficulty) => {
+    const n = difficulty < 2 ? rng.int(2, 3) : rng.int(3, 4);
+    const index = rng.int(1, W_ANGLES.length - 1);
+    const { k: p, d: dw } = W_ANGLES[index];
+    const D = n * dw;
+    const correct = Array.from({ length: n }, (_, k) => angleTex(principal(p + 2 * k * dw, D), D));
+    const raw = Array.from({ length: n }, (_, k) => angleTex(p + 2 * k * dw, D));
+    const decoys = [
+      angleTex(p, dw),
+      angleTex(principal(p + dw, D), D),
+      ...raw.filter((t) => !correct.includes(t)),
+      angleTex(principal(-p, D), D),
+      angleTex(principal(p + 3 * dw, D), D),
+    ].filter((t, idx, all) => !correct.includes(t) && all.indexOf(t) === idx);
+    return { n, r: rng.int(2, 3), index, bank: rng.shuffle([...correct, ...decoys.slice(0, 3)]) };
+  },
+  render: ({ n, r, index, bank }) => {
+    const { k: p, d: dw } = W_ANGLES[index];
+    const D = n * dw;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `Place the principal arguments of ${n === 2 ? 'both' : `all ${n}`} roots of $z^{${n}} = w$, in any order.` },
+        { kind: 'display', tex: wDisplay(r ** n, index) },
+      ],
+      template: `\\arg z = ${Array.from({ length: n }, (_, k) => `{${k}}`).join(',\\ ')}`,
+      bank,
+      answer: Array.from({ length: n }, (_, k) => angleTex(principal(p + 2 * k * dw, D), D)),
+      unordered: true,
+    };
+  },
+  solution: ({ n, index }) => {
+    const { k: p, d: dw } = W_ANGLES[index];
+    const D = n * dw;
+    const list = Array.from({ length: n }, (_, k) => angleTex(principal(p + 2 * k * dw, D), D));
+    return [
+      {
+        text: `Start from $\\tfrac{\\arg w}{${n}}$, then step round by $\\tfrac{2\\pi}{${n}}$ each time.`,
+        tex: `\\frac{${angleTex(p, dw)}}{${n}} = ${angleTex(p, D)}, \\quad \\text{step } ${angleTex(2, n)}`,
+      },
+      {
+        text: `Take ${n} steps' worth and bring anything past $\\pi$ back by a whole turn.`,
+        tex: list.join(',\\ '),
+      },
+    ];
+  },
+};
+
+/* ---------- The next root round, on the lattice ---------- */
+
+type RotateMode = 'next' | 'previous' | 'opposite' | 'quadrant';
+
+interface RotateParams { a: number; b: number; mode: RotateMode; quadrant: number }
+
+const QUADRANT_NAMES = ['first', 'second', 'third', 'fourth'];
+
+/** Which quadrant a point with both parts non-zero lies in, counted from 0. */
+const quadrantOf = (x: number, y: number): number => (x > 0 ? (y > 0 ? 0 : 3) : y > 0 ? 1 : 2);
+
+/**
+ * The roots of $z^n = w$ are one root times each nth root of unity, so the
+ * next root round is this one turned by $\tfrac{2\pi}{n}$. For n = 4 that is
+ * a multiplication by $i$, which keeps a lattice point on the lattice.
+ */
+export const rootRotatePlot: Generator<RotateParams> = {
+  id: 'root-rotate-plot',
+  sample: (rng, difficulty) => {
+    const top = difficulty < 2 ? 3 : RANGE;
+    const a = rng.int(1, top) * rng.sign();
+    const b = rng.int(1, top) * rng.sign();
+    if (difficulty < 2) return { a, b, mode: rng.pick(['next', 'previous', 'opposite'] as const), quadrant: 0 };
+    const own = quadrantOf(a, b);
+    let quadrant = rng.int(0, 3);
+    while (quadrant === own) quadrant = rng.int(0, 3);
+    return { a, b, mode: rng.chance(0.6) ? 'quadrant' : rng.pick(['next', 'previous'] as const), quadrant };
+  },
+  render: ({ a, b, mode, quadrant }) => {
+    const [wr, wi] = powersOf(a, b, 4)[3];
+    const roots = quarterTurns(a, b);
+    const target =
+      mode === 'next' ? roots[1]
+      : mode === 'previous' ? roots[3]
+      : mode === 'opposite' ? roots[2]
+      : roots.find(([x, y]) => quadrantOf(x, y) === quadrant)!;
+    const ask = {
+      next: 'Plot the next root anticlockwise from it.',
+      previous: 'Plot the next root clockwise from it.',
+      opposite: 'Plot the root opposite it, through the origin.',
+      quadrant: `Plot the root in the ${QUADRANT_NAMES[quadrant]} quadrant.`,
+    }[mode];
+    return {
+      kind: 'plot',
+      prompt: [{ kind: 'prose', text: `$${complexTex(a, b)}$ is one root of $z^{4} = ${complexTex(wr, wi)}$. ${ask}` }],
+      range: RANGE,
+      answer: { re: target[0], im: target[1] },
+    };
+  },
+  solution: ({ a, b, mode, quadrant }) => {
+    const roots = quarterTurns(a, b);
+    const steps: SolutionStep[] = [
+      {
+        // In prose rather than a display: four complex numbers on one line
+        // run off the side of a phone, and prose wraps.
+        text: `The four roots are this one times $1, i, -1$ and $-i$, a square about the origin: ${roots.map(([x, y]) => `$${complexTex(x, y)}$`).join(', ')}.`,
+      },
+    ];
+    const which =
+      mode === 'next' ? { at: 1, how: 'Multiplying by $i$ turns a quarter turn anticlockwise.' }
+      : mode === 'previous' ? { at: 3, how: 'Multiplying by $-i$ turns a quarter turn clockwise.' }
+      : mode === 'opposite' ? { at: 2, how: 'Multiplying by $-1$ turns half a turn, through the origin.' }
+      : { at: roots.findIndex(([x, y]) => quadrantOf(x, y) === quadrant), how: `Pick the one whose signs put it in the ${QUADRANT_NAMES[quadrant]} quadrant.` };
+    const [x, y] = roots[which.at];
+    steps.push({ text: which.how, tex: `z = ${complexTex(x, y)}` });
+    return steps;
+  },
+};
+
 export const planeGenerators = [
   identifyPoint,
   plotPoint,
@@ -1676,4 +2843,18 @@ export const planeGenerators = [
   argumentTurns,
   polarMultiply,
   powerArgument,
+  unityArgument,
+  unityWhich,
+  unityCartesian,
+  unitySlider,
+  unityConjugate,
+  unityCount,
+  unityPower,
+  unitySumExcept,
+  unitySumPower,
+  rootsMissingPlot,
+  rootModulus,
+  rootArgument,
+  rootArgsTiles,
+  rootRotatePlot,
 ];

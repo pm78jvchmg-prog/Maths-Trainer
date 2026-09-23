@@ -17,6 +17,10 @@ import { choiceVariants } from './choiceVariant';
  * would make the registry silently keep the last, so that throws instead.
  * Order is by file path, then export order — nothing the app shows depends on
  * it, since lessons name generators by id.
+ *
+ * A generator asked by no lesson is still registered, which is how a widget
+ * batch keeps its demo generators (`numberLine.ts`) under test ahead of the
+ * course that will use them.
  */
 const modules = import.meta.glob<Record<string, unknown>>(['./generators/*.ts', '!./generators/*.test.ts'], {
   eager: true,

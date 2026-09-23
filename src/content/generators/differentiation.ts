@@ -6509,6 +6509,1729 @@ const peakTiles: Generator<PeakParams> = {
   },
 };
 
+/* ---------- Optimisation ---------- */
+
+/*
+ * A situation turned into a function of one variable, and that function's
+ * stationary point turned back into an answer about the situation.
+ *
+ * Finding stationary points is df-l5's and rates are df-l7's. What is new here
+ * is either side of the calculus: building the function, where a constraint
+ * ties two lengths down to one, and reading what comes out — which root makes
+ * sense, whether it is a maximum, which quantity the question asked for.
+ * Quadratics' modelling level maximises by completing the square, so the
+ * models here lean on cubics, x + k/x and r^3, where the derivative is the
+ * tool.
+ *
+ * Every model is sampled from its optimum outward — the best x first, then the
+ * sheet, fence or sum that puts it there — so the x and the value it gives are
+ * both whole. Most answers are numbers the oracle cannot see, so
+ * `optimisation.test.ts` checks each against mathjs's own derivative of the
+ * function the question shows.
+ */
+
+/** The situations a question can be set in. */
+export type ModelKind = 'rect' | 'wall' | 'box' | 'sum' | 'fence' | 'tin' | 'can';
+
+/** A situation with one free length, at its best when that length is `m`. */
+export interface Model {
+  kind: ModelKind;
+  m: number;
+  story: number;
+}
+
+/** Everything a question says about a model. */
+export interface ModelFacts {
+  /** The symbol for what is optimised. */
+  q: string;
+  /** The one variable left once the constraint is used. */
+  variable: 'x' | 'r';
+  /** What is optimised with its symbol, mid-sentence: "the area $A$". */
+  name: string;
+  /** What is optimised, after "greatest" or "least". */
+  what: string;
+  /** Its unit, TeX; empty for a pure number. */
+  unit: string;
+  goal: 'greatest' | 'least';
+  /** Sets the situation up and says what the variable is. */
+  story: string;
+  /** The function of the variable, TeX, as it is built. */
+  tex: string;
+  /** The same for mathjs. */
+  answer: string;
+  f: (x: number) => number;
+  /** Expanded, highest power first, where the model is a polynomial. */
+  coefficients?: number[];
+  derivative: { tex: string; answer: string };
+  /** The optimum value; for the cylinder, the k of k pi. */
+  best: number;
+  /** The variable must stay below this; Infinity when nothing stops it. */
+  upper: number;
+  /** The other length, which the constraint fixes. */
+  other: { name: string; tex: string; value: number };
+  /** The second stationary point, where the model collapses to nothing. */
+  collapse?: number;
+}
+
+/** What a model's story says, in its own words and units. */
+export function modelFacts({ kind, m, story }: Model): ModelFacts {
+  switch (kind) {
+    case 'rect': {
+      const len = story === 0 ? 'm' : 'cm';
+      return {
+        q: 'A',
+        variable: 'x',
+        name: 'the area $A$',
+        what: 'area',
+        unit: `\\text{${len}}^{2}`,
+        goal: 'greatest',
+        story:
+          story === 0
+            ? `A rectangular garden is enclosed by $${4 * m}$ m of fencing. One side of it is $x$ m long.`
+            : `A rectangle has a perimeter of $${4 * m}$ cm, and one of its sides is $x$ cm long.`,
+        tex: `x(${2 * m} - x)`,
+        answer: `x*(${2 * m} - x)`,
+        f: (x) => x * (2 * m - x),
+        coefficients: [-1, 2 * m, 0],
+        derivative: { tex: `${2 * m} - 2x`, answer: `${2 * m} - 2*x` },
+        best: m * m,
+        upper: 2 * m,
+        other: { name: 'other side', tex: `${2 * m} - x`, value: m },
+      };
+    }
+    case 'wall':
+      return {
+        q: 'A',
+        variable: 'x',
+        name: 'the area $A$',
+        what: 'area',
+        unit: '\\text{m}^{2}',
+        goal: 'greatest',
+        story:
+          story === 0
+            ? `A rectangular pen is built against a long wall, so it is fenced on three sides only. There is $${4 * m}$ m of fencing, and each side meeting the wall is $x$ m long.`
+            : `A rectangular vegetable patch lies against a wall and is edged on its other three sides with $${4 * m}$ m of board. The two sides meeting the wall are $x$ m long.`,
+        tex: `x(${4 * m} - 2x)`,
+        answer: `x*(${4 * m} - 2*x)`,
+        f: (x) => x * (4 * m - 2 * x),
+        coefficients: [-2, 4 * m, 0],
+        derivative: { tex: `${4 * m} - 4x`, answer: `${4 * m} - 4*x` },
+        best: 2 * m * m,
+        upper: 2 * m,
+        other: { name: 'side along the wall', tex: `${4 * m} - 2x`, value: 2 * m },
+      };
+    case 'box':
+      return {
+        q: 'V',
+        variable: 'x',
+        name: 'the volume $V$',
+        what: 'volume',
+        unit: '\\text{cm}^{3}',
+        goal: 'greatest',
+        story:
+          story === 0
+            ? `An open box is made from a square sheet of card $${6 * m}$ cm wide, by cutting a square of side $x$ cm from each corner and folding up the sides.`
+            : `An open tray is folded from a square sheet of metal $${6 * m}$ cm across, after a square of side $x$ cm is cut from each corner.`,
+        tex: `x(${6 * m} - 2x)^{2}`,
+        answer: `x*(${6 * m} - 2*x)^2`,
+        f: (x) => x * (6 * m - 2 * x) ** 2,
+        coefficients: [4, -24 * m, 36 * m * m, 0],
+        derivative: { tex: `12(x - ${m})(x - ${3 * m})`, answer: `12*(x - ${m})*(x - ${3 * m})` },
+        best: 16 * m ** 3,
+        upper: 3 * m,
+        other: { name: 'width of the base', tex: `${6 * m} - 2x`, value: 4 * m },
+        collapse: 3 * m,
+      };
+    case 'sum':
+      return {
+        q: 'P',
+        variable: 'x',
+        name: '$P$',
+        what: 'value of $P$',
+        unit: '',
+        goal: 'greatest',
+        story:
+          story === 0
+            ? `Two positive numbers $x$ and $y$ add up to $${3 * m}$, and $P = xy^{2}$.`
+            : `Positive numbers $x$ and $y$ have $x + y = ${3 * m}$. $P$ is $x$ times the square of $y$.`,
+        tex: `x(${3 * m} - x)^{2}`,
+        answer: `x*(${3 * m} - x)^2`,
+        f: (x) => x * (3 * m - x) ** 2,
+        coefficients: [1, -6 * m, 9 * m * m, 0],
+        derivative: { tex: `3(x - ${m})(x - ${3 * m})`, answer: `3*(x - ${m})*(x - ${3 * m})` },
+        best: 4 * m ** 3,
+        upper: 3 * m,
+        other: { name: '$y$', tex: `${3 * m} - x`, value: 2 * m },
+        collapse: 3 * m,
+      };
+    case 'fence': {
+      const len = story === 0 ? 'm' : 'cm';
+      return {
+        q: 'P',
+        variable: 'x',
+        name: 'the perimeter $P$',
+        what: 'perimeter',
+        unit: `\\text{${len}}`,
+        goal: 'least',
+        story:
+          story === 0
+            ? `A rectangular pen must enclose $${m * m}$ $\\text{m}^{2}$. One side is $x$ m long, so the other is $\\frac{${m * m}}{x}$ m.`
+            : `A rectangular card must have an area of $${m * m}$ $\\text{cm}^{2}$. One side is $x$ cm, so the other is $\\frac{${m * m}}{x}$ cm.`,
+        tex: `2x + \\frac{${2 * m * m}}{x}`,
+        answer: `2*x + ${2 * m * m}/x`,
+        f: (x) => 2 * x + (2 * m * m) / x,
+        derivative: { tex: `2 - \\frac{${2 * m * m}}{x^{2}}`, answer: `2 - ${2 * m * m}/x^2` },
+        best: 4 * m,
+        upper: Infinity,
+        other: { name: 'other side', tex: `\\frac{${m * m}}{x}`, value: m },
+      };
+    }
+    case 'tin': {
+      // m is even, so the volume m^3 / 2 and the height m / 2 are whole.
+      const k = m ** 3 / 2;
+      const len = story === 0 ? 'cm' : 'm';
+      return {
+        q: 'S',
+        variable: 'x',
+        name: 'the surface area $S$',
+        what: 'surface area',
+        unit: `\\text{${len}}^{2}`,
+        goal: 'least',
+        story:
+          story === 0
+            ? `An open box with a square base $x$ cm wide must hold $${k}$ $\\text{cm}^{3}$, so its height is $\\frac{${k}}{x^{2}}$ cm.`
+            : `An open-topped tank with a square base $x$ m wide must hold $${k}$ $\\text{m}^{3}$, so its height is $\\frac{${k}}{x^{2}}$ m.`,
+        tex: `x^{2} + \\frac{${4 * k}}{x}`,
+        answer: `x^2 + ${4 * k}/x`,
+        f: (x) => x * x + (4 * k) / x,
+        derivative: { tex: `2x - \\frac{${4 * k}}{x^{2}}`, answer: `2*x - ${4 * k}/x^2` },
+        best: 3 * m * m,
+        upper: Infinity,
+        other: { name: 'height', tex: `\\frac{${k}}{x^{2}}`, value: m / 2 },
+      };
+    }
+    case 'can': {
+      const n = 3 * m * m;
+      const len = story === 0 ? 'cm' : 'm';
+      return {
+        q: 'V',
+        variable: 'r',
+        name: 'the volume $V$',
+        what: 'volume',
+        unit: `\\text{${len}}^{3}`,
+        goal: 'greatest',
+        story:
+          story === 0
+            ? `A closed cylindrical tin of radius $r$ cm is made from $${2 * n}\\pi$ $\\text{cm}^{2}$ of metal, so its height is $\\frac{${n} - r^{2}}{r}$ cm.`
+            : `A closed cylindrical drum of radius $r$ m is made from $${2 * n}\\pi$ $\\text{m}^{2}$ of steel, so its height is $\\frac{${n} - r^{2}}{r}$ m.`,
+        tex: `\\pi(${n}r - r^{3})`,
+        answer: `pi*(${n}*r - r^3)`,
+        f: (r) => Math.PI * (n * r - r ** 3),
+        derivative: { tex: `\\pi(${n} - 3r^{2})`, answer: `pi*(${n} - 3*r^2)` },
+        best: 2 * m ** 3,
+        upper: Math.sqrt(n),
+        other: { name: 'height', tex: `\\frac{${n} - r^{2}}{r}`, value: 2 * m },
+      };
+    }
+  }
+}
+
+/** The range each model's best length is drawn from; the tin's is doubled, to keep it even. */
+const M_RANGE: Record<ModelKind, readonly [number, number]> = {
+  rect: [3, 16],
+  wall: [2, 14],
+  box: [1, 8],
+  sum: [2, 12],
+  fence: [2, 15],
+  tin: [1, 5],
+  can: [2, 8],
+};
+
+/** A model kind as a number, for hashing an option order from. */
+const kindIndex = (kind: ModelKind): number =>
+  (['rect', 'wall', 'box', 'sum', 'fence', 'tin', 'can'] as const).indexOf(kind);
+
+function sampleModel(rng: Rng, kinds: readonly ModelKind[]): Model {
+  const kind = rng.pick(kinds);
+  const [low, high] = M_RANGE[kind];
+  return { kind, m: rng.int(low, high) * (kind === 'tin' ? 2 : 1), story: rng.int(0, 1) };
+}
+
+/** A value with its unit, for a sentence: the cylinder's volume keeps its pi. */
+function amountTex(value: number, facts: ModelFacts): string {
+  const shown = facts.variable === 'r' ? `$${value}\\pi$` : `$${value}$`;
+  return facts.unit === '' ? shown : `${shown} $${facts.unit}$`;
+}
+
+/** Leibniz notation for the model's derivative. */
+const modelRate = (facts: ModelFacts): string => rateOf(facts.q, facts.variable);
+
+/** How the function of one variable comes out of the story, one step per line. */
+function buildSteps({ kind, m }: Model): SolutionStep[] {
+  switch (kind) {
+    case 'rect':
+      return [
+        {
+          text: `The perimeter is two sides of $x$ and two of the other side, so the other side is half of what is left.`,
+          tex: `\\frac{${4 * m} - 2x}{2} = ${2 * m} - x`,
+        },
+        { text: 'Area is one side times the other.', tex: `A = x(${2 * m} - x)` },
+      ];
+    case 'wall':
+      return [
+        {
+          text: `Only three sides are fenced: two of $x$, and the side along the wall takes what is left.`,
+          tex: `${4 * m} - 2x`,
+        },
+        { text: 'Area is one side times the other.', tex: `A = x(${4 * m} - 2x)` },
+      ];
+    case 'box':
+      return [
+        {
+          text: `Cutting $x$ from both ends of each edge leaves a square base $${6 * m} - 2x$ cm wide, and folding up makes the box $x$ cm tall.`,
+        },
+        { text: 'Volume is the height times the area of the base.', tex: `V = x(${6 * m} - 2x)^{2}` },
+      ];
+    case 'sum':
+      return [
+        { text: `From $x + y = ${3 * m}$, $y = ${3 * m} - x$.` },
+        { text: 'Put that into $P = xy^{2}$.', tex: `P = x(${3 * m} - x)^{2}` },
+      ];
+    default:
+      throw new Error(`no build for ${kind}`);
+  }
+}
+
+/** The slips a learner makes building each model: the wrong fence, the wrong cut. */
+function buildSlips({ kind, m }: Model): { tex: string; answer: string }[] {
+  switch (kind) {
+    case 'rect':
+      return [
+        { tex: `x(${4 * m} - x)`, answer: `x*(${4 * m} - x)` },
+        { tex: `x(${4 * m} - 2x)`, answer: `x*(${4 * m} - 2*x)` },
+        { tex: `x(${2 * m} - 2x)`, answer: `x*(${2 * m} - 2*x)` },
+      ];
+    case 'wall':
+      return [
+        { tex: `x(${4 * m} - x)`, answer: `x*(${4 * m} - x)` },
+        { tex: `x(${2 * m} - x)`, answer: `x*(${2 * m} - x)` },
+        { tex: `x^{2}(${4 * m} - 2x)`, answer: `x^2*(${4 * m} - 2*x)` },
+      ];
+    case 'box':
+      return [
+        { tex: `x(${6 * m} - x)^{2}`, answer: `x*(${6 * m} - x)^2` },
+        { tex: `x^{2}(${6 * m} - 2x)`, answer: `x^2*(${6 * m} - 2*x)` },
+        { tex: `(${6 * m} - 2x)^{2}`, answer: `(${6 * m} - 2*x)^2` },
+      ];
+    default:
+      return [
+        { tex: `x^{2}(${3 * m} - x)`, answer: `x^2*(${3 * m} - x)` },
+        { tex: `x(${3 * m} - x)`, answer: `x*(${3 * m} - x)` },
+        { tex: `x + (${3 * m} - x)^{2}`, answer: `x + (${3 * m} - x)^2` },
+      ];
+  }
+}
+
+/**
+ * The options, ordered so the derived `+choice` rotation puts the answer in
+ * slot `slot`.
+ *
+ * `choiceVariant` turns options by a hash of their labels, and labels that
+ * differ only in a digit or two hash alike, so a generator's answer can sit in
+ * one slot almost every time — the cubic's stationary x did, 308 draws in 400.
+ * This mirrors that private rotation, as `steered` in `complexPlane.ts` does;
+ * if the rotation changes, only the slot spread drifts, never the grading.
+ */
+function aimed(opts: ChoiceOption[], slot: number): ChoiceOption[] {
+  const turnOf = (list: ChoiceOption[]) => {
+    let hash = 0;
+    for (const option of list) {
+      for (let i = 0; i < option.tex.length; i += 1) hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash) % list.length;
+  };
+  const size = opts.length;
+  const orders = (list: ChoiceOption[]): ChoiceOption[][] =>
+    list.length <= 1
+      ? [list]
+      : list.flatMap((head, i) => orders([...list.slice(0, i), ...list.slice(i + 1)]).map((rest) => [head, ...rest]));
+  for (const order of orders(opts)) {
+    const at = order.findIndex((option) => option.correct);
+    if ((((at - turnOf(order)) % size) + size) % size === slot % size) return order;
+  }
+  return opts;
+}
+
+/**
+ * Building the function: two lengths tied down to one by the constraint, then
+ * the quantity written in that one.
+ *
+ * Typed, so any correct writing passes — `20x - x^2` as well as `x(20 - x)`.
+ * The options are the constraint misread: the whole perimeter taken for half
+ * of it, the wall fenced too, a box cut from one side only.
+ */
+const buildModel: Generator<Model> = {
+  id: 'df-op-build',
+  sample: (rng, difficulty) => sampleModel(rng, difficulty >= 2 ? ['wall', 'box', 'sum'] : ['rect', 'wall']),
+  choices: (model) =>
+    aimed(
+      options({ tex: modelFacts(model).tex, answer: modelFacts(model).answer }, ...buildSlips(model)),
+      turnFor(4, model.m, model.story, kindIndex(model.kind)),
+    ),
+  render: (model): Slide => {
+    const facts = modelFacts(model);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: facts.story },
+        { kind: 'prose', text: `Write ${facts.name} in terms of $x$ alone.` },
+      ],
+      lead: `${facts.q} =`,
+      keypad: ALGEBRA_KEYS,
+      answer: facts.answer,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (model) => [
+    ...buildSteps(model),
+    { text: 'It is in one variable now, which is what makes it ready to differentiate.' },
+  ],
+};
+
+/** A constraint used to write one quantity in one variable. */
+export type EliminateKind = 'fence' | 'tin' | 'sum' | 'can';
+
+export interface EliminateParams {
+  kind: EliminateKind;
+  m: number;
+  story: number;
+}
+
+interface EliminateFacts {
+  story: string;
+  /** The constraint, then the quantity in two variables. */
+  given: [string, string];
+  template: string;
+  answer: [string, string];
+  slips: string[];
+  steps: SolutionStep[];
+}
+
+function eliminateFacts({ kind, m, story }: EliminateParams): EliminateFacts {
+  switch (kind) {
+    case 'fence': {
+      const k = m * m;
+      return {
+        story:
+          story === 0
+            ? `A rectangular pen has sides $x$ m and $y$ m and must enclose $${k}$ $\\text{m}^{2}$. Its perimeter is $P$ m.`
+            : `A rectangular poster is $x$ cm by $y$ cm, with an area of $${k}$ $\\text{cm}^{2}$. Its perimeter is $P$ cm.`,
+        given: [`xy = ${k}`, `P = 2x + 2y`],
+        template: 'y = {0}, \\quad P = 2x + {1}',
+        answer: [`\\frac{${k}}{x}`, `\\frac{${2 * k}}{x}`],
+        slips: [`${k}x`, `\\frac{x}{${k}}`, `\\frac{${k}}{2x}`, `${2 * k}x`],
+        steps: [
+          { text: `Divide the area by $x$.`, tex: `y = \\frac{${k}}{x}` },
+          { text: 'Put that into the perimeter.', tex: `P = 2x + \\frac{${2 * k}}{x}` },
+        ],
+      };
+    }
+    case 'tin': {
+      const k = m ** 3 / 2;
+      return {
+        story:
+          story === 0
+            ? `An open box has a square base $x$ cm wide and is $h$ cm tall. It must hold $${k}$ $\\text{cm}^{3}$. Its surface area, the base and four sides, is $S$ $\\text{cm}^{2}$.`
+            : `An open-topped tank has a square base $x$ m wide and is $h$ m deep, and holds $${k}$ $\\text{m}^{3}$. Its base and four walls have area $S$ $\\text{m}^{2}$.`,
+        given: [`x^{2}h = ${k}`, `S = x^{2} + 4xh`],
+        template: 'h = {0}, \\quad S = x^2 + {1}',
+        answer: [`\\frac{${k}}{x^{2}}`, `\\frac{${4 * k}}{x}`],
+        slips: [`\\frac{${k}}{x}`, `\\frac{${4 * k}}{x^{2}}`, `${k}x^{2}`, `\\frac{${k}}{4x}`],
+        steps: [
+          { text: `Divide the volume by the base area $x^{2}$.`, tex: `h = \\frac{${k}}{x^{2}}` },
+          { text: `Then $4xh$ loses one power of $x$.`, tex: `4x \\times \\frac{${k}}{x^{2}} = \\frac{${4 * k}}{x}` },
+        ],
+      };
+    }
+    case 'sum': {
+      const s = 3 * m;
+      return {
+        story:
+          story === 0
+            ? `Positive numbers $x$ and $y$ add up to $${s}$, and $P = xy^{2}$.`
+            : `Two positive numbers $x$ and $y$ have a sum of $${s}$. $P$ is $x$ times the square of $y$.`,
+        given: [`x + y = ${s}`, `P = xy^{2}`],
+        template: 'y = {0}, \\quad P = {1}',
+        answer: [`${s} - x`, `x(${s} - x)^{2}`],
+        slips: [`x - ${s}`, `x^{2}(${s} - x)`, `x(${s} - x)`],
+        steps: [
+          { text: `Take $x$ from both sides of the sum.`, tex: `y = ${s} - x` },
+          { text: 'Put that in for $y$, keeping the square on the whole bracket.', tex: `P = x(${s} - x)^{2}` },
+        ],
+      };
+    }
+    case 'can': {
+      const k = 2 * m ** 3;
+      return {
+        story:
+          story === 0
+            ? `A closed cylindrical tin has radius $r$ cm and height $h$ cm, and must hold $${k}\\pi$ $\\text{cm}^{3}$. Its surface area is $S$ $\\text{cm}^{2}$.`
+            : `A closed cylindrical tank of radius $r$ m and height $h$ m holds $${k}\\pi$ $\\text{m}^{3}$. Its surface area is $S$ $\\text{m}^{2}$.`,
+        given: [`\\pi r^{2}h = ${k}\\pi`, `S = 2\\pi r^{2} + 2\\pi rh`],
+        template: 'h = {0}, \\quad S = 2\\pi r^2 + {1}',
+        answer: [`\\frac{${k}}{r^{2}}`, `\\frac{${2 * k}\\pi}{r}`],
+        slips: [`\\frac{${k}}{r}`, `\\frac{${2 * k}\\pi}{r^{2}}`, `\\frac{${k}\\pi}{r}`, `${k}r^{2}`],
+        steps: [
+          { text: `Divide the volume by $\\pi r^{2}$; the $\\pi$ cancels.`, tex: `h = \\frac{${k}}{r^{2}}` },
+          {
+            text: `Then $2\\pi rh$ loses one power of $r$.`,
+            tex: `2\\pi r \\times \\frac{${k}}{r^{2}} = \\frac{${2 * k}\\pi}{r}`,
+          },
+        ],
+      };
+    }
+  }
+}
+
+/**
+ * Using the constraint: the second length written in the first, then put into
+ * what is being optimised.
+ *
+ * Tiles rather than typing because the form is the point, as in the
+ * quadratics course: a typed answer is graded by value and would accept the
+ * two-variable formula copied back once y is known. The bank carries the
+ * constraint turned the wrong way up and a power lost or kept.
+ */
+const eliminate: Generator<EliminateParams> = {
+  id: 'df-op-eliminate',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<EliminateKind>(difficulty >= 2 ? ['tin', 'can', 'fence'] : ['fence', 'sum']);
+    const range: Record<EliminateKind, [number, number]> = {
+      fence: [2, 15],
+      tin: [1, 5],
+      sum: [2, 13],
+      can: [1, 7],
+    };
+    return { kind, m: rng.int(...range[kind]) * (kind === 'tin' ? 2 : 1), story: rng.int(0, 1) };
+  },
+  render: (params): Slide => {
+    const facts = eliminateFacts(params);
+    const other = params.kind === 'tin' || params.kind === 'can' ? 'h' : 'y';
+    const one = params.kind === 'can' ? 'r' : 'x';
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: facts.story },
+        ...facts.given.map((tex) => ({ kind: 'display' as const, tex })),
+        {
+          kind: 'prose',
+          text: `Use the first equation to write $${other}$ in terms of $${one}$, then put it into the second.`,
+        },
+      ],
+      template: facts.template,
+      bank: [...facts.answer, ...facts.slips].sort(),
+      answer: facts.answer,
+    };
+  },
+  solution: (params) => {
+    const facts = eliminateFacts(params);
+    return [
+      ...facts.steps,
+      { text: 'Now the quantity depends on one variable only, so it can be differentiated.' },
+    ];
+  },
+};
+
+export interface ValueParams extends Model {
+  /** The length the model is evaluated at. */
+  at: number;
+}
+
+/** A model's function at a length, as a line to reduce. */
+export function valueExpr({ kind, m, at }: ValueParams): Expr {
+  switch (kind) {
+    case 'rect':
+      return bin('*', num(at), bin('-', num(2 * m), num(at)));
+    case 'wall':
+      return bin('*', num(at), bin('-', num(4 * m), bin('*', num(2), num(at))));
+    case 'box':
+      return bin('*', num(at), pow(bin('-', num(6 * m), bin('*', num(2), num(at))), num(2)));
+    default:
+      return bin('*', num(at), pow(bin('-', num(3 * m), num(at)), num(2)));
+  }
+}
+
+/**
+ * Banks for any line, from the slips each piece invites: the other ways its
+ * two numbers combine, and a power taken as a product.
+ */
+function slipBanks(expr: Expr, path = 'r', out: Record<string, string[]> = {}): Record<string, string[]> {
+  const sorted = (bank: string[]) => bank.map(Number).sort((x, y) => x - y).map(String);
+  if (expr.kind === 'power') {
+    const base = valueOf(expr.base);
+    const exponent = valueOf(expr.exponent);
+    out[path] = sorted(bank4(valueOf(expr), base * exponent, base + exponent));
+    slipBanks(expr.base, `${path}.b`, out);
+    slipBanks(expr.exponent, `${path}.e`, out);
+  } else if (expr.kind === 'binary') {
+    const left = valueOf(expr.left);
+    const right = valueOf(expr.right);
+    out[path] = sorted(bank4(valueOf(expr), left + right, left - right, left * right, right - left));
+    slipBanks(expr.left, `${path}.l`, out);
+    slipBanks(expr.right, `${path}.r`, out);
+  }
+  return out;
+}
+
+/**
+ * The model's function at a given length, worked out a piece at a time.
+ *
+ * The bracket comes first, then its square, then the multiplication by x; the
+ * evaluate form offers the bracket unsquared, the cut taken once, and the
+ * height left off.
+ */
+const modelValue: Generator<ValueParams> = {
+  id: 'df-op-value',
+  sample: (rng, difficulty) => {
+    const model = sampleModel(rng, difficulty >= 2 ? ['box', 'sum'] : ['rect', 'wall']);
+    const upper = modelFacts(model).upper;
+    return { ...model, at: rng.int(1, upper - 1) };
+  },
+  choices: (params) => {
+    const { kind, m, at } = params;
+    const value = valueOf(valueExpr(params));
+    const slips: Record<string, number[]> = {
+      rect: [at * (4 * m - at), 2 * m - at, at * 2 * m - at],
+      wall: [at * (4 * m - at), 4 * m - 2 * at, at * (2 * m - at)],
+      box: [at * (6 * m - 2 * at), at * (6 * m - at) ** 2, (6 * m - 2 * at) ** 2],
+      sum: [at * (3 * m - at), at * at * (3 * m - at), (3 * m - at) ** 2],
+    };
+    return numberOptions(value, slips[kind]);
+  },
+  render: (params): Slide => {
+    const facts = modelFacts(params);
+    const expr = valueExpr(params);
+    return {
+      kind: 'reduce',
+      prompt: [
+        { kind: 'prose', text: `${facts.story} So $${facts.q} = ${facts.tex}$.` },
+        {
+          kind: 'prose',
+          text: `Find $${facts.q}$ when $x = ${params.at}$. Tap the part you would work out **next**, then choose what it comes to.`,
+        },
+      ],
+      expr,
+      banks: slipBanks(expr),
+    };
+  },
+  solution: (params) => {
+    const { kind, m, at } = params;
+    const facts = modelFacts(params);
+    const inside = kind === 'rect' ? 2 * m - at : kind === 'wall' ? 4 * m - 2 * at : kind === 'box' ? 6 * m - 2 * at : 3 * m - at;
+    const squared = kind === 'box' || kind === 'sum';
+    return [
+      { text: `Put $x = ${at}$ in everywhere, and work out the bracket first.`, tex: `${inside}` },
+      ...(squared ? [{ text: 'Square it before multiplying.', tex: `${inside}^{2} = ${inside * inside}` }] : []),
+      {
+        text: `Multiply by $x = ${at}$.`,
+        tex: `${facts.q} = ${at} \\times ${squared ? inside * inside : inside} = ${valueOf(valueExpr(params))}`,
+      },
+    ];
+  },
+};
+
+/** The slips on the other length, and the numbers x is wrongly bounded by. */
+function domainSlips({ kind, m }: Model): { tex: string[]; numbers: number[] } {
+  switch (kind) {
+    case 'rect':
+      return { tex: [`${4 * m} - x`, `x - ${2 * m}`], numbers: [4 * m, m] };
+    case 'wall':
+      return { tex: [`${4 * m} - x`, `${2 * m} - x`], numbers: [4 * m, m] };
+    case 'box':
+      return { tex: [`${6 * m} - x`, `${3 * m} - 2x`], numbers: [6 * m, m] };
+    default:
+      return { tex: [`x - ${3 * m}`, `${3 * m} + x`], numbers: [6 * m, m] };
+  }
+}
+
+/**
+ * The sensible domain: x is a length, and so is whatever the constraint
+ * leaves for the other one.
+ *
+ * Two tiles — the other length, then where it runs out — because the second
+ * follows from the first, and the bank holds the best x as a bound, which is
+ * the answer to a different question.
+ */
+const modelDomain: Generator<Model> = {
+  id: 'df-op-domain',
+  sample: (rng, difficulty) => sampleModel(rng, difficulty >= 2 ? ['wall', 'box', 'sum'] : ['rect', 'wall', 'sum']),
+  render: (model): Slide => {
+    const facts = modelFacts(model);
+    const slips = domainSlips(model);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: facts.story },
+        {
+          kind: 'prose',
+          text:
+            model.kind === 'sum'
+              ? 'Both numbers are positive, so $x > 0$ and $y > 0$. Write $y$ using $x$ and then give the value $x$ must stay below.'
+              : `$x$ is a length, so $x > 0$. The ${facts.other.name} must be positive too. Write it using $x$ and then give the value $x$ must stay below.`,
+        },
+      ],
+      template: '{0} > 0, \\quad \\text{so } 0 < x < {1}',
+      bank: [facts.other.tex, `${facts.upper}`, ...slips.tex, ...slips.numbers.map(String)].sort(),
+      answer: [facts.other.tex, `${facts.upper}`],
+    };
+  },
+  solution: (model) => {
+    const facts = modelFacts(model);
+    return [
+      { text: `The ${facts.other.name} is what the constraint leaves.`, tex: `${facts.other.tex}` },
+      { text: 'It has to be more than zero.', tex: `${facts.other.tex} > 0` },
+      { tex: `x < ${facts.upper}` },
+      { text: `With $x > 0$ as well, $0 < x < ${facts.upper}$. At either end the ${facts.what} is zero.` },
+    ];
+  },
+};
+
+/** The derivative of a model's function, typed, with the oracle's source declared. */
+const modelDerivative: Generator<Model> = {
+  id: 'df-op-derivative',
+  sample: (rng, difficulty) => sampleModel(rng, difficulty >= 2 ? ['box', 'tin', 'fence'] : ['sum', 'fence']),
+  choices: (model) => {
+    const facts = modelFacts(model);
+    const { kind, m } = model;
+    const slot = turnFor(4, m, model.story, kindIndex(kind));
+    if (facts.coefficients) {
+      const c = facts.coefficients;
+      const top = c.length - 1;
+      const derived = derivedCoefficients(c);
+      const unmultiplied = c.slice(0, -1);
+      const unlowered = c.map((value, i) => value * (top - i));
+      const flipped = derived.map((value, i) => (i === 1 ? -value : value));
+      const poly = (cs: number[]) => ({ tex: polyInTex(cs, 'x'), answer: polyInAnswer(cs, 'x') });
+      return aimed(options(poly(derived), poly(unmultiplied), poly(unlowered), poly(flipped)), slot);
+    }
+    const k = kind === 'fence' ? 2 * m * m : 2 * m ** 3;
+    const lead = kind === 'fence' ? { tex: '2', answer: '2' } : { tex: '2x', answer: '2*x' };
+    const wrongLead = kind === 'fence' ? { tex: '2x', answer: '2*x' } : { tex: '2', answer: '2' };
+    return aimed(
+      options(
+        { tex: `${lead.tex} - \\frac{${k}}{x^{2}}`, answer: `${lead.answer} - ${k}/x^2` },
+        { tex: `${lead.tex} + \\frac{${k}}{x^{2}}`, answer: `${lead.answer} + ${k}/x^2` },
+        { tex: `${lead.tex} - \\frac{${k}}{x}`, answer: `${lead.answer} - ${k}/x` },
+        { tex: `${wrongLead.tex} - \\frac{${k}}{x^{2}}`, answer: `${wrongLead.answer} - ${k}/x^2` },
+      ),
+      slot,
+    );
+  },
+  render: (model): Slide => {
+    const facts = modelFacts(model);
+    const expanded = facts.coefficients ? polyInTex(facts.coefficients, 'x') : undefined;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `${facts.story} So ${facts.name} is` },
+        { kind: 'display', tex: `${facts.q} = ${facts.tex}` },
+        ...(expanded ? [{ kind: 'display' as const, tex: `= ${expanded}` }] : []),
+        {
+          kind: 'prose',
+          text: expanded
+            ? `Differentiate the expanded form.`
+            : `Write it with a negative power to differentiate.`,
+        },
+      ],
+      lead: `${modelRate(facts)} =`,
+      keypad: ALGEBRA_KEYS,
+      answer: facts.coefficients ? polyInAnswer(derivedCoefficients(facts.coefficients), 'x') : facts.derivative.answer,
+      source: facts.coefficients ? polyInAnswer(facts.coefficients, 'x') : facts.answer,
+      domain: facts.coefficients ? 'real' : 'positive',
+      mode: 'exact',
+    };
+  },
+  solution: (model) => {
+    const facts = modelFacts(model);
+    if (facts.coefficients) {
+      return [
+        { text: 'Differentiate each term of the expanded form.', tex: `${modelRate(facts)} = ${polyInTex(derivedCoefficients(facts.coefficients), 'x')}` },
+        { text: 'It factorises, which is what finding the stationary points will need.', tex: `= ${facts.derivative.tex}` },
+      ];
+    }
+    const k = model.kind === 'fence' ? 2 * model.m ** 2 : 2 * model.m ** 3;
+    return [
+      { text: 'A fraction over $x$ is a negative power.', tex: `\\frac{${k}}{x} = ${k}x^{-1}` },
+      {
+        text: `Its derivative is $-${k}x^{-2}$, which is $-\\frac{${k}}{x^{2}}$.`,
+        tex: `${modelRate(facts)} = ${facts.derivative.tex}`,
+      },
+    ];
+  },
+};
+
+/** How a model's best length is found, for any solution that needs it. */
+function optimumSteps(model: Model): SolutionStep[] {
+  const facts = modelFacts(model);
+  const v = facts.variable;
+  const { m } = model;
+  const first: SolutionStep = { text: 'Differentiate.', tex: `${modelRate(facts)} = ${facts.derivative.tex}` };
+  switch (model.kind) {
+    case 'box':
+    case 'sum':
+      return [
+        first,
+        { text: `It is zero at $x = ${m}$ and at $x = ${3 * m}$.` },
+        { text: `At $x = ${3 * m}$ the ${facts.other.name} is $0$ and so is $${facts.q}$, so the best is $x = ${m}$.` },
+      ];
+    case 'fence':
+    case 'tin':
+      return [
+        first,
+        {
+          text: `Set it to zero and multiply through by $x^{2}$.`,
+          tex: model.kind === 'fence' ? `x^{2} = ${m * m}` : `x^{3} = ${m ** 3}`,
+        },
+        { text: `$x$ is a length, so $x = ${m}$.` },
+      ];
+    case 'can':
+      return [
+        first,
+        { text: 'Set it to zero.', tex: `3r^{2} = ${3 * m * m}` },
+        { text: `$r^{2} = ${m * m}$, and a radius is positive, so $r = ${m}$.` },
+      ];
+    default:
+      return [first, { text: `Set it to zero: $${v} = ${m}$.` }];
+  }
+}
+
+export interface SliderModelParams extends Model {
+  /** The track's step. */
+  step: number;
+  /** The right-hand end of the track. */
+  width: number;
+}
+
+/**
+ * The best length, found and slid to on the graph of the model.
+ *
+ * The graph makes the answer checkable by eye — the handle should sit under
+ * the top of the hump — but the hump is flat on top, and landing on the step
+ * takes the derivative. The track runs over the whole sensible domain, whose
+ * middle is never the answer for a cubic.
+ */
+const modelSlider: Generator<SliderModelParams> = {
+  id: 'df-op-slider',
+  sample: (rng, difficulty) => {
+    const model = sampleModel(rng, difficulty >= 2 ? ['box', 'sum', 'can'] : ['box', 'sum']);
+    const upper = modelFacts(model).upper;
+    const step = upper > 12 ? 1 : 0.5;
+    return { ...model, step, width: Math.ceil(upper / step) * step };
+  },
+  render: (params): Slide => {
+    const facts = modelFacts(params);
+    const v = facts.variable;
+    const top = facts.f(params.m);
+    const pad = top * 0.12;
+    return {
+      kind: 'slider',
+      prompt: [
+        { kind: 'prose', text: `${facts.story} So` },
+        { kind: 'display', tex: `${facts.q} = ${facts.tex}` },
+        { kind: 'prose', text: `Slide to the $${v}$ that makes ${facts.name} as large as possible.` },
+      ],
+      min: 0,
+      max: params.width,
+      step: params.step,
+      answer: params.m,
+      readout: `${v} = {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: params.width,
+          yMin: -pad,
+          yMax: top + pad,
+          curves: [{ f: facts.f }],
+          label: `A graph of ${facts.what} against ${v === 'r' ? 'the radius' : 'x'}, rising to a single peak`,
+        }),
+        ...markerWindow(0, params.width),
+      },
+    };
+  },
+  solution: (params) => [
+    ...optimumSteps(params),
+    { text: `So slide to $${modelFacts(params).variable} = ${params.m}$, under the top of the curve.` },
+  ],
+};
+
+/**
+ * The best length, the other length it leaves, and the value they give.
+ *
+ * The derivative is handed over factorised, so the question is reading it:
+ * which root is the answer, and what the model is there. The bank carries the
+ * other root, where the model collapses, and the product with the square left
+ * off.
+ */
+const modelTree: Generator<Model> = {
+  id: 'df-op-box-tree',
+  sample: (rng, difficulty) => sampleModel(rng, difficulty >= 2 ? ['box', 'sum'] : ['wall', 'sum']),
+  render: (model): Slide => {
+    const facts = modelFacts(model);
+    const { kind, m } = model;
+    const letter = kind === 'box' ? 'b' : kind === 'sum' ? 'y' : 'w';
+    const squared = kind !== 'wall';
+    const product = squared ? `x \\times ${letter}^{2}` : `x \\times ${letter}`;
+    const slips =
+      kind === 'box'
+        ? [3 * m, 5 * m, 4 * m * m, 2 * m]
+        : kind === 'sum'
+          ? [3 * m, 2 * m * m, m * m, 4 * m * m]
+          : [3 * m, m * m, 4 * m * m, 4 * m];
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'prose', text: facts.story },
+        {
+          kind: 'prose',
+          text: `Here $${facts.q} = ${product}$, where $${letter} = ${facts.other.tex}$${kind === 'sum' ? '' : ` is the ${facts.other.name}`}, and $${modelRate(facts)} = ${facts.derivative.tex}$. Fill in the $x$ that makes $${facts.q}$ greatest, then $${letter}$, then $${facts.q}$.`,
+        },
+      ],
+      expression: `${facts.q} = ${product}`,
+      nodes: [
+        { id: 'x', from: [] },
+        { id: letter, from: ['x'] },
+        { id: facts.q, from: ['x', letter] },
+      ],
+      bank: numberTiles([m, facts.other.value, facts.best], slips),
+      answer: [m, facts.other.value, facts.best].map(String),
+    };
+  },
+  solution: (model) => {
+    const facts = modelFacts(model);
+    const { kind, m } = model;
+    return [
+      ...optimumSteps(model),
+      { text: `Then the ${facts.other.name} is $${facts.other.tex}$ at $x = ${m}$.`, tex: `${facts.other.value}` },
+      {
+        text: kind === 'wall' ? 'Multiply the two sides.' : 'Square it, then multiply by $x$.',
+        tex: `${facts.q} = ${m} \\times ${kind === 'wall' ? facts.other.value : `${facts.other.value}^{2}`} = ${facts.best}`,
+      },
+    ];
+  },
+};
+
+/**
+ * The greatest or least value a model reaches, typed.
+ *
+ * The question is the value, not where it happens: the options carry the best
+ * length itself, which is the most common thing to write down instead.
+ */
+const bestValue: Generator<Model> = {
+  id: 'df-op-best-value',
+  sample: (rng, difficulty) =>
+    sampleModel(rng, difficulty >= 2 ? ['box', 'sum', 'tin'] : ['rect', 'wall', 'fence']),
+  choices: (model) => {
+    const facts = modelFacts(model);
+    const { m } = model;
+    return aimed(
+      numberOptions(facts.best, [m, facts.other.value, 2 * facts.best, m * m]),
+      turnFor(4, m, model.story, kindIndex(model.kind)),
+    );
+  },
+  render: (model): Slide => {
+    const facts = modelFacts(model);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `${facts.story} So` },
+        { kind: 'display', tex: `${facts.q} = ${facts.tex}` },
+        {
+          kind: 'prose',
+          text: `Find the ${facts.goal} ${facts.what}${facts.unit === '' ? '' : `, in $${facts.unit}$`}.`,
+        },
+      ],
+      lead: `\\text{${facts.goal} } ${facts.q} =`,
+      keypad: [],
+      answer: `${facts.best}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (model) => {
+    const facts = modelFacts(model);
+    return [
+      ...optimumSteps(model),
+      { text: `The question asks for the ${facts.what}, so put $x = ${model.m}$ back into $${facts.q}$.` },
+      { tex: `${facts.q} = ${facts.best}` },
+    ];
+  },
+};
+
+/** A cubic with stationary points at a < b, as a story's quantity. */
+export interface CubicModel {
+  /** +1: a maximum at a and a minimum at b. -1: the other way round. */
+  s: number;
+  a: number;
+  b: number;
+  c: number;
+  story: number;
+  /** Which stationary point the question is about. */
+  atA: boolean;
+}
+
+const CUBIC_STORIES = [
+  { q: 'P', text: "A company's weekly profit is $P$ thousand pounds when it makes $x$ thousand items, where" },
+  { q: 'T', text: 'The temperature of a reaction is $T$ degrees, $x$ minutes after it starts, where' },
+  { q: 'h', text: 'A roller-coaster track is $h$ m high at a distance of $x$ tens of metres from the start, where' },
+  { q: 'N', text: 'A field holds $N$ hundred insects when it has been sprayed $x$ times, where' },
+] as const;
+
+/** s(2x^3 - 3(a + b)x^2 + 6abx) + c, highest power first. */
+export const profitCoefficients = ({ s, a, b, c }: CubicModel): number[] => [
+  2 * s,
+  -3 * s * (a + b),
+  6 * s * a * b,
+  c,
+];
+
+/** The second derivative at x: s(12x - 6(a + b)). */
+export const cubicSecond = ({ s, a, b }: CubicModel, x: number): number => s * (12 * x - 6 * (a + b));
+
+function sampleCubicModel(rng: Rng, difficulty: number): CubicModel {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const a = rng.int(1, hard ? 5 : 3);
+    const b = a + rng.int(1, hard ? 4 : 3);
+    // At b = 3a the value at b equals the constant, and a flow would offer one number twice.
+    if (b === 3 * a) continue;
+    return { s: rng.sign(), a, b, c: rng.int(2, 12) * 5, story: rng.int(0, CUBIC_STORIES.length - 1), atA: rng.chance(0.5) };
+  }
+}
+
+const natureWord = (second: number): string => (second < 0 ? 'maximum' : 'minimum');
+
+/**
+ * Is it a maximum: the second derivative's value at a stationary point, and
+ * what its sign says.
+ *
+ * The four options are every pairing of the value and its negative with the
+ * two conclusions, so a sign slip and a rule held the wrong way round are each
+ * on offer by themselves.
+ */
+const secondTest: Generator<CubicModel> = {
+  id: 'df-op-second',
+  sample: sampleCubicModel,
+  render: (params): Slide => {
+    const { q, text } = CUBIC_STORIES[params.story];
+    const p = params.atA ? params.a : params.b;
+    const v = cubicSecond(params, p);
+    const label = (value: number, word: string) => `${value}\\text{, so a ${word}}`;
+    const other = (word: string) => (word === 'maximum' ? 'minimum' : 'maximum');
+    const choices = [
+      { id: 'right', label: label(v, natureWord(v)), tex: true },
+      { id: 'rule', label: label(v, other(natureWord(v))), tex: true },
+      { id: 'sign', label: label(-v, natureWord(-v)), tex: true },
+      { id: 'both', label: label(-v, other(natureWord(-v))), tex: true },
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text },
+        { kind: 'display', tex: `${q} = ${polyInTex(profitCoefficients(params), 'x')}` },
+        {
+          kind: 'prose',
+          text: `It has a stationary point at $x = ${p}$. What is $\\frac{d^{2}${q}}{dx^{2}}$ there, and what kind of point is it?`,
+        },
+      ],
+      options: turned(choices, turnFor(4, params.s, params.a, params.b, params.c, p)),
+      correctId: 'right',
+    };
+  },
+  solution: (params) => {
+    const { q } = CUBIC_STORIES[params.story];
+    const p = params.atA ? params.a : params.b;
+    const v = cubicSecond(params, p);
+    const [c3, c2, c1] = profitCoefficients(params);
+    return [
+      { text: 'Differentiate twice.', tex: `\\frac{d${q}}{dx} = ${polyInTex([3 * c3, 2 * c2, c1], 'x')}` },
+      { tex: `\\frac{d^{2}${q}}{dx^{2}} = ${polyInTex([6 * c3, 2 * c2], 'x')}` },
+      { text: `At $x = ${p}$ it is $${v}$.` },
+      {
+        text:
+          v < 0
+            ? 'Negative: the gradient is falling through zero, so the curve goes up then down. A maximum.'
+            : 'Positive: the gradient is rising through zero, so the curve goes down then up. A minimum.',
+      },
+    ];
+  },
+};
+
+/** The value of the cubic at x. */
+const profitAt = (params: CubicModel, x: number): number => hornerAt(profitCoefficients(params), x);
+
+/**
+ * A stationary point sorted from start to finish: the second derivative, what
+ * its sign says, and the value there.
+ *
+ * Putting x into the first derivative gives zero, which is true of every
+ * stationary point and says nothing about this one; that branch ends by
+ * saying so. Wrong turns end with what they lead to, stated as fact.
+ */
+const optNatureFlow: Generator<CubicModel> = {
+  id: 'df-op-nature-flow',
+  sample: sampleCubicModel,
+  render: (params): Slide => {
+    const { q, text } = CUBIC_STORIES[params.story];
+    const p = params.atA ? params.a : params.b;
+    const other = params.atA ? params.b : params.a;
+    const v = cubicSecond(params, p);
+    const value = profitAt(params, p);
+    const word = natureWord(v);
+    const d2 = `\\frac{d^{2}${q}}{dx^{2}}`;
+    const turn = turnFor(6, params.s, params.a, params.b, params.c, p);
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: `${text.replace(/, where$/, '.')} Its formula is below.` },
+        {
+          kind: 'prose',
+          text: `Its stationary points are at $x = ${params.a}$ and $x = ${params.b}$. Sort out the one at $x = ${p}$ step by step.`,
+        },
+      ],
+      subject: `${q} = ${polyInTex(profitCoefficients(params), 'x')}`,
+      steps: [
+        {
+          id: 'second',
+          ask: `What is $${d2}$ at $x = ${p}$?`,
+          branches: turned(
+            [
+              { label: `$${v}$`, to: 'kind' },
+              { label: `$${-v}$`, outcome: `Then $${d2} = ${-v}$ there, and the point is a ${natureWord(-v)}.` },
+              {
+                label: '$0$',
+                outcome: `That is $\\frac{d${q}}{dx}$ at $x = ${p}$, which is zero at every stationary point and cannot tell them apart.`,
+              },
+            ],
+            turn % 3,
+          ),
+        },
+        {
+          id: 'kind',
+          ask: `So the point at $x = ${p}$ is`,
+          branches: turned(
+            [
+              { label: `A ${word}`, to: 'value' },
+              { label: `A ${word === 'maximum' ? 'minimum' : 'maximum'}`, outcome: `Then $${q}$ would be ${word === 'maximum' ? 'lowest' : 'highest'} nearby at $x = ${p}$.` },
+              { label: 'A point of inflection', outcome: `Then $${d2}$ would be zero there.` },
+            ],
+            (turn + 1) % 3,
+          ),
+        },
+        {
+          id: 'value',
+          ask: `What is $${q}$ at that ${word}?`,
+          branches: turned(
+            [
+              { label: `$${value}$`, outcome: `$${q} = ${value}$ at the ${word}, where $x = ${p}$.` },
+              { label: `$${profitAt(params, other)}$`, outcome: `That is $${q}$ at $x = ${other}$, the other stationary point.` },
+              { label: `$${params.c}$`, outcome: `That is $${q}$ at $x = 0$.` },
+            ],
+            (turn + 2) % 3,
+          ),
+        },
+      ],
+      answer: [`$${v}$`, `A ${word}`, `$${value}$`],
+    };
+  },
+  solution: (params) => {
+    const { q } = CUBIC_STORIES[params.story];
+    const p = params.atA ? params.a : params.b;
+    const v = cubicSecond(params, p);
+    const [c3, c2] = profitCoefficients(params);
+    return [
+      { text: 'Differentiate twice.', tex: `\\frac{d^{2}${q}}{dx^{2}} = ${polyInTex([6 * c3, 2 * c2], 'x')}` },
+      { text: `At $x = ${p}$ that is $${v}$, ${v < 0 ? 'negative' : 'positive'}, so the point is a ${natureWord(v)}.` },
+      { text: `Put $x = ${p}$ into $${q}$ itself for the value there.`, tex: `${q} = ${profitAt(params, p)}` },
+    ];
+  },
+};
+
+/**
+ * Which stationary point is the maximum (or the minimum), typed as its x.
+ *
+ * Both roots of the derivative are stationary points; only the second
+ * derivative, or the shape of the cubic, says which is which. The options
+ * carry the other root first.
+ */
+const cubicBest: Generator<CubicModel> = {
+  id: 'df-op-cubic-best',
+  sample: sampleCubicModel,
+  choices: (params) => {
+    const p = params.atA ? params.a : params.b;
+    const other = params.atA ? params.b : params.a;
+    return aimed(
+      numberOptions(p, [other, params.a + params.b, (params.a + params.b) / 2, 0]),
+      turnFor(4, params.s, params.a, params.b, params.c, params.story),
+    );
+  },
+  render: (params): Slide => {
+    const { q, text } = CUBIC_STORIES[params.story];
+    const p = params.atA ? params.a : params.b;
+    const word = natureWord(cubicSecond(params, p));
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text },
+        { kind: 'display', tex: `${q} = ${polyInTex(profitCoefficients(params), 'x')}` },
+        { kind: 'prose', text: `Find the value of $x$ at which $${q}$ has a **${word}** point.` },
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: `${p}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { q } = CUBIC_STORIES[params.story];
+    const p = params.atA ? params.a : params.b;
+    const other = params.atA ? params.b : params.a;
+    const [c3, c2, c1] = profitCoefficients(params);
+    const vp = cubicSecond(params, p);
+    return [
+      { text: 'Differentiate and factorise.', tex: `\\frac{d${q}}{dx} = ${polyInTex([3 * c3, 2 * c2, c1], 'x')}` },
+      { tex: `= ${leadingTex(6 * params.s)}(x - ${params.a})(x - ${params.b})` },
+      { text: `So the stationary points are at $x = ${params.a}$ and $x = ${params.b}$.` },
+      { text: 'The second derivative tells them apart.', tex: `\\frac{d^{2}${q}}{dx^{2}} = ${polyInTex([6 * c3, 2 * c2], 'x')}` },
+      {
+        text: `At $x = ${p}$ it is $${vp}$, so that is the ${natureWord(vp)}; at $x = ${other}$ it is $${cubicSecond(params, other)}$.`,
+      },
+    ];
+  },
+};
+
+export interface EndpointParams {
+  /** y = s(x^3 - 3q^2 x) + d on 0 <= x <= c. */
+  s: number;
+  q: number;
+  d: number;
+  c: number;
+  want: 'greatest' | 'least';
+}
+
+export const endpointCoefficients = ({ s, q, d }: EndpointParams): number[] => [s, 0, -3 * s * q * q, d];
+
+/** [the answer, y at the stationary point, y at 0, y at c]. */
+export function endpointValues(params: EndpointParams): [number, number, number, number] {
+  const coefficients = endpointCoefficients(params);
+  const [atQ, at0, atC] = [params.q, 0, params.c].map((x) => hornerAt(coefficients, x));
+  const all = [atQ, at0, atC];
+  const answer = params.want === 'greatest' ? Math.max(...all) : Math.min(...all);
+  return [answer, atQ, at0, atC];
+}
+
+/**
+ * The greatest or least value on a closed interval.
+ *
+ * The stationary point is a maximum or a minimum; asked for the other kind of
+ * value, the answer is at an end of the interval, and which end depends on
+ * the numbers. Half the draws are each, so a learner who always takes the
+ * stationary point is caught half the time.
+ */
+const endpointBest: Generator<EndpointParams> = {
+  id: 'df-op-endpoint',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const q = rng.int(1, hard ? 4 : 3);
+    return {
+      s: rng.sign(),
+      q,
+      d: rng.int(hard ? 0 : 5, hard ? 40 : 30),
+      c: rng.int(q + 1, 2 * q + 1),
+      want: rng.chance(0.5) ? 'greatest' : 'least',
+    };
+  },
+  choices: (params) => {
+    const [answer, atQ, at0, atC] = endpointValues(params);
+    return aimed(
+      numberOptions(answer, [atQ, at0, atC, -answer]),
+      turnFor(4, params.s, params.q, params.d, params.c, params.want.length),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'display', tex: `y = ${polyInTex(endpointCoefficients(params), 'x')}` },
+      {
+        kind: 'prose',
+        text: `Find the **${params.want}** value of $y$ for $0 \\le x \\le ${params.c}$.`,
+      },
+    ],
+    lead: `\\text{${params.want} value} =`,
+    keypad: [],
+    answer: `${endpointValues(params)[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { s, q, c, want } = params;
+    const [answer, atQ, at0, atC] = endpointValues(params);
+    return [
+      { text: 'Differentiate and set to zero.', tex: `\\frac{dy}{dx} = ${polyInTex([3 * s, 0, -3 * s * q * q], 'x')} = 0` },
+      { text: `So $x = ${q}$ inside the interval (and $x = ${-q}$, outside it), where $y = ${atQ}$: a ${s > 0 ? 'minimum' : 'maximum'}.` },
+      { text: `On a closed interval the ends count too: $y = ${at0}$ at $x = 0$ and $y = ${atC}$ at $x = ${c}$.` },
+      { text: `The ${want} of the three is $${answer}$.` },
+    ];
+  },
+};
+
+export interface SumLeastParams {
+  /** The objective is P x + Q y with xy = k. */
+  p: number;
+  qq: number;
+  /** The best x. */
+  m: number;
+  story: number;
+}
+
+/** [y at the best, k, the objective's two coefficients, the least value]. */
+export function sumLeastValues({ p, qq, m, story }: SumLeastParams): [number, number, number, number, number] {
+  const n = (p * m) / qq;
+  const [P, Q] = story === 0 ? [p, qq] : [2 * p, 2 * qq];
+  return [n, m * n, P, Q, P * m + Q * n];
+}
+
+/**
+ * A product held fixed, a sum made least: xy = k, least of Px + Qy.
+ *
+ * Sampled from the best x and y, which balance when Px = Qy, so both come
+ * out whole. With P = Q the answer is the tidy 2√k, which the options offer
+ * for every draw as the rule remembered without the weights.
+ */
+const sumLeast: Generator<SumLeastParams> = {
+  id: 'df-op-sum-least',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    for (;;) {
+      const p = rng.int(1, hard ? 4 : 3);
+      const qq = rng.int(1, hard ? 4 : 3);
+      const m = rng.int(2, hard ? 12 : 9);
+      if ((p * m) % qq !== 0) continue;
+      return { p, qq, m, story: rng.int(0, 1) };
+    }
+  },
+  choices: (params) => {
+    const [n, k, P, Q, least] = sumLeastValues(params);
+    return numberOptions(least, [params.m + n, P * params.m, k, Q * n]);
+  },
+  render: (params): Slide => {
+    const [, k, P, Q] = sumLeastValues(params);
+    const objective = sumTex([termTex(P, 1), termTex(Q, 1).replace('x', 'y')]);
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            params.story === 0
+              ? `Positive numbers $x$ and $y$ have $xy = ${k}$.`
+              : `A rectangular yard of $${k}$ $\\text{m}^{2}$ has sides $x$ m and $y$ m. Fencing the two $x$ sides costs £$${params.p}$ a metre and the two $y$ sides £$${params.qq}$ a metre.`,
+        },
+        { kind: 'display', tex: `C = ${objective}` },
+        { kind: 'prose', text: params.story === 0 ? 'Find the least value of $C$.' : 'Find the least possible cost $C$, in pounds.' },
+      ],
+      lead: '\\text{least } C =',
+      keypad: [],
+      answer: `${sumLeastValues(params)[4]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const [n, k, P, Q, least] = sumLeastValues(params);
+    const qk = Q * k;
+    return [
+      { text: `Use the constraint: $y = \\frac{${k}}{x}$.`, tex: `C = ${termTex(P, 1)} + \\frac{${qk}}{x}` },
+      { text: 'Differentiate and set to zero.', tex: `${P} - \\frac{${qk}}{x^{2}} = 0` },
+      { text: `So $x^{2} = ${params.m * params.m}$ and, as a length, $x = ${params.m}$; then $y = ${n}$.` },
+      { tex: `C = ${P} \\times ${params.m} + ${Q} \\times ${n} = ${least}` },
+    ];
+  },
+};
+
+export interface CostSliderParams {
+  /** C = a x + a m^2 / x, least at x = m. */
+  a: number;
+  m: number;
+  width: number;
+  story: number;
+}
+
+const COST_STORIES = [
+  "A factory's cost per item, in pounds, when it makes $x$ hundred items a day is",
+  "A lorry's fuel cost, in pence per kilometre, at a steady $x$ tens of km per hour is",
+] as const;
+
+/**
+ * The least cost, slid to on its graph.
+ *
+ * $ax + b/x$ is the shape every product constraint turns into: one term
+ * grows, the other shrinks, and the derivative finds where they balance. The
+ * curve rises without limit towards $x = 0$, so it is drawn with its pen
+ * lifted there. The track's middle is never the answer.
+ */
+const costSlider: Generator<CostSliderParams> = {
+  id: 'df-op-cost-slider',
+  sample: (rng, difficulty) => {
+    const width = difficulty >= 2 ? 12 : 10;
+    for (;;) {
+      const m = rng.int(2, width - 2);
+      if (2 * m === width) continue;
+      return { a: rng.int(1, difficulty >= 2 ? 6 : 4), m, width, story: rng.int(0, 1) };
+    }
+  },
+  render: ({ a, m, width, story }): Slide => {
+    const b = a * m * m;
+    const f = (x: number) => a * x + b / x;
+    const least = 2 * a * m;
+    return {
+      kind: 'slider',
+      prompt: [
+        { kind: 'prose', text: COST_STORIES[story] },
+        { kind: 'display', tex: `C = ${termTex(a, 1)} + \\frac{${b}}{x}` },
+        { kind: 'prose', text: 'Slide to the $x$ that makes the cost least.' },
+      ],
+      min: 0,
+      max: width,
+      step: 0.5,
+      answer: m,
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: width,
+          yMin: 0,
+          yMax: least * 2.5,
+          curves: [{ f, breaks: true }],
+          label: 'A cost curve falling steeply from the left, levelling to a lowest point, then rising slowly',
+        }),
+        ...markerWindow(0, width),
+      },
+    };
+  },
+  solution: ({ a, m }) => {
+    const b = a * m * m;
+    return [
+      { text: `Write $\\frac{${b}}{x}$ as $${b}x^{-1}$ and differentiate.`, tex: `\\frac{dC}{dx} = ${a} - \\frac{${b}}{x^{2}}` },
+      { text: 'Set it to zero.', tex: `x^{2} = ${m * m}` },
+      { text: `$x$ is positive here, so $x = ${m}$, where $C = ${2 * a * m}$.` },
+    ];
+  },
+};
+
+export interface CylinderParams {
+  m: number;
+  closed: boolean;
+  story: number;
+}
+
+/** [r, h, k] at the best: the volume is k pi. */
+export function cylinderValues({ m, closed }: CylinderParams): [number, number, number] {
+  return closed ? [m, 2 * m, 2 * m ** 3] : [m, m, m ** 3];
+}
+
+/**
+ * A cylinder of fixed surface area, made as large as possible.
+ *
+ * The brief example: $V = \pi(75r - r^{3})$ gives $r = 5$. The surface fixes
+ * the height in terms of r, the volume then depends on r alone, and its
+ * derivative gives the best radius; the tree fills that radius, the height it
+ * leaves, and the volume as a multiple of π. Without a lid the height and the
+ * radius come out equal, with one the height is the diameter, and the bank
+ * offers each to the other.
+ */
+const cylinderTree: Generator<CylinderParams> = {
+  id: 'df-op-cylinder-tree',
+  sample: (rng, difficulty) => ({
+    m: difficulty >= 2 ? rng.int(3, 10) : rng.int(1, 7),
+    closed: rng.chance(0.5),
+    story: rng.int(0, 1),
+  }),
+  render: (params): Slide => {
+    const { m, closed, story } = params;
+    const n = 3 * m * m;
+    const [r, h, k] = cylinderValues(params);
+    const len = story === 0 ? 'cm' : 'm';
+    const thing = story === 0 ? 'tin' : 'water tank';
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: closed
+            ? `A closed cylindrical ${thing} of radius $r$ ${len} is made from $${2 * n}\\pi$ $\\text{${len}}^{2}$ of sheet, so $h = \\frac{${n} - r^{2}}{r}$ and`
+            : `An open-topped cylindrical ${thing} of radius $r$ ${len} is made from $${n}\\pi$ $\\text{${len}}^{2}$ of sheet, so $h = \\frac{${n} - r^{2}}{2r}$ and`,
+        },
+        { kind: 'display', tex: closed ? `V = \\pi(${n}r - r^{3})` : `V = \\frac{\\pi}{2}(${n}r - r^{3})` },
+        {
+          kind: 'prose',
+          text: 'Fill in the $r$ that makes $V$ greatest, the height $h$ it gives, then $k$, where the volume is $k\\pi$.',
+        },
+      ],
+      expression: 'V = \\pi r^{2} h = k\\pi',
+      nodes: [
+        { id: 'r', from: [] },
+        { id: 'h', from: ['r'] },
+        { id: 'k', from: ['r', 'h'] },
+      ],
+      bank: numberTiles([r, h, k], closed ? [2 * m * m, n, m ** 3, m * m] : [2 * m, n, 2 * m ** 3, m * m]),
+      answer: [r, h, k].map(String),
+    };
+  },
+  solution: (params) => {
+    const { m, closed } = params;
+    const n = 3 * m * m;
+    const [r, h, k] = cylinderValues(params);
+    return [
+      {
+        text: 'Differentiate the volume in $r$ and set it to zero.',
+        tex: closed ? `\\pi(${n} - 3r^{2}) = 0` : `\\frac{\\pi}{2}(${n} - 3r^{2}) = 0`,
+      },
+      { text: `So $r^{2} = ${m * m}$, and a radius is positive: $r = ${r}$.` },
+      { text: 'The height comes from the surface.', tex: closed ? `h = \\frac{${n - m * m}}{${m}} = ${h}` : `h = \\frac{${n - m * m}}{${2 * m}} = ${h}` },
+      { text: 'Then the volume.', tex: `V = \\pi \\times ${r}^{2} \\times ${h} = ${k}\\pi` },
+    ];
+  },
+};
+
+/** Three answers a solved model can give, one of them the one asked for. */
+function modelQuantities(model: Model): { ask: string; value: number }[] {
+  const facts = modelFacts(model);
+  const { kind, m } = model;
+  switch (kind) {
+    case 'wall':
+      return [
+        { ask: 'how long each side meeting the wall should be', value: m },
+        { ask: 'how long the side along the wall should be', value: facts.other.value },
+        { ask: 'the greatest area', value: facts.best },
+      ];
+    case 'box':
+      return [
+        { ask: 'how tall the box should be', value: m },
+        { ask: 'how wide its base should be', value: facts.other.value },
+        { ask: 'the greatest volume', value: facts.best },
+      ];
+    case 'sum':
+      return [
+        { ask: 'the value of $x$', value: m },
+        { ask: 'the value of $y$', value: facts.other.value },
+        { ask: 'the greatest value of $P$', value: facts.best },
+      ];
+    default:
+      return [
+        { ask: 'the radius', value: m },
+        { ask: 'the height', value: facts.other.value },
+        { ask: 'the greatest volume, as $k$ where it is $k\\pi$', value: facts.best },
+      ];
+  }
+}
+
+/** A number that slips give, for each model: the product without its square. */
+function quantitySlip({ kind, m }: Model): number {
+  return kind === 'wall' ? m * m : kind === 'box' ? 4 * m * m : kind === 'sum' ? 2 * m * m : 3 * m * m;
+}
+
+/** Numbers made distinct, each clash nudged up to the next unused whole number. */
+function distinctNumbers(values: number[]): number[] {
+  const seen = new Set<number>();
+  return values.map((value) => {
+    let v = value;
+    while (seen.has(v)) v += 1;
+    seen.add(v);
+    return v;
+  });
+}
+
+export interface WhichParams extends Model {
+  /** Which of the three quantities the question asks for. */
+  ask: number;
+}
+
+/**
+ * Reading the answer: the best length is found, and the question wanted
+ * something else — or wanted exactly that.
+ *
+ * The options are plain numbers, with no units to pick the right one out:
+ * the best length, the other length, the best value, and the value with its
+ * square forgotten.
+ */
+const whichQuantity: Generator<WhichParams> = {
+  id: 'df-op-which-quantity',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty >= 2 ? ['box', 'sum', 'can'] : ['wall', 'box', 'sum']),
+    ask: rng.int(0, 2),
+  }),
+  render: (params): Slide => {
+    const facts = modelFacts(params);
+    const quantities = modelQuantities(params);
+    const [first, second, third, slip] = distinctNumbers([...quantities.map((each) => each.value), quantitySlip(params)]);
+    const values = [first, second, third];
+    const ids = ['length', 'other', 'value'];
+    const choices = [
+      ...values.map((value, i) => ({ id: ids[i], label: `${value}`, tex: true })),
+      { id: 'slip', label: `${slip}`, tex: true },
+    ];
+    const v = facts.variable;
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: facts.story },
+        {
+          kind: 'prose',
+          text: `Setting $${modelRate(facts)} = 0$ gives $${v} = ${params.m}$ as the only sensible stationary point, and it is a maximum. The question asks for **${quantities[params.ask].ask}**. What is the answer?`,
+        },
+      ],
+      options: turned(choices, turnFor(4, params.m, params.ask, params.story, kindIndex(params.kind))),
+      correctId: ids[params.ask],
+    };
+  },
+  solution: (params) => {
+    const facts = modelFacts(params);
+    const quantities = modelQuantities(params);
+    const v = facts.variable;
+    return [
+      { text: `$${v} = ${params.m}$ is where the ${facts.what} is greatest, which is not always what was asked.` },
+      { text: `The ${facts.other.name} is $${facts.other.tex}$ with $${v} = ${params.m}$: $${facts.other.value}$.` },
+      { text: `The greatest ${facts.what} is ${amountTex(facts.best, facts)}.` },
+      { text: `The question asked for ${quantities[params.ask].ask}: $${quantities[params.ask].value}$.` },
+    ];
+  },
+};
+
+/** The model's function misbuilt, and what a learner who took it would be differentiating. */
+function methodSlips(model: Model): { label: string; outcome: string }[] {
+  const { kind, m } = model;
+  switch (kind) {
+    case 'box':
+      return [
+        { label: `$V = x(${6 * m} - x)^{2}$`, outcome: `Then the base would be $${6 * m} - x$ wide, as if only one corner were cut.` },
+        { label: `$V = x^{2}(${6 * m} - 2x)$`, outcome: 'Then the box would be as wide as it is tall.' },
+      ];
+    case 'sum':
+      return [
+        { label: '$P = xy^{2}$', outcome: 'Then $P$ would still have two variables in it.' },
+        { label: `$P = x^{2}(${3 * m} - x)$`, outcome: 'Then the square would be on $x$ instead of $y$.' },
+      ];
+    default:
+      return [
+        { label: '$V = \\pi r^{2}h$', outcome: 'Then $V$ would still have two variables in it.' },
+        { label: '$S = 2\\pi r^{2} + 2\\pi rh$', outcome: 'Then you would be working with the surface area, which is fixed.' },
+      ];
+  }
+}
+
+/**
+ * A whole optimisation walked from the question to the answer: which function
+ * to differentiate, which stationary point to keep, which number to give.
+ *
+ * Each fork is a place the method goes wrong in practice. Wrong turns end
+ * with what they lead to, stated as fact and never as a verdict.
+ */
+const optMethodFlow: Generator<WhichParams> = {
+  id: 'df-op-method-flow',
+  sample: (rng, difficulty) => ({
+    ...sampleModel(rng, difficulty >= 2 ? ['box', 'sum', 'can'] : ['box', 'sum']),
+    ask: rng.int(0, 2),
+  }),
+  render: (params): Slide => {
+    const facts = modelFacts(params);
+    const quantities = modelQuantities(params);
+    const { kind, m } = params;
+    const v = facts.variable;
+    const turn = turnFor(6, m, params.ask, params.story, kindIndex(kind));
+    const build = `$${facts.q} = ${facts.tex}$`;
+    const keep = `$${v} = ${m}$`;
+    const collapse =
+      kind === 'can'
+        ? { label: `$r = ${-m}$`, outcome: 'Then the radius would be negative.' }
+        : { label: `$x = ${3 * m}$`, outcome: `Then the ${facts.other.name} would be $0$, and so would $${facts.q}$.` };
+    const roots = kind === 'can' ? `r = ${m}` : `x = ${m}`;
+    const labels = quantities.map((each) => `$${each.value}$`);
+    return {
+      kind: 'flow',
+      prompt: [
+        { kind: 'prose', text: facts.story },
+        { kind: 'prose', text: `The question asks for **${quantities[params.ask].ask}**.` },
+      ],
+      subject: facts.goal === 'greatest' ? `\\text{make } ${facts.q} \\text{ greatest}` : `\\text{make } ${facts.q} \\text{ least}`,
+      steps: [
+        {
+          id: 'build',
+          ask: `Which function of $${v}$ alone do you differentiate?`,
+          branches: turned([{ label: build, to: 'root' }, ...methodSlips(params)], turn % 3),
+        },
+        {
+          id: 'root',
+          ask:
+            kind === 'can'
+              ? `$${modelRate(facts)} = ${facts.derivative.tex}$ is zero at $r = ${m}$ and $r = ${-m}$. Which do you keep?`
+              : `$${modelRate(facts)} = ${facts.derivative.tex}$ is zero at $${roots}$ and $x = ${3 * m}$. Which do you keep?`,
+          branches: turned(
+            [
+              { label: keep, to: 'answer' },
+              collapse,
+              { label: 'Both', outcome: 'Then one question would have two answers.' },
+            ],
+            (turn + 1) % 3,
+          ),
+        },
+        {
+          id: 'answer',
+          ask: `The question asks for ${quantities[params.ask].ask}. What do you give?`,
+          branches: turned(
+            quantities.map((each, i) => ({
+              label: labels[i],
+              outcome: `$${each.value}$ is ${each.ask}.`,
+            })),
+            (turn + 2) % 3,
+          ),
+        },
+      ],
+      answer: [build, keep, labels[params.ask]],
+    };
+  },
+  solution: (params) => {
+    const facts = modelFacts(params);
+    const quantities = modelQuantities(params);
+    return [
+      { text: `Write ${facts.name} in one variable: $${facts.q} = ${facts.tex}$.` },
+      ...optimumSteps(params),
+      { text: `The question asked for ${quantities[params.ask].ask}, which is $${quantities[params.ask].value}$.` },
+    ];
+  },
+};
+
+export const optimisationGenerators = {
+  buildModel,
+  eliminate,
+  modelValue,
+  modelDomain,
+  modelDerivative,
+  modelSlider,
+  modelTree,
+  bestValue,
+  secondTest,
+  optNatureFlow,
+  cubicBest,
+  endpointBest,
+  sumLeast,
+  costSlider,
+  cylinderTree,
+  whichQuantity,
+  optMethodFlow,
+};
+
 export const rateGenerators = {
   rateFunction,
   rateAt,
@@ -6592,4 +8315,5 @@ export const differentiationGenerators = [
   sketchReadGradient,
   sketchSteepest,
   ...Object.values(rateGenerators),
+  ...Object.values(optimisationGenerators),
 ];

@@ -1540,9 +1540,9 @@ const between: Generator<BetweenParams> = {
       {
         text: `The vector from $${from}$ to $${to}$ is destination minus start: the position of $${to}$ take away the position of $${from}$.`,
       },
-      {
-        tex: `\\overrightarrow{${from}${to}} = ${columnTex(tx, ty)} - ${columnTex(fx, fy)} = ${columnTex(x, y)}`,
-      },
+      // Two lines: three columns and an arrow run off a phone.
+      { tex: `\\overrightarrow{${from}${to}} = ${columnTex(tx, ty)} - ${columnTex(fx, fy)}` },
+      { tex: `= ${columnTex(x, y)}` },
       {
         text: `Check it by walking: start at $${pointTex(fx, fy)}$, go ${Math.abs(x)} ${x < 0 ? 'left' : 'right'} and ${Math.abs(y)} ${y < 0 ? 'down' : 'up'}, and you arrive at $${pointTex(tx, ty)}$.`,
       },
@@ -3436,6 +3436,38 @@ function tRange(a: Vec, b: Vec, span: number): [number, number] | undefined {
 }
 
 /**
+ * A whole-number slider track over the part of a line the figure shows,
+ * trimmed so its handle does not start on the answer.
+ *
+ * An untouched handle rests at the middle of the track (`defaultSliderValue`
+ * in `src/ui/sliderValue.ts`, mirrored here). Whether or not that grades, a
+ * marker already sitting on the crossing gives the question away.
+ */
+function trackAround(lo: number, hi: number, answer: number): [number, number] {
+  let min = Math.max(-6, Math.ceil(lo));
+  let max = Math.min(6, Math.floor(hi));
+  const rest = () => min + Math.round((max - min) / 2);
+  for (let tries = 0; tries < 4 && rest() === answer; tries += 1) {
+    if (max - 1 > answer) max -= 1;
+    else if (min + 1 < answer) min += 1;
+  }
+  return [min, max];
+}
+
+/**
+ * Whether a slider along `a + t b` asking for `answer` is worth setting: a
+ * track of at least five stops that does not rest on the answer. A steep line
+ * crosses the figure in a few steps of `t`, and a two-stop track is a coin
+ * toss, so the samplers draw again instead.
+ */
+function trackUsable(a: Vec, b: Vec, answer: number, span: number): boolean {
+  const range = tRange(a, b, span);
+  if (!range) return false;
+  const [min, max] = trackAround(range[0], range[1], answer);
+  return max - min >= 4 && min + Math.round((max - min) / 2) !== answer;
+}
+
+/**
  * Whole lines on squared paper, edge to edge, with named points on them.
  *
  * Square and to scale, like `vectorSvg` and `pointsSvg`, so a slider marker
@@ -3717,6 +3749,7 @@ const lineTSlider: Generator<TSliderParams> = {
       const ay = rng.int(-5, 5);
       const t = rng.pick(ts);
       if (Math.abs(ax + t * bx) > 7 || Math.abs(ay + t * by) > 7) continue;
+      if (!trackUsable([ax, ay], [bx, by], t, 8)) continue;
       return { ax, ay, bx, by, t };
     }
     return { ax: -2, ay: 1, bx: 1, by: 2, t: 2 };
@@ -3724,6 +3757,7 @@ const lineTSlider: Generator<TSliderParams> = {
   render: ({ ax, ay, bx, by, t }): Slide => {
     const span = 8;
     const [lo, hi] = tRange([ax, ay], [bx, by], span) ?? [-6, 6];
+    const track = trackAround(lo, hi, t);
     const p = [ax + t * bx, ay + t * by];
     return {
       kind: 'slider',
@@ -3734,8 +3768,8 @@ const lineTSlider: Generator<TSliderParams> = {
         },
         { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
       ],
-      min: Math.max(-6, Math.ceil(lo)),
-      max: Math.min(6, Math.floor(hi)),
+      min: track[0],
+      max: track[1],
       step: 1,
       answer: t,
       readout: 't = {v}',
@@ -3763,7 +3797,8 @@ const lineTSlider: Generator<TSliderParams> = {
       {
         text: `$P$ is at $${pointTex(px, py)}$. Getting there from $A$ takes $${t}$ lots of the direction vector, one dot per step${t < 0 ? ', going backwards' : ''}.`,
       },
-      { tex: `${columnTex(ax, ay)} + ${paren(t)}${columnTex(bx, by)} = ${columnTex(px, py)}` },
+      { tex: `${columnTex(ax, ay)} + ${paren(t)}${columnTex(bx, by)}` },
+      { tex: `= ${columnTex(px, py)}` },
       { text: `Across alone says the same: $${ax} + ${paren(t)} \\times ${bx} = ${px}$.` },
     ];
   },
@@ -3956,7 +3991,8 @@ const lineThroughTwo: Generator<ThroughParams> = {
     mode === 'points'
       ? [
           { text: 'A line needs a point and a direction. The point is $A$; the direction is the journey from $A$ to $B$, destination minus start.' },
-          { tex: `\\overrightarrow{AB} = ${columnTex(ax + dx, ay + dy)} - ${columnTex(ax, ay)} = ${columnTex(dx, dy)}` },
+          { tex: `\\overrightarrow{AB} = ${columnTex(ax + dx, ay + dy)} - ${columnTex(ax, ay)}` },
+          { tex: `= ${columnTex(dx, dy)}` },
           { tex: lineTex([ax, ay], [dx, dy]) },
           {
             text: 'Starting at $B$ instead, or heading along $\\overrightarrow{BA}$, gives a different equation of the same line. Using the position of $B$ as the direction does not: that vector points from the origin, not along the line.',
@@ -4082,15 +4118,14 @@ const lineFindT: Generator<FindTParams> = {
     const px = ax + t * bx;
     const py = ay + t * by;
     const useX = bx !== 0;
-    const steps = [
+    const steps: { text?: string; tex?: string }[] = [
       {
         text: useX
           ? 'Set the line equal to $P$ and take one component. Across:'
           : 'The direction has no across component, so every point of the line has the same $x$. Take the up component instead:',
       },
-      useX
-        ? { tex: `${affTex(ax, bx, 't')} = ${px} \\implies ${bx}t = ${px - ax} \\implies t = ${t}` }
-        : { tex: `${affTex(ay, by, 't')} = ${py} \\implies ${by}t = ${py - ay} \\implies t = ${t}` },
+      useX ? { tex: `${affTex(ax, bx, 't')} = ${px}` } : { tex: `${affTex(ay, by, 't')} = ${py}` },
+      useX ? { tex: `${bx}t = ${px - ax} \\implies t = ${t}` } : { tex: `${by}t = ${py - ay} \\implies t = ${t}` },
     ];
     if (useX && by !== 0) {
       steps.push({
@@ -4406,8 +4441,10 @@ function sampleRelation(rng: Parameters<Generator['sample']>[0], dims: number, r
 function relationPrompt({ a, b, c, d }: RelationParams, text: string): Block[] {
   return [
     { kind: 'prose', text },
-    { kind: 'display', tex: `\\ell_1: \\; ${lineTex(a, b, '\\lambda')}` },
-    { kind: 'display', tex: `\\ell_2: \\; ${lineTex(c, d, '\\mu')}` },
+    // Unlabelled: three-component columns leave no room on a phone for a name
+    // in front, so the prose says "first" and "second" instead.
+    { kind: 'display', tex: lineTex(a, b, '\\lambda') },
+    { kind: 'display', tex: lineTex(c, d, '\\mu') },
   ];
 }
 
@@ -4416,8 +4453,8 @@ function crossingWorking(a: Vec, b: Vec, c: Vec, d: Vec, lam: number, mu: number
   const names = ['x', 'y', 'z'];
   const steps: { text?: string; tex?: string }[] = [
     { text: 'Set the two lines equal and take the first two components:' },
-    { tex: `x: \\; ${affTex(a[0], b[0], '\\lambda')} = ${affTex(c[0], d[0], '\\mu')}` },
-    { tex: `y: \\; ${affTex(a[1], b[1], '\\lambda')} = ${affTex(c[1], d[1], '\\mu')}` },
+    { tex: `x\\colon \\; ${affTex(a[0], b[0], '\\lambda')} = ${affTex(c[0], d[0], '\\mu')}` },
+    { tex: `y\\colon \\; ${affTex(a[1], b[1], '\\lambda')} = ${affTex(c[1], d[1], '\\mu')}` },
   ];
   if (d[0] === 0 || b[0] === 0) {
     steps.push({
@@ -4433,7 +4470,8 @@ function crossingWorking(a: Vec, b: Vec, c: Vec, d: Vec, lam: number, mu: number
     const z2 = c[2] + mu * d[2];
     steps.push(
       { text: `Now the ${names[2]} components, with those values:` },
-      { tex: `${a[2]} + ${paren(b[2])} \\times ${paren(lam)} = ${z1} \\qquad ${c[2]} + ${paren(d[2])} \\times ${paren(mu)} = ${z2}` },
+      { tex: `${a[2]} + ${paren(b[2])} \\times ${paren(lam)} = ${z1}` },
+      { tex: `${c[2]} + ${paren(d[2])} \\times ${paren(mu)} = ${z2}` },
     );
   }
   return steps;
@@ -4480,7 +4518,8 @@ const linesRelation: Generator<RelationParams> = {
         params,
         'How do these two lines sit relative to each other? Work down the questions; each answer chooses what gets asked next.',
       ),
-      subject: '\\ell_1 \\text{ and } \\ell_2',
+      // The directions, since the first fork is about them.
+      subject: `\\text{directions } ${colTex(params.b)}, \\; ${colTex(params.d)}`,
       steps: [
         {
           id: 'direction',
@@ -4492,7 +4531,7 @@ const linesRelation: Generator<RelationParams> = {
         },
         {
           id: 'point',
-          ask: 'Does the starting point of $\\ell_1$ lie on $\\ell_2$?',
+          ask: 'Does the starting point of the first line lie on the second?',
           branches: [
             { label: 'Yes', outcome: 'The same line: parallel, and sharing a point.' },
             { label: 'No', outcome: 'Parallel: the same direction, and they never meet.' },
@@ -4526,8 +4565,8 @@ const linesRelation: Generator<RelationParams> = {
         { text: 'One is a multiple of the other, so the lines are parallel, or the same line. Test whether they share a point:' },
         { tex: `${colTex(a)} - ${colTex(c)} = ${colTex(minus(a, c))}` },
         rel === 'same'
-          ? { text: 'That is a multiple of the direction, so the start of $\\ell_1$ is on $\\ell_2$. They are the same line, written two ways.' }
-          : { text: 'That is not a multiple of the direction, so the start of $\\ell_1$ is off $\\ell_2$. The lines are parallel and never meet.' },
+          ? { text: 'That is a multiple of the direction, so the start of the first line is on the second. They are the same line, written two ways.' }
+          : { text: 'That is not a multiple of the direction, so the start of the first line is off the second. The lines are parallel and never meet.' },
       ];
     }
     const three = a.length === 3;
@@ -4595,10 +4634,12 @@ const linesThirdTree: Generator<ThirdParams> = {
           kind: 'prose',
           text: 'Solve the $x$ and $y$ components for $\\lambda$ and $\\mu$, then find the $z$ component each line reaches with them. The same value means the lines meet; different values mean they are skew.',
         },
-        { kind: 'display', tex: `\\ell_1: \\; ${lineTex(a, b, '\\lambda')}` },
-        { kind: 'display', tex: `\\ell_2: \\; ${lineTex(c, d, '\\mu')}` },
+        { kind: 'display', tex: lineTex(a, b, '\\lambda') },
+        { kind: 'display', tex: lineTex(c, d, '\\mu') },
       ],
-      expression: `z: \\quad ${affTex(a[2], b[2], '\\lambda')} \\quad \\text{and} \\quad ${affTex(c[2], d[2], '\\mu')}`,
+      // Each side braced, so a leading minus after "and" reads as a sign
+      // rather than a subtraction.
+      expression: `z\\colon \\; {${affTex(a[2], b[2], '\\lambda')}} \\; \\text{and} \\; {${affTex(c[2], d[2], '\\mu')}}`,
       nodes: [
         { id: 'lam', from: [] },
         { id: 'mu', from: [] },
@@ -4677,6 +4718,7 @@ function sampleMeet(
     const limit = slider ? 7 : 9;
     const ends = [px - lam * bx, py - lam * by, px - mu * dx, py - mu * dy];
     if (ends.some((x) => Math.abs(x) > limit)) continue;
+    if (slider && !trackUsable([ends[0], ends[1]], [bx, by], lam, 8)) continue;
     return { px, py, bx, by, dx, dy, lam, mu, ask: rng.pick(['lambda', 'mu'] as const) };
   }
   return { px: 1, py: 2, bx: 1, by: 1, dx: 2, dy: -1, lam: 1, mu: 1, ask: 'lambda' };
@@ -4783,7 +4825,8 @@ const linesMeetTree: Generator<MeetParams> = {
           text: 'Solve for $\\lambda$ and $\\mu$ where the two lines meet, then find the point from each line. Both lines should land on the same point.',
         },
       ],
-      expression: `${columnTex(a[0], a[1])} + \\lambda${columnTex(b[0], b[1])} = ${columnTex(c[0], c[1])} + \\mu${columnTex(d[0], d[1])}`,
+      // Two rows: four columns on one line run off a phone.
+      expression: `\\begin{gathered} ${columnTex(a[0], a[1])} + \\lambda${columnTex(b[0], b[1])} \\\\ = ${columnTex(c[0], c[1])} + \\mu${columnTex(d[0], d[1])} \\end{gathered}`,
       nodes: [
         { id: 'lam', from: [] },
         { id: 'mu', from: [] },
@@ -4809,6 +4852,7 @@ const linesMeetSlider: Generator<MeetParams> = {
     const span = 8;
     const { a, b, c, d } = meetLines(params);
     const [lo, hi] = tRange(a, b, span) ?? [-6, 6];
+    const track = trackAround(lo, hi, params.lam);
     return {
       kind: 'slider',
       prompt: [
@@ -4818,8 +4862,8 @@ const linesMeetSlider: Generator<MeetParams> = {
         },
         ...meetDisplays(params),
       ],
-      min: Math.max(-6, Math.ceil(lo)),
-      max: Math.min(6, Math.floor(hi)),
+      min: track[0],
+      max: track[1],
       step: 1,
       answer: params.lam,
       readout: '\\lambda = {v}',

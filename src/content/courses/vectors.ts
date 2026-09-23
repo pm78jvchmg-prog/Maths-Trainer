@@ -691,9 +691,8 @@ export const vectors: Course = {
                 'Two points fix a line. Start at one of them, and take the direction from the journey between them: destination minus start, as in the last level.',
               ),
               maths('\\mathbf{r} = \\mathbf{a} + t\\left(\\mathbf{b} - \\mathbf{a}\\right)'),
-              maths(
-                'A\\left(1, 4\\right), \\; B\\left(3, 1\\right) \\implies \\overrightarrow{AB} = \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}',
-              ),
+              prose('For $A\\left(1, 4\\right)$ and $B\\left(3, 1\\right)$:'),
+              maths('\\overrightarrow{AB} = \\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}'),
               maths(
                 '\\mathbf{r} = \\begin{pmatrix} 1 \\\\ 4 \\end{pmatrix} + t\\begin{pmatrix} 2 \\\\ -3 \\end{pmatrix}',
               ),
@@ -717,11 +716,11 @@ export const vectors: Course = {
                 'The direction has to be the journey **between** the points. $\\mathbf{b}$ on its own points from the origin to $B$, which is usually a different direction altogether.',
               ),
               prose(
-                'A line **parallel** to another shares its direction, so only the starting point changes. The line through $\\left(4, -1\\right)$ parallel to the one below borrows its direction and starts at $\\left(4, -1\\right)$.',
+                'A line **parallel** to another shares its direction, so only the starting point changes. Here is a line:',
               ),
-              maths(
-                '\\mathbf{r} = \\begin{pmatrix} 0 \\\\ 5 \\end{pmatrix} + s\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} \\implies \\mathbf{r} = \\begin{pmatrix} 4 \\\\ -1 \\end{pmatrix} + t\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}',
-              ),
+              maths('\\mathbf{r} = \\begin{pmatrix} 0 \\\\ 5 \\end{pmatrix} + s\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}'),
+              prose('The line through $\\left(4, -1\\right)$ parallel to it borrows its direction and starts at $\\left(4, -1\\right)$:'),
+              maths('\\mathbf{r} = \\begin{pmatrix} 4 \\\\ -1 \\end{pmatrix} + t\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix}'),
             ),
             ask('line-through-two+choice', 2),
             ask('line-two-points-at-tree'),
@@ -842,7 +841,7 @@ export const vectors: Course = {
                 'Where two lines cross, the same point is on both, so their equations are equal there, each line at its own parameter.',
               ),
               maths(
-                '\\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix} + \\lambda\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} = \\begin{pmatrix} 5 \\\\ 0 \\end{pmatrix} + \\mu\\begin{pmatrix} 0 \\\\ 1 \\end{pmatrix}',
+                '\\begin{gathered} \\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix} + \\lambda\\begin{pmatrix} 2 \\\\ 1 \\end{pmatrix} \\\\ = \\begin{pmatrix} 5 \\\\ 0 \\end{pmatrix} + \\mu\\begin{pmatrix} 0 \\\\ 1 \\end{pmatrix} \\end{gathered}',
               ),
               prose(
                 'Across, $1 + 2\\lambda = 5$, so $\\lambda = 2$. Up, $1 + \\lambda = \\mu$, so $\\mu = 3$. Two equations, two unknowns.',

@@ -628,6 +628,21 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
     }
   });
 
+  it('never puts $-delimited maths in a plain-text choice label', () => {
+    // A choice option is either all TeX (`tex: true`) or plain text, and the
+    // plain branch renders its label as a string. "$D$ falls by 24 mg" then
+    // reaches the learner with the dollar signs showing, which is how the
+    // first draft of expm-rate-words looked in the browser.
+    for (const { params, seed } of cases) {
+      const slide = (generator as Generator<unknown>).render(params);
+      if (slide.kind !== 'choice') continue;
+      for (const option of slide.options) {
+        if (option.tex) continue;
+        expect(option.label, `seed ${seed}: plain label shows raw $ signs`).not.toContain('$');
+      }
+    }
+  });
+
   it('never shows a bare single-letter display in a derived choice prompt', () => {
     // promptFrom lifts an expression slide's lead, minus its trailing "=",
     // into a display block. A lead like "x =" strips down to a bare "x" —

@@ -6,7 +6,9 @@
  * pictures of that iteration, and why it diverges when |g'(α)| > 1. Level 2
  * is Newton-Raphson (the tangent step, a root to a stated accuracy, and where
  * it goes wrong) and the trapezium rule (the rule itself, and whether it
- * overestimates or underestimates).
+ * overestimates or underestimates). Level 3 is bounds and errors: absolute
+ * and relative error, the bounds of a calculation on rounded values, and how
+ * an error in x_n is carried through g, one step and then k.
  *
  * Three rules hold everywhere in this file.
  *
@@ -35,7 +37,7 @@ import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { ALGEBRA_KEYS, ROOT_KEYS, sumTex, termTex } from './calculus';
-import { ITERATES, fixedScheme, written, type FixedFamily } from './iterationTable';
+import { ITERATES, bracketTex, fixedScheme, written, type FixedFamily } from './iterationTable';
 
 /* ================================================================
  * Shared helpers
@@ -3554,6 +3556,1782 @@ const meanHeightSlider: Generator<MeanHeightParams> = {
   },
 };
 
+/* ================================================================
+ * Level 3: bounds and errors, shared helpers
+ * ================================================================ */
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? Math.abs(a) : gcd(b, a % b);
+}
+
+/** The other sign of a written number. */
+function flipped(token: string): string {
+  return token.startsWith('-') ? token.slice(1) : `-${token}`;
+}
+
+/** Half a unit in the last of `dp` places: the most rounding can move a value. */
+const halfUnit = (dp: number) => 0.5 * 10 ** -dp;
+
+/** How a rounded value was given. */
+function precisionText(dp: number): string {
+  return dp === 0 ? 'to the nearest whole number' : `to ${dp} decimal place${dp === 1 ? '' : 's'}`;
+}
+
+/** A size of error, to two significant figures, for a worked solution. */
+function roughly(value: number): string {
+  return Math.abs(value).toPrecision(2);
+}
+
+/** A value's lower and upper bound, written to one place more than it was given. */
+function boundsOfValue(value: number, dp: number): [number, number] {
+  const h = halfUnit(dp);
+  return [Number((value - h).toFixed(dp + 1)), Number((value + h).toFixed(dp + 1))];
+}
+
+/** An exact value that is a fraction or a root, and the number it stands for. */
+interface ExactValue {
+  kind: 'frac' | 'sqrt' | 'cbrt';
+  /** frac: a / b. sqrt, cbrt: the root of a. */
+  a: number;
+  b: number;
+}
+
+function exactOf({ kind, a, b }: ExactValue): number {
+  return kind === 'frac' ? a / b : kind === 'sqrt' ? Math.sqrt(a) : Math.cbrt(a);
+}
+
+function exactTex({ kind, a, b }: ExactValue): string {
+  return kind === 'frac' ? `\\frac{${a}}{${b}}` : kind === 'sqrt' ? `\\sqrt{${a}}` : `\\sqrt[3]{${a}}`;
+}
+
+/** A fraction that does not terminate, or a root that is not whole: something an estimate can only approach. */
+function sampleEndless(rng: Rng, kind: ExactValue['kind']): ExactValue {
+  for (;;) {
+    if (kind === 'frac') {
+      const b = rng.pick([3, 6, 7, 9, 11, 12, 13]);
+      const a = rng.int(1, 4 * b);
+      if (gcd(a, b) !== 1 || a % b === 0) continue;
+      return { kind, a, b };
+    }
+    const a = kind === 'sqrt' ? rng.int(2, 99) : rng.int(2, 60);
+    const root = exactOf({ kind, a, b: 1 });
+    if (Math.abs(root - Math.round(root)) < 0.02) continue;
+    return { kind, a, b: 1 };
+  }
+}
+
+/* ================================================================
+ * Level 3, lesson 1: absolute error
+ * ================================================================ */
+
+interface AbsErrorParams {
+  /** α = p / q, the positive root of (q x - p)(x + r) = 0. */
+  p: number;
+  q: number;
+  r: number;
+  /** The iterate x_n, and n. */
+  estimate: number;
+  n: number;
+  /** Difficulty 2 gives only the factorised equation, so α has to be found first. */
+  hidden: boolean;
+}
+
+function absErrorFacts({ p, q, estimate }: AbsErrorParams) {
+  const alpha = p / q;
+  return { alpha, error: estimate - alpha };
+}
+
+/**
+ * The error in an iterate, estimate minus exact value, for a root known
+ * exactly as a fraction that terminates. At difficulty 2 the root has to be
+ * read off a factorised quadratic first, and sits nearer the estimate.
+ */
+const absError: Generator<AbsErrorParams> = {
+  id: 'numer-abs-error',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const q = hard ? rng.pick([8, 16, 20, 40]) : rng.pick([2, 4, 5, 8]);
+      const p = rng.int(Math.ceil(0.2 * q), 6 * q);
+      if (gcd(p, q) !== 1 || p % q === 0) continue;
+      const dp = hard ? 4 : 3;
+      const unit = 10 ** -dp;
+      const k = rng.int(1, hard ? 60 : 40) * rng.sign();
+      const estimate = Number(((Math.round((p / q) / unit) + k) * unit).toFixed(dp));
+      if (!terminates(p / q, dp)) continue;
+      return { p, q, r: rng.int(1, 6), estimate, n: rng.int(2, 5), hidden: hard };
+    }
+  },
+  render: (params): Slide => {
+    const { p, q, r, estimate, n, hidden } = params;
+    const where = hidden
+      ? `the positive root $\\alpha$ of $(${q}x - ${p})(x + ${r}) = 0$`
+      : `the root $\\alpha = \\frac{${p}}{${q}}$`;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`An iteration converging to ${where} has reached $x_{${n}} = ${fmt(estimate)}$. Find the error in $x_{${n}}$: the estimate minus the exact value.`),
+      ],
+      lead: '\\text{error} =',
+      keypad: [],
+      answer: fmt(absErrorFacts(params).error),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { p, q, estimate, n, hidden } = params;
+    const { alpha, error } = absErrorFacts(params);
+    const steps: SolutionStep[] = [];
+    if (hidden) steps.push({ text: `The positive root comes from the first bracket: $${q}x - ${p} = 0$, so $\\alpha = \\frac{${p}}{${q}}$.` });
+    steps.push(
+      { tex: `\\frac{${p}}{${q}} = ${fmt(alpha)}` },
+      { tex: aligned(`\\text{error} &= ${fmt(estimate)} - ${fmt(alpha)}`, `&= ${fmt(error)}`) },
+      { text: error > 0 ? `Positive: $x_{${n}}$ is an overestimate.` : `Negative: $x_{${n}}$ is an underestimate.` },
+    );
+    return steps;
+  },
+};
+
+interface AbsSizeParams {
+  num: number;
+  den: number;
+  estimate: number;
+  dp: number;
+}
+
+/**
+ * The absolute error of a decimal estimate of a fraction, worked along a
+ * line: the fraction as a decimal, the difference, then its size.
+ */
+const absSizeSteps: Generator<AbsSizeParams> = {
+  id: 'numer-abs-size-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const den = hard ? rng.pick([8, 16, 32, 40, 80]) : rng.pick([4, 8, 20, 25]);
+      const num = rng.int(1, 3 * den);
+      if (gcd(num, den) !== 1 || num % den === 0) continue;
+      const dp = hard ? 2 : 1;
+      const unit = 10 ** -dp;
+      const exact = num / den;
+      const estimate = Number(((Math.round(exact / unit) + rng.pick([-1, 0, 0, 1])) * unit).toFixed(dp));
+      if (Math.abs(estimate - exact) < 1e-9 || estimate <= 0) continue;
+      return { num, den, estimate, dp };
+    }
+  },
+  render: ({ num, den, estimate, dp }): Slide => {
+    const exact = num / den;
+    const value = fmt(exact);
+    const error = fmt(estimate - exact);
+    const size = fmt(Math.abs(estimate - exact));
+    const rounded = fmt(Number(exact.toFixed(dp)));
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `The absolute error is the size of the error, ignoring its sign. Find it for the estimate $\\frac{${num}}{${den}} \\approx ${fmt(estimate)}$: tap the part you would do next, then choose what it comes to.`,
+        ),
+      ],
+      start: ['|', fmt(estimate), '-', `\\frac{${num}}{${den}}`, '|'],
+      reductions: [
+        {
+          span: [3, 4],
+          value,
+          bank: stepBank(value, `${num}.${den}`, rounded === value ? fmt(exact + 0.1) : rounded, fmt(exact * 10)),
+        },
+        { span: [1, 4], operator: 2, value: error, bank: stepBank(error, flipped(error), fmt(estimate + exact), fmt((estimate - exact) * 10)) },
+        { span: [0, 3], value: size, bank: stepBank(size, flipped(size), fmt(Math.abs(estimate - exact) * 10), fmt(halfUnit(dp))) },
+      ],
+    };
+  },
+  solution: ({ num, den, estimate }) => {
+    const exact = num / den;
+    const error = estimate - exact;
+    return [
+      { tex: `\\frac{${num}}{${den}} = ${fmt(exact)}` },
+      { tex: aligned(`&${fmt(estimate)} - ${fmt(exact)}`, `&= ${fmt(error)}`) },
+      { text: `The absolute error is its size, $${fmt(Math.abs(error))}$. The sign only says the estimate is ${error > 0 ? 'too big' : 'too small'}.` },
+    ];
+  },
+};
+
+interface ClosestParams {
+  exact: ExactValue;
+  /** The four estimates offered, as written. */
+  estimates: string[];
+}
+
+/** Estimates of a value to one, two and three places: rounded, cut off, and rounded the wrong way. */
+function estimatesOf(value: number): string[] {
+  const out = [1, 2, 3].flatMap((dp) => [value.toFixed(dp), truncated(value, dp), roundedWrongWay(value, dp)]);
+  return [...new Set(out)].filter((token) => Math.abs(Number(token) - value) > 1e-9);
+}
+
+/**
+ * Which of four estimates is closest. More places are not always closer: a
+ * value cut off at three places can beat one rounded at two, and the other way
+ * about. Difficulty 2 estimates a root rather than a fraction.
+ */
+const closestChoice: Generator<ClosestParams> = {
+  id: 'numer-closest-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const exact = sampleEndless(rng, difficulty > 1 ? rng.pick(['sqrt', 'cbrt'] as const) : 'frac');
+      const value = exactOf(exact);
+      const estimates = rng.sample(estimatesOf(value), 4);
+      const sizes = estimates.map((token) => Math.abs(Number(token) - value)).sort((a, b) => a - b);
+      if (sizes[1] < 1.5 * sizes[0]) continue;
+      // Not simply the one with the most places.
+      const places = (token: string) => token.split('.')[1].length;
+      const best = estimates.find((token) => Math.abs(Number(token) - value) === sizes[0])!;
+      if (difficulty > 1 && estimates.filter((token) => places(token) === places(best)).length < 2) continue;
+      return { exact, estimates };
+    }
+  },
+  render: ({ exact, estimates }): Slide => {
+    const value = exactOf(exact);
+    const best = Math.min(...estimates.map((token) => Math.abs(Number(token) - value)));
+    return choiceSlide(
+      [say(`Which estimate of $${exactTex(exact)}$ has the smallest absolute error?`)],
+      estimates.map((token) => ({ tex: token, correct: Math.abs(Number(token) - value) === best })),
+    );
+  },
+  solution: ({ exact, estimates }) => {
+    const value = exactOf(exact);
+    const sorted = [...estimates].sort((a, b) => Math.abs(Number(a) - value) - Math.abs(Number(b) - value));
+    return [
+      { text: `$${exactTex(exact)} = ${value.toFixed(6)}\\ldots$. Take each estimate away from it and ignore the sign:` },
+      ...sorted.map((token) => ({ tex: `|${token} - ${exactTex(exact)}| \\approx ${roughly(Number(token) - value)}` })),
+      { text: `$${sorted[0]}$ is closest. More decimal places only help when they are the right ones.` },
+    ];
+  },
+};
+
+interface OverUnderParams {
+  exact: ExactValue;
+  estimate: string;
+  dp: number;
+}
+
+/**
+ * Two decisions about an estimate: over or under, then whether it is out by
+ * no more than rounding would allow, which is whether it is the exact value
+ * correctly rounded.
+ */
+const overUnderFlow: Generator<OverUnderParams> = {
+  id: 'numer-over-under-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const dp = hard ? 3 : 2;
+    const unit = 10 ** -dp;
+    const close = rng.chance(0.5);
+    for (;;) {
+      const exact = sampleEndless(rng, hard ? rng.pick(['sqrt', 'cbrt'] as const) : 'frac');
+      const value = exactOf(exact);
+      const nearest = Math.round(value / unit);
+      const units = close ? nearest : nearest + rng.sign();
+      const off = Math.abs(units - value / unit);
+      if (Math.abs(off - 0.5) < 0.1 || off < 0.05) continue;
+      return { exact, estimate: (units * unit).toFixed(dp), dp };
+    }
+  },
+  render: ({ exact, estimate, dp }): Slide => {
+    const value = exactOf(exact);
+    const error = Number(estimate) - value;
+    const half = fmt(halfUnit(dp));
+    const size = (word: string) => ({
+      ask: `Is its size at most half a unit in the last place of the estimate, $${half}$?`,
+      branches: turned(
+        [
+          { label: 'Yes', outcome: `An ${word}, and it is the exact value correctly rounded to ${dp} decimal places.` },
+          { label: 'No', outcome: `An ${word}, and out by more than rounding explains: it is not the exact value correctly rounded.` },
+        ],
+        `${estimate}${word}`,
+      ),
+    });
+    return {
+      kind: 'flow',
+      prompt: [say(`Is the estimate below too big or too small, and is it the exact value correctly rounded?`)],
+      subject: `${exactTex(exact)} \\approx ${estimate}`,
+      steps: [
+        {
+          id: 'sign',
+          ask: 'Work out the error, the estimate minus the exact value. Is it positive or negative?',
+          branches: [
+            { label: 'Positive', to: 'over' },
+            { label: 'Negative', to: 'under' },
+          ],
+        },
+        { id: 'over', ...size('overestimate') },
+        { id: 'under', ...size('underestimate') },
+      ],
+      answer: [error > 0 ? 'Positive' : 'Negative', Math.abs(error) <= halfUnit(dp) ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ exact, estimate, dp }) => {
+    const value = exactOf(exact);
+    const error = Number(estimate) - value;
+    return [
+      { tex: `${exactTex(exact)} = ${value.toFixed(dp + 3)}\\ldots` },
+      { tex: aligned(`\\text{error} &= ${estimate} - ${value.toFixed(dp + 3)}\\ldots`, `&\\approx ${error.toFixed(dp + 2)}`) },
+      {
+        text: `${error > 0 ? 'Positive, so an overestimate' : 'Negative, so an underestimate'}. Its size is ${Math.abs(error) <= halfUnit(dp) ? 'within' : 'more than'} $${fmt(halfUnit(dp))}$, so $${estimate}$ ${Math.abs(error) <= halfUnit(dp) ? 'is' : 'is not'} the exact value rounded to ${dp} decimal places${Math.abs(error) <= halfUnit(dp) ? '' : `; that would be $${value.toFixed(dp)}$`}.`,
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 2: relative and percentage error
+ * ================================================================ */
+
+interface RelParams {
+  exact: number;
+  /** The relative error, signed, an exact decimal. */
+  rel: number;
+  /** Which story the numbers are told in. */
+  context: 0 | 1 | 2;
+  percent: boolean;
+}
+
+const REL_EASY = [0.002, 0.004, 0.005, 0.01, 0.02, 0.025, 0.04, 0.05, 0.08, 0.1];
+const REL_HARD = [0.0025, 0.0125, 0.015, 0.035, 0.045, 0.06, 0.075, 0.12, 0.15];
+
+/** The estimate the relative error implies, exact to a few places. */
+const relEstimate = ({ exact, rel }: Pick<RelParams, 'exact' | 'rel'>) => Number((exact * (1 + rel)).toFixed(6));
+
+/**
+ * An exact value and a relative error whose estimate is a short decimal.
+ * Difficulty 2 has exact values that are not whole and less round errors.
+ */
+function sampleRel(rng: Rng, difficulty: number): Pick<RelParams, 'exact' | 'rel'> {
+  const hard = difficulty > 1;
+  for (;;) {
+    const exact = hard ? rng.pick([rng.int(2, 60) / 4, rng.int(2, 99) / 5, rng.int(20, 400)]) : rng.int(2, 250);
+    const rel = rng.pick(hard ? REL_HARD : REL_EASY) * rng.sign();
+    if (!terminates(exact * rel, 3) || Math.abs(exact - 100) < 1e-9) continue;
+    return { exact: Number(exact.toFixed(2)), rel };
+  }
+}
+
+function relStory({ exact, rel, context }: RelParams): string {
+  const estimate = fmt(relEstimate({ exact, rel }));
+  switch (context) {
+    case 0:
+      return `A length of exactly $${fmt(exact)}$ cm is measured as $${estimate}$ cm.`;
+    case 1:
+      return `The trapezium rule gives $${estimate}$ for an integral whose exact value is $${fmt(exact)}$.`;
+    case 2:
+      return `A value of exactly $${fmt(exact)}$ is stored as $${estimate}$.`;
+  }
+}
+
+const relAnswer = ({ rel, percent }: Pick<RelParams, 'rel' | 'percent'>) => fmt(percent ? rel * 100 : rel);
+
+/**
+ * The relative error, error over exact value, typed; as a percentage at
+ * difficulty 2. Its multiple-choice form offers the sign slip, the error not
+ * divided, and the percentage for the fraction or the other way round.
+ */
+const relError: Generator<RelParams> = {
+  id: 'numer-rel-error',
+  sample: (rng, difficulty) => ({ ...sampleRel(rng, difficulty), context: rng.pick([0, 1, 2] as const), percent: difficulty > 1 }),
+  choices: (params) => {
+    const right = relAnswer(params);
+    const error = fmt(relEstimate(params) - params.exact);
+    const other = fmt(params.percent ? params.rel : params.rel * 100);
+    return options(
+      { tex: right, answer: right },
+      { tex: flipped(right), answer: flipped(right) },
+      { tex: error, answer: error },
+      { tex: other, answer: other },
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(
+        `${relStory(params)} Find the ${params.percent ? 'percentage error, as a number of per cent' : 'relative error'}: the error divided by the exact value${params.percent ? ', times 100' : ''}.`,
+      ),
+    ],
+    lead: params.percent ? '\\text{percentage error (\\%)} =' : '\\text{relative error} =',
+    keypad: [],
+    answer: relAnswer(params),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const estimate = relEstimate(params);
+    const error = estimate - params.exact;
+    return [
+      { tex: aligned(`\\text{error} &= ${fmt(estimate)} - ${fmt(params.exact)}`, `&= ${fmt(error)}`) },
+      { tex: aligned(`\\text{relative} &= \\frac{${fmt(error)}}{${fmt(params.exact)}}`, `&= ${fmt(params.rel)}`) },
+      ...(params.percent ? [{ tex: `${fmt(params.rel)} \\times 100 = ${fmt(params.rel * 100)}\\%` }] : []),
+      { text: `Divide by the exact value, never the estimate. ${params.rel > 0 ? 'Positive: an overestimate.' : 'Negative: an underestimate.'}` },
+    ];
+  },
+};
+
+/**
+ * The relative error built from the two values, then worked out. The exact
+ * value is needed twice, and the estimate once.
+ */
+const relTiles: Generator<Omit<RelParams, 'context'>> = {
+  id: 'numer-rel-tiles',
+  sample: (rng, difficulty) => ({ ...sampleRel(rng, difficulty), percent: difficulty > 1 }),
+  render: (params): Slide => {
+    const exact = fmt(params.exact);
+    const estimate = fmt(relEstimate(params));
+    const value = relAnswer(params);
+    const answer = [estimate, exact, exact, value];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `A value of exactly $${exact}$ is estimated as $${estimate}$. Build its ${params.percent ? 'percentage' : 'relative'} error from the tiles and work it out.`,
+        ),
+      ],
+      template: params.percent
+        ? '\\text{percentage error} = ({0} - {1}) \\div {2} \\times 100 = {3}\\%'
+        : '\\text{relative error} = ({0} - {1}) \\div {2} = {3}',
+      bank: fillBank(answer, [
+        flipped(value),
+        fmt(relEstimate(params) - params.exact),
+        fmt(params.percent ? params.rel : params.rel * 100),
+        fmt(params.exact * 2),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const estimate = relEstimate(params);
+    const error = estimate - params.exact;
+    return [
+      { text: 'Estimate minus exact value first, then divide by the exact value.' },
+      { tex: aligned(`&(${fmt(estimate)} - ${fmt(params.exact)}) \\div ${fmt(params.exact)}`, `&= ${fmt(error)} \\div ${fmt(params.exact)}`, `&= ${fmt(params.rel)}`) },
+      ...(params.percent ? [{ tex: `${fmt(params.rel)} \\times 100 = ${fmt(params.rel * 100)}\\%` }] : []),
+    ];
+  },
+};
+
+interface RelSliderParams {
+  exact: number;
+  /** Percentage error, signed. */
+  pct: number;
+  /** Difficulty 2: the estimate is given and the exact value is slid to. */
+  inverse: boolean;
+}
+
+function relSliderWindow({ exact, pct, inverse }: RelSliderParams) {
+  const estimate = exact * (1 + pct / 100);
+  const shown = inverse ? estimate : exact;
+  return { estimate, shown, min: Math.floor(shown * 0.75), max: Math.ceil(shown * 1.25) };
+}
+
+/**
+ * Slide to the estimate that has a stated percentage error; at difficulty 2
+ * slide to the exact value behind an estimate instead. The figure graphs the
+ * percentage error against the value slid, so the answer is where that line
+ * meets the dashed level.
+ */
+const relSlider: Generator<RelSliderParams> = {
+  id: 'numer-rel-slider',
+  sample: (rng, difficulty) => {
+    const inverse = difficulty > 1;
+    for (;;) {
+      const exact = inverse ? rng.int(24, 120) / 2 : rng.int(4, 12) * 5;
+      const pct = (inverse ? rng.pick([2, 2.5, 4, 5, 6, 7.5, 8, 10, 12.5, 15]) : rng.int(2, 16)) * rng.sign();
+      const estimate = exact * (1 + pct / 100);
+      const answer = inverse ? exact : estimate;
+      if (!terminates(answer * 2, 0) || !terminates(estimate, 2)) continue;
+      const params = { exact, pct, inverse };
+      const { min, max } = relSliderWindow(params);
+      if (answer < min + 0.5 || answer > max - 0.5) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { exact, pct, inverse } = params;
+    const { estimate, min, max } = relSliderWindow(params);
+    const error = inverse ? (x: number) => (100 * (estimate - x)) / x : (x: number) => (100 * (x - exact)) / exact;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          inverse
+            ? `An estimate of $${fmt(estimate)}$ has a percentage error of $${fmt(pct)}\\%$. Slide the line to the exact value. The graph shows the percentage error $${fmt(estimate)}$ would have for each exact value.`
+            : `The exact value is $${fmt(exact)}$. Slide the line to the estimate whose percentage error is $${fmt(pct)}\\%$. The graph shows the percentage error of each estimate.`,
+        ),
+      ],
+      min,
+      max,
+      step: 0.5,
+      answer: inverse ? exact : estimate,
+      readout: inverse ? '\\text{exact value} = {v}' : '\\text{estimate} = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: min,
+          xMax: max,
+          yMin: -30,
+          yMax: 30,
+          curves: [{ f: clamped(error, 60), accent: true }],
+          horizontals: [pct],
+          marks: [{ x: inverse ? estimate : exact, y: 0 }],
+          label: `The percentage error graphed against the ${inverse ? 'exact value' : 'estimate'}, with a dashed line at ${fmt(pct)} per cent`,
+        }),
+        ...markerWindow(min, max),
+      },
+    };
+  },
+  solution: (params) => {
+    const { exact, pct, inverse } = params;
+    const { estimate } = relSliderWindow(params);
+    return inverse
+      ? [
+          { text: `A percentage error of $${fmt(pct)}\\%$ means the estimate is $${fmt(100 + pct)}\\%$ of the exact value.` },
+          { tex: `\\text{exact} = ${fmt(estimate)} \\div ${fmt(1 + pct / 100)} = ${fmt(exact)}` },
+          { text: 'Divide back rather than take the percentage off the estimate: the percentage is of the exact value.' },
+        ]
+      : [
+          { tex: `${fmt(pct)}\\% \\text{ of } ${fmt(exact)} = ${fmt((exact * pct) / 100)}` },
+          { tex: `\\text{estimate} = ${fmt(exact)} ${signed((exact * pct) / 100)} = ${fmt(estimate)}` },
+        ];
+  },
+};
+
+interface RelCompareParams {
+  unit: string;
+  /** Exact value and estimate, per option. */
+  items: [number, number][];
+  largest: boolean;
+}
+
+const relOf = ([exact, estimate]: [number, number]) => Math.abs(estimate - exact) / exact;
+
+/**
+ * Which of four measurements is most (or least) accurate for its size. The
+ * one with the smallest error is never the answer at difficulty 2: a large
+ * thing measured roughly can still be measured well.
+ */
+const relCompare: Generator<RelCompareParams> = {
+  id: 'numer-rel-compare',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const largest = hard && rng.chance(0.5);
+    for (;;) {
+      const bands: [number, number][] = [[2, 9], [10, 60], [80, 400], [500, 2000]];
+      const items = bands.map(([lo, hi]): [number, number] => {
+        const exact = rng.int(lo, hi);
+        const error = rng.pick(hi < 10 ? [0.1, 0.2, 0.3] : hi < 100 ? [0.2, 0.5, 1, 1.5] : hi < 500 ? [1, 2, 3, 5] : [5, 10, 20, 30]);
+        return [exact, Number((exact + error * rng.sign()).toFixed(1))];
+      });
+      const rels = items.map(relOf);
+      const order = [...rels].sort((a, b) => (largest ? b - a : a - b));
+      if ((largest ? order[1] * 1.3 > order[0] : order[1] < order[0] * 1.3)) continue;
+      const pick = rels.indexOf(order[0]);
+      const sizes = items.map(([e, m]) => Math.abs(m - e));
+      const plain = largest ? sizes.indexOf(Math.max(...sizes)) : sizes.indexOf(Math.min(...sizes));
+      if (hard && plain === pick) continue;
+      // Listed in an order fixed by the numbers, never shuffled (PITFALLS 3.10).
+      const listed = [...items].sort((a, b) => hashSeed(a.join('/')) - hashSeed(b.join('/')));
+      return { unit: rng.pick(['cm', 'g', 'ml', 'mm']), items: listed, largest };
+    }
+  },
+  render: ({ unit, items, largest }): Slide => {
+    const rels = items.map(relOf);
+    const target = largest ? Math.max(...rels) : Math.min(...rels);
+    return choiceSlide(
+      [say(`Four things were measured once each. Which measurement has the ${largest ? 'largest' : 'smallest'} relative error?`)],
+      items.map((item, idx) => ({ tex: `${fmt(item[0])} ${unit}, measured as ${fmt(item[1])} ${unit}`, correct: rels[idx] === target })),
+      false,
+    );
+  },
+  solution: ({ unit, items, largest }) =>
+    [
+      { text: 'Divide each error by the exact value it belongs to:' },
+      ...items.map((item) => ({ tex: `\\frac{${fmt(Math.abs(item[1] - item[0]))}}{${fmt(item[0])}} \\approx ${roughly(relOf(item))}` })),
+      { text: `The ${largest ? 'largest' : 'smallest'} relative error is the ${fmt(items[items.map(relOf).indexOf((largest ? Math.max : Math.min)(...items.map(relOf)))][0])} ${unit} measurement. The size of the error alone does not decide it: what matters is the error for the size of the thing.` },
+    ] as SolutionStep[],
+};
+
+/* ================================================================
+ * Level 3, lesson 3: bounds on a result
+ * ================================================================ */
+
+/** A rounded value, and how many places it was rounded to. */
+interface Rounded {
+  value: number;
+  dp: number;
+}
+
+/** A positive value given to `dp` places, not whole where places are asked for. */
+function sampleRounded(rng: Rng, dp: number, lo: number, hi: number): Rounded {
+  for (;;) {
+    const unit = 10 ** -dp;
+    const value = Number((rng.int(Math.ceil(lo / unit), Math.floor(hi / unit)) * unit).toFixed(dp));
+    if (dp > 0 && terminates(value, dp - 1)) continue;
+    return { value, dp };
+  }
+}
+
+const lowerOf = ({ value, dp }: Rounded) => boundsOfValue(value, dp)[0];
+const upperOf = ({ value, dp }: Rounded) => boundsOfValue(value, dp)[1];
+
+type BoundOp = 'sum' | 'diff' | 'prod';
+
+interface BoundTreeParams {
+  a: Rounded;
+  b: Rounded;
+  op: BoundOp;
+}
+
+const OP_TEX: Record<BoundOp, string> = { sum: 'a + b', diff: 'a - b', prod: 'ab' };
+
+/** The result's bounds, from the ends the operation needs: both low for the least sum, low minus high for the least difference. */
+function boundTreeFacts({ a, b, op }: BoundTreeParams) {
+  const [aL, aU] = boundsOfValue(a.value, a.dp);
+  const [bL, bU] = boundsOfValue(b.value, b.dp);
+  switch (op) {
+    case 'sum':
+      return { aL, aU, bL, bU, lo: aL + bL, hi: aU + bU, loFrom: ['aL', 'bL'], hiFrom: ['aU', 'bU'] };
+    case 'diff':
+      return { aL, aU, bL, bU, lo: aL - bU, hi: aU - bL, loFrom: ['aL', 'bU'], hiFrom: ['aU', 'bL'] };
+    case 'prod':
+      return { aL, aU, bL, bU, lo: aL * bL, hi: aU * bU, loFrom: ['aL', 'bL'], hiFrom: ['aU', 'bU'] };
+  }
+}
+
+/**
+ * Each input's bounds on top, the result's lower and upper bound beneath.
+ * Difficulty 2 has differences and products, and inputs rounded to different
+ * places.
+ */
+const boundTree: Generator<BoundTreeParams> = {
+  id: 'numer-bound-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const op = rng.pick<BoundOp>(hard ? ['diff', 'prod'] : ['sum', 'diff']);
+      const dpA = hard ? rng.pick([1, 2]) : rng.pick([0, 1]);
+      const dpB = hard ? rng.pick([1, 2]) : dpA;
+      const a = sampleRounded(rng, dpA, 2, op === 'prod' ? 9 : 30);
+      const b = sampleRounded(rng, dpB, 1, op === 'prod' ? 9 : 30);
+      const facts = boundTreeFacts({ a, b, op });
+      if (facts.lo <= 0 || a.value === b.value) continue;
+      return { a, b, op };
+    }
+  },
+  render: (params): Slide => {
+    const { a, b, op } = params;
+    const f = boundTreeFacts(params);
+    const answer = [f.aL, f.aU, f.bL, f.bU, f.lo, f.hi].map(fmt);
+    const combine = (x: number, y: number) => (op === 'sum' ? x + y : op === 'diff' ? x - y : x * y);
+    const slips = [
+      combine(a.value, b.value),
+      combine(f.aL, f.bU),
+      combine(f.aU, f.bL),
+      combine(f.aL, f.bL),
+      combine(f.aU, f.bU),
+      a.value - 10 ** -a.dp,
+      b.value + 10 ** -b.dp,
+    ].map(fmt);
+    const where = a.dp === b.dp ? `each ${precisionText(a.dp)}` : `$a$ ${precisionText(a.dp)} and $b$ ${precisionText(b.dp)}`;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$a = ${fmt(a.value)}$ and $b = ${fmt(b.value)}$, ${where}. Top row: the lower and upper bounds of $a$, then of $b$. Underneath: the lower bound of $${OP_TEX[op]}$, then its upper bound.`,
+        ),
+      ],
+      expression: `\\text{bounds of } ${OP_TEX[op]}`,
+      nodes: [
+        { id: 'aL', from: [] },
+        { id: 'aU', from: [] },
+        { id: 'bL', from: [] },
+        { id: 'bU', from: [] },
+        { id: 'lo', from: f.loFrom },
+        { id: 'hi', from: f.hiFrom },
+      ],
+      bank: numberBank(answer, slips, around([f.lo, f.hi], 10 ** -Math.max(a.dp, b.dp))),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, b, op } = params;
+    const f = boundTreeFacts(params);
+    const how: Record<BoundOp, string> = {
+      sum: 'The least sum takes both lower bounds; the greatest takes both upper bounds.',
+      diff: 'The least difference takes the smallest $a$ and the largest $b$; the greatest difference the other way round.',
+      prod: 'Both values are positive, so the least product takes both lower bounds and the greatest both upper bounds.',
+    };
+    const sym = op === 'sum' ? '+' : op === 'diff' ? '-' : '\\times';
+    const [loA, loB] = f.loFrom.map((id) => fmt(f[id as 'aL' | 'aU' | 'bL' | 'bU']));
+    const [hiA, hiB] = f.hiFrom.map((id) => fmt(f[id as 'aL' | 'aU' | 'bL' | 'bU']));
+    return [
+      { text: `Half a unit either way: $${fmt(f.aL)} \\le a < ${fmt(f.aU)}$ and $${fmt(f.bL)} \\le b < ${fmt(f.bU)}$.` },
+      { text: how[op] },
+      { tex: aligned(`\\text{lower} &= ${loA} ${sym} ${loB}`, `&= ${fmt(f.lo)}`) },
+      { tex: aligned(`\\text{upper} &= ${hiA} ${sym} ${hiB}`, `&= ${fmt(f.hi)}`) },
+      { text: `So the value calculated from $${fmt(a.value)}$ and $${fmt(b.value)}$ could be anywhere in that range.` },
+    ];
+  },
+};
+
+type ValueOp = BoundOp | 'prodDiff' | 'diffProd';
+
+interface BoundValueParams {
+  op: ValueOp;
+  xs: Rounded[];
+  upper: boolean;
+  /** A rectangle, for a product at difficulty 1. */
+  story: boolean;
+}
+
+const VALUE_TEX: Record<ValueOp, string> = { sum: 'x + y', diff: 'x - y', prod: 'xy', prodDiff: 'xy - z', diffProd: '(x - y)z' };
+
+/**
+ * The bound asked for, and the ends it takes, one per input: 'L' or 'U'.
+ * Worked from the shape of the calculation: a quantity subtracted takes the
+ * opposite end to the result.
+ */
+function boundValueFacts({ op, xs, upper }: BoundValueParams): { value: number; ends: ('L' | 'U')[] } {
+  const same = upper ? 'U' : 'L';
+  const other = upper ? 'L' : 'U';
+  const ends: ('L' | 'U')[] = {
+    sum: [same, same],
+    diff: [same, other],
+    prod: [same, same],
+    prodDiff: [same, same, other],
+    diffProd: [same, other, same],
+  }[op] as ('L' | 'U')[];
+  const v = xs.map((x, i) => (ends[i] === 'L' ? lowerOf(x) : upperOf(x)));
+  const value = {
+    sum: () => v[0] + v[1],
+    diff: () => v[0] - v[1],
+    prod: () => v[0] * v[1],
+    prodDiff: () => v[0] * v[1] - v[2],
+    diffProd: () => (v[0] - v[1]) * v[2],
+  }[op]();
+  return { value, ends };
+}
+
+/**
+ * An upper or lower bound of a calculation, typed. Difficulty 2 mixes a
+ * product with a difference across three values, some to two places.
+ */
+const boundValueAsk: Generator<BoundValueParams> = {
+  id: 'numer-bound-value',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const op = rng.pick<ValueOp>(hard ? ['diff', 'prodDiff', 'diffProd', 'prodDiff'] : ['sum', 'diff', 'prod']);
+      const count = op === 'prodDiff' || op === 'diffProd' ? 3 : 2;
+      const shared = rng.pick([0, 1]);
+      const xs = Array.from({ length: count }, () => sampleRounded(rng, hard ? rng.pick([1, 2]) : shared, 1, 20));
+      const upper = rng.chance(0.5);
+      const params = { op, xs, upper, story: !hard && op === 'prod' };
+      const low = boundValueFacts({ ...params, upper: false }).value;
+      const high = boundValueFacts({ ...params, upper: true }).value;
+      if (low <= 0.5 || high > 200 || !terminates(high, 6) || !terminates(low, 6)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { op, xs, upper, story } = params;
+    const names = ['x', 'y', 'z'];
+    const given = xs.map((x, i) => `$${names[i]} = ${fmt(x.value)}$`).join(xs.length === 3 ? ', ' : ' and ');
+    const same = xs.every((x) => x.dp === xs[0].dp);
+    const where = same ? `each ${precisionText(xs[0].dp)}` : xs.map((x, i) => `$${names[i]}$ ${precisionText(x.dp)}`).join(', ');
+    const word = upper ? 'upper' : 'lower';
+    const text = story
+      ? `A rectangle measures $${fmt(xs[0].value)}$ cm by $${fmt(xs[1].value)}$ cm, each ${precisionText(xs[0].dp)}. Find the ${word} bound of its area, in cm$^2$.`
+      : `${given}, ${where}. Find the ${word} bound of $${VALUE_TEX[op]}$.`;
+    return {
+      kind: 'expression',
+      prompt: [say(text)],
+      lead: `\\text{${word} bound} =`,
+      keypad: [],
+      answer: fmt(boundValueFacts(params).value),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { op, xs, upper } = params;
+    const { value, ends } = boundValueFacts(params);
+    const names = ['x', 'y', 'z'];
+    const used = xs.map((x, i) => fmt(ends[i] === 'L' ? lowerOf(x) : upperOf(x)));
+    const shape: Record<ValueOp, string> = {
+      sum: `${used[0]} + ${used[1]}`,
+      diff: `${used[0]} - ${used[1]}`,
+      prod: `${used[0]} \\times ${used[1]}`,
+      prodDiff: `${used[0]} \\times ${used[1]} - ${used[2]}`,
+      diffProd: `(${used[0]} - ${used[1]}) \\times ${used[2]}`,
+    };
+    return [
+      {
+        text: `To make it as ${upper ? 'large' : 'small'} as possible: ${xs
+          .map((_, i) => `$${names[i]}$ at its ${ends[i] === 'L' ? 'lower' : 'upper'} bound, $${used[i]}$`)
+          .join(', ')}. Whatever is taken away goes to the opposite end.`,
+      },
+      { tex: aligned(`&${shape[op]}`, `&= ${fmt(value)}`) },
+    ];
+  },
+};
+
+type EndsShape = 'quot' | 'quotDiff' | 'diffQuot' | 'subQuot';
+
+interface BoundEndsParams {
+  shape: EndsShape;
+  xs: Rounded[];
+  lower: boolean;
+  /** Difficulty 2: which three of the other end choices are offered, as indexes. */
+  others: number[];
+}
+
+const ENDS_TEX: Record<EndsShape, string> = {
+  quot: '\\frac{a}{b}',
+  quotDiff: '\\frac{a}{b - c}',
+  diffQuot: '\\frac{a - b}{c}',
+  subQuot: 'a - \\frac{b}{c}',
+};
+
+/** The ends that give the bound asked for, by the shape of the calculation. */
+function rightEnds({ shape, lower }: Pick<BoundEndsParams, 'shape' | 'lower'>): ('L' | 'U')[] {
+  const lo = lower ? 'L' : 'U';
+  const hi = lower ? 'U' : 'L';
+  // The least a/b: the least top over the greatest bottom. Subtracting
+  // inside a denominator flips it twice.
+  switch (shape) {
+    case 'quot':
+      return [lo, hi];
+    case 'quotDiff':
+      return [lo, hi, lo];
+    case 'diffQuot':
+      return [lo, hi, hi];
+    case 'subQuot':
+      return [lo, hi, lo];
+  }
+}
+
+/** Every way of choosing an end per input, as 'L'/'U' strings, in a fixed order. */
+function allEnds(count: number): ('L' | 'U')[][] {
+  return Array.from({ length: 2 ** count }, (_, mask) =>
+    Array.from({ length: count }, (_, i) => ((mask >> (count - 1 - i)) & 1 ? 'U' : 'L') as 'L' | 'U'),
+  );
+}
+
+function endsTex(shape: EndsShape, xs: Rounded[], ends: ('L' | 'U')[]): string {
+  const v = xs.map((x, i) => fmt(ends[i] === 'L' ? lowerOf(x) : upperOf(x)));
+  switch (shape) {
+    case 'quot':
+      return `\\frac{${v[0]}}{${v[1]}}`;
+    case 'quotDiff':
+      return `\\frac{${v[0]}}{${v[1]} - ${v[2]}}`;
+    case 'diffQuot':
+      return `\\frac{${v[0]} - ${v[1]}}{${v[2]}}`;
+    case 'subQuot':
+      return `${v[0]} - \\frac{${v[1]}}{${v[2]}}`;
+  }
+}
+
+function endsValue(shape: EndsShape, xs: Rounded[], ends: ('L' | 'U')[]): number {
+  const v = xs.map((x, i) => (ends[i] === 'L' ? lowerOf(x) : upperOf(x)));
+  switch (shape) {
+    case 'quot':
+      return v[0] / v[1];
+    case 'quotDiff':
+      return v[0] / (v[1] - v[2]);
+    case 'diffQuot':
+      return (v[0] - v[1]) / v[2];
+    case 'subQuot':
+      return v[0] - v[1] / v[2];
+  }
+}
+
+function endsOffered({ shape, xs, lower, others }: BoundEndsParams) {
+  const right = rightEnds({ shape, lower });
+  const wrong = allEnds(xs.length).filter((ends) => ends.join('') !== right.join(''));
+  const picked = xs.length === 2 ? wrong : others.map((i) => wrong[i]);
+  return [right, ...picked];
+}
+
+/**
+ * Which calculation gives the bound: the ends of each input written in.
+ * Difficulty 1 is a quotient, all four ways; difficulty 2 has three inputs,
+ * with a difference inside the fraction or beside it.
+ */
+const boundEnds: Generator<BoundEndsParams> = {
+  id: 'numer-bound-ends',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const shape = hard ? rng.pick<EndsShape>(['quotDiff', 'diffQuot', 'subQuot']) : 'quot';
+      const count = shape === 'quot' ? 2 : 3;
+      const dp = hard ? rng.pick([1, 2]) : rng.pick([0, 1]);
+      const xs = Array.from({ length: count }, () => sampleRounded(rng, dp, 1, 20));
+      const params = { shape, xs, lower: rng.chance(0.5), others: rng.sample([0, 1, 2, 3, 4, 5, 6], 3) };
+      // Every denominator and difference stays positive at every end.
+      const values = allEnds(count).map((ends) => endsValue(shape, xs, ends));
+      if (values.some((v) => !(v > 0) || !Number.isFinite(v))) continue;
+      if (shape === 'quotDiff' && lowerOf(xs[1]) - upperOf(xs[2]) < 0.5) continue;
+      const offered = endsOffered(params).map((ends) => endsValue(shape, xs, ends));
+      if (offered.slice(1).some((v) => Math.abs(v - offered[0]) < 1e-9)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { shape, xs, lower } = params;
+    const names = ['a', 'b', 'c'];
+    const given = xs.map((x, i) => `$${names[i]} = ${fmt(x.value)}$`).join(', ');
+    return choiceSlide(
+      [say(`${given}, each ${precisionText(xs[0].dp)}. Which calculation gives the ${lower ? 'lower' : 'upper'} bound of $${ENDS_TEX[shape]}$?`)],
+      endsOffered(params).map((ends, i) => ({ tex: endsTex(shape, xs, ends), correct: i === 0 })),
+    );
+  },
+  solution: (params) => {
+    const { shape, xs, lower } = params;
+    const right = rightEnds(params);
+    const names = ['a', 'b', 'c'];
+    const reason: Record<EndsShape, string> = {
+      quot: `A fraction is ${lower ? 'least' : 'greatest'} with the ${lower ? 'smallest' : 'largest'} top and the ${lower ? 'largest' : 'smallest'} bottom.`,
+      quotDiff: `Make the bottom, $b - c$, as ${lower ? 'large' : 'small'} as possible: $b$ ${lower ? 'up' : 'down'} and $c$ ${lower ? 'down' : 'up'}.`,
+      diffQuot: `Make the top, $a - b$, as ${lower ? 'small' : 'large'} as possible, and divide by the ${lower ? 'largest' : 'smallest'} $c$.`,
+      subQuot: `Take away as ${lower ? 'much' : 'little'} as possible: $\\frac{b}{c}$ ${lower ? 'largest' : 'smallest'}, with $b$ ${lower ? 'up' : 'down'} and $c$ ${lower ? 'down' : 'up'}.`,
+    };
+    return [
+      { text: reason[shape] },
+      { text: right.map((end, i) => `$${names[i]}$ at its ${end === 'L' ? 'lower' : 'upper'} bound`).join(', ') + ':' },
+      { tex: aligned(`&${endsTex(shape, xs, right)}`, `&= ${endsValue(shape, xs, right).toFixed(4)}\\ldots`) },
+    ];
+  },
+};
+
+type AccuracyOutcome = 'dp' | 'whole' | 'neither';
+
+interface BoundAccuracyParams {
+  op: 'sum' | 'prod';
+  x: Rounded;
+  y: Rounded;
+}
+
+function accuracyFacts({ op, x, y }: BoundAccuracyParams) {
+  const [xL, xU] = boundsOfValue(x.value, x.dp);
+  const [yL, yU] = boundsOfValue(y.value, y.dp);
+  const lo = op === 'sum' ? xL + yL : xL * yL;
+  const hi = op === 'sum' ? xU + yU : xU * yU;
+  const to1 = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
+  const outcome: AccuracyOutcome = to1(lo) === to1(hi) ? 'dp' : Math.round(lo) === Math.round(hi) ? 'whole' : 'neither';
+  return { xL, xU, yL, yU, lo, hi, outcome };
+}
+
+/** Clear of every rounding boundary at one place and at a whole number, so the rounding is not a coin toss. */
+function clearOfBoundaries(v: number): boolean {
+  const off = (scaled: number) => Math.abs(scaled - Math.floor(scaled) - 0.5);
+  return off(v * 10) > 0.05 && off(v) > 0.05;
+}
+
+/**
+ * The lower bound of a result, then how accurately the result can be quoted:
+ * to one place if both bounds round the same there, else to the nearest whole
+ * number if they agree on that, else not even that.
+ */
+const boundAccuracyFlow: Generator<BoundAccuracyParams> = {
+  id: 'numer-bound-accuracy-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const target = rng.pick<AccuracyOutcome>(['dp', 'whole', 'neither']);
+    for (;;) {
+      const op = rng.pick<BoundAccuracyParams['op']>(hard ? ['prod', 'prod', 'sum'] : ['sum', 'prod']);
+      const dp = target === 'dp' ? 2 : rng.pick([1, 2]);
+      const top = op === 'prod' ? (hard ? 15 : 9) : 40;
+      const x = sampleRounded(rng, dp, 1, top);
+      const y = sampleRounded(rng, dp, 1, top);
+      const f = accuracyFacts({ op, x, y });
+      if (f.outcome !== target || !clearOfBoundaries(f.lo) || !clearOfBoundaries(f.hi)) continue;
+      if (!terminates(f.lo, 6) || !terminates(f.hi, 6)) continue;
+      const params = { op, x, y };
+      if (new Set(lowerLabels(params)).size !== 3) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { op, x, y } = params;
+    const f = accuracyFacts(params);
+    const labels = lowerLabels(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`$x = ${fmt(x.value)}$ and $y = ${fmt(y.value)}$, each ${precisionText(x.dp)}. How accurately can $A$ be quoted?`),
+      ],
+      subject: `A = ${op === 'sum' ? 'x + y' : 'xy'}`,
+      steps: [
+        {
+          id: 'lo',
+          ask: 'Which is the lower bound of $A$?',
+          branches: turned(labels, labels.join()).map((label) => ({ label: `$${label}$`, to: 'agree' })),
+        },
+        {
+          id: 'agree',
+          ask: `The upper bound is $${fmt(f.hi)}$. Do the two bounds round to the same value at 1 decimal place?`,
+          branches: [
+            { label: 'Yes', outcome: 'Then quote $A$ to 1 decimal place: the value both bounds round to.' },
+            { label: 'No', to: 'whole' },
+          ],
+        },
+        {
+          id: 'whole',
+          ask: 'Do they round to the same whole number?',
+          branches: [
+            { label: 'Yes', outcome: 'Then quote $A$ to the nearest whole number, and no more accurately.' },
+            { label: 'No', outcome: 'Then $A$ is not even known to the nearest whole number: quote the bounds instead.' },
+          ],
+        },
+      ],
+      answer: [`$${labels[0]}$`, ...(f.outcome === 'dp' ? ['Yes'] : f.outcome === 'whole' ? ['No', 'Yes'] : ['No', 'No'])],
+    };
+  },
+  solution: (params) => {
+    const { op } = params;
+    const f = accuracyFacts(params);
+    const sym = op === 'sum' ? '+' : '\\times';
+    const to1 = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
+    return [
+      { tex: aligned(`\\text{lower} &= ${fmt(f.xL)} ${sym} ${fmt(f.yL)}`, `&= ${fmt(f.lo)}`) },
+      { tex: aligned(`\\text{upper} &= ${fmt(f.xU)} ${sym} ${fmt(f.yU)}`, `&= ${fmt(f.hi)}`) },
+      { text: `To 1 decimal place they are $${to1(f.lo)}$ and $${to1(f.hi)}$; to the nearest whole number, $${Math.round(f.lo)}$ and $${Math.round(f.hi)}$.` },
+      {
+        text:
+          f.outcome === 'dp'
+            ? `They agree at 1 decimal place, so $A = ${to1(f.lo)}$ to 1 decimal place.`
+            : f.outcome === 'whole'
+              ? `They only agree as whole numbers, so $A = ${Math.round(f.lo)}$ to the nearest whole number.`
+              : 'They do not even agree as whole numbers, so the bounds are the honest answer.',
+      },
+    ];
+  },
+};
+
+/** The lower bound first, then two slips: the value itself, and ends a whole unit out (or mixed). */
+function lowerLabels(params: BoundAccuracyParams): string[] {
+  const { op, x, y } = params;
+  const f = accuracyFacts(params);
+  const combine = (a: number, b: number) => (op === 'sum' ? a + b : a * b);
+  const unit = 10 ** -x.dp;
+  return [fmt(f.lo), fmt(combine(x.value, y.value)), op === 'sum' ? fmt(combine(x.value - unit, y.value - unit)) : fmt(combine(f.xL, f.yU))];
+}
+
+/* ================================================================
+ * Level 3, lesson 4: an error carried through g
+ * ================================================================ */
+
+interface CarryTreeParams {
+  family: FixedFamily;
+  a: number;
+  b: number;
+  /** x_n, rounded to `dp` places. */
+  c: number;
+  dp: number;
+}
+
+/** g at both bounds of x_n, to four places, and how far apart they land. */
+function carryFacts(params: CarryTreeParams) {
+  const scheme = fixedScheme({ ...params, x0: params.c });
+  const [lo, hi] = boundsOfValue(params.c, params.dp);
+  const gLo = written(scheme.g(lo), 4);
+  const gHi = written(scheme.g(hi), 4);
+  if (gLo === undefined || gHi === undefined) return undefined;
+  const width = Math.abs(Number(gHi) - Number(gLo)).toFixed(4);
+  return { scheme, lo, hi, gLo, gHi, width };
+}
+
+/**
+ * x_n known only to lie between its bounds: g at each bound brackets x_{n+1},
+ * and the bracket comes out narrower than it went in. Difficulty 2 adds
+ * g(x) = a/(x + b), which is decreasing, so the upper bound of x_n gives the
+ * lower bound of x_{n+1}.
+ */
+const carryTree: Generator<CarryTreeParams> = {
+  id: 'numer-carry-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const family = rng.pick<FixedFamily>(hard ? ['recip', 'recip', 'cbrt'] : ['sqrt', 'cbrt']);
+      const a = family === 'recip' ? rng.int(2, 12) : rng.int(1, 9);
+      const b = family === 'recip' ? rng.int(1, 5) : rng.int(1, 12);
+      const root = limitOf(fixedScheme({ family, a, b, x0: 1, dp: 2 }).g, 1);
+      if (root === undefined || root < 0.5) continue;
+      const dp = hard ? rng.pick([1, 2]) : 2;
+      const c = Number(root.toFixed(dp));
+      if (terminates(c, dp - 1)) continue;
+      const params = { family, a, b, c, dp };
+      const facts = carryFacts(params);
+      if (!facts || facts.width === '0.0000') continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const f = carryFacts(params)!;
+    const { c, dp } = params;
+    const g = f.scheme.g;
+    const answer = [fmt(f.lo), fmt(f.hi), f.gLo, f.gHi, f.width];
+    const unit = 10 ** -dp;
+    const slips = [
+      written(g(c), 4),
+      written(g(c - unit), 4),
+      written(g(c + unit), 4),
+      (2 * halfUnit(dp)).toFixed(4),
+      (Number(f.gLo) + Number(f.gHi)).toFixed(4),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`$x_n = ${fmt(c)}$ ${precisionText(dp)}, and the next value comes from the scheme below.`),
+        show(f.scheme.schemeTex),
+        say('Top row: the lower and upper bounds of $x_n$. Middle: the scheme at each, to 4 decimal places. Bottom: how far apart those two are.'),
+      ],
+      expression: 'x_{n+1} \\text{ from the bounds of } x_n',
+      nodes: [
+        { id: 'lo', from: [] },
+        { id: 'hi', from: [] },
+        { id: 'gLo', from: ['lo'] },
+        { id: 'gHi', from: ['hi'] },
+        { id: 'width', from: ['gLo', 'gHi'] },
+      ],
+      bank: numberBank(
+        answer,
+        slips,
+        [1, 2, 3].flatMap((k) => [f.gLo, f.gHi].flatMap((token) => [(Number(token) + k * 1e-4).toFixed(4), (Number(token) - k * 1e-4).toFixed(4)])),
+      ),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const f = carryFacts(params)!;
+    const decreasing = Number(f.gHi) < Number(f.gLo);
+    return [
+      { text: `$${fmt(params.c)}$ ${precisionText(params.dp)} means $${fmt(f.lo)} \\le x_n < ${fmt(f.hi)}$, a gap of $${fmt(2 * halfUnit(params.dp))}$.` },
+      { tex: aligned(`g(${fmt(f.lo)}) &= ${f.gLo}`, `g(${fmt(f.hi)}) &= ${f.gHi}`) },
+      {
+        text: decreasing
+          ? `$g$ is decreasing, so the upper bound of $x_n$ gives the lower bound of $x_{n+1}$: $${f.gHi} \\le x_{n+1} \\le ${f.gLo}$.`
+          : `$g$ is increasing, so $${f.gLo} \\le x_{n+1} \\le ${f.gHi}$.`,
+      },
+      { text: `They are $${f.width}$ apart, narrower than the gap in $x_n$: near the root $|g'| < 1$ squeezes the uncertainty.` },
+    ];
+  },
+};
+
+type ExactFamily = 'square' | 'recip' | 'fall';
+
+interface ExactSchemeParams {
+  family: ExactFamily;
+  /** The root the iteration is near: a whole number. */
+  alpha: number;
+  /** square: the other root; recip, fall: b. */
+  m: number;
+}
+
+/**
+ * Schemes with a whole-number root and a gradient there that is an exact
+ * fraction: (x^2 + pq)/(p + q) with roots p and q, c/(x + b), and
+ * (c - x^2)/b.
+ */
+function exactScheme({ family, alpha, m }: ExactSchemeParams) {
+  switch (family) {
+    case 'square': {
+      const s = alpha + m;
+      const pq = alpha * m;
+      return {
+        g: (x: number) => (x * x + pq) / s,
+        tex: `\\frac{x^{2} + ${pq}}{${s}}`,
+        dTex: `\\frac{2x}{${s}}`,
+        factor: (2 * alpha) / s,
+      };
+    }
+    case 'recip': {
+      const c = alpha * (alpha + m);
+      return {
+        g: (x: number) => c / (x + m),
+        tex: `\\frac{${c}}{x + ${m}}`,
+        dTex: `-\\frac{${c}}{(x + ${m})^{2}}`,
+        factor: -alpha / (alpha + m),
+      };
+    }
+    case 'fall': {
+      const c = alpha * alpha + alpha * m;
+      return {
+        g: (x: number) => (c - x * x) / m,
+        tex: `\\frac{${c} - x^{2}}{${m}}`,
+        dTex: `-\\frac{2x}{${m}}`,
+        factor: (-2 * alpha) / m,
+      };
+    }
+  }
+}
+
+/** A scheme whose gradient at the root is a short decimal, shrinking or growing errors as asked. */
+function sampleExactScheme(rng: Rng, families: ExactFamily[], grow: boolean | undefined): ExactSchemeParams {
+  for (;;) {
+    const family = rng.pick(families);
+    const alpha = rng.int(1, 6);
+    const m = family === 'square' ? rng.int(1, 12) : rng.int(1, 16);
+    if (family === 'square' && m === alpha) continue;
+    // For (x^2 + pq)/(p + q) the smaller root attracts and the larger repels.
+    if (family === 'square' && grow !== undefined && grow !== alpha > m) continue;
+    const params = { family, alpha, m };
+    const { factor } = exactScheme(params);
+    const size = Math.abs(factor);
+    if (!terminates(factor, 3) || size < 0.1 || (size > 0.9 && size < 1.2) || size > 3) continue;
+    if (grow !== undefined && grow !== size > 1) continue;
+    return params;
+  }
+}
+
+const DELTAS = [0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.2];
+
+interface CarryErrorParams extends ExactSchemeParams {
+  delta: number;
+  given: boolean;
+}
+
+/**
+ * The error one step on: about g'(α) times the error before. Difficulty 1
+ * gives g'(x); difficulty 2 leaves the differentiating to the learner and has
+ * decreasing schemes, where the error changes sign.
+ */
+const carryError: Generator<CarryErrorParams> = {
+  id: 'numer-carry-error',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const scheme = sampleExactScheme(rng, hard ? ['square', 'recip', 'recip'] : ['square'], false);
+      const delta = rng.pick(DELTAS) * (hard ? rng.sign() : 1);
+      if (!terminates(exactScheme(scheme).factor * delta, 6)) continue;
+      return { ...scheme, delta, given: !hard };
+    }
+  },
+  render: (params): Slide => {
+    const { alpha, delta, given } = params;
+    const s = exactScheme(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `$x_{n+1} = g(x_n)$ is converging to $\\alpha = ${alpha}$, with $g(x) = ${s.tex}$${given ? ` and $g'(x) = ${s.dTex}$` : ''}. It has reached $x_n = ${fmt(alpha + delta)}$, an error of $${fmt(delta)}$. About what is the error in $x_{n+1}$?`,
+        ),
+      ],
+      lead: '\\text{error in } x_{n+1} \\approx',
+      keypad: [],
+      answer: fmt(s.factor * delta),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { alpha, delta } = params;
+    const s = exactScheme(params);
+    return [
+      { text: "Near the root, one step multiplies the error by about $g'(\\alpha)$ (level 1, When Iteration Fails)." },
+      { tex: aligned(`g'(x) &= ${s.dTex}`, `g'(${alpha}) &= ${fmt(s.factor)}`) },
+      { tex: `${fmt(s.factor)} \\times ${paren(delta)} = ${fmt(s.factor * delta)}` },
+      ...(s.factor < 0 ? [{ text: 'The gradient is negative, so the error changes sign: $x_{n+1}$ lands on the other side of $\\alpha$.' }] : []),
+    ];
+  },
+};
+
+interface CarrySliderParams {
+  family: 'square' | 'recip';
+  a: number;
+  b: number;
+  /** x_n to the nearest whole number. */
+  c: number;
+  upper: boolean;
+}
+
+const carrySliderG = ({ family, a, b }: CarrySliderParams) =>
+  family === 'square' ? (x: number) => (x * x + b) / a : (x: number) => a / (x + b);
+
+function carrySliderTex({ family, a, b }: CarrySliderParams): string {
+  return family === 'square' ? `\\frac{x^{2} + ${b}}{${a}}` : `\\frac{${a}}{x + ${b}}`;
+}
+
+function carrySliderFacts(params: CarrySliderParams) {
+  const g = carrySliderG(params);
+  const lo = params.c - 0.5;
+  const hi = params.c + 0.5;
+  const values = [g(lo), g(hi)];
+  const answer = params.upper ? Math.max(...values) : Math.min(...values);
+  return { g, lo, hi, gLo: values[0], gHi: values[1], answer, top: Math.ceil(Math.max(...values) + 1) };
+}
+
+/**
+ * Slide to the upper (or lower) bound of x_{n+1}, with the curve drawn and the
+ * bounds of x_n marked on it. For the decreasing a/(x + b) at difficulty 2 the
+ * upper bound comes from the lower end.
+ */
+const carrySlider: Generator<CarrySliderParams> = {
+  id: 'numer-carry-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const family = hard ? rng.pick<CarrySliderParams['family']>(['recip', 'recip', 'square']) : 'square';
+      const a = family === 'square' ? rng.pick([3, 5, 5, 7, 9, 10]) : rng.int(2, 15);
+      const b = family === 'square' ? rng.int(1, 12) : rng.int(1, 5);
+      const c = rng.int(1, 4);
+      const params = { family, a, b, c, upper: hard ? rng.chance(0.5) : true };
+      const f = carrySliderFacts(params);
+      if (!terminates(f.answer * 20, 0) || Math.abs(f.gHi - f.gLo) < 0.3) continue;
+      if (Math.min(f.gLo, f.gHi) < 0.3 || Math.max(f.gLo, f.gHi) > 8) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const f = carrySliderFacts(params);
+    const word = params.upper ? 'upper' : 'lower';
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$x_n = ${params.c}$ to the nearest whole number, and $x_{n+1} = g(x_n)$ with $g(x) = ${carrySliderTex(params)}$, drawn with the bounds of $x_n$ dashed. Slide the line to the ${word} bound of $x_{n+1}$.`,
+        ),
+      ],
+      min: 0,
+      max: f.top,
+      step: 0.05,
+      answer: f.answer,
+      readout: `\\text{${word} bound} = {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: params.c + 2,
+          yMin: 0,
+          yMax: f.top,
+          curves: [{ f: clamped(f.g, 3 * f.top) }],
+          verticals: [{ x: f.lo }, { x: f.hi }],
+          label: `The curve y = g(x) with dashed lines at x = ${fmt(f.lo)} and x = ${fmt(f.hi)}`,
+        }),
+        ...markerWindow(0, f.top, 'y'),
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const f = carrySliderFacts(params);
+    const decreasing = f.gHi < f.gLo;
+    return [
+      { text: `$x_n$ lies from $${fmt(f.lo)}$ to $${fmt(f.hi)}$.` },
+      { tex: aligned(`g(${fmt(f.lo)}) &= ${fmt(f.gLo)}`, `g(${fmt(f.hi)}) &= ${fmt(f.gHi)}`) },
+      {
+        text: `$g$ is ${decreasing ? 'decreasing' : 'increasing'}, so the ${params.upper ? 'upper' : 'lower'} bound of $x_{n+1}$ is $${fmt(f.answer)}$, from the ${
+          (params.upper !== decreasing) ? 'upper' : 'lower'
+        } bound of $x_n$.`,
+      },
+    ];
+  },
+};
+
+interface ShrinkFlowParams extends ExactSchemeParams {
+  delta: number;
+  given: boolean;
+}
+
+/** The error one step on, then the slips: the sign lost, and dividing by g'(α) rather than multiplying. */
+function shrinkLabels({ delta, ...scheme }: ShrinkFlowParams): string[] {
+  const { factor } = exactScheme(scheme);
+  const right = fmt(factor * delta);
+  const divided = terminates(delta / factor, 6) ? fmt(delta / factor) : fmt(factor + delta);
+  const out = [right, flipped(right), divided];
+  return new Set(out).size === 3 ? out : [right, flipped(right), fmt(2 * factor * delta)];
+}
+
+/**
+ * The error one step on, then whether it is smaller than before: whether this
+ * step closed in on the root or moved away from it.
+ */
+const shrinkFlow: Generator<ShrinkFlowParams> = {
+  id: 'numer-shrink-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const grow = rng.chance(0.5);
+    for (;;) {
+      const scheme = sampleExactScheme(rng, hard ? ['square', 'fall', 'recip'] : ['square'], grow);
+      const delta = rng.pick(DELTAS) * rng.sign();
+      if (!terminates(exactScheme(scheme).factor * delta, 6)) continue;
+      return { ...scheme, delta, given: !hard };
+    }
+  },
+  render: (params): Slide => {
+    const { alpha, delta, given } = params;
+    const s = exactScheme(params);
+    const labels = shrinkLabels(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `$x_{n+1} = g(x_n)$ has a root at $\\alpha = ${alpha}$${given ? `, and $g'(x) = ${s.dTex}$` : ''}. Does the next step close in on it?`,
+        ),
+      ],
+      subject: `g(x) = ${s.tex}`,
+      steps: [
+        {
+          id: 'err',
+          ask: `$x_n = ${fmt(alpha + delta)}$ is out by $${fmt(delta)}$. About what is the error in $x_{n+1}$?`,
+          branches: turned(labels, labels.join()).map((label) => ({ label: `$${label}$`, to: 'size' })),
+        },
+        {
+          id: 'size',
+          ask: `Is that smaller in size than $${fmt(Math.abs(delta))}$?`,
+          branches: [
+            { label: 'Yes', outcome: 'The error shrinks: this step closed in on $\\alpha$.' },
+            { label: 'No', outcome: 'The error grows: this step moved away from $\\alpha$.' },
+          ],
+        },
+      ],
+      answer: [`$${labels[0]}$`, Math.abs(s.factor) < 1 ? 'Yes' : 'No'],
+    };
+  },
+  solution: (params) => {
+    const { alpha, delta } = params;
+    const s = exactScheme(params);
+    return [
+      { tex: aligned(`g'(x) &= ${s.dTex}`, `g'(${alpha}) &= ${fmt(s.factor)}`) },
+      { text: 'The error in $x_{n+1}$ is about', tex: `${fmt(s.factor)} \\times ${paren(delta)} = ${fmt(s.factor * delta)}` },
+      {
+        text:
+          Math.abs(s.factor) < 1
+            ? `$|g'(\\alpha)| < 1$, so the error shrinks each step.`
+            : `$|g'(\\alpha)| > 1$, so the error grows each step, however close $x_n$ starts.`,
+      },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 5: the error after k steps
+ * ================================================================ */
+
+interface KParams {
+  /** |g'(α)|: each step multiplies the error by about this. */
+  r: number;
+  /** The most x_0 can be out by. */
+  delta: number;
+  /** The error to get below. */
+  eps: number;
+}
+
+const K_RATES = [0.1, 0.2, 0.25, 0.4, 0.5];
+const K_RATES_HARD = [0.3, 0.35, 0.45, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8];
+const K_DELTAS = [0.1, 0.2, 0.5, 1, 2];
+const K_DELTAS_HARD = [0.2, 0.25, 0.5, 1, 2];
+const K_EPS = [0.01, 0.005, 0.001, 0.0005, 0.0001];
+/** Half a unit in the 2nd, 3rd or 4th place: what "correct to n places" asks. */
+const K_EPS_PLACES = [0.005, 0.0005, 0.00005];
+
+/** The quotient of logarithms k has to exceed. */
+const kQuotient = ({ r, delta, eps }: KParams) => Math.log(eps / delta) / Math.log(r);
+
+/**
+ * Whether the count is safe to ask: k well clear of a whole number, so that
+ * r^k δ is not within a whisker of ε, and ε / δ a short decimal.
+ */
+function fairK(params: KParams): boolean {
+  const q = kQuotient(params);
+  const part = q - Math.floor(q);
+  return q > 1 && q < 60 && part > 0.1 && part < 0.9 && terminates(params.eps / params.delta, 6);
+}
+
+/** The first k with r^k δ < ε. */
+const kOf = (params: KParams) => Math.ceil(kQuotient(params));
+
+function sampleK(rng: Rng, difficulty: number): KParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const params = {
+      r: rng.pick(hard ? K_RATES_HARD : K_RATES),
+      delta: rng.pick(hard ? K_DELTAS_HARD : K_DELTAS),
+      eps: rng.pick(hard ? K_EPS_PLACES : K_EPS),
+    };
+    if (fairK(params)) return params;
+  }
+}
+
+/** ε in words: plain at difficulty 1, as places of accuracy at difficulty 2. */
+function epsText(eps: number): string {
+  const places = K_EPS_PLACES.indexOf(eps);
+  return places >= 0 ? `below $${fmt(eps)}$, enough for ${places + 2} decimal places` : `below $${fmt(eps)}$`;
+}
+
+interface KCountParams extends KParams {
+  /** Difficulty 2: r is |g'(α)| for this scheme, to be worked out. */
+  scheme?: ExactSchemeParams;
+}
+
+/**
+ * How many steps until the error is certainly small enough: the first k with
+ * r^k δ < ε. At difficulty 2, r has to be found as |g'(α)| first.
+ */
+const kCount: Generator<KCountParams> = {
+  id: 'numer-k-count',
+  sample: (rng, difficulty) => {
+    if (difficulty === 1) return sampleK(rng, 1);
+    for (;;) {
+      const scheme = sampleExactScheme(rng, ['square', 'recip'], false);
+      const r = Math.abs(exactScheme(scheme).factor);
+      const params = { r, delta: rng.pick(K_DELTAS_HARD), eps: rng.pick(K_EPS_PLACES), scheme };
+      if (r <= 0.85 && fairK(params)) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { r, delta, eps, scheme } = params;
+    const rate = scheme
+      ? `$x_{n+1} = g(x_n)$ with $g(x) = ${exactScheme(scheme).tex}$ is converging to $\\alpha = ${scheme.alpha}$, so each step multiplies the error by about $|g'(\\alpha)|$.`
+      : `Near the root, each step of an iteration multiplies the error by about $${fmt(r)}$.`;
+    return {
+      kind: 'expression',
+      prompt: [say(`${rate} $x_0$ is out by at most $${fmt(delta)}$. After how many steps is the error first certain to be ${epsText(eps)}?`)],
+      lead: 'k =',
+      keypad: [],
+      answer: String(kOf(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { r, delta, eps, scheme } = params;
+    const k = kOf(params);
+    const steps: SolutionStep[] = [];
+    if (scheme) {
+      const s = exactScheme(scheme);
+      steps.push({ tex: aligned(`g'(x) &= ${s.dTex}`, `|g'(${scheme.alpha})| &= ${fmt(r)}`) });
+    }
+    steps.push(
+      { text: `After $k$ steps the error is at most $${fmt(r)}^{k} \\times ${fmt(delta)}$, which must be less than $${fmt(eps)}$:` },
+      { tex: `k > \\frac{\\ln ${fmt(eps / delta)}}{\\ln ${fmt(r)}} = ${kQuotient(params).toFixed(2)}` },
+      { text: `Dividing by $\\ln ${fmt(r)}$, which is negative, turns the inequality round. The first whole number past it is $k = ${k}$.` },
+      { text: 'Check:', tex: aligned(`&${fmt(r)}^{${k}} \\times ${fmt(delta)}`, `&\\approx ${(r ** k * delta).toPrecision(2)} < ${fmt(eps)}`) },
+    );
+    return steps;
+  },
+};
+
+interface KTilesParams extends KParams {
+  logs: boolean;
+}
+
+/**
+ * The condition on k, built from tiles: r^k δ < ε at difficulty 1, and with
+ * logarithms taken at difficulty 2, where dividing by ln r turns the
+ * inequality round.
+ */
+const kTiles: Generator<KTilesParams> = {
+  id: 'numer-k-tiles',
+  sample: (rng, difficulty) => ({ ...sampleK(rng, difficulty), logs: difficulty > 1 }),
+  render: (params): Slide => {
+    const { r, delta, eps, logs } = params;
+    const answer = logs ? [fmt(eps / delta), fmt(r)] : [fmt(r), fmt(delta), fmt(eps)];
+    const distractors = logs
+      ? [fmt(delta / eps), fmt(eps), fmt(delta), fmt(1 - r), fmt(r * delta)]
+      : [fmt(eps / delta), fmt(1 - r), fmt(r * delta), fmt(delta / 10)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `Each step multiplies the error by about $${fmt(r)}$, and $x_0$ is out by at most $${fmt(delta)}$. ${
+            logs ? 'Take logarithms to build' : 'Build'
+          } the condition for the error after $k$ steps to be ${epsText(eps)}.`,
+        ),
+      ],
+      template: logs ? 'k > \\ln({0}) \\div \\ln({1})' : '({0})^k \\times {1} < {2}',
+      bank: fillBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { r, delta, eps } = params;
+    return [
+      { tex: `${fmt(r)}^{k} \\times ${fmt(delta)} < ${fmt(eps)}` },
+      { tex: `${fmt(r)}^{k} < ${fmt(eps / delta)}` },
+      { tex: `k \\ln ${fmt(r)} < \\ln ${fmt(eps / delta)}` },
+      { text: `$\\ln ${fmt(r)}$ is negative, so dividing by it turns the inequality round:` },
+      { tex: aligned(`k &> \\ln ${fmt(eps / delta)} \\div \\ln ${fmt(r)}`, `&= ${kQuotient(params).toFixed(2)}`) },
+    ];
+  },
+};
+
+/** Both logarithms to 3 places and the quotient to 2, or undefined when rounding could go either way. */
+function kLogFacts(params: KParams) {
+  const ratio = params.eps / params.delta;
+  const top = written(Math.log(ratio), 3);
+  const bottom = written(Math.log(params.r), 3);
+  const quotient = written(kQuotient(params), 2);
+  if (!top || !bottom || !quotient) return undefined;
+  // A learner dividing the rounded logarithms has to land on the same answer.
+  if (written(Number(top) / Number(bottom), 2) !== quotient) return undefined;
+  return { ratio, top, bottom, quotient };
+}
+
+/**
+ * The quotient worked along a line: each logarithm to 3 decimal places, then
+ * one divided by the other.
+ */
+const kLogsSteps: Generator<KParams> = {
+  id: 'numer-k-logs-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleK(rng, difficulty);
+      if (kLogFacts(params)) return params;
+    }
+  },
+  render: (params): Slide => {
+    const f = kLogFacts(params)!;
+    const { r, delta, eps } = params;
+    const slips = (...tokens: (string | undefined)[]) => tokens.filter((t): t is string => t !== undefined);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `The error after $k$ steps is at most $${fmt(r)}^{k} \\times ${fmt(delta)}$, and it must be below $${fmt(eps)}$. So $k$ must be greater than the quotient below. Work it out, each logarithm to 3 decimal places: tap the part you would do next, then choose what it comes to.`,
+        ),
+      ],
+      start: [`\\ln(${fmt(f.ratio)})`, '\\div', `\\ln(${fmt(r)})`],
+      reductions: [
+        { span: [0, 1], value: f.top, bank: stepBank(f.top, ...slips(flipped(f.top), written(Math.log10(f.ratio), 3), written(Math.log(eps), 3))) },
+        { span: [2, 3], value: f.bottom, bank: stepBank(f.bottom, ...slips(flipped(f.bottom), written(Math.log10(r), 3), written(Math.log(1 - r), 3))) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: f.quotient,
+          bank: stepBank(f.quotient, ...slips(flipped(f.quotient), written(Number(f.bottom) / Number(f.top), 2), written(Number(f.top) - Number(f.bottom), 2))),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const f = kLogFacts(params)!;
+    return [
+      { tex: aligned(`\\ln ${fmt(f.ratio)} &= ${f.top}`, `\\ln ${fmt(params.r)} &= ${f.bottom}`) },
+      { tex: `${f.top} \\div ${paren(f.bottom)} = ${f.quotient}` },
+      { text: `Two negatives make a positive. $k$ must be more than $${f.quotient}$, so $k = ${kOf(params)}$ steps.` },
+    ];
+  },
+};
+
+interface ErrorIterateParams {
+  family: FixedFamily;
+  a: number;
+  b: number;
+  x0: number;
+  dp: number;
+}
+
+/** The table, the tenth the root is in and the rate the errors shrink at, or undefined for a draw that is not fair. */
+function workErrorIterate(params: ErrorIterateParams) {
+  const scheme = fixedScheme(params);
+  const { g, f } = scheme;
+  const { x0, dp } = params;
+  const values = run(g, x0, ITERATES);
+  if (!values) return undefined;
+  const tokens = values.slice(1).map((x) => written(x, dp));
+  if (tokens.some((token) => token === undefined)) return undefined;
+  const rows = tokens as string[];
+  const carried = carriedRounded(g, x0, dp);
+  if (!carried || carried.some((token, idx) => token !== rows[idx])) return undefined;
+  if (rows[0] === x0.toFixed(dp)) return undefined;
+  const root = limitOf(g, x0);
+  if (root === undefined || Math.abs(f(root)) > 1e-9) return undefined;
+  const tenth = Math.floor(root * 10 + 1e-9);
+  const offset = root * 10 - tenth;
+  if (offset < 0.1 || offset > 0.9) return undefined;
+  const lo = tenth / 10;
+  const hi = (tenth + 1) / 10;
+  if (!(f(lo) * f(hi) < 0) || Math.abs(f(lo)) < 0.001 || Math.abs(f(hi)) < 0.001) return undefined;
+  // The table starts outside the tenth and ends inside it: the closing in is the point.
+  const tenthOfRow = (token: string) => Math.floor(Number(token) * 10 + 1e-9);
+  if (tenthOfRow(rows[ITERATES - 1]) !== tenth || tenthOfRow(rows[0]) === tenth) return undefined;
+  const rate = Math.abs(slope(g, root));
+  if (rate < 0.1 || rate > 0.8) return undefined;
+  const firstTruncated = values
+    .slice(1)
+    .map((x) => truncated(x, dp))
+    .find((token, idx) => token !== rows[idx]);
+  const numeric = iterateBank(rows, [
+    firstTruncated,
+    roundedWrongWay(values[1], dp),
+    roundedWrongWay(values[2], dp),
+    written(fixedScheme({ ...params, b: -params.b }).g(x0), dp),
+  ]);
+  if (!numeric) return undefined;
+  const neighbour = bracketTex(offset < 0.5 ? tenth - 1 : tenth + 1);
+  return {
+    scheme,
+    values,
+    rows,
+    tenth,
+    rate,
+    answer: [...rows, bracketTex(tenth)],
+    bank: sortTokens([...numeric, bracketTex(tenth), neighbour]),
+  };
+}
+
+/**
+ * A table whose errors visibly shrink by about |g'(α)| a row, closing into
+ * the tenth that the sign change then confirms.
+ */
+const errorIterate: Generator<ErrorIterateParams> = {
+  id: 'numer-error-iterate',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const dp = hard ? 3 : 2;
+    for (let attempt = 0; attempt < 4000; attempt += 1) {
+      const family = rng.pick<FixedFamily>(hard ? ['cbrt', 'recip', 'sqrt'] : ['sqrt', 'cbrt']);
+      const a = family === 'recip' ? rng.int(2, 20) : rng.int(1, 9);
+      const b = family === 'recip' ? rng.int(1, 6) : rng.int(1, 30);
+      const guess = limitOf(fixedScheme({ family, a, b, x0: 1, dp }).g, 1);
+      if (guess === undefined) continue;
+      const x0 = Math.max(0, Math.round(guess) + rng.pick([-2, -1, 1, 2]));
+      const params = { family, a, b, x0, dp };
+      if (workErrorIterate(params)) return params;
+    }
+    throw new Error('numer-error-iterate: no fair draw');
+  },
+  render: (params): Slide => {
+    const work = workErrorIterate(params)!;
+    return {
+      kind: 'iterate',
+      prompt: [
+        say(
+          `Starting from $x_0 = ${params.x0}$, this iteration converges to a root $\\alpha$ of $${work.scheme.equationTex} = 0$. Near $\\alpha$, $|g'(x)| \\approx ${work.rate.toFixed(2)}$, so each error is about $${work.rate.toFixed(2)}$ times the one before.`,
+        ),
+        show(work.scheme.schemeTex),
+        say(`Keep full accuracy between steps and write each $x_n$ to ${params.dp} decimal places, then the two tenths $\\alpha$ lies between.`),
+      ],
+      start: String(params.x0),
+      conclusion: 'bracket',
+      bank: work.bank,
+      answer: work.answer,
+    };
+  },
+  solution: (params) => {
+    const work = workErrorIterate(params)!;
+    const { values, tenth } = work;
+    const gaps = values.slice(1).map((x, i) => Math.abs(x - values[i]));
+    const lo = (tenth / 10).toFixed(1);
+    const hi = ((tenth + 1) / 10).toFixed(1);
+    const f = work.scheme.f;
+    return [
+      { text: 'Put each value back into the scheme, keeping every digit and rounding only what you write down.', tex: work.scheme.schemeTex },
+      ...rowSteps(values, work.rows),
+      {
+        text: `The steps between rows are about $${gaps.map((gap) => gap.toFixed(params.dp + 1)).join('$, $')}$: each roughly $${work.rate.toFixed(2)}$ times the last, as the errors are.`,
+      },
+      { tex: aligned(`f(${lo}) &= ${f(Number(lo)).toFixed(3)}`, `f(${hi}) &= ${f(Number(hi)).toFixed(3)}`) },
+      { text: `The sign changes, so $${bracketTex(tenth)}$.` },
+    ];
+  },
+};
+
 export const numericalMethodsGenerators = [
   signTree,
   signInterval,
@@ -3592,4 +5370,24 @@ export const numericalMethodsGenerators = [
   concavityFlow,
   errorValue,
   meanHeightSlider,
+  absError,
+  absSizeSteps,
+  closestChoice,
+  overUnderFlow,
+  relError,
+  relTiles,
+  relSlider,
+  relCompare,
+  boundTree,
+  boundValueAsk,
+  boundEnds,
+  boundAccuracyFlow,
+  carryTree,
+  carryError,
+  carrySlider,
+  shrinkFlow,
+  kCount,
+  kTiles,
+  kLogsSteps,
+  errorIterate,
 ];

@@ -5,11 +5,12 @@ Written by C5.
 Has: Sequences (position-to-term rules, arithmetic and geometric nth terms,
 differences and quadratic sequences, recurrence relations); Series (sigma
 notation, arithmetic and geometric sums, convergence and the sum to infinity,
-series in context).
+series in context); Sequences and their Limits (increasing, decreasing and
+periodic sequences, the limit of a convergent recurrence found from L = f(L),
+sequences that oscillate or diverge, limits of position-to-term rules, and how
+fast the gap to a limit closes).
 
-Needs: Sequences and their Limits (increasing, decreasing and periodic
-sequences, the limit of a convergent recurrence found from L = f(L), and
-sequences that oscillate or diverge); Sums of Powers and the Method of
+Needs: Sums of Powers and the Method of
 Differences (the standard results for Σr, Σr² and Σr³, sums built from them,
 and telescoping sums such as Σ1/(r(r + 1)) once C9 has landed); Proof by
 Induction for Series (proving a sum formula and a closed form for a

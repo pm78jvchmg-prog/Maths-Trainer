@@ -20,6 +20,11 @@
  * means, the graphs as reflections, what happens inside another function, and
  * how the calculator's one angle leads to every solution.
  *
+ * Level 7 puts the waves to work on real situations: building d + a sin(bt)
+ * from a description, reading one back, choosing the function from where the
+ * situation starts, solving for when it reaches a value, and fitting a model
+ * to readings.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -175,6 +180,15 @@ function tangentSvg(): string {
     `</svg>`,
   ].join('');
 }
+
+/**
+ * d + a sin(bt) or d + a cos(bt) with bt in degrees, the way level 7 writes a
+ * model. A negative amplitude turns it upside down.
+ */
+const degreeWave =
+  (d: number, a: number, fn: 'sin' | 'cos', b: number) =>
+  (t: number): number =>
+    d + a * Math[fn]((b * t * Math.PI) / 180);
 
 /** A degree-measured curve, for the tangent-level graphs. */
 const inDegrees = (f: (x: number) => number) => (x: number) => f((x * Math.PI) / 180);
@@ -2083,6 +2097,327 @@ export const trigonometricFunctions: Course = {
         ask('trig-inv-general-tiles', 2),
         ask('trig-inv-second-solution+choice', 2),
         ask('trig-inv-general-flow', 2),
+      ],
+    },
+    {
+      id: 'tf-l7',
+      title: 'Modelling with Trigonometric Functions',
+      lessons: [
+        {
+          id: 'tf-l7-build',
+          title: 'Building a Model',
+          slides: [
+            teach(
+              prose(
+                'The depth of water at a harbour rises and falls with the tide, from $3$ m up to $9$ m and back every $12$ hours. A **model** is a formula for the depth at any time: here $h$ metres, $t$ hours after midnight.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 24,
+                curves: [{ f: degreeWave(6, 3, 'sin', 30), accent: true }],
+                horizontals: [6],
+                yMin: -0.5,
+                yMax: 10.5,
+                label: 'The depth of the tide over 24 hours, swinging between 3 and 9 metres about a dashed midline at 6',
+              }),
+              prose(
+                'Build it one number at a time. The midline is halfway between the extremes, $\\frac{9 + 3}{2} = 6$, and the amplitude is how far each is from it, $\\frac{9 - 3}{2} = 3$.',
+              ),
+              prose(
+                'One cycle, $12$ hours, is a full turn of $360^{\\circ}$, so the bracket turns $\\frac{360}{12} = 30$ degrees an hour. At midnight the water is on its midline and rising, which is how sine starts:',
+              ),
+              maths('h = 6 + 3\\sin(30t)'),
+            ),
+            ask('trig-model-extremes-tree'),
+            ask('trig-model-b'),
+            ask('trig-model-build'),
+            teach(
+              prose(
+                'The period is not always handed over as a period. Two tides a day is $2$ cycles in $24$ hours, one every $12$. Six hours from high water to low is half a cycle, so a whole one is $12$.',
+              ),
+              prose('Once the period is known, $b$ follows from one rule, since one cycle is one full turn:'),
+              maths('b \\times \\text{period} = 360'),
+              prose(
+                'A bigger $b$ means a faster cycle: $\\sin(60t)$ repeats every $6$ hours and $\\sin(15t)$ every $24$.',
+              ),
+            ),
+            ask('trig-model-b+choice', 2),
+            ask('trig-model-build+choice', 2),
+            ask('trig-model-extremes-tree', 2),
+            teach(
+              prose(
+                'A model can be read backwards as a check. Sine runs from $-1$ to $1$, so $h = 6 + 3\\sin(30t)$ runs from $6 - 3 = 3$ up to $6 + 3 = 9$: exactly the tide described.',
+              ),
+              prose(
+                'If the check does not land back on the numbers you started from, the midline and the amplitude have been swapped, or the whole swing has been used as the amplitude.',
+              ),
+            ),
+            ask('trig-model-read'),
+            ask('trig-model-read+choice', 2),
+          ],
+          skillCheck: [
+            ask('trig-model-build', 2),
+            ask('trig-model-b', 2),
+            ask('trig-model-extremes-tree', 2),
+          ],
+        },
+        {
+          id: 'tf-l7-read',
+          title: 'Reading a Model',
+          slides: [
+            teach(
+              prose(
+                'Reading a model turns its numbers back into the situation. The temperature in a greenhouse is $T = 18 + 5\\sin(15t)$ degrees Celsius, $t$ hours after midnight.',
+              ),
+              prose(
+                'Sine runs from $-1$ to $1$, so $T$ runs from $18 - 5 = 13$ up to $18 + 5 = 23$: the least and the greatest temperatures. The bracket turns $15^{\\circ}$ an hour, so one cycle takes $\\frac{360}{15} = 24$ hours, one day.',
+              ),
+              prose(
+                'A minus sign in front of the amplitude turns the curve upside down but does not change how far it swings: $18 - 5\\cos(15t)$ has the same least and greatest.',
+              ),
+            ),
+            ask('trig-model-read'),
+            ask('trig-model-b', 2),
+            teach(
+              prose(
+                'When is it greatest? That depends on the function. Sine starts on its midline rising, so it peaks a quarter of the way through each cycle and is least three quarters of the way through. Cosine starts at its peak and is least halfway through.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 24,
+                curves: [{ f: degreeWave(10, 2, 'sin', 30), accent: true }],
+                horizontals: [10],
+                marks: [
+                  { x: 3, y: 12 },
+                  { x: 9, y: 8 },
+                  { x: 15, y: 12 },
+                ],
+                yMin: -0.5,
+                yMax: 13.5,
+                label: 'h = 10 + 2 sin(30t) over two cycles, with its first peak at t = 3, a trough at t = 9 and the next peak at t = 15',
+              }),
+              prose(
+                'A buoy on the swell is $h = 10 + 2\\sin(30t)$ metres above the sea bed, $t$ seconds in. A cycle is $12$ seconds, so it is highest at $t = 3$, lowest at $t = 9$, and highest again at $t = 15$.',
+              ),
+            ),
+            ask('trig-model-peak-slider'),
+            ask('trig-model-read+choice', 2),
+            ask('trig-model-peak-slider', 2),
+            teach(
+              prose(
+                'For the value at one time, work from the inside out: the angle in the bracket, then its sine or cosine, then the model. The buoy at $t = 5$:',
+              ),
+              maths('h = 10 + 2\\sin(30 \\times 5)'),
+              maths('= 10 + 2\\sin(150^{\\circ})'),
+              maths('= 10 + 2 \\times \\frac{1}{2} = 11'),
+              prose(
+                'A time in the second cycle gives an angle past $360^{\\circ}$. Take a full turn off: $\\sin(30 \\times 13) = \\sin(390^{\\circ}) = \\sin(30^{\\circ})$, because the model repeats every cycle.',
+              ),
+            ),
+            ask('trig-model-value-tree'),
+            ask('trig-model-value-tree', 2),
+            ask('trig-model-b+choice', 2),
+          ],
+          skillCheck: [
+            ask('trig-model-read', 2),
+            ask('trig-model-peak-slider', 2),
+            ask('trig-model-value-tree', 2),
+          ],
+        },
+        {
+          id: 'tf-l7-start',
+          title: 'Where the Model Starts',
+          slides: [
+            teach(
+              prose(
+                'A Ferris wheel seat does not start halfway up: you board at the bottom. A model has to start where the situation does, and each of the four shapes starts somewhere different.',
+              ),
+              maths(
+                '\\begin{array}{c|c} \\sin & \\text{midline, rising} \\\\ \\cos & \\text{greatest} \\\\ -\\cos & \\text{least} \\\\ -\\sin & \\text{midline, falling} \\end{array}',
+              ),
+              prose(
+                'A wheel with its hub $20$ m up and a radius of $18$ m, turning once every $36$ minutes, starts at its least, so the seat is at height $h = 20 - 18\\cos(10t)$.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 72,
+                curves: [{ f: degreeWave(20, -18, 'cos', 10), accent: true }],
+                horizontals: [20],
+                verticals: [{ x: 0, dashed: false }],
+                yMin: -2,
+                yMax: 42,
+                label: 'h = 20 - 18 cos(10t) over two turns of the wheel, starting at its lowest point',
+              }),
+            ),
+            ask('trig-model-start-flow'),
+            ask('trig-model-graph-match'),
+            ask('trig-model-value-tree', 2),
+            teach(
+              prose(
+                'The value at $t = 0$ says which. With $t = 0$ the bracket is $0$: $\\sin(0) = 0$ leaves just the midline, and $\\cos(0) = 1$ adds or takes away the whole amplitude.',
+              ),
+              maths('20 - 18\\cos(0) = 20 - 18 = 2'),
+              prose(
+                'On the midline, the direction decides: rising is $+\\sin$ and falling is $-\\sin$.',
+              ),
+            ),
+            ask('trig-model-start-flow', 2),
+            ask('trig-model-graph-match', 2),
+            ask('trig-model-value-tree', 2),
+            teach(
+              prose(
+                'Sometimes the first peak is not at $t = 0$ or at a quarter of a cycle. Then shift a cosine: $\\cos(b(t - c))$ is greatest when its bracket is zero, which is at $t = c$.',
+              ),
+              prose(
+                'A greenhouse that is warmest, $24^{\\circ}$C, at $t = 14$ and coolest, $12^{\\circ}$C, twelve hours later has a period of $24$ hours, so',
+              ),
+              maths('T = 18 + 6\\cos(15(t - 14))'),
+              prose('The $15$ multiplies the whole of $t - 14$, which is why the inner bracket stays.'),
+            ),
+            ask('trig-model-shift-tiles'),
+            ask('trig-model-shift-tiles', 2),
+          ],
+          skillCheck: [
+            ask('trig-model-start-flow', 2),
+            ask('trig-model-graph-match', 2),
+            ask('trig-model-shift-tiles', 2),
+          ],
+        },
+        {
+          id: 'tf-l7-when',
+          title: 'When the Model Reaches a Value',
+          slides: [
+            teach(
+              prose(
+                'Turn the question round: when is the harbour $7.5$ m deep, if $h = 6 + 3\\sin(30t)$? Set the model equal to $7.5$ and undo it from the outside in.',
+              ),
+              maths('3\\sin(30t) = 1.5'),
+              maths('\\sin(30t) = \\frac{1}{2}'),
+              prose(
+                'Sine is $\\frac{1}{2}$ at $30^{\\circ}$ and at $150^{\\circ}$ in one turn, so $30t = 30$ or $150$, and $t = 1$ or $t = 5$.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 12,
+                curves: [{ f: degreeWave(6, 3, 'sin', 30), accent: true }],
+                horizontals: [7.5],
+                marks: [
+                  { x: 1, y: 7.5 },
+                  { x: 5, y: 7.5 },
+                ],
+                yMin: -0.5,
+                yMax: 10.5,
+                label: 'One cycle of h = 6 + 3 sin(30t) crossing the dashed line h = 7.5 at t = 1 and t = 5',
+              }),
+            ),
+            ask('trig-model-when-tree'),
+            ask('trig-model-count'),
+            ask('trig-model-when-tiles'),
+            teach(
+              prose(
+                'Each later cycle has two more, $12$ hours on: $13$ and $17$, then $25$ and $29$. A question gives a window, and only the times inside it count.',
+              ),
+              prose(
+                'For $6 \\le t < 18$, the first-cycle times $1$ and $5$ are too early, but $1 + 12 = 13$ and $5 + 12 = 17$ are inside, so those are the answers.',
+              ),
+              prose(
+                'A level between the least and the greatest is crossed twice a cycle, once going up and once coming down. The greatest and the least are each reached once a cycle, and a level outside them never.',
+              ),
+            ),
+            ask('trig-model-when-tiles', 2),
+            ask('trig-model-above'),
+            ask('trig-model-when-tree', 2),
+            teach(
+              prose(
+                'Between $t = 1$ and $t = 5$ the water is deeper than $7.5$ m, so a boat that needs that depth has $5 - 1 = 4$ hours in each $12$.',
+              ),
+              prose(
+                'Check which side of the level you are on with a time in between: at $t = 3$, $h = 6 + 3\\sin(90^{\\circ}) = 9$, above. The time spent below is the rest of the cycle, $12 - 4 = 8$ hours.',
+              ),
+            ),
+            ask('trig-model-above+choice', 2),
+            ask('trig-model-count', 2),
+          ],
+          skillCheck: [
+            ask('trig-model-when-tree', 2),
+            ask('trig-model-when-tiles', 2),
+            ask('trig-model-above', 2),
+          ],
+        },
+        {
+          id: 'tf-l7-fit',
+          title: 'Fitting a Model to Data',
+          slides: [
+            teach(
+              prose(
+                'Real readings rarely start at a neat point, so fitting a model means reading $a$, $b$, $c$ and $d$ off the data. Say a tidal river is highest, $7$ m, at $t = 2$ and next lowest, $3$ m, at $t = 8$, $t$ hours after noon.',
+              ),
+              prose(
+                'As before, $d = \\frac{7 + 3}{2} = 5$ and $a = \\frac{7 - 3}{2} = 2$. Highest to lowest is half a cycle, $8 - 2 = 6$ hours, so the period is $12$ and $b = \\frac{360}{12} = 30$.',
+              ),
+            ),
+            ask('trig-model-period-tree'),
+            ask('trig-model-fit'),
+            teach(
+              prose(
+                'A cosine is greatest when its bracket is zero, so start it at the first high: $c = 2$.',
+              ),
+              maths('L = 5 + 2\\cos(30(t - 2))'),
+              graph({
+                xMin: 0,
+                xMax: 24,
+                curves: [{ f: (t) => 5 + 2 * Math.cos(((30 * (t - 2)) * Math.PI) / 180), accent: true }],
+                horizontals: [5],
+                marks: [
+                  { x: 2, y: 7 },
+                  { x: 8, y: 3 },
+                ],
+                yMin: -0.5,
+                yMax: 8,
+                label: 'L = 5 + 2 cos(30(t - 2)) through the high reading at t = 2 and the low reading at t = 8',
+              }),
+              prose(
+                'If the readings start at a low, the high is half a cycle later. If that high is past a whole cycle, take one period off to find the first high after $t = 0$: a high at $t = 15$ with a period of $12$ gives $c = 3$.',
+              ),
+            ),
+            ask('trig-model-fit-slider'),
+            ask('trig-model-fit', 2),
+            ask('trig-model-period-tree', 2),
+            ask('trig-model-fit-slider', 2),
+            teach(
+              prose(
+                'A cosine shifted to the first high always fits. When the data starts at a neat point, no shift is needed: on the midline rising is $+\\sin$, falling is $-\\sin$, at the top $+\\cos$ and at the bottom $-\\cos$.',
+              ),
+              prose(
+                'The two ways agree: $5 + 2\\sin(30t)$ and $5 + 2\\cos(30(t - 3))$ are the same curve, since a sine is a cosine a quarter of a cycle late.',
+              ),
+            ),
+            ask('trig-model-start-flow'),
+            ask('trig-model-start-flow', 2),
+          ],
+          skillCheck: [
+            ask('trig-model-fit', 2),
+            ask('trig-model-fit-slider', 2),
+            ask('trig-model-period-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('trig-model-build', 2),
+        ask('trig-model-extremes-tree', 2),
+        ask('trig-model-b+choice', 2),
+        ask('trig-model-read', 2),
+        ask('trig-model-peak-slider', 2),
+        ask('trig-model-value-tree', 2),
+        ask('trig-model-start-flow', 2),
+        ask('trig-model-graph-match', 2),
+        ask('trig-model-shift-tiles', 2),
+        ask('trig-model-when-tree', 2),
+        ask('trig-model-count', 2),
+        ask('trig-model-when-tiles', 2),
+        ask('trig-model-above', 2),
+        ask('trig-model-fit-slider', 2),
+        ask('trig-model-fit', 2),
       ],
     },
   ],

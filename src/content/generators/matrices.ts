@@ -5995,6 +5995,1612 @@ const sysParamOutcome: Generator<SysOutcomeParams> = {
   ],
 };
 
+/* ---------- Level 11: invariant lines and points (roadmap batch B36) ---------- */
+
+/**
+ * Every matrix here is built outward from its answer. Pick the gradients m1
+ * and m2 the two invariant lines through the origin should have, a non-zero
+ * t and any a, and
+ *
+ *   M = (a, t; -t m1 m2, a + t(m1 + m2))
+ *
+ * sends (1, m) to (a + tm)(1, m) for both of them, because substituting
+ * y = mx leaves t(m - m1)(m - m2) = 0. So the gradients, the factor each
+ * line's points are multiplied by and every entry are whole. Choosing a so
+ * that one factor is 1 makes that line a line of invariant points.
+ *
+ * It is PDP^-1 with (1, m1) and (1, m2) as the columns of P, but the level is
+ * about lines: eigenvalues stay on the roadmap's reserve bench, and nothing a
+ * learner reads calls them that.
+ */
+interface Invariant {
+  m: Matrix;
+  /** The gradients of the two invariant lines through O. */
+  g: [number, number];
+  /** What each line's points are multiplied by: M(1, g) = s(1, g). */
+  s: [number, number];
+}
+
+function invariantMatrix(a: number, t: number, m1: number, m2: number): Invariant {
+  return { m: [a, t, -t * m1 * m2, a + t * (m1 + m2)], g: [m1, m2], s: [a + t * m1, a + t * m2] };
+}
+
+/**
+ * Two invariant lines through O with whole gradients and non-zero factors.
+ *
+ * `unit` pins one line's factor to 1, making it a line of invariant points;
+ * otherwise neither factor is 1, so the origin is the only invariant point.
+ */
+function drawInvariant(rng: SampleRng, difficulty: number, unit: 'none' | 'first' | 'second' = 'none'): Invariant {
+  const wide = difficulty > 1;
+  const cap = wide ? 12 : 8;
+  for (let tries = 0; tries < 200; tries += 1) {
+    const t = rng.pick(wide ? [-3, -2, -1, 1, 2, 3] : [-2, -1, 1, 2]);
+    const m1 = rng.int(wide ? -4 : -3, wide ? 4 : 3);
+    const m2 = m1 + nonZero(rng.int(wide ? -3 : -2, wide ? 3 : 2), 1);
+    const a = unit === 'first' ? 1 - t * m1 : unit === 'second' ? 1 - t * m2 : rng.int(-4, 4);
+    const inv = invariantMatrix(a, t, m1, m2);
+    if (inv.m.some((v) => Math.abs(v) > cap) || inv.s.includes(0)) continue;
+    if (unit === 'none' && inv.s.includes(1)) continue;
+    return inv;
+  }
+  if (unit === 'first') return invariantMatrix(0, 1, 1, 2);
+  if (unit === 'second') return invariantMatrix(3, -1, 1, 2);
+  return invariantMatrix(3, 1, 1, -1);
+}
+
+/** `3x`, `-x`, `x`: a gradient in front of its letter, and nothing for zero. */
+function slopeTex(m: number, v = 'x'): string {
+  return m === 0 ? '' : `${m === 1 ? '' : m === -1 ? '-' : m}${v}`;
+}
+
+/** A line as the learner reads it: `y = 3x - 2`, `y = -x`, `y = 4`. */
+function yLine(m: number, c = 0): string {
+  const slope = slopeTex(m);
+  return slope === '' ? `y = ${c}` : `y = ${slope}${signedTex(c)}`;
+}
+
+/** The same line in mathjs syntax, for an answer. Never displayed. */
+const yAnswer = (m: number, c = 0) => `(${m})*x + (${c})`;
+
+/** `y = 3x + c`: every line of one gradient, the intercept left as a letter. */
+function familyTex(m: number): string {
+  const slope = slopeTex(m);
+  return slope === '' ? 'y = c' : `y = ${slope} + c`;
+}
+
+/** `2 - 3m`: a number and a multiple of a letter. */
+function linTex(p: number, q: number, v: string): string {
+  if (q === 0) return `${p}`;
+  const term = `${Math.abs(q) === 1 ? '' : Math.abs(q)}${v}`;
+  if (p === 0) return `${q < 0 ? '-' : ''}${term}`;
+  return `${p} ${q < 0 ? '-' : '+'} ${term}`;
+}
+
+/** `3m^2 - 2m + 5`, highest power first, zero terms left out. */
+function polyTex(coeffs: number[], v: string): string {
+  const top = coeffs.length - 1;
+  let out = '';
+  coeffs.forEach((c, idx) => {
+    if (c === 0) return;
+    const power = top - idx;
+    const name = power === 0 ? '' : power === 1 ? v : `${v}^${power}`;
+    const size = Math.abs(c) === 1 && name !== '' ? '' : `${Math.abs(c)}`;
+    out += out === '' ? `${c < 0 ? '-' : ''}${size}${name}` : ` ${c < 0 ? '-' : '+'} ${size}${name}`;
+  });
+  return out === '' ? '0' : out;
+}
+
+/** `M (x, y) = (x', y')`, worked out. */
+function mapsTex(m: Matrix, x: number, y: number): string {
+  const [u, v] = apply(m, x, y);
+  return `${texOf(m)} ${columnTex(x, y)} = ${columnTex(u, v)}`;
+}
+
+/** The matrix with 1 taken off each diagonal entry. */
+const minusI = (m: Matrix): Matrix => [m[0] - 1, m[1], m[2], m[3] - 1];
+
+const M_TEX = (m: Matrix) => `\\mathbf{M} = ${texOf(m)}`;
+
+/**
+ * The right option and three slips, turned by a number from the question.
+ *
+ * `choiceVariant` places the answer by hashing the option labels, and slips
+ * that differ from the answer only by a sign hash alike, which piled the
+ * answer into one or two slots. Which slips are kept, and in what order,
+ * varying with the question spreads it out again.
+ */
+function upToFour(key: number, correct: Omit<ChoiceOption, 'correct'>, ...slips: Omit<ChoiceOption, 'correct'>[]) {
+  const turn = Math.abs(key) % slips.length;
+  return options(correct, ...slips.slice(turn), ...slips.slice(0, turn)).slice(0, 4);
+}
+
+/* ----- invariant points ----- */
+
+interface InvPointWhichParams {
+  inv: Invariant;
+  k: number;
+}
+
+/**
+ * Which point stays put, tested by multiplying.
+ *
+ * One distractor is always on the *other* invariant line: it stays on its
+ * line through O but moves along it, which is the distinction the last
+ * lesson of the level is about. The rest are near misses, and every one is
+ * checked against the line of invariant points rather than trusted.
+ */
+const invPointWhich: Generator<InvPointWhichParams> = {
+  id: 'mat-inv-point-which',
+  sample: (rng, difficulty) => ({
+    inv: drawInvariant(rng, difficulty, 'first'),
+    k: nonZero(rng.int(-3, 3), 2),
+  }),
+  render: ({ inv, k }): Slide => {
+    const [m1, m2] = inv.g;
+    const wrong = [
+      [k, k * m2],
+      [k, k * m1 + 1],
+      [k * m1, k],
+      [-k, k * m1],
+      [k + 1, k * m1 - 1],
+    ]
+      .filter(([x, y]) => y !== m1 * x)
+      .map(([x, y]) => pairTex(x, y));
+    const { options: offered, correctId } = slotted(pairTex(k, k * m1), wrong, `${inv.m.join(',')}|${k}`);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which of these points is invariant under $\\mathbf{M}$?' },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ inv, k }) => {
+    const [m1, m2] = inv.g;
+    const s2 = inv.s[1];
+    return [
+      { text: 'A point is invariant when $\\mathbf{M}$ sends it to itself. Multiply each one by $\\mathbf{M}$ and look for the one that comes back unchanged.' },
+      { tex: mapsTex(inv.m, k, k * m1) },
+      { text: `So $${pairTex(k, k * m1)}$ stays exactly where it is.` },
+      {
+        text: `The trap is $${pairTex(k, k * m2)}$. It lands on $${pairTex(s2 * k, s2 * k * m2)}$: on the same line through $O$, but $${s2}$ times as far out. It moves, so it is not invariant.`,
+      },
+    ];
+  },
+};
+
+interface InvPointSliderParams {
+  inv: Invariant;
+  x0: number;
+}
+
+/**
+ * The missing coordinate of an invariant point, found from one row of Mp = p.
+ *
+ * The line of invariant points is never y = 0 here, so the answer is never
+ * zero, where the handle rests.
+ */
+const invPointSlider: Generator<InvPointSliderParams> = {
+  id: 'mat-inv-point-slider',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 60; tries += 1) {
+      const inv = drawInvariant(rng, difficulty, 'first');
+      const x0 = nonZero(rng.int(-3, 3), 1);
+      const y0 = inv.g[0] * x0;
+      if (y0 !== 0 && Math.abs(y0) <= 7) return { inv, x0 };
+    }
+    return { inv: invariantMatrix(-1, 1, 2, 3), x0: 2 };
+  },
+  render: ({ inv, x0 }): Slide => {
+    const y0 = inv.g[0] * x0;
+    const span = spanFor(x0, y0);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The point $(${x0}, \\; y)$ is invariant under $\\mathbf{M}$. The dot marks $x = ${x0}$ on the axis. Slide to $y$.`,
+        },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: y0,
+      readout: 'y = {v}',
+      figure: {
+        svg: transformGridSvg({
+          span,
+          marks: [{ x: x0, y: 0 }],
+          label: `Squared paper with a dot at x = ${x0} on the x-axis`,
+        }),
+        xMin: -span,
+        xMax: span,
+        axis: 'y',
+      },
+    };
+  },
+  solution: ({ inv, x0 }) => {
+    const [a, b] = inv.m;
+    const y0 = inv.g[0] * x0;
+    return [
+      { text: `Invariant means $\\mathbf{M}$ sends $(${x0}, y)$ to itself. The top row of that multiplication has to give back the $x$-coordinate, $${x0}$.` },
+      { tex: `${a}(${x0}) ${b < 0 ? '-' : '+'} ${Math.abs(b) === 1 ? '' : Math.abs(b)}y = ${x0}` },
+      { text: Math.abs(b) === 1 ? `So $y = ${y0}$.` : `So $${b}y = ${x0 - a * x0}$, and $y = ${y0}$.` },
+      { text: 'Check it with the whole multiplication:' },
+      { tex: mapsTex(inv.m, x0, y0) },
+    ];
+  },
+};
+
+type PointRoute = 'identity' | 'line' | 'origin';
+
+interface InvPointFlowParams {
+  m: Matrix;
+}
+
+/** The standard matrices with a line of fixed points, for variety beside the built ones. */
+function drawFixedLine(rng: SampleRng): Matrix {
+  const s = nonZero(rng.int(-4, 4), 2);
+  const k = rng.pick([-3, -2, 2, 3, 4]);
+  return rng.pick<Matrix>([
+    STANDARD['refl-x'].matrix,
+    STANDARD['refl-y'].matrix,
+    STANDARD['refl-yx'].matrix,
+    STANDARD['refl-ynx'].matrix,
+    [1, s, 0, 1],
+    [1, 0, s, 1],
+    [k, 0, 0, 1],
+    [1, 0, 0, k],
+  ]);
+}
+
+/** A matrix with det(M - I) not zero, so the origin is its only invariant point. */
+function drawOriginOnly(rng: SampleRng, difficulty: number): Matrix {
+  const span = difficulty > 1 ? 6 : 4;
+  for (let tries = 0; tries < 60; tries += 1) {
+    const m: Matrix = [rng.int(-span, span), rng.int(-span, span), rng.int(-span, span), rng.int(-span, span)];
+    if (detOf(minusI(m)) !== 0 && detOf(m) !== 0) return m;
+  }
+  return [2, 1, 1, 3];
+}
+
+function pointRoute(m: Matrix): PointRoute {
+  if (m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1) return 'identity';
+  return detOf(minusI(m)) === 0 ? 'line' : 'origin';
+}
+
+/** Whether a matrix has a line of invariant points, decided by det(M - I). */
+const invPointFlow: Generator<InvPointFlowParams> = {
+  id: 'mat-inv-point-flow',
+  sample: (rng, difficulty) => {
+    const r = rng.next();
+    if (r < 0.06) return { m: [1, 0, 0, 1] };
+    if (r < 0.53) return { m: rng.chance(0.35) ? drawFixedLine(rng) : drawInvariant(rng, difficulty, 'first').m };
+    return { m: rng.chance(0.3) ? drawInvariant(rng, difficulty).m : drawOriginOnly(rng, difficulty) };
+  },
+  render: ({ m }): Slide => {
+    const route = pointRoute(m);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Work down the questions to find which points $\\mathbf{M}$ leaves where they are.' }],
+      subject: M_TEX(m),
+      steps: [
+        {
+          id: 'identity',
+          ask: 'Is $\\mathbf{M}$ the identity matrix?',
+          branches: [
+            { label: 'Yes', outcome: 'Every point in the plane is invariant.' },
+            { label: 'No', to: 'det' },
+          ],
+        },
+        {
+          id: 'det',
+          ask: 'Work out $\\det(\\mathbf{M} - \\mathbf{I})$. Is it zero?',
+          branches: [
+            { label: 'Yes', outcome: 'A whole line of points through $O$ is invariant.' },
+            { label: 'No', outcome: 'Only the origin is invariant.' },
+          ],
+        },
+      ],
+      answer: route === 'identity' ? ['Yes'] : route === 'line' ? ['No', 'Yes'] : ['No', 'No'],
+    };
+  },
+  solution: ({ m }) => {
+    const route = pointRoute(m);
+    if (route === 'identity') {
+      return [{ text: 'The identity sends every point to itself, so every point is invariant. That is the only matrix for which this is true.' }];
+    }
+    const n = minusI(m);
+    return [
+      { text: 'An invariant point solves $(\\mathbf{M} - \\mathbf{I})\\mathbf{p} = \\mathbf{0}$. Subtract 1 from each diagonal entry.' },
+      { tex: `\\mathbf{M} - \\mathbf{I} = ${texOf(n)}` },
+      { text: `$\\det(\\mathbf{M} - \\mathbf{I}) = (${n[0]})(${n[3]}) - (${n[1]})(${n[2]}) = ${detOf(n)}$.` },
+      {
+        text:
+          route === 'line'
+            ? 'It is zero, so the two equations are the same line through $O$, and every point on it is invariant.'
+            : 'It is not zero, so $\\mathbf{M} - \\mathbf{I}$ has an inverse and the only solution is $\\mathbf{p} = \\mathbf{0}$: the origin alone.',
+      },
+    ];
+  },
+};
+
+interface InvPointDetParams {
+  m: Matrix;
+}
+
+function samplePointDet(rng: SampleRng, difficulty: number): InvPointDetParams {
+  if (rng.chance(0.3)) return { m: drawInvariant(rng, difficulty, 'first').m };
+  const span = difficulty > 1 ? 7 : 5;
+  const m: Matrix = [
+    rng.int(-span + 1, span),
+    nonZero(rng.int(-span, span), 2),
+    nonZero(rng.int(-span, span), -3),
+    rng.int(-span + 1, span),
+  ];
+  return { m };
+}
+
+function pointDetSteps(m: Matrix): SolutionStep[] {
+  const n = minusI(m);
+  const det = detOf(n);
+  return [
+    { text: 'Subtract 1 from each entry on the leading diagonal, and leave the other two alone.' },
+    { tex: `\\mathbf{M} - \\mathbf{I} = ${texOf(n)}` },
+    { text: `Then $(${n[0]})(${n[3]}) - (${m[1]})(${m[2]}) = ${n[0] * n[3]} - ${br(m[1] * m[2])} = ${det}$.` },
+    {
+      text:
+        det === 0
+          ? 'It is zero, so $\\mathbf{M}$ has a whole line of invariant points through the origin.'
+          : 'It is not zero, so the origin is the only invariant point.',
+    },
+  ];
+}
+
+/** det(M - I), the number that decides whether there is a line of invariant points. */
+const invPointDet: Generator<InvPointDetParams> = {
+  id: 'mat-inv-point-det',
+  choices: ({ m }) => {
+    const [a, b, c, d] = m;
+    return signedChoices((a - 1) * (d - 1) - b * c, [
+      a * d - b * c,
+      (a - 1) * (d - 1) + b * c,
+      (a + 1) * (d + 1) - b * c,
+      a * d - b * c - 1,
+    ]);
+  },
+  sample: samplePointDet,
+  render: ({ m }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'Find $\\det(\\mathbf{M} - \\mathbf{I})$.' },
+      { kind: 'display', tex: M_TEX(m) },
+    ],
+    lead: '\\det(\\mathbf{M} - \\mathbf{I}) =',
+    keypad: [],
+    answer: `${detOf(minusI(m))}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ m }) => pointDetSteps(m),
+};
+
+/** The same determinant as a tree: the two diagonal entries, their product, bc, the difference. */
+const invPointDetTree: Generator<InvPointDetParams> = {
+  id: 'mat-inv-point-det-tree',
+  sample: samplePointDet,
+  render: ({ m }): Slide => {
+    const [a, b, c, d] = m;
+    const product = (a - 1) * (d - 1);
+    const answer = [a - 1, d - 1, b * c, product, product - b * c].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Top row: the two diagonal entries of $\\mathbf{M} - \\mathbf{I}$, then $bc$. Next, the product of the diagonal. Bottom: $\\det(\\mathbf{M} - \\mathbf{I})$.',
+        },
+        { kind: 'display', tex: M_TEX(m) },
+      ],
+      expression: `(${a} - 1)(${d} - 1) - (${b})(${c})`,
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'd', from: [] },
+        { id: 'bc', from: [] },
+        { id: 'ad', from: ['a', 'd'] },
+        { id: 'det', from: ['ad', 'bc'] },
+      ],
+      bank: bankOf(answer, [a + 1, d + 1, -b * c, product + b * c, a * d].map(String)),
+      answer,
+    };
+  },
+  solution: ({ m }) => pointDetSteps(m),
+};
+
+interface InvPointLineParams {
+  inv: Invariant;
+}
+
+/** The line of invariant points, read from the top row of M - I. */
+const invPointLine: Generator<InvPointLineParams> = {
+  id: 'mat-inv-point-line',
+  choices: ({ inv }) => {
+    const [m1, m2] = inv.g;
+    return upToFour(
+      inv.m[0] + 3 * inv.m[1] + 7 * inv.m[2],
+      { tex: yLine(m1), answer: yAnswer(m1) },
+      { tex: yLine(m2), answer: yAnswer(m2) },
+      { tex: yLine(-m1), answer: yAnswer(-m1) },
+      { tex: yLine(m1 + 1), answer: yAnswer(m1 + 1) },
+      { tex: yLine(-m2), answer: yAnswer(-m2) },
+      { tex: yLine(m1 - 1), answer: yAnswer(m1 - 1) },
+    );
+  },
+  sample: (rng, difficulty) => ({ inv: drawInvariant(rng, difficulty, 'first') }),
+  render: ({ inv }) => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: '$\\mathbf{M}$ has a line of invariant points through the origin. Find its equation.' },
+      { kind: 'display', tex: M_TEX(inv.m) },
+    ],
+    lead: 'y =',
+    keypad: [{ insert: 'x', tex: true }],
+    answer: yAnswer(inv.g[0]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ inv }) => {
+    const n = minusI(inv.m);
+    const m1 = inv.g[0];
+    return [
+      { text: 'An invariant point solves $(\\mathbf{M} - \\mathbf{I})\\mathbf{p} = \\mathbf{0}$.' },
+      { tex: `\\mathbf{M} - \\mathbf{I} = ${texOf(n)}` },
+      { text: `The top row says $${termsTex([n[0], n[1]], ['x', 'y'])} = 0$, which rearranges to $${yLine(m1)}$.` },
+      { text: `The bottom row, $${termsTex([n[2], n[3]], ['x', 'y'])} = 0$, is the same line: with a zero determinant the two rows always agree.` },
+      { text: 'Check a point on it:' },
+      { tex: mapsTex(inv.m, 1, m1) },
+    ];
+  },
+};
+
+/* ----- invariant lines through the origin ----- */
+
+interface InvLineWhichParams {
+  inv: Invariant;
+  pick: 0 | 1;
+}
+
+/** Which of four lines through O is invariant: tested by where (1, m) goes. */
+const invLineWhich: Generator<InvLineWhichParams> = {
+  id: 'mat-inv-line-which',
+  sample: (rng, difficulty) => ({ inv: drawInvariant(rng, difficulty), pick: rng.pick([0, 1] as const) }),
+  render: ({ inv, pick }): Slide => {
+    const right = inv.g[pick];
+    const other = inv.g[1 - pick];
+    const wrong = [-right, right + other, -other, right + 1, right - 1, 2 * right, right + 2, right - 2]
+      .filter((w) => w !== right && w !== other)
+      .map((w) => yLine(w));
+    const { options: offered, correctId } = slotted(yLine(right), wrong, `${inv.m.join(',')}|${pick}`);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which of these lines is invariant under $\\mathbf{M}$?' },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ inv, pick }) => {
+    const g = inv.g[pick];
+    const s = inv.s[pick];
+    const miss = [-g, g + inv.g[1 - pick], g + 1, g - 1].find((w) => w !== g && w !== inv.g[1 - pick]) ?? g - 1;
+    const [p, q] = apply(inv.m, 1, miss);
+    return [
+      { text: 'The line $y = mx$ is invariant when $\\mathbf{M}$ sends $(1, m)$, a point on it, back onto it: to a multiple of $(1, m)$.' },
+      { tex: mapsTex(inv.m, 1, g) },
+      { text: `That is $${s}$ times $${pairTex(1, g)}$, so $${yLine(g)}$ maps onto itself.` },
+      {
+        text: `Against that, $(1, ${miss})$ goes to $${pairTex(p, q)}$, and $${q} \\neq ${miss} \\times ${br(p)}$, so $${yLine(miss)}$ is turned onto a different line.`,
+      },
+    ];
+  },
+};
+
+interface InvLineStretchParams {
+  inv: Invariant;
+  pick: 0 | 1;
+}
+
+/**
+ * The factor points on an invariant line are multiplied by, dragged to on
+ * the picture: the arrow is (1, m), and its image lies along the same line.
+ */
+const invLineStretch: Generator<InvLineStretchParams> = {
+  id: 'mat-inv-line-stretch',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 60; tries += 1) {
+      const inv = drawInvariant(rng, difficulty);
+      const pick = rng.pick([0, 1] as const);
+      if (Math.abs(inv.s[pick]) <= 6 && Math.abs(inv.g[pick]) <= 5) return { inv, pick };
+    }
+    return { inv: invariantMatrix(3, 1, 1, -1), pick: 0 };
+  },
+  render: ({ inv, pick }): Slide => {
+    const g = inv.g[pick];
+    const s = inv.s[pick];
+    const span = spanFor(s, g);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The line $${yLine(g)}$ is invariant under $\\mathbf{M}$, and the arrow ends at $(1, ${g})$, a point on it. Its image is on the same line. Slide to the image's $x$-coordinate.`,
+        },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: s,
+      readout: `x\\text{-coordinate of the image} = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          arrows: [{ x: 1, y: g, label: 'v', accent: true }],
+          label: `Squared paper with an arrow from the origin to (1, ${g})`,
+        }),
+        xMin: -span,
+        xMax: span,
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ inv, pick }) => {
+    const g = inv.g[pick];
+    const s = inv.s[pick];
+    return [
+      { text: `Multiply $(1, ${g})$ by $\\mathbf{M}$.` },
+      { tex: mapsTex(inv.m, 1, g) },
+      {
+        text: `That is $${s}$ times $(1, ${g})$, so the image's $x$-coordinate is $${s}$. Every point on $${yLine(g)}$ is multiplied by $${s}$: ${s < 0 ? 'it is sent through $O$ to the other side, still on the line' : s === 1 ? 'nothing moves' : 'it slides along the line, away from or towards $O$'}.`,
+      },
+    ];
+  },
+};
+
+interface InvLineQuadParams {
+  inv: Invariant;
+}
+
+/** The quadratic in m, expanded from c + dm = m(a + bm). */
+const invLineQuad: Generator<InvLineQuadParams> = {
+  id: 'mat-inv-line-quad',
+  choices: ({ inv }) => {
+    const [a, b, c, d] = inv.m;
+    const as = (p: number, q: number, r: number) => `(${p})*m^2 + (${q})*m + (${r})`;
+    return upToFour(
+      a + 3 * b + 7 * c + 11 * d,
+      { tex: polyTex([b, a - d, -c], 'm'), answer: as(b, a - d, -c) },
+      { tex: polyTex([b, d - a, -c], 'm'), answer: as(b, d - a, -c) },
+      { tex: polyTex([b, a - d, c], 'm'), answer: as(b, a - d, c) },
+      { tex: polyTex([c, a - d, -b], 'm'), answer: as(c, a - d, -b) },
+      { tex: polyTex([b, a + d, -c], 'm'), answer: as(b, a + d, -c) },
+    );
+  },
+  sample: (rng, difficulty) => ({ inv: drawInvariant(rng, difficulty) }),
+  render: ({ inv }) => {
+    const [a, b, c, d] = inv.m;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\mathbf{M}$ sends $(1, m)$ to $(${linTex(a, b, 'm')}, \\; ${linTex(c, d, 'm')})$. The line $y = mx$ is invariant when the second is $m$ times the first. Expand and simplify:`,
+        },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      lead: `m(${linTex(a, b, 'm')}) - (${linTex(c, d, 'm')}) =`,
+      keypad: [{ insert: 'm', tex: true }, { insert: '^' }],
+      answer: `(${b})*m^2 + (${a - d})*m + (${-c})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ inv }) => {
+    const [a, b, c, d] = inv.m;
+    const [m1, m2] = inv.g;
+    return [
+      { text: `Expand the bracket: $m(${linTex(a, b, 'm')}) = ${polyTex([b, a, 0], 'm')}$.` },
+      { text: `Take away $${linTex(c, d, 'm')}$ and collect like terms:` },
+      { tex: polyTex([b, a - d, -c], 'm') },
+      {
+        text: `Set to zero, it factorises as $${b === 1 ? '' : b === -1 ? '-' : b}(m${signedTex(-m1)})(m${signedTex(-m2)}) = 0$, so the invariant lines through $O$ are $${yLine(m1)}$ and $${yLine(m2)}$.`,
+      },
+    ];
+  },
+};
+
+/** Both gradients, from the quadratic solved. */
+const invLineGradients: Generator<InvLineQuadParams> = {
+  id: 'mat-inv-line-gradients',
+  sample: (rng, difficulty) => ({ inv: drawInvariant(rng, difficulty) }),
+  render: ({ inv }) => {
+    const [m1, m2] = inv.g;
+    const answer = [m1, m2].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Find the gradients of the two invariant lines through the origin.' },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      template: 'm = {0} \\quad \\text{or} \\quad m = {1}',
+      bank: bankOf(answer, [-m1, -m2, m1 + m2, inv.s[0]].map(String)),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ inv }) => {
+    const [a, b, c, d] = inv.m;
+    const [m1, m2] = inv.g;
+    return [
+      { text: `$(1, m)$ goes to $(${linTex(a, b, 'm')}, \\; ${linTex(c, d, 'm')})$. For $y = mx$ to be invariant the second must be $m$ times the first:` },
+      { tex: `${linTex(c, d, 'm')} = m(${linTex(a, b, 'm')})` },
+      { tex: `${polyTex([b, a - d, -c], 'm')} = 0` },
+      { text: `That factorises as $${b === 1 ? '' : b === -1 ? '-' : b}(m${signedTex(-m1)})(m${signedTex(-m2)}) = 0$, so $m = ${m1}$ or $m = ${m2}$.` },
+      { text: `The invariant lines through $O$ are $${yLine(m1)}$ and $${yLine(m2)}$.` },
+    ];
+  },
+};
+
+/* ----- the standard transformations ----- */
+
+interface NamedParams {
+  t: Transform;
+  phrase: number;
+}
+
+function drawTransform(rng: SampleRng, difficulty: number): Transform {
+  const kind = rng.pick(['standard', 'standard', 'enlarge', 'stretch-x', 'stretch-y', 'stretch-xy'] as const);
+  const top = difficulty > 1 ? 6 : 4;
+  switch (kind) {
+    case 'standard':
+      return { kind: 'standard', key: rng.pick(STANDARD_KEYS) };
+    case 'enlarge':
+      return { kind: 'enlarge', k: rng.pick(difficulty > 1 ? [-4, -3, -2, 2, 3, 4, 5] : [-2, 2, 3, 4]) };
+    case 'stretch-x':
+      return { kind: 'stretch-x', k: rng.int(2, top) };
+    case 'stretch-y':
+      return { kind: 'stretch-y', k: rng.int(2, top) };
+    case 'stretch-xy': {
+      const [k, q] = rng.sample([2, 3, 4, 5], 2);
+      return { kind: 'stretch-xy', k, q };
+    }
+  }
+}
+
+function drawNamed(rng: SampleRng, difficulty: number): NamedParams {
+  const t = drawTransform(rng, difficulty);
+  return { t, phrase: rng.int(0, phraseCount(t) - 1) };
+}
+
+/** A phrase at the start of a sentence. */
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+type LineSet = 'every' | 'none' | 'axes' | 'x-axis' | 'y-axis' | 'diagonals' | 'y=x' | 'y=-x';
+
+const LINE_SET: Record<LineSet, string> = {
+  every: '\\text{Every line through } O',
+  none: '\\text{No line through } O',
+  axes: '\\text{The } x\\text{-axis and the } y\\text{-axis}',
+  'x-axis': '\\text{Only the } x\\text{-axis}',
+  'y-axis': '\\text{Only the } y\\text{-axis}',
+  diagonals: 'y = x \\text{ and } y = -x',
+  'y=x': '\\text{Only } y = x',
+  'y=-x': '\\text{Only } y = -x',
+};
+
+/** The invariant lines through O, and the answers each transformation is mistaken for. */
+function lineSetOf(t: Transform): { right: LineSet; wrong: LineSet[]; why: string } {
+  if (t.kind === 'enlarge') {
+    return {
+      right: 'every',
+      wrong: ['none', 'axes', 'diagonals'],
+      why: `An enlargement about $O$ moves every point straight along its own line through $O$${t.k < 0 ? ', through $O$ and out the other side' : ''}. So every line through $O$ maps onto itself.`,
+    };
+  }
+  if (t.kind === 'stretch-x' || t.kind === 'stretch-y') {
+    const along = t.kind === 'stretch-x' ? 'x' : 'y';
+    const fixed = t.kind === 'stretch-x' ? 'y' : 'x';
+    return {
+      right: 'axes',
+      wrong: t.kind === 'stretch-x' ? ['y-axis', 'x-axis', 'every'] : ['x-axis', 'y-axis', 'every'],
+      why: `The $${along}$-axis is stretched along itself, and the $${fixed}$-axis does not move at all, so both are invariant. Any other line through $O$ has its gradient changed.`,
+    };
+  }
+  if (t.kind === 'stretch-xy') {
+    return {
+      right: 'axes',
+      wrong: ['every', 'none', 'diagonals'],
+      why: 'Each axis is stretched along itself, so both are invariant. A line between them has its gradient changed, because the two scale factors differ.',
+    };
+  }
+  switch (t.key) {
+    case 'rot90':
+    case 'rot270':
+      return {
+        right: 'none',
+        wrong: ['every', 'diagonals', 'axes'],
+        why: 'A quarter turn swings every line through $O$ round by $90^\\circ$, onto a different line. None lands on itself.',
+      };
+    case 'rot180':
+      return {
+        right: 'every',
+        wrong: ['none', 'axes', 'diagonals'],
+        why: 'A half turn sends $(x, y)$ to $(-x, -y)$, which is on the same line through $O$. Every line through $O$ is invariant, turned end to end.',
+      };
+    case 'refl-x':
+    case 'refl-y': {
+      const mirror = t.key === 'refl-x' ? 'x' : 'y';
+      const across = t.key === 'refl-x' ? 'y' : 'x';
+      return {
+        right: 'axes',
+        wrong: [t.key === 'refl-x' ? 'x-axis' : 'y-axis', 'every', 'none'],
+        why: `The mirror, the $${mirror}$-axis, stays put. The $${across}$-axis is perpendicular to it and is flipped end to end onto itself. Every other line through $O$ is turned to a new angle.`,
+      };
+    }
+    case 'refl-yx':
+    case 'refl-ynx': {
+      const mirror = t.key === 'refl-yx' ? 'y = x' : 'y = -x';
+      const across = t.key === 'refl-yx' ? 'y = -x' : 'y = x';
+      return {
+        right: 'diagonals',
+        wrong: [t.key === 'refl-yx' ? 'y=x' : 'y=-x', 'axes', 'none'],
+        why: `The mirror, $${mirror}$, stays put. The line $${across}$ is perpendicular to it and is flipped end to end onto itself. Every other line through $O$ changes angle.`,
+      };
+    }
+  }
+}
+
+/** Which lines through O a named transformation leaves invariant. */
+const invStdLines: Generator<NamedParams> = {
+  id: 'mat-inv-std-lines',
+  sample: drawNamed,
+  render: ({ t, phrase }): Slide => {
+    const { right, wrong } = lineSetOf(t);
+    const { options: offered, correctId } = slotted(
+      LINE_SET[right],
+      wrong.map((key) => LINE_SET[key]),
+      `${nameOf(t)}|${phrase}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which lines through the origin are invariant under ${phraseOf(t, phrase)}?` }],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ t, phrase }) => [
+    { text: 'A line through $O$ is invariant when every point on it lands back on the same line. It does not have to stay where it is.' },
+    { text: lineSetOf(t).why },
+    { text: `As a check, the matrix of ${phraseOf(t, phrase)} is $${texOf(matrixOf(t))}$, and it sends $(1, 1)$ to $${pairTex(...apply(matrixOf(t), 1, 1))}$.` },
+  ],
+};
+
+type PointSet = 'origin' | 'all' | 'x-axis' | 'y-axis' | 'y=x' | 'y=-x';
+
+const POINT_SET: Record<PointSet, string> = {
+  origin: '\\text{Only the origin}',
+  all: '\\text{Every point}',
+  'x-axis': '\\text{Every point on the } x\\text{-axis}',
+  'y-axis': '\\text{Every point on the } y\\text{-axis}',
+  'y=x': '\\text{Every point on } y = x',
+  'y=-x': '\\text{Every point on } y = -x',
+};
+
+/** The invariant points, and what each transformation's are mistaken for. */
+function pointSetOf(t: Transform): { right: PointSet; wrong: PointSet[]; why: string } {
+  if (t.kind === 'enlarge') {
+    return {
+      right: 'origin',
+      wrong: ['all', 'x-axis', 'y=x'],
+      why: `Every point except $O$ ends up $${t.k}$ times as far from $O$, so only the centre stays put.`,
+    };
+  }
+  if (t.kind === 'stretch-x' || t.kind === 'stretch-y') {
+    const fixed = t.kind === 'stretch-x' ? 'y' : 'x';
+    const coord = t.kind === 'stretch-x' ? 'x' : 'y';
+    return {
+      right: t.kind === 'stretch-x' ? 'y-axis' : 'x-axis',
+      wrong: [t.kind === 'stretch-x' ? 'x-axis' : 'y-axis', 'origin', 'all'],
+      why: `The stretch multiplies every $${coord}$-coordinate by $${t.k}$. A point is left alone only when its $${coord}$-coordinate is $0$, which is every point on the $${fixed}$-axis.`,
+    };
+  }
+  if (t.kind === 'stretch-xy') {
+    return {
+      right: 'origin',
+      wrong: ['x-axis', 'y-axis', 'all'],
+      why: 'Both coordinates are multiplied by something other than 1, so a point stays put only when both are $0$.',
+    };
+  }
+  switch (t.key) {
+    case 'rot90':
+    case 'rot270':
+    case 'rot180':
+      return {
+        right: 'origin',
+        wrong: t.key === 'rot180' ? ['all', 'x-axis', 'y-axis'] : ['all', 'y=x', 'x-axis'],
+        why: 'A rotation about $O$ moves every point round the centre, so the centre is the only point that stays put.',
+      };
+    case 'refl-x':
+    case 'refl-y':
+    case 'refl-yx':
+    case 'refl-ynx': {
+      const right: PointSet =
+        t.key === 'refl-x' ? 'x-axis' : t.key === 'refl-y' ? 'y-axis' : t.key === 'refl-yx' ? 'y=x' : 'y=-x';
+      const twin: PointSet =
+        t.key === 'refl-x' ? 'y-axis' : t.key === 'refl-y' ? 'x-axis' : t.key === 'refl-yx' ? 'y=-x' : 'y=x';
+      return {
+        right,
+        wrong: [twin, 'origin', 'all'],
+        why: 'A point on the mirror is its own reflection, so every point of the mirror line is invariant. The perpendicular line is invariant as a line, but its points swap sides, so they are not invariant points.',
+      };
+    }
+  }
+}
+
+/** The invariant points of a named transformation: a point, a line, or everything. */
+const invStdPoints: Generator<NamedParams> = {
+  id: 'mat-inv-std-points',
+  sample: drawNamed,
+  render: ({ t, phrase }): Slide => {
+    const { right, wrong } = pointSetOf(t);
+    const { options: offered, correctId } = slotted(
+      POINT_SET[right],
+      wrong.map((key) => POINT_SET[key]),
+      `${nameOf(t)}|${phrase}|points`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which points are invariant under ${phraseOf(t, phrase)}?` }],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ t, phrase }) => {
+    const m = matrixOf(t);
+    return [
+      { text: 'An invariant point is one that does not move at all.' },
+      { text: pointSetOf(t).why },
+      { text: `In matrix terms, ${phraseOf(t, phrase)} has matrix $${texOf(m)}$, and $\\det(\\mathbf{M} - \\mathbf{I}) = ${detOf(minusI(m))}$.` },
+    ];
+  },
+};
+
+interface StdImageParams extends NamedParams {
+  m: number;
+}
+
+/**
+ * The image of y = mx under a named transformation.
+ *
+ * Drawn so the image's gradient is whole: the direction (1, m) goes to (p, q)
+ * with p dividing q.
+ */
+const invStdImage: Generator<StdImageParams> = {
+  id: 'mat-inv-std-image',
+  choices: ({ t, m }) => {
+    const [p, q] = apply(matrixOf(t), 1, m);
+    const n = q / p;
+    return upToFour(
+      3 * m + 7 * n + p,
+      { tex: yLine(n), answer: yAnswer(n) },
+      { tex: yLine(m), answer: yAnswer(m) },
+      { tex: yLine(-n), answer: yAnswer(-n) },
+      { tex: yLine(-m), answer: yAnswer(-m) },
+      { tex: yLine(n + 1), answer: yAnswer(n + 1) },
+      { tex: yLine(n - 1), answer: yAnswer(n - 1) },
+      { tex: yLine(2 * n), answer: yAnswer(2 * n) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 100; tries += 1) {
+      const named = drawNamed(rng, difficulty);
+      const m = nonZero(rng.int(difficulty > 1 ? -5 : -3, difficulty > 1 ? 5 : 3), 1);
+      const [p, q] = apply(matrixOf(named.t), 1, m);
+      if (p !== 0 && q % p === 0 && Math.abs(q / p) <= 12) return { ...named, m };
+    }
+    return { t: { kind: 'standard', key: 'refl-x' }, phrase: 0, m: 2 };
+  },
+  render: ({ t, phrase, m }) => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Find the image of the line $${yLine(m)}$ under ${phraseOf(t, phrase)}.` }],
+    lead: 'y =',
+    keypad: [{ insert: 'x', tex: true }],
+    answer: yAnswer(apply(matrixOf(t), 1, m)[1] / apply(matrixOf(t), 1, m)[0]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ t, m }) => {
+    const matrix = matrixOf(t);
+    const [p, q] = apply(matrix, 1, m);
+    const n = q / p;
+    return [
+      { text: `The line goes through $O$ and $(1, ${m})$. A linear transformation keeps $O$ where it is, so only $(1, ${m})$ needs mapping.` },
+      { tex: mapsTex(matrix, 1, m) },
+      { text: `The image goes through $O$ and $${pairTex(p, q)}$, so its gradient is $${q} \\div ${br(p)} = ${n}$: the line $${yLine(n)}$.` },
+      {
+        text:
+          n === m
+            ? 'That is the line we started with, so it is invariant.'
+            : `That is not $${yLine(m)}$, so this line is not invariant.`,
+      },
+    ];
+  },
+};
+
+type StdFlowParams = { m: Matrix };
+
+/** The branch labels the invariant-line sorting flow takes for a matrix. */
+function stdFlowPath([a, b, c, d]: Matrix): string[] {
+  if (b === 0 && c === 0) return a === d ? ['Yes', 'Yes'] : ['Yes', 'No'];
+  if (a !== 0 || d !== 0) return ['No', 'No'];
+  if (b === c) return ['No', 'Yes', 'Yes'];
+  return b === -c ? ['No', 'Yes', 'No', 'Yes'] : ['No', 'Yes', 'No', 'No'];
+}
+
+/** Sorting a matrix by where its zeros sit, to the lines through O it keeps. */
+const invStdFlow: Generator<StdFlowParams> = {
+  id: 'mat-inv-std-flow',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['every', 'axes', 'diagonals', 'none', 'quadratic'] as const);
+    const k = rng.pick([-4, -3, -2, -1, 2, 3, 4, 5]);
+    const j = nonZero(rng.int(-4, 5), 2);
+    switch (route) {
+      case 'every':
+        return { m: [k, 0, 0, k] };
+      case 'axes':
+        return { m: [k, 0, 0, k === j ? -k : j] };
+      case 'diagonals':
+        return { m: [0, k, k, 0] };
+      case 'none':
+        return { m: [0, k, -k, 0] };
+      case 'quadratic':
+        return { m: drawInvariant(rng, difficulty).m };
+    }
+  },
+  render: ({ m }): Slide => ({
+    kind: 'flow',
+    prompt: [{ kind: 'prose', text: 'Work down the questions to find which lines through the origin $\\mathbf{M}$ leaves invariant.' }],
+    subject: M_TEX(m),
+    steps: [
+      {
+        id: 'off',
+        ask: 'Are both entries off the leading diagonal zero?',
+        branches: [
+          { label: 'Yes', to: 'equal' },
+          { label: 'No', to: 'lead' },
+        ],
+      },
+      {
+        id: 'equal',
+        ask: 'Are the two entries on the leading diagonal equal?',
+        branches: [
+          { label: 'Yes', outcome: 'An enlargement: every line through $O$ is invariant.' },
+          { label: 'No', outcome: 'A stretch along the axes: the two axes are invariant.' },
+        ],
+      },
+      {
+        id: 'lead',
+        ask: 'Are both entries on the leading diagonal zero?',
+        branches: [
+          { label: 'Yes', to: 'same' },
+          { label: 'No', outcome: 'No shortcut: set up the quadratic in $m$ and solve it.' },
+        ],
+      },
+      {
+        id: 'same',
+        ask: 'Are the other two entries equal?',
+        branches: [
+          { label: 'Yes', outcome: 'The lines $y = x$ and $y = -x$ are invariant.' },
+          { label: 'No', to: 'opposite' },
+        ],
+      },
+      {
+        id: 'opposite',
+        ask: 'Are they equal and opposite?',
+        branches: [
+          { label: 'Yes', outcome: 'A turn through $90^\\circ$: no line through $O$ is invariant.' },
+          { label: 'No', outcome: 'No shortcut: set up the quadratic in $m$ and solve it.' },
+        ],
+      },
+    ],
+    answer: stdFlowPath(m),
+  }),
+  solution: ({ m }) => {
+    const [a, b, c, d] = m;
+    const path = stdFlowPath(m).join(',');
+    const verdict =
+      path === 'Yes,Yes'
+        ? `$\\mathbf{M}$ is $${a}$ times the identity, which sends $(1, m)$ to $(${a}, ${a}m)$ for every $m$: every line through $O$ is invariant.`
+        : path === 'Yes,No'
+          ? `$(1, 0)$ goes to $(${a}, 0)$ and $(0, 1)$ to $(0, ${d})$, so both axes map onto themselves. Any other direction is scaled by different amounts across and up, so it turns.`
+          : path === 'No,Yes,Yes'
+            ? `$(1, 1)$ goes to $(${b}, ${b})$ and $(1, -1)$ to $(${-b}, ${b})$, so $y = x$ and $y = -x$ both map onto themselves.`
+            : path === 'No,Yes,No,Yes'
+              ? `This is a turn through $90^\\circ$ combined with a scaling, so every direction is swung round a quarter turn and no line through $O$ survives. The quadratic $${polyTex([b, 0, -c], 'm')} = 0$ has no real solutions.`
+              : `No pattern of zeros settles it, so substitute $(1, m)$ and solve: $${polyTex([b, a - d, -c], 'm')} = 0$ gives the gradients of the invariant lines.`;
+    return [{ text: 'Where the zeros sit decides whether a shortcut applies, so look for them first.' }, { text: verdict }];
+  },
+};
+
+/* ----- lines that miss the origin ----- */
+
+interface OffsetCoeffsParams {
+  m: Matrix;
+  g: number;
+  /** Which coordinate of the image is asked: one per question, since four blanks wrap on a phone. */
+  row: 0 | 1;
+}
+
+/**
+ * One coordinate of the image of a general point (x, gx + c), collected into
+ * x terms and c terms. The other coordinate's two numbers sit in the bank.
+ */
+const invOffsetCoeffs: Generator<OffsetCoeffsParams> = {
+  id: 'mat-inv-offset-coeffs',
+  sample: (rng, difficulty) => ({
+    m: rng.chance(0.5) ? drawInvariant(rng, difficulty).m : drawOriginOnly(rng, difficulty),
+    g: nonZero(rng.int(-3, 3), 1),
+    row: rng.pick([0, 1] as const),
+  }),
+  render: ({ m, g, row }) => {
+    const [a, b, c, d] = m;
+    const rows = [
+      [a + b * g, b],
+      [c + d * g, d],
+    ];
+    const answer = rows[row].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `A point on the line $${familyTex(g)}$ is $(x, \\; ${slopeTex(g)} + c)$. Its image under $\\mathbf{M}$ is $(x', y')$. Find $${row === 0 ? "x'" : "y'"}$, collecting the $x$ terms and the $c$ terms.`,
+        },
+        { kind: 'display', tex: M_TEX(m) },
+      ],
+      template: `${row === 0 ? "x'" : "y'"} = {0}x + {1}c`,
+      // The other row, the matrix read by rows instead of columns, and the
+      // gradient not multiplied through.
+      bank: bankOf(
+        answer,
+        [...rows[1 - row], row === 0 ? a + c * g : b + d * g, row === 0 ? c : b, row === 0 ? a + g : c + g].map(String),
+      ),
+      answer,
+    };
+  },
+  solution: ({ m, g, row }) => {
+    const [a, b, c, d] = m;
+    return [
+      { text: `Multiply $(x, \\; ${slopeTex(g)} + c)$ by $\\mathbf{M}$. The ${row === 0 ? 'top' : 'bottom'} row gives $${row === 0 ? "x'" : "y'"}$.` },
+      { text: `$x' = ${a}x + ${br(b)}(${slopeTex(g)} + c) = ${a + b * g}x + ${br(b)}c$` },
+      { text: `$y' = ${c}x + ${br(d)}(${slopeTex(g)} + c) = ${c + d * g}x + ${br(d)}c$` },
+      {
+        text: `For the line to be invariant, $y' = ${g}x' + c$ has to hold for every $x$. The $x$ terms give the same condition on the gradient as before, and the $c$ terms give $${d}c = ${g * b}c + c$.`,
+      },
+    ];
+  },
+};
+
+interface OffsetImageParams {
+  inv: Invariant;
+  pick: 0 | 1;
+  k: number;
+}
+
+/**
+ * The image of a line parallel to an invariant line: the same gradient, and
+ * the intercept multiplied by the *other* line's factor.
+ *
+ * About a third are drawn with that factor 1, so the line maps to itself.
+ */
+const invOffsetImage: Generator<OffsetImageParams> = {
+  id: 'mat-inv-offset-image',
+  choices: ({ inv, pick, k }) => {
+    const g = inv.g[pick];
+    const [own, other] = [inv.s[pick], inv.s[1 - pick]];
+    return upToFour(
+      inv.m[0] + 3 * inv.m[1] + 5 * k,
+      { tex: yLine(g, k * other), answer: yAnswer(g, k * other) },
+      { tex: yLine(g, k), answer: yAnswer(g, k) },
+      { tex: yLine(g, k * own), answer: yAnswer(g, k * own) },
+      { tex: yLine(g, -k * other), answer: yAnswer(g, -k * other) },
+      { tex: yLine(g, k + other), answer: yAnswer(g, k + other) },
+    );
+  },
+  sample: (rng, difficulty) => {
+    const pick = rng.pick([0, 1] as const);
+    const unit = rng.chance(0.35) ? (pick === 0 ? 'second' : 'first') : 'none';
+    return { inv: drawInvariant(rng, difficulty, unit), pick, k: nonZero(rng.int(-5, 5), 2) };
+  },
+  render: ({ inv, pick, k }) => {
+    const g = inv.g[pick];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$${yLine(g)}$ is an invariant line of $\\mathbf{M}$. Find the image of the parallel line $${yLine(g, k)}$.`,
+        },
+        { kind: 'display', tex: M_TEX(inv.m) },
+      ],
+      lead: 'y =',
+      keypad: [{ insert: 'x', tex: true }],
+      answer: yAnswer(g, k * inv.s[1 - pick]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ inv, pick, k }) => {
+    const g = inv.g[pick];
+    const other = inv.s[1 - pick];
+    const [u, v] = apply(inv.m, 0, k);
+    return [
+      { text: `Parallel lines stay parallel, and lines of gradient $${g}$ keep that gradient, so the image is $${familyTex(g)}$ for some $c$. One point settles it: map $(0, ${k})$.` },
+      { tex: mapsTex(inv.m, 0, k) },
+      { text: `So $${v} = ${g} \\times ${br(u)} + c$, which gives $c = ${v - g * u}$. The image is $${yLine(g, k * other)}$.` },
+      {
+        text:
+          other === 1
+            ? 'That is the line we started with, so it is invariant, and so is every other line of this gradient.'
+            : `That is a different line: the intercept was multiplied by $${other}$, so only the line through $O$ with this gradient is invariant.`,
+      },
+    ];
+  },
+};
+
+interface OffsetFlowParams {
+  inv: Invariant;
+  w: number;
+}
+
+function offsetPath({ inv, w }: OffsetFlowParams): string[] {
+  const at = inv.g.indexOf(w);
+  if (at < 0) return ['No'];
+  return inv.s[1 - at] === 1 ? ['Yes', 'Yes'] : ['Yes', 'No'];
+}
+
+/** Which lines of one gradient are invariant: none, only the one through O, or all of them. */
+const invOffsetFlow: Generator<OffsetFlowParams> = {
+  id: 'mat-inv-offset-flow',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['every', 'only', 'neither'] as const);
+    if (route === 'every') {
+      const inv = drawInvariant(rng, difficulty, 'second');
+      return { inv, w: inv.g[0] };
+    }
+    const inv = drawInvariant(rng, difficulty, route === 'only' ? 'none' : rng.pick(['none', 'first'] as const));
+    if (route === 'only') return { inv, w: rng.pick(inv.g) };
+    const spare = [-3, -2, -1, 0, 1, 2, 3].filter((w) => !inv.g.includes(w));
+    return { inv, w: rng.pick(spare) };
+  },
+  render: (p): Slide => {
+    const { inv, w } = p;
+    const [, b, , d] = inv.m;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Which of the lines $${familyTex(w)}$ are invariant under $\\mathbf{M}$?` }],
+      subject: M_TEX(inv.m),
+      steps: [
+        {
+          id: 'grad',
+          ask: `Does $\\mathbf{M}$ send $(1, ${w})$ to a multiple of itself?`,
+          branches: [
+            { label: 'Yes', to: 'const' },
+            { label: 'No', outcome: 'None of them: no line with this gradient is invariant.' },
+          ],
+        },
+        {
+          id: 'const',
+          ask: `Comparing constant terms gives $c(${d} - ${br(b)} \\times ${br(w)} - 1) = 0$. Is the bracket zero?`,
+          branches: [
+            { label: 'Yes', outcome: 'All of them, whatever $c$ is.' },
+            { label: 'No', outcome: 'Only $c = 0$: the one through the origin.' },
+          ],
+        },
+      ],
+      answer: offsetPath(p),
+    };
+  },
+  solution: (p) => {
+    const { inv, w } = p;
+    const [, b, , d] = inv.m;
+    const [u, v] = apply(inv.m, 1, w);
+    const path = offsetPath(p).join(',');
+    if (path === 'No') {
+      return [
+        { tex: mapsTex(inv.m, 1, w) },
+        { text: `$${pairTex(u, v)}$ is not a multiple of $(1, ${w})$, so even $${yLine(w)}$ is turned to a new gradient. No line of gradient $${w}$ is invariant.` },
+      ];
+    }
+    return [
+      { tex: mapsTex(inv.m, 1, w) },
+      { text: `That is a multiple of $(1, ${w})$, so the direction survives and $${yLine(w)}$ is invariant.` },
+      { text: `For the rest, the constant terms need $c(${d} - ${br(b * w)} - 1) = 0$, and the bracket is $${d - b * w - 1}$.` },
+      {
+        text:
+          path === 'Yes,Yes'
+            ? 'It is zero, so the equation holds for every $c$: every line of this gradient maps onto itself.'
+            : 'It is not zero, so $c$ must be $0$: only the line through the origin is invariant.',
+      },
+    ];
+  },
+};
+
+/* ----- lines as sets: families, and sorting ----- */
+
+/** A line: y = mx + c, or x = c when `vertical`. */
+interface LineSpec {
+  vertical: boolean;
+  m: number;
+  c: number;
+}
+
+const lineSpecTex = (l: LineSpec) => (l.vertical ? `x = ${l.c}` : yLine(l.m, l.c));
+
+function pointsOf(l: LineSpec): [number, number][] {
+  return l.vertical
+    ? [
+        [l.c, 0],
+        [l.c, 1],
+      ]
+    : [
+        [0, l.c],
+        [1, l.m + l.c],
+      ];
+}
+
+const onLine = (l: LineSpec, [x, y]: [number, number]) => (l.vertical ? x === l.c : y === l.m * x + l.c);
+
+type Verdict = 'fixed' | 'moves' | 'off';
+
+/** Two points pin a line down, and a linear map keeps straight lines straight. */
+function verdictOf(m: Matrix, l: LineSpec): Verdict {
+  const points = pointsOf(l);
+  const images = points.map(([x, y]) => apply(m, x, y));
+  if (images.every(([u, v], i) => u === points[i][0] && v === points[i][1])) return 'fixed';
+  return images.every((image) => onLine(l, image)) ? 'moves' : 'off';
+}
+
+type Family = 'horizontal' | 'vertical' | 'through-o' | 'rising' | 'falling';
+
+const FAMILIES: readonly Family[] = ['horizontal', 'vertical', 'through-o', 'rising', 'falling'];
+
+const FAMILY_TEX: Record<Family, string> = {
+  horizontal: '\\text{Every line } y = c',
+  vertical: '\\text{Every line } x = c',
+  'through-o': '\\text{Every line through } O',
+  rising: '\\text{Every line } y = x + c',
+  falling: '\\text{Every line } y = -x + c',
+};
+
+/** A handful of lines from each family, enough to catch one that moves. */
+function familyLines(family: Family): LineSpec[] {
+  const cs = [-2, 0, 1, 3];
+  switch (family) {
+    case 'horizontal':
+      return cs.map((c) => ({ vertical: false, m: 0, c }));
+    case 'vertical':
+      return cs.map((c) => ({ vertical: true, m: 0, c }));
+    case 'rising':
+      return cs.map((c) => ({ vertical: false, m: 1, c }));
+    case 'falling':
+      return cs.map((c) => ({ vertical: false, m: -1, c }));
+    case 'through-o':
+      return [
+        ...[0, 1, -1, 2].map((m) => ({ vertical: false, m, c: 0 })),
+        { vertical: true, m: 0, c: 0 },
+      ];
+  }
+}
+
+const familyHolds = (m: Matrix, family: Family) => familyLines(family).every((l) => verdictOf(m, l) !== 'off');
+
+type Move = { kind: 'named'; t: Transform; phrase: number } | { kind: 'shear'; axis: 'x' | 'y'; s: number };
+
+function moveMatrix(move: Move): Matrix {
+  if (move.kind === 'named') return matrixOf(move.t);
+  return move.axis === 'x' ? [1, move.s, 0, 1] : [1, 0, move.s, 1];
+}
+
+function movePhrase(move: Move): string {
+  if (move.kind === 'named') return phraseOf(move.t, move.phrase);
+  return move.axis === 'x'
+    ? `a shear with the $x$-axis fixed, sending $(0, 1)$ to $(${move.s}, 1)$`
+    : `a shear with the $y$-axis fixed, sending $(1, 0)$ to $(1, ${move.s})$`;
+}
+
+function drawMove(rng: SampleRng, difficulty: number): Move {
+  if (rng.chance(0.3)) {
+    return { kind: 'shear', axis: rng.pick(['x', 'y'] as const), s: nonZero(rng.int(-4, 4), 2) };
+  }
+  return { kind: 'named', ...drawNamed(rng, difficulty) };
+}
+
+interface OffsetFamilyParams {
+  m: Matrix;
+  /** Which of the four wrong families is left off the options. */
+  drop: number;
+}
+
+/**
+ * Which family of parallel lines survives, line by line.
+ *
+ * Only matrices with exactly one such family are drawn, which the families
+ * themselves check: each candidate is tested on a few of its lines.
+ */
+const invOffsetFamily: Generator<OffsetFamilyParams> = {
+  id: 'mat-inv-offset-family',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 60; tries += 1) {
+      const m = moveMatrix(drawMove(rng, difficulty));
+      if (FAMILIES.filter((family) => familyHolds(m, family)).length === 1) return { m, drop: rng.int(0, 3) };
+    }
+    return { m: [1, 2, 0, 1], drop: 0 };
+  },
+  render: ({ m, drop }): Slide => {
+    const right = FAMILIES.find((family) => familyHolds(m, family)) ?? 'horizontal';
+    const wrong = FAMILIES.filter((family) => family !== right).filter((_, idx) => idx !== drop);
+    const { options: offered, correctId } = slotted(
+      FAMILY_TEX[right],
+      wrong.map((family) => FAMILY_TEX[family]),
+      `${m.join(',')}|${drop}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which of these families of lines is invariant under $\\mathbf{M}$, every line in it?' },
+        { kind: 'display', tex: M_TEX(m) },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: ({ m, drop }) => {
+    const right = FAMILIES.find((family) => familyHolds(m, family)) ?? 'horizontal';
+    const sample = familyLines(right).find((l) => l.c !== 0) ?? familyLines(right)[1];
+    const [p0, p1] = pointsOf(sample);
+    const wrongFamily = FAMILIES.filter((family) => family !== right).filter((_, idx) => idx !== drop)[0];
+    const miss = familyLines(wrongFamily).find((l) => verdictOf(m, l) === 'off') ?? familyLines(wrongFamily)[0];
+    const bad = pointsOf(miss).find(([x, y]) => !onLine(miss, apply(m, x, y))) ?? pointsOf(miss)[0];
+    return [
+      { text: `Take one line from the family, say $${lineSpecTex(sample)}$, and map two of its points.` },
+      { tex: mapsTex(m, p0[0], p0[1]) },
+      { tex: mapsTex(m, p1[0], p1[1]) },
+      { text: `Both images are back on $${lineSpecTex(sample)}$, and the same happens whatever the constant, so every line of the family is invariant.` },
+      {
+        text: `Against that, $${lineSpecTex(miss)}$ fails: its point $${pairTex(bad[0], bad[1])}$ goes to $${pairTex(...apply(m, bad[0], bad[1]))}$, which is off the line.`,
+      },
+    ];
+  },
+};
+
+/* ----- a line of invariant points, or an invariant line ----- */
+
+type SortRoute = 'fixed' | 'moves' | 'off';
+
+interface SortWhichParams {
+  inv: Invariant;
+  w: number;
+}
+
+function sortRoute({ inv, w }: SortWhichParams): SortRoute {
+  const at = inv.g.indexOf(w);
+  if (at < 0) return 'off';
+  return inv.s[at] === 1 ? 'fixed' : 'moves';
+}
+
+const SORT_TEX: Record<SortRoute, string> = {
+  fixed: '\\text{A line of invariant points}',
+  moves: '\\text{An invariant line whose points move}',
+  off: '\\text{Not an invariant line}',
+};
+
+/** One line, sorted by where (1, m) goes: back to itself, along the line, or off it. */
+const invSortWhich: Generator<SortWhichParams> = {
+  id: 'mat-inv-sort-which',
+  sample: (rng, difficulty) => {
+    const route = rng.pick(['fixed', 'moves', 'off'] as const);
+    const inv = drawInvariant(rng, difficulty, route === 'moves' && rng.chance(0.4) ? 'none' : 'first');
+    if (route === 'fixed') return { inv, w: inv.g[0] };
+    if (route === 'moves') return { inv, w: inv.s[0] === 1 ? inv.g[1] : rng.pick(inv.g) };
+    return { inv, w: rng.pick([-3, -2, -1, 0, 1, 2, 3].filter((w) => !inv.g.includes(w))) };
+  },
+  render: (p): Slide => {
+    const right = sortRoute(p);
+    const { options: offered, correctId } = slotted(
+      SORT_TEX[right],
+      (['fixed', 'moves', 'off'] as const).filter((r) => r !== right).map((r) => SORT_TEX[r]),
+      `${p.inv.m.join(',')}|${p.w}`,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `What is the line $${yLine(p.w)}$ to $\\mathbf{M}$?` },
+        { kind: 'display', tex: M_TEX(p.inv.m) },
+      ],
+      options: offered,
+      correctId,
+    };
+  },
+  solution: (p) => {
+    const route = sortRoute(p);
+    const [u, v] = apply(p.inv.m, 1, p.w);
+    return [
+      { text: `Map $(1, ${p.w})$, a point on the line.` },
+      { tex: mapsTex(p.inv.m, 1, p.w) },
+      {
+        text:
+          route === 'fixed'
+            ? 'It comes back to itself. So does every multiple of it, so every point on the line stays put: a line of invariant points.'
+            : route === 'moves'
+              ? `It lands on $${u}$ times itself: still on the line, but moved. The line is invariant, and its points slide along it, so it is not a line of invariant points.`
+              : `$${pairTex(u, v)}$ is not on $${yLine(p.w)}$, so the line is turned somewhere else. It is not invariant at all.`,
+      },
+    ];
+  },
+};
+
+interface SortFlowParams {
+  move: Move;
+  line: LineSpec;
+}
+
+/**
+ * A named transformation and a line, sorted geometrically.
+ *
+ * The verdict is computed from the matrix rather than tabulated, and the
+ * sample aims at each of the three verdicts equally, so a learner cannot
+ * learn that the answer is usually "no".
+ */
+const invSortFlow: Generator<SortFlowParams> = {
+  id: 'mat-inv-sort-flow',
+  sample: (rng, difficulty) => {
+    const target = rng.pick(['fixed', 'moves', 'off'] as const);
+    for (let tries = 0; tries < 400; tries += 1) {
+      const move = drawMove(rng, difficulty);
+      const line: LineSpec = rng.chance(0.3)
+        ? { vertical: true, m: 0, c: rng.int(-3, 3) }
+        : { vertical: false, m: rng.int(-2, 2), c: rng.chance(0.4) ? 0 : nonZero(rng.int(-3, 3), 2) };
+      if (verdictOf(moveMatrix(move), line) === target) return { move, line };
+    }
+    return { move: { kind: 'shear', axis: 'x', s: 2 }, line: { vertical: false, m: 0, c: 0 } };
+  },
+  render: ({ move, line }): Slide => {
+    const verdict = verdictOf(moveMatrix(move), line);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `The transformation is ${movePhrase(move)}. Work down the questions to say what it does to the line.` }],
+      subject: lineSpecTex(line),
+      steps: [
+        {
+          id: 'onto',
+          ask: 'Does the line map onto itself?',
+          branches: [
+            { label: 'Yes', to: 'still' },
+            { label: 'No', outcome: 'It is not an invariant line.' },
+          ],
+        },
+        {
+          id: 'still',
+          ask: 'Does every point on it stay exactly where it is?',
+          branches: [
+            { label: 'Yes', outcome: 'A line of invariant points.' },
+            { label: 'No', outcome: 'An invariant line: its points move along it.' },
+          ],
+        },
+      ],
+      answer: verdict === 'off' ? ['No'] : verdict === 'fixed' ? ['Yes', 'Yes'] : ['Yes', 'No'],
+    };
+  },
+  solution: ({ move, line }) => {
+    const m = moveMatrix(move);
+    const verdict = verdictOf(m, line);
+    const [p0, p1] = pointsOf(line);
+    const [i0, i1] = [apply(m, p0[0], p0[1]), apply(m, p1[0], p1[1])];
+    return [
+      { text: `${capital(movePhrase(move))} has matrix $${texOf(m)}$. Map two points of $${lineSpecTex(line)}$.` },
+      { text: `$${pairTex(p0[0], p0[1])} \\to ${pairTex(i0[0], i0[1])}$ and $${pairTex(p1[0], p1[1])} \\to ${pairTex(i1[0], i1[1])}$.` },
+      {
+        text:
+          verdict === 'fixed'
+            ? 'Both come back to themselves, and the points between follow, so every point of the line stays put: a line of invariant points.'
+            : verdict === 'moves'
+              ? 'Both images are on the line, so it maps onto itself, but the points have moved along it: an invariant line, not a line of invariant points.'
+              : 'At least one image is off the line, so the line is moved somewhere else: it is not invariant.',
+      },
+    ];
+  },
+};
+
+interface ShearSliderParams {
+  axis: 'x' | 'y';
+  s: number;
+  x0: number;
+  y0: number;
+}
+
+/**
+ * A shear slides each point along its line parallel to the fixed axis, by
+ * an amount in proportion to how far it is from that axis.
+ */
+const invShearSlider: Generator<ShearSliderParams> = {
+  id: 'mat-inv-shear-slider',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 80; tries += 1) {
+      const axis = rng.pick(['x', 'y'] as const);
+      const s = nonZero(rng.int(difficulty > 1 ? -3 : -2, difficulty > 1 ? 3 : 2), 1);
+      const x0 = rng.int(-4, 4);
+      const y0 = rng.int(-4, 4);
+      const moved = axis === 'x' ? x0 + s * y0 : y0 + s * x0;
+      const across = axis === 'x' ? y0 : x0;
+      if (across !== 0 && moved !== 0 && Math.abs(moved) <= 7) return { axis, s, x0, y0 };
+    }
+    return { axis: 'x', s: 2, x0: 1, y0: 2 };
+  },
+  render: ({ axis, s, x0, y0 }): Slide => {
+    const m: Matrix = axis === 'x' ? [1, s, 0, 1] : [1, 0, s, 1];
+    const [x1, y1] = apply(m, x0, y0);
+    const span = spanFor(x0, y0, x1, y1);
+    const along = axis === 'x' ? `y = ${y0}` : `x = ${x0}`;
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\mathbf{M}$ is a shear, and its fixed axis is dashed. $P = ${pairTex(x0, y0)}$ moves along the invariant line $${along}$. Slide to the $${axis}$-coordinate of its image.`,
+        },
+        { kind: 'display', tex: M_TEX(m) },
+      ],
+      min: -(span - 1),
+      max: span - 1,
+      step: 1,
+      answer: axis === 'x' ? x1 : y1,
+      readout: `${axis}\\text{-coordinate of } P' = {v}`,
+      figure: {
+        svg: transformGridSvg({
+          span,
+          marks: [{ x: x0, y: y0, label: 'P' }],
+          mirror: axis === 'x' ? 'x-axis' : 'y-axis',
+          label: `Squared paper with the point P at (${x0}, ${y0}) and the ${axis}-axis dashed`,
+        }),
+        xMin: -span,
+        xMax: span,
+        axis,
+      },
+    };
+  },
+  solution: ({ axis, s, x0, y0 }) => {
+    const m: Matrix = axis === 'x' ? [1, s, 0, 1] : [1, 0, s, 1];
+    const [x1, y1] = apply(m, x0, y0);
+    const across = axis === 'x' ? y0 : x0;
+    return [
+      { tex: mapsTex(m, x0, y0) },
+      {
+        text: `The ${axis === 'x' ? '$y$' : '$x$'}-coordinate is unchanged, so $P$ stays on its line and slides $${s} \\times ${br(across)} = ${s * across}$ along it, to $${pairTex(x1, y1)}$.`,
+      },
+      {
+        text: `Every line parallel to the $${axis}$-axis is invariant in this way. Points on the $${axis}$-axis itself are $0$ away from it and do not move at all: it is a line of invariant points.`,
+      },
+    ];
+  },
+};
+
 export const matrixGenerators = [
   addMatrices,
   combineMatrices,
@@ -6069,4 +7675,25 @@ export const matrixGenerators = [
   sysParamK,
   sysParamWhich,
   sysParamOutcome,
+  invPointWhich,
+  invPointSlider,
+  invPointFlow,
+  invPointDet,
+  invPointDetTree,
+  invPointLine,
+  invLineWhich,
+  invLineStretch,
+  invLineQuad,
+  invLineGradients,
+  invStdLines,
+  invStdPoints,
+  invStdImage,
+  invStdFlow,
+  invOffsetCoeffs,
+  invOffsetImage,
+  invOffsetFlow,
+  invOffsetFamily,
+  invSortWhich,
+  invSortFlow,
+  invShearSlider,
 ] as unknown as Generator<unknown>[];

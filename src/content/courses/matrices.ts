@@ -15,7 +15,8 @@
  * the two could not collide. The fourth, composing transformations, is `vm-l7`
  * for the same reason: batch B18 ran beside B17, which gave Vectors `vm-l6`.
  * The fifth, systems of equations, is `vm-l9`: batch B27 ran beside B26,
- * which took `vm-l8` for Vectors.
+ * which took `vm-l8` for Vectors. The sixth, invariant lines and points, is
+ * `vm-l11`: batch B36 ran beside B35, which took `vm-l10` for Vectors.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -53,7 +54,7 @@ const figure = (svg: string) => ({ kind: 'diagram' as const, svg });
 export const matrices: Course = {
   id: 'matrices',
   title: 'Matrices & Linear Transformations',
-  blurb: 'Matrix arithmetic, the determinant and the inverse, matrices as transformations of the plane, and systems of equations.',
+  blurb: 'Matrix arithmetic, the determinant and the inverse, matrices as transformations of the plane, systems of equations, and invariant lines and points.',
   levels: [
     {
       id: 'vm-l2',
@@ -1492,6 +1493,258 @@ export const matrices: Course = {
         ask('mat-sys-line-form', 2),
         ask('mat-sys-back-sub', 2),
         ask('mat-sys-param-outcome', 2),
+      ],
+    },
+    {
+      id: 'vm-l11',
+      title: 'Invariant Lines & Points',
+      lessons: [
+        {
+          id: 'vm-l11-points',
+          title: 'Invariant Points',
+          slides: [
+            teach(
+              prose(
+                'A point is **invariant** under a transformation when it does not move: $\\mathbf{M}\\mathbf{p} = \\mathbf{p}$. To test a point, multiply it by the matrix and see whether it comes back unchanged.',
+              ),
+              maths('\\begin{pmatrix} 3 & -1 \\\\ 2 & 0 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}'),
+              prose(
+                'So $(1, 2)$ is invariant. The origin always is, whatever the matrix, because $\\mathbf{M}\\mathbf{0} = \\mathbf{0}$. The interesting question is whether anything else is.',
+              ),
+              prose(
+                'One row is enough to find a missing coordinate. If $(3, y)$ is invariant, the top row says $3(3) - y = 3$, so $y = 6$.',
+              ),
+            ),
+            ask('mat-inv-point-which'),
+            ask('mat-inv-point-slider'),
+            ask('mat-inv-point-which', 2),
+            teach(
+              prose(
+                '$\\mathbf{M}\\mathbf{p} = \\mathbf{p}$ rearranges to $(\\mathbf{M} - \\mathbf{I})\\mathbf{p} = \\mathbf{0}$. Take 1 off each entry on the leading diagonal and look at the determinant.',
+              ),
+              maths('\\mathbf{M} - \\mathbf{I} = \\begin{pmatrix} 2 & -1 \\\\ 2 & -1 \\end{pmatrix}'),
+              prose(
+                'If $\\det(\\mathbf{M} - \\mathbf{I}) \\neq 0$ it has an inverse, and the only solution is $\\mathbf{p} = \\mathbf{0}$: the origin alone. If it is $0$, as here, a whole line of points through $O$ is invariant.',
+              ),
+            ),
+            ask('mat-inv-point-det'),
+            ask('mat-inv-point-det-tree'),
+            ask('mat-inv-point-flow'),
+            teach(
+              prose(
+                'When that determinant is zero, either row of $\\mathbf{M} - \\mathbf{I}$ gives the line. Here the top row says $2x - y = 0$:',
+              ),
+              maths('y = 2x'),
+              prose(
+                'Every point on $y = 2x$ stays put under $\\mathbf{M}$, and no point off it does. Only the identity matrix fixes every point in the plane.',
+              ),
+            ),
+            ask('mat-inv-point-line'),
+            ask('mat-inv-point-flow', 2),
+          ],
+          skillCheck: [ask('mat-inv-point-which', 2), ask('mat-inv-point-det', 2), ask('mat-inv-point-line', 2)],
+        },
+        {
+          id: 'vm-l11-lines',
+          title: 'Invariant Lines Through the Origin',
+          slides: [
+            teach(
+              prose(
+                'A line is **invariant** when every point on it is mapped to a point on the same line. The points may move, but only along the line.',
+              ),
+              prose(
+                'For a line through the origin, $y = mx$, one point decides it. $(1, m)$ is on the line, and the line is invariant exactly when $\\mathbf{M}$ sends $(1, m)$ to a multiple of itself.',
+              ),
+              maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix} = \\begin{pmatrix} 4 \\\\ 4 \\end{pmatrix}'),
+              prose('That is $4(1, 1)$, so $y = x$ is invariant, and every point on it is sent 4 times as far from $O$.'),
+            ),
+            ask('mat-inv-line-which'),
+            ask('mat-inv-line-stretch'),
+            ask('mat-inv-line-which', 2),
+            teach(
+              prose(
+                'To find the invariant lines rather than test them, keep $m$ as a letter. The same matrix sends $(1, m)$ to $(3 + m, \\; 2 + 2m)$, a multiple of $(1, m)$ when the second entry is $m$ times the first:',
+              ),
+              maths('2 + 2m = m(3 + m)'),
+              maths('m^2 + m - 2 = 0'),
+            ),
+            ask('mat-inv-line-quad'),
+            ask('mat-inv-line-gradients'),
+            ask('mat-inv-line-quad+choice', 2),
+            teach(
+              prose(
+                'It factorises as $(m - 1)(m + 2) = 0$, so $m = 1$ or $m = -2$: the invariant lines through $O$ are $y = x$ and $y = -2x$.',
+              ),
+              prose(
+                'Two solutions give two invariant lines, and one gives one. A quadratic with no real solutions means no line through $O$ survives, which is what happens under a quarter turn.',
+              ),
+            ),
+            ask('mat-inv-line-stretch', 2),
+            ask('mat-inv-line-gradients', 2),
+          ],
+          skillCheck: [ask('mat-inv-line-which', 2), ask('mat-inv-line-quad', 2), ask('mat-inv-line-gradients', 2)],
+        },
+        {
+          id: 'vm-l11-standard',
+          title: 'The Standard Transformations',
+          slides: [
+            teach(
+              prose(
+                'The standard transformations have invariant lines you can see without any algebra. A reflection leaves its mirror line alone, and flips the perpendicular line through $O$ end to end onto itself.',
+              ),
+              figure(
+                transformGridSvg({
+                  span: 4,
+                  mirror: 'y=x',
+                  arrows: [
+                    { x: 2, y: -2, label: 'p' },
+                    { x: -2, y: 2, label: 'p′', accent: true },
+                  ],
+                  maxWidth: 200,
+                  label: 'The mirror line y = x dashed, with an arrow along y = −x and its reflection pointing the other way along the same line',
+                }),
+              ),
+              prose(
+                'A rotation about $O$ turns every line, so it has none, except a half turn: it sends $(x, y)$ to $(-x, -y)$, which keeps every line through $O$.',
+              ),
+            ),
+            ask('mat-inv-std-lines'),
+            ask('mat-inv-std-image'),
+            ask('mat-inv-std-flow'),
+            teach(
+              prose('An enlargement about $O$ pushes every point straight out along its own line, so every line through $O$ is invariant.'),
+              prose(
+                'A stretch parallel to the $x$-axis stretches the $x$-axis along itself and leaves the $y$-axis where it is. Every other line through $O$ changes gradient:',
+              ),
+              maths('\\begin{pmatrix} 3 & 0 \\\\ 0 & 1 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 2 \\end{pmatrix}'),
+              prose('So $y = 2x$ goes to the line through $O$ and $(3, 2)$, which is $y = \\tfrac{2}{3}x$: a different line.'),
+            ),
+            ask('mat-inv-std-lines', 2),
+            ask('mat-inv-std-flow', 2),
+            ask('mat-inv-std-image+choice', 2),
+            teach(
+              prose(
+                'Invariant **points** are a stricter test: the point itself must not move. For a reflection they are the points of the mirror. The perpendicular line is invariant, but its points swap sides.',
+              ),
+              prose(
+                'A stretch parallel to the $x$-axis fixes every point of the $y$-axis, where $x = 0$ and there is nothing to stretch. Rotations and enlargements fix only the centre, $O$.',
+              ),
+            ),
+            ask('mat-inv-std-points'),
+            ask('mat-inv-std-points', 2),
+          ],
+          skillCheck: [ask('mat-inv-std-lines', 2), ask('mat-inv-std-points', 2), ask('mat-inv-std-image', 2)],
+        },
+        {
+          id: 'vm-l11-offset',
+          title: 'Lines Not Through the Origin',
+          slides: [
+            teach(
+              prose(
+                'A line that misses the origin, $y = mx + c$ with $c \\neq 0$, can be invariant too. Take a general point on it and multiply by $\\mathbf{M}$. For $y = x + c$:',
+              ),
+              maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix} \\begin{pmatrix} x \\\\ x + c \\end{pmatrix}'),
+              maths('= \\begin{pmatrix} 4x + c \\\\ 4x + 2c \\end{pmatrix}'),
+              prose(
+                "The image has to satisfy $y' = x' + c$ for every $x$. Compare the $x$ terms, which test the gradient, then the constant terms: here $2c = c + c$, true whatever $c$ is, so every line $y = x + c$ is invariant.",
+              ),
+              prose(
+                'In general the constant terms give $c$ times some number equal to $0$. If that number is $0$ every line of the gradient is invariant; if not, only $c = 0$ is.',
+              ),
+            ),
+            ask('mat-inv-offset-coeffs'),
+            ask('mat-inv-offset-flow'),
+            ask('mat-inv-offset-coeffs', 2),
+            teach(
+              prose(
+                'A quicker route to the image of such a line. A line parallel to an invariant line $y = mx$ maps to another line of gradient $m$, so only its intercept is unknown, and one point finds it.',
+              ),
+              maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix} \\begin{pmatrix} 0 \\\\ 3 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 6 \\end{pmatrix}'),
+              prose(
+                'So $y = -2x + 3$ goes to the line of gradient $-2$ through $(3, 6)$, which is $y = -2x + 12$. It moved: of the lines with gradient $-2$, only $y = -2x$ is invariant.',
+              ),
+            ),
+            ask('mat-inv-offset-image'),
+            ask('mat-inv-offset-flow', 2),
+            ask('mat-inv-offset-image+choice', 2),
+            teach(
+              prose(
+                'Some transformations keep a whole family of parallel lines. A shear with the $x$-axis fixed slides each point sideways, so every line $y = c$ maps onto itself.',
+              ),
+              maths('\\begin{pmatrix} 1 & 2 \\\\ 0 & 1 \\end{pmatrix} \\begin{pmatrix} x \\\\ c \\end{pmatrix} = \\begin{pmatrix} x + 2c \\\\ c \\end{pmatrix}'),
+              prose(
+                'A stretch parallel to the $x$-axis keeps the lines $y = c$ as well, and a reflection in the $x$-axis keeps every line $x = c$, flipped end to end.',
+              ),
+            ),
+            ask('mat-inv-offset-family'),
+            ask('mat-inv-offset-family', 2),
+          ],
+          skillCheck: [ask('mat-inv-offset-coeffs', 2), ask('mat-inv-offset-image', 2), ask('mat-inv-offset-family', 2)],
+        },
+        {
+          id: 'vm-l11-sort',
+          title: 'Invariant Line or Line of Invariant Points?',
+          slides: [
+            teach(
+              prose(
+                'Two phrases that sound alike. A **line of invariant points** is a line whose every point stays exactly where it is. An **invariant line** only has to map onto itself: its points may slide along it.',
+              ),
+              prose(
+                'For a line through $O$, the multiple says which. If $\\mathbf{M}$ sends $(1, m)$ to $k(1, m)$ the line is invariant, and it is a line of invariant points exactly when $k = 1$.',
+              ),
+              maths('\\begin{pmatrix} 3 & 1 \\\\ 2 & 2 \\end{pmatrix} \\begin{pmatrix} 1 \\\\ -2 \\end{pmatrix} = \\begin{pmatrix} 1 \\\\ -2 \\end{pmatrix}'),
+              prose('So $y = -2x$ is a line of invariant points of this matrix, while $y = x$, where $k = 4$, is an invariant line whose points move.'),
+            ),
+            ask('mat-inv-sort-which'),
+            ask('mat-inv-line-stretch', 2),
+            ask('mat-inv-sort-flow'),
+            teach(
+              prose(
+                'A shear shows the difference well. With the $x$-axis fixed, points on the axis do not move: a line of invariant points. Every other point slides parallel to the axis, further the further it is from it.',
+              ),
+              figure(
+                transformGridSvg({
+                  span: 3,
+                  image: [1, 1, 0, 1],
+                  square: true,
+                  mirror: 'x-axis',
+                  maxWidth: 200,
+                  label: 'The unit square sheared into a parallelogram, with the fixed x-axis dashed',
+                }),
+              ),
+              prose('So each line $y = c$ is an invariant line, but only $y = 0$ is a line of invariant points.'),
+            ),
+            ask('mat-inv-shear-slider'),
+            ask('mat-inv-sort-which', 2),
+            ask('mat-inv-shear-slider', 2),
+            teach(
+              prose(
+                'Reflections have both kinds. The mirror is a line of invariant points. Any line perpendicular to the mirror is an invariant line, flipped end to end, so its points swap sides.',
+              ),
+              prose('Every line of invariant points is an invariant line, but not the other way round.'),
+            ),
+            ask('mat-inv-sort-flow', 2),
+            ask('mat-inv-point-line', 2),
+          ],
+          skillCheck: [ask('mat-inv-sort-which', 2), ask('mat-inv-shear-slider', 2), ask('mat-inv-sort-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('mat-inv-point-which', 2),
+        ask('mat-inv-line-quad', 2),
+        ask('mat-inv-std-lines', 2),
+        ask('mat-inv-shear-slider', 2),
+        ask('mat-inv-point-det', 2),
+        ask('mat-inv-offset-family', 2),
+        ask('mat-inv-line-gradients', 2),
+        ask('mat-inv-sort-flow', 2),
+        ask('mat-inv-std-points', 2),
+        ask('mat-inv-offset-image', 2),
+        ask('mat-inv-line-stretch', 2),
+        ask('mat-inv-point-flow', 2),
+        ask('mat-inv-line-which', 2),
+        ask('mat-inv-std-image', 2),
+        ask('mat-inv-sort-which', 2),
       ],
     },
   ],

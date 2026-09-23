@@ -3,11 +3,9 @@
 Written by C7.
 
 Has: Pascal's Triangle and (a + b)ⁿ; nCr and the General Term; Unknowns and
-Conditions (C7-l3).
+Conditions (C7-l3); Products of Expansions (C7-l4).
 
-Needs: Products of Expansions
-((a + bx)ᵐ(c + dx)ⁿ, (1 + x + x²)ⁿ, and pairing brackets such as (1 + x)ⁿ(1 −
-x)ⁿ = (1 − x²)ⁿ); Estimates and Surds (choosing x to estimate a power, how big
+Needs: Estimates and Surds (choosing x to estimate a power, how big
 the error is, (√2 + 1)ⁿ and conjugate pairs); The Binomial Series for Rational n
 ((1 + x)ⁿ for negative and fractional n as an infinite series, valid for |x| <
 1, and (a + bx)ⁿ taken out as aⁿ(1 + bx/a)ⁿ with its own range); Approximating

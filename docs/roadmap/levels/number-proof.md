@@ -4,11 +4,11 @@ Written by C11.
 
 Has: Proof (direct proof, exhaustion, counterexample, contradiction, reading a
 proof); Divisibility & Primes (prime factors, HCF and LCM, divisibility tests
-and remainders, parity and multiples in algebra, rational and irrational).
+and remainders, parity and multiples in algebra, rational and irrational);
+Logic and Implication (⇒, ⇐ and ⇔, the converse and the contrapositive,
+necessary against sufficient, "if and only if" proofs in both directions).
 
-Needs: Logic and Implication (⇒, ⇐ and ⇔, the converse and the contrapositive,
-necessary against sufficient, "if and only if" proofs in both directions);
-Proof by Induction (sums of series, divisibility such as 3ⁿ − 1 by 2, and
+Needs: Proof by Induction (sums of series, divisibility such as 3ⁿ − 1 by 2, and
 inequalities, with the base case and the inductive step kept separate);
 Euclid's Algorithm (the HCF by repeated division, working it backwards to
 write the HCF as ax + by, and whole-number solutions of ax + by = c);

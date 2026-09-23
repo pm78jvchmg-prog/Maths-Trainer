@@ -27,7 +27,7 @@
  * whole, banks included; and a `tree` bank keeps at least two distractors
  * once the answers are taken out.
  */
-import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
+import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { markerWindow, plotSvg } from '../figures';
 import { options } from '../choiceVariant';
@@ -6914,6 +6914,1792 @@ const regionTest: Generator<RegionParams> = {
   solution: testWorking,
 };
 
+/* ======================================================================
+ * Level 5: Simultaneous Equations in Three Unknowns
+ *
+ * Batch C1-l5. Three equations in $x$, $y$ and $z$, solved by elimination:
+ * what a solution triple is, removing one letter twice to leave a pair,
+ * finishing the pair and putting the values back, choosing which letter to
+ * remove, and three unknowns from words. Solving two in two is level 2 and
+ * is pointed at, not re-taught; the matrix route stays in Matrices `vm-l9`.
+ *
+ * Built outward like the rest of the file: the triple is drawn first ($-6$
+ * to $6$), then the coefficients ($-4$ to $4$), then each right-hand side, so
+ * every combination and every value met on the way is whole. The rows are
+ * always independent — a non-zero determinant — and every number a learner
+ * reads stays under $100$.
+ * ==================================================================== */
+
+type Row = number[];
+
+/** Three equations in x, y and z, as rows of coefficients, with their solution. */
+interface Tri {
+  rows: Row[];
+  sol: Row;
+}
+
+const TRI_LETTERS = ['x', 'y', 'z'] as const;
+
+const dot3 = (row: Row, v: Row): number => row[0] * v[0] + row[1] * v[1] + row[2] * v[2];
+const rhsOf = (t: Tri, i: number): number => dot3(t.rows[i], t.sol);
+
+function det3([r, s, u]: Row[]): number {
+  return (
+    r[0] * (s[1] * u[2] - s[2] * u[1]) -
+    r[1] * (s[0] * u[2] - s[2] * u[0]) +
+    r[2] * (s[0] * u[1] - s[1] * u[0])
+  );
+}
+
+/** A term that opens a line, in any letter: `3z`, `-y`, `x`. */
+function leadTerm(k: number, letter: string): string {
+  if (k === 1) return letter;
+  if (k === -1) return `-${letter}`;
+  return `${k}${letter}`;
+}
+
+/** The left-hand side of a row, zero terms left out: `2x - y + 3z`, `x + 4z`. */
+function rowTex(row: Row): string {
+  const terms = TRI_LETTERS.flatMap((letter, n) => (row[n] === 0 ? [] : [{ k: row[n], letter }]));
+  return terms.map(({ k, letter }, i) => (i === 0 ? leadTerm(k, letter) : signedTile(k, letter))).join(' ');
+}
+
+function rowEqTex(row: Row, d: number): string {
+  return `${rowTex(row)} = ${d}`;
+}
+
+/** Equations stacked and numbered from `first`, so the prose can say "(4)". */
+function numberedTex(lines: string[], first = 1): string {
+  const body = lines.map((line, i) => `${line.replace(' = ', ' &= ')} & \\quad (${first + i})`).join(' \\\\ ');
+  return `\\begin{aligned} ${body} \\end{aligned}`;
+}
+
+function triTex(t: Tri): string {
+  return numberedTex(t.rows.map((row, i) => rowEqTex(row, rhsOf(t, i))));
+}
+
+function tripleTex(v: Row): string {
+  return `(${v[0]}, ${v[1]}, ${v[2]})`;
+}
+
+/**
+ * A row with values put in, as the working writes it: `2(3) - (-2) + 3(1)`,
+ * short enough to sit on one line of a phone. The letter at `keep`, if any,
+ * stays a letter.
+ */
+function rowAtTex(row: Row, v: Row, keep = -1): string {
+  return TRI_LETTERS.flatMap((letter, n) => (row[n] === 0 ? [] : [{ n, letter }]))
+    .map(({ n, letter }, i) => {
+      const k = row[n];
+      const sign = i === 0 ? (k < 0 ? '-' : '') : k < 0 ? '- ' : '+ ';
+      if (n === keep) return `${sign}${Math.abs(k) === 1 ? '' : Math.abs(k)}${letter}`;
+      return `${sign}${Math.abs(k) === 1 ? '' : Math.abs(k)}(${v[n]})`;
+    })
+    .join(' ');
+}
+
+/** "$x = 2$ and $y = -1$": the values already found, every letter but `skip`. */
+function knownText(v: Row, skip: number): string {
+  return TRI_LETTERS.flatMap((letter, n) => (n === skip ? [] : [`$${letter} = ${v[n]}$`])).join(' and ');
+}
+
+const capital = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** A choice slide whose options are sorted by label, so the options alone fix the order. */
+function sortedChoice(prompt: Block[], offered: ChoiceOption[]): Slide {
+  const sorted = [...offered].sort((a, b) => (a.tex < b.tex ? -1 : a.tex > b.tex ? 1 : 0));
+  return {
+    kind: 'choice',
+    prompt,
+    options: sorted.map((option, idx) => ({ id: `o${idx}`, label: option.tex, tex: true })),
+    correctId: `o${sorted.findIndex((option) => option.correct)}`,
+  };
+}
+
+/** Three different values: whole, never zero, and positive at difficulty 1. */
+function drawTriple(rng: Rng, hard: boolean): Row {
+  const pool = hard ? nonZeroRange(-6, 6) : range(1, 6);
+  return drawUntil(
+    () => [rng.pick(pool), rng.pick(pool), rng.pick(pool)],
+    ([x, y, z]) => x !== y && y !== z && x !== z,
+    hard ? [2, -3, 1] : [2, 3, 1],
+  );
+}
+
+const TRI_EASY = [-2, -1, 1, 2, 3, 4];
+const TRI_HARD = nonZeroRange(-4, 4);
+const triPool = (hard: boolean): number[] => (hard ? TRI_HARD : TRI_EASY);
+
+/** The letters whose coefficients are the same size, and not zero, in every row. */
+function matchedLetters(t: Tri): number[] {
+  return [0, 1, 2].filter(
+    (n) => t.rows[0][n] !== 0 && t.rows.every((row) => Math.abs(row[n]) === Math.abs(t.rows[0][n])),
+  );
+}
+
+const zeroCount = (t: Tri): number => t.rows.flat().filter((v) => v === 0).length;
+
+const smallTriple = (v: Row): boolean => v.every((n) => Math.abs(n) <= 12);
+
+/** z matched in all three (1, 1, -1); nothing else is. Solution (1, 2, 3). */
+const TRI_FALLBACK: Tri = {
+  rows: [
+    [1, 1, 1],
+    [2, -1, 1],
+    [1, 2, -1],
+  ],
+  sol: [1, 2, 3],
+};
+
+/** Every coefficient from the pool, the rows independent. */
+function sampleTri(rng: Rng, hard: boolean, accept: (t: Tri) => boolean = () => true): Tri {
+  const pool = triPool(hard);
+  return drawUntil(
+    () => ({ rows: [0, 1, 2].map(() => [rng.pick(pool), rng.pick(pool), rng.pick(pool)]), sol: drawTriple(rng, hard) }),
+    (t) => det3(t.rows) !== 0 && accept(t),
+    TRI_FALLBACK,
+  );
+}
+
+/** Two equations added or subtracted, with where they came from. */
+interface Combo {
+  row: Row;
+  d: number;
+  /** Equation numbers, in the order the combination is written. */
+  first: number;
+  second: number;
+  op: '+' | '-';
+  /** Row indices behind `first` and `second`. */
+  from: [number, number];
+}
+
+/**
+ * Rows `i` and `j` added or subtracted to remove letter `k`, whose
+ * coefficients are the same size in both. A subtraction is turned round when
+ * that makes the first coefficient left positive; an addition cannot be, and
+ * the samplers refuse one that leaves it negative.
+ */
+function combine(t: Tri, i: number, j: number, k: number, labels: [number, number] = [i + 1, j + 1]): Combo | undefined {
+  const p = t.rows[i][k];
+  const q = t.rows[j][k];
+  if (p === 0 || Math.abs(p) !== Math.abs(q)) return undefined;
+  const op = p === q ? '-' : '+';
+  const s = op === '-' ? -1 : 1;
+  const row = t.rows[i].map((v, n) => v + s * t.rows[j][n]);
+  const d = rhsOf(t, i) + s * rhsOf(t, j);
+  const lead = row.find((v) => v !== 0) ?? 0;
+  if (op === '-' && lead < 0) {
+    return { row: row.map((v) => 0 - v), d: 0 - d, first: labels[1], second: labels[0], op, from: [j, i] };
+  }
+  return { row, d, first: labels[0], second: labels[1], op, from: [i, j] };
+}
+
+const comboTex = (c: Combo): string => `(${c.first}) ${c.op} (${c.second})`;
+
+/** What the other operation makes of the same two rows: the add-for-subtract slip. */
+function wrongWay(t: Tri, c: Combo): { row: Row; d: number } {
+  const s = c.op === '-' ? 1 : -1;
+  const [i, j] = c.from;
+  return { row: t.rows[i].map((v, n) => v + s * t.rows[j][n]), d: rhsOf(t, i) + s * rhsOf(t, j) };
+}
+
+/** Both letters left, its first coefficient positive, its right-hand side under 100. */
+function tidyCombo(c: Combo | undefined, k: number): boolean {
+  if (!c) return false;
+  const rest = c.row.filter((_, n) => n !== k);
+  return rest.every((v) => v !== 0) && rest[0] > 0 && Math.abs(c.d) < 100;
+}
+
+/** The two letters left once letter `k` is gone, in alphabetical order. */
+const others = (k: number): [number, number] => (k === 0 ? [1, 2] : k === 1 ? [0, 2] : [0, 1]);
+
+function cross(u: Row, v: Row): Row {
+  return [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+}
+
+/**
+ * A triple on equations `i` and `j` but not the third: the solution moved
+ * one whole step along the line where those two planes meet. It is the
+ * wrong answer worth offering, because checking two equations passes it.
+ */
+function alongLine(t: Tri, i: number, j: number): Row {
+  const dir = cross(t.rows[i], t.rows[j]);
+  const g = dir.reduce((acc, v) => gcd(acc, v), 0);
+  const sign = (dir.find((v) => v !== 0) ?? 1) > 0 ? 1 : -1;
+  return t.sol.map((v, n) => v + (sign * dir[n]) / g);
+}
+
+/* ---------- Lesson 1: what a solution is ---------- */
+
+/**
+ * Which of these triples satisfies all three equations?
+ *
+ * Two wrong triples each satisfy two of the equations — one fails (3), one
+ * fails (1) — so checking only some of the equations lets them through. The
+ * third is the answer with $x$ and $y$ swapped.
+ */
+const triWhich: Generator<Tri> = {
+  id: 'lin-tri-which',
+  sample: (rng, difficulty) =>
+    sampleTri(rng, difficulty > 1, (t) => smallTriple(alongLine(t, 0, 1)) && smallTriple(alongLine(t, 1, 2))),
+  render: (t): Slide =>
+    sortedChoice(
+      [
+        { kind: 'prose', text: 'Only one of these triples $(x, y, z)$ satisfies **all three** equations. Which one?' },
+        { kind: 'display', tex: triTex(t) },
+      ],
+      options(
+        { tex: tripleTex(t.sol) },
+        { tex: tripleTex(alongLine(t, 0, 1)) },
+        { tex: tripleTex(alongLine(t, 1, 2)) },
+        { tex: tripleTex([t.sol[1], t.sol[0], t.sol[2]]) },
+      ),
+    ),
+  solution: (t) => [
+    { text: 'A solution makes all three equations true at once. Put the triple into (1), (2) and (3) in turn.' },
+    ...t.rows.map((row, i) => ({ tex: `${rowAtTex(row, t.sol)} = ${rhsOf(t, i)}` })),
+    {
+      text: `So $${tripleTex(t.sol)}$ works in all three. $${tripleTex(alongLine(t, 0, 1))}$ satisfies (1) and (2) but not (3), and $${tripleTex(alongLine(t, 1, 2))}$ fails (1).`,
+    },
+  ],
+};
+
+interface TriCheckParams extends Tri {
+  /** The first equation the offered triple fails, or 0 when it is the solution. */
+  fails: 0 | 1 | 2 | 3;
+}
+
+function checkedTriple(p: TriCheckParams): Row {
+  if (p.fails === 1) return alongLine(p, 1, 2);
+  if (p.fails === 2) return alongLine(p, 0, 2);
+  if (p.fails === 3) return alongLine(p, 0, 1);
+  return p.sol;
+}
+
+/**
+ * Checking a triple as a walk through the three equations.
+ *
+ * Each equation in turn, stopping at the first that fails. The four cases
+ * turn up equally, and a triple failing only (3) is the one that makes the
+ * point: two out of three is not a solution.
+ */
+const triCheckFlow: Generator<TriCheckParams> = {
+  id: 'lin-tri-check-flow',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ ...sampleTri(rng, difficulty > 1), fails: rng.pick([0, 1, 2, 3] as const) }),
+      (p) => smallTriple(checkedTriple(p)),
+      { ...TRI_FALLBACK, fails: 3 },
+    ),
+  render: (p): Slide => {
+    const v = checkedTriple(p);
+    const answer = p.fails === 0 ? [SAT_YES, SAT_YES, SAT_YES] : [...Array(p.fails - 1).fill(SAT_YES), SAT_NO];
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Is $(x, y, z) = ${tripleTex(v)}$ a solution? Check it one equation at a time.` }],
+      subject: triTex(p),
+      steps: [
+        {
+          id: 'one',
+          ask: 'Put the values into equation (1). Does it balance?',
+          branches: [
+            { label: SAT_YES, to: 'two' },
+            { label: SAT_NO, outcome: 'Not a solution. It fails (1), so there is no need to go on.' },
+          ],
+        },
+        {
+          id: 'two',
+          ask: 'Now equation (2). Does it balance?',
+          branches: [
+            { label: SAT_YES, to: 'three' },
+            { label: SAT_NO, outcome: 'Not a solution. It fails (2).' },
+          ],
+        },
+        {
+          id: 'three',
+          ask: 'And equation (3)?',
+          branches: [
+            { label: SAT_YES, outcome: 'A solution: it satisfies all three equations.' },
+            { label: SAT_NO, outcome: 'Not a solution. It satisfies (1) and (2) only.' },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (p) => {
+    const v = checkedTriple(p);
+    const upTo = p.fails === 0 ? 3 : p.fails;
+    return [
+      ...p.rows.slice(0, upTo).flatMap((row, i) => {
+        const left = dot3(row, v);
+        return [
+          { text: `(${i + 1}) needs $${rhsOf(p, i)}$:` },
+          { tex: `${rowAtTex(row, v)} = ${left}` },
+        ];
+      }),
+      {
+        text:
+          p.fails === 0
+            ? 'All three balance, so it is the solution.'
+            : `Equation (${p.fails}) fails, so it is not a solution — one failure is enough.`,
+      },
+    ];
+  },
+};
+
+interface LhsParams extends Tri {
+  which: 0 | 1 | 2;
+  /** The real solution, or a triple on the other two equations only. */
+  real: boolean;
+}
+
+function lhsTriple(p: LhsParams): Row {
+  if (p.real) return p.sol;
+  const [i, j] = others(p.which);
+  return alongLine(p, i, j);
+}
+
+/**
+ * One equation's left-hand side at a triple, term by term.
+ *
+ * Three products, then their total, compared with the right-hand side. Half
+ * the time the triple satisfies the other two equations and fails this one,
+ * so the check is doing real work.
+ */
+const triLhsTree: Generator<LhsParams> = {
+  id: 'lin-tri-lhs-tree',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ ...sampleTri(rng, difficulty > 1), which: rng.pick([0, 1, 2] as const), real: rng.chance(0.5) }),
+      (p) => smallTriple(lhsTriple(p)),
+      { ...TRI_FALLBACK, which: 0, real: true },
+    ),
+  render: (p): Slide => {
+    const row = p.rows[p.which];
+    const v = lhsTriple(p);
+    const terms = row.map((k, n) => k * v[n]);
+    const total = terms[0] + terms[1] + terms[2];
+    const answer = [...terms, total].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Is $(x, y, z) = ${tripleTex(v)}$ a solution? Work out the left-hand side of equation (${p.which + 1}) there: the value of each term, sign included, then their total.`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      expression: rowTex(row),
+      nodes: [
+        { id: 'x', from: [] },
+        { id: 'y', from: [] },
+        { id: 'z', from: [] },
+        { id: 'total', from: ['x', 'y', 'z'] },
+      ],
+      bank: treeBank(answer, [-terms[0], -terms[1], -terms[2], total - 2 * terms[2], rhsOf(p, p.which)], total),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const v = lhsTriple(p);
+    const row = p.rows[p.which];
+    const total = dot3(row, v);
+    const d = rhsOf(p, p.which);
+    return [
+      { tex: `${rowAtTex(row, v)} = ${total}` },
+      {
+        text:
+          total === d
+            ? `That is the $${d}$ on the right, so (${p.which + 1}) balances. The triple still has to pass the other two before it is a solution.`
+            : `The right-hand side is $${d}$, so (${p.which + 1}) fails and the triple is **not** a solution, even though it satisfies the other two.`,
+      },
+    ];
+  },
+};
+
+interface ThirdParams extends Tri {
+  which: 0 | 1 | 2;
+  /** The letter still to find. */
+  ask: 0 | 1 | 2;
+}
+
+/** What is left for the unknown term once the known values are taken over. */
+function thirdRest(p: ThirdParams): number {
+  const row = p.rows[p.which];
+  return rhsOf(p, p.which) - row.reduce((sum, k, n) => (n === p.ask ? sum : sum + k * p.sol[n]), 0);
+}
+
+/**
+ * Two values known, the third from one equation.
+ *
+ * The last step of every solve in this level, asked on its own: the two
+ * known values go in, what is left is a one-letter equation from level 1.
+ */
+const triThird: Generator<ThirdParams> = {
+  id: 'lin-tri-third',
+  choices: (p) => {
+    const c = p.rows[p.which][p.ask];
+    const rest = thirdRest(p);
+    const target = p.sol[p.ask];
+    const known = rhsOf(p, p.which) - rest;
+    return numberChoices(target, -target, rest, (rhsOf(p, p.which) + known) / c);
+  },
+  sample: (rng, difficulty) => ({
+    ...sampleTri(rng, difficulty > 1),
+    which: rng.pick([0, 1, 2] as const),
+    ask: difficulty > 1 ? rng.pick([0, 1, 2] as const) : 2,
+  }),
+  render: (p): Slide => {
+    const letter = TRI_LETTERS[p.ask];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `In the solution of this system, ${knownText(p.sol, p.ask)}. Put them into equation (${p.which + 1}) to find $${letter}$.`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      lead: `${letter} =`,
+      keypad: [],
+      answer: `${p.sol[p.ask]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const row = p.rows[p.which];
+    const letter = TRI_LETTERS[p.ask];
+    const rest = thirdRest(p);
+    return [
+      { tex: `${rowAtTex(row, p.sol, p.ask)} = ${rhsOf(p, p.which)}` },
+      { text: 'Work out the known terms and take them over to the right.' },
+      { tex: `${leadTerm(row[p.ask], letter)} = ${rest}` },
+      { tex: `${letter} = ${p.sol[p.ask]}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 2: dropping one letter ---------- */
+
+interface DropParams extends Tri {
+  /** The letter being removed, the same size in all three rows. */
+  k: number;
+}
+
+const DROP_FALLBACK: DropParams = { ...TRI_FALLBACK, k: 2 };
+
+/**
+ * A system with one letter the same size in every row, and no other.
+ *
+ * Its signs are drawn row by row, so pairing (1) with (2) and with (3) calls
+ * for adding and subtracting in every mix. Both combinations keep both other
+ * letters, lead with a positive coefficient, and stay under 100. Difficulty
+ * 1 always removes $z$; difficulty 2 any letter, with negative values.
+ */
+function sampleDrop(rng: Rng, difficulty: number): DropParams {
+  const hard = difficulty > 1;
+  const pool = triPool(hard);
+  return drawUntil(
+    () => {
+      const k = hard ? rng.int(0, 2) : 2;
+      const m = rng.int(1, hard ? 3 : 2);
+      return {
+        rows: [0, 1, 2].map(() => [0, 1, 2].map((n) => (n === k ? rng.pick([1, -1]) * m : rng.pick(pool)))),
+        sol: drawTriple(rng, hard),
+        k,
+      };
+    },
+    (p) =>
+      det3(p.rows) !== 0 &&
+      matchedLetters(p).length === 1 &&
+      tidyCombo(combine(p, 0, 1, p.k), p.k) &&
+      tidyCombo(combine(p, 0, 2, p.k), p.k),
+    DROP_FALLBACK,
+  );
+}
+
+/** (4) from (1) with (2), and (5) from (1) with (3). */
+function reducedPair(p: DropParams): [Combo, Combo] {
+  return [combine(p, 0, 1, p.k)!, combine(p, 0, 2, p.k)!];
+}
+
+function reducedTex(p: DropParams): string {
+  const [four, five] = reducedPair(p);
+  return numberedTex([rowEqTex(four.row, four.d), rowEqTex(five.row, five.d)], 4);
+}
+
+function dropWorking(p: DropParams): SolutionStep[] {
+  const letter = TRI_LETTERS[p.k];
+  const [a, b] = others(p.k);
+  const [four, five] = reducedPair(p);
+  return [
+    { text: `The $${letter}$ coefficients are the same size in all three equations, so remove $${letter}$ twice.` },
+    { tex: `${comboTex(four)}: \\; ${rowEqTex(four.row, four.d)} \\quad (4)` },
+    { tex: `${comboTex(five)}: \\; ${rowEqTex(five.row, five.d)} \\quad (5)` },
+    {
+      text: `(4) and (5) are a pair in $${TRI_LETTERS[a]}$ and $${TRI_LETTERS[b]}$ alone, solved as in level 2: $${TRI_LETTERS[a]} = ${p.sol[a]}$ and $${TRI_LETTERS[b]} = ${p.sol[b]}$. Then (1) gives $${letter} = ${p.sol[p.k]}$.`,
+    },
+  ];
+}
+
+const TRI_ADD = 'Add them';
+const TRI_SUBTRACT = 'Subtract them';
+
+/**
+ * Add or subtract, twice.
+ *
+ * (1) is paired with (2) and then with (3), and the signs of the letter being
+ * removed decide each one separately. Both forks go on, so the path is the
+ * answer; the outcomes state the rule, never which choice was right.
+ */
+const triDropFlow: Generator<DropParams> = {
+  id: 'lin-tri-drop-flow',
+  sample: sampleDrop,
+  render: (p): Slide => {
+    const letter = TRI_LETTERS[p.k];
+    const [four, five] = reducedPair(p);
+    const label = (c: Combo) => (c.op === '+' ? TRI_ADD : TRI_SUBTRACT);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Remove $${letter}$ from this system by pairing (1) with each of the others.` }],
+      subject: triTex(p),
+      steps: [
+        {
+          id: 'first',
+          ask: `Pair (1) with (2). To remove $${letter}$, do you add them or subtract them?`,
+          branches: [
+            { label: TRI_ADD, to: 'second' },
+            { label: TRI_SUBTRACT, to: 'second' },
+          ],
+        },
+        {
+          id: 'second',
+          ask: 'Now pair (1) with (3). Add or subtract?',
+          branches: [
+            { label: TRI_ADD, outcome: `Adding cancels $${letter}$ when its two coefficients have opposite signs.` },
+            { label: TRI_SUBTRACT, outcome: `Subtracting cancels $${letter}$ when its two coefficients have the same sign.` },
+          ],
+        },
+      ],
+      answer: [label(four), label(five)],
+    };
+  },
+  solution: (p) => {
+    const letter = TRI_LETTERS[p.k];
+    const [four, five] = reducedPair(p);
+    const why = (c: Combo, other: number) =>
+      `In (1) and (${other}) the $${letter}$ coefficients are $${p.rows[0][p.k]}$ and $${p.rows[other - 1][p.k]}$: ${c.op === '-' ? 'the same sign, so **subtract**' : 'opposite signs, so **add**'}.`;
+    return [
+      { text: why(four, 2) },
+      { tex: `${comboTex(four)}: \\; ${rowEqTex(four.row, four.d)}` },
+      { text: why(five, 3) },
+      { tex: `${comboTex(five)}: \\; ${rowEqTex(five.row, five.d)}` },
+    ];
+  },
+};
+
+interface DropPairParams extends DropParams {
+  /** Which equation (1) is paired with: 1 for (2), 2 for (3). */
+  with: 1 | 2;
+}
+
+function sampleDropPair(rng: Rng, difficulty: number): DropPairParams {
+  return { ...sampleDrop(rng, difficulty), with: rng.pick([1, 2] as const) };
+}
+
+const dropCombo = (p: DropPairParams): Combo => combine(p, 0, p.with, p.k)!;
+
+function dropPairSolution(p: DropPairParams): SolutionStep[] {
+  const letter = TRI_LETTERS[p.k];
+  const c = dropCombo(p);
+  return [
+    {
+      text: `The $${letter}$ coefficients in (1) and (${p.with + 1}) are $${p.rows[0][p.k]}$ and $${p.rows[p.with][p.k]}$: ${c.op === '-' ? 'the same sign, so subtract' : 'opposite signs, so add'}, every term and the right-hand sides too.`,
+    },
+    { tex: `${comboTex(c)}: \\; ${rowEqTex(c.row, c.d)}` },
+    { text: `No $${letter}$ is left: one equation in the other two letters.` },
+  ];
+}
+
+/**
+ * The equation left once a letter is removed, placed as tiles.
+ *
+ * The bank holds what the wrong operation leaves, a right-hand side with its
+ * sign lost, and the second term with its sign lost — the three slips worth
+ * catching when one whole equation is taken from another.
+ */
+const triCombine: Generator<DropPairParams> = {
+  id: 'lin-tri-combine',
+  choices: (p) => {
+    const c = dropCombo(p);
+    const wrong = wrongWay(p, c);
+    const [, b] = others(p.k);
+    const flipped = c.row.map((v, n) => (n === b ? 0 - v : v));
+    return labelChoices(
+      rowEqTex(c.row, c.d),
+      rowEqTex(wrong.row, wrong.d),
+      rowEqTex(c.row, 0 - c.d),
+      rowEqTex(flipped, c.d),
+    );
+  },
+  sample: sampleDropPair,
+  render: (p): Slide => {
+    const c = dropCombo(p);
+    const wrong = wrongWay(p, c);
+    const [a, b] = others(p.k);
+    const [la, lb] = [TRI_LETTERS[a], TRI_LETTERS[b]];
+    const answer = [leadTerm(c.row[a], la), signedTile(c.row[b], lb), `${c.d}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Remove $${TRI_LETTERS[p.k]}$ from (1) and (${p.with + 1}) by adding or subtracting them. Write the equation that is left, with its $${la}$ coefficient positive.`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      template: '{0} {1} = {2}',
+      bank: bankOf(answer, [
+        ...(wrong.row[a] === 0 ? [] : [leadTerm(wrong.row[a], la)]),
+        ...(wrong.row[b] === 0 ? [] : [signedTile(wrong.row[b], lb)]),
+        `${wrong.d}`,
+        `${0 - c.d}`,
+        signedTile(0 - c.row[b], lb),
+      ]),
+      answer,
+    };
+  },
+  solution: dropPairSolution,
+};
+
+/** One letter's term as a tile: leading, or signed after the first; a bare 0 when it cancels. */
+function termTile(k: number, letter: string, first: boolean): string {
+  if (k === 0) return first ? '0' : '+ 0';
+  return first ? leadTerm(k, letter) : signedTile(k, letter);
+}
+
+/**
+ * Removing a letter as a line of working, one letter at a time.
+ *
+ * The combination is written out term by term — $(a_1 + a_2)x$, and so on —
+ * so each tap settles one letter, the removed one coming to $0$, and the last
+ * tap settles the right-hand side and tidies the line. Each bank holds what
+ * the other operation makes of that term and the term with its sign lost.
+ * Every piece stays short, so the line fits a phone however it wraps.
+ */
+const triDropSteps: Generator<DropPairParams> = {
+  id: 'lin-tri-drop-steps',
+  sample: sampleDropPair,
+  render: (p): Slide => {
+    const c = dropCombo(p);
+    const wrong = wrongWay(p, c);
+    const [i, j] = c.from;
+    const pieces = TRI_LETTERS.map(
+      (letter, n) => `${n === 0 ? '' : '+ '}(${p.rows[i][n]} ${c.op} ${br(p.rows[j][n])})${letter}`,
+    );
+    const left = rowTex(c.row);
+    const terms: Extract<Slide, { kind: 'steps' }>['reductions'] = TRI_LETTERS.map((letter, n) => {
+      const value = termTile(c.row[n], letter, n === 0);
+      return {
+        span: [n, n + 1],
+        value,
+        bank: stepBank(value, termTile(wrong.row[n], letter, n === 0), termTile(0 - c.row[n] || 1, letter, n === 0)),
+      };
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Remove $${TRI_LETTERS[p.k]}$ from (1) and (${p.with + 1}) with ${comboTex(c)}: settle the $x$, $y$ and $z$ terms in turn, then the right-hand side. ${HOW_TO_STEP}`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      start: [...pieces, '=', `${rhsOf(p, i)} ${c.op} ${br(rhsOf(p, j))}`],
+      reductions: [
+        ...terms,
+        {
+          span: [0, 5],
+          operator: 4,
+          value: `${left} = ${c.d}`,
+          bank: stepBank(`${left} = ${c.d}`, `${left} = ${wrong.d}`, `${left} = ${0 - c.d}`, `${left} = ${rhsOf(p, i)}`),
+        },
+      ],
+    };
+  },
+  solution: dropPairSolution,
+};
+
+/**
+ * The new equation still holds at the solution.
+ *
+ * Whatever satisfies (1) and (2) satisfies their sum and their difference, so
+ * removing a letter this way never loses the solution. Asked as a reduction:
+ * the equation left, worked out at the known triple.
+ */
+const triDropCheck: Generator<DropPairParams> = {
+  id: 'lin-tri-drop-check',
+  choices: (p) => {
+    const c = dropCombo(p);
+    const [a, b] = others(p.k);
+    const [u, w] = [c.row[a], c.row[b]];
+    const [va, vb] = [p.sol[a], p.sol[b]];
+    return numberChoices(c.d, u * va - w * vb, u * vb + w * va, -c.d);
+  },
+  sample: sampleDropPair,
+  render: (p): Slide => {
+    const c = dropCombo(p);
+    const [a, b] = others(p.k);
+    const [u, w] = [c.row[a], c.row[b]];
+    const product = bin('*', num(u), num(p.sol[a]));
+    const expr = w < 0 ? bin('-', product, bin('*', num(-w), num(p.sol[b]))) : bin('+', product, bin('*', num(w), num(p.sol[b])));
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This system's solution is $${tripleTex(p.sol)}$. Removing $${TRI_LETTERS[p.k]}$ with ${comboTex(c)} gave $${rowEqTex(c.row, c.d)}$. Work out its left-hand side at the solution. ${HOW_TO_REDUCE}`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      expr,
+      banks: banksFor(expr),
+    };
+  },
+  solution: (p) => {
+    const c = dropCombo(p);
+    const [a, b] = others(p.k);
+    return [
+      { tex: `${c.row[a]} \\times ${br(p.sol[a])} ${c.row[b] < 0 ? '-' : '+'} ${Math.abs(c.row[b])} \\times ${br(p.sol[b])} = ${c.d}` },
+      {
+        text: `That is the right-hand side, $${c.d}$. Adding or subtracting two true equations gives a true equation, so the new one keeps the solution.`,
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: finishing off ---------- */
+
+interface FinishParams extends DropParams {
+  /** The letter whose coefficients match in (4) and (5), removed next. */
+  m: number;
+}
+
+/** z matched (1, 1, -1); (4) = (2) - (1) is x - y = -1, (5) = (1) + (3) is 2x + y = 4. */
+const FINISH_FALLBACK: FinishParams = {
+  rows: [
+    [1, 2, 1],
+    [2, 1, 1],
+    [1, -1, -1],
+  ],
+  sol: [1, 2, 3],
+  k: 2,
+  m: 1,
+};
+
+function pairTri(p: DropParams): Tri {
+  const [four, five] = reducedPair(p);
+  return { rows: [four.row, five.row], sol: p.sol };
+}
+
+const finishCombo = (p: FinishParams): Combo => combine(pairTri(p), 0, 1, p.m, [4, 5])!;
+
+/**
+ * A system that removes one letter cleanly, and then another.
+ *
+ * On top of `sampleDrop`: in the pair (4), (5) exactly one letter has
+ * coefficients the same size, so finishing off is one more add or subtract
+ * with no scaling, and it leaves the last letter with a positive coefficient.
+ */
+function sampleFinish(rng: Rng, difficulty: number): FinishParams {
+  return drawUntil(
+    () => {
+      const p = sampleDrop(rng, difficulty);
+      const pair = pairTri(p);
+      const matched = others(p.k).filter((n) => Math.abs(pair.rows[0][n]) === Math.abs(pair.rows[1][n]));
+      return { ...p, m: matched.length === 1 ? matched[0] : -1 };
+    },
+    (p) => {
+      if (p.m < 0) return false;
+      const c = finishCombo(p);
+      return c !== undefined && c.row[3 - p.k - p.m] > 0 && Math.abs(c.d) < 100;
+    },
+    FINISH_FALLBACK,
+  );
+}
+
+/**
+ * The finish, as a tree: the pair combined, the letter it leaves, then the
+ * other two put back in turn — the second from (4), the last from (1).
+ */
+const triFinishTree: Generator<FinishParams> = {
+  id: 'lin-tri-finish-tree',
+  sample: sampleFinish,
+  render: (p): Slide => {
+    const c = finishCombo(p);
+    const n = 3 - p.k - p.m;
+    const wrong = wrongWay(pairTri(p), c);
+    const answer = [c.row[n], c.d, p.sol[n], p.sol[p.m], p.sol[p.k]].map(String);
+    const [L, M, N] = [TRI_LETTERS[p.k], TRI_LETTERS[p.m], TRI_LETTERS[n]];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `(4) and (5) came from removing $${L}$. Now ${comboTex(c)} removes $${M}$ and leaves $\\square\\, ${N} = \\square$. Fill the tree: that coefficient and right-hand side, then $${N}$, then $${M}$ from (4), then $${L}$ from (1).`,
+        },
+        { kind: 'display', tex: triTex(p) },
+        { kind: 'display', tex: reducedTex(p) },
+      ],
+      expression: comboTex(c),
+      nodes: [
+        { id: 'coefficient', from: [] },
+        { id: 'right', from: [] },
+        { id: 'last', from: ['coefficient', 'right'] },
+        { id: 'middle', from: ['last'] },
+        { id: 'first', from: ['last', 'middle'] },
+      ],
+      bank: treeBank(answer, [wrong.row[n], wrong.d, -p.sol[n], -p.sol[p.m]], p.sol[n]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const c = finishCombo(p);
+    const n = 3 - p.k - p.m;
+    const [four] = reducedPair(p);
+    const [L, M, N] = [TRI_LETTERS[p.k], TRI_LETTERS[p.m], TRI_LETTERS[n]];
+    return [
+      { text: `The $${M}$ coefficients in (4) and (5) are the same size, so ${c.op === '-' ? 'subtract' : 'add'}.` },
+      { tex: `${leadTerm(c.row[n], N)} = ${c.d} \\implies ${N} = ${p.sol[n]}` },
+      { text: `Put $${N} = ${p.sol[n]}$ into (4):` },
+      { tex: `${rowAtTex(four.row, p.sol, p.m)} = ${four.d}` },
+      { tex: `${M} = ${p.sol[p.m]}` },
+      { text: 'Then both into (1):' },
+      { tex: `${rowAtTex(p.rows[0], p.sol, p.k)} = ${rhsOf(p, 0)}` },
+      { tex: `${L} = ${p.sol[p.k]}` },
+    ];
+  },
+};
+
+interface BackParams extends Tri {
+  which: 0 | 1 | 2;
+  /** The letter still to find; its term goes last on the line. */
+  ask: 0 | 1 | 2;
+}
+
+/**
+ * Putting two values back, as a line of working.
+ *
+ * The two known terms are worked out together, the total taken across, and
+ * the coefficient divided out — three taps, with the sign slips in each bank.
+ * The unknown's term is written last, so the line reads known, known, unknown.
+ */
+const triBackSteps: Generator<BackParams> = {
+  id: 'lin-tri-back-steps',
+  sample: (rng, difficulty) => ({
+    ...sampleTri(rng, difficulty > 1),
+    which: rng.pick([0, 1, 2] as const),
+    ask: difficulty > 1 ? rng.pick([0, 1, 2] as const) : 2,
+  }),
+  render: (p): Slide => {
+    const row = p.rows[p.which];
+    const d = rhsOf(p, p.which);
+    const [a, b] = others(p.ask);
+    const letter = TRI_LETTERS[p.ask];
+    const c = row[p.ask];
+    const known = row[a] * p.sol[a] + row[b] * p.sol[b];
+    const rest = d - known;
+    const term = leadTerm(c, letter);
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      {
+        span: [0, 2],
+        value: `${known}`,
+        bank: stepBank(`${known}`, `${row[a] * p.sol[a] - row[b] * p.sol[b]}`, `${0 - known}`, `${row[a] + row[b] + p.sol[a] + p.sol[b]}`),
+      },
+      {
+        span: [0, 4],
+        value: `${term} = ${rest}`,
+        bank: stepBank(`${term} = ${rest}`, `${term} = ${d + known}`, `${term} = ${known - d}`),
+      },
+    ];
+    if (c !== 1) {
+      reductions.push({
+        span: [0, 1],
+        value: `${letter} = ${p.sol[p.ask]}`,
+        bank: stepBank(`${letter} = ${p.sol[p.ask]}`, `${letter} = ${0 - p.sol[p.ask]}`, `${letter} = ${rest - c}`, `${letter} = ${rest * c}`),
+      });
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solving has given ${knownText(p.sol, p.ask)}. Put them into (${p.which + 1}) and finish it for $${letter}$. ${HOW_TO_STEP}`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      start: [leadTerm(row[a], TRI_LETTERS[a]), signedTile(row[b], TRI_LETTERS[b]), signedTile(c, letter), '=', `${d}`],
+      reductions,
+    };
+  },
+  solution: (p) => {
+    const row = p.rows[p.which];
+    const letter = TRI_LETTERS[p.ask];
+    const rest = thirdRest(p);
+    return [
+      { tex: `${rowAtTex(row, p.sol, p.ask)} = ${rhsOf(p, p.which)}` },
+      { tex: `${leadTerm(row[p.ask], letter)} = ${rest}` },
+      { tex: `${letter} = ${p.sol[p.ask]}` },
+      { text: 'Then check the three values in an equation not used yet.' },
+    ];
+  },
+};
+
+interface VerifyParams extends Tri {
+  which: 0 | 1 | 2;
+}
+
+/**
+ * The check, as a reduction: the found triple in one equation.
+ *
+ * A slip anywhere in the solve shows up here, provided the check uses an
+ * original equation — never one built on the way, which would pass a
+ * mistake made building it.
+ */
+const triVerify: Generator<VerifyParams> = {
+  id: 'lin-tri-verify',
+  choices: (p) => {
+    const row = p.rows[p.which];
+    const [x, y, z] = p.sol;
+    const value = dot3(row, p.sol);
+    return numberChoices(value, row[0] * x - row[1] * y + row[2] * z, row[0] * x + row[1] * y - row[2] * z, row[0] + row[1] + row[2] + x + y + z);
+  },
+  sample: (rng, difficulty) => ({ ...sampleTri(rng, difficulty > 1), which: rng.pick([0, 1, 2] as const) }),
+  render: (p): Slide => {
+    const row = p.rows[p.which];
+    const term = (n: number) => bin('*', num(Math.abs(row[n])), num(p.sol[n]));
+    const first = bin('*', num(row[0]), num(p.sol[0]));
+    const two = bin(row[1] < 0 ? '-' : '+', first, term(1));
+    const expr = bin(row[2] < 0 ? '-' : '+', two, term(2));
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solving gave $(x, y, z) = ${tripleTex(p.sol)}$. Check it in equation (${p.which + 1}): work out the left-hand side. ${HOW_TO_REDUCE}`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      expr,
+      banks: banksFor(expr),
+    };
+  },
+  solution: (p) => [
+    { tex: `${rowAtTex(p.rows[p.which], p.sol)} = ${rhsOf(p, p.which)}` },
+    { text: `That is the right-hand side of (${p.which + 1}), so the triple checks out.` },
+  ],
+};
+
+interface SolveTriParams extends DropParams {
+  ask: 0 | 1 | 2;
+}
+
+/**
+ * The whole solve, to one value.
+ *
+ * One letter matches in all three rows, so the route is the one the lesson
+ * teaches: remove it twice, solve the pair, put back. The slips on offer are
+ * the other two values and a lost sign.
+ */
+const triSolve: Generator<SolveTriParams> = {
+  id: 'lin-tri-solve',
+  choices: (p) => {
+    const target = p.sol[p.ask];
+    const [a, b] = others(p.ask);
+    return numberChoices(target, p.sol[a], p.sol[b], -target);
+  },
+  sample: (rng, difficulty) => ({ ...sampleDrop(rng, difficulty), ask: rng.pick([0, 1, 2] as const) }),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Solve the system by elimination, and give $${TRI_LETTERS[p.ask]}$.` },
+      { kind: 'display', tex: triTex(p) },
+    ],
+    lead: `${TRI_LETTERS[p.ask]} =`,
+    keypad: [],
+    answer: `${p.sol[p.ask]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: dropWorking,
+};
+
+/* ---------- Lesson 4: choosing the letter ---------- */
+
+type LetterCase = 'missing' | 'matched' | 'none';
+
+interface LetterParams extends Tri {
+  kind: LetterCase;
+  /** The letter to remove first, or -1 when every letter needs scaling. */
+  k: number;
+}
+
+/** z missing from (3); x and y match nowhere. Solution (1, 2, 3). */
+const MISSING_FALLBACK: LetterParams = {
+  rows: [
+    [1, 2, 1],
+    [2, 1, -1],
+    [1, -1, 0],
+  ],
+  sol: [1, 2, 3],
+  kind: 'missing',
+  k: 2,
+};
+
+/**
+ * One letter missing from exactly one equation, and no letter the same size
+ * everywhere. The two equations that do have it can lose it by one add or
+ * subtract, so the missing letter really is the quickest.
+ */
+function sampleMissing(rng: Rng, hard: boolean): LetterParams {
+  const pool = triPool(hard);
+  return drawUntil(
+    () => {
+      const k = rng.int(0, 2);
+      const gap = rng.int(0, 2);
+      const m = rng.int(1, hard ? 3 : 2);
+      return {
+        rows: [0, 1, 2].map((i) =>
+          [0, 1, 2].map((n) => (n !== k ? rng.pick(pool) : i === gap ? 0 : rng.pick([1, -1]) * m)),
+        ),
+        sol: drawTriple(rng, hard),
+        kind: 'missing' as const,
+        k,
+      };
+    },
+    (t) => {
+      if (det3(t.rows) === 0 || zeroCount(t) !== 1 || matchedLetters(t).length > 0) return false;
+      const [i, j] = [0, 1, 2].filter((row) => t.rows[row][t.k] !== 0);
+      return tidyCombo(combine(t, i, j, t.k), t.k);
+    },
+    MISSING_FALLBACK,
+  );
+}
+
+function sampleLetter(rng: Rng, difficulty: number, kinds: readonly LetterCase[]): LetterParams {
+  const hard = difficulty > 1;
+  const kind = rng.pick(kinds);
+  if (kind === 'missing') return sampleMissing(rng, hard);
+  if (kind === 'matched') return { ...sampleDrop(rng, difficulty), kind };
+  return {
+    ...sampleTri(rng, hard, (t) => matchedLetters(t).length === 0),
+    kind,
+    k: -1,
+  };
+}
+
+function letterSolution(p: LetterParams): SolutionStep[] {
+  if (p.kind === 'none') {
+    return [
+      {
+        text: `No letter is missing, and no letter's coefficients are the same size in all three: $x$ has $${p.rows.map((row) => row[0]).join(', ')}$, $y$ has $${p.rows.map((row) => row[1]).join(', ')}$, $z$ has $${p.rows.map((row) => row[2]).join(', ')}$.`,
+      },
+      { text: 'So scale first: multiply an equation until one letter matches in a pair, as in level 2.' },
+    ];
+  }
+  const letter = TRI_LETTERS[p.k];
+  if (p.kind === 'missing') {
+    const gap = p.rows.findIndex((row) => row[p.k] === 0);
+    return [
+      { text: `$${letter}$ is missing from (${gap + 1}), so that equation already has no $${letter}$ in it.` },
+      { text: `Remove $${letter}$ from the other two with one add or subtract, and (${gap + 1}) is the other half of the pair.` },
+    ];
+  }
+  return [
+    {
+      text: `The $${letter}$ coefficients are $${p.rows.map((row) => row[p.k]).join(', ')}$: the same size in all three, so adding or subtracting removes $${letter}$ with no scaling.`,
+    },
+  ];
+}
+
+const TRI_YES = 'Yes';
+const TRI_NO = 'No';
+
+/**
+ * Which letter goes first? A walk down the checks, quickest first.
+ *
+ * A letter already missing from one equation needs one combination instead
+ * of two; a letter the same size everywhere needs no scaling; otherwise scale.
+ */
+const triLetterFlow: Generator<LetterParams> = {
+  id: 'lin-tri-letter-flow',
+  sample: (rng, difficulty) => sampleLetter(rng, difficulty, ['missing', 'matched', 'none']),
+  render: (p): Slide => ({
+    kind: 'flow',
+    prompt: [{ kind: 'prose', text: 'Which letter should this system lose first? Walk through the checks.' }],
+    subject: triTex(p),
+    steps: [
+      {
+        id: 'missing',
+        ask: 'Is a letter missing from one of the equations?',
+        branches: [
+          {
+            label: TRI_YES,
+            outcome: 'Remove that letter from the other two. The equation without it is already half of the pair.',
+          },
+          { label: TRI_NO, to: 'match' },
+        ],
+      },
+      {
+        id: 'match',
+        ask: 'Is there a letter whose coefficients are the same size in all three?',
+        branches: [
+          { label: TRI_YES, outcome: 'Remove that letter: pair (1) with each of the others, adding or subtracting.' },
+          { label: TRI_NO, outcome: 'Scale first: multiply an equation so that one letter matches in a pair.' },
+        ],
+      },
+    ],
+    answer: p.kind === 'missing' ? [TRI_YES] : p.kind === 'matched' ? [TRI_NO, TRI_YES] : [TRI_NO, TRI_NO],
+  }),
+  solution: letterSolution,
+};
+
+/**
+ * The same judgement as a pick of one letter.
+ *
+ * Only systems with a clear winner: one letter missing from one equation, or
+ * one letter the same size in all three, and nothing else that is either.
+ */
+const triLetterChoice: Generator<LetterParams> = {
+  id: 'lin-tri-letter-choice',
+  sample: (rng, difficulty) => sampleLetter(rng, difficulty, ['missing', 'matched']),
+  render: (p): Slide => ({
+    kind: 'choice',
+    prompt: [
+      { kind: 'prose', text: 'Which letter is quickest to remove from this system?' },
+      { kind: 'display', tex: triTex(p) },
+    ],
+    options: TRI_LETTERS.map((letter) => ({ id: letter, label: letter, tex: true })),
+    correctId: TRI_LETTERS[p.k],
+  }),
+  solution: letterSolution,
+};
+
+interface ScaleTriParams extends Tri {
+  /** The letter to match. */
+  k: number;
+  /** Row `i` is multiplied by `m` to match row `j`. */
+  i: number;
+  j: number;
+  m: number;
+}
+
+/** (2) has 3x where (1) has x; nothing matches without scaling. Solution (1, 2, 3). */
+const SCALE_TRI_FALLBACK: ScaleTriParams = {
+  rows: [
+    [1, 2, -1],
+    [3, 1, 2],
+    [2, -1, 1],
+  ],
+  sol: [1, 2, 3],
+  k: 0,
+  i: 0,
+  j: 1,
+  m: 3,
+};
+
+/**
+ * One scaling away: row `j`'s coefficient of the letter is `m` times row
+ * `i`'s. No letter matches in all three and no other letter matches between
+ * `i` and `j`, so scaling is the move. The scaled right-hand side stays under
+ * 100. Difficulty 2 lets the multiplier be negative.
+ */
+function sampleScaleTri(rng: Rng, difficulty: number): ScaleTriParams {
+  const hard = difficulty > 1;
+  const pool = triPool(hard);
+  return drawUntil(
+    () => {
+      const k = rng.int(0, 2);
+      const i = rng.int(0, 2);
+      const j = (i + rng.int(1, 2)) % 3;
+      const m = rng.pick(hard ? [2, 3, 4, -2, -3, -4] : [2, 3, 4]);
+      const p = rng.pick(hard && Math.abs(m) === 2 ? [1, -1, 2, -2] : [1, -1]);
+      const rows = [0, 1, 2].map(() => [rng.pick(pool), rng.pick(pool), rng.pick(pool)]);
+      rows[i][k] = p;
+      rows[j][k] = m * p;
+      return { rows, sol: drawTriple(rng, hard), k, i, j, m };
+    },
+    (t) =>
+      det3(t.rows) !== 0 &&
+      matchedLetters(t).length === 0 &&
+      others(t.k).every((n) => Math.abs(t.rows[t.i][n]) !== Math.abs(t.rows[t.j][n])) &&
+      Math.abs(t.m * rhsOf(t, t.i)) < 100,
+    SCALE_TRI_FALLBACK,
+  );
+}
+
+const scaledRow = (p: ScaleTriParams): Row => p.rows[p.i].map((v) => p.m * v);
+
+function scaleTriSolution(p: ScaleTriParams): SolutionStep[] {
+  const letter = TRI_LETTERS[p.k];
+  const q = p.rows[p.j][p.k];
+  return [
+    {
+      text: `The $${letter}$ coefficient in (${p.j + 1}) is $${q}$, which is $${p.m}$ times the $${p.rows[p.i][p.k]}$ in (${p.i + 1}). Multiply **every** term of (${p.i + 1}) by $${p.m}$, the right-hand side too.`,
+    },
+    { tex: `${rowEqTex(scaledRow(p), p.m * rhsOf(p, p.i))} \\quad (${p.i + 1}')` },
+    { text: `Now (${p.i + 1}') and (${p.j + 1}) have the same $${letter}$ term, and subtracting removes it.` },
+  ];
+}
+
+/**
+ * The scaled equation, placed as tiles.
+ *
+ * The slip is scaling only the term that needed matching, so the bank holds
+ * every unscaled term and the unscaled right-hand side beside the scaled
+ * ones, and one term with its sign lost.
+ */
+const triScaleTiles: Generator<ScaleTriParams> = {
+  id: 'lin-tri-scale-tiles',
+  choices: (p) => {
+    const row = p.rows[p.i];
+    const d = rhsOf(p, p.i);
+    const scaled = scaledRow(p);
+    const onlyOne = row.map((v, n) => (n === p.k ? p.m * v : v));
+    return labelChoices(rowEqTex(scaled, p.m * d), rowEqTex(onlyOne, d), rowEqTex(scaled, d), rowEqTex(onlyOne, p.m * d));
+  },
+  sample: sampleScaleTri,
+  render: (p): Slide => {
+    const row = p.rows[p.i];
+    const d = rhsOf(p, p.i);
+    const s = scaledRow(p);
+    const answer = [leadTerm(s[0], 'x'), signedTile(s[1], 'y'), signedTile(s[2], 'z'), `${p.m * d}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `To remove $${TRI_LETTERS[p.k]}$ from (${p.i + 1}) and (${p.j + 1}), multiply (${p.i + 1}) by $${p.m}$. Write the new equation.`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      template: '{0} {1} {2} = {3}',
+      bank: bankOf(answer, [
+        leadTerm(row[0], 'x'),
+        signedTile(row[1], 'y'),
+        signedTile(row[2], 'z'),
+        `${d}`,
+        signedTile(0 - s[1], 'y'),
+      ]),
+      answer,
+    };
+  },
+  solution: scaleTriSolution,
+};
+
+/**
+ * The multiplier itself: what (i) is multiplied by so its term is exactly
+ * the one in (j). Negative at difficulty 2, when the signs differ.
+ */
+const triMultiplier: Generator<ScaleTriParams> = {
+  id: 'lin-tri-multiplier',
+  choices: (p) => {
+    const q = p.rows[p.j][p.k];
+    const r = p.rows[p.i][p.k];
+    return numberChoices(p.m, -p.m, q - r, q * r);
+  },
+  sample: sampleScaleTri,
+  render: (p): Slide => {
+    const letter = TRI_LETTERS[p.k];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Multiply equation (${p.i + 1}) by $k$ so that its $${letter}$ term becomes exactly the $${letter}$ term of (${p.j + 1}). What is $k$?`,
+        },
+        { kind: 'display', tex: triTex(p) },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${p.m}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => {
+    const letter = TRI_LETTERS[p.k];
+    const q = p.rows[p.j][p.k];
+    const r = p.rows[p.i][p.k];
+    return [
+      { text: `(${p.j + 1}) has $${leadTerm(q, letter)}$ and (${p.i + 1}) has $${leadTerm(r, letter)}$.` },
+      { tex: `k = ${q} \\div ${br(r)} = ${p.m}` },
+      ...scaleTriSolution(p).slice(1),
+    ];
+  },
+};
+
+/* ---------- Lesson 5: three unknowns from words ---------- */
+
+/** Three things whose pairs are each given a total. */
+interface SumStory {
+  names: [string, string, string];
+  /** One fact: the pair's total, as a sentence. */
+  pair: (a: string, b: string, n: number) => string;
+  /** What a letter stands for. */
+  letter: (name: string) => string;
+  ask: (name: string) => string;
+}
+
+const SUM_STORIES: readonly SumStory[] = [
+  {
+    names: ['a pen', 'a ruler', 'a rubber'],
+    pair: (a, b, n) => `${capital(a)} and ${b} cost $${n}$p.`,
+    letter: (a) => `the price of ${a} in pence`,
+    ask: (a) => `How much is ${a}, in pence?`,
+  },
+  {
+    names: ['an apple', 'a pear', 'a lemon'],
+    pair: (a, b, n) => `${capital(a)} and ${b} cost $${n}$p together.`,
+    letter: (a) => `the price of ${a} in pence`,
+    ask: (a) => `How much is ${a}, in pence?`,
+  },
+  {
+    names: ['Amy', 'Ben', 'Cara'],
+    pair: (a, b, n) => `${a} and ${b} are $${n}$ years old altogether.`,
+    letter: (a) => `${a}'s age`,
+    ask: (a) => `How old is ${a}?`,
+  },
+  {
+    names: ['Dev', 'Eli', 'Fay'],
+    pair: (a, b, n) => `The ages of ${a} and ${b} add up to $${n}$.`,
+    letter: (a) => `${a}'s age`,
+    ask: (a) => `How old is ${a}?`,
+  },
+  {
+    names: ['the red box', 'the blue box', 'the green box'],
+    pair: (a, b, n) => `${capital(a)} and ${b} weigh $${n}$ kg together.`,
+    letter: (a) => `the mass of ${a} in kg`,
+    ask: (a) => `How heavy is ${a}, in kg?`,
+  },
+];
+
+/** The three pairs, as row-index pairs; a permutation of them orders the facts. */
+const SUM_PAIRS: readonly [number, number][] = [
+  [0, 1],
+  [1, 2],
+  [0, 2],
+];
+
+const PERMUTATIONS: readonly [number, number, number][] = [
+  [0, 1, 2],
+  [0, 2, 1],
+  [1, 0, 2],
+  [1, 2, 0],
+  [2, 0, 1],
+  [2, 1, 0],
+];
+
+/** A share: a total, one difference and one multiple. */
+interface ShareStory {
+  names: [string, string, string];
+  things: string;
+}
+
+const SHARE_STORIES: readonly ShareStory[] = [
+  { names: ['Ana', 'Ben', 'Cal'], things: 'sweets' },
+  { names: ['Dan', 'Eve', 'Fin'], things: 'stickers' },
+  { names: ['Gus', 'Hana', 'Ivy'], things: 'marbles' },
+  { names: ['Jo', 'Kit', 'Lee'], things: 'cards' },
+  { names: ['Mo', 'Nia', 'Oli'], things: 'shells' },
+];
+
+const TIMES_WORD: Record<number, string> = { 2: 'twice', 3: 'three times', 4: 'four times' };
+const PART_WORD: Record<number, string> = { 2: 'half', 3: 'a third of', 4: 'a quarter of' };
+
+interface SumParams {
+  kind: 'sum';
+  story: number;
+  /** The three values, for the story's three things in order. */
+  v: Row;
+  /** The order the three pair facts are told in, as indices into SUM_PAIRS. */
+  order: [number, number, number];
+}
+
+interface ShareParams {
+  kind: 'share';
+  story: number;
+  /** The middle share; the first is `y + d` and the third `k y`. */
+  y: number;
+  d: number;
+  k: number;
+  /** Difficulty 2 says both facts the other way round. */
+  turned: boolean;
+}
+
+type WordsTriParams = SumParams | ShareParams;
+
+function sampleSum(rng: Rng, difficulty: number): SumParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => ({
+      kind: 'sum' as const,
+      story: rng.int(0, SUM_STORIES.length - 1),
+      v: [0, 1, 2].map(() => rng.int(hard ? 5 : 2, hard ? 30 : 15)),
+      order: rng.pick(PERMUTATIONS),
+    }),
+    (p) => new Set(p.v).size === 3 && p.v[0] + p.v[1] + p.v[2] < 50,
+    { kind: 'sum', story: 0, v: [12, 7, 9], order: [0, 1, 2] },
+  );
+}
+
+function sampleShare(rng: Rng, difficulty: number): ShareParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => ({
+      kind: 'share' as const,
+      story: rng.int(0, SHARE_STORIES.length - 1),
+      y: rng.int(hard ? 3 : 2, hard ? 12 : 8),
+      d: rng.int(2, hard ? 12 : 9),
+      k: rng.int(2, hard ? 4 : 3),
+      turned: hard && rng.chance(0.5),
+    }),
+    (p) => (2 + p.k) * p.y + p.d < 100 && p.y + p.d !== p.k * p.y,
+    { kind: 'share', story: 0, y: 5, d: 3, k: 2, turned: false },
+  );
+}
+
+/** The system a sum story makes, fact by fact in the order told. */
+function sumRows(p: SumParams): Row[] {
+  return p.order.map((f) => [0, 1, 2].map((n) => (SUM_PAIRS[f].includes(n) ? 1 : 0)));
+}
+
+function sumTri(p: SumParams): Tri {
+  return { rows: sumRows(p), sol: p.v };
+}
+
+function sumText(p: SumParams): string {
+  const s = SUM_STORIES[p.story];
+  return p.order
+    .map((f) => {
+      const [a, b] = SUM_PAIRS[f];
+      return s.pair(s.names[a], s.names[b], p.v[a] + p.v[b]);
+    })
+    .join(' ');
+}
+
+function sumLetters(p: SumParams): string {
+  const s = SUM_STORIES[p.story];
+  return `Let $x$ be ${s.letter(s.names[0])}, $y$ ${s.letter(s.names[1])} and $z$ ${s.letter(s.names[2])}.`;
+}
+
+function shareValues(p: ShareParams): Row {
+  return [p.y + p.d, p.y, p.k * p.y];
+}
+
+function shareText(p: ShareParams): string {
+  const { names, things } = SHARE_STORIES[p.story];
+  const [a, b, c] = names;
+  const total = p.y + p.d + p.y + p.k * p.y;
+  const diff = p.turned ? `${b} gets $${p.d}$ fewer than ${a}` : `${a} gets $${p.d}$ more than ${b}`;
+  const ratio = p.turned ? `${b} gets ${PART_WORD[p.k]} what ${c} gets` : `${c} gets ${TIMES_WORD[p.k]} as many as ${b}`;
+  return `${a}, ${b} and ${c} share $${total}$ ${things}. ${diff}, and ${ratio}.`;
+}
+
+function shareLetters(p: ShareParams): string {
+  const { names, things } = SHARE_STORIES[p.story];
+  return `Let $x$, $y$ and $z$ be the numbers of ${things} ${names[0]}, ${names[1]} and ${names[2]} get.`;
+}
+
+function wordsValues(p: WordsTriParams): Row {
+  return p.kind === 'sum' ? p.v : shareValues(p);
+}
+
+function sumSolution(p: SumParams, ask: number): SolutionStep[] {
+  const t = sumTri(p);
+  const total = (p.v[0] + p.v[1] + p.v[2]) * 2;
+  const without = t.rows.findIndex((row) => row[ask] === 0);
+  return [
+    { tex: triTex(t) },
+    { text: 'Every letter appears in exactly two equations, so add all three.' },
+    { tex: `2x + 2y + 2z = ${total}` },
+    { tex: `x + y + z = ${total / 2}` },
+    { text: `Take away (${without + 1}), the one without $${TRI_LETTERS[ask]}$:` },
+    { tex: `${TRI_LETTERS[ask]} = ${total / 2} - ${rhsOf(t, without)} = ${p.v[ask]}` },
+  ];
+}
+
+function shareSolution(p: ShareParams): SolutionStep[] {
+  const total = p.y + p.d + p.y + p.k * p.y;
+  const [x, y, z] = shareValues(p);
+  return [
+    { tex: numberedTex([`x + y + z = ${total}`, `x = y + ${p.d}`, `z = ${p.k}y`]) },
+    { text: 'Put (2) and (3) into (1), so everything is in $y$.' },
+    { tex: `(y + ${p.d}) + y + ${p.k}y = ${total}` },
+    { tex: `${2 + p.k}y = ${total - p.d} \\implies y = ${y}` },
+    { text: `Then $x = ${y} + ${p.d} = ${x}$ and $z = ${p.k} \\times ${y} = ${z}$.` },
+  ];
+}
+
+interface FactParams extends ShareParams {
+  fact: 'difference' | 'multiple';
+}
+
+/**
+ * One fact of a share, as an equation: which way round?
+ *
+ * The wrong options are the classic reversals — the difference added to the
+ * wrong person, the multiple on the wrong letter — and difficulty 2 words
+ * each fact the other way round ("fewer than", "a third of"), which is where
+ * the reversal is most tempting.
+ */
+const triWordsFact: Generator<FactParams> = {
+  id: 'lin-tri-words-fact',
+  sample: (rng, difficulty) => ({ ...sampleShare(rng, difficulty), fact: rng.pick(['difference', 'multiple'] as const) }),
+  render: (p): Slide => {
+    const { names } = SHARE_STORIES[p.story];
+    const about = p.fact === 'difference' ? `${names[0]} and ${names[1]}` : `${names[1]} and ${names[2]}`;
+    const offered =
+      p.fact === 'difference'
+        ? options(
+            { tex: `x = y + ${p.d}` },
+            { tex: `y = x + ${p.d}` },
+            { tex: `x + y = ${p.d}` },
+            { tex: `x = ${p.d}y` },
+          )
+        : options(
+            { tex: `z = ${p.k}y` },
+            { tex: `y = ${p.k}z` },
+            { tex: `z = y + ${p.k}` },
+            { tex: `y = z + ${p.k}` },
+          );
+    return sortedChoice(
+      [{ kind: 'prose', text: `${shareText(p)} ${shareLetters(p)} Which equation is the fact about ${about}?` }],
+      offered,
+    );
+  },
+  solution: (p) => {
+    const { names } = SHARE_STORIES[p.story];
+    return p.fact === 'difference'
+      ? [
+          { text: `${names[0]} has $${p.d}$ more than ${names[1]}, so to get $x$, start from $y$ and add $${p.d}$.` },
+          { tex: `x = y + ${p.d}` },
+          { text: `Try it with numbers: if ${names[1]} had $10$, ${names[0]} would have $${10 + p.d}$.` },
+        ]
+      : [
+          { text: `${names[2]} has ${TIMES_WORD[p.k]} as many as ${names[1]}, so $z$ is $${p.k}$ lots of $y$.` },
+          { tex: `z = ${p.k}y` },
+          { text: `Try it with numbers: if ${names[1]} had $10$, ${names[2]} would have $${10 * p.k}$. Writing $y = ${p.k}z$ would give ${names[1]} the larger share.` },
+        ];
+  },
+};
+
+/** Three priced things bought in a batch. */
+interface Basket {
+  items: [string, string, string];
+  unit: 'pounds' | 'pence';
+  /** Price ranges, one per item. */
+  prices: [[number, number], [number, number], [number, number]];
+  buyer: string;
+}
+
+const BASKETS: readonly Basket[] = [
+  { items: ['adult ticket', 'child ticket', 'senior ticket'], unit: 'pounds', prices: [[9, 15], [4, 8], [5, 10]], buyer: 'A family' },
+  { items: ['coffee', 'tea', 'muffin'], unit: 'pounds', prices: [[3, 5], [2, 4], [2, 6]], buyer: 'An office' },
+  { items: ['stamp', 'envelope', 'postcard'], unit: 'pence', prices: [[6, 14], [2, 6], [3, 9]], buyer: 'Sam' },
+  { items: ['notebook', 'pen', 'folder'], unit: 'pounds', prices: [[3, 8], [1, 3], [2, 5]], buyer: 'A school' },
+];
+
+interface BasketParams {
+  basket: number;
+  /** How many of each item, and each item's price. */
+  count: Row;
+  price: Row;
+  /** The order the items are listed in the story. */
+  order: [number, number, number];
+}
+
+function basketTotal(p: BasketParams): number {
+  return dot3(p.count, p.price);
+}
+
+function basketText(p: BasketParams): string {
+  const b = BASKETS[p.basket];
+  const list = p.order.map((n) => `$${p.count[n]}$ ${b.items[n]}${p.count[n] === 1 ? '' : 's'}`);
+  return `${b.buyer} buys ${list[0]}, ${list[1]} and ${list[2]} for ${money(basketTotal(p), b.unit)}.`;
+}
+
+/**
+ * One purchase as an equation, placed as tiles.
+ *
+ * The story lists the items in its own order, and the letters follow the
+ * items, not the sentence — so the bank holds the coefficients in the
+ * sentence's order, and the number of items where the cost should be.
+ */
+const triWordsTiles: Generator<BasketParams> = {
+  id: 'lin-tri-words-tiles',
+  choices: (p) => {
+    const inWords = p.order.map((n) => p.count[n]);
+    const swapped = [p.count[1], p.count[0], p.count[2]];
+    const total = basketTotal(p);
+    return labelChoices(
+      rowEqTex(p.count, total),
+      rowEqTex(inWords, total),
+      rowEqTex(swapped, total),
+      rowEqTex(p.count, p.count[0] + p.count[1] + p.count[2]),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const basket = rng.int(0, BASKETS.length - 1);
+        return {
+          basket,
+          count: [0, 1, 2].map(() => rng.int(1, hard ? 6 : 4)),
+          price: BASKETS[basket].prices.map(([lo, hi]) => rng.int(lo, hi)),
+          order: hard ? rng.pick(PERMUTATIONS.slice(1)) : rng.pick(PERMUTATIONS),
+        };
+      },
+      (p) => new Set(p.count).size === 3 && basketTotal(p) < 100,
+      { basket: 0, count: [2, 3, 1], price: [10, 5, 7], order: [1, 0, 2] },
+    );
+  },
+  render: (p): Slide => {
+    const b = BASKETS[p.basket];
+    const total = basketTotal(p);
+    const inWords = p.order.map((n) => p.count[n]);
+    const answer = [leadTerm(p.count[0], 'x'), signedTile(p.count[1], 'y'), signedTile(p.count[2], 'z'), `${total}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${basketText(p)} Let $x$ be the price of one ${b.items[0]}, $y$ of one ${b.items[1]} and $z$ of one ${b.items[2]}, in ${b.unit}. Write the purchase as an equation.`,
+        },
+      ],
+      template: '{0} {1} {2} = {3}',
+      bank: bankOf(answer, [
+        leadTerm(inWords[0], 'x'),
+        signedTile(inWords[1], 'y'),
+        signedTile(inWords[2], 'z'),
+        leadTerm(p.count[1], 'x'),
+        signedTile(p.count[0], 'y'),
+        `${p.count[0] + p.count[1] + p.count[2]}`,
+      ]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const b = BASKETS[p.basket];
+    return [
+      {
+        text: `$${p.count[0]}$ ${b.items[0]}${p.count[0] === 1 ? '' : 's'} cost $${leadTerm(p.count[0], 'x')}$, and so on: each count goes with its own item's letter, whatever order the sentence uses.`,
+      },
+      { tex: rowEqTex(p.count, basketTotal(p)) },
+    ];
+  },
+};
+
+type StorySolveParams = WordsTriParams & { ask: 0 | 1 | 2 };
+
+/**
+ * A story solved to one value: three pair totals, or a share with a
+ * difference and a multiple. Either way the question asks for one of the
+ * three, and the slips on offer are the other two.
+ */
+const triWordsSolve: Generator<StorySolveParams> = {
+  id: 'lin-tri-words-solve',
+  choices: (p) => {
+    const v = wordsValues(p);
+    const [a, b] = others(p.ask);
+    return numberChoices(v[p.ask], v[a], v[b], v[0] + v[1] + v[2]);
+  },
+  sample: (rng, difficulty) => ({
+    ...(rng.chance(0.5) ? sampleSum(rng, difficulty) : sampleShare(rng, difficulty)),
+    ask: rng.pick([0, 1, 2] as const),
+  }),
+  render: (p): Slide => {
+    const letter = TRI_LETTERS[p.ask];
+    const question =
+      p.kind === 'sum'
+        ? SUM_STORIES[p.story].ask(SUM_STORIES[p.story].names[p.ask])
+        : `How many ${SHARE_STORIES[p.story].things} does ${SHARE_STORIES[p.story].names[p.ask]} get?`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${p.kind === 'sum' ? `${sumText(p)} ${sumLetters(p)}` : `${shareText(p)} ${shareLetters(p)}`} ${question}`,
+        },
+      ],
+      lead: `${letter} =`,
+      keypad: [],
+      answer: `${wordsValues(p)[p.ask]}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => (p.kind === 'sum' ? sumSolution(p, p.ask) : shareSolution(p)),
+};
+
+interface SumAllParams extends SumParams {
+  /** The equation taken away at the end; the letter found is the one it lacks. */
+  drop: 0 | 1 | 2;
+}
+
+/**
+ * Three pair totals, finished the quick way: add all three, halve, take one
+ * away. Each tap's bank holds the slip for that line — the doubling missed,
+ * the halving missed, the wrong equation taken away.
+ */
+const triSumAllSteps: Generator<SumAllParams> = {
+  id: 'lin-tri-sum-all-steps',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), drop: rng.pick([0, 1, 2] as const) }),
+  render: (p): Slide => {
+    const t = sumTri(p);
+    const total = (p.v[0] + p.v[1] + p.v[2]) * 2;
+    const half = total / 2;
+    const ask = t.rows[p.drop].findIndex((v) => v === 0);
+    const letter = TRI_LETTERS[ask];
+    const [a, b] = others(ask);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${sumText(p)} ${sumLetters(p)} Add all three equations, halve, then take away (${p.drop + 1}) to find $${letter}$. ${HOW_TO_STEP}`,
+        },
+        { kind: 'display', tex: triTex(t) },
+      ],
+      start: ['(1) + (2) + (3)'],
+      reductions: [
+        {
+          span: [0, 1],
+          value: `2x + 2y + 2z = ${total}`,
+          bank: stepBank(`2x + 2y + 2z = ${total}`, `x + y + z = ${total}`, `2x + 2y + 2z = ${half}`),
+        },
+        {
+          span: [0, 1],
+          value: `x + y + z = ${half}`,
+          bank: stepBank(`x + y + z = ${half}`, `x + y + z = ${total}`, `x + y + z = ${total * 2}`),
+        },
+        {
+          span: [0, 1],
+          value: `${letter} = ${p.v[ask]}`,
+          bank: stepBank(`${letter} = ${p.v[ask]}`, `${letter} = ${p.v[a]}`, `${letter} = ${p.v[b]}`, `${letter} = ${0 - p.v[ask]}`),
+        },
+      ],
+    };
+  },
+  solution: (p) => {
+    const ask = sumTri(p).rows[p.drop].findIndex((v) => v === 0);
+    return sumSolution(p, ask);
+  },
+};
+
 export const linearEquationsGenerators = [
   oneStep,
   twoStep,
@@ -6997,4 +8783,24 @@ export const linearEquationsGenerators = [
   regionFlow,
   regionSlider,
   regionTest,
+  triWhich,
+  triCheckFlow,
+  triLhsTree,
+  triThird,
+  triDropFlow,
+  triCombine,
+  triDropSteps,
+  triDropCheck,
+  triFinishTree,
+  triBackSteps,
+  triVerify,
+  triSolve,
+  triLetterFlow,
+  triLetterChoice,
+  triScaleTiles,
+  triMultiplier,
+  triWordsFact,
+  triWordsTiles,
+  triWordsSolve,
+  triSumAllSteps,
 ] as unknown as Generator<unknown>[];

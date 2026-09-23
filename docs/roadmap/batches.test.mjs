@@ -33,7 +33,7 @@ describe('roadmap batch files', () => {
   });
 
   it('reads a later-level batch id', () => {
-    const batch = parseBatch('C7-l3.md', '# C7-l3: Binomial Expansion: Unknowns\n\nStatus: claimed\nBranch: `b`\n');
-    expect(batch).toMatchObject({ id: 'C7-l3', phase: 'C', status: 'claimed' });
+    const batch = parseBatch('C10-l3.md', '# C10-l3: Exponential Models: Rates in Models\n\nStatus: claimed\nBranch: `b`\n');
+    expect(batch).toMatchObject({ id: 'C10-l3', phase: 'C', status: 'claimed' });
   });
 });

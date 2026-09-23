@@ -17,6 +17,7 @@
 import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
 import { isSolved, valueOf, type Move } from '../content/expr';
+import { parseTransform, sameCurve } from '../content/transform';
 import { draftMatches } from '../content/numberLine';
 import type {
   Lesson,
@@ -350,6 +351,25 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
     }
 
     /**
+     * The learner's curve against the target, compared as curves.
+     *
+     * Never as parameter tuples: for an even `f` a flip left to right and no
+     * flip draw the same picture, and `2^(x - 1)` is `2^x` halved. So both
+     * are evaluated at fixed points across the window and must agree wherever
+     * either is defined. Empty is a curve nobody has moved, refused by name
+     * for the reason the slider refuses it: the identity is a real curve.
+     */
+    case 'transform': {
+      if (typeof answer !== 'string' || answer === '') return { kind: 'incorrect' };
+      const mine = parseTransform(answer);
+      const theirs = parseTransform(slide.answer);
+      if (!mine || !theirs) return { kind: 'incorrect' };
+      return sameCurve(slide.base, mine, theirs, slide.window)
+        ? { kind: 'correct' }
+        : { kind: 'incorrect' };
+    }
+
+    /**
      * The drawn set against the expected one, both canonicalised first, so
      * the order the pieces were shaded in cannot matter and neither can a
      * piece shaded in two halves. An empty or unshaded line never matches.
@@ -383,6 +403,11 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
       return gradeSequence(answer, slide.reductions.map((step) => step.value));
 
     case 'tree':
+      return gradeSequence(answer, slide.answer);
+
+    // One token per blank in reading order, compared exactly: the generator
+    // writes every value one way, so there is no second spelling to accept.
+    case 'table':
       return gradeSequence(answer, slide.answer);
 
     // One token per row, then the conclusion. Exact strings, which is safe

@@ -5,9 +5,10 @@
  * `vectorFormat.ts`; the matrix half of the old combined file is now
  * `matrices.ts`.
  */
-import type { Generator, KeypadKey, Slide } from '../types';
+import type { Block, ChoiceOption, Generator, KeypadKey, Slide } from '../types';
 import { bin, num, pow, root } from '../expr';
 import { options } from '../choiceVariant';
+import { hashSeed } from '../../engine/rng';
 import { vectorSvg } from '../figures';
 import { ALGEBRA_KEYS } from './calculus';
 import {
@@ -1539,9 +1540,9 @@ const between: Generator<BetweenParams> = {
       {
         text: `The vector from $${from}$ to $${to}$ is destination minus start: the position of $${to}$ take away the position of $${from}$.`,
       },
-      {
-        tex: `\\overrightarrow{${from}${to}} = ${columnTex(tx, ty)} - ${columnTex(fx, fy)} = ${columnTex(x, y)}`,
-      },
+      // Two lines: three columns and an arrow run off a phone.
+      { tex: `\\overrightarrow{${from}${to}} = ${columnTex(tx, ty)} - ${columnTex(fx, fy)}` },
+      { tex: `= ${columnTex(x, y)}` },
       {
         text: `Check it by walking: start at $${pointTex(fx, fy)}$, go ${Math.abs(x)} ${x < 0 ? 'left' : 'right'} and ${Math.abs(y)} ${y < 0 ? 'down' : 'up'}, and you arrive at $${pointTex(tx, ty)}$.`,
       },
@@ -3293,6 +3294,1598 @@ const pathParallel: Generator<PathParallelParams> = {
   },
 };
 
+/* ---------- Level 6: lines in vector form ---------- */
+
+/*
+ * Level 6 writes a straight line as `r = a + t b`: a point to start from, a
+ * direction to travel in, and a parameter saying how far to go. Every question
+ * is built outward from the numbers it wants to end on — the point at a given
+ * `t`, the crossing of two lines, the `λ` and `μ` that reach it — so every
+ * answer is whole without rejecting random lines until one happens to be.
+ *
+ * Mostly two-dimensional, like level 4, so `columnTex`, the point tiles and
+ * squared-paper figures all carry over. The fourth lesson steps into three
+ * components for one reason: skew lines. In a plane two lines that are not
+ * parallel always cross, so "solve two components, test the third" means
+ * nothing until there is a third. `column3Tex` is the one formatter that adds.
+ *
+ * Answers are still scalars or tiles, for the reason `vectorFormat.ts` gives.
+ * A tile may hold a whole column vector: a token is one TeX string, so the
+ * `pmatrix` is never split across a blank the way a template's would be.
+ */
+
+type Vec = number[];
+
+/** A three-component column vector, for prompts and tiles only. */
+function column3Tex(x: number, y: number, z: number): string {
+  return `\\begin{pmatrix} ${x} \\\\ ${y} \\\\ ${z} \\end{pmatrix}`;
+}
+
+/** A column of two or three components. */
+function colTex(v: Vec): string {
+  return v.length === 3 ? column3Tex(v[0], v[1], v[2]) : columnTex(v[0], v[1]);
+}
+
+/** A column with an unknown among its entries. */
+function columnOf(entries: string[]): string {
+  return `\\begin{pmatrix} ${entries.join(' \\\\ ')} \\end{pmatrix}`;
+}
+
+const plus = (u: Vec, v: Vec): Vec => u.map((x, i) => x + v[i]);
+const minus = (u: Vec, v: Vec): Vec => u.map((x, i) => x - v[i]);
+const scaled = (k: number, u: Vec): Vec => u.map((x) => k * x);
+
+/** `r = a + t b`, as one whole TeX string. */
+function lineTex(a: Vec, b: Vec, param = 't'): string {
+  return `\\mathbf{r} = ${colTex(a)} + ${param}${colTex(b)}`;
+}
+
+/** `c + k t` as written by hand: `3 - 2t`, `t`, `-4 + \mu`. */
+function affTex(c: number, k: number, sym: string): string {
+  if (k === 0) return `${c}`;
+  const size = Math.abs(k) === 1 ? '' : `${Math.abs(k)}`;
+  if (c === 0) return `${k < 0 ? '-' : ''}${size}${sym}`;
+  return `${c} ${k < 0 ? '-' : '+'} ${size}${sym}`;
+}
+
+/** A number following an operator, bracketed when it is negative. */
+function paren(n: number): string {
+  return n < 0 ? `\\left(${n}\\right)` : `${n}`;
+}
+
+/** `a + 2b`, `a - b`: a multiple of a vector added on, signed as written. */
+function addMultipleTex(first: string, k: number, second: string): string {
+  const size = Math.abs(k) === 1 ? '' : `${Math.abs(k)}`;
+  return `${first} ${k < 0 ? '-' : '+'} ${size}${second}`;
+}
+
+/** A stable number from the question's own values, for placing its answer. */
+function saltOf(params: unknown): number {
+  return hashSeed(JSON.stringify(params));
+}
+
+/** Mirrors the rotation `choiceVariant` applies to a derived choice slide. */
+function rotationOf(opts: ChoiceOption[]): number {
+  let hash = 0;
+  for (const option of opts) {
+    for (let i = 0; i < option.tex.length; i += 1) {
+      hash = (hash * 31 + option.tex.charCodeAt(i)) | 0;
+    }
+  }
+  return Math.abs(hash) % opts.length;
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, idx) =>
+    permutations([...items.slice(0, idx), ...items.slice(idx + 1)]).map((rest) => [item, ...rest]),
+  );
+}
+
+/**
+ * Options ordered so the rotation lands the answer at `salt % length`.
+ *
+ * The rotation hashes the labels, and these questions offer the same four
+ * labels in different orders — "Intersecting", "Skew" and the rest, or four
+ * small numbers — so left alone the answer settles in one or two slots, and a
+ * learner who noticed would never need to read the question. Trying orders
+ * until the rotation puts it where the question's own salt says keeps each
+ * question rendering one way while spreading the answer over every slot.
+ */
+function steered(opts: ChoiceOption[], salt: number): ChoiceOption[] {
+  const target = salt % opts.length;
+  for (const order of permutations(opts)) {
+    const at = (order.findIndex((o) => o.correct) - rotationOf(order) + order.length) % order.length;
+    if (at === target) return order;
+  }
+  return opts;
+}
+
+/** A native choice slide's options, with the answer placed at `salt % length`. */
+function placeAnswer(
+  correct: { id: string; label: string },
+  wrong: { id: string; label: string }[],
+  salt: number,
+) {
+  const all = distinctOptions([correct, ...wrong]);
+  const rest = all.slice(1);
+  const at = salt % all.length;
+  return [...rest.slice(0, at), all[0], ...rest.slice(at)].map((option) => ({ ...option, tex: true }));
+}
+
+/** A steps bank: distinct tokens in a stable scattered order. */
+function scattered(tokens: string[]): string[] {
+  return [...new Set(tokens)].sort((p, q) => hashSeed(p) - hashSeed(q));
+}
+
+/** The values of `t` for which `a + t b` is inside the square of half-width `span`. */
+function tRange(a: Vec, b: Vec, span: number): [number, number] | undefined {
+  let lo = -Infinity;
+  let hi = Infinity;
+  for (const i of [0, 1]) {
+    if (b[i] === 0) {
+      if (Math.abs(a[i]) > span) return undefined;
+      continue;
+    }
+    const t1 = (-span - a[i]) / b[i];
+    const t2 = (span - a[i]) / b[i];
+    lo = Math.max(lo, Math.min(t1, t2));
+    hi = Math.min(hi, Math.max(t1, t2));
+  }
+  return lo < hi ? [lo, hi] : undefined;
+}
+
+/**
+ * A whole-number slider track over the part of a line the figure shows,
+ * trimmed so its handle does not start on the answer.
+ *
+ * An untouched handle rests at the middle of the track (`defaultSliderValue`
+ * in `src/ui/sliderValue.ts`, mirrored here). Whether or not that grades, a
+ * marker already sitting on the crossing gives the question away.
+ */
+function trackAround(lo: number, hi: number, answer: number): [number, number] {
+  let min = Math.max(-6, Math.ceil(lo));
+  let max = Math.min(6, Math.floor(hi));
+  const rest = () => min + Math.round((max - min) / 2);
+  for (let tries = 0; tries < 4 && rest() === answer; tries += 1) {
+    if (max - 1 > answer) max -= 1;
+    else if (min + 1 < answer) min += 1;
+  }
+  return [min, max];
+}
+
+/**
+ * Whether a slider along `a + t b` asking for `answer` is worth setting: a
+ * track of at least five stops that does not rest on the answer. A steep line
+ * crosses the figure in a few steps of `t`, and a two-stop track is a coin
+ * toss, so the samplers draw again instead.
+ */
+function trackUsable(a: Vec, b: Vec, answer: number, span: number): boolean {
+  const range = tRange(a, b, span);
+  if (!range) return false;
+  const [min, max] = trackAround(range[0], range[1], answer);
+  return max - min >= 4 && min + Math.round((max - min) / 2) !== answer;
+}
+
+/**
+ * Whole lines on squared paper, edge to edge, with named points on them.
+ *
+ * Square and to scale, like `vectorSvg` and `pointsSvg`, so a slider marker
+ * placed as a fraction of the width lands where the maths says. The lines are
+ * drawn in the text colour rather than the accent, which belongs to the
+ * slider's own marker; a second line is dashed so the two can be told apart
+ * without colour. `dots` marks every whole value of the parameter, which is
+ * what makes `t` something the learner can count rather than a label.
+ */
+function linesSvg(
+  lines: { a: Vec; b: Vec; dots?: boolean; dashed?: boolean }[],
+  points: { at: Vec; name: string }[],
+  opts: { span: number; label: string },
+): string {
+  const { span } = opts;
+  const SIZE = 220;
+  const unit = SIZE / (2 * span);
+  const sx = (v: number) => SIZE / 2 + v * unit;
+  const sy = (v: number) => SIZE / 2 - v * unit;
+  const f = (v: number) => v.toFixed(1);
+
+  const parts = [
+    `<svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" role="img" aria-label="${opts.label}">`,
+  ];
+  for (let i = -span + 1; i <= span - 1; i += 1) {
+    parts.push(
+      `<line x1="${f(sx(i))}" y1="0" x2="${f(sx(i))}" y2="${SIZE}" stroke="currentColor" stroke-width="0.5" opacity="0.15" />`,
+      `<line x1="0" y1="${f(sy(i))}" x2="${SIZE}" y2="${f(sy(i))}" stroke="currentColor" stroke-width="0.5" opacity="0.15" />`,
+    );
+  }
+  parts.push(
+    `<line x1="0" y1="${f(sy(0))}" x2="${SIZE}" y2="${f(sy(0))}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+    `<line x1="${f(sx(0))}" y1="0" x2="${f(sx(0))}" y2="${SIZE}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+  );
+
+  for (const line of lines) {
+    const range = tRange(line.a, line.b, span);
+    if (!range) continue;
+    const [lo, hi] = range;
+    const from = plus(line.a, scaled(lo, line.b));
+    const to = plus(line.a, scaled(hi, line.b));
+    parts.push(
+      `<line x1="${f(sx(from[0]))}" y1="${f(sy(from[1]))}" x2="${f(sx(to[0]))}" y2="${f(sy(to[1]))}" stroke="currentColor" stroke-width="2"${line.dashed ? ' stroke-dasharray="7 5"' : ''} />`,
+    );
+    if (line.dots) {
+      for (let t = Math.ceil(lo); t <= Math.floor(hi); t += 1) {
+        const p = plus(line.a, scaled(t, line.b));
+        parts.push(`<circle cx="${f(sx(p[0]))}" cy="${f(sy(p[1]))}" r="2.5" fill="currentColor" opacity="0.6" />`);
+      }
+    }
+  }
+
+  // Labels sit off to one side of the first line, where it cannot run
+  // through them, and swap sides rather than leave the picture.
+  const first = lines[0]?.b ?? [0, 1];
+  const length = Math.hypot(first[0], first[1]) || 1;
+  const ox = (-14 * first[1]) / length;
+  const oy = (-14 * first[0]) / length;
+  for (const point of points) {
+    const cx = sx(point.at[0]);
+    const cy = sy(point.at[1]);
+    const inside = (x: number, y: number) => x > 8 && x < SIZE - 8 && y > 14 && y < SIZE - 6;
+    const [lx, ly] = inside(cx + ox, cy + oy) ? [cx + ox, cy + oy] : [cx - ox, cy - oy];
+    parts.push(
+      `<circle cx="${f(cx)}" cy="${f(cy)}" r="4" fill="currentColor" />`,
+      `<text x="${f(lx)}" y="${f(ly + 4)}" font-size="13" font-style="italic" text-anchor="middle" fill="currentColor">${point.name}</text>`,
+    );
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+interface PointAtParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  k: number;
+}
+
+function samplePointAt(rng: Parameters<Generator['sample']>[0], difficulty: number): PointAtParams {
+  const span = difficulty > 1 ? 6 : 4;
+  const ks = difficulty > 1 ? [-3, -2, -1, 2, 3, 4] : [-1, 2, 3, 4];
+  for (let tries = 0; tries < 60; tries += 1) {
+    const bx = rng.int(-4, 4);
+    const by = rng.int(-4, 4);
+    if (bx === 0 && by === 0) continue;
+    if (difficulty === 1 && (bx === 0 || by === 0)) continue;
+    return { ax: rng.int(-span, span), ay: rng.int(-span, span), bx, by, k: rng.pick(ks) };
+  }
+  return { ax: 1, ay: 2, bx: 3, by: -1, k: 2 };
+}
+
+function pointAtSolution({ ax, ay, bx, by, k }: PointAtParams) {
+  const px = ax + k * bx;
+  const py = ay + k * by;
+  return [
+    {
+      text: `Put $t = ${k}$ into the equation: start at $\\mathbf{a}$ and add $${k}$ times the direction${k < 0 ? ', which with a negative multiple means going backwards along the line' : ''}.`,
+    },
+    { tex: `${k}${columnTex(bx, by)} = ${columnTex(k * bx, k * by)}` },
+    { tex: `${columnTex(ax, ay)} + ${columnTex(k * bx, k * by)} = ${columnTex(px, py)}` },
+    {
+      text: `So the point is $${pointTex(px, py)}$. At $t = 0$ the equation gives the starting point itself, and each step of 1 in $t$ moves one whole direction vector along the line.`,
+    },
+  ];
+}
+
+/** The point on a line at a given value of the parameter. */
+const linePointAt: Generator<PointAtParams> = {
+  id: 'line-point-at',
+  sample: samplePointAt,
+  render: ({ ax, ay, bx, by, k }): Slide => {
+    const px = ax + k * bx;
+    const py = ay + k * by;
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `The line $\\ell$ has the equation below. Find the point on $\\ell$ where $t = ${k}$.` },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      template: pointTemplate('P'),
+      // The two slips: the scalar applied to the start instead of the
+      // direction, and the direction taken the wrong way.
+      bank: bankOf([`${px}`, `${py}`], [`${k * ax + bx}`, `${k * ay + by}`, `${ax - k * bx}`, `${ay - k * by}`]),
+      answer: [`${px}`, `${py}`],
+    };
+  },
+  solution: pointAtSolution,
+};
+
+/**
+ * The same point with its working laid out: the multiple of the direction
+ * first, then the sum. Scaling the whole line, start included, is the slip
+ * this makes visible.
+ */
+const linePointAtSteps: Generator<PointAtParams> = {
+  id: 'line-point-at-steps',
+  sample: (rng, difficulty) => {
+    const params = samplePointAt(rng, difficulty);
+    // A multiple of one leaves the first step with nothing to do.
+    return Math.abs(params.k) === 1 ? { ...params, k: 2 * params.k } : params;
+  },
+  render: ({ ax, ay, bx, by, k }): Slide => {
+    const size = Math.abs(k);
+    const sign = k < 0 ? -1 : 1;
+    const px = ax + k * bx;
+    const py = ay + k * by;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Put $t = ${k}$ into the equation of $\\ell$ and work out the point: the multiple of the direction first, then the sum.`,
+        },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      start: [columnTex(ax, ay), sign < 0 ? '-' : '+', `${size}`, columnTex(bx, by)],
+      reductions: [
+        {
+          span: [2, 4],
+          value: columnTex(size * bx, size * by),
+          bank: scattered([
+            columnTex(size * bx, size * by),
+            columnTex(size * bx, by),
+            columnTex(bx + size, by + size),
+            columnTex(-size * bx, -size * by),
+          ]),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: columnTex(px, py),
+          bank: scattered([
+            columnTex(px, py),
+            columnTex(ax - k * bx, ay - k * by),
+            columnTex(ax + sign * bx, ay + sign * by),
+            columnTex(px, py + 1),
+          ]),
+        },
+      ],
+    };
+  },
+  solution: pointAtSolution,
+};
+
+interface LineDirectionParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  m: number;
+  phrase: number;
+}
+
+/** Which vector points along a line: any non-zero multiple of its direction. */
+const lineDirection: Generator<LineDirectionParams> = {
+  id: 'line-direction',
+  sample: (rng, difficulty) => {
+    const ms = difficulty > 1 ? [-3, -2, -1, 2, 3] : [-1, 2, 3];
+    for (let tries = 0; tries < 80; tries += 1) {
+      const bx = nonZero(rng.int(-4, 4), 1);
+      const by = nonZero(rng.int(-4, 4), 2);
+      // Equal sizes would make the swapped distractor parallel too.
+      if (Math.abs(bx) === Math.abs(by)) continue;
+      const ax = rng.int(-5, 5);
+      const ay = rng.int(-5, 5);
+      if (cross(ax, ay, bx, by) === 0) continue;
+      return { ax, ay, bx, by, m: rng.pick(ms), phrase: rng.int(0, 1) };
+    }
+    return { ax: 2, ay: -1, bx: 1, by: 3, m: 2, phrase: 0 };
+  },
+  render: (params): Slide => {
+    const { ax, ay, bx, by, m, phrase } = params;
+    const salt = saltOf(params);
+    const wrong = [
+      { id: 'position', v: [ax, ay] },
+      { id: 'sum', v: [ax + bx, ay + by] },
+      { id: 'swapped', v: [by, bx] },
+      { id: 'one-scaled', v: [m * bx, by] },
+    ].filter((w) => cross(bx, by, w.v[0], w.v[1]) !== 0);
+    // Three of the four, a different one left out from question to question.
+    const dropped = wrong.length > 3 ? (salt >>> 4) % wrong.length : -1;
+    const offered = placeAnswer(
+      { id: 'direction', label: columnTex(m * bx, m * by) },
+      wrong.filter((_, idx) => idx !== dropped).map((w) => ({ id: w.id, label: columnTex(w.v[0], w.v[1]) })),
+      salt,
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            phrase === 0
+              ? 'Which of these could be a direction vector of the line $\\ell$?'
+              : 'A second line runs parallel to $\\ell$. Which of these could be its direction vector?',
+        },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      options: offered,
+      correctId: 'direction',
+    };
+  },
+  solution: ({ ax, ay, bx, by, m }) => [
+    {
+      text: 'The direction of a line is the vector multiplied by $t$. Any non-zero multiple of it points along the same line, so it works just as well; a negative multiple points back along it.',
+    },
+    { tex: `${columnTex(m * bx, m * by)} = ${m}${columnTex(bx, by)}` },
+    {
+      text: `$${columnTex(ax, ay)}$ is where the line starts, a position rather than a direction. A vector whose components are not in the same ratio as $${bx}$ to $${by}$ points somewhere else.`,
+    },
+  ],
+};
+
+interface TSliderParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  t: number;
+}
+
+/**
+ * Drag `t` along a drawn line until the marker reaches a point.
+ *
+ * The dots at each whole `t` are the point of the figure: the parameter is a
+ * count of direction vectors from the start, and here it can be counted.
+ */
+const lineTSlider: Generator<TSliderParams> = {
+  id: 'line-t-slider',
+  sample: (rng, difficulty) => {
+    const ts = difficulty > 1 ? [-4, -3, -2, -1, 1, 2, 3, 4] : [-2, -1, 1, 2, 3];
+    for (let tries = 0; tries < 100; tries += 1) {
+      // Rightwards, so the marker's position across the figure is `t` in order.
+      const bx = rng.int(1, difficulty > 1 ? 3 : 2);
+      const by = difficulty > 1 ? rng.int(-3, 3) : nonZero(rng.int(-2, 2), 1);
+      const ax = rng.int(-5, 5);
+      const ay = rng.int(-5, 5);
+      const t = rng.pick(ts);
+      if (Math.abs(ax + t * bx) > 7 || Math.abs(ay + t * by) > 7) continue;
+      if (!trackUsable([ax, ay], [bx, by], t, 8)) continue;
+      return { ax, ay, bx, by, t };
+    }
+    return { ax: -2, ay: 1, bx: 1, by: 2, t: 2 };
+  },
+  render: ({ ax, ay, bx, by, t }): Slide => {
+    const span = 8;
+    const [lo, hi] = tRange([ax, ay], [bx, by], span) ?? [-6, 6];
+    const track = trackAround(lo, hi, t);
+    const p = [ax + t * bx, ay + t * by];
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The line $\\ell$ is drawn with a dot at every whole value of $t$, and $A$ is where $t = 0$. Slide $t$ until the marker passes through $P$.',
+        },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      min: track[0],
+      max: track[1],
+      step: 1,
+      answer: t,
+      readout: 't = {v}',
+      figure: {
+        svg: linesSvg(
+          [{ a: [ax, ay], b: [bx, by], dots: true }],
+          [
+            { at: [ax, ay], name: 'A' },
+            { at: p, name: 'P' },
+          ],
+          { span, label: 'A line on squared paper with a dot at each whole value of t' },
+        ),
+        // In units of t: the marker for a value sits where the line is at it.
+        xMin: (-span - ax) / bx,
+        xMax: (span - ax) / bx,
+        axis: 'x',
+        origin: 0,
+      },
+    };
+  },
+  solution: ({ ax, ay, bx, by, t }) => {
+    const px = ax + t * bx;
+    const py = ay + t * by;
+    return [
+      {
+        text: `$P$ is at $${pointTex(px, py)}$. Getting there from $A$ takes $${t}$ lots of the direction vector, one dot per step${t < 0 ? ', going backwards' : ''}.`,
+      },
+      { tex: `${columnTex(ax, ay)} + ${paren(t)}${columnTex(bx, by)}` },
+      { tex: `= ${columnTex(px, py)}` },
+      { text: `Across alone says the same: $${ax} + ${paren(t)} \\times ${bx} = ${px}$.` },
+    ];
+  },
+};
+
+interface SameLineParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  j: number;
+  m: number;
+  slip: number;
+}
+
+/** Another equation of the same line: any point on it, any multiple of its direction. */
+const lineSame: Generator<SameLineParams> = {
+  id: 'line-same',
+  sample: (rng, difficulty) => {
+    const ms = difficulty > 1 ? [-2, -1, 2, 3] : [-1, 2];
+    const js = difficulty > 1 ? [-2, -1, 1, 2, 3] : [-1, 1, 2];
+    for (let tries = 0; tries < 80; tries += 1) {
+      const bx = nonZero(rng.int(-3, 3), 1);
+      const by = nonZero(rng.int(-3, 3), 2);
+      if (Math.abs(bx) === Math.abs(by)) continue;
+      const ax = rng.int(-4, 4);
+      const ay = rng.int(-4, 4);
+      if (cross(ax, ay, bx, by) === 0) continue;
+      return { ax, ay, bx, by, j: rng.pick(js), m: rng.pick(ms), slip: rng.int(0, 1) };
+    }
+    return { ax: 1, ay: 2, bx: 2, by: -1, j: 1, m: 2, slip: 0 };
+  },
+  render: (params): Slide => {
+    const { ax, ay, bx, by, j, m, slip } = params;
+    const point = [ax + j * bx, ay + j * by];
+    const direction = [m * bx, m * by];
+    const offered = placeAnswer(
+      { id: 'same', label: lineTex(point, direction, 's') },
+      [
+        // A point one square off the line: the direction is right.
+        { id: 'off-point', label: lineTex([point[0], point[1] + 1], direction, 's') },
+        // A direction that is not a multiple: the point is right.
+        {
+          id: 'off-direction',
+          label: lineTex(point, slip === 0 ? [direction[1], direction[0]] : [m * bx, by], 's'),
+        },
+        // The two roles swapped.
+        { id: 'swapped', label: lineTex([bx, by], [ax, ay], 's') },
+      ],
+      saltOf(params),
+    );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: 'Which of these is also an equation of the line $\\ell$?' },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      options: offered,
+      correctId: 'same',
+    };
+  },
+  solution: ({ ax, ay, bx, by, j, m }) => {
+    const point = [ax + j * bx, ay + j * by];
+    return [
+      {
+        text: 'An equation of a line needs a point on it and a direction along it. Neither is unique, so one line has many equations.',
+      },
+      { tex: `${columnTex(point[0], point[1])} = ${addMultipleTex(columnTex(ax, ay), j, columnTex(bx, by))}` },
+      { text: `So that starting point is on $\\ell$: it is where $t = ${j}$.` },
+      { tex: `${columnTex(m * bx, m * by)} = ${m}${columnTex(bx, by)}` },
+      {
+        text: 'And that direction is a multiple of the original, so it points along $\\ell$. Each of the other equations starts off the line or heads in a different direction.',
+      },
+    ];
+  },
+};
+
+interface ThroughParams {
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  mode: 'points' | 'parallel';
+  cx: number;
+  cy: number;
+}
+
+/** Whether `p + s v` is the line through `a` with direction `d`. */
+function sameLine(a: Vec, d: Vec, p: Vec, v: Vec): boolean {
+  const along = cross(d[0], d[1], v[0], v[1]) === 0 && (v[0] !== 0 || v[1] !== 0);
+  return along && cross(d[0], d[1], p[0] - a[0], p[1] - a[1]) === 0;
+}
+
+/**
+ * An equation of the line through two points, or through a point parallel to
+ * another line, assembled from column-vector tiles.
+ *
+ * Only one pair of tiles in the bank can be right. `B` is never offered, nor
+ * any multiple of the direction but the one asked for, because either would
+ * make a second correct equation the widget would mark wrong.
+ */
+const lineThroughTwo: Generator<ThroughParams> = {
+  id: 'line-through-two',
+  choices: (params) => {
+    const { ax, ay, dx, dy, mode, cx, cy } = params;
+    const a = [ax, ay];
+    const d = [dx, dy];
+    const b = [ax + dx, ay + dy];
+    const wrong: [Vec, Vec][] =
+      mode === 'points'
+        ? [
+            [a, b],
+            [b, a],
+            [a, [ax + b[0], ay + b[1]]],
+            [a, [dy, dx]],
+          ]
+        : [
+            [[cx, cy], d],
+            [a, [cx, cy]],
+            [d, a],
+            [a, [dy, dx]],
+          ];
+    const picked = wrong.filter(([p, v]) => !sameLine(a, d, p, v)).slice(0, 3);
+    return steered(
+      options({ tex: lineTex(a, d) }, ...picked.map(([p, v]) => ({ tex: lineTex(p, v) }))),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 100; tries += 1) {
+      const ax = rng.int(-5, 5);
+      const ay = rng.int(-5, 5);
+      const dx = nonZero(rng.int(-5, 5), 2);
+      const dy = nonZero(rng.int(-5, 5), -3);
+      if (Math.abs(dx) === Math.abs(dy)) continue;
+      // Through the origin, the position vector of A would be a direction too.
+      if (cross(ax, ay, dx, dy) === 0) continue;
+      if (Math.abs(ax + dx) > 9 || Math.abs(ay + dy) > 9) continue;
+      // Parallel lines are the last thing the lesson teaches, so only the
+      // harder draws ask for them.
+      const mode = difficulty > 1 && rng.chance(0.5) ? 'parallel' : 'points';
+      const cx = rng.int(-5, 5);
+      const cy = rng.int(-5, 5);
+      if (mode === 'parallel' && cross(dx, dy, cx - ax, cy - ay) === 0) continue;
+      return { ax, ay, dx, dy, mode, cx, cy };
+    }
+    return { ax: 1, ay: 2, dx: 3, dy: -1, mode: 'points', cx: 0, cy: 0 };
+  },
+  render: ({ ax, ay, dx, dy, mode, cx, cy }): Slide => {
+    const a = [ax, ay];
+    const d = [dx, dy];
+    const candidates: Vec[] =
+      mode === 'points'
+        ? [[2 * ax + dx, 2 * ay + dy], [dy, dx], [-dx, dy], [ax + 1, ay], [dx + 1, dy]]
+        : [[cx, cy], [dy, dx], [cx - ax, cy - ay], [-dx, dy], [dx + 1, dy]];
+    // A tile that could sit in either blank of a correct equation is not a
+    // distractor, whichever blank the learner has in mind.
+    const extras = [
+      ...new Set(
+        candidates
+          .filter((v) => !sameLine(a, d, v, d) && !sameLine(a, d, a, v))
+          .map((v) => colTex(v)),
+      ),
+    ]
+      .filter((tex) => tex !== colTex(a) && tex !== colTex(d))
+      .slice(0, 3);
+    return {
+      kind: 'tiles',
+      prompt:
+        mode === 'points'
+          ? [
+              {
+                kind: 'prose',
+                text: `Build an equation of the line through $A${pointTex(ax, ay)}$ and $B${pointTex(ax + dx, ay + dy)}$, starting at $A$ and heading along $\\overrightarrow{AB}$.`,
+              },
+            ]
+          : [
+              {
+                kind: 'prose',
+                text: `Build an equation of the line through $A${pointTex(ax, ay)}$ that is parallel to $\\ell$.`,
+              },
+              { kind: 'display', tex: `\\ell: \\; ${lineTex([cx, cy], d, 's')}` },
+            ],
+      template: '\\mathbf{r} = {0} + t\\,{1}',
+      bank: [colTex(a), colTex(d), ...extras].sort(),
+      answer: [colTex(a), colTex(d)],
+    };
+  },
+  solution: ({ ax, ay, dx, dy, mode, cx, cy }) =>
+    mode === 'points'
+      ? [
+          { text: 'A line needs a point and a direction. The point is $A$; the direction is the journey from $A$ to $B$, destination minus start.' },
+          { tex: `\\overrightarrow{AB} = ${columnTex(ax + dx, ay + dy)} - ${columnTex(ax, ay)}` },
+          { tex: `= ${columnTex(dx, dy)}` },
+          { tex: lineTex([ax, ay], [dx, dy]) },
+          {
+            text: 'Starting at $B$ instead, or heading along $\\overrightarrow{BA}$, gives a different equation of the same line. Using the position of $B$ as the direction does not: that vector points from the origin, not along the line.',
+          },
+        ]
+      : [
+          { text: 'Parallel lines point the same way, so the new line can borrow the direction of $\\ell$. Only the starting point changes, to $A$.' },
+          { tex: lineTex([ax, ay], [dx, dy]) },
+          {
+            text: `Keeping $\\ell$'s own starting point $${pointTex(cx, cy)}$ would describe $\\ell$ itself, which does not pass through $A$.`,
+          },
+        ],
+};
+
+interface TwoPointsAtParams {
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  k: number;
+}
+
+/** A point on the line through two points, the working laid out as a tree. */
+const lineTwoPointsAtTree: Generator<TwoPointsAtParams> = {
+  id: 'line-two-points-at-tree',
+  sample: (rng, difficulty) => {
+    const ks = difficulty > 1 ? [-2, -1, 2, 3] : [-1, 2, 3];
+    const span = difficulty > 1 ? 5 : 4;
+    return {
+      ax: rng.int(-span, span),
+      ay: rng.int(-span, span),
+      dx: nonZero(rng.int(-4, 4), 1),
+      dy: nonZero(rng.int(-4, 4), -2),
+      k: rng.pick(ks),
+    };
+  },
+  render: ({ ax, ay, dx, dy, k }): Slide => {
+    const answer = [columnTex(dx, dy), columnTex(k * dx, k * dy), pointTex(ax + k * dx, ay + k * dy)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$A${pointTex(ax, ay)}$ and $B${pointTex(ax + dx, ay + dy)}$ lie on the line $\\mathbf{r} = \\mathbf{a} + t\\,\\overrightarrow{AB}$. Fill the tree to find the point where $t = ${k}$.`,
+        },
+      ],
+      expression: addMultipleTex('\\mathbf{a}', k, '\\overrightarrow{AB}'),
+      nodes: [
+        { id: 'ab', from: [] },
+        { id: 'kab', from: ['ab'] },
+        { id: 'p', from: ['kab'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [
+          columnTex(-dx, -dy),
+          columnTex(-k * dx, -k * dy),
+          pointTex(ax + dx + k * dx, ay + dy + k * dy),
+          pointTex(k * dx, k * dy),
+        ],
+        [columnTex(k * dx + 1, k * dy), pointTex(ax + k * dx, ay + k * dy + 1)],
+      ),
+      answer,
+    };
+  },
+  solution: ({ ax, ay, dx, dy, k }) => [
+    { text: 'The direction is the journey from $A$ to $B$: destination minus start.' },
+    { tex: `\\overrightarrow{AB} = ${columnTex(dx, dy)}` },
+    { text: `The point where $t = ${k}$ is $${k}$ of those journeys from $A$.` },
+    { tex: `${k}\\overrightarrow{AB} = ${columnTex(k * dx, k * dy)}` },
+    { tex: `${columnTex(ax, ay)} + ${columnTex(k * dx, k * dy)} = ${columnTex(ax + k * dx, ay + k * dy)}` },
+    {
+      text: `Starting from $B$ instead lands one whole step further on, at $${pointTex(ax + dx + k * dx, ay + dy + k * dy)}$: that is $t = ${k + 1}$ on this line.`,
+    },
+  ],
+};
+
+interface FindTParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  t: number;
+}
+
+/** The value of `t` that reaches a point on the line. */
+const lineFindT: Generator<FindTParams> = {
+  id: 'line-find-t',
+  choices: (params) => {
+    const { ax, bx, by, t } = params;
+    return steered(
+      signedChoices(t, [-t, t * bx, t * by, ax + t * bx, t + 1]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const ts = difficulty > 1 ? [-4, -3, -2, -1, 2, 3, 4, 5] : [-2, -1, 2, 3, 4];
+    for (let tries = 0; tries < 60; tries += 1) {
+      const bx = rng.int(-4, 4);
+      const by = rng.int(-4, 4);
+      if (bx === 0 && by === 0) continue;
+      if (difficulty === 1 && (bx === 0 || by === 0)) continue;
+      return { ax: rng.int(-6, 6), ay: rng.int(-6, 6), bx, by, t: rng.pick(ts) };
+    }
+    return { ax: 1, ay: -2, bx: 2, by: 3, t: 2 };
+  },
+  render: ({ ax, ay, bx, by, t }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `$P${pointTex(ax + t * bx, ay + t * by)}$ lies on the line $\\ell$ below. Find the value of $t$ at $P$.`,
+      },
+      { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+    ],
+    lead: 't =',
+    keypad: [],
+    answer: `${t}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ ax, ay, bx, by, t }) => {
+    const px = ax + t * bx;
+    const py = ay + t * by;
+    const useX = bx !== 0;
+    const steps: { text?: string; tex?: string }[] = [
+      {
+        text: useX
+          ? 'Set the line equal to $P$ and take one component. Across:'
+          : 'The direction has no across component, so every point of the line has the same $x$. Take the up component instead:',
+      },
+      useX ? { tex: `${affTex(ax, bx, 't')} = ${px}` } : { tex: `${affTex(ay, by, 't')} = ${py}` },
+      useX ? { tex: `${bx}t = ${px - ax} \\implies t = ${t}` } : { tex: `${by}t = ${py - ay} \\implies t = ${t}` },
+    ];
+    if (useX && by !== 0) {
+      steps.push({
+        text: `The other component agrees: $${ay} + ${paren(by)} \\times ${paren(t)} = ${py}$. It always will for a point that is on the line, and checking it is how you would know if it were not.`,
+      });
+    }
+    return steps;
+  },
+};
+
+interface ContainsParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  k: number;
+  delta: number;
+  off: 'x' | 'y';
+}
+
+function containsTs({ k, delta, off }: ContainsParams): [number, number] {
+  return [off === 'x' ? k + delta : k, off === 'y' ? k + delta : k];
+}
+
+/**
+ * Is a point on the line? Solve each component for `t` and compare.
+ *
+ * The distractors are the two single-component answers: a learner who solves
+ * across and stops has found a `t`, and it is offered.
+ */
+const lineContains: Generator<ContainsParams> = {
+  id: 'line-contains',
+  sample: (rng) => ({
+    ax: rng.int(-5, 5),
+    ay: rng.int(-5, 5),
+    bx: nonZero(rng.int(-3, 3), 2),
+    by: nonZero(rng.int(-3, 3), -1),
+    k: rng.pick([-2, -1, 1, 2, 3]),
+    delta: rng.chance(0.5) ? 0 : rng.pick([-2, -1, 1, 2]),
+    off: rng.pick(['x', 'y'] as const),
+  }),
+  render: (params): Slide => {
+    const { ax, ay, bx, by, k, delta } = params;
+    const [tx, ty] = containsTs(params);
+    const px = ax + tx * bx;
+    const py = ay + ty * by;
+    const yes = (t: number) => `\\text{Yes, at } t = ${t}`;
+    const no = '\\text{No, the components disagree}';
+    const offered =
+      delta === 0
+        ? placeAnswer(
+            { id: 'yes', label: yes(k) },
+            [
+              { id: 'negated', label: yes(-k) },
+              { id: 'undivided', label: yes(px - ax === k || px - ax === -k ? k + 1 : px - ax) },
+              { id: 'no', label: no },
+            ],
+            saltOf(params),
+          )
+        : placeAnswer(
+            { id: 'no', label: no },
+            [
+              { id: 'across', label: yes(tx) },
+              { id: 'up', label: yes(ty) },
+            ],
+            saltOf(params),
+          );
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `Does $P${pointTex(px, py)}$ lie on the line $\\ell$ below?` },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      options: offered,
+      correctId: delta === 0 ? 'yes' : 'no',
+    };
+  },
+  solution: (params) => {
+    const { ax, ay, bx, by, delta } = params;
+    const [tx, ty] = containsTs(params);
+    const px = ax + tx * bx;
+    const py = ay + ty * by;
+    return [
+      { text: 'Set the line equal to $P$ and solve each component for $t$ separately.' },
+      { tex: `${affTex(ax, bx, 't')} = ${px} \\implies t = ${tx}` },
+      { tex: `${affTex(ay, by, 't')} = ${py} \\implies t = ${ty}` },
+      delta === 0
+        ? { text: `Both components give $t = ${tx}$, so a single value of $t$ reaches $P$ and it is on the line.` }
+        : {
+            text: `Across needs $t = ${tx}$ but up needs $t = ${ty}$. No single point of the line matches both coordinates, so $P$ is not on it. Solving one component alone would have found a value of $t$ and missed that.`,
+          },
+    ];
+  },
+};
+
+interface MissingParams {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  t: number;
+  missing: 'x' | 'y';
+}
+
+/** A missing coordinate that puts a point on the line. */
+const lineMissingCoord: Generator<MissingParams> = {
+  id: 'line-missing-coord',
+  choices: (params) => {
+    const { ax, ay, bx, by, t, missing } = params;
+    const [am, bm, known] = missing === 'y' ? [ay, by, ax + t * bx] : [ax, bx, ay + t * by];
+    return steered(
+      signedChoices(am + t * bm, [
+        // The multiple of the direction without the start.
+        t * bm,
+        // Moved the wrong way along the line.
+        am - t * bm,
+        // One step too far.
+        am + (t + 1) * bm,
+        known,
+      ]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const ts = difficulty > 1 ? [-3, -2, -1, 2, 3, 4] : [-1, 1, 2, 3];
+    const reach = difficulty > 1 ? 4 : 3;
+    return {
+      ax: rng.int(-5, 5),
+      ay: rng.int(-5, 5),
+      bx: nonZero(rng.int(-reach, reach), 2),
+      by: nonZero(rng.int(-reach, reach), -1),
+      t: rng.pick(ts),
+      missing: rng.pick(['x', 'y'] as const),
+    };
+  },
+  render: ({ ax, ay, bx, by, t, missing }): Slide => {
+    const px = ax + t * bx;
+    const py = ay + t * by;
+    const point = missing === 'y' ? `P\\left(${px}, k\\right)` : `P\\left(k, ${py}\\right)`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `$${point}$ lies on the line $\\ell$ below. Find $k$.` },
+        { kind: 'display', tex: lineTex([ax, ay], [bx, by]) },
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: `${missing === 'y' ? py : px}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ ax, ay, bx, by, t, missing }) => {
+    const px = ax + t * bx;
+    const py = ay + t * by;
+    return missing === 'y'
+      ? [
+          { text: 'The coordinate you know fixes $t$. Across:' },
+          { tex: `${affTex(ax, bx, 't')} = ${px} \\implies t = ${t}` },
+          { text: 'The same $t$ gives the other coordinate. Up:' },
+          { tex: `k = ${ay} + ${paren(by)} \\times ${paren(t)} = ${py}` },
+        ]
+      : [
+          { text: 'The coordinate you know fixes $t$. Up:' },
+          { tex: `${affTex(ay, by, 't')} = ${py} \\implies t = ${t}` },
+          { text: 'The same $t$ gives the other coordinate. Across:' },
+          { tex: `k = ${ax} + ${paren(bx)} \\times ${paren(t)} = ${px}` },
+        ];
+  },
+};
+
+interface ParallelKParams {
+  u: number[];
+  m1: number;
+  m2: number;
+  missing: number;
+  a: number[];
+  c: number[];
+}
+
+/** An unknown component that makes two lines parallel. */
+const linesParallelK: Generator<ParallelKParams> = {
+  id: 'lines-parallel-k',
+  choices: (params) => {
+    const { u, m1, m2, missing } = params;
+    const k = m1 * u[missing];
+    return steered(
+      signedChoices(k, [
+        // Copied from the other direction.
+        m2 * u[missing],
+        -k,
+        // The multiple the wrong way up.
+        m2 * m2 * u[missing],
+        k + m1,
+      ]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => {
+    const dims = difficulty > 1 && rng.chance(0.5) ? 3 : 2;
+    const multiples = difficulty > 1 ? [-2, -1, 1, 2, 3] : [1, 2, 3];
+    const [m1, m2] = rng.sample(multiples, 2);
+    const u = Array.from({ length: dims }, () => nonZero(rng.int(-3, 3), 1));
+    return {
+      u,
+      m1,
+      m2,
+      missing: rng.int(0, dims - 1),
+      a: Array.from({ length: dims }, () => rng.int(-5, 5)),
+      c: Array.from({ length: dims }, () => rng.int(-5, 5)),
+    };
+  },
+  render: ({ u, m1, m2, missing, a, c }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: 'These two lines are parallel. Find $k$.' },
+      {
+        kind: 'display',
+        tex: `\\mathbf{r} = ${colTex(a)} + \\lambda${columnOf(u.map((x, i) => (i === missing ? 'k' : `${m1 * x}`)))}`,
+      },
+      { kind: 'display', tex: lineTex(c, scaled(m2, u), '\\mu') },
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${m1 * u[missing]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ u, m1, m2, missing }) => {
+    const known = missing === 0 ? 1 : 0;
+    const factor = ratio(m1, m2);
+    return [
+      {
+        text: 'Parallel lines have directions that are scalar multiples of each other. A component you know on both lines gives the multiple.',
+      },
+      { tex: `${m1 * u[known]} = ${ratioTex(factor)} \\times ${paren(m2 * u[known])}` },
+      { text: `So every component of the first direction is $${ratioTex(factor)}$ times the second's, $k$ included.` },
+      { tex: `k = ${ratioTex(factor)} \\times ${paren(m2 * u[missing])} = ${m1 * u[missing]}` },
+    ];
+  },
+};
+
+type Relation = 'same' | 'parallel' | 'meet' | 'skew';
+
+interface RelationParams {
+  rel: Relation;
+  a: number[];
+  b: number[];
+  c: number[];
+  d: number[];
+  m: number;
+  j: number;
+  lam: number;
+  mu: number;
+}
+
+const RELATION_LABELS: Record<Relation, string> = {
+  same: '\\text{The same line}',
+  parallel: '\\text{Parallel, never meeting}',
+  meet: '\\text{Intersecting}',
+  skew: '\\text{Skew}',
+};
+
+/**
+ * Two lines in two or three dimensions, drawn from the relation wanted.
+ *
+ * Parallel and same-line pairs share a direction up to a multiple; crossing
+ * pairs are built from their crossing point and the two parameters that reach
+ * it; skew pairs are crossing pairs with the second line lifted off in `z`,
+ * which leaves the `x` and `y` solution intact and breaks only the third
+ * component — exactly the test the lesson teaches.
+ */
+function sampleRelation(rng: Parameters<Generator['sample']>[0], dims: number, rel: Relation): RelationParams {
+  const vec = (lo: number, hi: number) => Array.from({ length: dims }, () => rng.int(lo, hi));
+  for (let tries = 0; tries < 200; tries += 1) {
+    const b = Array.from({ length: dims }, () => nonZero(rng.int(-3, 3), 1));
+    if (rel === 'same' || rel === 'parallel') {
+      const m = rng.pick([-2, -1, 2, 3]);
+      const j = rng.pick([-2, -1, 1, 2]);
+      const a = vec(-4, 4);
+      const c = plus(a, scaled(j, b));
+      // Every component of the direction is non-zero, so a nudge along one
+      // axis is never along the line.
+      if (rel === 'parallel') c[rng.int(0, dims - 1)] += rng.pick([-2, -1, 1, 2]);
+      if (c.some((x) => Math.abs(x) > 9)) continue;
+      return { rel, a, b, c, d: scaled(m, b), m, j, lam: 0, mu: 0 };
+    }
+    const d = Array.from({ length: dims }, () => nonZero(rng.int(-3, 3), -1));
+    // Solvable from x and y alone, which also rules out parallel directions.
+    if (cross(b[0], b[1], d[0], d[1]) === 0) continue;
+    const p = vec(-4, 4);
+    const lam = nonZero(rng.int(-3, 3), 1);
+    const mu = nonZero(rng.int(-3, 3), 2);
+    const a = minus(p, scaled(lam, b));
+    const c = minus(p, scaled(mu, d));
+    if (rel === 'skew') c[2] += rng.pick([-2, -1, 1, 2]);
+    if ([...a, ...c].some((x) => Math.abs(x) > 9)) continue;
+    return { rel, a, b, c, d, m: 0, j: 0, lam, mu };
+  }
+  return {
+    rel: 'meet',
+    a: dims === 3 ? [1, 0, 2] : [1, 0],
+    b: dims === 3 ? [1, 1, 1] : [1, 1],
+    c: dims === 3 ? [0, 1, 2] : [0, 1],
+    d: dims === 3 ? [2, 1, 1] : [2, 1],
+    m: 0,
+    j: 0,
+    lam: 1,
+    mu: 1,
+  };
+}
+
+function relationPrompt({ a, b, c, d }: RelationParams, text: string): Block[] {
+  return [
+    { kind: 'prose', text },
+    // Unlabelled: three-component columns leave no room on a phone for a name
+    // in front, so the prose says "first" and "second" instead.
+    { kind: 'display', tex: lineTex(a, b, '\\lambda') },
+    { kind: 'display', tex: lineTex(c, d, '\\mu') },
+  ];
+}
+
+/** Working for two lines that cross, or cross in `x` and `y` and not in `z`. */
+function crossingWorking(a: Vec, b: Vec, c: Vec, d: Vec, lam: number, mu: number) {
+  const names = ['x', 'y', 'z'];
+  const steps: { text?: string; tex?: string }[] = [
+    { text: 'Set the two lines equal and take the first two components:' },
+    { tex: `x\\colon \\; ${affTex(a[0], b[0], '\\lambda')} = ${affTex(c[0], d[0], '\\mu')}` },
+    { tex: `y\\colon \\; ${affTex(a[1], b[1], '\\lambda')} = ${affTex(c[1], d[1], '\\mu')}` },
+  ];
+  if (d[0] === 0 || b[0] === 0) {
+    steps.push({
+      text: `One of these has only one parameter in it, so it gives that parameter straight away; substituting into the other gives the second. $\\lambda = ${lam}$ and $\\mu = ${mu}$.`,
+    });
+  } else {
+    steps.push({
+      text: `Solve the two together, for example by making one parameter the subject of one equation and substituting into the other: $\\lambda = ${lam}$ and $\\mu = ${mu}$.`,
+    });
+  }
+  if (a.length === 3) {
+    const z1 = a[2] + lam * b[2];
+    const z2 = c[2] + mu * d[2];
+    steps.push(
+      { text: `Now the ${names[2]} components, with those values:` },
+      { tex: `${a[2]} + ${paren(b[2])} \\times ${paren(lam)} = ${z1}` },
+      { tex: `${c[2]} + ${paren(d[2])} \\times ${paren(mu)} = ${z2}` },
+    );
+  }
+  return steps;
+}
+
+/**
+ * How two lines sit: the same line, parallel, crossing, or skew.
+ *
+ * A decision rather than a calculation, so it is a flow: the direction test
+ * comes first because it decides which of the other tests makes sense. The
+ * choice form asks for the verdict alone.
+ */
+const linesRelation: Generator<RelationParams> = {
+  id: 'lines-relation',
+  choices: (params) =>
+    steered(
+      options(
+        { tex: RELATION_LABELS[params.rel] },
+        ...(Object.keys(RELATION_LABELS) as Relation[])
+          .filter((rel) => rel !== params.rel)
+          .map((rel) => ({ tex: RELATION_LABELS[rel] })),
+      ),
+      saltOf(params),
+    ),
+  sample: (rng, difficulty) => {
+    const dims = difficulty > 1 && rng.chance(0.65) ? 3 : 2;
+    const rel = rng.pick<Relation>(dims === 3 ? ['same', 'parallel', 'meet', 'skew'] : ['same', 'parallel', 'meet']);
+    return sampleRelation(rng, dims, rel);
+  },
+  render: (params): Slide => {
+    const { rel, a } = params;
+    const three = a.length === 3;
+    const answer =
+      rel === 'same'
+        ? ['Yes', 'Yes']
+        : rel === 'parallel'
+          ? ['Yes', 'No']
+          : three
+            ? ['No', 'Three', rel === 'meet' ? 'Yes' : 'No']
+            : ['No', 'Two'];
+    return {
+      kind: 'flow',
+      prompt: relationPrompt(
+        params,
+        'How do these two lines sit relative to each other? Work down the questions; each answer chooses what gets asked next.',
+      ),
+      // The directions, since the first fork is about them.
+      subject: `\\text{directions } ${colTex(params.b)}, \\; ${colTex(params.d)}`,
+      steps: [
+        {
+          id: 'direction',
+          ask: 'Is one direction vector a scalar multiple of the other?',
+          branches: [
+            { label: 'Yes', to: 'point' },
+            { label: 'No', to: 'dimension' },
+          ],
+        },
+        {
+          id: 'point',
+          ask: 'Does the starting point of the first line lie on the second?',
+          branches: [
+            { label: 'Yes', outcome: 'The same line: parallel, and sharing a point.' },
+            { label: 'No', outcome: 'Parallel: the same direction, and they never meet.' },
+          ],
+        },
+        {
+          id: 'dimension',
+          ask: 'How many components do the vectors have?',
+          branches: [
+            { label: 'Two', outcome: 'Intersecting: in a plane, lines that are not parallel always cross.' },
+            { label: 'Three', to: 'third' },
+          ],
+        },
+        {
+          id: 'third',
+          ask: 'Solve two components for $\\lambda$ and $\\mu$. Do those values fit the third component as well?',
+          branches: [
+            { label: 'Yes', outcome: 'Intersecting: one point is on both lines.' },
+            { label: 'No', outcome: 'Skew: not parallel, and never meeting.' },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: ({ rel, a, b, c, d, m, lam, mu }) => {
+    if (rel === 'same' || rel === 'parallel') {
+      return [
+        { text: 'Compare the directions first.' },
+        { tex: `${colTex(d)} = ${m}${colTex(b)}` },
+        { text: 'One is a multiple of the other, so the lines are parallel, or the same line. Test whether they share a point:' },
+        { tex: `${colTex(a)} - ${colTex(c)} = ${colTex(minus(a, c))}` },
+        rel === 'same'
+          ? { text: 'That is a multiple of the direction, so the start of the first line is on the second. They are the same line, written two ways.' }
+          : { text: 'That is not a multiple of the direction, so the start of the first line is off the second. The lines are parallel and never meet.' },
+      ];
+    }
+    const three = a.length === 3;
+    return [
+      {
+        text: `The directions are not multiples of each other: no single scalar turns $${colTex(b)}$ into $${colTex(d)}$. So the lines are not parallel.`,
+      },
+      ...(three
+        ? crossingWorking(a, b, c, d, lam, mu)
+        : [{ text: 'In two dimensions that settles it: two lines in a plane that are not parallel always cross.' }]),
+      three
+        ? rel === 'meet'
+          ? { text: 'The third component agrees, so the lines meet.' }
+          : { text: 'The third component disagrees. The lines are not parallel and never meet: they are skew, passing one above the other.' }
+        : { text: `They cross where $\\lambda = ${lam}$ and $\\mu = ${mu}$.` },
+    ];
+  },
+};
+
+interface ThirdParams {
+  a: number[];
+  b: number[];
+  c: number[];
+  d: number[];
+  lam: number;
+  mu: number;
+}
+
+/**
+ * Solve two components, then test the third, laid out as a tree: the two
+ * parameters on top, each line's `z` beneath its own parameter.
+ */
+const linesThirdTree: Generator<ThirdParams> = {
+  id: 'lines-third-tree',
+  sample: (rng, difficulty) => {
+    for (let tries = 0; tries < 200; tries += 1) {
+      const b = [nonZero(rng.int(-3, 3), 1), nonZero(rng.int(-3, 3), 2), nonZero(rng.int(-3, 3), -1)];
+      // At the first difficulty the second line has no x component, so the x
+      // equation gives λ on its own and the pair need no elimination.
+      const d =
+        difficulty > 1
+          ? [nonZero(rng.int(-3, 3), 2), nonZero(rng.int(-3, 3), -1), nonZero(rng.int(-3, 3), 1)]
+          : [0, nonZero(rng.int(-3, 3), 1), nonZero(rng.int(-3, 3), 2)];
+      if (cross(b[0], b[1], d[0], d[1]) === 0) continue;
+      const p = [rng.int(-4, 4), rng.int(-4, 4), rng.int(-4, 4)];
+      const lam = nonZero(rng.int(-3, 3), 1);
+      const mu = nonZero(rng.int(-3, 3), -1);
+      const a = minus(p, scaled(lam, b));
+      const c = minus(p, scaled(mu, d));
+      if (rng.chance(0.5)) c[2] += rng.pick([-3, -2, -1, 1, 2, 3]);
+      if ([...a, ...c].some((x) => Math.abs(x) > 9)) continue;
+      return { a, b, c, d, lam, mu };
+    }
+    return { a: [1, 0, 2], b: [1, 1, 1], c: [2, -1, 3], d: [0, 1, 1], lam: 1, mu: 1 };
+  },
+  render: (params): Slide => {
+    const { a, b, c, d, lam, mu } = params;
+    const z1 = a[2] + lam * b[2];
+    const z2 = c[2] + mu * d[2];
+    const answer = [`${lam}`, `${mu}`, `${z1}`, `${z2}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Solve the $x$ and $y$ components for $\\lambda$ and $\\mu$, then find the $z$ component each line reaches with them. The same value means the lines meet; different values mean they are skew.',
+        },
+        { kind: 'display', tex: lineTex(a, b, '\\lambda') },
+        { kind: 'display', tex: lineTex(c, d, '\\mu') },
+      ],
+      // Each side braced, so a leading minus after "and" reads as a sign
+      // rather than a subtraction.
+      expression: `z\\colon \\; {${affTex(a[2], b[2], '\\lambda')}} \\; \\text{and} \\; {${affTex(c[2], d[2], '\\mu')}}`,
+      nodes: [
+        { id: 'lam', from: [] },
+        { id: 'mu', from: [] },
+        { id: 'z1', from: ['lam'] },
+        { id: 'z2', from: ['mu'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [`${-lam}`, `${-mu}`, `${z1 + b[2]}`, `${z2 - d[2]}`],
+        // Small values collide with each other; neighbours of each answer
+        // keep the bank above two spares whatever they are.
+        [lam, mu, z1, z2].flatMap((x) => [`${x + 1}`, `${x - 1}`, `${x + 2}`]),
+      ),
+      answer,
+    };
+  },
+  solution: ({ a, b, c, d, lam, mu }) => {
+    const z1 = a[2] + lam * b[2];
+    const z2 = c[2] + mu * d[2];
+    return [
+      ...crossingWorking(a, b, c, d, lam, mu),
+      z1 === z2
+        ? { text: `Both lines reach $z = ${z1}$, so the values fit all three components: the lines meet.` }
+        : {
+            text: `The lines reach $z = ${z1}$ and $z = ${z2}$. The only $\\lambda$ and $\\mu$ that match $x$ and $y$ do not match $z$, so the lines never meet, and they are not parallel: they are skew.`,
+          },
+    ];
+  },
+};
+
+interface MeetParams {
+  px: number;
+  py: number;
+  bx: number;
+  by: number;
+  dx: number;
+  dy: number;
+  lam: number;
+  mu: number;
+  ask: 'lambda' | 'mu';
+}
+
+/**
+ * Two lines in a plane, built from where they cross.
+ *
+ * At the first difficulty the second line runs straight across or straight
+ * up, so one component equation has a single parameter in it. A slider needs
+ * the first line heading rightwards, for its marker, and the second line not
+ * vertical, or the vertical marker would lie along it.
+ */
+function sampleMeet(
+  rng: Parameters<Generator['sample']>[0],
+  difficulty: number,
+  slider = false,
+): MeetParams {
+  for (let tries = 0; tries < 300; tries += 1) {
+    const bx = slider ? rng.int(1, 3) : nonZero(rng.int(-3, 3), 1);
+    const by = nonZero(rng.int(-3, 3), -1);
+    let dx: number;
+    let dy: number;
+    if (difficulty > 1) {
+      dx = nonZero(rng.int(-3, 3), 2);
+      dy = nonZero(rng.int(-3, 3), 1);
+    } else if (!slider && rng.chance(0.5)) {
+      dx = 0;
+      dy = nonZero(rng.int(-3, 3), 1);
+    } else {
+      dx = nonZero(rng.int(-3, 3), 1);
+      dy = 0;
+    }
+    if (cross(bx, by, dx, dy) === 0) continue;
+    const px = rng.int(-4, 4);
+    const py = rng.int(-4, 4);
+    const lam = nonZero(rng.int(-3, 3), 1);
+    const mu = nonZero(rng.int(-3, 3), 2);
+    const limit = slider ? 7 : 9;
+    const ends = [px - lam * bx, py - lam * by, px - mu * dx, py - mu * dy];
+    if (ends.some((x) => Math.abs(x) > limit)) continue;
+    if (slider && !trackUsable([ends[0], ends[1]], [bx, by], lam, 8)) continue;
+    return { px, py, bx, by, dx, dy, lam, mu, ask: rng.pick(['lambda', 'mu'] as const) };
+  }
+  return { px: 1, py: 2, bx: 1, by: 1, dx: 2, dy: -1, lam: 1, mu: 1, ask: 'lambda' };
+}
+
+function meetLines({ px, py, bx, by, dx, dy, lam, mu }: MeetParams) {
+  return {
+    a: [px - lam * bx, py - lam * by],
+    b: [bx, by],
+    c: [px - mu * dx, py - mu * dy],
+    d: [dx, dy],
+  };
+}
+
+function meetDisplays(params: MeetParams) {
+  const { a, b, c, d } = meetLines(params);
+  return [
+    { kind: 'display' as const, tex: `\\ell_1: \\; ${lineTex(a, b, '\\lambda')}` },
+    { kind: 'display' as const, tex: `\\ell_2: \\; ${lineTex(c, d, '\\mu')}` },
+  ];
+}
+
+function meetSolution(params: MeetParams) {
+  const { a, b, c, d } = meetLines(params);
+  const { px, py, lam, mu } = params;
+  return [
+    ...crossingWorking(a, b, c, d, lam, mu),
+    { text: `Put $\\lambda = ${lam}$ into $\\ell_1$ to find the point:` },
+    { tex: `${addMultipleTex(columnTex(a[0], a[1]), lam, columnTex(b[0], b[1]))} = ${columnTex(px, py)}` },
+    { text: `$\\mu = ${mu}$ in $\\ell_2$ lands on the same point, $${pointTex(px, py)}$, which checks the working.` },
+  ];
+}
+
+/** The value of one parameter where two lines cross. */
+const linesSolve: Generator<MeetParams> = {
+  id: 'lines-solve',
+  choices: (params) => {
+    const { lam, mu, ask, px, bx, dx } = params;
+    const [value, other] = ask === 'lambda' ? [lam, mu] : [mu, lam];
+    const { a, c } = meetLines(params);
+    return steered(
+      signedChoices(value, [other, -value, ask === 'lambda' ? px - a[0] - bx : px - c[0] - dx, value + 1]),
+      saltOf(params),
+    );
+  },
+  sample: (rng, difficulty) => sampleMeet(rng, difficulty),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `The lines $\\ell_1$ and $\\ell_2$ meet at one point. Find the value of $${params.ask === 'lambda' ? '\\lambda' : '\\mu'}$ there.`,
+      },
+      ...meetDisplays(params),
+    ],
+    // A word in the lead, so the choice form shows more than a lone symbol.
+    lead: `\\text{at the crossing, } ${params.ask === 'lambda' ? '\\lambda' : '\\mu'} =`,
+    keypad: [],
+    answer: `${params.ask === 'lambda' ? params.lam : params.mu}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { a, b, c, d } = meetLines(params);
+    return crossingWorking(a, b, c, d, params.lam, params.mu);
+  },
+};
+
+/** The point where two lines cross, placed as coordinate tiles. */
+const linesMeet: Generator<MeetParams> = {
+  id: 'lines-meet',
+  sample: (rng, difficulty) => sampleMeet(rng, difficulty),
+  render: (params): Slide => {
+    const { px, py, lam, mu } = params;
+    const { a, b, c, d } = meetLines(params);
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: 'Find the point where $\\ell_1$ and $\\ell_2$ meet.' }, ...meetDisplays(params)],
+      template: pointTemplate('P'),
+      // Each parameter put into the other line's equation.
+      bank: bankOf(
+        [`${px}`, `${py}`],
+        [`${a[0] + mu * b[0]}`, `${a[1] + mu * b[1]}`, `${c[0] + lam * d[0]}`, `${c[1] + lam * d[1]}`],
+      ),
+      answer: [`${px}`, `${py}`],
+    };
+  },
+  solution: meetSolution,
+};
+
+/** Both parameters, then the point from each line: two routes to one place. */
+const linesMeetTree: Generator<MeetParams> = {
+  id: 'lines-meet-tree',
+  sample: (rng, difficulty) => sampleMeet(rng, difficulty),
+  render: (params): Slide => {
+    const { px, py, lam, mu } = params;
+    const { a, b, c, d } = meetLines(params);
+    const answer = [`${lam}`, `${mu}`, pointTex(px, py), pointTex(px, py)];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Solve for $\\lambda$ and $\\mu$ where the two lines meet, then find the point from each line. Both lines should land on the same point.',
+        },
+      ],
+      // Two rows: four columns on one line run off a phone.
+      expression: `\\begin{gathered} ${columnTex(a[0], a[1])} + \\lambda${columnTex(b[0], b[1])} \\\\ = ${columnTex(c[0], c[1])} + \\mu${columnTex(d[0], d[1])} \\end{gathered}`,
+      nodes: [
+        { id: 'lam', from: [] },
+        { id: 'mu', from: [] },
+        { id: 'p1', from: ['lam'] },
+        { id: 'p2', from: ['mu'] },
+      ],
+      bank: geometryTreeBank(
+        answer,
+        [`${-lam}`, `${-mu}`, pointTex(a[0] + mu * b[0], a[1] + mu * b[1]), pointTex(c[0] + lam * d[0], c[1] + lam * d[1])],
+        [`${lam + 1}`, pointTex(px, py + 1)],
+      ),
+      answer,
+    };
+  },
+  solution: meetSolution,
+};
+
+/** Drag along one line to where the other crosses it. */
+const linesMeetSlider: Generator<MeetParams> = {
+  id: 'lines-meet-slider',
+  sample: (rng, difficulty) => sampleMeet(rng, difficulty, true),
+  render: (params): Slide => {
+    const span = 8;
+    const { a, b, c, d } = meetLines(params);
+    const [lo, hi] = tRange(a, b, span) ?? [-6, 6];
+    const track = trackAround(lo, hi, params.lam);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The solid line is $\\ell_1$, with a dot at every whole value of $\\lambda$ and $A$ where $\\lambda = 0$. The dashed line is $\\ell_2$. Slide $\\lambda$ until the marker passes through the point where they cross.',
+        },
+        ...meetDisplays(params),
+      ],
+      min: track[0],
+      max: track[1],
+      step: 1,
+      answer: params.lam,
+      readout: '\\lambda = {v}',
+      figure: {
+        svg: linesSvg(
+          [
+            { a, b, dots: true },
+            { a: c, b: d, dashed: true },
+          ],
+          [{ at: a, name: 'A' }],
+          { span, label: 'Two lines on squared paper, the first with a dot at each whole value of lambda' },
+        ),
+        xMin: (-span - a[0]) / b[0],
+        xMax: (span - a[0]) / b[0],
+        axis: 'x',
+        origin: 0,
+      },
+    };
+  },
+  solution: meetSolution,
+};
+
 export const vectorGenerators = [
   addVectors,
   combineVectors,
@@ -3329,4 +4922,21 @@ export const vectorGenerators = [
   pathCoefficientsGen,
   pathTree,
   pathParallel,
+  linePointAt,
+  linePointAtSteps,
+  lineDirection,
+  lineTSlider,
+  lineSame,
+  lineThroughTwo,
+  lineTwoPointsAtTree,
+  lineFindT,
+  lineContains,
+  lineMissingCoord,
+  linesParallelK,
+  linesRelation,
+  linesThirdTree,
+  linesSolve,
+  linesMeet,
+  linesMeetTree,
+  linesMeetSlider,
 ] as unknown as Generator<unknown>[];

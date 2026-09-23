@@ -13,7 +13,10 @@
  * and which way up the curve is says whether the answer is the piece between
  * them or the two pieces outside. Level 6 puts all of it to work in a
  * situation: a ball in flight, a fenced pen, a stall's profit, an arch. The
- * maths is the same; what is new is saying what each number means.
+ * maths is the same; what is new is saying what each number means. Level 7
+ * finds quadratics in disguise: $x^{4}$, $\sqrt{x}$, $\frac{1}{x}$ or a
+ * bracket standing where $x$ usually does. Substitute $u$, solve, and go back,
+ * where one root in $u$ can give two values of $x$, one, or none.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -1730,6 +1733,54 @@ export const quadratics: Course = {
         ask('quad-model-best-slider', 2),
         ask('quad-model-reach-tiles', 2),
         ask('quad-model-feature', 2),
+      ],
+    },
+    {
+      id: 'qd-l7',
+      title: 'Quadratics in Disguise',
+      lessons: [
+        {
+          id: 'qd-l7-spot',
+          title: 'Spotting the Disguise',
+          slides: [
+            teach(
+              prose('Some equations are quadratics in disguise. Look at the powers in'),
+              maths('x^{4} - 5x^{2} + 4 = 0'),
+              prose('$x^{4}$ is $\\left(x^{2}\\right)^{2}$. Put $u = x^{2}$ and it becomes an ordinary quadratic:'),
+              maths('u^{2} - 5u + 4 = 0'),
+              prose('Solve that for $u$ first, then go back to $x$.'),
+            ),
+            ask('quad-disguise-spot'),
+            ask('quad-disguise-u-tiles'),
+            ask('quad-disguise-is-it-flow'),
+            teach(
+              prose(
+                'The test is always the same: one term is exactly the square of another, and the third is a plain number. Some other disguises:',
+              ),
+              prose('$x - 5\\sqrt{x} + 6 = 0$ is a quadratic in $u = \\sqrt{x}$, since $x = \\left(\\sqrt{x}\\right)^{2}$.'),
+              prose('$\\frac{6}{x^{2}} - \\frac{5}{x} + 1 = 0$ is a quadratic in $u = \\frac{1}{x}$.'),
+              prose('$(x + 1)^{2} - 5(x + 1) + 6 = 0$ is a quadratic in $u = x + 1$.'),
+            ),
+            ask('quad-disguise-u-roots'),
+            ask('quad-disguise-spot', 2),
+            ask('quad-disguise-u-tiles', 2),
+            teach(
+              prose(
+                'Look-alikes fail the test. In $x^{4} - 5x + 4 = 0$ the square of $x$ is $x^{2}$, not $x^{4}$, so no $u$ turns it into a quadratic.',
+              ),
+              prose(
+                'The same idea turns up in other courses: $4^{x} - 5\\left(2^{x}\\right) + 4 = 0$ is a quadratic in $u = 2^{x}$ (Exponents and Radicals), and $\\left(\\log x\\right)^{2} - 3\\log x + 2 = 0$ is one in $u = \\log x$ (Logarithms).',
+              ),
+            ),
+            ask('quad-disguise-is-it-flow', 2),
+            ask('quad-disguise-u-roots+choice', 2),
+          ],
+          skillCheck: [
+            ask('quad-disguise-spot', 2),
+            ask('quad-disguise-u-tiles', 2),
+            ask('quad-disguise-is-it-flow', 2),
+          ],
+        },
       ],
     },
   ],

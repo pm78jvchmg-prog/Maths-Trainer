@@ -17,6 +17,7 @@
 import { makeRng, hashSeed } from './rng';
 import { checkAnswer } from './equivalence';
 import { isSolved, valueOf, type Move } from '../content/expr';
+import { parseTransform, sameCurve } from '../content/transform';
 import type {
   Lesson,
   Slide,
@@ -344,6 +345,25 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
       // accepts the step the learner actually landed on and nothing further.
       const tolerance = slide.tolerance ?? slide.step / 2;
       return Math.abs(value - slide.answer) <= tolerance
+        ? { kind: 'correct' }
+        : { kind: 'incorrect' };
+    }
+
+    /**
+     * The learner's curve against the target, compared as curves.
+     *
+     * Never as parameter tuples: for an even `f` a flip left to right and no
+     * flip draw the same picture, and `2^(x - 1)` is `2^x` halved. So both
+     * are evaluated at fixed points across the window and must agree wherever
+     * either is defined. Empty is a curve nobody has moved, refused by name
+     * for the reason the slider refuses it: the identity is a real curve.
+     */
+    case 'transform': {
+      if (typeof answer !== 'string' || answer === '') return { kind: 'incorrect' };
+      const mine = parseTransform(answer);
+      const theirs = parseTransform(slide.answer);
+      if (!mine || !theirs) return { kind: 'incorrect' };
+      return sameCurve(slide.base, mine, theirs, slide.window)
         ? { kind: 'correct' }
         : { kind: 'incorrect' };
     }

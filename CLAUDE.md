@@ -268,6 +268,16 @@ tree, and both live in `src/ui/reduceSlide.tsx`:
   `choiceVariant` from any `reduce` generator that declares `choices()`, under
   the usual `<id>+choice`.
 
+**`transform`** (`src/ui/transformSlide.tsx`, model in `src/content/transform.ts`)
+moves a live copy of a base curve with steppers and flips until it is the target:
+`apply` names the target equation, `match` draws it as a band. It is graded by
+comparing *curves* at thirteen fixed points, never parameter tuples, so `f(-x)`
+for an even `f` or `2^(x - 1)` for `\tfrac{1}{2}2^x` is marked right. The draft
+starts at the identity but holds `''` until a control is tapped, and a generator
+may never target the identity curve (`generators.test.ts` checks both). Its
+controls stop their click at the button, because the question area's
+tap-to-retry would otherwise wipe the curve the learner is adjusting.
+
 Two rendering rules in `expr.ts` are load-bearing and were each arrived at the
 hard way:
 

@@ -34,6 +34,7 @@ import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 import { defaultSliderValue } from './sliderValue';
+import { TransformSlide } from './transformSlide';
 
 export interface SlideProps {
   slide: Slide;
@@ -552,6 +553,8 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'transform':
+      return <TransformSlide {...props} />;
   }
 }
 
@@ -562,7 +565,9 @@ export function initialAnswer(slide: Slide): Answer {
   // Both start at nothing chosen and grow as the learner works.
   if (slide.kind === 'steps' || slide.kind === 'flow' || slide.kind === 'reduce') return [];
   // A slider too, although its handle is drawn somewhere: where it rests is
-  // not something the learner chose, and it can be the answer.
+  // not something the learner chose, and it can be the answer. A transform
+  // likewise: its live curve is drawn at the identity, which is a curve but
+  // not an answer.
   return '';
 }
 
@@ -576,6 +581,9 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   }
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
+  // Answerable once any control has been tapped, even back to the identity:
+  // that is a choice, where the untouched curve is not.
+  if (slide.kind === 'transform') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:
   // an illegal reduction still settles its line, and Check has to be reachable
   // or the learner could never find out that it was illegal.

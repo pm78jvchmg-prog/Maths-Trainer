@@ -1748,3 +1748,149 @@ button {
   border-color: var(--accent);
   background: var(--accent);
 }
+
+/*
+ * The graph-transformation widget.
+ *
+ * The figure takes the full width and the controls sit under it in a 2 x 2
+ * grid, each a label over a minus, a value and a plus. At 393px a cell is
+ * about 170px across, which fits two 44px buttons and a value between them
+ * without anything wrapping.
+ *
+ * Only the learner's own curve (`.plot-accent`) takes a verdict colour. The
+ * target band keeps its colour whatever the verdict, and in `apply` there is
+ * no target drawn at all, so a wrong answer shows nothing new.
+ */
+.transform-figure {
+  margin: 0 0 8px;
+}
+
+.transform-figure svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  color: var(--text-dim);
+}
+
+.transform-figure .plot-accent {
+  color: var(--accent);
+  transition: color 160ms ease;
+}
+
+.transform-figure.correct .plot-accent {
+  color: var(--correct);
+}
+
+.transform-figure.wrong .plot-accent {
+  color: var(--wrong);
+}
+
+.plot-band {
+  color: var(--accent);
+  opacity: 0.3;
+}
+
+.transform-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* A readout one line tall: the base frame's 68px is sized for a fraction or
+   a surd being typed, and this widget needs the room for its controls. */
+.answer-frame.transform-readout {
+  min-height: 52px;
+  padding: 8px 12px;
+  font-size: 19px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.stepper-button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 90ms ease;
+}
+
+.stepper-button:active {
+  transform: scale(0.94);
+}
+
+.stepper-button:disabled {
+  opacity: 0.35;
+}
+
+/* The control's name sits over its value, inside the row, so a stepper is
+   one row tall rather than a caption and a row. */
+.stepper-value {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+  font-size: 15px;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.stepper-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.transform-flips {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reset-button {
+  align-self: center;
+  color: var(--text-dim);
+}
+
+.flip-button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--lift);
+  color: var(--text-soft);
+  font-size: 16px;
+  transition: border-color 120ms ease, background-color 120ms ease, transform 90ms ease;
+}
+
+.flip-button:active {
+  transform: scale(0.97);
+}
+
+.flip-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.flip-button:disabled {
+  opacity: 0.5;
+}

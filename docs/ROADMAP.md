@@ -494,7 +494,7 @@ batch rather than waiting on a separate one.
 | # | Batch | Status |
 | ---: | --- | --- |
 | C1 | Linear Equations & Inequalities | **done** (`claude/roadmap-c-linear-equations-0nml55`): course `linear-equations`, levels `le-l1` and `le-l2`, 10 lessons, level checks of 14 and 15 questions, 44 new generators |
-| C2-widget | Graph-transformation widget for C2, reused by C3 | claimed |
+| C2-widget | Graph-transformation widget for C2, reused by C3 | **done** (`claude/roadmap-c2-widget-transform-tm5x5d`): slide kind `transform` (apply and match), graded by comparing curves, 2 demo generators asked by no lesson yet |
 
 ### When the queue empties
 

@@ -1036,6 +1036,8 @@ const rearrangeTiles: Generator<RearrangeParams> = {
       const P = rng.int(-9, 9);
       const Q = nonZero(rng, 9);
       if (Math.abs(P) < 2) continue;
+      // A coefficient -3 and a constant - 3 would draw as the same tile.
+      if (Math.abs(P) === Math.abs(Q)) continue;
       // At difficulty 1 the terms move across to positive numbers.
       if (!hard && (shape === 'cbrt' || shape === 'sqrt') && (P > 0 || Q > 0)) continue;
       if (!hard && shape === 'divide' && P > 0) continue;

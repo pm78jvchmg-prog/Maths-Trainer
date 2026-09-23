@@ -36,6 +36,7 @@ import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
 import { IterateSlide } from './iterateSlide';
 import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
+import { TransformSlide } from './transformSlide';
 import { NumberLineSlide } from './numberLineSlide';
 import { draftHasShading } from '../content/numberLine';
 
@@ -558,6 +559,8 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'transform':
+      return <TransformSlide {...props} />;
     case 'order':
       return <OrderSlide {...props} />;
     case 'numberLine':
@@ -580,7 +583,9 @@ export function initialAnswer(slide: Slide): Answer {
     return [];
   }
   // A slider too, although its handle is drawn somewhere: where it rests is
-  // not something the learner chose, and it can be the answer.
+  // not something the learner chose, and it can be the answer. A transform
+  // likewise: its live curve is drawn at the identity, which is a curve but
+  // not an answer.
   return '';
 }
 
@@ -605,6 +610,9 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
+  // Answerable once any control has been tapped, even back to the identity:
+  // that is a choice, where the untouched curve is not.
+  if (slide.kind === 'transform') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:
   // an illegal reduction still settles its line, and Check has to be reachable
   // or the learner could never find out that it was illegal.

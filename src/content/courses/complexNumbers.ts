@@ -55,6 +55,8 @@ const plane = (points: PlanePoint[]): Block => ({
 
 export const complexNumbers: Course = {
   id: 'complex-numbers',
+  category: 'advanced-maths',
+  position: 10,
   title: 'Complex Numbers',
   blurb: 'Work with imaginary and complex numbers, from first principles.',
   levels: [

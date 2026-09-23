@@ -31,6 +31,7 @@ import {
   type Expr,
 } from '../expr';
 import { startSession } from '../../engine/session';
+import { canonicalSet, parseSet } from '../numberLine';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
 import {
@@ -257,6 +258,34 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         expect(slide.readout).toContain('{v}');
       }
 
+      if (slide.kind === 'numberLine') {
+        // Every tick is a tap target as wide as the spacing, so the step count
+        // is what keeps them a thumb apart on a phone: twelve across the line
+        // is the most that fits. Fewer than four is barely a line at all.
+        expect(slide.step).toBeGreaterThan(0);
+        const ticks = (slide.max - slide.min) / slide.step;
+        expect(Math.abs(ticks - Math.round(ticks)), 'window is off the step lattice').toBeLessThan(1e-9);
+        expect(ticks, `${ticks} steps will not fit a phone`).toBeLessThanOrEqual(12);
+        expect(ticks).toBeGreaterThanOrEqual(4);
+        // The answer is stored canonically, so the grade compares like with
+        // like, and holds at least one piece — an empty set cannot be drawn,
+        // since Check waits for something shaded.
+        const pieces = parseSet(slide.answer);
+        expect(pieces, `unreadable set ${slide.answer}`).toBeDefined();
+        expect(pieces!.length, `empty set ${slide.answer}`).toBeGreaterThan(0);
+        expect(canonicalSet(slide.answer), 'answer is not canonical').toBe(slide.answer);
+        // Every end sits on a tick strictly inside the window: on the edge, a
+        // ray would have nowhere to run and an open end nothing beside it.
+        for (const piece of pieces!) {
+          for (const end of [piece.lo, piece.hi].filter(Number.isFinite)) {
+            expect(end, `end ${end} outside ${slide.min}..${slide.max}`).toBeGreaterThan(slide.min);
+            expect(end, `end ${end} outside ${slide.min}..${slide.max}`).toBeLessThan(slide.max);
+            const at = (end - slide.min) / slide.step;
+            expect(Math.abs(at - Math.round(at)), `end ${end} is off a tick`).toBeLessThan(1e-9);
+          }
+        }
+      }
+
       if (slide.kind === 'plot') {
         expect(Number.isInteger(slide.answer.re)).toBe(true);
         expect(Number.isInteger(slide.answer.im)).toBe(true);
@@ -317,6 +346,62 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
           bank.length,
           `tree bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
         ).toBeGreaterThanOrEqual(2);
+      }
+
+      if (slide.kind === 'iterate') {
+        // Graded as exact tokens, so each one has to be written to exactly
+        // the places the prompt asks for: a row the learner computes right
+        // and writes to the stated precision must be a tile they can find.
+        const prose = slide.prompt
+          .map((block) => (block.kind === 'prose' ? block.text : ''))
+          .join(' ');
+        const stated = /to (\d) decimal places/.exec(prose);
+        expect(stated, `iterate prompt states no precision: ${prose}`).not.toBeNull();
+        const places = Number(stated![1]);
+        const written = new RegExp(`^-?\\d+\\.\\d{${places}}$`);
+        expect(slide.answer.length, 'an iteration needs rows and a conclusion').toBeGreaterThanOrEqual(3);
+        for (const token of slide.answer.slice(0, -1)) {
+          expect(token, `row ${token} is not written to ${places} places`).toMatch(written);
+        }
+        const conclusion = slide.answer[slide.answer.length - 1];
+        expect(conclusion).toMatch(
+          slide.conclusion === 'limit' ? written : /^-?\d+\.\d < \\alpha < -?\d+\.\d$/,
+        );
+
+        const bank = [...slide.bank];
+        for (const value of slide.answer) {
+          const at = bank.indexOf(value);
+          expect(at, `value ${value} missing from bank`).toBeGreaterThanOrEqual(0);
+          bank.splice(at, 1);
+        }
+        expect(
+          bank.length,
+          `iterate bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+        ).toBeGreaterThanOrEqual(2);
+      }
+
+      if (slide.kind === 'order') {
+        // Every step of the proof has to be in the bank exactly once, or the
+        // slots cannot be filled; and at least one step has to be a
+        // distractor, or ordering is all there is and nothing is being judged.
+        const ids = slide.steps.map((step) => step.id);
+        expect(new Set(ids).size, 'order bank repeats an id').toBe(ids.length);
+        const texts = slide.steps.map((step) => step.text.trim());
+        expect(new Set(texts).size, 'two order steps read the same').toBe(texts.length);
+        expect(texts.every((text) => text !== ''), 'an order step is blank').toBe(true);
+        expect(slide.answer.length).toBeGreaterThanOrEqual(2);
+        expect(new Set(slide.answer).size, 'order answer repeats a step').toBe(slide.answer.length);
+        for (const id of slide.answer) {
+          expect(ids, `order answer ${id} missing from bank`).toContain(id);
+        }
+        expect(ids.length - slide.answer.length, 'order bank has no distractor').toBeGreaterThanOrEqual(1);
+        // The bank must not read as the proof: its answer steps, in bank
+        // order, may not already be in answer order.
+        const positions = slide.answer.map((id) => ids.indexOf(id));
+        expect(
+          positions.every((at, idx) => idx === 0 || at > positions[idx - 1]),
+          'order bank lists the proof in order',
+        ).toBe(false);
       }
     }
   });
@@ -417,6 +502,24 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       if (slide.kind === 'tree') {
         check(slide.expression, 'tree expression');
         for (const token of slide.bank) check(token, 'tree bank');
+      }
+
+      if (slide.kind === 'iterate') {
+        check(slide.start, 'iterate start');
+        for (const token of slide.bank) check(token, 'iterate bank');
+      }
+
+      if (slide.kind === 'order') {
+        // Each step is prose rendered the way a prose block is, so it is the
+        // inline maths between its dollar signs that reaches KaTeX. An odd
+        // number of dollars leaves a stray one printed as text.
+        for (const step of slide.steps) {
+          expect((step.text.match(/\$/g) ?? []).length % 2, `unbalanced $ in ${step.text}`).toBe(0);
+          step.text
+            .split(/\$([^$]+)\$/g)
+            .filter((_, idx) => idx % 2 === 1)
+            .forEach((tex) => check(tex, `order step ${step.id}`));
+        }
       }
     }
   });

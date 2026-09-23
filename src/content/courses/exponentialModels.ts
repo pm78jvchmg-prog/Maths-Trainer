@@ -47,6 +47,8 @@ const working = (...lines: string[]) =>
 
 export const exponentialModels: Course = {
   id: 'exponential-models',
+  category: 'advanced-algebra',
+  position: 30,
   title: 'Exponential Models',
   blurb: 'The continuous model Ae^kt: reading it, doubling and half-life, fitting it, and models with a limit.',
   levels: [

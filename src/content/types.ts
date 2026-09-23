@@ -178,6 +178,30 @@ export type Slide =
         origin?: number;
       };
     })
+  /**
+   * Draw a solution set on a number line.
+   *
+   * The learner builds the set from taps rather than typing it: a number
+   * places or removes a dot, a dot toggles between filled (included) and
+   * hollow (excluded), and a tap on the line shades or clears the stretch it
+   * falls in, running off the edge as a ray beyond the outermost dot. So an
+   * inequality's answer is shown the way it is drawn on paper, and open
+   * against closed ends is a thing the learner has to decide, not read off.
+   *
+   * The model and the grade live in `src/content/numberLine.ts`.
+   */
+  | ({ kind: 'numberLine' } & Prompted & {
+      /** The first and last tick. Both on the `step` lattice. */
+      min: number;
+      max: number;
+      /** Tick spacing, 1 or 0.5. At most twelve steps fit a phone. */
+      step: number;
+      /**
+       * The set, written the canonical way: pieces sorted and merged, joined
+       * by `|`, as in `(-inf,2]|[5,inf)` or `[-1,3)`. Never displayed.
+       */
+      answer: string;
+    })
   /** Drop tokens from a bank into blanks in an equation. */
   | ({ kind: 'tiles' } & Prompted & {
       /**
@@ -343,6 +367,31 @@ export type Slide =
       /** The branch labels along the correct path, in order. */
       answer: string[];
     })
+  /**
+   * Put the steps of a proof in order.
+   *
+   * The learner builds the proof rather than writing it: numbered slots, one
+   * per step, filled by tapping steps from a bank that also holds distractors —
+   * a step from a different strategy, an algebra slip, a true statement the
+   * proof never needs, a conclusion that does not follow. Distractors are the
+   * steps whose id is in no answer.
+   *
+   * Graded in exact order. Where two steps could genuinely swap, the generator
+   * writes the proof so that they cannot (each step leans on the one above it)
+   * rather than the grader accepting both.
+   */
+  | ({ kind: 'order' } & Prompted & {
+      /**
+       * Every step offered, in bank order. `text` is prose with inline `$...$`
+       * TeX, rendered the way a `prose` block is.
+       *
+       * Bank order is fixed by the steps themselves (`orderBank`), never by a
+       * per-draw shuffle and never by the answer order.
+       */
+      steps: { id: string; text: string }[];
+      /** Ids of the proof's steps, in slot order. */
+      answer: string[];
+    })
   | ({ kind: 'tree' } & Prompted & {
       /** The expression the tree evaluates. TeX. */
       expression: string;
@@ -351,6 +400,31 @@ export type Slide =
       /** Values offered, including distractors. */
       bank: string[];
       /** Expected value per node, in `nodes` order. */
+      answer: string[];
+    })
+  /**
+   * Run an iteration by hand: fill in `x_1`, `x_2`, … from a given `x_0`, then
+   * say what the iterates tell you about the root.
+   *
+   * The scheme and the precision live in the prompt; the widget draws the
+   * `n | x_n` table under it with `x_0` filled in, one blank per iterate, and
+   * one more blank for the conclusion. Values come from a bank, as `tree` does
+   * it, so the grade is exact tokens: every iterate is written to the places
+   * the prompt states, and the generator refuses draws where rounding is a
+   * coin toss.
+   */
+  | ({ kind: 'iterate' } & Prompted & {
+      /** `x_0`, shown in the first row. TeX. */
+      start: string;
+      /**
+       * What the last cell asks for: the value the iterates settle on to the
+       * stated precision, or the two consecutive tenths either side of the
+       * root, written as one token (`1.8 < \alpha < 1.9`).
+       */
+      conclusion: 'limit' | 'bracket';
+      /** Values offered, including distractors. Sorted, never shuffled. */
+      bank: string[];
+      /** `x_1` onwards, one per blank row, then the conclusion. */
       answer: string[];
     });
 
@@ -457,8 +531,19 @@ export interface Level {
   levelCheck?: SlideRef[];
 }
 
+/** The tabs on the home screen; `courses/index.ts` gives each its title. */
+export type CategoryId = 'algebra-fundamentals' | 'advanced-algebra' | 'advanced-maths';
+
 export interface Course {
   id: string;
+  /** Which home-screen tab the course sits in. */
+  category: CategoryId;
+  /**
+   * Where in that tab, smallest first. Spaced in tens so a new course can go
+   * between two others; a tie is broken by id, so two new courses picking the
+   * same number still get a fixed order.
+   */
+  position: number;
   title: string;
   blurb: string;
   levels: Level[];

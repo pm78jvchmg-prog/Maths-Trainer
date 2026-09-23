@@ -5,9 +5,11 @@ import { arithmeticGenerators } from './generators/complexArithmetic';
 import { planeGenerators } from './generators/complexPlane';
 import { differentiationGenerators } from './generators/differentiation';
 import { differentiationShapeGenerators } from './generators/differentiationShapes';
+import { exponentialModelGenerators } from './generators/exponentialModels';
 import { indicesGenerators } from './generators/indices';
 import { integrationGenerators } from './generators/integration';
 import { integrationShapeGenerators } from './generators/integrationShapes';
+import { linearEquationsGenerators } from './generators/linearEquations';
 import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
 import { polynomialGenerators } from './generators/polynomials';
@@ -31,7 +33,9 @@ export const allGenerators = [
   ...indicesGenerators,
   ...integrationGenerators,
   ...integrationShapeGenerators,
+  ...linearEquationsGenerators,
   ...logarithmGenerators,
+  ...exponentialModelGenerators,
   ...quadraticsGenerators,
   ...quadraticShapeGenerators,
   ...vectorGenerators,

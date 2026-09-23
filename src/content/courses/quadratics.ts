@@ -8,13 +8,17 @@
  * first two levels turns out to be a feature you can point at. Level 4 puts a
  * straight line on the same axes: substituting one equation into the other
  * gives a quadratic whose roots are where the two meet, and its discriminant
- * says whether they cross, touch or miss before anything is solved.
+ * says whether they cross, touch or miss before anything is solved. Level 5
+ * asks where a quadratic is positive or negative: the roots split the line,
+ * and which way up the curve is says whether the answer is the piece between
+ * them or the two pieces outside.
  *
- * Each level closes with a level check: twelve to fourteen questions, no
+ * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { parabolaSvg, plotSvg, quadratic } from '../figures';
+import { signFigure } from '../generators/quadraticInequalities';
 
 type TeachBlock = Block;
 
@@ -95,10 +99,22 @@ const crossing = (
   }),
 });
 
+/**
+ * A parabola from its roots, for level 5, drawn the way its questions draw
+ * one: the same window, hollow or solid rings, and the part of the curve an
+ * inequality is about picked out in the accent colour.
+ */
+const signGraph = (
+  a: number,
+  p: number,
+  q: number,
+  opts: Parameters<typeof signFigure>[1],
+): Block => ({ kind: 'diagram', svg: signFigure({ a, p, q }, opts) });
+
 export const quadratics: Course = {
   id: 'quadratics',
   title: 'Quadratics',
-  blurb: 'Expanding, factorising, three ways to solve, the parabola, and where a line meets it.',
+  blurb: 'Expanding, factorising, three ways to solve, the parabola, where a line meets it, and inequalities.',
   levels: [
     {
       id: 'qd-l1',
@@ -1135,6 +1151,296 @@ export const quadratics: Course = {
         ask('quad-sim-tangent-k', 2),
         ask('quad-sim-count', 2),
         ask('quad-sim-touch-slider', 2),
+      ],
+    },
+    {
+      id: 'qd-l5',
+      title: 'Quadratic Inequalities',
+      lessons: [
+        {
+          id: 'qd-l5-graph',
+          title: 'Reading the Sign from a Graph',
+          slides: [
+            teach(
+              prose(
+                '$y = \\left(x + 2\\right)\\left(x - 3\\right)$ crosses the $x$-axis at $x = -2$ and $x = 3$. Between them the curve dips **below** the axis, shaded here, so there $y < 0$.',
+              ),
+              signGraph(1, -2, 3, {
+                strict: true,
+                region: 'between',
+                label: 'The curve y = (x + 2)(x - 3), shaded where it is below the x-axis',
+              }),
+              maths('\\left(x + 2\\right)\\left(x - 3\\right) < 0 \\iff -2 < x < 3'),
+              prose(
+                'Check with any value in between: $x = 0$ gives $2 \\times \\left(-3\\right) = -6$, which is negative. That is a **test point**, and it backs up the picture.',
+              ),
+            ),
+            ask('quad-ineq-read-graph'),
+            ask('quad-ineq-test-point'),
+            ask('quad-ineq-end-slider'),
+            teach(
+              prose(
+                'Outside the roots the same curve is **above** the axis, so $y > 0$ there: two pieces, one on each side.',
+              ),
+              signGraph(1, -2, 3, {
+                strict: true,
+                region: 'outside',
+                label: 'The curve y = (x + 2)(x - 3), with the two arms above the x-axis picked out',
+              }),
+              maths('\\left(x + 2\\right)\\left(x - 3\\right) > 0 \\iff x < -2 \\text{ or } x > 3'),
+              prose(
+                'The rings are **hollow** because the roots give $y = 0$, which is neither above nor below. With $\\le$ or $\\ge$ the roots count, and the rings are drawn **solid**.',
+              ),
+            ),
+            ask('quad-ineq-count'),
+            ask('quad-ineq-read-graph', 2),
+            ask('quad-ineq-test-point+choice'),
+            teach(
+              prose(
+                'An upside-down curve swaps the two. $y = -\\left(x + 1\\right)\\left(x - 4\\right)$ is **above** the axis between its roots and below it outside.',
+              ),
+              signGraph(-1, -1, 4, {
+                strict: false,
+                region: 'between',
+                label: 'The upside-down curve y = -(x + 1)(x - 4), shaded where it is above the x-axis',
+              }),
+              maths('-\\left(x + 1\\right)\\left(x - 4\\right) \\ge 0 \\iff -1 \\le x \\le 4'),
+              prose(
+                'So the sign of the $x^{2}$ coefficient always matters: it decides which side of the axis the middle piece is on.',
+              ),
+            ),
+            ask('quad-ineq-end-slider', 2),
+            ask('quad-ineq-count+choice', 2),
+          ],
+          skillCheck: [
+            ask('quad-ineq-read-graph', 2),
+            ask('quad-ineq-end-slider', 2),
+            ask('quad-ineq-count', 2),
+          ],
+        },
+        {
+          id: 'qd-l5-factorise',
+          title: 'Solving by Factorising',
+          slides: [
+            teach(
+              prose(
+                'Without a picture, solve in three moves: factorise to find the roots, think which way up the curve is, then read off the side the inequality asks for.',
+              ),
+              maths('x^{2} - x - 6 < 0'),
+              maths('\\left(x + 2\\right)\\left(x - 3\\right) < 0'),
+              prose(
+                'The roots are $-2$ and $3$, the curve is U-shaped, and $< 0$ asks for below the axis: the piece **between** the roots.',
+              ),
+              maths('-2 < x < 3'),
+            ),
+            ask('quad-ineq-region-flow'),
+            ask('quad-ineq-between-tiles'),
+            ask('quad-ineq-endpoint'),
+            teach(
+              prose(
+                'Turn the sign round and the answer moves outside: $x^{2} - x - 6 > 0$ asks for the two arms above the axis.',
+              ),
+              signGraph(1, -2, 3, {
+                strict: true,
+                region: 'outside',
+                label: 'The curve y = x^2 - x - 6, with the two arms above the x-axis picked out',
+              }),
+              maths('x < -2 \\text{ or } x > 3'),
+              prose(
+                'The two pieces point away from each other: smaller than the smaller root, **or** bigger than the bigger one.',
+              ),
+            ),
+            ask('quad-ineq-outside-tiles'),
+            ask('quad-ineq-endpoint+choice'),
+            ask('quad-ineq-region-flow', 2),
+            teach(
+              prose(
+                'A positive leading coefficient changes nothing but the factorising. $2x^{2} - 2x - 12 = 2\\left(x + 2\\right)\\left(x - 3\\right)$ has the same roots and the same shape.',
+              ),
+              maths('2x^{2} - 2x - 12 \\le 0 \\iff -2 \\le x \\le 3'),
+              prose('With $\\le$ the roots are included, so both signs in the answer are $\\le$ as well.'),
+            ),
+            ask('quad-ineq-between-tiles', 2),
+            ask('quad-ineq-outside-tiles', 2),
+          ],
+          skillCheck: [
+            ask('quad-ineq-between-tiles', 2),
+            ask('quad-ineq-outside-tiles', 2),
+            ask('quad-ineq-endpoint', 2),
+          ],
+        },
+        {
+          id: 'qd-l5-shapes',
+          title: 'The Two Shapes of an Answer',
+          slides: [
+            teach(
+              prose('Every answer has one of two shapes. Between the roots it is **one piece**, with $x$ in the middle:'),
+              maths('p < x < q'),
+              prose('Outside the roots it is **two pieces**, joined by "or":'),
+              maths('x < p \\text{ or } x > q'),
+              prose(
+                'The one-piece form cannot stand in for two pieces: $3 < x < -2$ would need $x$ bigger than $3$ and smaller than $-2$ at once, and no number is.',
+              ),
+            ),
+            ask('quad-ineq-which-set'),
+            ask('quad-ineq-negate'),
+            ask('quad-ineq-region-flow', 2),
+            teach(
+              prose(
+                'When the $x^{2}$ coefficient is negative, multiply every term by $-1$ first. Multiplying by a negative number **turns the inequality round**:',
+              ),
+              maths('-x^{2} + x + 6 > 0'),
+              maths('x^{2} - x - 6 < 0'),
+              signGraph(-1, -2, 3, {
+                strict: true,
+                region: 'between',
+                label: 'The upside-down curve y = -x^2 + x + 6, shaded where it is above the x-axis',
+              }),
+              prose(
+                'Both say the same thing about $x$, and the second is a U-shaped curve: $-2 < x < 3$, the piece where the upside-down one is above the axis.',
+              ),
+            ),
+            ask('quad-ineq-endpoint', 2),
+            ask('quad-ineq-which-set', 2),
+            ask('quad-ineq-negate', 2),
+            teach(
+              prose(
+                '$\\le$ and $\\ge$ include the roots, where the curve is on the axis. The answer then uses $\\le$ and $\\ge$ too, and on a graph the rings are **solid**.',
+              ),
+              signGraph(1, -1, 4, {
+                strict: false,
+                region: 'outside',
+                label: 'The curve y = x^2 - 3x - 4 with solid rings at its roots and the arms picked out',
+              }),
+              maths('x^{2} - 3x - 4 \\ge 0 \\iff x \\le -1 \\text{ or } x \\ge 4'),
+            ),
+            ask('quad-ineq-end-slider', 2),
+            ask('quad-ineq-endpoint+choice', 2),
+          ],
+          skillCheck: [
+            ask('quad-ineq-which-set', 2),
+            ask('quad-ineq-negate', 2),
+            ask('quad-ineq-endpoint', 2),
+          ],
+        },
+        {
+          id: 'qd-l5-rearrange',
+          title: 'Rearranging First',
+          slides: [
+            teach(
+              prose(
+                'The roots and the shape belong to a quadratic compared with zero, so bring every term to one side first. Adding or taking away never turns the sign round.',
+              ),
+              maths('x^{2} > 3x + 4'),
+              maths('x^{2} - 3x - 4 > 0'),
+              maths('\\left(x + 1\\right)\\left(x - 4\\right) > 0'),
+              prose(
+                'U-shaped and asking for above the axis, so $x < -1$ or $x > 4$. Reading a direction off $x^{2} > 3x + 4$ as it stands is where this goes wrong.',
+              ),
+            ),
+            ask('quad-ineq-rearrange'),
+            ask('quad-ineq-which-set'),
+            ask('quad-ineq-endpoint'),
+            teach(
+              prose(
+                'Some curves never meet the axis. $x^{2} + 2x + 5$ has discriminant $2^{2} - 4 \\times 1 \\times 5 = -16$, so it has no roots at all.',
+              ),
+              graph(1, 2, 5, { xMin: -5, xMax: 3, label: 'The curve y = x^2 + 2x + 5, entirely above the x-axis' }),
+              prose(
+                'U-shaped and entirely above the axis, so $x^{2} + 2x + 5 > 0$ is true for **every** $x$, and $x^{2} + 2x + 5 < 0$ for **none**.',
+              ),
+            ),
+            ask('quad-discriminant-tree'),
+            ask('quad-ineq-always'),
+            ask('quad-ineq-rearrange', 2),
+            teach(
+              prose(
+                'Upside down, it goes the other way. $-x^{2} + 4x - 5$ has discriminant $16 - 20 = -4$ and sits entirely below the axis.',
+              ),
+              graph(-1, 4, -5, { xMin: -1, xMax: 5, label: 'The curve y = -x^2 + 4x - 5, entirely below the x-axis' }),
+              prose(
+                'So $-x^{2} + 4x - 5 < 0$ holds for every $x$, and $> 0$ for none. A negative discriminant makes the answer all or nothing.',
+              ),
+            ),
+            ask('quad-ineq-always', 2),
+            ask('quad-discriminant-tree', 2),
+          ],
+          skillCheck: [
+            ask('quad-ineq-rearrange', 2),
+            ask('quad-ineq-always', 2),
+            ask('quad-ineq-which-set', 2),
+          ],
+        },
+        {
+          id: 'qd-l5-parameter',
+          title: 'Inequalities on a Parameter',
+          slides: [
+            teach(
+              prose(
+                'The discriminant turns "how many roots" into an inequality. Two different roots needs $b^{2} - 4ac > 0$, none needs $< 0$, and "real roots" allows the repeated one, so $\\ge 0$.',
+              ),
+              prose('With an unknown constant, as in $x^{2} + 6x + k = 0$:'),
+              maths('36 - 4k > 0 \\iff k < 9'),
+              prose(
+                'Dividing by $-4$ turned the sign round. So there are two different roots exactly when $k < 9$, one repeated root at $k = 9$, and none when $k > 9$.',
+              ),
+            ),
+            ask('quad-ineq-param-critical'),
+            ask('quad-sim-tangent-k'),
+            ask('quad-ineq-param-critical+choice'),
+            teach(
+              prose(
+                'When $k$ is the coefficient of $x$ the discriminant is quadratic in $k$. For $x^{2} + kx + 9 = 0$ to have two different roots:',
+              ),
+              maths('k^{2} - 36 > 0'),
+              prose(
+                'That is a quadratic inequality in its own right. Its critical values are $k = \\pm 6$ (square roots, not $\\pm 36$), and $k^{2} - 36$ is U-shaped:',
+              ),
+              signGraph(1, -6, 6, {
+                strict: true,
+                region: 'outside',
+                label: 'The curve k^2 - 36 against k, with the two arms above the axis picked out',
+              }),
+              maths('k < -6 \\text{ or } k > 6'),
+            ),
+            ask('quad-ineq-param-disc'),
+            ask('quad-ineq-param-range'),
+            ask('quad-ineq-param-disc', 2),
+            teach(
+              prose(
+                '"Always positive" is the same question in disguise. $x^{2} + kx + 9 > 0$ for every $x$ means the U never meets the axis, so the discriminant is negative:',
+              ),
+              maths('k^{2} - 36 < 0 \\iff -6 < k < 6'),
+              prose(
+                'The $x^{2}$ coefficient has to be positive as well: an upside-down curve with no roots is negative everywhere.',
+              ),
+            ),
+            ask('quad-ineq-always', 2),
+            ask('quad-ineq-param-range', 2),
+          ],
+          skillCheck: [
+            ask('quad-ineq-param-disc', 2),
+            ask('quad-ineq-param-range', 2),
+            ask('quad-ineq-param-critical', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('quad-ineq-read-graph', 2),
+        ask('quad-ineq-between-tiles', 2),
+        ask('quad-ineq-test-point', 2),
+        ask('quad-ineq-region-flow', 2),
+        ask('quad-ineq-end-slider', 2),
+        ask('quad-ineq-endpoint', 2),
+        ask('quad-ineq-outside-tiles', 2),
+        ask('quad-ineq-which-set', 2),
+        ask('quad-ineq-count', 2),
+        ask('quad-ineq-negate', 2),
+        ask('quad-ineq-always', 2),
+        ask('quad-ineq-rearrange', 2),
+        ask('quad-ineq-param-range', 2),
+        ask('quad-ineq-param-disc', 2),
+        ask('quad-ineq-param-critical', 2),
       ],
     },
   ],

@@ -203,7 +203,7 @@ const X_MAX = 7;
  * is for teaching figures only: a slider draws its marker in the accent, so a
  * slider figure leaves it off.
  */
-function signFigure(
+export function signFigure(
   { a, p, q }: { a: number; p: number; q: number },
   opts: { strict?: boolean; region?: 'between' | 'outside'; label: string },
 ): string {

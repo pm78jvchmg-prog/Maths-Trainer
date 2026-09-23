@@ -46,6 +46,18 @@ import {
   verifyDeAnswer,
   verifyNumbers,
   whichOptions,
+  factorAnswer,
+  factorDeTex,
+  factorOfAnswer,
+  factorPAnswer,
+  generalAnswer,
+  linearTex,
+  qAnswer,
+  yAt,
+  type FactorParams,
+  type LinearDe,
+  type ParticularDe,
+  type ProductParams,
   type ConstantParams,
   type CoolFitParams,
   type CoolParams,
@@ -626,6 +638,394 @@ describe('checking a solution', () => {
         const scope = { x, y: evalAt(y, { x }), dy: derivativeAt(y, 'x', { x }) };
         expect(close(evalAt(lhs, scope), evalAt(rhs, scope))).toBe(true);
       }
+    }
+  });
+});
+
+describe('the integrating factor', () => {
+  /** Positive probes: the power equations are solved for x > 0. */
+  const XS = [0.4, 1.3, 2.1, 2.9];
+
+  /** A piece of TeX from these slides as mathjs, with dy/dx as `D` and the products spelled out. */
+  const toMath = (tex: string): string =>
+    texToMath(tex.replace(/\\frac\{dy\}\{dx\}/g, ' D ').replace(/\\ln x/g, '\\ln(x)'))
+      .replace(/(\d)\s*([a-zA-Z(])/g, '$1*$2')
+      .replace(/\by(?=e\^)/g, 'y*')
+      .replace(/\bxy\b/g, 'x*y')
+      .replace(/C(?=[ex])/g, 'C*')
+      .replace(/([\w)])\s+D\b/g, '$1 * D');
+
+  const stripDollars = (label: string): string => label.replace(/^\$|\$$/g, '');
+
+  /** Whether y = Y(x) satisfies an equation shown as TeX, at every probe. */
+  function holds(equation: string, Y: string, scope: Scope = {}): boolean {
+    const [lhs, rhs] = equation.split('=').map(toMath);
+    return XS.every((x) => {
+      const at = { ...scope, x, y: evalAt(Y, { ...scope, x }), D: derivativeAt(Y, 'x', { ...scope, x }) };
+      return close(evalAt(lhs, at), evalAt(rhs, at));
+    });
+  }
+
+  /** Whether two expressions in x (and C) agree at every probe. */
+  const same = (a: string, b: string, scope: Scope = {}): boolean =>
+    XS.every((x) => close(evalAt(a, { ...scope, x }), evalAt(b, { ...scope, x })));
+
+  /** Whether I' = P I at every probe. */
+  const factorWorks = (I: string, P: string): boolean =>
+    XS.every((x) => close(derivativeAt(I, 'x', { x }), evalAt(P, { x }) * evalAt(I, { x })));
+
+  /** P read off a shown equation: the y term's coefficient over dy/dx's. */
+  function pFromShown(equation: string): string {
+    const [lhs, rhs] = equation.split('=').map(toMath);
+    // Everything moved to the left: a D + b y - Q, and P = b / a.
+    const side = `(${lhs}) - (${rhs})`;
+    const at = (D: number, y: number) => side.replace(/\bD\b/g, `(${D})`).replace(/\by\b/g, `(${y})`);
+    return `((${at(0, 1)}) - (${at(0, 0)})) / ((${at(1, 0)}) - (${at(0, 0)}))`;
+  }
+
+  /** Tiles that render alike, as TeX ignores spaces. */
+  const lookAlikes = (bank: string[]): string[] => {
+    const squeezed = bank.map((token) => token.replace(/\s+/g, ''));
+    return bank.filter((_, i) => squeezed.indexOf(squeezed[i]) !== i);
+  };
+
+  const tilesOf = (slide: Slide): { answer: string[]; bank: string[] } => {
+    if (slide.kind !== 'tiles') throw new Error(`expected tiles, got ${slide.kind}`);
+    return slide;
+  };
+
+  const stepsOf = (slide: Slide) => {
+    if (slide.kind !== 'steps') throw new Error(`expected steps, got ${slide.kind}`);
+    return slide;
+  };
+
+  const shown = (slide: Slide): string => {
+    if (slide.kind === 'teach') return '';
+    const tex = slide.prompt.filter((block) => block.kind === 'display').map((block) => (block.kind === 'display' ? block.tex : ''));
+    if (slide.kind === 'flow') tex.push(slide.subject);
+    if (slide.kind === 'tree') tex.push(slide.expression.split(', \\quad')[0]);
+    return tex.find((t) => t.includes('\\frac{dy}{dx}')) ?? '';
+  };
+
+  it('reads P and Q off every way the equation is written', () => {
+    for (const { params, slide } of draws(g.deIfRead as Generator<LinearDe>)) {
+      const [P, Q] = answerOf(slide).map(toMath);
+      const equation = linearTex(params);
+      expect(shown(slide)).toBe(equation);
+      for (const C of [1.7, -0.6]) {
+        const Y = generalAnswer(params, C);
+        expect(holds(equation, Y)).toBe(true);
+        expect(holds(`\\frac{dy}{dx} + (${answerOf(slide)[0]})y = ${answerOf(slide)[1]}`, Y)).toBe(true);
+      }
+      expect(same(P, pFromShown(equation))).toBe(true);
+      expect(factorWorks(factorAnswer(params), P)).toBe(true);
+      expect(same(Q, qAnswer(params))).toBe(true);
+      expect(lookAlikes(tilesOf(slide).bank)).toEqual([]);
+    }
+  });
+
+  it('walks to the standard form, dividing only when dy/dx carries something', () => {
+    for (const { params, slide } of draws(g.deIfDivide as Generator<LinearDe>)) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const [first, P, Q] = slide.answer;
+      expect(first.startsWith(params.written === 'standard' ? 'Nothing' : 'Divide')).toBe(true);
+      expect(same(toMath(stripDollars(P)), pFromShown(slide.subject))).toBe(true);
+      expect(holds(`\\frac{dy}{dx} + (${stripDollars(P)})y = ${stripDollars(Q)}`, generalAnswer(params, 1.7))).toBe(true);
+      expect(holds(slide.subject, generalAnswer(params, 1.7))).toBe(true);
+      // No wrong branch is secretly right.
+      for (const step of slide.steps.slice(1)) {
+        const right = step.branches.filter((branch) => branch.to || branch.outcome?.startsWith('So the equation'));
+        expect(right.length).toBe(1);
+        for (const branch of step.branches) {
+          if (right.includes(branch)) continue;
+          expect(same(toMath(stripDollars(branch.label)), toMath(stripDollars(right[0].label)))).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('marks the one product whose derivative is the left side', () => {
+    const Y = 'sin(x) + x^2';
+    const dY = 'cos(x) + 2*x';
+    const valueAt = (tex: string, x: number): number => {
+      const inner = tex.match(/^\\frac\{d\}\{dx\}\((.*)\)$/);
+      if (inner) {
+        const product = toMath(inner[1]).replace(/\by\b/g, `(${Y})`).replace(/\bD\b/g, `(${dY})`);
+        return derivativeAt(product, 'x', { x });
+      }
+      return evalAt(toMath(tex), { x, y: evalAt(Y, { x }), D: derivativeAt(Y, 'x', { x }) });
+    };
+    for (const { params, slide } of draws(g.deIfProduct as Generator<ProductParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const target = shown(slide) || (slide.prompt.find((block) => block.kind === 'display') as { tex: string }).tex;
+      const matching = slide.options.filter((opt) => XS.every((x) => close(valueAt(opt.label, x), valueAt(target, x))));
+      expect(matching.length, JSON.stringify(slide.options)).toBe(1);
+      expect(matching[0].id).toBe(slide.correctId);
+      expect(slide.options.length).toBe(4);
+      void params;
+    }
+  });
+
+  it('multiplies through by the factor: its power, its derivative, the right side', () => {
+    for (const { params, slide } of draws(g.deIfMultiplyTree as Generator<LinearDe>)) {
+      const values = answerOf(slide).map(Number);
+      const q = Number(proseOf(slide).match(/right side into \$(-?\d*)(?:e\^\{cx\}|x\^\{d\})/)![1].replace(/^-?$/, (sign) => `${sign}1`));
+      const P = pFromShown(shown(slide));
+      if (params.kind === 'exp') {
+        const [a, b, c] = values;
+        expect(factorWorks(`e^(${a}*x)`, P)).toBe(true);
+        expect(XS.every((x) => close(derivativeAt(`e^(${a}*x)`, 'x', { x }), b * Math.exp(a * x)))).toBe(true);
+        expect(same(`${q}*e^(${c}*x)`, `e^(${a}*x) * (${qAnswer(params)})`)).toBe(true);
+      } else {
+        const [a, b, c, d] = values;
+        expect(factorWorks(`x^(${a})`, P)).toBe(true);
+        expect(XS.every((x) => close(derivativeAt(`x^(${a})`, 'x', { x }), b * x ** c))).toBe(true);
+        expect(same(`${q}*x^(${d})`, `x^(${a}) * (${qAnswer(params)})`)).toBe(true);
+      }
+      expect(holds(shown(slide), generalAnswer(params, 1.7))).toBe(true);
+    }
+  });
+
+  it('types a factor whose derivative is P times itself', () => {
+    for (const { params, slide } of draws(g.deIfFactor as Generator<FactorParams>)) {
+      const I = typed(slide);
+      const P = pFromShown(factorDeTex(params));
+      expect(same(P, factorPAnswer(params.P))).toBe(true);
+      expect(factorWorks(I, P)).toBe(true);
+      expect(same(I, factorOfAnswer(params.P))).toBe(true);
+    }
+  });
+
+  it('tidies a logarithm into the factor, and offers no slip that equals it', () => {
+    for (const { params, slide } of draws(g.deIfExponentSteps as Generator<FactorParams>)) {
+      const { reductions } = stepsOf(slide);
+      const last = reductions[reductions.length - 1];
+      const I = toMath(last.value.replace(/^I = /, ''));
+      expect(factorWorks(I, factorPAnswer(params.P))).toBe(true);
+      for (const slip of last.bank) {
+        if (slip === last.value) continue;
+        expect(same(toMath(slip.replace(/^I = /, '')), I), slip).toBe(false);
+      }
+    }
+  });
+
+  it('walks from P to its integral to the factor, with every slip really wrong', () => {
+    for (const { params, slide } of draws(g.deIfShape as Generator<FactorParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const [P, F, I] = slide.answer.map((label) => toMath(stripDollars(label)));
+      expect(same(P, pFromShown(slide.subject))).toBe(true);
+      expect(XS.every((x) => close(derivativeAt(F, 'x', { x }), evalAt(P, { x })))).toBe(true);
+      expect(factorWorks(I, P)).toBe(true);
+      const [pStep, fStep, iStep] = slide.steps;
+      for (const branch of pStep.branches) if (!branch.to) expect(same(toMath(stripDollars(branch.label)), P)).toBe(false);
+      for (const branch of fStep.branches) {
+        if (branch.to) continue;
+        expect(XS.every((x) => close(derivativeAt(toMath(stripDollars(branch.label)), 'x', { x }), evalAt(P, { x })))).toBe(false);
+      }
+      for (const branch of iStep.branches) {
+        if (branch.label === slide.answer[2]) continue;
+        expect(same(toMath(stripDollars(branch.label)), I, { C: 0.7 }), branch.label).toBe(false);
+      }
+      void params;
+    }
+  });
+
+  it('writes the left side as the derivative of the factor times y', () => {
+    for (const { params, slide } of draws(g.deIfLhs as Generator<LinearDe>)) {
+      const [product, right] = answerOf(slide);
+      const Y = generalAnswer(params, 1.7);
+      expect(holds(shown(slide), Y)).toBe(true);
+      const withY = toMath(product).replace(/\by\b/g, `(${Y})`);
+      expect(XS.every((x) => close(derivativeAt(withY, 'x', { x }), evalAt(toMath(right), { x })))).toBe(true);
+      expect(lookAlikes(tilesOf(slide).bank)).toEqual([]);
+    }
+  });
+
+  /** Each line of a solving slide, checked against the solution it should lead to. */
+  function checkSolvingSteps(slide: Slide, equation: string) {
+    const [product, integrated, general] = stepsOf(slide).reductions;
+    const Y = (line: string, C: number) => toMath(line.replace(/^y = /, '')).replace(/\bC\b/g, `(${C})`);
+    // The last line solves the equation for every C, and no slip beside it does.
+    const passes = (line: string) => [1.7, -0.6].every((C) => holds(equation, Y(line, C)));
+    expect(passes(general.value)).toBe(true);
+    for (const slip of general.bank) if (slip !== general.value) expect(passes(slip), slip).toBe(false);
+    // The product line: the derivative of the product, with a real solution put in, is the right side.
+    const productOk = (line: string) => {
+      const [, inner, right] = line.match(/^\\frac\{d\}\{dx\}\((.*)\) = (.*)$/)!;
+      const withY = toMath(inner).replace(/\by\b/g, `(${Y(general.value, 1.7)})`);
+      return XS.every((x) => close(derivativeAt(withY, 'x', { x }), evalAt(toMath(right), { x })));
+    };
+    expect(productOk(product.value)).toBe(true);
+    for (const slip of product.bank) if (slip !== product.value) expect(productOk(slip), slip).toBe(false);
+    // The integrated line: the two sides differ by the same C everywhere.
+    const integratedOk = (line: string) => {
+      const [left, right] = line.split(' = ');
+      const withY = toMath(left).replace(/\by\b/g, `(${Y(general.value, 1.7)})`);
+      return same(withY, toMath(right).replace(/\bC\b/g, '(1.7)'));
+    };
+    expect(integratedOk(integrated.value)).toBe(true);
+    for (const slip of integrated.bank) if (slip !== integrated.value) expect(integratedOk(slip), slip).toBe(false);
+  }
+
+  it('solves a constant-P equation line by line, and every slip fails', () => {
+    for (const { params, slide } of draws(g.deIfConstpSteps as Generator<LinearDe>)) {
+      checkSolvingSteps(slide, linearTex(params));
+      expect(stepsOf(slide).start[0]).toBe(linearTex(params));
+    }
+  });
+
+  it('solves a P = k/x equation line by line, and every slip fails', () => {
+    for (const { params, slide } of draws(g.deIfPowerSteps as Generator<LinearDe>)) {
+      checkSolvingSteps(slide, linearTex(params));
+      expect(stepsOf(slide).start[0]).toBe(linearTex(params));
+    }
+  });
+
+  it('fills the exponents of the constant-P method', () => {
+    for (const { params, slide } of draws(g.deIfExponentsTree as Generator<LinearDe>)) {
+      const [a, b, r, s] = answerOf(slide).map(Number);
+      const equation = shown(slide);
+      expect(factorWorks(`e^(${a}*x)`, pFromShown(equation))).toBe(true);
+      expect(same(`${qCoefOf(params)}*e^(${b}*x)`, `e^(${a}*x) * (${qAnswer(params)})`)).toBe(true);
+      expect(holds(equation, `${r}*e^(${params.m}*x) + 1.7*e^(${s}*x)`)).toBe(true);
+    }
+  });
+
+  /** Q's coefficient, from Q at x = 0 (exp) or x = 1 (power). */
+  const qCoefOf = (de: LinearDe): number => evalAt(qAnswer(de), { x: de.kind === 'exp' ? 0 : 1 });
+
+  it('builds the general solution for a constant P, and no other tile fits', () => {
+    for (const { slide } of draws(g.deIfGeneral as Generator<LinearDe>)) {
+      const { answer, bank } = tilesOf(slide);
+      const equation = shown(slide);
+      const solves = (part: string, factor: string) =>
+        [1.7, -0.6].every((C) => holds(equation, `${toMath(part)} + (${C})*${toMath(factor)}`));
+      expect(solves(answer[0], answer[1])).toBe(true);
+      for (const token of bank) {
+        if (token !== answer[0]) expect(solves(token, answer[1]), token).toBe(false);
+        if (token !== answer[1]) expect(solves(answer[0], token), token).toBe(false);
+      }
+      expect(lookAlikes(bank)).toEqual([]);
+    }
+  });
+
+  it('integrates the multiplied right side of the equation it shows', () => {
+    for (const { params, slide, seed } of draws(g.deIfIntegrate as Generator<LinearDe>)) {
+      if (slide.kind !== 'expression') throw new Error('expected an expression');
+      const equation = shown(slide);
+      const Y = generalAnswer(params, 1.7);
+      expect(holds(equation, Y)).toBe(true);
+      // The lead with a real solution in it differs from the answer by a constant.
+      const lead = toMath(slide.lead!.replace(/ =$/, '')).replace(/\by\b/g, `(${Y})`);
+      expect(same(lead, `(${slide.answer}) + 1.7`)).toBe(true);
+      expect(checkAnswer(`${slide.answer} + C`, slide.answer, { seed, mode: 'upToConstant' }).status).toBe('correct');
+    }
+  });
+
+  it('builds the general solution for P = k/x, and no other tile fits', () => {
+    for (const { slide } of draws(g.deIfPowerTiles as Generator<LinearDe>)) {
+      const { answer, bank } = tilesOf(slide);
+      const equation = shown(slide);
+      const solves = (part: string, cTerm: string) =>
+        [1.7, -0.6].every((C) => holds(equation, `${toMath(part)} + ${toMath(cTerm).replace(/\bC\b/g, `(${C})`)}`));
+      expect(solves(answer[0], answer[1])).toBe(true);
+      for (const token of bank) {
+        if (token !== answer[0] && !token.includes('C')) expect(solves(token, answer[1]), token).toBe(false);
+        if (token !== answer[1] && token.includes('C')) expect(solves(answer[0], token), token).toBe(false);
+      }
+      expect(lookAlikes(bank)).toEqual([]);
+    }
+  });
+
+  it('fills the powers of the P = k/x method', () => {
+    for (const { params, slide } of draws(g.deIfPowersTree as Generator<LinearDe>)) {
+      const [a, b, n, r] = answerOf(slide).map(Number);
+      const equation = shown(slide);
+      expect(factorWorks(`x^(${a})`, pFromShown(equation))).toBe(true);
+      expect(same(`${qCoefOf(params)}*x^(${b})`, `x^(${a}) * (${qAnswer(params)})`)).toBe(true);
+      // x^a y, with a real solution in it, is r x^n plus a constant.
+      expect(same(`x^(${a}) * (${generalAnswer(params, 1.7)})`, `${r}*x^(${n}) + 1.7`)).toBe(true);
+    }
+  });
+
+  /** The one option that solves the equation shown (and meets the condition, where there is one). */
+  function solvingOptions(slide: Slide, condition?: [number, number]) {
+    if (slide.kind !== 'choice') throw new Error('expected a choice');
+    const equation = shown(slide);
+    return slide.options.filter((opt) => {
+      const rhs = toMath(opt.label.replace(/^y = /, ''));
+      const Cs = rhs.includes('C') ? [1.7, -0.6] : [0];
+      const solves = Cs.every((C) => holds(equation, rhs, { C }));
+      const meets = !condition || close(evalAt(rhs, { x: condition[0] }), condition[1]);
+      return solves && meets;
+    });
+  }
+
+  it('marks the one form of the C term that solves the equation', () => {
+    for (const { slide } of draws(g.deIfCterm as Generator<LinearDe>)) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const right = solvingOptions(slide);
+      expect(right.length).toBe(1);
+      expect(right[0].id).toBe(slide.correctId);
+      expect(slide.options.length).toBe(4);
+    }
+  });
+
+  /** The condition `y(a) = b` a prompt or a line states. */
+  const conditionIn = (text: string): [number, number] => {
+    const [, a, b] = text.match(/y\((\d+)\) = (-?\d+)/)!;
+    return [Number(a), Number(b)];
+  };
+
+  it('finds the C a condition fixes', () => {
+    for (const { params, slide } of draws(g.deIfConstant as Generator<ParticularDe>)) {
+      const C = Number(typed(slide));
+      const [x0, y0] = conditionIn(proseOf(slide));
+      const Y = generalAnswer(params, C);
+      expect(holds(linearTex(params), Y)).toBe(true);
+      expect(proseOf(slide)).toContain(linearTex(params));
+      expect(close(evalAt(Y, { x: x0 }), y0)).toBe(true);
+      expect(Number.isInteger(C) && C !== 0).toBe(true);
+    }
+  });
+
+  it('puts the condition in and ends on a solution that meets it', () => {
+    for (const { params, slide } of draws(g.deIfConditionSteps as Generator<ParticularDe>)) {
+      const { start, reductions } = stepsOf(slide);
+      const [x0, y0] = conditionIn(start[2]);
+      const last = reductions[reductions.length - 1];
+      const fits = (line: string) => {
+        const Y = toMath(line.replace(/^y = /, ''));
+        return holds(linearTex(params), Y) && close(evalAt(Y, { x: x0 }), y0);
+      };
+      expect(fits(last.value)).toBe(true);
+      for (const slip of last.bank) if (slip !== last.value) expect(fits(slip), slip).toBe(false);
+      // The general solution it starts from solves the equation for any C.
+      expect([1.7, -0.6].every((C) => holds(linearTex(params), toMath(start[0].replace(/^y = /, '')), { C }))).toBe(true);
+      expect(reductions[1].value).toBe(`C = ${params.C}`);
+    }
+  });
+
+  it('marks the one solution that meets both the equation and the condition', () => {
+    for (const { slide } of draws(g.deIfFit as Generator<ParticularDe>)) {
+      if (slide.kind !== 'choice') throw new Error('expected a choice');
+      const right = solvingOptions(slide, conditionIn(proseOf(slide)));
+      expect(right.length).toBe(1);
+      expect(right[0].id).toBe(slide.correctId);
+      expect(slide.options.length).toBe(4);
+    }
+  });
+
+  it('fills the coefficient, then C, then y at the other point', () => {
+    for (const { params, slide } of draws(g.deIfValueTree as Generator<ParticularDe>)) {
+      const [r, C, y1] = answerOf(slide).map(Number);
+      const form = proseOf(slide).match(/\$y = (.*?)\$/)![1];
+      const Y = toMath(form.replace(/^r/, `(${r})`)).replace(/\bC\b/g, `(${C})`);
+      expect(holds(shown(slide), Y)).toBe(true);
+      const [x0, y0] = conditionIn(proseOf(slide));
+      expect(close(evalAt(Y, { x: x0 }), y0)).toBe(true);
+      expect(close(evalAt(Y, { x: params.x1 }), y1)).toBe(true);
+      expect(yAt(params, params.x1)).toBe(y1);
     }
   });
 });

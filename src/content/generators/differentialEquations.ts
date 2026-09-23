@@ -6,7 +6,9 @@
  * the particular solution a condition picks out, and growth and decay as
  * `dy/dt = ky`. Level 2 models with them: Newton's cooling, growth towards a
  * limit, mixing tanks, long-term behaviour, and checking a solution by
- * substitution.
+ * substitution. Level 3 solves `dy/dx + Py = Q` with an integrating factor,
+ * for a constant P and for P = n/x, built backwards from the solution so
+ * that Q's coefficient is always a multiple of what the integral divides by.
  *
  * Every number the learner meets is whole by construction. A rate constant
  * that has to be a logarithm is written as one, `k = (ln 2)/3`, so that the
@@ -3164,6 +3166,1353 @@ const deVerifyConstant: Generator<ConstantParams> = {
   },
 };
 
+/* ============================================================
+ * Level 3: the integrating factor
+ * ============================================================ */
+
+/**
+ * A linear equation `dy/dx + Py = Q`, built backwards from its solution so
+ * that every number in it is whole.
+ *
+ * - `exp`: P = k and Q = p(m + k)e^{mx}. The factor is e^{kx} and the
+ *   solution y = pe^{mx} + Ce^{-kx}; m = 0 makes Q a constant.
+ * - `power`: P = k/x and Q = p(k + m + 1)x^m. The factor is x^k and the
+ *   solution y = px^{m + 1} + Cx^{-k}.
+ *
+ * m + k, and k + m + 1, are never zero, so the right side never integrates
+ * to a logarithm and p is always a whole number.
+ */
+export interface LinearDe {
+  kind: 'exp' | 'power';
+  k: number;
+  m: number;
+  p: number;
+  /**
+   * How the equation is shown: `standard` is dy/dx + Py = Q, `scaled` has
+   * every term of an `exp` equation times `scale`, `timesX` has every term of
+   * a `power` equation times x, and `moved` has Py on the right.
+   */
+  written: 'standard' | 'scaled' | 'timesX' | 'moved';
+  scale: number;
+}
+
+/** Q's coefficient: p before the integral divides it back out. */
+export const qCoef = ({ kind, k, m, p }: LinearDe): number => p * (kind === 'exp' ? m + k : k + m + 1);
+
+/** c e^{mx}, where m = 0 leaves the number on its own. */
+const expTerm = (c: number, m: number): string => (m === 0 ? `${c}` : `${coef(c)}${expX(m)}`);
+const expTermAnswer = (c: number, m: number): string => `(${c})*e^((${m})*x)`;
+
+/** x^n as the learner reads it: `x`, `x^{3}`, `\frac{1}{x}`, `\frac{1}{x^{2}}`. */
+const powerTex = (n: number): string =>
+  n === 1 ? 'x' : n > 0 ? `x^{${n}}` : n === -1 ? '\\frac{1}{x}' : `\\frac{1}{x^{${-n}}}`;
+
+/** Q as the learner reads it, times a whole number when the equation is scaled. */
+export function qTex(de: LinearDe, times = 1): string {
+  const q = qCoef(de) * times;
+  return de.kind === 'exp' ? expTerm(q, de.m) : termTex(q, de.m);
+}
+
+export const qAnswer = (de: LinearDe): string =>
+  de.kind === 'exp' ? expTermAnswer(qCoef(de), de.m) : `(${qCoef(de)})*x^(${de.m})`;
+
+/** P as a tile or a label: `3`, `-2`, `\frac{3}{x}`, `-\frac{1}{x}`. */
+export const pTex = ({ kind, k }: LinearDe): string =>
+  kind === 'exp' ? `${k}` : `${k < 0 ? '-' : ''}\\frac{${Math.abs(k)}}{x}`;
+
+export const pAnswer = ({ kind, k }: LinearDe): string => (kind === 'exp' ? `${k}` : `(${k})/x`);
+
+/** The y term after dy/dx: `+ 3y`, `- y`, `+ \frac{2}{x}y`. */
+function yTerm(kind: LinearDe['kind'], c: number): string {
+  const sign = c < 0 ? '-' : '+';
+  const size = Math.abs(c);
+  if (kind === 'power') return `${sign} \\frac{${size}}{x}y`;
+  return `${sign} ${size === 1 ? '' : size}y`;
+}
+
+/** The equation as it is shown. */
+export function linearTex(de: LinearDe): string {
+  const { kind, k, m, written, scale } = de;
+  const dydx = rate('y', 'x');
+  switch (written) {
+    case 'scaled':
+      return `${scale}${dydx} ${yTerm('exp', scale * k)} = ${qTex(de, scale)}`;
+    case 'timesX':
+      return `x${dydx} ${yTerm('exp', k)} = ${termTex(qCoef(de), m + 1)}`;
+    case 'moved':
+      return `${dydx} = ${qTex(de)} ${yTerm(kind, -k)}`;
+    default:
+      return `${dydx} ${yTerm(kind, k)} = ${qTex(de)}`;
+  }
+}
+
+const standardTex = (de: LinearDe): string => linearTex({ ...de, written: 'standard' });
+
+/** The integrating factor. */
+export const factorTex = (de: LinearDe): string => (de.kind === 'exp' ? expX(de.k) : powerTex(de.k));
+export const factorAnswer = (de: LinearDe): string => (de.kind === 'exp' ? `e^((${de.k})*x)` : `x^(${de.k})`);
+
+/** The factor found from P, one line: `e^{\int 3\,dx} = e^{3x}`. */
+const factorWorking = (de: LinearDe): string =>
+  de.kind === 'exp'
+    ? `e^{\\int ${de.k}\\,dx} = ${expX(de.k)}`
+    : `e^{\\int ${pTex(de)}\\,dx} = e^{${coef(de.k)}\\ln x} = ${powerTex(de.k)}`;
+
+/** The factor times y, the product whose derivative the left side becomes. */
+export const productTex = (de: LinearDe): string =>
+  de.kind === 'exp'
+    ? `y${expX(de.k)}`
+    : de.k > 0
+      ? `${powerTex(de.k)}y`
+      : de.k === -1
+        ? '\\frac{y}{x}'
+        : `\\frac{y}{x^{${-de.k}}}`;
+
+/** The factor's derivative times y: the slip of taking I' for I. */
+const productSlipTex = (de: LinearDe): string => {
+  if (de.kind === 'exp') return `${coef(de.k)}y${expX(de.k)}`;
+  if (de.k === 1) return 'y';
+  if (de.k > 1) return `${termTex(de.k, de.k - 1)}y`;
+  return `-\\frac{${-de.k === 1 ? '' : -de.k}y}{x^{${1 - de.k}}}`;
+};
+
+/** The factor's derivative, which multiplies y once the equation is multiplied through. */
+const factorDerivTex = (de: LinearDe): string => {
+  if (de.kind === 'exp') return `${coef(de.k)}${expX(de.k)}`;
+  if (de.k > 0) return termTex(de.k, de.k - 1);
+  return `-\\frac{${-de.k}}{x^{${1 - de.k}}}`;
+};
+
+/** The right side once multiplied by the factor. */
+export const multipliedTex = (de: LinearDe): string =>
+  de.kind === 'exp' ? expTerm(qCoef(de), de.m + de.k) : termTex(qCoef(de), de.k + de.m);
+export const multipliedAnswer = (de: LinearDe): string =>
+  de.kind === 'exp' ? expTermAnswer(qCoef(de), de.m + de.k) : `(${qCoef(de)})*x^(${de.k + de.m})`;
+
+/** Its integral, without the constant. */
+export const antiTex = (de: LinearDe): string =>
+  de.kind === 'exp' ? expTerm(de.p, de.m + de.k) : termTex(de.p, de.k + de.m + 1);
+export const antiAnswer = (de: LinearDe): string =>
+  de.kind === 'exp' ? expTermAnswer(de.p, de.m + de.k) : `(${de.p})*x^(${de.k + de.m + 1})`;
+
+/** The first part of y: the integral divided by the factor. */
+export const partTex = (de: LinearDe): string => (de.kind === 'exp' ? expTerm(de.p, de.m) : termTex(de.p, de.m + 1));
+const partAnswer = (de: LinearDe): string =>
+  de.kind === 'exp' ? expTermAnswer(de.p, de.m) : `(${de.p})*x^(${de.m + 1})`;
+
+/**
+ * The constant divided by the factor. Without a value it is the general
+ * `Ce^{-3x}` or `\frac{C}{x^{2}}`; with one it is signed for appending,
+ * `- 2e^{-3x}` or `+ \frac{5}{x^{2}}`.
+ */
+export function cTermTex(de: LinearDe, C?: number, flip = false): string {
+  const k = flip ? -de.k : de.k;
+  if (C === undefined) {
+    if (de.kind === 'exp') return `C${expX(-k)}`;
+    return k > 0 ? `\\frac{C}{${powerTex(k)}}` : `C${powerTex(-k)}`;
+  }
+  const sign = C < 0 ? '-' : '+';
+  const size = Math.abs(C);
+  if (de.kind === 'exp') return `${sign} ${size === 1 ? '' : size}${expX(-k)}`;
+  if (k > 0) return `${sign} \\frac{${size}}{${powerTex(k)}}`;
+  return `${sign} ${size === 1 ? '' : size}${powerTex(-k)}`;
+}
+
+/** The C term's variable part for mathjs. */
+const cFactorAnswer = (de: LinearDe, flip = false): string => {
+  const k = flip ? -de.k : de.k;
+  return de.kind === 'exp' ? `e^((${-k})*x)` : `x^(${-k})`;
+};
+
+export const generalTex = (de: LinearDe): string => `y = ${partTex(de)} + ${cTermTex(de)}`;
+
+/** The general solution for mathjs, with C a number or the letter. */
+export const generalAnswer = (de: LinearDe, C: number | string = 'C'): string =>
+  `${partAnswer(de)} + (${C})*${cFactorAnswer(de)}`;
+
+function sampleLinear(rng: Rng, difficulty: number, kind: LinearDe['kind'], written: LinearDe['written'] = 'standard'): LinearDe {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const k =
+      kind === 'exp'
+        ? rng.int(1, hard ? 5 : 4) * (hard && rng.chance(0.35) ? -1 : 1)
+        : hard
+          ? rng.pick([-2, -1, 1, 2, 3, 4, 5])
+          : rng.int(1, 4);
+    const m = kind === 'exp' ? rng.pick(hard ? [-3, -2, -1, 0, 1, 2, 3] : [-1, 0, 1, 2]) : rng.int(0, 3);
+    const p = rng.int(1, hard ? 6 : 5) * (hard && rng.chance(0.3) ? -1 : 1);
+    const de: LinearDe = { kind, k, m, p, written, scale: rng.int(2, 4) };
+    const q = qCoef(de);
+    if (q === 0 || Math.abs(q) > 40) continue;
+    // P and Q as tiles must never be the same tile.
+    if (pTex(de) === qTex(de)) continue;
+    return de;
+  }
+}
+
+/** A branch of a flow step. */
+interface Branch {
+  label: string;
+  to?: string;
+  outcome?: string;
+}
+
+/** A flow step's branches: the right one and up to two slips with labels of their own, turned by a salt. */
+function branchesOf(correct: Branch, slips: Branch[], turn: number): Branch[] {
+  const seen = new Set([correct.label]);
+  const out = [correct];
+  for (const slip of slips) {
+    if (out.length === 3 || seen.has(slip.label)) continue;
+    seen.add(slip.label);
+    out.push(slip);
+  }
+  return turned(out, turn % out.length);
+}
+
+/** A salt from everything that shapes an equation, for turning options. */
+const deSalt = (de: LinearDe, ...more: number[]): number =>
+  mix(de.kind === 'exp' ? 1 : 2, de.k, de.m, de.p, de.scale, ['standard', 'scaled', 'timesX', 'moved'].indexOf(de.written), ...more);
+
+function standardStep(de: LinearDe): SolutionStep[] {
+  switch (de.written) {
+    case 'scaled':
+      return [{ text: `Divide every term by $${de.scale}$ so that $${rate('y', 'x')}$ stands alone.`, tex: standardTex(de) }];
+    case 'timesX':
+      return [{ text: `Divide every term by $x$ so that $${rate('y', 'x')}$ stands alone.`, tex: standardTex(de) }];
+    case 'moved':
+      return [{ text: 'Bring the $y$ term over to the left.', tex: standardTex(de) }];
+    default:
+      return [];
+  }
+}
+
+/** The whole method: standard form, factor, product, integral, division. */
+function linearSteps(de: LinearDe): SolutionStep[] {
+  return [
+    ...standardStep(de),
+    { text: `Here $P = ${pTex(de)}$, so the factor is $e^{\\int P\\,dx}$, with no constant.`, tex: `I = ${factorWorking(de)}` },
+    {
+      text: 'Multiply every term by it. The left side becomes the derivative of the factor times $y$.',
+      tex: `\\frac{d}{dx}(${productTex(de)}) = ${multipliedTex(de)}`,
+    },
+    { text: 'Integrate both sides. The constant goes on the right.', tex: `${productTex(de)} = ${antiTex(de)} + C` },
+    { text: `Divide by $${factorTex(de)}$, the constant as well.`, tex: generalTex(de) },
+  ];
+}
+
+/* ---------- Level 3, lesson 1: the product rule backwards ---------- */
+
+/** Read P and Q, after putting the equation in standard form. */
+const deIfRead: Generator<LinearDe> = {
+  id: 'de-if-read',
+  sample: (rng, difficulty) => {
+    const kind = rng.chance(0.5) ? 'exp' : 'power';
+    const written =
+      difficulty >= 2
+        ? rng.pick<LinearDe['written']>(kind === 'exp' ? ['scaled', 'scaled', 'moved'] : ['timesX', 'timesX', 'moved'])
+        : rng.pick<LinearDe['written']>(['standard', 'moved']);
+    return sampleLinear(rng, difficulty, kind, written);
+  },
+  render: (de): Slide => {
+    const answer = [pTex(de), qTex(de)];
+    const flipped = { ...de, k: -de.k };
+    const slips =
+      de.written === 'scaled'
+        ? [pTex({ ...de, k: de.k * de.scale }), qTex(de, de.scale), pTex(flipped)]
+        : de.written === 'timesX'
+          ? [`${de.k}`, termTex(qCoef(de), de.m + 1), pTex(flipped)]
+          : [pTex(flipped), qTex(de, -1), factorTex(de)];
+    return {
+      kind: 'tiles',
+      prompt: [prose('Written in the form $\\frac{dy}{dx} + Py = Q$, what are $P$ and $Q$?'), display(linearTex(de))],
+      template: 'P = {0}, \\quad Q = {1}',
+      bank: tokenBank(answer, [...slips, qTex(de, -1), pTex(flipped)], 3),
+      answer,
+    };
+  },
+  solution: (de) => [
+    ...standardStep(de),
+    {
+      text:
+        de.written === 'standard'
+          ? `It is in standard form already. $P$ multiplies $y$, sign and all, and $Q$ is the right side.`
+          : `Now $P$ multiplies $y$, sign and all, and $Q$ is the right side.`,
+    },
+    { tex: `P = ${pTex(de)}, \\quad Q = ${qTex(de)}` },
+  ],
+};
+
+/** A walk: whether to divide first, then P, then Q. */
+const deIfDivide: Generator<LinearDe> = {
+  id: 'de-if-divide',
+  sample: (rng, difficulty) => {
+    const kind = rng.chance(0.5) ? 'exp' : 'power';
+    const other = kind === 'exp' ? 'scaled' : 'timesX';
+    const written = rng.chance(difficulty >= 2 ? 0.8 : 0.6) ? other : 'standard';
+    return sampleLinear(rng, difficulty, kind, written);
+  },
+  render: (de): Slide => {
+    const salt = deSalt(de);
+    const dydx = rate('y', 'x');
+    const nothing = 'Nothing: read $P$ and $Q$ off';
+    const multiply = 'Multiply every term by $x$';
+    const divisor = de.written === 'scaled' ? `${de.scale}` : 'x';
+    const first =
+      de.written === 'standard'
+        ? [
+            { label: nothing, to: 'p' },
+            { label: multiply, outcome: `That puts an $x$ in front of $${dydx}$, which is exactly what the form has not got.` },
+            { label: 'Move the $y$ term to the right', outcome: `The form keeps $Py$ on the left, with $${dydx}$.` },
+          ]
+        : [
+            { label: `Divide every term by $${divisor}$`, to: 'p' },
+            {
+              label: nothing,
+              outcome: `$${dydx}$ carries a $${divisor}$ here. $P$ is only read once $${dydx}$ stands alone, or the factor comes out wrong.`,
+            },
+            {
+              label: multiply,
+              outcome: `That leaves $${dydx}$ with $${de.written === 'scaled' ? `${de.scale}x` : 'x^{2}'}$ in front of it, not $1$.`,
+            },
+          ];
+    const flipped = { ...de, k: -de.k };
+    const pSlips: { label: string; outcome: string }[] = [
+      ...(de.written === 'scaled'
+        ? [{ label: `$${pTex({ ...de, k: de.k * de.scale })}$`, outcome: 'That is before dividing: the $y$ term has to be divided too.' }]
+        : de.written === 'timesX'
+          ? [{ label: `$${de.k}$`, outcome: `Dividing by $x$ divides the $y$ term too, so $${de.k}y$ becomes $${pTex(de)}y$.` }]
+          : []),
+      { label: `$${pTex(flipped)}$`, outcome: '$P$ comes with its sign: it is what multiplies $y$ on the left.' },
+      { label: `$${factorTex(de)}$`, outcome: 'That is the integrating factor, which is found from $P$. $P$ itself multiplies $y$.' },
+    ];
+    const qSlips: { label: string; outcome: string }[] = [
+      ...(de.written === 'scaled'
+        ? [{ label: `$${qTex(de, de.scale)}$`, outcome: 'The right side has to be divided as well.' }]
+        : de.written === 'timesX'
+          ? [{ label: `$${termTex(qCoef(de), de.m + 1)}$`, outcome: 'The right side has to be divided by $x$ as well.' }]
+          : []),
+      { label: `$${qTex(de, -1)}$`, outcome: '$Q$ is the right side as it stands, sign and all.' },
+      { label: `$${multipliedTex(de)}$`, outcome: 'That is $Q$ times the factor, which comes later.' },
+    ];
+    const pLabel = `$${pTex(de)}$`;
+    const qLabel = `$${qTex(de)}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('Put this equation in the form $\\frac{dy}{dx} + Py = Q$.')],
+      subject: linearTex(de),
+      steps: [
+        { id: 'form', ask: 'What has to be done first?', branches: turned(first, salt % 3) },
+        {
+          id: 'p',
+          ask: 'So $P$ is',
+          branches: branchesOf({ label: pLabel, to: 'q' }, pSlips, salt >>> 4),
+        },
+        {
+          id: 'q',
+          ask: 'And $Q$ is',
+          branches: branchesOf({ label: qLabel, outcome: `So the equation is $${standardTex(de)}$.` }, qSlips, salt >>> 8),
+        },
+      ],
+      answer: [first[0].label, pLabel, qLabel],
+    };
+  },
+  solution: (de) => [
+    ...(de.written === 'standard'
+      ? [{ text: `$${rate('y', 'x')}$ already stands alone, so nothing needs doing first.` }]
+      : standardStep(de)),
+    { text: 'Read $P$ from the $y$ term and $Q$ from the right side.', tex: `P = ${pTex(de)}, \\quad Q = ${qTex(de)}` },
+  ],
+};
+
+/** Which product this left side is the derivative of, or the other way round. */
+export interface ProductParams {
+  kind: 'exp' | 'power';
+  k: number;
+  /** The factor is a times e^{kx} or a times x^k. */
+  a: number;
+  /** Show the product and ask for its expansion, rather than the reverse. */
+  expand: boolean;
+}
+
+/** a e^{kx} or a x^k, and its derivative, as the learner reads them. */
+export function productPieces({ kind, k, a }: ProductParams): { I: string; dI: string; Iy: string; dIy: string } {
+  if (kind === 'exp') {
+    return { I: `${coef(a)}${expX(k)}`, dI: `${coef(a * k)}${expX(k)}`, Iy: `${coef(a)}y${expX(k)}`, dIy: `${coef(a * k)}y${expX(k)}` };
+  }
+  const dI = termTex(a * k, k - 1);
+  return { I: termTex(a, k), dI, Iy: `${termTex(a, k)}y`, dIy: dI === '1' ? 'y' : `${dI}y` };
+}
+
+/** The factor and its derivative for mathjs. */
+export const productAnswer = ({ kind, k, a }: ProductParams): string => (kind === 'exp' ? `(${a})*e^((${k})*x)` : `(${a})*x^(${k})`);
+
+/** I dy/dx + I' y, with the sign of I' pulled out in front of its term. */
+function expanded(I: string, dI: string, sign = 1): string {
+  const negative = (dI.startsWith('-') ? -1 : 1) * sign < 0;
+  const size = dI.startsWith('-') ? dI.slice(1) : dI;
+  return `${I}${rate('y', 'x')} ${negative ? '-' : '+'} ${size === '1' ? '' : size}y`;
+}
+
+/** One option of a product question: the product, and its derivative for mathjs in x, y and y'. */
+export interface ProductOption {
+  tex: string;
+  /** For `expand`, the expression in y and dy; otherwise the product in y. */
+  answer: string;
+  correct?: boolean;
+}
+
+export function productOptions(params: ProductParams): ProductOption[] {
+  const { kind, k, a } = params;
+  const { I, dI, Iy } = productPieces(params);
+  const d = (inside: string) => `\\frac{d}{dx}(${inside})`;
+  const iAns = productAnswer(params);
+  const diAns = kind === 'exp' ? `(${a * k})*e^((${k})*x)` : `(${a * k})*x^(${k - 1})`;
+  if (params.expand) {
+    const lead = dI === '1' ? '' : dI;
+    const plus = dI.startsWith('-') ? `- ${dI.slice(1)}` : `+ ${dI}`;
+    return [
+      { tex: expanded(I, dI), answer: `${iAns}*dy + ${diAns}*y`, correct: true },
+      { tex: expanded(I, dI, -1), answer: `${iAns}*dy - ${diAns}*y` },
+      { tex: `${lead}${rate('y', 'x')} + ${I}y`, answer: `${diAns}*dy + ${iAns}*y` },
+      { tex: `${I}${rate('y', 'x')} ${plus}`, answer: `${iAns}*dy + ${diAns}` },
+      { tex: `${lead}${rate('y', 'x')}`, answer: `${diAns}*dy` },
+    ];
+  }
+  const other = (kk: number, aa = a) => {
+    const pieces = productPieces({ kind, k: kk, a: aa, expand: false });
+    return { tex: d(pieces.Iy), answer: `${productAnswer({ kind, k: kk, a: aa, expand: false })}*y` };
+  };
+  const { dIy } = productPieces(params);
+  return [
+    { tex: d(Iy), answer: `${iAns}*y`, correct: true },
+    { tex: d(dIy), answer: `${diAns}*y` },
+    kind === 'exp' ? other(-k) : other(k + 1),
+    kind === 'exp' ? other(2 * k) : other(k - 1 === 0 ? k + 2 : k - 1),
+    { tex: d(`${I}${rate('y', 'x')}`), answer: `${iAns}*dy` },
+  ];
+}
+
+const deIfProduct: Generator<ProductParams> = {
+  id: 'de-if-product',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const kind = rng.chance(0.5) ? 'exp' : 'power';
+    const k = kind === 'exp' ? rng.int(1, hard ? 5 : 4) * (hard && rng.chance(0.4) ? -1 : 1) : rng.int(1, hard ? 6 : 4);
+    return { kind, k, a: rng.int(1, hard ? 3 : 2), expand: rng.chance(0.5) };
+  },
+  render: (params): Slide => {
+    const { I, dI, Iy } = productPieces(params);
+    const picks = productOptions(params)
+      .filter((opt, idx, all) => all.findIndex((other) => other.tex === opt.tex) === idx)
+      .map((opt) => ({ label: opt.tex, tex: true, correct: opt.correct }));
+    const salt = mix(params.kind === 'exp' ? 1 : 2, params.k, params.a, params.expand ? 1 : 0);
+    if (params.expand) {
+      return choiceSlide(
+        [prose('By the product rule, which is this derivative written out?'), display(`\\frac{d}{dx}(${Iy})`)],
+        picks.slice(0, 4),
+        salt,
+      );
+    }
+    return choiceSlide(
+      [prose('This left side is the derivative of a product. Which one?'), display(expanded(I, dI))],
+      picks.slice(0, 4),
+      salt,
+    );
+  },
+  solution: (params) => {
+    const { I, dI, Iy } = productPieces(params);
+    return [
+      { text: 'The product rule, with $y$ as the second factor:', tex: `\\frac{d}{dx}(uy) = u${rate('y', 'x')} + u'y` },
+      { text: `With $u = ${I}$, $u' = ${dI}$.`, tex: `\\frac{d}{dx}(${Iy}) = ${expanded(I, dI)}` },
+      {
+        text: params.expand
+          ? 'The factor stays with $\\frac{dy}{dx}$ and its derivative goes with $y$.'
+          : `So the left side is the derivative of $${Iy}$: the factor in front of $\\frac{dy}{dx}$, times $y$.`,
+      },
+    ];
+  },
+};
+
+/** Multiply through by the factor: its power, its derivative's, the right side's. */
+const deIfMultiplyTree: Generator<LinearDe> = {
+  id: 'de-if-multiply-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const de = sampleLinear(rng, difficulty, rng.chance(0.5) ? 'exp' : 'power');
+      // A constant Q would make every blank of the exp tree the same number.
+      if (de.kind === 'power' || de.m !== 0) return de;
+    }
+  },
+  render: (de): Slide => {
+    const { kind, k, m } = de;
+    const q = qCoef(de);
+    if (kind === 'exp') {
+      const answer = [k, k, m + k];
+      return {
+        kind: 'tree',
+        prompt: [
+          prose(
+            `Multiplying by the factor $e^{ax}$ turns the left side into $e^{ax}\\frac{dy}{dx} + be^{ax}y$, and the right side into $${coef(q)}e^{cx}$.`,
+          ),
+          prose('Fill in $a$, then $b$, then $c$.'),
+        ],
+        expression: linearTex(de),
+        nodes: [
+          { id: 'a', from: [] },
+          { id: 'b', from: ['a'] },
+          { id: 'c', from: ['a'] },
+        ],
+        bank: treeBank(answer, [-k, m, m - k, k + 1, m * k]),
+        answer: answer.map(String),
+      };
+    }
+    const answer = [k, k, k - 1, k + m];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`Multiplying by the factor $x^{a}$ turns the left side into $x^{a}\\frac{dy}{dx} + bx^{c}y$, and the right side into $${coef(q)}x^{d}$.`),
+        prose('Fill in $a$, then $b$ and $c$, then $d$.'),
+      ],
+      expression: linearTex(de),
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: ['a'] },
+        { id: 'c', from: ['a'] },
+        { id: 'd', from: ['a'] },
+      ],
+      bank: treeBank(answer, [-k, k + 1, m, k * m, k + m + 1]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => [
+    { text: `$P = ${pTex(de)}$, and the factor is $e^{\\int P\\,dx}$.`, tex: `I = ${factorWorking(de)}` },
+    {
+      text: `Multiply every term by it. The factor's derivative is $P$ times the factor, and it lands on $y$.`,
+      tex: `${expanded(factorTex(de), factorDerivTex(de))} = ${multipliedTex(de)}`,
+    },
+    { text: 'The right side is $Q$ times the factor: add the powers.', tex: `\\frac{d}{dx}(${productTex(de)}) = ${multipliedTex(de)}` },
+  ],
+};
+
+/* ---------- Level 3, lesson 2: finding the factor ---------- */
+
+/**
+ * P, for finding the factor alone.
+ *
+ * - `const`: P = k, factor e^{kx}.
+ * - `poly`: P = c(j + 1)x^j, factor e^{cx^{j + 1}}.
+ * - `log`: P = n/(x + a), or 2nx/(x^2 + a) when `sq`; factor (x + a)^n or
+ *   (x^2 + a)^n. With a = 0 and no `sq` it is n/x and x^n.
+ */
+export type FactorP =
+  | { type: 'const'; k: number }
+  | { type: 'poly'; c: number; j: number }
+  | { type: 'log'; n: number; a: number; sq: boolean };
+
+/** The inside of the logarithm, as the learner reads it and for mathjs. */
+const logBase = (P: Extract<FactorP, { type: 'log' }>): { tex: string; answer: string; bracket: string } => {
+  const inner = P.sq ? `x^{2} + ${P.a}` : P.a === 0 ? 'x' : `x + ${P.a}`;
+  return {
+    tex: inner,
+    answer: P.sq ? `(x^2 + ${P.a})` : P.a === 0 ? 'x' : `(x + ${P.a})`,
+    bracket: P.sq || P.a !== 0 ? `(${inner})` : inner,
+  };
+};
+
+export function factorPTex(P: FactorP): string {
+  switch (P.type) {
+    case 'const':
+      return `${P.k}`;
+    case 'poly':
+      return termTex(P.c * (P.j + 1), P.j);
+    case 'log': {
+      const sign = P.n < 0 ? '-' : '';
+      const top = P.sq ? `${2 * Math.abs(P.n)}x` : `${Math.abs(P.n)}`;
+      return `${sign}\\frac{${top}}{${logBase(P).tex}}`;
+    }
+  }
+}
+
+export function factorPAnswer(P: FactorP): string {
+  switch (P.type) {
+    case 'const':
+      return `${P.k}`;
+    case 'poly':
+      return `(${P.c * (P.j + 1)})*x^(${P.j})`;
+    case 'log':
+      return P.sq ? `(${2 * P.n})*x/(x^2 + ${P.a})` : `(${P.n})/${logBase(P).answer}`;
+  }
+}
+
+/** The integral of P, without the constant. */
+export function factorIntegralTex(P: FactorP): string {
+  switch (P.type) {
+    case 'const':
+      return termTex(P.k, 1);
+    case 'poly':
+      return termTex(P.c, P.j + 1);
+    case 'log':
+      return `${coef(P.n)}\\ln ${logBase(P).bracket}`;
+  }
+}
+
+/** base^n as the learner reads it, with a negative power written as a fraction. */
+function logPowerTex(P: Extract<FactorP, { type: 'log' }>, n = P.n): string {
+  const { bracket } = logBase(P);
+  if (P.a === 0 && !P.sq) return powerTex(n);
+  if (n === 1) return logBase(P).tex;
+  if (n > 0) return `${bracket}^{${n}}`;
+  return n === -1 ? `\\frac{1}{${logBase(P).tex}}` : `\\frac{1}{${bracket}^{${-n}}}`;
+}
+
+export function factorOfTex(P: FactorP): string {
+  switch (P.type) {
+    case 'const':
+      return expX(P.k);
+    case 'poly':
+      return `e^{${termTex(P.c, P.j + 1)}}`;
+    case 'log':
+      return logPowerTex(P);
+  }
+}
+
+export function factorOfAnswer(P: FactorP): string {
+  switch (P.type) {
+    case 'const':
+      return `e^((${P.k})*x)`;
+    case 'poly':
+      return `e^((${P.c})*x^(${P.j + 1}))`;
+    case 'log':
+      return `${logBase(P).answer}^(${P.n})`;
+  }
+}
+
+/** A right side to show beside P. It plays no part in the factor. */
+const Q_SHOWN = ['x', 'e^{x}', '\\sin x', 'x^{2}', '\\cos x', '1'];
+
+export interface FactorParams {
+  P: FactorP;
+  /** Which right side is shown, and a whole number the equation is scaled by (1 for none). */
+  q: number;
+  scale: number;
+}
+
+/** The equation. Only a constant P is ever shown scaled. */
+export function factorDeTex({ P, q, scale }: FactorParams): string {
+  const shown = Q_SHOWN[q % Q_SHOWN.length];
+  if (P.type === 'const') {
+    const right = scale === 1 ? shown : shown === '1' ? `${scale}` : `${scale}${shown}`;
+    return `${scale === 1 ? '' : scale}${rate('y', 'x')} ${yTerm('exp', scale * P.k)} = ${right}`;
+  }
+  const pt = factorPTex(P);
+  const negative = pt.startsWith('-');
+  return `${rate('y', 'x')} ${negative ? '-' : '+'} ${negative ? pt.slice(1) : pt}y = ${shown}`;
+}
+
+function sampleFactorP(rng: Rng, difficulty: number): FactorP {
+  if (difficulty < 2) {
+    return rng.chance(0.5)
+      ? { type: 'const', k: rng.int(1, 6) * rng.sign() }
+      : { type: 'log', n: rng.int(1, 5), a: 0, sq: false };
+  }
+  const type = rng.pick(['const', 'poly', 'log', 'log'] as const);
+  if (type === 'const') return { type, k: rng.int(1, 8) * rng.sign() };
+  if (type === 'poly') return { type, c: rng.int(1, 3) * rng.sign(), j: rng.int(1, 2) };
+  const sq = rng.chance(0.3);
+  return { type, n: sq ? rng.int(1, 3) : rng.pick([-3, -2, -1, 2, 3, 4, 5]), a: sq ? rng.int(1, 9) : rng.int(0, 6), sq };
+}
+
+function sampleFactor(rng: Rng, difficulty: number): FactorParams {
+  const P = sampleFactorP(rng, difficulty);
+  const scale = difficulty >= 2 && P.type === 'const' && rng.chance(0.5) ? rng.int(2, 4) : 1;
+  return { P, q: rng.int(0, Q_SHOWN.length - 1), scale };
+}
+
+const positiveNote = (P: FactorP): string => (P.type === 'log' ? ', for $x > 0$' : '');
+
+function factorSolution({ P, scale }: FactorParams): SolutionStep[] {
+  const steps: SolutionStep[] = [];
+  if (scale > 1) steps.push({ text: `Divide every term by $${scale}$ first, so $${rate('y', 'x')}$ stands alone. Then $P = ${factorPTex(P)}$.` });
+  else steps.push({ text: `$P$ is what multiplies $y$: $P = ${factorPTex(P)}$.` });
+  steps.push({ text: 'Integrate it, leaving out the constant: any multiple of the factor works as well as the factor.', tex: `\\int ${factorPTex(P)}\\,dx = ${factorIntegralTex(P)}` });
+  if (P.type === 'log') {
+    steps.push({
+      text: `A multiple of a logarithm is the logarithm of a power, and $e$ undoes $\\ln$.`,
+      tex: `I = e^{${factorIntegralTex(P)}} = ${factorOfTex(P)}`,
+    });
+  } else {
+    steps.push({ tex: `I = ${factorOfTex(P)}` });
+  }
+  return steps;
+}
+
+/** Type the factor. */
+const deIfFactor: Generator<FactorParams> = {
+  id: 'de-if-factor',
+  sample: sampleFactor,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose(`Find the integrating factor of`), display(factorDeTex(params)), ...(params.P.type === 'log' ? [prose('for $x > 0$.')] : [])],
+    lead: 'I =',
+    keypad: EXP_KEYS,
+    answer: factorOfAnswer(params.P),
+    domain: params.P.type === 'log' ? 'positive' : 'real',
+    mode: 'exact',
+  }),
+  solution: factorSolution,
+};
+
+/** A factor from a logarithm, one line at a time: integrate, power inside, e undoes ln. */
+const deIfExponentSteps: Generator<FactorParams> = {
+  id: 'de-if-exponent-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const sq = hard && rng.chance(0.3);
+    const P: FactorP = {
+      type: 'log',
+      n: sq ? rng.int(1, 3) : hard ? rng.pick([-3, -2, -1, 2, 3, 4, 5, 6]) : rng.int(1, 5),
+      a: sq ? rng.int(1, 9) : rng.int(0, hard ? 6 : 5),
+      sq,
+    };
+    return { P, q: rng.int(0, Q_SHOWN.length - 1), scale: 1 };
+  },
+  render: ({ P }): Slide => {
+    if (P.type !== 'log') throw new Error('de-if-exponent-steps asks only logarithm factors');
+    const { n } = P;
+    const { tex: inner, bracket } = logBase(P);
+    const integrated = `I = e^{${factorIntegralTex(P)}}`;
+    const inside = `I = e^{\\ln ${bracket}^{${n}}}`;
+    const last = `I = ${factorOfTex(P)}`;
+    const flip = { ...P, n: -n };
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      {
+        span: [0, 3],
+        operator: 1,
+        value: integrated,
+        bank: stepBank(
+          integrated,
+          `I = e^{${factorPTex(P)}}`,
+          `I = e^{${factorIntegralTex(flip)}}`,
+          `I = ${factorIntegralTex(P)}`,
+          `I = ${expX(n)}`,
+        ),
+      },
+    ];
+    if (n !== 1) {
+      reductions.push({
+        span: [0, 1],
+        operator: 0,
+        value: inside,
+        bank: stepBank(inside, `I = e^{\\ln ${Math.abs(n)}${bracket}}`, `I = e^{\\ln ${bracket}^{${-n}}}`, `I = ${n}e^{\\ln ${bracket}}`),
+      });
+    }
+    reductions.push({
+      span: [0, 1],
+      operator: 0,
+      value: last,
+      // With n = 1, n times the bracket is the bracket itself: the right answer, so it cannot be a slip.
+      bank: stepBank(last, n === 1 ? `I = ${logPowerTex(P, 2)}` : `I = ${coef(n)}${bracket}`, `I = ${logPowerTex(P, -n)}`, `I = e^{${n === 1 ? inner : `${bracket}^{${n}}`}}`),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Find the integrating factor for $P = ${factorPTex(P)}$, with $x > 0$. Tap the $=$ to integrate $P$, then tap the line each time to tidy it.`,
+        ),
+      ],
+      start: ['I', '=', `e^{\\int ${factorPTex(P)}\\,dx}`],
+      reductions,
+    };
+  },
+  solution: (params) => {
+    const { P } = params;
+    if (P.type !== 'log') return factorSolution(params);
+    const { bracket } = logBase(P);
+    return [
+      { text: 'Integrate $P$. The top is a multiple of the derivative of the bottom, so it is a logarithm.', tex: `\\int ${factorPTex(P)}\\,dx = ${factorIntegralTex(P)}` },
+      ...(P.n === 1 ? [] : [{ text: 'The number in front becomes a power inside the logarithm.', tex: `${factorIntegralTex(P)} = \\ln ${bracket}^{${P.n}}` }]),
+      { text: '$e$ to the power of $\\ln$ undoes it.', tex: `I = ${factorOfTex(P)}` },
+    ];
+  },
+};
+
+/** The factor as a walk: P, then its integral, then the factor. */
+const deIfShape: Generator<FactorParams> = {
+  id: 'de-if-shape',
+  sample: sampleFactor,
+  render: (params): Slide => {
+    const { P, scale } = params;
+    const salt = mix(params.q, scale, P.type === 'const' ? P.k : P.type === 'poly' ? 100 + P.c * 10 + P.j : 200 + P.n * 10 + P.a + (P.sq ? 7 : 0));
+    const flipped: FactorP = P.type === 'const' ? { ...P, k: -P.k } : P.type === 'poly' ? { ...P, c: -P.c } : { ...P, n: -P.n };
+    const pLabel = `$${factorPTex(P)}$`;
+    const integral = `$${factorIntegralTex(P)}$`;
+    const factor = `$${factorOfTex(P)}$`;
+    const pSlips =
+      scale > 1 && P.type === 'const'
+        ? [
+            { label: `$${scale * P.k}$`, outcome: `That is before dividing by $${scale}$: $P$ is read once $\\frac{dy}{dx}$ stands alone.` },
+            { label: `$${factorPTex(flipped)}$`, outcome: '$P$ keeps the sign it has on the left.' },
+          ]
+        : [
+            { label: `$${factorPTex(flipped)}$`, outcome: '$P$ keeps the sign it has on the left.' },
+            { label: `$${factorOfTex(P)}$`, outcome: 'That is the factor itself, which comes from $P$.' },
+          ];
+    const intSlips =
+      P.type === 'const'
+        ? [
+            { label: `$${P.k}$`, outcome: `That is $P$ again. Integrating a constant $${P.k}$ gives $${termTex(P.k, 1)}$.` },
+            { label: `$${termTex(P.k, 2)}$`, outcome: `That differentiates to $${termTex(2 * P.k, 1)}$, not $${P.k}$.` },
+          ]
+        : P.type === 'poly'
+          ? [
+              { label: `$${termTex(P.c * (P.j + 1), P.j + 1)}$`, outcome: 'The new power has to divide in as well.' },
+              { label: `$${termTex(P.c * (P.j + 1) * P.j, P.j - 1)}$`, outcome: 'That is the derivative, not the integral.' },
+            ]
+          : [
+              { label: `$${termTex(P.n, 1)}$`, outcome: 'A number over $x$ integrates to a logarithm, not to $x$.' },
+              { label: `$${factorIntegralTex(flipped)}$`, outcome: 'The sign of $P$ carries through to its integral.' },
+            ];
+    const iSlips =
+      P.type === 'log'
+        ? [
+            P.n === 1
+              ? { label: `$${logPowerTex(P, 2)}$`, outcome: 'The power is the number in front of $\\ln$, which here is $1$.' }
+              : { label: `$${coef(P.n)}${logBase(P).bracket}$`, outcome: `$e^{${coef(P.n)}\\ln u}$ is $u^{${P.n}}$: the number becomes a power, not a multiplier.` },
+            { label: `$${logPowerTex(P, -P.n)}$`, outcome: 'The power has the sign of the number in front of $\\ln$.' },
+          ]
+        : [
+            { label: `$e^{${factorIntegralTex(P)} + C}$`, outcome: 'The constant is left out: $e^{C}$ only multiplies the factor, and any multiple works as well.' },
+            { label: `$${factorOfTex(flipped)}$`, outcome: 'The factor is $e$ to the integral of $P$ exactly, sign included.' },
+          ];
+    return {
+      kind: 'flow',
+      prompt: [prose(`Find the integrating factor of the equation below${positiveNote(P)}.`)],
+      subject: factorDeTex(params),
+      steps: [
+        { id: 'p', ask: 'What is $P$?', branches: branchesOf({ label: pLabel, to: 'int' }, pSlips, salt) },
+        { id: 'int', ask: '$\\int P\\,dx$, without a constant, is', branches: branchesOf({ label: integral, to: 'i' }, intSlips, salt >>> 4) },
+        {
+          id: 'i',
+          ask: 'So the factor $e^{\\int P\\,dx}$ is',
+          branches: branchesOf({ label: factor, outcome: `Multiplying by $${factorOfTex(P)}$ makes the left side a product's derivative.` }, iSlips, salt >>> 8),
+        },
+      ],
+      answer: [pLabel, integral, factor],
+    };
+  },
+  solution: factorSolution,
+};
+
+/** Multiply through: the product on the left and the right side, as tiles. */
+const deIfLhs: Generator<LinearDe & { given: boolean }> = {
+  id: 'de-if-lhs',
+  sample: (rng, difficulty) => {
+    const kind = rng.chance(0.5) ? 'exp' : 'power';
+    const written = difficulty >= 2 ? rng.pick<LinearDe['written']>(['standard', kind === 'exp' ? 'scaled' : 'timesX']) : 'standard';
+    return { ...sampleLinear(rng, difficulty, kind, written), given: difficulty < 2 };
+  },
+  render: (de): Slide => {
+    const answer = [productTex(de), multipliedTex(de)];
+    const flipped = { ...de, k: -de.k };
+    const rightSlips =
+      de.kind === 'exp'
+        ? [qTex(de), expTerm(qCoef(de), de.m - de.k), expTerm(qCoef(de), de.m * de.k)]
+        : [qTex(de), termTex(qCoef(de), de.m - de.k), termTex(qCoef(de), de.m * de.k)];
+    return {
+      kind: 'tiles',
+      prompt: de.given
+        ? [
+            prose(`Multiply every term of this equation by its integrating factor, $${factorTex(de)}$, and write the left side as one derivative.`),
+            display(linearTex(de)),
+          ]
+        : [
+            prose(`Find the integrating factor of this equation${de.kind === 'power' ? ', for $x > 0$' : ''}, multiply through by it, and write the left side as one derivative.`),
+            display(linearTex(de)),
+          ],
+      template: '\\frac{d}{dx}({0}) = {1}',
+      bank: tokenBank(answer, [productSlipTex(de), productTex(flipped), rightSlips[0], rightSlips[1], rightSlips[2]], 4),
+      answer,
+    };
+  },
+  solution: (de) => [...standardStep(de), ...linearSteps({ ...de, written: 'standard' }).slice(0, 2)],
+};
+
+/* ---------- Level 3, lesson 3: a constant P ---------- */
+
+/** dy/dx + ky = Q one line at a time: multiply, integrate, divide. */
+const deIfConstpSteps: Generator<LinearDe> = {
+  id: 'de-if-constp-steps',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, 'exp'),
+  render: (de): Slide => {
+    const { k, m, p } = de;
+    const q = qCoef(de);
+    const Iy = productTex(de);
+    const product = `\\frac{d}{dx}(${Iy}) = ${multipliedTex(de)}`;
+    const integrated = `${Iy} = ${antiTex(de)} + C`;
+    const general = generalTex(de);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          'Solve with the integrating factor below: tap the comma to multiply through by it, then tap the line to integrate, then again to divide.',
+        ),
+      ],
+      start: [standardTex(de), ',', `I = ${factorTex(de)}`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: product,
+          bank: stepBank(
+            product,
+            `\\frac{d}{dx}(${Iy}) = ${qTex(de)}`,
+            `\\frac{d}{dx}(${productSlipTex(de)}) = ${multipliedTex(de)}`,
+            `\\frac{d}{dx}(y${expX(-k)}) = ${expTerm(q, m - k)}`,
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: integrated,
+          bank: stepBank(integrated, `${Iy} = ${expTerm(q, m + k)} + C`, `${Iy} = ${expTerm(q * (m + k), m + k)} + C`, `${Iy} = ${antiTex(de)}`),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: general,
+          bank: stepBank(
+            general,
+            `y = ${partTex(de)} + C`,
+            `y = ${expTerm(p, m + 2 * k)} + C${expX(k)}`,
+            `y = ${partTex(de)} + C${expX(k)}`,
+          ),
+        },
+      ],
+    };
+  },
+  solution: (de) => linearSteps(de).slice(1),
+};
+
+/** The numbers of the constant-P method, as a tree. */
+const deIfExponentsTree: Generator<LinearDe> = {
+  id: 'de-if-exponents-tree',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, 'exp'),
+  render: (de): Slide => {
+    const { k, m, p } = de;
+    const q = qCoef(de);
+    const answer = [k, m + k, p, -k];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `With the factor $e^{ax}$, the equation becomes $\\frac{d}{dx}(ye^{ax}) = ${coef(q)}e^{bx}$, which integrates to $ye^{ax} = re^{bx} + C$, so $y = r${m === 0 ? '' : expX(m)} + Ce^{sx}$.`,
+        ),
+        prose('Fill in $a$, then $b$, then $r$, then $s$.'),
+      ],
+      expression: linearTex(de),
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: ['a'] },
+        { id: 'r', from: ['b'] },
+        { id: 's', from: ['a'] },
+      ],
+      bank: treeBank(answer, [q, m - k, -p, q * (m + k), k - m]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => linearSteps(de).slice(1),
+};
+
+/** The general solution for a constant P, as tiles. */
+const deIfGeneral: Generator<LinearDe> = {
+  id: 'de-if-general',
+  sample: (rng, difficulty) =>
+    sampleLinear(rng, difficulty, 'exp', difficulty >= 2 ? rng.pick<LinearDe['written']>(['standard', 'scaled', 'moved']) : 'standard'),
+  render: (de): Slide => {
+    const { k, m, p } = de;
+    const answer = [partTex(de), expX(-k)];
+    const q = qCoef(de);
+    return {
+      kind: 'tiles',
+      prompt: [prose('Find the general solution of'), display(linearTex(de))],
+      template: 'y = {0} + C{1}',
+      bank: tokenBank(
+        answer,
+        // A multiple of e^{-kx} after the C would be a right answer too, so none is offered.
+        [expTerm(q, m), expX(k), expTerm(p, m + k), expX(-(m + k)), expTerm(-p, m), m === 0 ? expTerm(p, k) : expTerm(p, -m)].filter(
+          (slip) => !slip.endsWith(expX(-k)),
+        ),
+        3,
+      ),
+      answer,
+    };
+  },
+  solution: linearSteps,
+};
+
+/** The integral of the multiplied right side, typed. */
+const deIfIntegrate: Generator<LinearDe & { given: boolean }> = {
+  id: 'de-if-integrate',
+  sample: (rng, difficulty) => ({
+    ...sampleLinear(rng, difficulty, 'exp', difficulty >= 2 ? rng.pick<LinearDe['written']>(['standard', 'scaled', 'moved']) : 'standard'),
+    given: difficulty < 2,
+  }),
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: de.given
+        ? [
+            prose(`Multiplying this equation by its factor $${factorTex(de)}$ gives $\\frac{d}{dx}(${productTex(de)}) = ${multipliedTex(de)}$. Integrate.`),
+            display(linearTex(de)),
+          ]
+        : [prose('Solve this equation with an integrating factor, as far as the line below.'), display(linearTex(de))],
+    lead: `${productTex(de)} =`,
+    keypad: X_INTEGRAL_KEYS,
+    answer: antiAnswer(de),
+    integrand: multipliedAnswer(de),
+    domain: 'real',
+    mode: 'upToConstant',
+  }),
+  solution: (de) => linearSteps(de).slice(0, -1),
+};
+
+/* ---------- Level 3, lesson 4: P = n/x ---------- */
+
+/** The general solution for P = k/x, as tiles. */
+const deIfPowerTiles: Generator<LinearDe> = {
+  id: 'de-if-power-tiles',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, 'power', difficulty >= 2 && rng.chance(0.6) ? 'timesX' : 'standard'),
+  render: (de): Slide => {
+    const { k, m, p } = de;
+    const answer = [partTex(de), cTermTex(de)];
+    return {
+      kind: 'tiles',
+      prompt: [prose('Find the general solution of this equation, for $x > 0$.'), display(linearTex(de))],
+      template: 'y = {0} + {1}',
+      bank: tokenBank(
+        answer,
+        [termTex(p, k + m + 1), 'C', cTermTex(de, undefined, true), termTex(qCoef(de), m + 1), `\\frac{C}{${powerTex(Math.abs(k) + 1)}}`, termTex(-p, m + 1)],
+        3,
+      ),
+      answer,
+    };
+  },
+  solution: linearSteps,
+};
+
+/** dy/dx + (k/x)y = Q one line at a time. */
+const deIfPowerSteps: Generator<LinearDe> = {
+  id: 'de-if-power-steps',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, 'power'),
+  render: (de): Slide => {
+    const { k, m, p } = de;
+    const q = qCoef(de);
+    const Iy = productTex(de);
+    const product = `\\frac{d}{dx}(${Iy}) = ${multipliedTex(de)}`;
+    const integrated = `${Iy} = ${antiTex(de)} + C`;
+    const general = generalTex(de);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          'Solve for $x > 0$ with the integrating factor below: tap the comma to multiply through by it, then tap the line to integrate, then again to divide.',
+        ),
+      ],
+      start: [standardTex(de), ',', `I = ${factorTex(de)}`],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: product,
+          bank: stepBank(
+            product,
+            `\\frac{d}{dx}(${Iy}) = ${qTex(de)}`,
+            `\\frac{d}{dx}(${productSlipTex(de)}) = ${multipliedTex(de)}`,
+            `\\frac{d}{dx}(${Iy}) = ${termTex(q, k * m)}`,
+            `\\frac{d}{dx}(${Iy}) = ${termTex(q, m - k)}`,
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: integrated,
+          bank: stepBank(integrated, `${Iy} = ${termTex(q, k + m + 1)} + C`, `${Iy} = ${termTex(q * (k + m), k + m - 1)} + C`, `${Iy} = ${antiTex(de)}`),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: general,
+          bank: stepBank(general, `y = ${partTex(de)} + C`, `y = ${termTex(p, 2 * k + m + 1)} + ${cTermTex(de, undefined, true)}`, `y = ${partTex(de)} + ${cTermTex(de, undefined, true)}`),
+        },
+      ],
+    };
+  },
+  solution: (de) => linearSteps(de).slice(1),
+};
+
+/** The powers of the P = k/x method, as a tree. */
+const deIfPowersTree: Generator<LinearDe> = {
+  id: 'de-if-powers-tree',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, 'power'),
+  render: (de): Slide => {
+    const { k, m, p } = de;
+    const q = qCoef(de);
+    const answer = [k, k + m, k + m + 1, p];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `Multiplying by the factor $x^{a}$ gives $\\frac{d}{dx}(x^{a}y) = ${coef(q)}x^{b}$, which integrates to $x^{a}y = rx^{n} + C$.`,
+        ),
+        prose('Fill in $a$, then $b$, then $n$, then $r$.'),
+      ],
+      expression: `${linearTex(de)}, \\quad x > 0`,
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: ['a'] },
+        { id: 'n', from: ['b'] },
+        { id: 'r', from: ['n'] },
+      ],
+      bank: treeBank(answer, [q, k * m, k + m - 1, m + 1, q * (k + m + 1), -k]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => linearSteps(de).slice(1, -1),
+};
+
+/** From the integrated line to y: the form of the C term. */
+export function cTermOptions(de: LinearDe): { tex: string; answer: string; correct?: boolean }[] {
+  const part = partAnswer(de);
+  return [
+    { tex: generalTex(de), answer: generalAnswer(de), correct: true },
+    { tex: `y = ${partTex(de)} + C`, answer: `${part} + C` },
+    { tex: `y = ${partTex(de)} + ${cTermTex(de, undefined, true)}`, answer: `${part} + C*${cFactorAnswer(de, true)}` },
+    { tex: `y = ${antiTex(de)} + ${cTermTex(de)}`, answer: `${antiAnswer(de)} + C*${cFactorAnswer(de)}` },
+  ];
+}
+
+const deIfCterm: Generator<LinearDe> = {
+  id: 'de-if-cterm',
+  sample: (rng, difficulty) => sampleLinear(rng, difficulty, difficulty >= 2 && rng.chance(0.4) ? 'exp' : 'power'),
+  render: (de): Slide =>
+    choiceSlide(
+      [
+        prose(`Solving this equation${de.kind === 'power' ? ' for $x > 0$' : ''} reaches $${productTex(de)} = ${antiTex(de)} + C$. So $y$ is`),
+        display(standardTex(de)),
+      ],
+      cTermOptions(de).map((opt) => ({ label: opt.tex, tex: true, correct: opt.correct })),
+      deSalt(de),
+    ),
+  solution: (de) => [
+    { text: `Divide every term by the factor, $${factorTex(de)}$ — the constant as well.` },
+    { tex: generalTex(de) },
+    {
+      text:
+        de.kind === 'exp'
+          ? `$C$ divided by $${factorTex(de)}$ is $${cTermTex(de)}$: the constant term decays or grows with $x$ rather than staying constant.`
+          : `$C$ divided by $${factorTex(de)}$ is $${cTermTex(de)}$, so the constant does not sit on its own.`,
+    },
+  ],
+};
+
+/* ---------- Level 3, lesson 5: particular solutions ---------- */
+
+/** A linear equation with a condition y(x0) = y0 and the C it fixes. */
+export interface ParticularDe extends LinearDe {
+  C: number;
+  x0: number;
+  /** Where a tree asks for y next. */
+  x1: number;
+}
+
+/** y at a point, whole by construction: x = 0 for `exp`, 1 or 2 for `power`. */
+export function yAt(de: ParticularDe, x: number): number {
+  if (de.kind === 'exp') return de.p + de.C;
+  const part = de.p * x ** (de.m + 1);
+  return de.k > 0 ? part + de.C / x ** de.k : part + de.C * x ** -de.k;
+}
+
+function sampleParticular(rng: Rng, difficulty: number, kind: LinearDe['kind'], useTwo: boolean): ParticularDe {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const de = sampleLinear(rng, difficulty, kind);
+    if (kind === 'exp') {
+      const C = rng.int(1, hard ? 9 : 6) * rng.sign();
+      // A condition of y(0) = 0 would leave a slip of C = 0 among the options.
+      if (de.p + C === 0) continue;
+      return { ...de, C, x0: 0, x1: 0 };
+    }
+    // Keep 2^k small, so a condition at 2 needs no huge C.
+    if (useTwo && de.k > 3) continue;
+    const x0 = useTwo ? (rng.chance(0.5) ? 1 : 2) : 1;
+    const x1 = x0 === 1 ? 2 : 1;
+    const unit = useTwo && de.k > 0 ? 2 ** de.k : 1;
+    const C = rng.int(1, hard ? 5 : 4) * rng.sign() * unit;
+    const out = { ...de, C, x0, x1 };
+    if (yAt(out, x0) === 0) continue;
+    return out;
+  }
+}
+
+const conditionTex = (de: ParticularDe): string => `y(${de.x0}) = ${yAt(de, de.x0)}`;
+export const particularTex = (de: ParticularDe): string => `y = ${partTex(de)} ${cTermTex(de, de.C)}`;
+
+/** The general solution with the condition put in, before C is found. */
+function substitutedTex(de: ParticularDe): { line: string; partValue: number; cScale: string } {
+  const partValue = de.kind === 'exp' ? de.p : de.p * de.x0 ** (de.m + 1);
+  const cScale =
+    de.kind === 'exp' || de.x0 === 1
+      ? 'C'
+      : de.k > 0
+        ? `\\frac{C}{${de.x0 ** de.k}}`
+        : `${de.x0 ** -de.k}C`;
+  return { line: `${yAt(de, de.x0)} = ${partValue} + ${cScale}`, partValue, cScale };
+}
+
+function particularSteps(de: ParticularDe): SolutionStep[] {
+  const { line, partValue } = substitutedTex(de);
+  return [
+    { text: 'The general solution, by the integrating factor:', tex: generalTex(de) },
+    {
+      text: de.kind === 'exp' ? 'Put in $x = 0$, where each $e^{0}$ is $1$.' : `Put in $x = ${de.x0}$.`,
+      tex: line,
+    },
+    { text: `Take $${partValue}$ from both sides${de.kind === 'power' && de.x0 === 2 ? ', then undo what multiplies $C$' : ''}.`, tex: `C = ${de.C}` },
+    { text: 'Write the general solution again with that $C$.', tex: particularTex(de) },
+  ];
+}
+
+const sampleEither = (rng: Rng, difficulty: number): ParticularDe =>
+  sampleParticular(rng, difficulty, rng.chance(0.5) ? 'exp' : 'power', difficulty >= 2);
+
+/** C from a condition, typed. */
+const deIfConstant: Generator<ParticularDe & { shown: boolean }> = {
+  id: 'de-if-constant',
+  sample: (rng, difficulty) => ({ ...sampleEither(rng, difficulty), shown: difficulty < 2 }),
+  choices: (de) => {
+    const y0 = yAt(de, de.x0);
+    const { partValue } = substitutedTex(de);
+    return numberChoices(de.C, [y0, y0 + partValue, -de.C, de.C + 1], mix(de.C, y0, de.k, de.m));
+  },
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: de.shown
+        ? [prose(`The general solution of $${standardTex(de)}$ is`), display(generalTex(de)), prose(`Find $C$ when $${conditionTex(de)}$.`)]
+        : [
+            prose(`Solve this equation with $${conditionTex(de)}$${de.kind === 'power' ? ', for $x > 0$' : ''}.`),
+            display(standardTex(de)),
+            prose(`The general solution ends in $${cTermTex(de)}$. Find $C$.`),
+          ],
+    lead: 'C =',
+    keypad: [],
+    answer: `${de.C}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: particularSteps,
+};
+
+/** Condition in, C out, particular solution written, one line at a time. */
+const deIfConditionSteps: Generator<ParticularDe> = {
+  id: 'de-if-condition-steps',
+  sample: sampleEither,
+  render: (de): Slide => {
+    const y0 = yAt(de, de.x0);
+    const { line, partValue, cScale } = substitutedTex(de);
+    const constant = `C = ${de.C}`;
+    const particular = particularTex(de);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          'A general solution and a condition are below. Tap the comma to put the condition in, then tap the line to find $C$, then again to write the particular solution.',
+        ),
+      ],
+      start: [generalTex(de), ',', conditionTex(de)],
+      reductions: [
+        {
+          span: [0, 3],
+          operator: 1,
+          value: line,
+          bank: stepBank(line, `${partValue} = ${y0} + ${cScale}`, `${y0} = ${qCoef(de)} + ${cScale}`, `0 = ${partValue} + ${cScale}`),
+        },
+        { span: [0, 1], operator: 0, value: constant, bank: stepBank(constant, `C = ${y0}`, `C = ${-de.C}`, `C = ${y0 + partValue}`) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: particular,
+          bank: stepBank(
+            particular,
+            `y = ${partTex(de)} ${signed(de.C)}`,
+            `y = ${partTex(de)} ${cTermTex(de, de.C, true)}`,
+            `y = ${partTex(de)} ${cTermTex(de, -de.C)}`,
+          ),
+        },
+      ],
+    };
+  },
+  solution: particularSteps,
+};
+
+/** Which particular solution fits: the equation and the condition, both. */
+export function fitOptions(de: ParticularDe): { tex: string; answer: string; correct?: boolean }[] {
+  const y0 = yAt(de, de.x0);
+  const wrongC = y0 !== de.C ? y0 : -de.C;
+  const part = partAnswer(de);
+  return [
+    { tex: particularTex(de), answer: generalAnswer(de, de.C), correct: true },
+    { tex: `y = ${partTex(de)} ${cTermTex(de, wrongC)}`, answer: generalAnswer(de, wrongC) },
+    { tex: `y = ${partTex(de)} ${cTermTex(de, de.C, true)}`, answer: `${part} + (${de.C})*${cFactorAnswer(de, true)}` },
+    { tex: `y = ${antiTex(de)} ${cTermTex(de, de.C)}`, answer: `${antiAnswer(de)} + (${de.C})*${cFactorAnswer(de)}` },
+  ];
+}
+
+const deIfFit: Generator<ParticularDe> = {
+  id: 'de-if-fit',
+  sample: sampleEither,
+  render: (de): Slide =>
+    choiceSlide(
+      [
+        prose(`Which is the solution of this equation with $${conditionTex(de)}$${de.kind === 'power' ? ', for $x > 0$' : ''}?`),
+        display(standardTex(de)),
+      ],
+      fitOptions(de).map((opt) => ({ label: opt.tex, tex: true, correct: opt.correct })),
+      deSalt(de, de.C, de.x0),
+    ),
+  solution: (de) => [
+    ...particularSteps(de),
+    { text: 'Each of the others either fails the condition or, once differentiated, fails the equation.' },
+  ],
+};
+
+/** The coefficient, then C, then y somewhere else, as a tree. */
+const deIfValueTree: Generator<ParticularDe> = {
+  id: 'de-if-value-tree',
+  sample: (rng, difficulty) => sampleParticular(rng, difficulty, 'power', true),
+  render: (de): Slide => {
+    const y1 = yAt(de, de.x1);
+    const answer = [de.p, de.C, y1];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`For $x > 0$, the general solution of this equation is $y = rx^{${de.m + 1}} + ${cTermTex(de)}$.`),
+        prose(`Given $${conditionTex(de)}$, fill in $r$, then $C$, then $y(${de.x1})$.`),
+      ],
+      expression: standardTex(de),
+      nodes: [
+        { id: 'r', from: [] },
+        { id: 'C', from: ['r'] },
+        { id: 'y', from: ['r', 'C'] },
+      ],
+      bank: treeBank(answer, [qCoef(de), yAt(de, de.x0), -de.C, y1 + de.p, de.p + de.C]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => [
+    ...particularSteps(de),
+    { text: `Put in $x = ${de.x1}$.`, tex: `y(${de.x1}) = ${yAt(de, de.x1)}` },
+  ],
+};
+
 /* ---------- Registration ---------- */
 
 export const deGenerators = {
@@ -3204,6 +4553,26 @@ export const deGenerators = {
   deVerifyTree,
   deVerifyWhich,
   deVerifyConstant,
+  deIfRead,
+  deIfDivide,
+  deIfProduct,
+  deIfMultiplyTree,
+  deIfFactor,
+  deIfExponentSteps,
+  deIfShape,
+  deIfLhs,
+  deIfConstpSteps,
+  deIfExponentsTree,
+  deIfGeneral,
+  deIfIntegrate,
+  deIfPowerTiles,
+  deIfPowerSteps,
+  deIfPowersTree,
+  deIfCterm,
+  deIfConstant,
+  deIfConditionSteps,
+  deIfFit,
+  deIfValueTree,
 };
 
 export const differentialEquationGenerators = Object.values(deGenerators) as Generator<never>[];

@@ -2,10 +2,11 @@
 
 Written by C13.
 
-Has: First-Order by Separation; Modelling with Differential Equations.
+Has: First-Order by Separation; Modelling with Differential Equations; The
+Integrating Factor (dy/dx + P(x)y = Q(x), finding e^∫P, recognising the left
+side as a product derivative, and particular solutions).
 
-Needs: The Integrating Factor (dy/dx + P(x)y = Q(x), finding e^∫P, recognising
-the left side as a product derivative, and particular solutions); Second-Order
+Needs: Second-Order
 with Constant Coefficients (the auxiliary equation, real distinct, repeated and
 complex roots, and the general solution in each case); Non-Homogeneous
 Second-Order (complementary function plus particular integral for polynomial,

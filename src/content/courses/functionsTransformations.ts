@@ -93,7 +93,7 @@ export const functionsTransformations: Course = {
               prose(
                 'Whatever sits in the bracket replaces **every** $x$, so put it in brackets of its own and then tidy up:',
               ),
-              maths('f(a + 1) = 3(a + 1) - 2 = 3a + 1'),
+              maths('\\begin{aligned} f(a + 1) &= 3(a + 1) - 2 \\\\ &= 3a + 1 \\end{aligned}'),
             ),
             ask('fun-substitute'),
             ask('fun-machine-tree', 2),
@@ -164,7 +164,7 @@ export const functionsTransformations: Course = {
           slides: [
             teach(
               prose('Functions can be chained: the output of one becomes the input of the next.'),
-              maths('f(x) = 2x + 1, \\quad g(x) = x^2'),
+              maths('\\begin{aligned} f(x) &= 2x + 1 \\\\ g(x) &= x^2 \\end{aligned}'),
               prose(
                 '$fg(x)$ means $f(g(x))$: $g$ acts **first**, because it is nearest the $x$, and its output goes into $f$.',
               ),
@@ -188,8 +188,8 @@ export const functionsTransformations: Course = {
               prose(
                 'With two straight lines the composite is another straight line. The $x$ coefficient is the same either way round; the number on the end is not.',
               ),
-              maths('f(x) = 3x - 4, \\quad g(x) = 2x + 5'),
-              maths('fg(x) = 6x + 11, \\quad gf(x) = 6x - 3'),
+              maths('\\begin{aligned} f(x) &= 3x - 4 \\\\ g(x) &= 2x + 5 \\end{aligned}'),
+              maths('\\begin{aligned} fg(x) &= 6x + 11 \\\\ gf(x) &= 6x - 3 \\end{aligned}'),
             ),
             ask('fun-composite-form', 2),
             ask('fun-composite-order', 2),
@@ -215,7 +215,8 @@ export const functionsTransformations: Course = {
               prose(
                 'For one value, the whole inverse is not needed. $f^{-1}(13)$ is the input $f$ turns into $13$ — solve $f(x) = 13$ by undoing each step of $f$ in **reverse** order.',
               ),
-              maths('f(x) = 3x - 2: \\quad 13 \\xrightarrow{+2} 15 \\xrightarrow{\\div 3} 5'),
+              prose('For $f(x) = 3x - 2$, add $2$ and then divide by $3$:'),
+              maths('13 \\xrightarrow{+2} 15 \\xrightarrow{\\div 3} 5'),
               prose('So $f^{-1}(13) = 5$. The $-1$ is not a power: $f^{-1}(x)$ is not $\\frac{1}{f(x)}$.'),
             ),
             ask('fun-undo-tree'),

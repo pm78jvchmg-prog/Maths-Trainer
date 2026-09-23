@@ -36,6 +36,11 @@ function linTex(a: number, b: number, v = 'x'): string {
   return (tex === '' ? '0' : tex).replace('x', v);
 }
 
+/** Two rules stacked, so neither runs off a phone screen. */
+function pairTex(f: string, g: string): string {
+  return `\\begin{aligned} f(x) &= ${f} \\\\ g(x) &= ${g} \\end{aligned}`;
+}
+
 /** A number bracketed when negative, for a substitution written out. */
 function br(value: number): string {
   return value < 0 ? `(${value})` : `${value}`;
@@ -989,7 +994,7 @@ const compositeValue: Generator<CompositeParams> = {
     return {
       kind: 'expression',
       prompt: [
-        { kind: 'display', tex: `f(x) = ${ruleOfTex(f)}, \\quad g(x) = ${ruleOfTex(g)}` },
+        { kind: 'display', tex: pairTex(ruleOfTex(f), ruleOfTex(g)) },
         { kind: 'prose', text: `Find $${compositeName(fg)}(${k})$.` },
       ],
       lead: `${compositeName(fg)}(${k}) =`,
@@ -1052,7 +1057,7 @@ const compositeForm: Generator<CompositeFormParams> = {
     return {
       kind: 'tiles',
       prompt: [
-        { kind: 'display', tex: `f(x) = ${linTex(a, b)}, \\quad g(x) = ${linTex(c, d)}` },
+        { kind: 'display', tex: pairTex(linTex(a, b), linTex(c, d)) },
         { kind: 'prose', text: `Write $${compositeName(fg)}(x)$ as a single rule.` },
       ],
       template: `${compositeName(fg)}(x) = {0} {1}`,
@@ -1072,8 +1077,9 @@ const compositeForm: Generator<CompositeFormParams> = {
     const [oa, ob, ia, ib] = fg ? [a, b, c, d] : [c, d, a, b];
     return [
       { text: `$${outerName}${innerName}(x) = ${outerName}(${innerName}(x))$: put the whole of $${innerName}(x)$ in place of $x$ in $${outerName}$.` },
-      { tex: `${outerName}(${linTex(ia, ib)}) = ${oa}(${linTex(ia, ib)}) ${signedTile(ob)}` },
-      { tex: `= ${linTex(oa * ia, oa * ib + ob)}` },
+      {
+        tex: `\\begin{aligned} ${outerName}${innerName}(x) &= ${oa}(${linTex(ia, ib)}) ${signedTile(ob)} \\\\ &= ${linTex(oa * ia, oa * ib + ob)} \\end{aligned}`,
+      },
     ];
   },
 };
@@ -1143,7 +1149,7 @@ const compositeOrder: Generator<OrderParams> = {
     return {
       kind: 'choice',
       prompt: [
-        { kind: 'display', tex: `f(x) = ${orderF(params)}, \\quad g(x) = ${g}` },
+        { kind: 'display', tex: pairTex(orderF(params), g) },
         { kind: 'prose', text: `Which of these is $${compositeName(fg)}(x)$?` },
       ],
       options: ordered.map((label, idx) => ({ id: `opt${idx}`, label, tex: true })),
@@ -1200,7 +1206,7 @@ const chainTree: Generator<CompositeParams> = {
     return {
       kind: 'tree',
       prompt: [
-        { kind: 'display', tex: `f(x) = ${ruleOfTex(f)}, \\quad g(x) = ${ruleOfTex(g)}` },
+        { kind: 'display', tex: pairTex(ruleOfTex(f), ruleOfTex(g)) },
         {
           kind: 'prose',
           text: `Find $fg(${k})$ and $gf(${k})$. Fill in $g(${k})$ and $f(${k})$ first, then put each through the other function.`,
@@ -1930,7 +1936,8 @@ const inverseMeet: Generator<MeetParams> = {
           yMin: -6,
           yMax: 6,
           curves: [
-            { f: (x: number) => a * x + b, accent: true },
+            // Not in the accent colour: that is the slider's marker.
+            { f: (x: number) => a * x + b },
             { f: (x: number) => (x - b) / a },
             { f: (x: number) => x, dashed: true },
           ],

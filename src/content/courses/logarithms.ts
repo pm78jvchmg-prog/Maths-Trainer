@@ -1312,6 +1312,59 @@ export const logarithms: Course = {
             ask('log-lin-power-evaluate', 2),
           ],
         },
+        {
+          id: 'lg-l6-exponential',
+          title: 'Exponential Models',
+          slides: [
+            teach(
+              prose('An **exponential model** $y = ab^{x}$ has $x$ in the power. Taking logs brings $x$ down instead:'),
+              maths('\\log y = \\log a + x\\log b'),
+              prose(
+                'Now the straight line is $\\log y$ against $x$ itself, not against $\\log x$. Its gradient is $\\log b$ and its intercept is $\\log a$.',
+              ),
+            ),
+            ask('log-lin-exp-tiles'),
+            ask('log-lin-exp-read'),
+            ask('log-lin-exp-evaluate'),
+            teach(
+              prose('Take $y = 10 \\times 100^{x}$. Its logs are $\\log y = 1 + 2x$.'),
+              graph({
+                xMin: -0.32,
+                xMax: 4,
+                yMin: -2,
+                yMax: 10,
+                curves: [{ f: (x) => 1 + 2 * x }],
+                marks: [
+                  { x: 0, y: 1 },
+                  { x: 3, y: 7 },
+                ],
+                labels: [{ x: 3, y: 7, text: '(3, 7)' }],
+                axisNames: { x: 'x', y: 'log y' },
+                label: 'The straight line log y = 1 + 2x',
+              }),
+              prose(
+                'This time both are logarithms. $\\log b = 2$ gives $b = 10^{2} = 100$, and $\\log a = 1$ gives $a = 10$.',
+              ),
+            ),
+            ask('log-lin-exp-read+choice'),
+            ask('log-lin-exp-slider'),
+            ask('log-lin-exp-tiles'),
+            teach(
+              prose(
+                'With $e$ as the base, the model is usually written $y = ae^{kx}$. Since $\\ln e = 1$, natural logs give a gradient of $k$ itself:',
+              ),
+              maths('y = 5e^{2x}'),
+              maths('\\ln y = \\ln 5 + 2x'),
+            ),
+            ask('log-lin-exp-evaluate+choice'),
+            ask('log-lin-exp-slider'),
+          ],
+          skillCheck: [
+            ask('log-lin-exp-read', 2),
+            ask('log-lin-exp-tiles', 2),
+            ask('log-lin-exp-evaluate', 2),
+          ],
+        },
       ],
     },
   ],

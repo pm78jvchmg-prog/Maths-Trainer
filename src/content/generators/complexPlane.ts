@@ -4539,17 +4539,17 @@ export const expformEulerParts: Generator<EulerTilesParams> = {
     return {
       kind: 'tiles',
       prompt: [
-        { kind: 'prose', text: 'Fill in the real and imaginary parts of $z$.' },
+        { kind: 'prose', text: 'Write $z$ as $x + yi$: fill in $x$ and $y$.' },
         { kind: 'display', tex: `z = ${expTex(mod, angle)}` },
       ],
-      template: '\\mathrm{Re}(z) = {0}, \\quad \\mathrm{Im}(z) = {1}',
+      template: 'x = {0}, \\quad y = {1}',
       bank: params.bank,
       answer: [partTex(re), partTex(im)],
     };
   },
   solution: (params) => [
     ...eulerWorking(params),
-    { text: 'The imaginary part is the number multiplying $i$, without the $i$.' },
+    { text: '$y$ is the number multiplying $i$, without the $i$.' },
   ],
 };
 
@@ -5106,14 +5106,14 @@ export const expformQuotientTree: Generator<QuotientTreeParams> = {
     for (const token of pool) {
       if (!answer.includes(token) && !extras.includes(token)) extras.push(token);
     }
-    return { r2, q, k1, k2, d, bank: rng.shuffle([...answer, ...extras.slice(0, 5)]) };
+    return { r2, q, k1, k2, d, bank: rng.shuffle([...answer, ...extras.slice(0, 3)]) };
   },
   render: (params) => {
     const { r2, q, k1, k2, d, bank } = params;
     return {
       kind: 'tree',
       prompt: [
-        { kind: 'prose', text: 'Divide the moduli and subtract the angles, then bring the angle into $(-\\pi, \\pi]$.' },
+        { kind: 'prose', text: 'Top row: the moduli divided, then the angles subtracted. Next, that angle brought into $(-\\pi, \\pi]$. Last, the answer.' },
       ],
       expression: `\\dfrac{${expTex({ a: q * r2, s: 1 }, { m: k1, d })}}{${expTex({ a: r2, s: 1 }, { m: k2, d })}}`,
       nodes: [

@@ -13,6 +13,7 @@ import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
 import { quadraticsGenerators } from './generators/quadratics';
 import { quadraticShapeGenerators } from './generators/quadraticShapes';
+import { termTableGenerators } from './generators/termTable';
 import { vectorGenerators } from './generators/vectors';
 import { trigonometryGenerators } from './generators/trigonometry';
 import { workingGenerators } from './generators/working';
@@ -41,6 +42,9 @@ export const allGenerators = [
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.
   ...workingGenerators,
+  // The `table` widget's demonstrations, asked by no lesson until Sequences &
+  // Series (C5) arrives.
+  ...termTableGenerators,
 ];
 
 /** The base generators plus the choice form of every one that declares it. */

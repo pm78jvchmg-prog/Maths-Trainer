@@ -375,6 +375,11 @@ function grade(slide: Slide, answer: Answer, seed: number): Feedback {
     case 'tree':
       return gradeSequence(answer, slide.answer);
 
+    // One token per blank in reading order, compared exactly: the generator
+    // writes every value one way, so there is no second spelling to accept.
+    case 'table':
+      return gradeSequence(answer, slide.answer);
+
     /**
      * One number, held against what the expression comes to.
      *

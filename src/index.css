@@ -1341,6 +1341,56 @@ button {
 }
 
 /*
+ * The term table. A plain grid of rows rather than a flex row, so the frame
+ * drops its centring and lets the table take the full width; fixed layout
+ * shares that width evenly, which is what keeps three columns inside 393px
+ * however long a value gets.
+ */
+.answer-frame.table-frame {
+  display: block;
+  padding: 8px 10px;
+}
+
+.term-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: currentColor;
+}
+
+.term-table th {
+  padding: 8px 4px;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-dim);
+  font-weight: normal;
+  font-size: 19px;
+}
+
+.term-table td {
+  height: 52px;
+  padding: 4px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.term-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Columns other than the first are divided, so n reads as the index it is. */
+.term-table th + th,
+.term-table td + td {
+  border-left: 1px solid var(--border);
+}
+
+.term-table .answer-slot {
+  min-width: 0;
+  width: 100%;
+  max-width: 96px;
+}
+
+/*
  * The slider.
  *
  * The track is drawn rather than left to `accent-color`, for two reasons. The

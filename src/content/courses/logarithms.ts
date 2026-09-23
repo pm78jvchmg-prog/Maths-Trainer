@@ -7,25 +7,19 @@
  * Level 3 uses them, which is where logarithms stop being notation and start
  * being the only way to get an unknown out of an index. Level 4 changes base:
  * the formula, what it cancels, solving with it, and choosing the base that
- * makes an answer exact.
+ * makes an answer exact. Level 5 draws the curve: its shape and key points,
+ * its reflection y = a^x, what transformations do to it, and reading
+ * solutions off it.
  *
  * Each level closes with a level check: twelve to fourteen questions, no
  * teaching slides, one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import type { Block, Course, SlideRef } from '../types';
+import { logGraphSvg, type LogGraphOptions } from '../generators/logarithms';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
@@ -37,10 +31,23 @@ const ask = (generatorId: string, difficulty = 1): SlideRef => ({
 const prose = (text: string) => ({ kind: 'prose' as const, text });
 const maths = (tex: string) => ({ kind: 'display' as const, tex });
 
+/**
+ * A figure for a teaching slide, drawn by the same helper the level-5
+ * questions use, so the picture the learner is taught from is the one they are
+ * then asked about.
+ */
+const graph = (opts: LogGraphOptions): Block => ({ kind: 'diagram', svg: logGraphSvg(opts) });
+
+/** y = log_b(x - k) + c, to draw. */
+const logf =
+  (base: number, k = 0, c = 0) =>
+  (x: number) =>
+    Math.log(x - k) / Math.log(base) + c;
+
 export const logarithms: Course = {
   id: 'logarithms',
   title: 'Logarithms',
-  blurb: 'A logarithm is an index. Then the three laws, solving with them, and changing base.',
+  blurb: 'A logarithm is an index. Then the three laws, solving with them, changing base, and the graph.',
   levels: [
     {
       id: 'lg-l1',
@@ -951,6 +958,295 @@ export const logarithms: Course = {
         ask('log-common-base-tiles', 2),
         ask('log-base-flow', 2),
         ask('log-chain-tiles', 2),
+      ],
+    },
+    {
+      id: 'lg-l5',
+      title: 'Logarithmic Graphs',
+      lessons: [
+        {
+          id: 'lg-l5-graph',
+          title: 'The Graph of a Logarithm',
+          slides: [
+            teach(
+              prose('Plot $y = \\log_{2} x$ from its easy points. Each doubling of $x$ adds 1 to the height.'),
+              maths('(1, 0) \\quad (2, 1) \\quad (4, 2) \\quad (8, 3)'),
+              graph({
+                xMin: -0.6,
+                xMax: 10,
+                yMin: -3,
+                yMax: 4,
+                curves: [{ f: logf(2) }],
+                marks: [
+                  { x: 1, y: 0 },
+                  { x: 2, y: 1 },
+                  { x: 4, y: 2 },
+                  { x: 8, y: 3 },
+                ],
+                labels: [{ x: 8, y: 3, text: '(8, 3)' }],
+                label: 'The curve y = log base 2 of x through four marked points',
+              }),
+              prose(
+                'Every point on $y = \\log_{a} x$ is $(a^{k}, k)$. Two are on every such curve: $(1, 0)$, because $a^{0} = 1$, and $(a, 1)$, because $a^{1} = a$.',
+              ),
+            ),
+            ask('log-graph-read'),
+            ask('log-graph-slider'),
+            ask('log-graph-points-tiles'),
+            teach(
+              prose(
+                'Left of $x = 1$ the heights go negative: $(\\frac{1}{2}, -1)$, $(\\frac{1}{4}, -2)$, and on without end.',
+              ),
+              prose(
+                'The curve dives towards the $y$-axis but never meets it, because no power of 2 is 0 or less. The $y$-axis is a **vertical asymptote**.',
+              ),
+              maths('y = \\log_{a} x \\implies x > 0'),
+              prose(
+                'So a point with $x \\le 0$ is never on the curve. For any other point, check that the base to the power of the height gives $x$.',
+              ),
+            ),
+            ask('log-on-curve-flow'),
+            ask('log-graph-read+choice'),
+            ask('log-graph-slider'),
+            teach(
+              prose(
+                'A larger base climbs more slowly. $\\log_{10} x$ only reaches 2 at $x = 100$, where $\\log_{2} x$ is already past 6.',
+              ),
+              graph({
+                xMin: -1,
+                xMax: 20,
+                yMin: -3,
+                yMax: 5,
+                curves: [{ f: logf(2), accent: true }, { f: logf(10) }],
+                marks: [
+                  { x: 2, y: 1 },
+                  { x: 10, y: 1 },
+                ],
+                horizontals: [1],
+                labels: [
+                  { x: 2, y: 1, text: '(2, 1)' },
+                  { x: 10, y: 1, text: '(10, 1)' },
+                ],
+                label: 'The curves y = log base 2 of x and y = log base 10 of x',
+              }),
+              prose(
+                'Both pass through $(1, 0)$, and each meets the line $y = 1$ at its own base. That crossing is how a base is read off a graph.',
+              ),
+            ),
+            ask('log-graph-points-tiles'),
+            ask('log-on-curve-flow'),
+          ],
+          skillCheck: [
+            ask('log-graph-read', 2),
+            ask('log-graph-points-tiles', 2),
+            ask('log-on-curve-flow', 2),
+          ],
+        },
+        {
+          id: 'lg-l5-inverse',
+          title: 'Reflection in y = x',
+          slides: [
+            teach(
+              prose(
+                '$y = 2^{x}$ and $y = \\log_{2} x$ say the same thing about the same numbers, with $x$ and $y$ swapped.',
+              ),
+              maths('y = 2^{x} \\iff x = \\log_{2} y'),
+              graph({
+                xMin: -3,
+                xMax: 8,
+                yMin: -3,
+                yMax: 6.28,
+                height: 240,
+                curves: [
+                  { f: (x) => Math.pow(2, x), accent: true },
+                  { f: logf(2) },
+                  { f: (x) => x, dashed: true },
+                ],
+                marks: [
+                  { x: 2, y: 4 },
+                  { x: 4, y: 2 },
+                ],
+                labels: [
+                  { x: 2, y: 4, text: '(2, 4)', place: 'above-left' },
+                  { x: 4, y: 2, text: '(4, 2)', place: 'below-right' },
+                ],
+                label: 'The curves y = 2 to the x and y = log base 2 of x, reflected in the line y = x',
+              }),
+              prose(
+                'So each curve is the other reflected in the line $y = x$. A point $(p, q)$ on one is $(q, p)$ on the other.',
+              ),
+            ),
+            ask('log-inverse-point'),
+            ask('log-graph-match'),
+            ask('log-mirror-slider'),
+            teach(
+              prose('Functions that swap $x$ and $y$ like this are **inverses**: each undoes the other.'),
+              maths('\\log_{a}\\left(a^{x}\\right) = x'),
+              maths('a^{\\log_{a} x} = x'),
+              prose(
+                'The first holds for every $x$. The second only for $x > 0$, because the logarithm has to exist before it can be undone.',
+              ),
+            ),
+            ask('log-undo-evaluate'),
+            ask('log-inverse-point'),
+            ask('log-graph-match'),
+            teach(
+              prose(
+                'Every feature swaps too. $y = a^{x}$ passes through $(0, 1)$ and $(1, a)$, and $y = \\log_{a} x$ through $(1, 0)$ and $(a, 1)$.',
+              ),
+              prose(
+                "The exponential flattens onto the $x$-axis on the left, a horizontal asymptote $y = 0$. Reflected, that is the logarithm's vertical asymptote $x = 0$.",
+              ),
+              prose(
+                'And the exponential takes any $x$ but gives only positive $y$, so the logarithm takes only positive $x$ but gives any $y$.',
+              ),
+            ),
+            ask('log-mirror-slider'),
+            ask('log-undo-evaluate'),
+          ],
+          skillCheck: [
+            ask('log-inverse-point', 2),
+            ask('log-graph-match', 2),
+            ask('log-undo-evaluate', 2),
+          ],
+        },
+        {
+          id: 'lg-l5-transform',
+          title: 'Transforming the Graph',
+          slides: [
+            teach(
+              prose(
+                'A number added **outside** the logarithm moves every height: $y = \\log_{2} x + 3$ is the curve moved up 3.',
+              ),
+              prose(
+                'A number added **inside** acts on $x$, and backwards: $y = \\log_{2}\\left(x - 3\\right)$ is the curve moved *right* 3.',
+              ),
+              graph({
+                xMin: -1,
+                xMax: 12,
+                yMin: -3,
+                yMax: 4,
+                curves: [{ f: logf(2), dashed: true }, { f: logf(2, 3), accent: true }],
+                verticals: [{ x: 3 }],
+                label: 'The curve y = log base 2 of x, and the same curve moved 3 to the right',
+              }),
+              prose(
+                'Only the inside change moves the asymptote. It sits where the bracket is zero: $x - 3 = 0$, so $x = 3$.',
+              ),
+            ),
+            ask('log-transform-match'),
+            ask('log-transform-slider'),
+            ask('log-transform-tiles'),
+            teach(
+              prose('Multiplying works the same way round. Outside, $y = 3\\log_{2} x$ stretches every height by 3.'),
+              prose(
+                'Inside, $y = \\log_{2}\\left(3x\\right)$ reaches each height at a third of the old $x$: a horizontal stretch, scale factor $\\frac{1}{3}$.',
+              ),
+              prose(
+                'Neither stretch moves the asymptote, since $3x = 0$ still means $x = 0$. But the inside one moves the intercept to $x = \\frac{1}{3}$.',
+              ),
+            ),
+            ask('log-transform-flow'),
+            ask('log-transform-match'),
+            ask('log-transform-tiles'),
+            teach(
+              prose('Two facts pin down any transformed curve.'),
+              prose(
+                'The asymptote is where the inside of the logarithm is zero. The $x$-intercept is where the whole right-hand side is zero.',
+              ),
+              maths('y = \\log_{2}\\left(x - 3\\right) - 1'),
+              maths('x - 3 = 0 \\implies x = 3'),
+              maths('\\log_{2}\\left(x - 3\\right) = 1 \\implies x = 5'),
+            ),
+            ask('log-transform-slider'),
+            ask('log-transform-flow'),
+          ],
+          skillCheck: [
+            ask('log-transform-match', 2),
+            ask('log-transform-tiles', 2),
+            ask('log-transform-slider', 2),
+          ],
+        },
+        {
+          id: 'lg-l5-solve',
+          title: 'Reading and Solving from a Graph',
+          slides: [
+            teach(
+              prose(
+                'To solve $\\log_{2} x = 3$ on a graph, draw the line $y = 3$ and read off where the curve crosses it.',
+              ),
+              graph({
+                xMin: -0.6,
+                xMax: 11,
+                yMin: -3,
+                yMax: 4.5,
+                curves: [{ f: logf(2) }],
+                horizontals: [3],
+                marks: [{ x: 8, y: 3, hollow: true }],
+                labels: [{ x: 8, y: 3, text: '(8, 3)' }],
+                label: 'The curve y = log base 2 of x crossing the line y = 3',
+              }),
+              prose(
+                'Index form gives the same point exactly: $x = 2^{3} = 8$. The curve always rises, so it is below the line left of 8 and above it to the right.',
+              ),
+              prose('It only exists for $x > 0$, so $\\log_{2} x < 3$ means $0 < x < 8$.'),
+            ),
+            ask('log-solve-graph'),
+            ask('log-inequality-tiles'),
+            ask('log-solve-graph+choice'),
+            teach(
+              prose('Where two curves meet their heights are equal, so set the two right-hand sides equal.'),
+              maths('\\log_{2} x = \\log_{2}\\left(x - 3\\right) + 1'),
+              maths('\\log_{2}\\left(\\frac{x}{x - 3}\\right) = 1'),
+              maths('\\frac{x}{x - 3} = 2 \\implies x = 6'),
+              prose(
+                'Curves with different bases are simpler: they meet only at $(1, 0)$, and right of it the smaller base is higher.',
+              ),
+            ),
+            ask('log-meet-slider'),
+            ask('log-compare-bases'),
+            ask('log-inequality-tiles'),
+            teach(
+              graph({
+                xMin: -0.5,
+                xMax: 12,
+                yMin: -3,
+                yMax: 4,
+                curves: [{ f: logf(2), accent: true }, { f: logf(5) }],
+                label: 'The curves y = log base 2 of x and y = log base 5 of x',
+              }),
+              prose(
+                'Right of 1, base 2 needs a bigger power than base 5 to reach the same $x$, so $y = \\log_{2} x$ is higher.',
+              ),
+              prose(
+                'Left of 1 both are negative, and the bigger size puts $y = \\log_{2} x$ further below. The order flips at the one point they share.',
+              ),
+            ),
+            ask('log-compare-bases'),
+            ask('log-meet-slider'),
+          ],
+          skillCheck: [
+            ask('log-solve-graph', 2),
+            ask('log-compare-bases', 2),
+            ask('log-inequality-tiles', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('log-graph-read', 2),
+        ask('log-graph-slider', 2),
+        ask('log-on-curve-flow', 2),
+        ask('log-graph-match', 2),
+        ask('log-inverse-point', 2),
+        ask('log-undo-evaluate', 2),
+        ask('log-mirror-slider', 2),
+        ask('log-transform-match', 2),
+        ask('log-transform-tiles', 2),
+        ask('log-transform-flow', 2),
+        ask('log-solve-graph+choice', 2),
+        ask('log-meet-slider', 2),
+        ask('log-compare-bases', 2),
+        ask('log-inequality-tiles', 2),
       ],
     },
   ],

@@ -420,6 +420,7 @@ are green, and one new lesson has been played in a browser.
 | B8 | Vectors: Vector Geometry | **done** (`claude/roadmap-b-vectors-k0aou4`): level `vm-l4`, 5 lessons, a 14-question level check, 19 new generators |
 | B9 | Matrices & Linear Transformations: Matrices as Transformations | **done** (`claude/roadmap-b-matrices-fcu036`): level `vm-l5`, 5 lessons, a 15-question level check, 15 new generators and a unit-square figure |
 | B10 | Exponents & Radicals: Manipulating Surd Expressions | **done** (`claude/roadmap-b-exponents-2-ts8ccs`): level `er-l5`, 5 lessons, a 14-question level check, 19 new generators |
+| B12 | Logarithms: Logarithmic Graphs | **done** (`claude/roadmap-b-logarithms-2-bl64ii`): level `lg-l5`, 4 lessons, a 14-question level check, 16 new generators and a logarithm-graph figure |
 | B17 | Vectors: Lines in Vector Form | **done** (`claude/roadmap-b-vectors-2-u0463t`): level `vm-l6`, 5 lessons, a 14-question level check, 17 new generators |
 
 ### Phase C — the twenty-one new concepts

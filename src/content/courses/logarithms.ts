@@ -1365,6 +1365,46 @@ export const logarithms: Course = {
             ask('log-lin-exp-evaluate', 2),
           ],
         },
+        {
+          id: 'lg-l6-points',
+          title: 'From Two Points to the Model',
+          slides: [
+            teach(
+              prose(
+                'Two points on the straight line are enough to find the model. Take $(1, 5)$ and $(3, 11)$ on a graph of $\\log y$ against $\\log x$.',
+              ),
+              maths('\\text{gradient} = \\frac{11 - 5}{3 - 1} = 3'),
+              maths('\\text{intercept} = 5 - 3 \\times 1 = 2'),
+              prose('So the line is $\\log y = 2 + 3\\log x$, and the model is $y = 100x^{3}$.'),
+            ),
+            ask('log-lin-gradient-tree'),
+            ask('log-lin-model-tiles'),
+            ask('log-lin-model-match'),
+            teach(
+              prose('The intercept is a logarithm, so the last step is always to undo it.'),
+              maths('\\log k = 2 \\implies k = 100'),
+              maths('\\ln k = 2 \\implies k = e^{2}'),
+              prose('Stopping at $k = 2$ is the most common slip in this topic.'),
+            ),
+            ask('log-lin-constant-steps'),
+            ask('log-lin-gradient-tree'),
+            ask('log-lin-model-match'),
+            teach(
+              prose(
+                'Against $x$ rather than $\\log x$, the same working gives an exponential model. There the gradient is a logarithm too, so undo both.',
+              ),
+              maths('\\log y = 1 + 2x'),
+              prose('So $\\log a = 1$ and $\\log b = 2$, which give $a = 10$ and $b = 100$.'),
+            ),
+            ask('log-lin-model-tiles'),
+            ask('log-lin-constant-steps'),
+          ],
+          skillCheck: [
+            ask('log-lin-model-match', 2),
+            ask('log-lin-model-tiles', 2),
+            ask('log-lin-constant-steps', 2),
+          ],
+        },
       ],
     },
   ],

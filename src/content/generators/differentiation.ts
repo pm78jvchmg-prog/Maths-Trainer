@@ -3733,9 +3733,11 @@ const sketchSigns: Generator<Poly> = {
   render: (poly): Slide => {
     const roots = rootsOf(poly);
     const signs = stretchPoints(roots).map((x) => SIGN_TOKEN(polyAt(poly, x)));
-    const marker = (r: number) => `\\overset{\\scriptstyle ${r}}{\\big|}`;
+    // No spacing round the markers: four blanks and three markers only just
+    // fit one line of a phone, and a wrapped sign chart reads as two charts.
+    const marker = (r: number) => `\\overset{\\scriptstyle ${r}}{|}`;
     const template = signs
-      .map((_, i) => (i === 0 ? '{0}' : ` \\;\\; ${marker(roots[i - 1])} \\;\\; {${i}}`))
+      .map((_, i) => (i === 0 ? '{0}' : `${marker(roots[i - 1])}{${i}}`))
       .join('');
     return {
       kind: 'tiles',
@@ -3839,7 +3841,7 @@ const sketchTouch: Generator<TouchParams> = {
       steps: [
         {
           id: 'parity',
-          ask: `Is the power on the bracket $${rootFactorTex(r)}$ odd or even?`,
+          ask: r === 0 ? 'Is the power on $x$ odd or even?' : `Is the power on the bracket $${rootFactorTex(r)}$ odd or even?`,
           branches: [
             { label: 'Odd', to: 'once' },
             { label: 'Even', to: 'side' },
@@ -3892,7 +3894,9 @@ const sketchTouch: Generator<TouchParams> = {
       },
       {
         text: `Which way it turns depends on the rest of the product. Put $x = ${r}$ into everything except that bracket:`,
-        tex: `${rest}`,
+        tex: `${[params.poly.k, ...params.poly.factors.filter((_, i) => i !== params.at).map(([s, m]) => (r - s) ** m)]
+          .map(bracketedNumber)
+          .join(' \\times ')} = ${rest}`,
       },
       {
         text:
@@ -3933,7 +3937,8 @@ const sketchTurn: Generator<CubicPoint> = {
         },
         { kind: 'display', tex: `y = ${cubicTex(cubic)}` },
       ],
-      template: '({0}, {1}) \\; \\text{is a local} \\; {2}',
+      // "is a local" pushed the last blank onto a second line on a phone.
+      template: '({0}, {1}) \\; \\text{is a} \\; {2}',
       bank: [
         ...numberTiles([x, y], [other, cubicAt(cubic, other), -x, -y]),
         '\\text{maximum}',

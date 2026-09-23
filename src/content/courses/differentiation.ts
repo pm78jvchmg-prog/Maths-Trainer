@@ -1449,7 +1449,8 @@ export const differentiation: Course = {
               prose(
                 'A turning point can sit on the axis itself. That is a root the curve only touches, and it is where a squared bracket comes from.',
               ),
-              { kind: 'display', tex: 'y = x^{3} - 3x + 2 = (x - 1)^{2}(x + 2)' },
+              { kind: 'display', tex: 'y = x^{3} - 3x + 2' },
+              { kind: 'display', tex: '= (x - 1)^{2}(x + 2)' },
               prose(
                 'Its minimum is $(1, 0)$, on the axis, and its maximum is $(-1, 4)$. The curve crosses at $x = -2$ and touches at $x = 1$: two meetings, not three.',
               ),
@@ -1487,9 +1488,8 @@ export const differentiation: Course = {
             ask('df-cs-rational-y'),
             ask('df-cs-asymptotes+choice', 2),
             teach(
-              prose(
-                'The curve still meets the axes like any other. For the $y$-axis put $x = 0$: $y = \\frac{2}{-1} + 1 = -1$.',
-              ),
+              prose('The curve still meets the axes like any other. For the $y$-axis put $x = 0$:'),
+              { kind: 'display', tex: 'y = \\frac{2}{-1} + 1 = -1' },
               prose('For the $x$-axis put $y = 0$, and the fraction has to cancel the $1$:'),
               { kind: 'display', tex: '\\frac{2}{x - 1} = -1' },
               prose('So $x - 1 = -2$, and the curve crosses at $x = -1$.'),

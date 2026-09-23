@@ -12,7 +12,10 @@
  * time, and two models growing at the same rate. Level 4 compares models:
  * which is ahead at a whole time, when one overtakes another, a rising model
  * meeting a falling one, sums of exponentials and the term that wins, and the
- * gap between two models as a quadratic in u.
+ * gap between two models as a quadratic in u. Level 5 is logistic growth,
+ * L / (1 + Ae^(-kt)): reading the ceiling, the start and k, values at whole
+ * times, half the ceiling as the steepest point, the rate kP(1 - P/L), and the
+ * time to reach a value.
  *
  * Whole-step growth without e, solving N = N0 r^t by logarithms, linearising
  * and differentiating e^x all belong to other courses and are used here, not
@@ -56,7 +59,7 @@ export const exponentialModels: Course = {
   category: 'advanced-algebra',
   position: 30,
   title: 'Exponential Models',
-  blurb: 'The continuous model Ae^kt: reading it, doubling and half-life, fitting it, and models with a limit.',
+  blurb: 'The continuous model Ae^kt: reading it, doubling and half-life, fitting it, models with a limit and logistic growth.',
   levels: [
     {
       id: 'em-l1',
@@ -809,6 +812,201 @@ export const exponentialModels: Course = {
         ask('expm-meet-which', 2),
         ask('expm-sum-flow', 2),
         ask('expm-diff-tree', 2),
+      ],
+    },
+    {
+      id: 'em-l5',
+      title: 'Logistic Growth',
+      lessons: [
+        {
+          id: 'em-l5-reading',
+          title: 'Reading the Logistic Model',
+          slides: [
+            teach(
+              prose(
+                'Exponential growth never stops, but real growth usually does: an island can only feed so many rabbits, and a rumour runs out of people to tell. The **logistic model** builds in a ceiling $L$:',
+              ),
+              maths('P = \\frac{L}{1 + Ae^{-kt}}'),
+              prose('At $t = 0$ the bottom is $1 + A$, so it starts at $\\frac{L}{1 + A}$. For $P = \\frac{600}{1 + 5e^{-0.3t}}$ that is $\\frac{600}{6} = 100$.'),
+            ),
+            ask('expm-logistic-build-tiles'),
+            ask('expm-logistic-start'),
+            ask('expm-logistic-read'),
+            teach(
+              prose(
+                'As $t$ grows, $e^{-kt}$ shrinks to 0 and the bottom shrinks to 1, so $P$ climbs towards $L$ without ever passing it. $L$ is the ceiling, and $k$ sets the pace: the bigger $k$, the sooner it gets close.',
+              ),
+              prose(
+                'To build a model from a story, $L$ is the ceiling and $A$ comes from the start: $1 + A = \\frac{L}{\\text{start}}$. Starting at 100 under a ceiling of 600 gives $1 + A = 6$, so $A = 5$.',
+              ),
+            ),
+            ask('expm-logistic-flow'),
+            ask('expm-logistic-build-tiles', 2),
+            ask('expm-logistic-start+choice', 2),
+            teach(
+              prose(
+                'Level 2 met $L - Ae^{-kt}$, which also levels off at $L$. The difference is the shape. $L - Ae^{-kt}$ climbs fastest at the start and eases off from there. A logistic curve starts slowly, speeds up, and slows only as it nears the ceiling: an S shape.',
+              ),
+            ),
+            ask('expm-logistic-read', 2),
+            ask('expm-logistic-flow', 2),
+          ],
+          skillCheck: [ask('expm-logistic-start', 2), ask('expm-logistic-read', 2), ask('expm-logistic-build-tiles', 2)],
+        },
+        {
+          id: 'em-l5-values',
+          title: 'Values at Whole Times',
+          slides: [
+            teach(
+              prose('To work out a value, multiply top and bottom by $u = e^{kt}$. Since $e^{-kt} \\times e^{kt} = 1$:'),
+              maths('\\frac{L}{1 + Ae^{-kt}} = \\frac{Lu}{u + A}'),
+              prose(
+                'For $N = \\frac{600}{1 + 8e^{-\\frac{\\ln 2}{5}t}}$, $u = e^{\\frac{\\ln 2}{5}t} = 2^{t/5}$. At $t = 10$, $u = 2^{2} = 4$:',
+              ),
+              working('N(10) &= \\frac{600 \\times 4}{4 + 8}', '&= 200'),
+            ),
+            ask('expm-logistic-value-tree'),
+            ask('expm-logistic-at'),
+            ask('expm-logistic-work-steps'),
+            teach(
+              prose('Dividing $L$ by $u + A$ first keeps the numbers small: $600 \\div 12 = 50$, then $50 \\times 4 = 200$.'),
+              prose(
+                'At $t = 5$, $u = 2$ and $N = 600 \\div 10 \\times 2 = 120$. At $t = 20$, $u = 16$ and $N = 600 \\div 24 \\times 16 = 400$.',
+              ),
+            ),
+            ask('expm-logistic-reduce'),
+            ask('expm-logistic-value-tree', 2),
+            ask('expm-logistic-at+choice', 2),
+            teach(
+              prose(
+                'With $k = \\frac{\\ln 3}{h}$ the same works in powers of 3. For $P = \\frac{360}{1 + 9e^{-\\frac{\\ln 3}{2}t}}$, $u = 3^{t/2}$, and at $t = 6$, $u = 27$:',
+              ),
+              working('P(6) &= 360 \\div (27 + 9) \\times 27', '&= 10 \\times 27 = 270'),
+            ),
+            ask('expm-logistic-work-steps', 2),
+            ask('expm-logistic-reduce+choice', 2),
+          ],
+          skillCheck: [ask('expm-logistic-at', 2), ask('expm-logistic-value-tree', 2), ask('expm-logistic-work-steps', 2)],
+        },
+        {
+          id: 'em-l5-half',
+          title: 'Half the Ceiling',
+          slides: [
+            teach(
+              prose('A logistic model is at half its ceiling when the bottom of the fraction is 2:'),
+              working('1 + Ae^{-kt} &= 2', 'Ae^{-kt} &= 1', 'e^{kt} &= A'),
+              prose(
+                'So $t = \\frac{\\ln A}{k}$. For $N = \\frac{600}{1 + 8e^{-\\frac{\\ln 2}{5}t}}$, $2^{t/5} = 8 = 2^{3}$, so $t = 15$, when $N = 300$.',
+              ),
+            ),
+            ask('expm-logistic-half-steps'),
+            ask('expm-logistic-mid'),
+            ask('expm-logistic-mid-slider'),
+            teach(
+              prose(
+                'Half the ceiling is where the S-curve is steepest. Before it the growth speeds up; after it the growth slows as the ceiling gets close.',
+              ),
+              prose(
+                'The S is symmetric about that point: 10 units before it $N = 120$, and 10 units after it $N = 600 - 120 = 480$.',
+              ),
+            ),
+            ask('expm-logistic-steepest'),
+            ask('expm-logistic-half-steps', 2),
+            ask('expm-logistic-mid+choice', 2),
+            teach(
+              prose(
+                'With $A = 9$ and $k = \\frac{\\ln 3}{4}$, $3^{t/4} = 9 = 3^{2}$, so $t = 8$. A bigger $A$ starts the model further below its ceiling, so it takes longer to get halfway.',
+              ),
+            ),
+            ask('expm-logistic-mid-slider', 2),
+            ask('expm-logistic-steepest', 2),
+          ],
+          skillCheck: [ask('expm-logistic-mid', 2), ask('expm-logistic-half-steps', 2), ask('expm-logistic-mid-slider', 2)],
+        },
+        {
+          id: 'em-l5-rate',
+          title: 'The Rate of Growth',
+          slides: [
+            teach(
+              prose('A logistic model grows at the rate'),
+              maths('\\frac{dP}{dt} = kP\\left(1 - \\frac{P}{L}\\right)'),
+              prose(
+                'While $P$ is small the bracket is close to 1, so it grows like $kP$: exponentially. Near the ceiling the bracket is close to 0, so growth stalls.',
+              ),
+            ),
+            ask('expm-logistic-rate-tiles'),
+            ask('expm-logistic-rate-at'),
+            ask('expm-logistic-rate-tree'),
+            teach(
+              prose('For $N = \\frac{400}{1 + 3e^{-0.2t}}$, when $N = 100$:'),
+              working('1 - \\frac{100}{400} &= \\frac{3}{4}', '\\frac{dN}{dt} &= 0.2 \\times 100 \\times \\frac{3}{4} = 15'),
+              prose(
+                'Below half the ceiling the rate is rising, so growth is speeding up. Above it the rate is falling, so growth is slowing, though $N$ still increases.',
+              ),
+            ),
+            ask('expm-logistic-rate-flow'),
+            ask('expm-logistic-rate-tiles', 2),
+            ask('expm-logistic-rate-at+choice', 2),
+            teach(
+              prose(
+                'The rate is greatest at half the ceiling, $P = \\frac{L}{2}$, where it is $k \\times \\frac{L}{2} \\times \\frac{1}{2} = \\frac{kL}{4}$. Here that is $0.2 \\times 100 = 20$, at $N = 200$.',
+              ),
+            ),
+            ask('expm-logistic-rate-tree', 2),
+            ask('expm-logistic-rate-flow', 2),
+          ],
+          skillCheck: [ask('expm-logistic-rate-at', 2), ask('expm-logistic-rate-tree', 2), ask('expm-logistic-rate-flow', 2)],
+        },
+        {
+          id: 'em-l5-reach',
+          title: 'Reaching a Value',
+          slides: [
+            teach(
+              prose(
+                'To find when a logistic model reaches a value, write it with $u = e^{kt}$ and clear the fraction. When does $N = \\frac{600}{1 + 8e^{-\\frac{\\ln 2}{5}t}}$ reach 400?',
+              ),
+              working('\\frac{600u}{u + 8} &= 400', '600u &= 400(u + 8)', '200u &= 3200', 'u &= 16 = 2^{4}'),
+              prose('So $2^{t/5} = 2^{4}$ and $t = 20$.'),
+            ),
+            ask('expm-logistic-u-tiles'),
+            ask('expm-logistic-reach-steps'),
+            ask('expm-logistic-when'),
+            teach(
+              prose(
+                'In general $(L - P)u = AP$, so $e^{kt} = \\frac{AP}{L - P}$, which is $\\frac{A}{L/P - 1}$. Check by putting it back: at $t = 20$, $N = 600 \\div 24 \\times 16 = 400$.',
+              ),
+              prose('A value below half the ceiling comes before $t = \\frac{\\ln A}{k}$, and a value above it after.'),
+            ),
+            ask('expm-logistic-reach-slider'),
+            ask('expm-logistic-u-tiles', 2),
+            ask('expm-logistic-when+choice', 2),
+            teach(
+              prose('The same steps work in powers of 3. For $P = \\frac{360}{1 + 9e^{-\\frac{\\ln 3}{2}t}}$ to reach 90:'),
+              working('360u &= 90(u + 9)', '270u &= 810', 'u &= 3'),
+              prose('So $3^{t/2} = 3^{1}$ and $t = 2$.'),
+            ),
+            ask('expm-logistic-reach-steps', 2),
+            ask('expm-logistic-reach-slider', 2),
+          ],
+          skillCheck: [ask('expm-logistic-when', 2), ask('expm-logistic-reach-steps', 2), ask('expm-logistic-reach-slider', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('expm-logistic-build-tiles', 2),
+        ask('expm-logistic-value-tree', 2),
+        ask('expm-logistic-mid-slider', 2),
+        ask('expm-logistic-rate-at', 2),
+        ask('expm-logistic-reach-steps', 2),
+        ask('expm-logistic-flow', 2),
+        ask('expm-logistic-reduce+choice', 2),
+        ask('expm-logistic-half-steps', 2),
+        ask('expm-logistic-rate-tiles', 2),
+        ask('expm-logistic-when', 2),
+        ask('expm-logistic-read', 2),
+        ask('expm-logistic-at', 2),
+        ask('expm-logistic-steepest', 2),
+        ask('expm-logistic-rate-tree', 2),
+        ask('expm-logistic-u-tiles', 2),
       ],
     },
   ],

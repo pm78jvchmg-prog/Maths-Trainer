@@ -8,7 +8,10 @@
  * term, estimates from the first three terms, and a bracket multiplied by an
  * expansion. Level 3 works backwards: n, k or a from given coefficients,
  * neighbouring coefficients equal or in a ratio, and the sum of the
- * coefficients from x = 1 and x = -1.
+ * coefficients from x = 1 and x = -1. Level 4 multiplies two expansions:
+ * the pairs that make one coefficient, the first three terms of a product,
+ * brackets that pair off into (1 - c^2x^2)^n, a trinomial as (1 + u)^n, and
+ * equating coefficients across a product.
  *
  * Every question here has a whole-number n of at most 8 in an expansion (nCr
  * on its own goes to 12), so every coefficient, bank and option is exact. The
@@ -3578,6 +3581,1168 @@ const frontTiles: Generator<FrontParams> = {
   solution: frontWorking,
 };
 
+/* ---------- Level 4: products of expansions ---------- */
+
+/*
+ * Two expansions multiplied: every coefficient of the product is a sum of
+ * products, one term from each expansion with their powers adding up. The
+ * brackets are drawn first and everything is computed outward from them with
+ * nCr, so each coefficient, bank and option is exact and under 10000: m + n at
+ * most 8, the numbers on x from -3 to 3 (4 where only a sign is asked), and
+ * nothing past x^4.
+ */
+
+/** The coefficient of x^j in (1 + cx)^p: nothing once j runs past p. */
+function shortCoef(c: number, p: number, j: number): number {
+  return nCr(p, j) * c ** j;
+}
+
+/** (1 + cx), as the learner reads it. */
+function unitBracket(c: number): string {
+  return `(${sumTex(['1', termTex(c, 1)])})`;
+}
+
+/** A number inside a line of working: bracketed when negative. */
+function br(value: number): string {
+  return value < 0 ? `(${value})` : `${value}`;
+}
+
+/** An expansion as far as x^k, with dots when it goes on past it. */
+function shortExpansion(c: number, p: number, k: number): string {
+  const terms = Array.from({ length: Math.min(k, p) + 1 }, (_, j) => termTex(shortCoef(c, p, j), j));
+  return expansionTex(`${unitBracket(c)}^{${p}}`, p > k ? [...terms, '\\dots'] : terms);
+}
+
+/** A steps bank of four: the value, the slips, then the values just above it, in order. */
+function stepBank(format: (value: number) => string, right: number, ...wrong: number[]): string[] {
+  const values = [...new Set([right, ...wrong.filter(Number.isInteger)])].slice(0, 4);
+  for (let step = 1; values.length < 4; step += 1) if (!values.includes(right + step)) values.push(right + step);
+  return values.sort((x, y) => x - y).map(format);
+}
+
+/** The first `count` distinct labels, the correct one first. */
+function firstDistinct(labels: string[], count = 4): string[] {
+  return [...new Set(labels)].slice(0, count);
+}
+
+/* --- two expansions, one coefficient --- */
+
+interface PairParams {
+  /** The product is (1 + ax)^m (1 + bx)^n. */
+  a: number;
+  m: number;
+  b: number;
+  n: number;
+  /** The power of x asked about. Never more than n, so the 1 of the first always has a partner. */
+  k: number;
+}
+
+function pairTex({ a, m, b, n }: PairParams): string {
+  return `${unitBracket(a)}^{${m}}${unitBracket(b)}^{${n}}`;
+}
+
+/** The powers i taken from the first expansion to make x^k; the second supplies x^(k - i). */
+function pairsOf({ m, n, k }: PairParams): number[] {
+  const out: number[] = [];
+  for (let i = Math.max(0, k - n); i <= Math.min(k, m); i += 1) out.push(i);
+  return out;
+}
+
+/** Each pair's product, lowest power from the first expansion first. */
+function pairProducts(params: PairParams): number[] {
+  const { a, m, b, n, k } = params;
+  return pairsOf(params).map((i) => shortCoef(a, m, i) * shortCoef(b, n, k - i));
+}
+
+function pairCoefficient(params: PairParams, k = params.k): number {
+  return pairProducts({ ...params, k }).reduce((sum, value) => sum + value, 0);
+}
+
+/**
+ * (1 + ax)^m (1 + bx)^n with every pair product and the coefficient of x^k
+ * under 10000 and not 0. `short` lets the first bracket stop one power below
+ * x^k, which is where the count of pairs drops below k + 1.
+ */
+function samplePairs(rng: Rng, difficulty: number, k: number, short = false): PairParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const m = rng.int(short ? Math.max(2, k - 1) : k, 5);
+    const n = rng.int(k, 6);
+    if (m + n > 8) continue;
+    const a = rng.pick(hard ? [-3, -2, -1, 2, 3] : [1, 2, 3]);
+    const b = rng.pick(hard ? [-3, -2, -1, 1, 2, 3] : [-2, -1, 1, 2]);
+    const params = { a, m, b, n, k };
+    const total = pairCoefficient(params);
+    if (total === 0 || [...pairProducts(params), total].some((value) => Math.abs(value) >= 10000)) continue;
+    return params;
+  }
+}
+
+/** Each bracket as far as x^k, the pairs, their products and the total. */
+function pairWorking(params: PairParams): SolutionStep[] {
+  const { a, m, b, n, k } = params;
+  const pairs = pairsOf(params);
+  const products = pairProducts(params);
+  const count = pairs.length;
+  return [
+    { text: 'Expand each bracket only as far as the power asked for:' },
+    { tex: shortExpansion(a, m, k) },
+    { tex: shortExpansion(b, n, k) },
+    {
+      text:
+        count < k + 1
+          ? `A multiple of $x^{${k}}$ is an $x^{i}$ term of the first times an $x^{${k} - i}$ term of the second. The first stops at $x^{${m}}$, so there are $${count}$ pairs, not $${k + 1}$:`
+          : `A multiple of $x^{${k}}$ is an $x^{i}$ term of the first times an $x^{${k} - i}$ term of the second: $${count}$ pairs, $1$ times the $x^{${k}}$ term included.`,
+    },
+    { tex: column(pairs.map((i, at) => [`${br(shortCoef(a, m, i))} \\times ${br(shortCoef(b, n, k - i))}`, products[at]])) },
+    { tex: `${sumTex(products.map(String))} = ${pairCoefficient(params)}` },
+  ];
+}
+
+/**
+ * How many pairs make x^k, and whether the 1 at the front of the first
+ * expansion is one of them. The slips are one pair too few or too many, and
+ * leaving the 1 out because it carries no x.
+ */
+const twoExpFlow: Generator<PairParams> = {
+  id: 'bin-two-exp-flow',
+  sample: (rng, difficulty) => samplePairs(rng, difficulty, rng.int(2, 3), difficulty > 1),
+  render: (params): Slide => {
+    const { a, m, b, n, k } = params;
+    const count = pairsOf(params).length;
+    const xk = termTex(1, k);
+    const fewer =
+      count > 1
+        ? [
+            {
+              label: `$${count - 1}$`,
+              outcome: `One short. The first expansion can give every power from $x^{0}$ up to $x^{${Math.min(k, m)}}$, and each has one partner in the second: $${count}$ pairs.`,
+            },
+          ]
+        : [];
+    const more = {
+      label: `$${count + 1}$`,
+      outcome:
+        count < k + 1
+          ? `The first expansion stops at $x^{${m}}$, so it has no $${xk}$ term to pair with the $1$ of the second.`
+          : `The first expansion gives $x^{0}$ up to $${xk}$, one partner each: $${count}$ pairs, not $${count + 1}$.`,
+    };
+    const partner = `Its $${xk}$ term`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Every term of this product is a term of the first expansion times a term of the second. Plan the $${xk}$ term.`,
+        },
+      ],
+      subject: pairTex(params),
+      steps: [
+        {
+          id: 'count',
+          ask: `How many pairs of terms, one from each expansion, multiply to a multiple of $${xk}$?`,
+          branches: turned([{ label: `$${count}$`, to: 'constant' }, ...fewer, more], spread(a, m, b, n, k)),
+        },
+        {
+          id: 'constant',
+          ask: 'The first expansion starts with $1$. Which term of the second does that $1$ pair with?',
+          branches: turned(
+            [
+              {
+                label: partner,
+                outcome: `Right: $1$ times the $${xk}$ term is a multiple of $${xk}$, and it is the pair most easily dropped. The $${count}$ products added make the coefficient.`,
+              },
+              {
+                label: 'None: $1$ has no $x$ in it',
+                outcome: `$1$ times the $${xk}$ term is still a multiple of $${xk}$. Leaving it out is the usual slip.`,
+              },
+              { label: 'Its $x$ term', outcome: `$1$ times an $x$ term only makes $x$. The powers have to add to $${k}$.` },
+            ],
+            spread(k, m, b, 3),
+          ),
+        },
+      ],
+      answer: [`$${count}$`, partner],
+    };
+  },
+  solution: pairWorking,
+};
+
+/** The three pairs that make x^2 as numbers, then their sum: three branches into one. */
+const twoExpTree: Generator<PairParams> = {
+  id: 'bin-two-exp-tree',
+  sample: (rng, difficulty) => samplePairs(rng, difficulty, 2),
+  render: (params): Slide => {
+    const { a, m, b, n } = params;
+    const products = pairProducts(params);
+    const total = pairCoefficient(params);
+    const answer = [...products, total].map(String);
+    // The 1 or the far end dropped, the x^2 terms alone, and the middle pair's sign.
+    const slips = [
+      total - products[0],
+      total - products[2],
+      shortCoef(a, m, 2) + shortCoef(b, n, 2),
+      shortCoef(a, m, 1) + shortCoef(b, n, 1),
+      -products[1],
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Find the coefficient of $x^2$. Fill in what each pair makes: $1$ times the second expansion\'s $x^2$ term, the two $x$ terms, and the first expansion\'s $x^2$ term times $1$. Then add them.',
+        },
+      ],
+      expression: pairTex(params),
+      nodes: [
+        { id: 'low', from: [] },
+        { id: 'middle', from: [] },
+        { id: 'high', from: [] },
+        { id: 'total', from: ['low', 'middle', 'high'] },
+      ],
+      bank: treeBank(answer, slips.map(String)),
+      answer,
+    };
+  },
+  solution: pairWorking,
+};
+
+/** The coefficient of x^k typed. The choice form offers a pair dropped, the x^k terms added, and them multiplied. */
+const twoExpCoeff: Generator<PairParams> = {
+  id: 'bin-two-exp-coeff',
+  sample: (rng, difficulty) => samplePairs(rng, difficulty, difficulty > 1 ? rng.int(2, 3) : 2, difficulty > 1),
+  choices: (params) => {
+    const { a, m, b, n, k } = params;
+    const total = pairCoefficient(params);
+    const products = pairProducts(params);
+    return aimedNumbers(
+      total,
+      [
+        total - products[0],
+        total - products[products.length - 1],
+        shortCoef(a, m, k) + shortCoef(b, n, k),
+        shortCoef(a, m, k) * shortCoef(b, n, k),
+      ],
+      spread(a, m, b, n, k),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Find the coefficient of $${termTex(1, params.k)}$ in the expansion of $${pairTex(params)}$.` }],
+    lead: '\\text{coefficient} =',
+    keypad: [],
+    answer: `${pairCoefficient(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: pairWorking,
+};
+
+/**
+ * The three pairs that make x^2, placed as terms: which term of each
+ * expansion goes with which. The bank holds a partner one power out, a sign
+ * turned, and a number on x left unsquared.
+ */
+const twoExpTiles: Generator<PairParams> = {
+  id: 'bin-two-exp-tiles',
+  sample: (rng, difficulty) => samplePairs(rng, difficulty, 2),
+  render: (params): Slide => {
+    const { a, m, b, n } = params;
+    const first = (j: number) => termTex(shortCoef(a, m, j), j);
+    const second = (j: number) => termTex(shortCoef(b, n, j), j);
+    const answer = [second(2), first(1), second(1), first(2)];
+    const slips = [
+      termTex(-shortCoef(a, m, 1), 1),
+      termTex(-shortCoef(b, n, 1), 1),
+      termTex(nCr(m, 2) * a, 2),
+      termTex(nCr(n, 2) * b, 2),
+      termTex(shortCoef(b, n, 1), 2),
+      termTex(-shortCoef(b, n, 2), 2),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The $x^2$ term of this product is three pairs of terms multiplied and added, one term of each pair from each expansion. Fill in the pairs.',
+        },
+        { kind: 'display', tex: pairTex(params) },
+      ],
+      template: '1 \\times {0} + {1} \\times {2} + {3} \\times 1',
+      bank: tileBank(answer, slips),
+      answer,
+    };
+  },
+  solution: pairWorking,
+};
+
+/* --- the first three terms of a product --- */
+
+/** The x and x^2 coefficients of (1 + ax)^m (1 + bx)^n, and the pieces they are made of. */
+function firstThree({ a, m, b, n }: PairParams) {
+  const A1 = shortCoef(a, m, 1);
+  const A2 = shortCoef(a, m, 2);
+  const B1 = shortCoef(b, n, 1);
+  const B2 = shortCoef(b, n, 2);
+  return { A1, A2, B1, B2, x1: A1 + B1, x2: A2 + A1 * B1 + B2 };
+}
+
+/** A product with nothing cancelling in its first three terms. */
+function sampleFirstThree(rng: Rng, difficulty: number): PairParams {
+  for (;;) {
+    const params = samplePairs(rng, difficulty, 2);
+    if (firstThree(params).x1 !== 0) return params;
+  }
+}
+
+function firstThreeTex(x1: number, x2: number): string {
+  return sumTex(['1', termTex(x1, 1), termTex(x2, 2)]);
+}
+
+function firstThreeWorking(params: PairParams): SolutionStep[] {
+  const { A1, A2, B1, B2, x1, x2 } = firstThree(params);
+  return [
+    { text: 'Each bracket only as far as $x^2$: anything past it can only make higher powers.' },
+    { tex: shortExpansion(params.a, params.m, 2) },
+    { tex: shortExpansion(params.b, params.n, 2) },
+    { text: 'The $x$ term is $x$ from one bracket and $1$ from the other, so the $x$ coefficients add:' },
+    { tex: `${sumTex([`${A1}`, `${B1}`])} = ${x1}` },
+    { text: 'The $x^2$ term takes both $x^2$ terms, and the two $x$ terms multiplied:' },
+    { tex: `${A2} + ${br(A1)} \\times ${br(B1)} + ${B2} = ${x2}` },
+    { tex: `${pairTex(params)} = ${firstThreeTex(x1, x2)} + \\dots` },
+  ];
+}
+
+/** The x and x^2 coefficients placed with their signs. */
+const firstThreeTiles: Generator<PairParams> = {
+  id: 'bin-first-three-tiles',
+  sample: sampleFirstThree,
+  render: (params): Slide => {
+    const { A1, A2, B1, B2, x1, x2 } = firstThree(params);
+    const answer = [signedToken(x1, false), signedToken(x2, false)];
+    // The x coefficients multiplied, one subtracted, the cross term left out, and the signs turned.
+    const slips = [A2 + B2, -x1, A1 * B1, -x2, A1 - B1].map((value) => signedToken(value, false));
+    return {
+      kind: 'tiles',
+      prompt: [{ kind: 'prose', text: `Expand $${pairTex(params)}$ as far as the $x^2$ term.` }],
+      template: '1 {0}x {1}x^2 + \\dots',
+      bank: tileBank(answer, slips.slice(0, 4)),
+      answer,
+    };
+  },
+  solution: firstThreeWorking,
+};
+
+/** The x^2 coefficient from the three pieces: the cross product first, then the sums. */
+const firstThreeSteps: Generator<PairParams> = {
+  id: 'bin-first-three-steps',
+  sample: sampleFirstThree,
+  render: (params): Slide => {
+    const { A1, A2, B1, B2, x2 } = firstThree(params);
+    const cross = A1 * B1;
+    const plain = (value: number) => `${value}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: "This is the coefficient of $x^2$ in the product below: the first expansion's $x^2$ coefficient, its $x$ coefficient times the second's, and the second's $x^2$ coefficient. Tap the step to do next, then choose what it gives.",
+        },
+        { kind: 'display', tex: pairTex(params) },
+      ],
+      start: [`${A2}`, '+', br(A1), '\\times', br(B1), '+', `${B2}`],
+      reductions: [
+        { span: [2, 5], operator: 3, value: br(cross), bank: stepBank(br, cross, A1 + B1, -cross, A1 - B1) },
+        { span: [0, 3], operator: 1, value: `${A2 + cross}`, bank: stepBank(plain, A2 + cross, A2 - cross, A2 * cross, A2 + cross - 1) },
+        { span: [0, 3], operator: 1, value: `${x2}`, bank: stepBank(plain, x2, x2 - 2 * B2, A2 + cross - B2, x2 - 1) },
+      ],
+    };
+  },
+  solution: firstThreeWorking,
+};
+
+/** The x^2 coefficient built from nCr and the numbers on x, reduced a piece at a time. */
+const firstThreeReduce: Generator<PairParams> = {
+  id: 'bin-first-three-reduce',
+  sample: sampleFirstThree,
+  render: (params): Slide => {
+    const { a, m, b, n } = params;
+    const own = (c: number, p: number): Expr => (Math.abs(c) === 1 ? num(nCr(p, 2)) : bin('*', num(nCr(p, 2)), pow(num(c), num(2))));
+    const expr = bin('+', bin('+', own(a, m), bin('*', num(m * a), num(n * b))), own(b, n));
+    return {
+      kind: 'reduce',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is the coefficient of $x^2$ in the product below: $${ncrTex(m, 2)}$ times the first number on $x$ squared, the two $x$ coefficients multiplied, and $${ncrTex(n, 2)}$ times the second number squared. Tap the part you would work out next, then choose what it comes to.`,
+        },
+        { kind: 'display', tex: pairTex(params) },
+      ],
+      expr,
+      banks: banksFor(expr),
+    };
+  },
+  solution: firstThreeWorking,
+};
+
+/** Which is the start of the expansion: the cross term dropped, the x coefficients multiplied, or the x^2 terms alone. */
+const firstThreeWhich: Generator<PairParams> = {
+  id: 'bin-first-three-which',
+  sample: sampleFirstThree,
+  render: (params): Slide => {
+    const { a, m, b, n } = params;
+    const { A1, A2, B1, B2, x1, x2 } = firstThree(params);
+    const labels = firstDistinct([
+      firstThreeTex(x1, x2),
+      firstThreeTex(x1, A2 + B2),
+      firstThreeTex(A1 * B1, x2),
+      firstThreeTex(x1, A1 * B1),
+      firstThreeTex(A1 - B1, x2),
+      firstThreeTex(x1, A2 * B2),
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which is the expansion of $${pairTex(params)}$ as far as the $x^2$ term?` }],
+      ...nativeChoice(labels, mix(a, m, b, n)),
+    };
+  },
+  solution: firstThreeWorking,
+};
+
+/* --- pairing brackets --- */
+
+interface CollapseParams {
+  /** (1 + cx)^n (1 - cx)^n, written the other way round when flipped. */
+  c: number;
+  n: number;
+  flip: boolean;
+  /** The power of x asked about. */
+  j: number;
+}
+
+function collapseTex({ c, n, flip }: Pick<CollapseParams, 'c' | 'n' | 'flip'>): string {
+  const [first, second] = flip ? [-c, c] : [c, -c];
+  return `${unitBracket(first)}^{${n}}${unitBracket(second)}^{${n}}`;
+}
+
+/** 1 - c^2 x^2, without its bracket. */
+function collapsedInside(c: number): string {
+  return sumTex(['1', termTex(-c * c, 2)]);
+}
+
+function collapsedTex({ c, n }: Pick<CollapseParams, 'c' | 'n'>): string {
+  return `(${collapsedInside(c)})^{${n}}`;
+}
+
+function collapseCoefficient({ c, n, j }: CollapseParams): number {
+  return j % 2 === 1 ? 0 : nCr(n, j / 2) * (-(c * c)) ** (j / 2);
+}
+
+function collapseWorking(params: CollapseParams): SolutionStep[] {
+  const { c, n, j } = params;
+  const steps: SolutionStep[] = [
+    { text: `A difference of two squares: $${unitBracket(c)}${unitBracket(-c)} = ${collapsedInside(c)}$. Both brackets are to the power $${n}$, so they pair off:` },
+    { tex: `${collapseTex(params)} = ${collapsedTex(params)}` },
+  ];
+  if (j % 2 === 1) {
+    steps.push({ text: `Every term of $${collapsedTex(params)}$ is a power of $x^2$, so there are no odd powers: the coefficient of $x^{${j}}$ is $0$.` });
+    return steps;
+  }
+  const t = j / 2;
+  steps.push(
+    { text: `The $x^{${j}}$ term carries $(${termTex(-c * c, 2)})$ to the power $${t}$, and ${t % 2 === 0 ? 'an even' : 'an odd'} power of a negative is ${t % 2 === 0 ? 'positive' : 'negative'}:` },
+    { tex: `${ncrTex(n, t)} \\times (${termTex(-c * c, 2)})^{${t}} = ${termTex(collapseCoefficient(params), j)}` },
+  );
+  return steps;
+}
+
+/**
+ * Which product pairs off: the same power on both brackets with opposite
+ * signs. The wrong ones leave a bracket over, keep one sign, or change the
+ * number on x. Asked two ways: which equals the collapsed bracket, and which
+ * has no odd powers.
+ */
+interface WhichCollapseParams {
+  c: number;
+  n: number;
+  /** The unequal power on one bracket. */
+  m: number;
+  /** A different number on x. */
+  d: number;
+  even: boolean;
+}
+
+const collapseWhich: Generator<WhichCollapseParams> = {
+  id: 'bin-collapse-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const c = rng.int(1, hard ? 3 : 2);
+      const n = rng.int(2, 8);
+      const m = rng.int(2, 8);
+      const d = rng.int(1, 3);
+      if (m !== n && d !== c) return { c, n, m, d, even: rng.chance(0.5) };
+    }
+  },
+  render: ({ c, n, m, d, even }): Slide => {
+    const labels = [
+      `${unitBracket(c)}^{${n}}${unitBracket(-c)}^{${n}}`,
+      `${unitBracket(c)}^{${m}}${unitBracket(-c)}^{${n}}`,
+      `${unitBracket(c)}^{${n}}${unitBracket(c)}^{${n}}`,
+      `${unitBracket(c)}^{${n}}${unitBracket(-d)}^{${n}}`,
+    ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: even
+            ? 'Which of these products has no odd powers of $x$ in its expansion?'
+            : `Which of these products is equal to $${collapsedTex({ c, n })}$?`,
+        },
+      ],
+      ...nativeChoice(labels, mix(c, n, m, d, even ? 1 : 0)),
+    };
+  },
+  solution: ({ c, n, m }) => [
+    { text: `$${unitBracket(c)}${unitBracket(-c)} = ${collapsedInside(c)}$, a difference of two squares, and it pairs off only when both brackets carry the same power:` },
+    { tex: `${collapseTex({ c, n, flip: false })} = ${collapsedTex({ c, n })}` },
+    { text: `Every term of that is a power of $x^2$, so no odd powers appear. With powers $${m}$ and $${n}$, a bracket is left over and brings the odd powers back; with the same sign, or a different number on $x$, nothing cancels at all.` },
+  ],
+};
+
+function sampleCollapse(rng: Rng, difficulty: number, cs: number[], js: number[]): CollapseParams {
+  return { c: rng.pick(cs), n: rng.int(difficulty > 1 ? 3 : 2, 8), flip: rng.chance(0.5), j: rng.pick(js) };
+}
+
+/** The coefficient of x^j, typed: 0 for an odd power. The choice form offers the sign dropped and one bracket expanded alone. */
+const collapseCoeff: Generator<CollapseParams> = {
+  id: 'bin-collapse-coeff',
+  sample: (rng, difficulty) => sampleCollapse(rng, difficulty, difficulty > 1 ? [1, 2, 3] : [1, 2], difficulty > 1 ? [3, 4, 4] : [2, 3, 4]),
+  choices: (params) => {
+    const { c, n, j } = params;
+    const value = collapseCoefficient(params);
+    const slips = [-value, shortCoef(c, n, j), shortCoef(-c, n, j), nCr(n, Math.floor(j / 2)) * c ** j, nCr(n, j)].filter(
+      (slip) => Math.abs(slip) < 10000,
+    );
+    return aimedNumbers(value, slips, spread(c, n, j, params.flip ? 1 : 0));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Find the coefficient of $${termTex(1, params.j)}$ in the expansion of $${collapseTex(params)}$.` }],
+    lead: '\\text{coefficient} =',
+    keypad: [],
+    answer: `${collapseCoefficient(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: collapseWorking,
+};
+
+/**
+ * The sign of the x^(2t) term: pair off, find the power of -c^2x^2, then
+ * whether it is even. The slips are keeping the plus, and reading the power
+ * of x as the power of the bracket's term.
+ */
+const collapseFlow: Generator<CollapseParams> = {
+  id: 'bin-collapse-flow',
+  sample: (rng, difficulty) => sampleCollapse(rng, difficulty, difficulty > 1 ? [2, 3, 4] : [1, 2, 3], [2, 4]),
+  render: (params): Slide => {
+    const { c, n, j } = params;
+    const t = j / 2;
+    const inside = termTex(-c * c, 2);
+    const value = collapseCoefficient(params);
+    const collapsed = `$${collapsedTex(params)}$`;
+    const parity = (label: 'Even' | 'Odd') =>
+      label === 'Even'
+        ? `An even power of a negative is positive, so the $x^{${j}}$ term is **positive**: $${termTex(Math.abs(value), j)}$.`
+        : `An odd power of a negative is negative, so the $x^{${j}}$ term is **negative**: $${termTex(-Math.abs(value), j)}$.`;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Is the $x^{${j}}$ term of this product positive or negative? Decide without working it out.` }],
+      subject: collapseTex(params),
+      steps: [
+        {
+          id: 'collapse',
+          ask: 'Pair the brackets off first. What does the product become?',
+          branches: turned(
+            [
+              { label: collapsed, to: 'power' },
+              {
+                label: `$(${sumTex(['1', termTex(c * c, 2)])})^{${n}}$`,
+                outcome: `$${unitBracket(c)}${unitBracket(-c)}$ is a difference of two squares: $${collapsedInside(c)}$. The minus stays.`,
+              },
+            ],
+            spread(c, n, j),
+          ),
+        },
+        {
+          id: 'power',
+          ask: `The $x^{${j}}$ term carries $(${inside})$ to which power?`,
+          branches: turned(
+            [
+              { label: `$${t}$`, to: 'parity' },
+              { label: `$${j}$`, outcome: `Each factor of $${inside}$ brings $x^2$, so its power $${t}$ makes $x^{${j}}$.` },
+            ],
+            spread(n, c, j, 5),
+          ),
+        },
+        {
+          id: 'parity',
+          ask: `Is $${t}$ even or odd?`,
+          branches: [
+            { label: 'Even', outcome: parity('Even') },
+            { label: 'Odd', outcome: parity('Odd') },
+          ],
+        },
+      ],
+      answer: [collapsed, `$${t}$`, t % 2 === 0 ? 'Even' : 'Odd'],
+    };
+  },
+  solution: collapseWorking,
+};
+
+/**
+ * The collapsed bracket and the start of its expansion. The bank holds the
+ * plus kept, x left unsquared, the number on x left unsquared, and the
+ * coefficients with the sign dropped.
+ */
+const collapseTiles: Generator<CollapseParams> = {
+  id: 'bin-collapse-tiles',
+  sample: (rng, difficulty) => sampleCollapse(rng, difficulty, difficulty > 1 ? [1, 2, 3] : [1, 2, 3, 4], difficulty > 1 ? [4] : [2]),
+  render: (params): Slide => {
+    const { c, n, j } = params;
+    const value = collapseCoefficient(params);
+    const answer = [collapsedInside(c), signedToken(value, false)];
+    // Difficulty 2 asks the x^4 coefficient: the sign kept, c squared not
+    // raised to the fourth, and the row's place 4 for place 2.
+    const slips =
+      j === 4
+        ? [signedToken(-value, false), signedToken(nCr(n, 2) * c * c, false), signedToken(nCr(n, 4) * c ** 4, false), signedToken(2 * n * c * c, false)]
+        : [signedToken(-value, false), signedToken(c === 1 ? -2 * n : -n * c, false)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: j === 4 ? 'Pair the brackets off into one, then find its $x^4$ term.' : 'Pair the brackets off into one, then start its expansion.',
+        },
+        { kind: 'display', tex: `${collapseTex(params)} =` },
+      ],
+      template: j === 4 ? `({0})^${n} = \\dots {1}x^4 + \\dots` : `({0})^${n} = 1 {1}x^2 + \\dots`,
+      bank: tileBank(answer, [
+        sumTex(['1', termTex(c * c, 2)]),
+        sumTex(['1', termTex(-c * c, 1)]),
+        sumTex(['1', termTex(c === 1 ? -2 : -c, 2)]),
+        ...slips,
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { c, n, j } = params;
+    return [
+      { text: `$${unitBracket(c)}${unitBracket(-c)} = ${collapsedInside(c)}$, and both brackets are to the power $${n}$:` },
+      { tex: `${collapseTex(params)} = ${collapsedTex(params)}` },
+      { text: `Expand that with $${termTex(-c * c, 2)}$ as the second part. The $x^{${j}}$ term carries it to the power $${j / 2}$:` },
+      { tex: `${ncrTex(n, j / 2)} \\times (${termTex(-c * c, 2)})^{${j / 2}} = ${termTex(collapseCoefficient(params), j)}` },
+    ];
+  },
+};
+
+/* --- trinomials --- */
+
+interface TriParams {
+  /** The bracket is (1 + px + qx^2)^n. */
+  p: number;
+  q: number;
+  n: number;
+  /** The power of x asked about: 2, or 3 at difficulty 2. */
+  k: number;
+}
+
+function triU({ p, q }: Pick<TriParams, 'p' | 'q'>): string {
+  return sumTex([termTex(p, 1), termTex(q, 2)]);
+}
+
+function triTex({ p, q, n }: Pick<TriParams, 'p' | 'q' | 'n'>): string {
+  return `(${sumTex(['1', termTex(p, 1), termTex(q, 2)])})^{${n}}`;
+}
+
+/** Where x^2 comes from: q once in nu, p^2 at the start of nC2 u^2. Where x^3 comes from: 2pq in u^2 and p^3 in u^3. */
+function triCoefficient({ p, q, n, k }: TriParams): number {
+  if (k === 2) return n * q + nCr(n, 2) * p * p;
+  return 2 * p * q * nCr(n, 2) + nCr(n, 3) * p ** 3;
+}
+
+function sampleTri(rng: Rng, difficulty: number, k: number): TriParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const p = rng.pick(hard ? [-3, -2, -1, 1, 2, 3] : [1, 2]);
+    const q = rng.pick(hard ? [-3, -2, -1, 1, 2, 3] : [1, 2, 3]);
+    const n = rng.int(k === 3 ? 3 : hard ? 3 : 2, 8);
+    const params = { p, q, n, k };
+    const value = triCoefficient(params);
+    if (value !== 0 && Math.abs(value) < 10000 && Math.abs(nCr(n, 3) * p ** 3) < 10000) return params;
+  }
+}
+
+function triWorking(params: TriParams): SolutionStep[] {
+  const { p, q, n, k } = params;
+  const u = triU(params);
+  const series = ['1', `${n}u`, `${nCr(n, 2)}u^{2}`, ...(n >= 3 ? [`${nCr(n, 3)}u^{3}`] : []), '\\dots'];
+  const steps: SolutionStep[] = [
+    { text: `Put $u = ${u}$, so the bracket is $(1 + u)^{${n}}$:` },
+    { tex: expansionTex(`(1 + u)^{${n}}`, series) },
+  ];
+  if (k === 2) {
+    steps.push(
+      { text: `$${n}u$ gives $${n} \\times ${br(q)}$ lots of $x^2$, and $u^2$ starts $${termTex(p * p, 2)}$. Nothing else reaches $x^2$:` },
+      { tex: `${n} \\times ${br(q)} + ${nCr(n, 2)} \\times ${p * p} = ${triCoefficient(params)}` },
+    );
+  } else {
+    steps.push(
+      { text: `$u^2 = ${sumTex([termTex(p * p, 2), termTex(2 * p * q, 3), termTex(q * q, 4)])}$ gives $${termTex(2 * p * q, 3)}$, and $u^3$ starts $${termTex(p ** 3, 3)}$:` },
+      { tex: `${nCr(n, 2)} \\times ${br(2 * p * q)} + ${nCr(n, 3)} \\times ${br(p ** 3)} = ${triCoefficient(params)}` },
+    );
+  }
+  return steps;
+}
+
+/** The two sources of x^2: q from nu, and nC2 times p^2 from u^2, then their sum. */
+const trinomialTree: Generator<TriParams> = {
+  id: 'bin-trinomial-tree',
+  sample: (rng, difficulty) => sampleTri(rng, difficulty, 2),
+  render: (params): Slide => {
+    const { p, q, n } = params;
+    const c2 = nCr(n, 2);
+    const answer = [n * q, c2, p * p, c2 * p * p, triCoefficient(params)].map(String);
+    const slips = [n * p, c2 * p, n + c2, -n * q, 2 * p, triCoefficient(params) - n * q + 1];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Write this as $(1 + u)^{${n}}$ with $u = ${triU(params)}$. Fill in the $x^2$ coefficient from $${n}u$, then $${ncrTex(n, 2)}$, $${br(p)}^2$, the $x^2$ coefficient from $${ncrTex(n, 2)}u^2$, and the total.`,
+        },
+      ],
+      expression: triTex(params),
+      nodes: [
+        { id: 'once', from: [] },
+        { id: 'pairs', from: [] },
+        { id: 'square', from: [] },
+        { id: 'twice', from: ['pairs', 'square'] },
+        { id: 'total', from: ['once', 'twice'] },
+      ],
+      bank: treeBank(answer, slips.map(String)),
+      answer,
+    };
+  },
+  solution: triWorking,
+};
+
+/** The x^2 coefficient worked a step at a time: the square, nCr, the product, then the sums. */
+const trinomialWorkSteps: Generator<TriParams> = {
+  id: 'bin-trinomial-work-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      // A p of 1 squares to nothing worth a step, so it becomes 3.
+      const params = { ...sampleTri(rng, difficulty, 2) };
+      if (Math.abs(params.p) === 1) params.p *= 3;
+      const value = triCoefficient(params);
+      if (value !== 0 && Math.abs(value) < 10000) return params;
+    }
+  },
+  render: (params): Slide => {
+    const { p, q, n } = params;
+    const c2 = nCr(n, 2);
+    const square = p * p;
+    const plain = (value: number) => `${value}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `This is the coefficient of $x^2$ in the bracket below, with $u = ${triU(params)}$: the $x^2$ from $${n}u$, then the $x^2$ from $${ncrTex(n, 2)}u^2$. Tap the step to do next, then choose what it gives.`,
+        },
+        { kind: 'display', tex: triTex(params) },
+      ],
+      start: [`${n}`, '\\times', br(q), '+', ncrTex(n, 2), '\\times', `${br(p)}^{2}`],
+      reductions: [
+        { span: [6, 7], value: `${square}`, bank: stepBank(br, square, 2 * Math.abs(p), -square, square + 1) },
+        { span: [4, 5], value: `${c2}`, bank: stepBank(plain, c2, n, nCr(n + 1, 2), 2 * n) },
+        { span: [4, 7], operator: 5, value: `${c2 * square}`, bank: stepBank(plain, c2 * square, c2 + square, c2 * Math.abs(p), c2 * square + 1) },
+        { span: [0, 3], operator: 1, value: `${n * q}`, bank: stepBank(plain, n * q, n + q, -n * q, n * q + 1) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: `${triCoefficient(params)}`,
+          bank: stepBank(plain, triCoefficient(params), n * q - c2 * square, c2 * square - n * q, triCoefficient(params) + 1),
+        },
+      ],
+    };
+  },
+  solution: triWorking,
+};
+
+/** The x^2 (or at difficulty 2, sometimes x^3) coefficient typed. The choice form offers one source of x^k left out. */
+const trinomialCoeff: Generator<TriParams> = {
+  id: 'bin-trinomial-coeff',
+  sample: (rng, difficulty) => sampleTri(rng, difficulty, difficulty > 1 && rng.chance(0.5) ? 3 : 2),
+  choices: (params) => {
+    const { p, q, n, k } = params;
+    const value = triCoefficient(params);
+    const c2 = nCr(n, 2);
+    const slips =
+      k === 2
+        ? [c2 * p * p, n * q, n * q + c2 * p, n * q + 2 * c2 * p * p]
+        : [2 * p * q * c2, nCr(n, 3) * p ** 3, p * q * c2 + nCr(n, 3) * p ** 3, 2 * p * q * c2 - nCr(n, 3) * p ** 3];
+    return aimedNumbers(value, slips, spread(p, q, n, k));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `Find the coefficient of $${termTex(1, params.k)}$ in the expansion of $${triTex(params)}$.` }],
+    lead: '\\text{coefficient} =',
+    keypad: [],
+    answer: `${triCoefficient(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: triWorking,
+};
+
+/** Which is the start of the expansion: q from u forgotten, u^2 forgotten, or p left unsquared. */
+const trinomialWhich: Generator<TriParams> = {
+  id: 'bin-trinomial-which',
+  sample: (rng, difficulty) => sampleTri(rng, difficulty, 2),
+  render: (params): Slide => {
+    const { p, q, n } = params;
+    const c2 = nCr(n, 2);
+    const line = (x1: number, x2: number) => firstThreeTex(x1, x2);
+    const labels = firstDistinct([
+      line(n * p, triCoefficient(params)),
+      line(n * p, c2 * p * p),
+      line(n * p, n * q),
+      line(n * p, n * q + c2 * p),
+      line(n * q, triCoefficient(params)),
+      line(n * p, n * q + 2 * c2 * p * p),
+    ]);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which is the expansion of $${triTex(params)}$ as far as the $x^2$ term?` }],
+      ...nativeChoice(labels, mix(p, q, n)),
+    };
+  },
+  solution: (params) => [
+    ...triWorking(params),
+    { text: `The $x$ term comes only from $${params.n}u$: $${params.n} \\times ${br(params.p)} = ${params.n * params.p}$.` },
+    { tex: `${triTex(params)} = ${firstThreeTex(params.n * params.p, triCoefficient(params))} + \\dots` },
+  ],
+};
+
+/* --- equating across a product --- */
+
+interface IdentityParams {
+  /** (1 + x)^m (1 + x)^n = (1 + x)^(m + n), and the x^k coefficient of both. */
+  m: number;
+  n: number;
+  k: number;
+}
+
+/**
+ * m, n and k with two to `most` pairs making x^k, every one of them a real
+ * term: a bracket too short for a power simply drops that pair.
+ */
+function sampleIdentity(rng: Rng, difficulty: number, most: number): IdentityParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const k = rng.int(2, 3);
+    const m = rng.int(1, 7);
+    const n = rng.int(1, 7);
+    const total = m + n;
+    if (total < (hard ? 5 : 4) || total > (hard ? 8 : k === 3 ? 6 : 8)) continue;
+    const count = pairsOf({ a: 1, m, b: 1, n, k }).length;
+    if (count >= 2 && count <= most) return { m, n, k };
+  }
+}
+
+function identityProducts({ m, n, k }: IdentityParams): { i: number; value: number }[] {
+  return pairsOf({ a: 1, m, b: 1, n, k }).map((i) => ({ i, value: nCr(m, i) * nCr(n, k - i) }));
+}
+
+/** (1 + x)^m, the power left off when it is 1. */
+function onePlusX(m: number): string {
+  return m === 1 ? '(1 + x)' : `(1 + x)^{${m}}`;
+}
+
+function identityWorking(params: IdentityParams): SolutionStep[] {
+  const { m, n, k } = params;
+  const products = identityProducts(params);
+  return [
+    { text: `$${onePlusX(m)}${onePlusX(n)} = (1 + x)^{${m + n}}$, so the $x^{${k}}$ coefficient worked either way is the same. On the left it is the pairs, one term from each bracket:` },
+    { tex: column(products.map(({ i, value }) => [`${ncrTex(m, i)} \\times ${ncrTex(n, k - i)}`, value])) },
+    { tex: `${products.map(({ value }) => value).join(' + ')} = ${nCr(m + n, k)}` },
+    { text: `On the right it is one number from row $${m + n}$ of Pascal's triangle:` },
+    { tex: `${ncrTex(m + n, k)} = ${nCr(m + n, k)}` },
+  ];
+}
+
+/**
+ * The pairs of (1 + x)^m (1 + x)^n as numbers, and the single nCr from
+ * (1 + x)^(m + n) they add up to. The bank's other nCr are one row or one
+ * place out, and never the same number written the other way round.
+ */
+const identityTiles: Generator<IdentityParams> = {
+  id: 'bin-identity-tiles',
+  sample: (rng, difficulty) => sampleIdentity(rng, difficulty, 3),
+  render: (params): Slide => {
+    const { m, n, k } = params;
+    const products = identityProducts(params);
+    const total = m + n;
+    const answer = [...products.map(({ value }) => `${value}`), ncrTex(total, k)];
+    const rows = [
+      [total, k + 1],
+      [total - 1, k],
+      [total + 1, k],
+      [m * n, k],
+    ].filter(([row, r]) => nCr(row, r) > 0 && nCr(row, r) !== nCr(total, k));
+    const slips = [
+      ...rows.map(([row, r]) => ncrTex(row, r)),
+      `${nCr(m, k) + nCr(n, k)}`,
+      `${nCr(m, 1) * nCr(n, 1) + 1}`,
+      `${products[0].value + 1}`,
+    ];
+    const bank = tileBank(answer, slips);
+    const numbers = bank.filter((token) => NUMBER.test(token)).sort((x, y) => Number(x) - Number(y));
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$${onePlusX(m)}${onePlusX(n)} = (1 + x)^{${total}}$, so both sides have the same $x^{${k}}$ coefficient. Fill in what each pair on the left makes, lowest power from $${onePlusX(m)}$ first, then the one number from the right it must equal.`,
+        },
+      ],
+      template: `${products.map((_, at) => `{${at}}`).join(' + ')} = {${products.length}}`,
+      bank: [...numbers, ...bank.filter((token) => !NUMBER.test(token))],
+      answer,
+    };
+  },
+  solution: identityWorking,
+};
+
+/** A sum of nCr products, two to a line. */
+function pairSumTex({ m, n, k }: IdentityParams): string {
+  const terms = identityProducts({ m, n, k }).map(({ i }) => `${ncrTex(m, i)} \\times ${ncrTex(n, k - i)}`);
+  const lines: string[] = [];
+  for (let at = 0; at < terms.length; at += 2) lines.push(`${at === 0 ? '&' : '&\\quad +'} ${terms.slice(at, at + 2).join(' + ')}`);
+  return chain(...lines);
+}
+
+/** The sum of pair products as one number, typed. The choice form offers each bracket's own term, and a place out. */
+const identitySum: Generator<IdentityParams> = {
+  id: 'bin-identity-sum',
+  sample: (rng, difficulty) => sampleIdentity(rng, difficulty, 4),
+  choices: (params) => {
+    const { m, n, k } = params;
+    const right = nCr(m + n, k);
+    return aimedNumbers(
+      right,
+      [nCr(m, k) + nCr(n, k), nCr(m + n, k + 1), nCr(m + n, k - 1), right - identityProducts(params)[0].value],
+      spread(m, n, k),
+    );
+  },
+  render: (params): Slide => {
+    const { m, n } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Each product pairs a term of $${onePlusX(m)}$ with a term of $${onePlusX(n)}$. What is the sum, as one number?`,
+        },
+        { kind: 'display', tex: pairSumTex(params) },
+      ],
+      lead: '\\text{sum} =',
+      keypad: [],
+      answer: `${nCr(m + n, params.k)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: identityWorking,
+};
+
+interface FindAParams {
+  /** (1 + ax)^m (1 + bx)^n with a unknown; the x coefficient ma + nb is given. */
+  a: number;
+  m: number;
+  b: number;
+  n: number;
+}
+
+function sampleFindA(rng: Rng, difficulty: number): FindAParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const a = rng.pick([-3, -2, -1, 1, 2, 3]);
+    const m = hard ? rng.int(2, 4) : 2;
+    const b = hard ? rng.pick([-3, -2, -1, 1, 2, 3]) : rng.pick([1, 2]);
+    const n = hard ? rng.int(2, 6) : rng.int(3, 6);
+    if (m + n > 8) continue;
+    const params = { a, m, b, n };
+    if (m * a + n * b !== 0 && Math.abs(findASecond(params)) < 10000) return params;
+  }
+}
+
+/** The x^2 coefficient once a is known: each bracket's own x^2 term, and the two x terms multiplied. */
+function findASecond({ a, m, b, n }: FindAParams): number {
+  return nCr(m, 2) * a * a + m * a * n * b + nCr(n, 2) * b * b;
+}
+
+function findATex({ m, b, n }: FindAParams): string {
+  return `(1 + ax)^{${m}}${unitBracket(b)}^{${n}}`;
+}
+
+/** ma + nb as the learner writes it, a still a letter. */
+function findAExpr({ m, b, n }: FindAParams): string {
+  return sumTex([times(m, 'a'), `${n * b}`]);
+}
+
+function findAWorking(params: FindAParams): SolutionStep[] {
+  const { a, m, b, n } = params;
+  const c = m * a + n * b;
+  return [
+    { text: `The $x$ term is $x$ from one bracket times $1$ from the other: $${m}ax$ from the first and $${termTex(n * b, 1)}$ from the second.` },
+    { tex: chain(`${findAExpr(params)} &= ${c}`, `${times(m, 'a')} &= ${c - n * b}`, `a &= ${a}`) },
+  ];
+}
+
+/** The given x coefficient; `shown` when the product is drawn beneath the prompt. */
+function findAPrompt(params: FindAParams, shown = false): string {
+  const where = shown ? 'this product' : `$${findATex(params)}$`;
+  return `In the expansion of ${where}, the coefficient of $x$ is $${params.m * params.a + params.n * params.b}$.`;
+}
+
+/** a typed. The choice form offers the division left undone, the sign not turned, and a turned. */
+const findACoeff: Generator<FindAParams> = {
+  id: 'bin-find-a-coeff',
+  sample: sampleFindA,
+  choices: (params) => {
+    const { a, m, b, n } = params;
+    const c = m * a + n * b;
+    return aimedNumbers(a, [c - n * b, (c + n * b) / m, -a, (c - n) / m, c / m], spread(a, m, b, n));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: `${findAPrompt(params)} Find $a$.` }],
+    lead: 'a =',
+    keypad: [],
+    answer: `${params.a}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: findAWorking,
+};
+
+/**
+ * Which expression is the x coefficient, then a from it. The wrong turns are
+ * multiplying the two parts, forgetting the power's m, and leaving the
+ * division undone.
+ */
+const findAFlow: Generator<FindAParams> = {
+  id: 'bin-find-a-flow',
+  sample: sampleFindA,
+  render: (params): Slide => {
+    const { a, m, b, n } = params;
+    const nb = n * b;
+    const c = m * a + nb;
+    const right = `$${findAExpr(params)}$`;
+    const solved = `$a = ${a}$`;
+    const extra = (c + nb) / m;
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${findAPrompt(params, true)} Plan how to find $a$.` }],
+      subject: findATex(params),
+      steps: [
+        {
+          id: 'x',
+          ask: 'Which expression is the coefficient of $x$?',
+          branches: turned(
+            [
+              { label: right, to: 'solve' },
+              {
+                label: `$${times(m, 'a')} \\times ${br(nb)}$`,
+                outcome: 'An $x$ term is $x$ from one bracket times $1$ from the other, so the two parts add.',
+              },
+              {
+                label: `$${sumTex(['a', `${nb}`])}$`,
+                outcome: `The first bracket is to the power $${m}$, so its $x$ term is $${m}ax$, not $ax$.`,
+              },
+            ],
+            spread(a, m, b, n),
+          ),
+        },
+        {
+          id: 'solve',
+          ask: `$${findAExpr(params)} = ${c}$. What is $a$?`,
+          branches: turned(
+            [
+              { label: solved, outcome: `Right: $${times(m, 'a')} = ${c - nb}$, so $a = ${a}$.` },
+              { label: `$a = ${c - nb}$`, outcome: `That is $${times(m, 'a')}$: divide by $${m}$ as well.` },
+              ...(Number.isInteger(extra) && extra !== a && extra !== c - nb
+                ? [{ label: `$a = ${extra}$`, outcome: `The $${nb}$ moves across with its sign changed: $${times(m, 'a')} = ${c - nb}$.` }]
+                : []),
+            ],
+            spread(n, b, a, m, 9),
+          ),
+        },
+      ],
+      answer: [right, solved],
+    };
+  },
+  solution: findAWorking,
+};
+
+/** a from the x coefficient, then the x^2 coefficient it unlocks. */
+const findATree: Generator<FindAParams> = {
+  id: 'bin-find-a-tree',
+  sample: sampleFindA,
+  render: (params): Slide => {
+    const { a, m, b, n } = params;
+    const square = nCr(m, 2) * a * a;
+    const cross = m * a * n * b;
+    const B2 = nCr(n, 2) * b * b;
+    const answer = [m * a, a, square, cross, findASecond(params)].map(String);
+    const slips = [m * a + 2 * n * b, -a, m * a * a, -cross, square + cross, findASecond(params) - 2 * cross];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${findAPrompt(params, true)} Fill in $${times(m, 'a')}$ and $a$, then the first bracket's own $x^2$ coefficient and the two $x$ coefficients multiplied. The $x^2$ coefficient adds those to the second bracket's own, $${B2}$.`,
+        },
+      ],
+      expression: findATex(params),
+      nodes: [
+        { id: 'ma', from: [] },
+        { id: 'a', from: ['ma'] },
+        { id: 'square', from: ['a'] },
+        { id: 'cross', from: ['a'] },
+        { id: 'total', from: ['square', 'cross'] },
+      ],
+      bank: treeBank(answer, slips.map(String)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { a, m, b, n } = params;
+    return [
+      ...findAWorking(params),
+      { text: `So the first bracket is $${unitBracket(a)}^{${m}}$. Its own $x^2$ coefficient, the two $x$ coefficients multiplied, and the second's own $x^2$ coefficient:` },
+      { tex: `${nCr(m, 2) * a * a} + ${br(m * a)} \\times ${br(n * b)} + ${nCr(n, 2) * b * b} = ${findASecond(params)}` },
+    ];
+  },
+};
+
 /**
  * A worked line too wide for a phone, broken at its equals signs into an
  * aligned column. Lines already aligned, or with no equals sign at the top
@@ -3662,4 +4827,25 @@ export const binomialGenerators = [
   fitted(frontSign),
   fitted(frontFlow),
   fitted(frontTiles),
+  fitted(twoExpFlow),
+  fitted(twoExpTree),
+  fitted(twoExpCoeff),
+  fitted(twoExpTiles),
+  fitted(firstThreeTiles),
+  fitted(firstThreeSteps),
+  fitted(firstThreeReduce),
+  fitted(firstThreeWhich),
+  fitted(collapseWhich),
+  fitted(collapseCoeff),
+  fitted(collapseFlow),
+  fitted(collapseTiles),
+  fitted(trinomialTree),
+  fitted(trinomialWorkSteps),
+  fitted(trinomialCoeff),
+  fitted(trinomialWhich),
+  fitted(identityTiles),
+  fitted(identitySum),
+  fitted(findACoeff),
+  fitted(findAFlow),
+  fitted(findATree),
 ];

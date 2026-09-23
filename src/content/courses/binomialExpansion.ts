@@ -9,7 +9,10 @@
  * from the first three terms, and a bracket multiplied by an expansion.
  * Level 3 works backwards to the unknowns: n and k from two coefficients,
  * neighbouring coefficients equal or in a ratio, the sum of the coefficients,
- * and the number in front of x.
+ * and the number in front of x. Level 4 multiplies two expansions: the pairs
+ * that make one coefficient, the first three terms of a product, brackets that
+ * pair off into (1 - x^2)^n, three terms in a bracket as (1 + u)^n, and
+ * equating coefficients across a product.
  *
  * Every n here is a whole number. The series for negative and fractional n,
  * with its range of validity, is a later level of this course.
@@ -599,6 +602,179 @@ export const binomialExpansion: Course = {
         ask('bin-front-a', 2),
         ask('bin-front-sign', 2),
         ask('bin-front-flow', 2),
+      ],
+    },
+    {
+      id: 'be-l4',
+      title: 'Products of Expansions',
+      lessons: [
+        {
+          id: 'be-l4-pairs',
+          title: 'Two Expansions, One Coefficient',
+          slides: [
+            teach(
+              prose('Multiply two expansions and every term of the product is a term of the first times a term of the second. A multiple of $x^2$ comes three ways: $1 \\times x^2$, $x \\times x$ and $x^2 \\times 1$.'),
+              prose('Take $(1 + 2x)^3(1 + x)^4$. Each bracket starts, as far as $x^2$:'),
+              maths('\\begin{aligned} (1 + 2x)^{3}&: \\enspace 1 + 6x + 12x^{2} \\\\ (1 + x)^{4}&: \\enspace 1 + 4x + 6x^{2} \\end{aligned}'),
+            ),
+            ask('bin-two-exp-flow'),
+            ask('bin-two-exp-tiles'),
+            ask('bin-two-exp-coeff'),
+            teach(
+              prose('Pair them up, the powers adding to $2$:'),
+              maths('\\begin{aligned} & 1 \\times 6 + 6 \\times 4 + 12 \\times 1 \\\\ &= 42 \\end{aligned}'),
+              prose('So the $x^2$ coefficient is $42$. The pair most often dropped is $1 \\times 6x^2$: the $1$ has no $x$, but it still makes an $x^2$ term.'),
+            ),
+            ask('bin-two-exp-tree'),
+            ask('bin-two-exp-coeff+choice'),
+            ask('bin-two-exp-flow', 2),
+            teach(
+              prose('$x^k$ comes $k + 1$ ways, as long as both brackets reach $x^k$. In $(1 + x)^2(1 + 3x)^5$ the first bracket stops at $x^2$, so $x^3$ comes only three ways:'),
+              maths('\\begin{aligned} & 1 \\times 270 + 2 \\times 90 + 1 \\times 15 \\\\ &= 465 \\end{aligned}'),
+              prose('With negative numbers in the brackets, bracket each coefficient before multiplying.'),
+            ),
+            ask('bin-two-exp-tiles', 2),
+            ask('bin-two-exp-tree', 2),
+          ],
+          skillCheck: [ask('bin-two-exp-coeff', 2), ask('bin-two-exp-tree', 2), ask('bin-two-exp-flow', 2)],
+        },
+        {
+          id: 'be-l4-three',
+          title: 'The First Three Terms',
+          slides: [
+            teach(
+              prose('To expand a product as far as $x^2$, expand each bracket only as far as $x^2$: every later term makes $x^3$ or higher, whatever it is multiplied by. Here the brackets start:'),
+              maths('\\begin{aligned} (1 + x)^{5}&: \\enspace 1 + 5x + 10x^{2} \\\\ (1 - 2x)^{3}&: \\enspace 1 - 6x + 12x^{2} \\end{aligned}'),
+            ),
+            ask('bin-first-three-tiles'),
+            ask('bin-first-three-steps'),
+            ask('bin-first-three-which'),
+            teach(
+              prose('The $x$ term is $x$ from one bracket and $1$ from the other, so the $x$ coefficients add: $5 - 6 = -1$.'),
+              prose('The $x^2$ term takes both $x^2$ terms and the two $x$ terms multiplied, $5x \\times (-6x) = -30x^2$:'),
+              maths('10 - 30 + 12 = -8'),
+              maths('\\begin{aligned} & (1 + x)^{5}(1 - 2x)^{3} \\\\ &= 1 - x - 8x^{2} + \\dots \\end{aligned}'),
+            ),
+            ask('bin-first-three-reduce'),
+            ask('bin-first-three-tiles', 2),
+            ask('bin-first-three-steps', 2),
+            teach(
+              prose('In general the $x$ coefficient of $(1 + ax)^m(1 + bx)^n$ is $ma + nb$, and the $x^2$ coefficient has three parts:'),
+              maths('{}^{m}C_{2}a^{2} + ma \\times nb + {}^{n}C_{2}b^{2}'),
+              prose('The middle one, the two $x$ coefficients multiplied, is the one that goes missing.'),
+            ),
+            ask('bin-first-three-which', 2),
+            ask('bin-first-three-reduce', 2),
+          ],
+          skillCheck: [ask('bin-first-three-tiles', 2), ask('bin-first-three-steps', 2), ask('bin-first-three-which', 2)],
+        },
+        {
+          id: 'be-l4-pairing',
+          title: 'Pairing Brackets',
+          slides: [
+            teach(
+              prose('$(1 + x)(1 - x) = 1 - x^2$. When both brackets have the same power, they pair off one at a time:'),
+              maths('(1 + x)^{n}(1 - x)^{n} = (1 - x^{2})^{n}'),
+              prose('So $(1 + 3x)^4(1 - 3x)^4 = (1 - 9x^2)^4$: one expansion to do instead of two.'),
+            ),
+            ask('bin-collapse-which'),
+            ask('bin-collapse-tiles'),
+            ask('bin-collapse-coeff'),
+            teach(
+              prose('Every term of $(1 - x^2)^n$ is a power of $x^2$, so the odd powers of $x$ all vanish: the $x^3$ coefficient of $(1 + x)^5(1 - x)^5$ is $0$.'),
+              prose('The $x^{2k}$ term is ${}^{n}C_{k}(-x^2)^k$: the number is ${}^{n}C_{k}$ and the sign is $(-1)^k$. In $(1 - x^2)^5$ the $x^4$ term is'),
+              maths('{}^{5}C_{2}(-x^{2})^{2} = 10x^{4}'),
+            ),
+            ask('bin-collapse-flow'),
+            ask('bin-collapse-which', 2),
+            ask('bin-collapse-tiles', 2),
+            teach(
+              prose('A number on $x$ is squared as well. The $x^2$ term of $(1 - 4x^2)^3$ is'),
+              maths('{}^{3}C_{1} \\times (-4x^{2}) = -12x^{2}'),
+              prose('It only works with equal powers: $(1 + x)^3(1 - x)^5$ is $(1 - x^2)^3(1 - x)^2$, and the odd powers come back.'),
+            ),
+            ask('bin-collapse-coeff+choice', 2),
+            ask('bin-collapse-flow', 2),
+          ],
+          skillCheck: [ask('bin-collapse-coeff', 2), ask('bin-collapse-flow', 2), ask('bin-collapse-tiles', 2)],
+        },
+        {
+          id: 'be-l4-trinomial',
+          title: 'Three Terms in a Bracket',
+          slides: [
+            teach(
+              prose('$(1 + x + x^2)^n$ has three terms in its bracket. Call the last two $u = x + x^2$ and it is a binomial again:'),
+              maths('\\begin{aligned} (1 + u)^{n} &= 1 + nu \\\\ &\\quad + {}^{n}C_{2}u^{2} + \\dots \\end{aligned}'),
+              prose('Only $u$ and $u^2$ can reach $x^2$: $u^3$ starts at $x^3$.'),
+            ),
+            ask('bin-trinomial-tree'),
+            ask('bin-trinomial-coeff'),
+            ask('bin-trinomial-which'),
+            teach(
+              prose('So $x^2$ comes from two places: the $x^2$ inside $nu$, and the $x^2$ at the start of $u^2 = x^2 + 2x^3 + x^4$. In $(1 + x + x^2)^4$:'),
+              maths('4 \\times 1 + 6 \\times 1 = 10'),
+              prose('The $x$ coefficient is just $4$, from $nu$.'),
+            ),
+            ask('bin-trinomial-work-steps'),
+            ask('bin-trinomial-tree', 2),
+            ask('bin-trinomial-coeff', 2),
+            teach(
+              prose('With numbers, $u = px + qx^2$ and $u^2$ starts $p^2x^2$. In $(1 + 2x - x^2)^3$ the $x^2$ coefficient is'),
+              maths('3 \\times (-1) + 3 \\times 2^{2} = 9'),
+              prose('$x^3$ needs $u^2$ and $u^3$: $u^2$ gives $2pq\\,x^3$ and $u^3$ gives $p^3x^3$.'),
+            ),
+            ask('bin-trinomial-which', 2),
+            ask('bin-trinomial-work-steps', 2),
+          ],
+          skillCheck: [ask('bin-trinomial-coeff', 2), ask('bin-trinomial-tree', 2), ask('bin-trinomial-work-steps', 2)],
+        },
+        {
+          id: 'be-l4-equating',
+          title: 'Equating Across a Product',
+          slides: [
+            teach(
+              prose('$(1 + x)^3(1 + x)^4 = (1 + x)^7$, so the $x^2$ coefficient worked either way must agree. From the pairs on the left:'),
+              maths('1 \\times 6 + 3 \\times 4 + 3 \\times 1 = 21'),
+              prose('and on the right it is ${}^{7}C_{2} = 21$. A sum of nCr products like this is one nCr.'),
+            ),
+            ask('bin-identity-tiles'),
+            ask('bin-identity-sum'),
+            teach(
+              prose('Equating works on unknowns too. The $x$ coefficient of $(1 + ax)^2(1 + x)^5$ is $2a + 5$: $x$ from one bracket, $1$ from the other.'),
+              prose('If it is $11$:'),
+              maths('2a + 5 = 11, \\quad a = 3'),
+            ),
+            ask('bin-find-a-flow'),
+            ask('bin-find-a-coeff'),
+            ask('bin-find-a-tree'),
+            teach(
+              prose('Once $a$ is known, every other coefficient follows. With $a = 3$, the $x^2$ coefficient of $(1 + 3x)^2(1 + x)^5$ is'),
+              maths('9 + 6 \\times 5 + 10 = 49'),
+              prose('the first bracket\'s $x^2$ term, the two $x$ terms multiplied, and the second bracket\'s $x^2$ term.'),
+            ),
+            ask('bin-identity-tiles', 2),
+            ask('bin-find-a-coeff+choice', 2),
+            ask('bin-find-a-tree', 2),
+          ],
+          skillCheck: [ask('bin-identity-tiles', 2), ask('bin-find-a-coeff', 2), ask('bin-find-a-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('bin-two-exp-coeff', 2),
+        ask('bin-two-exp-tree', 2),
+        ask('bin-two-exp-flow', 2),
+        ask('bin-first-three-tiles', 2),
+        ask('bin-first-three-steps', 2),
+        ask('bin-first-three-which', 2),
+        ask('bin-collapse-coeff', 2),
+        ask('bin-collapse-flow', 2),
+        ask('bin-collapse-tiles', 2),
+        ask('bin-trinomial-coeff', 2),
+        ask('bin-trinomial-tree', 2),
+        ask('bin-trinomial-work-steps', 2),
+        ask('bin-find-a-coeff', 2),
+        ask('bin-identity-tiles', 2),
+        ask('bin-find-a-tree', 2),
       ],
     },
   ],

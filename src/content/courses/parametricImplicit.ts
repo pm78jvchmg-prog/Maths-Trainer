@@ -40,6 +40,12 @@ const figure = (
 ): Block => ({ kind: 'diagram', svg: paramSvg(f, opts) });
 
 const DYDX = '\\frac{dy}{dx}';
+const DXDT = '\\frac{dx}{dt}';
+const DYDT = '\\frac{dy}{dt}';
+const D2YDX2 = '\\frac{d^2y}{dx^2}';
+const D2YDT2 = '\\frac{d^2y}{dt^2}';
+const D2XDT2 = '\\frac{d^2x}{dt^2}';
+const DDT_DYDX = '\\frac{d}{dt}\\left(\\frac{dy}{dx}\\right)';
 
 export const parametricImplicit: Course = {
   id: 'parametric-implicit',
@@ -526,6 +532,236 @@ export const parametricImplicit: Course = {
         ask('impl-tangent-tiles', 2),
         ask('impl-slope-tree', 2),
         ask('impl-flat-point', 2),
+      ],
+    },
+    {
+      id: 'pi-l3',
+      title: 'Second Derivatives of Parametric & Implicit Curves',
+      lessons: [
+        {
+          id: 'pi-l3-formula',
+          title: 'The Second Derivative of a Parametric Curve',
+          slides: [
+            teach(
+              prose(
+                '$' +
+                  D2YDX2 +
+                  '$ is how fast the gradient changes as $x$ moves. The gradient is already known in terms of $t$, so differentiate **it** with respect to $t$, then divide by $' +
+                  DXDT +
+                  '$ to turn a rate per unit of $t$ into one per unit of $x$:',
+              ),
+              display(D2YDX2 + ' = ' + DDT_DYDX + ' \\div ' + DXDT),
+              prose('For $x = 2t + 1$, $y = t^{3}$: the gradient is $\\frac{3t^{2}}{2}$, its derivative is $3t$, and dividing by $2$ gives'),
+              display(D2YDX2 + ' = \\frac{3t}{2}'),
+            ),
+            ask('param-d2-flow'),
+            ask('param-d2-tiles'),
+            ask('param-d2'),
+            teach(
+              prose(
+                'It is tempting to divide $\\frac{d^2y}{dt^2}$ by $\\frac{d^2x}{dt^2}$. On $x = 2t + 1$ that is dividing by $0$: $x$ changes at a steady rate, so its second derivative vanishes, yet the curve still bends.',
+              ),
+              prose(
+                'The step most often lost is the last one. $' +
+                  DDT_DYDX +
+                  '$ is not the answer until it has been divided by $' +
+                  DXDT +
+                  '$.',
+              ),
+            ),
+            ask('param-d2+choice', 2),
+            ask('param-d2-tiles', 2),
+            ask('param-d2-trig'),
+            teach(
+              prose('The same route works with sines and cosines. For $x = 2\\cos t$, $y = 3\\sin t$:'),
+              display(DYDX + ' = -\\frac{3}{2}\\cot t'),
+              display(DDT_DYDX + ' = \\frac{3}{2\\sin^{2} t}'),
+              prose('Dividing by $' + DXDT + ' = -2\\sin t$:'),
+              display(D2YDX2 + ' = -\\frac{3}{4\\sin^{3} t}'),
+            ),
+            ask('param-d2-trig+choice', 2),
+            ask('param-d2-flow', 2),
+          ],
+          skillCheck: [ask('param-d2', 2), ask('param-d2-tiles', 2), ask('param-d2-trig', 2)],
+        },
+        {
+          id: 'pi-l3-value',
+          title: 'The Second Derivative at a Point',
+          slides: [
+            teach(
+              prose(
+                'When $x$ is not linear, $' +
+                  DYDX +
+                  '$ is a fraction in $t$ and differentiating it needs the quotient rule. At a single value of $t$ it is easiest in numbers.',
+              ),
+              prose('For $x = t^{2}$, $y = t^{3} - 4t$ at $t = 1$: $' + DXDT + ' = 2$, $' + DYDT + ' = -1$, $' + D2XDT2 + ' = 2$, $' + D2YDT2 + ' = 6$.'),
+              prose('The quotient rule on $' + DYDT + ' \\div ' + DXDT + '$ gives'),
+              display('\\frac{6 \\times 2 - (-1) \\times 2}{2^{2}} = \\frac{7}{2}'),
+              display(D2YDX2 + ' = \\frac{7}{2} \\div 2 = \\frac{7}{4}'),
+            ),
+            ask('param-d2-rates-tree'),
+            ask('param-d2-quotient-steps'),
+            ask('param-d2-at'),
+            teach(
+              prose('Both steps together give one formula, with $' + DXDT + '$ cubed underneath: squared from the quotient rule, once more for the last division.'),
+              display(D2YDX2 + ' = \\frac{' + D2YDT2 + DXDT + ' - ' + DYDT + D2XDT2 + '}{\\left(' + DXDT + '\\right)^{3}}'),
+            ),
+            ask('param-d2-general'),
+            ask('param-d2-at+choice', 2),
+            ask('param-d2-rates-tree', 2),
+            teach(
+              prose('In terms of $t$ the same formula often tidies up a lot. For $x = t^{2}$, $y = t^{3} + 5t$:'),
+              display(DYDX + ' = \\frac{3t^{2} + 5}{2t}'),
+              display(DDT_DYDX + ' = \\frac{3t^{2} - 5}{2t^{2}}'),
+              display(D2YDX2 + ' = \\frac{3t^{2} - 5}{4t^{3}}'),
+            ),
+            ask('param-d2-quotient-steps', 2),
+            ask('param-d2-general+choice', 2),
+          ],
+          skillCheck: [ask('param-d2-at', 2), ask('param-d2-rates-tree', 2), ask('param-d2-general', 2)],
+        },
+        {
+          id: 'pi-l3-concavity',
+          title: 'Concavity and Turning Points',
+          slides: [
+            teach(
+              prose(
+                'The sign of $' +
+                  D2YDX2 +
+                  '$ says which way the curve bends: positive is **concave up**, like a cup, and negative is **concave down**, like a cap.',
+              ),
+              prose(
+                'This is the second-derivative test from Differentiation, now on a curve given by a parameter: at a horizontal tangent, concave up is a minimum and concave down a maximum.',
+              ),
+            ),
+            ask('param-concave-choice'),
+            ask('param-turning-tree'),
+            ask('param-lowest-slider'),
+            teach(
+              prose(
+                'At a horizontal tangent $' +
+                  DYDT +
+                  ' = 0$, so half of the quotient rule vanishes and what is left is',
+              ),
+              display(D2YDX2 + ' = ' + D2YDT2 + ' \\div \\left(' + DXDT + '\\right)^{2}'),
+              prose('The square is positive, so there the sign is simply the sign of $' + D2YDT2 + '$.'),
+            ),
+            ask('param-nature-flow'),
+            ask('param-concave-choice', 2),
+            ask('param-turning-tree', 2),
+            teach(
+              prose(
+                'Away from a horizontal tangent the whole formula is needed. Its bottom is $\\left(' +
+                  DXDT +
+                  '\\right)^{3}$, which is negative wherever $x$ is decreasing, so the top alone does not decide the sign.',
+              ),
+              prose(
+                'On $x = t^{2}$, $y = t^{3}$ at $t = -1$ the top is $(-6)(-2) - (3)(2) = 6$, but the bottom is $(-2)^{3} = -8$, so $' +
+                  D2YDX2 +
+                  ' = -\\frac{3}{4}$: concave down.',
+              ),
+            ),
+            ask('param-lowest-slider', 2),
+            ask('param-nature-flow', 2),
+          ],
+          skillCheck: [ask('param-concave-choice', 2), ask('param-turning-tree', 2), ask('param-nature-flow', 2)],
+        },
+        {
+          id: 'pi-l3-implicit',
+          title: 'The Second Derivative of an Implicit Curve',
+          slides: [
+            teach(
+              prose(
+                'For an implicit curve, differentiate $' +
+                  DYDX +
+                  '$ again with respect to $x$, remembering $y$ is a function of $x$. On the circle $x^{2} + y^{2} = 25$ the gradient is $-\\frac{x}{y}$, and the quotient rule gives',
+              ),
+              display(D2YDX2 + ' = -\\frac{y - x' + DYDX + '}{y^{2}}'),
+              prose('A $' + DYDX + '$ is left in it, so put the gradient back in.'),
+            ),
+            ask('impl-d2-tiles'),
+            ask('impl-d2-sub-steps'),
+            ask('impl-d2-at'),
+            teach(
+              prose('Putting in $' + DYDX + ' = -\\frac{x}{y}$ and multiplying top and bottom by $y$:'),
+              display(D2YDX2 + ' = -\\frac{y^{2} + x^{2}}{y^{3}}'),
+              prose('The top is the circle\'s own left-hand side, so it is $25$:'),
+              display(D2YDX2 + ' = -\\frac{25}{y^{3}}'),
+            ),
+            ask('impl-d2-point-tree'),
+            ask('impl-d2-at+choice', 2),
+            ask('impl-d2-tiles', 2),
+            teach(
+              prose(
+                'The sign fits the picture. Above the $x$-axis $y > 0$, so $' +
+                  D2YDX2 +
+                  ' < 0$ and the top of the circle bends down; below it the bottom bends up.',
+              ),
+              prose('On an ellipse $Ax^{2} + By^{2} = C$ the same steps give $-\\frac{AC}{B^{2}y^{3}}$.'),
+            ),
+            ask('impl-d2-sub-steps', 2),
+            ask('impl-d2-point-tree', 2),
+          ],
+          skillCheck: [ask('impl-d2-at', 2), ask('impl-d2-tiles', 2), ask('impl-d2-sub-steps', 2)],
+        },
+        {
+          id: 'pi-l3-turning',
+          title: 'Turning Points on Implicit Curves',
+          slides: [
+            teach(
+              prose(
+                'Differentiating once gives $N + D' +
+                  DYDX +
+                  ' = 0$, where $D$ is everything multiplying $' +
+                  DYDX +
+                  '$ and $N$ is the rest. Differentiate that again: every term that comes out carries a $' +
+                  DYDX +
+                  '$ except two, so where $' +
+                  DYDX +
+                  ' = 0$ only those two are left.',
+              ),
+              display('N_x + D' + D2YDX2 + ' = 0'),
+              prose(
+                'Here $N_x$ is $N$ differentiated with respect to $x$ with $y$ held still. So at a horizontal tangent',
+              ),
+              display(D2YDX2 + ' = -\\frac{N_x}{D}'),
+            ),
+            ask('impl-turning-flow'),
+            ask('impl-turning-tree'),
+            ask('impl-turning-value'),
+            teach(
+              prose('On $x^{2} - 4x + y^{2} = 5$ at $(2, 3)$: $N = 2x - 4$, which is $0$ there, and $D = 2y = 6$.'),
+              prose('$N_x = 2$, so $' + D2YDX2 + ' = -\\frac{2}{6} = -\\frac{1}{3}$. Negative: concave down, so $(2, 3)$ is a local maximum.'),
+            ),
+            ask('impl-turning-kind'),
+            ask('impl-turning-value+choice', 2),
+            ask('impl-turning-tree', 2),
+            teach(
+              prose(
+                'When a curve has two horizontal tangents either side of the origin, $D$ usually has opposite signs at them, so one is a maximum and the other a minimum. Work each one out: the picture can be misleading on a tilted curve.',
+              ),
+            ),
+            ask('impl-turning-kind', 2),
+            ask('impl-turning-flow', 2),
+          ],
+          skillCheck: [ask('impl-turning-value', 2), ask('impl-turning-tree', 2), ask('impl-turning-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('param-d2', 2),
+        ask('param-d2-rates-tree', 2),
+        ask('param-concave-choice', 2),
+        ask('impl-d2-at', 2),
+        ask('impl-turning-tree', 2),
+        ask('param-d2-trig', 2),
+        ask('param-d2-quotient-steps', 2),
+        ask('param-lowest-slider', 2),
+        ask('impl-d2-sub-steps', 2),
+        ask('impl-turning-kind', 2),
+        ask('param-d2-tiles', 2),
+        ask('param-d2-at+choice', 2),
+        ask('param-nature-flow', 2),
+        ask('impl-d2-point-tree', 2),
       ],
     },
   ],

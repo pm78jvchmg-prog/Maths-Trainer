@@ -3187,6 +3187,1560 @@ const implTangentKind: Generator<ImplicitKindParams> = {
   },
 };
 
+/* ---------- Second derivatives: shared helpers ---------- */
+
+const D2YDX2 = '\\frac{d^2y}{dx^2}';
+const D2YDT2 = '\\frac{d^2y}{dt^2}';
+const D2XDT2 = '\\frac{d^2x}{dt^2}';
+const DDT_DYDX = '\\frac{d}{dt}\\left(\\frac{dy}{dx}\\right)';
+
+/** A fraction as [top, bottom]. */
+type Frac = [number, number];
+
+/**
+ * A polynomial in u = t - k, highest power first, expanded into powers of t.
+ *
+ * Building a curve around t = k this way puts every rate at k in plain
+ * sight: the coefficient of u is the first derivative there and twice the
+ * coefficient of u^2 the second, so a point can be made flat, bending or
+ * neither on purpose rather than by rejection.
+ */
+export function shifted(u: readonly number[], k: number): number[] {
+  let out: number[] = [];
+  for (const c of u) {
+    const next = [...out, 0];
+    for (let i = 1; i < next.length; i += 1) next[i] -= k * out[i - 1];
+    next[next.length - 1] += c;
+    out = next;
+  }
+  while (out.length > 1 && out[0] === 0) out.shift();
+  return out.map((v) => v + 0);
+}
+
+/**
+ * A polynomial in t over `den` times t to a power, in lowest terms: the sign
+ * of the bottom moved to the top, and an all-negative top pulled out front.
+ */
+function ratTex(top: readonly number[], den: number, power = 0): string {
+  const g = [...top, den].reduce((acc, v) => gcd(acc, v), 0);
+  let p = top.map((v) => v / g);
+  let q = den / g;
+  if (q < 0) {
+    p = p.map((v) => -v);
+    q = -q;
+  }
+  const bottom = `${q === 1 && power > 0 ? '' : q}${power === 0 ? '' : power === 1 ? 't' : `t^{${power}}`}`;
+  if (bottom === '1') return polyTex(p);
+  const negative = p.every((v) => v <= 0);
+  const shown = negative ? p.map((v) => -v + 0) : p;
+  return `${negative ? '-' : ''}\\frac{${polyTex(shown)}}{${bottom}}`;
+}
+
+/** The same for mathjs. */
+function ratAnswer(top: readonly number[], den: number, power = 0): string {
+  return `(${polyAnswer(top)})/((${den})*t^(${power}))`;
+}
+
+/** n/d times a body: -\frac{3}{4}\sin t. */
+function timesTex(n: number, dd: number, body: string): string {
+  const c = fracTex(n, dd);
+  return c === '1' ? body : c === '-1' ? `-${body}` : `${c}${body}`;
+}
+
+/** n over d times a body: -\frac{3}{4\sin^{3} t}. */
+function overBodyTex(n: number, dd: number, body: string): string {
+  const g = gcd(n, dd);
+  let p = n / g;
+  let q = dd / g;
+  if (q < 0) {
+    p = -p;
+    q = -q;
+  }
+  return `${p < 0 ? '-' : ''}\\frac{${Math.abs(p)}}{${q === 1 ? '' : q}${body}}`;
+}
+
+const fracValue = ([n, dd]: Frac): number => n / dd;
+
+/**
+ * Options for a fractional answer: the slips given, then near misses, each
+ * a different *value* from the answer and from each other, since the grader
+ * compares values and two ways of writing one number would both be right.
+ */
+function fracChoices(right: Frac, wrong: Frac[], salt: number, spare: Frac[] = []): ChoiceOption[] {
+  const seen = new Set([fracValue(right)]);
+  const keep = (list: Frac[]): Frac[] =>
+    list.filter((f) => {
+      if (f[1] === 0) return false;
+      const v = fracValue(f);
+      if (!Number.isFinite(v) || seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    });
+  const picked = keep(wrong).slice(0, 3);
+  for (let step = 1; picked.length < 3; step += 1) {
+    picked.push(...keep([[right[0] + step * right[1], right[1]], [right[0] - step * right[1], right[1]]]).slice(0, 3 - picked.length));
+  }
+  const spares = keep([...spare, [-2 * right[0], right[1]], [right[0], 2 * right[1]]]);
+  const as = ([n, dd]: Frac) => ({ tex: fracTex(n, dd), answer: fracAnswer(n, dd) });
+  return steered(options(as(right), ...picked.map(as)), salt, spares.map(as));
+}
+
+/**
+ * A tree bank of fractions: every answer (as a multiset), then distinct
+ * distractors, ordered by value so the bank reads like a number line.
+ */
+function fracTreeBank(answer: Frac[], distractors: Frac[]): string[] {
+  const texts = answer.map(([n, dd]) => fracTex(n, dd));
+  const value = new Map<string, number>(answer.map((f, i) => [texts[i], fracValue(f)]));
+  const extras: string[] = [];
+  const add = (f: Frac) => {
+    if (f[1] === 0 || extras.length >= 4) return;
+    const tex = fracTex(f[0], f[1]);
+    if (texts.includes(tex) || extras.includes(tex)) return;
+    extras.push(tex);
+    value.set(tex, fracValue(f));
+  };
+  distractors.forEach(add);
+  const last = answer[answer.length - 1];
+  for (let step = 1; extras.length < 3; step += 1) {
+    add([last[0] + step * last[1], last[1]]);
+    add([last[0] - step * last[1], last[1]]);
+  }
+  return [...texts, ...extras].sort((a, b) => value.get(a)! - value.get(b)! || a.localeCompare(b));
+}
+
+/** Whole-number step choices: the value, then the slips, topped up to three. */
+function numberStepBank(value: number, ...slips: number[]): string[] {
+  const candidates = [...slips];
+  for (let step = 1; new Set([value, ...candidates]).size < 3; step += 1) candidates.push(value + step, value - step);
+  return stepBank(bracketed(value), ...candidates.map(bracketed));
+}
+
+/** The four rates at t = k, and the top of d²y/dx² = (y''x' - y'x'')/x'^3. */
+export function secondAt(curve: ParamCurve, k: number) {
+  const X1 = valueAt(derived(curve.x), k);
+  const Y1 = valueAt(derived(curve.y), k);
+  const X2 = valueAt(derived(derived(curve.x)), k);
+  const Y2 = valueAt(derived(derived(curve.y)), k);
+  return { X1, Y1, X2, Y2, N: Y2 * X1 - Y1 * X2 };
+}
+
+/** The quotient-rule working at t = k, one short line each. */
+function quotientSolution(curve: ParamCurve, k: number): SolutionStep[] {
+  const { X1, Y1, X2, Y2, N } = secondAt(curve, k);
+  return [
+    { text: `At $t = ${k}$ the four rates are`, tex: `${DXDT} = ${X1}, \\quad ${DYDT} = ${Y1}` },
+    { tex: `${D2XDT2} = ${X2}, \\quad ${D2YDT2} = ${Y2}` },
+    {
+      text: `The quotient rule on $${DYDX} = ${DYDT} \\div ${DXDT}$. Its top is`,
+      tex: `${Y2} \\times ${bracketed(X1)} - ${bracketed(Y1)} \\times ${bracketed(X2)} = ${N}`,
+    },
+    { text: 'and its bottom is', tex: `${bracketed(X1)}^{2} = ${X1 * X1}` },
+    { tex: `${DDT_DYDX} = ${fracTex(N, X1 * X1)}` },
+    { text: `Then divide by $${DXDT} = ${X1}$.`, tex: `${D2YDX2} = ${fracTex(N, X1 ** 3)}` },
+  ];
+}
+
+/* ---------- d²y/dx² with x linear in t ---------- */
+
+export interface LinearD2Params {
+  /** x = a t + b. */
+  a: number;
+  b: number;
+  y: number[];
+}
+
+export const linearD2Curve = ({ a, b, y }: LinearD2Params): ParamCurve => ({ x: [a, b], y });
+
+/**
+ * x linear with a multiplier of 2 or more, so dividing by dx/dt once and
+ * dividing by it twice give different answers, and a cubic or quartic y, so
+ * something is left after differentiating twice.
+ */
+function sampleLinearD2(rng: Rng, difficulty: number): LinearD2Params {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const a = hard ? rng.int(2, 3) * rng.sign() : rng.int(2, 3);
+    const y = randomPoly(rng, hard ? rng.pick([3, 4]) : 3, 3);
+    if (y.length === 5 && Math.abs(y[0]) > 2) continue;
+    return { a, b: rng.int(-5, 5), y };
+  }
+}
+
+function linearD2Solution({ a, y }: LinearD2Params): SolutionStep[] {
+  const dy = derived(y);
+  const ddy = derived(dy);
+  return [
+    { text: `$${DXDT} = ${a}$, so the gradient is $${DYDT}$ divided by $${a}$.`, tex: `${DYDX} = ${ratTex(dy, a)}` },
+    { text: 'Differentiate the gradient with respect to $t$.', tex: `${DDT_DYDX} = ${ratTex(ddy, a)}` },
+    { text: `Divide by $${DXDT} = ${a}$ once more, so the $dt$ cancels against a $dx$.`, tex: `${D2YDX2} = ${ratTex(ddy, a * a)}` },
+  ];
+}
+
+/**
+ * d²y/dx² in terms of t, with x linear so the gradient is a polynomial.
+ *
+ * The options are the last division by $\frac{dx}{dt}$ lost, $\frac{d^2y}{dt^2}$
+ * offered as if it were the answer, and the gradient divided by
+ * $\frac{dx}{dt}$ without being differentiated first.
+ */
+const paramD2: Generator<LinearD2Params> = {
+  id: 'param-d2',
+  sample: sampleLinearD2,
+  choices: (params) => {
+    const { a, y } = params;
+    const dy = derived(y);
+    const ddy = derived(dy);
+    return steered(
+      options(
+        { tex: ratTex(ddy, a * a), answer: ratAnswer(ddy, a * a) },
+        { tex: ratTex(ddy, a), answer: ratAnswer(ddy, a) },
+        { tex: polyTex(ddy), answer: polyAnswer(ddy) },
+        { tex: ratTex(dy, a * a), answer: ratAnswer(dy, a * a) },
+      ),
+      mix(a, params.b, ...y),
+      [
+        { tex: ratTex(ddy.map((c) => -c), a * a), answer: ratAnswer(ddy.map((c) => -c), a * a) },
+        { tex: ratTex(ddy, 2 * a * a), answer: ratAnswer(ddy, 2 * a * a) },
+      ],
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('A curve is traced by'), ...curveBlocks(linearD2Curve(params)), prose(`Find $${D2YDX2}$ in terms of $t$.`)],
+    lead: `${D2YDX2} =`,
+    keypad: T_KEYS,
+    answer: ratAnswer(derived(derived(params.y)), params.a * params.a),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: linearD2Solution,
+};
+
+/**
+ * d²y/dx² built from tiles: what is differentiated, then what it is divided by.
+ *
+ * The bank holds $\frac{d^2y}{dt^2}$, the gradient undifferentiated, and
+ * $\frac{d^2x}{dt^2} = 0$ as a divisor, the three halves of the slip of
+ * treating the second derivative as a ratio of second derivatives.
+ */
+const paramD2Tiles: Generator<LinearD2Params> = {
+  id: 'param-d2-tiles',
+  sample: sampleLinearD2,
+  render: (params): Slide => {
+    const { a, y } = params;
+    const dy = derived(y);
+    const ddy = derived(dy);
+    const answer = [ratTex(ddy, a), `${a}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(linearD2Curve(params)),
+        prose(`Its gradient is $${DYDX} = ${ratTex(dy, a)}$. Build $${D2YDX2}$.`),
+      ],
+      template: `${D2YDX2} = ({0}) \\div ({1})`,
+      bank: tokenBank(answer, [polyTex(ddy), ratTex(dy, a), '0', `${a * a}`, `${-a}`], 3),
+      answer,
+    };
+  },
+  solution: ({ a, y }) => {
+    const ddy = derived(derived(y));
+    return [
+      { text: 'Differentiate the gradient with respect to $t$.', tex: `${DDT_DYDX} = ${ratTex(ddy, a)}` },
+      {
+        text: `That is still a rate per unit of $t$. Dividing by $${DXDT} = ${a}$ turns it into one per unit of $x$.`,
+        tex: `${D2YDX2} = ${ratTex(ddy, a * a)}`,
+      },
+    ];
+  },
+};
+
+/**
+ * The route to d²y/dx² as three decisions: what to differentiate, what to do
+ * with it, and which expression that gives.
+ *
+ * With $x$ linear, $\frac{d^2x}{dt^2}$ is zero, so the ratio-of-second-
+ * derivatives slip does not merely give a wrong answer; it gives no answer.
+ */
+const paramD2Flow: Generator<LinearD2Params> = {
+  id: 'param-d2-flow',
+  sample: sampleLinearD2,
+  render: (params): Slide => {
+    const { a, y } = params;
+    const dy = derived(y);
+    const ddy = derived(dy);
+    const salt = mix(a, params.b, ...y);
+    const results = [ratTex(ddy, a * a), ratTex(ddy, a), polyTex(ddy), ratTex(dy, a * a)];
+    const first = `The gradient, $${DYDX}$`;
+    const divide = `Divide by $${DXDT}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('A curve is traced by'), ...curveBlocks(linearD2Curve(params)), prose(`Find $${D2YDX2}$. Its gradient is`)],
+      subject: `${DYDX} = ${ratTex(dy, a)}`,
+      steps: [
+        {
+          id: 'what',
+          ask: 'What do you differentiate with respect to $t$?',
+          branches: turned(
+            [
+              { label: first, to: 'next' },
+              {
+                label: '$y$, a second time',
+                outcome: `Then you have $${D2YDT2} = ${polyTex(ddy)}$: how $y$'s rate changes with $t$, not how the gradient changes with $x$.`,
+              },
+              {
+                label: '$x$ and $y$ a second time, then divide',
+                outcome: `Then $${D2XDT2} = 0$ is underneath, and there is nothing to divide by.`,
+              },
+            ],
+            salt % 3,
+          ),
+        },
+        {
+          id: 'next',
+          ask: `That gives $${DDT_DYDX} = ${ratTex(ddy, a)}$. What next?`,
+          branches: turned(
+            [
+              { label: divide, to: 'result' },
+              { label: 'Stop: that is the answer', outcome: 'Then the answer is a rate per unit of $t$, not per unit of $x$.' },
+              { label: `Multiply by $${DXDT}$`, outcome: `Then you are back at $${polyTex(ddy)}$, which is $${D2YDT2}$.` },
+            ],
+            (salt >>> 3) % 3,
+          ),
+        },
+        {
+          id: 'result',
+          ask: `Which is $${D2YDX2}$?`,
+          branches: turned(
+            results.map((tex, i) =>
+              i === 0
+                ? { label: `$${tex}$`, outcome: `That is $${D2YDX2}$.` }
+                : { label: `$${tex}$`, outcome: `Then $${D2YDX2}$ would be $${tex}$.` },
+            ),
+            (salt >>> 6) % 4,
+          ),
+        },
+      ],
+      answer: [first, divide, `$${results[0]}$`],
+    };
+  },
+  solution: linearD2Solution,
+};
+
+/* ---------- d²y/dx² for a trigonometric curve ---------- */
+
+export interface TrigD2Params {
+  /** 'cs': x = a cos t, y = b sin t. 'sc': x = a sin t, y = b cos t. 'ls': x = a t, y = b sin t. */
+  form: 'cs' | 'sc' | 'ls';
+  a: number;
+  b: number;
+}
+
+export const trigD2Sources = ({ form, a, b }: TrigD2Params): { x: string; y: string } =>
+  trigSlopeSources({ form, a, b, angle: 0 });
+
+/** [TeX, mathjs] for the right answer, the division lost, the sign lost, the second-derivative ratio; then spares. */
+function trigD2Options({ form, a, b }: TrigD2Params): Omit<ChoiceOption, 'correct'>[] {
+  const aa = a * a;
+  if (form === 'cs') {
+    return [
+      { tex: overBodyTex(-b, aa, '\\sin^{3} t'), answer: `(${-b})/((${aa})*sin(t)^3)` },
+      { tex: overBodyTex(b, a, '\\sin^{2} t'), answer: `(${b})/((${a})*sin(t)^2)` },
+      { tex: overBodyTex(b, aa, '\\sin^{3} t'), answer: `(${b})/((${aa})*sin(t)^3)` },
+      { tex: timesTex(b, a, '\\tan t'), answer: `(${b})/(${a})*tan(t)` },
+      { tex: overBodyTex(-b, a, '\\sin^{3} t'), answer: `(${-b})/((${a})*sin(t)^3)` },
+      { tex: overBodyTex(-b, aa, '\\sin^{2} t'), answer: `(${-b})/((${aa})*sin(t)^2)` },
+    ];
+  }
+  if (form === 'sc') {
+    return [
+      { tex: overBodyTex(-b, aa, '\\cos^{3} t'), answer: `(${-b})/((${aa})*cos(t)^3)` },
+      { tex: overBodyTex(-b, a, '\\cos^{2} t'), answer: `(${-b})/((${a})*cos(t)^2)` },
+      { tex: overBodyTex(b, aa, '\\cos^{3} t'), answer: `(${b})/((${aa})*cos(t)^3)` },
+      { tex: timesTex(b, a, '\\cot t'), answer: `(${b})/(${a})*cot(t)` },
+      { tex: overBodyTex(-b, a, '\\cos^{3} t'), answer: `(${-b})/((${a})*cos(t)^3)` },
+      { tex: overBodyTex(-b, aa, '\\cos^{2} t'), answer: `(${-b})/((${aa})*cos(t)^2)` },
+    ];
+  }
+  return [
+    { tex: timesTex(-b, aa, '\\sin t'), answer: `(${-b})/(${aa})*sin(t)` },
+    { tex: timesTex(-b, a, '\\sin t'), answer: `(${-b})/(${a})*sin(t)` },
+    { tex: timesTex(b, aa, '\\sin t'), answer: `(${b})/(${aa})*sin(t)` },
+    { tex: timesTex(-b, 1, '\\sin t'), answer: `(${-b})*sin(t)` },
+    { tex: timesTex(-b, aa, '\\cos t'), answer: `(${-b})/(${aa})*cos(t)` },
+    { tex: timesTex(-b, a, '\\cos t'), answer: `(${-b})/(${a})*cos(t)` },
+  ];
+}
+
+/**
+ * d²y/dx² for a curve traced by sines and cosines: on the ellipse
+ * $x = a\cos t$, $y = b\sin t$ it is $-\frac{b}{a^2\sin^3 t}$.
+ *
+ * The derivatives of $\tan t$ and $\cot t$ are Differentiation's. The options
+ * are the division lost, the sign lost, and $\frac{d^2y}{dt^2}$ over
+ * $\frac{d^2x}{dt^2}$, which for an ellipse is a tangent rather than anything
+ * like the answer.
+ */
+const paramD2Trig: Generator<TrigD2Params> = {
+  id: 'param-d2-trig',
+  sample: (rng, difficulty) => ({
+    form: difficulty >= 2 ? rng.pick(['cs', 'sc', 'ls'] as const) : rng.pick(['cs', 'sc'] as const),
+    a: rng.int(2, difficulty >= 2 ? 5 : 4),
+    b: rng.int(1, 9),
+  }),
+  choices: (params) => {
+    const [right, ...wrong] = trigD2Options(params);
+    return steered(options(right, ...wrong.slice(0, 3)), mix(params.a, params.b, params.form.charCodeAt(0)), wrong.slice(3));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('A curve is traced by'), trigBlock(params), prose(`Find $${D2YDX2}$ in terms of $t$.`)],
+    lead: `${D2YDX2} =`,
+    keypad: T_TRIG_KEYS,
+    answer: trigD2Options(params)[0].answer!,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { form, a, b } = params;
+    const [right, lost] = trigD2Options(params);
+    if (form === 'ls') {
+      return [
+        { text: `$${DXDT} = ${a}$, so`, tex: `${DYDX} = ${timesTex(b, a, '\\cos t')}` },
+        { text: 'Differentiate that with respect to $t$.', tex: `${DDT_DYDX} = ${lost.tex}` },
+        { text: `Divide by $${DXDT} = ${a}$ again.`, tex: `${D2YDX2} = ${right.tex}` },
+      ];
+    }
+    const cs = form === 'cs';
+    return [
+      {
+        text: 'Differentiate both with respect to $t$ and divide.',
+        tex: `${DYDX} = ${cs ? timesTex(-b, a, '\\cot t') : timesTex(-b, a, '\\tan t')}`,
+      },
+      {
+        text: cs
+          ? 'Differentiate again: the derivative of $\\cot t$ is $-\\operatorname{cosec}^{2} t$.'
+          : 'Differentiate again: the derivative of $\\tan t$ is $\\sec^{2} t$.',
+        tex: `${DDT_DYDX} = ${lost.tex}`,
+      },
+      {
+        text: `Divide by $${DXDT} = ${cs ? `-${coef(a)}\\sin t` : `${coef(a)}\\cos t`}$.`,
+        tex: `${D2YDX2} = ${right.tex}`,
+      },
+    ];
+  },
+};
+
+/* ---------- d²y/dx² at a value of t ---------- */
+
+export interface GeneralD2Params {
+  curve: ParamCurve;
+  k: number;
+}
+
+/**
+ * A quadratic x, so the quotient rule has both of its halves, and a t where
+ * dx/dt is at least 2 in size, so the last division changes the number.
+ */
+function sampleGeneralD2(rng: Rng, difficulty: number): GeneralD2Params {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const x = hard ? [rng.int(1, 2) * rng.sign(), rng.int(-3, 3), rng.int(-4, 4)] : [1, 0, rng.int(-4, 4)];
+    const y = randomPoly(rng, rng.pick([2, 3]), 3);
+    const k = hard ? rng.int(-3, 3) : rng.pick([-2, -1, 1, 2]);
+    const curve = { x, y };
+    const { X1, N } = secondAt(curve, k);
+    if (Math.abs(X1) < 2 || N === 0) continue;
+    const g = gcd(N, X1 ** 3);
+    if (Math.abs(X1 ** 3 / g) > 32 || Math.abs(N / g) > 60) continue;
+    const [x0, y0] = pointAt(curve, k);
+    if (Math.abs(x0) > 30 || Math.abs(y0) > 40) continue;
+    return { curve, k };
+  }
+}
+
+/**
+ * d²y/dx² at a value of t as a tree: the rate of the gradient and dx/dt at
+ * that moment, then their quotient.
+ *
+ * The bank holds $\frac{d^2y}{dt^2} \div \frac{d^2x}{dt^2}$ there, the
+ * gradient itself, and the quotient multiplied instead of divided.
+ */
+const paramD2RatesTree: Generator<GeneralD2Params> = {
+  id: 'param-d2-rates-tree',
+  sample: sampleGeneralD2,
+  render: ({ curve, k }): Slide => {
+    const { X1, Y1, X2, Y2, N } = secondAt(curve, k);
+    const answer: Frac[] = [[N, X1 * X1], [X1, 1], [N, X1 ** 3]];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(
+          `Its gradient is $${DYDX} = ${gradientTex(curve)}$. Find $${D2YDX2}$ where $t = ${k}$. The top row is $${DDT_DYDX}$ and $${DXDT}$ there; the box below is $${D2YDX2}$.`,
+        ),
+      ],
+      expression: `${D2YDX2} = ${DDT_DYDX} \\div ${DXDT}`,
+      nodes: [
+        { id: 'g', from: [] },
+        { id: 'dx', from: [] },
+        { id: 'v', from: ['g', 'dx'] },
+      ],
+      bank: fracTreeBank(answer, [[Y2, X2], [Y1, X1], [N * X1, X1 * X1], [-N, X1 ** 3], [Y2, 1]]),
+      answer: answer.map(([n, dd]) => fracTex(n, dd)),
+    };
+  },
+  solution: ({ curve, k }) => quotientSolution(curve, k),
+};
+
+/**
+ * The same value worked through the whole formula, one rate at a time:
+ * $\frac{d^2y}{dx^2} = \left(\frac{d^2y}{dt^2}\frac{dx}{dt} -
+ * \frac{dy}{dt}\frac{d^2x}{dt^2}\right) \div \left(\frac{dx}{dt}\right)^3$.
+ *
+ * Each rate's bank carries its neighbours in the formula, the cube's the
+ * square, and the last step's the division by the square alone, which is the
+ * step most often lost.
+ */
+const paramD2QuotientSteps: Generator<GeneralD2Params> = {
+  id: 'param-d2-quotient-steps',
+  sample: sampleGeneralD2,
+  render: ({ curve, k }): Slide => {
+    const { X1, Y1, X2, Y2, N } = secondAt(curve, k);
+    const [x0, y0] = pointAt(curve, k);
+    const start = ['(', D2YDT2, '\\cdot', DXDT, '-', DYDT, '\\cdot', D2XDT2, ')', '\\div', `\\left(${DXDT}\\right)^{3}`];
+    const cube = X1 ** 3;
+    const final = fracTex(N, cube);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(
+          `Find $${D2YDX2}$ where $t = ${k}$, putting the rates there into the formula below. Tap the step to do next, then choose what it gives.`,
+        ),
+      ],
+      start,
+      reductions: [
+        { span: [1, 2], value: bracketed(Y2), bank: numberStepBank(Y2, Y1, X2, y0) },
+        { span: [3, 4], value: bracketed(X1), bank: numberStepBank(X1, X2, x0, -X1) },
+        { span: [5, 6], value: bracketed(Y1), bank: numberStepBank(Y1, Y2, y0, -Y1) },
+        { span: [7, 8], value: bracketed(X2), bank: numberStepBank(X2, X1, 0, -X2) },
+        { span: [0, 9], operator: 4, value: `${N}`, bank: stepBank(`${N}`, `${Y2 * X1 + Y1 * X2}`, `${-N}`, `${N + 2}`) },
+        { span: [2, 3], value: `${cube}`, bank: stepBank(`${cube}`, `${X1 * X1}`, `${3 * X1}`, `${-cube}`) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: final,
+          bank: stepBank(final, fracTex(N, X1 * X1), fracTex(-N, cube), fracTex(cube, N)),
+        },
+      ],
+    };
+  },
+  solution: ({ curve, k }) => quotientSolution(curve, k),
+};
+
+/**
+ * The value of d²y/dx² at a value of t, typed as a number.
+ *
+ * The options carry the last division lost, $\frac{d^2y}{dt^2}$ over
+ * $\frac{d^2x}{dt^2}$, and the sign of the quotient rule turned over.
+ */
+const paramD2At: Generator<GeneralD2Params> = {
+  id: 'param-d2-at',
+  sample: sampleGeneralD2,
+  choices: ({ curve, k }) => {
+    const { X1, Y1, X2, Y2, N } = secondAt(curve, k);
+    return fracChoices(
+      [N, X1 ** 3],
+      [[N, X1 * X1], [Y2, X2], [-N, X1 ** 3]],
+      mix(k, ...curve.x, ...curve.y),
+      [[Y2, X1 * X1], [Y2 * X1 + Y1 * X2, X1 ** 3]],
+    );
+  },
+  render: ({ curve, k }): Slide => {
+    const { X1, N } = secondAt(curve, k);
+    return {
+      kind: 'expression',
+      prompt: [prose('A curve is traced by'), ...curveBlocks(curve), prose(`Find the value of $${D2YDX2}$ where $t = ${k}$.`)],
+      lead: `${D2YDX2} =`,
+      keypad: FRACTION_KEYS,
+      answer: fracAnswer(N, X1 ** 3),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ curve, k }) => quotientSolution(curve, k),
+};
+
+/* ---------- d²y/dx² in t with x quadratic ---------- */
+
+export interface QuadraticXParams {
+  /** x = c t^2 + b. */
+  c: number;
+  b: number;
+  /** y = p t^3 + q t^2 + r t + s. */
+  p: number;
+  q: number;
+  r: number;
+  s: number;
+}
+
+export const quadraticXCurve = ({ c, b, p, q, r, s }: QuadraticXParams): ParamCurve => ({
+  x: [c, 0, b],
+  y: [p, q, r, s],
+});
+
+/**
+ * [the answer, the last division lost, d²y/dt² over d²x/dt², the sign lost; then spares].
+ *
+ * With $x = ct^2 + b$ the quotient rule collapses: the $q$ terms cancel, and
+ * $\frac{d^2y}{dx^2} = \frac{3pt^2 - r}{4c^2t^3}$.
+ */
+function quadraticXOptions({ c, p, q, r }: QuadraticXParams): Omit<ChoiceOption, 'correct'>[] {
+  const top = [3 * p, 0, -r];
+  const cc = 4 * c * c;
+  return [
+    { tex: ratTex(top, cc, 3), answer: ratAnswer(top, cc, 3) },
+    { tex: ratTex(top, 2 * c, 2), answer: ratAnswer(top, 2 * c, 2) },
+    { tex: ratTex([6 * p, 2 * q], 2 * c), answer: ratAnswer([6 * p, 2 * q], 2 * c) },
+    { tex: ratTex(top.map((v) => -v), cc, 3), answer: ratAnswer(top.map((v) => -v), cc, 3) },
+    { tex: ratTex([3 * p, 0, r], cc, 3), answer: ratAnswer([3 * p, 0, r], cc, 3) },
+    { tex: ratTex(top, cc, 2), answer: ratAnswer(top, cc, 2) },
+  ];
+}
+
+/**
+ * d²y/dx² in terms of t when x is not linear, so the quotient rule does real
+ * work: the gradient is $\frac{dy/dt}{2ct}$ and its derivative has two halves.
+ */
+const paramD2General: Generator<QuadraticXParams> = {
+  id: 'param-d2-general',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    return {
+      c: hard ? rng.int(1, 2) * rng.sign() : 1,
+      b: rng.int(-4, 4),
+      p: rng.int(1, hard ? 4 : 3) * rng.sign(),
+      q: rng.int(-4, 4),
+      r: rng.int(1, hard ? 9 : 6) * rng.sign(),
+      s: rng.int(-5, 5),
+    };
+  },
+  choices: (params) => {
+    const [right, ...wrong] = quadraticXOptions(params);
+    return steered(options(right, ...wrong.slice(0, 3)), mix(params.c, params.p, params.q, params.r, params.s), wrong.slice(3));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('A curve is traced by'), ...curveBlocks(quadraticXCurve(params)), prose(`Find $${D2YDX2}$ in terms of $t$.`)],
+    lead: `${D2YDX2} =`,
+    keypad: T_KEYS,
+    answer: quadraticXOptions(params)[0].answer!,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const curve = quadraticXCurve(params);
+    const [right, lost] = quadraticXOptions(params);
+    return [
+      { text: 'Differentiate both with respect to $t$.', tex: `${DXDT} = ${polyTex(derived(curve.x))}` },
+      { tex: `${DYDT} = ${polyTex(derived(curve.y))}` },
+      { text: 'So the gradient is', tex: `${DYDX} = ${gradientTex(curve)}` },
+      { text: 'The quotient rule, then tidy: the $t$ terms on top cancel.', tex: `${DDT_DYDX} = ${lost.tex}` },
+      { text: `Divide by $${DXDT} = ${polyTex(derived(curve.x))}$.`, tex: `${D2YDX2} = ${right.tex}` },
+    ];
+  },
+};
+
+/* ---------- Concavity along a parametric curve ---------- */
+
+export interface TaylorParams {
+  k: number;
+  /** x and y as polynomials in u = t - k, highest power first. */
+  xu: number[];
+  yu: number[];
+}
+
+export const taylorCurve = ({ k, xu, yu }: TaylorParams): ParamCurve => ({ x: shifted(xu, k), y: shifted(yu, k) });
+
+/** Small enough to read: every expanded coefficient 30 or under. */
+const readable = (curve: ParamCurve): boolean => [...curve.x, ...curve.y].every((c) => Math.abs(c) <= 30);
+
+export type Bend = 'up' | 'down' | 'neither';
+
+export interface ConcaveParams extends TaylorParams {
+  bend: Bend;
+}
+
+/** Which way d²y/dx² says the curve bends at t = k. */
+export function bendAt(curve: ParamCurve, k: number): Bend {
+  const { X1, N } = secondAt(curve, k);
+  const sign = Math.sign(N) * Math.sign(X1);
+  return sign > 0 ? 'up' : sign < 0 ? 'down' : 'neither';
+}
+
+/**
+ * Concave up, concave down, or neither, at a value of t.
+ *
+ * At difficulty 1 x is linear and the answer is the sign of
+ * $\frac{d^2y}{dt^2}$; at difficulty 2 x is quadratic and the whole quotient
+ * decides. Native choice in a fixed order: which is right changes, the
+ * three words do not.
+ */
+const paramConcaveChoice: Generator<ConcaveParams> = {
+  id: 'param-concave-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const bend = rng.pick(['up', 'down', 'neither'] as const);
+    for (;;) {
+      const k = rng.int(hard ? -3 : -2, hard ? 3 : 2);
+      const a1 = rng.int(1, 3) * rng.sign();
+      const a2 = hard ? rng.int(1, 2) * rng.sign() : 0;
+      const xu = hard ? [a2, a1, rng.int(-4, 4)] : [a1, rng.int(-4, 4)];
+      const m = rng.int(1, 2) * rng.sign();
+      let c1 = rng.int(-3, 3);
+      let c2 = rng.int(1, 3) * rng.sign();
+      if (bend === 'neither') {
+        c1 = hard ? a1 * m : c1;
+        c2 = hard ? a2 * m : 0;
+      }
+      const params: ConcaveParams = { k, xu, yu: [rng.int(1, 2) * rng.sign(), c2, c1, rng.int(-4, 4)], bend };
+      const curve = taylorCurve(params);
+      if (!readable(curve) || bendAt(curve, k) !== bend) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'choice',
+    prompt: [
+      prose('A curve is traced by'),
+      ...curveBlocks(taylorCurve(params)),
+      prose(`At the point where $t = ${params.k}$, is the curve concave up, concave down, or neither?`),
+    ],
+    options: [
+      { id: 'up', label: 'Concave up' },
+      { id: 'down', label: 'Concave down' },
+      { id: 'neither', label: 'Neither' },
+    ],
+    correctId: bendAt(taylorCurve(params), params.k),
+  }),
+  solution: (params) => {
+    const curve = taylorCurve(params);
+    const { X1, N } = secondAt(curve, params.k);
+    const bend = bendAt(curve, params.k);
+    return [
+      ...quotientSolution(curve, params.k),
+      {
+        text:
+          bend === 'neither'
+            ? `It is zero, so the curve is neither concave up nor concave down there.`
+            : `That is ${fracValue([N, X1 ** 3]) > 0 ? 'positive' : 'negative'}, so the curve is concave ${bend} there.`,
+      },
+    ];
+  },
+};
+
+/** A horizontal tangent at t = k: dy/dt is zero there and d²y/dt² is not. */
+function sampleFlatTaylor(rng: Rng, difficulty: number): TaylorParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const k = rng.int(hard ? -3 : -2, hard ? 3 : 2);
+    const a1 = rng.int(2, 3) * rng.sign();
+    const xu = hard ? [rng.int(1, 2) * rng.sign(), a1, rng.int(-4, 4)] : [a1, rng.int(-4, 4)];
+    const c3 = hard ? rng.int(1, 2) * rng.sign() : rng.int(-1, 1);
+    const params: TaylorParams = { k, xu, yu: [c3, rng.int(1, hard ? 4 : 3) * rng.sign(), 0, rng.int(-5, 5)] };
+    const curve = taylorCurve(params);
+    const [x0, y0] = pointAt(curve, k);
+    if (!readable(curve) || Math.abs(x0) > 30 || Math.abs(y0) > 30) continue;
+    return params;
+  }
+}
+
+/**
+ * d²y/dx² at a horizontal tangent as a tree. There dy/dt is zero, so the
+ * quotient rule loses its second half and what is left is
+ * $\frac{d^2y}{dt^2} \div \left(\frac{dx}{dt}\right)^2$: the square is
+ * positive, and the sign is $\frac{d^2y}{dt^2}$'s.
+ *
+ * The bank carries the division by $\frac{dx}{dt}$ unsquared and
+ * $\frac{d^2x}{dt^2}$ in its place.
+ */
+const paramTurningTree: Generator<TaylorParams> = {
+  id: 'param-turning-tree',
+  sample: sampleFlatTaylor,
+  render: (params): Slide => {
+    const curve = taylorCurve(params);
+    const { X1, X2, Y2 } = secondAt(curve, params.k);
+    const answer: Frac[] = [[Y2, 1], [X1, 1], [X1 * X1, 1], [Y2, X1 * X1]];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(
+          `Its tangent is horizontal where $t = ${params.k}$. Find $${D2YDX2}$ there. The top row is $${D2YDT2}$ and $${DXDT}$ at that moment; then $\\left(${DXDT}\\right)^{2}$; then $${D2YDX2}$.`,
+        ),
+      ],
+      expression: `${D2YDX2} = ${D2YDT2} \\div \\left(${DXDT}\\right)^{2}`,
+      nodes: [
+        { id: 'ddy', from: [] },
+        { id: 'dx', from: [] },
+        { id: 'sq', from: ['dx'] },
+        { id: 'v', from: ['ddy', 'sq'] },
+      ],
+      bank: fracTreeBank(answer, [[Y2, X1], [-Y2, X1 * X1], [X2, 1], [Y2, X2], [2 * X1, 1]]),
+      answer: answer.map(([n, dd]) => fracTex(n, dd)),
+    };
+  },
+  solution: (params) => turningSolution(params),
+};
+
+function turningSolution(params: TaylorParams): SolutionStep[] {
+  const curve = taylorCurve(params);
+  const { k } = params;
+  const { X1, Y2 } = secondAt(curve, k);
+  return [
+    {
+      text: `At $t = ${k}$, $${DYDT} = 0$, so the quotient rule's second half vanishes.`,
+      tex: `${D2YDX2} = ${D2YDT2} \\div \\left(${DXDT}\\right)^{2}`,
+    },
+    { text: `There $${D2YDT2} = ${Y2}$ and $${DXDT} = ${X1}$.`, tex: `${D2YDX2} = ${Y2} \\div ${X1 * X1} = ${fracTex(Y2, X1 * X1)}` },
+    { text: Y2 > 0 ? 'Positive: concave up, so a minimum.' : 'Negative: concave down, so a maximum.' },
+  ];
+}
+
+/**
+ * Maximum or minimum at a horizontal tangent, as three decisions: what
+ * decides it, its value there, and the verdict.
+ */
+const paramNatureFlow: Generator<TaylorParams> = {
+  id: 'param-nature-flow',
+  sample: sampleFlatTaylor,
+  render: (params): Slide => {
+    const curve = taylorCurve(params);
+    const { k } = params;
+    const { X1, Y2 } = secondAt(curve, k);
+    const salt = mix(k, ...params.xu, ...params.yu);
+    const decide = `The sign of $${D2YDX2}$`;
+    const right: Frac = [Y2, X1 * X1];
+    const seen = new Set([fracValue(right)]);
+    const wrong = ([[Y2, X1], [-Y2, X1 * X1], [Y2, 1], [2 * Y2, X1 * X1]] as Frac[]).filter((f) => {
+      const v = fracValue(f);
+      if (seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    }).slice(0, 2);
+    const value = `$${D2YDX2} = ${fracTex(...right)}$`;
+    const verdict = Y2 > 0 ? 'A minimum' : 'A maximum';
+    return {
+      kind: 'flow',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(`Its tangent is horizontal where $t = ${k}$. Is that point a maximum or a minimum?`),
+      ],
+      subject: `t = ${k}`,
+      steps: [
+        {
+          id: 'decide',
+          ask: 'What decides it?',
+          branches: turned(
+            [
+              { label: decide, to: 'value' },
+              { label: `The sign of $${D2XDT2}$`, outcome: 'Then you learn how $x$ is speeding up, not how the curve bends.' },
+              { label: `The sign of $${DYDX}$`, outcome: 'Then you read $0$: the tangent is horizontal, which is where you started.' },
+            ],
+            salt % 3,
+          ),
+        },
+        {
+          id: 'value',
+          ask: `What is $${D2YDX2}$ at $t = ${k}$?`,
+          branches: turned(
+            [
+              { label: value, to: 'verdict' },
+              ...wrong.map((f) => ({
+                label: `$${D2YDX2} = ${fracTex(...f)}$`,
+                outcome: `Then the test would run on $${fracTex(...f)}$.`,
+              })),
+            ],
+            (salt >>> 3) % (wrong.length + 1),
+          ),
+        },
+        {
+          id: 'verdict',
+          ask: 'So the point is',
+          branches: [
+            { label: 'A maximum', outcome: 'Then the curve bends down there, like the top of a hill.' },
+            { label: 'A minimum', outcome: 'Then the curve bends up there, like the bottom of a valley.' },
+          ],
+        },
+      ],
+      answer: [decide, value, verdict],
+    };
+  },
+  solution: (params) => turningSolution(params),
+};
+
+export interface LowestParams {
+  /** x = a t + b. */
+  a: number;
+  b: number;
+  /** y = c((t - m)^3 - 3(t - m)) + e, flat at t = m - 1 and t = m + 1. */
+  c: number;
+  m: number;
+  e: number;
+  /** Asking for the maximum rather than the minimum. */
+  max: boolean;
+}
+
+export const lowestCurve = ({ a, b, c, m, e }: LowestParams): ParamCurve => ({ x: [a, b], y: shifted([c, 0, -3 * c, e], m) });
+
+/** [t, height] of the asked-for turning point. */
+export function lowestPoint({ c, m, e, max }: LowestParams): [number, number] {
+  // d²y/dt² = 6c(t - m): at t = m + 1 it has c's sign, at m - 1 the other.
+  const upAtRight = c > 0;
+  const t = max === upAtRight ? m - 1 : m + 1;
+  return [t, max ? e + 2 * Math.abs(c) : e - 2 * Math.abs(c)];
+}
+
+/**
+ * The height of a curve's minimum (or maximum), slid to on the picture.
+ *
+ * Both turning values of t are given, so the work is deciding which is
+ * which from the sign of the second derivative and finding its height.
+ */
+const paramLowestSlider: Generator<LowestParams> = {
+  id: 'param-lowest-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    for (;;) {
+      const params: LowestParams = {
+        a: rng.int(1, 2) * (hard ? rng.sign() : 1),
+        b: rng.int(-4, 4),
+        c: rng.int(1, 2) * rng.sign(),
+        m: rng.int(-3, 3),
+        e: rng.int(-5, 5),
+        max: hard && rng.chance(0.5),
+      };
+      const { a, b, c, m, e } = params;
+      const heights = [e - 2 * Math.abs(c), e + 2 * Math.abs(c)];
+      const xs = [a * (m - 1) + b, a * (m + 1) + b];
+      if (heights.some((h) => Math.abs(h) > 7) || xs.some((x) => Math.abs(x) > 7)) continue;
+      // An untouched slider rests at 0, the middle of its track.
+      if (lowestPoint(params)[1] === 0) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const curve = lowestCurve(params);
+    const { m, max } = params;
+    const span = 8;
+    return {
+      kind: 'slider',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(
+          `Its tangent is horizontal at $t = ${m - 1}$ and at $t = ${m + 1}$. Slide the line to the height of the ${max ? 'maximum' : 'minimum'} point.`,
+        ),
+      ],
+      min: -span,
+      max: span,
+      step: 1,
+      answer: lowestPoint(params)[1],
+      readout: 'y = {v}',
+      figure: {
+        svg: paramSvg((t) => pointAt(curve, t), { span, tMin: m - 4, tMax: m + 4, label: 'The curve traced as t runs' }),
+        xMin: -span,
+        xMax: span,
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const curve = lowestCurve(params);
+    const { a, m, max } = params;
+    const [t, h] = lowestPoint(params);
+    const ddy = derived(derived(curve.y));
+    const other = t === m - 1 ? m + 1 : m - 1;
+    return [
+      {
+        text: `$${DXDT} = ${a}$, so $${D2YDX2} = ${D2YDT2} \\div ${a * a}$ where the tangent is flat: it has the sign of $${D2YDT2}$.`,
+        tex: `${D2YDT2} = ${polyTex(ddy)}`,
+      },
+      {
+        text: `At $t = ${t}$ that is $${valueAt(ddy, t)}$, ${max ? 'negative: the maximum' : 'positive: the minimum'}. At $t = ${other}$ it is $${valueAt(ddy, other)}$.`,
+      },
+      { text: `Put $t = ${t}$ into the $y$ equation for the height.`, tex: `y = ${h}` },
+    ];
+  },
+};
+
+/* ---------- The second derivative of an implicit curve ---------- */
+
+export interface ConicParams {
+  /** A x^2 + B y^2 = A p^2 + B q^2, through the whole point (p, q). */
+  A: number;
+  B: number;
+  p: number;
+  q: number;
+}
+
+export const conicTerms = ({ A, B }: ConicParams): Term[] => [
+  { c: A, a: 2, b: 0 },
+  { c: B, a: 0, b: 2 },
+];
+
+export const conicRhs = ({ A, B, p, q }: ConicParams): number => A * p * p + B * q * q;
+
+const conicEquation = (params: ConicParams): string => `${xyTex(conicTerms(params))} = ${conicRhs(params)}`;
+
+/**
+ * A circle or ellipse at difficulty 1, a hyperbola among them at difficulty 2,
+ * always through a whole point off both axes, filtered by `accept`.
+ */
+function sampleConic(rng: Rng, difficulty: number, accept: (params: ConicParams) => boolean = () => true): ConicParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const circle = !hard && rng.chance(0.4);
+    const A = circle ? 1 : rng.int(1, hard ? 5 : 4);
+    const B = circle ? 1 : rng.int(1, hard ? 5 : 4) * (hard && rng.chance(0.4) ? -1 : 1);
+    const params = { A, B, p: rng.int(1, 3) * rng.sign(), q: rng.int(1, 3) * rng.sign() };
+    const rhs = conicRhs(params);
+    if (rhs <= 0 || rhs > 99 || !accept(params)) continue;
+    return params;
+  }
+}
+
+/** -A/B, the number in front of x/y in the gradient. */
+const conicK = ({ A, B }: ConicParams): string => fracTex(-A, B);
+
+/** d²y/dx² in terms of y: -AC / (B^2 y^3). */
+const conicSecondTex = ({ A, B, ...rest }: ConicParams): string => overBodyTex(-A * conicRhs({ A, B, ...rest }), B * B, 'y^{3}');
+
+/**
+ * The gradient, differentiated again, from tiles: the number in front, then
+ * the quotient rule on $\frac{x}{y}$.
+ *
+ * The bank holds the number upside down and with its sign lost, and the
+ * quotient rule's top written the wrong way round or with the wrong sign.
+ */
+const implD2Tiles: Generator<ConicParams> = {
+  id: 'impl-d2-tiles',
+  sample: (rng, difficulty) => sampleConic(rng, difficulty),
+  render: (params): Slide => {
+    const { A, B } = params;
+    const quotient = `y - x${DYDX}`;
+    const answer = [conicK(params), quotient];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose('This curve'),
+        display(conicEquation(params)),
+        prose(
+          `has gradient $${DYDX} = ${slopeTex(conicTerms(params))}$. Differentiate that again with respect to $x$: keep the number in front of $\\frac{x}{y}$, and use the quotient rule on $\\frac{x}{y}$.`,
+        ),
+      ],
+      template: `${D2YDX2} = {0} \\times ({1}) \\div y^2`,
+      bank: tokenBank(
+        answer,
+        [fracTex(A, B), fracTex(-B, A), `x - y${DYDX}`, `x${DYDX} - y`, `y + x${DYDX}`],
+        4,
+      ),
+      answer,
+    };
+  },
+  solution: (params) => [
+    { text: 'Write the gradient as a number times $\\frac{x}{y}$.', tex: `${DYDX} = ${conicK(params)} \\times \\frac{x}{y}` },
+    {
+      text: `The quotient rule on $\\frac{x}{y}$: the top differentiates to $1$, the bottom to $${DYDX}$.`,
+      tex: `\\frac{d}{dx}\\left(\\frac{x}{y}\\right) = \\frac{y - x${DYDX}}{y^{2}}`,
+    },
+    { tex: `${D2YDX2} = ${conicK(params)} \\times \\frac{y - x${DYDX}}{y^{2}}` },
+  ],
+};
+
+/** A over B in lowest terms with the sign kept on B: [A', B', C', g]. */
+function reducedConic(params: ConicParams): [number, number, number] {
+  const g = gcd(params.A, params.B);
+  return [params.A / g, params.B / g, conicRhs(params) / g];
+}
+
+/** A fraction of two x-y polynomials, with the bottom's sign moved to the top. */
+function xyOver(top: Term[], bottom: Term[]): string {
+  const flip = bottom[0].c < 0;
+  const t = flip ? negate(top) : top;
+  const b = flip ? negate(bottom) : bottom;
+  return `\\frac{${xyTex(t)}}{${xyTex(b)}}`;
+}
+
+/** y + (A/B) x^2 / y, as the learner reads it inside the quotient-rule top. */
+function substitutedTop(A: number, B: number, power: number): string {
+  const n = Math.abs(A);
+  const d = Math.abs(B);
+  const inner = `\\frac{${n === 1 ? '' : n}x${power === 1 ? '' : `^{${power}}`}}{${d === 1 ? '' : d}y}`;
+  return `\\frac{y ${A * B > 0 ? '+' : '-'} ${inner}}{y^{2}}`;
+}
+
+/**
+ * The implicit second derivative simplified one move at a time: the gradient
+ * put back in, the fraction cleared, the curve's own equation used, and the
+ * number in front multiplied through.
+ *
+ * On a circle it ends at $-\frac{r^2}{y^3}$. Each bank carries the sign of the
+ * substituted gradient kept, the bottom not multiplied, the square rather
+ * than the cube, and the number in front unsquared.
+ */
+const implD2SubSteps: Generator<ConicParams> = {
+  id: 'impl-d2-sub-steps',
+  sample: (rng, difficulty) => sampleConic(rng, difficulty),
+  render: (params): Slide => {
+    const [A, B, C] = reducedConic(params);
+    const k = conicK(params);
+    const substituted = substitutedTop(A, B, 2);
+    const cleared = xyOver(
+      [
+        { c: B, a: 0, b: 2 },
+        { c: A, a: 2, b: 0 },
+      ],
+      [{ c: B, a: 0, b: 3 }],
+    );
+    const used = overBodyTex(C, B, 'y^{3}');
+    const final = overBodyTex(-A * C, B * B, 'y^{3}');
+    return {
+      kind: 'steps',
+      prompt: [
+        prose('This curve'),
+        display(conicEquation(params)),
+        prose(
+          `has gradient $${DYDX} = ${slopeTex(conicTerms(params))}$, and differentiating again gives the line below. Put the gradient in, clear the fraction, use the curve's equation, then multiply. Tap the step to do next, then choose what it gives.`,
+        ),
+      ],
+      start: [k, '\\times', `\\frac{y - x${DYDX}}{y^{2}}`],
+      reductions: [
+        {
+          span: [2, 3],
+          value: substituted,
+          bank: stepBank(substituted, substitutedTop(-A, B, 2), substitutedTop(A, B, 1), substitutedTop(B, A, 2)),
+        },
+        {
+          span: [2, 3],
+          value: cleared,
+          bank: stepBank(
+            cleared,
+            xyOver(
+              [
+                { c: B, a: 0, b: 2 },
+                { c: A, a: 2, b: 0 },
+              ],
+              [{ c: B, a: 0, b: 2 }],
+            ),
+            xyOver(
+              [
+                { c: B, a: 0, b: 2 },
+                { c: -A, a: 2, b: 0 },
+              ],
+              [{ c: B, a: 0, b: 3 }],
+            ),
+            xyOver(
+              [
+                { c: 1, a: 0, b: 2 },
+                { c: A, a: 2, b: 0 },
+              ],
+              [{ c: B, a: 0, b: 3 }],
+            ),
+          ),
+        },
+        {
+          span: [2, 3],
+          value: used,
+          bank: stepBank(used, overBodyTex(C, B, 'y^{2}'), overBodyTex(-C, B, 'y^{3}'), overBodyTex(C + 1, B, 'y^{3}')),
+        },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: final,
+          bank: stepBank(final, overBodyTex(A * C, B * B, 'y^{3}'), overBodyTex(-A * C, B, 'y^{3}'), overBodyTex(-A * C, B * B, 'y^{2}')),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const [A, B, C] = reducedConic(params);
+    return [
+      { text: `Put $${DYDX} = ${slopeTex(conicTerms(params))}$ into the top.`, tex: substitutedTop(A, B, 2) },
+      {
+        text: `Multiply the top and the bottom by $${monoTex(B, 0, 1)}$.`,
+        tex: xyOver(
+          [
+            { c: B, a: 0, b: 2 },
+            { c: A, a: 2, b: 0 },
+          ],
+          [{ c: B, a: 0, b: 3 }],
+        ),
+      },
+      { text: `The top is the curve's left-hand side${params.A === A ? '' : ` divided by $${params.A / A}$`}, so it is $${C}$.`, tex: overBodyTex(C, B, 'y^{3}') },
+      { text: `Multiply by $${conicK(params)}$.`, tex: `${D2YDX2} = ${conicSecondTex(params)}` },
+    ];
+  },
+};
+
+/**
+ * The value of an implicit second derivative at a point, typed as a number.
+ *
+ * The options carry the sign lost, $y^2$ in place of $y^3$, and the number in
+ * front left unsquared.
+ */
+const implD2At: Generator<ConicParams> = {
+  id: 'impl-d2-at',
+  sample: (rng, difficulty) => sampleConic(rng, difficulty),
+  choices: (params) => {
+    const { A, B, p, q } = params;
+    const C = conicRhs(params);
+    return fracChoices(
+      [-A * C, B * B * q ** 3],
+      [[A * C, B * B * q ** 3], [-A * C, B * B * q * q], [-A * C, B * q ** 3]],
+      mix(A, B, p, q),
+      [[-C, q ** 3], [-A * p, B * q]],
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose(`Find the value of $${D2YDX2}$ at $${pair(params.p, params.q)}$ on this curve.`), display(conicEquation(params))],
+    lead: `${D2YDX2} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(-params.A * conicRhs(params), params.B * params.B * params.q ** 3),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { A, B, q } = params;
+    const C = conicRhs(params);
+    return [
+      { text: 'The gradient is', tex: `${DYDX} = ${slopeTex(conicTerms(params))}` },
+      {
+        text: "Differentiate again, put the gradient back in, and use the curve's equation:",
+        tex: `${D2YDX2} = ${conicSecondTex(params)}`,
+      },
+      { text: `At $y = ${q}$:`, tex: `${D2YDX2} = ${fracTex(-A * C, B * B * q ** 3)}` },
+    ];
+  },
+};
+
+/**
+ * The value at a point as a tree, through the unsimplified derivative: the
+ * gradient there, then $y - x\frac{dy}{dx}$, then the number in front times
+ * that over $y^2$.
+ *
+ * The point is chosen so the gradient is whole. The bank carries the gradient
+ * with its sign lost and the quotient rule's top with the wrong sign.
+ */
+const implD2PointTree: Generator<ConicParams> = {
+  id: 'impl-d2-point-tree',
+  sample: (rng, difficulty) =>
+    sampleConic(rng, difficulty, ({ A, B, p, q }) => {
+      if ((A * p) % (B * q) !== 0) return false;
+      const g = -(A * p) / (B * q);
+      const top = q - p * g;
+      const v: Frac = [-A * top, B * q * q];
+      return Math.abs(g) <= 12 && Math.abs(top) <= 40 && top !== 0 && Math.abs(v[1] / gcd(...v)) <= 16;
+    }),
+  render: (params): Slide => {
+    const { A, B, p, q } = params;
+    const g = -(A * p) / (B * q) + 0;
+    const top = q - p * g;
+    const answer: Frac[] = [[g, 1], [top, 1], [-A * top, B * q * q]];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`The point $${pair(p, q)}$ lies on this curve, which has gradient $${DYDX} = ${slopeTex(conicTerms(params))}$.`),
+        display(conicEquation(params)),
+        prose(`Find $${D2YDX2}$ there. The top box is $${DYDX}$ at the point; then $y - x${DYDX}$; then $${D2YDX2}$.`),
+      ],
+      expression: `${D2YDX2} = ${conicK(params)} \\times \\frac{y - x\\tfrac{dy}{dx}}{y^{2}}`,
+      nodes: [
+        { id: 'g', from: [] },
+        { id: 'top', from: ['g'] },
+        { id: 'v', from: ['top'] },
+      ],
+      bank: fracTreeBank(answer, [[-g, 1], [q + p * g, 1], [A * top, B * q * q], [top, q * q], [-A * top, B * q]]),
+      answer: answer.map(([n, dd]) => fracTex(n, dd)),
+    };
+  },
+  solution: (params) => {
+    const { A, B, p, q } = params;
+    const g = -(A * p) / (B * q) + 0;
+    const top = q - p * g;
+    return [
+      { text: `At $${pair(p, q)}$ the gradient is`, tex: `${DYDX} = ${g}` },
+      { text: 'The top of the quotient rule there:', tex: `${q} - ${bracketed(p)} \\times ${bracketed(g)} = ${top}` },
+      {
+        text: `Times $${conicK(params)}$, over $y^{2} = ${q * q}$.`,
+        tex: `${D2YDX2} = ${fracTex(-A * top, B * q * q)}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Turning points on an implicit curve ---------- */
+
+export interface TurningParams {
+  curve: ImplicitCurve;
+}
+
+/**
+ * A conic (with an x^3 term at difficulty 2) whose tangent is horizontal at a
+ * whole point: the x term's coefficient is solved for so that the part
+ * without dy/dx vanishes there.
+ */
+function sampleTurning(rng: Rng, difficulty: number): TurningParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const p = rng.int(1, hard ? 3 : 2) * rng.sign();
+    const q = rng.int(1, hard ? 3 : 2) * rng.sign();
+    const base: Term[] = [
+      ...(hard && rng.chance(0.5) ? [{ c: rng.int(1, 2) * rng.sign(), a: 3, b: 0 }] : []),
+      { c: rng.int(1, 3) * (hard ? rng.sign() : 1), a: 2, b: 0 },
+      { c: rng.int(-2, 2), a: 1, b: 1 },
+      { c: rng.int(1, 3) * (hard ? rng.sign() : 1), a: 0, b: 2 },
+    ];
+    const D = -xyAt(partialX(base), p, q);
+    const terms = [...base, { c: D, a: 1, b: 0 }, { c: rng.int(-4, 4), a: 0, b: 1 }].filter((t) => t.c !== 0);
+    const rhs = xyAt(terms, p, q);
+    const fxx = xyAt(partialX(partialX(terms)), p, q);
+    const fy = xyAt(partialY(terms), p, q);
+    if (rhs === 0 || Math.abs(rhs) > 99 || Math.abs(D) > 12 || fxx === 0 || fy === 0 || Math.abs(fy) > 20) continue;
+    if (straight(terms)) continue;
+    return { curve: { terms, rhs, p, q } };
+  }
+}
+
+/** [N_x, D] at the point, where N and D are the parts without and with dy/dx. */
+export function turningParts({ curve }: TurningParams): [number, number] {
+  const N = partialX(curve.terms);
+  return [xyAt(partialX(N), curve.p, curve.q), xyAt(partialY(curve.terms), curve.p, curve.q)];
+}
+
+/** The prompt shared by the turning-point questions: the curve, the point, N and D. */
+function turningPrompt({ curve }: TurningParams, ask: string): Block[] {
+  return [
+    prose(`The tangent to this curve is horizontal at $${pair(curve.p, curve.q)}$.`),
+    ...equationBlocks(curve),
+    prose(`Differentiating once gives $N + D${DYDX} = 0$, with`),
+    display(`N = ${xyTex(partialX(curve.terms))}`),
+    display(`D = ${xyTex(partialY(curve.terms))}`),
+    prose(ask),
+  ];
+}
+
+function turningImplicitSolution(params: TurningParams): SolutionStep[] {
+  const { curve } = params;
+  const [nx, dd] = turningParts(params);
+  const v = fracValue([-nx, dd]);
+  return [
+    {
+      text: `Differentiate $N$ with respect to $x$, holding $y$ still: every other term of the second differentiation carries a $${DYDX}$, which is $0$ here.`,
+      tex: `N_x = ${xyTex(partialX(partialX(curve.terms)))}`,
+    },
+    { text: `At $${pair(curve.p, curve.q)}$: $N_x = ${nx}$ and $D = ${dd}$.`, tex: `${D2YDX2} = -\\frac{N_x}{D} = ${fracTex(-nx, dd)}` },
+    { text: v < 0 ? 'Negative: concave down, so a local maximum.' : 'Positive: concave up, so a local minimum.' },
+  ];
+}
+
+/**
+ * d²y/dx² at a horizontal tangent of an implicit curve as a tree: $N_x$ and
+ * $D$ at the point, then $-\frac{N_x}{D}$.
+ *
+ * The bank carries the quotient with its sign lost and upside down.
+ */
+const implTurningTree: Generator<TurningParams> = {
+  id: 'impl-turning-tree',
+  sample: sampleTurning,
+  render: (params): Slide => {
+    const [nx, dd] = turningParts(params);
+    const { curve } = params;
+    const ny = xyAt(partialY(partialX(curve.terms)), curve.p, curve.q);
+    const answer: Frac[] = [[nx, 1], [dd, 1], [-nx, dd]];
+    return {
+      kind: 'tree',
+      prompt: turningPrompt(
+        params,
+        `Find $${D2YDX2}$ there. The top row is $N_x$, which is $N$ differentiated with respect to $x$ with $y$ held still, and $D$, both at the point; the box below is $${D2YDX2}$.`,
+      ),
+      expression: `${D2YDX2} = -\\frac{N_x}{D}`,
+      nodes: [
+        { id: 'nx', from: [] },
+        { id: 'd', from: [] },
+        { id: 'v', from: ['nx', 'd'] },
+      ],
+      bank: fracTreeBank(answer, [[nx, dd], [-dd, nx], [ny, 1], [0, 1]]),
+      answer: answer.map(([n, d0]) => fracTex(n, d0)),
+    };
+  },
+  solution: turningImplicitSolution,
+};
+
+/**
+ * d²y/dx² at a horizontal tangent of an implicit curve, typed as a number.
+ * The options carry the sign lost and the fraction upside down.
+ */
+const implTurningValue: Generator<TurningParams> = {
+  id: 'impl-turning-value',
+  sample: sampleTurning,
+  choices: (params) => {
+    const [nx, dd] = turningParts(params);
+    const { curve } = params;
+    const ny = xyAt(partialY(partialX(curve.terms)), curve.p, curve.q);
+    return fracChoices([-nx, dd], [[nx, dd], [-dd, nx], [-ny, dd]], mix(curve.p, curve.q, curve.rhs, nx, dd));
+  },
+  render: (params): Slide => {
+    const [nx, dd] = turningParts(params);
+    return {
+      kind: 'expression',
+      prompt: turningPrompt(params, `Find the value of $${D2YDX2}$ there.`),
+      lead: `${D2YDX2} =`,
+      keypad: FRACTION_KEYS,
+      answer: fracAnswer(-nx, dd),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: turningImplicitSolution,
+};
+
+/**
+ * Maximum or minimum on an implicit curve as three decisions: $N_x$ at the
+ * point, the second derivative, and the verdict.
+ */
+const implTurningFlow: Generator<TurningParams> = {
+  id: 'impl-turning-flow',
+  sample: sampleTurning,
+  render: (params): Slide => {
+    const [nx, dd] = turningParts(params);
+    const { curve } = params;
+    const ny = xyAt(partialY(partialX(curve.terms)), curve.p, curve.q);
+    const salt = mix(curve.p, curve.q, curve.rhs, nx, dd);
+    const nxLabel = (v: number) => `$N_x = ${v}$`;
+    const nxWrong = [
+      { v: 0, outcome: 'Then you have $N$ itself, which is $0$ there: that only says the tangent is horizontal.' },
+      { v: ny, outcome: 'Then you have differentiated $N$ with respect to $y$.' },
+      { v: -nx, outcome: `Then $${D2YDX2}$ comes out as $${fracTex(nx, dd)}$.` },
+    ].filter((w, i, all) => w.v !== nx && all.findIndex((o) => o.v === w.v) === i).slice(0, 2);
+    const right: Frac = [-nx, dd];
+    const seen = new Set([fracValue(right)]);
+    const valueWrong = ([[nx, dd], [-dd, nx], [-nx, 2 * dd]] as Frac[]).filter((f) => {
+      const v = fracValue(f);
+      if (seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    }).slice(0, 2);
+    const value = `$${D2YDX2} = ${fracTex(...right)}$`;
+    const verdict = fracValue(right) < 0 ? 'A local maximum' : 'A local minimum';
+    return {
+      kind: 'flow',
+      prompt: turningPrompt(params, 'Is the point a local maximum or a local minimum?'),
+      subject: `${D2YDX2} = -\\frac{N_x}{D}`,
+      steps: [
+        {
+          id: 'nx',
+          ask: `Differentiate $N$ with respect to $x$, holding $y$ still. What is it at $${pair(curve.p, curve.q)}$?`,
+          branches: turned(
+            [{ label: nxLabel(nx), to: 'value' }, ...nxWrong.map((w) => ({ label: nxLabel(w.v), outcome: w.outcome }))],
+            salt % (nxWrong.length + 1),
+          ),
+        },
+        {
+          id: 'value',
+          ask: `With $D = ${dd}$ there, what is $${D2YDX2}$?`,
+          branches: turned(
+            [
+              { label: value, to: 'verdict' },
+              ...valueWrong.map((f) => ({
+                label: `$${D2YDX2} = ${fracTex(...f)}$`,
+                outcome: `Then the test would run on $${fracTex(...f)}$.`,
+              })),
+            ],
+            (salt >>> 3) % (valueWrong.length + 1),
+          ),
+        },
+        {
+          id: 'verdict',
+          ask: `So $${pair(curve.p, curve.q)}$ is`,
+          branches: [
+            { label: 'A local maximum', outcome: 'Then the curve bends down there.' },
+            { label: 'A local minimum', outcome: 'Then the curve bends up there.' },
+          ],
+        },
+      ],
+      answer: [nxLabel(nx), value, verdict],
+    };
+  },
+  solution: turningImplicitSolution,
+};
+
+export interface TurningKindParams extends StationaryParams {
+  /** Asking which point is the maximum, rather than the minimum. */
+  max: boolean;
+}
+
+/** d²y/dx² at each horizontal tangent, (x0, k x0) first. */
+export function stationarySeconds(params: StationaryParams): [number, number] {
+  const { A, B, C } = params;
+  return stationaryPoints(params).map(([x, y]) => (-2 * A) / (B * x + 2 * C * y)) as [number, number];
+}
+
+/**
+ * Which of a curve's two horizontal tangents is the maximum (or minimum).
+ *
+ * The two points sit either side of the origin, so the part multiplying
+ * dy/dx takes opposite signs at them and one is always a maximum, the other a
+ * minimum; "Both" and "Neither" are there for the learner who has not worked
+ * that out.
+ */
+const implTurningKind: Generator<TurningKindParams> = {
+  id: 'impl-turning-kind',
+  sample: (rng, difficulty) => ({ ...sampleStationary(rng, difficulty), max: difficulty >= 2 ? rng.chance(0.5) : true }),
+  render: (params): Slide => {
+    const [[x1, y1], [x2, y2]] = stationaryPoints(params);
+    const [s1] = stationarySeconds(params);
+    const firstIsMax = s1 < 0;
+    return {
+      kind: 'choice',
+      prompt: [
+        prose('This curve'),
+        display(stationaryEquation(params)),
+        prose(`has horizontal tangents at $${pair(x1, y1)}$ and $${pair(x2, y2)}$. Which is a local ${params.max ? 'maximum' : 'minimum'}?`),
+      ],
+      options: [
+        { id: 'first', label: pair(x1, y1), tex: true },
+        { id: 'second', label: pair(x2, y2), tex: true },
+        { id: 'both', label: 'Both' },
+        { id: 'neither', label: 'Neither' },
+      ],
+      correctId: firstIsMax === params.max ? 'first' : 'second',
+    };
+  },
+  solution: (params) => {
+    const { A } = params;
+    const terms = stationaryTerms(params);
+    const points = stationaryPoints(params);
+    return [
+      { text: 'The parts without and with $\\frac{dy}{dx}$ are', tex: `N = ${xyTex(partialX(terms))}, \\quad D = ${xyTex(partialY(terms))}` },
+      { text: `So $N_x = ${2 * A}$, and at a horizontal tangent $${D2YDX2} = -\\frac{${2 * A}}{D}$.` },
+      ...points.map(([x, y]) => {
+        const dd = xyAt(partialY(terms), x, y);
+        return {
+          text: `At $${pair(x, y)}$, $D = ${dd}$, so $${D2YDX2} = ${fracTex(-2 * A, dd)}$: a local ${-2 * A * dd < 0 ? 'maximum' : 'minimum'}.`,
+        };
+      }),
+    ];
+  },
+};
+
 /* ---------- Registration ---------- */
 
 /** By name, for `parametricImplicit.test.ts`. */
@@ -3224,6 +4778,26 @@ export const piGenerators = {
   implFlatPoint,
   implStationaryFlow,
   implTangentKind,
+  paramD2,
+  paramD2Tiles,
+  paramD2Flow,
+  paramD2Trig,
+  paramD2RatesTree,
+  paramD2QuotientSteps,
+  paramD2At,
+  paramD2General,
+  paramConcaveChoice,
+  paramTurningTree,
+  paramNatureFlow,
+  paramLowestSlider,
+  implD2Tiles,
+  implD2SubSteps,
+  implD2At,
+  implD2PointTree,
+  implTurningTree,
+  implTurningValue,
+  implTurningFlow,
+  implTurningKind,
 };
 
 export const parametricGenerators = Object.values(piGenerators) as Generator<never>[];

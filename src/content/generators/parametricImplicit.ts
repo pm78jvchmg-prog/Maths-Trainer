@@ -4748,6 +4748,1460 @@ const implTurningKind: Generator<TurningKindParams> = {
   },
 };
 
+/* ---------- Level 4: the normal ---------- */
+
+/*
+ * The normal is the line at right angles to the tangent, so where the tangent's
+ * gradient is m the normal's is -1/m: a fraction unless m is 1 or -1. The line
+ * is written with that fraction cleared, x + m y = x0 + m y0, which keeps every
+ * tile and every label whole.
+ */
+
+/** The y term of x + m y, after its operator: `+ y`, `- y`, `+ 3y`. */
+const yTerm = (m: number): string => (m === 1 ? '+ y' : m === -1 ? '- y' : `${signed(m)}y`);
+
+/** The normal x + m y = r, as the learner reads it. */
+export const normalLineTex = (m: number, r: number): string => `x ${yTerm(m)} = ${r}`;
+
+/** The tangent y = m x + c, as the learner reads it. */
+export function tangentLineTex(m: number, c: number): string {
+  const slope = m === 1 ? 'x' : m === -1 ? '-x' : `${m}x`;
+  return c === 0 ? `y = ${slope}` : `y = ${slope} ${signed(c)}`;
+}
+
+/** `a v + b`, with a coefficient of 1 or -1 left implied and a zero dropped. */
+function linTex(a: number, v: string, b: number): string {
+  const head = a === 0 ? '' : `${coef(a)}${v}`;
+  if (head === '') return `${b}`;
+  return b === 0 ? head : `${head} ${signed(b)}`;
+}
+
+/** `y - 3` for a shift of 3; just `y` when there is none. */
+const shiftTex = (v: string, by: number): string => (by === 0 ? v : `${v} ${signed(-by)}`);
+
+/** Sorts tiles such as `+ 3`, `- 5` and `22` by the number they show. */
+const byValue = (a: string, b: string): number => Number(a.replace(/\s/g, '')) - Number(b.replace(/\s/g, '')) || a.localeCompare(b);
+
+/**
+ * The normal x + m y = r assembled from tiles, where m is the tangent's
+ * gradient.
+ *
+ * The coefficient's bank holds the sign slip, x - m y, which is the line with
+ * gradient 1/m, and the caller's slips; the right-hand side's holds the point
+ * put in the wrong way round, its sign slipped, and the whole of it negated.
+ */
+function normalTiles(prompt: Block[], m: number, x0: number, y0: number, slips: number[]): Slide {
+  const r = x0 + m * y0;
+  const pick = (values: number[], right: number): number[] =>
+    values.filter((v, i) => Number.isInteger(v) && v !== right && v !== 0 && values.indexOf(v) === i).slice(0, 2);
+  const answer = [signed(m), bareTile(r)];
+  const slipTiles = [...pick([-m, ...slips], m).map(signed), ...pick([x0 - m * y0, y0 + m * x0, -r], r).map(bareTile)];
+  const bank = [...answer, ...new Set(slipTiles.filter((tile) => !answer.includes(tile)))];
+  return { kind: 'tiles', prompt, template: 'x {0}y = {1}', bank: bank.sort(byValue), answer };
+}
+
+/** From the tangent's gradient to the normal through the point, the fraction cleared. */
+function normalSolution(m: number, x0: number, y0: number, gradientSteps: SolutionStep[]): SolutionStep[] {
+  return [
+    ...gradientSteps,
+    {
+      text: `The normal is at right angles to the tangent, so its gradient is $-1 \\div ${bracketed(m)} = ${fracTex(-1, m)}$. Through $${pair(x0, y0)}$:`,
+      tex: `${shiftTex('y', y0)} = ${fracTex(-1, m)}(${shiftTex('x', x0)})`,
+    },
+    { text: `Multiply both sides by $${m}$ to clear the fraction.`, tex: `${linTex(m, 'y', -m * y0)} = ${linTex(-1, 'x', x0)}` },
+    { text: 'Gather $x$ and $y$ on the left.', tex: normalLineTex(m, x0 + m * y0) },
+  ];
+}
+
+type Branch = { label: string; to?: string; outcome?: string };
+
+/** A fork's branches, the right one first: repeated labels dropped, then turned by the salt. */
+function fork(branches: Branch[], salt: number): Branch[] {
+  const kept = branches.filter((b, i) => branches.findIndex((o) => o.label === b.label) === i);
+  return turned(kept, salt % kept.length);
+}
+
+/** A parametric point whose tangent gradient m is whole and neither 0 nor ±1, so -1/m is a proper fraction. */
+function sampleNormal(rng: Rng, difficulty: number): SlopeAtParams {
+  for (;;) {
+    const params = sampleSlopeAt(rng, difficulty, true);
+    const [, , m] = slopeValues(params);
+    const [x0, y0] = pointAt(params.curve, params.k);
+    if (Math.abs(x0 + m * y0) > 80) continue;
+    return params;
+  }
+}
+
+/** The rates at t = k, the tangent's gradient, then the normal's. */
+function paramNormalGradientSteps({ curve, k }: SlopeAtParams): SolutionStep[] {
+  const [dx, dy] = ratesAt(curve, k);
+  return [
+    { text: `Differentiate, then put in $t = ${k}$.`, tex: `${DXDT} = ${polyTex(derived(curve.x))} = ${dx}` },
+    { tex: `${DYDT} = ${polyTex(derived(curve.y))} = ${dy}` },
+    { text: `Divide for the tangent's gradient.`, tex: `${DYDX} = ${dy} \\div ${bracketed(dx)} = ${dy / dx}` },
+  ];
+}
+
+/**
+ * The normal's gradient as a tree: the two rates, their quotient, then -1
+ * over that.
+ *
+ * The bank holds $\frac{1}{m}$ (the sign lost), $-m$ (negated but not turned
+ * over) and the point's coordinates.
+ */
+const paramNormalTree: Generator<SlopeAtParams> = {
+  id: 'param-normal-tree',
+  sample: sampleNormal,
+  render: (params): Slide => {
+    const { curve, k } = params;
+    const [dx, dy, m] = slopeValues(params);
+    const [x0, y0] = pointAt(curve, k);
+    return {
+      kind: 'tree',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(
+          `Find the gradient of the normal where $t = ${k}$. The top row is $${DYDT}$ and $${DXDT}$ there, the next box the tangent's gradient $${DYDX}$, and the last the normal's.`,
+        ),
+      ],
+      expression: `-1 \\div \\left(${DYDT} \\div ${DXDT}\\right)`,
+      nodes: [
+        { id: 'dy', from: [] },
+        { id: 'dx', from: [] },
+        { id: 'm', from: ['dy', 'dx'] },
+        { id: 'n', from: ['m'] },
+      ],
+      bank: fracTreeBank(
+        [
+          [dy, 1],
+          [dx, 1],
+          [m, 1],
+          [-1, m],
+        ],
+        [
+          [1, m],
+          [-m, 1],
+          [x0, 1],
+          [y0, 1],
+        ],
+      ),
+      answer: [`${dy}`, `${dx}`, `${m}`, fracTex(-1, m)],
+    };
+  },
+  solution: (params) => [
+    ...paramNormalGradientSteps(params),
+    { text: 'The normal is at right angles to the tangent, so its gradient is $-1$ divided by that.', tex: `-1 \\div ${bracketed(slopeValues(params)[2])} = ${fracTex(-1, slopeValues(params)[2])}` },
+  ],
+};
+
+/** The normal's gradient, typed. The options carry the sign lost, the tangent's own gradient, and -m. */
+const paramNormalGrad: Generator<SlopeAtParams> = {
+  id: 'param-normal-grad',
+  sample: sampleNormal,
+  choices: (params) => {
+    const [dx, dy, m] = slopeValues(params);
+    return fracChoices(
+      [-1, m],
+      [
+        [1, m],
+        [m, 1],
+        [-m, 1],
+      ],
+      mix(dx, dy, params.k),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [prose('A curve is traced by'), ...curveBlocks(params.curve), prose(`Find the gradient of the normal to it where $t = ${params.k}$.`)],
+    lead: 'm_{N} =',
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(-1, slopeValues(params)[2]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => paramNormalTree.solution(params),
+};
+
+/** The normal to a parametric curve at a value of t, x + m y = r from tiles. */
+const paramNormalTiles: Generator<SlopeAtParams> = {
+  id: 'param-normal-tiles',
+  sample: sampleNormal,
+  render: (params): Slide => {
+    const [dx, dy, m] = slopeValues(params);
+    const [x0, y0] = pointAt(params.curve, params.k);
+    return normalTiles(
+      [
+        prose('A curve is traced by'),
+        ...curveBlocks(params.curve),
+        prose(`Find the normal where $t = ${params.k}$, with the fraction cleared.`),
+      ],
+      m,
+      x0,
+      y0,
+      [dy, dx],
+    );
+  },
+  solution: (params) => {
+    const [x0, y0] = pointAt(params.curve, params.k);
+    return normalSolution(slopeValues(params)[2], x0, y0, [
+      { text: `At $t = ${params.k}$ the point is $${pair(x0, y0)}$.` },
+      ...paramNormalGradientSteps(params),
+    ]);
+  },
+};
+
+/**
+ * The normal as three decisions: the tangent's gradient, the normal's, and
+ * which line through the point has it.
+ *
+ * Every wrong turn is a real slip: $\frac{dy}{dt}$ taken for the gradient, the
+ * tangent kept, the reciprocal without the sign, the tangent's line, and the
+ * point put in the wrong way round.
+ */
+const paramNormalFlow: Generator<SlopeAtParams> = {
+  id: 'param-normal-flow',
+  sample: sampleNormal,
+  render: (params): Slide => {
+    const { curve, k } = params;
+    const [dx, dy, m] = slopeValues(params);
+    const [x0, y0] = pointAt(curve, k);
+    const r = x0 + m * y0;
+    const salt = mix(dx, dy, k, x0);
+    const gradient = `$${m}$`;
+    const normal = `$${fracTex(-1, m)}$`;
+    const line = `$${normalLineTex(m, r)}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('A curve is traced by'), ...curveBlocks(curve), prose(`Find the normal where $t = ${k}$.`)],
+      subject: `${DYDX} = ${DYDT} \\div ${DXDT}`,
+      steps: [
+        {
+          id: 'tangent',
+          ask: `First the tangent. What is $${DYDX}$ at $t = ${k}$?`,
+          branches: fork(
+            [
+              { label: gradient, to: 'normal' },
+              { label: `$${dy}$`, outcome: `That is $${DYDT}$ on its own; the gradient divides it by $${DXDT}$.` },
+              { label: `$${dx}$`, outcome: `That is $${DXDT}$; the gradient is $${DYDT} \\div ${DXDT}$.` },
+              { label: `$${-m}$`, outcome: 'Check the signs of the two rates.' },
+            ].filter((b, i) => i === 0 || b.label !== gradient),
+            salt,
+          ),
+        },
+        {
+          id: 'normal',
+          ask: 'What gradient does the normal have?',
+          branches: fork(
+            [
+              { label: normal, to: 'line' },
+              { label: gradient, outcome: "That is the tangent's own gradient." },
+              { label: `$${fracTex(1, m)}$`, outcome: 'Then the two gradients multiply to $1$, not $-1$: the lines are not at right angles.' },
+              { label: `$${-m}$`, outcome: `Then the two gradients multiply to $${-m * m}$, not $-1$.` },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'line',
+          ask: `Through $${pair(x0, y0)}$ with that gradient. Which line?`,
+          branches: fork(
+            [
+              { label: line, outcome: `That is the normal: at $x = ${x0}$ it gives $y = ${y0}$.` },
+              { label: `$${tangentLineTex(m, y0 - m * x0)}$`, outcome: "That line has the tangent's gradient." },
+              { label: `$${normalLineTex(-m, x0 - m * y0)}$`, outcome: `That line passes through the point, but its gradient is $${fracTex(1, m)}$.` },
+              { label: `$${normalLineTex(m, y0 + m * x0)}$`, outcome: `That line has the right gradient but misses $${pair(x0, y0)}$.` },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [gradient, normal, line],
+    };
+  },
+  solution: (params) => paramNormalTiles.solution(params),
+};
+
+/* ---------- Normals to implicit curves ---------- */
+
+/** An implicit curve through a whole point where the tangent's gradient is whole and neither 0 nor ±1. */
+function sampleImplicitNormal(rng: Rng, difficulty: number): CurveParams {
+  return {
+    curve: sampleImplicit(rng, optionsFor(difficulty), (curve) => {
+      if (!wholeGradient(curve)) return false;
+      const g = gradientAtPoint(curve);
+      return g !== 0 && Math.abs(g) !== 1 && Math.abs(curve.p + g * curve.q) <= 60;
+    }),
+  };
+}
+
+/** An implicit curve with both collected pieces non-zero at its point, and of different sizes. */
+function sampleImplicitParts(rng: Rng, difficulty: number): CurveParams {
+  return {
+    curve: sampleImplicit(rng, optionsFor(difficulty), (curve) => {
+      const [n, dd] = partsAtPoint(curve);
+      return n !== 0 && dd !== 0 && Math.abs(n) !== Math.abs(dd) && Math.abs(n) <= 40 && Math.abs(dd) <= 40;
+    }),
+  };
+}
+
+/** The gradient at an implicit curve's point, then the normal's gradient, both as fractions. */
+function implNormalGradientSteps(curve: ImplicitCurve): SolutionStep[] {
+  const [n, dd] = partsAtPoint(curve);
+  return [
+    ...collectedSteps(curve.terms),
+    { text: `Put in $x = ${curve.p}$ and $y = ${curve.q}$.`, tex: `${n} + ${bracketed(dd)}${DYDX} = 0` },
+    { text: "Solve for the tangent's gradient.", tex: `${DYDX} = ${fracTex(-n, dd)}` },
+    { text: 'The normal is at right angles to the tangent: turn the fraction over and change its sign.', tex: fracTex(dd, n) },
+  ];
+}
+
+/**
+ * The normal's gradient at a point, differentiating and substituting in one
+ * pass: `impl-at-steps` with one more step at the end, from the tangent's
+ * gradient to the normal's.
+ */
+const implNormalSteps: Generator<CurveParams> = {
+  id: 'impl-normal-steps',
+  sample: sampleImplicitNormal,
+  render: (params): Slide => {
+    const base = implAtSteps.render(params);
+    if (base.kind !== 'steps') throw new Error('impl-at-steps renders a steps slide');
+    const { p, q } = params.curve;
+    const g = gradientAtPoint(params.curve);
+    const normal = (v: string) => `m_{N} = ${v}`;
+    return {
+      ...base,
+      prompt: [
+        prose(
+          `Find the gradient of the normal at $${pair(p, q)}$. Differentiate each term with $x = ${p}$, $y = ${q}$ put in straight away, solve for $${DYDX}$, then turn it into the normal's gradient $m_{N}$. Tap the step to do next, then choose what it gives.`,
+        ),
+      ],
+      reductions: [
+        ...base.reductions,
+        {
+          span: [0, 1],
+          value: normal(fracTex(-1, g)),
+          bank: stepBank(normal(fracTex(-1, g)), normal(fracTex(1, g)), normal(`${-g}`), normal(`${g}`)),
+        },
+      ],
+    };
+  },
+  solution: ({ curve }) => {
+    const g = gradientAtPoint(curve);
+    return [...pointSolution(curve), { text: 'The normal is at right angles to the tangent.', tex: `m_{N} = -1 \\div ${bracketed(g)} = ${fracTex(-1, g)}` }];
+  },
+};
+
+/** The normal's gradient at a point, typed. Options: the sign lost, the tangent's gradient, and that upside down. */
+const implNormalGrad: Generator<CurveParams> = {
+  id: 'impl-normal-grad',
+  sample: sampleImplicitParts,
+  choices: ({ curve }) => {
+    const [n, dd] = partsAtPoint(curve);
+    return fracChoices(
+      [dd, n],
+      [
+        [-dd, n],
+        [-n, dd],
+        [n, dd],
+      ],
+      mix(curve.p, curve.q, curve.rhs, n),
+    );
+  },
+  render: ({ curve }): Slide => {
+    const [n, dd] = partsAtPoint(curve);
+    return {
+      kind: 'expression',
+      prompt: [prose(`Find the gradient of the normal to this curve at $${pair(curve.p, curve.q)}$.`), ...equationBlocks(curve)],
+      lead: 'm_{N} =',
+      keypad: FRACTION_KEYS,
+      answer: fracAnswer(dd, n),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ curve }) => implNormalGradientSteps(curve),
+};
+
+/** The normal to an implicit curve at its point, x + m y = r from tiles. */
+const implNormalTiles: Generator<CurveParams> = {
+  id: 'impl-normal-tiles',
+  sample: sampleImplicitNormal,
+  render: ({ curve }): Slide => {
+    const [n, dd] = partsAtPoint(curve);
+    return normalTiles(
+      [prose(`Find the normal to this curve at $${pair(curve.p, curve.q)}$, with the fraction cleared.`), ...equationBlocks(curve)],
+      gradientAtPoint(curve),
+      curve.p,
+      curve.q,
+      [n, dd],
+    );
+  },
+  solution: ({ curve }) =>
+    normalSolution(gradientAtPoint(curve), curve.p, curve.q, [
+      ...collectedSteps(curve.terms),
+      { text: `At $${pair(curve.p, curve.q)}$ that gives the tangent's gradient.`, tex: `${DYDX} = ${gradientAtPoint(curve)}` },
+    ]),
+};
+
+/** A choice slide from labels, the right one first: repeats dropped, order turned by the salt. */
+function labelChoice(prompt: Block[], labels: string[], salt: number): Slide {
+  const kept = labels.filter((label, i) => labels.indexOf(label) === i).slice(0, 4);
+  const at = salt % kept.length;
+  const ordered = turned(kept, at);
+  return {
+    kind: 'choice',
+    prompt,
+    options: ordered.map((label, i) => ({ id: `opt${i}`, label, tex: true })),
+    correctId: `opt${(kept.length - at) % kept.length}`,
+  };
+}
+
+/**
+ * Which line is the normal: against the tangent, the line through the point
+ * with gradient $\frac{1}{m}$, and the right gradient through the point with
+ * its coordinates swapped.
+ */
+const implNormalLine: Generator<CurveParams> = {
+  id: 'impl-normal-line',
+  sample: sampleImplicitNormal,
+  render: ({ curve }): Slide => {
+    const { p, q } = curve;
+    const g = gradientAtPoint(curve);
+    const r = p + g * q;
+    return labelChoice(
+      [prose(`Which line is the normal to this curve at $${pair(p, q)}$?`), ...equationBlocks(curve)],
+      [
+        normalLineTex(g, r),
+        tangentLineTex(g, q - g * p),
+        normalLineTex(-g, p - g * q),
+        normalLineTex(g, q + g * p),
+        normalLineTex(g, -r),
+        normalLineTex(g, r + g),
+      ],
+      mix(p, q, g, curve.rhs),
+    );
+  },
+  solution: ({ curve }) => implNormalTiles.solution({ curve }),
+};
+
+/* ---------- Tangents and normals at a general point ---------- */
+
+/**
+ * Three classic curves whose tangent and normal can be written for every t at
+ * once: `P` the parabola x = at², y = 2at; `Q` the same parabola on its side,
+ * x = 2at, y = at²; `H` the rectangular hyperbola x = at, y = a/t.
+ */
+export type GeneralKind = 'P' | 'Q' | 'H';
+
+export interface GeneralParams {
+  kind: GeneralKind;
+  a: number;
+  normal: boolean;
+}
+
+/** `3t^2`, or `t^2` when the number in front is 1. */
+const mono = (c: number, v: string): string => `${coef(c)}${v}`;
+
+export function generalCurveTex({ kind, a }: Pick<GeneralParams, 'kind' | 'a'>): string {
+  if (kind === 'P') return `x = ${mono(a, 't^{2}')}, \\quad y = ${mono(2 * a, 't')}`;
+  if (kind === 'Q') return `x = ${mono(2 * a, 't')}, \\quad y = ${mono(a, 't^{2}')}`;
+  return `x = ${mono(a, 't')}, \\quad y = \\frac{${a}}{t}`;
+}
+
+/** x(t) and y(t) for mathjs, for the independent test. */
+export function generalSources({ kind, a }: Pick<GeneralParams, 'kind' | 'a'>): { x: string; y: string } {
+  if (kind === 'P') return { x: `${a} * t^2`, y: `${2 * a} * t` };
+  if (kind === 'Q') return { x: `${2 * a} * t`, y: `${a} * t^2` };
+  return { x: `${a} * t`, y: `${a} / t` };
+}
+
+/**
+ * The tangent or normal at a general t, and the working that gets there:
+ * `y - y1 = m(x - x1)`, the gradient in t, the fraction cleared (or the
+ * bracket expanded), then tidied. Each stage carries its slips, and the tiles
+ * form of the final line carries its own.
+ */
+interface GeneralLine {
+  yPart: string;
+  xPart: string;
+  grad: string;
+  gradSlips: string[];
+  cleared: string;
+  clearedSlips: string[];
+  final: string;
+  finalSlips: string[];
+  template: string;
+  tiles: string[];
+  tileSlips: string[];
+}
+
+export function generalLine({ kind, a, normal }: GeneralParams): GeneralLine {
+  const t = (c: number, power: number) => mono(c, power === 1 ? 't' : `t^${power}`);
+  if (kind === 'P' && !normal) {
+    return {
+      yPart: `y - ${t(2 * a, 1)}`,
+      xPart: `(x - ${t(a, 2)})`,
+      grad: '\\frac{1}{t}',
+      gradSlips: ['t', '-\\frac{1}{t}', '-t'],
+      cleared: `ty - ${t(2 * a, 2)} = x - ${t(a, 2)}`,
+      clearedSlips: [`ty - ${t(2 * a, 1)} = x - ${t(a, 2)}`, `ty - ${t(2 * a, 2)} = x + ${t(a, 2)}`],
+      final: `ty = x + ${t(a, 2)}`,
+      finalSlips: [`ty = x - ${t(a, 2)}`, `ty = x + ${t(3 * a, 2)}`, `ty = x - ${t(3 * a, 2)}`],
+      template: '{0}y = x {1}',
+      tiles: ['t', `+ ${t(a, 2)}`],
+      tileSlips: ['t^2', `- ${t(a, 2)}`, `+ ${t(3 * a, 2)}`, '2t'],
+    };
+  }
+  if (kind === 'P') {
+    return {
+      yPart: `y - ${t(2 * a, 1)}`,
+      xPart: `(x - ${t(a, 2)})`,
+      grad: '-t',
+      gradSlips: ['t', '-\\frac{1}{t}', '\\frac{1}{t}'],
+      cleared: `y - ${t(2 * a, 1)} = -tx + ${t(a, 3)}`,
+      clearedSlips: [`y - ${t(2 * a, 1)} = -tx - ${t(a, 3)}`, `y - ${t(2 * a, 1)} = -tx + ${t(a, 2)}`],
+      final: `y + tx = ${t(2 * a, 1)} + ${t(a, 3)}`,
+      finalSlips: [`y + tx = ${t(2 * a, 1)} - ${t(a, 3)}`, `y - tx = ${t(2 * a, 1)} + ${t(a, 3)}`, `y + tx = ${t(a, 3)}`],
+      template: 'y + {0}x = {1}',
+      tiles: ['t', `${t(2 * a, 1)} + ${t(a, 3)}`],
+      tileSlips: ['t^2', `${t(2 * a, 1)} - ${t(a, 3)}`, `${t(a, 3)}`, '\\frac{1}{t}'],
+    };
+  }
+  if (kind === 'Q' && !normal) {
+    return {
+      yPart: `y - ${t(a, 2)}`,
+      xPart: `(x - ${t(2 * a, 1)})`,
+      grad: 't',
+      gradSlips: ['\\frac{1}{t}', '-t', '-\\frac{1}{t}'],
+      cleared: `y - ${t(a, 2)} = tx - ${t(2 * a, 2)}`,
+      clearedSlips: [`y - ${t(a, 2)} = tx - ${t(2 * a, 1)}`, `y - ${t(a, 2)} = tx + ${t(2 * a, 2)}`],
+      final: `y = tx - ${t(a, 2)}`,
+      finalSlips: [`y = tx + ${t(a, 2)}`, `y = tx - ${t(3 * a, 2)}`, `y = tx + ${t(3 * a, 2)}`],
+      template: 'y = {0}x {1}',
+      tiles: ['t', `- ${t(a, 2)}`],
+      tileSlips: ['t^2', `+ ${t(a, 2)}`, `- ${t(3 * a, 2)}`, '2t'],
+    };
+  }
+  if (kind === 'Q') {
+    return {
+      yPart: `y - ${t(a, 2)}`,
+      xPart: `(x - ${t(2 * a, 1)})`,
+      grad: '-\\frac{1}{t}',
+      gradSlips: ['\\frac{1}{t}', '-t', 't'],
+      cleared: `ty - ${t(a, 3)} = -x + ${t(2 * a, 1)}`,
+      clearedSlips: [`ty - ${t(a, 2)} = -x + ${t(2 * a, 1)}`, `ty - ${t(a, 3)} = x - ${t(2 * a, 1)}`],
+      final: `x + ty = ${t(2 * a, 1)} + ${t(a, 3)}`,
+      finalSlips: [`x + ty = ${t(2 * a, 1)} - ${t(a, 3)}`, `x - ty = ${t(2 * a, 1)} - ${t(a, 3)}`, `x + ty = ${t(a, 3)}`],
+      template: 'x + {0}y = {1}',
+      tiles: ['t', `${t(2 * a, 1)} + ${t(a, 3)}`],
+      tileSlips: ['t^2', `${t(2 * a, 1)} - ${t(a, 3)}`, `${t(a, 3)}`, '2t'],
+    };
+  }
+  if (!normal) {
+    return {
+      yPart: `y - \\frac{${a}}{t}`,
+      xPart: `(x - ${t(a, 1)})`,
+      grad: '-\\frac{1}{t^2}',
+      gradSlips: ['\\frac{1}{t^2}', 't^2', '-t^2'],
+      cleared: `t^2y - ${t(a, 1)} = -x + ${t(a, 1)}`,
+      clearedSlips: [`t^2y - ${a} = -x + ${t(a, 1)}`, `t^2y - ${t(a, 1)} = x - ${t(a, 1)}`],
+      final: `x + t^2y = ${t(2 * a, 1)}`,
+      finalSlips: [`x + t^2y = ${t(a, 1)}`, `x - t^2y = ${t(2 * a, 1)}`, `x + t^2y = ${2 * a}`],
+      template: 'x + {0}y = {1}',
+      tiles: ['t^2', t(2 * a, 1)],
+      tileSlips: ['t', `${2 * a}`, t(a, 1), t(2 * a, 2)],
+    };
+  }
+  return {
+    yPart: `y - \\frac{${a}}{t}`,
+    xPart: `(x - ${t(a, 1)})`,
+    grad: 't^2',
+    gradSlips: ['-t^2', '\\frac{1}{t^2}', '-\\frac{1}{t^2}'],
+    cleared: `ty - ${a} = t^3x - ${t(a, 4)}`,
+    clearedSlips: [`ty - ${a} = t^3x - ${t(a, 3)}`, `ty - ${a} = t^3x + ${t(a, 4)}`],
+    final: `t^3x - ty = ${t(a, 4)} - ${a}`,
+    finalSlips: [`t^3x - ty = ${t(a, 4)} + ${a}`, `t^3x + ty = ${t(a, 4)} - ${a}`, `t^3x - ty = ${t(a, 4)}`],
+    template: '{0}x - {1}y = {2}',
+    tiles: ['t^3', 't', `${t(a, 4)} - ${a}`],
+    tileSlips: ['t^2', `${t(a, 4)} + ${a}`, `${t(a, 3)} - ${a}`],
+  };
+}
+
+/** Tangents only at difficulty 1; normals as well, and larger curves, at 2. */
+function sampleGeneral(rng: Rng, difficulty: number): GeneralParams {
+  const hard = difficulty >= 2;
+  return { kind: rng.pick(['P', 'Q', 'H'] as const), a: rng.int(hard ? 2 : 1, 9), normal: hard && rng.chance(0.5) };
+}
+
+const lineName = (normal: boolean): string => (normal ? 'normal' : 'tangent');
+
+function generalSolution(params: GeneralParams): SolutionStep[] {
+  const line = generalLine(params);
+  const { kind, normal } = params;
+  const multiplier = kind === 'H' ? (normal ? 't' : 't^{2}') : (kind === 'P') !== normal ? 't' : '';
+  return [
+    {
+      text: `The ${lineName(normal)}'s gradient at the point with parameter $t$ is`,
+      tex: `m = ${line.grad}`,
+    },
+    { text: 'Through the point itself:', tex: `${line.yPart} = ${line.grad}${line.xPart}` },
+    { text: multiplier === '' ? 'Expand the bracket.' : `Multiply both sides by $${multiplier}$ to clear the fraction.`, tex: line.cleared },
+    { text: 'Tidy.', tex: line.final },
+  ];
+}
+
+/** The tangent (or normal) at a general t, from tiles holding pieces in t. */
+const paramLineInT: Generator<GeneralParams> = {
+  id: 'param-line-in-t',
+  sample: sampleGeneral,
+  render: (params): Slide => {
+    const line = generalLine(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose('A curve is traced by'),
+        display(generalCurveTex(params)),
+        prose(`Find the ${lineName(params.normal)} at the point with parameter $t$, with no fractions.`),
+      ],
+      template: line.template,
+      bank: tokenBank(line.tiles, line.tileSlips, 3),
+      answer: line.tiles,
+    };
+  },
+  solution: generalSolution,
+};
+
+/**
+ * The tangent (or normal) at a general t worked on the line itself: the
+ * gradient in t, the fraction cleared, then tidied.
+ */
+const paramTangentTSteps: Generator<GeneralParams> = {
+  id: 'param-tangent-t-steps',
+  sample: sampleGeneral,
+  render: (params): Slide => {
+    const line = generalLine(params);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose('A curve is traced by'),
+        display(generalCurveTex(params)),
+        prose(
+          `Find the ${lineName(params.normal)} at the point with parameter $t$. It starts as $y - y_1 = m(x - x_1)$: tap $m$ for its gradient in $t$, then clear the fraction and tidy.`,
+        ),
+      ],
+      start: [line.yPart, '=', 'm', line.xPart],
+      reductions: [
+        { span: [2, 3], value: line.grad, bank: stepBank(line.grad, ...line.gradSlips) },
+        { span: [0, 4], operator: 1, value: line.cleared, bank: stepBank(line.cleared, ...line.clearedSlips) },
+        { span: [0, 1], value: line.final, bank: stepBank(line.final, ...line.finalSlips) },
+      ],
+    };
+  },
+  solution: generalSolution,
+};
+
+/**
+ * Curves whose normal's gradient is a single power of t: the three classic
+ * ones, and `LQ` x = at, y = bt² and `C` x = at², y = bt³ with numbers in it.
+ */
+export type InTKind = GeneralKind | 'LQ' | 'C';
+
+export interface InTParams {
+  kind: InTKind;
+  a: number;
+  b: number;
+}
+
+export function inTSources({ kind, a, b }: InTParams): { x: string; y: string } {
+  if (kind === 'LQ') return { x: `${a} * t`, y: `${b} * t^2` };
+  if (kind === 'C') return { x: `${a} * t^2`, y: `${b} * t^3` };
+  return generalSources({ kind, a });
+}
+
+function inTCurveTex({ kind, a, b }: InTParams): string {
+  if (kind === 'LQ') return `x = ${mono(a, 't')}, \\quad y = ${mono(b, 't^{2}')}`;
+  if (kind === 'C') return `x = ${mono(a, 't^{2}')}, \\quad y = ${mono(b, 't^{3}')}`;
+  return generalCurveTex({ kind, a });
+}
+
+/** The tangent's gradient as [top, bottom, power of t]. */
+function inTTangent({ kind, a, b }: InTParams): [number, number, number] {
+  if (kind === 'P') return [1, 1, -1];
+  if (kind === 'Q') return [1, 1, 1];
+  if (kind === 'H') return [-1, 1, -2];
+  if (kind === 'LQ') return [2 * b, a, 1];
+  return [3 * b, 2 * a, 1];
+}
+
+/** dx/dt and dy/dt as the learner reads them. */
+function inTRates({ kind, a, b }: InTParams): [string, string] {
+  if (kind === 'P') return [mono(2 * a, 't'), `${2 * a}`];
+  if (kind === 'Q') return [`${2 * a}`, mono(2 * a, 't')];
+  if (kind === 'H') return [`${a}`, `-\\frac{${a}}{t^{2}}`];
+  if (kind === 'LQ') return [`${a}`, mono(2 * b, 't')];
+  return [mono(2 * a, 't'), mono(3 * b, 't^{2}')];
+}
+
+/** The normal's gradient: -1 over the tangent's. */
+export const inTNormal = (params: InTParams): [number, number, number] => {
+  const [n, dd, power] = inTTangent(params);
+  return [-dd, n, -power];
+};
+
+/** (top/bottom) t^power as the learner reads it, the fraction in lowest terms. */
+export function tPowerTex(top: number, bottom: number, power: number): string {
+  const g = gcd(top, bottom);
+  let n = top / g;
+  let dd = bottom / g;
+  if (dd < 0) {
+    n = -n;
+    dd = -dd;
+  }
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  const tp = (p: number) => (p === 1 ? 't' : `t^{${p}}`);
+  if (power > 0) {
+    const body = `${abs === 1 ? '' : abs}${tp(power)}`;
+    return dd === 1 ? `${sign}${body}` : `${sign}\\frac{${body}}{${dd}}`;
+  }
+  return `${sign}\\frac{${abs}}{${dd === 1 ? '' : dd}${tp(-power)}}`;
+}
+
+const tPowerAnswer = (top: number, bottom: number, power: number): string => `(${top})/(${bottom}) * t^(${power})`;
+
+function sampleInT(rng: Rng, difficulty: number): InTParams {
+  const hard = difficulty >= 2;
+  const kind = rng.pick<InTKind>(hard ? ['LQ', 'C', 'C', 'H', 'P'] : ['P', 'Q', 'H', 'LQ']);
+  const a = rng.int(1, hard ? 5 : 6);
+  const b = kind === 'LQ' || kind === 'C' ? rng.int(1, 4) * (hard ? rng.sign() : 1) : 0;
+  return { kind, a, b };
+}
+
+/**
+ * The normal's gradient at a general t, typed in t. The options carry the
+ * tangent's own gradient, the normal's with its sign lost, and the tangent's
+ * with its sign changed but not turned over.
+ */
+const paramNormalInT: Generator<InTParams> = {
+  id: 'param-normal-in-t',
+  sample: sampleInT,
+  choices: (params) => {
+    const [n, dd, power] = inTNormal(params);
+    const [tn, td, tp] = inTTangent(params);
+    const as = (top: number, bottom: number, p: number) => ({ tex: tPowerTex(top, bottom, p), answer: tPowerAnswer(top, bottom, p) });
+    return steered(options(as(n, dd, power), as(tn, td, tp), as(-n, dd, power), as(-tn, td, tp)), mix(params.a, params.b, n, power));
+  },
+  render: (params): Slide => {
+    const [n, dd, power] = inTNormal(params);
+    return {
+      kind: 'expression',
+      prompt: [
+        prose('A curve is traced by'),
+        display(inTCurveTex(params)),
+        prose('Find the gradient of the normal at the point with parameter $t$, in terms of $t$. Call it $m_{N}$.'),
+      ],
+      lead: 'm_{N} =',
+      keypad: T_KEYS,
+      answer: tPowerAnswer(n, dd, power),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const [dx, dy] = inTRates(params);
+    const [tn, td, tp] = inTTangent(params);
+    const [n, dd, power] = inTNormal(params);
+    return [
+      { text: 'Differentiate each coordinate.', tex: `${DXDT} = ${dx}, \\quad ${DYDT} = ${dy}` },
+      { text: "Divide for the tangent's gradient.", tex: `${DYDX} = ${tPowerTex(tn, td, tp)}` },
+      { text: 'The normal is at right angles: turn it over and change the sign.', tex: `m_{N} = ${tPowerTex(n, dd, power)}` },
+    ];
+  },
+};
+
+/**
+ * Where a general-point line crosses the y-axis at a named t, as a tree: the
+ * line's right-hand side and its y coefficient at t = k, then their quotient.
+ *
+ * Only lines whose y coefficient involves t are asked, or the tree would
+ * divide by one.
+ */
+export interface AtKParams {
+  kind: GeneralKind;
+  a: number;
+  normal: boolean;
+  k: number;
+}
+
+/** [right-hand side, coefficient of y] of the general line at t = k. */
+export function atKParts({ kind, a, normal, k }: AtKParams): [number, number] {
+  if (kind === 'P') return [a * k * k, k];
+  if (kind === 'Q') return [2 * a * k + a * k ** 3, k];
+  if (!normal) return [2 * a * k, k * k];
+  return [a * k ** 4 - a, -k];
+}
+
+/** The general line as `y`'s coefficient and the right-hand side, for the tree's expression. */
+function atKExpression(params: AtKParams): string {
+  const t = (c: number, power: number) => mono(c, power === 1 ? 't' : `t^{${power}}`);
+  const { kind, a, normal } = params;
+  if (kind === 'P') return `y = ${t(a, 2)} \\div t`;
+  if (kind === 'Q') return `y = (${t(2 * a, 1)} + ${t(a, 3)}) \\div t`;
+  if (!normal) return `y = ${t(2 * a, 1)} \\div t^{2}`;
+  return `y = (${t(a, 4)} - ${a}) \\div (-t)`;
+}
+
+function sampleAtK(rng: Rng, difficulty: number): AtKParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const pick = rng.pick(hard ? ['Pt', 'Ht', 'Qn', 'Hn'] : ['Pt', 'Ht', 'Qn']);
+    const params: AtKParams = {
+      kind: pick[0] as GeneralKind,
+      a: rng.int(1, 9),
+      normal: pick[1] === 'n',
+      k: rng.int(2, 3) * (hard ? rng.sign() : 1),
+    };
+    const [top, bottom] = atKParts(params);
+    if (top % bottom !== 0 || Math.abs(top) > 99 || top === 0) continue;
+    return params;
+  }
+}
+
+const paramAtKTree: Generator<AtKParams> = {
+  id: 'param-at-k-tree',
+  sample: sampleAtK,
+  render: (params): Slide => {
+    const [top, bottom] = atKParts(params);
+    const y = top / bottom;
+    const [x0, y0] = generalPoint(params, params.k);
+    return {
+      kind: 'tree',
+      prompt: [
+        prose('A curve is traced by'),
+        display(generalCurveTex(params)),
+        prose(`Its ${lineName(params.normal)} at the point with parameter $t$ is`),
+        display(generalLine(params).final),
+        prose(
+          `Where does the ${lineName(params.normal)} at $t = ${params.k}$ cross the $y$-axis? Put $x = 0$: the top row is the right-hand side and the number in front of $y$ at $t = ${params.k}$; the box below is $y$.`,
+        ),
+      ],
+      expression: atKExpression(params),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'y', from: ['top', 'bottom'] },
+      ],
+      bank: treeBank([top, bottom, y], [-y, top * bottom, x0, y0]),
+      answer: [top, bottom, y].map(String),
+    };
+  },
+  solution: (params) => {
+    const [top, bottom] = atKParts(params);
+    return [
+      { text: `Put $t = ${params.k}$ into the ${lineName(params.normal)}.`, tex: generalLine(params).final.replace(/t/g, `(${params.k})`) },
+      { text: 'On the $y$-axis $x = 0$, so', tex: `${bottom}y = ${top}` },
+      { tex: `y = ${top / bottom}` },
+    ];
+  },
+};
+
+/** The point of a general-point curve at a value of t. */
+function generalPoint({ kind, a }: Pick<GeneralParams, 'kind' | 'a'>, t: number): [number, number] {
+  if (kind === 'P') return [a * t * t, 2 * a * t];
+  if (kind === 'Q') return [2 * a * t, a * t * t];
+  return [a * t, a / t];
+}
+
+/* ---------- Meeting the axes and the curve again ---------- */
+
+export interface CrossParams extends SlopeAtParams {
+  normal: boolean;
+}
+
+/** Where the tangent (or normal) at t = k crosses the x-axis. */
+export function crossAt({ curve, k, normal }: CrossParams): number {
+  const [x0, y0] = pointAt(curve, k);
+  const [dx, dy] = ratesAt(curve, k);
+  const m = dy / dx;
+  return (normal ? x0 + m * y0 : x0 - y0 / m) + 0;
+}
+
+function sampleCross(rng: Rng, difficulty: number): CrossParams {
+  for (;;) {
+    const base = sampleSlopeAt(rng, difficulty);
+    const [, , m] = slopeValues(base);
+    const [x0, y0] = pointAt(base.curve, base.k);
+    const params = { ...base, normal: difficulty >= 2 ? rng.chance(0.5) : rng.chance(0.3) };
+    if (m === 0 || y0 === 0 || Math.abs(x0) > 7 || Math.abs(y0) > 7) continue;
+    const cross = crossAt(params);
+    if (!Number.isInteger(cross) || cross === 0 || Math.abs(cross) > 8) continue;
+    return params;
+  }
+}
+
+function lineAtSolution(params: CrossParams): SolutionStep[] {
+  const { curve, k, normal } = params;
+  const [x0, y0] = pointAt(curve, k);
+  const [dx, dy, m] = slopeValues(params);
+  return [
+    { text: `At $t = ${k}$ the point is $${pair(x0, y0)}$, and the rates are $${DXDT} = ${dx}$, $${DYDT} = ${dy}$.`, tex: `${DYDX} = ${m}` },
+    normal
+      ? { text: 'The normal, with the fraction cleared:', tex: normalLineTex(m, x0 + m * y0) }
+      : { text: 'The tangent:', tex: tangentLineTex(m, y0 - m * x0) },
+  ];
+}
+
+/** Where the tangent or normal at t = k crosses the x-axis, slid to on the curve's picture. */
+const paramCrossSlider: Generator<CrossParams> = {
+  id: 'param-cross-slider',
+  sample: sampleCross,
+  render: (params): Slide => {
+    const { curve, k } = params;
+    const [x0, y0] = pointAt(curve, k);
+    const span = 8;
+    return {
+      kind: 'slider',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(`The point where $t = ${k}$ is marked. Slide the line across to where the ${lineName(params.normal)} there crosses the $x$-axis.`),
+      ],
+      min: -span,
+      max: span,
+      step: 1,
+      answer: crossAt(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: paramSvg((t) => pointAt(curve, t), {
+          span,
+          tMin: k - 5,
+          tMax: k + 5,
+          marks: [[x0, y0]],
+          label: `The curve traced as t runs, with the point where t = ${k} marked`,
+        }),
+        xMin: -span,
+        xMax: span,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => [
+    ...lineAtSolution(params),
+    { text: 'On the $x$-axis $y = 0$.', tex: `x = ${crossAt(params)}` },
+  ],
+};
+
+/** The area of the triangle the line cuts off with the axes, as [top, bottom]. */
+export function triangleArea(params: CrossParams): Frac {
+  const { curve, k, normal } = params;
+  const [x0, y0] = pointAt(curve, k);
+  const m = slopeValues(params)[2];
+  const xCut = crossAt(params);
+  const yCut = normal ? (x0 + m * y0) / m : y0 - m * x0;
+  return [Math.abs(xCut * yCut), 2];
+}
+
+function sampleTriangle(rng: Rng, difficulty: number): CrossParams {
+  for (;;) {
+    const base = sampleSlopeAt(rng, difficulty, true);
+    const params = { ...base, normal: difficulty >= 2 && rng.chance(0.5) };
+    const [x0, y0] = pointAt(base.curve, base.k);
+    const m = slopeValues(base)[2];
+    const xCut = crossAt(params);
+    const yCut = params.normal ? (x0 + m * y0) / m : y0 - m * x0;
+    if (!Number.isInteger(xCut) || !Number.isInteger(yCut) || xCut === 0 || yCut === 0) continue;
+    if (Math.abs(xCut) > 20 || Math.abs(yCut) > 20) continue;
+    return params;
+  }
+}
+
+/**
+ * The triangle the tangent or normal cuts off with the axes: both intercepts,
+ * then half their product. The options carry the half forgotten and the other
+ * line's triangle.
+ */
+const paramTriangleArea: Generator<CrossParams> = {
+  id: 'param-triangle-area',
+  sample: sampleTriangle,
+  choices: (params) => {
+    const [top, bottom] = triangleArea(params);
+    const other = { ...params, normal: !params.normal };
+    const [x0, y0] = pointAt(params.curve, params.k);
+    const m = slopeValues(params)[2];
+    const otherX = crossAt(other);
+    const otherY = other.normal ? (x0 + m * y0) / m : y0 - m * x0;
+    return fracChoices(
+      [top, bottom],
+      [
+        [top, 1],
+        [Math.abs(otherX * otherY), 2],
+        [top, 4],
+      ],
+      mix(top, params.k, x0, y0),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose('A curve is traced by'),
+      ...curveBlocks(params.curve),
+      prose(
+        `The ${lineName(params.normal)} where $t = ${params.k}$ meets the $x$-axis at $A$ and the $y$-axis at $B$. Find the area of triangle $OAB$, where $O$ is the origin.`,
+      ),
+    ],
+    lead: '\\text{Area} =',
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...triangleArea(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const [x0, y0] = pointAt(params.curve, params.k);
+    const m = slopeValues(params)[2];
+    const xCut = crossAt(params);
+    const yCut = params.normal ? (x0 + m * y0) / m : y0 - m * x0;
+    return [
+      ...lineAtSolution(params),
+      { text: 'Put $y = 0$, then $x = 0$, for the two intercepts.', tex: `A = ${pair(xCut, 0)}, \\quad B = ${pair(0, yCut)}` },
+      { text: 'The triangle has a right angle at $O$: half the base times the height.', tex: `\\frac{1}{2} \\times ${Math.abs(xCut)} \\times ${Math.abs(yCut)} = ${fracTex(...triangleArea(params))}` },
+    ];
+  },
+};
+
+/**
+ * A curve of two quadratics (or a line and a quadratic) and the normal at
+ * t = k, which meets the curve again.
+ *
+ * Put x(t) and y(t) into the normal A x + B y = C and it becomes a quadratic
+ * p t² + q t + r = 0 with t = k as one root; the other is -q/p - k.
+ */
+export interface AgainParams {
+  curve: ParamCurve;
+  k: number;
+}
+
+/** The normal A x + B y = C at t = k, in lowest terms with A positive. */
+export function againNormal({ curve, k }: AgainParams): [number, number, number] {
+  const [dx, dy] = ratesAt(curve, k);
+  const [x0, y0] = pointAt(curve, k);
+  const g = gcd(dx, dy) * (dx < 0 ? -1 : 1);
+  const A = dx / g;
+  const B = dy / g;
+  return [A, B, A * x0 + B * y0];
+}
+
+/** Coefficients of t², t and 1 in the quadratic, the t² one made positive, and the other root. */
+export function againQuadratic(params: AgainParams): { p: number; q: number; r: number; other: number; unmoved: number } {
+  const [A, B, C] = againNormal(params);
+  const x = [0, 0, ...params.curve.x].slice(-3);
+  const y = [0, 0, ...params.curve.y].slice(-3);
+  const s = Math.sign(A * x[0] + B * y[0]);
+  const p = s * (A * x[0] + B * y[0]);
+  const q = s * (A * x[1] + B * y[1]) + 0;
+  const r = s * (A * x[2] + B * y[2] - C) + 0;
+  // The constant term had C been left on the other side: the slip a flow offers.
+  const unmoved = s * (A * x[2] + B * y[2]) + 0;
+  return { p, q, r, other: -q / p - params.k + 0, unmoved };
+}
+
+function sampleAgain(rng: Rng, difficulty: number): AgainParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const quad = (): number[] => [rng.int(1, 2) * rng.sign(), rng.int(-3, 3), rng.int(-4, 4)];
+    const line = (): number[] => [rng.int(1, 3) * rng.sign(), rng.int(-4, 4)];
+    const xFirst = rng.chance(0.5);
+    const curve = hard ? { x: quad(), y: quad() } : xFirst ? { x: line(), y: quad() } : { x: quad(), y: line() };
+    const k = rng.int(1, 3) * rng.sign();
+    const params = { curve, k };
+    const [dx, dy] = ratesAt(curve, k);
+    if (dx === 0 || dy === 0) continue;
+    const x = [0, 0, ...curve.x].slice(-3);
+    const y = [0, 0, ...curve.y].slice(-3);
+    // A genuine parabola, not a line traced twice.
+    if (x[0] * y[1] - y[0] * x[1] === 0) continue;
+    const [, , C] = againNormal(params);
+    const [x0, y0] = pointAt(curve, k);
+    if (Math.abs(x0) > 20 || Math.abs(y0) > 20 || Math.abs(C) > 60) continue;
+    const { p, q, r, other } = againQuadratic(params);
+    if (p === 0 || !Number.isInteger(other) || other === k || Math.abs(other) > 6) continue;
+    if (Math.abs(q) > 40 || Math.abs(r) > 60) continue;
+    const [x1, y1] = pointAt(curve, other);
+    if (Math.abs(x1) > 40 || Math.abs(y1) > 40) continue;
+    return params;
+  }
+}
+
+/** A x + B y = C as the learner reads it. */
+const againLineTex = ([A, B, C]: [number, number, number]): string => `${mono(A, 'x')} ${yTerm(B)} = ${C}`;
+
+function againPrompt(params: AgainParams): Block[] {
+  return [
+    prose('A curve is traced by'),
+    ...curveBlocks(params.curve),
+    prose(`The normal where $t = ${params.k}$ is`),
+    display(againLineTex(againNormal(params))),
+  ];
+}
+
+function againSolution(params: AgainParams): SolutionStep[] {
+  const { p, q, r, other } = againQuadratic(params);
+  const [x1, y1] = pointAt(params.curve, other);
+  return [
+    { text: 'Put the curve\'s $x$ and $y$ into the normal and gather everything on one side.', tex: `${polyTex([p, q, r])} = 0` },
+    { text: `$t = ${params.k}$ is a root, since the normal starts on the curve there. The two roots add up to $-\\frac{q}{p}$:`, tex: `${params.k} + t = ${fracTex(-q, p)}` },
+    { tex: `t = ${other}` },
+    { text: 'Put it into the curve for the point.', tex: pair(x1, y1) },
+  ];
+}
+
+/**
+ * The other t where the normal meets the curve, as a tree: the quadratic's
+ * t² and t coefficients, the sum of its roots, then the other root.
+ *
+ * The bank holds the sum with its sign lost, the sum with k added rather than
+ * taken away, and the constant term.
+ */
+const paramAgainTree: Generator<AgainParams> = {
+  id: 'param-again-tree',
+  sample: sampleAgain,
+  render: (params): Slide => {
+    const { p, q, r, other } = againQuadratic(params);
+    const sum = -q / p + 0;
+    return {
+      kind: 'tree',
+      prompt: [
+        ...againPrompt(params),
+        prose(
+          `Where does it meet the curve again? Put the curve's $x$ and $y$ into it to get $pt^{2} + qt + r = 0$, with $p$ positive. The top row is $p$ and $q$, the next box the sum of the two roots, and the last the root that is not $t = ${params.k}$.`,
+        ),
+      ],
+      expression: `t = -\\frac{q}{p} ${signed(-params.k)}`,
+      nodes: [
+        { id: 'p', from: [] },
+        { id: 'q', from: [] },
+        { id: 'sum', from: ['p', 'q'] },
+        { id: 'other', from: ['sum'] },
+      ],
+      bank: treeBank([p, q, sum, other], [-sum, sum + params.k, r, -other]),
+      answer: [p, q, sum, other].map(String),
+    };
+  },
+  solution: againSolution,
+};
+
+/**
+ * Where the normal meets the curve again, as three decisions: what to do with
+ * the line, the equation in t it gives, and its other root.
+ */
+const paramMeetFlow: Generator<AgainParams> = {
+  id: 'param-meet-flow',
+  sample: sampleAgain,
+  render: (params): Slide => {
+    const { k, curve } = params;
+    const { p, q, r, other, unmoved } = againQuadratic(params);
+    const [x1, y1] = pointAt(curve, other);
+    const salt = mix(p, q, r, k);
+    const substitute = 'Put $x$ and $y$ in terms of $t$ into the normal';
+    const equation = `$${polyTex([p, q, r])} = 0$`;
+    const root = `$t = ${other}$`;
+    const slip = 'At $t = ' + k + '$ this is not zero, so the substitution has slipped.';
+    return {
+      kind: 'flow',
+      prompt: [...againPrompt(params), prose('Find where it meets the curve again.')],
+      subject: againLineTex(againNormal(params)),
+      steps: [
+        {
+          id: 'how',
+          ask: 'How do you find where the line meets the curve?',
+          branches: fork(
+            [
+              { label: substitute, to: 'quad' },
+              { label: `Set $${DYDX}$ equal to the normal's gradient`, outcome: 'That finds where the tangent runs parallel to this line, not where the line crosses the curve.' },
+              { label: `Put $t = ${k}$ into the curve`, outcome: 'That is the point the normal starts from, not the second one.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'quad',
+          ask: 'Which equation in $t$ does that give?',
+          branches: fork(
+            [
+              { label: equation, to: 'root' },
+              { label: `$${polyTex([p, -q, r])} = 0$`, outcome: slip },
+              { label: `$${polyTex([p, q, -r])} = 0$`, outcome: slip },
+              { label: `$${polyTex([p, q, unmoved])} = 0$`, outcome: slip },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'root',
+          ask: `One root is $t = ${k}$. Which is the other?`,
+          branches: fork(
+            [
+              { label: root, outcome: `The normal meets the curve again at $t = ${other}$, the point $${pair(x1, y1)}$.` },
+              { label: `$t = ${-q / p + 0}$`, outcome: 'That is the sum of the two roots; take the known one away.' },
+              { label: `$t = ${-q / p + k}$`, outcome: 'The roots add up to $-\\frac{q}{p}$: take the known root away rather than adding it.' },
+              { label: `$t = ${-other}$`, outcome: 'Check the sign.' },
+            ].filter((b, i) => i === 0 || b.label !== root),
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [substitute, equation, root],
+    };
+  },
+  solution: againSolution,
+};
+
+/* ---------- Tangents with a given gradient ---------- */
+
+/**
+ * A curve with one value t0 where its tangent has gradient m, and the line
+ * that gradient is read from: `slope` y = m x + c, `general` a x + b y = e
+ * with gradient m, or `perp` x + m y = e, whose gradient is -1/m, so the
+ * tangent is perpendicular to it.
+ */
+export interface ParallelParams {
+  curve: ParamCurve;
+  m: number;
+  t0: number;
+  style: 'slope' | 'general' | 'perp';
+  /** The line's other numbers: c for `slope`, e for the others, and b for `general`. */
+  c: number;
+  b: number;
+}
+
+/** The given line as the learner reads it. */
+export function givenLineTex({ m, style, c, b }: ParallelParams): string {
+  if (style === 'slope') return tangentLineTex(m, c);
+  if (style === 'perp') return normalLineTex(m, c);
+  // -m b x + b y = c, with the x coefficient made positive.
+  const A = -m * b;
+  return A > 0 ? `${mono(A, 'x')} ${yTerm(b)} = ${c}` : `${mono(-A, 'x')} ${yTerm(-b)} = ${-c}`;
+}
+
+/** The given line's gradient. */
+export const givenGradient = ({ m, style }: ParallelParams): Frac => (style === 'perp' ? [-1, m] : [m, 1]);
+
+const relation = ({ style }: ParallelParams): string => (style === 'perp' ? 'perpendicular' : 'parallel');
+
+function sampleParallel(rng: Rng, difficulty: number): ParallelParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const t0 = rng.int(1, 3) * rng.sign();
+    const m = rng.int(2, hard ? 4 : 3) * rng.sign();
+    const x = hard && rng.chance(0.6) ? [rng.int(1, 2) * rng.sign(), rng.int(-3, 3), rng.int(-4, 4)] : [rng.int(1, 3) * rng.sign(), rng.int(-4, 4)];
+    const y2 = rng.int(1, 3) * rng.sign();
+    const dxAt = valueAt(derived(x), t0);
+    const y1 = m * dxAt - 2 * y2 * t0;
+    const curve = { x, y: [y2, y1, rng.int(-5, 5)] };
+    const x2 = x.length === 3 ? x[0] : 0;
+    // dy/dt - m dx/dt is linear in t, so t0 is its only root; it must really be linear.
+    if (dxAt === 0 || y2 === m * x2 || Math.abs(y1) > 12) continue;
+    if (x.length === 3 && x[0] * y1 === y2 * x[1]) continue;
+    const [x0, y0] = pointAt(curve, t0);
+    const intercept = y0 - m * x0;
+    if (Math.abs(x0) > 30 || Math.abs(y0) > 40 || intercept === 0 || Math.abs(intercept) > 60) continue;
+    const style = rng.pick<ParallelParams['style']>(hard ? ['slope', 'general', 'perp'] : ['slope', 'general']);
+    const c = rng.int(1, 9) * rng.sign();
+    // The given line must not be the tangent itself.
+    if ((style === 'slope' && c === intercept) || (style === 'general' && c === intercept * 2) || (style === 'general' && c === intercept * 3)) continue;
+    return { curve, m, t0, style, c, b: rng.int(2, 3) };
+  }
+}
+
+/** The t where dy/dt = m dx/dt, for a given gradient. Not necessarily whole. */
+function tWhere(curve: ParamCurve, m: Frac): number {
+  // (top) dx/dt = (bottom) dy/dt, both linear in t: solve it.
+  const dx = [0, ...derived(curve.x)].slice(-2);
+  const dy = [0, ...derived(curve.y)].slice(-2);
+  const lead = m[1] * dy[0] - m[0] * dx[0];
+  return lead === 0 ? NaN : (m[0] * dx[1] - m[1] * dy[1]) / lead;
+}
+
+function parallelSolution(params: ParallelParams): SolutionStep[] {
+  const { curve, m, t0 } = params;
+  const lineGrad = givenGradient(params);
+  return [
+    params.style === 'perp'
+      ? { text: `The line has gradient $${fracTex(...lineGrad)}$, so a tangent at right angles to it has gradient $${m}$.` }
+      : { text: `The line has gradient $${m}$, and so must the tangent.` },
+    { text: `So $${DYDT} = ${m} \\times ${DXDT}$.`, tex: `${polyTex(derived(curve.y))} = ${m}(${polyTex(derived(curve.x))})` },
+    { tex: `t = ${t0}` },
+  ];
+}
+
+/** The t where the tangent is parallel (or perpendicular) to a given line, typed. */
+const paramParallelT: Generator<ParallelParams> = {
+  id: 'param-parallel-t',
+  sample: sampleParallel,
+  choices: (params) => {
+    const { curve, m, t0 } = params;
+    return numberChoices(t0, [tWhere(curve, [-m, 1]), tWhere(curve, [-1, m]), -t0, tWhere(curve, [1, m])], mix(t0, m, params.c, params.b));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose('A curve is traced by'),
+      ...curveBlocks(params.curve),
+      prose(`At which value of $t$ is its tangent ${relation(params)} to $${givenLineTex(params)}$?`),
+    ],
+    lead: 't =',
+    keypad: [],
+    answer: `${params.t0}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: parallelSolution,
+};
+
+/**
+ * The same question worked on the line dy/dt = m dx/dt: the gradient read off
+ * the given line, each rate, the right-hand side multiplied out, then solved.
+ */
+const paramParallelSteps: Generator<ParallelParams> = {
+  id: 'param-parallel-steps',
+  sample: sampleParallel,
+  render: (params): Slide => {
+    const { curve, m, t0 } = params;
+    const dy = derived(curve.y);
+    const dx = derived(curve.x);
+    const mdx = dx.map((c) => m * c);
+    const onlyFirst = [m * dx[0], ...dx.slice(1)];
+    return {
+      kind: 'steps',
+      prompt: [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(
+          `Find where its tangent is ${relation(params)} to $${givenLineTex(params)}$. That is where $${DYDT} = m${DXDT}$, with $m$ the gradient the tangent needs. Tap each piece to work it out, then solve.`,
+        ),
+      ],
+      start: [DYDT, '=', 'm', DXDT],
+      reductions: [
+        { span: [2, 3], value: `${m}`, bank: stepBank(`${m}`, `${-m}`, fracTex(1, m), fracTex(-1, m)) },
+        { span: [0, 1], value: polyTex(dy), bank: stepBank(polyTex(dy), polyTex(curve.y), polyTex([dy[0], -dy[1]])) },
+        { span: [3, 4], value: `(${polyTex(dx)})`, bank: stepBank(`(${polyTex(dx)})`, `(${polyTex(curve.x)})`, `(${polyTex(dx.length > 1 ? [dx[0], -dx[1]] : [-dx[0]])})`) },
+        {
+          span: [2, 4],
+          operator: 2,
+          value: polyTex(mdx),
+          bank: stepBank(polyTex(mdx), polyTex(dx.length > 1 ? onlyFirst : [dx[0] + m]), polyTex(mdx.map((c) => -c))),
+        },
+        { span: [0, 3], operator: 1, value: `t = ${t0}`, bank: stepBank(`t = ${t0}`, `t = ${-t0}`, `t = ${t0 + 1}`, `t = ${t0 - 1}`) },
+      ],
+    };
+  },
+  solution: parallelSolution,
+};
+
+/** The tangent with the given gradient, y = m x + c from tiles. */
+const paramGivenTiles: Generator<ParallelParams> = {
+  id: 'param-given-tiles',
+  sample: sampleParallel,
+  render: (params): Slide => {
+    const { curve, m, t0 } = params;
+    const [x0, y0] = pointAt(curve, t0);
+    return tangentTiles(
+      [
+        prose('A curve is traced by'),
+        ...curveBlocks(curve),
+        prose(`Find the tangent to it that is ${relation(params)} to $${givenLineTex(params)}$.`),
+      ],
+      m,
+      x0,
+      y0,
+      [valueAt(derived(curve.y), t0), valueAt(derived(curve.x), t0)],
+    );
+  },
+  solution: (params) => {
+    const { curve, m, t0 } = params;
+    const [x0, y0] = pointAt(curve, t0);
+    return tangentSolution(m, x0, y0, [...parallelSolution(params), { text: `At $t = ${t0}$ the point is $${pair(x0, y0)}$.` }]);
+  },
+};
+
+/**
+ * The two points of a conic where the tangent has a given gradient m: where
+ * $-\frac{Ax}{By} = m$, which is a line through the origin meeting the curve
+ * at a point and its reflection through the origin.
+ */
+export interface SlopePointsParams extends ConicParams {
+  perp: boolean;
+  c: number;
+}
+
+export const slopePointsGradient = ({ A, B, p, q }: ConicParams): number => (-A * p) / (B * q) + 0;
+
+function sampleSlopePoints(rng: Rng, difficulty: number): SlopePointsParams {
+  const conic = sampleConic(rng, difficulty, (params) => {
+    const m = slopePointsGradient(params);
+    return Number.isInteger(m) && m !== 0 && Math.abs(m) <= 6;
+  });
+  return { ...conic, perp: difficulty >= 2 && rng.chance(0.5), c: rng.int(1, 9) * rng.sign() };
+}
+
+/** A fraction in front of something: 1 and -1 left implied. */
+function fracCoef(top: number, bottom: number): string {
+  const tex = fracTex(top, bottom);
+  return tex === '1' ? '' : tex === '-1' ? '-' : tex;
+}
+
+const pointPair = (a: [number, number], b: [number, number]): string => `${pair(...a)} \\text{ and } ${pair(...b)}`;
+
+/** Which pair of points has tangents of the given gradient. */
+const implSlopePoints: Generator<SlopePointsParams> = {
+  id: 'impl-slope-points',
+  sample: sampleSlopePoints,
+  render: (params): Slide => {
+    const { p, q, perp, c } = params;
+    const m = slopePointsGradient(params);
+    const right = (x: number, y: number) =>
+      conicRhs({ ...params, p: x, q: y }) === conicRhs(params) && y !== 0 && slopePointsGradient({ ...params, p: x, q: y }) === m;
+    const candidates: [number, number][][] = [
+      [
+        [p, -q],
+        [-p, q],
+      ],
+      [
+        [q, p],
+        [-q, -p],
+      ],
+      [
+        [p, q],
+        [-p, q],
+      ],
+      [
+        [-q, p],
+        [q, -p],
+      ],
+    ];
+    const wrong = candidates.filter(([u, v]) => !(right(...u) && right(...v))).map(([u, v]) => pointPair(u, v));
+    const line = perp ? normalLineTex(m, c) : tangentLineTex(m, c);
+    return labelChoice(
+      [display(conicEquation(params)), prose(`At which two points on this curve is the tangent ${perp ? 'perpendicular' : 'parallel'} to $${line}$?`)],
+      [pointPair([p, q], [-p, -q]), ...wrong],
+      mix(p, q, params.A, params.B, m),
+    );
+  },
+  solution: (params) => {
+    const { A, B, p, q, perp } = params;
+    const m = slopePointsGradient(params);
+    return [
+      perp
+        ? { text: `The line has gradient $${fracTex(-1, m)}$, so the tangent needs gradient $${m}$.` }
+        : { text: `The tangent needs the line's gradient, $${m}$.` },
+      { text: 'Differentiate implicitly.', tex: `${DYDX} = ${fracCoef(-A, B)}\\frac{x}{y}` },
+      { text: `Set it equal to $${m}$: the points lie on a line through the origin.`, tex: `x = ${fracCoef(-m * B, A)}y` },
+      { text: 'Substitute into the curve: that fixes $y^{2}$, so there are two points, each the reflection of the other in the origin.', tex: pointPair([p, q], [-p, -q]) },
+    ];
+  },
+};
+
 /* ---------- Registration ---------- */
 
 /** By name, for `parametricImplicit.test.ts`. */
@@ -4805,6 +6259,26 @@ export const piGenerators = {
   implTurningValue,
   implTurningFlow,
   implTurningKind,
+  paramNormalTree,
+  paramNormalGrad,
+  paramNormalTiles,
+  paramNormalFlow,
+  implNormalSteps,
+  implNormalGrad,
+  implNormalTiles,
+  implNormalLine,
+  paramLineInT,
+  paramTangentTSteps,
+  paramNormalInT,
+  paramAtKTree,
+  paramCrossSlider,
+  paramTriangleArea,
+  paramAgainTree,
+  paramMeetFlow,
+  paramParallelT,
+  paramParallelSteps,
+  paramGivenTiles,
+  implSlopePoints,
 };
 
 export const parametricGenerators = Object.values(piGenerators) as Generator<never>[];

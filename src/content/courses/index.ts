@@ -3,6 +3,7 @@ import { complexNumbers } from './complexNumbers';
 import { differentiation } from './differentiation';
 import { exponentsRadicals } from './exponentsRadicals';
 import { integration } from './integration';
+import { linearEquations } from './linearEquations';
 import { logarithms } from './logarithms';
 import { matrices } from './matrices';
 import { quadratics } from './quadratics';
@@ -21,7 +22,7 @@ export const categories: Category[] = [
     id: 'algebra-fundamentals',
     title: 'Algebra Fundamentals',
     blurb: 'The rules everything later is built on.',
-    courses: [exponentsRadicals, quadratics],
+    courses: [exponentsRadicals, quadratics, linearEquations],
   },
   {
     id: 'advanced-algebra',

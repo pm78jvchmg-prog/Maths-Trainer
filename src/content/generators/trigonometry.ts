@@ -3355,6 +3355,1559 @@ const radFormulaFlow: Generator<FormulaFlowParams> = {
   ],
 };
 
+/* ---------- Level 5: tangent and the reciprocal functions ---------- */
+
+/*
+ * Tangent is sine over cosine: the gradient of the radius, where sine and
+ * cosine were its height and its sideways distance. Secant, cosecant and
+ * cotangent are then one over cosine, sine and tangent.
+ *
+ * The exact values here carry surds (tan 60 is root 3, sec 30 is 2 over
+ * root 3), and a surd is a poor thing to type on a phone, so those are chosen,
+ * placed as tiles or built in a tree. The typed answers are the fractions and
+ * whole numbers the keypad handles well.
+ */
+
+type Ratio = 'sin' | 'cos' | 'tan' | 'sec' | 'cosec' | 'cot';
+type Reciprocal = 'sec' | 'cosec' | 'cot';
+
+/** How each ratio is written. The UK writes cosec, which KaTeX has no command for. */
+const RATIO_TEX: Record<Ratio, string> = {
+  sin: '\\sin',
+  cos: '\\cos',
+  tan: '\\tan',
+  sec: '\\sec',
+  cosec: '\\operatorname{cosec}',
+  cot: '\\cot',
+};
+
+/** What each ratio is called in a sentence. */
+const RATIO_NAME: Record<Ratio, string> = {
+  sin: 'sine',
+  cos: 'cosine',
+  tan: 'tangent',
+  sec: 'secant',
+  cosec: 'cosecant',
+  cot: 'cotangent',
+};
+
+/** What is on the bottom when a ratio is written with sine and cosine. */
+const DENOMINATOR_OF: Record<'tan' | Reciprocal, 'sin' | 'cos'> = {
+  tan: 'cos',
+  sec: 'cos',
+  cosec: 'sin',
+  cot: 'sin',
+};
+
+/** sin and cos of a whole number of degrees, with the float dust at a quarter turn swept to exactly zero. */
+function sinCos(degrees: number): { s: number; c: number } {
+  const x = (degrees * Math.PI) / 180;
+  const tidy = (v: number) => (Math.abs(v) < 1e-12 ? 0 : v);
+  return { s: tidy(Math.sin(x)), c: tidy(Math.cos(x)) };
+}
+
+/** Each ratio from sine and cosine, or undefined where that divides by zero. */
+const RATIO_FROM: Record<Ratio, (s: number, c: number) => number | undefined> = {
+  sin: (s) => s,
+  cos: (_, c) => c,
+  tan: (s, c) => (c === 0 ? undefined : s / c),
+  sec: (_, c) => (c === 0 ? undefined : 1 / c),
+  cosec: (s) => (s === 0 ? undefined : 1 / s),
+  cot: (s, c) => (s === 0 ? undefined : c / s),
+};
+
+function ratioAt(fn: Ratio, degrees: number): number | undefined {
+  const { s, c } = sinCos(degrees);
+  return RATIO_FROM[fn](s, c);
+}
+
+/** Every size a ratio takes at a multiple of 30 or 45 degrees; the negatives are made from these. */
+const RATIO_VALUES: { value: number; tex: string }[] = [
+  { value: 0, tex: '0' },
+  { value: 0.5, tex: '\\frac{1}{2}' },
+  { value: 1 / Math.sqrt(3), tex: '\\frac{1}{\\sqrt{3}}' },
+  { value: Math.SQRT2 / 2, tex: '\\frac{\\sqrt{2}}{2}' },
+  { value: Math.sqrt(3) / 2, tex: '\\frac{\\sqrt{3}}{2}' },
+  { value: 1, tex: '1' },
+  { value: 2 / Math.sqrt(3), tex: '\\frac{2}{\\sqrt{3}}' },
+  { value: Math.SQRT2, tex: '\\sqrt{2}' },
+  { value: Math.sqrt(3), tex: '\\sqrt{3}' },
+  { value: 2, tex: '2' },
+];
+
+/** A special value as the learner reads it, sign included. Throws off the table, so a slip cannot pass as a surd. */
+function exactTex(value: number): string {
+  const row = RATIO_VALUES.find((entry) => Math.abs(entry.value - Math.abs(value)) < 1e-9);
+  if (!row) throw new Error(`${value} is not a special value`);
+  return value < 0 && row.value !== 0 ? `-${row.tex}` : row.tex;
+}
+
+const UNDEFINED_TEX = '\\text{undefined}';
+
+/** Options sorted smallest first, with `undefined` last, so one question renders one way. */
+function sortedExact(values: (number | undefined)[]): (number | undefined)[] {
+  return [...values].sort((a, b) => (a === undefined ? 1 : b === undefined ? -1 : a - b));
+}
+
+const exactOrUndefined = (value: number | undefined): string =>
+  value === undefined ? UNDEFINED_TEX : exactTex(value);
+
+/** An angle held in degrees, written in degrees or in radians. */
+const angleTex = (degrees: number, radians: boolean): string =>
+  radians ? piTex(degrees, 180) : `${degrees}^{\\circ}`;
+
+/** The multiples of 30 and 45 degrees in one turn, both ends included. */
+const SPECIAL_DEGREES = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360];
+
+/** n/d as the learner reads it: sign in front, lowest terms. */
+function signedFracTex(n: number, d: number): string {
+  return `${n * d < 0 ? '-' : ''}${ratioTex(Math.abs(n), Math.abs(d))}`;
+}
+
+/** A multiplier in front of a function: nothing for 1, a bare minus for -1. */
+const coefficientTex = (a: number): string => (a === 1 ? '' : a === -1 ? '-' : `${a}`);
+
+/** The signs of x (cosine) and y (sine) in each quarter of the turn. */
+const QUADRANT_SIGNS = [
+  { x: 1, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: -1 },
+  { x: 1, y: -1 },
+];
+
+interface TripleParams {
+  /** Which row of `IDENTITY_TRIPLES`. */
+  index: number;
+  /** Which leg is across and which is up. */
+  swap: boolean;
+  /** 1 to 4, anticlockwise from the positive x-axis. */
+  quadrant: number;
+}
+
+/** A point on a circle whose coordinates and radius are all whole: a Pythagorean triple, placed in a quadrant. */
+function pointOf(p: TripleParams): { x: number; y: number; r: number } {
+  const [a, b, r] = IDENTITY_TRIPLES[p.index];
+  const { x, y } = QUADRANT_SIGNS[p.quadrant - 1];
+  return p.swap ? { x: x * b, y: y * a, r } : { x: x * a, y: y * b, r };
+}
+
+function sampleTriple(rng: Rng, quadrants: number): TripleParams {
+  return { index: rng.int(0, IDENTITY_TRIPLES.length - 1), swap: rng.chance(0.5), quadrant: rng.int(1, quadrants) };
+}
+
+/** Every ratio at the point, as a fraction n/d of whole numbers. */
+function ratiosAt(p: TripleParams): Record<Ratio, [number, number]> {
+  const { x, y, r } = pointOf(p);
+  return { sin: [y, r], cos: [x, r], tan: [y, x], sec: [r, x], cosec: [r, y], cot: [x, y] };
+}
+
+const fracAnswer = ([n, d]: [number, number]): string => `(${n})/(${d})`;
+
+const ORDINALS = ['', 'first', 'second', 'third', 'fourth'];
+
+/** A curve in degrees, drawn with the pen lifted at every asymptote. */
+const DEGREE = Math.PI / 180;
+
+const RATIO_CURVE: Record<'tan' | Reciprocal, (x: number) => number> = {
+  tan: (x) => Math.tan(x),
+  sec: (x) => 1 / Math.cos(x),
+  cosec: (x) => 1 / Math.sin(x),
+  cot: (x) => 1 / Math.tan(x),
+};
+
+interface TanPointParams extends TripleParams {
+  /** Every length multiplied by this, which leaves the gradient alone. */
+  scale: number;
+  phrasing: number;
+}
+
+/** tan as the gradient of the radius: y over x from a point on the circle. */
+const tanFromPoint: Generator<TanPointParams> = {
+  id: 'trig-tan-from-point',
+  sample: (rng, difficulty) => ({
+    ...sampleTriple(rng, difficulty > 1 ? 4 : 1),
+    scale: rng.int(1, 3),
+    phrasing: rng.int(0, 1),
+  }),
+  render: (p): Slide => {
+    const { x, y, r } = pointOf(p);
+    const [px, py, pr] = [x * p.scale, y * p.scale, r * p.scale];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            p.phrasing === 0
+              ? `A point on a circle of radius $${pr}$ centred at the origin is at $(${px}, ${py})$, an angle $\\theta$ anticlockwise from the positive $x$-axis. What is $\\tan(\\theta)$?`
+              : `The radius from the origin to $P(${px}, ${py})$ is $${pr}$ long and makes an angle $\\theta$ with the positive $x$-axis. Find $\\tan(\\theta)$ as a fraction.`,
+        },
+      ],
+      lead: '\\tan(\\theta) =',
+      keypad: NUMBER_KEYS,
+      answer: `(${py})/(${px})`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const { x, y, r } = pointOf(p);
+    return options(
+      { tex: signedFracTex(y, x), answer: `(${y})/(${x})` },
+      // Upside down, the sine instead, and the sign lost.
+      { tex: signedFracTex(x, y), answer: `(${x})/(${y})` },
+      { tex: signedFracTex(y, r), answer: `(${y})/(${r})` },
+      { tex: signedFracTex(-y, x), answer: `(${-y})/(${x})` },
+    );
+  },
+  solution: (p) => {
+    const { x, y } = pointOf(p);
+    const [px, py] = [x * p.scale, y * p.scale];
+    return [
+      {
+        text: 'Sine is the height over the radius and cosine the sideways distance over the radius, so dividing one by the other cancels the radius.',
+      },
+      {
+        tex: `\\tan(\\theta) = \\frac{\\sin(\\theta)}{\\cos(\\theta)} = \\frac{y}{x} = \\frac{${py}}{${px}} = ${signedFracTex(y, x)}`,
+      },
+      {
+        text:
+          x * y > 0
+            ? `That is the gradient of the radius. The two coordinates have the same sign, so the gradient is positive.`
+            : `That is the gradient of the radius. The two coordinates have opposite signs, so the gradient is negative.`,
+      },
+    ];
+  },
+};
+
+interface TanQuotientParams extends TripleParams {
+  /** Whether the cosine is stated before the sine. */
+  cosFirst: boolean;
+}
+
+/** tan = sin / cos, with the two values given: what goes on top, and what it comes to. */
+const tanQuotientTiles: Generator<TanQuotientParams> = {
+  id: 'trig-tan-quotient-tiles',
+  sample: (rng, difficulty) => ({ ...sampleTriple(rng, 4), cosFirst: difficulty > 1 && rng.chance(0.5) }),
+  render: (p): Slide => {
+    const { x, y, r } = pointOf(p);
+    const sinTex = signedFracTex(y, r);
+    const cosTex = signedFracTex(x, r);
+    const tanTex = signedFracTex(y, x);
+    const given = [`$\\sin(\\theta) = ${sinTex}$`, `$\\cos(\\theta) = ${cosTex}$`];
+    if (p.cosFirst) given.reverse();
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `${given[0]} and ${given[1]}. Build $\\tan(\\theta)$: what is divided, what it is divided by, and what that comes to.`,
+        },
+      ],
+      template: '\\tan(\\theta) = {0} \\div {1} = {2}',
+      // Upside down, and the sign lost, beside the three the answer needs.
+      bank: [...new Set([sinTex, cosTex, tanTex, signedFracTex(x, y), signedFracTex(-y, x)])].sort(),
+      answer: [sinTex, cosTex, tanTex],
+    };
+  },
+  solution: (p) => {
+    const { x, y, r } = pointOf(p);
+    return [
+      { text: 'Tangent is sine divided by cosine, in that order.' },
+      {
+        tex: `\\tan(\\theta) = ${signedFracTex(y, r)} \\div ${signedFracTex(x, r)} = \\frac{${y}}{${x}} = ${signedFracTex(y, x)}`,
+      },
+      {
+        text: `Both fractions are over $${r}$, so the $${r}$s cancel and only the tops are left. ${x * y > 0 ? 'Same signs divide to a positive.' : 'Opposite signs divide to a negative.'}`,
+      },
+    ];
+  },
+};
+
+interface TanUndefinedParams {
+  /** In degrees: where cosine is zero. */
+  answer: number;
+  /** In degrees: three angles where it is not. */
+  others: number[];
+  radians: boolean;
+  phrasing: number;
+}
+
+/** Angles where tan has a value, for the wrong options. */
+const TAN_DEFINED = SPECIAL_DEGREES.filter((d) => d % 180 !== 90);
+const COSINE_ZERO = [90, 270, 450, 630, -90, -270];
+
+const UNDEFINED_PROMPTS = [
+  'At which of these angles is $\\tan(\\theta)$ undefined?',
+  'For one of these angles the radius is vertical, and $\\tan(\\theta)$ has no value. Which one?',
+  'Which of these angles has no tangent?',
+];
+
+/** Where tan is undefined: where cosine, on the bottom, is zero. */
+const tanUndefined: Generator<TanUndefinedParams> = {
+  id: 'trig-tan-undefined',
+  sample: (rng, difficulty) => {
+    const answer = rng.pick(COSINE_ZERO.slice(0, difficulty > 1 ? 6 : 2));
+    // One of the wrong options is always an angle where tan is zero: the
+    // numerator vanishing is the confusion worth offering.
+    const trap = rng.pick([0, 180, 360]);
+    const rest = rng.sample(TAN_DEFINED.filter((d) => d !== trap), 2);
+    return {
+      answer,
+      others: [trap, ...rest],
+      radians: rng.chance(0.5),
+      phrasing: rng.int(0, UNDEFINED_PROMPTS.length - 1),
+    };
+  },
+  render: ({ answer, others, radians, phrasing }): Slide => ({
+    kind: 'choice',
+    prompt: [{ kind: 'prose', text: UNDEFINED_PROMPTS[phrasing] }],
+    options: [answer, ...others]
+      .sort((a, b) => a - b)
+      .map((degrees) => ({ id: `${degrees}`, label: angleTex(degrees, radians), tex: true })),
+    correctId: `${answer}`,
+  }),
+  solution: ({ answer, others, radians }) => [
+    {
+      text: 'Tangent is sine over cosine, so it is undefined exactly where cosine, on the bottom, is zero: where the point is straight above or below the centre and the radius is vertical.',
+    },
+    { tex: `\\cos\\left(${angleTex(answer, radians)}\\right) = 0` },
+    {
+      text: `At $${angleTex(others[0], radians)}$ it is the sine on top that is zero, so $\\tan$ is $0$ there, which is a perfectly good value.`,
+    },
+  ],
+};
+
+interface TanSignParams {
+  degrees: number;
+  radians: boolean;
+}
+
+const DEGREE_QUARTERS = [
+  'Between $0^{\\circ}$ and $90^{\\circ}$',
+  'Between $90^{\\circ}$ and $180^{\\circ}$',
+  'Between $180^{\\circ}$ and $270^{\\circ}$',
+  'Between $270^{\\circ}$ and $360^{\\circ}$',
+];
+
+const SIGN_PAIRS = [
+  '$\\sin$ positive and $\\cos$ positive',
+  '$\\sin$ positive and $\\cos$ negative',
+  '$\\sin$ negative and $\\cos$ negative',
+  '$\\sin$ negative and $\\cos$ positive',
+];
+
+/** Positive or negative: place the angle, read both signs, divide. */
+const tanSignFlow: Generator<TanSignParams> = {
+  id: 'trig-tan-sign-flow',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.chance(0.5)) {
+      return { degrees: 15 * (rng.pick(OFF_MARK_TWELFTHS) + (rng.chance(0.5) ? 24 : 0)), radians: true };
+    }
+    const offMark = Array.from({ length: 71 }, (_, i) => 5 * (i + 1)).filter((d) => d % 90 !== 0);
+    return { degrees: rng.pick(offMark) + (difficulty > 1 ? 360 : 0), radians: false };
+  },
+  render: ({ degrees, radians }): Slide => {
+    const quarter = Math.floor((degrees % 360) / 90);
+    const labels = radians ? QUARTER_LABELS : DEGREE_QUARTERS;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Is this positive or negative? Place the angle, then read the signs of sine and cosine there.',
+        },
+      ],
+      subject: `\\tan\\left(${angleTex(degrees, radians)}\\right)`,
+      steps: [
+        {
+          id: 'where',
+          ask:
+            degrees > 360
+              ? `Take off one full turn, $${radians ? '2\\pi' : '360^{\\circ}'}$. Between which two quarter-turn marks does what is left fall?`
+              : 'Between which two quarter-turn marks does the angle fall?',
+          branches: labels.map((label) => ({ label, to: 'signs' })),
+        },
+        {
+          id: 'signs',
+          ask: 'What are the signs of sine and cosine there?',
+          branches: SIGN_PAIRS.map((label, i) => ({
+            label,
+            outcome:
+              i % 2 === 0
+                ? 'The same signs, so their quotient $\\tan$ is positive.'
+                : 'Opposite signs, so their quotient $\\tan$ is negative.',
+          })),
+        },
+      ],
+      answer: [labels[quarter], SIGN_PAIRS[quarter]],
+    };
+  },
+  solution: ({ degrees, radians }) => {
+    const turned = degrees % 360;
+    const quarter = Math.floor(turned / 90);
+    const { x, y } = QUADRANT_SIGNS[quarter];
+    return [
+      {
+        text: `${radians ? `In degrees the angle is $${degrees}^{\\circ}$` : `The angle is $${degrees}^{\\circ}$`}${degrees > 360 ? `, which lands where $${turned}^{\\circ}$ does` : ''}: between $${90 * quarter}^{\\circ}$ and $${90 * quarter + 90}^{\\circ}$.`,
+      },
+      {
+        text: `There the point is ${y > 0 ? 'above' : 'below'} the centre, so $\\sin$ is ${y > 0 ? 'positive' : 'negative'}, and ${x > 0 ? 'to the right of' : 'to the left of'} it, so $\\cos$ is ${x > 0 ? 'positive' : 'negative'}.`,
+      },
+      {
+        tex: `\\tan = \\frac{\\sin}{\\cos} = \\frac{${y > 0 ? '+' : '-'}}{${x > 0 ? '+' : '-'}} = ${x * y > 0 ? '+' : '-'}`,
+      },
+    ];
+  },
+};
+
+/** y = a tan(bx), as the learner reads it. */
+const tanCurveTex = (a: number, b: number): string =>
+  `${coefficientTex(a)}\\tan(${b === 1 ? '' : b}x)`;
+
+interface TanSliderParams {
+  a: number;
+  b: number;
+  feature: 'asymptote' | 'zero';
+  nth: number;
+  radians: boolean;
+}
+
+/** The nth asymptote or the nth crossing of y = a tan(bx) after zero, in degrees. */
+const tanFeatureDegrees = ({ b, feature, nth }: TanSliderParams): number =>
+  feature === 'asymptote' ? (90 + 180 * (nth - 1)) / b : (180 * nth) / b;
+
+/** Slider settings per unit. The handle rests at the middle, so no answer is allowed near it. */
+const tanSliderScale = (radians: boolean) =>
+  radians ? { max: 7, step: 0.05, tolerance: 0.1 } : { max: 360, step: 1, tolerance: 3 };
+
+/** Drag to an asymptote or a crossing of y = a tan(bx). */
+const tanAsymptoteSlider: Generator<TanSliderParams> = {
+  id: 'trig-tan-asymptote-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p: TanSliderParams = {
+        a: nonZeroInt(rng, -3, 3),
+        b: rng.int(1, difficulty > 1 ? 6 : 4),
+        feature: rng.pick(['asymptote', 'zero'] as const),
+        nth: rng.int(1, 3),
+        radians: difficulty > 1 && rng.chance(0.5),
+      };
+      const { max, tolerance } = tanSliderScale(p.radians);
+      const value = tanFeatureDegrees(p) * (p.radians ? DEGREE : 1);
+      if (value <= max - 3 * tolerance && Math.abs(value - max / 2) > 3 * tolerance) return p;
+    }
+  },
+  render: (p): Slide => {
+    const { max, step, tolerance } = tanSliderScale(p.radians);
+    const unit = p.radians ? 1 : DEGREE;
+    const reach = 3 * Math.abs(p.a);
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: max,
+      curves: [{ f: (x) => p.a * Math.tan(p.b * x * unit), breaks: true }],
+      yMin: -reach,
+      yMax: reach,
+      label: `The graph of y = ${p.a} tan ${p.b}x with x in ${p.radians ? 'radians' : 'degrees'}`,
+    });
+    const value = tanFeatureDegrees(p) * (p.radians ? DEGREE : 1);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            p.feature === 'asymptote'
+              ? `This is $y = ${tanCurveTex(p.a, p.b)}$ with $x$ in ${p.radians ? 'radians' : 'degrees'}. Slide to its **${ORDINALS[p.nth]}** asymptote to the right of $x = 0$.`
+              : `This is $y = ${tanCurveTex(p.a, p.b)}$ with $x$ in ${p.radians ? 'radians' : 'degrees'}. Slide to where it crosses the $x$-axis for the **${ORDINALS[p.nth]}** time after $x = 0$.`,
+        },
+      ],
+      min: 0,
+      max,
+      step,
+      tolerance,
+      answer: Number((Math.round(value / step) * step).toFixed(2)),
+      readout: p.radians ? 'x = {v}' : 'x = {v}^{\\circ}',
+      figure: { svg, ...markerWindow(0, max) },
+    };
+  },
+  solution: (p) => {
+    const degrees = tanFeatureDegrees(p);
+    const inner = p.feature === 'asymptote' ? 90 + 180 * (p.nth - 1) : 180 * p.nth;
+    return [
+      {
+        text:
+          p.feature === 'asymptote'
+            ? `$\\tan$ is undefined where the angle inside it is $90^{\\circ}$, $270^{\\circ}$, $450^{\\circ}$ and so on, one every $180^{\\circ}$. The ${ORDINALS[p.nth]} of those is $${inner}^{\\circ}$.`
+            : `$\\tan$ is zero where the angle inside it is $180^{\\circ}$, $360^{\\circ}$, $540^{\\circ}$ and so on. The ${ORDINALS[p.nth]} of those after zero is $${inner}^{\\circ}$.`,
+      },
+      {
+        tex:
+          p.b === 1
+            ? `x = ${angleTex(inner, p.radians)}${p.radians ? ` \\approx ${(inner * DEGREE).toFixed(2)}` : ''}`
+            : `${p.b}x = ${inner}^{\\circ} \\quad \\Rightarrow \\quad x = ${angleTex(degrees, p.radians)}${p.radians ? ` \\approx ${(degrees * DEGREE).toFixed(2)}` : ''}`,
+      },
+      { text: `The $${p.a}$ in front stretches the curve upwards but moves none of these points.` },
+    ];
+  },
+};
+
+interface TanPeriodParams {
+  a: number;
+  b: number;
+  d: number;
+  radians: boolean;
+}
+
+const TAN_PERIOD_B = [2, 3, 4, 5, 6, 8, 9, 10, 12];
+
+/** y = a tan(bx) + d, as the learner reads it. */
+const tanWaveTex = ({ a, b, d }: TanPeriodParams): string =>
+  `${tanCurveTex(a, b)}${d > 0 ? ` + ${d}` : d < 0 ? ` - ${-d}` : ''}`;
+
+/** The period of y = a tan(bx) + d: 180 degrees, or pi, divided by b. */
+const tanPeriod: Generator<TanPeriodParams> = {
+  id: 'trig-tan-period',
+  sample: (rng, difficulty) => ({
+    a: nonZeroInt(rng, -5, 5),
+    b: rng.pick(TAN_PERIOD_B),
+    d: rng.int(-4, 4),
+    radians: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      {
+        kind: 'prose',
+        text: `What is the period of $y = ${tanWaveTex(p)}$, with $x$ in ${p.radians ? 'radians' : 'degrees'}?`,
+      },
+    ],
+    lead: '\\text{period} =',
+    keypad: p.radians ? PI_KEYS : NUMBER_KEYS,
+    answer: p.radians ? `pi/${p.b}` : `180/${p.b}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ b, radians }) => {
+    if (radians) {
+      return measureOptions(
+        { n: 1, d: b, withPi: true },
+        // The sine period, b used upside down, and the gap to the first asymptote.
+        { n: 2, d: b, withPi: true },
+        { n: b, d: 1, withPi: true },
+        { n: 1, d: 2 * b, withPi: true },
+      );
+    }
+    const degrees = (value: number) => ({ tex: `${value}^{\\circ}`, answer: `${value}` });
+    return options(degrees(180 / b), degrees(360 / b), degrees(180 * b), degrees(90 / b));
+  },
+  solution: (p) => [
+    {
+      text: `$\\tan$ repeats every $${p.radians ? '\\pi' : '180^{\\circ}'}$, half as often as $\\sin$ and $\\cos$. Multiplying $x$ by $${p.b}$ fits $${p.b}$ repeats into that, so each takes a ${p.b === 2 ? 'half' : `${ORDINAL_PARTS[p.b] ?? `${p.b}th`}`} as long.`,
+    },
+    {
+      tex: p.radians
+        ? `\\text{period} = \\frac{\\pi}{${p.b}}`
+        : `\\text{period} = \\frac{180^{\\circ}}{${p.b}} = ${180 / p.b}^{\\circ}`,
+    },
+    {
+      text: `The $${p.a}$ in front and the $${p.d}$ on the end stretch and lift the curve, but neither changes how often it repeats.`,
+    },
+  ],
+};
+
+/** "a third as long", "a quarter as long": the fractions the period solution names. */
+const ORDINAL_PARTS: Record<number, string> = {
+  3: 'third',
+  4: 'quarter',
+  5: 'fifth',
+  6: 'sixth',
+  8: 'eighth',
+  9: 'ninth',
+  10: 'tenth',
+  12: 'twelfth',
+};
+
+interface TanAsymptoteTilesParams {
+  a: number;
+  b: number;
+  radians: boolean;
+}
+
+/** Values of b for which the first asymptote and the gap are whole numbers of degrees. */
+const ASYMPTOTE_B = [1, 2, 3, 5, 6, 9, 10];
+
+/** Every asymptote of y = a tan(bx) at once: the first, plus whole numbers of the gap. */
+const tanAsymptoteTiles: Generator<TanAsymptoteTilesParams> = {
+  id: 'trig-tan-asymptote-tiles',
+  sample: (rng, difficulty) => ({
+    a: nonZeroInt(rng, -5, 5),
+    b: rng.pick(ASYMPTOTE_B),
+    radians: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: ({ a, b, radians }): Slide => {
+    // In degrees, a fraction of 90: first asymptote, gap, and the two slips
+    // (the sine period, and a gap halved twice).
+    const token = (numerator: number, denominator: number) =>
+      radians ? piTex(numerator, 2 * denominator) : `${(90 * numerator) / denominator}^{\\circ}`;
+    const first = token(1, b);
+    const gap = token(2, b);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Where are the asymptotes of $y = ${tanCurveTex(a, b)}$, with $x$ in ${radians ? 'radians' : 'degrees'}? Place the first one after $0$, then the gap from one to the next. Here $k$ stands for any whole number.`,
+        },
+      ],
+      template: 'x = {0} + {1} \\times k',
+      bank: [...new Set([first, gap, token(4, b), token(1, 2 * b)])].sort(),
+      answer: [first, gap],
+    };
+  },
+  solution: ({ b, radians }) => [
+    {
+      text: `$\\tan$ is undefined wherever the angle inside it is $90^{\\circ}$ plus a whole number of $180^{\\circ}$s, since cosine is zero there.`,
+    },
+    {
+      tex:
+        b === 1
+          ? `x = ${angleTex(90, radians)} + ${angleTex(180, radians)} \\times k`
+          : `${b}x = 90^{\\circ} + 180^{\\circ} \\times k \\quad \\Rightarrow \\quad x = ${angleTex(90 / b, radians)} + ${angleTex(180 / b, radians)} \\times k`,
+    },
+    {
+      text: `The gap between asymptotes is the period, $${angleTex(180 / b, radians)}$, and the first sits halfway through it.`,
+    },
+  ],
+};
+
+interface TanMatchParams {
+  a: number;
+  /** Index into `MATCH_B`. */
+  bIndex: number;
+  radians: boolean;
+}
+
+const MATCH_B = [0.5, 1, 2, 3, 4];
+
+const matchInnerTex = (b: number): string => (b === 0.5 ? '\\frac{x}{2}' : b === 1 ? 'x' : `${b}x`);
+
+/** Which y = a tan(bx) is this? Read the period off the picture, then b from the period. */
+const tanGraphMatch: Generator<TanMatchParams> = {
+  id: 'trig-tan-graph-match',
+  sample: (rng, difficulty) => ({
+    a: nonZeroInt(rng, -3, 3),
+    bIndex: rng.int(0, MATCH_B.length - 1),
+    radians: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: ({ a, bIndex, radians }): Slide => {
+    const b = MATCH_B[bIndex];
+    const unit = radians ? 1 : DEGREE;
+    const quarter = radians ? Math.PI / 2 : 90;
+    const reach = 3 * Math.abs(a);
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 4 * quarter,
+      curves: [{ f: (x) => a * Math.tan(b * x * unit), breaks: true }],
+      verticals: [1, 2, 3].map((q) => ({ x: q * quarter })),
+      yMin: -reach,
+      yMax: reach,
+      label: `The graph of a tangent curve over one turn, with dashed lines every quarter turn`,
+    });
+    // The four nearest the answer in the list, so the answer is not always at an end.
+    const from = Math.min(Math.max(bIndex - 2, 0), MATCH_B.length - 4);
+    const offered = MATCH_B.slice(from, from + 4);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The dashed lines are $${radians ? '\\frac{\\pi}{2}' : '90^{\\circ}'}$ apart, and the picture starts at $x = 0$. Which equation does this graph show?`,
+        },
+        { kind: 'diagram', svg },
+      ],
+      options: offered.map((value) => ({
+        id: `b${value}`,
+        label: `y = ${coefficientTex(a)}\\tan\\left(${matchInnerTex(value)}\\right)`,
+        tex: true,
+      })),
+      correctId: `b${b}`,
+    };
+  },
+  solution: ({ a, bIndex, radians }) => {
+    const b = MATCH_B[bIndex];
+    const period = 180 / b;
+    return [
+      {
+        text: `Measure the gap from one asymptote to the next, or from one crossing of the axis to the next. Here it is $${angleTex(period, radians)}$.`,
+      },
+      {
+        tex: `\\text{period} = \\frac{${radians ? '\\pi' : '180^{\\circ}'}}{b} = ${angleTex(period, radians)} \\quad \\Rightarrow \\quad b = ${b === 0.5 ? '\\frac{1}{2}' : b}`,
+      },
+      {
+        text: `The curve ${a > 0 ? 'rises' : 'falls'} through each crossing, which is the sign of the $${coefficientTex(a) || '1'}$ in front; every option shares that, so the period is what tells them apart.`,
+      },
+    ];
+  },
+};
+
+/** The values tan takes at the special angles. */
+const TAN_VALUES = [0, 1 / Math.sqrt(3), 1, Math.sqrt(3)].flatMap((v) => (v === 0 ? [0] : [v, -v]));
+
+interface TanExactParams {
+  degrees: number;
+  radians: boolean;
+  phrasing: number;
+}
+
+/** tan at a special angle, exactly, from four options. */
+const tanExact: Generator<TanExactParams> = {
+  id: 'trig-tan-exact',
+  sample: (rng, difficulty) => ({
+    degrees: rng.pick(TAN_DEFINED) + (difficulty > 1 ? rng.pick([0, 360, -360]) : 0),
+    radians: rng.chance(0.5),
+    phrasing: rng.int(0, 1),
+  }),
+  render: ({ degrees, radians, phrasing }): Slide => {
+    const value = ratioAt('tan', degrees)!;
+    // The sign, the reciprocal, and undefined, before anything merely nearby.
+    const candidates: (number | undefined)[] =
+      value === 0 ? [undefined, 1, -1] : [-value, 1 / value, -1 / value, undefined];
+    const picked: (number | undefined)[] = [];
+    for (const candidate of [...candidates, ...TAN_VALUES]) {
+      if (picked.length === 3) break;
+      const tex = exactOrUndefined(candidate);
+      if (tex === exactTex(value) || picked.some((other) => exactOrUndefined(other) === tex)) continue;
+      picked.push(candidate);
+    }
+    const angle = angleTex(degrees, radians);
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            phrasing === 0
+              ? `Without a calculator, what is $\\tan\\left(${angle}\\right)$?`
+              : `What is the exact value of $\\tan\\left(${angle}\\right)$?`,
+        },
+      ],
+      options: sortedExact([value, ...picked]).map((v) => {
+        const tex = exactOrUndefined(v);
+        return { id: tex, label: tex, tex: true };
+      }),
+      correctId: exactTex(value),
+    };
+  },
+  solution: ({ degrees, radians }) => {
+    const turned = ((degrees % 360) + 360) % 360;
+    const { s, c } = sinCos(turned);
+    return [
+      {
+        text:
+          turned === degrees
+            ? radians
+              ? `In degrees the angle is $${degrees}^{\\circ}$.`
+              : 'Divide the sine by the cosine.'
+            : `$${angleTex(degrees, radians)}$ lands in the same place as $${turned}^{\\circ}$, a whole turn ${degrees > turned ? 'less' : 'more'}.`,
+      },
+      { tex: `\\sin(${turned}^{\\circ}) = ${exactTex(s)}, \\quad \\cos(${turned}^{\\circ}) = ${exactTex(c)}` },
+      { tex: `\\tan(${turned}^{\\circ}) = ${exactTex(s)} \\div ${exactTex(c)} = ${exactTex(s / c)}` },
+    ];
+  },
+};
+
+interface TanValueTreeParams {
+  degrees: number;
+  radians: boolean;
+  phrasing: number;
+}
+
+/** The acute angle a radius makes with the horizontal axis. */
+function referenceAngle(degrees: number): number {
+  const turned = ((degrees % 360) + 360) % 360;
+  const within = turned % 180;
+  return within <= 90 ? within : 180 - within;
+}
+
+const VALUE_TREE_PROMPTS = [
+  'Put the reference angle, the acute angle between the radius and the horizontal axis, in the top box. Then the exact value underneath, sign included.',
+  'Top box: the acute angle the radius makes with the horizontal axis. Bottom box: $\\tan$ of the whole angle, exactly.',
+];
+
+/** Reference angle first, then the value with its sign: tan at any special angle. */
+const tanValueTree: Generator<TanValueTreeParams> = {
+  id: 'trig-tan-value-tree',
+  sample: (rng, difficulty) => ({
+    degrees: rng.pick(TAN_DEFINED.filter((d) => d % 90 !== 0)) + (difficulty > 1 && rng.chance(0.5) ? 360 : 0),
+    radians: rng.chance(0.5),
+    phrasing: rng.int(0, VALUE_TREE_PROMPTS.length - 1),
+  }),
+  render: ({ degrees, radians, phrasing }): Slide => {
+    const value = ratioAt('tan', degrees)!;
+    const reference = referenceAngle(degrees);
+    const references = [30, 45, 60].map((d) => angleTex(d, radians));
+    // tan 45 comes back a hair under 1, so compare with room for the float.
+    const flipped = Math.abs(Math.abs(value) - 1) < 1e-9 ? Math.sign(value) * Math.sqrt(3) : 1 / value;
+    const values = sortedExact([value, -value, flipped]).map((v) => exactTex(v!));
+    return {
+      kind: 'tree',
+      prompt: [{ kind: 'prose', text: VALUE_TREE_PROMPTS[phrasing] }],
+      expression: `\\tan\\left(${angleTex(degrees, radians)}\\right)`,
+      nodes: [
+        { id: 'reference', from: [] },
+        { id: 'value', from: ['reference'] },
+      ],
+      bank: [...references, ...new Set(values)],
+      answer: [angleTex(reference, radians), exactTex(value)],
+    };
+  },
+  solution: ({ degrees, radians }) => {
+    const value = ratioAt('tan', degrees)!;
+    const reference = referenceAngle(degrees);
+    const quarter = Math.floor((((degrees % 360) + 360) % 360) / 90);
+    return [
+      {
+        text: `The radius at $${angleTex(degrees, radians)}$ makes $${angleTex(reference, radians)}$ with the horizontal axis, so the size of the tangent is $\\tan\\left(${angleTex(reference, radians)}\\right) = ${exactTex(Math.abs(value))}$.`,
+      },
+      {
+        text: `The point is in the ${ORDINALS[quarter + 1]} quarter of the turn, where $\\sin$ and $\\cos$ have ${quarter % 2 === 0 ? 'the same sign, so $\\tan$ is positive' : 'opposite signs, so $\\tan$ is negative'}.`,
+      },
+      { tex: `\\tan\\left(${angleTex(degrees, radians)}\\right) = ${exactTex(value)}` },
+    ];
+  },
+};
+
+/** The right-hand sides tan x = k is solved for, with the solution between -90 and 90 degrees. */
+const TAN_KS: { value: number; tex: string; alpha: number }[] = [
+  { value: 1, tex: '1', alpha: 45 },
+  { value: -1, tex: '-1', alpha: -45 },
+  { value: Math.sqrt(3), tex: '\\sqrt{3}', alpha: 60 },
+  { value: -Math.sqrt(3), tex: '-\\sqrt{3}', alpha: -60 },
+  { value: 1 / Math.sqrt(3), tex: '\\frac{1}{\\sqrt{3}}', alpha: 30 },
+  { value: -1 / Math.sqrt(3), tex: '-\\frac{1}{\\sqrt{3}}', alpha: -30 },
+  { value: 0, tex: '0', alpha: 0 },
+];
+
+type TanInterval = 'full' | 'signed' | 'radians';
+
+const INTERVAL_TEX: Record<TanInterval, string> = {
+  full: '0^{\\circ} \\le x < 360^{\\circ}',
+  signed: '-180^{\\circ} < x \\le 180^{\\circ}',
+  radians: '0 \\le x < 2\\pi',
+};
+
+/** Both solutions of tan x = tan(alpha) in the interval, in degrees, smallest first. */
+function tanSolutions(alpha: number, interval: TanInterval): number[] {
+  if (interval === 'signed') return alpha > 0 ? [alpha - 180, alpha] : [alpha, alpha + 180];
+  return alpha < 0 ? [alpha + 180, alpha + 360] : [alpha, alpha + 180];
+}
+
+const inInterval = (degrees: number, interval: TanInterval): boolean =>
+  interval === 'signed' ? degrees > -180 && degrees <= 180 : degrees >= 0 && degrees < 360;
+
+interface TanSolveParams {
+  k: number;
+  interval: TanInterval;
+  /** 0 is tan x = k as it stands; above 0 the equation arrives dressed and needs a step first. */
+  dressed: number;
+  /** Two ways of asking, since the pool of equations is small. */
+  phrasing: number;
+}
+
+/** The equation as the question writes it. */
+function tanEquationTex({ k, dressed }: TanSolveParams): string {
+  const { value, tex } = TAN_KS[k];
+  if (dressed === 0) return `\\tan(x) = ${tex}`;
+  if (Math.abs(value) === Math.sqrt(3)) return `\\tan(x) ${value > 0 ? '-' : '+'} \\sqrt{3} = 0`;
+  if (Math.abs(value) === 1 / Math.sqrt(3)) return `\\sqrt{3}\\tan(x) = ${value > 0 ? '1' : '-1'}`;
+  return `${dressed + 1}\\tan(x) = ${value * (dressed + 1)}`;
+}
+
+/** Both solutions of tan x = k in an interval: one from the table, the other a half turn away. */
+const tanSolve: Generator<TanSolveParams> = {
+  id: 'trig-tan-solve',
+  sample: (rng, difficulty) => ({
+    k: rng.int(0, TAN_KS.length - 1),
+    interval: difficulty > 1 ? rng.pick(['full', 'signed', 'radians'] as const) : 'full',
+    dressed: rng.chance(0.5) ? rng.int(1, 4) : 0,
+    phrasing: rng.int(0, 1),
+  }),
+  render: (p): Slide => {
+    const { alpha } = TAN_KS[p.k];
+    const radians = p.interval === 'radians';
+    const answer = tanSolutions(alpha, p.interval);
+    const token = (degrees: number) => (radians ? piTex(degrees, 180) : `${degrees}`);
+    // The wrong sign's pair, then the angles a quarter turn off.
+    const distractors = [...tanSolutions(-alpha, p.interval), ...answer.map((d) => d + 90), ...answer.map((d) => d - 90)]
+      .filter((d) => inInterval(d, p.interval) && !answer.includes(d))
+      .slice(0, 3);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            p.phrasing === 0
+              ? `Solve $${tanEquationTex(p)}$ for $${INTERVAL_TEX[p.interval]}$.`
+              : `Find both angles with $${INTERVAL_TEX[p.interval]}$ for which $${tanEquationTex(p)}$.`,
+        },
+      ],
+      template: radians
+        ? 'x = {0} \\quad \\text{or} \\quad x = {1}'
+        : 'x = {0}^{\\circ} \\quad \\text{or} \\quad x = {1}^{\\circ}',
+      bank: sortedBank(answer.map(token), [...new Set(distractors)].map(token)),
+      answer: answer.map(token),
+      unordered: true,
+    };
+  },
+  solution: (p) => {
+    const { value, tex, alpha } = TAN_KS[p.k];
+    const radians = p.interval === 'radians';
+    const answer = tanSolutions(alpha, p.interval);
+    const steps: SolutionStep[] = [];
+    if (p.dressed > 0 && value !== 0) {
+      steps.push({ text: `First get $\\tan(x)$ on its own: $${tanEquationTex(p)}$ is $\\tan(x) = ${tex}$.` });
+    } else if (p.dressed > 0) {
+      steps.push({ text: `Dividing by $${p.dressed + 1}$ leaves $\\tan(x) = 0$.` });
+    }
+    steps.push({
+      text: `From the table, $\\tan(${alpha}^{\\circ}) = ${tex}$. Tangent repeats every $180^{\\circ}$, so every solution is $${alpha}^{\\circ}$ plus a whole number of $180^{\\circ}$s.`,
+    });
+    steps.push({
+      tex: `x = ${answer.map((d) => angleTex(d, radians)).join(' \\quad \\text{or} \\quad x = ')}`,
+    });
+    steps.push({
+      text: `Those are the two that land in $${INTERVAL_TEX[p.interval]}$; any other is outside it.`,
+    });
+    return steps;
+  },
+};
+
+interface TanSolveSliderParams {
+  k: number;
+  nth: number;
+  radians: boolean;
+  /** A longer stretch of axis, and so a harder picture to read. */
+  wide: boolean;
+}
+
+/** The nth positive solution of tan x = k, in degrees. */
+function nthTanSolution({ k, nth }: TanSolveSliderParams): number {
+  const { alpha } = TAN_KS[k];
+  return (alpha > 0 ? alpha : alpha + 180) + 180 * (nth - 1);
+}
+
+const solveSliderScale = ({ radians, wide }: TanSolveSliderParams) =>
+  radians
+    ? { max: wide ? 13 : 10, step: 0.05, tolerance: 0.1 }
+    : { max: wide ? 720 : 540, step: 1, tolerance: 3 };
+
+/** Where does the line y = k meet y = tan x for the nth time? */
+const tanSolveSlider: Generator<TanSolveSliderParams> = {
+  id: 'trig-tan-solve-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p: TanSolveSliderParams = {
+        k: rng.int(0, TAN_KS.length - 1),
+        nth: rng.int(1, difficulty > 1 ? 4 : 3),
+        radians: rng.chance(0.5),
+        wide: difficulty > 1,
+      };
+      const { max, tolerance } = solveSliderScale(p);
+      const value = nthTanSolution(p) * (p.radians ? DEGREE : 1);
+      if (value <= max - 3 * tolerance && Math.abs(value - max / 2) > 3 * tolerance) return p;
+    }
+  },
+  render: (p): Slide => {
+    const { max, step, tolerance } = solveSliderScale(p);
+    const unit = p.radians ? 1 : DEGREE;
+    const { value: k, tex } = TAN_KS[p.k];
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: max,
+      curves: [{ f: (x) => Math.tan(x * unit), breaks: true }],
+      horizontals: k === 0 ? [] : [k],
+      yMin: -3,
+      yMax: 3,
+      label: `The graph of y = tan x with x in ${p.radians ? 'radians' : 'degrees'}, and a dashed horizontal line`,
+    });
+    const value = nthTanSolution(p) * (p.radians ? DEGREE : 1);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text:
+            k === 0
+              ? `This is $y = \\tan(x)$ with $x$ in ${p.radians ? 'radians' : 'degrees'}. Slide to the **${ORDINALS[p.nth]}** solution of $\\tan(x) = 0$ after $x = 0$.`
+              : `This is $y = \\tan(x)$ with $x$ in ${p.radians ? 'radians' : 'degrees'}, and the dashed line is $y = ${tex}$. Slide to the **${ORDINALS[p.nth]}** solution of $\\tan(x) = ${tex}$ after $x = 0$.`,
+        },
+      ],
+      min: 0,
+      max,
+      step,
+      tolerance,
+      answer: Number((Math.round(value / step) * step).toFixed(2)),
+      readout: p.radians ? 'x = {v}' : 'x = {v}^{\\circ}',
+      figure: { svg, ...markerWindow(0, max) },
+    };
+  },
+  solution: (p) => {
+    const { tex, alpha } = TAN_KS[p.k];
+    const first = alpha > 0 ? alpha : alpha + 180;
+    const answer = nthTanSolution(p);
+    return [
+      {
+        text:
+          alpha > 0
+            ? `From the table $\\tan(${alpha}^{\\circ}) = ${tex}$, and that is the first solution after zero.`
+            : alpha < 0
+              ? `From the table $\\tan(${alpha}^{\\circ}) = ${tex}$. That is before zero, so the first solution after it is half a turn on, $${first}^{\\circ}$.`
+              : `$\\tan$ is zero where sine is: at $0$ and every half turn after, so the first time after zero is $180^{\\circ}$.`,
+      },
+      {
+        text: `Each branch of the curve crosses the line once, and the branches are $180^{\\circ}$ apart, so the ${ORDINALS[p.nth]} solution is $${p.nth - 1}$ half turn${p.nth === 2 ? '' : 's'} after the first.`,
+      },
+      {
+        tex: `x = ${first}^{\\circ} + ${p.nth - 1} \\times 180^{\\circ} = ${answer}^{\\circ}${p.radians ? ` = ${piTex(answer, 180)} \\approx ${(answer * DEGREE).toFixed(2)}` : ''}`,
+      },
+    ];
+  },
+};
+
+interface RecipExactParams {
+  fn: Reciprocal;
+  degrees: number;
+  radians: boolean;
+}
+
+/** Where each reciprocal is a whole number, so the answer can be typed. */
+const WHOLE_RECIPROCALS: Record<Reciprocal, number[]> = {
+  sec: [0, 60, 120, 180, 240, 300, 360],
+  cosec: [30, 90, 150, 210, 270, 330],
+  cot: [45, 90, 135, 225, 270, 315],
+};
+
+/** sec, cosec or cot at an angle where the answer is whole: one over the cosine, the sine, or the tangent. */
+const recipExact: Generator<RecipExactParams> = {
+  id: 'trig-recip-exact',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sec', 'cosec', 'cot'] as const);
+    return {
+      fn,
+      degrees: rng.pick(WHOLE_RECIPROCALS[fn]) + (difficulty > 1 ? rng.pick([0, 360, -360]) : 0),
+      radians: rng.chance(0.5),
+    };
+  },
+  render: ({ fn, degrees, radians }): Slide => ({
+    kind: 'expression',
+    prompt: [{ kind: 'prose', text: 'Find the exact value, without a calculator.' }],
+    lead: `${RATIO_TEX[fn]}\\left(${angleTex(degrees, radians)}\\right) =`,
+    keypad: NUMBER_KEYS,
+    answer: `${Math.round(ratioAt(fn, degrees)!)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ fn, degrees }) => {
+    const value = Math.round(ratioAt(fn, degrees)!);
+    const option = (v: number) => ({ tex: exactTex(v), answer: `${v}` });
+    if (value === 0) {
+      // cot at a quarter turn: tan is undefined there, and cot is zero.
+      return options(option(0), { tex: UNDEFINED_TEX }, option(1), option(-1));
+    }
+    // The ratio it is one over, the sign lost, and both at once.
+    const picked: number[] = [];
+    for (const candidate of [1 / value, -value, -1 / value, 2 * value, 0]) {
+      if (picked.length === 3) break;
+      if (candidate === value || picked.includes(candidate)) continue;
+      picked.push(candidate);
+    }
+    return options(option(value), ...picked.map(option));
+  },
+  solution: ({ fn, degrees, radians }) => {
+    const { s, c } = sinCos(degrees);
+    const angle = angleTex(degrees, radians);
+    const value = Math.round(ratioAt(fn, degrees)!);
+    if (fn === 'cot') {
+      return [
+        { text: 'Cotangent is cosine over sine, which also works where the tangent itself is undefined.' },
+        { tex: `\\cos\\left(${angle}\\right) = ${exactTex(c)}, \\quad \\sin\\left(${angle}\\right) = ${exactTex(s)}` },
+        { tex: `\\cot\\left(${angle}\\right) = ${exactTex(c)} \\div ${exactTex(s)} = ${value}` },
+      ];
+    }
+    const base = fn === 'sec' ? c : s;
+    const baseFn = fn === 'sec' ? 'cos' : 'sin';
+    return [
+      { text: `${fn === 'sec' ? 'Secant' : 'Cosecant'} is one over ${RATIO_NAME[baseFn]}, so find the ${RATIO_NAME[baseFn]} first.` },
+      { tex: `${RATIO_TEX[baseFn]}\\left(${angle}\\right) = ${exactTex(base)}` },
+      {
+        tex: `${RATIO_TEX[fn]}\\left(${angle}\\right) = 1 \\div \\left(${exactTex(base)}\\right) = ${value}`,
+      },
+    ];
+  },
+};
+
+interface RecipTreeParams {
+  fn: Reciprocal;
+  degrees: number;
+  radians: boolean;
+}
+
+/** Angles where the ratio underneath is defined, non-zero and not plus or minus one, so the two boxes differ. */
+const recipTreeAngles = (fn: Reciprocal): number[] =>
+  SPECIAL_DEGREES.filter((d) => {
+    const base = ratioAt(fn === 'sec' ? 'cos' : fn === 'cosec' ? 'sin' : 'tan', d);
+    return base !== undefined && base !== 0 && Math.abs(Math.abs(base) - 1) > 1e-9;
+  });
+
+/** The base ratio first, then one over it: sec, cosec or cot at any special angle. */
+const recipTree: Generator<RecipTreeParams> = {
+  id: 'trig-recip-tree',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sec', 'cosec', 'cot'] as const);
+    return {
+      fn,
+      degrees: rng.pick(recipTreeAngles(fn)) + (difficulty > 1 && rng.chance(0.5) ? 360 : 0),
+      radians: rng.chance(0.5),
+    };
+  },
+  render: ({ fn, degrees, radians }): Slide => {
+    const baseFn = fn === 'sec' ? 'cos' : fn === 'cosec' ? 'sin' : 'tan';
+    const otherFn = fn === 'sec' ? 'sin' : 'cos';
+    const base = ratioAt(baseFn, degrees)!;
+    const value = 1 / base;
+    const other = ratioAt(otherFn, degrees)!;
+    const answer = [exactTex(base), exactTex(value)];
+    // The sign lost on each, and the other ratio in its place.
+    const bank = [...new Set([...answer, exactTex(-base), exactTex(-value), exactTex(other)])];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Put $${RATIO_TEX[baseFn]}$ of the angle in the top box, then one over it underneath.`,
+        },
+      ],
+      expression: `${RATIO_TEX[fn]}\\left(${angleTex(degrees, radians)}\\right)`,
+      nodes: [
+        { id: 'base', from: [] },
+        { id: 'value', from: ['base'] },
+      ],
+      bank: bank.sort(),
+      answer,
+    };
+  },
+  solution: ({ fn, degrees, radians }) => {
+    const baseFn = fn === 'sec' ? 'cos' : fn === 'cosec' ? 'sin' : 'tan';
+    const base = ratioAt(baseFn, degrees)!;
+    const angle = angleTex(degrees, radians);
+    return [
+      { text: `$${RATIO_TEX[fn]}$ is one over $${RATIO_TEX[baseFn]}$.` },
+      { tex: `${RATIO_TEX[baseFn]}\\left(${angle}\\right) = ${exactTex(base)}` },
+      { tex: `${RATIO_TEX[fn]}\\left(${angle}\\right) = 1 \\div \\left(${exactTex(base)}\\right) = ${exactTex(1 / base)}` },
+      { text: 'One over a fraction turns it upside down, and the sign stays as it was.' },
+    ];
+  },
+};
+
+interface RecipDefinedParams {
+  fn: 'tan' | Reciprocal;
+  degrees: number;
+  radians: boolean;
+}
+
+const YES_ZERO = 'Yes, it is zero there';
+const NOT_ZERO = 'No, it is not zero there';
+const BOTTOM_LABELS: Record<'sin' | 'cos', string> = {
+  sin: '$\\sin$ of the angle',
+  cos: '$\\cos$ of the angle',
+};
+const BOTTOM_ONE = 'The number $1$';
+
+/** Does it have a value? Write it with sine and cosine and look at the bottom. */
+const recipUndefinedFlow: Generator<RecipDefinedParams> = {
+  id: 'trig-recip-undefined-flow',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['tan', 'sec', 'cosec', 'cot'] as const);
+    const zeros = DENOMINATOR_OF[fn] === 'cos' ? [90, 270] : [0, 180, 360];
+    const pool = rng.chance(0.5) ? zeros : SPECIAL_DEGREES.filter((d) => !zeros.includes(d));
+    return {
+      fn,
+      degrees: rng.pick(pool) + (difficulty > 1 && rng.chance(0.5) ? 360 : 0),
+      radians: rng.chance(0.5),
+    };
+  },
+  render: ({ fn, degrees, radians }): Slide => {
+    const bottom = DENOMINATOR_OF[fn];
+    const undefinedHere = ratioAt(fn, degrees) === undefined;
+    const name = `$${RATIO_TEX[fn]}\\left(${angleTex(degrees, radians)}\\right)$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Does this have a value? Write it with sine and cosine, then look at what is on the bottom.',
+        },
+      ],
+      subject: `${RATIO_TEX[fn]}\\left(${angleTex(degrees, radians)}\\right)`,
+      steps: [
+        {
+          id: 'bottom',
+          ask: 'Written as a fraction of sine and cosine, what is on the bottom?',
+          branches: [
+            { label: BOTTOM_LABELS.sin, to: 'zero' },
+            { label: BOTTOM_LABELS.cos, to: 'zero' },
+            { label: BOTTOM_ONE, to: 'zero' },
+          ],
+        },
+        {
+          id: 'zero',
+          ask: 'Is that zero at this angle?',
+          branches: [
+            { label: YES_ZERO, outcome: `Then ${name} is undefined: nothing can be divided by zero.` },
+            { label: NOT_ZERO, outcome: `Then ${name} has a value.` },
+          ],
+        },
+      ],
+      answer: [BOTTOM_LABELS[bottom], undefinedHere ? YES_ZERO : NOT_ZERO],
+    };
+  },
+  solution: ({ fn, degrees, radians }) => {
+    const bottom = DENOMINATOR_OF[fn];
+    const top = fn === 'tan' ? '\\sin' : fn === 'cot' ? '\\cos' : '1';
+    const angle = angleTex(degrees, radians);
+    const { s, c } = sinCos(degrees);
+    const bottomValue = bottom === 'sin' ? s : c;
+    const value = ratioAt(fn, degrees);
+    return [
+      { tex: `${RATIO_TEX[fn]} = \\frac{${top}}{${RATIO_TEX[bottom]}}` },
+      { tex: `${RATIO_TEX[bottom]}\\left(${angle}\\right) = ${exactTex(bottomValue)}` },
+      {
+        text:
+          value === undefined
+            ? `The bottom is zero, so $${RATIO_TEX[fn]}\\left(${angle}\\right)$ is undefined. On its graph this is an asymptote.`
+            : `The bottom is not zero, so $${RATIO_TEX[fn]}\\left(${angle}\\right)$ has a value: $${exactTex(value)}$.`,
+      },
+    ];
+  },
+};
+
+interface RecipValuesParams extends TripleParams {
+  /** Which two of sec, cosec and cot are asked. */
+  pair: number;
+}
+
+const RECIPROCAL_PAIRS: [Reciprocal, Reciprocal][] = [
+  ['sec', 'cosec'],
+  ['sec', 'cot'],
+  ['cosec', 'cot'],
+];
+
+/** From sin and cos as fractions to two of the reciprocals: turn the right fraction over. */
+const recipFromValues: Generator<RecipValuesParams> = {
+  id: 'trig-recip-from-values',
+  sample: (rng) => ({ ...sampleTriple(rng, 4), pair: rng.int(0, RECIPROCAL_PAIRS.length - 1) }),
+  render: (p): Slide => {
+    const ratios = ratiosAt(p);
+    const tex = (fn: Ratio) => signedFracTex(...ratios[fn]);
+    const [first, second] = RECIPROCAL_PAIRS[p.pair];
+    const answer = [tex(first), tex(second)];
+    // The ratios themselves, unturned, and the answers with the sign lost.
+    const distractors = [tex('sin'), tex('cos'), tex('tan'), signedFracTex(-ratios[first][0], ratios[first][1])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$\\sin(\\theta) = ${tex('sin')}$ and $\\cos(\\theta) = ${tex('cos')}$. Place $${RATIO_TEX[first]}(\\theta)$ and $${RATIO_TEX[second]}(\\theta)$.`,
+        },
+      ],
+      template: `${RATIO_TEX[first]}(\\theta) = {0} \\qquad ${RATIO_TEX[second]}(\\theta) = {1}`,
+      bank: sortedBank(answer, distractors),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const ratios = ratiosAt(p);
+    const tex = (fn: Ratio) => signedFracTex(...ratios[fn]);
+    const how: Record<Reciprocal, string> = {
+      sec: `$\\sec(\\theta)$ is one over $\\cos(\\theta)$: turn $${tex('cos')}$ over to get $${tex('sec')}$.`,
+      cosec: `$\\operatorname{cosec}(\\theta)$ is one over $\\sin(\\theta)$: turn $${tex('sin')}$ over to get $${tex('cosec')}$.`,
+      cot: `$\\cot(\\theta)$ is cosine over sine, and the two denominators cancel: $${tex('cos')} \\div ${tex('sin')} = ${tex('cot')}$.`,
+    };
+    const [first, second] = RECIPROCAL_PAIRS[p.pair];
+    return [{ text: how[first] }, { text: how[second] }, { text: 'Turning a fraction over never changes its sign.' }];
+  },
+};
+
+interface RecipGraphParams {
+  fn: 'tan' | Reciprocal;
+  a: number;
+  /** Drawn from -180 to 180 rather than from 0 to 360. */
+  signed: boolean;
+}
+
+const GRAPH_FNS = ['tan', 'sec', 'cosec', 'cot'] as const;
+
+/** What each graph looks like, for the worked solution. */
+const GRAPH_FEATURES: Record<'tan' | Reciprocal, string> = {
+  tan: 'It passes through the origin and repeats every $180^{\\circ}$, with asymptotes at $90^{\\circ}$ and $270^{\\circ}$, where cosine is zero.',
+  sec: 'It is made of U-shaped pieces that never get between the two dashed-off heights, turning back where cosine is $1$ or $-1$ (at $0^{\\circ}$ and $180^{\\circ}$), with asymptotes at $90^{\\circ}$ and $270^{\\circ}$.',
+  cosec: 'It is made of U-shaped pieces that turn back where sine is $1$ or $-1$ (at $90^{\\circ}$ and $270^{\\circ}$), with asymptotes at $0^{\\circ}$ and $180^{\\circ}$, where sine is zero.',
+  cot: 'Like tangent it runs from one asymptote to the next without turning, but its asymptotes are at $0^{\\circ}$ and $180^{\\circ}$, where sine is zero, and it crosses the axis at $90^{\\circ}$.',
+};
+
+/** Which of tan, sec, cosec and cot is this? */
+const recipGraphMatch: Generator<RecipGraphParams> = {
+  id: 'trig-recip-graph-match',
+  sample: (rng, difficulty) => ({
+    fn: rng.pick(GRAPH_FNS),
+    a: difficulty > 1 ? nonZeroInt(rng, -4, 4) : rng.int(1, 4),
+    signed: rng.chance(0.5),
+  }),
+  render: ({ fn, a, signed }): Slide => {
+    const xMin = signed ? -180 : 0;
+    const reach = 4 * Math.abs(a);
+    const svg = plotSvg({
+      xMin,
+      xMax: xMin + 360,
+      curves: [{ f: (x) => a * RATIO_CURVE[fn](x * DEGREE), breaks: true }],
+      verticals: [1, 2, 3].map((q) => ({ x: xMin + 90 * q })),
+      yMin: -reach,
+      yMax: reach,
+      label: 'The graph of one of tan, sec, cosec and cot over one turn, with dashed lines every quarter turn',
+    });
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: signed
+            ? 'Which function is this? The picture runs from $-180^{\\circ}$ to $180^{\\circ}$ with dashed lines at $-90^{\\circ}$, $0^{\\circ}$ and $90^{\\circ}$.'
+            : 'Which function is this? The picture runs from $0^{\\circ}$ to $360^{\\circ}$ with dashed lines at $90^{\\circ}$, $180^{\\circ}$ and $270^{\\circ}$.',
+        },
+        { kind: 'diagram', svg },
+      ],
+      options: GRAPH_FNS.map((g) => ({ id: g, label: `y = ${coefficientTex(a)}${RATIO_TEX[g]}(x)`, tex: true })),
+      correctId: fn,
+    };
+  },
+  solution: ({ fn, a }) => [
+    { text: GRAPH_FEATURES[fn] },
+    {
+      text:
+        fn === 'sec' || fn === 'cosec'
+          ? `Multiplied by $${a}$, the pieces turn back at $${a}$ and $${-a}$ instead of at $1$ and $-1$, and nothing of the curve lies between those two heights.`
+          : `Multiplied by $${a}$, the curve is stretched ${a < 0 ? 'and turned upside down' : 'upwards'}, but its asymptotes and crossings stay where they were.`,
+    },
+    { tex: `y = ${coefficientTex(a)}${RATIO_TEX[fn]}(x)` },
+  ],
+};
+
+interface IdentityFindParams extends TripleParams {
+  /** Which ratio is given and which is asked, by index into `IDENTITY_PAIRS`. */
+  pair: number;
+}
+
+/** Given, asked: the six ways round the three Pythagorean identities go. */
+const IDENTITY_PAIRS: [Ratio, Ratio][] = [
+  ['sin', 'cos'],
+  ['cos', 'sin'],
+  ['tan', 'sec'],
+  ['sec', 'tan'],
+  ['cot', 'cosec'],
+  ['cosec', 'cot'],
+];
+
+const IDENTITY_LABELS = [
+  '$\\sin^2(\\theta) + \\cos^2(\\theta) = 1$',
+  '$1 + \\tan^2(\\theta) = \\sec^2(\\theta)$',
+  '$1 + \\cot^2(\\theta) = \\operatorname{cosec}^2(\\theta)$',
+];
+
+/** The squared step of an identity, from given to asked, as display TeX. */
+function identitySquaredTex(p: TripleParams, given: Ratio, asked: Ratio): string {
+  const ratios = ratiosAt(p);
+  const [gn, gd] = ratios[given].map(Math.abs);
+  const [an, ad] = ratios[asked].map(Math.abs);
+  const sq = (n: number, d: number) => `\\frac{${n * n}}{${d * d}}`;
+  const plusOne = asked === 'sec' || asked === 'cosec';
+  const lead = asked === 'sin' || asked === 'cos' ? '1 -' : plusOne ? '1 +' : '';
+  const squared = `${RATIO_TEX[asked]}^2(\\theta)`;
+  if (lead) return `${squared} = ${lead} ${sq(gn, gd)} = ${sq(an, ad)}`;
+  return `${squared} = ${sq(gn, gd)} - 1 = ${sq(an, ad)}`;
+}
+
+/** The identity a pair uses, as display TeX without the dollars. */
+const identityTex = (pair: number): string => IDENTITY_LABELS[pair >> 1].slice(1, -1);
+
+/** Find one ratio from another with 1 + tan^2 = sec^2 or 1 + cot^2 = cosec^2, and the quadrant for the sign. */
+const identityFind: Generator<IdentityFindParams> = {
+  id: 'trig-identity-find',
+  sample: (rng, difficulty) => ({ ...sampleTriple(rng, difficulty > 1 ? 4 : 2), pair: rng.int(2, 5) }),
+  render: (p): Slide => {
+    const ratios = ratiosAt(p);
+    const [given, asked] = IDENTITY_PAIRS[p.pair];
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$${RATIO_TEX[given]}(\\theta) = ${signedFracTex(...ratios[given])}$ and $${QUADRANT_RANGE[p.quadrant - 1]}$. Use an identity to find $${RATIO_TEX[asked]}(\\theta)$, as a fraction.`,
+        },
+      ],
+      lead: `${RATIO_TEX[asked]}(\\theta) =`,
+      keypad: NUMBER_KEYS,
+      answer: fracAnswer(ratios[asked]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const [n, d] = ratiosAt(p)[IDENTITY_PAIRS[p.pair][1]];
+    const option = (top: number, bottom: number) => ({ tex: signedFracTex(top, bottom), answer: `(${top})/(${bottom})` });
+    // The sign from the wrong quadrant, turned over, and both.
+    return options(option(n, d), option(-n, d), option(d, n), option(-d, n));
+  },
+  solution: (p) => {
+    const ratios = ratiosAt(p);
+    const [given, asked] = IDENTITY_PAIRS[p.pair];
+    const [n, d] = ratios[asked];
+    const positive = n * d > 0;
+    return [
+      { text: 'This pair of ratios is linked by one identity:' },
+      { tex: identityTex(p.pair) },
+      { tex: identitySquaredTex(p, given, asked) },
+      {
+        text: `So $${RATIO_TEX[asked]}(\\theta) = \\pm${ratioTex(Math.abs(n), Math.abs(d))}$. With $${QUADRANT_RANGE[p.quadrant - 1]}$ it is ${positive ? 'positive' : 'negative'}, so $${RATIO_TEX[asked]}(\\theta) = ${signedFracTex(n, d)}$.`,
+      },
+    ];
+  },
+};
+
+interface IdentitySquareParams {
+  index: number;
+  swap: boolean;
+  negative: boolean;
+  /** Which identity: from tan to sec squared, or from cot to cosec squared. */
+  cot: boolean;
+}
+
+/** 1 + tan^2 = sec^2 worked with numbers: square the given value, then add one. */
+const identitySquare: Generator<IdentitySquareParams> = {
+  id: 'trig-identity-square',
+  // The first four triples only: 20, 21, 29 squares to 841 over 441, which
+  // turns a question about the identity into one about long multiplication.
+  sample: (rng) => ({
+    index: rng.int(0, 3),
+    swap: rng.chance(0.5),
+    negative: rng.chance(0.5),
+    cot: rng.chance(0.5),
+  }),
+  render: ({ index, swap, negative, cot }): Slide => {
+    const [p, q, h] = IDENTITY_TRIPLES[index];
+    const [n, d] = swap ? [q, p] : [p, q];
+    const given = cot ? 'cot' : 'tan';
+    const asked = cot ? 'cosec' : 'sec';
+    const squared = `\\frac{${n * n}}{${d * d}}`;
+    const total = `\\frac{${h * h}}{${d * d}}`;
+    // Not squared, squared upside down, the total over the wrong square, and the minus kept.
+    const distractors = [`\\frac{${n}}{${d}}`, `\\frac{${d * d}}{${n * n}}`, `\\frac{${h * h}}{${n * n}}`];
+    if (negative) distractors.push(`-${squared}`);
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$${RATIO_TEX[given]}(\\theta) = ${negative ? '-' : ''}\\frac{${n}}{${d}}$. Complete the line to find $${RATIO_TEX[asked]}^2(\\theta)$.`,
+        },
+      ],
+      template: `${RATIO_TEX[asked]}^2(\\theta) = 1 + {0} = {1}`,
+      bank: sortedBank([squared, total], distractors),
+      answer: [squared, total],
+    };
+  },
+  solution: ({ index, swap, negative, cot }) => {
+    const [p, q, h] = IDENTITY_TRIPLES[index];
+    const [n, d] = swap ? [q, p] : [p, q];
+    const given = cot ? 'cot' : 'tan';
+    const asked = cot ? 'cosec' : 'sec';
+    return [
+      {
+        text: cot
+          ? 'Dividing $\\sin^2(\\theta) + \\cos^2(\\theta) = 1$ through by $\\sin^2(\\theta)$ gives $1 + \\cot^2(\\theta) = \\operatorname{cosec}^2(\\theta)$.'
+          : 'Dividing $\\sin^2(\\theta) + \\cos^2(\\theta) = 1$ through by $\\cos^2(\\theta)$ gives $\\tan^2(\\theta) + 1 = \\sec^2(\\theta)$.',
+      },
+      {
+        tex: `${RATIO_TEX[asked]}^2(\\theta) = 1 + \\left(${negative ? '-' : ''}\\frac{${n}}{${d}}\\right)^2 = 1 + \\frac{${n * n}}{${d * d}} = \\frac{${h * h}}{${d * d}}`,
+      },
+      {
+        text: `${negative ? 'Squaring gets rid of the minus sign. ' : ''}Writing the $1$ as $\\frac{${d * d}}{${d * d}}$ makes the addition one of tops: $${d * d} + ${n * n} = ${h * h}$. The value of $${RATIO_TEX[given]}(\\theta)$ was only needed squared.`,
+      },
+    ];
+  },
+};
+
+interface IdentityFlowParams extends TripleParams {
+  pair: number;
+}
+
+const POSITIVE = 'Positive';
+const NEGATIVE = 'Negative';
+
+/** Which identity, and which sign: the two decisions before any arithmetic. */
+const identityFlow: Generator<IdentityFlowParams> = {
+  id: 'trig-identity-flow',
+  sample: (rng) => ({ ...sampleTriple(rng, 4), pair: rng.int(0, IDENTITY_PAIRS.length - 1) }),
+  render: (p): Slide => {
+    const ratios = ratiosAt(p);
+    const [given, asked] = IDENTITY_PAIRS[p.pair];
+    const [n, d] = ratios[asked];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Given $${QUADRANT_RANGE[p.quadrant - 1]}$, find $${RATIO_TEX[asked]}(\\theta)$. Choose the identity first, then settle the sign.`,
+        },
+      ],
+      subject: `${RATIO_TEX[given]}(\\theta) = ${signedFracTex(...ratios[given])}`,
+      steps: [
+        {
+          id: 'identity',
+          ask: 'Which identity links the ratio you have to the one you want?',
+          branches: IDENTITY_LABELS.map((label) => ({ label, to: 'sign' })),
+        },
+        {
+          id: 'sign',
+          ask: `In that quarter of the turn, is $${RATIO_TEX[asked]}(\\theta)$ positive or negative?`,
+          branches: [
+            { label: POSITIVE, outcome: 'So take the positive square root.' },
+            { label: NEGATIVE, outcome: 'So take the negative square root.' },
+          ],
+        },
+      ],
+      answer: [IDENTITY_LABELS[p.pair >> 1], n * d > 0 ? POSITIVE : NEGATIVE],
+    };
+  },
+  solution: (p) => {
+    const ratios = ratiosAt(p);
+    const [given, asked] = IDENTITY_PAIRS[p.pair];
+    const [n, d] = ratios[asked];
+    const { x, y } = QUADRANT_SIGNS[p.quadrant - 1];
+    return [
+      {
+        text: `$${RATIO_TEX[given]}$ and $${RATIO_TEX[asked]}$ appear together in one identity: $${identityTex(p.pair)}$.`,
+      },
+      { tex: identitySquaredTex(p, given, asked) },
+      {
+        text: `In that quarter $\\sin$ is ${y > 0 ? 'positive' : 'negative'} and $\\cos$ is ${x > 0 ? 'positive' : 'negative'}, so $${RATIO_TEX[asked]}(\\theta) = ${signedFracTex(n, d)}$.`,
+      },
+    ];
+  },
+};
+
 export const trigonometryGenerators = [
   isPeriodic,
   periodFromPeaks,
@@ -3400,4 +4953,24 @@ export const trigonometryGenerators = [
   radSectorArea,
   radSectorTree,
   radFormulaFlow,
+  tanFromPoint,
+  tanQuotientTiles,
+  tanUndefined,
+  tanSignFlow,
+  tanAsymptoteSlider,
+  tanPeriod,
+  tanAsymptoteTiles,
+  tanGraphMatch,
+  tanExact,
+  tanValueTree,
+  tanSolve,
+  tanSolveSlider,
+  recipExact,
+  recipTree,
+  recipUndefinedFlow,
+  recipFromValues,
+  recipGraphMatch,
+  identityFind,
+  identitySquare,
+  identityFlow,
 ] as unknown as Generator<unknown>[];

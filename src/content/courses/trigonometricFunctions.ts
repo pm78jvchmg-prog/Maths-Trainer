@@ -11,6 +11,10 @@
  * Level 4 changes the unit to radians, the one the rest of mathematics uses:
  * what a radian is, converting, exact values, and arcs and sectors.
  *
+ * Level 5 divides sine by cosine to reach the tangent, the gradient of the
+ * radius, then turns all three over to meet secant, cosecant and cotangent,
+ * their graphs, and the two identities that follow from the Pythagorean one.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -138,6 +142,37 @@ function radianSvg(sweep: number, label: string, shaded = false): string {
     `</svg>`,
   ].join('');
 }
+
+/**
+ * A radius to a point on a circle, with its rise dashed and its run on the
+ * axis: the picture of tangent as up over across.
+ *
+ * The run is drawn along the axis in the accent colour with the radius, so the
+ * two lengths the ratio divides are the two marked lines, and the height is
+ * the dashed drop from the point.
+ */
+function tangentSvg(): string {
+  const cx = 110;
+  const cy = 90;
+  const r = 64;
+  const angle = (38 * Math.PI) / 180;
+  const px = cx + r * Math.cos(angle);
+  const py = cy - r * Math.sin(angle);
+  return [
+    `<svg viewBox="0 0 260 170" width="100%" role="img" aria-label="A radius at an angle to the horizontal axis, with its height dashed and its sideways distance along the axis">`,
+    `<line x1="20" y1="${cy}" x2="240" y2="${cy}" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+    `<line x1="${cx}" y1="12" x2="${cx}" y2="158" stroke="currentColor" stroke-width="1" opacity="0.55" />`,
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35" />`,
+    `<line x1="${px.toFixed(2)}" y1="${py.toFixed(2)}" x2="${px.toFixed(2)}" y2="${cy}" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4" />`,
+    `<line class="plot-accent" x1="${cx}" y1="${cy}" x2="${px.toFixed(2)}" y2="${cy}" stroke="currentColor" stroke-width="3" stroke-linecap="round" />`,
+    `<line class="plot-accent" x1="${cx}" y1="${cy}" x2="${px.toFixed(2)}" y2="${py.toFixed(2)}" stroke="currentColor" stroke-width="2" />`,
+    `<circle cx="${px.toFixed(2)}" cy="${py.toFixed(2)}" r="4" fill="currentColor" />`,
+    `</svg>`,
+  ].join('');
+}
+
+/** A degree-measured curve, for the tangent-level graphs. */
+const inDegrees = (f: (x: number) => number) => (x: number) => f((x * Math.PI) / 180);
 
 export const trigonometricFunctions: Course = {
   id: 'trigonometric-functions',
@@ -1354,6 +1389,314 @@ export const trigonometricFunctions: Course = {
         ask('trig-rad-arc-length', 2),
         ask('trig-rad-sector-area+choice', 2),
         ask('trig-rad-sector-tree', 2),
+      ],
+    },
+    {
+      id: 'tf-l5',
+      title: 'Tangent & the Reciprocal Functions',
+      lessons: [
+        {
+          id: 'tf-l5-tangent',
+          title: 'Tangent as Sine over Cosine',
+          slides: [
+            teach(
+              prose(
+                'Sine and cosine are the height and the sideways distance of a point going round a circle. Divide one by the other and you get the third ratio, the **tangent**.',
+              ),
+              maths('\\tan(\\theta) = \\frac{\\sin(\\theta)}{\\cos(\\theta)}'),
+              { kind: 'diagram', svg: tangentSvg() },
+              prose(
+                'For a point $(x, y)$ on a circle of radius $r$, $\\sin(\\theta) = \\frac{y}{r}$ and $\\cos(\\theta) = \\frac{x}{r}$. Dividing cancels the $r$ and leaves $\\tan(\\theta) = \\frac{y}{x}$: up over across, the **gradient** of the radius.',
+              ),
+              prose(
+                'The coordinates keep their signs, so a point to the left of the centre has a negative $x$, and the fraction carries that minus sign.',
+              ),
+            ),
+            ask('trig-tan-from-point'),
+            ask('trig-tan-quotient-tiles'),
+            ask('trig-tan-from-point+choice'),
+            teach(
+              prose(
+                'A fraction with zero on the bottom has no value. Cosine is zero at $90^{\\circ}$ and $270^{\\circ}$, where the point is straight above or below the centre, so $\\tan$ is **undefined** there: a vertical radius has no gradient.',
+              ),
+              maths('\\tan(90^{\\circ}) \\text{ and } \\tan(270^{\\circ}) \\text{ are undefined}'),
+              prose(
+                'Zero on *top* is different. At $0^{\\circ}$ and $180^{\\circ}$ the sine is zero, the radius lies flat, and $\\tan$ is simply $0$.',
+              ),
+            ),
+            ask('trig-tan-undefined'),
+            ask('trig-tan-quotient-tiles', 2),
+            ask('trig-tan-undefined', 2),
+            teach(
+              prose(
+                'The sign of $\\tan$ comes from the signs of sine and cosine. The same signs divide to a positive, opposite signs to a negative.',
+              ),
+              maths(
+                '\\begin{array}{c|cccc} \\text{quarter} & 1\\text{st} & 2\\text{nd} & 3\\text{rd} & 4\\text{th} \\\\ \\hline \\sin & + & + & - & - \\\\ \\cos & + & - & - & + \\\\ \\tan & + & - & + & - \\end{array}',
+              ),
+              prose(
+                'So $\\tan$ is positive in the first and third quarters, where the radius slopes upwards, and negative in the second and fourth, where it slopes down.',
+              ),
+            ),
+            ask('trig-tan-sign-flow'),
+            ask('trig-tan-sign-flow', 2),
+          ],
+          skillCheck: [
+            ask('trig-tan-from-point', 2),
+            ask('trig-tan-undefined', 2),
+            ask('trig-tan-sign-flow', 2),
+          ],
+        },
+        {
+          id: 'tf-l5-tan-graph',
+          title: 'The Graph of Tangent',
+          slides: [
+            teach(
+              prose(
+                'Plot $y = \\tan(x)$ and something new appears. The curve rises from zero, then climbs faster and faster as $x$ nears $90^{\\circ}$, where cosine reaches zero and $\\tan$ has no value.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [{ f: inDegrees(Math.tan), accent: true, breaks: true }],
+                verticals: [{ x: 90 }, { x: 270 }],
+                yMin: -4,
+                yMax: 4,
+                label: 'y = tan x from 0 to 360 degrees, with dashed asymptotes at 90 and 270 degrees',
+              }),
+              prose(
+                'The dashed lines are **asymptotes**: the curve gets ever closer to them but never reaches them. On the far side it comes back from far below and makes the same climb again.',
+              ),
+              prose(
+                'So $\\tan$ repeats every $180^{\\circ}$, half the period of sine and cosine. It has no amplitude either, since it has no highest or lowest value at all.',
+              ),
+            ),
+            ask('trig-tan-asymptote-slider'),
+            ask('trig-tan-period'),
+            ask('trig-tan-graph-match'),
+            teach(
+              prose(
+                'Inside the bracket, $b$ works just as it did for sine: it fits $b$ repeats into the space of one.',
+              ),
+              maths('\\text{period of } \\tan(bx) = \\frac{180^{\\circ}}{b}'),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [{ f: inDegrees((x) => Math.tan(2 * x)), accent: true, breaks: true }],
+                verticals: [45, 135, 225, 315].map((x) => ({ x })),
+                yMin: -4,
+                yMax: 4,
+                label: 'y = tan 2x from 0 to 360 degrees, with dashed asymptotes every 90 degrees from 45',
+              }),
+              prose(
+                'The asymptotes move with it. They sit where $bx$ is $90^{\\circ}$, $270^{\\circ}$ and so on, so for $\\tan(2x)$ the first is at $45^{\\circ}$ and the rest follow one period, $90^{\\circ}$, apart. A number in front, as in $3\\tan(2x)$, stretches the curve upwards but moves no asymptote and no crossing.',
+              ),
+            ),
+            ask('trig-tan-asymptote-tiles'),
+            ask('trig-tan-period+choice'),
+            ask('trig-tan-asymptote-slider'),
+            teach(
+              prose(
+                'In radians half a turn is $\\pi$, so $\\tan(x)$ repeats every $\\pi$ and its asymptotes are at $\\frac{\\pi}{2}$, $\\frac{3\\pi}{2}$ and so on.',
+              ),
+              maths('\\text{period of } \\tan(bx) = \\frac{\\pi}{b}'),
+              maths('\\text{asymptotes at } x = \\frac{\\pi}{2b} + \\frac{\\pi}{b} \\times k'),
+              prose(
+                'Here $k$ is any whole number. Every question about the tangent graph comes back to these two numbers: where the first asymptote is, and how far apart they are.',
+              ),
+            ),
+            ask('trig-tan-graph-match', 2),
+            ask('trig-tan-asymptote-tiles', 2),
+          ],
+          skillCheck: [
+            ask('trig-tan-asymptote-slider', 2),
+            ask('trig-tan-period', 2),
+            ask('trig-tan-asymptote-tiles', 2),
+          ],
+        },
+        {
+          id: 'tf-l5-tan-exact',
+          title: 'Exact Values and Solving tan x = k',
+          slides: [
+            teach(
+              prose('Dividing the special values of sine by those of cosine gives the tangent of each special angle.'),
+              maths(
+                '\\begin{array}{c|cccc} \\theta & 0 & 30^{\\circ} & 45^{\\circ} & 60^{\\circ} \\\\ \\hline \\tan(\\theta) & 0 & \\frac{1}{\\sqrt{3}} & 1 & \\sqrt{3} \\end{array}',
+              ),
+              prose(
+                'For example $\\tan(60^{\\circ}) = \\frac{\\sqrt{3}}{2} \\div \\frac{1}{2} = \\sqrt{3}$, and $\\tan(30^{\\circ})$ is the same division the other way up. In radians the angles are $0$, $\\frac{\\pi}{6}$, $\\frac{\\pi}{4}$ and $\\frac{\\pi}{3}$.',
+              ),
+              prose(
+                'Any other special angle has the same size of tangent as its **reference angle**, the acute angle between its radius and the horizontal axis, with the sign of its quarter. $\\tan(240^{\\circ})$ has reference angle $60^{\\circ}$ and lies in the third quarter, so it is $\\sqrt{3}$.',
+              ),
+            ),
+            ask('trig-tan-exact'),
+            ask('trig-tan-value-tree'),
+            ask('trig-tan-exact', 2),
+            teach(
+              prose(
+                'Solving $\\tan(x) = k$ runs the table backwards. $\\tan(x) = 1$ has the solution $45^{\\circ}$ straight from the table.',
+              ),
+              prose(
+                'Because $\\tan$ repeats every $180^{\\circ}$, adding $180^{\\circ}$ gives another, $225^{\\circ}$. In a full turn there are exactly two solutions, half a turn apart.',
+              ),
+              maths('\\tan(x) = 1 \\quad \\Rightarrow \\quad x = 45^{\\circ} \\text{ or } 225^{\\circ}'),
+              prose(
+                'For a negative $k$ the table angle is negative: $\\tan(-45^{\\circ}) = -1$. Add $180^{\\circ}$ until the answers land in the interval asked for, here $135^{\\circ}$ and $315^{\\circ}$.',
+              ),
+            ),
+            ask('trig-tan-solve'),
+            ask('trig-tan-solve-slider'),
+            ask('trig-tan-value-tree', 2),
+            teach(
+              prose(
+                'On the graph, the solutions are where the horizontal line $y = k$ crosses the curve. Every branch crosses it exactly once, and the branches are $180^{\\circ}$ apart.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 540,
+                curves: [{ f: inDegrees(Math.tan), accent: true, breaks: true }],
+                horizontals: [1],
+                marks: [45, 225, 405].map((x) => ({ x, y: 1 })),
+                yMin: -3,
+                yMax: 3,
+                label: 'y = tan x from 0 to 540 degrees crossing the dashed line y = 1 at 45, 225 and 405 degrees',
+              }),
+              prose(
+                'The interval decides which crossings count. For $-180^{\\circ} < x \\le 180^{\\circ}$, take the one from the table and the one half a turn before or after it; in radians the step is $\\pi$. An equation such as $3\\tan(x) = 3$ is first divided down to $\\tan(x) = 1$.',
+              ),
+            ),
+            ask('trig-tan-solve', 2),
+            ask('trig-tan-solve-slider', 2),
+          ],
+          skillCheck: [
+            ask('trig-tan-exact', 2),
+            ask('trig-tan-value-tree', 2),
+            ask('trig-tan-solve', 2),
+          ],
+        },
+        {
+          id: 'tf-l5-reciprocal',
+          title: 'Secant, Cosecant and Cotangent',
+          slides: [
+            teach(
+              prose('Three more ratios complete the set. Each is one over a ratio you already know.'),
+              maths('\\sec(\\theta) = \\frac{1}{\\cos(\\theta)}'),
+              maths('\\operatorname{cosec}(\\theta) = \\frac{1}{\\sin(\\theta)}'),
+              maths('\\cot(\\theta) = \\frac{1}{\\tan(\\theta)} = \\frac{\\cos(\\theta)}{\\sin(\\theta)}'),
+              prose(
+                'The pairing looks back to front, so go by the **third letter**: se**c** goes with **c**osine, co**s**ec with **s**ine, and co**t** with **t**angent.',
+              ),
+            ),
+            ask('trig-recip-exact'),
+            ask('trig-recip-tree'),
+            ask('trig-recip-exact+choice'),
+            teach(
+              prose(
+                'To evaluate one exactly, find the ratio underneath and turn it over. One over a fraction is the fraction upside down, and its sign stays as it was.',
+              ),
+              maths('\\sec(60^{\\circ}) = \\frac{1}{\\cos(60^{\\circ})} = 1 \\div \\frac{1}{2} = 2'),
+              prose(
+                'The same works for any fraction: if $\\sin(\\theta) = \\frac{3}{5}$ then $\\operatorname{cosec}(\\theta) = \\frac{5}{3}$. For $\\cot$, dividing cosine by sine cancels their common denominator.',
+              ),
+            ),
+            ask('trig-recip-from-values'),
+            ask('trig-recip-tree', 2),
+            ask('trig-recip-from-values', 2),
+            teach(
+              prose(
+                'Each is undefined where the ratio on the bottom is zero. Written with sine and cosine, $\\sec$ has $\\cos$ on the bottom, while $\\operatorname{cosec}$ and $\\cot$ both have $\\sin$.',
+              ),
+              maths('\\sec \\text{ is undefined at } 90^{\\circ} \\text{ and } 270^{\\circ}'),
+              maths('\\operatorname{cosec}, \\ \\cot \\text{ are undefined at } 0^{\\circ} \\text{ and } 180^{\\circ}'),
+              prose(
+                'Watch $\\cot(90^{\\circ})$. $\\tan(90^{\\circ})$ is undefined, but $\\cot(90^{\\circ}) = \\frac{\\cos(90^{\\circ})}{\\sin(90^{\\circ})} = \\frac{0}{1} = 0$, so writing it as cosine over sine is the safe way to decide.',
+              ),
+            ),
+            ask('trig-recip-undefined-flow'),
+            ask('trig-recip-undefined-flow', 2),
+          ],
+          skillCheck: [
+            ask('trig-recip-exact', 2),
+            ask('trig-recip-tree', 2),
+            ask('trig-recip-undefined-flow', 2),
+          ],
+        },
+        {
+          id: 'tf-l5-recip-graphs',
+          title: 'Reciprocal Graphs and Two Identities',
+          slides: [
+            teach(
+              prose(
+                'Turning a graph over, value by value, gives the graph of its reciprocal. Where $\\cos(x)$ is $1$, so is $\\sec(x)$; as $\\cos(x)$ shrinks towards zero, $\\sec(x)$ grows without limit; where $\\cos(x)$ is zero, $\\sec(x)$ has an asymptote.',
+              ),
+              graph({
+                xMin: 0,
+                xMax: 360,
+                curves: [
+                  { f: inDegrees(Math.cos), dashed: true },
+                  { f: inDegrees((x) => 1 / Math.cos(x)), accent: true, breaks: true },
+                ],
+                verticals: [{ x: 90 }, { x: 270 }],
+                yMin: -4,
+                yMax: 4,
+                label: 'cos x dashed, and sec x solid, with asymptotes at 90 and 270 degrees',
+              }),
+              prose(
+                'So $\\sec(x)$ is a chain of U shapes that never gets between $-1$ and $1$. $\\operatorname{cosec}(x)$ is the same shape following sine instead, with asymptotes at $0^{\\circ}$, $180^{\\circ}$ and $360^{\\circ}$, and $\\cot(x)$ falls from one asymptote to the next where $\\tan(x)$ rises.',
+              ),
+            ),
+            ask('trig-recip-graph-match'),
+            ask('trig-recip-undefined-flow', 2),
+            ask('trig-recip-graph-match', 2),
+            teach(
+              prose(
+                'Divide every term of $\\sin^2(\\theta) + \\cos^2(\\theta) = 1$ by $\\cos^2(\\theta)$ and each piece becomes a ratio of this level:',
+              ),
+              maths('\\tan^2(\\theta) + 1 = \\sec^2(\\theta)'),
+              prose('Dividing by $\\sin^2(\\theta)$ instead gives the other one:'),
+              maths('1 + \\cot^2(\\theta) = \\operatorname{cosec}^2(\\theta)'),
+              prose(
+                'With $\\tan(\\theta) = \\frac{3}{4}$, the first says $\\sec^2(\\theta) = 1 + \\frac{9}{16} = \\frac{25}{16}$, so $\\sec(\\theta)$ is $\\frac{5}{4}$ or $-\\frac{5}{4}$.',
+              ),
+            ),
+            ask('trig-identity-square'),
+            ask('trig-identity-find'),
+            ask('trig-identity-square', 2),
+            teach(
+              prose(
+                'A square root leaves a choice of sign, and the quarter of the turn settles it. $\\sec$ has the sign of $\\cos$, $\\operatorname{cosec}$ the sign of $\\sin$, and $\\tan$ and $\\cot$ are positive where those two agree.',
+              ),
+              prose(
+                'So finding one ratio from another is two decisions: which identity has both of them in it, and which sign the quarter gives. With $\\tan(\\theta) = \\frac{3}{4}$ and $180^{\\circ} < \\theta < 270^{\\circ}$, cosine is negative there, so $\\sec(\\theta) = -\\frac{5}{4}$.',
+              ),
+            ),
+            ask('trig-identity-flow'),
+            ask('trig-identity-find+choice', 2),
+          ],
+          skillCheck: [
+            ask('trig-recip-graph-match', 2),
+            ask('trig-identity-find', 2),
+            ask('trig-identity-flow', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('trig-tan-from-point', 2),
+        ask('trig-tan-sign-flow', 2),
+        ask('trig-tan-undefined', 2),
+        ask('trig-tan-asymptote-slider', 2),
+        ask('trig-tan-period+choice', 2),
+        ask('trig-tan-asymptote-tiles', 2),
+        ask('trig-tan-graph-match', 2),
+        ask('trig-tan-exact', 2),
+        ask('trig-tan-value-tree', 2),
+        ask('trig-tan-solve', 2),
+        ask('trig-recip-exact', 2),
+        ask('trig-recip-tree', 2),
+        ask('trig-recip-undefined-flow', 2),
+        ask('trig-recip-graph-match', 2),
+        ask('trig-identity-find', 2),
       ],
     },
   ],

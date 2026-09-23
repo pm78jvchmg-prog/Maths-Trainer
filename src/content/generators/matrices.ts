@@ -4558,6 +4558,11 @@ function slotted(right: string, wrong: string[], salt: string, tex = true) {
   const others = [...new Set(wrong)].filter((label) => label !== right).slice(0, 3);
   let hash = 7;
   for (let i = 0; i < salt.length; i += 1) hash = (hash * 31 + salt.charCodeAt(i)) | 0;
+  // Mixed before it is reduced: salts that are all digits and commas leave
+  // the low bits of a plain string hash lopsided, which favoured two slots.
+  hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b);
+  hash = Math.imul(hash ^ (hash >>> 13), 0x45d9f3b);
+  hash ^= hash >>> 16;
   const at = Math.abs(hash) % (others.length + 1);
   const labels = [...others.slice(0, at), right, ...others.slice(at)];
   return {
@@ -4612,7 +4617,7 @@ const sysRead: Generator<SysReadParams> = {
         },
         { kind: 'display', tex: systemTex(m.map((coeffs, i) => equationTex(coeffs, b[i], orders[i]))) },
       ],
-      template: `\\text{row}: \\; {0} \\quad {1} \\quad {2} \\qquad \\mathbf{b}: \\; {3}`,
+      template: `\\text{row: } {0} \\; {1} \\; {2} \\quad \\mathbf{b}\\text{: } {3}`,
       bank: bankOf(answer, [
         ...m[row].map((c) => `${-c}`),
         `${-b[row]}`,
@@ -4669,7 +4674,9 @@ const sysBack: Generator<SysBackParams> = {
       kind: 'choice',
       prompt: [
         { kind: 'prose', text: `Which equation does the ${ORDINALS[row]} row of this matrix equation say?` },
-        { kind: 'display', tex: `${gridTex(m)} ${UNKNOWNS_TEX} = ${stackTex(b)}` },
+        // Two displays: a 3x3 beside two columns overruns a phone.
+        { kind: 'display', tex: `${gridTex(m)} ${UNKNOWNS_TEX}` },
+        { kind: 'display', tex: `= ${stackTex(b)}` },
       ],
       options: offered,
       correctId,
@@ -5510,7 +5517,9 @@ const sysCramer: Generator<SysCramerParams> = {
           kind: 'prose',
           text: `$\\det \\mathbf{A} = ${det3(m)}$. Use Cramer's rule to find $${name}$.`,
         },
-        { kind: 'display', tex: `${gridTex(m)} ${UNKNOWNS_TEX} = ${stackTex(b)}` },
+        // Two displays: a 3x3 beside two columns overruns a phone.
+        { kind: 'display', tex: `${gridTex(m)} ${UNKNOWNS_TEX}` },
+        { kind: 'display', tex: `= ${stackTex(b)}` },
       ],
       lead: `${name} =`,
       keypad: [],

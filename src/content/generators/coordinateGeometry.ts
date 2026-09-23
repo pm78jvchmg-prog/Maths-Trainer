@@ -7,6 +7,10 @@
  * meet. Level 2 is points and circles: the midpoint and the distance, the
  * perpendicular bisector, the circle `(x - a)^2 + (y - b)^2 = r^2`, reading
  * its centre and radius from the expanded form, and tangents and chords.
+ * Level 3 is lines meeting circles: substituting the line into the circle,
+ * the discriminant deciding whether it cuts, touches or misses, the tangent
+ * condition `k^2 = r^2(1 + m^2)`, the tangents from a point outside, and
+ * chords cut off by a line.
  *
  * Every given point is a lattice point, and every question is built outward
  * from its answer — a crossing point, a centre, a whole-number `c` — so the
@@ -2849,6 +2853,1508 @@ const coordTangentSlider: Generator<TangentSliderParams> = {
   },
 };
 
+/* ================================================================
+ * Level 3: lines meeting circles
+ *
+ * Built from the meeting points outward, like everything above. A chord is
+ * two lattice points of a circle centred at the origin with a whole
+ * gradient between them, moved to a lattice centre, so the quadratic that
+ * substituting gives factorises and `c` is whole. A tangent is a gradient
+ * `m` and a whole `t` with `r^2 = (1 + m^2)t^2`, which makes the tangent
+ * condition `k^2 = r^2(1 + m^2)` a perfect square. The tangents from an
+ * outside point come from a table of every small case whose two gradients
+ * are whole. Nothing is found by rounding a float.
+ * ================================================================ */
+
+/** Every lattice point on x^2 + y^2 = n, the ones on the axes included. */
+function onCircle(n: number): [number, number][] {
+  const out: [number, number][] = [];
+  const top = Math.floor(Math.sqrt(n));
+  for (let x = -top; x <= top; x += 1) {
+    for (let y = -top; y <= top; y += 1) {
+      if (x * x + y * y === n) out.push([x, y]);
+    }
+  }
+  return out;
+}
+
+/** n x^2 as a learner writes it: x^2, -x^2, 3x^2. */
+function sqTerm(n: number, letter = 'x'): string {
+  if (n === 1) return `${letter}^2`;
+  if (n === -1) return `-${letter}^2`;
+  return `${n}${letter}^2`;
+}
+
+/** Ax^2 + Bx + C = 0, any zero term left out. */
+function quadTex(A: number, B: number, C: number, letter = 'x'): string {
+  return `${sumTex([sqTerm(A, letter), termOf(q(B), letter), String(C)])} = 0`;
+}
+
+/** "m = -7 or m = 1", the smaller first. */
+function eitherTex(letter: string, u: number, v: number): string {
+  const [lo, hi] = u < v ? [u, v] : [v, u];
+  return `${letter} = ${lo} \\text{ or } ${letter} = ${hi}`;
+}
+
+/** m x + c evaluated at x, written out: 2 \times (-3) + 5. */
+function lineAt(m: number, c: number, x: number): string {
+  return `${m} \\times ${paren(x)}${c === 0 ? '' : ` ${signedN(c)}`}`;
+}
+
+/** (x - 3) as a factor, or x alone for a root at zero. */
+function factor(root: number): string {
+  return root === 0 ? 'x' : `(${lin('x', root)})`;
+}
+
+/**
+ * A tiles bank of signed tokens (`+ 4`, `- 3x`): the answer, the slips, then
+ * signed whole numbers near `around`. Topped up through `signedN` rather than
+ * as bare numbers, so no spare can read as an answer tile spelled another way.
+ */
+function signedBank(answer: string[], slips: string[], around: number[], spare = 2): string[] {
+  const bare = (token: string) => token.replace(/\s+/g, '');
+  const needed = new Set(answer.map(bare));
+  const extras: string[] = [];
+  const offer = (token: string) => {
+    if (extras.length >= 5) return;
+    if (needed.has(bare(token)) || extras.some((extra) => bare(extra) === bare(token))) return;
+    extras.push(token);
+  };
+  slips.forEach(offer);
+  for (let gap = 1; extras.length < spare; gap += 1) {
+    for (const v of around) {
+      if (v + gap !== 0) offer(signedN(v + gap));
+      if (v - gap !== 0) offer(signedN(v - gap));
+    }
+  }
+  return [...answer, ...extras].sort();
+}
+
+/** A circle centred at (a, b) fits a ±10 picture with half a unit to spare. */
+function fits(a: number, b: number, r2: number): boolean {
+  const room = (v: number) => 9.5 - Math.abs(v);
+  return r2 <= room(a) ** 2 && r2 <= room(b) ** 2;
+}
+
+/** The circle on squared paper, its centre marked hollow, for a question to point at. */
+function circleFigure(a: number, b: number, r2: number, curves: Curve[], marks: { x: number; y: number; hollow?: boolean }[], label: string): string {
+  return plotWithCircles(
+    { xMin: -10, xMax: 10, yMin: -10, yMax: 10, curves, marks: [...marks, { x: a, y: b, hollow: true }], label },
+    [{ h: a, k: b, r2 }],
+  );
+}
+
+/**
+ * The squared distance from (a, b) to (px, py), one change a line, since
+ * the level 2 layout runs off a phone once both coordinates are negative.
+ */
+function narrowDistance(name: string, px: number, a: number, py: number, b: number): string {
+  const dx = px - a;
+  const dy = py - b;
+  return chain(
+    `\\Delta x &= ${px} - ${paren(a)} = ${dx}`,
+    `\\Delta y &= ${py} - ${paren(b)} = ${dy}`,
+    `${name}^2 &= ${paren(dx)}^2 + ${paren(dy)}^2`,
+    `&= ${dx * dx} + ${dy * dy} = ${dx * dx + dy * dy}`,
+  );
+}
+
+/** The smallest whole number whose square is more than n. */
+function rootAbove(n: number): number {
+  let top = 0;
+  while (top * top <= n) top += 1;
+  return top;
+}
+
+interface Chord {
+  r2: number;
+  /** The two lattice points, measured from the centre, the left one first. */
+  v1: [number, number];
+  v2: [number, number];
+  m: number;
+  /** How far the line is above the centre, straight up from it. */
+  k: number;
+}
+
+/** Radii squared whose circles carry lattice points off the axes, small enough to draw. */
+const CHORD_RADII = [5, 10, 13, 17, 20, 25, 26, 29];
+
+/** Every chord between two lattice points of those circles with a whole, non-zero gradient up to 3. */
+const CHORDS: Chord[] = CHORD_RADII.flatMap((r2) => {
+  const points = onCircle(r2);
+  return points.flatMap((v1) =>
+    points.flatMap((v2): Chord[] => {
+      const run = v2[0] - v1[0];
+      const rise = v2[1] - v1[1];
+      if (run <= 0 || rise % run !== 0) return [];
+      const m = rise / run;
+      if (m === 0 || Math.abs(m) > 3) return [];
+      return [{ r2, v1, v2, m, k: v1[1] - m * v1[0] }];
+    }),
+  );
+});
+
+interface CutParams {
+  a: number;
+  b: number;
+  r2: number;
+  m: number;
+  c: number;
+  /** The meeting points, the left one first. */
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+function placeChord({ r2, v1, v2, m, k }: Chord, a: number, b: number): CutParams {
+  return { a, b, r2, m, c: b - m * a + k + 0, x1: a + v1[0], y1: b + v1[1], x2: a + v2[0], y2: b + v2[1] };
+}
+
+/**
+ * A line meeting a circle at two lattice points: centred at the origin with
+ * gradients up to 2 at difficulty 1, moved to a centre up to 4 away with
+ * gradients up to 3 at difficulty 2.
+ */
+function sampleCut(rng: Rng, difficulty: number, keep: (p: CutParams) => boolean = () => true): CutParams {
+  const pool = difficulty > 1 ? CHORDS : CHORDS.filter((chord) => chord.r2 <= 25 && Math.abs(chord.m) <= 2);
+  for (;;) {
+    const [a, b] = difficulty > 1 ? [rng.int(-4, 4), rng.int(-4, 4)] : [0, 0];
+    const p = placeChord(rng.pick(pool), a, b);
+    if (Math.abs(p.c) > 15 || !keep(p)) continue;
+    return p;
+  }
+}
+
+/**
+ * Ax^2 + Bx + C = 0 from putting y = mx + c into (x - a)^2 + (y - b)^2 = r^2,
+ * before dividing through.
+ */
+function substituted({ a, b, r2, m, c }: { a: number; b: number; r2: number; m: number; c: number }): [number, number, number] {
+  const k = c - b;
+  return [1 + m * m, 2 * m * k - 2 * a, a * a + k * k - r2];
+}
+
+const meetLine = (p: { m: number; c: number }) => lineTex(q(p.m), q(p.c));
+const meetCircle = (p: { a: number; b: number; r2: number }) => circleTex(p.a, p.b, p.r2);
+
+/** The quadratic once divided through: its roots are the meeting points' x. */
+function monicTex({ x1, x2 }: CutParams): string {
+  return quadTex(1, -(x1 + x2), x1 * x2);
+}
+
+function substituteSolution(p: CutParams): SolutionStep[] {
+  const [A, B, C] = substituted(p);
+  return [
+    { text: `Put $${rhsTex(q(p.m), q(p.c))}$ in place of $y$ in the circle, multiply out and collect everything on one side:` },
+    { tex: quadTex(A, B, C) },
+    { text: `Divide through by $${A}$:` },
+    { tex: monicTex(p) },
+  ];
+}
+
+function rootsSolution(p: CutParams): SolutionStep[] {
+  return [
+    { text: `It factorises as $${factor(p.x1)}${factor(p.x2)} = 0$, so $x = ${p.x1}$ or $x = ${p.x2}$.` },
+  ];
+}
+
+/* ---------- lesson 1: where a line meets a circle ---------- */
+
+/**
+ * The line put into the circle and tidied into a quadratic: each bracket
+ * multiplied out, everything collected on one side, then divided through. At
+ * the origin (difficulty 1) the x bracket is already x^2, so there are three
+ * steps rather than four.
+ */
+const coordSubstituteSteps: Generator<CutParams> = {
+  id: 'coord-substitute-steps',
+  sample: (rng, difficulty) => sampleCut(rng, difficulty, (p) => p.c !== p.b && (difficulty === 1 || p.a !== 0)),
+  render: (p): Slide => {
+    const { a, m, r2, x1, x2 } = p;
+    const k = p.c - p.b;
+    const [A, B, C] = substituted(p);
+    const yBracket = sumTex([termOf(q(m)), String(k)]);
+    const xPart = sumTex(['x^2', termOf(q(-2 * a)), String(a * a)]);
+    const yPart = sumTex([sqTerm(m * m), termOf(q(2 * m * k)), String(k * k)]);
+    const collected = quadTex(A, B, C);
+    const monic = monicTex(p);
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [];
+    if (a !== 0) {
+      reductions.push({
+        span: [0, 1],
+        value: xPart,
+        bank: stepBank(
+          xPart,
+          sumTex(['x^2', termOf(q(2 * a)), String(a * a)]),
+          sumTex(['x^2', String(a * a)]),
+          sumTex(['x^2', termOf(q(-a)), String(a * a)]),
+        ),
+      });
+    }
+    reductions.push(
+      {
+        span: [2, 3],
+        value: yPart,
+        bank: stepBank(
+          yPart,
+          sumTex([sqTerm(m * m), String(k * k)]),
+          sumTex([sqTerm(m * m), termOf(q(-2 * m * k)), String(k * k)]),
+          sumTex([sqTerm(m * m), termOf(q(m * k)), String(k * k)]),
+        ),
+      },
+      {
+        span: [0, 5],
+        value: collected,
+        bank: stepBank(collected, quadTex(A, B, C + r2), quadTex(A, B, C + 2 * r2), quadTex(A, -B, C)),
+      },
+      {
+        span: [0, 1],
+        value: monic,
+        bank: stepBank(monic, quadTex(1, x1 + x2, x1 * x2), quadTex(1, -(x1 + x2), -x1 * x2), quadTex(1, B, C)),
+      },
+    );
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `The line $${meetLine(p)}$ meets the circle $${meetCircle(p)}$. Putting $${rhsTex(q(m), q(p.c))}$ in place of $y$ gives the equation below. Tidy it into a quadratic in $x$ and divide through by the number in front of $x^2$: tap the part you would do **next**, then choose what it becomes.`,
+        ),
+      ],
+      start: [a === 0 ? 'x^2' : `(${lin('x', a)})^2`, '+', `(${yBracket})^2`, '=', String(r2)],
+      reductions,
+    };
+  },
+  solution: (p) => {
+    const { a, m } = p;
+    const k = p.c - p.b;
+    const [A, B, C] = substituted(p);
+    const yBracket = sumTex([termOf(q(m)), String(k)]);
+    const expanded = [
+      ...(a === 0 ? [] : [`&(${lin('x', a)})^2`, `=\\;&${sumTex(['x^2', termOf(q(-2 * a)), String(a * a)])}`]),
+      `&(${yBracket})^2`,
+      `=\\;&${sumTex([sqTerm(m * m), termOf(q(2 * m * k)), String(k * k)])}`,
+    ];
+    return [
+      { text: 'Multiply out each bracket:' },
+      { tex: chain(...expanded) },
+      { text: `Add them, and take $${p.r2}$ away to leave $0$ on the right:` },
+      { tex: quadTex(A, B, C) },
+      { text: `Divide through by $${A}$:` },
+      { tex: monicTex(p) },
+      { text: `Its roots, $x = ${p.x1}$ and $x = ${p.x2}$, are where the line meets the circle.` },
+    ];
+  },
+};
+
+/** The divided-through quadratic as two tiles: its x coefficient and its number. */
+const coordMeetQuadraticTiles: Generator<CutParams> = {
+  id: 'coord-meet-quadratic-tiles',
+  sample: (rng, difficulty) => sampleCut(rng, difficulty, (p) => p.x1 + p.x2 !== 0 && p.x1 * p.x2 !== 0),
+  render: (p): Slide => {
+    const s = p.x1 + p.x2;
+    const product = p.x1 * p.x2;
+    const [A] = substituted(p);
+    const answer = [signed(termOf(q(-s))), signedN(product)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `Put $${meetLine(p)}$ into the circle $${meetCircle(p)}$, collect the terms, and divide through by the number in front of $x^2$. Complete the quadratic in $x$.`,
+        ),
+      ],
+      template: 'x^2 {0} {1} = 0',
+      bank: signedBank(
+        answer,
+        [signed(termOf(q(s))), signed(termOf(q(-A * s))), signedN(-product), signedN(A * product)],
+        [product],
+      ),
+      answer,
+    };
+  },
+  solution: (p) => [...substituteSolution(p), ...rootsSolution(p)],
+};
+
+/** From the quadratic's roots to the meeting points: each root, then its y from the line. */
+const coordRootPointTree: Generator<CutParams> = {
+  id: 'coord-root-point-tree',
+  sample: (rng, difficulty) => sampleCut(rng, difficulty),
+  render: (p): Slide => {
+    const answer = [p.x1, p.x2, p.y1, p.y2].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `The line $${meetLine(p)}$ meets the circle $${meetCircle(p)}$ where the quadratic below is zero. Top row: its two roots, the smaller first. Underneath each: the $y$-coordinate the line gives it.`,
+        ),
+      ],
+      expression: monicTex(p),
+      nodes: [
+        { id: 'x1', from: [] },
+        { id: 'x2', from: [] },
+        { id: 'y1', from: ['x1'] },
+        { id: 'y2', from: ['x2'] },
+      ],
+      bank: bank(
+        answer,
+        [
+          String(-p.x1),
+          String(-p.x2),
+          String(p.m * p.x1 - p.c),
+          String(p.m * p.x2 - p.c),
+          String(p.x1 + p.c),
+          String(p.x2 + p.c),
+        ],
+        [p.y1, p.y2],
+      ),
+      answer,
+    };
+  },
+  solution: (p) => [
+    ...rootsSolution(p),
+    { text: 'Put each root into the line, not the circle, for its $y$.' },
+    { text: `$x = ${p.x1}$ gives $y = ${lineAt(p.m, p.c, p.x1)} = ${p.y1}$.` },
+    { text: `$x = ${p.x2}$ gives $y = ${lineAt(p.m, p.c, p.x2)} = ${p.y2}$.` },
+    { text: `The line meets the circle at $${pt(p.x1, p.y1)}$ and $${pt(p.x2, p.y2)}$.` },
+  ],
+};
+
+interface MeetXParams extends CutParams {
+  /** Difficulty 1 names one meeting point and asks the other's x; difficulty 2 asks the larger or smaller x. */
+  ask: 'other-of-left' | 'other-of-right' | 'larger' | 'smaller';
+}
+
+const meetXAnswer = (p: MeetXParams) => (p.ask === 'other-of-left' || p.ask === 'larger' ? p.x2 : p.x1);
+
+/** One meeting point's x-coordinate, typed. */
+const coordMeetCircleX: Generator<MeetXParams> = {
+  id: 'coord-meet-circle-x',
+  sample: (rng, difficulty) => ({
+    ...sampleCut(rng, difficulty),
+    ask: difficulty > 1 ? rng.pick(['larger', 'smaller'] as const) : rng.pick(['other-of-left', 'other-of-right'] as const),
+  }),
+  render: (p): Slide => {
+    const given = p.ask === 'other-of-left' ? named('A', p.x1, p.y1) : named('A', p.x2, p.y2);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          p.ask === 'larger' || p.ask === 'smaller'
+            ? `The line $${meetLine(p)}$ meets the circle $${meetCircle(p)}$ at two points. Find the ${p.ask} of their $x$-coordinates.`
+            : `The line $${meetLine(p)}$ meets the circle $${meetCircle(p)}$ at $${given}$ and at a second point $B$. Find the $x$-coordinate of $B$.`,
+        ),
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: String(meetXAnswer(p)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const x = meetXAnswer(p);
+    const other = x === p.x2 ? p.x1 : p.x2;
+    const y = x === p.x2 ? p.y2 : p.y1;
+    return intOptions(x, [other, -x, y, -other]);
+  },
+  solution: (p) => {
+    const x = meetXAnswer(p);
+    return [
+      ...substituteSolution(p),
+      ...rootsSolution(p),
+      {
+        text:
+          p.ask === 'larger' || p.ask === 'smaller'
+            ? `The ${p.ask} is $x = ${x}$.`
+            : `One root is $A$'s, so the other, $x = ${x}$, is $B$'s.`,
+      },
+    ];
+  },
+};
+
+/* ---------- lesson 2: cuts, touches or misses ---------- */
+
+type Crossing = 'two' | 'one' | 'none';
+
+interface CrossParams {
+  a: number;
+  b: number;
+  r2: number;
+  m: number;
+  c: number;
+  kind: Crossing;
+}
+
+/** A tangent: gradient m and a whole t, with r^2 = (1 + m^2)t^2 and k = ±(1 + m^2)t. */
+interface Touch {
+  m: number;
+  t: number;
+}
+
+/** Every gradient ±m with t running 1 to the top given beside it. */
+function touches(spec: [number, number][]): Touch[] {
+  return spec.flatMap(([m, top]) => [m, -m].flatMap((g) => Array.from({ length: top }, (_, idx) => ({ m: g, t: idx + 1 }))));
+}
+
+/** Twenty-six tangent cases for a circle at the origin, enough for the distinct-question floor on their own. */
+const TOUCH_EASY = touches([
+  [1, 6],
+  [2, 4],
+  [3, 2],
+  [4, 1],
+]);
+/** Radii that still fit a ±10 picture with the centre moved. */
+const TOUCH_SMALL = touches([
+  [1, 3],
+  [2, 2],
+  [3, 1],
+]);
+const TOUCH_MOVED = touches([
+  [1, 4],
+  [2, 3],
+  [3, 2],
+]);
+
+const touchR2 = ({ m, t }: Touch) => (1 + m * m) * t * t;
+/** |k| for a tangent: the square root of r^2(1 + m^2). */
+const touchK = ({ m, t }: Touch) => (1 + m * m) * t;
+
+/** A line that cuts, touches or misses, a third of the time each. At the origin at difficulty 1. */
+function sampleCrossing(rng: Rng, difficulty: number): CrossParams {
+  for (;;) {
+    const p = drawCrossing(rng, difficulty);
+    // Keep c small enough that the quadratic's numbers stay workable by hand.
+    if (Math.abs(p.c) <= 12) return p;
+  }
+}
+
+function drawCrossing(rng: Rng, difficulty: number): CrossParams {
+  const kind = rng.pick(['two', 'one', 'none'] as const);
+  const [a, b] = difficulty > 1 ? [rng.int(-4, 4), rng.int(-4, 4)] : [0, 0];
+  if (kind === 'one') {
+    const touch = rng.pick(TOUCH_SMALL);
+    const k = touchK(touch) * rng.sign();
+    return { a, b, r2: touchR2(touch), m: touch.m, c: b - touch.m * a + k, kind };
+  }
+  const m = nz(rng, difficulty > 1 ? 3 : 2);
+  const r2 = rng.int(2, 20);
+  const limit = (1 + m * m) * r2;
+  const top = rootAbove(limit);
+  for (;;) {
+    const k = rng.int(-top - 3, top + 3);
+    if (kind === 'two' ? k * k >= limit : k * k <= limit) continue;
+    return { a, b, r2, m, c: b - m * a + k, kind };
+  }
+}
+
+const CROSSING_SIGN: Record<Crossing, string> = { two: 'Positive', one: 'Zero', none: 'Negative' };
+
+const CROSSING_OUTCOME: Record<Crossing, string> = {
+  two: 'Two roots, so the line cuts the circle at two points.',
+  one: 'One repeated root, so the line touches the circle: it is a tangent.',
+  none: 'No real roots, so the line misses the circle.',
+};
+
+function discriminantOf(p: CrossParams): number {
+  const [A, B, C] = substituted(p);
+  return B * B - 4 * A * C;
+}
+
+function crossingSolution(p: CrossParams): SolutionStep[] {
+  const [A, B, C] = substituted(p);
+  const D = discriminantOf(p);
+  const kind: Crossing = D > 0 ? 'two' : D === 0 ? 'one' : 'none';
+  return [
+    { text: `Put $${rhsTex(q(p.m), q(p.c))}$ in place of $y$, multiply out and collect everything on one side:` },
+    { tex: quadTex(A, B, C) },
+    {
+      tex: `\\begin{gathered} b^2 = ${paren(B)}^2 = ${B * B} \\\\ 4ac = 4 \\times ${A} \\times ${paren(C)} = ${4 * A * C} \\end{gathered}`,
+    },
+    { text: `So $b^2 - 4ac = ${B * B} ${signedN(-4 * A * C)} = ${D}$.` },
+    { text: `${CROSSING_SIGN[kind]}: ${CROSSING_OUTCOME[kind].charAt(0).toLowerCase()}${CROSSING_OUTCOME[kind].slice(1)}` },
+  ];
+}
+
+/** Cut, touch or miss: pick the quadratic substituting gives, then the sign of its discriminant. */
+const coordMeetCountFlow: Generator<CrossParams> = {
+  id: 'coord-meet-count-flow',
+  sample: sampleCrossing,
+  render: (p): Slide => {
+    const [A, B, C] = substituted(p);
+    const right = `$${quadTex(A, B, C)}$`;
+    const labels = [...new Set([right, ...[quadTex(A, B, C + p.r2), quadTex(A, -B, C), quadTex(A - 1, B, C)].map((tex) => `$${tex}$`)])];
+    return {
+      kind: 'flow',
+      prompt: [say('Does the line cut, touch or miss the circle? Each answer decides what is asked next.')],
+      subject: `\\begin{gathered} ${meetCircle(p)} \\\\ ${meetLine(p)} \\end{gathered}`,
+      steps: [
+        {
+          id: 'quad',
+          ask: 'Put the line into the circle and collect the terms. Which quadratic in $x$ do you get?',
+          branches: turned(labels, labels.join('|')).map((label) => ({ label, to: 'sign' })),
+        },
+        {
+          id: 'sign',
+          ask: 'Work out its discriminant, $b^2 - 4ac$. What sign is it?',
+          branches: (['two', 'one', 'none'] as Crossing[]).map((w) => ({ label: CROSSING_SIGN[w], outcome: CROSSING_OUTCOME[w] })),
+        },
+      ],
+      answer: [right, CROSSING_SIGN[p.kind]],
+    };
+  },
+  solution: crossingSolution,
+};
+
+interface DiscriminantParams extends CrossParams {
+  /** The quadratic is shown at difficulty 1; at difficulty 2 the learner forms it. */
+  shown: boolean;
+}
+
+/** The discriminant of the quadratic from substituting, typed. */
+const coordMeetDiscriminant: Generator<DiscriminantParams> = {
+  id: 'coord-meet-discriminant',
+  sample: (rng, difficulty) => ({ ...sampleCrossing(rng, difficulty), shown: difficulty === 1 }),
+  render: (p): Slide => {
+    const [A, B, C] = substituted(p);
+    return {
+      kind: 'expression',
+      prompt: p.shown
+        ? [say(`Putting $${meetLine(p)}$ into $${meetCircle(p)}$ and collecting the terms gives the quadratic below. Find its discriminant.`), show(quadTex(A, B, C))]
+        : [
+            say(
+              `Put $${meetLine(p)}$ into $${meetCircle(p)}$ and collect the terms into a quadratic in $x$, without dividing through, so that it starts $${sqTerm(A)}$. Find its discriminant.`,
+            ),
+          ],
+      lead: 'b^2 - 4ac =',
+      keypad: [],
+      answer: String(discriminantOf(p)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const [A, B, C] = substituted(p);
+    const D = discriminantOf(p);
+    return intOptions(D, [B * B + 4 * A * C, B * B - 4 * A * (C + p.r2), -D, B * B - 2 * A * C]);
+  },
+  solution: crossingSolution,
+};
+
+interface WhichLineParams {
+  a: number;
+  b: number;
+  r2: number;
+  m: number;
+  /** How far each line is above the centre, straight up from it; the first is the answer. */
+  ks: number[];
+  ask: 'touches' | 'misses';
+}
+
+/**
+ * Four parallel lines and a circle: which one touches it (difficulty 1) or
+ * misses it (difficulty 2)? The tangent condition settles it without
+ * solving anything.
+ */
+const coordWhichLine: Generator<WhichLineParams> = {
+  id: 'coord-which-line',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      if (difficulty > 1) {
+        const m = nz(rng, 3);
+        const r2 = rng.int(5, 20);
+        const [a, b] = [rng.int(-3, 3), rng.int(-3, 3)];
+        if (!fits(a, b, r2)) continue;
+        const limit = (1 + m * m) * r2;
+        const top = rootAbove(limit);
+        const miss = rng.sign() * (top + rng.int(0, 2));
+        const cuts = Array.from({ length: 2 * top - 1 }, (_, idx) => idx - top + 1);
+        return { a, b, r2, m, ks: [miss, ...rng.sample(cuts, 3)], ask: 'misses' };
+      }
+      const touch = rng.pick(TOUCH_SMALL);
+      const r2 = touchR2(touch);
+      const [a, b] = [rng.int(-2, 2), rng.int(-2, 2)];
+      if (!fits(a, b, r2)) continue;
+      const K = touchK(touch) * rng.sign();
+      const near = [K - 1, K + 1, K - 2, K + 2, -K + 1, -K - 1].filter((k) => k * k !== K * K);
+      return { a, b, r2, m: touch.m, ks: [K, ...rng.sample(near, 3)], ask: 'touches' };
+    }
+  },
+  render: ({ a, b, r2, m, ks, ask }): Slide =>
+    choiceSlide(
+      [
+        say(`Which of these lines ${ask} the circle $${circleTex(a, b, r2)}$?`),
+        { kind: 'diagram', svg: circleFigure(a, b, r2, [], [], 'The circle drawn on squared paper with its centre marked') },
+      ],
+      ks.map((k, idx) => ({ tex: lineTex(q(m), q(b - m * a + k)), correct: idx === 0 })),
+    ),
+  solution: ({ a, b, r2, m, ks, ask }) => {
+    const limit = (1 + m * m) * r2;
+    const shifted = a !== 0 || b !== 0;
+    return [
+      {
+        text: shifted
+          ? `Every line here has gradient $${m}$. Measure each from the centre: $k = ma + c - b$ is how far it is above $${pt(a, b)}$. A line touches when $k^2 = r^2(1 + m^2)$, cuts when $k^2$ is less and misses when it is more.`
+          : `Every line here has gradient $${m}$. A line touches when $c^2 = r^2(1 + m^2)$, cuts when $c^2$ is less and misses when it is more.`,
+      },
+      { tex: `r^2(1 + m^2) = ${r2} \\times ${1 + m * m} = ${limit}` },
+      {
+        tex: chain(
+          ...[...ks].sort((u, v) => u - v).map((k) => `${lineTex(q(m), q(b - m * a + k))}: \\quad ${shifted ? 'k' : 'c'}^2 &= ${k * k}`),
+        ),
+      },
+      { text: `Only $${lineTex(q(m), q(b - m * a + ks[0]))}$ has ${ask === 'touches' ? `exactly $${limit}$` : `more than $${limit}$`}, so it ${ask} the circle.` },
+    ];
+  },
+};
+
+interface TouchPointParams {
+  a: number;
+  b: number;
+  /** From the centre to the point of contact. */
+  vx: number;
+  vy: number;
+  axis: 'x' | 'y';
+}
+
+/** Radius vectors whose tangent has a whole gradient up to 4, short enough to draw. */
+const TOUCH_VECTORS: [number, number][] = [];
+for (let vx = -6; vx <= 6; vx += 1) {
+  for (let vy = -6; vy <= 6; vy += 1) {
+    if (vx === 0 || vy === 0 || vx % vy !== 0 || Math.abs(vx / vy) > 4 || vx * vx + vy * vy > 45) continue;
+    TOUCH_VECTORS.push([vx, vy]);
+  }
+}
+
+function touchPointLine({ a, b, vx, vy }: TouchPointParams): { m: number; c: number; tx: number; ty: number } {
+  const m = -vx / vy;
+  const tx = a + vx;
+  const ty = b + vy;
+  return { m, c: ty - m * tx + 0, tx, ty };
+}
+
+/**
+ * A tangent drawn against its circle: slide to where it touches, the
+ * repeated root of the quadratic, or at difficulty 2 to that point's height.
+ */
+const coordTouchPointSlider: Generator<TouchPointParams> = {
+  id: 'coord-touch-point-slider',
+  sample: (rng, difficulty) => {
+    const spread = difficulty > 1 ? 5 : 3;
+    for (;;) {
+      const [vx, vy] = rng.pick(TOUCH_VECTORS);
+      const a = rng.int(-spread, spread);
+      const b = rng.int(-spread, spread);
+      if (!fits(a, b, vx * vx + vy * vy) || Math.abs(a + vx) > 9 || Math.abs(b + vy) > 9) continue;
+      return { a, b, vx, vy, axis: difficulty > 1 ? 'y' : 'x' };
+    }
+  },
+  render: (p): Slide => {
+    const { m, c, tx, ty } = touchPointLine(p);
+    const r2 = p.vx * p.vx + p.vy * p.vy;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The line $${lineTex(q(m), q(c))}$ touches the circle $${circleTex(p.a, p.b, r2)}$. Put the line into the circle: the quadratic has one repeated root, the $x$-coordinate where they touch. Slide to ${p.axis === 'x' ? 'that $x$' : 'the height of the point where they touch'}.`,
+        ),
+      ],
+      min: -9,
+      max: 9,
+      step: 1,
+      answer: p.axis === 'x' ? tx : ty,
+      readout: `${p.axis} = {v}`,
+      figure: {
+        svg: circleFigure(p.a, p.b, r2, [{ f: (x) => m * x + c, accent: true }], [], 'A circle and a straight line touching it'),
+        axis: p.axis,
+        ...markerWindow(-10, 10, p.axis, SQUARE),
+      },
+    };
+  },
+  solution: (p) => {
+    const { m, c, tx, ty } = touchPointLine(p);
+    const [A, B, C] = substituted({ a: p.a, b: p.b, r2: p.vx * p.vx + p.vy * p.vy, m, c });
+    return [
+      { text: `Put $${rhsTex(q(m), q(c))}$ in place of $y$ and collect everything on one side:` },
+      { tex: quadTex(A, B, C) },
+      { text: 'Its discriminant is zero, so its one root is where the two halves of the formula meet:' },
+      { tex: `x = -\\frac{b}{2a} = -\\frac{${B}}{${2 * A}} = ${tx}` },
+      { text: `The line gives $y = ${lineAt(m, c, tx)} = ${ty}$, so they touch at $${pt(tx, ty)}$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 3: the tangent condition ---------- */
+
+interface TouchParams extends Touch {
+  a: number;
+  b: number;
+  /** Which of the two tangents: +1 the upper, -1 the lower. */
+  s: number;
+}
+
+/** A tangent case at the origin (difficulty 1) or about a centre off it (difficulty 2). */
+function sampleTouch(rng: Rng, difficulty: number, keep: (p: TouchParams) => boolean = () => true): TouchParams {
+  for (;;) {
+    const touch = rng.pick(difficulty > 1 ? TOUCH_MOVED : TOUCH_EASY);
+    const [a, b] = difficulty > 1 ? [rng.int(-4, 4), rng.int(-4, 4)] : [0, 0];
+    const p = { ...touch, a, b, s: rng.sign() };
+    // Off the origin, the centre must move the lines, or the question is a difficulty 1 one.
+    if (difficulty > 1 && b - touch.m * a === 0) continue;
+    if (!keep(p)) continue;
+    return p;
+  }
+}
+
+/** Where the line crosses the vertical through the centre, less the centre's own height: b - ma. */
+const offsetOf = ({ a, b, m }: TouchParams) => b - m * a;
+const touchC = (p: TouchParams) => offsetOf(p) + p.s * touchK(p);
+
+function touchConditionSolution(p: TouchParams): SolutionStep[] {
+  const K = touchK(p);
+  const r2 = touchR2(p);
+  const A = 1 + p.m * p.m;
+  if (offsetOf(p) === 0 && p.a === 0 && p.b === 0) {
+    return [
+      { text: 'Put $y = mx + c$ into the circle: the quadratic touches when its discriminant is zero, which leaves the tangent condition.' },
+      { tex: chain(`c^2 &= r^2(1 + m^2)`, `&= ${r2} \\times ${A} = ${K * K}`) },
+      { text: `So $c = ${K}$ or $c = -${K}$.` },
+    ];
+  }
+  return [
+    { text: `Measure from the centre $${pt(p.a, p.b)}$: the line is $k = ma + c - b$ above it, and it touches when $k^2 = r^2(1 + m^2)$.` },
+    { tex: chain(`k^2 &= ${r2} \\times ${A} = ${K * K}`, `k &= \\pm ${K}`) },
+    { text: `Then $c = k + b - ma = ${offsetOf(p)} \\pm ${K}$, which is $${offsetOf(p) - K}$ or $${offsetOf(p) + K}$.` },
+  ];
+}
+
+/** One value of c for which y = mx + c is a tangent, typed. */
+const coordTouchC: Generator<TouchParams> = {
+  id: 'coord-touch-c',
+  sample: (rng, difficulty) => sampleTouch(rng, difficulty),
+  render: (p): Slide => {
+    const origin = p.a === 0 && p.b === 0;
+    const which = origin ? (p.s > 0 ? 'positive' : 'negative') : p.s > 0 ? 'larger' : 'smaller';
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `The line $y = ${termOf(q(p.m))} + c$ touches the circle $${circleTex(p.a, p.b, touchR2(p))}$. Find the ${which} value of $c$.`,
+        ),
+      ],
+      lead: 'c =',
+      keypad: [],
+      answer: String(touchC(p)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const c = touchC(p);
+    const K = touchK(p);
+    return intOptions(c, [p.s * K, offsetOf(p) - p.s * K, p.s * touchR2(p), p.s * p.t, p.b + p.m * p.a + p.s * K]);
+  },
+  solution: (p) => [
+    ...touchConditionSolution(p),
+    { text: `The ${p.a === 0 && p.b === 0 ? (p.s > 0 ? 'positive' : 'negative') : p.s > 0 ? 'larger' : 'smaller'} value is $c = ${touchC(p)}$.` },
+  ],
+};
+
+/** Both tangents with a given gradient, as two tiles in either order. */
+const coordTouchLinesTiles: Generator<TouchParams> = {
+  id: 'coord-touch-lines-tiles',
+  sample: (rng, difficulty) =>
+    sampleTouch(rng, difficulty, (p) => Math.abs(offsetOf(p)) !== touchK(p)),
+  render: (p): Slide => {
+    const K = touchK(p);
+    const off = offsetOf(p);
+    const answer = [signedN(off - K), signedN(off + K)];
+    const slips =
+      off === 0
+        ? [touchR2(p), -touchR2(p), p.t, -p.t]
+        : [K, -K, p.b + p.m * p.a + K, p.b + p.m * p.a - K];
+    const mx = termOf(q(p.m));
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`Find both tangents to the circle $${circleTex(p.a, p.b, touchR2(p))}$ that have gradient $${p.m}$.`),
+      ],
+      template: `y = ${mx} {0}\\ \\text{or}\\ y = ${mx} {1}`,
+      bank: signedBank(answer, slips.filter((v) => v !== 0).map(signedN), [off + K]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (p) => {
+    const K = touchK(p);
+    const off = offsetOf(p);
+    return [
+      ...touchConditionSolution(p),
+      { tex: `\\begin{gathered} ${lineTex(q(p.m), q(off - K))} \\\\ ${lineTex(q(p.m), q(off + K))} \\end{gathered}` },
+    ];
+  },
+};
+
+interface ConditionParams extends Touch {
+  /** The centre is (0, b): at the origin at difficulty 1. */
+  b: number;
+}
+
+/**
+ * From "the discriminant is zero" to the two values of c: square, multiply
+ * out, collect (the c^2 terms always leave -4 of them), then root.
+ */
+const coordTouchConditionSteps: Generator<ConditionParams> = {
+  id: 'coord-touch-condition-steps',
+  sample: (rng, difficulty) => (difficulty > 1 ? { ...rng.pick(TOUCH_MOVED), b: nz(rng, 5) } : { ...rng.pick(TOUCH_EASY), b: 0 }),
+  render: (p): Slide => {
+    const { b, m } = p;
+    const A = 1 + m * m;
+    const r2 = touchR2(p);
+    const K = touchK(p);
+    const U = b === 0 ? 'c' : `(c ${signedN(-b)})`;
+    const first = `${4 * m * m}${U}^2`;
+    // Bracketed: it is taken away whole, and without the bracket the line would read as minus its last term.
+    const second = `(${4 * A}${U}^2 - ${4 * A * r2})`;
+    const squared = `${U}^2 = ${K * K}`;
+    const solved = b === 0 ? `c = \\pm ${K}` : `c = ${b} \\pm ${K}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `The line $y = ${termOf(q(m))} + c$ touches the circle $${circleTex(0, b, r2)}$ when the quadratic that substituting gives has discriminant zero, which is the equation below. Solve it for $c$: tap the part you would do **next**, then choose what it becomes.`,
+        ),
+      ],
+      start: [`(${2 * m}${U})^2`, '-', `${4 * A}(${U}^2 - ${r2})`, '=', '0'],
+      reductions: [
+        { span: [0, 1], value: first, bank: stepBank(first, `${2 * m * m}${U}^2`, `${4 * Math.abs(m)}${U}^2`, `${-4 * m * m}${U}^2`) },
+        {
+          span: [2, 3],
+          value: second,
+          bank: stepBank(second, `(${4 * A}${U}^2 - ${r2})`, `(${4 * A}${U}^2 + ${4 * A * r2})`, `(${4 * A}${U}^2 - ${4 * r2})`),
+        },
+        { span: [0, 5], value: squared, bank: stepBank(squared, `${U}^2 = ${-K * K}`, `${U}^2 = ${4 * K * K}`, `${U}^2 = ${r2}`) },
+        {
+          span: [0, 1],
+          value: solved,
+          bank:
+            b === 0
+              ? stepBank(solved, `c = ${K}`, `c = \\pm ${K * K}`, `c = \\pm ${r2}`)
+              : stepBank(solved, `c = ${-b} \\pm ${K}`, `c = ${b} \\pm ${K * K}`, `c = \\pm ${K}`),
+        },
+      ],
+    };
+  },
+  solution: (p) => {
+    const { b, m } = p;
+    const A = 1 + m * m;
+    const r2 = touchR2(p);
+    const K = touchK(p);
+    const U = b === 0 ? 'c' : `(c ${signedN(-b)})`;
+    return [
+      { text: 'Square the first bracket and multiply out the second:' },
+      { tex: chain(`&${4 * m * m}${U}^2 - ${4 * A}${U}^2`, `&\\quad + ${4 * A * r2} = 0`) },
+      { text: `The $${U}^2$ terms leave $-4${U}^2$, as they always do. Move it across and divide by $4$:` },
+      { tex: `${U}^2 = ${A * r2}` },
+      { text: `$${A * r2} = ${K}^2$, so ${b === 0 ? `$c = \\pm ${K}$` : `$c ${signedN(-b)} = \\pm ${K}$ and $c = ${b - K}$ or $c = ${b + K}$`}.` },
+    ];
+  },
+};
+
+/** Run the condition backwards: a tangent and the centre give r^2 = k^2 / (1 + m^2). */
+const coordTouchRadiusTree: Generator<TouchParams> = {
+  id: 'coord-touch-radius-tree',
+  sample: (rng, difficulty) => sampleTouch(rng, difficulty),
+  render: (p): Slide => {
+    const K = touchK(p);
+    const k = p.s * K;
+    const c = touchC(p);
+    const A = 1 + p.m * p.m;
+    const r2 = touchR2(p);
+    const origin = p.a === 0 && p.b === 0;
+    const answer = [String(k), String(A), String(k * k), String(r2)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          origin
+            ? `The line $${lineTex(q(p.m), q(c))}$ is a tangent to a circle centred at the origin. Find $r^2$. Top row: the line's $c$, and $1 + m^2$. Then $c^2$, then $r^2 = c^2 \\div (1 + m^2)$.`
+            : `The line $${lineTex(q(p.m), q(c))}$ is a tangent to a circle with centre $${named('C', p.a, p.b)}$. Find $r^2$. Top row: $k = ma + c - b$, how far the line is above the centre, and $1 + m^2$. Then $k^2$, then $r^2 = k^2 \\div (1 + m^2)$.`,
+        ),
+      ],
+      expression: origin
+        ? `r^2 = \\frac{${paren(c)}^2}{1 + ${paren(p.m)}^2}`
+        : `r^2 = \\frac{(${sumTex([`${p.m} \\times ${paren(p.a)}`, String(c), String(-p.b)])})^2}{1 + ${paren(p.m)}^2}`,
+      nodes: [
+        { id: 'k', from: [] },
+        { id: 'A', from: [] },
+        { id: 'k2', from: ['k'] },
+        { id: 'r2', from: ['k2', 'A'] },
+      ],
+      bank: bank(answer, [String(-k), String(p.m * p.m), String(2 * r2), String(A * r2), String(k * k * A)], [r2]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const k = p.s * touchK(p);
+    const A = 1 + p.m * p.m;
+    const origin = p.a === 0 && p.b === 0;
+    const letter = origin ? 'c' : 'k';
+    return [
+      {
+        text: origin
+          ? 'Centred at the origin, the tangent condition is $c^2 = r^2(1 + m^2)$, so $r^2 = c^2 \\div (1 + m^2)$.'
+          : `Measured from the centre, the line is $k = ma + c - b = ${sumTex([`${p.m} \\times ${paren(p.a)}`, String(touchC(p)), String(-p.b)])} = ${k}$ above it. The tangent condition is $k^2 = r^2(1 + m^2)$.`,
+      },
+      { tex: chain(`${letter}^2 &= ${k * k}`, `1 + m^2 &= ${A}`, `r^2 &= \\frac{${k * k}}{${A}} = ${touchR2(p)}`) },
+    ];
+  },
+};
+
+/* ---------- lesson 4: tangents from a point outside ---------- */
+
+interface OutsideParams {
+  a: number;
+  b: number;
+  r: number;
+  /** The tangent length. */
+  L: number;
+  /** From the centre to P. */
+  dx: number;
+  dy: number;
+  expanded: boolean;
+}
+
+/**
+ * P outside the circle with CP, r and the tangent length a Pythagorean
+ * triple from the table, so all three are whole.
+ */
+function sampleOutside(rng: Rng, difficulty: number, expanded: boolean): OutsideParams {
+  const [L, r, h] = rng.pick(TRIPLES.filter((row) => row[2] <= (difficulty > 1 ? 25 : 13)));
+  const [dx, dy] = rng.pick(onCircle(h * h));
+  const [a, b] = difficulty > 1 || rng.chance(0.7) ? sampleCentre(rng, 1) : [0, 0];
+  return { a, b, r, L, dx, dy, expanded };
+}
+
+function outsideCircle({ a, b, r, expanded }: OutsideParams): Block {
+  return expanded ? wrapped(expandedTex(a, b, r * r)) : show(circleTex(a, b, r * r));
+}
+
+function tangentLengthSolution(p: OutsideParams): SolutionStep[] {
+  const { a, b, r, L, dx, dy } = p;
+  const h2 = dx * dx + dy * dy;
+  return [
+    ...(p.expanded ? [{ text: `Complete the square first: $${circleTex(a, b, r * r)}$.` }] : []),
+    { text: `The radius to the point of contact $T$ meets the tangent at a right angle, so $PT^2 = CP^2 - r^2$. From $C${pt(a, b)}$ to $P$:` },
+    { tex: narrowDistance('CP', a + dx, a, b + dy, b) },
+    { tex: chain(`PT^2 &= ${h2} - ${r * r} = ${L * L}`, `PT &= ${L}`) },
+  ];
+}
+
+/** The length of a tangent from P, typed; the circle is expanded at difficulty 2. */
+const coordTangentLength: Generator<OutsideParams> = {
+  id: 'coord-tangent-length',
+  sample: (rng, difficulty) => sampleOutside(rng, difficulty, difficulty > 1),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(`$${named('P', p.a + p.dx, p.b + p.dy)}$ lies outside the circle below. Find the length of a tangent from $P$ to the circle.`),
+      outsideCircle(p),
+    ],
+    lead: 'PT =',
+    keypad: [],
+    answer: String(p.L),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: ({ r, L, dx, dy }) => {
+    const h = Math.round(Math.sqrt(dx * dx + dy * dy));
+    return intOptions(L, [h, h - r, L * L, h + r], 1);
+  },
+  solution: tangentLengthSolution,
+};
+
+/** The same length worked as a tree: the changes, CP^2, PT^2, PT. */
+const coordTangentLengthTree: Generator<OutsideParams> = {
+  id: 'coord-tangent-length-tree',
+  sample: (rng, difficulty) => sampleOutside(rng, difficulty, false),
+  render: (p): Slide => {
+    const { a, b, r, L, dx, dy } = p;
+    const h2 = dx * dx + dy * dy;
+    const answer = [dx, dy, h2, L * L, L].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `How long is a tangent from $${named('P', a + dx, b + dy)}$ to the circle $${circleTex(a, b, r * r)}$? Top row: the changes in $x$ and $y$ from the centre to $P$. Then $CP^2$, then $PT^2 = CP^2 - r^2$, then $PT$.`,
+        ),
+      ],
+      expression: 'PT^2 = CP^2 - r^2',
+      nodes: [
+        { id: 'dx', from: [] },
+        { id: 'dy', from: [] },
+        { id: 'cp2', from: ['dx', 'dy'] },
+        { id: 'pt2', from: ['cp2'] },
+        { id: 'pt', from: ['pt2'] },
+      ],
+      bank: bank(answer, [String(-dx), String(-dy), String(h2 + r * r), String(r * r), String(L + r)], [L]),
+      answer,
+    };
+  },
+  solution: tangentLengthSolution,
+};
+
+type Place = 'inside' | 'on' | 'outside';
+
+interface CountParams {
+  a: number;
+  b: number;
+  r2: number;
+  px: number;
+  py: number;
+  expanded: boolean;
+}
+
+const placeOf = ({ a, b, r2, px, py }: CountParams): Place => {
+  const d2 = (px - a) ** 2 + (py - b) ** 2;
+  return d2 < r2 ? 'inside' : d2 === r2 ? 'on' : 'outside';
+};
+
+const TANGENT_COUNT: Record<Place, string> = { inside: 'None', on: 'One', outside: 'Two' };
+
+/** How many tangents pass through P: none from inside, one from on the circle, two from outside. */
+const coordOutsideCount: Generator<CountParams> = {
+  id: 'coord-outside-count',
+  sample: (rng, difficulty) => {
+    const place = rng.pick(['inside', 'on', 'outside'] as const);
+    const r2 = rng.pick(CHORD_RADII);
+    const [a, b] = sampleCentre(rng, 1);
+    const expanded = difficulty > 1;
+    if (place === 'on') {
+      const [dx, dy] = rng.pick(onCircle(r2));
+      return { a, b, r2, px: a + dx, py: b + dy, expanded };
+    }
+    for (;;) {
+      const dx = rng.int(-7, 7);
+      const dy = rng.int(-7, 7);
+      const d2 = dx * dx + dy * dy;
+      if (d2 === 0 || (place === 'inside' ? d2 >= r2 : d2 <= r2 || d2 > r2 + 30)) continue;
+      return { a, b, r2, px: a + dx, py: b + dy, expanded };
+    }
+  },
+  render: (p): Slide => {
+    const labels = [TANGENT_COUNT.inside, TANGENT_COUNT.on, TANGENT_COUNT.outside];
+    return {
+      kind: 'choice',
+      prompt: [
+        say(`How many tangents to the circle below pass through $${named('P', p.px, p.py)}$?`),
+        p.expanded ? wrapped(expandedTex(p.a, p.b, p.r2)) : show(circleTex(p.a, p.b, p.r2)),
+      ],
+      options: labels.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${labels.indexOf(TANGENT_COUNT[placeOf(p)])}`,
+    };
+  },
+  solution: (p) => {
+    const place = placeOf(p);
+    const d2 = (p.px - p.a) ** 2 + (p.py - p.b) ** 2;
+    return [
+      ...(p.expanded ? [{ text: `Complete the square first: $${circleTex(p.a, p.b, p.r2)}$.` }] : []),
+      { text: `Compare $CP^2$ with $r^2 = ${p.r2}$. From the centre $${pt(p.a, p.b)}$ to $P$:` },
+      { tex: narrowDistance('CP', p.px, p.a, p.py, p.b) },
+      {
+        text:
+          place === 'inside'
+            ? `$${d2}$ is less than $${p.r2}$, so $P$ is inside: every line through it cuts the circle, and no tangent passes through it.`
+            : place === 'on'
+              ? `$${d2}$ is exactly $${p.r2}$, so $P$ is on the circle, and the one tangent there is the one at $P$.`
+              : `$${d2}$ is more than $${p.r2}$, so $P$ is outside, and two tangents pass through it.`,
+      },
+    ];
+  },
+};
+
+interface FromPoint {
+  r2: number;
+  /** P measured from the centre. */
+  X: number;
+  Y: number;
+  /** The two tangents' gradients, the smaller first. */
+  m1: number;
+  m2: number;
+}
+
+/**
+ * Every small case of a point outside a circle from which both tangents have
+ * a whole, non-zero gradient up to 7: the roots of
+ * (X^2 - r^2)m^2 - 2XYm + (Y^2 - r^2) = 0, found by trying them all.
+ */
+const FROM_POINTS: FromPoint[] = [];
+for (let r2 = 2; r2 <= 50; r2 += 1) {
+  for (let X = -9; X <= 9; X += 1) {
+    for (let Y = -9; Y <= 9; Y += 1) {
+      const P = X * X - r2;
+      if (X * X + Y * Y <= r2 || P === 0) continue;
+      const Q = -2 * X * Y;
+      const R = Y * Y - r2;
+      const D = Q * Q - 4 * P * R;
+      let s = 0;
+      while (s * s < D) s += 1;
+      if (s * s !== D) continue;
+      const roots = [(-Q - s) / (2 * P), (-Q + s) / (2 * P)].sort((u, v) => u - v);
+      if (roots.some((m) => !Number.isInteger(m) || m === 0 || Math.abs(m) > 7)) continue;
+      FROM_POINTS.push({ r2, X, Y, m1: roots[0], m2: roots[1] });
+    }
+  }
+}
+
+interface FromPointParams extends FromPoint {
+  a: number;
+  b: number;
+}
+
+function sampleFromPoint(rng: Rng, difficulty: number, keep: (p: FromPointParams) => boolean): FromPointParams {
+  for (;;) {
+    const [a, b] = difficulty > 1 ? [nz(rng, 3), nz(rng, 3)] : [0, 0];
+    const p = { ...rng.pick(FROM_POINTS), a, b };
+    if (keep(p)) return p;
+  }
+}
+
+/** The tangent through P with gradient m has c = py - m px. */
+const fromPointC = (p: FromPointParams, m: number) => p.b + p.Y - m * (p.a + p.X);
+
+/** (P, Q, R) with the first positive, the way a quadratic is tidied. */
+function positiveLead([P, Q, R]: [number, number, number]): [number, number, number] {
+  return P < 0 ? [-P, -Q + 0, -R + 0] : [P, Q, R];
+}
+
+function fromPointPrompt(p: FromPointParams): string {
+  const px = p.a + p.X;
+  const py = p.b + p.Y;
+  const circle = circleTex(p.a, p.b, p.r2);
+  return p.a === 0 && p.b === 0
+    ? `Every line through $${named('P', px, py)}$ is $y = mx + c$ with $c = ${sumTex([String(py), termOf(q(-px), 'm')])}$. It touches $${circle}$ when $c^2 = r^2(1 + m^2)$, which is the equation below.`
+    : `Measured from the centre of $${circle}$, the point $${named('P', px, py)}$ is $${p.X}$ across and $${p.Y}$ up, so a line through $P$ with gradient $m$ is $k = ${sumTex([String(p.Y), termOf(q(-p.X), 'm')])}$ above the centre, and it touches when $k^2 = r^2(1 + m^2)$, the equation below.`;
+}
+
+function fromPointSolution(p: FromPointParams): SolutionStep[] {
+  const [P, Q, R] = positiveLead([p.X * p.X - p.r2, -2 * p.X * p.Y, p.Y * p.Y - p.r2]);
+  const bracket = sumTex([String(p.Y), termOf(q(-p.X), 'm')]);
+  return [
+    { text: 'A line through $P$ touches when the tangent condition holds:' },
+    { tex: `(${bracket})^2 = ${p.r2}(1 + m^2)` },
+    { text: 'Multiply out both sides and collect everything on one side:' },
+    { tex: quadTex(P, Q, R, 'm') },
+    { tex: eitherTex('m', p.m1, p.m2) },
+    {
+      text: `So the tangents are $${lineTex(q(p.m1), q(fromPointC(p, p.m1)))}$ and $${lineTex(q(p.m2), q(fromPointC(p, p.m2)))}$.`,
+    },
+  ];
+}
+
+/** The gradients of the two tangents from P: the tangent condition as a quadratic in m, solved. */
+const coordOutsideGradientSteps: Generator<FromPointParams> = {
+  id: 'coord-outside-gradient-steps',
+  sample: (rng, difficulty) => sampleFromPoint(rng, difficulty, (p) => p.X !== 0 && p.Y !== 0),
+  render: (p): Slide => {
+    const { X, Y, r2, m1, m2 } = p;
+    const lhs = sumTex([sqTerm(X * X, 'm'), termOf(q(-2 * X * Y), 'm'), String(Y * Y)]);
+    const rhs = sumTex([sqTerm(r2, 'm'), String(r2)]);
+    const tidy = (lead: number, middle: number, last: number) => quadTex(...positiveLead([lead, middle, last]), 'm');
+    const collected = tidy(X * X - r2, -2 * X * Y, Y * Y - r2);
+    const roots = eitherTex('m', m1, m2);
+    return {
+      kind: 'steps',
+      prompt: [say(`${fromPointPrompt(p)} Solve it for the gradients of the two tangents: tap the part you would do **next**, then choose what it becomes.`)],
+      start: [`(${sumTex([String(Y), termOf(q(-X), 'm')])})^2`, '=', `${r2}(1 + m^2)`],
+      reductions: [
+        {
+          span: [0, 1],
+          value: lhs,
+          bank: stepBank(
+            lhs,
+            sumTex([sqTerm(X * X, 'm'), String(Y * Y)]),
+            sumTex([sqTerm(X * X, 'm'), termOf(q(2 * X * Y), 'm'), String(Y * Y)]),
+            sumTex([sqTerm(X * X, 'm'), termOf(q(-X * Y), 'm'), String(Y * Y)]),
+          ),
+        },
+        {
+          span: [2, 3],
+          value: rhs,
+          bank: stepBank(rhs, sumTex([sqTerm(r2, 'm'), '1']), sumTex(['m^2', String(r2)]), sumTex([sqTerm(r2, 'm'), String(-r2)])),
+        },
+        {
+          span: [0, 3],
+          value: collected,
+          bank: stepBank(
+            collected,
+            tidy(X * X - r2, -2 * X * Y, Y * Y + r2),
+            tidy(X * X + r2, -2 * X * Y, Y * Y + r2),
+            tidy(X * X - r2, 2 * X * Y, Y * Y - r2),
+          ),
+        },
+        {
+          span: [0, 1],
+          value: roots,
+          bank: stepBank(roots, eitherTex('m', -m1, -m2), eitherTex('m', m1, -m2), eitherTex('m', m1 - 1, m2 + 1)),
+        },
+      ],
+    };
+  },
+  solution: fromPointSolution,
+};
+
+/** One of the two tangents from P, the steeper-upward one, as two tiles. */
+const coordOutsideTangentTiles: Generator<FromPointParams> = {
+  id: 'coord-outside-tangent-tiles',
+  sample: (rng, difficulty) => sampleFromPoint(rng, difficulty, (p) => fromPointC(p, p.m2) !== 0),
+  render: (p): Slide => {
+    const c1 = fromPointC(p, p.m1);
+    const c2 = fromPointC(p, p.m2);
+    const px = p.a + p.X;
+    const py = p.b + p.Y;
+    const answer = [termOf(q(p.m2)), signedN(c2)];
+    const slips = [termOf(q(p.m1)), termOf(q(-p.m2)), ...[c1, -c2, py + p.m2 * px].filter((v) => v !== 0).map(signedN)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `Two tangents to the circle $${circleTex(p.a, p.b, p.r2)}$ pass through $${named('P', px, py)}$. Write the one with the larger gradient.`,
+        ),
+      ],
+      template: 'y = {0} {1}',
+      bank: signedBank(answer, slips, [c2]),
+      answer,
+    };
+  },
+  solution: (p) => [
+    ...fromPointSolution(p),
+    { text: `The larger gradient is $${p.m2}$, which gives $${lineTex(q(p.m2), q(fromPointC(p, p.m2)))}$.` },
+  ],
+};
+
+/* ---------- lesson 5: chords ---------- */
+
+interface ChordHalfParams {
+  a: number;
+  b: number;
+  /** From the centre to the chord's midpoint M. */
+  ux: number;
+  uy: number;
+  /** Half the chord. */
+  h: number;
+  /** Difficulty 2 of the r^2 question gives the circle expanded, with its number unknown. */
+  expanded: boolean;
+}
+
+const halfR2 = ({ ux, uy, h }: ChordHalfParams) => ux * ux + uy * uy + h * h;
+
+/**
+ * A chord's midpoint M off the centre, and half the chord whole: r^2 is
+ * built as CM^2 + h^2, so nothing is ever rooted but h^2.
+ */
+function sampleChordHalf(rng: Rng, difficulty: number, expanded = false): ChordHalfParams {
+  const top = difficulty > 1 ? 6 : 4;
+  const [a, b] = sampleCentre(rng, difficulty > 1 ? 2 : 1);
+  return { a, b, ux: nz(rng, top), uy: nz(rng, top), h: difficulty > 1 ? rng.int(2, 8) : rng.int(1, 6), expanded };
+}
+
+function chordHalfSolution(p: ChordHalfParams): SolutionStep[] {
+  const { a, b, ux, uy, h } = p;
+  const d2 = ux * ux + uy * uy;
+  return [
+    { text: `The perpendicular from the centre meets the chord at its midpoint $M$, so $r^2 = CM^2 + \\left(\\tfrac{1}{2}AB\\right)^2$. From $C${pt(a, b)}$ to $M$:` },
+    { tex: narrowDistance('CM', a + ux, a, b + uy, b) },
+    { tex: chain(`\\left(\\tfrac{1}{2}AB\\right)^2 &= ${halfR2(p)} - ${d2} = ${h * h}`, `\\tfrac{1}{2}AB &= ${h}`, `AB &= ${2 * h}`) },
+  ];
+}
+
+/** A chord's length from its midpoint: the changes, CM^2, half the chord squared, the chord. */
+const coordChordHalfTree: Generator<ChordHalfParams> = {
+  id: 'coord-chord-half-tree',
+  sample: (rng, difficulty) => sampleChordHalf(rng, difficulty),
+  render: (p): Slide => {
+    const { a, b, ux, uy, h } = p;
+    const r2 = halfR2(p);
+    const d2 = ux * ux + uy * uy;
+    const answer = [ux, uy, d2, h * h, 2 * h].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$${named('M', a + ux, b + uy)}$ is the midpoint of a chord $AB$ of the circle $${circleTex(a, b, r2)}$. How long is $AB$? Top row: the changes in $x$ and $y$ from the centre to $M$. Then $CM^2$, then $\\left(\\tfrac{1}{2}AB\\right)^2 = r^2 - CM^2$, then $AB$.`,
+        ),
+      ],
+      expression: '\\left(\\tfrac{1}{2}AB\\right)^2 = r^2 - CM^2',
+      nodes: [
+        { id: 'dx', from: [] },
+        { id: 'dy', from: [] },
+        { id: 'cm2', from: ['dx', 'dy'] },
+        { id: 'half2', from: ['cm2'] },
+        { id: 'ab', from: ['half2'] },
+      ],
+      bank: bank(answer, [String(-ux), String(-uy), String(h), String(r2 + d2), String(r2)], [2 * h]),
+      answer,
+    };
+  },
+  solution: chordHalfSolution,
+};
+
+/**
+ * Backwards: a chord's length and midpoint give r^2 (difficulty 1), or the
+ * missing number in the expanded circle (difficulty 2).
+ */
+const coordChordRadius: Generator<ChordHalfParams> = {
+  id: 'coord-chord-radius',
+  sample: (rng, difficulty) => sampleChordHalf(rng, difficulty, difficulty > 1),
+  render: (p): Slide => {
+    const { a, b, ux, uy, h, expanded } = p;
+    const r2 = halfR2(p);
+    const M = named('M', a + ux, b + uy);
+    return {
+      kind: 'expression',
+      prompt: expanded
+        ? [
+            say(`A chord of length $${2 * h}$ of the circle below has its midpoint at $${M}$. Find $k$.`),
+            wrapped(`${sumTex(['x^2', 'y^2', termOf(q(-2 * a)), termOf(q(-2 * b), 'y')])} + k = 0`),
+          ]
+        : [say(`A chord of length $${2 * h}$ has its midpoint at $${M}$, in a circle with centre $${named('C', a, b)}$. Find $r^2$.`)],
+      lead: expanded ? 'k =' : 'r^2 =',
+      keypad: [],
+      answer: String(expanded ? a * a + b * b - r2 : r2),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const { a, b, ux, uy, h, expanded } = p;
+    const d2 = ux * ux + uy * uy;
+    const r2 = halfR2(p);
+    if (expanded) return intOptions(a * a + b * b - r2, [a * a + b * b + r2, r2, a * a + b * b - d2 - 4 * h * h, -r2]);
+    return intOptions(r2, [d2 + 4 * h * h, d2 - h * h, d2 + 2 * h, 4 * h * h], 1);
+  },
+  solution: (p) => {
+    const { a, b, ux, uy, h, expanded } = p;
+    const d2 = ux * ux + uy * uy;
+    const r2 = halfR2(p);
+    return [
+      ...(expanded
+        ? [{ text: `Halve the coefficients and change their signs: the centre is $C${pt(a, b)}$.` }]
+        : []),
+      { text: `The perpendicular from the centre meets the chord at its midpoint, so $r^2 = CM^2 + \\left(\\tfrac{1}{2}AB\\right)^2$:` },
+      { tex: narrowDistance('CM', a + ux, a, b + uy, b) },
+      { tex: `r^2 = ${d2} + ${h}^2 = ${r2}` },
+      ...(expanded
+        ? [{ text: `Completing the square gives $r^2 = a^2 + b^2 - k$, so $k = ${a * a} + ${b * b} - ${r2} = ${a * a + b * b - r2}$.` }]
+        : []),
+    ];
+  },
+};
+
+/** A line cutting a circle at two lattice points whose midpoint is a lattice point too. */
+const evenChord = (p: CutParams) => (p.x1 + p.x2) % 2 === 0;
+
+/** The chord's midpoint: half the sum of the roots, then its y from the line, then the point. */
+const coordChordMidpointSteps: Generator<CutParams> = {
+  id: 'coord-chord-midpoint-steps',
+  sample: (rng, difficulty) => sampleCut(rng, difficulty, (p) => evenChord(p) && p.x1 + p.x2 !== 0),
+  render: (p): Slide => {
+    const xm = (p.x1 + p.x2) / 2;
+    const ym = (p.y1 + p.y2) / 2;
+    const xStep = `x_M = ${xm}`;
+    const yStep = `y_M = ${ym}`;
+    const point = `M = ${pt(xm, ym)}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `The line $${meetLine(p)}$ cuts the circle $${meetCircle(p)}$ at $A$ and $B$. Putting the line into the circle and dividing through gives the quadratic below. Its roots are the $x$-coordinates of $A$ and $B$, and they add to minus its $x$ coefficient. Find the midpoint $M$ of $AB$: tap the part you would do **next**, then choose what it becomes.`,
+        ),
+        show(monicTex(p)),
+      ],
+      start: ['x_M = \\frac{x_A + x_B}{2}', ',', `y_M = ${sumTex([termOf(q(p.m), 'x_M'), String(p.c)])}`],
+      reductions: [
+        { span: [0, 1], value: xStep, bank: stepBank(xStep, `x_M = ${-xm}`, `x_M = ${2 * xm}`, `x_M = ${-2 * xm}`) },
+        { span: [2, 3], value: yStep, bank: stepBank(yStep, `y_M = ${p.m * xm - p.c}`, `y_M = ${p.c - p.m * xm}`, `y_M = ${2 * p.m * xm + p.c}`) },
+        { span: [0, 3], value: point, bank: stepBank(point, `M = ${pt(ym, xm)}`, `M = ${pt(-xm, ym)}`, `M = ${pt(xm, -ym + 0)}`) },
+      ],
+    };
+  },
+  solution: (p) => {
+    const s = p.x1 + p.x2;
+    const xm = s / 2;
+    return [
+      { text: `The roots of $${monicTex(p)}$ add to minus its $x$ coefficient: $x_A + x_B = ${s}$.` },
+      { tex: `x_M = \\frac{${s}}{2} = ${xm}` },
+      { text: `The midpoint is on the line, so $y_M = ${lineAt(p.m, p.c, xm)} = ${(p.y1 + p.y2) / 2}$.` },
+      { text: `So $M = ${pt(xm, (p.y1 + p.y2) / 2)}$: the roots are $${p.x1}$ and $${p.x2}$, and $A${pt(p.x1, p.y1)}$ and $B${pt(p.x2, p.y2)}$ are either side of it.` },
+    ];
+  },
+};
+
+interface ChordSliderParams extends CutParams {
+  axis: 'x' | 'y';
+}
+
+/**
+ * The chord drawn in its circle: slide to its midpoint, where the
+ * perpendicular from the centre meets it, across (difficulty 1) or up
+ * (difficulty 2).
+ */
+const coordChordSlider: Generator<ChordSliderParams> = {
+  id: 'coord-chord-slider',
+  sample: (rng, difficulty) => ({
+    ...sampleCut(
+      rng,
+      difficulty,
+      (p) => evenChord(p) && fits(p.a, p.b, p.r2) && (p.x1 + p.x2 !== 2 * p.a || p.y1 + p.y2 !== 2 * p.b),
+    ),
+    axis: difficulty > 1 ? 'y' : 'x',
+  }),
+  render: (p): Slide => {
+    const xm = (p.x1 + p.x2) / 2;
+    const ym = (p.y1 + p.y2) / 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          p.axis === 'x'
+            ? `The line $${meetLine(p)}$ cuts the circle $${meetCircle(p)}$ at $${named('A', p.x1, p.y1)}$ and $${named('B', p.x2, p.y2)}$. The perpendicular from the centre meets the chord at its midpoint. Slide to the midpoint's $x$-coordinate.`
+            : `The line $${meetLine(p)}$ cuts the circle $${meetCircle(p)}$. The perpendicular from the centre meets the chord at its midpoint. Find it, and slide to its height.`,
+        ),
+      ],
+      min: -9,
+      max: 9,
+      step: 1,
+      answer: p.axis === 'x' ? xm : ym,
+      readout: `${p.axis} = {v}`,
+      figure: {
+        svg: circleFigure(
+          p.a,
+          p.b,
+          p.r2,
+          [segment(p.x1, p.y1, p.x2, p.y2)],
+          [
+            { x: p.x1, y: p.y1 },
+            { x: p.x2, y: p.y2 },
+          ],
+          'A circle with a chord drawn across it between two marked points',
+        ),
+        axis: p.axis,
+        ...markerWindow(-10, 10, p.axis, SQUARE),
+      },
+    };
+  },
+  solution: (p) => {
+    const xm = (p.x1 + p.x2) / 2;
+    const ym = (p.y1 + p.y2) / 2;
+    return [
+      ...(p.axis === 'y' ? [...substituteSolution(p), ...rootsSolution(p)] : []),
+      { text: `The perpendicular from the centre bisects the chord, so it meets it at the midpoint of $${pt(p.x1, p.y1)}$ and $${pt(p.x2, p.y2)}$:` },
+      { tex: chain(`x_M &= \\frac{${p.x1} + ${paren(p.x2)}}{2} = ${xm}`, `y_M &= \\frac{${p.y1} + ${paren(p.y2)}}{2} = ${ym}`) },
+    ];
+  },
+};
+
 export const coordinateGeometryGenerators = [
   coordGradient,
   coordRiseRunTree,
@@ -2891,4 +4397,25 @@ export const coordinateGeometryGenerators = [
   coordTangentTiles,
   coordChord,
   coordTangentSlider,
+  coordSubstituteSteps,
+  coordMeetQuadraticTiles,
+  coordRootPointTree,
+  coordMeetCircleX,
+  coordMeetCountFlow,
+  coordMeetDiscriminant,
+  coordWhichLine,
+  coordTouchPointSlider,
+  coordTouchC,
+  coordTouchLinesTiles,
+  coordTouchConditionSteps,
+  coordTouchRadiusTree,
+  coordTangentLength,
+  coordTangentLengthTree,
+  coordOutsideCount,
+  coordOutsideGradientSteps,
+  coordOutsideTangentTiles,
+  coordChordHalfTree,
+  coordChordRadius,
+  coordChordMidpointSteps,
+  coordChordSlider,
 ];

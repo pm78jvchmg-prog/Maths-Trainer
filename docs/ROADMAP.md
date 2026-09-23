@@ -139,7 +139,7 @@ Categories map to the home-screen tab strip; two tabs are new.
 | # | Concept | State |
 | ---: | --- | --- |
 | 10 | Trigonometric Functions | **15 lessons** |
-| 11 | Trigonometric Identities & Equations | new |
+| 11 | Trigonometric Identities & Equations | **9 lessons** |
 | 12 | Logarithms | **12 lessons** |
 | 13 | Exponential Models | new |
 | 14 | Binomial Expansion | new |
@@ -237,6 +237,11 @@ Two Vectors.
 **Matrices & Linear Transformations** (after the split) — has: Matrices,
 Determinants & Inverses. Needs: Matrices as Transformations; Composing
 Transformations; Systems of Equations; Invariant Lines & Points.
+
+**Trigonometric Identities & Equations** — has: Using Identities, Compound and
+Double Angles. Needs: The Form R sin(x + α); Half-Angle and Multiple-Angle
+Formulae; Proving Identities; Sum-to-Product (Factor Formulae); General
+Solutions & Harder Equations.
 
 New concepts get their level plan written by the thread that starts them — the
 first batch for a new concept is "levels 1 and 2 plus a level plan committed
@@ -483,7 +488,7 @@ batch rather than waiting on a separate one.
 
 | # | Batch | Status |
 | ---: | --- | --- |
-| C6 | Trigonometric Identities & Equations | claimed (`claude/roadmap-c-trig-identities-pj4b64`) |
+| C6 | Trigonometric Identities & Equations | **done** (`claude/roadmap-c-trig-identities-pj4b64`): course `trig-identities`, levels `ti-l1` and `ti-l2`, 9 lessons, level checks of 14 and 15 questions, 33 new generators |
 
 ### When the queue empties
 

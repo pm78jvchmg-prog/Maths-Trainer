@@ -41,6 +41,7 @@ import {
   signedTile,
 } from './quadratics';
 import { simultaneousGenerators } from './quadraticSimultaneous';
+import { inequalityGenerators } from './quadraticInequalities';
 
 /**
  * Four whole-number options built from `offer`, the correct one flagged.
@@ -1179,4 +1180,6 @@ export const quadraticShapeGenerators = [
   // Level 4, simultaneous equations: kept in a file of its own and listed
   // here so the registry needs no new import.
   ...simultaneousGenerators,
+  // Level 5, quadratic inequalities, the same way.
+  ...inequalityGenerators,
 ] as unknown as Generator<unknown>[];

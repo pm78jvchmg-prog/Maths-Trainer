@@ -10,9 +10,13 @@
 import katex from 'katex';
 import { describe, expect, it } from 'vitest';
 import { checkAnswer } from '../engine/equivalence';
+import { TRIG_KEYS } from '../content/generators/trigonometry';
+import type { KeypadKey } from '../content/types';
 import {
   EMPTY_DOC,
+  applyKey,
   deleteBack,
+  docFromKeys,
   docFromAnswer,
   insertAtom,
   insertFraction,
@@ -223,5 +227,74 @@ describe('a second exponent', () => {
     doc = typeInto(insertSup(doc), '3');
     expect(checkAnswer(toAnswer(doc.nodes), 'x^8', { domain: 'positive' }).status).toBe('correct');
     expect(checkAnswer(toAnswer(doc.nodes), 'x^6', { domain: 'positive' }).status).toBe('incorrect');
+  });
+});
+
+describe('trig function keys', () => {
+  const key = (name: string): KeypadKey => TRIG_KEYS.find((k) => k.insert === name)!;
+  const press = (doc: Doc, ...keys: (KeypadKey | string)[]): Doc =>
+    keys.reduce<Doc>(
+      (acc, k) => (typeof k === 'string' ? type(acc, k) : applyKey(acc, k)),
+      doc,
+    );
+
+  it('puts what is typed next inside the brackets', () => {
+    const doc = press(EMPTY_DOC, '4', key('sin'), '30');
+    expect(toTex(doc.nodes)).toBe('4\\sin\\left(30\\right)');
+    expect(doc.caret.steps).toHaveLength(1);
+  });
+
+  it('grades in degrees, not the radians mathjs works in', () => {
+    const height = press(EMPTY_DOC, '4', key('sin'), '30');
+    expect(checkAnswer(toAnswer(height.nodes), '2').status).toBe('correct');
+    const across = press(EMPTY_DOC, '8', key('cos'), '120');
+    expect(checkAnswer(toAnswer(across.nodes), '-4').status).toBe('correct');
+    expect(checkAnswer(toAnswer(across.nodes), '4').status).toBe('incorrect');
+  });
+
+  it('hands an inverse back in degrees', () => {
+    const doc = applyKey(press(EMPTY_DOC, key('asin')), { insert: '/' });
+    const typed = type(moveRight(type(doc, '2')), '4');
+    expect(toTex(typed.nodes)).toBe('\\sin^{-1}\\left(\\frac{2}{4}\\right)');
+    expect(checkAnswer(toAnswer(typed.nodes), '30').status).toBe('correct');
+  });
+
+  it('keeps the function to its brackets when more is typed after it', () => {
+    const doc = type(moveRight(press(EMPTY_DOC, '2', key('sin'), '90')), '+1');
+    expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('correct');
+  });
+
+  it('works in radians when the key says so', () => {
+    const inside = press(EMPTY_DOC, '6', { insert: 'sin', fn: 'radians' }, { insert: '/' }, { insert: 'pi' });
+    const doc = type(moveRight(inside), '6');
+    expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('correct');
+  });
+
+  it('never grades an empty function, even where sin(0) would be right', () => {
+    const doc = press(EMPTY_DOC, '4', key('sin'));
+    expect(checkAnswer(toAnswer(doc.nodes), '0').status).toBe('invalid');
+  });
+
+  it('clears an empty function in the press that leaves it', () => {
+    const doc = deleteBack(press(EMPTY_DOC, '4', key('cos')));
+    expect(toAnswer(doc.nodes)).toBe('4');
+  });
+
+  it('renders every key and every function as TeX KaTeX accepts', () => {
+    for (const k of TRIG_KEYS) {
+      const doc = press(EMPTY_DOC, k, '1');
+      expect(() => katex.renderToString(toTex(doc.nodes), { throwOnError: true, strict: false })).not.toThrow();
+    }
+  });
+
+  it('opens a prefill with the caret inside the function', () => {
+    const doc = type(docFromKeys([{ insert: '6' }, key('sin')]), '150');
+    expect(checkAnswer(toAnswer(doc.nodes), '3').status).toBe('correct');
+  });
+
+  it('reads a stored degree function back as the key, not as its mathjs name', () => {
+    const doc = docFromAnswer('4(sind(30))');
+    expect(toTex(doc.nodes)).toBe('4(\\sin(30))');
+    expect(toAnswer(doc.nodes)).toBe('4(sind(30))');
   });
 });

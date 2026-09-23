@@ -19,8 +19,29 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg, wave } from '../figures';
 import { bin, num, trig, valueOf, type Expr } from '../expr';
 
-/** Plain number entry. The base keypad already supplies digits and signs. */
-const NUMBER_KEYS: KeypadKey[] = [{ insert: '.' }, { insert: '/' }];
+/**
+ * Plain number entry. The base keypad already supplies digits, signs and the
+ * decimal point; a second `.` here used to put two identical keys side by side.
+ */
+const NUMBER_KEYS: KeypadKey[] = [{ insert: '/' }];
+
+/** The six trig function keys, angles in degrees. Exported for the editor's tests. */
+export const TRIG_KEYS: KeypadKey[] = (['sin', 'cos', 'tan', 'asin', 'acos', 'atan'] as const).map(
+  (insert) => ({ insert, fn: 'degrees' as const }),
+);
+
+/**
+ * Number entry plus every trig function, for a question where working out
+ * which function applies is the point. All six are offered whichever one the
+ * answer needs, so the keypad does not make that choice for the learner.
+ */
+const FUNCTION_KEYS: KeypadKey[] = [...NUMBER_KEYS, ...TRIG_KEYS];
+
+/** `r sin(` with the caret in the brackets: the function written in, the angle left to the learner. */
+const writtenIn = (radius: number, fn: 'sin' | 'cos'): KeypadKey[] => [
+  { insert: `${radius}` },
+  { insert: fn, fn: 'degrees' },
+];
 
 /** Angles whose sine is 0, ±1/2 or ±1, paired with twice that sine. */
 const SINE_ANGLES: { degrees: number; twiceSine: number }[] = [
@@ -367,7 +388,16 @@ interface CircleParams {
   radius: number;
   degrees: number;
   twice: number;
+  /**
+   * `given` writes `r sin(` into the answer box, leaving only the angle to
+   * type; an easier first meeting, and only ever at difficulty 1.
+   */
+  form: 'free' | 'given';
 }
+
+/** Half the difficulty-1 draws come with the function already written in. */
+const circleForm = (rng: Rng, difficulty: number): CircleParams['form'] =>
+  difficulty === 1 && rng.chance(0.5) ? 'given' : 'free';
 
 /** Height of a point on a turning circle: r sin(theta). */
 const sineFromCircle: Generator<CircleParams> = {
@@ -385,9 +415,10 @@ const sineFromCircle: Generator<CircleParams> = {
       radius: rng.int(1, difficulty > 1 ? 6 : 4) * 2,
       degrees: angle.degrees,
       twice: angle.twiceSine,
+      form: circleForm(rng, difficulty),
     };
   },
-  render: ({ radius, degrees, twice }) => ({
+  render: ({ radius, degrees, twice, form }) => ({
     kind: 'expression',
     prompt: [
       {
@@ -396,7 +427,8 @@ const sineFromCircle: Generator<CircleParams> = {
       },
     ],
     lead: '\\text{height} =',
-    keypad: NUMBER_KEYS,
+    keypad: FUNCTION_KEYS,
+    ...(form === 'given' && { prefill: writtenIn(radius, 'sin') }),
     answer: `${(radius * twice) / 2}`,
     domain: 'real',
     mode: 'exact',
@@ -433,9 +465,10 @@ const cosineFromCircle: Generator<CircleParams> = {
       radius: rng.int(1, difficulty > 1 ? 6 : 4) * 2,
       degrees: angle.degrees,
       twice: angle.twiceCosine,
+      form: circleForm(rng, difficulty),
     };
   },
-  render: ({ radius, degrees, twice }) => ({
+  render: ({ radius, degrees, twice, form }) => ({
     kind: 'expression',
     prompt: [
       {
@@ -444,7 +477,8 @@ const cosineFromCircle: Generator<CircleParams> = {
       },
     ],
     lead: '\\text{displacement} =',
-    keypad: NUMBER_KEYS,
+    keypad: FUNCTION_KEYS,
+    ...(form === 'given' && { prefill: writtenIn(radius, 'cos') }),
     answer: `${(radius * twice) / 2}`,
     domain: 'real',
     mode: 'exact',

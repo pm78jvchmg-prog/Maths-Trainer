@@ -5064,6 +5064,1454 @@ const squareCheckSteps: Generator<EquationParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 4: Modulus of Quadratics
+ *
+ * The modulus meets curves. $y = |f(x)|$ reflects whatever of a quadratic
+ * lies below the axis, and $y = f(|x|)$ keeps the right half and mirrors it.
+ * Then $|f(x)| = c$ solved from the graph, as the two equations $f(x) = c$
+ * and $f(x) = -c$ and the line $y = c$ counting their roots; the same
+ * reflection for a cubic; and $|f(x)| < c$ read off the picture.
+ *
+ * Built outward from the answer as the rest of the file is. The quadratics
+ * whose roots are asked for all come from `DIPS`, a table of $(h, c)$ for
+ * which every root of $|(x - m)^2 - h| = c$ is whole: $h + c$ a square and
+ * $h - c$ a square or negative. A table rather than a search, so a mistyped
+ * row fails the test that checks it (PITFALLS 3.11).
+ * ==================================================================== */
+
+/** $|x|$ as the learner reads it. */
+const ABS_X = absTex('x');
+
+/** A term in $x$ with $|x|$ written in place of $x$: `-4\lvert x \rvert`. */
+const absTerm = (coefficient: number) => (coefficient === 0 ? '0' : termTex(coefficient, 1).replace(/x$/, ABS_X));
+
+/** $ax^2 + b|x| + c$, which is $f(|x|)$ for $f(x) = ax^2 + bx + c$ since $|x|^2 = x^2$. */
+function quadAbsXTex(a: number, b: number, c: number): string {
+  const tex = sumTex([termTex(a, 2), absTerm(b), termTex(c, 0)]);
+  return tex === '' ? '0' : tex;
+}
+
+/** $(x - z)$, or $x$ when $z$ is zero; with $|x|$ for $x$ when `abs`. */
+function rootFactor(z: number, abs = false): string {
+  const v = abs ? ABS_X : 'x';
+  return z === 0 ? v : `(${v} ${signedTile(-z)})`;
+}
+
+/** The product of $(x - z)$ over the roots, a bare $x$ first: `x(x + 2)(x - 3)`. */
+function productTex(roots: readonly number[], abs = false): string {
+  const ordered = [...roots.filter((z) => z === 0), ...roots.filter((z) => z !== 0)];
+  return ordered.map((z) => rootFactor(z, abs)).join('');
+}
+
+/** The product of $(x - z)$ over the roots, as a function. */
+const productOf = (roots: readonly number[]) => (x: number) => roots.reduce((acc, z) => acc * (x - z), 1);
+
+/** Curves on squared paper from $x = -6$ to $6$, clipped at the window's edge. */
+function modPlot(
+  curves: { f: (x: number) => number; dashed?: boolean; accent?: boolean }[],
+  yMin: number,
+  yMax: number,
+  label: string,
+  marks: { x: number; y: number }[] = [],
+  horizontals: number[] = [],
+): string {
+  return plotSvg({ xMin: -6, xMax: 6, yMin, yMax, curves, marks, horizontals, grid: true, label });
+}
+
+const COUNT_LABEL = ['None', 'One', 'Two', 'Three', 'Four'];
+
+/* ---------- Lesson 1: y = |f(x)| for a quadratic ---------- */
+
+interface RootPairParams {
+  /** The smaller root. */
+  p: number;
+  q: number;
+  /** Multiplied out rather than factorised. */
+  expanded: boolean;
+}
+
+/** f(x) = (x - p)(x - q), written factorised or multiplied out. */
+const rootPairTex = ({ p, q, expanded }: RootPairParams) => (expanded ? quadTex(1, -(p + q), p * q) : productTex([p, q]));
+/** The same with $|x|$ for $x$: f(|x|). */
+const pairAbsXTex = ({ p, q, expanded }: RootPairParams) =>
+  expanded ? quadAbsXTex(1, -(p + q), p * q) : productTex([p, q], true);
+/** The quadratic whose roots are $-q$ and $-p$: f(-x), the mirror image. */
+const mirrorPair = ({ p, q, expanded }: RootPairParams): RootPairParams => ({ p: -q, q: -p, expanded });
+
+/** Two whole roots, smaller first. */
+function sampleRootPair(rng: Rng, from: number, to: number, accept: (p: number, q: number) => boolean): { p: number; q: number } {
+  return drawUntil(
+    () => {
+      const [x, y] = [rng.int(from, to), rng.int(from, to)];
+      return { p: Math.min(x, y), q: Math.max(x, y) };
+    },
+    ({ p, q }) => p !== q && accept(p, q),
+    { p: -1, q: 3 },
+  );
+}
+
+/**
+ * Which equation is this graph: $y = |f(x)|$, $y = f(x)$, the mirror image,
+ * or $y = f(|x|)$?
+ *
+ * The graph is a quadratic whose dip between the roots has been reflected up.
+ * Its roots are marked and stated, which rules the mirror image out, so what
+ * is left is telling a modulus of $f$ from $f$ itself and from $f(|x|)$.
+ * Difficulty 2 writes the quadratics multiplied out.
+ */
+const absQuadMatch: Generator<RootPairParams> = {
+  id: 'mod-abs-quad-match',
+  sample: (rng, difficulty) => ({
+    ...sampleRootPair(rng, -5, 5, (p, q) => p !== 0 && q !== 0 && p !== -q && q - p <= 6),
+    expanded: difficulty > 1,
+  }),
+  render: (params): Slide => {
+    const { p, q } = params;
+    const f = productOf([p, q]);
+    const depth = ((q - p) * (q - p)) / 4;
+    return pickOne(
+      [
+        { kind: 'prose', text: `Which equation has this graph? It meets the $x$-axis at $x = ${p}$ and $x = ${q}$.` },
+        {
+          kind: 'diagram',
+          svg: modPlot([{ f: (x) => Math.abs(f(x)), accent: true }], -2, Math.max(depth + 3, 7), 'A U-shaped curve whose dip between its two roots is reflected above the axis', [
+            { x: p, y: 0 },
+            { x: q, y: 0 },
+          ]),
+        },
+      ],
+      `y = ${absTex(rootPairTex(params))}`,
+      [`y = ${rootPairTex(params)}`, `y = ${absTex(rootPairTex(mirrorPair(params)))}`, `y = ${pairAbsXTex(params)}`],
+    );
+  },
+  solution: (params) => {
+    const { p, q } = params;
+    return [
+      { text: `The curve never goes below the $x$-axis, but $y = ${rootPairTex(params)}$ would dip below it between its roots.` },
+      { text: `Its roots are $x = ${p}$ and $x = ${q}$, so the quadratic is $${rootPairTex(params)}$ and not its mirror image.` },
+      { text: 'The dip between the roots has been reflected up, and the arms are unchanged: that is the modulus of the quadratic.' },
+      { text: 'It is not symmetric about the $y$-axis, so it is not $f(\\lvert x \\rvert)$.', tex: `y = ${absTex(rootPairTex(params))}` },
+    ];
+  },
+};
+
+interface VertexShapeParams {
+  /** 1 for a U, -1 for an upside-down U. */
+  s: 1 | -1;
+  h: number;
+  k: number;
+  expanded: boolean;
+}
+
+/** s(x - h)^2 + k in vertex form: `(x - 2)^{2} - 9`, `-x^{2} + 4`. */
+const vertexFormTex = ({ s, h, k }: VertexShapeParams) => `${s < 0 ? '-' : ''}${squareTex(h)} ${signedTile(k)}`;
+const shapeTex = (params: VertexShapeParams) =>
+  params.expanded ? quadTex(params.s, -2 * params.s * params.h, params.s * params.h * params.h + params.k) : vertexFormTex(params);
+const shapeValue = ({ s, h, k }: VertexShapeParams) => (x: number) => s * (x - h) * (x - h) + k;
+
+/**
+ * Slide to the height of the vertex of $y = |f(x)|$.
+ *
+ * The dashed curve is $y = f(x)$ with its vertex $(h, k)$ below the axis, so
+ * reflecting sends the vertex to $(h, -k)$. Difficulty 2 writes $f$ out in
+ * full and also draws curves whose vertex is above the axis, where it stays.
+ */
+const absVertexSlider: Generator<VertexShapeParams> = {
+  id: 'mod-abs-vertex-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      s: hard && rng.chance(0.5) ? -1 : 1,
+      h: rng.int(-3, 3),
+      k: hard ? rng.pick(nonZero(-8, 8)) : rng.int(-9, -1),
+      expanded: hard,
+    };
+  },
+  render: (params): Slide => {
+    const tex = shapeTex(params);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: params.expanded
+            ? `The dashed curve is $y = ${tex}$, whose vertex is at $x = ${params.h}$. Slide to the height of the vertex of $y = ${absTex(tex)}$.`
+            : `The dashed curve is $y = ${tex}$. Reflecting the part below the $x$-axis gives $y = ${absTex(tex)}$. Slide to the height of its vertex.`,
+        },
+      ],
+      min: -10,
+      max: 10,
+      step: 1,
+      answer: Math.abs(params.k),
+      readout: 'y = {v}',
+      figure: {
+        svg: modPlot([{ f: shapeValue(params), dashed: true }], -10, 10, 'A dashed parabola on squared paper'),
+        ...markerWindow(-10, 10, 'y'),
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const { h, k, expanded } = params;
+    const steps: SolutionStep[] = [];
+    if (expanded) steps.push({ text: `At $x = ${h}$ the curve is at $${shapeValue(params)(h)}$, so the vertex of $y = f(x)$ is $(${h}, ${k})$.` });
+    else steps.push({ text: `In vertex form the vertex of $y = f(x)$ is $(${h}, ${k})$.` });
+    steps.push(
+      k < 0
+        ? { text: `It is below the axis, so the modulus reflects it up to $(${h}, ${-k})$.`, tex: `y = ${absTex(`${k}`)} = ${-k}` }
+        : { text: 'It is above the axis, so the modulus leaves it where it is.', tex: `y = ${k}` },
+    );
+    return steps;
+  },
+};
+
+interface ValuesParams {
+  a: number;
+  p: number;
+  q: number;
+  /** The two points asked about, in increasing order. */
+  x1: number;
+  x2: number;
+}
+
+const valuesTex = ({ a, p, q }: ValuesParams) => quadTex(a, -a * (p + q), a * p * q);
+const valuesAt = ({ a, p, q }: ValuesParams) => (x: number) => a * (x - p) * (x - q);
+
+/**
+ * $f$, then $|f|$, at two named points: one between the roots and one
+ * outside them, so one value changes sign and the other does not.
+ * Difficulty 2 has a leading coefficient that is negative or not one.
+ */
+const absValuesTree: Generator<ValuesParams> = {
+  id: 'mod-abs-values-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const { p, q } = sampleRootPair(rng, -5, 5, (lo, hi) => hi - lo >= 2);
+        const inside = rng.int(p + 1, q - 1);
+        const outside = rng.chance(0.5) ? rng.int(q + 1, q + 3) : rng.int(p - 3, p - 1);
+        return { a: hard ? rng.pick([-1, 2, -2]) : 1, p, q, x1: Math.min(inside, outside), x2: Math.max(inside, outside) };
+      },
+      (params) => {
+        const f = valuesAt(params);
+        const [u, v] = [f(params.x1), f(params.x2)];
+        return Math.abs(params.x1) <= 6 && Math.abs(params.x2) <= 6 && Math.abs(u) <= 30 && Math.abs(v) <= 30 && Math.abs(u) !== Math.abs(v);
+      },
+      { a: 1, p: -1, q: 3, x1: 1, x2: 4 },
+    );
+  },
+  render: (params): Slide => {
+    const f = valuesAt(params);
+    const [u, v] = [f(params.x1), f(params.x2)];
+    const answer = [`${u}`, `${v}`, `${Math.abs(u)}`, `${Math.abs(v)}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Top row: $f(x)$ at $x = ${params.x1}$ and at $x = ${params.x2}$. Below each: the height of $y = ${absTex('f(x)')}$ there.`,
+        },
+      ],
+      expression: `f(x) = ${valuesTex(params)}`,
+      nodes: [
+        { id: 'f1', from: [] },
+        { id: 'f2', from: [] },
+        { id: 'a1', from: ['f1'] },
+        { id: 'a2', from: ['f2'] },
+      ],
+      bank: treeBank(answer, [-Math.abs(u), -Math.abs(v)], Math.abs(u)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const f = valuesAt(params);
+    const steps: SolutionStep[] = [];
+    for (const x of [params.x1, params.x2]) {
+      const value = f(x);
+      steps.push({
+        text:
+          value < 0
+            ? `At $x = ${x}$, $f(${x}) = ${value}$: below the axis, so the modulus reflects it to $${-value}$.`
+            : `At $x = ${x}$, $f(${x}) = ${value}$: not below the axis, so the modulus leaves it as $${value}$.`,
+      });
+    }
+    return steps;
+  },
+};
+
+const NEG_BETWEEN = 'Between its roots';
+const NEG_OUTSIDE = 'Outside its roots';
+const NEG_ALL = 'Everywhere';
+
+/**
+ * What the modulus does to this quadratic's graph.
+ *
+ * Nothing if the curve never goes below the axis; the dip between the roots
+ * if it is a U through the axis; both arms if it is an upside-down U through
+ * the axis; the whole curve if it is an upside-down U below it. Difficulty 1
+ * keeps to U shapes in vertex form; difficulty 2 has both ways up, written
+ * out in full.
+ */
+const absSketchFlow: Generator<VertexShapeParams> = {
+  id: 'mod-abs-sketch-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { s: hard && rng.chance(0.5) ? -1 : 1, h: rng.int(-3, 3), k: rng.pick(nonZero(-9, 9)), expanded: hard };
+  },
+  render: (params): Slide => {
+    const { s, k } = params;
+    const answer = s > 0 ? (k < 0 ? [YES, NEG_BETWEEN] : [NO]) : k > 0 ? [YES, NEG_OUTSIDE] : [YES, NEG_ALL];
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `How does the graph of $y = f(x)$ turn into the graph of $y = ${absTex('f(x)')}$? Here $f(x) = ${shapeTex(params)}$.`,
+        },
+      ],
+      subject: `y = ${absTex(shapeTex(params))}`,
+      steps: [
+        {
+          id: 'below',
+          ask: 'Does $y = f(x)$ go below the $x$-axis anywhere? Think about which way it opens and where its vertex is.',
+          branches: [
+            { label: YES, to: 'where' },
+            { label: NO, outcome: 'Nothing is below the axis, so nothing is reflected: the graph is the same curve as $y = f(x)$.' },
+          ],
+        },
+        {
+          id: 'where',
+          ask: 'Where is $f(x)$ negative?',
+          branches: [
+            { label: NEG_BETWEEN, outcome: 'Reflect the dip between the roots up: the roots stay put and the vertex rises to the same height above the axis.' },
+            { label: NEG_OUTSIDE, outcome: 'Reflect both arms up: the roots stay put, the arms rise on either side, and the vertex does not move.' },
+            { label: NEG_ALL, outcome: 'Reflect the whole curve: the graph is $y = -f(x)$, the same shape turned the other way up.' },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { s, h, k, expanded } = params;
+    const steps: SolutionStep[] = [];
+    if (expanded) steps.push({ text: 'Completing the square puts it in vertex form.', tex: `f(x) = ${vertexFormTex(params)}` });
+    const opens = s > 0 ? 'a U, opening upwards' : 'an upside-down U';
+    const where = k < 0 ? 'below' : 'above';
+    steps.push({ text: `It is ${opens}, with its vertex $(${h}, ${k})$ ${where} the axis.` });
+    if (s > 0 && k > 0) steps.push({ text: 'So it never goes below the axis, and the modulus changes nothing.' });
+    else if (s > 0) steps.push({ text: 'So it is negative between its roots, and that dip is reflected up.' });
+    else if (k > 0) steps.push({ text: 'So it is negative outside its roots, and both arms are reflected up.' });
+    else steps.push({ text: 'So it is negative everywhere, and the whole curve is reflected.' });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 2: y = f(|x|) ---------- */
+
+/**
+ * Which equation is this graph: $y = f(|x|)$, $y = |f(x)|$, $y = f(x)$, or
+ * $y = f(|x|)$ with the roots' signs turned?
+ *
+ * At least one root of $f$ is positive, so the graph has roots to mirror and
+ * reads as a W or a U with a dimple, symmetric about the $y$-axis.
+ * Difficulty 2 writes the options multiplied out.
+ */
+const fabsMatch: Generator<RootPairParams> = {
+  id: 'mod-fabs-match',
+  sample: (rng, difficulty) => ({
+    ...sampleRootPair(rng, -5, 5, (p, q) => q > 0 && p !== -q),
+    expanded: difficulty > 1,
+  }),
+  render: (params): Slide => {
+    const { p, q } = params;
+    const f = productOf([p, q]);
+    const g = (x: number) => f(Math.abs(x));
+    const lowest = Math.min(0, ...Array.from({ length: 61 }, (_, i) => g(i / 10)));
+    const yMin = Math.floor(lowest) - 2;
+    const roots = [...new Set([p, q].filter((r) => r >= 0).flatMap((r) => [r, -r]))].sort((x, y) => x - y);
+    return pickOne(
+      [
+        {
+          kind: 'prose',
+          text: `Which equation has this graph? It meets the $x$-axis at $x = ${roots.join(', ')}$.`,
+        },
+        {
+          kind: 'diagram',
+          svg: modPlot([{ f: g, accent: true }], yMin, Math.max(yMin + 12, p * q + 3), 'A curve symmetric about the y-axis', roots.map((x) => ({ x, y: 0 }))),
+        },
+      ],
+      `y = ${pairAbsXTex(params)}`,
+      [`y = ${absTex(rootPairTex(params))}`, `y = ${rootPairTex(params)}`, `y = ${pairAbsXTex(mirrorPair(params))}`],
+    );
+  },
+  solution: (params) => {
+    const { p, q } = params;
+    const positive = [p, q].filter((r) => r > 0);
+    return [
+      { text: 'The graph is symmetric about the $y$-axis: its left half is its right half mirrored. That is what $y = f(\\lvert x \\rvert)$ looks like.' },
+      {
+        text: `For $x \\ge 0$ it is $y = ${rootPairTex(params)}$, which has ${positive.length === 1 ? `the positive root $x = ${positive[0]}$` : `positive roots $x = ${positive.join('$ and $x = ')}$`}; the mirror adds ${positive.length === 1 ? `$x = ${-positive[0]}$` : `$x = ${positive.map((r) => -r).join('$ and $x = ')}$`}.`,
+      },
+      { tex: `y = ${pairAbsXTex(params)}` },
+    ];
+  },
+};
+
+interface ArmParams4 {
+  /** f(x) = x^2 + bx + c at difficulty 1. */
+  b: number;
+  c: number;
+  /** f(x) = (x - p)(x - q) at difficulty 2. */
+  p: number;
+  q: number;
+  factorised: boolean;
+}
+
+/**
+ * The left-hand arm of $y = f(|x|)$.
+ *
+ * Where $x < 0$, $|x| = -x$, so the arm is $y = f(-x)$: the $x$ term changes
+ * sign and the rest does not. Difficulty 2 has $f$ factorised, where
+ * $f(-x) = (-x - p)(-x - q) = (x + p)(x + q)$.
+ */
+const fabsArmTiles: Generator<ArmParams4> = {
+  id: 'mod-fabs-arm-tiles',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { b: rng.pick(nonZero(-9, 9)), c: rng.pick(nonZero(-9, 9)), p: 0, q: 0, factorised: false };
+    const { p, q } = sampleRootPair(rng, -6, 6, (lo, hi) => lo !== 0 && hi !== 0 && lo !== -hi);
+    return { b: -(p + q), c: p * q, p, q, factorised: true };
+  },
+  render: ({ b, c, p, q, factorised }): Slide => {
+    const right = factorised ? productTex([p, q]) : quadTex(1, b, c);
+    const whole = factorised ? productTex([p, q], true) : quadAbsXTex(1, b, c);
+    const answer = factorised ? [signedTile(p), signedTile(q)] : [signedTile(-b, 'x'), signedTile(c)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The graph of $y = ${whole}$ has two arms. Where $x \\ge 0$ it is $y = ${right}$. Build the left-hand arm, where $x < 0$.`,
+        },
+      ],
+      template: factorised ? 'y = (x {0})(x {1})' : 'y = x^2 {0} {1}',
+      bank: factorised
+        ? bankOf(answer, [signedTile(-p), signedTile(-q)])
+        : bankOf(answer, [signedTile(b, 'x'), signedTile(-c)]),
+      answer,
+      ...(factorised ? { unordered: true } : {}),
+    };
+  },
+  solution: ({ b, c, p, q, factorised }) => {
+    const steps: SolutionStep[] = [{ text: 'Where $x < 0$, $\\lvert x \\rvert = -x$, so the left arm is $y = f(-x)$: the right arm reflected in the $y$-axis.' }];
+    if (factorised) {
+      steps.push(
+        { tex: `f(-x) = ${rootFactor(p).replace('x', '-x')}${rootFactor(q).replace('x', '-x')}` },
+        { text: 'Take a minus sign out of each bracket; the two minus signs cancel.', tex: `y = ${productTex([-p, -q])}` },
+      );
+    } else {
+      steps.push(
+        { text: `$(-x)^2 = x^2$ and $${b}(-x) = ${-b}x$, and the number stays.` },
+        { tex: `y = ${quadTex(1, -b, c)}` },
+      );
+    }
+    return steps;
+  },
+};
+
+interface InsideOutParams {
+  p: number;
+  q: number;
+  /** A negative x. */
+  t: number;
+}
+
+const insideOutAt = ({ p, q }: InsideOutParams) => productOf([p, q]);
+
+/**
+ * $f(|x|)$ and $|f(x)|$ at the same negative $x$.
+ *
+ * The modulus inside takes $|x|$ first, so the value is $f$ at a positive
+ * number; the modulus outside works out $f$ at the negative number first and
+ * then makes it positive. Difficulty 2 picks a point where $f$ is negative,
+ * so both moduli do something.
+ */
+const insideOutTree: Generator<InsideOutParams> = {
+  id: 'mod-inside-out-tree',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const { p, q } = sampleRootPair(rng, -6, 6, (lo, hi) => lo !== -hi);
+        return { p, q, t: rng.int(-5, -1) };
+      },
+      (params) => {
+        const f = insideOutAt(params);
+        const [outside, inside] = [f(params.t), f(-params.t)];
+        return (
+          Math.abs(outside) <= 30 &&
+          Math.abs(inside) <= 30 &&
+          inside !== Math.abs(outside) &&
+          (difficulty > 1 ? outside < 0 : outside > 0)
+        );
+      },
+      difficulty > 1 ? { p: -3, q: 2, t: -1 } : { p: 1, q: 4, t: -2 },
+    ),
+  render: (params): Slide => {
+    const { t } = params;
+    const f = insideOutAt(params);
+    const answer = [`${-t}`, `${f(-t)}`, `${f(t)}`, `${Math.abs(f(t))}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Compare $y = f(${ABS_X})$ and $y = ${absTex('f(x)')}$ at $x = ${t}$. Left: $${absTex(`${t}`)}$, then $f$ of that. Right: $f(${t})$, then its modulus.`,
+        },
+      ],
+      expression: `f(x) = ${quadTex(1, -(params.p + params.q), params.p * params.q)}`,
+      nodes: [
+        { id: 'abs', from: [] },
+        { id: 'fabs', from: ['abs'] },
+        { id: 'f', from: [] },
+        { id: 'absf', from: ['f'] },
+      ],
+      bank: treeBank(answer, [t, -Math.abs(f(t)), -f(-t)], f(-t)),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { t } = params;
+    const f = insideOutAt(params);
+    const fx = f(t);
+    return [
+      { text: `Inside first: $${absTex(`${t}`)} = ${-t}$, and $f(${-t}) = ${f(-t)}$.` },
+      { text: `Outside last: $f(${t}) = ${fx}$, and its modulus is $${Math.abs(fx)}$.` },
+      { text: `So at $x = ${t}$ the graph of $y = f(${ABS_X})$ is at $${f(-t)}$ and the graph of $y = ${absTex('f(x)')}$ at $${Math.abs(fx)}$: different curves.` },
+    ];
+  },
+};
+
+/**
+ * How many roots $f(|x|) = 0$ has, from the roots of $f$.
+ *
+ * $|x|$ must be a root of $f$: a positive root $r$ gives $x = \pm r$, a root
+ * at zero gives $x = 0$, and a negative root gives nothing. Difficulty 2
+ * writes $f$ multiplied out.
+ */
+const fabsCountFlow: Generator<RootPairParams> = {
+  id: 'mod-fabs-count-flow',
+  sample: (rng, difficulty) => ({ ...sampleRootPair(rng, -6, 6, () => true), expanded: difficulty > 1 }),
+  render: (params): Slide => {
+    const { p, q } = params;
+    const positive = [p, q].filter((r) => r > 0).length;
+    const zero = p === 0 || q === 0;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `How many roots does $f(${ABS_X}) = 0$ have? For it to hold, $${ABS_X}$ must be a root of $f$.`,
+        },
+      ],
+      subject: `f(x) = ${rootPairTex(params)}`,
+      steps: [
+        {
+          id: 'positive',
+          ask: 'How many roots of $f(x) = 0$ are positive?',
+          branches: [
+            { label: COUNT_LABEL[0], to: 'zero-none' },
+            { label: COUNT_LABEL[1], to: 'zero-one' },
+            { label: COUNT_LABEL[2], outcome: 'Each positive root $r$ gives two, $x = r$ and $x = -r$: four roots in all.' },
+          ],
+        },
+        {
+          id: 'zero-none',
+          ask: 'Is $x = 0$ a root of $f(x) = 0$?',
+          branches: [
+            { label: YES, outcome: `Only $x = 0$: a negative root gives nothing, since $${ABS_X}$ is never negative. One root.` },
+            { label: NO, outcome: `None at all: every root of $f$ is negative, and $${ABS_X}$ never is.` },
+          ],
+        },
+        {
+          id: 'zero-one',
+          ask: 'Is $x = 0$ a root of $f(x) = 0$?',
+          branches: [
+            { label: YES, outcome: 'Three roots: $x = 0$, and the positive root with its mirror image.' },
+            { label: NO, outcome: 'Two roots: the positive root $r$ gives $x = r$ and $x = -r$, and the negative root gives nothing.' },
+          ],
+        },
+      ],
+      answer: positive === 2 ? [COUNT_LABEL[2]] : [COUNT_LABEL[positive], zero ? YES : NO],
+    };
+  },
+  solution: (params) => {
+    const { p, q, expanded } = params;
+    const roots = [...new Set([p, q].filter((r) => r >= 0).flatMap((r) => [-r, r]))].sort((x, y) => x - y);
+    const steps: SolutionStep[] = [];
+    if (expanded) steps.push({ text: 'Factorise first.', tex: `f(x) = ${productTex([p, q])}` });
+    steps.push({ text: `The roots of $f$ are $${p}$ and $${q}$. $${ABS_X}$ can be a root that is zero or positive, never a negative one.` });
+    steps.push(
+      roots.length === 0
+        ? { text: 'Both are negative, so there are no roots.' }
+        : { text: `So $x = ${roots.join(', ')}$: ${COUNT_LABEL[roots.length].toLowerCase()} in all.` },
+    );
+    return steps;
+  },
+};
+
+/* ---------- Lesson 3: solving |f(x)| = c from the graph ---------- */
+
+interface DipRow {
+  h: number;
+  c: number;
+  /** The square root of h + c. */
+  outer: number;
+  /** The square root of h - c, or null when h < c. */
+  inner: number | null;
+}
+
+/**
+ * $|(x - m)^2 - h| = c$ with every root whole. The dip of $f$ reaches $-h$,
+ * so the reflected hump peaks at $h$: a line below the peak cuts four times
+ * (both square roots real), at the peak three, above it twice.
+ */
+const DIPS: readonly DipRow[] = [
+  { h: 5, c: 4, outer: 3, inner: 1 },
+  { h: 10, c: 6, outer: 4, inner: 2 },
+  { h: 13, c: 12, outer: 5, inner: 1 },
+  { h: 17, c: 8, outer: 5, inner: 3 },
+  { h: 20, c: 16, outer: 6, inner: 2 },
+  { h: 26, c: 10, outer: 6, inner: 4 },
+  { h: 2, c: 2, outer: 2, inner: 0 },
+  { h: 8, c: 8, outer: 4, inner: 0 },
+  { h: 18, c: 18, outer: 6, inner: 0 },
+  { h: 1, c: 3, outer: 2, inner: null },
+  { h: 1, c: 8, outer: 3, inner: null },
+  { h: 2, c: 7, outer: 3, inner: null },
+  { h: 3, c: 6, outer: 3, inner: null },
+  { h: 4, c: 5, outer: 3, inner: null },
+  { h: 1, c: 15, outer: 4, inner: null },
+  { h: 3, c: 13, outer: 4, inner: null },
+  { h: 4, c: 12, outer: 4, inner: null },
+  { h: 5, c: 11, outer: 4, inner: null },
+  { h: 7, c: 9, outer: 4, inner: null },
+  { h: 9, c: 16, outer: 5, inner: null },
+  { h: 11, c: 14, outer: 5, inner: null },
+  { h: 12, c: 13, outer: 5, inner: null },
+];
+
+/** The table, for the test that checks every row. */
+export const modulusDips = DIPS;
+
+interface DipParams extends DipRow {
+  m: number;
+  expanded: boolean;
+}
+
+/**
+ * A row and a shift. Difficulty 1 writes $f$ in vertex form with the vertex
+ * near the middle; difficulty 2 writes it out in full, so the square has to
+ * be completed, and moves the vertex further.
+ */
+function sampleDip(rng: Rng, difficulty: number, accept: (row: DipRow) => boolean, reach: number): DipParams {
+  const hard = difficulty > 1;
+  const rows = DIPS.filter(accept);
+  return drawUntil(
+    () => ({ ...rng.pick(rows), m: rng.int(hard ? -3 : -2, hard ? 3 : 2), expanded: hard }),
+    (params) => Math.abs(params.m) + params.outer <= reach,
+    { ...rows[0], m: 0, expanded: hard },
+  );
+}
+
+/** (x - m)^2 - h, in vertex form or multiplied out. */
+const dipTex = ({ m, h, expanded }: DipParams) => (expanded ? quadTex(1, -2 * m, m * m - h) : `${squareTex(m)} ${signedTile(-h)}`);
+const dipAt = ({ m, h }: DipParams) => (x: number) => (x - m) * (x - m) - h;
+/** |f(x)| op c, or = c. */
+const dipEquationTex = (params: DipParams, op?: Op) => `${absTex(dipTex(params))} ${op ? OP_TEX[op] : '='} ${params.c}`;
+
+/** Every root of |f(x)| = c, smallest first. */
+function dipRoots({ m, outer, inner }: DipParams): number[] {
+  const roots = [m - outer, m + outer];
+  if (inner !== null) roots.push(m - inner, m + inner);
+  return [...new Set(roots)].sort((a, b) => a - b);
+}
+
+/** m ± r as the learner writes a pair of roots: `x = \pm 3`, `x = -2, 4`. */
+function plusMinusTex(m: number, r: number): string {
+  return m === 0 ? `x = \\pm ${r}` : `x = ${m - r}, ${m + r}`;
+}
+
+/** The roots of (x - m)^2 = h - c as a tile: a pair, one root, or none. */
+function innerRootsTex({ m, inner }: DipParams): string {
+  if (inner === null) return '\\text{no roots}';
+  return inner === 0 ? `x = ${m}` : plusMinusTex(m, inner);
+}
+
+/** |f(x)| = c by cases, for a worked solution. */
+function dipSolution(params: DipParams): SolutionStep[] {
+  const { m, h, c, outer, inner, expanded } = params;
+  const sq = squareTex(m);
+  const steps: SolutionStep[] = [{ tex: dipEquationTex(params) }];
+  if (expanded) steps.push({ text: 'Complete the square first.', tex: `${dipTex(params)} = ${sq} ${signedTile(-h)}` });
+  steps.push(
+    { text: `A modulus is $${c}$ when what is inside is $${c}$ or $${-c}$.`, tex: either([`${sq} ${signedTile(-h)} = ${c}`, `${sq} ${signedTile(-h)} = ${-c}`], QOR) },
+    { tex: either([`${sq} = ${h + c}`, `${sq} = ${h - c}`], QOR) },
+    { text: `The first gives $${plusMinusTex(m, outer)}$.` },
+  );
+  if (inner === null) steps.push({ text: `In the second, $${h - c}$ is negative and no square is: nothing. The line $y = ${c}$ passes above the hump.` });
+  else if (inner === 0) steps.push({ text: `The second gives $x = ${m}$ alone: the line $y = ${c}$ just touches the top of the hump.` });
+  else steps.push({ text: `The second gives $${plusMinusTex(m, inner)}$: the line $y = ${c}$ cuts the hump as well.` });
+  steps.push({ tex: `x = ${dipRoots(params).join(', ')}` });
+  return steps;
+}
+
+type RootWhich = 'largest' | 'smallest' | 'second largest';
+
+interface DipRootParams extends DipParams {
+  which: RootWhich;
+}
+
+function askedDipRoot(params: DipRootParams): number {
+  const roots = dipRoots(params);
+  if (params.which === 'smallest') return roots[0];
+  return params.which === 'largest' ? roots[roots.length - 1] : roots[roots.length - 2];
+}
+
+/**
+ * Solve $|f(x)| = c$ and give one named root.
+ *
+ * The largest and smallest come from $f(x) = c$ alone; difficulty 2 also asks
+ * for the second largest, which sits on the reflected hump when the line cuts
+ * it, and so needs the case $f(x) = -c$.
+ */
+const quadEqRoot: Generator<DipRootParams> = {
+  id: 'mod-quad-eq-root',
+  choices: (params) => {
+    const target = askedDipRoot(params);
+    const others = dipRoots(params).filter((root) => root !== target);
+    return numberChoices(target, [...others, -target], dipEquationTex(params));
+  },
+  sample: (rng, difficulty) => ({
+    ...sampleDip(rng, difficulty, () => true, 8),
+    which: rng.pick<RootWhich>(difficulty > 1 ? ['largest', 'smallest', 'second largest', 'second largest'] : ['largest', 'smallest']),
+  }),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      { kind: 'prose', text: `Solve. Give the **${params.which}** root.` },
+      { kind: 'display', tex: dipEquationTex(params) },
+    ],
+    lead: 'x =',
+    keypad: [],
+    answer: `${askedDipRoot(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => [...dipSolution(params), { text: `The ${params.which} root is $x = ${askedDipRoot(params)}$.` }],
+};
+
+/**
+ * $|f(x)| = c$ as two cases in a tree: each case with the square on its own,
+ * then its roots. The second case has two roots, one, or none, depending on
+ * where the line $y = c$ meets the reflected hump.
+ */
+const twoCasesTree: Generator<DipParams> = {
+  id: 'mod-two-cases-tree',
+  sample: (rng, difficulty) => sampleDip(rng, difficulty, () => true, 8),
+  render: (params): Slide => {
+    const { m, h, c, outer } = params;
+    const sq = squareTex(m);
+    const answer = [`${sq} = ${h + c}`, `${sq} = ${h - c}`, plusMinusTex(m, outer), innerRootsTex(params)];
+    const wrong = [
+      `${sq} = ${c - h}`,
+      `${sq} = ${-h - c}`,
+      plusMinusTex(m, h + c),
+      m === 0 ? `x = ${outer}` : plusMinusTex(-m, outer),
+      '\\text{no roots}',
+      `x = ${m}`,
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Solve by cases, $f(x) = ${c}$ and $f(x) = ${-c}$. Top row: each case with $${sq}$ alone on the left, $${c}$ first. Below each: its roots.`,
+        },
+      ],
+      expression: dipEquationTex(params),
+      nodes: [
+        { id: 'plus', from: [] },
+        { id: 'minus', from: [] },
+        { id: 'plus-roots', from: ['plus'] },
+        { id: 'minus-roots', from: ['minus'] },
+      ],
+      bank: bankOf(answer, wrong.filter((token) => !answer.includes(token)).slice(0, 4)),
+      answer,
+    };
+  },
+  solution: dipSolution,
+};
+
+type CrossingWhich = 'left' | 'right' | 'hump-left' | 'hump-right';
+
+interface CrossingParams extends DipParams {
+  which: CrossingWhich;
+}
+
+const CROSSING_WORDS: Record<CrossingWhich, string> = {
+  left: 'the **left-most** crossing',
+  right: 'the **right-most** crossing',
+  'hump-left': 'where the line cuts the **left** side of the reflected hump',
+  'hump-right': 'where the line cuts the **right** side of the reflected hump',
+};
+
+function crossingAt({ m, outer, inner, which }: CrossingParams): number {
+  if (which === 'left') return m - outer;
+  if (which === 'right') return m + outer;
+  return which === 'hump-left' ? m - (inner ?? 0) : m + (inner ?? 0);
+}
+
+/**
+ * Slide to a crossing of $y = |f(x)|$ and $y = c$.
+ *
+ * The outer crossings come from $f(x) = c$; difficulty 2 also asks where the
+ * line cuts the reflected hump, which is $f(x) = -c$.
+ */
+const crossingSlider: Generator<CrossingParams> = {
+  id: 'mod-crossing-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const params = sampleDip(rng, difficulty, (row) => Math.max(row.h, row.c) <= 16 && (!hard || (row.inner ?? 0) > 0), 6);
+    return { ...params, which: rng.pick<CrossingWhich>(hard ? ['left', 'right', 'hump-left', 'hump-right'] : ['left', 'right']) };
+  },
+  render: (params): Slide => {
+    const f = dipAt(params);
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The curve is $y = ${absTex(dipTex(params))}$ and the dashed line is $y = ${params.c}$. Slide to the $x$-coordinate of ${CROSSING_WORDS[params.which]}.`,
+        },
+      ],
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: crossingAt(params),
+      readout: 'x = {v}',
+      figure: {
+        svg: modPlot([{ f: (x) => Math.abs(f(x)), accent: true }], -2, Math.max(params.h, params.c) + 3, 'A W-shaped curve and a dashed horizontal line', [], [params.c]),
+        ...markerWindow(-6, 6),
+      },
+    };
+  },
+  solution: (params) => [
+    ...dipSolution(params).slice(1),
+    {
+      text:
+        params.which === 'left' || params.which === 'right'
+          ? `The ${params.which}-most crossing is at $x = ${crossingAt(params)}$.`
+          : `The hump is the part reflected from below, where $f(x) = ${-params.c}$; the crossing on its ${params.which === 'hump-left' ? 'left' : 'right'} side is at $x = ${crossingAt(params)}$.`,
+    },
+  ],
+};
+
+interface DipCountParams {
+  m: number;
+  h: number;
+  c: number;
+  expanded: boolean;
+  /** A graph of y = |f(x)| and the line y = c alongside. */
+  drawn: boolean;
+}
+
+/** How many solutions |(x - m)^2 - h| = c has. */
+function dipCount({ h, c }: DipCountParams): number {
+  if (c < 0) return 0;
+  if (c === 0) return 2;
+  return c < h ? 4 : c === h ? 3 : 2;
+}
+
+const DIP_COUNT_WORDS: Record<number, string> = { 0: 'None', 2: 'Two', 3: 'Three', 4: 'Four' };
+
+/**
+ * How many solutions does $|f(x)| = c$ have?
+ *
+ * Four when the line $y = c$ is below the top of the reflected hump, three
+ * when it touches it, two above it. Difficulty 1 draws the graph and the
+ * line; difficulty 2 draws nothing, writes $f$ out in full, and sometimes
+ * asks for a negative $c$, which no modulus reaches.
+ */
+const quadCount: Generator<DipCountParams> = {
+  id: 'mod-quad-count',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const h = rng.int(1, 9);
+    const c = hard ? rng.pick([-3, -1, h, h, ...range(1, 12)]) : rng.int(1, 12);
+    return { m: rng.int(hard ? -3 : -2, hard ? 3 : 2), h, c, expanded: hard, drawn: !hard };
+  },
+  render: (params): Slide => {
+    const tex = dipEquationTex({ ...params, outer: 0, inner: null });
+    const f = dipAt({ ...params, outer: 0, inner: null });
+    const prompt: Block[] = [
+      { kind: 'prose', text: 'How many solutions does this equation have?' },
+      { kind: 'display', tex },
+    ];
+    if (params.drawn) {
+      prompt.push({
+        kind: 'diagram',
+        svg: modPlot([{ f: (x) => Math.abs(f(x)), accent: true }], -2, Math.max(params.h, params.c) + 3, 'The curve y = |f(x)| and a dashed horizontal line', [], [params.c]),
+      });
+    }
+    const correct = DIP_COUNT_WORDS[dipCount(params)];
+    return pickOne(prompt, correct, Object.values(DIP_COUNT_WORDS).filter((word) => word !== correct), false, tex);
+  },
+  solution: (params) => {
+    const { m, h, c, expanded } = params;
+    const steps: SolutionStep[] = [];
+    if (expanded) steps.push({ text: 'Complete the square.', tex: `f(x) = ${squareTex(m)} ${signedTile(-h)}` });
+    steps.push({ text: `The vertex of $y = f(x)$ is $(${m}, ${-h})$, so the modulus reflects the dip into a hump with its top at $(${m}, ${h})$.` });
+    if (c < 0) steps.push({ text: `A modulus is never negative, so it is never $${c}$: no solutions.` });
+    else if (c === 0) steps.push({ text: 'The modulus is zero only where $f(x)$ is: the two roots of $f$, so two solutions.' });
+    else if (c < h) steps.push({ text: `The line $y = ${c}$ is below the top of the hump, so it cuts both outer arms and both sides of the hump: four solutions.` });
+    else if (c === h) steps.push({ text: `The line $y = ${c}$ touches the top of the hump and cuts both outer arms: three solutions.` });
+    else steps.push({ text: `The line $y = ${c}$ is above the hump, so it cuts only the two outer arms: two solutions.` });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 4: cubics ---------- */
+
+interface CubicParams {
+  /** Three distinct roots, smallest first. */
+  roots: [number, number, number];
+  /** 1, or -1 for a minus sign in front of the product. */
+  s: 1 | -1;
+}
+
+/** The two heights |f| rises to between neighbouring roots, from the turning points. */
+function humps(roots: readonly number[], s = 1): number[] {
+  const [p, q, r] = roots;
+  const f = (x: number) => s * productOf(roots)(x);
+  const s1 = p + q + r;
+  const s2 = p * q + q * r + r * p;
+  const root = Math.sqrt(s1 * s1 - 3 * s2);
+  return [(s1 - root) / 3, (s1 + root) / 3].map((x) => Math.abs(f(x)));
+}
+
+/** Three distinct roots from -4 to 4 whose humps stay on the page. */
+function sampleCubicRoots(rng: Rng, accept: (roots: [number, number, number]) => boolean = () => true): [number, number, number] {
+  return drawUntil(
+    () => [rng.int(-4, 4), rng.int(-4, 4), rng.int(-4, 4)].sort((a, b) => a - b) as [number, number, number],
+    (roots) => roots[0] < roots[1] && roots[1] < roots[2] && Math.max(...humps(roots)) <= 16 && accept(roots),
+    [-2, 1, 3],
+  );
+}
+
+const cubicTex = ({ roots, s }: CubicParams) => `${s < 0 ? '-' : ''}${productTex(roots)}`;
+
+interface CubicMatchParams {
+  roots: [number, number, number];
+  marked: boolean;
+}
+
+/**
+ * Which equation is this graph?
+ *
+ * $y = |f(x)|$ for a cubic touches the axis at each root and has two humps
+ * and two arms, all above the axis. The options are $f$ without its bars,
+ * the mirror image, and $f(|x|)$. Difficulty 1 marks the roots; difficulty 2
+ * leaves them to be read off the grid.
+ */
+const cubicMatch: Generator<CubicMatchParams> = {
+  id: 'mod-cubic-match',
+  sample: (rng, difficulty) => ({
+    roots: sampleCubicRoots(rng, ([p, q, r]) => !(p === -r && q === 0)),
+    marked: difficulty < 2,
+  }),
+  render: ({ roots, marked }): Slide => {
+    const f = productOf(roots);
+    const mirror = [-roots[2], -roots[1], -roots[0]];
+    return pickOne(
+      [
+        {
+          kind: 'prose',
+          text: marked
+            ? `Which equation has this graph? It meets the $x$-axis at $x = ${roots.join(', ')}$.`
+            : 'Which equation has this graph? Read where it meets the $x$-axis off the grid.',
+        },
+        {
+          kind: 'diagram',
+          svg: modPlot(
+            [{ f: (x) => Math.abs(f(x)), accent: true }],
+            -2,
+            Math.max(...humps(roots)) + 4,
+            'A curve with two humps, touching the x-axis three times and never going below it',
+            marked ? roots.map((x) => ({ x, y: 0 })) : [],
+          ),
+        },
+      ],
+      `y = ${absTex(productTex(roots))}`,
+      [`y = ${productTex(roots)}`, `y = ${absTex(productTex(mirror))}`, `y = ${productTex(roots, true)}`],
+    );
+  },
+  solution: ({ roots }) => [
+    { text: `It meets the $x$-axis at $x = ${roots.join(', ')}$, so the cubic is $${productTex(roots)}$.` },
+    { text: 'A cubic without a modulus goes below the axis somewhere; this curve never does, and it is not symmetric about the $y$-axis, so it is not $f(\\lvert x \\rvert)$.' },
+    { text: 'Every part that was below the axis has been reflected up.', tex: `y = ${absTex(productTex(roots))}` },
+  ],
+};
+
+interface CubicLineParams extends CubicParams {
+  min: number;
+  max: number;
+}
+
+/**
+ * Shade where $f(x) < 0$: the stretches $y = |f(x)|$ reflects.
+ *
+ * Each bracket changes sign at its root, so the sign alternates between the
+ * roots, positive to the right of all three. Difficulty 2 puts a minus sign
+ * in front, which turns every stretch over.
+ */
+const cubicReflectLine: Generator<CubicLineParams> = {
+  id: 'mod-cubic-reflect-line',
+  sample: (rng, difficulty) => {
+    const roots = sampleCubicRoots(rng);
+    return { roots, s: difficulty > 1 && rng.chance(0.5) ? -1 : 1, ...windowFor(rng, roots[0], roots[2], 10, 1) };
+  },
+  render: (params): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      { kind: 'prose', text: `Shade where $f(x) < 0$. Those are the stretches the graph of $y = ${absTex('f(x)')}$ reflects up.` },
+      { kind: 'display', tex: `f(x) = ${cubicTex(params)}` },
+    ],
+    min: params.min,
+    max: params.max,
+    step: 1,
+    answer: setOf(signSet(params.roots, [], params.s, '<')),
+  }),
+  solution: (params) => {
+    const { roots, s } = params;
+    const set = signSet(roots, [], s, '<');
+    return [
+      { text: `Each bracket changes sign at its root. To the right of $x = ${roots[2]}$ every bracket is positive${s < 0 ? ', and the minus in front makes $f$ negative there' : ', so $f$ is positive there'}.` },
+      { text: 'Moving left, the sign changes at each root in turn.' },
+      { tex: setTex(set) },
+      { text: describeSet(set) },
+    ];
+  },
+};
+
+type CubicKind = 'three' | 'double';
+
+interface CubicCountParams {
+  kind: CubicKind;
+  /** Three roots, or [p, p, q] for (x - p)^2 (x - q). */
+  roots: [number, number, number];
+  c: number;
+}
+
+/** (x - p)^2 (x - q), or the product of three brackets. */
+const countCubicTex = ({ kind, roots }: CubicCountParams) =>
+  kind === 'double' ? `${squareTex(roots[0])}${rootFactor(roots[2])}` : productTex(roots);
+
+/** The humps' heights: two for three roots, one, of height 4, for a double root three from the other. */
+function countHumps({ kind, roots }: CubicCountParams): number[] {
+  return kind === 'double' ? [4] : humps(roots);
+}
+
+/** Two outer arms always; each hump twice while the line is below its top, once at it. */
+function cubicCount(params: CubicCountParams): number {
+  return 2 + countHumps(params).reduce((total, top) => total + (params.c < top ? 2 : params.c === top ? 1 : 0), 0);
+}
+
+/**
+ * How many solutions $|f(x)| = c$ has for a cubic, from its graph.
+ *
+ * The outer arms always meet the line; each hump meets it twice if the line
+ * is below the top. Difficulty 1 has three distinct roots and keeps the line
+ * well away from either top. Difficulty 2 mixes in a double root,
+ * $(x - p)^2 (x - q)$ with $q = p \pm 3$, whose hump is exactly $4$ high, so
+ * the line can touch it.
+ */
+const cubicCountGen: Generator<CubicCountParams> = {
+  id: 'mod-cubic-count',
+  choices: (params) => {
+    const n = cubicCount(params);
+    return numberChoices(n, [n + 2, n - 2, n + 1], `${countCubicTex(params)} = ${params.c}`);
+  },
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.chance(0.5)) {
+      const p = rng.int(-4, 4);
+      const q = drawUntil(() => p + rng.pick([-3, 3]), (value) => Math.abs(value) <= 4, p > 0 ? p - 3 : p + 3);
+      return { kind: 'double', roots: [p, p, q], c: rng.int(1, 8) };
+    }
+    return drawUntil(
+      () => {
+        const roots = sampleCubicRoots(rng);
+        return { kind: 'three' as const, roots, c: rng.int(1, Math.ceil(Math.max(...humps(roots))) + 3) };
+      },
+      (params) => countHumps(params).every((top) => Math.abs(params.c - top) >= 1),
+      { kind: 'three', roots: [-2, 1, 3], c: 3 },
+    );
+  },
+  render: (params): Slide => {
+    const f = productOf(params.roots);
+    const tex = `${absTex(countCubicTex(params))} = ${params.c}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `The graph is $y = ${absTex(countCubicTex(params))}$ and the dashed line is $y = ${params.c}$. How many solutions does this have? Call the count $n$.` },
+        { kind: 'display', tex },
+        {
+          kind: 'diagram',
+          svg: modPlot([{ f: (x) => Math.abs(f(x)), accent: true }], -2, Math.max(params.c, ...countHumps(params)) + 3, 'A cubic curve kept above the x-axis by a modulus, and a dashed horizontal line', [], [params.c]),
+        },
+      ],
+      lead: 'n =',
+      keypad: [],
+      answer: `${cubicCount(params)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { kind, c } = params;
+    const tops = countHumps(params);
+    const steps: SolutionStep[] = [{ text: 'The two outer arms rise without end, so the line meets each of them once.' }];
+    if (kind === 'double') {
+      steps.push({ text: 'The double root is where the curve touches the axis and turns; the one hump is between the roots and is $4$ high.' });
+    } else {
+      steps.push({ text: `The two humps are about $${tops.map((top) => top.toFixed(1)).join('$ and $')}$ high.` });
+    }
+    for (const top of tops) {
+      const rounded = kind === 'double' ? `${top}` : top.toFixed(1);
+      steps.push({
+        text:
+          c < top
+            ? `$${c}$ is below the hump of height $${rounded}$: two crossings there.`
+            : c === top
+              ? `$${c}$ touches the top of that hump: one more solution.`
+              : `$${c}$ is above the hump of height $${rounded}$: no crossings there.`,
+      });
+    }
+    steps.push({ tex: `n = ${cubicCount(params)}` });
+    return steps;
+  },
+};
+
+interface CubicSignParams extends CubicParams {
+  t: number;
+}
+
+/**
+ * Is the graph of $y = |f(x)|$ reflected at $x = t$?
+ *
+ * It is when $f(t) < 0$: count the negative brackets, then allow for a minus
+ * sign in front, which only difficulty 2 has.
+ */
+const cubicSignFlow: Generator<CubicSignParams> = {
+  id: 'mod-cubic-sign-flow',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => ({ roots: sampleCubicRoots(rng), s: difficulty > 1 && rng.chance(0.5) ? (-1 as const) : (1 as const), t: rng.int(-5, 5) }),
+      ({ roots, t }) => !roots.includes(t),
+      { roots: [-2, 1, 3], s: 1, t: 0 },
+    ),
+  render: (params): Slide => {
+    const { roots, s, t } = params;
+    const negative = roots.filter((root) => t < root).length;
+    const reflected = 'Then $f(x)$ is negative there, so this part of the curve has been reflected up.';
+    const kept = 'Then $f(x)$ is positive there, so this part of the curve is $y = f(x)$ unchanged.';
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Above $x = ${t}$, is the graph of $y = ${absTex('f(x)')}$ the curve $y = f(x)$ itself, or its reflection? Here $f(x) = ${cubicTex(params)}$.`,
+        },
+      ],
+      subject: `f(${t}) = ${cubicTex(params).replace(/x/g, `(${t})`)}`,
+      steps: [
+        {
+          id: 'brackets',
+          ask: `At $x = ${t}$, how many of the three brackets are negative?`,
+          branches: [
+            { label: COUNT_LABEL[0], to: 'even' },
+            { label: COUNT_LABEL[1], to: 'odd' },
+            { label: COUNT_LABEL[2], to: 'even' },
+            { label: COUNT_LABEL[3], to: 'odd' },
+          ],
+        },
+        {
+          id: 'even',
+          ask: 'So the product of the brackets is positive. Is there a minus sign in front of it?',
+          branches: [
+            { label: YES, outcome: reflected },
+            { label: NO, outcome: kept },
+          ],
+        },
+        {
+          id: 'odd',
+          ask: 'So the product of the brackets is negative. Is there a minus sign in front of it?',
+          branches: [
+            { label: YES, outcome: kept },
+            { label: NO, outcome: reflected },
+          ],
+        },
+      ],
+      answer: [COUNT_LABEL[negative], s < 0 ? YES : NO],
+    };
+  },
+  solution: (params) => {
+    const { roots, s, t } = params;
+    const value = s * productOf(roots)(t);
+    const negative = roots.filter((root) => t < root);
+    return [
+      {
+        text:
+          negative.length === 0
+            ? `At $x = ${t}$ no bracket is negative, since $${t}$ is to the right of every root.`
+            : `At $x = ${t}$ the bracket${negative.length === 1 ? '' : 's'} for the root${negative.length === 1 ? '' : 's'} $${negative.join(', ')}$ ${negative.length === 1 ? 'is' : 'are'} negative, since $${t}$ is to the left of ${negative.length === 1 ? 'it' : 'them'}.`,
+      },
+      { tex: `f(${t}) = ${value}` },
+      { text: value < 0 ? 'Negative, so the curve is reflected there.' : 'Positive, so the curve is unchanged there.' },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: |f(x)| < c and |f(x)| > c ---------- */
+
+interface DipIneqParams extends DipParams {
+  op: Op;
+  min: number;
+  max: number;
+}
+
+/**
+ * Where $|f(x)|$ op $c$, as pieces. Less than is where the curve is under the
+ * line: between the outer crossings, less the top of the hump when the line
+ * cuts it. Greater than is the rest. Rows where the line only touches the
+ * hump are never drawn here, since $\ge$ there would add a lone point.
+ */
+function dipSet({ m, outer, inner }: DipParams, op: Op): Piece[] {
+  const closed = !isStrict(op);
+  const [lo, hi] = [m - outer, m + outer];
+  if (!pointsRight(op)) {
+    if (inner === null) return [spanPiece(lo, hi, closed, closed)];
+    return [spanPiece(lo, m - inner, closed, closed), spanPiece(m + inner, hi, closed, closed)];
+  }
+  const rays = [spanPiece(-Infinity, lo, false, closed), spanPiece(hi, Infinity, closed, false)];
+  if (inner === null) return rays;
+  return [...rays, spanPiece(m - inner, m + inner, closed, closed)];
+}
+
+function sampleDipIneq(rng: Rng, difficulty: number, accept: (row: DipRow) => boolean = () => true): DipIneqParams {
+  const params = sampleDip(rng, difficulty, (row) => row.inner !== 0 && row.outer <= 5 && accept(row), 6);
+  const op = rng.pick<Op>(difficulty > 1 ? OPS : ['<', '>']);
+  return { ...params, op, ...windowFor(rng, params.m - params.outer, params.m + params.outer, 12, 1) };
+}
+
+function dipIneqSolution(params: DipIneqParams): SolutionStep[] {
+  const { c, op, inner, h } = params;
+  const set = dipSet(params, op);
+  const cases = dipSolution(params).slice(1, -1);
+  return [
+    { tex: dipEquationTex(params, op) },
+    { text: 'The critical values are where the curve meets the line: solve the equation first.' },
+    ...cases,
+    {
+      text: pointsRight(op)
+        ? `Greater than is where the curve is above the line $y = ${c}$: outside the outer crossings${inner === null ? '' : ', and over the top of the hump'}.`
+        : `Less than is where the curve is below the line $y = ${c}$: between the outer crossings${inner === null ? `, since the hump only reaches $${h}$` : ', except over the top of the hump'}.`,
+      tex: setTex(set),
+    },
+    { text: describeSet(set) },
+  ];
+}
+
+/**
+ * Shade $|f(x)|$ op $c$.
+ *
+ * Up to two stretches for less than, and up to three for greater than when
+ * the line cuts the hump. Difficulty 1 keeps to strict signs and vertex form;
+ * difficulty 2 includes the ends sometimes and writes $f$ out in full.
+ */
+const quadIneqLine: Generator<DipIneqParams> = {
+  id: 'mod-quad-ineq-line',
+  sample: (rng, difficulty) => sampleDipIneq(rng, difficulty),
+  render: (params): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      { kind: 'prose', text: 'Solve, then shade the solution set.' },
+      { kind: 'display', tex: dipEquationTex(params, params.op) },
+    ],
+    min: params.min,
+    max: params.max,
+    step: 1,
+    answer: setOf(dipSet(params, params.op)),
+  }),
+  solution: dipIneqSolution,
+};
+
+const STRETCH_TWO = 'Two stretches: under the line except over the top of the hump.';
+const STRETCH_ONE = 'One stretch, between the outer crossings: the whole hump is under the line.';
+const STRETCH_THREE = 'Three pieces: both outer arms, and the top of the hump in the middle.';
+const STRETCH_RAYS = 'Two rays, outside the outer crossings: the hump never gets above the line.';
+
+/**
+ * What shape the solution set of $|f(x)|$ op $c$ takes, before any algebra.
+ *
+ * Less or greater, then whether the line cuts the reflected hump. Difficulty
+ * 1 draws the curve and the line; difficulty 2 does not, so the height of the
+ * hump has to come from completing the square.
+ */
+const quadIneqFlow: Generator<DipIneqParams> = {
+  id: 'mod-quad-ineq-flow',
+  sample: (rng, difficulty) => sampleDipIneq(rng, difficulty),
+  render: (params): Slide => {
+    const { c, h, op, inner } = params;
+    const f = dipAt(params);
+    const prompt: Block[] = [{ kind: 'prose', text: 'Before solving: what shape is the solution set?' }];
+    if (!params.expanded) {
+      prompt.push({
+        kind: 'diagram',
+        svg: modPlot([{ f: (x) => Math.abs(f(x)), accent: true }], -2, Math.max(h, c) + 3, 'The curve y = |f(x)| and a dashed horizontal line', [], [c]),
+      });
+    }
+    const cuts = inner !== null;
+    return {
+      kind: 'flow',
+      prompt,
+      subject: dipEquationTex(params, op),
+      steps: [
+        {
+          id: 'relation',
+          ask: `Is the modulus asked to be less than $${c}$, or greater?`,
+          branches: [
+            { label: SHAPE_LESS, to: 'less' },
+            { label: SHAPE_MORE, to: 'more' },
+          ],
+        },
+        {
+          id: 'less',
+          ask: `Does the line $y = ${c}$ cut through the reflected hump? That is, is $${c}$ less than the height of its top?`,
+          branches: [
+            { label: YES, outcome: STRETCH_TWO },
+            { label: NO, outcome: STRETCH_ONE },
+          ],
+        },
+        {
+          id: 'more',
+          ask: `Does the line $y = ${c}$ cut through the reflected hump? That is, is $${c}$ less than the height of its top?`,
+          branches: [
+            { label: YES, outcome: STRETCH_THREE },
+            { label: NO, outcome: STRETCH_RAYS },
+          ],
+        },
+      ],
+      answer: [pointsRight(op) ? SHAPE_MORE : SHAPE_LESS, cuts ? YES : NO],
+    };
+  },
+  solution: (params) => {
+    const { m, h, c, op, inner, expanded } = params;
+    const steps: SolutionStep[] = [];
+    if (expanded) steps.push({ text: 'Complete the square.', tex: `f(x) = ${squareTex(m)} ${signedTile(-h)}` });
+    steps.push({ text: `The dip of $f$ goes down to $${-h}$, so the reflected hump has its top at height $${h}$.` });
+    steps.push({ text: `$${c}$ is ${inner !== null ? 'less' : 'more'} than $${h}$, so the line ${inner !== null ? 'cuts through' : 'passes over'} the hump.` });
+    steps.push({ tex: setTex(dipSet(params, op)) });
+    return steps;
+  },
+};
+
+/**
+ * The four critical values of $|f(x)|$ op $c$ in a tree: what the square is
+ * in each case, then the roots of each. Only rows where the line cuts the
+ * hump, so both cases give two.
+ */
+const criticalTree: Generator<DipIneqParams> = {
+  id: 'mod-critical-tree',
+  sample: (rng, difficulty) => {
+    const params = sampleDip(rng, difficulty, (row) => (row.inner ?? 0) > 0, 9);
+    return { ...params, op: rng.pick(OPS), min: 0, max: 0 };
+  },
+  render: (params): Slide => {
+    const { m, h, c, outer, op } = params;
+    const inner = params.inner ?? 0;
+    const sq = squareTex(m);
+    const answer = [h + c, h - c, m - outer, m + outer, m - inner, m + inner].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Find the critical values, from $f(x) = ${c}$ and $f(x) = ${-c}$. Top row: what $${sq}$ equals in each case, $${c}$ first. Below each: its two roots, smaller first.`,
+        },
+      ],
+      expression: dipEquationTex(params, op),
+      nodes: [
+        { id: 'plus', from: [] },
+        { id: 'minus', from: [] },
+        { id: 'plus-lo', from: ['plus'] },
+        { id: 'plus-hi', from: ['plus'] },
+        { id: 'minus-lo', from: ['minus'] },
+        { id: 'minus-hi', from: ['minus'] },
+      ],
+      bank: treeBank(answer, [c - h, -m - outer, -m + outer, m - (h + c)], m),
+      answer,
+    };
+  },
+  solution: (params) => dipSolution(params).slice(0, -1),
+};
+
+type TilesShape = 'two' | 'one' | 'rays';
+
+/**
+ * The solution set of $|f(x)|$ op $c$ from tiles, in whichever shape it
+ * takes: two stretches, one stretch, or two rays. The three-piece set of
+ * greater than, when the line cuts the hump, is left to the number line,
+ * since it runs off the edge of a phone as one line of tiles.
+ */
+const quadIneqTiles: Generator<DipIneqParams> = {
+  id: 'mod-quad-ineq-tiles',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => sampleDipIneq(rng, difficulty),
+      (params) => !(pointsRight(params.op) && params.inner !== null),
+      { ...DIPS[9], m: 0, expanded: difficulty > 1, op: '<', min: -3, max: 9 },
+    ),
+  render: (params): Slide => {
+    const { m, h, c, outer, inner, op } = params;
+    const lt = le(!isStrict(op));
+    const gt = isStrict(op) ? '>' : '\\ge';
+    const shape: TilesShape = pointsRight(op) ? 'rays' : inner === null ? 'one' : 'two';
+    const values =
+      shape === 'two' ? [m - outer, m - (inner ?? 0), m + (inner ?? 0), m + outer] : [m - outer, m + outer];
+    const template =
+      shape === 'two'
+        ? `{0} ${lt} x ${lt} {1} \\text{ or } {2} ${lt} x ${lt} {3}`
+        : shape === 'one'
+          ? `{0} ${lt} x ${lt} {1}`
+          : `x ${lt} {0} \\text{ or } x ${gt} {1}`;
+    const answer = values.map(numberTile);
+    const spare = [m - outer - 1, m + outer + 1, -m + outer, -m - outer, m - h, m + h, c, -c, m - 1, m + 1];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: 'Solve. Place the ends of the solution set, smallest first.' },
+        { kind: 'display', tex: dipEquationTex(params, op) },
+      ],
+      template,
+      bank: bankOf(answer, [...new Set(spare.map(numberTile))].filter((tile) => !answer.includes(tile)).slice(0, 4)),
+      answer,
+    };
+  },
+  solution: dipIneqSolution,
+};
+
 export const inequalityGenerators = [
   linearLine,
   linearSteps,
@@ -5131,4 +6579,24 @@ export const inequalityGenerators = [
   safeChoice,
   falseRoot,
   squareCheckSteps,
+  absQuadMatch,
+  absVertexSlider,
+  absValuesTree,
+  absSketchFlow,
+  fabsMatch,
+  fabsArmTiles,
+  insideOutTree,
+  fabsCountFlow,
+  quadEqRoot,
+  twoCasesTree,
+  crossingSlider,
+  quadCount,
+  cubicMatch,
+  cubicReflectLine,
+  cubicCountGen,
+  cubicSignFlow,
+  quadIneqLine,
+  quadIneqFlow,
+  criticalTree,
+  quadIneqTiles,
 ];

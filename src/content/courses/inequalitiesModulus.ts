@@ -19,6 +19,10 @@
  * $|ax + b| < |cx + d|$ from the factorised square, and when squaring is safe
  * at all.
  *
+ * Level 4 puts a modulus on curves: $y = |f(x)|$ and $y = f(|x|)$ for a
+ * quadratic, $|f(x)| = c$ solved from the graph and by two cases, the same
+ * reflection for cubics, and $|f(x)| < c$ read off the picture.
+ *
  * Linear inequalities on their own are Linear Equations' `le-l4`; this
  * course's first lesson keeps to the number-line picture of them. Later
  * levels are in `docs/roadmap/levels/inequalities-modulus.md`.
@@ -812,6 +816,293 @@ export const inequalitiesModulus: Course = {
         ask('mod-safe-choice', 2),
         ask('mod-false-root', 2),
         ask('mod-square-check-steps', 2),
+      ],
+    },
+    {
+      id: 'im-l4',
+      title: 'Modulus of Quadratics',
+      lessons: [
+        {
+          id: 'im-l4-abs-quad',
+          title: 'Reflecting a Quadratic',
+          slides: [
+            teach(
+              prose(
+                '$y = \\lvert f(x) \\rvert$ keeps every point of $y = f(x)$ on or above the $x$-axis and reflects every point below it: the height becomes the distance from the axis. Sketching the quadratic itself is in Quadratics, The Turning Point and Roots on the Graph.',
+              ),
+              graph(
+                [
+                  { f: (x) => x * x - 2 * x - 3, dashed: true },
+                  { f: (x) => Math.abs(x * x - 2 * x - 3), accent: true },
+                ],
+                { xMin: -3, xMax: 5, yMin: -5, yMax: 7 },
+                'The dashed parabola y = x squared - 2x - 3 and its modulus, with the dip between -1 and 3 reflected up to a vertex at (1, 4)',
+                [
+                  { x: -1, y: 0 },
+                  { x: 3, y: 0 },
+                  { x: 1, y: 4 },
+                ],
+              ),
+              prose(
+                'For $y = \\lvert x^2 - 2x - 3 \\rvert$ the roots $x = -1$ and $x = 3$ stay put, and the dip between them flips up: the vertex $(1, -4)$ becomes $(1, 4)$.',
+              ),
+            ),
+            ask('mod-abs-quad-match'),
+            ask('mod-abs-vertex-slider'),
+            ask('mod-abs-values-tree'),
+            teach(
+              prose(
+                'Point by point, the modulus just makes the value positive. At $x = 0$, $f(0) = -3$, so $y = \\lvert f(x) \\rvert$ is at $3$; at $x = 4$, $f(4) = 5$ and it stays $5$.',
+              ),
+              graph(
+                [
+                  { f: (x) => 4 - x * x, dashed: true },
+                  { f: (x) => Math.abs(4 - x * x), accent: true },
+                ],
+                { xMin: -4, xMax: 4, yMin: -6, yMax: 7 },
+                'The dashed upside-down parabola y = 4 - x squared and its modulus, with both arms beyond -2 and 2 reflected up',
+                [
+                  { x: -2, y: 0 },
+                  { x: 2, y: 0 },
+                ],
+              ),
+              prose(
+                'Which part flips depends on the curve. A U through the axis flips its dip; an upside-down U through the axis, like $4 - x^2$, flips both arms; a curve that never goes below the axis does not change.',
+              ),
+            ),
+            ask('mod-abs-sketch-flow'),
+            ask('mod-abs-quad-match', 2),
+            ask('mod-abs-vertex-slider', 2),
+            teach(
+              prose('A curve that is below the axis everywhere is reflected whole, so its modulus is $-f(x)$:'),
+              maths('\\lvert -x^2 - 2 \\rvert = x^2 + 2'),
+              prose(
+                'Written out in full, complete the square to find the vertex first. $x^2 - 6x + 5 = (x - 3)^2 - 4$, so the vertex $(3, -4)$ is below the axis and $y = \\lvert x^2 - 6x + 5 \\rvert$ has its vertex at $(3, 4)$.',
+              ),
+            ),
+            ask('mod-abs-values-tree', 2),
+            ask('mod-abs-sketch-flow', 2),
+          ],
+          skillCheck: [ask('mod-abs-vertex-slider', 2), ask('mod-abs-values-tree', 2), ask('mod-abs-sketch-flow', 2)],
+        },
+        {
+          id: 'im-l4-f-abs',
+          title: 'Mirroring the Right Half',
+          slides: [
+            teach(
+              prose(
+                '$y = f(\\lvert x \\rvert)$ works on the input instead. Where $x \\ge 0$, $\\lvert x \\rvert = x$, so the right half is $y = f(x)$ unchanged. Where $x < 0$, it is $f(-x)$: the right half reflected in the $y$-axis, as in Functions & Transformations, Reflections.',
+              ),
+              graph(
+                [
+                  { f: (x) => x * x - 4 * x + 3, dashed: true },
+                  { f: (x) => x * x - 4 * Math.abs(x) + 3, accent: true },
+                ],
+                { xMin: -5, xMax: 5, yMin: -2, yMax: 8 },
+                'The dashed parabola y = x squared - 4x + 3 and the graph of f of |x|, its right half mirrored, crossing the axis at -3, -1, 1 and 3',
+                [
+                  { x: -3, y: 0 },
+                  { x: -1, y: 0 },
+                  { x: 1, y: 0 },
+                  { x: 3, y: 0 },
+                ],
+              ),
+              prose('The left half of the original is thrown away, and the graph is always symmetric about the $y$-axis.'),
+            ),
+            ask('mod-fabs-match'),
+            ask('mod-fabs-arm-tiles'),
+            ask('mod-inside-out-tree'),
+            teach(
+              prose(
+                'Written out, $\\lvert x \\rvert$ goes where $x$ was, and since $\\lvert x \\rvert^2 = x^2$ only the $x$ term changes: $f(\\lvert x \\rvert) = x^2 - 4\\lvert x \\rvert + 3$. On the left that is $x^2 + 4x + 3$.',
+              ),
+              prose(
+                'Compare $\\lvert f(x) \\rvert$, which works on the output. At $x = -2$, $f(\\lvert -2 \\rvert) = f(2) = -1$, but $\\lvert f(-2) \\rvert = \\lvert 15 \\rvert = 15$.',
+              ),
+            ),
+            ask('mod-fabs-count-flow'),
+            ask('mod-fabs-match', 2),
+            ask('mod-fabs-arm-tiles', 2),
+            teach(
+              prose(
+                'The roots of $f(\\lvert x \\rvert) = 0$ are the numbers whose modulus is a root of $f$. A positive root $r$ gives two, $x = \\pm r$; a root at $0$ gives $x = 0$; a negative root gives nothing, since $\\lvert x \\rvert$ is never negative.',
+              ),
+              maths('\\begin{gathered} (\\lvert x \\rvert - 3)(\\lvert x \\rvert + 2) = 0 \\\\ x = \\pm 3 \\end{gathered}'),
+            ),
+            ask('mod-inside-out-tree', 2),
+            ask('mod-fabs-count-flow', 2),
+          ],
+          skillCheck: [ask('mod-fabs-match', 2), ask('mod-fabs-arm-tiles', 2), ask('mod-fabs-count-flow', 2)],
+        },
+        {
+          id: 'im-l4-solve',
+          title: 'Solving from the Graph',
+          slides: [
+            teach(
+              prose(
+                'For a positive $c$, $\\lvert f(x) \\rvert = c$ means $f(x) = c$ or $f(x) = -c$. On the graph it is where $y = \\lvert f(x) \\rvert$ meets the line $y = c$.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs(x * x - 5), accent: true },
+                  { f: () => 4, dashed: true },
+                ],
+                { xMin: -4, xMax: 4, yMin: -1, yMax: 8 },
+                'The graph of y = |x squared - 5| meeting the dashed line y = 4 at x = -3, -1, 1 and 3',
+                [
+                  { x: -3, y: 4 },
+                  { x: -1, y: 4 },
+                  { x: 1, y: 4 },
+                  { x: 3, y: 4 },
+                ],
+              ),
+              maths('\\begin{gathered} \\lvert x^2 - 5 \\rvert = 4 \\\\ x^2 = 9 \\quad \\text{or} \\quad x^2 = 1 \\\\ x = \\pm 3 \\text{ or } x = \\pm 1 \\end{gathered}'),
+            ),
+            ask('mod-crossing-slider'),
+            ask('mod-two-cases-tree'),
+            ask('mod-quad-eq-root'),
+            teach(
+              prose(
+                'How many roots depends on where the line is against the reflected hump. The dip of $x^2 - 5$ goes down to $-5$, so the top of the hump is at $5$.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs(x * x - 5), accent: true },
+                  { f: () => 5, dashed: true },
+                ],
+                { xMin: -4, xMax: 4, yMin: -1, yMax: 8 },
+                'The graph of y = |x squared - 5| with the dashed line y = 5 touching the top of its hump at (0, 5)',
+                [{ x: 0, y: 5 }],
+              ),
+              prose(
+                'A line below $5$ cuts four times; $y = 5$ touches the top, three; above $5$ only the two arms, two. A negative $c$ gives none, since a modulus is never negative.',
+              ),
+            ),
+            ask('mod-quad-count'),
+            ask('mod-crossing-slider', 2),
+            ask('mod-two-cases-tree', 2),
+            teach(
+              prose('Written out in full, complete the square first to see the hump.'),
+              maths('\\begin{gathered} x^2 - 4x - 1 = (x - 2)^2 - 5 \\\\ \\lvert x^2 - 4x - 1 \\rvert = 4 \\\\ (x - 2)^2 = 9 \\quad \\text{or} \\quad (x - 2)^2 = 1 \\end{gathered}'),
+              prose('So $x = -1$ or $5$ from the first case, and $x = 1$ or $3$ from the second: four roots.'),
+            ),
+            askWith('mod-quad-eq-root+choice', 'Two cases, up to four roots: pick the one asked for.', 2),
+            ask('mod-quad-count', 2),
+          ],
+          skillCheck: [ask('mod-two-cases-tree', 2), ask('mod-quad-eq-root', 2), ask('mod-quad-count', 2)],
+        },
+        {
+          id: 'im-l4-cubics',
+          title: 'Cubics with a Modulus',
+          slides: [
+            teach(
+              prose(
+                'The same reflection works for any curve. $y = (x + 2)(x - 1)(x - 3)$ crosses the axis at its three roots, as in Polynomials, Roots from the Factors, and $y = \\lvert f(x) \\rvert$ touches the axis there and bounces back up.',
+              ),
+              graph(
+                [
+                  { f: (x) => (x + 2) * (x - 1) * (x - 3), dashed: true },
+                  { f: (x) => Math.abs((x + 2) * (x - 1) * (x - 3)), accent: true },
+                ],
+                { xMin: -3, xMax: 4, yMin: -8, yMax: 10 },
+                'The dashed cubic through -2, 1 and 3, and its modulus with the stretches below the axis reflected up',
+                [
+                  { x: -2, y: 0 },
+                  { x: 1, y: 0 },
+                  { x: 3, y: 0 },
+                ],
+              ),
+              prose('Every stretch where the cubic is below the axis is flipped: here $x < -2$ and $1 < x < 3$.'),
+            ),
+            ask('mod-cubic-match'),
+            ask('mod-cubic-sign-flow'),
+            ask('mod-cubic-reflect-line'),
+            teach(
+              prose(
+                'To tell whether a point is on a flipped stretch, count the negative brackets. At $x = 2$ the brackets are $4$, $1$ and $-1$: one negative, so $f(2) = -4$ and the graph is flipped there.',
+              ),
+              prose(
+                'An even number of negative brackets makes the product positive, an odd number negative. A minus sign in front of the whole product turns every stretch over.',
+              ),
+            ),
+            ask('mod-cubic-count'),
+            ask('mod-cubic-match', 2),
+            ask('mod-cubic-sign-flow', 2),
+            teach(
+              prose(
+                'For $\\lvert f(x) \\rvert = c$, compare the line with the humps. The outer arms rise for ever, so each meets the line once; a hump meets it twice if the line is below its top, and not at all above it.',
+              ),
+              graph(
+                [
+                  { f: (x) => Math.abs((x - 1) * (x - 1) * (x - 4)), accent: true },
+                  { f: () => 2, dashed: true },
+                ],
+                { xMin: -1, xMax: 5, yMin: -1, yMax: 8 },
+                'The graph of y = |(x - 1) squared (x - 4)|, touching the axis at 1 and 4 with one hump of height 4, and the dashed line y = 2',
+                [{ x: 3, y: 4 }],
+              ),
+              prose(
+                'A double root, as in $(x - 1)^2(x - 4)$, is where the curve touches the axis and turns back, so there is only one hump, here $4$ high. The line $y = 2$ meets this graph four times.',
+              ),
+            ),
+            ask('mod-cubic-reflect-line', 2),
+            ask('mod-cubic-count', 2),
+          ],
+          skillCheck: [ask('mod-cubic-match', 2), ask('mod-cubic-reflect-line', 2), ask('mod-cubic-count', 2)],
+        },
+        {
+          id: 'im-l4-inequalities',
+          title: 'Inequalities from the Graph',
+          slides: [
+            teach(
+              prose(
+                '$\\lvert f(x) \\rvert < c$ is where the curve is **below** the line $y = c$, and $\\lvert f(x) \\rvert > c$ where it is above. The critical values are the crossings, from $\\lvert f(x) \\rvert = c$.',
+              ),
+              maths('\\begin{gathered} \\lvert x^2 - 5 \\rvert < 4 \\\\ -3 < x < -1 \\text{ or } 1 < x < 3 \\end{gathered}'),
+              line(-5, 5, [piece(-3, -1, false, false), piece(1, 3, false, false)], 'Two stretches: -3 to -1 and 1 to 3, all four ends left out'),
+              prose('Between $-1$ and $1$ the reflected hump rises above the line, which is why the set has a gap in it.'),
+            ),
+            ask('mod-quad-ineq-line'),
+            ask('mod-quad-ineq-flow'),
+            ask('mod-critical-tree'),
+            teach(
+              prose(
+                'The hump decides the shape. With the line below its top, less than is two stretches and greater than three pieces. With the line above it, less than is one stretch and greater than two rays.',
+              ),
+              maths('\\begin{gathered} \\lvert x^2 - 1 \\rvert < 3 \\\\ x^2 = 4 \\text{ or } x^2 = -2 \\\\ -2 < x < 2 \\end{gathered}'),
+              line(-4, 4, [piece(-2, 2, false, false)], 'One stretch from -2 to 2, both ends left out'),
+            ),
+            ask('mod-quad-ineq-tiles'),
+            ask('mod-quad-ineq-line', 2),
+            ask('mod-quad-ineq-flow', 2),
+            teach(
+              prose(
+                'With $\\le$ or $\\ge$ the critical values are included: filled dots. Written out in full, complete the square first: $x^2 + 2x - 4 = (x + 1)^2 - 5$, a hump $5$ high.',
+              ),
+              maths('\\begin{gathered} \\lvert x^2 + 2x - 4 \\rvert \\ge 4 \\\\ x \\le -4 \\text{ or } -2 \\le x \\le 0 \\\\ \\text{or } x \\ge 2 \\end{gathered}'),
+            ),
+            ask('mod-critical-tree', 2),
+            ask('mod-quad-ineq-tiles', 2),
+          ],
+          skillCheck: [ask('mod-quad-ineq-line', 2), ask('mod-critical-tree', 2), ask('mod-quad-ineq-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('mod-abs-vertex-slider', 2),
+        ask('mod-fabs-arm-tiles', 2),
+        ask('mod-quad-eq-root', 2),
+        ask('mod-cubic-match', 2),
+        ask('mod-quad-ineq-line', 2),
+        ask('mod-abs-sketch-flow', 2),
+        ask('mod-inside-out-tree', 2),
+        ask('mod-crossing-slider', 2),
+        ask('mod-cubic-count', 2),
+        ask('mod-quad-ineq-tiles', 2),
+        ask('mod-abs-quad-match', 2),
+        ask('mod-fabs-count-flow', 2),
+        ask('mod-two-cases-tree', 2),
+        ask('mod-cubic-sign-flow', 2),
+        ask('mod-critical-tree', 2),
       ],
     },
   ],

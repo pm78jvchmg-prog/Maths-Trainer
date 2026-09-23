@@ -33,8 +33,10 @@ import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
+import { IterateSlide } from './iterateSlide';
 import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
+import { TransformSlide } from './transformSlide';
 import { NumberLineSlide } from './numberLineSlide';
 import { draftHasShading } from '../content/numberLine';
 
@@ -547,6 +549,8 @@ export function SlideView(props: SlideProps) {
       return <StepsSlide {...props} />;
     case 'tree':
       return <TreeSlide {...props} />;
+    case 'iterate':
+      return <IterateSlide {...props} />;
     case 'slider':
       return <SliderSlide {...props} />;
     case 'flow':
@@ -555,6 +559,8 @@ export function SlideView(props: SlideProps) {
       return <ReduceSlide {...props} />;
     case 'evaluate':
       return <EvaluateSlide {...props} />;
+    case 'transform':
+      return <TransformSlide {...props} />;
     case 'order':
       return <OrderSlide {...props} />;
     case 'numberLine':
@@ -566,6 +572,7 @@ export function SlideView(props: SlideProps) {
 export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
+  if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
   if (
     slide.kind === 'steps' ||
@@ -576,7 +583,9 @@ export function initialAnswer(slide: Slide): Answer {
     return [];
   }
   // A slider too, although its handle is drawn somewhere: where it rests is
-  // not something the learner chose, and it can be the answer.
+  // not something the learner chose, and it can be the answer. A transform
+  // likewise: its live curve is drawn at the identity, which is a curve but
+  // not an answer.
   return '';
 }
 
@@ -584,8 +593,8 @@ export function initialAnswer(slide: Slide): Answer {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles' || slide.kind === 'tree') {
-    const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
+  if (slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate') {
+    const expected = slide.kind === 'tree' ? slide.nodes.length : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
   // A proof is answerable once every slot holds a step.
@@ -601,6 +610,9 @@ export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'numberLine') return typeof answer === 'string' && draftHasShading(answer);
   // One tile chosen is the whole answer.
   if (slide.kind === 'evaluate') return typeof answer === 'string' && answer !== '';
+  // Answerable once any control has been tapped, even back to the identity:
+  // that is a choice, where the untouched curve is not.
+  if (slide.kind === 'transform') return typeof answer === 'string' && answer !== '';
   // Answerable once the expression is a single number, however it got there:
   // an illegal reduction still settles its line, and Check has to be reachable
   // or the learner could never find out that it was illegal.

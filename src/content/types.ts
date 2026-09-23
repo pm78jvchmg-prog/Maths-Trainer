@@ -8,6 +8,7 @@
  */
 import type { Rng } from '../engine/rng';
 import type { Expr } from './expr';
+import type { BaseCurve, Window } from './transform';
 
 /** A unit of rendered content. Prose may embed inline maths between $ signs. */
 export type Block =
@@ -368,6 +369,27 @@ export type Slide =
       answer: string[];
     })
   /**
+   * Move a curve until it is the one asked for.
+   *
+   * The base curve `y = f(x)` is drawn dashed and a live copy of it moves as
+   * the learner taps steppers (move, stretch) and flips. Two directions, one
+   * kind: `apply` names the target equation in the prompt and asks for the
+   * curve; `match` draws the target curve and asks for the transformation,
+   * which the readout writes out as the learner builds it.
+   *
+   * Graded by comparing curves, not parameters (`sameCurve` in
+   * `src/content/transform.ts`): for an even `f` a flip left to right draws
+   * the same curve as no flip, and the learner who drew it is right.
+   */
+  | ({ kind: 'transform' } & Prompted & {
+      direction: 'apply' | 'match';
+      base: BaseCurve;
+      /** Drawn and graded over this window. */
+      window: Window;
+      /** The transformation that draws the target, as `encodeTransform` writes it. */
+      answer: string;
+    })
+  /**
    * Put the steps of a proof in order.
    *
    * The learner builds the proof rather than writing it: numbered slots, one
@@ -400,6 +422,31 @@ export type Slide =
       /** Values offered, including distractors. */
       bank: string[];
       /** Expected value per node, in `nodes` order. */
+      answer: string[];
+    })
+  /**
+   * Run an iteration by hand: fill in `x_1`, `x_2`, … from a given `x_0`, then
+   * say what the iterates tell you about the root.
+   *
+   * The scheme and the precision live in the prompt; the widget draws the
+   * `n | x_n` table under it with `x_0` filled in, one blank per iterate, and
+   * one more blank for the conclusion. Values come from a bank, as `tree` does
+   * it, so the grade is exact tokens: every iterate is written to the places
+   * the prompt states, and the generator refuses draws where rounding is a
+   * coin toss.
+   */
+  | ({ kind: 'iterate' } & Prompted & {
+      /** `x_0`, shown in the first row. TeX. */
+      start: string;
+      /**
+       * What the last cell asks for: the value the iterates settle on to the
+       * stated precision, or the two consecutive tenths either side of the
+       * root, written as one token (`1.8 < \alpha < 1.9`).
+       */
+      conclusion: 'limit' | 'bracket';
+      /** Values offered, including distractors. Sorted, never shuffled. */
+      bank: string[];
+      /** `x_1` onwards, one per blank row, then the conclusion. */
       answer: string[];
     });
 

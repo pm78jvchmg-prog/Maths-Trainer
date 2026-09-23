@@ -84,7 +84,10 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   // Working slides grow a line at a time, so they anchor to the top; anything
   // else sits low on the screen, within thumb reach.
   const grows =
-    slide.slide.kind === 'steps' || slide.slide.kind === 'tree' || slide.slide.kind === 'order';
+    slide.slide.kind === 'steps' ||
+    slide.slide.kind === 'tree' ||
+    slide.slide.kind === 'order' ||
+    slide.slide.kind === 'iterate';
   // A wrong answer the learner is still allowed to change. `canRetry` is the
   // same gate the widgets read, so a level check cannot pick up a second
   // attempt through this route either.

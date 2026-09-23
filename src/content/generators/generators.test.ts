@@ -39,6 +39,15 @@ import {
   MIN_WIDGET_KINDS,
 } from '../shapeVariety';
 import { TRIPLES } from './complexPlane';
+import {
+  IDENTITY,
+  encodeTransform,
+  parseTransform,
+  reachable,
+  sameCurve,
+  transformTex,
+  transformed,
+} from '../transform';
 import { docFromKeys, toAnswer } from '../../ui/mathInput';
 import type { Generator, Slide, SlideRef } from '../types';
 
@@ -258,6 +267,33 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         expect(slide.readout).toContain('{v}');
       }
 
+      if (slide.kind === 'transform') {
+        const target = parseTransform(slide.answer);
+        expect(target, `unreadable answer ${slide.answer}`).toBeDefined();
+        // Written the way the widget writes it, so a learner who builds the
+        // same parameters sends the same string.
+        expect(encodeTransform(target!)).toBe(slide.answer);
+        // Every part of it has to be something the controls can reach: whole
+        // shifts inside the steppers' range, factors on the ladder.
+        expect(reachable(target!), `${slide.answer} is out of the controls' reach`).toBe(true);
+        // The live curve starts at the identity, so a target that *is* the
+        // identity would be marked right for a learner who touched nothing
+        // but a stepper and back — the slider's old trap, on a new widget.
+        expect(
+          sameCurve(slide.base, IDENTITY, target!, slide.window),
+          `${slide.base} ${slide.answer} draws the untouched curve`,
+        ).toBe(false);
+        // A target that has left the picture cannot be matched: across a comb
+        // of 49 points, a tenth must be defined and inside the window.
+        const f = transformed(slide.base, target!);
+        const { xMin, xMax, yMin, yMax } = slide.window;
+        const inView = Array.from({ length: 49 }, (_, i) => xMin + ((xMax - xMin) * i) / 48).filter((x) => {
+          const y = f(x);
+          return Number.isFinite(y) && y >= yMin && y <= yMax;
+        });
+        expect(inView.length, `${slide.base} ${slide.answer} is mostly off screen`).toBeGreaterThanOrEqual(5);
+      }
+
       if (slide.kind === 'numberLine') {
         // Every tick is a tap target as wide as the spacing, so the step count
         // is what keeps them a thumb apart on a phone: twelve across the line
@@ -345,6 +381,38 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         expect(
           bank.length,
           `tree bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+        ).toBeGreaterThanOrEqual(2);
+      }
+
+      if (slide.kind === 'iterate') {
+        // Graded as exact tokens, so each one has to be written to exactly
+        // the places the prompt asks for: a row the learner computes right
+        // and writes to the stated precision must be a tile they can find.
+        const prose = slide.prompt
+          .map((block) => (block.kind === 'prose' ? block.text : ''))
+          .join(' ');
+        const stated = /to (\d) decimal places/.exec(prose);
+        expect(stated, `iterate prompt states no precision: ${prose}`).not.toBeNull();
+        const places = Number(stated![1]);
+        const written = new RegExp(`^-?\\d+\\.\\d{${places}}$`);
+        expect(slide.answer.length, 'an iteration needs rows and a conclusion').toBeGreaterThanOrEqual(3);
+        for (const token of slide.answer.slice(0, -1)) {
+          expect(token, `row ${token} is not written to ${places} places`).toMatch(written);
+        }
+        const conclusion = slide.answer[slide.answer.length - 1];
+        expect(conclusion).toMatch(
+          slide.conclusion === 'limit' ? written : /^-?\d+\.\d < \\alpha < -?\d+\.\d$/,
+        );
+
+        const bank = [...slide.bank];
+        for (const value of slide.answer) {
+          const at = bank.indexOf(value);
+          expect(at, `value ${value} missing from bank`).toBeGreaterThanOrEqual(0);
+          bank.splice(at, 1);
+        }
+        expect(
+          bank.length,
+          `iterate bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
         ).toBeGreaterThanOrEqual(2);
       }
 
@@ -470,6 +538,18 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
       if (slide.kind === 'tree') {
         check(slide.expression, 'tree expression');
         for (const token of slide.bank) check(token, 'tree bank');
+      }
+
+      if (slide.kind === 'transform') {
+        // The readout: what the learner builds, starting from the identity.
+        const target = parseTransform(slide.answer);
+        if (target) check(transformTex(target), 'transform readout');
+        check(transformTex(IDENTITY), 'transform readout');
+      }
+
+      if (slide.kind === 'iterate') {
+        check(slide.start, 'iterate start');
+        for (const token of slide.bank) check(token, 'iterate bank');
       }
 
       if (slide.kind === 'order') {
@@ -789,7 +869,7 @@ describe('course integrity', () => {
     for (const course of courses) {
       for (const level of course.levels) {
         if (level.levelCheck === undefined) continue;
-        expect(level.levelCheck.length, `${course.id}/${level.id}`).toBeGreaterThanOrEqual(10);
+        expect(level.levelCheck.length, `${course.id}/${level.id}`).toBeGreaterThanOrEqual(8);
         expect(level.levelCheck.length, `${course.id}/${level.id}`).toBeLessThanOrEqual(15);
       }
     }

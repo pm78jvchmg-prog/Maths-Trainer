@@ -2737,7 +2737,7 @@ const doubleValue_: Generator<DoubleValueParams> = {
       },
       { tex: `\\sin x = ${ratTex(s)} \\qquad \\cos x = ${ratTex(c)}` },
     ];
-    if (p.ask === 'sin') steps.push({ tex: `\\sin 2x = 2\\sin x\\cos x = 2 \\times ${br(ratTex(s))} \\times ${br(ratTex(c))} =${ratTex(doubleValue(p))}` });
+    if (p.ask === 'sin') steps.push({ tex: `\\sin 2x = 2\\sin x\\cos x = 2 \\times ${br(ratTex(s))} \\times ${br(ratTex(c))} = ${ratTex(doubleValue(p))}` });
     else if (p.ask === 'cos') steps.push({ tex: `\\cos 2x = \\cos^2 x - \\sin^2 x = ${ratTex(rat(c[0] * c[0], h * h))} - ${ratTex(rat(s[0] * s[0], h * h))} = ${ratTex(doubleValue(p))}` });
     else {
       const t = rat(s[0], c[0]);
@@ -2997,8 +2997,10 @@ const DOUBLE_STEPS: StepsForm[] = [
       { span: [0, 3], value: `${c}(\\cos ${v} + \\sin ${v})`, bank: [`${c}(\\cos ${v} - \\sin ${v})`, `${c}`, `${c}\\cos 2${v}`] },
     ],
     why: (c, _k, v) => [
-      { text: `$\\cos 2${v} = \\cos^2 ${v} - \\sin^2 ${v}$, a difference of two squares.` },
-      { tex: `${c}(\\cos ${v} - \\sin ${v})(\\cos ${v} + \\sin ${v}) \\div (\\cos ${v} - \\sin ${v}) = ${c}(\\cos ${v} + \\sin ${v})` },
+      {
+        text: `$\\cos 2${v} = \\cos^2 ${v} - \\sin^2 ${v}$, a difference of two squares: it is $(\\cos ${v} - \\sin ${v})(\\cos ${v} + \\sin ${v})$, so the bracket $\\cos ${v} - \\sin ${v}$ cancels.`,
+      },
+      { tex: `${c}\\cos 2${v} \\div (\\cos ${v} - \\sin ${v}) = ${c}(\\cos ${v} + \\sin ${v})` },
     ],
   },
   {
@@ -3373,38 +3375,182 @@ const doubleEqTree: Generator<DoubleTreeParams> = {
   },
 };
 
+/* ---------- Fitting a phone ---------- */
+
+/**
+ * Roughly how many characters wide a line of TeX renders, counting a fraction
+ * as its wider half and a function name as its letters. Only good enough to
+ * tell a line that fits a phone from one that would scroll sideways.
+ */
+function texWidth(tex: string): number {
+  let s = tex;
+  for (;;) {
+    const next = s.replace(/\\d?t?frac\{([^{}]*)\}\{([^{}]*)\}/g, (_m, a: string, b: string) => `${a.length > b.length ? a : b}xx`);
+    if (next === s) break;
+    s = next;
+  }
+  return s
+    .replace(/\^\{\\circ\}/g, 'o')
+    .replace(/\\operatorname\{cosec\}/g, 'cosec')
+    .replace(/\\text\{([^}]*)\}/g, '$1')
+    .replace(/\\(left|right)/g, 'x')
+    .replace(/\\(,|;|!)/g, '')
+    .replace(/\\qquad/g, 'xxxx')
+    .replace(/\\quad/g, 'xx')
+    .replace(/\\([a-zA-Z]+)/g, (_m, w: string) => (w.length > 3 ? 'xx' : w))
+    .replace(/[=+]| - /g, 'xx')
+    .replace(/[{}\s^_]/g, '').length;
+}
+
+/** The widest line, by `texWidth`, that sits on a 393-pixel screen without scrolling. */
+const FIT = 22;
+
+/** Splits at `sep` wherever it is outside every bracket and brace. */
+function splitTop(tex: string, sep: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < tex.length; i++) {
+    const ch = tex[i];
+    if (ch === '{' || ch === '(') depth++;
+    else if (ch === '}' || ch === ')') depth--;
+    else if (depth === 0 && tex.startsWith(sep, i)) {
+      out.push(tex.slice(start, i).trim());
+      start = i + sep.length;
+      i += sep.length - 1;
+    }
+  }
+  out.push(tex.slice(start).trim());
+  return out;
+}
+
+/**
+ * Breaks a long run of terms before an operator, packing terms greedily. A sum
+ * breaks before a plus or minus first; only a piece still too wide after that
+ * breaks inside a product, so `a \\times b + c \\times d` never splits `c` from `d`.
+ */
+function breakTerms(
+  tex: string,
+  limit = FIT - 5,
+  groups: string[][] = [[' + ', ' - '], [' \\times ', ' \\div ']],
+): string[] {
+  if (texWidth(tex) <= limit || groups.length === 0) return [tex];
+  let terms = [tex];
+  for (const op of groups[0]) {
+    terms = terms.flatMap((term) => {
+      const [head, ...tail] = splitTop(term, op);
+      return [head, ...tail.map((t) => `${op.trim()} ${t}`)];
+    });
+  }
+  const lines: string[] = [];
+  for (const term of terms) {
+    const last = lines.length - 1;
+    if (last >= 0 && texWidth(`${lines[last]} ${term}`) <= limit) lines[last] = `${lines[last]} ${term}`;
+    else lines.push(term);
+  }
+  return lines.flatMap((line) => breakTerms(line, limit, groups.slice(1)));
+}
+
+/**
+ * One `L = R1 = R2` chain as aligned rows, each `=` under the last. A long
+ * left-hand side gets a row of its own, so it does not push every row right.
+ */
+function chainRows(tex: string, prefix: string): string[] {
+  const [lhs, ...rhs] = splitTop(tex, ' = ');
+  const pieces = (side: string, lead: string, limit = FIT - 5) =>
+    breakTerms(side, limit).map((piece, j) => (j === 0 ? `${lead}${piece}` : `& \\quad {} ${piece}`));
+  if (rhs.length === 0) return pieces(tex, `& ${prefix}`, FIT);
+  if (texWidth(`${prefix}${tex}`) <= FIT) return [`${prefix}${lhs} &= ${rhs.join(' = ')}`];
+  const own = texWidth(lhs) > FIT / 2 || (rhs.length === 1 && breakTerms(rhs[0]).length === 1);
+  return [
+    ...(own ? pieces(lhs, `& ${prefix}`, FIT) : []),
+    ...rhs.flatMap((side, i) => pieces(side, i === 0 && !own ? `${prefix}${lhs} &= ` : '&= ')),
+  ];
+}
+
+/**
+ * A line of working too wide for a phone, stacked: a chain of equals signs one
+ * per row, two statements side by side one above the other, and a long sum
+ * broken before a plus or minus. A line that already fits is left alone.
+ */
+function fit(tex: string): string {
+  if (tex.includes('\\begin') || texWidth(tex) <= FIT) return tex;
+  const rows: string[] = [];
+  for (const part of splitTop(tex, '\\qquad')) {
+    // Two statements joined by an arrow or an "or": each gets its own row,
+    // the joining word leading the second.
+    const pieces = [{ tex: part, lead: '' }];
+    for (const [sep, lead] of [
+      ['\\quad \\Rightarrow \\quad', '\\Rightarrow\\; '],
+      ['\\quad \\text{or} \\quad', '\\text{or}\\; '],
+    ]) {
+      const next = pieces.splice(0).flatMap((piece) =>
+        texWidth(piece.tex) <= FIT
+          ? [piece]
+          : splitTop(piece.tex, sep).map((t, i) => ({ tex: t, lead: i === 0 ? piece.lead : lead })),
+      );
+      pieces.push(...next);
+    }
+    for (const piece of pieces) rows.push(...chainRows(piece.tex, piece.lead));
+  }
+  return rows.length === 1 ? tex : `\\begin{aligned} ${rows.join(' \\\\ ')} \\end{aligned}`;
+}
+
+/** The same generator, with every display and every line of working fitted to a phone. */
+function fitted<P>(generator: Generator<P>): Generator<P> {
+  return {
+    ...generator,
+    render: (params) => {
+      const slide = generator.render(params);
+      if (!('prompt' in slide)) return slide;
+      if (slide.kind === 'expression' && slide.lead && texWidth(slide.lead) > FIT) {
+        // Stacked in place, so the lead still ends in the equals sign the
+        // input sits after, and a choice form built from it still finds it.
+        const body = slide.lead.replace(/\s*=\s*$/, '').trim();
+        return { ...slide, lead: `${fit(body)} =` };
+      }
+      return {
+        ...slide,
+        ...(slide.kind === 'tree' ? { expression: fit(slide.expression) } : {}),
+        prompt: slide.prompt.map((block): Block => (block.kind === 'display' ? { ...block, tex: fit(block.tex) } : block)),
+      };
+    },
+    solution: (params) => generator.solution(params).map((step) => (step.tex ? { ...step, tex: fit(step.tex) } : step)),
+  };
+}
+
 export const trigIdentityGenerators = [
-  simplifySteps,
-  rearrangeTiles,
-  simplifyChoice,
-  valueFromIdentity,
-  whichIdentityFlow,
-  constantValue,
-  quadraticTree,
-  disguisedTiles,
-  solutionCount,
-  solutionSlider,
-  tanSolve,
-  tanSolveTiles,
-  divideFlow,
-  tanSlider,
-  expandTiles,
-  collapseTiles,
-  formulaChoice,
-  compoundTree,
-  tanCompound,
-  tanCompoundTree,
-  tanShiftSolve,
-  tanExpandTiles,
-  exactTiles,
-  exactSteps,
-  tanExactChoice,
-  doubleValue_,
-  doubleTiles,
-  doubleCollapseChoice,
-  doubleSteps,
-  doubleEqFlow,
-  doubleEqSlider,
-  doubleQuadTiles,
-  doubleEqTree,
+  fitted(simplifySteps),
+  fitted(rearrangeTiles),
+  fitted(simplifyChoice),
+  fitted(valueFromIdentity),
+  fitted(whichIdentityFlow),
+  fitted(constantValue),
+  fitted(quadraticTree),
+  fitted(disguisedTiles),
+  fitted(solutionCount),
+  fitted(solutionSlider),
+  fitted(tanSolve),
+  fitted(tanSolveTiles),
+  fitted(divideFlow),
+  fitted(tanSlider),
+  fitted(expandTiles),
+  fitted(collapseTiles),
+  fitted(formulaChoice),
+  fitted(compoundTree),
+  fitted(tanCompound),
+  fitted(tanCompoundTree),
+  fitted(tanShiftSolve),
+  fitted(tanExpandTiles),
+  fitted(exactTiles),
+  fitted(exactSteps),
+  fitted(tanExactChoice),
+  fitted(doubleValue_),
+  fitted(doubleTiles),
+  fitted(doubleCollapseChoice),
+  fitted(doubleSteps),
+  fitted(doubleEqFlow),
+  fitted(doubleEqSlider),
+  fitted(doubleQuadTiles),
+  fitted(doubleEqTree),
 ];

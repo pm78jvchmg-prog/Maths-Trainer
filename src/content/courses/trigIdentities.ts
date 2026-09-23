@@ -55,7 +55,7 @@ export const trigIdentities: Course = {
               prose(
                 'Because it always holds, either side can replace the other in any expression. Rearranging it gives two forms you will use constantly:',
               ),
-              maths('\\sin^2 x = 1 - \\cos^2 x \\qquad \\cos^2 x = 1 - \\sin^2 x'),
+              maths('\\begin{aligned} \\sin^2 x &= 1 - \\cos^2 x \\\\ \\cos^2 x &= 1 - \\sin^2 x \\end{aligned}'),
             ),
             ask('tid-rearrange-tiles'),
             ask('tid-simplify-steps'),
@@ -64,7 +64,7 @@ export const trigIdentities: Course = {
               prose(
                 'To simplify, look for a piece that matches one side of an identity and swap in the other side. For example',
               ),
-              maths('\\frac{3(1 - \\cos^2 x)}{\\sin x} = \\frac{3\\sin^2 x}{\\sin x} = 3\\sin x'),
+              maths('\\begin{aligned} \\frac{3(1 - \\cos^2 x)}{\\sin x} &= \\frac{3\\sin^2 x}{\\sin x} \\\\ &= 3\\sin x \\end{aligned}'),
               prose(
                 'The other two are $\\tan x = \\frac{\\sin x}{\\cos x}$ and $1 + \\tan^2 x = \\sec^2 x$, so $\\sec^2 x - 1$ is $\\tan^2 x$ and $\\tan x\\cos x$ is $\\sin x$.',
               ),
@@ -108,7 +108,9 @@ export const trigIdentities: Course = {
               prose(
                 'Some expressions come to the same number at every angle. That is why an angle with no exact value is no obstacle:',
               ),
-              maths('5\\sin^2 37^{\\circ} + 5\\cos^2 37^{\\circ} = 5(\\sin^2 37^{\\circ} + \\cos^2 37^{\\circ}) = 5'),
+              maths(
+                '\\begin{aligned} &5\\sin^2 37^{\\circ} + 5\\cos^2 37^{\\circ} \\\\ &= 5(\\sin^2 37^{\\circ} + \\cos^2 37^{\\circ}) \\\\ &= 5 \\end{aligned}',
+              ),
               prose('Take out the common factor first, so the identity can be seen.'),
             ),
             ask('tid-constant-value'),
@@ -137,7 +139,7 @@ export const trigIdentities: Course = {
           slides: [
             teach(
               prose('This is a quadratic, with $\\sin x$ where the unknown usually goes:'),
-              maths('2\\sin^2 x - \\sin x - 1 = 0 \\quad \\Rightarrow \\quad (2\\sin x + 1)(\\sin x - 1) = 0'),
+              maths('\\begin{aligned} 2\\sin^2 x - \\sin x - 1 &= 0 \\\\ (2\\sin x + 1)(\\sin x - 1) &= 0 \\end{aligned}'),
               prose(
                 'So $\\sin x = -\\frac{1}{2}$ or $\\sin x = 1$. Each value then gives its own angles: from $0^{\\circ}$ to $360^{\\circ}$, $\\sin x = 1$ at $90^{\\circ}$, and $\\sin x = -\\frac{1}{2}$ at $210^{\\circ}$ and $330^{\\circ}$.',
               ),
@@ -152,7 +154,7 @@ export const trigIdentities: Course = {
               prose(
                 'Often the quadratic is disguised by a $\\cos^2 x$. Swap it for $1 - \\sin^2 x$ and everything is in sines:',
               ),
-              maths('2\\cos^2 x + 3\\sin x = 3 \\quad \\Rightarrow \\quad 2 - 2\\sin^2 x + 3\\sin x - 3 = 0'),
+              maths('\\begin{aligned} 2\\cos^2 x + 3\\sin x &= 3 \\\\ 2(1 - \\sin^2 x) + 3\\sin x &= 3 \\end{aligned}'),
               maths('2\\sin^2 x - 3\\sin x + 1 = 0'),
               prose('Collect everything on one side, then multiply through by $-1$ so the squared term is positive.'),
             ),
@@ -182,7 +184,7 @@ export const trigIdentities: Course = {
           slides: [
             teach(
               prose('An equation with one sine and one cosine becomes a tangent equation when you divide by $\\cos x$:'),
-              maths('\\sin x = \\sqrt{3}\\cos x \\quad \\Rightarrow \\quad \\tan x = \\sqrt{3}'),
+              maths('\\begin{aligned} \\sin x &= \\sqrt{3}\\cos x \\\\ \\tan x &= \\sqrt{3} \\end{aligned}'),
               prose(
                 'That is safe here: where $\\cos x = 0$, $\\sin x$ is $\\pm 1$, so no solution is lost.',
               ),
@@ -209,7 +211,7 @@ export const trigIdentities: Course = {
               prose(
                 'In radians nothing changes but the numbers: tangent repeats every $\\pi$, so the second answer is the first plus $\\pi$.',
               ),
-              maths('\\tan x = 1 \\quad \\Rightarrow \\quad x = \\frac{\\pi}{4} \\text{ or } \\frac{5\\pi}{4}'),
+              maths('\\tan x = 1 \\;\\Rightarrow\\; x = \\frac{\\pi}{4} \\text{ or } \\frac{5\\pi}{4}'),
             ),
             ask('tid-tan-solve-tiles', 2),
             ask('tid-divide-flow', 2),
@@ -250,8 +252,8 @@ export const trigIdentities: Course = {
               prose(
                 'The sine of a sum is not the sum of the sines: $\\sin(30^{\\circ} + 60^{\\circ}) = 1$, but $\\sin 30^{\\circ} + \\sin 60^{\\circ}$ is more than $1$. The true formulae are',
               ),
-              maths('\\sin(A \\pm B) = \\sin A\\cos B \\pm \\cos A\\sin B'),
-              maths('\\cos(A \\pm B) = \\cos A\\cos B \\mp \\sin A\\sin B'),
+              maths('\\begin{aligned} \\sin(A \\pm B) &= \\sin A\\cos B \\\\ &\\quad \\pm \\cos A\\sin B \\end{aligned}'),
+              maths('\\begin{aligned} \\cos(A \\pm B) &= \\cos A\\cos B \\\\ &\\quad \\mp \\sin A\\sin B \\end{aligned}'),
               prose('Sine keeps the sign and mixes the functions. Cosine flips the sign and keeps them paired.'),
             ),
             ask('tid-formula-choice'),
@@ -259,7 +261,9 @@ export const trigIdentities: Course = {
             ask('tid-expand-tiles', 2),
             teach(
               prose('Read backwards, the formulae collapse two products into one function of one angle:'),
-              maths('\\cos 25^{\\circ}\\cos 35^{\\circ} - \\sin 25^{\\circ}\\sin 35^{\\circ} = \\cos 60^{\\circ} = \\frac{1}{2}'),
+              maths(
+                '\\begin{aligned} &\\cos 25^{\\circ}\\cos 35^{\\circ} \\\\ &\\quad - \\sin 25^{\\circ}\\sin 35^{\\circ} \\\\ &= \\cos 60^{\\circ} = \\frac{1}{2} \\end{aligned}',
+              ),
               prose(
                 'Cosine times cosine first means cosine, and the minus means the angles add. Sine times cosine first means sine, with the same sign in the bracket.',
               ),
@@ -289,7 +293,7 @@ export const trigIdentities: Course = {
           slides: [
             teach(
               prose('Dividing $\\sin(A + B)$ by $\\cos(A + B)$, then top and bottom by $\\cos A\\cos B$, gives'),
-              maths('\\tan(A \\pm B) = \\frac{\\tan A \\pm \\tan B}{1 \\mp \\tan A\\tan B}'),
+              maths('\\begin{aligned} &\\tan(A \\pm B) \\\\ &= \\frac{\\tan A \\pm \\tan B}{1 \\mp \\tan A\\tan B} \\end{aligned}'),
               prose(
                 'The top keeps the sign, the bottom flips it. With $\\tan A = 2$ and $\\tan B = 3$, $\\tan(A + B) = \\frac{5}{1 - 6} = -1$.',
               ),
@@ -309,7 +313,7 @@ export const trigIdentities: Course = {
             ask('tid-tan-expand-tiles', 2),
             teach(
               prose('Run the formula backwards to solve. Write $t$ for $\\tan x$:'),
-              maths('\\tan(x + 45^{\\circ}) = 3 \\quad \\Rightarrow \\quad \\frac{t + 1}{1 - t} = 3'),
+              maths('\\begin{aligned} \\tan(x + 45^{\\circ}) &= 3 \\\\ \\frac{t + 1}{1 - t} &= 3 \\end{aligned}'),
               prose('Multiply out: $t + 1 = 3 - 3t$, so $4t = 2$ and $\\tan x = \\frac{1}{2}$.'),
             ),
             ask('tid-tan-shift-solve'),
@@ -330,9 +334,8 @@ export const trigIdentities: Course = {
                 '$75^{\\circ}$ is not in the table, but $45^{\\circ} + 30^{\\circ}$ is two angles that are, so the formula gives an exact value:',
               ),
               maths(
-                '\\sin 75^{\\circ} = \\sin 45^{\\circ}\\cos 30^{\\circ} + \\cos 45^{\\circ}\\sin 30^{\\circ} = \\frac{\\sqrt{2}}{2} \\cdot \\frac{\\sqrt{3}}{2} + \\frac{\\sqrt{2}}{2} \\cdot \\frac{1}{2}',
+                '\\begin{aligned} \\sin 75^{\\circ} &= \\sin 45^{\\circ}\\cos 30^{\\circ} \\\\ &\\quad + \\cos 45^{\\circ}\\sin 30^{\\circ} \\\\ &= \\frac{\\sqrt{2}}{2} \\cdot \\frac{\\sqrt{3}}{2} + \\frac{\\sqrt{2}}{2} \\cdot \\frac{1}{2} \\\\ &= \\frac{\\sqrt{6} + \\sqrt{2}}{4} \\end{aligned}',
               ),
-              maths('= \\frac{\\sqrt{6} + \\sqrt{2}}{4}'),
             ),
             ask('tid-exact-steps'),
             ask('tid-exact-tiles'),
@@ -351,7 +354,7 @@ export const trigIdentities: Course = {
             teach(
               prose('The tangent formula does the same for tangents:'),
               maths(
-                '\\tan 15^{\\circ} = \\frac{1 - \\frac{1}{\\sqrt{3}}}{1 + \\frac{1}{\\sqrt{3}}} = \\frac{\\sqrt{3} - 1}{\\sqrt{3} + 1} = 2 - \\sqrt{3}',
+                '\\begin{aligned} \\tan 15^{\\circ} &= \\frac{1 - \\frac{1}{\\sqrt{3}}}{1 + \\frac{1}{\\sqrt{3}}} = \\frac{\\sqrt{3} - 1}{\\sqrt{3} + 1} \\\\ &= 2 - \\sqrt{3} \\end{aligned}',
               ),
               prose('The last step multiplies top and bottom by $\\sqrt{3} - 1$. In the same way $\\tan 75^{\\circ} = 2 + \\sqrt{3}$.'),
             ),
@@ -370,8 +373,8 @@ export const trigIdentities: Course = {
           slides: [
             teach(
               prose('Put $B = A$ in the compound-angle formulae:'),
-              maths('\\sin 2A = 2\\sin A\\cos A \\qquad \\tan 2A = \\frac{2\\tan A}{1 - \\tan^2 A}'),
-              maths('\\cos 2A = \\cos^2 A - \\sin^2 A = 2\\cos^2 A - 1 = 1 - 2\\sin^2 A'),
+              maths('\\begin{aligned} \\sin 2A &= 2\\sin A\\cos A \\\\ \\tan 2A &= \\frac{2\\tan A}{1 - \\tan^2 A} \\end{aligned}'),
+              maths('\\begin{aligned} \\cos 2A &= \\cos^2 A - \\sin^2 A \\\\ &= 2\\cos^2 A - 1 \\\\ &= 1 - 2\\sin^2 A \\end{aligned}'),
               prose('The three forms of $\\cos 2A$ come from swapping $\\sin^2 A$ or $\\cos^2 A$ with $\\sin^2 + \\cos^2 = 1$.'),
             ),
             ask('tid-double-tiles'),
@@ -411,7 +414,7 @@ export const trigIdentities: Course = {
           slides: [
             teach(
               prose('An equation mixing $2x$ and $x$ needs one angle only. Expand the double angle:'),
-              maths('\\sin 2x = \\sin x \\quad \\Rightarrow \\quad 2\\sin x\\cos x - \\sin x = 0'),
+              maths('\\begin{aligned} \\sin 2x &= \\sin x \\\\ 2\\sin x\\cos x - \\sin x &= 0 \\end{aligned}'),
               maths('\\sin x(2\\cos x - 1) = 0'),
               prose(
                 'So $\\sin x = 0$ or $\\cos x = \\frac{1}{2}$. Dividing by $\\sin x$ instead would have lost every angle where $\\sin x = 0$.',
@@ -424,7 +427,7 @@ export const trigIdentities: Course = {
               prose(
                 'With $\\cos 2x$, choose the form that leaves one function. Next to $\\cos x$, use $2\\cos^2 x - 1$:',
               ),
-              maths('\\cos 2x - 3\\cos x + 2 = 0 \\quad \\Rightarrow \\quad 2\\cos^2 x - 3\\cos x + 1 = 0'),
+              maths('\\begin{aligned} \\cos 2x - 3\\cos x + 2 &= 0 \\\\ 2\\cos^2 x - 3\\cos x + 1 &= 0 \\end{aligned}'),
               prose('Next to $\\sin x$, use $1 - 2\\sin^2 x$. Either way it is a quadratic you already know how to finish.'),
             ),
             ask('tid-double-quadratic-tiles'),
@@ -434,7 +437,7 @@ export const trigIdentities: Course = {
               prose(
                 'When the equation is in $2x$ alone, solve for $2x$ first, over the doubled range, then halve. For $0^{\\circ} \\le x < 360^{\\circ}$, $2x$ runs from $0^{\\circ}$ to $720^{\\circ}$:',
               ),
-              maths('\\sin 2x = \\tfrac{1}{2} \\quad \\Rightarrow \\quad 2x = 30^{\\circ}, 150^{\\circ}, 390^{\\circ}, 510^{\\circ}'),
+              maths('\\begin{aligned} \\sin 2x &= \\tfrac{1}{2} \\\\ 2x &= 30^{\\circ}, 150^{\\circ}, 390^{\\circ}, 510^{\\circ} \\end{aligned}'),
               prose('So $x = 15^{\\circ}, 75^{\\circ}, 195^{\\circ}, 255^{\\circ}$: twice as many solutions as $\\sin x = \\frac{1}{2}$ has.'),
             ),
             ask('tid-double-eq-tree'),

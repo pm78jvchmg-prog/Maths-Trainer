@@ -6452,10 +6452,18 @@ function ijOf([x, y]: Vec): string {
 /** The same vector in brackets, ready to be multiplied or added to. */
 const ijBr = (v: Vec) => `(${ijOf(v)})`;
 
+/**
+ * A vector with its unit, held together: inline maths breaks at a top-level
+ * plus, and a velocity split over two lines of prose reads as two numbers.
+ */
+const unitTex = (v: Vec, unit: string) => `{${ijBr(v)} \\; ${unit}}`;
+
 /** `r = (a) + (b)t`: where a particle is after `t` seconds. */
 function motionTex(r0: Vec, v: Vec, name = '\\mathbf{r}'): string {
   if (r0[0] === 0 && r0[1] === 0) return `${name} = ${ijBr(v)}t`;
-  return `${name} = ${ijBr(r0)} + ${ijBr(v)}t`;
+  // A start along one axis needs no brackets: `-7i + (2i - j)t`.
+  const start = r0[0] === 0 || r0[1] === 0 ? ijOf(r0) : ijBr(r0);
+  return `${name} = ${start} + ${ijBr(v)}t`;
 }
 
 /**
@@ -6529,7 +6537,7 @@ function positionPrompt({ who, r0, v }: PositionParams, ask: string): Block[] {
   return [
     {
       kind: 'prose',
-      text: `${PARTICLES[who]} starts at the point with position vector $${ijOf(r0)}$ and moves with constant velocity $${ijBr(v)} \\; ${MPS}$. ${ask}`,
+      text: `${PARTICLES[who]} starts at the point with position vector $${ijOf(r0)}$ and moves with constant velocity $${unitTex(v, MPS)}$. ${ask}`,
     },
     { kind: 'display', tex: motionTex(r0, v) },
   ];
@@ -6870,7 +6878,7 @@ const mechSpeed: Generator<SpeedParams> = {
       : [
           {
             kind: 'prose',
-            text: `${PARTICLES[who]} moves with velocity $${ijBr(v)} \\; ${MPS}$. Find its speed in $${MPS}$.`,
+            text: `${PARTICLES[who]} moves with velocity $${unitTex(v, MPS)}$. Find its speed in $${MPS}$.`,
           },
         ],
     lead: '\\text{speed} =',
@@ -6911,7 +6919,7 @@ const mechDistanceTree: Generator<TravelParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${PARTICLES[who]} moves with constant velocity $${ijBr(v)} \\; ${MPS}$ for $${time}$ seconds. Square each component, find the speed, then how far it travels in metres.`,
+          text: `${PARTICLES[who]} moves with constant velocity $${unitTex(v, MPS)}$ for $${time}$ seconds. Square each component, find the speed, then how far it travels in metres.`,
         },
       ],
       expression: `${time} \\times \\sqrt{${paren(v[0])}^2 + ${paren(v[1])}^2}`,
@@ -6970,7 +6978,8 @@ const mechVelocityFromSpeed: Generator<SpeedDirectionParams> = {
     {
       text: `A speed of $${k * c}$ is $${k * c}$ of those unit vectors, which is $${k * c} \\div ${c} = ${k}$ lots of $${ijOf(d)}$:`,
     },
-    { tex: `\\mathbf{v} = ${k}${ijBr(d)} = ${ijOf(scaled(k, d))}` },
+    { tex: `\\mathbf{v} = ${k}${ijBr(d)}` },
+    { tex: `= ${ijOf(scaled(k, d))}` },
   ],
 };
 
@@ -7015,7 +7024,7 @@ const mechHeading: Generator<HeadingParams> = {
         kind: 'prose',
         text: from
           ? `${PARTICLES[who]} moves in a straight line from the point with position vector $${ijOf(from)}$ to the point with position vector $${ijOf(plus(from, v))}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`
-          : `${PARTICLES[who]} moves with velocity $${ijBr(v)} \\; ${MPS}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`,
+          : `${PARTICLES[who]} moves with velocity $${unitTex(v, MPS)}$. $\\theta$ is the angle between its direction of motion and $\\mathbf{i}$. Find $\\tan\\theta$.`,
       },
     ],
     lead: '\\tan\\theta =',
@@ -7085,7 +7094,7 @@ const mechSuvatV: Generator<SuvatParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${PARTICLES[who]} has initial velocity $${ijBr(u)} \\; ${MPS}$ and constant acceleration $${ijBr(a)} \\; ${MPS2}$. Find its velocity after $${t}$ seconds.`,
+          text: `${PARTICLES[who]} has initial velocity $${unitTex(u, MPS)}$ and constant acceleration $${unitTex(a, MPS2)}$. Find its velocity after $${t}$ seconds.`,
         },
       ],
       template: VECTOR_TEMPLATE,
@@ -7108,7 +7117,7 @@ const mechAcceleration: Generator<SuvatParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${PARTICLES[who]} moves with constant acceleration. In $${t}$ seconds its velocity changes from $${ijBr(u)} \\; ${MPS}$ to $${ijBr(v)} \\; ${MPS}$. Find its acceleration.`,
+          text: `${PARTICLES[who]} moves with constant acceleration. In $${t}$ seconds its velocity changes from $${unitTex(u, MPS)}$ to $${unitTex(v, MPS)}$. Find its acceleration.`,
         },
       ],
       template: VECTOR_TEMPLATE,
@@ -7184,7 +7193,7 @@ const mechParallelTime: Generator<ParallelTimeParams> = {
     prompt: [
       {
         kind: 'prose',
-        text: `${PARTICLES[who]} has initial velocity $${ijBr(u)} \\; ${MPS}$ and constant acceleration $${ijBr(a)} \\; ${MPS2}$. At what time, in seconds, is it moving parallel to $${AXIS_TEX[axis]}$?`,
+        text: `${PARTICLES[who]} has initial velocity $${unitTex(u, MPS)}$ and constant acceleration $${unitTex(a, MPS2)}$. At what time, in seconds, is it moving parallel to $${AXIS_TEX[axis]}$?`,
       },
     ],
     lead: '\\text{time } t =',
@@ -7207,8 +7216,9 @@ const mechParallelTime: Generator<ParallelTimeParams> = {
             text: `Parallel to $${AXIS_TEX[axis]}$ means no $${axis === 'i' ? '\\mathbf{j}' : '\\mathbf{i}'}$ component at all:`,
           },
       axis === 'diagonal'
-        ? { tex: `${x} = ${y} \\implies t = ${t}` }
-        : { tex: `${axis === 'i' ? y : x} = 0 \\implies t = ${t}` },
+        ? { tex: `${x} = ${y}` }
+        : { tex: `${axis === 'i' ? y : x} = 0` },
+      { tex: `t = ${t}` },
       { text: `Check: at $t = ${t}$ the velocity is $${ijOf(v)}$.` },
     ];
   },
@@ -7236,7 +7246,7 @@ const mechDisplacementTree: Generator<SuvatParams> = {
       prompt: [
         {
           kind: 'prose',
-          text: `${PARTICLES[who]} has initial velocity $${ijBr(u)} \\; ${MPS}$ and constant acceleration $${ijBr(a)} \\; ${MPS2}$. Find $\\mathbf{u}t$ and $\\tfrac{1}{2}\\mathbf{a}t^2$ when $t = ${t}$, then its displacement in metres.`,
+          text: `${PARTICLES[who]} has initial velocity $${unitTex(u, MPS)}$ and constant acceleration $${unitTex(a, MPS2)}$. Find $\\mathbf{u}t$ and $\\tfrac{1}{2}\\mathbf{a}t^2$ when $t = ${t}$, then its displacement in metres.`,
         },
       ],
       expression: '\\mathbf{s} = \\mathbf{u}t + \\tfrac{1}{2}\\mathbf{a}t^2',
@@ -7259,7 +7269,8 @@ const mechDisplacementTree: Generator<SuvatParams> = {
     const half = scaled((t * t) / 2, a);
     return [
       { text: `With $t = ${t}$, $t^2 = ${t * t}$ and half of that is $${(t * t) / 2}$.` },
-      { tex: `\\mathbf{u}t = ${t}${ijBr(u)} = ${ijOf(ut)}` },
+      { tex: `\\mathbf{u}t = ${t}${ijBr(u)}` },
+      { tex: `= ${ijOf(ut)}` },
       { tex: `\\tfrac{1}{2}\\mathbf{a}t^2 = ${(t * t) / 2}${ijBr(a)}` },
       { tex: `= ${ijOf(half)}` },
       ...sumLines(ut, 1, half),
@@ -7286,7 +7297,8 @@ function sumLinesOf(forces: Vec[]) {
   return (['i', 'j'] as const).map((unit, idx) =>
     componentLine(
       unit,
-      forces.map((f, n) => (n === 0 ? `${f[idx]}` : paren(f[idx]))).join(' + '),
+      // Signed terms rather than bracketed ones: three brackets overflow a phone.
+      forces.map((f, n) => (n === 0 ? `${f[idx]}` : `${f[idx] < 0 ? '-' : '+'} ${Math.abs(f[idx])}`)).join(' '),
       sumOf(forces)[idx],
     ),
   );
@@ -7475,7 +7487,7 @@ const mechFma: Generator<FmaParams> = {
         prompt: [
           {
             kind: 'prose',
-            text: `A particle of mass $${m}$ kg moves with acceleration $${ijBr(acc)} \\; ${MPS2}$ under two forces. One is $\\mathbf{F}_1$ below, in newtons. Find the other, $\\mathbf{F}_2$.`,
+            text: `A particle of mass $${m}$ kg moves with acceleration $${unitTex(acc, MPS2)}$ under two forces. One is $\\mathbf{F}_1$ below, in newtons. Find the other, $\\mathbf{F}_2$.`,
           },
           { kind: 'display', tex: `\\mathbf{F}_1 = ${ijOf(forces[0])}` },
         ],
@@ -7505,7 +7517,8 @@ const mechFma: Generator<FmaParams> = {
     if (ask === 'force') {
       return [
         { text: 'The resultant is the mass times the acceleration, $\\mathbf{F}_1 + \\mathbf{F}_2 = m\\mathbf{a}$:' },
-        { tex: `m\\mathbf{a} = ${m}${ijBr(acc)} = ${ijOf(r)}` },
+        { tex: `m\\mathbf{a} = ${m}${ijBr(acc)}` },
+        { tex: `= ${ijOf(r)}` },
         { text: 'So $\\mathbf{F}_2$ is what is left when $\\mathbf{F}_1$ is taken away from that:' },
         componentLine('i', `${r[0]} - ${paren(forces[0][0])}`, forces[1][0]),
         componentLine('j', `${r[1]} - ${paren(forces[0][1])}`, forces[1][1]),

@@ -439,6 +439,10 @@ are green, and one new lesson has been played in a browser.
 | B26 | Vectors: Planes & the Cross Product | **done** (`claude/roadmap-b-vectors-3-ke6n0q`): level `vm-l8`, 5 lessons, a 14-question level check, 21 new generators |
 | B27 | Matrices & Linear Transformations: Systems of Equations | **done** (`claude/roadmap-b-matrices-3-eamxgf`): level `vm-l9`, 5 lessons, a 15-question level check, 22 new generators |
 | B11 | Quadratics: Quadratic Inequalities | **done** (`claude/roadmap-b-quadratics-2-aoomzy`): level `qd-l5`, 5 lessons, a 15-question level check, 15 new generators |
+| B35 | Vectors: Vectors in Mechanics | **done** (`claude/roadmap-b-vectors-4-kze9i1`): level `vm-l10`, 5 lessons, a 14-question level check, 23 new generators |
+| B20 | Quadratics: Modelling with Quadratics | **done** (`claude/roadmap-b-quadratics-3-ii0cum`): level `qd-l6`, 5 lessons, a 15-question level check, 19 new generators |
+| B28 | Exponents & Radicals: Growth by Repeated Multiplication | **done** (`claude/roadmap-b-exponents-4-te54kq`): level `er-l7`, 5 lessons, a 15-question level check, 20 new generators |
+| B30 | Logarithms: Compound Log Equations | **done** (`claude/roadmap-b-logarithms-4-j5p34b`): level `lg-l7`, 5 lessons, a 15-question level check, 19 new generators |
 | B33 | Differentiation: Optimisation | **done** (`claude/roadmap-b-differentiation-4-3bxj6t`): level `df-l8`, 5 lessons, a 15-question level check, 17 new generators and an independent mathjs check |
 
 ### Phase C — the twenty-one new concepts

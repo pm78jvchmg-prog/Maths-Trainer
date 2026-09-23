@@ -26,6 +26,7 @@ import { defaultSliderValue } from '../../ui/sliderValue';
 import { ALGEBRA_KEYS, termTex } from './calculus';
 import { surdAnswer, surdTex } from './format';
 import type { Rng } from '../../engine/rng';
+import { growthGenerators } from './growth';
 
 /** Index work needs the algebra keys plus a root. */
 const SURD_KEYS: KeypadKey[] = [...ALGEBRA_KEYS, { insert: 'sqrt(' }];
@@ -6907,4 +6908,5 @@ export const indicesGenerators = [
   singleIndexTiles,
   surdPower,
   surdBaseTree,
+  ...growthGenerators,
 ] as unknown as Generator<unknown>[];

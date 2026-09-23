@@ -9,9 +9,9 @@
  *
  * Lesson ids keep their `vm-` prefix so that progress recorded against the
  * combined course survives the split. Level 4, Vector Geometry, is `vm-l4`,
- * level 6, Lines in Vector Form, is `vm-l6`, and level 8, Planes & the Cross
- * Product, is `vm-l8`: `vm-l2`, `vm-l3`, `vm-l5`, `vm-l7` and `vm-l9` are the
- * Matrices course's.
+ * level 6, Lines in Vector Form, is `vm-l6`, level 8, Planes & the Cross
+ * Product, is `vm-l8`, and level 10 is `vm-l10`: `vm-l2`, `vm-l3`, `vm-l5`,
+ * `vm-l7` and `vm-l9` are the Matrices course's.
  *
  * Level 4 turns vectors into a way of saying where points are: position
  * vectors, a point part-way along a line, three points on one line, the
@@ -26,6 +26,11 @@
  * Level 8 is three-dimensional throughout: the cross product and what it is
  * for, perpendicular vectors and areas, then the equation of a plane from a
  * point and a normal, from three points, and where a line meets one.
+ *
+ * Level 10, Vectors in Mechanics (`vm-l10`), gives two-dimensional vectors a
+ * physical meaning in i, j notation: position and velocity, speed and
+ * direction, constant acceleration, forces and F = ma, and two particles that
+ * may or may not collide. Units stay in the prose; no answer carries one.
  *
  * Each level closes with a level check: twelve or fourteen questions, no
  * teaching slides, one attempt each.
@@ -1169,6 +1174,256 @@ export const vectors: Course = {
         ask('plane-three-equation', 2),
         ask('line-plane-point', 2),
         ask('line-plane-relation', 2),
+      ],
+    },
+    {
+      id: 'vm-l10',
+      title: 'Vectors in Mechanics',
+      lessons: [
+        {
+          id: 'vm-l10-position',
+          title: 'Position and Velocity',
+          slides: [
+            teach(
+              prose(
+                'In mechanics a **position vector** says where a particle is, measured from a fixed origin, with $\\mathbf{i}$ pointing east and $\\mathbf{j}$ north. Distances are in metres and times in seconds.',
+              ),
+              prose(
+                'A constant **velocity** $\\mathbf{v}$ is the displacement every second. Starting from $\\mathbf{r}_0$, after $t$ seconds the particle is at',
+              ),
+              maths('\\mathbf{r} = \\mathbf{r}_0 + \\mathbf{v}t'),
+              prose('Starting at $2\\mathbf{i} + \\mathbf{j}$ with velocity ${(3\\mathbf{i} - \\mathbf{j}) \\; \\mathrm{m\\,s^{-1}}}$, after $4$ seconds:'),
+              maths('\\mathbf{r} = (2\\mathbf{i} + \\mathbf{j}) + 4(3\\mathbf{i} - \\mathbf{j})'),
+              maths('= 14\\mathbf{i} - 3\\mathbf{j}'),
+            ),
+            ask('mech-position'),
+            ask('mech-position-steps'),
+            ask('mech-time-slider'),
+            teach(
+              prose(
+                'To find **when** a particle is somewhere, set one component of $\\mathbf{r}$ equal to where it needs to be and solve for $t$. For $\\mathbf{r} = (-6\\mathbf{i} + 2\\mathbf{j}) + (2\\mathbf{i} + \\mathbf{j})t$ to reach $4\\mathbf{i} + 7\\mathbf{j}$:',
+              ),
+              maths('-6 + 2t = 4 \\implies t = 5'),
+              prose('Then check the other component at the same time: $2 + 5 = 7$, as it should be.'),
+              prose(
+                '**Due north** of the origin means no distance east or west, so the $\\mathbf{i}$ component is $0$; due east means the $\\mathbf{j}$ component is $0$.',
+              ),
+            ),
+            ask('mech-when'),
+            ask('mech-time-slider', 2),
+            ask('mech-when+choice'),
+            teach(
+              prose(
+                'Working backwards: if a particle with constant velocity is at $\\mathbf{a}$ and then at $\\mathbf{b}$ a time $t$ later, the velocity is the displacement divided by that time.',
+              ),
+              maths('\\mathbf{v} = \\frac{\\mathbf{b} - \\mathbf{a}}{t}'),
+              prose(
+                'From $\\mathbf{i} + 5\\mathbf{j}$ to $7\\mathbf{i} - \\mathbf{j}$ in $3$ seconds is a displacement of $6\\mathbf{i} - 6\\mathbf{j}$, so $\\mathbf{v} = {(2\\mathbf{i} - 2\\mathbf{j}) \\; \\mathrm{m\\,s^{-1}}}$.',
+              ),
+            ),
+            ask('mech-velocity-from'),
+            ask('mech-velocity-from', 2),
+          ],
+          skillCheck: [
+            ask('mech-position', 2),
+            ask('mech-when', 2),
+            ask('mech-velocity-from', 2),
+          ],
+        },
+        {
+          id: 'vm-l10-speed',
+          title: 'Speed and Direction',
+          slides: [
+            teach(
+              prose(
+                '**Speed** is the magnitude of the velocity: how fast, with the direction left behind. It is never negative.',
+              ),
+              maths('\\text{speed} = |\\mathbf{v}|'),
+              prose('A velocity of ${(3\\mathbf{i} - 4\\mathbf{j}) \\; \\mathrm{m\\,s^{-1}}}$ is a speed of'),
+              maths('\\sqrt{3^2 + (-4)^2} = 5 \\; \\mathrm{m\\,s^{-1}}'),
+              prose('At a constant speed, the distance travelled is the speed times the time: $5 \\; \\mathrm{m\\,s^{-1}}$ for $6$ seconds is $30$ metres.'),
+            ),
+            ask('mech-speed'),
+            ask('mech-distance-tree'),
+            ask('mech-speed+choice'),
+            teach(
+              prose(
+                'The other way round: a speed and a direction make a velocity. Divide the direction by its own length to get a **unit vector**, then multiply by the speed.',
+              ),
+              prose('At $10 \\; \\mathrm{m\\,s^{-1}}$ in the direction of $3\\mathbf{i} + 4\\mathbf{j}$, whose length is $5$:'),
+              maths('\\mathbf{v} = \\frac{10}{5}(3\\mathbf{i} + 4\\mathbf{j})'),
+              maths('= 6\\mathbf{i} + 8\\mathbf{j}'),
+            ),
+            ask('mech-velocity-from-speed'),
+            ask('mech-distance-tree', 2),
+            ask('mech-velocity-from-speed', 2),
+            teach(
+              prose(
+                'The **direction** of motion is often given as the angle $\\theta$ it makes with $\\mathbf{i}$. The velocity is the hypotenuse of a right-angled triangle whose other sides are its components.',
+              ),
+              prose(
+                'The $\\mathbf{j}$ component is opposite $\\theta$ and the $\\mathbf{i}$ component next to it, so for $4\\mathbf{i} + 3\\mathbf{j}$:',
+              ),
+              maths('\\tan\\theta = \\frac{3}{4}'),
+            ),
+            ask('mech-heading'),
+            ask('mech-heading+choice', 2),
+          ],
+          skillCheck: [
+            ask('mech-speed', 2),
+            ask('mech-velocity-from-speed', 2),
+            ask('mech-heading', 2),
+          ],
+        },
+        {
+          id: 'vm-l10-acceleration',
+          title: 'Constant Acceleration',
+          slides: [
+            teach(
+              prose(
+                'A constant **acceleration** $\\mathbf{a}$ is the change in velocity every second. Starting with velocity $\\mathbf{u}$, after $t$ seconds the velocity is',
+              ),
+              maths('\\mathbf{v} = \\mathbf{u} + \\mathbf{a}t'),
+              prose('Rearranged, the acceleration is the change in velocity divided by the time:'),
+              maths('\\mathbf{a} = \\frac{\\mathbf{v} - \\mathbf{u}}{t}'),
+              prose('Each component works on its own, exactly as with positions.'),
+            ),
+            ask('mech-suvat-v'),
+            ask('mech-acceleration'),
+            ask('mech-suvat-v+choice'),
+            teach(
+              prose(
+                'A particle is moving **parallel to** $\\mathbf{i}$ when its velocity has no $\\mathbf{j}$ component. With $\\mathbf{u} = 3\\mathbf{i} - 6\\mathbf{j}$ and $\\mathbf{a} = \\mathbf{i} + 2\\mathbf{j}$, the $\\mathbf{j}$ component of the velocity is $-6 + 2t$:',
+              ),
+              maths('-6 + 2t = 0 \\implies t = 3'),
+              prose('Parallel to $\\mathbf{i} + \\mathbf{j}$ means the two components are equal instead.'),
+            ),
+            ask('mech-parallel-time'),
+            ask('mech-acceleration', 2),
+            ask('mech-parallel-time+choice'),
+            teach(
+              prose('The **displacement** after $t$ seconds of constant acceleration is'),
+              maths('\\mathbf{s} = \\mathbf{u}t + \\tfrac{1}{2}\\mathbf{a}t^2'),
+              prose(
+                'Two vectors, then their sum. With $\\mathbf{u} = 2\\mathbf{i} + \\mathbf{j}$, $\\mathbf{a} = \\mathbf{i} - \\mathbf{j}$ and $t = 4$: $\\mathbf{u}t = 8\\mathbf{i} + 4\\mathbf{j}$ and $\\tfrac{1}{2}\\mathbf{a}t^2 = 8\\mathbf{i} - 8\\mathbf{j}$, so $\\mathbf{s} = 16\\mathbf{i} - 4\\mathbf{j}$.',
+              ),
+            ),
+            ask('mech-displacement-tree'),
+            ask('mech-displacement-tree', 2),
+          ],
+          skillCheck: [
+            ask('mech-suvat-v', 2),
+            ask('mech-parallel-time', 2),
+            ask('mech-displacement-tree', 2),
+          ],
+        },
+        {
+          id: 'vm-l10-forces',
+          title: 'Forces as Vectors',
+          slides: [
+            teach(
+              prose(
+                'Forces are vectors, measured in newtons. Several forces on one particle have the same effect as their sum, the **resultant**.',
+              ),
+              maths('\\mathbf{R} = \\mathbf{F}_1 + \\mathbf{F}_2 + \\dots'),
+              prose(
+                'For $\\mathbf{F}_1 = 5\\mathbf{i} + 2\\mathbf{j}$ and $\\mathbf{F}_2 = \\mathbf{i} + 6\\mathbf{j}$, $\\mathbf{R} = 6\\mathbf{i} + 8\\mathbf{j}$, of magnitude $\\sqrt{36 + 64} = 10$ newtons.',
+              ),
+              prose('A resultant **parallel to** $\\mathbf{i}$ has no $\\mathbf{j}$ component, so the $\\mathbf{j}$ components add to zero.'),
+            ),
+            ask('mech-resultant'),
+            ask('mech-resultant-tree'),
+            ask('mech-force-k'),
+            teach(
+              prose(
+                'A particle is in **equilibrium** when the resultant is zero. A missing force must then cancel all the others: it is their sum, reversed.',
+              ),
+              prose('With $\\mathbf{F}_1 = 3\\mathbf{i} - 2\\mathbf{j}$ and $\\mathbf{F}_2 = -\\mathbf{i} + 5\\mathbf{j}$, the sum is $2\\mathbf{i} + 3\\mathbf{j}$, so'),
+              maths('\\mathbf{F}_3 = -2\\mathbf{i} - 3\\mathbf{j}'),
+            ),
+            ask('mech-equilibrium'),
+            ask('mech-equilibrium+choice', 2),
+            ask('mech-force-k+choice'),
+            teach(
+              prose(
+                "Newton's second law holds for vectors: the resultant is the mass times the acceleration, and the two point the same way.",
+              ),
+              maths('\\mathbf{F} = m\\mathbf{a}'),
+              prose(
+                'A resultant of $(12\\mathbf{i} - 8\\mathbf{j})$ newtons on a $4$ kg particle gives $\\mathbf{a} = {(3\\mathbf{i} - 2\\mathbf{j}) \\; \\mathrm{m\\,s^{-2}}}$: divide each component by the mass.',
+              ),
+            ),
+            ask('mech-fma'),
+            ask('mech-fma', 2),
+          ],
+          skillCheck: [
+            ask('mech-resultant-tree', 2),
+            ask('mech-equilibrium', 2),
+            ask('mech-fma', 2),
+          ],
+        },
+        {
+          id: 'vm-l10-two-particles',
+          title: 'Two Particles',
+          slides: [
+            teach(
+              prose(
+                'With two particles $A$ and $B$, the position of $B$ **relative to** $A$ is the journey from $A$ to $B$ at that moment:',
+              ),
+              maths('\\mathbf{r}_B - \\mathbf{r}_A'),
+              prose(
+                'Find each position at the time asked, then subtract. The **distance** between them is the magnitude of that vector: if $B$ is $5\\mathbf{i} - 12\\mathbf{j}$ from $A$, they are $13$ metres apart.',
+              ),
+            ),
+            ask('mech-relative'),
+            ask('mech-apart-tree'),
+            ask('mech-relative', 2),
+            teach(
+              prose(
+                'Two particles **collide** only if they are in the same place at the **same time**: both components equal for one value of $t$.',
+              ),
+              prose(
+                'That is stricter than two lines crossing. Their paths can cross with one particle arriving after the other has gone.',
+              ),
+              prose(
+                'So solve one component for $t$, then check the other at that time. If a component can never be equal, they never collide.',
+              ),
+            ),
+            ask('mech-meet-flow'),
+            ask('mech-meet-time'),
+            ask('mech-meet-point'),
+            teach(
+              prose('For $\\mathbf{r}_A = (\\mathbf{i} + 2\\mathbf{j}) + (3\\mathbf{i} + \\mathbf{j})t$ and $\\mathbf{r}_B = (9\\mathbf{i} + 4\\mathbf{j}) + (-\\mathbf{i} + 2\\mathbf{j})t$:'),
+              maths('1 + 3t = 9 - t \\implies t = 2'),
+              prose(
+                'At $t = 2$ both $\\mathbf{j}$ components are $4$, so they collide, at $7\\mathbf{i} + 4\\mathbf{j}$.',
+              ),
+            ),
+            ask('mech-meet-time+choice', 2),
+            ask('mech-apart-tree', 2),
+          ],
+          skillCheck: [
+            ask('mech-relative', 2),
+            ask('mech-meet-time', 2),
+            ask('mech-apart-tree', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('mech-position', 2),
+        ask('mech-when', 2),
+        ask('mech-velocity-from', 2),
+        ask('mech-speed', 2),
+        ask('mech-velocity-from-speed', 2),
+        ask('mech-heading', 2),
+        ask('mech-suvat-v', 2),
+        ask('mech-parallel-time', 2),
+        ask('mech-displacement-tree', 2),
+        ask('mech-resultant-tree', 2),
+        ask('mech-equilibrium', 2),
+        ask('mech-fma', 2),
+        ask('mech-meet-time', 2),
+        ask('mech-apart-tree', 2),
       ],
     },
   ],

@@ -1,0 +1,47 @@
+# Switches on GitHub's auto-merge for every pull request, so each one lands
+# itself once the "Workers Builds: maths-trainer" check required by the
+# "auto merge" ruleset passes. A push to main (or a manual run) sweeps up any
+# open pull request that does not have it yet.
+#
+# `gh pr merge --auto` merges at once when the check has already passed, and
+# fails for a pull request that is already set; neither should turn the run
+# red, so a failure is reported as a warning and the loop carries on.
+
+name: Auto-merge
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Enable auto-merge
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            prs="$PR_NUMBER"
+          else
+            prs=$(gh pr list --state open --limit 100 --json number,isDraft,autoMergeRequest \
+              --jq '.[] | select(.isDraft | not) | select(.autoMergeRequest == null) | .number')
+          fi
+          for pr in $prs; do
+            if gh pr merge "$pr" --auto --merge; then
+              echo "#$pr: auto-merge on"
+            else
+              echo "::warning::#$pr: could not enable auto-merge (see the message above)"
+            fi
+          done

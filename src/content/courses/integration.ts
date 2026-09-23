@@ -16,13 +16,17 @@
  * ends the ordinary method can reach: infinite limits and unbounded
  * integrands, each put right by a limit, then which of them converge, then
  * integrals that have to be split to have one troublesome end per piece.
+ * Level 8 goes back to where the area came from: rectangles under the curve,
+ * their sum written in terms of the number of strips and taken to its limit,
+ * an integral read off such a limit, which sums over- or under-estimate, and
+ * the same area by the limit and by the antiderivative.
  *
  * Each level closes with a level check: twelve questions, no teaching slides,
  * one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
 import { plotSvg } from '../figures';
-import { betweenSvg, solidSvg } from '../generators/integration';
+import { betweenSvg, solidSvg, stripsSvg } from '../generators/integration';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -2126,6 +2130,254 @@ export const integration: Course = {
         ask('int-imp-two-sided', 2),
         ask('int-imp-halves-tree', 2),
         ask('int-imp-trap', 2),
+      ],
+    },
+    {
+      id: 'in-l8',
+      title: 'Integration as a Limit of a Sum',
+      lessons: [
+        {
+          id: 'in-l8-strips',
+          title: 'Area by Strips',
+          slides: [
+            teach(
+              prose('To estimate the area under a curve, cut it into strips of equal width and treat each strip as a rectangle.'),
+              {
+                kind: 'diagram',
+                svg: stripsSvg({
+                  xMin: -0.6,
+                  xMax: 6.6,
+                  yMin: -3,
+                  yMax: 40,
+                  f: (x) => x * x + 1,
+                  a: 0,
+                  h: 2,
+                  n: 3,
+                  side: 'left',
+                  label: 'Three rectangles under y = x^2 + 1, each as tall as the curve at its left edge',
+                }),
+              },
+              prose(
+                'Here $y = x^{2} + 1$ from $x = 0$ to $x = 6$ is cut into 3 strips of width $2$. Each rectangle takes its height from the curve at its **left** edge: $f(0) = 1$, $f(2) = 5$ and $f(4) = 17$.',
+              ),
+              maths('L_{3} = 2(1 + 5 + 17)'),
+              maths('= 46'),
+            ),
+            ask('int-lim-which-sum'),
+            ask('int-lim-sum-ends'),
+            ask('int-lim-strip-tree'),
+            teach(
+              prose('Read the heights at the **right** edges instead and you get the right sum:'),
+              maths('R_{3} = 2\\left[f(2) + f(4) + f(6)\\right]'),
+              maths('= 2(5 + 17 + 37) = 118'),
+              prose(
+                'With $n$ strips of width $h = \\frac{b - a}{n}$, the left sum reads $f$ at $a, a + h, \\dots, b - h$ and the right sum at $a + h, \\dots, b$. The true area here is $78$, between the two.',
+              ),
+            ),
+            ask('int-lim-rect-sum'),
+            ask('int-lim-which-sum', 2),
+            ask('int-lim-sum-ends', 2),
+            teach(
+              prose(
+                'Both sums are estimates. More strips, each thinner, hug the curve more closely, so both sums close in on the true area. The next lesson takes that to its limit.',
+              ),
+            ),
+            ask('int-lim-strip-tree', 2),
+            ask('int-lim-rect-sum+choice', 2),
+          ],
+          skillCheck: [
+            ask('int-lim-strip-tree', 2),
+            ask('int-lim-rect-sum', 2),
+            ask('int-lim-sum-ends', 2),
+          ],
+        },
+        {
+          id: 'in-l8-sums',
+          title: 'Letting the Strips Shrink',
+          slides: [
+            teach(
+              prose('With $n$ strips a sum has $n$ terms, so it needs two standard results:'),
+              maths('\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}'),
+              maths('\\sum_{k=1}^{n} k^{2} = \\frac{n(n+1)(2n+1)}{6}'),
+              prose(
+                'A number in front comes outside the sum, and a constant is added once per term: $\\sum_{k=1}^{n} (2k + 3) = n(n + 1) + 3n$.',
+              ),
+            ),
+            ask('int-lim-sigma'),
+            ask('int-lim-sigma+choice'),
+            ask('int-lim-sum-in-n'),
+            teach(
+              prose(
+                'Take $\\int_{0}^{2} 3x \\, dx$ with $n$ strips of width $\\frac{2}{n}$. Strip $k$ has right edge $\\frac{2k}{n}$, where the height is $\\frac{6k}{n}$. So',
+              ),
+              maths('R_{n} = \\sum_{k=1}^{n} \\frac{2}{n} \\cdot \\frac{6k}{n}'),
+              maths('= \\frac{12}{n^{2}} \\cdot \\frac{n(n+1)}{2}'),
+              maths('= 6\\left(1 + \\frac{1}{n}\\right)'),
+            ),
+            ask('int-lim-sum-limit-steps'),
+            ask('int-lim-approach-slider'),
+            ask('int-lim-sum-in-n', 2),
+            teach(
+              prose('As $n$ grows, $\\frac{1}{n} \\to 0$, so $R_{n} \\to 6$. The limit is the exact area:'),
+              maths('\\int_{0}^{2} 3x \\, dx = 6'),
+              prose('The left sums, $6\\left(1 - \\frac{1}{n}\\right)$, close in on the same value from below.'),
+            ),
+            ask('int-lim-sum-limit-steps', 2),
+            ask('int-lim-approach-slider', 2),
+          ],
+          skillCheck: [
+            ask('int-lim-sigma', 2),
+            ask('int-lim-sum-in-n', 2),
+            ask('int-lim-sum-limit-steps', 2),
+          ],
+        },
+        {
+          id: 'in-l8-read',
+          title: 'Reading the Integral from the Sum',
+          slides: [
+            teach(
+              prose('Every right sum has the same shape. With width $h = \\frac{b - a}{n}$ and right edges $a + kh$,'),
+              maths('\\int_{a}^{b} f(x) \\, dx'),
+              prose('is the limit, as $n \\to \\infty$, of'),
+              maths('\\sum_{k=1}^{n} h \\, f(a + kh)'),
+              prose('The width $h$ becomes the $dx$, and the sum stretches into the integral sign.'),
+            ),
+            ask('int-lim-identify-flow'),
+            ask('int-lim-read-tiles'),
+            ask('int-lim-which-integral'),
+            teach(
+              prose('Read this one piece by piece:'),
+              maths('\\sum_{k=1}^{n} \\frac{3}{n}\\left(2 + \\frac{3k}{n}\\right)^{2}'),
+              prose(
+                'The width is $\\frac{3}{n}$, so $b - a = 3$. At $k = 0$ the bracket is $2$, so $a = 2$ and $b = 5$. The bracket is $x$, so the integrand is $x^{2}$:',
+              ),
+              maths('\\int_{2}^{5} x^{2} \\, dx'),
+            ),
+            ask('int-lim-sum-value'),
+            ask('int-lim-read-tiles', 2),
+            ask('int-lim-identify-flow', 2),
+            teach(
+              prose('Once the limit is an integral, evaluate it with the antiderivative. That is far quicker than simplifying the sum:'),
+              maths('\\left[\\frac{x^{3}}{3}\\right]_{2}^{5}'),
+              maths('= \\frac{125 - 8}{3} = 39'),
+            ),
+            ask('int-lim-which-integral', 2),
+            ask('int-lim-sum-value+choice', 2),
+          ],
+          skillCheck: [
+            ask('int-lim-read-tiles', 2),
+            ask('int-lim-which-integral', 2),
+            ask('int-lim-sum-value', 2),
+          ],
+        },
+        {
+          id: 'in-l8-bounds',
+          title: 'Over or Under',
+          slides: [
+            teach(
+              {
+                kind: 'diagram',
+                svg: stripsSvg({
+                  xMin: -0.3,
+                  xMax: 6.3,
+                  yMin: -0.8,
+                  yMax: 11,
+                  f: (x) => (x * x) / 4 + 1,
+                  a: 0,
+                  h: 1,
+                  n: 6,
+                  side: 'left',
+                  label: 'A rising curve with the left sum drawn under it, every rectangle below the curve',
+                }),
+              },
+              prose(
+                "Where $f$ rises, each strip's left edge is its lowest point, so every left rectangle sits below the curve: the left sum is an **under-estimate**. The right edge is the highest point, so the right sum is an **over-estimate**.",
+              ),
+              prose('Where $f$ falls, the two swap round.'),
+            ),
+            ask('int-lim-over-under'),
+            ask('int-lim-bound-choice'),
+            ask('int-lim-between-tiles'),
+            teach(
+              prose(
+                "The sign of $f'(x)$ settles it. $f(x) = x^{2} - 6x + 11$ has $f'(x) = 2x - 6$, which is zero at $x = 3$. Before $x = 3$ it falls, and after it rises.",
+              ),
+              prose('Across a turning point some rectangles sit below the curve and some above, so neither sum is sure to be over or under.'),
+            ),
+            ask('int-lim-turn-slider'),
+            ask('int-lim-over-under', 2),
+            ask('int-lim-between-tiles', 2),
+            teach(
+              prose('For a rising $f$ the true area $A$ is trapped between the two sums:'),
+              maths('L_{n} < A < R_{n}'),
+              prose(
+                'The gap between them is $h \\times \\left(f(b) - f(a)\\right)$, which shrinks to $0$ as the strips get thinner. Squeezed from both sides, the two sums share one limit: the integral.',
+              ),
+            ),
+            ask('int-lim-bound-choice', 2),
+            ask('int-lim-turn-slider', 2),
+          ],
+          skillCheck: [
+            ask('int-lim-over-under', 2),
+            ask('int-lim-between-tiles', 2),
+            ask('int-lim-bound-choice', 2),
+          ],
+        },
+        {
+          id: 'in-l8-loop',
+          title: 'Closing the Loop',
+          slides: [
+            teach(
+              prose('Two routes now lead to the same area. For $\\int_{0}^{3} x^{2} \\, dx$ the right sum simplifies to'),
+              maths('\\frac{9}{2}\\left(1 + \\frac{1}{n}\\right)\\left(2 + \\frac{1}{n}\\right)'),
+              prose('which tends to $\\frac{9}{2} \\times 2 = 9$. The antiderivative gives the same:'),
+              maths('\\left[\\frac{x^{3}}{3}\\right]_{0}^{3} = 9'),
+            ),
+            ask('int-lim-pieces-tree'),
+            ask('int-lim-sum-value'),
+            ask('int-lim-approach-slider'),
+            teach(
+              prose(
+                'That is why integration works: the antiderivative is a shortcut to the limit of the sum. Both can be taken term by term.',
+              ),
+              prose(
+                'For $\\int_{0}^{2} (3x^{2} + 5) \\, dx$ the $x^{2}$ term gives $3 \\times \\frac{8}{3} = 8$ and the constant gives $5 \\times 2 = 10$, so the integral is $18$.',
+              ),
+            ),
+            ask('int-lim-sum-limit-steps', 2),
+            ask('int-lim-pieces-tree', 2),
+            ask('int-lim-which-integral', 2),
+            teach(
+              prose(
+                'A limit of a sum is often the neatest way to state an area, and the antiderivative the quickest way to find it. Recognise the sum, write the integral, then evaluate.',
+              ),
+            ),
+            ask('int-lim-sum-value', 2),
+            ask('int-lim-between-tiles', 2),
+          ],
+          skillCheck: [
+            ask('int-lim-pieces-tree', 2),
+            ask('int-lim-sum-value', 2),
+            ask('int-lim-sum-limit-steps', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('int-lim-which-sum', 2),
+        ask('int-lim-sum-ends', 2),
+        ask('int-lim-strip-tree', 2),
+        ask('int-lim-rect-sum+choice', 2),
+        ask('int-lim-sigma', 2),
+        ask('int-lim-sum-in-n', 2),
+        ask('int-lim-sum-limit-steps', 2),
+        ask('int-lim-approach-slider', 2),
+        ask('int-lim-identify-flow', 2),
+        ask('int-lim-read-tiles', 2),
+        ask('int-lim-sum-value', 2),
+        ask('int-lim-over-under', 2),
+        ask('int-lim-between-tiles', 2),
+        ask('int-lim-turn-slider', 2),
+        ask('int-lim-pieces-tree', 2),
       ],
     },
   ],

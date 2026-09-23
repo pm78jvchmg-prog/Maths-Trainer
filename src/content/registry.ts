@@ -13,6 +13,7 @@ import { integrationShapeGenerators } from './generators/integrationShapes';
 import { linearEquationsGenerators } from './generators/linearEquations';
 import { logarithmGenerators } from './generators/logarithms';
 import { matrixGenerators } from './generators/matrices';
+import { numberLineGenerators } from './generators/numberLine';
 import { quadraticsGenerators } from './generators/quadratics';
 import { quadraticShapeGenerators } from './generators/quadraticShapes';
 import { vectorGenerators } from './generators/vectors';
@@ -45,6 +46,9 @@ export const allGenerators = [
   // The `tree` and `steps` generators, grouped by widget rather than by topic —
   // see the header of `generators/working.ts` for why.
   ...workingGenerators,
+  // Asked by no lesson yet: they demonstrate the number-line widget ahead of
+  // the inequalities courses that will use it, and keep it under test.
+  ...numberLineGenerators,
 ];
 
 /** The base generators plus the choice form of every one that declares it. */

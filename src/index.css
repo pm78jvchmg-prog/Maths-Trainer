@@ -1351,6 +1351,87 @@ button {
 }
 
 /*
+ * The iteration table. Two narrow columns and a conclusion row under them, all
+ * inside the usual answer frame; the values come from the shared `.tile-bank`.
+ * Rules are drawn in `--border` and text in `currentColor`, so it follows the
+ * theme like every other widget.
+ */
+.answer-frame.iterate {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 12px 10px;
+}
+
+.iterate-table {
+  border-collapse: collapse;
+  margin: 0 auto;
+  color: currentColor;
+}
+
+.iterate-table th {
+  padding: 0 12px 4px;
+  font-size: 18px;
+  font-weight: normal;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+
+.iterate-table td {
+  padding: 2px 12px;
+  text-align: center;
+}
+
+.iterate-table th:first-child,
+.iterate-table td:first-child {
+  border-right: 1px solid var(--border);
+  min-width: 44px;
+}
+
+.iterate-n {
+  color: var(--text-dim);
+  font-size: 18px;
+}
+
+.iterate-given {
+  height: 44px;
+}
+
+.iterate-slot {
+  min-width: 120px;
+}
+
+.iterate-conclusion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 17px;
+  color: var(--text-dim);
+}
+
+/* A filled table runs past the fold on a phone, and every value is a tap on
+   the table and then one in the bank. Pinning the bank to the bottom of the
+   scrolling slide keeps both under the thumb; the table scrolls behind it.
+   Only while there is something left to place: once the slide is passed or
+   the working is shown, a pinned bank would sit over the finished table. */
+.tile-bank.pinned {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.iterate-conclusion .answer-slot {
+  min-width: 160px;
+  color: var(--text);
+  font-size: 21px;
+}
+
+/*
  * Proof ordering.
  *
  * The slots and the bank borrow the tile and answer-slot looks rather than

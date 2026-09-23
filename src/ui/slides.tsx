@@ -33,6 +33,7 @@ import type { Answer, Feedback } from '../engine/session';
 import { isPlotAnswer } from '../engine/session';
 import { complexTex } from '../content/generators/format';
 import { StepsSlide, TreeSlide, FlowSlide } from './workingSlides';
+import { IterateSlide } from './iterateSlide';
 import { OrderSlide } from './orderSlide';
 import { defaultSliderValue } from './sliderValue';
 import { NumberLineSlide } from './numberLineSlide';
@@ -547,6 +548,8 @@ export function SlideView(props: SlideProps) {
       return <StepsSlide {...props} />;
     case 'tree':
       return <TreeSlide {...props} />;
+    case 'iterate':
+      return <IterateSlide {...props} />;
     case 'slider':
       return <SliderSlide {...props} />;
     case 'flow':
@@ -566,6 +569,7 @@ export function SlideView(props: SlideProps) {
 export function initialAnswer(slide: Slide): Answer {
   if (slide.kind === 'tiles') return Array.from({ length: slide.answer.length }, () => '');
   if (slide.kind === 'tree') return Array.from({ length: slide.nodes.length }, () => '');
+  if (slide.kind === 'iterate') return Array.from({ length: slide.answer.length }, () => '');
   // Both start at nothing chosen and grow as the learner works.
   if (
     slide.kind === 'steps' ||
@@ -584,8 +588,8 @@ export function initialAnswer(slide: Slide): Answer {
 export function hasAnswer(slide: Slide, answer: Answer): boolean {
   if (slide.kind === 'teach') return true;
   if (slide.kind === 'plot') return isPlotAnswer(answer);
-  if (slide.kind === 'tiles' || slide.kind === 'tree') {
-    const expected = slide.kind === 'tiles' ? slide.answer.length : slide.nodes.length;
+  if (slide.kind === 'tiles' || slide.kind === 'tree' || slide.kind === 'iterate') {
+    const expected = slide.kind === 'tree' ? slide.nodes.length : slide.answer.length;
     return Array.isArray(answer) && answer.length === expected && answer.every((t) => t !== '');
   }
   // A proof is answerable once every slot holds a step.

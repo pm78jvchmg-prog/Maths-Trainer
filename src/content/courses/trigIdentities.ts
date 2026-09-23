@@ -14,6 +14,11 @@
  * degrees, the tangent formula, and the double-angle formulae with the
  * equations they unlock.
  *
+ * Level 3 runs the compound-angle formula the other way: a sin x + b cos x is
+ * one wave, R sin(x + alpha), and once it is written so, its greatest and
+ * least values and its equations are the ones Trigonometric Functions already
+ * solves for A sin(bx + c) + d.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -40,7 +45,7 @@ export const trigIdentities: Course = {
   // Straight after Trigonometric Functions, whose identities it puts to work.
   position: 15,
   title: 'Trigonometric Identities & Equations',
-  blurb: 'Rewriting with identities to solve equations, then compound and double angles.',
+  blurb: 'Rewriting with identities to solve equations, compound and double angles, and the form R sin(x + α).',
   levels: [
     {
       id: 'ti-l1',
@@ -469,6 +474,226 @@ export const trigIdentities: Course = {
         ask('tid-double-eq-flow', 2),
         ask('tid-double-quadratic-tiles', 2),
         ask('tid-double-eq-tree', 2),
+      ],
+    },
+    {
+      id: 'ti-l3',
+      title: 'The Form R sin(x + α)',
+      lessons: [
+        {
+          id: 'ti-l3-match',
+          title: 'Matching the Expansion',
+          slides: [
+            teach(
+              prose(
+                'Any $a\\sin x + b\\cos x$ is one wave in disguise: $R\\sin(x + \\alpha)$, for the right $R$ and $\\alpha$. Expanding shows why:',
+              ),
+              maths('\\begin{aligned} &R\\sin(x + \\alpha) \\\\ &= R\\cos\\alpha\\,\\sin x \\\\ &\\quad + R\\sin\\alpha\\,\\cos x \\end{aligned}'),
+              prose('$R\\cos\\alpha$ and $R\\sin\\alpha$ are just two numbers, one in front of $\\sin x$ and one in front of $\\cos x$.'),
+            ),
+            ask('tid-r-expand-tiles'),
+            ask('tid-r-match-tiles+choice'),
+            ask('tid-r-expand-tiles', 2),
+            teach(
+              prose('To write $3\\sin x + 4\\cos x$ as $R\\sin(x + \\alpha)$, match the numbers in front of each function:'),
+              maths('\\begin{aligned} R\\cos\\alpha &= 3 \\\\ R\\sin\\alpha &= 4 \\end{aligned}'),
+              prose(
+                'Pick the form whose signs fit. A minus needs $R\\sin(x - \\alpha)$ or $R\\cos(x + \\alpha)$, and the minus lives in the form, so both matched numbers stay positive and $\\alpha$ is acute. Two added terms fit $R\\sin(x + \\alpha)$ or $R\\cos(x - \\alpha)$, so a question always says which it wants.',
+              ),
+            ),
+            ask('tid-r-form-flow'),
+            ask('tid-r-match-tiles', 2),
+            ask('tid-r-form-flow', 2),
+            teach(
+              prose('Square both and add. Since $\\cos^2\\alpha + \\sin^2\\alpha = 1$, the $\\alpha$ drops out:'),
+              maths('\\begin{aligned} R^2 &= 3^2 + 4^2 = 25 \\\\ R &= 5 \\end{aligned}'),
+              prose('Divide one by the other and $R$ drops out instead: $\\tan\\alpha = \\frac{4}{3}$.'),
+            ),
+            ask('tid-r-squared-tree'),
+            ask('tid-r-squared-tree', 2),
+          ],
+          skillCheck: [
+            ask('tid-r-match-tiles', 2),
+            ask('tid-r-form-flow', 2),
+            ask('tid-r-squared-tree', 2),
+          ],
+        },
+        {
+          id: 'ti-l3-find',
+          title: 'Finding R and α',
+          slides: [
+            teach(
+              prose('For $a\\sin x + b\\cos x$ written as $R\\sin(x + \\alpha)$, matching gives both at once:'),
+              maths('\\begin{aligned} R &= \\sqrt{a^2 + b^2} \\\\ \\tan\\alpha &= \\frac{b}{a} \\end{aligned}'),
+              prose(
+                'So $12\\sin x + 5\\cos x$ has $R = \\sqrt{144 + 25} = 13$. The top of $\\tan\\alpha$ is always the $R\\sin\\alpha$ number.',
+              ),
+            ),
+            ask('tid-r-value'),
+            ask('tid-r-alpha-steps'),
+            ask('tid-r-tan-alpha'),
+            teach(
+              prose(
+                "With $R\\cos\\alpha$ and $R\\sin\\alpha$ both positive, $\\alpha$ is acute, so it is exactly the angle a calculator's $\\tan^{-1}$ gives:",
+              ),
+              maths('\\alpha = \\tan^{-1}\\tfrac{4}{3} = 53.1^{\\circ}'),
+              maths('\\begin{aligned} &3\\sin x + 4\\cos x \\\\ &= 5\\sin(x + 53.1^{\\circ}) \\end{aligned}'),
+              prose('Flip the fraction and you get $36.9^{\\circ}$, the other angle of the 3, 4, 5 triangle: the commonest slip here.'),
+            ),
+            ask('tid-r-convert-choice'),
+            ask('tid-r-value+choice', 2),
+            ask('tid-r-alpha-steps', 2),
+            teach(
+              prose('The other forms work the same way. In $R\\cos(x - \\alpha)$, the number in front of $\\cos x$ is $R\\cos\\alpha$:'),
+              maths('\\begin{aligned} &R\\cos(x - \\alpha) \\\\ &= R\\cos\\alpha\\,\\cos x \\\\ &\\quad + R\\sin\\alpha\\,\\sin x \\end{aligned}'),
+              prose(
+                "So $4\\cos x + 3\\sin x = 5\\cos(x - 36.9^{\\circ})$, with $\\tan\\alpha = \\frac{3}{4}$. Always match against the form's own expansion.",
+              ),
+            ),
+            ask('tid-r-tan-alpha', 2),
+            ask('tid-r-convert-choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-r-value', 2),
+            ask('tid-r-alpha-steps', 2),
+            ask('tid-r-convert-choice', 2),
+          ],
+        },
+        {
+          id: 'ti-l3-table',
+          title: 'Table Angles',
+          slides: [
+            teach(
+              prose('When the two numbers are equal, $\\tan\\alpha = 1$ and $\\alpha = 45^{\\circ}$ exactly. $R$ is then a surd:'),
+              maths('\\begin{aligned} &\\sin x + \\cos x \\\\ &= \\sqrt{2}\\sin(x + 45^{\\circ}) \\end{aligned}'),
+              prose('Here $R = \\sqrt{1^2 + 1^2} = \\sqrt{2}$. Keep it as a surd: that is exact, and a decimal is not.'),
+            ),
+            ask('tid-r-exact-tiles'),
+            ask('tid-r-exact-alpha'),
+            ask('tid-r-expand-exact-choice'),
+            teach(
+              prose('A $1$ and a $\\sqrt{3}$ give $30^{\\circ}$ or $60^{\\circ}$, with $R = \\sqrt{3 + 1} = 2$:'),
+              maths('\\begin{aligned} &\\sqrt{3}\\sin x + \\cos x \\\\ &= 2\\sin(x + 30^{\\circ}) \\end{aligned}'),
+              prose(
+                '$\\tan\\alpha = \\frac{1}{\\sqrt{3}}$ gives $30^{\\circ}$; swap the numbers and $\\tan\\alpha = \\sqrt{3}$ gives $60^{\\circ}$. Backwards, $2\\sin(x + 60^{\\circ})$ expands to $\\sin x + \\sqrt{3}\\cos x$.',
+              ),
+            ),
+            ask('tid-r-squared-tree', 2),
+            ask('tid-r-exact-tiles', 2),
+            ask('tid-r-exact-alpha', 2),
+            teach(
+              prose('In radians the same angles are $\\frac{\\pi}{6}$, $\\frac{\\pi}{4}$ and $\\frac{\\pi}{3}$:'),
+              maths('\\begin{aligned} &\\sin x - \\cos x \\\\ &= \\sqrt{2}\\sin\\left(x - \\frac{\\pi}{4}\\right) \\end{aligned}'),
+              prose('Only the unit of $\\alpha$ changes; $R$ is the same either way.'),
+            ),
+            ask('tid-r-expand-exact-choice', 2),
+            ask('tid-r-squared-tree', 2),
+          ],
+          skillCheck: [
+            ask('tid-r-exact-tiles', 2),
+            ask('tid-r-exact-alpha', 2),
+            ask('tid-r-expand-exact-choice', 2),
+          ],
+        },
+        {
+          id: 'ti-l3-extremes',
+          title: 'Greatest and Least Values',
+          slides: [
+            teach(
+              prose('A sine or cosine never leaves $-1$ to $1$, so $R\\sin(x + \\alpha)$ never leaves $-R$ to $R$:'),
+              maths('-5 \\le 3\\sin x + 4\\cos x \\le 5'),
+              prose(
+                'The greatest value, $5$, comes where $x + \\alpha = 90^{\\circ}$; the least, $-5$, where $x + \\alpha = 270^{\\circ}$.',
+              ),
+            ),
+            ask('tid-r-max-value'),
+            ask('tid-r-max-tiles'),
+            ask('tid-r-peak-slider'),
+            teach(
+              prose('A constant added just lifts or drops the whole wave. With $R = 5$:'),
+              maths('\\begin{aligned} &2 + 3\\sin x + 4\\cos x \\\\ &\\text{runs from } -3 \\text{ to } 7 \\end{aligned}'),
+              prose(
+                'For where it happens, solve for the bracket: $5\\sin(x + 30^{\\circ})$ is greatest when $x + 30^{\\circ} = 90^{\\circ}$, at $x = 60^{\\circ}$. A cosine is greatest when its bracket is $0^{\\circ}$ or $360^{\\circ}$.',
+              ),
+            ),
+            ask('tid-r-max-value+choice', 2),
+            ask('tid-r-extreme-flow'),
+            ask('tid-r-max-tiles', 2),
+            teach(
+              prose(
+                'Under a fraction it turns round. The bottom of $\\frac{10}{7 + 3\\sin x + 4\\cos x}$ runs from $7 - 5 = 2$ to $7 + 5 = 12$, so',
+              ),
+              maths('\\begin{aligned} \\text{greatest} &= \\tfrac{10}{2} = 5 \\\\ \\text{least} &= \\tfrac{10}{12} = \\tfrac{5}{6} \\end{aligned}'),
+              prose('The greatest value of the fraction comes with the least value of the bottom.'),
+            ),
+            ask('tid-r-extreme-flow', 2),
+            ask('tid-r-peak-slider', 2),
+          ],
+          skillCheck: [
+            ask('tid-r-max-value', 2),
+            ask('tid-r-max-tiles', 2),
+            ask('tid-r-extreme-flow', 2),
+          ],
+        },
+        {
+          id: 'ti-l3-solve',
+          title: 'Solving a sin x + b cos x = c',
+          slides: [
+            teach(
+              prose('Convert first, and the equation has only one trig function in it:'),
+              maths(
+                '\\begin{aligned} \\sqrt{3}\\sin x + \\cos x &= 1 \\\\ 2\\sin(x + 30^{\\circ}) &= 1 \\\\ \\sin(x + 30^{\\circ}) &= \\tfrac{1}{2} \\end{aligned}',
+              ),
+              prose('Solve for the whole bracket $x + 30^{\\circ}$, then take $30^{\\circ}$ off each answer.'),
+            ),
+            ask('tid-r-solve-steps'),
+            ask('tid-r-solve-angle'),
+            ask('tid-r-solve-slider'),
+            teach(
+              prose(
+                'The bracket runs over a shifted range. For $0^{\\circ} \\le x < 360^{\\circ}$, $x + 30^{\\circ}$ runs from $30^{\\circ}$ to $390^{\\circ}$, so',
+              ),
+              maths('\\begin{aligned} x + 30^{\\circ} &= 30^{\\circ}, 150^{\\circ} \\\\ x &= 0^{\\circ}, 120^{\\circ} \\end{aligned}'),
+              prose(
+                'A table angle that falls below the range comes back $360^{\\circ}$ later: with $x + 60^{\\circ}$, the $30^{\\circ}$ becomes $390^{\\circ}$.',
+              ),
+            ),
+            ask('tid-r-count-flow'),
+            ask('tid-r-solve-steps', 2),
+            ask('tid-r-solve-angle+choice', 2),
+            teach(
+              prose(
+                'Compare $c$ with $R$ before solving. $\\sin(x + \\alpha) = \\frac{c}{R}$ has two solutions a turn when $c$ is between $-R$ and $R$, one when $c = \\pm R$, and none beyond.',
+              ),
+              maths('3\\sin x + 4\\cos x = 6'),
+              prose('has no solutions at all: $R = 5$, and the wave never reaches $6$.'),
+            ),
+            ask('tid-r-count-flow', 2),
+            ask('tid-r-solve-slider', 2),
+          ],
+          skillCheck: [
+            ask('tid-r-solve-steps', 2),
+            ask('tid-r-solve-angle', 2),
+            ask('tid-r-count-flow', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('tid-r-match-tiles', 2),
+        ask('tid-r-form-flow', 2),
+        ask('tid-r-squared-tree', 2),
+        ask('tid-r-value', 2),
+        ask('tid-r-alpha-steps', 2),
+        ask('tid-r-convert-choice', 2),
+        ask('tid-r-exact-tiles', 2),
+        ask('tid-r-exact-alpha', 2),
+        ask('tid-r-expand-exact-choice', 2),
+        ask('tid-r-max-value', 2),
+        ask('tid-r-max-tiles', 2),
+        ask('tid-r-extreme-flow', 2),
+        ask('tid-r-solve-steps', 2),
+        ask('tid-r-count-flow', 2),
+        ask('tid-r-solve-angle', 2),
       ],
     },
   ],

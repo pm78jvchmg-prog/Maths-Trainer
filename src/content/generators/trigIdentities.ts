@@ -7,7 +7,10 @@
  * here re-teaches them. Level 1 *uses* them: to rewrite an expression, to pick
  * the identity a problem calls for, to turn an equation into a quadratic in one
  * function, and to turn sine and cosine into tangent. Level 2 adds the compound
- * and double-angle formulae.
+ * and double-angle formulae, and level 3 writes a sin x + b cos x as
+ * R sin(x + alpha). There alpha is a table angle wherever an angle is typed or
+ * slid to; a Pythagorean triple's alpha, to one decimal place, is only ever an
+ * option or a tile, and a surd R is only ever a tile.
  *
  * Every angle is a multiple of 30 or 45 degrees (or half of one, where a double
  * angle is being undone), every value is 0, +-1/2, +-1 or a surd, and every
@@ -3375,6 +3378,1278 @@ const doubleEqTree: Generator<DoubleTreeParams> = {
   },
 };
 
+/* ---------- Level 3: the form R sin(x + α) ---------- */
+
+/**
+ * The four forms, with R > 0 and α acute. Each expands to R cos α times its own
+ * function, then R sin α times the other function with `sign` between them:
+ * R sin(x + α) = R cos α sin x + R sin α cos x, and
+ * R cos(x - α) = R cos α cos x + R sin α sin x.
+ *
+ * So two positive terms added fit two forms (R sin(x + α) and R cos(x - α),
+ * with different α) and a minus fits exactly one. Every question here names
+ * the form it wants, and never offers both of a tie as options.
+ */
+const R_FORMS: { fn: 'sin' | 'cos'; plus: boolean; sign: '+' | '-' }[] = [
+  { fn: 'sin', plus: true, sign: '+' },
+  { fn: 'sin', plus: false, sign: '-' },
+  { fn: 'cos', plus: false, sign: '+' },
+  { fn: 'cos', plus: true, sign: '-' },
+];
+
+/** Forms with both terms added, and with a minus. `form ^ 1` is the same function with the other sign. */
+const PLUS_FORMS = [0, 2];
+const SIN_FORMS = [0, 1];
+const ALL_FORMS = [0, 1, 2, 3];
+
+const R_VARS = ['x', '\\theta'];
+
+const otherFn = (fn: 'sin' | 'cos'): 'sin' | 'cos' => (fn === 'sin' ? 'cos' : 'sin');
+
+/** A coefficient: its value, and its TeX standing alone ('1' for one). */
+interface Coef {
+  value: number;
+  tex: string;
+}
+
+const wholeCoef = (n: number): Coef => ({ value: n, tex: `${n}` });
+
+/** A coefficient in front of a function: nothing for 1. */
+const front = (c: Coef): string => (c.tex === '1' ? '' : c.tex);
+
+/** `C` times the form's own function, then `S` times the other with the form's sign. Swapped writes the other term first. */
+function rExprTex(form: number, C: Coef, S: Coef, v: string, swapped = false): string {
+  const f = R_FORMS[form];
+  const own = `${front(C)}\\${f.fn} ${v}`;
+  const other = `${front(S)}\\${otherFn(f.fn)} ${v}`;
+  return swapped ? `${f.sign === '-' ? '-' : ''}${other} + ${own}` : `${own} ${f.sign} ${other}`;
+}
+
+/** R sin(x + α) and its kin, with R and α as given TeX. */
+function rFormTex(form: number, r: string, v: string, alpha: string): string {
+  const f = R_FORMS[form];
+  return `${r}\\${f.fn}(${v} ${f.plus ? '+' : '-'} ${alpha})`;
+}
+
+/**
+ * An expansion as three rows: the left side, its first term, then the second
+ * term under it. Written out rather than left to `fit`, which keeps a short
+ * left side on the first row, and a bracket beside an equals sign and a
+ * product is already too wide for a phone.
+ */
+const stacked = (lhs: string, first: string, sign: string, second: string): string =>
+  `\\begin{aligned} &${lhs} \\\\ &= ${first} \\\\ &\\quad ${sign} ${second} \\end{aligned}`;
+
+/** Why a sign pattern fits the form named, for a worked solution. */
+function formReason(form: number, v: string): string {
+  const f = R_FORMS[form];
+  return f.sign === '+'
+    ? `Both terms are added. $${rFormTex(form, 'R', v, '\\alpha')}$ expands with a plus between two positive terms:`
+    : `There is a minus, and $${rFormTex(form, 'R', v, '\\alpha')}$ puts it in front of the $\\${otherFn(f.fn)}$ term:`;
+}
+
+/** Whole coefficients from a Pythagorean triple, so R is whole: 6 sin x + 8 cos x has R = 10. */
+interface WholePair {
+  C: number;
+  S: number;
+  R: number;
+}
+
+/** How far each row of TRIPLES is scaled, so every coefficient stays small enough to square in the head. */
+const PAIR_SCALES: { easy: number[]; all: number[] }[] = [
+  { easy: [1, 2, 3], all: [1, 2, 3, 4] },
+  { easy: [1], all: [1, 2] },
+  { easy: [], all: [1] },
+  { easy: [], all: [1] },
+];
+
+function wholePairs(difficulty: number): WholePair[] {
+  const out: WholePair[] = [];
+  TRIPLES.forEach(([p, q, h], t) => {
+    for (const k of difficulty > 1 ? PAIR_SCALES[t].all : PAIR_SCALES[t].easy) {
+      out.push({ C: k * p, S: k * q, R: k * h }, { C: k * q, S: k * p, R: k * h });
+    }
+  });
+  return out;
+}
+
+/** α in degrees to one decimal place, from R sin α and R cos α. Only ever a choice label or a bank tile. */
+const alphaDp = (S: number, C: number): number => Math.round((Math.atan2(S, C) / DEGREE) * 10) / 10;
+
+const dpTex = (degrees: number): string => `${degrees.toFixed(1)}^{\\circ}`;
+
+/**
+ * Coefficients from the table: (k√3, k) gives α = 30° and (k, k√3) gives
+ * α = 60°, both with R = 2k; (k, k) gives α = 45° with R = k√2.
+ */
+interface TablePair {
+  kind: number;
+  k: number;
+}
+
+function tableCoefs({ kind, k }: TablePair): { C: Coef; S: Coef; R: Coef; alpha: number; tan: string } {
+  const root3: Coef = { value: k * Math.sqrt(3), tex: `${co(k)}\\sqrt{3}` };
+  const plain = wholeCoef(k);
+  if (kind === 0) return { C: root3, S: plain, R: wholeCoef(2 * k), alpha: 30, tan: '\\frac{1}{\\sqrt{3}}' };
+  if (kind === 1) return { C: plain, S: root3, R: wholeCoef(2 * k), alpha: 60, tan: '\\sqrt{3}' };
+  return { C: plain, S: plain, R: { value: k * Math.SQRT2, tex: `${co(k)}\\sqrt{2}` }, alpha: 45, tan: '1' };
+}
+
+const squareOf = (c: Coef): number => Math.round(c.value * c.value);
+
+function sampleTable(rng: Rng, maxK: number): TablePair {
+  return { kind: rng.int(0, 2), k: rng.int(1, maxK) };
+}
+
+/** Two different whole coefficients, neither of them zero. */
+function sampleCoefs(rng: Rng, max: number): { C: number; S: number } {
+  const C = rng.int(1, max);
+  let S = rng.int(1, max - 1);
+  if (S >= C) S += 1;
+  return { C, S };
+}
+
+/** The lines that match coefficients and read off tan α, shared by several solutions. */
+function matchSteps(form: number, v: string, C: string, S: string): SolutionStep[] {
+  return [
+    { text: formReason(form, v) },
+    {
+      tex: stacked(
+        rFormTex(form, 'R', v, '\\alpha'),
+        `R\\cos\\alpha\\,\\${R_FORMS[form].fn} ${v}`,
+        R_FORMS[form].sign,
+        `R\\sin\\alpha\\,\\${otherFn(R_FORMS[form].fn)} ${v}`,
+      ),
+    },
+    { text: `Match the $\\${R_FORMS[form].fn}$ terms, then the $\\${otherFn(R_FORMS[form].fn)}$ terms:` },
+    { tex: `R\\cos\\alpha = ${C} \\qquad R\\sin\\alpha = ${S}` },
+  ];
+}
+
+/* Lesson 1: matching the expansion. */
+
+interface RExpandParams {
+  form: number;
+  R: number;
+  v: number;
+  signed: boolean;
+}
+
+/** Expand R sin(x + α) with R a number and α a letter. The harder draws put the sign on the tile. */
+const rExpandTiles: Generator<RExpandParams> = {
+  id: 'tid-r-expand-tiles',
+  sample: (rng, difficulty) => ({
+    form: rng.pick(difficulty > 1 ? ALL_FORMS : PLUS_FORMS),
+    R: rng.int(2, difficulty > 1 ? 15 : 12),
+    v: rng.int(0, R_VARS.length - 1),
+    signed: difficulty > 1,
+  }),
+  render: ({ form, R, v, signed }): Slide => {
+    const f = R_FORMS[form];
+    const x = R_VARS[v];
+    const other = otherFn(f.fn);
+    const cosA = `${R}\\cos\\alpha`;
+    const sinA = `${R}\\sin\\alpha`;
+    const flip = f.sign === '+' ? '-' : '+';
+    const answer = signed ? [cosA, `${f.sign} ${sinA}`] : [cosA, sinA];
+    const distractors = signed
+      ? [`${flip} ${sinA}`, `${f.sign} ${cosA}`, `${flip} ${cosA}`, sinA]
+      : ['\\cos\\alpha', '\\sin\\alpha', `${R}\\tan\\alpha`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose('Expand with the compound-angle formula, keeping the number in front.'),
+        display(`${rFormTex(form, `${R}`, x, '\\alpha')} =`),
+      ],
+      template: signed ? `{0}\\${f.fn} ${x} {1}\\${other} ${x}` : `{0}\\${f.fn} ${x} ${f.sign} {1}\\${other} ${x}`,
+      bank: bankOf(answer, distractors),
+      answer,
+    };
+  },
+  solution: ({ form, R, v }) => {
+    const f = R_FORMS[form];
+    const x = R_VARS[v];
+    const other = otherFn(f.fn);
+    return [
+      { text: `The compound-angle formula, with $${x}$ first and $\\alpha$ second:` },
+      { tex: stacked(`\\${f.fn}(${x} ${f.plus ? '+' : '-'} \\alpha)`, `\\${f.fn} ${x}\\cos\\alpha`, f.sign, `\\${other} ${x}\\sin\\alpha`) },
+      { text: `Multiply by $${R}$, and write each term as a number times a function of $${x}$:` },
+      {
+        tex: stacked(rFormTex(form, `${R}`, x, '\\alpha'), `${R}\\cos\\alpha\\,\\${f.fn} ${x}`, f.sign, `${R}\\sin\\alpha\\,\\${other} ${x}`),
+      },
+    ];
+  },
+};
+
+interface RPairParams {
+  form: number;
+  C: number;
+  S: number;
+  v: number;
+  swapped: boolean;
+}
+
+function samplePair(rng: Rng, forms: number[], swapChance: number, max: number): RPairParams {
+  const { C, S } = sampleCoefs(rng, max);
+  return { form: rng.pick(forms), C, S, v: rng.int(0, R_VARS.length - 1), swapped: rng.chance(swapChance) };
+}
+
+const pairExpr = (p: RPairParams): string => rExprTex(p.form, wholeCoef(p.C), wholeCoef(p.S), R_VARS[p.v], p.swapped);
+
+/** The forms offered for a pair: the one it is, and every form that cannot fit its signs. Never the other half of a tie. */
+function formsOffered(form: number): number[] {
+  return R_FORMS[form].sign === '+' ? [form, 1, 3].sort((a, b) => a - b) : ALL_FORMS;
+}
+
+/** Which form fits the signs, then tan α from the matched coefficients. */
+const rFormFlow: Generator<RPairParams> = {
+  id: 'tid-r-form-flow',
+  sample: (rng, difficulty) => samplePair(rng, ALL_FORMS, difficulty > 1 ? 0.5 : 0, 9),
+  render: (p): Slide => {
+    const x = R_VARS[p.v];
+    const offered = formsOffered(p.form);
+    const labels = offered.map((i) => `$${rFormTex(i, 'R', x, '\\alpha')}$`);
+    const tans = [rat(p.S, p.C), rat(p.C, p.S), rat(-p.S, p.C), rat(-p.C, p.S)].map((r) => `$${ratTex(r)}$`);
+    return {
+      kind: 'flow',
+      prompt: [prose('Write this with $R > 0$ and $\\alpha$ acute: pick the form its signs fit, then find $\\tan\\alpha$.')],
+      subject: pairExpr(p),
+      steps: [
+        { id: 'form', ask: 'Which form can it be written in?', branches: labels.map((label) => ({ label, to: 'tan' })) },
+        {
+          id: 'tan',
+          ask: 'Matching coefficients, $\\tan\\alpha$ is',
+          branches: scatter(tans).map((label) => ({ label, outcome: '$R\\sin\\alpha$ over $R\\cos\\alpha$ leaves $\\tan\\alpha$.' })),
+        },
+      ],
+      answer: [labels[offered.indexOf(p.form)], `$${ratTex(rat(p.S, p.C))}$`],
+    };
+  },
+  solution: (p) => {
+    const x = R_VARS[p.v];
+    const simple = ratTex(rat(p.S, p.C));
+    const raw = `\\frac{${p.S}}{${p.C}}`;
+    return [
+      ...matchSteps(p.form, x, `${p.C}`, `${p.S}`),
+      { tex: `\\tan\\alpha = \\frac{R\\sin\\alpha}{R\\cos\\alpha} = ${raw}${raw === simple ? '' : ` = ${simple}`}` },
+    ];
+  },
+};
+
+interface RMatchParams extends RPairParams {
+  sinFirst: boolean;
+}
+
+/** Match coefficients: R cos α and R sin α, placed as numbers. */
+const rMatchTiles: Generator<RMatchParams> = {
+  id: 'tid-r-match-tiles',
+  sample: (rng, difficulty) => ({
+    ...samplePair(rng, difficulty > 1 ? ALL_FORMS : PLUS_FORMS, difficulty > 1 ? 0.5 : 0, 9),
+    sinFirst: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const x = R_VARS[p.v];
+    const answer = p.sinFirst ? [`${p.S}`, `${p.C}`] : [`${p.C}`, `${p.S}`];
+    const distractors = [`-${p.S}`, `-${p.C}`, `${p.C + p.S}`, `${Math.abs(p.C - p.S)}`];
+    return {
+      kind: 'tiles',
+      prompt: [prose(`Write this as $${rFormTex(p.form, 'R', x, '\\alpha')}$ and match the coefficients.`), display(pairExpr(p))],
+      template: p.sinFirst ? 'R\\sin\\alpha = {0} \\quad R\\cos\\alpha = {1}' : 'R\\cos\\alpha = {0} \\quad R\\sin\\alpha = {1}',
+      bank: bankOf(answer, distractors),
+      answer,
+    };
+  },
+  choices: (p) => {
+    const pair = (c: number, s: number) => `R\\cos\\alpha = ${c},\\; R\\sin\\alpha = ${s}`;
+    return options({ tex: pair(p.C, p.S) }, { tex: pair(p.S, p.C) }, { tex: pair(p.C, -p.S) }, { tex: pair(-p.C, p.S) });
+  },
+  solution: (p) => {
+    const steps = matchSteps(p.form, R_VARS[p.v], `${p.C}`, `${p.S}`);
+    if (R_FORMS[p.form].sign === '-') {
+      steps.push({ text: 'The minus belongs to the form, so both matched values are positive.' });
+    }
+    return steps;
+  },
+};
+
+interface RTreeParams {
+  form: number;
+  v: number;
+  whole: WholePair | null;
+  table: TablePair | null;
+}
+
+function treeCoefs(p: RTreeParams): { C: Coef; S: Coef; R: Coef } {
+  if (p.table) return tableCoefs(p.table);
+  const { C, S, R } = p.whole!;
+  return { C: wholeCoef(C), S: wholeCoef(S), R: wholeCoef(R) };
+}
+
+/** Square and add: the two coefficients squared, then R^2, then R. */
+const rSquaredTree: Generator<RTreeParams> = {
+  id: 'tid-r-squared-tree',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(difficulty > 1 ? ALL_FORMS : PLUS_FORMS);
+    const v = rng.int(0, R_VARS.length - 1);
+    if (difficulty > 1 && rng.chance(0.5)) return { form, v, whole: null, table: sampleTable(rng, 3) };
+    return { form, v, whole: rng.pick(wholePairs(difficulty)), table: null };
+  },
+  render: (p): Slide => {
+    const x = R_VARS[p.v];
+    const { C, S, R } = treeCoefs(p);
+    const c2 = squareOf(C);
+    const s2 = squareOf(S);
+    const r2 = c2 + s2;
+    const answer = [`${c2}`, `${s2}`, `${r2}`, R.tex];
+    const slips = p.table
+      ? p.table.kind === 2
+        ? [`${2 * p.table.k}`, `${4 * p.table.k * p.table.k}`]
+        : [`${co(p.table.k)}\\sqrt{2}`, `${2 * r2}`]
+      : [`${C.value + S.value}`, `${2 * R.value}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `Written as $${rFormTex(p.form, 'R', x, '\\alpha')}$ with $R > 0$. Top row: $(R\\cos\\alpha)^2$, then $(R\\sin\\alpha)^2$. Underneath: $R^2$, then $R$.`,
+        ),
+      ],
+      expression: rExprTex(p.form, C, S, x),
+      nodes: [
+        { id: 'c', from: [] },
+        { id: 's', from: [] },
+        { id: 'r2', from: ['c', 's'] },
+        { id: 'r', from: ['r2'] },
+      ],
+      bank: bankOf(answer, [`-${s2}`, ...slips, `${Math.abs(c2 - s2)}`], 4),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const x = R_VARS[p.v];
+    const { C, S, R } = treeCoefs(p);
+    const c2 = squareOf(C);
+    const s2 = squareOf(S);
+    const root = `\\sqrt{${c2 + s2}}`;
+    return [
+      {
+        text: `Matching coefficients, $R\\cos\\alpha = ${C.tex}$ and $R\\sin\\alpha = ${S.tex}$${R_FORMS[p.form].sign === '-' ? ': the minus belongs to the form' : ''}. Squaring and adding uses $\\cos^2\\alpha + \\sin^2\\alpha = 1$:`,
+      },
+      { tex: `R^2 = (${C.tex})^2 + (${S.tex})^2 = ${c2} + ${s2} = ${c2 + s2}` },
+      { tex: `R = ${root}${root === R.tex ? '' : ` = ${R.tex}`}` },
+      { text: `So $${rExprTex(p.form, C, S, x)}$ is $${rFormTex(p.form, R.tex, x, '\\alpha')}$ for some acute $\\alpha$.` },
+    ];
+  },
+};
+
+/* Lesson 2: finding R and α. */
+
+interface RWholeParams {
+  form: number;
+  pair: WholePair;
+  v: number;
+  swapped: boolean;
+}
+
+function sampleWhole(rng: Rng, difficulty: number, easyForms = PLUS_FORMS): RWholeParams {
+  return {
+    form: rng.pick(difficulty > 1 ? ALL_FORMS : easyForms),
+    pair: rng.pick(wholePairs(difficulty)),
+    v: rng.int(0, R_VARS.length - 1),
+    swapped: difficulty > 1 && rng.chance(0.5),
+  };
+}
+
+const wholeExpr = (p: RWholeParams): string =>
+  rExprTex(p.form, wholeCoef(p.pair.C), wholeCoef(p.pair.S), R_VARS[p.v], p.swapped);
+
+/** The lines finding R from a whole pair. */
+function rSteps(p: RWholeParams): SolutionStep[] {
+  const { C, S, R } = p.pair;
+  return [
+    ...matchSteps(p.form, R_VARS[p.v], `${C}`, `${S}`),
+    { tex: `R = \\sqrt{${C}^2 + ${S}^2} = \\sqrt{${C * C + S * S}} = ${R}` },
+  ];
+}
+
+/** R, typed. */
+const rValue: Generator<RWholeParams> = {
+  id: 'tid-r-value',
+  sample: (rng, difficulty) => sampleWhole(rng, difficulty),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(`Write this as $${rFormTex(p.form, 'R', R_VARS[p.v], '\\alpha')}$ with $R > 0$. Find $R$.`),
+      display(wholeExpr(p)),
+    ],
+    lead: 'R =',
+    keypad: NUMBER_KEYS,
+    answer: `${p.pair.R}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const { C, S, R } = p.pair;
+    return options(
+      { tex: `${R}`, answer: `${R}` },
+      { tex: `${R * R}`, answer: `${R * R}` },
+      { tex: `${C + S}`, answer: `${C + S}` },
+      { tex: `${Math.abs(C - S)}`, answer: `${Math.abs(C - S)}` },
+    );
+  },
+  solution: (p) => [
+    ...rSteps(p),
+    { text: 'Squaring and adding works because $\\cos^2\\alpha + \\sin^2\\alpha = 1$: the $\\alpha$ drops out and $R^2$ is left.' },
+  ],
+};
+
+/** tan α as a fraction, typed. Any coefficients: R need not be whole for this. */
+const rTanAlpha: Generator<RPairParams> = {
+  id: 'tid-r-tan-alpha',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? samplePair(rng, ALL_FORMS, 0.5, 12) : samplePair(rng, SIN_FORMS, 0, 9),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(`Write this as $${rFormTex(p.form, 'R', R_VARS[p.v], '\\alpha')}$ with $R > 0$ and $\\alpha$ acute. Find $\\tan\\alpha$.`),
+      display(pairExpr(p)),
+    ],
+    lead: '\\tan\\alpha =',
+    keypad: NUMBER_KEYS,
+    answer: ratAnswer(rat(p.S, p.C)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => {
+    const simple = ratTex(rat(p.S, p.C));
+    const raw = `\\frac{${p.S}}{${p.C}}`;
+    return [
+      ...matchSteps(p.form, R_VARS[p.v], `${p.C}`, `${p.S}`),
+      { text: 'Divide the second by the first: the $R$ cancels.' },
+      { tex: `\\tan\\alpha = \\frac{R\\sin\\alpha}{R\\cos\\alpha} = ${raw}${raw === simple ? '' : ` = ${simple}`}` },
+    ];
+  },
+};
+
+/** α to one decimal place, worked on the line: the fraction, its lowest terms, then the angle. */
+const rAlphaSteps: Generator<RWholeParams> = {
+  id: 'tid-r-alpha-steps',
+  sample: (rng, difficulty) => ({ ...sampleWhole(rng, difficulty), swapped: false }),
+  render: (p): Slide => {
+    const { C, S, R } = p.pair;
+    const g = gcd(C, S);
+    const a = alphaDp(S, C);
+    const frac = (n: number, d: number) => `\\frac{${n}}{${d}}`;
+    const reductions: { span: [number, number]; value: string; bank: string[] }[] = [
+      { span: [2, 3], value: frac(S, C), bank: [frac(C, S), `-${frac(S, C)}`, frac(S, R)] },
+    ];
+    if (g > 1) {
+      reductions.push({ span: [2, 3], value: frac(S / g, C / g), bank: [frac(C / g, S / g), frac(S, C / g), frac(S / g, C)] });
+    }
+    reductions.push({
+      span: [0, 3],
+      value: `\\alpha = ${dpTex(a)}`,
+      bank: [`\\alpha = ${dpTex(alphaDp(C, S))}`, `\\alpha = ${dpTex(Math.round((180 - a) * 10) / 10)}`, `\\alpha = -${dpTex(a)}`],
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `Write this as $${rFormTex(p.form, 'R', R_VARS[p.v], '\\alpha')}$ with $R > 0$ and $\\alpha$ acute. Find $\\alpha$ to one decimal place, a step at a time.`,
+        ),
+        display(wholeExpr(p)),
+      ],
+      start: ['\\tan\\alpha', '=', '\\dfrac{R\\sin\\alpha}{R\\cos\\alpha}'],
+      reductions: reductions.map((r) => ({ ...r, bank: scatter([r.value, ...r.bank]) })),
+    };
+  },
+  solution: (p) => {
+    const { C, S } = p.pair;
+    const simple = ratTex(rat(S, C));
+    const raw = `\\frac{${S}}{${C}}`;
+    return [
+      ...matchSteps(p.form, R_VARS[p.v], `${C}`, `${S}`),
+      { tex: `\\tan\\alpha = ${raw}${raw === simple ? '' : ` = ${simple}`}` },
+      { text: 'Both matched values are positive, so $\\alpha$ is acute: exactly the angle a calculator gives.' },
+      { tex: `\\alpha = \\tan^{-1} ${simple} = ${dpTex(alphaDp(S, C))}` },
+    ];
+  },
+};
+
+/** The whole conversion, picked from four. */
+const rConvertChoice: Generator<RWholeParams> = {
+  id: 'tid-r-convert-choice',
+  sample: (rng, difficulty) => sampleWhole(rng, difficulty),
+  render: (p): Slide => {
+    const { C, S, R } = p.pair;
+    const x = R_VARS[p.v];
+    const a = dpTex(alphaDp(S, C));
+    return choiceSlide(
+      [
+        prose(`Write this in the form $${rFormTex(p.form, 'R', x, '\\alpha')}$, with $R > 0$ and $\\alpha$ acute.`),
+        display(wholeExpr(p)),
+      ],
+      rFormTex(p.form, `${R}`, x, a),
+      [
+        rFormTex(p.form, `${R}`, x, dpTex(alphaDp(C, S))),
+        rFormTex(p.form ^ 1, `${R}`, x, a),
+        rFormTex(p.form, `${R * R}`, x, a),
+      ],
+      saltOf(p),
+    );
+  },
+  solution: (p) => {
+    const { C, S, R } = p.pair;
+    const x = R_VARS[p.v];
+    const a = dpTex(alphaDp(S, C));
+    return [
+      ...rSteps(p),
+      { tex: `\\tan\\alpha = ${ratTex(rat(S, C))} \\quad \\Rightarrow \\quad \\alpha = ${a}` },
+      { text: 'Put the two back into the form:' },
+      { tex: `${wholeExpr(p)} = ${rFormTex(p.form, `${R}`, x, a)}` },
+    ];
+  },
+};
+
+/* Lesson 3: table angles. */
+
+interface RTableParams {
+  form: number;
+  table: TablePair;
+  v: number;
+  radians: boolean;
+}
+
+function sampleTableParams(rng: Rng, difficulty: number): RTableParams {
+  return {
+    form: rng.pick(difficulty > 1 ? ALL_FORMS : SIN_FORMS),
+    table: sampleTable(rng, 4),
+    v: rng.int(0, R_VARS.length - 1),
+    radians: difficulty > 1 && rng.chance(0.5),
+  };
+}
+
+function tableSteps(p: RTableParams): SolutionStep[] {
+  const { C, S, R, alpha, tan } = tableCoefs(p.table);
+  const x = R_VARS[p.v];
+  const root = `\\sqrt{${squareOf(C) + squareOf(S)}}`;
+  const ratio = `\\frac{${S.tex}}{${C.tex}}`;
+  return [
+    ...matchSteps(p.form, x, C.tex, S.tex),
+    { tex: `R = \\sqrt{(${C.tex})^2 + (${S.tex})^2} = ${root}${root === R.tex ? '' : ` = ${R.tex}`}` },
+    { tex: `\\tan\\alpha = ${ratio}${ratio === tan ? '' : ` = ${tan}`}` },
+    { text: `That is a table value: $\\alpha = ${angleTex(alpha, p.radians)}$, exactly.` },
+    { tex: `${rExprTex(p.form, C, S, x)} = ${rFormTex(p.form, R.tex, x, angleTex(alpha, p.radians))}` },
+  ];
+}
+
+/** R (a surd, placed from the bank) and α (a table angle) for a table pair. */
+const rExactTiles: Generator<RTableParams> = {
+  id: 'tid-r-exact-tiles',
+  sample: (rng, difficulty) => sampleTableParams(rng, difficulty),
+  render: (p): Slide => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const f = R_FORMS[p.form];
+    const x = R_VARS[p.v];
+    const { k, kind } = p.table;
+    const answer = [R.tex, angleTex(alpha, p.radians)];
+    const rSlips = kind === 2 ? [`${2 * k}`, `${2 * k * k}`] : [`${4 * k * k}`, `${co(k)}\\sqrt{2}`];
+    const angleSlips = [30, 45, 60].filter((d) => d !== alpha).map((d) => angleTex(d, p.radians));
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose(
+          `Write this as $${rFormTex(p.form, 'R', x, '\\alpha')}$ with $R > 0$ and $\\alpha$ acute${p.radians ? ', in radians' : ''}.`,
+        ),
+        display(rExprTex(p.form, C, S, x)),
+      ],
+      template: `{0}\\${f.fn}(${x} ${f.plus ? '+' : '-'} {1})`,
+      bank: bankOf(answer, [...rSlips, ...angleSlips], 4),
+      answer,
+    };
+  },
+  solution: (p) => tableSteps(p),
+};
+
+/** α alone, typed: a table angle, in degrees or radians. */
+const rExactAlpha: Generator<RTableParams> = {
+  id: 'tid-r-exact-alpha',
+  sample: (rng, difficulty) => sampleTableParams(rng, difficulty),
+  render: (p): Slide => {
+    const { C, S, alpha } = tableCoefs(p.table);
+    const x = R_VARS[p.v];
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(
+          `Write this as $${rFormTex(p.form, 'R', x, '\\alpha')}$ with $R > 0$ and $\\alpha$ acute. Find $\\alpha$ ${p.radians ? 'in radians' : 'in degrees'}.`,
+        ),
+        display(rExprTex(p.form, C, S, x)),
+      ],
+      lead: '\\alpha =',
+      keypad: p.radians ? PI_KEYS : NUMBER_KEYS,
+      answer: angleAnswer(alpha, p.radians),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (p) => tableSteps(p),
+};
+
+/** The other way: R sin(x + α) with table values, expanded back to a sin x + b cos x. */
+const rExpandExactChoice: Generator<RTableParams> = {
+  id: 'tid-r-expand-exact-choice',
+  sample: (rng, difficulty) => sampleTableParams(rng, difficulty),
+  render: (p): Slide => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const x = R_VARS[p.v];
+    const { k, kind } = p.table;
+    // The halves of the table values forgotten: R times sqrt 3 and R, or R sqrt 2 twice.
+    const unhalved: [Coef, Coef] =
+      kind === 2
+        ? [
+            { value: k * Math.SQRT2, tex: `${co(k)}\\sqrt{2}` },
+            { value: k * Math.SQRT2, tex: `${co(k)}\\sqrt{2}` },
+          ]
+        : [
+            { value: 2 * k * Math.sqrt(3), tex: `${2 * k}\\sqrt{3}` },
+            wholeCoef(2 * k),
+          ];
+    const orderedUnhalved: [Coef, Coef] = kind === 1 ? [unhalved[1], unhalved[0]] : unhalved;
+    return choiceSlide(
+      [prose('Which expression is this equal to?'), display(rFormTex(p.form, R.tex, x, angleTex(alpha, p.radians)))],
+      rExprTex(p.form, C, S, x),
+      [
+        rExprTex(p.form, S, C, x),
+        rExprTex(p.form ^ 1, C, S, x),
+        rExprTex(p.form, orderedUnhalved[0], orderedUnhalved[1], x),
+        rExprTex(p.form, wholeCoef(2 * k), wholeCoef(2 * k), x),
+      ],
+      saltOf(p),
+    );
+  },
+  solution: (p) => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const x = R_VARS[p.v];
+    const f = R_FORMS[p.form];
+    const a = angleTex(alpha, p.radians);
+    return [
+      { text: 'Expand with the compound-angle formula:' },
+      {
+        tex: stacked(rFormTex(p.form, R.tex, x, a), `${R.tex}\\cos ${a}\\,\\${f.fn} ${x}`, f.sign, `${R.tex}\\sin ${a}\\,\\${otherFn(f.fn)} ${x}`),
+      },
+      {
+        text: `With $\\cos ${a} = ${cosTex(alpha)}$ and $\\sin ${a} = ${sinTex(alpha)}$, the coefficients are $${R.tex} \\times ${cosTex(alpha)} = ${C.tex}$ and $${R.tex} \\times ${sinTex(alpha)} = ${S.tex}$.`,
+      },
+      { tex: `${rFormTex(p.form, R.tex, x, a)} = ${rExprTex(p.form, C, S, x)}` },
+    ];
+  },
+};
+
+/* Lesson 4: maximum and minimum. */
+
+/** Where the bracket of a form reaches the angle that gives its greatest or least value, inside the range x = 0 to 360 puts it in. */
+function extremeBracket(form: number, alpha: number, greatest: boolean): number {
+  const f = R_FORMS[form];
+  const target = f.fn === 'sin' ? (greatest ? 90 : 270) : greatest ? 0 : 180;
+  const lo = f.plus ? alpha : -alpha;
+  return target < lo ? target + 360 : target >= lo + 360 ? target - 360 : target;
+}
+
+/** The x in 0 <= x < 360 where a form is greatest or least. */
+function extremeAt(form: number, alpha: number, greatest: boolean): number {
+  const u = extremeBracket(form, alpha, greatest);
+  return R_FORMS[form].plus ? u - alpha : u + alpha;
+}
+
+/** "+ 3" or "- 3" after an expression, or nothing. */
+const plusConst = (c: number): string => (c === 0 ? '' : ` ${c < 0 ? '-' : '+'} ${Math.abs(c)}`);
+
+/** The greatest or least value, R moved by the constant: "greatest = 5 + 2 = 7", or just "greatest = 5". */
+function extremeLine(greatest: boolean, R: number, c: number): string {
+  const lead = `${greatest ? '\\text{greatest}' : '\\text{least}'} = ${greatest ? R : -R}`;
+  return c === 0 ? lead : `${lead}${plusConst(c)} = ${c + (greatest ? R : -R)}`;
+}
+
+interface RMaxParams extends RWholeParams {
+  c: number;
+  greatest: boolean;
+}
+
+function maxValueOf(p: RMaxParams): number {
+  return p.c + (p.greatest ? p.pair.R : -p.pair.R);
+}
+
+/** The greatest or least value of a sin x + b cos x (+ c), typed. */
+const rMaxValue: Generator<RMaxParams> = {
+  id: 'tid-r-max-value',
+  sample: (rng, difficulty) => {
+    const base = sampleWhole(rng, difficulty);
+    let c = difficulty > 1 ? rng.int(-9, 8) : 0;
+    if (difficulty > 1 && c >= 0) c += 1;
+    return { ...base, c, greatest: rng.chance(0.5) };
+  },
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(`Find the ${p.greatest ? 'greatest' : 'least'} value of $f(${R_VARS[p.v]})$ as $${R_VARS[p.v]}$ varies.`),
+      display(`f(${R_VARS[p.v]}) = ${wholeExpr(p)}${plusConst(p.c)}`),
+    ],
+    lead: p.greatest ? 'f_{\\max} =' : 'f_{\\min} =',
+    keypad: NUMBER_KEYS,
+    answer: `${maxValueOf(p)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const { C, S, R } = p.pair;
+    const s = p.greatest ? 1 : -1;
+    const n = (value: number) => ({ tex: `${value}`, answer: `${value}` });
+    return options(n(p.c + s * R), n(p.c - s * R), n(p.c + s * (C + S)), n(p.c + s * R * R));
+  },
+  solution: (p) => {
+    const x = R_VARS[p.v];
+    const { R } = p.pair;
+    const form = rFormTex(p.form, `${R}`, x, '\\alpha');
+    return [
+      { text: `Written as $${form}$, with $R = \\sqrt{${p.pair.C}^2 + ${p.pair.S}^2} = ${R}$.` },
+      { text: `A sine or cosine runs from $-1$ to $1$, so $${form}$ runs from $${-R}$ to $${R}$.` },
+      {
+        tex: extremeLine(p.greatest, R, p.c),
+      },
+    ];
+  },
+};
+
+interface RWhereParams {
+  form: number;
+  R: number;
+  alpha: number;
+  c: number;
+  greatest: boolean;
+  v: number;
+}
+
+/** Where a converted form is greatest or least, and the value there. */
+const rMaxTiles: Generator<RWhereParams> = {
+  id: 'tid-r-max-tiles',
+  sample: (rng, difficulty) => {
+    let c = difficulty > 1 ? rng.int(-5, 4) : 0;
+    if (difficulty > 1 && c >= 0) c += 1;
+    return {
+      form: rng.pick(difficulty > 1 ? ALL_FORMS : SIN_FORMS),
+      R: rng.int(2, 9),
+      alpha: rng.pick([30, 45, 60]),
+      c,
+      greatest: rng.chance(0.5),
+      v: rng.int(0, R_VARS.length - 1),
+    };
+  },
+  render: (p): Slide => {
+    const x = R_VARS[p.v];
+    const f = R_FORMS[p.form];
+    const where = extremeAt(p.form, p.alpha, p.greatest);
+    const value = p.c + (p.greatest ? p.R : -p.R);
+    const target = f.fn === 'sin' ? (p.greatest ? 90 : 270) : p.greatest ? 0 : 180;
+    const wrongWay = (((f.plus ? target + p.alpha : target - p.alpha) % 360) + 360) % 360;
+    const distractors = [
+      `${p.c - (p.greatest ? p.R : -p.R)}`,
+      deg(extremeAt(p.form, p.alpha, !p.greatest)),
+      deg(wrongWay),
+      deg(target),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose(`For $0^{\\circ} \\le ${x} < 360^{\\circ}$, find the ${p.greatest ? 'greatest' : 'least'} value and where it happens.`),
+        display(`${rFormTex(p.form, `${p.R}`, x, deg(p.alpha))}${plusConst(p.c)}`),
+      ],
+      template: `\\text{${p.greatest ? 'max' : 'min'} } {0} \\text{ at } ${x} = {1}`,
+      bank: bankOf([`${value}`, deg(where)], distractors, 4),
+      answer: [`${value}`, deg(where)],
+    };
+  },
+  solution: (p) => {
+    const x = R_VARS[p.v];
+    const f = R_FORMS[p.form];
+    const op = f.plus ? '+' : '-';
+    const u = extremeBracket(p.form, p.alpha, p.greatest);
+    const where = extremeAt(p.form, p.alpha, p.greatest);
+    return [
+      {
+        text: `$\\${f.fn}$ is ${p.greatest ? 'greatest, at $1$' : 'least, at $-1$'}, when its angle is $${deg(u)}$ (inside the range $${x} ${op} ${deg(p.alpha)}$ covers).`,
+      },
+      { tex: `${x} ${op} ${deg(p.alpha)} = ${deg(u)} \\quad \\Rightarrow \\quad ${x} = ${deg(where)}` },
+      { tex: extremeLine(p.greatest, p.R, p.c) },
+    ];
+  },
+};
+
+interface RPeakParams {
+  form: number;
+  table: TablePair;
+  greatest: boolean;
+  c: number;
+}
+
+const bracketFn = (form: number, alpha: number) => (x: number): number => {
+  const f = R_FORMS[form];
+  const u = (x + (f.plus ? alpha : -alpha)) * DEGREE;
+  return f.fn === 'sin' ? Math.sin(u) : Math.cos(u);
+};
+
+/** The wave drawn: slide to its peak or its trough. */
+const rPeakSlider: Generator<RPeakParams> = {
+  id: 'tid-r-peak-slider',
+  sample: (rng, difficulty) => ({
+    form: rng.pick(difficulty > 1 ? ALL_FORMS : SIN_FORMS),
+    table: sampleTable(rng, 3),
+    greatest: rng.chance(0.5),
+    c: difficulty > 1 ? rng.int(-2, 2) : 0,
+  }),
+  render: (p): Slide => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const wave = bracketFn(p.form, alpha);
+    const pad = 0.3 * R.value + 0.5;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 360,
+      curves: [{ f: (x) => p.c + R.value * wave(x), accent: true }],
+      horizontals: [p.c + R.value, p.c - R.value],
+      yMin: p.c - R.value - pad,
+      yMax: p.c + R.value + pad,
+      label: 'The graph of the expression from 0 to 360 degrees, a wave between two dashed lines at its greatest and least values',
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        prose(
+          `Write it in the form $${rFormTex(p.form, 'R', 'x', '\\alpha')}$, then slide to where it is ${p.greatest ? 'greatest' : 'least'}, with $0^{\\circ} < x < 360^{\\circ}$.`,
+        ),
+        display(`y = ${rExprTex(p.form, C, S, 'x')}${plusConst(p.c)}`),
+      ],
+      min: 0,
+      max: 360,
+      step: 15,
+      answer: extremeAt(p.form, alpha, p.greatest),
+      readout: 'x = {v}^{\\circ}',
+      figure: { svg, ...markerWindow(0, 360) },
+    };
+  },
+  solution: (p) => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const f = R_FORMS[p.form];
+    const op = f.plus ? '+' : '-';
+    const u = extremeBracket(p.form, alpha, p.greatest);
+    return [
+      { tex: `${rExprTex(p.form, C, S, 'x')} = ${rFormTex(p.form, R.tex, 'x', deg(alpha))}` },
+      { text: `$\\${f.fn}$ is ${p.greatest ? '$1$, its greatest,' : '$-1$, its least,'} when its angle is $${deg(u)}$:` },
+      { tex: `x ${op} ${deg(alpha)} = ${deg(u)} \\quad \\Rightarrow \\quad x = ${deg(extremeAt(p.form, alpha, p.greatest))}` },
+    ];
+  },
+};
+
+interface RExtremeParams extends RWholeParams {
+  c: number;
+  greatest: boolean;
+  /** The expression under a number, so the fraction is greatest where the expression is least. */
+  reciprocal: boolean;
+  m: number;
+}
+
+/** R's candidates as flow labels: R, R^2, and the two sums a careless square root gives. */
+function rCandidates({ C, S, R }: WholePair): string[] {
+  return scatter([`$${R}$`, `$${R * R}$`, `$${C + S}$`, `$${Math.abs(C - S)}$`]);
+}
+
+/** The first n distinct labels. */
+function distinctLabels(labels: string[], n = 4): string[] {
+  return [...new Set(labels)].slice(0, n);
+}
+
+/** Greatest or least value, one decision at a time: R, then (for a fraction) which end of the bottom, then the value. */
+const rExtremeFlow: Generator<RExtremeParams> = {
+  id: 'tid-r-extreme-flow',
+  sample: (rng, difficulty) => {
+    const base = { ...sampleWhole(rng, difficulty), swapped: false };
+    if (difficulty > 1) {
+      return { ...base, c: base.pair.R + rng.int(1, 4), greatest: rng.chance(0.5), reciprocal: true, m: rng.int(1, 12) };
+    }
+    return { ...base, c: rng.int(-6, 9), greatest: rng.chance(0.5), reciprocal: false, m: 1 };
+  },
+  render: (p): Slide => {
+    const { C, S, R } = p.pair;
+    const x = R_VARS[p.v];
+    const word = p.greatest ? 'greatest' : 'least';
+    const rStep = {
+      id: 'R',
+      ask: `Written as $${rFormTex(p.form, 'R', x, '\\alpha')}$, $R$ is`,
+      branches: rCandidates(p.pair).map((label) => ({ label, to: p.reciprocal ? 'bottom' : 'value' })),
+    };
+    if (!p.reciprocal) {
+      const s = p.greatest ? 1 : -1;
+      const right = `$${p.c + s * R}$`;
+      const values = distinctLabels([right, `$${p.c - s * R}$`, `$${p.c + s * (C + S)}$`, `$${s * R}$`, `$${p.c + s * R * R}$`]);
+      return {
+        kind: 'flow',
+        prompt: [prose(`Find the ${word} value, one decision at a time.`)],
+        subject: `${wholeExpr(p)}${plusConst(p.c)}`,
+        steps: [
+          rStep,
+          { id: 'value', ask: `So the ${word} value is`, branches: scatter(values).map((label) => ({ label, outcome: 'Sine and cosine never go past $1$ or below $-1$.' })) },
+        ],
+        answer: [`$${R}$`, right],
+      };
+    }
+    const value = (bottom: number): string => `$${ratTex(rat(p.m, bottom))}$`;
+    const right = value(p.greatest ? p.c - R : p.c + R);
+    const bottoms = [p.c - R, p.c + R, p.c, p.c - C - S].filter((b) => b !== 0);
+    const values = distinctLabels([right, ...bottoms.map(value)]);
+    const ends = ['as small as it gets', 'as large as it gets'];
+    return {
+      kind: 'flow',
+      prompt: [prose(`Find the ${word} value of this fraction, one decision at a time.`)],
+      subject: `\\dfrac{${p.m}}{${p.c} + ${wholeExpr(p)}}`,
+      steps: [
+        rStep,
+        { id: 'bottom', ask: `The fraction is ${word} when the bottom is`, branches: ends.map((label) => ({ label, to: 'value' })) },
+        { id: 'value', ask: `So the ${word} value is`, branches: scatter(values).map((label) => ({ label, outcome: 'The top is fixed, so the bottom decides.' })) },
+      ],
+      answer: [`$${R}$`, ends[p.greatest ? 0 : 1], right],
+    };
+  },
+  solution: (p) => {
+    const { C, S, R } = p.pair;
+    const x = R_VARS[p.v];
+    const form = rFormTex(p.form, `${R}`, x, '\\alpha');
+    const steps: SolutionStep[] = [
+      { text: `$R = \\sqrt{${C}^2 + ${S}^2} = ${R}$, so the expression is $${form}$, which runs from $${-R}$ to $${R}$.` },
+    ];
+    if (!p.reciprocal) {
+      steps.push({ tex: extremeLine(p.greatest, R, p.c) });
+      return steps;
+    }
+    const bottom = p.greatest ? p.c - R : p.c + R;
+    steps.push(
+      { text: `So the bottom runs from $${p.c} - ${R} = ${p.c - R}$ to $${p.c} + ${R} = ${p.c + R}$, always positive.` },
+      {
+        text: p.greatest
+          ? 'A fixed top over a smaller bottom is a bigger fraction, so the greatest value comes with the smallest bottom.'
+          : 'A fixed top over a larger bottom is a smaller fraction, so the least value comes with the largest bottom.',
+      },
+      { tex: `\\frac{${p.m}}{${bottom}}${ratTex(rat(p.m, bottom)) === `\\frac{${p.m}}{${bottom}}` ? '' : ` = ${ratTex(rat(p.m, bottom))}`}` },
+    );
+    return steps;
+  },
+};
+
+/* Lesson 5: solving a sin x + b cos x = c. */
+
+interface RSolveParams {
+  form: number;
+  table: TablePair;
+  /** fn(x ± α) = value: a signed special value. */
+  value: number;
+}
+
+/** The right-hand side c = R times the value, as the learner reads it, or undefined when it is not tidy. */
+function rhsTex({ kind, k }: TablePair, value: number): string | undefined {
+  const size = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+  if (kind < 2) {
+    if (near(size, 0.5)) return `${sign}${k}`;
+    if (near(size, Math.SQRT2 / 2)) return `${sign}${co(k)}\\sqrt{2}`;
+    if (near(size, Math.sqrt(3) / 2)) return `${sign}${co(k)}\\sqrt{3}`;
+    return undefined;
+  }
+  if (near(size, Math.SQRT2 / 2)) return `${sign}${k}`;
+  if (near(size, 0.5) && k % 2 === 0) return `${sign}${co(k / 2)}\\sqrt{2}`;
+  return undefined;
+}
+
+const SOLVE_VALUES = [0.5, Math.SQRT2 / 2, Math.sqrt(3) / 2];
+
+function sampleSolve(rng: Rng, difficulty: number): RSolveParams {
+  for (;;) {
+    const table = sampleTable(rng, 3);
+    const value = rng.pick(SOLVE_VALUES) * (difficulty > 1 && rng.chance(0.5) ? -1 : 1);
+    if (rhsTex(table, value) === undefined) continue;
+    return { form: rng.pick(difficulty > 1 ? ALL_FORMS : SIN_FORMS), table, value };
+  }
+}
+
+/** The bracket's solutions over the range x = 0 to 360 sends it through, then x itself, both smallest first. */
+function shiftedSolutions(form: number, alpha: number, value: number): { u: number[]; x: number[] } {
+  const f = R_FORMS[form];
+  const lo = f.plus ? alpha : -alpha;
+  const u = solutionsOf(f.fn, value)
+    .map((s) => (s < lo ? s + 360 : s >= lo + 360 ? s - 360 : s))
+    .sort((a, b) => a - b);
+  return { u, x: u.map((w) => (f.plus ? w - alpha : w + alpha)) };
+}
+
+const solveEquation = (p: RSolveParams): string => {
+  const { C, S } = tableCoefs(p.table);
+  return `${rExprTex(p.form, C, S, 'x')} = ${rhsTex(p.table, p.value)}`;
+};
+
+const bracketTex = (form: number, alpha: number): string => `x ${R_FORMS[form].plus ? '+' : '-'} ${deg(alpha)}`;
+
+const angleList = (angles: number[]): string => angles.map(deg).join(', ');
+
+function solveSteps(p: RSolveParams): SolutionStep[] {
+  const { R, alpha } = tableCoefs(p.table);
+  const f = R_FORMS[p.form];
+  const { u, x } = shiftedSolutions(p.form, alpha, p.value);
+  const raw = solutionsOf(f.fn, p.value);
+  const shifted = raw.some((s, i) => s !== u[i]);
+  return [
+    { text: 'Convert the left-hand side first:' },
+    { tex: solveEquation(p) },
+    { tex: `${rFormTex(p.form, R.tex, 'x', deg(alpha))} = ${rhsTex(p.table, p.value)}` },
+    { tex: `\\${f.fn}(${bracketTex(p.form, alpha)}) = ${specialTex(p.value)}` },
+    {
+      text: `As $x$ runs from $0^{\\circ}$ to $360^{\\circ}$, $${bracketTex(p.form, alpha)}$ runs from $${deg(f.plus ? alpha : -alpha)}$ to $${deg(f.plus ? 360 + alpha : 360 - alpha)}$.${shifted ? ` So the table's $${angleList(raw)}$ becomes $${angleList(u)}$.` : ''}`,
+    },
+    { tex: `${bracketTex(p.form, alpha)} = ${angleList(u)}` },
+    { tex: `x = ${angleList(x)}` },
+  ];
+}
+
+/** The whole solution as a line of working: convert, divide by R, solve for the bracket, undo the shift. */
+const rSolveSteps: Generator<RSolveParams> = {
+  id: 'tid-r-solve-steps',
+  sample: (rng, difficulty) => sampleSolve(rng, difficulty),
+  render: (p): Slide => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const f = R_FORMS[p.form];
+    const rhs = rhsTex(p.table, p.value)!;
+    const { u, x } = shiftedSolutions(p.form, alpha, p.value);
+    const br = bracketTex(p.form, alpha);
+    const rSquared = `${squareOf(R)}`;
+    const slipValues = SPECIAL.filter((row) => row.value > 0 && row.value < 1 && Math.abs(row.value - Math.abs(p.value)) > 1e-9);
+    const raw = solutionsOf(f.fn, p.value);
+    const wrongWay = x.map((w) => (((f.plus ? w + 2 * alpha : w - 2 * alpha) % 360) + 360) % 360).sort((a, b) => a - b);
+    const reductions: { span: [number, number]; value: string; bank: string[] }[] = [
+      {
+        span: [0, 1],
+        value: rFormTex(p.form, R.tex, 'x', deg(alpha)),
+        bank: [
+          rFormTex(p.form, rSquared, 'x', deg(alpha)),
+          rFormTex(p.form, R.tex, 'x', deg(90 - alpha)),
+          rFormTex(p.form ^ 1, R.tex, 'x', deg(alpha)),
+        ],
+      },
+      {
+        span: [0, 3],
+        value: `\\${f.fn}(${br}) = ${specialTex(p.value)}`,
+        bank: [
+          `\\${f.fn}(${br}) = ${specialTex(-p.value)}`,
+          `\\${f.fn}(${br}) = ${p.value < 0 ? '-' : ''}${slipValues[0].tex}`,
+          `\\${f.fn}(${br}) = ${p.value < 0 ? '-' : ''}${slipValues[1].tex}`,
+        ],
+      },
+      {
+        span: [0, 1],
+        value: `${br} = ${angleList(u)}`,
+        bank: [
+          `${br} = ${angleList(raw)}`,
+          `${br} = ${angleList(solutionsOf(otherFn(f.fn), p.value))}`,
+          `${br} = ${angleList(solutionsOf(f.fn, -p.value))}`,
+        ],
+      },
+      {
+        span: [0, 1],
+        value: `x = ${angleList(x)}`,
+        bank: [`x = ${angleList(wrongWay)}`, `x = ${angleList(u)}`],
+      },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [prose('Solve for $0^{\\circ} \\le x < 360^{\\circ}$, a line at a time.')],
+      start: [rExprTex(p.form, C, S, 'x'), '=', rhs],
+      reductions: reductions.map((r) => ({ ...r, bank: scatter([...new Set([r.value, ...r.bank])]) })),
+    };
+  },
+  solution: (p) => solveSteps(p),
+};
+
+interface RSolveAngleParams extends RSolveParams {
+  largest: boolean;
+  radians: boolean;
+}
+
+/** One solution, typed: the smallest or the largest. */
+const rSolveAngle: Generator<RSolveAngleParams> = {
+  id: 'tid-r-solve-angle',
+  sample: (rng, difficulty) => ({
+    ...sampleSolve(rng, difficulty),
+    largest: rng.chance(0.5),
+    radians: difficulty > 1 && rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const { alpha } = tableCoefs(p.table);
+    const { x } = shiftedSolutions(p.form, alpha, p.value);
+    const answer = p.largest ? x[x.length - 1] : x[0];
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(
+          `Solve for $${p.radians ? '0 \\le x < 2\\pi' : '0^{\\circ} \\le x < 360^{\\circ}'}$ and give the ${p.largest ? 'largest' : 'smallest'} solution${p.radians ? ', in radians' : ''}.`,
+        ),
+        display(solveEquation(p)),
+      ],
+      lead: 'x =',
+      keypad: p.radians ? PI_KEYS : NUMBER_KEYS,
+      answer: angleAnswer(answer, p.radians),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const { alpha } = tableCoefs(p.table);
+    const { u, x } = shiftedSolutions(p.form, alpha, p.value);
+    const i = p.largest ? x.length - 1 : 0;
+    const f = R_FORMS[p.form];
+    const wrongWay = (((f.plus ? x[i] + 2 * alpha : x[i] - 2 * alpha) % 360) + 360) % 360;
+    return angleOptions(x[i], [u[i], x[x.length - 1 - i], wrongWay], p.radians);
+  },
+  solution: (p) => {
+    const { alpha } = tableCoefs(p.table);
+    const { x } = shiftedSolutions(p.form, alpha, p.value);
+    const answer = p.largest ? x[x.length - 1] : x[0];
+    return [
+      ...solveSteps(p),
+      { text: `The ${p.largest ? 'largest' : 'smallest'} is $${angleTex(answer, p.radians)}$.` },
+    ];
+  },
+};
+
+interface RCountParams extends RWholeParams {
+  /** A constant on the left, taken across before comparing with R. */
+  d: number;
+  /** R sin(x + α) = shifted. */
+  shifted: number;
+}
+
+const countOf = (p: RCountParams): number => {
+  const size = Math.abs(p.shifted);
+  return size > p.pair.R ? 0 : size === p.pair.R ? 1 : 2;
+};
+
+/** How many solutions: R first, then the right-hand side against it. */
+const rCountFlow: Generator<RCountParams> = {
+  id: 'tid-r-count-flow',
+  sample: (rng, difficulty) => {
+    const base = { ...sampleWhole(rng, difficulty), swapped: false };
+    const { R } = base.pair;
+    const count = rng.int(0, 2);
+    const sign = rng.chance(0.5) ? 1 : -1;
+    const shifted = count === 2 ? rng.int(-(R - 1), R - 1) : count === 1 ? sign * R : sign * (R + rng.int(1, 4));
+    let d = difficulty > 1 ? rng.int(-5, 4) : 0;
+    if (difficulty > 1 && d >= 0) d += 1;
+    return { ...base, d, shifted };
+  },
+  render: (p): Slide => {
+    const x = R_VARS[p.v];
+    const counts = ['0', '1', '2', '3'].map((n) => `$${n}$`);
+    return {
+      kind: 'flow',
+      prompt: [prose(`How many solutions has this with $0^{\\circ} \\le ${x} < 360^{\\circ}$?`)],
+      subject: `${wholeExpr(p)}${plusConst(p.d)} = ${p.shifted + p.d}`,
+      steps: [
+        {
+          id: 'R',
+          ask: `Written as $${rFormTex(p.form, 'R', x, '\\alpha')}$, $R$ is`,
+          branches: rCandidates(p.pair).map((label) => ({ label, to: 'count' })),
+        },
+        {
+          id: 'count',
+          ask: 'So the number of solutions is',
+          branches: counts.map((label) => ({ label, outcome: 'A wave of height $R$ meets a level line twice a turn, once, or never.' })),
+        },
+      ],
+      answer: [`$${p.pair.R}$`, `$${countOf(p)}$`],
+    };
+  },
+  solution: (p) => {
+    const { C, S, R } = p.pair;
+    const x = R_VARS[p.v];
+    const f = R_FORMS[p.form];
+    const n = countOf(p);
+    const steps: SolutionStep[] = [{ text: `$R = \\sqrt{${C}^2 + ${S}^2} = ${R}$.` }];
+    if (p.d !== 0) steps.push({ text: `Take the $${p.d}$ across first:` });
+    steps.push(
+      { tex: `${rFormTex(p.form, `${R}`, x, '\\alpha')} = ${p.shifted}` },
+      { tex: `\\${f.fn}(${x} ${f.plus ? '+' : '-'} \\alpha) = ${ratTex(rat(p.shifted, R))}` },
+      {
+        text:
+          n === 0
+            ? `That is beyond $-1$ to $1$, which no sine or cosine reaches: no solutions.`
+            : n === 1
+              ? `That is the very ${p.shifted > 0 ? 'top' : 'bottom'} of the wave, reached once a turn: one solution.`
+              : 'That is strictly between $-1$ and $1$, and a full turn crosses each such level twice: two solutions.',
+      },
+    );
+    return steps;
+  },
+};
+
+interface RSolveSliderParams extends RSolveParams {
+  largest: boolean;
+}
+
+/** The equation's two sides drawn: slide to one of the solutions. */
+const rSolveSlider: Generator<RSolveSliderParams> = {
+  id: 'tid-r-solve-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const p = { ...sampleSolve(rng, difficulty), largest: difficulty > 1 && rng.chance(0.5) };
+      const { alpha } = tableCoefs(p.table);
+      const { x } = shiftedSolutions(p.form, alpha, p.value);
+      const answer = p.largest ? x[x.length - 1] : x[0];
+      // The untouched slider rests at 180; never make that the answer, nor either end.
+      if (answer === 180 || answer === 0) continue;
+      return p;
+    }
+  },
+  render: (p): Slide => {
+    const { C, S, R, alpha } = tableCoefs(p.table);
+    const { x } = shiftedSolutions(p.form, alpha, p.value);
+    const wave = bracketFn(p.form, alpha);
+    const pad = 0.3 * R.value + 0.5;
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 360,
+      curves: [{ f: (t) => R.value * wave(t), accent: true }],
+      horizontals: [R.value * p.value],
+      yMin: -R.value - pad,
+      yMax: R.value + pad,
+      label: 'The graph of the left-hand side from 0 to 360 degrees, with a dashed level line at the right-hand side',
+    });
+    return {
+      kind: 'slider',
+      prompt: [
+        prose(
+          `The dashed line is the right-hand side. Solve, and slide to the ${p.largest ? 'largest' : 'smallest'} solution with $0^{\\circ} < x < 360^{\\circ}$.`,
+        ),
+        display(`${rExprTex(p.form, C, S, 'x')} = ${rhsTex(p.table, p.value)}`),
+      ],
+      min: 0,
+      max: 360,
+      step: 15,
+      answer: p.largest ? x[x.length - 1] : x[0],
+      readout: 'x = {v}^{\\circ}',
+      figure: { svg, ...markerWindow(0, 360) },
+    };
+  },
+  solution: (p) => {
+    const { alpha } = tableCoefs(p.table);
+    const { x } = shiftedSolutions(p.form, alpha, p.value);
+    return [...solveSteps(p), { text: `The ${p.largest ? 'largest' : 'smallest'} is $${deg(p.largest ? x[x.length - 1] : x[0])}$.` }];
+  },
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -3553,4 +4828,23 @@ export const trigIdentityGenerators = [
   fitted(doubleEqSlider),
   fitted(doubleQuadTiles),
   fitted(doubleEqTree),
+  fitted(rExpandTiles),
+  fitted(rFormFlow),
+  fitted(rMatchTiles),
+  fitted(rSquaredTree),
+  fitted(rValue),
+  fitted(rTanAlpha),
+  fitted(rAlphaSteps),
+  fitted(rConvertChoice),
+  fitted(rExactTiles),
+  fitted(rExactAlpha),
+  fitted(rExpandExactChoice),
+  fitted(rMaxValue),
+  fitted(rMaxTiles),
+  fitted(rPeakSlider),
+  fitted(rExtremeFlow),
+  fitted(rSolveSteps),
+  fitted(rSolveAngle),
+  fitted(rCountFlow),
+  fitted(rSolveSlider),
 ];

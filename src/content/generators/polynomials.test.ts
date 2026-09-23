@@ -244,3 +244,240 @@ describe('polynomial graphs, checked from what the learner sees', () => {
     }
   });
 });
+
+/** toMath, with a letter standing for an unknown coefficient: "kx^{2}" is k times x^2. */
+const lettered = (tex: string): string => toMath(tex).replace(/\b([kpq])x/g, '$1*x');
+
+/** Whole-number roots of a displayed polynomial, found by trying every whole number in range. */
+function wholeRoots(tex: string, scope: Record<string, number> = {}): number[] {
+  const expr = toMath(tex.replace(/^f\(x\)\s*=\s*/, ''));
+  const out: number[] = [];
+  for (let x = -15; x <= 15; x += 1) {
+    if (Math.abs(math.evaluate(expr, { ...scope, x }) as number) < 1e-9) out.push(x);
+  }
+  return out;
+}
+
+/** Σα, Σαβ, αβγ of a list of roots, computed the long way. */
+function sumsOf(roots: number[]): number[] {
+  const pairs = roots.flatMap((a, i) => roots.slice(i + 1).map((b) => a * b));
+  return [roots.reduce((a, b) => a + b, 0), pairs.reduce((a, b) => a + b, 0), roots.reduce((a, b) => a * b, 1)];
+}
+
+/** A number as the learner reads it: 4, -3, (-3), -\frac{2}{3}. */
+function readNumber(tex: string): number {
+  const bare = tex.replace(/[()\s]/g, '');
+  const frac = /^(-?)\\frac\{(\d+)\}\{(\d+)\}$/.exec(bare);
+  if (frac) return (frac[1] ? -1 : 1) * (Number(frac[2]) / Number(frac[3]));
+  return Number(bare);
+}
+
+/** The polynomial a prompt says the roots belong to: "roots of $...= 0$". */
+function rootsOfPrompt(slide: Slide): number[] {
+  const match = /roots of \$([^$]+) = 0\$/.exec(prose(slide));
+  if (!match) throw new Error(`no polynomial in ${prose(slide)}`);
+  return wholeRoots(match[1]);
+}
+
+/** Roots listed in a prompt as "roots $-2, 1$ and $3$". */
+function listedRoots(slide: Slide): number[] {
+  const match = /roots \$([^$]+)\$ and \$(-?\d+)\$/.exec(prose(slide));
+  if (!match) throw new Error(`no roots listed in ${prose(slide)}`);
+  return [...match[1].split(',').map(Number), Number(match[2])];
+}
+
+const filledTemplate = (slide: Slide & { kind: 'tiles' }): string =>
+  slide.template.replace(/\{(\d)\}/g, (_, i: string) => slide.answer[Number(i)]);
+
+const correctLabel = (slide: Slide & { kind: 'choice' }): string =>
+  slide.options.find((o) => o.id === slide.correctId)!.label;
+
+describe('roots and coefficients, checked from what the learner sees', () => {
+  it('the sum or product asked for is what the roots of the polynomial give', () => {
+    for (const id of ['poly-roots-sum-product', 'poly-cubic-vieta']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'expression') throw new Error('expected expression');
+        const roots = rootsOfPrompt(slide);
+        const sums = sumsOf(roots);
+        const lead = slide.lead ?? '';
+        const which = /\\gamma\\alpha/.test(lead) || (roots.length === 2 && !lead.includes('+')) ? 1 : lead.includes('+') ? 0 : roots.length - 1;
+        const index = roots.length === 3 && which === 1 && !/\\gamma\\alpha/.test(lead) ? 2 : which;
+        expect(Number(slide.answer), `${id} seed ${seed} d${difficulty}`).toBe(sums[index]);
+      }
+    }
+  });
+
+  it('the signs chosen are the signs of the roots', () => {
+    for (const { slide, seed, difficulty } of slides('poly-root-signs')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const match = /^\$([^$]+) = 0\$/.exec(prose(slide))!;
+      const roots = wholeRoots(match[1]);
+      const label = correctLabel(slide);
+      const expected = roots.every((r) => r > 0) ? 'Both positive' : roots.every((r) => r < 0) ? 'Both negative' : 'One positive, one negative';
+      expect(label, `seed ${seed} d${difficulty}`).toBe(expected);
+    }
+  });
+
+  it('a quadratic built from a sum and a product has roots with that sum and product', () => {
+    for (const { slide, seed, difficulty } of slides('poly-sum-product-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [, s, p] = /sum is \$(-?\d+)\$ and whose product is \$(-?\d+)\$/.exec(prose(slide))!.map(Number);
+      const roots = wholeRoots(filledTemplate(slide));
+      expect(roots.length, `seed ${seed} d${difficulty}`).toBe(2);
+      expect(sumsOf(roots).slice(0, 2), `seed ${seed} d${difficulty}`).toEqual([s, p]);
+    }
+  });
+
+  it('the tree from two or three roots ends in coefficients that have those roots', () => {
+    for (const id of ['poly-quad-coeffs-tree', 'poly-cubic-coeffs-tree']) {
+      for (const { slide, seed, difficulty } of slides(id)) {
+        if (slide.kind !== 'tree') throw new Error('expected tree');
+        const text = prose(slide);
+        const roots = id === 'poly-quad-coeffs-tree'
+          ? [...text.matchAll(/(?:alpha|beta) = (-?\d+)/g)].map((m) => Number(m[1]))
+          : listedRoots(slide);
+        const coefficients = slide.answer.slice(-roots.length).map(Number);
+        const lead = slide.expression.startsWith('-x') ? -1 : Number(/^(-?\d*)x/.exec(slide.expression)![1] || 1);
+        const poly = [lead, ...coefficients].map((c, i) => `(${c})*x^${roots.length - i}`).join(' + ');
+        for (const r of roots) expect(math.evaluate(poly, { x: r }) as number, `${id} seed ${seed} d${difficulty}`).toBeCloseTo(0, 9);
+      }
+    }
+  });
+
+  it('the three sums of a cubic are the sums of its roots', () => {
+    for (const { slide, seed, difficulty } of slides('poly-cubic-identity-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      expect(slide.answer.map(Number), `seed ${seed} d${difficulty}`).toEqual(sumsOf(rootsOfPrompt(slide)));
+    }
+    for (const { slide, seed, difficulty } of slides('poly-vieta-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const roots = wholeRoots(slide.subject.replace(/ = 0$/, ''));
+      expect(slide.answer.map((a) => Number(a.replace(/\$/g, ''))), `seed ${seed} d${difficulty}`).toEqual(sumsOf(roots));
+    }
+    for (const { slide, seed, difficulty } of slides('poly-cubic-sums-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const roots = [...slide.expression.matchAll(/= (-?\d+)/g)].map((m) => Number(m[1]));
+      const [s1, , , , s2, s3] = slide.answer.map(Number);
+      expect([s1, s2, s3], `seed ${seed} d${difficulty}`).toEqual(sumsOf(roots));
+    }
+  });
+
+  it('a cubic built from its roots is zero at each of them', () => {
+    for (const { slide, seed, difficulty } of slides('poly-roots-to-cubic-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      for (const r of listedRoots(slide)) expect(at(filledTemplate(slide), r), `seed ${seed} d${difficulty}: x = ${r}`).toBeCloseTo(0, 9);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-roots-to-cubic-tiles+choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      for (const r of listedRoots(slide)) expect(at(correctLabel(slide), r), `seed ${seed} d${difficulty}: x = ${r}`).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('a cubic chosen from its sums has roots with those sums', () => {
+    for (const { slide, seed, difficulty } of slides('poly-sums-to-cubic')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const text = prose(slide);
+      const stated = [/\\Sigma\\alpha = (-?\d+)/, /\\Sigma\\alpha\\beta = (-?\d+)/, /\\alpha\\beta\\gamma = (-?\d+)/].map((re) => Number(re.exec(text)![1]));
+      const roots = wholeRoots(correctLabel(slide));
+      expect(roots.length, `seed ${seed} d${difficulty}`).toBe(3);
+      expect(sumsOf(roots), `seed ${seed} d${difficulty}`).toEqual(stated);
+    }
+  });
+
+  it('a cubic with new roots is zero at each changed root of the old one', () => {
+    for (const { slide, seed, difficulty } of slides('poly-new-roots-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const text = prose(slide);
+      const old = wholeRoots(/^\$p\(x\) = ([^$]+)\$/.exec(text)![1]);
+      const scale = /cubic with roots \$(-?\d*)\\alpha,/.exec(text);
+      const shift = /cubic with roots \$\\alpha ([+-]) (\d+),/.exec(text);
+      const changed = scale
+        ? old.map((r) => r * (scale[1] === '-' ? -1 : Number(scale[1] || 1)))
+        : old.map((r) => r + (shift![1] === '-' ? -1 : 1) * Number(shift![2]));
+      const cubic = slide.reductions[slide.reductions.length - 1].value;
+      for (const r of changed) expect(at(cubic, r), `seed ${seed} d${difficulty}: x = ${r}`).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('the third root makes the cubic zero, with any unknown coefficient fixed by the roots given', () => {
+    for (const { slide, seed, difficulty } of slides('poly-third-root')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [r1, r2] = [.../roots of \$f\(x\) = 0\$ are \$(-?\d+)\$ and \$(-?\d+)\$/.exec(prose(slide))!].slice(1).map(Number);
+      const f = lettered(display(slide).replace(/^f\(x\)\s*=\s*/, ''));
+      const value = (x: number, k: number) => math.evaluate(f, { x, k }) as number;
+      // k enters as k x^2, so p(r1) = 0 fixes it; with no k the same is harmless.
+      const k = -value(r1, 0) / (value(r1, 1) - value(r1, 0) || 1);
+      const where = `seed ${seed} d${difficulty}`;
+      expect(value(r1, k), where).toBeCloseTo(0, 9);
+      expect(value(r2, k), where).toBeCloseTo(0, 9);
+      expect(value(Number(slide.answer), k), where).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('the missing coefficient makes the cubic zero at both roots given', () => {
+    for (const { slide, seed, difficulty } of slides('poly-missing-coeff-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const match = /\$f\(x\) = ([^$]+) = 0\$ are \$(-?\d+)\$ and \$(-?\d+)\$/.exec(prose(slide))!;
+      const k = Number(/^k = (-?\d+)$/.exec(slide.reductions[slide.reductions.length - 1].value)![1]);
+      for (const r of [match[2], match[3]].map(Number)) {
+        expect(math.evaluate(lettered(match[1]), { x: r, k }) as number, `seed ${seed} d${difficulty}: x = ${r}`).toBeCloseTo(0, 9);
+      }
+    }
+  });
+
+  it('the third root found by the one usable identity makes the cubic zero', () => {
+    for (const { slide, seed, difficulty } of slides('poly-which-identity-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [r1, r2] = [.../are \$(-?\d+)\$ and \$(-?\d+)\$/.exec(prose(slide))!].slice(1).map(Number);
+      const f = lettered(slide.subject.replace(/^f\(x\)\s*=\s*/, ''));
+      const value = (x: number, p: number, q: number) => math.evaluate(f, { x, p, q }) as number;
+      // p and q enter linearly: solve them from the two roots given.
+      const row = (x: number) => [value(x, 1, 0) - value(x, 0, 0), value(x, 0, 1) - value(x, 0, 0), -value(x, 0, 0)];
+      const [a1, b1, c1] = row(r1);
+      const [a2, b2, c2] = row(r2);
+      const det = a1 * b2 - a2 * b1;
+      const p = (c1 * b2 - c2 * b1) / det;
+      const q = (a1 * c2 - a2 * c1) / det;
+      const gamma = Number(slide.answer[1].replace(/\$/g, ''));
+      expect(value(gamma, p, q), `seed ${seed} d${difficulty}`).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('roots in arithmetic progression make the cubic zero', () => {
+    for (const { slide, seed, difficulty } of slides('poly-ap-roots-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const mid = Number(slide.answer[2]);
+      const d = Number(slide.answer[5]);
+      for (const r of [mid - d, mid, mid + d]) expect(at(slide.expression, r), `seed ${seed} d${difficulty}: x = ${r}`).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('sums of squares and of reciprocals agree with the roots themselves', () => {
+    const squares = (roots: number[]) => roots.reduce((a, r) => a + r * r, 0);
+    const reciprocals = (roots: number[]) => roots.reduce((a, r) => a + 1 / r, 0);
+    for (const { slide, seed, difficulty } of slides('poly-sum-squares')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      expect(Number(slide.answer), `seed ${seed} d${difficulty}`).toBe(squares(rootsOfPrompt(slide)));
+    }
+    for (const { slide, seed, difficulty } of slides('poly-reciprocal-sum')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      expect(math.evaluate(slide.answer) as number, `seed ${seed} d${difficulty}`).toBeCloseTo(reciprocals(rootsOfPrompt(slide)), 9);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-square-identity-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      expect(Number(slide.answer[2]), `seed ${seed} d${difficulty}`).toBe(squares(rootsOfPrompt(slide)));
+    }
+    for (const { slide, seed, difficulty } of slides('poly-recip-divide-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const last = slide.reductions[slide.reductions.length - 1].value;
+      expect(readNumber(last), `seed ${seed} d${difficulty}`).toBeCloseTo(reciprocals(rootsOfPrompt(slide)), 9);
+    }
+    for (const { slide, seed, difficulty } of slides('poly-symmetric-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const roots = wholeRoots(slide.expression.replace(/ = 0$/, ''));
+      const where = `seed ${seed} d${difficulty}`;
+      expect(readNumber(slide.answer[4]), where).toBeCloseTo(reciprocals(roots), 9);
+      expect(Number(slide.answer[5]), where).toBe(squares(roots));
+    }
+  });
+});

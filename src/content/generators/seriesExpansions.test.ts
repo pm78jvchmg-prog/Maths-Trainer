@@ -10,14 +10,20 @@
  * coefficient is compared with `f^(n)(a)/n!`, where mathjs differentiates the
  * function `n` times itself. None of the generator's own coefficient
  * arithmetic is used to decide what is right.
+ *
+ * Level 3 is checked the same way: every remainder, derivative at c, bound M
+ * and error is recomputed from mathjs's derivatives, the largest size of a
+ * derivative on an interval found on a grid, and each read back off the slide.
  */
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../../engine/rng';
 import { checkAnswer } from '../../engine/equivalence';
 import { math } from '../../engine/expression';
+import { registry } from '../registry';
 import type { Generator, Slide } from '../types';
 import {
   centreOf,
+  cfnSource,
   fact,
   fnSource,
   hTex,
@@ -618,3 +624,374 @@ describe('level 2 series, checked against mathjs derivatives', { timeout: 120_00
 function fnOfBase(base: Fn['base']): Fn {
   return { base, k: { n: 1, d: 1 }, m: 1, scale: 1, index: 0 };
 }
+
+/* ---------- Level 3: error terms ---------- */
+
+/**
+ * TeX as the level 3 slides print a derivative, a bound or a remainder, as
+ * mathjs reads it: `\frac{a}{b}` and `^{...}` become brackets, `\sin X` becomes
+ * `sin(X)` and `e` becomes `exp(1)`. Only what these slides print is covered.
+ */
+function texMath(tex: string): string {
+  let s = tex
+    .replace(/\$/g, '')
+    .replace(/\\left|\\right/g, '')
+    .replace(/\\times/g, '*')
+    .replace(/\\div/g, '/');
+  for (;;) {
+    const next = s.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))').replace(/\^\{([^{}]*)\}/g, '^($1)');
+    if (next === s) break;
+    s = next;
+  }
+  // `\sin X`: X is a bracket, or a run such as `2c`.
+  let out = '';
+  for (let i = 0; i < s.length; i += 1) {
+    const trig = /^\\(sin|cos)\s*/.exec(s.slice(i));
+    if (!trig) {
+      out += s[i];
+      continue;
+    }
+    let j = i + trig[0].length;
+    const start = j;
+    if (s[j] === '(') {
+      for (let depth = 0; j < s.length; j += 1) {
+        if (s[j] === '(') depth += 1;
+        if (s[j] === ')' && --depth === 0) break;
+      }
+      j += 1;
+    } else {
+      j += /^[0-9.]*[a-z]/.exec(s.slice(j))![0].length;
+    }
+    out += ` ${trig[1]}(${s.slice(start, j)})`;
+    i = j - 1;
+  }
+  return out.replace(/(?<![a-z])e(?![a-z])/g, ' exp(1)');
+}
+
+/** A printed TeX value, with its variables set. */
+const at = (tex: string, scope: Record<string, number> = {}): number => math.evaluate(texMath(tex), scope) as number;
+
+const valueOf = (a: { n: number; d: number }): number => a.n / a.d;
+
+/** `f^(p)` as a function of x, differentiated by mathjs. */
+const derivCache = new Map<string, (x: number) => number>();
+function derivative(source: string, p: number): (x: number) => number {
+  const key = `${source}#${p}`;
+  const cached = derivCache.get(key);
+  if (cached) return cached;
+  let node = math.parse(source);
+  for (let i = 0; i < p; i += 1) node = math.derivative(node, 'x', { simplify: true });
+  const compiled = node.compile();
+  const fn = (x: number) => compiled.evaluate({ x }) as number;
+  derivCache.set(key, fn);
+  return fn;
+}
+
+/** The largest |h| over [lo, hi], on a grid that includes both ends. */
+function supOn(h: (x: number) => number, lo: number, hi: number, steps = 400): number {
+  let best = 0;
+  for (let i = 0; i <= steps; i += 1) best = Math.max(best, Math.abs(h(lo + ((hi - lo) * i) / steps)));
+  return best;
+}
+
+/**
+ * The Lagrange M: the most |f^(p)(c)| can be for c from lo to hi. A sine or
+ * cosine is bounded by the most it ever reaches, so it is searched over a whole
+ * period, not the interval, which is what the standard M = 1 means.
+ */
+const supCache = new Map<string, number>();
+function lagrangeM(f: Fn, p: number, lo: number, hi: number): number {
+  const wave = f.base === 'sin' || f.base === 'cos';
+  const key = `${fnSource(f)}#${p}#${wave ? '' : `${lo},${hi}`}`;
+  const cached = supCache.get(key);
+  if (cached !== undefined) return cached;
+  const d = derivative(fnSource(f), p);
+  const value = wave ? supOn(d, 0, (2 * Math.PI) / Math.abs(valueOf(f.k)), 4000) : supOn(d, lo, hi);
+  supCache.set(key, value);
+  return value;
+}
+
+const near = (a: number, b: number, rel = 1e-9) => Math.abs(a - b) <= rel * Math.max(1, Math.abs(a), Math.abs(b));
+
+/** A value as asked for: to 3 significant figures. */
+const sf3 = (v: number): number => Number(v.toPrecision(3));
+
+/** `f'''`, `f^{(4)}`: the name of the p-th derivative, as a flow labels it. */
+const dLabel = (p: number): string => (p <= 3 ? `$f${"'".repeat(p)}$` : `$f^{(${p})}$`);
+
+const POINTS = [-0.7, -0.2, 0.3, 0.9, 1.4];
+
+/** Whether printed TeX in `v` is the p-th derivative of `source` at every point. */
+const isDerivative = (tex: string, source: string, p: number, v = 'c', points = POINTS): boolean =>
+  points.every((c) => near(at(tex, { [v]: c }), derivative(source, p)(c)));
+
+/** The typed slide, then its `+choice` variant, each with the number the learner gives. */
+function answered<P>(generator: Generator<P>): { params: P; value: number; slide: Slide }[] {
+  const variant = registry[`${generator.id}+choice`] as unknown as Generator<P>;
+  return [...draws(generator), ...draws(variant)].map(({ params, slide }) => ({
+    params,
+    slide,
+    value: slide.kind === 'choice' ? at(picked(slide)) : typedNumber(slide),
+  }));
+}
+
+/** Whether a statement such as `E < \frac{1}{48}` or `a < E \le b` holds for this E. */
+function holds(statement: string, e: number): boolean {
+  const s = statement.replace(/\$/g, '').trim();
+  const between = /^(.+) < E \\le (.+)$/.exec(s);
+  if (between) return at(between[1]) < e && e <= at(between[2]) * (1 + 1e-12);
+  const [, op, rhs] = /^E (<|=|>) (.+)$/.exec(s)!;
+  const v = at(rhs);
+  return op === '<' ? e < v : op === '>' ? e > v : near(e, v);
+}
+
+/** f(h) take away its Maclaurin polynomial up to x^n, from mathjs's derivatives. */
+function remainderAt(source: string, n: number, h: number): number {
+  const kept = taylor(source, n, 0, true).reduce((sum, c, p) => sum + c * h ** p, 0);
+  return (math.evaluate(source, { x: h }) as number) - kept;
+}
+
+describe('level 3 error terms, checked against mathjs derivatives', { timeout: 120_000 }, () => {
+  it('reads the TeX these slides print', () => {
+    expect(at('16e^{2c}', { c: 0.5 })).toBeCloseTo(16 * Math.E);
+    expect(at('\\frac{1}{16}\\cos\\frac{c}{2}', { c: 1 })).toBeCloseTo(Math.cos(0.5) / 16);
+    expect(at('-\\sin(-c)', { c: 1 })).toBeCloseTo(Math.sin(1));
+    expect(at('-\\frac{15}{16}c^{-\\frac{7}{2}}', { c: 4 })).toBeCloseTo((-15 / 16) * 4 ** -3.5);
+    expect(at('\\frac{2}{c^{3}}', { c: 2 })).toBeCloseTo(0.25);
+    expect(at('\\frac{-3\\cos 2c}{24}x^{4}', { c: 0.2, x: 0.5 })).toBeCloseTo((-3 * Math.cos(0.4) * 0.0625) / 24);
+    expect(at('\\frac{(x - 4)^{3}}{3!}', { x: 5 })).toBeCloseTo(1 / 6);
+    expect(at('e^{0.5}')).toBeCloseTo(Math.exp(0.5));
+  });
+
+  it('ser-rem-tiles places f^(n+1)(c) and x^(n+1)/(n+1)!', () => {
+    for (const { params, slide } of draws(g.remTiles)) {
+      const p = params.n + 1;
+      const [d, frac] = placed(slide);
+      expect(isDerivative(d, fnSource(params.f), p), d).toBe(true);
+      expect(POINTS.every((x) => near(at(frac, { x }), x ** p / fact(p))), frac).toBe(true);
+    }
+  });
+
+  it('ser-rem-flow names f^(n+1), writes it out and takes it at c', () => {
+    for (const { params, slide } of draws(g.remFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const p = params.n + 1;
+      const [which, what, where] = slide.answer;
+      expect(which).toBe(dLabel(p));
+      expect(isDerivative(what, fnSource(params.f), p, 'x'), what).toBe(true);
+      expect(where).toBe('some $c$ between $0$ and $x$');
+    }
+  });
+
+  it('ser-rem-pick marks the one option equal to f^(n+1)(c) x^(n+1)/(n+1)!', () => {
+    for (const { params, slide } of draws(g.remPick)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const p = params.n + 1;
+      const d = derivative(fnSource(params.f), p);
+      const right = (tex: string) => POINTS.every((c) => [0.4, -1.1].every((x) => near(at(tex, { c, x }), (d(c) * x ** p) / fact(p))));
+      for (const option of slide.options) expect(right(option.label), option.label).toBe(option.id === slide.correctId);
+    }
+  });
+
+  it('ser-rem-exact gives f(h) - P_n(h) for the polynomial', () => {
+    for (const { params, value } of answered(g.remExact)) {
+      expect(near(value, remainderAt(fnSource(params.f), params.n, valueOf(params.h)))).toBe(true);
+    }
+  });
+
+  it('ser-bound-m-flow takes M as the most |f^(n+1)(c)| can be between 0 and x', () => {
+    for (const { params, slide } of draws(g.boundMFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      const [which, where, m] = slide.answer;
+      expect(which).toBe(dLabel(p));
+      expect(near(at(m.replace(/^\$M = /, ''), {}), lagrangeM(params.f, p, Math.min(0, x), Math.max(0, x)), 1e-6), m).toBe(true);
+      const d = derivative(fnSource(params.f), p);
+      if (params.f.base !== 'exp') expect(where.startsWith('Nowhere')).toBe(true);
+      else expect(where).toBe(Math.abs(d(0)) > Math.abs(d(x)) ? 'At $c = 0$' : `At $c = ${x}$`);
+    }
+  });
+
+  it('ser-bound-tiles places M, |x|^(n+1) and (n+1)!', () => {
+    for (const { params, slide } of draws(g.boundTiles)) {
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      const [m, power, factorial] = placed(slide);
+      expect(near(at(m), lagrangeM(params.f, p, Math.min(0, x), Math.max(0, x)), 1e-6), m).toBe(true);
+      expect(power.endsWith(`^{${p}}`) && near(at(power), Math.abs(x) ** p), power).toBe(true);
+      expect(factorial).toBe(`${p}!`);
+    }
+  });
+
+  it('ser-bound-tree fills M, |x|^(n+1), (n+1)! and the bound', () => {
+    for (const { params, slide } of draws(g.boundTree)) {
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      const M = lagrangeM(params.f, p, Math.min(0, x), Math.max(0, x));
+      const [m, power, factorial, bound] = filled(slide);
+      expect(near(m, M, 1e-6) && near(power, Math.abs(x) ** p) && factorial === fact(p)).toBe(true);
+      expect(near(bound, (M * Math.abs(x) ** p) / fact(p), 1e-6)).toBe(true);
+    }
+  });
+
+  it('ser-bound-dec gives the Lagrange bound to 3 s.f.', () => {
+    for (const { params, value } of answered(g.boundDec)) {
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      expect(value).toBe(sf3((lagrangeM(params.f, p, Math.min(0, x), Math.max(0, x)) * Math.abs(x) ** p) / fact(p)));
+    }
+  });
+
+  it('ser-compare-flow says the error is under the first term left out exactly when the terms alternate', () => {
+    for (const { params, slide } of draws(g.compareFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const h = valueOf(params.h);
+      const source = fnSource(params.f);
+      const values = nonZeroTerms(taylor(source, 12, 0, true), 6).map(({ c, p }) => c * h ** p);
+      const alt = values.every((v, i) => i === 0 || v * values[i - 1] < 0);
+      expect(slide.answer).toEqual(alt ? ['They alternate', 'Smaller'] : ['They all have the same sign', 'Larger']);
+      // And the claim is true of this function at this h.
+      const error = Math.abs((math.evaluate(source, { x: h }) as number) - values.slice(0, params.count).reduce((s, v) => s + v, 0));
+      expect(alt ? error < Math.abs(values[params.count]) : error > Math.abs(values[params.count])).toBe(true);
+    }
+  });
+
+  it('ser-compare-tree fills h^(n+1), (n+1)!, the first term left out D, and a Lagrange bound B', () => {
+    for (const { params, slide } of draws(g.compareTree)) {
+      const p = params.n + 1;
+      const h = valueOf(params.h);
+      const source = `exp(${params.k}*x)`;
+      const [power, factorial, D, B] = filled(slide);
+      expect(near(power, h ** p) && factorial === fact(p)).toBe(true);
+      expect(near(D, Math.abs(taylor(source, p, 0, true)[p]) * h ** p)).toBe(true);
+      const lagrange = (supOn(derivative(source, p), 0, h) * h ** p) / fact(p);
+      const error = Math.abs(remainderAt(source, params.n, h));
+      if (params.k < 0) expect(near(B, lagrange)).toBe(true);
+      // e^{c} is bounded by a whole number above e^h, so B is a whole multiple of D at or above Lagrange's.
+      else expect(Number.isInteger(Math.round(B / D)) && near(B / D, Math.round(B / D)) && B >= lagrange && B < lagrange + D).toBe(true);
+      expect(error <= B && (params.k > 0 ? error > D : error < D)).toBe(true);
+    }
+  });
+
+  it('ser-compare-pick marks the one true statement about the actual error', () => {
+    for (const { params, slide } of draws(g.comparePick)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const p = params.n + 1;
+      const h = valueOf(params.h);
+      const source = fnSource(params.f);
+      const prose = proseOf(slide);
+      const D = at(/\$D = ([^$]+)\$/.exec(prose)![1]);
+      const B = at(/\$B = ([^$]+)\$/.exec(prose)![1]);
+      expect(near(D, Math.abs(taylor(source, p, 0, true)[p] * h ** p))).toBe(true);
+      const lagrange = (lagrangeM(params.f, p, Math.min(0, h), Math.max(0, h)) * Math.abs(h) ** p) / fact(p);
+      const grows = params.f.base === 'exp' && valueOf(params.f.k) * h > 0;
+      expect(grows ? B >= lagrange : near(B, lagrange, 1e-9), prose).toBe(true);
+      const error = Math.abs(remainderAt(source, params.n, h));
+      for (const option of slide.options) expect(holds(option.label, error), option.label).toBe(option.id === slide.correctId);
+    }
+  });
+
+  it('ser-compare-exact gives the actual error of the geometric estimate', () => {
+    for (const { params, value } of answered(g.compareExact)) {
+      const source = `1/(1 - (${valueOf(params.k)})*x)`;
+      expect(near(value, remainderAt(source, params.n, valueOf(params.h)))).toBe(true);
+    }
+  });
+
+  it('ser-degree-table states a sound M and fills M|x|^(n+1)/(n+1)! for each n', () => {
+    for (const { params, slide } of draws(g.degreeTable)) {
+      if (slide.kind !== 'table') throw new Error('expected table');
+      const h = valueOf(params.h);
+      const M = Number(/\$M = (\d+)\$/.exec(proseOf(slide))![1]);
+      slide.rows.forEach((row, i) => {
+        const n = Number(row[0]);
+        const p = n + 1;
+        const least = lagrangeM(params.f, p, Math.min(0, h), Math.max(0, h));
+        // At least the true M, and above it by less than one multiplier: a whole number above e^c.
+        expect(M >= least * (1 - 1e-9) && M < least + Math.abs(params.f.scale)).toBe(true);
+        expect(near(at(slide.answer[i]), (M * Math.abs(h) ** p) / fact(p))).toBe(true);
+      });
+    }
+  });
+
+  it('ser-degree-n gives the smallest n whose Lagrange bound is under the tolerance', () => {
+    for (const { params, value, slide } of answered(g.degreeN)) {
+      const x = valueOf(params.x);
+      const tol = Number(/under \$([\d.]+)\$/.exec(proseOf(slide))![1]);
+      const bound = (n: number) => (lagrangeM(params.f, n + 1, Math.min(0, x), Math.max(0, x)) * Math.abs(x) ** (n + 1)) / fact(n + 1);
+      let n = 1;
+      while (bound(n) >= tol) n += 1;
+      expect(value).toBe(n);
+    }
+  });
+
+  it('ser-degree-slider stops at the last step where the bound is within the tolerance', () => {
+    for (const { params, slide } of draws(g.degreeSlider)) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const p = params.n + 1;
+      const tol = Number(/at most \$([\d.]+)\$\.$/.exec(proseOf(slide))![1]);
+      const bound = (x: number) => (lagrangeM(params.f, p, 0, x) * x ** p) / fact(p);
+      let best = 0;
+      for (let i = 0; i * 0.05 <= 2 + 1e-9; i += 1) if (bound(i * 0.05) <= tol) best = i * 0.05;
+      expect(near(slide.answer, best)).toBe(true);
+    }
+  });
+
+  it('ser-degree-reach gives the X where the Lagrange bound reaches the tolerance', () => {
+    for (const { params, value, slide } of answered(g.degreeReach)) {
+      const p = params.n + 1;
+      const tol = at(/at most \$([^$]+)\$/.exec(proseOf(slide))![1]);
+      // M does not grow with x for any function asked here, so the bound is M x^p / p!.
+      const M = lagrangeM(params.f, p, 0, 3);
+      expect(near(value, ((tol * fact(p)) / M) ** (1 / p), 1e-6)).toBe(true);
+    }
+  });
+
+  it('ser-centre-tiles places f^(n+1)(c) and (x - a)^(n+1)/(n+1)!', () => {
+    for (const { params, slide } of draws(g.centreTiles)) {
+      const p = params.n + 1;
+      const { a } = params.g;
+      const [d, frac] = placed(slide);
+      const points = [0.2, 0.5, 1.3].map((t) => a + t);
+      expect(isDerivative(d, cfnSource(params.g), p, 'c', points), d).toBe(true);
+      expect(points.every((x) => near(at(frac, { x }), (x - a) ** p / fact(p))), frac).toBe(true);
+    }
+  });
+
+  it('ser-centre-flow takes M at whichever end the derivative is largest', () => {
+    for (const { params, slide } of draws(g.centreFlow)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      const [lo, hi] = [Math.min(x, params.g.a), Math.max(x, params.g.a)];
+      const d = derivative(cfnSource(params.g), p);
+      const bigger = Math.abs(d(hi)) > Math.abs(d(lo));
+      const [which, grow, end] = slide.answer;
+      expect(which).toBe(dLabel(p));
+      expect(grow).toBe(bigger ? 'Gets bigger' : 'Gets smaller');
+      expect(near(Number(/c = (-?[\d.]+)\$/.exec(end)![1]), bigger ? hi : lo)).toBe(true);
+    }
+  });
+
+  it('ser-centre-tree fills |x - a|^(n+1), M, (n+1)! and the bound', () => {
+    for (const { params, slide } of draws(g.centreTree)) {
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      const h = Math.abs(x - params.g.a);
+      const M = supOn(derivative(cfnSource(params.g), p), Math.min(x, params.g.a), Math.max(x, params.g.a));
+      const [power, m, factorial, bound] = filled(slide);
+      expect(near(power, h ** p) && near(m, M) && factorial === fact(p)).toBe(true);
+      expect(near(bound, (M * h ** p) / fact(p))).toBe(true);
+    }
+  });
+
+  it('ser-centre-dec gives the bound about the centre to 3 s.f.', () => {
+    for (const { params, value } of answered(g.centreDec)) {
+      const p = params.n + 1;
+      const x = valueOf(params.x);
+      const M = supOn(derivative(cfnSource(params.g), p), Math.min(x, params.g.a), Math.max(x, params.g.a));
+      expect(value).toBe(sf3((M * Math.abs(x - params.g.a) ** p) / fact(p)));
+    }
+  });
+});

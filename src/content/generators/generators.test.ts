@@ -32,6 +32,7 @@ import {
 } from '../expr';
 import { startSession } from '../../engine/session';
 import { canonicalSet, parseSet } from '../numberLine';
+import { canonicalForces, headsClash } from '../forces';
 import { levelCheckLesson } from '../types';
 import { CHOICE_SUFFIX, familyOf } from '../choiceVariant';
 import {
@@ -378,6 +379,43 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         }
       }
 
+      if (slide.kind === 'forces') {
+        // An arrow's id is its direction, so two arrows one way would be one
+        // tap target for two answers; and every head must be a thumb apart.
+        const ids = slide.arrows.map((arrow) => arrow.id);
+        expect(new Set(ids).size, `two arrows share a direction in ${ids.join(' ')}`).toBe(ids.length);
+        expect(headsClash(slide.scene, ids), 'arrow heads overlap').toEqual([]);
+        if (slide.mode === 'pick') {
+          // Stored canonically, naming only arrows on the diagram, with at
+          // least one arrow that does not act: otherwise tapping everything
+          // is the answer and nothing is being judged.
+          expect(canonicalForces(slide.answer), 'answer is not canonical').toBe(slide.answer);
+          const acting = slide.answer.split('|');
+          expect(acting.length, 'no force acts').toBeGreaterThan(0);
+          for (const id of acting) expect(ids, `answer names ${id}, not on the diagram`).toContain(id);
+          expect(ids.length, 'pick has no distractor arrow').toBeGreaterThan(acting.length);
+        } else {
+          // One token per blank, every token on offer as often as it is
+          // needed, and two spares at least, as for a tree.
+          const blanks = slide.arrows.filter((arrow) => arrow.given === undefined).length;
+          expect(slide.answer.length, 'one answer token per blank').toBe(blanks);
+          const bank = [...slide.bank];
+          for (const token of slide.answer) {
+            const at = bank.indexOf(token);
+            expect(at, `force value ${token} missing from bank`).toBeGreaterThanOrEqual(0);
+            bank.splice(at, 1);
+          }
+          expect(
+            bank.length,
+            `forces bank for ${JSON.stringify(slide.answer)} keeps only ${bank.length} distractor(s)`,
+          ).toBeGreaterThanOrEqual(2);
+          expect(
+            lookalikeTiles(slide.bank),
+            `${generator.id}: tiles that look the same in ${JSON.stringify(slide.bank)}`,
+          ).toEqual([]);
+        }
+      }
+
       if (slide.kind === 'plot') {
         expect(Number.isInteger(slide.answer.re)).toBe(true);
         expect(Number.isInteger(slide.answer.im)).toBe(true);
@@ -608,6 +646,16 @@ describe.each(registeredGenerators.map((g) => [g.id, g] as const))('%s', (_id, g
         const target = parseTransform(slide.answer);
         if (target) check(transformTex(target), 'transform readout');
         check(transformTex(IDENTITY), 'transform readout');
+      }
+
+      if (slide.kind === 'forces') {
+        // Each label is laid over the picture as its own KaTeX call, and so
+        // is every given magnitude and bank token beneath it.
+        for (const arrow of slide.arrows) {
+          check(arrow.label, 'force label');
+          if (arrow.given !== undefined) check(arrow.given, 'force given');
+        }
+        if (slide.mode === 'fill') for (const token of slide.bank) check(token, 'force bank');
       }
 
       if (slide.kind === 'iterate') {

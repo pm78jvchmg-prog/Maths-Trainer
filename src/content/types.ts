@@ -9,6 +9,7 @@
 import type { Rng } from '../engine/rng';
 import type { Expr } from './expr';
 import type { BaseCurve, Window } from './transform';
+import type { ForceArrow, ForceScene } from './forces';
 
 /** A unit of rendered content. Prose may embed inline maths between $ signs. */
 export type Block =
@@ -474,7 +475,39 @@ export type Slide =
       bank: string[];
       /** `x_1` onwards, one per blank row, then the conclusion. */
       answer: string[];
-    });
+    })
+  /**
+   * Draw or complete a free-body diagram.
+   *
+   * A box on a level floor, on a slope drawn at its stated angle, or hanging
+   * from a string, with arrows from its centre. Two modes, one kind:
+   *
+   * - `pick`: every candidate arrow is drawn faint, and the learner taps on
+   *   the ones that act. The answer is a set of arrow ids (which are their
+   *   directions), graded after sorting, so tap order cannot matter.
+   * - `fill`: every arrow drawn acts, and some magnitudes are blanks filled
+   *   from a bank as `iterate` does it, graded by `gradeSequence`.
+   *
+   * The model, geometry and the `pick` grade live in `src/content/forces.ts`.
+   */
+  | ({ kind: 'forces' } & Prompted & {
+      scene: ForceScene;
+      /** No two share a direction, so an arrow's id is its direction. */
+      arrows: ForceArrow[];
+    } & (
+        | {
+            mode: 'pick';
+            /** The ids that act, sorted and joined by `|`. Never displayed. */
+            answer: string;
+          }
+        | {
+            mode: 'fill';
+            /** Magnitudes offered, including distractors. Sorted, never shuffled. */
+            bank: string[];
+            /** One token per blank, in arrow order. */
+            answer: string[];
+          }
+      ));
 
 /**
  * Produces a slide from randomised parameters.

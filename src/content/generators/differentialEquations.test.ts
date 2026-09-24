@@ -61,6 +61,14 @@ import {
   type SecondDe,
   type SecondIvp,
   type WhichSecond,
+  type DampGraphParams,
+  type LeastKParams,
+  type PeriodParams,
+  type PhaseParams,
+  type ReleaseParams,
+  type SpeedParams,
+  type WaveParams,
+  type WhichDampParams,
   type LinearDe,
   type NonHomDe,
   type NonHomIvp,
@@ -1979,6 +1987,478 @@ describe('non-homogeneous second-order equations', () => {
         return meets(Y, conditions) && solves(Y, eq);
       });
       expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+});
+
+describe('simple harmonic and damped motion', () => {
+  /** A shown equation of motion as mathjs, with E for the second derivative and D for the first. */
+  const motionToMath = (tex: string): [string, string] =>
+    tex
+      .replace(/\\ddot\{x\}/g, ' E ')
+      .replace(/\\dot\{x\}/g, ' D ')
+      .replace(/(\d)\s*(?=[EDx])/g, '$1 * ')
+      .split('=') as [string, string];
+
+  /** ẍ + kẋ + cx = 0 read off a shown equation: everything moved left, divided by what multiplies ẍ. */
+  function motionOf(tex: string): { k: number; c: number } {
+    const [lhs, rhs] = motionToMath(tex);
+    const L = (E: number, D: number, x: number) => evalAt(`(${lhs}) - (${rhs})`, { E, D, x });
+    const k0 = L(0, 0, 0);
+    expect(close(k0, 0), tex).toBe(true);
+    const kE = L(1, 0, 0) - k0;
+    return { k: (L(0, 1, 0) - k0) / kE, c: (L(0, 0, 1) - k0) / kE };
+  }
+
+  /** A solution's TeX in t as mathjs, keeping A and B as letters. */
+  function inT(tex: string): string {
+    return tex
+      .replace(/^x = /, '')
+      .replace(/\\(cos|sin) (\d*)t/g, (_, fn: string, n: string) => ` ${fn}(${n || 1}*t) `)
+      .replace(/e\^\{(-?)(\d*)t\}/g, (_, sign: string, n: string) => ` exp(${sign}${n || 1}*t) `)
+      .replace(/([0-9ABt)])\s*(?=[ABt(]|exp|cos|sin)/g, '$1 * ');
+  }
+
+  const compiledT = new Map<string, { evaluate: (scope: Scope) => unknown }>();
+  function secondInT(source: string, scope: Scope): number {
+    let hit = compiledT.get(source);
+    if (!hit) {
+      hit = math.derivative(math.derivative(source, 't'), 't').compile();
+      compiledT.set(source, hit);
+    }
+    return hit.evaluate({ ...scope }) as number;
+  }
+
+  /** Whether X(t) satisfies ẍ + kẋ + cx = 0 at every probe. */
+  function solves(X: string, { k, c }: { k: number; c: number }, scope: Scope = {}): boolean {
+    return TIMES.every((t) => {
+      const at = { ...scope, t };
+      const [xpp, xp, x] = [secondInT(X, at), derivativeAt(X, 't', at), evalAt(X, at)];
+      const size = Math.max(1, Math.abs(xpp), Math.abs(k * xp), Math.abs(c * x));
+      return Math.abs(xpp + k * xp + c * x) < 1e-9 * size;
+    });
+  }
+
+  /** A general solution: A's part and B's part each solve it, and they are independent. */
+  function isGeneral(X: string, coefficients: { k: number; c: number }): boolean {
+    const partA = { A: 1, B: 0 };
+    const partB = { A: 0, B: 1 };
+    if (!solves(X, coefficients, partA) || !solves(X, coefficients, partB)) return false;
+    const t = 0.3;
+    const [fa, fb] = [evalAt(X, { ...partA, t }), evalAt(X, { ...partB, t })];
+    const [da, db] = [derivativeAt(X, 't', { ...partA, t }), derivativeAt(X, 't', { ...partB, t })];
+    return Math.abs(fa * db - fb * da) > 1e-6 * (Math.abs(fa * db) + Math.abs(fb * da));
+  }
+
+  const sameFn = (a: string, b: string): boolean => TIMES.every((t) => close(evalAt(a, { t }), evalAt(b, { t })));
+
+  /** The greatest |x|, |ẋ| and |ẍ| over one period, from samples of the motion. */
+  function extremes(X: string, period: number): { x: number; v: number; a: number } {
+    let [x, v, a] = [0, 0, 0];
+    for (let i = 0; i <= 4000; i += 1) {
+      const at = { t: (period * i) / 4000 };
+      x = Math.max(x, Math.abs(evalAt(X, at)));
+      v = Math.max(v, Math.abs(derivativeAt(X, 't', at)));
+      a = Math.max(a, Math.abs(secondInT(X, at)));
+    }
+    return { x, v, a };
+  }
+
+  const near = (sampled: number, exact: number) => Math.abs(sampled - exact) < 1e-4 * Math.max(1, exact);
+
+  const strip = (label: string): string => label.replace(/^\$|\$$/g, '');
+
+  const displays = (slide: Slide): string[] =>
+    slide.kind === 'teach' ? [] : slide.prompt.flatMap((block) => (block.kind === 'display' ? [block.tex] : []));
+
+  /** The equation of motion a slide shows. */
+  function shownMotion(slide: Slide): string {
+    const candidates = [...displays(slide)];
+    if (slide.kind === 'flow') candidates.push(slide.subject);
+    if (slide.kind === 'tree') candidates.push(slide.expression);
+    const found = candidates.find((tex) => tex.includes('\\ddot{x}'));
+    if (!found) throw new Error('no equation of motion shown');
+    return found;
+  }
+
+  /** A multiple of π as a number. */
+  const piValue = (tex: string): number => evalAt(texToMath(tex.replace(/(\d)\\pi/g, '$1 * pi').replace(/\\pi/g, 'pi')), {});
+
+  /** A polynomial in m on the left of `= 0`, compared by value. */
+  const samePoly = (a: string, b: string): boolean =>
+    [-1.3, 0.4, 2.2].every((m) => {
+      const value = (line: string) => {
+        const [l, r] = line.replace(/(\d)\s*m/g, '$1 * m').split('=');
+        return evalAt(`(${l}) - (${r})`, { m });
+      };
+      return close(value(a), value(b));
+    });
+
+  const auxLine = ({ k, c }: { k: number; c: number }): string => `m^2 + (${k}) * m + (${c}) = 0`;
+
+  const stepsOf = (slide: Slide) => {
+    if (slide.kind !== 'steps') throw new Error(`expected steps, got ${slide.kind}`);
+    return slide;
+  };
+
+  const tilesOf = (slide: Slide) => {
+    if (slide.kind !== 'tiles') throw new Error(`expected tiles, got ${slide.kind}`);
+    return slide;
+  };
+
+  const choiceOf = (slide: Slide) => {
+    if (slide.kind !== 'choice') throw new Error(`expected a choice, got ${slide.kind}`);
+    return slide;
+  };
+
+  const fill = (template: string, tokens: string[]): string => template.replace(/\{(\d)\}/g, (_, i: string) => tokens[Number(i)]);
+
+  function oneOff(answer: string[], bank: string[]): string[][] {
+    return answer.flatMap((_, i) => bank.filter((token) => token !== answer[i]).map((token) => answer.map((a, j) => (j === i ? token : a))));
+  }
+
+  /** The conditions a prompt states. */
+  function motionConditions(text: string): [number, number] {
+    const [, x0, v0] = text.match(/x\(0\) = (-?\d+), \\; \\dot\{x\}\(0\) = (-?\d+)/)!;
+    return [Number(x0), Number(v0)];
+  }
+
+  const meets = (X: string, [x0, v0]: [number, number]): boolean =>
+    close(evalAt(X, { t: 0 }), x0) && close(derivativeAt(X, 't', { t: 0 }), v0);
+
+  const DAMPING = ['Over-damped', 'Critically damped', 'Under-damped'];
+  const dampingOf = ({ k, c }: { k: number; c: number }): string => {
+    const D = k * k - 4 * c;
+    return DAMPING[Math.abs(D) < 1e-9 ? 1 : D > 0 ? 0 : 2];
+  };
+
+  it('types the ω of simple harmonic motion', () => {
+    for (const { slide } of draws(g.deShmOmega as Generator<SecondDe>)) {
+      const { k, c } = motionOf(shownMotion(slide));
+      const w = Number(typed(slide));
+      expect(k).toBe(0);
+      expect(w).toBeGreaterThan(0);
+      expect(close(w * w, c)).toBe(true);
+    }
+  });
+
+  it('walks to m² + ω² = 0, the roots ±ωi, and a general solution, with every other branch wrong', () => {
+    for (const { slide } of draws(g.deShmAux as Generator<SecondDe>)) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const eq = motionOf(slide.subject);
+      expect(eq.k).toBe(0);
+      const [aux, roots, general] = slide.answer;
+      expect(samePoly(strip(aux), auxLine(eq))).toBe(true);
+      for (const branch of slide.steps[0].branches) if (branch.label !== aux) expect(samePoly(strip(branch.label), auxLine(eq))).toBe(false);
+      const omegaOf = (label: string): number | undefined => {
+        const found = strip(label).match(/^m = \\pm (\d*)i$/);
+        return found ? Number(found[1] || 1) : undefined;
+      };
+      expect(omegaOf(roots)! ** 2).toBe(eq.c);
+      for (const branch of slide.steps[1].branches) if (branch.label !== roots) expect(omegaOf(branch.label) ?? 0).not.toBe(Math.sqrt(eq.c));
+      expect(isGeneral(inT(strip(general)), eq)).toBe(true);
+      for (const branch of slide.steps[2].branches) if (branch.label !== general) expect(isGeneral(inT(strip(branch.label)), eq), branch.label).toBe(false);
+    }
+  });
+
+  it('places the general solution of SHM, and no other tile fits', () => {
+    for (const { slide } of draws(g.deShmGeneral as Generator<SecondDe>)) {
+      const { template, answer, bank } = tilesOf(slide);
+      const eq = motionOf(shownMotion(slide));
+      expect(isGeneral(inT(fill(template, answer)), eq)).toBe(true);
+      for (const other of oneOff(answer, bank)) expect(isGeneral(inT(fill(template, other)), eq), other.join(' ')).toBe(false);
+    }
+  });
+
+  it('differentiates a wave twice to ẍ = -ω²x, with every slip wrong', () => {
+    for (const { slide } of draws(g.deShmVerifySteps as Generator<WaveParams>)) {
+      const { start, reductions } = stepsOf(slide);
+      const X = inT(start[0]);
+      const rhs = (line: string) => line.split(' = ')[1];
+      const velocity = (line: string) => TIMES.every((t) => close(evalAt(inT(rhs(line)), { t }), derivativeAt(X, 't', { t })));
+      const acceleration = (line: string) => TIMES.every((t) => close(evalAt(inT(rhs(line)), { t }), secondInT(X, { t })));
+      const law = (line: string) =>
+        TIMES.every((t) => close(evalAt(rhs(line).replace(/(\d)x/, '$1 * x'), { x: evalAt(X, { t }) }), secondInT(X, { t })));
+      const checks = [velocity, acceleration, law];
+      reductions.forEach((step, idx) => {
+        expect(checks[idx](step.value), step.value).toBe(true);
+        for (const slip of step.bank) if (slip !== step.value) expect(checks[idx](slip), slip).toBe(false);
+      });
+    }
+  });
+
+  it('marks the period 2π/ω, held to samples of the motion, or the equation with a stated period', () => {
+    for (const { slide } of draws(g.deShmPeriod as Generator<PeriodParams>)) {
+      const { options, correctId } = choiceOf(slide);
+      const text = proseOf(slide);
+      const stated = text.match(/of period \$([^$]*)\$/);
+      if (stated) {
+        const T = piValue(stated[1]);
+        const right = options.filter((option) => close(Math.sqrt(motionOf(option.label).c) * T, 2 * Math.PI));
+        expect(right.map((option) => option.id)).toEqual([correctId]);
+        continue;
+      }
+      const shown = displays(slide)[0];
+      const X = shown.includes('\\ddot{x}') ? `cos(${Math.sqrt(motionOf(shown).c)} * t)` : inT(shown);
+      // T is a period, and no whole fraction of it is: the least time after which the motion repeats.
+      const repeats = (T: number) => TIMES.every((t) => close(evalAt(X, { t: t + T }), evalAt(X, { t })));
+      const isPeriod = (T: number) => repeats(T) && Array.from({ length: 30 }, (_, j) => j + 2).every((j) => !repeats(T / j));
+      const right = options.filter((option) => isPeriod(piValue(option.label)));
+      expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+
+  /** The motion a prompt describes: its equation and how it starts. */
+  function describedMotion(slide: Slide): { X: string; period: number } {
+    const { c } = motionOf(shownMotion(slide));
+    const w = Math.sqrt(c);
+    const text = proseOf(slide);
+    const rest = text.match(/released from rest at \$x = (-?\d+)\$/);
+    const centre = text.match(/passes through \$x = 0\$ with speed \$(\d+)\$/);
+    const X = rest ? `(${rest[1]}) * cos(${w} * t)` : `(${Number(centre![1]) / w}) * sin(${w} * t)`;
+    return { X, period: (2 * Math.PI) / w };
+  }
+
+  it('types a greatest speed, amplitude or acceleration that samples of the motion reach', () => {
+    for (const { slide } of draws(g.deShmSpeed as Generator<SpeedParams>)) {
+      if (slide.kind !== 'expression') throw new Error('expected an expression');
+      const { X, period } = describedMotion(slide);
+      expect(solves(X, motionOf(shownMotion(slide)))).toBe(true);
+      const most = extremes(X, period);
+      const value = Number(slide.answer);
+      const lead = slide.lead ?? '';
+      const want = lead.startsWith('v') ? most.v : lead.startsWith('a') ? most.x : most.a;
+      expect(near(want, value), `${lead} ${value} vs ${want}`).toBe(true);
+    }
+  });
+
+  it('fills ω, the amplitude, and the greatest speed and acceleration of a released particle', () => {
+    for (const { slide } of draws(g.deShmMotionTree as Generator<SpeedParams>)) {
+      const [w, a, speed, accel] = answerOf(slide).map(Number);
+      const { X, period } = describedMotion(slide);
+      expect(close(w * w, motionOf(shownMotion(slide)).c)).toBe(true);
+      const most = extremes(X, period);
+      expect(near(most.x, a)).toBe(true);
+      expect(near(most.v, speed)).toBe(true);
+      expect(near(most.a, accel)).toBe(true);
+    }
+  });
+
+  it('types the x(t) that solves its equation and starts as stated', () => {
+    for (const { slide } of draws(g.deShmRelease as Generator<ReleaseParams>)) {
+      const X = typed(slide);
+      expect(solves(X, motionOf(shownMotion(slide)))).toBe(true);
+      expect(meets(X, motionConditions(proseOf(slide)))).toBe(true);
+    }
+  });
+
+  /** The wave a phase slide writes out. */
+  const waveShown = (slide: Slide): string => inT(displays(slide).find((tex) => tex.startsWith('x = '))!);
+
+  /** R cos(ωt - α) with α from tan α, α taken between -π/2 and π/2 since the cosine's coefficient is positive. */
+  const singleWave = (R: number, w: number, tan: number, sign = -1, fn = 'cos'): string => `${R} * ${fn}(${w} * t + (${sign}) * ${Math.atan(tan)})`;
+
+  const omegaIn = (tex: string): number => Number(tex.match(/\\(?:cos|sin) (\d*)t/)![1] || 1);
+
+  it('types R, the amplitude that samples of the wave reach', () => {
+    for (const { slide } of draws(g.deShmPhaseR as Generator<PhaseParams>)) {
+      const X = waveShown(slide);
+      const w = omegaIn(displays(slide)[0]);
+      expect(near(extremes(X, (2 * Math.PI) / w).x, Number(typed(slide)))).toBe(true);
+    }
+  });
+
+  it('marks the tan α that puts the wave in the form R cos(ωt - α), and no other', () => {
+    for (const { slide } of draws(g.deShmPhaseTan as Generator<PhaseParams>)) {
+      const { options, correctId } = choiceOf(slide);
+      const X = waveShown(slide);
+      const w = omegaIn(displays(slide)[0]);
+      const R = Math.sqrt(evalAt(X, { t: 0 }) ** 2 + (derivativeAt(X, 't', { t: 0 }) / w) ** 2);
+      const right = options.filter((option) => sameFn(singleWave(R, w, evalAt(texToMath(option.label), {})), X));
+      expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+
+  it('compares, finds R and tan α, and writes the single cosine, with every slip wrong', () => {
+    for (const { slide } of draws(g.deShmPhaseSteps as Generator<PhaseParams>)) {
+      const { start, reductions } = stepsOf(slide);
+      const X = inT(start[0]);
+      const w = omegaIn(start[0]);
+      const compared = (line: string) => {
+        const [, a, b] = line.match(/R\\cos \\alpha = (-?\d+), \\; R\\sin \\alpha = (-?\d+)/)!;
+        return close(Number(a), evalAt(X, { t: 0 })) && close(Number(b) * w, derivativeAt(X, 't', { t: 0 }));
+      };
+      const found = (line: string) => {
+        const [, R, tan] = line.match(/R = (\d+), \\; \\tan \\alpha = (.*)$/)!;
+        return sameFn(singleWave(Number(R), w, evalAt(texToMath(tan), {})), X);
+      };
+      const [, , tanTex] = reductions[1].value.match(/R = (\d+), \\; \\tan \\alpha = (.*)$/)!;
+      const tan = evalAt(texToMath(tanTex), {});
+      const single = (line: string) => {
+        const [, R, fn, sign] = line.match(/^(\d*)\\(cos|sin)\(\d*t ([+-]) \\alpha\)$/)!;
+        return sameFn(singleWave(Number(R || 1), w, tan, sign === '-' ? -1 : 1, fn), X);
+      };
+      const checks = [compared, found, single];
+      reductions.forEach((step, idx) => {
+        expect(checks[idx](step.value), step.value).toBe(true);
+        for (const slip of step.bank) if (slip !== step.value) expect(checks[idx](slip), slip).toBe(false);
+      });
+    }
+  });
+
+  it('places R and ωt for the wave or the start given, and no other tile fits', () => {
+    for (const { slide } of draws(g.deShmPhaseTiles as Generator<PhaseParams>)) {
+      const { template, answer, bank } = tilesOf(slide);
+      const text = proseOf(slide);
+      let X: string;
+      if (text.includes('x(0)')) {
+        const eq = motionOf(shownMotion(slide));
+        const w = Math.sqrt(eq.c);
+        const [x0, v0] = motionConditions(text);
+        X = `(${x0}) * cos(${w} * t) + (${v0 / w}) * sin(${w} * t)`;
+        expect(solves(X, eq)).toBe(true);
+      } else {
+        X = waveShown(slide);
+      }
+      // α is fixed by the wave itself, so the tiles have to supply R and ωt.
+      const w0 = Math.sqrt(-secondInT(X, { t: 0 }) / evalAt(X, { t: 0 }));
+      const tan = derivativeAt(X, 't', { t: 0 }) / w0 / evalAt(X, { t: 0 });
+      const matches = (tokens: string[]) => {
+        const [, R, n] = fill(template, tokens).match(/^x = (\d+)\\cos\((\d*)t - \\alpha\)$/) ?? [];
+        return R !== undefined && sameFn(singleWave(Number(R), Number(n || 1), tan), X);
+      };
+      expect(matches(answer)).toBe(true);
+      for (const other of oneOff(answer, bank)) expect(matches(other), other.join(' ')).toBe(false);
+    }
+  });
+
+  it('walks to the auxiliary equation, k² - 4ω², and the damping its own discriminant decides', () => {
+    for (const { slide } of draws(g.deDampCase as Generator<SecondDe>)) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const eq = motionOf(slide.subject);
+      expect(eq.k).toBeGreaterThan(0);
+      const [aux, disc, kind] = slide.answer;
+      expect(samePoly(strip(aux), auxLine(eq))).toBe(true);
+      for (const branch of slide.steps[0].branches) if (branch.label !== aux) expect(samePoly(strip(branch.label), auxLine(eq))).toBe(false);
+      const D = eq.k ** 2 - 4 * eq.c;
+      expect(close(Number(strip(disc)), D)).toBe(true);
+      for (const branch of slide.steps[1].branches) if (branch.label !== disc) expect(close(Number(strip(branch.label)), D)).toBe(false);
+      expect(kind).toBe(dampingOf(eq));
+    }
+  });
+
+  it('types the least k that stops the oscillation: critical there, oscillating just below', () => {
+    for (const { slide } of draws(g.deDampLeast as Generator<LeastKParams>)) {
+      const shown = displays(slide)[0];
+      const [, m, s] = shown.match(/^(\d*)\\ddot\{x\} \+ k\\dot\{x\} \+ (\d+)x = 0$/)!;
+      const [mass, spring] = [Number(m || 1), Number(s)];
+      const k = Number(typed(slide));
+      expect(dampingOf({ k: k / mass, c: spring / mass })).toBe('Critically damped');
+      expect(dampingOf({ k: (k - 0.5) / mass, c: spring / mass })).toBe('Under-damped');
+    }
+  });
+
+  it('fills the discriminant and the roots of the damped auxiliary equation', () => {
+    for (const { slide } of draws(g.deDampRootsTree as Generator<SecondDe>)) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const eq = motionOf(slide.expression);
+      const [D, ...roots] = slide.answer.map(Number);
+      expect(close(D, eq.k ** 2 - 4 * eq.c)).toBe(true);
+      if (slide.nodes[1].id === 'alpha') {
+        expect(close(roots[0], -eq.k / 2)).toBe(true);
+        expect(close(roots[1], Math.sqrt(4 * eq.c - eq.k ** 2) / 2)).toBe(true);
+      } else {
+        for (const r of roots) expect(close(r * r + eq.k * r + eq.c, 0)).toBe(true);
+        if (roots.length === 2) expect(roots[0]).toBeLessThan(roots[1]);
+        else expect(D).toBe(0);
+      }
+      expect(roots.every((r, i) => slide.nodes[1].id === 'alpha' && i === 1 ? r > 0 : r < 0)).toBe(true);
+    }
+  });
+
+  it('marks the one equation damped the way asked', () => {
+    for (const { slide } of draws(g.deDampWhich as Generator<WhichDampParams>)) {
+      const { options, correctId } = choiceOf(slide);
+      const asked = DAMPING.find((kind) => proseOf(slide).includes(kind.toLowerCase()))!;
+      const right = options.filter((option) => dampingOf(motionOf(option.label)) === asked);
+      expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+
+  it('places the general solution of a damped equation, and no other tile fits', () => {
+    for (const { slide } of draws(g.deDampGeneral as Generator<SecondDe>)) {
+      const { template, answer, bank } = tilesOf(slide);
+      const eq = motionOf(shownMotion(slide));
+      expect(isGeneral(inT(fill(template, answer)), eq)).toBe(true);
+      for (const other of oneOff(answer, bank)) expect(isGeneral(inT(fill(template, other)), eq), other.join(' ')).toBe(false);
+    }
+  });
+
+  it('fills the roots and constants of the solution that meets x(0) and ẋ(0)', () => {
+    for (const { slide } of draws(g.deDampIvpTree as Generator<SecondIvp>)) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const eq = motionOf(slide.expression);
+      const ids = slide.nodes.map((node) => node.id).join(',');
+      const values = slide.answer.map(Number);
+      const X =
+        ids === 'p,A,B'
+          ? `((${values[1]}) + (${values[2]}) * t) * exp((${values[0]}) * t)`
+          : ids === 'p,q,A,B'
+            ? `(${values[2]}) * exp((${values[0]}) * t) + (${values[3]}) * exp((${values[1]}) * t)`
+            : `exp((${values[0]}) * t) * ((${values[2]}) * cos((${values[1]}) * t) + (${values[3]}) * sin((${values[1]}) * t))`;
+      expect(solves(X, eq), X).toBe(true);
+      expect(meets(X, motionConditions(proseOf(slide)))).toBe(true);
+    }
+  });
+
+  it('types the constant the conditions fix, or the starting velocity of a damped motion', () => {
+    for (const { slide } of draws(g.deDampConstant as Generator<SecondIvp & { velocity: boolean }>)) {
+      if (slide.kind !== 'expression') throw new Error('expected an expression');
+      const value = Number(slide.answer);
+      if (slide.lead === '\\dot{x}(0) =') {
+        const X = inT(displays(slide)[0]);
+        expect(close(derivativeAt(X, 't', { t: 0 }), value)).toBe(true);
+        continue;
+      }
+      const text = proseOf(slide);
+      const general = inT(text.match(/general solution of this equation is \$(x = [^$]*)\$/)![1]);
+      const eq = motionOf(shownMotion(slide));
+      expect(isGeneral(general, eq)).toBe(true);
+      // Solve x(0) and ẋ(0) for A and B from the two parts of the general solution.
+      const [x0, v0] = motionConditions(text);
+      const part = (A: number, B: number) => [evalAt(general, { A, B, t: 0 }), derivativeAt(general, 't', { A, B, t: 0 })];
+      const [[a1, a2], [b1, b2]] = [part(1, 0), part(0, 1)];
+      const det = a1 * b2 - b1 * a2;
+      const A = (x0 * b2 - b1 * v0) / det;
+      const B = (a1 * v0 - x0 * a2) / det;
+      expect(close(slide.lead === 'A =' ? A : B, value)).toBe(true);
+    }
+  });
+
+  it('marks the equation whose own damping matches the curve drawn', () => {
+    for (const { params, slide } of draws(g.deDampGraph as Generator<DampGraphParams>)) {
+      const { options, correctId } = choiceOf(slide);
+      const eq = motionOf(options.find((option) => option.id === correctId)!.label);
+      const D = eq.k ** 2 - 4 * eq.c;
+      if (params.shown === 'undamped') expect(eq.k).toBe(0);
+      if (params.shown === 'under') expect(eq.k > 0 && D < 0).toBe(true);
+      if (params.shown === 'growing') expect(eq.k < 0 && D < 0).toBe(true);
+      if (params.shown === 'still') expect(eq.k > 0 && D >= 0).toBe(true);
+      // The curve drawn: heights read back from the SVG, against the axis line.
+      const svg = choiceOf(slide).prompt.find((block) => block.kind === 'diagram');
+      if (svg?.kind !== 'diagram') throw new Error('expected a graph');
+      const axis = Number(svg.svg.match(/<line x1="[\d.]+" y1="([\d.]+)"/)![1]);
+      const path = svg.svg.match(/stroke-width="2" d="M ([^"]*)"/)![1];
+      const heights = path.split(' L ').map((point) => axis - Number(point.split(',')[1]));
+      const crossings = heights.slice(1).filter((h, i) => Math.sign(h) !== Math.sign(heights[i]) && h !== 0).length;
+      if (params.shown === 'still') expect(crossings).toBe(0);
+      else expect(crossings).toBeGreaterThanOrEqual(3);
+      const quarter = Math.floor(heights.length / 4);
+      const early = Math.max(...heights.slice(0, quarter).map(Math.abs));
+      const late = Math.max(...heights.slice(-quarter).map(Math.abs));
+      if (params.shown === 'under') expect(late).toBeLessThan(early / 2);
+      if (params.shown === 'growing') expect(late).toBeGreaterThan(early * 2);
+      if (params.shown === 'undamped') expect(late / early).toBeGreaterThan(0.8);
     }
   });
 });

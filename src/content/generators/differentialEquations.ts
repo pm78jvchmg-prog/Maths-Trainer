@@ -17,7 +17,11 @@
  * for a polynomial, exponential or trigonometric f(x) and the resonant case
  * where f(x) is already in the complementary function. The particular
  * integral is drawn first and put through the left side to make f(x), so its
- * coefficients come out whole when the learner compares them.
+ * coefficients come out whole when the learner compares them. Level 6 is the
+ * same equation as motion in t: simple harmonic motion `ẍ = -ω²x` (roots ±ωi,
+ * ω drawn first), amplitude, period and greatest speed, the phase form
+ * R cos(ωt - α) from a Pythagorean triple, and damping `ẍ + kẋ + ω²x = 0`
+ * from negative roots drawn first, so k and ω² are whole.
  *
  * Every number the learner meets is whole by construction. A rate constant
  * that has to be a logarithm is written as one, `k = (ln 2)/3`, so that the
@@ -36,7 +40,9 @@
  * equation, across seeds and both difficulties. Level 5's typed answers are
  * a number or a particular integral, neither a derivative nor an integral of
  * anything shown, so they declare no `source` or `integrand` either: the
- * course test puts each one back into its equation.
+ * course test puts each one back into its equation. Level 6 is in t, so none
+ * of its slides declares `source`, `integrand` or `limits`: the course test
+ * differentiates each x(t) twice in t and checks each typed value.
  */
 import type { Block, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
@@ -45,6 +51,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { EXP_KEYS, termAnswer, termTex } from './calculus';
 import {
   OPERATOR_KEYS,
+  fracTex,
   gcd,
   mix,
   numberChoices,
@@ -7018,6 +7025,1254 @@ const deNhIvpFit: Generator<NonHomIvp> = {
   ],
 };
 
+/* ============================================================
+ * Level 6: simple harmonic motion
+ * ============================================================ */
+
+/**
+ * Level 4's equation read as motion: x is a displacement at time t, and the
+ * equation is `ẍ + kẋ + ω²x = 0`. Each one is still a `SecondDe` built from its
+ * roots. Simple harmonic motion is the pair ±ωi, held as p = 0 and q = ω, so
+ * ω² is whole; damping draws negative roots first, so k = secondB and
+ * ω² = secondC are whole too.
+ *
+ * Everything here is in t, so no slide declares `source`, `integrand` or
+ * `limits`: the oracle in generators.test.ts differentiates in x. The course
+ * test differentiates each quoted x(t) twice in t instead, and holds each
+ * amplitude, period and greatest speed to samples of the motion.
+ */
+
+/** Level 4's `D1` and `D2`, in t: the dots are rates in time. */
+const D1T = '\\dot{x}';
+const D2T = '\\ddot{x}';
+
+/** `\cos 3t` or `\sin t`. */
+const trigT = (fn: 'cos' | 'sin', w: number): string => `\\${fn} ${coef(w)}t`;
+
+/** A cos ωt + B sin ωt, with numbers or letters. */
+const waveOfT = (A: number | string, B: number | string, w: number): string =>
+  typeof A === 'number' && typeof B === 'number'
+    ? terms([[A, trigT('cos', w)], [B, trigT('sin', w)]])
+    : `${A}${trigT('cos', w)} + ${B}${trigT('sin', w)}`;
+
+const expT = (k: number): string => `e^{${coef(k)}t}`;
+
+/** An answer in t with sines and cosines. */
+const T_TRIG_KEYS: KeypadKey[] = [spaced('t'), ...OPERATOR_KEYS, { insert: 'sin(' }, { insert: 'cos(' }];
+
+/** The equation of motion as shown: `\ddot{x} + 9x = 0`, `\ddot{x} = -9x`, or every term times the scale. */
+export function motionTex(de: SecondDe): string {
+  const b = secondB(de);
+  const c = secondC(de);
+  if (de.written === 'moved') return `${D2T} = ${terms([[-b, D1T], [-c, 'x']])}`;
+  const a = de.written === 'scaled' ? de.scale : 1;
+  return `${terms([[a, D2T], [a * b, D1T], [a * c, 'x']])} = 0`;
+}
+
+/** The same with 1 in front of ẍ and every term on the left. */
+const motionStandardTex = (de: SecondDe): string => `${terms([[1, D2T], [secondB(de), D1T], [secondC(de), 'x']])} = 0`;
+
+function motionToStandard(de: SecondDe): SolutionStep[] {
+  if (de.written === 'moved') return [{ text: 'Bring every term over to the left.', tex: motionStandardTex(de) }];
+  if (de.written === 'scaled') return [{ text: `Divide every term by $${de.scale}$.`, tex: motionStandardTex(de) }];
+  return [];
+}
+
+const shmOf = (w: number, written: SecondDe['written'] = 'standard', scale = 1): SecondDe => ({
+  kind: 'complex',
+  p: 0,
+  q: w,
+  written,
+  scale,
+});
+
+function sampleShm(rng: Rng, difficulty: number, forms: SecondDe['written'][]): SecondDe {
+  const hard = difficulty >= 2;
+  const written = rng.pick(forms);
+  return shmOf(rng.int(hard ? 2 : 1, hard ? 12 : 9), written, written === 'scaled' ? rng.int(2, 3) : 1);
+}
+
+const shmForms = (difficulty: number): SecondDe['written'][] => (difficulty >= 2 ? ['moved', 'scaled'] : ['standard', 'moved', 'scaled']);
+
+/** A multiple of π as the learner reads it, in lowest terms: `\frac{\pi}{2}`, `2\pi`, `\frac{2\pi}{3}`. */
+function piMultipleTex(top: number, bottom: number): string {
+  const g = gcd(top, bottom);
+  const p = top / g;
+  const q = bottom / g;
+  const head = p === 1 ? '\\pi' : `${p}\\pi`;
+  return q === 1 ? head : `\\frac{${head}}{${q}}`;
+}
+
+/** The SHM solution steps: the auxiliary equation, its imaginary roots, and the wave. */
+function shmSteps(de: SecondDe): SolutionStep[] {
+  const w = de.q;
+  return [
+    ...motionToStandard(de),
+    { text: "$\\ddot{x}$ becomes $m^2$ and $x$ becomes $1$.", tex: auxOf(0, w * w) },
+    { text: `$m^2 = -${w * w}$, so the roots are imaginary: real part $0$ and $\\beta = ${w}$.`, tex: rootsTex(de) },
+    { text: 'With real part $0$ there is no exponential, only a cosine and a sine.', tex: `x = ${waveOfT('A', 'B', w)}` },
+  ];
+}
+
+/* ---------- Level 6, lesson 1: the equation of simple harmonic motion ---------- */
+
+/** ω read off an equation of SHM, typed. */
+const deShmOmega: Generator<SecondDe> = {
+  id: 'de-shm-omega',
+  sample: (rng, difficulty) => sampleShm(rng, difficulty, shmForms(difficulty)),
+  render: (de): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose('This equation is simple harmonic motion, $\\ddot{x} = -\\omega^2 x$. Find $\\omega$, taking $\\omega > 0$.'),
+      display(motionTex(de)),
+    ],
+    lead: '\\omega =',
+    keypad: [],
+    answer: `${de.q}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (de) => [
+    ...motionToStandard(de),
+    { text: 'Compare it with $\\ddot{x} + \\omega^2 x = 0$.', tex: `\\omega^2 = ${de.q * de.q}` },
+    { text: 'Take the positive square root.', tex: `\\omega = ${de.q}` },
+  ],
+};
+
+/** A walk: the auxiliary equation, its roots ±ωi, and the general solution. */
+const deShmAux: Generator<SecondDe> = {
+  id: 'de-shm-aux',
+  sample: (rng, difficulty) => sampleShm(rng, difficulty, shmForms(difficulty)),
+  render: (de): Slide => {
+    const w = de.q;
+    const c = w * w;
+    const salt = secondSalt(de);
+    const aux = `$${auxOf(0, c)}$`;
+    const roots = `$${rootsTex(de)}$`;
+    const general = `$x = ${waveOfT('A', 'B', w)}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('Find the general solution of this equation of motion.')],
+      subject: motionTex(de),
+      steps: [
+        {
+          id: 'aux',
+          ask: `The auxiliary equation${de.written === 'scaled' ? `, divided by $${de.scale}$,` : ''} is`,
+          branches: branchesOf(
+            { label: aux, to: 'roots' },
+            [
+              {
+                label: `$${auxOf(0, -c)}$`,
+                outcome:
+                  de.written === 'moved'
+                    ? `Moving $${terms([[-c, 'x']])}$ across the $=$ changes its sign.`
+                    : '$x$ becomes $1$, keeping its coefficient and its sign.',
+              },
+              { label: `$${terms([[1, 'm^2'], [c, 'm']])} = 0$`, outcome: '$m$ stands for one derivative. $x$ itself, with none, becomes $1$.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'roots',
+          ask: 'Its roots are',
+          branches: branchesOf(
+            { label: roots, to: 'general' },
+            [
+              { label: `$m = \\pm ${w}$`, outcome: `$m^2 = -${c}$ has no real root: a square is never negative.` },
+              ...(c !== w ? [{ label: `$m = \\pm ${c}i$`, outcome: `Take the square root of $${c}$, which is $${w}$.` }] : []),
+              { label: `$m = ${coef(w)}i$`, outcome: 'A quadratic has two roots, one with each sign.' },
+            ],
+            salt >>> 4,
+          ),
+        },
+        {
+          id: 'general',
+          ask: 'So the general solution is',
+          branches: branchesOf(
+            { label: general, outcome: `Real part $0$ means no exponential: the motion swings between the same two points for ever.` },
+            [
+              { label: `$x = A${expT(w)} + B${expT(-w)}$`, outcome: `That is the solution for real roots $\\pm ${w}$, and these roots are imaginary.` },
+              ...(c !== w ? [{ label: `$x = ${waveOfT('A', 'B', c)}$`, outcome: `The frequency is the imaginary part of the roots, $${w}$, not $${c}$.` }] : []),
+              { label: `$x = ${expT(w)}(${waveOfT('A', 'B', w)})$`, outcome: 'The exponential carries the real part of the roots, which is $0$ here.' },
+            ],
+            salt >>> 8,
+          ),
+        },
+      ],
+      answer: [aux, roots, general],
+    };
+  },
+  solution: shmSteps,
+};
+
+/** The general solution of SHM, as tiles. */
+const deShmGeneral: Generator<SecondDe> = {
+  id: 'de-shm-general',
+  sample: (rng, difficulty) => sampleShm(rng, difficulty, shmForms(difficulty)),
+  render: (de): Slide => {
+    const w = de.q;
+    const answer = [trigT('cos', w), trigT('sin', w)];
+    return {
+      kind: 'tiles',
+      prompt: [prose('Find the general solution of this equation of motion.'), display(motionTex(de))],
+      template: 'x = A{0} + B{1}',
+      bank: tokenBank(answer, [trigT('cos', w * w), expT(w), trigT('sin', w * w), expT(-w), trigT('cos', 2 * w)], 3),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: shmSteps,
+};
+
+/** x = A cos ωt + B sin ωt with numbers: the amplitude-and-phase lessons draw these too. */
+export interface WaveParams {
+  w: number;
+  A: number;
+  B: number;
+}
+
+/** Differentiate a wave twice and find ẍ = -ω²x, one line at a time. */
+const deShmVerifySteps: Generator<WaveParams> = {
+  id: 'de-shm-verify-steps',
+  sample: (rng, difficulty) => {
+    if (difficulty >= 2) return { w: rng.int(2, 6), A: nonzero(rng, 4), B: nonzero(rng, 4) };
+    const size = nonzero(rng, 5);
+    return rng.chance(0.5) ? { w: rng.int(1, 6), A: size, B: 0 } : { w: rng.int(1, 6), A: 0, B: size };
+  },
+  render: ({ w, A, B }): Slide => {
+    const c = w * w;
+    const velocity = `${D1T} = ${waveOfT(w * B, -w * A, w)}`;
+    const acceleration = `${D2T} = ${waveOfT(-c * A, -c * B, w)}`;
+    const law = `${D2T} = ${terms([[-c, 'x']])}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          "Show that this is simple harmonic motion: tap the line for $\\dot{x}$, again for $\\ddot{x}$, then again to write $\\ddot{x}$ in terms of $x$.",
+        ),
+      ],
+      start: [`x = ${waveOfT(A, B, w)}`],
+      reductions: [
+        {
+          span: [0, 1],
+          operator: 0,
+          value: velocity,
+          bank: stepBank(
+            velocity,
+            ...firstDistinct(
+              velocity,
+              [
+                `${D1T} = ${waveOfT(-w * B, w * A, w)}`,
+                `${D1T} = ${waveOfT(B, -A, w)}`,
+                `${D1T} = ${waveOfT(w * A, w * B, w)}`,
+                `${D1T} = ${waveOfT(c * B, -c * A, w)}`,
+              ],
+              3,
+            ),
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: acceleration,
+          bank: stepBank(
+            acceleration,
+            ...firstDistinct(
+              acceleration,
+              [
+                `${D2T} = ${waveOfT(c * A, c * B, w)}`,
+                `${D2T} = ${waveOfT(-w * A, -w * B, w)}`,
+                `${D2T} = ${waveOfT(-c * B, -c * A, w)}`,
+                `${D2T} = ${waveOfT(-2 * w * A, -2 * w * B, w)}`,
+              ],
+              3,
+            ),
+          ),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: law,
+          bank: stepBank(
+            law,
+            ...firstDistinct(
+              law,
+              [`${D2T} = ${terms([[c, 'x']])}`, `${D2T} = ${terms([[-w, 'x']])}`, `${D2T} = ${terms([[-2 * w, 'x']])}`, `${D2T} = ${terms([[-c * w, 'x']])}`],
+              3,
+            ),
+          ),
+        },
+      ],
+    };
+  },
+  solution: ({ w, A, B }) => {
+    const c = w * w;
+    return [
+      { text: `Differentiate: the chain rule brings out $${w}$, and a cosine turns into minus a sine.`, tex: `${D1T} = ${waveOfT(w * B, -w * A, w)}` },
+      { text: `Again, which brings out another $${w}$.`, tex: `${D2T} = ${waveOfT(-c * A, -c * B, w)}` },
+      {
+        text: `That is $-${c}$ times what $x$ was, so it is simple harmonic motion with $\\omega = ${w}$.`,
+        tex: `${D2T} = ${terms([[-c, 'x']])}`,
+      },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 2: amplitude and period ---------- */
+
+const PERIOD_SHOWN = ['equation', 'solution', 'reverse'] as const;
+
+export interface PeriodParams extends SecondDe {
+  shown: (typeof PERIOD_SHOWN)[number];
+  /** For a shown solution: its amplitude, and whether it is a sine. */
+  a: number;
+  sine: boolean;
+}
+
+/** The period, 2π/ω, as a choice; or, the other way, the equation with that period. */
+const deShmPeriod: Generator<PeriodParams> = {
+  id: 'de-shm-period',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const shown = rng.pick<PeriodParams['shown']>(hard ? ['equation', 'solution', 'reverse'] : ['equation', 'solution']);
+    const written = shown === 'equation' ? rng.pick<SecondDe['written']>(hard ? ['moved', 'scaled'] : ['standard', 'moved']) : 'standard';
+    const w = rng.int(2, hard ? 12 : 8);
+    return {
+      ...shmOf(w, written, written === 'scaled' ? rng.int(2, 3) : 1),
+      shown,
+      a: shown === 'solution' ? rng.int(1, hard ? 9 : 6) : 1,
+      sine: shown === 'solution' && rng.chance(0.5),
+    };
+  },
+  render: (de): Slide => {
+    const w = de.q;
+    const salt = secondSalt(de, PERIOD_SHOWN.indexOf(de.shown), de.a, de.sine ? 1 : 0);
+    if (de.shown === 'reverse') {
+      const answer = `${D2T} = ${terms([[-w * w, 'x']])}`;
+      const slips = [w, -w * w, 4 * w * w, 2 * w].map((s) => `${D2T} = ${terms([[-s, 'x']])}`);
+      return choiceSlide(
+        [prose(`A particle moves with simple harmonic motion of period $${piMultipleTex(2, w)}$. Which equation does it satisfy?`)],
+        [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, slips, 3).map((label) => ({ label, tex: true }))],
+        salt,
+      );
+    }
+    const answer = piMultipleTex(2, w);
+    const slips = [piMultipleTex(1, w), piMultipleTex(2 * w, 1), piMultipleTex(2, w * w), `\\frac{${w}}{2\\pi}`];
+    const prompt =
+      de.shown === 'equation'
+        ? [prose('Find the period of the motion given by'), display(motionTex(de))]
+        : [prose('A particle moves with'), display(`x = ${terms([[de.a, trigT(de.sine ? 'sin' : 'cos', w)]])}`), prose('Find the period of its motion.')];
+    return choiceSlide(
+      prompt,
+      [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, slips, 3).map((label) => ({ label, tex: true }))],
+      salt,
+    );
+  },
+  solution: (de) => {
+    const w = de.q;
+    if (de.shown === 'reverse') {
+      return [
+        { text: 'The period is $\\frac{2\\pi}{\\omega}$, so $\\omega$ is $2\\pi$ divided by the period.', tex: `\\omega = 2\\pi \\div ${piMultipleTex(2, w)} = ${w}` },
+        { text: 'Then $\\ddot{x} = -\\omega^2 x$:', tex: `${D2T} = ${terms([[-w * w, 'x']])}` },
+      ];
+    }
+    const read =
+      de.shown === 'equation'
+        ? [...motionToStandard(de), { text: 'Compare it with $\\ddot{x} + \\omega^2 x = 0$.', tex: `\\omega^2 = ${w * w}, \\; \\omega = ${w}` }]
+        : [{ text: `The number multiplying $t$ is $\\omega$.`, tex: `\\omega = ${w}` }];
+    return [
+      ...read,
+      { text: 'One full swing takes $\\omega t$ through $2\\pi$:', tex: `T = \\frac{2\\pi}{\\omega} = \\frac{2\\pi}{${w}} = ${piMultipleTex(2, w)}` },
+    ];
+  },
+};
+
+const SPEED_ASKS = ['speed', 'amplitude', 'accel'] as const;
+
+export interface SpeedParams extends SecondDe {
+  ask: (typeof SPEED_ASKS)[number];
+  /** The amplitude, positive. */
+  a: number;
+  /** Where it is released from rest: a or -a. */
+  from: number;
+}
+
+/** A greatest speed aω, an amplitude, or a greatest acceleration aω², typed. */
+const deShmSpeed: Generator<SpeedParams> = {
+  id: 'de-shm-speed',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const written = rng.pick<SecondDe['written']>(hard ? ['moved', 'scaled'] : ['standard', 'moved']);
+    const a = rng.int(hard ? 2 : 1, hard ? 9 : 6);
+    return {
+      ...shmOf(rng.int(2, hard ? 9 : 6), written, written === 'scaled' ? rng.int(2, 3) : 1),
+      ask: rng.pick<SpeedParams['ask']>(hard ? ['speed', 'amplitude', 'accel'] : ['speed', 'amplitude']),
+      a,
+      from: hard && rng.chance(0.5) ? -a : a,
+    };
+  },
+  render: (de): Slide => {
+    const w = de.q;
+    const { a, ask } = de;
+    const start = ask === 'amplitude' ? `At $t = 0$ it passes through $x = 0$ with speed $${a * w}$.` : `It is released from rest at $x = ${de.from}$.`;
+    const question = ask === 'speed' ? 'Find its greatest speed.' : ask === 'amplitude' ? 'Find the amplitude of its motion.' : 'Find the greatest size of its acceleration.';
+    return {
+      kind: 'expression',
+      prompt: [prose('A particle moves with'), display(motionTex(de)), prose(`${start} ${question}`)],
+      lead: ask === 'speed' ? 'v_{\\max} =' : ask === 'amplitude' ? 'a =' : '|\\ddot{x}|_{\\max} =',
+      keypad: [],
+      answer: `${ask === 'speed' ? a * w : ask === 'amplitude' ? a : a * w * w}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (de) => {
+    const w = de.q;
+    const { a, ask } = de;
+    const omega = [...motionToStandard(de), { text: 'Compare it with $\\ddot{x} + \\omega^2 x = 0$.', tex: `\\omega = ${w}` }];
+    if (ask === 'amplitude') {
+      return [
+        ...omega,
+        { text: 'The speed is greatest at the centre, where it is $a\\omega$.', tex: `a \\times ${w} = ${a * w}` },
+        { tex: `a = ${a}` },
+      ];
+    }
+    const released = { text: `Released from rest, it swings out to $x = ${de.from}$ and back, so the amplitude is $${a}$.`, tex: `x = ${terms([[de.from, trigT('cos', w)]])}` };
+    if (ask === 'speed') return [...omega, released, { text: 'The greatest speed, at the centre, is $a\\omega$.', tex: `v_{\\max} = ${a} \\times ${w} = ${a * w}` }];
+    return [
+      ...omega,
+      released,
+      { text: 'The acceleration is $-\\omega^2 x$, largest at the ends, where it is $a\\omega^2$.', tex: `${a} \\times ${w * w} = ${a * w * w}` },
+    ];
+  },
+};
+
+/** ω and the amplitude, then the greatest speed and acceleration, as a tree. */
+const deShmMotionTree: Generator<SpeedParams> = {
+  id: 'de-shm-motion-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const written = rng.pick<SecondDe['written']>(hard ? ['moved', 'scaled'] : ['standard', 'moved']);
+    const a = rng.int(hard ? 2 : 1, hard ? 7 : 5);
+    return {
+      ...shmOf(rng.int(2, hard ? 8 : 6), written, written === 'scaled' ? rng.int(2, 3) : 1),
+      ask: 'speed',
+      a,
+      from: hard && rng.chance(0.5) ? -a : a,
+    };
+  },
+  render: (de): Slide => {
+    const w = de.q;
+    const { a } = de;
+    const answer = [w, a, a * w, a * w * w];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`A particle moving with this equation is released from rest at $x = ${de.from}$.`),
+        prose('Fill in $\\omega$ and the amplitude $a$, then the greatest speed $a\\omega$ and the greatest size of the acceleration, $a\\omega^2$.'),
+      ],
+      expression: motionTex(de),
+      nodes: [
+        { id: 'omega', from: [] },
+        { id: 'a', from: [] },
+        { id: 'speed', from: ['omega', 'a'] },
+        { id: 'accel', from: ['omega', 'a'] },
+      ],
+      bank: treeBank(answer, [w * w, -a, -a * w, a * w * w * w, 2 * a * w, a + w]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => {
+    const w = de.q;
+    const { a } = de;
+    return [
+      ...motionToStandard(de),
+      { text: 'Compare it with $\\ddot{x} + \\omega^2 x = 0$.', tex: `\\omega = ${w}` },
+      { text: `Released from rest at $x = ${de.from}$, it swings to the same distance the other side, so the amplitude is $${a}$.` },
+      { text: 'The greatest speed is at the centre:', tex: `a\\omega = ${a} \\times ${w} = ${a * w}` },
+      { text: 'The greatest acceleration is at the ends:', tex: `a\\omega^2 = ${a} \\times ${w * w} = ${a * w * w}` },
+    ];
+  },
+};
+
+const RELEASES = ['rest', 'centre', 'both'] as const;
+
+export interface ReleaseParams extends SecondDe {
+  how: (typeof RELEASES)[number];
+  A: number;
+  B: number;
+}
+
+export const releaseConditionsTex = ({ q, A, B }: ReleaseParams): string => `x(0) = ${A}, \\; \\dot{x}(0) = ${q * B}`;
+
+/** A particular x(t) from how the motion starts, typed. */
+const deShmRelease: Generator<ReleaseParams> = {
+  id: 'de-shm-release',
+  sample: (rng, difficulty) => {
+    const hard = difficulty >= 2;
+    const how = rng.pick<ReleaseParams['how']>(hard ? ['rest', 'centre', 'both', 'both'] : ['rest', 'centre']);
+    const written = rng.pick<SecondDe['written']>(hard ? ['standard', 'moved', 'scaled'] : ['standard', 'moved']);
+    const size = hard ? 6 : 5;
+    return {
+      ...shmOf(rng.int(2, hard ? 7 : 5), written, written === 'scaled' ? rng.int(2, 3) : 1),
+      how,
+      A: how === 'centre' ? 0 : hard ? nonzero(rng, size) : rng.int(1, size),
+      B: how === 'rest' ? 0 : nonzero(rng, size - 2),
+    };
+  },
+  render: (de): Slide => {
+    const w = de.q;
+    const words =
+      de.how === 'rest'
+        ? `It is released from rest at $x = ${de.A}$`
+        : de.how === 'centre'
+          ? `It passes through $x = 0$ at $t = 0$ with velocity $${w * de.B}$`
+          : 'Its motion starts with';
+    return {
+      kind: 'expression',
+      prompt: [prose('A particle moves with'), display(motionTex(de)), prose(`${words}${de.how === 'both' ? '' : ', so'} $${releaseConditionsTex(de)}$. Find $x$ in terms of $t$.`)],
+      lead: 'x =',
+      keypad: T_TRIG_KEYS,
+      answer: `(${de.A})*cos((${w})*t) + (${de.B})*sin((${w})*t)`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (de) => {
+    const w = de.q;
+    return [
+      ...motionToStandard(de),
+      { text: 'Simple harmonic motion with', tex: `\\omega = ${w}` },
+      { text: 'so its general solution is', tex: `x = ${waveOfT('A', 'B', w)}` },
+      { text: `At $t = 0$ the cosine is $1$ and the sine $0$, so $x(0) = A$.`, tex: `A = ${de.A}` },
+      { text: `Differentiating, $\\dot{x}(0) = ${w}B = ${w * de.B}$.`, tex: `B = ${de.B}` },
+      { text: `So $x = ${waveOfT(de.A, de.B, w)}$.` },
+    ];
+  },
+};
+
+/* ---------- Level 6, lesson 3: phase ---------- */
+
+/** Pythagorean triples, so that R is whole. The first five are the gentler ones. */
+const PHASE_TRIPLES: [number, number, number][] = [
+  [3, 4, 5],
+  [6, 8, 10],
+  [5, 12, 13],
+  [8, 15, 17],
+  [9, 12, 15],
+  [7, 24, 25],
+  [12, 16, 20],
+  [20, 21, 29],
+];
+
+/** A cos ωt + B sin ωt with A > 0 and R = √(A² + B²) whole. */
+export interface PhaseParams extends WaveParams {
+  R: number;
+  /** For the amplitude question: asked as R or as the amplitude. */
+  words: boolean;
+  /** For the tiles: the motion given by its start rather than written out. */
+  started: boolean;
+}
+
+function samplePhase(rng: Rng, difficulty: number): PhaseParams {
+  const hard = difficulty >= 2;
+  const [p, q, R] = rng.pick(hard ? PHASE_TRIPLES : PHASE_TRIPLES.slice(0, 5));
+  const [A, B] = rng.chance(0.5) ? [p, q] : [q, p];
+  return {
+    w: rng.int(hard ? 2 : 1, hard ? 6 : 4),
+    A,
+    B: hard && rng.chance(0.4) ? -B : B,
+    R,
+    words: rng.chance(0.5),
+    started: hard && rng.chance(0.5),
+  };
+}
+
+const phaseSalt = ({ w, A, B, R }: PhaseParams, ...more: number[]): number => mix(w, A, B, R, ...more);
+
+/** `5\cos(2t - \alpha)`. */
+const phaseTex = (R: number, w: number, sign = '-', fn = 'cos'): string => `${coef(R)}\\${fn}(${coef(w)}t ${sign} \\alpha)`;
+
+function phaseSteps({ w, A, B, R }: PhaseParams): SolutionStep[] {
+  return [
+    {
+      text: 'Expand the form asked for:',
+      tex: chain('&R\\cos(\\omega t - \\alpha)', '&= R\\cos \\alpha \\cos \\omega t', '&\\quad + R\\sin \\alpha \\sin \\omega t'),
+    },
+    { text: 'Compare the cosines and the sines.', tex: `R\\cos \\alpha = ${A}, \\; R\\sin \\alpha = ${B}` },
+    { text: 'Square and add, since $\\cos^2 \\alpha + \\sin^2 \\alpha = 1$:', tex: `R^2 = ${A * A} + ${B * B} = ${R * R}` },
+    { text: 'Take the positive root.', tex: `R = ${R}` },
+    { text: 'Divide the second by the first:', tex: `\\tan \\alpha = ${fracTex(B, A)}` },
+    { text: `So $x = ${phaseTex(R, w)}$, with amplitude $${R}$.` },
+  ];
+}
+
+/** R, the amplitude of a wave written as a cosine and a sine, typed. */
+const deShmPhaseR: Generator<PhaseParams> = {
+  id: 'de-shm-phase-r',
+  sample: samplePhase,
+  render: (params): Slide => {
+    const { w, A, B, words } = params;
+    const x = `x = ${waveOfT(A, B, w)}`;
+    return {
+      kind: 'expression',
+      prompt: words
+        ? [prose('A particle moves with'), display(x), prose('Find the amplitude of its motion.')]
+        : [prose(`Write this motion in the form $R\\cos(\\omega t - \\alpha)$ with $R > 0$, and find $R$.`), display(x)],
+      lead: words ? 'a =' : 'R =',
+      keypad: [],
+      answer: `${params.R}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => phaseSteps(params).slice(0, 4),
+};
+
+/** tan α, as a choice. */
+const deShmPhaseTan: Generator<PhaseParams> = {
+  id: 'de-shm-phase-tan',
+  sample: samplePhase,
+  render: (params): Slide => {
+    const { w, A, B, R } = params;
+    const answer = fracTex(B, A);
+    const slips = [fracTex(A, B), fracTex(B, R), fracTex(-B, A), fracTex(A, R)];
+    return choiceSlide(
+      [
+        prose(`This motion is written as $R\\cos(${coef(w)}t - \\alpha)$ with $R > 0$. Which is $\\tan \\alpha$?`),
+        display(`x = ${waveOfT(A, B, w)}`),
+      ],
+      [{ label: answer, tex: true, correct: true }, ...firstDistinct(answer, slips, 3).map((label) => ({ label, tex: true }))],
+      phaseSalt(params),
+    );
+  },
+  solution: (params) => [...phaseSteps(params).slice(0, 2), phaseSteps(params)[4]],
+};
+
+/** Compare, find R and tan α, and write the single cosine, one line at a time. */
+const deShmPhaseSteps: Generator<PhaseParams> = {
+  id: 'de-shm-phase-steps',
+  sample: samplePhase,
+  render: (params): Slide => {
+    const { w, A, B, R } = params;
+    const compared = (a: number, b: number): string => `R\\cos \\alpha = ${a}, \\; R\\sin \\alpha = ${b}`;
+    const found = (r: number, top: number, bottom: number): string => `R = ${r}, \\; \\tan \\alpha = ${fracTex(top, bottom)}`;
+    const single = phaseTex(R, w);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          'Write this in the form $R\\cos(\\omega t - \\alpha)$: tap the line to compare it with $R\\cos \\alpha \\cos \\omega t + R\\sin \\alpha \\sin \\omega t$, again for $R$ and $\\tan \\alpha$, and again for the single cosine.',
+        ),
+      ],
+      start: [waveOfT(A, B, w)],
+      reductions: [
+        { span: [0, 1], operator: 0, value: compared(A, B), bank: stepBank(compared(A, B), compared(B, A), compared(A, -B), compared(-A, B)) },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: found(R, B, A),
+          bank: stepBank(found(R, B, A), found(R, A, B), found(R * R, B, A), found(Math.abs(A) + Math.abs(B), B, A)),
+        },
+        {
+          span: [0, 1],
+          operator: 0,
+          value: single,
+          bank: stepBank(single, phaseTex(R, w, '+'), phaseTex(R, w, '-', 'sin'), phaseTex(R * R, w)),
+        },
+      ],
+    };
+  },
+  solution: phaseSteps,
+};
+
+/** The single cosine R cos(ωt - α), as tiles; at difficulty 2 from how the motion starts. */
+const deShmPhaseTiles: Generator<PhaseParams> = {
+  id: 'de-shm-phase-tiles',
+  sample: samplePhase,
+  render: (params): Slide => {
+    const { w, A, B, R, started } = params;
+    const answer = [`${R}`, `${coef(w)}t`];
+    const prompt = started
+      ? [
+          prose('A particle moves with'),
+          display(motionStandardTex(shmOf(w))),
+          prose(`and $x(0) = ${A}, \\; \\dot{x}(0) = ${w * B}$. Write its motion as a single cosine, with $R > 0$.`),
+        ]
+      : [prose('Write this motion as a single cosine, with $R > 0$.'), display(`x = ${waveOfT(A, B, w)}`)];
+    return {
+      kind: 'tiles',
+      prompt,
+      template: 'x = {0}\\cos({1} - \\alpha)',
+      bank: tokenBank(answer, [`${R * R}`, `${coef(w * w)}t`, `${Math.abs(A) + Math.abs(B)}`, `${coef(2 * w)}t`, `${Math.abs(A)}`], 4),
+      answer,
+    };
+  },
+  solution: (params) => [
+    ...(params.started
+      ? [
+          { text: `With $\\omega = ${params.w}$, $x = A\\cos ${coef(params.w)}t + B\\sin ${coef(params.w)}t$ has $x(0) = A$ and $\\dot{x}(0) = ${params.w}B$.` },
+          { tex: `x = ${waveOfT(params.A, params.B, params.w)}` },
+        ]
+      : []),
+    ...phaseSteps(params),
+  ],
+};
+
+/* ---------- Level 6, lesson 4: damping ---------- */
+
+/**
+ * `ẍ + kẋ + ω²x = 0` with k > 0, from negative roots: two different ones
+ * (over-damped), one twice (critical), or -p ± qi (under-damped).
+ */
+function sampleDamped(rng: Rng, difficulty: number, kind: SecondDe['kind'], forms: SecondDe['written'][]): SecondDe {
+  const hard = difficulty >= 2;
+  const written = rng.pick(forms);
+  const scale = written === 'scaled' ? rng.int(2, 3) : 1;
+  if (kind === 'repeated') {
+    const p = -rng.int(1, hard ? 7 : 5);
+    return { kind, p, q: p, written, scale };
+  }
+  if (kind === 'complex') return { kind, p: -rng.int(1, hard ? 3 : 2), q: rng.int(1, hard ? 5 : 3), written, scale };
+  for (;;) {
+    const one = -rng.int(1, hard ? 7 : 5);
+    const two = -rng.int(1, hard ? 7 : 5);
+    if (one !== two) return { kind, p: Math.min(one, two), q: Math.max(one, two), written, scale };
+  }
+}
+
+/** The three cases, in `KINDS` order. */
+const DAMPING = ['Over-damped', 'Critically damped', 'Under-damped'];
+
+const dampingOf = (k: number, c: number): string => DAMPING[k * k > 4 * c ? 0 : k * k === 4 * c ? 1 : 2];
+
+/** A walk: the auxiliary equation, k² - 4ω², and the damping it decides. */
+const deDampCase: Generator<SecondDe> = {
+  id: 'de-damp-case',
+  sample: (rng, difficulty) =>
+    sampleDamped(rng, difficulty, rng.pick(KINDS), difficulty >= 2 ? ['standard', 'moved', 'moved'] : ['standard', 'standard', 'moved']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const disc = b * b - 4 * c;
+    const salt = secondSalt(de);
+    const aux = `$${auxOf(b, c)}$`;
+    const sign = disc > 0 ? 'positive' : disc === 0 ? 'zero' : 'negative';
+    const verdict =
+      de.kind === 'real'
+        ? `The roots, $${de.p}$ and $${de.q}$, are both negative: $x$ dies away without swinging.`
+        : de.kind === 'repeated'
+          ? `The root $${de.p}$ repeats: $x$ dies away as fast as it can without swinging.`
+          : `The roots are $${rootsTex(de)}$: $x$ swings, and the swings die away.`;
+    const cases = [
+      { label: DAMPING[0], outcome: de.kind === 'real' ? verdict : `Over-damping needs $k^2 - 4\\omega^2 > 0$, and this is ${sign}.` },
+      { label: DAMPING[1], outcome: de.kind === 'repeated' ? verdict : `Critical damping needs $k^2 - 4\\omega^2 = 0$, and this is ${sign}.` },
+      { label: DAMPING[2], outcome: de.kind === 'complex' ? verdict : `Under-damping needs $k^2 - 4\\omega^2 < 0$, and this is ${sign}.` },
+    ];
+    return {
+      kind: 'flow',
+      prompt: [prose('Decide how this motion is damped.')],
+      subject: motionTex(de),
+      steps: [
+        {
+          id: 'aux',
+          ask: 'The auxiliary equation is',
+          branches: branchesOf(
+            { label: aux, to: 'disc' },
+            [
+              {
+                label: `$${auxOf(-b, c)}$`,
+                outcome: de.written === 'moved' ? 'Moving a term across the $=$ changes its sign.' : "$\\dot{x}$ becomes $m$ with its coefficient, sign and all.",
+              },
+              { label: `$${auxOf(b, -c)}$`, outcome: '$x$ becomes $1$, keeping its coefficient and sign.' },
+              { label: `$${auxOf(c, b)}$`, outcome: "$\\dot{x}$ becomes $m$ and $x$ becomes $1$: the coefficients stay where they were." },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'disc',
+          ask: 'Its discriminant, $k^2 - 4\\omega^2$, is',
+          branches: branchesOf(
+            { label: `$${disc}$`, to: 'case' },
+            [
+              { label: `$${b * b + 4 * c}$`, outcome: 'The discriminant takes $4\\omega^2$ away.' },
+              { label: `$${-disc}$`, outcome: 'That is $4\\omega^2 - k^2$, the wrong way round.' },
+              { label: `$${b * b - 2 * c}$`, outcome: 'It is $4$ times $\\omega^2$, not $2$ times.' },
+            ],
+            salt >>> 4,
+          ),
+        },
+        { id: 'case', ask: 'So the motion is', branches: turned(cases, (salt >>> 8) % 3) },
+      ],
+      answer: [aux, `$${disc}$`, DAMPING[KINDS.indexOf(de.kind)]],
+    };
+  },
+  solution: (de) => {
+    const b = secondB(de);
+    const c = secondC(de);
+    return [
+      ...motionToStandard(de),
+      { text: "$\\ddot{x}$ becomes $m^2$, $\\dot{x}$ becomes $m$ and $x$ becomes $1$.", tex: auxOf(b, c) },
+      { text: `$k = ${b}$ and $\\omega^2 = ${c}$:`, tex: `k^2 - 4\\omega^2 = ${b * b} - ${4 * c} = ${b * b - 4 * c}` },
+      { text: `${dampingOf(b, c)}: positive is over-damped, zero critical, negative under-damped.`, tex: rootsTex(de) },
+    ];
+  },
+};
+
+export interface LeastKParams {
+  w: number;
+  /** What multiplies ẍ. */
+  m: number;
+  critical: boolean;
+}
+
+export const leastKTex = ({ w, m }: LeastKParams): string => `${coef(m)}${D2T} + k${D1T} + ${m * w * w}x = 0`;
+
+/** The least k that stops the oscillation, 2mω, typed. */
+const deDampLeast: Generator<LeastKParams> = {
+  id: 'de-damp-least',
+  sample: (rng, difficulty) =>
+    difficulty >= 2
+      ? { w: rng.int(2, 9), m: rng.int(1, 3), critical: rng.chance(0.5) }
+      : { w: rng.int(1, 8), m: rng.int(1, 2), critical: rng.chance(0.5) },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(
+        params.critical
+          ? 'Find the value of $k > 0$ that makes this motion critically damped.'
+          : 'Find the least value of $k > 0$ for which this motion does not oscillate.',
+      ),
+      display(leastKTex(params)),
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: `${2 * params.m * params.w}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ w, m }) => [
+    ...(m === 1 ? [] : [{ text: `Divide every term by $${m}$.`, tex: `${D2T} + \\frac{k}{${m}}${D1T} + ${w * w}x = 0` }]),
+    {
+      text: `It oscillates while the auxiliary equation has complex roots, and stops once its discriminant reaches $0$${m === 1 ? '' : `, with $\\frac{k}{${m}}$ in place of $k$`}.`,
+      tex: `${m === 1 ? 'k^2' : `\\left(\\frac{k}{${m}}\\right)^2`} = 4 \\times ${w * w} = ${4 * w * w}`,
+    },
+    { text: `Take the positive root${m === 1 ? '' : ` and multiply by $${m}$`}.`, tex: `k = ${2 * m * w}` },
+  ],
+};
+
+/** The discriminant, then the roots, as a tree. */
+const deDampRootsTree: Generator<SecondDe> = {
+  id: 'de-damp-roots-tree',
+  sample: (rng, difficulty) =>
+    sampleDamped(rng, difficulty, rng.pick(KINDS), difficulty >= 2 ? ['standard', 'moved'] : ['standard', 'standard', 'moved']),
+  render: (de): Slide => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const disc = b * b - 4 * c;
+    const { kind, p, q } = de;
+    const lead = prose('The discriminant of the auxiliary equation is $D = k^2 - 4\\omega^2$.');
+    const shared = { kind: 'tree' as const, expression: motionTex(de) };
+    if (kind === 'real') {
+      const answer = [disc, p, q];
+      return {
+        ...shared,
+        prompt: [lead, prose('Its roots are $p$ and $q$, with $p < q$. Fill in $D$, then $p$ and $q$.')],
+        nodes: [
+          { id: 'D', from: [] },
+          { id: 'p', from: ['D'] },
+          { id: 'q', from: ['D'] },
+        ],
+        bank: treeBank(answer, [-disc, -p, -q, b, c]),
+        answer: answer.map(String),
+      };
+    }
+    if (kind === 'repeated') {
+      const answer = [disc, p];
+      return {
+        ...shared,
+        prompt: [lead, prose('It has one repeated root $p$. Fill in $D$, then $p$.')],
+        nodes: [
+          { id: 'D', from: [] },
+          { id: 'p', from: ['D'] },
+        ],
+        bank: treeBank(answer, [-p, b, c, 2 * p, 4 * c]),
+        answer: answer.map(String),
+      };
+    }
+    const answer = [disc, p, q];
+    return {
+      ...shared,
+      prompt: [lead, prose('Its roots are $\\alpha \\pm \\beta i$, with $\\beta > 0$. Fill in $D$, then $\\alpha$, then $\\beta$.')],
+      nodes: [
+        { id: 'D', from: [] },
+        { id: 'alpha', from: [] },
+        { id: 'beta', from: ['D'] },
+      ],
+      bank: treeBank(answer, [-disc, -p, 2 * q, q * q, b]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => {
+    const b = secondB(de);
+    const c = secondC(de);
+    const disc = b * b - 4 * c;
+    return [
+      ...motionToStandard(de),
+      { text: 'The auxiliary equation:', tex: auxOf(b, c) },
+      { text: 'Its discriminant:', tex: `D = ${b}^2 - 4 \\times ${c} = ${disc}` },
+      { text: 'By the quadratic formula,', tex: `m = \\frac{${-b} \\pm \\sqrt{${disc}}}{2}` },
+      { tex: rootsTex(de) },
+    ];
+  },
+};
+
+export interface WhichDampParams {
+  w: number;
+  /** The case asked for, as an index into `DAMPING`. */
+  ask: number;
+  /** The damping constant of the right answer. */
+  k: number;
+}
+
+const whichDampTex = (k: number, c: number): string => `${terms([[1, D2T], [k, D1T], [c, 'x']])} = 0`;
+
+/** Damping constants to set beside the answer, none in the asked case. */
+function otherKs({ w, ask, k }: WhichDampParams): number[] {
+  const c = w * w;
+  const candidates = [w, 2 * w, c, 4 * w, 2 * w + 2, 2 * w - 1, w + 1, 2 * w + 1, 1];
+  const out: number[] = [];
+  for (const other of candidates) {
+    if (out.length === 3) break;
+    if (other <= 0 || other === k || out.includes(other) || DAMPING.indexOf(dampingOf(other, c)) === ask) continue;
+    out.push(other);
+  }
+  return out;
+}
+
+/** Which of four equations with the same ω is damped the way asked. */
+const deDampWhich: Generator<WhichDampParams> = {
+  id: 'de-damp-which',
+  sample: (rng, difficulty) => {
+    const w = rng.int(2, difficulty >= 2 ? 9 : 6);
+    const ask = rng.int(0, 2);
+    const k = ask === 0 ? rng.int(2 * w + 1, 2 * w + 5) : ask === 1 ? 2 * w : rng.int(1, 2 * w - 1);
+    return { w, ask, k };
+  },
+  render: (params): Slide => {
+    const c = params.w * params.w;
+    const answer = whichDampTex(params.k, c);
+    return choiceSlide(
+      [prose(`Which of these motions is ${DAMPING[params.ask].toLowerCase()}?`)],
+      [{ label: answer, tex: true, correct: true }, ...otherKs(params).map((k) => ({ label: whichDampTex(k, c), tex: true }))],
+      mix(params.w, params.ask, params.k),
+    );
+  },
+  solution: ({ w, ask, k }) => [
+    { text: `Every one has $\\omega^2 = ${w * w}$, so $\\omega = ${w}$ and critical damping is at $k = 2\\omega = ${2 * w}$.` },
+    { text: 'Smaller $k$ still oscillates (under-damped); larger $k$ is over-damped.' },
+    { text: `${DAMPING[ask]}:`, tex: `k = ${k}, \\quad ${whichDampTex(k, w * w)}` },
+  ],
+};
+
+/* ---------- Level 6, lesson 5: damped motion ---------- */
+
+/** The general solution in t, in A and B. */
+export function motionGeneralTex({ kind, p, q }: SecondDe): string {
+  if (kind === 'real') return `x = A${expT(p)} + B${expT(q)}`;
+  if (kind === 'repeated') return `x = (A + Bt)${expT(p)}`;
+  return p === 0 ? `x = ${waveOfT('A', 'B', q)}` : `x = ${expT(p)}(${waveOfT('A', 'B', q)})`;
+}
+
+/** A particular solution in t, with A and B numbers. */
+export function motionParticularTex({ kind, p, q }: SecondDe, A: number, B: number): string {
+  if (kind === 'real') return `x = ${terms([[A, expT(p)], [B, expT(q)]])}`;
+  if (kind === 'repeated') return `x = (${terms([[A, ''], [B, 't']])})${expT(p)}`;
+  return p === 0 ? `x = ${waveOfT(A, B, q)}` : `x = ${expT(p)}(${waveOfT(A, B, q)})`;
+}
+
+function dampedSteps(de: SecondDe): SolutionStep[] {
+  const b = secondB(de);
+  const c = secondC(de);
+  const shape =
+    de.kind === 'real'
+      ? 'Two negative roots: two exponentials, both dying away.'
+      : de.kind === 'repeated'
+        ? `A repeated root gives $${expT(de.p)}$ and $t${expT(de.p)}$.`
+        : 'Complex roots $\\alpha \\pm \\beta i$: $e^{\\alpha t}$ times a cosine and a sine of $\\beta t$.';
+  return [
+    ...motionToStandard(de),
+    { text: 'The auxiliary equation:', tex: auxOf(b, c) },
+    { text: `Its discriminant is $${b * b - 4 * c}$.`, tex: rootsTex(de) },
+    { text: shape, tex: motionGeneralTex(de) },
+  ];
+}
+
+/** The general solution of a damped equation, as tiles. */
+const deDampGeneral: Generator<SecondDe> = {
+  id: 'de-damp-general',
+  sample: (rng, difficulty) =>
+    sampleDamped(
+      rng,
+      difficulty,
+      rng.pick<SecondDe['kind']>(difficulty >= 2 ? KINDS : ['complex', 'complex', 'real', 'repeated']),
+      difficulty >= 2 ? ['standard', 'moved', 'scaled'] : ['standard', 'standard', 'moved'],
+    ),
+  render: (de): Slide => {
+    const { kind, p, q } = de;
+    const prompt = [prose(`Find the general solution of this damped motion${kind === 'complex' ? ', with the cosine term first' : ''}.`), display(motionTex(de))];
+    if (kind === 'real') {
+      const answer = [expT(p), expT(q)];
+      return {
+        kind: 'tiles',
+        prompt,
+        template: 'x = A{0} + B{1}',
+        bank: tokenBank(answer, [expT(-p), expT(-q), `t${expT(p)}`, expT(p + q)], 3),
+        answer,
+        unordered: true,
+      };
+    }
+    if (kind === 'repeated') {
+      const answer = [expT(p), `t${expT(p)}`];
+      return {
+        kind: 'tiles',
+        prompt,
+        template: 'x = A{0} + B{1}',
+        bank: tokenBank(answer, [expT(-p), `t${expT(-p)}`, `t^2${expT(p)}`, expT(2 * p)], 3),
+        answer,
+        unordered: true,
+      };
+    }
+    const answer = [expT(p), trigT('cos', q), trigT('sin', q)];
+    const swapped = Math.abs(p) !== q ? [trigT('cos', Math.abs(p)), trigT('sin', Math.abs(p))] : [];
+    return {
+      kind: 'tiles',
+      prompt,
+      template: 'x = {0}(A{1} + B{2})',
+      bank: tokenBank(answer, [expT(-p), expT(-q), ...swapped, trigT('cos', 2 * q)], 3),
+      answer,
+    };
+  },
+  solution: dampedSteps,
+};
+
+export const motionConditionsTex = (de: SecondIvp): string => {
+  const [x0, v0] = atZero(de, de.A, de.B);
+  return `x(0) = ${x0}, \\; \\dot{x}(0) = ${v0}`;
+};
+
+/** The general solution in words that name A and B without giving the roots away. */
+function motionForm({ kind }: SecondDe): string {
+  if (kind === 'real') return '$x = Ae^{pt} + Be^{qt}$ with $p < q$';
+  if (kind === 'repeated') return '$x = (A + Bt)e^{pt}$';
+  return '$x = e^{\\alpha t}(A\\cos \\beta t + B\\sin \\beta t)$ with $\\beta > 0$';
+}
+
+function sampleDampedIvp(rng: Rng, difficulty: number): SecondIvp {
+  const hard = difficulty >= 2;
+  const de = sampleDamped(rng, difficulty, hard ? rng.pick(KINDS) : 'complex', hard ? ['standard', 'moved', 'scaled'] : ['standard', 'moved']);
+  const A = nonzero(rng, hard ? 5 : 4);
+  const B = nonzero(rng, hard ? 5 : 4);
+  return { ...de, A, B, letter: de.kind === 'real' && rng.chance(0.5) ? 'A' : 'B' };
+}
+
+function dampedIvpSteps(de: SecondIvp): SolutionStep[] {
+  const { kind, p, q, A, B } = de;
+  const [x0, v0] = atZero(de, A, B);
+  const equations =
+    kind === 'real'
+      ? chain(`A + B &= ${x0}`, `${terms([[p, 'A'], [q, 'B']])} &= ${v0}`)
+      : kind === 'repeated'
+        ? chain(`A &= ${x0}`, `${terms([[p, 'A'], [1, 'B']])} &= ${v0}`)
+        : chain(`A &= ${x0}`, `${terms([[p, 'A'], [q, 'B']])} &= ${v0}`);
+  return [
+    { text: 'The general solution:', tex: motionGeneralTex(de) },
+    {
+      text:
+        kind === 'real'
+          ? `At $t = 0$ each exponential is $1$, and differentiating brings down $${p}$ and $${q}$:`
+          : kind === 'repeated'
+            ? `At $t = 0$, $x = A$, and by the product rule $\\dot{x}(0) = ${p}A + B$:`
+            : `At $t = 0$, $x = A$, and by the product rule $\\dot{x}(0) = \\alpha A + \\beta B$:`,
+      tex: equations,
+    },
+    { text: 'Solve them.', tex: `A = ${A}, \\; B = ${B}` },
+    { text: `So $${motionParticularTex(de, A, B)}$.` },
+  ];
+}
+
+/** The roots, then A, then B, from x(0) and ẋ(0), as a tree. */
+const deDampIvpTree: Generator<SecondIvp> = {
+  id: 'de-damp-ivp-tree',
+  sample: sampleDampedIvp,
+  render: (de): Slide => {
+    const { kind, p, q, A, B } = de;
+    const [x0, v0] = atZero(de, A, B);
+    const shared = { kind: 'tree' as const, expression: motionTex(de) };
+    const lead = prose(`Solve with $${motionConditionsTex(de)}$, writing the general solution as ${motionForm(de)}.`);
+    if (kind === 'repeated') {
+      const answer = [p, A, B];
+      return {
+        ...shared,
+        prompt: [lead, prose('Fill in $p$ and $A$, then $B$.')],
+        nodes: [
+          { id: 'p', from: [] },
+          { id: 'A', from: [] },
+          { id: 'B', from: ['p', 'A'] },
+        ],
+        bank: treeBank(answer, [-p, v0, -B, v0 + p * A]),
+        answer: answer.map(String),
+      };
+    }
+    const answer = [p, q, A, B];
+    const names = kind === 'real' ? ['p', 'q'] : ['alpha', 'beta'];
+    return {
+      ...shared,
+      prompt: [lead, prose(kind === 'real' ? 'Fill in $p$ and $q$, then $A$, then $B$.' : 'Fill in $\\alpha$ and $\\beta$, then $A$, then $B$.')],
+      nodes: [
+        { id: names[0], from: [] },
+        { id: names[1], from: [] },
+        { id: 'A', from: kind === 'real' ? names : [] },
+        { id: 'B', from: kind === 'real' ? ['A'] : [...names, 'A'] },
+      ],
+      bank: treeBank(answer, [-p, -q, x0, v0, -A, -B, v0 - p * A]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (de) => [...dampedSteps(de), ...dampedIvpSteps(de).slice(1)],
+};
+
+/** A constant from the conditions, or the starting velocity of a particular solution, typed. */
+const deDampConstant: Generator<SecondIvp & { velocity: boolean }> = {
+  id: 'de-damp-constant',
+  sample: (rng, difficulty) => ({ ...sampleDampedIvp(rng, difficulty), velocity: rng.chance(0.4) }),
+  render: (de): Slide => {
+    if (de.velocity) {
+      return {
+        kind: 'expression',
+        prompt: [prose('A damped particle moves with'), display(motionParticularTex(de, de.A, de.B)), prose('Find its velocity at $t = 0$.')],
+        lead: '\\dot{x}(0) =',
+        keypad: [],
+        answer: `${atZero(de, de.A, de.B)[1]}`,
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(`The general solution of this equation is $${motionGeneralTex(de)}$. Find $${de.letter}$ when $${motionConditionsTex(de)}$.`),
+        display(motionTex(de)),
+      ],
+      lead: `${de.letter} =`,
+      keypad: [],
+      answer: `${de.letter === 'A' ? de.A : de.B}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (de) => {
+    if (!de.velocity) return [...motionToStandard(de), ...dampedIvpSteps(de)];
+    const { kind, p, q, A, B } = de;
+    const v0 = atZero(de, A, B)[1];
+    const how =
+      kind === 'real'
+        ? `Differentiate each exponential: at $t = 0$ they give $${p} \\times ${A < 0 ? `(${A})` : A}$ and $${q} \\times ${B < 0 ? `(${B})` : B}$.`
+        : kind === 'repeated'
+          ? `By the product rule, at $t = 0$: $${p} \\times ${A < 0 ? `(${A})` : A} + ${B < 0 ? `(${B})` : B}$.`
+          : `By the product rule, at $t = 0$ the exponential gives $${p} \\times ${A < 0 ? `(${A})` : A}$ and the sine gives $${q} \\times ${B < 0 ? `(${B})` : B}$.`;
+    return [{ text: how }, { tex: `\\dot{x}(0) = ${v0}` }];
+  },
+};
+
+const GRAPH_SHOWN = ['undamped', 'under', 'growing', 'still'] as const;
+
+export interface DampGraphParams {
+  /** The under-damped roots -p ± qi, which fix ω² = p² + q². */
+  p: number;
+  q: number;
+  /** The non-oscillating roots -d and -ω²/d. */
+  d: number;
+  shown: (typeof GRAPH_SHOWN)[number];
+}
+
+/** The damping constant of each of the four motions. */
+function graphKs({ p, q, d }: DampGraphParams): Record<DampGraphParams['shown'], number> {
+  const c = p * p + q * q;
+  return { undamped: 0, under: 2 * p, growing: -2 * p, still: d + c / d };
+}
+
+/** x(t) with x(0) = 1 and ẋ(0) = 0, for drawing. */
+function graphCurve({ p, q, d, shown }: DampGraphParams): (t: number) => number {
+  const c = p * p + q * q;
+  if (shown === 'undamped') return (t) => Math.cos(Math.sqrt(c) * t);
+  if (shown === 'under') return (t) => Math.exp(-p * t) * (Math.cos(q * t) + (p / q) * Math.sin(q * t));
+  if (shown === 'growing') return (t) => Math.exp(p * t) * (Math.cos(q * t) - (p / q) * Math.sin(q * t));
+  const r1 = d;
+  const r2 = c / d;
+  if (r1 === r2) return (t) => (1 + r1 * t) * Math.exp(-r1 * t);
+  return (t) => (r2 * Math.exp(-r1 * t) - r1 * Math.exp(-r2 * t)) / (r2 - r1);
+}
+
+/** Which equation a graph of x against t belongs to, the four damped differently. */
+const deDampGraph: Generator<DampGraphParams> = {
+  id: 'de-damp-graph',
+  sample: (rng, difficulty) => {
+    const p = rng.int(1, difficulty >= 2 ? 3 : 2);
+    // Light damping, q at least 3p, so an under-damped curve visibly swings back past 0 and a growing one does not leave the picture.
+    const q = rng.int(3 * p, 3 * p + (difficulty >= 2 ? 4 : 2));
+    const c = p * p + q * q;
+    const pairs = Array.from({ length: Math.floor(Math.sqrt(c)) }, (_, i) => i + 1).filter((n) => c % n === 0);
+    return { p, q, d: rng.pick(pairs), shown: rng.pick([...GRAPH_SHOWN]) };
+  },
+  render: (params): Slide => {
+    const c = params.p * params.p + params.q * params.q;
+    const ks = graphKs(params);
+    const f = graphCurve(params);
+    // A swing and a half, with the window fitted to the curve.
+    const span = (3 * Math.PI) / params.q;
+    const labels = {
+      undamped: 'a steady swing that never dies down',
+      under: 'swings that die away',
+      growing: 'swings that grow',
+      still: 'a curve falling to 0 without crossing it',
+    };
+    const answer = whichDampTex(ks[params.shown], c);
+    return choiceSlide(
+      [
+        prose('This graph shows $x$ against $t$ for a particle starting at rest at $x = 1$. Which equation does it follow?'),
+        {
+          kind: 'diagram',
+          svg: plotSvg({
+            xMin: 0,
+            xMax: span,
+            curves: [{ f }],
+            label: `A graph of x against t: ${labels[params.shown]}`,
+          }),
+        },
+      ],
+      [
+        { label: answer, tex: true, correct: true },
+        ...GRAPH_SHOWN.filter((kind) => kind !== params.shown).map((kind) => ({ label: whichDampTex(ks[kind], c), tex: true })),
+      ],
+      mix(params.p, params.q, params.d, GRAPH_SHOWN.indexOf(params.shown)),
+    );
+  },
+  solution: (params) => {
+    const c = params.p * params.p + params.q * params.q;
+    const k = graphKs(params)[params.shown];
+    const why = {
+      undamped: 'The swings keep the same size, so nothing damps them: $k = 0$.',
+      under: `The swings shrink, so $k > 0$ but small: $k^2 < 4\\omega^2 = ${4 * c}$.`,
+      growing: 'The swings grow, which needs a negative $k$: the "damping" pushes energy in.',
+      still: `The curve dies away without crossing $0$, so $k^2 \\ge 4\\omega^2 = ${4 * c}$.`,
+    };
+    return [{ text: why[params.shown] }, { tex: whichDampTex(k, c) }];
+  },
+};
+
 /* ---------- Registration ---------- */
 
 export const deGenerators = {
@@ -7118,6 +8373,26 @@ export const deGenerators = {
   deNhResValue,
   deNhIvpTree,
   deNhIvpFit,
+  deShmOmega,
+  deShmAux,
+  deShmGeneral,
+  deShmVerifySteps,
+  deShmPeriod,
+  deShmSpeed,
+  deShmMotionTree,
+  deShmRelease,
+  deShmPhaseR,
+  deShmPhaseTan,
+  deShmPhaseSteps,
+  deShmPhaseTiles,
+  deDampCase,
+  deDampLeast,
+  deDampRootsTree,
+  deDampWhich,
+  deDampGeneral,
+  deDampIvpTree,
+  deDampConstant,
+  deDampGraph,
 };
 
 export const differentialEquationGenerators = Object.values(deGenerators) as Generator<never>[];

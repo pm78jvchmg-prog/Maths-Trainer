@@ -16,7 +16,10 @@
  * complementary function plus a particular integral, found by a trial
  * function for a polynomial, exponential or trigonometric right side, then
  * resonance, where the trial is multiplied by x, and initial conditions on
- * the whole solution.
+ * the whole solution. Level 6 reads the same equation as motion in t:
+ * simple harmonic motion `ẍ = -ω²x`, its amplitude, period and greatest
+ * speed, the phase form R cos(ωt - α), then damping `ẍ + kẋ + ω²x = 0` as
+ * over-, critical and under-damping, and damped motion from its start.
  *
  * Integration and the exponential model are used here, not taught again:
  * `dy/dx = ky` read off a model belongs to Exponential Models' rate lesson,
@@ -52,7 +55,7 @@ export const differentialEquations: Course = {
   // After Integration (30), Vectors (40) and Matrices (50) — and Exponential Models, whose model it solves for.
   position: 70,
   title: 'Differential Equations',
-  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, the integrating factor, and second-order equations with and without a right side.',
+  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, the integrating factor, second-order equations with and without a right side, and simple harmonic and damped motion.',
   levels: [
     {
       id: 'de-l1',
@@ -1108,6 +1111,245 @@ export const differentialEquations: Course = {
         ask('de-nh-exp-flow', 2),
         ask('de-nh-trig-tree', 2),
         ask('de-nh-ivp-fit', 2),
+      ],
+    },
+    {
+      id: 'de-l6',
+      title: 'Simple Harmonic Motion',
+      lessons: [
+        {
+          id: 'de-l6-equation',
+          title: 'The Equation of SHM',
+          slides: [
+            teach(
+              prose(
+                'A particle moving along a line has **displacement** $x$ from a fixed point $O$ at time $t$. Dots mean rates in time: $\\dot{x} = \\frac{dx}{dt}$ is its velocity and $\\ddot{x} = \\frac{d^2x}{dt^2}$ its acceleration.',
+              ),
+              prose(
+                'If its acceleration always points back to $O$ and grows in step with the distance from $O$, the motion is **simple harmonic motion** (SHM):',
+              ),
+              display('\\ddot{x} = -\\omega^2 x'),
+              prose('Here $\\omega > 0$ is a constant. Written $\\ddot{x} + \\omega^2 x = 0$, it is last level\'s equation with no middle term.'),
+            ),
+            ask('de-shm-omega'),
+            ask('de-shm-aux'),
+            ask('de-shm-general'),
+            teach(
+              prose(
+                'Solve it as in Complex Roots. The auxiliary equation is $m^2 + \\omega^2 = 0$, so $m = \\pm \\omega i$: real part $0$ and imaginary part $\\omega$. With no real part there is no exponential, and',
+              ),
+              display('x = A\\cos \\omega t + B\\sin \\omega t'),
+              prose('For $\\ddot{x} + 9x = 0$: $\\omega = 3$ and $x = A\\cos 3t + B\\sin 3t$.'),
+            ),
+            ask('de-shm-verify-steps'),
+            ask('de-shm-omega', 2),
+            ask('de-shm-aux', 2),
+            teach(
+              prose(
+                'Any such $x$ can be checked by differentiating twice. For $x = 3\\cos 2t$, $\\dot{x} = -6\\sin 2t$ and $\\ddot{x} = -12\\cos 2t$, which is $-4x$: SHM with $\\omega = 2$.',
+              ),
+              prose('The motion swings between two points for ever, never dying down:'),
+              figure({
+                xMin: 0,
+                xMax: 7,
+                yMin: -4,
+                yMax: 4,
+                curves: [{ f: (t: number) => 3 * Math.cos(2 * t) }],
+                label: 'A cosine wave of x against t swinging between 3 and minus 3 with the same height every time',
+              }),
+            ),
+            ask('de-shm-general', 2),
+            ask('de-shm-verify-steps', 2),
+          ],
+          skillCheck: [ask('de-shm-omega', 2), ask('de-shm-aux', 2), ask('de-shm-verify-steps', 2)],
+        },
+        {
+          id: 'de-l6-amplitude',
+          title: 'Amplitude and Period',
+          slides: [
+            teach(
+              prose(
+                'Released from rest at $x = a$, the particle has $x(0) = a$ and $\\dot{x}(0) = 0$, so $A = a$ and $B = 0$:',
+              ),
+              display('x = a\\cos \\omega t'),
+              prose(
+                "It swings between $a$ and $-a$: the **amplitude** is $a$. One swing there and back takes $\\omega t$ through $2\\pi$, so the **period** is $\\frac{2\\pi}{\\omega}$. These are the amplitude and period of Functions & Transformations' waves.",
+              ),
+            ),
+            ask('de-shm-period'),
+            ask('de-shm-speed'),
+            ask('de-shm-motion-tree'),
+            teach(
+              prose('Differentiate $x = a\\cos \\omega t$:'),
+              display('\\dot{x} = -a\\omega \\sin \\omega t'),
+              prose(
+                'The sine is $\\pm 1$ exactly when the cosine is $0$, at the centre $O$, so the **greatest speed** is $a\\omega$, reached at $O$. The acceleration $-\\omega^2 x$ is greatest at the ends, where it has size $a\\omega^2$.',
+              ),
+              prose('For $\\ddot{x} = -9x$ released from rest at $x = 4$: period $\\frac{2\\pi}{3}$, greatest speed $12$, greatest acceleration $36$.'),
+            ),
+            ask('de-shm-release'),
+            ask('de-shm-period', 2),
+            ask('de-shm-speed', 2),
+            teach(
+              prose(
+                'Passing through $O$ with velocity $V$ at $t = 0$ gives $x(0) = 0$ and $\\dot{x}(0) = V$. Then $A = 0$, and $\\dot{x}(0) = \\omega B$, so',
+              ),
+              display('x = \\frac{V}{\\omega}\\sin \\omega t'),
+              prose('In general $x(0)$ is $A$ and $\\dot{x}(0)$ is $\\omega B$.'),
+            ),
+            ask('de-shm-motion-tree', 2),
+            ask('de-shm-release', 2),
+          ],
+          skillCheck: [ask('de-shm-period', 2), ask('de-shm-speed', 2), ask('de-shm-release', 2)],
+        },
+        {
+          id: 'de-l6-phase',
+          title: 'Phase',
+          slides: [
+            teach(
+              prose(
+                "$A\\cos \\omega t + B\\sin \\omega t$ is one wave in disguise, as in Trigonometric Identities' $R\\sin(x + \\alpha)$. For motion the cosine form is the usual one:",
+              ),
+              working('&R\\cos(\\omega t - \\alpha)', '&= R\\cos \\alpha \\cos \\omega t', '&\\quad + R\\sin \\alpha \\sin \\omega t'),
+              prose('Compare the cosines and the sines: $R\\cos \\alpha = A$ and $R\\sin \\alpha = B$.'),
+            ),
+            ask('de-shm-phase-steps'),
+            ask('de-shm-phase-r'),
+            ask('de-shm-phase-tan'),
+            teach(
+              prose('Square and add, then divide one by the other:'),
+              working('R &= \\sqrt{A^2 + B^2}', '\\tan \\alpha &= \\frac{B}{A}'),
+              prose(
+                'For $x = 3\\cos 2t + 4\\sin 2t$: $R = 5$ and $\\tan \\alpha = \\frac{4}{3}$, so $x = 5\\cos(2t - \\alpha)$. $R$ is the **amplitude**: the motion swings between $5$ and $-5$.',
+              ),
+            ),
+            ask('de-shm-phase-tiles'),
+            ask('de-shm-phase-steps', 2),
+            ask('de-shm-phase-r', 2),
+            teach(
+              prose(
+                '$\\alpha$ is the **phase**: the motion is at its greatest $x$ when $\\omega t = \\alpha$, a time $\\frac{\\alpha}{\\omega}$ after the start, rather than at $t = 0$. When $B$ is negative, so is $\\tan \\alpha$, and the peak came before $t = 0$.',
+              ),
+              figure({
+                xMin: -0.5,
+                xMax: 6.5,
+                yMin: -6,
+                yMax: 6,
+                curves: [
+                  { f: (t: number) => 3 * Math.cos(2 * t) + 4 * Math.sin(2 * t) },
+                  { f: (t: number) => 5 * Math.cos(2 * t), dashed: true },
+                ],
+                label: 'A wave of height 5 whose peaks come a little after those of a dashed wave that peaks at t = 0',
+              }),
+            ),
+            ask('de-shm-phase-tan', 2),
+            ask('de-shm-phase-tiles', 2),
+          ],
+          skillCheck: [ask('de-shm-phase-r', 2), ask('de-shm-phase-tan', 2), ask('de-shm-phase-tiles', 2)],
+        },
+        {
+          id: 'de-l6-damping',
+          title: 'Damping',
+          slides: [
+            teach(
+              prose(
+                'A real spring slows down. A resistance in step with the speed adds a $\\dot{x}$ term, with $k > 0$:',
+              ),
+              display('\\ddot{x} + k\\dot{x} + \\omega^2 x = 0'),
+              prose(
+                'This is **damped** motion. Its auxiliary equation is $m^2 + km + \\omega^2 = 0$, and its discriminant $k^2 - 4\\omega^2$ sorts the roots by kind, as in The Auxiliary Equation.',
+              ),
+            ),
+            ask('de-damp-case'),
+            ask('de-damp-least'),
+            ask('de-damp-roots-tree'),
+            teach(
+              prose('Each kind of root is a kind of damping:'),
+              prose('$k^2 > 4\\omega^2$: two negative real roots. **Over-damped**: $x$ creeps back to $0$ without swinging.'),
+              prose('$k^2 = 4\\omega^2$: one repeated root. **Critically damped**: back to $0$ as fast as it can without swinging.'),
+              prose('$k^2 < 4\\omega^2$: complex roots. **Under-damped**: it swings, and the swings die away.'),
+            ),
+            ask('de-damp-which'),
+            ask('de-damp-case', 2),
+            ask('de-damp-least', 2),
+            teach(
+              prose(
+                'The swinging stops at critical damping, $k = 2\\omega$: that is the least $k$ with no oscillation. For $\\ddot{x} + k\\dot{x} + 25x = 0$, $\\omega = 5$, so $k = 10$.',
+              ),
+              prose(
+                'If $\\ddot{x}$ has a number in front, divide by it first: $2\\ddot{x} + k\\dot{x} + 50x = 0$ is $\\ddot{x} + \\frac{k}{2}\\dot{x} + 25x = 0$, so $\\frac{k}{2} = 10$ and $k = 20$.',
+              ),
+            ),
+            ask('de-damp-roots-tree', 2),
+            ask('de-damp-which', 2),
+          ],
+          skillCheck: [ask('de-damp-case', 2), ask('de-damp-least', 2), ask('de-damp-roots-tree', 2)],
+        },
+        {
+          id: 'de-l6-damped',
+          title: 'Damped Motion',
+          slides: [
+            teach(
+              prose('The roots give the solution as in the last level, now in $t$. Under-damped, with roots $-p \\pm qi$:'),
+              display('x = e^{-pt}(A\\cos qt + B\\sin qt)'),
+              prose(
+                'Over-damped, with roots $-r$ and $-s$: $x = Ae^{-rt} + Be^{-st}$. Critically damped, with $-r$ twice: $x = (A + Bt)e^{-rt}$.',
+              ),
+            ),
+            ask('de-damp-general'),
+            ask('de-damp-ivp-tree'),
+            ask('de-damp-constant'),
+            teach(
+              prose(
+                "The starting position and velocity fix $A$ and $B$, as in Initial Conditions. Under-damped, $x(0) = A$, and the product rule gives $\\dot{x}(0) = -pA + qB$.",
+              ),
+              prose(
+                'For $\\ddot{x} + 2\\dot{x} + 5x = 0$ the roots are $-1 \\pm 2i$. With $x(0) = 3$ and $\\dot{x}(0) = 1$: $A = 3$, $-3 + 2B = 1$, so $B = 2$ and $x = e^{-t}(3\\cos 2t + 2\\sin 2t)$.',
+              ),
+            ),
+            ask('de-damp-graph'),
+            ask('de-damp-general', 2),
+            ask('de-damp-ivp-tree', 2),
+            teach(
+              prose(
+                'Every root has a negative real part, so every term carries a dying exponential: **$x \\to 0$ in every case**. Under-damped, the swings shrink inside $\\pm$ the exponential:',
+              ),
+              figure({
+                xMin: 0,
+                xMax: 6,
+                yMin: -3.5,
+                yMax: 3.5,
+                curves: [
+                  { f: (t: number) => Math.exp(-0.4 * t) * 3 * Math.cos(3 * t) },
+                  { f: (t: number) => 3 * Math.exp(-0.4 * t), dashed: true },
+                  { f: (t: number) => -3 * Math.exp(-0.4 * t), dashed: true },
+                ],
+                label: 'A wave whose swings shrink towards zero between two dashed exponential curves',
+              }),
+              prose('A negative $k$ would push energy in, and the swings would grow instead.'),
+            ),
+            ask('de-damp-constant', 2),
+            ask('de-damp-graph', 2),
+          ],
+          skillCheck: [ask('de-damp-general', 2), ask('de-damp-ivp-tree', 2), ask('de-damp-graph', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-shm-omega', 2),
+        ask('de-shm-period', 2),
+        ask('de-shm-phase-r', 2),
+        ask('de-damp-case', 2),
+        ask('de-damp-general', 2),
+        ask('de-shm-aux', 2),
+        ask('de-shm-motion-tree', 2),
+        ask('de-shm-phase-steps', 2),
+        ask('de-damp-least', 2),
+        ask('de-damp-ivp-tree', 2),
+        ask('de-shm-verify-steps', 2),
+        ask('de-shm-release', 2),
+        ask('de-shm-phase-tan', 2),
+        ask('de-damp-roots-tree', 2),
+        ask('de-damp-graph', 2),
       ],
     },
   ],

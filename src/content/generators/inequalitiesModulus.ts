@@ -6512,6 +6512,1278 @@ const quadIneqTiles: Generator<DipIneqParams> = {
   solution: dipIneqSolution,
 };
 
+/* ======================================================================
+ * Level 5: Regions with Modulus
+ *
+ * A modulus inequality in $x$ and $y$ is a region of the plane, bounded by a
+ * V or an upside-down V. Every boundary here is $y = s \cdot m|x - a| + c$
+ * with the vertex $(a, c)$ and the steepness $m$ drawn first, so the vertex is
+ * a lattice point; an upside-down V's $x$-intercepts $a \pm \frac{c}{m}$ are
+ * whole because $c$ is drawn a multiple of $m$, and a V of steepness $2$ has
+ * an even $c$ for the same reason.
+ *
+ * A region between two graphs is a V below and an upside-down V above,
+ * $c + |x - a| \le y \le k - |x - b|$. Both have steepness $1$, so their arms
+ * meet at right angles and the region is a rectangle: in $u = x + y$,
+ * $v = y - x$ it is $c + a \le u \le k + b$, $c - a \le v \le k - b$, which is
+ * why it is empty exactly when $k - c < |a - b|$, a square exactly when
+ * $a = b$, and why $k - c + a + b$ is drawn even: that makes the two side
+ * corners whole. The one exception is the kite, a V of steepness $2$ under an
+ * upside-down V of steepness $1$ on the same vertical line, with $k - c$ a
+ * multiple of $3$ so its side corners are whole as well.
+ *
+ * No widget shades the plane, so a question draws a region as Linear
+ * Equations does (`regionSvg` there): squared paper, each boundary a curve,
+ * dashed exactly when its inequality is strict, and a dot for the point in
+ * question. Teaching slides add a fill through `modRegionSvg`.
+ *
+ * An inequality is never typed, since the checker compares values: a rule or
+ * a pair of rules goes through tiles, choice or flow, and `expression` is kept
+ * for a count or a width. Nothing here is calculus, so no slide declares
+ * `source`; the independent check is `inequalitiesModulus.test.ts`, which
+ * reads each inequality off the TeX the learner sees and tests every lattice
+ * point against it.
+ * ==================================================================== */
+
+/** One boundary and its side: $y$ op $s \cdot m|x - a| + c$. */
+export interface ModEdge {
+  /** 1 for a V, -1 for an upside-down V. */
+  s: 1 | -1;
+  /** The steepness of the arms. */
+  m: number;
+  /** The vertex, $(a, c)$. */
+  a: number;
+  c: number;
+  /** The sign as $y$ reads it: `>=` is the region above a V, solid. */
+  op: Op;
+  /** Written the other way round, modulus first: $|x - 2| + 1 < y$. */
+  turned: boolean;
+}
+
+type Pt = [number, number];
+
+const edgeAt = ({ s, m, a, c }: ModEdge) => (x: number) => s * m * Math.abs(x - a) + c;
+
+/** The boundary's right-hand side: `\lvert x - 2 \rvert + 1`, `3 - 2\lvert x + 1 \rvert`. */
+function edgeRhs({ s, m, a, c }: Pick<ModEdge, 's' | 'm' | 'a' | 'c'>): string {
+  const abs = `${m === 1 ? '' : m}${absLin(1, -a)}`;
+  if (s > 0) return c === 0 ? abs : `${abs} ${signedTile(c)}`;
+  return c === 0 ? `-${abs}` : `${c} - ${abs}`;
+}
+
+/** The inequality as the learner reads it. */
+const edgeTex = (e: ModEdge) =>
+  e.turned ? `${edgeRhs(e)} ${OP_TEX[FLIP[e.op]]} y` : `y ${OP_TEX[e.op]} ${edgeRhs(e)}`;
+
+/** The same inequality with $y$ first, for working it through. */
+const edgeYTex = (e: ModEdge) => edgeTex({ ...e, turned: false });
+
+/** Whether a region lies above its boundary. */
+const aboveEdge = (e: ModEdge) => pointsRight(e.op);
+
+function inEdge(e: ModEdge, [x, y]: Pt): boolean {
+  const h = edgeAt(e)(x);
+  if (e.op === '<') return y < h;
+  if (e.op === '<=') return y <= h;
+  if (e.op === '>') return y > h;
+  return y >= h;
+}
+
+const onEdge = (e: ModEdge, [x, y]: Pt) => edgeAt(e)(x) === y;
+const inAll = (edges: readonly ModEdge[], p: Pt) => edges.every((e) => inEdge(e, p));
+const onAny = (edges: readonly ModEdge[], p: Pt) => edges.some((e) => onEdge(e, p));
+
+const ptTex = ([x, y]: Pt) => `(${x}, ${y})`;
+
+/** Every lattice point of the drawn window. */
+const LATTICE: Pt[] = range(-6, 6).flatMap((x) => range(-6, 6).map((y): Pt => [x, y]));
+
+/** The inequalities of a region, one per line. */
+const edgesTex = (edges: readonly ModEdge[]) =>
+  edges.length === 1 ? edgeTex(edges[0]) : `\\begin{gathered} ${edges.map(edgeTex).join(' \\\\ ')} \\end{gathered}`;
+
+const shapeWord = (e: ModEdge) => (e.s > 0 ? 'V' : 'upside-down V');
+const lineWord = (e: ModEdge) => (isStrict(e.op) ? 'dashed' : 'solid');
+
+/* ---------- The picture ---------- */
+
+/** Square, so arms of gradient 1 and -1 are seen to meet at right angles. */
+const REGION_HEIGHT_5 = 280;
+/** `plotSvg`'s own width and inset, which the fill has to agree with. */
+const PLOT_WIDTH = 280;
+const PLOT_PAD = 12;
+
+/**
+ * The region as a filled outline, column by column: from the highest floor
+ * to the lowest ceiling wherever the one is below the other. Sampled every
+ * eighth of a unit, which lands on every vertex and every corner, since those
+ * are whole.
+ */
+function shadePath(edges: readonly ModEdge[]): string {
+  const px = (x: number) => PLOT_PAD + ((x + 6) / 12) * (PLOT_WIDTH - 2 * PLOT_PAD);
+  const py = (y: number) => PLOT_PAD + ((6 - y) / 12) * (REGION_HEIGHT_5 - 2 * PLOT_PAD);
+  const floor = (x: number) => Math.max(-6, ...edges.filter(aboveEdge).map((e) => edgeAt(e)(x)));
+  const ceiling = (x: number) => Math.min(6, ...edges.filter((e) => !aboveEdge(e)).map((e) => edgeAt(e)(x)));
+  const runs: number[][] = [];
+  let run: number[] = [];
+  for (let i = 0; i <= 96; i += 1) {
+    const x = -6 + i / 8;
+    if (floor(x) < ceiling(x)) run.push(x);
+    else if (run.length > 0) {
+      runs.push(run);
+      run = [];
+    }
+  }
+  if (run.length > 0) runs.push(run);
+  return runs
+    .filter((xs) => xs.length > 1)
+    .map((xs) => {
+      const top = xs.map((x) => `${px(x).toFixed(1)},${py(ceiling(x)).toFixed(1)}`);
+      const bottom = [...xs].reverse().map((x) => `${px(x).toFixed(1)},${py(floor(x)).toFixed(1)}`);
+      return `M ${[...top, ...bottom].join(' L ')} Z`;
+    })
+    .join(' ');
+}
+
+/**
+ * A region on squared paper from $-6$ to $6$ each way: each boundary a curve,
+ * dashed exactly when its inequality is strict. `dot` marks a point, and
+ * `shade` fills the region, spliced in straight after the opening tag so the
+ * boundaries draw over its edge.
+ */
+export function modRegionSvg(
+  edges: readonly ModEdge[],
+  opts: { label: string; dot?: Pt; shade?: boolean; vertical?: number; horizontal?: number },
+): string {
+  const svg = plotSvg({
+    xMin: -6,
+    xMax: 6,
+    yMin: -6,
+    yMax: 6,
+    height: REGION_HEIGHT_5,
+    grid: true,
+    curves: edges.map((e) => ({ f: edgeAt(e), dashed: isStrict(e.op) })),
+    marks: opts.dot ? [{ x: opts.dot[0], y: opts.dot[1] }] : [],
+    verticals: opts.vertical === undefined ? [] : [{ x: opts.vertical }],
+    horizontals: opts.horizontal === undefined ? [] : [opts.horizontal],
+    label: opts.label,
+  });
+  if (!opts.shade) return svg;
+  const open = svg.indexOf('>') + 1;
+  return `${svg.slice(0, open)}<path class="plot-shade" d="${shadePath(edges)}" />${svg.slice(open)}`;
+}
+
+function regionLabel(edges: readonly ModEdge[], dot?: Pt): string {
+  const parts = edges.map((e) => `a ${lineWord(e)} ${shapeWord(e)} with its vertex at (${e.a}, ${e.c})`);
+  return `${parts.join(' and ')}${dot ? `, with a dot at (${dot[0]}, ${dot[1]})` : ''}`;
+}
+
+const regionDiagram = (edges: readonly ModEdge[], dot?: Pt): Block => ({
+  kind: 'diagram',
+  svg: modRegionSvg(edges, { dot, label: regionLabel(edges, dot) }),
+});
+
+/* ---------- Drawing boundaries ---------- */
+
+/** A V whose vertex sits low in the window; steepness 2 only with an even c. */
+function drawV(rng: Rng, hard: boolean): Pick<ModEdge, 's' | 'm' | 'a' | 'c'> {
+  const m = hard && rng.chance(0.35) ? 2 : 1;
+  const c = m === 2 ? rng.pick([-4, -2, 0, 2]) : rng.int(hard ? -4 : -3, 2);
+  return { s: 1, m, a: rng.int(-3, 3), c };
+}
+
+/** An upside-down V whose x-intercepts $a \pm \frac{c}{m}$ are whole and on the window. */
+function drawCap(rng: Rng, hard: boolean): Pick<ModEdge, 's' | 'm' | 'a' | 'c'> {
+  return drawUntil(
+    () => {
+      const m = hard && rng.chance(0.35) ? 2 : 1;
+      return { s: -1 as const, m, a: rng.int(-3, 3), c: m * rng.int(1, m === 1 ? 5 : 3) };
+    },
+    ({ m, a, c }) => Math.abs(a) + c / m <= 6,
+    { s: -1, m: 1, a: 0, c: 3 },
+  );
+}
+
+/** A sign: `natural` is the side a V or an upside-down V usually bounds. */
+function drawOp(rng: Rng, s: 1 | -1, natural: number): Op {
+  const wanted: Op[] = s > 0 ? ['>', '>='] : ['<', '<='];
+  return rng.chance(natural) ? rng.pick(wanted) : rng.pick(wanted.map((op) => FLIP[op]));
+}
+
+function drawEdge(rng: Rng, s: 1 | -1, hard: boolean, natural = hard ? 0.7 : 0.85): ModEdge {
+  return {
+    ...(s > 0 ? drawV(rng, hard) : drawCap(rng, hard)),
+    op: drawOp(rng, s, natural),
+    turned: hard && rng.chance(0.4),
+  };
+}
+
+/** A lattice point well inside the window, strictly inside or outside a region. */
+function pickPoint(rng: Rng, edges: readonly ModEdge[], inside: boolean, avoid: readonly ModEdge[] = edges): Pt | undefined {
+  const pool = LATTICE.filter(
+    (p) => Math.abs(p[0]) <= 5 && Math.abs(p[1]) <= 5 && !onAny(avoid, p) && inAll(edges, p) === inside,
+  );
+  return pool.length > 0 ? rng.pick(pool) : undefined;
+}
+
+/** Why a point is in a region or not, one boundary at a time. */
+function tryEdge(e: ModEdge, [x, y]: Pt): SolutionStep {
+  const h = edgeAt(e)(x);
+  const ok = inEdge(e, [x, y]);
+  return {
+    text: `$${edgeYTex(e)}$: at $x = ${x}$ the boundary is at height $${h}$, and $${y} ${OP_TEX[e.op]} ${h}$ is ${ok ? 'true' : 'false'}.`,
+  };
+}
+
+/** How to read a strict or inclusive sign on the picture. */
+const dashNote = (e: ModEdge) =>
+  isStrict(e.op)
+    ? `The sign is strict, so the ${shapeWord(e)} is **dashed**: points on it are left out.`
+    : `The sign includes equality, so the ${shapeWord(e)} is **solid**: points on it are in.`;
+
+/* ---------- Lesson 1: above or below a V ---------- */
+
+const T_SOLID = '\\text{solid}';
+const T_DASHED = '\\text{dashed}';
+const T_ABOVE = '\\text{above}';
+const T_BELOW = '\\text{below}';
+
+/**
+ * Read a region off its inequality: where the V turns, whether it is drawn
+ * solid or dashed, and which side is in. Difficulty 2 has steeper Vs and
+ * writes some with the modulus first, where the side has to be read from
+ * $y$'s end of the sign.
+ */
+const regionVertexTiles: Generator<ModEdge> = {
+  id: 'mod-region-vertex-tiles',
+  sample: (rng, difficulty) => drawEdge(rng, 1, difficulty > 1),
+  render: (e): Slide => {
+    const answer = [`${e.a}`, `${e.c}`, isStrict(e.op) ? T_DASHED : T_SOLID, aboveEdge(e) ? T_ABOVE : T_BELOW];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'This region is bounded by a V. Place the vertex, whether the V is drawn solid or dashed, and which side of it is the region.',
+        },
+        { kind: 'display', tex: edgeTex(e) },
+      ],
+      template: '\\text{vertex } ({0}, {1}) \\quad {2} \\text{, region } {3}',
+      bank: bankOf(answer, [`${-e.a}`, `${-e.c}`, `${e.a + 1}`, `${e.c - 1}`, T_SOLID, T_DASHED, T_ABOVE, T_BELOW]),
+      answer,
+    };
+  },
+  solution: (e) => [
+    { text: `The modulus is zero at $x = ${e.a}$, so the V turns there, at height $${e.c}$: the vertex is $(${e.a}, ${e.c})$.` },
+    ...(e.turned ? [{ text: 'Read it from $y$\'s side first.', tex: edgeYTex(e) }] : []),
+    { text: dashNote(e) },
+    { text: `$y$ is asked to be ${aboveEdge(e) ? 'greater' : 'less'} than the V's height, so the region is **${aboveEdge(e) ? 'above' : 'below'}** it.` },
+  ],
+};
+
+interface TestParams extends ModEdge {
+  point: Pt;
+}
+
+/**
+ * Test a point by working the boundary's height out at its $x$: the inside,
+ * its modulus, the height, then how far the point is above it. A point left
+ * of the vertex has a negative inside, which is where the modulus matters.
+ */
+function pointTestTree(id: string, s: 1 | -1): Generator<TestParams> {
+  const shape = s > 0 ? 'V' : 'upside-down V';
+  return {
+    id,
+    sample: (rng, difficulty) => {
+      const hard = difficulty > 1;
+      return drawUntil(
+        () => {
+          const e = drawEdge(rng, s, hard);
+          const x = rng.chance(0.5) ? rng.int(-6, e.a - 1) : rng.int(e.a + 1, 6);
+          return { ...e, point: [x, rng.int(-6, 6)] as Pt };
+        },
+        (p) => p.point[0] >= -6 && p.point[0] <= 6 && Math.abs(edgeAt(p)(p.point[0])) <= 9,
+        { s, m: 1, a: 1, c: s > 0 ? -1 : 3, op: s > 0 ? '>' : '<=', turned: false, point: [-2, 1] },
+      );
+    },
+    render: (p): Slide => {
+      const [x, y] = p.point;
+      const inside = x - p.a;
+      const h = edgeAt(p)(x);
+      const answer = [`${inside}`, `${Math.abs(inside)}`, `${h}`, `${y - h}`];
+      return {
+        kind: 'tree',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `Is $${ptTex(p.point)}$ in this region? At $x = ${x}$, fill in the inside of the modulus, then the modulus, then the height of the ${shape}, then how far $y = ${y}$ is above that height (negative if below).`,
+          },
+        ],
+        expression: edgeTex(p),
+        nodes: [
+          { id: 'inside', from: [] },
+          { id: 'abs', from: ['inside'] },
+          { id: 'height', from: ['abs'] },
+          { id: 'gap', from: ['height'] },
+        ],
+        bank: treeBank(answer, [-inside, -h, h - y, h + p.s], h),
+        answer,
+      };
+    },
+    solution: (p) => {
+      const [x, y] = p.point;
+      const h = edgeAt(p)(x);
+      const ok = inEdge(p, p.point);
+      return [
+        { text: `At $x = ${x}$ the inside is $${x} ${signedTile(-p.a)} = ${x - p.a}$, and its modulus is $${Math.abs(x - p.a)}$.` },
+        { text: `So the ${shape} is at height $${h}$ there, and $y = ${y}$ is $${y - h}$ from it.` },
+        {
+          text:
+            y === h
+              ? `The point is on the boundary, which is ${lineWord(p)}: it is ${ok ? '' : '**not** '}in the region.`
+              : `The point is ${y > h ? 'above' : 'below'} the ${shape}, and the region is ${aboveEdge(p) ? 'above' : 'below'} it: the point is ${ok ? '' : '**not** '}in the region.`,
+          tex: `${y} ${OP_TEX[p.op]} ${h} \\text{ is ${ok ? 'true' : 'false'}}`,
+        },
+      ];
+    },
+  };
+}
+
+const regionTestTree = pointTestTree('mod-region-test-tree', 1);
+
+interface PointChoiceParams {
+  edges: ModEdge[];
+  point: Pt;
+  wrong: Pt[];
+}
+
+/**
+ * Three points that are not in the region: one on a dashed boundary when
+ * there is one, which is the tempting wrong answer, one just past the
+ * boundary from the right answer, and the rest from anywhere outside.
+ */
+function wrongPoints(rng: Rng, edges: readonly ModEdge[], point: Pt): Pt[] {
+  const outside = LATTICE.filter((p) => Math.abs(p[0]) <= 5 && Math.abs(p[1]) <= 5 && !inAll(edges, p));
+  const onDashed = outside.filter((p) => edges.some((e) => isStrict(e.op) && onEdge(e, p)));
+  const near = outside.filter((p) => p[0] === point[0] || p[1] === point[1]);
+  const out: Pt[] = [];
+  const add = (p: Pt | undefined) => {
+    if (p && !out.some((q) => q[0] === p[0] && q[1] === p[1])) out.push(p);
+  };
+  if (onDashed.length > 0) add(rng.pick(onDashed));
+  if (near.length > 0) add(rng.pick(near));
+  for (let tries = 0; out.length < 3 && tries < 50; tries += 1) add(rng.pick(outside));
+  return out;
+}
+
+function pointChoiceSlide({ edges, point, wrong }: PointChoiceParams): Slide {
+  return pickOne(
+    [
+      { kind: 'prose', text: `Which of these points is in the region${edges.length > 1 ? ' where both hold' : ''}?` },
+      { kind: 'display', tex: edgesTex(edges) },
+    ],
+    ptTex(point),
+    wrong.map(ptTex),
+  );
+}
+
+function pointChoiceSolution({ edges, point, wrong }: PointChoiceParams): SolutionStep[] {
+  const [first] = wrong;
+  const failed = edges.find((e) => !inEdge(e, first)) ?? edges[0];
+  return [
+    ...edges.map((e) => tryEdge(e, point)),
+    { text: `So $${ptTex(point)}$ is in the region.` },
+    { text: `Against that, $${ptTex(first)}$ fails:` },
+    tryEdge(failed, first),
+  ];
+}
+
+/**
+ * Which point is in the region above or below a V? When a boundary is dashed
+ * one wrong answer sits on it; when it is solid the right answer sometimes
+ * does. Difficulty 2 has steeper Vs, regions below them, and the modulus
+ * written first.
+ */
+const regionPointChoice: Generator<PointChoiceParams> = {
+  id: 'mod-region-point-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const e = drawEdge(rng, 1, hard, hard ? 0.6 : 0.85);
+        const edge = LATTICE.filter((p) => Math.abs(p[0]) <= 5 && Math.abs(p[1]) <= 5 && onEdge(e, p));
+        const point = !isStrict(e.op) && edge.length > 0 && rng.chance(0.35) ? rng.pick(edge) : pickPoint(rng, [e], true);
+        return { edges: [e], point: point ?? ([0, 0] as Pt), wrong: point ? wrongPoints(rng, [e], point) : [] };
+      },
+      (p) => p.wrong.length === 3 && inAll(p.edges, p.point),
+      { edges: [{ s: 1, m: 1, a: 1, c: -2, op: '>', turned: false }], point: [1, 0], wrong: [[1, -2], [3, 0], [-2, 0]] },
+    );
+  },
+  render: pointChoiceSlide,
+  solution: pointChoiceSolution,
+};
+
+interface EdgeSliderParams extends ModEdge {
+  t: number;
+}
+
+/**
+ * The lowest (or highest) whole $y$ in the region on a vertical line. The
+ * marker lands on the boundary where it is solid and one step inside it where
+ * it is dashed, which is the whole question: $y > 3$ does not allow $3$.
+ * Sometimes the line is through the vertex, so the marker sits on it.
+ */
+function edgeSlider(id: string, s: 1 | -1): Generator<EdgeSliderParams> {
+  const lowest = s > 0;
+  const extreme = (p: EdgeSliderParams) => edgeAt(p)(p.t) + (isStrict(p.op) ? (lowest ? 1 : -1) : 0);
+  return {
+    id,
+    sample: (rng, difficulty) => {
+      const hard = difficulty > 1;
+      return drawUntil(
+        () => {
+          const e = drawEdge(rng, s, hard, 1);
+          return { ...e, t: rng.chance(0.25) ? e.a : rng.int(-5, 5) };
+        },
+        (p) => Math.abs(edgeAt(p)(p.t)) <= 5 && Math.abs(extreme(p)) <= 5,
+        { s, m: 1, a: 0, c: 0, op: lowest ? '>' : '<', turned: false, t: 2 },
+      );
+    },
+    render: (p): Slide => ({
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The region is $${edgeTex(p)}$. On the dashed line $x = ${p.t}$, slide to the **${lowest ? 'lowest' : 'highest'}** whole-number $y$ that is in the region.`,
+        },
+      ],
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: extreme(p),
+      readout: 'y = {v}',
+      figure: {
+        svg: modRegionSvg([p], { vertical: p.t, label: `${regionLabel([p])}, and a dashed vertical line at x = ${p.t}` }),
+        axis: 'y',
+        ...markerWindow(-6, 6, 'y', REGION_HEIGHT_5),
+      },
+    }),
+    solution: (p) => {
+      const h = edgeAt(p)(p.t);
+      return [
+        { text: `At $x = ${p.t}$ the boundary is at $${edgeRhs(p).replace(/x/g, `(${p.t})`)} = ${h}$.` },
+        {
+          text: isStrict(p.op)
+            ? `The sign is strict, so $y = ${h}$ itself is left out: the ${lowest ? 'lowest' : 'highest'} whole number is $${extreme(p)}$.`
+            : `The sign includes equality, so $y = ${h}$ is in: it is the ${lowest ? 'lowest' : 'highest'}.`,
+        },
+      ];
+    },
+  };
+}
+
+const lowestSlider = edgeSlider('mod-region-lowest-slider', 1);
+
+/* ---------- Lesson 2: under an upside-down V ---------- */
+
+/**
+ * The vertex and the $x$-intercepts of an upside-down V. With steepness $1$
+ * the intercepts are $k$ either side of the vertex; difficulty 2 has
+ * steepness $2$ as well, where they are only $\frac{k}{2}$ either side, and
+ * writes some with the modulus first.
+ */
+const capInterceptsTiles: Generator<ModEdge> = {
+  id: 'mod-cap-intercepts-tiles',
+  sample: (rng, difficulty) => drawEdge(rng, -1, difficulty > 1),
+  render: (e): Slide => {
+    const half = e.c / e.m;
+    const answer = [`${e.a}`, `${e.c}`, `${e.a - half}`, `${e.a + half}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'The boundary of this region is an upside-down V. Place its vertex, then where it crosses the $x$-axis, the left-hand crossing first.',
+        },
+        { kind: 'display', tex: edgeTex(e) },
+      ],
+      template: '\\text{vertex } ({0}, {1}) \\quad x = {2} \\text{ and } x = {3}',
+      bank: bankOf(answer, [`${-e.a}`, `${-e.a - half}`, `${-e.a + half}`, `${e.a - e.c}`, `${e.a + e.c}`, `${-e.c}`]),
+      answer,
+    };
+  },
+  solution: (e) => {
+    const half = e.c / e.m;
+    return [
+      { text: `The modulus is zero at $x = ${e.a}$, where the height is $${e.c}$: the vertex is $(${e.a}, ${e.c})$, the top of the upside-down V.` },
+      { text: 'It crosses the $x$-axis where the height is zero.', tex: `${edgeRhs(e)} = 0` },
+      { tex: `${e.m === 1 ? '' : e.m}${absLin(1, -e.a)} = ${e.c}${e.m === 1 ? '' : ` \\quad \\Rightarrow \\quad ${absLin(1, -e.a)} = ${half}`}` },
+      { text: `So $x = ${e.a} - ${half} = ${e.a - half}$ or $x = ${e.a} + ${half} = ${e.a + half}$.` },
+    ];
+  },
+};
+
+const capTestTree = pointTestTree('mod-cap-test-tree', -1);
+
+const highestSlider = edgeSlider('mod-region-highest-slider', -1);
+
+const O_ABOVE = 'Above the origin';
+const O_THROUGH = 'Through the origin';
+const O_BELOW = 'Below the origin';
+const R_ABOVE = 'Above it';
+const R_BELOW = 'Below it';
+const B_YES = 'Yes: the sign is $\\le$ or $\\ge$';
+const B_NO = 'No: the sign is $<$ or $>$';
+const ORIGIN_IN = 'The origin is in the region.';
+const ORIGIN_OUT = 'The origin is not in the region.';
+
+/**
+ * Is the origin in the region? Where the boundary is at $x = 0$ first, then
+ * which side is in, or, when the boundary runs through the origin, whether
+ * the boundary itself counts. Difficulty 2 mixes Vs in and writes some with
+ * the modulus first.
+ */
+const originFlow: Generator<ModEdge> = {
+  id: 'mod-origin-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const s = hard && rng.chance(0.4) ? 1 : -1;
+    const e = drawEdge(rng, s, hard, hard ? 0.6 : 0.8);
+    // A quarter of the time the boundary runs through the origin, which puts
+    // the question on whether the boundary counts.
+    return rng.chance(0.25) && e.a !== 0 ? { ...e, c: -e.s * e.m * Math.abs(e.a) } : e;
+  },
+  render: (e): Slide => {
+    const h0 = edgeAt(e)(0);
+    const side = aboveEdge(e) ? R_ABOVE : R_BELOW;
+    const answer = h0 === 0 ? [O_THROUGH, isStrict(e.op) ? B_NO : B_YES] : [h0 > 0 ? O_ABOVE : O_BELOW, side];
+    const sideStep = (id: string, originAbove: boolean) => ({
+      id,
+      ask: 'Is the region above the boundary or below it?',
+      branches: [
+        { label: R_ABOVE, outcome: originAbove ? ORIGIN_IN : ORIGIN_OUT },
+        { label: R_BELOW, outcome: originAbove ? ORIGIN_OUT : ORIGIN_IN },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'Is the origin, $(0, 0)$, in this region?' }],
+      subject: edgeTex(e),
+      steps: [
+        {
+          id: 'height',
+          ask: 'At $x = 0$, where is the boundary?',
+          branches: [
+            { label: O_ABOVE, to: 'origin-below' },
+            { label: O_THROUGH, to: 'on' },
+            { label: O_BELOW, to: 'origin-above' },
+          ],
+        },
+        sideStep('origin-below', false),
+        sideStep('origin-above', true),
+        {
+          id: 'on',
+          ask: 'Is the boundary part of the region?',
+          branches: [
+            { label: B_YES, outcome: ORIGIN_IN },
+            { label: B_NO, outcome: ORIGIN_OUT },
+          ],
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (e) => {
+    const h0 = edgeAt(e)(0);
+    const ok = inEdge(e, [0, 0]);
+    return [
+      { text: `At $x = 0$ the boundary is at $${edgeRhs(e).replace(/x/g, '(0)')} = ${h0}$.` },
+      h0 === 0
+        ? { text: `It runs through the origin. ${dashNote(e)}` }
+        : { text: `That is ${h0 > 0 ? 'above' : 'below'} the origin, and the region is ${aboveEdge(e) ? 'above' : 'below'} the boundary.` },
+      { text: ok ? ORIGIN_IN : ORIGIN_OUT, tex: `0 ${OP_TEX[e.op]} ${h0} \\text{ is ${ok ? 'true' : 'false'}}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: between two graphs ---------- */
+
+/** A V below and an upside-down V above: $c + m|x - a| \le y \le k - |x - b|$. */
+interface Between {
+  low: ModEdge;
+  high: ModEdge;
+}
+
+type BetweenShape = 'square' | 'rectangle' | 'kite' | 'empty';
+
+function between(a: number, c: number, b: number, k: number, lowOp: Op, highOp: Op, m = 1): Between {
+  return {
+    low: { s: 1, m, a, c, op: lowOp, turned: false },
+    high: { s: -1, m: 1, a: b, c: k, op: highOp, turned: false },
+  };
+}
+
+const edgesOf = ({ low, high }: Between) => [low, high];
+
+/** Where the two boundaries meet, left to right. Every corner drawn here is whole. */
+function corners({ low, high }: Between): Pt[] {
+  return range(-6, 6)
+    .filter((x) => edgeAt(low)(x) === edgeAt(high)(x))
+    .map((x): Pt => [x, edgeAt(low)(x)]);
+}
+
+/** Which shape the boundaries enclose, from how they were drawn. */
+function shapeOf({ low, high }: Between): BetweenShape {
+  if (high.c - low.c < low.m * Math.abs(low.a - high.a)) return 'empty';
+  if (low.m === 2) return 'kite';
+  return low.a === high.a ? 'square' : 'rectangle';
+}
+
+function fitsShape(B: Between, shape: BetweenShape, maxGap: number): boolean {
+  const { low, high } = B;
+  const gap = high.c - low.c;
+  if (shapeOf(B) !== shape || gap > maxGap) return false;
+  if (shape === 'empty') return gap >= 1 && Math.abs(low.a - high.a) - gap >= 1;
+  // Exactly two whole crossings on the window: the side corners. A corner
+  // off the lattice is missed by `corners`, which is what rejects it. The top
+  // vertex clears the V by two, so no rectangle is a sliver.
+  return gap >= Math.abs(low.a - high.a) + 2 && corners(B).length === 2;
+}
+
+const BETWEEN_FALLBACK: Record<BetweenShape, Between> = {
+  square: between(0, -2, 0, 2, '>=', '<='),
+  rectangle: between(0, -2, 1, 3, '>=', '<='),
+  kite: between(0, -3, 0, 3, '>=', '<=', 2),
+  empty: between(-2, 0, 2, 2, '>=', '<='),
+};
+
+/**
+ * A region between a V and an upside-down V of the shape asked for. The side
+ * corners are whole because $k - c + a + b$ comes out even, which the draw is
+ * checked for through `corners` rather than trusted.
+ */
+function sampleBetween(rng: Rng, shape: BetweenShape, strict: boolean, maxGap = 6): Between {
+  const lowOp = (): Op => (strict && rng.chance(0.5) ? '>' : '>=');
+  const highOp = (): Op => (strict && rng.chance(0.5) ? '<' : '<=');
+  return drawUntil(
+    () => {
+      const a = rng.int(-2, 2);
+      const offsets = shape === 'empty' ? [-4, -3, 3, 4] : shape === 'rectangle' ? [-2, -1, 1, 2] : [0];
+      const b = a + rng.pick(offsets);
+      return between(a, rng.int(-5, 0), b, rng.int(1, 6), lowOp(), highOp(), shape === 'kite' ? 2 : 1);
+    },
+    (B) => fitsShape(B, shape, maxGap),
+    BETWEEN_FALLBACK[shape],
+  );
+}
+
+/** One arm of a boundary as a straight line, $y = px + q$, on the given side of its vertex. */
+function armOf(e: ModEdge, side: 1 | -1): string {
+  const slope = e.s * e.m * side;
+  return `y = ${linTex(slope, e.c - slope * e.a)}`;
+}
+
+function cornerWorking(B: Between, side: 1 | -1): SolutionStep[] {
+  const [left, right] = corners(B);
+  const [x, y] = side > 0 ? right : left;
+  return [
+    {
+      text: `The ${side > 0 ? 'right' : 'left'}-hand corner is where the ${side > 0 ? 'right' : 'left'} arms meet: $${armOf(B.low, side)}$ on the V and $${armOf(B.high, side)}$ on the upside-down V.`,
+    },
+    { text: `They meet at $x = ${x}$, where both are at $y = ${y}$.`, tex: ptTex([x, y]) },
+  ];
+}
+
+const betweenPrompt = (B: Between, text: string): Block[] => [
+  { kind: 'prose', text },
+  { kind: 'display', tex: edgesTex(edgesOf(B)) },
+];
+
+/**
+ * The two side corners of the region between a V and an upside-down V. The
+ * top and bottom corners are the vertices, read straight off; the side ones
+ * are where the arms cross, as `mod-cross-points` finds two Vs crossing.
+ * Difficulty 1 is a square, the vertices one above the other; difficulty 2 a
+ * rectangle, where the two sides are no longer mirror images.
+ */
+const betweenCornersTiles: Generator<Between> = {
+  id: 'mod-between-corners-tiles',
+  sample: (rng, difficulty) => sampleBetween(rng, difficulty > 1 ? 'rectangle' : 'square', difficulty > 1),
+  render: (B): Slide => {
+    const [left, right] = corners(B);
+    const answer = [left, right].flatMap(([x, y]) => [`${x}`, `${y}`]);
+    const { low, high } = B;
+    return {
+      kind: 'tiles',
+      prompt: betweenPrompt(B, 'The region where both hold has four corners. Two are the vertices. Place the other two, the left-hand one first.'),
+      template: '({0}, {1}) \\quad \\text{and} \\quad ({2}, {3})',
+      bank: bankOf(answer, [`${low.a}`, `${low.c}`, `${high.a}`, `${high.c}`, `${-left[0]}`, `${right[1] + 1}`, `${left[1] - 1}`]),
+      answer,
+    };
+  },
+  solution: (B) => [
+    { text: `The bottom corner is the V's vertex, $(${B.low.a}, ${B.low.c})$, and the top one the upside-down V's, $(${B.high.a}, ${B.high.c})$.` },
+    ...cornerWorking(B, -1),
+    ...cornerWorking(B, 1),
+  ],
+};
+
+interface CornerSliderParams extends Between {
+  right: boolean;
+}
+
+/** Slide to one side corner, which the marker then sits on. */
+const betweenCornerSlider: Generator<CornerSliderParams> = {
+  id: 'mod-between-corner-slider',
+  sample: (rng, difficulty) => ({
+    ...sampleBetween(rng, difficulty > 1 ? 'rectangle' : 'square', difficulty > 1),
+    right: rng.chance(0.5),
+  }),
+  render: (p): Slide => {
+    const [left, right] = corners(p);
+    return {
+      kind: 'slider',
+      prompt: betweenPrompt(p, `Slide to the $x$-coordinate of the region's **${p.right ? 'right' : 'left'}-hand** corner, where the two graphs cross.`),
+      min: -6,
+      max: 6,
+      step: 1,
+      answer: (p.right ? right : left)[0],
+      readout: 'x = {v}',
+      figure: {
+        svg: modRegionSvg(edgesOf(p), { label: regionLabel(edgesOf(p)) }),
+        ...markerWindow(-6, 6),
+      },
+    };
+  },
+  solution: (p) => cornerWorking(p, p.right ? 1 : -1),
+};
+
+const SHAPE_SQUARE = 'A square';
+const SHAPE_RECTANGLE = 'A rectangle that is not a square';
+const SHAPE_KITE = 'A kite that is not a square';
+const SHAPE_EMPTY = 'Nothing: no point satisfies both';
+const SHAPE_LABEL: Record<BetweenShape, string> = {
+  square: SHAPE_SQUARE,
+  rectangle: SHAPE_RECTANGLE,
+  kite: SHAPE_KITE,
+  empty: SHAPE_EMPTY,
+};
+
+/**
+ * What shape the two graphs enclose. Arms of gradient $1$ and $-1$ meet at
+ * right angles, so a V and an upside-down V of steepness $1$ make a
+ * rectangle, a square when the vertices are one above the other, and nothing
+ * when the top vertex is too low to reach over the V. Difficulty 2 adds the
+ * kite, a steeper V under the same vertex.
+ */
+const betweenShape: Generator<Between> = {
+  id: 'mod-between-shape',
+  sample: (rng, difficulty) => {
+    const shapes: BetweenShape[] = difficulty > 1 ? ['square', 'rectangle', 'kite', 'empty'] : ['square', 'rectangle', 'rectangle', 'empty'];
+    return sampleBetween(rng, rng.pick(shapes), false);
+  },
+  render: (B): Slide => {
+    const correct = SHAPE_LABEL[shapeOf(B)];
+    return pickOne(
+      betweenPrompt(B, 'What shape is the region where both of these hold?'),
+      correct,
+      Object.values(SHAPE_LABEL).filter((label) => label !== correct),
+      false,
+      edgesTex(edgesOf(B)),
+    );
+  },
+  solution: (B) => {
+    const { low, high } = B;
+    const shape = shapeOf(B);
+    if (shape === 'empty') {
+      return [
+        { text: `The upside-down V's vertex is $(${high.a}, ${high.c})$. Above $x = ${high.a}$ the V is at $${edgeAt(low)(high.a)}$, higher than that.` },
+        { text: 'So the upside-down V is below the V everywhere, and no point is above one and under the other.' },
+      ];
+    }
+    const [left, right] = corners(B);
+    const steps: SolutionStep[] = [
+      { text: `The corners are the two vertices, $(${low.a}, ${low.c})$ and $(${high.a}, ${high.c})$, and the crossings $${ptTex(left)}$ and $${ptTex(right)}$.` },
+    ];
+    if (shape === 'kite') {
+      return [
+        ...steps,
+        { text: 'The V has gradients $2$ and $-2$, the upside-down V $1$ and $-1$: the arms do not meet at right angles.' },
+        { text: `Both vertices are on $x = ${low.a}$, so the two halves mirror each other: a kite.` },
+      ];
+    }
+    return [
+      ...steps,
+      { text: 'Every arm has gradient $1$ or $-1$, so neighbouring sides meet at right angles: a rectangle.' },
+      {
+        text:
+          shape === 'square'
+            ? `Both vertices are on $x = ${low.a}$, so all four sides are the same length: a square.`
+            : 'The vertices are not one above the other, so one pair of sides is longer than the other.',
+      },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: reading a region ---------- */
+
+/** A single boundary for reading off a picture, and a dot well inside the region. */
+interface ReadParams {
+  edges: ModEdge[];
+  dot: Pt;
+}
+
+function sampleRead(rng: Rng, difficulty: number): ReadParams {
+  const hard = difficulty > 1;
+  return drawUntil(
+    () => {
+      const edges = hard
+        ? edgesOf(sampleBetween(rng, rng.pick(['square', 'rectangle']), true, 6))
+        : [{ ...drawEdge(rng, rng.chance(0.5) ? 1 : -1, false, 0.7), turned: false }];
+      return { edges, dot: pickPoint(rng, edges, true) ?? ([9, 9] as Pt) };
+    },
+    ({ edges, dot }) => dot[0] !== 9 && inAll(edges, dot),
+    { edges: [{ s: 1, m: 1, a: 1, c: -2, op: '>=', turned: false }], dot: [1, 2] },
+  );
+}
+
+/** Right-hand sides a slip gives: the vertex's $x$ read with its sign turned, the height's, or the V the wrong way up. */
+function slipRhs(e: ModEdge): string[] {
+  const out = [
+    edgeRhs({ ...e, a: -e.a }),
+    edgeRhs({ ...e, c: -e.c }),
+    edgeRhs({ ...e, s: e.s > 0 ? -1 : 1 }),
+    edgeRhs({ ...e, a: e.a + 1 }),
+  ];
+  return out.filter((tex) => tex !== edgeRhs(e));
+}
+
+function readWorking({ edges, dot }: ReadParams): SolutionStep[] {
+  const steps: SolutionStep[] = [];
+  for (const e of edges) {
+    steps.push(
+      {
+        text: `The ${shapeWord(e)} has its vertex at $(${e.a}, ${e.c})$${e.m === 1 ? '' : ` and arms of gradient $\\pm ${e.m}$`}: $y = ${edgeRhs(e)}$.`,
+      },
+      {
+        text: `The dot is ${aboveEdge(e) ? 'above' : 'below'} it and it is ${lineWord(e)}, so the sign is $${OP_TEX[e.op]}$.`,
+        tex: edgeTex(e),
+      },
+    );
+  }
+  const checks = edges.map((e) => `$${dot[1]} ${OP_TEX[e.op]} ${edgeAt(e)(dot[0])}$`).join(' and ');
+  steps.push({ text: `Check with the dot, $${ptTex(dot)}$: ${checks} ${edges.length > 1 ? 'both hold' : 'holds'}.` });
+  return steps;
+}
+
+const readPrompt = (p: ReadParams, text: string): Block[] => [{ kind: 'prose', text }, regionDiagram(p.edges, p.dot)];
+
+/**
+ * Build the inequality from the picture. The dot says which side is the
+ * region and the line says whether the boundary is in; the slips offered
+ * read the vertex with a sign turned or the V the wrong way up. Difficulty 2
+ * is a region between two graphs, the V first.
+ */
+const readRegionTiles: Generator<ReadParams> = {
+  id: 'mod-read-region-tiles',
+  sample: sampleRead,
+  render: (p): Slide => {
+    const answer = p.edges.flatMap((e) => [OP_TEX[e.op], edgeRhs(e)]);
+    const two = p.edges.length > 1;
+    return {
+      kind: 'tiles',
+      prompt: readPrompt(
+        p,
+        two
+          ? 'The dot is in the region, and a dashed line is left out. Build the two inequalities, the V first.'
+          : 'The dot is in the region, and a dashed line is left out. Build the inequality.',
+      ),
+      template: two ? 'y {0} {1} \\quad \\text{and} \\quad y {2} {3}' : 'y {0} {1}',
+      bank: bankOf(answer, [...Object.values(OP_TEX), ...p.edges.flatMap(slipRhs).slice(0, 3)]),
+      answer,
+    };
+  },
+  solution: readWorking,
+};
+
+/** The rule or rules as one choice label, stacked when there are two. */
+const rulesTex = (edges: readonly ModEdge[]) => edgesTex(edges);
+
+/**
+ * Which rule is this region? The wrong options each change one thing: the
+ * line solid for dashed, the side, or the vertex. Difficulty 2 is a region
+ * between two graphs.
+ */
+const readRegionMatch: Generator<ReadParams> = {
+  id: 'mod-read-region-match',
+  sample: sampleRead,
+  render: (p): Slide => {
+    const which = hashSeed(rulesTex(p.edges)) % p.edges.length;
+    const change = (f: (e: ModEdge) => ModEdge) => rulesTex(p.edges.map((e, idx) => (idx === which ? f(e) : e)));
+    return pickOne(
+      readPrompt(p, 'The dot is in the region, and a dashed line is left out. Which describes the region?'),
+      rulesTex(p.edges),
+      [
+        change((e) => ({ ...e, op: TOGGLE[e.op] })),
+        change((e) => ({ ...e, op: FLIP[e.op] })),
+        change((e) => (e.a !== 0 ? { ...e, a: -e.a } : { ...e, c: e.c + (e.s > 0 ? 1 : -1) })),
+      ],
+    );
+  },
+  solution: readWorking,
+};
+
+type Fault = 'none' | 'dash' | 'side' | 'vertex';
+
+interface CheckParams {
+  edges: ModEdge[];
+  /** The boundaries as drawn: the real ones, with at most one mistake. */
+  drawn: ModEdge[];
+  dot: Pt;
+  fault: Fault;
+}
+
+const CHECK_RIGHT = 'Yes, it is right';
+const CHECK_DASH = 'No: solid and dashed are the wrong way round';
+const CHECK_SIDE = 'No: the dot is not in the region';
+const CHECK_VERTEX = 'No: a vertex is in the wrong place';
+const CHECK_LABEL: Record<Fault, string> = { none: CHECK_RIGHT, dash: CHECK_DASH, side: CHECK_SIDE, vertex: CHECK_VERTEX };
+
+/**
+ * Does this picture show the region? The dot marks a point meant to be in it.
+ * At most one thing is wrong: a boundary solid that should be dashed or the
+ * other way, the dot outside the region, or a vertex moved. The dot is kept
+ * inside what is drawn whenever the dot is not the mistake, so only one
+ * answer is ever right. Difficulty 2 is a region between two graphs.
+ */
+const regionPictureCheck: Generator<CheckParams> = {
+  id: 'mod-region-picture-check',
+  sample: (rng, difficulty) => {
+    const fault = rng.pick<Fault>(['none', 'dash', 'side', 'vertex']);
+    return drawUntil(
+      () => {
+        const { edges } = sampleRead(rng, difficulty);
+        const which = rng.int(0, edges.length - 1);
+        const move = (e: ModEdge): ModEdge => {
+          if (fault === 'dash') return { ...e, op: TOGGLE[e.op] };
+          if (fault !== 'vertex') return e;
+          return rng.chance(0.5) && e.a !== 0 ? { ...e, a: -e.a } : { ...e, a: e.a + rng.pick([-1, 1]) };
+        };
+        const drawn = edges.map((e, idx) => (idx === which ? move(e) : e));
+        const everything = [...edges, ...drawn];
+        const dot = fault === 'side' ? pickPoint(rng, edges, false, everything) : pickPoint(rng, [...edges, ...drawn], true, everything);
+        return { edges, drawn, dot: dot ?? ([9, 9] as Pt), fault };
+      },
+      (p) => p.dot[0] !== 9,
+      { edges: [{ s: 1, m: 1, a: 1, c: -2, op: '>=', turned: false }], drawn: [{ s: 1, m: 1, a: 1, c: -2, op: '>=', turned: false }], dot: [1, 2], fault: 'none' },
+    );
+  },
+  render: (p): Slide =>
+    pickOne(
+      [
+        {
+          kind: 'prose',
+          text: `Does this picture show the region${p.edges.length > 1 ? ' where both hold' : ''}? The dot is meant to be a point in it.`,
+        },
+        { kind: 'display', tex: edgesTex(p.edges) },
+        regionDiagram(p.drawn, p.dot),
+      ],
+      CHECK_LABEL[p.fault],
+      Object.values(CHECK_LABEL).filter((label) => label !== CHECK_LABEL[p.fault]),
+      false,
+      `${edgesTex(p.edges)}#${ptTex(p.dot)}`,
+    ),
+  solution: (p) => {
+    const steps: SolutionStep[] = p.edges.map((e) => ({
+      text: `$${edgeTex(e)}$ is a ${lineWord(e)} ${shapeWord(e)} with its vertex at $(${e.a}, ${e.c})$.`,
+    }));
+    const idx = p.edges.findIndex((e, i) => JSON.stringify(e) !== JSON.stringify(p.drawn[i]));
+    if (p.fault === 'dash') steps.push({ text: `But the picture draws the ${shapeWord(p.edges[idx])} ${lineWord(p.drawn[idx])}.` });
+    if (p.fault === 'vertex') steps.push({ text: `But the picture puts that vertex at $(${p.drawn[idx].a}, ${p.drawn[idx].c})$.` });
+    if (p.fault === 'side') steps.push(...p.edges.map((e) => tryEdge(e, p.dot)), { text: 'So the dot is not in the region.' });
+    if (p.fault === 'none') steps.push({ text: 'The picture matches, and the dot is in the region.' });
+    return steps;
+  },
+};
+
+const F_V = 'A V';
+const F_CAP = 'An upside-down V';
+const F_ABOVE = 'Above it';
+const F_BELOW = 'Below it';
+const F_SOLID = 'Solid';
+const F_DASHED = 'Dashed';
+
+/**
+ * Walk from the picture to the inequality: which way up the boundary is,
+ * which side the dot is on, and whether the line is solid. Every path ends
+ * in a different inequality with the same vertex, so a wrong turn is visible.
+ * Difficulty 2 has steeper boundaries.
+ */
+const readRegionFlow: Generator<ModEdge & { dot: Pt }> = {
+  id: 'mod-read-region-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => {
+        const e = { ...drawEdge(rng, rng.chance(0.5) ? 1 : -1, hard, 0.6), turned: false };
+        return { ...e, dot: pickPoint(rng, [e], true) ?? ([9, 9] as Pt) };
+      },
+      (p) => p.dot[0] !== 9,
+      { s: 1, m: 1, a: 1, c: -2, op: '>=', turned: false, dot: [1, 2] },
+    );
+  },
+  render: (p): Slide => {
+    const e: ModEdge = { s: p.s, m: p.m, a: p.a, c: p.c, op: p.op, turned: false };
+    const outcome = (s: 1 | -1, up: boolean, solid: boolean) => {
+      const op: Op = up ? (solid ? '>=' : '>') : solid ? '<=' : '<';
+      return `$${edgeTex({ ...e, s, op })}$`;
+    };
+    const lineStep = (id: string, s: 1 | -1, up: boolean) => ({
+      id,
+      ask: 'Is the boundary solid or dashed?',
+      branches: [
+        { label: F_SOLID, outcome: outcome(s, up, true) },
+        { label: F_DASHED, outcome: outcome(s, up, false) },
+      ],
+    });
+    const sideStep = (id: string, prefix: string) => ({
+      id,
+      ask: 'Is the dot above the boundary or below it?',
+      branches: [
+        { label: F_ABOVE, to: `${prefix}-up` },
+        { label: F_BELOW, to: `${prefix}-down` },
+      ],
+    });
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: 'The dot is in the region, and a dashed line is left out. Which inequality is it?' }, regionDiagram([e], p.dot)],
+      subject: `\\text{vertex } (${p.a}, ${p.c})`,
+      steps: [
+        {
+          id: 'shape',
+          ask: 'Which way up is the boundary?',
+          branches: [
+            { label: F_V, to: 'v' },
+            { label: F_CAP, to: 'cap' },
+          ],
+        },
+        sideStep('v', 'v'),
+        sideStep('cap', 'cap'),
+        lineStep('v-up', 1, true),
+        lineStep('v-down', 1, false),
+        lineStep('cap-up', -1, true),
+        lineStep('cap-down', -1, false),
+      ],
+      answer: [p.s > 0 ? F_V : F_CAP, aboveEdge(e) ? F_ABOVE : F_BELOW, isStrict(e.op) ? F_DASHED : F_SOLID],
+    };
+  },
+  solution: (p) => readWorking({ edges: [{ s: p.s, m: p.m, a: p.a, c: p.c, op: p.op, turned: false }], dot: p.dot }),
+};
+
+/* ---------- Lesson 5: points in a region ---------- */
+
+/** Which lattice points of a region between two graphs are in it, column by column. */
+function columns(B: Between): { x: number; ys: number[] }[] {
+  return range(-6, 6)
+    .map((x) => ({ x, ys: range(-6, 6).filter((y) => inAll(edgesOf(B), [x, y])) }))
+    .filter((column) => column.ys.length > 0);
+}
+
+const countIn = (B: Between) => columns(B).reduce((total, column) => total + column.ys.length, 0);
+
+/**
+ * Which point is in the region between two graphs? The wrong ones pass one
+ * inequality but not the other, or sit on a dashed boundary. Difficulty 2
+ * has rectangles and dashed boundaries.
+ */
+const pairPointChoice: Generator<PointChoiceParams> = {
+  id: 'mod-pair-point-choice',
+  sample: (rng, difficulty) =>
+    drawUntil(
+      () => {
+        const edges = edgesOf(sampleBetween(rng, difficulty > 1 ? 'rectangle' : 'square', difficulty > 1));
+        const point = pickPoint(rng, edges, true, []);
+        const [low, high] = edges;
+        const onlyOne = [pickPoint(rng, [low], true), pickPoint(rng, [high], true)].filter(
+          (p): p is Pt => p !== undefined && !inAll(edges, p),
+        );
+        const rest = point ? wrongPoints(rng, edges, point) : [];
+        const wrong: Pt[] = [];
+        for (const p of [...onlyOne, ...rest]) {
+          if (wrong.length < 3 && !wrong.some((q) => q[0] === p[0] && q[1] === p[1])) wrong.push(p);
+        }
+        return { edges, point: point ?? ([9, 9] as Pt), wrong };
+      },
+      (p) => p.point[0] !== 9 && p.wrong.length === 3,
+      {
+        edges: edgesOf(BETWEEN_FALLBACK.square),
+        point: [0, 0],
+        wrong: [[0, 3], [0, -3], [2, 1]],
+      },
+    ),
+  render: pointChoiceSlide,
+  solution: pointChoiceSolution,
+};
+
+/**
+ * How many lattice points are in the region between two graphs? Counted
+ * column by column. A dashed boundary drops the points on it, which is where
+ * the count is usually lost. Difficulty 2 has rectangles and dashed lines.
+ */
+const regionCount: Generator<Between> = {
+  id: 'mod-region-count',
+  choices: (B) => {
+    const n = countIn(B);
+    const closed = between(B.low.a, B.low.c, B.high.a, B.high.c, '>=', '<=');
+    const open = between(B.low.a, B.low.c, B.high.a, B.high.c, '>', '<');
+    return numberChoices(n, [countIn(closed), countIn(open), n + 1], edgesTex(edgesOf(B)));
+  },
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? sampleBetween(rng, 'rectangle', true, 7) : sampleBetween(rng, 'square', rng.chance(0.5), 6),
+  render: (B): Slide => ({
+    kind: 'expression',
+    prompt: [
+      ...betweenPrompt(B, 'How many points with whole-number coordinates are in the region where both hold? Call the count $n$.'),
+      { kind: 'diagram', svg: modRegionSvg(edgesOf(B), { label: regionLabel(edgesOf(B)) }) },
+    ],
+    lead: 'n =',
+    keypad: [],
+    answer: `${countIn(B)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (B) => {
+    const cols = columns(B);
+    const [first] = cols;
+    const words = (ys: number[]) => (ys.length === 1 ? `$y = ${ys[0]}$ only` : `$y = ${ys[0]}$ to $${ys[ys.length - 1]}$`);
+    return [
+      { text: `Count column by column, from $x = ${cols[0].x}$ to $x = ${cols[cols.length - 1].x}$.` },
+      { text: `At $x = ${first.x}$: ${words(first.ys)}, $${first.ys.length}$ point${first.ys.length === 1 ? '' : 's'}.` },
+      ...edgesOf(B)
+        .filter((e) => isStrict(e.op))
+        .map((e) => ({ text: `The ${shapeWord(e)} is dashed, so the points on it are not counted.` })),
+      { tex: `${cols.map((column) => column.ys.length).join(' + ')} = ${countIn(B)}` },
+    ];
+  },
+};
+
+interface WidthParams extends Between {
+  h: number;
+}
+
+/** Where the line $y = h$ is inside the region: an interval, from each boundary in turn. */
+function widthAt({ low, high, h }: WidthParams): [number, number] {
+  const r1 = (h - low.c) / low.m;
+  const r2 = (high.c - h) / high.m;
+  return [Math.max(low.a - r1, high.a - r2), Math.min(low.a + r1, high.a + r2)];
+}
+
+/**
+ * How wide the region is at a given height. The V allows a stretch around
+ * its vertex's $x$ and the upside-down V another; the width is their overlap.
+ * Difficulty 1 is a square, where the overlap is the narrower of the two;
+ * difficulty 2 a rectangle, where it is neither.
+ */
+const regionWidth: Generator<WidthParams> = {
+  id: 'mod-region-width',
+  sample: (rng, difficulty) => {
+    // Most draws cut the region well away from a corner, where it is wide.
+    const least = rng.chance(0.6) ? 4 : 2;
+    return drawUntil(
+      () => {
+        const B = sampleBetween(rng, difficulty > 1 ? 'rectangle' : 'square', false, 9);
+        return { ...B, h: rng.int(B.low.c + 1, B.high.c - 1) };
+      },
+      (p) => {
+        const [lo, hi] = widthAt(p);
+        return hi - lo >= least && Number.isInteger(lo) && Number.isInteger(hi);
+      },
+      { ...BETWEEN_FALLBACK.square, h: 0 },
+    );
+  },
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      ...betweenPrompt(p, `How wide is the region at height $y = ${p.h}$? Give the length of the part of the line $y = ${p.h}$ that is inside it.`),
+      { kind: 'diagram', svg: modRegionSvg(edgesOf(p), { horizontal: p.h, label: `${regionLabel(edgesOf(p))}, and a dashed line at y = ${p.h}` }) },
+    ],
+    lead: '\\text{width} =',
+    keypad: [],
+    answer: `${widthAt(p)[1] - widthAt(p)[0]}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => {
+    const { low, high, h } = p;
+    const r1 = h - low.c;
+    const r2 = high.c - h;
+    const [lo, hi] = widthAt(p);
+    return [
+      {
+        text: `Under the upside-down V: $${edgeRhs(high)} \\ge ${h}$ means $${absLin(1, -high.a)} \\le ${r2}$, so $${high.a - r2} \\le x \\le ${high.a + r2}$.`,
+      },
+      {
+        text: `Over the V: $${edgeRhs(low)} \\le ${h}$${low.c === 0 ? '' : ` means $${absLin(1, -low.a)} \\le ${r1}$`}, so $${low.a - r1} \\le x \\le ${low.a + r1}$.`,
+      },
+      { text: `Both hold from $x = ${lo}$ to $x = ${hi}$: a width of $${hi - lo}$.` },
+    ];
+  },
+};
+
+interface HighestParams extends Between {
+  lowest: boolean;
+}
+
+/** The highest or lowest lattice point of the region, which is always the only one at that height. */
+function extremePoint({ low, high, lowest }: HighestParams): Pt {
+  return lowest ? [low.a, low.c + (isStrict(low.op) ? 1 : 0)] : [high.a, high.c - (isStrict(high.op) ? 1 : 0)];
+}
+
+/**
+ * The highest point of the region with whole-number coordinates: the top
+ * vertex when it is solid, one below it when it is dashed. Difficulty 2 asks
+ * for the lowest as well, and draws rectangles.
+ */
+const regionHighestTiles: Generator<HighestParams> = {
+  id: 'mod-region-highest-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => ({ ...sampleBetween(rng, hard ? 'rectangle' : 'square', true), lowest: hard && rng.chance(0.5) }),
+      (p) => p.high.c - p.low.c - Math.abs(p.low.a - p.high.a) >= 2,
+      { ...BETWEEN_FALLBACK.square, lowest: false },
+    );
+  },
+  render: (p): Slide => {
+    const [x, y] = extremePoint(p);
+    const vertex = p.lowest ? p.low : p.high;
+    const answer = [`${x}`, `${y}`];
+    return {
+      kind: 'tiles',
+      prompt: betweenPrompt(
+        p,
+        `Of the points with whole-number coordinates in the region where both hold, which is the **${p.lowest ? 'lowest' : 'highest'}**?`,
+      ),
+      template: '({0}, {1})',
+      bank: bankOf(answer, [`${vertex.c}`, `${vertex.c + 1}`, `${vertex.c - 1}`, `${-vertex.a}`, `${vertex.a + 1}`]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const vertex = p.lowest ? p.low : p.high;
+    const [x, y] = extremePoint(p);
+    return [
+      { text: `The region's ${p.lowest ? 'lowest' : 'highest'} corner is the ${shapeWord(vertex)}'s vertex, $(${vertex.a}, ${vertex.c})$.` },
+      {
+        text: isStrict(vertex.op)
+          ? `That boundary is dashed, so the vertex is left out. Straight ${p.lowest ? 'above' : 'below'} it, $(${x}, ${y})$ is in, and every other column stops further ${p.lowest ? 'up' : 'down'}.`
+          : 'That boundary is solid, so the vertex itself is in: nothing else reaches that far.',
+        tex: ptTex([x, y]),
+      },
+    ];
+  },
+};
+
 export const inequalityGenerators = [
   linearLine,
   linearSteps,
@@ -6599,4 +7871,23 @@ export const inequalityGenerators = [
   quadIneqFlow,
   criticalTree,
   quadIneqTiles,
+  regionVertexTiles,
+  regionTestTree,
+  regionPointChoice,
+  lowestSlider,
+  capInterceptsTiles,
+  capTestTree,
+  highestSlider,
+  originFlow,
+  betweenCornersTiles,
+  betweenCornerSlider,
+  betweenShape,
+  readRegionTiles,
+  readRegionMatch,
+  regionPictureCheck,
+  readRegionFlow,
+  pairPointChoice,
+  regionCount,
+  regionWidth,
+  regionHighestTiles,
 ];

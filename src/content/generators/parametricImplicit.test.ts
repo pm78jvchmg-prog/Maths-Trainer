@@ -95,6 +95,13 @@ import {
   type LogDiffAtParams,
   type LogDiffParams,
   type PowerPowerParams,
+  crossingCurve,
+  type CrossingParams,
+  type MotionParams,
+  type QuantityParams,
+  type RateParams,
+  type SlowParams,
+  type StillParams,
 } from './parametricImplicit';
 
 const SEEDS = 200;
@@ -1121,6 +1128,215 @@ describe('exponentials and inverses, checked against mathjs', { timeout: 300_000
       const [u, , , gradient] = slide.answer.map((tex) => valueOf5(tex));
       expect(close(u, params.over ? x / params.n : params.n * x), slide.answer[0]).toBe(true);
       expect(close(gradient, fn(chainSource(params)).by('x').at({ x })), slide.answer[3]).toBe(true);
+    }
+  });
+});
+
+/* ---------- Level 6: related rates and motion along a curve ---------- */
+
+/** A polynomial in x and y as the learner reads it (`2xy + 4`, `x^{2} - 3y`), for mathjs. */
+const xyMath = (tex: string): string => texToMath(tex).replace(/([0-9a-z)])\s*(?=[a-z(])/g, '$1 ');
+
+/** The point a prompt names first. */
+const pointOf = (slide: Slide): [number, number] => pointsIn(proseOf(slide))[0];
+
+/** The rate a prompt gives: `\frac{dx}{dt} = 3` or `\frac{dy}{dt} = -4`. */
+function givenRate(slide: Slide): { given: 'x' | 'y'; r: number } {
+  const m = /\\frac\{d([xy])\}\{dt\} = (-?\d+)/.exec(proseOf(slide))!;
+  return { given: m[1] as 'x' | 'y', r: Number(m[2]) };
+}
+
+/** The value of t a prompt names: `at $t = 2$`. */
+const tOf = (slide: Slide): number => Number(/t = (-?\d+)\$/.exec(proseOf(slide))![1]);
+
+/** A `$(a, b)$` label as a pair. */
+const pairOf = (label: string): [number, number] => pointsIn(label)[0];
+
+/** What a crossing prompt says is reached: the axis or line, as the coordinate and its value. */
+function reached(slide: Slide): { pin: 'x' | 'y'; target: number } {
+  const text = proseOf(slide);
+  const line = /the line \$([xy]) = (-?\d+)\$/.exec(text);
+  if (line) return { pin: line[1] as 'x' | 'y', target: Number(line[2]) };
+  const axis = /the \$([xy])\$-axis/.exec(text)!;
+  return { pin: axis[1] === 'x' ? 'y' : 'x', target: 0 };
+}
+
+describe('related rates and motion, checked against mathjs', { timeout: 180_000 }, () => {
+  /** The rate the prompt asks for, from mathjs's partials of F at the point the prompt names. */
+  function wantRate(params: RateParams, slide: Slide) {
+    const F = implicit(implicitSource(params.curve));
+    const [x, y] = pointOf(slide);
+    expect(F.F(x, y), 'the point is on the curve').toBe(params.curve.rhs);
+    const { given, r } = givenRate(slide);
+    const fx = F.Fx(x, y);
+    const fy = F.Fy(x, y);
+    return { x, y, r, fx, fy, value: given === 'x' ? (-fx * r) / fy : (-fy * r) / fx };
+  }
+
+  it('implicit related rates find the other rate, however they are asked', () => {
+    for (const { params, slide } of draws(g.implRateTSteps as Generator<RateParams>)) {
+      expect(close(valueOf5(lastValue(slide)), wantRate(params, slide).value), lastValue(slide)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.implRateTree as Generator<RateParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const want = wantRate(params, slide);
+      expect(slide.answer.map(Number)).toEqual([want.fx, want.fx * want.r, want.fy, want.value]);
+    }
+    for (const generator of [g.implRateValue, g.implRateReverse]) {
+      for (const { params, slide } of draws(generator as Generator<RateParams>)) {
+        const want = wantRate(params, slide).value;
+        expect(close(fn(typed(slide)).at({}), want), `${generator.id}: ${typed(slide)}`).toBe(true);
+        expect(close(fn(correctAnswer(generator as Generator<RateParams>, params)).at({}), want)).toBe(true);
+      }
+    }
+    for (const { params, slide } of draws(g.implRateSignFlow as Generator<RateParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const want = wantRate(params, slide);
+      const m = /^\$(-?\d*)\\frac\{dx\}\{dt\} ([+-]) (\d*)\\frac\{dy\}\{dt\} = 0\$$/.exec(slide.answer[0])!;
+      const coefficient = (text: string) => (text === '' ? 1 : text === '-' ? -1 : Number(text));
+      expect([coefficient(m[1]), (m[2] === '-' ? -1 : 1) * coefficient(m[3])]).toEqual([want.fx, want.fy]);
+      expect(close(valueOf5(slide.answer[1]), want.value), slide.answer[1]).toBe(true);
+      expect(slide.answer[2]).toBe(want.value > 0 ? 'Increasing' : 'Decreasing');
+    }
+    for (const { params, slide } of draws(g.implQuantityRateTree as Generator<QuantityParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const want = wantRate(params, slide);
+      const Q = fn(slide.expression.startsWith('\\frac{d}{dt}(xy)') ? 'x * y' : 'x^2 + y^2');
+      const rate = Q.by('x').at({ x: want.x, y: want.y }) * want.r + Q.by('y').at({ x: want.x, y: want.y }) * want.value;
+      const [v, , , total] = slide.answer.map(Number);
+      expect(close(v, want.value)).toBe(true);
+      expect(close(total, rate), `${total} vs ${rate}`).toBe(true);
+    }
+    const XY = [
+      [1.3, -0.7],
+      [-2.1, 1.6],
+      [0.4, 2.9],
+    ];
+    for (const { params, slide } of draws(g.implRateTiles as Generator<RateParams>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const F = implicit(implicitSource(params.curve));
+      const [A, B] = slide.answer.map((tex) => fn(xyMath(tex)));
+      for (const [x, y] of XY) {
+        expect(close(A.at({ x, y }), F.Fx(x, y)), slide.answer[0]).toBe(true);
+        expect(close(B.at({ x, y }), F.Fy(x, y)), slide.answer[1]).toBe(true);
+      }
+    }
+  });
+
+  it('impl-rate-still offers exactly one point where y stands still', () => {
+    for (const { params, slide } of draws(g.implRateStill as Generator<StillParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const F = implicit(xyAnswer(stationaryTerms(params)));
+      const rhs = stationaryRhs(params);
+      for (const option of slide.options) {
+        const [x, y] = pairOf(option.label);
+        const still = F.F(x, y) === rhs && F.Fx(x, y) === 0 && F.Fy(x, y) !== 0;
+        expect(still, option.label).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('velocity, direction and speed come from the rates at the time the prompt names', () => {
+    for (const { params, slide } of draws(g.paramVelocityTiles as Generator<MotionParams>)) {
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const t = tOf(slide);
+      expect(same(placed(slide), [c.dx(t), c.dy(t)])).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramDirection as Generator<MotionParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const t = tOf(slide);
+      const label = slide.options.find((option) => option.id === slide.correctId)!.label;
+      expect(label).toBe(`${c.dx(t) > 0 ? 'Right' : 'Left'} and ${c.dy(t) > 0 ? 'up' : 'down'}`);
+    }
+    for (const { params, slide } of draws(g.paramDirectionGradient as Generator<MotionParams>)) {
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const t = tOf(slide);
+      expect(close(fn(typed(slide)).at({}), c.dy(t) / c.dx(t))).toBe(true);
+      expect(close(fn(correctAnswer(g.paramDirectionGradient as Generator<MotionParams>, params)).at({}), c.dy(t) / c.dx(t))).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramUprightFlow as Generator<FlatParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { x, y } = curveSources(flatCurve(params));
+      const c = parametric(x, y);
+      const across = proseOf(slide).includes('straight across');
+      const still = across ? c.dy : c.dx;
+      const zeros = [];
+      for (let t = -12; t <= 12; t += 1) if (still(t) === 0) zeros.push(t);
+      expect(zeros.length, 'one moment moving that way').toBe(1);
+      expect(slide.answer[1]).toBe(`$t = ${zeros[0]}$`);
+      expect(same(pairOf(slide.answer[2]), [c.dx(zeros[0]), c.dy(zeros[0])])).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramSpeedPartsTree as Generator<MotionParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const t = tOf(slide);
+      const [dx, dy, square, speed] = slide.answer.map(Number);
+      expect(same([dx, dy], [c.dx(t), c.dy(t)])).toBe(true);
+      expect(square).toBe(dx * dx + dy * dy);
+      expect(speed * speed, 'a whole speed').toBe(square);
+    }
+    for (const { params, slide } of draws(g.paramSpeed as Generator<MotionParams>)) {
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const t = tOf(slide);
+      const speed = Math.hypot(c.dx(t), c.dy(t));
+      expect(Number(typed(slide))).toBe(speed);
+      expect(Number(correctAnswer(g.paramSpeed as Generator<MotionParams>, params))).toBe(speed);
+    }
+  });
+
+  it('the slowest moment and the square of the speed agree with the rates', () => {
+    const STEP = 1 / 64;
+    for (const { params, slide } of draws(g.paramSlowestSlider as Generator<SlowParams>)) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const square = (t: number) => c.dx(t) ** 2 + c.dy(t) ** 2;
+      let best = -12;
+      for (let t = -12; t <= 12; t += STEP) if (square(t) < square(best)) best = t;
+      expect(square(best - STEP) > square(best) && square(best + STEP) > square(best), 'a strict minimum').toBe(true);
+      expect(slide.answer).toBe(slide.readout.startsWith('x') ? c.x(best) : c.y(best));
+    }
+    for (const { params, slide } of draws(g.paramSpeedSquaredTiles as Generator<SlowParams>)) {
+      const c = parametric(curveSources(params.curve).x, curveSources(params.curve).y);
+      const [A, B, C] = placed(slide);
+      for (const t of T_SAMPLES) expect(close(A * t * t + B * t + C, c.dx(t) ** 2 + c.dy(t) ** 2), `t = ${t}`).toBe(true);
+    }
+  });
+
+  it('crossings find the one time after t = 0 and the motion then', () => {
+    /** The whole times from 1 to 20 at which the prompt's coordinate hits its target. */
+    const timesOf = (params: CrossingParams, slide: Slide) => {
+      const { x, y } = curveSources(crossingCurve(params));
+      const c = parametric(x, y);
+      const { pin, target } = reached(slide);
+      const coordinate = pin === 'x' ? c.x : c.y;
+      const times = [];
+      for (let t = 1; t <= 20; t += 1) if (coordinate(t) === target) times.push(t);
+      expect(times.length, 'one time after the start').toBe(1);
+      return { c, t: times[0] };
+    };
+    for (const { params, slide } of draws(g.paramCrossingTree as Generator<CrossingParams>)) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const { c, t } = timesOf(params, slide);
+      expect(slide.answer.map(Number)).toEqual([t, c.dx(t), c.dy(t)]);
+    }
+    for (const { params, slide } of draws(g.paramReachTiles as Generator<CrossingParams>)) {
+      const { c, t } = timesOf(params, slide);
+      expect(same(placed(slide), [t, c.x(t), c.y(t)])).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramCrossingFlow as Generator<CrossingParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { c, t } = timesOf(params, slide);
+      const { pin, target } = reached(slide);
+      expect(slide.answer[0]).toBe(`Solve $${pin} = ${target}$`);
+      expect(slide.answer[1]).toBe(`$t = ${t}$`);
+      expect(same(pairOf(slide.answer[2]), [c.dx(t), c.dy(t)])).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramCrossingSpeed as Generator<CrossingParams>)) {
+      const { c, t } = timesOf(params, slide);
+      const speed = Math.hypot(c.dx(t), c.dy(t));
+      expect(Number(typed(slide))).toBe(speed);
+      expect(Number(correctAnswer(g.paramCrossingSpeed as Generator<CrossingParams>, params))).toBe(speed);
     }
   });
 });

@@ -7495,6 +7495,1231 @@ const implInversePointTree: Generator<InversePointParams> = {
   },
 };
 
+/* ---------- Level 6: related rates and motion along a curve ---------- */
+
+/*
+ * Here both coordinates move with time t. On an implicit curve F(x, y) = k,
+ * differentiating with respect to t ties the two rates together,
+ * F_x dx/dt + F_y dy/dt = 0, so one rate gives the other. On a parametric
+ * path t is the time, (dx/dt, dy/dt) is the velocity, and its length is the
+ * speed.
+ *
+ * Built outward from the answer, as everywhere else: an implicit point is
+ * whole and so is the rate given there, so the rate found is whole or a small
+ * fraction; a speed asked unsquared comes from a `TRIPLES` pair of components;
+ * the slowest moment is a whole t. Nothing in the level is a plain function of
+ * x and nothing is integrated, so no slide declares `source` or `integrand`
+ * and the oracle in `generators.test.ts` has nothing to check here.
+ * `parametricImplicit.test.ts` differentiates x(t), y(t) and F(x, y) with
+ * mathjs and holds every rate, component, speed and option to that alone.
+ */
+
+/* ---------- A point moving on an implicit curve ---------- */
+
+/** A point passing the curve's whole point (p, q), with the rate of x (or of y) given as r. */
+export interface RateParams {
+  curve: ImplicitCurve;
+  given: 'x' | 'y';
+  r: number;
+}
+
+/** The other rate, as [top, bottom]: F_x dx/dt + F_y dy/dt = 0 solved for it. */
+export function rateFound({ curve, given, r }: RateParams): Frac {
+  const [n, dd] = partsAtPoint(curve);
+  return given === 'x' ? [-n * r, dd] : [-dd * r, n];
+}
+
+const rateOf = (v: 'x' | 'y'): string => (v === 'x' ? DXDT : DYDT);
+
+/** A whole number in front of a rate, 1 and -1 implied. */
+const rateTerm = (c: number, rate: string): string => `${coef(c)}${rate}`;
+
+/** N dx/dt + D dy/dt = 0, the equation differentiated with respect to t at the point. */
+function rateLineTex(n: number, dd: number): string {
+  return `${rateTerm(n, DXDT)} ${dd < 0 ? '-' : '+'} ${rateTerm(Math.abs(dd), DYDT)} = 0`;
+}
+
+/** The same line with the given rate put in. */
+function withRateTex({ curve, given, r }: RateParams): string {
+  const [n, dd] = partsAtPoint(curve);
+  if (given === 'x') return `${n * r} ${dd < 0 ? '-' : '+'} ${rateTerm(Math.abs(dd), DYDT)} = 0`;
+  return `${rateTerm(n, DXDT)} ${dd * r < 0 ? '-' : '+'} ${Math.abs(dd * r)} = 0`;
+}
+
+/**
+ * A curve through a whole point where neither bracket vanishes, and a rate r
+ * there: whole throughout at difficulty 1, negative rates and a fraction for
+ * the answer at difficulty 2 unless `whole` insists.
+ */
+function sampleRate(rng: Rng, difficulty: number, given: 'x' | 'y', whole = difficulty < 2, minR = 1): RateParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const r = rng.int(minR, hard ? 5 : 4) * (hard ? rng.sign() : 1);
+    const curve = sampleImplicit(rng, optionsFor(difficulty), (c) => {
+      const [n, dd] = partsAtPoint(c);
+      return n !== 0 && dd !== 0 && Math.abs(n) <= 40 && Math.abs(dd) <= 40;
+    });
+    const params: RateParams = { curve, given, r };
+    const [top, bottom] = rateFound(params);
+    const den = Math.abs(bottom / gcd(top, bottom));
+    if (whole ? den !== 1 : den > 12) continue;
+    if (Math.abs(top / bottom) > 40 || Math.abs(top) > 99) continue;
+    return params;
+  }
+}
+
+/** Differentiate with respect to t, put the point and the rate in, and solve. */
+function rateSolution(params: RateParams): SolutionStep[] {
+  const { curve, given, r } = params;
+  const [n, dd] = partsAtPoint(curve);
+  const [top, bottom] = rateFound(params);
+  const other = given === 'x' ? 'y' : 'x';
+  return [
+    {
+      text: `Differentiate each term with respect to $t$. By the chain rule a term in $x$ picks up $${DXDT}$ and a term in $y$ picks up $${DYDT}$. In front of $${DXDT}$:`,
+      tex: xyTex(partialX(curve.terms)),
+    },
+    { text: `and in front of $${DYDT}$:`, tex: xyTex(partialY(curve.terms)) },
+    { text: `At $${pair(curve.p, curve.q)}$ those are $${n}$ and $${dd}$.`, tex: rateLineTex(n, dd) },
+    { text: `Put in $${rateOf(given)} = ${r}$.`, tex: withRateTex(params) },
+    { text: 'Solve.', tex: `${rateOf(other)} = ${fracTex(top, bottom)}` },
+  ];
+}
+
+/**
+ * A term differentiated with respect to t at the point, with dx/dt = r put in:
+ * `12`, `4\frac{dy}{dt}` or `(6 + 4\frac{dy}{dt})`. The slips a bank offers:
+ * `noRate` leaves the x part without its dx/dt, `bare` leaves off the dy/dt.
+ */
+function termRateTex(c: number, a: number, b: number, x: number, y: number, r: number, slip?: 'noRate' | 'bare'): string {
+  const xPart = a > 0 ? c * a * x ** (a - 1) * y ** b * (slip === 'noRate' ? 1 : r) : undefined;
+  const yPart = b > 0 ? c * b * x ** a * y ** (b - 1) : undefined;
+  const dy = (v: number) => (slip === 'bare' ? `${v}` : v === 1 ? DYDT : v === -1 ? `-${DYDT}` : `${v}${DYDT}`);
+  if (xPart !== undefined && yPart !== undefined) return `(${xPart} ${yPart < 0 ? '-' : '+'} ${dy(Math.abs(yPart))})`;
+  if (xPart !== undefined) return bracketed(xPart);
+  return yPart! < 0 ? `(${dy(yPart!)})` : dy(yPart!);
+}
+
+/**
+ * dy/dt from dx/dt, differentiating term by term with respect to t and putting
+ * the point and the rate in as each term goes.
+ *
+ * Each term's bank carries the coordinates swapped, the x part left without
+ * its $\frac{dx}{dt}$, and the $\frac{dy}{dt}$ dropped from the y part; the
+ * last step's carries the sign lost and $\frac{dy}{dx}$, the gradient, which
+ * is what the working gives if the rate is never put in.
+ */
+const implRateTSteps: Generator<RateParams> = {
+  id: 'impl-rate-t-steps',
+  sample: (rng, difficulty) => sampleRate(rng, difficulty, 'x'),
+  render: (params): Slide => {
+    const { curve, r } = params;
+    const { p, q } = curve;
+    const { start, termAt, rhsAt, equalsAt } = equationTokens(curve);
+    const [n, dd] = partsAtPoint(curve);
+    const [top, bottom] = rateFound(params);
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = curve.terms.map((t, i) => {
+      const c = i === 0 ? t.c : Math.abs(t.c);
+      const right = termRateTex(c, t.a, t.b, p, q, r);
+      return {
+        span: [termAt[i], termAt[i] + 1],
+        value: right,
+        bank: stepBank(
+          right,
+          termRateTex(c, t.a, t.b, q, p, r),
+          termRateTex(c, t.a, t.b, p, q, r, t.a > 0 ? 'noRate' : 'bare'),
+          termRateTex(c, t.a, t.b, p, q, r, 'bare'),
+          termRateTex(c + 1, t.a, t.b, p, q, r),
+        ),
+      };
+    });
+    reductions.push({ span: [rhsAt, rhsAt + 1], value: '0', bank: stepBank('0', `${curve.rhs}`, `${curve.rhs}${DYDT}`) });
+    const answer = (f: Frac) => `${DYDT} = ${fracTex(...f)}`;
+    reductions.push({
+      span: [0, start.length],
+      operator: equalsAt,
+      value: answer([top, bottom]),
+      bank: stepBank(answer([top, bottom]), answer([-top, bottom]), answer([-n, dd]), answer([dd * r, n]), answer([top + bottom, bottom])),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        prose(
+          `A point moves along this curve. As it passes $${pair(p, q)}$, $${DXDT} = ${r}$. Differentiate each term with respect to $t$, putting in the point and $${DXDT}$ as you go, then solve for $${DYDT}$. Tap the step to do next, then choose what it gives.`,
+        ),
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: rateSolution,
+};
+
+/**
+ * dy/dt from dx/dt as a tree: the bracket in front of dx/dt at the point, that
+ * times dx/dt, the bracket in front of dy/dt, then dy/dt.
+ *
+ * The bank holds the answer with its sign lost, the gradient $\frac{dy}{dx}$
+ * with no rate in it, and the point's own coordinates.
+ */
+const implRateTree: Generator<RateParams> = {
+  id: 'impl-rate-tree',
+  // A rate of 1 would make the second box a copy of the first.
+  sample: (rng, difficulty) => sampleRate(rng, difficulty, 'x', true, 2),
+  render: (params): Slide => {
+    const { curve, r } = params;
+    const [n, dd] = partsAtPoint(curve);
+    const [top, bottom] = rateFound(params);
+    const v = top / bottom;
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`A point moves along this curve. As it passes $${pair(curve.p, curve.q)}$, $${DXDT} = ${r}$.`),
+        ...equationBlocks(curve),
+        prose(`Differentiating with respect to $t$ gives $A${DXDT} + B${DYDT} = 0$, where`),
+        display(`A = ${xyTex(partialX(curve.terms))}`),
+        display(`B = ${xyTex(partialY(curve.terms))}`),
+        prose(`The top row is $A$ and $B$ at the point. Under $A$ goes $A${DXDT}$, and the bottom box is $${DYDT}$.`),
+      ],
+      expression: `A${DXDT} + B${DYDT} = 0`,
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'ar', from: ['a'] },
+        { id: 'b', from: [] },
+        { id: 'v', from: ['ar', 'b'] },
+      ],
+      bank: treeBank([n, n * r, dd, v], [-v, n % dd === 0 ? -n / dd : curve.p, curve.q, curve.p, n + dd]),
+      answer: [n, n * r, dd, v].map(String),
+    };
+  },
+  solution: rateSolution,
+};
+
+/**
+ * dy/dt typed, from a given dx/dt: whole at difficulty 1, possibly a fraction
+ * at 2. The options carry the sign lost, the gradient $\frac{dy}{dx}$, and the
+ * rate divided by rather than multiplied.
+ */
+const implRateValue: Generator<RateParams> = {
+  id: 'impl-rate-value',
+  sample: (rng, difficulty) => sampleRate(rng, difficulty, 'x'),
+  choices: (params) => {
+    const [n, dd] = partsAtPoint(params.curve);
+    const [top, bottom] = rateFound(params);
+    return fracChoices([top, bottom], [[-top, bottom], [-n, dd], [-n, dd * params.r]], mix(params.curve.p, params.curve.q, params.curve.rhs, params.r));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(`A point moves along this curve. As it passes $${pair(params.curve.p, params.curve.q)}$, $${DXDT} = ${params.r}$.`),
+      ...equationBlocks(params.curve),
+      prose(`Find $${DYDT}$ there.`),
+    ],
+    lead: `${DYDT} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...rateFound(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: rateSolution,
+};
+
+/**
+ * The equation differentiated with respect to t, the two brackets placed as
+ * tiles.
+ *
+ * The bank carries the power not brought down, the product rule's other half
+ * lost from a term in both x and y, and the y bracket with its sign turned.
+ */
+const implRateTiles: Generator<RateParams> = {
+  id: 'impl-rate-tiles',
+  sample: (rng, difficulty) => sampleRate(rng, difficulty, 'x'),
+  render: ({ curve }): Slide => {
+    const { terms } = curve;
+    const answer = [xyTex(partialX(terms)), xyTex(partialY(terms))];
+    const single = terms.filter((t) => t.a === 0 || t.b === 0);
+    const unpowered = (keep: (t: Term) => boolean, drop: (t: Term) => Term) => xyTex(collect(terms.filter(keep).map(drop)));
+    const extras = [
+      unpowered((t) => t.a > 0, (t) => ({ c: t.c, a: t.a - 1, b: t.b })),
+      unpowered((t) => t.b > 0, (t) => ({ c: t.c, a: t.a, b: t.b - 1 })),
+      xyTex(partialX(single)),
+      xyTex(partialY(single)),
+      xyTex(negate(partialY(terms))),
+      xyTex(negate(partialX(terms))),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose(`A point moves along this curve, so $x$ and $y$ both depend on time $t$. Differentiate the equation with respect to $t$.`),
+        ...equationBlocks(curve),
+      ],
+      template: `({0})${DXDT} + ({1})${DYDT} = 0`,
+      bank: tokenBank(answer, extras, 3),
+      answer,
+    };
+  },
+  solution: ({ curve }) => [
+    { text: `Differentiate each term with respect to $t$. A term in $x$ picks up $${DXDT}$, a term in $y$ picks up $${DYDT}$, and a term in both needs the product rule.` },
+    { text: `Everything multiplying $${DXDT}$:`, tex: xyTex(partialX(curve.terms)) },
+    { text: `Everything multiplying $${DYDT}$:`, tex: xyTex(partialY(curve.terms)) },
+    { text: `The constant on the right differentiates to $0$.` },
+  ],
+};
+
+/* ---------- Related rates read back ---------- */
+
+/**
+ * Whether y is rising or falling as the point passes, as three decisions: the
+ * equation differentiated with respect to t, dy/dt, then its sign.
+ *
+ * The wrong turns are the equation differentiated in x instead, the two
+ * brackets on the wrong rates, the sign lost moving a term across, and the
+ * gradient $\frac{dy}{dx}$ taken for the rate.
+ */
+const implRateSignFlow: Generator<RateParams> = {
+  id: 'impl-rate-sign-flow',
+  sample: (rng, difficulty) => sampleRate(rng, difficulty, 'x'),
+  render: (params): Slide => {
+    const { curve, r } = params;
+    const { p, q } = curve;
+    const [n, dd] = partsAtPoint(curve);
+    const [top, bottom] = rateFound(params);
+    const salt = mix(p, q, curve.rhs, r, n);
+    const line = `$${rateLineTex(n, dd)}$`;
+    const rate = `$${DYDT} = ${fracTex(top, bottom)}$`;
+    const rising = top / bottom > 0;
+    const trend = rising ? 'Increasing' : 'Decreasing';
+    return {
+      kind: 'flow',
+      prompt: [prose(`A point moves along this curve. As it passes $${pair(p, q)}$, $${DXDT} = ${r}$. Is $y$ increasing or decreasing there?`)],
+      subject: equationTex(curve),
+      steps: [
+        {
+          id: 'differentiate',
+          ask: `Differentiate with respect to $t$ and put in $x = ${p}$, $y = ${q}$. Which line?`,
+          branches: fork(
+            [
+              { label: line, to: 'rate' },
+              { label: `$${n} ${dd < 0 ? '-' : '+'} ${rateTerm(Math.abs(dd), DYDX)} = 0$`, outcome: `That differentiates with respect to $x$. Here both $x$ and $y$ change with $t$, so each picks up its own rate.` },
+              { label: `$${rateLineTex(dd, n)}$`, outcome: `The bracket from differentiating in $x$ goes with $${DXDT}$, and the one from $y$ with $${DYDT}$.` },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'rate',
+          ask: `Put in $${DXDT} = ${r}$. What is $${DYDT}$?`,
+          branches: fork(
+            [
+              { label: rate, to: 'trend' },
+              { label: `$${DYDT} = ${fracTex(-top, bottom)}$`, outcome: 'Check the sign when the term moves to the other side.' },
+              { label: `$${DYDT} = ${fracTex(-n, dd)}$`, outcome: `That is $${DYDX}$, the gradient. Multiply it by $${DXDT}$ for the rate.` },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'trend',
+          ask: `So as the point passes $${pair(p, q)}$, $y$ is`,
+          branches: [
+            { label: 'Increasing', outcome: rising ? `Right: $${DYDT}$ is positive.` : `$${DYDT}$ is negative, so $y$ is falling.` },
+            { label: 'Decreasing', outcome: rising ? `$${DYDT}$ is positive, so $y$ is rising.` : `Right: $${DYDT}$ is negative.` },
+            { label: 'Not changing', outcome: `That needs $${DYDT} = 0$.` },
+          ],
+        },
+      ],
+      answer: [line, rate, trend],
+    };
+  },
+  solution: (params) => [
+    ...rateSolution(params),
+    { text: `It is ${rateFound(params)[0] / rateFound(params)[1] > 0 ? 'positive, so $y$ is increasing' : 'negative, so $y$ is decreasing'}.` },
+  ],
+};
+
+/** A point where y stands still, on a curve whose horizontal tangents lie on y = kx. */
+export interface StillParams extends StationaryParams {
+  /** Which of the two points is offered: (x0, kx0) or (-x0, -kx0). */
+  side: 1 | -1;
+}
+
+/** F_x and F_y for A x^2 + B xy + C y^2 at a point. */
+export function stillParts({ A, B, C }: StationaryParams, x: number, y: number): [number, number] {
+  return [2 * A * x + B * y, B * x + 2 * C * y];
+}
+
+/**
+ * Where y is momentarily not changing while x keeps moving: dy/dt = 0 needs
+ * the bracket in front of dx/dt to vanish, on the curve.
+ *
+ * The other point that does so is never offered. The distractors are the
+ * point with its coordinates swapped, its reflections in the axes, the origin
+ * (where the bracket vanishes but which is not on the curve) and a point where
+ * the curve meets the y-axis; each is kept only if it really fails.
+ */
+const implRateStill: Generator<StillParams> = {
+  id: 'impl-rate-still',
+  sample: (rng, difficulty) => ({ ...sampleStationary(rng, difficulty), side: rng.chance(0.5) ? 1 : -1 }),
+  render: (params): Slide => {
+    const { C, k, x0, side } = params;
+    const terms = stationaryTerms(params);
+    const rhs = stationaryRhs(params);
+    const right: [number, number] = [side * x0, side * k * x0];
+    const still = ([x, y]: [number, number]) => {
+      const [fx, fy] = stillParts(params, x, y);
+      return xyAt(terms, x, y) === rhs && fx === 0 && fy !== 0;
+    };
+    const root = Math.sqrt(rhs / C);
+    const candidates: [number, number][] = [
+      [right[1], right[0]],
+      [right[0], -right[1]],
+      [-right[0], right[1]],
+      [0, 0],
+      ...(Number.isInteger(root) ? [[0, root] as [number, number]] : []),
+      [right[0] + side, right[1]],
+    ];
+    const wrong = candidates.filter((point) => !still(point)).map((point) => pair(...point));
+    return labelChoice(
+      [
+        prose(`A point moves along this curve, with $x$ changing all the time. At which of these points is $y$ momentarily not changing?`),
+        display(`${xyTex(terms)} = ${rhs}`),
+      ],
+      [pair(...right), ...wrong],
+      mix(params.A, params.B, C, k, x0, side),
+    );
+  },
+  solution: (params) => {
+    const { A, B, C, k, x0 } = params;
+    const S = A + B * k + C * k * k;
+    const [fx, fy] = [xyTex([{ c: 2 * A, a: 1, b: 0 }, { c: B, a: 0, b: 1 }]), xyTex([{ c: B, a: 1, b: 0 }, { c: 2 * C, a: 0, b: 1 }])];
+    return [
+      { text: `Differentiate with respect to $t$. In front of $${DXDT}$:`, tex: fx },
+      { text: `and in front of $${DYDT}$:`, tex: fy },
+      { text: `$${DYDT} = 0$ while $${DXDT}$ is not zero needs the first bracket to vanish.`, tex: `${fx} = 0, \\quad ${lineTex(k, 1)}` },
+      { text: `Put $${lineTex(k, 1)}$ into the curve's equation.`, tex: `${S}x^{2} = ${stationaryRhs(params)}, \\quad x = \\pm ${x0}` },
+      { text: `So $y$ stands still at $${pair(x0, k * x0)}$ and $${pair(-x0, -k * x0)}$.` },
+    ];
+  },
+};
+
+/** The rate of xy, or of x^2 + y^2, as the point passes. */
+export interface QuantityParams extends RateParams {
+  kind: 'xy' | 'sq';
+}
+
+/** [dy/dt, the part with dy/dt, the part with dx/dt, the total]. */
+export function quantityValues(params: QuantityParams): [number, number, number, number] {
+  const { curve, r, kind } = params;
+  const [top, bottom] = rateFound(params);
+  const v = top / bottom;
+  const withDy = kind === 'xy' ? curve.p * v : 2 * curve.q * v;
+  const withDx = kind === 'xy' ? curve.q * r : 2 * curve.p * r;
+  return [v, withDy, withDx, withDy + withDx];
+}
+
+const quantityTex = (kind: QuantityParams['kind']): string => (kind === 'xy' ? 'xy' : 'x^2 + y^2');
+
+const quantityRule = (kind: QuantityParams['kind']): string =>
+  kind === 'xy' ? `x${DYDT} + y${DXDT}` : `2y${DYDT} + 2x${DXDT}`;
+
+/**
+ * How fast xy (by the product rule) or x^2 + y^2 is changing as the point
+ * passes: dy/dt first, then each part of the derivative, then the total.
+ *
+ * The bank carries the two rates swapped between the parts, the sign of the
+ * total lost, and the two parts subtracted.
+ */
+const implQuantityRateTree: Generator<QuantityParams> = {
+  id: 'impl-quantity-rate-tree',
+  sample: (rng, difficulty) => ({ ...sampleRate(rng, difficulty, 'x', true), kind: rng.chance(0.5) ? 'xy' : 'sq' }),
+  render: (params): Slide => {
+    const { curve, r, kind } = params;
+    const [v, withDy, withDx, total] = quantityValues(params);
+    const swapped = kind === 'xy' ? curve.p * r + curve.q * v : 2 * curve.q * r + 2 * curve.p * v;
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(`A point moves along this curve. As it passes $${pair(curve.p, curve.q)}$, $${DXDT} = ${r}$.`),
+        ...equationBlocks(curve),
+        prose(
+          `How fast is $${quantityTex(kind)}$ changing there? Fill in $${DYDT}$, then each part of $\\frac{d}{dt}(${quantityTex(kind)})$, then the total.`,
+        ),
+      ],
+      expression: `\\frac{d}{dt}(${quantityTex(kind)}) = ${quantityRule(kind)}`,
+      nodes: [
+        { id: 'v', from: [] },
+        { id: 'dy', from: ['v'] },
+        { id: 'dx', from: [] },
+        { id: 'total', from: ['dy', 'dx'] },
+      ],
+      bank: treeBank([v, withDy, withDx, total], [swapped, -total, withDy - withDx, v * r]),
+      answer: [v, withDy, withDx, total].map(String),
+    };
+  },
+  solution: (params) => {
+    const { curve, r, kind } = params;
+    const [v, withDy, withDx, total] = quantityValues(params);
+    return [
+      ...rateSolution(params).slice(2),
+      {
+        text: kind === 'xy' ? 'Differentiate $xy$ with respect to $t$ by the product rule.' : 'Differentiate $x^2 + y^2$ with respect to $t$ by the chain rule.',
+        tex: `\\frac{d}{dt}(${quantityTex(kind)}) = ${quantityRule(kind)}`,
+      },
+      {
+        text: `Put in $x = ${curve.p}$, $y = ${curve.q}$, $${DYDT} = ${v}$ and $${DXDT} = ${r}$.`,
+        tex: `${withDy} ${withDx < 0 ? '-' : '+'} ${Math.abs(withDx)} = ${total}`,
+      },
+    ];
+  },
+};
+
+/**
+ * dx/dt from a given dy/dt: the same line solved the other way. Whole at
+ * difficulty 1, possibly a fraction at 2. The options carry the sign lost,
+ * the gradient's reciprocal with no rate in it, and the formula for dy/dt
+ * used by mistake.
+ */
+const implRateReverse: Generator<RateParams> = {
+  id: 'impl-rate-reverse',
+  sample: (rng, difficulty) => sampleRate(rng, difficulty, 'y'),
+  choices: (params) => {
+    const [n, dd] = partsAtPoint(params.curve);
+    const [top, bottom] = rateFound(params);
+    return fracChoices([top, bottom], [[-top, bottom], [-dd, n], [-n * params.r, dd]], mix(params.curve.p, params.curve.q, params.curve.rhs, params.r, 7));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose(`A point moves along this curve. As it passes $${pair(params.curve.p, params.curve.q)}$, $y$ is changing at $${DYDT} = ${params.r}$.`),
+      ...equationBlocks(params.curve),
+      prose(`How fast is $x$ changing there?`),
+    ],
+    lead: `${DXDT} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...rateFound(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: rateSolution,
+};
+
+/* ---------- Velocity on a parametric path ---------- */
+
+/** A particle at x(t), y(t), looked at when t = k, where neither velocity component is zero. */
+export interface MotionParams {
+  curve: ParamCurve;
+  k: number;
+}
+
+function sampleMotion(rng: Rng, difficulty: number, accept: (params: MotionParams) => boolean = () => true): MotionParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const curve = sampleCurve(rng, hard ? [[2, 3], [2, 3]] : [[1, 2], [1, 2]], 3);
+    const k = hard ? rng.int(-3, 3) : rng.int(1, 3);
+    if (k === 0) continue;
+    const [dx, dy] = ratesAt(curve, k);
+    const [x0, y0] = pointAt(curve, k);
+    if (dx === 0 || dy === 0 || Math.abs(dx) > 40 || Math.abs(dy) > 40 || Math.abs(x0) > 40 || Math.abs(y0) > 40) continue;
+    const params = { curve, k };
+    if (accept(params)) return params;
+  }
+}
+
+/** The particle's position, as the prompts open. */
+const motionBlocks = (curve: ParamCurve): Block[] => [prose('A particle moves so that at time $t$ its position is'), ...curveBlocks(curve)];
+
+/** The velocity as the learner reads it in working. */
+const VELOCITY = `\\left(${DXDT}, ${DYDT}\\right)`;
+
+/** Both rates in t, one line each, as the Show me panel is narrow. */
+function ratesSteps(curve: ParamCurve, text: string): SolutionStep[] {
+  return [
+    { text, tex: `${DXDT} = ${polyTex(derived(curve.x))}` },
+    { tex: `${DYDT} = ${polyTex(derived(curve.y))}` },
+  ];
+}
+
+function velocitySolution({ curve, k }: MotionParams): SolutionStep[] {
+  const [dx, dy] = ratesAt(curve, k);
+  return [
+    ...ratesSteps(curve, 'The velocity is the pair of rates. Differentiate each coordinate with respect to $t$.'),
+    { text: `Put in $t = ${k}$.`, tex: `${VELOCITY} = ${pair(dx, dy)}` },
+  ];
+}
+
+/**
+ * The velocity at t = k as a pair of tiles. The bank holds the position there
+ * (where the particle is, not how it moves) and the velocity at $t = -k$.
+ */
+const paramVelocityTiles: Generator<MotionParams> = {
+  id: 'param-velocity-tiles',
+  sample: sampleMotion,
+  render: ({ curve, k }): Slide => {
+    const [dx, dy] = ratesAt(curve, k);
+    const [x0, y0] = pointAt(curve, k);
+    const [bx, by] = ratesAt(curve, -k);
+    return {
+      kind: 'tiles',
+      prompt: [...motionBlocks(curve), prose(`Find its velocity at $t = ${k}$.`)],
+      template: `(${DXDT}, ${DYDT}) = ({0}, {1})`,
+      bank: numberBank([dx, dy], [x0, y0, bx, by, -dx]),
+      answer: [`${dx}`, `${dy}`],
+    };
+  },
+  solution: velocitySolution,
+};
+
+const DIRECTIONS = ['Right and up', 'Right and down', 'Left and up', 'Left and down'];
+
+/** The way the particle is heading, from the signs of its velocity. */
+const headingOf = (dx: number, dy: number): string => DIRECTIONS[(dx > 0 ? 0 : 2) + (dy > 0 ? 0 : 1)];
+
+/**
+ * Which way the particle is heading at t = k: the sign of dx/dt says right or
+ * left, the sign of dy/dt up or down. Always the same four options in the same
+ * order, so only the question moves the answer.
+ */
+const paramDirection: Generator<MotionParams> = {
+  id: 'param-direction',
+  sample: sampleMotion,
+  render: ({ curve, k }): Slide => {
+    const [dx, dy] = ratesAt(curve, k);
+    return {
+      kind: 'choice',
+      prompt: [...motionBlocks(curve), prose(`Which way is it moving at $t = ${k}$?`)],
+      options: DIRECTIONS.map((label, i) => ({ id: `d${i}`, label })),
+      correctId: `d${DIRECTIONS.indexOf(headingOf(dx, dy))}`,
+    };
+  },
+  solution: ({ curve, k }) => {
+    const [dx, dy] = ratesAt(curve, k);
+    return [
+      ...velocitySolution({ curve, k }),
+      {
+        text: `$${DXDT}$ is ${dx > 0 ? 'positive, so $x$ is increasing: right' : 'negative, so $x$ is decreasing: left'}. $${DYDT}$ is ${dy > 0 ? 'positive, so $y$ is increasing: up' : 'negative, so $y$ is decreasing: down'}.`,
+      },
+    ];
+  },
+};
+
+/**
+ * The gradient of the direction of travel at t = k, typed: dy/dt over dx/dt,
+ * which may be a fraction. The options carry the ratio upside down, its sign
+ * lost, and the gradient of the line from the origin to the particle.
+ */
+const paramDirectionGradient: Generator<MotionParams> = {
+  id: 'param-direction-gradient',
+  sample: (rng, difficulty) =>
+    sampleMotion(rng, difficulty, ({ curve, k }) => {
+      const [dx, dy] = ratesAt(curve, k);
+      return Math.abs(dx / gcd(dx, dy)) <= 12 && Math.abs(dx) !== Math.abs(dy);
+    }),
+  choices: ({ curve, k }) => {
+    const [dx, dy] = ratesAt(curve, k);
+    const [x0, y0] = pointAt(curve, k);
+    return fracChoices([dy, dx], [[dx, dy], [-dy, dx], [y0, x0]], mix(dx, dy, x0, y0, k));
+  },
+  render: ({ curve, k }): Slide => ({
+    kind: 'expression',
+    prompt: [...motionBlocks(curve), prose(`At $t = ${k}$ it is moving along its tangent. What is the gradient of that direction?`)],
+    lead: `${DYDX} =`,
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(ratesAt(curve, k)[1], ratesAt(curve, k)[0]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ curve, k }) => {
+    const [dx, dy] = ratesAt(curve, k);
+    return [
+      ...velocitySolution({ curve, k }),
+      { text: 'The direction of travel is the velocity, so its gradient is the ratio of the components.', tex: `${DYDX} = ${DYDT} \\div ${DXDT} = ${fracTex(dy, dx)}` },
+    ];
+  },
+};
+
+/**
+ * When the particle moves straight across (dy/dt = 0) or straight up or down
+ * (dx/dt = 0), and its velocity then, as three decisions.
+ *
+ * Each coordinate is a quadratic with its own turning t, so setting the wrong
+ * rate to zero is always a reachable slip. The velocity's wrong turns are its
+ * components swapped, the position, and the sign lost.
+ */
+const paramUprightFlow: Generator<FlatParams> = {
+  id: 'param-upright-flow',
+  sample: (rng, difficulty) => sampleFlat(rng, difficulty, 9),
+  render: (params): Slide => {
+    const curve = flatCurve(params);
+    const [t0, t1] = flatT(params);
+    const [x0, y0] = pointAt(curve, t0);
+    const [dx, dy] = ratesAt(curve, t0);
+    const across = params.horizontal;
+    const salt = mix(t0, t1, params.cx, params.cy, across ? 1 : 2);
+    const way = across ? 'straight across' : 'straight up or down';
+    const right = across ? `$${DYDT} = 0$` : `$${DXDT} = 0$`;
+    const other = across ? `$${DXDT} = 0$` : `$${DYDT} = 0$`;
+    const moving = across ? dx : dy;
+    const velocity = (v: number) => `$${across ? pair(v, 0) : pair(0, v)}$`;
+    const tWrong = [t1, -t0].filter((v, i, all) => v !== t0 && all.indexOf(v) === i);
+    return {
+      kind: 'flow',
+      prompt: [...motionBlocks(curve), prose(`When is it moving ${way}, and what is its velocity then?`)],
+      subject: `(${DXDT}, ${DYDT})`,
+      steps: [
+        {
+          id: 'which',
+          ask: `Moving ${way} means`,
+          branches: fork(
+            [
+              { label: right, to: 't' },
+              { label: other, outcome: `Then $${across ? 'x' : 'y'}$ stops changing, and it moves ${across ? 'straight up or down' : 'straight across'}.` },
+              { label: `$${DXDT} = ${DYDT}$`, outcome: 'Equal rates mean moving at 45 degrees to the axes.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 't',
+          ask: 'Solve it. Which value of $t$?',
+          branches: fork(
+            [
+              { label: `$t = ${t0}$`, to: 'v' },
+              ...tWrong.map((v) => ({ label: `$t = ${v}$`, outcome: `At $t = ${v}$ the velocity is $${pair(...ratesAt(curve, v))}$.` })),
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'v',
+          ask: `Its velocity at $t = ${t0}$ is`,
+          branches: fork(
+            [
+              { label: velocity(moving), outcome: `Right: at $t = ${t0}$ the velocity is ${velocity(moving)}.` },
+              { label: `$${across ? pair(0, moving) : pair(moving, 0)}$`, outcome: `The zero belongs to the rate you set to zero, $${across ? DYDT : DXDT}$.` },
+              { label: `$${pair(x0, y0)}$`, outcome: 'That is where the particle is, not how it is moving.' },
+              { label: velocity(-moving), outcome: 'Check the sign of the rate that is not zero.' },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [right, `$t = ${t0}$`, velocity(moving)],
+    };
+  },
+  solution: (params) => {
+    const curve = flatCurve(params);
+    const [t0] = flatT(params);
+    const [dx, dy] = ratesAt(curve, t0);
+    const across = params.horizontal;
+    return [
+      {
+        text: across ? 'Straight across: $y$ stops changing, so its rate is zero.' : 'Straight up or down: $x$ stops changing, so its rate is zero.',
+        tex: `${across ? DYDT : DXDT} = ${polyTex(derived(across ? curve.y : curve.x))} = 0`,
+      },
+      { tex: `t = ${t0}` },
+      { text: `Put $t = ${t0}$ into both rates.`, tex: `${VELOCITY} = ${pair(dx, dy)}` },
+    ];
+  },
+};
+
+/* ---------- Speed ---------- */
+
+/**
+ * A polynomial in t whose derivative at t = k is `target`: linear, a
+ * quadratic, or a cubic with no square term. Undefined when the middle
+ * coefficient that would take would be too big to read.
+ */
+function aimed(rng: Rng, target: number, k: number, degree: number): number[] | undefined {
+  const c0 = rng.int(-5, 5);
+  if (degree === 1) return [target, c0];
+  const lead = rng.pick([1, -1, 2, -2]);
+  const rest = degree === 2 ? target - 2 * lead * k : target - 3 * lead * k * k;
+  if (Math.abs(rest) > 12) return undefined;
+  return degree === 2 ? [lead, rest, c0] : [lead, 0, rest, c0];
+}
+
+/** A particle whose velocity at t = k is a Pythagorean pair, so its speed there is whole. */
+function sampleSpeed(rng: Rng, difficulty: number): MotionParams {
+  const hard = difficulty >= 2;
+  const triples = TRIPLES.filter(([, , c]) => c <= (hard ? 26 : 17));
+  for (;;) {
+    const [a, b] = rng.pick(triples);
+    const k = hard ? rng.int(-2, 3) : rng.int(1, 3);
+    const degrees = hard ? [rng.pick([2, 3]), rng.pick([2, 3])] : [rng.pick([1, 2]), 2];
+    if (k === 0) continue;
+    const x = aimed(rng, a * (hard ? rng.sign() : 1), k, degrees[0]);
+    const y = aimed(rng, b * rng.sign(), k, degrees[1]);
+    if (!x || !y) continue;
+    const curve = rng.chance(0.5) ? { x, y } : { x: y, y: x };
+    const [x0, y0] = pointAt(curve, k);
+    if (Math.abs(x0) > 60 || Math.abs(y0) > 60) continue;
+    return { curve, k };
+  }
+}
+
+/** The speed at t = k, from the triple the velocity was built on. */
+export function speedAt({ curve, k }: MotionParams): number {
+  const [dx, dy] = ratesAt(curve, k);
+  const row = TRIPLES.find(([a, b]) => a === Math.abs(dx) && b === Math.abs(dy));
+  if (!row) throw new Error(`no triple for (${dx}, ${dy})`);
+  return row[2];
+}
+
+const SPEED = '\\text{speed}';
+const speedFormula = `\\sqrt{\\left(${DXDT}\\right)^2 + \\left(${DYDT}\\right)^2}`;
+
+function speedSolution(params: MotionParams): SolutionStep[] {
+  const [dx, dy] = ratesAt(params.curve, params.k);
+  const s = speedAt(params);
+  return [
+    ...velocitySolution(params),
+    { text: 'The speed is the length of the velocity.', tex: `${SPEED} = \\sqrt{${bracketed(dx)}^2 + ${bracketed(dy)}^2}` },
+    { tex: `${SPEED} = \\sqrt{${s * s}} = ${s}` },
+  ];
+}
+
+/**
+ * The speed at t = k as a tree: both components, the sum of their squares,
+ * then its root. The bank carries the components added without squaring and
+ * the position.
+ */
+const paramSpeedPartsTree: Generator<MotionParams> = {
+  id: 'param-speed-parts-tree',
+  sample: sampleSpeed,
+  render: (params): Slide => {
+    const { curve, k } = params;
+    const [dx, dy] = ratesAt(curve, k);
+    const [x0, y0] = pointAt(curve, k);
+    const s = speedAt(params);
+    return {
+      kind: 'tree',
+      prompt: [
+        ...motionBlocks(curve),
+        prose(`Find its speed at $t = ${k}$. The top row is $${DXDT}$ and $${DYDT}$ there, then the sum of their squares, then the speed.`),
+      ],
+      expression: `${SPEED} = ${speedFormula}`,
+      nodes: [
+        { id: 'dx', from: [] },
+        { id: 'dy', from: [] },
+        { id: 'sq', from: ['dx', 'dy'] },
+        { id: 's', from: ['sq'] },
+      ],
+      bank: treeBank([dx, dy, s * s, s], [Math.abs(dx) + Math.abs(dy), dx + dy, x0, y0]),
+      answer: [dx, dy, s * s, s].map(String),
+    };
+  },
+  solution: speedSolution,
+};
+
+/**
+ * The speed at t = k, typed. The options carry the square not rooted and the
+ * components added.
+ */
+const paramSpeed: Generator<MotionParams> = {
+  id: 'param-speed',
+  sample: sampleSpeed,
+  choices: (params) => {
+    const [dx, dy] = ratesAt(params.curve, params.k);
+    const s = speedAt(params);
+    return numberChoices(s, [s * s, Math.abs(dx) + Math.abs(dy), Math.abs(dx + dy)], mix(dx, dy, params.k, s));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [...motionBlocks(params.curve), prose(`Find its speed at $t = ${params.k}$.`)],
+    lead: `${SPEED} =`,
+    keypad: [],
+    answer: `${speedAt(params)}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: speedSolution,
+};
+
+/** [dx/dt, dy/dt] of a path of degree 2 or less, each as [coefficient of t, constant]. */
+const linearRate = (coefficients: number[]): [number, number] => {
+  const rate = derived(coefficients);
+  return rate.length === 1 ? [0, rate[0]] : [rate[0], rate[1]];
+};
+
+/** speed^2 = A t^2 + B t + C, for a path whose coordinates are at most quadratic. */
+export function speedSquared(curve: ParamCurve): [number, number, number] {
+  const [P, R] = linearRate(curve.x);
+  const [Q, S] = linearRate(curve.y);
+  return [P * P + Q * Q, 2 * (P * R + Q * S), R * R + S * S];
+}
+
+/** A particle on a path of degree 2 or less, and whether a slide asks across (x) or up (y). */
+export interface SlowParams {
+  curve: ParamCurve;
+  across: boolean;
+}
+
+/**
+ * At difficulty 1 one coordinate moves steadily and the other is a quadratic;
+ * at 2 both are quadratics, so the slowest moment is neither one's turning t.
+ */
+function sampleSlow(rng: Rng, difficulty: number, accept: (params: SlowParams) => boolean): SlowParams {
+  const hard = difficulty >= 2;
+  const quadratic = () => [rng.pick([1, -1, 2, -2]), rng.int(-6, 6), rng.int(-5, 5)];
+  for (;;) {
+    const steady = [rng.int(1, 4) * rng.sign(), rng.int(-5, 5)];
+    const curve = hard ? { x: quadratic(), y: quadratic() } : rng.chance(0.5) ? { x: steady, y: quadratic() } : { x: quadratic(), y: steady };
+    const params = { curve, across: rng.chance(0.5) };
+    if (accept(params)) return params;
+  }
+}
+
+/** The t at which the particle is slowest: where speed^2 turns. */
+export function slowestT(curve: ParamCurve): number {
+  const [A, B] = speedSquared(curve);
+  return -B / (2 * A) + 0;
+}
+
+/**
+ * Where the particle moves most slowly, slid to on a picture of its path: the
+ * vertical line to the x-coordinate there, or the horizontal line to the y.
+ */
+const paramSlowestSlider: Generator<SlowParams> = {
+  id: 'param-slowest-slider',
+  sample: (rng, difficulty) =>
+    sampleSlow(rng, difficulty, ({ curve, across }) => {
+      const t = slowestT(curve);
+      if (!Number.isInteger(t) || Math.abs(t) > 4) return false;
+      const value = valueAt(across ? curve.x : curve.y, t);
+      // An untouched slider rests at 0, the middle of its track, so 0 is never the answer.
+      return value !== 0 && Math.abs(value) <= 7;
+    }),
+  render: ({ curve, across }): Slide => {
+    const t = slowestT(curve);
+    const span = 8;
+    return {
+      kind: 'slider',
+      prompt: [
+        ...motionBlocks(curve),
+        prose(
+          across
+            ? 'Slide the line across to the $x$-coordinate of the point where it moves most slowly.'
+            : 'Slide the line to the height of the point where it moves most slowly.',
+        ),
+      ],
+      min: -span,
+      max: span,
+      step: 1,
+      answer: valueAt(across ? curve.x : curve.y, t),
+      readout: across ? 'x = {v}' : 'y = {v}',
+      figure: {
+        svg: paramSvg((s) => pointAt(curve, s), { span, tMin: t - 5, tMax: t + 5, label: 'The path of the particle as t runs' }),
+        xMin: -span,
+        xMax: span,
+        axis: across ? 'x' : 'y',
+      },
+    };
+  },
+  solution: ({ curve, across }) => {
+    const [A, B, C] = speedSquared(curve);
+    const t = slowestT(curve);
+    return [
+      ...ratesSteps(curve, 'Square and add the rates.'),
+      { tex: `${SPEED}^2 = ${polyTex([A, B, C])}` },
+      { text: 'The speed is least where its square is: the derivative of the square is zero.', tex: `${polyTex([2 * A, B])} = 0, \\quad t = ${t}` },
+      { text: `Put $t = ${t}$ into the $${across ? 'x' : 'y'}$ equation.`, tex: `${across ? 'x' : 'y'} = ${valueAt(across ? curve.x : curve.y, t)}` },
+    ];
+  },
+};
+
+/**
+ * speed^2 as a quadratic in t, from tiles. The bank carries the rates added
+ * before squaring, the 2 of the middle term lost, and its sign turned.
+ */
+const paramSpeedSquaredTiles: Generator<SlowParams> = {
+  id: 'param-speed-squared-tiles',
+  sample: (rng, difficulty) =>
+    sampleSlow(rng, difficulty, ({ curve }) => {
+      const [A, B, C] = speedSquared(curve);
+      return B !== 0 && C !== 0 && A <= 40 && Math.abs(B) <= 80 && C <= 80;
+    }),
+  render: ({ curve }): Slide => {
+    const [A, B, C] = speedSquared(curve);
+    const [P, R] = linearRate(curve.x);
+    const [Q, S] = linearRate(curve.y);
+    const answer = [`${A}`, signed(B), signed(C)];
+    const slips = [
+      ...[(P + Q) ** 2, Math.abs(P) + Math.abs(Q)].filter((v) => v > 0 && v !== A).map(String),
+      ...[B / 2, -B, (R + S) ** 2, R + S].filter((v) => v !== 0 && v !== B && v !== C).map(signed),
+    ];
+    const bank = [...answer, ...new Set(slips.filter((tile) => !answer.includes(tile)))].slice(0, 7);
+    return {
+      kind: 'tiles',
+      prompt: [...motionBlocks(curve), prose('Write the square of its speed as a quadratic in $t$.')],
+      template: `${SPEED}^2 = {0}t^2 {1}t {2}`,
+      bank: bank.sort((a, b) => Number(a.replace(/\s/g, '')) - Number(b.replace(/\s/g, '')) || a.localeCompare(b)),
+      answer,
+    };
+  },
+  solution: ({ curve }) => {
+    const [A, B, C] = speedSquared(curve);
+    return [
+      ...ratesSteps(curve, 'Differentiate each coordinate.'),
+      { text: 'Square each rate, add, and collect like terms.', tex: `${SPEED}^2 = ${polyTex([A, B, C])}` },
+    ];
+  },
+};
+
+/* ---------- When and where ---------- */
+
+/** A particle whose pinned coordinate reaches `target` at t = t0 > 0. */
+export interface CrossingParams {
+  pin: 'x' | 'y';
+  target: number;
+  pinned: number[];
+  other: number[];
+  t0: number;
+  /** The pinned quadratic's other root, -s, before the clock starts; 0 when the pinned coordinate is linear. */
+  s: number;
+}
+
+export const crossingCurve = ({ pin, pinned, other }: CrossingParams): ParamCurve =>
+  pin === 'x' ? { x: pinned, y: other } : { x: other, y: pinned };
+
+/** The pinned coordinate: a(t - t0) + target, or a(t - t0)(t + s) + target. */
+const pinnedPoly = (a: number, t0: number, s: number, target: number): number[] =>
+  s === 0 ? [a, target - a * t0] : [a, a * (s - t0), target - a * t0 * s];
+
+/**
+ * What the particle reaches: an axis when the target is 0, a line x = c or
+ * y = c otherwise.
+ */
+function reachTex({ pin, target }: CrossingParams): string {
+  if (target !== 0) return `the line $${pin} = ${target}$`;
+  return pin === 'x' ? 'the $y$-axis' : 'the $x$-axis';
+}
+
+/** "for t > 0" when the pinned quadratic has a root before the clock starts. */
+const afterStart = ({ s }: CrossingParams): string => (s === 0 ? '' : ', with $t > 0$');
+
+function checkCrossing(params: CrossingParams): boolean {
+  const curve = crossingCurve(params);
+  const [x0, y0] = pointAt(curve, params.t0);
+  const [dx, dy] = ratesAt(curve, params.t0);
+  return Math.abs(x0) <= 40 && Math.abs(y0) <= 40 && Math.abs(dx) <= 40 && Math.abs(dy) <= 40 && (dx !== 0 || dy !== 0);
+}
+
+/** At difficulty 1 the pinned coordinate is linear; at 2 a quadratic with one root either side of t = 0. */
+function sampleCrossing(rng: Rng, difficulty: number): CrossingParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const pin = rng.chance(0.5) ? 'x' : 'y';
+    const target = rng.chance(0.5) ? 0 : rng.int(1, 5) * rng.sign();
+    const t0 = rng.int(1, 4);
+    const s = hard ? rng.int(1, 3) : 0;
+    const a = hard ? rng.pick([1, -1, 2, -2]) : rng.int(1, 3) * rng.sign();
+    const other = randomPoly(rng, hard ? rng.pick([2, 3]) : 2, 3);
+    const params: CrossingParams = { pin, target, pinned: pinnedPoly(a, t0, s, target), other, t0, s };
+    if (checkCrossing(params)) return params;
+  }
+}
+
+/** The equation for the time, as the learner reads it. */
+const timeEquation = ({ pin, pinned, target }: CrossingParams): string => `${pin} = ${polyTex(pinned)} = ${target}`;
+
+function crossingSolution(params: CrossingParams): SolutionStep[] {
+  const { pin, pinned, target, t0, s } = params;
+  const curve = crossingCurve(params);
+  const [x0, y0] = pointAt(curve, t0);
+  const [dx, dy] = ratesAt(curve, t0);
+  return [
+    { text: `It reaches ${reachTex(params)} when $${pin} = ${target}$.`, tex: `${polyTex(pinned)} = ${target}` },
+    { text: s === 0 ? 'Solve.' : `The roots are $t = ${t0}$ and $t = ${-s}$; only the first comes after $t = 0$.`, tex: `t = ${t0}` },
+    { text: `There it is at $${pair(x0, y0)}$. Differentiate and put in $t = ${t0}$ for the velocity.`, tex: `${VELOCITY} = ${pair(dx, dy)}` },
+  ];
+}
+
+/**
+ * The time the particle reaches an axis or a line, then its velocity then,
+ * as a tree. The bank holds the other root or $-t_0$, and the velocity at
+ * $t = 0$, where the clock starts.
+ */
+const paramCrossingTree: Generator<CrossingParams> = {
+  id: 'param-crossing-tree',
+  sample: sampleCrossing,
+  render: (params): Slide => {
+    const { t0, s } = params;
+    const curve = crossingCurve(params);
+    const [dx, dy] = ratesAt(curve, t0);
+    const [sx, sy] = ratesAt(curve, 0);
+    return {
+      kind: 'tree',
+      prompt: [
+        ...motionBlocks(curve),
+        prose(`It reaches ${reachTex(params)} at a time $t${s === 0 ? '' : ' > 0'}$. The top box is that $t$; the boxes below are $${DXDT}$ and $${DYDT}$ then.`),
+      ],
+      expression: timeEquation(params),
+      nodes: [
+        { id: 't', from: [] },
+        { id: 'dx', from: ['t'] },
+        { id: 'dy', from: ['t'] },
+      ],
+      bank: treeBank([t0, dx, dy], [s === 0 ? -t0 : -s, sx, sy, ...pointAt(curve, t0)]),
+      answer: [t0, dx, dy].map(String),
+    };
+  },
+  solution: crossingSolution,
+};
+
+/**
+ * When and where the particle reaches a line or an axis: the time and the
+ * point, placed as tiles. The bank carries the other root or $-t_0$, the
+ * point at $t = 0$, and the velocity there.
+ */
+const paramReachTiles: Generator<CrossingParams> = {
+  id: 'param-reach-tiles',
+  sample: sampleCrossing,
+  render: (params): Slide => {
+    const { t0, s } = params;
+    const curve = crossingCurve(params);
+    const [x0, y0] = pointAt(curve, t0);
+    const [dx, dy] = ratesAt(curve, t0);
+    return {
+      kind: 'tiles',
+      prompt: [...motionBlocks(curve), prose(`When and where does it reach ${reachTex(params)}${afterStart(params)}?`)],
+      template: 't = {0}, \\quad (x, y) = ({1}, {2})',
+      bank: numberBank([t0, x0, y0], [s === 0 ? -t0 : -s, ...pointAt(curve, 0), dx, dy, t0 + 1, -x0, -y0]),
+      answer: [`${t0}`, `${x0}`, `${y0}`],
+    };
+  },
+  solution: crossingSolution,
+};
+
+/**
+ * Reaching an axis or a line as three decisions: which equation gives the
+ * time, which root, and the velocity then.
+ *
+ * The wrong turns are the other coordinate set to the target, t set to it,
+ * the other root (or $-t_0$), the position for the velocity, and the
+ * components swapped.
+ */
+const paramCrossingFlow: Generator<CrossingParams> = {
+  id: 'param-crossing-flow',
+  sample: sampleCrossing,
+  render: (params): Slide => {
+    const { pin, target, t0, s } = params;
+    const curve = crossingCurve(params);
+    const otherName = pin === 'x' ? 'y' : 'x';
+    const [x0, y0] = pointAt(curve, t0);
+    const [dx, dy] = ratesAt(curve, t0);
+    const salt = mix(t0, s, target, x0, y0, pin === 'x' ? 1 : 2);
+    const solve = `Solve $${pin} = ${target}$`;
+    const early = s === 0 ? -t0 : -s;
+    const earlyAt = pointAt(curve, early);
+    const velocity = `$${pair(dx, dy)}$`;
+    return {
+      kind: 'flow',
+      prompt: [...motionBlocks(curve), prose(`What is its velocity when it reaches ${reachTex(params)}${afterStart(params)}?`)],
+      subject: `(${DXDT}, ${DYDT})`,
+      steps: [
+        {
+          id: 'equation',
+          ask: 'Which equation gives the time?',
+          branches: fork(
+            [
+              { label: solve, to: 't' },
+              { label: `Solve $${otherName} = ${target}$`, outcome: target === 0 ? `That finds where it meets the $${pin}$-axis.` : `The line is about $${pin}$, not $${otherName}$.` },
+              { label: target === 0 ? 'Put $t = 0$' : `Put $t = ${target}$`, outcome: target === 0 ? 'That finds where it starts.' : `$${target}$ is a value of $${pin}$, not a time.` },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 't',
+          ask: 'Which time?',
+          branches: fork(
+            [
+              { label: `$t = ${t0}$`, to: 'v' },
+              {
+                label: `$t = ${early}$`,
+                outcome: s === 0 ? `Put it back in: $${pin} = ${valueAt(params.pinned, early)}$ then, not $${target}$.` : 'That root comes before $t = 0$.',
+              },
+              { label: `$t = ${t0 + 1}$`, outcome: `Put it back in: $${pin} = ${valueAt(params.pinned, t0 + 1)}$ then, not $${target}$.` },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'v',
+          ask: `Its velocity at $t = ${t0}$ is`,
+          branches: fork(
+            [
+              { label: velocity, outcome: `Right: it reaches ${reachTex(params)} at $${pair(x0, y0)}$ moving with velocity ${velocity}.` },
+              { label: `$${pair(x0, y0)}$`, outcome: 'That is where it is, not how it moves.' },
+              { label: `$${pair(dy, dx)}$`, outcome: `$${DXDT}$ comes first.` },
+              { label: `$${pair(...ratesAt(curve, early))}$`, outcome: `That is the velocity at $t = ${early}$, at $${pair(...earlyAt)}$.` },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [solve, `$t = ${t0}$`, velocity],
+    };
+  },
+  solution: crossingSolution,
+};
+
+/**
+ * A crossing whose velocity is a Pythagorean pair: the pinned coordinate's
+ * rate at t0 is one leg and the other coordinate is aimed at the other.
+ */
+function sampleCrossingSpeed(rng: Rng, difficulty: number): CrossingParams {
+  const hard = difficulty >= 2;
+  const triples = TRIPLES.filter(([, , c]) => c <= (hard ? 26 : 17));
+  for (;;) {
+    const [legA, legB] = rng.pick(triples);
+    const pin = rng.chance(0.5) ? 'x' : 'y';
+    const target = rng.chance(0.5) ? 0 : rng.int(1, 5) * rng.sign();
+    const t0 = rng.int(1, 4);
+    const s = hard ? rng.int(1, 3) : 0;
+    // The pinned rate at t0 is a (linear) or a(t0 + s) (quadratic).
+    const a = (legA * rng.sign()) / (s === 0 ? 1 : t0 + s);
+    if (!Number.isInteger(a) || Math.abs(a) > (hard ? 3 : 15)) continue;
+    const other = aimed(rng, legB * rng.sign(), t0, hard ? rng.pick([2, 3]) : 2);
+    if (!other) continue;
+    const params: CrossingParams = { pin, target, pinned: pinnedPoly(a, t0, s, target), other, t0, s };
+    if (checkCrossing(params)) return params;
+  }
+}
+
+/**
+ * The speed at which the particle reaches an axis or a line, typed. The
+ * options carry the square not rooted and the components added.
+ */
+const paramCrossingSpeed: Generator<CrossingParams> = {
+  id: 'param-crossing-speed',
+  sample: sampleCrossingSpeed,
+  choices: (params) => {
+    const [dx, dy] = ratesAt(crossingCurve(params), params.t0);
+    const v = speedAt({ curve: crossingCurve(params), k: params.t0 });
+    return numberChoices(v, [v * v, Math.abs(dx) + Math.abs(dy), Math.abs(dx + dy)], mix(dx, dy, params.t0, v, params.target));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [...motionBlocks(crossingCurve(params)), prose(`How fast is it moving when it reaches ${reachTex(params)}${afterStart(params)}?`)],
+    lead: `${SPEED} =`,
+    keypad: [],
+    answer: `${speedAt({ curve: crossingCurve(params), k: params.t0 })}`,
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const curve = crossingCurve(params);
+    const [dx, dy] = ratesAt(curve, params.t0);
+    const v = speedAt({ curve, k: params.t0 });
+    return [
+      ...crossingSolution(params),
+      { text: 'The speed is the length of the velocity.', tex: `${SPEED} = \\sqrt{${bracketed(dx)}^2 + ${bracketed(dy)}^2}` },
+      { tex: `${SPEED} = \\sqrt{${v * v}} = ${v}` },
+    ];
+  },
+};
+
 /* ---------- Registration ---------- */
 
 /** By name, for `parametricImplicit.test.ts`. */
@@ -7592,6 +8817,26 @@ export const piGenerators = {
   implInverseChainTiles,
   implInverseOrigin,
   implInversePointTree,
+  implRateTSteps,
+  implRateTree,
+  implRateValue,
+  implRateTiles,
+  implRateSignFlow,
+  implRateStill,
+  implQuantityRateTree,
+  implRateReverse,
+  paramVelocityTiles,
+  paramDirection,
+  paramDirectionGradient,
+  paramUprightFlow,
+  paramSpeedPartsTree,
+  paramSpeed,
+  paramSlowestSlider,
+  paramSpeedSquaredTiles,
+  paramCrossingTree,
+  paramReachTiles,
+  paramCrossingFlow,
+  paramCrossingSpeed,
 };
 
 export const parametricGenerators = Object.values(piGenerators) as Generator<never>[];

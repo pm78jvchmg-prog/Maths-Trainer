@@ -4711,8 +4711,11 @@ function threeValues(right: Q, slips: Q[]): Q[] {
 /** Where the series converges: out to R either side of a, with the end where u = -1 kept for a 1/n. */
 function intervalOf(s: Power): Interval {
   const r = radiusIn(s)!;
+  // Only 1/n converges at an end, and only where u = k(x - a)^m comes to -1.
   const alt = s.growth === 'overN';
-  return { lo: sub(q(s.a), r), hi: add(q(s.a), r), loIn: alt && s.k.n > 0, hiIn: alt && s.k.n < 0 };
+  const loU = s.k.n > 0 === (s.m % 2 === 0) ? 1 : -1;
+  const hiU = s.k.n > 0 ? 1 : -1;
+  return { lo: sub(q(s.a), r), hi: add(q(s.a), r), loIn: alt && loU < 0, hiIn: alt && hiU < 0 };
 }
 
 /** The n-th term at an end, where u is 1 or -1. */

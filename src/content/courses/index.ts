@@ -53,6 +53,7 @@ export const categories: Category[] = [
     discovered,
   ),
   tab('statistics', 'Statistics', 'Summarising data, and the chance and spread behind it.', discovered),
+  tab('mechanics', 'Mechanics', 'How things move: motion graphs, the equations of constant acceleration, and gravity.', discovered),
 ];
 
 /** Every course, flattened, in the order the categories list them. */

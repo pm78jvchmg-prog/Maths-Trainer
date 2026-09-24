@@ -9,7 +9,10 @@
  * trapezium rule, with whether it overestimates or underestimates. Level 3
  * is bounds and errors: absolute, relative and percentage error, the bounds
  * of a calculation on rounded values, and how an error in x_n is carried
- * through g, one step and then k.
+ * through g, one step and then k. Level 4 is Simpson's rule: parabolas over
+ * pairs of strips, why the number of strips is even, Simpson against the
+ * trapezium rule on the same heights, exactness for cubics, and tables of
+ * readings.
  *
  * The tangent's equation belongs to Differentiation (`df-l1-tangent`) and
  * rectangle sums to Integration (`in-l8`); both are pointed at, not taught
@@ -125,6 +128,26 @@ const trapezia: Block = {
     shade: { f: (x) => (x < 1 ? 1 + x : x < 2 ? 2 + 3 * (x - 1) : 5 + 5 * (x - 2)), from: 0, to: 3 },
     verticals: [{ x: 0 }, { x: 1 }, { x: 2 }, { x: 3 }],
     label: 'The curve y = x squared plus 1 from 0 to 3, with three trapezia under straight chords',
+  }),
+};
+
+/** y = 6/(x + 1) over [0, 2] with the one parabola through its three heights shaded. */
+const parabolaFigure: Block = {
+  kind: 'diagram',
+  svg: plotSvg({
+    xMin: -0.2,
+    xMax: 2.2,
+    yMin: 0,
+    yMax: 7,
+    curves: [{ f: (x) => 6 / (x + 1) }, { f: (x) => 6 - 4 * x + x * x, accent: true }],
+    shade: { f: (x) => 6 - 4 * x + x * x, from: 0, to: 2 },
+    verticals: [{ x: 0 }, { x: 1 }, { x: 2 }],
+    marks: [
+      { x: 0, y: 6 },
+      { x: 1, y: 3 },
+      { x: 2, y: 2 },
+    ],
+    label: 'The curve y = 6 over x plus 1 from 0 to 2, with a parabola through its heights at 0, 1 and 2',
   }),
 };
 
@@ -711,6 +734,195 @@ export const numericalMethods: Course = {
         ask('numer-bound-value', 2),
         ask('numer-rel-compare', 2),
         ask('numer-error-iterate', 2),
+      ],
+    },
+    {
+      id: 'nm-l4',
+      title: "Simpson's Rule",
+      lessons: [
+        {
+          id: 'nm-l4-parabola',
+          title: 'A Parabola Through Three Points',
+          slides: [
+            teach(
+              prose(
+                "The trapezium rule joins the heights with straight lines (level 2, The Trapezium Rule). **Simpson's rule** takes the strips two at a time and runs a parabola through each three heights, which follows a bending curve far more closely.",
+              ),
+              parabolaFigure,
+              prose('For two strips of width $h$, with heights $y_0$, $y_1$, $y_2$:'),
+              maths('A \\approx \\frac{h}{3}(y_0 + 4y_1 + y_2)'),
+            ),
+            ask('numer-parabola-tree'),
+            ask('numer-simpson-tiles'),
+            ask('numer-weights-choice'),
+            teach(
+              prose('$\\int_0^2 (3x^{2} + 1)\\,dx$ with $h = 1$ has heights $1$, $4$ and $13$:'),
+              working('\\tfrac{1}{3}(1 + 4 \\times 4 + 13) &= \\tfrac{1}{3} \\times 30', '&= 10'),
+              prose('Integrating gives $\\big[x^{3} + x\\big]_0^2 = 10$ too: the parabola through three points of a parabola is the curve itself.'),
+            ),
+            ask('numer-simpson-steps'),
+            ask('numer-parabola-tree', 2),
+            ask('numer-simpson-tiles', 2),
+            teach(
+              prose(
+                'The weights $1, 4, 1$ add up to $6$, and $\\frac{h}{3} \\times 6 = 2h$, the width of the pair. So on a flat line every height is the same and the rule gives width times height, as it should. The middle height counts most because it sits in the middle of the parabola.',
+              ),
+            ),
+            ask('numer-weights-choice', 2),
+            ask('numer-simpson-steps', 2),
+          ],
+          skillCheck: [ask('numer-parabola-tree', 2), ask('numer-simpson-steps', 2), ask('numer-weights-choice', 2)],
+        },
+        {
+          id: 'nm-l4-strips',
+          title: 'More Strips',
+          slides: [
+            teach(
+              prose(
+                'With more strips, take them in pairs, one parabola to a pair. Each pair weights its heights $1, 4, 1$, and a height where two pairs meet collects a $1$ from each: $2$.',
+              ),
+              working('A &\\approx \\tfrac{h}{3}[y_0 + y_n', '&\\quad + 4(y_1 + y_3 + \\cdots)', '&\\quad + 2(y_2 + y_4 + \\cdots)]'),
+              prose('Four strips weight the heights $1, 4, 2, 4, 1$.'),
+            ),
+            ask('numer-strips-tree'),
+            ask('numer-weights-tiles'),
+            ask('numer-simpson-estimate'),
+            teach(
+              prose(
+                'Pairs only work when the strips pair up, so $n$ must be **even**: an odd number of heights, since there is always one more height than strips.',
+              ),
+              prose(
+                "Six heights make five strips. Use Simpson's rule on the first four and the trapezium rule on the last one, then add.",
+              ),
+            ),
+            ask('numer-odd-flow'),
+            ask('numer-strips-tree', 2),
+            ask('numer-weights-tiles', 2),
+            teach(
+              prose('Heights $3, 5, 9, 15, 23$ at $x = 0, 3, 6, 9, 12$, so $h = 3$:'),
+              working('3 + 23 &= 26', '4(5 + 15) &= 80', '2 \\times 9 &= 18', '\\tfrac{3}{3}(26 + 80 + 18) &= 124'),
+            ),
+            ask('numer-simpson-estimate', 2),
+            ask('numer-odd-flow', 2),
+          ],
+          skillCheck: [ask('numer-strips-tree', 2), ask('numer-weights-tiles', 2), ask('numer-simpson-estimate', 2)],
+        },
+        {
+          id: 'nm-l4-compare',
+          title: 'Simpson Against the Trapezium',
+          slides: [
+            teach(
+              prose(
+                'The same heights give two estimates. The trapezium rule joins them with straight chords, which cut across a bend (level 2, Over or Under); the parabolas follow it.',
+              ),
+              working('T &= \\tfrac{h}{2}(y_0 + 2y_1 + y_2)', 'S &= \\tfrac{h}{3}(y_0 + 4y_1 + y_2)'),
+            ),
+            ask('numer-both-tree'),
+            ask('numer-gap-value'),
+            ask('numer-closer-choice'),
+            teach(
+              prose(
+                "Simpson's rule is the trapezium rule corrected. With $T_1$ from one strip and $T_2$ from two, on the same three heights:",
+              ),
+              maths('S = \\frac{4T_2 - T_1}{3}'),
+              prose(
+                'And which way the estimate moved tells you the bend: if $T_2 < T_1$, the chords were sitting above the curve, so it bends upward.',
+              ),
+            ),
+            ask('numer-refine-flow'),
+            ask('numer-both-tree', 2),
+            ask('numer-gap-value', 2),
+            teach(
+              prose(
+                "Halve the strip width and the trapezium rule's error falls to about a quarter, Simpson's to about a sixteenth. So Simpson's rule is usually far closer. Not always: on a quartic whose bend all but evens out, the trapezium rule can land nearer.",
+              ),
+            ),
+            ask('numer-closer-choice', 2),
+            ask('numer-refine-flow', 2),
+          ],
+          skillCheck: [ask('numer-both-tree', 2), ask('numer-gap-value', 2), ask('numer-refine-flow', 2)],
+        },
+        {
+          id: 'nm-l4-exact',
+          title: 'Exact for Cubics',
+          slides: [
+            teach(
+              prose(
+                "A parabola matches a quadratic exactly, so Simpson's rule is exact for quadratics. It is exact for **cubics** too: an $x^{3}$ term's error on one strip of a pair cancels on the other. From $x^{4}$ on, it is only an estimate.",
+              ),
+              prose('The exact value comes from integrating, as in Integration level 2, Definite Integrals.'),
+            ),
+            ask('numer-cubic-steps'),
+            ask('numer-simpson-error'),
+            ask('numer-exact-flow'),
+            teach(
+              prose('With 2 strips on $[0, 2]$:'),
+              working('\\tfrac{1}{3}(0 + 4 \\times 1 + 8) &= 4', '\\textstyle\\int_0^2 x^{3}\\,dx &= 4'),
+              prose('but for $x^{4}$ the rule gives $\\tfrac{1}{3}(0 + 4 + 16) = \\tfrac{20}{3}$, against $\\int_0^2 x^{4}\\,dx = 6.4$.'),
+            ),
+            ask('numer-exact-choice'),
+            ask('numer-cubic-steps', 2),
+            ask('numer-simpson-error', 2),
+            teach(
+              prose(
+                "So the degree decides, and a product has to be counted: $(x - 1)^{2}(x + 3)$ has degree $3$, and Simpson's rule gets it exactly. Anything that is not a polynomial, such as $2^{x}$, $\\frac{k}{x}$ or $\\sqrt{x}$, gets an estimate however many strips are used.",
+              ),
+            ),
+            ask('numer-exact-flow', 2),
+            ask('numer-exact-choice', 2),
+          ],
+          skillCheck: [ask('numer-simpson-error', 2), ask('numer-exact-flow', 2), ask('numer-cubic-steps', 2)],
+        },
+        {
+          id: 'nm-l4-readings',
+          title: 'From a Table of Readings',
+          slides: [
+            teach(
+              prose(
+                "Simpson's rule needs only heights at equal steps, not a formula, so it works straight from measurements: a river's depth across it gives the area of its cross-section, and a car's speed every few seconds gives the distance it covers.",
+              ),
+              prose(
+                'Divide the estimate by the width and you have the mean height: the rectangle that wide and that tall has the same area.',
+              ),
+            ),
+            ask('numer-table-tree'),
+            ask('numer-readings-estimate'),
+            ask('numer-readings-slider'),
+            teach(
+              prose(
+                "Count the strips first: one fewer than the readings. Seven readings make six strips, so Simpson's rule takes them all. Six readings make five, so use Simpson's rule on the first four strips and the trapezium rule on the last.",
+              ),
+            ),
+            ask('numer-odd-choice'),
+            ask('numer-table-tree', 2),
+            ask('numer-readings-estimate', 2),
+            teach(
+              prose('Speeds $0, 6, 10, 12, 13$ m/s, read every $3$ seconds:'),
+              working('0 + 13 &= 13', '4(6 + 12) &= 72', '2 \\times 10 &= 20', '\\tfrac{3}{3}(13 + 72 + 20) &= 105'),
+              prose('About $105$ m in $12$ seconds, a mean speed of $8.75$ m/s.'),
+            ),
+            ask('numer-readings-slider', 2),
+            ask('numer-odd-choice', 2),
+          ],
+          skillCheck: [ask('numer-table-tree', 2), ask('numer-readings-estimate', 2), ask('numer-odd-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('numer-simpson-tiles', 2),
+        ask('numer-simpson-estimate', 2),
+        ask('numer-both-tree', 2),
+        ask('numer-exact-flow', 2),
+        ask('numer-readings-estimate', 2),
+        ask('numer-weights-choice', 2),
+        ask('numer-odd-flow', 2),
+        ask('numer-gap-value', 2),
+        ask('numer-cubic-steps', 2),
+        ask('numer-readings-slider', 2),
+        ask('numer-strips-tree', 2),
+        ask('numer-refine-flow', 2),
+        ask('numer-exact-choice', 2),
+        ask('numer-odd-choice', 2),
+        ask('numer-simpson-error', 2),
       ],
     },
   ],

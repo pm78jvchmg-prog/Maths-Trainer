@@ -11,7 +11,10 @@
  * quadratic factor that will not split. Level 4 solves inequalities with
  * fractions in them, drawn on the number line. Level 5 reads the graph of a
  * fraction off its rule: vertical and horizontal asymptotes, holes,
- * intercepts, and all of them together in a sketch.
+ * intercepts, and all of them together in a sketch. Level 6 is the method of
+ * differences: the split that makes a sum telescope, a number in front, three
+ * factors regrouped into two, a top in r over squares, sums from a later r,
+ * n from a given sum, and the sum to infinity.
  *
  * Every fraction is built outward from its answer: the factors that cancel,
  * the root that solves the equation, the numerators of the split and the
@@ -6569,6 +6572,1068 @@ const fracSketchFlow: Generator<Rational> = {
   },
 };
 
+/* ================================================================
+ * Level 6: the method of differences
+ *
+ * Sequences & Series (`sq-l4-telescoping`, `sq-l4-infinity`) cancels a
+ * telescoping sum and takes its limit with the split given. This level
+ * supplies the split: by cover-up, with a number taken out in front, over
+ * three factors regrouped into two, and over squares; then uses it for sums
+ * from any r, for n from a given sum, and for sums to infinity.
+ *
+ * The variable is r, so `rbr` and `rFactor` stand beside `br` and `pbr`.
+ * Every sum is an `Exact`, a whole top over a whole bottom in lowest terms,
+ * added up from the pieces that survive and written through `exactTex`;
+ * nothing passes through a float. No slide declares `source`, `integrand` or
+ * `limits`: nothing here is calculus, so the oracle in generators.test.ts
+ * skips every one. `algebraicFractions.test.ts` covers them instead, adding
+ * the terms up itself and holding every split, partial sum and limit to that.
+ * ================================================================ */
+
+/** The inside of the bracket (r + c), for the letter a sum runs over. Beside `br`, which writes x. */
+function rbr(c: number): string {
+  if (c === 0) return 'r';
+  return c > 0 ? `r + ${c}` : `r - ${-c}`;
+}
+
+/** (r + c) as a factor, bracketed unless it is r alone. Beside `pbr`. */
+const rFactor = (c: number): string => (c === 0 ? 'r' : `(${rbr(c)})`);
+
+/** (r + c)^2, or r^2. */
+const rSquare = (c: number): string => `${rFactor(c)}^2`;
+
+/** Brackets in r multiplied: r(r + 1)(r + 2). */
+const rProduct = (cs: number[]): string => cs.map(rFactor).join('');
+
+/** A polynomial in r, as `polyTex` writes one in x. */
+const rPolyTex = (p: Poly): string => polyTex(p).replace(/x/g, 'r');
+
+/** n + c, for the far end of a sum; n alone for 0. */
+const nbr = (c: number): string => (c === 0 ? 'n' : `n + ${c}`);
+
+/** from, from + 1, … for `count` places. */
+const run = (from: number, count: number): number[] => Array.from({ length: count }, (_, j) => from + j);
+
+/** 1/d, with 1/1 written as 1. */
+const unitTex = (d: number): string => (d === 1 ? '1' : frac('1', String(d)));
+
+/** An exact fraction: a whole top over a positive whole bottom, in lowest terms. */
+type Exact = [number, number];
+
+function exact(top: number, bottom = 1): Exact {
+  const g = gcd(top, bottom) || 1;
+  const s = bottom < 0 ? -1 : 1;
+  return [(s * top) / g, (s * bottom) / g];
+}
+
+const plusExact = ([a, b]: Exact, [c, d]: Exact): Exact => exact(a * d + c * b, b * d);
+const minusExact = (x: Exact, [c, d]: Exact): Exact => plusExact(x, [-c, d]);
+const timesExact = ([a, b]: Exact, [c, d]: Exact): Exact => exact(a * c, b * d);
+const sameExact = ([a, b]: Exact, [c, d]: Exact): boolean => a === c && b === d;
+/** x < y. Tops and bottoms are whole, so the comparison is exact. */
+const belowExact = ([a, b]: Exact, [c, d]: Exact): boolean => a * d < c * b;
+
+/** The one way a number here is written for the learner: 3, 5/12 or -1/2. */
+function exactTex([top, bottom]: Exact): string {
+  if (bottom === 1) return String(top);
+  return top < 0 ? `-\\frac{${-top}}{${bottom}}` : `\\frac{${top}}{${bottom}}`;
+}
+
+/**
+ * A sum whose term telescopes.
+ *
+ * - `pair` is k/((r + a)(r + a + g)), which is (k/g)(1/(r + a) - 1/(r + a + g)).
+ * - `triple` is k/((r + a)(r + a + 1)(r + a + 2)), which is
+ *   (k/2)(1/((r + a)(r + a + 1)) - 1/((r + a + 1)(r + a + 2))).
+ * - `square` is k(2r + 2a + 1)/((r + a)^2(r + a + 1)^2), which is
+ *   k/(r + a)^2 - k/(r + a + 1)^2.
+ *
+ * Each is a number in front times piece(r) - piece(r + shift), so a sum from
+ * r = m keeps the first `shift` pieces and loses the `shift` past its end.
+ */
+interface Series {
+  form: 'pair' | 'triple' | 'square';
+  k: number;
+  a: number;
+  /** How far apart a pair's brackets are; 1 for the other forms. */
+  g: number;
+  /** The first r of the sum. */
+  m: number;
+  /** The bottom shown multiplied out, to be factorised first. */
+  expanded: boolean;
+}
+
+/** How many places on a piece taken away comes back: g for a pair, 1 otherwise. */
+const shiftOf = (s: Series): number => (s.form === 'pair' ? s.g : 1);
+
+/** The number the split takes out in front. */
+const frontFactor = (s: Series): Exact => exact(s.k, s.form === 'pair' ? s.g : s.form === 'triple' ? 2 : 1);
+
+/** The piece that telescopes, at r: 1/(r + a), 1/((r + a)(r + a + 1)) or 1/(r + a)^2. */
+function pieceAt(s: Series, r: number): Exact {
+  const u = r + s.a;
+  if (s.form === 'pair') return exact(1, u);
+  if (s.form === 'triple') return exact(1, u * (u + 1));
+  return exact(1, u * u);
+}
+
+/** The pieces at r, r + 1, … for `count` places, added. */
+const piecesFrom = (s: Series, r: number, count: number): Exact =>
+  run(r, count).reduce<Exact>((sum, v) => plusExact(sum, pieceAt(s, v)), [0, 1]);
+
+/** What survives at the front, before the number in front: the first `shift` pieces from r = m. */
+const frontOf = (s: Series): Exact => piecesFrom(s, s.m, shiftOf(s));
+
+/** The sum from r = m to n: the front less the pieces past n, times the number in front. */
+const partialOf = (s: Series, n: number): Exact =>
+  timesExact(frontFactor(s), minusExact(frontOf(s), piecesFrom(s, n + 1, shiftOf(s))));
+
+/** The sum to infinity: every far piece tends to 0, so only the front is left. */
+const limitOf = (s: Series): Exact => timesExact(frontFactor(s), frontOf(s));
+
+/** One term, exactly. */
+function termAt(s: Series, r: number): Exact {
+  const u = r + s.a;
+  if (s.form === 'pair') return exact(s.k, u * (u + s.g));
+  if (s.form === 'triple') return exact(s.k, u * (u + 1) * (u + 2));
+  return exact(s.k * (2 * u + 1), u * u * (u + 1) * (u + 1));
+}
+
+function seriesBottomTex(s: Series): string {
+  const { a } = s;
+  if (s.form === 'pair') return s.expanded ? rPolyTex(quad(a, a + s.g)) : rProduct([a, a + s.g]);
+  if (s.form === 'triple') return s.expanded ? rPolyTex(fromRoots([-a, -a - 1, -a - 2])) : rProduct([a, a + 1, a + 2]);
+  return s.expanded ? `(${rPolyTex(quad(a, a + 1))})^2` : `${rSquare(a)}${rSquare(a + 1)}`;
+}
+
+/** The top of the term: k, or k(2r + 2a + 1) multiplied out. */
+const seriesTopTex = (s: Series): string =>
+  s.form === 'square' ? rPolyTex([2 * s.k, s.k * (2 * s.a + 1)]) : String(s.k);
+
+const seriesTermTex = (s: Series): string => frac(seriesTopTex(s), seriesBottomTex(s));
+
+/** A sum from r = m to `to`, as the learner reads it. */
+const sumTex = (m: number, to: string): string => `\\sum_{r=${m}}^{${to}}`;
+
+const seriesSumTex = (s: Series, to = 'n'): string => `${sumTex(s.m, to)} ${seriesTermTex(s)}`;
+
+/** The piece at r + c, in r. */
+function pieceRTex(s: Series, c: number): string {
+  if (s.form === 'pair') return frac('1', rbr(c));
+  if (s.form === 'triple') return frac('1', rProduct([c, c + 1]));
+  return frac('1', rSquare(c));
+}
+
+/** The piece at n + c, over `top`. */
+function farTex(s: Series, c: number, top = '1'): string {
+  if (s.form === 'pair') return frac(top, nbr(c));
+  const factor = (v: number) => (v === 0 ? 'n' : `(${nbr(v)})`);
+  if (s.form === 'triple') return frac(top, `${factor(c)}${factor(c + 1)}`);
+  return frac(top, `${factor(c)}^2`);
+}
+
+/** f times what is inside, the 1 dropped: \frac{1}{2}\left(…\right), or the inside alone. */
+function scaledTex(f: Exact, inside: string): string {
+  return sameExact(f, [1, 1]) ? inside : `${exactTex(f)}\\left(${inside}\\right)`;
+}
+
+/**
+ * The split on one line. Where the number in front is whole and the shift is
+ * one it goes into each numerator, 3/(r + 1) - 3/(r + 2); otherwise it stays
+ * outside a bracket.
+ */
+function diffSplitTex(s: Series): string {
+  const { k, a } = s;
+  if (s.form === 'square') return splitTex([[k, rSquare(a)], [-k, rSquare(a + 1)]]);
+  if (s.form === 'pair' && s.g === 1) return splitTex([[k, rbr(a)], [-k, rbr(a + 1)]]);
+  return scaledTex(frontFactor(s), `${pieceRTex(s, a)} - ${pieceRTex(s, a + shiftOf(s))}`);
+}
+
+/** The sum from m to n in closed form: what survives at the front, less what survives at the far end. */
+function closedTex(s: Series): string {
+  const shift = shiftOf(s);
+  if (shift === 1 && s.form !== 'triple') return `${exactTex(limitOf(s))} - ${farTex(s, s.a + 1, String(s.k))}`;
+  const back = run(s.a + 1, shift).map((c) => farTex(s, c)).join(' - ');
+  return scaledTex(frontFactor(s), `${exactTex(frontOf(s))} - ${back}`);
+}
+
+/**
+ * `lhs` equal to the closed form, as lines of working for a worked solution:
+ * where more than one piece survives at the far end, those pieces go on a
+ * line of their own, since the whole bracket runs off a phone.
+ */
+function closedWorking(lhs: string, s: Series): string {
+  const shift = shiftOf(s);
+  if (shift === 1 && s.form !== 'triple') return `${lhs} = ${closedTex(s)}`;
+  const backs = run(s.a + 1, shift).map((c) => farTex(s, c)).join(' + ');
+  const f = frontFactor(s);
+  const lim = exactTex(limitOf(s));
+  if (s.form === 'triple') {
+    // One piece at the far end: the number in front goes into it.
+    const [top, bottom] = f;
+    const c = s.a + 1;
+    return chain(`${lhs} &= ${lim}`, `&- ${frac(String(top), `${bottom === 1 ? '' : bottom}(${nbr(c)})(${nbr(c + 1)})`)}`);
+  }
+  if (shift < 3) return chain(`${lhs} &= ${lim}`, `&- ${scaledTex(f, backs)}`);
+  // Three pieces at the far end and the number in front do not fit one line, so they are named.
+  const [first, ...rest] = run(s.a + 1, shift).map((c) => farTex(s, c));
+  return chain(`${lhs} &= ${lim} - ${exactTex(f)}\\,T`, `T &= ${first} + ${rest[0]}`, `&\\quad + ${rest[1]}`);
+}
+
+/** The split for a worked solution: a three-factor split's two pieces on lines of their own. */
+function splitWorking(s: Series): string {
+  const f = frontFactor(s);
+  if (s.form !== 'triple') return diffSplitTex(s);
+  const times = sameExact(f, [1, 1]) ? '' : `${exactTex(f)} \\times `;
+  return chain(`&${times}${pieceRTex(s, s.a)}`, `&- ${times}${pieceRTex(s, s.a + 1)}`);
+}
+
+/** The bottom factorised, when it was shown multiplied out, then the split. */
+function splitStep(s: Series): SolutionStep[] {
+  return [
+    ...(s.expanded ? [{ text: `Factorise the bottom: $${seriesBottomTex(s)} = ${seriesBottomTex({ ...s, expanded: false })}$.` }] : []),
+    { text: 'The term splits as' },
+    { tex: splitWorking(s) },
+  ];
+}
+
+/** Cover-up for a pair's two numerators, which come out equal and opposite. */
+function pairCoverSolution(s: Series): SolutionStep[] {
+  const { k, a, g } = s;
+  return [
+    ...(s.expanded ? [{ text: `Factorise the bottom: $${seriesBottomTex(s)} = ${rProduct([a, a + g])}$.` }] : []),
+    { text: `Cover $${rFactor(a)}$ and put $r = ${-a}$ into the rest: $A = ${frac(String(k), String(g))} = ${exactTex(exact(k, g))}$.` },
+    { text: `Cover $${rFactor(a + g)}$ and put $r = ${-a - g}$: $B = ${frac(String(k), String(-g))} = ${exactTex(exact(-k, g))}$.` },
+    { tex: chain(`&${seriesTermTex({ ...s, expanded: false })}`, `=\\;&${diffSplitTex(s)}`) },
+  ];
+}
+
+/* ---------- lesson 1: the split that telescopes ---------- */
+
+/** k/((r + a)(r + a + 1)). Difficulty 2 multiplies the bottom out. */
+function sampleOneApart(rng: Rng, difficulty: number): Series {
+  const hard = difficulty > 1;
+  return { form: 'pair', k: rng.int(1, hard ? 6 : 4), a: rng.int(0, hard ? 7 : 6), g: 1, m: 1, expanded: hard };
+}
+
+interface DiffCoverParams extends Series {
+  ask: 'A' | 'B';
+}
+
+/** One numerator by cover-up, typed. */
+const fracDiffCover: Generator<DiffCoverParams> = {
+  id: 'frac-diff-cover',
+  sample: (rng, difficulty) => ({ ...sampleOneApart(rng, difficulty), ask: rng.pick<'A' | 'B'>(['A', 'B']) }),
+  render: (s): Slide => ({
+    kind: 'expression',
+    prompt: [
+      show(seriesTermTex(s)),
+      say(`This splits as $${frac('A', rbr(s.a))} + ${frac('B', rbr(s.a + 1))}$. Find $${s.ask}$.`),
+    ],
+    lead: `${s.ask} =`,
+    keypad: [],
+    answer: String(s.ask === 'A' ? s.k : -s.k),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (s) => [
+    ...pairCoverSolution(s),
+    { text: 'The two numerators are equal and opposite. That is what makes a sum of these terms cancel down.' },
+  ],
+};
+
+/** The split placed as tiles, the first bracket's part first. */
+const fracDiffSplitTiles: Generator<Series> = {
+  id: 'frac-diff-split-tiles',
+  sample: sampleOneApart,
+  render: (s): Slide => {
+    const { k, a } = s;
+    const answer = [fracTerm(k, rbr(a)), signedFracTerm(-k, rbr(a + 1))];
+    const other = k === 1 ? 2 : 1;
+    return {
+      kind: 'tiles',
+      prompt: [say(`Split into partial fractions, the $${rFactor(a)}$ part first.`), show(seriesTermTex(s))],
+      template: '{0} {1}',
+      bank: tileBank(answer, [
+        fracTerm(k, rbr(a + 1)),
+        fracTerm(-k, rbr(a)),
+        signedFracTerm(k, rbr(a + 1)),
+        signedFracTerm(-k, rbr(a)),
+        fracTerm(other, rbr(a)),
+        signedFracTerm(-other, rbr(a + 1)),
+      ]),
+      answer,
+    };
+  },
+  solution: pairCoverSolution,
+};
+
+/** Which split is right? The distractors flip the signs, add instead, or jump two places. */
+const fracDiffWhich: Generator<Series> = {
+  id: 'frac-diff-which',
+  sample: sampleOneApart,
+  render: (s): Slide => {
+    const { k, a } = s;
+    const two = (p: number, q: number, far = 1) => splitTex([[p, rbr(a)], [q, rbr(a + far)]]);
+    return choiceSlide(
+      [say('Which of these is this term split into partial fractions?'), show(seriesTermTex(s))],
+      firstFour(two(k, -k), two(-k, k), two(k, k), two(k, -k, 2), two(k + 1, -k - 1)),
+    );
+  },
+  solution: (s) => [{ text: 'Find both numerators by cover-up, then pick the option that agrees.' }, ...pairCoverSolution(s)],
+};
+
+interface TableParams extends Series {
+  /** The far row, too far down to add up term by term. */
+  far: number;
+}
+
+const FAR_ROWS = [9, 10, 11, 14, 15, 19, 20, 24, 29, 49, 99];
+
+/**
+ * Partial sums from r = m: the first given, the next two and a far one to
+ * fill, then S_n for every n as what survives. Shift one only, so each end
+ * keeps a single piece.
+ */
+function partialTable(s: TableParams): Slide {
+  const { m, far, k, a } = s;
+  const ns = [m + 1, m + 2, far];
+  const answer = [...ns.map((n) => exactTex(partialOf(s, n))), closedTex(s)];
+  const front = exactTex(limitOf(s));
+  return {
+    kind: 'table',
+    prompt: [
+      show(`S_n = ${seriesSumTex(s)}`),
+      say('Split the term, write the sum out, and fill in the partial sums. The last row is $S_n$ for every $n$: what survives the cancelling.'),
+    ],
+    columns: ['n', 'S_n'],
+    rows: [[String(m), exactTex(partialOf(s, m))], ...ns.map((n) => [String(n), null]), ['n', null]],
+    bank: tileBank(answer, [
+      exactTex(partialOf(s, m + 3)),
+      exactTex(partialOf(s, far + 1)),
+      exactTex(partialOf(s, far - 1)),
+      exactTex(termAt(s, m + 1)),
+      `${front} - ${farTex(s, a, String(k))}`,
+      `${front} + ${farTex(s, a + 1, String(k))}`,
+      `${exactTex(timesExact(exact(k), pieceAt(s, m + 1)))} - ${farTex(s, a + 1, String(k))}`,
+    ]),
+    answer,
+  };
+}
+
+function tableSolution(s: TableParams): SolutionStep[] {
+  return [
+    ...splitStep(s),
+    { text: `Written out from $r = ${s.m}$, each piece taken away is added back by the next term, so only the ends survive:` },
+    { tex: closedWorking('S_n', s) },
+    {
+      text: `So $S_{${s.m + 1}} = ${exactTex(partialOf(s, s.m + 1))}$, $S_{${s.m + 2}} = ${exactTex(partialOf(s, s.m + 2))}$ and $S_{${s.far}} = ${exactTex(partialOf(s, s.far))}$.`,
+    },
+  ];
+}
+
+/** Partial sums from r = 1, and S_n, from a split one place apart. Difficulty 2 multiplies the bottom out. */
+const fracDiffPartialTable: Generator<TableParams> = {
+  id: 'frac-diff-partial-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      form: 'pair',
+      k: rng.int(1, hard ? 5 : 3),
+      a: rng.int(hard ? 1 : 0, hard ? 5 : 3),
+      g: 1,
+      m: 1,
+      expanded: hard,
+      far: rng.pick(FAR_ROWS),
+    };
+  },
+  render: partialTable,
+  solution: tableSolution,
+};
+
+/* ---------- lesson 2: a number in front ---------- */
+
+/** k/((r + a)(r + a + g)), at least two apart so a number comes out in front. Difficulty 2 multiplies the bottom out and may set the brackets three apart. */
+function sampleApart(rng: Rng, difficulty: number): Series {
+  const hard = difficulty > 1;
+  const g = hard ? rng.pick([2, 3]) : 2;
+  const k = rng.pick([1, 2, 3, 4, 5, 6].filter((v) => v !== g));
+  return { form: 'pair', k, a: rng.int(0, 5), g, m: 1, expanded: hard };
+}
+
+/** The split with its shared number taken out: k/g, then the two unit fractions. */
+const fracGapFactorTiles: Generator<Series> = {
+  id: 'frac-gap-factor-tiles',
+  sample: sampleApart,
+  render: (s): Slide => {
+    const { k, a, g } = s;
+    const answer = [exactTex(frontFactor(s)), frac('1', rbr(a)), `- ${frac('1', rbr(a + g))}`];
+    return {
+      kind: 'tiles',
+      prompt: [say('Split into partial fractions, with the number both parts share taken out in front.'), show(seriesTermTex(s))],
+      template: '{0}({1} {2})',
+      bank: tileBank(answer, [
+        String(k),
+        exactTex(exact(g, k)),
+        frac('1', rbr(a + g)),
+        `+ ${frac('1', rbr(a + g))}`,
+        `- ${frac('1', rbr(a + 1))}`,
+        `- ${frac('1', rbr(a + g + 1))}`,
+      ]),
+      answer,
+    };
+  },
+  solution: pairCoverSolution,
+};
+
+/** Cover-up as a tree: each other bracket at its root, then the numerator it gives. */
+const fracGapCoverTree: Generator<Series> = {
+  id: 'frac-gap-cover-tree',
+  sample: sampleApart,
+  render: (s): Slide => {
+    const { k, a, g } = s;
+    const answer = [String(g), String(-g), exactTex(exact(k, g)), exactTex(exact(-k, g))];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Split into $${frac('A', rbr(a))} + ${frac('B', rbr(a + g))}$ by cover-up. Top row: $${rbr(a + g)}$ at $r = ${-a}$, then $${rbr(a)}$ at $r = ${-a - g}$. Below them, $A$ and $B$.`,
+        ),
+      ],
+      expression: seriesTermTex(s),
+      nodes: [
+        { id: 'at-a', from: [] },
+        { id: 'at-b', from: [] },
+        { id: 'A', from: ['at-a'] },
+        { id: 'B', from: ['at-b'] },
+      ],
+      bank: tileBank(answer, [String(k), String(-k), exactTex(exact(g, k)), exactTex(exact(-g, k)), String(g + 1), String(-2 * g)]),
+      answer,
+    };
+  },
+  solution: pairCoverSolution,
+};
+
+/** What survives a sum to n: the number in front, the fractions at the front, those at the far end. */
+const fracGapEndsTiles: Generator<Series> = {
+  id: 'frac-gap-ends-tiles',
+  sample: sampleApart,
+  render: (s): Slide => {
+    const { k, a, g } = s;
+    const front = (from: number, count: number) => run(from, count).map(unitTex).join(' + ');
+    const back = (from: number, count: number) => run(from, count).map((c) => `- ${frac('1', nbr(c))}`).join(' ');
+    const answer = [exactTex(frontFactor(s)), front(a + 1, g), back(a + 1, g)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say('Split the term and write the sum out until you see what cancels. Place what is left, with the number in front.'),
+        show(seriesSumTex(s)),
+      ],
+      template: '{0}({1} {2})',
+      bank: tileBank(answer, [
+        String(k),
+        exactTex(exact(g, k)),
+        front(a + 2, g),
+        front(a + 1, g - 1),
+        back(a + 2, g),
+        back(a + 1, g - 1),
+      ]),
+      answer,
+    };
+  },
+  solution: (s) => {
+    const { a, g } = s;
+    const at = (r: number) => `\\left(${unitTex(r + a)} - ${unitTex(r + a + g)}\\right)`;
+    return [
+      ...splitStep(s),
+      { text: `Written out, inside the $${exactTex(frontFactor(s))}$:` },
+      { tex: chain(`&${at(1)} + ${at(2)}`, `&+ ${at(3)} + \\dots`, `&+ \\left(${frac('1', nbr(a))} - ${frac('1', nbr(a + g))}\\right)`) },
+      { text: `Each piece taken away comes back ${g} terms later and cancels, so the first ${g} and the last ${g} survive. The sum to $n$, $S_n$, is` },
+      { tex: closedWorking('S_n', s) },
+    ];
+  },
+};
+
+const SURVIVORS = ['One', 'Two', 'Three'];
+
+/** The plan for a sum: how the bottom factorises, what comes out in front, and how many pieces survive at each end. */
+const fracGapFlow: Generator<Series> = {
+  id: 'frac-gap-flow',
+  sample: (rng, difficulty) => ({ ...sampleApart(rng, difficulty), a: rng.int(0, difficulty > 1 ? 6 : 5), expanded: true }),
+  render: (s): Slide => {
+    const { k, a, g } = s;
+    const key = seriesTermTex(s);
+    const [c, d] = [a + 1, a + g - 1];
+    const factors = [rProduct([a, a + g]), rProduct([-a, -a - g]), c === d ? rSquare(c) : rProduct([c, d])].map((t) => `$${t}$`);
+    const fronts = [exactTex(frontFactor(s)), String(k), exactTex(exact(g, k))].map((t) => `$${t}$`);
+    return {
+      kind: 'flow',
+      prompt: [say('Plan the method of differences for this sum.')],
+      subject: seriesSumTex(s),
+      steps: [
+        {
+          id: 'factor',
+          ask: 'How does the bottom factorise?',
+          branches: turned(factors, `${key}|factor`).map((label) => ({ label, to: 'front' })),
+        },
+        {
+          id: 'front',
+          ask: 'Split the term. What number comes out in front?',
+          branches: turned(fronts, `${key}|front`).map((label) => ({ label, to: 'ends' })),
+        },
+        {
+          id: 'ends',
+          ask: 'Written out, how many pieces survive at each end?',
+          branches: turned(SURVIVORS, `${key}|ends`).map((label) => ({
+            label,
+            outcome: `So ${label.toLowerCase()} at the front and ${label.toLowerCase()} at the far end.`,
+          })),
+        },
+      ],
+      answer: [factors[0], fronts[0], SURVIVORS[g - 1]],
+    };
+  },
+  solution: (s) => [
+    ...splitStep(s),
+    { text: `A piece taken away comes back ${s.g} terms later, so ${SURVIVORS[s.g - 1].toLowerCase()} survive at each end. The sum to $n$, $S_n$, is` },
+    { tex: closedWorking('S_n', s) },
+  ],
+};
+
+/* ---------- lesson 3: three factors ---------- */
+
+/** k/((r + a)(r + a + 1)(r + a + 2)). `even` keeps k even, so the three-way split's numerators are whole. */
+function sampleTriple(rng: Rng, difficulty: number, even: boolean): Series {
+  const hard = difficulty > 1;
+  const tops = even ? (hard ? [2, 4, 6, 8, 10, 12] : [2, 4, 6, 8, 10]) : hard ? [1, 3, 4, 5, 6, 7, 8, 9] : [1, 3, 4, 5, 6];
+  return { form: 'triple', k: rng.pick(tops), a: rng.int(0, hard ? 6 : 5), g: 1, m: 1, expanded: hard };
+}
+
+/** A, B and C of the three-way split, for an even top: k/2, -k, k/2. */
+const tripleNumerators = ({ k }: Series): number[] => [k / 2, -k, k / 2];
+
+const tripleLetters = ({ a }: Series): string => run(a, 3).map((c, i) => frac(LETTERS[i], rbr(c))).join(' + ');
+
+const tripleSplitTex = (s: Series): string => splitTex(tripleNumerators(s).map((n, i): [number, string] => [n, rbr(s.a + i)]));
+
+function tripleSolution(s: Series): SolutionStep[] {
+  const { k, a } = s;
+  const [A, B, C] = tripleNumerators(s);
+  return [
+    ...(s.expanded ? [{ text: `The bottom factorises: $${seriesBottomTex(s)} = ${rProduct(run(a, 3))}$.` }] : []),
+    { text: `Cover $${rFactor(a)}$ and put $r = ${-a}$: the other two brackets make $1 \\times 2 = 2$, so $A = ${frac(String(k), '2')} = ${A}$.` },
+    { text: `Cover $${rFactor(a + 1)}$ and put $r = ${-a - 1}$: $(-1) \\times 1 = -1$, so $B = ${B}$.` },
+    { text: `Cover $${rFactor(a + 2)}$ and put $r = ${-a - 2}$: $(-2) \\times (-1) = 2$, so $C = ${C}$.` },
+    { tex: tripleSplitTex(s) },
+  ];
+}
+
+/** Regrouping the three-way split into two fractions over neighbouring brackets. */
+function regroupSolution(s: Series): SolutionStep[] {
+  const { a } = s;
+  const top = a === 0 ? `${rbr(2)} - r` : `${rbr(a + 2)} - (${rbr(a)})`;
+  return [
+    ...(s.expanded ? [{ text: `The bottom factorises: $${seriesBottomTex(s)} = ${rProduct(run(a, 3))}$.` }] : []),
+    { text: 'Over a common bottom, the two fractions over neighbouring brackets differ by' },
+    {
+      tex: chain(
+        `&${pieceRTex(s, a)}`,
+        `&- ${pieceRTex(s, a + 1)}`,
+        `=\\;&${frac(top, rProduct(run(a, 3)))}`,
+        `=\\;&${frac('2', rProduct(run(a, 3)))}`,
+      ),
+    },
+    { text: `The term has $${s.k}$ on top, not $2$, so it is $${exactTex(frontFactor(s))}$ times that difference:` },
+    { tex: splitWorking(s) },
+  ];
+}
+
+/** The three numerators by cover-up, as a tree: the other two brackets' product at each root, then the numerator. */
+const fracTripleCoverTree: Generator<Series> = {
+  id: 'frac-triple-cover-tree',
+  sample: (rng, difficulty) => sampleTriple(rng, difficulty, true),
+  render: (s): Slide => {
+    const { k, a } = s;
+    const answer = [2, -1, 2, ...tripleNumerators(s)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Split into $${tripleLetters(s)}$ by cover-up. Top row: the other two brackets multiplied, at $r = ${-a}$, $r = ${-a - 1}$ and $r = ${-a - 2}$. Below each, its numerator.`,
+        ),
+      ],
+      expression: seriesTermTex(s),
+      nodes: [
+        { id: 'at-a', from: [] },
+        { id: 'at-b', from: [] },
+        { id: 'at-c', from: [] },
+        { id: 'A', from: ['at-a'] },
+        { id: 'B', from: ['at-b'] },
+        { id: 'C', from: ['at-c'] },
+      ],
+      bank: numberBank(answer, [k, -k / 2, -2, 1, 2 * k]),
+      answer: answer.map(String),
+    };
+  },
+  solution: tripleSolution,
+};
+
+/** The three-way split placed, in bracket order. */
+const fracTripleTiles: Generator<Series> = {
+  id: 'frac-triple-tiles',
+  sample: (rng, difficulty) => sampleTriple(rng, difficulty, true),
+  render: (s): Slide => {
+    const { k, a } = s;
+    const h = k / 2;
+    const answer = [fracTerm(h, rbr(a)), signedFracTerm(-k, rbr(a + 1)), signedFracTerm(h, rbr(a + 2))];
+    return {
+      kind: 'tiles',
+      prompt: [say('Split into three partial fractions, in the order the brackets are written.'), show(seriesTermTex(s))],
+      template: '{0} {1} {2}',
+      bank: tileBank(answer, [
+        fracTerm(k, rbr(a)),
+        fracTerm(-h, rbr(a)),
+        signedFracTerm(k, rbr(a + 1)),
+        signedFracTerm(-h, rbr(a + 1)),
+        signedFracTerm(-h, rbr(a + 2)),
+        signedFracTerm(k, rbr(a + 2)),
+      ]),
+      answer,
+    };
+  },
+  solution: tripleSolution,
+};
+
+/** The same term regrouped: the number in front, then two fractions over neighbouring brackets. */
+const fracTripleRegroupTiles: Generator<Series> = {
+  id: 'frac-triple-regroup-tiles',
+  sample: (rng, difficulty) => sampleTriple(rng, difficulty, false),
+  render: (s): Slide => {
+    const { k, a } = s;
+    const answer = [exactTex(frontFactor(s)), pieceRTex(s, a), `- ${pieceRTex(s, a + 1)}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say('Write it as the difference of two fractions, each over two neighbouring brackets, with the number they share in front.'),
+        show(seriesTermTex(s)),
+      ],
+      template: '{0}({1} {2})',
+      bank: tileBank(answer, [
+        String(k),
+        exactTex(exact(2, k)),
+        pieceRTex(s, a + 1),
+        `+ ${pieceRTex(s, a + 1)}`,
+        `- ${frac('1', rProduct([a, a + 2]))}`,
+        `- ${pieceRTex(s, a + 2)}`,
+      ]),
+      answer,
+    };
+  },
+  solution: regroupSolution,
+};
+
+/** Which is the sum to n of a three-factor term? Difficulty 2 multiplies the bottom out and may start past r = 1. */
+const fracTripleSumWhich: Generator<Series> = {
+  id: 'frac-triple-sum-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { form: 'triple', k: rng.int(1, hard ? 9 : 6), a: rng.int(0, 4), g: 1, m: hard ? rng.int(1, 3) : 1, expanded: hard };
+  },
+  render: (s): Slide => {
+    const f = frontFactor(s);
+    const front = exactTex(frontOf(s));
+    const back = farTex(s, s.a + 1);
+    return choiceSlide(
+      [say('Which of these is the sum to $n$?'), show(seriesSumTex(s))],
+      firstFour(
+        closedTex(s),
+        scaledTex(exact(s.k), `${front} - ${back}`),
+        scaledTex(f, `${front} - ${farTex(s, s.a)}`),
+        scaledTex(f, `${exactTex(pieceAt(s, s.m + 1))} - ${back}`),
+        scaledTex(f, `${exactTex(exact(1, s.m + s.a))} - ${back}`),
+      ),
+    );
+  },
+  solution: (s) => [
+    ...regroupSolution(s),
+    { text: `Each piece taken away comes back in the next term, so the first piece, at $r = ${s.m}$, and the last, at $r = n + 1$, survive. The sum to $n$, $S_n$, is` },
+    { tex: closedWorking('S_n', s) },
+  ],
+};
+
+interface TripleAskParams extends Series {
+  /** Which numerator, 0 to 2. */
+  ask: number;
+}
+
+/** One numerator of the three-way split, typed. */
+const fracTripleNumerator: Generator<TripleAskParams> = {
+  id: 'frac-triple-numerator',
+  sample: (rng, difficulty) => ({ ...sampleTriple(rng, difficulty, true), ask: rng.int(0, 2) }),
+  render: (s): Slide => ({
+    kind: 'expression',
+    prompt: [show(seriesTermTex(s)), say(`This splits as $${tripleLetters(s)}$. Find $${LETTERS[s.ask]}$.`)],
+    lead: `${LETTERS[s.ask]} =`,
+    keypad: [],
+    answer: String(tripleNumerators(s)[s.ask]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: tripleSolution,
+};
+
+/* ---------- lesson 4: sums from m, and a top in r ---------- */
+
+/** k(2r + 2a + 1)/((r + a)^2(r + a + 1)^2). Difficulty 2 writes the bottom as a quadratic squared. */
+function sampleSquare(rng: Rng, difficulty: number): Series {
+  const hard = difficulty > 1;
+  return { form: 'square', k: rng.int(1, hard ? 5 : 4), a: rng.int(0, 6), g: 1, m: 1, expanded: hard };
+}
+
+function squaresSolution(s: Series): SolutionStep[] {
+  const { k, a } = s;
+  return [
+    ...(s.expanded ? [{ text: `The bottom is a square of a product: $${seriesBottomTex(s)} = ${rSquare(a)}${rSquare(a + 1)}$.` }] : []),
+    { text: `Two squares side by side differ by $${rSquare(a + 1)} - ${rSquare(a)} = ${rPolyTex([2, 2 * a + 1])}$.` },
+    { text: `So over the common bottom $${frac(String(k), rSquare(a))} - ${frac(String(k), rSquare(a + 1))}$ has $${k === 1 ? '' : k}(${rPolyTex([2, 2 * a + 1])})$ on top:` },
+    { tex: chain(`&${seriesTermTex({ ...s, expanded: false })}`, `=\\;&${diffSplitTex(s)}`) },
+  ];
+}
+
+/** A top in r that is the difference of two squares' fractions, split. */
+const fracSquareSplitTiles: Generator<Series> = {
+  id: 'frac-square-split-tiles',
+  sample: sampleSquare,
+  render: (s): Slide => {
+    const { k, a } = s;
+    const answer = [fracTerm(k, rSquare(a)), signedFracTerm(-k, rSquare(a + 1))];
+    return {
+      kind: 'tiles',
+      prompt: [say('This term is the difference of two fractions over squares. Place them.'), show(seriesTermTex(s))],
+      template: '{0} {1}',
+      bank: tileBank(answer, [
+        fracTerm(k, rbr(a)),
+        signedFracTerm(-k, rbr(a + 1)),
+        signedFracTerm(k, rSquare(a + 1)),
+        fracTerm(2 * k, rSquare(a)),
+        signedFracTerm(-k, rSquare(a + 2)),
+        signedFracTerm(-2 * k, rSquare(a + 1)),
+      ]),
+      answer,
+    };
+  },
+  solution: squaresSolution,
+};
+
+/** Which term is this difference of squares' fractions? The top must be 2r + 2a + 1 times k. */
+const fracSquareWhich: Generator<Series> = {
+  id: 'frac-square-which',
+  sample: sampleSquare,
+  render: (s): Slide => {
+    const { k, a } = s;
+    const bottom = seriesBottomTex(s);
+    const top = rPolyTex([2 * k, k * (2 * a + 1)]);
+    return choiceSlide(
+      [say('Which of these terms is this difference?'), show(diffSplitTex(s))],
+      firstFour(
+        seriesTermTex(s),
+        frac(String(k), bottom),
+        frac(rPolyTex([-2 * k, -k * (2 * a + 1)]), bottom),
+        frac(top, seriesBottomTex({ ...s, form: 'pair' })),
+        frac(rPolyTex([2 * k, 2 * k * (a + 1)]), bottom),
+      ),
+    );
+  },
+  solution: squaresSolution,
+};
+
+/** Partial sums from r = m, where m is past 1. Difficulty 2 uses a top in r over squares. */
+const fracFromMTable: Generator<TableParams> = {
+  id: 'frac-from-m-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      form: hard ? 'square' : 'pair',
+      k: rng.int(1, 3),
+      a: rng.int(0, 2),
+      g: 1,
+      m: rng.int(2, hard ? 5 : 6),
+      expanded: false,
+      far: rng.pick(FAR_ROWS),
+    };
+  },
+  render: partialTable,
+  solution: (s) => [
+    ...tableSolution(s),
+    { text: `Starting at $r = ${s.m}$, the piece that survives at the front is the one at $r = ${s.m}$, not the one at $r = 1$.` },
+  ],
+};
+
+interface FindParams extends Series {
+  n: number;
+}
+
+/** n from a given sum. Difficulty 2 starts past r = 1, or has a top in r over squares. */
+const fracFindN: Generator<FindParams> = {
+  id: 'frac-find-n',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      if (rng.chance(0.5)) return { form: 'square', k: rng.int(1, 3), a: rng.int(0, 2), g: 1, m: 1, expanded: false, n: rng.int(3, 20) };
+      const m = rng.int(2, 5);
+      return { form: 'pair', k: rng.int(1, 3), a: rng.int(0, 2), g: 1, m, expanded: false, n: rng.int(m + 3, m + 30) };
+    }
+    return { form: 'pair', k: rng.int(1, 3), a: rng.int(0, 3), g: 1, m: 1, expanded: false, n: rng.int(4, 30) };
+  },
+  render: (s): Slide => ({
+    kind: 'expression',
+    prompt: [show(`${seriesSumTex(s)} = ${exactTex(partialOf(s, s.n))}`), say('Split the term and cancel. What is $n$?')],
+    lead: 'n =',
+    keypad: [],
+    answer: String(s.n),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (s) => {
+    const { k, a, n } = s;
+    const target = partialOf(s, n);
+    const lim = limitOf(s);
+    const far = minusExact(lim, target);
+    const u = n + a + 1;
+    return [
+      ...(s.form === 'square' ? squaresSolution(s) : splitStep(s)),
+      { text: 'Written out, only the ends survive. The sum to $n$, $S_n$, is' },
+      { tex: closedWorking('S_n', s) },
+      { text: `Set that equal to $${exactTex(target)}$:` },
+      { tex: chain(`${farTex(s, a + 1, String(k))} &= ${exactTex(lim)} - ${exactTex(target)}`, `&= ${exactTex(far)}`) },
+      {
+        text:
+          s.form === 'square'
+            ? `So $(${nbr(a + 1)})^2 = ${u * u}$, $${nbr(a + 1)} = ${u}$, and $n = ${n}$.`
+            : `So $${nbr(a + 1)} = ${u}$, and $n = ${n}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- lesson 5: the sum to infinity ---------- */
+
+/** A term of any form, for a sum to infinity. Difficulty 2 reaches the three-factor and squared forms. */
+function sampleInfinite(rng: Rng, difficulty: number): Series {
+  const form = difficulty > 1 ? rng.pick(['pair', 'triple', 'square'] as const) : 'pair';
+  if (form === 'triple') return { form, k: rng.int(1, 6), a: rng.int(0, 4), g: 1, m: 1, expanded: false };
+  if (form === 'square') return { form, k: rng.int(1, 4), a: rng.int(0, 4), g: 1, m: 1, expanded: false };
+  const g = difficulty > 1 ? rng.pick([2, 3]) : rng.pick([1, 2]);
+  const k = rng.pick([1, 2, 3, 4, 5, 6].filter((v) => g === 1 || v !== g));
+  return { form, k, a: rng.int(0, 4), g, m: 1, expanded: false };
+}
+
+const FAR_END = ['They tend to $0$', 'They tend to $1$', 'They grow without limit'];
+
+/** The split, what the far pieces do, and the limit, as a walk. */
+const fracInfiniteFlow: Generator<Series> = {
+  id: 'frac-infinite-flow',
+  sample: sampleInfinite,
+  render: (s): Slide => {
+    const key = seriesTermTex(s);
+    const f = frontFactor(s);
+    const shift = shiftOf(s);
+    const splits = [
+      diffSplitTex(s),
+      diffSplitTex({ ...s, k: -s.k }),
+      scaledTex(f, `${pieceRTex(s, s.a)} - ${pieceRTex(s, s.a + shift + 1)}`),
+    ].map((t) => `$${t}$`);
+    const limits = [
+      ...new Set(
+        [limitOf(s), frontOf(s), timesExact(f, pieceAt(s, s.m + shift)), timesExact(f, pieceAt(s, s.m + 1)), timesExact(limitOf(s), [2, 1])].map(
+          (v) => `$${exactTex(v)}$`,
+        ),
+      ),
+    ].slice(0, 3);
+    return {
+      kind: 'flow',
+      prompt: [say('Find the sum to infinity.')],
+      subject: seriesSumTex(s, '\\infty'),
+      steps: [
+        { id: 'split', ask: 'The term splits as', branches: turned(splits, `${key}|split`).map((label) => ({ label, to: 'far' })) },
+        {
+          id: 'far',
+          ask: 'Summed to $n$, what do the pieces left at the far end do as $n$ grows?',
+          branches: turned(FAR_END, `${key}|far`).map((label) => ({ label, to: 'limit' })),
+        },
+        {
+          id: 'limit',
+          ask: 'So the sum to infinity is',
+          branches: turned(limits, `${key}|limit`).map((label) => ({ label, outcome: `So the partial sums close in on ${label}.` })),
+        },
+      ],
+      answer: [splits[0], FAR_END[0], limits[0]],
+    };
+  },
+  solution: (s) => [
+    ...splitStep(s),
+    { text: 'Summed to $n$, only the ends survive. The sum to $n$, $S_n$, is' },
+    { tex: closedWorking('S_n', s) },
+    { text: 'Every piece with $n$ in it tends to $0$ as $n$ grows, so what is left is the front:' },
+    { tex: `${sumTex(s.m, '\\infty')} = ${exactTex(limitOf(s))}` },
+  ],
+};
+
+/** The limit as a tree: the pieces surviving at the front, what they add to, then the number in front. */
+const fracInfiniteTree: Generator<Series> = {
+  id: 'frac-infinite-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const g = hard ? rng.pick([2, 3]) : 2;
+    const k = rng.pick([1, 2, 3, 4, 5, 6].filter((v) => v !== g));
+    return { form: 'pair', k, a: rng.int(0, 5), g, m: hard ? rng.int(1, 3) : 1, expanded: false };
+  },
+  render: (s): Slide => {
+    const { k, a, g, m } = s;
+    const fronts = run(m + a, g).map((d) => exactTex(exact(1, d)));
+    const answer = [...fronts, exactTex(frontOf(s)), exactTex(limitOf(s))];
+    const pieces = fronts.map((_, i) => ({ id: `piece-${i}`, from: [] as string[] }));
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Split the term. Top row: the ${SURVIVORS[g - 1].toLowerCase()} fractions that survive at the front, from $r = ${m}$. Then what they add to, and then the sum to infinity.`,
+        ),
+      ],
+      expression: seriesSumTex(s, '\\infty'),
+      nodes: [...pieces, { id: 'front', from: pieces.map((p) => p.id) }, { id: 'limit', from: ['front'] }],
+      bank: tileBank(answer, [
+        exactTex(exact(1, m + a + g)),
+        ...(m + a > 1 ? [exactTex(exact(1, m + a - 1))] : []),
+        exactTex(timesExact(exact(k), frontOf(s))),
+        exactTex(timesExact(exact(1, k * g), frontOf(s))),
+        exactTex(plusExact(frontOf(s), exact(1, m + a + g))),
+      ]),
+      answer,
+    };
+  },
+  solution: (s) => [
+    ...splitStep(s),
+    { text: `From $r = ${s.m}$, the first ${s.g} pieces are never taken away, and every piece at the far end tends to $0$:` },
+    { tex: `${exactTex(frontFactor(s))}\\left(${run(s.m + s.a, s.g).map(unitTex).join(' + ')}\\right) = ${exactTex(limitOf(s))}` },
+  ],
+};
+
+/** The sum to infinity as one fraction, from four. Difficulty 2 reaches the squared form and later starts. */
+const fracInfiniteWhich: Generator<Series> = {
+  id: 'frac-infinite-which',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const m = rng.int(1, 3);
+      return rng.chance(0.5)
+        ? { form: 'square', k: rng.int(1, 4), a: rng.int(0, 4), g: 1, m, expanded: false }
+        : { form: 'triple', k: rng.int(1, 8), a: rng.int(0, 4), g: 1, m, expanded: false };
+    }
+    return { form: 'triple', k: rng.int(1, 8), a: rng.int(0, 5), g: 1, m: 1, expanded: false };
+  },
+  render: (s): Slide => {
+    const f = frontFactor(s);
+    const u = s.m + s.a;
+    const limit = limitOf(s);
+    const slips: Exact[] = [
+      frontOf(s),
+      timesExact(f, pieceAt(s, s.m + 1)),
+      ...(u > 1 ? [timesExact(f, pieceAt(s, s.m - 1))] : []),
+      s.form === 'triple' ? timesExact(f, exact(1, u)) : exact(s.k, u),
+      timesExact(limit, [2, 1]),
+      timesExact(limit, [1, 2]),
+    ];
+    return choiceSlide(
+      [say('Find the sum to infinity.'), show(seriesSumTex(s, '\\infty'))],
+      firstFour(exactTex(limit), ...slips.map(exactTex)),
+    );
+  },
+  solution: (s) => [
+    ...(s.form === 'triple' ? regroupSolution(s) : squaresSolution(s)),
+    { text: `From $r = ${s.m}$ the piece at the front is never taken away, and the one at the far end tends to $0$:` },
+    { tex: `${sumTex(s.m, '\\infty')} = ${exactTex(limitOf(s))}` },
+  ],
+};
+
+/** How close is close: the distance, exactly and as written. */
+const DISTANCES: [Exact, string][] = [
+  [[9, 200], '0.045'],
+  [[3, 100], '0.03'],
+  [[1, 40], '0.025'],
+  [[1, 50], '0.02'],
+  [[3, 200], '0.015'],
+  [[3, 250], '0.012'],
+  [[1, 100], '0.01'],
+  [[7, 1000], '0.007'],
+  [[3, 500], '0.006'],
+  [[1, 200], '0.005'],
+  [[1, 250], '0.004'],
+  [[3, 1000], '0.003'],
+];
+
+interface WithinParams extends Series {
+  distance: number;
+  /** The fewest terms that bring the partial sum within the distance. */
+  n: number;
+}
+
+/** How far the sum to n falls short of the sum to infinity. */
+const gapAt = (s: Series, n: number): Exact => minusExact(limitOf(s), partialOf(s, n));
+
+/**
+ * How many terms bring the partial sum within a stated distance of the limit.
+ * A draw is refused when the gap at n, or one term earlier, lands on the
+ * distance or within a thousandth of it, so the answer is never a coin toss
+ * that rounding could flip.
+ */
+const fracWithin: Generator<WithinParams> = {
+  id: 'frac-within',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const g = hard ? 2 : 1;
+      const s: Series = { form: 'pair', k: rng.pick(hard ? [1, 3, 4, 5, 6] : [1, 2, 3]), a: rng.int(0, 3), g, m: 1, expanded: false };
+      const distance = rng.int(0, DISTANCES.length - 1);
+      const [eps] = DISTANCES[distance];
+      let n = 1;
+      while (n <= 400 && !belowExact(gapAt(s, n), eps)) n += 1;
+      if (n < 2 || n > 400) continue;
+      const clear = (v: Exact) => {
+        const off = minusExact(v, eps);
+        return !belowExact(timesExact([Math.abs(off[0]), off[1]], [1000, 1]), eps);
+      };
+      if (clear(gapAt(s, n)) && clear(gapAt(s, n - 1))) return { ...s, distance, n };
+    }
+  },
+  render: (s): Slide => ({
+    kind: 'expression',
+    prompt: [
+      show(`S_n = ${seriesSumTex(s)}`),
+      say(`What is the smallest $n$ for which $S_n$ is within $${DISTANCES[s.distance][1]}$ of the sum to infinity, $S_\\infty$?`),
+    ],
+    lead: 'n =',
+    keypad: [],
+    answer: String(s.n),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (s) => {
+    const { k, a, n } = s;
+    const [eps, written] = DISTANCES[s.distance];
+    const gap =
+      s.g === 1 ? farTex(s, a + 1, String(k)) : scaledTex(frontFactor(s), run(a + 1, s.g).map((c) => farTex(s, c)).join(' + '));
+    return [
+      ...splitStep(s),
+      { tex: closedWorking('S_n', s) },
+      { text: `So $S_\\infty = ${exactTex(limitOf(s))}$, and what is missing is the far end:` },
+      { tex: chain('&S_\\infty - S_n', `=\\;&${gap}`) },
+      ...(s.g === 1
+        ? [{ text: `That is less than $${written}$ when $${nbr(a + 1)} > ${exactTex(timesExact(exact(k), [eps[1], eps[0]]))}$.` }]
+        : []),
+      { text: `At $n = ${n - 1}$ it is $${exactTex(gapAt(s, n - 1))}$, not yet less than $${written}$; at $n = ${n}$ it is $${exactTex(gapAt(s, n))}$, which is.` },
+    ];
+  },
+};
+
 export const algebraicFractionGenerators = [
   fracCancel,
   fracCancelWhich,
@@ -6672,4 +7737,25 @@ export const algebraicFractionGenerators = [
   fracSketchWhich,
   fracCrossHa,
   fracSketchFlow,
+  fracDiffCover,
+  fracDiffSplitTiles,
+  fracDiffWhich,
+  fracDiffPartialTable,
+  fracGapFactorTiles,
+  fracGapCoverTree,
+  fracGapEndsTiles,
+  fracGapFlow,
+  fracTripleCoverTree,
+  fracTripleTiles,
+  fracTripleRegroupTiles,
+  fracTripleSumWhich,
+  fracTripleNumerator,
+  fracSquareSplitTiles,
+  fracSquareWhich,
+  fracFromMTable,
+  fracFindN,
+  fracInfiniteFlow,
+  fracInfiniteTree,
+  fracInfiniteWhich,
+  fracWithin,
 ];

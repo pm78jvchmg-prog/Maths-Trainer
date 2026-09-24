@@ -1,6 +1,7 @@
 /**
- * An independent check on the proving-identities generators (level 5) and the
- * factor-formula generators (level 6).
+ * An independent check on the proving-identities generators (level 5), the
+ * factor-formula generators (level 6) and the general-solution generators
+ * (level 7).
  *
  * The property tests in `generators.test.ts` prove each generator agrees with
  * itself, and the oracle there skips every one of these. So these read what
@@ -15,6 +16,10 @@
  * the calculator's, and each equation's solutions are found again by scanning
  * the stated range in whole degrees (a lone factor such as sin 8x = 0 is
  * solved exactly instead, since its zeros need not be whole).
+ *
+ * Level 7's general solutions are read off the TeX as families in n, n put
+ * in, and what lands in the range held to a one-degree scan of the equation;
+ * every slip, spare tile and wrong option must name a different set.
  */
 import katex from 'katex';
 import { describe, expect, it } from 'vitest';
@@ -737,6 +742,389 @@ describe('tid-factor-eq-angle', () => {
       const positive = scanSolutions(shown.tex, topOf(text)).filter((x) => x > 0);
       const expected = /largest/.test(text) ? positive[positive.length - 1] : positive[0];
       expect(Number(slide.answer), where).toBe(expected);
+    }
+  });
+});
+
+/* ---------- Level 7: general solutions ---------- */
+
+/** Angles in degrees a general solution is held to when no range is stated: two turns either side of 0. */
+const WINDOW: Range7 = { lo: -720, hi: 720, loIn: true, hiIn: false };
+
+interface Range7 {
+  lo: number;
+  hi: number;
+  loIn: boolean;
+  hiIn: boolean;
+}
+
+const inside = (x: number, r: Range7): boolean => (r.loIn ? x >= r.lo : x > r.lo) && (r.hiIn ? x <= r.hi : x < r.hi);
+
+const round6 = (x: number): number => Math.round(x * 1e6) / 1e6;
+
+const sameList7 = (a: number[], b: number[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** An angle or a sum of angles in n as mathjs reads it, in degrees: a radian's pi is 180 degrees. */
+function degreesExpr(tex: string): string {
+  let s = tex
+    .replace(/\^\{\\circ\}/g, '')
+    .replace(/\\pi/g, '(180)')
+    .replace(/n/g, '(n)');
+  for (;;) {
+    const next = s.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))');
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(/\)\s*(?=[\d(])/g, ')*').replace(/(\d)\s*(?=\()/g, '$1*');
+}
+
+/**
+ * Every value a general solution names in a range. The families are read off
+ * the TeX, a line broken for a phone included, `\pm` read as both signs, and n
+ * runs from -24 to 24: a family whose turn is 60 degrees needs n up to 12 to
+ * cross two turns, which -3 to 3 would not reach.
+ */
+function familyValues(tex: string, r: Range7 = WINDOW): number[] {
+  const flat = tex
+    .replace(/\\begin\{aligned\}|\\end\{aligned\}|&|\\\\|\\;|\\quad|\{\}/g, ' ')
+    .replace(/\\Rightarrow/g, ' ');
+  const out = new Set<number>();
+  for (const raw of flat.split(/\\text\{ ?or ?\}/)) {
+    const piece = raw.replace(/^\s*,?\s*(x\s*=)?\s*/, '').trim();
+    const signs = piece.startsWith('\\pm') ? ['', '-'] : [''];
+    for (const sign of signs) {
+      const code = math.compile(degreesExpr(`${sign}${piece.replace(/^\\pm\s*/, '')}`));
+      for (let n = -24; n <= 24; n += 1) {
+        const x = round6(code.evaluate({ n }) as number);
+        if (inside(x, r)) out.add(x);
+      }
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** A family's values for x from a line `2x + 30^{\circ} = <family>`: undo the left side. */
+function lineValues(line: string, r: Range7 = WINDOW): number[] {
+  const at = line.indexOf(' = ');
+  const [lhs, rhs] = [line.slice(0, at), line.slice(at + 3)];
+  const match = /^(\d*)x(?: ([+-]) (\d+)\^\{\\circ\})?$/.exec(lhs.trim());
+  if (!match) throw new Error(`not a linear left side: ${lhs}`);
+  const a = match[1] ? Number(match[1]) : 1;
+  const b = match[2] ? (match[2] === '-' ? -1 : 1) * Number(match[3]) : 0;
+  const wide = { lo: a * r.lo + b - 720, hi: a * r.hi + b + 720, loIn: true, hiIn: false };
+  return familyValues(`x = ${rhs}`, wide)
+    .map((u) => round6((u - b) / a))
+    .filter((x) => inside(x, r));
+}
+
+/** TeX with every angle in degrees written as radians, so `toMath` reads a bracket such as (2x + 30^{\circ}). */
+const radiansIn = (tex: string): string => tex.replace(/(-?\d+)\^\{\\circ\}/g, '(($1)*pi/180)');
+
+/**
+ * Where an equation holds, over whole degrees in the range, and a guard that
+ * the scan missed nothing: a sign change between two whole degrees with no
+ * zero at either end is a root it stepped over, unless the jump is a pole.
+ */
+const ranged = new Map<string, number[]>();
+
+function scanRange(equation: string, r: Range7 = WINDOW): number[] {
+  const key = `${equation}|${JSON.stringify(r)}`;
+  const known = ranged.get(key);
+  if (known) return known;
+  const found = scanOnce(equation, r);
+  ranged.set(key, found);
+  return found;
+}
+
+function scanOnce(equation: string, r: Range7): number[] {
+  const f = differenceAt(radiansIn(equation));
+  const lo = Math.ceil(r.lo);
+  const at = Array.from({ length: Math.floor(r.hi) - lo + 2 }, (_, i) => f(lo + i));
+  const found: number[] = [];
+  for (let i = 0; lo + i <= r.hi; i += 1) {
+    const [a, b] = [at[i], at[i + 1]];
+    if (inside(lo + i, r) && Math.abs(a) < 1e-9) found.push(lo + i);
+    if (lo + i + 1 <= r.hi && Math.abs(a) > 1e-9 && Math.abs(b) > 1e-9 && Math.abs(a) < 20 && Math.abs(b) < 20 && a * b < 0) {
+      expect.fail(`${equation}: a root between ${lo + i} and ${lo + i + 1}`);
+    }
+  }
+  return found;
+}
+
+/**
+ * Where an equation holds in one turn, 0 to 360, found on an eighth-degree
+ * grid: grid hits, sign changes and near-zero dips, so a slip's roots off the
+ * whole degrees are seen too, a double root such as sin 8x cos 4x has at 22.5
+ * included. Every equation here repeats within 360 degrees.
+ */
+const fine = new Map<string, number[]>();
+
+function fineRoots(equation: string): number[] {
+  const known = fine.get(equation);
+  if (known) return known;
+  const f = differenceAt(radiansIn(equation));
+  const step = 0.125;
+  const at = Array.from({ length: 360 / step + 2 }, (_, i) => f((i - 1) * step));
+  const out = new Set<number>();
+  for (let i = 1; i <= 360 / step; i += 1) {
+    const [prev, here, next] = [at[i - 1], at[i], at[i + 1]];
+    const d = (i - 1) * step;
+    if (Math.abs(here) < 1e-9) out.add(round6(d));
+    else if (Math.abs(here) < 1e-4 && Math.abs(here) <= Math.abs(prev) && Math.abs(here) <= Math.abs(next)) out.add(round6(d));
+    else if (i < 360 / step && here * next < 0 && Math.abs(here) < 20 && Math.abs(next) < 20 && Math.abs(next) > 1e-9) out.add(round6(d + step / 2));
+  }
+  const found = [...out].sort((x, y) => x - y);
+  fine.set(equation, found);
+  return found;
+}
+
+/** Whether an offered equation has exactly the right solutions, judged in one turn on the fine grid. */
+const sameRoots = (offered: string, right: string): boolean =>
+  sameList7(fineRoots(offered), scanRange(right, { lo: 0, hi: 360, loIn: true, hiIn: false }));
+
+/** An angle as written, in degrees or radians. */
+const angleValue = (tex: string): number => round6(math.evaluate(degreesExpr(tex)) as number);
+
+/** The range a prompt states: `-180^{\circ} < x \le 180^{\circ}` or `-\pi \le x < \pi`. */
+function range7(text: string): Range7 {
+  const match = /(-?[^\s$]+) (\\le|<) x (\\le|<) ([^\s$]+)/.exec(text);
+  if (!match) throw new Error(`no range in ${text}`);
+  return { lo: angleValue(match[1]), hi: angleValue(match[4]), loIn: match[2] === '\\le', hiIn: match[3] === '\\le' };
+}
+
+const displayOf = (slide: Slide): string => {
+  const shown = 'prompt' in slide ? slide.prompt.find((block) => block.kind === 'display') : undefined;
+  if (!shown || shown.kind !== 'display') throw new Error('nothing displayed');
+  return shown.tex;
+};
+
+/** The typed answer as degrees, or as a count. */
+function typed(slide: Slide): number {
+  if (slide.kind !== 'expression') throw new Error('expected expression');
+  const value = math.evaluate(slide.answer) as number;
+  return slide.lead === 'x =' && /pi/.test(slide.answer) ? round6((value * 180) / Math.PI) : round6(value);
+}
+
+/** What a range question asks, read off its prose, checked against the solutions a scan finds. */
+function holdsAsk(slide: Slide, found: number[], where: string): void {
+  const text = proseOf(slide);
+  expect(found.length, `${where}: nothing in range`).toBeGreaterThan(0);
+  const expected = /How many/.test(text) ? found.length : /largest/.test(text) ? found[found.length - 1] : found[0];
+  expect(typed(slide), where).toBe(expected);
+}
+
+/** Tiles: the answer's families are the equation's solutions; no other placement's are. */
+function generalTilesHold(slide: Slide, where: string): void {
+  if (slide.kind !== 'tiles') throw new Error('expected tiles');
+  const right = scanRange(displayOf(slide));
+  const fill = (tokens: string[]) => slide.template.replace(/\{(\d)\}/g, (_, i: string) => tokens[Number(i)]);
+  expect(familyValues(fill(slide.answer)), `${where}: ${fill(slide.answer)}`).toEqual(right);
+  const key = (tokens: string[]) => (slide.unordered ? [...tokens].sort() : tokens).join('|');
+  for (const tokens of placements(slide.bank, slide.answer.length)) {
+    if (key(tokens) === key(slide.answer)) continue;
+    expect(familyValues(fill(tokens)), `${where}: ${fill(tokens)} is right but marked wrong`).not.toEqual(right);
+  }
+}
+
+describe.each([['tid-general-sincos-tiles'], ['tid-general-tan-tiles']])('%s', (id) => {
+  it('places the families a scan finds, and no other placement finds them', () => {
+    for (const { slide, where } of slides(id)) generalTilesHold(slide, where);
+  });
+});
+
+describe('tid-general-partner-flow', () => {
+  it('names the principal value a calculator gives, then the families a scan finds', () => {
+    for (const { slide, where } of slides('tid-general-partner-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const right = scanRange(slide.subject);
+      const fn = /\\(sin|cos|tan)/.exec(slide.subject)?.[1];
+      const [lo, hi] = fn === 'cos' ? [0, 180] : [-90, 90];
+      const principal = right.filter((x) => x >= lo && x <= hi);
+      expect(principal.length, `${where}: one principal value`).toBe(1);
+      for (const branch of slide.steps[0].branches) {
+        const angle = angleValue(inline(branch.label)[0].replace(/^x = /, ''));
+        expect(angle === principal[0], `${where}: ${branch.label}`).toBe(branch.label === slide.answer[0]);
+      }
+      for (const branch of slide.steps[1].branches) {
+        const same7 = sameList7(familyValues(inline(branch.label)[0]), right);
+        expect(same7, `${where}: ${branch.label}`).toBe(branch.label === slide.answer[1]);
+      }
+    }
+  });
+});
+
+describe('tid-general-in-range', () => {
+  it('shows the families a scan finds, and answers from the ones in range', () => {
+    for (const { slide, where } of slides('tid-general-in-range')) {
+      const text = proseOf(slide);
+      const equation = inline(text)[0];
+      expect(familyValues(displayOf(slide)), `${where}: ${displayOf(slide)}`).toEqual(scanRange(equation));
+      const r = range7(text);
+      const inRange = familyValues(displayOf(slide), r);
+      expect(inRange, where).toEqual(scanRange(equation, r));
+      holdsAsk(slide, inRange, where);
+    }
+  });
+});
+
+describe('tid-general-values-table', () => {
+  it('fills each cell with its family at its n, every one a solution', () => {
+    for (const { slide, where } of slides('tid-general-values-table')) {
+      if (slide.kind !== 'table') throw new Error('expected table');
+      const equation = inline(proseOf(slide))[0];
+      const f = differenceAt(radiansIn(equation));
+      const headers = slide.columns.slice(1);
+      expect(familyValues(`x = ${headers.join(' \\text{ or } ')}`), where).toEqual(scanRange(equation));
+      const blanks = [...slide.answer];
+      for (const row of slide.rows) {
+        const n = Number(row[0]);
+        row.slice(1).forEach((cell, i) => {
+          const value = angleValue(cell ?? (blanks.shift() as string));
+          expect(value, `${where}: n = ${n} in ${headers[i]}`).toBe(round6(math.evaluate(degreesExpr(headers[i]), { n }) as number));
+          expect(Math.abs(f(value)), `${where}: ${value} does not solve it`).toBeLessThan(1e-9);
+        });
+      }
+    }
+  });
+});
+
+describe('tid-general-radian-choice', () => {
+  it('offers one option naming the solutions a scan finds, and three that do not', () => {
+    for (const { slide, where } of slides('tid-general-radian-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const right = scanRange(displayOf(slide));
+      for (const option of slide.options) {
+        expect(option.label, where).toContain('\\pi');
+        expect(sameList7(familyValues(option.label), right), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+});
+
+describe('tid-general-radian-steps', () => {
+  it('keeps every line to the solutions it started with, and every slip off them', () => {
+    for (const { slide, where } of slides('tid-general-radian-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const start = slide.start.join(' ');
+      const right = scanRange(start);
+      for (const step of slide.reductions) {
+        const general = step.value.startsWith('x = ');
+        expect(general ? familyValues(step.value) : scanRange(step.value), `${where}: ${step.value}`).toEqual(right);
+        for (const offered of step.bank.filter((b) => b !== step.value)) {
+          const same7 = general ? sameList7(familyValues(offered), right) : sameRoots(offered, start);
+          expect(same7, `${where}: slip ${offered}`).toBe(false);
+        }
+      }
+      expect(slide.reductions[slide.reductions.length - 1].value, where).toContain('\\pi');
+    }
+  });
+});
+
+describe('tid-general-bracket-families-tree', () => {
+  it('fills the bracket\'s families and the x each gives, and offers no spare that is right', () => {
+    for (const { slide, where } of slides('tid-general-bracket-families-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const [, fn, arg, rhs] = /^\\(sin|cos) \(?(.+?)\)? = (.+)$/.exec(slide.expression) ?? [];
+      const bracket = scanRange(`\\${fn} x = ${rhs}`);
+      const [u1, u2, x1, x2] = slide.answer;
+      expect([...new Set([...familyValues(`x = ${u1}`), ...familyValues(`x = ${u2}`)])].sort((a, b) => a - b), `${where}: bracket`).toEqual(bracket);
+      const principal = bracket.find((u) => (fn === 'cos' ? u >= 0 && u <= 180 : u >= -90 && u <= 90));
+      expect(familyValues(`x = ${u1}`), `${where}: the principal value first`).toContain(principal);
+      for (const [u, x] of [
+        [u1, x1],
+        [u2, x2],
+      ]) {
+        expect(lineValues(`${arg} = ${u}`), `${where}: ${x} from ${u}`).toEqual(familyValues(`x = ${x}`));
+      }
+      const xs = [...new Set([...familyValues(`x = ${x1}`), ...familyValues(`x = ${x2}`)])].sort((a, b) => a - b);
+      expect(xs, `${where}: x`).toEqual(scanRange(slide.expression));
+      const answers = slide.answer.map((a) => familyValues(`x = ${a}`));
+      for (const spare of slide.bank.filter((b) => !slide.answer.includes(b))) {
+        const values = familyValues(`x = ${spare}`);
+        expect(answers.some((a) => sameList7(a, values)), `${where}: spare ${spare} is right`).toBe(false);
+      }
+    }
+  });
+});
+
+describe.each([['tid-general-bracket-count'], ['tid-general-harder-angle']])('%s', (id) => {
+  it('answers from a scan of the stated range', () => {
+    for (const { slide, where } of slides(id)) holdsAsk(slide, scanRange(displayOf(slide), range7(proseOf(slide))), where);
+  });
+});
+
+describe('tid-general-bracket-divide-steps', () => {
+  it('starts from a family of the bracket, keeps every line to it, and ends on x', () => {
+    for (const { slide, where } of slides('tid-general-bracket-divide-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const equation = inline(proseOf(slide))[0];
+      const all = scanRange(equation);
+      const right = lineValues(slide.start.join(' '));
+      expect(right.every((x) => all.includes(x)) && right.length > 0, `${where}: ${slide.start.join(' ')} is not a family of ${equation}`).toBe(true);
+      for (const step of slide.reductions) {
+        expect(lineValues(step.value), `${where}: ${step.value}`).toEqual(right);
+        for (const offered of step.bank.filter((b) => b !== step.value)) {
+          expect(lineValues(offered), `${where}: slip ${offered}`).not.toEqual(right);
+        }
+      }
+      expect(slide.reductions[slide.reductions.length - 1].value, where).toMatch(/^x = /);
+    }
+  });
+});
+
+/** Every `$x = ...$` in a label, together. */
+const labelValues = (label: string): number[] =>
+  [...new Set(inline(label).flatMap((tex) => familyValues(tex)))].sort((a, b) => a - b);
+
+describe('tid-general-factor-flow', () => {
+  it('rewrites to an equation with the same solutions, then names every one of them', () => {
+    for (const { slide, where } of slides('tid-general-factor-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const right = scanRange(slide.subject);
+      for (const branch of slide.steps[0].branches) {
+        const same7 = sameRoots(inline(branch.label)[0], slide.subject);
+        expect(same7, `${where}: ${branch.label}`).toBe(branch.label === slide.answer[0]);
+      }
+      for (const branch of slide.steps[1].branches) {
+        expect(sameList7(labelValues(branch.label), right), `${where}: ${branch.label}`).toBe(branch.label === slide.answer[1]);
+      }
+    }
+  });
+});
+
+/** Which route an equation wants, read off its shape. */
+function routeOf(equation: string): string {
+  if (/\^2/.test(equation)) return 'quadratic';
+  if (/\\(sin|cos) \d+x/.test(equation)) return 'factor formula';
+  if (/= -?[^=]*\\cos x$/.test(equation)) return 'tan x = k';
+  return 'R\\sin';
+}
+
+describe('tid-general-route-flow', () => {
+  it('picks the route the equation\'s shape calls for, and counts what a scan finds', () => {
+    for (const { slide, where } of slides('tid-general-route-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      expect(slide.answer[0], `${where}: ${slide.subject}`).toContain(routeOf(slide.subject));
+      const found = scanRange(slide.subject, range7(proseOf(slide)));
+      expect(slide.answer[1], where).toBe(`$${found.length}$`);
+    }
+  });
+});
+
+describe('tid-general-lost-choice', () => {
+  it('offers the solutions a scan finds for the equation but not for what dividing leaves', () => {
+    for (const { slide, where } of slides('tid-general-lost-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const text = proseOf(slide);
+      const after = inline(text)[1];
+      const r = range7(text);
+      const kept = scanRange(after, r);
+      const lost = scanRange(displayOf(slide), r).filter((x) => !kept.includes(x));
+      expect(lost.length, where).toBeGreaterThan(0);
+      for (const option of slide.options) {
+        const listed = option.label === '\\text{none}' ? [] : [...option.label.matchAll(/(-?\d+)\^\{\\circ\}/g)].map((m) => Number(m[1]));
+        expect(sameList7(listed, lost), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
     }
   });
 });

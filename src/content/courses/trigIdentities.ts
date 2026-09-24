@@ -35,6 +35,14 @@
  * of angles off the table, and used to solve an equation such as
  * sin 5x + sin x = 0 by factorising it, over a stated range.
  *
+ * Level 7 writes every solution at once: alpha + 360n or 180 - alpha + 360n
+ * for a sine, plus or minus alpha + 360n for a cosine, alpha + 180n for a
+ * tangent, and the same in radians, where Trigonometric Functions (tf-l6)
+ * stopped at the partner in one turn. Then a bracket, divided through turn and
+ * all; harder equations, where an identity, a double angle or a factor formula
+ * comes first; and which route an equation wants, what dividing by sin x or
+ * cos x loses, and how many solutions a range holds.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -1326,6 +1334,198 @@ export const trigIdentities: Course = {
         ask('tid-factor-eq-flow', 2),
         ask('tid-factor-eq-steps', 2),
         ask('tid-factor-eq-angle', 2),
+      ],
+    },
+    {
+      id: 'ti-l7',
+      title: 'General Solutions & Harder Equations',
+      lessons: [
+        {
+          id: 'ti-l7-sine-cosine',
+          title: 'Every Solution of sin x = k and cos x = k',
+          slides: [
+            teach(
+              prose('Trigonometric Functions found both solutions of $\\sin x = \\tfrac{1}{2}$ in one turn: $30^{\\circ}$ and its partner $150^{\\circ}$. Every other solution is one of those plus a whole number of turns:'),
+              maths('\\begin{aligned} x &= 30^{\\circ} + 360^{\\circ} n \\\\ \\text{or} \\quad x &= 150^{\\circ} + 360^{\\circ} n \\end{aligned}'),
+              prose('Here $n$ is any whole number: $n = 1$ gives $390^{\\circ}$ and $n = -1$ gives $-330^{\\circ}$. For $\\sin x = k$ with principal value $\\alpha$, the general solution is'),
+              maths('\\begin{aligned} x &= \\alpha + 360^{\\circ} n \\\\ \\text{or} \\quad x &= 180^{\\circ} - \\alpha + 360^{\\circ} n \\end{aligned}'),
+            ),
+            ask('tid-general-sincos-tiles'),
+            ask('tid-general-partner-flow'),
+            ask('tid-general-sincos-tiles', 2),
+            teach(
+              prose('A cosine is the same either side of $0$, since $\\cos(-x) = \\cos x$. So the partner of $\\alpha$ is $-\\alpha$:'),
+              maths('x = \\pm \\alpha + 360^{\\circ} n'),
+              prose('A negative $k$ works the same way. For $\\sin x = -\\tfrac{1}{2}$ the principal value is $-30^{\\circ}$, and $180^{\\circ} - (-30^{\\circ}) = 210^{\\circ}$. For $\\cos x = -\\tfrac{1}{2}$ it is $120^{\\circ}$, so $x = \\pm 120^{\\circ} + 360^{\\circ} n$.'),
+            ),
+            ask('tid-general-values-table'),
+            ask('tid-general-in-range'),
+            ask('tid-general-partner-flow'),
+            teach(
+              prose('To list the solutions in a range, put $n = \\ldots, -1, 0, 1, \\ldots$ into each family and keep what lands inside. For $\\sin x = \\tfrac{1}{2}$ with $-360^{\\circ} \\le x < 360^{\\circ}$:'),
+              maths('x = -330^{\\circ}, -210^{\\circ}, 30^{\\circ}, 150^{\\circ}'),
+              prose('Mind each end: $\\le$ keeps an end that is a solution, and $<$ leaves it out.'),
+            ),
+            ask('tid-general-in-range+choice'),
+            ask('tid-general-values-table', 2),
+          ],
+          skillCheck: [
+            ask('tid-general-sincos-tiles', 2),
+            ask('tid-general-values-table', 2),
+            ask('tid-general-in-range'),
+          ],
+        },
+        {
+          id: 'ti-l7-tan-radians',
+          title: 'tan x = k, and Radians',
+          slides: [
+            teach(
+              prose('A tangent repeats every half turn, so its principal value alone gives every solution:'),
+              maths('\\begin{aligned} \\tan x &= k \\\\ \\Rightarrow \\quad x &= \\alpha + 180^{\\circ} n \\end{aligned}'),
+              prose('For $\\tan x = -1$ the principal value is $-45^{\\circ}$, so $x = -45^{\\circ} + 180^{\\circ} n$: that is $135^{\\circ}$, $315^{\\circ}$, and so on. Doubling the turn to $360^{\\circ}$ would lose half of them.'),
+            ),
+            ask('tid-general-tan-tiles'),
+            ask('tid-tan-solve'),
+            teach(
+              prose('In radians the turn is $2\\pi$ and the half turn is $\\pi$, and the principal value is a fraction of $\\pi$. For a sine:'),
+              maths('\\begin{aligned} x &= \\alpha + 2n\\pi \\\\ \\text{or} \\quad x &= \\pi - \\alpha + 2n\\pi \\end{aligned}'),
+              prose('For a cosine, $x = \\pm \\alpha + 2n\\pi$. For a tangent, $x = \\alpha + n\\pi$.'),
+              prose('For $2\\cos x = \\sqrt{3}$, $\\alpha = \\tfrac{\\pi}{6}$, so $x = \\pm \\tfrac{\\pi}{6} + 2n\\pi$.'),
+            ),
+            ask('tid-general-radian-choice'),
+            ask('tid-general-radian-steps'),
+            ask('tid-general-tan-tiles', 2),
+            teach(
+              prose('Convert the turn along with the angle. $360^{\\circ} n$ is $2n\\pi$ and $180^{\\circ} n$ is $n\\pi$; writing $n\\pi$ for a sine or cosine adds solutions that are not there.'),
+              prose('So $\\sin x = \\tfrac{1}{2}$ gives'),
+              maths('\\begin{aligned} x &= \\tfrac{\\pi}{6} + 2n\\pi \\\\ \\text{or} \\quad x &= \\tfrac{5\\pi}{6} + 2n\\pi \\end{aligned}'),
+            ),
+            ask('tid-general-partner-flow', 2),
+            ask('tid-general-radian-steps', 2),
+            ask('tid-general-radian-choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-general-tan-tiles', 2),
+            ask('tid-general-radian-steps', 2),
+            ask('tid-general-radian-choice', 2),
+          ],
+        },
+        {
+          id: 'ti-l7-brackets',
+          title: 'Equations with a Bracket',
+          slides: [
+            teach(
+              prose('For $\\sin(2x + 30^{\\circ}) = \\tfrac{1}{2}$, solve for the whole bracket first, every family of it:'),
+              maths('\\begin{aligned} 2x + 30^{\\circ} &= 30^{\\circ} + 360^{\\circ} n \\\\ \\text{or} \\quad 2x + 30^{\\circ} &= 150^{\\circ} + 360^{\\circ} n \\end{aligned}'),
+              prose('Take $30^{\\circ}$ from both sides, then divide by $2$, the turn as well:'),
+              maths('\\begin{aligned} x &= 180^{\\circ} n \\\\ \\text{or} \\quad x &= 60^{\\circ} + 180^{\\circ} n \\end{aligned}'),
+            ),
+            ask('tid-general-bracket-divide-steps'),
+            ask('tid-general-bracket-families-tree'),
+            ask('tid-double-eq-tree'),
+            teach(
+              prose('Dividing the turn is the step most often missed. A whole turn of $2x$ is only half a turn of $x$, so each family repeats every $180^{\\circ}$.'),
+              prose('That also says how many solutions a turn holds: two families, each landing twice in $0^{\\circ} \\le x < 360^{\\circ}$, make four. With $3x$ the turn is $120^{\\circ}$, and each family lands three times.'),
+            ),
+            ask('tid-general-bracket-count'),
+            ask('tid-general-bracket-families-tree', 2),
+            ask('tid-general-bracket-divide-steps', 2),
+            teach(
+              prose('A bracket that takes away works the same way. For $\\cos(3x - 45^{\\circ}) = \\tfrac{\\sqrt{2}}{2}$:'),
+              maths('\\begin{aligned} 3x - 45^{\\circ} &= \\pm 45^{\\circ} + 360^{\\circ} n \\\\ 3x &= 90^{\\circ} + 360^{\\circ} n \\\\ \\text{or} \\quad 3x &= 360^{\\circ} n \\end{aligned}'),
+              prose('So $x = 30^{\\circ} + 120^{\\circ} n$ or $x = 120^{\\circ} n$.'),
+            ),
+            ask('tid-general-bracket-count+choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-general-bracket-families-tree', 2),
+            ask('tid-general-bracket-divide-steps', 2),
+            ask('tid-general-bracket-count', 2),
+          ],
+        },
+        {
+          id: 'ti-l7-harder',
+          title: 'Harder Equations',
+          slides: [
+            teach(
+              prose('A harder equation needs an identity before it can be solved. In $2\\cos^2 x + 3\\sin x - 3 = 0$, write $\\cos^2 x = 1 - \\sin^2 x$ and it becomes a quadratic in $\\sin x$:'),
+              maths('\\begin{aligned} 2\\sin^2 x - 3\\sin x + 1 &= 0 \\\\ (2\\sin x - 1)(\\sin x - 1) &= 0 \\end{aligned}'),
+              prose('Then each factor gives its own families: $x = 30^{\\circ} + 360^{\\circ} n$ or $150^{\\circ} + 360^{\\circ} n$ from the first, and $x = 90^{\\circ} + 360^{\\circ} n$ from the second. A factor such as $\\sin x = 2$ gives nothing.'),
+            ),
+            ask('tid-general-factor-flow'),
+            ask('tid-general-harder-angle'),
+            ask('tid-quadratic-tree'),
+            teach(
+              prose('A double angle comes out with $\\sin 2x = 2\\sin x \\cos x$. For $\\sin 2x = \\cos x$, bring everything to one side and take out the common factor:'),
+              maths('\\begin{aligned} 2\\sin x \\cos x - \\cos x &= 0 \\\\ \\cos x(2\\sin x - 1) &= 0 \\end{aligned}'),
+              prose('So $x = 90^{\\circ} + 180^{\\circ} n$, or $30^{\\circ} + 360^{\\circ} n$, or $150^{\\circ} + 360^{\\circ} n$. Dividing by $\\cos x$ would have lost the first family.'),
+            ),
+            ask('tid-general-factor-flow', 2),
+            ask('tid-double-eq-flow'),
+            ask('tid-double-quadratic-tiles'),
+            teach(
+              prose('A factor formula does the same for $\\sin 3x + \\sin x = 0$:'),
+              maths('2\\sin 2x \\cos x = 0'),
+              prose('$\\sin 2x = 0$ gives $x = 90^{\\circ} n$, and $\\cos x = 0$ gives $90^{\\circ} + 180^{\\circ} n$, which the first family already holds. With $-180^{\\circ} < x \\le 180^{\\circ}$ that is $-90^{\\circ}$, $0^{\\circ}$, $90^{\\circ}$ and $180^{\\circ}$.'),
+            ),
+            ask('tid-factor-eq-steps', 2),
+            ask('tid-general-harder-angle+choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-general-factor-flow', 2),
+            ask('tid-general-harder-angle', 2),
+            ask('tid-double-eq-flow', 2),
+          ],
+        },
+        {
+          id: 'ti-l7-route',
+          title: 'Choosing the Route',
+          slides: [
+            teach(
+              prose('The shape of an equation says which route it wants:'),
+              prose('A sine and a cosine of $x$ and nothing else, such as $\\sqrt{3}\\sin x = \\cos x$: divide by $\\cos x$ for $\\tan x = k$.'),
+              prose('A sine and a cosine with a number, such as $\\sin x + \\sqrt{3}\\cos x = 1$: write it as $R\\sin(x + \\alpha)$.'),
+              prose('A square beside the other function: an identity makes a quadratic. Two sines or two cosines of different angles: a factor formula.'),
+            ),
+            ask('tid-general-route-flow'),
+            ask('tid-tan-solve'),
+            ask('tid-r-solve-angle'),
+            teach(
+              prose('Dividing by $\\sin x$ or $\\cos x$ is safe only where it is not zero. Dividing $\\sin 2x = \\sqrt{3}\\cos x$ by $\\cos x$ leaves $2\\sin x = \\sqrt{3}$, and silently drops $90^{\\circ}$ and $270^{\\circ}$.'),
+              prose('Take the common factor out instead: $\\cos x(2\\sin x - \\sqrt{3}) = 0$ keeps every solution.'),
+            ),
+            ask('tid-general-lost-choice'),
+            ask('tid-general-route-flow', 2),
+            teach(
+              prose('The general solution also counts solutions without listing them. A family with a turn of $120^{\\circ}$ lands three times in any $360^{\\circ}$ range, so $\\sin 3x = \\tfrac{1}{2}$ has $2 \\times 3 = 6$ solutions in $0^{\\circ} \\le x < 360^{\\circ}$.'),
+              prose('Check the ends, and check that no angle sits in two families: count it once.'),
+            ),
+            ask('tid-general-lost-choice', 2),
+            ask('tid-general-in-range', 2),
+            ask('tid-general-bracket-count', 2),
+          ],
+          skillCheck: [
+            ask('tid-general-route-flow', 2),
+            ask('tid-general-lost-choice', 2),
+            ask('tid-general-in-range', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('tid-general-sincos-tiles', 2),
+        ask('tid-general-partner-flow', 2),
+        ask('tid-general-values-table', 2),
+        ask('tid-general-in-range', 2),
+        ask('tid-general-tan-tiles', 2),
+        ask('tid-general-radian-choice', 2),
+        ask('tid-general-radian-steps', 2),
+        ask('tid-general-bracket-families-tree', 2),
+        ask('tid-general-bracket-divide-steps', 2),
+        ask('tid-general-bracket-count', 2),
+        ask('tid-general-factor-flow', 2),
+        ask('tid-general-harder-angle', 2),
+        ask('tid-general-route-flow', 2),
+        ask('tid-general-lost-choice', 2),
       ],
     },
   ],

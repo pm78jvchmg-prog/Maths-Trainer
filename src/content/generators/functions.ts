@@ -5,9 +5,9 @@
  * The second level moves graphs about with the `transform` widget; its
  * generators that ask for a curve live in `transformGraph.ts` beside the
  * widget's own demonstrations, and the ones asked through other widgets are
- * at the bottom of this file. Levels 3 and 4 follow, and level 5, the
- * transformations of $y = a\sin(bx + c) + d$, is last; its section opens
- * with its own rules.
+ * at the bottom of this file. Levels 3 and 4 follow, then level 5, the
+ * transformations of $y = a\sin(bx + c) + d$, and level 6, functions in
+ * modelling, is last; each of those two sections opens with its own rules.
  *
  * **Forms are asked through tiles, flows, steps and choices; values are
  * typed.** The checker compares values, so a typed `fg(x)` accepts `f(g(x))`
@@ -7336,6 +7336,2225 @@ const movesChoice: Generator<MovesParams> = {
   },
 };
 
+/* ======================================================================
+ * Level 6: Functions in Modelling
+ * ==================================================================== */
+
+/*
+ * A function as a model of something real: which family a situation calls
+ * for, the rule built from the story and what each number in it stands for,
+ * the inputs that make sense and the outputs that follow, and a model's
+ * inverse and composite read back into the story. Level 1 taught domain,
+ * composite and inverse as algebra (`fn-l1-domain`, `fn-l1-composite`,
+ * `fn-l1-inverse`); this level puts them in context rather than teaching
+ * them again. Exponential Models fits curves to data (`em-l2-choose`,
+ * `em-l2-fit`), so exponentials here are recognised and tabulated, never
+ * fitted.
+ *
+ * Every context is built outward from its answer: every output, every
+ * inverse's answer and every composite's answer is whole, a reciprocal rule
+ * only ever takes an input that divides its constant, and the only tenths
+ * are the multipliers of a price or a conversion (`1.2`, `1.6`). A typed
+ * answer is one number with no keys; a rule, a family, a domain or an order
+ * of composition goes through tiles, a table, a slider, a flow, a tree, a
+ * number line or a choice. Units live in prose, never in a token.
+ *
+ * Word problems draw their setting from the catalogues below, six or more to
+ * a family, and each story states its numbers in a fixed order with a word
+ * no other setting uses, so `functions.test.ts` can read the numbers back,
+ * build the model itself and hold every quoted value, domain end and answer
+ * to it. Nothing here is calculus, so no slide declares `source`,
+ * `integrand` or `limits`, and the oracle in `generators.test.ts` has
+ * nothing to check.
+ */
+
+type Family = 'linear' | 'quadratic' | 'reciprocal' | 'exponential';
+
+const FAMILY_NAME: Record<Family, string> = {
+  linear: 'Linear',
+  quadratic: 'Quadratic',
+  reciprocal: 'Reciprocal',
+  exponential: 'Exponential',
+};
+
+const FAMILIES: Family[] = ['linear', 'quadratic', 'reciprocal', 'exponential'];
+
+/** The four families as options, the right one first as `fixedChoice` expects. */
+function familyOptions(family: Family) {
+  return fixedChoice([family, ...FAMILIES.filter((f) => f !== family)].map((f) => ({ label: FAMILY_NAME[f] })));
+}
+
+/**
+ * A model as the stories use it. `up` is a standing charge plus a rate,
+ * `down` a starting amount less a rate, `area` a rectangle whose width and
+ * length add to `k`, and `recip` a fixed amount shared or covered.
+ */
+type Model =
+  | { kind: 'up'; a: number; b: number }
+  | { kind: 'down'; a: number; b: number }
+  | { kind: 'area'; k: number }
+  | { kind: 'recip'; K: number };
+
+type ModelKind = Model['kind'];
+
+function modelAt(model: Model, x: number): number {
+  if (model.kind === 'up') return model.a + model.b * x;
+  if (model.kind === 'down') return model.a - model.b * x;
+  if (model.kind === 'area') return x * (model.k - x);
+  return model.K / x;
+}
+
+/** The rule's right-hand side in the setting's letter: `15 + 4n`, `x(10 - x)`, `\frac{120}{v}`. */
+function modelTex(model: Model, v: string): string {
+  if (model.kind === 'up') return `${model.a} + ${model.b}${v}`;
+  if (model.kind === 'down') return `${model.a} - ${model.b}${v}`;
+  if (model.kind === 'area') return `${v}(${model.k} - ${v})`;
+  return `\\frac{${model.K}}{${v}}`;
+}
+
+/** The numbers a story states, in the order it states them. */
+function storyNumbers(model: Model): number[] {
+  if (model.kind === 'up' || model.kind === 'down') return [model.a, model.b];
+  if (model.kind === 'area') return [2 * model.k];
+  return [model.K];
+}
+
+/** Where a down model runs out. */
+function emptyAt(model: Model): number {
+  return model.kind === 'down' ? model.a / model.b : Infinity;
+}
+
+const lower = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
+
+interface Setting {
+  /** A word this setting's story always holds and no other setting's does. */
+  key: string;
+  kind: ModelKind;
+  /** The letters of the rule: `C(n)`. */
+  out: string;
+  inp: string;
+  /** The input counts whole things. */
+  count: boolean;
+  /** The story, stating `storyNumbers` in order. */
+  story: (nums: number[]) => string;
+  /** The input at a value, as a phrase that ends a sentence: "for a ride of $7$ miles". */
+  at: (x: number) => string;
+  /** What the inverse at y answers: "how many miles £$55$ pays for". */
+  inv: (y: number) => string;
+  /** "the fare against the length of the ride", for a question about the family. */
+  pair: string;
+  /**
+   * What the output, the input, the first number and the second part stand
+   * for, as plain-text option labels. The first number is the fixed charge
+   * or starting amount, the width and length together, or the whole amount
+   * shared; the second is the rate, the length, or a plausible wrong reading.
+   */
+  parts: [string, string, string, string];
+}
+
+const SETTINGS: Setting[] = [
+  /* ----- A standing charge plus a rate ----- */
+  {
+    key: 'taxi',
+    kind: 'up',
+    out: 'C',
+    inp: 'm',
+    count: false,
+    story: ([a, b]) => `A taxi charges £$${a}$ to start, plus £$${b}$ for every mile.`,
+    at: (x) => `for a ride of $${x}$ miles`,
+    inv: (y) => `how many miles £$${y}$ pays for`,
+    pair: 'the fare against the length of the ride',
+    parts: ['The total fare, in pounds', 'The number of miles', 'The fixed charge, in pounds', 'The charge for each mile, in pounds'],
+  },
+  {
+    key: 'bike',
+    kind: 'up',
+    out: 'C',
+    inp: 'h',
+    count: false,
+    story: ([a, b]) => `Hiring a bike costs £$${a}$, plus £$${b}$ for every hour.`,
+    at: (x) => `for $${x}$ hours of hire`,
+    inv: (y) => `how many hours of hire £$${y}$ pays for`,
+    pair: 'the cost against the time the bike is out',
+    parts: ['The total cost, in pounds', 'The number of hours', 'The fixed charge, in pounds', 'The charge for each hour, in pounds'],
+  },
+  {
+    key: 'plumber',
+    kind: 'up',
+    out: 'C',
+    inp: 'h',
+    count: false,
+    story: ([a, b]) => `A plumber charges a £$${a}$ call-out fee, plus £$${b}$ for every hour of work.`,
+    at: (x) => `for a job of $${x}$ hours`,
+    inv: (y) => `how many hours of work £$${y}$ pays for`,
+    pair: 'the bill against the hours worked',
+    parts: ['The total bill, in pounds', 'The number of hours', 'The fixed call-out fee, in pounds', 'The charge for each hour, in pounds'],
+  },
+  {
+    key: 'gym',
+    kind: 'up',
+    out: 'C',
+    inp: 'n',
+    count: true,
+    story: ([a, b]) => `A gym charges a £$${a}$ joining fee, plus £$${b}$ for every month.`,
+    at: (x) => `for $${x}$ months`,
+    inv: (y) => `how many months £$${y}$ pays for`,
+    pair: 'the total paid against the number of months',
+    parts: ['The total paid, in pounds', 'The number of months', 'The fixed joining fee, in pounds', 'The charge for each month, in pounds'],
+  },
+  {
+    key: 'T-shirt',
+    kind: 'up',
+    out: 'C',
+    inp: 'n',
+    count: true,
+    story: ([a, b]) => `A print shop charges £$${a}$ to set up, plus £$${b}$ for every T-shirt printed.`,
+    at: (x) => `for $${x}$ T-shirts`,
+    inv: (y) => `how many T-shirts £$${y}$ pays for`,
+    pair: 'the cost against the number of T-shirts',
+    parts: ['The total cost, in pounds', 'The number of T-shirts', 'The fixed set-up charge, in pounds', 'The charge for each T-shirt, in pounds'],
+  },
+  {
+    key: 'theatre',
+    kind: 'up',
+    out: 'C',
+    inp: 'n',
+    count: true,
+    story: ([a, b]) => `A theatre adds a £$${a}$ booking fee to an order, plus £$${b}$ for every ticket.`,
+    at: (x) => `for $${x}$ tickets`,
+    inv: (y) => `how many tickets £$${y}$ pays for`,
+    pair: 'the cost of an order against the number of tickets',
+    parts: ['The total cost, in pounds', 'The number of tickets', 'The fixed booking fee, in pounds', 'The price of each ticket, in pounds'],
+  },
+  {
+    key: 'hall',
+    kind: 'up',
+    out: 'C',
+    inp: 'g',
+    count: true,
+    story: ([a, b]) => `Hiring a hall for a party costs £$${a}$, plus £$${b}$ for every guest.`,
+    at: (x) => `for $${x}$ guests`,
+    inv: (y) => `how many guests £$${y}$ pays for`,
+    pair: 'the cost of the party against the number of guests',
+    parts: ['The total cost, in pounds', 'The number of guests', 'The fixed charge for the hall, in pounds', 'The charge for each guest, in pounds'],
+  },
+  {
+    key: 'gigabyte',
+    kind: 'up',
+    out: 'C',
+    inp: 'd',
+    count: false,
+    story: ([a, b]) => `A phone plan costs £$${a}$ a month, plus £$${b}$ for every gigabyte of data used.`,
+    at: (x) => `for a month using $${x}$ gigabytes`,
+    inv: (y) => `how many gigabytes a £$${y}$ bill pays for`,
+    pair: 'the monthly bill against the data used',
+    parts: ['The total bill, in pounds', 'The number of gigabytes', 'The fixed monthly charge, in pounds', 'The charge for each gigabyte, in pounds'],
+  },
+  /* ----- A starting amount less a rate ----- */
+  {
+    key: 'tank',
+    kind: 'down',
+    out: 'V',
+    inp: 't',
+    count: false,
+    story: ([a, b]) => `A tank holds $${a}$ litres of water and drains at $${b}$ litres every minute.`,
+    at: (x) => `after $${x}$ minutes`,
+    inv: (y) => `how many minutes it takes to fall to $${y}$ litres`,
+    pair: 'the water left against the time',
+    parts: ['The water left, in litres', 'The number of minutes', 'The water at the start, in litres', 'The water lost each minute, in litres'],
+  },
+  {
+    key: 'candle',
+    kind: 'down',
+    out: 'H',
+    inp: 't',
+    count: false,
+    story: ([a, b]) => `A candle is $${a}$ cm tall and burns down $${b}$ cm every hour.`,
+    at: (x) => `after $${x}$ hours`,
+    inv: (y) => `how many hours it takes to burn down to $${y}$ cm`,
+    pair: 'the height of the candle against the time',
+    parts: ['The height left, in cm', 'The number of hours', 'The height at the start, in cm', 'The height lost each hour, in cm'],
+  },
+  {
+    key: 'battery',
+    kind: 'down',
+    out: 'B',
+    inp: 't',
+    count: false,
+    story: ([a, b]) => `A phone battery is at $${a}$% and runs down by $${b}$% every hour.`,
+    at: (x) => `after $${x}$ hours`,
+    inv: (y) => `how many hours it takes to run down to $${y}$%`,
+    pair: 'the charge left against the time',
+    parts: ['The charge left, in %', 'The number of hours', 'The charge at the start, in %', 'The charge lost each hour, in %'],
+  },
+  {
+    key: 'saved',
+    kind: 'down',
+    out: 'S',
+    inp: 'w',
+    count: true,
+    story: ([a, b]) => `Sam has £$${a}$ saved and spends £$${b}$ of it every week.`,
+    at: (x) => `after $${x}$ weeks`,
+    inv: (y) => `how many weeks it takes to get down to £$${y}$`,
+    pair: 'the savings left against the number of weeks',
+    parts: ['The money left, in pounds', 'The number of weeks', 'The money at the start, in pounds', 'The money spent each week, in pounds'],
+  },
+  {
+    key: 'snowman',
+    kind: 'down',
+    out: 'H',
+    inp: 't',
+    count: false,
+    story: ([a, b]) => `A snowman is $${a}$ cm tall and melts $${b}$ cm every hour.`,
+    at: (x) => `after $${x}$ hours`,
+    inv: (y) => `how many hours it takes to melt down to $${y}$ cm`,
+    pair: 'the height of the snowman against the time',
+    parts: ['The height left, in cm', 'The number of hours', 'The height at the start, in cm', 'The height lost each hour, in cm'],
+  },
+  {
+    key: 'balloon',
+    kind: 'down',
+    out: 'H',
+    inp: 't',
+    count: false,
+    story: ([a, b]) => `A balloon is $${a}$ m up and comes down $${b}$ m every minute.`,
+    at: (x) => `after $${x}$ minutes`,
+    inv: (y) => `how many minutes it takes to come down to $${y}$ m`,
+    pair: 'the height of the balloon against the time',
+    parts: ['The height left, in m', 'The number of minutes', 'The height at the start, in m', 'The height lost each minute, in m'],
+  },
+  /* ----- A rectangle from a fixed length round its edge ----- */
+  {
+    key: 'fencing',
+    kind: 'area',
+    out: 'A',
+    inp: 'x',
+    count: false,
+    story: ([p]) => `$${p}$ m of fencing makes a rectangular pen $x$ m wide.`,
+    at: (x) => `for a pen $${x}$ m wide`,
+    inv: (y) => `the width that gives an area of $${y}$ m²`,
+    pair: 'the area of the pen against its width',
+    parts: ['The area, in m²', 'The width, in m', 'The width and the length added together, in m', 'The length, in m'],
+  },
+  {
+    key: 'edging',
+    kind: 'area',
+    out: 'A',
+    inp: 'x',
+    count: false,
+    story: ([p]) => `A rectangular flower bed has $${p}$ m of edging all the way round, and is $x$ m wide.`,
+    at: (x) => `for a bed $${x}$ m wide`,
+    inv: (y) => `the width that gives an area of $${y}$ m²`,
+    pair: 'the area of the bed against its width',
+    parts: ['The area, in m²', 'The width, in m', 'The width and the length added together, in m', 'The length, in m'],
+  },
+  {
+    key: 'rope',
+    kind: 'area',
+    out: 'A',
+    inp: 'x',
+    count: false,
+    story: ([p]) => `A loop of rope $${p}$ m long is pegged out as a rectangle $x$ m wide.`,
+    at: (x) => `for a rectangle $${x}$ m wide`,
+    inv: (y) => `the width that gives an area of $${y}$ m²`,
+    pair: 'the area inside the rope against the width',
+    parts: ['The area, in m²', 'The width, in m', 'The width and the length added together, in m', 'The length, in m'],
+  },
+  {
+    key: 'wire',
+    kind: 'area',
+    out: 'A',
+    inp: 'x',
+    count: false,
+    story: ([p]) => `A rectangular frame is bent from $${p}$ cm of wire and is $x$ cm wide.`,
+    at: (x) => `for a frame $${x}$ cm wide`,
+    inv: (y) => `the width that gives an area of $${y}$ cm²`,
+    pair: 'the area inside the frame against its width',
+    parts: ['The area, in cm²', 'The width, in cm', 'The width and the length added together, in cm', 'The length, in cm'],
+  },
+  {
+    key: 'paddock',
+    kind: 'area',
+    out: 'A',
+    inp: 'x',
+    count: false,
+    story: ([p]) => `A farmer puts $${p}$ m of fence round a rectangular paddock $x$ m wide.`,
+    at: (x) => `for a paddock $${x}$ m wide`,
+    inv: (y) => `the width that gives an area of $${y}$ m²`,
+    pair: 'the area of the paddock against its width',
+    parts: ['The area, in m²', 'The width, in m', 'The width and the length added together, in m', 'The length, in m'],
+  },
+  {
+    key: 'sandpit',
+    kind: 'area',
+    out: 'A',
+    inp: 'x',
+    count: false,
+    story: ([p]) => `A rectangular sandpit has a wooden border $${p}$ m long all the way round, and is $x$ m wide.`,
+    at: (x) => `for a sandpit $${x}$ m wide`,
+    inv: (y) => `the width that gives an area of $${y}$ m²`,
+    pair: 'the area of the sandpit against its width',
+    parts: ['The area, in m²', 'The width, in m', 'The width and the length added together, in m', 'The length, in m'],
+  },
+  /* ----- A fixed amount shared out or covered ----- */
+  {
+    key: 'journey',
+    kind: 'recip',
+    out: 'T',
+    inp: 'v',
+    count: false,
+    story: ([K]) => `A journey is $${K}$ km long, driven at a steady $v$ km/h.`,
+    at: (x) => `at $${x}$ km/h`,
+    inv: (y) => `the speed that makes the journey take $${y}$ hours`,
+    pair: 'the time taken against the speed',
+    parts: ['The time taken, in hours', 'The speed, in km/h', 'The whole distance, in km', 'The distance left to go, in km'],
+  },
+  {
+    key: 'bill',
+    kind: 'recip',
+    out: 'P',
+    inp: 'n',
+    count: true,
+    story: ([K]) => `A restaurant bill of £$${K}$ is split equally between $n$ friends.`,
+    at: (x) => `when $${x}$ friends share it`,
+    inv: (y) => `how many friends are sharing if each pays £$${y}$`,
+    pair: 'what each friend pays against the number of friends',
+    parts: ['The amount each friend pays, in pounds', 'The number of friends', 'The whole bill, in pounds', 'The tip, in pounds'],
+  },
+  {
+    key: 'pool',
+    kind: 'recip',
+    out: 'T',
+    inp: 'r',
+    count: false,
+    story: ([K]) => `A pool holding $${K}$ litres is filled at a steady $r$ litres a minute.`,
+    at: (x) => `at $${x}$ litres a minute`,
+    inv: (y) => `the rate that fills the pool in $${y}$ minutes`,
+    pair: 'the time to fill the pool against the rate',
+    parts: ['The time to fill it, in minutes', 'The rate, in litres a minute', 'The whole volume of the pool, in litres', 'The water already in, in litres'],
+  },
+  {
+    key: 'card',
+    kind: 'recip',
+    out: 'L',
+    inp: 'w',
+    count: false,
+    story: ([K]) => `A rectangle of card has an area of $${K}$ cm² and is $w$ cm wide.`,
+    at: (x) => `when it is $${x}$ cm wide`,
+    inv: (y) => `the width that makes it $${y}$ cm long`,
+    pair: 'the length of the card against its width',
+    parts: ['The length, in cm', 'The width, in cm', 'The whole area of the card, in cm²', 'The distance round the edge, in cm'],
+  },
+  {
+    key: 'sweets',
+    kind: 'recip',
+    out: 'B',
+    inp: 's',
+    count: true,
+    story: ([K]) => `$${K}$ sweets are packed into bags of $s$ sweets each.`,
+    at: (x) => `with $${x}$ sweets in a bag`,
+    inv: (y) => `how many sweets go in each bag to fill $${y}$ bags`,
+    pair: 'the number of bags against the sweets in each bag',
+    parts: ['The number of bags', 'The sweets in each bag', 'The whole number of sweets', 'The sweets left over'],
+  },
+  {
+    key: 'job',
+    kind: 'recip',
+    out: 'T',
+    inp: 'p',
+    count: true,
+    story: ([K]) => `A job needs $${K}$ hours of work, shared equally between $p$ people.`,
+    at: (x) => `when $${x}$ people share it`,
+    inv: (y) => `how many people finish it in $${y}$ hours each`,
+    pair: 'the hours each person works against the number of people',
+    parts: ['The hours each person works', 'The number of people', 'The whole job, in hours', 'The hours of break, each'],
+  },
+];
+
+const settingsOf = (...kinds: ModelKind[]): number[] =>
+  SETTINGS.flatMap((setting, idx) => (kinds.includes(setting.kind) ? [idx] : []));
+
+/** Constants a reciprocal model divides: plenty of whole divisors each. */
+const RECIP_CONSTANTS = [24, 36, 48, 60, 72, 90, 120, 144, 180, 240, 360];
+
+const divisorsOf = (K: number, from = 2, to = K / 2): number[] =>
+  range(from, Math.floor(to)).filter((d) => K % d === 0);
+
+/**
+ * A model for a setting of this kind. `hard` widens the numbers; a `down`
+ * model always runs out at a whole time, since it is built from that time.
+ */
+function sampleModel(rng: Rng, kind: ModelKind, hard: boolean, most = 20): Model {
+  if (kind === 'up') return { kind, a: rng.int(2, hard ? 12 : 8) * 5, b: rng.int(2, 9) };
+  if (kind === 'down') {
+    const b = rng.int(2, hard ? 9 : 6);
+    return { kind, a: b * rng.int(5, most), b };
+  }
+  if (kind === 'area') return { kind, k: rng.int(hard ? 8 : 6, hard ? 20 : 14) };
+  return { kind, K: rng.pick(hard ? RECIP_CONSTANTS.slice(3) : RECIP_CONSTANTS.slice(0, 8)) };
+}
+
+/** The rule as a line: `C(n) = 15 + 4n`. */
+function ruleLine(setting: Setting, model: Model): string {
+  return `${setting.out}(${setting.inp}) = ${modelTex(model, setting.inp)}`;
+}
+
+/** A setting and its model, the parameters most of this level's generators share. */
+interface Context {
+  s: number;
+  model: Model;
+}
+
+function drawContext(rng: Rng, kinds: ModelKind[], hard: boolean, most?: number): Context {
+  const s = rng.pick(settingsOf(...kinds));
+  return { s, model: sampleModel(rng, SETTINGS[s].kind, hard, most) };
+}
+
+/* ---------- Growth, recognised and tabulated, never fitted ---------- */
+
+interface GrowthSetting {
+  key: string;
+  /** What the amount is multiplied by each step. */
+  r: number;
+  /** Starting amounts that keep five steps whole: a multiple of this. */
+  unit: number;
+  story: (start: number) => string;
+  pair: string;
+  /** What the table's letters stand for. */
+  letters: string;
+}
+
+const GROWTH: GrowthSetting[] = [
+  {
+    key: 'bacteria',
+    r: 2,
+    unit: 1,
+    story: (p) => `A dish starts with $${p}$ bacteria, and the number doubles every hour.`,
+    pair: 'the number of bacteria against the time',
+    letters: '$N$ is the number of bacteria and $t$ the time in hours',
+  },
+  {
+    key: 'views',
+    r: 3,
+    unit: 1,
+    story: (p) => `A video has $${p}$ views, and its views triple every day.`,
+    pair: 'the number of views against the time',
+    letters: '$N$ is the number of views and $t$ the time in days',
+  },
+  {
+    key: 'fish',
+    r: 1.5,
+    unit: 16,
+    story: (p) => `A pond holds $${p}$ fish, and the number grows by half again every year.`,
+    pair: 'the number of fish against the time',
+    letters: '$N$ is the number of fish and $t$ the time in years',
+  },
+  {
+    key: 'car',
+    r: 0.75,
+    unit: 2560,
+    story: (p) => `A car is worth £$${p}$, and it loses a quarter of its value every year.`,
+    pair: 'the value of the car against its age',
+    letters: '$N$ is the value in pounds and $t$ the age in years',
+  },
+  {
+    key: 'medicine',
+    r: 0.5,
+    unit: 16,
+    story: (p) => `A patient has $${p}$ mg of a medicine in the blood, and the amount halves every hour.`,
+    pair: 'the medicine left against the time',
+    letters: '$N$ is the medicine left in mg and $t$ the time in hours',
+  },
+  {
+    key: 'interest',
+    r: 1.1,
+    unit: 100,
+    story: (p) => `£$${p}$ is left in a savings account that adds $10$% interest every year.`,
+    pair: 'the money in the account against the time',
+    letters: '$N$ is the money in pounds and $t$ the time in years',
+  },
+];
+
+/** A growth story's starting amount: five steps on, every value is still whole. */
+function growthStart(rng: Rng, g: GrowthSetting): number {
+  if (g.r === 2) return rng.int(3, 30);
+  if (g.r === 3) return rng.int(2, 12);
+  return g.unit * rng.int(1, g.r === 1.1 ? 30 : 8);
+}
+
+/* ---------- Lesson 1: which family fits ---------- */
+
+interface ModelFamilyParams {
+  /** A setting index, or a growth setting's as `GROWTH` index plus 100. */
+  s: number;
+  nums: number[];
+}
+
+function familyStory({ s, nums }: ModelFamilyParams): { story: string; pair: string; family: Family } {
+  if (s >= 100) {
+    const g = GROWTH[s - 100];
+    return { story: g.story(nums[0]), pair: g.pair, family: 'exponential' };
+  }
+  const setting = SETTINGS[s];
+  const family: Family = setting.kind === 'area' ? 'quadratic' : setting.kind === 'recip' ? 'reciprocal' : 'linear';
+  return { story: setting.story(nums), pair: setting.pair, family };
+}
+
+const FAMILY_WHY: Record<Family, string> = {
+  linear: 'The same amount is added or taken away for every step of the input, so the graph is a straight line: a **linear** model.',
+  quadratic:
+    'The width and the length share a fixed total, so the area is the width times what is left of that total: $x(k - x)$, a **quadratic**.',
+  reciprocal:
+    'A fixed amount is divided by the input, so doubling the input halves the output: $\\frac{k}{x}$, a **reciprocal** model.',
+  exponential: 'The amount is **multiplied** by the same number every step, rather than added to: an **exponential** model.',
+};
+
+/**
+ * Which family fits a situation, from the story alone.
+ *
+ * Difficulty 1 gives the plainest cues — a charge per mile, a pen from a
+ * fence, a bill shared, a doubling. Difficulty 2 turns them round: an amount
+ * that falls at a steady rate is still linear, a pool filled faster is
+ * reciprocal, and a car losing a quarter of its value is exponential even
+ * though it falls.
+ */
+const modelFamily: Generator<ModelFamilyParams> = {
+  id: 'fun-model-family',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const family = rng.pick(FAMILIES);
+    if (family === 'exponential') {
+      const g = rng.pick(hard ? [2, 3, 4, 5] : [0, 1, 2]);
+      return { s: 100 + g, nums: [growthStart(rng, GROWTH[g])] };
+    }
+    const pool =
+      family === 'linear'
+        ? settingsOf(hard ? 'down' : 'up')
+        : family === 'quadratic'
+          ? settingsOf('area')
+          : settingsOf('recip').filter((i) => ['journey', 'bill', 'sweets'].includes(SETTINGS[i].key) !== hard);
+    const s = rng.pick(pool);
+    return { s, nums: storyNumbers(sampleModel(rng, SETTINGS[s].kind, hard)) };
+  },
+  render: (params): Slide => {
+    const { story, pair, family } = familyStory(params);
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `${story} Which kind of function models ${pair}?` }],
+      ...familyOptions(family),
+    };
+  },
+  solution: (params) => {
+    const { story, family } = familyStory(params);
+    return [{ text: story }, { text: FAMILY_WHY[family] }];
+  },
+};
+
+type Pattern = 'add' | 'times' | 'second' | 'product';
+
+const PATTERN_FAMILY: Record<Pattern, Family> = {
+  add: 'linear',
+  times: 'exponential',
+  second: 'quadratic',
+  product: 'reciprocal',
+};
+
+const PATTERN_LABEL: Record<Pattern, string> = {
+  add: 'It goes up or down by the same amount',
+  times: 'It is multiplied by the same number',
+  second: 'The change itself changes by the same amount',
+  product: '$x \\times y$ stays the same',
+};
+
+interface FamilyFlowParams {
+  pattern: Pattern;
+  /** add: start and step; times: start and ratio; second: p and c or k; product: K. */
+  p: number;
+  q: number;
+  /** The first x in the table. */
+  from: number;
+}
+
+/** A table's five rows. */
+function flowRows({ pattern, p, q, from }: FamilyFlowParams): [number, number][] {
+  return range(from, from + 4).map((x) => {
+    const n = x - from;
+    if (pattern === 'add') return [x, p + q * n];
+    if (pattern === 'times') return [x, p * q ** n];
+    if (pattern === 'second') return [x, p > 0 ? p * x * x + q : x * (q - x)];
+    return [x, p / x];
+  });
+}
+
+/** The number the pattern turns on: the step, the ratio, the second difference, the product. */
+function flowValue(params: FamilyFlowParams): number {
+  const { pattern, p, q } = params;
+  if (pattern === 'add') return q;
+  if (pattern === 'times') return q;
+  if (pattern === 'second') return p > 0 ? 2 * p : -2;
+  return p;
+}
+
+/** A ratio as TeX: `2`, `\tfrac{1}{2}`, `\tfrac{3}{2}`. */
+function ratioTexOf(r: number): string {
+  if (Number.isInteger(r)) return `${r}`;
+  for (let den = 2; den <= 6; den += 1) {
+    const top = r * den;
+    if (Math.abs(top - Math.round(top)) < 1e-9) return `\\tfrac{${Math.round(top)}}{${den}}`;
+  }
+  return `${r}`;
+}
+
+function tableTex(rows: [number, number][], xs = 'x', ys = 'y'): string {
+  const cols = 'c'.repeat(rows.length);
+  return `\\begin{array}{c|${cols}} ${xs} & ${rows.map(([x]) => x).join(' & ')} \\\\ \\hline ${ys} & ${rows.map(([, y]) => y).join(' & ')} \\end{array}`;
+}
+
+/**
+ * A table read for its pattern, then its number, then the family.
+ *
+ * Each step of $x$ is $1$, so a constant difference is linear, a constant
+ * ratio exponential, a constant second difference quadratic, and a constant
+ * $x \times y$ reciprocal. Difficulty 2 falls rather than rises: a line with
+ * a negative step, a ratio of a half or three halves, an arch, and a larger
+ * constant starting at $x = 2$.
+ */
+const familyFlow: Generator<FamilyFlowParams> = {
+  id: 'fun-family-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const pattern = rng.pick(['add', 'times', 'second', 'product'] as const);
+    const from = hard ? 2 : 1;
+    if (pattern === 'add') {
+      return hard
+        ? { pattern, p: rng.int(40, 90), q: -rng.int(2, 9), from }
+        : { pattern, p: rng.int(1, 20), q: rng.int(2, 9), from };
+    }
+    if (pattern === 'times') {
+      if (!hard) {
+        const q = rng.pick([2, 3]);
+        return { pattern, p: q === 2 ? rng.int(1, 12) : rng.int(1, 5), q, from };
+      }
+      return { pattern, p: 16 * rng.int(1, 6), q: rng.pick([0.5, 1.5]), from };
+    }
+    if (pattern === 'second') {
+      return hard ? { pattern, p: -1, q: rng.int(9, 16), from } : { pattern, p: rng.int(1, 3), q: rng.int(0, 9), from };
+    }
+    return { pattern, p: 60 * rng.int(hard ? 2 : 1, hard ? 8 : 5), q: 0, from };
+  },
+  render: (params): Slide => {
+    const { pattern, q } = params;
+    const value = flowValue(params);
+    const family = PATTERN_FAMILY[pattern];
+    const numbers = (step: string, ask: string, candidates: string[]) => ({
+      id: step,
+      ask,
+      branches: turned(candidates).map((label) => ({ label, to: 'family' })),
+    });
+    const whole = (v: number, ...near: number[]) => offer(v, ...near).map((n) => `$${n}$`);
+    const ratios = [...new Set([q, 1 / q, 2 * q, q + 1].map(ratioTexOf))].map((tex) => `$${tex}$`);
+    const valueLabel = pattern === 'times' ? `$${ratioTexOf(q)}$` : `$${value}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        {
+          kind: 'prose',
+          text: 'Go along the table one column at a time. Say what $y$ does, by how much, and so which kind of function fits.',
+        },
+      ],
+      subject: tableTex(flowRows(params)),
+      steps: [
+        {
+          id: 'pattern',
+          ask: 'What does $y$ do from one column to the next?',
+          branches: turned(Object.values(PATTERN_LABEL)).map((label) => ({
+            label,
+            to: (Object.keys(PATTERN_LABEL) as Pattern[]).find((key) => PATTERN_LABEL[key] === label),
+          })),
+        },
+        numbers('add', 'By how much, each time?', whole(pattern === 'add' ? value : 3, -value, 2 * value)),
+        numbers('times', 'By what number?', pattern === 'times' ? ratios : ['$2$', '$3$', '$\\tfrac{1}{2}$', '$4$']),
+        numbers('second', 'By how much does the change change?', whole(pattern === 'second' ? value : 2, -value, 2 * value)),
+        numbers('product', 'What is $x \\times y$ each time?', whole(pattern === 'product' ? value : 60, value / 2, 2 * value)),
+        {
+          id: 'family',
+          ask: 'So which kind of function fits the table?',
+          branches: turned(FAMILIES.map((f) => FAMILY_NAME[f])).map((label) => ({
+            label,
+            outcome: `So a ${label.toLowerCase()} function fits.`,
+          })),
+        },
+      ],
+      answer: [PATTERN_LABEL[pattern], valueLabel, FAMILY_NAME[family]],
+    };
+  },
+  solution: (params) => {
+    const { pattern, q } = params;
+    const rows = flowRows(params);
+    const ys = rows.map(([, y]) => y);
+    const diffs = ys.slice(1).map((y, i) => y - ys[i]);
+    if (pattern === 'add') {
+      return [
+        { text: `The differences are $${diffs.join(', ')}$: the same every time.` },
+        { text: FAMILY_WHY.linear },
+      ];
+    }
+    if (pattern === 'times') {
+      return [
+        { text: `Each $y$ is the one before times $${ratioTexOf(q)}$: $${ys[0]} \\times ${ratioTexOf(q)} = ${ys[1]}$, and so on.` },
+        { text: FAMILY_WHY.exponential },
+      ];
+    }
+    if (pattern === 'second') {
+      const second = diffs.slice(1).map((d, i) => d - diffs[i]);
+      return [
+        { text: `The differences are $${diffs.join(', ')}$, which are not the same.` },
+        { text: `But they change by $${second[0]}$ every time: the second differences are all $${second[0]}$.` },
+        { text: 'A constant second difference is the mark of a **quadratic**.' },
+      ];
+    }
+    return [
+      { text: `Multiply each pair: ${rows.map(([x, y]) => `$${x} \\times ${y} = ${x * y}$`).join(', ')}.` },
+      { text: `$x \\times y$ is always $${params.p}$, so $y = \\frac{${params.p}}{x}$: a **reciprocal** function.` },
+    ];
+  },
+};
+
+interface FamilyNextParams {
+  /** A setting index, or a growth setting's as `GROWTH` index plus 100. */
+  s: number;
+  nums: number[];
+  /** The inputs down the table. */
+  xs: number[];
+}
+
+/** The model behind a table, as a function of its input. */
+function nextModel({ s, nums }: FamilyNextParams): (x: number) => number {
+  if (s >= 100) return (x) => nums[0] * GROWTH[s - 100].r ** x;
+  const kind = SETTINGS[s].kind;
+  if (kind === 'up' || kind === 'down') return (x) => modelAt({ kind, a: nums[0], b: nums[1] }, x);
+  if (kind === 'area') return (x) => modelAt({ kind, k: nums[0] / 2 }, x);
+  return (x) => modelAt({ kind, K: nums[0] }, x);
+}
+
+function nextLetters({ s }: FamilyNextParams): [string, string] {
+  if (s >= 100) return ['t', 'N'];
+  return [SETTINGS[s].inp, SETTINGS[s].out];
+}
+
+/**
+ * A table filled in from the story: the model applied, not named.
+ *
+ * The first row is given; the learner carries the story on through four
+ * more. The bank holds what each row would be under the slips a table
+ * invites — adding where the story multiplies, forgetting the fixed charge,
+ * using the whole fence as width plus length.
+ */
+const familyNext: Generator<FamilyNextParams> = {
+  id: 'fun-family-next',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick(hard ? (['down', 'area', 'recip', 'growth'] as const) : (['up', 'growth'] as const));
+    if (kind === 'growth') {
+      const g = rng.pick(hard ? [2, 3, 4] : [0, 1]);
+      const start = g === 3 ? 2560 * rng.int(1, 4) : g >= 2 ? 16 * rng.int(1, 6) : growthStart(rng, GROWTH[g]);
+      return { s: 100 + g, nums: [start], xs: range(0, 4) };
+    }
+    if (kind === 'recip') {
+      const s = rng.pick(settingsOf('recip').filter((i) => SETTINGS[i].key !== 'sweets'));
+      const K = rng.pick([60, 120, 180, 240, 360]);
+      const ds = divisorsOf(K, 2, 20);
+      const at = rng.int(0, ds.length - 5);
+      return { s, nums: [K], xs: ds.slice(at, at + 5) };
+    }
+    const s = rng.pick(settingsOf(kind));
+    if (kind === 'area') return { s, nums: [2 * rng.int(11, 16)], xs: range(1, 5) };
+    const model = sampleModel(rng, kind, hard, 20);
+    const step = rng.pick([1, 1, 2]);
+    return { s, nums: storyNumbers(model), xs: range(0, 4).map((i) => i * step) };
+  },
+  render: (params): Slide => {
+    const { s, nums, xs } = params;
+    const f = nextModel(params);
+    const [xl, yl] = nextLetters(params);
+    const story = s >= 100 ? GROWTH[s - 100].story(nums[0]) : SETTINGS[s].story(nums);
+    const where =
+      s >= 100
+        ? GROWTH[s - 100].letters
+        : `$${yl}$ is ${lower(SETTINGS[s].parts[0])} and $${xl}$ is ${lower(SETTINGS[s].parts[1])}`;
+    const answer = xs.slice(1).map((x) => `${f(x)}`);
+    const slips = xs.slice(1).flatMap((x, i) => {
+      if (s >= 100) return [nums[0] + nums[0] * (GROWTH[s - 100].r - 1) * x];
+      const kind = SETTINGS[s].kind;
+      if (kind === 'up') return [nums[1] * x, nums[0] + nums[1] * (x + 1)];
+      if (kind === 'down') return [nums[1] * x, nums[0] - nums[1] * (x + 1)];
+      if (kind === 'area') return [x * (nums[0] - x)];
+      return [nums[0] / xs[i]];
+    });
+    const last = f(xs[xs.length - 1]);
+    return {
+      kind: 'table',
+      prompt: [{ kind: 'prose', text: `${story} In the table, ${where}. Fill in the missing values.` }],
+      columns: [xl, yl],
+      rows: xs.map((x, i) => [`${x}`, i === 0 ? `${f(x)}` : null]),
+      bank: treeBank(answer, slips.filter((v) => v > 0), last),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { s, nums, xs } = params;
+    const f = nextModel(params);
+    const [xl, yl] = nextLetters(params);
+    if (s >= 100) {
+      const r = GROWTH[s - 100].r;
+      return [
+        { text: `Each step multiplies the amount by $${ratioTexOf(r)}$, so $N = ${nums[0]} \\times ${ratioTexOf(r)}^{t}$.` },
+        { text: `Going down the table: ${xs.map((x) => `$${f(x)}$`).join(', ')}.` },
+      ];
+    }
+    const setting = SETTINGS[s];
+    const model = setting.kind === 'area' ? { kind: 'area' as const, k: nums[0] / 2 } : null;
+    return [
+      ...(model ? [{ text: `Width and length add to half the $${nums[0]}$, which is $${model.k}$, so the length is $${model.k} - x$.` }] : []),
+      {
+        tex: `${yl} = ${
+          setting.kind === 'up'
+            ? `${nums[0]} + ${nums[1]}${xl}`
+            : setting.kind === 'down'
+              ? `${nums[0]} - ${nums[1]}${xl}`
+              : setting.kind === 'area'
+                ? `${xl}(${nums[0] / 2} - ${xl})`
+                : `\\frac{${nums[0]}}{${xl}}`
+        }`,
+      },
+      ...xs.slice(1).map((x) => ({ tex: `${yl}(${x}) = ${f(x)}` })),
+    ];
+  },
+};
+
+type SketchKind = 'line' | 'arch' | 'grow' | 'recip';
+
+interface FamilySketchParams {
+  shape: SketchKind;
+  p: number;
+  q: number;
+}
+
+const SKETCH_FAMILY: Record<SketchKind, Family> = {
+  line: 'linear',
+  arch: 'quadratic',
+  grow: 'exponential',
+  recip: 'reciprocal',
+};
+
+function sketchCurve({ shape, p, q }: FamilySketchParams): (x: number) => number {
+  if (shape === 'line') return (x) => p + q * x;
+  if (shape === 'arch') return (x) => (p * x * (q - x)) / 10;
+  if (shape === 'grow') return (x) => p * (q / 10) ** x;
+  return (x) => (x <= 0 ? NaN : p / x);
+}
+
+function sketchTop({ shape, p, q }: FamilySketchParams): number {
+  if (shape === 'line') return Math.max(p, p + 10 * q) + 2;
+  if (shape === 'arch') return (p * q * q) / 40 + 2;
+  if (shape === 'grow') return Math.max(p, p * (q / 10) ** 10) + 2;
+  return p / 1.5;
+}
+
+/**
+ * Which family, from the shape of its graph.
+ *
+ * The one worth teaching is a falling curve: a reciprocal runs up the
+ * $y$-axis without ever meeting it, while an exponential that falls crosses
+ * it at its starting value. Difficulty 1 offers only rising lines and
+ * growth; difficulty 2 lets both fall.
+ */
+const familySketch: Generator<FamilySketchParams> = {
+  id: 'fun-family-sketch',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const shape = rng.pick(['line', 'arch', 'grow', 'recip'] as const);
+    if (shape === 'line') {
+      if (!hard) return { shape, p: rng.int(1, 8), q: rng.int(1, 3) };
+      const q = rng.int(1, 3);
+      return { shape, p: 10 * q + rng.int(2, 12), q: -q };
+    }
+    if (shape === 'arch') return { shape, p: rng.int(2, 6), q: rng.int(6, 10) };
+    if (shape === 'grow') return hard ? { shape, p: rng.int(8, 20), q: rng.int(6, 8) } : { shape, p: rng.int(1, 4), q: rng.int(12, 14) };
+    return { shape, p: rng.int(hard ? 12 : 6, hard ? 30 : 20), q: 0 };
+  },
+  render: (params): Slide => ({
+    kind: 'choice',
+    prompt: [
+      { kind: 'prose', text: 'The sketch shows a model of some quantity $y$ against $x$, for $x \\geq 0$. Which kind of function is it?' },
+      {
+        kind: 'diagram',
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 10,
+          yMin: -1,
+          yMax: sketchTop(params),
+          curves: [{ f: sketchCurve(params), accent: true, breaks: params.shape === 'recip' }],
+          verticals: [{ x: 0, dashed: false }],
+          label: 'A sketch of y against x',
+        }),
+      },
+    ],
+    ...familyOptions(SKETCH_FAMILY[params.shape]),
+  }),
+  solution: ({ shape }) => {
+    if (shape === 'line') return [{ text: 'It is straight: equal steps across give equal steps up or down. That is a **linear** model.' }];
+    if (shape === 'arch') return [{ text: 'It rises, turns and comes back down symmetrically: a parabola, so a **quadratic** model.' }];
+    if (shape === 'grow') {
+      return [
+        { text: 'It is curved, never turns, and crosses the $y$-axis at a starting value.' },
+        { text: 'Each step across multiplies the height by the same number: an **exponential** model.' },
+      ];
+    }
+    return [
+      { text: 'It falls ever more slowly, and it climbs up the $y$-axis without ever meeting it — there is no value at $x = 0$.' },
+      { text: 'That is $y = \\frac{k}{x}$: a **reciprocal** model. A falling exponential would cross the $y$-axis at its start.' },
+    ];
+  },
+};
+
+/* ---------- Lesson 2: the rule from the context ---------- */
+
+/**
+ * The rule built from the story.
+ *
+ * A standing charge and a rate go in as $a + bn$ — the bank holds the cost of
+ * one unit, which is what a learner who adds them first writes. A fence of
+ * $P$ gives width and length adding to $\frac{P}{2}$, not $P$. A shared
+ * amount is divided by the input, not the other way up.
+ */
+const modelRule: Generator<Context> = {
+  id: 'fun-model-rule',
+  sample: (rng, difficulty) => drawContext(rng, difficulty > 1 ? ['down', 'area', 'recip'] : ['up', 'area'], difficulty > 1),
+  render: ({ s, model }): Slide => {
+    const setting = SETTINGS[s];
+    const { out, inp } = setting;
+    const lead = `${out}(${inp}) = `;
+    const text = `${setting.story(storyNumbers(model))} Write the rule for $${out}$, ${lower(setting.parts[0])}, in terms of $${inp}$.`;
+    const prompt: Block[] = [{ kind: 'prose', text }];
+    if (model.kind === 'up' || model.kind === 'down') {
+      const answer = [`${model.a}`, `${model.b}`];
+      const other = model.kind === 'up' ? model.a + model.b : model.a - model.b;
+      return {
+        kind: 'tiles',
+        prompt,
+        template: `${lead}{0} ${model.kind === 'up' ? '+' : '-'} {1}${inp}`,
+        bank: bankOf(answer, [`${other}`, model.kind === 'up' ? `${2 * model.b}` : `${emptyAt(model)}`]),
+        answer,
+      };
+    }
+    if (model.kind === 'area') {
+      const answer = [`${model.k}`];
+      return {
+        kind: 'tiles',
+        prompt,
+        template: `${lead}${inp}({0} - ${inp})`,
+        bank: bankOf(answer, [`${2 * model.k}`, `${4 * model.k}`, `${model.k - 2}`]),
+        answer,
+      };
+    }
+    const answer = [`\\frac{${model.K}}{${inp}}`];
+    return {
+      kind: 'tiles',
+      prompt,
+      template: `${lead}{0}`,
+      bank: bankOf(answer, [`\\frac{${inp}}{${model.K}}`, `${model.K}${inp}`, `${model.K} - ${inp}`]),
+      answer,
+    };
+  },
+  solution: ({ s, model }) => {
+    const setting = SETTINGS[s];
+    const { inp } = setting;
+    const why =
+      model.kind === 'up'
+        ? `The £$${model.a}$ is paid once, whatever $${inp}$ is; the £$${model.b}$ is paid $${inp}$ times.`
+        : model.kind === 'down'
+          ? `It starts at $${model.a}$ and loses $${model.b}$ for each of the $${inp}$ steps.`
+          : model.kind === 'area'
+            ? `The edge is width + length + width + length $= ${2 * model.k}$, so width and length add to $${model.k}$ and the length is $${model.k} - ${inp}$. Area is width times length.`
+            : `The whole $${model.K}$ is divided by $${inp}$: double $${inp}$ and the answer halves.`;
+    return [{ text: why }, { tex: ruleLine(setting, model) }];
+  },
+};
+
+interface ModelValueParams extends Context {
+  x: number;
+  /** The rule is shown; otherwise it is built from the story. */
+  shown: boolean;
+}
+
+/** An input that keeps the answer whole and sensible for its model. */
+function sampleInput(rng: Rng, model: Model): number {
+  if (model.kind === 'up') return rng.int(2, 12);
+  if (model.kind === 'down') return rng.int(1, emptyAt(model) - 1);
+  if (model.kind === 'area') return rng.int(1, model.k - 1);
+  return rng.pick(divisorsOf(model.K));
+}
+
+/**
+ * A model evaluated at an input the story names.
+ *
+ * Difficulty 1 shows the rule; difficulty 2 leaves the learner to build it
+ * from the story first, and brings the falling and shared models in.
+ */
+const modelValue: Generator<ModelValueParams> = {
+  id: 'fun-model-value',
+  choices: ({ model, x }) => {
+    const v = modelAt(model, x);
+    if (model.kind === 'up') return numberChoices(v, model.a + model.b, model.b * x, (model.a + model.b) * x);
+    if (model.kind === 'down') return numberChoices(v, model.b * x, model.a - model.b, model.a + model.b * x);
+    if (model.kind === 'area') return numberChoices(v, x * model.k, x * (2 * model.k - x), model.k - x);
+    return numberChoices(v, model.K * x, model.K - x, v * 2);
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const context = drawContext(rng, hard ? ['down', 'area', 'recip'] : ['up', 'area', 'recip'], hard);
+    return { ...context, x: sampleInput(rng, context.model), shown: !hard };
+  },
+  render: ({ s, model, x, shown }): Slide => {
+    const setting = SETTINGS[s];
+    const story = setting.story(storyNumbers(model));
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: shown ? `${story} The model is` : `${story} Build the rule for $${setting.out}$, then use it.` },
+        ...(shown ? [{ kind: 'display' as const, tex: ruleLine(setting, model) }] : []),
+        { kind: 'prose', text: `Find ${lower(setting.parts[0])}, ${setting.at(x)}.` },
+      ],
+      lead: `${setting.out}(${x}) =`,
+      keypad: [],
+      answer: `${modelAt(model, x)}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ s, model, x }) => {
+    const setting = SETTINGS[s];
+    const put =
+      model.kind === 'up'
+        ? `${model.a} + ${model.b} \\times ${x}`
+        : model.kind === 'down'
+          ? `${model.a} - ${model.b} \\times ${x}`
+          : model.kind === 'area'
+            ? `${x}(${model.k} - ${x}) = ${x} \\times ${model.k - x}`
+            : `\\frac{${model.K}}{${x}}`;
+    return [
+      { tex: ruleLine(setting, model) },
+      { text: `Write $${x}$ in place of $${setting.inp}$.` },
+      { tex: `${setting.out}(${x}) = ${put} = ${modelAt(model, x)}` },
+    ];
+  },
+};
+
+interface MeaningParams extends Context {
+  /** Which part is asked: the first number, or the second part. */
+  asks: 'first' | 'second';
+}
+
+/** What the asked part looks like in the rule. */
+function meaningPart({ s, model, asks }: MeaningParams): string {
+  const { inp } = SETTINGS[s];
+  if (model.kind === 'up' || model.kind === 'down') return `${asks === 'first' ? model.a : model.b}`;
+  if (model.kind === 'area') return asks === 'first' ? `${model.k}` : `${model.k} - ${inp}`;
+  return `${model.K}`;
+}
+
+/**
+ * What each number in a rule stands for.
+ *
+ * The four options are the four parts of the story — the output, the
+ * input, the fixed amount, the rate — so a learner who reads the rule as
+ * a set of numbers rather than as the story has somewhere wrong to land.
+ * For a rectangle the asked part may be the bracket, $k - x$, which is the
+ * length; for a shared amount it is always the amount.
+ */
+const modelMeaning: Generator<MeaningParams> = {
+  id: 'fun-model-meaning',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const context = drawContext(rng, hard ? ['down', 'area', 'recip'] : ['up', 'area'], hard);
+    if (context.model.kind === 'up' || context.model.kind === 'down') {
+      if (context.model.a === context.model.b) context.model = { ...context.model, a: context.model.a + 5 };
+    }
+    const asks = context.model.kind === 'recip' || (context.model.kind === 'area' && !hard) ? 'first' : rng.pick(['first', 'second'] as const);
+    return { ...context, asks };
+  },
+  render: (params): Slide => {
+    const { s, model, asks } = params;
+    const setting = SETTINGS[s];
+    const [outWords, inWords, first, second] = setting.parts;
+    const part = meaningPart(params);
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
+        { kind: 'display', tex: ruleLine(setting, model) },
+        { kind: 'prose', text: `What does ${part.includes(' ') ? '' : 'the '}$${part}$ stand for?` },
+      ],
+      ...fixedChoice([asks === 'first' ? first : second, asks === 'first' ? second : first, outWords, inWords].map((label) => ({ label }))),
+    };
+  },
+  solution: (params) => {
+    const { s, model, asks } = params;
+    const setting = SETTINGS[s];
+    const part = meaningPart(params);
+    const meaning = lower(setting.parts[asks === 'first' ? 2 : 3]);
+    const why =
+      model.kind === 'up'
+        ? asks === 'first'
+          ? `It is added once, whatever $${setting.inp}$ is.`
+          : `It is multiplied by $${setting.inp}$, so it is paid once for every one.`
+        : model.kind === 'down'
+          ? asks === 'first'
+            ? `It is the value when $${setting.inp} = 0$.`
+            : `It is taken away once for every one of the $${setting.inp}$ steps.`
+          : model.kind === 'area'
+            ? asks === 'first'
+              ? `Width + length + width + length is the whole edge, so width + length is half of it.`
+              : `The width is $${setting.inp}$, and width + length is $${model.k}$, so the length is what is left.`
+            : `It is divided by $${setting.inp}$: it is the whole amount being shared or covered.`;
+    return [{ text: why }, { text: `So $${part}$ is ${meaning}.` }];
+  },
+};
+
+interface RuleMachineParams extends Context {
+  x: number;
+}
+
+function machineSteps({ model, x }: RuleMachineParams): number[] {
+  if (model.kind === 'up') return [model.b * x, model.a + model.b * x];
+  if (model.kind === 'down') return [model.b * x, model.a - model.b * x];
+  if (model.kind === 'area') return [model.k - x, x * (model.k - x)];
+  return [model.K / x];
+}
+
+/**
+ * The rule run a step at a time, in the order the story's arithmetic goes:
+ * the rate times the input before the fixed amount, the bracket before the
+ * width times it.
+ */
+const ruleMachine: Generator<RuleMachineParams> = {
+  id: 'fun-rule-machine',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const context = drawContext(rng, hard ? ['down', 'area'] : ['up', 'area'], hard);
+    return { ...context, x: sampleInput(rng, context.model) };
+  },
+  render: (params): Slide => {
+    const { s, model, x } = params;
+    const setting = SETTINGS[s];
+    const values = machineSteps(params);
+    const answer = values.map(String);
+    const order = model.kind === 'area' ? 'the bracket first, then multiply' : 'multiply first, then the fixed amount';
+    const slips =
+      model.kind === 'area'
+        ? [model.k + x, x * model.k, 2 * model.k - x]
+        : model.kind === 'up'
+          ? [(model.a + model.b) * x, model.a + x, model.b + x]
+          : model.kind === 'down'
+            ? [(model.a - model.b) * x, model.a - x, model.a + model.b * x]
+            : [];
+    return {
+      kind: 'tree',
+      prompt: [
+        { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
+        { kind: 'display', tex: ruleLine(setting, model) },
+        { kind: 'prose', text: `Put $${x}$ through the rule — ${order} — to find ${lower(setting.parts[0])}, ${setting.at(x)}.` },
+      ],
+      expression: `${setting.out}(${x})`,
+      nodes: [
+        { id: 'inner', from: [] },
+        { id: 'result', from: ['inner'] },
+      ],
+      bank: treeBank(answer, slips.filter((v) => v > 0), values[1]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { s, model, x } = params;
+    const setting = SETTINGS[s];
+    const [inner, result] = machineSteps(params);
+    if (model.kind === 'area') {
+      return [
+        { text: `The bracket first: $${model.k} - ${x} = ${inner}$, the length.` },
+        { text: `Then width times length: $${x} \\times ${inner} = ${result}$.` },
+        { tex: `${setting.out}(${x}) = ${result}` },
+      ];
+    }
+    return [
+      { text: `Multiply first: $${'b' in model ? model.b : 0} \\times ${x} = ${inner}$.` },
+      { text: `Then ${model.kind === 'up' ? 'add it to' : 'take it from'} $${'a' in model ? model.a : 0}$: $${result}$.` },
+      { tex: `${setting.out}(${x}) = ${result}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 3: the domain that makes sense ---------- */
+
+/** The inputs that make sense for a setting and its model. */
+interface Sensible {
+  whole: boolean;
+  lo: number;
+  loIn: boolean;
+  hi: number;
+  hiIn: boolean;
+}
+
+function sensible(setting: Setting, model: Model): Sensible {
+  if (model.kind === 'up') return { whole: setting.count, lo: 0, loIn: true, hi: Infinity, hiIn: false };
+  if (model.kind === 'down') return { whole: setting.count, lo: 0, loIn: true, hi: emptyAt(model), hiIn: true };
+  if (model.kind === 'area') return { whole: false, lo: 0, loIn: false, hi: model.k, hiIn: false };
+  return setting.count
+    ? { whole: true, lo: 1, loIn: true, hi: Infinity, hiIn: false }
+    : { whole: false, lo: 0, loIn: false, hi: Infinity, hiIn: false };
+}
+
+/** A domain as the learner reads it: `n = 0, 1, 2, \ldots`, `0 < x < 10`, `v > 0`. */
+function sensibleTex(v: string, d: Sensible): string {
+  if (d.whole) {
+    const run = d.lo === 0 ? '0, 1, 2' : '1, 2, 3';
+    return Number.isFinite(d.hi) ? `${v} = ${run}, \\ldots, ${d.hi}` : `${v} = ${run}, \\ldots`;
+  }
+  const left = `${d.lo} ${d.loIn ? '\\leq' : '<'} ${v}`;
+  if (!Number.isFinite(d.hi)) return `${v} ${d.loIn ? '\\geq' : '>'} ${d.lo}`;
+  return `${left} ${d.hiIn ? '\\leq' : '<'} ${d.hi}`;
+}
+
+/** Why the domain is what it is, a sentence for each end. */
+function sensibleWhy(setting: Setting, model: Model): string[] {
+  const d = sensible(setting, model);
+  const v = setting.inp;
+  const out: string[] = [];
+  out.push(d.whole ? `$${v}$ counts whole things, so it is a whole number.` : `$${v}$ is a measurement, so it can be any number in its stretch.`);
+  if (model.kind === 'recip') {
+    out.push(d.whole ? `There must be at least one to share between: $${v}$ starts at $1$.` : `$${v} = 0$ would mean dividing by zero — and never finishing — so it is left out.`);
+  } else if (model.kind === 'area') {
+    out.push(`A width of $0$, or of $${model.k}$, leaves a rectangle with no area at all, so both ends are left out: the length $${model.k} - ${v}$ must be more than $0$ too.`);
+  } else {
+    out.push(`It starts at $0$.`);
+  }
+  if (model.kind === 'down') {
+    out.push(`It runs out when $${model.a} - ${model.b}${v} = 0$, at $${v} = ${emptyAt(model)}$; beyond that the model would give a negative amount.`);
+  }
+  return out;
+}
+
+/** Four domains a learner might give, the sensible one first. */
+function domainCandidates(setting: Setting, model: Model): Sensible[] {
+  const d = sensible(setting, model);
+  const open = { ...d, loIn: false, hiIn: false };
+  const closed = { ...d, loIn: true, hiIn: Number.isFinite(d.hi) };
+  const ray = { ...d, hi: Infinity, hiIn: false };
+  const flip = { ...d, whole: !d.whole };
+  if (model.kind === 'area') {
+    return [d, closed, { ...d, hi: 2 * model.k }, ray];
+  }
+  if (model.kind === 'down') return [d, ray, { ...d, hi: model.a }, flip];
+  if (model.kind === 'recip') {
+    return d.whole
+      ? [d, { ...d, lo: 0 }, flip, { ...flip, lo: 0 }]
+      : [d, { ...d, loIn: true }, { ...d, whole: true, lo: 1, loIn: true }, { ...d, whole: true, lo: 0, loIn: true }];
+  }
+  return d.whole ? [d, flip, { ...flip, loIn: false }, { ...d, lo: 1 }] : [d, open, flip, { ...flip, lo: 1 }];
+}
+
+/**
+ * The domain that makes sense, from four written ways.
+ *
+ * Counting things makes the input whole; a measurement may be any value in
+ * its stretch. A fence's width stops short of both $0$ and half the fence,
+ * a draining tank runs out at a whole time, and a speed or a rate must be
+ * more than $0$. Difficulty 1 is the counts and measures that start at $0$
+ * and never stop; difficulty 2 has an end to find.
+ */
+const modelDomain: Generator<Context> = {
+  id: 'fun-model-domain',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kinds: ModelKind[] = hard ? ['down', 'area', 'recip'] : ['up', 'recip'];
+    const pool = settingsOf(...kinds).filter((i) => SETTINGS[i].key !== 'sweets' && (hard || SETTINGS[i].kind === 'up' || SETTINGS[i].count));
+    const s = rng.pick(pool);
+    return { s, model: sampleModel(rng, SETTINGS[s].kind, hard) };
+  },
+  render: ({ s, model }): Slide => {
+    const setting = SETTINGS[s];
+    return {
+      kind: 'choice',
+      prompt: [
+        { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
+        { kind: 'display', tex: ruleLine(setting, model) },
+        { kind: 'prose', text: `Which values of $${setting.inp}$ make sense in this model?` },
+      ],
+      ...fixedChoice(domainCandidates(setting, model).map((d) => ({ label: sensibleTex(setting.inp, d), tex: true }))),
+    };
+  },
+  solution: ({ s, model }) => {
+    const setting = SETTINGS[s];
+    return [...sensibleWhy(setting, model).map((text) => ({ text })), { tex: sensibleTex(setting.inp, sensible(setting, model)) }];
+  },
+};
+
+const FLOW_WHOLE = 'Whole numbers only: it counts things';
+const FLOW_ANY = 'Any number: it measures something';
+const FLOW_AT0 = 'At $0$, included';
+const FLOW_ABOVE0 = 'Just above $0$, not included';
+const FLOW_AT1 = 'At $1$, included';
+const FLOW_NEVER = 'It never stops';
+const FLOW_ENDIN = 'At a largest value, included';
+const FLOW_ENDOUT = 'Just short of a value, not included';
+
+/**
+ * The domain worked out one question at a time: whole or not, where it
+ * starts, where it stops, and the stopping value.
+ *
+ * The last fork only appears on a route that has an end, so a learner who
+ * says a tank never runs dry never meets the number.
+ */
+const senseFlow: Generator<Context> = {
+  id: 'fun-sense-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const s = rng.pick(settingsOf(...(hard ? (['down', 'area', 'recip'] as ModelKind[]) : (['up', 'down', 'recip'] as ModelKind[]))).filter((i) => SETTINGS[i].key !== 'sweets'));
+    return { s, model: sampleModel(rng, SETTINGS[s].kind, hard, 12) };
+  },
+  render: ({ s, model }): Slide => {
+    const setting = SETTINGS[s];
+    const d = sensible(setting, model);
+    const v = setting.inp;
+    const end = Number.isFinite(d.hi) ? d.hi : undefined;
+    const ends =
+      model.kind === 'area'
+        ? offer(model.k, 2 * model.k, model.k / 2, model.k - 1)
+        : model.kind === 'down'
+          ? offer(emptyAt(model), model.a, model.b, emptyAt(model) + 1)
+          : offer(10, 100, 1, 50);
+    const endBranches = (outcome: string) => turned(ends.map((n) => `$${n}$`)).map((label) => ({ label, outcome: `${outcome} ${label}.` }));
+    const answer = [d.whole ? FLOW_WHOLE : FLOW_ANY, d.lo === 1 ? FLOW_AT1 : d.loIn ? FLOW_AT0 : FLOW_ABOVE0];
+    if (end === undefined) answer.push(FLOW_NEVER);
+    else answer.push(d.hiIn ? FLOW_ENDIN : FLOW_ENDOUT, `$${end}$`);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${setting.story(storyNumbers(model))} Work out which values of $${v}$ make sense.` }],
+      subject: ruleLine(setting, model),
+      steps: [
+        { id: 'kind', ask: `What kind of number can $${v}$ be?`, branches: turned([FLOW_WHOLE, FLOW_ANY]).map((label) => ({ label, to: 'start' })) },
+        { id: 'start', ask: 'Where does it start?', branches: turned([FLOW_AT0, FLOW_ABOVE0, FLOW_AT1]).map((label) => ({ label, to: 'stop' })) },
+        {
+          id: 'stop',
+          ask: 'Where does it stop?',
+          branches: turned([FLOW_NEVER, FLOW_ENDIN, FLOW_ENDOUT]).map((label) =>
+            label === FLOW_NEVER
+              ? { label, outcome: 'So there is no largest value.' }
+              : { label, to: label === FLOW_ENDIN ? 'largest' : 'short' },
+          ),
+        },
+        { id: 'largest', ask: 'What is the largest value?', branches: endBranches('So it stops at') },
+        { id: 'short', ask: 'What value does it stop just short of?', branches: endBranches('So it stops just short of') },
+      ],
+      answer,
+    };
+  },
+  solution: ({ s, model }) => {
+    const setting = SETTINGS[s];
+    return [...sensibleWhy(setting, model).map((text) => ({ text })), { tex: sensibleTex(setting.inp, sensible(setting, model)) }];
+  },
+};
+
+/** The domain in the number line's canonical writing: `(0,8)`, `[0,inf)`. */
+function sensibleSet(d: Sensible): string {
+  const hi = Number.isFinite(d.hi) ? `${d.hi}` : 'inf';
+  return `${d.loIn ? '[' : '('}${d.lo},${hi}${d.hiIn ? ']' : ')'}`;
+}
+
+/**
+ * The domain drawn: filled or hollow ends, and whether it runs off the line.
+ *
+ * Measurements only, so the set is a stretch rather than a row of dots. The
+ * line runs from $-1$ to $11$, so every end is at most $10$.
+ */
+const domainLine: Generator<Context> = {
+  id: 'fun-domain-line',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const pool = settingsOf(...(hard ? (['area', 'recip', 'down'] as ModelKind[]) : (['up', 'down'] as ModelKind[]))).filter((i) => !SETTINGS[i].count);
+    const s = rng.pick(pool);
+    const kind = SETTINGS[s].kind;
+    if (kind === 'area') return { s, model: { kind, k: rng.int(4, 10) } };
+    if (kind === 'down') {
+      const b = rng.int(2, 9);
+      return { s, model: { kind, a: b * rng.int(3, 10), b } };
+    }
+    return { s, model: sampleModel(rng, kind, hard) };
+  },
+  render: ({ s, model }): Slide => {
+    const setting = SETTINGS[s];
+    return {
+      kind: 'numberLine',
+      prompt: [
+        { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
+        { kind: 'display', tex: ruleLine(setting, model) },
+        { kind: 'prose', text: `Shade the values of $${setting.inp}$ that make sense.` },
+      ],
+      min: -1,
+      max: 11,
+      step: 1,
+      answer: sensibleSet(sensible(setting, model)),
+    };
+  },
+  solution: ({ s, model }) => {
+    const setting = SETTINGS[s];
+    const d = sensible(setting, model);
+    return [
+      ...sensibleWhy(setting, model).map((text) => ({ text })),
+      { tex: sensibleTex(setting.inp, d) },
+      {
+        text: `On the line: a ${d.loIn ? 'filled' : 'hollow'} dot at $${d.lo}$, ${
+          Number.isFinite(d.hi) ? `a ${d.hiIn ? 'filled' : 'hollow'} dot at $${d.hi}$, and the stretch between shaded` : 'and everything to the right of it shaded'
+        }.`,
+      },
+    ];
+  },
+};
+
+interface ModelRangeParams extends Context {
+  /** The ends of the domain the question sets. */
+  lo: number;
+  hi: number;
+  asks: 'max' | 'min';
+}
+
+/** The domain as the question writes it: `0 < x < 10`, `0 \leq n \leq 20`, `40 \leq v \leq 60`. */
+function rangeDomainTex({ s, model, lo, hi }: ModelRangeParams): string {
+  const v = SETTINGS[s].inp;
+  return model.kind === 'area' ? `${lo} < ${v} < ${hi}` : `${lo} \\leq ${v} \\leq ${hi}`;
+}
+
+function rangeAnswer({ model, lo, hi, asks }: ModelRangeParams): number {
+  if (model.kind === 'area') return (model.k / 2) ** 2;
+  const ends = [modelAt(model, lo), modelAt(model, hi)];
+  return asks === 'max' ? Math.max(...ends) : Math.min(...ends);
+}
+
+/** A slider step that lands on the answer, with no more than about forty stops. */
+function sliderScale(answer: number, top: number): { step: number; max: number } {
+  for (const step of [1, 2, 5, 10, 20]) {
+    if (answer % step !== 0) continue;
+    const max = step * Math.ceil(top / step);
+    if (max / step <= 40) return { step, max };
+  }
+  return { step: 1, max: Math.ceil(top) };
+}
+
+/**
+ * The range that follows from the domain: slide a line to the greatest or
+ * least output.
+ *
+ * A rising line's greatest value is at the top of its domain; a reciprocal's
+ * greatest is at the *bottom*, since a slower speed takes longer; and a
+ * rectangle's greatest area is at neither end but at the square in the
+ * middle, which is why the area's ends are left open.
+ */
+const modelRange: Generator<ModelRangeParams> = {
+  id: 'fun-model-range',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick(hard ? (['area', 'recip', 'recip'] as const) : (['up', 'area'] as const));
+    const s = rng.pick(settingsOf(kind).filter((i) => kind !== 'recip' || !SETTINGS[i].count));
+    if (kind === 'area') {
+      const k = 2 * rng.int(3, 10);
+      return { s, model: { kind, k }, lo: 0, hi: k, asks: 'max' };
+    }
+    if (kind === 'up') {
+      const model = { kind, a: rng.int(1, 6) * 5, b: rng.int(2, 9) };
+      return { s, model, lo: 0, hi: rng.int(2, 6) * 5, asks: 'max' };
+    }
+    const K = rng.pick([60, 120, 180, 240, 360]);
+    const ds = divisorsOf(K, 3, 60);
+    const i = rng.int(0, ds.length - 2);
+    const j = rng.int(i + 1, ds.length - 1);
+    return { s, model: { kind, K }, lo: ds[i], hi: ds[j], asks: rng.pick(['max', 'min'] as const) };
+  },
+  render: (params): Slide => {
+    const { s, model, lo, hi, asks } = params;
+    const setting = SETTINGS[s];
+    const answer = rangeAnswer(params);
+    const top = model.kind === 'area' ? answer * 1.3 : Math.max(modelAt(model, lo), modelAt(model, hi)) * 1.25;
+    const { step, max } = sliderScale(answer, top);
+    const feature = asks === 'max' ? 'greatest' : 'least';
+    return {
+      kind: 'slider',
+      prompt: [
+        { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
+        { kind: 'display', tex: `${ruleLine(setting, model)}, \\quad ${rangeDomainTex(params)}` },
+        { kind: 'prose', text: `Slide the line to the ${feature} value ${lower(setting.parts[0]).replace(/, in .*$/, '')} can take.` },
+      ],
+      min: 0,
+      max,
+      step,
+      answer,
+      readout: `${setting.out} = {v}`,
+      figure: {
+        svg: plotSvg({
+          xMin: lo,
+          xMax: hi,
+          yMin: 0,
+          yMax: max,
+          curves: [{ f: (x) => modelAt(model, x), accent: true }],
+          label: `The graph of the model over its domain`,
+        }),
+        ...markerWindow(0, max, 'y'),
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const { s, model, lo, hi, asks } = params;
+    const setting = SETTINGS[s];
+    const v = setting.inp;
+    const answer = rangeAnswer(params);
+    if (model.kind === 'area') {
+      const half = model.k / 2;
+      return [
+        { text: `The area is $0$ at both ends of the domain and greatest halfway between, where the pen is a square: $${v} = ${half}$.` },
+        { tex: `${setting.out}(${half}) = ${half}(${model.k} - ${half}) = ${answer}` },
+      ];
+    }
+    const ends = [lo, hi].map((x) => `${setting.out}(${x}) = ${modelAt(model, x)}`);
+    return [
+      {
+        text:
+          model.kind === 'up'
+            ? `The model rises as $${v}$ grows, so the ends of the domain give the least and greatest values.`
+            : `The model falls as $${v}$ grows, so the least $${v}$ gives the greatest value and the greatest $${v}$ the least.`,
+      },
+      { tex: `\\begin{gathered} ${ends.join(' \\\\ ')} \\end{gathered}` },
+      { text: `So the ${asks === 'max' ? 'greatest' : 'least'} value is $${answer}$.` },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: the inverse in context ---------- */
+
+interface ModelInverseParams extends Context {
+  /** The input the inverse returns. */
+  x: number;
+}
+
+/**
+ * $C^{-1}(55)$ read as what £55 buys: an output given, the input asked.
+ *
+ * Built from its answer: the input is drawn and the output is the model at
+ * it, so the inverse always lands on a whole number. The slip is to work
+ * out $C(55)$ instead, which is the first distractor. Difficulty 2 has
+ * falling and shared models, where the inverse of a reciprocal is the same
+ * division again.
+ */
+const modelInverse: Generator<ModelInverseParams> = {
+  id: 'fun-model-inverse',
+  choices: ({ model, x }) => {
+    const y = modelAt(model, x);
+    const forward = modelAt(model, y);
+    if (model.kind === 'up') return numberChoices(x, forward, y - model.a, (y + model.a) / model.b);
+    if (model.kind === 'down') return numberChoices(x, forward, (model.a + y) / model.b, model.a - y);
+    // A reciprocal undoes itself: K over the output is the input, so working
+    // the model forwards again is right here, and the slips are elsewhere.
+    return numberChoices(x, model.kind === 'recip' ? model.K - y : y, 2 * x, x + 1);
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const context = drawContext(rng, hard ? ['down', 'recip'] : ['up'], hard);
+    return { ...context, x: sampleInput(rng, context.model) };
+  },
+  render: ({ s, model, x }): Slide => {
+    const setting = SETTINGS[s];
+    const y = modelAt(model, x);
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `${setting.story(storyNumbers(model))} The model is` },
+        { kind: 'display', tex: ruleLine(setting, model) },
+        { kind: 'prose', text: `Find $${setting.out}^{-1}(${y})$: ${setting.inv(y)}.` },
+      ],
+      lead: `${setting.out}^{-1}(${y}) =`,
+      keypad: [],
+      answer: `${x}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ s, model, x }) => {
+    const setting = SETTINGS[s];
+    const y = modelAt(model, x);
+    const v = setting.inp;
+    const steps: SolutionStep[] = [{ text: `$${setting.out}^{-1}(${y})$ is the $${v}$ that gives $${setting.out} = ${y}$. Solve:` }];
+    if (model.kind === 'up') {
+      steps.push({ tex: `\\begin{gathered} ${model.a} + ${model.b}${v} = ${y} \\\\ ${model.b}${v} = ${y - model.a} \\\\ ${v} = ${x} \\end{gathered}` });
+    } else if (model.kind === 'down') {
+      steps.push({ tex: `\\begin{gathered} ${model.a} - ${model.b}${v} = ${y} \\\\ ${model.b}${v} = ${model.a - y} \\\\ ${v} = ${x} \\end{gathered}` });
+    } else if (model.kind === 'recip') {
+      steps.push({ tex: `\\begin{gathered} \\frac{${model.K}}{${v}} = ${y} \\\\ ${v} = \\frac{${model.K}}{${y}} = ${x} \\end{gathered}` });
+    }
+    steps.push({ text: `Working out $${setting.out}(${y})$ instead answers a different question.` });
+    return steps;
+  },
+};
+
+interface Conversion {
+  key: string;
+  from: string;
+  to: string;
+  /** to = (top / den) * from + add. */
+  top: number;
+  den: number;
+  add: number;
+  story: string;
+}
+
+const CONVERSIONS: Conversion[] = [
+  { key: 'kilometres', from: 'm', to: 'k', top: 8, den: 5, add: 0, story: 'Distances in miles, $m$, are changed into kilometres, $k$, by' },
+  { key: 'euros', from: 'p', to: 'e', top: 6, den: 5, add: 0, story: 'A bureau changes pounds, $p$, into euros, $e$, by' },
+  { key: 'kilograms', from: 'k', to: 'p', top: 11, den: 5, add: 0, story: 'A mass in kilograms, $k$, is changed into pounds, $p$, by' },
+  { key: 'inches', from: 'i', to: 'c', top: 5, den: 2, add: 0, story: 'A length in inches, $i$, is changed into centimetres, $c$, by' },
+  { key: 'gallons', from: 'g', to: 'l', top: 9, den: 2, add: 0, story: 'A volume in gallons, $g$, is changed into litres, $l$, by' },
+  { key: 'Fahrenheit', from: 'C', to: 'F', top: 9, den: 5, add: 32, story: 'A temperature in degrees Celsius, $C$, is changed into degrees Fahrenheit, $F$, by' },
+];
+
+/** A multiplier as it is written: `1.6`, `2.5`. */
+function decimalTex(top: number, den: number): string {
+  return `${Math.round((top / den) * 10) / 10}`;
+}
+
+function conversionTex(c: Conversion): string {
+  return `${c.to} = ${decimalTex(c.top, c.den)}${c.from}${c.add ? ` + ${c.add}` : ''}`;
+}
+
+interface ConvertParams {
+  c: number;
+  /** Multiples of the conversion's denominator down the table. */
+  ks: number[];
+  /** Which rows give the converted value and ask the original. */
+  back: boolean[];
+}
+
+/**
+ * A conversion both ways, in one table.
+ *
+ * Some rows give the original and ask the converted value; others give the
+ * converted value and ask the original, which is the inverse: undo the
+ * multiplier by dividing, and undo an added $32$ first. The bank holds each
+ * blank worked the wrong way round.
+ */
+const convertTable: Generator<ConvertParams> = {
+  id: 'fun-convert-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const c = rng.pick(hard ? [2, 3, 4, 5] : [0, 1, 2, 3, 4]);
+    const ks = [...new Set(Array.from({ length: 12 }, () => rng.int(1, hard ? 20 : 12)))].slice(0, 4).sort((p, q) => p - q);
+    while (ks.length < 4) ks.push(ks[ks.length - 1] + 1);
+    const back = rng.pick([
+      [false, true, false, true],
+      [true, false, true, false],
+      [false, true, true, false],
+      [true, false, false, true],
+    ]);
+    return { c, ks, back };
+  },
+  render: ({ c, ks, back }): Slide => {
+    const conv = CONVERSIONS[c];
+    const rows = ks.map((k) => {
+      const x = k * conv.den;
+      return [x, (k * conv.top) + conv.add];
+    });
+    const answer: string[] = [];
+    const slips: number[] = [];
+    const cells = rows.map(([x, y], i) => {
+      if (back[i]) {
+        answer.push(`${x}`);
+        slips.push(Math.round(((y * conv.top) / conv.den) * 10) / 10, y - conv.add);
+        return [null, `${y}`];
+      }
+      answer.push(`${y}`);
+      slips.push(Math.round(((x * conv.den) / conv.top) * 10) / 10, x * conv.top);
+      return [`${x}`, null];
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        { kind: 'prose', text: `${conv.story}` },
+        { kind: 'display', tex: conversionTex(conv) },
+        { kind: 'prose', text: 'Fill in the table. Where the first column is blank, run the conversion backwards.' },
+      ],
+      columns: [conv.from, conv.to],
+      rows: cells,
+      bank: treeBank(answer, slips.filter((v) => Number.isInteger(v) && v > 0), Number(answer[answer.length - 1])),
+      answer,
+    };
+  },
+  solution: ({ c }) => {
+    const conv = CONVERSIONS[c];
+    const m = decimalTex(conv.top, conv.den);
+    return [
+      { text: `Forwards: multiply by $${m}$${conv.add ? `, then add $${conv.add}$` : ''}.` },
+      { tex: conversionTex(conv) },
+      { text: `Backwards, undo each step in reverse order: ${conv.add ? `take away $${conv.add}$, then ` : ''}divide by $${m}$.` },
+      { tex: `${conv.from} = ${conv.add ? `\\frac{${conv.to} - ${conv.add}}{${m}}` : `\\frac{${conv.to}}{${m}}`}` },
+    ];
+  },
+};
+
+interface InverseTilesParams {
+  /** A setting index, or a conversion's as `CONVERSIONS` index plus 100. */
+  s: number;
+  model: Model;
+}
+
+/**
+ * The inverse as a rule: the input in terms of the output, the story's
+ * steps undone in reverse order.
+ *
+ * A standing charge plus a rate comes back as (output less the charge)
+ * over the rate. A falling amount comes back as (start less the output)
+ * over the rate — the other way round, which is the trap. Difficulty 2
+ * adds the Fahrenheit conversion, whose $+ 32$ has to come off first.
+ */
+const inverseTiles: Generator<InverseTilesParams> = {
+  id: 'fun-inverse-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    if (hard && rng.chance(0.2)) return { s: 105, model: { kind: 'up', a: 32, b: 1.8 } };
+    const context = drawContext(rng, hard ? ['down'] : ['up'], hard);
+    if (context.model.kind === 'up' || context.model.kind === 'down') {
+      if (context.model.a === context.model.b) context.model = { ...context.model, a: context.model.a * 2 };
+    }
+    return context;
+  },
+  render: ({ s, model }): Slide => {
+    if (model.kind !== 'up' && model.kind !== 'down') throw new Error('inverse tiles take a line');
+    const { a, b } = model;
+    if (s >= 100) {
+      const conv = CONVERSIONS[s - 100];
+      const answer = [signedTile(-a), `${b}`];
+      return {
+        kind: 'tiles',
+        prompt: [
+          { kind: 'prose', text: conv.story },
+          { kind: 'display', tex: conversionTex(conv) },
+          { kind: 'prose', text: `Write the conversion the other way: $${conv.from}$ in terms of $${conv.to}$.` },
+        ],
+        template: `${conv.from} = (${conv.to} {0}) \\div {1}`,
+        bank: bankOf(answer, [signedTile(a), '0.8', '1.2']),
+        answer,
+      };
+    }
+    const setting = SETTINGS[s];
+    const { out, inp } = setting;
+    const prompt: Block[] = [
+      { kind: 'prose', text: `${setting.story([a, b])} The model is` },
+      { kind: 'display', tex: ruleLine(setting, model) },
+      { kind: 'prose', text: `Write the inverse: $${inp}$, ${lower(setting.parts[1])}, in terms of $${out}$.` },
+    ];
+    if (model.kind === 'up') {
+      const answer = [signedTile(-a), `${b}`];
+      return {
+        kind: 'tiles',
+        prompt,
+        template: `${inp} = (${out} {0}) \\div {1}`,
+        bank: bankOf(answer, [signedTile(a), signedTile(-b), `${a}`]),
+        answer,
+      };
+    }
+    const answer = [`${a}`, `${b}`];
+    return {
+      kind: 'tiles',
+      prompt,
+      template: `${inp} = ({0} - ${out}) \\div {1}`,
+      bank: bankOf(answer, [`${a / b}`, `${a - b}`, `${a + b}`]),
+      answer,
+    };
+  },
+  solution: ({ s, model }) => {
+    if (model.kind !== 'up' && model.kind !== 'down') return [];
+    const { a, b } = model;
+    if (s >= 100) {
+      const conv = CONVERSIONS[s - 100];
+      return [
+        { text: `Forwards: multiply by $${b}$, then add $${a}$. Undo them in reverse: take away $${a}$ first, then divide by $${b}$.` },
+        { tex: `${conv.from} = (${conv.to} - ${a}) \\div ${b}` },
+      ];
+    }
+    const setting = SETTINGS[s];
+    const { out, inp } = setting;
+    if (model.kind === 'up') {
+      return [
+        { text: `Forwards: multiply $${inp}$ by $${b}$, then add $${a}$. Undo in reverse: take away $${a}$, then divide by $${b}$.` },
+        { tex: `\\begin{gathered} ${out} = ${a} + ${b}${inp} \\\\ ${out} - ${a} = ${b}${inp} \\\\ ${inp} = (${out} - ${a}) \\div ${b} \\end{gathered}` },
+      ];
+    }
+    return [
+      { text: `Add $${b}${inp}$ to both sides and take $${out}$ away, so that the $${inp}$ term is positive.` },
+      { tex: `\\begin{gathered} ${out} = ${a} - ${b}${inp} \\\\ ${b}${inp} = ${a} - ${out} \\\\ ${inp} = (${a} - ${out}) \\div ${b} \\end{gathered}` },
+    ];
+  },
+};
+
+interface NoInverseParams {
+  s: number;
+  /** Width and length add to k; k is even. */
+  k: number;
+  /** The smaller of the two widths that give the asked area. */
+  r: number;
+}
+
+const NO_INVERSE = 'No: one area comes from two widths';
+const YES_ONE_AREA = 'Yes: each width gives just one area';
+const YES_ONE_X = 'Yes: the rule has only one $x$ in it';
+
+/**
+ * A model with no inverse over its whole domain, then the domain that
+ * gives it one.
+ *
+ * The area $r(k - r)$ is reached at a width of $r$ and again at $k - r$ —
+ * the same rectangle turned round — so knowing the area does not tell you
+ * the width. Cutting the domain at the square in the middle, $\frac{k}{2}$,
+ * leaves each area reached once.
+ */
+const noInverseFlow: Generator<NoInverseParams> = {
+  id: 'fun-no-inverse-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const k = 2 * rng.int(hard ? 6 : 4, hard ? 10 : 7);
+    return { s: rng.pick(settingsOf('area')), k, r: rng.int(1, k / 2 - 1) };
+  },
+  render: ({ s, k, r }): Slide => {
+    const setting = SETTINGS[s];
+    const model: Model = { kind: 'area', k };
+    const area = r * (k - r);
+    const unit = setting.key === 'wire' ? 'cm²' : 'm²';
+    const both = `$x = ${r}$ or $x = ${k - r}$`;
+    const widths = [both, `$x = ${r}$ only`, `$x = ${k - r}$ only`, `$x = ${k / 2}$ only`];
+    const cut = `$0 < x \\leq ${k / 2}$`;
+    const domains = [cut, `$0 < x < ${k}$`, `$${r} \\leq x \\leq ${k - r}$`, `$x \\geq ${r}$`];
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `${setting.story([2 * k])} The model is $${ruleLine(setting, model)}$, for $0 < x < ${k}$.` }],
+      subject: `A = ${area}`,
+      steps: [
+        { id: 'widths', ask: `Which widths give an area of $${area}$ ${unit}?`, branches: turned(widths).map((label) => ({ label, to: 'inverse' })) },
+        {
+          id: 'inverse',
+          ask: `So does $A$ have an inverse for $0 < x < ${k}$?`,
+          branches: turned([NO_INVERSE, YES_ONE_AREA, YES_ONE_X]).map((label) => ({ label, to: 'restrict' })),
+        },
+        {
+          id: 'restrict',
+          ask: 'Which domain would give $A$ an inverse?',
+          branches: turned(domains).map((label) => ({ label, outcome: `So the domain is ${label}.` })),
+        },
+      ],
+      answer: [both, NO_INVERSE, cut],
+    };
+  },
+  solution: ({ s, k, r }) => {
+    const setting = SETTINGS[s];
+    const area = r * (k - r);
+    return [
+      { tex: `\\begin{gathered} ${r}(${k} - ${r}) = ${area} \\\\ ${k - r}(${k} - ${k - r}) = ${area} \\end{gathered}` },
+      { text: `A ${setting.key === 'wire' ? 'frame' : 'rectangle'} $${r}$ wide and $${k - r}$ long is the same shape as one $${k - r}$ wide and $${r}$ long, so both widths give $${area}$.` },
+      { text: 'One output from two inputs means there is no inverse: $A^{-1}(' + area + ')$ would not know which width to give.' },
+      { text: `The area rises to the square at $x = ${k / 2}$ and falls after it. Keep only one side, $0 < x \\leq ${k / 2}$, and each area comes from one width.` },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: the composite in context ---------- */
+
+interface PriceSetting {
+  key: string;
+  /** The thing priced: "a coat". */
+  item: string;
+  /** The fixed change: a voucher takes off, a fee adds on. */
+  sign: 1 | -1;
+  /** "a £$10$ voucher", "a £$15$ delivery charge". */
+  amount: (v: number) => string;
+  /** The multiplier and its words: "VAT at $20$% is added". */
+  m: number;
+  multiply: string;
+  /** Prices and amounts are multiples of this, so every stage is whole. */
+  unit: number;
+}
+
+const PRICES: PriceSetting[] = [
+  { key: 'voucher', item: 'a coat', sign: -1, amount: (v) => `a £$${v}$ voucher comes off`, m: 1.2, multiply: 'VAT at $20$% is added', unit: 5 },
+  { key: 'delivery', item: 'a sofa', sign: 1, amount: (v) => `a £$${v}$ delivery charge is added`, m: 0.8, multiply: 'the sale takes $20$% off', unit: 5 },
+  { key: 'service', item: 'a meal', sign: -1, amount: (v) => `a £$${v}$ money-off voucher is used`, m: 1.1, multiply: 'a $10$% service charge is added', unit: 10 },
+  { key: 'booking', item: 'a hotel room', sign: 1, amount: (v) => `a £$${v}$ booking fee is added`, m: 1.2, multiply: 'tax at $20$% is added', unit: 5 },
+  { key: 'trade-in', item: 'a bike', sign: -1, amount: (v) => `a £$${v}$ trade-in comes off`, m: 0.75, multiply: 'the sale takes $25$% off', unit: 4 },
+  { key: 'bonus', item: 'a weekly wage', sign: 1, amount: (v) => `a £$${v}$ bonus is added`, m: 1.1, multiply: 'a $10$% pay rise is applied', unit: 10 },
+  { key: 'points', item: 'a points total', sign: 1, amount: (v) => `$${v}$ bonus points are added`, m: 2, multiply: 'the total is doubled', unit: 1 },
+];
+
+interface PriceParams {
+  c: number;
+  p: number;
+  v: number;
+  /** The fixed change is `f`, and the multiplier `g`; swapped when true. */
+  swap: boolean;
+  /** The fixed change is made first. */
+  amountFirst: boolean;
+  hard: boolean;
+}
+
+/** The fixed change, the multiplier, and each as TeX rules. */
+function priceParts({ c, v, swap }: PriceParams) {
+  const setting = PRICES[c];
+  const shift = (x: number) => x + setting.sign * v;
+  const scale = (x: number) => Math.round(x * setting.m * 100) / 100;
+  const shiftTex = `x ${setting.sign > 0 ? '+' : '-'} ${v}`;
+  const scaleTex = `${setting.m}x`;
+  const [fTex, gTex] = swap ? [scaleTex, shiftTex] : [shiftTex, scaleTex];
+  const [fName, gName] = swap ? ['g', 'f'] : ['f', 'g'];
+  return { setting, shift, scale, shiftTex, scaleTex, fTex, gTex, shiftName: fName, scaleName: gName };
+}
+
+function pricePrompt(params: PriceParams): Block[] {
+  const { setting, fTex, gTex } = priceParts(params);
+  return [
+    {
+      kind: 'prose',
+      text: `The price of ${setting.item} is £$${params.p}$ before two changes: ${setting.amount(params.v)}, and ${setting.multiply}. As functions of the price $x$:`,
+    },
+    { kind: 'display', tex: pairTex(fTex, gTex) },
+  ];
+}
+
+/** The composite the order fixes: `gf`, with the first change nearest the x. */
+function priceName(params: PriceParams, amountFirst = params.amountFirst): string {
+  const { shiftName, scaleName } = priceParts(params);
+  return amountFirst ? `${scaleName}${shiftName}` : `${shiftName}${scaleName}`;
+}
+
+function priceOrderWords(params: PriceParams, amountFirst = params.amountFirst): string {
+  const { setting } = priceParts(params);
+  const first = amountFirst ? setting.amount(params.v) : setting.multiply;
+  const second = amountFirst ? setting.multiply : setting.amount(params.v);
+  return `${first} first, then ${second}`;
+}
+
+/** The price after both changes, in either order. */
+function priceAfter(params: PriceParams, amountFirst = params.amountFirst): [number, number] {
+  const { shift, scale } = priceParts(params);
+  return amountFirst ? [shift(params.p), scale(shift(params.p))] : [scale(params.p), shift(scale(params.p))];
+}
+
+function samplePrice(rng: Rng, difficulty: number): PriceParams {
+  const hard = difficulty > 1;
+  const c = rng.int(0, PRICES.length - 1);
+  const { unit, sign } = PRICES[c];
+  const v = unit * rng.int(1, unit === 1 ? 50 : unit === 10 ? 3 : 6);
+  const p = unit * rng.int(unit === 1 ? 20 : 6, unit === 1 ? 300 : unit === 10 ? 30 : 40);
+  return { c, p: sign < 0 ? Math.max(p, 2 * v) : p, v, swap: hard && rng.chance(0.5), amountFirst: rng.chance(0.5), hard };
+}
+
+/**
+ * A price through two changes, a stage at a time.
+ *
+ * Difficulty 1 makes the changes in the order the question names.
+ * Difficulty 2 makes them both ways round and asks the difference, which is
+ * never zero: a fixed amount and a percentage do not commute, and the gap
+ * is the percentage of the fixed amount.
+ */
+const priceTree: Generator<PriceParams> = {
+  id: 'fun-price-tree',
+  sample: (rng, difficulty) => samplePrice(rng, difficulty),
+  render: (params): Slide => {
+    const { hard } = params;
+    const [a1, a2] = priceAfter(params, true);
+    const [b1, b2] = priceAfter(params, false);
+    const prompt = pricePrompt(params);
+    if (!hard) {
+      const [first, second] = priceAfter(params);
+      const answer = [`${first}`, `${second}`];
+      prompt.push({ kind: 'prose', text: `The shop makes them in this order: ${priceOrderWords(params)}. Fill in the price after each change.` });
+      return {
+        kind: 'tree',
+        prompt,
+        expression: `${priceName(params)}(${params.p})`,
+        nodes: [
+          { id: 'first', from: [] },
+          { id: 'second', from: ['first'] },
+        ],
+        bank: treeBank(answer, [params.amountFirst ? b2 : a2, params.amountFirst ? b1 : a1], second),
+        answer,
+      };
+    }
+    const gap = Math.round(Math.abs(a2 - b2) * 100) / 100;
+    const answer = [`${a1}`, `${a2}`, `${b1}`, `${b2}`, `${gap}`];
+    prompt.push({
+      kind: 'prose',
+      text: `Work out both orders — ${priceOrderWords(params, true)}; and ${priceOrderWords(params, false)} — and how far apart the two prices are.`,
+    });
+    return {
+      kind: 'tree',
+      prompt,
+      expression: `${priceName(params, true)}(${params.p}) \\text{ and } ${priceName(params, false)}(${params.p})`,
+      nodes: [
+        { id: 'a1', from: [] },
+        { id: 'a2', from: ['a1'] },
+        { id: 'b1', from: [] },
+        { id: 'b2', from: ['b1'] },
+        { id: 'gap', from: ['a2', 'b2'] },
+      ],
+      bank: treeBank(answer, [params.v, a2 + b2], gap),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { shiftName, scaleName } = priceParts(params);
+    const line = (amountFirst: boolean) => {
+      const [first, second] = priceAfter(params, amountFirst);
+      const name = priceName(params, amountFirst);
+      const inner = amountFirst ? shiftName : scaleName;
+      const outer = amountFirst ? scaleName : shiftName;
+      return `\\begin{aligned} ${name}(${params.p}) &= ${outer}(${inner}(${params.p})) \\\\ &= ${outer}(${first}) = ${second} \\end{aligned}`;
+    };
+    if (!params.hard) {
+      return [
+        { text: `The change made first is the one nearest the $x$: ${priceOrderWords(params)} is $${priceName(params)}$.` },
+        { tex: line(params.amountFirst) },
+      ];
+    }
+    const [, a2] = priceAfter(params, true);
+    const [, b2] = priceAfter(params, false);
+    return [
+      { tex: line(true) },
+      { tex: line(false) },
+      { text: `The two orders differ by $${Math.round(Math.abs(a2 - b2) * 100) / 100}$: the percentage change acts on the fixed amount in one order and not in the other.` },
+    ];
+  },
+};
+
+/** A composite's rule written out: `1.2(x - 10)` or `1.2x - 10`. */
+function compositeRuleTex(params: PriceParams, amountFirst: boolean, flipped = false): string {
+  const { setting } = priceParts(params);
+  const sign = (setting.sign > 0) !== flipped ? '+' : '-';
+  return amountFirst ? `${setting.m}(x ${sign} ${params.v})` : `${setting.m}x ${sign} ${params.v}`;
+}
+
+/**
+ * Which composite the story fixes, with its rule.
+ *
+ * The four options pair each name, $fg$ and $gf$, with each rule, so the
+ * learner has to get both the order of the letters and the algebra right.
+ * Difficulty 2 swaps which of the two changes is called $f$, so the answer
+ * is not always $gf$ for "the fixed amount first".
+ */
+const orderChoice: Generator<PriceParams> = {
+  id: 'fun-order-choice',
+  sample: (rng, difficulty) => samplePrice(rng, difficulty),
+  render: (params): Slide => {
+    const right = priceName(params);
+    const wrong = priceName(params, !params.amountFirst);
+    const rule = compositeRuleTex(params, params.amountFirst);
+    const other = compositeRuleTex(params, !params.amountFirst);
+    return {
+      kind: 'choice',
+      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made ${priceOrderWords(params)}. Which function gives the final price?` }],
+      ...fixedChoice(
+        [`${right}(x) = ${rule}`, `${right}(x) = ${other}`, `${wrong}(x) = ${rule}`, `${wrong}(x) = ${other}`].map((label) => ({ label, tex: true })),
+      ),
+    };
+  },
+  solution: (params) => {
+    const { shiftName, scaleName, shiftTex, scaleTex } = priceParts(params);
+    const first = params.amountFirst ? shiftName : scaleName;
+    const name = priceName(params);
+    return [
+      { text: `The change made first acts on $x$ first, so its letter sits nearest the $x$: $${name}(x) = ${name[0]}(${first}(x))$.` },
+      { text: `Write $${params.amountFirst ? shiftTex : scaleTex}$ in place of $x$ in $${params.amountFirst ? scaleTex : shiftTex}$:` },
+      { tex: `${name}(x) = ${compositeRuleTex(params, params.amountFirst)}` },
+    ];
+  },
+};
+
+/**
+ * The final price as one number, by the composite.
+ *
+ * Difficulty 1 names the composite, and the learner applies the letter
+ * nearest the $x$ first. Difficulty 2 names only the order in words.
+ */
+const priceValue: Generator<PriceParams> = {
+  id: 'fun-price-value',
+  choices: (params) => {
+    const [, right] = priceAfter(params);
+    const [, other] = priceAfter(params, !params.amountFirst);
+    return numberChoices(right, other, params.p + priceParts(params).setting.sign * params.v, Math.round(params.p * priceParts(params).setting.m));
+  },
+  sample: (rng, difficulty) => samplePrice(rng, difficulty),
+  render: (params): Slide => {
+    const [, right] = priceAfter(params);
+    const name = priceName(params);
+    const ask = params.hard
+      ? `The changes are made ${priceOrderWords(params)}. What is the final price, in pounds?`
+      : `Find $${name}(${params.p})$, the final price in pounds.`;
+    return {
+      kind: 'expression',
+      prompt: [...pricePrompt(params), { kind: 'prose', text: ask }],
+      lead: params.hard ? '\\text{price} =' : `${name}(${params.p}) =`,
+      keypad: [],
+      answer: `${right}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const [first, second] = priceAfter(params);
+    const name = priceName(params);
+    return [
+      { text: `${params.hard ? `${priceOrderWords(params)[0].toUpperCase()}${priceOrderWords(params).slice(1)} is $${name}$. ` : ''}In $${name}(${params.p})$ the letter nearest the price acts first.` },
+      { tex: `${name}(${params.p}) = ${name[0]}(${first}) = ${second}` },
+    ];
+  },
+};
+
+/**
+ * The composite built from tiles: which letter goes on the outside, which
+ * inside, and the rule that results.
+ *
+ * `{0}{1}(x)` takes the two letters in reading order — outer then inner —
+ * so a learner who writes them in the order the changes are made has them
+ * backwards.
+ */
+const compositeTiles: Generator<PriceParams> = {
+  id: 'fun-composite-tiles',
+  sample: (rng, difficulty) => samplePrice(rng, difficulty),
+  render: (params): Slide => {
+    const name = priceName(params);
+    const answer = [name[0], name[1], compositeRuleTex(params, params.amountFirst)];
+    return {
+      kind: 'tiles',
+      prompt: [...pricePrompt(params), { kind: 'prose', text: `The changes are made ${priceOrderWords(params)}. Build the function that gives the final price.` }],
+      template: '{0}{1}(x) = {2}',
+      // Never the expanded form of the right rule: it is equal, so marking it
+      // wrong would be unfair. The other order, and the fixed amount's sign
+      // turned, are genuinely different functions.
+      bank: bankOf(answer, [compositeRuleTex(params, !params.amountFirst), compositeRuleTex(params, params.amountFirst, true)]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const name = priceName(params);
+    return [
+      { text: `The change made first goes nearest the $x$, so the function is $${name}(x) = ${name[0]}(${name[1]}(x))$.` },
+      { tex: `${name}(x) = ${compositeRuleTex(params, params.amountFirst)}` },
+    ];
+  },
+};
+
 export const functionGenerators = [
   evaluate,
   substitute,
@@ -7421,4 +9640,24 @@ export const functionGenerators = [
   waveChoice,
   movesTiles,
   movesChoice,
+  modelFamily,
+  familyFlow,
+  familyNext,
+  familySketch,
+  modelRule,
+  modelValue,
+  modelMeaning,
+  ruleMachine,
+  modelDomain,
+  senseFlow,
+  domainLine,
+  modelRange,
+  modelInverse,
+  convertTable,
+  inverseTiles,
+  noInverseFlow,
+  priceTree,
+  orderChoice,
+  priceValue,
+  compositeTiles,
 ];

@@ -9,6 +9,14 @@
  * distribution `N(\mu, \sigma^2/n)`, the z statistic, the four critical
  * values, the decision and its conclusion in the scenario's words, and the
  * level as the chance of rejecting a true `H_0`, with how n moves the verdict.
+ * Level 3 is Type I and Type II errors: naming the mistake an outcome makes,
+ * the size of a test (P(Type I), the region's probability under `H_0`),
+ * P(Type II) and the power for a stated alternative from cumulatives quoted at
+ * that alternative, the trade between the two at fixed n, and both errors in
+ * the test of a mean, with `\Phi` values quoted in the prompt.
+ *
+ * Nothing here is calculus, so no slide declares `source` and the generic
+ * derivative oracle does not apply; `hypothesisTesting.test.ts` is the oracle.
  *
  * Four rules hold everywhere in this file.
  *
@@ -73,6 +81,12 @@ function choiceSlide(prompt: Block[], opts: ChoiceOption[], tex = true): Slide {
     correctId: `opt${ordered.findIndex((option) => option.correct)}`,
   };
 }
+
+/**
+ * A choice whose labels are the same few every time, turned by a hash of the
+ * question as well: otherwise each right answer always sits in one place.
+ */
+const keyedChoice = (prompt: Block[], opts: ChoiceOption[], key: string, tex = true): Slide => choiceSlide(prompt, spun(opts, key), tex);
 
 /**
  * A bank of decimals: the answer as a multiset, then slips that differ from
@@ -2568,6 +2582,1441 @@ const nTable: Generator<NTableParams> = {
   ],
 };
 
+/* ================================================================
+ * Level 3: Type I and Type II errors
+ * ================================================================ */
+
+/** A probability under a stated p, as options and flows write it. */
+const under = (event: string, p: number): string => `P(${event} \\mid p = ${fmt(p)})`;
+
+/**
+ * The cumulatives quoted at one value of p, under a line naming it. Level 3
+ * quotes at the claim and at the truth side by side, so every table says
+ * which p it belongs to, and `hypothesisTesting.test.ts` reads each pair back.
+ */
+const quotesAt = (n: number, p: number, ks: number[]): Block[] => [say(`If $p = ${fmt(p)}$:`), quotes(n, p, ks)];
+
+/** The counts among `ks` whose cumulative can be quoted, sorted and without repeats. */
+const quotableOnly = (n: number, p: number, ks: number[]): number[] =>
+  [...new Set(ks)].filter((k) => quotable(n, p, k)).sort((x, y) => x - y);
+
+interface ErrorScene {
+  ctx: number;
+  n: number;
+  /** The claim, `H_0: p = p_0`. */
+  p0: number;
+  /** What p really is, on `H_1`'s side of the claim. */
+  p1: number;
+  tail: OneTail;
+  level: number;
+  /** The critical region is `X >= c` for the upper tail, `X <= c` for the lower. */
+  c: number;
+}
+
+/** The counts that do not reject: everything outside the critical region. */
+const outsideTex = ({ tail, c }: Pick<ErrorScene, 'tail' | 'c'>): string => (tail === 'up' ? `X \\le ${c - 1}` : `X \\ge ${c + 1}`);
+
+/** The count whose cumulative both errors are read from: `X <= c - 1` below an upper region, `X <= c` for a lower one. */
+const edgeOf = ({ tail, c }: Pick<ErrorScene, 'tail' | 'c'>): number => (tail === 'up' ? c - 1 : c);
+
+/** P(Type I) in ten-thousandths: the probability of the region when `H_0` is true. */
+const alphaOf = ({ n, p0, tail, c }: Pick<ErrorScene, 'n' | 'p0' | 'tail' | 'c'>): number =>
+  tail === 'up' ? upper(n, p0, c) : q(n, p0, c);
+
+/** P(Type II) in ten-thousandths: the probability of landing outside the region when p is really `p`. */
+const betaOf = ({ n, tail, c }: Pick<ErrorScene, 'n' | 'tail' | 'c'>, p: number): number =>
+  tail === 'up' ? q(n, p, c - 1) : 10000 - q(n, p, c);
+
+/** The values of p on `H_1`'s side of the claim. */
+const toward = (p0: number, tail: OneTail): number[] => PS.filter((p) => (tail === 'up' ? p > p0 + 1e-9 : p < p0 - 1e-9));
+
+interface SceneOptions {
+  nMin: number;
+  nMax: number;
+  levels?: number[];
+  tails?: OneTail[];
+}
+
+/**
+ * A one-tailed test with its critical region, and a true p on `H_1`'s side
+ * at which P(Type II) can be quoted. Both errors are then strictly between
+ * 0.0000 and 1.0000 as quoted, so neither is a sure thing.
+ */
+function sampleScene(rng: Rng, { nMin, nMax, levels = [1, 5, 10], tails = ONE_TAILS }: SceneOptions): ErrorScene {
+  for (;;) {
+    const n = rng.int(nMin, nMax);
+    const p0 = rng.pick(PS);
+    const tail = rng.pick(tails);
+    const level = rng.pick(levels);
+    const c = oneTailRegion(n, p0, tail, level);
+    if (c === undefined) continue;
+    const side = toward(p0, tail);
+    if (side.length === 0) continue;
+    const p1 = rng.pick(side);
+    if (!quotable(n, p1, edgeOf({ tail, c }))) continue;
+    return { ctx: pickCtx(rng), n, p0, p1, tail, level, c };
+  }
+}
+
+const sceneText = ({ ctx, n, p0, tail, level }: ErrorScene): string =>
+  `${claimText(CONTEXTS[ctx], p0)} ${suspicionText(CONTEXTS[ctx], p0, tail)} The test uses a sample of ${n} at the ${level}% level.`;
+
+const truthText = (ctx: number, p: number): string => `In fact, ${pct(p)}% of ${CONTEXTS[ctx].unit} ${CONTEXTS[ctx].event}.`;
+
+const regionSentence = ({ tail, c }: Pick<ErrorScene, 'tail' | 'c'>): string => `The critical region is $${regionTex(tail, c)}$.`;
+
+/** How the region was found from the quoted cumulatives at `p_0`. */
+const sceneRegionSolution = (sc: ErrorScene): SolutionStep[] =>
+  regionSolution({ ctx: sc.ctx, n: sc.n, p: sc.p0, tail: sc.tail, level: sc.level, c: sc.c });
+
+/** The quoted cumulatives at `p_0` that the region is found from. */
+const sceneRegionQuotes = (sc: ErrorScene): number[] => regionQuotes({ n: sc.n, p: sc.p0, tail: sc.tail, c: sc.c });
+
+/** P(Type II) worked from the cumulative at `p`, as a solution line. */
+function betaLine(sc: ErrorScene, p: number): string {
+  const k = edgeOf(sc);
+  return sc.tail === 'up'
+    ? aligned([`& P(${outsideTex(sc)})`, `&= ${P4(q(sc.n, p, k))}`])
+    : chain(`P(${outsideTex(sc)})`, `1 - ${le(k)}`, `1 - ${P4(q(sc.n, p, k))}`, P4(betaOf(sc, p)));
+}
+
+/* ---------- Level 3, lesson 1: the two mistakes ---------- */
+
+type ErrorKind = 'one' | 'two' | 'none';
+
+const ERROR_LABEL: Record<ErrorKind, string> = {
+  one: 'A Type I error',
+  two: 'A Type II error',
+  none: 'No error: the test got it right',
+};
+
+/** Which mistake, if any: a Type I error rejects a true `H_0`, a Type II error keeps a false one. */
+const errorKind = (truth: boolean, reject: boolean): ErrorKind => (truth ? (reject ? 'one' : 'none') : reject ? 'none' : 'two');
+
+interface OutcomeParams {
+  ctx: number;
+  p0: number;
+  /** The true proportion when `H_0` is false. */
+  p1: number;
+  tail: OneTail;
+  level: number;
+  /** Whether `H_0` is true. */
+  truth: boolean;
+  reject: boolean;
+  /** Difficulty 2 gives the outcome in the scenario's words, not as "rejects $H_0$". */
+  words: boolean;
+}
+
+function sampleOutcome(rng: Rng, difficulty: number): OutcomeParams {
+  for (;;) {
+    const p0 = rng.pick(PS);
+    const tail = rng.pick(ONE_TAILS);
+    const side = toward(p0, tail);
+    if (side.length === 0) continue;
+    return {
+      ctx: pickCtx(rng),
+      p0,
+      p1: rng.pick(side),
+      tail,
+      level: rng.pick([1, 5, 10]),
+      truth: rng.chance(0.5),
+      reject: rng.chance(0.5),
+      words: difficulty > 1,
+    };
+  }
+}
+
+function outcomeText({ ctx, p0, tail, level, reject, words }: OutcomeParams): string {
+  if (!words) return `The test, at the ${level}% level, ${reject ? 'rejects' : 'does not reject'} $H_0$.`;
+  const claim = claimWords(CONTEXTS[ctx], p0, tail);
+  return reject
+    ? `The test finds evidence at the ${level}% level that ${claim}.`
+    : `The test finds not enough evidence at the ${level}% level that ${claim}.`;
+}
+
+const factText = ({ ctx, p0, p1, truth }: OutcomeParams): string =>
+  truth ? `In fact, exactly ${pct(p0)}% of ${CONTEXTS[ctx].unit} ${CONTEXTS[ctx].event}, as claimed.` : truthText(ctx, p1);
+
+function outcomeSolution(params: OutcomeParams): SolutionStep[] {
+  const { p0, p1, truth, reject, level } = params;
+  const kind = errorKind(truth, reject);
+  return [
+    { text: truth ? `$H_0: p = ${fmt(p0)}$ is true.` : `$H_0: p = ${fmt(p0)}$ is false: $p$ is really $${fmt(p1)}$.` },
+    { text: `The test ${reject ? 'rejected' : 'did not reject'} $H_0$.` },
+    {
+      text:
+        kind === 'one'
+          ? `Rejecting a true $H_0$ is a Type I error. At the ${level}% level it happens with probability at most $${asProb(level)}$.`
+          : kind === 'two'
+            ? 'Keeping a false $H_0$ is a Type II error: the test missed a real change.'
+            : `${truth ? 'Keeping a true' : 'Rejecting a false'} $H_0$ is the right call, so there is no error.`,
+    },
+  ];
+}
+
+/** Name the mistake a described outcome makes, from the truth and the decision. */
+const errorChoice: Generator<OutcomeParams> = {
+  id: 'hyp-error-choice',
+  sample: sampleOutcome,
+  render: (params): Slide => {
+    const { ctx, p0, tail, truth, reject } = params;
+    const c = CONTEXTS[ctx];
+    const kind = errorKind(truth, reject);
+    const others = (['one', 'two', 'none'] as ErrorKind[]).filter((k) => k !== kind);
+    return keyedChoice(
+      [
+        say(`${claimText(c, p0)} ${suspicionText(c, p0, tail)}`),
+        say(`${outcomeText(params)} ${factText(params)}`),
+        say('What has happened?'),
+      ],
+      options({ tex: ERROR_LABEL[kind] }, ...others.map((k) => ({ tex: ERROR_LABEL[k] }))),
+      `${ctx}|${fmt(p0)}|${fmt(params.p1)}|${tail}|${params.level}`,
+      false,
+    );
+  },
+  solution: outcomeSolution,
+};
+
+interface ErrorFlowParams extends OutcomeParams {
+  /** Difficulty 2 quotes a p-value in ten-thousandths, and the decision is the learner's. */
+  pv: number;
+}
+
+/**
+ * Two forks to name the outcome: is `H_0` true, and was it rejected. Each of
+ * the four ends says what happened. Difficulty 2 gives a p-value instead of
+ * the decision.
+ */
+const errorFlow: Generator<ErrorFlowParams> = {
+  id: 'hyp-error-flow',
+  sample: (rng, difficulty) => {
+    const base = sampleOutcome(rng, 1);
+    const cap = base.level * 100;
+    const pv = base.reject ? rng.int(5, cap - 5) : rng.int(cap + 5, 4000);
+    return { ...base, words: false, pv: difficulty > 1 ? pv : 0 };
+  },
+  render: (params): Slide => {
+    const { ctx, p0, tail, level, truth, reject, pv } = params;
+    const c = CONTEXTS[ctx];
+    const key = `${ctx}|${fmt(p0)}|${tail}|${level}|${pv}`;
+    const decided = pv > 0;
+    const second = decided ? `Is $${P4(pv)}$ below $${asProb(level)}$?` : 'Was $H_0$ rejected?';
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`${claimText(c, p0)} ${suspicionText(c, p0, tail)}`),
+        say(
+          `${decided ? `The test is at the ${level}% level, and its p-value is $${P4(pv)}$.` : outcomeText(params)} ${factText(params)}`,
+        ),
+        say('Work through the questions to name what happened.'),
+      ],
+      subject: `H_0: p = ${fmt(p0)}, \\quad H_1: p ${OP[tail]} ${fmt(p0)}`,
+      steps: [
+        {
+          id: 'truth',
+          ask: 'Is $H_0$ true?',
+          branches: spun(
+            [
+              { label: 'Yes', to: 'held' },
+              { label: 'No', to: 'false' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'held',
+          ask: second,
+          branches: spun(
+            [
+              { label: 'Yes', outcome: `A Type I error: a true $H_0$ was rejected. At the ${level}% level that happens with probability at most $${asProb(level)}$.` },
+              { label: 'No', outcome: 'No error: a true $H_0$ was kept.' },
+            ],
+            `${key}|t`,
+          ),
+        },
+        {
+          id: 'false',
+          ask: second,
+          branches: spun(
+            [
+              { label: 'Yes', outcome: 'No error: a false $H_0$ was rejected.' },
+              { label: 'No', outcome: 'A Type II error: a false $H_0$ was kept, and the change was missed.' },
+            ],
+            `${key}|f`,
+          ),
+        },
+      ],
+      answer: [truth ? 'Yes' : 'No', reject ? 'Yes' : 'No'],
+    };
+  },
+  solution: (params) => [
+    ...(params.pv > 0
+      ? [{ tex: `${P4(params.pv)} ${params.reject ? '<' : '>'} ${asProb(params.level)}` }]
+      : []),
+    ...outcomeSolution(params),
+  ],
+};
+
+interface ErrorTilesParams extends ErrorScene {
+  which: 'I' | 'II';
+}
+
+/**
+ * Each error as an event and a truth: a Type I error is landing in the region
+ * when `p = p_0`, a Type II error landing outside it when p is on `H_1`'s side.
+ */
+const errorTiles: Generator<ErrorTilesParams> = {
+  id: 'hyp-error-tiles',
+  sample: (rng, difficulty) => ({
+    ...sampleScene(rng, { nMin: 10, nMax: 30, tails: difficulty > 1 ? ONE_TAILS : ['up'] }),
+    which: rng.pick<ErrorTilesParams['which']>(['I', 'II']),
+  }),
+  render: (sc): Slide => {
+    const { ctx, n, p0, tail, level, c, which } = sc;
+    const ctxt = CONTEXTS[ctx];
+    const P0 = fmt(p0);
+    const up = tail === 'up';
+    const answer =
+      which === 'I'
+        ? [up ? '\\ge' : '\\le', `${c}`, '=', P0]
+        : [up ? '\\le' : '\\ge', `${up ? c - 1 : c + 1}`, OP[tail], P0];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`${claimText(ctxt, p0)} ${suspicionText(ctxt, p0, tail)}`),
+        say(`At the ${level}% level, with a sample of ${n}, the critical region is $${regionTex(tail, c)}$.`),
+        say(`Complete the description of a Type ${which} error: which counts cause it, and what $p$ is when it happens.`),
+      ],
+      template: `\\text{Type ${which}: } X {0} {1} \\text{ when } p {2} {3}`,
+      bank: tokenBank(answer, [up ? '\\le' : '\\ge', `${c - 1}`, `${c}`, `${c + 1}`, '=', OP[tail], OP[up ? 'down' : 'up'], fmt(1 - p0)], 5),
+      answer,
+    };
+  },
+  solution: (sc) => {
+    const P0 = fmt(sc.p0);
+    return sc.which === 'I'
+      ? [
+          { text: `A Type I error rejects $H_0$ when it is true: $X$ lands in the critical region while $p = ${P0}$.` },
+          { tex: `\\text{Type I: } ${regionTex(sc.tail, sc.c)} \\text{ when } p = ${P0}` },
+        ]
+      : [
+          { text: `A Type II error keeps $H_0$ when it is false: $X$ lands outside the critical region while $p ${OP[sc.tail]} ${P0}$.` },
+          { tex: `\\text{Type II: } ${outsideTex(sc)} \\text{ when } p ${OP[sc.tail]} ${P0}` },
+        ];
+  },
+};
+
+interface ErrorLineParams extends ErrorScene {
+  which: 'I' | 'II';
+  /** Difficulty 2 quotes cumulatives instead of naming the region. */
+  found: boolean;
+}
+
+/**
+ * Shade the counts that would make a given error: the critical region for a
+ * Type I error, everything outside it for a Type II error. Small n, so every
+ * count has a tick and each set is a ray, as the course draws regions.
+ */
+const errorLine: Generator<ErrorLineParams> = {
+  id: 'hyp-error-line',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleScene(rng, { nMin: 5, nMax: 10, levels: [5, 10] });
+      // The counts outside the region reach at least one tick.
+      if (sc.tail === 'up' ? sc.c < 1 : sc.c > sc.n - 1) continue;
+      const found = difficulty > 1;
+      return { ...sc, which: found ? 'II' : rng.pick<ErrorLineParams['which']>(['I', 'II']), found };
+    }
+  },
+  render: (sc): Slide => {
+    const { n, p0, p1, tail, c, which, found, ctx } = sc;
+    const answer =
+      which === 'I'
+        ? tail === 'up'
+          ? `[${c},inf)`
+          : `(-inf,${c}]`
+        : tail === 'up'
+          ? `(-inf,${c - 1}]`
+          : `[${c + 1},inf)`;
+    return {
+      kind: 'numberLine',
+      prompt: [
+        say(sceneText(sc)),
+        ...(found
+          ? [say(`Under $H_0$, $${model(n, p0)}$.`), ...quotesAt(n, p0, sceneRegionQuotes(sc))]
+          : [say(regionSentence(sc))]),
+        say(
+          which === 'I'
+            ? 'Suppose $H_0$ is true. Shade the counts that would lead to a Type I error.'
+            : `${truthText(ctx, p1)} Shade the counts that would lead to a Type II error.`,
+        ),
+      ],
+      min: -1,
+      max: n + 1,
+      step: 1,
+      answer,
+    };
+  },
+  solution: (sc) => [
+    ...(sc.found ? sceneRegionSolution(sc) : []),
+    sc.which === 'I'
+      ? { text: `A Type I error rejects a true $H_0$, which happens whenever $X$ lands in the critical region, $${regionTex(sc.tail, sc.c)}$.` }
+      : {
+          text: `$p$ is really $${fmt(sc.p1)}$, so $H_0$ is false. A Type II error is failing to reject it, which happens whenever $X$ lands outside the critical region: $${outsideTex(sc)}$.`,
+        },
+  ],
+};
+
+/* ---------- Level 3, lesson 2: the size of a test ---------- */
+
+interface RuleParams {
+  ctx: number;
+  n: number;
+  p0: number;
+  tail: Tail;
+  /** Lower region `X <= a`; -1 when there is none. */
+  a: number;
+  /** Upper region `X >= b`; n + 1 when there is none. */
+  b: number;
+}
+
+/** P(Type I) of a rule, in ten-thousandths: both tails' probabilities under `H_0`. */
+const sizeOf = ({ n, p0, tail, a, b }: RuleParams): number =>
+  (tail === 'up' ? 0 : q(n, p0, a)) + (tail === 'down' ? 0 : upper(n, p0, b));
+
+/**
+ * A rejection rule someone fixed in advance, not found from a level: a count
+ * at or beyond `b`, at or below `a`, or either. Its size is whatever the
+ * region's probability comes to under `H_0`.
+ */
+function sampleRule(rng: Rng, tails: Tail[]): RuleParams {
+  for (;;) {
+    const n = rng.int(10, 25);
+    const p0 = rng.pick(PS);
+    const tail = rng.pick(tails);
+    const mean = n * p0;
+    let a = -1;
+    let b = n + 1;
+    if (tail !== 'up') {
+      const hi = Math.ceil(mean) - 2;
+      if (hi < 1) continue;
+      a = rng.int(1, hi);
+      if (!quotable(n, p0, a) || !quotable(n, p0, a + 1) || q(n, p0, a) < 5) continue;
+    }
+    if (tail !== 'down') {
+      const lo = Math.floor(mean) + 2;
+      if (lo > n - 1) continue;
+      b = rng.int(lo, n - 1);
+      if (!quotable(n, p0, b - 1) || !quotable(n, p0, b - 2) || upper(n, p0, b) < 5) continue;
+    }
+    const rule = { ctx: pickCtx(rng), n, p0, tail, a, b };
+    if (sizeOf(rule) > 3000) continue;
+    return rule;
+  }
+}
+
+function ruleText({ ctx, n, tail, a, b }: RuleParams): string {
+  const c = CONTEXTS[ctx];
+  const when = tail === 'up' ? `${b} or more` : tail === 'down' ? `${a} or fewer` : `${a} or fewer, or ${b} or more`;
+  return `A researcher samples ${n} ${c.unit} and decides in advance to reject the claim if ${when} of them ${c.event}.`;
+}
+
+const ruleQuotes = ({ n, p0, tail, a, b }: RuleParams): number[] =>
+  quotableOnly(n, p0, [...(tail === 'up' ? [] : [a, a + 1]), ...(tail === 'down' ? [] : [b - 2, b - 1])]);
+
+function ruleSolution(rule: RuleParams): SolutionStep[] {
+  const { n, p0, tail, a, b } = rule;
+  const steps: SolutionStep[] = [{ text: 'A Type I error is rejecting $H_0$ when it is true: landing in the region when $p$ is the claimed value.' }];
+  if (tail !== 'up') steps.push({ tex: `${le(a)} = ${P4(q(n, p0, a))}` });
+  if (tail !== 'down') steps.push({ tex: chain(`P(X \\ge ${b})`, `1 - ${P4(q(n, p0, b - 1))}`, P4(upper(n, p0, b))) });
+  if (tail === 'two') {
+    steps.push({ tex: chain('P(\\text{Type I})', `${P4(q(n, p0, a))} + ${P4(upper(n, p0, b))}`, P4(sizeOf(rule))) });
+  }
+  return steps;
+}
+
+/** The size of a stated rule: one tail at difficulty 1, both at difficulty 2. */
+const sizeExpr: Generator<RuleParams> = {
+  id: 'hyp-size',
+  sample: (rng, difficulty) => sampleRule(rng, difficulty > 1 ? ['two'] : ONE_TAILS),
+  render: (rule): Slide => {
+    const c = CONTEXTS[rule.ctx];
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${claimText(c, rule.p0)} ${suspicionText(c, rule.p0, rule.tail)} ${ruleText(rule)}`),
+        say(`Under $H_0$, $${model(rule.n, rule.p0)}$.`),
+        ...quotesAt(rule.n, rule.p0, ruleQuotes(rule)),
+        say('Find the probability of a Type I error.'),
+      ],
+      lead: 'P(\\text{Type I}) =',
+      keypad: [],
+      answer: typed(sizeOf(rule)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ruleSolution,
+};
+
+/**
+ * The size of a two-tailed rule reduced one step at a time. Difficulty 1
+ * starts from the quoted numbers; difficulty 2 starts from the cumulatives
+ * by name, so each has to be read from the table first.
+ */
+const sizeSum: Generator<RuleParams & { named: boolean }> = {
+  id: 'hyp-size-sum',
+  sample: (rng, difficulty) => ({ ...sampleRule(rng, ['two']), named: difficulty > 1 }),
+  render: (rule): Slide => {
+    const { n, p0, a, b, named } = rule;
+    const c = CONTEXTS[rule.ctx];
+    const A = q(n, p0, a);
+    const B = q(n, p0, b - 1);
+    const U = 10000 - B;
+    const size = A + U;
+    const tail = [
+      { span: [2, 7] as [number, number], operator: 4, value: P4(U), bank: stepBank(P4(U), P4(B), P4(10000 - q(n, p0, b)), P4(10000 - q(n, p0, b - 2))) },
+      {
+        span: [0, 3] as [number, number],
+        operator: 1,
+        value: P4(size),
+        bank: stepBank(P4(size), P4(Math.abs(U - A)), ...(A + B < 10000 ? [P4(A + B)] : []), P4(10000 - size)),
+      },
+    ];
+    const reads = [
+      { span: [0, 1] as [number, number], value: P4(A), bank: stepBank(P4(A), P4(q(n, p0, a + 1)), P4(q(n, p0, b - 2)), P4(B)) },
+      { span: [5, 6] as [number, number], value: P4(B), bank: stepBank(P4(B), P4(q(n, p0, b - 2)), P4(A), P4(q(n, p0, a + 1))) },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [
+        say(`${claimText(c, p0)} ${suspicionText(c, p0, 'two')} ${ruleText(rule)}`),
+        say(`Under $H_0$, $${model(n, p0)}$.`),
+        ...quotesAt(n, p0, ruleQuotes(rule)),
+        say(`Work out the probability of a Type I error, one step at a time.${named ? ' Read each cumulative from the table first.' : ''}`),
+      ],
+      start: named
+        ? [le(a), '+', '(', '1', '-', le(b - 1), ')']
+        : [P4(A), '+', '(', '1', '-', P4(B), ')'],
+      reductions: named ? [...reads, ...tail] : tail,
+    };
+  },
+  solution: (rule) => ruleSolution(rule),
+};
+
+interface SizeChoiceParams extends ErrorScene {
+  hard: boolean;
+}
+
+/** Which probability is P(Type I): the region's, and at the claimed p. */
+const sizeChoice: Generator<SizeChoiceParams> = {
+  id: 'hyp-size-choice',
+  sample: (rng, difficulty) => ({ ...sampleScene(rng, { nMin: 10, nMax: 30 }), hard: difficulty > 1 }),
+  render: (sc): Slide => {
+    const { p0, tail, c, level, hard } = sc;
+    const region = regionTex(tail, c);
+    const up = tail === 'up';
+    const slips = hard
+      ? [under(outsideTex(sc), p0), asProb(level), under(up ? `X > ${c}` : `X < ${c}`, p0)]
+      : [under(outsideTex(sc), p0), under(`X = ${c}`, p0), under(up ? `X \\ge ${c - 1}` : `X \\le ${c + 1}`, p0)];
+    return choiceSlide(
+      [say(sceneText(sc)), say(`${regionSentence(sc)} Which is the probability of a Type I error?`)],
+      options({ tex: under(region, p0) }, ...slips.map((tex) => ({ tex }))),
+    );
+  },
+  solution: (sc) => [
+    { text: `A Type I error rejects $H_0$ when it is true, so it is the region's probability when $p = ${fmt(sc.p0)}$:` },
+    { tex: under(regionTex(sc.tail, sc.c), sc.p0) },
+    {
+      text: `That is the actual significance level. It is at most $${asProb(sc.level)}$ but not equal to it, since a count cannot land on a fraction of a region.`,
+    },
+  ],
+};
+
+interface SizeTableParams {
+  ctx: number;
+  n: number;
+  p0: number;
+  tail: OneTail;
+  levels: number[];
+  cs: number[];
+  /** Difficulty 1 gives each critical value. */
+  given: boolean;
+}
+
+/**
+ * One test at three levels: the critical value and the size at each. A
+ * stricter level pushes the region out, and the chance of a Type I error
+ * falls with it.
+ */
+const sizeTable: Generator<SizeTableParams> = {
+  id: 'hyp-size-table',
+  sample: (rng, difficulty) => {
+    const levels = [10, 5, 1];
+    for (;;) {
+      const n = rng.int(10, 30);
+      const p0 = rng.pick(PS);
+      const tail = rng.pick(ONE_TAILS);
+      const found = levels.map((level) => oneTailRegion(n, p0, tail, level));
+      if (found.some((c) => c === undefined)) continue;
+      const cs = found as number[];
+      if (new Set(cs).size < cs.length) continue;
+      const span = tail === 'up' ? [Math.min(...cs) - 2, Math.max(...cs) - 1] : [Math.min(...cs), Math.max(...cs) + 1];
+      if (!quotableRange(n, p0, span[0], span[1])) continue;
+      return { ctx: pickCtx(rng), n, p0, tail, levels, cs, given: difficulty < 2 };
+    }
+  },
+  render: ({ ctx, n, p0, tail, levels, cs, given }): Slide => {
+    const c = CONTEXTS[ctx];
+    const up = tail === 'up';
+    const ks = up ? quotableOnly(n, p0, cs.flatMap((x) => [x - 2, x - 1])) : quotableOnly(n, p0, cs.flatMap((x) => [x, x + 1]));
+    const alphas = cs.map((x) => alphaOf({ n, p0, tail, c: x }));
+    const answer = cs.flatMap((x, i) => (given ? [P4(alphas[i])] : [`${x}`, P4(alphas[i])]));
+    const slips = [
+      ...alphas.map((v) => P4(10000 - v)),
+      ...cs.map((x) => P4(alphaOf({ n, p0, tail, c: up ? x - 1 : x + 1 }))),
+      ...(given ? [] : cs.flatMap((x) => [`${x - 1}`, `${x + 1}`])),
+    ];
+    return {
+      kind: 'table',
+      prompt: [
+        say(`${claimText(c, p0)} ${suspicionText(c, p0, tail)} The test uses a sample of ${n}, with critical region $X ${up ? '\\ge' : '\\le'} c$.`),
+        say(`Under $H_0$, $${model(n, p0)}$.`),
+        ...quotesAt(n, p0, ks),
+        say(given ? 'Fill in the probability of a Type I error at each level.' : 'Fill in the critical value $c$ and the probability of a Type I error at each level.'),
+      ],
+      columns: ['\\text{level}', 'c', 'P(\\text{Type I})'],
+      rows: levels.map((level, i) => [`${level}\\%`, given ? `${cs[i]}` : null, null]),
+      bank: decimalBank(answer, slips, given ? 3 : 4),
+      answer,
+    };
+  },
+  solution: ({ n, p0, tail, levels, cs }) => [
+    { text: 'P(Type I) is the probability of the critical region when $H_0$ is true.' },
+    ...cs.map((x, i) => ({
+      tex:
+        tail === 'up'
+          ? `${levels[i]}\\%: \\; P(X \\ge ${x}) = 1 - ${P4(q(n, p0, x - 1))} = ${P4(upper(n, p0, x))}`
+          : `${levels[i]}\\%: \\; P(X \\le ${x}) = ${P4(q(n, p0, x))}`,
+    })),
+    { text: 'The stricter the level, the smaller the region, and the less likely a Type I error.' },
+  ],
+};
+
+/* ---------- Level 3, lesson 3: Type II for a stated alternative ---------- */
+
+/** The cumulatives at the true p around the edge of the region. */
+const edgeQuotes = (sc: ErrorScene, p: number): number[] => {
+  const k = edgeOf(sc);
+  return quotableOnly(sc.n, p, [k - 1, k, k + 1]);
+};
+
+interface BetaParams extends ErrorScene {
+  /** Difficulty 2 leaves the region to be found from the cumulatives at `p_0`. */
+  found: boolean;
+}
+
+function sampleBeta(rng: Rng, difficulty: number): BetaParams {
+  for (;;) {
+    const sc = sampleScene(rng, { nMin: 10, nMax: 25, tails: difficulty > 1 ? ONE_TAILS : ['up'] });
+    if (edgeQuotes(sc, sc.p1).length < 2) continue;
+    return { ...sc, found: difficulty > 1 };
+  }
+}
+
+/** The prompt for a Type II question: the test, its region named or quoted, and the truth with its cumulatives. */
+function betaPrompt(sc: BetaParams): Block[] {
+  return [
+    say(sceneText(sc)),
+    ...(sc.found
+      ? [say(`Under $H_0$, $${model(sc.n, sc.p0)}$.`), ...quotesAt(sc.n, sc.p0, sceneRegionQuotes(sc))]
+      : [say(regionSentence(sc))]),
+    say(truthText(sc.ctx, sc.p1)),
+    ...quotesAt(sc.n, sc.p1, edgeQuotes(sc, sc.p1)),
+  ];
+}
+
+function betaSolution(sc: BetaParams): SolutionStep[] {
+  return [
+    ...(sc.found ? sceneRegionSolution(sc) : []),
+    { text: `A Type II error keeps $H_0$ though $p$ is really $${fmt(sc.p1)}$: $X$ lands outside the region, $${outsideTex(sc)}$, with $p = ${fmt(sc.p1)}$.` },
+    { tex: betaLine(sc, sc.p1) },
+  ];
+}
+
+/** P(Type II) typed, from the cumulatives quoted at the true p. */
+const betaExpr: Generator<BetaParams> = {
+  id: 'hyp-beta',
+  sample: sampleBeta,
+  render: (sc): Slide => ({
+    kind: 'expression',
+    prompt: [...betaPrompt(sc), say('Find the probability of a Type II error.')],
+    lead: 'P(\\text{Type II}) =',
+    keypad: [],
+    answer: typed(betaOf(sc, sc.p1)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: betaSolution,
+};
+
+interface BetaChoiceParams extends ErrorScene {
+  /** Difficulty 2 offers the four numbers rather than the four events. */
+  numbers: boolean;
+}
+
+/**
+ * Which probability is P(Type II): outside the region rather than in it, and
+ * at the true p rather than the claimed one. The four options are the four
+ * cells of the table of errors.
+ */
+const betaChoice: Generator<BetaChoiceParams> = {
+  id: 'hyp-beta-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleScene(rng, { nMin: 10, nMax: 30 });
+      const values = [betaOf(sc, sc.p1), 10000 - betaOf(sc, sc.p1), alphaOf(sc), 10000 - alphaOf(sc)];
+      if (new Set(values).size < 4) continue;
+      return { ...sc, numbers: difficulty > 1 };
+    }
+  },
+  render: (sc): Slide => {
+    const { n, p0, p1, tail, c, numbers } = sc;
+    const k = edgeOf(sc);
+    const region = regionTex(tail, c);
+    const outside = outsideTex(sc);
+    const beta = betaOf(sc, p1);
+    const alpha = alphaOf(sc);
+    const opts = numbers
+      ? options({ tex: P4(beta) }, { tex: P4(10000 - beta) }, { tex: P4(alpha) }, { tex: P4(10000 - alpha) })
+      : options({ tex: under(outside, p1) }, { tex: under(region, p1) }, { tex: under(outside, p0) }, { tex: under(region, p0) });
+    return choiceSlide(
+      [
+        say(sceneText(sc)),
+        say(`${regionSentence(sc)} ${truthText(sc.ctx, p1)}`),
+        ...(numbers ? [...quotesAt(n, p0, [k]), ...quotesAt(n, p1, [k])] : []),
+        say('Which is the probability of a Type II error?'),
+      ],
+      opts,
+    );
+  },
+  solution: (sc) => [
+    { text: `A Type II error keeps a false $H_0$: $X$ lands outside the region while $p$ is really $${fmt(sc.p1)}$.` },
+    { tex: under(outsideTex(sc), sc.p1) },
+    ...(sc.numbers ? [{ tex: betaLine(sc, sc.p1) }] : []),
+    { text: `Landing in the region when $p = ${fmt(sc.p1)}$ is the power; the two probabilities at $p = ${fmt(sc.p0)}$ belong to $H_0$ being true.` },
+  ],
+};
+
+/**
+ * P(Type II) one decision at a time: the event is landing outside the region,
+ * outside is the next count in, and its probability comes from the table at
+ * the true p. Each wrong turn ends saying why.
+ */
+const betaFlow: Generator<ErrorScene> = {
+  id: 'hyp-beta-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleScene(rng, { nMin: 10, nMax: 25, tails: difficulty > 1 ? ONE_TAILS : ['up'] });
+      const k = edgeOf(sc);
+      if (!quotableRange(sc.n, sc.p1, k - 1, k + 1) || k - 1 < 0) continue;
+      if (sc.tail === 'up' ? sc.c < 2 : sc.c + 2 > sc.n) continue;
+      const { right, power, slip } = betaFlowValues(sc);
+      if (new Set([right, power, slip]).size < 3) continue;
+      return sc;
+    }
+  },
+  render: (sc): Slide => {
+    const { n, p1, tail, c } = sc;
+    const up = tail === 'up';
+    const key = `${sc.ctx}|${n}|${fmt(sc.p0)}|${fmt(p1)}|${c}|${tail}`;
+    const { right, power, slip } = betaFlowValues(sc);
+    const outside = outsideTex(sc);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(sceneText(sc)),
+        say(`${regionSentence(sc)} ${truthText(sc.ctx, p1)}`),
+        ...quotesAt(n, p1, [edgeOf(sc) - 1, edgeOf(sc), edgeOf(sc) + 1]),
+        say('Work through the questions to the probability of a Type II error.'),
+      ],
+      subject: `${regionTex(tail, c)}, \\quad p = ${fmt(p1)}`,
+      steps: [
+        {
+          id: 'event',
+          ask: 'A Type II error happens when $X$ lands where?',
+          branches: spun(
+            [
+              { label: 'In the critical region', outcome: 'No: landing in the region rejects $H_0$, and rejecting a false $H_0$ is the right call.' },
+              { label: 'Outside the critical region', to: 'which' },
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'which',
+          ask: `Outside $${regionTex(tail, c)}$ means:`,
+          branches: spun(
+            [
+              { label: `$${outside}$`, to: 'value' },
+              { label: `$X ${up ? '\\le' : '\\ge'} ${c}$`, outcome: `No: $X = ${c}$ is in the critical region.` },
+              { label: `$X ${up ? '\\le' : '\\ge'} ${up ? c - 2 : c + 2}$`, outcome: `No: $X = ${up ? c - 1 : c + 1}$ is outside the region too.` },
+            ],
+            `${key}|w`,
+          ),
+        },
+        {
+          id: 'value',
+          ask: `So when $p = ${fmt(p1)}$, P(Type II) is:`,
+          branches: spun(
+            [
+              { label: `$${P4(right)}$`, outcome: `Right: $P(${outside}) = ${P4(right)}$, the chance the test misses that $p$ is really $${fmt(p1)}$.` },
+              { label: `$${P4(power)}$`, outcome: `No: that is $P(${regionTex(tail, c)})$, the chance of rejecting, which is the power.` },
+              { label: `$${P4(slip)}$`, outcome: `No: that is off by one count at the edge of the region.` },
+            ],
+            `${key}|v`,
+          ),
+        },
+      ],
+      answer: ['Outside the critical region', `$${outside}$`, `$${P4(right)}$`],
+    };
+  },
+  solution: (sc) => [
+    { text: `A Type II error keeps $H_0$ when it is false: $X$ lands outside the region, $${outsideTex(sc)}$, when $p = ${fmt(sc.p1)}$.` },
+    { tex: betaLine(sc, sc.p1) },
+  ],
+};
+
+/** The right P(Type II), the power beside it, and the value one count off. */
+function betaFlowValues(sc: ErrorScene): { right: number; power: number; slip: number } {
+  const right = betaOf(sc, sc.p1);
+  const slip = sc.tail === 'up' ? q(sc.n, sc.p1, sc.c) : 10000 - q(sc.n, sc.p1, sc.c - 1);
+  return { right, power: 10000 - right, slip };
+}
+
+/* ---------- Level 3, lesson 4: power ---------- */
+
+/** The power typed: 1 minus P(Type II) at the true p. */
+const powerExpr: Generator<BetaParams> = {
+  id: 'hyp-power',
+  sample: sampleBeta,
+  render: (sc): Slide => ({
+    kind: 'expression',
+    prompt: [...betaPrompt(sc), say('Find the power of the test: the probability that it rejects $H_0$ when $p$ is really this value.')],
+    lead: '\\text{power} =',
+    keypad: [],
+    answer: typed(10000 - betaOf(sc, sc.p1)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (sc) => [
+    ...betaSolution(sc),
+    { tex: chain('\\text{power}', '1 - P(\\text{Type II})', `1 - ${P4(betaOf(sc, sc.p1))}`, P4(10000 - betaOf(sc, sc.p1))) },
+  ],
+};
+
+interface PairParams extends ErrorScene {
+  /** A second alternative, further from the claim than `p1`. */
+  p2: number;
+}
+
+/**
+ * P(Type II) and the power for two alternatives at once: the one further from
+ * the claim is easier to detect, so its power is higher.
+ */
+const powerPairTree: Generator<PairParams> = {
+  id: 'hyp-power-pair-tree',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleScene(rng, { nMin: 10, nMax: 25, tails: difficulty > 1 ? ONE_TAILS : ['up'] });
+      const further = toward(sc.p1, sc.tail);
+      if (further.length === 0) continue;
+      const p2 = rng.pick(further);
+      if (!quotable(sc.n, p2, edgeOf(sc))) continue;
+      return { ...sc, p2 };
+    }
+  },
+  render: (sc): Slide => {
+    const { n, p1, p2, tail, c } = sc;
+    const k = edgeOf(sc);
+    const other = tail === 'up' ? c : c - 1;
+    const b1 = betaOf(sc, p1);
+    const b2 = betaOf(sc, p2);
+    const answer = [P4(b1), P4(b2), P4(10000 - b1), P4(10000 - b2)];
+    const slips = [p1, p2].flatMap((p) => (quotable(n, p, other) ? [P4(q(n, p, other)), P4(10000 - q(n, p, other))] : []));
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${sceneText(sc)} ${regionSentence(sc)}`),
+        say(`Two alternatives are checked: $p = ${fmt(p1)}$ and $p = ${fmt(p2)}$.`),
+        ...quotesAt(n, p1, quotableOnly(n, p1, [k, other])),
+        ...quotesAt(n, p2, quotableOnly(n, p2, [k, other])),
+        say(`Top row: P(Type II) if $p = ${fmt(p1)}$, then if $p = ${fmt(p2)}$. Bottom row: the power of each.`),
+      ],
+      expression: '\\text{power} = 1 - P(\\text{Type II})',
+      nodes: [
+        { id: 'b1', from: [] },
+        { id: 'b2', from: [] },
+        { id: 'w1', from: ['b1'] },
+        { id: 'w2', from: ['b2'] },
+      ],
+      bank: decimalBank(answer, [...slips, P4(alphaOf(sc)), P4(10000 - alphaOf(sc))], 3),
+      answer,
+    };
+  },
+  solution: (sc) => [
+    { text: `A Type II error is $${outsideTex(sc)}$, worked at each alternative.` },
+    { tex: betaLine(sc, sc.p1) },
+    { tex: betaLine(sc, sc.p2) },
+    { tex: aligned([`1 - ${P4(betaOf(sc, sc.p1))} &= ${P4(10000 - betaOf(sc, sc.p1))}`, `1 - ${P4(betaOf(sc, sc.p2))} &= ${P4(10000 - betaOf(sc, sc.p2))}`]) },
+    { text: `$p = ${fmt(sc.p2)}$ is further from the claim, so the test is more likely to notice it: the power is higher.` },
+  ],
+};
+
+type Change = 'looser' | 'stricter' | 'further' | 'closer';
+
+interface ChangeParams {
+  ctx: number;
+  n: number;
+  p0: number;
+  tail: OneTail;
+  change: Change;
+  /** The level before and after; the same for a change of alternative. */
+  from: number;
+  to: number;
+  /** The critical region before and after. */
+  cFrom: number;
+  cTo: number;
+  /** The alternative before and after; the same for a change of level. */
+  pFrom: number;
+  pTo: number;
+  /** Difficulty 2 asks about P(Type II) rather than the power. */
+  beta: boolean;
+}
+
+const LEVEL_PAIRS: [number, number][] = [
+  [5, 10],
+  [1, 5],
+  [1, 10],
+];
+
+/** Which way each error moves: size up or down or level, then the power or P(Type II). */
+function changeAnswer(change: Change, beta: boolean): string {
+  const second = (up: boolean) => (beta ? `P(Type II) ${up ? 'rises' : 'falls'}` : `the power ${up ? 'rises' : 'falls'}`);
+  if (change === 'looser') return `P(Type I) rises and ${second(!beta)}`;
+  if (change === 'stricter') return `P(Type I) falls and ${second(beta)}`;
+  if (change === 'further') return `P(Type I) is unchanged and ${second(!beta)}`;
+  return `P(Type I) is unchanged and ${second(beta)}`;
+}
+
+/**
+ * What a change does to both errors at once: a looser level buys power with
+ * Type I errors, and a further alternative is easier to detect with the
+ * region unchanged.
+ */
+const powerChoice: Generator<ChangeParams> = {
+  id: 'hyp-power-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const n = rng.int(10, 30);
+      const p0 = rng.pick(PS);
+      const tail = rng.pick(ONE_TAILS);
+      const change = rng.pick<Change>(['looser', 'stricter', 'further', 'closer']);
+      const side = toward(p0, tail);
+      if (side.length < 2) continue;
+      const beta = difficulty > 1;
+      if (change === 'looser' || change === 'stricter') {
+        const [lo, hi] = rng.pick(LEVEL_PAIRS);
+        const [from, to] = change === 'looser' ? [lo, hi] : [hi, lo];
+        const cFrom = oneTailRegion(n, p0, tail, from);
+        const cTo = oneTailRegion(n, p0, tail, to);
+        if (cFrom === undefined || cTo === undefined || cFrom === cTo) continue;
+        const p = rng.pick(side);
+        return { ctx: pickCtx(rng), n, p0, tail, change, from, to, cFrom, cTo, pFrom: p, pTo: p, beta };
+      }
+      const level = rng.pick([1, 5, 10]);
+      const c = oneTailRegion(n, p0, tail, level);
+      if (c === undefined) continue;
+      const [near, far] = rng.sample(side, 2).sort((x, y) => (tail === 'up' ? x - y : y - x));
+      const [pFrom, pTo] = change === 'further' ? [near, far] : [far, near];
+      return { ctx: pickCtx(rng), n, p0, tail, change, from: level, to: level, cFrom: c, cTo: c, pFrom, pTo, beta };
+    }
+  },
+  render: (params): Slide => {
+    const { ctx, n, p0, tail, change, from, to, cFrom, cTo, pFrom, pTo, beta } = params;
+    const c = CONTEXTS[ctx];
+    const setup =
+      change === 'looser' || change === 'stricter'
+        ? `At the ${from}% level the critical region is $${regionTex(tail, cFrom)}$. The level is changed to ${to}%, and the region becomes $${regionTex(tail, cTo)}$. The true proportion is ${pct(pFrom)}% throughout.`
+        : `At the ${from}% level the critical region is $${regionTex(tail, cFrom)}$. The errors are worked out for a true proportion of ${pct(pFrom)}%, then again for ${pct(pTo)}%.`;
+    const all: Change[] = ['looser', 'stricter', 'further', 'closer'];
+    return keyedChoice(
+      [
+        say(`${claimText(c, p0)} ${suspicionText(c, p0, tail)} The test uses a sample of ${n}.`),
+        say(setup),
+        say(beta ? 'What happens to the probabilities of a Type I and a Type II error?' : 'What happens to the probability of a Type I error, and to the power?'),
+      ],
+      options({ tex: changeAnswer(change, beta) }, ...all.filter((x) => x !== change).map((x) => ({ tex: changeAnswer(x, beta) }))),
+      `${ctx}|${n}|${fmt(p0)}|${cFrom}|${cTo}|${fmt(pFrom)}|${fmt(pTo)}`,
+      false,
+    );
+  },
+  solution: ({ change, tail, from, to, cFrom, cTo, pFrom, pTo }) => {
+    if (change === 'looser' || change === 'stricter') {
+      const grows = change === 'looser';
+      return [
+        { text: `Going from ${from}% to ${to}% moves the region from $${regionTex(tail, cFrom)}$ to $${regionTex(tail, cTo)}$: it ${grows ? 'grows' : 'shrinks'}.` },
+        {
+          text: grows
+            ? 'A bigger region rejects more often whatever p is: more Type I errors when $H_0$ is true, and more power, so fewer Type II errors, when it is false.'
+            : 'A smaller region rejects less often whatever p is: fewer Type I errors when $H_0$ is true, but less power, so more Type II errors, when it is false.',
+        },
+      ];
+    }
+    return [
+      { text: `The level and the region stay the same, so P(Type I) does not change.` },
+      {
+        text:
+          change === 'further'
+            ? `A true proportion of ${pct(pTo)}% is further from the claim than ${pct(pFrom)}%, so the count is more likely to land in the region: the power rises and P(Type II) falls.`
+            : `A true proportion of ${pct(pTo)}% is closer to the claim than ${pct(pFrom)}%, so the count is less likely to land in the region: the power falls and P(Type II) rises.`,
+      },
+    ];
+  },
+};
+
+interface TradeParams extends ErrorScene {
+  /** The looser level first, then the stricter. */
+  levels: [number, number];
+  cs: [number, number];
+  given: boolean;
+}
+
+/**
+ * The trade between the errors at fixed n: the same test at two levels, each
+ * with its size and its P(Type II) at the true p. The stricter level has the
+ * smaller size and the bigger P(Type II).
+ */
+const tradeTable: Generator<TradeParams> = {
+  id: 'hyp-trade-table',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sc = sampleScene(rng, { nMin: 10, nMax: 30, levels: [10] });
+      const [lo] = rng.pick(LEVEL_PAIRS.filter(([, hi]) => hi === 10));
+      const strict = oneTailRegion(sc.n, sc.p0, sc.tail, lo);
+      if (strict === undefined || strict === sc.c) continue;
+      const cs: [number, number] = [sc.c, strict];
+      if (!cs.every((c) => quotable(sc.n, sc.p1, edgeOf({ tail: sc.tail, c })))) continue;
+      const span = sc.tail === 'up' ? [Math.min(...cs) - 2, Math.max(...cs) - 1] : [Math.min(...cs), Math.max(...cs) + 1];
+      if (!quotableRange(sc.n, sc.p0, span[0], span[1])) continue;
+      return { ...sc, levels: [10, lo], cs, given: difficulty < 2 };
+    }
+  },
+  render: (sc): Slide => {
+    const { n, p0, p1, tail, levels, cs, given, ctx } = sc;
+    const up = tail === 'up';
+    const scenes = cs.map((c) => ({ ...sc, c }));
+    const alphas = scenes.map(alphaOf);
+    const betas = scenes.map((s) => betaOf(s, p1));
+    const answer = cs.flatMap((c, i) => [...(given ? [] : [`${c}`]), P4(alphas[i]), P4(betas[i])]);
+    const edges = scenes.map(edgeOf);
+    const p0ks = given ? edges : quotableOnly(n, p0, up ? cs.flatMap((c) => [c - 2, c - 1]) : cs.flatMap((c) => [c, c + 1]));
+    const slips = [...alphas.map((v) => P4(10000 - v)), ...betas.map((v) => P4(10000 - v)), ...(given ? [] : cs.flatMap((c) => [`${c - 1}`, `${c + 1}`]))];
+    const ctxt = CONTEXTS[ctx];
+    return {
+      kind: 'table',
+      prompt: [
+        say(`${claimText(ctxt, p0)} ${suspicionText(ctxt, p0, tail)} The test uses a sample of ${n}, with critical region $X ${up ? '\\ge' : '\\le'} c$. ${truthText(ctx, p1)}`),
+        ...quotesAt(n, p0, quotableOnly(n, p0, p0ks)),
+        ...quotesAt(n, p1, quotableOnly(n, p1, edges)),
+        say(
+          `${given ? 'At each level, fill in' : 'Find $c$ at each level, then fill in'} $\\alpha = P(\\text{Type I})$ and $\\beta = P(\\text{Type II})$ when $p = ${fmt(p1)}$.`,
+        ),
+      ],
+      columns: ['\\text{level}', 'c', '\\alpha', '\\beta'],
+      rows: levels.map((level, i) => [`${level}\\%`, given ? `${cs[i]}` : null, null, null]),
+      bank: decimalBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: (sc) => {
+    const scenes = sc.cs.map((c) => ({ ...sc, c }));
+    return [
+      ...(sc.given ? [] : scenes.flatMap((s, i) => sceneRegionSolution({ ...s, level: sc.levels[i] }))),
+      ...scenes.flatMap((s, i): SolutionStep[] => [
+        { text: `At ${sc.levels[i]}%, the region is $${regionTex(s.tail, s.c)}$:` },
+        {
+          tex: aligned([
+            s.tail === 'up'
+              ? `\\alpha &= 1 - ${P4(q(s.n, s.p0, s.c - 1))} = ${P4(alphaOf(s))}`
+              : `\\alpha &= ${le(s.c)} = ${P4(alphaOf(s))}`,
+            s.tail === 'up'
+              ? `\\beta &= ${P4(betaOf(s, s.p1))}`
+              : `\\beta &= 1 - ${P4(q(s.n, s.p1, s.c))} = ${P4(betaOf(s, s.p1))}`,
+          ]),
+        },
+      ]),
+      { text: 'The stricter level cuts the chance of a Type I error but raises the chance of a Type II error: at a fixed sample size, one cannot fall without the other rising.' },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 5: errors in the test of a mean ---------- */
+
+/**
+ * The standard normal cumulative, by the Taylor series of erf. Used only to
+ * choose what to quote; the test file checks each quote by Simpson's rule.
+ */
+function Phi(z: number): number {
+  const x = z / Math.SQRT2;
+  let term = x;
+  let sum = x;
+  for (let k = 1; k < 400; k += 1) {
+    term *= (-x * x) / k;
+    const add = term / (2 * k + 1);
+    sum += add;
+    if (Math.abs(add) < 1e-17) break;
+  }
+  return 0.5 + sum / Math.sqrt(Math.PI);
+}
+
+/** Phi(z) as quoted, in ten-thousandths. */
+const phiQ = (z: number): number => Math.round(Phi(z) * 10000);
+
+/** Whether Phi(z) can be quoted: inside (0, 1) once rounded, and nowhere near a rounding tie. */
+function phiQuotable(z: number): boolean {
+  const scaled = Phi(z) * 10000;
+  const frac = scaled - Math.floor(scaled);
+  return Math.abs(frac - 0.5) > 0.01 && Math.round(scaled) >= 1 && Math.round(scaled) <= 9999;
+}
+
+/** A quoted table of Phi, one value per line. */
+const phiQuotes = (zs: number[]): Block[] => [
+  say('The standard normal table gives:'),
+  show(aligned([...new Set(zs)].sort((a, b) => a - b).map((z) => `\\Phi(${fmt(z)}) &= ${P4(phiQ(z))}`))),
+];
+
+/** P(Z < z) in ten-thousandths from a quoted Phi of |z|. */
+const belowQ = (z: number): number => (z >= 0 ? phiQ(z) : 10000 - phiQ(-z));
+
+interface MeanErrScene {
+  ctx: number;
+  mu: number;
+  n: number;
+  /** sigma / sqrt(n), whole. */
+  s: number;
+  tail: OneTail;
+  level: number;
+  /** How far the true mean sits from the claim, towards `H_1`, in hundredths of s. */
+  dh: number;
+}
+
+const mSign = (tail: OneTail): number => (tail === 'up' ? 1 : -1);
+const mCrit = (sc: Pick<MeanErrScene, 'level' | 'tail'>): number => critical(sc.level, sc.tail);
+const mXc = (sc: MeanErrScene): number => sc.mu + mSign(sc.tail) * mCrit(sc) * sc.s;
+const mTrue = (sc: MeanErrScene): number => sc.mu + (mSign(sc.tail) * sc.dh * sc.s) / 100;
+/** The boundary of the region standardised under the true mean: `(x_c - mu_1) / s`. */
+const mZ = (sc: MeanErrScene): number => (mSign(sc.tail) * Math.round(mCrit(sc) * 1000 - sc.dh * 10)) / 1000;
+/** P(Type II) in ten-thousandths: the sample mean falls short of the boundary. */
+const mBeta = (sc: MeanErrScene): number => (sc.tail === 'up' ? belowQ(mZ(sc)) : 10000 - belowQ(mZ(sc)));
+
+function sampleMeanErr(rng: Rng): MeanErrScene {
+  for (;;) {
+    const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
+    const mu = rng.pick(MEAN_CONTEXTS[ctx].mus);
+    const n = rng.pick(NS);
+    const s = rng.int(1, 8);
+    if (sigmaOf({ s, n }) * 3 > mu) continue;
+    const sc: MeanErrScene = { ctx, mu, n, s, tail: rng.pick(ONE_TAILS), level: rng.pick([5, 1]), dh: rng.int(10, 80) * 5 };
+    const z = Math.abs(mZ(sc));
+    if (z < 0.05 || z > 2.9 || !terminates((sc.dh * s) / 100, 1)) continue;
+    if (!phiQuotable(z) || !phiQuotable(sc.dh / 100) || Math.abs(z - sc.dh / 100) < 1e-9) continue;
+    return sc;
+  }
+}
+
+function meanErrText(sc: MeanErrScene): string {
+  const c = MEAN_CONTEXTS[sc.ctx];
+  return `The mean ${c.quantity} is claimed to be $${sc.mu}$ ${c.unit}, with standard deviation $${sigmaOf(sc)}$ ${c.unit}. It is suspected that the mean ${SUSPECT[sc.tail]}. A test at the ${sc.level}% level uses a random sample of $${sc.n}$.`;
+}
+
+const meanTruth = (sc: MeanErrScene): string => `In fact the mean is $${fmt(mTrue(sc))}$ ${MEAN_CONTEXTS[sc.ctx].unit}.`;
+
+const xcTex = (sc: MeanErrScene): string => `\\bar{x} ${sc.tail === 'up' ? '>' : '<'} ${fmt(mXc(sc))}`;
+
+function meanErrSolution(sc: MeanErrScene): SolutionStep[] {
+  const c = fmt(mCrit(sc));
+  const sign = sc.tail === 'up' ? '+' : '-';
+  const z = mZ(sc);
+  const miss = sc.tail === 'up' ? `P(\\bar{X} < ${fmt(mXc(sc))})` : `P(\\bar{X} > ${fmt(mXc(sc))})`;
+  const zLine =
+    sc.tail === 'up'
+      ? z >= 0
+        ? `P(Z < ${fmt(z)}) = \\Phi(${fmt(z)}) = ${P4(mBeta(sc))}`
+        : `P(Z < ${fmt(z)}) = 1 - \\Phi(${fmt(-z)}) = ${P4(mBeta(sc))}`
+      : z <= 0
+        ? `P(Z > ${fmt(z)}) = \\Phi(${fmt(-z)}) = ${P4(mBeta(sc))}`
+        : `P(Z > ${fmt(z)}) = 1 - \\Phi(${fmt(z)}) = ${P4(mBeta(sc))}`;
+  return [
+    { tex: `\\frac{\\sigma}{\\sqrt{n}} = \\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n}}} = ${sc.s}` },
+    { tex: chain('\\bar{x}_c', `${sc.mu} ${sign} ${c} \\times ${sc.s}`, fmt(mXc(sc))) },
+    { text: `A Type II error keeps $H_0$: the sample mean misses the region, $${miss}$, when the true mean is $${fmt(mTrue(sc))}$.` },
+    { tex: chain('z', `\\frac{${fmt(mXc(sc))} - ${fmt(mTrue(sc))}}{${sc.s}}`, fmt(z)) },
+    { tex: zLine },
+  ];
+}
+
+interface MeanBetaParams extends MeanErrScene {
+  /** Difficulty 1 gives the critical sample mean. */
+  given: boolean;
+}
+
+/** P(Type II) of a test of a mean: the boundary under the true mean, as a normal tail. */
+const meanBeta: Generator<MeanBetaParams> = {
+  id: 'hyp-mean-beta',
+  sample: (rng, difficulty) => ({ ...sampleMeanErr(rng), given: difficulty < 2 }),
+  render: (sc): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(meanErrText(sc)),
+      say(`${sc.given ? `It rejects $H_0$ when $${xcTex(sc)}$. ` : ''}${meanTruth(sc)}`),
+      ...phiQuotes([Math.abs(mZ(sc)), sc.dh / 100]),
+      say('Find the probability of a Type II error.'),
+    ],
+    lead: 'P(\\text{Type II}) =',
+    keypad: [],
+    answer: typed(mBeta(sc)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (sc) => (sc.given ? meanErrSolution(sc).slice(2) : meanErrSolution(sc)),
+};
+
+/** The same route as a tree: the critical mean, its z under the true mean, then P(Type II). */
+const meanMissTree: Generator<MeanErrScene & { hint: boolean }> = {
+  id: 'hyp-mean-miss-tree',
+  // Difficulty 1 gives the standard deviation of the sample mean.
+  sample: (rng, difficulty) => ({ ...sampleMeanErr(rng), hint: difficulty < 2 }),
+  render: (sc): Slide => {
+    const z = mZ(sc);
+    const sign = mSign(sc.tail);
+    const beta = mBeta(sc);
+    const answer = [fmt(mXc(sc)), fmt(z), P4(beta)];
+    const slips = [
+      fmt(sc.mu + sign * mCrit(sc) * sigmaOf(sc)),
+      fmt(mTrue(sc) + sign * mCrit(sc) * sc.s),
+      fmt(-z),
+      P4(10000 - beta),
+      P4(phiQ(sc.dh / 100)),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${meanErrText(sc)} ${meanTruth(sc)}${sc.hint ? ` The standard deviation of $\\bar{X}$ is $${sc.s}$ ${MEAN_CONTEXTS[sc.ctx].unit}.` : ''}`),
+        ...phiQuotes([Math.abs(z), sc.dh / 100]),
+        say('Top: the critical value of $\\bar{x}$. Then that boundary as a $z$ under the true mean. Then the probability of a Type II error.'),
+      ],
+      expression: 'P(\\text{Type II})',
+      nodes: [
+        { id: 'xc', from: [] },
+        { id: 'z', from: ['xc'] },
+        { id: 'beta', from: ['z'] },
+      ],
+      bank: decimalBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: meanErrSolution,
+};
+
+interface NBetaParams {
+  ctx: number;
+  mu: number;
+  sigma: number;
+  ns: number[];
+  /** |mu_1 - mu_0|, to one place. */
+  gap: number;
+  tail: OneTail;
+  level: number;
+  /** Difficulty 1 gives each z. */
+  given: boolean;
+}
+
+/** The boundary standardised under the true mean, for sample size n. */
+function nZ({ sigma, gap, tail, level }: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): number {
+  const d = gap / (sigma / Math.sqrt(n));
+  return (mSign(tail) * Math.round(critical(level, tail) * 1000 - d * 1000)) / 1000;
+}
+
+const nBeta = (params: Pick<NBetaParams, 'sigma' | 'gap' | 'tail' | 'level'>, n: number): number => {
+  const z = nZ(params, n);
+  return params.tail === 'up' ? belowQ(z) : 10000 - belowQ(z);
+};
+
+/**
+ * The same test and the same true mean at three sample sizes: at a fixed
+ * level, P(Type II) shrinks as n grows, because the sample mean varies less.
+ */
+const betaNTable: Generator<NBetaParams> = {
+  id: 'hyp-beta-n-table',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sigma = rng.pick(TABLE_SIGMAS);
+      const ctx = rng.int(0, MEAN_CONTEXTS.length - 1);
+      const mu = rng.pick(MEAN_CONTEXTS[ctx].mus);
+      if (sigma * 3 > mu) continue;
+      const fits = NS.filter((n) => sigma % Math.sqrt(n) === 0);
+      if (fits.length < 3) continue;
+      const ns = rng.sample(fits, 3).sort((a, b) => a - b);
+      const gap = rng.int(1, 150) / 10;
+      const tail = rng.pick(ONE_TAILS);
+      const level = rng.pick([5, 1]);
+      const params = { sigma, gap, tail, level };
+      if (!ns.every((n) => terminates(gap / (sigma / Math.sqrt(n)), 2))) continue;
+      const zs = ns.map((n) => nZ(params, n));
+      if (zs.some((z) => Math.abs(z) < 0.05 || Math.abs(z) > 2.9 || !phiQuotable(Math.abs(z)))) continue;
+      if (new Set(zs.map(Math.abs)).size < 3) continue;
+      return { ctx, mu, sigma, ns, gap, tail, level, given: difficulty < 2 };
+    }
+  },
+  render: (params): Slide => {
+    const { ctx, mu, sigma, ns, gap, tail, level, given } = params;
+    const c = MEAN_CONTEXTS[ctx];
+    const zs = ns.map((n) => nZ(params, n));
+    const betas = ns.map((n) => nBeta(params, n));
+    const answer = ns.flatMap((_, i) => [...(given ? [] : [fmt(zs[i])]), P4(betas[i])]);
+    const slips = [
+      ...betas.map((b) => P4(10000 - b)),
+      ...(given ? [] : [...zs.map((z) => fmt(-z)), ...ns.map((n) => fmt(critical(level, tail) - (gap * n) / sigma))]),
+    ].filter((t) => t.length <= 7);
+    const truth = mu + mSign(tail) * gap;
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `The mean ${c.quantity} is claimed to be $${mu}$ ${c.unit}, with standard deviation $${sigma}$ ${c.unit}. It is suspected that the mean ${SUSPECT[tail]}, and a test at the ${level}% level is planned. In fact the mean is $${fmt(truth)}$ ${c.unit}.`,
+        ),
+        say(
+          `For each sample size, $z$ is the boundary of the critical region standardised under the true mean. ${given ? 'Fill in' : 'Fill in $z$ and'} $\\beta = P(\\text{Type II})$.`,
+        ),
+        ...phiQuotes(zs.map(Math.abs)),
+      ],
+      columns: ['n', 'z', '\\beta'],
+      rows: ns.map((n, i) => [`${n}`, given ? fmt(zs[i]) : null, null]),
+      bank: decimalBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { ctx, mu, sigma, ns, gap, tail, level } = params;
+    const c = critical(level, tail);
+    const up = tail === 'up';
+    const unit = MEAN_CONTEXTS[ctx].unit;
+    const tailTex = (z: number): string =>
+      up ? `P(Z < ${fmt(z)})` : `P(Z > ${fmt(z)})`;
+    return [
+      {
+        text: `The boundary is $\\bar{x}_c = ${mu} ${up ? '+' : '-'} ${fmt(c)} \\times \\frac{${sigma}}{\\sqrt{n}}$, and the true mean is $${fmt(gap)}$ ${unit} ${up ? 'above' : 'below'} the claim. Standardised under the true mean, the boundary is ${up ? '' : 'minus '}$${fmt(c)}$ less the gap in standard deviations of $\\bar{X}$.`,
+      },
+      ...ns.map((n) => ({
+        tex: aligned([
+          `n = ${n}: \\; z &= ${up ? '' : '-'}${up ? '' : '('}${fmt(c)} - \\frac{${fmt(gap)}}{${fmt(sigma / Math.sqrt(n))}}${up ? '' : ')'} = ${fmt(nZ(params, n))}`,
+          `\\beta &= ${tailTex(nZ(params, n))} = ${P4(nBeta(params, n))}`,
+        ]),
+      })),
+      { text: 'A bigger sample tightens the spread of $\\bar{X}$, so a real change is harder to miss: $\\beta$ falls while the level stays the same.' },
+    ];
+  },
+};
+
+type MeanChange = 'bigger' | 'smaller' | 'stricter' | 'looser' | 'further' | 'closer';
+
+interface MeanChangeParams extends MeanErrScene {
+  change: MeanChange;
+  /** The new sample size, level or true mean's shift, as the change needs. */
+  n2: number;
+  level2: number;
+  dh2: number;
+}
+
+const MEAN_CHANGE_ANSWER: Record<'same-down' | 'same-up' | 'down-up' | 'up-down', string> = {
+  'same-down': 'P(Type I) stays the same and P(Type II) falls',
+  'same-up': 'P(Type I) stays the same and P(Type II) rises',
+  'down-up': 'P(Type I) falls and P(Type II) rises',
+  'up-down': 'P(Type I) rises and P(Type II) falls',
+};
+
+const meanChangeKey = (change: MeanChange): keyof typeof MEAN_CHANGE_ANSWER =>
+  change === 'bigger' || change === 'further' ? 'same-down' : change === 'smaller' || change === 'closer' ? 'same-up' : change === 'stricter' ? 'down-up' : 'up-down';
+
+/**
+ * What a change to the test of a mean does to each error: the sample size
+ * and the true mean move only P(Type II); the level trades one error for the
+ * other. Difficulty 1 changes n or the level; difficulty 2 the true mean too.
+ */
+const meanErrorChoice: Generator<MeanChangeParams> = {
+  id: 'hyp-mean-error-choice',
+  sample: (rng, difficulty) => {
+    const changes: MeanChange[] = difficulty > 1 ? ['bigger', 'smaller', 'stricter', 'looser', 'further', 'closer'] : ['bigger', 'smaller', 'stricter', 'looser'];
+    for (;;) {
+      const sc = sampleMeanErr(rng);
+      const change = rng.pick(changes);
+      const bigger = NS.filter((m) => m > sc.n);
+      const smaller = NS.filter((m) => m < sc.n);
+      const pool = change === 'bigger' ? bigger : change === 'smaller' ? smaller : [sc.n];
+      if (pool.length === 0) continue;
+      const n2 = rng.pick(pool);
+      const level = change === 'stricter' ? 5 : change === 'looser' ? 1 : sc.level;
+      const level2 = change === 'stricter' ? 1 : change === 'looser' ? 5 : level;
+      const dh2 = change === 'further' ? sc.dh + rng.int(1, 10) * 10 : change === 'closer' ? sc.dh - rng.int(1, 5) * 5 : sc.dh;
+      if (dh2 <= 0 || !terminates((dh2 * sc.s) / 100, 1)) continue;
+      return { ...sc, level, change, n2, level2, dh2 };
+    }
+  },
+  render: (sc): Slide => {
+    const c = MEAN_CONTEXTS[sc.ctx];
+    const shifted = { ...sc, dh: sc.dh2 };
+    const setup =
+      sc.change === 'bigger' || sc.change === 'smaller'
+        ? `The sample size is changed from $${sc.n}$ to $${sc.n2}$, still at the ${sc.level}% level.`
+        : sc.change === 'stricter' || sc.change === 'looser'
+          ? `The level is changed from ${sc.level}% to ${sc.level2}%, with the same sample size.`
+          : `The test is left as it is, but the true mean turns out to be $${fmt(mTrue(shifted))}$ ${c.unit} instead.`;
+    const right = MEAN_CHANGE_ANSWER[meanChangeKey(sc.change)];
+    return keyedChoice(
+      [say(`${meanErrText(sc)} ${meanTruth(sc)}`), say(setup), say('What happens to the probabilities of the two errors?')],
+      options({ tex: right }, ...Object.values(MEAN_CHANGE_ANSWER).filter((t) => t !== right).map((tex) => ({ tex }))),
+      `${sc.ctx}|${sc.mu}|${sc.n}|${sc.n2}|${sc.s}|${sc.dh}|${sc.dh2}|${sc.level}`,
+      false,
+    );
+  },
+  solution: (sc) => {
+    const c = MEAN_CONTEXTS[sc.ctx];
+    if (sc.change === 'bigger' || sc.change === 'smaller') {
+      return [
+        { text: `The level is still ${sc.level}%, so P(Type I) is still ${asProb(sc.level)}$: $\\bar{X}$ is continuous, so the region is drawn to hold exactly the level under $H_0$.` },
+        {
+          text: `With $n = ${sc.n2}$ the standard deviation of $\\bar{X}$ is $\\frac{${sigmaOf(sc)}}{\\sqrt{${sc.n2}}}$, ${sc.change === 'bigger' ? 'smaller, so the sample mean is less likely to fall short of the boundary when the mean really has moved: P(Type II) falls' : 'larger, so the sample mean is more likely to fall short of the boundary: P(Type II) rises'}.`,
+        },
+      ];
+    }
+    if (sc.change === 'stricter' || sc.change === 'looser') {
+      return [
+        {
+          text: `At ${sc.level2}% the critical value is $${fmt(critical(sc.level2, sc.tail))}$ instead of $${fmt(critical(sc.level, sc.tail))}$: the region ${sc.change === 'stricter' ? 'shrinks' : 'grows'}.`,
+        },
+        { text: sc.change === 'stricter' ? 'Fewer Type I errors, but more real changes are missed: P(Type II) rises.' : 'More Type I errors, but fewer real changes are missed: P(Type II) falls.' },
+      ];
+    }
+    return [
+      { text: 'The test itself has not changed, so P(Type I) is the same.' },
+      {
+        text: `A true mean of $${fmt(mTrue({ ...sc, dh: sc.dh2 }))}$ ${c.unit} is ${sc.change === 'further' ? 'further from' : 'closer to'} the claim, so the sample mean is ${sc.change === 'further' ? 'less' : 'more'} likely to fall short of the boundary: P(Type II) ${sc.change === 'further' ? 'falls' : 'rises'}.`,
+      },
+    ];
+  },
+};
+
 export const hypothesisTestingGenerators = [
   claimFlow,
   hypothesesTiles,
@@ -2609,4 +4058,23 @@ export const hypothesisTestingGenerators = [
   nChoice,
   levelsFlow,
   nTable,
+  errorChoice,
+  errorFlow,
+  errorTiles,
+  errorLine,
+  sizeExpr,
+  sizeSum,
+  sizeChoice,
+  sizeTable,
+  betaExpr,
+  betaChoice,
+  betaFlow,
+  powerExpr,
+  powerPairTree,
+  powerChoice,
+  tradeTable,
+  meanBeta,
+  meanMissTree,
+  betaNTable,
+  meanErrorChoice,
 ] as Generator<never>[];

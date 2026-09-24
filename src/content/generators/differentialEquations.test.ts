@@ -62,6 +62,8 @@ import {
   type SecondIvp,
   type WhichSecond,
   type LinearDe,
+  type NonHomDe,
+  type NonHomIvp,
   type ParticularDe,
   type ProductParams,
   type ConstantParams,
@@ -1415,6 +1417,568 @@ describe('second-order equations', () => {
         return solves(Y, coefficients) && meets(Y, conditions);
       });
       expect(right.map((option) => option.id)).toEqual([slide.correctId]);
+    }
+  });
+});
+
+describe('non-homogeneous second-order equations', () => {
+  /** Probes, small enough that e^{3x} beside a polynomial does not swamp the comparison. */
+  const XS = [-0.6, 0.3, 0.9, 1.4];
+
+  type Forced = { b: number; c: number; f: string };
+
+  /**
+   * A function's TeX as mathjs: e^{kx}, a cosine or sine of a multiple of x,
+   * x^{n}, and the letters A and B kept, with the trial's Greek letters as L,
+   * M and N.
+   */
+  function fnOf(tex: string): string {
+    return tex
+      .replace(/^y'* = /, '')
+      .replace(/\\lambda/g, ' L ')
+      .replace(/\\mu/g, ' M ')
+      .replace(/\\nu/g, ' N ')
+      .replace(/\\(cos|sin) (\d*)x/g, (_, fn: string, n: string) => ` ${fn}(${n || 1}*x) `)
+      .replace(/e\^\{(-?)(\d*)x\}/g, (_, sign: string, n: string) => ` exp(${sign}${n || 1}*x) `)
+      .replace(/x\^\{(\d+)\}/g, ' x^$1 ')
+      .replace(/([0-9ABLMNx)])\s*(?=[ABLMNx(]|exp|cos|sin)/g, '$1 * ');
+  }
+
+  /** A long equation is displayed on two lines, broken after its left side: back to one. */
+  const oneLine = (tex: string): string =>
+    tex.replace(/^\\begin\{aligned\} &(.*) \\\\ &= (.*) \\end\{aligned\}$/, '$1 = $2');
+
+  /**
+   * y'' + by' + cy = f(x) read off a shown equation: b and c from the left
+   * side, which must have 1 in front of y'' and nothing on its own, and f as
+   * mathjs.
+   */
+  function forcedOf(tex: string): Forced {
+    const [lhs, rhs] = oneLine(tex).split(' = ');
+    const left = lhs
+      .replace(/\\frac\{d\^2y\}\{dx\^2\}/g, ' E ')
+      .replace(/\\frac\{dy\}\{dx\}/g, ' D ')
+      .replace(/y''/g, ' E ')
+      .replace(/y'/g, ' D ')
+      .replace(/(\d)\s*(?=[EDy])/g, '$1 * ');
+    const at = (E: number, D: number, y: number) => evalAt(left, { E, D, y });
+    expect(at(0, 0, 0), tex).toBe(0);
+    expect(at(1, 0, 0), tex).toBe(1);
+    return { b: at(0, 1, 0), c: at(0, 0, 1), f: fnOf(rhs) };
+  }
+
+  const compiledSecond = new Map<string, { evaluate: (scope: Scope) => unknown }>();
+  function secondAt(source: string, scope: Scope): number {
+    let hit = compiledSecond.get(source);
+    if (!hit) {
+      hit = math.derivative(math.derivative(source, 'x'), 'x').compile();
+      compiledSecond.set(source, hit);
+    }
+    return hit.evaluate({ ...scope }) as number;
+  }
+
+  /** y'' + by' + cy for Y at a point: mathjs differentiates Y twice. */
+  const leftAt = (Y: string, { b, c }: { b: number; c: number }, scope: Scope): number =>
+    secondAt(Y, scope) + b * derivativeAt(Y, 'x', scope) + c * evalAt(Y, scope);
+
+  /**
+   * y'' + by' + cy with the derivatives taken numerically: a five-point
+   * stencil on the compiled expression, no symbolic differentiation. Its
+   * error is far below the tolerance it is read at, and a wrong answer misses
+   * by a whole term, so it screens out the many candidates a test rules out
+   * (every filling one tile off, every slip) before mathjs differentiates
+   * anything. It only ever says no: a candidate it passes still goes through
+   * the symbolic check.
+   */
+  function roughLeft(Y: string, eq: { b: number; c: number }, scope: Scope, x: number) {
+    const h = 5e-3;
+    const [m2, m1, y, p1, p2] = [-2, -1, 0, 1, 2].map((k) => evalAt(Y, { ...scope, x: x + k * h }));
+    const ypp = (-p2 + 16 * p1 - 30 * y + 16 * m1 - m2) / (12 * h * h);
+    const yp = (-p2 + 8 * p1 - 8 * m1 + m2) / (12 * h);
+    return { left: ypp + eq.b * yp + eq.c * y, y, yp, size: Math.max(1, Math.abs(ypp), Math.abs(eq.b * yp), Math.abs(eq.c * y)) };
+  }
+
+  const ROUGH = 1e-6;
+
+  function roughlySolves(Y: string, eq: Forced, scope: Scope = {}): boolean {
+    return XS.every((x) => {
+      const { left, size } = roughLeft(Y, eq, scope, x);
+      const f = evalAt(eq.f, { ...scope, x });
+      return Math.abs(left - f) < ROUGH * Math.max(size, Math.abs(f));
+    });
+  }
+
+  /** The general-solution test below, numerically: the screen in front of it. */
+  function roughlyGeneral(Y: string, eq: Forced): boolean {
+    const none = { A: 0, B: 0 };
+    if (!roughlySolves(Y, eq, none)) return false;
+    const [partA, partB] = [{ A: 1, B: 0 }, { A: 0, B: 1 }];
+    const parts = XS.every((x) => {
+      const base = roughLeft(Y, eq, none, x);
+      return [partA, partB].every((setting) => {
+        const part = roughLeft(Y, eq, setting, x);
+        return Math.abs(part.left - base.left) < ROUGH * Math.max(part.size, base.size);
+      });
+    });
+    if (!parts) return false;
+    const x = 0.3;
+    const [base, a, b] = [none, partA, partB].map((setting) => roughLeft(Y, eq, setting, x));
+    const [fa, fb, da, db] = [a.y - base.y, b.y - base.y, a.yp - base.yp, b.yp - base.yp];
+    return Math.abs(fa * db - fb * da) > 1e-6 * (Math.abs(fa * db) + Math.abs(fb * da));
+  }
+
+  /** Whether Y satisfies y'' + by' + cy = f(x) at every probe. */
+  function solves(Y: string, eq: Forced, scope: Scope = {}): boolean {
+    if (!roughlySolves(Y, eq, scope)) return false;
+    return XS.every((x) => {
+      const at = { ...scope, x };
+      const [ypp, yp, y, f] = [secondAt(Y, at), derivativeAt(Y, 'x', at), evalAt(Y, at), evalAt(eq.f, at)];
+      const size = Math.max(1, Math.abs(ypp), Math.abs(eq.b * yp), Math.abs(eq.c * y), Math.abs(f));
+      return Math.abs(ypp + eq.b * yp + eq.c * y - f) < 1e-9 * size;
+    });
+  }
+
+  const homogeneous = (eq: Forced): Forced => ({ ...eq, f: '0' });
+
+  const withAB = (Y: string, A: number, B: number): string => Y.replace(/\bA\b/g, `(${A})`).replace(/\bB\b/g, `(${B})`);
+
+  /**
+   * A general solution: with A = B = 0 it is a particular integral, and the
+   * part A multiplies and the part B multiplies each solve the equation with
+   * 0 on the right, independently of each other.
+   *
+   * A and B stay letters in the one expression mathjs differentiates, and a
+   * part is the difference of two settings of them: a tile test tries every
+   * filling one tile off, and a derivative per part would be three times the
+   * symbolic work.
+   */
+  function isGeneralWith(Y: string, eq: Forced): boolean {
+    if (!/\bA\b/.test(Y) || !/\bB\b/.test(Y)) return false;
+    if (!roughlyGeneral(Y, eq)) return false;
+    const none = { A: 0, B: 0 };
+    if (!solves(Y, eq, none)) return false;
+    const partSolves = (setting: Scope) =>
+      XS.every((x) => {
+        const [on, off] = [{ ...setting, x }, { ...none, x }];
+        const left = leftAt(Y, eq, on) - leftAt(Y, eq, off);
+        const size = Math.max(1, Math.abs(secondAt(Y, on)), Math.abs(eq.b * derivativeAt(Y, 'x', on)), Math.abs(eq.c * evalAt(Y, on)));
+        return Math.abs(left) < 1e-9 * size;
+      });
+    const [partA, partB] = [{ A: 1, B: 0 }, { A: 0, B: 1 }];
+    if (!partSolves(partA) || !partSolves(partB)) return false;
+    const at = (setting: Scope, x: number) => evalAt(Y, { ...setting, x }) - evalAt(Y, { ...none, x });
+    const slope = (setting: Scope, x: number) => derivativeAt(Y, 'x', { ...setting, x }) - derivativeAt(Y, 'x', { ...none, x });
+    const x = 0.3;
+    const [fa, fb, da, db] = [at(partA, x), at(partB, x), slope(partA, x), slope(partB, x)];
+    return Math.abs(fa * db - fb * da) > 1e-6 * (Math.abs(fa * db) + Math.abs(fb * da));
+  }
+
+  /**
+   * Whether some choice of the trial's Greek letters makes it a particular
+   * integral: least squares over the functions the letters multiply, with
+   * y'' + by' + cy of each worked by mathjs.
+   */
+  function canFit(trial: string, eq: Forced): boolean {
+    const pieces = fnOf(trial).split(/\b[LMN]\b/).slice(1);
+    const basis = pieces.map((piece) => piece.replace(/^\s*\*?\s*/, '').replace(/\s*\+\s*$/, '').trim() || '1');
+    const points = [-0.9, -0.5, -0.2, 0.1, 0.4, 0.7, 1.0, 1.3];
+    const G = points.map((x) => basis.map((phi) => leftAt(phi, eq, { x })));
+    const target = points.map((x) => evalAt(eq.f, { x }));
+    const n = basis.length;
+    // Normal equations, solved with partial pivoting; a column the equation sends to 0 drops out.
+    const N = Array.from({ length: n }, (_, i) => [
+      ...Array.from({ length: n }, (_, j) => G.reduce((sum, row) => sum + row[i] * row[j], 0)),
+      G.reduce((sum, row, r) => sum + row[i] * target[r], 0),
+    ]);
+    const scale = Math.max(1e-12, ...N.map((row) => Math.max(...row.map(Math.abs))));
+    const solution = new Array<number>(n).fill(0);
+    const pivots: number[] = [];
+    for (let col = 0, row = 0; col < n && row < n; col += 1) {
+      let best = row;
+      for (let r = row + 1; r < n; r += 1) if (Math.abs(N[r][col]) > Math.abs(N[best][col])) best = r;
+      if (Math.abs(N[best][col]) < 1e-10 * scale) continue;
+      [N[row], N[best]] = [N[best], N[row]];
+      for (let r = 0; r < n; r += 1) {
+        if (r === row) continue;
+        const k = N[r][col] / N[row][col];
+        for (let j = col; j <= n; j += 1) N[r][j] -= k * N[row][j];
+      }
+      pivots.push(col);
+      row += 1;
+    }
+    pivots.forEach((col, row) => (solution[col] = N[row][n] / N[row][col]));
+    const residual = Math.hypot(...G.map((row, r) => row.reduce((sum, g, i) => sum + g * solution[i], 0) - target[r]));
+    return residual < 1e-7 * Math.max(1, Math.hypot(...target));
+  }
+
+  /** The equation a slide shows, wherever it shows it. */
+  function shownEquation(slide: Slide): string {
+    if (slide.kind === 'teach') throw new Error('a teach slide shows no equation');
+    const candidates = slide.prompt.filter((block) => block.kind === 'display').map((block) => (block.kind === 'display' ? block.tex : ''));
+    if (slide.kind === 'flow') candidates.push(slide.subject);
+    if (slide.kind === 'tree') candidates.push(slide.expression);
+    const found = candidates.map(oneLine).find((tex) => tex.startsWith("y''"));
+    if (!found) throw new Error('no second-order equation shown');
+    return found;
+  }
+
+  const stepsOf = (slide: Slide) => {
+    if (slide.kind !== 'steps') throw new Error(`expected steps, got ${slide.kind}`);
+    return slide;
+  };
+
+  const flowOf = (slide: Slide) => {
+    if (slide.kind !== 'flow') throw new Error(`expected a flow, got ${slide.kind}`);
+    return slide;
+  };
+
+  const choiceOf = (slide: Slide) => {
+    if (slide.kind !== 'choice') throw new Error(`expected a choice, got ${slide.kind}`);
+    expect(slide.options.length).toBe(4);
+    return slide;
+  };
+
+  const strip = (label: string): string => label.replace(/^\$|\$$/g, '');
+
+  /** The roots a label names, as numbers: `m = 2, \; m = 3`, `m = 2 (twice)`, `m = 1 \pm 2i`. */
+  function rootsIn(label: string): { re: number; im: number }[] {
+    const tex = strip(label);
+    const complex = tex.match(/^m = (-?\d*) ?\\pm (\d*)i$/);
+    if (complex) {
+      const re = Number(complex[1] || 0);
+      const im = Number(complex[2] || 1);
+      return [{ re, im }, { re, im: -im }];
+    }
+    const reals = [...tex.matchAll(/m = (-?\d+)/g)].map((m) => Number(m[1]));
+    return (tex.includes('twice') ? [reals[0], reals[0]] : reals).map((re) => ({ re, im: 0 }));
+  }
+
+  /** Whether a pair of roots is the pair of m^2 + bm + c = 0: they add to -b and multiply to c. */
+  function areRoots(roots: { re: number; im: number }[], { b, c }: Forced): boolean {
+    if (roots.length !== 2) return false;
+    const [r, s] = roots;
+    const sum = { re: r.re + s.re, im: r.im + s.im };
+    const product = { re: r.re * s.re - r.im * s.im, im: r.re * s.im + r.im * s.re };
+    return close(sum.re, -b) && close(sum.im, 0) && close(product.re, c) && close(product.im, 0);
+  }
+
+  /** The labels of a flow step other than the one on the path. */
+  const others = (slide: ReturnType<typeof flowOf>, idx: number): string[] =>
+    slide.steps[idx].branches.map((branch) => branch.label).filter((label) => label !== slide.answer[idx]);
+
+  it('types the constant that balances a constant right side', () => {
+    for (const { slide } of draws(g.deNhConstant as Generator<NonHomDe>)) {
+      const eq = forcedOf(shownEquation(slide));
+      expect(solves(`(${typed(slide)})`, eq)).toBe(true);
+    }
+  });
+
+  it("differentiates a particular integral twice and puts it in, and every slip fails", () => {
+    for (const { slide } of draws(g.deNhCheckSteps as Generator<NonHomDe>)) {
+      const { start, reductions } = stepsOf(slide);
+      const Y = fnOf(start[0]);
+      const eq = forcedOf(shownEquation(slide));
+      expect(solves(Y, eq)).toBe(true);
+      const [first, second, last] = reductions;
+      const matches = (line: string, order: 1 | 2) =>
+        XS.every((x) => close(evalAt(fnOf(line), { x }), order === 1 ? derivativeAt(Y, 'x', { x }) : secondAt(Y, { x })));
+      expect(matches(first.value, 1), first.value).toBe(true);
+      for (const slip of first.bank) if (slip !== first.value) expect(matches(slip, 1), slip).toBe(false);
+      expect(matches(second.value, 2), second.value).toBe(true);
+      for (const slip of second.bank) if (slip !== second.value) expect(matches(slip, 2), slip).toBe(false);
+      // The last line is the equation with y put in: the same left side, and a right side only the true one matches.
+      const written = forcedOf(last.value);
+      expect([written.b, written.c]).toEqual([eq.b, eq.c]);
+      const gives = (line: string) => solves(Y, { ...eq, f: forcedOf(line).f });
+      expect(gives(last.value)).toBe(true);
+      for (const slip of last.bank) if (slip !== last.value) expect(gives(slip), slip).toBe(false);
+      expect(last.bank.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('marks the one particular integral among four', () => {
+    for (const { slide } of draws(g.deNhWhichPi as Generator<NonHomDe>)) {
+      const { options, correctId } = choiceOf(slide);
+      const eq = forcedOf(shownEquation(slide));
+      const right = options.filter((option) => solves(fnOf(option.label), eq));
+      expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+
+  it('walks to the complementary function and adds the particular integral, and every slip fails', () => {
+    for (const { slide } of draws(g.deNhGeneralFlow as Generator<NonHomDe>)) {
+      const flow = flowOf(slide);
+      const eq = forcedOf(flow.subject);
+      const aux = (label: string) => {
+        const [l, r] = strip(label).split('=');
+        const poly = (m: number) => evalAt(`(${l.replace(/(\d)\s*(?=m)/g, '$1 * ')}) - (${r})`, { m });
+        return [-1.3, 0.4, 2.2].every((m) => close(poly(m), m * m + eq.b * m + eq.c));
+      };
+      expect(aux(flow.answer[0])).toBe(true);
+      for (const label of others(flow, 0)) expect(aux(label), label).toBe(false);
+      const cf = (label: string) => isGeneralWith(fnOf(strip(label)), homogeneous(eq));
+      expect(cf(flow.answer[1])).toBe(true);
+      for (const label of others(flow, 1)) expect(cf(label), label).toBe(false);
+      const general = (label: string) => isGeneralWith(fnOf(strip(label)), eq);
+      expect(general(flow.answer[2])).toBe(true);
+      for (const label of others(flow, 2)) expect(general(label), label).toBe(false);
+      for (const step of flow.steps) expect(step.branches.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('offers exactly one trial function that can balance a polynomial right side', () => {
+    for (const { slide } of draws(g.deNhPolyTrial as Generator<NonHomDe>)) {
+      const { options, correctId } = choiceOf(slide);
+      const eq = forcedOf(shownEquation(slide));
+      const right = options.filter((option) => canFit(option.label, eq));
+      expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+
+  /** The polynomial particular integral a list of coefficients, top power first, makes. */
+  const polyFrom = (values: number[]): string => values.map((v, i) => `(${v})*x^${values.length - 1 - i}`).join(' + ');
+
+  it('compares coefficients to the polynomial particular integral, top power first', () => {
+    for (const { slide } of draws(g.deNhPolyTree as Generator<NonHomDe>)) {
+      const eq = forcedOf(shownEquation(slide));
+      expect(solves(polyFrom(answerOf(slide).map(Number)), eq)).toBe(true);
+    }
+  });
+
+  /** y'' + by' + cy of a trial with its letters free, as a function of the letters and x. */
+  const trialLeft = (trial: string, eq: Forced, scope: Scope): number => leftAt(fnOf(trial), eq, scope);
+
+  /** Letters to try a line of working at: nothing special about them. */
+  const LETTERS: Scope[] = [
+    { L: 1.3, M: -0.7, N: 2.1 },
+    { L: -2.2, M: 0.4, N: -0.9 },
+  ];
+
+  /** Whether `lhs = rhs` is the trial's left side, collected, equal to f(x) — as functions of the letters and x. */
+  function isCollected(line: string, trial: string, eq: Forced): boolean {
+    const [lhs, rhs] = line.split(' = ');
+    return LETTERS.every((letters) =>
+      XS.every((x) => {
+        const at = { ...letters, x };
+        return close(evalAt(fnOf(lhs), at), trialLeft(trial, eq, at)) && close(evalAt(fnOf(rhs), at), evalAt(eq.f, at));
+      }),
+    );
+  }
+
+  /** The letters a line gives: `\lambda = 2, \; \mu = -1`. */
+  const lettersOf = (line: string): Scope =>
+    Object.fromEntries(
+      [...line.matchAll(/\\(lambda|mu|nu) = (-?\d+)/g)].map((m) => [{ lambda: 'L', mu: 'M', nu: 'N' }[m[1]]!, Number(m[2])]),
+    );
+
+  /** A steps slide that puts a trial in, finds its letters and writes the particular integral: each line right, each slip wrong. */
+  function checkTrialSteps(slide: Slide, collectedCheck: (line: string, trial: string, eq: Forced) => boolean) {
+    const { start, reductions } = stepsOf(slide);
+    const eq = forcedOf(shownEquation(slide));
+    const trial = start[0].replace(/^y = /, '');
+    const [collected, found, particular] = reductions;
+    expect(collectedCheck(collected.value, trial, eq), collected.value).toBe(true);
+    for (const slip of collected.bank) if (slip !== collected.value) expect(collectedCheck(slip, trial, eq), slip).toBe(false);
+    const fits = (line: string) => solves(fnOf(trial), eq, { L: 0, M: 0, N: 0, ...lettersOf(line) });
+    expect(fits(found.value), found.value).toBe(true);
+    for (const slip of found.bank) if (slip !== found.value) expect(fits(slip), slip).toBe(false);
+    expect(solves(fnOf(particular.value), eq), particular.value).toBe(true);
+    for (const slip of particular.bank) if (slip !== particular.value) expect(solves(fnOf(slip), eq), slip).toBe(false);
+    for (const step of reductions) expect(step.bank.length).toBeGreaterThanOrEqual(3);
+  }
+
+  it('puts a polynomial trial in, compares coefficients and writes the particular integral, and every slip fails', () => {
+    for (const { slide } of draws(g.deNhPolySteps as Generator<NonHomDe>)) checkTrialSteps(slide, isCollected);
+  });
+
+  it('types the polynomial particular integral', () => {
+    for (const { slide } of draws(g.deNhPolyPi as Generator<NonHomDe>)) {
+      const eq = forcedOf(shownEquation(slide));
+      expect(solves(typed(slide), eq)).toBe(true);
+      expect(typed(slide)).not.toMatch(/e|sin|cos/);
+    }
+  });
+
+  /** The trial a prompt names: the first `y = ...` holding a Greek letter. */
+  const namedTrial = (slide: Slide): string => {
+    const found = proseOf(slide).match(/\$y = ([^$]*\\(?:lambda|mu)[^$]*)\$/);
+    if (!found) throw new Error('no trial named');
+    return found[1];
+  };
+
+  it('finds lambda for an exponential trial', () => {
+    for (const { slide } of draws(g.deNhExpValue as Generator<NonHomDe>)) {
+      const eq = forcedOf(shownEquation(slide));
+      expect(solves(fnOf(namedTrial(slide)), eq, { L: Number(typed(slide)) })).toBe(true);
+    }
+  });
+
+  it('puts an exponential trial in, finds lambda and writes the particular integral, and every slip fails', () => {
+    for (const { slide } of draws(g.deNhExpSteps as Generator<NonHomDe>)) checkTrialSteps(slide, isCollected);
+  });
+
+  /** The template filled with tokens. */
+  const fill = (template: string, tokens: string[]): string => template.replace(/\{(\d)\}/g, (_, i: string) => tokens[Number(i)]);
+
+  it('builds the general solution with an exponential particular integral, and no other tile fits', () => {
+    for (const { slide } of draws(g.deNhExpGeneral as Generator<NonHomDe>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { template, answer, bank } = slide;
+      const eq = forcedOf(shownEquation(slide));
+      expect(isGeneralWith(fnOf(fill(template, answer)), eq)).toBe(true);
+      for (let i = 0; i < answer.length; i += 1) {
+        for (const token of bank) {
+          if (token === answer[i]) continue;
+          const other = answer.map((a, j) => (j === i ? token : a));
+          expect(isGeneralWith(fnOf(fill(template, other)), eq), other.join(' ')).toBe(false);
+        }
+      }
+      const squeezed = bank.map((token) => token.replace(/\s+/g, ''));
+      expect(new Set(squeezed).size).toBe(bank.length);
+    }
+  });
+
+  /** The walks shared by exponential and resonant right sides: the roots, the trial, then what it gives. */
+  function checkTrialFlow(slide: Slide, last: 'value' | 'pi') {
+    const flow = flowOf(slide);
+    const eq = forcedOf(flow.subject);
+    expect(areRoots(rootsIn(flow.answer[0]), eq)).toBe(true);
+    for (const label of others(flow, 0)) expect(areRoots(rootsIn(label), eq), label).toBe(false);
+    const trial = strip(flow.answer[1]).replace(/^y = /, '');
+    expect(canFit(trial, eq)).toBe(true);
+    for (const label of others(flow, 1)) expect(canFit(strip(label).replace(/^y = /, ''), eq), label).toBe(false);
+    const gives = (label: string) =>
+      last === 'value' ? solves(fnOf(trial), eq, { L: Number(strip(label)) }) : solves(fnOf(strip(label)), eq);
+    expect(gives(flow.answer[2])).toBe(true);
+    for (const label of others(flow, 2)) expect(gives(label), label).toBe(false);
+    for (const step of flow.steps) expect(step.branches.length).toBeGreaterThanOrEqual(2);
+  }
+
+  it('walks to the roots, the exponential trial and lambda, and every slip fails', () => {
+    for (const { slide } of draws(g.deNhExpFlow as Generator<NonHomDe>)) checkTrialFlow(slide, 'value');
+  });
+
+  it('offers exactly one trial function that can balance a trigonometric right side', () => {
+    for (const { slide } of draws(g.deNhTrigTrial as Generator<NonHomDe>)) {
+      const { options, correctId } = choiceOf(slide);
+      const eq = forcedOf(shownEquation(slide));
+      const right = options.filter((option) => canFit(option.label.replace(/^y = /, ''), eq));
+      expect(right.map((option) => option.id)).toEqual([correctId]);
+    }
+  });
+
+  /** The ω of a trial: `\cos 2x` gives 2. */
+  const omegaOf = (trial: string): number => Number(trial.match(/\\cos (\d*)x/)![1] || 1);
+
+  it('fills K and M, then lambda and mu, for a trigonometric right side', () => {
+    for (const { slide } of draws(g.deNhTrigTree as Generator<NonHomDe>)) {
+      const [K, M, L, Mu] = answerOf(slide).map(Number);
+      const eq = forcedOf(shownEquation(slide));
+      const trial = namedTrial(slide);
+      const w = omegaOf(trial);
+      expect(K).toBe(eq.c - w * w);
+      expect(M).toBe(eq.b * w);
+      expect(solves(fnOf(trial), eq, { L, M: Mu })).toBe(true);
+    }
+  });
+
+  /**
+   * The two equations comparing cosines and sines, as functions of λ and μ:
+   * the cosine's coefficient of the left side is its value at 0, the sine's
+   * its value at a quarter period.
+   */
+  function isCompared(line: string, trial: string, eq: Forced): boolean {
+    const [first, second] = line.split(', \\; ');
+    const quarter = Math.PI / (2 * omegaOf(trial));
+    return LETTERS.every((letters) =>
+      [
+        [first, 0],
+        [second, quarter],
+      ].every(([equation, x]) => {
+        const [lhs, rhs] = (equation as string).split(' = ');
+        const at = { ...letters, x: x as number };
+        return close(evalAt(fnOf(lhs), letters), trialLeft(trial, eq, at)) && close(Number(rhs), evalAt(eq.f, at));
+      }),
+    );
+  }
+
+  it('puts a trigonometric trial in, compares, solves and writes the particular integral, and every slip fails', () => {
+    for (const { slide } of draws(g.deNhTrigSteps as Generator<NonHomDe>)) checkTrialSteps(slide, isCompared);
+  });
+
+  it('types lambda or mu for a trigonometric right side', () => {
+    for (const { params, slide } of draws(g.deNhTrigPart as Generator<NonHomDe & { letter: 'lambda' | 'mu' }>)) {
+      const eq = forcedOf(shownEquation(slide));
+      const pi = params.pi.type === 'trig' ? params.pi : undefined;
+      const letters = { L: pi!.lambda, M: pi!.mu, [params.letter === 'lambda' ? 'L' : 'M']: Number(typed(slide)) };
+      expect(proseOf(slide)).toContain(`Find $\\${params.letter}$`);
+      expect(solves(fnOf(namedTrial(slide)), eq, letters)).toBe(true);
+    }
+  });
+
+  it('walks to the roots, the trial with its x, and the resonant particular integral, and every slip fails', () => {
+    for (const { slide } of draws(g.deNhResFlow as Generator<NonHomDe>)) {
+      const eq = forcedOf(shownEquation(slide));
+      // Resonant: the plain trial, without its x, cannot balance the right side.
+      const trial = strip(flowOf(slide).answer[1]).replace(/^y = /, '');
+      expect(canFit(trial.replace(/x\^\{2\}(?=e)|x(?=e|\\)/g, ''), eq), trial).toBe(false);
+      checkTrialFlow(slide, 'pi');
+    }
+  });
+
+  it('types the coefficient of a resonant trial', () => {
+    for (const { params, slide } of draws(g.deNhResValue as Generator<NonHomDe & { letter: 'lambda' | 'mu' }>)) {
+      const eq = forcedOf(shownEquation(slide));
+      const trial = namedTrial(slide);
+      expect(canFit(trial.replace(/x\^\{2\}(?=e)|x(?=e|\\)/g, ''), eq), trial).toBe(false);
+      const value = Number(typed(slide));
+      const pi = params.pi;
+      const letters: Scope =
+        pi.type === 'trig' ? { L: pi.lambda, M: pi.mu, [params.letter === 'lambda' ? 'L' : 'M']: value } : { L: value };
+      expect(solves(fnOf(trial), eq, letters)).toBe(true);
+    }
+  });
+
+  /** The conditions a prompt states. */
+  function statedConditions(text: string): [number, number] {
+    const [, y0, v0] = text.match(/y\(0\) = (-?\d+), \\; y'\(0\) = (-?\d+)/)!;
+    return [Number(y0), Number(v0)];
+  }
+
+  /** Both conditions, the gradient screened numerically before mathjs differentiates. */
+  const meets = (Y: string, [y0, v0]: [number, number]): boolean =>
+    close(evalAt(Y, { x: 0 }), y0) &&
+    Math.abs(roughLeft(Y, { b: 0, c: 0 }, {}, 0).yp - v0) < 1e-6 * Math.max(1, Math.abs(v0)) &&
+    close(derivativeAt(Y, 'x', { x: 0 }), v0);
+
+  it('fills u and v, then A and B, and the solution meets the equation and both conditions', () => {
+    for (const { slide } of draws(g.deNhIvpTree as Generator<NonHomIvp>)) {
+      const [u, v, A, B] = answerOf(slide).map(Number);
+      const eq = forcedOf(shownEquation(slide));
+      const text = proseOf(slide);
+      const general = fnOf(text.match(/general solution \$(y = [^$]*)\$/)![1]);
+      expect(isGeneralWith(general, eq)).toBe(true);
+      const Y = withAB(general, A, B);
+      expect(solves(Y, eq)).toBe(true);
+      const conditions = statedConditions(text);
+      expect(meets(Y, conditions)).toBe(true);
+      // u and v are what the complementary function alone gives at 0.
+      const cf = `(${Y}) - (${withAB(general, 0, 0)})`;
+      expect(close(evalAt(cf, { x: 0 }), u)).toBe(true);
+      expect(close(derivativeAt(cf, 'x', { x: 0 }), v)).toBe(true);
+    }
+  });
+
+  it('marks the one solution that meets the equation and both conditions', () => {
+    for (const { slide } of draws(g.deNhIvpFit as Generator<NonHomIvp>)) {
+      const { options, correctId } = choiceOf(slide);
+      const eq = forcedOf(shownEquation(slide));
+      const conditions = statedConditions(proseOf(slide));
+      const right = options.filter((option) => {
+        const Y = fnOf(option.label);
+        return meets(Y, conditions) && solves(Y, eq);
+      });
+      expect(right.map((option) => option.id)).toEqual([correctId]);
     }
   });
 });

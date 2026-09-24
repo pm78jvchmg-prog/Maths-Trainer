@@ -918,6 +918,7 @@ const congSquareTree: Generator<SquareParams> = {
         say(
           `Find $${a}^{${e}}$ modulo $${n}$ by repeated squaring. Each power is the square of the one it comes from, reduced modulo $${n}$, and $${e} = ${[...used].reverse().join(' + ')}$ puts the last one together.`,
         ),
+        say(`From the top, the boxes hold ${powers.map((p) => `$${a}^{${p}}$`).join(', ')} and then $${a}^{${e}}$.`),
       ],
       expression: `${a}^{${e}} \\bmod ${n}`,
       nodes: [
@@ -1004,7 +1005,7 @@ const congLastProduct: Generator<LastParams> = {
     const raw = LAST[form].value(lasts);
     return [
       { text: 'The last digit is the residue modulo $10$, and everything but the last digits is a multiple of $10$. So only the last digits matter:' },
-      { tex: stackTex(`${LAST[form].at(lasts)} = ${raw} \\equiv ${raw % 10} ${pmod(10)}`) },
+      { tex: `\\begin{gathered} ${LAST[form].at(lasts)} = ${raw} \\\\ ${raw} \\equiv ${raw % 10} ${pmod(10)} \\end{gathered}` },
       { text: `So the last digit is $${raw % 10}$.` },
     ];
   },
@@ -1150,7 +1151,7 @@ const congLastTwo: Generator<TwoParams> = {
       const [x, y] = [params.a % 100, params.b % 100];
       return [
         { text: 'The last two digits are the residue modulo $100$, so only the last two digits of each number matter:' },
-        { tex: stackTex(`${x} \\times ${y} = ${x * y} \\equiv ${answer} ${pmod(100)}`) },
+        { tex: `\\begin{gathered} ${x} \\times ${y} = ${x * y} \\\\ ${x * y} \\equiv ${answer} ${pmod(100)} \\end{gathered}` },
         { text: `So the product ends in $${ending(answer)}$.` },
       ];
     }

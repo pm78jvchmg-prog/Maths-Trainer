@@ -1148,7 +1148,7 @@ export const numberProof: Course = {
               prose(
                 '$a \\equiv b \\pmod{n}$, read "$a$ is congruent to $b$ modulo $n$", means $n$ divides $a - b$.',
               ),
-              maths('38 \\equiv 3 \\pmod{7}, \\quad \\text{since } 38 - 3 = 35 = 5 \\times 7'),
+              maths('\\begin{gathered} 38 \\equiv 3 \\pmod{7} \\\\ \\text{since } 38 - 3 = 35 = 5 \\times 7 \\end{gathered}'),
               prose(
                 'Every whole number is congruent to exactly one of $0, 1, \\dots, n - 1$: its **residue**, the remainder you found in level 2. $38 = 5 \\times 7 + 3$, so the residue of $38$ modulo $7$ is $3$.',
               ),
@@ -1160,7 +1160,7 @@ export const numberProof: Course = {
               prose(
                 'A negative number has a residue from $0$ to $n - 1$ too. Go **down** to the multiple of $n$ just below it, then count up.',
               ),
-              maths('-17 = -20 + 3, \\quad \\text{so } -17 \\equiv 3 \\pmod{5}'),
+              maths('\\begin{gathered} -17 = -20 + 3 \\\\ \\text{so } -17 \\equiv 3 \\pmod{5} \\end{gathered}'),
               prose('Not $-2$: a residue is never negative. Check: $-17 - 3 = -20$, a multiple of $5$.'),
             ),
             ask('cong-negative'),
@@ -1185,9 +1185,9 @@ export const numberProof: Course = {
           slides: [
             teach(
               prose(
-                'In level 2 you combined remainders: if $a$ and $b$ leave $3$ and $5$ on division by $7$, then $ab$ leaves the remainder of $15$, which is $1$. In the new notation, **reduce first, then combine**:',
+                'In level 2 you combined remainders: if $a$ and $b$ leave $3$ and $5$ on division by $7$, then $ab$ leaves the remainder of $15$, which is $1$. In the new notation, **reduce first, then combine**. Modulo $7$:',
               ),
-              maths('\\begin{aligned} 346 &\\equiv 3, \\quad 59 \\equiv 3 \\\\ 346 \\times 59 &\\equiv 3 \\times 3 = 9 \\equiv 2 \\pmod{7} \\end{aligned}'),
+              maths('\\begin{gathered} 346 \\equiv 3, \\quad 59 \\equiv 3 \\\\ 346 \\times 59 \\equiv 3 \\times 3 \\\\ 3 \\times 3 = 9 \\equiv 2 \\end{gathered}'),
               prose('No need to work out $346 \\times 59$ at all.'),
             ),
             ask('cong-from-residues'),
@@ -1195,9 +1195,9 @@ export const numberProof: Course = {
             ask('cong-op-table'),
             teach(
               prose(
-                'Why it works: $346 = 7j + 3$ and $59 = 7k + 3$ for whole numbers $j$ and $k$. Multiplying out,',
+                'Why it works: $a = 346 = 7j + 3$ and $b = 59 = 7k + 3$ for whole numbers $j$ and $k$. Multiplying out,',
               ),
-              maths('\\begin{aligned} 346 \\times 59 &= 49jk + 21j + 21k + 9 \\\\ &= 7(7jk + 3j + 3k) + 9 \\end{aligned}'),
+              maths('\\begin{aligned} ab &= 49jk + 21j + 21k + 9 \\\\ &= 7(7jk + 3j + 3k) + 9 \\end{aligned}'),
               prose('Everything but the $9$ is a multiple of $7$, and $9 \\equiv 2$. Adding works the same way.'),
             ),
             ask('cong-arith-order'),
@@ -1224,7 +1224,7 @@ export const numberProof: Course = {
               prose(
                 'A power is repeated multiplication, so reduce after every multiplication. The powers of $3$ modulo $7$:',
               ),
-              maths('3, \\ 9 \\equiv 2, \\ 6, \\ 18 \\equiv 4, \\ 12 \\equiv 5, \\ 15 \\equiv 1'),
+              maths('\\begin{gathered} 3, \\ 9 \\equiv 2, \\ 6, \\\\ 18 \\equiv 4, \\ 12 \\equiv 5, \\ 15 \\equiv 1 \\end{gathered}'),
               prose(
                 'Once a power reaches $1$, the next is $3$ again and the residues come round in a **cycle**, here of length $6$. A base bigger than $n$ is reduced first: $10 \\equiv 3 \\pmod{7}$, so the powers of $10$ run the same way.',
               ),
@@ -1236,7 +1236,7 @@ export const numberProof: Course = {
               prose(
                 'The cycle turns a huge power into a small one. Modulo $7$ the powers of $2$ run $2, 4, 1$, a cycle of length $3$, and $2^3 \\equiv 1$.',
               ),
-              maths('100 = 33 \\times 3 + 1, \\quad \\text{so } 2^{100} = (2^3)^{33} \\times 2 \\equiv 2 \\pmod{7}'),
+              maths('\\begin{gathered} 100 = 33 \\times 3 + 1 \\\\ 2^{100} = (2^3)^{33} \\times 2 \\\\ 2^{100} \\equiv 1 \\times 2 = 2 \\end{gathered}'),
               prose('Only the remainder of the power on division by the cycle length matters.'),
             ),
             ask('cong-big-power'),
@@ -1246,7 +1246,7 @@ export const numberProof: Course = {
               prose(
                 'When the cycle is long, **square repeatedly** instead. For $3^{13}$ modulo $17$, each power is the square of the one before:',
               ),
-              maths('3^1 \\equiv 3, \\ 3^2 \\equiv 9, \\ 3^4 \\equiv 81 \\equiv 13, \\ 3^8 \\equiv 169 \\equiv 16'),
+              maths('\\begin{aligned} 3^2 &\\equiv 9 \\\\ 3^4 &\\equiv 9^2 = 81 \\equiv 13 \\\\ 3^8 &\\equiv 13^2 = 169 \\equiv 16 \\end{aligned}'),
               prose('$13 = 8 + 4 + 1$, so $3^{13} \\equiv 16 \\times 13 \\times 3$. $16 \\times 13 = 208 \\equiv 4$, and $4 \\times 3 = 12$.'),
             ),
             ask('cong-square-tree'),
@@ -1296,7 +1296,7 @@ export const numberProof: Course = {
           slides: [
             teach(
               prose('$10 = 9 + 1$ and $100 = 99 + 1$, so both are congruent to $1$ modulo $9$. Then'),
-              maths('472 = 4 \\times 100 + 7 \\times 10 + 2 \\equiv 4 + 7 + 2 = 13 \\equiv 4 \\pmod{9}'),
+              maths('\\begin{aligned} 472 &= 4 \\times 100 + 7 \\times 10 + 2 \\\\ &\\equiv 4 + 7 + 2 \\\\ &= 13 \\equiv 4 \\pmod{9} \\end{aligned}'),
               prose(
                 'A number leaves the same remainder as its digit sum on division by $9$, and on division by $3$ as well, since $9$ is a multiple of $3$.',
               ),
@@ -1319,7 +1319,7 @@ export const numberProof: Course = {
               prose(
                 '**Casting out nines** checks a calculation: replace each number by its digit sum modulo $9$. Is $37 \\times 24 = 898$?',
               ),
-              maths('37 \\to 1, \\quad 24 \\to 6, \\quad 1 \\times 6 = 6, \\quad 898 \\to 25 \\to 7'),
+              maths('\\begin{gathered} 37 \\to 1, \\quad 24 \\to 6 \\\\ 1 \\times 6 = 6 \\\\ 898 \\to 25 \\to 7 \\end{gathered}'),
               prose(
                 '$6$ and $7$ differ, so $898$ is wrong; it is $888$. A pass proves less: a swap of two digits leaves the digit sum alone.',
               ),

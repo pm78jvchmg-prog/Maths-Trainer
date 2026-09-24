@@ -22,8 +22,15 @@
  * a proof: a claim tested on its first terms, the base case where the claim
  * starts, and a step that assumes what it has to show.
  *
- * Later levels — series in context, harder arithmetic and geometric
- * problems — are in the level plan in `docs/roadmap/levels/sequences-series.md`.
+ * Level 6 puts series to work on money: savings paid in each year, whose
+ * balance is a geometric series; a loan grown by interest and cut by a
+ * repayment until it clears, and the interest paid; the first year a balance
+ * passes a target and the payment that reaches one; whether a story adds the
+ * same amount or multiplies by the same factor; and two pay plans, a fixed
+ * rise against a percentage one.
+ *
+ * The next level, harder arithmetic and geometric problems, is in the level
+ * plan in `docs/roadmap/levels/sequences-series.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -1025,6 +1032,170 @@ export const sequencesSeries: Course = {
         ask('seq-ind-test-table', 2),
         ask('seq-ind-verdict', 2),
         ask('seq-ind-flaw', 2),
+      ],
+    },
+    {
+      id: 'sq-l6',
+      title: 'Series in Context',
+      lessons: [
+        {
+          id: 'sq-l6-savings',
+          title: 'Regular Savings',
+          slides: [
+            teach(
+              prose('Pay £$1000$ into an account at the start of each year, and $10\\%$ interest is added at the end of each year. Adding $10\\%$ is multiplying by $1.1$.'),
+              prose('Year 1 ends with $1000 \\times 1.1 = 1100$. Year 2 starts with $1100 + 1000 = 2100$ and ends with $2100 \\times 1.1 = 2310$.'),
+            ),
+            ask('seq-save-table'),
+            ask('seq-save-series-tiles'),
+            ask('seq-save-sum-steps'),
+            teach(
+              prose('Follow each payment on its own instead. The last one grows for one year, the one before it for two, and the first for all $n$:'),
+              maths('\\begin{aligned} B_n = \\; &1000 \\times 1.1 + 1000 \\times 1.1^2 \\\\ &+ \\dots + 1000 \\times 1.1^n \\end{aligned}'),
+              prose('That is a geometric series, with first term $1000 \\times 1.1$ and common ratio $1.1$.'),
+            ),
+            ask('seq-save-balance'),
+            ask('seq-save-table', 2),
+            ask('seq-save-series-tiles', 2),
+            teach(
+              prose('Work each term out, then add. After three years:'),
+              maths('\\begin{aligned} B_3 &= 1100 + 1210 + 1331 \\\\ &= 3641 \\end{aligned}'),
+              prose('The sum formula agrees: $S_3 = \\frac{1100(1.1^3 - 1)}{1.1 - 1} = 3641$.'),
+            ),
+            ask('seq-save-sum-steps', 2),
+            ask('seq-save-balance+choice', 2),
+          ],
+          skillCheck: [ask('seq-save-table', 2), ask('seq-save-series-tiles', 2), ask('seq-save-balance', 2)],
+        },
+        {
+          id: 'sq-l6-loans',
+          title: 'Paying Off a Loan',
+          slides: [
+            teach(
+              prose('Borrow £$1000$ at $20\\%$ a year and repay £$300$ at the end of each year. Each year the debt is multiplied by $1.2$, then the payment comes off:'),
+              maths('u_{n+1} = 1.2u_n - 300, \\quad u_0 = 1000'),
+              prose('Here $u_n$ is what is still owed after $n$ payments.'),
+            ),
+            ask('seq-loan-table'),
+            ask('seq-loan-rule-tiles'),
+            ask('seq-loan-clear'),
+            teach(
+              prose('Run it a year at a time:'),
+              maths('\\begin{aligned} u_1 &= 1.2 \\times 1000 - 300 = 900 \\\\ u_2 &= 1.2 \\times 900 - 300 = 780 \\\\ u_3 &= 1.2 \\times 780 - 300 = 636 \\end{aligned}'),
+              prose('The debt falls, but slowly: at first most of each payment goes on interest.'),
+            ),
+            ask('seq-loan-interest-tree'),
+            ask('seq-loan-table', 2),
+            ask('seq-loan-rule-tiles', 2),
+            teach(
+              prose('The loan clears in the first year that what is owed, once the interest is on, is no more than the payment. That last payment is smaller.'),
+              prose('Repay £$600$ a year on £$1000$ at $20\\%$: $1200 - 600 = 600$, then $720 - 600 = 120$, then a last payment of $144$ clears it.'),
+              prose('The interest is everything repaid less the amount borrowed: $600 + 600 + 144 - 1000 = 344$.'),
+            ),
+            ask('seq-loan-clear', 2),
+            ask('seq-loan-interest-tree', 2),
+          ],
+          skillCheck: [ask('seq-loan-table', 2), ask('seq-loan-clear', 2), ask('seq-loan-interest-tree', 2)],
+        },
+        {
+          id: 'sq-l6-target',
+          title: 'Years to a Target',
+          slides: [
+            teach(
+              prose('How many years until savings pass a target? Run the balance a year at a time and stop at the first one over it.'),
+              prose('£$10$ a year, doubled at the end of each year, ends the years on $20, 60, 140, 300$. A target of £$200$ is first passed in year $4$.'),
+            ),
+            ask('seq-target-table'),
+            ask('seq-target-year'),
+            ask('seq-target-payment'),
+            teach(
+              prose('Beside each balance, write how far it is above the target. The gap is negative until the target is passed, and the first positive gap marks the year.'),
+            ),
+            ask('seq-target-scale-tree'),
+            ask('seq-target-table', 2),
+            ask('seq-target-year', 2),
+            teach(
+              prose('To reach a target in a set number of years, use the fact that every balance is in proportion to the payment.'),
+              prose('At $50\\%$, £$40$ a year ends the years on $60, 150, 285$. To have £$1425$ after three years, pay $1425 \\div 285 = 5$ times as much: £$200$ a year.'),
+            ),
+            ask('seq-target-payment+choice', 2),
+            ask('seq-target-scale-tree', 2),
+          ],
+          skillCheck: [ask('seq-target-year', 2), ask('seq-target-payment', 2), ask('seq-target-scale-tree', 2)],
+        },
+        {
+          id: 'sq-l6-models',
+          title: 'Arithmetic or Geometric',
+          slides: [
+            teach(
+              prose('A rent of £$800$ that rises by £$80$ a year adds the same amount each time: $800, 880, 960, \\dots$ is arithmetic, $u_n = 800 + 80(n - 1)$.'),
+              prose('A rent of £$800$ that rises by $10\\%$ a year multiplies by $1.1$ each time: $800, 880, 968, \\dots$ is geometric, $u_n = 800 \\times 1.1^{n-1}$.'),
+            ),
+            ask('seq-model-pick'),
+            ask('seq-model-check'),
+            ask('seq-model-table'),
+            teach(
+              prose('The two start the same way, so look at the third value: $960$ against $968$.'),
+              prose('Read the words closely. A rise of $10\\%$ of the first year\'s rent is still a fixed £$80$ each year. A rise of $10\\%$ of the previous year\'s rent grows with the rent.'),
+            ),
+            ask('seq-model-total-tiles'),
+            ask('seq-model-pick', 2),
+            ask('seq-model-check', 2),
+            teach(
+              prose('Once the model is right, the formula follows. A total is a series: the first formula for a fixed rise, the second for a percentage one.'),
+              maths('\\begin{gathered} S_n = \\frac{n}{2}(2a + (n - 1)d) \\\\ S_n = \\frac{a(r^n - 1)}{r - 1} \\end{gathered}'),
+            ),
+            ask('seq-model-table', 2),
+            ask('seq-model-total-tiles', 2),
+          ],
+          skillCheck: [ask('seq-model-check', 2), ask('seq-model-pick', 2), ask('seq-model-total-tiles', 2)],
+        },
+        {
+          id: 'sq-l6-plans',
+          title: 'Two Plans Compared',
+          slides: [
+            teach(
+              prose('Plan A pays £$500$ in year 1 and £$100$ more each year. Plan B pays £$320$ in year 1 and $50\\%$ more each year.'),
+              maths('\\begin{aligned} A &: 500, 600, 700, 800 \\\\ B &: 320, 480, 720, 1080 \\end{aligned}'),
+              prose('A fixed rise wins at first, but a percentage rise grows its own rises: B pays more from year 3 on.'),
+            ),
+            ask('seq-plans-table'),
+            ask('seq-plans-overtake'),
+            ask('seq-plans-which'),
+            teach(
+              prose('Paying more in one year is not paying more overall. Over the first three years A pays $500 + 600 + 700 = 1800$ and B pays $320 + 480 + 720 = 1520$.'),
+              prose('B pays more in year 3, and A is still ahead in total.'),
+            ),
+            ask('seq-plans-total-tree'),
+            ask('seq-plans-table', 2),
+            ask('seq-plans-overtake', 2),
+            teach(
+              prose('Totals come from the sum formulae. Over five years:'),
+              maths('\\begin{aligned} S_A &= \\tfrac{5}{2}(1000 + 4 \\times 100) = 3500 \\\\ S_B &= \\frac{320(1.5^5 - 1)}{1.5 - 1} = 4220 \\end{aligned}'),
+              prose('By year 5 the percentage plan is ahead in total too.'),
+            ),
+            ask('seq-plans-which', 2),
+            ask('seq-plans-total-tree', 2),
+          ],
+          skillCheck: [ask('seq-plans-overtake', 2), ask('seq-plans-which', 2), ask('seq-plans-total-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('seq-save-series-tiles', 2),
+        ask('seq-loan-rule-tiles', 2),
+        ask('seq-target-year', 2),
+        ask('seq-model-check', 2),
+        ask('seq-plans-which', 2),
+        ask('seq-save-balance', 2),
+        ask('seq-loan-interest-tree', 2),
+        ask('seq-target-payment', 2),
+        ask('seq-model-table', 2),
+        ask('seq-plans-overtake', 2),
+        ask('seq-save-table', 2),
+        ask('seq-loan-clear', 2),
+        ask('seq-target-scale-tree', 2),
+        ask('seq-model-total-tiles', 2),
+        ask('seq-plans-total-tree', 2),
       ],
     },
   ],

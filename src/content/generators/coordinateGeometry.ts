@@ -39,6 +39,7 @@ import { options } from '../choiceVariant';
 import { markerWindow, plotSvg, type Curve } from '../figures';
 import { sumTex } from './calculus';
 import { TRIPLES } from './complexPlane';
+import { orderSlide, orderSolution, pickDistractors, type Proof } from './numberProof';
 
 /* ---------- fractions ---------- */
 
@@ -5669,6 +5670,1328 @@ const coordOtherEndSlider: Generator<OtherEndSliderParams> = {
   solution: otherEndSolution,
 };
 
+/* ================================================================
+ * Level 5: coordinate proof
+ *
+ * A quadrilateral or a triangle named from its gradients and its squared
+ * lengths. Every figure is built outward from its verdict: a parallelogram
+ * ABCD from a vertex A and two lattice vectors u = AB and v = AD, so that
+ * C = A + u + v; a rectangle from a vector and a multiple of its
+ * perpendicular; a rhombus from two `latticeVectors` of one squared length;
+ * a square from a vector and its perpendicular. So every gradient is a
+ * fraction of whole numbers, every squared length is whole, and a right
+ * angle is `mul(m1, m2)` equal to `q(-1)` as fractions, never a float. A
+ * figure that is not the named shape is one with a vertex moved off it, and
+ * its verdict is worked out again from the points rather than assumed from
+ * the move. No length is ever rooted: a side is compared by its square.
+ *
+ * No area here: Areas and Loci is the next level. Nothing here is calculus,
+ * so no slide declares `source`, `integrand` or `limits` and the oracle in
+ * `generators.test.ts` has nothing to check; `coordinateGeometry.test.ts`
+ * works every gradient, squared length, midpoint and verdict out again from
+ * the vertices each prompt names.
+ * ================================================================ */
+
+const plusPt = ([x1, y1]: Pt, [x2, y2]: Pt): Pt => [x1 + x2, y1 + y2];
+const minusPt = ([x1, y1]: Pt, [x2, y2]: Pt): Pt => [x1 - x2, y1 - y2];
+const scalePt = (k: number, [x, y]: Pt): Pt => [k * x, k * y];
+const dotPt = ([x1, y1]: Pt, [x2, y2]: Pt): number => x1 * x2 + y1 * y2;
+const crossPt = ([x1, y1]: Pt, [x2, y2]: Pt): number => x1 * y2 - y1 * x2;
+
+/** The squared length from P to R: whole, and never rooted. */
+const dist2 = (P: Pt, R: Pt): number => dotPt(minusPt(R, P), minusPt(R, P));
+
+/** Neither straight across nor straight up: a gradient that is a number and not zero. */
+const slantedVec = ([x, y]: Pt): boolean => x !== 0 && y !== 0;
+
+/** The shortest lattice step in the same direction. */
+function primitive([x, y]: Pt): Pt {
+  const g = gcd(x, y);
+  return [x / g, y / g];
+}
+
+const inReach = (points: Pt[], reach = 9): boolean => points.every(([x, y]) => Math.abs(x) <= reach && Math.abs(y) <= reach);
+
+const midOf = ([x1, y1]: Pt, [x2, y2]: Pt): Pt => [(x1 + x2) / 2, (y1 + y2) / 2];
+
+/** Every turn the same way round, and none straight on: a proper convex polygon. */
+function convex(P: Pt[]): boolean {
+  const turns = P.map((X, i) => {
+    const Y = P[(i + 1) % P.length];
+    const Z = P[(i + 2) % P.length];
+    return crossPt(minusPt(Y, X), minusPt(Z, Y));
+  });
+  return turns.every((t) => t > 0) || turns.every((t) => t < 0);
+}
+
+/** "$A(1, 2)$, $B(4, 3)$ and $C(5, 6)$", or with a fourth. */
+function cornersNamed(points: Pt[], names: string[]): string {
+  const parts = points.map((X, i) => `$${namedAt(names[i], X)}$`);
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+/** m_{AB} &= \frac{..}{..} = .., one line of an aligned block. */
+const gradientLine = (label: string, P: Pt, R: Pt): string => `m_{${label}} &= ${slopeFormula(P, R)} = ${qTex(slopeOf(P, R))}`;
+
+/** AB^2 &= 3^2 + 4^2 = 25, one line of an aligned block. */
+function lengthLine(label: string, P: Pt, R: Pt): string {
+  const [x, y] = minusPt(R, P);
+  return `${label}^2 &= ${paren(x)}^2 + ${paren(y)}^2 = ${x * x + y * y}`;
+}
+
+/** Two gradients multiplied, with a negative second one bracketed. */
+const productTex = (m1: Q, m2: Q): string => `${qTex(m1)} \\times ${qParen(m2)} = ${qTex(mul(m1, m2))}`;
+
+/** A perpendicular pair: the product is -1 as a fraction, not a float near it. */
+const perpendicular = (m1: Q, m2: Q): boolean => same(mul(m1, m2), q(-1));
+
+/** "$\frac{1}{2}$ and $-2$": two gradients as one flow branch. */
+const pairLabel = ([a, b]: [Q, Q]): string => `$${qTex(a)}$ and $${qTex(b)}$`;
+
+/** Distinct pair labels, the first being the right one. */
+function pairLabels(pairs: [Q, Q][]): string[] {
+  const out: string[] = [];
+  for (const pair of pairs) {
+    const label = pairLabel(pair);
+    if (!out.includes(label)) out.push(label);
+  }
+  return out.slice(0, 4);
+}
+
+/** Flow branches onward to one step, turned by a hash so the right one is not always first. */
+const onward = (labels: string[], to: string) => turned(labels, labels.join('|')).map((label) => ({ label, to }));
+
+/* ---------- quadrilaterals ---------- */
+
+type Four = [Pt, Pt, Pt, Pt];
+
+const QUAD = ['A', 'B', 'C', 'D'];
+
+type QuadName = 'parallelogram' | 'rectangle' | 'rhombus' | 'square';
+
+const ALL_QUADS: QuadName[] = ['parallelogram', 'rectangle', 'rhombus', 'square'];
+
+/** The strongest name a parallelogram with sides AB = u and AD = v earns. */
+function nameOf(u: Pt, v: Pt): QuadName {
+  const right = dotPt(u, v) === 0;
+  const equal = dotPt(u, u) === dotPt(v, v);
+  if (right && equal) return 'square';
+  if (right) return 'rectangle';
+  return equal ? 'rhombus' : 'parallelogram';
+}
+
+interface QuadParams {
+  A: Pt;
+  /** AB. */
+  u: Pt;
+  /** AD, so C = A + u + v. */
+  v: Pt;
+  shape: QuadName;
+}
+
+const quadOf = ({ A, u, v }: QuadParams): Four => [A, plusPt(A, u), plusPt(A, plusPt(u, v)), plusPt(A, v)];
+
+/** No side straight across or straight up, so all four gradients are numbers and not zero. */
+const sidesSlanted = ({ u, v }: QuadParams): boolean => slantedVec(u) && slantedVec(v);
+
+/** Neither diagonal straight across or straight up. */
+const diagonalsSlanted = ({ u, v }: QuadParams): boolean => slantedVec(plusPt(u, v)) && slantedVec(minusPt(v, u));
+
+/** The diagonals cross at a lattice point. */
+const midWhole = ({ u, v }: QuadParams): boolean => (u[0] + v[0]) % 2 === 0 && (u[1] + v[1]) % 2 === 0;
+
+/**
+ * AB and AD for a parallelogram that earns exactly the name asked for:
+ * a rhombus from two lattice vectors of one squared length, a rectangle or a
+ * square from a vector and a multiple of its perpendicular.
+ */
+function sampleSides(rng: Rng, shape: QuadName, difficulty: number): [Pt, Pt] {
+  const hard = difficulty > 1;
+  for (;;) {
+    let u: Pt;
+    let v: Pt;
+    if (shape === 'rhombus') {
+      const vectors = latticeVectors(rng.pick(hard ? [17, 20, 25, 34] : [5, 10, 13]));
+      [u, v] = [rng.pick(vectors), rng.pick(vectors)];
+    } else if (shape === 'parallelogram') {
+      const top = hard ? 5 : 3;
+      [u, v] = [
+        [nz(rng, top), rng.int(-top, top)],
+        [rng.int(-top, top), nz(rng, top)],
+      ];
+    } else {
+      const top = hard ? 3 : 2;
+      const p = primitive([nz(rng, top), nz(rng, top)]);
+      const g = rng.int(1, hard ? 3 : 2);
+      const h = shape === 'square' ? g : rng.int(1, hard ? 3 : 2);
+      [u, v] = [scalePt(g, p), scalePt(h * rng.sign(), [-p[1], p[0]])];
+    }
+    if (crossPt(u, v) === 0 || nameOf(u, v) !== shape) continue;
+    return rng.chance(0.5) ? [u, v] : [v, u];
+  }
+}
+
+/** A parallelogram of one of the shapes asked for, every corner within 9 of the origin. */
+function sampleQuad(rng: Rng, difficulty: number, shapes: QuadName[], keep: (p: QuadParams) => boolean = () => true): QuadParams {
+  const reach = difficulty > 1 ? 6 : 4;
+  for (;;) {
+    const shape = rng.pick(shapes);
+    const [u, v] = sampleSides(rng, shape, difficulty);
+    const params = { A: [rng.int(-reach, reach), rng.int(-reach, reach)] as Pt, u, v, shape };
+    if (!inReach(quadOf(params)) || !keep(params)) continue;
+    return params;
+  }
+}
+
+/** Both pairs of opposite sides parallel, compared as fractions. */
+function parallelSides([A, B, C, D]: Four): boolean {
+  return same(slopeOf(A, B), slopeOf(D, C)) && same(slopeOf(A, D), slopeOf(B, C));
+}
+
+const A_NAME: Record<QuadName, string> = {
+  parallelogram: 'a parallelogram',
+  rectangle: 'a rectangle',
+  rhombus: 'a rhombus',
+  square: 'a square',
+};
+
+/** The two tests on the sides that meet at B, worked out, then what they make. */
+function nameSolution([A, B, C]: Four, shape: QuadName): SolutionStep[] {
+  const [mAB, mBC] = [slopeOf(A, B), slopeOf(B, C)];
+  const right = perpendicular(mAB, mBC);
+  const equal = dist2(A, B) === dist2(B, C);
+  return [
+    { text: 'A parallelogram already has its opposite sides equal and parallel, so two sides that meet settle the rest:' },
+    { tex: chain(lengthLine('AB', A, B), lengthLine('BC', B, C)) },
+    { tex: chain(gradientLine('AB', A, B), gradientLine('BC', B, C), `m_{AB} \\times m_{BC} &= ${productTex(mAB, mBC)}`) },
+    {
+      text: `${equal ? 'The sides are equal' : 'The sides are not equal'}, and ${right ? 'the product is $-1$, so the angle at $B$ is a right angle' : 'the product is not $-1$, so there is no right angle'}. So $ABCD$ is ${A_NAME[shape]}.`,
+    },
+  ];
+}
+
+/* ---------- lesson 1: parallel sides ---------- */
+
+type SidesVerdict = 'Parallelogram' | 'Trapezium' | 'Neither';
+
+const SIDES_LABEL: Record<SidesVerdict, string> = {
+  Parallelogram: 'A parallelogram',
+  Trapezium: 'A trapezium',
+  Neither: 'Neither',
+};
+
+function sidesVerdict([A, B, C, D]: Four): SidesVerdict {
+  const one = same(slopeOf(A, B), slopeOf(D, C));
+  const two = same(slopeOf(A, D), slopeOf(B, C));
+  if (one && two) return 'Parallelogram';
+  return one || two ? 'Trapezium' : 'Neither';
+}
+
+interface CornersParams {
+  P: Four;
+}
+
+/**
+ * Both pairs of opposite sides by their gradients, then the verdict. D is
+ * left alone, moved along a side so one pair stays parallel (a trapezium),
+ * or at difficulty 2 moved a step so neither does.
+ */
+const coordParaFlow: Generator<CornersParams> = {
+  id: 'coord-para-flow',
+  sample: (rng, difficulty) => {
+    const wanted: SidesVerdict[] = difficulty > 1 ? ['Parallelogram', 'Trapezium', 'Neither'] : ['Parallelogram', 'Trapezium'];
+    for (;;) {
+      const quad = sampleQuad(rng, difficulty, ALL_QUADS, sidesSlanted);
+      const [A, B, C, D] = quadOf(quad);
+      const verdict = rng.pick(wanted);
+      let moved = D;
+      if (verdict === 'Trapezium') moved = rng.chance(0.5) ? minusPt(D, primitive(quad.u)) : plusPt(D, primitive(quad.v));
+      if (verdict === 'Neither') moved = plusPt(D, rng.pick(NUDGES));
+      const P: Four = [A, B, C, moved];
+      if (!inReach(P) || !convex(P) || !slanted(A, moved) || !slanted(moved, C)) continue;
+      if (sidesVerdict(P) !== verdict) continue;
+      return { P };
+    }
+  },
+  render: ({ P }): Slide => {
+    const [A, B, C, D] = P;
+    const [mAB, mDC, mAD, mBC] = [slopeOf(A, B), slopeOf(D, C), slopeOf(A, D), slopeOf(B, C)];
+    const slips = (a: Q, b: Q): [Q, Q][] => [
+      [a, b],
+      [neg(a), neg(b)],
+      [inv(a), inv(b)],
+      same(a, b) ? [a, perp(a)] : [a, a],
+    ];
+    const first = pairLabels(slips(mAB, mDC));
+    const second = pairLabels(slips(mAD, mBC));
+    return {
+      kind: 'flow',
+      prompt: [say(`${cornersNamed(P, QUAD)} are the corners of a quadrilateral $ABCD$. Is it a parallelogram?`)],
+      subject: 'AB \\parallel DC \\text{ and } AD \\parallel BC\\,?',
+      steps: [
+        { id: 'ab', ask: 'What are the gradients of $AB$ and $DC$?', branches: onward(first, 'ad') },
+        { id: 'ad', ask: 'And the gradients of $AD$ and $BC$?', branches: onward(second, 'verdict') },
+        {
+          id: 'verdict',
+          ask: 'So $ABCD$ is:',
+          branches: [
+            { label: SIDES_LABEL.Parallelogram, outcome: 'Both pairs of opposite sides are parallel.' },
+            { label: SIDES_LABEL.Trapezium, outcome: 'Exactly one pair of opposite sides is parallel.' },
+            { label: SIDES_LABEL.Neither, outcome: 'No pair of opposite sides is parallel.' },
+          ],
+        },
+      ],
+      answer: [first[0], second[0], SIDES_LABEL[sidesVerdict(P)]],
+    };
+  },
+  solution: ({ P }) => {
+    const [A, B, C, D] = P;
+    const verdict = sidesVerdict(P);
+    const why: Record<SidesVerdict, string> = {
+      Parallelogram: 'Both pairs match, so both pairs of opposite sides are parallel: $ABCD$ is a parallelogram.',
+      Trapezium: 'One pair matches and the other does not, so exactly one pair of opposite sides is parallel: $ABCD$ is a trapezium.',
+      Neither: 'Neither pair matches, so no two opposite sides are parallel: $ABCD$ is neither.',
+    };
+    return [
+      { tex: chain(gradientLine('AB', A, B), gradientLine('DC', D, C)) },
+      { tex: chain(gradientLine('AD', A, D), gradientLine('BC', B, C)) },
+      { text: why[verdict] },
+    ];
+  },
+};
+
+/** Two steps in each of the eight directions: a move that keeps a midpoint whole. */
+const EVEN_NUDGES: Pt[] = NUDGES.map(([x, y]) => [2 * x, 2 * y]);
+
+/** Whether the diagonals share a midpoint, as the line the steps slide ends on. */
+const bisectVerdict = (yes: boolean): string => `ABCD \\text{ is ${yes ? '' : 'not '}a parallelogram}`;
+
+/** The midpoint of each diagonal, then whether they are one point. */
+const coordParaDiagonalSteps: Generator<CornersParams> = {
+  id: 'coord-para-diagonal-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const quad = sampleQuad(rng, difficulty, ALL_QUADS, midWhole);
+      const [A, B, C, D] = quadOf(quad);
+      const P: Four = [A, B, C, rng.chance(0.4) ? plusPt(D, rng.pick(EVEN_NUDGES)) : D];
+      if (!inReach(P) || !convex(P)) continue;
+      return { P };
+    }
+  },
+  render: ({ P }): Slide => {
+    const [A, B, C, D] = P;
+    const [mAC, mBD] = [midOf(A, C), midOf(B, D)];
+    const halves = (label: string, X: Pt, Y: Pt) =>
+      `M_{${label}} = \\left(\\frac{${X[0]} + ${paren(Y[0])}}{2}, \\frac{${X[1]} + ${paren(Y[1])}}{2}\\right)`;
+    const midBank = (label: string, X: Pt, Y: Pt) => {
+      const M = midOf(X, Y);
+      return stepBank(
+        `M_{${label}} = ${pt(...M)}`,
+        `M_{${label}} = ${pt(X[0] + Y[0], X[1] + Y[1])}`,
+        `M_{${label}} = ${pt((Y[0] - X[0]) / 2, (Y[1] - X[1]) / 2)}`,
+        `M_{${label}} = ${pt(M[1], M[0])}`,
+      );
+    };
+    const yes = samePt(mAC, mBD);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `${cornersNamed(P, QUAD)} are the corners of a quadrilateral $ABCD$. Do its diagonals bisect each other? Tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [halves('AC', A, C), ',', halves('BD', B, D)],
+      reductions: [
+        { span: [0, 1], value: `M_{AC} = ${pt(...mAC)}`, bank: midBank('AC', A, C) },
+        { span: [2, 3], value: `M_{BD} = ${pt(...mBD)}`, bank: midBank('BD', B, D) },
+        { span: [0, 3], value: bisectVerdict(yes), bank: stepBank(bisectVerdict(yes), bisectVerdict(!yes)) },
+      ],
+    };
+  },
+  solution: ({ P }) => {
+    const [A, B, C, D] = P;
+    const [mAC, mBD] = [midOf(A, C), midOf(B, D)];
+    const yes = samePt(mAC, mBD);
+    return [
+      { text: 'The midpoint of each diagonal is the average of its ends:' },
+      {
+        tex: chain(
+          `M_{AC} &= \\left(\\frac{${A[0]} + ${paren(C[0])}}{2}, \\frac{${A[1]} + ${paren(C[1])}}{2}\\right) = ${pt(...mAC)}`,
+          `M_{BD} &= \\left(\\frac{${B[0]} + ${paren(D[0])}}{2}, \\frac{${B[1]} + ${paren(D[1])}}{2}\\right) = ${pt(...mBD)}`,
+        ),
+      },
+      {
+        text: yes
+          ? 'They are the same point, so the diagonals bisect each other and $ABCD$ is a parallelogram.'
+          : 'They are different points, so the diagonals do not bisect each other and $ABCD$ is not a parallelogram.',
+      },
+    ];
+  },
+};
+
+interface FourthParams extends QuadParams {
+  /** Which corner is asked for: 3 (D) at difficulty 1, any at difficulty 2. */
+  missing: number;
+}
+
+/** The corner asked for, and its neighbours before and after it and the corner opposite. */
+function fourthParts(p: FourthParams): { X: Pt; prev: Pt; next: Pt; opp: Pt; names: string[] } {
+  const P = quadOf(p);
+  const m = p.missing;
+  return {
+    X: P[m],
+    prev: P[(m + 3) % 4],
+    next: P[(m + 1) % 4],
+    opp: P[(m + 2) % 4],
+    names: [QUAD[(m + 3) % 4], QUAD[(m + 1) % 4], QUAD[(m + 2) % 4]],
+  };
+}
+
+/** The fourth corner of a parallelogram, as two tiles. */
+const coordParaFourthTiles: Generator<FourthParams> = {
+  id: 'coord-para-fourth-tiles',
+  sample: (rng, difficulty) => ({ ...sampleQuad(rng, difficulty, ALL_QUADS), missing: difficulty > 1 ? rng.int(0, 3) : 3 }),
+  render: (p): Slide => {
+    const P = quadOf(p);
+    const { X, prev, next, opp } = fourthParts(p);
+    const letter = QUAD[p.missing];
+    const given = [0, 1, 2, 3].filter((i) => i !== p.missing);
+    const answer = [String(X[0]), String(X[1])];
+    const wrong = [minusPt(plusPt(prev, opp), next), minusPt(plusPt(next, opp), prev), plusPt(prev, next)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `$ABCD$ is a parallelogram, its corners in that order round it, with ${cornersNamed(
+            given.map((i) => P[i]),
+            given.map((i) => QUAD[i]),
+          )}. Find $${letter}$.`,
+        ),
+      ],
+      template: `${letter} = ({0}, {1})`,
+      bank: bank(answer, wrong.flatMap(([x, y]) => [String(x), String(y)]), X, 2),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const { X, prev, next, opp, names } = fourthParts(p);
+    const [dx, dy] = minusPt(next, opp);
+    return [
+      {
+        text: `Opposite sides of a parallelogram are equal and parallel, so the step from $${names[2]}$ to $${names[1]}$ is the same as the step from $${names[0]}$ to $${QUAD[p.missing]}$.`,
+      },
+      {
+        tex: chain(
+          `${names[1]} - ${names[2]} &= (${next[0]} - ${paren(opp[0])}, ${next[1]} - ${paren(opp[1])}) = ${pt(dx, dy)}`,
+          `${QUAD[p.missing]} &= (${prev[0]} + ${paren(dx)}, ${prev[1]} + ${paren(dy)}) = ${pt(...X)}`,
+        ),
+      },
+    ];
+  },
+};
+
+interface ParallelKParams {
+  P: Four;
+}
+
+/**
+ * AB parallel to DC, with D's height unknown. D is C less a whole number of
+ * AB's lattice steps, so k is whole; at difficulty 1 that step is one across,
+ * so the gradient is whole too.
+ */
+const coordParallelK: Generator<ParallelKParams> = {
+  id: 'coord-parallel-k',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const quad = sampleQuad(rng, difficulty, ALL_QUADS, (p) => sidesSlanted(p) && (difficulty > 1 || Math.abs(primitive(p.u)[0]) === 1));
+      const [A, B, C] = quadOf(quad);
+      const D = minusPt(C, scalePt(rng.int(1, 3), primitive(quad.u)));
+      const P: Four = [A, B, C, D];
+      if (!inReach(P) || !convex(P)) continue;
+      return { P };
+    }
+  },
+  render: ({ P }): Slide => {
+    const [A, B, C, D] = P;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `In the quadrilateral $ABCD$, $AB$ is parallel to $DC$. ${cornersNamed([A, B, C], ['A', 'B', 'C'])}, and $D(${D[0]}, k)$. Find $k$.`,
+        ),
+      ],
+      lead: 'k =',
+      keypad: [],
+      answer: String(D[1]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: ({ P }) => {
+    const [A, B, C, D] = P;
+    const m = slopeOf(A, B);
+    const run = q(D[0] - C[0]);
+    return intOptions(D[1], [
+      value(sub(q(C[1]), mul(m, run))),
+      value(add(q(C[1]), mul(perp(m), run))),
+      value(add(q(C[1]), mul(inv(m), run))),
+      A[1] + C[1] - B[1],
+    ]);
+  },
+  solution: ({ P }) => {
+    const [A, B, C, D] = P;
+    const m = slopeOf(A, B);
+    return [
+      { tex: gradientLine('AB', A, B).replace('&', '') },
+      { text: 'Parallel lines have equal gradients, so $DC$ has that gradient too. Write it with $k$ in, and solve:' },
+      {
+        tex: chain(
+          `\\frac{${C[1]} - k}{${C[0]} - ${paren(D[0])}} &= ${qTex(m)}`,
+          `${C[1]} - k &= ${qTex(m)} \\times ${paren(C[0] - D[0])} = ${C[1] - D[1]}`,
+          `k &= ${D[1]}`,
+        ),
+      },
+    ];
+  },
+};
+
+interface QuadSliderParams extends QuadParams {
+  axis: 'x' | 'y';
+}
+
+/** A, B and C drawn with two sides: slide to D, across (difficulty 1) or up (difficulty 2). */
+const coordParaSlider: Generator<QuadSliderParams> = {
+  id: 'coord-para-slider',
+  sample: (rng, difficulty) => ({ ...sampleQuad(rng, difficulty, ALL_QUADS, sidesSlanted), axis: difficulty > 1 ? 'y' : 'x' }),
+  render: (p): Slide => {
+    const [A, B, C, D] = quadOf(p);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$ABCD$ is a parallelogram with ${cornersNamed([A, B, C], ['A', 'B', 'C'])}, drawn with the sides $AB$ and $BC$. Find $D$, and slide to its ${p.axis === 'x' ? '$x$-coordinate' : 'height'}.`,
+        ),
+      ],
+      min: -9,
+      max: 9,
+      step: 1,
+      answer: p.axis === 'x' ? D[0] : D[1],
+      readout: `${p.axis} = {v}`,
+      figure: {
+        svg: plotWithCircles(
+          {
+            xMin: -10,
+            xMax: 10,
+            yMin: -10,
+            yMax: 10,
+            curves: [segment(A[0], A[1], B[0], B[1]), segment(B[0], B[1], C[0], C[1])],
+            marks: [A, B, C].map(([x, y]) => ({ x, y })),
+            label: 'Three corners of a parallelogram joined by two of its sides',
+          },
+          [],
+        ),
+        axis: p.axis,
+        ...markerWindow(-10, 10, p.axis, SQUARE),
+      },
+    };
+  },
+  solution: (p) => {
+    const [A, B, C, D] = quadOf(p);
+    const [dx, dy] = minusPt(A, B);
+    return [
+      { text: 'Opposite sides of a parallelogram are equal and parallel, so $D$ is the same step from $C$ as $A$ is from $B$:' },
+      {
+        tex: chain(
+          `A - B &= ${pt(dx, dy)}`,
+          `D &= (${C[0]} + ${paren(dx)}, ${C[1]} + ${paren(dy)}) = ${pt(...D)}`,
+        ),
+      },
+    ];
+  },
+};
+
+/* ---------- lesson 2: right angles ---------- */
+
+/** A labelled product fork and a yes-or-no verdict: the shape of every "is it a ...?" flow here. */
+function productFlow(
+  prompt: string,
+  subject: string,
+  ask: string,
+  product: Q,
+  slips: Q[],
+  verdict: { ask: string; yes: string; no: string; right: boolean },
+): Slide {
+  const labels = forkLabels([product, ...slips]).slice(0, 4);
+  return {
+    kind: 'flow',
+    prompt: [say(prompt)],
+    subject,
+    steps: [
+      { id: 'product', ask, branches: onward(labels, 'verdict') },
+      {
+        id: 'verdict',
+        ask: verdict.ask,
+        branches: [
+          { label: 'Yes', outcome: verdict.yes },
+          { label: 'No', outcome: verdict.no },
+        ],
+      },
+    ],
+    answer: [labels[0], verdict.right ? 'Yes' : 'No'],
+  };
+}
+
+/** Slips for a product of two gradients: the other side of -1, the sum and the difference. */
+function productSlips(m1: Q, m2: Q): Q[] {
+  const product = mul(m1, m2);
+  return same(product, q(-1)) ? [q(1), add(m1, m2), sub(m1, m2), q(0)] : [q(-1), neg(product), add(m1, m2), sub(m1, m2)];
+}
+
+/** A parallelogram, and the angle at B by the gradients of AB and BC. */
+const coordRectFlow: Generator<QuadParams> = {
+  id: 'coord-rect-flow',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ALL_QUADS, sidesSlanted),
+  render: (p): Slide => {
+    const P = quadOf(p);
+    const [A, B, C] = P;
+    const [mAB, mBC] = [slopeOf(A, B), slopeOf(B, C)];
+    return productFlow(
+      `$ABCD$ is a parallelogram with ${cornersNamed(P, QUAD)}. Is it a rectangle?`,
+      'm_{AB} \\times m_{BC}',
+      'Work out the gradients of $AB$ and $BC$ and multiply them. What do you get?',
+      mul(mAB, mBC),
+      productSlips(mAB, mBC),
+      {
+        ask: 'So is $ABCD$ a rectangle?',
+        yes: 'The angle at $B$ is a right angle, and a parallelogram with one right angle has four.',
+        no: 'The angle at $B$ is not a right angle, so no angle is.',
+        right: perpendicular(mAB, mBC),
+      },
+    );
+  },
+  solution: (p) => {
+    const [A, B, C] = quadOf(p);
+    const [mAB, mBC] = [slopeOf(A, B), slopeOf(B, C)];
+    const right = perpendicular(mAB, mBC);
+    return [
+      { tex: chain(gradientLine('AB', A, B), gradientLine('BC', B, C)) },
+      { text: `Multiplied: $${productTex(mAB, mBC)}$.` },
+      {
+        text: right
+          ? 'That is $-1$, so $AB$ is perpendicular to $BC$. A parallelogram with one right angle has four, so $ABCD$ is a rectangle.'
+          : 'That is not $-1$, so the angle at $B$ is not a right angle, and $ABCD$ is not a rectangle.',
+      },
+    ];
+  },
+};
+
+/** The two diagonals' changes in x and y, then their squared lengths. */
+const coordDiagonalsTree: Generator<QuadParams> = {
+  id: 'coord-diagonals-tree',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ALL_QUADS),
+  render: (p): Slide => {
+    const P = quadOf(p);
+    const [A, B, C, D] = P;
+    const ac = minusPt(C, A);
+    const bd = minusPt(D, B);
+    const answer = [ac[0], ac[1], dotPt(ac, ac), bd[0], bd[1], dotPt(bd, bd)].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `$ABCD$ is a parallelogram with ${cornersNamed(P, QUAD)}. Top row: the change in $x$ and in $y$ from $A$ to $C$, then from $B$ to $D$. Underneath: $AC^2$ and $BD^2$.`,
+        ),
+      ],
+      expression: 'AC^2 = BD^2 \\,?',
+      nodes: [
+        { id: 'acx', from: [] },
+        { id: 'acy', from: [] },
+        { id: 'ac', from: ['acx', 'acy'] },
+        { id: 'bdx', from: [] },
+        { id: 'bdy', from: [] },
+        { id: 'bd', from: ['bdx', 'bdy'] },
+      ],
+      bank: bank(
+        answer,
+        [-ac[0], -bd[1], Math.abs(ac[0]) + Math.abs(ac[1]), Math.abs(bd[0]) + Math.abs(bd[1]), 2 * dotPt(ac, ac)].map(String),
+        [dotPt(ac, ac), dotPt(bd, bd)],
+      ),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const [A, B, C, D] = quadOf(p);
+    const equal = dist2(A, C) === dist2(B, D);
+    return [
+      { tex: chain(lengthLine('AC', A, C), lengthLine('BD', B, D)) },
+      {
+        text: equal
+          ? 'The diagonals are equal, and a parallelogram with equal diagonals is a rectangle.'
+          : 'The diagonals are not equal, so this parallelogram is not a rectangle.',
+      },
+    ];
+  },
+};
+
+interface PerpKParams {
+  /** The corner with the right angle, and the ends of its two arms; the last one's height is unknown. */
+  X: Pt;
+  Y: Pt;
+  Z: Pt;
+}
+
+/** k from the gradient of XZ, which is perpendicular to XY. */
+function perpKSolution({ X, Y, Z }: PerpKParams, [x, y, z]: [string, string, string]): SolutionStep[] {
+  const m = slopeOf(X, Y);
+  const mZ = perp(m);
+  return [
+    { text: `The angle at $${x}$ is a right angle, so $${x}${z}$ is perpendicular to $${x}${y}$:` },
+    { tex: chain(gradientLine(`${x}${y}`, X, Y), `m_{${x}${z}} &= -1 \\div ${qParen(m)} = ${qTex(mZ)}`) },
+    { text: `Write the gradient of $${x}${z}$ with $k$ in it, and solve:` },
+    {
+      tex: chain(
+        `\\frac{k - ${paren(X[1])}}{${Z[0]} - ${paren(X[0])}} &= ${qTex(mZ)}`,
+        `k - ${paren(X[1])} &= ${qTex(mZ)} \\times ${paren(Z[0] - X[0])} = ${Z[1] - X[1]}`,
+        `k &= ${Z[1]}`,
+      ),
+    },
+  ];
+}
+
+/** Slips for a height found from a perpendicular gradient: the gradient not turned, turned the wrong way, or flipped only. */
+function perpKChoices({ X, Y, Z }: PerpKParams, others: number[]) {
+  const m = slopeOf(X, Y);
+  const run = q(Z[0] - X[0]);
+  return intOptions(Z[1], [
+    value(add(q(X[1]), mul(m, run))),
+    value(add(q(X[1]), mul(neg(perp(m)), run))),
+    value(add(q(X[1]), mul(inv(m), run))),
+    ...others,
+  ]);
+}
+
+/** Difficulty 1 keeps the side through the unknown one step across per rise, so its gradient is whole. */
+const wholeArm = (difficulty: number, arm: Pt) => difficulty > 1 || Math.abs(primitive(arm)[0]) === 1;
+
+/** A rectangle's third corner from the right angle at B, with C's height unknown. */
+const coordRectK: Generator<QuadParams> = {
+  id: 'coord-rect-k',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ['rectangle', 'square'], (p) => sidesSlanted(p) && wholeArm(difficulty, p.v)),
+  render: (p): Slide => {
+    const [A, B, C] = quadOf(p);
+    return {
+      kind: 'expression',
+      prompt: [say(`$ABCD$ is a rectangle with $${namedAt('A', A)}$, $${namedAt('B', B)}$ and $C(${C[0]}, k)$. Find $k$.`)],
+      lead: 'k =',
+      keypad: [],
+      answer: String(C[1]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const [A, B, C] = quadOf(p);
+    return perpKChoices({ X: B, Y: A, Z: C }, [A[1] + C[1] - B[1], -C[1]]);
+  },
+  solution: (p) => {
+    const [A, B, C] = quadOf(p);
+    return perpKSolution({ X: B, Y: A, Z: C }, ['B', 'A', 'C']);
+  },
+};
+
+/* ---------- lesson 3: equal sides ---------- */
+
+/** AB^2 and BC^2 as two tiles: two sides that meet settle all four. */
+const coordSideLengthsTiles: Generator<QuadParams> = {
+  id: 'coord-side-lengths-tiles',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ALL_QUADS),
+  render: (p): Slide => {
+    const P = quadOf(p);
+    const { u, v } = p;
+    const answer = [String(dotPt(u, u)), String(dotPt(v, v))];
+    return {
+      kind: 'tiles',
+      prompt: [say(`$ABCD$ is a parallelogram with ${cornersNamed(P, QUAD)}. Find the squared lengths of $AB$ and $BC$.`)],
+      template: 'AB^2 = {0}, \\quad BC^2 = {1}',
+      bank: bank(
+        answer,
+        [
+          Math.abs(u[0]) + Math.abs(u[1]),
+          Math.abs(v[0]) + Math.abs(v[1]),
+          dotPt(plusPt(u, v), plusPt(u, v)),
+          (u[0] + u[1]) ** 2,
+        ].map(String),
+        [dotPt(u, u), dotPt(v, v)],
+        2,
+      ),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const [A, B, C] = quadOf(p);
+    const equal = dist2(A, B) === dist2(B, C);
+    return [
+      { tex: chain(lengthLine('AB', A, B), lengthLine('BC', B, C)) },
+      {
+        text: equal
+          ? 'They are equal. Opposite sides of a parallelogram are equal as well, so all four sides are: $ABCD$ is a rhombus.'
+          : 'They are not equal, so $ABCD$ is not a rhombus.',
+      },
+    ];
+  },
+};
+
+/** A parallelogram, and whether its diagonals cross square on. */
+const coordRhombusFlow: Generator<QuadParams> = {
+  id: 'coord-rhombus-flow',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ALL_QUADS, diagonalsSlanted),
+  render: (p): Slide => {
+    const P = quadOf(p);
+    const [A, B, C, D] = P;
+    const [mAC, mBD] = [slopeOf(A, C), slopeOf(B, D)];
+    return productFlow(
+      `$ABCD$ is a parallelogram with ${cornersNamed(P, QUAD)}. Is it a rhombus?`,
+      'm_{AC} \\times m_{BD}',
+      'Work out the gradients of the diagonals $AC$ and $BD$ and multiply them. What do you get?',
+      mul(mAC, mBD),
+      productSlips(mAC, mBD),
+      {
+        ask: 'So is $ABCD$ a rhombus?',
+        yes: 'Its diagonals cross at a right angle, and a parallelogram whose diagonals do that is a rhombus.',
+        no: 'Its diagonals do not cross at a right angle, so its sides are not all equal.',
+        right: perpendicular(mAC, mBD),
+      },
+    );
+  },
+  solution: (p) => {
+    const [A, B, C, D] = quadOf(p);
+    const [mAC, mBD] = [slopeOf(A, C), slopeOf(B, D)];
+    const right = perpendicular(mAC, mBD);
+    return [
+      { tex: chain(gradientLine('AC', A, C), gradientLine('BD', B, D)) },
+      { text: `Multiplied: $${productTex(mAC, mBD)}$.` },
+      {
+        text: right
+          ? 'That is $-1$, so the diagonals are perpendicular, and $ABCD$ is a rhombus.'
+          : 'That is not $-1$, so the diagonals are not perpendicular, and $ABCD$ is not a rhombus.',
+      },
+    ];
+  },
+};
+
+const NAMES: QuadName[] = ['parallelogram', 'rectangle', 'rhombus', 'square'];
+
+/** The most exact name for a parallelogram: one of four, the options turned by a hash. */
+const coordNameQuad: Generator<QuadParams> = {
+  id: 'coord-name-quad',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ALL_QUADS, sidesSlanted),
+  render: (p): Slide => {
+    const text = `$ABCD$ is a parallelogram with ${cornersNamed(quadOf(p), QUAD)}. What is the most exact name for it?`;
+    const order = turned(NAMES, text);
+    return {
+      kind: 'choice',
+      prompt: [say(text)],
+      options: order.map((name, idx) => ({ id: `opt${idx}`, label: `${A_NAME[name][0].toUpperCase()}${A_NAME[name].slice(1)}` })),
+      correctId: `opt${order.indexOf(p.shape)}`,
+    };
+  },
+  solution: (p) => nameSolution(quadOf(p), p.shape),
+};
+
+/** Both tests on the corner B, one tap at a time, then the name they make. */
+const coordSquareSteps: Generator<QuadParams> = {
+  id: 'coord-square-steps',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ALL_QUADS, sidesSlanted),
+  render: (p): Slide => {
+    const [A, B, C] = quadOf(p);
+    const { u, v } = p;
+    const [mAB, mBC] = [slopeOf(A, B), slopeOf(B, C)];
+    const product = mul(mAB, mBC);
+    const square = (label: string, [x, y]: Pt) => `${label}^2 = ${paren(x)}^2 + ${paren(y)}^2`;
+    const lengthBank = (label: string, [x, y]: Pt) =>
+      stepBank(`${label}^2 = ${x * x + y * y}`, `${label}^2 = ${Math.abs(x) + Math.abs(y)}`, `${label}^2 = ${(x + y) ** 2}`, `${label}^2 = ${x * x + y * y + 1}`);
+    const productValue = (v2: Q) => `m_{AB} \\times m_{BC} = ${qTex(v2)}`;
+    const called = (name: QuadName) => `ABCD \\text{ is ${A_NAME[name]}}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$ABCD$ is a parallelogram with ${cornersNamed(quadOf(p), QUAD)}. Name it as exactly as you can: tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [square('AB', u), ',', square('BC', v), ',', `m_{AB} \\times m_{BC} = ${qTex(mAB)} \\times ${qParen(mBC)}`],
+      reductions: [
+        { span: [0, 1], value: `AB^2 = ${dotPt(u, u)}`, bank: lengthBank('AB', u) },
+        { span: [2, 3], value: `BC^2 = ${dotPt(v, v)}`, bank: lengthBank('BC', v) },
+        {
+          span: [4, 5],
+          value: productValue(product),
+          bank: stepBank(productValue(product), ...productSlips(mAB, mBC).slice(0, 3).map(productValue)),
+        },
+        { span: [0, 5], value: called(p.shape), bank: stepBank(called(p.shape), ...NAMES.map(called)) },
+      ],
+    };
+  },
+  solution: (p) => nameSolution(quadOf(p), p.shape),
+};
+
+/* ---------- lesson 4: triangles ---------- */
+
+const TRI = ['P', 'Q', 'R'];
+
+/** The three sides, each named by its ends: PQ, QR, RP. */
+const TRI_SIDES: [number, number][] = [
+  [0, 1],
+  [1, 2],
+  [2, 0],
+];
+
+const sideName = ([i, j]: [number, number]): string => `${TRI[i]}${TRI[j]}`;
+
+type TriKind = 'right' | 'isosceles' | 'scalene';
+
+interface TriParams {
+  /** The corner the triangle is built from: the right angle, or the apex. */
+  V: Pt;
+  w1: Pt;
+  w2: Pt;
+  /** Which of P, Q, R the corner V is. */
+  at: number;
+  kind: TriKind;
+}
+
+/** P, Q and R, with V at `at` and the ends of its two arms after it. */
+function triOf({ V, w1, w2, at }: TriParams): [Pt, Pt, Pt] {
+  const out: Pt[] = [];
+  out[at] = V;
+  out[(at + 1) % 3] = plusPt(V, w1);
+  out[(at + 2) % 3] = plusPt(V, w2);
+  return out as [Pt, Pt, Pt];
+}
+
+/** The corner whose two sides satisfy Pythagoras, found from the squared lengths alone; -1 for none. */
+function rightCorner(T: Pt[]): number {
+  for (let i = 0; i < 3; i += 1) {
+    const [Y, Z] = [T[(i + 1) % 3], T[(i + 2) % 3]];
+    if (dist2(T[i], Y) + dist2(T[i], Z) === dist2(Y, Z)) return i;
+  }
+  return -1;
+}
+
+/** The corner where two equal sides meet; -1 for none. */
+function apexOf(T: Pt[]): number {
+  for (let i = 0; i < 3; i += 1) {
+    if (dist2(T[i], T[(i + 1) % 3]) === dist2(T[i], T[(i + 2) % 3])) return i;
+  }
+  return -1;
+}
+
+/**
+ * A triangle of the kind asked for: right-angled from a vector and a multiple
+ * of its perpendicular, isosceles from two lattice vectors of one squared
+ * length, scalene with three different sides and no right angle.
+ */
+function sampleTri(rng: Rng, difficulty: number, kinds: TriKind[], keep: (p: TriParams) => boolean = () => true): TriParams {
+  const hard = difficulty > 1;
+  const reach = hard ? 6 : 4;
+  for (;;) {
+    const kind = rng.pick(kinds);
+    let w1: Pt;
+    let w2: Pt;
+    if (kind === 'right') {
+      const top = hard ? 3 : 2;
+      const p = primitive([nz(rng, top), nz(rng, top)]);
+      w1 = scalePt(rng.int(1, hard ? 3 : 2), p);
+      w2 = scalePt(rng.int(1, hard ? 3 : 2) * rng.sign(), [-p[1], p[0]]);
+    } else if (kind === 'isosceles') {
+      const vectors = latticeVectors(rng.pick(hard ? [17, 20, 25, 34] : [5, 10, 13]));
+      [w1, w2] = [rng.pick(vectors), rng.pick(vectors)];
+    } else {
+      const top = hard ? 5 : 3;
+      [w1, w2] = [
+        [nz(rng, top), rng.int(-top, top)],
+        [rng.int(-top, top), nz(rng, top)],
+      ];
+    }
+    if (crossPt(w1, w2) === 0) continue;
+    const params = { V: [rng.int(-reach, reach), rng.int(-reach, reach)] as Pt, w1, w2, at: rng.int(0, 2), kind };
+    const T = triOf(params);
+    if (!inReach(T)) continue;
+    const right = rightCorner(T) >= 0;
+    const iso = apexOf(T) >= 0;
+    if (kind === 'right' && !right) continue;
+    if (kind === 'isosceles' && (!iso || right)) continue;
+    if (kind === 'scalene' && (iso || right)) continue;
+    if (!keep(params)) continue;
+    return params;
+  }
+}
+
+/** The three squared lengths, one line each. */
+function triLengths(T: Pt[]): SolutionStep {
+  return { tex: chain(...TRI_SIDES.map(([i, j]) => lengthLine(sideName([i, j]), T[i], T[j]))) };
+}
+
+/** The two sides at the corner the prompt names, their gradients, then their product. */
+const coordTriRightTree: Generator<TriParams> = {
+  id: 'coord-tri-right-tree',
+  sample: (rng, difficulty) => {
+    const p = sampleTri(rng, difficulty, ['right'], (t) => slantedVec(t.w1) && slantedVec(t.w2));
+    return difficulty > 1 ? p : { ...p, at: 1 };
+  },
+  render: (p): Slide => {
+    const T = triOf(p);
+    const [x, y, z] = [p.at, (p.at + 1) % 3, (p.at + 2) % 3];
+    const [m1, m2] = [slopeOf(T[x], T[y]), slopeOf(T[x], T[z])];
+    const answer = [qTex(m1), qTex(m2), '-1'];
+    const [s1, s2] = [`${TRI[x]}${TRI[y]}`, `${TRI[x]}${TRI[z]}`];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Triangle $PQR$ has ${cornersNamed(T, TRI)}. Show that it is right-angled at $${TRI[x]}$. Top row: the gradients of $${s1}$ and $${s2}$. Underneath: their product.`,
+        ),
+      ],
+      expression: `m_{${s1}} \\times m_{${s2}}`,
+      nodes: [
+        { id: 'first', from: [] },
+        { id: 'second', from: [] },
+        { id: 'product', from: ['first', 'second'] },
+      ],
+      bank: bank(answer, [qTex(neg(m1)), qTex(inv(m1)), qTex(neg(m2)), qTex(inv(m2)), '1'], [-1]),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const T = triOf(p);
+    const [x, y, z] = [p.at, (p.at + 1) % 3, (p.at + 2) % 3];
+    const [s1, s2] = [`${TRI[x]}${TRI[y]}`, `${TRI[x]}${TRI[z]}`];
+    const [m1, m2] = [slopeOf(T[x], T[y]), slopeOf(T[x], T[z])];
+    return [
+      { tex: chain(gradientLine(s1, T[x], T[y]), gradientLine(s2, T[x], T[z])) },
+      { text: `Multiplied: $${productTex(m1, m2)}$, so $${s1}$ is perpendicular to $${s2}$ and the angle at $${TRI[x]}$ is a right angle.` },
+    ];
+  },
+};
+
+const NOWHERE = 'It has no right angle';
+
+/** Where the right angle is, by Pythagoras on the squared lengths. Difficulty 2 may have none. */
+const coordTriVertexChoice: Generator<TriParams> = {
+  id: 'coord-tri-vertex-choice',
+  sample: (rng, difficulty) => sampleTri(rng, difficulty, difficulty > 1 ? ['right', 'right', 'scalene'] : ['right']),
+  render: (p): Slide => {
+    const T = triOf(p);
+    const text = `Triangle $PQR$ has ${cornersNamed(T, TRI)}. Where is its right angle?`;
+    const labels = [...TRI.map((name) => `At ${name}`), NOWHERE];
+    const corner = rightCorner(T);
+    const order = turned(labels, text);
+    const right = corner >= 0 ? labels[corner] : NOWHERE;
+    return {
+      kind: 'choice',
+      prompt: [say(text)],
+      options: order.map((label, idx) => ({ id: `opt${idx}`, label })),
+      correctId: `opt${order.indexOf(right)}`,
+    };
+  },
+  solution: (p) => {
+    const T = triOf(p);
+    const corner = rightCorner(T);
+    const sides = TRI_SIDES.map(([i, j]) => dist2(T[i], T[j]));
+    const longest = sides.indexOf(Math.max(...sides));
+    const legs = [0, 1, 2].filter((i) => i !== longest);
+    return [
+      triLengths(T),
+      {
+        text:
+          corner >= 0
+            ? `The two shorter add to the longest: $${sides[legs[0]]} + ${sides[legs[1]]} = ${sides[longest]}$. So by Pythagoras the angle opposite $${sideName(TRI_SIDES[longest])}$, at $${TRI[corner]}$, is a right angle.`
+            : `The two shorter add to $${sides[legs[0]] + sides[legs[1]]}$, not $${sides[longest]}$, so Pythagoras fails and there is no right angle.`,
+      },
+    ];
+  },
+};
+
+/** "$RP = PQ$": the equal pair at each corner, in the order the corners are named. */
+const EQUAL_AT = ['$RP = PQ$', '$PQ = QR$', '$QR = RP$'];
+
+const NO_PAIR = 'None: it is scalene';
+
+/**
+ * The three squared lengths, then which two are equal. The wrong triples are
+ * the slips: adding the changes, or squaring their sum or difference.
+ */
+const coordIsoscelesFlow: Generator<TriParams> = {
+  id: 'coord-isosceles-flow',
+  sample: (rng, difficulty) => sampleTri(rng, difficulty, ['isosceles', 'isosceles', 'scalene']),
+  render: (p): Slide => {
+    const T = triOf(p);
+    const triple = (f: (d: Pt) => number) =>
+      TRI_SIDES.map(([i, j]) => `$${sideName([i, j])}^2 = ${f(minusPt(T[j], T[i]))}$`).join(', ');
+    const triples = [
+      triple(([x, y]) => x * x + y * y),
+      triple(([x, y]) => Math.abs(x) + Math.abs(y)),
+      triple(([x, y]) => (x + y) ** 2),
+      triple(([x, y]) => (x - y) ** 2),
+    ].filter((label, idx, all) => all.indexOf(label) === idx);
+    const apex = apexOf(T);
+    return {
+      kind: 'flow',
+      prompt: [say(`Triangle $PQR$ has ${cornersNamed(T, TRI)}. Is it isosceles?`)],
+      subject: 'PQ^2, \\; QR^2, \\; RP^2',
+      steps: [
+        { id: 'lengths', ask: 'Work out the squared length of each side. What are they?', branches: onward(triples, 'pair') },
+        {
+          id: 'pair',
+          ask: 'So which two sides are equal?',
+          branches: [
+            ...EQUAL_AT.map((label, i) => ({ label, outcome: `Isosceles: the equal sides meet at $${TRI[i]}$.` })),
+            { label: NO_PAIR, outcome: 'No two sides are the same length.' },
+          ],
+        },
+      ],
+      answer: [triples[0], apex >= 0 ? EQUAL_AT[apex] : NO_PAIR],
+    };
+  },
+  solution: (p) => {
+    const T = triOf(p);
+    const apex = apexOf(T);
+    return [
+      triLengths(T),
+      {
+        text:
+          apex >= 0
+            ? `The two sides from $${TRI[apex]}$ have the same squared length, so they are equal and $PQR$ is isosceles.`
+            : 'No two squared lengths match, so no two sides are equal: $PQR$ is scalene.',
+      },
+    ];
+  },
+};
+
+/** A right-angled triangle's third corner, its height unknown. */
+const coordTriRightK: Generator<TriParams> = {
+  id: 'coord-tri-right-k',
+  sample: (rng, difficulty) => {
+    const p = sampleTri(rng, difficulty, ['right'], (t) => slantedVec(t.w1) && slantedVec(t.w2) && wholeArm(difficulty, t.w2));
+    return difficulty > 1 ? p : { ...p, at: 1 };
+  },
+  render: (p): Slide => {
+    const T = triOf(p);
+    const z = (p.at + 2) % 3;
+    const parts = T.map((X, i) => (i === z ? `$${TRI[i]}(${X[0]}, k)$` : `$${namedAt(TRI[i], X)}$`));
+    return {
+      kind: 'expression',
+      prompt: [say(`Triangle $PQR$ is right-angled at $${TRI[p.at]}$, with ${parts[0]}, ${parts[1]} and ${parts[2]}. Find $k$.`)],
+      lead: 'k =',
+      keypad: [],
+      answer: String(T[z][1]),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const T = triOf(p);
+    const [x, y, z] = [p.at, (p.at + 1) % 3, (p.at + 2) % 3];
+    return perpKChoices({ X: T[x], Y: T[y], Z: T[z] }, [T[y][1], -T[z][1]]);
+  },
+  solution: (p) => {
+    const T = triOf(p);
+    const [x, y, z] = [p.at, (p.at + 1) % 3, (p.at + 2) % 3];
+    return perpKSolution({ X: T[x], Y: T[y], Z: T[z] }, [TRI[x], TRI[y], TRI[z]]);
+  },
+};
+
+/* ---------- lesson 5: writing the proof ---------- */
+
+interface ProofParams {
+  quad: QuadParams;
+  difficulty: number;
+  picks: number[];
+}
+
+/**
+ * The proof that ABCD is a rectangle (both pairs of sides parallel, then a
+ * right angle) or a rhombus (the diagonals bisect each other, then cross
+ * square on), with the learner's numbers in. Difficulty 2 takes the first
+ * fact in two steps, the second leaning on the first.
+ */
+function quadProof({ quad, difficulty }: ProofParams): Proof {
+  const P = quadOf(quad);
+  const [A, B, C, D] = P;
+  const claim = `${cornersNamed(P, QUAD)} are the corners of $ABCD$. Prove that it is ${A_NAME[quad.shape]}.`;
+  if (quad.shape === 'rectangle') {
+    const [mAB, mAD] = [slopeOf(A, B), slopeOf(A, D)];
+    const sides =
+      difficulty > 1
+        ? [
+            `$m_{AB} = m_{DC} = ${qTex(mAB)}$, so $AB$ is parallel to $DC$.`,
+            `And $m_{AD} = m_{BC} = ${qTex(mAD)}$, so $AD$ is parallel to $BC$ as well.`,
+          ]
+        : [`$m_{AB} = m_{DC} = ${qTex(mAB)}$ and $m_{AD} = m_{BC} = ${qTex(mAD)}$.`];
+    return {
+      claim,
+      steps: [
+        ...sides,
+        'So both pairs of opposite sides are parallel, and $ABCD$ is a parallelogram.',
+        `In this parallelogram $m_{AB} \\times m_{BC} = ${productTex(mAB, mAD)}$, so the angle at $B$ is a right angle.`,
+        'A parallelogram with a right angle is a rectangle.',
+      ],
+      pool: [
+        {
+          text: `$m_{AB} \\times m_{DC} = ${qTex(mul(mAB, mAB))}$, so $AB$ is perpendicular to $DC$.`,
+          why: '$AB$ and $DC$ are opposite sides: they are parallel, and a product that is not $-1$ shows nothing about a right angle.',
+        },
+        { text: 'A parallelogram with a right angle is a rhombus.', why: 'A right angle makes a rectangle; a rhombus needs equal sides.' },
+        {
+          text: `$m_{AB} = m_{BC}$, so $AB$ is parallel to $BC$.`,
+          why: `$m_{AB} = ${qTex(mAB)}$ and $m_{BC} = ${qTex(mAD)}$ are different, and two sides meeting at $B$ cannot be parallel.`,
+        },
+      ],
+    };
+  }
+  const M = midOf(A, C);
+  const [mAC, mBD] = [slopeOf(A, C), slopeOf(B, D)];
+  const halves =
+    difficulty > 1
+      ? [`The midpoint of $AC$ is $M_{AC} = ${pt(...M)}$.`, `And the midpoint of $BD$ is the same point, $M_{BD} = ${pt(...M)}$.`]
+      : [`The midpoints of $AC$ and $BD$ are one point: $M_{AC} = M_{BD} = ${pt(...M)}$.`];
+  return {
+    claim,
+    steps: [
+      ...halves,
+      'So the diagonals bisect each other, and $ABCD$ is a parallelogram.',
+      `In this parallelogram $m_{AC} \\times m_{BD} = ${productTex(mAC, mBD)}$, so the diagonals are perpendicular.`,
+      'A parallelogram with perpendicular diagonals is a rhombus.',
+    ],
+    pool: [
+      { text: 'A parallelogram with perpendicular diagonals is a rectangle.', why: 'Perpendicular diagonals make a rhombus; a rectangle needs a right angle at a corner.' },
+      {
+        text: `$m_{AC} = m_{BD}$, so the diagonals are parallel.`,
+        why: `$m_{AC} = ${qTex(mAC)}$ and $m_{BD} = ${qTex(mBD)}$ are different, and two diagonals that cross cannot be parallel.`,
+      },
+      {
+        text: `$AC^2 = ${dist2(A, C)}$ and $BD^2 = ${dist2(B, D)}$, so the diagonals are equal.`,
+        why: 'The squared lengths differ, so the diagonals are not equal; that is why this rhombus is not a square.',
+      },
+    ],
+  };
+}
+
+/** Put the proof that ABCD is a rectangle or a rhombus in order. */
+const coordProofOrder: Generator<ProofParams> = {
+  id: 'coord-proof-order',
+  sample: (rng, difficulty) => {
+    const shape = rng.pick<QuadName>(['rectangle', 'rhombus']);
+    const quad = sampleQuad(rng, difficulty, [shape], shape === 'rectangle' ? sidesSlanted : (p) => diagonalsSlanted(p) && midWhole(p));
+    const params = { quad, difficulty, picks: [] as number[] };
+    return { ...params, picks: pickDistractors(rng, quadProof(params), difficulty) };
+  },
+  render: (p) => orderSlide(quadProof(p), p.picks),
+  solution: (p) => orderSolution(quadProof(p), p.picks),
+};
+
+/** Which point completes a rectangle, a rhombus or a square: D = A + C - B. */
+const coordCompleteChoice: Generator<QuadParams> = {
+  id: 'coord-complete-choice',
+  sample: (rng, difficulty) => sampleQuad(rng, difficulty, ['rectangle', 'rhombus', 'square']),
+  render: (p): Slide => {
+    const [A, B, C, D] = quadOf(p);
+    const candidates: Pt[] = [
+      minusPt(plusPt(A, B), C),
+      minusPt(plusPt(B, C), A),
+      minusPt(scalePt(2, B), D),
+      [D[1], D[0]],
+      ...NUDGES.map((n) => plusPt(D, n)),
+    ];
+    return choiceSlide(
+      [say(`$${namedAt('A', A)}$, $${namedAt('B', B)}$ and $${namedAt('C', C)}$ are three corners of ${A_NAME[p.shape]} $ABCD$. Which point is $D$?`)],
+      pointOptions(D, candidates, (X) => !samePt(X, D)),
+    );
+  },
+  solution: (p) => {
+    const P = quadOf(p);
+    const [A, B, C, D] = P;
+    const [dx, dy] = minusPt(A, B);
+    return [
+      { text: `Every ${p.shape} is a parallelogram, so $D$ is the same step from $C$ as $A$ is from $B$:` },
+      { tex: chain(`A - B &= ${pt(dx, dy)}`, `D &= (${C[0]} + ${paren(dx)}, ${C[1]} + ${paren(dy)}) = ${pt(...D)}`) },
+      { text: 'A check that it is the right shape:' },
+      ...nameSolution(P, p.shape).slice(1),
+    ];
+  },
+};
+
+type SquareTest = 'parallel' | 'right' | 'equal';
+
+const SQUARE_TESTS: Record<SquareTest, string> = {
+  parallel: 'Both pairs of opposite sides parallel',
+  right: 'A right angle at B',
+  equal: 'AB = BC',
+};
+
+/** Which of the three tests for a square a quadrilateral passes. */
+function squareTests(P: Four): Record<SquareTest, boolean> {
+  const [A, B, C] = P;
+  return {
+    parallel: parallelSides(P),
+    right: perpendicular(slopeOf(A, B), slopeOf(B, C)),
+    equal: dist2(A, B) === dist2(B, C),
+  };
+}
+
+/**
+ * A figure that fails exactly one test for a square: a rectangle (the sides),
+ * a rhombus (the right angle), or at difficulty 2 a square with D moved off
+ * it, which keeps the right angle and the equal sides at B.
+ */
+const coordFailsOneChoice: Generator<CornersParams> = {
+  id: 'coord-fails-one-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const kind = rng.pick<SquareTest>(difficulty > 1 ? ['equal', 'right', 'parallel'] : ['equal', 'right']);
+      const shape: QuadName = kind === 'equal' ? 'rectangle' : kind === 'right' ? 'rhombus' : 'square';
+      const quad = sampleQuad(rng, difficulty, [shape], sidesSlanted);
+      const [A, B, C, D] = quadOf(quad);
+      const P: Four = [A, B, C, kind === 'parallel' ? plusPt(D, rng.pick(NUDGES)) : D];
+      if (!inReach(P) || !convex(P) || !slanted(A, P[3]) || !slanted(P[3], C)) continue;
+      const tests = squareTests(P);
+      if (Object.values(tests).filter((pass) => !pass).length !== 1 || tests[kind]) continue;
+      return { P };
+    }
+  },
+  render: ({ P }): Slide => {
+    const text = `${cornersNamed(P, QUAD)} are the corners of $ABCD$. It passes two of the three tests for a square below. Which does it fail?`;
+    const order = turned(['parallel', 'right', 'equal'] as SquareTest[], text);
+    const tests = squareTests(P);
+    return {
+      kind: 'choice',
+      prompt: [say(text)],
+      options: order.map((test, idx) => ({ id: `opt${idx}`, label: SQUARE_TESTS[test] })),
+      correctId: `opt${order.findIndex((test) => !tests[test])}`,
+    };
+  },
+  solution: ({ P }) => {
+    const [A, B, C, D] = P;
+    const tests = squareTests(P);
+    const [mAB, mBC] = [slopeOf(A, B), slopeOf(B, C)];
+    const verdict: Record<SquareTest, string> = {
+      parallel: 'It has the right angle and the equal sides at $B$, but its opposite sides are not parallel, so it is not even a parallelogram.',
+      right: 'It is a parallelogram with equal sides, so a rhombus, but it has no right angle.',
+      equal: 'It is a parallelogram with a right angle, so a rectangle, but its sides are not all equal.',
+    };
+    const failed = (Object.keys(tests) as SquareTest[]).find((test) => !tests[test]) as SquareTest;
+    return [
+      { tex: chain(gradientLine('AB', A, B), gradientLine('DC', D, C), gradientLine('AD', A, D), gradientLine('BC', B, C)) },
+      { text: `$m_{AB} \\times m_{BC} = ${productTex(mAB, mBC)}$.` },
+      { tex: chain(lengthLine('AB', A, B), lengthLine('BC', B, C)) },
+      { text: verdict[failed] },
+    ];
+  },
+};
+
+/** The level 5 order generators, for the proof-ordering tests. */
+export const coordinateGeometryOrders = [coordProofOrder];
+
 export const coordinateGeometryGenerators = [
   coordGradient,
   coordRiseRunTree,
@@ -5752,4 +7075,23 @@ export const coordinateGeometryGenerators = [
   coordOtherEndSteps,
   coordParallelTangent,
   coordOtherEndSlider,
+  coordParaFlow,
+  coordParaDiagonalSteps,
+  coordParaFourthTiles,
+  coordParallelK,
+  coordParaSlider,
+  coordRectFlow,
+  coordDiagonalsTree,
+  coordRectK,
+  coordSideLengthsTiles,
+  coordRhombusFlow,
+  coordNameQuad,
+  coordSquareSteps,
+  coordTriRightTree,
+  coordTriVertexChoice,
+  coordIsoscelesFlow,
+  coordTriRightK,
+  coordProofOrder,
+  coordCompleteChoice,
+  coordFailsOneChoice,
 ];

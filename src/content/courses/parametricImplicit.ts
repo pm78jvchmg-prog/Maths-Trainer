@@ -965,5 +965,214 @@ export const parametricImplicit: Course = {
         ask('param-meet-flow', 2),
       ],
     },
+    {
+      id: 'pi-l5',
+      title: 'Implicit Differentiation of Exponentials & Inverses',
+      lessons: [
+        {
+          id: 'pi-l5-exponential',
+          title: 'Exponentials with Any Base',
+          slides: [
+            teach(
+              prose(
+                'The power rule needs a constant power, so it cannot differentiate $y = 2^{x}$. Take logarithms instead: the power comes down, and $\\ln y$ differentiates as in Differentiating Terms in y.',
+              ),
+              display('\\ln y = x\\ln 2'),
+              display('\\frac{1}{y}' + DYDX + ' = \\ln 2'),
+              prose('$\\ln 2$ is only a number. Multiply by $y$:'),
+              display(DYDX + ' = 2^{x}\\ln 2'),
+            ),
+            ask('impl-ax-log-steps'),
+            ask('impl-ax-grad'),
+            ask('impl-ax-tiles'),
+            teach(
+              prose('The same working on $y = 3^{2x}$ gives $\\ln y = 2x\\ln 3$, so'),
+              display(DYDX + ' = 2\\ln 3 \\times 3^{2x}'),
+              prose(
+                'It agrees with From b^t to e^kt: $3^{2x} = e^{2x\\ln 3}$, and Exponentials and Logarithms differentiates $e^{kx}$ to $ke^{kx}$ with $k = 2\\ln 3$.',
+              ),
+            ),
+            ask('impl-ax-at-tree'),
+            ask('impl-ax-grad+choice', 2),
+            ask('impl-ax-log-steps', 2),
+            teach(
+              prose(
+                'The tempting slip is $x \\times 2^{x - 1}$, the power rule used where the power moves. At $x = 3$ that gives $12$; the true gradient is $8\\ln 2$, a little over $5.5$. The logarithm is never worked out: $\\ln 2$ stays in the answer.',
+              ),
+            ),
+            ask('impl-ax-tiles', 2),
+            ask('impl-ax-at-tree', 2),
+          ],
+          skillCheck: [ask('impl-ax-grad', 2), ask('impl-ax-tiles', 2), ask('impl-ax-at-tree', 2)],
+        },
+        {
+          id: 'pi-l5-arcsin',
+          title: 'The Inverse Sine',
+          slides: [
+            teach(
+              prose(
+                '$y = \\sin^{-1} x$ means $\\sin y = x$, with $y$ between $-\\frac{\\pi}{2}$ and $\\frac{\\pi}{2}$ (Undoing Sine). Differentiate both sides:',
+              ),
+              display('\\cos y\\,' + DYDX + ' = 1'),
+              prose(
+                'On that range $\\cos y$ is never negative, so $\\cos y = \\sqrt{1 - \\sin^2 y} = \\sqrt{1 - x^2}$, and',
+              ),
+              display(DYDX + ' = \\frac{1}{\\sqrt{1 - x^2}}'),
+              figure((t) => [t, Math.asin(t)], {
+                span: 2,
+                tMin: -1,
+                tMax: 1,
+                marks: [[0.6, Math.asin(0.6)]],
+                label: 'The curve y equals inverse sine of x, from x equals minus 1 to 1, with the point where x is 0.6 marked',
+              }),
+            ),
+            ask('impl-arcsin-derive-steps'),
+            ask('impl-arcsin-at-tree'),
+            ask('impl-arcsin-grad'),
+            teach(
+              prose(
+                '$y = \\cos^{-1} x$ means $\\cos y = x$, with $y$ between $0$ and $\\pi$. Differentiating gives $-\\sin y\\,' + DYDX + ' = 1$, and there $\\sin y$ is never negative:',
+              ),
+              display(DYDX + ' = -\\frac{1}{\\sqrt{1 - x^2}}'),
+              prose('The two gradients are negatives of each other, since $\\sin^{-1} x + \\cos^{-1} x = \\frac{\\pi}{2}$ is a constant.'),
+            ),
+            ask('impl-inverse-sign-flow'),
+            ask('impl-arcsin-grad+choice', 2),
+            ask('impl-arcsin-at-tree', 2),
+            teach(
+              prose(
+                'At $x = \\frac{3}{5}$, $1 - x^2 = \\frac{16}{25}$, a square, so the gradient is $\\frac{5}{4}$ exactly. Any $x$ from a Pythagorean triple works the same way: at $x = \\frac{5}{13}$ it is $\\frac{13}{12}$.',
+              ),
+              prose('The gradient is never less than $1$, and it grows without limit near $x = \\pm 1$, where the curve stands upright.'),
+            ),
+            ask('impl-arcsin-derive-steps', 2),
+            ask('impl-inverse-sign-flow', 2),
+          ],
+          skillCheck: [ask('impl-arcsin-grad', 2), ask('impl-arcsin-at-tree', 2), ask('impl-inverse-sign-flow', 2)],
+        },
+        {
+          id: 'pi-l5-arctan',
+          title: 'The Inverse Tangent',
+          slides: [
+            teach(
+              prose('$y = \\tan^{-1} x$ means $\\tan y = x$. Differentiate both sides:'),
+              display('\\sec^2 y\\,' + DYDX + ' = 1'),
+              prose('Use $1 + \\tan^2 y = \\sec^2 y$ (Reciprocal Graphs and Two Identities): $\\sec^2 y = 1 + x^2$, so'),
+              display(DYDX + ' = \\frac{1}{1 + x^2}'),
+              figure((t) => [t, Math.atan(t)], {
+                span: 4,
+                tMin: -4,
+                tMax: 4,
+                marks: [[0, 0]],
+                label: 'The curve y equals inverse tangent of x, levelling off to the left and right, with the origin marked',
+              }),
+            ),
+            ask('impl-arctan-grad'),
+            ask('impl-arctan-sec-tiles'),
+            ask('impl-arctan-at-tree'),
+            teach(
+              prose(
+                'The gradient is always positive and never more than $1$: it is $1$ at the origin and falls away on both sides as $1 + x^2$ grows. So $y = 3\\tan^{-1} x$ has gradient $\\frac{3}{1 + x^2}$, never more than $3$.',
+              ),
+              prose('It has gradient $\\frac{3}{10}$ where $1 + x^2 = 10$: at $x = 3$ and at $x = -3$.'),
+            ),
+            ask('impl-arctan-where'),
+            ask('impl-arctan-grad+choice', 2),
+            ask('impl-arctan-sec-tiles', 2),
+            teach(
+              prose('The same working handles $\\tan y = 3x$. The right-hand side now differentiates to $3$:'),
+              display('\\sec^2 y\\,' + DYDX + ' = 3'),
+              display(DYDX + ' = \\frac{3}{1 + 9x^2}'),
+            ),
+            ask('impl-arctan-at-tree', 2),
+            ask('impl-arctan-where', 2),
+          ],
+          skillCheck: [ask('impl-arctan-grad', 2), ask('impl-arctan-sec-tiles', 2), ask('impl-arctan-where', 2)],
+        },
+        {
+          id: 'pi-l5-logdiff',
+          title: 'Logarithmic Differentiation',
+          slides: [
+            teach(
+              prose('A product of powers is quicker with logarithms than with the product rule. For $y = (x + 1)^3(x - 2)^2$:'),
+              display('\\ln y = 3\\ln(x + 1) + 2\\ln(x - 2)'),
+              prose('Differentiate both sides:'),
+              display('\\frac{1}{y}' + DYDX + ' = \\frac{3}{x + 1} + \\frac{2}{x - 2}'),
+              prose('Then multiply through by $y$.'),
+            ),
+            ask('impl-logdiff-ln-tiles'),
+            ask('impl-logdiff-rate-steps'),
+            ask('impl-logdiff-at-tree'),
+            teach(
+              prose(
+                '$y = x^{x}$ has a moving power on a moving base, so neither the power rule nor the rule for $a^x$ fits. Logarithms give $\\ln y = x\\ln x$, and the product rule:',
+              ),
+              display('\\frac{1}{y}' + DYDX + ' = \\ln x + 1'),
+              display(DYDX + ' = x^{x}(\\ln x + 1)'),
+            ),
+            ask('impl-logdiff-flow'),
+            ask('impl-logdiff-ln-tiles', 2),
+            ask('impl-logdiff-rate-steps', 2),
+            teach(
+              prose('A quotient subtracts. For $y = \\frac{(x + 1)^3}{(x - 2)^2}$, $\\ln y = 3\\ln(x + 1) - 2\\ln(x - 2)$.'),
+              prose('At $x = 3$ that makes $\\frac{1}{y}' + DYDX + ' = \\frac{3}{4} - \\frac{2}{1} = -\\frac{5}{4}$, and $y = 64$, so the gradient is $-80$.'),
+            ),
+            ask('impl-logdiff-at-tree', 2),
+            ask('impl-logdiff-flow', 2),
+          ],
+          skillCheck: [ask('impl-logdiff-ln-tiles', 2), ask('impl-logdiff-at-tree', 2), ask('impl-logdiff-flow', 2)],
+        },
+        {
+          id: 'pi-l5-chain',
+          title: 'Inverses inside a Chain',
+          slides: [
+            teach(
+              prose('Put $u = 3x$ in $y = \\sin^{-1}(3x)$ and use the chain rule from Composed Functions:'),
+              display('\\frac{dy}{du} = \\frac{1}{\\sqrt{1 - u^2}}, \\quad \\frac{du}{dx} = 3'),
+              display(DYDX + ' = \\frac{3}{\\sqrt{1 - 9x^2}}'),
+              prose('The inside can be a division too, as in Inverses Inside Other Functions: $y = \\tan^{-1}\\left(\\frac{x}{2}\\right)$ gives $\\frac{1}{1 + \\frac{x^2}{4}} \\times \\frac{1}{2}$, which is $\\frac{2}{4 + x^2}$.'),
+            ),
+            ask('impl-inverse-chain-tiles'),
+            ask('impl-arctan-chain-grad'),
+            ask('impl-inverse-point-tree'),
+            teach(
+              prose(
+                'Both curves pass through the origin, where $u = 0$ and both $\\sqrt{1 - u^2}$ and $1 + u^2$ are $1$. Only the chain factor is left: $\\sin^{-1}(kx)$ has gradient $k$ there, and $\\tan^{-1}\\left(\\frac{x}{a}\\right)$ has gradient $\\frac{1}{a}$.',
+              ),
+              prose('Cleared of the fraction inside, the two standard results are'),
+              display('\\frac{d}{dx}\\sin^{-1}\\left(\\frac{x}{a}\\right) = \\frac{1}{\\sqrt{a^2 - x^2}}'),
+              display('\\frac{d}{dx}\\tan^{-1}\\left(\\frac{x}{a}\\right) = \\frac{a}{a^2 + x^2}'),
+            ),
+            ask('impl-inverse-origin'),
+            ask('impl-arctan-chain-grad+choice', 2),
+            ask('impl-inverse-chain-tiles', 2),
+            teach(
+              prose(
+                'At a point, work out $u$ first. For $y = \\sin^{-1}(2x)$ at $x = \\frac{3}{10}$, $u = \\frac{3}{5}$, so $\\frac{dy}{du} = \\frac{5}{4}$ and the gradient is $\\frac{5}{4} \\times 2 = \\frac{5}{2}$.',
+              ),
+            ),
+            ask('impl-inverse-point-tree', 2),
+            ask('impl-inverse-origin+choice', 2),
+          ],
+          skillCheck: [ask('impl-arctan-chain-grad', 2), ask('impl-inverse-chain-tiles', 2), ask('impl-inverse-point-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('impl-ax-grad', 2),
+        ask('impl-arcsin-at-tree', 2),
+        ask('impl-arctan-sec-tiles', 2),
+        ask('impl-logdiff-flow', 2),
+        ask('impl-inverse-origin+choice', 2),
+        ask('impl-ax-log-steps', 2),
+        ask('impl-arcsin-grad', 2),
+        ask('impl-arctan-where', 2),
+        ask('impl-logdiff-at-tree', 2),
+        ask('impl-inverse-chain-tiles', 2),
+        ask('impl-arctan-chain-grad', 2),
+        ask('impl-inverse-sign-flow', 2),
+        ask('impl-logdiff-ln-tiles', 2),
+        ask('impl-ax-at-tree', 2),
+      ],
+    },
   ],
 };

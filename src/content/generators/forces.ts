@@ -3691,6 +3691,11 @@ function rigScene(rig: Rig, hard: boolean): string {
   const A = `Particle $A$, of mass $${fmt(m1)}\\text{ kg}$,`;
   const B = `particle $B$, of mass $${fmt(m2)}\\text{ kg}$`;
   if (hangs(t2)) {
+    // A table with B hanging off its edge is drawn flat, so it is not a slope at angle 0.
+    if (level(t1)) {
+      const table = mu1 > 0 ? `a rough horizontal table, with $\\mu = ${fmt(mu1)}$` : 'a smooth horizontal table';
+      return `${A} lies on ${table}. A light inextensible string from $A$ runs along the table, over a smooth pulley at its edge, to ${B}, which hangs freely.`;
+    }
     const surface = mu1 > 0 ? `a rough slope, with $\\mu = ${fmt(mu1)}$,` : 'a smooth slope';
     return `${A} lies on ${surface} inclined at $\\alpha$ to the horizontal, where ${angleFacts(t1, hard)}. A light inextensible string from $A$ runs up the slope, over a smooth pulley at the top, to ${B}, which hangs freely.`;
   }

@@ -1,5 +1,5 @@
 /**
- * An independent check on Probability levels 1 and 2.
+ * An independent check on Probability levels 1, 2 and 4.
  *
  * The oracle in `generators.test.ts` differentiates a `source`, and nothing
  * here declares one: a probability is a count over a count. So these tests
@@ -8,12 +8,18 @@
  * space from what the learner is shown, count it again, and compare with the
  * answer the slide grades against. Nothing is taken from the generator's own
  * counting helpers, which would only prove it agrees with itself.
+ *
+ * Level 4 asks conditional probabilities, and each is recounted here as a
+ * count over a count, or a path over a sum of paths, from the table, the
+ * regions or the branch labels on the slide. The words of a story are mapped
+ * to its events through `COND_STORIES`, `TWO_WAY` and `VENN`, which hold only
+ * words and letters, never a number.
  */
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../../engine/rng';
 import { math } from '../../engine/expression';
 import type { Generator, Slide } from '../types';
-import { probabilityGenerators } from './probability';
+import { COND_STORIES, TWO_WAY, VENN, probabilityGenerators } from './probability';
 
 const SEEDS = 200;
 
@@ -407,6 +413,485 @@ describe('without replacement', () => {
       const n = Number(/\\frac\{\d+\}\{(\d+)\}/.exec(slide.answer[0])![1]);
       expect(n).toBe(Math.round(Math.sqrt(pairs.length + 0.25) + 0.5));
       expect(slide.answer[1]).toMatch(new RegExp(`\\{${n - 1}\\}$`));
+    }
+  });
+});
+
+/* ================================================================
+ * Level 4: conditional probability
+ * ================================================================ */
+
+const displayOf = (slide: Slide): string =>
+  slide.kind === 'teach' ? '' : slide.prompt.map((block) => (block.kind === 'display' ? block.tex : '')).join('');
+
+/** A label or option as a number: `\frac{0.3 \times 0.4}{0.3 \times 0.4 + 0.7 \times 0.2}` included. */
+function texValue(tex: string): number {
+  const plain = tex
+    .replace(/\$/g, '')
+    .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))')
+    .replace(/\\times/g, '*');
+  return math.evaluate(plain) as number;
+}
+
+/** A table on the slide: its column names, row names and the four body cells, totals left out. */
+function tableOf(tex: string): { cols: string[]; rows: string[]; cells: number[][] } {
+  const text = (cell: string) => /\\text\{([^}]*)\}/.exec(cell)?.[1] ?? cell;
+  const lines = tex.split(' \\\\ ').map((line) => line.replace('\\hline', '').split('&').map((cell) => cell.trim()));
+  const body = lines.slice(1).filter((line) => text(line[0]) !== 'Total');
+  return {
+    cols: [text(lines[0][1]), text(lines[0][2])],
+    rows: body.map((line) => text(line[0])),
+    cells: body.map((line) => [parseFloat(line[1]), parseFloat(line[2])]),
+  };
+}
+
+/** Which row or column a phrase of a two-way table's story names. */
+function groupOf(rows: string[], phrase: string): { byRow: boolean; index: number } {
+  const ctx = TWO_WAY.find((c) => c.rows[0] === rows[0]);
+  if (!ctx) throw new Error(`no context for rows ${rows.join(', ')}`);
+  const r = (ctx.rowIs as readonly string[]).indexOf(phrase);
+  if (r >= 0) return { byRow: true, index: r };
+  const c = (ctx.colIs as readonly string[]).indexOf(phrase);
+  if (c >= 0) return { byRow: false, index: c };
+  throw new Error(`no group for "${phrase}"`);
+}
+
+/** "$A$ is the event that the student walks..., and $B$ that the student ...": A's group and B's. */
+function tableEvents(slide: Slide) {
+  const table = tableOf(displayOf(slide));
+  const m = /\$A\$ is the event that the (\w+) (.+?), and \$B\$ that the \1 (.+?)\./.exec(proseOf(slide));
+  if (!m) throw new Error(`cannot read: ${proseOf(slide)}`);
+  const A = groupOf(table.rows, m[2]);
+  const B = groupOf(table.rows, m[3]);
+  expect(A.byRow).not.toBe(B.byRow);
+  const cells = table.cells;
+  const total = sum(cells.flat());
+  const size = (g: { byRow: boolean; index: number }) => (g.byRow ? sum(cells[g.index]) : cells[0][g.index] + cells[1][g.index]);
+  const both = A.byRow ? cells[A.index][B.index] : cells[B.index][A.index];
+  return { total, both, a: size(A), b: size(B) };
+}
+
+/** The story a slide tells, found by its opening sentence. */
+function storyOf(prose: string) {
+  const s = COND_STORIES.find((story) => prose.startsWith(`$${story.A}$ is the event that ${story.a}, and $${story.B}$ that ${story.b}.`));
+  if (!s) throw new Error(`no story in: ${prose}`);
+  return s;
+}
+
+/** Every "On a rainy day, the probability that Sam is on time is $0.7$." as P(B | A), whichever branch it names. */
+function conditionalsOf(prose: string, s: (typeof COND_STORIES)[number]): { onA: boolean; hit: number }[] {
+  const out: { onA: boolean; hit: number }[] = [];
+  for (const [onA, lead] of [
+    [true, s.onA],
+    [false, s.offA],
+  ] as const) {
+    for (const [yes, what] of [
+      [true, s.yes],
+      [false, s.no],
+    ] as const) {
+      const m = new RegExp(`${lead.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, the probability that ${what} is \\$([\\d.]+)\\$`).exec(prose);
+      if (m) out.push({ onA, hit: yes ? Number(m[1]) : 1 - Number(m[1]) });
+    }
+  }
+  return out;
+}
+
+/** The six branch values of a static tree, blanks completed from their partners. */
+function treeValues(svg: string): { a: number; hit: number; miss: number } {
+  const texts = [...svg.matchAll(/<text [^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
+  const pairs = [
+    [texts[0], texts[1]],
+    [texts[3], texts[4]],
+    [texts[8], texts[9]],
+  ].map(([x, y]) => {
+    if (x === '' && y === '') throw new Error('a pair with both branches blank');
+    const p = x === '' ? 1 - value(y) : value(x);
+    if (x !== '' && y !== '') expect(value(x) + value(y)).toBeCloseTo(1, 12);
+    return p;
+  });
+  return { a: pairs[0], hit: pairs[1], miss: pairs[2] };
+}
+
+/** P(X | Y) off a tree, from the path through X to Y and the other path to Y. */
+function backwards({ a, hit, miss }: { a: number; hit: number; miss: number }, onA: boolean, yes: boolean): { num: number; sum: number } {
+  const path = (first: boolean) => (first ? a : 1 - a) * (yes ? (first ? hit : miss) : 1 - (first ? hit : miss));
+  return { num: path(onA), sum: path(onA) + path(!onA) };
+}
+
+/** Regions of a Venn picture in order only A, both, only B, neither: counts or decimals. */
+function vennRegions(svg: string): number[] {
+  const m = /: ([\d.]+) in \S+ only, ([\d.]+) in both, ([\d.]+) in \S+ only, ([\d.]+) in neither/.exec(svg);
+  if (!m) throw new Error('no regions in the diagram');
+  return m.slice(1).map(Number);
+}
+
+/** `P(A' \mid B)` over a Venn diagram whose circles are `letters`: the kept regions and the part asked about. */
+function vennConditional(regions: number[], letters: string[], tex: string): number {
+  const m = /^P\((\w)('?) \\mid (\w)('?)\)$/.exec(tex.trim());
+  if (!m) throw new Error(`not a conditional: ${tex}`);
+  const inSet = (letter: string, complement: boolean) => {
+    const circle = letter === letters[0] ? [0, 1] : [1, 2];
+    expect(letters).toContain(letter);
+    return [0, 1, 2, 3].filter((i) => circle.includes(i) !== complement);
+  };
+  const event = inSet(m[1], m[2] === "'");
+  const on = inSet(m[3], m[4] === "'");
+  return sum(on.filter((i) => event.includes(i)).map((i) => regions[i])) / sum(on.map((i) => regions[i]));
+}
+
+const optionsOf = (slide: Slide) => {
+  if (slide.kind !== 'choice') throw new Error(`expected a choice, got ${slide.kind}`);
+  const right = slide.options.find((o) => o.id === slide.correctId)!;
+  return { right, wrong: slide.options.filter((o) => o.id !== slide.correctId) };
+};
+
+describe('prob-cf-table-tiles', () => {
+  it('divides the overlap by the group, each out of everyone', () => {
+    for (const slide of slides('prob-cf-table-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { total, both, b } = tableEvents(slide);
+      const [x, y, p] = slide.answer.map(value);
+      expect(x, proseOf(slide)).toBeCloseTo(both / total, 12);
+      expect(y).toBeCloseTo(b / total, 12);
+      expect(p).toBeCloseTo(both / b, 12);
+      expect(slide.answer[0]).toMatch(new RegExp(`\\{${total}\\}$`));
+      expect(slide.answer[1]).toMatch(new RegExp(`\\{${total}\\}$`));
+      expect(lowest(slide.answer[2])).toBe(true);
+    }
+  });
+});
+
+describe('prob-cf-formula', () => {
+  it('works the asked probability out from the two it is given', () => {
+    for (const slide of slides('prob-cf-formula')) {
+      if (slide.kind !== 'expression') throw new Error('expected an expression');
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const facts = new Map([...prose.matchAll(/\$(P\([^$]+\)) = ([\d.]+)\$/g)].map((m) => [m[1], Number(m[2])]));
+      const both = facts.get(`P(${s.A} \\cap ${s.B})`)!;
+      expect(both).toBeDefined();
+      const lead = slide.lead!.replace(/ =$/, '');
+      let want: number;
+      if (lead === `P(${s.A})`) {
+        want = both / facts.get(`P(${s.B} \\mid ${s.A})`)!;
+      } else {
+        const m = /^P\((\w)('?) \\mid (\w)\)$/.exec(lead)!;
+        const p = facts.get(`P(${m[3]})`)!;
+        want = m[2] ? 1 - both / p : both / p;
+        // The words ask the same thing the lead writes.
+        const given = /given that (.+)\.$/.exec(prose)![1];
+        expect(given).toBe(m[3] === s.A ? s.a : s.b);
+        if (m[2]) expect(prose).toContain(`probability that ${s.no}, given`);
+      }
+      expect(typed(slide), prose).toBeCloseTo(want, 12);
+      expect(want).toBeGreaterThan(0);
+      expect(want).toBeLessThan(1);
+    }
+  });
+});
+
+describe('prob-cf-joint-which', () => {
+  it('offers the overlap over the given event, and nothing else of that value', () => {
+    for (const slide of slides('prob-cf-joint-which')) {
+      const table = tableOf(displayOf(slide));
+      expect(sum(table.cells.flat())).toBeCloseTo(1, 12);
+      const m = /Which gives \$P\((\w'?) \\mid (\w'?)\)\$/.exec(proseOf(slide))!;
+      const rowOf = (x: string) => table.rows.indexOf(x);
+      const colOf = (x: string) => table.cols.indexOf(x);
+      const [event, on] = [m[1], m[2]];
+      const byRow = rowOf(on) >= 0;
+      const cell = byRow ? table.cells[rowOf(on)][colOf(event)] : table.cells[rowOf(event)][colOf(on)];
+      const given = byRow ? sum(table.cells[rowOf(on)]) : table.cells[0][colOf(on)] + table.cells[1][colOf(on)];
+      const { right, wrong } = optionsOf(slide);
+      expect(texValue(right.label), right.label).toBeCloseTo(cell / given, 12);
+      for (const o of wrong) expect(Math.abs(texValue(o.label) - cell / given), o.label).toBeGreaterThan(1e-9);
+    }
+  });
+});
+
+describe('prob-cf-and-tree', () => {
+  it('multiplies the first branch by the conditional one', () => {
+    for (const slide of slides('prob-cf-and-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const pA = Number(new RegExp(`The probability that ${s.a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is \\$([\\d.]+)\\$`).exec(prose)![1]);
+      const [said] = conditionalsOf(prose, s);
+      const first = /Find the probability that (.+) and /.exec(prose)![1];
+      expect(first).toBe(said.onA ? s.a : s.notA);
+      const f = said.onA ? pA : 1 - pA;
+      const [x, y, p] = slide.answer.map(value);
+      expect(x, prose).toBeCloseTo(f, 12);
+      expect(y).toBeCloseTo(said.hit, 12);
+      expect(p).toBeCloseTo(f * said.hit, 12);
+    }
+  });
+});
+
+describe('prob-cv-count', () => {
+  it('keeps the given part of the diagram and counts inside it', () => {
+    for (const slide of slides('prob-cv-count')) {
+      if (slide.kind !== 'expression') throw new Error('expected an expression');
+      const regions = vennRegions(svgOf(slide));
+      const [A, B] = /\$(\w)\$ is the set who .+ and \$(\w)\$ the set/.exec(proseOf(slide))!.slice(1);
+      expect(sum(regions)).toBe(Number(/shows (\d+)/.exec(proseOf(slide))![1]));
+      const lead = slide.lead!.replace(/ =$/, '');
+      expect(typed(slide), lead).toBeCloseTo(vennConditional(regions, [A, B], lead), 12);
+      expect(VENN.some((c) => c.A === A && c.B === B)).toBe(true);
+    }
+  });
+});
+
+describe('prob-cv-fill', () => {
+  it('fills regions that give back every probability stated', () => {
+    for (const slide of slides('prob-cv-fill')) {
+      if (slide.kind !== 'venn') throw new Error('expected a venn');
+      const facts = new Map([...proseOf(slide).matchAll(/\$(P\([^$]+\)) = ([\d.]+)\$/g)].map((m) => [m[1], Number(m[2])]));
+      const [a, b, c, d] = slide.answer.map(value);
+      expect(a + b + c + d).toBeCloseTo(1, 12);
+      const known: Record<string, number> = {
+        'P(A)': a + b,
+        'P(B)': b + c,
+        'P(A \\cap B)': b,
+        'P(A \\mid B)': b / (b + c),
+        'P(B \\mid A)': b / (a + b),
+      };
+      expect(facts.size, proseOf(slide)).toBe(3);
+      for (const [name, v] of facts) expect(known[name], name).toBeCloseTo(v, 12);
+    }
+  });
+});
+
+describe('prob-cv-given-tiles', () => {
+  it('divides the region asked about by the part kept', () => {
+    for (const slide of slides('prob-cv-given-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const regions = vennRegions(svgOf(slide));
+      expect(sum(regions)).toBeCloseTo(1, 12);
+      const lead = slide.template.split(' = ')[0];
+      const want = vennConditional(regions, ['A', 'B'], lead);
+      const [x, y, p] = slide.answer.map(value);
+      expect(x / y).toBeCloseTo(p, 12);
+      expect(p, lead).toBeCloseTo(want, 12);
+    }
+  });
+});
+
+describe('prob-cv-restrict-flow', () => {
+  it('keeps the given part, counts it, then divides', () => {
+    for (const slide of slides('prob-cv-restrict-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const regions = vennRegions(svgOf(slide));
+      const [A, B] = /\$(\w)\$ is the set who .+ and \$(\w)\$ the set/.exec(proseOf(slide))!.slice(1);
+      const on = /\\mid (\w)('?)\)/.exec(slide.subject)!;
+      expect(slide.answer[0]).toBe(on[2] ? `Outside $${on[1]}$` : `The circle $${on[1]}$`);
+      const circle = on[1] === A ? regions[0] + regions[1] : regions[1] + regions[2];
+      expect(Number(slide.answer[1])).toBe(on[2] ? sum(regions) - circle : circle);
+      expect(texValue(slide.answer[2])).toBeCloseTo(vennConditional(regions, [A, B], slide.subject), 12);
+      expect(lowest(slide.answer[2].replace(/\$/g, ''))).toBe(true);
+    }
+  });
+});
+
+describe('prob-cb-fill', () => {
+  it('puts each sentence on its own branch and completes every pair', () => {
+    for (const slide of slides('prob-cb-fill')) {
+      if (slide.kind !== 'probTree') throw new Error('expected a probTree');
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const said = conditionalsOf(prose, s);
+      expect(said.map((x) => x.onA).sort()).toEqual([false, true]);
+      const hit = said.find((x) => x.onA)!.hit;
+      const miss = said.find((x) => !x.onA)!.hit;
+      const stated = new RegExp(`The probability that ${s.a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is \\$([\\d.]+)\\$`).exec(prose);
+      const a = stated ? Number(stated[1]) : value(slide.branches[0].p!);
+      const want = [...(stated ? [a, 1 - a] : []), hit, 1 - hit, miss, 1 - miss];
+      expect(slide.answer.length).toBe(want.length);
+      slide.answer.forEach((token, i) => expect(value(token), prose).toBeCloseTo(want[i], 12));
+      expect(slide.branches.map((b) => b.label)).toEqual([s.A, `${s.A}'`]);
+    }
+  });
+});
+
+describe('prob-cb-total-tree', () => {
+  it('adds the two paths that end in the outcome asked about', () => {
+    for (const slide of slides('prob-cb-total-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const tree = treeValues(svgOf(slide));
+      const what = /Find the probability that (.+?)\. Top row/.exec(prose)![1];
+      expect([s.yes, s.no]).toContain(what);
+      const { num, sum: total } = backwards(tree, true, what === s.yes);
+      const [x, y, p] = slide.answer.map(value);
+      expect(x, prose).toBeCloseTo(num, 12);
+      expect(y).toBeCloseTo(total - num, 12);
+      expect(p).toBeCloseTo(total, 12);
+    }
+  });
+});
+
+describe('prob-cb-path', () => {
+  it('ends on the outcome whose path has the probability asked for', () => {
+    for (const slide of slides('prob-cb-path')) {
+      if (slide.kind !== 'probTree') throw new Error('expected a probTree');
+      const leaves = slide.branches.flatMap((top) => top.next.map((under) => ({ path: [top.label, under.label], p: value(top.p!) * value(under.p!) })));
+      const prose = proseOf(slide);
+      const stated = /has probability \$([\d.]+)\$/.exec(prose);
+      const ps = leaves.map((l) => l.p);
+      const want = stated
+        ? leaves.find((l) => Math.abs(l.p - Number(stated[1])) < 1e-12)
+        : leaves.find((l) => l.p === (/most likely/.test(prose) ? Math.max(...ps) : Math.min(...ps)));
+      expect(want, prose).toBeDefined();
+      expect(new Set(ps.map((p) => p.toFixed(9))).size).toBe(4);
+      expect(slide.answer).toEqual(want!.path);
+    }
+  });
+});
+
+describe('prob-cb-words', () => {
+  it('puts the thing told after the bar and the chance stated before it', () => {
+    for (const slide of slides('prob-cb-words')) {
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const onA = prose.includes(`${s.onA},`);
+      const yes = new RegExp(`the probability that ${s.yes} is`).test(prose);
+      const v = /is \$([\d.]+)\$\./.exec(prose)![1];
+      const { right } = optionsOf(slide);
+      expect(right.label, prose).toBe(`P(${yes ? s.B : `${s.B}'`} \\mid ${onA ? s.A : `${s.A}'`}) = ${v}`);
+    }
+  });
+});
+
+describe('prob-ci-table-flow', () => {
+  it('compares P(A | B) with P(A) from the counts', () => {
+    for (const slide of slides('prob-ci-table-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected a flow');
+      const { total, both, a, b } = tableEvents(slide);
+      const [pa, pab, verdict] = slide.answer;
+      expect(texValue(pa)).toBeCloseTo(a / total, 12);
+      expect(texValue(pab)).toBeCloseTo(both / b, 12);
+      expect(verdict, proseOf(slide)).toBe(both * total === a * b ? 'Yes' : 'No');
+    }
+  });
+
+  it('asks independent and dependent tables about equally often', () => {
+    const verdicts = slides('prob-ci-table-flow').map((slide) => (slide.kind === 'flow' ? slide.answer[2] : ''));
+    const yes = verdicts.filter((v) => v === 'Yes').length;
+    expect(yes / verdicts.length).toBeGreaterThan(0.3);
+    expect(yes / verdicts.length).toBeLessThan(0.7);
+  });
+});
+
+describe('prob-ci-venn-tiles', () => {
+  it('tests the diagram the way the template writes it', () => {
+    for (const slide of slides('prob-ci-venn-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [a, b, c] = vennRegions(svgOf(slide));
+      const [pA, pB, both] = [a + b, b + c, b];
+      const independent = Math.abs(pA * pB - both) < 1e-12;
+      const [x, y, z] = slide.answer.slice(0, 3).map(value);
+      if (slide.template.startsWith('P(A) \\times P(B)')) {
+        expect([x, y, z].map((n) => n.toFixed(9))).toEqual([pA, pB, pA * pB].map((n) => n.toFixed(9)));
+      } else {
+        expect([x, y, z].map((n) => n.toFixed(9))).toEqual([both, pB, both / pB].map((n) => n.toFixed(9)));
+      }
+      expect(slide.answer[3]).toBe(independent ? '=' : '\\neq');
+    }
+  });
+});
+
+describe('prob-ci-tree-choice', () => {
+  it('says independent exactly when the second stage is the same under both branches', () => {
+    for (const slide of slides('prob-ci-tree-choice')) {
+      const { hit, miss } = treeValues(svgOf(slide));
+      const { right } = optionsOf(slide);
+      expect(right.label.startsWith(Math.abs(hit - miss) < 1e-12 ? '\\text{Yes: }' : '\\text{No: }'), right.label).toBe(true);
+      expect(right.label).toMatch(/\\mid .+\\mid /);
+    }
+  });
+});
+
+describe('prob-ci-given', () => {
+  it('finds the conditional as the overlap over the given event', () => {
+    for (const slide of slides('prob-ci-given')) {
+      if (slide.kind !== 'expression') throw new Error('expected an expression');
+      const facts = new Map([...proseOf(slide).matchAll(/\$(P\([^$]+\)) = ([\d.]+)\$/g)].map((m) => [m[1], Number(m[2])]));
+      const pA = facts.get('P(A)')!;
+      const pB = facts.get('P(B)') ?? facts.get('P(A \\cap B)')! / pA;
+      const p = (x: string) => (x.startsWith('A') ? pA : pB) * 1;
+      const prob = (x: string) => (x.endsWith("'") ? 1 - p(x) : p(x));
+      const m = /^P\((\w'?) \\mid (\w'?)\)$/.exec(slide.lead!.replace(/ =$/, ''))!;
+      // Independent, so any pair of the events or their complements multiplies.
+      const joint = prob(m[1]) * prob(m[2]);
+      expect(typed(slide), slide.lead).toBeCloseTo(joint / prob(m[2]), 12);
+    }
+  });
+});
+
+describe('prob-cr-tiles', () => {
+  it('divides one path by the sum of the paths ending the same way', () => {
+    for (const slide of slides('prob-cr-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const m = /Find the probability that (.+?), given that (.+?)\./.exec(prose)!;
+      const { num, sum: total } = backwards(treeValues(svgOf(slide)), m[1] === s.a, m[2] === s.yes);
+      const [x, y, p] = slide.answer.map(value);
+      expect(x, prose).toBeCloseTo(num, 12);
+      expect(y).toBeCloseTo(total, 12);
+      expect(p).toBeCloseTo(num / total, 12);
+      expect(lowest(slide.answer[2])).toBe(true);
+    }
+  });
+});
+
+describe('prob-cr-bayes-tree', () => {
+  it('fills both paths, their sum, then the quotient', () => {
+    for (const slide of slides('prob-cr-bayes-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected a tree');
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const m = /Find the probability that (.+?), given that (.+?)\./.exec(prose)!;
+      const { num, sum: total } = backwards(treeValues(svgOf(slide)), m[1] === s.a, m[2] === s.yes);
+      const [x, y, t, p] = slide.answer.map(value);
+      expect([x, y, t].map((n) => n.toFixed(9)), prose).toEqual([num, total - num, total].map((n) => n.toFixed(9)));
+      expect(p).toBeCloseTo(num / total, 12);
+    }
+  });
+});
+
+describe('prob-cr-which', () => {
+  it('marks the path over the sum of paths, and no other option has its value', () => {
+    for (const slide of slides('prob-cr-which')) {
+      const prose = proseOf(slide);
+      const s = storyOf(prose);
+      const m = /Which gives \$P\((\w)('?) \\mid (\w)('?)\)\$/.exec(prose)!;
+      expect([m[1], m[3]]).toEqual([s.A, s.B]);
+      const { num, sum: total } = backwards(treeValues(svgOf(slide)), m[2] === '', m[4] === '');
+      const { right, wrong } = optionsOf(slide);
+      expect(texValue(right.label), right.label).toBeCloseTo(num / total, 12);
+      for (const o of wrong) expect(Math.abs(texValue(o.label) - num / total), o.label).toBeGreaterThan(1e-9);
+    }
+  });
+});
+
+describe('prob-cr-counters', () => {
+  it('counts the ordered pairs that fit what is given', () => {
+    for (const slide of slides('prob-cr-counters')) {
+      const prose = proseOf(slide);
+      const m = /holds (\d+) (\w+) and (\d+) (\w+) \w+\. Two are taken/.exec(prose)!;
+      const bag = [...Array.from({ length: Number(m[1]) }, () => m[2]), ...Array.from({ length: Number(m[3]) }, () => m[4])];
+      const pairs: [string, string][] = [];
+      bag.forEach((x, i) => bag.forEach((y, j) => i !== j && pairs.push([x, y])));
+      const c = m[2];
+      let given: [string, string][];
+      if (/Given that they are the same colour/.test(prose)) given = pairs.filter(([x, y]) => x === y);
+      else if (/Given that the second is/.test(prose)) given = pairs.filter(([, y]) => y === c);
+      else if (/Given that at least one is/.test(prose)) given = pairs.filter(([x, y]) => x === c || y === c);
+      else throw new Error(`cannot read: ${prose}`);
+      const hits = given.filter(([x, y]) => x === c && y === c);
+      expect(typed(slide), prose).toBeCloseTo(hits.length / given.length, 12);
     }
   });
 });

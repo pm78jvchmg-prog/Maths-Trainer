@@ -16,11 +16,15 @@
  * misplaced base case or a step that assumes what it has to show. Level 5 is
  * Euclid's algorithm: the HCF by repeated division, reading a run, working it
  * backwards to write the HCF as ax + by, then solving ax + by = c and finding
- * every solution from one. Its generators are in `numberEuclid.ts`.
+ * every solution from one. Its generators are in `numberEuclid.ts`. Level 6
+ * is modular arithmetic: congruence and residues, adding and multiplying
+ * modulo n, powers through their cycles and by repeated squaring, last
+ * digits, and a proof of why the digit-sum tests for 3 and 9 work, with
+ * casting out nines. Its generators are in `numberModular.ts`.
  *
  * Surds and rationalising denominators are taught in Exponents & Radicals
- * (`er-l3`, `er-l5`), not here. Later levels are in the level plan in
- * `docs/roadmap/levels/number-proof.md`.
+ * (`er-l3`, `er-l5`), not here. Number Bases, and any level after it, is in
+ * the level plan in `docs/roadmap/levels/number-proof.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
@@ -1130,6 +1134,218 @@ export const numberProof: Course = {
         ask('euc-general', 2),
         ask('euc-smallest', 2),
         ask('euc-count-positive+choice', 2),
+      ],
+    },
+    {
+      id: 'np-l6',
+      title: 'Modular Arithmetic',
+      lessons: [
+        {
+          id: 'np-l6-congruence',
+          title: 'Congruence mod n',
+          slides: [
+            teach(
+              prose(
+                '$a \\equiv b \\pmod{n}$, read "$a$ is congruent to $b$ modulo $n$", means $n$ divides $a - b$.',
+              ),
+              maths('38 \\equiv 3 \\pmod{7}, \\quad \\text{since } 38 - 3 = 35 = 5 \\times 7'),
+              prose(
+                'Every whole number is congruent to exactly one of $0, 1, \\dots, n - 1$: its **residue**, the remainder you found in level 2. $38 = 5 \\times 7 + 3$, so the residue of $38$ modulo $7$ is $3$.',
+              ),
+            ),
+            ask('cong-residue'),
+            ask('cong-true'),
+            ask('cong-flow'),
+            teach(
+              prose(
+                'A negative number has a residue from $0$ to $n - 1$ too. Go **down** to the multiple of $n$ just below it, then count up.',
+              ),
+              maths('-17 = -20 + 3, \\quad \\text{so } -17 \\equiv 3 \\pmod{5}'),
+              prose('Not $-2$: a residue is never negative. Check: $-17 - 3 = -20$, a multiple of $5$.'),
+            ),
+            ask('cong-negative'),
+            ask('cong-class-table'),
+            ask('cong-residue', 2),
+            teach(
+              prose(
+                'Numbers with the same residue are congruent to each other. $38 \\equiv 3$ and $17 \\equiv 3 \\pmod{7}$, so $38 \\equiv 17 \\pmod{7}$: $38 - 17 = 21$.',
+              ),
+              prose(
+                'Either side can be any whole number, a negative one included: $38 \\equiv -4 \\pmod{7}$, since $38 - (-4) = 42 = 6 \\times 7$.',
+              ),
+            ),
+            ask('cong-true', 2),
+            ask('cong-negative+choice', 2),
+          ],
+          skillCheck: [ask('cong-class-table', 2), ask('cong-negative', 2), ask('cong-flow', 2)],
+        },
+        {
+          id: 'np-l6-arithmetic',
+          title: 'Adding and Multiplying',
+          slides: [
+            teach(
+              prose(
+                'In level 2 you combined remainders: if $a$ and $b$ leave $3$ and $5$ on division by $7$, then $ab$ leaves the remainder of $15$, which is $1$. In the new notation, **reduce first, then combine**:',
+              ),
+              maths('\\begin{aligned} 346 &\\equiv 3, \\quad 59 \\equiv 3 \\\\ 346 \\times 59 &\\equiv 3 \\times 3 = 9 \\equiv 2 \\pmod{7} \\end{aligned}'),
+              prose('No need to work out $346 \\times 59$ at all.'),
+            ),
+            ask('cong-from-residues'),
+            ask('cong-combine-steps'),
+            ask('cong-op-table'),
+            teach(
+              prose(
+                'Why it works: $346 = 7j + 3$ and $59 = 7k + 3$ for whole numbers $j$ and $k$. Multiplying out,',
+              ),
+              maths('\\begin{aligned} 346 \\times 59 &= 49jk + 21j + 21k + 9 \\\\ &= 7(7jk + 3j + 3k) + 9 \\end{aligned}'),
+              prose('Everything but the $9$ is a multiple of $7$, and $9 \\equiv 2$. Adding works the same way.'),
+            ),
+            ask('cong-arith-order'),
+            ask('cong-from-residues+choice', 2),
+            ask('cong-combine-steps', 2),
+            teach(
+              prose(
+                'A table modulo $n$ shows every sum or product at once. Row $2$ of the multiplication table modulo $5$ reads $2, 4, 1, 3$: $2 \\times 3 = 6 \\equiv 1$.',
+              ),
+              prose(
+                'Taking away can give a negative number; add $n$ to bring it back: $2 - 4 = -2 \\equiv 3 \\pmod{5}$.',
+              ),
+            ),
+            ask('cong-op-table', 2),
+            ask('cong-arith-order', 2),
+          ],
+          skillCheck: [ask('cong-combine-steps', 2), ask('cong-arith-order', 2), ask('cong-from-residues', 2)],
+        },
+        {
+          id: 'np-l6-powers',
+          title: 'Powers mod n',
+          slides: [
+            teach(
+              prose(
+                'A power is repeated multiplication, so reduce after every multiplication. The powers of $3$ modulo $7$:',
+              ),
+              maths('3, \\ 9 \\equiv 2, \\ 6, \\ 18 \\equiv 4, \\ 12 \\equiv 5, \\ 15 \\equiv 1'),
+              prose(
+                'Once a power reaches $1$, the next is $3$ again and the residues come round in a **cycle**, here of length $6$. A base bigger than $n$ is reduced first: $10 \\equiv 3 \\pmod{7}$, so the powers of $10$ run the same way.',
+              ),
+            ),
+            ask('cong-power-table'),
+            ask('cong-cycle'),
+            ask('cong-power-table', 2),
+            teach(
+              prose(
+                'The cycle turns a huge power into a small one. Modulo $7$ the powers of $2$ run $2, 4, 1$, a cycle of length $3$, and $2^3 \\equiv 1$.',
+              ),
+              maths('100 = 33 \\times 3 + 1, \\quad \\text{so } 2^{100} = (2^3)^{33} \\times 2 \\equiv 2 \\pmod{7}'),
+              prose('Only the remainder of the power on division by the cycle length matters.'),
+            ),
+            ask('cong-big-power'),
+            ask('cong-power-flow'),
+            ask('cong-cycle+choice', 2),
+            teach(
+              prose(
+                'When the cycle is long, **square repeatedly** instead. For $3^{13}$ modulo $17$, each power is the square of the one before:',
+              ),
+              maths('3^1 \\equiv 3, \\ 3^2 \\equiv 9, \\ 3^4 \\equiv 81 \\equiv 13, \\ 3^8 \\equiv 169 \\equiv 16'),
+              prose('$13 = 8 + 4 + 1$, so $3^{13} \\equiv 16 \\times 13 \\times 3$. $16 \\times 13 = 208 \\equiv 4$, and $4 \\times 3 = 12$.'),
+            ),
+            ask('cong-square-tree'),
+            ask('cong-big-power', 2),
+          ],
+          skillCheck: [ask('cong-big-power', 2), ask('cong-power-flow', 2), ask('cong-square-tree', 2)],
+        },
+        {
+          id: 'np-l6-last-digits',
+          title: 'Last Digits',
+          slides: [
+            teach(
+              prose(
+                'The last digit of a number is its residue modulo $10$. So the last digit of a product depends only on the last digits: $347 \\times 58$ ends like $7 \\times 8 = 56$, in $6$.',
+              ),
+              prose(
+                "Level 2's tests for $2$, $5$ and $10$ look only at the last digit for the same reason: $10$ is a multiple of each, so everything but the last digit already is.",
+              ),
+            ),
+            ask('cong-last-product'),
+            ask('cong-last-square'),
+            ask('cong-last-product+choice', 2),
+            teach(
+              prose('Last digits of powers come round in a cycle. The powers of $7$ end in'),
+              maths('7, \\ 9, \\ 3, \\ 1, \\ 7, \\ 9, \\dots'),
+              prose(
+                'a cycle of length $4$. For $7^{123}$: $123 = 30 \\times 4 + 3$, so it ends like $7^3$, in $3$.',
+              ),
+            ),
+            ask('cong-last-power'),
+            ask('cong-last-tiles'),
+            ask('cong-last-power+choice', 2),
+            teach(
+              prose(
+                'The last two digits are the residue modulo $100$, so keep the last two digits of every number: $347 \\times 219$ ends like $47 \\times 19 = 893$, in $93$.',
+              ),
+              prose('Powers work the same way: the powers of $7$ end in $07, 49, 43, 01$ and then repeat.'),
+            ),
+            ask('cong-last-two', 2),
+            ask('cong-last-tiles', 2),
+          ],
+          skillCheck: [ask('cong-last-power', 2), ask('cong-last-tiles', 2), ask('cong-last-two', 2)],
+        },
+        {
+          id: 'np-l6-digit-sums',
+          title: 'Why Digit Sums Work',
+          slides: [
+            teach(
+              prose('$10 = 9 + 1$ and $100 = 99 + 1$, so both are congruent to $1$ modulo $9$. Then'),
+              maths('472 = 4 \\times 100 + 7 \\times 10 + 2 \\equiv 4 + 7 + 2 = 13 \\equiv 4 \\pmod{9}'),
+              prose(
+                'A number leaves the same remainder as its digit sum on division by $9$, and on division by $3$ as well, since $9$ is a multiple of $3$.',
+              ),
+            ),
+            ask('cong-ten-tiles'),
+            ask('cong-digit-residue'),
+            ask('cong-digit-order'),
+            teach(
+              prose(
+                'That is why the tests from level 2 work: a number is divisible by $9$, or by $3$, exactly when its digit sum is. Level 2 stated the rule; this proves it.',
+              ),
+              prose(
+                'Modulo $11$, $10 \\equiv -1$ and $100 \\equiv 1$, so a number is congruent to its digits added and taken away in turn: $726 \\equiv 7 - 2 + 6 = 11 \\equiv 0$, and $726 = 66 \\times 11$.',
+              ),
+            ),
+            ask('cong-missing-digit'),
+            ask('cong-ten-tiles', 2),
+            ask('cong-digit-order', 2),
+            teach(
+              prose(
+                '**Casting out nines** checks a calculation: replace each number by its digit sum modulo $9$. Is $37 \\times 24 = 898$?',
+              ),
+              maths('37 \\to 1, \\quad 24 \\to 6, \\quad 1 \\times 6 = 6, \\quad 898 \\to 25 \\to 7'),
+              prose(
+                '$6$ and $7$ differ, so $898$ is wrong; it is $888$. A pass proves less: a swap of two digits leaves the digit sum alone.',
+              ),
+            ),
+            ask('cong-cast-flow'),
+            ask('cong-digit-residue+choice', 2),
+          ],
+          skillCheck: [ask('cong-digit-order', 2), ask('cong-cast-flow', 2), ask('cong-missing-digit', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('cong-negative', 2),
+        ask('cong-class-table', 2),
+        ask('cong-true', 2),
+        ask('cong-combine-steps', 2),
+        ask('cong-from-residues+choice', 2),
+        ask('cong-arith-order', 2),
+        ask('cong-power-table', 2),
+        ask('cong-big-power', 2),
+        ask('cong-square-tree', 2),
+        ask('cong-last-power', 2),
+        ask('cong-last-two', 2),
+        ask('cong-last-square', 2),
+        ask('cong-digit-order', 2),
+        ask('cong-cast-flow', 2),
+        ask('cong-missing-digit', 2),
       ],
     },
   ],

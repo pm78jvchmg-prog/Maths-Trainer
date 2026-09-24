@@ -7,8 +7,9 @@
  * disproof by counterexample, and proof by contradiction — then reading a
  * proof somebody else wrote, to find its missing line, its flaw or its method.
  *
- * Level 2, Divisibility & Primes, is in `numberDivisibility.ts`, and level 5,
- * Euclid's Algorithm, in `numberEuclid.ts`; both borrow the helpers here.
+ * Level 2, Divisibility & Primes, is in `numberDivisibility.ts`, level 5,
+ * Euclid's Algorithm, in `numberEuclid.ts`, and level 6, Modular Arithmetic,
+ * in `numberModular.ts`; all three borrow the helpers here.
  *
  * Two rules from the rest of the library matter more here than anywhere.
  *

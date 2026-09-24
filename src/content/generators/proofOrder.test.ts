@@ -14,6 +14,7 @@ import { orderBank, proofOrderGenerators } from './proofOrder';
 import { numberProofOrders } from './numberProof';
 import { numberDivisibilityOrders } from './numberDivisibility';
 import { numberEuclidOrders } from './numberEuclid';
+import { numberModularOrders } from './numberModular';
 import { coordinateGeometryOrders } from './coordinateGeometry';
 import { sequenceOrders } from './sequencesSeries';
 
@@ -30,6 +31,7 @@ const orderGenerators = [
   ...numberProofOrders,
   ...numberDivisibilityOrders,
   ...numberEuclidOrders,
+  ...numberModularOrders,
   ...coordinateGeometryOrders,
   ...sequenceOrders,
 ] as Generator<unknown>[];

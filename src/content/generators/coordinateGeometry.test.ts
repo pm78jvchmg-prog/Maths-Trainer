@@ -736,3 +736,285 @@ describe('circle theorems on axes, checked from what the learner sees', () => {
     }
   });
 });
+
+describe('coordinate proof, checked from what the learner sees', () => {
+  type P2 = [number, number];
+
+  /** A number as the learner reads it: 3, -\frac{2}{3}. */
+  const numberOf = (tex: string) => math.evaluate(toMath(tex.replace(/^\$|\$$/g, '').trim())) as number;
+
+  const slope = (P: P2, R: P2) => (R[1] - P[1]) / (R[0] - P[0]);
+  const minus = (P: P2, R: P2): P2 => [P[0] - R[0], P[1] - R[1]];
+  const dot = (u: P2, v: P2) => u[0] * v[0] + u[1] * v[1];
+  const cross = (u: P2, v: P2) => u[0] * v[1] - u[1] * v[0];
+  const d2 = (P: P2, R: P2) => dot(minus(R, P), minus(R, P));
+  const mid = (P: P2, R: P2): P2 => [(P[0] + R[0]) / 2, (P[1] + R[1]) / 2];
+  const parallel = (P: P2, Q: P2, R: P2, S: P2) => cross(minus(Q, P), minus(S, R)) === 0;
+  const pointTex = (tex: string): P2 => {
+    const match = /\((-?\d+), (-?\d+)\)/.exec(tex);
+    if (!match) throw new Error(`no point in ${tex}`);
+    return [Number(match[1]), Number(match[2])];
+  };
+
+  const corners = (slide: Slide) => ['A', 'B', 'C', 'D'].map((name) => pointIn(slide, name)) as [P2, P2, P2, P2];
+  const isParallelogram = ([A, B, C, D]: P2[]) => A[0] + C[0] === B[0] + D[0] && A[1] + C[1] === B[1] + D[1];
+
+  /** The strongest name, from the sides at B alone, for a parallelogram. */
+  function nameOf([A, B, C]: P2[]): string {
+    const right = dot(minus(A, B), minus(C, B)) === 0;
+    const equal = d2(A, B) === d2(B, C);
+    if (right && equal) return 'square';
+    if (right) return 'rectangle';
+    return equal ? 'rhombus' : 'parallelogram';
+  }
+
+  /** "$a$ and $b$" as two numbers. */
+  const pairOf = (label: string) => label.split(' and ').map(numberOf);
+
+  it('the gradients picked are the real ones, and the verdict counts the parallel pairs', () => {
+    for (const { slide, where } of slides('coord-para-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [A, B, C, D] = corners(slide);
+      const [ab, dc] = pairOf(slide.answer[0]);
+      const [ad, bc] = pairOf(slide.answer[1]);
+      expect(ab, where).toBeCloseTo(slope(A, B), 9);
+      expect(dc, where).toBeCloseTo(slope(D, C), 9);
+      expect(ad, where).toBeCloseTo(slope(A, D), 9);
+      expect(bc, where).toBeCloseTo(slope(B, C), 9);
+      const pairs = Number(parallel(A, B, D, C)) + Number(parallel(A, D, B, C));
+      expect(slide.answer[2], where).toBe(['Neither', 'A trapezium', 'A parallelogram'][pairs]);
+      if (pairs === 2) expect(isParallelogram([A, B, C, D]), where).toBe(true);
+    }
+  });
+
+  it('the midpoints are the averages, and the verdict is right exactly when they meet', () => {
+    for (const { slide, where } of slides('coord-para-diagonal-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const [A, B, C, D] = corners(slide);
+      const [ac, bd, verdict] = slide.reductions.map((step) => step.value);
+      expect(pointTex(ac), where).toEqual(mid(A, C));
+      expect(pointTex(bd), where).toEqual(mid(B, D));
+      const meets = isParallelogram([A, B, C, D]);
+      expect(verdict.includes('not'), where).toBe(!meets);
+      expect(parallel(A, B, D, C) && parallel(A, D, B, C), `${where}: sides agree`).toBe(meets);
+    }
+  });
+
+  it('the corner placed completes a parallelogram', () => {
+    for (const { slide, where } of slides('coord-para-fourth-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const letter = slide.template[0];
+      const X = pointTex(filled(slide));
+      const P = ['A', 'B', 'C', 'D'].map((name) => (name === letter ? X : pointIn(slide, name)));
+      expect(isParallelogram(P), where).toBe(true);
+      expect(parallel(P[0], P[1], P[3], P[2]) && parallel(P[0], P[3], P[1], P[2]), where).toBe(true);
+    }
+  });
+
+  it('the height found puts DC parallel to AB', () => {
+    for (const { slide, where } of slides('coord-parallel-k')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [A, B, C] = ['A', 'B', 'C'].map((name) => pointIn(slide, name));
+      const D: P2 = [Number(/D\((-?\d+), k\)/.exec(prose(slide))![1]), Number(slide.answer)];
+      expect(parallel(A, B, D, C), where).toBe(true);
+      expect(D[0] === C[0], `${where}: D is not straight above C`).toBe(false);
+    }
+  });
+
+  it('the slider lands on the fourth corner', () => {
+    for (const { slide, where } of slides('coord-para-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const [A, B, C] = ['A', 'B', 'C'].map((name) => pointIn(slide, name));
+      const D: P2 = [A[0] + C[0] - B[0], A[1] + C[1] - B[1]];
+      expect(slide.answer, where).toBe(slide.readout.startsWith('x') ? D[0] : D[1]);
+    }
+  });
+
+  it('the product at B is the real one, and a rectangle is called one exactly when B is square', () => {
+    for (const { slide, where } of slides('coord-rect-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [A, B, C, D] = corners(slide);
+      expect(isParallelogram([A, B, C, D]), `${where}: a parallelogram`).toBe(true);
+      expect(numberOf(slide.answer[0]), where).toBeCloseTo(slope(A, B) * slope(B, C), 9);
+      expect(slide.answer[1], where).toBe(dot(minus(A, B), minus(C, B)) === 0 ? 'Yes' : 'No');
+    }
+  });
+
+  it('the diagonals are measured from the corners', () => {
+    for (const { slide, where } of slides('coord-diagonals-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const [A, B, C, D] = corners(slide);
+      expect(isParallelogram([A, B, C, D]), `${where}: a parallelogram`).toBe(true);
+      const [ac, bd] = [minus(C, A), minus(D, B)];
+      expect(slide.answer.map(Number), where).toEqual([ac[0], ac[1], d2(A, C), bd[0], bd[1], d2(B, D)]);
+    }
+  });
+
+  it('the height found makes the angle at B a right angle', () => {
+    for (const { slide, where } of slides('coord-rect-k')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [A, B] = ['A', 'B'].map((name) => pointIn(slide, name));
+      const C: P2 = [Number(/C\((-?\d+), k\)/.exec(prose(slide))![1]), Number(slide.answer)];
+      expect(dot(minus(A, B), minus(C, B)), where).toBe(0);
+    }
+  });
+
+  it('the squared sides are the real ones', () => {
+    for (const { slide, where } of slides('coord-side-lengths-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [A, B, C, D] = corners(slide);
+      expect(isParallelogram([A, B, C, D]), `${where}: a parallelogram`).toBe(true);
+      expect(slide.answer.map(Number), where).toEqual([d2(A, B), d2(B, C)]);
+    }
+  });
+
+  it('the diagonals product is the real one, and a rhombus is called one exactly when its sides are equal', () => {
+    for (const { slide, where } of slides('coord-rhombus-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [A, B, C, D] = corners(slide);
+      expect(isParallelogram([A, B, C, D]), `${where}: a parallelogram`).toBe(true);
+      expect(numberOf(slide.answer[0]), where).toBeCloseTo(slope(A, C) * slope(B, D), 9);
+      expect(slide.answer[1], where).toBe(d2(A, B) === d2(B, C) ? 'Yes' : 'No');
+    }
+  });
+
+  it('the name offered as right is the strongest the corners earn', () => {
+    for (const { slide, where } of slides('coord-name-quad')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const P = corners(slide);
+      expect(isParallelogram(P), `${where}: a parallelogram`).toBe(true);
+      for (const option of slide.options) {
+        expect(option.label.toLowerCase().endsWith(nameOf(P)), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('each line of the square test is worked from the corners, and the name follows', () => {
+    for (const { slide, where } of slides('coord-square-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const P = corners(slide);
+      const [A, B, C] = P;
+      const [ab, bc, product, name] = slide.reductions.map((step) => step.value);
+      expect(numberOf(ab.split('=')[1]), where).toBe(d2(A, B));
+      expect(numberOf(bc.split('=')[1]), where).toBe(d2(B, C));
+      expect(numberOf(product.split('=')[1]), where).toBeCloseTo(slope(A, B) * slope(B, C), 9);
+      expect(name, where).toContain(`a ${nameOf(P)}`);
+    }
+  });
+
+  const triangle = (slide: Slide) => ['P', 'Q', 'R'].map((name) => pointIn(slide, name));
+
+  /** The corner at which the triangle is square, by dot products; -1 for none. */
+  const rightCorner = (T: P2[]) => T.findIndex((X, i) => dot(minus(T[(i + 1) % 3], X), minus(T[(i + 2) % 3], X)) === 0);
+
+  it('the gradients at the corner named are the real ones, and it is square there', () => {
+    for (const { slide, where } of slides('coord-tri-right-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const T = triangle(slide);
+      const at = 'PQR'.indexOf(/right-angled at \$([PQR])\$/.exec(prose(slide))![1]);
+      const [m1, m2, product] = slide.answer.map(numberOf);
+      expect(m1, where).toBeCloseTo(slope(T[at], T[(at + 1) % 3]), 9);
+      expect(m2, where).toBeCloseTo(slope(T[at], T[(at + 2) % 3]), 9);
+      expect(product, where).toBeCloseTo(m1 * m2, 9);
+      expect(rightCorner(T), where).toBe(at);
+    }
+  });
+
+  it('the corner picked is the one Pythagoras names, or none', () => {
+    for (const { slide, where } of slides('coord-tri-vertex-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const corner = rightCorner(triangle(slide));
+      const right = corner >= 0 ? `At ${'PQR'[corner]}` : 'It has no right angle';
+      expect(slide.options.find((o) => o.id === slide.correctId)?.label, where).toBe(right);
+    }
+  });
+
+  it('the squared sides picked are the real ones, and the equal pair is the one that is', () => {
+    for (const { slide, where } of slides('coord-isosceles-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [P, Q, R] = triangle(slide);
+      const lengths = [d2(P, Q), d2(Q, R), d2(R, P)];
+      const shown = [...slide.answer[0].matchAll(/\^2 = (-?\d+)/g)].map((match) => Number(match[1]));
+      expect(shown, where).toEqual(lengths);
+      const pair = slide.answer[1];
+      if (pair.startsWith('None')) expect(new Set(lengths).size, where).toBe(3);
+      else {
+        const [, s, t] = /\$(\w\w) = (\w\w)\$/.exec(pair)!;
+        const of = (side: string) => lengths[['PQ', 'QR', 'RP'].indexOf(side)];
+        expect(of(s), where).toBe(of(t));
+      }
+    }
+  });
+
+  it('the height found makes the triangle square at the corner named', () => {
+    for (const { slide, where } of slides('coord-tri-right-k')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const text = prose(slide);
+      const at = 'PQR'.indexOf(/right-angled at \$([PQR])\$/.exec(text)![1]);
+      const T = ['P', 'Q', 'R'].map((name) => {
+        const unknown = new RegExp(`${name}\\((-?\\d+), k\\)`).exec(text);
+        return unknown ? ([Number(unknown[1]), Number(slide.answer)] as P2) : pointIn(slide, name);
+      });
+      expect(rightCorner(T), where).toBe(at);
+    }
+  });
+
+  it('every step of the proof holds for the corners, and the shape claimed is the one they make', () => {
+    for (const { slide, where } of slides('coord-proof-order')) {
+      if (slide.kind !== 'order') throw new Error('expected order');
+      const P = corners(slide);
+      const [A, B, C, D] = P;
+      const shape = /Prove that it is a (\w+)/.exec(prose(slide))![1];
+      expect(isParallelogram(P), `${where}: a parallelogram`).toBe(true);
+      expect(nameOf(P), where).toBe(shape);
+      const at: Record<string, P2> = { A, B, C, D };
+      const gradient = (label: string) => slope(at[label[0]], at[label[1]]);
+      const proof = slide.answer.map((id) => slide.steps.find((step) => step.id === id)!.text);
+      for (const step of proof) {
+        for (const [, tex] of step.matchAll(/\$([^$]+)\$/g)) {
+          const sides = [...tex.matchAll(/m_\{(\w\w)\}/g)].map((match) => match[1]);
+          const parts = tex.split(' = ');
+          if (tex.includes('\\times')) {
+            const [a, b] = parts[1].split('\\times').map((part) => numberOf(part.replace(/\\left\(|\\right\)/g, '')));
+            expect([a, b], `${where}: ${tex}`).toEqual([gradient(sides[0]), gradient(sides[1])].map((m) => expect.closeTo(m, 9)));
+            expect(gradient(sides[0]) * gradient(sides[1]), `${where}: ${tex}`).toBeCloseTo(-1, 9);
+          } else if (sides.length > 0) {
+            for (const side of sides) expect(gradient(side), `${where}: ${tex}`).toBeCloseTo(numberOf(parts[parts.length - 1]), 9);
+          } else if (tex.startsWith('M_')) {
+            expect(pointTex(tex), `${where}: ${tex}`).toEqual(mid(A, C));
+            expect(pointTex(tex), `${where}: ${tex}`).toEqual(mid(B, D));
+          }
+        }
+      }
+    }
+  });
+
+  it('exactly the point marked right completes the shape named', () => {
+    for (const { slide, where } of slides('coord-complete-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const [A, B, C] = ['A', 'B', 'C'].map((name) => pointIn(slide, name));
+      const shape = /corners of an? (\w+)/.exec(prose(slide))![1];
+      for (const option of slide.options) {
+        const P = [A, B, C, pointTex(option.label)];
+        const makes = isParallelogram(P) && nameOf(P) === shape;
+        expect(makes, `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the figure fails exactly one test for a square, and that one is marked', () => {
+    for (const { slide, where } of slides('coord-fails-one-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const [A, B, C, D] = corners(slide);
+      const passes: Record<string, boolean> = {
+        'Both pairs of opposite sides parallel': parallel(A, B, D, C) && parallel(A, D, B, C),
+        'A right angle at B': dot(minus(A, B), minus(C, B)) === 0,
+        'AB = BC': d2(A, B) === d2(B, C),
+      };
+      expect(Object.values(passes).filter((pass) => !pass), where).toHaveLength(1);
+      for (const option of slide.options) {
+        expect(passes[option.label], `${where}: ${option.label}`).toBe(option.id !== slide.correctId);
+      }
+    }
+  });
+});

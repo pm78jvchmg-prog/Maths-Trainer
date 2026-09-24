@@ -13,15 +13,26 @@ import type { Generator, GeneratorRegistry, Lesson, Slide } from '../types';
 import { orderBank, proofOrderGenerators } from './proofOrder';
 import { numberProofOrders } from './numberProof';
 import { numberDivisibilityOrders } from './numberDivisibility';
+import { numberEuclidOrders } from './numberEuclid';
+import { coordinateGeometryOrders } from './coordinateGeometry';
+import { sequenceOrders } from './sequencesSeries';
 
 type OrderSlide = Extract<Slide, { kind: 'order' }>;
 
 const SEEDS = 60;
 const DIFFICULTIES = [1, 2];
 
-// Every order generator in the library, the demos and the Number & Proof
-// course's own, so each one's proofs are graded the way a learner's are.
-const orderGenerators = [...proofOrderGenerators, ...numberProofOrders, ...numberDivisibilityOrders] as Generator<unknown>[];
+// Every order generator in the library, the demos, the Number & Proof
+// course's own, Coordinate Geometry's and Sequences & Series' induction
+// proofs, so each one's proofs are graded the way a learner's are.
+const orderGenerators = [
+  ...proofOrderGenerators,
+  ...numberProofOrders,
+  ...numberDivisibilityOrders,
+  ...numberEuclidOrders,
+  ...coordinateGeometryOrders,
+  ...sequenceOrders,
+] as Generator<unknown>[];
 
 const registry: GeneratorRegistry = Object.fromEntries(
   orderGenerators.map((g) => [g.id, g as unknown as Generator<never>]),

@@ -11,7 +11,10 @@
  * back out of the prompt text. Level 3's checks read both statements and the
  * quoted Phi from the prompt, turn each into z themselves, and solve the pair
  * by elimination before comparing; a pair offered as an option is judged by
- * Simpson, not by the table.
+ * Simpson, not by the table. Level 4 reads n, p and the event from the
+ * prompt, finds the matching normal from sums over the distribution, works
+ * the continuity correction out bar by bar, and sets each approximation
+ * against the exact binomial sum.
  */
 import { describe, it, expect } from 'vitest';
 import { makeRng } from '../../engine/rng';
@@ -619,6 +622,727 @@ describe('dist-both-new-prob and dist-both-chain-tree: a new probability from th
       const below = belowFromTable(z, table);
       const want = [sigma, mu, z, above ? 1 - below : below];
       slide.answer.forEach((value, i) => expect(close(Number(value), want[i], 1e-6), `seed ${seed}, node ${i}`).toBe(true));
+    }
+  });
+});
+
+/* ---------- level 4: the normal approximation ---------- */
+
+/** B(n, p) row by row is slow at n = 900, and the same few pairs come up again and again. */
+const rows = new Map<string, number[]>();
+function exact(n: number, p: number): number[] {
+  const key = `${n}|${p}`;
+  if (!rows.has(key)) rows.set(key, distribution(n, p));
+  return rows.get(key)!;
+}
+
+/** Mean, variance and third central moment, as sums over the distribution. */
+function momentsOf(n: number, p: number) {
+  const dist = exact(n, p);
+  const mean = dist.reduce((acc, chance, r) => acc + r * chance, 0);
+  const variance = dist.reduce((acc, chance, r) => acc + (r - mean) ** 2 * chance, 0);
+  const third = dist.reduce((acc, chance, r) => acc + (r - mean) ** 3 * chance, 0);
+  return { mean, variance, skew: third / variance ** 1.5 };
+}
+
+/** n and p, from `B(n, p)` or from a setting: the first bare number is n, the first `$0.x$` is p. */
+function binomialFrom(text: string): { n: number; p: number } {
+  const symbols = /B\((\d+), (0\.\d+)\)/.exec(text);
+  if (symbols) return { n: Number(symbols[1]), p: Number(symbols[2]) };
+  const n = /\b(\d+)\b/.exec(text.replace(/\$[^$]*\$/g, ''));
+  const p = /\$(0\.\d+)\$/.exec(text);
+  expect(n && p, `no binomial in: ${text}`).toBeTruthy();
+  return { n: Number(n![1]), p: Number(p![1]) };
+}
+
+/** The whole numbers an event about X takes in, read from its symbols or its words. */
+function eventFrom(text: string): (k: number) => boolean {
+  let m: RegExpExecArray | null;
+  if ((m = /P\((\d+) \\le X \\le (\d+)\)/.exec(text)) || (m = /\$X\$ is between \$(\d+)\$ and \$(\d+)\$ inclusive/.exec(text))) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    return (k) => k >= a && k <= b;
+  }
+  if ((m = /P\(X (\\le|<|\\ge|>|=) (\d+)\)/.exec(text))) {
+    const r = Number(m[2]);
+    return { '\\le': (k: number) => k <= r, '<': (k: number) => k < r, '\\ge': (k: number) => k >= r, '>': (k: number) => k > r, '=': (k: number) => k === r }[m[1]]!;
+  }
+  m = /\$X\$ is (at most|fewer than|at least|more than|exactly) \$(\d+)\$/.exec(text);
+  expect(m, `no event in: ${text}`).not.toBeNull();
+  const r = Number(m![2]);
+  return {
+    'at most': (k: number) => k <= r,
+    'fewer than': (k: number) => k < r,
+    'at least': (k: number) => k >= r,
+    'more than': (k: number) => k > r,
+    exactly: (k: number) => k === r,
+  }[m![1]]!;
+}
+
+/** The whole numbers in 0..n an event takes in. */
+const members = (n: number, inEvent: (k: number) => boolean): number[] => Array.from({ length: n + 1 }, (_, k) => k).filter(inEvent);
+
+/** An event for Y, as `lo < Y < hi` with either end open to infinity. */
+interface YEvent {
+  lo: number;
+  hi: number;
+}
+
+/** `P(Y < b)`, `Y > b`, `P(a < Y < b)` and the like, with or without the P( ). */
+function yFrom(text: string): YEvent {
+  let m: RegExpExecArray | null;
+  if ((m = /(-?[\d.]+) < Y < (-?[\d.]+)/.exec(text))) return { lo: Number(m[1]), hi: Number(m[2]) };
+  m = /Y (<|>) (-?[\d.]+)/.exec(text);
+  expect(m, `no event for Y in: ${text}`).not.toBeNull();
+  return m![1] === '<' ? { lo: -Infinity, hi: Number(m![2]) } : { lo: Number(m![2]), hi: Infinity };
+}
+
+/**
+ * The continuity correction, checked from first principles: the event for Y
+ * must take in exactly the whole numbers the event for X does, with every
+ * finite end half way between two whole numbers, so each bar is wholly in or
+ * wholly out.
+ */
+function corrects(y: YEvent, n: number, inEvent: (k: number) => boolean): boolean {
+  const half = (b: number) => !Number.isFinite(b) || Math.abs(b - Math.floor(b) - 0.5) < 1e-9;
+  if (!half(y.lo) || !half(y.hi)) return false;
+  return Array.from({ length: n + 1 }, (_, k) => k).every((k) => inEvent(k) === (k > y.lo && k < y.hi));
+}
+
+/** The label of the option a choice slide marks correct, and the rest. */
+function split(slide: Slide): { right: string; wrong: string[] } {
+  if (slide.kind !== 'choice') throw new Error('not a choice slide');
+  return {
+    right: slide.options.find((o) => o.id === slide.correctId)!.label,
+    wrong: slide.options.filter((o) => o.id !== slide.correctId).map((o) => o.label),
+  };
+}
+
+describe('dist-approx-sum, by counting the whole numbers the event takes in', () => {
+  it('starts, ends and counts where the event does', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-sum')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const text = promptText(slide);
+      const { n } = binomialFrom(text);
+      const ks = members(n, eventFrom(text));
+      expect(slide.answer, `seed ${seed}`).toEqual([String(ks[0]), String(ks[ks.length - 1]), String(ks.length)]);
+    }
+  });
+});
+
+describe('dist-approx-bars, against the heights of the bars drawn', () => {
+  /** Bar heights read out of the SVG, as shares of the tallest. */
+  const heights = (svg: string) => {
+    const hs = [...svg.matchAll(/class="plot-shade" [^>]*height="([\d.]+)"/g)].map((m) => Number(m[1]));
+    const top = Math.max(...hs);
+    return hs.map((h) => h / top);
+  };
+  const shares = (n: number, p: number) => {
+    const dist = exact(n, p);
+    const top = Math.max(...dist);
+    return dist.map((d) => d / top);
+  };
+  const gap = (a: number[], b: number[]) => Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+
+  it('draws the distribution it marks right, and none of the others', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-bars')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const svg = slide.prompt.find((b) => b.kind === 'diagram');
+      expect(svg, `seed ${seed}: no picture`).toBeDefined();
+      const drawn = heights((svg as { svg: string }).svg);
+      const { right, wrong } = split(slide);
+      const { n, p } = binomialFrom(right);
+      expect(drawn.length, `seed ${seed}`).toBe(n + 1);
+      expect(gap(drawn, shares(n, p)), `seed ${seed}: ${right}`).toBeLessThan(0.02);
+      for (const label of wrong) {
+        const other = binomialFrom(label);
+        expect(gap(drawn, shares(other.n, other.p)), `seed ${seed}: ${label} looks like ${right}`).toBeGreaterThan(0.15);
+      }
+    }
+  });
+});
+
+describe('dist-approx-skew, against the skewness of the distribution', () => {
+  it('calls a bell a bell and a skew the right way round', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-skew')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { n, p } = binomialFrom(promptText(slide));
+      const { skew } = momentsOf(n, p);
+      if (slide.answer.length === 1) {
+        expect(slide.answer, `seed ${seed}`).toEqual(['Yes']);
+        expect(Math.abs(skew), `seed ${seed}: B(${n}, ${p}) skew ${skew}`).toBeLessThan(0.25);
+      } else {
+        expect(Math.abs(skew), `seed ${seed}: B(${n}, ${p}) skew ${skew}`).toBeGreaterThan(0.3);
+        // A long tail to the right is positive skew, which is p below a half.
+        expect(slide.answer, `seed ${seed}`).toEqual(['No', skew > 0 ? 'Yes' : 'No']);
+      }
+    }
+  });
+});
+
+describe('dist-approx-peak, against the mean of the distribution', () => {
+  it('puts the line at the mean', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-peak')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const { n, p } = binomialFrom(promptText(slide));
+      expect(close(slide.answer, momentsOf(n, p).mean, 1e-6), `seed ${seed}`).toBe(true);
+    }
+  });
+});
+
+/** np and n(1 - p) as sums over the distribution: the mean successes and the mean failures. */
+function sides(n: number, p: number): [number, number] {
+  const { mean } = momentsOf(n, p);
+  return [mean, n - mean];
+}
+
+/** Whether both clear 5, allowing for float dust in the sums. */
+const clears = (n: number, p: number) => sides(n, p).every((v) => v > 5 + 1e-6);
+
+describe('when the approximation is allowed, from the mean successes and failures', () => {
+  it('walks dist-approx-valid to the right verdict', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-valid')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { n, p } = binomialFrom(promptText(slide));
+      const [np, nq] = sides(n, p);
+      const want = np > 5 + 1e-6 ? ['Yes', nq > 5 + 1e-6 ? 'Yes' : 'No'] : ['No'];
+      expect(slide.answer, `seed ${seed}: B(${n}, ${p})`).toEqual(want);
+    }
+  });
+
+  it('fills dist-approx-products with np, n(1 - p) and the verdict', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-products')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const { n, p } = binomialFrom(promptText(slide));
+      const [np, nq] = sides(n, p);
+      expect(close(Number(slide.answer[0]), np, 1e-6) && close(Number(slide.answer[1]), nq, 1e-6), `seed ${seed}`).toBe(true);
+      expect(slide.answer[2], `seed ${seed}`).toBe(clears(n, p) ? '\\text{yes}' : '\\text{no}');
+    }
+  });
+
+  it('marks right the one distribution in dist-approx-which-valid that clears both', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-which-valid')) {
+      const { right, wrong } = split(slide);
+      const good = binomialFrom(right);
+      expect(clears(good.n, good.p), `seed ${seed}: ${right}`).toBe(true);
+      for (const label of wrong) {
+        const bad = binomialFrom(label);
+        expect(clears(bad.n, bad.p), `seed ${seed}: ${label}`).toBe(false);
+      }
+    }
+  });
+
+  it('slides dist-approx-min-n to the first n that clears both, counting up', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-min-n')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const hundredths = Math.round(Number(/B\(n, (0\.\d+)\)/.exec(promptText(slide))![1]) * 100);
+      let n = 1;
+      while (!(n * hundredths > 500 && n * (100 - hundredths) > 500)) n += 1;
+      expect(slide.answer, `seed ${seed}: p = ${hundredths / 100}`).toBe(n);
+    }
+  });
+});
+
+describe('the matching normal, from sums over the distribution', () => {
+  /** Mean, variance and sigma, checking the variance is a whole square. */
+  const matching = (n: number, p: number, seed: number) => {
+    const { mean, variance } = momentsOf(n, p);
+    const sigma = Math.round(Math.sqrt(variance));
+    expect(close(sigma * sigma, variance, 1e-6), `seed ${seed}: B(${n}, ${p}) has variance ${variance}`).toBe(true);
+    return { mean, variance, sigma };
+  };
+
+  it('finds the mean, variance or sigma dist-approx-param asks for', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-param')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { n, p } = binomialFrom(promptText(slide));
+      const { mean, variance, sigma } = matching(n, p, seed);
+      const want = slide.lead === '\\mu =' ? mean : slide.lead === '\\sigma^2 =' ? variance : sigma;
+      expect(close(Number(slide.answer), want, 1e-6), `seed ${seed}: ${slide.lead}`).toBe(true);
+    }
+  });
+
+  it('marks right N(mean, variance) in dist-approx-normal', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-normal')) {
+      const { n, p } = binomialFrom(promptText(slide));
+      const { mean, variance } = matching(n, p, seed);
+      const m = /N\(([\d.]+), ([\d.]+)\)/.exec(split(slide).right)!;
+      expect(close(Number(m[1]), mean, 1e-6) && close(Number(m[2]), variance, 1e-6), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('builds dist-approx-build and dist-approx-moments-tree from the mean, variance and sigma', () => {
+    for (const id of ['dist-approx-build', 'dist-approx-moments-tree']) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        if (slide.kind !== 'tiles' && slide.kind !== 'tree') throw new Error('not a tiles or tree slide');
+        const { n, p } = binomialFrom(promptText(slide));
+        const { mean, variance, sigma } = matching(n, p, seed);
+        expect(slide.answer.map(Number), `${id} seed ${seed}`).toEqual([mean, variance, sigma].map((v) => Number(v.toFixed(6))));
+      }
+    }
+  });
+});
+
+describe('the continuity correction, bar by bar', () => {
+  it('marks right in dist-cc-choice the one event for Y that takes in the same bars', () => {
+    for (const { slide, seed } of draws<unknown>('dist-cc-choice')) {
+      const text = promptText(slide);
+      const { n } = binomialFrom(text);
+      const inEvent = eventFrom(text);
+      const { right, wrong } = split(slide);
+      expect(corrects(yFrom(right), n, inEvent), `seed ${seed}: ${right}`).toBe(true);
+      for (const label of wrong) expect(corrects(yFrom(label), n, inEvent), `seed ${seed}: ${label}`).toBe(false);
+    }
+  });
+
+  it('walks dist-cc-flow through the whole numbers, then the corrected event', () => {
+    for (const { slide, seed } of draws<unknown>('dist-cc-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = promptText(slide);
+      const { n } = binomialFrom(text);
+      const inEvent = eventFrom(text);
+      const m = /X (\\le|\\ge) (\d+)/.exec(slide.answer[0])!;
+      const k = Number(m[2]);
+      const stated = (j: number) => (m[1] === '\\le' ? j <= k : j >= k);
+      expect(members(n, stated), `seed ${seed}: ${slide.answer[0]}`).toEqual(members(n, inEvent));
+      expect(corrects(yFrom(slide.answer[1]), n, inEvent), `seed ${seed}: ${slide.answer[1]}`).toBe(true);
+    }
+  });
+
+  it('shades in dist-cc-line the corrected event, with open ends', () => {
+    for (const { slide, seed } of draws<unknown>('dist-cc-line')) {
+      if (slide.kind !== 'numberLine') throw new Error('not a number line slide');
+      const text = promptText(slide);
+      const { n } = binomialFrom(text);
+      const m = /^\((-inf|[\d.]+),(inf|[\d.]+)\)$/.exec(slide.answer);
+      expect(m, `seed ${seed}: ${slide.answer} is not one open piece`).not.toBeNull();
+      const y = { lo: m![1] === '-inf' ? -Infinity : Number(m![1]), hi: m![2] === 'inf' ? Infinity : Number(m![2]) };
+      expect(corrects(y, n, eventFrom(text)), `seed ${seed}: ${slide.answer}`).toBe(true);
+    }
+  });
+
+  it('gives in dist-cc-boundary the end of the bars the event takes in', () => {
+    for (const { slide, seed } of draws<unknown>('dist-cc-boundary')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const text = promptText(slide);
+      const { n } = binomialFrom(text);
+      const ks = members(n, eventFrom(text));
+      const shape = /approximated by \$P\((a < Y < b|Y < b|Y > b)\)\$/.exec(text)![1];
+      const lower = shape === 'Y > b' || (shape === 'a < Y < b' && slide.lead === 'a =');
+      const want = lower ? ks[0] - 0.5 : ks[ks.length - 1] + 0.5;
+      expect(Number(slide.answer), `seed ${seed}: ${shape}`).toBe(want);
+    }
+  });
+});
+
+/**
+ * How far a corrected normal approximation may sit from the exact binomial
+ * sum. Every pair here has np and n(1 - p) at 9 or more, and the worst draw
+ * over these seeds is off by about 0.012.
+ */
+const APPROXIMATION = 0.015;
+
+describe('the whole route, against the exact binomial sum', () => {
+  /**
+   * Everything a route question should come to, worked from the prompt:
+   * n and p, the matching normal from sums over the distribution, the
+   * corrected ends from the bars the event takes in, z at each end, and the
+   * probability read from the quoted Phi values alone. Every quoted Phi is
+   * checked against Simpson on the way.
+   */
+  function route(text: string, seed: number) {
+    const { n, p } = binomialFrom(text);
+    const { mean, variance } = momentsOf(n, p);
+    const sigma = Math.sqrt(variance);
+    const inEvent = eventFrom(text);
+    const ks = members(n, inEvent);
+    const lo = ks[0] > 0 ? ks[0] - 0.5 : -Infinity;
+    const hi = ks[ks.length - 1] < n ? ks[ks.length - 1] + 0.5 : Infinity;
+    const table = quotedPhis(text);
+    for (const [z, value] of table) expect(value, `seed ${seed}: Phi(${z})`).toBe(Number(simpsonPhi(z).toFixed(4)));
+    const zOf = (b: number) => (b - mean) / sigma;
+    const upTo = (b: number) => (Number.isFinite(b) ? belowFromTable(zOf(b), table) : 1);
+    // Only a question that asks for the probability quotes Phi.
+    const fromTable = table.length === 0 ? NaN : upTo(hi) - (Number.isFinite(lo) ? upTo(lo) : 0);
+    const truth = ks.reduce((acc, k) => acc + exact(n, p)[k], 0);
+    return { mean, sigma, lo, hi, zOf, fromTable, truth };
+  }
+
+  it('answers dist-approx-prob from the quoted Phi, within reach of the exact sum', () => {
+    let worst = 0;
+    for (const { slide, seed } of draws<unknown>('dist-approx-prob')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const { fromTable, truth } = route(promptText(slide), seed);
+      expect(close(Number(slide.answer), fromTable), `seed ${seed}`).toBe(true);
+      worst = Math.max(worst, Math.abs(fromTable - truth));
+      expect(Math.abs(fromTable - truth), `seed ${seed}: approximation ${fromTable}, exact ${truth}`).toBeLessThan(APPROXIMATION);
+    }
+    expect(worst).toBeGreaterThan(0);
+  });
+
+  it('fills dist-approx-route-tree with the corrected end, its z and the probability', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-route-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { lo, hi, zOf, fromTable, truth } = route(promptText(slide), seed);
+      const b = Number.isFinite(lo) ? lo : hi;
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([b, Number(zOf(b).toFixed(6)), Number(fromTable.toFixed(6))]);
+      expect(Math.abs(fromTable - truth), `seed ${seed}`).toBeLessThan(APPROXIMATION);
+    }
+  });
+
+  it('corrects then standardises in dist-approx-standardise-steps', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-standardise-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const { lo, hi, zOf } = route(promptText(slide), seed);
+      const b = Number.isFinite(lo) ? lo : hi;
+      expect(Number(slide.reductions[0].value), `seed ${seed}`).toBe(b);
+      expect(close(Number(slide.reductions[slide.reductions.length - 1].value), zOf(b)), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('plans dist-approx-plan through the matching normal, the correction and the right side of Phi', () => {
+    for (const { slide, seed } of draws<unknown>('dist-approx-plan')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = promptText(slide);
+      const { n } = binomialFrom(text);
+      const { mean, sigma, zOf } = route(text, seed);
+      const normal = /N\(([\d.]+), ([\d.]+)\)/.exec(slide.answer[0])!;
+      expect([Number(normal[1]), Number(normal[2])], `seed ${seed}`).toEqual([mean, sigma * sigma].map((v) => Number(v.toFixed(6))));
+      const y = yFrom(slide.answer[1]);
+      expect(corrects(y, n, eventFrom(text)), `seed ${seed}: ${slide.answer[1]}`).toBe(true);
+      // Which form is right, from the area itself rather than any rule about signs.
+      const b = Number.isFinite(y.lo) ? y.lo : y.hi;
+      const z = zOf(b);
+      const area = Number.isFinite(y.lo) ? 1 - (z >= 0 ? simpsonPhi(z) : 1 - simpsonPhi(-z)) : z >= 0 ? simpsonPhi(z) : 1 - simpsonPhi(-z);
+      const u = simpsonPhi(Math.abs(z));
+      const form = slide.answer[2].startsWith('$1 - ') ? 1 - u : u;
+      expect(close(form, area, 1e-6), `seed ${seed}: ${slide.answer[2]} for ${slide.answer[1]}`).toBe(true);
+    }
+  });
+});
+
+/* ---------- level 5: sums and differences of independent normals ---------- */
+
+/** Mean and variance of every `L \sim N(m, v)` a prompt states, by letter. */
+function normalsFrom(text: string): Record<string, { mean: number; variance: number }> {
+  const out: Record<string, { mean: number; variance: number }> = {};
+  for (const m of text.matchAll(/([A-Z]) \\sim N\((-?[\d.]+), ([\d.]+)\)/g)) {
+    out[m[1]] ??= { mean: Number(m[2]), variance: Number(m[3]) };
+  }
+  return out;
+}
+
+/** The coefficients of `W = aX + bY + c` as the prompt writes it, read term by term. */
+function combinationFrom(text: string): { a: number; b: number; c: number } {
+  const m = /\$W = ([^$]+)\$/.exec(text);
+  expect(m, `no W in: ${text}`).not.toBeNull();
+  const out = { a: 0, b: 0, c: 0 };
+  for (const [, sign, digits, letter] of m![1].replace(/\s/g, '').matchAll(/([+-]?)(\d*)([XY]?)/g)) {
+    if (!digits && !letter) continue;
+    const k = (sign === '-' ? -1 : 1) * (digits ? Number(digits) : 1);
+    if (letter === 'X') out.a += k;
+    else if (letter === 'Y') out.b += k;
+    else out.c += k;
+  }
+  return out;
+}
+
+/**
+ * E, Var and sigma of W worked from the prompt alone: the coefficients read
+ * from `W = ...`, each distribution read from its `N(m, v)`, and the rules
+ * E(aX + bY + c) = aE(X) + bE(Y) + c and Var = a^2 Var(X) + b^2 Var(Y).
+ */
+function momentsFromPrompt(text: string) {
+  const normals = normalsFrom(text);
+  const { a, b, c } = combinationFrom(text);
+  const x = normals.X;
+  const y = normals.Y ?? { mean: 0, variance: 0 };
+  expect(x, `no X in: ${text}`).toBeDefined();
+  if (b !== 0) expect(normals.Y, `no Y in: ${text}`).toBeDefined();
+  const mean = a * x.mean + b * y.mean + c;
+  const variance = a * a * x.variance + b * b * y.variance;
+  return { a, b, c, x, y, mean, variance, sd: Math.sqrt(variance) };
+}
+
+/** Which moment an expression slide's lead asks for. */
+function askedFrom(lead: string): 'mean' | 'var' | 'sd' {
+  if (lead.startsWith('\\mathrm{E}')) return 'mean';
+  if (lead.startsWith('\\mathrm{Var}')) return 'var';
+  expect(lead.startsWith('\\sigma')).toBe(true);
+  return 'sd';
+}
+
+/** The distribution a correct option names, as numbers. */
+function correctNormal(slide: Slide): { mean: number; variance: number } {
+  if (slide.kind !== 'choice') throw new Error('not a choice slide');
+  const label = slide.options.find((o) => o.id === slide.correctId)!.label;
+  const m = /N\((-?[\d.]+), ([\d.]+)\)/.exec(label)!;
+  return { mean: Number(m[1]), variance: Number(m[2]) };
+}
+
+/** The last number after `=` in a flow label: what that route comes to. */
+const labelValue = (label: string): number => Number(/= (-?[\d.]+)\$/.exec(label)?.[1] ?? /\$(-?[\d.]+)\$/.exec(label)![1]);
+
+describe('level 5 lesson 1: aX + b, from the prompt alone', () => {
+  const ids = ['dist-lin-moment', 'dist-lin-normal', 'dist-lin-spread-tree', 'dist-lin-effect-flow'];
+
+  it('writes every variance as a perfect square, so sigma is whole', () => {
+    for (const id of ids) {
+      for (const { slide, seed } of draws<unknown>(id)) {
+        const { variance, b } = momentsFromPrompt(promptText(slide));
+        expect(b, `${id} seed ${seed}`).toBe(0);
+        expect(Number.isInteger(Math.sqrt(variance)), `${id} seed ${seed}`).toBe(true);
+      }
+    }
+  });
+
+  it('gives E, Var or sigma of aX + b in dist-lin-moment', () => {
+    for (const { slide, seed } of draws<unknown>('dist-lin-moment')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const moments = momentsFromPrompt(promptText(slide));
+      const want = { mean: moments.mean, var: moments.variance, sd: moments.sd }[askedFrom(slide.lead!)];
+      expect(Number(slide.answer), `seed ${seed}`).toBe(want);
+    }
+  });
+
+  it('names N(aE(X) + b, a^2 Var(X)) in dist-lin-normal, and only there', () => {
+    for (const { slide, seed } of draws<unknown>('dist-lin-normal')) {
+      const { mean, variance } = momentsFromPrompt(promptText(slide));
+      expect(correctNormal(slide), `seed ${seed}`).toEqual({ mean, variance });
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const matching = slide.options.filter((o) => o.label.endsWith(`N(${mean}, ${variance})`));
+      expect(matching.length, `seed ${seed}`).toBe(1);
+    }
+  });
+
+  it('fills dist-lin-spread-tree with a^2, the variance and |a| sigma', () => {
+    for (const { slide, seed } of draws<unknown>('dist-lin-spread-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const { a, x, variance, sd } = momentsFromPrompt(promptText(slide));
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([a * a, variance, sd]);
+      expect(sd, `seed ${seed}`).toBe(Math.abs(a) * Math.sqrt(x.variance));
+    }
+  });
+
+  it('walks dist-lin-effect-flow to the right mean, variance and sigma', () => {
+    for (const { slide, seed } of draws<unknown>('dist-lin-effect-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { mean, variance, sd } = momentsFromPrompt(promptText(slide));
+      expect(slide.answer.map(labelValue), `seed ${seed}`).toEqual([mean, variance, sd]);
+    }
+  });
+});
+
+describe('level 5 lesson 2: X + Y and X - Y, from the prompt alone', () => {
+  it('gives E, Var or sigma of X + Y or X - Y in dist-sum-moment', () => {
+    for (const { slide, seed } of draws<unknown>('dist-sum-moment')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const moments = momentsFromPrompt(promptText(slide));
+      expect([moments.a, Math.abs(moments.b), moments.c], `seed ${seed}`).toEqual([1, 1, 0]);
+      const want = { mean: moments.mean, var: moments.variance, sd: moments.sd }[askedFrom(slide.lead!)];
+      expect(Number(slide.answer), `seed ${seed}`).toBe(want);
+    }
+  });
+
+  it('adds the variances in dist-sum-normal even for a difference', () => {
+    for (const { slide, seed } of draws<unknown>('dist-sum-normal')) {
+      const { x, y, mean, variance } = momentsFromPrompt(promptText(slide));
+      expect(correctNormal(slide), `seed ${seed}`).toEqual({ mean, variance });
+      expect(variance, `seed ${seed}`).toBe(x.variance + y.variance);
+    }
+  });
+
+  it('builds Var(X) + Var(Y) and sigma in dist-sum-var-tiles', () => {
+    for (const { slide, seed } of draws<unknown>('dist-sum-var-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const { x, y, variance, sd } = momentsFromPrompt(promptText(slide));
+      expect(slide.answer, `seed ${seed}`).toEqual([String(x.variance), '+', String(y.variance), String(variance), String(sd)]);
+      expect(Number.isInteger(sd), `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it('fills each row of dist-sum-table from the combination its label names', () => {
+    for (const { slide, seed } of draws<unknown>('dist-sum-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const { X, Y } = normalsFrom(promptText(slide));
+      slide.rows.forEach((row, i) => {
+        const m = /^([XY]) ([+-]) ([XY])$/.exec(row[0]!)!;
+        const first = m[1] === 'X' ? X : Y;
+        const second = m[3] === 'X' ? X : Y;
+        const mean = m[2] === '+' ? first.mean + second.mean : first.mean - second.mean;
+        expect(slide.answer.slice(2 * i, 2 * i + 2).map(Number), `seed ${seed}: ${row[0]}`).toEqual([mean, X.variance + Y.variance]);
+      });
+    }
+  });
+});
+
+describe('level 5 lesson 3: aX + bY, from the prompt alone', () => {
+  it('gives E, Var or sigma of aX + bY + c in dist-combo-moment', () => {
+    for (const { slide, seed } of draws<unknown>('dist-combo-moment')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const moments = momentsFromPrompt(promptText(slide));
+      expect(Number.isInteger(moments.sd), `seed ${seed}`).toBe(true);
+      const want = { mean: moments.mean, var: moments.variance, sd: moments.sd }[askedFrom(slide.lead!)];
+      expect(Number(slide.answer), `seed ${seed}`).toBe(want);
+    }
+  });
+
+  it('names N(E, Var) in dist-combo-normal, and only there', () => {
+    for (const { slide, seed } of draws<unknown>('dist-combo-normal')) {
+      const { mean, variance } = momentsFromPrompt(promptText(slide));
+      expect(correctNormal(slide), `seed ${seed}`).toEqual({ mean, variance });
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      expect(slide.options.filter((o) => o.label.endsWith(`N(${mean}, ${variance})`)).length, `seed ${seed}`).toBe(1);
+    }
+  });
+
+  it('reduces a^2 Var(X) + b^2 Var(Y) step by step in dist-combo-var-steps', () => {
+    for (const { slide, seed } of draws<unknown>('dist-combo-var-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const { a, b, x, y, variance } = momentsFromPrompt(promptText(slide));
+      expect(slide.reductions.map((r) => Number(r.value)), `seed ${seed}`).toEqual([a * a * x.variance, b * b * y.variance, variance]);
+    }
+  });
+
+  it('builds W ~ N(E, Var) and sigma in dist-combo-build', () => {
+    for (const { slide, seed } of draws<unknown>('dist-combo-build')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const { mean, variance, sd } = momentsFromPrompt(promptText(slide));
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([mean, variance, sd]);
+    }
+  });
+});
+
+describe('level 5 lesson 4: a total of n copies against one copy times n', () => {
+  /** n and whether the quantity is one copy scaled, from the definition the prompt writes. */
+  function totalFrom(text: string) {
+    const copies = /X_1 \+ X_2 \+ \\dots \+ X_\{(\d+)\}/.exec(text);
+    const scaled = /S = (\d+)X/.exec(text);
+    const m = /N\((-?[\d.]+), ([\d.]+)\)/.exec(text)!;
+    return { copies: copies && Number(copies[1]), scaled: scaled && Number(scaled[1]), mean: Number(m[1]), variance: Number(m[2]) };
+  }
+
+  /** A total of n adds n variances; one copy times n multiplies its variance by n^2. */
+  const momentsOf = (n: number, scaled: boolean, mean: number, variance: number) => {
+    const v = (scaled ? n * n : n) * variance;
+    return { mean: n * mean, var: v, sd: Math.sqrt(v) };
+  };
+
+  it('gives E, Var or sigma of the total or the scaled copy in dist-total-moment', () => {
+    for (const { slide, seed } of draws<unknown>('dist-total-moment')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const t = totalFrom(promptText(slide));
+      const scaled = t.scaled !== null;
+      const moments = momentsOf((t.scaled ?? t.copies)!, scaled, t.mean, t.variance);
+      expect(Number.isInteger(moments.sd), `seed ${seed}`).toBe(true);
+      expect(Number(slide.answer), `seed ${seed}`).toBe(moments[askedFrom(slide.lead!)]);
+    }
+  });
+
+  it('names the right normal in dist-total-normal', () => {
+    for (const { slide, seed } of draws<unknown>('dist-total-normal')) {
+      const t = totalFrom(promptText(slide));
+      const moments = momentsOf((t.scaled ?? t.copies)!, t.scaled !== null, t.mean, t.variance);
+      expect(correctNormal(slide), `seed ${seed}`).toEqual({ mean: moments.mean, variance: moments.var });
+    }
+  });
+
+  it('fills dist-total-table with both variances and both sigmas', () => {
+    for (const { slide, seed } of draws<unknown>('dist-total-table')) {
+      if (slide.kind !== 'table') throw new Error('not a table slide');
+      const t = totalFrom(promptText(slide));
+      expect(t.copies, `seed ${seed}`).toBe(t.scaled);
+      const total = momentsOf(t.copies!, false, t.mean, t.variance);
+      const scaled = momentsOf(t.copies!, true, t.mean, t.variance);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([total.var, total.sd, scaled.var, scaled.sd]);
+    }
+  });
+
+  it('routes dist-total-flow by whether one value was measured once', () => {
+    for (const { slide, seed } of draws<unknown>('dist-total-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = promptText(slide);
+      const scaled = /\bonce\b/.test(text);
+      const n = Number(/\b(\d+)\b/.exec(text.replace(/\$[^$]*\$/g, ''))![1]);
+      const { mean, variance } = normalsFrom(text).X;
+      const moments = momentsOf(n, scaled, mean, variance);
+      expect(slide.answer[0].includes(scaled ? `$${n}X$` : `X_{${n}}`), `seed ${seed}: ${slide.answer[0]}`).toBe(true);
+      expect(labelValue(slide.answer[1]), `seed ${seed}`).toBe(moments.var);
+      if (slide.answer.length > 2) expect(labelValue(slide.answer[2]), `seed ${seed}`).toBe(moments.sd);
+    }
+  });
+});
+
+describe('level 5 lesson 5: a probability from the combination', () => {
+  /** P(Z < z) the true way, by Simpson. */
+  const trueBelow = (t: number) => (t >= 0 ? simpsonPhi(t) : 1 - simpsonPhi(-t));
+
+  /** Check every quoted Phi against Simpson, then read P(W < k) or P(W > k) from the quotes. */
+  function fromQuotes(text: string, z: number, op: string, seed: number) {
+    const table = quotedPhis(text);
+    for (const [at, value] of table) expect(value, `seed ${seed}: Phi(${at})`).toBe(Number(simpsonPhi(at).toFixed(4)));
+    const fromTable = op === '<' ? belowFromTable(z, table) : 1 - belowFromTable(z, table);
+    const truth = op === '<' ? trueBelow(z) : 1 - trueBelow(z);
+    return { fromTable, truth };
+  }
+
+  it('answers dist-combo-prob from its own standardising and the quoted Phi', () => {
+    for (const { slide, seed } of draws<unknown>('dist-combo-prob')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const text = promptText(slide);
+      const { mean, sd } = momentsFromPrompt(text);
+      expect(Number.isInteger(sd), `seed ${seed}`).toBe(true);
+      const [, op, k] = /^P\(W ([<>]) (-?[\d.]+)\)/.exec(slide.lead!)!;
+      const { fromTable, truth } = fromQuotes(text, (Number(k) - mean) / sd, op, seed);
+      expect(close(Number(slide.answer), fromTable), `seed ${seed}`).toBe(true);
+      expect(Math.abs(Number(slide.answer) - truth), `seed ${seed}`).toBeLessThan(0.001);
+    }
+  });
+
+  /** D = X - Y from the two stated normals; P(X > Y) is P(D > 0). */
+  function difference(text: string) {
+    const { X, Y } = normalsFrom(text);
+    const mean = X.mean - Y.mean;
+    const sd = Math.sqrt(X.variance + Y.variance);
+    const [, op] = /P\(X ([<>]) Y\)/.exec(text)!;
+    return { mean, sd, op, z: (0 - mean) / sd, variance: X.variance + Y.variance };
+  }
+
+  it('answers dist-bigger-prob as P(D > 0) or P(D < 0) for D = X - Y', () => {
+    for (const { slide, seed } of draws<unknown>('dist-bigger-prob')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const text = promptText(slide);
+      const { sd, op, z } = difference(`${text} ${slide.lead}`);
+      expect(Number.isInteger(sd), `seed ${seed}`).toBe(true);
+      const { fromTable, truth } = fromQuotes(text, z, op, seed);
+      expect(close(Number(slide.answer), fromTable), `seed ${seed}`).toBe(true);
+      expect(Math.abs(Number(slide.answer) - truth), `seed ${seed}`).toBeLessThan(0.001);
+    }
+  });
+
+  it('fills dist-diff-route-tree with E(D), sigma of D, the z of 0 and the probability', () => {
+    for (const { slide, seed } of draws<unknown>('dist-diff-route-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const text = promptText(slide);
+      const { mean, sd, op, z } = difference(text);
+      const { fromTable, truth } = fromQuotes(text, z, op, seed);
+      expect(slide.answer.map(Number), `seed ${seed}`).toEqual([mean, sd, Number(z.toFixed(6)), Number(fromTable.toFixed(6))]);
+      expect(Math.abs(fromTable - truth), `seed ${seed}`).toBeLessThan(0.001);
+    }
+  });
+
+  it('plans dist-diff-plan through N(E(D), Var(X) + Var(Y)), the event and the right side of Phi', () => {
+    for (const { slide, seed } of draws<unknown>('dist-diff-plan')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const text = promptText(slide);
+      const { mean, variance, op, z } = difference(text);
+      const normal = /N\((-?[\d.]+), ([\d.]+)\)/.exec(slide.answer[0])!;
+      expect([Number(normal[1]), Number(normal[2])], `seed ${seed}`).toEqual([mean, variance]);
+      expect(slide.answer[1], `seed ${seed}`).toBe(`$D ${op} 0$`);
+      // Which form is right, from the area itself rather than any rule about signs.
+      const area = op === '<' ? trueBelow(z) : 1 - trueBelow(z);
+      const u = simpsonPhi(Math.abs(z));
+      const form = slide.answer[2].startsWith('$1 - ') ? 1 - u : u;
+      expect(close(form, area, 1e-6), `seed ${seed}: ${slide.answer[2]}`).toBe(true);
     }
   });
 });

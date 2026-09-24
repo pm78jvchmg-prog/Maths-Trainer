@@ -11,6 +11,12 @@
  * the diagrams bigger: trees built from words, with a three-way first stage
  * or three stages, and Venn diagrams of two and three sets filled in from
  * totals, working outward from the overlap, then read for probabilities.
+ * Level 4 is conditional probability in general: the formula from a two-way
+ * table or a table of probabilities, restricting a Venn diagram to one circle
+ * or outside it, trees whose second stage depends on the first (drawn with
+ * the `probTree` widget where the learner fills or taps branches), testing
+ * independence with P(A | B) = P(A), and P(A | B) from a finished tree as one
+ * path over the sum of the paths ending in B.
  *
  * Three rules hold everywhere in this file.
  *
@@ -5254,6 +5260,1410 @@ const vennSumTiles: Generator<SumTilesParams> = {
 };
 
 /* ================================================================
+ * Level 4: conditional probability, shared
+ * ================================================================ */
+
+/** `P(A \mid B)`: the space after `\mid` keeps it off a following letter. */
+const condTex = (event: string, on: string): string => `P(${event} \\mid ${on})`;
+
+/**
+ * A chain of equal expressions, one to a line and aligned on the equals signs,
+ * so a line of working with a conditional in it still fits a phone.
+ */
+const chain = (first: string, ...rest: string[]): string => `\\begin{aligned} ${first} &= ${rest.join(' \\\\ &= ')} \\end{aligned}`;
+
+/** An event and its complement: `R` and `R'`. */
+const not = (label: string): string => (label.endsWith("'") ? label.slice(0, -1) : `${label}'`);
+
+/** Hundredths as a token: `35` is `0.35`. */
+const hun = (h: number): Tok => dec(h / 100);
+
+/** Ten-thousandths, the product of two hundredths: `1575` is `0.1575`. */
+const tth = (x: number): Tok => dec(x / 10000);
+
+/** A fraction as it stands, uncancelled, for a tile: `\frac{12}{60}`. */
+const raw = (f: Frac): Tok => ({ tex: rawTex(f), v: fv(f), answer: fans(f), frac: simplest(f) });
+
+/**
+ * Two events, the second depending on the first, with the words for each
+ * branch of the tree: `onA` and `offA` name the first-stage branch a sentence
+ * is about, `yes` and `no` the second-stage outcome.
+ */
+export const COND_STORIES = [
+  { A: 'R', B: 'L', a: 'it rains on a school day', notA: 'it is dry on a school day', b: 'Sam is late', onA: 'On a rainy day', offA: 'On a dry day', yes: 'Sam is late', no: 'Sam is on time' },
+  { A: 'T', B: 'M', a: "Priya's train is delayed", notA: "Priya's train runs on time", b: 'she misses her meeting', onA: 'When the train is delayed', offA: 'When the train runs on time', yes: 'she misses the meeting', no: 'she makes the meeting' },
+  { A: 'W', B: 'V', a: 'a team wins the toss', notA: 'the team loses the toss', b: 'it wins the match', onA: 'When the team wins the toss', offA: 'When it loses the toss', yes: 'it wins the match', no: 'it does not win the match' },
+  { A: 'F', B: 'T', a: 'a patient has flu', notA: 'a patient does not have flu', b: 'their test comes back positive', onA: 'For a patient with flu', offA: 'For a patient without flu', yes: 'the test is positive', no: 'the test is negative' },
+  { A: 'S', B: 'C', a: 'a day is sunny', notA: 'a day is not sunny', b: 'the cafe sells out of ice cream', onA: 'On a sunny day', offA: 'On a day that is not sunny', yes: 'the cafe sells out', no: 'the cafe does not sell out' },
+  { A: 'H', B: 'Q', a: 'Ben does his homework', notA: 'Ben has not done his homework', b: 'he passes the quiz', onA: 'When Ben has done his homework', offA: 'When he has not', yes: 'he passes the quiz', no: 'he fails the quiz' },
+] as const;
+
+type Story = (typeof COND_STORIES)[number];
+
+function storySentence(s: Story): string {
+  return `$${s.A}$ is the event that ${s.a}, and $${s.B}$ that ${s.b}.`;
+}
+
+/** "On a rainy day, the probability that Sam is on time is $0.7$." */
+function condSentence(s: Story, onA: boolean, yes: boolean, h: number): string {
+  return `${onA ? s.onA : s.offA}, the probability that ${yes ? s.yes : s.no} is $${fmt(h / 100)}$.`;
+}
+
+/** A tree of two dependent events: the second stage differs under each branch. */
+export interface CondTreeParams {
+  story: number;
+  /** Hundredths: `P(A)`, `P(B | A)` and `P(B | A')`. */
+  a: number;
+  hit: number;
+  miss: number;
+  hard: boolean;
+}
+
+function sampleCondTree(rng: Rng, difficulty: number): CondTreeParams {
+  const hard = difficulty > 1;
+  const step = hard ? 5 : 10;
+  for (;;) {
+    const draw = () => step * rng.int(1, 100 / step - 1);
+    const a = draw();
+    const hit = draw();
+    const miss = draw();
+    if (hit === miss || a === 50) continue;
+    return { story: rng.int(0, COND_STORIES.length - 1), a, hit, miss, hard };
+  }
+}
+
+/** The four ends of the tree, top to bottom, in ten-thousandths. */
+function condLeaves({ a, hit, miss }: CondTreeParams): [number, number, number, number] {
+  return [a * hit, a * (100 - hit), (100 - a) * miss, (100 - a) * (100 - miss)];
+}
+
+/** The end reached by `A` or `A'`, then `B` or `B'`. */
+const leafOf = (params: CondTreeParams, onA: boolean, yes: boolean): number => condLeaves(params)[(onA ? 0 : 2) + (yes ? 0 : 1)];
+
+/** The branch `P(B | A)`, `P(B' | A')` and so on, in hundredths. */
+const condBranchOf = ({ hit, miss }: CondTreeParams, onA: boolean, yes: boolean): number => {
+  const h = onA ? hit : miss;
+  return yes ? h : 100 - h;
+};
+
+/**
+ * The tree as a static picture. `hide` blanks branches by position: the first
+ * stage top to bottom, then the second stage top to bottom.
+ */
+function condTreeSvg(params: CondTreeParams, hide: boolean[] = []): string {
+  const s = COND_STORIES[params.story];
+  const { a, hit, miss } = params;
+  const values = [a, 100 - a, hit, 100 - hit, miss, 100 - miss].map((h, i) => (hide[i] ? '' : fmt(h / 100)));
+  return treeSvg({
+    first: [values[0], values[1]],
+    second: [
+      [values[2], values[3]],
+      [values[4], values[5]],
+    ],
+    names: [s.A, not(s.A), s.B, not(s.B)],
+  });
+}
+
+/* ================================================================
+ * Level 4, lesson 1: the formula P(A | B) = P(A and B) / P(B)
+ * ================================================================ */
+
+/** The formula from a two-way table: each probability out of everyone, then divided. */
+const condTableTiles: Generator<CondParams> = {
+  id: 'prob-cf-table-tiles',
+  sample: sampleCond,
+  render: (params): Slide => {
+    const ctx = TWO_WAY[params.context];
+    const { cell, given, other, total, givenText, askText } = condParts(params);
+    const answer = [raw([cell, total]), raw([given, total]), fr([cell, given])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        show(twoWayTex(params, !params.hard)),
+        say(
+          `One ${ctx.one} is chosen at random. $A$ is the event that the ${ctx.one} ${askText}, and $B$ that the ${ctx.one} ${givenText}. Use the formula, with each probability out of all the ${ctx.who}.`,
+        ),
+      ],
+      template: 'P(A \\mid B) = {0} \\div {1} = {2}',
+      answer: answer.map((t) => t.tex),
+      bank: bank(answer, [raw([other, total]), fr([cell, other]), raw([given - cell, total]), fr([cell, total - given]), raw([cell, given])]),
+    };
+  },
+  solution: (params) => {
+    const { cell, given, total } = condParts(params);
+    const steps: SolutionStep[] = [];
+    if (params.hard) steps.push({ text: `Add up every cell for the total: $${total}$.` });
+    steps.push(
+      { text: `$P(A \\cap B)$ is one cell, $${cell}$ out of $${total}$. $P(B)$ is the whole of that group, $${given}$ out of $${total}$.` },
+      { tex: `P(A \\mid B) = ${rawTex([cell, total])} \\div ${rawTex([given, total])} = ${rawTex([cell, given])}${gcd(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
+      { text: `The $${total}$s cancel, leaving the cell over the group total, just as in Given That, and Without Replacement.` },
+    );
+    return steps;
+  },
+};
+
+type FormulaKind = 'divA' | 'divB' | 'whole' | 'not';
+
+interface CondFormulaParams {
+  story: number;
+  kind: FormulaKind;
+  /** Hundredths: the probability of the event conditioned on, and the conditional probability. */
+  p: number;
+  c: number;
+}
+
+/** What a formula question gives, asks, and its answer, all as tokens. */
+function formulaParts({ story, kind, p, c }: CondFormulaParams) {
+  const s = COND_STORIES[story];
+  const both = dec((p * c) / 10000);
+  const on = kind === 'divB' ? s.B : s.A;
+  const event = kind === 'divB' ? s.A : kind === 'not' ? not(s.B) : s.B;
+  const asked = kind === 'whole' ? `P(${s.A})` : condTex(event, on);
+  const answer = kind === 'whole' ? hun(p) : kind === 'not' ? hun(100 - c) : hun(c);
+  return { s, both, on, event, asked, answer };
+}
+
+/** `P(B | A)` from `P(A)` and `P(A and B)`, or the formula turned round. */
+const condFormula: Generator<CondFormulaParams> = {
+  id: 'prob-cf-formula',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = rng.pick(hard ? (['whole', 'not'] as const) : (['divA', 'divB'] as const));
+    const p = hard ? 5 * rng.int(2, 18) : 10 * rng.int(2, 8);
+    const c = 10 * rng.int(1, 9);
+    return { story: rng.int(0, COND_STORIES.length - 1), kind, p, c };
+  },
+  render: (params): Slide => {
+    const { s, both, on, asked, answer } = formulaParts(params);
+    const facts =
+      params.kind === 'whole'
+        ? `$P(${s.A} \\cap ${s.B}) = ${both.tex}$ and $${condTex(s.B, s.A)} = ${fmt(params.c / 100)}$.`
+        : `$P(${on}) = ${fmt(params.p / 100)}$ and $P(${s.A} \\cap ${s.B}) = ${both.tex}$.`;
+    const question: Record<FormulaKind, string> = {
+      divA: `Find the probability that ${s.b}, given that ${s.a}.`,
+      divB: `Find the probability that ${s.a}, given that ${s.b}.`,
+      whole: `Find $P(${s.A})$.`,
+      not: `Find the probability that ${s.no}, given that ${s.a}.`,
+    };
+    return probSlide([say(storySentence(s)), say(`${facts} ${question[params.kind]}`)], `${asked} =`, answer.answer);
+  },
+  solution: (params) => {
+    const { s, both, on, event, answer } = formulaParts(params);
+    const p = fmt(params.p / 100);
+    const c = fmt(params.c / 100);
+    if (params.kind === 'whole') {
+      return [
+        { text: `The formula turned round says $P(${s.A} \\cap ${s.B}) = P(${s.A}) \\times ${condTex(s.B, s.A)}$.` },
+        { text: 'So divide the overlap by the conditional probability.' },
+        { tex: chain(`P(${s.A})`, `\\frac{${both.tex}}{${c}}`, answer.tex) },
+      ];
+    }
+    const steps: SolutionStep[] = [
+      { text: `"Given that" puts $${on}$ on the bottom: divide the overlap by $P(${on})$.` },
+      { tex: chain(condTex(params.kind === 'not' ? s.B : event, on), `\\frac{${both.tex}}{${p}}`, c) },
+    ];
+    if (params.kind === 'not') steps.push({ text: `That is the chance ${s.yes}. Given the same thing, the chance ${s.no} is the rest of $1$.` }, { tex: chain(condTex(event, on), `1 - ${c}`, answer.tex) });
+    return steps;
+  },
+  choices: (params) => {
+    const { both, answer } = formulaParts(params);
+    const p = params.p / 100;
+    const c = params.c / 100;
+    const slips =
+      params.kind === 'whole'
+        ? [dec(both.v * c), hun(params.c), both, hun(100 - params.p)]
+        : params.kind === 'not'
+          ? [hun(params.c), dec(1 - both.v), both, dec(both.v * p)]
+          : [dec(both.v * p), both, hun(params.p), hun(100 - params.c)];
+    return probChoices(answer, slips, saltOf(params));
+  },
+};
+
+/** Which fraction of a table of probabilities is a conditional one. */
+interface JointParams {
+  /** Hundredths: `A ∩ B`, `A ∩ B'`, `A' ∩ B`, `A' ∩ B'`. */
+  cells: [number, number, number, number];
+  row: number;
+  col: number;
+  /** Conditioned on the row's event or the column's. */
+  on: 'row' | 'col';
+  hard: boolean;
+}
+
+const JOINT_ROWS = ['A', "A'"];
+const JOINT_COLS = ['B', "B'"];
+
+function jointTotals({ cells: [a, b, c, d] }: JointParams) {
+  return { rows: [a + b, c + d], cols: [a + c, b + d] };
+}
+
+function jointTex(params: JointParams): string {
+  const [a, b, c, d] = params.cells.map((h) => fmt(h / 100));
+  const t = jointTotals(params);
+  const totals = !params.hard;
+  const head = `& B & B'${totals ? ' & \\text{Total}' : ''}`;
+  const row = (name: string, x: string, y: string, s: number) => `${name} & ${x} & ${y}${totals ? ` & ${fmt(s / 100)}` : ''}`;
+  const lines = [head, `\\hline ${row('A', a, b, t.rows[0])}`, row("A'", c, d, t.rows[1])];
+  if (totals) lines.push(`\\hline \\text{Total} & ${fmt(t.cols[0] / 100)} & ${fmt(t.cols[1] / 100)} & 1`);
+  return `{\\small \\begin{array}{c|cc${totals ? '|c' : ''}} ${lines.join(' \\\\ ')} \\end{array}}`;
+}
+
+function jointParts(params: JointParams) {
+  const t = jointTotals(params);
+  const cell = params.cells[2 * params.row + params.col];
+  const byRow = params.on === 'row';
+  return {
+    cell,
+    given: byRow ? t.rows[params.row] : t.cols[params.col],
+    other: byRow ? t.cols[params.col] : t.rows[params.row],
+    event: byRow ? JOINT_COLS[params.col] : JOINT_ROWS[params.row],
+    on: byRow ? JOINT_ROWS[params.row] : JOINT_COLS[params.col],
+  };
+}
+
+const quotientTex = (top: number, bottom: number): string => `\\frac{${fmt(top / 100)}}{${fmt(bottom / 100)}}`;
+
+const condJointWhich: Generator<JointParams> = {
+  id: 'prob-cf-joint-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const draw = () => (hard ? rng.int(3, 40) : 5 * rng.int(1, 8));
+      const cells = [draw(), draw(), draw()];
+      const last = 100 - cells[0] - cells[1] - cells[2];
+      if (last < (hard ? 3 : 5)) continue;
+      const params: JointParams = {
+        cells: [...cells, last] as JointParams['cells'],
+        row: hard ? rng.int(0, 1) : 0,
+        col: hard ? rng.int(0, 1) : 0,
+        on: rng.pick(['row', 'col'] as const),
+        hard,
+      };
+      if (hard && params.row === 0 && params.col === 0) continue;
+      const { cell, given, other } = jointParts(params);
+      // The product slip is a different number from the answer, or it is not a slip.
+      if (given === other || same(cell / given, (other * given) / 10000)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { cell, given, other, event, on } = jointParts(params);
+    return pickSlide(
+      [say('The table gives the probabilities for two events $A$ and $B$.'), show(jointTex(params)), say(`Which gives $${condTex(event, on)}$?`)],
+      quotientTex(cell, given),
+      [quotientTex(cell, other), fmt(cell / 100), `${fmt(other / 100)} \\times ${fmt(given / 100)}`],
+      saltOf(params),
+      true,
+    );
+  },
+  solution: (params) => {
+    const { cell, given, event, on } = jointParts(params);
+    const byRow = params.on === 'row';
+    const steps: SolutionStep[] = [{ text: `The overlap of $${event}$ and $${on}$ is one cell: $${fmt(cell / 100)}$.` }];
+    if (params.hard) {
+      const [x, y] = byRow ? [params.cells[2 * params.row], params.cells[2 * params.row + 1]] : [params.cells[params.col], params.cells[2 + params.col]];
+      steps.push({ text: `$P(${on})$ is the whole ${byRow ? 'row' : 'column'}: $${fmt(x / 100)} + ${fmt(y / 100)} = ${fmt(given / 100)}$.` });
+    } else {
+      steps.push({ text: `$P(${on})$ is its ${byRow ? 'row' : 'column'} total, $${fmt(given / 100)}$.` });
+    }
+    steps.push({ tex: `${condTex(event, on)} = \\frac{P(${event} \\cap ${on})}{P(${on})} = ${quotientTex(cell, given)}` });
+    return steps;
+  },
+};
+
+interface CondAndParams {
+  story: number;
+  /** Hundredths: `P(A)` and `P(B | A)` or `P(B | A')`, whichever branch is asked. */
+  a: number;
+  c: number;
+  /** The branch asked about: `A` or `A'`. */
+  onA: boolean;
+  hard: boolean;
+}
+
+/** The first node and the second: `P(A')` then `P(B | A')`, say. */
+function andParts({ a, c, onA }: CondAndParams): [number, number] {
+  return [onA ? a : 100 - a, c];
+}
+
+/** The formula turned round: P(A and B) = P(A) times P(B | A). */
+const condAndTree: Generator<CondAndParams> = {
+  id: 'prob-cf-and-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const step = hard ? 5 : 10;
+    for (;;) {
+      const a = step * rng.int(1, 100 / step - 1);
+      const c = step * rng.int(1, 100 / step - 1);
+      if (a === 50 || c === 50) continue;
+      return { story: rng.int(0, COND_STORIES.length - 1), a, c, onA: hard ? rng.chance(0.5) : true, hard };
+    }
+  },
+  render: (params): Slide => {
+    const s = COND_STORIES[params.story];
+    const [f, c] = andParts(params);
+    const A = params.onA ? s.A : not(s.A);
+    // At difficulty 2 the sentence gives the other outcome, so it comes off 1 first.
+    const sentence = condSentence(s, params.onA, !params.hard, params.hard ? 100 - c : c);
+    const answer = [hun(f), hun(c), tth(f * c)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(storySentence(s)),
+        say(
+          `The probability that ${s.a} is $${fmt(params.a / 100)}$. ${sentence} Find the probability that ${params.onA ? s.a : s.notA} and ${s.b}. Top row: $P(${A})$, then $${condTex(s.B, A)}$. Then multiply.`,
+        ),
+      ],
+      expression: `P(${A} \\cap ${s.B})`,
+      nodes: [
+        { id: 'f', from: [] },
+        { id: 'c', from: [] },
+        { id: 'p', from: ['f', 'c'] },
+      ],
+      bank: bank(answer, [hun(100 - f), hun(100 - c), tth(f * (100 - c)), tth((100 - f) * c), hun(Math.min(f + c, 99))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const s = COND_STORIES[params.story];
+    const [f, c] = andParts(params);
+    const A = params.onA ? s.A : not(s.A);
+    const steps: SolutionStep[] = [];
+    if (!params.onA) steps.push({ tex: chain(`P(${A})`, `1 - ${fmt(params.a / 100)}`, fmt(f / 100)) });
+    if (params.hard) steps.push({ text: `The sentence gives the chance ${s.no}, so the chance ${s.yes} is what is left of $1$.` }, { tex: chain(condTex(s.B, A), `1 - ${fmt((100 - c) / 100)}`, fmt(c / 100)) });
+    steps.push(
+      { text: `"And" is the first event times the chance of the second given the first.` },
+      { tex: chain(`P(${A} \\cap ${s.B})`, `${fmt(f / 100)} \\times ${fmt(c / 100)}`, tth(f * c).tex) },
+    );
+    return steps;
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 2: conditional probability from a Venn diagram
+ * ================================================================ */
+
+type VennCond = 'AgB' | 'BgA' | 'AgnB' | 'BgnA' | 'nAgB' | 'nBgA';
+
+/**
+ * Each question: the region on top, the two regions kept once the condition
+ * is known, and which circle is asked about and which is given. Regions in
+ * the order only A, both, only B, neither.
+ */
+const VENN_ASKS: Record<VennCond, { top: number; keep: [number, number]; mirror: [number, number]; event: [0 | 1, boolean]; on: [0 | 1, boolean] }> = {
+  AgB: { top: 1, keep: [1, 2], mirror: [0, 1], event: [0, false], on: [1, false] },
+  BgA: { top: 1, keep: [0, 1], mirror: [1, 2], event: [1, false], on: [0, false] },
+  AgnB: { top: 0, keep: [0, 3], mirror: [0, 1], event: [0, false], on: [1, true] },
+  BgnA: { top: 2, keep: [2, 3], mirror: [1, 2], event: [1, false], on: [0, true] },
+  nAgB: { top: 2, keep: [1, 2], mirror: [2, 3], event: [0, true], on: [1, false] },
+  nBgA: { top: 0, keep: [0, 1], mirror: [0, 3], event: [1, true], on: [0, false] },
+};
+
+/** What a Venn question asks, in the diagram's own letters, and its counts. */
+function vennCond(letters: [string, string], regions: number[], ask: VennCond) {
+  const q = VENN_ASKS[ask];
+  const name = ([i, complement]: [0 | 1, boolean]) => `${letters[i]}${complement ? "'" : ''}`;
+  const on = name(q.on);
+  return {
+    fav: regions[q.top],
+    den: regions[q.keep[0]] + regions[q.keep[1]],
+    /** The bottom a learner gets by turning the question round. */
+    mirror: regions[q.mirror[0]] + regions[q.mirror[1]],
+    tex: condTex(name(q.event), on),
+    on,
+    keep: q.on[1] ? `Outside $${letters[q.on[0]]}$` : `The circle $${letters[q.on[0]]}$`,
+    keepWords: q.on[1] ? `everything outside $${letters[q.on[0]]}$` : `the circle $${letters[q.on[0]]}$`,
+  };
+}
+
+interface VennCondParams {
+  context: number;
+  regions: [number, number, number, number];
+  ask: VennCond;
+}
+
+function sampleVennCond(rng: Rng, difficulty: number): VennCondParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const regions = [0, 1, 2, 3].map(() => (hard ? rng.int(3, 30) : rng.int(2, 15))) as VennCondParams['regions'];
+    const ask = rng.pick(hard ? (['AgnB', 'BgnA', 'nAgB', 'nBgA'] as const) : (['AgB', 'BgA'] as const));
+    const context = rng.int(0, VENN.length - 1);
+    const { fav, den, mirror } = vennCond([VENN[context].A, VENN[context].B], regions, ask);
+    const total = regions[0] + regions[1] + regions[2] + regions[3];
+    // Every slip a learner might make gives a different number from the answer.
+    const values = [fav / den, fav / total, den / total, (den - fav) / den, fav / mirror];
+    if (new Set(values.map((v) => v.toFixed(9))).size < values.length || new Set([den, total, fav, mirror]).size < 4) continue;
+    return { context, regions, ask };
+  }
+}
+
+function vennCondPrompt(params: VennCondParams): Block[] {
+  const ctx = VENN[params.context];
+  const total = params.regions.reduce((s, r) => s + r, 0);
+  return [
+    say(`The Venn diagram shows ${total} ${ctx.who}. $${ctx.A}$ is the set who ${ctx.aText} and $${ctx.B}$ the set who ${ctx.bText}.`),
+    picture(vennSvg([ctx.A, ctx.B], params.regions.map(String) as [string, string, string, string])),
+  ];
+}
+
+/** Restrict to one circle, or to outside it, and count. */
+const condVennCount: Generator<VennCondParams> = {
+  id: 'prob-cv-count',
+  sample: sampleVennCond,
+  render: (params): Slide => {
+    const ctx = VENN[params.context];
+    const { fav, den, tex } = vennCond([ctx.A, ctx.B], params.regions, params.ask);
+    return probSlide([...vennCondPrompt(params), say(`One ${ctx.one} is chosen at random. Find $${tex}$.`)], `${tex} =`, fans([fav, den]));
+  },
+  solution: (params) => {
+    const ctx = VENN[params.context];
+    const { fav, den, tex, on, keepWords } = vennCond([ctx.A, ctx.B], params.regions, params.ask);
+    const q = VENN_ASKS[params.ask];
+    const [x, y] = q.keep.map((i) => params.regions[i]);
+    return [
+      { text: `Given $${on}$, keep only ${keepWords}: $${x} + ${y} = ${den}$ ${ctx.who}.` },
+      { text: `Of those, $${fav}$ are in the event asked about.` },
+      { tex: `${tex} = ${rawTex([fav, den])}${gcd(fav, den) > 1 ? ` = ${ftex([fav, den])}` : ''}` },
+    ];
+  },
+  choices: (params) => {
+    const ctx = VENN[params.context];
+    const { fav, den, mirror } = vennCond([ctx.A, ctx.B], params.regions, params.ask);
+    const total = params.regions.reduce((s, r) => s + r, 0);
+    return probChoices(fr([fav, den]), [fr([fav, total]), fr([fav, mirror]), fr([den, total]), fr([den - fav, den])], saltOf(params));
+  },
+};
+
+interface VennFillParams {
+  /** Hundredths. */
+  pA: number;
+  pB: number;
+  both: number;
+  hard: boolean;
+}
+
+/** Fill the regions from P(A), P(B) and a conditional, or from conditionals alone. */
+const condVennFill: Generator<VennFillParams> = {
+  id: 'prob-cv-fill',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const pB = 10 * rng.int(2, 8);
+      const q = 10 * rng.int(1, 9);
+      const both = (pB * q) / 100;
+      const pA = hard ? 5 * rng.int(2, 18) : both + 5 * rng.int(1, 16);
+      if (pA <= both || pA === pB || pA + pB - both >= 100 || pA > 95) continue;
+      // Difficulty 2 states P(B | A), so it has to come out in hundredths.
+      if (hard && ((both * 100) % pA !== 0 || (both * 100) / pA === q)) continue;
+      return { pA, pB, both, hard };
+    }
+  },
+  render: ({ pA, pB, both, hard }): Slide => {
+    const answer = [hun(pA - both), hun(both), hun(pB - both), hun(100 - pA - pB + both)];
+    const facts = hard
+      ? `$P(A \\cap B) = ${fmt(both / 100)}$, $${condTex('A', 'B')} = ${fmt(both / pB)}$ and $${condTex('B', 'A')} = ${fmt(both / pA)}$.`
+      : `$P(A) = ${fmt(pA / 100)}$, $P(B) = ${fmt(pB / 100)}$ and $${condTex('A', 'B')} = ${fmt(both / pB)}$.`;
+    return {
+      kind: 'venn',
+      prompt: [say(`For two events $A$ and $B$, ${facts}`), say('Fill in the probability of each region.')],
+      sets: ['A', 'B'],
+      regions: [null, null, null, null],
+      bank: bank(answer, [hun(pA), hun(pB), hun(pA + pB - both), hun(100 - pA), dec(both / pB), hun(Math.abs(pA - pB))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: ({ pA, pB, both, hard }) => {
+    const [a, b, ab] = [pA / 100, pB / 100, both / 100];
+    const steps: SolutionStep[] = [];
+    if (hard) {
+      steps.push(
+        { text: 'Turn each conditional round: the overlap divided by the conditional probability gives the circle it was given.' },
+        { tex: `P(B) = \\frac{${fmt(ab)}}{${fmt(both / pB)}} = ${fmt(b)}, \\quad P(A) = \\frac{${fmt(ab)}}{${fmt(both / pA)}} = ${fmt(a)}` },
+      );
+    } else {
+      steps.push({ text: `The overlap first, from the formula turned round: $P(A \\cap B) = P(B) \\times ${condTex('A', 'B')}$.` }, { tex: chain('P(A \\cap B)', `${fmt(b)} \\times ${fmt(both / pB)}`, fmt(ab)) });
+    }
+    steps.push(
+      { text: 'Take the overlap off each circle, and whatever is left of $1$ is outside both.' },
+      { tex: `${fmt(a)} - ${fmt(ab)} = ${fmt((pA - both) / 100)}, \\quad ${fmt(b)} - ${fmt(ab)} = ${fmt((pB - both) / 100)}` },
+      { tex: `1 - ${fmt((pA + pB - both) / 100)} = ${fmt((100 - pA - pB + both) / 100)}` },
+    );
+    return steps;
+  },
+};
+
+interface VennGivenParams {
+  /** Hundredths, only A, both, only B, neither. */
+  regions: [number, number, number, number];
+  ask: VennCond;
+}
+
+/** Off a Venn diagram of probabilities: the region over the part kept. */
+const condVennGivenTiles: Generator<VennGivenParams> = {
+  id: 'prob-cv-given-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const ask = rng.pick(hard ? (['AgnB', 'BgnA', 'nAgB', 'nBgA'] as const) : (['AgB', 'BgA'] as const));
+    const q = VENN_ASKS[ask];
+    const den = 10 * rng.int(2, 8);
+    const top = (den / 10) * rng.int(1, 9);
+    const rest = 100 - den;
+    const x = hard ? rng.int(3, rest - 3) : 5 * rng.int(1, rest / 5 - 1);
+    const regions = [0, 0, 0, 0];
+    regions[q.top] = top;
+    regions[q.keep[0] === q.top ? q.keep[1] : q.keep[0]] = den - top;
+    const others = [0, 1, 2, 3].filter((i) => !q.keep.includes(i));
+    regions[others[0]] = x;
+    regions[others[1]] = rest - x;
+    return { regions: regions as VennGivenParams['regions'], ask };
+  },
+  render: ({ regions, ask }): Slide => {
+    const { fav, den, mirror, tex } = vennCond(['A', 'B'], regions, ask);
+    const answer = [hun(fav), hun(den), dec(fav / den)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say('The Venn diagram shows the probabilities for two events $A$ and $B$.'),
+        picture(vennSvg(['A', 'B'], regions.map((r) => fmt(r / 100)) as [string, string, string, string])),
+        say(`Find $${tex}$.`),
+      ],
+      template: `${tex} = {0} \\div {1} = {2}`,
+      answer: answer.map((t) => t.tex),
+      bank: bank(answer, [hun(den - fav), hun(mirror), hun(100 - den), dec(fav / 100), hun(fav + den)]),
+    };
+  },
+  solution: ({ regions, ask }) => {
+    const { fav, den, tex, on, keepWords } = vennCond(['A', 'B'], regions, ask);
+    const [x, y] = VENN_ASKS[ask].keep.map((i) => regions[i]);
+    return [
+      { text: `Given $${on}$, keep ${keepWords}: $${fmt(x / 100)} + ${fmt(y / 100)} = ${fmt(den / 100)}$.` },
+      { text: `The part of it in the event asked about is $${fmt(fav / 100)}$.` },
+      { tex: chain(tex, `\\frac{${fmt(fav / 100)}}{${fmt(den / 100)}}`, fmt(fav / den)) },
+    ];
+  },
+};
+
+/** Which part to keep, how many are in it, then the probability, one fork at a time. */
+const condVennFlow: Generator<VennCondParams> = {
+  id: 'prob-cv-restrict-flow',
+  sample: sampleVennCond,
+  render: (params): Slide => {
+    const ctx = VENN[params.context];
+    const letters: [string, string] = [ctx.A, ctx.B];
+    const { fav, den, tex, keep } = vennCond(letters, params.regions, params.ask);
+    const q = VENN_ASKS[params.ask];
+    const total = params.regions.reduce((s, r) => s + r, 0);
+    const salt = saltOf(params);
+    const other = letters[1 - q.on[0]];
+    const keepHint = 'The event after the bar is the one you are told has happened, and that is the part you keep.';
+    const wrongParts = q.on[1] ? [`Outside $${other}$`, `The circle $${letters[q.on[0]]}$`] : [`The circle $${other}$`, 'The whole box'];
+    const answer = [keep, `${den}`, `$${ftex([fav, den])}$`];
+    return {
+      kind: 'flow',
+      prompt: [...vennCondPrompt(params), say(`One ${ctx.one} is chosen at random. Find $${tex}$ one step at a time.`)],
+      subject: tex,
+      steps: [
+        {
+          id: 'keep',
+          ask: `For $${tex}$, which part of the diagram do you keep?`,
+          branches: turn([{ label: keep, to: 'count' }, ...wrongParts.map((label) => ({ label, outcome: keepHint }))], salt),
+        },
+        {
+          id: 'count',
+          ask: `How many ${ctx.who} are in that part?`,
+          branches: turn(
+            [
+              { label: `${den}`, to: 'prob' },
+              { label: `${total}`, outcome: 'That is everyone in the box. Count only the part you kept.' },
+              { label: `${fav}`, outcome: 'That is only the piece in the event asked about. Count every region in the part you kept.' },
+            ],
+            salt >> 3,
+          ),
+        },
+        {
+          id: 'prob',
+          ask: `So what is $${tex}$?`,
+          branches: turn(
+            [
+              { label: answer[2], outcome: 'Right: the piece in the event asked about, out of the part you kept.' },
+              { label: `$${ftex([fav, total])}$`, outcome: 'That is out of everyone. Once you are given something, the bottom is the part you kept.' },
+              { label: `$${ftex([den - fav, den])}$`, outcome: 'That is the rest of the part you kept. The top is the piece in the event asked about.' },
+            ],
+            salt >> 6,
+          ),
+        },
+      ],
+      answer,
+    };
+  },
+  solution: (params) => {
+    const ctx = VENN[params.context];
+    const { fav, den, tex, on, keepWords } = vennCond([ctx.A, ctx.B], params.regions, params.ask);
+    const [x, y] = VENN_ASKS[params.ask].keep.map((i) => params.regions[i]);
+    return [
+      { text: `Given $${on}$ means keep ${keepWords}.` },
+      { text: `That holds $${x} + ${y} = ${den}$ ${ctx.who}, and $${fav}$ of them are in the event asked about.` },
+      { tex: `${tex} = ${rawTex([fav, den])}${gcd(fav, den) > 1 ? ` = ${ftex([fav, den])}` : ''}` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 3: conditional branches on a tree
+ * ================================================================ */
+
+interface CondFillParams extends CondTreeParams {
+  /** Whether each sentence, on `A` then on `A'`, states `B` (true) or `B'`. */
+  said: [boolean, boolean];
+}
+
+/** A tree filled in from sentences: each one is a second-stage branch. */
+const condFill: Generator<CondFillParams> = {
+  id: 'prob-cb-fill',
+  sample: (rng, difficulty) => ({ ...sampleCondTree(rng, difficulty), said: [rng.chance(0.5), rng.chance(0.5)] }),
+  render: (params): Slide => {
+    const s = COND_STORIES[params.story];
+    const { a, hit, miss, hard, said } = params;
+    const facts = [
+      ...(hard ? [`The probability that ${s.a} is $${fmt(a / 100)}$.`] : []),
+      condSentence(s, true, said[0], condBranchOf(params, true, said[0])),
+      condSentence(s, false, said[1], condBranchOf(params, false, said[1])),
+    ];
+    const answer = [...(hard ? [a, 100 - a] : []), hit, 100 - hit, miss, 100 - miss].map(hun);
+    const under = [
+      { label: s.B, p: null },
+      { label: not(s.B), p: null },
+    ];
+    return {
+      kind: 'probTree',
+      mode: 'fill',
+      prompt: [say(storySentence(s)), say(`${facts.join(' ')} Fill in the missing probabilities.`)],
+      branches: [
+        { label: s.A, p: hard ? null : hun(a).tex, next: under },
+        { label: not(s.A), p: hard ? null : hun(100 - a).tex, next: under },
+      ],
+      bank: bank(answer, [hun(a), hun(100 - a), hun(Math.abs(hit - miss)), hun(Math.min(hit + miss, 95))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const s = COND_STORIES[params.story];
+    const { a, hit, miss, hard } = params;
+    const steps: SolutionStep[] = [];
+    if (hard) steps.push({ tex: `P(${s.A}) = ${fmt(a / 100)}, \\quad P(${not(s.A)}) = 1 - ${fmt(a / 100)} = ${fmt((100 - a) / 100)}` });
+    steps.push(
+      { text: `"${s.onA}" puts a sentence on the branches after $${s.A}$, and "${s.offA.replace(/^When /, 'when ')}" on those after $${not(s.A)}$. Each pair from one point adds up to $1$.` },
+      { tex: `${condTex(s.B, s.A)} = ${fmt(hit / 100)}, \\quad ${condTex(not(s.B), s.A)} = ${fmt((100 - hit) / 100)}` },
+      { tex: `${condTex(s.B, not(s.A))} = ${fmt(miss / 100)}, \\quad ${condTex(not(s.B), not(s.A))} = ${fmt((100 - miss) / 100)}` },
+    );
+    return steps;
+  },
+};
+
+interface CondTotalParams extends CondTreeParams {
+  /** Asks for `B'` rather than `B`. */
+  flip: boolean;
+}
+
+/** P(B) off a tree of conditionals: two paths multiplied, then added. */
+const condTotalTree: Generator<CondTotalParams> = {
+  id: 'prob-cb-total-tree',
+  sample: (rng, difficulty) => ({ ...sampleCondTree(rng, difficulty), flip: difficulty > 1 && rng.chance(0.5) }),
+  render: (params): Slide => {
+    const s = COND_STORIES[params.story];
+    const yes = !params.flip;
+    const B = yes ? s.B : not(s.B);
+    const p1 = leafOf(params, true, yes);
+    const p2 = leafOf(params, false, yes);
+    const answer = [tth(p1), tth(p2), tth(p1 + p2)];
+    const crossed = [params.a * condBranchOf(params, false, yes), (100 - params.a) * condBranchOf(params, true, yes)];
+    const hide = params.hard ? [false, true, false, true, false, true] : [];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(storySentence(s)),
+        picture(condTreeSvg(params, hide)),
+        say(`Find the probability that ${yes ? s.yes : s.no}. Top row: $P(${s.A} \\cap ${B})$, then $P(${not(s.A)} \\cap ${B})$. Then add them.`),
+      ],
+      expression: `P(${B})`,
+      nodes: [
+        { id: 'p1', from: [] },
+        { id: 'p2', from: [] },
+        { id: 's', from: ['p1', 'p2'] },
+      ],
+      bank: bank(answer, [tth(crossed[0]), tth(crossed[1]), tth(crossed[0] + crossed[1]), hun(Math.min(condBranchOf(params, true, yes) + condBranchOf(params, false, yes), 99))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const s = COND_STORIES[params.story];
+    const yes = !params.flip;
+    const B = yes ? s.B : not(s.B);
+    const p1 = leafOf(params, true, yes);
+    const p2 = leafOf(params, false, yes);
+    const steps: SolutionStep[] = [];
+    if (params.hard) steps.push({ text: 'The unlabelled branches are the complements: each pair from one point adds up to $1$.' });
+    steps.push(
+      { text: `Two paths end in $${B}$. Multiply along each, then add.` },
+      { tex: chain(`P(${s.A} \\cap ${B})`, `${fmt(params.a / 100)} \\times ${fmt(condBranchOf(params, true, yes) / 100)}`, tth(p1).tex) },
+      { tex: chain(`P(${not(s.A)} \\cap ${B})`, `${fmt((100 - params.a) / 100)} \\times ${fmt(condBranchOf(params, false, yes) / 100)}`, tth(p2).tex) },
+      { tex: chain(`P(${B})`, `${tth(p1).tex} + ${tth(p2).tex}`, tth(p1 + p2).tex) },
+    );
+    return steps;
+  },
+};
+
+interface CondPathParams extends CondTreeParams {
+  ask: 'product' | 'most' | 'least';
+  /** The end asked for, top to bottom. */
+  leaf: number;
+}
+
+/** Tap the outcome: the path whose product is stated, or the likeliest or least likely. */
+const condPath: Generator<CondPathParams> = {
+  id: 'prob-cb-path',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const base = sampleCondTree(rng, difficulty);
+      const leaves = condLeaves(base);
+      if (new Set(leaves).size < 4) continue;
+      if (difficulty < 2) return { ...base, ask: 'product', leaf: rng.int(0, 3) };
+      const ask = rng.pick(['most', 'least'] as const);
+      const best = ask === 'most' ? Math.max(...leaves) : Math.min(...leaves);
+      const leaf = leaves.indexOf(best);
+      // Not simply the bigger (or smaller) branch twice: the learner has to multiply.
+      const first = leaf < 2 ? base.a : 100 - base.a;
+      if (ask === 'most' ? first > 50 && condBranchOf(base, leaf < 2, leaf % 2 === 0) > 50 : first < 50 && condBranchOf(base, leaf < 2, leaf % 2 === 0) < 50) continue;
+      return { ...base, ask, leaf };
+    }
+  },
+  render: (params): Slide => {
+    const s = COND_STORIES[params.story];
+    const leaves = condLeaves(params);
+    const tap = 'Tap its first branch, then the branch after it.';
+    const question: Record<CondPathParams['ask'], string> = {
+      product: `Which outcome has probability $${tth(leaves[params.leaf]).tex}$? ${tap}`,
+      most: `Which outcome is the most likely? ${tap}`,
+      least: `Which outcome is the least likely? ${tap}`,
+    };
+    const under = (onA: boolean) => [
+      { label: s.B, p: hun(condBranchOf(params, onA, true)).tex },
+      { label: not(s.B), p: hun(condBranchOf(params, onA, false)).tex },
+    ];
+    return {
+      kind: 'probTree',
+      mode: 'path',
+      prompt: [say(storySentence(s)), say(question[params.ask])],
+      branches: [
+        { label: s.A, p: hun(params.a).tex, next: under(true) },
+        { label: not(s.A), p: hun(100 - params.a).tex, next: under(false) },
+      ],
+      bank: [],
+      answer: [params.leaf < 2 ? s.A : not(s.A), params.leaf % 2 === 0 ? s.B : not(s.B)],
+    };
+  },
+  solution: (params) => {
+    const s = COND_STORIES[params.story];
+    const lines = [0, 1, 2, 3].map((i) => {
+      const onA = i < 2;
+      const yes = i % 2 === 0;
+      const A = onA ? s.A : not(s.A);
+      const B = yes ? s.B : not(s.B);
+      return { tex: chain(`P(${A} \\cap ${B})`, `${fmt((onA ? params.a : 100 - params.a) / 100)} \\times ${fmt(condBranchOf(params, onA, yes) / 100)}`, tth(condLeaves(params)[i]).tex) };
+    });
+    const leafA = params.leaf < 2 ? s.A : not(s.A);
+    const leafB = params.leaf % 2 === 0 ? s.B : not(s.B);
+    return [{ text: 'Multiply along each of the four paths.' }, ...lines, { text: `So the outcome is $${leafA}$ then $${leafB}$.` }];
+  },
+};
+
+interface CondWordsParams {
+  story: number;
+  onA: boolean;
+  /** The sentence states `B` (true) or `B'`. */
+  yes: boolean;
+  h: number;
+}
+
+/** A sentence in words as a conditional probability: which way round the bar goes. */
+const condWords: Generator<CondWordsParams> = {
+  id: 'prob-cb-words',
+  sample: (rng, difficulty) => ({
+    story: rng.int(0, COND_STORIES.length - 1),
+    onA: rng.chance(0.5),
+    yes: difficulty < 2,
+    h: 5 * rng.int(1, 19),
+  }),
+  render: (params): Slide => {
+    const s = COND_STORIES[params.story];
+    const A = params.onA ? s.A : not(s.A);
+    const B = params.yes ? s.B : not(s.B);
+    const v = fmt(params.h / 100);
+    const wrong = params.yes
+      ? [`${condTex(A, B)} = ${v}`, `P(${B} \\cap ${A}) = ${v}`, `${condTex(B, not(A))} = ${v}`]
+      : [`${condTex(A, B)} = ${v}`, `${condTex(not(B), A)} = ${v}`, `${condTex(B, not(A))} = ${v}`];
+    return pickSlide(
+      [say(storySentence(s)), say(condSentence(s, params.onA, params.yes, params.h)), say('Which of these does that sentence say?')],
+      `${condTex(B, A)} = ${v}`,
+      wrong,
+      saltOf(params),
+      true,
+    );
+  },
+  solution: (params) => {
+    const s = COND_STORIES[params.story];
+    const A = params.onA ? s.A : not(s.A);
+    const B = params.yes ? s.B : not(s.B);
+    return [
+      { text: `"${params.onA ? s.onA : s.offA}" is what you are told has happened, so it goes after the bar: $${A}$.` },
+      { text: `The chance stated is that ${params.yes ? s.yes : s.no}, which goes before the bar: $${B}$.` },
+      { tex: `${condTex(B, A)} = ${fmt(params.h / 100)}` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 4: testing for independence
+ * ================================================================ */
+
+interface IndepTableParams {
+  context: number;
+  cells: [number, number, number, number];
+  row: number;
+  col: number;
+  /** The event conditioned on is the row's or the column's. */
+  on: 'row' | 'col';
+  hard: boolean;
+}
+
+function indepTableParts(params: IndepTableParams) {
+  const ctx = TWO_WAY[params.context];
+  const t = twoWayTotals(params);
+  const cell = params.cells[2 * params.row + params.col];
+  const byRow = params.on === 'row';
+  return {
+    cell,
+    total: t.total,
+    given: byRow ? t.rows[params.row] : t.cols[params.col],
+    target: byRow ? t.cols[params.col] : t.rows[params.row],
+    givenText: byRow ? ctx.rowIs[params.row] : ctx.colIs[params.col],
+    targetText: byRow ? ctx.colIs[params.col] : ctx.rowIs[params.row],
+  };
+}
+
+/** From a two-way table: P(A), then P(A | B), then whether they match. */
+const indepTableFlow: Generator<IndepTableParams> = {
+  id: 'prob-ci-table-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      // Rows in the same ratio across the columns make the events independent.
+      const x = rng.int(1, 5);
+      const y = rng.int(1, 5);
+      const k0 = rng.int(2, hard ? 9 : 6);
+      const k1 = rng.int(2, hard ? 9 : 6);
+      const shift = rng.chance(0.5) ? 0 : rng.pick(hard ? [-3, -2, -1, 1, 2, 3] : [-2, -1, 1, 2]);
+      const cells: IndepTableParams['cells'] = [x * k0 + shift, y * k0 - shift, x * k1, y * k1];
+      if (cells.some((c) => c < 1) || x === y || k0 === k1) continue;
+      const params: IndepTableParams = {
+        context: rng.int(0, TWO_WAY.length - 1),
+        cells,
+        row: hard ? rng.int(0, 1) : 0,
+        col: hard ? rng.int(0, 1) : 0,
+        on: hard ? rng.pick(['row', 'col'] as const) : 'row',
+        hard,
+      };
+      const { cell, given, target, total } = indepTableParts(params);
+      if (given === target || cell === target || new Set([cell / given, cell / total, cell / target]).size < 3) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const ctx = TWO_WAY[params.context];
+    const { cell, total, given, target, givenText, targetText } = indepTableParts(params);
+    const independent = cell * total === given * target;
+    const salt = saltOf(params);
+    const f = (top: number, bottom: number) => `$${ftex([top, bottom])}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        show(twoWayTex(params, !params.hard)),
+        say(`One ${ctx.one} is chosen at random. $A$ is the event that the ${ctx.one} ${targetText}, and $B$ that the ${ctx.one} ${givenText}. Are $A$ and $B$ independent?`),
+      ],
+      subject: 'P(A \\mid B) \\overset{?}{=} P(A)',
+      steps: [
+        {
+          id: 'pa',
+          ask: 'What is $P(A)$?',
+          branches: turn(
+            [
+              { label: f(target, total), to: 'pab' },
+              { label: f(cell, total), outcome: 'That is $A$ and $B$ together. $P(A)$ counts everyone in $A$.' },
+              { label: f(given, total), outcome: 'That is $P(B)$. Count the group for $A$.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'pab',
+          ask: 'What is $P(A \\mid B)$?',
+          branches: turn(
+            [
+              { label: f(cell, given), to: 'decide' },
+              { label: f(cell, total), outcome: 'Given $B$, only the $B$ group is in the running, so it goes on the bottom.' },
+              { label: f(cell, target), outcome: 'That is out of the $A$ group. Given $B$, the bottom is the $B$ group.' },
+            ],
+            salt >> 3,
+          ),
+        },
+        {
+          id: 'decide',
+          ask: 'Are $A$ and $B$ independent?',
+          branches: turn(
+            [
+              { label: 'Yes', ...(independent ? { outcome: 'Right: knowing $B$ leaves the chance of $A$ as it was.' } : { outcome: 'Compare the two fractions again.' }) },
+              { label: 'No', ...(independent ? { outcome: 'Compare the two fractions again: write both in lowest terms.' } : { outcome: 'Right: knowing $B$ changes the chance of $A$.' }) },
+            ],
+            salt >> 6,
+          ),
+        },
+      ],
+      answer: [f(target, total), f(cell, given), independent ? 'Yes' : 'No'],
+    };
+  },
+  solution: (params) => {
+    const { cell, total, given, target } = indepTableParts(params);
+    const independent = cell * total === given * target;
+    const steps: SolutionStep[] = [];
+    if (params.hard) steps.push({ text: `Add every cell for the total, $${total}$, and the rows and columns for the group sizes.` });
+    steps.push(
+      { tex: `P(A) = ${rawTex([target, total])}${gcd(target, total) > 1 ? ` = ${ftex([target, total])}` : ''}` },
+      { tex: `P(A \\mid B) = ${rawTex([cell, given])}${gcd(cell, given) > 1 ? ` = ${ftex([cell, given])}` : ''}` },
+      {
+        text: independent
+          ? 'They are equal, so knowing $B$ makes no difference: $A$ and $B$ are independent.'
+          : 'They differ, so knowing $B$ changes the chance of $A$: they are not independent.',
+      },
+    );
+    return steps;
+  },
+};
+
+interface IndepVennParams {
+  /** Hundredths, only A, both, only B, neither. */
+  regions: [number, number, number, number];
+  hard: boolean;
+}
+
+const vennSums = ([a, b, c]: number[]) => ({ pA: a + b, pB: b + c, both: b });
+
+/** Off a Venn diagram of probabilities: the product, or the conditional, against the diagram. */
+const indepVennTiles: Generator<IndepVennParams> = {
+  id: 'prob-ci-venn-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const independent = rng.chance(0.5);
+      let pA: number;
+      let pB: number;
+      let both: number;
+      if (!hard) {
+        pA = 10 * rng.int(2, 8);
+        pB = 10 * rng.int(2, 8);
+        both = (pA * pB) / 100 + (independent ? 0 : rng.pick([-10, -5, 5, 10]));
+      } else {
+        pB = 10 * rng.int(2, 8);
+        const q = rng.int(1, 9);
+        both = (pB * q) / 10;
+        pA = 10 * q + (independent ? 0 : rng.pick([-10, -5, 5, 10]));
+      }
+      const regions: IndepVennParams['regions'] = [pA - both, both, pB - both, 100 - pA - pB + both];
+      if (pA === pB || regions.some((r) => r < 3)) continue;
+      return { regions, hard };
+    }
+  },
+  render: ({ regions, hard }): Slide => {
+    const { pA, pB, both } = vennSums(regions);
+    const prompt = [
+      say('The Venn diagram shows the probabilities for two events $A$ and $B$.'),
+      picture(vennSvg(['A', 'B'], regions.map((r) => fmt(r / 100)) as [string, string, string, string])),
+      say('Are $A$ and $B$ independent? Complete the test.'),
+    ];
+    if (!hard) {
+      const product = tth(pA * pB);
+      const numbers = [hun(pA), hun(pB), product];
+      const rel = same(product.v, both / 100) ? '=' : '\\neq';
+      return {
+        kind: 'tiles',
+        prompt,
+        template: 'P(A) \\times P(B) = {0} \\times {1} = {2} \\; {3} \\; P(A \\cap B)',
+        answer: [...numbers.map((t) => t.tex), rel],
+        bank: [...bank(numbers, [hun(regions[0]), hun(regions[2]), hun(both), hun(pA + pB - both)], 2), '=', '\\neq'],
+      };
+    }
+    const numbers = [hun(both), hun(pB), dec(both / pB)];
+    const rel = same(both / pB, pA / 100) ? '=' : '\\neq';
+    return {
+      kind: 'tiles',
+      prompt,
+      template: 'P(A \\mid B) = {0} \\div {1} = {2} \\; {3} \\; P(A)',
+      answer: [...numbers.map((t) => t.tex), rel],
+      bank: [...bank(numbers, [hun(regions[2]), hun(pA), hun(pA + pB - both), dec(both / pA)], 2), '=', '\\neq'],
+    };
+  },
+  solution: ({ regions, hard }) => {
+    const { pA, pB, both } = vennSums(regions);
+    const [a, b, ab] = [pA / 100, pB / 100, both / 100];
+    const steps: SolutionStep[] = [{ text: 'Each circle is its two regions added.' }, { tex: `P(A) = ${fmt(regions[0] / 100)} + ${fmt(ab)} = ${fmt(a)}, \\quad P(B) = ${fmt(ab)} + ${fmt(regions[2] / 100)} = ${fmt(b)}` }];
+    if (!hard) {
+      const product = Number(fmt(a * b));
+      steps.push(
+        { tex: `P(A) \\times P(B) = ${fmt(a)} \\times ${fmt(b)} = ${fmt(product)}` },
+        { text: same(product, ab) ? `That is the overlap, $${fmt(ab)}$, so $A$ and $B$ are independent.` : `The overlap is $${fmt(ab)}$, not $${fmt(product)}$, so $A$ and $B$ are not independent.` },
+      );
+    } else {
+      steps.push(
+        { tex: chain(condTex('A', 'B'), `\\frac{${fmt(ab)}}{${fmt(b)}}`, fmt(both / pB)) },
+        { text: same(both / pB, a) ? `That is $P(A) = ${fmt(a)}$: knowing $B$ changes nothing, so they are independent.` : `But $P(A) = ${fmt(a)}$: knowing $B$ changes the chance of $A$, so they are not independent.` },
+      );
+    }
+    return steps;
+  },
+};
+
+interface IndepTreeParams extends CondTreeParams {
+  independent: boolean;
+}
+
+/** A tree: are the second-stage branches the same under both first ones? */
+const indepTreeChoice: Generator<IndepTreeParams> = {
+  id: 'prob-ci-tree-choice',
+  sample: (rng, difficulty) => {
+    const base = sampleCondTree(rng, difficulty);
+    const independent = rng.chance(0.5);
+    return { ...base, miss: independent ? base.hit : base.miss, independent };
+  },
+  render: (params): Slide => {
+    const s = COND_STORIES[params.story];
+    const [A, B] = [s.A, s.B];
+    const yes = `\\text{Yes: } ${condTex(B, A)} = ${condTex(B, not(A))}`;
+    const no = `\\text{No: } ${condTex(B, A)} \\neq ${condTex(B, not(A))}`;
+    // Difficulty 2 hides one branch of each pair, so one has to come off 1 first.
+    const hide = params.hard ? [false, false, false, true, true, false] : [];
+    return pickSlide(
+      [say(storySentence(s)), picture(condTreeSvg(params, hide)), say(`Are $${A}$ and $${B}$ independent, and why?`)],
+      params.independent ? yes : no,
+      [params.independent ? no : yes, `\\text{Yes: } P(${A}) + P(${not(A)}) = 1`, `\\text{No: } P(${A}) \\neq ${condTex(B, A)}`],
+      saltOf(params),
+      true,
+    );
+  },
+  solution: (params) => {
+    const s = COND_STORIES[params.story];
+    const steps: SolutionStep[] = [];
+    if (params.hard) steps.push({ tex: chain(condTex(s.B, not(s.A)), `1 - ${fmt((100 - params.miss) / 100)}`, fmt(params.miss / 100)) });
+    steps.push(
+      { text: `$${s.A}$ and $${s.B}$ are independent when the chance of $${s.B}$ is the same whichever way the first branch went.` },
+      { tex: `${condTex(s.B, s.A)} = ${fmt(params.hit / 100)}, \\quad ${condTex(s.B, not(s.A))} = ${fmt(params.miss / 100)}` },
+      { text: params.independent ? 'They are the same, so the events are independent.' : 'They differ, so the events are not independent.' },
+    );
+    return steps;
+  },
+};
+
+type IndepAsk = 'AgB' | 'BgA' | 'nAgB' | 'nBgA' | 'BgnA' | 'nBgnA';
+
+interface IndepGivenParams {
+  /** Hundredths. */
+  pA: number;
+  pB: number;
+  ask: IndepAsk;
+  hard: boolean;
+}
+
+function indepGivenParts({ pA, pB, ask }: IndepGivenParams) {
+  const texts: Record<IndepAsk, string> = {
+    AgB: condTex('A', 'B'),
+    BgA: condTex('B', 'A'),
+    nAgB: condTex("A'", 'B'),
+    nBgA: condTex("B'", 'A'),
+    BgnA: condTex('B', "A'"),
+    nBgnA: condTex("B'", "A'"),
+  };
+  const values: Record<IndepAsk, number> = { AgB: pA, BgA: pB, nAgB: 100 - pA, nBgA: 100 - pB, BgnA: pB, nBgnA: 100 - pB };
+  return { tex: texts[ask], answer: hun(values[ask]) };
+}
+
+/** Independent events: the condition changes nothing. */
+const indepGiven: Generator<IndepGivenParams> = {
+  id: 'prob-ci-given',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const pA = hard ? 5 * rng.int(2, 18) : 10 * rng.int(1, 9);
+      const pB = 10 * rng.int(1, 9);
+      if (pA === pB || pA + pB === 100) continue;
+      const ask = rng.pick(hard ? (['BgnA', 'nBgnA', 'nBgA', 'BgA'] as const) : (['AgB', 'BgA', 'nAgB', 'nBgA'] as const));
+      return { pA, pB, ask, hard };
+    }
+  },
+  render: (params): Slide => {
+    const { tex, answer } = indepGivenParts(params);
+    const facts = params.hard
+      ? `$P(A) = ${fmt(params.pA / 100)}$ and $P(A \\cap B) = ${tth(params.pA * params.pB).tex}$`
+      : `$P(A) = ${fmt(params.pA / 100)}$ and $P(B) = ${fmt(params.pB / 100)}$`;
+    return probSlide([say(`$A$ and $B$ are independent events with ${facts}.`), say(`Find $${tex}$.`)], `${tex} =`, answer.answer);
+  },
+  solution: (params) => {
+    const { tex, answer } = indepGivenParts(params);
+    const steps: SolutionStep[] = [];
+    if (params.hard) steps.push({ text: 'Independent, so the overlap is the product: divide it by $P(A)$ for $P(B)$.' }, { tex: `P(B) = ${tth(params.pA * params.pB).tex} \\div ${fmt(params.pA / 100)} = ${fmt(params.pB / 100)}` });
+    steps.push({ text: 'For independent events, knowing one has happened, or not happened, leaves the chance of the other as it was.' }, { tex: `${tex} = ${answer.tex}` });
+    return steps;
+  },
+  choices: (params) => {
+    const { answer } = indepGivenParts(params);
+    const { pA, pB } = params;
+    const h = Math.round(answer.v * 100);
+    return probChoices(answer, [tth(pA * pB), hun(100 - h), hun(h === pA ? pB : pA), dec(Math.min(pA, pB) / Math.max(pA, pB))], saltOf(params));
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 5: given the outcome, back up the tree
+ * ================================================================ */
+
+interface ReverseParams extends CondTreeParams {
+  /** The first-stage outcome asked about, and the second-stage one given. */
+  onA: boolean;
+  yes: boolean;
+}
+
+function sampleReverse(rng: Rng, difficulty: number, anyFirst: boolean): ReverseParams {
+  for (;;) {
+    const base = sampleCondTree(rng, difficulty);
+    const onA = difficulty > 1 && anyFirst ? rng.chance(0.5) : true;
+    const yes = difficulty > 1 ? rng.chance(0.5) : true;
+    if (difficulty > 1 && anyFirst && onA && yes) continue;
+    return { ...base, onA, yes };
+  }
+}
+
+/** The path asked about, and the other path ending the same way. */
+function reverseParts(params: ReverseParams) {
+  const s = COND_STORIES[params.story];
+  const num = leafOf(params, params.onA, params.yes);
+  const other = leafOf(params, !params.onA, params.yes);
+  const A = params.onA ? s.A : not(s.A);
+  const B = params.yes ? s.B : not(s.B);
+  return { s, num, other, A, B, tex: condTex(A, B) };
+}
+
+function reverseQuestion(params: ReverseParams): string {
+  const s = COND_STORIES[params.story];
+  return `Find the probability that ${params.onA ? s.a : s.notA}, given that ${params.yes ? s.yes : s.no}.`;
+}
+
+/** P(A | B) = P(A and B) / P(B), with P(B) the sum of the paths ending in B. */
+const reverseTiles: Generator<ReverseParams> = {
+  id: 'prob-cr-tiles',
+  sample: (rng, difficulty) => sampleReverse(rng, difficulty, true),
+  render: (params): Slide => {
+    const { s, num, other, B, tex } = reverseParts(params);
+    const answer = [tth(num), tth(num + other), fr([num, num + other])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(storySentence(s)),
+        picture(condTreeSvg(params)),
+        say(`${reverseQuestion(params)} $P(${B})$ is the sum of both paths ending in $${B}$. Give the answer as a fraction.`),
+      ],
+      template: `${tex} = {0} \\div {1} = {2}`,
+      answer: answer.map((t) => t.tex),
+      bank: bank(answer, [
+        tth(other),
+        hun(condBranchOf(params, params.onA, params.yes)),
+        fr([other, num + other]),
+        fr([num, 10000]),
+        fr([num, num + leafOf(params, params.onA, !params.yes)]),
+      ]),
+    };
+  },
+  solution: (params) => {
+    const { num, other, A, B, tex } = reverseParts(params);
+    return [
+      { text: `The path through $${A}$ to $${B}$ is the top of the fraction. Both paths ending in $${B}$ make $P(${B})$.` },
+      { tex: chain(`P(${B})`, `${tth(num).tex} + ${tth(other).tex}`, tth(num + other).tex) },
+      { tex: chain(tex, `\\frac{${tth(num).tex}}{${tth(num + other).tex}}`, ftex([num, num + other])) },
+    ];
+  },
+};
+
+/** The same, laid out as a tree: two paths, their sum, then the quotient. */
+const reverseTree: Generator<ReverseParams> = {
+  id: 'prob-cr-bayes-tree',
+  sample: (rng, difficulty) => sampleReverse(rng, difficulty, false),
+  render: (params): Slide => {
+    const { s, num, other, A, B, tex } = reverseParts(params);
+    const answer = [tth(num), tth(other), tth(num + other), fr([num, num + other])];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(storySentence(s)),
+        picture(condTreeSvg(params)),
+        say(`${reverseQuestion(params)} Top row: $P(${A} \\cap ${B})$, then $P(${not(A)} \\cap ${B})$. Then $P(${B})$, then the answer as a fraction.`),
+      ],
+      expression: `${tex} = \\frac{P(${A} \\cap ${B})}{P(${B})}`,
+      nodes: [
+        { id: 'p1', from: [] },
+        { id: 'p2', from: [] },
+        { id: 'b', from: ['p1', 'p2'] },
+        { id: 'r', from: ['p1', 'b'] },
+      ],
+      bank: bank(answer, [
+        hun(condBranchOf(params, params.onA, params.yes)),
+        fr([other, num + other]),
+        tth(num + leafOf(params, params.onA, !params.yes)),
+        fr([num, 10000 - num - other]),
+      ]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const { num, other, A, B, tex } = reverseParts(params);
+    return [
+      { text: `Two paths end in $${B}$. Multiply along each.` },
+      { tex: `P(${A} \\cap ${B}) = ${tth(num).tex}, \\quad P(${not(A)} \\cap ${B}) = ${tth(other).tex}` },
+      { tex: chain(`P(${B})`, `${tth(num).tex} + ${tth(other).tex}`, tth(num + other).tex) },
+      { text: `Given $${B}$, only those two paths are left, and the one through $${A}$ is the part asked about.` },
+      { tex: chain(tex, `\\frac{${tth(num).tex}}{${tth(num + other).tex}}`, ftex([num, num + other])) },
+    ];
+  },
+};
+
+/** The fraction that gives P(A | B) off a tree: a path over the sum of two. */
+const reverseWhich: Generator<ReverseParams> = {
+  id: 'prob-cr-which',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleReverse(rng, difficulty, true);
+      const { num, other } = reverseParts(params);
+      const x = params.onA ? params.a : 100 - params.a;
+      const branch = condBranchOf(params, params.onA, params.yes);
+      const otherBranch = condBranchOf(params, !params.onA, params.yes);
+      // Every option a different value, so none is right by accident.
+      const values = [num / (num + other), branch / 100, (x * branch) / 10000, (x * branch) / (100 * (branch + otherBranch))];
+      if (new Set(values.map((v) => v.toFixed(9))).size < 4) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { s, tex } = reverseParts(params);
+    const x = fmt((params.onA ? params.a : 100 - params.a) / 100);
+    const y = fmt((params.onA ? 100 - params.a : params.a) / 100);
+    const bx = fmt(condBranchOf(params, params.onA, params.yes) / 100);
+    const by = fmt(condBranchOf(params, !params.onA, params.yes) / 100);
+    return pickSlide(
+      [say(storySentence(s)), picture(condTreeSvg(params)), say(`Which gives $${tex}$?`)],
+      `\\frac{${x} \\times ${bx}}{${x} \\times ${bx} + ${y} \\times ${by}}`,
+      [bx, `${x} \\times ${bx}`, `\\frac{${x} \\times ${bx}}{${bx} + ${by}}`],
+      saltOf(params),
+      true,
+    );
+  },
+  solution: (params) => {
+    const { A, B, tex } = reverseParts(params);
+    return [
+      { text: `$${condTex(B, A)}$ is the branch on the tree. $${tex}$ runs the other way, so it is not on the tree.` },
+      { tex: `${tex} = \\frac{P(${A} \\cap ${B})}{P(${B})}` },
+      { text: `The top is the path through $${A}$ to $${B}$; the bottom adds both paths that end in $${B}$.` },
+    ];
+  },
+};
+
+type CounterAsk = 'same' | 'second' | 'atleast';
+
+interface CounterParams {
+  holder: string;
+  thing: number;
+  colours: [string, string];
+  counts: [number, number];
+  ask: CounterAsk;
+}
+
+/** Ordered pairs of two draws: the part asked about over the part given. */
+function counterParts({ counts: [r, b], ask }: CounterParams): { top: number; bottom: number } {
+  const n = r + b;
+  if (ask === 'same') return { top: r * (r - 1), bottom: r * (r - 1) + b * (b - 1) };
+  if (ask === 'second') return { top: r * (r - 1), bottom: r * (n - 1) };
+  return { top: r * (r - 1), bottom: n * (n - 1) - b * (b - 1) };
+}
+
+function counterQuestion({ colours: [c0], ask }: CounterParams): string {
+  if (ask === 'same') return `Given that they are the same colour, find the probability that both are ${c0}.`;
+  if (ask === 'second') return `Given that the second is ${c0}, find the probability that the first was ${c0} too.`;
+  return `Given that at least one is ${c0}, find the probability that both are.`;
+}
+
+/** Without replacement, told something about the draws: count the pairs that fit. */
+const reverseCounters: Generator<CounterParams> = {
+  id: 'prob-cr-counters',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const counts: [number, number] = [rng.int(2, hard ? 10 : 8), rng.int(2, hard ? 10 : 8)];
+      const params: CounterParams = {
+        holder: rng.pick(HOLDERS),
+        thing: rng.int(0, THINGS.length - 1),
+        colours: rng.sample(COLOURS, 2) as [string, string],
+        counts,
+        ask: hard ? rng.pick(['second', 'atleast'] as const) : 'same',
+      };
+      const n = counts[0] + counts[1];
+      const { top, bottom } = counterParts(params);
+      if (same(top / bottom, (counts[0] * (counts[0] - 1)) / (n * (n - 1)))) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const [one, many] = THINGS[params.thing];
+    const [r, b] = params.counts;
+    const { top, bottom } = counterParts(params);
+    return probSlide(
+      [
+        say(`A ${params.holder} holds ${r} ${params.colours[0]} and ${b} ${params.colours[1]} ${many}. Two are taken at random, one after the other, without replacement.`),
+        say(`${counterQuestion(params)} Each ${one} is equally likely to be taken.`),
+      ],
+      'P =',
+      fans([top, bottom]),
+    );
+  },
+  solution: (params) => {
+    const [c0, c1] = params.colours;
+    const [r, b] = params.counts;
+    const n = r + b;
+    const { top, bottom } = counterParts(params);
+    const both = `P(\\text{both ${c0}}) = ${rawTex([r, n])} \\times ${rawTex([r - 1, n - 1])} = ${rawTex([r * (r - 1), n * (n - 1)])}`;
+    const steps: SolutionStep[] = [{ tex: both }];
+    if (params.ask === 'same') {
+      steps.push({ tex: `P(\\text{both ${c1}}) = ${rawTex([b, n])} \\times ${rawTex([b - 1, n - 1])} = ${rawTex([b * (b - 1), n * (n - 1)])}` }, { text: 'Same colour is either of those. Given the same colour, both are in the running and the first is the part asked about.' });
+    } else if (params.ask === 'second') {
+      steps.push({ text: `The second is ${c0} on two paths: ${c0} then ${c0}, or ${c1} then ${c0}.` }, { tex: `P(\\text{second ${c0}}) = ${rawTex([r * (r - 1), n * (n - 1)])} + ${rawTex([b * r, n * (n - 1)])} = ${rawTex([bottom, n * (n - 1)])}` });
+    } else {
+      steps.push({ text: `At least one is ${c0} unless both are ${c1}.` }, { tex: `P(\\text{at least one ${c0}}) = 1 - ${rawTex([b * (b - 1), n * (n - 1)])} = ${rawTex([bottom, n * (n - 1)])}` });
+    }
+    steps.push({ text: `Divide: the $${n * (n - 1)}$s cancel.` }, { tex: `P = ${rawTex([top, bottom])}${gcd(top, bottom) > 1 ? ` = ${ftex([top, bottom])}` : ''}` });
+    return steps;
+  },
+  choices: (params) => {
+    const [r, b] = params.counts;
+    const n = r + b;
+    const { top, bottom } = counterParts(params);
+    return probChoices(fr([top, bottom]), [fr([r * (r - 1), n * (n - 1)]), fr([r, n]), fr([r - 1, n - 1]), fr([top, n * n]), fr([bottom, n * (n - 1)])], saltOf(params));
+  },
+};
+
+/* ================================================================
  * Registry
  * ================================================================ */
 
@@ -5380,4 +6790,24 @@ export const probabilityGenerators = [
   vennEventsTable,
   vennReadFlow,
   vennSumTiles,
+  condTableTiles,
+  condFormula,
+  condJointWhich,
+  condAndTree,
+  condVennCount,
+  condVennFill,
+  condVennGivenTiles,
+  condVennFlow,
+  condFill,
+  condTotalTree,
+  condPath,
+  condWords,
+  indepTableFlow,
+  indepVennTiles,
+  indepTreeChoice,
+  indepGiven,
+  reverseTiles,
+  reverseTree,
+  reverseWhich,
+  reverseCounters,
 ].map((g) => fitted(g as Generator<unknown>));

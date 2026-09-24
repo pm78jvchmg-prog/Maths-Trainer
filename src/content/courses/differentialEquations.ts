@@ -12,6 +12,11 @@
  * a constant P, P = n/x, and particular solutions. Level 4 is second order:
  * `y'' + by' + cy = 0` through its auxiliary equation, with two real roots, a
  * repeated root and complex roots, then y(0) and y'(0) to fix both constants.
+ * Level 5 puts a function on the right, `y'' + by' + cy = f(x)`: the
+ * complementary function plus a particular integral, found by a trial
+ * function for a polynomial, exponential or trigonometric right side, then
+ * resonance, where the trial is multiplied by x, and initial conditions on
+ * the whole solution.
  *
  * Integration and the exponential model are used here, not taught again:
  * `dy/dx = ky` read off a model belongs to Exponential Models' rate lesson,
@@ -47,7 +52,7 @@ export const differentialEquations: Course = {
   // After Integration (30), Vectors (40) and Matrices (50) — and Exponential Models, whose model it solves for.
   position: 70,
   title: 'Differential Equations',
-  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, the integrating factor, and second-order equations.',
+  blurb: 'Equations for a rate: forming them, separating the variables, modelling cooling, limits and mixing, the integrating factor, and second-order equations with and without a right side.',
   levels: [
     {
       id: 'de-l1',
@@ -891,6 +896,218 @@ export const differentialEquations: Course = {
         ask('de-rep-shape', 2),
         ask('de-cx-which', 2),
         ask('de-ivp-conditions-steps', 2),
+      ],
+    },
+    {
+      id: 'de-l5',
+      title: 'Non-Homogeneous Second-Order',
+      lessons: [
+        {
+          id: 'de-l5-cf-pi',
+          title: 'Complementary Function and Particular Integral',
+          slides: [
+            teach(
+              prose("Now the right side is a function of $x$ rather than $0$:"),
+              display("y'' + by' + cy = f(x)"),
+              prose(
+                'Its solution comes in two parts. The **complementary function** (CF) solves the equation with $0$ on the right, exactly as in the last level, and carries $A$ and $B$. A **particular integral** (PI) is any one function that gives $f(x)$.',
+              ),
+              prose("To check a particular integral, differentiate it twice and put it in: the left side must come to $f(x)$."),
+            ),
+            ask('de-nh-check-steps'),
+            ask('de-nh-which-pi'),
+            ask('de-nh-constant'),
+            teach(
+              prose(
+                'Why the two add: the complementary function gives $0$ on the left and the particular integral gives $f(x)$, so their sum gives $0 + f(x)$. The **general solution** is',
+              ),
+              display('y = \\text{CF} + \\text{PI}'),
+              prose(
+                "For $y'' + 3y' + 2y = 12e^{x}$, $y = 2e^{x}$ gives $2e^{x} + 6e^{x} + 4e^{x} = 12e^{x}$. The roots of $m^2 + 3m + 2 = 0$ are $-1$ and $-2$, so",
+              ),
+              display('y = Ae^{-x} + Be^{-2x} + 2e^{x}'),
+            ),
+            ask('de-nh-general-flow'),
+            ask('de-nh-check-steps', 2),
+            ask('de-nh-which-pi', 2),
+            teach(
+              prose(
+                "A constant right side has a constant particular integral: its derivatives are $0$, so only the $y$ term is left. For $y'' - 3y' + 2y = 4$, $2y = 4$ gives $y = 2$, and $y = Ae^{x} + Be^{2x} + 2$.",
+              ),
+            ),
+            ask('de-nh-general-flow', 2),
+            ask('de-nh-constant', 2),
+          ],
+          skillCheck: [ask('de-nh-check-steps', 2), ask('de-nh-general-flow', 2), ask('de-nh-constant', 2)],
+        },
+        {
+          id: 'de-l5-polynomial',
+          title: 'A Polynomial Right Side',
+          slides: [
+            teach(
+              prose(
+                'When $f(x)$ is a polynomial, try a polynomial of the same degree with unknown coefficients, then **compare coefficients**. For $y\'\' - 3y\' + 2y = 4x$, try $y = \\lambda x + \\mu$: $y\' = \\lambda$ and $y\'\' = 0$, so',
+              ),
+              working('-3\\lambda + 2(\\lambda x + \\mu) &= 4x', '2\\lambda x + (-3\\lambda + 2\\mu) &= 4x'),
+              prose('The $x$ terms give $\\lambda = 2$, then the numbers give $\\mu = 3$: $y = 2x + 3$.'),
+            ),
+            ask('de-nh-poly-trial'),
+            ask('de-nh-poly-tree'),
+            ask('de-nh-poly-pi'),
+            teach(
+              prose(
+                "A quadratic takes $y = \\lambda x^2 + \\mu x + \\nu$, and the top power comes first. For $y'' - y' - 2y = -2x^2 - 2x$:",
+              ),
+              prose('Collect the $x^2$ terms, the $x$ terms and the numbers, and compare each with the right side:'),
+              working('-2\\lambda &= -2', '-2\\lambda - 2\\mu &= -2', '2\\lambda - \\mu - 2\\nu &= 0'),
+              prose('So $\\lambda = 1$, then $\\mu = 0$, then $\\nu = 1$: $y = x^2 + 1$.'),
+            ),
+            ask('de-nh-poly-steps'),
+            ask('de-nh-poly-tree', 2),
+            ask('de-nh-poly-trial', 2),
+            teach(
+              prose(
+                "Keep every power below the top one, even when $f(x)$ has none of it. For $f(x) = 6x$ the trial is still $\\lambda x + \\mu$: the $y'$ term turns $\\lambda x$ into a number, and $\\mu$ is there to cancel it.",
+              ),
+            ),
+            ask('de-nh-poly-pi', 2),
+            ask('de-nh-poly-steps', 2),
+          ],
+          skillCheck: [ask('de-nh-poly-tree', 2), ask('de-nh-poly-pi', 2), ask('de-nh-poly-steps', 2)],
+        },
+        {
+          id: 'de-l5-exponential',
+          title: 'An Exponential Right Side',
+          slides: [
+            teach(
+              prose(
+                "When $f(x) = Fe^{kx}$, try $y = \\lambda e^{kx}$. Then $y' = k\\lambda e^{kx}$ and $y'' = k^2\\lambda e^{kx}$, and every term carries $\\lambda e^{kx}$:",
+              ),
+              display('(k^2 + bk + c)\\lambda = F'),
+              prose("For $y'' - 5y' + 6y = 4e^{x}$: $(1 - 5 + 6)\\lambda = 4$, so $\\lambda = 2$ and $y = 2e^{x}$."),
+            ),
+            ask('de-nh-exp-value'),
+            ask('de-nh-exp-steps'),
+            ask('de-nh-exp-flow'),
+            teach(
+              prose(
+                'Then add the complementary function. The roots of $m^2 - 5m + 6 = 0$ are $2$ and $3$, so the general solution of $y\'\' - 5y\' + 6y = 4e^{x}$ is',
+              ),
+              display('y = Ae^{2x} + Be^{3x} + 2e^{x}'),
+            ),
+            ask('de-nh-exp-general'),
+            ask('de-nh-exp-value', 2),
+            ask('de-nh-exp-steps', 2),
+            teach(
+              prose(
+                'The number $k^2 + bk + c$ is the auxiliary equation\'s left side at $m = k$. It is never $0$ here, because $k$ is not a root. When it is, $\\lambda e^{kx}$ is part of the complementary function and gives $0$: that is the last lesson of this level.',
+              ),
+            ),
+            ask('de-nh-exp-flow', 2),
+            ask('de-nh-exp-general', 2),
+          ],
+          skillCheck: [ask('de-nh-exp-value', 2), ask('de-nh-exp-steps', 2), ask('de-nh-exp-general', 2)],
+        },
+        {
+          id: 'de-l5-trigonometric',
+          title: 'A Trigonometric Right Side',
+          slides: [
+            teach(
+              prose(
+                "When $f(x)$ is a cosine or a sine of $\\omega x$, try both: $y = \\lambda\\cos \\omega x + \\mu\\sin \\omega x$. The $y'$ term turns a cosine into a sine, so a cosine alone on the right still needs a sine in the trial.",
+              ),
+              prose("For $y'' + 3y' + 2y = 10\\cos x$, putting it in and comparing the cosines and the sines gives"),
+              working('\\lambda + 3\\mu &= 10', '-3\\lambda + \\mu &= 0'),
+              prose('So $\\mu = 3\\lambda$, $10\\lambda = 10$, and $y = \\cos x + 3\\sin x$.'),
+            ),
+            ask('de-nh-trig-trial'),
+            ask('de-nh-trig-tree'),
+            ask('de-nh-trig-part'),
+            teach(
+              prose(
+                "A shortcut: $y'' = -\\omega^2 y$ for the trial, so $y''$ and $cy$ together give $Ky$ with $K = c - \\omega^2$, and $by'$ brings $M = b\\omega$.",
+              ),
+              prose("The two equations are always $K\\lambda + M\\mu$ equal to the cosine's coefficient, and $-M\\lambda + K\\mu$ equal to the sine's. Above, $K = 2 - 1 = 1$ and $M = 3$."),
+            ),
+            ask('de-nh-trig-steps'),
+            ask('de-nh-trig-trial', 2),
+            ask('de-nh-trig-tree', 2),
+            teach(
+              prose(
+                'Solve the pair as simultaneous equations: eliminate one letter, find the other, then substitute back. A right side with both a cosine and a sine uses the same trial and the same two equations.',
+              ),
+            ),
+            ask('de-nh-trig-part', 2),
+            ask('de-nh-trig-steps', 2),
+          ],
+          skillCheck: [ask('de-nh-trig-tree', 2), ask('de-nh-trig-part', 2), ask('de-nh-trig-steps', 2)],
+        },
+        {
+          id: 'de-l5-resonance',
+          title: 'Resonance and Initial Conditions',
+          slides: [
+            teach(
+              prose(
+                "If $f(x)$ is already part of the complementary function, the usual trial gives $0$ on the left. Multiply it by $x$. For $y'' - 3y' + 2y = 3e^{x}$, the roots are $1$ and $2$, so try $y = \\lambda xe^{x}$:",
+              ),
+              working("y' &= \\lambda(1 + x)e^{x}", "y'' &= \\lambda(2 + x)e^{x}"),
+              prose(
+                'The $x$ terms cancel and $-\\lambda e^{x} = 3e^{x}$, so $y = -3xe^{x}$. For a repeated root multiply by $x^2$: $y\'\' - 4y\' + 4y = 6e^{2x}$ takes $\\lambda x^2e^{2x}$, which gives $2\\lambda e^{2x}$, so $y = 3x^2e^{2x}$.',
+              ),
+            ),
+            ask('de-nh-res-flow'),
+            ask('de-nh-res-value'),
+            teach(
+              prose(
+                "The same happens to $y'' + \\omega^2 y$ with a cosine or sine of $\\omega x$ on the right. For $y'' + 4y = 8\\cos 2x$, try $y = \\lambda x\\cos 2x + \\mu x\\sin 2x$: it gives $4\\mu\\cos 2x - 4\\lambda\\sin 2x$, so $\\mu = 2$, $\\lambda = 0$ and $y = 2x\\sin 2x$.",
+              ),
+              prose('This is **resonance**: pushed at its own frequency, the swings grow without limit.'),
+              figure({
+                xMin: 0,
+                xMax: 6,
+                yMin: -13,
+                yMax: 13,
+                curves: [
+                  { f: (x: number) => 2 * x * Math.sin(2 * x) },
+                  { f: (x: number) => 2 * x, dashed: true },
+                  { f: (x: number) => -2 * x, dashed: true },
+                ],
+                label: 'An oscillating curve whose swings grow steadily between two dashed straight lines',
+              }),
+            ),
+            ask('de-nh-res-flow', 2),
+            ask('de-nh-res-value', 2),
+            teach(
+              prose(
+                "Initial conditions go on the **whole** general solution, particular integral included. For $y'' - 3y' + 2y = 4$ with $y(0) = 5$ and $y'(0) = 4$:",
+              ),
+              working('y &= Ae^{x} + Be^{2x} + 2', "y' &= Ae^{x} + 2Be^{2x}"),
+              prose('At $x = 0$: $A + B + 2 = 5$ and $A + 2B = 4$, so $B = 1$, $A = 2$, and $y = 2e^{x} + e^{2x} + 2$.'),
+            ),
+            ask('de-nh-ivp-tree'),
+            ask('de-nh-ivp-fit'),
+            ask('de-nh-ivp-tree', 2),
+            ask('de-nh-ivp-fit', 2),
+          ],
+          skillCheck: [ask('de-nh-res-value', 2), ask('de-nh-ivp-tree', 2), ask('de-nh-ivp-fit', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('de-nh-check-steps', 2),
+        ask('de-nh-poly-tree', 2),
+        ask('de-nh-exp-value', 2),
+        ask('de-nh-trig-steps', 2),
+        ask('de-nh-res-flow', 2),
+        ask('de-nh-which-pi', 2),
+        ask('de-nh-poly-pi', 2),
+        ask('de-nh-exp-general', 2),
+        ask('de-nh-trig-part', 2),
+        ask('de-nh-ivp-tree', 2),
+        ask('de-nh-general-flow', 2),
+        ask('de-nh-poly-steps', 2),
+        ask('de-nh-exp-flow', 2),
+        ask('de-nh-trig-tree', 2),
+        ask('de-nh-ivp-fit', 2),
       ],
     },
   ],

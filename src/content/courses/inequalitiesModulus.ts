@@ -23,6 +23,12 @@
  * quadratic, $|f(x)| = c$ solved from the graph and by two cases, the same
  * reflection for cubics, and $|f(x)| < c$ read off the picture.
  *
+ * Level 5 takes the modulus onto the plane: $y \ge |x - a|$ as the region
+ * above a V, $y < k - |x|$ as the region under an upside-down V, the
+ * rectangle, square or kite between the two, reading a region's inequalities
+ * off its picture, and the lattice points, highest point and width of a
+ * region.
+ *
  * Linear inequalities on their own are Linear Equations' `le-l4`; this
  * course's first lesson keeps to the number-line picture of them. Later
  * levels are in `docs/roadmap/levels/inequalities-modulus.md`.
@@ -33,7 +39,7 @@
 import type { Block, Course, SlideRef } from '../types';
 import type { Piece } from '../numberLine';
 import { plotSvg } from '../figures';
-import { numberLineSvg } from '../generators/inequalitiesModulus';
+import { modRegionSvg, numberLineSvg, type ModEdge } from '../generators/inequalitiesModulus';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -67,6 +73,18 @@ const piece = (lo: number, hi: number, loClosed: boolean, hiClosed: boolean): Pi
 const line = (min: number, max: number, pieces: Piece[], label: string): Block => ({
   kind: 'diagram',
   svg: numberLineSvg(min, max, pieces, label),
+});
+
+/** A V with its vertex at (a, c), and the side and sign of its region. */
+const vee = (a: number, c: number, op: ModEdge['op'], m = 1): ModEdge => ({ s: 1, m, a, c, op, turned: false });
+
+/** An upside-down V with its vertex, the top, at (a, c). */
+const cap = (a: number, c: number, op: ModEdge['op'], m = 1): ModEdge => ({ s: -1, m, a, c, op, turned: false });
+
+/** A region on squared paper, shaded, for a teaching slide. */
+const region = (edges: ModEdge[], label: string, dot?: [number, number]): Block => ({
+  kind: 'diagram',
+  svg: modRegionSvg(edges, { label, dot, shade: true }),
 });
 
 /** Curves on one set of axes, for the slides about graphs. */
@@ -1103,6 +1121,240 @@ export const inequalitiesModulus: Course = {
         ask('mod-two-cases-tree', 2),
         ask('mod-cubic-sign-flow', 2),
         ask('mod-critical-tree', 2),
+      ],
+    },
+    {
+      id: 'im-l5',
+      title: 'Regions with Modulus',
+      lessons: [
+        {
+          id: 'im-l5-above',
+          title: 'Above or Below a V',
+          slides: [
+            teach(
+              prose(
+                'An inequality in $x$ and $y$ is a **region** of the plane: every point $(x, y)$ that makes it true. $y \\ge \\lvert x - 2 \\rvert$ is every point on or above the V of $y = \\lvert x - 2 \\rvert$.',
+              ),
+              region([vee(2, 0, '>=')], 'A solid V with its vertex at (2, 0), the region above it shaded'),
+              prose(
+                'The V turns where the inside is zero, at $(2, 0)$. Points **on** the V make the two sides equal, and $\\ge$ lets them in, so the V is drawn **solid**.',
+              ),
+            ),
+            ask('mod-region-vertex-tiles'),
+            ask('mod-region-test-tree'),
+            ask('mod-region-point-choice'),
+            teach(
+              prose(
+                '$y > \\lvert x + 1 \\rvert - 2$ leaves the V itself out, so it is drawn **dashed**. The number outside the bars moves the vertex down to $(-1, -2)$.',
+              ),
+              region([vee(-1, -2, '>')], 'A dashed V with its vertex at (-1, -2), the region above it shaded', [1, 1]),
+              prose(
+                'To test a point, work out the V\'s height at its $x$. At $(1, 1)$ the height is $\\lvert 2 \\rvert - 2 = 0$, and $1 > 0$ is true: the point is in. On the line $x = 1$ the lowest whole $y$ in the region is $1$, since $0$ itself is on the dashed V.',
+              ),
+            ),
+            ask('mod-region-lowest-slider'),
+            ask('mod-region-vertex-tiles', 2),
+            ask('mod-region-test-tree', 2),
+            teach(
+              prose(
+                'With $<$ or $\\le$ the region is **below** the V. Written the other way round, $\\lvert x - 1 \\rvert + 2 < y$ still has $y$ on the bigger side: it is the region above.',
+              ),
+              region([vee(1, -4, '<=', 2)], 'A solid V of steepness 2 with its vertex at (1, -4), the region below it shaded'),
+              prose(
+                'A number in front makes the V steeper: $y \\le 2\\lvert x - 1 \\rvert - 4$ has arms of gradient $2$ and $-2$, but its vertex is found the same way, at $(1, -4)$.',
+              ),
+            ),
+            ask('mod-region-point-choice', 2),
+            ask('mod-region-lowest-slider', 2),
+          ],
+          skillCheck: [
+            ask('mod-region-vertex-tiles', 2),
+            ask('mod-region-test-tree', 2),
+            ask('mod-region-lowest-slider', 2),
+          ],
+        },
+        {
+          id: 'im-l5-below',
+          title: 'Under an Upside-Down V',
+          slides: [
+            teach(
+              prose(
+                '$y \\le 4 - \\lvert x \\rvert$ is the region under an **upside-down V**, the V of $y = \\lvert x \\rvert$ turned over and lifted so its top is at $(0, 4)$.',
+              ),
+              region([cap(0, 4, '<=')], 'A solid upside-down V with its vertex at (0, 4), the region below it shaded'),
+              prose(
+                'It crosses the $x$-axis where $4 - \\lvert x \\rvert = 0$, so $\\lvert x \\rvert = 4$: at $x = -4$ and $x = 4$, the height of the vertex either side of it.',
+              ),
+            ),
+            ask('mod-cap-intercepts-tiles'),
+            ask('mod-origin-flow'),
+            ask('mod-region-highest-slider'),
+            teach(
+              prose(
+                '$y < 3 - \\lvert x - 1 \\rvert$ has its vertex at $(1, 3)$ and crosses the axis $3$ either side, at $x = -2$ and $x = 4$. The sign is strict, so the boundary is dashed.',
+              ),
+              region([cap(1, 3, '<')], 'A dashed upside-down V with its vertex at (1, 3), the region below it shaded', [0, 0]),
+              prose(
+                'Is the origin in? At $x = 0$ the boundary is at $3 - \\lvert -1 \\rvert = 2$, above the origin, and the region is below the boundary: yes.',
+              ),
+            ),
+            ask('mod-cap-test-tree'),
+            ask('mod-cap-intercepts-tiles', 2),
+            ask('mod-origin-flow', 2),
+            teach(
+              prose(
+                'A $2$ in front makes the arms steeper, so they reach the axis sooner. $y \\le 6 - 2\\lvert x + 1 \\rvert$ has its vertex at $(-1, 6)$, but $2\\lvert x + 1 \\rvert = 6$ gives $\\lvert x + 1 \\rvert = 3$: it crosses at $x = -4$ and $x = 2$.',
+              ),
+              region([cap(-1, 6, '<=', 2)], 'A solid upside-down V of steepness 2 with its vertex at (-1, 6), the region below it shaded'),
+            ),
+            ask('mod-region-highest-slider', 2),
+            ask('mod-cap-test-tree', 2),
+          ],
+          skillCheck: [
+            ask('mod-cap-intercepts-tiles', 2),
+            ask('mod-origin-flow', 2),
+            ask('mod-region-highest-slider', 2),
+          ],
+        },
+        {
+          id: 'im-l5-between',
+          title: 'Between Two Graphs',
+          slides: [
+            teach(
+              prose(
+                'Where $y \\ge \\lvert x \\rvert - 2$ **and** $y \\le 2 - \\lvert x \\rvert$ both hold is above the V and under the upside-down V at once: a closed region.',
+              ),
+              region([vee(0, -2, '>='), cap(0, 2, '<=')], 'A solid V with its vertex at (0, -2) and a solid upside-down V with its vertex at (0, 2), the square between them shaded'),
+              prose(
+                'Its corners are the two vertices and the two places the graphs cross, found as the crossings of two Vs were: where the heights are equal. Every arm has gradient $1$ or $-1$, so the sides meet at right angles: a **rectangle**, and a **square** like this one when the vertices are one above the other. A top vertex too low to reach over the V gives no region at all.',
+              ),
+            ),
+            ask('mod-cross-points'),
+            ask('mod-cross-slider'),
+            ask('mod-between-shape'),
+            teach(
+              prose(
+                'With the vertices apart the region is a rectangle, and its side corners are where the arms on each side cross. For $y \\ge \\lvert x - 1 \\rvert - 3$ and $y \\le 3 - \\lvert x + 1 \\rvert$ the right arms are $y = x - 4$ and $y = 2 - x$.',
+              ),
+              region([vee(1, -3, '>='), cap(-1, 3, '<=')], 'A solid V with its vertex at (1, -3) and a solid upside-down V with its vertex at (-1, 3), the rectangle between them shaded'),
+              maths('\\begin{gathered} x - 4 = 2 - x \\\\ x = 3, \\quad y = -1 \\end{gathered}'),
+              prose('The left arms, $y = -x - 2$ and $y = x + 4$, meet at $(-3, 1)$. The other two corners are the vertices, $(1, -3)$ and $(-1, 3)$.'),
+            ),
+            ask('mod-between-corners-tiles'),
+            ask('mod-between-corner-slider'),
+            teach(
+              prose(
+                'A steeper V under the same vertex makes a **kite**. $y \\ge 2\\lvert x \\rvert - 3$ with $y \\le 3 - \\lvert x \\rvert$ has corners $(0, -3)$, $(0, 3)$, $(-2, 1)$ and $(2, 1)$: the arms no longer meet at right angles.',
+              ),
+              region([vee(0, -3, '>=', 2), cap(0, 3, '<=')], 'A solid V of steepness 2 with its vertex at (0, -3) and a solid upside-down V with its vertex at (0, 3), the kite between them shaded'),
+              prose('A dashed boundary changes none of the corners, only whether the points on that edge are in.'),
+            ),
+            ask('mod-between-shape', 2),
+            ask('mod-between-corners-tiles', 2),
+            ask('mod-between-corner-slider', 2),
+          ],
+          skillCheck: [
+            ask('mod-between-corners-tiles', 2),
+            ask('mod-between-shape', 2),
+            ask('mod-between-corner-slider', 2),
+          ],
+        },
+        {
+          id: 'im-l5-reading',
+          title: 'Reading a Region',
+          slides: [
+            teach(
+              prose(
+                'Now the other way: from a picture to its inequality. Read three things. Which way up the boundary is and where its vertex is; which side of it the region is on; and whether the line is solid or dashed.',
+              ),
+              region([cap(1, 3, '<')], 'A dashed upside-down V with its vertex at (1, 3), the region below it shaded, and a dot at (1, 0)', [1, 0]),
+              prose(
+                'An upside-down V with its vertex at $(1, 3)$, the dot below it, and the line dashed: $y < 3 - \\lvert x - 1 \\rvert$.',
+              ),
+            ),
+            ask('mod-read-region-tiles'),
+            ask('mod-region-picture-check'),
+            ask('mod-read-region-flow'),
+            teach(
+              prose('With two boundaries, read each one against the dot, which is in the region.'),
+              region([vee(0, -3, '>'), cap(0, 3, '<=')], 'A dashed V with its vertex at (0, -3) and a solid upside-down V with its vertex at (0, 3), the square between them shaded, and a dot at the origin', [0, 0]),
+              maths('\\begin{gathered} y > \\lvert x \\rvert - 3 \\\\ y \\le 3 - \\lvert x \\rvert \\end{gathered}'),
+            ),
+            ask('mod-read-region-match'),
+            ask('mod-read-region-tiles', 2),
+            ask('mod-region-picture-check', 2),
+            teach(
+              prose(
+                'To check a picture against its rules, take one feature at a time: each vertex, then solid or dashed, then put the dot into every inequality. A picture with one of these wrong shows a different region.',
+              ),
+            ),
+            ask('mod-read-region-flow', 2),
+            ask('mod-read-region-match', 2),
+          ],
+          skillCheck: [
+            ask('mod-read-region-tiles', 2),
+            ask('mod-read-region-match', 2),
+            ask('mod-region-picture-check', 2),
+          ],
+        },
+        {
+          id: 'im-l5-points',
+          title: 'Points in a Region',
+          slides: [
+            teach(
+              prose(
+                'A point is in a region when it makes **every** inequality true. For $y \\ge \\lvert x \\rvert - 2$ and $y < 2 - \\lvert x \\rvert$: $(1, 0)$ gives $0 \\ge -1$ and $0 < 1$, both true, so it is in. $(2, 0)$ is on the dashed upside-down V, so it is out.',
+              ),
+              region([vee(0, -2, '>='), cap(0, 2, '<')], 'A solid V with its vertex at (0, -2) and a dashed upside-down V with its vertex at (0, 2), the square between them shaded, and a dot at (1, 0)', [1, 0]),
+            ),
+            ask('mod-pair-point-choice'),
+            ask('mod-region-count'),
+            ask('mod-region-highest-tiles'),
+            teach(
+              prose(
+                'Count the points with whole-number coordinates column by column. In that square, $x = -1$ allows $y = -1$ and $0$; $x = 0$ allows $-2$ to $1$; $x = 1$ allows $-1$ and $0$.',
+              ),
+              maths('2 + 4 + 2 = 8'),
+              prose(
+                'The top vertex $(0, 2)$ is on a dashed line, so the highest point in the region is $(0, 1)$. A solid vertex would be the highest point itself.',
+              ),
+            ),
+            ask('mod-region-width'),
+            ask('mod-region-count+choice'),
+            ask('mod-region-highest-tiles', 2),
+            teach(
+              prose(
+                'The width at a height: the V allows a stretch around its vertex and the upside-down V another, and the region is where they overlap. For $y \\ge \\lvert x - 1 \\rvert - 2$ and $y \\le 4 - \\lvert x + 1 \\rvert$ at $y = 0$:',
+              ),
+              maths('\\begin{gathered} \\lvert x - 1 \\rvert \\le 2: \\; -1 \\le x \\le 3 \\\\ \\lvert x + 1 \\rvert \\le 4: \\; -5 \\le x \\le 3 \\end{gathered}'),
+              prose('Both hold from $-1$ to $3$, a width of $4$.'),
+            ),
+            ask('mod-pair-point-choice', 2),
+            ask('mod-region-width', 2),
+          ],
+          skillCheck: [
+            ask('mod-pair-point-choice', 2),
+            ask('mod-region-count', 2),
+            ask('mod-region-width', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('mod-region-vertex-tiles', 2),
+        ask('mod-cap-intercepts-tiles', 2),
+        ask('mod-between-shape', 2),
+        ask('mod-read-region-match', 2),
+        ask('mod-region-count', 2),
+        ask('mod-region-test-tree', 2),
+        ask('mod-origin-flow', 2),
+        ask('mod-between-corner-slider', 2),
+        ask('mod-read-region-tiles', 2),
+        ask('mod-region-width', 2),
+        ask('mod-region-lowest-slider', 2),
+        ask('mod-cap-test-tree', 2),
+        ask('mod-between-corners-tiles', 2),
+        ask('mod-region-picture-check', 2),
+        ask('mod-pair-point-choice', 2),
       ],
     },
   ],

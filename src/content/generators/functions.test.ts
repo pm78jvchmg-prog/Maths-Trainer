@@ -82,14 +82,20 @@ function features(f: Curve) {
   const max = Math.max(...ys);
   const min = Math.min(...ys);
   const mid = (max + min) / 2;
-  const period = XS.find((p) => p > 0 && XS.slice(0, 1441).every((x) => near(f(x + p), f(x))));
+  // Finding the period is the slow part and most checks never read it, so it
+  // is worked out on first use.
+  const firstHalf = XS.slice(0, 1441);
+  let period: number | undefined | null = null;
   const firstWhere = (test: (x: number) => boolean) => XS.find((x) => x > 0 && test(x));
   return {
     max: Math.round(max * 1e6) / 1e6,
     min: Math.round(min * 1e6) / 1e6,
     mid: Math.round(mid * 1e6) / 1e6,
     amplitude: Math.round(((max - min) / 2) * 1e6) / 1e6,
-    period,
+    get period() {
+      if (period === null) period = XS.find((p) => p > 0 && firstHalf.every((x) => near(f(x + p), f(x))));
+      return period;
+    },
     firstMax: firstWhere((x) => near(f(x), max)),
     firstMin: firstWhere((x) => near(f(x), min)),
     /** Where it first rises through its midline after x = 0. */

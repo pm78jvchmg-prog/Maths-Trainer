@@ -126,7 +126,7 @@ function Catalogue({ onOpen }: { onOpen: (course: Course) => void }) {
             heading. The owner asked for this in place of a tab strip, so the
             whole library is one scroll rather than five hidden panes. */}
         {categories.map((category) => (
-          <section className="category-section" key={category.id} aria-labelledby={`cat-${category.id}`}>
+          <section className={`category-section category-${category.id}`} key={category.id} aria-labelledby={`cat-${category.id}`}>
             <header className="category-head">
               <h2 className="category-title" id={`cat-${category.id}`}>
                 {category.title}

@@ -1145,7 +1145,7 @@ button {
   width: 70%;
   height: 180%;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(138 134 255 / 0.2), transparent);
+  background: radial-gradient(closest-side, var(--card-glow, rgb(138 134 255 / 0.2)), transparent);
   pointer-events: none;
 }
 
@@ -1239,9 +1239,6 @@ button {
 
 /* Every category in one list, each under a heading, easiest first. The
    heading is the divider, so it carries the size and the cards stay small. */
-.category-section + .category-section {
-  margin-top: 26px;
-}
 
 .category-head {
   margin-bottom: 10px;
@@ -1259,6 +1256,84 @@ button {
   color: var(--text-dim);
   font-size: 14px;
   margin: 0;
+}
+
+/* Each band washes the page behind it in its own colour, fading in above its
+   heading, so scrolling down the list reads as climbing in difficulty. The
+   owner asked for the maths bands to deepen in purple as they get harder, and
+   for Mechanics, which is physics rather than pure maths, to turn orange.
+   Only tokens change per band, so every rule inside reads the same variables. */
+.category-section {
+  --wash: 138 134 255;
+  --wash-strength: 0;
+  position: relative;
+  isolation: isolate;
+}
+
+.category-section::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 -20px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    rgb(var(--wash) / var(--wash-strength)) 110px,
+    rgb(var(--wash) / calc(var(--wash-strength) * 0.7)) calc(100% - 50px),
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.category-section + .category-section {
+  margin-top: 0;
+  padding-top: 70px;
+}
+
+.category-algebra-fundamentals {
+  --wash-strength: 0.05;
+}
+
+.category-advanced-algebra {
+  --wash: 112 92 250;
+  --wash-strength: 0.12;
+  --accent: #7f72ff;
+  --card-glow: rgb(112 92 250 / 0.26);
+}
+
+.category-advanced-maths {
+  --wash: 92 50 225;
+  --wash-strength: 0.22;
+  --accent: #7458f5;
+  --accent-strong: #4a2fd0;
+  --card-glow: rgb(92 50 225 / 0.34);
+}
+
+.category-advanced-maths .course-card {
+  border-color: rgb(116 88 245 / 0.35);
+}
+
+.category-statistics {
+  --wash-strength: 0;
+}
+
+.category-mechanics {
+  --wash: 255 150 70;
+  --wash-strength: 0.2;
+  --accent: #ffa45e;
+  --accent-strong: #e8711c;
+  --card-glow: rgb(255 150 70 / 0.22);
+}
+
+.category-mechanics .category-title {
+  background: linear-gradient(90deg, #a59bff, #ffa45e 55%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.category-mechanics .course-card {
+  border-color: rgb(255 164 94 / 0.25);
 }
 
 .course-list {

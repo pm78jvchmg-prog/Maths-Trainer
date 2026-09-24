@@ -772,6 +772,9 @@ function at(tex: string, scope: Record<string, number>): number {
   return Math.abs(value - Math.round(value)) < 1e-9 ? Math.round(value) : value;
 }
 
+/** A display split over two lines, `\begin{aligned} &a \\ &+ b \end{aligned}`, as one. */
+const oneLine = (tex: string) => tex.replace(/\\(begin|end)\{aligned\}|&|\\\\/g, '').replace(/\s+/g, ' ').trim();
+
 /** Two functions of k agreeing at k = 1 to 8. */
 const sameInK = (f: (k: number) => number, g: (k: number) => number) => KS.every((k) => Math.abs(f(k) - g(k)) < 1e-6);
 
@@ -950,7 +953,7 @@ describe('level 5, lesson 1: the step for a series', () => {
       claimHolds(c, where);
       const k = stated(text, /at \$k = (\d+)\$/);
       expect(slide.answer.map(Number), where).toEqual([addedUp(c, k), termAt(c, k + 1), addedUp(c, k + 1)]);
-      expect(at(slide.expression, { k }), where).toBe(addedUp(c, k + 1));
+      expect(at(oneLine(slide.expression), { k }), where).toBe(addedUp(c, k + 1));
     }
   });
 
@@ -1009,7 +1012,7 @@ describe('level 5, lesson 2: proving the standard results', () => {
       const c = claimIn(prose(slide.prompt));
       claimHolds(c, where);
       const target = (k: number) => addedUp(c, k + 1);
-      expect(fillAgrees(displays(slide.prompt)[0], target), `${where}: the line`).toBe(true);
+      expect(fillAgrees(oneLine(displays(slide.prompt)[0]), target), `${where}: the line`).toBe(true);
       onlyAnswerFits(slide, '', target, where);
     }
   });

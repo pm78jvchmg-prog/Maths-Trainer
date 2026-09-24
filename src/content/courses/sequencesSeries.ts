@@ -901,8 +901,8 @@ export const sequencesSeries: Course = {
             teach(
               prose('To prove $\\sum_{r=1}^{n} r^2 = \\frac16 n(n + 1)(2n + 1)$, the step starts from'),
               maths('\\frac16 k(k + 1)(2k + 1) + (k + 1)^2'),
-              prose('Both parts have a factor $(k + 1)$. Take out $\\frac16(k + 1)$, so the second part leaves $6(k + 1)$:'),
-              maths('\\begin{aligned} &\\frac16(k + 1)\\big(k(2k + 1) + 6(k + 1)\\big) \\\\ &= \\frac16(k + 1)(2k^2 + 7k + 6) \\end{aligned}'),
+              prose('Both parts have a factor $(k + 1)$. Take out $\\frac16(k + 1)$: the first part leaves $k(2k + 1)$ and the second $6(k + 1)$, which add to $2k^2 + 7k + 6$.'),
+              maths('\\frac16(k + 1)(2k^2 + 7k + 6)'),
             ),
             ask('seq-ind-target'),
             ask('seq-ind-factor-out'),
@@ -945,7 +945,7 @@ export const sequencesSeries: Course = {
             ask('seq-ind-ap-close', 2),
             teach(
               prose('Any whole ratio works the same way. In $\\sum_{r=1}^{n} 2 \\times 3^{r-1} = 3^n - 1$, the new term $2 \\times 3^k$ joins the $3^k$ already there:'),
-              maths('3^k - 1 + 2 \\times 3^k = 3 \\times 3^k - 1 = 3^{k+1} - 1'),
+              maths('\\begin{aligned} &3^k - 1 + 2 \\times 3^k \\\\ &= 3 \\times 3^k - 1 \\\\ &= 3^{k+1} - 1 \\end{aligned}'),
             ),
             ask('seq-ind-series-step', 2),
             ask('seq-ind-next-flow', 2),
@@ -959,7 +959,7 @@ export const sequencesSeries: Course = {
             teach(
               prose('$u_{n+1} = 2u_n + 1$ with $u_1 = 1$ gives $1, 3, 7, 15, \\dots$: each one less than a power of $2$. The claim is $u_n = 2^n - 1$.'),
               prose('Induction proves it. The base case is $u_1 = 2^1 - 1$. The step puts the assumed $u_k = 2^k - 1$ into the rule:'),
-              maths('u_{k+1} = 2(2^k - 1) + 1 = 2^{k+1} - 1'),
+              maths('\\begin{aligned} u_{k+1} &= 2(2^k - 1) + 1 \\\\ &= 2^{k+1} - 1 \\end{aligned}'),
             ),
             ask('seq-ind-rec-table'),
             ask('seq-ind-rec-closed'),

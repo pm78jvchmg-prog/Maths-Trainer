@@ -6505,7 +6505,11 @@ const stepCheck: Generator<StepCheckParams> = {
           text: `The claim is $${claimTex(s)}$. Its step says the sum up to $k + 1$ is the sum up to $k$ plus the next term. Check that at $k = ${k}$: the formula at $n = ${k}$, the term $u_{${k + 1}}$, then their total.`,
         },
       ],
-      expression: `${closedTex(s, 'k')} + ${indTermK(s, 1)}`,
+      // Three factors a side run past a phone's width on one line.
+      expression:
+        s.form === 'rp'
+          ? `\\begin{aligned} &${closedTex(s, 'k')} \\\\ &+ ${indTermK(s, 1)} \\end{aligned}`
+          : `${closedTex(s, 'k')} + ${indTermK(s, 1)}`,
       nodes: [
         { id: 'sum', from: [] },
         { id: 'term', from: [] },
@@ -6701,7 +6705,14 @@ const factorOut: Generator<ClaimParams> = {
           kind: 'prose',
           text: `In the step for $${claimTex(s)}$, the sum up to $k + 1$ has reached the line below. Both parts have a factor $${commonTex(s)}$: take it out.`,
         },
-        { kind: 'display', tex: `${closedTex(s, 'k')} + ${indTermK(s, 1)}` },
+        {
+          kind: 'display',
+          // Three factors a side run past a phone's width on one line.
+          tex:
+            s.form === 'rp'
+              ? `\\begin{aligned} &${closedTex(s, 'k')} \\\\ &+ ${indTermK(s, 1)} \\end{aligned}`
+              : `${closedTex(s, 'k')} + ${indTermK(s, 1)}`,
+        },
       ],
       template: `${coef}${commonTex(s)}({0})`,
       bank: tileBank([right], slips, 4),
@@ -6831,7 +6842,7 @@ const seriesClose: Generator<ClaimParams> = {
     ...(s.form === 'geo'
       ? [{ text: `Multiplying by $${s.m}$ raises the power by one: $${s.m} \\times ${s.m}^k = ${s.m}^{k+1}$.` }]
       : [{ text: 'The claim at $n = k + 1$ has a factor $(k + 1)$, so the bracket must factorise with it.' }]),
-    { tex: `${indMiddle(s)} = ${closedTex(s, 'k', 1)}` },
+    { tex: `\\begin{aligned} &${indMiddle(s)} \\\\ &= ${closedTex(s, 'k', 1)} \\end{aligned}` },
     { text: 'That is the right side of the claim with $k + 1$ in place of $n$.' },
   ],
 };

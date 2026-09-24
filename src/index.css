@@ -543,7 +543,8 @@ button {
   .screen.enter-back,
   .footer.correct,
   .footer.wrong,
-  .solution {
+  .solution,
+  .leave-dialog {
     animation: none;
   }
   /* The press-to-shrink feedback is movement too, so it goes with the rest.
@@ -858,6 +859,51 @@ button {
 
 .primary-button:enabled:active {
   transform: scale(0.985);
+}
+
+/* ---------- Leave confirmation ---------- */
+
+/* "Leave the check?", asked only once a check is sealed (see LessonPlayer).
+   A sheet at the foot of the screen rather than a box in the middle, so both
+   answers sit where the thumb already is, with the safe one on top in the
+   primary style. The backdrop dims the lesson rather than hiding it, so it is
+   plain which run is about to be thrown away. */
+.leave-dialog {
+  width: min(100% - 24px, 596px);
+  max-width: none;
+  margin: auto auto calc(12px + env(safe-area-inset-bottom));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--lift);
+  animation: pane-in 200ms ease-out;
+}
+
+.leave-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.leave-sheet {
+  padding: 20px;
+}
+
+.leave-title {
+  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.leave-body {
+  margin: 0 0 18px;
+  color: var(--text-soft);
+}
+
+.leave-dialog .ghost-button {
+  width: 100%;
+  margin-top: 10px;
 }
 
 

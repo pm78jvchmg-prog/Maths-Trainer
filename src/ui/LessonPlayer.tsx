@@ -6,7 +6,7 @@
  * is not decoration — it is the visible signal that review is no longer
  * available.
  */
-import { useReducer, useRef, useState } from 'react';
+import { useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   startSession,
@@ -33,6 +33,76 @@ interface Props {
   onComplete: (score: { correct: number; total: number }) => void;
 }
 
+/**
+ * Asks before a sealed check is abandoned.
+ *
+ * Only ever shown once the guided slides are behind the learner. Leaving a
+ * guided slide costs nothing worth asking about, but the exit control sits in
+ * the corner a thumb brushes on the way to the question, and one stray tap
+ * partway through a fifteen-question level check used to throw the whole run
+ * away without a word.
+ *
+ * A native modal `<dialog>` rather than `window.confirm`, so it is styled like
+ * the rest of the app, and rather than a hand-rolled overlay, because
+ * `showModal` makes the lesson behind it inert and closes on Escape for free.
+ * It dispatches nothing: staying leaves the session exactly as it was.
+ */
+function ConfirmLeave({
+  assessment,
+  onStay,
+  onLeave,
+}: {
+  assessment: boolean;
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const bodyId = useId();
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  // `close` hands focus back to the exit control before the dialog unmounts.
+  const stay = () => {
+    ref.current?.close();
+    onStay();
+  };
+
+  return (
+    <dialog
+      ref={ref}
+      className="leave-dialog"
+      role="alertdialog"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
+      onCancel={onStay}
+      // The sheet fills the dialog, so a click landing on the dialog element
+      // itself is a tap on the dimmed backdrop around it.
+      onClick={(event) => {
+        if (event.target === event.currentTarget) stay();
+      }}
+    >
+      <div className="leave-sheet">
+        <h2 className="leave-title" id={titleId}>
+          {assessment ? 'Leave the level check?' : 'Leave the skill check?'}
+        </h2>
+        <p className="leave-body" id={bodyId}>
+          Your answers so far won&rsquo;t count.
+        </p>
+        <button type="button" className="primary-button" onClick={stay}>
+          Keep going
+        </button>
+        <button type="button" className="ghost-button" onClick={onLeave}>
+          Leave
+        </button>
+      </div>
+    </dialog>
+  );
+}
+
 export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Props) {
   const [session, dispatch] = useReducer(
     reduce,
@@ -47,6 +117,9 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   // The question's handler was bound before that answer was committed, so this
   // is the only way it can tell a tap that chose something from a bare one.
   const answeredByTap = useRef<Answer | undefined>(undefined);
+  // Whether the exit control is waiting on "Leave the check?". Never set during
+  // the guided slides, which the control still leaves in one tap.
+  const [confirmingExit, setConfirmingExit] = useState(false);
 
   const slide = currentSlide(session);
   const deck = currentDeck(session);
@@ -130,7 +203,12 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
   return (
     <div className="app">
       <header className="lesson-header">
-        <button type="button" className="icon-button" aria-label="Exit lesson" onClick={onExit}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Exit lesson"
+          onClick={() => (session.phase === 'guided' ? onExit() : setConfirmingExit(true))}
+        >
           &#215;
         </button>
 
@@ -219,6 +297,14 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         onReveal={() => act({ type: 'reveal' })}
         onContinue={() => act({ type: 'continue' })}
       />
+
+      {confirmingExit && (
+        <ConfirmLeave
+          assessment={session.assessment}
+          onStay={() => setConfirmingExit(false)}
+          onLeave={onExit}
+        />
+      )}
     </div>
   );
 }

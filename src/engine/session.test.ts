@@ -495,10 +495,26 @@ describe('a level check is an assessment, not a lesson', () => {
     expect(next.feedback.kind).toBe('idle');
   });
 
+  it('refuses a second submit at a question already answered', () => {
+    // No widget offers this, which is exactly why the reducer has to refuse it:
+    // a second submit would turn a wrong answer into a solved one.
+    const wrong = reduce(open(), { type: 'submit', answer: '1i' });
+    expect(wrong.feedback.kind).toBe('incorrect');
+    expect(reduce(wrong, { type: 'submit', answer: right(wrong) })).toBe(wrong);
+  });
+
   it('still lets a typo be corrected, since nothing was graded', () => {
     const invalid = reduce(open(), { type: 'submit', answer: '3i +' });
     expect(invalid.feedback.kind).toBe('invalid');
     expect(reduce(invalid, { type: 'edit' }).feedback.kind).toBe('idle');
+  });
+
+  it('grades the corrected answer after a typo, with first-try credit', () => {
+    const invalid = reduce(open(), { type: 'submit', answer: '3i +' });
+    const slide = currentSlide(invalid)!;
+    const graded = reduce(invalid, { type: 'submit', answer: right(invalid) });
+    expect(graded.feedback.kind).toBe('correct');
+    expect(graded.states[slide.id]).toMatchObject({ attempts: 1, solved: true, firstTry: true });
   });
 
   it('scores as a percentage of the questions asked', () => {

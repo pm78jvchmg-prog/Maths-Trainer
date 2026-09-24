@@ -483,6 +483,11 @@ export function reduce(session: Session, action: Action): Session {
     case 'submit': {
       if (!slide || session.feedback.kind === 'correct') return session;
       const state = session.states[slide.id];
+      // One attempt per question in an assessment, refused here as well as in
+      // `tryAgain` and `edit`, or a second submit would turn a wrong answer into
+      // a solved one. Unreadable input never counted as an attempt, so a typo
+      // can still be corrected and submitted.
+      if (session.assessment && state.attempts > 0) return session;
 
       const feedback = grade(
         slide.slide,

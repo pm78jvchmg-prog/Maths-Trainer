@@ -15,11 +15,12 @@ integrating with a known value fixing the constant, and the displacement and
 distance over an interval where v keeps one sign; no generator declares
 `source`, since the oracle differentiates in x, and only the definite
 integrals declare `integrand`, always with `limits`, so `kinematics.test.ts`
-checks every derivative in t with mathjs instead).
+checks every derivative in t with mathjs instead); Variable Acceleration
+(maximum speed and when a particle is at rest or turns round, distance against
+displacement when v changes sign inside an interval, reading curved motion
+graphs, and chaining from s, v or a with a starting value).
 
-Needs: Variable Acceleration (maximum speed and when a particle is
-at rest or turns round, distance against displacement when v changes sign
-inside an interval, reading curved motion graphs); Projectiles (horizontal and
+Needs: Projectiles (horizontal and
 vertical motion taken separately, time of flight, range and greatest height,
 the angle of projection, the path as a quadratic in x); Vectors in Kinematics
 (position, velocity and acceleration as i, j vectors, r = r0 + vt, constant

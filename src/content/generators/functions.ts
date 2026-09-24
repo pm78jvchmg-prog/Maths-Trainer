@@ -9420,7 +9420,7 @@ const priceTree: Generator<PriceParams> = {
       const name = priceName(params, amountFirst);
       const inner = amountFirst ? shiftName : scaleName;
       const outer = amountFirst ? scaleName : shiftName;
-      return `${name}(${params.p}) = ${outer}(${inner}(${params.p})) = ${outer}(${first}) = ${second}`;
+      return `\\begin{aligned} ${name}(${params.p}) &= ${outer}(${inner}(${params.p})) \\\\ &= ${outer}(${first}) = ${second} \\end{aligned}`;
     };
     if (!params.hard) {
       return [

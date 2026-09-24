@@ -6578,8 +6578,8 @@ const fracSketchFlow: Generator<Rational> = {
 /* ================================================================
  * Level 6: the method of differences
  *
- * Sequences & Series (`sq-l4-telescoping`, `sq-l4-infinity`) cancels a
- * telescoping sum and takes its limit with the split given. This level
+ * The only level that teaches the method: `sq-l4-telescoping` and
+ * `sq-l4-infinity`, which gave the split, are no longer shown. This level
  * supplies the split: by cover-up, with a number taken out in front, over
  * three factors regrouped into two, and over squares; then uses it for sums
  * from any r, for n from a given sum, and for sums to infinity.

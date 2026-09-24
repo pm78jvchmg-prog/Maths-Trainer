@@ -15,10 +15,9 @@
  * equating coefficients across a product. Level 5 goes back to estimates and
  * on to surds: how big the error of a three-term estimate is, a number in
  * front of x, (1 + √2)^n as a + b√2, conjugate pairs, and a number and a surd
- * together.
- *
- * Every n here is a whole number. The series for negative and fractional n,
- * with its range of validity, is a later level of this course.
+ * together. Level 6 lets n be negative or a fraction: an expansion that never
+ * ends, negative whole n and the geometric series, fractional n, the range
+ * |x| < 1 the series holds for, and (a + bx)^n with the a taken out.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -949,6 +948,174 @@ export const binomialExpansion: Course = {
         ask('bin-mixed-tiles', 2),
         ask('bin-mixed-part', 2),
         ask('bin-unit-steps', 2),
+      ],
+    },
+    {
+      id: 'be-l6',
+      title: 'The Binomial Series for Rational n',
+      lessons: [
+        {
+          id: 'be-l6-never',
+          title: 'The Series That Never Ends',
+          slides: [
+            teach(
+              prose('The coefficient of $x^r$ in $(1 + x)^n$ is $\\frac{n(n - 1)\\dots(n - r + 1)}{r!}$. For a whole $n$ a factor on top reaches $0$, and every coefficient after it is $0$. In $(1 + x)^2$ the $x^3$ coefficient is'),
+              maths('(2)(1)(0) \\div 3! = 0'),
+              prose('so the expansion stops. The same formula works for any $n$, and for $n = -\\frac{1}{2}$ the factors $-\\frac{1}{2}, -\\frac{3}{2}, -\\frac{5}{2}, \\dots$ never reach $0$: the expansion never ends.'),
+            ),
+            ask('bin-series-factors-tiles'),
+            ask('bin-series-stops-choice'),
+            ask('bin-series-coef-steps'),
+            teach(
+              prose('Work each coefficient from $n$ exactly as before. For $n = -\\frac{1}{2}$:'),
+              maths('\\begin{aligned} x^{2}&: \\enspace (-\\tfrac{1}{2})(-\\tfrac{3}{2}) \\div 2! = \\tfrac{3}{8} \\\\ x^{3}&: \\enspace \\tfrac{3}{8} \\times (-\\tfrac{5}{2}) \\div 3 = -\\tfrac{5}{16} \\end{aligned}'),
+              prose('Each coefficient is the one before times the next factor, over the next whole number.'),
+            ),
+            ask('bin-series-build-tree'),
+            ask('bin-series-factors-tiles', 2),
+            ask('bin-series-coef-steps', 2),
+            teach(
+              prose('Four terms of the series are usually enough:'),
+              maths('\\begin{aligned} & (1 + x)^{-1/2} \\\\ &= 1 - \\tfrac{1}{2}x + \\tfrac{3}{8}x^{2} - \\tfrac{5}{16}x^{3} + \\dots \\end{aligned}'),
+              prose('Check the value of $n$, not its look: $(1 + x)^{6/2}$ is $(1 + x)^3$ and stops, while $(1 + x)^{-4/2}$ is $(1 + x)^{-2}$ and never ends.'),
+            ),
+            ask('bin-series-stops-choice', 2),
+            ask('bin-series-build-tree', 2),
+          ],
+          skillCheck: [ask('bin-series-coef-steps', 2), ask('bin-series-stops-choice', 2), ask('bin-series-build-tree', 2)],
+        },
+        {
+          id: 'be-l6-negative',
+          title: 'Negative Whole n',
+          slides: [
+            teach(
+              prose('With $n = -1$ the numbers from $n$ are $-1, 1, -1, \\dots$, so'),
+              maths('\\begin{aligned} & (1 + x)^{-1} \\\\ &= 1 - x + x^{2} - x^{3} + \\dots \\end{aligned}'),
+              prose('That is the geometric series of Sequences & Series, first term $1$ and ratio $-x$. A number on $x$ is raised with it: in $(1 + 2x)^{-1}$ the $x^2$ term is $1 \\times 2^2 x^2 = 4x^2$.'),
+            ),
+            ask('bin-negative-tiles'),
+            ask('bin-negative-coef'),
+            ask('bin-negative-signs-flow'),
+            teach(
+              prose('For $n = -2$ the numbers from $n$ are $-2$, then $(-2)(-3) \\div 2 = 3$, then $(-2)(-3)(-4) \\div 6 = -4$:'),
+              maths('\\begin{aligned} & (1 + x)^{-2} \\\\ &= 1 - 2x + 3x^{2} - 4x^{3} + \\dots \\end{aligned}'),
+              prose('In $(1 + 2x)^{-2}$ the $x^2$ term is $3 \\times 2^2 x^2 = 12x^2$.'),
+            ),
+            ask('bin-negative-tree'),
+            ask('bin-negative-coef+choice', 2),
+            ask('bin-negative-tiles', 2),
+            teach(
+              prose('With $n$ negative every factor on top is negative, so the numbers from $n$ alternate in sign. A minus in the bracket turns the odd terms back, and every term of $(1 - x)^{-2}$ is positive:'),
+              maths('\\begin{aligned} & (1 - x)^{-2} \\\\ &= 1 + 2x + 3x^{2} + 4x^{3} + \\dots \\end{aligned}'),
+            ),
+            ask('bin-negative-signs-flow', 2),
+            ask('bin-negative-tree', 2),
+          ],
+          skillCheck: [ask('bin-negative-tiles', 2), ask('bin-negative-coef', 2), ask('bin-negative-signs-flow', 2)],
+        },
+        {
+          id: 'be-l6-fraction',
+          title: 'Fractional n',
+          slides: [
+            teach(
+              prose('$(1 + x)^{1/2}$ is $\\sqrt{1 + x}$, as in Exponents & Radicals. The numbers from $n = \\frac{1}{2}$ are $\\frac{1}{2}$, then'),
+              maths('\\begin{aligned} & (\\tfrac{1}{2})(-\\tfrac{1}{2}) \\div 2! = -\\tfrac{1}{8} \\\\ & (\\tfrac{1}{2})(-\\tfrac{1}{2})(-\\tfrac{3}{2}) \\div 3! = \\tfrac{1}{16} \\end{aligned}'),
+              maths('\\begin{aligned} & (1 + x)^{1/2} \\\\ &= 1 + \\tfrac{1}{2}x - \\tfrac{1}{8}x^{2} + \\tfrac{1}{16}x^{3} - \\dots \\end{aligned}'),
+            ),
+            ask('bin-fraction-term-steps'),
+            ask('bin-fraction-tiles'),
+            ask('bin-fraction-coef'),
+            teach(
+              prose('A number on $x$ is raised with it, as before. In $(1 + 4x)^{1/2}$:'),
+              maths('\\begin{aligned} x&: \\enspace \\tfrac{1}{2} \\times 4 = 2 \\\\ x^{2}&: \\enspace -\\tfrac{1}{8} \\times 4^{2} = -2 \\end{aligned}'),
+              prose('so $(1 + 4x)^{1/2} = 1 + 2x - 2x^2 + \\dots$'),
+            ),
+            ask('bin-fraction-which'),
+            ask('bin-fraction-coef+choice', 2),
+            ask('bin-fraction-tiles', 2),
+            teach(
+              prose('Three slips to watch: divide by $r!$, raise the number on $x$ to the power $r$, and keep the sign each factor brings. For $n = \\frac{1}{3}$ the second factor is $\\frac{1}{3} - 1 = -\\frac{2}{3}$:'),
+              maths('\\begin{aligned} & (1 + 3x)^{1/3} \\\\ &= 1 + x - x^{2} + \\dots \\end{aligned}'),
+            ),
+            ask('bin-fraction-term-steps', 2),
+            ask('bin-fraction-which', 2),
+          ],
+          skillCheck: [ask('bin-fraction-tiles', 2), ask('bin-fraction-coef', 2), ask('bin-fraction-which', 2)],
+        },
+        {
+          id: 'be-l6-valid',
+          title: 'Valid for |x| < 1',
+          slides: [
+            teach(
+              prose('$(1 + x)^{-1} = 1 - x + x^2 - \\dots$ is a geometric series, and a geometric series only has a sum when its ratio is under $1$ in size. At $x = 2$ its terms $1, -2, 4, -8, \\dots$ just grow.'),
+              prose('Every series here is the same: for $n$ negative or a fraction, the expansion of $(1 + x)^n$ holds only for $|x| < 1$.'),
+            ),
+            ask('bin-valid-bound'),
+            ask('bin-valid-which-x'),
+            ask('bin-valid-slider'),
+            teach(
+              prose('In $(1 + bx)^n$ it is the whole part added to the $1$ that must be under $1$ in size:'),
+              maths('|bx| < 1 \\iff |x| < \\frac{1}{|b|}'),
+              prose('So $(1 - 3x)^{1/2}$ holds for $|x| < \\frac{1}{3}$, and $(1 + \\frac{x}{4})^{-2}$ for $|x| < 4$.'),
+            ),
+            ask('bin-valid-flow'),
+            ask('bin-valid-bound+choice', 2),
+            ask('bin-valid-which-x', 2),
+            teach(
+              prose('Outside the range the series still gives numbers, just not the right ones. To test one $x$, find the size of $bx$ there: for $(1 + 2x)^{-1}$ at $x = \\frac{1}{4}$, $|2x| = \\frac{1}{2}$, so the series holds.'),
+              prose('Right at the edge it depends on $n$, so the questions here keep clear of it.'),
+            ),
+            ask('bin-valid-slider', 2),
+            ask('bin-valid-flow', 2),
+          ],
+          skillCheck: [ask('bin-valid-bound', 2), ask('bin-valid-which-x', 2), ask('bin-valid-flow', 2)],
+        },
+        {
+          id: 'be-l6-taken-out',
+          title: 'Taking the Number Out',
+          slides: [
+            teach(
+              prose('The series needs a $1$ in the bracket, so take the number out first, powered like the rest:'),
+              maths('\\begin{aligned} & (4 + x)^{1/2} \\\\ &= 4^{1/2}(1 + \\tfrac{x}{4})^{1/2} \\\\ &= 2(1 + \\tfrac{x}{4})^{1/2} \\end{aligned}'),
+              prose('$4^{1/2} = 2$ and $8^{-1/3} = \\frac{1}{2}$, as in Exponents & Radicals.'),
+            ),
+            ask('bin-taken-out-coef-steps'),
+            ask('bin-taken-out-tiles'),
+            ask('bin-taken-out-parts-tree'),
+            teach(
+              prose('Expand the bracket with $\\frac{x}{4}$ in place of $x$, then multiply every term by the $2$:'),
+              maths('\\begin{aligned} & (1 + \\tfrac{x}{4})^{1/2} \\\\ &= 1 + \\tfrac{1}{8}x - \\tfrac{1}{128}x^{2} + \\dots \\end{aligned}'),
+              maths('\\begin{aligned} & (4 + x)^{1/2} \\\\ &= 2 + \\tfrac{1}{4}x - \\tfrac{1}{64}x^{2} + \\dots \\end{aligned}'),
+            ),
+            ask('bin-taken-out-range'),
+            ask('bin-taken-out-coef-steps', 2),
+            ask('bin-taken-out-tiles', 2),
+            teach(
+              prose('The range comes from the bracket left behind: $(1 + \\frac{x}{4})^{1/2}$ holds for $|\\frac{x}{4}| < 1$, so $(4 + x)^{1/2}$ holds for $|x| < 4$. In general:'),
+              maths('(a + bx)^{n}: \\enspace |x| < \\frac{a}{|b|}'),
+            ),
+            ask('bin-taken-out-range+choice', 2),
+            ask('bin-taken-out-parts-tree', 2),
+          ],
+          skillCheck: [ask('bin-taken-out-tiles', 2), ask('bin-taken-out-coef-steps', 2), ask('bin-taken-out-range', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('bin-series-coef-steps', 2),
+        ask('bin-series-stops-choice', 2),
+        ask('bin-series-build-tree', 2),
+        ask('bin-negative-tiles', 2),
+        ask('bin-negative-coef', 2),
+        ask('bin-negative-signs-flow', 2),
+        ask('bin-fraction-tiles', 2),
+        ask('bin-fraction-coef', 2),
+        ask('bin-fraction-which', 2),
+        ask('bin-valid-bound', 2),
+        ask('bin-valid-which-x', 2),
+        ask('bin-valid-flow', 2),
+        ask('bin-taken-out-tiles', 2),
+        ask('bin-taken-out-coef-steps', 2),
+        ask('bin-taken-out-range', 2),
       ],
     },
   ],

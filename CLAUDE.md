@@ -328,6 +328,24 @@ bottom of the slide while it is live, since a filled table runs past the fold.
 `iterate-fixed-point` and `iterate-newton-raphson` are demonstrations no lesson
 asks yet.
 
+**`forces`** (batch C21-widget) is a free-body diagram: a box on a level
+floor, on a slope drawn at its stated angle, or hanging from a string, with
+arrows from its centre. The model is `src/content/forces.ts` (geometry, the SVG
+string, the grade), the widget `src/ui/forcesSlide.tsx`. **An arrow's id is its
+direction** (`up`, `downSlope`, …), and no two arrows on a diagram share one.
+Two modes: `pick` draws every candidate faint and dashed and the learner taps
+heads on and off; the draft is one string, the chosen ids sorted and joined by
+`|` (`down|outOfSlope|upSlope`), so `Answer` did not grow, and `forcesMatch`
+sorts both sides, so tap order cannot matter. `fill` draws every arrow that
+acts and lists each beneath the picture with its magnitude, some blanks filled
+from a sorted bank as `iterate` does, graded by `gradeSequence` in arrow order.
+Labels are TeX laid over the SVG as HTML, since KaTeX cannot render in SVG
+text. Page arrows reach 92 from the centre and slope arrows 56, so heads that
+are only the slope's angle apart still sit a thumb apart; `headsClash` checks
+it on every draw, which is why slopes run 25 to 40 degrees. `fd-pick` and
+`fd-fill` in `generators/forceDiagram.ts` are demonstrations no lesson asks
+yet.
+
 ## TeX escaping — the recurring hazard
 
 TeX lives inside JavaScript string literals, so **every backslash must be

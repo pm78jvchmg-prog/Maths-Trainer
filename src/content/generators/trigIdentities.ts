@@ -14,7 +14,9 @@
  * double-angle formulae back to x/2 and on to 3x. Its half-angle values are
  * drawn backwards from the half angle's triangle so they come out whole, 15 and
  * 22.5 degrees appear only in a prompt or an option, and a 3x equation that is
- * typed or slid keeps to 0 and +-1.
+ * typed or slid keeps to 0 and +-1. Level 6 adds the factor formulae
+ * (sum to product and back), their exact values off the table, and equations
+ * solved by factorising a sum; its section's own comment says more.
  *
  * Every angle is a multiple of 30 or 45 degrees (or half of one, where a double
  * angle is being undone), every value is 0, +-1/2, +-1 or a surd, and every
@@ -8301,6 +8303,1637 @@ const proofWrongChoice: Generator<WrongParams> = {
   },
 };
 
+/* ---------- Level 6: sum-to-product (the factor formulae) ---------- */
+
+/**
+ * Adding sin(A + B) to sin(A - B) leaves 2 sin A cos B, and the other three
+ * ways of adding or taking away two expansions leave the other three products.
+ * Read with P = A + B and Q = A - B they turn a sum of two sines or two
+ * cosines into a product (the factor formulae); read the other way they turn a
+ * product into a sum.
+ *
+ * An angle in x is a whole multiple of x, and every P and Q is drawn with
+ * P + Q even, so half the sum and half the difference are whole multiples too.
+ * An angle in degrees is drawn from its half sum and half difference, which
+ * are table angles (multiples of 30 or 45), so 15, 75, 105 and 165 degrees
+ * appear only as the P and Q of a prompt or as the angles of a product. Every
+ * rewrite is checked numerically with `trigAt` (`mustAgree`) before it is
+ * shown, and every slip offered beside it is checked to disagree.
+ *
+ * A rewrite is never typed: the checker compares values, so it would accept
+ * the question copied back (PITFALLS 3.4). Rewrites go through `tiles`,
+ * `steps`, `tree`, `flow`, `order` and `choice`; the typed answers are a
+ * fraction or an angle. Nothing here is calculus, so no slide declares
+ * `source`; `trigIdentities.test.ts` reads every rewrite back off the TeX
+ * instead.
+ */
+
+type SC = 'sin' | 'cos';
+
+/** x times a whole number, as the learner reads it: x, 3x, -2x. */
+const mx = (m: number): string => (m === 1 ? 'x' : m === -1 ? '-x' : `${m}x`);
+
+/** Sine or cosine at a number of degrees; both always have a value. */
+const at = (fn: SC, degrees: number): number => trigAt(fn, degrees)!;
+
+/** Values of x, in degrees, an identity in x is tested at. At 1, one in degrees is its own value. */
+const CHECK_AT = [1, 7, 23, 41, 58];
+
+/** True when two functions of x agree at every check angle. */
+const agreeAt = (left: (x: number) => number, right: (x: number) => number): boolean =>
+  CHECK_AT.every((x) => Math.abs(left(x) - right(x)) < 1e-9);
+
+/** Throws unless the two agree, so a wrong rewrite fails every test rather than reaching a learner. */
+function mustAgree(what: string, left: (x: number) => number, right: (x: number) => number): void {
+  if (!agreeAt(left, right)) throw new Error(`${what} is not an identity`);
+}
+
+/** The labels of the slips that really are wrong, the right one's excluded, each once. */
+function wrongOnly(right: { tex: string; at: (x: number) => number }, slips: { tex: string; at: (x: number) => number }[]): string[] {
+  const kept: { tex: string; at: (x: number) => number }[] = [];
+  for (const slip of slips) {
+    if (slip.tex === right.tex || kept.some((k) => k.tex === slip.tex)) continue;
+    if (agreeAt(slip.at, right.at) || kept.some((k) => agreeAt(k.at, slip.at))) continue;
+    kept.push(slip);
+  }
+  return kept.map((k) => k.tex);
+}
+
+/** k f(s) g(d): a sine or cosine times another, with a coefficient. */
+interface Product {
+  k: number;
+  f: SC;
+  s: number;
+  g: SC;
+  d: number;
+}
+
+/** The same product with any negative angle taken out: sin(-t) = -sin t, cos(-t) = cos t. */
+function tidy(p: Product): Product {
+  let out = { ...p };
+  if (out.d < 0) out = { ...out, d: -out.d, k: out.g === 'sin' ? -out.k : out.k };
+  if (out.s < 0) out = { ...out, s: -out.s, k: out.f === 'sin' ? -out.k : out.k };
+  return out;
+}
+
+/** Its value, reading s and d as multiples of x. With x = 1 and angles in degrees, its value outright. */
+const productAt = (p: Product) => (x: number): number => p.k * at(p.f, p.s * x) * at(p.g, p.d * x);
+
+/** A coefficient in front: nothing for 1, a minus for -1. */
+const lead = (k: number): string => (k === 1 ? '' : k === -1 ? '-' : `${k}`);
+
+/** As the learner reads it: 2\\sin 4x \\cos x, or with `unit` = deg, 2\\sin 45^{\\circ} \\cos 30^{\\circ}. */
+const productTex = (p: Product, unit: (m: number) => string = mx): string =>
+  `${lead(p.k)}\\${p.f} ${unit(p.s)} \\${p.g} ${unit(p.d)}`;
+
+/** A product as a slip: its TeX and its value. */
+const asSlip = (p: Product, unit: (m: number) => string = mx) => ({ tex: productTex(p, unit), at: productAt(p) });
+
+/** The four factor formulae: fn P +- fn Q = k f(half sum) g(half difference). */
+const FACTOR: { fn: SC; plus: boolean; k: number; f: SC; g: SC }[] = [
+  { fn: 'sin', plus: true, k: 2, f: 'sin', g: 'cos' },
+  { fn: 'sin', plus: false, k: 2, f: 'cos', g: 'sin' },
+  { fn: 'cos', plus: true, k: 2, f: 'cos', g: 'cos' },
+  { fn: 'cos', plus: false, k: -2, f: 'sin', g: 'sin' },
+];
+
+/** A line of working with its left side above: `L` then `= R`, one row each, so a long right side still fits a phone. */
+function stackLine(lhs: string, ...rhs: string[]): string {
+  return `\\begin{aligned} & ${lhs} ${rhs.map((r) => `\\\\ &= ${r}`).join(' ')} \\end{aligned}`;
+}
+
+/** An expansion stacked further: its second term on a row of its own, under the first. */
+function stackTerms(lhs: string, terms: string): string {
+  const [, first, sign, second] = /^(.+?) ([+-]) (.+)$/.exec(terms) ?? [];
+  if (!first) return stackLine(lhs, terms);
+  return `\\begin{aligned} & ${lhs} \\\\ &= ${first} \\\\ &\\quad ${sign} ${second} \\end{aligned}`;
+}
+
+/** The formula in P and Q, as it is taught. */
+function formulaTex(form: number): string {
+  const { fn, plus, k, f, g } = FACTOR[form];
+  return `\\${fn} P ${plus ? '+' : '-'} \\${fn} Q = ${lead(k)}\\${f} \\frac{P + Q}{2} \\${g} \\frac{P - Q}{2}`;
+}
+
+/** fn P +- fn Q, with P and Q whole multiples of x, or whole degrees. */
+interface SumForm {
+  form: number;
+  p: number;
+  q: number;
+}
+
+const sumAt = ({ form, p, q }: SumForm) => (x: number): number => {
+  const { fn, plus } = FACTOR[form];
+  return at(fn, p * x) + (plus ? 1 : -1) * at(fn, q * x);
+};
+
+const sumTex = ({ form, p, q }: SumForm, unit: (m: number) => string = mx): string => {
+  const { fn, plus } = FACTOR[form];
+  return `\\${fn} ${unit(p)} ${plus ? '+' : '-'} \\${fn} ${unit(q)}`;
+};
+
+/** The formula as it lands, before tidying: the half difference is negative when Q is the larger. */
+function rawFactor({ form, p, q }: SumForm): Product {
+  const { k, f, g } = FACTOR[form];
+  return { k, f, s: (p + q) / 2, g, d: (p - q) / 2 };
+}
+
+/** The tidied product, checked against the sum it came from. */
+function factorOf(sf: SumForm): Product {
+  const product = tidy(rawFactor(sf));
+  mustAgree(`${sumTex(sf)} = ${productTex(product)}`, sumAt(sf), productAt(product));
+  return product;
+}
+
+/** The formula with its halves written out: 2\\sin \\frac{7x + 3x}{2} \\cos \\frac{7x - 3x}{2}. */
+function halvesTex(k: number, f: SC, g: SC, { p, q }: SumForm, unit: (m: number) => string = mx, swapped = false): string {
+  // Degrees are wider than multiples of x: 195 + 105 over 2 runs off a
+  // phone, so an angle in degrees has its sum and difference worked first.
+  const sum = unit === mx ? `\\frac{${unit(p)} + ${unit(q)}}{2}` : `\\frac{${unit(p + q)}}{2}`;
+  const diff = unit === mx ? `\\frac{${unit(p)} - ${unit(q)}}{2}` : `\\frac{${unit(p - q)}}{2}`;
+  return `${lead(k)}\\${f} ${swapped ? diff : sum} \\${g} ${swapped ? sum : diff}`;
+}
+
+/** The value of a halves line, for checking a slip. */
+const halvesAt = (k: number, f: SC, g: SC, { p, q }: SumForm, swapped = false) => (x: number): number => {
+  const [s, d] = swapped ? [(p - q) / 2, (p + q) / 2] : [(p + q) / 2, (p - q) / 2];
+  return k * at(f, s * x) * at(g, d * x);
+};
+
+/** Every P above Q, P no more than `top`, with P + Q even. */
+function evenPairs(top: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let p = 2; p <= top; p++) for (let q = 1; q < p; q++) if ((p + q) % 2 === 0) out.push([p, q]);
+  return out;
+}
+
+const FACTOR_PAIRS = evenPairs(9);
+
+/** A sum to factorise. At difficulty 2, Q may be the larger, which makes the half difference negative. */
+function sampleSum(rng: Rng, difficulty: number): SumForm {
+  const [p, q] = rng.pick(FACTOR_PAIRS);
+  const flip = difficulty > 1 && rng.chance(0.5);
+  return { form: rng.int(0, 3), p: flip ? q : p, q: flip ? p : q };
+}
+
+/** Why a negative half difference changes the sign, or does not, for the worked solution. */
+function negativeNote(raw: Product, unit: (m: number) => string = mx): string | undefined {
+  if (raw.d >= 0) return undefined;
+  return raw.g === 'sin'
+    ? `The half difference is negative, and $\\sin(${unit(raw.d)}) = -\\sin ${unit(-raw.d)}$, so the sign in front changes.`
+    : `The half difference is negative, but $\\cos(${unit(raw.d)}) = \\cos ${unit(-raw.d)}$, so nothing changes.`;
+}
+
+/* Lesson 1: where the formulae come from. */
+
+/** Coefficients of sin A cos B, cos A sin B, cos A cos B and sin A sin B. */
+type Terms = [number, number, number, number];
+
+const TERM_FNS: [SC, SC][] = [
+  ['sin', 'cos'],
+  ['cos', 'sin'],
+  ['cos', 'cos'],
+  ['sin', 'sin'],
+];
+
+/** A compound-angle expansion as those four coefficients. */
+function expansionTerms(fn: SC, plus: boolean): Terms {
+  if (fn === 'sin') return plus ? [1, 1, 0, 0] : [1, -1, 0, 0];
+  return plus ? [0, 0, 1, -1] : [0, 0, 1, 1];
+}
+
+const termBody = (i: number, a: number, b: number): string => `\\${TERM_FNS[i][0]} ${mx(a)} \\${TERM_FNS[i][1]} ${mx(b)}`;
+
+const termsTex = (t: Terms, a: number, b: number): string => polyTex(t.map((c, i): [number, string] => [c, termBody(i, a, b)]));
+
+const termsAt = (t: Terms, a: number, b: number) => (x: number): number =>
+  t.reduce((sum, c, i) => sum + c * at(TERM_FNS[i][0], a * x) * at(TERM_FNS[i][1], b * x), 0);
+
+const addTerms = (s: Terms, t: Terms, sign: number): Terms => s.map((c, i) => c + sign * t[i]) as Terms;
+
+/** sin(5x + 2x) and the like. */
+const compoundTex = (fn: SC, plus: boolean, a: number, b: number): string => `\\${fn}(${mx(a)} ${plus ? '+' : '-'} ${mx(b)})`;
+
+const compoundAt = (fn: SC, plus: boolean, a: number, b: number) => (x: number): number => at(fn, (plus ? a + b : a - b) * x);
+
+/** Every A above B, A no more than `top`. */
+function abPairs(top: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let a = 2; a <= top; a++) for (let b = 1; b < a; b++) out.push([a, b]);
+  return out;
+}
+
+const AB_EASY = abPairs(6);
+const AB_ALL = abPairs(8);
+
+interface AddStepsParams {
+  form: number;
+  /** The A - B bracket first, which turns the sign of a difference round. */
+  swap: boolean;
+  a: number;
+  b: number;
+  phrasing: number;
+}
+
+const ADD_PROMPTS = [
+  'Expand each bracket with the compound-angle formula, then collect what is left.',
+  'Expand both brackets, then combine them: two of the four terms cancel.',
+  'Work it out one bracket at a time, then collect the terms.',
+];
+
+/** Both brackets of an add-steps question, and what they collect to. */
+function addParts(p: AddStepsParams) {
+  const { fn, plus } = FACTOR[p.form];
+  const first = expansionTerms(fn, !p.swap);
+  const second = expansionTerms(fn, p.swap);
+  const total = addTerms(first, second, plus ? 1 : -1);
+  const start = [compoundTex(fn, !p.swap, p.a, p.b), plus ? '+' : '-', compoundTex(fn, p.swap, p.a, p.b)];
+  const startAt = (x: number) => compoundAt(fn, !p.swap, p.a, p.b)(x) + (plus ? 1 : -1) * compoundAt(fn, p.swap, p.a, p.b)(x);
+  mustAgree(`${start.join(' ')} = ${termsTex(total, p.a, p.b)}`, startAt, termsAt(total, p.a, p.b));
+  return { fn, plus, first, second, total, start };
+}
+
+/** sin(A + B) + sin(A - B) expanded, collected, and left as one product. */
+const addSteps: Generator<AddStepsParams> = {
+  id: 'tid-factor-add-steps',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(difficulty > 1 ? AB_ALL : AB_EASY);
+    return { form: rng.int(0, 3), swap: difficulty > 1 && rng.chance(0.5), a, b, phrasing: rng.int(0, ADD_PROMPTS.length - 1) };
+  },
+  render: (p): Slide => {
+    const { fn, first, second, total, start } = addParts(p);
+    const { a, b } = p;
+    const expandStep = (t: Terms, bracketPlus: boolean, span: [number, number]) => {
+      const last = t.reduce((i, c, j) => (c !== 0 ? j : i), 0);
+      const flipped = t.map((c, j) => (j === last ? -c : c)) as Terms;
+      const family = expansionTerms(otherFn(fn), bracketPlus);
+      const right = { tex: `(${termsTex(t, a, b)})`, at: termsAt(t, a, b) };
+      const slips = [
+        { tex: `(${termsTex(flipped, a, b)})`, at: termsAt(flipped, a, b) },
+        { tex: `(${termsTex(family, a, b)})`, at: termsAt(family, a, b) },
+        {
+          tex: `(\\${fn} ${mx(a)} ${bracketPlus ? '+' : '-'} \\${fn} ${mx(b)})`,
+          at: (x: number) => at(fn, a * x) + (bracketPlus ? 1 : -1) * at(fn, b * x),
+        },
+      ];
+      return { span, value: right.tex, bank: scatter([right.tex, ...wrongOnly(right, slips).slice(0, 3)]) };
+    };
+    const kept = total.findIndex((c) => c !== 0);
+    const partner = [1, 0, 3, 2][kept];
+    const moved = total.map((_, j) => (j === partner ? total[kept] : 0)) as Terms;
+    const right = { tex: termsTex(total, a, b), at: termsAt(total, a, b) };
+    const slips = [
+      { tex: termsTex(total.map((c) => -c) as Terms, a, b), at: termsAt(total.map((c) => -c) as Terms, a, b) },
+      { tex: termsTex(moved, a, b), at: termsAt(moved, a, b) },
+      { tex: '0', at: () => 0 },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [prose(ADD_PROMPTS[p.phrasing])],
+      start,
+      reductions: [
+        expandStep(first, !p.swap, [0, 1]),
+        expandStep(second, p.swap, [2, 3]),
+        { span: [0, 3], value: right.tex, bank: scatter([right.tex, ...wrongOnly(right, slips)]) },
+      ],
+    };
+  },
+  solution: (p) => {
+    const { fn, plus, first, second, total, start } = addParts(p);
+    const { a, b } = p;
+    const kept = total.findIndex((c) => c !== 0);
+    const gone = [1, 0, 3, 2][kept];
+    return [
+      { text: 'Expand both brackets:' },
+      { tex: stackTerms(start[0], termsTex(first, a, b)) },
+      { tex: stackTerms(start[2], termsTex(second, a, b)) },
+      {
+        text: `${plus ? 'Adding' : 'Taking the second from the first'}, the $${termBody(gone, a, b)}$ terms cancel and the $${termBody(kept, a, b)}$ terms ${total[kept] > 0 ? 'double' : 'double with a minus'}:`,
+      },
+      { tex: stackLine(start.join(' '), termsTex(total, a, b)) },
+      { text: `That is the ${fn === 'sin' ? 'sine' : 'cosine'} ${plus ? 'sum' : 'difference'} rule, written in $A = ${mx(a)}$ and $B = ${mx(b)}$.` },
+    ];
+  },
+};
+
+interface HalvesTreeParams extends SumForm {
+  phrasing: number;
+  /** Difficulty 2 goes on to the product the halves make. */
+  product: boolean;
+}
+
+const HALVES_PROMPTS = ['Write $P$ and $Q$ as $A + B$ and $A - B$.', 'Find the $A$ and $B$ that give $P = A + B$ and $Q = A - B$.'];
+
+/** P and Q back to A and B: half the sum and half the difference, and at difficulty 2 the product they make. */
+const halvesTree: Generator<HalvesTreeParams> = {
+  id: 'tid-factor-halves-tree',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), phrasing: rng.int(0, HALVES_PROMPTS.length - 1), product: difficulty > 1 }),
+  render: (sf): Slide => {
+    const { p, q } = sf;
+    const raw = rawFactor(sf);
+    const product = factorOf(sf);
+    const withProduct = sf.product;
+    const answer = [mx(p + q), mx(p - q), mx(raw.s), mx(raw.d)];
+    const nodes = [
+      { id: 'sum', from: [] },
+      { id: 'diff', from: [] },
+      { id: 'a', from: ['sum'] },
+      { id: 'b', from: ['diff'] },
+    ];
+    const distractors = [mx(q - p), mx((q - p) / 2), mx(p), mx(q), mx(2 * (p + q))];
+    if (withProduct) {
+      nodes.push({ id: 'prod', from: ['a', 'b'] });
+      answer.push(productTex(product));
+      distractors.unshift(
+        ...wrongOnly(asSlip(product), [
+          asSlip({ ...product, k: -product.k }),
+          asSlip({ ...product, s: p + q, d: Math.abs(p - q) }),
+          asSlip({ ...product, f: product.g, g: product.f }),
+        ]).slice(0, 2),
+      );
+    }
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `${HALVES_PROMPTS[sf.phrasing]} Here $P = ${mx(p)}$ and $Q = ${mx(q)}$. Top row: $P + Q$ and $P - Q$. Next row: half of each, which gives $A$ and $B$.${withProduct ? ' Last: the product the formula gives.' : ''}`,
+        ),
+      ],
+      expression: sumTex(sf),
+      nodes,
+      bank: bankOf(answer, distractors, 4),
+      answer,
+    };
+  },
+  solution: (sf) => {
+    const { p, q } = sf;
+    const raw = rawFactor(sf);
+    const product = factorOf(sf);
+    const note = negativeNote(raw);
+    return [
+      { text: `Adding $A + B = ${mx(p)}$ and $A - B = ${mx(q)}$ gives $2A = ${mx(p + q)}$; taking one from the other gives $2B = ${mx(p - q)}$.` },
+      { tex: `A = \\frac{${mx(p + q)}}{2} = ${mx(raw.s)} \\qquad B = \\frac{${mx(p - q)}}{2} = ${mx(raw.d)}` },
+      { tex: formulaTex(sf.form) },
+      ...(note ? [{ text: note }] : []),
+      { tex: `${sumTex(sf)} = ${productTex(product)}` },
+    ];
+  },
+};
+
+interface DeriveOrderParams extends SumForm {
+  picks: number[];
+}
+
+/** The general result each way of combining two expansions gives, in A and B. */
+function generalLine(form: number): string {
+  const { fn, plus, k, f, g } = FACTOR[form];
+  const pair = `$\\${fn}(A + B)$ and $\\${fn}(A - B)$`;
+  const result = `$\\${fn}(A + B) ${plus ? '+' : '-'} \\${fn}(A - B) = ${lead(k)}\\${f} A \\${g} B$`;
+  return plus ? `Adding the expansions of ${pair} gives ${result}.` : `Taking the expansion of $\\${fn}(A - B)$ from that of $\\${fn}(A + B)$ gives ${result}.`;
+}
+
+function deriveParts(sf: DeriveOrderParams) {
+  const { form, p, q } = sf;
+  const { fn, plus, k, f, g } = FACTOR[form];
+  const product = factorOf(sf);
+  const s = (p + q) / 2;
+  // The surviving product with its functions swapped; where both are the same, the sign is the slip instead.
+  const wrong = { k: f === g ? -k : k, f: g, g: f };
+  const steps = [
+    generalLine(form),
+    `To match $${sumTex(sf)}$, set $A + B = ${mx(p)}$ and $A - B = ${mx(q)}$.`,
+    `Adding these, $2A = ${mx(p + q)}$, so $A = ${mx(s)}$.`,
+    `Then $B = ${mx(p)} - ${mx(s)} = ${mx(p - s)}$.`,
+    `So $${sumTex(sf)} = ${productTex(product)}$.`,
+  ];
+  const pool = [
+    {
+      text: (plus
+        ? `Adding the expansions of $\\${fn}(A + B)$ and $\\${fn}(A - B)$ gives `
+        : `Taking the expansion of $\\${fn}(A - B)$ from that of $\\${fn}(A + B)$ gives `) +
+        `$\\${fn}(A + B) ${plus ? '+' : '-'} \\${fn}(A - B) = ${lead(wrong.k)}\\${wrong.f} A \\${wrong.g} B$.`,
+      why: `That result is wrong: the terms that survive are $${lead(k)}\\${f} A \\${g} B$.`,
+    },
+    { text: `Adding these, $2A = ${mx(p + q)}$, so $A = ${mx(p + q)}$.`, why: `$2A = ${mx(p + q)}$ makes $A$ half of that, $${mx(s)}$.` },
+    { text: `Then $B = ${mx(p)} + ${mx(s)} = ${mx(p + s)}$.`, why: `$A + B = ${mx(p)}$, so $B$ is $${mx(p)}$ take away $A$.` },
+    {
+      text: `So $${sumTex(sf)} = ${productTex({ ...product, s: p + q, d: p - q })}$.`,
+      why: 'That uses the whole sum and difference; the formula takes half of each.',
+    },
+  ];
+  return { steps, pool };
+}
+
+/** The derivation for one sum, in order, with a line or two that do not belong. */
+const deriveOrder: Generator<DeriveOrderParams> = {
+  id: 'tid-factor-derive-order',
+  sample: (rng, difficulty) => {
+    const [p, q] = rng.pick(FACTOR_PAIRS);
+    return { form: rng.int(0, 3), p, q, picks: rng.sample([0, 1, 2, 3], difficulty > 1 ? 2 : 1).sort((a, b) => a - b) };
+  },
+  render: (params): Slide => {
+    const { steps, pool } = deriveParts(params);
+    const { steps: bank, answer } = orderBank(
+      steps,
+      params.picks.map((i) => pool[i].text),
+    );
+    return {
+      kind: 'order',
+      prompt: [
+        prose(`Show where the factor formula for $${sumTex(params)}$ comes from.`),
+        prose(`Tap the steps in order. ${params.picks.length === 1 ? 'One step does not belong.' : 'Two steps do not belong.'}`),
+      ],
+      steps: bank,
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { steps, pool } = deriveParts(params);
+    return [
+      { text: 'Each step leans on the one before it:' },
+      ...steps.map((text, i) => ({ text: `${i + 1}. ${text}` })),
+      ...params.picks.map((i) => ({ text: `Not part of it: “${pool[i].text}” ${pool[i].why}` })),
+    ];
+  },
+};
+
+/** The six ways to add or take away the two expansions, as the product each leaves. */
+const COMBOS: { fn: SC; firstPlus: boolean; plus: boolean }[] = [
+  { fn: 'sin', firstPlus: true, plus: true },
+  { fn: 'sin', firstPlus: true, plus: false },
+  { fn: 'sin', firstPlus: false, plus: false },
+  { fn: 'cos', firstPlus: true, plus: true },
+  { fn: 'cos', firstPlus: true, plus: false },
+  { fn: 'cos', firstPlus: false, plus: false },
+];
+
+/** The combinations whose product has a plus in front, asked at difficulty 1. */
+const POSITIVE_COMBOS = [0, 1, 3, 5];
+
+/** The same combination the other way round, where that changes the sign. */
+const FLIPPED_COMBO = [-1, 2, 1, -1, 5, 4];
+
+const comboTex = (c: number, a: number, b: number): string => {
+  const { fn, firstPlus, plus } = COMBOS[c];
+  return `${compoundTex(fn, firstPlus, a, b)} ${plus ? '+' : '-'} ${compoundTex(fn, !firstPlus, a, b)}`;
+};
+
+const comboAt = (c: number, a: number, b: number) => (x: number): number => {
+  const { fn, firstPlus, plus } = COMBOS[c];
+  return compoundAt(fn, firstPlus, a, b)(x) + (plus ? 1 : -1) * compoundAt(fn, !firstPlus, a, b)(x);
+};
+
+/** What a combination collects to. */
+function comboTerms(c: number): Terms {
+  const { fn, firstPlus, plus } = COMBOS[c];
+  return addTerms(expansionTerms(fn, firstPlus), expansionTerms(fn, !firstPlus), plus ? 1 : -1);
+}
+
+interface OriginChoiceParams {
+  combo: number;
+  a: number;
+  b: number;
+  phrasing: number;
+}
+
+const ORIGIN_PROMPTS = [
+  'Which of these collects to this product?',
+  'Adding or taking away which two expansions leaves this?',
+  'Which of these is equal to the product below?',
+];
+
+/** A product, and the one way of combining two expansions that leaves it. */
+const originChoice: Generator<OriginChoiceParams> = {
+  id: 'tid-factor-origin-choice',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(difficulty > 1 ? AB_ALL : AB_EASY);
+    return { combo: rng.pick(difficulty > 1 ? [0, 1, 2, 3, 4, 5] : POSITIVE_COMBOS), a, b, phrasing: rng.int(0, ORIGIN_PROMPTS.length - 1) };
+  },
+  render: (p): Slide => {
+    const { combo, a, b } = p;
+    const target = comboTerms(combo);
+    mustAgree(`${comboTex(combo, a, b)} = ${termsTex(target, a, b)}`, comboAt(combo, a, b), termsAt(target, a, b));
+    const order = [FLIPPED_COMBO[combo], ...POSITIVE_COMBOS].filter((c) => c >= 0 && c !== combo);
+    const right = { tex: comboTex(combo, a, b), at: comboAt(combo, a, b) };
+    const distractors = wrongOnly(
+      right,
+      order.map((c) => ({ tex: comboTex(c, a, b), at: comboAt(c, a, b) })),
+    );
+    return choiceSlide([prose(ORIGIN_PROMPTS[p.phrasing]), display(termsTex(target, a, b))], right.tex, distractors, saltOf(p));
+  },
+  solution: ({ combo, a, b }) => {
+    const { fn, firstPlus, plus } = COMBOS[combo];
+    const first = expansionTerms(fn, firstPlus);
+    const second = expansionTerms(fn, !firstPlus);
+    return [
+      { tex: stackTerms(compoundTex(fn, firstPlus, a, b), termsTex(first, a, b)) },
+      { tex: stackTerms(compoundTex(fn, !firstPlus, a, b), termsTex(second, a, b)) },
+      { text: `${plus ? 'Adding them' : 'Taking the second from the first'} leaves one product:` },
+      { tex: stackLine(comboTex(combo, a, b), termsTex(comboTerms(combo), a, b)) },
+    ];
+  },
+};
+
+/* Lesson 2: sum to product. */
+
+interface SumParams extends SumForm {
+  phrasing: number;
+}
+
+const SUM_TILE_PROMPTS = ['Write it as a product with a factor formula.', 'Factorise: fill in the product.', 'Turn the sum into a product.'];
+
+/** A sum of two sines or cosines as the product, placed from tiles. */
+const sumTiles: Generator<SumParams> = {
+  id: 'tid-factor-sum-tiles',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), phrasing: rng.int(0, SUM_TILE_PROMPTS.length - 1) }),
+  render: (sf): Slide => {
+    const pr = factorOf(sf);
+    const first = (k: number, f: SC, s: number) => `${lead(k)}\\${f} ${mx(s)}`;
+    const answer = [first(pr.k, pr.f, pr.s), `\\${pr.g} ${mx(pr.d)}`];
+    const distractors = [
+      first(-pr.k, pr.f, pr.s),
+      `\\${otherFn(pr.g)} ${mx(pr.d)}`,
+      first(pr.k, otherFn(pr.f), pr.s),
+      first(pr.k, pr.f, 2 * pr.s),
+      `\\${pr.g} ${mx(2 * pr.d)}`,
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [prose(SUM_TILE_PROMPTS[sf.phrasing])],
+      template: `${sumTex(sf)} = {0} {1}`,
+      bank: bankOf(answer, distractors, 4),
+      answer,
+      // The two factors commute, so the pair placed the other way round is as right.
+      unordered: true,
+    };
+  },
+  solution: (sf) => sumSolution(sf),
+};
+
+/** The formula, the halves, and the product: the working every sum-to-product question shares. */
+function sumSolution(sf: SumForm, unit: (m: number) => string = mx): SolutionStep[] {
+  const { k, f, g } = FACTOR[sf.form];
+  const raw = rawFactor(sf);
+  const product = factorOf(sf);
+  const note = negativeNote(raw, unit);
+  return [
+    { text: 'Use the factor formula:' },
+    { tex: formulaTex(sf.form) },
+    { text: `Here $P = ${unit(sf.p)}$ and $Q = ${unit(sf.q)}$, so half the sum is $${unit(raw.s)}$ and half the difference is $${unit(raw.d)}$.` },
+    // Text-size halves: at full size two fractions run the line off a phone.
+    { tex: stackLine(sumTex(sf, unit), halvesTex(k, f, g, sf, unit).replace(/\\frac/g, '\\tfrac')) },
+    ...(note ? [{ text: note }] : []),
+    { tex: `= ${productTex(product, unit)}` },
+  ];
+}
+
+const SUM_STEPS_PROMPTS = [
+  'Factorise it: apply the formula, then work out the halves.',
+  'Use a factor formula, then tidy the angles.',
+];
+
+/** Apply the formula with the halves written out, then work the halves out. */
+const sumSteps: Generator<SumParams> = {
+  id: 'tid-factor-sum-steps',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), phrasing: rng.int(0, SUM_STEPS_PROMPTS.length - 1) }),
+  render: (sf): Slide => {
+    const { fn, plus, k, f, g } = FACTOR[sf.form];
+    const product = factorOf(sf);
+    const applied = { tex: halvesTex(k, f, g, sf), at: halvesAt(k, f, g, sf) };
+    mustAgree(`${sumTex(sf)} = ${applied.tex}`, sumAt(sf), applied.at);
+    const appliedSlips = [
+      { tex: halvesTex(k, g, f, sf), at: halvesAt(k, g, f, sf) },
+      { tex: halvesTex(-k, f, g, sf), at: halvesAt(-k, f, g, sf) },
+      { tex: halvesTex(k, f, g, sf, mx, true), at: halvesAt(k, f, g, sf, true) },
+      { tex: halvesTex(k, otherFn(f), otherFn(g), sf), at: halvesAt(k, otherFn(f), otherFn(g), sf) },
+    ];
+    const raw = rawFactor(sf);
+    const tidySlips = [
+      asSlip({ ...product, k: -product.k }),
+      asSlip(tidy({ ...raw, s: sf.p + sf.q, d: sf.p - sf.q })),
+      asSlip(tidy({ ...raw, d: sf.p - sf.q })),
+    ];
+    return {
+      kind: 'steps',
+      prompt: [prose(SUM_STEPS_PROMPTS[sf.phrasing])],
+      start: [`\\${fn} ${mx(sf.p)}`, plus ? '+' : '-', `\\${fn} ${mx(sf.q)}`],
+      reductions: [
+        { span: [0, 3], value: applied.tex, bank: scatter([applied.tex, ...wrongOnly(applied, appliedSlips).slice(0, 3)]) },
+        { span: [0, 1], value: productTex(product), bank: scatter([productTex(product), ...wrongOnly(asSlip(product), tidySlips)]) },
+      ],
+    };
+  },
+  solution: (sf) => sumSolution(sf),
+};
+
+const SUM_CHOICE_PROMPTS = ['Which product is equal to this?', 'Factorise.', 'Which of these is the same as the sum below?'];
+
+/** The product from four, beside the sign slip, the unhalved angles and the swapped functions. */
+const sumChoice: Generator<SumParams> = {
+  id: 'tid-factor-sum-choice',
+  sample: (rng, difficulty) => ({ ...sampleSum(rng, difficulty), phrasing: rng.int(0, SUM_CHOICE_PROMPTS.length - 1) }),
+  render: (sf): Slide => {
+    const product = factorOf(sf);
+    const raw = rawFactor(sf);
+    const distractors = wrongOnly(asSlip(product), [
+      asSlip({ ...product, k: -product.k }),
+      asSlip(tidy({ ...raw, s: sf.p + sf.q, d: sf.p - sf.q })),
+      asSlip({ ...product, f: product.g, g: product.f }),
+      asSlip({ ...product, f: otherFn(product.f), g: otherFn(product.g) }),
+      asSlip(tidy({ ...raw, k: -raw.k, s: sf.p + sf.q, d: sf.p - sf.q })),
+    ]);
+    return choiceSlide([prose(SUM_CHOICE_PROMPTS[sf.phrasing]), display(sumTex(sf))], productTex(product), distractors, saltOf(sf));
+  },
+  solution: (sf) => sumSolution(sf),
+};
+
+/** Half the sum and half the difference first, the sign of the second a real choice, then the product. */
+const signFlow: Generator<SumForm> = {
+  id: 'tid-factor-sign-flow',
+  sample: (rng, difficulty) => sampleSum(rng, difficulty),
+  render: (sf): Slide => {
+    const raw = rawFactor(sf);
+    const product = factorOf(sf);
+    const halves = (s: number, d: number) => `$${mx(s)}$ and $${mx(d)}$`;
+    const pairs = [halves(raw.s, raw.d), halves(raw.s, -raw.d), halves(2 * raw.s, 2 * raw.d), halves(raw.d, raw.s)];
+    const products = wrongOnly(asSlip(product), [
+      asSlip({ ...product, k: -product.k }),
+      asSlip({ ...product, f: product.g, g: product.f }),
+      asSlip({ ...product, f: otherFn(product.f), g: otherFn(product.g) }),
+      asSlip(tidy({ ...raw, s: 2 * raw.s, d: 2 * raw.d })),
+    ]).slice(0, 3);
+    const label = (tex: string) => `$${tex}$`;
+    return {
+      kind: 'flow',
+      prompt: [prose('Factorise it with the right formula, minding the sign.')],
+      subject: sumTex(sf),
+      steps: [
+        {
+          id: 'halves',
+          ask: 'Half the sum and half the difference, $\\frac{P + Q}{2}$ and $\\frac{P - Q}{2}$, are',
+          branches: scatter(pairs).map((l) => ({ label: l, to: 'product' })),
+        },
+        {
+          id: 'product',
+          ask: 'So it factorises as',
+          branches: scatter([productTex(product), ...products]).map((tex) => ({
+            label: label(tex),
+            outcome: 'Check the formula, the halves, and the sign a negative half difference brings.',
+          })),
+        },
+      ],
+      answer: [pairs[0], label(productTex(product))],
+    };
+  },
+  solution: (sf) => sumSolution(sf),
+};
+
+/* Lesson 3: product to sum. */
+
+/** 2 f A g B as a sum: the function, whether the A + B term is written first, and the sign between. */
+const TO_SUM: { f: SC; g: SC; fn: SC; sumFirst: boolean; plus: boolean }[] = [
+  { f: 'sin', g: 'cos', fn: 'sin', sumFirst: true, plus: true },
+  { f: 'cos', g: 'sin', fn: 'sin', sumFirst: true, plus: false },
+  { f: 'cos', g: 'cos', fn: 'cos', sumFirst: true, plus: true },
+  { f: 'sin', g: 'sin', fn: 'cos', sumFirst: false, plus: false },
+];
+
+/** A product-to-sum formula as it is taught. */
+function toSumFormulaTex(kind: number): string {
+  const { f, g, fn, sumFirst, plus } = TO_SUM[kind];
+  const [first, second] = sumFirst ? ['A + B', 'A - B'] : ['A - B', 'A + B'];
+  return stackLine(`2\\${f} A \\${g} B`, `\\${fn}(${first}) ${plus ? '+' : '-'} \\${fn}(${second})`);
+}
+
+/** The two angles of the sum, in the order it is written. */
+function sumAngles(kind: number, a: number, b: number): [number, number] {
+  return TO_SUM[kind].sumFirst ? [a + b, a - b] : [a - b, a + b];
+}
+
+/** A function of an angle in degrees, bracketed when the angle is negative. */
+const fnDeg = (fn: SC, d: number): string => (d < 0 ? `\\${fn}(${deg(d)})` : `\\${fn} ${deg(d)}`);
+
+/** A product-to-sum question in x: 2k f(ax) g(bx), with a above b. */
+interface ToSumParams {
+  kind: number;
+  a: number;
+  b: number;
+  /** The product's coefficient is twice this. */
+  k: number;
+  phrasing: number;
+}
+
+const toSumProduct = ({ kind, a, b, k }: ToSumParams): Product => ({ k: 2 * k, f: TO_SUM[kind].f, s: a, g: TO_SUM[kind].g, d: b });
+
+/** c fn(first) +- c fn(second), the sum a product turns into. */
+function toSumAt(kind: number, a: number, b: number, c: number, plus = TO_SUM[kind].plus, fn = TO_SUM[kind].fn, swap = false) {
+  const [F, G] = sumAngles(kind, a, b);
+  const [u, v] = swap ? [G, F] : [F, G];
+  return (x: number): number => c * (at(fn, u * x) + (plus ? 1 : -1) * at(fn, v * x));
+}
+
+const TO_SUM_TILE_PROMPTS = ['Write it as a sum or difference.', 'Turn the product into a sum: fill in the two terms.', 'Use a product-to-sum formula.'];
+
+/** A product in x as two terms, placed from tiles. */
+const productTiles: Generator<ToSumParams> = {
+  id: 'tid-factor-product-tiles',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(difficulty > 1 ? AB_ALL : AB_EASY);
+    return { kind: rng.int(0, 3), a, b, k: difficulty > 1 ? rng.int(1, 3) : 1, phrasing: rng.int(0, TO_SUM_TILE_PROMPTS.length - 1) };
+  },
+  render: (p): Slide => {
+    const { fn, plus } = TO_SUM[p.kind];
+    const [F, G] = sumAngles(p.kind, p.a, p.b);
+    const product = toSumProduct(p);
+    mustAgree(`${productTex(product)} as a sum`, productAt(product), toSumAt(p.kind, p.a, p.b, p.k));
+    const term = (c: number, f: SC, m: number) => `${lead(c)}\\${f} ${mx(m)}`;
+    const next = (sign: boolean, c: number, f: SC, m: number) => `${sign ? '+' : '-'} ${c === 1 ? '' : c}\\${f} ${mx(m)}`;
+    const answer = [term(p.k, fn, F), next(plus, p.k, fn, G)];
+    const distractors = [
+      next(!plus, p.k, fn, G),
+      term(p.k, otherFn(fn), F),
+      next(plus, p.k, otherFn(fn), G),
+      term(2 * p.k, fn, F),
+      // Written the other way round, a difference is the wrong sign; a sum would be right, so only a difference offers it.
+      ...(plus ? [] : [term(p.k, fn, G), next(false, p.k, fn, F)]),
+    ];
+    return {
+      kind: 'tiles',
+      prompt: [prose(TO_SUM_TILE_PROMPTS[p.phrasing])],
+      template: `${productTex(product)} = {0} {1}`,
+      bank: bankOf(answer, distractors, 4),
+      answer,
+    };
+  },
+  solution: (p) => toSumSolution(p),
+};
+
+/** The formula read backwards, then the angles added and taken away. */
+function toSumSolution(p: ToSumParams): SolutionStep[] {
+  const { fn, plus } = TO_SUM[p.kind];
+  const [F, G] = sumAngles(p.kind, p.a, p.b);
+  const product = toSumProduct(p);
+  const sum = `\\${fn} ${mx(F)} ${plus ? '+' : '-'} \\${fn} ${mx(G)}`;
+  return [
+    { text: 'Read the factor formula the other way:' },
+    { tex: toSumFormulaTex(p.kind) },
+    { text: `Here $A = ${mx(p.a)}$ and $B = ${mx(p.b)}$, so $A + B = ${mx(p.a + p.b)}$ and $A - B = ${mx(p.a - p.b)}$.` },
+    {
+      tex:
+        p.k === 1
+          ? `${productTex(product)} = ${sum}`
+          : `\\begin{aligned} & ${productTex(product)} \\\\ &= ${p.k} \\times 2\\${product.f} ${mx(p.a)} \\${product.g} ${mx(p.b)} \\\\ &= ${p.k}(${sum}) \\end{aligned}`,
+    },
+  ];
+}
+
+interface ProductChoiceParams extends ToSumParams {
+  /** Difficulty 2 drops the 2 in front, which leaves a half in the answer. */
+  half: boolean;
+}
+
+const PRODUCT_CHOICE_PROMPTS = ['Which sum is equal to this product?', 'Write it as a sum or difference.', 'Which of these is the same as the product below?'];
+
+/** A product in x and four sums, beside the sign slip, the swapped function and the lost half. */
+const productChoice: Generator<ProductChoiceParams> = {
+  id: 'tid-factor-product-choice',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(difficulty > 1 ? AB_ALL : AB_EASY);
+    return { kind: rng.int(0, 3), a, b, k: 1, half: difficulty > 1 && rng.chance(0.5), phrasing: rng.int(0, PRODUCT_CHOICE_PROMPTS.length - 1) };
+  },
+  render: (p): Slide => {
+    const { f, g, fn, plus } = TO_SUM[p.kind];
+    const [F, G] = sumAngles(p.kind, p.a, p.b);
+    const c = p.half ? 1 : 2;
+    const product: Product = { k: c, f, s: p.a, g, d: p.b };
+    const scale = c / 2;
+    const sumOf = (sign: boolean, h: SC, swap: boolean, times = scale) => {
+      const [u, v] = swap ? [G, F] : [F, G];
+      const body = `\\${h} ${mx(u)} ${sign ? '+' : '-'} \\${h} ${mx(v)}`;
+      return { tex: times === 1 ? body : `\\frac{1}{2}(${body})`, at: toSumAt(p.kind, p.a, p.b, times, sign, h, swap) };
+    };
+    const right = sumOf(plus, fn, false);
+    mustAgree(`${productTex(product)} = ${right.tex}`, productAt(product), right.at);
+    const doubled = {
+      tex: p.half ? `\\${fn} ${mx(F)} ${plus ? '+' : '-'} \\${fn} ${mx(G)}` : `2\\${fn} ${mx(F)} ${plus ? '+' : '-'} 2\\${fn} ${mx(G)}`,
+      at: toSumAt(p.kind, p.a, p.b, 2 * scale),
+    };
+    const distractors = wrongOnly(right, [sumOf(!plus, fn, false), sumOf(plus, fn, true), sumOf(plus, otherFn(fn), false), doubled, sumOf(!plus, otherFn(fn), true)]);
+    return choiceSlide([prose(PRODUCT_CHOICE_PROMPTS[p.phrasing]), display(productTex(product))], right.tex, distractors, saltOf(p));
+  },
+  solution: (p) => {
+    if (!p.half) return toSumSolution(p);
+    const { f, g, fn, plus } = TO_SUM[p.kind];
+    const [F, G] = sumAngles(p.kind, p.a, p.b);
+    const sum = `\\${fn} ${mx(F)} ${plus ? '+' : '-'} \\${fn} ${mx(G)}`;
+    return [
+      { text: 'The formula starts from twice the product:' },
+      { tex: toSumFormulaTex(p.kind) },
+      { text: `So without the $2$, the sum is halved. With $A = ${mx(p.a)}$ and $B = ${mx(p.b)}$:` },
+      { tex: stackLine(`\\${f} ${mx(p.a)} \\${g} ${mx(p.b)}`, `\\tfrac{1}{2}(${sum})`) },
+    ];
+  },
+};
+
+/** The odd multiples of 15 degrees below 180; 45 and 135 are table angles, the rest are not. */
+const ODD_FIFTEENS = [15, 45, 75, 105, 135, 165];
+
+const isTable = (d: number): boolean => d % 30 === 0 || d % 45 === 0;
+
+/** A rational surd sum, or undefined when a root is left. */
+function ratOf(s: SurdSum): Rat | undefined {
+  if ([...s.keys()].some((m) => m !== 1)) return undefined;
+  return s.get(1) ?? [0, 1];
+}
+
+const scaleSurd = (s: SurdSum, n: number, d = 1): SurdSum => new Map([...s].map(([m, r]): [number, Rat] => [m, rat(r[0] * n, r[1] * d)]));
+
+/** fn(first) +- fn(second) exactly, the sum a product in degrees turns into. */
+function toSumSurd(kind: number, a: number, b: number, plus = TO_SUM[kind].plus, fn = TO_SUM[kind].fn): SurdSum {
+  const [F, G] = sumAngles(kind, a, b);
+  return surdCombine(tableSurd(fn, F), tableSurd(fn, G), plus ? 1 : -1);
+}
+
+/** Odd multiples of 15 degrees round the whole turn, for the harder draws. */
+const ODD_FIFTEENS_TURN = [...ODD_FIFTEENS, 195, 225, 255, 285, 315, 345];
+
+/**
+ * Products of two angles, not both on the table, whose sum and difference are
+ * on it and whose value is rational; either angle may be the larger, which
+ * makes A - B negative. `wide` marks one reaching past 180 degrees.
+ */
+const PRODUCT_VALUES: { kind: number; a: number; b: number; wide: boolean }[] = ODD_FIFTEENS_TURN.flatMap((a) =>
+  ODD_FIFTEENS_TURN.flatMap((b) =>
+    [0, 1, 2, 3]
+      .map((kind) => ({ kind, a, b, wide: a > 180 || b > 180 }))
+      .filter(({ kind }) => a !== b && !(isTable(a) && isTable(b)) && ratOf(toSumSurd(kind, a, b)) !== undefined),
+  ),
+);
+
+const NARROW_VALUES = PRODUCT_VALUES.map((v, i) => ({ v, i })).filter(({ v }) => !v.wide).map(({ i }) => i);
+
+interface ProductValueParams {
+  i: number;
+  phrasing: number;
+  /** The coefficient in front of the product: 2 at difficulty 1, 1 or 4 at difficulty 2. */
+  c: number;
+}
+
+function productValueOf({ i, c }: ProductValueParams): Rat {
+  const { kind, a, b } = PRODUCT_VALUES[i];
+  const r = ratOf(toSumSurd(kind, a, b))!;
+  const value = rat(r[0] * c, r[1] * 2);
+  const { f, g } = TO_SUM[kind];
+  if (Math.abs(c * at(f, a) * at(g, b) - ratValue(value)) > 1e-9) throw new Error(`product value at ${a} and ${b} is wrong`);
+  return value;
+}
+
+const productValueTex = ({ i, c }: ProductValueParams): string => {
+  const { kind, a, b } = PRODUCT_VALUES[i];
+  return productTex({ k: c, f: TO_SUM[kind].f, s: a, g: TO_SUM[kind].g, d: b }, deg);
+};
+
+const VALUE_PROMPTS = [
+  'The angles are not both on the table. Use a product-to-sum formula to find the exact value.',
+  'Find the exact value, turning the product into a sum first.',
+];
+
+/** The exact value of a product of two angles off the table, typed as a fraction. */
+const productValue: Generator<ProductValueParams> = {
+  id: 'tid-factor-product-value',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? { i: rng.int(0, PRODUCT_VALUES.length - 1), c: rng.pick([1, 4]), phrasing: rng.int(0, VALUE_PROMPTS.length - 1) }
+      : { i: rng.pick(NARROW_VALUES), c: 2, phrasing: rng.int(0, VALUE_PROMPTS.length - 1) },
+  render: (p): Slide => {
+    const value = productValueOf(p);
+    return {
+      kind: 'expression',
+      prompt: [prose(VALUE_PROMPTS[p.phrasing])],
+      lead: `${productValueTex(p)} =`,
+      keypad: NUMBER_KEYS,
+      answer: ratAnswer(value),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const value = productValueOf(p);
+    const { kind, a, b } = PRODUCT_VALUES[p.i];
+    const { fn, plus } = TO_SUM[kind];
+    const slips = [toSumSurd(kind, a, b, !plus), toSumSurd(kind, a, b, plus, otherFn(fn))]
+      .map(ratOf)
+      .filter((r): r is Rat => r !== undefined)
+      .map((r) => rat(r[0] * p.c, r[1] * 2));
+    return ratOptions(value, [[-value[0], value[1]], ...slips, rat(value[0] * 2, value[1]), rat(value[0], value[1] * 2), [1, 2], [-1, 2], [1, 1]]);
+  },
+  solution: (p) => {
+    const { kind, a, b } = PRODUCT_VALUES[p.i];
+    const { fn, plus } = TO_SUM[kind];
+    const [F, G] = sumAngles(kind, a, b);
+    const value = productValueOf(p);
+    const sum = `${fnDeg(fn, F)} ${plus ? '+' : '-'} ${fnDeg(fn, G)}`;
+    const values = `${specialTex(at(fn, F))} ${plus ? '+' : '-'} ${br(specialTex(at(fn, G)))}`;
+    // The formula starts from twice the product, so any other coefficient scales the sum.
+    const front = p.c === 2 ? '' : p.c === 1 ? '\\tfrac{1}{2}' : '2';
+    const wrap = (t: string) => (front ? `${front}(${t})` : t);
+    return [
+      { tex: toSumFormulaTex(kind) },
+      { text: `With $A = ${deg(a)}$ and $B = ${deg(b)}$, both $A + B$ and $A - B$ are table angles.` },
+      {
+        // A multiple of a bracket of two degree terms runs off a phone on one row.
+        tex:
+          front
+            ? `\\begin{aligned} & ${productValueTex(p)} \\\\ &= ${front}\\big(${fnDeg(fn, F)} \\\\ &\\qquad ${plus ? '+' : '-'} ${fnDeg(fn, G)}\\big) \\end{aligned}`
+            : `${productValueTex(p)} = ${wrap(sum)}`,
+      },
+      { tex: `= ${wrap(values)} = ${ratTex(value)}` },
+    ];
+  },
+};
+
+interface ProductStepsParams {
+  kind: number;
+  a: number;
+  b: number;
+  phrasing: number;
+}
+
+/** Pairs of odd multiples of 15 degrees, not both on the table: the larger first, or at difficulty 2 either way. */
+const PRODUCT_PAIRS = ODD_FIFTEENS.flatMap((a) => ODD_FIFTEENS.filter((b) => b !== a && !(isTable(a) && isTable(b))).map((b) => [a, b] as [number, number]));
+
+const PRODUCT_STEPS_PROMPTS = ['Turn the product into a sum, then find its exact value.', 'Use a product-to-sum formula, then the table values.'];
+
+/** A product in degrees to a sum, the sum's table values, then one exact value. */
+const productSteps: Generator<ProductStepsParams> = {
+  id: 'tid-factor-product-steps',
+  sample: (rng, difficulty) => {
+    const [a, b] = rng.pick(PRODUCT_PAIRS.filter(([x, y]) => difficulty > 1 || x > y));
+    return { kind: rng.int(0, 3), a, b, phrasing: rng.int(0, PRODUCT_STEPS_PROMPTS.length - 1) };
+  },
+  render: (p): Slide => {
+    const { f, g, fn, plus } = TO_SUM[p.kind];
+    const [F, G] = sumAngles(p.kind, p.a, p.b);
+    const product: Product = { k: 2, f, s: p.a, g, d: p.b };
+    const value = productAt(product)(1);
+    const total = toSumSurd(p.kind, p.a, p.b);
+    if (Math.abs(surdValue(total) - value) > 1e-9) throw new Error(`product steps disagree at ${p.a} and ${p.b}`);
+    const flat = (tex: string, v: number) => ({ tex, at: () => v });
+    const sumLine = (sign: boolean, h: SC, swap: boolean) => {
+      const [u, v] = swap ? [G, F] : [F, G];
+      return flat(`${fnDeg(h, u)} ${sign ? '+' : '-'} ${fnDeg(h, v)}`, at(h, u) + (sign ? 1 : -1) * at(h, v));
+    };
+    const right1 = sumLine(plus, fn, false);
+    const valuesLine = (sign: boolean, h: SC) =>
+      flat(`${specialTex(at(h, F))} ${sign ? '+' : '-'} ${br(specialTex(at(h, G)))}`, at(h, F) + (sign ? 1 : -1) * at(h, G));
+    const right2 = valuesLine(plus, fn);
+    const surdSlip = (s: SurdSum) => flat(surdSumTex(s), surdValue(s));
+    const right3 = surdSlip(total);
+    return {
+      kind: 'steps',
+      prompt: [prose(PRODUCT_STEPS_PROMPTS[p.phrasing])],
+      start: [productTex(product, deg)],
+      reductions: [
+        {
+          span: [0, 1],
+          value: right1.tex,
+          bank: scatter([right1.tex, ...wrongOnly(right1, [sumLine(!plus, fn, false), sumLine(plus, otherFn(fn), false), sumLine(plus, fn, true)]).slice(0, 3)]),
+        },
+        {
+          span: [0, 1],
+          value: right2.tex,
+          bank: scatter([right2.tex, ...wrongOnly(right2, [valuesLine(!plus, fn), valuesLine(plus, otherFn(fn)), valuesLine(!plus, otherFn(fn))]).slice(0, 3)]),
+        },
+        {
+          span: [0, 1],
+          value: right3.tex,
+          bank: scatter([
+            right3.tex,
+            ...wrongOnly(right3, [
+              surdSlip(scaleSurd(total, -1)),
+              surdSlip(toSumSurd(p.kind, p.a, p.b, !plus)),
+              surdSlip(scaleSurd(total, 2)),
+              surdSlip(toSumSurd(p.kind, p.a, p.b, plus, otherFn(fn))),
+            ]).slice(0, 3),
+          ]),
+        },
+      ],
+    };
+  },
+  solution: (p) => {
+    const { fn, plus } = TO_SUM[p.kind];
+    const [F, G] = sumAngles(p.kind, p.a, p.b);
+    const product: Product = { k: 2, f: TO_SUM[p.kind].f, s: p.a, g: TO_SUM[p.kind].g, d: p.b };
+    const note =
+      F < 0 || G < 0
+        ? [{ text: `A negative angle is fine: $\\sin(-\\theta) = -\\sin \\theta$ and $\\cos(-\\theta) = \\cos \\theta$.` }]
+        : [];
+    return [
+      { tex: toSumFormulaTex(p.kind) },
+      { text: `With $A = ${deg(p.a)}$ and $B = ${deg(p.b)}$:` },
+      { tex: `${productTex(product, deg)} = ${fnDeg(fn, F)} ${plus ? '+' : '-'} ${fnDeg(fn, G)}` },
+      ...note,
+      { tex: `= ${specialTex(at(fn, F))} ${plus ? '+' : '-'} ${br(specialTex(at(fn, G)))} = ${surdSumTex(toSumSurd(p.kind, p.a, p.b))}` },
+    ];
+  },
+};
+
+/* Lesson 4: exact values from the factor formulae. */
+
+/** Half sums and half differences on the table whose P and Q are not both on it. */
+const EXACT_HALVES_EASY: [number, number][] = [
+  [45, 30],
+  [150, 135],
+  [60, 45],
+  [120, 45],
+  [135, 30],
+  [135, 60],
+  [150, 45],
+];
+const EXACT_HALVES_HARD: [number, number][] = [...EXACT_HALVES_EASY, [210, 45], [225, 30], [225, 60], [240, 45], [300, 45], [315, 30]];
+
+interface ExactFactorParams extends SumForm {
+  phrasing: number;
+}
+
+/** A sum in degrees: P and Q from a half sum and half difference, Q the larger half the time at difficulty 2. */
+function sampleExact(rng: Rng, difficulty: number, phrasings: number): ExactFactorParams {
+  const [s, d] = rng.pick(difficulty > 1 ? EXACT_HALVES_HARD : EXACT_HALVES_EASY);
+  const flip = difficulty > 1 && rng.chance(0.5);
+  return { form: rng.int(0, 3), p: flip ? s - d : s + d, q: flip ? s + d : s - d, phrasing: rng.int(0, phrasings - 1) };
+}
+
+/** The exact value of a product in degrees. */
+const productSurd = (p: Product): SurdSum => scaleSurd(surdProduct(p.f, p.s, p.g, p.d), p.k);
+
+/** A product in degrees as a slip: its TeX and its value. */
+const degSlip = (p: Product) => ({ tex: productTex(p, deg), at: () => productAt(p)(1) });
+
+const surdFlat = (s: SurdSum) => ({ tex: surdTex(s), at: () => surdValue(s) });
+
+/** The value every exact-value question here arrives at, checked against the calculator. */
+function exactParts(sf: SumForm) {
+  const raw = rawFactor(sf);
+  const product = factorOf(sf);
+  const value = productSurd(product);
+  if (Math.abs(surdValue(value) - sumAt(sf)(1)) > 1e-9) throw new Error(`${sumTex(sf, deg)} is not ${surdTex(value)}`);
+  const slips = [
+    { ...product, k: -product.k },
+    { ...product, f: product.g, g: product.f },
+    { ...product, f: otherFn(product.f), g: otherFn(product.g) },
+    tidy({ ...raw, s: 2 * raw.s, d: 2 * raw.d }),
+  ];
+  return { raw, product, value, slips };
+}
+
+/** Surd values a table angle's sine or cosine makes, doubled, to fill out a set of options. */
+const SURD_FILLERS: SurdSum[] = [
+  new Map([[6, [1, 2] as Rat]]),
+  new Map([[2, [1, 2] as Rat]]),
+  new Map([[3, [1, 2] as Rat]]),
+  new Map([[1, [1, 2] as Rat]]),
+  new Map([[6, [1, 4] as Rat]]),
+  new Map([[2, [1, 1] as Rat]]),
+];
+
+function exactFactorSolution(sf: SumForm): SolutionStep[] {
+  const { product, value } = exactParts(sf);
+  return [
+    ...sumSolution(sf, deg),
+    {
+      tex: `= ${product.k} \\times ${br(specialTex(at(product.f, product.s)))} \\times ${br(specialTex(at(product.g, product.d)))} = ${surdTex(value)}`,
+    },
+  ];
+}
+
+const EXACT_TILE_PROMPTS = ['Use a factor formula to find the exact value.', 'Factorise, then place the exact value.'];
+
+/** A sum in degrees: the product, then its exact value, from tiles. */
+const exactFactorTiles: Generator<ExactFactorParams> = {
+  id: 'tid-factor-exact-tiles',
+  sample: (rng, difficulty) => sampleExact(rng, difficulty, EXACT_TILE_PROMPTS.length),
+  render: (sf): Slide => {
+    const { product, value, slips } = exactParts(sf);
+    const productSlips = wrongOnly(degSlip(product), slips.map(degSlip));
+    const valueSlips = wrongOnly(surdFlat(value), [scaleSurd(value, -1), ...slips.map(productSurd), ...SURD_FILLERS].map(surdFlat));
+    const answer = [productTex(product, deg), surdTex(value)];
+    return {
+      kind: 'tiles',
+      prompt: [prose(EXACT_TILE_PROMPTS[sf.phrasing])],
+      template: `${sumTex(sf, deg)} = {0} = {1}`,
+      bank: bankOf(answer, [...productSlips.slice(0, 2), ...valueSlips.slice(0, 2)], 4),
+      answer,
+      // The chain is as true with the value placed first, so either order is right.
+      unordered: true,
+    };
+  },
+  solution: (sf) => exactFactorSolution(sf),
+};
+
+const EXACT_CHOICE_PROMPTS = ['Find the exact value.', 'Which is the exact value?'];
+
+/** A sum in degrees and four exact values. */
+const exactChoice: Generator<ExactFactorParams> = {
+  id: 'tid-factor-exact-choice',
+  sample: (rng, difficulty) => sampleExact(rng, difficulty, EXACT_CHOICE_PROMPTS.length),
+  render: (sf): Slide => {
+    const { value, slips } = exactParts(sf);
+    const distractors = wrongOnly(surdFlat(value), [scaleSurd(value, -1), ...slips.map(productSurd), ...SURD_FILLERS].map(surdFlat));
+    return choiceSlide([prose(EXACT_CHOICE_PROMPTS[sf.phrasing]), display(sumTex(sf, deg))], surdTex(value), distractors, saltOf(sf));
+  },
+  solution: (sf) => exactFactorSolution(sf),
+};
+
+/** The halves, the table value each needs, and the value, as a tree. */
+const exactTree: Generator<ExactFactorParams> = {
+  id: 'tid-factor-exact-tree',
+  sample: (rng, difficulty) => sampleExact(rng, difficulty, 1),
+  render: (sf): Slide => {
+    const { raw, value } = exactParts(sf);
+    const answer = [deg(raw.s), deg(raw.d), specialTex(at(raw.f, raw.s)), specialTex(at(raw.g, raw.d)), surdTex(value)];
+    const distractors = [
+      deg(-raw.d),
+      deg(sf.p + sf.q),
+      deg(Math.abs(sf.p - sf.q)),
+      specialTex(at(otherFn(raw.f), raw.s)),
+      specialTex(at(otherFn(raw.g), raw.d)),
+      surdTex(scaleSurd(value, -1)),
+      specialTex(-at(raw.g, raw.d)),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          'Top row: half the sum and half the difference of the two angles. Next row: the sine or cosine of each that the factor formula needs. Last: the exact value.',
+        ),
+      ],
+      expression: sumTex(sf, deg),
+      nodes: [
+        { id: 's', from: [] },
+        { id: 'd', from: [] },
+        { id: 'fs', from: ['s'] },
+        { id: 'gd', from: ['d'] },
+        { id: 'v', from: ['fs', 'gd'] },
+      ],
+      bank: bankOf(answer, distractors, 4),
+      answer,
+    };
+  },
+  solution: (sf) => {
+    const { raw, value } = exactParts(sf);
+    return [
+      { tex: formulaTex(sf.form) },
+      { text: `Half the sum is $${deg(raw.s)}$ and half the difference is $${deg(raw.d)}$.` },
+      {
+        tex: `${sumTex(sf, deg)} = ${productTex(raw, (m) => (m < 0 ? `(${deg(m)})` : deg(m)))}`,
+      },
+      {
+        tex: `= ${raw.k} \\times ${br(specialTex(at(raw.f, raw.s)))} \\times ${br(specialTex(at(raw.g, raw.d)))} = ${surdTex(value)}`,
+      },
+    ];
+  },
+};
+
+const EXACT_STEPS_FACTOR_PROMPTS = ['Factorise, put in the table values, then multiply.', 'Use a factor formula, then find the exact value.'];
+
+/** A sum in degrees, factorised, the table values placed, then multiplied out. */
+const exactFactorSteps: Generator<ExactFactorParams> = {
+  id: 'tid-factor-exact-steps',
+  sample: (rng, difficulty) => sampleExact(rng, difficulty, EXACT_STEPS_FACTOR_PROMPTS.length),
+  render: (sf): Slide => {
+    const { fn, plus } = FACTOR[sf.form];
+    const { product, value, slips } = exactParts(sf);
+    const timesLine = (p: Product) => ({
+      tex: `${p.k} \\times ${br(specialTex(at(p.f, p.s)))} \\times ${br(specialTex(at(p.g, p.d)))}`,
+      at: () => productAt(p)(1),
+    });
+    const right2 = timesLine(product);
+    return {
+      kind: 'steps',
+      prompt: [prose(EXACT_STEPS_FACTOR_PROMPTS[sf.phrasing])],
+      start: [`\\${fn} ${deg(sf.p)}`, plus ? '+' : '-', `\\${fn} ${deg(sf.q)}`],
+      reductions: [
+        {
+          span: [0, 3],
+          value: productTex(product, deg),
+          bank: scatter([productTex(product, deg), ...wrongOnly(degSlip(product), slips.map(degSlip)).slice(0, 3)]),
+        },
+        {
+          span: [0, 1],
+          value: right2.tex,
+          bank: scatter([
+            right2.tex,
+            ...wrongOnly(right2, [
+              timesLine({ ...product, f: otherFn(product.f) }),
+              timesLine({ ...product, g: otherFn(product.g) }),
+              timesLine({ ...product, k: -product.k }),
+            ]),
+          ]),
+        },
+        {
+          span: [0, 1],
+          value: surdTex(value),
+          bank: scatter([surdTex(value), ...wrongOnly(surdFlat(value), [scaleSurd(value, -1), ...slips.map(productSurd), ...SURD_FILLERS].map(surdFlat)).slice(0, 3)]),
+        },
+      ],
+    };
+  },
+  solution: (sf) => exactFactorSolution(sf),
+};
+
+/* Lesson 5: equations by factorising. */
+
+/** Whether every zero of fn(mx) sits on the 15-degree lattice a slider moves in. */
+const onLattice = (fn: SC, m: number): boolean => (fn === 'sin' ? 12 % m === 0 : 6 % m === 0);
+
+/** Every whole degree 0 <= x < top where f(x) is zero. Every zero here is a whole number of degrees. */
+function zerosBelow(f: (x: number) => number, top: number): number[] {
+  const out: number[] = [];
+  for (let d = 0; d < top; d++) if (Math.abs(f(d)) < 1e-9) out.push(d);
+  return out;
+}
+
+const sameList = (a: number[], b: number[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** Where fn(mx) is zero for 0 <= x < top, worked out rather than scanned, so a zero off the whole degrees counts too. */
+function factorZeros(fn: SC, m: number, top: number): number[] {
+  const out: number[] = [];
+  for (let k = 0; ; k++) {
+    const x = Math.round((((fn === 'sin' ? 180 * k : 90 + 180 * k) / m) * 1e6)) / 1e6;
+    if (x >= top) return out;
+    out.push(x);
+  }
+}
+
+/** Every zero of a product of two factors below top, each once, smallest first. */
+const productZeros = (p: Product, top: number): number[] =>
+  [...new Set([...factorZeros(p.f, p.s, top), ...factorZeros(p.g, p.d, top)])].sort((a, b) => a - b);
+
+/** Whether every zero of fn(mx) is a whole number of degrees: 180/m for a sine, 90/m for a cosine. */
+const wholeZeros = (fn: SC, m: number): boolean => (fn === 'sin' ? 180 % m === 0 : 90 % m === 0);
+
+/** Equations fn P +- fn Q = 0 whose factors both vanish at whole degrees, with at most eight solutions below 180. */
+const FACTOR_EQS: SumForm[] = [0, 1, 2, 3].flatMap((form) =>
+  evenPairs(12)
+    .map(([p, q]) => ({ form, p, q }))
+    .filter((e) => {
+      const r = rawFactor(e);
+      return wholeZeros(r.f, r.s) && wholeZeros(r.g, r.d) && zerosBelow(sumAt(e), 180).length <= 8;
+    }),
+);
+
+const solved = new Map<string, number[]>();
+
+/** The solutions of an equation from FACTOR_EQS, from its factors, checked against the equation itself. */
+function eqSolutions(e: SumForm, top: number): number[] {
+  const key = `${e.form} ${e.p} ${e.q} ${top}`;
+  const known = solved.get(key);
+  if (known) return known;
+  const pr = factorOf(e);
+  const fromFactors = productZeros(pr, top);
+  if (!sameList(fromFactors, zerosBelow(sumAt(e), top))) throw new Error(`${sumTex(e)} = 0 solved wrongly`);
+  solved.set(key, fromFactors);
+  return fromFactors;
+}
+
+/** The equation as shown: with 0 on the right, or one term moved across. */
+function eqShown(e: SumForm, moved: boolean): string {
+  const { fn, plus } = FACTOR[e.form];
+  return moved ? `\\${fn} ${mx(e.p)} = ${plus ? '-' : ''}\\${fn} ${mx(e.q)}` : `${sumTex(e)} = 0`;
+}
+
+const eqRange = (top: number): string => `0^{\\circ} \\le x < ${deg(top)}`;
+
+/** A long list of angles broken into rows of four. */
+function angleRows(angles: number[]): string {
+  if (angles.length <= 4) return `x = ${angleList(angles)}`;
+  const rows: string[] = [];
+  for (let i = 0; i < angles.length; i += 4) rows.push(angleList(angles.slice(i, i + 4)));
+  return `\\begin{aligned} x = {} & ${rows.join(', \\\\ & ')} \\end{aligned}`;
+}
+
+/** One factor's zeros, the equation above the angles so a long list still fits a phone. */
+function factorLines(fn: SC, m: number, zeros: number[]): SolutionStep[] {
+  if (zeros.length === 0) return [{ text: `$\\${fn} ${mx(m)} = 0$ has no solution in the range.` }];
+  return [{ text: `$\\${fn} ${mx(m)} = 0$ gives` }, { tex: angleRows(zeros) }];
+}
+
+/** Factorise, split, solve each factor over the range, and merge. */
+function eqSteps(e: SumForm, moved: boolean, top: number): SolutionStep[] {
+  const pr = factorOf(e);
+  const z1 = factorZeros(pr.f, pr.s, top);
+  const z2 = factorZeros(pr.g, pr.d, top);
+  const both = z1.filter((x) => z2.includes(x));
+  const sols = eqSolutions(e, top);
+  return [
+    ...(moved ? [{ text: 'Bring both terms to one side:' }, { tex: `${sumTex(e)} = 0` }] : []),
+    { text: 'Factorise with the factor formula:' },
+    { tex: `${productTex(pr)} = 0` },
+    { text: `A product is zero when one of its factors is. Over $${eqRange(top)}$:` },
+    ...factorLines(pr.f, pr.s, z1),
+    ...factorLines(pr.g, pr.d, z2),
+    ...(both.length > 0
+      ? [{ text: `${both.length === 1 ? `$${deg(both[0])}$ solves both, so it is counted once` : `$${angleList(both)}$ solve both, so each is counted once`}.` }]
+      : []),
+    { tex: angleRows(sols) },
+  ];
+}
+
+/** Wrong factorisations of an equation, as products, whose solutions differ from the right one's. */
+function wrongFactors(e: SumForm): Product[] {
+  const raw = rawFactor(e);
+  const pr = factorOf(e);
+  const other = FACTOR[e.form ^ 1];
+  const right = productZeros(pr, 360);
+  const out: Product[] = [];
+  for (const p of [
+    tidy({ ...raw, s: 2 * raw.s, d: 2 * raw.d }),
+    { ...pr, f: pr.g, g: pr.f },
+    { ...pr, f: other.f, g: other.g },
+    { ...pr, f: otherFn(pr.f), g: otherFn(pr.g) },
+  ]) {
+    const zeros = productZeros(p, 360);
+    if (sameList(zeros, right) || out.some((o) => sameList(productZeros(o, 360), zeros))) continue;
+    out.push(p);
+  }
+  return out;
+}
+
+interface EqParams {
+  eq: number;
+  /** One term written on the right, asked at difficulty 2. */
+  moved: boolean;
+  top: number;
+}
+
+const ALL_EQS = FACTOR_EQS.map((_, i) => i);
+
+/** Every equation paired with each range it has between one and `most` solutions over. */
+function eqsWithin(tops: number[], most: number, positive = false): [number, number][] {
+  return tops.flatMap((top) =>
+    ALL_EQS.filter((i) => {
+      const sols = eqSolutions(FACTOR_EQS[i], top);
+      return sols.length <= most && sols.some((x) => x > 0 || !positive);
+    }).map((i): [number, number] => [i, top]),
+  );
+}
+
+/** An equation and a range from the pool for the difficulty; difficulty 2 may write one term on the right. */
+function sampleEq(rng: Rng, difficulty: number, pools: [number, number][][]): EqParams {
+  const [eq, top] = rng.pick(pools[difficulty > 1 ? 1 : 0]);
+  return { eq, moved: difficulty > 1 && rng.chance(0.5), top };
+}
+
+/** Ranges of 180 or 360 degrees at difficulty 1, and 90 as well at difficulty 2, with at most eight solutions. */
+const COUNT_POOLS = [eqsWithin([180, 360], 8), eqsWithin([90, 180, 360], 8)];
+
+/** How many solutions: the factorisation first, then the count, each shared angle once. */
+const eqFlow: Generator<EqParams> = {
+  id: 'tid-factor-eq-flow',
+  sample: (rng, difficulty) => sampleEq(rng, difficulty, COUNT_POOLS),
+  render: (p): Slide => {
+    const e = FACTOR_EQS[p.eq];
+    const pr = factorOf(e);
+    const sols = eqSolutions(e, p.top);
+    const z1 = factorZeros(pr.f, pr.s, p.top).length;
+    const z2 = factorZeros(pr.g, pr.d, p.top).length;
+    const label = (q: Product) => `$${productTex(q)} = 0$`;
+    const counts = [...new Set([sols.length, z1 + z2, sols.length + 1, 2 * sols.length, sols.length - 1, sols.length + 2])]
+      .filter((n) => n > 0)
+      .slice(0, 4)
+      .sort((a, b) => a - b);
+    return {
+      kind: 'flow',
+      prompt: [prose(`How many solutions has this with $${eqRange(p.top)}$?`)],
+      subject: eqShown(e, p.moved),
+      steps: [
+        {
+          id: 'factor',
+          ask: p.moved ? 'With both terms on one side, it factorises as' : 'Factorised, it is',
+          branches: scatter([label(pr), ...wrongFactors(e).slice(0, 3).map(label)]).map((l) => ({ label: l, to: 'count' })),
+        },
+        {
+          id: 'count',
+          ask: 'So the number of solutions is',
+          branches: counts.map((n) => ({ label: `$${n}$`, outcome: 'Solve each factor over the range, then count every angle once.' })),
+        },
+      ],
+      answer: [label(pr), `$${sols.length}$`],
+    };
+  },
+  solution: (p) => {
+    const e = FACTOR_EQS[p.eq];
+    return [...eqSteps(e, p.moved, p.top), { text: `That is $${eqSolutions(e, p.top).length}$ solutions.` }];
+  },
+};
+
+/** At most five solutions, so a list fits a line. */
+const SHORT_POOLS = [eqsWithin([90, 180], 5), eqsWithin([90, 180, 360], 5)];
+
+/** Split fn(a) = 0 or fn(b) = 0, as a slip with its solutions. */
+function splitLine(parts: [SC, number][], top: number): { tex: string; zeros: number[] } {
+  const zeros = [...new Set(parts.flatMap(([f, m]) => factorZeros(f, m, top)))].sort((a, b) => a - b);
+  return { tex: parts.map(([f, m]) => `\\${f} ${mx(m)} = 0`).join(' \\text{ or } '), zeros };
+}
+
+/** The lines whose solutions differ from the right one's, each once. */
+function differentZeros(right: { tex: string; zeros: number[] }, slips: { tex: string; zeros: number[] }[]): string[] {
+  const kept: { tex: string; zeros: number[] }[] = [];
+  for (const s of slips) {
+    if (s.tex === right.tex || sameList(s.zeros, right.zeros) || kept.some((k) => k.tex === s.tex || sameList(k.zeros, s.zeros))) continue;
+    kept.push(s);
+  }
+  return kept.map((k) => k.tex);
+}
+
+/** Solve on a line: factorise, split into two equations, then list every solution in range. */
+const eqFactorSteps: Generator<EqParams> = {
+  id: 'tid-factor-eq-steps',
+  sample: (rng, difficulty) => sampleEq(rng, difficulty, SHORT_POOLS),
+  render: (p): Slide => {
+    const e = FACTOR_EQS[p.eq];
+    const { fn, plus } = FACTOR[e.form];
+    const pr = factorOf(e);
+    const sols = eqSolutions(e, p.top);
+    const reductions: { span: [number, number]; value: string; bank: string[] }[] = [];
+    if (p.moved) {
+      const flipped = { ...e, form: e.form ^ 1 };
+      const right = { tex: `${sumTex(e)} = 0`, zeros: eqSolutions(e, 360) };
+      // Moving a term without changing its sign, and treating the sine or cosine as if it could be taken out of both.
+      const slips = [
+        { tex: `${sumTex(flipped)} = 0`, zeros: productZeros(tidy(rawFactor(flipped)), 360) },
+        { tex: `\\${fn} ${mx(e.p - e.q)} = 0`, zeros: factorZeros(fn, e.p - e.q, 360) },
+      ];
+      reductions.push({ span: [0, 3], value: right.tex, bank: scatter([right.tex, ...differentZeros(right, slips)]) });
+    }
+    const factorLine = (q: Product) => `${productTex(q)} = 0`;
+    reductions.push({
+      span: p.moved ? [0, 1] : [0, 3],
+      value: factorLine(pr),
+      bank: scatter([factorLine(pr), ...wrongFactors(e).slice(0, 3).map(factorLine)]),
+    });
+    const split = splitLine(
+      [
+        [pr.f, pr.s],
+        [pr.g, pr.d],
+      ],
+      p.top,
+    );
+    const splitSlips = [
+      splitLine([[pr.f, pr.s]], p.top),
+      splitLine([[pr.g, pr.d]], p.top),
+      splitLine(
+        [
+          [pr.f, 2 * pr.s],
+          [pr.g, 2 * pr.d],
+        ],
+        p.top,
+      ),
+      splitLine(
+        [
+          [pr.g, pr.s],
+          [pr.f, pr.d],
+        ],
+        p.top,
+      ),
+    ];
+    reductions.push({ span: [0, 1], value: split.tex, bank: scatter([split.tex, ...differentZeros(split, splitSlips).slice(0, 3)]) });
+    const listOf = (xs: number[]) => ({ tex: `x = ${angleList(xs)}`, zeros: xs });
+    const right = listOf(sols);
+    const listSlips = [
+      listOf(factorZeros(pr.f, pr.s, p.top)),
+      listOf(factorZeros(pr.g, pr.d, p.top)),
+      listOf([...sols, p.top]),
+      listOf(sols.filter((x) => x > 0)),
+      listOf(productZeros({ ...pr, s: 2 * pr.s, d: 2 * pr.d }, p.top)),
+    ].filter((l) => l.zeros.length > 0);
+    reductions.push({ span: [0, 1], value: right.tex, bank: scatter([right.tex, ...differentZeros(right, listSlips).slice(0, 3)]) });
+    return {
+      kind: 'steps',
+      prompt: [prose(`Solve for $${eqRange(p.top)}$, a line at a time.`)],
+      start: p.moved ? [`\\${fn} ${mx(e.p)}`, '=', `${plus ? '-' : ''}\\${fn} ${mx(e.q)}`] : [sumTex(e), '=', '0'],
+      reductions,
+    };
+  },
+  solution: (p) => eqSteps(FACTOR_EQS[p.eq], p.moved, p.top),
+};
+
+interface EqSliderParams {
+  eq: number;
+  /** 0: the smallest; 1: the largest; 2: the second smallest, asked only at difficulty 2. */
+  end: number;
+}
+
+/** Solutions strictly inside 0 to 360, where a slider can land. */
+const openEqSolutions = (e: SumForm): number[] => eqSolutions(e, 360).filter((x) => x > 0);
+
+/** The solution each word names. */
+function eqPick(e: SumForm, end: number): number {
+  const all = openEqSolutions(e);
+  return end === 0 ? all[0] : end === 1 ? all[all.length - 1] : all[1];
+}
+
+/** The words a slider may ask with: never one naming 180, where an untouched handle rests. */
+function eqEnds(e: SumForm, difficulty: number): number[] {
+  const all = openEqSolutions(e);
+  const ends = all.length === 1 ? [0] : [0, 1, ...(difficulty > 1 && all.length > 2 ? [2] : [])];
+  return ends.filter((end) => eqPick(e, end) !== 180);
+}
+
+/** Equations a slider can answer: every solution on its 15-degree steps, and some word to ask by. P up to 6 at difficulty 1. */
+const SLIDER_FACTOR_EQS = [1, 2].map((difficulty) =>
+  ALL_EQS.filter((i) => {
+    const e = FACTOR_EQS[i];
+    const r = rawFactor(e);
+    const few = eqSolutions(e, 360).length <= 8;
+    return few && onLattice(r.f, r.s) && onLattice(r.g, r.d) && (difficulty > 1 || e.p <= 6) && eqEnds(e, difficulty).length > 0;
+  }),
+);
+
+/** The graph of the left side drawn: slide to one solution, named by its place. */
+const eqSlider: Generator<EqSliderParams> = {
+  id: 'tid-factor-eq-slider',
+  sample: (rng, difficulty) => {
+    const eq = rng.pick(SLIDER_FACTOR_EQS[difficulty > 1 ? 1 : 0]);
+    return { eq, end: rng.pick(eqEnds(FACTOR_EQS[eq], difficulty)) };
+  },
+  render: ({ eq, end }): Slide => {
+    const e = FACTOR_EQS[eq];
+    const all = openEqSolutions(e);
+    const svg = plotSvg({
+      xMin: 0,
+      xMax: 360,
+      curves: [{ f: sumAt(e), accent: true }],
+      yMin: -2.4,
+      yMax: 2.4,
+      label: 'The graph of the left-hand side from 0 to 360 degrees; the solutions are where it meets the axis',
+    });
+    const which = all.length === 1 ? 'the solution' : `the ${SLIDER_WORDS[end]} solution`;
+    return {
+      kind: 'slider',
+      prompt: [prose(`Factorise to solve it, then slide to ${which} with $0^{\\circ} < x < 360^{\\circ}$. The graph is the left-hand side.`), display(eqShown(e, false))],
+      min: 0,
+      max: 360,
+      step: 15,
+      answer: eqPick(e, end),
+      readout: 'x = {v}^{\\circ}',
+      figure: { svg, ...markerWindow(0, 360) },
+    };
+  },
+  solution: ({ eq, end }) => {
+    const e = FACTOR_EQS[eq];
+    const all = openEqSolutions(e);
+    return [
+      ...eqSteps(e, false, 360),
+      { text: all.length === 1 ? `So $x = ${deg(all[0])}$.` : `Leaving out $0^{\\circ}$, the ${SLIDER_WORDS[end]} is $${deg(eqPick(e, end))}$.` },
+    ];
+  },
+};
+
+interface EqAngleParams extends EqParams {
+  largest: boolean;
+}
+
+/** Ranges with a solution above zero to ask for. */
+const ANGLE_POOLS = [eqsWithin([180, 360], 8, true), eqsWithin([90, 180, 360], 8, true)];
+
+/** One solution typed: the smallest above zero, or the largest. */
+const eqAngle: Generator<EqAngleParams> = {
+  id: 'tid-factor-eq-angle',
+  sample: (rng, difficulty) => ({ ...sampleEq(rng, difficulty, ANGLE_POOLS), largest: rng.chance(0.5) }),
+  render: (p): Slide => {
+    const e = FACTOR_EQS[p.eq];
+    const pos = eqSolutions(e, p.top).filter((x) => x > 0);
+    const answer = p.largest ? pos[pos.length - 1] : pos[0];
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(`Solve for $${eqRange(p.top)}$ and give the ${p.largest ? 'largest' : 'smallest positive'} solution, in degrees.`),
+        display(eqShown(e, p.moved)),
+      ],
+      lead: 'x =',
+      keypad: NUMBER_KEYS,
+      answer: angleAnswer(answer, false),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const e = FACTOR_EQS[p.eq];
+    const pr = factorOf(e);
+    const pos = eqSolutions(e, p.top).filter((x) => x > 0);
+    const answer = p.largest ? pos[pos.length - 1] : pos[0];
+    const doubled = productZeros({ ...pr, s: 2 * pr.s, d: 2 * pr.d }, p.top).filter((x) => x > 0);
+    return angleOptions(answer, [...pos, ...doubled, p.top - answer, answer + 90, answer + 45].filter((x) => x > 0 && x < 360 && x !== answer), false);
+  },
+  solution: (p) => {
+    const e = FACTOR_EQS[p.eq];
+    const pos = eqSolutions(e, p.top).filter((x) => x > 0);
+    const answer = p.largest ? pos[pos.length - 1] : pos[0];
+    return [...eqSteps(e, p.moved, p.top), { text: `The one asked for is $x = ${deg(answer)}$.` }];
+  },
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -8538,4 +10171,24 @@ export const trigIdentityGenerators = [
   fitted(proofVerdictFlow),
   fitted(proofWrongChoice),
   fitted(proofDisproveOrder),
+  fitted(addSteps),
+  fitted(halvesTree),
+  fitted(deriveOrder),
+  fitted(originChoice),
+  fitted(sumTiles),
+  fitted(sumSteps),
+  fitted(sumChoice),
+  fitted(signFlow),
+  fitted(productTiles),
+  fitted(productChoice),
+  fitted(productValue),
+  fitted(productSteps),
+  fitted(exactFactorTiles),
+  fitted(exactChoice),
+  fitted(exactTree),
+  fitted(exactFactorSteps),
+  fitted(eqFlow),
+  fitted(eqFactorSteps),
+  fitted(eqSlider),
+  fitted(eqAngle),
 ];

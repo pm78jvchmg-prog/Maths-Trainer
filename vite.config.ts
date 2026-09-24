@@ -29,7 +29,13 @@ export default defineConfig({
         // no signal at all. mathjs pushes the bundle past the 2 MB default, and
         // the content library has since passed 6 MB. A file over this cap is
         // not merely left uncached: the build fails, so nothing deploys.
-        globPatterns: ['**/*.{js,css,html,woff,woff2,ttf,png,svg}'],
+        //
+        // Fonts are woff2 only. Every KaTeX @font-face lists woff2 first, and a
+        // browser takes the first source whose format it supports, so iOS
+        // Safari never asks for the woff or ttf copies; precaching them cost
+        // about 800 KB per install for nothing. They are still emitted, so an
+        // older browser online can fetch them.
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
         maximumFileSizeToCacheInBytes: 16 * 1024 * 1024,
       },
     }),

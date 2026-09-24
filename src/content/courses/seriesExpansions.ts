@@ -670,9 +670,10 @@ export const seriesExpansions: Course = {
               prose(
                 'A power series $\\sum a_{n}x^{n}$ only means something where its terms add up to a limit. The **ratio test** compares each term with the one before:',
               ),
-              display('\\left|\\frac{a_{n + 1}x^{n + 1}}{a_{n}x^{n}}\\right| = \\left|\\frac{a_{n + 1}}{a_{n}}\\right| |x| \\to L|x|'),
+              display('\\left|\\frac{a_{n + 1}x^{n + 1}}{a_{n}x^{n}}\\right| = \\left|\\frac{a_{n + 1}}{a_{n}}\\right| |x|'),
+              prose('and $L$ is what $\\left|\\frac{a_{n + 1}}{a_{n}}\\right|$ tends to, so the ratio tends to $L|x|$.'),
               prose(
-                'A power of a number gives a fixed factor. Anything in $n$, such as $\\frac{n}{n + 1}$ or $\\frac{n!}{(n + 1)!} = \\frac{1}{n + 1}$, is left to its limit as $n \\to \\infty$.',
+                'A power of a number gives a fixed factor. Anything in $n$, such as $\\frac{n}{n + 1}$, or $\\frac{n!}{(n + 1)!}$ which is $\\frac{1}{n + 1}$, is left to its limit as $n \\to \\infty$.',
               ),
               prose(
                 'If $L|x| < 1$ the terms shrink like a geometric series and the series converges; if $L|x| > 1$ they grow and it diverges. So it converges for $|x| < \\frac{1}{L}$, and $R = \\frac{1}{L}$ is its **radius of convergence**.',
@@ -687,7 +688,7 @@ export const seriesExpansions: Course = {
               ),
               prose('For $\\ln(1 + 2x) = \\sum \\frac{(-1)^{n + 1}2^{n}}{n}x^{n}$ the signs drop out inside the size, and'),
               display('\\left|\\frac{a_{n + 1}}{a_{n}}\\right| = 2 \\times \\frac{n}{n + 1} \\to 2'),
-              prose('so $R = \\frac{1}{2}$ as well. The $\\frac{n}{n + 1}$ tends to $1$ and changes nothing.'),
+              prose('so $R = \\frac{1}{2}$. The $\\frac{n}{n + 1}$ tends to $1$ and changes nothing.'),
             ),
             ask('ser-radius-slider'),
             ask('ser-ratio-tiles', 2),
@@ -780,7 +781,7 @@ export const seriesExpansions: Course = {
           slides: [
             teach(
               prose('A series in $x^{2}$ is a series in $u = kx^{2}$. Find where it converges in $u$, then turn that into $x$:'),
-              display('\\sum 4^{n}x^{2n} = \\sum u^{n}, \\quad u = 4x^{2}'),
+              display('\\sum 4^{n}x^{2n} = \\sum (4x^{2})^{n}'),
               prose(
                 'It needs $|u| < 1$, so $4x^{2} < 1$ and $|x| < \\frac{1}{2}$. In general $u = kx^{m}$ gives $R = \\left(\\frac{1}{|k|}\\right)^{\\frac{1}{m}}$: a square root for $x^{2}$, a cube root for $x^{3}$.',
               ),
@@ -790,9 +791,9 @@ export const seriesExpansions: Course = {
             ask('ser-sub-pick'),
             teach(
               prose(
-                'A series in powers of $(x - a)$ is centred on $x = a$ instead of $0$. The ratio test works just the same, with $|x - a|$ in place of $|x|$:',
+                'A series in powers of $(x - a)$ is centred on $x = a$ instead of $0$. The ratio test works just the same, with $|x - a|$ in place of $|x|$, and $|x - a| < R$ means',
               ),
-              display('|x - a| < R \\iff a - R < x < a + R'),
+              display('a - R < x < a + R'),
               prose('So $\\sum \\frac{(x - 3)^{n}}{2^{n}}$, with $R = 2$, converges for $1 < x < 5$.'),
             ),
             ask('ser-shift-tree'),

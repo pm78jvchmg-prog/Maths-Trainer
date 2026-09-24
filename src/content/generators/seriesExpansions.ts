@@ -2793,7 +2793,7 @@ const intSteps: Generator<IntStepsParams> = {
 
 /** Tree: the integrand's coefficients on top, the integral's underneath. */
 const intTree: Generator<IntegrateParams> = {
-  id: 'ser-int-tree',
+  id: 'ser-int-terms-tree',
   sample: (rng, difficulty) => ({ f: sampleIntegrand(rng, difficulty > 1) }),
   render: ({ f }): Slide => {
     const before = integrandTerms(f);

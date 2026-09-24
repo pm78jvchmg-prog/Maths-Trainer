@@ -555,7 +555,7 @@ describe('level 2 series, checked against mathjs derivatives', { timeout: 120_00
     }
   });
 
-  it('ser-int-tree fills the integrand coefficients, then the integral\'s', () => {
+  it('ser-int-terms-tree fills the integrand coefficients, then the integral\'s', () => {
     for (const { params, slide } of draws(g.intTree)) {
       const terms = nonZeroTerms(maclaurin(params.f, 6), 3);
       const values = filled(slide);

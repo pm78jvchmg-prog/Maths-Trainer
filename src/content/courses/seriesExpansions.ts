@@ -381,7 +381,7 @@ export const seriesExpansions: Course = {
               working('\\int_0^x \\cos t\\,dt &= x - \\frac{1}{6}x^{3}', '&\\quad + \\frac{1}{120}x^{5} - \\cdots'),
               prose('That is the series for $\\sin x$, as it should be.'),
             ),
-            ask('ser-int-tree'),
+            ask('ser-int-terms-tree'),
             ask('ser-int-tiles'),
             ask('ser-int-coef'),
             teach(
@@ -391,7 +391,7 @@ export const seriesExpansions: Course = {
               working('\\int_0^x e^{-t^{2}}\\,dt &= x - \\frac{1}{3}x^{3}', '&\\quad + \\frac{1}{10}x^{5} - \\cdots'),
             ),
             ask('ser-int-steps'),
-            ask('ser-int-tree', 2),
+            ask('ser-int-terms-tree', 2),
             ask('ser-int-tiles', 2),
             teach(
               prose('Every power goes up by one, so the constant term becomes an $x$ term and a series in even powers integrates to one in odd powers.'),

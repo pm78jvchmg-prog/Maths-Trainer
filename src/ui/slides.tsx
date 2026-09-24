@@ -410,13 +410,23 @@ export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
           <div dangerouslySetInnerHTML={{ __html: planeGridSvg(range) }} />
 
           {/* Tap targets and the plotted dot share the plane's own viewBox, so
-              alignment cannot drift if the frame changes. */}
+              alignment cannot drift if the frame changes.
+
+              Each target is also a keyboard and screen-reader button, the same
+              way the force diagram's arrow heads are: named by the number it
+              stands for (the readout below shows that same number once it is
+              chosen), pressed when chosen, and chosen with Enter or Space.
+              Once the answer is locked they leave the tab order, so the way
+              to Continue is not through every point on the plane. */}
           <svg
             className={`plot-hits${locked ? ' locked' : ''}`}
             viewBox={PLANE_VIEWBOX}
+            role="group"
+            aria-label="Points on the complex plane"
           >
             {latticePoints(range).map((point) => {
               const { x, y } = pointPosition(point, range);
+              const choose = () => !locked && onAnswer({ re: point.re, im: point.im });
               return (
                 <circle
                   key={`${point.re},${point.im}`}
@@ -424,7 +434,18 @@ export function PlotSlide({ slide, feedback, answer, onAnswer, canEdit }: SlideP
                   cy={y}
                   r={11}
                   fill="transparent"
-                  onClick={() => !locked && onAnswer({ re: point.re, im: point.im })}
+                  role="button"
+                  tabIndex={locked ? -1 : 0}
+                  aria-label={`Point ${complexTex(point.re, point.im).replace(/-/g, '−')}`}
+                  aria-pressed={chosen?.re === point.re && chosen?.im === point.im}
+                  aria-disabled={locked || undefined}
+                  onClick={choose}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    // Space would otherwise scroll the question.
+                    event.preventDefault();
+                    choose();
+                  }}
                 />
               );
             })}

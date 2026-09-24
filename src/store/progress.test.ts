@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useProgress } from './progress';
 
 describe('progress store', () => {
@@ -78,8 +78,63 @@ describe('progress store', () => {
 
   it('reset clears all lesson records', () => {
     useProgress.getState().recordCompletion('lesson-a', { correct: 1, total: 1 });
+    useProgress.getState().recordAbandon('lesson-a');
     useProgress.getState().reset();
 
     expect(useProgress.getState().lessons).toEqual({});
+    expect(useProgress.getState().abandoned).toEqual({});
+  });
+
+  // Leaving a check before its summary is counted, and that is all it does:
+  // a lesson record is what marks a lesson finished and feeds mastery, so an
+  // abandoned run must neither create one nor touch one that exists.
+  it('counts an abandoned check without touching any lesson record', () => {
+    useProgress.getState().recordCompletion('lesson-a', { correct: 2, total: 3 });
+    const before = useProgress.getState().lessons['lesson-a'];
+
+    useProgress.getState().recordAbandon('lesson-a');
+    useProgress.getState().recordAbandon('lesson-a');
+    useProgress.getState().recordAbandon('df-l1:check');
+
+    const state = useProgress.getState();
+    expect(state.abandoned).toEqual({ 'lesson-a': 2, 'df-l1:check': 1 });
+    expect(state.lessons['lesson-a']).toBe(before);
+    expect(state.lessons['df-l1:check']).toBeUndefined();
+    expect(Object.keys(state.lessons)).toEqual(['lesson-a']);
+  });
+
+  // Progress saved on the phone before the count existed has no `abandoned`
+  // field at all. It must still load, keep every record, and count from zero.
+  // The store is imported afresh over a stand-in localStorage holding such a
+  // save, so this is the real persist config hydrating, not a copy of it.
+  it('loads progress saved before abandoned attempts were counted', async () => {
+    const record = { completedAt: 1, bestCorrect: 2, total: 3, timesPlayed: 4 };
+    const saved = new Map<string, string>([
+      ['maths-trainer:v1', JSON.stringify({ state: { lessons: { 'lesson-a': record } }, version: 0 })],
+    ]);
+    // zustand's default storage is `window.localStorage`, and the suite runs
+    // in node, where there is no window at all.
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => saved.get(key) ?? null,
+        setItem: (key: string, value: string) => void saved.set(key, value),
+        removeItem: (key: string) => void saved.delete(key),
+      },
+    });
+    vi.resetModules();
+    try {
+      const { useProgress: loaded } = await import('./progress');
+
+      expect(loaded.getState().lessons).toEqual({ 'lesson-a': record });
+      expect(loaded.getState().abandoned).toEqual({});
+
+      loaded.getState().recordAbandon('lesson-a');
+      expect(loaded.getState().abandoned).toEqual({ 'lesson-a': 1 });
+      expect(loaded.getState().lessons).toEqual({ 'lesson-a': record });
+      expect(JSON.parse(saved.get('maths-trainer:v1') ?? '{}').state.abandoned).toEqual({ 'lesson-a': 1 });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
   });
 });

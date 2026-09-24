@@ -16,7 +16,12 @@
  * is the normal approximation to the binomial: why a long binomial sum is
  * worth replacing and how the bars make a bell near p = 0.5, when np and
  * n(1 - p) are large enough, the matching N(np, np(1 - p)), the continuity
- * correction, and the whole route to a probability from quoted Phi.
+ * correction, and the whole route to a probability from quoted Phi. Level 5
+ * combines independent normals: aX + b, then X + Y and X - Y (means add or
+ * subtract, variances always add), aX + bY in general, a total of n copies
+ * against one copy multiplied by n, and a probability from the combination,
+ * P(X > Y) among them. Level 5 builds every combination from a Pythagorean
+ * triple, so its variance is a perfect square and sigma is whole.
  *
  * Nothing here is calculus, so no slide declares `source` or `integrand`;
  * `binomialNormal.test.ts` is the independent check.
@@ -4509,6 +4514,981 @@ const approxPlan: Generator<RouteParams> = {
   solution: routeSolution,
 };
 
+/* ================================================================
+ * Level 5: sums and differences of independent normals
+ * ================================================================ */
+
+/** Any letter's normal, `W \sim N(mu, sigma^2)`: the second number is always the variance. */
+const nOf = (name: string, mu: number, sigma: number): string => `${name} \\sim N(${fmt(mu)}, ${fmt(sigma * sigma)})`;
+
+/**
+ * Pythagorean triples (p, q, s). A combination aX + bY with a sigma_X = p and
+ * |b| sigma_Y = q has variance p^2 + q^2 = s^2, so its standard deviation s
+ * is whole. Every level 5 draw is built from one, and refused unless the
+ * variance really is a square.
+ */
+const TRIPLES: [number, number, number][] = [
+  [3, 4, 5],
+  [6, 8, 10],
+  [5, 12, 13],
+  [9, 12, 15],
+  [8, 15, 17],
+  [12, 16, 20],
+  [15, 20, 25],
+  [7, 24, 25],
+  [10, 24, 26],
+  [20, 21, 29],
+  [16, 30, 34],
+  [30, 40, 50],
+  [14, 48, 50],
+];
+
+/** The triples whose s divides 100, so every whole distance from the mean has a z of at most two places. */
+const ROUND_TRIPLES = TRIPLES.filter(([, , s]) => 100 % s === 0);
+
+/** The triples small enough for a context's means to sit well clear of zero. */
+const SMALL_TRIPLES = TRIPLES.filter(([, , s]) => s <= 25);
+
+/** A combination aX + bY + c of independent X ~ N(mx, sx^2) and Y ~ N(my, sy^2); b = 0 for one variable. */
+interface Combo {
+  a: number;
+  b: number;
+  c: number;
+  mx: number;
+  sx: number;
+  my: number;
+  sy: number;
+}
+
+const comboMean = (p: Combo): number => p.a * p.mx + p.b * p.my + p.c;
+const comboVar = (p: Combo): number => p.a * p.a * p.sx * p.sx + p.b * p.b * p.sy * p.sy;
+const isSquare = (value: number): boolean => Number.isInteger(Math.sqrt(value));
+/** Whole by construction: a draw whose variance is not a square is refused. */
+const comboSd = (p: Combo): number => Math.round(Math.sqrt(comboVar(p)));
+
+/** aX + bY + c as the learner reads it: `2X - 3Y + 5`, `X + Y`, `-2X + 400`. */
+function comboTex({ a, b, c }: Pick<Combo, 'a' | 'b' | 'c'>): string {
+  const term = (k: number, v: string): string => (Math.abs(k) === 1 ? v : `${Math.abs(k)}${v}`);
+  let out = `${a < 0 ? '-' : ''}${term(a, 'X')}`;
+  if (b !== 0) out += ` ${b < 0 ? '-' : '+'} ${term(b, 'Y')}`;
+  if (c !== 0) out += ` ${c < 0 ? '-' : '+'} ${Math.abs(c)}`;
+  return out;
+}
+
+/** A coefficient times a number, as a term of a sum: `3 \times 40`, `- 40`. */
+function termTex(k: number, v: number, first: boolean): string {
+  const size = Math.abs(k) === 1 ? fmt(v) : `${Math.abs(k)} \\times ${fmt(v)}`;
+  if (first) return k < 0 ? `-${size}` : size;
+  return `${k < 0 ? '-' : '+'} ${size}`;
+}
+
+/** A coefficient squared, bracketed when negative. */
+const sqTex = (k: number): string => (k < 0 ? `(${k})^2` : `${k}^2`);
+
+function meanLines(p: Combo, name: string): string[] {
+  // The first term on its own line and the rest under it, so the sum never runs off a phone.
+  const rest: string[] = [];
+  if (p.b !== 0) rest.push(termTex(p.b, p.my, false));
+  if (p.c !== 0) rest.push(`${p.c < 0 ? '-' : '+'} ${Math.abs(p.c)}`);
+  const first = `\\mathrm{E}(${name}) &= ${termTex(p.a, p.mx, true)}`;
+  return [...(rest.length ? [first, `&\\quad ${rest.join(' ')}`] : [first]), `&= ${fmt(comboMean(p))}`];
+}
+
+function varLines(p: Combo, name: string): string[] {
+  const lines = [`\\mathrm{Var}(${name}) &= ${sqTex(p.a)} \\times ${p.sx * p.sx}`];
+  if (p.b !== 0) lines.push(`&\\; + ${sqTex(p.b)} \\times ${p.sy * p.sy}`);
+  return [...lines, `&= ${comboVar(p)}`, `\\sigma_{${name}} &= \\sqrt{${comboVar(p)}}`, `&= ${comboSd(p)}`];
+}
+
+function comboSolution(p: Combo, name = 'W'): SolutionStep[] {
+  return [
+    {
+      text: `The mean follows the combination. Each variance is multiplied by its coefficient **squared**, and they add even where the coefficient is negative; a constant moves the mean and leaves the spread alone.`,
+    },
+    { tex: aligned(...meanLines(p, name)) },
+    { tex: aligned(...varLines(p, name)) },
+  ];
+}
+
+type Ask = 'mean' | 'var' | 'sd';
+
+const WANTED: Record<Ask, (name: string) => string> = {
+  mean: (name) => `the mean of $${name}$`,
+  var: (name) => `the variance of $${name}$`,
+  sd: (name) => `the standard deviation of $${name}$`,
+};
+
+const LEAD: Record<Ask, (name: string) => string> = {
+  mean: (name) => `\\mathrm{E}(${name}) =`,
+  var: (name) => `\\mathrm{Var}(${name}) =`,
+  sd: (name) => `\\sigma_{${name}} =`,
+};
+
+const askValue = (p: Combo, ask: Ask): number => (ask === 'mean' ? comboMean(p) : ask === 'var' ? comboVar(p) : comboSd(p));
+
+/* ---------- Level 5, lesson 1: aX + b ---------- */
+
+interface LinearParams extends Combo {
+  setting: number;
+  words: boolean;
+  ask: Ask;
+}
+
+/**
+ * Settings where one measurement is scaled and shifted. The rule is written
+ * as `W = aX + b` inside the sentence, never as a count of separate items:
+ * "3 apples" would be a total of three copies, which is lesson 4's point.
+ */
+const LINEAR_SETTINGS: { as: number[]; c: (rng: Rng, a: number, mx: number, sx: number) => number; text: (w: string) => string }[] = [
+  {
+    as: [2, 3],
+    c: (rng) => rng.int(2, 6),
+    text: (w) => `A taxi ride is $X$ km long, and the fare in pounds is a fixed charge plus a rate per km, $${w}$`,
+  },
+  {
+    as: [20, 30, 40, 50],
+    c: (rng) => 5 * rng.int(4, 12),
+    text: (w) => `A plumber spends $X$ hours on a job and charges a call-out fee plus an hourly rate, so the bill in pounds is $${w}$`,
+  },
+  {
+    as: [2, 3, 5],
+    c: (rng, a, mx) => -5 * rng.int(1, Math.floor((a * mx) / 10)),
+    text: (w) => `A club sells $X$ raffle tickets at a fixed price, having already paid for the prizes, so its profit in pounds is $${w}$`,
+  },
+  {
+    as: [-2, -5, -10],
+    c: (rng, a, mx, sx) => 10 * Math.ceil((Math.abs(a) * (mx + 4 * sx)) / 10) + 10 * rng.int(0, 10),
+    text: (w) => `A full tank has $X$ buckets of water drawn off, all the same size, so the number of litres left is $${w}$`,
+  },
+  {
+    as: [-2, -3, -4],
+    c: (rng, a, mx, sx) => 10 * Math.ceil((Math.abs(a) * (mx + 4 * sx)) / 10) + 10 * rng.int(0, 5),
+    text: (w) => `A quiz starts each player on a fixed score and takes points off for each of their $X$ wrong answers, so the final score is $${w}$`,
+  },
+];
+
+const LINEAR_SIGMAS = [2, 3, 4, 5, 6, 8, 10];
+
+function sampleLinear(rng: Rng, difficulty: number): LinearParams {
+  const sx = rng.pick(LINEAR_SIGMAS);
+  const mx = drawMu(rng, sx);
+  const base = { b: 0, my: 0, sy: 0, mx, sx };
+  if (difficulty > 1) {
+    const setting = rng.int(0, LINEAR_SETTINGS.length - 1);
+    const { as, c } = LINEAR_SETTINGS[setting];
+    const a = rng.pick(as);
+    return { ...base, a, c: c(rng, a, mx, sx), setting, words: true, ask: rng.pick<Ask>(['var', 'sd']) };
+  }
+  const a = rng.pick([2, 3, 4, 5]);
+  const c = rng.chance(0.5) ? rng.int(1, 30) : -rng.int(1, Math.min(30, a * mx - 1));
+  return { ...base, a, c, setting: 0, words: false, ask: rng.pick<Ask>(['mean', 'var']) };
+}
+
+const linearW = (p: Combo): string => `W = ${comboTex(p)}`;
+
+function linearOpening(p: LinearParams): string {
+  const x = `$X \\sim N(${p.mx}, ${p.sx * p.sx})$`;
+  return p.words ? `${LINEAR_SETTINGS[p.setting].text(linearW(p))}, where ${x}.` : `${x} and $${linearW(p)}$.`;
+}
+
+function linearSolution(p: LinearParams): SolutionStep[] {
+  return [
+    { text: `Multiplying by $${p.a}$ multiplies the mean by $${p.a}$ and the variance by $${sqTex(p.a)} = ${p.a * p.a}$, so $\\sigma$ is multiplied by $${Math.abs(p.a)}$. Adding $${p.c}$ moves the mean and leaves the spread alone.` },
+    { tex: aligned(...meanLines(p, 'W')) },
+    { tex: aligned(...varLines(p, 'W')) },
+  ];
+}
+
+const linMoment: Generator<LinearParams> = {
+  id: 'dist-lin-moment',
+  sample: sampleLinear,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${linearOpening(p)} Find ${WANTED[p.ask]('W')}.`)],
+    lead: LEAD[p.ask]('W'),
+    keypad: [],
+    answer: fmt(askValue(p, p.ask)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: linearSolution,
+  choices: (p) => {
+    const { a, c, mx, sx } = p;
+    const v = sx * sx;
+    const slips: Record<Ask, number[]> = {
+      mean: [a * mx, mx + c, a * (mx + c)],
+      var: [Math.abs(a) * v, a * a * v + Math.abs(c), v, a * a * sx],
+      sd: [a * a * sx, sx, Math.abs(a) * v],
+    };
+    return decimalChoices(askValue(p, p.ask), slips[p.ask], p.ask !== 'mean');
+  },
+};
+
+const linNormal: Generator<LinearParams> = {
+  id: 'dist-lin-normal',
+  sample: sampleLinear,
+  render: (p): Slide => {
+    const e = fmt(comboMean(p));
+    const v = comboVar(p);
+    return choiceSlide(
+      [say(`${linearOpening(p)} Which distribution does $W$ have?`)],
+      options(
+        { tex: `W \\sim N(${e}, ${v})` },
+        { tex: `W \\sim N(${e}, ${Math.abs(p.a) * p.sx * p.sx})` },
+        { tex: `W \\sim N(${e}, ${comboSd(p)})` },
+        { tex: `W \\sim N(${fmt(p.a * p.mx)}, ${v})` },
+        { tex: `W \\sim N(${e}, ${v + Math.abs(p.c)})` },
+      ).slice(0, 4),
+    );
+  },
+  solution: linearSolution,
+};
+
+const linSpreadTree: Generator<LinearParams> = {
+  id: 'dist-lin-spread-tree',
+  sample: sampleLinear,
+  render: (p): Slide => {
+    const { a, sx } = p;
+    const v = sx * sx;
+    const answer = [fmt(a * a), fmt(a * a * v), fmt(Math.abs(a) * sx)];
+    return {
+      kind: 'tree',
+      prompt: [say(`${linearOpening(p)} From the top: the factor the variance is multiplied by, then $\\mathrm{Var}(W)$, then the standard deviation of $W$.`)],
+      expression: '\\mathrm{Var}(W) = a^2\\,\\mathrm{Var}(X)',
+      nodes: [
+        { id: 'factor', from: [] },
+        { id: 'var', from: ['factor'] },
+        { id: 'sd', from: ['var'] },
+      ],
+      bank: decimalBank(answer, [a, a * v, a * a * sx, sx, -Math.abs(a) * sx, Math.abs(a) * v], 3, false),
+      answer,
+    };
+  },
+  solution: linearSolution,
+};
+
+const linEffectFlow: Generator<LinearParams> = {
+  id: 'dist-lin-effect-flow',
+  sample: sampleLinear,
+  render: (p): Slide => {
+    const { a, c, mx, sx } = p;
+    const v = sx * sx;
+    const cTex = `${c < 0 ? '-' : '+'} ${Math.abs(c)}`;
+    const key = `${a}|${c}|${mx}|${sx}|${p.words}|${p.setting}`;
+    const mean = [`$${a} \\times ${mx} ${cTex} = ${comboMean(p)}$`, `$${a} \\times ${mx} = ${a * mx}$`, `$${mx} ${cTex} = ${mx + c}$`];
+    const variance = [`$${sqTex(a)} \\times ${v} = ${a * a * v}$`, `$${a} \\times ${v} = ${a * v}$`, `$${sqTex(a)} \\times ${v} ${cTex} = ${a * a * v + c}$`];
+    const sd =
+      a < 0
+        ? [`$${Math.abs(a)} \\times ${sx} = ${Math.abs(a) * sx}$`, `$${a} \\times ${sx} = ${a * sx}$`, `$${sqTex(a)} \\times ${sx} = ${a * a * sx}$`]
+        : [`$${a} \\times ${sx} = ${a * sx}$`, `$${sx}$, unchanged`, `$${sqTex(a)} \\times ${sx} = ${a * a * sx}$`];
+    return {
+      kind: 'flow',
+      prompt: [say(`${linearOpening(p)} Work out the distribution of $W$ one step at a time.`)],
+      subject: linearW(p),
+      steps: [
+        { id: 'mean', ask: 'What is the mean of $W$?', branches: turned(mean.map((label) => ({ label, to: 'var' })), `${key}m`) },
+        { id: 'var', ask: 'What is its variance?', branches: turned(variance.map((label) => ({ label, to: 'sd' })), `${key}v`) },
+        {
+          id: 'sd',
+          ask: 'So what is its standard deviation?',
+          branches: turned(sd.map((label) => ({ label, outcome: `So the standard deviation of $W$ is ${label}.` })), `${key}s`),
+        },
+      ],
+      answer: [mean[0], variance[0], sd[0]],
+    };
+  },
+  solution: linearSolution,
+};
+
+/* ---------- Level 5, lesson 2: X + Y and X - Y ---------- */
+
+/**
+ * Two independent measurements. `bx` and `by` are where their means sit, far
+ * enough above 4 sigma for any triple with s up to 25.
+ */
+const PAIR_SETTINGS: { lead: string; bx: number; by: number; more: string; less: string }[] = [
+  { lead: "An apple's mass $X$ and an orange's mass $Y$, in grams,", bx: 160, by: 190, more: 'the apple is heavier than the orange', less: 'the apple is lighter than the orange' },
+  { lead: 'The time $X$ to walk to a bus stop and the time $Y$ spent on the bus, in seconds,', bx: 600, by: 640, more: 'the walk takes longer than the bus ride', less: 'the walk takes less time than the bus ride' },
+  { lead: "A man's height $X$ and a woman's height $Y$, in mm,", bx: 1760, by: 1690, more: 'the man is taller than the woman', less: 'the man is shorter than the woman' },
+  { lead: 'The length $X$ of a rod cut by machine A and the length $Y$ of a rod cut by machine B, in mm,', bx: 800, by: 780, more: 'the rod from A is the longer', less: 'the rod from A is the shorter' },
+  { lead: 'The mass $X$ of an empty jar and the mass $Y$ of the jam put in it, in grams,', bx: 300, by: 340, more: 'the jar weighs more than the jam', less: 'the jar weighs less than the jam' },
+  { lead: 'The lifetime $X$ of a brand A battery and the lifetime $Y$ of a brand B battery, in hours,', bx: 400, by: 380, more: 'the brand A battery lasts longer', less: 'the brand B battery lasts longer' },
+];
+
+interface PairParams extends Combo {
+  setting: number;
+  words: boolean;
+  ask: Ask;
+}
+
+/** sigma_X and sigma_Y from a triple, either way round. */
+function tripleSigmas(rng: Rng, triples: [number, number, number][]): [number, number] {
+  const [p, q] = rng.pick(triples);
+  return rng.chance(0.5) ? [p, q] : [q, p];
+}
+
+function samplePair(rng: Rng, difficulty: number): PairParams {
+  const [sx, sy] = tripleSigmas(rng, SMALL_TRIPLES);
+  const words = difficulty > 1;
+  const setting = rng.int(0, PAIR_SETTINGS.length - 1);
+  const { bx, by } = PAIR_SETTINGS[setting];
+  const mx = words ? bx + rng.int(-20, 20) : drawMu(rng, sx);
+  const my = words ? by + rng.int(-20, 20) : drawMu(rng, sy);
+  const b = rng.pick([1, -1]);
+  return { a: 1, b, c: 0, mx, sx, my, sy, setting: words ? setting : 0, words, ask: rng.pick<Ask>(words ? ['var', 'sd'] : ['mean', 'var']) };
+}
+
+function pairOpening(p: { mx: number; sx: number; my: number; sy: number; setting: number; words: boolean }): string {
+  const dists = `$${nOf('X', p.mx, p.sx)}$ and $${nOf('Y', p.my, p.sy)}$`;
+  return p.words ? `${PAIR_SETTINGS[p.setting].lead} are independent, with ${dists}.` : `${dists} are independent.`;
+}
+
+function pairSolution(p: PairParams): SolutionStep[] {
+  return [
+    {
+      text:
+        p.b < 0
+          ? 'The means subtract, but the variances **add**: taking $Y$ away adds its uncertainty to that of $X$, it does not cancel it.'
+          : 'For independent $X$ and $Y$, the means add and the variances add.',
+    },
+    { tex: aligned(...meanLines(p, 'W')) },
+    { tex: aligned(...varLines(p, 'W')) },
+  ];
+}
+
+const sumMoment: Generator<PairParams> = {
+  id: 'dist-sum-moment',
+  sample: samplePair,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${pairOpening(p)} $${linearW(p)}$. Find ${WANTED[p.ask]('W')}.`)],
+    lead: LEAD[p.ask]('W'),
+    keypad: [],
+    answer: fmt(askValue(p, p.ask)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: pairSolution,
+  choices: (p) => {
+    const { b, mx, sx, my, sy } = p;
+    const slips: Record<Ask, number[]> = {
+      mean: [mx - b * my, my - mx, mx],
+      var: [Math.abs(sx * sx - sy * sy), sx + sy, (sx + sy) ** 2, sx * sx],
+      sd: [sx + sy, Math.abs(sx - sy), comboVar(p)],
+    };
+    return decimalChoices(askValue(p, p.ask), slips[p.ask], p.ask !== 'mean');
+  },
+};
+
+const sumNormal: Generator<PairParams> = {
+  id: 'dist-sum-normal',
+  sample: samplePair,
+  render: (p): Slide => {
+    const { b, mx, sx, my, sy } = p;
+    const e = fmt(comboMean(p));
+    const v = comboVar(p);
+    return choiceSlide(
+      [say(`${pairOpening(p)} Which distribution does $${linearW(p)}$ have?`)],
+      options(
+        { tex: `W \\sim N(${e}, ${v})` },
+        { tex: `W \\sim N(${e}, ${Math.abs(sx * sx - sy * sy)})` },
+        { tex: `W \\sim N(${e}, ${sx + sy})` },
+        { tex: b < 0 ? `W \\sim N(${fmt(mx + my)}, ${v})` : `W \\sim N(${e}, ${(sx + sy) ** 2})` },
+        { tex: `W \\sim N(${e}, ${comboSd(p)})` },
+      ).slice(0, 4),
+    );
+  },
+  solution: pairSolution,
+};
+
+const sumVarTiles: Generator<PairParams> = {
+  id: 'dist-sum-var-tiles',
+  sample: samplePair,
+  render: (p): Slide => {
+    const { sx, sy } = p;
+    const vx = sx * sx;
+    const vy = sy * sy;
+    const answer = [String(vx), '+', String(vy), String(vx + vy), String(comboSd(p))];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${pairOpening(p)} $${linearW(p)}$. Build $\\mathrm{Var}(W)$ from $\\mathrm{Var}(X)$ and $\\mathrm{Var}(Y)$, in that order, then its standard deviation.`)],
+      template: '\\mathrm{Var}(W) = {0} {1} {2} = {3}, \\quad \\sigma_W = {4}',
+      bank: tokenBank(answer, ['-', String(Math.abs(vx - vy)), String(sx + sy), String(Math.abs(sx - sy)), String((sx + sy) ** 2)], 4),
+      answer,
+    };
+  },
+  solution: pairSolution,
+};
+
+const sumTable: Generator<PairParams> = {
+  id: 'dist-sum-table',
+  sample: samplePair,
+  render: (p): Slide => {
+    const { mx, sx, my, sy } = p;
+    const v = sx * sx + sy * sy;
+    const hard = p.words;
+    const rows: (string | null)[][] = [
+      ['X + Y', null, null],
+      ['X - Y', null, null],
+      ...(hard ? [['Y - X', null, null]] : []),
+    ];
+    const answer = [fmt(mx + my), fmt(v), fmt(mx - my), fmt(v), ...(hard ? [fmt(my - mx), fmt(v)] : [])];
+    return {
+      kind: 'table',
+      prompt: [say(`${pairOpening(p)} Fill in the mean and the variance of each combination.`)],
+      columns: ['', '\\mathrm{E}', '\\mathrm{Var}'],
+      rows,
+      bank: decimalBank(answer, [hard ? mx : my - mx, Math.abs(sx * sx - sy * sy), sx + sy, comboSd({ ...p, b: 1 }), (sx + sy) ** 2], 3, false),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const plus = { ...p, b: 1 };
+    const minus = { ...p, b: -1 };
+    return [
+      { text: 'The means add or subtract with the variables. The variances add every time, whichever way round the difference is taken.' },
+      { tex: aligned(...meanLines(plus, 'X + Y')) },
+      { tex: aligned(...meanLines(minus, 'X - Y')) },
+      { tex: aligned(`\\mathrm{Var}(X \\pm Y) &= ${p.sx * p.sx} + ${p.sy * p.sy}`, `&= ${comboVar(plus)}`) },
+    ];
+  },
+};
+
+/* ---------- Level 5, lesson 3: aX + bY ---------- */
+
+interface ComboParams extends Combo {
+  ask: Ask;
+}
+
+/**
+ * aX + bY + c from a triple: a sigma_X and |b| sigma_Y are the triple's legs,
+ * so the variance is its hypotenuse squared. Any coefficient that would leave
+ * a sigma below 2 is refused and drawn again.
+ */
+function drawCombo(rng: Rng, triples: [number, number, number][], as: number[], bs: number[], c: () => number): Combo {
+  for (;;) {
+    const [p, q] = tripleSigmas(rng, triples);
+    const a = rng.pick(as);
+    const b = rng.pick(bs);
+    if (p % Math.abs(a) !== 0 || q % Math.abs(b) !== 0) continue;
+    const sx = p / Math.abs(a);
+    const sy = q / Math.abs(b);
+    if (sx < 2 || sy < 2) continue;
+    const combo = { a, b, c: c(), mx: drawMu(rng, sx), sx, my: drawMu(rng, sy), sy };
+    if (isSquare(comboVar(combo))) return combo;
+  }
+}
+
+function sampleCombo(rng: Rng, difficulty: number): ComboParams {
+  const hard = difficulty > 1;
+  const combo = drawCombo(rng, TRIPLES, [1, 2, 3, 4], hard ? [-4, -3, -2, 2, 3, 4] : [2, 3, 4], () =>
+    hard && rng.chance(0.6) ? rng.sign() * rng.int(1, 50) : 0,
+  );
+  return { ...combo, ask: rng.pick<Ask>(hard ? ['var', 'sd'] : ['mean', 'var']) };
+}
+
+const comboOpening = (p: Combo): string => `$${nOf('X', p.mx, p.sx)}$ and $${nOf('Y', p.my, p.sy)}$ are independent, and $${linearW(p)}$.`;
+
+const comboMoment: Generator<ComboParams> = {
+  id: 'dist-combo-moment',
+  sample: sampleCombo,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${comboOpening(p)} Find ${WANTED[p.ask]('W')}.`)],
+    lead: LEAD[p.ask]('W'),
+    keypad: [],
+    answer: fmt(askValue(p, p.ask)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (p) => comboSolution(p),
+  choices: (p) => {
+    const { a, b, c, mx, sx, my, sy } = p;
+    const vx = sx * sx;
+    const vy = sy * sy;
+    const slips: Record<Ask, number[]> = {
+      mean: [a * mx + b * my, a * mx - b * my + c, mx + my + c],
+      var: [Math.abs(a * vx + b * vy), Math.abs(a * a * vx - b * b * vy), vx + vy, a * a * vx],
+      sd: [Math.abs(a) * sx + Math.abs(b) * sy, Math.abs(a * sx + b * sy), comboVar(p)],
+    };
+    return decimalChoices(askValue(p, p.ask), slips[p.ask], p.ask !== 'mean');
+  },
+};
+
+const comboNormal: Generator<ComboParams> = {
+  id: 'dist-combo-normal',
+  sample: sampleCombo,
+  render: (p): Slide => {
+    const { a, b, mx, sx, my, sy } = p;
+    const e = fmt(comboMean(p));
+    const v = comboVar(p);
+    const vx = sx * sx;
+    const vy = sy * sy;
+    return choiceSlide(
+      [say(`${comboOpening(p)} Which distribution does $W$ have?`)],
+      options(
+        { tex: `W \\sim N(${e}, ${v})` },
+        { tex: `W \\sim N(${e}, ${Math.abs(a * vx + b * vy)})` },
+        { tex: `W \\sim N(${e}, ${comboSd(p)})` },
+        { tex: `W \\sim N(${e}, ${Math.abs(a * a * vx - b * b * vy)})` },
+        { tex: `W \\sim N(${fmt(a * mx - b * my + p.c)}, ${v})` },
+        { tex: `W \\sim N(${e}, ${a * vx + Math.abs(b) * vy + 1})` },
+      ).slice(0, 4),
+    );
+  },
+  solution: (p) => comboSolution(p),
+};
+
+const comboVarSteps: Generator<ComboParams> = {
+  id: 'dist-combo-var-steps',
+  sample: sampleCombo,
+  render: (p): Slide => {
+    const { a, b, sx, sy } = p;
+    const vx = sx * sx;
+    const vy = sy * sy;
+    const first = a * a * vx;
+    const second = b * b * vy;
+    const total = first + second;
+    return {
+      kind: 'steps',
+      prompt: [say(`${comboOpening(p)} Work out $\\mathrm{Var}(W)$. Tap the part to do next, then choose what it comes to.`)],
+      start: [sqTex(a), '\\times', String(vx), '+', sqTex(b), '\\times', String(vy)],
+      reductions: [
+        { span: [0, 3], operator: 1, value: String(first), bank: stepBank(String(first), String(Math.abs(a) * vx), String(a * a + vx), String(2 * Math.abs(a) * vx + 1)) },
+        { span: [2, 5], operator: 3, value: String(second), bank: stepBank(String(second), String(b * vy), String(b * b + vy), String(-second)) },
+        { span: [0, 3], operator: 1, value: String(total), bank: stepBank(String(total), String(Math.abs(first - second)), String(total + 1), String(comboSd(p))) },
+      ],
+    };
+  },
+  solution: (p) => comboSolution(p),
+};
+
+const comboBuild: Generator<ComboParams> = {
+  id: 'dist-combo-build',
+  sample: sampleCombo,
+  render: (p): Slide => {
+    const { a, b, mx, sx, my, sy } = p;
+    const answer = [fmt(comboMean(p)), String(comboVar(p)), String(comboSd(p))];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${comboOpening(p)} Build the distribution of $W$, and its standard deviation.`)],
+      template: 'W \\sim N({0}, {1}), \\quad \\sigma_W = {2}',
+      bank: tokenBank(
+        answer,
+        [
+          fmt(a * mx - b * my + p.c),
+          String(Math.abs(a * sx * sx + b * sy * sy)),
+          String(Math.abs(a) * sx + Math.abs(b) * sy),
+          String(Math.abs(a * a * sx * sx - b * b * sy * sy)),
+          fmt(comboMean(p) + 10),
+        ],
+        3,
+      ),
+      answer,
+    };
+  },
+  solution: (p) => comboSolution(p),
+};
+
+/* ---------- Level 5, lesson 4: a total of n copies ---------- */
+
+/** Counts whose total has variance n sigma^2 a perfect square, so its sigma is whole. */
+const SQUARE_COUNTS = [4, 9, 16, 25];
+
+const TOTAL_SIGMAS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+
+/** Separate items added up. None of these says "once"; every scaled setting does, which the test leans on. */
+const COPY_SETTINGS: { base: number; text: (n: number, name: string) => string }[] = [
+  { base: 1000, text: (n, name) => `A bag of flour has mass $X$ grams. A box holds ${n} bags, and $${name}$ is their total mass.` },
+  { base: 500, text: (n, name) => `A rod is $X$ mm long. ${n} rods are laid end to end, and $${name}$ is the length of the row.` },
+  { base: 210, text: (n, name) => `A song on a playlist lasts $X$ seconds. $${name}$ is the time ${n} different songs take, played one after another.` },
+  { base: 80, text: (n, name) => `A passenger has mass $X$ kg. $${name}$ is the total mass of ${n} passengers in a lift.` },
+  { base: 180, text: (n, name) => `A cashier takes $X$ seconds to serve a customer. $${name}$ is the time taken to serve ${n} customers.` },
+];
+
+/** One measurement multiplied up. */
+const SCALED_SETTINGS: { base: number; text: (n: number, name: string) => string }[] = [
+  { base: 300, text: (n, name) => `A length on a plan is measured once, at $X$ mm, and multiplied by ${n} to give the real length $${name}$.` },
+  { base: 120, text: (n, name) => `A parcel is weighed once, at $X$ grams, and the postage in pence is $${name}$, ${n} times that reading.` },
+  { base: 40, text: (n, name) => `A cook weighs one spoonful of spice once, at $X$ grams, and a large batch uses ${n} times that mass, $${name}$.` },
+];
+
+interface TotalParams {
+  n: number;
+  mx: number;
+  sx: number;
+  scaled: boolean;
+  setting: number;
+  words: boolean;
+  ask: Ask;
+}
+
+function sampleTotal(rng: Rng, difficulty: number, words = difficulty > 1): TotalParams {
+  const hard = difficulty > 1;
+  const sx = rng.pick(TOTAL_SIGMAS);
+  const n = rng.pick(hard ? SQUARE_COUNTS : SQUARE_COUNTS.slice(0, 2));
+  const scaled = hard && rng.chance(0.5);
+  const settings = scaled ? SCALED_SETTINGS : COPY_SETTINGS;
+  const setting = rng.int(0, settings.length - 1);
+  const mx = words ? Math.max(settings[setting].base, 5 * sx) + rng.int(-20, 20) : drawMu(rng, sx);
+  return { n, mx, sx, scaled, setting, words, ask: rng.pick<Ask>(hard ? ['var', 'sd'] : ['mean', 'var']) };
+}
+
+const totalName = (p: TotalParams): string => (p.scaled ? 'S' : 'T');
+
+const totalTex = (p: TotalParams): string => (p.scaled ? `S = ${p.n}X` : `T = X_1 + X_2 + \\dots + X_{${p.n}}`);
+
+/** Its combination with every copy's coefficient: 1 each for a total, n on one copy for a scaled value. */
+const totalMean = (p: TotalParams): number => p.n * p.mx;
+const totalVar = (p: TotalParams): number => (p.scaled ? p.n * p.n : p.n) * p.sx * p.sx;
+const totalSd = (p: TotalParams): number => (p.scaled ? p.n : Math.sqrt(p.n)) * p.sx;
+const totalValue = (p: TotalParams, ask: Ask): number => (ask === 'mean' ? totalMean(p) : ask === 'var' ? totalVar(p) : totalSd(p));
+
+function totalOpening(p: TotalParams): string {
+  const settings = p.scaled ? SCALED_SETTINGS : COPY_SETTINGS;
+  const defn = p.scaled
+    ? `$${totalTex(p)}$, where $X \\sim N(${p.mx}, ${p.sx * p.sx})$.`
+    : `$${totalTex(p)}$, where the $X_i$ are independent and each is $N(${p.mx}, ${p.sx * p.sx})$.`;
+  return p.words ? `${settings[p.setting].text(p.n, totalName(p))} So ${defn}` : defn;
+}
+
+function totalSolution(p: TotalParams): SolutionStep[] {
+  const { n, mx, sx } = p;
+  const v = sx * sx;
+  const name = totalName(p);
+  return p.scaled
+    ? [
+        { text: `$${name} = ${n}X$ is one value multiplied by $${n}$: every error in it is multiplied by $${n}$ too, so the variance is multiplied by $${n}^2$.` },
+        { tex: aligned(`\\mathrm{E}(${name}) &= ${n} \\times ${mx}`, `&= ${n * mx}`, `\\mathrm{Var}(${name}) &= ${n}^2 \\times ${v}`, `&= ${n * n * v}`, `\\sigma_{${name}} &= ${n} \\times ${sx}`, `&= ${n * sx}`) },
+      ]
+    : [
+        { text: `$${name}$ adds $${n}$ separate values. Their errors partly cancel, so the variances simply add: $${n}$ lots of $${v}$, not $${n}^2$.` },
+        { tex: aligned(`\\mathrm{E}(${name}) &= ${n} \\times ${mx}`, `&= ${n * mx}`, `\\mathrm{Var}(${name}) &= ${n} \\times ${v}`, `&= ${n * v}`, `\\sigma_{${name}} &= \\sqrt{${n * v}}`, `&= ${totalSd(p)}`) },
+      ];
+}
+
+const totalMoment: Generator<TotalParams> = {
+  id: 'dist-total-moment',
+  sample: (rng, difficulty) => sampleTotal(rng, difficulty),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${totalOpening(p)} Find ${WANTED[p.ask](totalName(p))}.`)],
+    lead: LEAD[p.ask](totalName(p)),
+    keypad: [],
+    answer: fmt(totalValue(p, p.ask)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: totalSolution,
+  choices: (p) => {
+    const { n, mx, sx } = p;
+    const v = sx * sx;
+    const slips: Record<Ask, number[]> = {
+      mean: [mx, n * n * mx, n + mx],
+      var: [p.scaled ? n * v : n * n * v, v, n * sx],
+      sd: [p.scaled ? Math.sqrt(n) * sx : n * sx, sx, n * v],
+    };
+    return decimalChoices(totalValue(p, p.ask), slips[p.ask]);
+  },
+};
+
+const totalNormal: Generator<TotalParams> = {
+  id: 'dist-total-normal',
+  sample: (rng, difficulty) => sampleTotal(rng, difficulty),
+  render: (p): Slide => {
+    const { n, mx, sx } = p;
+    const v = sx * sx;
+    const name = totalName(p);
+    const e = totalMean(p);
+    return choiceSlide(
+      [say(`${totalOpening(p)} Which distribution does $${name}$ have?`)],
+      options(
+        { tex: `${name} \\sim N(${e}, ${totalVar(p)})` },
+        { tex: `${name} \\sim N(${e}, ${p.scaled ? n * v : n * n * v})` },
+        { tex: `${name} \\sim N(${e}, ${v})` },
+        { tex: `${name} \\sim N(${mx}, ${totalVar(p)})` },
+        { tex: `${name} \\sim N(${e}, ${n * sx})` },
+      ).slice(0, 4),
+    );
+  },
+  solution: totalSolution,
+};
+
+const totalTable: Generator<TotalParams> = {
+  id: 'dist-total-table',
+  sample: (rng, difficulty) => sampleTotal(rng, difficulty, false),
+  render: (p): Slide => {
+    const { n, mx, sx } = p;
+    const v = sx * sx;
+    const copies = { ...p, scaled: false };
+    const scaled = { ...p, scaled: true };
+    const answer = [fmt(totalVar(copies)), fmt(totalSd(copies)), fmt(totalVar(scaled)), fmt(totalSd(scaled))];
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `$X \\sim N(${mx}, ${v})$. $${totalTex(copies)}$ adds ${n} independent copies of $X$, and $${totalTex(scaled)}$ is one copy multiplied by ${n}. Fill in the variance and the standard deviation of each.`,
+        ),
+      ],
+      columns: ['', '\\mathrm{Var}', '\\sigma'],
+      rows: [
+        ['T', null, null],
+        ['S', null, null],
+      ],
+      bank: decimalBank(answer, [v, n * n * sx, sx, n + sx, 2 * n * v], 3),
+      answer,
+    };
+  },
+  solution: (p) => [...totalSolution({ ...p, scaled: false }), ...totalSolution({ ...p, scaled: true })],
+};
+
+const totalFlow: Generator<TotalParams> = {
+  id: 'dist-total-flow',
+  sample: (rng, difficulty) => {
+    const params = sampleTotal(rng, difficulty, true);
+    // Both kinds at both difficulties: which kind it is, is the question.
+    const scaled = rng.chance(0.5);
+    const settings = scaled ? SCALED_SETTINGS : COPY_SETTINGS;
+    const setting = rng.int(0, settings.length - 1);
+    return { ...params, scaled, setting, mx: Math.max(settings[setting].base, 5 * params.sx) + rng.int(-20, 20) };
+  },
+  render: (p): Slide => {
+    const { n, mx, sx } = p;
+    const v = sx * sx;
+    const settings = p.scaled ? SCALED_SETTINGS : COPY_SETTINGS;
+    const name = 'W';
+    const key = `${n}|${mx}|${sx}|${p.scaled}|${p.setting}|${p.ask}`;
+    const kinds = [`$X_1 + X_2 + \\dots + X_{${n}}$, separate values`, `$${n}X$, one value scaled`];
+    const vars = [`$${n} \\times ${v} = ${n * v}$`, `$${n}^2 \\times ${v} = ${n * n * v}$`, `$${v}$, unchanged`];
+    const sds = [`$\\sqrt{${n * v}} = ${Math.sqrt(n) * sx}$`, `$${n} \\times ${sx} = ${n * sx}$`, `$${sx}$, unchanged`];
+    const withSd = p.ask === 'sd';
+    return {
+      kind: 'flow',
+      prompt: [say(`${settings[p.setting].text(n, name)} Here $X \\sim N(${mx}, ${v})$.`)],
+      subject: name,
+      steps: [
+        { id: 'kind', ask: `What is $${name}$?`, branches: turned(kinds.map((label) => ({ label, to: 'var' })), `${key}k`) },
+        {
+          id: 'var',
+          ask: `So what is $\\mathrm{Var}(${name})$?`,
+          branches: turned(
+            vars.map((label) => (withSd ? { label, to: 'sd' } : { label, outcome: `So $\\mathrm{Var}(${name})$ is ${label}.` })),
+            `${key}v`,
+          ),
+        },
+        ...(withSd
+          ? [
+              {
+                id: 'sd',
+                ask: `And the standard deviation of $${name}$?`,
+                branches: turned(sds.map((label) => ({ label, outcome: `So $\\sigma_{${name}}$ is ${label}.` })), `${key}s`),
+              },
+            ]
+          : []),
+      ],
+      answer: [p.scaled ? kinds[1] : kinds[0], p.scaled ? vars[1] : vars[0], ...(withSd ? [p.scaled ? sds[1] : sds[0]] : [])],
+    };
+  },
+  solution: totalSolution,
+};
+
+/* ---------- Level 5, lesson 5: a probability from the combination ---------- */
+
+interface ComboProbParams extends Combo {
+  k: number;
+  op: 'lt' | 'gt';
+}
+
+const comboZ = (p: ComboProbParams): number => clean((p.k - comboMean(p)) / comboSd(p));
+
+const comboProbValue = (p: ComboProbParams): number => (p.op === 'lt' ? below(comboZ(p)) : clean(1 - below(comboZ(p))));
+
+/** A whole distance from the mean whose z has at most two places and sits between 0.05 and 2.5. */
+function drawOffset(rng: Rng, s: number): number {
+  for (;;) {
+    const d = rng.sign() * rng.int(1, Math.floor(2.5 * s));
+    const z = d / s;
+    if (terminates(z, 2) && Math.abs(z) >= 0.05) return d;
+  }
+}
+
+function sampleComboProb(rng: Rng, difficulty: number): ComboProbParams {
+  const hard = difficulty > 1;
+  const combo = hard
+    ? drawCombo(rng, ROUND_TRIPLES, [1, 2, 3], [-4, -3, -2, -1, 1, 2, 3, 4], () => (rng.chance(0.4) ? rng.sign() * rng.int(1, 40) : 0))
+    : drawCombo(rng, ROUND_TRIPLES, [1], [-1, 1], () => 0);
+  const k = comboMean(combo) + drawOffset(rng, comboSd(combo));
+  return { ...combo, k, op: rng.pick<ComboProbParams['op']>(['lt', 'gt']) };
+}
+
+const comboEvent = (p: ComboProbParams): string => `P(W ${p.op === 'lt' ? '<' : '>'} ${fmt(p.k)})`;
+
+/** P(Z < z) or P(Z > z) read from Phi(|z|), for a solution line. */
+function sideLines(z: number, op: 'lt' | 'gt', value: number): string[] {
+  const u = fmt(Math.abs(z));
+  const direct = (op === 'lt') === z > 0;
+  return [`& P(Z ${op === 'lt' ? '<' : '>'} ${fmt(z)})`, `&= ${direct ? `\\Phi(${u})` : `1 - \\Phi(${u})`}`, `&= ${fmt(value)}`];
+}
+
+function comboProbSolution(p: ComboProbParams): SolutionStep[] {
+  const z = comboZ(p);
+  return [
+    ...comboSolution(p).slice(1),
+    { tex: aligned(`z &= \\frac{${fmt(p.k)} - ${fmt(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
+    { tex: aligned(...sideLines(z, p.op, comboProbValue(p))) },
+  ];
+}
+
+const comboProb: Generator<ComboProbParams> = {
+  id: 'dist-combo-prob',
+  sample: sampleComboProb,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${comboOpening(p)} Find $${comboEvent(p)}$ using`), show(quoteTex([Math.abs(comboZ(p))]))],
+    lead: `${comboEvent(p)} =`,
+    keypad: [],
+    answer: fmt(comboProbValue(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: comboProbSolution,
+  choices: (p) => {
+    const value = comboProbValue(p);
+    const quoted = phi(Math.abs(comboZ(p)));
+    return decimalChoices(value, [clean(1 - value), quoted, clean(1 - quoted), clean(quoted - 0.5)]);
+  },
+};
+
+interface BiggerParams extends Combo {
+  setting: number;
+  words: boolean;
+  /** `more` asks P(X > Y), `less` P(X < Y). */
+  dir: 'more' | 'less';
+}
+
+function sampleBigger(rng: Rng, difficulty: number): BiggerParams {
+  const words = difficulty > 1;
+  const triples = ROUND_TRIPLES.filter(([, , s]) => s <= 25);
+  const [sx, sy] = tripleSigmas(rng, triples);
+  const s = Math.sqrt(sx * sx + sy * sy);
+  const setting = rng.int(0, PAIR_SETTINGS.length - 1);
+  const mx = words ? PAIR_SETTINGS[setting].bx + rng.int(-20, 20) : drawMu(rng, Math.max(sx, sy)) + 3 * s;
+  const d = drawOffset(rng, s);
+  return { a: 1, b: -1, c: 0, mx, sx, my: mx - d, sy, setting: words ? setting : 0, words, dir: words && rng.chance(0.5) ? 'less' : 'more' };
+}
+
+/** D = X - Y has its z at D = 0. */
+const biggerZ = (p: BiggerParams): number => clean(-comboMean(p) / comboSd(p));
+
+const biggerEvent = (p: BiggerParams): string => `P(X ${p.dir === 'more' ? '>' : '<'} Y)`;
+
+const biggerValue = (p: BiggerParams): number => (p.dir === 'more' ? clean(1 - below(biggerZ(p))) : below(biggerZ(p)));
+
+function biggerAsk(p: BiggerParams): string {
+  return p.words ? `the probability that ${PAIR_SETTINGS[p.setting][p.dir]}, $${biggerEvent(p)}$` : `$${biggerEvent(p)}$`;
+}
+
+function biggerSolution(p: BiggerParams): SolutionStep[] {
+  const z = biggerZ(p);
+  const op = p.dir === 'more' ? 'gt' : 'lt';
+  return [
+    { text: `Let $D = X - Y$. Then $${biggerEvent(p)}$ is $P(D ${p.dir === 'more' ? '>' : '<'} 0)$.` },
+    { tex: aligned(...meanLines(p, 'D')) },
+    { tex: aligned(...varLines(p, 'D')) },
+    { tex: aligned(`z &= \\frac{0 - ${fmt(comboMean(p))}}{${comboSd(p)}}`, `&= ${fmt(z)}`) },
+    { tex: aligned(...sideLines(z, op, biggerValue(p))) },
+  ];
+}
+
+const biggerProb: Generator<BiggerParams> = {
+  id: 'dist-bigger-prob',
+  sample: sampleBigger,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${pairOpening(p)} Find ${biggerAsk(p)}, using`), show(quoteTex([Math.abs(biggerZ(p))]))],
+    lead: `${biggerEvent(p)} =`,
+    keypad: [],
+    answer: fmt(biggerValue(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: biggerSolution,
+  choices: (p) => {
+    const value = biggerValue(p);
+    const quoted = phi(Math.abs(biggerZ(p)));
+    return decimalChoices(value, [clean(1 - value), quoted, clean(1 - quoted), 0.5]);
+  },
+};
+
+const diffRouteTree: Generator<BiggerParams> = {
+  id: 'dist-diff-route-tree',
+  sample: sampleBigger,
+  render: (p): Slide => {
+    const m = comboMean(p);
+    const s = comboSd(p);
+    const z = biggerZ(p);
+    const value = biggerValue(p);
+    const answer = [fmt(m), String(s), fmt(z), fmt(value)];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${pairOpening(p)} For ${biggerAsk(p)}, let $D = X - Y$. From the top: $\\mathrm{E}(D)$ and the standard deviation of $D$, then the $z$ of $D = 0$, then the probability. Use`,
+        ),
+        show(quoteTex([Math.abs(z)])),
+      ],
+      expression: `${biggerEvent(p)} = P(D ${p.dir === 'more' ? '>' : '<'} 0)`,
+      nodes: [
+        { id: 'mean', from: [] },
+        { id: 'sd', from: [] },
+        { id: 'z', from: ['mean', 'sd'] },
+        { id: 'P', from: ['z'] },
+      ],
+      bank: decimalBank(answer, [-m, p.sx + p.sy, comboVar(p), -z, clean(1 - value)], 3, false),
+      answer,
+    };
+  },
+  solution: biggerSolution,
+};
+
+const diffPlan: Generator<BiggerParams> = {
+  id: 'dist-diff-plan',
+  sample: sampleBigger,
+  render: (p): Slide => {
+    const { sx, sy } = p;
+    const m = fmt(comboMean(p));
+    const z = biggerZ(p);
+    const u = fmt(Math.abs(z));
+    const op = p.dir === 'more' ? '>' : '<';
+    const opp = p.dir === 'more' ? '<' : '>';
+    const forms = [`$\\Phi(${u})$`, `$1 - \\Phi(${u})$`, `$\\Phi(${u}) - 0.5$`];
+    // P(D > 0) is P(Z > z): Phi(|z|) when z is below zero, 1 - Phi(|z|) above it; P(D < 0) the other way round.
+    const direct = (p.dir === 'more') === z < 0;
+    const key = `${p.mx}|${sx}|${p.my}|${sy}|${p.dir}|${p.words}|${p.setting}`;
+    const normals = [`$N(${m}, ${sx * sx + sy * sy})$`, `$N(${m}, ${Math.abs(sx * sx - sy * sy)})$`, `$N(${m}, ${comboSd(p)})$`];
+    return {
+      kind: 'flow',
+      prompt: [say(`${pairOpening(p)} Plan how to find ${biggerAsk(p)}, with $D = X - Y$.`)],
+      subject: biggerEvent(p),
+      steps: [
+        { id: 'normal', ask: 'Which distribution does $D$ have?', branches: turned(normals.map((label) => ({ label, to: 'event' })), key) },
+        {
+          id: 'event',
+          ask: `Which event for $D$ is $${biggerEvent(p)}$?`,
+          branches: turned([`$D ${op} 0$`, `$D ${opp} 0$`].map((label) => ({ label, to: 'phi' })), `${key}e`),
+        },
+        {
+          id: 'phi',
+          ask: `Standardise $D = 0$, which gives $z = ${fmt(z)}$. Which gives the probability?`,
+          branches: turned(forms.map((label) => ({ label, outcome: `So the probability is ${label}.` })), `${key}p`),
+        },
+      ],
+      answer: [normals[0], `$D ${op} 0$`, direct ? forms[0] : forms[1]],
+    };
+  },
+  solution: biggerSolution,
+};
+
 export const binomialNormalGenerators = [
   conditionsFlow,
   conditionsChoice,
@@ -4590,4 +5570,24 @@ export const binomialNormalGenerators = [
   approxRouteTree,
   approxStandardise,
   approxPlan,
+  linMoment,
+  linNormal,
+  linSpreadTree,
+  linEffectFlow,
+  sumMoment,
+  sumNormal,
+  sumVarTiles,
+  sumTable,
+  comboMoment,
+  comboNormal,
+  comboVarSteps,
+  comboBuild,
+  totalMoment,
+  totalNormal,
+  totalTable,
+  totalFlow,
+  comboProb,
+  biggerProb,
+  diffRouteTree,
+  diffPlan,
 ];

@@ -13,10 +13,12 @@ two standardising equations, solved simultaneously, equal tails and the
 midpoint, checking and using the pair); Normal Approximation to the Binomial
 (why a long binomial sum is worth replacing, the bars as a bell near
 p = 0.5, np and n(1 - p) both above 5, the matching N(np, np(1 - p)), the
-continuity correction, and the whole route to a probability from quoted Φ).
+continuity correction, and the whole route to a probability from quoted Φ);
+Sums and Differences of Independent Normals (E and Var of aX + b, X + Y and
+X − Y with the variances always adding, aX + bY in general, a total of n
+copies against one copy times n, and a probability from the combination,
+P(X > Y) among them).
 
-Needs: Sums and Differences of Independent Normals (E and Var of aX + bY, the
-distribution of a total or a difference, after C16 Probability has landed);
-The Distribution of the Sample Mean (X̄ ~ N(μ, σ²/n), how the spread shrinks
+Needs: The Distribution of the Sample Mean (X̄ ~ N(μ, σ²/n), how the spread shrinks
 with n, ahead of C19 Hypothesis Testing); Discrete Random Variables in
 General (a probability table of any shape, E(X), Var(X) and E(aX + b)).

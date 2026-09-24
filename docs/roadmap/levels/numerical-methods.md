@@ -12,9 +12,9 @@ bounds on a result, how an error in x_n carries through g); Simpson's Rule
 trapezium rule on the same ordinates, exact for cubics, from a table of
 readings); Euler's Method (stepping dy/dx = f(x, y) one tangent at a time, the
 gradient recomputed when f has y in it, the error against an exact solution
-and which way it misses, step size against error).
+and which way it misses, step size against error); Choosing a Method (interval bisection and the
+halvings a width needs, bisection, iteration and Newton-Raphson side by side,
+speed of convergence, when each breaks on one f, and which to reach for).
 
-Needs: Choosing a Method (bisection, iteration and Newton-Raphson side by
-side, speed of convergence, which to reach for and when each breaks);
-Numerical Differentiation (forward and central differences, and why the
-central one is better).
+Needs: Numerical Differentiation (forward and central differences, and why
+the central one is better).

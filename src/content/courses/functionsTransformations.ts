@@ -28,8 +28,16 @@
  * $\frac{c}{b}$ against its sign — then the rule back off a drawn wave, and
  * the order the moves are made in. Trigonometric Functions reads the same
  * graphs as amplitude, period and shift; here the lens is the transformation,
- * its factor, vector and order. Later levels are in
- * `docs/roadmap/levels/functions-transformations.md`.
+ * its factor, vector and order.
+ *
+ * Level 6 puts a function to work as a model: which family a situation
+ * calls for, from a sentence, a table or a sketch; the rule built from the
+ * story and what each number in it stands for; the inputs that make sense
+ * and the outputs that follow; and a model's inverse and composite read back
+ * into the story — what £55 buys, a conversion both ways, a voucher before
+ * or after VAT. Level 1 taught those ideas as algebra, and Exponential
+ * Models fits curves to data, so here exponentials are only recognised.
+ * Later levels are in `docs/roadmap/levels/functions-transformations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -1234,6 +1242,197 @@ export const functionsTransformations: Course = {
         ask('fun-moves-tiles', 2),
         ask('fun-moves-choice', 2),
         ask('fun-wave-choice', 2),
+      ],
+    },
+    {
+      id: 'fn-l6',
+      title: 'Functions in Modelling',
+      lessons: [
+        {
+          id: 'fn-l6-family',
+          title: 'Which Family Fits',
+          slides: [
+            teach(
+              prose('A **model** is a function standing in for something real. The first job is to pick its family, from how the thing behaves as its input grows:'),
+              prose('The same amount added every step, like £$4$ for every mile, is **linear**: $C = 15 + 4m$.'),
+              prose('A fixed fence round a rectangle, its area against its width, is **quadratic**: $A = x(10 - x)$.'),
+              prose('A fixed amount divided, like the time for a $120$ km journey against the speed, is **reciprocal**: $T = \\frac{120}{v}$.'),
+              prose('The amount **multiplied** by the same number every step, like doubling, is **exponential**: $N = 5 \\times 2^t$.'),
+            ),
+            ask('fun-model-family'),
+            ask('fun-family-next'),
+            ask('fun-family-flow'),
+            teach(
+              prose('A table with $x$ going up in ones shows the family in its differences. Take each $y$ from the next:'),
+              maths('\\begin{array}{c|ccccc} x & 1 & 2 & 3 & 4 & 5 \\\\ \\hline y & 3 & 8 & 15 & 24 & 35 \\end{array}'),
+              prose('The differences are $5, 7, 9, 11$: not the same, but they change by $2$ every time. A constant **second** difference means quadratic.'),
+              prose('Constant differences mean linear; the same **ratio** each time, exponential; and $x \\times y$ the same every column, reciprocal.'),
+            ),
+            ask('fun-family-sketch'),
+            ask('fun-family-next', 2),
+            teach(
+              prose('A sketch shows the family too. A line is straight and a parabola turns. The two that fall and flatten are the ones to tell apart:'),
+              markedGraph(
+                [(x) => (x > 0 ? 12 / x : NaN), (x) => 10 * 0.7 ** x],
+                { xMin: 0, xMax: 8, yMin: -1, yMax: 14 },
+                [{ x: 0, y: 10 }],
+                'Two falling curves: y = 12 over x climbing the y-axis without meeting it, and 10 times 0.7 to the x crossing the y-axis at 10',
+              ),
+              prose('The reciprocal climbs the $y$-axis without ever meeting it: there is nothing at $x = 0$. The exponential crosses it at its starting value, ringed. Fitting an exponential to data is in Exponential Models; here it is enough to know one when you see it.'),
+            ),
+            ask('fun-family-flow', 2),
+            ask('fun-model-family', 2),
+            ask('fun-family-sketch', 2),
+          ],
+          skillCheck: [ask('fun-model-family', 2), ask('fun-family-flow', 2), ask('fun-family-sketch', 2)],
+        },
+        {
+          id: 'fn-l6-rule',
+          title: 'The Rule from the Story',
+          slides: [
+            teach(
+              prose('To build the rule, ask what happens to each number in the story. A taxi charges £$15$ to start, plus £$4$ for every mile: the £$15$ is paid once, and the £$4$ once for every mile.'),
+              maths('C(m) = 15 + 4m'),
+              prose('Every letter is a quantity with a unit: $m$ is a number of miles, and $C(m)$ is the fare in pounds.'),
+            ),
+            ask('fun-model-rule'),
+            ask('fun-model-meaning'),
+            ask('fun-model-value'),
+            teach(
+              prose('$20$ m of fencing round a rectangle $x$ m wide: width + length + width + length is $20$, so width + length is $10$ and the length is $10 - x$.'),
+              maths('A(x) = x(10 - x)'),
+              prose('A $120$ km journey at $v$ km/h takes $120 \\div v$ hours. The fixed amount goes on top:'),
+              maths('T(v) = \\frac{120}{v}'),
+            ),
+            ask('fun-rule-machine'),
+            ask('fun-model-rule', 2),
+            ask('fun-model-value+choice', 2),
+            teach(
+              prose('Use a rule in the story\'s own order: the rate times the input first, then the fixed amount; the bracket first, then the width times it.'),
+              maths('C(7) = 15 + 4 \\times 7 = 43'),
+              prose('Then say it in the story\'s words: a $7$-mile ride costs £$43$.'),
+            ),
+            ask('fun-rule-machine', 2),
+            ask('fun-model-meaning', 2),
+          ],
+          skillCheck: [ask('fun-model-rule', 2), ask('fun-model-value', 2), ask('fun-model-meaning', 2)],
+        },
+        {
+          id: 'fn-l6-domain',
+          title: 'The Domain That Makes Sense',
+          slides: [
+            teach(
+              prose('A rule will take any number. A story will not. Level 1 gave a rule a domain because of the algebra; here the story decides.'),
+              prose('An input that **counts** things is a whole number: $n$ T-shirts means $n = 0, 1, 2, \\ldots$. An input that **measures** can be any value in its stretch: $m$ miles means $m \\geq 0$.'),
+            ),
+            ask('fun-model-domain'),
+            ask('fun-sense-flow'),
+            ask('fun-domain-line'),
+            teach(
+              prose('Then find the ends. A $40$ litre tank draining $5$ litres a minute is empty at $t = 8$, and both ends are real moments:'),
+              maths('0 \\leq t \\leq 8'),
+              prose('A pen from $20$ m of fence has $0 < x < 10$: a width of $0$ or of $10$ leaves no rectangle, so both ends are left out. A speed or a rate must be more than $0$: $v > 0$.'),
+            ),
+            ask('fun-model-range'),
+            ask('fun-model-domain', 2),
+            ask('fun-domain-line', 2),
+            teach(
+              prose('The outputs follow from the inputs. $C(n) = 15 + 4n$ for $0 \\leq n \\leq 20$ runs from $15$ up to $95$. A falling model swaps the ends: $T(v) = \\frac{120}{v}$ for $40 \\leq v \\leq 60$ runs from $2$ to $3$, the slowest speed taking the longest.'),
+              markedGraph(
+                [(x) => x * (10 - x)],
+                { xMin: 0, xMax: 10, yMin: -2, yMax: 30 },
+                [{ x: 5, y: 25 }],
+                'The area x(10 - x) for widths from 0 to 10, greatest at 25 when the width is 5',
+              ),
+              prose('A rectangle\'s area is greatest at neither end: $x(10 - x)$ peaks at the square, $x = 5$, with an area of $25$.'),
+            ),
+            ask('fun-model-range', 2),
+            ask('fun-sense-flow', 2),
+          ],
+          skillCheck: [ask('fun-model-domain', 2), ask('fun-domain-line', 2), ask('fun-model-range', 2)],
+        },
+        {
+          id: 'fn-l6-inverse',
+          title: 'The Inverse in Context',
+          slides: [
+            teach(
+              prose('The inverse runs the story backwards. For the taxi, $C(m) = 15 + 4m$, $C^{-1}(55)$ is the ride that costs £$55$: what £$55$ buys.'),
+              maths('55 \\xrightarrow{-15} 40 \\xrightarrow{\\div 4} 10'),
+              prose('So £$55$ buys a $10$-mile ride. Undo each step in reverse order, as in Inverse Functions; working out $C(55)$ instead answers a different question.'),
+            ),
+            ask('fun-model-inverse'),
+            ask('fun-convert-table'),
+            ask('fun-inverse-tiles'),
+            teach(
+              prose('A conversion both ways is a function and its inverse. Miles to kilometres is $k = 1.6m$, so kilometres to miles is $m = k \\div 1.6$.'),
+              prose('With a number added on, undo that first:'),
+              maths('\\begin{gathered} F = 1.8C + 32 \\\\ C = (F - 32) \\div 1.8 \\end{gathered}'),
+            ),
+            ask('fun-model-inverse+choice', 2),
+            ask('fun-no-inverse-flow'),
+            ask('fun-convert-table', 2),
+            teach(
+              prose('Some models have no inverse over their whole domain. With $A(x) = x(10 - x)$, widths of $2$ and $8$ both give an area of $16$: the same rectangle turned round.'),
+              diagram(
+                [(x) => x * (10 - x)],
+                { xMin: 0, xMax: 10, yMin: -2, yMax: 30 },
+                [16],
+                'The area x(10 - x) meeting the line at height 16 twice, at widths 2 and 8',
+              ),
+              prose('Knowing the area does not tell you the width. Cut the domain at the square, $0 < x \\leq 5$, and every area comes from one width.'),
+            ),
+            ask('fun-inverse-tiles', 2),
+            ask('fun-no-inverse-flow', 2),
+          ],
+          skillCheck: [ask('fun-model-inverse', 2), ask('fun-inverse-tiles', 2), ask('fun-no-inverse-flow', 2)],
+        },
+        {
+          id: 'fn-l6-composite',
+          title: 'The Composite in Context',
+          slides: [
+            teach(
+              prose('Two changes to a price are two functions, one after the other. A £$10$ voucher and $20$% VAT:'),
+              maths('\\begin{aligned} f(x) &= x - 10 \\\\ g(x) &= 1.2x \\end{aligned}'),
+              prose('Voucher first, then VAT, is $g(f(x))$: as in Composite Functions, the change made first sits nearest the $x$.'),
+              maths('gf(x) = 1.2(x - 10)'),
+            ),
+            ask('fun-price-tree'),
+            ask('fun-order-choice'),
+            ask('fun-price-value'),
+            teach(
+              prose('The other order is a different function. VAT first, then the voucher:'),
+              maths('fg(x) = 1.2x - 10'),
+              prose('On £$80$, $gf(80) = 84$ but $fg(80) = 86$. The VAT is charged on the £$10$ in one order and not the other, so the prices differ by $20$% of £$10$.'),
+            ),
+            ask('fun-composite-tiles'),
+            ask('fun-price-tree', 2),
+            ask('fun-price-value+choice', 2),
+            teach(
+              prose('So read the story for which change reaches the price **first**: its letter goes on the inside.'),
+              prose('Only a mix makes the order matter. Two percentages give the same price either way round, since $1.2 \\times 0.8 = 0.8 \\times 1.2$, and so do two fixed amounts.'),
+            ),
+            ask('fun-order-choice', 2),
+            ask('fun-composite-tiles', 2),
+          ],
+          skillCheck: [ask('fun-price-tree', 2), ask('fun-order-choice', 2), ask('fun-composite-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('fun-model-family', 2),
+        ask('fun-family-flow', 2),
+        ask('fun-family-next', 2),
+        ask('fun-model-rule', 2),
+        ask('fun-model-value', 2),
+        ask('fun-model-meaning', 2),
+        ask('fun-model-domain', 2),
+        ask('fun-domain-line', 2),
+        ask('fun-model-range', 2),
+        ask('fun-model-inverse', 2),
+        ask('fun-convert-table', 2),
+        ask('fun-no-inverse-flow', 2),
+        ask('fun-price-tree', 2),
+        ask('fun-order-choice', 2),
+        ask('fun-composite-tiles', 2),
       ],
     },
   ],

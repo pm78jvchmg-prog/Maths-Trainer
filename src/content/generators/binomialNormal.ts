@@ -6,7 +6,20 @@
  * complement for "at least" and the rest, and the mean np and variance
  * np(1 - p). Level 2 is the normal distribution: the curve and the
  * 68-95-99.7 rule, standardising, a probability from Phi, working back from a
- * probability, and finding mu or sigma from one known probability.
+ * probability, and finding mu or sigma from one known probability. Level 3
+ * finds both: why one probability leaves a line of pairs, two probabilities
+ * written as x = mu + z sigma, eliminating mu to get sigma and then mu, equal
+ * tails putting mu at the midpoint, a proportion in context, and putting the
+ * pair back to check it or to find a new probability. Level 3's values sit at
+ * a table z (x whole) or a percentage point (x to two places), and every pair
+ * of statements is refused unless its two z differ by at least a half. Level 4
+ * is the normal approximation to the binomial: why a long binomial sum is
+ * worth replacing and how the bars make a bell near p = 0.5, when np and
+ * n(1 - p) are large enough, the matching N(np, np(1 - p)), the continuity
+ * correction, and the whole route to a probability from quoted Phi.
+ *
+ * Nothing here is calculus, so no slide declares `source` or `integrand`;
+ * `binomialNormal.test.ts` is the independent check.
  *
  * Three rules hold everywhere in this file.
  *
@@ -21,7 +34,9 @@
  *   The quoted values are Phi to four places, from the series in `phi`,
  *   which `binomialNormal.test.ts` checks against Simpson's rule. mu is
  *   whole, sigma is drawn from `SIGMAS`, and z is refused unless it has at
- *   most two decimal places, so z, x and every answer terminate.
+ *   most two decimal places, so z, x and every answer terminate. Level 4
+ *   draws n and p from `SQUARE_PAIRS`, whose variance is a square, and
+ *   refuses a corrected boundary whose z has more than two places.
  * - The checker compares values (PITFALLS 3.4), so a form (the three
  *   factors of P(X = r), which cumulative probability, the standardising
  *   equation) goes through `tiles`, `flow` or `choice`. Only the number that
@@ -35,6 +50,7 @@ import { markerWindow, plotSvg } from '../figures';
 import { nCr } from './binomialExpansion';
 import { fmt } from './numericalMethods';
 import { fracTex, stepBank, tokenBank } from './parametricImplicit';
+import { canonicalSet } from '../numberLine';
 
 /* ================================================================
  * Shared helpers
@@ -2607,6 +2623,1892 @@ const findChoice: Generator<FindParams> = {
   solution: findSolution,
 };
 
+/* ================================================================
+ * Level 3: finding both mu and sigma
+ * ================================================================ */
+
+/** A value with a stated probability: its signed z, the value, and which side is stated. */
+interface Known {
+  z: number;
+  /** Whole at a table z; at most two places at a percentage point. */
+  x: number;
+  dir: 'below' | 'above';
+}
+
+interface BothParams {
+  measure: number;
+  mu: number;
+  sigma: number;
+  /** The lower value, then the upper. */
+  lo: Known;
+  hi: Known;
+  ask: 'mu' | 'sigma';
+  /** Which value a one-equation question is about. */
+  which: 'lo' | 'hi';
+}
+
+/**
+ * How the two values sit: either side of the mean, both on one side, or the
+ * same distance either side (equal tails).
+ */
+type BothShape = 'any' | 'straddle' | 'oneSide' | 'symmetric';
+
+/** A value at a table z (whole) or at a percentage point (two places at most), on the side `sign` says. */
+function drawAt(rng: Rng, mu: number, sigma: number, sign: number, critical: boolean): { z: number; x: number } | undefined {
+  if (critical) {
+    const z = sign * rng.pick(CRITICAL).z;
+    const x = clean(mu + z * sigma);
+    return terminates(x, 2) ? { z, x } : undefined;
+  }
+  const k = drawK(rng, sigma, 2.5, sign);
+  const z = clean(k / sigma);
+  return Math.abs(z) < 0.2 ? undefined : { z, x: mu + k };
+}
+
+const SIDES: Known['dir'][] = ['below', 'above'];
+
+function sampleBoth(rng: Rng, difficulty: number, shape: BothShape = 'any'): BothParams {
+  const measure = rng.int(0, MEASURES.length - 1);
+  const ask = rng.pick<BothParams['ask']>(['mu', 'sigma']);
+  const which = rng.pick<BothParams['which']>(['lo', 'hi']);
+  const form = shape !== 'any' ? shape : difficulty > 1 && rng.chance(0.4) ? 'oneSide' : 'straddle';
+  const critical = difficulty > 1 ? 0.4 : 0.25;
+  // Difficulty 1 mostly states the two tails (always, for equal tails); difficulty 2 either side of either value.
+  const tails = difficulty < 2 ? form === 'symmetric' || rng.chance(0.7) : rng.chance(0.3);
+  const dirs: Known['dir'][] = tails ? ['below', 'above'] : [rng.pick(SIDES), rng.pick(SIDES)];
+  for (;;) {
+    const sigma = rng.pick(SIGMAS);
+    const mu = drawMu(rng, sigma);
+    const side = rng.sign();
+    const first = drawAt(rng, mu, sigma, form === 'oneSide' ? side : -1, rng.chance(critical));
+    if (!first) continue;
+    const second =
+      form === 'symmetric'
+        ? { z: -first.z, x: clean(2 * mu - first.x) }
+        : drawAt(rng, mu, sigma, form === 'oneSide' ? side : 1, rng.chance(critical));
+    if (!second) continue;
+    const [lo, hi] = first.z < second.z ? [first, second] : [second, first];
+    if (hi.z - lo.z < 0.5) continue;
+    // Equal |z| is the pattern lesson's case; elsewhere it would hand over the midpoint.
+    if (form !== 'symmetric' && Math.abs(Math.abs(lo.z) - Math.abs(hi.z)) < 1e-9) continue;
+    return { measure, mu, sigma, lo: { ...lo, dir: dirs[0] }, hi: { ...hi, dir: dirs[1] }, ask, which };
+  }
+}
+
+/** P(X < x), read from the quoted Phi alone. */
+const lowerOf = (k: Known): number => below(k.z);
+
+/** The probability the question states, from the quoted Phi alone. */
+const statedOf = (k: Known): number => (k.dir === 'below' ? lowerOf(k) : clean(1 - lowerOf(k)));
+
+const knownTex = (k: Known): string => `P(X ${k.dir === 'below' ? '<' : '>'} ${fmt(k.x)}) = ${fmt(statedOf(k))}`;
+
+/** The |z| values a question quotes Phi for, smallest first. */
+const quotesOf = (...known: Known[]): number[] => [...new Set(known.map((k) => Math.abs(k.z)))].sort((a, b) => a - b);
+
+function bothPrompt(params: BothParams, closing: string): Block[] {
+  const { what, unit } = MEASURES[params.measure];
+  return [
+    say(`${what}, in ${unit}, is $X \\sim N(\\mu, \\sigma^2)$, with $${knownTex(params.lo)}$ and $${knownTex(params.hi)}$. ${closing} Use`),
+    show(quoteTex(quotesOf(params.lo, params.hi))),
+  ];
+}
+
+/** A coefficient of sigma: `1.5`, or nothing for 1. */
+const coef = (value: number): string => (value === 1 ? '' : value === -1 ? '-' : fmt(value));
+
+/** `+ 1.5\sigma` or `- 1.5\sigma`. */
+const zSigma = (z: number): string => `${z < 0 ? '-' : '+'} ${coef(Math.abs(z))}\\sigma`;
+
+/** `x &= \mu + z\sigma`, for an aligned pair. */
+const eqTex = (x: number, z: number): string => `${fmt(x)} &= \\mu ${zSigma(z)}`;
+
+/** Why the z at a known value has the sign and size it has. */
+function knownLine(k: Known): string {
+  const x = fmt(k.x);
+  const u = fmt(Math.abs(k.z));
+  const lower = fmt(lowerOf(k));
+  const stated = k.dir === 'above' ? `$P(X > ${x}) = ${fmt(statedOf(k))}$, so $P(X < ${x}) = ${lower}$` : `$P(X < ${x}) = ${lower}$`;
+  return k.z > 0
+    ? `${stated}, which is $\\Phi(${u})$: $z = ${u}$ at $x = ${x}$.`
+    : `${stated}, under a half, so $${x}$ is below the mean: $1 - ${lower} = \\Phi(${u})$ and $z = -${u}$.`;
+}
+
+function bothSolution(params: BothParams): SolutionStep[] {
+  const { mu, sigma, lo, hi } = params;
+  const d = clean(hi.x - lo.x);
+  const dz = clean(hi.z - lo.z);
+  return [
+    { text: knownLine(lo) },
+    { text: knownLine(hi) },
+    { tex: aligned(eqTex(lo.x, lo.z), eqTex(hi.x, hi.z)) },
+    { text: 'Take the first from the second and $\\mu$ cancels:' },
+    { tex: dz === 1 ? `\\sigma = ${fmt(d)}` : aligned(`${fmt(d)} &= ${coef(dz)}\\sigma`, `\\sigma &= ${fmt(d)} \\div ${fmt(dz)}`, `&= ${sigma}`) },
+    { tex: aligned(`\\mu &= ${fmt(lo.x)} ${lo.z < 0 ? '+' : '-'} ${fmt(Math.abs(lo.z))} \\times ${sigma}`, `&= ${fmt(mu)}`) },
+  ];
+}
+
+/** `\mu = 56, \; \sigma = 4`. */
+const pairTex = (mu: number, sigma: number): string => `\\mu = ${fmt(mu)}, \\; \\sigma = ${fmt(sigma)}`;
+
+/** The standard deviations either side of sigma in `SIGMAS`, without wrapping round. */
+function neighbours(sigma: number): [number, number] {
+  const at = SIGMAS.indexOf(sigma);
+  const up = SIGMAS[at + 1] ?? SIGMAS[at - 1];
+  const down = SIGMAS[at - 1] ?? SIGMAS[at + 1];
+  return [up, down];
+}
+
+/* ---------- Level 3, lesson 1: why one probability is not enough ---------- */
+
+interface OneParams {
+  measure: number;
+  mu: number;
+  sigma: number;
+  known: Known;
+}
+
+function sampleOne(rng: Rng, difficulty: number): OneParams {
+  const measure = rng.int(0, MEASURES.length - 1);
+  // Difficulty 1 states P(X < x); difficulty 2 either side, so it may need turning round first.
+  const dir = difficulty > 1 ? rng.pick(SIDES) : 'below';
+  for (;;) {
+    const sigma = rng.pick(SIGMAS);
+    const mu = drawMu(rng, sigma);
+    const at = drawAt(rng, mu, sigma, rng.sign(), rng.chance(difficulty > 1 ? 0.4 : 0.25));
+    if (at) return { measure, mu, sigma, known: { ...at, dir } };
+  }
+}
+
+function onePrompt({ measure, known }: OneParams, closing: string): Block[] {
+  const { what, unit } = MEASURES[measure];
+  const u = Math.abs(known.z);
+  return [
+    say(`${what}, in ${unit}, is $X \\sim N(\\mu, \\sigma^2)$ with both $\\mu$ and $\\sigma$ unknown, and $${knownTex(known)}$. ${closing} Use $\\Phi(${fmt(u)}) = ${fmt(phi(u))}$.`),
+  ];
+}
+
+function oneSolution({ known }: OneParams): SolutionStep[] {
+  return [
+    { text: knownLine(known) },
+    { tex: `\\frac{${fmt(known.x)} - \\mu}{\\sigma} = ${fmt(known.z)}` },
+    { text: 'That is one equation with two unknowns in it, so on its own it cannot fix both.' },
+  ];
+}
+
+const bothSignFlow: Generator<OneParams> = {
+  id: 'dist-both-sign-flow',
+  sample: sampleOne,
+  render: (params): Slide => {
+    const { known } = params;
+    const x = fmt(known.x);
+    const u = fmt(Math.abs(known.z));
+    const eq = (rhs: string) => `$\\frac{${x} - \\mu}{\\sigma} = ${rhs}$`;
+    const labels = [...new Set([eq(u), eq(`-${u}`), eq(fmt(statedOf(known)))])];
+    const key = knownTex(known);
+    return {
+      kind: 'flow',
+      prompt: onePrompt(params, `Decide how standardising $${x}$ goes.`),
+      subject: key,
+      steps: [
+        {
+          id: 'side',
+          ask: `Is $${x}$ above or below the mean?`,
+          branches: turned([{ label: 'Above the mean', to: 'eq' }, { label: 'Below the mean', to: 'eq' }], key),
+        },
+        {
+          id: 'eq',
+          ask: 'Which equation does standardising give?',
+          branches: turned(
+            labels.map((label) => ({ label, outcome: `So ${label}: one equation, two unknowns.` })),
+            `${key}e`,
+          ),
+        },
+      ],
+      answer: [known.z > 0 ? 'Above the mean' : 'Below the mean', eq(fmt(known.z))],
+    };
+  },
+  solution: oneSolution,
+};
+
+const bothStandardise: Generator<OneParams> = {
+  id: 'dist-both-standardise',
+  sample: sampleOne,
+  render: (params): Slide => {
+    const { known } = params;
+    const answer = [fmt(known.x), fmt(known.z)];
+    const u = Math.abs(known.z);
+    return {
+      kind: 'tiles',
+      prompt: onePrompt(params, 'Build the equation that standardising gives.'),
+      template: '({0} - \\mu) \\div \\sigma = {1}',
+      bank: tokenBank(answer, [fmt(-known.z), fmt(statedOf(known)), fmt(phi(u)), fmt(clean(1 - phi(u)))], 3),
+      answer,
+    };
+  },
+  solution: oneSolution,
+};
+
+const bothFits: Generator<OneParams> = {
+  id: 'dist-both-fits',
+  sample: sampleOne,
+  render: (params): Slide => {
+    const { mu, sigma, known } = params;
+    const [other] = neighbours(sigma);
+    const { x, z } = known;
+    return choiceSlide(
+      onePrompt(params, 'Which of these pairs fits it?'),
+      options(
+        { tex: pairTex(mu, sigma) },
+        { tex: pairTex(clean(x + z * sigma), sigma) },
+        { tex: pairTex(mu, other) },
+        { tex: pairTex(clean(x + z * other), other) },
+      ),
+    );
+  },
+  solution: (params) => {
+    const { mu, sigma, known } = params;
+    const [other] = neighbours(sigma);
+    const { x, z } = known;
+    return [
+      { text: knownLine(known) },
+      { tex: aligned(`${fmt(x)} &= \\mu ${zSigma(z)}`, `&= ${fmt(mu)} ${z < 0 ? '-' : '+'} ${fmt(Math.abs(z))} \\times ${sigma}`) },
+      { text: `So $${pairTex(mu, sigma)}$ fits. It is not the only pair that would: $\\sigma = ${other}$ with $\\mu = ${fmt(clean(x - z * other))}$ fits as well, which is why one probability cannot fix both.` },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 2: two probabilities, two equations ---------- */
+
+const bothTable: Generator<BothParams> = {
+  id: 'dist-both-table',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { lo, hi } = params;
+    const answer = [fmt(lowerOf(lo)), fmt(lo.z), fmt(lowerOf(hi)), fmt(hi.z)];
+    const slips = [-lo.z, -hi.z, clean(1 - lowerOf(lo)), clean(1 - lowerOf(hi))];
+    return {
+      kind: 'table',
+      prompt: bothPrompt(params, 'Fill in $P(X < x)$ and $z$ at each value.'),
+      columns: ['x', 'P(X < x)', 'z'],
+      rows: [
+        [fmt(lo.x), null, null],
+        [fmt(hi.x), null, null],
+      ],
+      bank: decimalBank(answer, slips, 3, false),
+      answer,
+    };
+  },
+  solution: ({ lo, hi }) => [{ text: knownLine(lo) }, { text: knownLine(hi) }],
+};
+
+const bothEquation: Generator<BothParams> = {
+  id: 'dist-both-equation',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const [k, other] = params.which === 'lo' ? [params.lo, params.hi] : [params.hi, params.lo];
+    const u = Math.abs(k.z);
+    const answer = [fmt(k.x), k.z < 0 ? '-' : '+', fmt(u)];
+    return {
+      kind: 'tiles',
+      prompt: bothPrompt(params, `Build the equation that $x = ${fmt(k.x)}$ gives.`),
+      template: '{0} = \\mu {1} {2}\\sigma',
+      bank: tokenBank(answer, [k.z < 0 ? '+' : '-', fmt(other.x), fmt(Math.abs(other.z)), fmt(statedOf(k)), fmt(phi(u))], 4),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const k = params.which === 'lo' ? params.lo : params.hi;
+    return [{ text: knownLine(k) }, { tex: `${fmt(k.x)} = \\mu ${zSigma(k.z)}` }];
+  },
+};
+
+const bothPair: Generator<BothParams> = {
+  id: 'dist-both-pair',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { lo, hi } = params;
+    const pair = (a: number, b: number) => aligned(eqTex(lo.x, a), eqTex(hi.x, b));
+    return choiceSlide(
+      bothPrompt(params, 'Which pair of equations do they give?'),
+      options(
+        { tex: pair(lo.z, hi.z) },
+        { tex: pair(-lo.z, -hi.z) },
+        { tex: pair(hi.z, lo.z) },
+        { tex: pair(lo.z < 0 ? -statedOf(lo) : statedOf(lo), hi.z < 0 ? -statedOf(hi) : statedOf(hi)) },
+      ),
+    );
+  },
+  solution: (params) => [
+    { text: knownLine(params.lo) },
+    { text: knownLine(params.hi) },
+    { tex: aligned(eqTex(params.lo.x, params.lo.z), eqTex(params.hi.x, params.hi.z)) },
+  ],
+};
+
+/* ---------- Level 3, lesson 3: solving simultaneously ---------- */
+
+const exactOnly = (values: number[]): number[] => values.filter((v) => Number.isFinite(v) && terminates(v, 3));
+
+const bothSolve: Generator<BothParams> = {
+  id: 'dist-both-solve',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: bothPrompt(params, `Find $\\${params.ask}$.`),
+    lead: `\\${params.ask} =`,
+    keypad: [],
+    answer: fmt(params.ask === 'mu' ? params.mu : params.sigma),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: bothSolution,
+  choices: (params) => {
+    const { mu, sigma, lo, hi, ask } = params;
+    const d = clean(hi.x - lo.x);
+    if (ask === 'sigma') {
+      return decimalChoices(sigma, exactOnly([d / Math.abs(hi.z), d / Math.abs(lo.z), d / (Math.abs(hi.z) + Math.abs(lo.z)), d / clean(hi.z + lo.z)]));
+    }
+    return decimalChoices(mu, exactOnly([clean(lo.x + lo.z * sigma), clean(hi.x + hi.z * sigma), clean((lo.x + hi.x) / 2)]));
+  },
+};
+
+const bothWorking: Generator<BothParams> = {
+  id: 'dist-both-working',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { sigma, lo, hi } = params;
+    const d = clean(hi.x - lo.x);
+    const dz = clean(hi.z - lo.z);
+    return {
+      kind: 'steps',
+      prompt: bothPrompt(
+        params,
+        'Taking one equation from the other gives $\\sigma = (b - a) \\div (z_b - z_a)$, with $a$ the lower value. Tap the part to do next, then choose what it comes to.',
+      ),
+      start: ['(', fmt(hi.x), '-', fmt(lo.x), ')', '\\div', '(', fmt(hi.z), '-', paren(lo.z), ')'],
+      reductions: [
+        { span: [0, 5], operator: 2, value: fmt(d), bank: stepBank(fmt(d), fmt(-d), fmt(clean(hi.x + lo.x)), fmt(clean(d + 1))) },
+        { span: [2, 7], operator: 4, value: fmt(dz), bank: stepBank(fmt(dz), fmt(clean(hi.z + lo.z)), fmt(-dz), fmt(clean(dz + 0.5))) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: String(sigma),
+          bank: stepBank(String(sigma), ...exactOnly([d / Math.abs(hi.z), d / Math.abs(lo.z)]).map(fmt), fmt(-sigma), String(2 * sigma)),
+        },
+      ],
+    };
+  },
+  solution: bothSolution,
+};
+
+const bothNodes: Generator<BothParams> = {
+  id: 'dist-both-nodes-tree',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { mu, sigma, lo, hi } = params;
+    const d = clean(hi.x - lo.x);
+    const dz = clean(hi.z - lo.z);
+    const zs = clean(lo.z * sigma);
+    const answer = [fmt(d), fmt(dz), String(sigma), fmt(zs), fmt(mu)];
+    return {
+      kind: 'tree',
+      prompt: bothPrompt(
+        params,
+        `Take $a = ${fmt(lo.x)}$ and $b = ${fmt(hi.x)}$. From the top: $b - a$ and $z_b - z_a$, then $\\sigma$, then $z_a\\sigma$, then $\\mu = a - z_a\\sigma$.`,
+      ),
+      expression: '\\mu = a - z_a\\sigma',
+      nodes: [
+        { id: 'd', from: [] },
+        { id: 'dz', from: [] },
+        { id: 'sigma', from: ['d', 'dz'] },
+        { id: 'zs', from: ['sigma'] },
+        { id: 'mu', from: ['zs'] },
+      ],
+      bank: decimalBank(answer, [clean(hi.z + lo.z), -zs, clean(lo.x + zs), clean(hi.x - hi.z * sigma + 1), clean(2 * sigma)], 3, false),
+      answer,
+    };
+  },
+  solution: bothSolution,
+};
+
+/* ---------- Level 3, lesson 4: pairs with a pattern ---------- */
+
+function symmetricSolution(params: BothParams): SolutionStep[] {
+  const { mu, sigma, lo, hi } = params;
+  const half = clean((hi.x - lo.x) / 2);
+  const u = fmt(Math.abs(hi.z));
+  return [
+    { text: `$P(X < ${fmt(lo.x)}) = ${fmt(lowerOf(lo))}$ and $P(X > ${fmt(hi.x)}) = ${fmt(clean(1 - lowerOf(hi)))}$: the two tails match, so the values sit the same distance either side of the mean.` },
+    { tex: `\\mu = \\frac{${fmt(lo.x)} + ${fmt(hi.x)}}{2} = ${fmt(mu)}` },
+    { text: `$\\Phi(${u}) = ${fmt(lowerOf(hi))}$, so $${fmt(hi.x)}$ is $${u}$ standard deviations above the mean, and half the gap is $${fmt(half)}$.` },
+    { tex: `\\sigma = ${fmt(half)} \\div ${u} = ${sigma}` },
+  ];
+}
+
+const bothSymmetric: Generator<BothParams> = {
+  id: 'dist-both-symmetric',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'symmetric'),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: bothPrompt(params, `Find $\\${params.ask}$.`),
+    lead: `\\${params.ask} =`,
+    keypad: [],
+    answer: fmt(params.ask === 'mu' ? params.mu : params.sigma),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: symmetricSolution,
+  choices: (params) => {
+    const { mu, sigma, lo, hi, ask } = params;
+    const d = clean(hi.x - lo.x);
+    const u = Math.abs(hi.z);
+    if (ask === 'sigma') return decimalChoices(sigma, exactOnly([d / u, d / 2, clean(d / 2) * u]));
+    return decimalChoices(mu, exactOnly([d, clean(d / 2), clean(hi.x + u * sigma)]));
+  },
+};
+
+interface MidpointParams extends BothParams {
+  /** The slider's ends, off-centre so the middle of the track is not the answer. */
+  from: number;
+  to: number;
+}
+
+const bothMidpoint: Generator<MidpointParams> = {
+  id: 'dist-both-midpoint-slider',
+  sample: (rng, difficulty) => {
+    const params = sampleBoth(rng, difficulty, 'symmetric');
+    // One end reaches well past its line and the other only just, so the
+    // handle's resting place, the middle of the track, is never the answer.
+    const reach = Math.max(2, Math.round(params.sigma / 2));
+    const near = rng.int(1, reach);
+    const far = near + rng.int(4, 4 + reach);
+    const [left, right] = rng.chance(0.5) ? [near, far] : [far, near];
+    return { ...params, from: Math.floor(params.lo.x) - left, to: Math.ceil(params.hi.x) + right };
+  },
+  render: (params): Slide => {
+    const { measure, mu, lo, hi, from, to } = params;
+    const { what, unit } = MEASURES[measure];
+    const window = markerWindow(from, to);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(`${what}, in ${unit}, is $X \\sim N(\\mu, \\sigma^2)$, with $${knownTex(lo)}$ and $${knownTex(hi)}$. The dashed lines are at $${fmt(lo.x)}$ and $${fmt(hi.x)}$. Slide the line to $\\mu$.`),
+      ],
+      min: from,
+      max: to,
+      step: 1,
+      answer: mu,
+      readout: '\\mu = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: window.xMin,
+          xMax: window.xMax,
+          yMin: 0,
+          yMax: 1,
+          curves: [],
+          verticals: [
+            { x: lo.x, dashed: true },
+            { x: hi.x, dashed: true },
+          ],
+          label: 'An axis with dashed lines at the two values',
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => symmetricSolution(params).slice(0, 2),
+};
+
+const bothHalfGap: Generator<BothParams> = {
+  id: 'dist-both-half-gap',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty, 'symmetric'),
+  render: (params): Slide => {
+    const { lo, hi } = params;
+    const u = Math.abs(hi.z);
+    const answer = [fmt(hi.x), fmt(lo.x), fmt(u)];
+    return {
+      kind: 'tiles',
+      prompt: bothPrompt(params, 'The tails match, so $\\sigma$ is half the gap between the values, divided by $z$. Build it.'),
+      template: '\\sigma = ({0} - {1}) \\div (2 \\times {2})',
+      bank: tokenBank(answer, [fmt(lowerOf(hi)), fmt(statedOf(lo)), fmt(clean(2 * u)), fmt(-u)], 3),
+      answer,
+    };
+  },
+  solution: symmetricSolution,
+};
+
+/** How a proportion in context is worded for each of `MEASURES`. */
+const PROPORTIONS: { who: string; below: string; above: string }[] = [
+  { who: 'bags', below: 'weigh less than', above: 'weigh more than' },
+  { who: 'solvers', below: 'finish in under', above: 'take longer than' },
+  { who: 'sunflowers', below: 'are shorter than', above: 'are taller than' },
+  { who: 'bulbs', below: 'fail before', above: 'last longer than' },
+  { who: 'calls', below: 'last less than', above: 'last longer than' },
+  { who: 'students', below: 'score under', above: 'score over' },
+];
+
+const bothProportion: Generator<BothParams> = {
+  id: 'dist-both-proportion',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { measure, lo, hi, ask } = params;
+    const { what, unit } = MEASURES[measure];
+    const words = PROPORTIONS[measure];
+    const part = (k: Known) => `$${fmt(clean(statedOf(k) * 100))}\\%$ of ${words.who} ${words[k.dir]} $${fmt(k.x)}$ ${unit}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${what}, in ${unit}, is normally distributed. ${part(lo)}, and ${part(hi)}. Find the ${ask === 'mu' ? 'mean' : 'standard deviation'}, $\\${ask}$. Use`),
+        show(quoteTex(quotesOf(lo, hi))),
+      ],
+      lead: `\\${ask} =`,
+      keypad: [],
+      answer: fmt(ask === 'mu' ? params.mu : params.sigma),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => [
+    { text: `As probabilities: $${knownTex(params.lo)}$ and $${knownTex(params.hi)}$.` },
+    ...bothSolution(params),
+  ],
+};
+
+/* ---------- Level 3, lesson 5: checking and using the result ---------- */
+
+const foundText = (params: BothParams): string =>
+  `${MEASURES[params.measure].what}, in ${MEASURES[params.measure].unit}, has $${knownTex(params.lo)}$ and $${knownTex(params.hi)}$, and these were solved to give $X \\sim N(${fmt(params.mu)}, ${params.sigma * params.sigma})$.`;
+
+const bothCheckTable: Generator<BothParams> = {
+  id: 'dist-both-check-table',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { lo, hi } = params;
+    const answer = [fmt(lo.z), fmt(lowerOf(lo)), fmt(hi.z), fmt(lowerOf(hi))];
+    return {
+      kind: 'table',
+      prompt: [say(`${foundText(params)} Check it: fill in $z$ and $P(X < x)$ at each value, using`), show(quoteTex(quotesOf(lo, hi)))],
+      columns: ['x', 'z', 'P(X < x)'],
+      rows: [
+        [fmt(lo.x), null, null],
+        [fmt(hi.x), null, null],
+      ],
+      bank: decimalBank(answer, [-lo.z, -hi.z, clean(1 - lowerOf(lo)), clean(1 - lowerOf(hi))], 3, false),
+      answer,
+    };
+  },
+  solution: ({ mu, sigma, lo, hi }) =>
+    [lo, hi].flatMap((k) => [
+      { tex: aligned(`z &= \\frac{${fmt(k.x)} - ${fmt(mu)}}{${sigma}}`, `&= ${fmt(k.z)}`) },
+      { tex: belowLine(clean(k.z * sigma), sigma) },
+      { text: k.dir === 'below' ? `That is the $${fmt(statedOf(k))}$ stated.` : `So $P(X > ${fmt(k.x)}) = ${fmt(statedOf(k))}$, as stated.` },
+    ]),
+};
+
+const bothVerify: Generator<BothParams> = {
+  id: 'dist-both-verify',
+  sample: (rng, difficulty) => sampleBoth(rng, difficulty),
+  render: (params): Slide => {
+    const { mu, sigma, lo, hi } = params;
+    const [up, down] = neighbours(sigma);
+    return choiceSlide(
+      bothPrompt(params, 'Which pair makes both statements true?'),
+      options(
+        { tex: pairTex(mu, sigma) },
+        // Each of these fits one statement and not the other.
+        { tex: pairTex(clean(lo.x - lo.z * up), up) },
+        { tex: pairTex(clean(hi.x - hi.z * down), down) },
+        { tex: pairTex(clean(lo.x + lo.z * sigma), sigma) },
+      ),
+    );
+  },
+  solution: (params) => [
+    ...bothSolution(params),
+    { text: `Each other pair fits at most one of the two statements; only $${pairTex(params.mu, params.sigma)}$ fits both.` },
+  ],
+};
+
+interface NewParams extends BothParams {
+  /** The new value, whole, and its z. */
+  c: number;
+  zc: number;
+  op: 'below' | 'above';
+}
+
+function sampleNew(rng: Rng, difficulty: number): NewParams {
+  const params = sampleBoth(rng, difficulty);
+  for (;;) {
+    const k = drawK(rng, params.sigma, 2.5, difficulty > 1 ? undefined : 1);
+    // A value already stated would answer itself.
+    if (params.mu + k === params.lo.x || params.mu + k === params.hi.x) continue;
+    return { ...params, c: params.mu + k, zc: clean(k / params.sigma), op: rng.pick(SIDES) };
+  }
+}
+
+const newProb = ({ zc, op }: NewParams): number => (op === 'below' ? below(zc) : clean(1 - below(zc)));
+
+const newEvent = ({ c, op }: NewParams): string => `P(X ${op === 'below' ? '<' : '>'} ${c})`;
+
+function newPrompt(params: NewParams, closing: string): Block[] {
+  const { what, unit } = MEASURES[params.measure];
+  return [
+    say(`${what}, in ${unit}, is $X \\sim N(\\mu, \\sigma^2)$, with $${knownTex(params.lo)}$ and $${knownTex(params.hi)}$. ${closing} Use`),
+    show(quoteTex(quotesOf(params.lo, params.hi, { z: params.zc, x: params.c, dir: params.op }))),
+  ];
+}
+
+function newSolution(params: NewParams): SolutionStep[] {
+  const { mu, sigma, c, zc } = params;
+  const steps: SolutionStep[] = [
+    ...bothSolution(params),
+    { tex: aligned(`z &= \\frac{${c} - ${fmt(mu)}}{${sigma}}`, `&= ${fmt(zc)}`) },
+    { tex: belowLine(clean(zc * sigma), sigma) },
+  ];
+  if (params.op === 'above') steps.push({ tex: aligned(`${newEvent(params)} &= 1 - ${fmt(below(zc))}`, `&= ${fmt(newProb(params))}`) });
+  return steps;
+}
+
+const bothNewProb: Generator<NewParams> = {
+  id: 'dist-both-new-prob',
+  sample: sampleNew,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: newPrompt(params, `Find $\\mu$ and $\\sigma$, then $${newEvent(params)}$.`),
+    lead: `${newEvent(params)} =`,
+    keypad: [],
+    answer: fmt(newProb(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: newSolution,
+  choices: (params) => {
+    const value = newProb(params);
+    const u = Math.abs(params.zc);
+    return decimalChoices(value, [clean(1 - value), phi(u), clean(1 - phi(u)), clean(phi(u) - 0.5)]);
+  },
+};
+
+const bothChain: Generator<NewParams> = {
+  id: 'dist-both-chain-tree',
+  sample: sampleNew,
+  render: (params): Slide => {
+    const { mu, sigma, lo, zc } = params;
+    const p = newProb(params);
+    const answer = [String(sigma), fmt(mu), fmt(zc), fmt(p)];
+    return {
+      kind: 'tree',
+      prompt: newPrompt(params, `From the top: $\\sigma$, then $\\mu$, then $z$ at $${params.c}$, then $${newEvent(params)}$.`),
+      expression: newEvent(params),
+      nodes: [
+        { id: 'sigma', from: [] },
+        { id: 'mu', from: ['sigma'] },
+        { id: 'z', from: ['mu'] },
+        { id: 'p', from: ['z'] },
+      ],
+      bank: decimalBank(answer, [-zc, clean(1 - p), clean(lo.x + lo.z * sigma), clean(2 * sigma)], 3, false),
+      answer,
+    };
+  },
+  solution: newSolution,
+};
+
+/* ================================================================
+ * Level 4: the normal approximation to the binomial
+ * ================================================================ */
+
+/**
+ * Settings with room for hundreds of trials. The number of trials is the only
+ * bare number in the sentence and p the only one inside `$...$`, which is how
+ * `binomialNormal.test.ts` reads them back out.
+ */
+const LARGE_SETTINGS: { setup: (n: number, p: number) => string; success: string }[] = [
+  {
+    setup: (n, p) => `${n} seeds are planted, and each germinates with probability $${fmt(p)}$, independently.`,
+    success: 'the number that germinate',
+  },
+  {
+    setup: (n, p) => `A machine makes bolts, each faulty with probability $${fmt(p)}$, independently. A sample of ${n} is checked.`,
+    success: 'the number of faulty bolts in the sample',
+  },
+  {
+    setup: (n, p) => `Each email to an inbox is spam with probability $${fmt(p)}$, independently, and ${n} emails arrive.`,
+    success: 'the number of spam emails',
+  },
+  {
+    setup: (n, p) => `Each passenger who books a flight fails to turn up with probability $${fmt(p)}$, independently, and ${n} passengers book.`,
+    success: 'the number who fail to turn up',
+  },
+  {
+    setup: (n, p) => `Each voter in a large town backs a plan with probability $${fmt(p)}$, independently, and ${n} voters are asked.`,
+    success: 'the number who back the plan',
+  },
+  {
+    setup: (n, p) => `Each customer at a cafe pays by card with probability $${fmt(p)}$, independently, and ${n} customers are served.`,
+    success: 'the number who pay by card',
+  },
+  {
+    setup: (n, p) => `A player takes ${n} free throws, scoring each with probability $${fmt(p)}$, independently.`,
+    success: 'the number of throws scored',
+  },
+  {
+    setup: (n, p) => `Each of ${n} patients recovers from an illness with probability $${fmt(p)}$, independently.`,
+    success: 'the number who recover',
+  },
+];
+
+const largeText = (setting: number, n: number, p: number): string =>
+  `${LARGE_SETTINGS[setting].setup(n, p)} $X$ is ${LARGE_SETTINGS[setting].success}.`;
+
+/** The opening of a level 4 question: B(n, p) in symbols, or a setting in words. */
+const opening = (words: boolean, setting: number, n: number, p: number): string =>
+  words ? largeText(setting, n, p) : `$${bTex(n, p)}$.`;
+
+/**
+ * The (n, p) pairs the matching normal is drawn from. Every one has a
+ * variance np(1 - p) that is a perfect square, so sigma is whole and
+ * N(np, np(1 - p)) is written in whole numbers.
+ */
+const SQUARE_PAIRS: [number, number][] = [
+  [36, 0.5],
+  [48, 0.25],
+  [48, 0.75],
+  [64, 0.5],
+  [100, 0.1],
+  [100, 0.2],
+  [100, 0.5],
+  [100, 0.8],
+  [100, 0.9],
+  [144, 0.5],
+  [150, 0.4],
+  [150, 0.6],
+  [192, 0.25],
+  [192, 0.75],
+  [196, 0.5],
+  [225, 0.2],
+  [225, 0.8],
+  [256, 0.5],
+  [324, 0.5],
+  [400, 0.1],
+  [400, 0.2],
+  [400, 0.5],
+  [400, 0.8],
+  [400, 0.9],
+  [625, 0.2],
+  [625, 0.8],
+  [900, 0.1],
+  [900, 0.5],
+  [900, 0.9],
+];
+
+/** sigma for a pair, or undefined when np(1 - p) is not a square (such a draw is refused). */
+function wholeSigma(n: number, p: number): number | undefined {
+  const variance = varOf({ n, p });
+  const sigma = Math.round(Math.sqrt(variance));
+  return sigma * sigma === variance ? sigma : undefined;
+}
+
+/**
+ * The pairs a whole-route question may use. A corrected boundary sits half
+ * way between whole numbers, so z = (k + 0.5) / sigma, and that has at most
+ * two decimal places only when sigma has at most one factor of 2. A sigma of
+ * 4 or 8 never does, so those pairs would be refused at every boundary.
+ */
+const ROUTE_PAIRS = SQUARE_PAIRS.filter(([n, p]) => (wholeSigma(n, p) ?? 4) % 4 !== 0);
+
+/** Draw a pair from a table, refusing any whose sigma is not whole. */
+function drawPair(rng: Rng, pairs: [number, number][]): { n: number; p: number; sigma: number } {
+  for (;;) {
+    const [n, p] = rng.pick(pairs);
+    const sigma = wholeSigma(n, p);
+    if (sigma !== undefined) return { n, p, sigma };
+  }
+}
+
+/** B(n, p) row by the ratio of neighbours, for drawing only. */
+function binomialRow(n: number, p: number): number[] {
+  const row = [(1 - p) ** n];
+  for (let r = 0; r < n; r += 1) row.push((row[r] * (n - r) * p) / ((r + 1) * (1 - p)));
+  return row;
+}
+
+/* The same box as `plotSvg`, so `markerWindow` lines a slider up with the bars. */
+const BARS_WIDTH = 280;
+const BARS_PAD = 12;
+const BARS_HEIGHT = 160;
+/** Room under the axis for its numbers. */
+const BARS_FOOT = 20;
+
+/**
+ * The bars of B(n, p) for r from `from` to `to`, each a unit wide and centred
+ * on r, with an optional matching normal curve over them, a shaded run of bars
+ * and a dashed boundary. File-local SVG: `plotSvg` draws curves, not bars.
+ */
+export function barsSvg(
+  n: number,
+  p: number,
+  opts: { from: number; to: number; curve?: boolean; shade?: [number, number]; boundary?: number; label: string },
+): string {
+  const { from, to } = opts;
+  const row = binomialRow(n, p);
+  const mu = n * p;
+  const sd = Math.sqrt(n * p * (1 - p));
+  const f = density(mu, sd);
+  const left = from - 0.5;
+  const right = to + 0.5;
+  const tallest = Math.max(...row.slice(from, to + 1), opts.curve ? f(mu) : 0);
+  const base = BARS_HEIGHT - BARS_FOOT;
+  const px = (x: number) => BARS_PAD + ((x - left) / (right - left)) * (BARS_WIDTH - 2 * BARS_PAD);
+  const py = (y: number) => base - (y / (1.12 * tallest)) * (base - BARS_PAD);
+  const f1 = (v: number) => v.toFixed(1);
+  const parts = [`<svg viewBox="0 0 ${BARS_WIDTH} ${BARS_HEIGHT}" width="100%" role="img" aria-label="${opts.label}">`];
+  for (let r = from; r <= to; r += 1) {
+    const shaded = opts.shade ? r >= opts.shade[0] && r <= opts.shade[1] : true;
+    const at = `x="${f1(px(r - 0.5))}" y="${f1(py(row[r]))}" width="${f1(px(r + 0.5) - px(r - 0.5))}" height="${f1(base - py(row[r]))}"`;
+    if (shaded) parts.push(`<rect class="plot-shade" ${at} />`);
+    parts.push(`<rect ${at} fill="none" stroke="currentColor" stroke-width="1" opacity="0.8" />`);
+  }
+  if (opts.curve) {
+    const points = Array.from({ length: 161 }, (_, i) => {
+      const x = left + ((right - left) * i) / 160;
+      return `${f1(px(x))},${f1(py(f(x)))}`;
+    });
+    parts.push(`<path class="plot-accent" fill="none" stroke="currentColor" stroke-width="2" d="M ${points.join(' L ')}" />`);
+  }
+  if (opts.boundary !== undefined) {
+    const x = f1(px(opts.boundary));
+    parts.push(`<line x1="${x}" y1="${BARS_PAD}" x2="${x}" y2="${base}" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4" />`);
+  }
+  parts.push(`<line x1="${BARS_PAD}" y1="${base}" x2="${BARS_WIDTH - BARS_PAD}" y2="${base}" stroke="currentColor" stroke-width="1" opacity="0.7" />`);
+  const every = [1, 2, 5, 10, 20, 50].find((step) => (to - from) / step <= 8) ?? 100;
+  for (let r = Math.ceil(from / every) * every; r <= to; r += every) {
+    parts.push(`<text x="${f1(px(r))}" y="${base + 14}" font-size="9" fill="currentColor" text-anchor="middle">${r}</text>`);
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/* ---------- Level 4, lesson 1: why approximate ---------- */
+
+type Side = 'le' | 'lt' | 'ge' | 'gt';
+
+const SIDE_TEX: Record<Side, string> = { le: '\\le', lt: '<', ge: '\\ge', gt: '>' };
+
+interface SumParams {
+  n: number;
+  p: number;
+  r: number;
+  rel: Side;
+}
+
+/** The first and last k in the exact sum for P(X rel r). */
+function sumEnds({ n, r, rel }: SumParams): [number, number] {
+  if (rel === 'le') return [0, r];
+  if (rel === 'lt') return [0, r - 1];
+  if (rel === 'ge') return [r, n];
+  return [r + 1, n];
+}
+
+const approxSum: Generator<SumParams> = {
+  id: 'dist-approx-sum',
+  sample: (rng, difficulty) => {
+    const n = difficulty > 1 ? rng.int(5, 30) * 10 : rng.int(20, 60);
+    const p = rng.pick(TENTHS);
+    const r = Math.min(n - 4, Math.max(3, Math.round(n * p) + rng.int(-8, 8)));
+    const rel = rng.pick<Side>(difficulty > 1 ? ['lt', 'gt', 'le', 'ge'] : ['le', 'ge']);
+    return { n, p, r, rel };
+  },
+  render: (params): Slide => {
+    const { n, p, r, rel } = params;
+    const [a, b] = sumEnds(params);
+    const answer = [String(a), String(b), String(b - a + 1)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `$${bTex(n, p)}$. Worked out exactly, $P(X ${SIDE_TEX[rel]} ${r})$ is a sum of single probabilities $P(X = k)$, one for each whole number $k$ it takes in. Fill in the first and last $k$, and how many terms that is.`,
+        ),
+      ],
+      template: 'P(X = {0}) + \\dots + P(X = {1}) \\text{, with } {2} \\text{ terms}',
+      bank: tokenBank(answer, [r - 1, r + 1, n + 1, n - r, b - a, 1, n - 1].map(String), 3),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { r, rel } = params;
+    const [a, b] = sumEnds(params);
+    const why: Record<Side, string> = {
+      le: `$X \\le ${r}$ takes in every whole number from $0$ up to $${r}$ itself.`,
+      lt: `$X < ${r}$ stops one short of $${r}$: the last whole number it takes in is $${r - 1}$.`,
+      ge: `$X \\ge ${r}$ takes in $${r}$ itself and everything above it, up to $n$.`,
+      gt: `$X > ${r}$ leaves $${r}$ out, so it starts at $${r + 1}$ and runs up to $n$.`,
+    };
+    return [
+      { text: why[rel] },
+      { tex: aligned(`& P(X = ${a}) + P(X = ${a + 1})`, `&\\quad + \\dots + P(X = ${b})`) },
+      { text: `That is $${b} - ${a} + 1 = ${b - a + 1}$ terms, each with its own $\\tbinom{n}{k}$ and powers: long work by hand, which is why a normal curve is used instead.` },
+    ];
+  },
+};
+
+interface BarsParams {
+  n: number;
+  p: number;
+  /** The wrong values of p on offer. */
+  wrong: number[];
+}
+
+const approxBars: Generator<BarsParams> = {
+  id: 'dist-approx-bars',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = rng.pick(hard ? [20, 24, 25, 30, 40] : [10, 12, 15, 16, 20]);
+    const grid = hard ? Array.from({ length: 19 }, (_, i) => clean((i + 1) * 0.05)) : TENTHS;
+    const p = rng.pick(grid);
+    const shifts = hard ? [0.1, -0.1, 0.15, -0.15, 0.2, -0.2] : [0.3, -0.3, 0.4, -0.4, 0.5, -0.5];
+    const pool = [comp(p), ...shifts.map((s) => clean(p + s))].filter((q, i, all) => q >= 0.05 && q <= 0.95 && q !== p && all.indexOf(q) === i);
+    const wrong: number[] = [];
+    while (wrong.length < 3) {
+      const q = rng.pick(pool);
+      if (!wrong.includes(q)) wrong.push(q);
+    }
+    return { n, p, wrong };
+  },
+  render: ({ n, p, wrong }): Slide =>
+    choiceSlide(
+      [
+        say(`These bars show the distribution of $X$, the number of successes in $${n}$ trials. Which binomial distribution is it?`),
+        { kind: 'diagram', svg: barsSvg(n, p, { from: 0, to: n, label: `The bars of a binomial distribution over 0 to ${n}` }) },
+      ],
+      options({ tex: `B(${n}, ${fmt(p)})` }, ...wrong.map((q) => ({ tex: `B(${n}, ${fmt(q)})` }))),
+    ),
+  solution: ({ n, p }) => [
+    { text: 'The bars are tallest near the mean, $np$, so find where the peak sits as a share of $n$.' },
+    { tex: `np = ${n} \\times ${fmt(p)} = ${fmt(clean(n * p))}` },
+    {
+      text:
+        p === 0.5
+          ? 'A peak in the middle, with the bars falling away evenly on both sides, is $p = 0.5$.'
+          : `A peak at about $${fmt(clean(n * p))}$ out of $${n}$, with the longer tail to the ${p < 0.5 ? 'right' : 'left'}, is $p = ${fmt(p)}$.`,
+    },
+  ],
+};
+
+interface SkewParams {
+  n: number;
+  p: number;
+  words: boolean;
+  setting: number;
+}
+
+const NEAR_HALF = [0.45, 0.5, 0.55];
+const FAR_FROM_HALF = [0.05, 0.1, 0.15, 0.85, 0.9, 0.95];
+
+const approxSkew: Generator<SkewParams> = {
+  id: 'dist-approx-skew',
+  sample: (rng, difficulty) => ({
+    n: rng.int(8, 30),
+    p: rng.chance(0.34) ? rng.pick(NEAR_HALF) : rng.pick(FAR_FROM_HALF),
+    words: difficulty > 1,
+    setting: rng.int(0, LARGE_SETTINGS.length - 1),
+  }),
+  render: ({ n, p, words, setting }): Slide => {
+    const key = `${n}|${p}|${words}|${setting}`;
+    const near = NEAR_HALF.includes(p);
+    return {
+      kind: 'flow',
+      prompt: [say(`${opening(words, setting, n, p)} Decide the shape of the bars of its distribution.`)],
+      subject: words ? 'X \\sim B(n, p)' : bTex(n, p),
+      steps: [
+        {
+          id: 'half',
+          ask: 'Is $p$ close to a half?',
+          branches: turned([{ label: 'Yes', outcome: 'Close to symmetric: the bars make a bell.' }, { label: 'No', to: 'low' }], key),
+        },
+        {
+          id: 'low',
+          ask: 'Is $p$ below a half?',
+          branches: turned(
+            [
+              { label: 'Yes', outcome: 'Piled up near $0$, with a long tail to the right.' },
+              { label: 'No', outcome: `Piled up near $${n}$, with a long tail to the left.` },
+            ],
+            `${key}low`,
+          ),
+        },
+      ],
+      answer: near ? ['Yes'] : ['No', p < 0.5 ? 'Yes' : 'No'],
+    };
+  },
+  solution: ({ n, p }) => {
+    const mean = fmt(clean(n * p));
+    if (NEAR_HALF.includes(p)) {
+      return [
+        { text: `$p = ${fmt(p)}$ is close to a half, so a success and a failure are about as likely as each other.` },
+        { text: `The bars rise to a peak near the mean, $np = ${mean}$, and fall away much the same on each side: close to a bell.` },
+      ];
+    }
+    return [
+      { text: `$p = ${fmt(p)}$ is well ${p < 0.5 ? 'below' : 'above'} a half, so the mean $np = ${mean}$ sits close to ${p < 0.5 ? '$0$' : `$${n}$`}.` },
+      { text: `The bars cannot go past ${p < 0.5 ? '$0$' : `$${n}$`}, so they pile up there and trail off in a long tail to the ${p < 0.5 ? 'right' : 'left'}: skewed, not a bell.` },
+    ];
+  },
+};
+
+interface PeakParams {
+  n: number;
+  p: number;
+  words: boolean;
+  setting: number;
+}
+
+/** The stretch of r worth drawing: about four sigma either side of np, at least twelve wide. */
+function barWindow(n: number, p: number): [number, number] {
+  const mu = n * p;
+  const sd = Math.sqrt(n * p * (1 - p));
+  let from = Math.max(0, Math.floor(mu - 4 * sd));
+  let to = Math.min(n, Math.ceil(mu + 4 * sd));
+  while (to - from < 12) {
+    if (from > 0) from -= 1;
+    if (to - from < 12 && to < n) to += 1;
+  }
+  return [from, to];
+}
+
+const approxPeak: Generator<PeakParams> = {
+  id: 'dist-approx-peak',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      n: hard ? rng.pick([20, 40, 60, 80, 100]) : rng.int(2, 8) * 10,
+      p: hard ? rng.pick([0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]) : rng.pick(TENTHS),
+      words: hard,
+      setting: rng.int(0, LARGE_SETTINGS.length - 1),
+    };
+  },
+  render: ({ n, p, words, setting }): Slide => {
+    const [from, to] = barWindow(n, p);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(`${opening(words, setting, n, p)} Its bars are drawn below. The normal curve that matches them is centred on the mean of $X$. Slide the line to that mean.`),
+      ],
+      min: from,
+      max: to,
+      step: 1,
+      answer: clean(n * p),
+      readout: '\\mu = {v}',
+      figure: {
+        svg: barsSvg(n, p, { from, to, label: `The bars of B(${n}, ${fmt(p)}) from ${from} to ${to}` }),
+        ...markerWindow(from - 0.5, to + 0.5),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ n, p }) => [
+    { text: 'The mean of $B(n, p)$ is $np$, and the matching normal curve is centred there, close to the tallest bars.' },
+    { tex: `np = ${n} \\times ${fmt(p)} = ${fmt(clean(n * p))}` },
+  ],
+};
+
+/* ---------- Level 4, lesson 2: when it is allowed ---------- */
+
+/** np and n(1 - p) worked out, each over two short lines so neither runs off a phone. */
+const productsTex = (n: number, p: number): string =>
+  aligned(`np &= ${n} \\times ${fmt(p)}`, `&= ${fmt(clean(n * p))}`, `n(1 - p) &= ${n} \\times ${fmt(comp(p))}`, `&= ${fmt(clean(n * comp(p)))}`);
+
+/** Whether np and n(1 - p) are both above 5. */
+const approxOk = (n: number, p: number): boolean => clean(n * p) > 5 && clean(n * comp(p)) > 5;
+
+interface ValidParams {
+  n: number;
+  p: number;
+  words: boolean;
+  setting: number;
+}
+
+const approxValid: Generator<ValidParams> = {
+  id: 'dist-approx-valid',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const grid = hard ? [0.01, 0.02, 0.04, 0.05, 0.08, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.92, 0.95, 0.96, 0.98, 0.99] : TENTHS;
+    const target = rng.pick(['ok', 'np', 'nq']);
+    for (;;) {
+      const n = hard ? rng.int(4, 80) * 5 : rng.int(2, 20) * 5;
+      const p = rng.pick(grid);
+      const np = clean(n * p);
+      const nq = clean(n * comp(p));
+      if (np <= 5 && nq <= 5) continue;
+      const got = np <= 5 ? 'np' : nq <= 5 ? 'nq' : 'ok';
+      if (got === target) return { n, p, words: hard && rng.chance(0.6), setting: rng.int(0, LARGE_SETTINGS.length - 1) };
+    }
+  },
+  render: ({ n, p, words, setting }): Slide => {
+    const key = `${n}|${p}|${words}|${setting}`;
+    const np = clean(n * p);
+    return {
+      kind: 'flow',
+      prompt: [say(`${opening(words, setting, n, p)} Decide whether a normal distribution can approximate $X$.`)],
+      subject: words ? 'X \\sim B(n, p)\\,?' : `${bTex(n, p)}\\,?`,
+      steps: [
+        {
+          id: 'np',
+          ask: 'Is $np$ above $5$?',
+          branches: turned([{ label: 'Yes', to: 'nq' }, { label: 'No', outcome: 'No: $np$ is $5$ or less, so the bars pile up against $0$.' }], key),
+        },
+        {
+          id: 'nq',
+          ask: 'Is $n(1 - p)$ above $5$?',
+          branches: turned(
+            [
+              { label: 'Yes', outcome: 'Yes: both are above $5$, so a normal approximation is reasonable.' },
+              { label: 'No', outcome: 'No: $n(1 - p)$ is $5$ or less, so the bars pile up against $n$.' },
+            ],
+            `${key}nq`,
+          ),
+        },
+      ],
+      answer: np > 5 ? ['Yes', clean(n * comp(p)) > 5 ? 'Yes' : 'No'] : ['No'],
+    };
+  },
+  solution: ({ n, p }) => {
+    const np = clean(n * p);
+    const nq = clean(n * comp(p));
+    return [
+      { tex: productsTex(n, p) },
+      {
+        text: approxOk(n, p)
+          ? 'Both are above $5$, so the bars are close enough to a bell for a normal approximation.'
+          : `$${np <= 5 ? 'np' : 'n(1 - p)'} = ${fmt(np <= 5 ? np : nq)}$ is not above $5$, so the bars are too lopsided for a normal curve.`,
+      },
+    ];
+  },
+};
+
+interface ProductsParams {
+  n: number;
+  p: number;
+}
+
+const YES = '\\text{yes}';
+const NO = '\\text{no}';
+
+const approxProducts: Generator<ProductsParams> = {
+  id: 'dist-approx-products',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const good = rng.chance(0.5);
+    for (;;) {
+      const n = hard ? rng.int(4, 60) * 5 : rng.int(1, 12) * 10;
+      const p = hard ? rng.pick([0.02, 0.04, 0.05, 0.06, 0.08, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.92, 0.94, 0.95, 0.96, 0.98]) : rng.pick(TENTHS);
+      if (approxOk(n, p) === good) return { n, p };
+    }
+  },
+  render: ({ n, p }): Slide => {
+    const np = clean(n * p);
+    const nq = clean(n * comp(p));
+    const answer = [fmt(np), fmt(nq), approxOk(n, p) ? YES : NO];
+    return {
+      kind: 'tiles',
+      prompt: [say(`$${bTex(n, p)}$. Work out $np$ and $n(1 - p)$, then say whether a normal distribution can approximate $X$.`)],
+      template: 'np = {0}, \\; n(1 - p) = {1} \\text{: approximate? } {2}',
+      bank: tokenBank(answer, [approxOk(n, p) ? NO : YES, fmt(clean(n * p * comp(p))), fmt(clean(n - p)), String(n)], 3),
+      answer,
+    };
+  },
+  solution: ({ n, p }) => {
+    const np = clean(n * p);
+    return [
+      { tex: productsTex(n, p) },
+      {
+        text: approxOk(n, p)
+          ? 'Both are above $5$, so yes.'
+          : `$${np <= 5 ? 'np' : 'n(1 - p)'}$ is $5$ or less, so no: the bars are too lopsided.`,
+      },
+    ];
+  },
+};
+
+interface WhichValidParams {
+  good: [number, number];
+  bad: [number, number][];
+}
+
+const approxWhichValid: Generator<WhichValidParams> = {
+  id: 'dist-approx-which-valid',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const smaller = (n: number, p: number) => Math.min(clean(n * p), clean(n * comp(p)));
+    const draw = (): [number, number] => [rng.int(2, 40) * 5, rng.pick([0.01, 0.02, 0.04, 0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 0.95, 0.96, 0.98, 0.99])];
+    let good: [number, number];
+    for (;;) {
+      good = draw();
+      const m = smaller(...good);
+      if (hard ? m > 5 && m <= 9 : m >= 15) break;
+    }
+    const bad: [number, number][] = [];
+    while (bad.length < 3) {
+      const pair = draw();
+      const m = smaller(...pair);
+      if (hard ? m < 3 || m > 5 : m > 3) continue;
+      if (bad.some(([n, p]) => n === pair[0] && p === pair[1])) continue;
+      // One of each side at least, so "p is small" is not the whole story.
+      if (bad.length === 2 && bad.every(([n, p]) => (clean(n * p) <= 5) === (clean(pair[0] * pair[1]) <= 5))) continue;
+      bad.push(pair);
+    }
+    return { good, bad };
+  },
+  render: ({ good, bad }): Slide =>
+    choiceSlide(
+      [say('Which of these binomial distributions can a normal distribution approximate well?')],
+      options({ tex: `B(${good[0]}, ${fmt(good[1])})` }, ...bad.map(([n, p]) => ({ tex: `B(${n}, ${fmt(p)})` }))),
+    ),
+  solution: ({ good, bad }) => {
+    const row = ([n, p]: [number, number]) => `B(${n}, ${fmt(p)}) & ${fmt(Math.min(clean(n * p), clean(n * comp(p))))}`;
+    return [
+      { text: 'Both $np$ and $n(1 - p)$ must be above $5$, so check the smaller of the two for each:' },
+      { tex: `\\begin{array}{c|c} & \\text{smaller} \\\\ \\hline ${[good, ...bad].map(row).join(' \\\\ ')} \\end{array}` },
+      { text: `Only $B(${good[0]}, ${fmt(good[1])})$ has both above $5$.` },
+    ];
+  },
+};
+
+interface MinNParams {
+  /** p in hundredths. */
+  hundredths: number;
+}
+
+/** The smallest whole n with n * min(p, 1 - p) above 5, worked in whole hundredths. */
+const smallestN = ({ hundredths }: MinNParams): number => Math.floor(500 / Math.min(hundredths, 100 - hundredths)) + 1;
+
+const approxMinN: Generator<MinNParams> = {
+  id: 'dist-approx-min-n',
+  sample: (rng, difficulty) => ({ hundredths: difficulty > 1 ? rng.int(52, 90) : rng.int(10, 48) }),
+  render: (params): Slide => {
+    const p = params.hundredths / 100;
+    const m = Math.min(p, comp(p));
+    const window = markerWindow(0, 60);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$X \\sim B(n, ${fmt(p)})$. Slide $n$ to the smallest whole number that makes $np$ and $n(1 - p)$ both above $5$. The lines show $np$ and $n(1 - p)$ as $n$ grows, with $5$ dashed.`,
+        ),
+      ],
+      min: 0,
+      max: 60,
+      step: 1,
+      answer: smallestN(params),
+      readout: 'n = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 60,
+          yMin: 0,
+          yMax: 10,
+          curves: [{ f: (x) => x * m, accent: true }, { f: (x) => x * (1 - m) }],
+          horizontals: [5],
+          label: 'Two straight lines through the origin, np and n(1 - p), and a dashed line at 5',
+        }),
+        ...window,
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const p = params.hundredths / 100;
+    const m = Math.min(p, comp(p));
+    const n = smallestN(params);
+    return [
+      { text: `The smaller of $p$ and $1 - p$ is $${fmt(m)}$, so that is the product that has to clear $5$.` },
+      { tex: aligned(`${n - 1} \\times ${fmt(m)} &= ${fmt(clean((n - 1) * m))} \\le 5`, `${n} \\times ${fmt(m)} &= ${fmt(clean(n * m))} > 5`) },
+      { text: `So the smallest $n$ is $${n}$.` },
+    ];
+  },
+};
+
+/* ---------- Level 4, lesson 3: the matching normal ---------- */
+
+interface MatchNormalParams {
+  n: number;
+  p: number;
+  sigma: number;
+  ask: 'mean' | 'var' | 'sd';
+  words: boolean;
+  setting: number;
+}
+
+function sampleMatch(rng: Rng, difficulty: number): MatchNormalParams {
+  const hard = difficulty > 1;
+  return {
+    ...drawPair(rng, SQUARE_PAIRS),
+    ask: rng.pick<MatchNormalParams['ask']>(hard ? ['var', 'sd'] : ['mean', 'var']),
+    words: hard,
+    setting: rng.int(0, LARGE_SETTINGS.length - 1),
+  };
+}
+
+const nApprox = (n: number, p: number): string => `Y \\sim N(${fmt(meanOf({ n, p }))}, ${fmt(varOf({ n, p }))})`;
+
+function matchSolution({ n, p, sigma }: MatchNormalParams): SolutionStep[] {
+  const mu = meanOf({ n, p });
+  const v = varOf({ n, p });
+  return [
+    { tex: aligned(`\\mu &= np`, `&= ${n} \\times ${fmt(p)} = ${fmt(mu)}`, `\\sigma^2 &= np(1 - p)`, `&= ${fmt(mu)} \\times ${fmt(comp(p))} = ${fmt(v)}`) },
+    { tex: aligned(`\\sigma &= \\sqrt{${fmt(v)}} = ${sigma}`, `Y &\\sim N(${fmt(mu)}, ${fmt(v)})`) },
+  ];
+}
+
+const approxParam: Generator<MatchNormalParams> = {
+  id: 'dist-approx-param',
+  sample: sampleMatch,
+  render: (params): Slide => {
+    const { n, p, sigma, ask, words, setting } = params;
+    const wanted = { mean: 'its mean $\\mu$', var: 'its variance $\\sigma^2$', sd: 'its standard deviation $\\sigma$' }[ask];
+    return {
+      kind: 'expression',
+      prompt: [say(`${opening(words, setting, n, p)} A normal distribution $Y \\sim N(\\mu, \\sigma^2)$ is to approximate $X$. Find ${wanted}.`)],
+      lead: { mean: '\\mu =', var: '\\sigma^2 =', sd: '\\sigma =' }[ask],
+      keypad: [],
+      answer: fmt(ask === 'mean' ? meanOf(params) : ask === 'var' ? varOf(params) : sigma),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: matchSolution,
+};
+
+const approxNormal: Generator<MatchNormalParams> = {
+  id: 'dist-approx-normal',
+  sample: sampleMatch,
+  render: (params): Slide => {
+    const { n, p, sigma, words, setting } = params;
+    const mu = fmt(meanOf(params));
+    const v = fmt(varOf(params));
+    return choiceSlide(
+      [say(`${opening(words, setting, n, p)} Which normal distribution approximates $X$?`)],
+      options(
+        { tex: nApprox(n, p) },
+        { tex: `Y \\sim N(${mu}, ${sigma})` },
+        { tex: `Y \\sim N(${mu}, ${mu})` },
+        { tex: `Y \\sim N(${fmt(clean(n * comp(p)))}, ${v})` },
+        { tex: `Y \\sim N(${v}, ${mu})` },
+      ).slice(0, 4),
+    );
+  },
+  solution: (params) => [
+    { text: 'The matching normal has the same mean and the same variance as $X$, and the second number in $N(\\mu, \\sigma^2)$ is the variance.' },
+    ...matchSolution(params),
+  ],
+};
+
+const approxBuild: Generator<MatchNormalParams> = {
+  id: 'dist-approx-build',
+  sample: sampleMatch,
+  render: (params): Slide => {
+    const { n, p, sigma, words, setting } = params;
+    const answer = [fmt(meanOf(params)), fmt(varOf(params)), String(sigma)];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${opening(words, setting, n, p)} Build the normal distribution that approximates $X$, and its standard deviation.`)],
+      template: 'Y \\sim N({0}, {1}), \\quad \\sigma = {2}',
+      bank: tokenBank(answer, [fmt(clean(n * comp(p))), String(n), fmt(clean(meanOf(params) * p)), String(sigma + 1), fmt(clean(varOf(params) * 2))], 3),
+      answer,
+    };
+  },
+  solution: matchSolution,
+};
+
+const approxMomentsTree: Generator<MatchNormalParams> = {
+  id: 'dist-approx-moments-tree',
+  sample: sampleMatch,
+  render: (params): Slide => {
+    const { n, p, sigma, words, setting } = params;
+    const mu = meanOf(params);
+    const v = varOf(params);
+    const answer = [fmt(mu), fmt(v), String(sigma)];
+    return {
+      kind: 'tree',
+      prompt: [say(`${opening(words, setting, n, p)} From the top: the mean $np$, then the variance $np(1 - p)$, then the standard deviation $\\sigma$ of the matching normal.`)],
+      expression: 'Y \\sim N(np, np(1 - p))',
+      nodes: [
+        { id: 'mu', from: [] },
+        { id: 'var', from: ['mu'] },
+        { id: 'sd', from: ['var'] },
+      ],
+      bank: decimalBank(answer, [clean(n * comp(p)), clean(mu * p), clean(v / 2), sigma + 1, clean(2 * sigma)], 3),
+      answer,
+    };
+  },
+  solution: matchSolution,
+};
+
+/* ---------- Level 4, lesson 4: the continuity correction ---------- */
+
+type CcRel = Side | 'eq' | 'between';
+
+/** An event for X: `r` alone, or from `r` to `s` inclusive for `between`. */
+interface CcEvent {
+  rel: CcRel;
+  r: number;
+  s: number;
+}
+
+/** The corrected event for Y: Y > lo, Y < hi, or both. */
+function corrected({ rel, r, s }: CcEvent): { lo?: number; hi?: number } {
+  switch (rel) {
+    case 'le':
+      return { hi: r + 0.5 };
+    case 'lt':
+      return { hi: r - 0.5 };
+    case 'ge':
+      return { lo: r - 0.5 };
+    case 'gt':
+      return { lo: r + 0.5 };
+    case 'eq':
+      return { lo: r - 0.5, hi: r + 0.5 };
+    case 'between':
+      return { lo: r - 0.5, hi: s + 0.5 };
+  }
+}
+
+function xEventTex({ rel, r, s }: CcEvent): string {
+  if (rel === 'eq') return `P(X = ${r})`;
+  if (rel === 'between') return `P(${r} \\le X \\le ${s})`;
+  return `P(X ${SIDE_TEX[rel]} ${r})`;
+}
+
+function xEventWords({ rel, r, s }: CcEvent): string {
+  const words: Record<CcRel, string> = {
+    le: `at most $${r}$`,
+    lt: `fewer than $${r}$`,
+    ge: `at least $${r}$`,
+    gt: `more than $${r}$`,
+    eq: `exactly $${r}$`,
+    between: `between $${r}$ and $${s}$ inclusive`,
+  };
+  return words[rel];
+}
+
+/** The event as the prompt names it: in symbols, or "the probability that X is ...". */
+const eventText = (event: CcEvent, words: boolean): string =>
+  words ? `the probability that $X$ is ${xEventWords(event)}` : `$${xEventTex(event)}$`;
+
+function yEventTex({ lo, hi }: { lo?: number; hi?: number }): string {
+  if (lo !== undefined && hi !== undefined) return `P(${fmt(lo)} < Y < ${fmt(hi)})`;
+  if (hi !== undefined) return `P(Y < ${fmt(hi)})`;
+  return `P(Y > ${fmt(lo!)})`;
+}
+
+/** Why the correction lands where it does, for a solution. */
+function ccWhy({ rel, r, s }: CcEvent): string {
+  const why: Record<CcRel, string> = {
+    le: `$X \\le ${r}$ takes in the bar at $${r}$, which runs up to $${r + 0.5}$.`,
+    lt: `Fewer than $${r}$ is $X \\le ${r - 1}$, and the bar at $${r - 1}$ runs up to $${r - 0.5}$.`,
+    ge: `$X \\ge ${r}$ takes in the bar at $${r}$, which starts at $${r - 0.5}$.`,
+    gt: `More than $${r}$ is $X \\ge ${r + 1}$, and the bar at $${r + 1}$ starts at $${r + 0.5}$.`,
+    eq: `$X = ${r}$ is the single bar at $${r}$, which runs from $${r - 0.5}$ to $${r + 0.5}$.`,
+    between: `The bars from $${r}$ to $${s}$ run from $${r - 0.5}$ to $${s + 0.5}$.`,
+  };
+  return why[rel];
+}
+
+interface CcParams {
+  n: number;
+  p: number;
+  event: CcEvent;
+  words: boolean;
+}
+
+/** A binomial with both np and n(1 - p) above 5, and an event near its mean. */
+function sampleCc(rng: Rng, rels: CcRel[], words: boolean): CcParams {
+  for (;;) {
+    const n = rng.int(4, 30) * 10;
+    const p = rng.pick(TENTHS);
+    if (!approxOk(n, p)) continue;
+    const mu = clean(n * p);
+    const sd = Math.sqrt(varOf({ n, p }));
+    const rel = rng.pick(rels);
+    const r = Math.round(mu + rng.int(-Math.ceil(2 * sd), Math.ceil(2 * sd)));
+    const s = rel === 'between' ? r + rng.int(1, 4) : r;
+    if (r < 2 || s > n - 2) continue;
+    return { n, p, event: { rel, r, s }, words };
+  }
+}
+
+const ccPrompt = ({ n, p }: CcParams): string => `$${bTex(n, p)}$ is approximated by $${nApprox(n, p)}$.`;
+
+function ccSolution(params: CcParams): SolutionStep[] {
+  const { event } = params;
+  return [
+    { text: `Each whole number $k$ is a bar from $k - 0.5$ to $k + 0.5$. ${ccWhy(event)}` },
+    { tex: aligned(`& ${xEventTex(event)}`, `&\\approx ${yEventTex(corrected(event))}`) },
+  ];
+}
+
+const ccChoice: Generator<CcParams> = {
+  id: 'dist-cc-choice',
+  sample: (rng, difficulty) =>
+    difficulty > 1 ? sampleCc(rng, ['le', 'lt', 'ge', 'gt', 'eq', 'between'], true) : sampleCc(rng, ['le', 'ge'], false),
+  render: (params): Slide => {
+    const { event, words } = params;
+    const { r, s } = event;
+    const right = corrected(event);
+    let wrong: { lo?: number; hi?: number }[];
+    if (right.lo !== undefined && right.hi !== undefined) {
+      wrong =
+        event.rel === 'eq'
+          ? [{ lo: r, hi: r + 1 }, { lo: r - 1, hi: r }, { hi: r + 0.5 }]
+          : [{ lo: r + 0.5, hi: s - 0.5 }, { lo: r - 0.5, hi: s - 0.5 }, { lo: r + 0.5, hi: s + 0.5 }];
+    } else {
+      const b = right.lo ?? right.hi!;
+      const other = 2 * r - b;
+      wrong =
+        right.hi !== undefined
+          ? [{ hi: other }, { hi: r }, { lo: b }]
+          : [{ lo: other }, { lo: r }, { hi: b }];
+    }
+    return choiceSlide(
+      [say(`${ccPrompt(params)} With the continuity correction, which gives ${eventText(event, words)}?`)],
+      options({ tex: yEventTex(right) }, ...wrong.map((y) => ({ tex: yEventTex(y) }))),
+    );
+  },
+  solution: ccSolution,
+};
+
+const ccFlow: Generator<CcParams> = {
+  id: 'dist-cc-flow',
+  sample: (rng, difficulty) => sampleCc(rng, difficulty > 1 ? ['lt', 'gt', 'lt', 'gt', 'le', 'ge'] : ['le', 'ge'], true),
+  render: (params): Slide => {
+    const { event } = params;
+    const { rel, r } = event;
+    const key = `${params.n}|${params.p}|${rel}|${r}`;
+    const whole = [`$X \\le ${r}$`, `$X \\le ${r - 1}$`, `$X \\ge ${r}$`, `$X \\ge ${r + 1}$`];
+    const rightWhole = { le: whole[0], lt: whole[1], ge: whole[2], gt: whole[3] }[rel as Side];
+    const { lo, hi } = corrected(event);
+    const under = hi !== undefined;
+    const c = (under ? hi : lo)!;
+    const ys = under
+      ? [`$Y < ${fmt(c)}$`, `$Y < ${fmt(c - 1)}$`, `$Y > ${fmt(c)}$`, `$Y > ${fmt(c - 1)}$`]
+      : [`$Y > ${fmt(c)}$`, `$Y > ${fmt(c + 1)}$`, `$Y < ${fmt(c)}$`, `$Y < ${fmt(c + 1)}$`];
+    return {
+      kind: 'flow',
+      prompt: [say(`${ccPrompt(params)} Find the event for $Y$ that gives ${eventText(event, true)}.`)],
+      subject: `X \\text{ is ${xEventWords(event).replace(/\$/g, '')}}`,
+      steps: [
+        {
+          id: 'whole',
+          ask: 'As whole numbers, which values of $X$ count?',
+          branches: turned(whole.map((label) => ({ label, to: 'cc' })), key),
+        },
+        {
+          id: 'cc',
+          ask: 'With the continuity correction, which event for $Y$?',
+          branches: turned(
+            ys.map((label) => ({ label, outcome: `So the probability is approximated by ${label.replace(/^\$/, '$P(').replace(/\$$/, ')$')}.` })),
+            `${key}cc`,
+          ),
+        },
+      ],
+      answer: [rightWhole, ys[0]],
+    };
+  },
+  solution: ccSolution,
+};
+
+interface CcLineParams extends CcParams {
+  /** The left end of the six-unit window, a whole number. */
+  min: number;
+}
+
+/** The corrected event as a number-line set, every end open. */
+function ccSet(event: CcEvent): string {
+  const { lo, hi } = corrected(event);
+  return canonicalSet(`(${lo === undefined ? '-inf' : fmt(lo)},${hi === undefined ? 'inf' : fmt(hi)})`)!;
+}
+
+const ccLine: Generator<CcLineParams> = {
+  id: 'dist-cc-line',
+  sample: (rng, difficulty) => {
+    const base = difficulty > 1 ? sampleCc(rng, ['lt', 'gt', 'eq', 'between'], true) : sampleCc(rng, ['le', 'ge'], false);
+    const { lo, hi } = corrected(base.event);
+    const ends = [lo, hi].filter((e): e is number => e !== undefined);
+    // Every end strictly inside a window of twelve half-steps, the first tick whole.
+    const min = rng.int(Math.ceil(Math.max(...ends) + 0.5 - 6), Math.floor(Math.min(...ends) - 0.5));
+    return { ...base, min };
+  },
+  render: (params): Slide => ({
+    kind: 'numberLine',
+    prompt: [
+      say(
+        `${ccPrompt(params)} Shade the values of $Y$ that give ${eventText(params.event, params.words)}, with the continuity correction. $Y$ is continuous, so an end carries no probability of its own: leave every end dot hollow.`,
+      ),
+    ],
+    min: params.min,
+    max: params.min + 6,
+    step: 0.5,
+    answer: ccSet(params.event),
+  }),
+  solution: (params) => {
+    const { lo, hi } = corrected(params.event);
+    return [
+      ...ccSolution(params),
+      {
+        text:
+          lo !== undefined && hi !== undefined
+            ? `So shade from $${fmt(lo)}$ to $${fmt(hi)}$, with hollow dots at both ends.`
+            : `So put a hollow dot at $${fmt((lo ?? hi)!)}$ and shade ${lo !== undefined ? 'right' : 'left'} off the end of the line.`,
+      },
+    ];
+  },
+};
+
+interface CcBoundaryParams extends CcParams {
+  /** Which end is asked, for a two-sided event. */
+  end: 'lo' | 'hi';
+}
+
+const ccBoundary: Generator<CcBoundaryParams> = {
+  id: 'dist-cc-boundary',
+  sample: (rng, difficulty) => ({
+    ...(difficulty > 1 ? sampleCc(rng, ['lt', 'gt', 'eq', 'between'], true) : sampleCc(rng, ['le', 'ge'], rng.chance(0.3))),
+    end: rng.pick<CcBoundaryParams['end']>(['lo', 'hi']),
+  }),
+  render: (params): Slide => {
+    const { event, words, end } = params;
+    const { lo, hi } = corrected(event);
+    const both = lo !== undefined && hi !== undefined;
+    const shape = both ? 'P(a < Y < b)' : hi !== undefined ? 'P(Y < b)' : 'P(Y > b)';
+    const letter = both && end === 'lo' ? 'a' : 'b';
+    const value = both ? (end === 'lo' ? lo : hi) : (lo ?? hi);
+    return {
+      kind: 'expression',
+      prompt: [say(`${ccPrompt(params)} With the continuity correction, ${eventText(event, words)} is approximated by $${shape}$. Find $${letter}$.`)],
+      lead: `${letter} =`,
+      keypad: [],
+      answer: fmt(value!),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ccSolution,
+};
+
+/* ---------- Level 4, lesson 5: the whole route ---------- */
+
+interface RouteParams {
+  n: number;
+  p: number;
+  sigma: number;
+  event: CcEvent;
+  words: boolean;
+  setting: number;
+}
+
+/** The z at each corrected boundary, lower first. */
+function routeZs({ n, p, sigma, event }: RouteParams): number[] {
+  const mu = meanOf({ n, p });
+  const { lo, hi } = corrected(event);
+  return [lo, hi].filter((b): b is number => b !== undefined).map((b) => clean((b - mu) / sigma));
+}
+
+/**
+ * A route question: a pair whose sigma is whole, an event near the mean, and
+ * every corrected boundary at a z of at most two places and at most 2.5 from
+ * the mean. Anything else is refused and drawn again.
+ */
+function sampleRoute(rng: Rng, difficulty: number, rels: CcRel[]): RouteParams {
+  for (;;) {
+    const { n, p, sigma } = drawPair(rng, ROUTE_PAIRS);
+    const mu = meanOf({ n, p });
+    const rel = rng.pick(rels);
+    const r = mu + rng.int(-Math.floor(2.4 * sigma), Math.floor(2.4 * sigma));
+    const s = rel === 'between' ? r + rng.int(1, 2 * sigma) : r;
+    if (r < 1 || s > n - 1) continue;
+    const params: RouteParams = { n, p, sigma, event: { rel, r, s }, words: difficulty > 1, setting: rng.int(0, LARGE_SETTINGS.length - 1) };
+    const zs = routeZs(params);
+    if (zs.some((z) => !terminates(z, 2) || Math.abs(z) > 2.5 || Math.abs(z) < 0.05)) continue;
+    return params;
+  }
+}
+
+/** The probability, read from the quoted Phi values. */
+function routeValue(params: RouteParams): number {
+  const { lo, hi } = corrected(params.event);
+  const zs = routeZs(params);
+  if (lo !== undefined && hi !== undefined) return clean(below(zs[1]) - below(zs[0]));
+  if (hi !== undefined) return below(zs[0]);
+  return clean(1 - below(zs[0]));
+}
+
+/** The distinct |z| a route question quotes Phi at. */
+const routeQuotes = (params: RouteParams): number[] => [...new Set(routeZs(params).map(Math.abs))].sort((a, b) => a - b);
+
+function routeSolution(params: RouteParams): SolutionStep[] {
+  const { n, p, sigma, event } = params;
+  const mu = meanOf({ n, p });
+  const { lo, hi } = corrected(event);
+  const zs = routeZs(params);
+  const bounds = [lo, hi].filter((b): b is number => b !== undefined);
+  const steps: SolutionStep[] = [
+    { text: `$np = ${fmt(mu)}$ and $n(1 - p) = ${fmt(clean(n - mu))}$ are both above $5$, so approximate by $${nApprox(n, p)}$, with $\\sigma = ${sigma}$.` },
+    { tex: aligned(`& ${xEventTex(event)}`, `&\\approx ${yEventTex({ lo, hi })}`) },
+    ...bounds.map((b, i) => ({ tex: aligned(`z &= \\frac{${fmt(b)} - ${fmt(mu)}}{${sigma}}`, `&= ${fmt(zs[i])}`) })),
+  ];
+  const lower = (z: number) => (z >= 0 ? `\\Phi(${fmt(z)})` : `1 - \\Phi(${fmt(-z)})`);
+  if (bounds.length === 2) {
+    steps.push({ tex: aligned(`& (${lower(zs[1])})`, `&\\quad - (${lower(zs[0])})`, `&= ${fmt(below(zs[1]))} - ${fmt(below(zs[0]))}`, `&= ${fmt(routeValue(params))}`) });
+  } else if (hi !== undefined) {
+    steps.push({ tex: aligned(`& P(Z < ${fmt(zs[0])})`, `&= ${lower(zs[0])}`, `&= ${fmt(routeValue(params))}`) });
+  } else {
+    steps.push({ tex: aligned(`& P(Z > ${fmt(zs[0])})`, `&= 1 - P(Z < ${fmt(zs[0])})`, `&= 1 - ${fmt(below(zs[0]))}`, `&= ${fmt(routeValue(params))}`) });
+  }
+  return steps;
+}
+
+const ONE_SIDED: Side[] = ['le', 'lt', 'ge', 'gt'];
+
+const approxProb: Generator<RouteParams> = {
+  id: 'dist-approx-prob',
+  sample: (rng, difficulty) => sampleRoute(rng, difficulty, difficulty > 1 ? ['le', 'lt', 'ge', 'gt', 'eq', 'between'] : ['le', 'ge']),
+  render: (params): Slide => {
+    const { n, p, event, words, setting } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`${opening(words, setting, n, p)} Use a normal approximation, with a continuity correction, to find ${eventText(event, words)}. Use`),
+        show(quoteTex(routeQuotes(params))),
+      ],
+      lead: `${xEventTex(event)} \\approx`,
+      keypad: [],
+      answer: fmt(routeValue(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: routeSolution,
+  choices: (params) => {
+    const value = routeValue(params);
+    const quoted = routeQuotes(params).map(phi);
+    return decimalChoices(value, [clean(1 - value), ...quoted, ...quoted.map((q) => clean(1 - q))]);
+  },
+};
+
+const approxRouteTree: Generator<RouteParams> = {
+  id: 'dist-approx-route-tree',
+  sample: (rng, difficulty) => sampleRoute(rng, difficulty, difficulty > 1 ? ONE_SIDED : ['le', 'ge']),
+  render: (params): Slide => {
+    const { n, p, sigma, event, words, setting } = params;
+    const { lo, hi } = corrected(event);
+    const b = (lo ?? hi)!;
+    const [z] = routeZs(params);
+    const value = routeValue(params);
+    const mu = meanOf({ n, p });
+    const answer = [fmt(b), fmt(z), fmt(value)];
+    const other = 2 * event.r - b;
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${opening(words, setting, n, p)} It is approximated by $${nApprox(n, p)}$, with $\\sigma = ${sigma}$. For ${eventText(event, words)}, from the top: the corrected boundary $b$, then its $z$, then the probability. Use`,
+        ),
+        show(quoteTex(routeQuotes(params))),
+      ],
+      expression: `${xEventTex(event)} \\approx P(Y ${hi !== undefined ? '<' : '>'} b)`,
+      nodes: [
+        { id: 'b', from: [] },
+        { id: 'z', from: ['b'] },
+        { id: 'P', from: ['z'] },
+      ],
+      bank: decimalBank(answer, [other, event.r, -z, clean((other - mu) / sigma), clean(1 - value)], 3, false),
+      answer,
+    };
+  },
+  solution: routeSolution,
+};
+
+const approxStandardise: Generator<RouteParams> = {
+  id: 'dist-approx-standardise-steps',
+  sample: (rng, difficulty) => sampleRoute(rng, difficulty, difficulty > 1 ? ONE_SIDED : ['le', 'ge']),
+  render: (params): Slide => {
+    const { n, p, sigma, event, words, setting } = params;
+    const { lo, hi } = corrected(event);
+    const b = (lo ?? hi)!;
+    const mu = meanOf({ n, p });
+    const d = clean(b - mu);
+    const [z] = routeZs(params);
+    const up = event.rel === 'le' || event.rel === 'gt';
+    const other = 2 * event.r - b;
+    const slip = clean(d / (sigma * sigma));
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `${opening(words, setting, n, p)} It is approximated by $${nApprox(n, p)}$. For ${eventText(event, words)}, correct the boundary, then standardise it with $z = (b - \\mu) \\div \\sigma$. Tap the part to do next, then choose what it comes to.`,
+        ),
+      ],
+      start: ['(', String(event.r), up ? '+' : '-', '0.5', '-', fmt(mu), ')', '\\div', String(sigma)],
+      reductions: [
+        { span: [1, 4], operator: 2, value: fmt(b), bank: stepBank(fmt(b), fmt(other), String(event.r), fmt(b + 1), fmt(b - 1)) },
+        { span: [0, 5], operator: 2, value: fmt(d), bank: stepBank(fmt(d), fmt(-d), fmt(clean(b + mu)), fmt(clean(d + 1))) },
+        {
+          span: [0, 3],
+          operator: 1,
+          value: fmt(z),
+          bank: stepBank(fmt(z), fmt(-z), fmt(clean(d * sigma)), terminates(slip, 4) && slip !== z ? fmt(slip) : fmt(clean(z + 0.1))),
+        },
+      ],
+    };
+  },
+  solution: routeSolution,
+};
+
+const approxPlan: Generator<RouteParams> = {
+  id: 'dist-approx-plan',
+  sample: (rng, difficulty) => sampleRoute(rng, difficulty, difficulty > 1 ? ONE_SIDED : ['le', 'ge']),
+  render: (params): Slide => {
+    const { n, p, sigma, event, words, setting } = params;
+    const mu = fmt(meanOf({ n, p }));
+    const v = fmt(varOf({ n, p }));
+    const { lo, hi } = corrected(event);
+    const b = (lo ?? hi)!;
+    const other = 2 * event.r - b;
+    const [z] = routeZs(params);
+    const u = fmt(Math.abs(z));
+    const op = hi !== undefined ? '<' : '>';
+    const opp = hi !== undefined ? '>' : '<';
+    const forms = [`$\\Phi(${u})$`, `$1 - \\Phi(${u})$`, `$\\Phi(${u}) - 0.5$`];
+    // P(Y < b) is Phi(|z|) above the mean and 1 - Phi(|z|) below it; P(Y > b) the other way round.
+    const direct = (hi !== undefined) === z > 0;
+    const key = `${n}|${p}|${event.rel}|${event.r}|${words}|${setting}`;
+    return {
+      kind: 'flow',
+      prompt: [say(`${opening(words, setting, n, p)} Plan how to approximate ${eventText(event, words)}.`)],
+      subject: xEventTex(event),
+      steps: [
+        {
+          id: 'normal',
+          ask: 'Which normal distribution matches $X$?',
+          branches: turned([`$N(${mu}, ${v})$`, `$N(${mu}, ${sigma})$`, `$N(${mu}, ${mu})$`].map((label) => ({ label, to: 'cc' })), key),
+        },
+        {
+          id: 'cc',
+          ask: 'With the continuity correction, which event for $Y$?',
+          branches: turned([`$Y ${op} ${fmt(b)}$`, `$Y ${op} ${fmt(other)}$`, `$Y ${opp} ${fmt(b)}$`].map((label) => ({ label, to: 'phi' })), `${key}cc`),
+        },
+        {
+          id: 'phi',
+          ask: 'Standardise the boundary. Which gives the probability?',
+          branches: turned(forms.map((label) => ({ label, outcome: `So the probability is ${label}.` })), `${key}phi`),
+        },
+      ],
+      answer: [`$N(${mu}, ${v})$`, `$Y ${op} ${fmt(b)}$`, direct ? forms[0] : forms[1]],
+    };
+  },
+  solution: routeSolution,
+};
+
 export const binomialNormalGenerators = [
   conditionsFlow,
   conditionsChoice,
@@ -2651,4 +4553,41 @@ export const binomialNormalGenerators = [
   findWorking,
   findEquation,
   findChoice,
+  bothSignFlow,
+  bothStandardise,
+  bothFits,
+  bothTable,
+  bothEquation,
+  bothPair,
+  bothSolve,
+  bothWorking,
+  bothNodes,
+  bothSymmetric,
+  bothMidpoint,
+  bothHalfGap,
+  bothProportion,
+  bothCheckTable,
+  bothVerify,
+  bothNewProb,
+  bothChain,
+  approxSum,
+  approxBars,
+  approxSkew,
+  approxPeak,
+  approxValid,
+  approxProducts,
+  approxWhichValid,
+  approxMinN,
+  approxParam,
+  approxNormal,
+  approxBuild,
+  approxMomentsTree,
+  ccChoice,
+  ccFlow,
+  ccLine,
+  ccBoundary,
+  approxProb,
+  approxRouteTree,
+  approxStandardise,
+  approxPlan,
 ];

@@ -20,7 +20,15 @@
  * Level 4 asks what a rule does to $-x$ — even functions mirror in the
  * $y$-axis, odd ones turn a half turn about the origin — then what it does
  * after a whole period, and closes on rules that change from one stretch of
- * $x$ to the next. Later levels are in
+ * $x$ to the next.
+ *
+ * Level 5 reads $y = a\sin(bx + c) + d$, $x$ in degrees, as moves made to
+ * $y = \sin x$: $a$ a stretch parallel to the $y$-axis, $d$ a translation up,
+ * $b$ a stretch across by $\frac{1}{b}$, and $c$ a move across by
+ * $\frac{c}{b}$ against its sign — then the rule back off a drawn wave, and
+ * the order the moves are made in. Trigonometric Functions reads the same
+ * graphs as amplitude, period and shift; here the lens is the transformation,
+ * its factor, vector and order. Later levels are in
  * `docs/roadmap/levels/functions-transformations.md`.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
@@ -132,6 +140,15 @@ const markedGraph = (
     label,
   }),
 });
+
+/** A wave with x in degrees: a fn(bx + c) + d. */
+const wave =
+  (a: number, b: number, c: number, d: number, fn: 'sin' | 'cos' = 'sin') =>
+  (x: number): number =>
+    a * Math[fn](((b * x + c) * Math.PI) / 180) + d;
+
+/** One turn of a wave, in degrees. */
+const DEGREES = { xMin: 0, xMax: 360 };
 
 /** A zigzag repeating every 4, peaking at 2: the teaching picture of a period. */
 const zigzag = (x: number): number => {
@@ -1002,6 +1019,221 @@ export const functionsTransformations: Course = {
         ask('fun-join-tree', 2),
         ask('fun-piece-value', 2),
         ask('fun-piece-choice', 2),
+      ],
+    },
+    {
+      id: 'fn-l5',
+      title: 'Transformations of Trigonometric Graphs',
+      lessons: [
+        {
+          id: 'fn-l5-amplitude',
+          title: 'Amplitude and Midline',
+          slides: [
+            teach(
+              prose('Every change to $y = \\sin x$ in this level is a move from Transformations, with $x$ in degrees. A number **in front** multiplies every height, so $y = a\\sin x$ is a **stretch parallel to the $y$-axis** with scale factor $a$.'),
+              graph(
+                [wave(2, 1, 0, 1)],
+                { ...DEGREES, yMin: -2, yMax: 4 },
+                'The curve y = sin x dashed, and y = 2 sin x + 1 twice as tall and lifted by 1',
+                [wave(1, 1, 0, 0)],
+              ),
+              prose('A number **added on** lifts every height, so $y = \\sin x + d$ is a **translation** by $\\begin{pmatrix} 0 \\\\ d \\end{pmatrix}$. The solid curve is $2\\sin x + 1$: stretched by $2$, then moved up $1$, so it swings about the line $y = 1$, its **midline**.'),
+            ),
+            ask('fun-amp-flow'),
+            ask('fun-wave-extremes'),
+            ask('fun-amp-apply'),
+            teach(
+              prose('$\\sin x$ runs from $-1$ to $1$. The stretch makes that $-a$ to $a$, and the translation adds $d$ to both:'),
+              maths('\\begin{gathered} \\text{greatest} = d + a \\\\ \\text{least} = d - a \\end{gathered}'),
+              prose('Backwards, the midline is halfway between the two and $a$ is half the distance between them:'),
+              maths('\\begin{gathered} d = \\frac{\\text{greatest} + \\text{least}}{2} \\\\ a = \\frac{\\text{greatest} - \\text{least}}{2} \\end{gathered}'),
+            ),
+            ask('fun-amp-tiles'),
+            ask('fun-amp-slider'),
+            teach(
+              prose('A **negative** number in front stretches and then reflects in the $x$-axis: $y = -3\\sin x$ is $3\\sin x$ turned upside down, setting off downwards.'),
+              graph(
+                [wave(-3, 1, 0, 0)],
+                { ...DEGREES, yMin: -4, yMax: 4 },
+                'The curve y = 3 sin x dashed, and y = -3 sin x, its reflection in the x-axis',
+                [wave(3, 1, 0, 0)],
+              ),
+              prose('Its greatest value is still $3$, not $-3$: turning the wave over swaps where the top and bottom are, not how far they reach. So $-3\\sin x + 1$ runs from $1 - 3 = -2$ up to $1 + 3 = 4$.'),
+            ),
+            ask('fun-wave-extremes', 2),
+            ask('fun-amp-tiles', 2),
+            ask('fun-amp-flow', 2),
+          ],
+          skillCheck: [ask('fun-wave-extremes', 2), ask('fun-amp-tiles', 2), ask('fun-amp-flow', 2)],
+        },
+        {
+          id: 'fn-l5-period',
+          title: 'Period as a Stretch',
+          slides: [
+            teach(
+              prose('A number multiplying $x$ changes the wave **across**. $y = \\sin 2x$ does at $x = 45$ what $\\sin x$ does at $90$: everything happens at half the $x$.'),
+              graph(
+                [wave(1, 2, 0, 0)],
+                { ...DEGREES, yMin: -1.6, yMax: 1.6 },
+                'The curve y = sin x dashed, and y = sin 2x, squeezed to fit two waves in the same room',
+                [wave(1, 1, 0, 0)],
+              ),
+              prose('So $y = \\sin bx$ is $y = \\sin x$ **stretched parallel to the $x$-axis with scale factor $\\frac{1}{b}$**, and $y = \\sin \\tfrac{x}{2}$ is a stretch with scale factor $2$. The factor is the reciprocal of the number multiplying $x$.'),
+            ),
+            ask('fun-xstretch-choice'),
+            ask('fun-xstretch-apply'),
+            ask('fun-period-tree'),
+            teach(
+              prose('A stretch across multiplies every distance across by its factor, the length of one wave included. $\\sin x$ repeats every $360^{\\circ}$, so:'),
+              maths('\\text{period of } \\sin bx = \\frac{360}{b}'),
+              prose('Stretch $y = \\sin 6x$ across by $2$ and its period of $60^{\\circ}$ doubles to $120^{\\circ}$, which is $y = \\sin 3x$: $b$ is divided by the factor. Backwards, $b = \\frac{360}{\\text{period}}$.'),
+            ),
+            ask('fun-b-from-graph'),
+            ask('fun-xstretch-choice', 2),
+            ask('fun-period-tree', 2),
+            teach(
+              prose('To read a period off a graph, measure between two points at the same stage of the wave: a peak and the next peak.'),
+              markedGraph(
+                [wave(1, 3, 0, 0)],
+                { ...DEGREES, yMin: -1.6, yMax: 1.6 },
+                [
+                  { x: 30, y: 1 },
+                  { x: 90, y: -1 },
+                  { x: 150, y: 1 },
+                ],
+                'The curve y = sin 3x with peaks ringed at 30 and 150 degrees and the trough between them at 90',
+              ),
+              prose('Here the peaks are at $30$ and $150$, a period of $120^{\\circ}$, so $b = \\frac{360}{120} = 3$. A peak and the **next trough** are only half a period apart: $30$ to $90$ is $60$, which has to be doubled.'),
+            ),
+            ask('fun-b-from-graph', 2),
+            ask('fun-xstretch-match', 2),
+          ],
+          skillCheck: [ask('fun-xstretch-choice', 2), ask('fun-period-tree', 2), ask('fun-b-from-graph', 2)],
+        },
+        {
+          id: 'fn-l5-phase',
+          title: 'Phase Shift and the Sign Trap',
+          slides: [
+            teach(
+              prose('A number added **inside** the bracket moves the curve across, against its sign. $y = \\sin(x - 60)$ reaches every value $60^{\\circ}$ later than $\\sin x$, so it is $\\sin x$ translated by $\\begin{pmatrix} 60 \\\\ 0 \\end{pmatrix}$, to the **right**.'),
+              graph(
+                [wave(1, 1, -60, 0)],
+                { ...DEGREES, yMin: -1.6, yMax: 1.6 },
+                'The curve y = sin x dashed, and y = sin(x - 60), the same wave 60 degrees to the right',
+                [wave(1, 1, 0, 0)],
+              ),
+              prose('$\\sin(x + 60)$ moves $60^{\\circ}$ to the **left**. A cosine moves the same way: $\\cos(x - 30)$ has its first peak at $30$ rather than $0$.'),
+            ),
+            ask('fun-phase-choice'),
+            ask('fun-phase-slider'),
+            teach(
+              prose('With a number multiplying $x$, take it out of the bracket before reading the move:'),
+              maths('\\sin(2x + 60) = \\sin(2(x + 30))'),
+              prose('That is $y = \\sin 2x$ moved $30^{\\circ}$ left, **not** $60^{\\circ}$: the $2$ multiplies the whole bracket, so the move inside has been doubled. $\\sin(bx + c)$ is $\\sin bx$ moved by $\\frac{c}{b}$, against the sign of $c$.'),
+            ),
+            ask('fun-phase-steps'),
+            ask('fun-phase-flow'),
+            ask('fun-phase-choice', 2),
+            teach(
+              prose('A cosine curve **is** a sine curve moved: $y = \\cos x$ is $y = \\sin x$ translated $90^{\\circ}$ to the left.'),
+              maths('\\cos x = \\sin(x + 90)'),
+              graph(
+                [wave(1, 1, 0, 0, 'cos')],
+                { ...DEGREES, yMin: -1.6, yMax: 1.6 },
+                'The curve y = sin x dashed, and y = cos x, the same wave 90 degrees to the left',
+                [wave(1, 1, 0, 0)],
+              ),
+              prose('So a moved cosine can be written as a moved sine: $\\cos(x - 30) = \\sin(x - 30 + 90) = \\sin(x + 60)$, which is $\\sin x$ moved $60^{\\circ}$ left.'),
+            ),
+            ask('fun-phase-slider', 2),
+            ask('fun-phase-steps', 2),
+            ask('fun-phase-flow', 2),
+          ],
+          skillCheck: [ask('fun-phase-choice', 2), ask('fun-phase-steps', 2), ask('fun-phase-flow', 2)],
+        },
+        {
+          id: 'fn-l5-graph',
+          title: 'The Equation from the Graph',
+          slides: [
+            teach(
+              prose('To write the equation of a drawn wave, take the heights first: $d$ is halfway between the greatest and least values, and $a$ is half the distance between them.'),
+              markedGraph(
+                [wave(3, 1, 0, 1)],
+                { ...DEGREES, yMin: -3, yMax: 5 },
+                [
+                  { x: 90, y: 4 },
+                  { x: 270, y: -2 },
+                ],
+                'A sine wave with its maximum ringed at (90, 4) and its minimum at (270, -2)',
+              ),
+              prose('Here the top is $4$ and the bottom $-2$, so $d = \\frac{4 + (-2)}{2} = 1$ and $a = \\frac{4 - (-2)}{2} = 3$: $y = 3\\sin x + 1$.'),
+            ),
+            ask('fun-wave-parts-tree'),
+            ask('fun-wave-read'),
+            teach(
+              prose('Then across. $b$ comes from the period: $b = \\frac{360}{\\text{period}}$. The move across comes from where the wave **starts**: a sine starts by rising through its midline, a cosine at its peak.'),
+              prose('A sine rising through its midline at $x = 40$ rather than $0$ has moved $40^{\\circ}$ right, so $x$ becomes $x - 40$ and the curve is $y = \\sin(x - 40)$.'),
+            ),
+            ask('fun-graph-shift'),
+            ask('fun-wave-choice'),
+            ask('fun-wave-parts-tree', 2),
+            teach(
+              prose('With $b$ as well, write the move inside first and multiply out after. A sine with period $120^{\\circ}$ rising through its midline at $x = 20$ is:'),
+              maths('\\begin{aligned} y &= \\sin(3(x - 20)) \\\\ &= \\sin(3x - 60) \\end{aligned}'),
+              prose('So in $y = \\sin(3x - c)$, $c$ is $60$, not $20$. A wave that sets off downwards from its midline has a negative $a$.'),
+            ),
+            ask('fun-wave-read', 2),
+            ask('fun-graph-shift', 2),
+            ask('fun-wave-choice', 2),
+          ],
+          skillCheck: [ask('fun-wave-read', 2), ask('fun-graph-shift', 2), ask('fun-wave-choice', 2)],
+        },
+        {
+          id: 'fn-l5-together',
+          title: 'Putting It Together',
+          slides: [
+            teach(
+              prose('Order matters when a stretch and a translation act in the same direction. Up and down: translate $y = \\sin x$ up $2$ and then stretch it by $3$, and the stretch triples the move as well:'),
+              maths('3(\\sin x + 2) = 3\\sin x + 6'),
+              prose('Stretch first and then translate, and it is $3\\sin x + 2$. So $a\\sin x + d$ reads as **stretch, then translate**.'),
+            ),
+            ask('fun-moves-tiles'),
+            ask('fun-moves-choice'),
+            ask('fun-amp-match', 2),
+            teach(
+              prose('Across, the moves act on $x$. Translate $30^{\\circ}$ right, then stretch across by $\\frac{1}{2}$: the translation writes $x - 30$ for $x$, then the stretch writes $2x$ for $x$:'),
+              maths('\\begin{aligned} &\\sin x \\\\ \\to \\quad &\\sin(x - 30) \\\\ \\to \\quad &\\sin(2x - 30) \\end{aligned}'),
+              prose('The stretch squeezed the move as well, to $15^{\\circ}$: $\\sin(2x - 30) = \\sin(2(x - 15))$. Stretch first and the move stays $30^{\\circ}$, which is $\\sin(2(x - 30)) = \\sin(2x - 60)$, a different curve.'),
+            ),
+            ask('fun-moves-tiles', 2),
+            ask('fun-moves-choice', 2),
+            ask('fun-xstretch-match'),
+            teach(
+              prose('All of $y = a\\sin(bx + c) + d$ from $y = \\sin x$, in order: stretch across by $\\frac{1}{b}$, translate across by $\\frac{c}{b}$ against its sign, stretch up by $a$, translate up by $d$.'),
+              prose('Reading a graph runs the list backwards: the heights for $a$ and $d$, the period for $b$, and where the wave starts for the move across.'),
+            ),
+            ask('fun-wave-choice', 2),
+            ask('fun-wave-parts-tree', 2),
+          ],
+          skillCheck: [ask('fun-moves-tiles', 2), ask('fun-moves-choice', 2), ask('fun-wave-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('fun-wave-extremes', 2),
+        ask('fun-amp-tiles', 2),
+        ask('fun-amp-flow', 2),
+        ask('fun-xstretch-choice', 2),
+        ask('fun-period-tree', 2),
+        ask('fun-b-from-graph', 2),
+        ask('fun-phase-choice', 2),
+        ask('fun-phase-steps', 2),
+        ask('fun-phase-slider', 2),
+        ask('fun-wave-parts-tree', 2),
+        ask('fun-wave-read', 2),
+        ask('fun-graph-shift', 2),
+        ask('fun-moves-tiles', 2),
+        ask('fun-moves-choice', 2),
+        ask('fun-wave-choice', 2),
       ],
     },
   ],

@@ -13,24 +13,19 @@
  * inequalities with a fraction in them: why the bottom cannot be multiplied
  * through, bringing everything to one side, multiplying by the bottom
  * squared, a fraction against a fraction, and reading the set at the end.
+ * Level 5 draws the graph of a fraction: vertical asymptotes and which way
+ * each arm goes, the horizontal asymptote from the degrees, holes where a
+ * factor cancels, the intercepts, and all of them together in a sketch.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
-import type { Course, SlideRef } from '../types';
+import { plotSvg } from '../figures';
+import type { Block, Course, SlideRef } from '../types';
 
-const teach = (
-  ...blocks: { kind: 'prose' | 'display'; text?: string; tex?: string }[]
-): SlideRef => ({
+const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
-  slide: {
-    kind: 'teach',
-    body: blocks.map((b) =>
-      b.kind === 'prose'
-        ? ({ kind: 'prose', text: b.text ?? '' } as const)
-        : ({ kind: 'display', tex: b.tex ?? '' } as const),
-    ),
-  },
+  slide: { kind: 'teach', body: blocks },
 });
 
 const ask = (generatorId: string, difficulty = 1): SlideRef => ({
@@ -48,6 +43,29 @@ const maths = (tex: string) => ({ kind: 'display' as const, tex });
  */
 const working = (...lines: string[]) =>
   maths(`\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`);
+
+/**
+ * A curve with its asymptotes dashed and the pen lifted at each pole, the
+ * y-axis drawn solid, and any hole or intercept ringed. Modelled on
+ * `brokenGraph` in functionsTransformations.ts.
+ */
+const graph = (
+  f: (x: number) => number,
+  window: { xMin: number; xMax: number; yMin: number; yMax: number },
+  asymptotes: { x: number[]; y: number },
+  label: string,
+  marks: { x: number; y: number; hollow?: boolean }[] = [],
+): Block => ({
+  kind: 'diagram',
+  svg: plotSvg({
+    ...window,
+    curves: [{ f, accent: true, breaks: true }],
+    verticals: [{ x: 0, dashed: false }, ...asymptotes.x.map((x) => ({ x }))],
+    horizontals: asymptotes.y === 0 ? [] : [asymptotes.y],
+    marks,
+    label,
+  }),
+});
 
 export const algebraicFractions: Course = {
   id: 'algebraic-fractions',
@@ -864,6 +882,229 @@ export const algebraicFractions: Course = {
         ask('frac-ineq-least-whole', 2),
         ask('frac-ineq-table-line', 2),
         ask('frac-ineq-graph-slider', 2),
+      ],
+    },
+    {
+      id: 'af-l5',
+      title: 'Graphs of Rational Functions',
+      lessons: [
+        {
+          id: 'af-l5-vertical',
+          title: 'Vertical Asymptotes',
+          slides: [
+            teach(
+              prose(
+                'The curve $y = \\frac{x + 1}{(x - 2)(x + 3)}$ has no value where its bottom is zero. Close to there the bottom is tiny, so the fraction is huge, and the curve shoots off beside a vertical line it never touches: a **vertical asymptote**.',
+              ),
+              graph(
+                (x) => (x + 1) / ((x - 2) * (x + 3)),
+                { xMin: -7, xMax: 6, yMin: -5, yMax: 5 },
+                { x: [2, -3], y: 0 },
+                'The curve shooting off either side of two dashed vertical lines, at x = -3 and x = 2',
+              ),
+              prose(
+                'So the vertical asymptotes are where the bottom is zero, here $x = 2$ and $x = -3$. Factorise first, and check nothing cancels: a factor on the top as well is a hole, which comes later in this level.',
+              ),
+            ),
+            ask('frac-va-which'),
+            ask('frac-va-slider'),
+            teach(
+              prose('Which way does each arm go? Near $x = 2$ only the bracket $(x - 2)$ changes sign. Put $x = 2$ into everything else:'),
+              working('&\\frac{x + 1}{x + 3} \\text{ at } x = 2', '=\\;&\\tfrac{3}{5}, \\text{ positive}'),
+              prose(
+                'Just right of $2$, $(x - 2)$ is a tiny positive number, so $y$ is positive and huge. We write $y \\to +\\infty$ as $x \\to 2^{+}$, the $^{+}$ meaning from above. Just left, $(x - 2)$ is a tiny negative number, so $y \\to -\\infty$ as $x \\to 2^{-}$.',
+              ),
+            ),
+            ask('frac-va-side-flow'),
+            ask('frac-va-arms-tiles'),
+            ask('frac-va-which', 2),
+            teach(
+              prose(
+                'The same test at $x = -3$: everything but $(x + 3)$ gives $\\frac{-2}{-5}$, which is positive. So $y \\to +\\infty$ as $x \\to -3^{+}$, and $y \\to -\\infty$ as $x \\to -3^{-}$.',
+              ),
+              prose('One arm goes up and the other down whenever a bracket appears once. The rest of the fraction decides which is which.'),
+            ),
+            ask('frac-va-slider', 2),
+            ask('frac-va-side-flow', 2),
+            ask('frac-va-arms-tiles', 2),
+          ],
+          skillCheck: [ask('frac-va-which', 2), ask('frac-va-side-flow', 2), ask('frac-va-arms-tiles', 2)],
+        },
+        {
+          id: 'af-l5-horizontal',
+          title: 'Horizontal Asymptotes',
+          slides: [
+            teach(
+              prose(
+                'Far out, as $x$ grows large either way, a curve can settle towards a level line: its **horizontal asymptote**. Then only the highest power on each line matters.',
+              ),
+              graph(
+                (x) => (2 * x - 2) / (x + 1),
+                { xMin: -9, xMax: 7, yMin: -4, yMax: 8 },
+                { x: [-1], y: 2 },
+                'The curve flattening out towards a dashed level line at y = 2 on both sides',
+              ),
+              prose('In $\\frac{2x - 2}{x + 1}$ the top is about $2x$ and the bottom about $x$ when $x$ is huge, so $y$ settles towards $2$.'),
+            ),
+            ask('frac-ha-value'),
+            ask('frac-ha-slider'),
+            teach(
+              prose(
+                'Compare the highest powers. Bottom higher: the fraction shrinks, so $y = 0$. The same: the ratio of the leading coefficients. Top higher: the curve keeps climbing, so there is none.',
+              ),
+              working('\\frac{3x + 1}{x^2 - 4} &\\to 0', '\\frac{6x^2 + x}{2x^2 - 8} &\\to 3', '\\frac{x^2 + 1}{x - 2} &\\text{ has none}'),
+            ),
+            ask('frac-ha-flow'),
+            ask('frac-ha-which'),
+            ask('frac-ha-value', 2),
+            teach(
+              prose(
+                'A factorised line hides its degree. $2(x - 1)(x + 3)$ has two brackets, so degree $2$, and multiplied out it starts $2x^2$. So count the brackets and read the number in front:',
+              ),
+              maths('\\frac{6(x + 1)(x - 2)}{2(x - 1)(x + 3)} \\to \\frac{6x^2}{2x^2} = 3'),
+            ),
+            ask('frac-ha-slider', 2),
+            ask('frac-ha-flow', 2),
+            ask('frac-ha-which', 2),
+          ],
+          skillCheck: [ask('frac-ha-value', 2), ask('frac-ha-flow', 2), ask('frac-ha-which', 2)],
+        },
+        {
+          id: 'af-l5-holes',
+          title: 'Holes',
+          slides: [
+            teach(
+              prose(
+                'When the top and bottom share a factor, it cancels. The fraction still has no value where that factor is zero, but everywhere else it is the simplified one:',
+              ),
+              working('&\\frac{(x - 1)(x + 3)}{(x - 1)(x - 3)}', '=\\;&\\frac{x + 3}{x - 3}, \\quad x \\neq 1'),
+              graph(
+                (x) => (x + 3) / (x - 3),
+                { xMin: -6, xMax: 9, yMin: -5, yMax: 7 },
+                { x: [3], y: 1 },
+                'The curve with an asymptote at x = 3 and a single missing point, ringed, at x = 1',
+                [{ x: 1, y: -2, hollow: true }],
+              ),
+              prose('So the curve has one missing point at $x = 1$: a **hole**, not an asymptote. Only $x = 3$ is an asymptote.'),
+            ),
+            ask('frac-hole-flow'),
+            ask('frac-hole-slider'),
+            teach(
+              prose('The hole’s height comes from the simplified form, which is defined there:'),
+              maths('\\frac{1 + 3}{1 - 3} = -2'),
+              prose('So the hole is at $(1, -2)$. A drawing cannot show one missing point, so it is marked with a ring.'),
+            ),
+            ask('frac-hole-tree'),
+            ask('frac-hole-tiles'),
+            ask('frac-hole-flow', 2),
+            teach(
+              prose('Multiplied out, factorise both lines before deciding anything. And if the whole bottom cancels, what is left is not a fraction at all:'),
+              maths('\\frac{(x - 2)(x + 4)}{x - 2} = x + 4'),
+              prose('That holds for every $x$ except $2$, so it is a straight line with a hole at $(2, 6)$.'),
+            ),
+            ask('frac-hole-slider', 2),
+            ask('frac-hole-tree', 2),
+            ask('frac-hole-tiles', 2),
+          ],
+          skillCheck: [ask('frac-hole-tree', 2), ask('frac-hole-flow', 2), ask('frac-hole-tiles', 2)],
+        },
+        {
+          id: 'af-l5-intercepts',
+          title: 'Intercepts',
+          slides: [
+            teach(
+              prose(
+                'The curve meets the $x$-axis where $y = 0$: where the top is zero and the bottom is not. A root of the top that also makes the bottom zero is a hole, not a crossing.',
+              ),
+              maths('\\frac{(x + 2)(x - 1)}{(x - 1)(x - 4)}'),
+              prose('This one crosses the $x$-axis only at $x = -2$. At $x = 1$ it has a hole.'),
+            ),
+            ask('frac-x-int-which'),
+            ask('frac-y-int-tree'),
+            teach(
+              prose('It meets the $y$-axis at $x = 0$, so put $0$ in. Multiplied out, that leaves just each line’s number:'),
+              working('&\\frac{x^2 + x - 6}{x^2 - 4x + 3} \\text{ at } x = 0', '=\\;&\\frac{-6}{3} = -2'),
+              prose('If the bottom is zero at $x = 0$, the $y$-axis is an asymptote and there is no $y$-intercept.'),
+            ),
+            ask('frac-intercepts-flow'),
+            ask('frac-y-int-slider'),
+            ask('frac-x-int-which', 2),
+            teach(
+              prose('On a graph, $y = \\frac{x - 2}{x + 1}$ crosses the $x$-axis at $x = 2$ and the $y$-axis at $\\frac{-2}{1} = -2$:'),
+              graph(
+                (x) => (x - 2) / (x + 1),
+                { xMin: -7, xMax: 7, yMin: -6, yMax: 6 },
+                { x: [-1], y: 1 },
+                'The curve crossing the x-axis at 2 and the y-axis at -2, both ringed',
+                [
+                  { x: 2, y: 0 },
+                  { x: 0, y: -2 },
+                ],
+              ),
+            ),
+            ask('frac-y-int-tree', 2),
+            ask('frac-intercepts-flow', 2),
+            ask('frac-y-int-slider', 2),
+          ],
+          skillCheck: [ask('frac-x-int-which', 2), ask('frac-y-int-tree', 2), ask('frac-intercepts-flow', 2)],
+        },
+        {
+          id: 'af-l5-sketch',
+          title: 'The Sketch',
+          slides: [
+            teach(
+              prose(
+                'To sketch a fraction, find every feature first. $y = \\frac{2(x - 1)}{x + 2}$ has asymptotes $x = -2$ and $y = 2$, and meets the axes here:',
+              ),
+              working('x\\text{-axis: } & x = 1', 'y\\text{-axis: } & y = -1'),
+              graph(
+                (x) => (2 * (x - 1)) / (x + 2),
+                { xMin: -9, xMax: 6, yMin: -4, yMax: 8 },
+                { x: [-2], y: 2 },
+                'The curve drawn from its features: asymptotes at x = -2 and y = 2, crossing the axes at x = 1 and y = -1',
+              ),
+            ),
+            ask('frac-features-table'),
+            ask('frac-sketch-which'),
+            teach(
+              prose(
+                'A curve can cross its horizontal asymptote nearer in, just never far out. To check, set the fraction equal to that level. With equal degrees the $x^2$ terms cancel, leaving a linear equation.',
+              ),
+              prose('For $\\frac{(x - 1)(x - 5)}{(x + 1)(x - 3)} = 1$, multiply both sides by the bottom:'),
+              working('x^2 - 6x + 5 &= x^2 - 2x - 3', '-4x &= -8'),
+              prose('So it crosses $y = 1$ at $x = 2$. If the $x$ terms cancel too, nothing is left to solve, and it never crosses.'),
+            ),
+            ask('frac-cross-ha'),
+            ask('frac-sketch-flow'),
+            ask('frac-features-table', 2),
+            teach(
+              prose(
+                'When the bottom has the higher degree, the level is $y = 0$, the $x$-axis itself. So the curve crosses it exactly at its $x$-intercepts, and a fraction with a plain number on top never does.',
+              ),
+            ),
+            ask('frac-sketch-which', 2),
+            ask('frac-cross-ha', 2),
+            ask('frac-sketch-flow', 2),
+          ],
+          skillCheck: [ask('frac-features-table', 2), ask('frac-cross-ha', 2), ask('frac-sketch-which', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('frac-va-which', 2),
+        ask('frac-va-arms-tiles', 2),
+        ask('frac-va-slider', 2),
+        ask('frac-ha-flow', 2),
+        ask('frac-ha-value', 2),
+        ask('frac-ha-slider', 2),
+        ask('frac-hole-tree', 2),
+        ask('frac-hole-tiles', 2),
+        ask('frac-hole-slider', 2),
+        ask('frac-x-int-which', 2),
+        ask('frac-y-int-tree', 2),
+        ask('frac-y-int-slider', 2),
+        ask('frac-features-table', 2),
+        ask('frac-sketch-which', 2),
+        ask('frac-cross-ha', 2),
       ],
     },
   ],

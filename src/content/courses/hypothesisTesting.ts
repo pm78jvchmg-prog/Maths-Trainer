@@ -14,6 +14,12 @@
  * trade between the errors at a fixed sample size, and both errors in the test
  * of a mean, where a bigger sample shrinks P(Type II) at a fixed level.
  *
+ * Level 4 tests a correlation: `H_0: \rho = 0` against a direction or none,
+ * the critical value of the product-moment correlation coefficient read from
+ * a quoted table, one- and two-tailed decisions, and how the sample size and
+ * the level move the verdict, with rejecting read as association, not cause.
+ * The table's values are always quoted, never taught to memorise.
+ *
  * Binomial probabilities, the normal curve and standardising belong to the
  * Binomial & Normal Distributions course and nCr to Binomial Expansion's
  * second level: each is quoted once here, never taught again, and every
@@ -42,10 +48,44 @@ const working = (...lines: string[]): Block => display(`\\begin{aligned} ${lines
 
 const figure = (options: Parameters<typeof plotSvg>[0]): Block => ({ kind: 'diagram', svg: plotSvg(options) });
 
+const diagram = (svg: string): Block => ({ kind: 'diagram', svg });
+
 /** A normal density with standard deviation `sd`, centred on zero. */
 const density = (sd: number) => (x: number) => Math.exp(-(x * x) / (2 * sd * sd)) / (sd * Math.sqrt(2 * Math.PI));
 
 const phi = density(1);
+
+/** The density of r from a sample of n when rho = 0: proportional to (1 - r^2)^((n - 4)/2). */
+function rDensity(n: number): (r: number) => number {
+  const shape = (r: number) => (Math.abs(r) >= 1 ? 0 : (1 - r * r) ** ((n - 4) / 2));
+  let area = 0;
+  for (let i = 0; i < 400; i += 1) area += shape(-1 + (i + 0.5) / 200) / 200;
+  return (r: number) => shape(r) / area;
+}
+
+const r10 = rDensity(10);
+
+/** The 5% column of the critical values of r, n = 4 to 30, for a picture of how it falls. */
+const PMCC_5 = [
+  0.9, 0.8054, 0.7293, 0.6694, 0.6215, 0.5822, 0.5494, 0.5214, 0.4973, 0.4762, 0.4575, 0.4409, 0.4259, 0.4124, 0.4, 0.3887,
+  0.3783, 0.3687, 0.3598, 0.3515, 0.3438, 0.3365, 0.3297, 0.3233, 0.3172, 0.3115, 0.3061,
+];
+
+/** A scatter diagram: marks on a grid, the same window as Data, Averages and Spread's. */
+function scatterSvg(points: [number, number][], label: string): string {
+  return plotSvg({
+    xMin: -0.4,
+    xMax: 10.4,
+    yMin: -0.4,
+    yMax: 10.4,
+    height: 200,
+    grid: true,
+    curves: [],
+    marks: points.map(([x, y]) => ({ x, y })),
+    label,
+  });
+}
+
 
 export const hypothesisTesting: Course = {
   id: 'hypothesis-testing',
@@ -637,6 +677,206 @@ export const hypothesisTesting: Course = {
         ask('hyp-mean-beta', 2),
         ask('hyp-mean-miss-tree', 2),
         ask('hyp-beta-n-table', 2),
+      ],
+    },
+    {
+      id: 'ht-l4',
+      title: 'Testing a Correlation',
+      lessons: [
+        {
+          id: 'ht-l4-hypotheses',
+          title: 'Hypotheses about Rho',
+          slides: [
+            teach(
+              prose('The **product-moment correlation coefficient**, $r$, measures how closely a sample\'s points follow a straight line. It runs from $-1$ to $1$, with $0$ for no linear link.'),
+              diagram(
+                scatterSvg(
+                  [[1, 3], [2, 2], [3, 5], [4, 3], [4, 6], [5, 6], [6, 4], [7, 7], [8, 5], [9, 8]],
+                  'Ten points rising from left to right, loosely around a line',
+                ),
+              ),
+              prose('These ten points give $r = 0.7350$. It estimates $\\rho$ (rho), the correlation in the whole population the sample came from.'),
+            ),
+            ask('hyp-rho-flow'),
+            ask('hyp-rho-tiles'),
+            ask('hyp-rho-choice'),
+            teach(
+              prose('A test of correlation starts from none at all in the population:'),
+              display('H_0: \\rho = 0'),
+              prose('The suspicion gives $H_1$. Positive correlation is $\\rho > 0$ and negative is $\\rho < 0$, both one-tailed. A link either way is $\\rho \\ne 0$, two-tailed.'),
+            ),
+            ask('hyp-rho-h1-table'),
+            ask('hyp-rho-flow', 2),
+            ask('hyp-rho-tiles', 2),
+            teach(
+              prose('Both hypotheses are about $\\rho$. The sample\'s $r$ is the evidence, never part of a hypothesis.'),
+              prose('The direction of $H_1$ comes from the suspicion, not from the sign of $r$. A suspected positive correlation is tested with $H_1: \\rho > 0$ even when the sample gives $r = -0.3100$.'),
+            ),
+            ask('hyp-rho-choice', 2),
+            ask('hyp-rho-h1-table', 2),
+          ],
+          skillCheck: [ask('hyp-rho-flow', 2), ask('hyp-rho-tiles', 2), ask('hyp-rho-choice', 2)],
+        },
+        {
+          id: 'ht-l4-critical',
+          title: 'The Critical Value',
+          slides: [
+            teach(
+              prose('How far from $0$ must $r$ be to count? A table of **critical values** answers it: a row for $n$, the number of pairs, and a column for the one-tailed level.'),
+              display(
+                '\\small \\begin{array}{c|ccc} n & 10\\% & 5\\% & 2.5\\% \\\\ \\hline 9 & 0.4716 & 0.5822 & 0.6664 \\\\ 10 & 0.4428 & 0.5494 & 0.6319 \\\\ 11 & 0.4187 & 0.5214 & 0.6021 \\end{array}',
+              ),
+              prose('For $10$ pairs at the 5% level, the critical value is $0.5494$.'),
+            ),
+            ask('hyp-pmcc-lookup'),
+            ask('hyp-pmcc-table'),
+            ask('hyp-pmcc-flow'),
+            teach(
+              prose('Down a column the values fall: a bigger sample needs a weaker $r$ to be convincing.'),
+              prose('Along a row they rise: a stricter level needs a stronger $r$.'),
+              working('n = 10, \\; 5\\% &: \\quad 0.5494', 'n = 11, \\; 5\\% &: \\quad 0.5214', 'n = 10, \\; 2.5\\% &: \\quad 0.6319'),
+            ),
+            ask('hyp-pmcc-trend-choice'),
+            ask('hyp-pmcc-lookup', 2),
+            ask('hyp-pmcc-table', 2),
+            teach(
+              prose('$n$ counts pairs, not values. Twelve students, each giving a revision time and a mark, is $n = 12$, not $24$.'),
+              prose('The table\'s own values are always quoted: finding the right row and column is the skill, not remembering the numbers.'),
+            ),
+            ask('hyp-pmcc-flow', 2),
+            ask('hyp-pmcc-trend-choice', 2),
+          ],
+          skillCheck: [ask('hyp-pmcc-lookup', 2), ask('hyp-pmcc-table', 2), ask('hyp-pmcc-trend-choice', 2)],
+        },
+        {
+          id: 'ht-l4-one-tailed',
+          title: 'Testing One Way',
+          slides: [
+            teach(
+              prose('With one tail, the whole level sits on the side $H_1$ points to. With $c$ the critical value from the table, reject $H_0$ when'),
+              working('H_1: \\rho > 0 &: \\quad r > c', 'H_1: \\rho < 0 &: \\quad r < -c'),
+            ),
+            ask('hyp-rho-region-choice'),
+            ask('hyp-rho-region-tiles'),
+            ask('hyp-rho-decision-flow'),
+            teach(
+              prose('If $\\rho = 0$, the $r$ from $10$ pairs spreads around $0$ like this. The shaded tail holds the least likely 5%, beyond $0.5494$.'),
+              figure({
+                xMin: -1,
+                xMax: 1,
+                yMin: 0,
+                yMax: r10(0) * 1.15,
+                curves: [{ f: r10 }],
+                verticals: [{ x: 0, dashed: true }],
+                shade: { f: r10, from: 0.5494, to: 1 },
+                label: 'How r from ten pairs spreads if there is no correlation, with the upper 5% shaded',
+              }),
+            ),
+            ask('hyp-rho-critical-slider'),
+            ask('hyp-rho-region-choice', 2),
+            ask('hyp-rho-region-tiles', 2),
+            teach(
+              prose('An $r$ of the wrong sign never rejects, however large: $r = -0.8000$ is no evidence at all for $\\rho > 0$.'),
+              prose('The ten points in the first lesson gave $r = 0.7350 > 0.5494$, so: "There is evidence at the 5% level of positive correlation."'),
+            ),
+            ask('hyp-rho-decision-flow', 2),
+            ask('hyp-rho-critical-slider', 2),
+          ],
+          skillCheck: [ask('hyp-rho-decision-flow', 2), ask('hyp-rho-region-tiles', 2), ask('hyp-rho-critical-slider', 2)],
+        },
+        {
+          id: 'ht-l4-two-tailed',
+          title: 'Testing Either Way',
+          slides: [
+            teach(
+              prose('With $H_1: \\rho \\ne 0$, correlation either way counts. The level is split, half in each tail, so a 5% test reads the 2.5% column. For $10$ pairs the critical region is'),
+              display('r < -0.6319 \\; \\text{or} \\; r > 0.6319'),
+            ),
+            ask('hyp-rho-column'),
+            ask('hyp-rho-two-tiles'),
+            ask('hyp-rho-two-flow'),
+            teach(
+              prose('On a line from $-1$ to $1$ the region is both ends, each holding 2.5% if $\\rho = 0$.'),
+              figure({
+                xMin: -1,
+                xMax: 1,
+                yMin: 0,
+                yMax: r10(0) * 1.15,
+                curves: [{ f: r10 }, { f: (r) => (Math.abs(r) > 0.6319 ? r10(r) : NaN), accent: true, breaks: true }],
+                verticals: [
+                  { x: -0.6319, dashed: true },
+                  { x: 0.6319, dashed: true },
+                ],
+                label: 'How r from ten pairs spreads if there is no correlation, with both tails beyond 0.6319 marked',
+              }),
+            ),
+            ask('hyp-rho-two-table'),
+            ask('hyp-rho-column', 2),
+            ask('hyp-rho-two-tiles', 2),
+            teach(
+              prose('So compare $|r|$ with the value. $r = -0.7000$ rejects $H_0$ here just as $0.7000$ would.'),
+              prose('The conclusion names no direction: "There is evidence at the 5% level of correlation between the two."'),
+            ),
+            ask('hyp-rho-two-flow', 2),
+            ask('hyp-rho-two-table', 2),
+          ],
+          skillCheck: [ask('hyp-rho-two-flow', 2), ask('hyp-rho-two-tiles', 2), ask('hyp-rho-two-table', 2)],
+        },
+        {
+          id: 'ht-l4-size-and-level',
+          title: 'Sample Size and Level',
+          slides: [
+            teach(
+              prose('The same $r$ can fail with one sample size and pass with another. Take $r = 0.5000$ against $H_1: \\rho > 0$ at 5%:'),
+              working('n = 10 &: \\quad 0.5000 < 0.5494', 'n = 12 &: \\quad 0.5000 > 0.4973'),
+              prose('Not enough evidence from $10$ pairs; evidence from $12$.'),
+            ),
+            ask('hyp-rho-shift-flow'),
+            ask('hyp-rho-which-rejects'),
+            ask('hyp-rho-n-slider'),
+            teach(
+              prose('A stricter level raises the bar. At $n = 12$, $r = 0.5000$ clears $0.4973$ at 5% but not $0.6581$ at 1%.'),
+              prose('The dots are the 5% column for every $n$, falling; the line is at $0.5$. The first dot below the line is the smallest sample that would reject.'),
+              figure({
+                xMin: 3,
+                xMax: 31,
+                yMin: 0,
+                yMax: 1,
+                curves: [],
+                marks: PMCC_5.map((y, i) => ({ x: i + 4, y })),
+                horizontals: [0.5],
+                label: 'The 5% critical values of r for n from 4 to 30, falling below a line at 0.5 from n = 12',
+              }),
+            ),
+            ask('hyp-rho-cause-choice'),
+            ask('hyp-rho-shift-flow', 2),
+            ask('hyp-rho-which-rejects', 2),
+            teach(
+              prose('Rejecting $H_0$ shows **association**, not cause. Ice-cream sales and sunburn are correlated because hot weather drives both.'),
+              prose('And not rejecting never shows $\\rho = 0$, only that the evidence is not strong enough.'),
+            ),
+            ask('hyp-rho-n-slider', 2),
+            ask('hyp-rho-cause-choice', 2),
+          ],
+          skillCheck: [ask('hyp-rho-shift-flow', 2), ask('hyp-rho-n-slider', 2), ask('hyp-rho-cause-choice', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('hyp-rho-tiles', 2),
+        ask('hyp-rho-choice', 2),
+        ask('hyp-rho-h1-table', 2),
+        ask('hyp-pmcc-lookup', 2),
+        ask('hyp-pmcc-trend-choice', 2),
+        ask('hyp-pmcc-table', 2),
+        ask('hyp-rho-decision-flow', 2),
+        ask('hyp-rho-region-tiles', 2),
+        ask('hyp-rho-critical-slider', 2),
+        ask('hyp-rho-two-flow', 2),
+        ask('hyp-rho-two-tiles', 2),
+        ask('hyp-rho-two-table', 2),
+        ask('hyp-rho-n-slider', 2),
+        ask('hyp-rho-which-rejects', 2),
+        ask('hyp-rho-cause-choice', 2),
       ],
     },
   ],

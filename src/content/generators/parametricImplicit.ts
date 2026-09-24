@@ -17,6 +17,14 @@
  * logarithmic differentiation, and every tile, box and branch) is checked in
  * `parametricImplicit.test.ts`.
  *
+ * Level 6 is related rates and motion: rates in t on implicit curves, and
+ * velocity and speed along a parametric path, checked against mathjs's
+ * derivatives in the same test file. Level 7 integrates: the area under a
+ * parametric curve is the integral of y times dx/dt with respect to t. That is
+ * in t too, so no level 7 slide declares `source`, `integrand` or `limits`;
+ * the test file integrates y x'(t) by its own Simpson's rule instead, and
+ * works the ellipse areas in x alone.
+ *
  * As everywhere, `*Tex` is what the learner reads and `answer` is what mathjs
  * grades; the two are never the same string.
  */
@@ -315,6 +323,45 @@ export function derived(coefficients: readonly number[]): number[] {
   const top = coefficients.length - 1;
   if (top === 0) return [0];
   return coefficients.slice(0, -1).map((c, i) => c * (top - i));
+}
+
+/** The product of two polynomials, highest power first. */
+export function polyMul(a: readonly number[], b: readonly number[]): number[] {
+  const out = new Array<number>(a.length + b.length - 1).fill(0);
+  a.forEach((p, i) => b.forEach((q, j) => (out[i + j] += p * q)));
+  return out;
+}
+
+/** A fraction in lowest terms with a positive bottom. */
+function lowest(top: number, bottom: number): Frac {
+  const g = gcd(top, bottom);
+  const sign = bottom < 0 ? -1 : 1;
+  return [(sign * top) / g + 0, (sign * bottom) / g];
+}
+
+const fracSum = ([a, b]: Frac, [c, dd]: Frac): Frac => lowest(a * dd + c * b, b * dd);
+
+/**
+ * An antiderivative's coefficients, highest power first, with no constant:
+ * each $c t^n$ becomes $\frac{c}{n + 1} t^{n + 1}$. One longer than the input,
+ * and exact, since the coefficients are held as fractions.
+ */
+export function polyIntegral(coefficients: readonly number[]): Frac[] {
+  const top = coefficients.length - 1;
+  return [...coefficients.map((c, i) => lowest(c, top - i + 1)), [0, 1]];
+}
+
+/** A fraction-coefficient polynomial's value at a whole t, exactly. */
+export function antiAt(anti: readonly Frac[], t: number): Frac {
+  const top = anti.length - 1;
+  return anti.reduce<Frac>((total, [n, dd], i) => fracSum(total, [n * t ** (top - i), dd]), [0, 1]);
+}
+
+/** The definite integral of a polynomial in t between two whole values, exactly. */
+export function integralBetween(coefficients: readonly number[], lo: number, hi: number): Frac {
+  const anti = polyIntegral(coefficients);
+  const [n, dd] = antiAt(anti, lo);
+  return fracSum(antiAt(anti, hi), [-n, dd]);
 }
 
 /** A polynomial's value, by Horner's rule. */
@@ -8720,6 +8767,1155 @@ const paramCrossingSpeed: Generator<CrossingParams> = {
   },
 };
 
+/* ---------- Area under a parametric curve ---------- */
+
+// Level 7 integrates. The area under a curve is the integral of y with
+// respect to x, and with x = x(t) a small step dx is (dx/dt) dt, so the area
+// is the integral of y (dx/dt) with respect to t between the values of t at
+// the two ends. Everything here is a function of t, so no slide declares
+// `source`, `integrand` or `limits`: the oracle in `generators.test.ts` works
+// in x only. `parametricImplicit.test.ts` differentiates x(t) with mathjs and
+// integrates y times that by its own Simpson's rule instead.
+
+/** A region under a polynomial curve, swept as t runs from `lo` to `hi`. */
+export interface AreaParams {
+  curve: ParamCurve;
+  lo: number;
+  hi: number;
+}
+
+/** y times dx/dt: what is integrated with respect to t. */
+export const areaIntegrand = (curve: ParamCurve): number[] => polyMul(curve.y, derived(curve.x));
+
+/** The integral of y dx/dt from t = lo to t = hi, exactly. */
+export const areaIntegral = ({ curve, lo, hi }: AreaParams): Frac => integralBetween(areaIntegrand(curve), lo, hi);
+
+/** x = c t^2 + q, which gives each x one t only once t >= 0 is said. */
+const isSquare = (x: readonly number[]): boolean => x.length === 3 && x[1] === 0;
+
+/** x linear, c t^2 + q or t^3 + q: one t for each x, so a region given in x has limits in t. */
+const invertible = (x: readonly number[]): boolean => x.length === 2 || isSquare(x) || (x.length === 4 && x[1] === 0 && x[2] === 0);
+
+/**
+ * The sign a polynomial keeps between lo and hi: 1 or -1, or 0 when it
+ * changes sign in between. It may be zero at the ends, and with `touch` in
+ * between too, as $3t^2$ is at 0 while $t^3$ still rises. A curve that met the
+ * axis in the middle would pinch the region in two, so y never touches.
+ *
+ * Integer coefficients this small put any double root on a whole or half t,
+ * which the grid lands on exactly.
+ */
+function signOn(coefficients: readonly number[], lo: number, hi: number, touch = false): number {
+  let sign = 0;
+  const N = 48;
+  for (let i = 0; i <= N; i += 1) {
+    const s = Math.sign(valueAt(coefficients, lo + ((hi - lo) * i) / N));
+    if (s === 0 && !touch && i > 0 && i < N) return 0;
+    if (s === 0) continue;
+    if (sign !== 0 && s !== sign) return 0;
+    sign = s;
+  }
+  return sign;
+}
+
+/**
+ * A curve and a stretch of t over which x moves one way (`dir`) and y keeps
+ * one side of the axis (`side`), so the region is the one the integral
+ * measures. The integral is whole or a small fraction, and every number on the
+ * page small: at difficulty 1, x is linear or a square and y at most a
+ * quadratic, from t = 0 or 1; at 2, x may be a cube or any monotone quadratic
+ * and the stretch may start below zero.
+ */
+function sampleArea(
+  rng: Rng,
+  difficulty: number,
+  wanted: () => [number, number],
+  accept: (params: AreaParams) => boolean = () => true,
+): AreaParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const [dir, side] = wanted();
+    const lo = hard ? rng.int(-2, 2) : rng.int(0, 1);
+    const hi = lo + rng.int(1, hard ? 3 : 2);
+    const q = rng.int(-4, 4);
+    const shape = rng.pick(hard ? ['line', 'square', 'cube', 'bend'] : ['line', 'square']);
+    if (shape === 'square' && lo < 0) continue;
+    const moving =
+      shape === 'line' ? [rng.int(1, hard ? 4 : 3)] : shape === 'square' ? [rng.pick([1, 2]), 0] : shape === 'cube' ? [1, 0, 0] : [1, rng.int(1, 4) * rng.sign()];
+    const x = [...moving.map((c) => dir * c + 0), q];
+    const y = randomPoly(rng, hard ? 2 : rng.pick([1, 2]), 3);
+    if (signOn(derived(x), lo, hi, true) !== dir || signOn(y, lo, hi) !== side) continue;
+    const curve = { x, y };
+    const [n, dd] = areaIntegral({ curve, lo, hi });
+    if (!(hard ? [1, 2, 3, 4, 6] : [1, 2, 3]).includes(dd) || n === 0 || Math.abs(n / dd) > (hard ? 60 : 30)) continue;
+    if ([lo, hi].some((t) => pointAt(curve, t).some((v) => Math.abs(v) > 20))) continue;
+    if (areaIntegrand(curve).some((c) => Math.abs(c) > 30)) continue;
+    const params = { curve, lo, hi };
+    if (accept(params)) return params;
+  }
+}
+
+/** Rising x above the axis: the integral is the area. */
+const sampleUnder = (rng: Rng, difficulty: number, accept?: (params: AreaParams) => boolean) =>
+  sampleArea(rng, difficulty, () => [1, 1], accept);
+
+/** The curve's two equations, as the prompts open. */
+const tracedBlocks = (curve: ParamCurve): Block[] => [prose('A curve is traced by'), ...curveBlocks(curve)];
+
+/** "for t >= 0", where a square in x needs saying. */
+const domainNote = (curve: ParamCurve): string => (isSquare(curve.x) ? ', for $t \\ge 0$' : '');
+
+/** A lower and upper limit on an integral sign. */
+const intTex = (lo: number | string, hi: number | string): string => `\\int_{${lo}}^{${hi}}`;
+
+/** An integral in t of a polynomial, as the learner reads it. */
+const integralTex = (lo: number | string, hi: number | string, p: number[]): string => `${intTex(lo, hi)} (${polyTex(p)}) \\, dt`;
+
+/** A fraction with brackets round it when negative, for after a minus sign. */
+const bracketFrac = ([n, dd]: Frac): string => (n < 0 ? `\\left(${fracTex(n, dd)}\\right)` : fracTex(n, dd));
+
+/** |value| of a fraction. */
+const fracSize = ([n, dd]: Frac): Frac => [Math.abs(n), dd];
+
+/** One term c t^n with a fractional coefficient. Its sign is spelled `- ` or `+ `, except a leading plus, which is dropped. */
+function fracTermTex([top, bottom]: Frac, power: number, lead: boolean): string {
+  const [p, q] = lowest(top, bottom);
+  const sign = p < 0 ? '- ' : lead ? '' : '+ ';
+  const size = Math.abs(p);
+  const variable = power === 0 ? '' : power === 1 ? 't' : `t^{${power}}`;
+  const magnitude = q === 1 ? (size === 1 && power > 0 ? '' : `${size}`) : `\\frac{${size}}{${q}}`;
+  return `${sign}${magnitude}${variable}`;
+}
+
+/** A polynomial with fractional coefficients, highest power first, as the learner reads it. */
+export function fracPolyTex(coefficients: readonly Frac[]): string {
+  const top = coefficients.length - 1;
+  const terms: string[] = [];
+  coefficients.forEach((c, i) => {
+    if (c[0] !== 0) terms.push(fracTermTex(c, top - i, terms.length === 0));
+  });
+  return terms.length === 0 ? '0' : terms.join(' ').replace(/^- /, '-');
+}
+
+/** The slip of integrating without dividing by the new power. */
+const undivided = (p: readonly number[]): Frac[] => [...p.map((c): Frac => [c, 1]), [0, 1]];
+
+/** Choices between polynomials in t: the same polynomial twice, or the right one as a distractor, is dropped. */
+function polyChoices(right: number[], wrong: number[][], salt: number): ChoiceOption[] {
+  const key = (p: number[]) => polyAnswer(p);
+  const seen = new Set([key(right)]);
+  const kept: number[][] = [];
+  for (const p of wrong) {
+    if (seen.has(key(p))) continue;
+    seen.add(key(p));
+    kept.push(p);
+  }
+  const as = (p: number[]) => ({ tex: polyTex(p), answer: polyAnswer(p) });
+  return steered(options(as(right), ...kept.slice(0, 3).map(as)), salt, kept.slice(3).map(as));
+}
+
+/** Fraction step choices: the value, then the slips, topped up to three. */
+function fracStepBank(value: Frac, ...slips: Frac[]): string[] {
+  const texts = new Set([fracTex(...value), ...slips.map((f) => fracTex(...f))]);
+  for (let step = 1; texts.size < 3; step += 1) texts.add(fracTex(value[0] + step * value[1], value[1]));
+  return stepBank(fracTex(...value), ...[...texts]);
+}
+
+/**
+ * A curve with the region between it and the x-axis shaded, for t from `from`
+ * to `to`.
+ *
+ * Unlike `paramSvg` the axes are not square: the window fits what is drawn
+ * with a margin, since a region ten wide and three tall is a sliver on square
+ * axes. An arrowhead halfway along the shaded stretch, when asked for, shows
+ * the way t increases, which is what decides the sign of the integral.
+ */
+export function areaSvg(
+  f: (t: number) => [number, number],
+  opts: { tMin: number; tMax: number; from: number; to: number; label: string; arrow?: boolean },
+): string {
+  const W = 240;
+  const H = 170;
+  const trace = (a: number, b: number, n: number) => Array.from({ length: n + 1 }, (_, i) => f(a + ((b - a) * i) / n));
+  const region = trace(opts.from, opts.to, 120);
+  const curve = trace(opts.tMin, opts.tMax, 240);
+  const xs = [...region, ...curve].map(([x]) => x);
+  const ys = [0, ...[...region, ...curve].map(([, y]) => y)];
+  let [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const padX = (x1 - x0) * 0.08 || 1;
+  const padY = (y1 - y0) * 0.1 || 1;
+  [x0, x1, y0, y1] = [x0 - padX, x1 + padX, y0 - padY, y1 + padY];
+  const sx = (v: number) => ((W * (v - x0)) / (x1 - x0)).toFixed(1);
+  const sy = (v: number) => ((H * (y1 - v)) / (y1 - y0)).toFixed(1);
+  const path = (points: [number, number][]) => points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${sx(x)},${sy(y)}`).join(' ');
+  const [first, last] = [region[0], region[region.length - 1]];
+  const parts = [`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${opts.label}">`];
+  parts.push(`<path d="${path(region)} L ${sx(last[0])},${sy(0)} L ${sx(first[0])},${sy(0)} Z" fill="currentColor" fill-opacity="0.18" stroke="none" />`);
+  parts.push(`<line x1="0" y1="${sy(0)}" x2="${W}" y2="${sy(0)}" stroke="currentColor" stroke-width="1" opacity="0.55" />`);
+  if (x0 < 0 && x1 > 0) {
+    parts.push(`<line x1="${sx(0)}" y1="0" x2="${sx(0)}" y2="${H}" stroke="currentColor" stroke-width="1" opacity="0.55" />`);
+  }
+  parts.push(`<path fill="none" stroke="currentColor" stroke-width="2" d="${path(curve)}" />`);
+  for (const [x, y] of [first, last]) parts.push(`<circle cx="${sx(x)}" cy="${sy(y)}" r="3.5" fill="currentColor" />`);
+  if (opts.arrow) {
+    const mid = (opts.from + opts.to) / 2;
+    const h = Math.abs(opts.to - opts.from) / 50;
+    const [[ax, ay], [px, py], [bx, by]] = [f(mid - h), f(mid), f(mid + h)];
+    const dx = Number(sx(bx)) - Number(sx(ax));
+    const dy = Number(sy(by)) - Number(sy(ay));
+    const len = Math.hypot(dx, dy) || 1;
+    const [ux, uy] = [dx / len, dy / len];
+    const [cx, cy] = [Number(sx(px)), Number(sy(py))];
+    const tip = `${(cx + 7 * ux).toFixed(1)},${(cy + 7 * uy).toFixed(1)}`;
+    const left = `${(cx - 6 * ux - 5 * uy).toFixed(1)},${(cy - 6 * uy + 5 * ux).toFixed(1)}`;
+    const right = `${(cx - 6 * ux + 5 * uy).toFixed(1)},${(cy - 6 * uy - 5 * ux).toFixed(1)}`;
+    parts.push(`<polygon points="${tip} ${left} ${right}" fill="currentColor" />`);
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/** The region's picture: the curve a little past each end, never into t < 0 for a square in x. */
+function regionFigure({ curve, lo, hi }: AreaParams, arrow = false): Block {
+  const tMin = isSquare(curve.x) ? Math.max(0, lo - 0.6) : lo - 0.6;
+  return {
+    kind: 'diagram',
+    svg: areaSvg((t) => pointAt(curve, t), {
+      tMin,
+      tMax: hi + 0.6,
+      from: lo,
+      to: hi,
+      arrow,
+      label: `The curve with the region between it and the x-axis shaded, from t = ${lo} to t = ${hi}`,
+    }),
+  };
+}
+
+/** dx/dt, then y times it multiplied out. */
+function integrandSteps(curve: ParamCurve): SolutionStep[] {
+  return [
+    { text: '$dx$ becomes $\\frac{dx}{dt} \\, dt$, so differentiate $x$ with respect to $t$.', tex: `${DXDT} = ${polyTex(derived(curve.x))}` },
+    { text: 'Multiply by $y$ and expand.', tex: `(${polyTex(curve.y)})(${polyTex(derived(curve.x))})` },
+    { tex: `y ${DXDT} = ${polyTex(areaIntegrand(curve))}` },
+  ];
+}
+
+/** Integrate term by term, then the value at the top take the value at the bottom. */
+function workingSteps(p: number[], lo: number, hi: number): SolutionStep[] {
+  const anti = polyIntegral(p);
+  const [top, bottom] = [antiAt(anti, hi), antiAt(anti, lo)];
+  return [
+    { text: 'Integrate term by term: raise each power by one and divide by the new power.', tex: `${intTex(lo, hi)} y ${DXDT} \\, dt` },
+    { tex: `= \\left[${fracPolyTex(anti)}\\right]_{${lo}}^{${hi}}` },
+    { text: `Put in $t = ${hi}$, then take away the value at $t = ${lo}$.`, tex: `= ${fracTex(...top)} - ${bracketFrac(bottom)}` },
+    { tex: `= ${fracTex(...integralBetween(p, lo, hi))}` },
+  ];
+}
+
+/** The whole of it, for a region swept rightwards above the axis from t = lo to t = hi. */
+function areaSolution({ curve, lo, hi }: AreaParams): SolutionStep[] {
+  return [...integrandSteps(curve), ...workingSteps(areaIntegrand(curve), lo, hi)];
+}
+
+/* ---------- Setting the integral up ---------- */
+
+/**
+ * The integral in t from tiles: y and dx/dt, in either order. The bank holds
+ * x itself (dx read as x), dy/dt, and y's own rate.
+ */
+const paramAreaIntegrandTiles: Generator<AreaParams> = {
+  id: 'param-area-integrand-tiles',
+  sample: sampleUnder,
+  render: ({ curve }): Slide => {
+    const answer = [polyTex(curve.y), polyTex(derived(curve.x))];
+    return {
+      kind: 'tiles',
+      prompt: [...tracedBlocks(curve), prose('The area under it is $\\int y \\, dx$. Write that as an integral in $t$.')],
+      template: '\\int y \\, dx = \\int ({0})({1}) \\, dt',
+      bank: tokenBank(answer, [polyTex(curve.x), polyTex(derived(curve.y)), polyTex(derived(derived(curve.x)))]),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ curve }) => integrandSteps(curve),
+};
+
+/**
+ * y dx/dt multiplied out, typed in t. The options carry y times x, x times
+ * dy/dt, and y alone (dx read as dt).
+ */
+const paramAreaIntegrand: Generator<AreaParams> = {
+  id: 'param-area-integrand',
+  sample: sampleUnder,
+  choices: ({ curve }) =>
+    polyChoices(
+      areaIntegrand(curve),
+      [polyMul(curve.y, curve.x), polyMul(curve.x, derived(curve.y)), curve.y, areaIntegrand(curve).map((c) => -c + 0)],
+      mix(...curve.x, ...curve.y),
+    ),
+  render: ({ curve }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      ...tracedBlocks(curve),
+      prose('The area under it is $\\int y \\, dx$. Write it as an integral with respect to $t$: what goes inside, multiplied out?'),
+    ],
+    lead: `y ${DXDT} =`,
+    keypad: T_KEYS,
+    answer: polyAnswer(areaIntegrand(curve)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ curve }) => integrandSteps(curve),
+};
+
+/**
+ * The change of variable as three decisions: what dx becomes, what dx/dt is
+ * here, and the integral in t.
+ */
+const paramAreaDxFlow: Generator<AreaParams> = {
+  id: 'param-area-dx-flow',
+  sample: sampleUnder,
+  render: ({ curve }): Slide => {
+    const rate = derived(curve.x);
+    const salt = mix(...curve.x, ...curve.y, 7);
+    const right = `$\\int (${polyTex(areaIntegrand(curve))}) \\, dt$`;
+    const change = `$${DXDT} \\, dt$`;
+    const rateLabel = `$${polyTex(rate)}$`;
+    return {
+      kind: 'flow',
+      prompt: [...tracedBlocks(curve), prose('Turn the area $\\int y \\, dx$ into an integral in $t$.')],
+      subject: '\\int y \\, dx',
+      steps: [
+        {
+          id: 'dx',
+          ask: 'With $x$ given in terms of $t$, $dx$ becomes',
+          branches: fork(
+            [
+              { label: change, to: 'rate' },
+              { label: '$dt$', outcome: 'A step in $t$ is not the same size as a step in $x$: it is scaled by how fast $x$ changes.' },
+              { label: '$x \\, dt$', outcome: 'It is the rate of $x$ that scales the step, not $x$ itself.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'rate',
+          ask: `Here $${DXDT}$ is`,
+          branches: fork(
+            [
+              { label: rateLabel, to: 'whole' },
+              { label: `$${polyTex(curve.x)}$`, outcome: 'That is $x$ itself. Differentiate it.' },
+              { label: `$${polyTex(derived(curve.y))}$`, outcome: `That is $${DYDT}$, the rate of $y$.` },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'whole',
+          ask: 'So the integral in $t$ is',
+          branches: fork(
+            [
+              { label: right, outcome: `Right: $y$ times $${DXDT}$, multiplied out.` },
+              { label: `$\\int (${polyTex(polyMul(curve.y, curve.x))}) \\, dt$`, outcome: `That multiplies $y$ by $x$, not by $${DXDT}$.` },
+              { label: `$\\int (${polyTex(curve.y)}) \\, dt$`, outcome: `That is $y$ alone: $${DXDT}$ is missing.` },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [change, rateLabel, right],
+    };
+  },
+  solution: ({ curve }) => integrandSteps(curve),
+};
+
+/**
+ * The change of variable worked on the integral itself: y replaced, dx
+ * replaced, then the product multiplied out.
+ */
+const paramAreaSubstituteSteps: Generator<AreaParams> = {
+  id: 'param-area-substitute-steps',
+  sample: sampleUnder,
+  render: ({ curve }): Slide => {
+    const rate = derived(curve.x);
+    const p = areaIntegrand(curve);
+    const dt = (q: number[]) => `(${polyTex(q)}) \\, dt`;
+    const slip = p.map((c, i) => (i === p.length - 1 && c !== 0 ? -c : c));
+    return {
+      kind: 'steps',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose('Turn $\\int y \\, dx$ into an integral in $t$. Tap $y$, then $dx$, then the integral sign to multiply out.'),
+      ],
+      start: ['\\int', 'y', '\\, dx'],
+      reductions: [
+        { span: [1, 2], value: `(${polyTex(curve.y)})`, bank: stepBank(`(${polyTex(curve.y)})`, `(${polyTex(curve.x)})`, `(${polyTex(derived(curve.y))})`) },
+        { span: [2, 3], value: dt(rate), bank: stepBank(dt(rate), '\\, dt', dt(curve.x), dt(derived(curve.y))) },
+        {
+          span: [0, 3],
+          value: `\\int ${dt(p)}`,
+          bank: stepBank(`\\int ${dt(p)}`, `\\int ${dt(polyMul(curve.y, curve.x))}`, `\\int ${dt(slip)}`),
+        },
+      ],
+    };
+  },
+  solution: ({ curve }) => integrandSteps(curve),
+};
+
+/* ---------- The limits in t ---------- */
+
+/** The region's ends in x, left then right, and the value of t at each. */
+export function regionEnds({ curve, lo, hi }: AreaParams): { a: number; b: number; ta: number; tb: number } {
+  const [xl, xh] = [valueAt(curve.x, lo), valueAt(curve.x, hi)];
+  return xl < xh ? { a: xl, b: xh, ta: lo, tb: hi } : { a: xh, b: xl, ta: hi, tb: lo };
+}
+
+/** A region above the axis given in x, with x rising or falling in t and one t for each x. */
+const sampleRegion = (rng: Rng, difficulty: number, accept: (params: AreaParams) => boolean = () => true) =>
+  sampleArea(rng, difficulty, () => [rng.sign(), 1], (params) => invertible(params.curve.x) && accept(params));
+
+/** The region as the prompts describe it. */
+const regionText = ({ a, b }: { a: number; b: number }): string => `the region under the curve between $x = ${a}$ and $x = ${b}$`;
+
+function limitsSolution(params: AreaParams): SolutionStep[] {
+  const { curve } = params;
+  const { a, b, ta, tb } = regionEnds(params);
+  return [
+    { text: `Solve $x = ${a}$ for the left end and $x = ${b}$ for the right${isSquare(curve.x) ? ', keeping $t \\ge 0$' : ''}.`, tex: `x = ${a}: \\; t = ${ta}` },
+    { tex: `x = ${b}: \\; t = ${tb}` },
+    {
+      text: ta < tb ? 'The lower limit is the left end.' : 'The lower limit is still the left end, even though its $t$ is bigger: $x$ falls as $t$ rises.',
+      tex: `\\text{area} = ${intTex(ta, tb)} y ${DXDT} \\, dt`,
+    },
+    ...integrandSteps(curve),
+  ];
+}
+
+/** The two limits from tiles, left end's first. The bank carries the x-values and the t on the other side of zero. */
+const paramAreaLimitsTiles: Generator<AreaParams> = {
+  id: 'param-area-limits-tiles',
+  sample: (rng, difficulty) => sampleRegion(rng, difficulty),
+  render: (params): Slide => {
+    const { curve } = params;
+    const ends = regionEnds(params);
+    const { a, b, ta, tb } = ends;
+    return {
+      kind: 'tiles',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose(`The area of ${regionText(ends)}${domainNote(curve)}, is $${intTex('t_1', 't_2')} y ${DXDT} \\, dt$. Find the limits.`),
+        regionFigure(params, true),
+      ],
+      template: 't_1 = {0}, \\quad t_2 = {1}',
+      bank: numberBank([ta, tb], [a, b, -ta, -tb, ta + tb]),
+      answer: [`${ta}`, `${tb}`],
+    };
+  },
+  solution: limitsSolution,
+};
+
+/** The limits as three decisions: the t at each end, then which way round the integral runs. */
+const paramAreaLimitsFlow: Generator<AreaParams> = {
+  id: 'param-area-limits-flow',
+  sample: (rng, difficulty) => sampleRegion(rng, difficulty),
+  render: (params): Slide => {
+    const { curve } = params;
+    const ends = regionEnds(params);
+    const { a, b, ta, tb } = ends;
+    const salt = mix(a, b, ta, tb, ...curve.x);
+    const square = isSquare(curve.x);
+    const endStep = (id: string, to: string, x: number, t: number, other: number, side: string) => ({
+      id,
+      ask: `At the ${side} end $x = ${x}$, so $t$ is`,
+      branches: fork(
+        [
+          { label: `$t = ${t}$`, to },
+          { label: `$t = ${x}$`, outcome: `$${x}$ is the value of $x$ there, not of $t$.` },
+          {
+            label: `$t = ${-t}$`,
+            outcome: square ? 'The curve is only traced for $t \\ge 0$.' : `Put it back in: $x = ${valueAt(curve.x, -t)}$ then, not $${x}$.`,
+          },
+          { label: `$t = ${other}$`, outcome: `That is where $x = ${valueAt(curve.x, other)}$, the other end.` },
+        ],
+        salt >>> (id === 'left' ? 0 : 3),
+      ),
+    });
+    const right = `$${intTex(ta, tb)}$`;
+    return {
+      kind: 'flow',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose(`Set up the area of ${regionText(ends)}${domainNote(curve)}, as an integral in $t$.`),
+        regionFigure(params, true),
+      ],
+      subject: `\\int_{x = ${a}}^{x = ${b}} y \\, dx`,
+      steps: [
+        endStep('left', 'right', a, ta, tb, 'left'),
+        endStep('right', 'order', b, tb, ta, 'right'),
+        {
+          id: 'order',
+          ask: 'So the integral in $t$ runs',
+          branches: fork(
+            [
+              {
+                label: right,
+                outcome: ta < tb ? 'Right: from the left end to the right.' : 'Right: from the left end to the right, even though $t$ runs downwards, since $x$ falls as $t$ rises.',
+              },
+              {
+                label: `$${intTex(tb, ta)}$`,
+                outcome: 'The lower limit belongs to the left end. This way round gives the area with its sign turned.',
+              },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [`$t = ${ta}$`, `$t = ${tb}$`, right],
+    };
+  },
+  solution: limitsSolution,
+};
+
+/** One limit, typed: the left end's t or the right end's. The options carry the x-value and the other end's t. */
+export interface LimitParams extends AreaParams {
+  upper: boolean;
+}
+
+const paramAreaLimitT: Generator<LimitParams> = {
+  id: 'param-area-limit-t',
+  sample: (rng, difficulty) => ({ ...sampleRegion(rng, difficulty), upper: rng.chance(0.5) }),
+  choices: (params) => {
+    const { a, b, ta, tb } = regionEnds(params);
+    const [x, t, other] = params.upper ? [b, tb, ta] : [a, ta, tb];
+    return numberChoices(t, [x, other, -t], mix(a, b, ta, tb, params.upper ? 1 : 2));
+  },
+  render: (params): Slide => {
+    const ends = regionEnds(params);
+    const name = params.upper ? 't_2' : 't_1';
+    return {
+      kind: 'expression',
+      prompt: [
+        ...tracedBlocks(params.curve),
+        prose(
+          `The area of ${regionText(ends)}${domainNote(params.curve)}, is $${intTex('t_1', 't_2')} y ${DXDT} \\, dt$. What is the ${params.upper ? 'upper' : 'lower'} limit $${name}$?`,
+        ),
+      ],
+      lead: `${name} =`,
+      keypad: [],
+      answer: `${params.upper ? ends.tb : ends.ta}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => limitsSolution(params).slice(0, 3),
+};
+
+/**
+ * Which integral is the area, from four written out in full: the right one,
+ * the x-values as limits, the limits the wrong way round, and x in place of
+ * dx/dt. Draws where a wrong one happens to come to the area are refused.
+ */
+const paramAreaLimitsChoice: Generator<AreaParams> = {
+  id: 'param-area-limits-choice',
+  sample: (rng, difficulty) =>
+    sampleRegion(rng, difficulty, (params) => {
+      const { a, b, ta, tb } = regionEnds(params);
+      const p = areaIntegrand(params.curve);
+      const area = fracValue(areaIntegral(params)) * Math.sign(tb - ta);
+      const wrong = [integralBetween(p, a, b), integralBetween(polyMul(params.curve.y, params.curve.x), ta, tb)];
+      return (a !== ta || b !== tb) && wrong.every((f) => fracValue(f) !== area);
+    }),
+  render: (params): Slide => {
+    const { curve } = params;
+    const ends = regionEnds(params);
+    const { a, b, ta, tb } = ends;
+    const p = areaIntegrand(curve);
+    return labelChoice(
+      [...tracedBlocks(curve), prose(`Which integral is the area of ${regionText(ends)}${domainNote(curve)}?`), regionFigure(params, true)],
+      [integralTex(ta, tb, p), integralTex(a, b, p), integralTex(tb, ta, p), integralTex(ta, tb, polyMul(curve.y, curve.x))],
+      mix(a, b, ta, tb, ...curve.y),
+    );
+  },
+  solution: limitsSolution,
+};
+
+/* ---------- Working it out ---------- */
+
+/** The prompt of a region swept from t = lo to t = hi. */
+const sweptText = ({ lo, hi }: AreaParams): string => `the region under the curve from $t = ${lo}$ to $t = ${hi}$`;
+
+/**
+ * The antiderivative from tiles, one term at a time. The bank carries each
+ * term not divided by its new power, and multiplied by it instead.
+ */
+const paramAreaTermsTiles: Generator<AreaParams> = {
+  id: 'param-area-terms-tiles',
+  sample: sampleUnder,
+  render: (params): Slide => {
+    const p = areaIntegrand(params.curve);
+    const top = p.length - 1;
+    const answer: string[] = [];
+    const slips: string[] = [];
+    p.forEach((c, i) => {
+      if (c === 0) return;
+      const power = top - i;
+      const lead = answer.length === 0;
+      answer.push(fracTermTex([c, power + 1], power + 1, lead));
+      slips.push(fracTermTex([c, 1], power + 1, lead), fracTermTex([c * (power + 1), 1], power + 1, lead));
+      if (power > 0) slips.push(fracTermTex([c, power], power + 1, lead));
+    });
+    return {
+      kind: 'tiles',
+      prompt: [
+        ...tracedBlocks(params.curve),
+        prose(`The area of ${sweptText(params)} is $${intTex(params.lo, params.hi)} y ${DXDT} \\, dt$, where`),
+        display(`y ${DXDT} = ${polyTex(p)}`),
+        prose('Integrate it term by term.'),
+      ],
+      template: `${answer.map((_, i) => `{${i}}`).join(' ')} + c`,
+      bank: tokenBank(answer, slips, 3),
+      answer,
+    };
+  },
+  solution: ({ curve }) => {
+    const p = areaIntegrand(curve);
+    return [
+      ...integrandSteps(curve),
+      { text: 'Raise each power by one and divide by the new power.', tex: `\\int y ${DXDT} \\, dt` },
+      { tex: `= ${fracPolyTex(polyIntegral(p))} + c` },
+    ];
+  },
+};
+
+/**
+ * The area, typed: whole or a fraction. The options carry y times x in
+ * place of dx/dt, the value at the top only, and the x-values used as limits.
+ */
+const paramArea: Generator<AreaParams> = {
+  id: 'param-area',
+  sample: sampleUnder,
+  choices: (params) => {
+    const { curve, lo, hi } = params;
+    const p = areaIntegrand(curve);
+    return fracChoices(
+      areaIntegral(params),
+      [integralBetween(polyMul(curve.y, curve.x), lo, hi), antiAt(polyIntegral(p), hi), integralBetween(p, valueAt(curve.x, lo), valueAt(curve.x, hi))],
+      mix(lo, hi, ...curve.x, ...curve.y),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [...tracedBlocks(params.curve), prose(`Find the area of ${sweptText(params)}.`), regionFigure(params)],
+    lead: '\\text{area} =',
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...areaIntegral(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: areaSolution,
+};
+
+/**
+ * The whole working on one line: y dx/dt multiplied out, integrated, the
+ * limits put in, the value.
+ */
+const paramAreaWorkingSteps: Generator<AreaParams> = {
+  id: 'param-area-working-steps',
+  sample: sampleUnder,
+  render: (params): Slide => {
+    const { curve, lo, hi } = params;
+    const p = areaIntegrand(curve);
+    const anti = polyIntegral(p);
+    const [top, bottom] = [antiAt(anti, hi), antiAt(anti, lo)];
+    const bracket = (f: readonly Frac[]) => `\\left[${fracPolyTex(f)}\\right]_{${lo}}^{${hi}}`;
+    const minus = (m: Frac, s: Frac) => `${fracTex(...m)} - ${bracketFrac(s)}`;
+    const value = areaIntegral(params);
+    return {
+      kind: 'steps',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose(`Find the area of ${sweptText(params)}. Tap $y ${DXDT}$ to multiply it out, then the integral sign, then the brackets.`),
+      ],
+      start: [intTex(lo, hi), `y ${DXDT}`, '\\, dt'],
+      reductions: [
+        {
+          span: [1, 2],
+          value: `(${polyTex(p)})`,
+          bank: stepBank(`(${polyTex(p)})`, `(${polyTex(polyMul(curve.y, curve.x))})`, `(${polyTex(polyMul(curve.x, derived(curve.y)))})`),
+        },
+        {
+          span: [0, 3],
+          value: bracket(anti),
+          bank: stepBank(bracket(anti), bracket(undivided(p)), bracket(derived(p).map((c): Frac => [c, 1]))),
+        },
+        { span: [0, 1], value: minus(top, bottom), bank: stepBank(minus(top, bottom), minus(bottom, top), `${fracTex(...top)} + ${bracketFrac(bottom)}`) },
+        { span: [0, 1], value: fracTex(...value), bank: fracStepBank(value, [-value[0], value[1]], fracSum(top, bottom)) },
+      ],
+    };
+  },
+  solution: areaSolution,
+};
+
+/**
+ * The value from the antiderivative, as a tree: its value at each end, then
+ * the area. The bank carries the two added and the difference the wrong way
+ * round.
+ */
+const paramAreaValueTree: Generator<AreaParams> = {
+  id: 'param-area-value-tree',
+  sample: sampleUnder,
+  render: (params): Slide => {
+    const { curve, lo, hi } = params;
+    const p = areaIntegrand(curve);
+    const anti = polyIntegral(p);
+    const [top, bottom] = [antiAt(anti, hi), antiAt(anti, lo)];
+    const value = areaIntegral(params);
+    return {
+      kind: 'tree',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose(`Find the area of ${sweptText(params)}. The top boxes are the antiderivative of $y ${DXDT}$ at $t = ${hi}$ and at $t = ${lo}$; the bottom box is the area.`),
+      ],
+      expression: `\\text{area} = ${integralTex(lo, hi, p)}`,
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'area', from: ['top', 'bottom'] },
+      ],
+      bank: fracTreeBank([top, bottom, value], [fracSum(top, bottom), [-value[0], value[1]], antiAt(undivided(p), hi)]),
+      answer: [top, bottom, value].map((f) => fracTex(...f)),
+    };
+  },
+  solution: areaSolution,
+};
+
+/* ---------- Sign and direction ---------- */
+
+/** Exactly one of x falling and y below: the integral comes out negative. */
+const sampleNegative = (rng: Rng, difficulty: number, accept?: (params: AreaParams) => boolean) =>
+  sampleArea(rng, difficulty, () => (rng.chance(0.5) ? [-1, 1] : [1, -1]), accept);
+
+/** Why the integral came out negative, and the area its size. */
+function signSolution(params: AreaParams): SolutionStep[] {
+  const { curve, lo, hi } = params;
+  const value = areaIntegral(params);
+  const falling = signOn(derived(curve.x), lo, hi, true) < 0;
+  return [
+    ...integrandSteps(curve),
+    ...workingSteps(areaIntegrand(curve), lo, hi),
+    {
+      text: falling
+        ? 'It is negative because $x$ falls as $t$ rises: the region is swept right to left. The area is its size.'
+        : 'It is negative because the region is below the $x$-axis, where $y < 0$. The area is its size.',
+      tex: `\\text{area} = ${fracTex(...fracSize(value))}`,
+    },
+  ];
+}
+
+/** Whether the integral is positive or negative, from the two signs, as three decisions. */
+const paramAreaSignFlow: Generator<AreaParams> = {
+  id: 'param-area-sign-flow',
+  sample: (rng, difficulty) => sampleArea(rng, difficulty, () => [rng.sign(), rng.sign()]),
+  render: (params): Slide => {
+    const { curve, lo, hi } = params;
+    const rate = derived(curve.x);
+    const dir = signOn(rate, lo, hi, true);
+    const side = signOn(curve.y, lo, hi);
+    const salt = mix(lo, hi, ...curve.x, ...curve.y);
+    const moves = dir > 0 ? 'Increases' : 'Decreases';
+    const where = side > 0 ? 'Above the $x$-axis' : 'Below the $x$-axis';
+    const sign = dir * side > 0 ? 'Positive' : 'Negative';
+    const word = (s: number) => (s > 0 ? 'positive' : 'negative');
+    return {
+      kind: 'flow',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose(`Without working it out, is $${intTex(lo, hi)} y ${DXDT} \\, dt$ positive or negative?`),
+        regionFigure(params, true),
+      ],
+      subject: `${intTex(lo, hi)} y ${DXDT} \\, dt`,
+      steps: [
+        {
+          id: 'x',
+          ask: `As $t$ runs from $${lo}$ to $${hi}$, $x$`,
+          branches: fork(
+            [
+              { label: moves, to: 'y' },
+              { label: dir > 0 ? 'Decreases' : 'Increases', outcome: `$${DXDT} = ${polyTex(rate)}$ is ${word(dir)} there.` },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'y',
+          ask: 'Between those points the curve is',
+          branches: fork(
+            [
+              { label: where, to: 'sign' },
+              { label: side > 0 ? 'Below the $x$-axis' : 'Above the $x$-axis', outcome: `$y = ${polyTex(curve.y)}$ is ${word(side)} there.` },
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'sign',
+          ask: 'So the integral is',
+          branches: fork(
+            [
+              { label: sign, outcome: `Right: $y$ is ${word(side)} and $${DXDT}$ is ${word(dir)}, so their product is ${word(dir * side)}.` },
+              { label: dir * side > 0 ? 'Negative' : 'Positive', outcome: `$y$ is ${word(side)} and $${DXDT}$ is ${word(dir)}: multiply the signs.` },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [moves, where, sign],
+    };
+  },
+  solution: (params) => {
+    const { curve, lo, hi } = params;
+    const dir = signOn(derived(curve.x), lo, hi, true);
+    const side = signOn(curve.y, lo, hi);
+    return [
+      { text: `Between $t = ${lo}$ and $t = ${hi}$, $${DXDT} = ${polyTex(derived(curve.x))}$ is ${dir > 0 ? 'positive' : 'negative'}, so $x$ ${dir > 0 ? 'increases' : 'decreases'}.` },
+      { text: `$y = ${polyTex(curve.y)}$ is ${side > 0 ? 'positive' : 'negative'}, so the curve is ${side > 0 ? 'above' : 'below'} the $x$-axis.` },
+      { text: `The integrand $y ${DXDT}$ is their product, so the integral is ${dir * side > 0 ? 'positive' : 'negative'}.`, tex: `${intTex(lo, hi)} y ${DXDT} \\, dt = ${fracTex(...areaIntegral(params))}` },
+    ];
+  },
+};
+
+/** The area when the integral comes out negative, typed. The options carry the negative integral and y times x. */
+const paramAreaSize: Generator<AreaParams> = {
+  id: 'param-area-size',
+  sample: sampleNegative,
+  choices: (params) => {
+    const { curve, lo, hi } = params;
+    const value = areaIntegral(params);
+    return fracChoices(
+      fracSize(value),
+      [value, fracSize(integralBetween(polyMul(curve.y, curve.x), lo, hi)), fracSize(antiAt(polyIntegral(areaIntegrand(curve)), hi))],
+      mix(lo, hi, ...curve.x, ...curve.y, 3),
+    );
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      ...tracedBlocks(params.curve),
+      prose(`The shaded region is traced as $t$ runs from $${params.lo}$ to $${params.hi}$. Find its area.`),
+      regionFigure(params, true),
+    ],
+    lead: '\\text{area} =',
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...fracSize(areaIntegral(params))),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: signSolution,
+};
+
+/**
+ * The negative integral and then the area, as a tree: the antiderivative at
+ * each end, the integral, its size.
+ */
+const paramAreaSignTree: Generator<AreaParams> = {
+  id: 'param-area-sign-tree',
+  sample: sampleNegative,
+  render: (params): Slide => {
+    const { curve, lo, hi } = params;
+    const p = areaIntegrand(curve);
+    const anti = polyIntegral(p);
+    const [top, bottom] = [antiAt(anti, hi), antiAt(anti, lo)];
+    const value = areaIntegral(params);
+    return {
+      kind: 'tree',
+      prompt: [
+        ...tracedBlocks(curve),
+        prose(
+          `Find the area between the curve and the $x$-axis from $t = ${lo}$ to $t = ${hi}$. The top boxes are the antiderivative of $y ${DXDT}$ at $t = ${hi}$ and at $t = ${lo}$, then the integral, then the area.`,
+        ),
+      ],
+      expression: integralTex(lo, hi, p),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'integral', from: ['top', 'bottom'] },
+        { id: 'area', from: ['integral'] },
+      ],
+      bank: fracTreeBank([top, bottom, value, fracSize(value)], [fracSum(top, bottom), antiAt(undivided(p), hi)]),
+      answer: [top, bottom, value, fracSize(value)].map((f) => fracTex(...f)),
+    };
+  },
+  solution: signSolution,
+};
+
+/**
+ * Which integral is the shaded area, when the plain one comes out negative:
+ * the right one is minus it or its limits swapped. The others are the plain
+ * one, and x times dy/dt with and without a minus. Draws where one of those
+ * happens to come to the area are refused.
+ */
+const paramAreaDirectionChoice: Generator<AreaParams> = {
+  id: 'param-area-direction-choice',
+  sample: (rng, difficulty) =>
+    sampleNegative(rng, difficulty, (params) => {
+      const { curve, lo, hi } = params;
+      const area = -fracValue(areaIntegral(params));
+      const swapped = fracValue(integralBetween(polyMul(curve.x, derived(curve.y)), lo, hi));
+      return swapped !== area && -swapped !== area;
+    }),
+  render: (params): Slide => {
+    const { curve, lo, hi } = params;
+    const p = areaIntegrand(curve);
+    const q = polyMul(curve.x, derived(curve.y));
+    const salt = mix(lo, hi, ...curve.x, ...curve.y, 5);
+    const right = salt % 2 === 0 ? `-${integralTex(lo, hi, p)}` : integralTex(hi, lo, p);
+    return labelChoice(
+      [...tracedBlocks(curve), prose(`The shaded region is traced as $t$ runs from $${lo}$ to $${hi}$. Which of these is its area?`), regionFigure(params, true)],
+      [right, integralTex(lo, hi, p), integralTex(lo, hi, q), `-${integralTex(lo, hi, q)}`],
+      salt >>> 1,
+    );
+  },
+  solution: signSolution,
+};
+
+/* ---------- Trigonometric curves ---------- */
+
+/**
+ * The ellipse x = a cos t, y = b sin t (or, with `swap`, x = a sin t,
+ * y = b cos t), and the part of it above the x-axis: the quarter from x = 0
+ * to x = a, or with `half` all of it from x = -a to x = a.
+ */
+export interface TrigAreaParams {
+  a: number;
+  b: number;
+  swap: boolean;
+  half: boolean;
+}
+
+function sampleTrigArea(rng: Rng, difficulty: number): TrigAreaParams {
+  const hard = difficulty >= 2;
+  for (;;) {
+    const [a, b] = [rng.int(hard ? 2 : 1, hard ? 7 : 6), rng.int(hard ? 2 : 1, hard ? 7 : 6)];
+    // A coefficient of 1 in front of the square would be a tile reading 1.
+    if (a * b > 1) return { a, b, swap: rng.chance(0.5), half: hard };
+  }
+}
+
+export const trigAreaSources = ({ a, b, swap }: TrigAreaParams): { x: string; y: string } =>
+  swap ? { x: `${a} * sin(t)`, y: `${b} * cos(t)` } : { x: `${a} * cos(t)`, y: `${b} * sin(t)` };
+
+/** The limits in t, left end first, as TeX. */
+function trigLimits({ swap, half }: TrigAreaParams): [string, string] {
+  if (swap) return [half ? '-\\frac{\\pi}{2}' : '0', '\\frac{\\pi}{2}'];
+  return [half ? '\\pi' : '\\frac{\\pi}{2}', '0'];
+}
+
+/** The coefficient of pi in the area: ab/4 for the quarter, ab/2 for the half. */
+export const trigAreaCoefficient = ({ a, b, half }: TrigAreaParams): Frac => lowest(a * b, half ? 2 : 4);
+
+/** y dx/dt is k sin^2 t or k cos^2 t: [k, the square]. */
+function trigIntegrand({ a, b, swap }: TrigAreaParams): [number, string] {
+  return swap ? [a * b, '\\cos^2 t'] : [-a * b, '\\sin^2 t'];
+}
+
+/** A multiple of pi as the learner reads it. */
+function piTex([n, dd]: Frac): string {
+  const [p, q] = lowest(n, dd);
+  const sign = p < 0 ? '-' : '';
+  if (q === 1) return `${sign}${Math.abs(p) === 1 ? '' : Math.abs(p)}\\pi`;
+  return `${sign}\\frac{${Math.abs(p) === 1 ? '' : Math.abs(p)}\\pi}{${q}}`;
+}
+
+const trigCurveTex = ({ a, b, swap }: TrigAreaParams): string =>
+  swap ? `x = ${coef(a)}\\sin t, \\quad y = ${coef(b)}\\cos t` : `x = ${coef(a)}\\cos t, \\quad y = ${coef(b)}\\sin t`;
+
+const trigRegionText = ({ a, half }: TrigAreaParams): string =>
+  half ? 'the region between the curve and the $x$-axis, above the axis' : `the region under the curve between $x = 0$ and $x = ${a}$`;
+
+function trigFigure(params: TrigAreaParams): Block {
+  const { a, b, swap, half } = params;
+  const f = (t: number): [number, number] => (swap ? [a * Math.sin(t), b * Math.cos(t)] : [a * Math.cos(t), b * Math.sin(t)]);
+  const [from, to] = swap ? [half ? -Math.PI / 2 : 0, Math.PI / 2] : [half ? Math.PI : Math.PI / 2, 0];
+  return {
+    kind: 'diagram',
+    svg: areaSvg(f, { tMin: 0, tMax: 2 * Math.PI, from, to, label: `An ellipse with ${half ? 'its top half' : 'the quarter in the first quadrant'} shaded` }),
+  };
+}
+
+/** The double-angle form of the square, and its integral. */
+function doubleAngle(square: string): { form: string; wrong: string; anti: string } {
+  const sin = square.startsWith('\\sin');
+  return {
+    form: `\\frac{1}{2}(1 ${sin ? '-' : '+'} \\cos 2t)`,
+    wrong: `\\frac{1}{2}(1 ${sin ? '+' : '-'} \\cos 2t)`,
+    anti: `\\frac{t}{2} ${sin ? '-' : '+'} \\frac{\\sin 2t}{4}`,
+  };
+}
+
+function trigAreaSolution(params: TrigAreaParams): SolutionStep[] {
+  const { a, swap } = params;
+  const [k, square] = trigIntegrand(params);
+  const [left, right] = trigLimits(params);
+  const { form, anti } = doubleAngle(square);
+  const [leftX, rightX] = params.half ? [-a, a] : [0, a];
+  return [
+    { text: 'Differentiate $x$.', tex: `${DXDT} = ${swap ? `${coef(a)}\\cos t` : `${coef(-a)}\\sin t`}` },
+    { text: 'Multiply by $y$.', tex: `y ${DXDT} = ${coef(k)}${square}` },
+    { text: `The left end $x = ${leftX}$ is at $t = ${left}$, the right end $x = ${rightX}$ at $t = ${right}$.`, tex: `${coef(k)}\\int_{${left}}^{${right}} ${square} \\, dt` },
+    { text: 'Use the double angle to write the square as something that integrates.', tex: `${square} = ${form}` },
+    { tex: `= ${coef(k)}\\left[${anti}\\right]_{${left}}^{${right}}` },
+    { text: 'The $\\sin 2t$ terms are zero at both ends.', tex: `\\text{area} = ${piTex(trigAreaCoefficient(params))}` },
+  ];
+}
+
+/** y dx/dt and the limits for the ellipse from tiles. The bank carries the sign turned, the other square, and every limit in play. */
+const paramTrigAreaTiles: Generator<TrigAreaParams> = {
+  id: 'param-trig-area-tiles',
+  sample: sampleTrigArea,
+  render: (params): Slide => {
+    const [k, square] = trigIntegrand(params);
+    const [left, right] = trigLimits(params);
+    const answer = [`${k}`, square, left, right];
+    const bank = [...new Set([`${k}`, `${-k}`, '\\sin^2 t', '\\cos^2 t', '\\sin t \\cos t', '0', '\\frac{\\pi}{2}', '\\pi', left, right])];
+    return {
+      kind: 'tiles',
+      prompt: [
+        prose('A curve is traced by'),
+        display(trigCurveTex(params)),
+        prose(`Set up the area of ${trigRegionText(params)} as $\\int y ${DXDT} \\, dt$ from $t_1$ at the left end to $t_2$ at the right.`),
+      ],
+      template: `y ${DXDT} = {0}{1}, \\quad t_1 = {2}, \\; t_2 = {3}`,
+      bank: bank.sort((p, q) => p.localeCompare(q)),
+      answer,
+    };
+  },
+  solution: (params) => trigAreaSolution(params).slice(0, 3),
+};
+
+/** The integral worked with the double angle: the square rewritten, integrated, then the value as a multiple of pi. */
+const paramTrigDoubleSteps: Generator<TrigAreaParams> = {
+  id: 'param-trig-double-steps',
+  sample: sampleTrigArea,
+  render: (params): Slide => {
+    const [k, square] = trigIntegrand(params);
+    const [left, right] = trigLimits(params);
+    const { form, wrong, anti } = doubleAngle(square);
+    const lead = `${coef(k)}\\int_{${left}}^{${right}}`;
+    const bracket = (inside: string) => `${coef(k)}\\left[${inside}\\right]_{${left}}^{${right}}`;
+    const sin = square.startsWith('\\sin');
+    const value = trigAreaCoefficient(params);
+    return {
+      kind: 'steps',
+      prompt: [
+        prose('A curve is traced by'),
+        display(trigCurveTex(params)),
+        prose(`The area of ${trigRegionText(params)} is the integral below. Tap $${square}$ to rewrite it with the double angle, then the integral sign, then the brackets.`),
+      ],
+      start: [lead, square, '\\, dt'],
+      reductions: [
+        { span: [1, 2], value: form, bank: stepBank(form, wrong, `(1 ${sin ? '-' : '+'} \\cos 2t)`, `\\frac{1}{2}(1 ${sin ? '-' : '+'} \\cos t)`) },
+        {
+          span: [0, 3],
+          value: bracket(anti),
+          bank: stepBank(bracket(anti), bracket(`\\frac{t}{2} ${sin ? '+' : '-'} \\frac{\\sin 2t}{4}`), bracket(`\\frac{t}{2} ${sin ? '-' : '+'} \\frac{\\sin 2t}{2}`)),
+        },
+        {
+          span: [0, 1],
+          value: piTex(value),
+          bank: stepBank(piTex(value), piTex([-value[0], value[1]]), piTex(lowest(params.a * params.b, params.half ? 4 : 2)), piTex([params.a * params.b, 1])),
+        },
+      ],
+    };
+  },
+  solution: trigAreaSolution,
+};
+
+/** The coefficient of pi in the area, typed. The options carry the other fraction of the ellipse, the whole ellipse, and the sign turned. */
+const paramTrigArea: Generator<TrigAreaParams> = {
+  id: 'param-trig-area',
+  sample: sampleTrigArea,
+  choices: (params) => {
+    const ab = params.a * params.b;
+    return fracChoices(trigAreaCoefficient(params), [[ab, params.half ? 4 : 2], [ab, 1], [-ab, params.half ? 2 : 4]], mix(params.a, params.b, params.swap ? 1 : 2, params.half ? 3 : 4));
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      prose('A curve is traced by'),
+      display(trigCurveTex(params)),
+      prose(`The area of ${trigRegionText(params)} is $k\\pi$. Find $k$.`),
+      trigFigure(params),
+    ],
+    lead: 'k =',
+    keypad: FRACTION_KEYS,
+    answer: fracAnswer(...trigAreaCoefficient(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: trigAreaSolution,
+};
+
+/** The ellipse area as three decisions: dx/dt, the limits, the double angle. */
+const paramTrigAreaFlow: Generator<TrigAreaParams> = {
+  id: 'param-trig-area-flow',
+  sample: sampleTrigArea,
+  render: (params): Slide => {
+    const { a, swap, half } = params;
+    const [, square] = trigIntegrand(params);
+    const [left, right] = trigLimits(params);
+    const { form, wrong } = doubleAngle(square);
+    const salt = mix(params.a, params.b, swap ? 1 : 2, half ? 3 : 4);
+    const rate = swap ? `$${coef(a)}\\cos t$` : `$${coef(-a)}\\sin t$`;
+    const limits = `From $t = ${left}$ to $t = ${right}$`;
+    const sin = square.startsWith('\\sin');
+    return {
+      kind: 'flow',
+      prompt: [prose('A curve is traced by'), display(trigCurveTex(params)), prose(`Find the area of ${trigRegionText(params)}.`), trigFigure(params)],
+      subject: half ? `\\int_{x = -${a}}^{x = ${a}} y \\, dx` : `\\int_{x = 0}^{x = ${a}} y \\, dx`,
+      steps: [
+        {
+          id: 'rate',
+          ask: `First, $${DXDT}$ is`,
+          branches: fork(
+            [
+              { label: rate, to: 'limits' },
+              { label: swap ? `$${coef(-a)}\\cos t$` : `$${coef(a)}\\sin t$`, outcome: `The derivative of $\\${swap ? 'sin' : 'cos'} t$ is $${swap ? '' : '-'}\\${swap ? 'cos' : 'sin'} t$.` },
+              { label: swap ? `$${coef(-a)}\\sin t$` : `$${coef(-a)}\\cos t$`, outcome: 'Differentiating a sine gives a cosine, and a cosine gives minus a sine.' },
+            ],
+            salt,
+          ),
+        },
+        {
+          id: 'limits',
+          ask: 'The limits, left end first, are',
+          branches: fork(
+            [
+              { label: limits, to: 'double' },
+              { label: `From $t = ${right}$ to $t = ${left}$`, outcome: 'The lower limit belongs to the left end. This way round gives the area with its sign turned.' },
+              ...(half ? [] : [{ label: `From $t = 0$ to $t = \\pi$`, outcome: 'That sweeps the whole top half, not the quarter.' }]),
+            ],
+            salt >>> 3,
+          ),
+        },
+        {
+          id: 'double',
+          ask: `To integrate $${square}$, write it as`,
+          branches: fork(
+            [
+              { label: `$${form}$`, outcome: `Right: the area is $${piTex(trigAreaCoefficient(params))}$.` },
+              { label: `$${wrong}$`, outcome: `That is $\\${sin ? 'cos' : 'sin'}^2 t$: $\\cos 2t = 1 - 2\\sin^2 t = 2\\cos^2 t - 1$.` },
+              { label: `$1 ${sin ? '-' : '+'} \\cos 2t$`, outcome: 'Half of that: $\\cos 2t = 1 - 2\\sin^2 t = 2\\cos^2 t - 1$.' },
+            ],
+            salt >>> 6,
+          ),
+        },
+      ],
+      answer: [rate, limits, `$${form}$`],
+    };
+  },
+  solution: trigAreaSolution,
+};
+
 /* ---------- Registration ---------- */
 
 /** By name, for `parametricImplicit.test.ts`. */
@@ -8837,6 +10033,26 @@ export const piGenerators = {
   paramReachTiles,
   paramCrossingFlow,
   paramCrossingSpeed,
+  paramAreaIntegrandTiles,
+  paramAreaIntegrand,
+  paramAreaDxFlow,
+  paramAreaSubstituteSteps,
+  paramAreaLimitsTiles,
+  paramAreaLimitsFlow,
+  paramAreaLimitT,
+  paramAreaLimitsChoice,
+  paramAreaTermsTiles,
+  paramArea,
+  paramAreaWorkingSteps,
+  paramAreaValueTree,
+  paramAreaSignFlow,
+  paramAreaSize,
+  paramAreaSignTree,
+  paramAreaDirectionChoice,
+  paramTrigAreaTiles,
+  paramTrigDoubleSteps,
+  paramTrigArea,
+  paramTrigAreaFlow,
 };
 
 export const parametricGenerators = Object.values(piGenerators) as Generator<never>[];

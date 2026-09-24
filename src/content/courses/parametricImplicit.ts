@@ -10,7 +10,7 @@
  * practise two or three times, then three sealed skill-check questions.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { paramSvg } from '../generators/parametricImplicit';
+import { areaSvg, paramSvg } from '../generators/parametricImplicit';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -38,6 +38,12 @@ const figure = (
   f: (t: number) => [number, number],
   opts: Parameters<typeof paramSvg>[1],
 ): Block => ({ kind: 'diagram', svg: paramSvg(f, opts) });
+
+/** A curve with the region between it and the x-axis shaded. */
+const shaded = (
+  f: (t: number) => [number, number],
+  opts: Parameters<typeof areaSvg>[1],
+): Block => ({ kind: 'diagram', svg: areaSvg(f, opts) });
 
 const DYDX = '\\frac{dy}{dx}';
 const DXDT = '\\frac{dx}{dt}';
@@ -1370,6 +1376,203 @@ export const parametricImplicit: Course = {
         ask('impl-rate-still', 2),
         ask('param-upright-flow', 2),
         ask('param-crossing-speed', 2),
+      ],
+    },
+    {
+      id: 'pi-l7',
+      title: 'Area under a Parametric Curve',
+      lessons: [
+        {
+          id: 'pi-l7-setup',
+          title: 'From dx to dt',
+          slides: [
+            teach(
+              prose('The area under a curve, down to the $x$-axis, is $\\int y \\, dx$. When the curve is given in terms of $t$, write the whole integral in $t$.'),
+              display('x = t^{2}, \\quad y = t + 1'),
+              shaded((t) => [t * t, t + 1], {
+                tMin: 0,
+                tMax: 2.3,
+                from: 1,
+                to: 2,
+                label: 'The curve x equals t squared, y equals t plus 1, with the region under it from t equals 1 to t equals 2 shaded',
+              }),
+              prose(`A small step $dx$ is $${DXDT} \\, dt$, so $\\int y \\, dx$ becomes $\\int y ${DXDT} \\, dt$. Here $${DXDT} = 2t$, so it is $\\int (t + 1)(2t) \\, dt$.`),
+            ),
+            ask('param-area-integrand-tiles'),
+            ask('param-area-dx-flow'),
+            ask('param-area-integrand'),
+            teach(
+              prose(`Why the rate: as $t$ moves on by $dt$, $x$ moves on by $${DXDT}$ times as much. A step in $t$ is only the same size as a step in $x$ when $${DXDT} = 1$.`),
+              prose('Multiply the product out before integrating. For $x = 3t - 1$, $y = t^{2} + 2$:'),
+              display(`y ${DXDT} = (t^{2} + 2)(3) = 3t^{2} + 6`),
+            ),
+            ask('param-area-substitute-steps'),
+            ask('param-area-integrand-tiles', 2),
+            ask('param-area-integrand+choice', 2),
+            teach(
+              prose(`Once $y$ and $dx$ are replaced, nothing of $x$ is left: the integral is in $t$ alone, and it is integrated with respect to $t$.`),
+              prose(`A common slip is to multiply $y$ by $x$ itself. It is the rate $${DXDT}$ that goes in.`),
+            ),
+            ask('param-area-substitute-steps', 2),
+            ask('param-area-dx-flow', 2),
+          ],
+          skillCheck: [ask('param-area-integrand', 2), ask('param-area-substitute-steps', 2), ask('param-area-dx-flow', 2)],
+        },
+        {
+          id: 'pi-l7-limits',
+          title: 'The Limits in t',
+          slides: [
+            teach(
+              prose(
+                'A region given between two values of $x$ needs its limits in $t$: solve for the $t$ at each end, as in When and Where. It is the same move as changing the limits in Substitution with Limits.',
+              ),
+              display('x = t^{2} + 1, \\quad y = t + 1'),
+              prose('Take $t \\ge 0$. Between $x = 2$ and $x = 5$: $t^{2} + 1 = 2$ gives $t = 1$, and $t^{2} + 1 = 5$ gives $t = 2$.'),
+              display(`\\text{area} = \\int_{1}^{2} (t + 1)(2t) \\, dt`),
+            ),
+            ask('param-area-limits-tiles'),
+            ask('param-area-limit-t'),
+            ask('param-area-limits-flow'),
+            teach(
+              prose('The lower limit is always the $t$ at the **left** end, even when that $t$ is the bigger one. For $x = 4 - t$, $y = t$ between $x = 1$ and $x = 3$:'),
+              display('x = 1: \\; t = 3'),
+              display('x = 3: \\; t = 1'),
+              display('\\int_{3}^{1} t \\times (-1) \\, dt = 4'),
+              prose(`Here $x$ falls as $t$ rises, so $${DXDT}$ is negative, and running the limits downwards turns the sign back.`),
+            ),
+            ask('param-area-limits-choice'),
+            ask('param-area-limits-flow', 2),
+            ask('param-area-limit-t+choice', 2),
+            teach(
+              prose('Check each limit by putting it back into $x$: it should give the end it belongs to. Putting the $x$-values themselves in as limits is the usual slip.'),
+            ),
+            ask('param-area-limits-tiles', 2),
+            ask('param-area-limits-choice', 2),
+          ],
+          skillCheck: [ask('param-area-limits-tiles', 2), ask('param-area-limits-flow', 2), ask('param-area-limit-t', 2)],
+        },
+        {
+          id: 'pi-l7-working',
+          title: 'Working It Out',
+          slides: [
+            teach(
+              prose('With the integral set up, integrate term by term: raise each power by one and divide by the new power.'),
+              display('\\int_{1}^{2} (2t^{2} + 2t) \\, dt'),
+              display('= \\left[\\frac{2}{3}t^{3} + t^{2}\\right]_{1}^{2}'),
+              prose('Then the value at the top take the value at the bottom:'),
+              display('\\frac{28}{3} - \\frac{5}{3} = \\frac{23}{3}'),
+            ),
+            ask('param-area-terms-tiles'),
+            ask('param-area-value-tree'),
+            ask('param-area'),
+            teach(
+              prose(`The whole working, from the two equations to a number: find $${DXDT}$, multiply by $y$ and expand, integrate, then put in the limits.`),
+              prose('Keep the value at the bottom in brackets when it is negative: taking away a negative adds.'),
+            ),
+            ask('param-area-working-steps'),
+            ask('param-area-terms-tiles', 2),
+            ask('param-area+choice', 2),
+            teach(
+              prose('Areas often come out as fractions. Leave them as fractions rather than rounding: $\\frac{23}{3}$, not $7.67$.'),
+            ),
+            ask('param-area-working-steps', 2),
+            ask('param-area-value-tree', 2),
+          ],
+          skillCheck: [ask('param-area', 2), ask('param-area-working-steps', 2), ask('param-area-value-tree', 2)],
+        },
+        {
+          id: 'pi-l7-sign',
+          title: 'Sign and Direction',
+          slides: [
+            teach(
+              prose(
+                `As in Area Below the Axis, an integral can come out negative. Here there are two ways: the region is below the $x$-axis, so $y < 0$, or it is swept from right to left, so $${DXDT} < 0$.`,
+              ),
+              prose(`The integrand is $y$ times $${DXDT}$, so its sign is the two signs multiplied. The area is the size of the integral.`),
+            ),
+            ask('param-area-sign-flow'),
+            ask('param-area-size'),
+            ask('param-area-sign-tree'),
+            teach(
+              display('x = 4 - t^{2}, \\quad y = t + 1'),
+              shaded((t) => [4 - t * t, t + 1], {
+                tMin: 0,
+                tMax: 2.3,
+                from: 0,
+                to: 2,
+                arrow: true,
+                label: 'The curve x equals 4 minus t squared, y equals t plus 1, swept right to left from t equals 0 to t equals 2, with the region under it shaded',
+              }),
+              prose('From $t = 0$ to $t = 2$ the curve runs right to left, above the axis:'),
+              display('\\int_{0}^{2} (t + 1)(-2t) \\, dt = -\\frac{28}{3}'),
+              prose('So the area is $\\frac{28}{3}$. Written as a positive integral, that is $-\\int_{0}^{2}$ or, with the limits swapped, $\\int_{2}^{0}$.'),
+            ),
+            ask('param-area-direction-choice'),
+            ask('param-area-sign-flow', 2),
+            ask('param-area-size+choice', 2),
+            teach(
+              prose('Below the axis **and** swept right to left, the two negatives cancel and the integral is positive again. Always check both signs before trusting the answer.'),
+            ),
+            ask('param-area-sign-tree', 2),
+            ask('param-area-direction-choice', 2),
+          ],
+          skillCheck: [ask('param-area-sign-flow', 2), ask('param-area-size', 2), ask('param-area-sign-tree', 2)],
+        },
+        {
+          id: 'pi-l7-trig',
+          title: 'Trigonometric Curves',
+          slides: [
+            teach(
+              display('x = 3\\cos t, \\quad y = 2\\sin t'),
+              shaded((t) => [3 * Math.cos(t), 2 * Math.sin(t)], {
+                tMin: 0,
+                tMax: 2 * Math.PI,
+                from: Math.PI / 2,
+                to: 0,
+                label: 'An ellipse 3 wide and 2 tall about the origin, with the quarter in the first quadrant shaded',
+              }),
+              prose(`This is an ellipse. For the quarter from $x = 0$ to $x = 3$: $x = 0$ at $t = \\frac{\\pi}{2}$ and $x = 3$ at $t = 0$. With $${DXDT} = -3\\sin t$,`),
+              display('\\int_{\\frac{\\pi}{2}}^{0} 2\\sin t \\times (-3\\sin t) \\, dt'),
+              display('= -6\\int_{\\frac{\\pi}{2}}^{0} \\sin^2 t \\, dt'),
+            ),
+            ask('param-trig-area-tiles'),
+            ask('param-trig-area-flow'),
+            ask('param-trig-area'),
+            teach(
+              prose('$\\sin^2 t$ has no direct antiderivative. Rewrite it with the double angle from The Double-Angle Formulae:'),
+              display('\\sin^2 t = \\frac{1}{2}(1 - \\cos 2t)'),
+              display('\\cos^2 t = \\frac{1}{2}(1 + \\cos 2t)'),
+              display('-6\\left[\\frac{t}{2} - \\frac{\\sin 2t}{4}\\right]_{\\frac{\\pi}{2}}^{0}'),
+              display('= -6\\left(0 - \\frac{\\pi}{4}\\right) = \\frac{3\\pi}{2}'),
+            ),
+            ask('param-trig-double-steps'),
+            ask('param-trig-area-tiles', 2),
+            ask('param-trig-area+choice', 2),
+            teach(
+              prose('The $\\sin 2t$ terms vanish at these limits, so the area is a multiple of $\\pi$. A quarter of the ellipse $x = a\\cos t$, $y = b\\sin t$ is $\\frac{\\pi ab}{4}$, the top half $\\frac{\\pi ab}{2}$, and the whole $\\pi ab$.'),
+              prose('For the top half, $x$ runs from $-a$ at $t = \\pi$ to $a$ at $t = 0$.'),
+            ),
+            ask('param-trig-double-steps', 2),
+            ask('param-trig-area-flow', 2),
+          ],
+          skillCheck: [ask('param-trig-area', 2), ask('param-trig-double-steps', 2), ask('param-trig-area-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('param-area-integrand', 2),
+        ask('param-area-limits-tiles', 2),
+        ask('param-area', 2),
+        ask('param-area-sign-flow', 2),
+        ask('param-trig-area', 2),
+        ask('param-area-substitute-steps', 2),
+        ask('param-area-limits-choice', 2),
+        ask('param-area-value-tree', 2),
+        ask('param-area-size', 2),
+        ask('param-trig-double-steps', 2),
+        ask('param-area-dx-flow', 2),
+        ask('param-area-working-steps', 2),
+        ask('param-area-direction-choice', 2),
+        ask('param-trig-area-tiles', 2),
       ],
     },
   ],

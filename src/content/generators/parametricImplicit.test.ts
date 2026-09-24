@@ -102,6 +102,10 @@ import {
   type RateParams,
   type SlowParams,
   type StillParams,
+  trigAreaSources,
+  type AreaParams,
+  type LimitParams,
+  type TrigAreaParams,
 } from './parametricImplicit';
 
 const SEEDS = 200;
@@ -1338,5 +1342,278 @@ describe('related rates and motion, checked against mathjs', { timeout: 180_000 
       expect(Number(typed(slide))).toBe(speed);
       expect(Number(correctAnswer(g.paramCrossingSpeed as Generator<CrossingParams>, params))).toBe(speed);
     }
+  });
+});
+
+// Integration by Simpson's rule, several times per draw across twenty
+// generators, so this block has a budget of its own rather than fewer seeds.
+describe('area under a parametric curve, checked against mathjs', { timeout: 180_000 }, () => {
+  /** Simpson's rule, independent of the generators' exact antiderivatives. */
+  function simpson(f: (t: number) => number, a: number, b: number, n = 600): number {
+    const h = (b - a) / n;
+    let total = f(a) + f(b);
+    for (let i = 1; i < n; i += 1) total += f(a + i * h) * (i % 2 === 1 ? 4 : 2);
+    return (total * h) / 3;
+  }
+
+  /** Agreement to quadrature's accuracy. */
+  const near = (a: number, b: number, tolerance = 1e-6) => Math.abs(a - b) < tolerance * Math.max(1, Math.abs(a), Math.abs(b));
+
+  /**
+   * A mathjs expression in t, compiled: quadrature evaluates each one
+   * hundreds of times per draw, and walking the parse tree every time is
+   * most of this block's cost.
+   */
+  const compiled = (node: { compile(): { evaluate(scope: Scope): unknown } }) => {
+    const code = node.compile();
+    return (t: number) => code.evaluate({ t }) as number;
+  };
+
+  /** x(t), y(t) and dx/dt from mathjs, and y dx/dt, for a curve given as mathjs sources. */
+  const curveOf = ({ x, y }: { x: string; y: string }) => {
+    const X = math.parse(x);
+    const c = { x: compiled(X), y: compiled(math.parse(y)), dx: compiled(math.derivative(X, 't')) };
+    return { c, f: (t: number) => c.y(t) * c.dx(t) };
+  };
+
+  const rateOf = (params: AreaParams) => curveOf(curveSources(params.curve));
+
+  /** A polynomial in t written in TeX, as a function. */
+  const inT = (tex: string) => compiled(math.parse(texToMath(tex)));
+
+  /** Two functions of t agree at every sample. */
+  const sameFn = (a: (t: number) => number, b: (t: number) => number) => T_SAMPLES.every((t) => near(a(t), b(t), 1e-9));
+
+  /** `\int_{lo}^{hi} (p) \, dt`, with or without a minus in front, as its value. */
+  function integralValue(tex: string): { sign: number; lo: number; hi: number; f: (t: number) => number; value: number } {
+    const m = /^(-?)\\int_\{(-?\d+)\}\^\{(-?\d+)\} \((.+)\) \\, dt$/.exec(tex.replaceAll('$', ''));
+    if (!m) throw new Error(`not an integral: ${tex}`);
+    const [sign, lo, hi, f] = [m[1] === '-' ? -1 : 1, Number(m[2]), Number(m[3]), inT(m[4])];
+    return { sign, lo, hi, f, value: sign * simpson(f, lo, hi) };
+  }
+
+  /** The sweep the prompt names: from t = lo to t = hi. */
+  function sweepOf(slide: Slide): [number, number] {
+    const m = /from \$(?:t = )?(-?\d+)\$ to \$(?:t = )?(-?\d+)\$/.exec(proseOf(slide));
+    if (!m) throw new Error(`no sweep in ${proseOf(slide)}`);
+    return [Number(m[1]), Number(m[2])];
+  }
+
+  /** The region the prompt names, between x = a and x = b, and the one t at each end. */
+  function endsOf(params: AreaParams, slide: Slide) {
+    const m = /between \$x = (-?\d+)\$ and \$x = (-?\d+)\$/.exec(proseOf(slide));
+    if (!m) throw new Error(`no region in ${proseOf(slide)}`);
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    const { c, f } = rateOf(params);
+    const from = proseOf(slide).includes('t \\ge 0') ? 0 : -12;
+    const at = (x: number) => {
+      const ts = [];
+      for (let t = from; t <= 12; t += 1) if (c.x(t) === x) ts.push(t);
+      expect(ts.length, `one t where x = ${x}`).toBe(1);
+      return ts[0];
+    };
+    const [ta, tb] = [at(a), at(b)];
+    // The region is above the axis all the way along.
+    for (let i = 1; i < 20; i += 1) expect(c.y(ta + ((tb - ta) * i) / 20)).toBeGreaterThan(0);
+    const area = simpson(f, ta, tb);
+    expect(area).toBeGreaterThan(0);
+    return { a, b, ta, tb, area, f };
+  }
+
+  it('the integrand is y times dx/dt, however it is asked', () => {
+    for (const { params, slide } of draws(g.paramAreaIntegrandTiles as Generator<AreaParams>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [p, q] = slide.answer.map(inT);
+      expect(sameFn((t) => p(t) * q(t), rateOf(params).f), slide.answer.join(' x ')).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramAreaIntegrand as Generator<AreaParams>)) {
+      const f = rateOf(params).f;
+      expect(sameFn((t) => fn(typed(slide)).at({ t }), f)).toBe(true);
+      expect(sameFn((t) => fn(correctAnswer(g.paramAreaIntegrand as Generator<AreaParams>, params)).at({ t }), f)).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramAreaDxFlow as Generator<AreaParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { c, f } = rateOf(params);
+      expect(slide.answer[0]).toBe('$\\frac{dx}{dt} \\, dt$');
+      expect(sameFn(inT(slide.answer[1]), c.dx)).toBe(true);
+      const m = /^\$\\int \((.+)\) \\, dt\$$/.exec(slide.answer[2])!;
+      expect(sameFn(inT(m[1]), f), slide.answer[2]).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramAreaSubstituteSteps as Generator<AreaParams>)) {
+      const m = /^\\int \((.+)\) \\, dt$/.exec(lastValue(slide))!;
+      expect(sameFn(inT(m[1]), rateOf(params).f), lastValue(slide)).toBe(true);
+    }
+  });
+
+  it('the limits are the values of t at the left and right ends, however they are asked', () => {
+    for (const { params, slide } of draws(g.paramAreaLimitsTiles as Generator<AreaParams>)) {
+      const { ta, tb } = endsOf(params, slide);
+      expect(same(placed(slide), [ta, tb])).toBe(true);
+    }
+    for (const { params, slide } of draws(g.paramAreaLimitsFlow as Generator<AreaParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const { ta, tb } = endsOf(params, slide);
+      expect(slide.answer).toEqual([`$t = ${ta}$`, `$t = ${tb}$`, `$\\int_{${ta}}^{${tb}}$`]);
+    }
+    for (const { params, slide } of draws(g.paramAreaLimitT as Generator<LimitParams>)) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { ta, tb } = endsOf(params, slide);
+      const want = slide.lead === 't_2 =' ? tb : ta;
+      expect(Number(typed(slide))).toBe(want);
+      expect(Number(correctAnswer(g.paramAreaLimitT as Generator<LimitParams>, params))).toBe(want);
+    }
+    for (const { params, slide } of draws(g.paramAreaLimitsChoice as Generator<AreaParams>)) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const { area } = endsOf(params, slide);
+      for (const option of slide.options) {
+        expect(near(integralValue(option.label).value, area), option.label).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the area agrees with Simpson\'s rule, however it is worked', () => {
+    for (const { params, slide } of draws(g.paramAreaTermsTiles as Generator<AreaParams>)) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      // The terms placed make an antiderivative: mathjs differentiates it back to y dx/dt.
+      const anti = fn(texToMath(slide.answer.join(' '))).by('t');
+      expect(sameFn((t) => anti.at({ t }), rateOf(params).f), slide.answer.join(' ')).toBe(true);
+    }
+    for (const generator of [g.paramArea, g.paramAreaValueTree, g.paramAreaWorkingSteps]) {
+      for (const { params, slide } of draws(generator as Generator<AreaParams>)) {
+        const [lo, hi] = sweepOf(slide);
+        const { c, f } = rateOf(params as AreaParams);
+        for (let i = 1; i < 20; i += 1) {
+          const t = lo + ((hi - lo) * i) / 20;
+          expect(c.y(t) > 0 && c.dx(t) >= 0, 'rightwards above the axis').toBe(true);
+        }
+        const area = simpson(f, lo, hi);
+        if (slide.kind === 'expression') {
+          expect(near(fn(typed(slide)).at({}), area)).toBe(true);
+          expect(near(fn(correctAnswer(g.paramArea as Generator<AreaParams>, params as AreaParams)).at({}), area)).toBe(true);
+        } else if (slide.kind === 'tree') {
+          // An antiderivative with no constant is the integral from 0.
+          const [top, bottom, value] = slide.answer.map((tex) => valueOfTex(tex));
+          expect(near(top, simpson(f, 0, hi)) && near(bottom, simpson(f, 0, lo)), slide.answer.join(', ')).toBe(true);
+          expect(near(value, area)).toBe(true);
+        } else if (slide.kind === 'steps') {
+          const [product, bracket, difference, value] = slide.reductions.map((r) => r.value);
+          expect(sameFn(inT(product), f), product).toBe(true);
+          const m = /^\\left\[(.+)\\right\]_\{(-?\d+)\}\^\{(-?\d+)\}$/.exec(bracket)!;
+          expect([Number(m[2]), Number(m[3])]).toEqual([lo, hi]);
+          const anti = inT(m[1]);
+          expect(near(anti(hi) - anti(lo), area) && near(anti(0), 0), bracket).toBe(true);
+          expect(near(valueOfTex(difference), area), difference).toBe(true);
+          expect(near(valueOfTex(value), area), value).toBe(true);
+        } else throw new Error(`unexpected ${slide.kind}`);
+      }
+    }
+  });
+
+  it('a region swept leftwards or below the axis gives a negative integral, and the area is its size', () => {
+    for (const { params, slide } of draws(g.paramAreaSignFlow as Generator<AreaParams>)) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const m = /^\\int_\{(-?\d+)\}\^\{(-?\d+)\} y \\frac\{dx\}\{dt\} \\, dt$/.exec(slide.subject)!;
+      const [lo, hi] = [Number(m[1]), Number(m[2])];
+      const { c, f } = rateOf(params);
+      const inside = Array.from({ length: 19 }, (_, i) => lo + ((hi - lo) * (i + 1)) / 20);
+      const rising = inside.every((t) => c.dx(t) >= 0);
+      const above = inside.every((t) => c.y(t) > 0);
+      expect(rising || inside.every((t) => c.dx(t) <= 0), 'x moves one way').toBe(true);
+      expect(above || inside.every((t) => c.y(t) < 0), 'one side of the axis').toBe(true);
+      expect(slide.answer).toEqual([
+        rising ? 'Increases' : 'Decreases',
+        above ? 'Above the $x$-axis' : 'Below the $x$-axis',
+        simpson(f, lo, hi) > 0 ? 'Positive' : 'Negative',
+      ]);
+    }
+    for (const generator of [g.paramAreaSize, g.paramAreaSignTree, g.paramAreaDirectionChoice]) {
+      for (const { params, slide } of draws(generator as Generator<AreaParams>)) {
+        const [lo, hi] = sweepOf(slide);
+        const { f } = rateOf(params as AreaParams);
+        const integral = simpson(f, lo, hi);
+        expect(integral, 'a negative integral').toBeLessThan(0);
+        if (slide.kind === 'expression') {
+          expect(near(fn(typed(slide)).at({}), -integral)).toBe(true);
+          expect(near(fn(correctAnswer(g.paramAreaSize as Generator<AreaParams>, params as AreaParams)).at({}), -integral)).toBe(true);
+        } else if (slide.kind === 'tree') {
+          const [top, bottom, value, area] = slide.answer.map((tex) => valueOfTex(tex));
+          expect(near(top, simpson(f, 0, hi)) && near(bottom, simpson(f, 0, lo))).toBe(true);
+          expect(near(value, integral) && near(area, -integral), slide.answer.join(', ')).toBe(true);
+        } else if (slide.kind === 'choice') {
+          for (const option of slide.options) {
+            expect(near(integralValue(option.label).value, -integral), option.label).toBe(option.id === slide.correctId);
+          }
+        } else throw new Error(`unexpected ${slide.kind}`);
+      }
+    }
+  });
+
+  describe('trigonometric curves', () => {
+    const ANGLE: Record<string, number> = { '0': 0, '\\frac{\\pi}{2}': Math.PI / 2, '-\\frac{\\pi}{2}': -Math.PI / 2, '\\pi': Math.PI };
+
+    /** Trigonometric TeX as mathjs reads it: squares, double angles and pi. */
+    const trigMath = (tex: string) =>
+      texToMath(
+        tex
+          .replace(/\\(sin|cos)\^2 t/g, '$1(t)^2')
+          .replace(/\\(sin|cos) 2t/g, '$1(2t)')
+          .replace(/\\pi/g, 'pi'),
+      );
+    const trigFn = (tex: string) => compiled(math.parse(trigMath(tex)));
+
+    /**
+     * The area of the region, worked in x alone: the top half of the ellipse
+     * is y = b sqrt(1 - x^2 / a^2). No t anywhere, so it checks the limits
+     * and signs rather than agreeing with them.
+     */
+    function regionArea(params: TrigAreaParams, slide: Slide): number {
+      const { a, b } = params;
+      const quarter = proseOf(slide).includes(`between $x = 0$ and $x = ${a}$`);
+      expect(quarter || proseOf(slide).includes('above the axis')).toBe(true);
+      return simpson((x) => b * Math.sqrt(Math.max(0, 1 - (x / a) ** 2)), quarter ? 0 : -a, a, 20_000);
+    }
+
+    const piValue = (tex: string) => fn(trigMath(tex)).at({});
+
+    it('the ellipse area agrees with the area worked in x, however it is asked', () => {
+      for (const { params, slide } of draws(g.paramTrigAreaTiles as Generator<TrigAreaParams>)) {
+        if (slide.kind !== 'tiles') throw new Error('expected tiles');
+        const { c } = curveOf(trigAreaSources(params));
+        const [k, square, left, right] = slide.answer;
+        const integrand = (t: number) => Number(k) * trigFn(square)(t);
+        expect(sameFn(integrand, (t) => c.y(t) * c.dx(t)), `${k} ${square}`).toBe(true);
+        expect(near(simpson(integrand, ANGLE[left], ANGLE[right]), regionArea(params, slide), 1e-4), `${left} to ${right}`).toBe(true);
+      }
+      for (const { params, slide } of draws(g.paramTrigDoubleSteps as Generator<TrigAreaParams>)) {
+        if (slide.kind !== 'steps') throw new Error('expected steps');
+        const area = regionArea(params, slide);
+        const lead = /^(-?\d*)\\int_\{(.+)\}\^\{(.+)\}$/.exec(slide.start[0])!;
+        const k = lead[1] === '-' ? -1 : lead[1] === '' ? 1 : Number(lead[1]);
+        const [left, right] = [ANGLE[lead[2]], ANGLE[lead[3]]];
+        expect(near(simpson((t) => k * trigFn(slide.start[1])(t), left, right), area, 1e-4), slide.start.join(' ')).toBe(true);
+        const [form, bracket, value] = slide.reductions.map((r) => r.value);
+        expect(sameFn(trigFn(form), trigFn(slide.start[1])), form).toBe(true);
+        const m = /^(-?\d*)\\left\[(.+)\\right\]_\{(.+)\}\^\{(.+)\}$/.exec(bracket)!;
+        const inside = trigFn(m[2]);
+        expect(near(k * (inside(ANGLE[m[4]]) - inside(ANGLE[m[3]])), area, 1e-4), bracket).toBe(true);
+        expect(near(piValue(value), area, 1e-4), value).toBe(true);
+      }
+      for (const { params, slide } of draws(g.paramTrigArea as Generator<TrigAreaParams>)) {
+        const area = regionArea(params, slide);
+        expect(near(fn(typed(slide)).at({}) * Math.PI, area, 1e-4)).toBe(true);
+        expect(near(fn(correctAnswer(g.paramTrigArea as Generator<TrigAreaParams>, params)).at({}) * Math.PI, area, 1e-4)).toBe(true);
+      }
+      for (const { params, slide } of draws(g.paramTrigAreaFlow as Generator<TrigAreaParams>)) {
+        if (slide.kind !== 'flow') throw new Error('expected flow');
+        const { c } = curveOf(trigAreaSources(params));
+        const [rate, limits, form] = slide.answer.map((label) => label.replaceAll('$', ''));
+        expect(sameFn(trigFn(rate), c.dx), rate).toBe(true);
+        const m = /^From t = (.+) to t = (.+)$/.exec(limits)!;
+        expect(near(simpson((t) => c.y(t) * c.dx(t), ANGLE[m[1]], ANGLE[m[2]]), regionArea(params, slide), 1e-4), limits).toBe(true);
+        // The form is the square in y dx/dt: their ratio is the same everywhere.
+        const ratio = T_SAMPLES.map((t) => (c.y(t) * c.dx(t)) / trigFn(form)(t));
+        expect(ratio.every((r) => near(r, ratio[0], 1e-9)), form).toBe(true);
+      }
+    });
   });
 });

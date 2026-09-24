@@ -1174,5 +1174,203 @@ export const parametricImplicit: Course = {
         ask('impl-ax-at-tree', 2),
       ],
     },
+    {
+      id: 'pi-l6',
+      title: 'Related Rates & Motion along a Curve',
+      lessons: [
+        {
+          id: 'pi-l6-moving',
+          title: 'A Point Moving on a Curve',
+          slides: [
+            teach(
+              prose(
+                'In Differentiating Terms in y, $y$ depended on $x$. Now a point moves along $x^2 + y^2 = 25$, and both of its coordinates depend on the time $t$.',
+              ),
+              figure((t) => [5 * Math.cos(t), 5 * Math.sin(t)], {
+                span: 7,
+                tMin: 0,
+                tMax: 2 * Math.PI,
+                marks: [[3, 4]],
+                label: 'The circle x squared plus y squared equals 25, with the point (3, 4) marked',
+              }),
+              prose(`Differentiate each term with respect to $t$. By the chain rule, $x^2$ gives $2x${DXDT}$ and $y^2$ gives $2y${DYDT}$:`),
+              display(`2x${DXDT} + 2y${DYDT} = 0`),
+            ),
+            ask('impl-rate-tiles'),
+            ask('impl-rate-t-steps'),
+            ask('impl-rate-value'),
+            teach(
+              prose(`At $(3, 4)$, suppose $x$ is increasing at $${DXDT} = 2$. Put the point and the rate in, then solve:`),
+              display(`6 \\times 2 + 8${DYDT} = 0, \\quad ${DYDT} = -\\frac{3}{2}`),
+              prose(
+                `It agrees with the chain rule the other way round: the gradient there is $${DYDX} = -\\frac{3}{4}$, and $${DYDT} = ${DYDX} \\times ${DXDT}$.`,
+              ),
+            ),
+            ask('impl-rate-tree'),
+            ask('impl-rate-tiles', 2),
+            ask('impl-rate-value+choice', 2),
+            teach(
+              prose(`A term with both letters needs the product rule, now with respect to $t$:`),
+              display(`\\frac{d}{dt}(xy) = x${DYDT} + y${DXDT}`),
+              prose(`Each letter brings its own rate. Collect the $${DXDT}$ terms and the $${DYDT}$ terms, then put the numbers in.`),
+            ),
+            ask('impl-rate-t-steps', 2),
+            ask('impl-rate-tree', 2),
+          ],
+          skillCheck: [ask('impl-rate-value', 2), ask('impl-rate-tiles', 2), ask('impl-rate-tree', 2)],
+        },
+        {
+          id: 'pi-l6-reading',
+          title: 'Reading the Rates',
+          slides: [
+            teach(
+              prose(
+                `The sign of a rate says which way a coordinate is going. On $x^2 + y^2 = 25$ at $(3, 4)$ with $${DXDT} = 2$, $${DYDT} = -\\frac{3}{2}$: $x$ is increasing and $y$ is decreasing.`,
+              ),
+              prose(`Given $${DYDT}$ instead, solve the same line for $${DXDT}$. With $${DYDT} = 3$ at $(3, 4)$:`),
+              display(`6${DXDT} + 8 \\times 3 = 0, \\quad ${DXDT} = -4`),
+            ),
+            ask('impl-rate-sign-flow'),
+            ask('impl-rate-reverse+choice'),
+            ask('impl-rate-sign-flow', 2),
+            teach(
+              prose(`On the circle the line solves to`),
+              display(`${DYDT} = -\\frac{x}{y}${DXDT}`),
+              prose(
+                `So $y$ stands still, however fast $x$ moves, where $x = 0$: at $(0, 5)$ and $(0, -5)$, the top and bottom of the circle. Where $y = 0$ the line reads $2x${DXDT} = 0$, so there it is $x$ that cannot be changing.`,
+              ),
+              prose('On any curve, $y$ stands still where the bracket in front of the rate of $x$ is zero, at a point of the curve.'),
+            ),
+            ask('impl-rate-still'),
+            ask('impl-rate-reverse', 2),
+            ask('impl-rate-still', 2),
+            teach(
+              prose(`Anything built from $x$ and $y$ has a rate too. The distance from the origin squared is $x^2 + y^2$, and a rectangle with a corner at the point has area $xy$:`),
+              display(`\\frac{d}{dt}(x^2 + y^2) = 2x${DXDT} + 2y${DYDT}`),
+              display(`\\frac{d}{dt}(xy) = x${DYDT} + y${DXDT}`),
+              prose(`Find $${DYDT}$ from the curve first, then put both rates in.`),
+            ),
+            ask('impl-quantity-rate-tree'),
+            ask('impl-quantity-rate-tree', 2),
+          ],
+          skillCheck: [ask('impl-rate-sign-flow', 2), ask('impl-rate-still', 2), ask('impl-quantity-rate-tree', 2)],
+        },
+        {
+          id: 'pi-l6-velocity',
+          title: 'Velocity along a Path',
+          slides: [
+            teach(
+              prose(`When the parameter is time, a parametric curve is the path of a particle. Its **velocity** is the pair of rates $\\left(${DXDT}, ${DYDT}\\right)$.`),
+              display('x = t^{2} - 3, \\quad y = 2t'),
+              figure((t) => [t * t - 3, 2 * t], {
+                span: 6,
+                tMin: -2.9,
+                tMax: 2.9,
+                marks: [[-2, 2]],
+                label: 'The path x equals t squared minus 3, y equals 2t, with the point at t equals 1 marked',
+              }),
+              prose(`Here $${DXDT} = 2t$ and $${DYDT} = 2$, so at $t = 1$ the velocity is $(2, 2)$. Both are positive: the particle is moving right and up.`),
+            ),
+            ask('param-velocity-tiles'),
+            ask('param-direction'),
+            ask('param-velocity-tiles', 2),
+            teach(
+              prose(
+                `The particle moves along its tangent, so the gradient of its direction is the gradient of the curve from The Gradient of a Parametric Curve, $${DYDX} = ${DYDT} \\div ${DXDT}$.`,
+              ),
+              prose(`At $t = 1$ above that is $2 \\div 2 = 1$. At $t = -1$ the velocity is $(-2, 2)$ and the gradient $-1$: moving left and up.`),
+            ),
+            ask('param-direction-gradient'),
+            ask('param-direction', 2),
+            ask('param-direction-gradient+choice', 2),
+            teach(
+              prose(
+                `Where $${DXDT} = 0$ the particle moves straight up or down, where its tangent stands upright. Where $${DYDT} = 0$ it moves straight across, where its tangent is flat.`,
+              ),
+              prose(`Above, $${DXDT} = 2t$ is zero at $t = 0$, and the velocity then is $(0, 2)$: straight up.`),
+            ),
+            ask('param-upright-flow'),
+            ask('param-upright-flow', 2),
+          ],
+          skillCheck: [ask('param-velocity-tiles', 2), ask('param-direction-gradient', 2), ask('param-upright-flow', 2)],
+        },
+        {
+          id: 'pi-l6-speed',
+          title: 'Speed and the Slowest Moment',
+          slides: [
+            teach(
+              prose("A particle's **speed** is the length of its velocity, by Pythagoras:"),
+              display(`\\text{speed} = \\sqrt{\\left(${DXDT}\\right)^2 + \\left(${DYDT}\\right)^2}`),
+              prose(`For $x = 3t$, $y = t^2$ at $t = 2$, the velocity is $(3, 4)$ and the speed is $\\sqrt{9 + 16} = 5$.`),
+            ),
+            ask('param-speed-parts-tree'),
+            ask('param-speed'),
+            ask('param-speed-parts-tree', 2),
+            teach(
+              prose(`The speed changes as the particle moves. Its square is easier to work with, because it has no root:`),
+              display(`\\text{speed}^2 = 3^2 + (2t)^2 = 4t^2 + 9`),
+              prose('When a rate is a bracket such as $2t - 4$, square it out and collect like terms.'),
+            ),
+            ask('param-speed-squared-tiles'),
+            ask('param-speed+choice', 2),
+            ask('param-speed-squared-tiles', 2),
+            teach(
+              prose(
+                `The particle is slowest where the speed is least, and that is where its square is least. Differentiate the square and set it to zero: $4t^2 + 9$ gives $8t = 0$, so it is slowest at $t = 0$, moving at $3$.`,
+              ),
+              prose('Then put that $t$ into $x$ and $y$ to find where it is.'),
+            ),
+            ask('param-slowest-slider'),
+            ask('param-slowest-slider', 2),
+          ],
+          skillCheck: [ask('param-speed', 2), ask('param-speed-squared-tiles', 2), ask('param-slowest-slider', 2)],
+        },
+        {
+          id: 'pi-l6-when',
+          title: 'When and Where',
+          slides: [
+            teach(
+              prose('To find **when** a particle reaches an axis or a line, solve for $t$. To find **where**, put that $t$ back in.'),
+              display('x = 3t - 6, \\quad y = t^{2} - 1'),
+              prose('It crosses the $y$-axis when $x = 0$: $3t - 6 = 0$, so $t = 2$, and then $y = 3$. It is at $(0, 3)$.'),
+            ),
+            ask('param-reach-tiles'),
+            ask('param-crossing-tree'),
+            ask('param-reach-tiles', 2),
+            teach(
+              prose(`Its velocity then is the rates at that $t$: $${DXDT} = 3$ and $${DYDT} = 2t = 4$, so $(3, 4)$.`),
+              prose(
+                'When the equation for $t$ is a quadratic, it can have a root before the clock starts. For $t^2 - t - 2 = 0$ the roots are $t = 2$ and $t = -1$; only $t = 2$ comes after $t = 0$.',
+              ),
+            ),
+            ask('param-crossing-flow'),
+            ask('param-crossing-tree', 2),
+            ask('param-crossing-flow', 2),
+            teach(
+              prose('How fast it is going then is the speed at that $t$. Crossing the $y$-axis above, the velocity is $(3, 4)$, so the speed is $5$.'),
+            ),
+            ask('param-crossing-speed'),
+            ask('param-crossing-speed+choice', 2),
+          ],
+          skillCheck: [ask('param-reach-tiles', 2), ask('param-crossing-tree', 2), ask('param-crossing-speed', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('impl-rate-value', 2),
+        ask('param-velocity-tiles', 2),
+        ask('param-speed-parts-tree', 2),
+        ask('impl-rate-sign-flow', 2),
+        ask('param-reach-tiles', 2),
+        ask('param-direction-gradient+choice', 2),
+        ask('impl-quantity-rate-tree', 2),
+        ask('param-slowest-slider', 2),
+        ask('param-crossing-flow', 2),
+        ask('impl-rate-tiles', 2),
+        ask('param-speed', 2),
+        ask('impl-rate-still', 2),
+        ask('param-upright-flow', 2),
+        ask('param-crossing-speed', 2),
+      ],
+    },
   ],
 };

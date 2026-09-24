@@ -9,7 +9,10 @@
  * solving it. Level 3 reads a graph off the factors, and level 4 goes from
  * roots back to coefficients through the sums of the roots. Level 5 divides
  * quartics, by a quadratic or twice over, and level 6 solves cubic and quartic
- * inequalities from their sign diagrams.
+ * inequalities from their sign diagrams. Level 7 models with them: the open
+ * box as a cubic, a stated volume solved by the factor theorem, a cubic fitted
+ * through its roots and a point, and reading what a model says. Nothing in
+ * it is calculus, so no slide declares `source`, `integrand` or `limits`.
  *
  * Everything starts at degree 3, since two brackets and the quadratic formula
  * belong to Quadratics, and top-heavy division and partial fractions belong to
@@ -8579,6 +8582,1289 @@ const polyQuarticLine: Generator<IneqLineParams> = {
   solution: ({ form, op }) => ineqSolution(form, op),
 };
 
+/* ================================================================
+ * Level 7: modelling with polynomials
+ * ================================================================ */
+
+/**
+ * An open box folded from a rectangular sheet L cm by W cm, both even and
+ * W < L: a square of side x is cut from each corner and the sides folded up,
+ * so V = x(L - 2x)(W - 2x), and there is a box only for 0 < x < W/2. Half of
+ * each side is whole, so every volume at a whole cut is a multiple of 4 and
+ * V = T divides through by 4 into a monic cubic with whole coefficients.
+ *
+ * Nothing in this level is calculus. Differentiation's `df-l8` finds the
+ * largest box by differentiating; here it is read off a table or a slider.
+ * So no slide declares `source`, `integrand` or `limits`, and the oracle in
+ * `generators.test.ts` has nothing to run; `polynomials.test.ts` rebuilds
+ * V(x) from the sheet each prompt states and holds every slide to that.
+ */
+interface Sheet {
+  L: number;
+  W: number;
+}
+
+const boxPoly = ({ L, W }: Sheet): Poly => mulPoly([1, 0], mulPoly([-2, L], [-2, W]));
+const boxAt = ({ L, W }: Sheet, x: number): number => x * (L - 2 * x) * (W - 2 * x);
+const boxTex = ({ L, W }: Sheet): string => `x(${L} - 2x)(${W} - 2x)`;
+/** The largest whole cut that still leaves a base. */
+const lastCut = ({ W }: Sheet): number => W / 2 - 1;
+
+function sheetStory({ L, W }: Sheet): string {
+  return `A sheet of card $${L}$ cm by $${W}$ cm has a square of side $x$ cm cut from each corner, and the sides are folded up to make an open box.`;
+}
+
+/**
+ * A rectangular sheet. Difficulty 1 stays small, so the table and the cubic
+ * are short; difficulty 2 runs to 30 cm with more cuts to choose between.
+ */
+function sampleSheet(rng: Rng, difficulty: number): Sheet {
+  if (difficulty > 1) {
+    const W = 2 * rng.int(6, 13);
+    return { L: W + 2 * rng.int(1, Math.min(6, (30 - W) / 2)), W };
+  }
+  const W = 2 * rng.int(4, 9);
+  return { L: W + 2 * rng.int(1, 5), W };
+}
+
+/** A whole cut strictly inside the box's range. */
+const sampleCut = (rng: Rng, sheet: Sheet, most = lastCut(sheet)): number => rng.int(1, Math.min(most, lastCut(sheet)));
+
+interface BoxSidesParams extends Sheet {
+  /** Difficulty 2 leaves the height to place as well. */
+  height: boolean;
+}
+
+/** The volume formula from the story: the height and the two sides of the base. */
+const polyBoxSidesTiles: Generator<BoxSidesParams> = {
+  id: 'poly-box-sides-tiles',
+  sample: (rng, difficulty) => ({ ...sampleSheet(rng, difficulty), height: difficulty > 1 }),
+  render: ({ L, W, height }): Slide => {
+    const sides = [`${L} - 2x`, `${W} - 2x`];
+    const answer = height ? ['x', ...sides] : sides;
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(sheetStory({ L, W })),
+        say(
+          height
+            ? 'Its volume is height times length times width. Build the formula: the height, then the length of the base, then its width.'
+            : 'Its volume is height times length times width. Fill in the length and the width of the base.',
+        ),
+      ],
+      template: height ? 'V = {0}({1})({2})' : 'V = x({0})({1})',
+      bank: fillBank(answer, [`${L} - x`, `${W} - x`, `${L} - 4x`, ...(height ? ['2x'] : [`${W} - 4x`])]),
+      answer,
+      unordered: !height,
+    };
+  },
+  solution: ({ L, W }) => [
+    { text: `A square of side $x$ comes off both ends of every edge, so each side of the base loses $2x$: it is $${L} - 2x$ by $${W} - 2x$.` },
+    { text: 'The flaps fold up to make the sides, so the box is $x$ tall.' },
+    { tex: `V = ${boxTex({ L, W })}` },
+  ],
+};
+
+/** The volume multiplied out: the base first, then the height. */
+const polyBoxExpandSteps: Generator<Sheet> = {
+  id: 'poly-box-expand-steps',
+  sample: sampleSheet,
+  render: (sheet): Slide => {
+    const { L, W } = sheet;
+    const S = 2 * (L + W);
+    const P = L * W;
+    const bracket = (p: Poly) => `(${polyTex(p)})`;
+    const base: Poly = [4, -S, P];
+    return {
+      kind: 'steps',
+      prompt: [
+        say(sheetStory(sheet)),
+        say(`Its volume is $V = ${boxTex(sheet)}$. Multiply it out: the base's two brackets first, then the height. Tap the part you would do **next**, then choose what it comes to.`),
+      ],
+      start: ['x', `(${L} - 2x)`, `(${W} - 2x)`],
+      reductions: [
+        {
+          span: [1, 3],
+          value: bracket(base),
+          bank: stepBank(bracket(base), bracket([4, S, P]), bracket([2, -S, P]), bracket([4, -S / 2, P])),
+        },
+        {
+          span: [0, 2],
+          value: polyTex(boxPoly(sheet)),
+          bank: stepBank(polyTex(boxPoly(sheet)), polyTex([4, -S, 0, P]), polyTex([4, S, P, 0]), polyTex([4, -S, -P, 0])),
+        },
+      ],
+    };
+  },
+  solution: (sheet) => {
+    const { L, W } = sheet;
+    return [
+      { text: 'Each term of one bracket times each of the other. The two $x$ terms collect, and $-2x$ times $-2x$ is $+4x^{2}$:' },
+      { tex: chain(`&(${L} - 2x)(${W} - 2x)`, `=\\;&${L * W} - ${2 * W}x - ${2 * L}x + 4x^{2}`, `=\\;&${polyTex([4, -2 * (L + W), L * W])}`) },
+      { text: 'Then every term times the height $x$, each power going up by one:' },
+      { tex: `V = ${polyTex(boxPoly(sheet))}` },
+    ];
+  },
+};
+
+interface BoxDomainParams extends Sheet {
+  /** Difficulty 2 goes on to count the whole cuts. */
+  whole: boolean;
+}
+
+/** Where the model makes sense, one length at a time. */
+const polyBoxDomainFlow: Generator<BoxDomainParams> = {
+  id: 'poly-box-domain-flow',
+  sample: (rng, difficulty) => ({ ...sampleSheet(rng, difficulty), whole: difficulty > 1 }),
+  render: (params): Slide => {
+    const { L, W, whole } = params;
+    const key = `${L}|${W}|${whole}`;
+    const half = W / 2;
+    const range = `$0 < x < ${half}$`;
+    const steps: Extract<Slide, { kind: 'flow' }>['steps'] = [
+      {
+        id: 'low',
+        ask: 'The cut $x$ is a length. What does that tell you?',
+        branches: turned(
+          [
+            { label: '$x > 0$', to: 'short' },
+            { label: '$x \\ge 0$', outcome: 'At $x = 0$ nothing is cut, nothing folds up, and there is no box.' },
+            { label: '$x < 0$', outcome: 'A length is never negative.' },
+          ],
+          key,
+        ),
+      },
+      {
+        id: 'short',
+        ask: `The base is $${L} - 2x$ by $${W} - 2x$, and both must stay positive. Which runs out first as $x$ grows?`,
+        branches: turned(
+          [
+            { label: `$${W} - 2x$`, to: 'range' },
+            { label: `$${L} - 2x$`, outcome: `When $${W} - 2x$ reaches $0$, $${L} - 2x$ is still $${L - W}$.` },
+          ],
+          `${key}|short`,
+        ),
+      },
+      {
+        id: 'range',
+        ask: 'So which values of $x$ make a box?',
+        branches: turned(
+          [
+            whole ? { label: range, to: 'count' } : { label: range, outcome: 'That is where the model describes a box.' },
+            { label: `$0 < x < ${L / 2}$`, outcome: `Past $x = ${half}$ the width $${W} - 2x$ is negative.` },
+            L / 2 === W
+              ? { label: `$0 < x \\le ${half}$`, outcome: `At $x = ${half}$ the base has no width, so there is no box.` }
+              : { label: `$0 < x < ${W}$`, outcome: `$${W} - 2x > 0$ gives $2x < ${W}$, so $x < ${half}$.` },
+          ],
+          `${key}|range`,
+        ),
+      },
+    ];
+    if (whole) {
+      steps.push({
+        id: 'count',
+        ask: 'The cut is a whole number of centimetres. How many different boxes can be made?',
+        branches: turned(
+          [
+            { label: `$${half - 1}$`, outcome: `Right: $x = 1$ up to $x = ${half - 1}$.` },
+            { label: `$${half}$`, outcome: `$x = ${half}$ leaves a base with no width, so it is not in the range.` },
+            { label: `$${half + 1}$`, outcome: 'Neither end of the range makes a box, so neither counts.' },
+          ],
+          `${key}|count`,
+        ),
+      });
+    }
+    return {
+      kind: 'flow',
+      prompt: [say(sheetStory(params)), say('Work out which cuts give a box, one decision at a time.')],
+      subject: `V = ${boxTex(params)}`,
+      steps,
+      answer: ['$x > 0$', `$${W} - 2x$`, range, ...(whole ? [`$${half - 1}$`] : [])],
+    };
+  },
+  solution: ({ L, W, whole }) => [
+    { text: 'Every length in the box must be positive: the height $x$, and both sides of the base.' },
+    { text: `So $x > 0$; $${L} - 2x > 0$ gives $x < ${L / 2}$; and $${W} - 2x > 0$ gives $x < ${W / 2}$.` },
+    { text: `The narrower side runs out first, so $0 < x < ${W / 2}$.${whole ? ` The whole numbers in that range are $1$ to $${W / 2 - 1}$: $${W / 2 - 1}$ boxes.` : ''}` },
+  ],
+};
+
+interface BoxCoefficientParams extends Sheet {
+  /** The power whose coefficient is asked: 2 or 1. */
+  power: number;
+}
+
+/** One coefficient of the expanded volume, typed. */
+const polyBoxCoefficient: Generator<BoxCoefficientParams> = {
+  id: 'poly-box-coefficient',
+  sample: (rng, difficulty) => ({ ...sampleSheet(rng, difficulty), power: difficulty > 1 ? 2 : rng.pick([1, 2]) }),
+  choices: ({ L, W, power }) =>
+    power === 2
+      ? intOptions(-2 * (L + W), [-(L + W), 2 * (L + W), -4 * (L + W), -(2 * L + W)])
+      : intOptions(L * W, [2 * L * W, 4 * L * W, (L - 2) * (W - 2), L * W / 2]),
+  render: (params): Slide => {
+    const letter = params.power === 2 ? 'b' : 'c';
+    return {
+      kind: 'expression',
+      prompt: [
+        say(sheetStory(params)),
+        show(`V = ${boxTex(params)}`),
+        say(`Multiplied out, $V = 4x^{3} + bx^{2} + cx$. Find $${letter}$.`),
+      ],
+      lead: `${letter} =`,
+      keypad: [],
+      answer: String(coefficientOf(boxPoly(params), params.power)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { L, W, power } = params;
+    return [
+      { text: 'Multiply the base out first:' },
+      { tex: chain(`&(${L} - 2x)(${W} - 2x)`, `=\\;&${polyTex([4, -2 * (L + W), L * W])}`) },
+      { text: 'Times $x$, every power goes up by one:' },
+      { tex: `V = ${polyTex(boxPoly(params))}` },
+      {
+        text:
+          power === 2
+            ? `So $b = ${-2 * (L + W)}$: the $x^{2}$ term comes from $x$ times $-${2 * W}x - ${2 * L}x$, and both are negative.`
+            : `So $c = ${L * W}$: the $x$ term comes from $x$ times $${L} \\times ${W}$.`,
+      },
+    ];
+  },
+};
+
+/* ---------- lesson 2: values and the table ---------- */
+
+interface BoxCutParams extends Sheet {
+  x: number;
+}
+
+function sampleBoxCut(rng: Rng, difficulty: number): BoxCutParams {
+  const sheet = sampleSheet(rng, difficulty);
+  return { ...sheet, x: sampleCut(rng, sheet, difficulty > 1 ? lastCut(sheet) : 3) };
+}
+
+/** The volume at one whole cut, typed. */
+const polyBoxVolume: Generator<BoxCutParams> = {
+  id: 'poly-box-volume',
+  sample: sampleBoxCut,
+  choices: (params) => {
+    const { L, W, x } = params;
+    return intOptions(boxAt(params, x), [x * L * W, (L - 2 * x) * (W - 2 * x), x * (L - x) * (W - x), x * (L - 2 * x) * W], 1);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(sheetStory(params)),
+      show(`V = ${boxTex(params)}`),
+      say(`How many cubic centimetres does the box hold when $x = ${params.x}$?`),
+    ],
+    lead: 'V =',
+    keypad: [],
+    answer: String(boxAt(params, params.x)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { L, W, x } = params;
+    return [
+      { text: `Put $x = ${x}$ into each bracket: the height, then the length and width of the base.` },
+      { tex: chain(`V &= ${x}(${L} - ${2 * x})(${W} - ${2 * x})`, `&= ${x} \\times ${L - 2 * x} \\times ${W - 2 * x}`, `&= ${boxAt(params, x)}`) },
+    ];
+  },
+};
+
+/** The same volume as a tree: the two sides, the base, then the box. */
+const polyBoxValueTree: Generator<BoxCutParams> = {
+  id: 'poly-box-value-tree',
+  sample: sampleBoxCut,
+  render: (params): Slide => {
+    const { L, W, x } = params;
+    const a = L - 2 * x;
+    const b = W - 2 * x;
+    const answer = [a, b, a * b, x * a * b];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(sheetStory(params)),
+        say(
+          `Work out its volume when $x = ${x}$. Along the top, the length and the width of the base; under them, the area of the base; last, the volume, which is that area times the height.`,
+        ),
+      ],
+      expression: `${x}(${L} - 2 \\times ${x})(${W} - 2 \\times ${x})`,
+      nodes: [
+        { id: 'len', from: [] },
+        { id: 'wid', from: [] },
+        { id: 'base', from: ['len', 'wid'] },
+        { id: 'vol', from: ['base'] },
+      ],
+      bank: numberBank(answer, [L - x, W - x, (L - x) * (W - x), a + b, x * a, 2 * x * a * b]),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { L, W, x } = params;
+    const a = L - 2 * x;
+    const b = W - 2 * x;
+    return [
+      { text: `Each side of the base loses $2 \\times ${x} = ${2 * x}$:` },
+      { tex: chain(`${L} - ${2 * x} &= ${a}`, `${W} - ${2 * x} &= ${b}`) },
+      { tex: chain(`\\text{base} &= ${a} \\times ${b} = ${a * b}`, `V &= ${a * b} \\times ${x} = ${x * a * b}`) },
+    ];
+  },
+};
+
+interface BoxTableParams extends Sheet {
+  /** Blank cells as [row, column], columns 1 and 2 the sides and 3 the volume. */
+  blanks: [number, number][];
+}
+
+/** How many rows a table shows: one per whole cut, five at most. */
+const tableRows = (sheet: Sheet): number => Math.min(lastCut(sheet), 5);
+
+/**
+ * A table of volumes, a row per whole cut. Difficulty 1 leaves two volumes
+ * to fill; difficulty 2 a length, a width and two volumes, in different rows.
+ */
+const polyBoxTable: Generator<BoxTableParams> = {
+  id: 'poly-box-table',
+  sample: (rng, difficulty) => {
+    const sheet = sampleSheet(rng, difficulty);
+    const rows = rng.sample(
+      Array.from({ length: tableRows(sheet) }, (_, i) => i),
+      difficulty > 1 ? 4 : 2,
+    );
+    const blanks: [number, number][] =
+      difficulty > 1
+        ? [
+            [rows[0], 1],
+            [rows[1], 2],
+            [rows[2], 3],
+            [rows[3], 3],
+          ]
+        : rows.map((row) => [row, 3]);
+    return { ...sheet, blanks };
+  },
+  render: (params): Slide => {
+    const { L, W, blanks } = params;
+    const answer: number[] = [];
+    const slips: number[] = [];
+    const rows = Array.from({ length: tableRows(params) }, (_, i) => {
+      const x = i + 1;
+      const cells = [x, L - 2 * x, W - 2 * x, boxAt(params, x)];
+      return cells.map((value, col) => {
+        if (col === 0 || !blanks.some(([r, c]) => r === i && c === col)) return String(value);
+        answer.push(value);
+        slips.push(col === 3 ? (L - 2 * x) * (W - 2 * x) : col === 1 ? L - x : W - x);
+        return null;
+      });
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        say(sheetStory(params)),
+        say(`Its volume is $V = ${boxTex(params)}$. Fill in the gaps in the table, one row for each whole-number cut.`),
+      ],
+      // Braced, so KaTeX keeps each header on one line rather than breaking at the minus.
+      columns: ['x', `{${L} - 2x}`, `{${W} - 2x}`, 'V'],
+      rows,
+      bank: numberBank(answer, slips),
+      answer: answer.map(String),
+    };
+  },
+  solution: (params) => {
+    const { L, W } = params;
+    return [
+      { text: 'For each row, take $2x$ off each side, then multiply the height by both sides.' },
+      {
+        tex: chain(
+          ...Array.from({ length: tableRows(params) }, (_, i) => {
+            const x = i + 1;
+            return `V(${x}) &= ${x} \\times ${L - 2 * x} \\times ${W - 2 * x} = ${boxAt(params, x)}`;
+          }),
+        ),
+      },
+    ];
+  },
+};
+
+/** The whole cut with the largest volume. */
+function bestCut(sheet: Sheet): number {
+  let best = 1;
+  for (let x = 2; x <= lastCut(sheet); x += 1) if (boxAt(sheet, x) > boxAt(sheet, best)) best = x;
+  return best;
+}
+
+/** Where the volume actually peaks, which the slider's whole answer must sit close to. */
+const peakOf = ({ L, W }: Sheet): number => (L + W - Math.sqrt(L * L - L * W + W * W)) / 6;
+
+/**
+ * Slide to the cut that makes the biggest box. Only sheets whose true peak
+ * sits within a quarter of a whole number, so the top of the hill is plain to
+ * see and the whole answer is not a coin toss between two cuts. That filter
+ * throws out half of all sheets, so this one runs the length on to 40 cm to
+ * keep 25 questions; the width stays at most 30.
+ */
+const polyBoxBestSlider: Generator<Sheet> = {
+  id: 'poly-box-best-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const W = 2 * (difficulty > 1 ? rng.int(8, 15) : rng.int(4, 8));
+      const sheet = { L: W + 2 * rng.int(1, (40 - W) / 2), W };
+      if (Math.abs(peakOf(sheet) - bestCut(sheet)) > 0.25) continue;
+      return sheet;
+    }
+  },
+  render: (sheet): Slide => {
+    const end = sheet.W / 2;
+    const top = boxAt(sheet, peakOf(sheet));
+    return {
+      kind: 'slider',
+      prompt: [
+        say(sheetStory(sheet)),
+        show(`V = ${boxTex(sheet)}`),
+        say('The graph shows $V$ for every cut from $0$ to where the base runs out. Slide to the whole-number cut that makes the biggest box.'),
+      ],
+      min: 0,
+      max: end,
+      step: 1,
+      answer: bestCut(sheet),
+      readout: 'x = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: end,
+          yMin: -top * 0.08,
+          yMax: top * 1.2,
+          curves: [{ f: (x) => boxAt(sheet, x) }],
+          verticals: [{ x: 0, dashed: false }],
+          // A dot at each whole cut: the candidates the slider stops at.
+          marks: Array.from({ length: lastCut(sheet) }, (_, i) => ({ x: i + 1, y: boxAt(sheet, i + 1) })),
+          label: `Volume against the cut, a hill rising from zero at x = 0 and falling back to zero at x = ${end}, with a dot at each whole-number cut`,
+        }),
+        ...markerWindow(0, end),
+      },
+    };
+  },
+  solution: (sheet) => {
+    const best = bestCut(sheet);
+    const around = [best - 1, best, best + 1];
+    return [
+      { text: 'Compare the volumes either side of the top of the hill:' },
+      { tex: chain(...around.map((x) => `V(${x}) &= ${boxAt(sheet, x)}`)) },
+      { text: `$x = ${best}$ gives the most. Differentiation finds the exact top of the hill; for a whole-number cut, the table is enough.` },
+    ];
+  },
+};
+
+/* ---------- lesson 3: a given volume ---------- */
+
+/**
+ * Every box problem where V = T has three whole solutions: two cuts `k < m`
+ * inside the box's range and one `n` past the end of the sheet, which is
+ * thrown out. Built by search once, from half-sides up to 20 and 15, so every
+ * quotient factorises with whole numbers by construction.
+ */
+interface Target extends Sheet {
+  k: number;
+  m: number;
+  n: number;
+  T: number;
+}
+
+const TARGETS: Target[] = (() => {
+  const out: Target[] = [];
+  for (let w = 3; w <= 15; w += 1) {
+    for (let l = w + 1; l <= 20; l += 1) {
+      for (let k = 1; k < w; k += 1) {
+        const sum = l + w - k;
+        const disc = sum * sum - 4 * (l - k) * (w - k);
+        const root = Math.round(Math.sqrt(disc));
+        if (root * root !== disc || (sum + root) % 2 !== 0) continue;
+        const m = (sum - root) / 2;
+        if (m <= k) continue;
+        out.push({ L: 2 * l, W: 2 * w, k, m, n: (sum + root) / 2, T: 4 * k * (l - k) * (w - k) });
+      }
+    }
+  }
+  return out;
+})();
+
+/** The cubic V = T divided through by 4: x^3 - (l + w)x^2 + lwx - T/4. */
+const quarterCubic = ({ L, W }: Sheet, T: number): Poly => [1, -(L + W) / 2, (L * W) / 4, -T / 4];
+
+interface BoxCubicParams extends BoxCutParams {
+  /** Difficulty 2 starts from the brackets rather than the expansion. */
+  factored: boolean;
+}
+
+/** V = T as a cubic equal to zero, divided by 4. */
+const polyBoxCubicSteps: Generator<BoxCubicParams> = {
+  id: 'poly-box-cubic-steps',
+  sample: (rng, difficulty) => ({ ...sampleBoxCut(rng, difficulty), factored: difficulty > 1 }),
+  render: (params): Slide => {
+    const { L, W, x, factored } = params;
+    const T = boxAt(params, x);
+    const cubic = boxPoly(params);
+    const S = 2 * (L + W);
+    const P = L * W;
+    const moved = `${polyTex(addPoly(cubic, [-T]))} = 0`;
+    const quarter = `${polyTex(quarterCubic(params, T))} = 0`;
+    const reductions: Extract<Slide, { kind: 'steps' }>['reductions'] = [
+      {
+        span: [0, 3],
+        operator: 1,
+        value: moved,
+        bank: stepBank(moved, `${polyTex(addPoly(cubic, [T]))} = 0`, `${polyTex(cubic)} = 0`, `${polyTex(addPoly(cubic, [-T]))} = ${T}`),
+      },
+      {
+        span: [0, 1],
+        value: quarter,
+        bank: stepBank(
+          quarter,
+          `${polyTex([1, -S / 4, P / 4, -T])} = 0`,
+          `${polyTex([1, -S / 2, P / 4, -T / 4])} = 0`,
+          `${polyTex([1, -S / 4, P, -T / 4])} = 0`,
+        ),
+      },
+    ];
+    if (factored) {
+      reductions.unshift({
+        span: [0, 1],
+        value: polyTex(cubic),
+        bank: stepBank(polyTex(cubic), polyTex([4, -S, 0, P]), polyTex([4, S, P, 0]), polyTex([4, -S / 2, P, 0])),
+      });
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        say(sheetStory(params)),
+        say(
+          `The box must hold $${T}$ cm³. Turn that into a cubic equal to $0$${factored ? ', multiplying out first' : ''}, then divide through by $4$. Tap the part you would do **next**, then choose what it becomes.`,
+        ),
+      ],
+      start: [factored ? boxTex(params) : polyTex(cubic), '=', String(T)],
+      reductions,
+    };
+  },
+  solution: (params) => {
+    const T = boxAt(params, params.x);
+    const cubic = boxPoly(params);
+    return [
+      { text: 'Multiplied out, the volume is' },
+      { tex: `V = ${polyTex(cubic)}` },
+      { text: `Take $${T}$ from both sides so the cubic equals $0$:` },
+      { tex: equationDisplay(addPoly(cubic, [-T])) },
+      { text: 'Every coefficient is a multiple of $4$, so divide through, which leaves smaller numbers to try roots with:' },
+      { tex: equationDisplay(quarterCubic(params, T)) },
+    ];
+  },
+};
+
+/** One whole solution of V = T, divided out by synthetic division. */
+const polyBoxDivideTree: Generator<BoxCutParams> = {
+  id: 'poly-box-divide-tree',
+  sample: sampleBoxCut,
+  render: (params): Slide => {
+    const { x } = params;
+    const T = boxAt(params, x);
+    const f = quarterCubic(params, T);
+    const { quotient } = divideBy(f, x);
+    const wrong = divideBy(f, -x);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(sheetStory(params)),
+        say(
+          `For a box holding $${T}$ cm³, $V = ${T}$ divides by $4$ into $f(x) = 0$, and $x = ${x}$ is one solution. Divide $f(x)$ by $(${linTex(x)})$: bring the first coefficient down, then at each step multiply by $${x}$ and add the next. Fill in from the top, ending with the remainder.`,
+        ),
+        show(`\\begin{array}{r|rrrr} ${x} & ${f.join(' & ')} \\end{array}`),
+      ],
+      expression: `\\frac{${polyTex(f)}}{${linTex(x)}}`,
+      nodes: [
+        { id: 'c2', from: [] },
+        { id: 'c1', from: ['c2'] },
+        { id: 'c0', from: ['c1'] },
+        { id: 'rem', from: ['c0'] },
+      ],
+      bank: numberBank([...quotient, 0], [...wrong.quotient, wrong.remainder, f[1], f[2], -quotient[1], -quotient[2]].filter((v) => Math.abs(v) < 1000)),
+      answer: [...quotient, 0].map(String),
+    };
+  },
+  solution: (params) => {
+    const { x } = params;
+    const f = quarterCubic(params, boxAt(params, x));
+    const { quotient } = divideBy(f, x);
+    const step = (c: number, next: number, out: number) => `${factor(String(c))} \\times ${x} + ${factor(String(next))} &= ${out}`;
+    return [
+      { text: `Bring down $1$, then multiply by $${x}$ and add the next coefficient each time.` },
+      { tex: chain(step(quotient[0], f[1], quotient[1]), step(quotient[1], f[2], quotient[2]), step(quotient[2], f[3], 0)) },
+      { text: `The remainder is $0$, as it must be for a root, and $f(x) = (${linTex(x)})(${polyTex(quotient)})$.` },
+    ];
+  },
+};
+
+interface BoxRootParams {
+  target: Target;
+  /** The solution handed over at difficulty 1; null to find one by trial. */
+  given: number | null;
+}
+
+function sampleBoxRoot(rng: Rng, difficulty: number): BoxRootParams {
+  const target = rng.pick(TARGETS);
+  return { target, given: difficulty > 1 ? null : rng.pick([target.k, target.m]) };
+}
+
+/** The target and what dividing leaves: the known root, the quotient and the other two. */
+function boxRootParts({ target, given }: BoxRootParams) {
+  const { k, m, n, T } = target;
+  const f = quarterCubic(target, T);
+  const first = given ?? k;
+  const [p, q] = [k, m, n].filter((r) => r !== first);
+  return { f, first, others: [p, q], quotient: divideBy(f, first).quotient, T };
+}
+
+function boxRootSolution(params: BoxRootParams): SolutionStep[] {
+  const { target } = params;
+  const { f, first, others, quotient, T } = boxRootParts(params);
+  return [
+    { text: `$V = ${T}$, with everything on one side and divided by $4$, is` },
+    { tex: equationDisplay(f) },
+    {
+      text:
+        params.given === null
+          ? `Trying $x = 1, 2, 3, \\dots$ in turn, $x = ${first}$ is the first to make it $0$, so $(${linTex(first)})$ is a factor. Dividing by it leaves a quadratic:`
+          : `$x = ${first}$ is a solution, so $(${linTex(first)})$ is a factor. Dividing by it leaves a quadratic:`,
+    },
+    { tex: chain(`&(${linTex(first)})(${polyTex(quotient)})`, `=\\;&(${linTex(first)})(${linTex(others[0])})(${linTex(others[1])})`) },
+    {
+      text: `So $x = ${target.k}$, $${target.m}$ or $${target.n}$. A box needs $0 < x < ${target.W / 2}$, so $x = ${target.n}$ is thrown out: cutting $${target.n}$ cm squares from a $${target.W}$ cm side is impossible. Both $x = ${target.k}$ and $x = ${target.m}$ make a box holding $${T}$ cm³.`,
+    },
+  ];
+}
+
+/** V = T solved as forks: a root, the quotient, the other roots, and which make a box. */
+const polyBoxRootFlow: Generator<BoxRootParams> = {
+  id: 'poly-box-root-flow',
+  sample: sampleBoxRoot,
+  render: (params): Slide => {
+    const { target, given } = params;
+    const { k, m, n, W } = target;
+    const { f, first, others, quotient, T } = boxRootParts(params);
+    const key = `${target.L}|${W}|${k}|${given}`;
+    const pair = (a: number, b: number) => `$x = ${a}$ or $x = ${b}$`;
+    const right = pair(others[0], others[1]);
+    const box = pair(k, m);
+    const steps: Extract<Slide, { kind: 'flow' }>['steps'] = [];
+    if (given === null) {
+      const misses = [first + 1, first + 2, first - 1, first + 3].filter((j) => j > 0 && valueAt(f, j) !== 0).slice(0, 2);
+      steps.push({
+        id: 'root',
+        ask: 'Try small whole numbers in $f(x)$. Which makes $f(x) = 0$, and so gives a factor?',
+        branches: turned(
+          [
+            { label: `$x = ${first}$`, to: 'divide' },
+            ...misses.map((j) => ({ label: `$x = ${j}$`, outcome: `$f(${j}) = ${valueAt(f, j)}$, not $0$.` })),
+          ],
+          `${key}|root`,
+        ),
+      });
+    }
+    const slipQuotients = [
+      [1, -quotient[1], quotient[2]],
+      [1, quotient[1], -quotient[2]],
+    ].map((c) => `$${polyTex(c)}$`);
+    steps.push(
+      {
+        id: 'divide',
+        ask: `Dividing $f(x)$ by $(${linTex(first)})$ leaves which quadratic?`,
+        branches: turned(
+          [
+            { label: `$${polyTex(quotient)}$`, to: 'solve' },
+            ...slipQuotients.map((label) => ({ label, outcome: `Multiply it back by $(${linTex(first)})$: it does not give $f(x)$.` })),
+          ],
+          `${key}|divide`,
+        ),
+      },
+      {
+        id: 'solve',
+        ask: 'That quadratic factorises. What are its solutions?',
+        branches: turned(
+          [
+            { label: right, to: 'fit' },
+            { label: pair(-others[1], -others[0]), outcome: 'Those make each bracket zero with the sign the wrong way round.' },
+            {
+              label: pair(others[0] + 1, others[1] - 1),
+              outcome: `Their product is $${(others[0] + 1) * (others[1] - 1)}$, but the quadratic's constant term is $${quotient[2]}$.`,
+            },
+          ],
+          `${key}|solve`,
+        ),
+      },
+      {
+        id: 'fit',
+        ask: `A box needs $0 < x < ${W / 2}$. Which solutions of $f(x) = 0$ give a box?`,
+        branches: turned(
+          [
+            { label: box, outcome: `Both make a box holding $${T}$ cm³.` },
+            { label: `$x = ${k}$, $${m}$ or $${n}$`, outcome: `At $x = ${n}$ the width $${W} - 2x$ is $${W - 2 * n}$: that is not a box.` },
+            { label: `$x = ${n}$ only`, outcome: `$x = ${n}$ is past the end of the range; the other two are inside it.` },
+          ],
+          `${key}|fit`,
+        ),
+      },
+    );
+    return {
+      kind: 'flow',
+      prompt: [
+        say(sheetStory(target)),
+        say(
+          `The box must hold $${T}$ cm³. Everything on one side and divided by $4$, that is $f(x) = 0$ below.${
+            given === null ? '' : ` One solution is $x = ${given}$.`
+          } Solve it one decision at a time.`,
+        ),
+      ],
+      subject: `${polyTex(f)} = 0`,
+      steps,
+      answer: [...(given === null ? [`$x = ${first}$`] : []), `$${polyTex(quotient)}$`, right, box],
+    };
+  },
+  solution: boxRootSolution,
+};
+
+interface BoxOtherParams extends BoxRootParams {
+  /** With no root given, which of the two cuts is asked for. */
+  larger: boolean;
+}
+
+/** The other cut that makes the same volume, typed. */
+const polyBoxOtherRoot: Generator<BoxOtherParams> = {
+  id: 'poly-box-other-root',
+  sample: (rng, difficulty) => ({ ...sampleBoxRoot(rng, difficulty), larger: rng.chance(0.5) }),
+  choices: (params) => {
+    const { k, m, n, L, W } = params.target;
+    const answer = otherCut(params);
+    return intOptions(answer, [n, answer === k ? m : k, W / 2, L / 2 - answer, k + m], 1);
+  },
+  render: (params): Slide => {
+    const { target, given, larger } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(sheetStory(target)),
+        say(
+          given === null
+            ? `Two different cuts make a box holding $${target.T}$ cm³. Find the ${larger ? 'larger' : 'smaller'} one.`
+            : `Cutting $x = ${given}$ makes a box holding $${target.T}$ cm³. One other cut makes a box of the same volume. Find it.`,
+        ),
+      ],
+      lead: 'x =',
+      keypad: [],
+      answer: String(otherCut(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => [...boxRootSolution(params), { text: `So the answer is $x = ${otherCut(params)}$.` }],
+};
+
+function otherCut({ target, given, larger }: BoxOtherParams): number {
+  if (given !== null) return given === target.k ? target.m : target.k;
+  return larger ? target.m : target.k;
+}
+
+/* ---------- lesson 4: fitting a curve ---------- */
+
+interface FitParams {
+  /** Smallest first. With `touch`, the first is where the curve touches. */
+  roots: number[];
+  lead: number;
+  touch: boolean;
+}
+
+const fitForm = ({ roots, lead, touch }: FitParams): Form => rootsForm(roots, touch ? [2, 1] : [1, 1, 1], lead);
+
+/**
+ * A cubic's equation from where it meets the axes, as tiles: the number in
+ * front, then each bracket's number. The lead is never 1, and never the size
+ * of a root, so no two tiles the answer needs can look alike.
+ */
+const polyFitTiles: Generator<FitParams> = {
+  id: 'poly-fit-tiles',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const lead = rng.pick([2, -2, 3, -3]);
+      const touch = difficulty > 1;
+      const roots = sampleRoots(rng, touch ? 2 : 3, 4);
+      if (roots.some((r) => Math.abs(r) === Math.abs(lead))) continue;
+      if (!touch) roots.sort((a, b) => a - b);
+      return { roots, lead, touch };
+    }
+  },
+  render: (params): Slide => {
+    const { roots, lead, touch } = params;
+    const d = valueAt(formPoly(fitForm(params)), 0);
+    const answer = [String(lead), ...roots.map((r) => signedNum(-r))];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          touch
+            ? `A cubic touches the $x$-axis at $x = ${roots[0]}$, crosses it at $x = ${roots[1]}$, and meets the $y$-axis at $y = ${d}$. Complete its equation.`
+            : `A cubic crosses the $x$-axis at $x = ${roots.join(',\\ ')}$ and meets the $y$-axis at $y = ${d}$. Complete its equation, with the brackets in the order the roots are listed.`,
+        ),
+      ],
+      template: touch ? 'y = {0}(x {1})^2(x {2})' : 'y = {0}(x {1})(x {2})(x {3})',
+      bank: fillBank(answer, [String(-lead), String(d), ...roots.map((r) => signedNum(r))]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { roots, lead, touch } = params;
+    const monic = valueAt(formPoly(fitForm({ ...params, lead: 1 })), 0);
+    const d = lead * monic;
+    return [
+      {
+        text: `A root at $x = r$ is a bracket $(x - r)$${touch ? `, and touching at $x = ${roots[0]}$ makes its bracket squared` : ''}. A number $a$ in front changes neither.`,
+      },
+      { tex: `y = a${formTex(fitForm({ ...params, lead: 1 }))}` },
+      { text: `At $x = 0$ the brackets alone give $${monic}$, and the curve is at $${d}$, so $a = ${d} \\div ${factor(String(monic))} = ${lead}$.` },
+    ];
+  },
+};
+
+interface FitCoefficientParams {
+  p: Poly;
+  /** Which coefficient is unknown, counting from x^3 as 0. */
+  slot: number;
+  x0: number;
+}
+
+/** The cubic with one coefficient written as k. */
+function letterCubicTex(p: Poly, slot: number): string {
+  const out: string[] = [];
+  p.forEach((c, i) => {
+    const k = 3 - i;
+    if (i === slot) out.push(`${out.length > 0 ? '+ ' : ''}k${k === 1 ? 'x' : `x^{${k}}`}`);
+    else if (c !== 0) out.push(signedTerm(c, k, out.length === 0));
+  });
+  return out.join(' ');
+}
+
+/** A coefficient fitted from one point the curve passes through. */
+const polyFitCoefficient: Generator<FitCoefficientParams> = {
+  id: 'poly-fit-coefficient',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const p = [hard ? rng.pick([1, 2, -1]) : 1, rng.int(-6, 6), rng.int(-9, 9), rng.int(-12, 12)];
+      const slot = hard ? rng.int(0, 2) : rng.int(1, 2);
+      const x0 = hard ? rng.pick([-2, -1, 2, 3]) : rng.pick([1, 2]);
+      if (p[slot] === 0 || Math.abs(valueAt(p, x0)) > 60) continue;
+      return { p, slot, x0 };
+    }
+  },
+  choices: ({ p, slot, x0 }) => {
+    const power = x0 ** (3 - slot);
+    const rest = valueAt(p, x0) - p[slot] * power;
+    return intOptions(p[slot], [-p[slot], valueAt(p, x0) - rest, rest, p[slot] * x0]);
+  },
+  render: ({ p, slot, x0 }): Slide => ({
+    kind: 'expression',
+    prompt: [say('A curve is modelled by'), show(`y = ${letterCubicTex(p, slot)}`), say(`It passes through $(${x0}, ${valueAt(p, x0)})$. Find $k$.`)],
+    lead: 'k =',
+    keypad: [],
+    answer: String(p[slot]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ p, slot, x0 }) => {
+    const y0 = valueAt(p, x0);
+    const k = 3 - slot;
+    const power = x0 ** k;
+    const rest = y0 - p[slot] * power;
+    return [
+      { text: `The point is on the curve, so put $x = ${x0}$ and $y = ${y0}$ into the equation. Every term but the $k$ one is a number:` },
+      { tex: chain(`${y0} &= ${power === 1 ? '' : power === -1 ? '-' : power}k ${signedNum(rest)}`, `${factor(String(power))}k &= ${y0 - rest}`, `k &= ${p[slot]}`) },
+    ];
+  },
+};
+
+interface FitFlowParams {
+  /** Three distinct roots, smallest first. */
+  roots: number[];
+  lead: number;
+  /** The x of the extra point; 0 is the y-intercept. */
+  at: number;
+}
+
+const fitFlowMonic = ({ roots, at }: FitFlowParams): number => roots.reduce((acc, r) => acc * (at - r), 1);
+
+/** Fitting a cubic through its roots and one more point, as forks. */
+const polyFitFlow: Generator<FitFlowParams> = {
+  id: 'poly-fit-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const roots = sampleRoots(rng, 3, 4).sort((a, b) => a - b);
+      const lead = rng.pick([2, -2, 3, -3, -1]);
+      const at = difficulty > 1 ? rng.pick([-2, -1, 1, 2, 3]) : 0;
+      const params = { roots, lead, at };
+      const m = fitFlowMonic(params);
+      if (m === 0 || Math.abs(m * lead) > 99) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { roots, lead, at } = params;
+    const m = fitFlowMonic(params);
+    const y = lead * m;
+    const key = `${roots.join(',')}|${lead}|${at}`;
+    const form = (rs: number[], a = 'a') => `$y = ${a}${formTex(rootsForm(rs, [1, 1, 1]))}$`;
+    const flipped = roots.reduce((acc, r) => acc * (at + r), 1);
+    const constant = valueAt(fromRoots(roots, lead), 0);
+    const steps: Extract<Slide, { kind: 'flow' }>['steps'] = [
+      {
+        id: 'form',
+        ask: 'Which equation has exactly those roots, whatever the number in front?',
+        branches: turned(
+          [
+            { label: form(roots), to: 'sub' },
+            { label: form(roots.map((r) => -r)), outcome: 'Those brackets are zero at the negatives of the roots.' },
+            { label: `$y = ${formTex(rootsForm(roots, [1, 1, 1]))} + a$`, outcome: 'Adding a number lifts the whole curve, so the roots move.' },
+          ],
+          key,
+        ),
+      },
+      {
+        id: 'sub',
+        ask: `Put in $x = ${at}$ and $y = ${y}$. Which equation does that give?`,
+        branches: turned(
+          [
+            { label: `$${y} = ${m}a$`, to: 'a' },
+            ...[-m, flipped]
+              .filter((v, i, all) => v !== m && all.indexOf(v) === i)
+              .map((v) => ({ label: `$${y} = ${v}a$`, outcome: `Work each bracket out at $x = ${at}$: $${roots.map((r) => `(${at} ${signedNum(-r)})`).join('')} = ${m}$.` })),
+          ],
+          `${key}|sub`,
+        ),
+      },
+      {
+        id: 'a',
+        ask: 'So what is $a$?',
+        branches: turned(
+          [
+            at === 0 ? { label: `$a = ${lead}$`, outcome: `So $y = ${formTex(rootsForm(roots, [1, 1, 1], lead))}$.` } : { label: `$a = ${lead}$`, to: 'constant' },
+            ...[-lead, y - m]
+              .filter((v, i, all) => v !== lead && all.indexOf(v) === i)
+              .map((v) => ({ label: `$a = ${v}$`, outcome: `$${m}a = ${y}$ is solved by dividing both sides by $${m}$.` })),
+          ],
+          `${key}|a`,
+        ),
+      },
+    ];
+    if (at !== 0) {
+      steps.push({
+        id: 'constant',
+        ask: 'Multiplied out, what is the constant term of the cubic?',
+        branches: turned(
+          [
+            { label: `$${constant}$`, outcome: 'Right: it is where the curve meets the $y$-axis.' },
+            ...[-constant, constant / lead, y]
+              .filter((v, i, all) => v !== constant && all.indexOf(v) === i)
+              .slice(0, 2)
+              .map((v) => ({ label: `$${v}$`, outcome: `Put $x = 0$ in: $${lead}${roots.map((r) => `(0 ${signedNum(-r)})`).join('')} = ${constant}$.` })),
+          ],
+          `${key}|constant`,
+        ),
+      });
+    }
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `A cubic crosses the $x$-axis at $x = ${roots.join(',\\ ')}$ and ${at === 0 ? `meets the $y$-axis at $y = ${y}$` : `passes through $(${at}, ${y})$`}. Find its equation one decision at a time.`,
+        ),
+      ],
+      subject: `\\text{roots } ${roots.join(',\\ ')},\\ \\text{point } (${at},\\ ${y})`,
+      steps,
+      answer: [form(roots), `$${y} = ${m}a$`, `$a = ${lead}$`, ...(at !== 0 ? [`$${constant}$`] : [])],
+    };
+  },
+  solution: (params) => {
+    const { roots, lead, at } = params;
+    const m = fitFlowMonic(params);
+    return [
+      { text: 'Each root gives a bracket, and a number in front keeps every root:' },
+      { tex: `y = a${formTex(rootsForm(roots, [1, 1, 1]))}` },
+      { text: `At $x = ${at}$ the brackets multiply to $${m}$, so $${lead * m} = ${m}a$ and $a = ${lead}$.` },
+      { tex: `y = ${formTex(rootsForm(roots, [1, 1, 1], lead))}` },
+      ...(at !== 0 ? [{ text: `Its constant term is the value at $x = 0$: $${valueAt(fromRoots(roots, lead), 0)}$.` }] : []),
+    ];
+  },
+};
+
+/* ---------- lesson 5: reading a model ---------- */
+
+type Reading = 'start' | 'value' | 'edge' | 'negative';
+
+interface MeaningParams extends BoxCutParams {
+  ask: Reading;
+}
+
+/** What one fact about V says about the box, in words. */
+const polyModelMeaning: Generator<MeaningParams> = {
+  id: 'poly-model-meaning',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = { ...sampleBoxCut(rng, difficulty), ask: rng.pick<Reading>(difficulty > 1 ? ['edge', 'negative'] : ['start', 'value']) };
+      if (params.ask === 'negative' && params.L - params.W < 4) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { L, W, x, ask } = params;
+    const half = W / 2;
+    const v = boxAt(params, x);
+    const question: Record<Reading, string> = {
+      start: '$V(0) = 0$. What does that say about the box?',
+      value: `$V(${x}) = ${v}$. What does that say about the box?`,
+      edge: `$V(${half}) = 0$. What does that say about the box?`,
+      negative: `$V(x)$ is negative for $${half} < x < ${L / 2}$. What does that say?`,
+    };
+    const right: Record<Reading, string> = {
+      start: 'With no square cut, nothing folds up and there is no box to hold anything.',
+      value: `Cutting ${x} cm squares makes a box that holds ${v} cm³.`,
+      edge: `Cutting ${half} cm squares uses up the whole ${W} cm width, so the base has no width.`,
+      negative: `Those cuts are wider than the ${W} cm side allows, so the model no longer describes a box.`,
+    };
+    const wrong: Record<Reading, string[]> = {
+      start: ['The box holds the most when nothing is cut.', 'The box is empty until it is filled.', `The sheet is ${L} cm long.`],
+      value: [
+        `Cutting ${v} cm squares makes a box that holds ${x} cm³.`,
+        `The box is ${x} cm long and ${v} cm tall.`,
+        `A box holding ${x} cm³ needs ${v} cm² of card.`,
+      ],
+      edge: [`The box is biggest when x = ${half}.`, `The box is ${half} cm tall and holds ${half} cm³.`, `The sheet is ${half} cm wide.`],
+      negative: [
+        'Those cuts make a box that holds less than nothing.',
+        'Those cuts make the tallest boxes.',
+        'The volume shrinks as the cut grows, but the box is still there.',
+      ],
+    };
+    return turnedWordChoice([say(sheetStory(params)), show(`V = ${boxTex(params)}`), say(question[ask])], right[ask], wrong[ask]);
+  },
+  solution: (params) => {
+    const { L, W, x, ask } = params;
+    const half = W / 2;
+    const lines: Record<Reading, SolutionStep[]> = {
+      start: [{ text: 'The cut $x$ is the height. At $x = 0$ the box has no sides, so $V = 0$ is the model saying there is no box, not an empty one.' }],
+      value: [{ text: `$V$ is the volume in cm³ and $x$ the cut in cm, so $V(${x}) = ${boxAt(params, x)}$ reads: a ${x} cm cut makes a box of ${boxAt(params, x)} cm³.` }],
+      edge: [
+        { tex: `${W} - 2 \\times ${half} = 0` },
+        { text: `At $x = ${half}$ the width bracket is zero: the cuts from each side meet, and there is no base. That is the end of the model's range, $0 < x < ${half}$.` },
+      ],
+      negative: [
+        { text: `For $${half} < x < ${L / 2}$, $${W} - 2x$ is negative while $${L} - 2x$ is still positive, so the product is negative.` },
+        { text: `A negative side is not a length, so the model has stopped describing a box. It only makes sense for $0 < x < ${half}$.` },
+      ],
+    };
+    return lines[ask];
+  },
+};
+
+interface SenseParams extends Sheet {
+  /** A whole cut past the end of the range. */
+  x: number;
+}
+
+/**
+ * A cut past the end of the range put into the model anyway. Difficulty 1
+ * sits between W/2 and L/2, where V is negative; difficulty 2 past L/2, where
+ * two negative sides make V positive, and the number alone looks fine.
+ */
+const polyModelSenseFlow: Generator<SenseParams> = {
+  id: 'poly-model-sense-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sheet = sampleSheet(rng, difficulty);
+      if (difficulty > 1) return { ...sheet, x: sheet.L / 2 + rng.int(1, 3) };
+      if (sheet.L - sheet.W < 4) continue;
+      return { ...sheet, x: rng.int(sheet.W / 2 + 1, sheet.L / 2 - 1) };
+    }
+  },
+  render: (params): Slide => {
+    const { L, W, x } = params;
+    const v = boxAt(params, x);
+    const key = `${L}|${W}|${x}`;
+    const positive = v > 0;
+    const whyRight = positive ? `$${L} - 2x$ and $${W} - 2x$ are both negative` : `$${W} - 2x$ is negative`;
+    return {
+      kind: 'flow',
+      prompt: [say(sheetStory(params)), say(`Someone puts $x = ${x}$ into the model. Follow it through.`)],
+      subject: `V = ${boxTex(params)}`,
+      steps: [
+        {
+          id: 'value',
+          ask: `What is $V$ at $x = ${x}$?`,
+          branches: turned(
+            [
+              { label: `$${v}$`, to: 'box' },
+              ...[-v, (L - 2 * x) * (W - 2 * x), x * (L - x) * (W - x)]
+                .filter((n, i, all) => n !== v && all.indexOf(n) === i)
+                .slice(0, 2)
+                .map((n) => ({ label: `$${n}$`, outcome: `$${x}(${L - 2 * x})(${W - 2 * x}) = ${v}$.` })),
+            ],
+            key,
+          ),
+        },
+        {
+          id: 'box',
+          ask: `Does a cut of $x = ${x}$ make a box?`,
+          branches: [
+            { label: 'Yes', outcome: positive ? `The number is positive, but look at the sides: $${W} - 2x = ${W - 2 * x}$.` : 'A volume can never be negative.' },
+            { label: 'No', to: 'why' },
+          ],
+        },
+        {
+          id: 'why',
+          ask: 'Why not?',
+          branches: turned(
+            [
+              { label: whyRight, outcome: `Right: a side of the base cannot be negative, so the model only makes sense for $0 < x < ${W / 2}$.` },
+              positive
+                ? { label: `$${W} - 2x$ is negative, but $${L} - 2x$ is fine`, outcome: `$${L} - 2 \\times ${x} = ${L - 2 * x}$, which is negative too.` }
+                : { label: `$${L} - 2x$ is negative`, outcome: `$${L} - 2 \\times ${x} = ${L - 2 * x}$, which is still positive.` },
+              { label: 'The height $x$ is negative', outcome: `The height is $${x}$, which is positive.` },
+            ],
+            `${key}|why`,
+          ),
+        },
+      ],
+      answer: [`$${v}$`, 'No', whyRight],
+    };
+  },
+  solution: (params) => {
+    const { L, W, x } = params;
+    const v = boxAt(params, x);
+    return [
+      { tex: chain(`V &= ${x}(${L} - ${2 * x})(${W} - ${2 * x})`, `&= ${x} \\times (${L - 2 * x}) \\times (${W - 2 * x})`, `&= ${v}`) },
+      {
+        text:
+          v > 0
+            ? `Two negative sides multiply to a positive number, so $V$ looks like a volume. But no box has negative sides: past $x = ${W / 2}$ the model means nothing, whatever sign it gives.`
+            : `A negative volume is the model telling you the cut is too wide: past $x = ${W / 2}$ the width $${W} - 2x$ is negative.`,
+      },
+    ];
+  },
+};
+
+interface WhichCubicParams {
+  roots: number[];
+  lead: number;
+  /** The first x in the table; five consecutive values are shown. */
+  from: number;
+}
+
+/**
+ * Which of four cubics fits a table of values. Any two different cubics agree
+ * at three points at most, so five points single out one.
+ */
+const polyModelWhich: Generator<WhichCubicParams> = {
+  id: 'poly-model-which',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const roots = rng.sample(hard ? [-3, -2, -1, 1, 2, 3, 4] : [-3, -2, -1, 1, 2, 3], 3).sort((a, b) => a - b);
+      const lead = hard ? rng.pick([2, -2, -1]) : rng.pick([1, -1, 2]);
+      const from = hard ? 0 : -2;
+      const values = [0, 1, 2, 3, 4].map((i) => valueAt(fromRoots(roots, lead), from + i));
+      if (values.some((v) => Math.abs(v) > 99)) continue;
+      return { roots, lead, from };
+    }
+  },
+  render: ({ roots, lead, from }): Slide => {
+    const xs = [0, 1, 2, 3, 4].map((i) => from + i);
+    const p = fromRoots(roots, lead);
+    const cubic = (rs: number[], a: number) => `y = ${formTex(rootsForm(rs, [1, 1, 1], a))}`;
+    const shifted = roots.map((r, i) => (i === 1 ? r + 1 : r));
+    const candidates = [
+      cubic(roots.map((r) => -r).sort((a, b) => a - b), lead),
+      cubic(roots, -lead),
+      ...(new Set(shifted).size === 3 && !shifted.includes(0) ? [cubic(shifted, lead)] : []),
+      cubic(roots, 2 * lead),
+    ];
+    return choiceSlide(
+      [
+        say('A cubic model was fitted to these measurements. Which equation is it?'),
+        show(`\\begin{array}{c|ccccc} x & ${xs.join(' & ')} \\\\ \\hline y & ${xs.map((x) => valueAt(p, x)).join(' & ')} \\end{array}`),
+      ],
+      options({ tex: cubic(roots, lead), answer: cubic(roots, lead) }, ...candidates.map((tex) => ({ tex, answer: tex }))).slice(0, 4),
+    );
+  },
+  solution: ({ roots, lead, from }) => {
+    const zeros = roots.filter((r) => r >= from && r <= from + 4);
+    return [
+      {
+        text: zeros.length
+          ? `Where $y = 0$ in the table, at $x = ${zeros.join(',\\ ')}$, the cubic has a root, so a bracket.`
+          : 'Check each equation against the table, one point at a time.',
+      },
+      { text: `Then the number in front from one more point. Only $y = ${formTex(rootsForm(roots, [1, 1, 1], lead))}$ gives every value in the table.` },
+      { text: `At $x = ${from}$, for instance, it gives $${valueAt(fromRoots(roots, lead), from)}$.` },
+    ];
+  },
+};
+
+interface ModelCountParams extends Sheet {
+  /** The volume asked for is V at this cut. */
+  j: number;
+}
+
+/** How many whole cuts give at least a stated volume: V worked out at each. */
+const polyModelCount: Generator<ModelCountParams> = {
+  id: 'poly-model-count',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const sheet = sampleSheet(rng, difficulty);
+      const j = rng.int(1, lastCut(sheet));
+      if (j === bestCut(sheet)) continue;
+      return { ...sheet, j };
+    }
+  },
+  render: (params): Slide => {
+    const T = boxAt(params, params.j);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(sheetStory(params)),
+        show(`V = ${boxTex(params)}`),
+        say(`The cut is a whole number of centimetres. How many different cuts make a box that holds at least $${T}$ cm³?`),
+      ],
+      lead: '\\text{cuts} =',
+      keypad: [],
+      answer: String(countAtLeast(params)),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const T = boxAt(params, params.j);
+    const cuts = Array.from({ length: lastCut(params) }, (_, i) => i + 1);
+    return [
+      { text: `A box needs $0 < x < ${params.W / 2}$, so the whole cuts are $1$ to $${lastCut(params)}$. Work out $V$ for each:` },
+      { tex: chain(...cuts.map((x) => `V(${x}) &= ${boxAt(params, x)}`)) },
+      { text: `$${countAtLeast(params)}$ of them are at least $${T}$.` },
+    ];
+  },
+};
+
+function countAtLeast(params: ModelCountParams): number {
+  const T = boxAt(params, params.j);
+  return Array.from({ length: lastCut(params) }, (_, i) => i + 1).filter((x) => boxAt(params, x) >= T).length;
+}
+
 export const polynomialGenerators = [
   polyDegree,
   polyNameFlow,
@@ -8695,4 +9981,23 @@ export const polynomialGenerators = [
   polyIntegerCount,
   polyReadLineTiles,
   polyQuarticLine,
+  polyBoxSidesTiles,
+  polyBoxExpandSteps,
+  polyBoxDomainFlow,
+  polyBoxCoefficient,
+  polyBoxVolume,
+  polyBoxValueTree,
+  polyBoxTable,
+  polyBoxBestSlider,
+  polyBoxCubicSteps,
+  polyBoxDivideTree,
+  polyBoxRootFlow,
+  polyBoxOtherRoot,
+  polyFitTiles,
+  polyFitCoefficient,
+  polyFitFlow,
+  polyModelMeaning,
+  polyModelSenseFlow,
+  polyModelWhich,
+  polyModelCount,
 ];

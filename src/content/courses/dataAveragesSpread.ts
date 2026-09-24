@@ -637,11 +637,12 @@ export const dataAveragesSpread: Course = {
           slides: [
             teach(
               prose(
-                'When classes have different widths, their frequencies cannot be compared as they stand: a class twice as wide collects about twice as many values. So divide each by its width.',
+                'When classes have different widths, their frequencies cannot be compared as they stand: a class twice as wide collects about twice as many values. So divide each by its width, to get its **frequency density**.',
               ),
-              display('\\text{frequency density} = \\frac{\\text{frequency}}{\\text{class width}}'),
+              display('\\text{density} = \\frac{\\text{frequency}}{\\text{width}}'),
+              prose('These classes are $10$, $5$ and $20$ wide:'),
               display(
-                '\\begin{array}{c|c|c|c} \\text{Class} & f & \\text{Width} & \\text{Density} \\\\ \\hline 0 \\le x < 10 & 30 & 10 & 3 \\\\ 10 \\le x < 15 & 40 & 5 & 8 \\\\ 15 \\le x < 35 & 60 & 20 & 3 \\end{array}',
+                '\\begin{array}{c|c|c} \\text{Class} & f & \\text{Density} \\\\ \\hline 0 \\le x < 10 & 30 & 3 \\\\ 10 \\le x < 15 & 40 & 8 \\\\ 15 \\le x < 35 & 60 & 3 \\end{array}',
               ),
               prose('The middle class has the most tightly packed values, even though the last class holds more of them.'),
             ),

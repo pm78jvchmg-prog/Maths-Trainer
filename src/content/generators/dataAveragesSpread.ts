@@ -2665,11 +2665,8 @@ function stemReadSolution(p: StemParams): SolutionStep[] {
   const rows = stemRows(p.codes);
   return [
     { text: `${stemKeyProse(p)} Each leaf is one value, so a leaf written twice is two values.` },
-    {
-      tex: aligned(
-        ...rows.map((r) => `${r.stem} \\mid ${leavesTex(r.leaves)} &\\to ${r.leaves.map((l) => fmt(stemValue(r.stem * 10 + l, p.key))).join(',\\ ')}`),
-      ),
-    },
+    // Prose rather than a display, so a row of six three-digit values wraps on a phone.
+    { text: `Row by row, the values are ${listProse(rows.flatMap((r) => r.leaves.map((l) => stemValue(r.stem * 10 + l, p.key))))}.` },
   ];
 }
 
@@ -2906,7 +2903,8 @@ const stemKeyChoice: Generator<StemKeyParams> = {
     return [
       { text: stemKeyProse(params) },
       { text: `So each leaf on stem $${params.stem}$ joins onto it the same way, and every leaf is a value, repeats included:` },
-      { tex: `${params.stem} \\mid ${leavesTex(row.leaves)} \\to ${valuesTex(values)}` },
+      { tex: `${params.stem} \\mid ${leavesTex(row.leaves)}` },
+      { text: `stands for ${listProse(values)}.` },
     ];
   },
 };
@@ -4070,8 +4068,8 @@ const histTallest: Generator<HistTallestParams> = {
     const i = params.freqs.indexOf(pick);
     const bar = params.ask === 'most' ? ds.indexOf(Math.max(...ds)) : ds.indexOf(Math.min(...ds));
     return [
-      { text: `The ${params.ask === 'most' ? 'tallest' : 'shortest'} bar is $${classOf(params, bar)}$, but height is frequency density, not frequency. The frequency is the area:` },
-      { tex: aligned(...params.freqs.map((f, j) => `${classOf(params, j)}: \\quad ${fmt(ds[j])} \\times ${ws[j]} &= ${f}`)) },
+      { text: `The ${params.ask === 'most' ? 'tallest' : 'shortest'} bar is $${classOf(params, bar)}$, but height is frequency density, not frequency. The frequency is the area, bar by bar from the left:` },
+      { tex: aligned(...params.freqs.map((f, j) => `${fmt(ds[j])} \\times ${ws[j]} &= ${f}`)) },
       { text: `So $${classOf(params, i)}$ has the ${params.ask} values, $${pick}$.` },
     ];
   },
@@ -4154,7 +4152,7 @@ const histScaleGen: Generator<HistScaleParams> = {
     const size = (i: number) => `${(bounds[i + 1] - bounds[i]) / grid} \\times ${heights[i]} = ${squaresOf(params, i)}`;
     return [
       { text: `Frequency is area, so count squares. The bar for $${classTex(bounds[known], bounds[known + 1])}$ covers $${size(known)}$ squares.` },
-      { tex: `\\text{one square} = \\frac{${fmt(per * sk)}}{${sk}} = ${fmt(per)} \\text{ values}` },
+      { text: `So one square stands for $${fmt(per * sk)} \\div ${sk} = ${fmt(per)}$ values.` },
       { text: `The bar for $${classTex(bounds[asked], bounds[asked + 1])}$ covers $${size(asked)}$ squares.` },
       { tex: `f = ${sa} \\times ${fmt(per)} = ${fmt(per * sa)}` },
     ];

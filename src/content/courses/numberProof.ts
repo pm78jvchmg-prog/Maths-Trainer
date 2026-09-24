@@ -13,7 +13,10 @@
  * necessary against sufficient, and "if and only if" proved one half at a
  * time. Level 4 is proof by induction: the four parts of the proof, then
  * sums, divisibility and inequalities, and reading a proof for a missing or
- * misplaced base case or a step that assumes what it has to show.
+ * misplaced base case or a step that assumes what it has to show. Level 5 is
+ * Euclid's algorithm: the HCF by repeated division, reading a run, working it
+ * backwards to write the HCF as ax + by, then solving ax + by = c and finding
+ * every solution from one. Its generators are in `numberEuclid.ts`.
  *
  * Surds and rationalising denominators are taught in Exponents & Radicals
  * (`er-l3`, `er-l5`), not here. Later levels are in the level plan in
@@ -910,6 +913,223 @@ export const numberProof: Course = {
         ask('prf-ind-order-inequality', 2),
         ask('prf-ind-test-tree', 2),
         ask('prf-ind-flaw', 2),
+      ],
+    },
+    {
+      id: 'np-l5',
+      title: "Euclid's Algorithm",
+      lessons: [
+        {
+          id: 'np-l5-algorithm',
+          title: 'The Algorithm',
+          slides: [
+            teach(
+              prose(
+                'Dividing $a$ by $b$ gives a **quotient** $q$ and a **remainder** $r$, with $a = q \\times b + r$ and $0 \\le r < b$.',
+              ),
+              maths('247 = 4 \\times 52 + 39'),
+              prose(
+                'Any number dividing both $a$ and $b$ also divides $r = a - q \\times b$. And any number dividing $b$ and $r$ divides $a = q \\times b + r$.',
+              ),
+              prose('So $a$ and $b$ have exactly the same common factors as $b$ and $r$, and the same HCF.'),
+            ),
+            ask('euc-divide'),
+            ask('euc-same-hcf'),
+            ask('euc-order-hcf'),
+            teach(
+              prose(
+                "**Euclid's algorithm** makes that swap again and again: divide, then divide the divisor by the remainder, until the remainder is $0$.",
+              ),
+              maths('\\begin{aligned} 247 &= 4 \\times 52 + 39 \\\\ 52 &= 1 \\times 39 + 13 \\\\ 39 &= 3 \\times 13 + 0 \\end{aligned}'),
+              prose('The last remainder that is not $0$ is the HCF: the HCF of $247$ and $52$ is $13$.'),
+            ),
+            ask('euc-run-table'),
+            ask('euc-hcf'),
+            ask('euc-divide', 2),
+            teach(
+              prose(
+                'In level 2 the HCF came from prime factors. That is quick for numbers such as $60$ and $40$, which are built from small primes.',
+              ),
+              prose(
+                'For $221$ and $323$ it is slow: their smallest prime factors are $13$ and $17$, so you would try every prime up to those. Euclid needs three divisions:',
+              ),
+              maths('\\begin{aligned} 323 &= 1 \\times 221 + 102 \\\\ 221 &= 2 \\times 102 + 17 \\\\ 102 &= 6 \\times 17 + 0 \\end{aligned}'),
+              prose('Division never needs the factors, so it wins whenever the numbers, or their primes, are large.'),
+            ),
+            ask('euc-hcf', 2),
+            ask('euc-order-hcf', 2),
+          ],
+          skillCheck: [ask('euc-hcf', 2), ask('euc-order-hcf', 2), ask('euc-run-table', 2)],
+        },
+        {
+          id: 'np-l5-reading',
+          title: 'Reading a Run',
+          slides: [
+            teach(
+              prose(
+                'A run can be read as a chain: $a$, $b$, then each remainder in turn. Every number after the first two is what is left from dividing the two before it.',
+              ),
+              maths('247,\\ 52,\\ 39,\\ 13,\\ 0'),
+              prose('The chain ends at $0$, and the HCF is the number just before it. Each step along it is one division, so this run takes three.'),
+            ),
+            ask('euc-remainder-tree'),
+            ask('euc-count'),
+            ask('euc-run-table', 2),
+            teach(
+              prose(
+                'Remainders shrink fast: two steps along the chain always at least halve the number. So even numbers near $1000$ take only a handful of divisions.',
+              ),
+              prose(
+                'If the number before the $0$ is $1$, the HCF is $1$ and the two numbers share no factor but $1$: they are **coprime**.',
+              ),
+            ),
+            ask('euc-read-flow'),
+            ask('euc-remainder-tree', 2),
+            ask('euc-count+choice', 2),
+            teach(
+              prose(
+                'To check a run, multiply each line back out: $q \\times b + r$ has to come to $a$, and $r$ has to be less than $b$.',
+              ),
+              prose(
+                'A slip does not stop the run. Every line after it divides the wrong numbers, carries on quite happily and ends on the wrong HCF, so look for the **first** line that fails.',
+              ),
+            ),
+            ask('euc-slip'),
+            ask('euc-read-flow', 2),
+          ],
+          skillCheck: [ask('euc-slip', 2), ask('euc-remainder-tree', 2), ask('euc-read-flow', 2)],
+        },
+        {
+          id: 'np-l5-backwards',
+          title: 'Working Backwards',
+          slides: [
+            teach(
+              prose('Every line of a run can be turned round so that its remainder stands alone:'),
+              maths('\\begin{aligned} 39 &= 247 - 4 \\times 52 \\\\ 13 &= 52 - 39 \\end{aligned}'),
+              prose(
+                'So every remainder is a combination of the two numbers above it, and working back up the run makes the HCF a combination of $a$ and $b$: here $13 = 5 \\times 52 - 247$.',
+              ),
+            ),
+            ask('euc-rearrange'),
+            ask('euc-check-reduce'),
+            ask('euc-rearrange', 2),
+            teach(
+              prose(
+                'Start from the line whose remainder is the HCF, then put in the remainders above it one at a time, tidying as you go:',
+              ),
+              maths('\\begin{aligned} 13 &= 52 - 39 \\\\ &= 52 - (247 - 4 \\times 52) \\\\ &= 5 \\times 52 - 247 \\end{aligned}'),
+              prose('So $13 = 247x + 52y$ with $x = -1$ and $y = 5$. Check: $260 - 247 = 13$.'),
+            ),
+            ask('euc-back-order'),
+            ask('euc-find-y'),
+            teach(
+              prose(
+                'The same working fits a table. The rows for $a$ and $b$ are $x = 1, y = 0$ and $x = 0, y = 1$. Each new row is the row two above it, take $q$ times the row above.',
+              ),
+              maths(
+                '\\begin{array}{cccc} q & r & x & y \\\\ \\hline & 247 & 1 & 0 \\\\ & 52 & 0 & 1 \\\\ 4 & 39 & 1 & -4 \\\\ 1 & 13 & -1 & 5 \\end{array}',
+              ),
+              prose('The last row is the HCF: $13 = -1 \\times 247 + 5 \\times 52$.'),
+            ),
+            ask('euc-back-table'),
+            ask('euc-back-order', 2),
+            ask('euc-find-y', 2),
+          ],
+          skillCheck: [ask('euc-back-order', 2), ask('euc-find-y', 2), ask('euc-back-table', 2)],
+        },
+        {
+          id: 'np-l5-solvable',
+          title: 'Solving ax + by = c',
+          slides: [
+            teach(
+              prose(
+                'Whatever whole numbers $x$ and $y$ are, $ax + by$ is a multiple of $h$, the HCF of $a$ and $b$, because $h$ divides both terms.',
+              ),
+              prose(
+                'So $ax + by = c$ can only have whole-number solutions when $h$ divides $c$. $6x + 9y = 20$ has none: the left side is always a multiple of $3$.',
+              ),
+            ),
+            ask('euc-solvable'),
+            ask('euc-solvable-flow'),
+            ask('euc-solvable', 2),
+            teach(
+              prose(
+                'When $h$ does divide $c$, there are solutions: scale the backwards run. From $13 = 247 \\times (-1) + 52 \\times 5$, multiply by $3$:',
+              ),
+              maths('39 = 247 \\times (-3) + 52 \\times 15'),
+              prose('So $x = -3$, $y = 15$ solves $247x + 52y = 39$.'),
+            ),
+            ask('euc-scale'),
+            ask('euc-scale', 2),
+            teach(
+              prose(
+                'In a story, $x$ and $y$ count things, so both have to be positive. To make $38$p from $5$p and $7$p stamps, try $x = 1, 2, 3, \\dots$ until $38 - 5x$ is a multiple of $7$.',
+              ),
+              prose('At $x = 2$, $38 - 10 = 28 = 4 \\times 7$: two $5$p stamps and four $7$p stamps.'),
+            ),
+            ask('euc-stamps'),
+            ask('euc-solvable-flow', 2),
+            ask('euc-stamps', 2),
+          ],
+          skillCheck: [ask('euc-scale', 2), ask('euc-solvable-flow', 2), ask('euc-stamps', 2)],
+        },
+        {
+          id: 'np-l5-general',
+          title: 'All the Solutions',
+          slides: [
+            teach(
+              prose(
+                'From one solution of $ax + by = c$, add $b \\div h$ to $x$ and take $a \\div h$ from $y$. The left side goes up by $ab \\div h$ and down by the same, so it still makes $c$.',
+              ),
+              maths('\\begin{gathered} x = x_0 + \\tfrac{b}{h}t \\\\ y = y_0 - \\tfrac{a}{h}t \\end{gathered}'),
+              prose(
+                'That is every solution, for $t$ any whole number: those steps are the smallest that balance. $4x + 6y = 10$ has $x = 1, y = 1$ and $h = 2$, so every solution is $x = 1 + 3t$, $y = 1 - 2t$.',
+              ),
+            ),
+            ask('euc-general'),
+            ask('euc-list-table'),
+            ask('euc-another'),
+            teach(
+              prose(
+                'For the smallest positive $x$, step $x$ up or down by $b \\div h$ until it lands between $1$ and $b \\div h$.',
+              ),
+              prose(
+                '$247x + 52y = 39$ has $x = -3$, $y = 15$. The steps are $52 \\div 13 = 4$ and $247 \\div 13 = 19$, so one step up gives $x = 1$, $y = -4$.',
+              ),
+            ),
+            ask('euc-smallest'),
+            ask('euc-general', 2),
+            ask('euc-list-table', 2),
+            teach(
+              prose(
+                'For both parts positive, start from the smallest positive $x$ and count the steps until $y$ reaches $0$ or below.',
+              ),
+              prose(
+                '$3x + 5y = 41$: the smallest positive $x$ is $2$, with $y = 7$. Steps add $5$ to $x$ and take $3$ from $y$: $(2, 7)$, $(7, 4)$, $(12, 1)$, then $y = -2$. Three solutions.',
+              ),
+            ),
+            ask('euc-count-positive'),
+            ask('euc-smallest', 2),
+          ],
+          skillCheck: [ask('euc-general', 2), ask('euc-smallest', 2), ask('euc-count-positive', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('euc-hcf', 2),
+        ask('euc-same-hcf', 2),
+        ask('euc-order-hcf', 2),
+        ask('euc-remainder-tree', 2),
+        ask('euc-slip', 2),
+        ask('euc-count+choice', 2),
+        ask('euc-rearrange', 2),
+        ask('euc-back-table', 2),
+        ask('euc-back-order', 2),
+        ask('euc-solvable', 2),
+        ask('euc-scale', 2),
+        ask('euc-stamps', 2),
+        ask('euc-general', 2),
+        ask('euc-smallest', 2),
+        ask('euc-count-positive+choice', 2),
       ],
     },
   ],

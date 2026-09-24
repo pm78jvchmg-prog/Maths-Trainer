@@ -8,19 +8,31 @@
  * tension, and equilibrium on a slope with friction up to its limit, F <= mu R.
  * Level 2 is dynamics: F = ma along a line and with vectors, connected
  * particles on a tow bar and over a pulley, motion on a rough slope, Newton's
- * third law and the force between two touching bodies, and lifts.
+ * third law and the force between two touching bodies, and lifts. Level 3 is
+ * connected particles on slopes: a pulley at the top of a slope with one
+ * particle hanging, then with friction and the case where nothing moves, a
+ * string over a peg with friction on both sides, the string going slack when
+ * the hanging particle lands (Kinematics' v^2 = u^2 + 2as, kn-l2-more, used
+ * rather than taught), and putting it together with a free-body diagram for
+ * each particle and a check on the tension. Level 4 is moments: the moment of
+ * a force about a point, its sense and the resultant of several, a uniform rod
+ * on two supports, loads on a plank (and an unknown position or mass from a
+ * given reaction), the point of tilting, and a ladder against a smooth wall
+ * with friction at the foot.
  *
  * Vectors, right-angled trigonometry and Pythagoras are used here, not taught
  * again: each angle is given through a 3-4-5 or 7-24-25 triangle so the sine
  * and cosine are exact, and a lesson says how to read them off. g = 9.8 is
  * stated where weight first appears and in every question that needs it.
- * Several lessons will later draw their free-body diagrams with the `forces`
- * widget (see docs/roadmap/levels/forces.md); for now the diagrams are teach
- * figures. Each level closes with a level check: questions only, no teaching
+ * Levels 1 and 2 draw their free-body diagrams as teach figures, and several
+ * of their lessons will later ask them on the `forces` widget (see
+ * docs/roadmap/levels/forces.md); level 3 asks them on the widget already.
+ * Level 4 draws its rods, planks and ladders with `beamSvg` and `ladderSvg`,
+ * since the widget puts every arrow on one box's centre. Each level closes with a level check: questions only, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { A34, A43, arrowsSvg, hangingSvg, pulleySvg, slopeSvg } from '../generators/forces';
+import { A34, A43, DROP, FLAT, arrowsSvg, beamSvg, hangingSvg, ladderSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -539,6 +551,464 @@ export const forces: Course = {
         ask('force-lift', 2),
         ask('force-lift-table', 2),
         ask('force-cable-tree', 2),
+      ],
+    },
+    {
+      id: 'fo-l3',
+      title: 'Connected Particles on Slopes',
+      lessons: [
+        {
+          // Builds on fo-l2-connected (a pulley, one equation per particle) and fo-l2-slope (F = ma along a slope).
+          id: 'fo-l3-incline',
+          title: 'A Pulley at the Top of a Slope',
+          slides: [
+            teach(
+              prose(
+                'Particle $A$ lies on a slope. A light string runs from it up the slope, over a smooth pulley at the top, to particle $B$, which hangs down the far side.',
+              ),
+              diagram(rigSvg(A34, DROP)),
+              prose(
+                "Which way they move is a contest between two pulls along the string: $B$'s whole weight, $m_{B}g$, and the part of $A$'s weight down the slope, $m_{A}g\\sin\\alpha$.",
+              ),
+              prose('Whichever is bigger wins: its particle goes down and drags the other. If they are equal, nothing moves.'),
+            ),
+            ask('force-incline-way'),
+            ask('force-incline-balance'),
+            ask('force-incline-pick'),
+            teach(
+              prose(
+                'Once you know the way, write $F = ma$ for each particle in its own direction of motion, as for two particles over a pulley in Connected Particles. If $B$ falls, $A$ first and then $B$:',
+              ),
+              working('T - m_{A}g\\sin\\alpha &= m_{A}a', 'm_{B}g - T &= m_{B}a'),
+              prose('Add the two equations and $T$ drops out, leaving $a$. $A$\'s normal reaction plays no part: it acts at right angles to the motion.'),
+            ),
+            ask('force-incline-tiles'),
+            ask('force-incline'),
+            ask('force-incline-system-tree'),
+            teach(
+              prose('Then put $a$ back into either equation for the tension. $B$\'s is usually the shorter: $T = m_{B}(g - a)$.'),
+              prose(
+                'If $A$ is the one that wins, everything turns round: $A$ slides down with $m_{A}g\\sin\\alpha - T = m_{A}a$, and $B$ rises with $T - m_{B}g = m_{B}a$.',
+              ),
+            ),
+            ask('force-incline+choice'),
+            ask('force-incline-way'),
+          ],
+          skillCheck: [ask('force-incline-tiles'), ask('force-incline'), ask('force-incline-system-tree')],
+        },
+        {
+          // Friction on a slope is fo-l1-friction (F <= mu R) and fo-l2-slope (mu R against the motion).
+          id: 'fo-l3-rough',
+          title: 'Adding Friction',
+          slides: [
+            teach(
+              prose(
+                'On a rough slope friction acts on $A$ as well, along the slope. As in Motion on a Slope, it opposes the motion, so decide which way the system moves **first**, then draw friction against it.',
+              ),
+              prose(
+                'Moving, friction is at its limit, $F = \\mu R$, with $R = m_{A}g\\cos\\alpha$ from resolving at right angles to the slope. If $B$ falls and drags $A$ up, with $F = \\mu R$, $A$ first and then $B$:',
+              ),
+              working('T - m_{A}g\\sin\\alpha - F &= m_{A}a', 'm_{B}g - T &= m_{B}a'),
+            ),
+            ask('force-incline-way', 2),
+            ask('force-incline-system-tree', 2),
+            ask('force-incline-fill', 2),
+            teach(
+              prose(
+                'The system may not move at all. Friction can give up to $\\mu R$, in whichever direction holds $A$ still. If the difference between the two pulls is no more than $\\mu R$, nothing moves.',
+              ),
+              prose(
+                'Then the tension is just $B$\'s weight, and friction gives only what balances $A$: the difference between the pulls, not $\\mu R$.',
+              ),
+            ),
+            ask('force-incline-rest-steps'),
+            ask('force-incline-balance', 2),
+            ask('force-incline-tiles', 2),
+            teach(
+              prose(
+                'So a hanging mass holds $A$ still anywhere between $m_{A}(\\sin\\alpha - \\mu\\cos\\alpha)$, with $A$ about to slide down, and $m_{A}(\\sin\\alpha + \\mu\\cos\\alpha)$, with $A$ about to be pulled up.',
+              ),
+            ),
+            ask('force-incline', 2),
+            ask('force-incline-rest-steps', 2),
+          ],
+          skillCheck: [ask('force-incline', 2), ask('force-incline-system-tree', 2), ask('force-incline-rest-steps', 2)],
+        },
+        {
+          id: 'fo-l3-peg',
+          title: 'Over a Peg',
+          slides: [
+            teach(
+              prose(
+                'Two rough slopes meet at a ridge, with a smooth peg along the top. $A$ is on one slope and $B$ on the other, joined by a light string over the peg.',
+              ),
+              diagram(rigSvg(A43, A34)),
+              prose(
+                'Resolve for each particle on its own slope: $mg\\sin\\theta$ down that slope, $R = mg\\cos\\theta$ at right angles to it, and friction up to $\\mu R$. Each particle has its own $\\theta$, $\\mu$ and $R$.',
+              ),
+            ),
+            ask('force-peg-table'),
+            ask('force-peg-flow'),
+            ask('force-peg-tiles'),
+            teach(
+              prose(
+                'The particle whose weight pulls harder down its slope goes down, but only if the difference beats **both** frictions together. Moving, each friction is $\\mu R$ against its own particle\'s motion: $F_{A}$ on $A$ and $F_{B}$ on $B$. If $B$ goes down, $A$ first and then $B$:',
+              ),
+              working('T - m_{A}g\\sin\\alpha - F_{A} &= m_{A}a', 'm_{B}g\\sin\\beta - T - F_{B} &= m_{B}a'),
+              prose('Add them for $a$, as before, then either one gives $T$.'),
+            ),
+            ask('force-peg'),
+            ask('force-incline-pick', 2),
+            ask('force-peg+choice', 2),
+            teach(
+              prose(
+                'A rough table with a slope beyond its edge is the same thing with $\\alpha = 0$: none of $A$\'s weight acts along the table, and $R_{A} = m_{A}g$.',
+              ),
+              diagram(rigSvg(FLAT, A34)),
+            ),
+            ask('force-peg-table', 2),
+            ask('force-peg-tiles', 2),
+          ],
+          skillCheck: [ask('force-peg', 2), ask('force-peg-tiles', 2), ask('force-peg-flow', 2)],
+        },
+        {
+          // The suvat equations are kn-l2-more (v^2 = u^2 + 2as) in Kinematics; used here, not taught again.
+          id: 'fo-l3-slack',
+          title: 'When the String Goes Slack',
+          slides: [
+            teach(
+              prose(
+                '$B$ starts a height $h$ above the ground and falls, pulling $A$ up the slope. When $B$ lands it stops, the string goes slack, and the tension drops to zero.',
+              ),
+              diagram(rigSvg(A34, DROP, { gap: true })),
+              prose(
+                'Up to that moment both move with the same acceleration $a$, from rest, through the same distance $h$. So $A$\'s speed as $B$ lands comes from $v^{2} = u^{2} + 2as$, from Kinematics:',
+              ),
+              display('v^{2} = 2ah'),
+            ),
+            ask('force-slack-speed'),
+            ask('force-slack-distance-steps'),
+            ask('force-slack-stages-tree'),
+            teach(
+              prose(
+                'After that $A$ carries on up the slope with no tension. Gravity and friction both act down the slope, against its motion, so it slows with deceleration $g(\\sin\\alpha + \\mu\\cos\\alpha)$ until it stops.',
+              ),
+              prose(
+                'Then it may slide back. Compare $mg\\sin\\alpha$ with $\\mu R$, as in Slopes and Friction: if the pull is bigger, $A$ slides back down. On a table only friction slows it, $\\mu g$, and the question is whether it reaches the pulley first.',
+              ),
+            ),
+            ask('force-slack-flow'),
+            ask('force-slack-speed+choice', 2),
+            ask('force-incline', 2),
+            teach(prose('The whole distance $A$ goes up the slope is $h$ with the string taut, plus the extra distance with it slack.')),
+            ask('force-slack-stages-tree', 2),
+            ask('force-slack-flow', 2),
+          ],
+          skillCheck: [ask('force-slack-speed', 2), ask('force-slack-stages-tree', 2), ask('force-slack-flow', 2)],
+        },
+        {
+          id: 'fo-l3-together',
+          title: 'Putting It Together',
+          slides: [
+            teach(
+              prose('Every connected-particle question goes the same way:'),
+              prose(
+                '**1.** Draw the forces on each particle separately. **2.** Decide which way the system moves, and whether it moves at all. **3.** Write $F = ma$ for each particle in its own direction of motion. **4.** Add the equations for $a$, then find $T$.',
+              ),
+            ),
+            ask('force-incline-pick'),
+            ask('force-incline-fill', 2),
+            ask('force-incline-tiles', 2),
+            teach(
+              prose(
+                '**5.** Check the tension. If $B$ hangs and falls, it accelerates downwards, so the string pulls it up with **less** than its weight: $T < m_{B}g$.',
+              ),
+              prose(
+                "And $A$ accelerates up the slope, so the tension must beat what holds it back: $T > m_{A}g\\sin\\alpha + F$. A tension outside that range has a slip in it, usually a sign in one of the equations.",
+              ),
+            ),
+            ask('force-incline-check'),
+            ask('force-incline-pick', 2),
+            ask('force-peg+choice', 2),
+            ask('force-incline-check', 2),
+            ask('force-slack-speed', 2),
+          ],
+          skillCheck: [ask('force-incline-fill', 2), ask('force-incline-check', 2), ask('force-incline-pick', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('force-incline-way', 2),
+        ask('force-incline-tiles', 2),
+        ask('force-incline', 2),
+        ask('force-incline-system-tree', 2),
+        ask('force-incline-balance', 2),
+        ask('force-incline-rest-steps', 2),
+        ask('force-peg-table', 2),
+        ask('force-peg-tiles', 2),
+        ask('force-peg', 2),
+        ask('force-peg-flow', 2),
+        ask('force-slack-speed', 2),
+        ask('force-slack-stages-tree', 2),
+        ask('force-slack-flow', 2),
+        ask('force-incline-fill', 2),
+        ask('force-incline-check', 2),
+      ],
+    },
+    {
+      id: 'fo-l4',
+      title: 'Moments',
+      lessons: [
+        {
+          id: 'fo-l4-moment',
+          title: 'The Moment of a Force',
+          slides: [
+            teach(
+              prose(
+                'A force can **turn** something as well as move it: a spanner on a nut, a hand on a door. Its turning effect about a point is its **moment**:',
+              ),
+              display('\\text{moment} = F \\times d'),
+              prose(
+                'Here $d$ is the **perpendicular** distance from the point to the line of the force. A force in newtons and a distance in metres give a moment in newton metres, $\\text{N m}$.',
+              ),
+              diagram(
+                beamSvg(4, {
+                  supports: [{ x: 0, name: '' }],
+                  arrows: [{ x: 3, dir: 'up', label: 'F' }],
+                  label: 'A rod pivoted at its left end A, with a force F pushing straight up three quarters of the way along',
+                }),
+              ),
+              prose('A force of $20\\text{ N}$ at right angles to the rod, $3\\text{ m}$ from the pivot, has moment $20 \\times 3 = 60\\text{ N m}$.'),
+            ),
+            ask('force-moment'),
+            ask('force-moment-sense'),
+            ask('force-moment-table'),
+            teach(
+              prose(
+                'A moment also has a **sense**: the way it turns, **clockwise** or **anticlockwise**. A downward force to the right of the pivot turns the rod clockwise; the same force to the left turns it anticlockwise, and an upward force the other way round.',
+              ),
+              prose(
+                'To combine several moments about one point, pick a sense as positive, add the moments that way and take away the others. What is left is the **resultant moment**, and it turns the way of the bigger total.',
+              ),
+            ),
+            ask('force-moment-sum-steps'),
+            ask('force-moment-table', 2),
+            ask('force-moment-sense', 2),
+            teach(
+              prose(
+                'A force at an angle $\\theta$ to the rod: split it into a part along the rod, $F\\cos\\theta$, and a part at right angles, $F\\sin\\theta$. The part along the rod passes through the pivot and does not turn it, so',
+              ),
+              display('\\text{moment} = F\\sin\\theta \\times d'),
+              diagram(
+                beamSvg(4, {
+                  supports: [{ x: 0, name: '' }],
+                  arrows: [{ x: 3, dir: { t: A34, lean: 1 }, label: 'F' }],
+                  label: 'A rod pivoted at its left end A, with a force F pulling up and to the right at an angle theta to the rod',
+                }),
+              ),
+            ),
+            ask('force-moment', 2),
+            ask('force-moment-sum-steps', 2),
+          ],
+          skillCheck: [ask('force-moment', 2), ask('force-moment-sense', 2), ask('force-moment-sum-steps', 2)],
+        },
+        {
+          id: 'fo-l4-rod',
+          title: 'A Rod on Two Supports',
+          slides: [
+            teach(
+              prose(
+                'A **uniform** rod has its weight spread evenly, so its whole weight acts at the **middle**. Resting on two supports $C$ and $D$, it is pushed up by a reaction at each.',
+              ),
+              diagram(
+                beamSvg(6, {
+                  supports: [
+                    { x: 1, name: 'C' },
+                    { x: 5, name: 'D' },
+                  ],
+                  arrows: [
+                    { x: 3, dir: 'down', label: 'W' },
+                    { x: 1, dir: 'up', label: 'R_C' },
+                    { x: 5, dir: 'up', label: 'R_D' },
+                  ],
+                  label: 'A rod AB on supports C and D, with its weight W down at the middle and reactions R C and R D up at the supports',
+                }),
+              ),
+              prose(
+                'The rod is in **equilibrium**, so two things hold: the forces balance, $R_{C} + R_{D} = W$, and the moments balance about **any** point.',
+              ),
+            ),
+            ask('force-rod'),
+            ask('force-rod-tiles'),
+            ask('force-rod-reactions-tree'),
+            teach(
+              prose(
+                'The trick is where to take moments. About $C$, the reaction $R_{C}$ acts **through** the point, so its moment is zero and it drops out, leaving one unknown. With $d$ the distance from $C$ to the middle:',
+              ),
+              display('R_{D} \\times CD = W \\times d'),
+              prose('Then resolve vertically for the other reaction: $R_{C} = W - R_{D}$.'),
+            ),
+            ask('force-rod-slider'),
+            ask('force-rod+choice', 2),
+            ask('force-rod-tiles', 2),
+            teach(
+              prose(
+                'The supports need not be at the ends. Measure every distance from the point you take moments about, not from $A$. The support nearer the middle always carries more of the weight.',
+              ),
+            ),
+            ask('force-rod-reactions-tree', 2),
+            ask('force-rod-slider', 2),
+          ],
+          skillCheck: [ask('force-rod', 2), ask('force-rod-tiles', 2), ask('force-rod-reactions-tree', 2)],
+        },
+        {
+          id: 'fo-l4-plank',
+          title: 'Loads on a Plank',
+          slides: [
+            teach(
+              prose(
+                'Put a person or a box on the plank and there is one more downward force, at the point where they stand. Taking moments about $C$, each weight has its own moment, force times its distance $d$ from $C$, and together they balance $R_{D}$\'s:',
+              ),
+              display('R_{D} \\times CD = Wd_{W} + Pd_{P}'),
+              diagram(
+                beamSvg(6, {
+                  supports: [
+                    { x: 0, name: 'C' },
+                    { x: 6, name: 'D' },
+                  ],
+                  arrows: [
+                    { x: 3, dir: 'down', label: 'W' },
+                    { x: 4.5, dir: 'down', label: 'P' },
+                    { x: 0, dir: 'up', label: 'R_C' },
+                    { x: 6, dir: 'up', label: 'R_D' },
+                  ],
+                  label: 'A plank AB on supports at its ends, with its weight W at the middle, a person P nearer B, and reactions R C and R D',
+                }),
+              ),
+            ),
+            ask('force-plank'),
+            ask('force-plank-table'),
+            ask('force-plank-tiles'),
+            teach(
+              prose(
+                'The second reaction comes from resolving: the two reactions hold up **everything** on the plank. As a check, take moments about $D$ as well: it should give the same $R_{C}$.',
+              ),
+              prose('The reaction is bigger at the support the person stands nearer.'),
+            ),
+            ask('force-plank+choice', 2),
+            ask('force-plank-tiles', 2),
+            teach(
+              prose(
+                'Run it backwards: given one reaction, find where someone stands or how heavy they are. Take moments about the **other** support, so the unknown reaction drops out and the only unknown is the one asked for.',
+              ),
+            ),
+            ask('force-plank-unknown'),
+            ask('force-plank-table', 2),
+            ask('force-plank-unknown', 2),
+          ],
+          skillCheck: [ask('force-plank', 2), ask('force-plank-tiles', 2), ask('force-plank-unknown', 2)],
+        },
+        {
+          id: 'fo-l4-tilt',
+          title: 'On the Point of Tilting',
+          slides: [
+            teach(
+              prose(
+                'As someone walks along a plank past support $D$ towards $B$, their moment about $D$ grows. The plank\'s weight holds it down on the other side, and the reaction at $C$ shrinks.',
+              ),
+              diagram(
+                beamSvg(8, {
+                  supports: [
+                    { x: 1, name: 'C' },
+                    { x: 5, name: 'D' },
+                  ],
+                  arrows: [
+                    { x: 4, dir: 'down', label: 'W' },
+                    { x: 6.5, dir: 'down', label: 'P' },
+                    { x: 5, dir: 'up', label: 'R_D' },
+                  ],
+                  label: 'A plank on supports C and D with a person P standing beyond D; the reaction at C has fallen to zero and only R D pushes up',
+                }),
+              ),
+              prose(
+                'On the **point of tilting** about $D$, the reaction at $C$ is **zero**: the plank is just lifting off it. So take moments about $D$, with $R_{C} = 0$.',
+              ),
+            ),
+            ask('force-tilt-flow'),
+            ask('force-tilt'),
+            ask('force-tilt-slider'),
+            teach(
+              prose('With $e$ how far past $D$ the person stands, and $d$ the distance from $D$ back to the middle, the moments about $D$ balance:'),
+              display('P \\times e = W \\times d'),
+              prose(
+                'The same idea gives the greatest load that can hang from the end: at that load the plank is on the point of tilting. With masses, $g$ appears on both sides and cancels.',
+              ),
+            ),
+            ask('force-tipping-tree'),
+            ask('force-tilt+choice', 2),
+            ask('force-tilt-flow', 2),
+            teach(
+              prose(
+                'Walking the other way, towards $A$, the plank tilts about $C$ instead and $R_{D}$ falls to zero. And at the point of tilting, the one support left carries **all** the weight: resolving gives that reaction.',
+              ),
+            ),
+            ask('force-tilt-slider', 2),
+            ask('force-tipping-tree', 2),
+          ],
+          skillCheck: [ask('force-tilt', 2), ask('force-tipping-tree', 2), ask('force-tilt-flow', 2)],
+        },
+        {
+          id: 'fo-l4-ladder',
+          title: 'A Ladder Against a Wall',
+          slides: [
+            teach(
+              prose(
+                'A ladder $AB$ rests with its foot $A$ on rough ground and its top $B$ against a **smooth** wall. Four forces act on it: its weight $W$ at the middle, the wall\'s push $S$, and at the foot the normal reaction $R$ and friction $F$.',
+              ),
+              diagram(ladderSvg(A43)),
+              prose(
+                'A smooth wall gives no friction, so $S$ is **horizontal**. The ladder would slide out at the foot, so friction points **towards** the wall.',
+              ),
+            ),
+            ask('force-ladder-flow'),
+            ask('force-ladder-table'),
+            ask('force-ladder'),
+            teach(
+              prose(
+                'Take moments about the foot $A$: $R$ and $F$ both act there and drop out. The perpendicular distances come from the angle $\\alpha$ with the ground: the height of $B$, $L\\sin\\alpha$, for $S$, and $\\tfrac{L}{2}\\cos\\alpha$ for the weight.',
+              ),
+              display('S \\times L\\sin\\alpha = W \\times \\tfrac{L}{2}\\cos\\alpha'),
+              prose('Then resolve: horizontally $F = S$, vertically $R$ = the total weight.'),
+            ),
+            ask('force-ladder-limit-tree'),
+            ask('force-ladder+choice', 2),
+            ask('force-ladder-table', 2),
+            teach(
+              prose(
+                'Friction can give at most $\\mu R$. The ladder stays put while $F \\le \\mu R$, so the least coefficient of friction that holds it is $\\mu = \\tfrac{F}{R}$.',
+              ),
+              prose('A person climbing adds to $R$, and adds even more to the moment about $A$ the higher they go, so a ladder that is safe at the bottom can slip near the top.'),
+            ),
+            ask('force-ladder-limit-tree', 2),
+            ask('force-ladder-flow', 2),
+          ],
+          skillCheck: [ask('force-ladder', 2), ask('force-ladder-limit-tree', 2), ask('force-ladder-table', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('force-moment', 2),
+        ask('force-moment-sense', 2),
+        ask('force-moment-sum-steps', 2),
+        ask('force-rod', 2),
+        ask('force-rod-reactions-tree', 2),
+        ask('force-plank', 2),
+        ask('force-plank-table', 2),
+        ask('force-plank-unknown', 2),
+        ask('force-tilt', 2),
+        ask('force-tilt-flow', 2),
+        ask('force-tipping-tree', 2),
+        ask('force-ladder', 2),
+        ask('force-ladder-limit-tree', 2),
+        ask('force-ladder-flow', 2),
       ],
     },
   ],

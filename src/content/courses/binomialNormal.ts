@@ -10,18 +10,24 @@
  * finding mu or sigma from one known probability. Level 3 finds both from two
  * probabilities: two standardising equations solved simultaneously, the
  * equal-tails shortcut, and checking and using the pair once it is found.
+ * Level 4 is the normal approximation to the binomial: why a long binomial
+ * sum is worth replacing, when np and n(1 - p) are both above 5, the matching
+ * N(np, np(1 - p)), the continuity correction, and the whole route to a
+ * probability. Level 5 combines independent normals: aX + b, X + Y and
+ * X - Y, aX + bY in general, a total of n copies against one copy times n,
+ * and a probability from the combination, P(X > Y) among them.
  *
  * nCr belongs to Binomial Expansion (`be-l2-ncr`) and is pointed at, not
- * taught again. Independence belongs to the Probability course and the mean
- * and standard deviation of data to the Data course; neither is on main yet,
- * so both are named in prose. Later levels are in
+ * taught again. Independence belongs to the Probability course
+ * (`pb-l2-independence`) and the mean and standard deviation of data to the
+ * Data course; level 5 points at the first rather than teaching it. Later levels are in
  * `docs/roadmap/levels/binomial-normal.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { normalSvg } from '../generators/binomialNormal';
+import { barsSvg, normalSvg } from '../generators/binomialNormal';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -40,6 +46,9 @@ const maths = (tex: string): Block => ({ kind: 'display', tex });
 
 /** Lines of working stacked in one display and aligned on their `&`. */
 const working = (...lines: string[]) => maths(`\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`);
+
+/** Bars of B(n, p), with an optional normal curve, shaded run and boundary over them. */
+const bars = (n: number, p: number, opts: Parameters<typeof barsSvg>[2]): Block => ({ kind: 'diagram', svg: barsSvg(n, p, opts) });
 
 /** A two-column table, stacked so it never runs off a phone. */
 const table = (head: [string, string], rows: [string, string][]): Block =>
@@ -561,6 +570,344 @@ export const binomialNormal: Course = {
         ask('dist-both-check-table', 2),
         ask('dist-both-new-prob', 2),
         ask('dist-both-chain-tree', 2),
+      ],
+    },
+    {
+      id: 'bn-l4',
+      title: 'Normal Approximation to the Binomial',
+      lessons: [
+        {
+          id: 'bn-l4-why',
+          title: 'Why Approximate?',
+          slides: [
+            teach(
+              prose('$X \\sim B(100, 0.5)$. Worked out exactly, $P(X \\le 45)$ is a sum of $46$ terms, each with its own $\\tbinom{100}{k}$ and powers:'),
+              working('& P(X = 0) + P(X = 1)', '&\\quad + \\dots + P(X = 45)'),
+              prose('Draw each $P(X = r)$ as a bar one unit wide, centred on $r$. With $p$ near a half and $n$ large, the bars make a bell, centred on the mean $np$, and a normal curve fits over them:'),
+              bars(40, 0.5, { from: 10, to: 30, curve: true, label: 'The bars of B(40, 0.5) from 10 to 30, with a bell-shaped normal curve over them' }),
+            ),
+            ask('dist-approx-sum'),
+            ask('dist-approx-peak'),
+            ask('dist-approx-bars'),
+            teach(
+              prose('Far from a half the bars pile up against one end and trail off in a long tail to the other. $B(20, 0.1)$ has its mean at $2$ and is skewed to the right:'),
+              bars(20, 0.1, { from: 0, to: 12, label: 'The bars of B(20, 0.1), piled up near 0 with a long tail to the right' }),
+              prose('No bell fits bars like these.'),
+            ),
+            ask('dist-approx-skew'),
+            ask('dist-approx-sum', 2),
+            ask('dist-approx-bars', 2),
+            teach(
+              prose('The more trials, the closer the bars come to a bell, even for a $p$ some way from a half. The next lesson makes "large enough" exact.'),
+            ),
+            ask('dist-approx-skew', 2),
+            ask('dist-approx-peak', 2),
+          ],
+          skillCheck: [ask('dist-approx-sum', 2), ask('dist-approx-bars', 2), ask('dist-approx-peak', 2)],
+        },
+        {
+          id: 'bn-l4-allowed',
+          title: 'When It Is Allowed',
+          slides: [
+            teach(
+              prose('A normal curve approximates $X \\sim B(n, p)$ well when $n$ is large and $p$ is not too close to $0$ or $1$. The usual test:'),
+              maths('np > 5 \\quad \\text{and} \\quad n(1 - p) > 5'),
+              prose('$np$ is the mean number of successes and $n(1 - p)$ the mean number of failures: both need room to spread out on either side.'),
+            ),
+            ask('dist-approx-valid'),
+            ask('dist-approx-products'),
+            ask('dist-approx-which-valid'),
+            teach(
+              prose('$X \\sim B(40, 0.1)$:'),
+              working('np &= 40 \\times 0.1 = 4', 'n(1 - p) &= 40 \\times 0.9 = 36'),
+              prose('$np$ is not above $5$, so the bars pile up against $0$ and the approximation is poor. Exactly $5$ fails too: the test is **above** $5$.'),
+            ),
+            ask('dist-approx-min-n'),
+            ask('dist-approx-valid', 2),
+            ask('dist-approx-products', 2),
+            teach(
+              prose('For the smallest $n$ that works, take the smaller of $p$ and $1 - p$: $n$ times it must clear $5$. With $p = 0.2$, $n \\times 0.2 > 5$ needs $n > 25$, so $n = 26$.'),
+            ),
+            ask('dist-approx-which-valid', 2),
+            ask('dist-approx-min-n', 2),
+          ],
+          skillCheck: [ask('dist-approx-valid', 2), ask('dist-approx-which-valid', 2), ask('dist-approx-products', 2)],
+        },
+        {
+          id: 'bn-l4-matching',
+          title: 'The Matching Normal',
+          slides: [
+            teach(
+              prose('The approximating normal has the same mean and the same variance as the binomial. For $X \\sim B(n, p)$:'),
+              working('\\mu &= np', '\\sigma^2 &= np(1 - p)'),
+              prose('so $X$ is approximated by'),
+              maths('Y \\sim N(np, np(1 - p))'),
+            ),
+            ask('dist-approx-param'),
+            ask('dist-approx-normal'),
+            ask('dist-approx-moments-tree'),
+            teach(
+              prose('$X \\sim B(100, 0.2)$:'),
+              working('\\mu &= 100 \\times 0.2 = 20', '\\sigma^2 &= 20 \\times 0.8 = 16', '\\sigma &= \\sqrt{16} = 4'),
+              prose('So $Y \\sim N(20, 16)$. The second number is the variance, as always for a normal distribution.'),
+            ),
+            ask('dist-approx-build'),
+            ask('dist-approx-param', 2),
+            ask('dist-approx-normal', 2),
+            teach(
+              prose('Standardising divides by $\\sigma$, not by the variance, so take the square root before going on.'),
+            ),
+            ask('dist-approx-moments-tree', 2),
+            ask('dist-approx-build', 2),
+          ],
+          skillCheck: [ask('dist-approx-param', 2), ask('dist-approx-normal', 2), ask('dist-approx-build', 2)],
+        },
+        {
+          id: 'bn-l4-correction',
+          title: 'The Continuity Correction',
+          slides: [
+            teach(
+              prose('$X$ takes whole values and $Y$ is continuous. The bar for $X = r$ covers $Y$ from $r - 0.5$ to $r + 0.5$, so a whole bar is taken in or left out:'),
+              bars(20, 0.5, {
+                from: 4,
+                to: 16,
+                curve: true,
+                shade: [4, 12],
+                boundary: 12.5,
+                label: 'Bars up to 12 shaded, with the curve cut at 12.5, the end of the bar at 12',
+              }),
+              table(['\\text{bars}', '\\text{curve}'], [
+                ['X \\le r', 'Y < r + 0.5'],
+                ['X \\ge r', 'Y > r - 0.5'],
+              ]),
+            ),
+            ask('dist-cc-choice'),
+            ask('dist-cc-line'),
+            ask('dist-cc-boundary'),
+            teach(
+              prose('Turn words into whole numbers first. Fewer than $r$ is $X \\le r - 1$, so $Y < r - 0.5$; more than $r$ is $X \\ge r + 1$, so $Y > r + 0.5$.'),
+              prose('Exactly $r$ is one whole bar, and a range runs from the start of its first bar to the end of its last:'),
+              working('& P(X = r)', '&\\approx P(r - 0.5 < Y < r + 0.5)', '& P(a \\le X \\le b)', '&\\approx P(a - 0.5 < Y < b + 0.5)'),
+            ),
+            ask('dist-cc-flow'),
+            ask('dist-cc-choice', 2),
+            ask('dist-cc-line', 2),
+            teach(
+              prose('To check a correction, ask which bars are in: the boundary sits half a unit past the last bar in, never through the middle of one.'),
+            ),
+            ask('dist-cc-boundary', 2),
+            ask('dist-cc-flow', 2),
+          ],
+          skillCheck: [ask('dist-cc-choice', 2), ask('dist-cc-line', 2), ask('dist-cc-boundary', 2)],
+        },
+        {
+          id: 'bn-l4-route',
+          title: 'The Whole Route',
+          slides: [
+            teach(
+              prose('To approximate a binomial probability:'),
+              prose('**1.** Check $np$ and $n(1 - p)$ are both above $5$. **2.** Write $Y \\sim N(np, np(1 - p))$ and find $\\sigma$. **3.** Apply the continuity correction. **4.** Standardise the boundary. **5.** Read $\\Phi$, taking the complement or a difference as needed.'),
+            ),
+            ask('dist-approx-plan'),
+            ask('dist-approx-route-tree'),
+            ask('dist-approx-prob'),
+            teach(
+              prose('$X \\sim B(100, 0.5)$: find $P(X \\le 45)$. Here $\\mu = 50$ and $\\sigma = 5$, and $\\Phi(0.9) = 0.8159$.'),
+              working('P(X \\le 45) &\\approx P(Y < 45.5)', 'z &= \\frac{45.5 - 50}{5}', '&= -0.9', 'P(Z < -0.9) &= 1 - 0.8159', '&= 0.1841'),
+            ),
+            ask('dist-approx-standardise-steps'),
+            ask('dist-approx-prob+choice'),
+            ask('dist-approx-route-tree', 2),
+            teach(
+              prose('For exactly $r$, or a range, take one area from another. $P(X = 50) \\approx P(49.5 < Y < 50.5)$, where $z = \\pm 0.1$ and $\\Phi(0.1) = 0.5398$:'),
+              working('& \\Phi(0.1) - (1 - \\Phi(0.1))', '&= 0.5398 - 0.4602', '&= 0.0796'),
+            ),
+            ask('dist-approx-plan', 2),
+            ask('dist-approx-standardise-steps', 2),
+          ],
+          skillCheck: [ask('dist-approx-prob', 2), ask('dist-approx-route-tree', 2), ask('dist-approx-standardise-steps', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dist-approx-sum', 2),
+        ask('dist-approx-bars', 2),
+        ask('dist-approx-peak', 2),
+        ask('dist-approx-valid', 2),
+        ask('dist-approx-which-valid', 2),
+        ask('dist-approx-min-n', 2),
+        ask('dist-approx-param', 2),
+        ask('dist-approx-normal', 2),
+        ask('dist-approx-build', 2),
+        ask('dist-cc-choice', 2),
+        ask('dist-cc-line', 2),
+        ask('dist-cc-boundary', 2),
+        ask('dist-approx-prob', 2),
+        ask('dist-approx-route-tree', 2),
+        ask('dist-approx-standardise-steps', 2),
+      ],
+    },
+    {
+      id: 'bn-l5',
+      title: 'Sums and Differences of Independent Normals',
+      lessons: [
+        {
+          id: 'bn-l5-linear',
+          title: 'Scaling and Shifting: aX + b',
+          slides: [
+            teach(
+              prose('$X \\sim N(\\mu, \\sigma^2)$ and $W = aX + b$: every value of $X$ is multiplied by $a$, then moved by $b$. $W$ is normal too, with'),
+              working('\\mathrm{E}(aX + b) &= a\\mathrm{E}(X) + b', '\\mathrm{Var}(aX + b) &= a^2\\,\\mathrm{Var}(X)'),
+              prose('Adding $b$ slides the curve along and leaves its spread alone. Multiplying by $a$ stretches every distance from the mean by $a$, so $\\sigma$ is multiplied by $|a|$ and the variance by $a^2$.'),
+            ),
+            ask('dist-lin-moment'),
+            ask('dist-lin-normal'),
+            ask('dist-lin-spread-tree'),
+            teach(
+              prose('$X \\sim N(20, 9)$ and $W = 3X + 5$:'),
+              working('\\mathrm{E}(W) &= 3 \\times 20 + 5 = 65', '\\mathrm{Var}(W) &= 3^2 \\times 9 = 81', '\\sigma_W &= \\sqrt{81} = 9'),
+              prose('So $W \\sim N(65, 81)$: $\\sigma$ went from $3$ to $9$, three times as wide, and the $5$ played no part in it.'),
+            ),
+            ask('dist-lin-effect-flow'),
+            ask('dist-lin-moment', 2),
+            ask('dist-lin-normal', 2),
+            teach(
+              prose('A negative $a$ flips the curve over as well as stretching it. The variance still takes $a^2$, which is positive, and $\\sigma$ takes $|a|$: a spread is never negative.'),
+            ),
+            ask('dist-lin-spread-tree', 2),
+            ask('dist-lin-effect-flow', 2),
+          ],
+          skillCheck: [ask('dist-lin-moment', 2), ask('dist-lin-normal', 2), ask('dist-lin-spread-tree', 2)],
+        },
+        {
+          id: 'bn-l5-sum',
+          title: 'X + Y and X − Y',
+          slides: [
+            teach(
+              prose('For **independent** $X$ and $Y$ (Probability level 2, Independent Events), a sum or a difference of normals is normal, with'),
+              working('\\mathrm{E}(X \\pm Y) &= \\mathrm{E}(X)', '&\\quad \\pm \\mathrm{E}(Y)', '\\mathrm{Var}(X \\pm Y) &= \\mathrm{Var}(X)', '&\\quad + \\mathrm{Var}(Y)'),
+              prose('The means follow the sign. The variances **always add**.'),
+            ),
+            ask('dist-sum-moment'),
+            ask('dist-sum-normal'),
+            ask('dist-sum-table'),
+            teach(
+              prose('Why not $\\mathrm{Var}(X) - \\mathrm{Var}(Y)$? Taking $Y$ away does not take its uncertainty away. $X - Y$ is $X + (-1)Y$, and $(-1)^2 = 1$, so $\\mathrm{Var}(Y)$ is added.'),
+              prose('If variances subtracted, two variables with the same spread would leave $X - Y$ with no spread at all, and that cannot be right.'),
+            ),
+            ask('dist-sum-var-tiles'),
+            ask('dist-sum-moment+choice', 2),
+            ask('dist-sum-normal', 2),
+            teach(
+              prose("An apple's mass is $X \\sim N(160, 36)$ and an orange's is $Y \\sim N(190, 64)$, in grams, independently:"),
+              working('\\mathrm{E}(X - Y) &= 160 - 190', '&= -30', '\\mathrm{Var}(X - Y) &= 36 + 64', '&= 100'),
+              prose('So $X - Y \\sim N(-30, 100)$, with $\\sigma = 10$.'),
+            ),
+            ask('dist-sum-table', 2),
+            ask('dist-sum-var-tiles', 2),
+          ],
+          skillCheck: [ask('dist-sum-moment', 2), ask('dist-sum-normal', 2), ask('dist-sum-var-tiles', 2)],
+        },
+        {
+          id: 'bn-l5-combination',
+          title: 'aX + bY in General',
+          slides: [
+            teach(
+              prose('Scale each variable first, then combine. For independent normals $X$ and $Y$:'),
+              working('\\mathrm{E}(aX + bY) &= a\\mathrm{E}(X)', '&\\quad + b\\mathrm{E}(Y)', '\\mathrm{Var}(aX + bY) &= a^2\\,\\mathrm{Var}(X)', '&\\quad + b^2\\,\\mathrm{Var}(Y)'),
+              prose('and $aX + bY$ is normal. A negative $b$ still adds its variance, since $b^2$ is positive, and a constant on the end moves only the mean.'),
+            ),
+            ask('dist-combo-moment'),
+            ask('dist-combo-normal'),
+            ask('dist-combo-var-steps'),
+            teach(
+              prose('$X \\sim N(30, 9)$ and $Y \\sim N(20, 16)$ are independent, and $W = 2X - 2Y + 5$:'),
+              working('\\mathrm{E}(W) &= 2 \\times 30', '&\\quad - 2 \\times 20 + 5', '&= 25', '\\mathrm{Var}(W) &= 2^2 \\times 9', '&\\quad + (-2)^2 \\times 16', '&= 100'),
+              prose('So $W \\sim N(25, 100)$, and $\\sigma_W = 10$.'),
+            ),
+            ask('dist-combo-build'),
+            ask('dist-combo-moment+choice', 2),
+            ask('dist-combo-normal', 2),
+            teach(
+              prose('Check the second number: $N(\\mu, \\sigma^2)$ holds the variance. Writing $\\sigma$ there, or $a\\,\\mathrm{Var}(X)$ without squaring the $a$, are the two usual slips.'),
+            ),
+            ask('dist-combo-var-steps', 2),
+            ask('dist-combo-build', 2),
+          ],
+          skillCheck: [ask('dist-combo-moment', 2), ask('dist-combo-normal', 2), ask('dist-combo-build', 2)],
+        },
+        {
+          id: 'bn-l5-totals',
+          title: 'A Total of n Copies',
+          slides: [
+            teach(
+              prose('A box holds four bags of flour, each $N(1000, 25)$ in grams, independently. Their total is four separate masses:'),
+              maths('T = X_1 + X_2 + X_3 + X_4'),
+              working('\\mathrm{E}(T) &= 4 \\times 1000 = 4000', '\\mathrm{Var}(T) &= 25 + 25 + 25 + 25', '&= 4 \\times 25 = 100'),
+            ),
+            ask('dist-total-moment'),
+            ask('dist-total-normal'),
+            ask('dist-total-table'),
+            teach(
+              prose('One bag weighed once, with the reading multiplied by $4$, is $4X$, and that is different: every error in the one reading is multiplied by $4$ too.'),
+              working('\\mathrm{Var}(4X) &= 4^2 \\times 25 = 400'),
+              prose('Four separate bags have errors that partly cancel, so $4\\sigma^2$ is less than $16\\sigma^2$. The means are both $4\\mu$.'),
+            ),
+            ask('dist-total-flow'),
+            ask('dist-total-moment+choice', 2),
+            ask('dist-total-normal', 2),
+            teach(
+              prose('Ask whether the $n$ values are separate. A total of $n$ copies has variance $n\\sigma^2$ and standard deviation $\\sigma\\sqrt{n}$; one value multiplied by $n$ has $n^2\\sigma^2$ and $n\\sigma$.'),
+            ),
+            ask('dist-total-table', 2),
+            ask('dist-total-flow', 2),
+          ],
+          skillCheck: [ask('dist-total-moment', 2), ask('dist-total-normal', 2), ask('dist-total-flow', 2)],
+        },
+        {
+          id: 'bn-l5-probability',
+          title: 'A Probability from the Combination',
+          slides: [
+            teach(
+              prose('Once a combination has its normal, a probability is found as in level 2: standardise with its own mean and $\\sigma$, then read $\\Phi$.'),
+              prose('$X \\sim N(40, 9)$ and $Y \\sim N(30, 16)$ are independent, so $X + Y \\sim N(70, 25)$ and $\\sigma = 5$. With $\\Phi(1) = 0.8413$:'),
+              working('z &= \\frac{75 - 70}{5} = 1', '& P(X + Y > 75)', '&= 1 - \\Phi(1)', '&= 0.1587'),
+            ),
+            ask('dist-combo-prob'),
+            ask('dist-diff-plan'),
+            ask('dist-bigger-prob'),
+            teach(
+              prose('Which is bigger? $P(X > Y)$ is $P(X - Y > 0)$. Let $D = X - Y$, find its normal, and standardise $0$.'),
+              prose("An apple's mass is $X \\sim N(160, 36)$ and an orange's is $Y \\sim N(170, 64)$. Then $D \\sim N(-10, 100)$ and $\\sigma_D = 10$:"),
+              working('z &= \\frac{0 - (-10)}{10} = 1', 'P(D > 0) &= 1 - \\Phi(1)', '&= 0.1587'),
+            ),
+            ask('dist-diff-route-tree'),
+            ask('dist-combo-prob+choice', 2),
+            ask('dist-bigger-prob', 2),
+            teach(
+              prose('Check the side: when $\\mathrm{E}(D)$ is below $0$, $P(D > 0)$ is under a half, and when it is above $0$, over a half. The mean of a sample, $\\bar{X}$, is a total divided by $n$, and it is the next level.'),
+            ),
+            ask('dist-diff-plan', 2),
+            ask('dist-diff-route-tree', 2),
+          ],
+          skillCheck: [ask('dist-combo-prob', 2), ask('dist-bigger-prob', 2), ask('dist-diff-route-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dist-lin-moment', 2),
+        ask('dist-lin-normal', 2),
+        ask('dist-lin-effect-flow', 2),
+        ask('dist-sum-moment', 2),
+        ask('dist-sum-var-tiles', 2),
+        ask('dist-sum-table', 2),
+        ask('dist-combo-moment', 2),
+        ask('dist-combo-var-steps', 2),
+        ask('dist-combo-build', 2),
+        ask('dist-total-moment', 2),
+        ask('dist-total-table', 2),
+        ask('dist-total-flow', 2),
+        ask('dist-combo-prob', 2),
+        ask('dist-bigger-prob', 2),
+        ask('dist-diff-route-tree', 2),
       ],
     },
   ],

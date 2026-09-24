@@ -5,7 +5,9 @@
  * The second level moves graphs about with the `transform` widget; its
  * generators that ask for a curve live in `transformGraph.ts` beside the
  * widget's own demonstrations, and the ones asked through other widgets are
- * at the bottom of this file.
+ * at the bottom of this file. Levels 3 and 4 follow, and level 5, the
+ * transformations of $y = a\sin(bx + c) + d$, is last; its section opens
+ * with its own rules.
  *
  * **Forms are asked through tiles, flows, steps and choices; values are
  * typed.** The checker compares values, so a typed `fg(x)` accepts `f(g(x))`
@@ -20,7 +22,7 @@
  * whole, banks included; and a `tree` bank keeps at least two distractors
  * once the answers are taken out.
  */
-import type { ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
+import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { markerWindow, plotSvg } from '../figures';
 import { options } from '../choiceVariant';
@@ -5747,6 +5749,1593 @@ const pieceTiles: Generator<PieceValueParams> = {
   solution: pieceSolution,
 };
 
+/* ======================================================================
+ * Level 5: Transformations of Trigonometric Graphs
+ * ==================================================================== */
+
+/*
+ * $y = a\sin(bx + c) + d$ read as what it does to $y = \sin x$: $a$ is a
+ * stretch parallel to the $y$-axis, and a reflection too when it is negative;
+ * $d$ a translation up; $b$ a stretch parallel to the $x$-axis with factor
+ * $\frac{1}{b}$; and $c$ a translation across by $-\frac{c}{b}$, not $-c$.
+ * $x$ is in degrees, as level 4 has it, and every number a learner types,
+ * drags or places is whole: a shift is drawn as a multiple of $b$ so the
+ * division comes out, and a peak at $\frac{90}{b}$ only where that is whole.
+ *
+ * A rule, or a chain of moves, is never typed: the checker compares values
+ * and would take the question copied back. Rules go through tiles, steps,
+ * flows and choices, and a typed answer is one number. Degrees live in prose
+ * and slider readouts, never in a tiles template. Nothing here is calculus,
+ * so no slide declares `source` and the differentiation oracle has nothing to
+ * check; `functions.test.ts` samples each wave every five degrees instead and
+ * works every quoted feature out again from the samples.
+ *
+ * The widget's own sine (`transformGraph.ts`) runs in radians, so the
+ * `transform` questions of this level are the unit-free moves only: stretches
+ * and moves up or down.
+ */
+
+type TrigFn = 'sin' | 'cos';
+
+/** y = a fn(bx + c) + d, with x and c in degrees. */
+interface Wave {
+  fn: TrigFn;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+function waveAt({ fn, a, b, c, d }: Wave, x: number): number {
+  return a * Math[fn](((b * x + c) * Math.PI) / 180) + d;
+}
+
+/** `\sin x`, `3\sin 2x - 1`, `-\cos(3x + 60) + 2`. */
+function trigTex({ fn, a, b, c, d }: Wave): string {
+  const bx = b === 1 ? 'x' : `${b}x`;
+  const inside = c === 0 ? ` ${bx}` : `(${bx}${tail(c)})`;
+  return `${coefficientTex(a)}\\${fn}${inside}${tail(d)}`;
+}
+
+/** `\sin(2(x - 30))`: b taken out of the bracket, the curve moved h to the right. */
+function factoredTex(fn: TrigFn, b: number, h: number): string {
+  return `\\${fn}(${b}(${shiftedX(h)}))`;
+}
+
+/**
+ * One expression rewritten, stacked a line at a time: a solution line of
+ * `\sin(2x - 60) = \sin(2(x - 30))` runs off a phone screen.
+ */
+function stackTex(first: string, ...rest: string[]): string {
+  return `\\begin{aligned} &${first} ${rest.map((line) => `\\\\ &= ${line}`).join(' ')} \\end{aligned}`;
+}
+
+/** A curve through its moves, one to a line, each marked with an arrow. */
+function chainTex(first: string, ...rest: string[]): string {
+  return `\\begin{aligned} &${first} ${rest.map((line) => `\\\\ \\to \\quad &${line}`).join(' ')} \\end{aligned}`;
+}
+
+/** A translation, written as a column vector. */
+function vecTex(p: number, q: number): string {
+  return `\\begin{pmatrix} ${p} \\\\ ${q} \\end{pmatrix}`;
+}
+
+/** A factor as plain text for an option label: `3`, `1/4`. */
+function factorLabel(factor: number): string {
+  return Number.isInteger(factor) ? `${factor}` : `1/${Math.round(1 / factor)}`;
+}
+
+function yStretchWords(a: number): string {
+  return `stretched parallel to the $y$-axis with scale factor $${factorTex(a)}$`;
+}
+
+function xStretchWords(factor: number): string {
+  return `stretched parallel to the $x$-axis with scale factor $${factorTex(factor)}$`;
+}
+
+/** A move across in plain text: "30° to the right". */
+function acrossLabel(h: number): string {
+  return `${Math.abs(h)}° to the ${h > 0 ? 'right' : 'left'}`;
+}
+
+/** A move up or down in plain text: "2 up". */
+function upLabel(k: number): string {
+  return `${Math.abs(k)} ${k > 0 ? 'up' : 'down'}`;
+}
+
+/** Flow branches in an order drawn from the labels, as `fixedChoice` orders options. */
+function turned(labels: string[]): string[] {
+  return fixedChoice(labels.map((label) => ({ label }))).options.map((option) => option.label);
+}
+
+/** A window that holds the wave and the x-axis, with a margin. */
+function waveWindow({ a, d }: Wave): { yMin: number; yMax: number } {
+  return { yMin: Math.min(0, d - Math.abs(a)) - 1, yMax: Math.max(0, d + Math.abs(a)) + 1 };
+}
+
+/** Waves from 0 to 360 degrees, the first solid and any after it dashed. */
+function waveSvg(
+  waves: Wave[],
+  window: { yMin: number; yMax: number },
+  label: string,
+  extra: { marks?: { x: number; y: number }[]; horizontals?: number[] } = {},
+): string {
+  return plotSvg({
+    xMin: 0,
+    xMax: 360,
+    ...window,
+    curves: waves.map((wave, idx) => ({ f: (x: number) => waveAt(wave, x), dashed: idx > 0 })),
+    ...extra,
+    label,
+  });
+}
+
+const plainWave = (fn: TrigFn, b = 1): Wave => ({ fn, a: 1, b, c: 0, d: 0 });
+
+/**
+ * Where a wave first peaks and first bottoms out, each strictly after x = 0.
+ * $\sin bx$ peaks at $\frac{90}{b}$ and $\cos bx$ at $0$, so the first peak of
+ * a cosine is a whole period along; a negative $a$ swaps the two.
+ */
+function extremaX({ fn, a, b, c }: Wave): { maxX: number; minX: number } {
+  const period = 360 / b;
+  const along = (angle: number) => {
+    let x = (angle - c) / b;
+    while (x <= 0) x += period;
+    while (x > period) x -= period;
+    return x;
+  };
+  const peak = along(fn === 'sin' ? 90 : 0);
+  const trough = along(fn === 'sin' ? 270 : 180);
+  return a > 0 ? { maxX: peak, minX: trough } : { maxX: trough, minX: peak };
+}
+
+/* ---------- Lesson 1: amplitude and midline ---------- */
+
+interface ExtremesParams {
+  wave: Wave;
+  /** The maximum or minimum from the rule, or `a` or `d` back from them. */
+  asks: 'max' | 'min' | 'a' | 'd';
+}
+
+function extremesAnswer({ wave, asks }: ExtremesParams): number {
+  if (asks === 'a') return wave.a;
+  if (asks === 'd') return wave.d;
+  return asks === 'max' ? wave.d + Math.abs(wave.a) : wave.d - Math.abs(wave.a);
+}
+
+/**
+ * The greatest or least value of $a\sin bx + d$.
+ *
+ * $\sin$ runs from $-1$ to $1$; the stretch makes that $-|a|$ to $|a|$, and
+ * the translation lifts both by $d$. The $b$ is there to be ignored: a stretch
+ * across changes nothing about the heights. Difficulty 2 turns the wave over
+ * with a negative $a$, which leaves the greatest value at $d + |a|$ rather
+ * than $d + a$, or runs backwards from a stated maximum and minimum to $a$ or
+ * $d$.
+ */
+const waveExtremes: Generator<ExtremesParams> = {
+  id: 'fun-wave-extremes',
+  choices: (params) => {
+    const { wave, asks } = params;
+    const { a, d } = wave;
+    const max = d + Math.abs(a);
+    const min = d - Math.abs(a);
+    if (asks === 'a') return numberChoices(a, max - min, max + min, d);
+    if (asks === 'd') return numberChoices(d, max - min, max + min, a);
+    if (asks === 'max') return numberChoices(max, d + a, d - a, Math.abs(a), d * Math.abs(a));
+    return numberChoices(min, d + a, d - a, -Math.abs(a), d + Math.abs(a));
+  },
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    if (difficulty <= 1) {
+      return {
+        wave: { fn, a: rng.int(2, 5), b: rng.pick([1, 2, 3]), c: 0, d: rng.pick(nonZeroRange(-5, 5)) },
+        asks: rng.pick(['max', 'min'] as const),
+      };
+    }
+    const asks = rng.pick(['max', 'min', 'a', 'd'] as const);
+    if (asks === 'a' || asks === 'd') {
+      return { wave: { fn, a: rng.int(2, 6), b: 1, c: 0, d: rng.pick(nonZeroRange(-5, 5)) }, asks };
+    }
+    return {
+      wave: { fn, a: rng.pick([-5, -4, -3, -2, 2, 3, 4, 5]), b: rng.pick([1, 2, 3, 4]), c: 0, d: rng.pick(nonZeroRange(-5, 5)) },
+      asks,
+    };
+  },
+  render: (params): Slide => {
+    const { wave, asks } = params;
+    const answer = `${extremesAnswer(params)}`;
+    if (asks === 'a' || asks === 'd') {
+      const max = wave.d + wave.a;
+      const min = wave.d - wave.a;
+      return {
+        kind: 'expression',
+        prompt: [
+          {
+            kind: 'prose',
+            text: `$y = a\\${wave.fn} x + d$, with $a > 0$, has a greatest value of $${max}$ and a least value of $${min}$. Find $${asks}$.`,
+          },
+        ],
+        lead: `${asks} =`,
+        keypad: [],
+        answer,
+        domain: 'real',
+        mode: 'exact',
+      };
+    }
+    return {
+      kind: 'expression',
+      prompt: [
+        { kind: 'prose', text: `Find the ${asks === 'max' ? 'greatest' : 'least'} value of $y = ${trigTex(wave)}$.` },
+      ],
+      lead: asks === 'max' ? '\\text{greatest} =' : '\\text{least} =',
+      keypad: [],
+      answer,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { wave, asks } = params;
+    const { fn, a, b, d } = wave;
+    const size = Math.abs(a);
+    if (asks === 'a' || asks === 'd') {
+      const max = d + a;
+      const min = d - a;
+      return [
+        { text: `The midline $d$ is halfway between the greatest and least values, and $a$ is how far the wave swings either side of it.` },
+        asks === 'a'
+          ? { tex: `a = \\frac{${max} - ${br(min)}}{2} = ${a}` }
+          : { tex: `d = \\frac{${max} + ${br(min)}}{2} = ${d}` },
+      ];
+    }
+    const steps: SolutionStep[] = [
+      { text: `$\\${fn}$ runs from $-1$ to $1$. The stretch by $${size}$ makes that $${-size}$ to $${size}$${a < 0 ? ': the minus sign turns the wave over, but it still reaches both' : ''}.` },
+    ];
+    if (b !== 1) steps.push({ text: `The $${b}$ inside stretches the wave across, which changes no heights.` });
+    steps.push({ text: `Adding $${d}$ translates every point by $${d}$.` });
+    steps.push(
+      asks === 'max'
+        ? { tex: `\\text{greatest} = ${d} + ${size} = ${d + size}` }
+        : { tex: `\\text{least} = ${d} - ${size} = ${d - size}` },
+    );
+    return steps;
+  },
+};
+
+interface AmpSliderParams {
+  fn: TrigFn;
+  /** The stretch parallel to the y-axis. */
+  a: number;
+  /** Reflected in the x-axis after the stretch. */
+  flip: boolean;
+  d: number;
+  asks: 'max' | 'min' | 'midline';
+}
+
+function ampSliderAnswer({ a, d, asks }: AmpSliderParams): number {
+  return asks === 'max' ? d + a : asks === 'min' ? d - a : d;
+}
+
+/**
+ * Where a feature lands after the moves, dragged to on the picture.
+ *
+ * Only $y = \sin x$ is drawn, dashed; the moves are described, and the learner
+ * works out the new height and slides a line to it. Difficulty 2 puts a
+ * reflection between the two, which changes neither the greatest nor the
+ * least value, and asks for the midline too.
+ */
+const ampSlider: Generator<AmpSliderParams> = {
+  id: 'fun-amp-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      fn: rng.pick(['sin', 'cos'] as const),
+      a: rng.int(2, 4),
+      flip: hard && rng.chance(0.6),
+      d: rng.pick(nonZeroRange(-3, 3)),
+      asks: rng.pick(hard ? (['max', 'min', 'midline'] as const) : (['max', 'min'] as const)),
+    };
+  },
+  render: (params): Slide => {
+    const { fn, a, flip, d, asks } = params;
+    const moves = [yStretchWords(a), ...(flip ? ['then reflected in the $x$-axis'] : []), `then ${translateWords(0, d)}`];
+    const feature = asks === 'max' ? 'greatest value' : asks === 'min' ? 'least value' : 'midline';
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The dashed curve is $y = \\${fn} x$, with $x$ in degrees. It is ${moves.join(', ')}. Slide the line to the height of the new curve's ${feature}.`,
+        },
+      ],
+      min: -7,
+      max: 7,
+      step: 1,
+      answer: ampSliderAnswer(params),
+      readout: 'y = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 360,
+          yMin: -7,
+          yMax: 7,
+          curves: [{ f: (x) => waveAt(plainWave(fn), x), dashed: true }],
+          label: `The curve y = ${fn} x, dashed, from 0 to 360 degrees`,
+        }),
+        ...markerWindow(-7, 7, 'y'),
+        axis: 'y',
+      },
+    };
+  },
+  solution: (params) => {
+    const { fn, a, flip, d, asks } = params;
+    const rule = trigTex({ fn, a: flip ? -a : a, b: 1, c: 0, d });
+    const steps: SolutionStep[] = [
+      { text: `The stretch multiplies every height by $${a}$, so the curve runs from $${-a}$ to $${a}$.` },
+    ];
+    if (flip) steps.push({ text: 'The reflection turns it over: it still runs from the same lowest point to the same highest.' });
+    steps.push({ text: `The translation adds $${d}$ to every height, so the new curve is $y = ${rule}$.` });
+    if (asks === 'midline') steps.push({ tex: `\\text{midline: } y = ${d}` });
+    else if (asks === 'max') steps.push({ tex: `\\text{greatest} = ${d} + ${a} = ${d + a}` });
+    else steps.push({ tex: `\\text{least} = ${d} - ${a} = ${d - a}` });
+    return steps;
+  },
+};
+
+function translateWords(p: number, q: number): string {
+  return `translated by $${vecTex(p, q)}$`;
+}
+
+interface AmpTilesParams {
+  fn: TrigFn;
+  /** The stretch parallel to the y-axis. */
+  a: number;
+  /** Reflected in the x-axis after the stretch. */
+  flip: boolean;
+  d: number;
+}
+
+/** The number in front as a tile, spelt as `numberTile` spells a negative. */
+function frontTile(a: number, flip: boolean): string {
+  return flip ? `- ${factorTex(a)}` : factorTex(a);
+}
+
+/**
+ * The moves into a rule.
+ *
+ * A stretch parallel to the $y$-axis multiplies the whole of $\sin x$, so its
+ * factor goes in front; the translation by $\binom{0}{d}$ goes on the end.
+ * The bank holds the swap of the two, the wrong sign on each, and the factor
+ * turned upside down. Difficulty 2 reflects the curve as well, and may squash
+ * it by a half or a third.
+ */
+const ampTiles: Generator<AmpTilesParams> = {
+  id: 'fun-amp-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      fn: rng.pick(['sin', 'cos'] as const),
+      a: hard ? rng.pick([2, 3, 4, 5, 1 / 2, 1 / 3]) : rng.int(2, 5),
+      flip: hard && rng.chance(0.6),
+      d: rng.pick(nonZeroRange(-6, 6)),
+    };
+  },
+  render: (params): Slide => {
+    const { fn, a, flip, d } = params;
+    const moves = [yStretchWords(a), ...(flip ? ['then reflected in the $x$-axis'] : []), `then ${translateWords(0, d)}`];
+    const answer = [frontTile(a, flip), signedTile(d)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'prose', text: `$y = \\${fn} x$ is ${moves.join(', ')}. Write the equation of the new curve.` },
+      ],
+      template: `y = {0}\\${fn} x {1}`,
+      bank: bankOf(answer, [
+        frontTile(a, !flip),
+        factorTex(1 / a),
+        numberTile(d),
+        signedTile(-d),
+        ...(Number.isInteger(a) ? [signedTile(a)] : []),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ fn, a, flip, d }) => {
+    const front = flip ? `-${factorTex(a)}` : factorTex(a);
+    const steps: SolutionStep[] = [
+      { text: `A stretch parallel to the $y$-axis multiplies every height by $${factorTex(a)}$, so the factor goes in front.` },
+      { tex: `y = ${factorTex(a)}\\${fn} x` },
+    ];
+    if (flip) {
+      steps.push({ text: 'Reflecting in the $x$-axis changes the sign of every height.' });
+      steps.push({ tex: `y = -${factorTex(a)}\\${fn} x` });
+    }
+    steps.push({ text: `The translation by $${vecTex(0, d)}$ adds $${d}$ to every height, on the end.` });
+    steps.push({ tex: `y = ${front}\\${fn} x${tail(d)}` });
+    return steps;
+  },
+};
+
+interface AmpFlowParams {
+  fn: TrigFn;
+  a: number;
+  d: number;
+  asks: 'max' | 'min';
+}
+
+/**
+ * A rule taken apart into its moves, then a value from them.
+ *
+ * First what the number in front does — a stretch parallel to the $y$-axis,
+ * not the $x$-axis, and a reflection too when it is negative — then what the
+ * number on the end does, as a vector, then the greatest or least value the
+ * two give. Difficulty 2 makes the number in front negative more often than
+ * not.
+ */
+const ampFlow: Generator<AmpFlowParams> = {
+  id: 'fun-amp-flow',
+  sample: (rng, difficulty) => {
+    const size = rng.int(2, 5);
+    return {
+      fn: rng.pick(['sin', 'cos'] as const),
+      a: difficulty > 1 && rng.chance(0.6) ? -size : size,
+      d: rng.pick(nonZeroRange(-5, 5)),
+      asks: rng.pick(['max', 'min'] as const),
+    };
+  },
+  render: ({ fn, a, d, asks }): Slide => {
+    const size = Math.abs(a);
+    const yLabel = `Stretch parallel to the $y$-axis, scale factor $${size}$`;
+    const flipLabel = `${yLabel}, and reflect in the $x$-axis`;
+    const front = turned([
+      yLabel,
+      flipLabel,
+      `Stretch parallel to the $x$-axis, scale factor $${size}$`,
+      `Stretch parallel to the $x$-axis, scale factor $\\tfrac{1}{${size}}$`,
+    ]);
+    const vector = (p: number, q: number) => `Translate by $${vecTex(p, q)}$`;
+    const add = turned([vector(0, d), vector(0, -d), vector(d, 0), vector(-d, 0)]);
+    const target = asks === 'max' ? d + size : d - size;
+    const word = asks === 'max' ? 'greatest' : 'least';
+    const values = offer(target, d + a, d - a, asks === 'max' ? size : -size, asks === 'max' ? d - size : d + size);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `How is this curve made from $y = \\${fn} x$, and what is its ${word} value?` }],
+      subject: `y = ${trigTex({ fn, a, b: 1, c: 0, d })}`,
+      steps: [
+        {
+          id: 'front',
+          ask: `What does the $${a}$ in front do?`,
+          branches: front.map((label) => ({ label, to: 'end' })),
+        },
+        {
+          id: 'end',
+          ask: `And the $${tail(d).trim()}$ on the end?`,
+          branches: add.map((label) => ({ label, to: 'value' })),
+        },
+        {
+          id: 'value',
+          ask: `So what is the ${word} value of $y$?`,
+          branches: values.map((value) => ({ label: `$${value}$`, outcome: `So the ${word} value is $${value}$.` })),
+        },
+      ],
+      answer: [a < 0 ? flipLabel : yLabel, vector(0, d), `$${target}$`],
+    };
+  },
+  solution: ({ fn, a, d, asks }) => {
+    const size = Math.abs(a);
+    return [
+      { text: `A number in front of $\\${fn} x$ multiplies every height, so it is a stretch parallel to the $y$-axis with scale factor $${size}$.${a < 0 ? ' Its minus sign also turns every height over: a reflection in the $x$-axis.' : ''}` },
+      { text: `A number on the end adds to every height: a translation by $${vecTex(0, d)}$.` },
+      { text: `The stretch takes the heights to between $${-size}$ and $${size}$; the translation adds $${d}$.` },
+      asks === 'max' ? { tex: `\\text{greatest} = ${d} + ${size} = ${d + size}` } : { tex: `\\text{least} = ${d} - ${size} = ${d - size}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 2: period as a stretch ---------- */
+
+interface XStretchParams {
+  fn: TrigFn;
+  /** The scale factor parallel to the x-axis: 1/b squashes, a whole number spreads. */
+  factor: number;
+  /** The number in front, carried along untouched. */
+  a: number;
+  /** `words`: the stretch given and the rule asked; `rule`: the reverse. */
+  dir: 'words' | 'rule';
+}
+
+/** What $x$ becomes inside after a stretch across by `factor`: `3x`, `\tfrac{x}{2}`. */
+function stretchedInside(factor: number): string {
+  return Number.isInteger(factor) ? `\\tfrac{x}{${factor}}` : `${Math.round(1 / factor)}x`;
+}
+
+/** `\tfrac{2}{3}`, `6`: a whole number or a fraction in lowest terms. */
+function ratioTex(top: number, bottom: number): string {
+  let [p, q] = [top, bottom];
+  while (q !== 0) [p, q] = [q, p % q];
+  const [n, m] = [top / p, bottom / p];
+  return m === 1 ? `${n}` : `\\tfrac{${n}}{${m}}`;
+}
+
+/** A number in front times a factor, as it would sit in front of the sine. */
+function scaledFront(a: number, factor: number): string {
+  const [top, bottom] = Number.isInteger(factor) ? [a * factor, 1] : [a, Math.round(1 / factor)];
+  return ratioTex(top, bottom);
+}
+
+/**
+ * A stretch parallel to the $x$-axis, and the $b$ it makes.
+ *
+ * Stretching by $\frac{1}{3}$ squeezes three waves into the room of one, which
+ * is $\sin 3x$: the factor and the number inside are reciprocals, and the
+ * options are both, and both again read as a stretch parallel to the
+ * $y$-axis. Asked both ways round. Difficulty 2 stretches outwards as well as
+ * in, which puts a fraction inside, and carries a number in front along.
+ */
+const xStretchChoice: Generator<XStretchParams> = {
+  id: 'fun-xstretch-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const factor = hard && rng.chance(0.4) ? rng.pick([2, 3, 4]) : 1 / rng.pick(hard ? [2, 3, 4, 5, 6] : [2, 3, 4, 5, 6, 8, 9, 10]);
+    return {
+      fn: rng.pick(['sin', 'cos'] as const),
+      factor,
+      a: hard ? rng.pick([1, 2, 3]) : 1,
+      dir: rng.pick(['words', 'rule'] as const),
+    };
+  },
+  render: ({ fn, factor, a, dir }): Slide => {
+    const start = `y = ${coefficientTex(a)}\\${fn} x`;
+    const rule = (f: number) => `y = ${coefficientTex(a)}\\${fn} ${stretchedInside(f)}`;
+    if (dir === 'words') {
+      return {
+        kind: 'choice',
+        prompt: [{ kind: 'prose', text: `$${start}$ is ${xStretchWords(factor)}. What is the equation of the new curve?` }],
+        ...fixedChoice(
+          [
+            rule(factor),
+            rule(1 / factor),
+            `y = ${scaledFront(a, factor)}\\${fn} x`,
+            `y = ${scaledFront(a, 1 / factor)}\\${fn} x`,
+          ].map((label) => ({ label, tex: true })),
+        ),
+      };
+    }
+    return {
+      kind: 'choice',
+      prompt: [{ kind: 'prose', text: `Which transformation maps $${start}$ onto $${rule(factor)}$?` }],
+      ...fixedChoice(
+        [
+          `Stretch parallel to the x-axis, scale factor ${factorLabel(factor)}`,
+          `Stretch parallel to the x-axis, scale factor ${factorLabel(1 / factor)}`,
+          `Stretch parallel to the y-axis, scale factor ${factorLabel(1 / factor)}`,
+          `Stretch parallel to the y-axis, scale factor ${factorLabel(factor)}`,
+        ].map((label) => ({ label })),
+      ),
+    };
+  },
+  solution: ({ fn, factor, a }) => {
+    const inner = stretchedInside(factor);
+    return [
+      { text: `A stretch parallel to the $x$-axis with scale factor $${factorTex(factor)}$ moves every point to $${factorTex(factor)}$ times its distance from the $y$-axis.` },
+      { text: `So the new curve does at $x$ what the old one did at $${Number.isInteger(factor) ? `\\tfrac{x}{${factor}}` : `${Math.round(1 / factor)}x`}$: write that in place of $x$.` },
+      { tex: `y = ${coefficientTex(a)}\\${fn} ${inner}` },
+      { text: `The factor and the number multiplying $x$ are reciprocals. A number in front would be a stretch parallel to the $y$-axis instead.` },
+    ];
+  },
+};
+
+interface PeriodTreeParams {
+  fn: TrigFn;
+  b: number;
+  /** The scale factor parallel to the x-axis. */
+  k: number;
+}
+
+/**
+ * A stretch across, followed through the period.
+ *
+ * The period of $\sin bx$ is $\frac{360}{b}$; a stretch parallel to the
+ * $x$-axis with factor $k$ multiplies every distance across by $k$, the
+ * period with it; and the new $b$ is $360$ over the new period. Difficulty 1
+ * stretches outwards by $2$ or $3$; difficulty 2 mostly squashes, by a half
+ * or a third, which shortens the period and raises $b$.
+ */
+const periodTree: Generator<PeriodTreeParams> = {
+  id: 'fun-period-tree',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    if (difficulty <= 1) {
+      const k = rng.pick([2, 3]);
+      return { fn, k, b: rng.pick(DIVISORS_OF_360.filter((b) => b % k === 0)) };
+    }
+    if (rng.chance(0.2)) return { fn, k: 4, b: rng.pick([4, 8, 12, 20]) };
+    const m = rng.pick([2, 3]);
+    return { fn, k: 1 / m, b: rng.pick(DIVISORS_OF_360.filter((b) => 360 % (b * m) === 0)) };
+  },
+  render: ({ fn, b, k }): Slide => {
+    const before = 360 / b;
+    const after = Math.round(before * k);
+    const newB = Math.round(360 / after);
+    const answer = [before, after, newB].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$y = \\${fn} ${b}x$, with $x$ in degrees, is ${xStretchWords(k)}. Fill in its period, then the period after the stretch, then the new $b$.`,
+        },
+      ],
+      expression: `y = \\${fn} ${b}x \\;\\to\\; y = \\${fn} bx`,
+      nodes: [
+        { id: 'before', from: [] },
+        { id: 'after', from: ['before'] },
+        { id: 'b', from: ['after'] },
+      ],
+      // The stretch taken the wrong way, and b multiplied by the factor instead of divided.
+      bank: treeBank(answer, [Number.isInteger(k) ? before / k : before * Math.round(1 / k), Number.isInteger(k) ? b * k : b / Math.round(1 / k), after / 2], newB),
+      answer,
+    };
+  },
+  solution: ({ fn, b, k }) => {
+    const before = 360 / b;
+    const after = Math.round(before * k);
+    return [
+      { text: `The period of $\\${fn} ${b}x$ is:` },
+      { tex: `\\frac{360}{${b}} = ${before}` },
+      { text: `A stretch parallel to the $x$-axis with scale factor $${factorTex(k)}$ multiplies every distance across by $${factorTex(k)}$, the length of a wave included.` },
+      { tex: `${before} \\times ${factorTex(k)} = ${after}` },
+      { tex: `b = \\frac{360}{${after}} = ${Math.round(360 / after)}` },
+      { text: `So the new curve is $y = ${trigTex(plainWave(fn, Math.round(360 / after)))}$: stretching across by $${factorTex(k)}$ divides $b$ by $${factorTex(k)}$.` },
+    ];
+  },
+};
+
+interface BGraphParams {
+  wave: Wave;
+  /** `peaks`: two neighbouring maxima ringed; `half`: a maximum and the minimum after it. */
+  gap: 'peaks' | 'half';
+}
+
+/** The two ringed x-coordinates, both inside 0 to 360. */
+function bGraphPoints({ wave, gap }: BGraphParams): [number, number] {
+  const { maxX, minX } = extremaX(wave);
+  const period = 360 / wave.b;
+  if (gap === 'peaks') return [maxX, maxX + period];
+  return [maxX, minX > maxX ? minX : minX + period];
+}
+
+/**
+ * $b$ from a period read off the graph.
+ *
+ * The rule is given with $b$ missing and the curve drawn, two points ringed
+ * and their $x$-coordinates stated. Difficulty 1 rings two neighbouring
+ * peaks, a whole period apart. Difficulty 2 rings a peak and the trough after
+ * it, which is only half a period: taking that gap as the period doubles $b$.
+ */
+const bFromGraph: Generator<BGraphParams> = {
+  id: 'fun-b-from-graph',
+  choices: (params) => {
+    const [x1, x2] = bGraphPoints(params);
+    const { b } = params.wave;
+    return numberChoices(b, 360 / (x2 - x1), 2 * b, b / 2, x2 - x1);
+  },
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const fn = rng.pick(['sin', 'cos'] as const);
+    // A sine peaks at 90/b and a cosine's trough sits at 180/b: whole only for these.
+    const bs = fn === 'sin' ? [2, 3, 5, 6, 9, 10] : hard ? [2, 3, 4, 5, 6, 9, 10] : [2, 3, 4, 5, 6, 8, 9, 10];
+    return {
+      wave: { fn, a: rng.int(1, 3), b: rng.pick(bs), c: 0, d: rng.int(-2, 2) },
+      gap: hard ? 'half' : 'peaks',
+    };
+  },
+  render: (params): Slide => {
+    const { wave, gap } = params;
+    const [x1, x2] = bGraphPoints(params);
+    const top = wave.d + wave.a;
+    const y2 = gap === 'peaks' ? top : wave.d - wave.a;
+    const rule = `y = ${coefficientTex(wave.a)}\\${wave.fn} bx${tail(wave.d)}`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: waveSvg([wave], waveWindow(wave), `A wave from 0 to 360 degrees with two points ringed`, {
+            marks: [
+              { x: x1, y: top },
+              { x: x2, y: y2 },
+            ],
+          }),
+        },
+        {
+          kind: 'prose',
+          text: `This is $${rule}$, with $x$ in degrees. The ringed points are ${gap === 'peaks' ? 'two neighbouring maxima' : 'a maximum and the minimum straight after it'}, at $x = ${x1}$ and $x = ${x2}$. Find $b$.`,
+        },
+      ],
+      lead: 'b =',
+      keypad: [],
+      answer: `${wave.b}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const [x1, x2] = bGraphPoints(params);
+    const period = 360 / params.wave.b;
+    const steps: SolutionStep[] =
+      params.gap === 'peaks'
+        ? [
+            { text: 'From one maximum to the next is one whole period.' },
+            { tex: `\\text{period} = ${x2} - ${x1} = ${period}` },
+          ]
+        : [
+            { text: 'From a maximum to the next minimum is only half a wave, so the period is twice the gap.' },
+            { tex: `${x2} - ${x1} = ${x2 - x1}` },
+            { tex: `\\text{period} = 2 \\times ${x2 - x1} = ${period}` },
+          ];
+    steps.push({ text: 'The period of a wave with $bx$ inside is $\\frac{360}{b}$, so:' });
+    steps.push({ tex: `b = \\frac{360}{${period}} = ${params.wave.b}` });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 3: phase shift and the sign trap ---------- */
+
+interface PhaseParams {
+  fn: TrigFn;
+  b: number;
+  /** How far the curve moves across, to the right when positive. */
+  h: number;
+}
+
+/** A shift in degrees: `±step` to `±most`, never 0. */
+function drawShift(rng: Rng, step: number, most: number): number {
+  return rng.sign() * step * rng.int(1, most / step);
+}
+
+/**
+ * Whether "which way and how far" has one answer: the move is under half a
+ * period, and every other move offered beside it draws a different curve. A
+ * wave repeats, so a move of $h$ and a move of $bh$ are the same curve when
+ * they differ by whole periods — $\cos(3(x + 30))$ and $\cos(3(x + 270))$ —
+ * and an option or tile that is secretly right as well is a question with two
+ * answers.
+ */
+function clearShifts(b: number, h: number, others: number[]): boolean {
+  const period = 360 / b;
+  if (2 * Math.abs(h) >= period) return false;
+  const all = [h, ...others];
+  return all.every((p, i) => all.every((q, j) => i === j || (((p - q) % period) + period) % period !== 0));
+}
+
+/** `\sin(2x - 60)`: the moved curve, bracket unfactored. */
+function movedTex({ fn, b, h }: PhaseParams): string {
+  return trigTex({ fn, a: 1, b, c: -b * h, d: 0 });
+}
+
+/** `\sin 2x`, `\cos x`: the curve before it moves. */
+function unmovedTex({ fn, b }: PhaseParams): string {
+  return trigTex(plainWave(fn, b));
+}
+
+/**
+ * Which translation moves the curve onto $\sin(bx + c)$?
+ *
+ * Difficulty 1 has $b = 1$: $\sin(x - 30)$ is $30$ to the **right**, against
+ * the sign, and the options hold the other way and the two moves up and down.
+ * Difficulty 2 has $b$ from $2$ to $4$, where $\sin(2x - 60)$ moves only
+ * $30$, and the trap of moving $60$ is offered both ways.
+ */
+const phaseChoice: Generator<PhaseParams> = {
+  id: 'fun-phase-choice',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    if (difficulty <= 1) return { fn, b: 1, h: drawShift(rng, 10, 90) };
+    return drawUntil(
+      () => ({ fn, b: rng.int(2, 4), h: drawShift(rng, 5, 45) }),
+      ({ b, h }) => clearShifts(b, h, [b * h, -h, -b * h]),
+      { fn, b: 2, h: 20 },
+    );
+  },
+  render: (params): Slide => {
+    const { b, h } = params;
+    const labels =
+      b === 1
+        ? [acrossLabel(h), acrossLabel(-h), upLabel(Math.abs(h)), upLabel(-Math.abs(h))]
+        : [acrossLabel(h), acrossLabel(b * h), acrossLabel(-h), acrossLabel(-b * h)];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `With $x$ in degrees, which translation maps $y = ${unmovedTex(params)}$ onto $y = ${movedTex(params)}$?`,
+        },
+      ],
+      ...fixedChoice(labels.map((label) => ({ label: `Translate ${label}` }))),
+    };
+  },
+  solution: (params) => {
+    const { fn, b, h } = params;
+    const steps: SolutionStep[] = [];
+    if (b !== 1) {
+      steps.push({ text: `Take $${b}$ out of the bracket, so the change to $x$ itself shows.` });
+      steps.push({ tex: stackTex(movedTex(params), factoredTex(fn, b, h)) });
+    }
+    steps.push({
+      text: `$${shiftedX(h)}$ in place of $x$ means the new curve reaches each value ${Math.abs(h)}° ${h > 0 ? 'later' : 'earlier'} than the old one: it has moved ${acrossLabel(h)}, against the sign.`,
+    });
+    steps.push({ tex: `\\text{translation by } ${vecTex(h, 0)}` });
+    if (b !== 1) steps.push({ text: `Not $${Math.abs(b * h)}°$: the number in the bracket is shared out over the $${b}$.` });
+    return steps;
+  },
+};
+
+/**
+ * $\sin(bx + c)$ rewritten as $\sin(b(x + \frac{c}{b}))$, then read as a
+ * vector.
+ *
+ * The first step's bank holds the slips of taking $b$ out — $c$ left as it
+ * was, multiplied instead of divided, the sign turned — and the second step's
+ * the move with its sign and its size each got wrong. Difficulty 2 has larger
+ * $b$, so the gap between $c$ and $\frac{c}{b}$ is wider.
+ */
+const phaseSteps: Generator<PhaseParams> = {
+  id: 'fun-phase-steps',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => (hard ? { fn, b: rng.int(4, 6), h: drawShift(rng, 5, 30) } : { fn, b: rng.int(2, 3), h: drawShift(rng, 5, 45) }),
+      ({ b, h }) => clearShifts(b, h, [b * h, -h, b * b * h, -b * h]),
+      { fn, b: hard ? 4 : 2, h: 10 },
+    );
+  },
+  render: (params): Slide => {
+    const { fn, b, h } = params;
+    const factored = factoredTex(fn, b, h);
+    const vector = vecTex(h, 0);
+    return {
+      kind: 'steps',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `How far, and which way, has $y = ${unmovedTex(params)}$ moved? The line is the new rule, with $x$ in degrees: take $${b}$ out of the bracket, then choose the translation. ${HOW_TO_STEP}`,
+        },
+      ],
+      start: [movedTex(params)],
+      reductions: [
+        {
+          span: [0, 1],
+          value: factored,
+          bank: stepBank(factored, factoredTex(fn, b, b * h), factoredTex(fn, b, -h), factoredTex(fn, b, b * b * h)),
+        },
+        {
+          span: [0, 1],
+          value: vector,
+          bank: stepBank(vector, vecTex(-h, 0), vecTex(b * h, 0), vecTex(-b * h, 0)),
+        },
+      ],
+    };
+  },
+  solution: (params) => {
+    const { fn, b, h } = params;
+    return [
+      { text: `Divide the number in the bracket by $${b}$ as you take $${b}$ out:` },
+      { tex: stackTex(movedTex(params), factoredTex(fn, b, h)) },
+      { text: `Now $x$ itself has been replaced by $${shiftedX(h)}$, which moves the curve ${acrossLabel(h)}.` },
+      { tex: `\\text{translation by } ${vecTex(h, 0)}` },
+    ];
+  },
+};
+
+interface PhaseSliderParams extends PhaseParams {
+  asks: 'max' | 'min';
+}
+
+/** Where the unmoved curve first peaks or bottoms out, after x = 0. */
+function phaseBase({ fn, b, asks }: PhaseSliderParams): number {
+  const { maxX, minX } = extremaX(plainWave(fn, b));
+  return asks === 'max' ? maxX : minX;
+}
+
+/** Where the moved curve first peaks or bottoms out, after x = 0. */
+function phaseTarget(params: PhaseSliderParams): number {
+  const { maxX, minX } = extremaX({ fn: params.fn, a: 1, b: params.b, c: -params.b * params.h, d: 0 });
+  return params.asks === 'max' ? maxX : minX;
+}
+
+/**
+ * The first peak or trough of the moved curve, slid to on the picture.
+ *
+ * The unmoved curve is drawn dashed with its first peak or trough ringed and
+ * its position stated; the learner moves it by the translation the rule
+ * makes. Difficulty 1 is $\sin(x \pm c)$, and the trough of $\cos(x \pm c)$;
+ * difficulty 2 has $b$ of $2$ or $3$ with the bracket unfactored, so the move
+ * is $\frac{c}{b}$, and a move left past $0$ comes back round a period
+ * later.
+ */
+const phaseSlider: Generator<PhaseSliderParams> = {
+  id: 'fun-phase-slider',
+  sample: (rng, difficulty) => {
+    if (difficulty <= 1) {
+      return rng.chance(0.7)
+        ? { fn: 'sin', b: 1, h: drawShift(rng, 10, 80), asks: rng.pick(['max', 'min'] as const) }
+        : { fn: 'cos', b: 1, h: drawShift(rng, 10, 80), asks: 'min' };
+    }
+    return drawUntil(
+      () => ({
+        fn: rng.pick(['sin', 'cos'] as const),
+        b: rng.pick([2, 3]),
+        h: drawShift(rng, 5, 40),
+        asks: rng.pick(['max', 'min'] as const),
+      }),
+      (params) => Number.isInteger(phaseTarget(params)) && phaseTarget(params) % 5 === 0 && phaseTarget(params) < 360,
+      { fn: 'sin', b: 2, h: 20, asks: 'max' },
+    );
+  },
+  render: (params): Slide => {
+    const { fn, b, asks } = params;
+    const base = phaseBase(params);
+    const word = asks === 'max' ? 'maximum' : 'minimum';
+    return {
+      kind: 'slider',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `The dashed curve is $y = ${unmovedTex(params)}$, with $x$ in degrees; its first ${word} after $x = 0$ is ringed, at $x = ${base}$. Slide the line to the first ${word} of $y = ${movedTex(params)}$.`,
+        },
+      ],
+      min: 0,
+      max: 360,
+      step: 5,
+      answer: phaseTarget(params),
+      readout: 'x = {v}^{\\circ}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: 360,
+          yMin: -1.6,
+          yMax: 1.6,
+          curves: [{ f: (x) => waveAt(plainWave(fn, b), x), dashed: true }],
+          marks: [{ x: base, y: asks === 'max' ? 1 : -1 }],
+          label: `The curve y = ${fn} ${b === 1 ? '' : b}x, dashed, with its first ${word} ringed`,
+        }),
+        ...markerWindow(0, 360),
+        axis: 'x',
+      },
+    };
+  },
+  solution: (params) => {
+    const { fn, b, h, asks } = params;
+    const base = phaseBase(params);
+    const target = phaseTarget(params);
+    const word = asks === 'max' ? 'maximum' : 'minimum';
+    const steps: SolutionStep[] = [];
+    if (b !== 1) steps.push({ tex: stackTex(movedTex(params), factoredTex(fn, b, h)) });
+    steps.push({ text: `So the curve has moved ${acrossLabel(h)}, and every point on it with it.` });
+    steps.push({ tex: `${base} ${signedTile(h)} = ${base + h}` });
+    const period = 360 / b;
+    if (target > base + h) {
+      steps.push({ text: `That is not after $x = 0$. The ${word}s come round every $${period}°$, so the first one after $0$ is a period on.` });
+      steps.push({ tex: `${base + h} + ${period} = ${target}` });
+    } else if (target < base + h) {
+      steps.push({ text: `The ${word}s come round every $${period}°$, so there is one a period earlier too, and that is the first after $x = 0$.` });
+      steps.push({ tex: `${base + h} - ${period} = ${target}` });
+    }
+    return steps;
+  },
+};
+
+interface PhaseFlowParams extends PhaseParams {
+  /** `factor`: $b$ taken out first; `cos`: a cosine rewritten as a sine first. */
+  form: 'factor' | 'cos';
+}
+
+const FLOW_LEFT = 'Left';
+const FLOW_RIGHT = 'Right';
+
+/**
+ * The move across, in three forks: rewrite, which way, how far.
+ *
+ * `factor` takes $b$ out of $\sin(bx + c)$. `cos` rewrites $\cos(x - h)$ as a
+ * sine through $\cos\theta = \sin(\theta + 90)$ and asks how far it sits from
+ * $y = \sin x$, which is where a cosine curve comes from: $y = \sin x$ moved
+ * $90°$ left. Difficulty 1 is `factor` with small $b$; difficulty 2 is a
+ * larger $b$, or the cosine.
+ */
+const phaseFlow: Generator<PhaseFlowParams> = {
+  id: 'fun-phase-flow',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1 && rng.chance(0.5)) return { form: 'cos', fn: 'cos', b: 1, h: drawShift(rng, 10, 80) };
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => ({ form: 'factor' as const, fn, b: hard ? rng.int(4, 6) : rng.int(2, 4), h: drawShift(rng, 5, 45) }),
+      ({ b, h }) => clearShifts(b, h, [b * h, -h, b * b * h]),
+      { form: 'factor', fn, b: hard ? 4 : 2, h: 10 },
+    );
+  },
+  render: (params): Slide => {
+    const { form, fn, b, h } = params;
+    if (form === 'cos') {
+      // cos(x - h) = sin(x - h + 90): y = sin x moved by h - 90.
+      const move = h - 90;
+      const sine = (shift: number) => `$\\sin(${shiftedX(shift)})$`;
+      const right = sine(move);
+      const values = offer(Math.abs(move), Math.abs(h), Math.abs(h) + 90, 90);
+      return {
+        kind: 'flow',
+        prompt: [{ kind: 'prose', text: 'Which translation takes $y = \\sin x$ onto this curve, with $x$ in degrees?' }],
+        subject: `y = ${trigTex({ fn: 'cos', a: 1, b: 1, c: -h, d: 0 })}`,
+        steps: [
+          {
+            id: 'rewrite',
+            ask: 'Write it as a sine, using $\\cos\\theta = \\sin(\\theta + 90)$.',
+            // The 90 taken away instead of added, and left out altogether.
+            branches: turned([right, sine(h + 90), sine(h)]).map((label) => ({ label, to: 'way' })),
+          },
+          {
+            id: 'way',
+            ask: 'Compared with $y = \\sin x$, which way has the curve moved?',
+            branches: [FLOW_LEFT, FLOW_RIGHT].map((label) => ({ label, to: 'far' })),
+          },
+          {
+            id: 'far',
+            ask: 'How far?',
+            branches: values.map((value) => ({ label: `$${value}°$`, outcome: `So it is $y = \\sin x$ moved $${value}°$.` })),
+          },
+        ],
+        answer: [right, move > 0 ? FLOW_RIGHT : FLOW_LEFT, `$${Math.abs(move)}°$`],
+      };
+    }
+    const right = `$${factoredTex(fn, b, h)}$`;
+    const values = offer(Math.abs(h), Math.abs(b * h), Math.abs(b * b * h), Math.abs(h) + b);
+    return {
+      kind: 'flow',
+      prompt: [{ kind: 'prose', text: `Which translation takes $y = ${unmovedTex(params)}$ onto this curve, with $x$ in degrees?` }],
+      subject: `y = ${movedTex(params)}`,
+      steps: [
+        {
+          id: 'factor',
+          ask: `Take $${b}$ out of the bracket. Which is it?`,
+          branches: turned([right, `$${factoredTex(fn, b, b * h)}$`, `$${factoredTex(fn, b, -h)}$`]).map((label) => ({ label, to: 'way' })),
+        },
+        {
+          id: 'way',
+          ask: 'Which way has the curve moved?',
+          branches: [FLOW_LEFT, FLOW_RIGHT].map((label) => ({ label, to: 'far' })),
+        },
+        {
+          id: 'far',
+          ask: 'How far?',
+          branches: values.map((value) => ({ label: `$${value}°$`, outcome: `So it has moved $${value}°$.` })),
+        },
+      ],
+      answer: [right, h > 0 ? FLOW_RIGHT : FLOW_LEFT, `$${Math.abs(h)}°$`],
+    };
+  },
+  solution: (params) => {
+    const { form, fn, b, h } = params;
+    if (form === 'cos') {
+      const move = h - 90;
+      return [
+        { text: `A cosine is a sine moved $90°$ left: $\\cos\\theta = \\sin(\\theta + 90)$. Put $\\theta = ${shiftedX(h)}$:` },
+        { tex: stackTex(`\\cos(${shiftedX(h)})`, `\\sin(${shiftedX(h)} + 90)`, `\\sin(${shiftedX(move)})`) },
+        { text: `$${shiftedX(move)}$ in place of $x$ moves $y = \\sin x$ ${acrossLabel(move)}.` },
+        { tex: `\\text{translation by } ${vecTex(move, 0)}` },
+      ];
+    }
+    return [
+      { tex: stackTex(movedTex(params), factoredTex(fn, b, h)) },
+      { text: `$x$ has been replaced by $${shiftedX(h)}$, so the curve moves ${acrossLabel(h)} — against the sign, and by the number left once $${b}$ is out, not the one in the rule.` },
+      { tex: `\\text{translation by } ${vecTex(h, 0)}` },
+    ];
+  },
+};
+
+/* ---------- Lesson 4: the equation from the graph ---------- */
+
+interface WaveReadParams {
+  wave: Wave;
+}
+
+/** The ringed maximum and minimum of a wave, left to right. */
+function ringedExtremes(wave: Wave): { x: number; y: number }[] {
+  const { maxX, minX } = extremaX(wave);
+  const top = { x: maxX, y: wave.d + Math.abs(wave.a) };
+  const bottom = { x: minX, y: wave.d - Math.abs(wave.a) };
+  return maxX < minX ? [top, bottom] : [bottom, top];
+}
+
+function pointTex({ x, y }: { x: number; y: number }): string {
+  return `(${x}, ${y})`;
+}
+
+/**
+ * $a$ and $d$ — and at difficulty 2 $b$ too — read off a drawn wave.
+ *
+ * The ringed maximum and minimum have their coordinates stated. $d$ is
+ * halfway between them and $a$ half the distance, so the bank holds the
+ * whole distance, the two swapped and the signs turned. At difficulty 2 $b$
+ * comes from the period, twice the gap from a maximum to the next minimum,
+ * and $a$ may be negative: a sine that sets off downwards.
+ */
+const waveRead: Generator<WaveReadParams> = {
+  id: 'fun-wave-read',
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    if (difficulty <= 1) return { wave: { fn, a: rng.int(2, 5), b: 1, c: 0, d: rng.pick(nonZeroRange(-4, 4)) } };
+    const size = rng.int(2, 5);
+    return {
+      wave: {
+        fn,
+        a: rng.chance(0.4) ? -size : size,
+        b: rng.pick(fn === 'sin' ? [2, 3, 5, 6] : [2, 3, 4, 5, 6]),
+        c: 0,
+        d: rng.pick(nonZeroRange(-4, 4)),
+      },
+    };
+  },
+  render: ({ wave }): Slide => {
+    const { fn, a, b, d } = wave;
+    const [first, second] = ringedExtremes(wave);
+    const hasB = b !== 1;
+    const skeleton = `y = a\\${fn} ${hasB ? 'b' : ''}x + d`;
+    const answer = hasB ? [numberTile(a), `${b}`, signedTile(d)] : [numberTile(a), signedTile(d)];
+    const size = Math.abs(a);
+    return {
+      kind: 'tiles',
+      prompt: [
+        { kind: 'diagram', svg: waveSvg([wave], waveWindow(wave), 'A wave from 0 to 360 degrees with its highest and lowest points ringed', { marks: [first, second] }) },
+        {
+          kind: 'prose',
+          text: `This is $${skeleton}$, with $x$ in degrees. The ringed points are $${pointTex(first)}$ and $${pointTex(second)}$. Write its equation.`,
+        },
+      ],
+      template: hasB ? `y = {0}\\${fn} {1}x {2}` : `y = {0}\\${fn} x {1}`,
+      bank: bankOf(answer, [
+        numberTile(-a),
+        numberTile(2 * size),
+        numberTile(d),
+        signedTile(-d),
+        signedTile(size),
+        ...(hasB ? [`${2 * b}`, ...(b % 2 === 0 ? [`${b / 2}`] : [`${b + 1}`])] : []),
+      ]),
+      answer,
+    };
+  },
+  solution: ({ wave }) => {
+    const { fn, a, b, d } = wave;
+    const max = d + Math.abs(a);
+    const min = d - Math.abs(a);
+    const [first, second] = ringedExtremes(wave);
+    const steps: SolutionStep[] = [
+      { tex: `d = \\frac{${max} + ${br(min)}}{2} = ${d}` },
+      { tex: `|a| = \\frac{${max} - ${br(min)}}{2} = ${Math.abs(a)}` },
+    ];
+    if (a < 0) {
+      steps.push({ text: `A $\\${fn}$ would ${fn === 'sin' ? 'rise from its midline' : 'start at its highest point'}; this one ${fn === 'sin' ? 'falls' : 'starts at its lowest'}, so it has been reflected and $a = ${a}$.` });
+    }
+    if (b !== 1) {
+      steps.push({ text: 'From a maximum to the next minimum is half a period.' });
+      steps.push({ tex: `${second.x} - ${first.x} = ${second.x - first.x}` });
+      steps.push({ tex: `\\text{period} = 2 \\times ${second.x - first.x} = ${360 / b}` });
+      steps.push({ tex: `b = \\frac{360}{${360 / b}} = ${b}` });
+    }
+    steps.push({ tex: `y = ${trigTex(wave)}` });
+    return steps;
+  },
+};
+
+interface WavePartsParams {
+  wave: Wave;
+  /** Read off a graph, the period from a maximum and the next minimum; otherwise stated. */
+  graph: boolean;
+}
+
+/**
+ * $a$, $b$ and $d$ from the greatest and least values and the period.
+ *
+ * The top row is the difference and the sum of the two values and $b$; the
+ * row beneath halves the first two into $a$ and $d$. Difficulty 1 states the
+ * three numbers. Difficulty 2 draws the wave with a maximum and the next
+ * minimum ringed, so the period is twice the gap between them.
+ */
+const waveParts: Generator<WavePartsParams> = {
+  id: 'fun-wave-parts-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      wave: {
+        fn: hard ? rng.pick(['sin', 'cos'] as const) : 'sin',
+        a: rng.int(2, 5),
+        b: rng.pick(hard ? [2, 3, 5, 6] : [1, 2, 3, 4, 5, 6, 8, 9, 10]),
+        c: 0,
+        d: rng.pick(nonZeroRange(-4, 4)),
+      },
+      graph: hard,
+    };
+  },
+  render: ({ wave, graph }): Slide => {
+    const { fn, a, b, d } = wave;
+    const max = d + a;
+    const min = d - a;
+    const answer = [max - min, max + min, b, a, d].map(String);
+    const skeleton = `y = a\\${fn} bx + d`;
+    const order = 'Fill in the top row — the greatest value take away the least, the two added, and $b$ — then $a$ and $d$ beneath.';
+    const [first, second] = ringedExtremes(wave);
+    const prompt: Block[] = graph
+      ? [
+          { kind: 'diagram', svg: waveSvg([wave], waveWindow(wave), 'A wave from 0 to 360 degrees with a maximum and the next minimum ringed', { marks: [first, second] }) },
+          { kind: 'prose', text: `This is $${skeleton}$, with $x$ in degrees and $a > 0$. The ringed points are $${pointTex(first)}$ and $${pointTex(second)}$. ${order}` },
+        ]
+      : [
+          {
+            kind: 'prose',
+            text: `$${skeleton}$, with $x$ in degrees and $a > 0$, has a greatest value of $${max}$, a least value of $${min}$ and a period of $${360 / b}°$. ${order}`,
+          },
+        ];
+    return {
+      kind: 'tree',
+      prompt,
+      expression: skeleton,
+      nodes: [
+        { id: 'diff', from: [] },
+        { id: 'sum', from: [] },
+        { id: 'b', from: [] },
+        { id: 'a', from: ['diff'] },
+        { id: 'd', from: ['sum'] },
+      ],
+      bank: treeBank(answer, [2 * b, max, min, -d, (max - min) / 4], a),
+      answer,
+    };
+  },
+  solution: ({ wave, graph }) => {
+    const { a, b, d } = wave;
+    const max = d + a;
+    const min = d - a;
+    const steps: SolutionStep[] = [
+      { tex: `${max} - ${br(min)} = ${max - min}` },
+      { tex: `a = \\frac{${max - min}}{2} = ${a}` },
+      { tex: `${max} + ${br(min)} = ${max + min}` },
+      { tex: `d = \\frac{${max + min}}{2} = ${d}` },
+    ];
+    if (graph) {
+      const [first, second] = ringedExtremes(wave);
+      steps.push({ text: 'A maximum to the next minimum is half a period.' });
+      steps.push({ tex: `${second.x} - ${first.x} = ${second.x - first.x}` });
+      steps.push({ tex: `\\text{period} = 2 \\times ${second.x - first.x} = ${360 / b}` });
+    }
+    steps.push({ tex: `b = \\frac{360}{${360 / b}} = ${b}` });
+    steps.push({ tex: `y = ${trigTex(wave)}` });
+    return steps;
+  },
+};
+
+interface ShiftGraphParams {
+  fn: TrigFn;
+  a: number;
+  b: number;
+  d: number;
+  /** Where the wave starts: the rise through the midline for a sine, the first peak for a cosine. */
+  s: number;
+}
+
+function shiftWave({ fn, a, b, d, s }: ShiftGraphParams): Wave {
+  return { fn, a, b, c: -b * s, d };
+}
+
+/** The ringed start of the wave. */
+function startPoint(params: ShiftGraphParams): { x: number; y: number } {
+  return { x: params.s, y: params.fn === 'sin' ? params.d : params.d + params.a };
+}
+
+/**
+ * $c$ from where the wave starts.
+ *
+ * A sine starts by rising through its midline and a cosine at its peak; the
+ * ringed start is at $x = s$, so the curve has moved $s$ to the right and $c$
+ * is $s$. Difficulty 2 puts $b$ in front of $x$: $\sin(bx - c)$ is
+ * $\sin(b(x - \frac{c}{b}))$, so the move $s$ is $\frac{c}{b}$ and $c = bs$,
+ * and $s$ is the tempting wrong answer.
+ */
+const graphShift: Generator<ShiftGraphParams> = {
+  id: 'fun-graph-shift',
+  choices: ({ b, s }) => numberChoices(b * s, s, 360 - b * s, 90 + s, 2 * b * s),
+  sample: (rng, difficulty) => {
+    const fn = rng.pick(['sin', 'cos'] as const);
+    const d = rng.int(-2, 2);
+    const a = rng.int(1, 3);
+    if (difficulty <= 1) return { fn, a, b: 1, d, s: 5 * rng.int(2, 17) };
+    return { fn, a, b: rng.int(2, 4), d, s: 5 * rng.int(1, 8) };
+  },
+  render: (params): Slide => {
+    const { fn, a, b, d, s } = params;
+    const wave = shiftWave(params);
+    const rule = `y = ${coefficientTex(a)}\\${fn}(${b === 1 ? '' : b}x - c)${tail(d)}`;
+    const where =
+      fn === 'sin'
+        ? `The curve rises through its midline, dashed, at the ringed point, where $x = ${s}$.`
+        : `The ringed point, at $x = ${s}$, is its first maximum.`;
+    return {
+      kind: 'expression',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: waveSvg([wave], waveWindow(wave), 'A wave from 0 to 360 degrees with its start ringed', {
+            marks: [startPoint(params)],
+            horizontals: fn === 'sin' && d !== 0 ? [d] : [],
+          }),
+        },
+        { kind: 'prose', text: `This is $${rule}$, with $x$ in degrees and $c$ between $0$ and $180$. ${where} Find $c$.` },
+      ],
+      lead: 'c =',
+      keypad: [],
+      answer: `${b * s}`,
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ fn, b, s }) => {
+    const steps: SolutionStep[] = [
+      {
+        text:
+          fn === 'sin'
+            ? `$y = \\sin x$ rises through its midline at $x = 0$. This one does it at $x = ${s}$, so it has moved $${s}°$ to the right.`
+            : `$y = \\cos x$ has its first maximum at $x = 0$. This one has it at $x = ${s}$, so it has moved $${s}°$ to the right.`,
+      },
+      { text: `A move $${s}$ to the right writes $${shiftedX(s)}$ in place of $x$.` },
+    ];
+    if (b === 1) {
+      steps.push({ tex: `c = ${s}` });
+      return steps;
+    }
+    steps.push({ tex: stackTex(`\\${fn}(${b}(${shiftedX(s)}))`, `\\${fn}(${b}x - ${b * s})`) });
+    steps.push({ tex: `c = ${b} \\times ${s} = ${b * s}` });
+    steps.push({ text: `Not $${s}$: the $${b}$ multiplies the whole bracket, the shift included.` });
+    return steps;
+  },
+};
+
+/**
+ * Which rule draws this wave?
+ *
+ * The midline is dashed, the rise through it is ringed with its position
+ * stated, and the greatest and least values are given. The options are the
+ * rule, the shift with its sign turned, the stretch and the midline swapped,
+ * and a cosine with the same numbers. Difficulty 2 has $b$ in front of $x$,
+ * where the trap is $\sin(bx - s)$: the move written in without multiplying
+ * by $b$.
+ */
+const waveChoice: Generator<ShiftGraphParams> = {
+  id: 'fun-wave-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return drawUntil(
+      () => ({
+        fn: 'sin' as const,
+        a: rng.int(2, 4),
+        b: hard ? rng.int(2, 3) : 1,
+        d: rng.pick(nonZeroRange(-3, 3)),
+        s: hard ? 5 * rng.int(1, 8) : 10 * rng.int(1, 8),
+      }),
+      ({ a, d }) => a !== d,
+      { fn: 'sin', a: 2, b: 1, d: 1, s: 30 },
+    );
+  },
+  render: (params): Slide => {
+    const { a, b, d, s } = params;
+    const wave = shiftWave(params);
+    const rule = (fn: TrigFn, front: number, c: number, end: number) => `y = ${trigTex({ fn, a: front, b, c, d: end })}`;
+    const labels =
+      b === 1
+        ? [rule('sin', a, -s, d), rule('sin', a, s, d), rule('sin', d, -s, a), rule('cos', a, -s, d)]
+        : [rule('sin', a, -b * s, d), rule('sin', a, -s, d), rule('sin', a, b * s, d), rule('cos', a, -b * s, d)];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'diagram',
+          svg: waveSvg([wave], waveWindow(wave), 'A wave from 0 to 360 degrees with its midline dashed and one point ringed', {
+            marks: [startPoint(params)],
+            horizontals: [d],
+          }),
+        },
+        {
+          kind: 'prose',
+          text: `With $x$ in degrees, this wave runs from $${d - a}$ up to $${d + a}$, and rises through its dashed midline at the ringed point, $x = ${s}$. Which is its equation?`,
+        },
+      ],
+      ...fixedChoice(labels.map((label) => ({ label, tex: true }))),
+    };
+  },
+  solution: (params) => {
+    const { a, b, d, s } = params;
+    const steps: SolutionStep[] = [
+      { tex: `d = \\frac{${d + a} + ${br(d - a)}}{2} = ${d}` },
+      { tex: `a = \\frac{${d + a} - ${br(d - a)}}{2} = ${a}` },
+      { text: `It rises through its midline like a sine, but at $x = ${s}$ rather than $0$: moved $${s}°$ to the right, so $x$ becomes $${shiftedX(s)}$.` },
+    ];
+    if (b !== 1) steps.push({ tex: stackTex(`\\sin(${b}(${shiftedX(s)}))`, `\\sin(${b}x - ${b * s})`) });
+    steps.push({ tex: `y = ${trigTex(shiftWave(params))}` });
+    return steps;
+  },
+};
+
+/* ---------- Lesson 5: putting it together ---------- */
+
+interface MovesParams {
+  /**
+   * `stretchUp`: stretch parallel to the y-axis, then move up; `upStretch` the
+   * other way round. `stretchAcross`: stretch parallel to the x-axis, then
+   * move across; `acrossStretch` the other way round.
+   */
+  form: 'stretchUp' | 'upStretch' | 'stretchAcross' | 'acrossStretch';
+  fn: TrigFn;
+  /** The stretch up, or the b of a stretch across by 1/b. */
+  m: number;
+  /** The move: up when vertical, to the right in degrees when across. */
+  k: number;
+}
+
+function movesWave({ form, fn, m, k }: MovesParams): Wave {
+  if (form === 'stretchUp') return { fn, a: m, b: 1, c: 0, d: k };
+  if (form === 'upStretch') return { fn, a: m, b: 1, c: 0, d: m * k };
+  if (form === 'stretchAcross') return { fn, a: 1, b: m, c: -m * k, d: 0 };
+  return { fn, a: 1, b: m, c: -k, d: 0 };
+}
+
+/** The two moves in the order they are made, as prose. */
+function movesWords({ form, m, k }: MovesParams): [string, string] {
+  if (form === 'stretchUp') return [yStretchWords(m), translateWords(0, k)];
+  if (form === 'upStretch') return [translateWords(0, k), yStretchWords(m)];
+  if (form === 'stretchAcross') return [xStretchWords(1 / m), translateWords(k, 0)];
+  return [translateWords(k, 0), xStretchWords(1 / m)];
+}
+
+function sampleMoves(rng: Rng, difficulty: number): MovesParams {
+  const fn = rng.pick(['sin', 'cos'] as const);
+  if (difficulty <= 1) {
+    return { form: rng.pick(['stretchUp', 'upStretch'] as const), fn, m: rng.int(2, 4), k: rng.pick(nonZeroRange(-4, 4)) };
+  }
+  return { form: rng.pick(['stretchAcross', 'acrossStretch'] as const), fn, m: rng.int(2, 4), k: drawShift(rng, 10, 60) };
+}
+
+/**
+ * Two moves in a stated order, into a rule.
+ *
+ * The order is the question. A stretch after a move up stretches the move
+ * too: up $2$ then stretch by $3$ is $3\sin x + 6$. Across, the reverse
+ * holds: a move after a stretch is not stretched, so stretch by $\frac{1}{2}$
+ * then move $30°$ right is $\sin(2(x - 30)) = \sin(2x - 60)$, while move then
+ * stretch is $\sin(2x - 30)$. Difficulty 1 is the moves up; difficulty 2 the
+ * moves across. The bank holds the number the other order would give.
+ */
+const movesTiles: Generator<MovesParams> = {
+  id: 'fun-moves-tiles',
+  sample: sampleMoves,
+  render: (params): Slide => {
+    const { form, fn, m, k } = params;
+    const [first, second] = movesWords(params);
+    const wave = movesWave(params);
+    const across = form === 'stretchAcross' || form === 'acrossStretch';
+    const answer = across ? [`${m}`, signedTile(wave.c)] : [`${m}`, signedTile(wave.d)];
+    const other = across ? (form === 'stretchAcross' ? -k : -m * k) : form === 'stretchUp' ? m * k : k;
+    return {
+      kind: 'tiles',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `$y = \\${fn} x$${across ? ', with $x$ in degrees,' : ''} is ${first}, and then ${second}. Write the equation of the new curve.`,
+        },
+      ],
+      template: across ? `y = \\${fn}({0}x {1})` : `y = {0}\\${fn} x {1}`,
+      bank: bankOf(answer, [
+        signedTile(other),
+        signedTile(across ? -wave.c : -wave.d),
+        across ? `\\tfrac{1}{${m}}` : `${Math.abs(k)}`,
+        ...(across ? [] : [`${m + 1}`]),
+      ]),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { form, fn, m, k } = params;
+    const final = `y = ${trigTex(movesWave(params))}`;
+    if (form === 'stretchUp') {
+      return [
+        { tex: `y = ${m}\\${fn} x` },
+        { text: `Then the move adds $${k}$ to every height:` },
+        { tex: final },
+      ];
+    }
+    if (form === 'upStretch') {
+      return [
+        { tex: `y = \\${fn} x${tail(k)}` },
+        { text: `The stretch then multiplies every height by $${m}$ — the $${k}$ it has just been moved by included:` },
+        { tex: stackTex(`y = ${m}(\\${fn} x${tail(k)})`, trigTex(movesWave(params))) },
+      ];
+    }
+    if (form === 'stretchAcross') {
+      return [
+        { tex: `y = \\${fn} ${m}x` },
+        { text: `Moving ${acrossLabel(k)} writes $${shiftedX(k)}$ in place of $x$ — every $x$, including the one the $${m}$ multiplies:` },
+        { tex: stackTex(`y = ${factoredTex(fn, m, k)}`, trigTex(movesWave(params))) },
+      ];
+    }
+    return [
+      { tex: `y = \\${fn}(${shiftedX(k)})` },
+      { text: `The stretch then writes $${m}x$ in place of $x$, and only the $x$ is multiplied:` },
+      { tex: final },
+    ];
+  },
+};
+
+/**
+ * A rule into two moves in order.
+ *
+ * Difficulty 1 is $a\sin x + d$: stretch, then move, since a move made first
+ * would be stretched too. Difficulty 2 is $\sin(bx + c)$: here the move
+ * comes **first**, by $c$, and then the stretch by $\frac{1}{b}$ — stretch
+ * first and the move would have to be $\frac{c}{b}$, which is not offered.
+ * The distractors are the other order, the other direction, and the other
+ * factor or axis.
+ */
+const movesChoice: Generator<MovesParams> = {
+  id: 'fun-moves-choice',
+  sample: (rng, difficulty) => {
+    const params = sampleMoves(rng, difficulty);
+    return { ...params, form: difficulty > 1 ? 'acrossStretch' : 'stretchUp', m: difficulty > 1 ? params.m : rng.int(2, 5) };
+  },
+  render: (params): Slide => {
+    const { form, m, k } = params;
+    const sentence = (one: string, two: string) => `${one}, then ${two}`;
+    const labels =
+      form === 'stretchUp'
+        ? [
+            sentence(`Stretch parallel to the y-axis by ${m}`, `translate ${upLabel(k)}`),
+            sentence(`Translate ${upLabel(k)}`, `stretch parallel to the y-axis by ${m}`),
+            sentence(`Stretch parallel to the y-axis by ${m}`, `translate ${upLabel(-k)}`),
+            sentence(`Stretch parallel to the x-axis by ${m}`, `translate ${upLabel(k)}`),
+          ]
+        : [
+            sentence(`Translate ${acrossLabel(k)}`, `stretch parallel to the x-axis by 1/${m}`),
+            sentence(`Stretch parallel to the x-axis by 1/${m}`, `translate ${acrossLabel(k)}`),
+            sentence(`Translate ${acrossLabel(-k)}`, `stretch parallel to the x-axis by 1/${m}`),
+            sentence(`Translate ${acrossLabel(k)}`, `stretch parallel to the x-axis by ${m}`),
+          ];
+    return {
+      kind: 'choice',
+      prompt: [
+        {
+          kind: 'prose',
+          text: `Which two moves, in this order, take $y = \\${params.fn} x$ onto $y = ${trigTex(movesWave(params))}$${form === 'stretchUp' ? '' : ', with $x$ in degrees'}?`,
+        },
+      ],
+      ...fixedChoice(labels.map((label) => ({ label }))),
+    };
+  },
+  solution: (params) => {
+    const { form, fn, m, k } = params;
+    if (form === 'stretchUp') {
+      return [
+        { text: `The $${m}$ multiplies $\\${fn} x$ and the $${k}$ is added after, so stretch first:` },
+        { tex: chainTex(`\\${fn} x`, `${m}\\${fn} x`, trigTex(movesWave(params))) },
+        { text: `Moving first would have the stretch multiply the move as well, giving $${trigTex({ fn, a: m, b: 1, c: 0, d: m * k })}$.` },
+      ];
+    }
+    return [
+      { text: `Move ${acrossLabel(k)} first: that writes $${shiftedX(k)}$ in place of $x$. The stretch by $\\tfrac{1}{${m}}$ then writes $${m}x$ in place of $x$, and leaves the $${Math.abs(k)}$ alone:` },
+      { tex: chainTex(`\\${fn} x`, `\\${fn}(${shiftedX(k)})`, trigTex(movesWave(params))) },
+      { text: `Stretching first would multiply the move too: $${factoredTex(fn, m, k)} = ${trigTex({ fn, a: 1, b: m, c: -m * k, d: 0 })}$, a different curve.` },
+    ];
+  },
+};
+
 export const functionGenerators = [
   evaluate,
   substitute,
@@ -5815,4 +7404,21 @@ export const functionGenerators = [
   joinTree,
   pieceChoice,
   pieceTiles,
+  waveExtremes,
+  ampSlider,
+  ampTiles,
+  ampFlow,
+  xStretchChoice,
+  periodTree,
+  bFromGraph,
+  phaseChoice,
+  phaseSteps,
+  phaseSlider,
+  phaseFlow,
+  waveRead,
+  waveParts,
+  graphShift,
+  waveChoice,
+  movesTiles,
+  movesChoice,
 ];

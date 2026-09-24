@@ -25,8 +25,11 @@
  * where boundaries meet, the whole-number points inside, and regions from
  * words.
  *
- * The last level, modelling, is in the level plan in
- * `docs/roadmap/levels/linear-equations.md`.
+ * Level 7 models stories with straight-line equations: naming the unknown
+ * and writing every quantity from it, break-even, rates of travel and of
+ * filling, mixtures blended to a target, and reading a model back — which
+ * equation fits, an answer that makes no sense, a formula rearranged for
+ * the story's unknown, and the effect of changing one number.
  *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
@@ -1449,6 +1452,206 @@ export const linearEquations: Course = {
         ask('lin-story-tiles', 2),
         ask('lin-story-most', 2),
         ask('lin-story-meet-steps', 2),
+      ],
+    },
+    {
+      id: 'le-l7',
+      title: 'Modelling with Linear Equations',
+      lessons: [
+        {
+          id: 'le-l7-naming',
+          title: 'Naming the Unknown',
+          slides: [
+            teach(
+              prose(
+                'A story becomes an equation once one quantity has a letter. Pick the one the others are described **from**, so every other quantity can be written from it without fractions.',
+              ),
+              prose('"Ben has $3$ more than twice as many as Amy, and Cara has $4$ fewer than Amy." Both are described from Amy, so Amy has $x$:'),
+              maths('\\begin{gathered} \\text{Amy: } x \\\\ \\text{Ben: } 2x + 3 \\\\ \\text{Cara: } x - 4 \\end{gathered}'),
+            ),
+            ask('lin-name-letter'),
+            ask('lin-name-express'),
+            ask('lin-name-letter', 2),
+            teach(
+              prose('The sentence with the total gives the equation. Add the quantities, then collect like terms. If together they have $39$:'),
+              maths('\\begin{gathered} x + (2x + 3) + (x - 4) = 39 \\\\ 4x - 1 = 39 \\end{gathered}'),
+              prose('Keep the brackets while adding, so each sign stays with its number.'),
+            ),
+            ask('lin-name-total'),
+            ask('lin-name-express', 2),
+            ask('lin-name-tree'),
+            teach(
+              prose('Solving gives $x$, but $x$ is only what the letter stood for. From $4x - 1 = 39$, $x = 10$: Amy has $10$, Ben $23$ and Cara $6$.'),
+              prose(
+                "Answer the question that was asked, in the story's units. If it asked for Ben's, the answer is $23$, not $10$. And check it against the words: $10 + 23 + 6 = 39$.",
+              ),
+            ),
+            ask('lin-name-solve'),
+            ask('lin-name-solve+choice', 2),
+          ],
+          skillCheck: [ask('lin-name-express', 2), ask('lin-name-total', 2), ask('lin-name-solve', 2)],
+        },
+        {
+          id: 'le-l7-break-even',
+          title: 'Break-Even',
+          slides: [
+            teach(
+              prose(
+                'A seller pays a **fixed cost** once, whatever they sell, and a **cost per item** for each one made. The **income** is the price times the number sold.',
+              ),
+              prose('A stall pays £$36$ to hire a table. Each cake costs £$2$ to make and sells for £$5$. With $n$ cakes sold:'),
+              maths('\\begin{gathered} \\text{income} = 5n \\\\ \\text{costs} = 36 + 2n \\end{gathered}'),
+              prose('It **breaks even** when the two are equal: no profit and no loss.'),
+            ),
+            ask('lin-even-tiles'),
+            ask('lin-even-count'),
+            ask('lin-even-table'),
+            teach(
+              prose('Solve it like any equation with the unknown on both sides, as in level 1:'),
+              maths('\\begin{gathered} 5n = 36 + 2n \\\\ 3n = 36 \\\\ n = 12 \\end{gathered}'),
+              prose(
+                'The $3$ is what each cake makes over its own cost, and $12$ lots of £$3$ pay back the £$36$. On a graph, break-even is where the income line crosses the cost line.',
+              ),
+            ),
+            ask('lin-even-slider'),
+            ask('lin-even-count+choice', 2),
+            ask('lin-even-tiles', 2),
+            teach(
+              prose('Sell more than the break-even number and the income wins: a **profit**. Sell fewer and the costs win: a **loss**.'),
+              prose(
+                'At $20$ cakes the income is £$100$ and the costs £$76$, a profit of £$24$. At $10$ it is £$50$ against £$56$, a loss of £$6$. Each cake either side of $12$ moves it by £$3$.',
+              ),
+            ),
+            ask('lin-even-flow'),
+            ask('lin-even-flow', 2),
+          ],
+          skillCheck: [ask('lin-even-count', 2), ask('lin-even-tiles', 2), ask('lin-even-flow', 2)],
+        },
+        {
+          id: 'le-l7-rates',
+          title: 'Rates',
+          slides: [
+            teach(
+              prose('Distance is speed times time. With the time as the unknown $t$, each traveller covers their speed times $t$.'),
+              prose('Two walkers $18$ km apart head towards each other at $4$ km/h and $5$ km/h. Between them they cover the whole gap:'),
+              maths('\\begin{gathered} 4t + 5t = 18 \\\\ 9t = 18 \\\\ t = 2 \\end{gathered}'),
+              prose('The gap closes at $4 + 5 = 9$ km/h, which is why the speeds add.'),
+            ),
+            ask('lin-rate-tiles'),
+            ask('lin-rate-meet'),
+            ask('lin-rate-where-tree'),
+            teach(
+              prose('Catching up goes the same way, so the gap closes at the **difference** of the speeds.'),
+              prose('Asha starts $6$ km ahead at $4$ km/h and Ben follows at $7$ km/h. Ben catches her when they are the same distance along:'),
+              maths('\\begin{gathered} 7t = 6 + 4t \\\\ 3t = 6 \\\\ t = 2 \\end{gathered}'),
+              prose('On a distance-time graph, the catch is where the two lines cross.'),
+            ),
+            ask('lin-rate-catch'),
+            ask('lin-rate-meet+choice', 2),
+            ask('lin-rate-tiles', 2),
+            teach(
+              prose(
+                'A rate can fill as well as move. A tank with $20$ litres in it, filling at $7$ litres a minute while $3$ drain out, rises by $7 - 3 = 4$ litres a minute:',
+              ),
+              maths('\\begin{gathered} 20 + (7 - 3)t = 60 \\\\ 4t = 40 \\\\ t = 10 \\end{gathered}'),
+              prose('If more drains out than flows in, the net rate is negative and the level falls.'),
+            ),
+            ask('lin-rate-tank'),
+            ask('lin-rate-catch', 2),
+          ],
+          skillCheck: [ask('lin-rate-meet', 2), ask('lin-rate-tiles', 2), ask('lin-rate-tank', 2)],
+        },
+        {
+          id: 'le-l7-mixtures',
+          title: 'Mixtures',
+          slides: [
+            teach(
+              prose(
+                'A mixture has two unknowns, how much of each goes in, so it needs two letters and two facts: one about the **amounts** and one about the **cost**. This is level 2 again, from a new kind of story.',
+              ),
+              prose('Cashews at £$12$ per kg and peanuts at £$4$ per kg make $8$ kg of mix at £$7$ per kg. With $x$ kg of cashews and $y$ kg of peanuts:'),
+              maths('\\begin{gathered} x + y = 8 \\\\ 12x + 4y = 56 \\end{gathered}'),
+              prose(
+                'The $56$ is the whole mix: $8$ kg at £$7$. Leaving it as $7$ is the usual slip. As the cashews go from none to all $8$ kg, the price per kg runs in a straight line from £$4$ to £$12$.',
+              ),
+            ),
+            ask('lin-mix-pair'),
+            ask('lin-mix-tiles'),
+            ask('lin-mix-slider'),
+            teach(
+              prose('Solve by substitution: $y = 8 - x$, so'),
+              maths('\\begin{gathered} 12x + 4(8 - x) = 56 \\\\ 8x + 32 = 56 \\\\ 8x = 24 \\\\ x = 3 \\end{gathered}'),
+              prose('So $3$ kg of cashews and $5$ kg of peanuts. Check: $36 + 20 = 56$.'),
+            ),
+            ask('lin-mix-substitute-steps'),
+            ask('lin-mix-solve'),
+            ask('lin-mix-tiles', 2),
+            teach(
+              prose(
+                'A **strength** works the same way. A $40\\%$ acid and a $10\\%$ acid make $30$ litres at $20\\%$. Counting per cent times litres, $40x + 10y = 20 \\times 30 = 600$, with $x + y = 30$.',
+              ),
+              prose(
+                'The target sits nearer the one there is more of, and exactly halfway for equal amounts. $20$ is nearer $10$, so there is more of the weak one: $x = 10$ and $y = 20$.',
+              ),
+            ),
+            ask('lin-mix-flow'),
+            ask('lin-mix-solve+choice', 2),
+          ],
+          skillCheck: [ask('lin-mix-tiles', 2), ask('lin-mix-solve', 2), ask('lin-mix-substitute-steps', 2)],
+        },
+        {
+          id: 'le-l7-reading',
+          title: 'Reading the Model Back',
+          slides: [
+            teach(
+              prose('Before solving, check the equation says what the story says, reading each part back in words.'),
+              prose('A plumber charges £$40$ to call out plus £$30$ an hour. The fee is paid once and the rate once per hour, so a £$130$ bill for $h$ hours is'),
+              maths('40 + 30h = 130'),
+              prose(
+                'Not $(40 + 30)h = 130$, which charges the fee every hour. After solving, read the answer back too: half a cake cannot be sold, a time cannot be negative, and one part of a mix cannot weigh more than the whole.',
+              ),
+            ),
+            ask('lin-back-which'),
+            ask('lin-back-sense-flow'),
+            ask('lin-back-which', 2),
+            teach(
+              prose("A formula can be turned round to give the story's unknown straight away. Undo in reverse order, as in level 3:"),
+              maths('\\begin{gathered} C = 40 + 30h \\\\ C - 40 = 30h \\\\ h = (C - 40) \\div 30 \\end{gathered}'),
+              prose('Then any bill gives its hours at once: a £$130$ bill is $(130 - 40) \\div 30 = 3$ hours.'),
+            ),
+            ask('lin-back-rearrange'),
+            ask('lin-back-sense-flow', 2),
+            ask('lin-back-rearrange', 2),
+            teach(
+              prose(
+                'Changing one number moves the answer in a way you can predict. A fixed cost of £$60$ with £$4$ made on each sale breaks even at $60 \\div 4 = 15$.',
+              ),
+              prose(
+                'Put the price up by £$2$ and each sale makes £$6$, so $60 \\div 6 = 10$ are enough. A bigger fixed cost goes the other way: £$80$ at £$4$ a sale needs $20$.',
+              ),
+            ),
+            ask('lin-back-change'),
+            ask('lin-back-change+choice', 2),
+          ],
+          skillCheck: [ask('lin-back-which', 2), ask('lin-back-change', 2), ask('lin-back-rearrange', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('lin-name-total', 2),
+        ask('lin-name-solve', 2),
+        ask('lin-name-tree', 2),
+        ask('lin-even-count', 2),
+        ask('lin-even-slider', 2),
+        ask('lin-even-flow', 2),
+        ask('lin-rate-meet', 2),
+        ask('lin-rate-catch', 2),
+        ask('lin-rate-tank', 2),
+        ask('lin-mix-tiles', 2),
+        ask('lin-mix-solve', 2),
+        ask('lin-mix-substitute-steps', 2),
+        ask('lin-back-which', 2),
+        ask('lin-back-sense-flow', 2),
+        ask('lin-back-change', 2),
       ],
     },
   ],

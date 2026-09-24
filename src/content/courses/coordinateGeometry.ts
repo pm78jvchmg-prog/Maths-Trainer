@@ -16,7 +16,11 @@
  * is coordinate proof: a parallelogram from parallel sides or bisecting
  * diagonals, a rectangle from a right angle or equal diagonals, a rhombus
  * and a square from equal sides or perpendicular diagonals, right-angled and
- * isosceles triangles, and the proof written out in order.
+ * isosceles triangles, and the proof written out in order. Level 6 is areas
+ * and loci: a triangle's area from a level base and its height, from the box
+ * round it and by the shoelace, a polygon split into triangles, a corner
+ * found from an area, and a locus written as an equation, from words and
+ * from a condition such as PA = 2PB or PA perpendicular to PB.
  *
  * Several things this course leans on are taught elsewhere and only pointed
  * at here: solving two equations at once (Linear Equations `le-l2`),
@@ -1184,6 +1188,269 @@ export const coordinateGeometry: Course = {
         ask('coord-proof-order', 2),
         ask('coord-complete-choice', 2),
         ask('coord-fails-one-choice', 2),
+      ],
+    },
+    /* ---------- Level 6: areas and loci ----------
+     * The area of a triangle from a level base and its height, from the box
+     * round it, and by the shoelace; a polygon split into triangles and a
+     * corner found from its area; then a locus written as an equation, from
+     * words and from a condition such as PA = 2PB. Nothing here is calculus,
+     * so no slide declares `source`, `integrand` or `limits`. */
+    {
+      id: 'cg-l6',
+      title: 'Areas and Loci',
+      lessons: [
+        {
+          id: 'cg-l6-base-height',
+          title: 'Base and Height',
+          slides: [
+            teach(
+              prose(
+                'The area of a triangle is **half the base times the height**, the height measured square on to the base. On axes a **level** side makes the easiest base: its length is a change in $x$ alone, and the height is a change in $y$ alone.',
+              ),
+              grid(
+                5,
+                [segment(-3, -2, 3, -2), segment(3, -2, 1, 3), segment(1, 3, -3, -2)],
+                [{ x: -3, y: -2 }, { x: 3, y: -2 }, { x: 1, y: 3 }],
+                'The triangle with corners A(-3, -2), B(3, -2) and C(1, 3)',
+              ),
+              prose('For $A(-3, -2)$, $B(3, -2)$ and $C(1, 3)$, $AB$ lies on the line $y = -2$:'),
+              maths('\\begin{aligned} b &= 3 - (-3) = 6 \\\\ h &= 3 - (-2) = 5 \\\\ \\text{Area} &= \\tfrac{1}{2} \\times 6 \\times 5 = 15 \\end{aligned}'),
+            ),
+            ask('coord-base-height-tree'),
+            ask('coord-tri-area'),
+            ask('coord-half-base-choice'),
+            teach(
+              prose(
+                'The third corner need not sit over the base. The height is still its distance from the line the base is on, measured straight up or down; a slanted side is never the height.',
+              ),
+              prose(
+                'A side straight **up** works as well, with the roles swapped: the base is a change in $y$ and the height a change in $x$. For $A(1, -3)$, $B(1, 3)$ and $C(-4, 5)$, $AB$ is on $x = 1$:',
+              ),
+              maths('\\begin{aligned} b &= 3 - (-3) = 6 \\\\ h &= |-4 - 1| = 5 \\\\ \\text{Area} &= \\tfrac{1}{2} \\times 6 \\times 5 = 15 \\end{aligned}'),
+            ),
+            ask('coord-apex-slider'),
+            ask('coord-apex-k'),
+            ask('coord-base-height-tree', 2),
+            teach(
+              prose(
+                'The formula runs backwards: from the area to the height, then to the corner. If $A(-2, 1)$ and $B(4, 1)$ are two corners, the area is $12$, and $C(3, k)$ is **above** $AB$:',
+              ),
+              maths('\\begin{aligned} \\tfrac{1}{2} \\times 6 \\times h &= 12 \\\\ h &= 4 \\\\ k &= 1 + 4 = 5 \\end{aligned}'),
+              prose('Below $AB$ it would be $k = 1 - 4 = -3$ instead, so read which side the question puts it on.'),
+            ),
+            ask('coord-apex-k+choice', 2),
+            ask('coord-tri-area', 2),
+          ],
+          skillCheck: [ask('coord-base-height-tree', 2), ask('coord-tri-area', 2), ask('coord-apex-k', 2)],
+        },
+        {
+          id: 'cg-l6-shoelace',
+          title: 'The Box and the Shoelace',
+          slides: [
+            teach(
+              prose(
+                'When no side is level, draw the **box** round the triangle: the smallest rectangle with its sides on the grid lines. The triangle is the box less three right-angled triangles in its corners, and each of those has level sides.',
+              ),
+              grid(
+                5,
+                [segment(-2, -2, 3, 0), segment(3, 0, 0, 2), segment(0, 2, -2, -2)],
+                [{ x: -2, y: -2 }, { x: 3, y: 0 }, { x: 0, y: 2 }],
+                'The triangle with corners A(-2, -2), B(3, 0) and C(0, 2)',
+              ),
+              prose(
+                'For $A(-2, -2)$, $B(3, 0)$ and $C(0, 2)$, the box runs from $x = -2$ to $3$ and from $y = -2$ to $2$: $5$ by $4$. Its corners are $\\tfrac{1}{2} \\times 5 \\times 2$, $\\tfrac{1}{2} \\times 3 \\times 2$ and $\\tfrac{1}{2} \\times 2 \\times 4$.',
+              ),
+              maths('\\text{Area} = 20 - 5 - 3 - 4 = 8'),
+            ),
+            ask('coord-box-flow'),
+            ask('coord-box-steps'),
+            ask('coord-box-area'),
+            teach(
+              prose(
+                'The **shoelace** gets the same number with no box. Go round the corners in order and, for each side, multiply across and take away: $x_Ay_B - x_By_A$, then $x_By_C - x_Cy_B$, then $x_Cy_A - x_Ay_C$. The area is half the size of their total.',
+              ),
+              maths('\\begin{aligned} (-2)(0) - (3)(-2) &= 6 \\\\ (3)(2) - (0)(0) &= 6 \\\\ (0)(-2) - (-2)(2) &= 4 \\end{aligned}'),
+              prose(
+                'They add to $16$, so the area is $8$, as before. Going round the other way gives $-16$: the sign only says which way round you went, so take its size.',
+              ),
+            ),
+            ask('coord-shoelace-tree'),
+            ask('coord-box-steps', 2),
+            ask('coord-box-flow', 2),
+            teach(
+              prose(
+                'Two ways, one number. The box is the one to picture; the shoelace is the one to reach for when the numbers are big or the shape has more corners. Each checks the other.',
+              ),
+              prose(
+                'Corners on the grid always give an area that is whole or ends in a half, because twice the area is a sum of whole numbers.',
+              ),
+            ),
+            ask('coord-shoelace-tree', 2),
+            ask('coord-box-area+choice', 2),
+          ],
+          skillCheck: [ask('coord-box-steps', 2), ask('coord-shoelace-tree', 2), ask('coord-box-area', 2)],
+        },
+        {
+          id: 'cg-l6-polygons',
+          title: 'Polygons',
+          slides: [
+            teach(
+              prose('A diagonal splits a quadrilateral into two triangles, and its area is theirs added.'),
+              grid(
+                5,
+                [
+                  segment(-3, -2, 2, -2),
+                  segment(2, -2, 3, 2),
+                  segment(3, 2, -1, 3),
+                  segment(-1, 3, -3, -2),
+                  { ...segment(-3, -2, 3, 2), accent: false, dashed: true },
+                ],
+                [{ x: -3, y: -2 }, { x: 2, y: -2 }, { x: 3, y: 2 }, { x: -1, y: 3 }],
+                'The quadrilateral with corners A(-3, -2), B(2, -2), C(3, 2) and D(-1, 3), split by the diagonal AC',
+              ),
+              prose('For $A(-3, -2)$, $B(2, -2)$, $C(3, 2)$ and $D(-1, 3)$, split along $AC$:'),
+              maths('\\begin{aligned} ABC &= 10 \\\\ ACD &= 11 \\\\ ABCD &= 10 + 11 = 21 \\end{aligned}'),
+              prose('The shoelace also runs straight round all four corners: $10 + 10 + 11 + 11 = 42$, and half of that is $21$.'),
+            ),
+            ask('coord-quad-split-tree'),
+            ask('coord-para-area'),
+            ask('coord-poly-shoelace-steps'),
+            teach(
+              prose(
+                'A **parallelogram** is two equal triangles, since its opposite sides are equal and parallel. So its area is twice triangle $ABC$, which is the shoelace sum for $ABC$ before it is halved.',
+              ),
+              prose('For $A(-2, -1)$, $B(2, 0)$, $C(3, 3)$ and $D(-1, 2)$:'),
+              maths('\\begin{aligned} (-2)(0) - (2)(-1) &= 2 \\\\ (2)(3) - (3)(0) &= 6 \\\\ (3)(-1) - (-2)(3) &= 3 \\end{aligned}'),
+              prose('They add to $11$, so $ABC$ has area $5.5$ and the parallelogram $11$.'),
+            ),
+            ask('coord-area-k-tiles'),
+            ask('coord-quad-split-tree', 2),
+            ask('coord-para-area+choice', 2),
+            teach(
+              prose(
+                'Working backwards, a corner with one unknown coordinate has **two** places to be, one each side of the opposite side. For $A(-2, 1)$, $B(4, 1)$ and $C(3, k)$ with area $9$:',
+              ),
+              maths('\\begin{aligned} \\tfrac{1}{2} \\times 6 \\times |k - 1| &= 9 \\\\ k - 1 &= 3 \\text{ or } -3 \\\\ k &= 4 \\text{ or } -2 \\end{aligned}'),
+            ),
+            ask('coord-area-k-tiles', 2),
+            ask('coord-poly-shoelace-steps', 2),
+          ],
+          skillCheck: [ask('coord-quad-split-tree', 2), ask('coord-poly-shoelace-steps', 2), ask('coord-area-k-tiles', 2)],
+        },
+        {
+          id: 'cg-l6-locus-equation',
+          title: 'A Locus as an Equation',
+          slides: [
+            teach(
+              prose(
+                'A **locus** is the path of a point that moves by a rule. On axes the rule becomes an equation in $x$ and $y$: a point is on the locus exactly when its coordinates satisfy it.',
+              ),
+              grid(
+                8,
+                [],
+                [{ x: 1, y: -2 }, { x: 4, y: 2 }],
+                'The circle of points 5 from C(1, -2), passing through (4, 2)',
+                [{ h: 1, k: -2, r2: 25 }],
+              ),
+              prose(
+                'Always $5$ from $C(1, -2)$: $P(x, y)$ is on it when $CP^2 = 25$, so the locus is the circle $(x - 1)^2 + (y + 2)^2 = 25$. The point $(4, 2)$ is on it, since $3^2 + 4^2 = 25$.',
+              ),
+            ),
+            ask('coord-locus-on-choice'),
+            ask('coord-locus-circle-tiles'),
+            ask('coord-locus-name-flow'),
+            teach(
+              prose(
+                'Always as far from $A$ as from $B$: set $PA^2 = PB^2$ and multiply out. The $x^2$ and $y^2$ cancel, so the locus is a straight line, the perpendicular bisector of $AB$. For $A(-1, 2)$ and $B(3, 4)$:',
+              ),
+              maths(
+                '\\begin{aligned} PA^2 &= (x + 1)^2 + (y - 2)^2 \\\\ PB^2 &= (x - 3)^2 + (y - 4)^2 \\end{aligned}',
+              ),
+              prose('Multiplied out, $PA^2 = x^2 + y^2 + 2x - 4y + 5$ and $PB^2 = x^2 + y^2 - 6x - 8y + 25$.'),
+              prose('Set them equal. The squares cancel and the rest collects to $8x + 4y - 20 = 0$; divide by $4$:'),
+              maths('2x + y - 5 = 0'),
+              prose('The midpoint of $AB$, $(1, 3)$, is on it: $2 + 3 - 5 = 0$.'),
+            ),
+            ask('coord-locus-bisector-steps'),
+            ask('coord-locus-equidistant-slider'),
+            ask('coord-locus-circle-tiles', 2),
+            teach(
+              prose(
+                'Always a fixed distance from a **line** is two lines parallel to it, one either side. Always $2$ from the line $y = 1$: the lines $y = 3$ and $y = -1$.',
+              ),
+              prose('So three rules, three shapes: from a point, a circle; from two points, a straight line; from a line, a pair of parallel lines.'),
+            ),
+            ask('coord-locus-lines-tiles'),
+            ask('coord-locus-name-flow', 2),
+          ],
+          skillCheck: [ask('coord-locus-circle-tiles', 2), ask('coord-locus-bisector-steps', 2), ask('coord-locus-name-flow', 2)],
+        },
+        {
+          id: 'cg-l6-locus-condition',
+          title: 'Loci from a Condition',
+          slides: [
+            teach(
+              prose(
+                'A rule such as $PA = 2PB$ is squared first, so no square roots appear: $PA^2 = 4PB^2$. Multiply out, collect everything on one side, and divide by the number in front of $x^2$. For $A(-3, 0)$ and $B(3, 0)$:',
+              ),
+              maths(
+                '\\begin{aligned} PA^2 &= (x + 3)^2 + y^2 \\\\ 4PB^2 &= 4\\left[(x - 3)^2 + y^2\\right] \\end{aligned}',
+              ),
+              prose('Multiplied out, $PA^2 = x^2 + y^2 + 6x + 9$ and $4PB^2 = 4x^2 + 4y^2 - 24x + 36$.'),
+              prose('Take $PA^2$ from $4PB^2$ to get $3x^2 + 3y^2 - 30x + 27 = 0$, and divide by $3$:'),
+              maths('x^2 + y^2 - 10x + 9 = 0'),
+              prose('Completing the square gives $(x - 5)^2 + y^2 = 16$: a circle with centre $(5, 0)$ and radius $4$.'),
+            ),
+            ask('coord-locus-ratio-steps'),
+            ask('coord-locus-centre-tiles'),
+            ask('coord-locus-ratio-r2'),
+            teach(
+              prose(
+                '$PA$ perpendicular to $PB$ makes the angle at $P$ a right angle, so by the angle in a semicircle $P$ is on the circle with **diameter** $AB$. Its centre is the midpoint of $AB$ and its radius half of $AB$.',
+              ),
+              grid(
+                6,
+                [segment(-1, -2, 3, 4)],
+                [{ x: -1, y: -2 }, { x: 3, y: 4 }, { x: 1, y: 1 }],
+                'The circle with diameter from A(-1, -2) to B(3, 4), centre (1, 1)',
+                [{ h: 1, k: 1, r2: 13 }],
+              ),
+              prose(
+                'For $A(-1, -2)$ and $B(3, 4)$ the centre is $(1, 1)$ and $r^2 = \\tfrac{1}{4} \\times 52 = 13$. Written straight from the rule, $(x + 1)(x - 3) + (y + 2)(y - 4) = 0$ multiplies out to $x^2 + y^2 - 2x - 2y - 11 = 0$, the same circle.',
+              ),
+            ),
+            ask('coord-locus-diameter-flow'),
+            ask('coord-locus-perp-choice'),
+            ask('coord-locus-ratio-steps', 2),
+            teach(
+              prose(
+                'However the locus arrives, an expanded circle gives up its centre and radius by completing the square: $x^2 + y^2 - 10x + 9 = 0$ is $(x - 5)^2 + y^2 = 16$.',
+              ),
+              prose('Check a point: $(9, 0)$ is on that circle, and it is $12$ from $A(-3, 0)$ and $6$ from $B(3, 0)$, so $PA = 2PB$ holds there.'),
+            ),
+            ask('coord-locus-ratio-r2+choice', 2),
+            ask('coord-locus-diameter-flow', 2),
+          ],
+          skillCheck: [ask('coord-locus-ratio-steps', 2), ask('coord-locus-diameter-flow', 2), ask('coord-locus-ratio-r2', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('coord-tri-area', 2),
+        ask('coord-apex-k', 2),
+        ask('coord-apex-slider', 2),
+        ask('coord-box-steps', 2),
+        ask('coord-shoelace-tree', 2),
+        ask('coord-box-area', 2),
+        ask('coord-quad-split-tree', 2),
+        ask('coord-para-area', 2),
+        ask('coord-area-k-tiles', 2),
+        ask('coord-locus-circle-tiles', 2),
+        ask('coord-locus-bisector-steps', 2),
+        ask('coord-locus-name-flow', 2),
+        ask('coord-locus-ratio-steps', 2),
+        ask('coord-locus-centre-tiles', 2),
+        ask('coord-locus-diameter-flow', 2),
       ],
     },
   ],

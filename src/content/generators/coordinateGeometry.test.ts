@@ -1018,3 +1018,376 @@ describe('coordinate proof, checked from what the learner sees', () => {
     }
   });
 });
+
+describe('areas and loci, checked from what the learner sees', () => {
+  type P2 = [number, number];
+
+  const numberOf = (tex: string) =>
+    math.evaluate(toMath(tex.replace(/^\$|\$$/g, '').replace(/\\tfrac/g, '\\frac').replace(/\\text\{[^}]*\}\s*=/, '').trim())) as number;
+
+  const minus = (P: P2, R: P2): P2 => [P[0] - R[0], P[1] - R[1]];
+  const dot = (u: P2, v: P2) => u[0] * v[0] + u[1] * v[1];
+  // `+ 0` so a zero product is 0, never -0.
+  const cross = (u: P2, v: P2) => u[0] * v[1] - u[1] * v[0] + 0;
+  const d2 = (P: P2, R: P2) => dot(minus(R, P), minus(R, P));
+
+  /** Twice the signed area, by a shoelace written out afresh here. */
+  const shoelace = (P: P2[]) => P.reduce((sum, X, i) => sum + cross(X, P[(i + 1) % P.length]), 0);
+  const areaOf = (P: P2[]) => Math.abs(shoelace(P)) / 2;
+
+  const corners = (slide: Slide, names = ['A', 'B', 'C']) => names.map((name) => pointIn(slide, name));
+
+  /** The number the prompt gives as an area. */
+  const statedArea = (slide: Slide) => {
+    const match = /area (?:of \$ABC\$ )?(?:is )?\$(\d+)\$/.exec(prose(slide));
+    if (!match) throw new Error(`no area in ${prose(slide)}`);
+    return Number(match[1]);
+  };
+
+  /** Whether any side of a triangle is level: straight across or straight up. */
+  const hasLevelSide = (T: P2[]) => T.some((X, i) => {
+    const Y = T[(i + 1) % 3];
+    return X[0] === Y[0] || X[1] === Y[1];
+  });
+
+  /** The smallest box with sides on the grid round some points. */
+  const boxArea = (P: P2[]) => {
+    const xs = P.map((X) => X[0]);
+    const ys = P.map((X) => X[1]);
+    return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+  };
+
+  /** C from a prompt that writes one of its coordinates as k, with k put in. */
+  const unknownC = (slide: Slide, k: number): P2 => {
+    const text = prose(slide);
+    const across = /C\((-?\d+), k\)/.exec(text);
+    if (across) return [Number(across[1]), k];
+    const up = /C\(k, (-?\d+)\)/.exec(text);
+    if (!up) throw new Error(`no C with k in ${text}`);
+    return [k, Number(up[1])];
+  };
+
+  /** Which side of the line through A and B a point is: the sign of the cross product. */
+  const sideOf = (A: P2, B: P2, X: P2) => Math.sign(cross(minus(B, A), minus(X, A)));
+
+  /** The side the prompt says C is on, as a check on C itself. */
+  function onStatedSide(slide: Slide, A: P2, B: P2, C: P2): boolean {
+    const text = prose(slide);
+    if (text.includes('above')) return C[1] > A[1] && A[1] === B[1];
+    if (text.includes('below')) return C[1] < A[1] && A[1] === B[1];
+    if (text.includes('to the right of')) return C[0] > A[0] && A[0] === B[0];
+    if (text.includes('to the left of')) return C[0] < A[0] && A[0] === B[0];
+    throw new Error(`no side in ${text}`);
+  }
+
+  it('the typed area of a triangle with a level side is its shoelace area', () => {
+    for (const { slide, where } of slides('coord-tri-area')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const T = corners(slide);
+      expect(hasLevelSide(T), `${where}: a level side`).toBe(true);
+      expect(Number(slide.answer), where).toBe(areaOf(T));
+    }
+  });
+
+  it('the base is the level side, the height makes the area, and the area is the shoelace one', () => {
+    for (const { slide, where } of slides('coord-base-height-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const T = corners(slide);
+      const [b, h, area] = slide.answer.map(Number);
+      const levels = T.map((X, i) => [X, T[(i + 1) % 3]] as [P2, P2]).filter(([X, Y]) => X[0] === Y[0] || X[1] === Y[1]);
+      expect(levels.map(([X, Y]) => Math.sqrt(d2(X, Y))), `${where}: the base is a level side`).toContain(b);
+      expect(area, where).toBe(areaOf(T));
+      expect(b * h, where).toBe(2 * area);
+    }
+  });
+
+  it('exactly the calculation marked right comes to the area', () => {
+    for (const { slide, where } of slides('coord-half-base-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const area = areaOf(corners(slide));
+      for (const option of slide.options) {
+        expect(numberOf(option.label) === area, `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the k found gives the area stated, with C on the side stated', () => {
+    for (const id of ['coord-apex-k', 'coord-apex-slider']) {
+      for (const { slide, where } of slides(id)) {
+        const [A, B] = corners(slide, ['A', 'B']);
+        let C: P2;
+        if (slide.kind === 'expression') C = unknownC(slide, Number(slide.answer));
+        else if (slide.kind === 'slider') {
+          const line = /dashed line \$([xy]) = (-?\d+)\$/.exec(prose(slide))!;
+          C = line[1] === 'x' ? [Number(line[2]), slide.answer] : [slide.answer, Number(line[2])];
+        } else throw new Error(`unexpected ${slide.kind}`);
+        expect(areaOf([A, B, C]), where).toBe(statedArea(slide));
+        expect(onStatedSide(slide, A, B, C), `${where}: C ${C} on the side stated`).toBe(true);
+      }
+    }
+  });
+
+  it('the box steps start from the real box and end on the shoelace area', () => {
+    for (const { slide, where } of slides('coord-box-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const T = corners(slide);
+      expect(hasLevelSide(T), `${where}: no level side`).toBe(false);
+      const values = slide.reductions.map((step) => numberOf(step.value));
+      expect(values[0], where).toBe(boxArea(T));
+      expect(values[1] + values[2] + values[3], where).toBe(boxArea(T) - areaOf(T));
+      expect(values[4], where).toBe(areaOf(T));
+    }
+  });
+
+  it('the box flow picks the box, the corners it leaves and the shoelace area', () => {
+    for (const { slide, where } of slides('coord-box-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const T = corners(slide);
+      const [box, cut, area] = slide.answer.map(numberOf);
+      expect([box, cut, area], where).toEqual([boxArea(T), boxArea(T) - areaOf(T), areaOf(T)]);
+    }
+  });
+
+  it('the shoelace tree holds each cross term, their sum and half its size', () => {
+    for (const { slide, where } of slides('coord-shoelace-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const [A, B, C] = corners(slide);
+      const terms = [cross(A, B), cross(B, C), cross(C, A)];
+      expect(slide.answer.map(Number), where).toEqual([...terms, shoelace([A, B, C]), areaOf([A, B, C])]);
+    }
+  });
+
+  it('the typed area of a triangle with no level side is its shoelace area', () => {
+    for (const { slide, where } of slides('coord-box-area')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const T = corners(slide);
+      expect(hasLevelSide(T), `${where}: no level side`).toBe(false);
+      expect(Number(slide.answer), where).toBe(areaOf(T));
+    }
+  });
+
+  const QUAD4 = ['A', 'B', 'C', 'D'];
+
+  it('the two triangles named are the ones measured, and they make up the quadrilateral', () => {
+    for (const { slide, where } of slides('coord-quad-split-tree')) {
+      if (slide.kind !== 'tree') throw new Error('expected tree');
+      const P = corners(slide, QUAD4);
+      const [, one, two] = /triangles \$(\w{3})\$ and \$(\w{3})\$/.exec(prose(slide))!;
+      const of = (name: string) => areaOf([...name].map((letter) => P[QUAD4.indexOf(letter)]));
+      const [a1, a2, whole] = slide.answer.map(Number);
+      expect([a1, a2], where).toEqual([of(one), of(two)]);
+      expect(whole, where).toBe(areaOf(P));
+      expect(a1 + a2, `${where}: the diagonal is inside`).toBe(areaOf(P));
+    }
+  });
+
+  it('a parallelogram has the area of all four corners, whether three or four are given', () => {
+    for (const { slide, where } of slides('coord-para-area')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const [A, B, C] = corners(slide);
+      const D: P2 = [A[0] + C[0] - B[0], A[1] + C[1] - B[1]];
+      if (/D\(/.test(prose(slide))) expect(pointIn(slide, 'D'), where).toEqual(D);
+      expect(Number(slide.answer), where).toBe(areaOf([A, B, C, D]));
+    }
+  });
+
+  it('each shoelace term on a quadrilateral is its own cross product, and the area is half the sum', () => {
+    for (const { slide, where } of slides('coord-poly-shoelace-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const P = corners(slide, QUAD4);
+      const values = slide.reductions.map((step) => numberOf(step.value));
+      expect(values.slice(0, 4), where).toEqual(P.map((X, i) => cross(X, P[(i + 1) % 4])));
+      expect(values[4], where).toBe(shoelace(P));
+      expect(values[5], where).toBe(areaOf(P));
+    }
+  });
+
+  it('both values of k, and no others, give the area stated', () => {
+    for (const { slide, where } of slides('coord-area-k-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const [A, B] = corners(slide, ['A', 'B']);
+      const area = statedArea(slide);
+      const working = Array.from({ length: 81 }, (_, i) => i - 40).filter((k) => areaOf([A, B, unknownC(slide, k)]) === area);
+      expect(working, where).toEqual(slide.answer.map(Number).sort((x, y) => x - y));
+      expect(sideOf(A, B, unknownC(slide, working[0])), `${where}: one either side`).toBe(-sideOf(A, B, unknownC(slide, working[1])));
+    }
+  });
+
+  /**
+   * Every point on a half-unit grid in a square, for testing a locus against
+   * its condition. Half units, since a perpendicular bisector need pass
+   * through no lattice point but always passes through the midpoint.
+   */
+  const LATTICE: P2[] = Array.from({ length: 61 * 61 }, (_, i) => [((i % 61) - 30) / 2, (Math.floor(i / 61) - 30) / 2]);
+
+  /** The condition a prompt states, as a test on a point. */
+  function conditionOf(slide: Slide): (P: P2) => boolean {
+    const text = prose(slide);
+    const fromPoint = /always \$(\d+)\$ from \$C\((-?\d+), (-?\d+)\)\$/.exec(text);
+    if (fromPoint) {
+      const [r, a, b] = fromPoint.slice(1).map(Number);
+      return (P) => d2(P, [a, b]) === r * r;
+    }
+    const fromLine = /always \$(\d+)\$ from the line \$([xy]) = (-?\d+)\$/.exec(text);
+    if (fromLine) {
+      const [d, c] = [Number(fromLine[1]), Number(fromLine[3])];
+      const i = fromLine[2] === 'x' ? 0 : 1;
+      return (P) => Math.abs(P[i] - c) === d;
+    }
+    if (text.includes('as far from')) {
+      const [A, B] = corners(slide, ['A', 'B']);
+      return (P) => d2(P, A) === d2(P, B);
+    }
+    throw new Error(`no condition in ${text}`);
+  }
+
+  /** An equation, or two joined by "and", as a test on a point. */
+  function satisfies(tex: string): (P: P2) => boolean {
+    const parts = tex.replace(/^\$|\$$/g, '').split('\\text{ and }').map((part) => equation(part));
+    return ([x, y]) => parts.some((f) => Math.abs(f(x, y)) < 1e-9);
+  }
+
+  /** The two sets agree on every lattice point, and the locus has some on it. */
+  function sameLocus(a: (P: P2) => boolean, b: (P: P2) => boolean): boolean {
+    return LATTICE.some(a) && LATTICE.every((P) => a(P) === b(P));
+  }
+
+  it('exactly the point marked right meets the condition', () => {
+    for (const { slide, where } of slides('coord-locus-on-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const holds = conditionOf(slide);
+      for (const option of slide.options) {
+        const [, x, y] = /\((-?\d+), (-?\d+)\)/.exec(option.label)!;
+        expect(holds([Number(x), Number(y)]), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('the circle built from tiles is the locus the words describe', () => {
+    for (const { slide, where } of slides('coord-locus-circle-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const C = pointIn(slide, 'C');
+      const through = /Q\((-?\d+), (-?\d+)\)/.exec(prose(slide));
+      const r2 = through ? d2(C, [Number(through[1]), Number(through[2])]) : Number(/always \$(\d+)\$/.exec(prose(slide))![1]) ** 2;
+      const circle = circleOf(filled(slide));
+      expect([circle.a, circle.b, circle.r2], where).toEqual([C[0], C[1], r2].map((v) => expect.closeTo(v, 9)));
+    }
+  });
+
+  it('every line of the bisector working is equal to the one before, and the last is the locus', () => {
+    for (const { slide, where } of slides('coord-locus-bisector-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const [A, B] = corners(slide, ['A', 'B']);
+      const values = slide.reductions.map((step) => step.value);
+      const at = (tex: string, [x, y]: P2) => math.evaluate(toMath(tex), { x, y }) as number;
+      for (const P of [[0.3, -1.7], [2.1, 0.4]] as P2[]) {
+        expect(at(values[0], P), where).toBeCloseTo(d2(P, A), 9);
+        expect(at(values[1], P), where).toBeCloseTo(d2(P, B), 9);
+      }
+      expect(sameLocus(satisfies(values[values.length - 1]), conditionOf(slide)), where).toBe(true);
+    }
+  });
+
+  it('the shape and the equation picked are the locus, and no other equation offered is', () => {
+    for (const { slide, where } of slides('coord-locus-name-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const holds = conditionOf(slide);
+      const text = prose(slide);
+      const shape = text.includes('from the line') ? 'Two parallel lines' : text.includes('as far from') ? 'A straight line' : 'A circle';
+      expect(slide.answer[0], where).toBe(shape);
+      const fork = slide.steps.find((step) => step.id === 'equation')!;
+      for (const branch of fork.branches) {
+        expect(sameLocus(satisfies(branch.label), holds), `${where}: ${branch.label}`).toBe(branch.label === slide.answer[1]);
+      }
+    }
+  });
+
+  it('the point slid to is as far from A as from B', () => {
+    for (const { slide, where } of slides('coord-locus-equidistant-slider')) {
+      if (slide.kind !== 'slider') throw new Error('expected slider');
+      const [A, B] = corners(slide, ['A', 'B']);
+      const line = /dashed line \$([xy]) = (-?\d+)\$/.exec(prose(slide))!;
+      const P: P2 = line[1] === 'y' ? [slide.answer, Number(line[2])] : [Number(line[2]), slide.answer];
+      expect(d2(P, A), where).toBe(d2(P, B));
+    }
+  });
+
+  it('the two lines placed are the points the stated distance from the line', () => {
+    for (const { slide, where } of slides('coord-locus-lines-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const text = prose(slide);
+      const [, d, lineTex] = /always \$(\d+)\$ from the line \$([^$]+)\$/.exec(text)!;
+      const axis = lineTex.includes('x') ? 0 : 1;
+      const line = equation(lineTex);
+      // The line x = c or y = c, whatever form it was written in.
+      const c = axis === 0 ? -line(0, 0) / (line(1, 0) - line(0, 0)) : -line(0, 0) / (line(0, 1) - line(0, 0));
+      const holds = (P: P2) => Math.abs(P[axis] - c) === Number(d);
+      expect(sameLocus(satisfies(filled(slide)), holds), where).toBe(true);
+    }
+  });
+
+  /** A and B, and PA = 2PB tested on a point. */
+  const ratioCondition = (slide: Slide) => {
+    expect(prose(slide)).toContain('$PA = 2PB$');
+    const [A, B] = corners(slide, ['A', 'B']);
+    return { A, B, holds: (P: P2) => d2(P, A) === 4 * d2(P, B) };
+  };
+
+  it('each step of PA = 2PB squared out is right, and the last is the locus', () => {
+    for (const { slide, where } of slides('coord-locus-ratio-steps')) {
+      if (slide.kind !== 'steps') throw new Error('expected steps');
+      const { A, B, holds } = ratioCondition(slide);
+      const values = slide.reductions.map((step) => step.value);
+      const at = (tex: string, [x, y]: P2) => math.evaluate(toMath(tex), { x, y }) as number;
+      for (const P of [[0.3, -1.7], [2.1, 0.4]] as P2[]) {
+        expect(at(values[0], P), where).toBeCloseTo(d2(P, A), 9);
+        expect(at(values[1], P), where).toBeCloseTo(4 * d2(P, B), 9);
+      }
+      for (const tex of values.slice(2)) expect(sameLocus(satisfies(tex), holds), `${where}: ${tex}`).toBe(true);
+    }
+  });
+
+  it('the circle shown is the locus PA = 2PB, and its centre and radius are the ones placed', () => {
+    for (const { slide, where } of slides('coord-locus-centre-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('expected tiles');
+      const { holds } = ratioCondition(slide);
+      const shown = texts(slide).find((tex) => tex.includes('x^2'))!;
+      expect(sameLocus(satisfies(shown), holds), where).toBe(true);
+      const { a, b, r2 } = circleOf(shown);
+      const [x, y, r] = slide.answer.map(Number);
+      expect([x, y, r * r], where).toEqual([a, b, r2].map((v) => expect.closeTo(v, 9)));
+    }
+  });
+
+  it('r^2 is the one the Apollonius circle of A and B has', () => {
+    for (const { slide, where } of slides('coord-locus-ratio-r2')) {
+      if (slide.kind !== 'expression') throw new Error('expected expression');
+      const { A, B } = ratioCondition(slide);
+      // PA = kPB is the circle whose radius is k|AB| / (k^2 - 1).
+      expect(Number(slide.answer), where).toBeCloseTo((4 * d2(A, B)) / 9, 9);
+    }
+  });
+
+  it('the centre and r^2 picked make the circle every right angle APB lies on', () => {
+    for (const { slide, where } of slides('coord-locus-diameter-flow')) {
+      if (slide.kind !== 'flow') throw new Error('expected flow');
+      const [A, B] = corners(slide, ['A', 'B']);
+      const [, x, y] = /\((-?\d+), (-?\d+)\)/.exec(slide.answer[1])!;
+      const r2 = Number(/r\^2 = (\d+)/.exec(slide.answer[2])![1]);
+      const onCircle = (P: P2) => d2(P, [Number(x), Number(y)]) === r2;
+      expect(slide.answer[0], where).toContain('diameter');
+      expect(sameLocus(onCircle, (P) => dot(minus(A, P), minus(B, P)) === 0), where).toBe(true);
+    }
+  });
+
+  it('exactly the equation marked right is the locus PA perpendicular to PB', () => {
+    for (const { slide, where } of slides('coord-locus-perp-choice')) {
+      if (slide.kind !== 'choice') throw new Error('expected choice');
+      const [A, B] = corners(slide, ['A', 'B']);
+      const right = (P: P2) => dot(minus(A, P), minus(B, P)) === 0;
+      for (const option of slide.options) {
+        expect(sameLocus(satisfies(option.label), right), `${where}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+});

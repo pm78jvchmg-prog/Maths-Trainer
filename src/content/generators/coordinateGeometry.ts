@@ -16,7 +16,11 @@
  * and the far end of a diameter with the parallel tangents at its ends.
  * Level 5 is coordinate proof: a quadrilateral named a parallelogram,
  * rectangle, rhombus or square, and a triangle right-angled or isosceles,
- * from gradients and squared lengths, then the proof put in order.
+ * from gradients and squared lengths, then the proof put in order. Level 6
+ * is areas and loci: half base times height on a level side, the box round
+ * a triangle and the shoelace, polygons as triangles and a corner from an
+ * area, then a locus as an equation, from words and from conditions such as
+ * PA = 2PB and PA perpendicular to PB.
  *
  * Every given point is a lattice point, and every question is built outward
  * from its answer — a crossing point, a centre, a whole-number `c` — so the
@@ -6996,6 +7000,1529 @@ const coordFailsOneChoice: Generator<CornersParams> = {
   },
 };
 
+/* ================================================================
+ * Level 6: areas and loci
+ *
+ * The area of a triangle or a polygon from its corners, and a locus written
+ * as an equation. Every corner is a lattice point and every figure is built
+ * from its answer: a triangle with a level side from a base and a height
+ * whose product is even; a triangle with no side level from the box round
+ * it, one corner shared with the box and the other two on its far sides,
+ * kept only when `wh - ts` is even so its area is whole; a quadrilateral
+ * kept only when its shoelace sum is even. A circle locus has a whole
+ * radius, or a lattice point on it. The locus PA = 2PB is built from its
+ * centre O and a step w of whole length, with B = O - w and A = O - 4w, so
+ * that its radius is 2|w|; the locus PA perpendicular to PB is the circle
+ * on AB. No length is ever rooted: a radius is whole by construction or
+ * asked as its square.
+ *
+ * Nothing here is calculus, so no slide declares `source`, `integrand` or
+ * `limits` and the oracle in `generators.test.ts` has nothing to check;
+ * `coordinateGeometry.test.ts` works every area out again by its own
+ * shoelace from the corners each prompt names, and tests every locus
+ * against lattice points and the condition as the prompt states it.
+ * ================================================================ */
+
+type Tri = [Pt, Pt, Pt];
+
+const ABC = ['A', 'B', 'C'];
+
+/** Twice the signed area of a polygon, by the shoelace: positive when its corners run anticlockwise. */
+function shoelace2(P: Pt[]): number {
+  return P.reduce((sum, X, i) => sum + crossPt(X, P[(i + 1) % P.length]), 0);
+}
+
+/** Half of a whole number, as a decimal: 12, 7.5. */
+const halfOf = (twice: number): string => String(twice / 2);
+
+/** The points X, Y, Z placed at `at`, `at + 1` and `at + 2` round A, B, C. */
+function placed<T>(items: [T, T, T], at: number): [T, T, T] {
+  const out: T[] = [];
+  items.forEach((item, i) => {
+    out[(at + i) % 3] = item;
+  });
+  return out as [T, T, T];
+}
+
+/**
+ * Squared paper from -span to span both ways, with polygons shaded and guide
+ * lines dashed. `plotSvg` draws y as a function of x, so it cannot draw a
+ * side straight up; the shapes go in as SVG instead, placed with the mapping
+ * `plotWithCircles` uses, and before the marks so a corner's dot sits on top.
+ */
+function shapeFigure(win: Frame, polygons: Pt[][], label: string, dashed: [Pt, Pt][] = [], marks: Pt[] = polygons.flat()): string {
+  const svg = plotSvg({
+    ...win,
+    curves: [],
+    marks: marks.map(([x, y]) => ({ x, y })),
+    label,
+    height: SQUARE,
+    grid: true,
+  });
+  const pad = 12;
+  const unit = (SQUARE - 2 * pad) / (win.xMax - win.xMin);
+  const sx = (x: number) => (pad + (x - win.xMin) * unit).toFixed(1);
+  const sy = (y: number) => (pad + (win.yMax - y) * unit).toFixed(1);
+  const drawn = [
+    ...dashed.map(
+      ([[x1, y1], [x2, y2]]) =>
+        `<line x1="${sx(x1)}" y1="${sy(y1)}" x2="${sx(x2)}" y2="${sy(y2)}" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6" />`,
+    ),
+    ...polygons.map(
+      (P) =>
+        `<polygon class="plot-accent" points="${P.map(([x, y]) => `${sx(x)},${sy(y)}`).join(' ')}" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />`,
+    ),
+  ].join('');
+  const at = svg.indexOf('<circle');
+  return at < 0 ? svg.replace('</svg>', `${drawn}</svg>`) : `${svg.slice(0, at)}${drawn}${svg.slice(at)}`;
+}
+
+const diagram = (svg: string): Block => ({ kind: 'diagram', svg });
+
+/** A square window on squared paper, the same span both ways so a unit is one length. */
+interface Frame {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+}
+
+/** The ten-either-way window the sliders use, so the marker lines up with `markerWindow`. */
+const WIDE: Frame = { xMin: -10, xMax: 10, yMin: -10, yMax: 10 };
+
+/** A square window round some points with a square or so to spare, so a small shape is drawn large. */
+function windowFor(points: Pt[]): Frame {
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const half = Math.max(4, Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2 + 1.5);
+  const size = Math.ceil(2 * half);
+  const xMin = Math.floor((Math.min(...xs) + Math.max(...xs)) / 2 - half);
+  const yMin = Math.floor((Math.min(...ys) + Math.max(...ys)) / 2 - half);
+  return { xMin, xMax: xMin + size, yMin, yMax: yMin + size };
+}
+
+/** Twice a triangle's area, by the shoelace, one term a line and the sum after. */
+function shoelaceLines(P: Pt[], names: string[]): SolutionStep[] {
+  const terms = P.map((X, i) => {
+    const Y = P[(i + 1) % P.length];
+    return `(${X[0]})(${Y[1]}) - (${Y[0]})(${X[1]}) &= ${crossPt(X, Y)}`;
+  });
+  const sum = shoelace2(P);
+  const sides = P.map((_, i) => `$${names[i]}$ to $${names[(i + 1) % P.length]}$`).join(', ');
+  return [
+    { text: `Each line is $x_1y_2 - x_2y_1$ for one side, going ${sides}:` },
+    // Small, since the widest line of negatives otherwise runs a hair past a phone's width.
+    { tex: `{\\small ${chain(...terms)}}` },
+    {
+      text: `They add to $${sum}$, which is twice the area${sum < 0 ? ' with a minus sign, since the corners run clockwise' : ''}. So the area is $\\tfrac{1}{2} \\times ${Math.abs(sum)} = ${halfOf(Math.abs(sum))}$.`,
+    },
+  ];
+}
+
+/** Distinct number labels for a flow fork, the first being the right one. */
+function numberLabels(values: number[]): string[] {
+  const out: string[] = [];
+  for (const v of values) {
+    const label = `$${v}$`;
+    if (Number.isFinite(v) && !out.includes(label)) out.push(label);
+  }
+  return out.slice(0, 4);
+}
+
+/** Flow leaves, turned by a hash so the right one is not always first. */
+const leaves = (labels: string[], outcome: (label: string) => string) =>
+  turned(labels, labels.join('|')).map((label) => ({ label, outcome: outcome(label) }));
+
+/* ---------- lesson 1: base and height ---------- */
+
+interface LevelTriParams {
+  /** The ends of the level side, and the third corner. */
+  X: Pt;
+  Y: Pt;
+  Z: Pt;
+  /** 'x' when XY runs straight across, 'y' when it runs straight up. */
+  along: 'x' | 'y';
+  /** Which of A, B, C the corner X is; Y and Z follow it round. */
+  at: number;
+}
+
+/** Which coordinate changes along the base, and which one the height is measured in. */
+const baseAxis = ({ along }: LevelTriParams): number => (along === 'x' ? 0 : 1);
+const heightAxis = ({ along }: LevelTriParams): number => (along === 'x' ? 1 : 0);
+
+const baseOf = (p: LevelTriParams): number => Math.abs(p.Y[baseAxis(p)] - p.X[baseAxis(p)]);
+const heightOf = (p: LevelTriParams): number => Math.abs(p.Z[heightAxis(p)] - p.X[heightAxis(p)]);
+/** The signed height: which side of the base the third corner is on. */
+const liftOf = (p: LevelTriParams): number => p.Z[heightAxis(p)] - p.X[heightAxis(p)];
+
+const levelTri = (p: LevelTriParams): Tri => placed([p.X, p.Y, p.Z], p.at);
+
+/** The level side's name, its letters in alphabetical order, and the third corner's. */
+function levelNames({ at }: LevelTriParams): { side: string; apex: string } {
+  const [x, y, z] = [ABC[at], ABC[(at + 1) % 3], ABC[(at + 2) % 3]];
+  return { side: [x, y].sort().join(''), apex: z };
+}
+
+/**
+ * A triangle with one side level: a base of whole length, a height, and the
+ * third corner that far from the base's line. Difficulty 2 may stand the base
+ * straight up, lets the third corner overhang the base, and names the corners
+ * starting anywhere.
+ */
+function sampleLevelTri(rng: Rng, difficulty: number, keep: (p: LevelTriParams) => boolean = () => true): LevelTriParams {
+  const hard = difficulty > 1;
+  const reach = hard ? 7 : 5;
+  for (;;) {
+    const along = hard && rng.chance(0.5) ? 'y' : 'x';
+    const b = rng.int(2, hard ? 8 : 6);
+    const h = rng.int(1, hard ? 7 : 5) * rng.sign();
+    if ((b * Math.abs(h)) % 2 !== 0) continue;
+    const t = hard ? rng.int(-2, b + 2) : rng.int(0, b);
+    const dir = rng.sign();
+    const X: Pt = [rng.int(-reach, reach), rng.int(-reach, reach)];
+    const step = (u: number, v: number): Pt => (along === 'x' ? [X[0] + u, X[1] + v] : [X[0] + v, X[1] + u]);
+    const p: LevelTriParams = { X, Y: step(dir * b, 0), Z: step(dir * t, h), along, at: hard ? rng.int(0, 2) : 0 };
+    if (!inReach([p.X, p.Y, p.Z], reach) || !keep(p)) continue;
+    return p;
+  }
+}
+
+function levelFigure(p: LevelTriParams): Block {
+  const T = levelTri(p);
+  return diagram(shapeFigure(windowFor(T), [T], `The triangle with corners ${T.map((X, i) => `${ABC[i]}${pt(...X)}`).join(', ')}`));
+}
+
+/** The line the level side lies on: y = 3, or x = -2. */
+const baseLine = (p: LevelTriParams): string => (p.along === 'x' ? `y = ${p.X[1]}` : `x = ${p.X[0]}`);
+
+/** Base and height read off the coordinates, then half their product. */
+function levelSolution(p: LevelTriParams): SolutionStep[] {
+  const { side, apex } = levelNames(p);
+  const [i, j] = [baseAxis(p), heightAxis(p)];
+  const [b, h] = [baseOf(p), heightOf(p)];
+  const letter = ['x', 'y'];
+  return [
+    {
+      text: `Both ends of $${side}$ are on the line $${baseLine(p)}$, so it runs straight ${p.along === 'x' ? 'across' : 'up'}. Take it as the base; the height is how far $${apex}$ is from that line, measured square on to it.`,
+    },
+    {
+      tex: chain(
+        `b &= |${p.Y[i]} - ${paren(p.X[i])}| = ${b}`,
+        `h &= |${p.Z[j]} - ${paren(p.X[j])}| = ${h}`,
+        `\\text{Area} &= \\tfrac{1}{2} \\times ${b} \\times ${h} = ${(b * h) / 2}`,
+      ),
+    },
+    { text: `The base is a change in $${letter[i]}$ and the height a change in $${letter[j]}$: the slanted sides play no part.` },
+  ];
+}
+
+/** The area of a triangle with a level side, typed. */
+const coordTriArea: Generator<LevelTriParams> = {
+  id: 'coord-tri-area',
+  sample: (rng, difficulty) => sampleLevelTri(rng, difficulty),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`Triangle $ABC$ has ${cornersNamed(levelTri(p), ABC)}. Find its area.`), levelFigure(p)],
+    lead: '\\text{Area} =',
+    keypad: [],
+    answer: String((baseOf(p) * heightOf(p)) / 2),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const [b, h] = [baseOf(p), heightOf(p)];
+    return intOptions((b * h) / 2, [b * h, (b * Math.abs(p.Z[heightAxis(p)])) / 2, ((b + 1) * h) / 2, (b * (h + 1)) / 2], 1);
+  },
+  solution: levelSolution,
+};
+
+/** Base, height, then the area, as a tree. */
+const coordBaseHeightTree: Generator<LevelTriParams> = {
+  id: 'coord-base-height-tree',
+  sample: (rng, difficulty) => sampleLevelTri(rng, difficulty),
+  render: (p): Slide => {
+    const [b, h] = [baseOf(p), heightOf(p)];
+    const answer = [b, h, (b * h) / 2].map(String);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Triangle $ABC$ has ${cornersNamed(levelTri(p), ABC)}. Top row: the length of its level side, and the height of the third corner from it. Underneath: the area.`,
+        ),
+        levelFigure(p),
+      ],
+      expression: '\\tfrac{1}{2} \\times b \\times h',
+      nodes: [
+        { id: 'base', from: [] },
+        { id: 'height', from: [] },
+        { id: 'area', from: ['base', 'height'] },
+      ],
+      bank: bank(answer, [b + 1, h + 1, b * h, Math.abs(p.Z[heightAxis(p)])].map(String), [b, h, (b * h) / 2], 3),
+      answer,
+    };
+  },
+  solution: levelSolution,
+};
+
+/** Which half-base-times-height is the area: the slips take a coordinate, or a count of dots, for a length. */
+const coordHalfBaseChoice: Generator<LevelTriParams> = {
+  id: 'coord-half-base-choice',
+  sample: (rng, difficulty) => sampleLevelTri(rng, difficulty),
+  render: (p): Slide => {
+    const [b, h] = [baseOf(p), heightOf(p)];
+    const calc = (x: number, y: number) => `\\tfrac{1}{2} \\times ${x} \\times ${y}`;
+    const along = Math.abs(p.Z[baseAxis(p)] - p.X[baseAxis(p)]);
+    const slips: [string, number][] = [
+      [`${b} \\times ${h}`, 2 * b * h],
+      [calc(b, Math.abs(p.Z[heightAxis(p)])), b * Math.abs(p.Z[heightAxis(p)])],
+      [calc(b + 1, h), (b + 1) * h],
+      [calc(b, along), b * along],
+      [calc(b, h + 1), b * (h + 1)],
+    ];
+    const opts: ChoiceOption[] = [{ tex: calc(b, h), correct: true }];
+    for (const [tex, twice] of slips) {
+      if (opts.length === 4) break;
+      if (twice === b * h || twice === 0 || opts.some((o) => o.tex === tex)) continue;
+      opts.push({ tex });
+    }
+    return choiceSlide([say(`Triangle $ABC$ has ${cornersNamed(levelTri(p), ABC)}. Which of these is its area?`), levelFigure(p)], opts);
+  },
+  solution: levelSolution,
+};
+
+/** A, B on a level line and C's other coordinate unknown: which side, and how far. */
+function apexWhere(p: LevelTriParams): string {
+  const up = liftOf(p) > 0;
+  if (p.along === 'x') return up ? 'above' : 'below';
+  return up ? 'to the right of' : 'to the left of';
+}
+
+/** C with its unknown coordinate written as k. */
+const apexUnknown = (p: LevelTriParams): string => (p.along === 'x' ? `C(${p.Z[0]}, k)` : `C(k, ${p.Z[1]})`);
+
+/** The height from the area, then the corner that far from the base on the side stated. */
+function apexSolution(p: LevelTriParams, letter = 'k'): SolutionStep[] {
+  const [b, h] = [baseOf(p), heightOf(p)];
+  const j = heightAxis(p);
+  const area = (b * h) / 2;
+  return [
+    {
+      text: `$AB$ lies on the line $${baseLine(p)}$, so it is level and its length is the base: $b = ${b}$. Put the area into half base times height:`,
+    },
+    { tex: chain(`\\tfrac{1}{2} \\times ${b} \\times h &= ${area}`, `h &= ${area * 2} \\div ${b} = ${h}`) },
+    {
+      text: `$C$ is ${apexWhere(p)} $AB$, so ${liftOf(p) > 0 ? 'add' : 'take away'} the height: $${letter} = ${p.X[j]} ${liftOf(p) > 0 ? '+' : '-'} ${h} = ${p.Z[j]}$.`,
+    },
+  ];
+}
+
+/** C's height from the area, typed. Difficulty 2 stands AB straight up and puts C either side. */
+const coordApexK: Generator<LevelTriParams> = {
+  id: 'coord-apex-k',
+  sample: (rng, difficulty) => ({ ...sampleLevelTri(rng, difficulty, (p) => difficulty > 1 || liftOf(p) > 0), at: 0 }),
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(
+        `$${namedAt('A', p.X)}$ and $${namedAt('B', p.Y)}$ are two corners of triangle $ABC$, and $${apexUnknown(p)}$ lies ${apexWhere(p)} $AB$. The area of $ABC$ is $${(baseOf(p) * heightOf(p)) / 2}$. Find $k$.`,
+      ),
+    ],
+    lead: 'k =',
+    keypad: [],
+    answer: String(p.Z[heightAxis(p)]),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const j = heightAxis(p);
+    const s = Math.sign(liftOf(p));
+    const h = heightOf(p);
+    return intOptions(p.Z[j], [p.X[j] - s * h, p.X[j] + (s * h) / 2, s * h, p.X[j] + 2 * s * h]);
+  },
+  solution: (p) => apexSolution(p),
+};
+
+/** The same question with the answer dragged: C slides along its dashed line. */
+const coordApexSlider: Generator<LevelTriParams> = {
+  id: 'coord-apex-slider',
+  sample: (rng, difficulty) => ({ ...sampleLevelTri(rng, difficulty, (p) => difficulty > 1 || liftOf(p) > 0), at: 0 }),
+  render: (p): Slide => {
+    const across = p.along === 'x';
+    const axis = across ? 'y' : 'x';
+    const guide: [Pt, Pt] = across ? [[p.Z[0], -10], [p.Z[0], 10]] : [[-10, p.Z[1]], [10, p.Z[1]]];
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$${namedAt('A', p.X)}$ and $${namedAt('B', p.Y)}$ are drawn. $C$ is on the dashed line $${across ? `x = ${p.Z[0]}` : `y = ${p.Z[1]}`}$, ${apexWhere(p)} $AB$, and triangle $ABC$ has area $${(baseOf(p) * heightOf(p)) / 2}$. Slide to $C$'s ${across ? 'height' : '$x$-coordinate'}.`,
+        ),
+      ],
+      min: -10,
+      max: 10,
+      step: 1,
+      answer: p.Z[heightAxis(p)],
+      readout: `${axis} = {v}`,
+      figure: {
+        svg: shapeFigure(WIDE, [[p.X, p.Y]], 'The side AB, and the dashed line the third corner lies on', [guide]),
+        axis,
+        ...markerWindow(-10, 10, axis, SQUARE),
+      },
+    };
+  },
+  solution: (p) => apexSolution(p, p.along === 'x' ? 'y_C' : 'x_C'),
+};
+
+/* ---------- lesson 2: the box and the shoelace ---------- */
+
+interface BoxParams {
+  /** The corner the triangle shares with the box round it. */
+  P: Pt;
+  /** The box's width and height. */
+  w: number;
+  h: number;
+  /** How far up the far side the second corner sits, and along the far top the third. */
+  s: number;
+  t: number;
+  /** Which way the box runs from P. */
+  fx: number;
+  fy: number;
+  /** Which of A, B, C the shared corner is. */
+  at: number;
+}
+
+/** P, the corner on the far side, the corner on the far top. */
+function boxPoints({ P, w, h, s, t, fx, fy }: BoxParams): Tri {
+  return [P, [P[0] + fx * w, P[1] + fy * s], [P[0] + fx * t, P[1] + fy * h]];
+}
+
+const boxTri = (p: BoxParams): Tri => placed(boxPoints(p), p.at);
+
+/** The box's four corners, going round. */
+function boxOf({ P, w, h, fx, fy }: BoxParams): Pt[] {
+  return [P, [P[0] + fx * w, P[1]], [P[0] + fx * w, P[1] + fy * h], [P[0], P[1] + fy * h]];
+}
+
+/** The legs of the three right-angled corners the box has left over. */
+const cornerLegs = ({ w, h, s, t }: BoxParams): [number, number][] => [
+  [w, s],
+  [w - t, h - s],
+  [t, h],
+];
+
+/** Twice the area: the box less its corners comes to (wh - ts) / 2. */
+const boxArea2 = ({ w, h, s, t }: BoxParams): number => w * h - t * s;
+
+/**
+ * A triangle with no side level, drawn from the box round it: one corner at
+ * the box's corner and the other two strictly inside its far sides, which is
+ * what leaves exactly three right-angled corners to take away.
+ */
+function sampleBox(rng: Rng, difficulty: number): BoxParams {
+  const hard = difficulty > 1;
+  const reach = hard ? 7 : 5;
+  for (;;) {
+    const w = rng.int(2, hard ? 7 : 5);
+    const h = rng.int(2, hard ? 7 : 5);
+    const s = rng.int(1, h - 1);
+    const t = rng.int(1, w - 1);
+    if ((w * h - t * s) % 2 !== 0) continue;
+    const p: BoxParams = { P: [rng.int(-reach, reach), rng.int(-reach, reach)], w, h, s, t, fx: rng.sign(), fy: rng.sign(), at: rng.int(0, 2) };
+    if (!inReach(boxOf(p), reach)) continue;
+    return p;
+  }
+}
+
+function boxFigure(p: BoxParams, withBox: boolean): Block {
+  const T = boxTri(p);
+  const B = boxOf(p);
+  const sides: [Pt, Pt][] = withBox ? B.map((X, i) => [X, B[(i + 1) % 4]]) : [];
+  return diagram(shapeFigure(windowFor(B), [T], `The triangle with corners ${T.map((X, i) => `${ABC[i]}${pt(...X)}`).join(', ')}`, sides, T));
+}
+
+/** The box, its three corners, and the difference. */
+function boxSolution(p: BoxParams): SolutionStep[] {
+  const { w, h } = p;
+  const B = boxOf(p);
+  const xs = [B[0][0], B[2][0]].sort((a, b) => a - b);
+  const ys = [B[0][1], B[2][1]].sort((a, b) => a - b);
+  const legs = cornerLegs(p);
+  const cut = legs.map(([a, b]) => a * b);
+  const corners = (cut[0] + cut[1] + cut[2]) / 2;
+  return [
+    {
+      text: `The box round the triangle runs from $x = ${xs[0]}$ to $x = ${xs[1]}$ and from $y = ${ys[0]}$ to $y = ${ys[1]}$: $${w}$ by $${h}$, so its area is $${w * h}$.`,
+    },
+    { text: 'The triangle leaves three right-angled triangles in the corners of the box, each half of its two legs multiplied:' },
+    { tex: chain(...legs.map(([a, b], i) => `T_${i + 1} &= \\tfrac{1}{2} \\times ${a} \\times ${b} = ${halfOf(a * b)}`)) },
+    { tex: chain(`\\text{Area} &= ${w * h} - ${halfOf(cut[0])} - ${halfOf(cut[1])} - ${halfOf(cut[2])}`, `&= ${w * h} - ${corners} = ${boxArea2(p) / 2}`) },
+  ];
+}
+
+const boxPrompt = (p: BoxParams): string => `Triangle $ABC$ has ${cornersNamed(boxTri(p), ABC)}.`;
+
+/** The box less its three corners, one tap at a time. */
+const coordBoxSteps: Generator<BoxParams> = {
+  id: 'coord-box-steps',
+  sample: sampleBox,
+  render: (p): Slide => {
+    const { w, h } = p;
+    const legs = cornerLegs(p);
+    const corner = ([a, b]: [number, number]) => `\\tfrac{1}{2} \\times ${a} \\times ${b}`;
+    const cut = legs.map(([a, b]) => a * b);
+    const area2 = boxArea2(p);
+    const called = (v: string) => `\\text{Area} = ${v}`;
+    return {
+      kind: 'steps',
+      prompt: [
+        say(`${boxPrompt(p)} Its area is the box round it less three right-angled corners. Tap the part you would work out **next**, then choose its value.`),
+        boxFigure(p, true),
+      ],
+      start: [`${w} \\times ${h}`, '-', corner(legs[0]), '-', corner(legs[1]), '-', corner(legs[2])],
+      reductions: [
+        { span: [0, 1], value: String(w * h), bank: stepBank(String(w * h), String(w + h), String((w + 1) * (h + 1)), String(2 * (w + h))) },
+        ...legs.map(([a, b], i) => ({
+          span: [2 + 2 * i, 3 + 2 * i] as [number, number],
+          value: halfOf(a * b),
+          bank: stepBank(halfOf(a * b), String(a * b), String(a + b), halfOf((a + 1) * b)),
+        })),
+        {
+          span: [0, 7],
+          value: called(halfOf(area2)),
+          bank: stepBank(called(halfOf(area2)), called(halfOf(cut[0] + cut[1] + cut[2])), called(String(area2)), called(halfOf(area2 + 2))),
+        },
+      ],
+    };
+  },
+  solution: boxSolution,
+};
+
+/** The box, the corners, the area: three forks. */
+const coordBoxFlow: Generator<BoxParams> = {
+  id: 'coord-box-flow',
+  sample: sampleBox,
+  render: (p): Slide => {
+    const { w, h, s, t } = p;
+    const box = w * h;
+    const corners = (w * h + t * s) / 2;
+    const area = (w * h - t * s) / 2;
+    const boxes = numberLabels([box, (w + 1) * (h + 1), 2 * (w + h), w + h]);
+    const cuts = numberLabels([corners, w * h + t * s, corners + 1, corners - 1]);
+    const areas = numberLabels([area, corners, area * 2, area + 1]);
+    return {
+      kind: 'flow',
+      prompt: [say(`${boxPrompt(p)} Find its area from the box round it.`), boxFigure(p, true)],
+      subject: '\\text{Area} = \\text{box} - \\text{corners}',
+      steps: [
+        { id: 'box', ask: 'What is the area of the box round the triangle?', branches: onward(boxes, 'corners') },
+        { id: 'corners', ask: 'What do the three right-angled corners add up to?', branches: onward(cuts, 'area') },
+        { id: 'area', ask: 'So what is the area of $ABC$?', branches: leaves(areas, (label) => `So the area of $ABC$ is ${label}.`) },
+      ],
+      answer: [boxes[0], cuts[0], areas[0]],
+    };
+  },
+  solution: boxSolution,
+};
+
+/** The shoelace as a tree: three cross terms, their sum, half its size. */
+const coordShoelaceTree: Generator<BoxParams> = {
+  id: 'coord-shoelace-tree',
+  sample: sampleBox,
+  render: (p): Slide => {
+    const T = boxTri(p);
+    const [A, B, C] = T;
+    const terms = [crossPt(A, B), crossPt(B, C), crossPt(C, A)];
+    const sum = shoelace2(T);
+    const answer = [...terms, sum, Math.abs(sum) / 2].map(String);
+    const reversed = [A[0] * B[1] + B[0] * A[1], ...terms.map((c) => -c), -sum, Math.abs(sum), sum / 2];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `${boxPrompt(p)} Find its area by the shoelace. Top row: $x_Ay_B - x_By_A$, then $x_By_C - x_Cy_B$, then $x_Cy_A - x_Ay_C$. Next: their sum. Last: the area, half its size.`,
+        ),
+      ],
+      expression: '\\text{Area} = \\tfrac{1}{2}\\lvert \\text{sum} \\rvert',
+      nodes: [
+        { id: 'ab', from: [] },
+        { id: 'bc', from: [] },
+        { id: 'ca', from: [] },
+        { id: 'sum', from: ['ab', 'bc', 'ca'] },
+        { id: 'area', from: ['sum'] },
+      ],
+      bank: bank(answer, reversed.map(String), [Math.abs(sum) / 2], 3),
+      answer,
+    };
+  },
+  solution: (p) => [
+    { text: 'Take the corners in order round the triangle, and for each side multiply across and take away:' },
+    ...shoelaceLines(boxTri(p), ABC),
+    { text: 'The box round it gives the same number, which is the check.' },
+  ],
+};
+
+/** The area of a triangle with no side level, typed. */
+const coordBoxArea: Generator<BoxParams> = {
+  id: 'coord-box-area',
+  sample: sampleBox,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${boxPrompt(p)} None of its sides is level. Find its area.`), boxFigure(p, false)],
+    lead: '\\text{Area} =',
+    keypad: [],
+    answer: halfOf(boxArea2(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const { w, h, s, t } = p;
+    const area = boxArea2(p) / 2;
+    return intOptions(area, [boxArea2(p), w * h, (w * h + t * s) / 2, area + w, (w * h) / 2], 1);
+  },
+  solution: (p) => [...boxSolution(p), { text: 'The shoelace gives the same, with no box to draw:' }, ...shoelaceLines(boxTri(p), ABC)],
+};
+
+/* ---------- lesson 3: polygons ---------- */
+
+/** Four lattice corners, taken in order round a convex quadrilateral whose area is whole. */
+function sampleConvexQuad(rng: Rng, difficulty: number, keep: (P: Four) => boolean = () => true): Four {
+  const reach = difficulty > 1 ? 7 : 5;
+  for (;;) {
+    const P = [0, 1, 2, 3].map(() => [rng.int(-reach, reach), rng.int(-reach, reach)] as Pt) as Four;
+    if (!convex(P)) continue;
+    const twice = Math.abs(shoelace2(P));
+    if (twice % 2 !== 0 || twice < 12 || !keep(P)) continue;
+    return P;
+  }
+}
+
+interface SplitParams {
+  P: Four;
+  /** 0 splits along AC, into ABC and ACD; 1 along BD, into ABD and BCD. */
+  cut: number;
+}
+
+/** The two triangles a diagonal makes, as corner indices. */
+const halvesOf = (cut: number): [number[], number[]] =>
+  cut === 0
+    ? [
+        [0, 1, 2],
+        [0, 2, 3],
+      ]
+    : [
+        [0, 1, 3],
+        [1, 2, 3],
+      ];
+
+const nameOfPart = (idx: number[]): string => idx.map((i) => QUAD[i]).join('');
+
+/** Twice each triangle's area. */
+function partAreas2({ P, cut }: SplitParams): [number, number] {
+  const [one, two] = halvesOf(cut);
+  return [Math.abs(shoelace2(one.map((i) => P[i]))), Math.abs(shoelace2(two.map((i) => P[i])))];
+}
+
+function quadFigure(P: Four, diagonal?: [Pt, Pt]): Block {
+  return diagram(
+    shapeFigure(windowFor(P), [P], `The quadrilateral with corners ${P.map((X, i) => `${QUAD[i]}${pt(...X)}`).join(', ')}`, diagonal ? [diagonal] : []),
+  );
+}
+
+/** The quadrilateral as two triangles, each by the shoelace. */
+function splitSolution(p: SplitParams): SolutionStep[] {
+  const [one, two] = halvesOf(p.cut);
+  const [a1, a2] = partAreas2(p);
+  return [
+    { text: `The diagonal splits $ABCD$ into $${nameOfPart(one)}$ and $${nameOfPart(two)}$. By the shoelace, $${nameOfPart(one)}$ first:` },
+    ...shoelaceLines(
+      one.map((i) => p.P[i]),
+      one.map((i) => QUAD[i]),
+    ),
+    { text: `Then $${nameOfPart(two)}$:` },
+    ...shoelaceLines(
+      two.map((i) => p.P[i]),
+      two.map((i) => QUAD[i]),
+    ),
+    { text: `So $ABCD$ has area $${a1 / 2} + ${a2 / 2} = ${(a1 + a2) / 2}$.` },
+  ];
+}
+
+/** Each triangle a diagonal makes, then their sum, as a tree. */
+const coordQuadSplitTree: Generator<SplitParams> = {
+  id: 'coord-quad-split-tree',
+  sample: (rng, difficulty) => {
+    const cut = difficulty > 1 ? rng.int(0, 1) : 0;
+    const P = sampleConvexQuad(rng, difficulty, (Q) => partAreas2({ P: Q, cut }).every((a) => a % 2 === 0));
+    return { P, cut };
+  },
+  render: (p): Slide => {
+    const [one, two] = halvesOf(p.cut);
+    const [a1, a2] = partAreas2(p).map((a) => a / 2);
+    const answer = [a1, a2, a1 + a2].map(String);
+    const diagonal = p.cut === 0 ? 'AC' : 'BD';
+    const ends: [Pt, Pt] = p.cut === 0 ? [p.P[0], p.P[2]] : [p.P[1], p.P[3]];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `The quadrilateral $ABCD$ has ${cornersNamed(p.P, QUAD)}. The diagonal $${diagonal}$ splits it into triangles $${nameOfPart(one)}$ and $${nameOfPart(two)}$. Top row: their areas. Underneath: the area of $ABCD$.`,
+        ),
+        quadFigure(p.P, ends),
+      ],
+      expression: `\\text{area } ${nameOfPart(one)} + \\text{area } ${nameOfPart(two)}`,
+      nodes: [
+        { id: 'one', from: [] },
+        { id: 'two', from: [] },
+        { id: 'whole', from: ['one', 'two'] },
+      ],
+      bank: bank(answer, [2 * a1, 2 * a2, Math.abs(a1 - a2), 2 * (a1 + a2)].map(String), [a1, a2, a1 + a2], 3),
+      answer,
+    };
+  },
+  solution: splitSolution,
+};
+
+/**
+ * A parallelogram's area: twice triangle ABC, which is the shoelace sum left
+ * unhalved. Difficulty 1 names all four corners; difficulty 2 names three.
+ */
+const coordParaArea: Generator<QuadParams & { given: number }> = {
+  id: 'coord-para-area',
+  sample: (rng, difficulty) => ({ ...sampleQuad(rng, difficulty, ALL_QUADS), given: difficulty > 1 ? 3 : 4 }),
+  render: (p): Slide => {
+    const P = quadOf(p);
+    return {
+      kind: 'expression',
+      prompt: [say(`$ABCD$ is a parallelogram with ${cornersNamed(P.slice(0, p.given), QUAD)}. Find its area.`)],
+      lead: '\\text{Area} =',
+      keypad: [],
+      answer: String(Math.abs(crossPt(p.u, p.v))),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  choices: (p) => {
+    const area = Math.abs(crossPt(p.u, p.v));
+    return intOptions(area, [area / 2, 2 * area, dotPt(p.u, p.u), Math.abs(dotPt(p.u, p.v))], 1);
+  },
+  solution: (p) => {
+    const [A, B, C] = quadOf(p);
+    const twice = Math.abs(shoelace2([A, B, C]));
+    return [
+      { text: 'The diagonal $AC$ cuts a parallelogram into two equal triangles, so its area is twice that of $ABC$. By the shoelace:' },
+      ...shoelaceLines([A, B, C], ABC).slice(0, 1),
+      { text: `The sum is twice the area of $ABC$, and so it is exactly the area of $ABCD$: $${twice}$.` },
+    ];
+  },
+};
+
+interface ShoelaceQuadParams {
+  P: Four;
+}
+
+/** A value written after a plus sign: a negative one bracketed. */
+const afterPlus = (v: number): string => (v < 0 ? `(${v})` : String(v));
+
+/** The shoelace on a quadrilateral, one term a tap, then the sum, then the area. Difficulty 1 puts A at the origin. */
+const coordPolyShoelaceSteps: Generator<ShoelaceQuadParams> = {
+  id: 'coord-poly-shoelace-steps',
+  sample: (rng, difficulty) => ({
+    P: sampleConvexQuad(rng, difficulty, (P) => difficulty > 1 || (P[0][0] === 0 && P[0][1] === 0)),
+  }),
+  render: ({ P }): Slide => {
+    const term = (X: Pt, Y: Pt) => `[(${X[0]})(${Y[1]}) - (${Y[0]})(${X[1]})]`;
+    const pairs = P.map((X, i): [Pt, Pt] => [X, P[(i + 1) % 4]]);
+    const sum = shoelace2(P);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `The quadrilateral $ABCD$ has ${cornersNamed(P, QUAD)}. Find its area by the shoelace: tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: ['\\tfrac{1}{2}\\,\\lvert', ...pairs.flatMap(([X, Y], i) => (i === 0 ? [term(X, Y)] : ['+', term(X, Y)])), '\\rvert'],
+      reductions: [
+        ...pairs.map(([X, Y], i) => {
+          const c = crossPt(X, Y);
+          return {
+            span: [1 + 2 * i, 2 + 2 * i] as [number, number],
+            value: afterPlus(c),
+            bank: stepBank(afterPlus(c), afterPlus(X[0] * Y[1] + Y[0] * X[1]), afterPlus(-c), afterPlus(X[0] * X[1] - Y[0] * Y[1]), afterPlus(c + 1)),
+          };
+        }),
+        { span: [1, 8], value: String(sum), bank: stepBank(String(sum), String(-sum), String(sum + 2), String(sum - 2)) },
+        {
+          span: [0, 3],
+          value: String(Math.abs(sum) / 2),
+          bank: stepBank(String(Math.abs(sum) / 2), String(Math.abs(sum)), String(Math.abs(sum) / 2 + 1), String(Math.abs(sum) / 2 - 1)),
+        },
+      ],
+    };
+  },
+  solution: ({ P }) => [
+    { text: 'Go round the corners in order, and for each side multiply across and take away:' },
+    ...shoelaceLines(P, QUAD),
+  ],
+};
+
+interface AreaKParams {
+  A: Pt;
+  B: Pt;
+  /** C's known coordinate. */
+  c: number;
+  /** Where the two answers are centred, and how far either side. */
+  k0: number;
+  e: number;
+  /** Difficulty 2: AB is slanted and k is C's x-coordinate. */
+  slanted: boolean;
+}
+
+/** How much twice the area changes for each 1 that k moves. */
+const kRate = ({ A, B, slanted }: AreaKParams): number => (slanted ? Math.abs(B[1] - A[1]) : Math.abs(B[0] - A[0]));
+
+/**
+ * C(c, k), or C(k, c) at difficulty 2, from the area: two answers, one either
+ * side of the line through A and B. Built from k0, where C would be on AB,
+ * and e, the distance either side, so both answers are whole.
+ */
+const coordAreaKTiles: Generator<AreaKParams> = {
+  id: 'coord-area-k-tiles',
+  sample: (rng, difficulty) => {
+    const slanted = difficulty > 1;
+    for (;;) {
+      const A: Pt = [rng.int(-5, 5), rng.int(-5, 5)];
+      const B: Pt = slanted ? [A[0] + nz(rng, 4), A[1] + nz(rng, 4)] : [A[0] + nz(rng, 6), A[1]];
+      const c = rng.int(-5, 5);
+      const [dx, dy] = minusPt(B, A);
+      // Where C is on the line AB: its k makes the cross product zero.
+      const top = slanted ? dx * (c - A[1]) + dy * A[0] : A[1] * dx;
+      const rate = slanted ? dy : dx;
+      if (top % rate !== 0) continue;
+      const e = rng.int(1, 5);
+      const params: AreaKParams = { A, B, c, k0: top / rate, e, slanted };
+      if ((kRate(params) * e) % 2 !== 0 || !inReach([B], 9) || Math.abs(params.k0) + e > 12) continue;
+      return params;
+    }
+  },
+  render: (p): Slide => {
+    const answer = [p.k0 - p.e, p.k0 + p.e].map(String);
+    const area = (kRate(p) * p.e) / 2;
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `Triangle $ABC$ has $${namedAt('A', p.A)}$, $${namedAt('B', p.B)}$ and $C(${p.slanted ? `k, ${p.c}` : `${p.c}, k`})$, and its area is $${area}$. Find the two values of $k$.`,
+        ),
+      ],
+      template: 'k = {0} \\text{ or } k = {1}',
+      bank: bank(answer, [p.k0 - 2 * p.e, p.k0 + 2 * p.e, p.e, -p.e].map(String), [p.k0], 2),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: (p) => {
+    const area = (kRate(p) * p.e) / 2;
+    const [k1, k2] = [p.k0 - p.e, p.k0 + p.e];
+    if (!p.slanted) {
+      const b = kRate(p);
+      return [
+        { text: `$AB$ lies on the line $y = ${p.A[1]}$, so it is level with length $${b}$. The height of $C$ from it is the gap between $k$ and $${p.A[1]}$:` },
+        { tex: chain(`\\tfrac{1}{2} \\times ${b} \\times h &= ${area}`, `h &= ${2 * area} \\div ${b} = ${p.e}`) },
+        { text: `$C$ can be that far above $AB$ or that far below it: $k = ${p.A[1]} + ${p.e} = ${k2}$ or $k = ${p.A[1]} - ${p.e} = ${k1}$.` },
+      ];
+    }
+    const [dx, dy] = minusPt(p.B, p.A);
+    // Twice the signed area is alpha - dy * k.
+    const alpha = dx * (p.c - p.A[1]) + dy * p.A[0];
+    const inside = sumTex([String(alpha), termOf(q(-dy), 'k')]);
+    return [
+      {
+        text: `Twice the area is the size of the shoelace sum, which with $A$ as the corner comes to $|(x_B - x_A)(y_C - y_A) - (y_B - y_A)(x_C - x_A)|$. So:`,
+      },
+      {
+        tex: `{\\small ${chain(`${2 * area} &= |(${dx})(${p.c - p.A[1]}) - (${dy})(${lin('k', p.A[0])})|`, `&= |${inside}|`)}}`,
+      },
+      { text: `So $${inside} = ${2 * area}$ or $${inside} = -${2 * area}$, one for each side of $AB$: $k = ${k1}$ or $k = ${k2}$.` },
+    ];
+  },
+};
+
+/* ---------- lesson 4: a locus as an equation ---------- */
+
+/** "(x - 2)^2 + (y + 1)^2", or x^2 where the centre has a zero coordinate. */
+function squaresTex([a, b]: Pt): string {
+  const part = (letter: string, c: number) => (c === 0 ? `${letter}^2` : `(${lin(letter, c)})^2`);
+  return `${part('x', a)} + ${part('y', b)}`;
+}
+
+/** (x - a)^2 + (y - b)^2 multiplied out, times m: 4x^2 + 4y^2 - 8x + 12y + 52. */
+function expandedSquares([a, b]: Pt, m = 1, linear = m, constant = m): string {
+  const sq = m === 1 ? '' : String(m);
+  return sumTex([`${sq}x^2`, `${sq}y^2`, termOf(q(-2 * a * linear)), termOf(q(-2 * b * linear), 'y'), String((a * a + b * b) * constant)]);
+}
+
+/** ax + by + k = 0 divided through by its common factor, the first term positive. */
+function reducedLine(a: number, b: number, k: number): [number, number, number] {
+  const g = gcd(gcd(a, b), k) * ((a || b) < 0 ? -1 : 1);
+  return [a / g + 0, b / g + 0, k / g + 0];
+}
+
+const lineTexOf = ([a, b, k]: [number, number, number]): string => generalTex(a, b, k);
+
+type LocusKind = 'circle' | 'bisector';
+
+interface LocusOnParams {
+  kind: LocusKind;
+  /** The centre, or the midpoint of AB. */
+  M: Pt;
+  /** The step from the centre to the point on it, or from M to B. */
+  v: Pt;
+  /** The perpendicular step from M along the bisector to the point on it. */
+  t: number;
+}
+
+const pointOnLocus = ({ kind, M, v, t }: LocusOnParams): Pt => (kind === 'circle' ? plusPt(M, v) : plusPt(M, scalePt(t, primitive([-v[1], v[0]]))));
+
+/** Whether X is on the locus the prompt describes, tested from the condition itself. */
+function onLocus({ kind, M, v }: LocusOnParams, X: Pt): boolean {
+  return kind === 'circle' ? dist2(M, X) === dotPt(v, v) : dist2(X, minusPt(M, v)) === dist2(X, plusPt(M, v));
+}
+
+/** Every lattice step of length 5, with the four along the axes. */
+const FIVES: Pt[] = [...latticeVectors(25), [5, 0], [-5, 0], [0, 5], [0, -5]];
+
+/** Which point lies on a circle, or on the set equally far from two points. */
+const coordLocusOnChoice: Generator<LocusOnParams> = {
+  id: 'coord-locus-on-choice',
+  sample: (rng, difficulty) => {
+    const kind: LocusKind = difficulty > 1 && rng.chance(0.5) ? 'bisector' : 'circle';
+    if (kind === 'circle') return { kind, M: [rng.int(-3, 3), rng.int(-3, 3)], v: rng.pick(FIVES), t: 0 };
+    const v: Pt = [nz(rng, 3), rng.int(-3, 3)];
+    return { kind, M: [rng.int(-3, 3), rng.int(-3, 3)], v, t: nz(rng, 2) };
+  },
+  render: (p): Slide => {
+    const X = pointOnLocus(p);
+    const text =
+      p.kind === 'circle'
+        ? `$P$ moves so that it is always $5$ from $${namedAt('C', p.M)}$. Which of these points is on the locus of $P$?`
+        : `$P$ moves so that it is always as far from $${namedAt('A', minusPt(p.M, p.v))}$ as from $${namedAt('B', plusPt(p.M, p.v))}$. Which of these points is on the locus of $P$?`;
+    const [x, y] = minusPt(X, p.M);
+    const candidates: Pt[] = [
+      plusPt(p.M, [x + 1, y]),
+      plusPt(p.M, [x, y - 1]),
+      plusPt(p.M, [x - 1, y + 1]),
+      plusPt(p.M, [x + y, y]),
+      plusPt(p.M, [y + 1, x]),
+      plusPt(p.M, primitive(p.v)),
+      plusPt(X, [1, 1]),
+      plusPt(X, [2, 0]),
+      plusPt(X, [0, 2]),
+    ];
+    return choiceSlide([say(text)], pointOptions(X, candidates, (Y) => !onLocus(p, Y)));
+  },
+  solution: (p) => {
+    const X = pointOnLocus(p);
+    if (p.kind === 'circle') {
+      const [dx, dy] = minusPt(X, p.M);
+      return [
+        { text: `The locus is the circle with centre $C$ and radius $5$: a point is on it exactly when its squared distance from $C$ is $25$.` },
+        { tex: `CP^2 = ${paren(dx)}^2 + ${paren(dy)}^2 = ${dx * dx + dy * dy}` },
+        { text: `So $${pt(...X)}$ is on it. Each of the others is nearer or further than $5$.` },
+      ];
+    }
+    const [A, B] = [minusPt(p.M, p.v), plusPt(p.M, p.v)];
+    return [
+      { text: 'The locus is the perpendicular bisector of $AB$: a point is on it exactly when its squared distances from $A$ and from $B$ are equal.' },
+      { tex: chain(lengthLine('PA', X, A), lengthLine('PB', X, B)) },
+      { text: `They match, so $${pt(...X)}$ is on it. For each of the others they differ.` },
+    ];
+  },
+};
+
+interface CircleLocusParams {
+  C: Pt;
+  /** The radius, at difficulty 1; the point it passes through, at difficulty 2. */
+  r: number;
+  Q: Pt | null;
+}
+
+const locusR2 = ({ C, r, Q }: CircleLocusParams): number => (Q ? dist2(C, Q) : r * r);
+
+/** A fixed distance from a point, written as the circle's equation in tiles. */
+const coordLocusCircleTiles: Generator<CircleLocusParams> = {
+  id: 'coord-locus-circle-tiles',
+  sample: (rng, difficulty) => {
+    const C: Pt = [nz(rng, 5), nz(rng, 5)];
+    if (difficulty < 2) return { C, r: rng.int(2, 7), Q: null };
+    for (;;) {
+      const d: Pt = [rng.int(-4, 4), rng.int(-4, 4)];
+      if (slantedVec(d)) return { C, r: 0, Q: plusPt(C, d) };
+    }
+  },
+  render: (p): Slide => {
+    const [a, b] = p.C;
+    const r2 = locusR2(p);
+    const answer = [signedN(-a), signedN(-b), String(r2)];
+    const [dx, dy] = p.Q ? minusPt(p.Q, p.C) : [p.r, 0];
+    const slips = [signedN(a), signedN(b), String(p.Q ? Math.abs(dx) + Math.abs(dy) : p.r), String(p.Q ? r2 + 1 : 2 * p.r)];
+    const text = p.Q
+      ? `$P$ moves on a circle about $${namedAt('C', p.C)}$ that passes through $${namedAt('Q', p.Q)}$. Write the locus of $P$ as an equation.`
+      : `$P$ moves so that it is always $${p.r}$ from $${namedAt('C', p.C)}$. Write the locus of $P$ as an equation.`;
+    return {
+      kind: 'tiles',
+      prompt: [say(text)],
+      template: '(x {0})^2 + (y {1})^2 = {2}',
+      bank: bank(answer, slips, [r2], 2),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const r2 = locusR2(p);
+    const lead = p.Q
+      ? [{ text: `Its radius is $CQ$, so $r^2$ is the squared distance from $C$ to $Q$:` }, { tex: lengthLine('CQ', p.C, p.Q).replace('&', '') }]
+      : [{ text: `Every point $${p.r}$ from $C$ makes a circle with centre $C$ and radius $${p.r}$, so $r^2 = ${r2}$.` }];
+    return [
+      ...lead,
+      { text: 'A point $(x, y)$ is on it when its squared distance from the centre is $r^2$:' },
+      { tex: circleTex(p.C[0], p.C[1], r2) },
+    ];
+  },
+};
+
+interface TwoPointParams {
+  A: Pt;
+  B: Pt;
+}
+
+/** The locus equally far from A and B, as the working goes: expand, cancel, tidy. */
+function equidistantLine({ A, B }: TwoPointParams): { collected: [number, number, number]; reduced: [number, number, number] } {
+  const collected: [number, number, number] = [2 * (B[0] - A[0]), 2 * (B[1] - A[1]), dotPt(A, A) - dotPt(B, B)];
+  return { collected, reduced: reducedLine(...collected) };
+}
+
+/** PA^2 = PB^2 squared out one side at a time, then the squares cancelled. */
+const coordLocusBisectorSteps: Generator<TwoPointParams> = {
+  id: 'coord-locus-bisector-steps',
+  sample: (rng, difficulty) => {
+    const reach = difficulty > 1 ? 6 : 4;
+    for (;;) {
+      const A: Pt = [rng.int(-reach, reach), rng.int(-reach, reach)];
+      const B: Pt = [rng.int(-reach, reach), rng.int(-reach, reach)];
+      if (samePt(A, B) || (difficulty > 1 && !slanted(A, B))) continue;
+      return { A, B };
+    }
+  },
+  render: (p): Slide => {
+    const { A, B } = p;
+    const { collected, reduced } = equidistantLine(p);
+    const expandBank = (X: Pt) =>
+      stepBank(expandedSquares(X), expandedSquares([-X[0], -X[1]]), expandedSquares(X, 1, 1, 0), sumTex(['x^2', 'y^2', termOf(q(-X[0])), termOf(q(-X[1]), 'y'), String(dotPt(X, X))]));
+    const [a, b, k] = collected;
+    const tidy = !(reduced[0] === a && reduced[1] === b && reduced[2] === k);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `$P(x, y)$ moves so that it is always as far from $${namedAt('A', A)}$ as from $${namedAt('B', B)}$. Square the distances and simplify to find its locus: tap the part you would work out **next**, then choose its value.`,
+        ),
+      ],
+      start: [squaresTex(A), '=', squaresTex(B)],
+      reductions: [
+        { span: [0, 1], value: expandedSquares(A), bank: expandBank(A) },
+        { span: [2, 3], value: expandedSquares(B), bank: expandBank(B) },
+        {
+          span: [0, 3],
+          value: generalTex(a, b, k),
+          bank: stepBank(generalTex(a, b, k), generalTex(a, b, -k), generalTex(-a, -b, k), generalTex(a / 2, b / 2, k)),
+        },
+        ...(tidy
+          ? [
+              {
+                span: [0, 1] as [number, number],
+                value: lineTexOf(reduced),
+                bank: stepBank(lineTexOf(reduced), generalTex(reduced[0], reduced[1], -reduced[2]), generalTex(reduced[0], reduced[1], k), generalTex(-reduced[0], reduced[1], reduced[2])),
+              },
+            ]
+          : []),
+      ],
+    };
+  },
+  solution: (p) => {
+    const { A, B } = p;
+    const { collected, reduced } = equidistantLine(p);
+    return [
+      { text: '$PA^2 = PB^2$, written with the distance formula and multiplied out:' },
+      { tex: chain(`&${squaresTex(A)}`, `=\\;&${expandedSquares(A)}`) },
+      { tex: chain(`&${squaresTex(B)}`, `=\\;&${expandedSquares(B)}`) },
+      { text: 'Both have $x^2 + y^2$, which cancels, so the locus is a straight line. Take the right side from the left:' },
+      { tex: lineTexOf(collected) },
+      ...(lineTexOf(reduced) === lineTexOf(collected) ? [] : [{ text: 'Divide through by the common factor:' }, { tex: lineTexOf(reduced) }]),
+      { text: 'That is the perpendicular bisector of $AB$.' },
+    ];
+  },
+};
+
+type NameKind = 'circle' | 'bisector' | 'lines';
+
+interface LocusNameParams {
+  kind: NameKind;
+  /** The centre, the midpoint of AB, or the value c of the line x = c or y = c. */
+  M: Pt;
+  /** The radius, the distance from the line; for the bisector, the step from M to B. */
+  r: number;
+  v: Pt;
+  axis: 'x' | 'y';
+}
+
+const SHAPES: Record<NameKind, string> = { circle: 'A circle', bisector: 'A straight line', lines: 'Two parallel lines' };
+
+/** A line through X with normal n, tidied: n.(P - X) = 0. */
+const lineThrough = (n: Pt, X: Pt): [number, number, number] => reducedLine(n[0], n[1], -dotPt(n, X));
+
+/** The locus's equation, then three slips, all as flow labels. */
+function locusEquations(p: LocusNameParams): string[] {
+  const out: string[] = [];
+  const offer = (tex: string) => {
+    const label = `$${tex}$`;
+    if (!out.includes(label)) out.push(label);
+  };
+  if (p.kind === 'circle') {
+    const [a, b] = p.M;
+    offer(circleTex(a, b, p.r * p.r));
+    offer(circleTex(a, b, p.r));
+    offer(circleTex(-a, -b, p.r * p.r));
+    offer(circleTex(-a, -b, p.r));
+  } else if (p.kind === 'bisector') {
+    const A = minusPt(p.M, p.v);
+    offer(lineTexOf(lineThrough(p.v, p.M)));
+    offer(lineTexOf(lineThrough([-p.v[1], p.v[0]], p.M)));
+    offer(lineTexOf(lineThrough(p.v, A)));
+    offer(lineTexOf(lineThrough(p.v, [-p.M[0], -p.M[1]])));
+  } else {
+    const c = p.axis === 'x' ? p.M[0] : p.M[1];
+    const other = p.axis === 'x' ? 'y' : 'x';
+    offer(`${p.axis} = ${c - p.r} \\text{ and } ${p.axis} = ${c + p.r}`);
+    offer(`${p.axis} = ${-p.r} \\text{ and } ${p.axis} = ${p.r}`);
+    offer(`${other} = ${c - p.r} \\text{ and } ${other} = ${c + p.r}`);
+    offer(`${p.axis} = ${c - 2 * p.r} \\text{ and } ${p.axis} = ${c + 2 * p.r}`);
+  }
+  return out.slice(0, 4);
+}
+
+/** The condition, in words. */
+function locusWords(p: LocusNameParams): string {
+  if (p.kind === 'circle') return `$P$ moves so that it is always $${p.r}$ from $${namedAt('C', p.M)}$.`;
+  if (p.kind === 'bisector') {
+    return `$P$ moves so that it is always as far from $${namedAt('A', minusPt(p.M, p.v))}$ as from $${namedAt('B', plusPt(p.M, p.v))}$.`;
+  }
+  const c = p.axis === 'x' ? p.M[0] : p.M[1];
+  return `$P$ moves so that it is always $${p.r}$ from the line $${p.axis} = ${c}$.`;
+}
+
+/** What shape the locus is, then which equation. */
+const coordLocusNameFlow: Generator<LocusNameParams> = {
+  id: 'coord-locus-name-flow',
+  sample: (rng, difficulty) => {
+    const kinds: NameKind[] = difficulty > 1 ? ['circle', 'bisector', 'lines'] : ['circle', 'lines'];
+    const kind = rng.pick(kinds);
+    const M: Pt = [nz(rng, 5), nz(rng, 5)];
+    const v: Pt = difficulty > 1 ? [nz(rng, 3), nz(rng, 3)] : [nz(rng, 3), rng.int(-3, 3)];
+    return { kind, M, r: rng.int(2, 6), v, axis: rng.chance(0.5) ? 'x' : 'y' };
+  },
+  render: (p): Slide => {
+    const equations = locusEquations(p);
+    const shapes = Object.values(SHAPES);
+    return {
+      kind: 'flow',
+      prompt: [say(locusWords(p))],
+      subject: '\\text{the locus of } P',
+      steps: [
+        { id: 'shape', ask: 'What shape is the locus of $P$?', branches: shapes.map((label) => ({ label, to: 'equation' })) },
+        { id: 'equation', ask: 'Which is its equation?', branches: leaves(equations, (label) => `So $P$ moves on ${label}.`) },
+      ],
+      answer: [SHAPES[p.kind], equations[0]],
+    };
+  },
+  solution: (p) => {
+    if (p.kind === 'circle') {
+      return [
+        { text: `Every point $${p.r}$ from $C$ makes a circle with centre $C$ and radius $${p.r}$, so $r^2 = ${p.r * p.r}$:` },
+        { tex: circleTex(p.M[0], p.M[1], p.r * p.r) },
+      ];
+    }
+    if (p.kind === 'bisector') {
+      const collected = equidistantLine({ A: minusPt(p.M, p.v), B: plusPt(p.M, p.v) }).collected;
+      return [
+        { text: `Every point as far from $A$ as from $B$ is on the perpendicular bisector of $AB$, a straight line through the midpoint $${pt(...p.M)}$.` },
+        { text: 'Set $PA^2 = PB^2$ and multiply out; the $x^2$ and $y^2$ cancel, leaving' },
+        { tex: lineTexOf(collected) },
+        ...(lineTexOf(reducedLine(...collected)) === lineTexOf(collected) ? [] : [{ text: 'which divides down to' }, { tex: lineTexOf(reducedLine(...collected)) }]),
+      ];
+    }
+    const c = p.axis === 'x' ? p.M[0] : p.M[1];
+    return [
+      {
+        text: `The points $${p.r}$ from the line $${p.axis} = ${c}$ make two lines parallel to it, one on each side: $${p.axis} = ${c} - ${p.r} = ${c - p.r}$ and $${p.axis} = ${c} + ${p.r} = ${c + p.r}$.`,
+      },
+    ];
+  },
+};
+
+interface EquidistantSliderParams {
+  M: Pt;
+  /** The step from M to B, so A = M - u. */
+  u: Pt;
+  /** How many steps along the bisector P is from M. */
+  t: number;
+  /** 'x' slides P across a level line; 'y' slides it up a line straight up. */
+  axis: 'x' | 'y';
+}
+
+const sliderP = ({ M, u, t }: EquidistantSliderParams): Pt => plusPt(M, scalePt(t, primitive([-u[1], u[0]])));
+
+/** P on a dashed line, dragged until it is as far from A as from B. */
+const coordLocusEquidistantSlider: Generator<EquidistantSliderParams> = {
+  id: 'coord-locus-equidistant-slider',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params: EquidistantSliderParams = {
+        M: [rng.int(-4, 4), rng.int(-4, 4)],
+        u: [nz(rng, 3), nz(rng, 3)],
+        t: nz(rng, difficulty > 1 ? 2 : 1),
+        axis: difficulty > 1 ? 'y' : 'x',
+      };
+      const { M, u } = params;
+      if (inReach([minusPt(M, u), plusPt(M, u), sliderP(params)], 9)) return params;
+    }
+  },
+  render: (p): Slide => {
+    const [A, B, P] = [minusPt(p.M, p.u), plusPt(p.M, p.u), sliderP(p)];
+    const across = p.axis === 'x';
+    const guide: [Pt, Pt] = across ? [[-10, P[1]], [10, P[1]]] : [[P[0], -10], [P[0], 10]];
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `$${namedAt('A', A)}$ and $${namedAt('B', B)}$ are drawn. $P$ is on the dashed line $${across ? `y = ${P[1]}` : `x = ${P[0]}`}$, and is as far from $A$ as from $B$. Slide to $P$'s ${across ? '$x$-coordinate' : 'height'}.`,
+        ),
+      ],
+      min: -10,
+      max: 10,
+      step: 1,
+      answer: across ? P[0] : P[1],
+      readout: `${p.axis} = {v}`,
+      figure: {
+        svg: shapeFigure(WIDE, [[A, B]], 'The points A and B joined, and the dashed line P lies on', [guide]),
+        axis: p.axis,
+        ...markerWindow(-10, 10, p.axis, SQUARE),
+      },
+    };
+  },
+  solution: (p) => {
+    const [A, B, P] = [minusPt(p.M, p.u), plusPt(p.M, p.u), sliderP(p)];
+    const i = p.axis === 'x' ? 0 : 1;
+    const j = 1 - i;
+    const letter = 'k';
+    const side = (X: Pt) => `(${lin(letter, X[i])})^2 + ${paren(P[j] - X[j])}^2`;
+    const opened = (X: Pt) => sumTex([termOf(q(-2 * X[i]), letter), String(X[i] * X[i] + (P[j] - X[j]) ** 2)]) || '0';
+    const rate = 2 * (B[i] - A[i]);
+    const rest = B[i] * B[i] + (P[j] - B[j]) ** 2 - A[i] * A[i] - (P[j] - A[j]) ** 2;
+    return [
+      { text: `Call $P$'s unknown coordinate $k$, and set $PA^2 = PB^2$:` },
+      { tex: chain(`&${side(A)}`, `=\\;&${side(B)}`) },
+      { text: 'Multiply out; the $k^2$ on each side cancels:' },
+      { tex: chain(`${opened(A)} &= ${opened(B)}`, `${termOf(q(rate), letter)} &= ${rest}`, `k &= ${P[i]}`) },
+      { text: `So $P = ${pt(...P)}$, on the perpendicular bisector of $AB$ through its midpoint $${pt(...p.M)}$.` },
+    ];
+  },
+};
+
+interface LinesParams {
+  /** The line is x = c (or y = c), written at difficulty 2 as m x + mc' = 0. */
+  c: number;
+  d: number;
+  axis: 'x' | 'y';
+  m: number;
+}
+
+/** A fixed distance from a line: two lines, one either side. */
+const coordLocusLinesTiles: Generator<LinesParams> = {
+  id: 'coord-locus-lines-tiles',
+  sample: (rng, difficulty) => ({ c: nz(rng, 6), d: rng.int(1, 5), axis: rng.chance(0.5) ? 'x' : 'y', m: difficulty > 1 ? rng.pick([2, 3, 4]) : 1 }),
+  render: ({ c, d, axis, m }): Slide => {
+    const line = m === 1 ? `${axis} = ${c}` : `${m}${axis} ${signedN(-m * c)} = 0`;
+    const answer = [c - d, c + d].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [say(`$P$ moves so that it is always $${d}$ from the line $${line}$. Its locus is two lines. Which?`)],
+      template: `${axis} = {0} \\text{ and } ${axis} = {1}`,
+      bank: bank(answer, [d, -d, -c - d, -c + d, c + 2 * d, c - 2 * d].map(String), [c], 2),
+      answer,
+      unordered: true,
+    };
+  },
+  solution: ({ c, d, axis, m }) => [
+    ...(m === 1 ? [] : [{ text: `First the line itself: $${m}${axis} ${signedN(-m * c)} = 0$ is $${axis} = ${c}$.` }]),
+    {
+      text: `A point $${d}$ from the line $${axis} = ${c}$ is $${d}$ to one side of it or the other, so the locus is two lines parallel to it: $${axis} = ${c} - ${d} = ${c - d}$ and $${axis} = ${c} + ${d} = ${c + d}$.`,
+    },
+  ],
+};
+
+/* ---------- lesson 5: loci from a condition ---------- */
+
+interface RatioParams {
+  /** The centre of the locus, and the step w: B = O - w and A = O - 4w, radius 2|w|. */
+  O: Pt;
+  w: Pt;
+  /** |w|, whole, from the triples table or along an axis. */
+  len: number;
+}
+
+const ratioA = ({ O, w }: RatioParams): Pt => minusPt(O, scalePt(4, w));
+const ratioB = ({ O, w }: RatioParams): Pt => minusPt(O, w);
+const ratioR2 = ({ len }: RatioParams): number => 4 * len * len;
+
+/** Axis steps at difficulty 1; difficulty 2 adds the 3-4-5 steps. */
+function sampleRatio(rng: Rng, difficulty: number): RatioParams {
+  for (;;) {
+    const axisStep = difficulty < 2 || rng.chance(0.4);
+    let w: Pt;
+    let len: number;
+    if (axisStep) {
+      len = rng.int(1, difficulty > 1 ? 3 : 2);
+      w = rng.pick<Pt>([
+        [len, 0],
+        [-len, 0],
+        [0, len],
+        [0, -len],
+      ]);
+    } else {
+      const [a, b, c] = rng.pick(TRIPLES.filter((row) => row[2] === 5));
+      w = [a * rng.sign(), b * rng.sign()];
+      len = c;
+    }
+    const O: Pt = [nz(rng, 6), nz(rng, 6)];
+    const p = { O, w, len };
+    if (!inReach([ratioA(p), ratioB(p)], 12)) continue;
+    return p;
+  }
+}
+
+const ratioPrompt = (p: RatioParams): string =>
+  `$P(x, y)$ moves so that $PA = 2PB$, with $${namedAt('A', ratioA(p))}$ and $${namedAt('B', ratioB(p))}$.`;
+
+/** 3x^2 + 3y^2 - 6ax - 6by + 3(a^2 + b^2 - r^2) = 0: four times PB^2 less PA^2. */
+function collectedRatio(p: RatioParams, m = 3, flipConstant = false): string {
+  const [a, b] = p.O;
+  const k = m * (a * a + b * b - ratioR2(p)) * (flipConstant ? -1 : 1);
+  return `${sumTex([`${m}x^2`, `${m}y^2`, termOf(q(-2 * m * a)), termOf(q(-2 * m * b), 'y'), String(k)])} = 0`;
+}
+
+/** The squaring-out and the collecting, then the centre and radius. */
+function ratioSolution(p: RatioParams): SolutionStep[] {
+  const [A, B] = [ratioA(p), ratioB(p)];
+  const [a, b] = p.O;
+  return [
+    { text: 'Square both sides, so no root is needed: $PA^2 = 4PB^2$. With the distance formula, multiplied out:' },
+    { tex: chain(`&${squaresTex(A)}`, `=\\;&${expandedSquares(A)}`) },
+    { tex: `{\\small ${chain(`&4\\left[${squaresTex(B)}\\right]`, `=\\;&${expandedSquares(B, 4)}`)}}` },
+    { text: `Take the left side from the right: $${collectedRatio(p)}$. Divide by $3$: $${expandedTex(a, b, ratioR2(p))}$.` },
+    ...completeSquareSteps(a, b, ratioR2(p)),
+    { text: `So the locus is a circle with centre $${pt(a, b)}$ and $r^2 = ${ratioR2(p)}$, radius $${2 * p.len}$.` },
+  ];
+}
+
+/** PA = 2PB squared out, collected and divided, one tap at a time. */
+const coordLocusRatioSteps: Generator<RatioParams> = {
+  id: 'coord-locus-ratio-steps',
+  sample: sampleRatio,
+  render: (p): Slide => {
+    const [A, B] = [ratioA(p), ratioB(p)];
+    const [a, b] = p.O;
+    return {
+      kind: 'steps',
+      prompt: [say(`${ratioPrompt(p)} Square both sides and simplify: tap the part you would work out **next**, then choose its value.`)],
+      start: [squaresTex(A), '=', `4\\left[${squaresTex(B)}\\right]`],
+      reductions: [
+        {
+          span: [0, 1],
+          value: expandedSquares(A),
+          bank: stepBank(expandedSquares(A), expandedSquares([-A[0], -A[1]]), expandedSquares(A, 1, 1, 0)),
+        },
+        {
+          span: [2, 3],
+          value: expandedSquares(B, 4),
+          bank: stepBank(expandedSquares(B, 4), expandedSquares(B, 4, 1, 1), expandedSquares(B, 4, 4, 1), expandedSquares([-B[0], -B[1]], 4)),
+        },
+        {
+          span: [0, 3],
+          value: collectedRatio(p),
+          bank: stepBank(collectedRatio(p), collectedRatio(p, 3, true), collectedRatio(p, 5), collectedRatio({ ...p, O: [-a, -b] })),
+        },
+        {
+          span: [0, 1],
+          value: expandedTex(a, b, ratioR2(p)),
+          bank: stepBank(expandedTex(a, b, ratioR2(p)), expandedTex(-a, -b, ratioR2(p)), collectedRatio(p, 1, true), expandedTex(a, b, p.len * p.len)),
+        },
+      ],
+    };
+  },
+  solution: ratioSolution,
+};
+
+/** The centre and radius of the PA = 2PB circle, read from its expanded equation. */
+const coordLocusCentreTiles: Generator<RatioParams> = {
+  id: 'coord-locus-centre-tiles',
+  sample: sampleRatio,
+  render: (p): Slide => {
+    const [a, b] = p.O;
+    const r = 2 * p.len;
+    const answer = [a, b, r].map(String);
+    return {
+      kind: 'tiles',
+      prompt: [say(`${ratioPrompt(p)} Squared out and simplified, its locus is`), show(expandedTex(a, b, ratioR2(p))), say('Find the centre and radius of this circle.')],
+      template: '\\text{centre } ({0}, {1}), \\quad r = {2}',
+      bank: bank(answer, [-a, -b, ratioR2(p), p.len, 2 * a, 2 * b].map(String), [r], 2),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const [a, b] = p.O;
+    const B = ratioB(p);
+    return [
+      ...completeSquareSteps(a, b, ratioR2(p)),
+      { text: `So the centre is $${pt(a, b)}$ and $r = ${2 * p.len}$.` },
+      { text: `A check: the centre is on the line $AB$, beyond $B$, and the point $${pt(...plusPt(p.O, scalePt(2, p.w)))}$ on the circle is $${6 * p.len}$ from $A$ and $${3 * p.len}$ from $B$.` },
+      { text: `Here $B$ is $${pt(...B)}$, one step $${pt(...p.w)}$ back from the centre.` },
+    ];
+  },
+};
+
+/** r^2 of the PA = 2PB circle, typed. */
+const coordLocusRatioR2: Generator<RatioParams> = {
+  id: 'coord-locus-ratio-r2',
+  sample: sampleRatio,
+  render: (p): Slide => ({
+    kind: 'expression',
+    prompt: [say(`${ratioPrompt(p)} Its locus is a circle. Find $r^2$.`)],
+    lead: 'r^2 =',
+    keypad: [],
+    answer: String(ratioR2(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  choices: (p) => {
+    const L = p.len * p.len;
+    const [a, b] = p.O;
+    return intOptions(4 * L, [9 * L, L, 2 * p.len, 16 * L, Math.abs(a * a + b * b - 4 * L)], 1);
+  },
+  solution: ratioSolution,
+};
+
+/** A diameter AB = 2v about its midpoint M, which is a lattice point. */
+interface DiameterLocusParams {
+  M: Pt;
+  v: Pt;
+}
+
+function sampleDiameterLocus(rng: Rng, difficulty: number): DiameterLocusParams {
+  const top = difficulty > 1 ? 4 : 3;
+  for (;;) {
+    const v: Pt = [rng.int(-top, top), rng.int(-top, top)];
+    if (v[0] === 0 && v[1] === 0) continue;
+    const M: Pt = [rng.int(-4, 4), rng.int(-4, 4)];
+    if (inReach([minusPt(M, v), plusPt(M, v)], 9)) return { M, v };
+  }
+}
+
+const perpPrompt = ({ M, v }: DiameterLocusParams): string =>
+  `$P$ moves so that $PA$ is perpendicular to $PB$, with $${namedAt('A', minusPt(M, v))}$ and $${namedAt('B', plusPt(M, v))}$.`;
+
+/** What the locus is, where its centre is, and r^2. */
+const coordLocusDiameterFlow: Generator<DiameterLocusParams> = {
+  id: 'coord-locus-diameter-flow',
+  sample: sampleDiameterLocus,
+  render: (p): Slide => {
+    const { M, v } = p;
+    const [A, B] = [minusPt(M, v), plusPt(M, v)];
+    const r2 = dotPt(v, v);
+    const centres: string[] = [];
+    for (const X of [M, plusPt(A, B), v, [M[1], M[0]] as Pt, [M[0], -M[1]] as Pt, plusPt(M, [1, 0])]) {
+      const label = `$${pt(...X)}$`;
+      if (!centres.includes(label)) centres.push(label);
+    }
+    const radii = [...new Set([r2, 4 * r2, 2 * r2, r2 + 1])].map((n) => `$r^2 = ${n}$`);
+    return {
+      kind: 'flow',
+      prompt: [say(perpPrompt(p))],
+      subject: 'PA \\perp PB',
+      steps: [
+        {
+          id: 'shape',
+          ask: 'What is the locus of $P$?',
+          branches: ['The circle with diameter $AB$', 'The perpendicular bisector of $AB$', 'The line through $A$ and $B$'].map((label) => ({ label, to: 'centre' })),
+        },
+        { id: 'centre', ask: 'Where is its centre?', branches: onward(centres.slice(0, 4), 'radius') },
+        { id: 'radius', ask: 'And its radius squared?', branches: leaves(radii, (label) => `So ${label}.`) },
+      ],
+      answer: ['The circle with diameter $AB$', centres[0], radii[0]],
+    };
+  },
+  solution: ({ M, v }) => {
+    const [A, B] = [minusPt(M, v), plusPt(M, v)];
+    return [
+      { text: 'The angle $APB$ is a right angle, so by the angle in a semicircle $P$ is on the circle with diameter $AB$ (every point of it but $A$ and $B$ themselves).' },
+      { tex: chain(`x &= \\frac{${A[0]} + ${paren(B[0])}}{2} = ${M[0]}`, `y &= \\frac{${A[1]} + ${paren(B[1])}}{2} = ${M[1]}`) },
+      { text: 'The centre is the midpoint of $AB$, and the radius half of $AB$, so $r^2$ is a quarter of $AB^2$:' },
+      { tex: `r^2 = \\tfrac{1}{4} \\times ${dist2(A, B)} = ${dotPt(v, v)}` },
+    ];
+  },
+};
+
+/** Any two lattice points; the circle on them needs no lattice midpoint for this form. */
+function samplePerpPair(rng: Rng, difficulty: number): TwoPointParams {
+  const reach = difficulty > 1 ? 6 : 4;
+  for (;;) {
+    const A: Pt = [rng.int(-reach, reach), rng.int(-reach, reach)];
+    const B: Pt = [rng.int(-reach, reach), rng.int(-reach, reach)];
+    // Both sums and the constant non-zero, so every slip below differs from the answer.
+    if (A[0] + B[0] === 0 || A[1] + B[1] === 0 || dotPt(A, B) === 0) continue;
+    if (!samePt(A, B) && (difficulty < 2 || slanted(A, B))) return { A, B };
+  }
+}
+
+/** (x - a)(x - c) + (y - b)(y - d) multiplied out, with the slips a sign or a pairing makes. */
+function perpEquation(A: Pt, B: Pt, sx = 1, sk = 1, pairing = false): string {
+  const k = pairing ? A[0] * A[1] + B[0] * B[1] : dotPt(A, B);
+  return `${sumTex(['x^2', 'y^2', termOf(q(-sx * (A[0] + B[0]))), termOf(q(-sx * (A[1] + B[1])), 'y'), String(sk * k)])} = 0`;
+}
+
+/** Which equation is the locus PA perpendicular to PB. */
+const coordLocusPerpChoice: Generator<TwoPointParams> = {
+  id: 'coord-locus-perp-choice',
+  sample: samplePerpPair,
+  render: ({ A, B }): Slide => {
+    const correct = perpEquation(A, B);
+    const opts: ChoiceOption[] = [{ tex: correct, correct: true }];
+    for (const tex of [perpEquation(A, B, -1), perpEquation(A, B, 1, -1), perpEquation(A, B, 1, 1, true), perpEquation(A, B, -1, -1)]) {
+      if (opts.length < 4 && !opts.some((o) => o.tex === tex)) opts.push({ tex });
+    }
+    return choiceSlide(
+      [say(`$P(x, y)$ moves so that $PA$ is perpendicular to $PB$, with $${namedAt('A', A)}$ and $${namedAt('B', B)}$. Which is the equation of its locus?`)],
+      opts,
+    );
+  },
+  solution: ({ A, B }) => [
+    { text: 'The steps from $P$ to $A$ and from $P$ to $B$ are perpendicular when their gradients multiply to $-1$, which cleared of fractions is' },
+    { tex: chain('&(x - x_A)(x - x_B)', '+\\;&(y - y_A)(y - y_B) = 0') },
+    { text: 'With the numbers in:' },
+    { tex: chain(`&(${lin('x', A[0])})(${lin('x', B[0])})`, `+\\;&(${lin('y', A[1])})(${lin('y', B[1])}) = 0`) },
+    { text: 'Multiplied out:' },
+    { tex: perpEquation(A, B) },
+    { text: 'A circle: the one with diameter $AB$, by the angle in a semicircle.' },
+  ],
+};
+
 /** The level 5 order generators, for the proof-ordering tests. */
 export const coordinateGeometryOrders = [coordProofOrder];
 
@@ -7101,4 +8628,28 @@ export const coordinateGeometryGenerators = [
   coordProofOrder,
   coordCompleteChoice,
   coordFailsOneChoice,
+  coordTriArea,
+  coordBaseHeightTree,
+  coordHalfBaseChoice,
+  coordApexK,
+  coordApexSlider,
+  coordBoxSteps,
+  coordBoxFlow,
+  coordShoelaceTree,
+  coordBoxArea,
+  coordQuadSplitTree,
+  coordParaArea,
+  coordPolyShoelaceSteps,
+  coordAreaKTiles,
+  coordLocusOnChoice,
+  coordLocusCircleTiles,
+  coordLocusBisectorSteps,
+  coordLocusNameFlow,
+  coordLocusEquidistantSlider,
+  coordLocusLinesTiles,
+  coordLocusRatioSteps,
+  coordLocusCentreTiles,
+  coordLocusRatioR2,
+  coordLocusDiameterFlow,
+  coordLocusPerpChoice,
 ];

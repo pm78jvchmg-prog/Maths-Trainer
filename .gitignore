@@ -23,12 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude Code config. The shared settings file and the skills directory are
-# committed so that cloud sessions pick up the subagent model policy and the
-# project skills; everything else here is local.
+# Claude Code config. The shared settings file and the skills, agents and
+# commands directories are committed so that cloud sessions pick up the
+# subagent model policy, the project skills, the review agents and their slash
+# commands; everything else here is local.
 .claude/*
 !.claude/settings.json
 !.claude/skills/
+!.claude/agents/
+!.claude/commands/
 .claude/settings.local.json
 
 # Local reference screenshots/video, duplicated under docs/inspiration/

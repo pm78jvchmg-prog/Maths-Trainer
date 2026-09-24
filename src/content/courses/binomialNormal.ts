@@ -7,7 +7,9 @@
  * np and variance np(1 - p). Level 2 is the normal distribution: its curve
  * and the 68-95-99.7 rule, standardising to z, probabilities from Phi on
  * either side of the mean, working back from a probability to a value, and
- * finding mu or sigma from one known probability.
+ * finding mu or sigma from one known probability. Level 3 finds both from two
+ * probabilities: two standardising equations solved simultaneously, the
+ * equal-tails shortcut, and checking and using the pair once it is found.
  *
  * nCr belongs to Binomial Expansion (`be-l2-ncr`) and is pointed at, not
  * taught again. Independence belongs to the Probability course and the mean
@@ -394,6 +396,171 @@ export const binomialNormal: Course = {
         ask('dist-critical-choice', 2),
         ask('dist-find-parameter', 2),
         ask('dist-find-choice', 2),
+      ],
+    },
+    {
+      id: 'bn-l3',
+      title: 'Finding Both μ and σ',
+      lessons: [
+        {
+          id: 'bn-l3-one',
+          title: 'Why One Probability Is Not Enough',
+          slides: [
+            teach(
+              prose('In level 2 one probability was enough, because only one of $\\mu$ and $\\sigma$ was missing. Standardising gave one equation, and one equation fixes one unknown:'),
+              maths('\\frac{x - \\mu}{\\sigma} = z'),
+              prose('With both missing, that same equation has two unknowns in it.'),
+            ),
+            ask('dist-find-equation', 2),
+            ask('dist-both-sign-flow'),
+            ask('dist-both-standardise'),
+            teach(
+              prose('$P(X < 62) = 0.9332$ and $\\Phi(1.5) = 0.9332$, so $\\frac{62 - \\mu}{\\sigma} = 1.5$, or $62 = \\mu + 1.5\\sigma$. Every one of these pairs fits it:'),
+              table(['\\sigma', '\\mu'], [
+                ['2', '59'],
+                ['4', '56'],
+                ['10', '47'],
+              ]),
+              prose('One probability cannot choose between them.'),
+            ),
+            ask('dist-both-fits'),
+            ask('dist-find-parameter', 2),
+            ask('dist-both-sign-flow', 2),
+            teach(
+              prose('The sign of $z$ comes from the side of the mean. $P(X < x)$ more than a half puts $x$ above the mean, so $z$ is positive; less than a half puts it below, so $z$ is negative.'),
+              prose('$P(X < 41) = 0.0228$ with $\\Phi(2) = 0.9772$: $1 - 0.9772 = 0.0228$, so $z = -2$ and $\\frac{41 - \\mu}{\\sigma} = -2$.'),
+            ),
+            ask('dist-both-standardise', 2),
+            ask('dist-both-fits', 2),
+          ],
+          skillCheck: [ask('dist-both-sign-flow', 2), ask('dist-both-standardise', 2), ask('dist-both-fits', 2)],
+        },
+        {
+          id: 'bn-l3-two',
+          title: 'Two Probabilities, Two Equations',
+          slides: [
+            teach(
+              prose('A second probability gives a second equation. Write each one as $x = \\mu + z\\sigma$. With $P(X < 41) = 0.0668$, $P(X > 81) = 0.3085$, $\\Phi(1.5) = 0.9332$ and $\\Phi(0.5) = 0.6915$:'),
+              working('41 &= \\mu - 1.5\\sigma', '81 &= \\mu + 0.5\\sigma'),
+              prose('Two equations in two unknowns: enough to find both.'),
+            ),
+            ask('dist-both-table'),
+            ask('dist-both-equation'),
+            ask('dist-both-pair'),
+            teach(
+              prose('A percentage point works the same way. $P(X > 90) = 0.05$ puts $90$ at $z = 1.645$, and $P(X < 30) = 0.025$ puts $30$ at $z = -1.96$:'),
+              maths('\\begin{array}{c|c} \\Phi(z) & z \\\\ \\hline 0.95 & 1.645 \\\\ 0.975 & 1.96 \\\\ 0.99 & 2.326 \\\\ 0.995 & 2.576 \\end{array}'),
+            ),
+            ask('dist-both-equation', 2),
+            ask('dist-both-sign-flow', 2),
+            ask('dist-critical-choice', 2),
+            teach(
+              prose('A quick check: the larger value always has the larger $z$. If it does not, a sign has slipped.'),
+            ),
+            ask('dist-both-table', 2),
+            ask('dist-both-pair', 2),
+          ],
+          skillCheck: [ask('dist-both-table', 2), ask('dist-both-equation', 2), ask('dist-both-pair', 2)],
+        },
+        {
+          id: 'bn-l3-solve',
+          title: 'Solving Simultaneously',
+          slides: [
+            teach(
+              prose('Take one equation from the other and $\\mu$ cancels:'),
+              working('81 &= \\mu + 0.5\\sigma', '41 &= \\mu - 1.5\\sigma', '40 &= 2\\sigma'),
+              prose('So $\\sigma = 20$, and then $\\mu = 41 + 1.5 \\times 20 = 71$.'),
+            ),
+            ask('dist-both-working'),
+            ask('dist-both-solve'),
+            ask('dist-both-nodes-tree'),
+            teach(
+              prose('Both values can sit on one side of the mean. Nothing changes: $P(X < 56) = 0.6915$ and $P(X < 68) = 0.9772$ give'),
+              working('68 &= \\mu + 2\\sigma', '56 &= \\mu + 0.5\\sigma', '12 &= 1.5\\sigma'),
+              prose('so $\\sigma = 8$ and $\\mu = 56 - 0.5 \\times 8 = 52$.'),
+            ),
+            ask('dist-both-solve+choice', 2),
+            ask('dist-both-working', 2),
+            ask('dist-both-equation', 2),
+            teach(
+              prose('$\\sigma$ must come out positive. A negative one means a $z$ has the wrong sign: go back to which side of the mean each value is on.'),
+            ),
+            ask('dist-both-nodes-tree', 2),
+            ask('dist-both-table', 2),
+          ],
+          skillCheck: [ask('dist-both-solve', 2), ask('dist-both-working', 2), ask('dist-both-nodes-tree', 2)],
+        },
+        {
+          id: 'bn-l3-pattern',
+          title: 'Pairs with a Pattern',
+          slides: [
+            teach(
+              prose('When the two tails are the same size, the values sit the same distance either side of the mean, so $\\mu$ is their midpoint. With $P(X < 40.4) = 0.025$ and $P(X > 79.6) = 0.025$:'),
+              working('\\mu &= \\frac{40.4 + 79.6}{2} = 60'),
+              prose('Half the gap, $19.6$, is $1.96$ standard deviations, so $\\sigma = 19.6 \\div 1.96 = 10$.'),
+            ),
+            ask('dist-both-midpoint-slider'),
+            ask('dist-both-symmetric'),
+            ask('dist-both-half-gap'),
+            teach(
+              prose('A proportion is a probability written as a percentage. "$6.68\\%$ of bags weigh less than $495$ grams" means $P(X < 495) = 0.0668$, and from there it is the same method.'),
+            ),
+            ask('dist-both-proportion'),
+            ask('dist-both-symmetric+choice', 2),
+            ask('dist-both-midpoint-slider', 2),
+            teach(
+              prose('The midpoint shortcut needs equal tails. $P(X < a) = 0.05$ with $P(X > b) = 0.01$ is lopsided, so use the two equations instead.'),
+            ),
+            ask('dist-both-half-gap', 2),
+            ask('dist-both-proportion', 2),
+          ],
+          skillCheck: [ask('dist-both-symmetric', 2), ask('dist-both-half-gap', 2), ask('dist-both-proportion', 2)],
+        },
+        {
+          id: 'bn-l3-use',
+          title: 'Checking and Using the Result',
+          slides: [
+            teach(
+              prose('Check by putting $\\mu$ and $\\sigma$ back. With $\\mu = 71$ and $\\sigma = 20$:'),
+              working('z &= \\frac{41 - 71}{20}', '&= -1.5'),
+              working('P(X < 41) &= 1 - 0.9332', '&= 0.0668'),
+              prose('which is the probability the question started from.'),
+            ),
+            ask('dist-both-check-table'),
+            ask('dist-both-verify'),
+            ask('dist-both-new-prob'),
+            teach(
+              prose('Once both are found it is an ordinary normal distribution, and any other probability follows. With $\\Phi(1) = 0.8413$:'),
+              working('P(X > 91) &= P(Z > 1)', '&= 1 - 0.8413', '&= 0.1587'),
+            ),
+            ask('dist-both-chain-tree'),
+            ask('dist-both-check-table', 2),
+            ask('dist-both-new-prob+choice', 2),
+            teach(
+              prose('Two quick checks before trusting an answer: $\\sigma$ is positive, and the larger value has the larger probability below it.'),
+            ),
+            ask('dist-both-verify', 2),
+            ask('dist-both-chain-tree', 2),
+          ],
+          skillCheck: [ask('dist-both-check-table', 2), ask('dist-both-new-prob', 2), ask('dist-both-chain-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dist-both-sign-flow', 2),
+        ask('dist-both-standardise', 2),
+        ask('dist-both-fits', 2),
+        ask('dist-both-table', 2),
+        ask('dist-both-equation', 2),
+        ask('dist-both-pair', 2),
+        ask('dist-both-solve', 2),
+        ask('dist-both-working', 2),
+        ask('dist-both-nodes-tree', 2),
+        ask('dist-both-symmetric', 2),
+        ask('dist-both-midpoint-slider', 2),
+        ask('dist-both-proportion', 2),
+        ask('dist-both-check-table', 2),
+        ask('dist-both-new-prob', 2),
+        ask('dist-both-chain-tree', 2),
       ],
     },
   ],

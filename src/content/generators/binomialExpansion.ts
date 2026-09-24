@@ -8391,8 +8391,13 @@ function splitWorking(params: SplitParams, rs: number[]): SolutionStep[] {
     { text: 'Each part is a number times $(1 + wx)^{-1}$, whose series is $1 - wx + w^2x^2 - \\dots$: the coefficient of $x^r$ is $(-w)^r$.' },
     { tex: `${partTex(A, u, true)} = ${part(A, u)}` },
     { tex: `${partTex(B, v, true)} = ${part(B, v)}` },
+    // One product a line: side by side they run off a phone.
     ...rs.map((r) => ({
-      tex: `${r === 1 ? 'x' : `x^{${r}}`}: \\enspace ${A} \\times ${power(u, r)} + ${baseTex(B)} \\times ${power(v, r)} = ${splitCoef(params, r)}`,
+      tex: chain(
+        `& ${r === 1 ? 'x' : `x^{${r}}`}: \\enspace ${A} \\times ${power(u, r)}`,
+        `&\\quad + ${baseTex(B)} \\times ${power(v, r)}`,
+        `&= ${splitCoef(params, r)}`,
+      ),
     })),
   ];
 }

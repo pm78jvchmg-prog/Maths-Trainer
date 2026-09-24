@@ -33,6 +33,7 @@ import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
+import { orderBank } from './proofOrder';
 
 /* ---------- Shared helpers ---------- */
 
@@ -6646,6 +6647,1660 @@ const multiEqAngle: Generator<MultiAngleParams> = {
   },
 };
 
+/* ---------- Level 5: proving identities ---------- */
+
+/**
+ * A proof here starts from one side and rewrites it, one move at a time, until
+ * it is the other side. Every generator in this level draws from four banks of
+ * such proofs (short ones, fractions, squares and brackets, double angles) and
+ * asks about them through a different widget: the moves one tap at a time
+ * (`steps`), the lines in order (`order`), a missing line (`tiles`), the next
+ * line or the first wrong one (`choice`), and what a move leans on (`flow`).
+ *
+ * A proof is held as fragments, as a `steps` line is, and every line of it is
+ * the fragments joined, so one description serves every widget and
+ * `trigIdentities.test.ts` can check each line against the one above.
+ */
+
+/** What a move leans on, for the flow that asks which. */
+type Lean = 'pyth' | 'tan' | 'cot' | 'recip' | 'quot' | 'double' | 'algebra';
+
+interface Move {
+  /** Half-open range of the line this move rewrites. */
+  span: [number, number];
+  /** What that range becomes. */
+  value: string;
+  /** Wrong rewrites of the same range, spelled the way `value` is. */
+  slips: string[];
+  lean: Lean;
+  /** What the move does, as an instruction with a capital. */
+  say: string;
+}
+
+/** A missing line for `tiles`: whole tokens round literal operators, never a blank inside a fraction. */
+interface Gap {
+  hard: boolean;
+  /** Where the gap sits among the lines. */
+  at: number;
+  /** True when the gap stands for line `at` itself; false when it is an extra line before it. */
+  replace: boolean;
+  template: string;
+  answer: string[];
+  spares: string[];
+  unordered?: boolean;
+}
+
+interface Proof {
+  hard: boolean;
+  /** The side the proof starts from, as fragments. */
+  start: string[];
+  /** The side it ends on. */
+  end: string;
+  moves: Move[];
+  gaps?: Gap[];
+  /** A step that works on both sides at once, which a proof never takes. */
+  across: string;
+}
+
+type ProofForm = (v: string) => Proof;
+
+const frac = (top: string, bottom: string): string => `\\frac{${top}}{${bottom}}`;
+
+/** Every function of one angle a proof here needs, written in the given letter. */
+function fns(v: string) {
+  return {
+    s: `\\sin ${v}`,
+    c: `\\cos ${v}`,
+    t: `\\tan ${v}`,
+    se: `\\sec ${v}`,
+    cs: `\\operatorname{cosec} ${v}`,
+    ct: `\\cot ${v}`,
+    s2: `\\sin^2 ${v}`,
+    c2: `\\cos^2 ${v}`,
+    t2: `\\tan^2 ${v}`,
+    se2: `\\sec^2 ${v}`,
+    cs2: `\\operatorname{cosec}^2 ${v}`,
+    ct2: `\\cot^2 ${v}`,
+    s4: `\\sin^4 ${v}`,
+    c4: `\\cos^4 ${v}`,
+    S: `\\sin 2${v}`,
+    C: `\\cos 2${v}`,
+  };
+}
+
+/** Each line of a proof: the start, then the line after every move. */
+function proofLines(p: Proof): string[] {
+  let line = p.start;
+  const lines = [line.join(' ')];
+  for (const m of p.moves) {
+    line = [...line.slice(0, m.span[0]), m.value, ...line.slice(m.span[1])];
+    lines.push(line.join(' '));
+  }
+  return lines;
+}
+
+/** Line `i + 1` with move `i` swapped for one of its slips. */
+function slippedLine(p: Proof, i: number, slip: string): string {
+  let upTo = p.start;
+  for (let j = 0; j <= i; j++) {
+    const m = p.moves[j];
+    upTo = [...upTo.slice(0, m.span[0]), j === i ? slip : m.value, ...upTo.slice(m.span[1])];
+  }
+  return upTo.join(' ');
+}
+
+const claimOf = (p: Proof): string => `${p.start.join(' ')} = ${p.end}`;
+
+/** A row of working too wide for a phone, broken between two brackets or before a sign. */
+function rowPieces(row: string): string[] {
+  if (texWidth(row) <= FIT - 3) return [row];
+  let depth = 0;
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === '(' || row[i] === '{') depth++;
+    else if (row[i] === ')' || row[i] === '}') {
+      depth--;
+      if (depth === 0 && row[i] === ')' && /^\s*\(/.test(row.slice(i + 1))) return [row.slice(0, i + 1), row.slice(i + 1).trim()];
+    }
+  }
+  return breakTerms(row, FIT - 3);
+}
+
+/** Lines as a column of working, each row after the first starting "=", a long one carried onto an indented row. */
+const workingTex = (rows: string[]): string =>
+  `\\begin{aligned} ${rows
+    .flatMap((row, i) => rowPieces(row).map((piece, j) => `${j > 0 ? '& \\quad ' : i === 0 ? '& ' : '&= '}${piece}`))
+    .join(' \\\\ ')} \\end{aligned}`;
+
+/** The two lines of a solution every proof shares: what each move did, then the chain. */
+function proofSolution(p: Proof): SolutionStep[] {
+  return [
+    { text: p.moves.map((m) => `${m.say}.`).join(' ') },
+    { tex: workingTex(proofLines(p)) },
+  ];
+}
+
+/* The short proofs of lesson 1: one identity, then a cancellation. */
+const BASIC_PROOFS: ProofForm[] = [
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.t, f.c],
+      end: f.s,
+      moves: [
+        { span: [0, 1], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac('1', f.c), `${f.s} ${f.c}`], lean: 'quot', say: `Write $${f.t}$ as $${frac(f.s, f.c)}$` },
+        { span: [0, 2], value: f.s, slips: [f.c, f.t, `${f.s} ${f.c2}`], lean: 'algebra', say: `Cancel the $${f.c}$` },
+      ],
+      across: `Divide both sides by $${f.c}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.ct, f.s],
+      end: f.c,
+      moves: [
+        { span: [0, 1], value: frac(f.c, f.s), slips: [frac(f.s, f.c), frac('1', f.s), `${f.c} ${f.s}`], lean: 'quot', say: `Write $${f.ct}$ as $${frac(f.c, f.s)}$` },
+        { span: [0, 2], value: f.c, slips: [f.s, f.ct, `${f.c} ${f.s2}`], lean: 'algebra', say: `Cancel the $${f.s}$` },
+      ],
+      across: `Divide both sides by $${f.s}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.se2, '-', f.t2],
+      end: '1',
+      moves: [
+        { span: [0, 1], value: `(1 + ${f.t2})`, slips: [`(1 - ${f.t2})`, `(${f.t2} - 1)`, `(1 + ${f.t})`], lean: 'tan', say: `Write $${f.se2}$ as $1 + ${f.t2}$` },
+        { span: [0, 3], value: '1', slips: ['0', '-1', `1 + 2${f.t2}`], lean: 'algebra', say: `The $${f.t2}$ terms cancel` },
+      ],
+      across: `Add $${f.t2}$ to both sides.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.cs2, '-', f.ct2],
+      end: '1',
+      moves: [
+        { span: [0, 1], value: `(1 + ${f.ct2})`, slips: [`(1 - ${f.ct2})`, `(${f.ct2} - 1)`, `(1 + ${f.ct})`], lean: 'cot', say: `Write $${f.cs2}$ as $1 + ${f.ct2}$` },
+        { span: [0, 3], value: '1', slips: ['0', '-1', `1 + 2${f.ct2}`], lean: 'algebra', say: `The $${f.ct2}$ terms cancel` },
+      ],
+      across: `Add $${f.ct2}$ to both sides.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.s, f.cs],
+      end: '1',
+      moves: [
+        { span: [1, 2], value: frac('1', f.s), slips: [frac('1', f.c), frac(f.c, f.s), f.s], lean: 'recip', say: `Write $${f.cs}$ as $${frac('1', f.s)}$` },
+        { span: [0, 2], value: '1', slips: ['0', f.s, frac('1', f.s2)], lean: 'algebra', say: `Cancel the $${f.s}$` },
+      ],
+      across: `Divide both sides by $${f.s}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [`(1 - ${f.c2})`, f.cs2],
+      end: '1',
+      moves: [
+        { span: [0, 1], value: f.s2, slips: [f.c2, `-${f.s2}`, f.t2], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the bracket` },
+        { span: [1, 2], value: frac('1', f.s2), slips: [frac('1', f.c2), frac(f.c2, f.s2), f.s2], lean: 'recip', say: `Write $${f.cs2}$ as $${frac('1', f.s2)}$` },
+        { span: [0, 2], value: '1', slips: ['0', '-1', f.s2], lean: 'algebra', say: `Cancel the $${f.s2}$` },
+      ],
+      across: `Divide both sides by $${f.cs2}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [f.t, f.cs],
+      end: f.se,
+      moves: [
+        { span: [0, 1], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac('1', f.c), `${f.s} ${f.c}`], lean: 'quot', say: `Write $${f.t}$ as $${frac(f.s, f.c)}$` },
+        { span: [1, 2], value: frac('1', f.s), slips: [frac('1', f.c), frac(f.c, f.s), f.s], lean: 'recip', say: `Write $${f.cs}$ as $${frac('1', f.s)}$` },
+        { span: [0, 2], value: frac('1', f.c), slips: [frac('1', f.s), frac(f.s, f.c), f.c], lean: 'algebra', say: `Cancel the $${f.s}$` },
+        { span: [0, 1], value: f.se, slips: [f.cs, f.c, f.t], lean: 'recip', say: `$${frac('1', f.c)}$ is $${f.se}$` },
+      ],
+      across: `Divide both sides by $${f.t}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [`(1 + ${f.t2})`, f.c2],
+      end: '1',
+      moves: [
+        { span: [0, 1], value: f.se2, slips: [f.cs2, f.t2, f.se], lean: 'tan', say: `Use $${identity.tan(v)}$` },
+        { span: [0, 1], value: frac('1', f.c2), slips: [frac('1', f.s2), frac('1', f.c), f.c2], lean: 'recip', say: `Write $${f.se2}$ as $${frac('1', f.c2)}$` },
+        { span: [0, 2], value: '1', slips: ['0', '-1', f.c2], lean: 'algebra', say: `Cancel the $${f.c2}$` },
+      ],
+      across: `Divide both sides by $${f.c2}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [f.s2, f.se2],
+      end: f.t2,
+      moves: [
+        { span: [1, 2], value: frac('1', f.c2), slips: [frac('1', f.s2), f.c2, frac('1', f.c)], lean: 'recip', say: `Write $${f.se2}$ as $${frac('1', f.c2)}$` },
+        { span: [0, 2], value: frac(f.s2, f.c2), slips: [frac(f.c2, f.s2), frac(f.s2, f.c), `${f.s2} ${f.c2}`], lean: 'algebra', say: 'Write it as one fraction' },
+        { span: [0, 1], value: f.t2, slips: [f.ct2, f.t, f.se2], lean: 'quot', say: `$${frac(f.s, f.c)}$ is $${f.t}$, so this is its square` },
+      ],
+      across: `Divide both sides by $${f.s2}$.`,
+    };
+  },
+];
+
+/* Lesson 2: fractions, over a common denominator first. */
+const FRACTION_PROOFS: ProofForm[] = [
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.se, '-', f.c],
+      end: `${f.s} ${f.t}`,
+      moves: [
+        { span: [0, 1], value: frac('1', f.c), slips: [frac('1', f.s), frac(f.s, f.c), f.c2], lean: 'recip', say: `Write $${f.se}$ as $${frac('1', f.c)}$` },
+        { span: [0, 3], value: frac(`1 - ${f.c2}`, f.c), slips: [frac(`1 - ${f.c}`, f.c), frac(`1 - ${f.c2}`, f.c2), frac(`1 + ${f.c2}`, f.c)], lean: 'algebra', say: `Put both terms over $${f.c}$` },
+        { span: [0, 1], value: frac(f.s2, f.c), slips: [frac(f.c2, f.c), frac(f.s, f.c), frac(`-${f.s2}`, f.c)], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the top` },
+        { span: [0, 1], value: `${f.s} ${f.t}`, slips: [`${f.s} ${f.ct}`, `${f.c} ${f.t}`, f.t2], lean: 'quot', say: `Split off one $${f.s}$: $${frac(f.s, f.c)}$ is $${f.t}$` },
+      ],
+      gaps: [{ hard: false, at: 4, replace: false, template: '= {0} \\times {1}', answer: [f.s, frac(f.s, f.c)], spares: [f.c, frac(f.c, f.s), f.s2], unordered: true }],
+      across: `Multiply both sides by $${f.c}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.cs, '-', f.s],
+      end: `${f.c} ${f.ct}`,
+      moves: [
+        { span: [0, 1], value: frac('1', f.s), slips: [frac('1', f.c), frac(f.c, f.s), f.s2], lean: 'recip', say: `Write $${f.cs}$ as $${frac('1', f.s)}$` },
+        { span: [0, 3], value: frac(`1 - ${f.s2}`, f.s), slips: [frac(`1 - ${f.s}`, f.s), frac(`1 - ${f.s2}`, f.s2), frac(`1 + ${f.s2}`, f.s)], lean: 'algebra', say: `Put both terms over $${f.s}$` },
+        { span: [0, 1], value: frac(f.c2, f.s), slips: [frac(f.s2, f.s), frac(f.c, f.s), frac(`-${f.c2}`, f.s)], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the top` },
+        { span: [0, 1], value: `${f.c} ${f.ct}`, slips: [`${f.c} ${f.t}`, `${f.s} ${f.ct}`, f.ct2], lean: 'quot', say: `Split off one $${f.c}$: $${frac(f.c, f.s)}$ is $${f.ct}$` },
+      ],
+      gaps: [{ hard: false, at: 4, replace: false, template: '= {0} \\times {1}', answer: [f.c, frac(f.c, f.s)], spares: [f.s, frac(f.s, f.c), f.c2], unordered: true }],
+      across: `Multiply both sides by $${f.s}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const sc = `${f.s} ${f.c}`;
+    return {
+      hard: true,
+      start: [f.t, '+', f.ct],
+      end: `${f.se} ${f.cs}`,
+      moves: [
+        { span: [0, 1], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac('1', f.c), sc], lean: 'quot', say: `Write $${f.t}$ as $${frac(f.s, f.c)}$` },
+        { span: [2, 3], value: frac(f.c, f.s), slips: [frac(f.s, f.c), frac('1', f.s), `${f.c} ${f.s}`], lean: 'quot', say: `Write $${f.ct}$ as $${frac(f.c, f.s)}$` },
+        {
+          span: [0, 3],
+          value: frac(`${f.s2} + ${f.c2}`, sc),
+          slips: [frac(`${f.s} + ${f.c}`, sc), frac(`${f.s2} + ${f.c2}`, `${f.s} + ${f.c}`), frac(`${f.s2} - ${f.c2}`, sc)],
+          lean: 'algebra',
+          say: `Put both over $${sc}$`,
+        },
+        { span: [0, 1], value: frac('1', sc), slips: [frac('2', sc), frac('1', `${f.s} + ${f.c}`), sc], lean: 'pyth', say: `The top is $${f.s2} + ${f.c2} = 1$` },
+        { span: [0, 1], value: `${f.se} ${f.cs}`, slips: [sc, `${f.se} + ${f.cs}`, `${f.t} ${f.ct}`], lean: 'recip', say: `$${frac('1', f.c)}$ is $${f.se}$ and $${frac('1', f.s)}$ is $${f.cs}$` },
+      ],
+      gaps: [
+        { hard: false, at: 2, replace: true, template: '= {0} + {1}', answer: [frac(f.s, f.c), frac(f.c, f.s)], spares: [frac('1', f.c), frac('1', f.s), sc], unordered: true },
+        { hard: true, at: 5, replace: false, template: '= {0} \\times {1}', answer: [frac('1', f.s), frac('1', f.c)], spares: [f.s, f.c, sc], unordered: true },
+      ],
+      across: `Multiply both sides by $${sc}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const bottom = `(1 - ${f.s})(1 + ${f.s})`;
+    return {
+      hard: true,
+      start: [frac('1', `1 - ${f.s}`), '+', frac('1', `1 + ${f.s}`)],
+      end: `2${f.se2}`,
+      moves: [
+        {
+          span: [0, 3],
+          value: frac(`1 + ${f.s} + 1 - ${f.s}`, bottom),
+          slips: [frac('2', `(1 - ${f.s}) + (1 + ${f.s})`), frac(`1 + ${f.s} - 1 + ${f.s}`, bottom), frac('1', bottom)],
+          lean: 'algebra',
+          say: `Put both over $${bottom}$`,
+        },
+        { span: [0, 1], value: frac('2', `1 - ${f.s2}`), slips: [frac('2', `1 + ${f.s2}`), frac(`2${f.s}`, `1 - ${f.s2}`), frac('2', `1 - ${f.s}`)], lean: 'algebra', say: 'Tidy the top and multiply out the bottom' },
+        { span: [0, 1], value: frac('2', f.c2), slips: [frac('2', f.s2), frac('2', `-${f.c2}`), frac('1', f.c2)], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the bottom` },
+        { span: [0, 1], value: `2${f.se2}`, slips: [`2${f.c2}`, f.se2, `2${f.cs2}`], lean: 'recip', say: `$${frac('1', f.c2)}$ is $${f.se2}$` },
+      ],
+      gaps: [{ hard: true, at: 4, replace: false, template: '= {0} \\times {1}', answer: ['2', frac('1', f.c2)], spares: [frac('1', f.s2), f.c2, frac('1', '2')], unordered: true }],
+      across: `Multiply both sides by $${bottom}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const bottom = `(1 - ${f.c})(1 + ${f.c})`;
+    return {
+      hard: true,
+      start: [frac('1', `1 - ${f.c}`), '+', frac('1', `1 + ${f.c}`)],
+      end: `2${f.cs2}`,
+      moves: [
+        {
+          span: [0, 3],
+          value: frac(`1 + ${f.c} + 1 - ${f.c}`, bottom),
+          slips: [frac('2', `(1 - ${f.c}) + (1 + ${f.c})`), frac(`1 + ${f.c} - 1 + ${f.c}`, bottom), frac('1', bottom)],
+          lean: 'algebra',
+          say: `Put both over $${bottom}$`,
+        },
+        { span: [0, 1], value: frac('2', `1 - ${f.c2}`), slips: [frac('2', `1 + ${f.c2}`), frac(`2${f.c}`, `1 - ${f.c2}`), frac('2', `1 - ${f.c}`)], lean: 'algebra', say: 'Tidy the top and multiply out the bottom' },
+        { span: [0, 1], value: frac('2', f.s2), slips: [frac('2', f.c2), frac('2', `-${f.s2}`), frac('1', f.s2)], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the bottom` },
+        { span: [0, 1], value: `2${f.cs2}`, slips: [`2${f.s2}`, f.cs2, `2${f.se2}`], lean: 'recip', say: `$${frac('1', f.s2)}$ is $${f.cs2}$` },
+      ],
+      gaps: [{ hard: true, at: 4, replace: false, template: '= {0} \\times {1}', answer: ['2', frac('1', f.s2)], spares: [frac('1', f.c2), f.s2, frac('1', '2')], unordered: true }],
+      across: `Multiply both sides by $${bottom}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const sc = `${f.s} ${f.c}`;
+    return {
+      hard: false,
+      start: [frac(`1 - ${f.s2}`, sc)],
+      end: f.ct,
+      moves: [
+        { span: [0, 1], value: frac(f.c2, sc), slips: [frac(f.s2, sc), frac(`-${f.c2}`, sc), frac(f.c, sc)], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the top` },
+        { span: [0, 1], value: frac(f.c, f.s), slips: [frac(f.s, f.c), frac(f.c2, f.s), frac('1', f.s)], lean: 'algebra', say: `Cancel a $${f.c}$` },
+        { span: [0, 1], value: f.ct, slips: [f.t, f.cs, sc], lean: 'quot', say: `$${frac(f.c, f.s)}$ is $${f.ct}$` },
+      ],
+      across: `Multiply both sides by $${sc}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [f.se, '\\div', f.t],
+      end: f.cs,
+      moves: [
+        { span: [0, 1], value: frac('1', f.c), slips: [frac('1', f.s), f.c, frac(f.s, f.c)], lean: 'recip', say: `Write $${f.se}$ as $${frac('1', f.c)}$` },
+        { span: [2, 3], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac('1', f.c), f.s], lean: 'quot', say: `Write $${f.t}$ as $${frac(f.s, f.c)}$` },
+        { span: [0, 3], value: frac('1', f.s), slips: [frac(f.s, f.c2), frac(f.c, f.s), frac('1', f.c2)], lean: 'algebra', say: 'Dividing by a fraction multiplies by it upside down, and the $\\cos$ cancels' },
+        { span: [0, 1], value: f.cs, slips: [f.se, f.s, f.ct], lean: 'recip', say: `$${frac('1', f.s)}$ is $${f.cs}$` },
+      ],
+      gaps: [
+        { hard: false, at: 2, replace: true, template: '= {0} \\div {1}', answer: [frac('1', f.c), frac(f.s, f.c)], spares: [frac(f.c, f.s), frac('1', f.s), f.s] },
+        { hard: false, at: 3, replace: false, template: '= {0} \\times {1}', answer: [frac('1', f.c), frac(f.c, f.s)], spares: [frac(f.s, f.c), frac('1', f.s), f.c], unordered: true },
+      ],
+      across: `Multiply both sides by $${f.t}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [frac('1', f.c), '-', frac(f.s2, f.c)],
+      end: f.c,
+      moves: [
+        { span: [0, 3], value: frac(`1 - ${f.s2}`, f.c), slips: [frac(`1 + ${f.s2}`, f.c), frac(`1 - ${f.s2}`, f.c2), frac(`1 - ${f.s}`, f.c)], lean: 'algebra', say: `They share $${f.c}$ underneath, so combine the tops` },
+        { span: [0, 1], value: frac(f.c2, f.c), slips: [frac(f.s2, f.c), frac(`-${f.c2}`, f.c), frac('1', f.c)], lean: 'pyth', say: `Use $${identity.pyth(v)}$ on the top` },
+        { span: [0, 1], value: f.c, slips: [f.c2, f.s, '1'], lean: 'algebra', say: `Cancel a $${f.c}$` },
+      ],
+      across: `Multiply both sides by $${f.c}$.`,
+    };
+  },
+];
+
+/* Lesson 3: squares and brackets, multiplied out before an identity. */
+const SQUARE_PROOFS: ProofForm[] = [
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [`(1 - ${f.s})`, `(1 + ${f.s})`],
+      end: f.c2,
+      moves: [
+        { span: [0, 2], value: `1 - ${f.s2}`, slips: [`1 + ${f.s2}`, `1 - ${f.s}`, `1 - 2${f.s} + ${f.s2}`], lean: 'algebra', say: 'Multiply out: the middle terms cancel' },
+        { span: [0, 1], value: f.c2, slips: [f.s2, `-${f.c2}`, `1 + ${f.c2}`], lean: 'pyth', say: `Use $${identity.pyth(v)}$` },
+      ],
+      gaps: [{ hard: false, at: 1, replace: true, template: '= {0} - {1}', answer: ['1', f.s2], spares: [`2${f.s}`, f.c2, f.s] }],
+      across: `Divide both sides by $1 + ${f.s}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [`(1 - ${f.c})`, `(1 + ${f.c})`],
+      end: f.s2,
+      moves: [
+        { span: [0, 2], value: `1 - ${f.c2}`, slips: [`1 + ${f.c2}`, `1 - ${f.c}`, `1 - 2${f.c} + ${f.c2}`], lean: 'algebra', say: 'Multiply out: the middle terms cancel' },
+        { span: [0, 1], value: f.s2, slips: [f.c2, `-${f.s2}`, `1 + ${f.s2}`], lean: 'pyth', say: `Use $${identity.pyth(v)}$` },
+      ],
+      gaps: [{ hard: false, at: 1, replace: true, template: '= {0} - {1}', answer: ['1', f.c2], spares: [`2${f.c}`, f.s2, f.c] }],
+      across: `Divide both sides by $1 + ${f.c}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [`(${f.se} - 1)`, `(${f.se} + 1)`],
+      end: f.t2,
+      moves: [
+        { span: [0, 2], value: `${f.se2} - 1`, slips: [`${f.se2} + 1`, `${f.se} - 1`, `${f.se2} - 2${f.se} + 1`], lean: 'algebra', say: 'Multiply out: the middle terms cancel' },
+        { span: [0, 1], value: f.t2, slips: [f.ct2, `1 + ${f.t2}`, `-${f.t2}`], lean: 'tan', say: `Rearrange $${identity.tan(v)}$` },
+      ],
+      gaps: [{ hard: false, at: 1, replace: true, template: '= {0} - {1}', answer: [f.se2, '1'], spares: [`2${f.se}`, f.t2, f.se] }],
+      across: `Divide both sides by $${f.se} + 1$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [`(${f.cs} - 1)`, `(${f.cs} + 1)`],
+      end: f.ct2,
+      moves: [
+        { span: [0, 2], value: `${f.cs2} - 1`, slips: [`${f.cs2} + 1`, `${f.cs} - 1`, `${f.cs2} - 2${f.cs} + 1`], lean: 'algebra', say: 'Multiply out: the middle terms cancel' },
+        { span: [0, 1], value: f.ct2, slips: [f.t2, `1 + ${f.ct2}`, `-${f.ct2}`], lean: 'cot', say: `Rearrange $${identity.cot(v)}$` },
+      ],
+      gaps: [{ hard: false, at: 1, replace: true, template: '= {0} - {1}', answer: [f.cs2, '1'], spares: [`2${f.cs}`, f.ct2, f.cs] }],
+      across: `Divide both sides by $${f.cs} + 1$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const sc = `2${f.s} ${f.c}`;
+    return {
+      hard: true,
+      start: [`(${f.s} + ${f.c})^2`],
+      end: `1 + ${sc}`,
+      moves: [
+        {
+          span: [0, 1],
+          value: `${f.s2} + ${sc} + ${f.c2}`,
+          slips: [`${f.s2} + ${f.c2}`, `${f.s2} + ${f.s} ${f.c} + ${f.c2}`, `${f.s2} - ${sc} + ${f.c2}`],
+          lean: 'algebra',
+          say: 'Multiply out the square',
+        },
+        { span: [0, 1], value: `1 + ${sc}`, slips: [`2 + ${sc}`, `1 + ${f.s} ${f.c}`, `1 - ${sc}`], lean: 'pyth', say: `Use $${identity.pyth(v)}$` },
+      ],
+      gaps: [{ hard: true, at: 1, replace: true, template: '= {0} + {1} + {2}', answer: [f.s2, sc, f.c2], spares: [`${f.s} ${f.c}`, `2${f.s2}`, `2${f.c}`], unordered: true }],
+      across: `Take the square root of both sides.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const sc = `2${f.s} ${f.c}`;
+    return {
+      hard: true,
+      start: [`(${f.s} - ${f.c})^2`],
+      end: `1 - ${sc}`,
+      moves: [
+        {
+          span: [0, 1],
+          value: `${f.s2} - ${sc} + ${f.c2}`,
+          slips: [`${f.s2} - ${f.c2}`, `${f.s2} - ${f.s} ${f.c} + ${f.c2}`, `${f.s2} + ${sc} + ${f.c2}`],
+          lean: 'algebra',
+          say: 'Multiply out the square',
+        },
+        { span: [0, 1], value: `1 - ${sc}`, slips: [`2 - ${sc}`, `1 - ${f.s} ${f.c}`, `1 + ${sc}`], lean: 'pyth', say: `Use $${identity.pyth(v)}$` },
+      ],
+      across: `Take the square root of both sides.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [`(1 + ${f.t2})`, `(1 - ${f.s2})`],
+      end: '1',
+      moves: [
+        { span: [0, 1], value: f.se2, slips: [f.cs2, f.t2, f.se], lean: 'tan', say: `Use $${identity.tan(v)}$` },
+        { span: [1, 2], value: f.c2, slips: [f.s2, `-${f.c2}`, `(1 + ${f.c2})`], lean: 'pyth', say: `Use $${identity.pyth(v)}$` },
+        { span: [0, 2], value: '1', slips: ['0', '-1', f.c2], lean: 'recip', say: `$${f.se2}$ is $${frac('1', f.c2)}$, so the two cancel` },
+      ],
+      across: `Divide both sides by $1 + ${f.t2}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [`(${f.cs} - ${f.ct})`, `(${f.cs} + ${f.ct})`],
+      end: '1',
+      moves: [
+        { span: [0, 2], value: `${f.cs2} - ${f.ct2}`, slips: [`${f.cs2} + ${f.ct2}`, `${f.cs} - ${f.ct}`, `${f.cs2} - 2${f.cs} ${f.ct} - ${f.ct2}`], lean: 'algebra', say: 'Multiply out: the middle terms cancel' },
+        { span: [0, 1], value: '1', slips: ['0', '-1', `1 + 2${f.ct2}`], lean: 'cot', say: `Rearrange $${identity.cot(v)}$` },
+      ],
+      gaps: [{ hard: true, at: 1, replace: true, template: '= {0} - {1}', answer: [f.cs2, f.ct2], spares: [f.cs, f.ct, `2${f.cs} ${f.ct}`] }],
+      across: `Divide both sides by $${f.cs} + ${f.ct}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [`(${f.se} - ${f.t})`, `(${f.se} + ${f.t})`],
+      end: '1',
+      moves: [
+        { span: [0, 2], value: `${f.se2} - ${f.t2}`, slips: [`${f.se2} + ${f.t2}`, `${f.se} - ${f.t}`, `${f.se2} - 2${f.se} ${f.t} - ${f.t2}`], lean: 'algebra', say: 'Multiply out: the middle terms cancel' },
+        { span: [0, 1], value: '1', slips: ['0', '-1', `1 + 2${f.t2}`], lean: 'tan', say: `Rearrange $${identity.tan(v)}$` },
+      ],
+      gaps: [{ hard: true, at: 1, replace: true, template: '= {0} - {1}', answer: [f.se2, f.t2], spares: [f.se, f.t, `2${f.se} ${f.t}`] }],
+      across: `Divide both sides by $${f.se} + ${f.t}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [f.c4, '-', f.s4],
+      end: `${f.c2} - ${f.s2}`,
+      moves: [
+        {
+          span: [0, 3],
+          value: `(${f.c2} - ${f.s2})(${f.c2} + ${f.s2})`,
+          slips: [`(${f.c2} - ${f.s2})^2`, `(${f.c} - ${f.s})^2`, `(${f.c2} + ${f.s2})^2`],
+          lean: 'algebra',
+          say: 'Factorise: a difference of two squares',
+        },
+        { span: [0, 1], value: `${f.c2} - ${f.s2}`, slips: [`${f.c2} + ${f.s2}`, '1', `${f.s2} - ${f.c2}`], lean: 'pyth', say: `The second bracket is $${f.c2} + ${f.s2} = 1$` },
+      ],
+      across: `Divide both sides by $${f.c2} + ${f.s2}$.`,
+    };
+  },
+];
+
+/** A side of a claim at an angle, piece by piece, for the tree that evaluates both sides. */
+interface Piece {
+  tex: string;
+  at: (x: number) => number;
+}
+
+interface SidesTree {
+  left: Piece[];
+  right: Piece[];
+  /** Each side from its pieces' values. */
+  l: (vals: number[]) => number;
+  r: (vals: number[]) => number;
+}
+
+interface DoubleProof extends Proof {
+  tree?: SidesTree;
+}
+
+const sin = Math.sin;
+const cos = Math.cos;
+
+/** The pieces a double-angle claim is evaluated through, in the given letter. */
+function pieces(v: string) {
+  const f = fns(v);
+  return {
+    s: { tex: f.s, at: (x: number) => sin(x) },
+    c: { tex: f.c, at: (x: number) => cos(x) },
+    t: { tex: f.t, at: (x: number) => sin(x) / cos(x) },
+    S: { tex: f.S, at: (x: number) => sin(2 * x) },
+    onePlusC: { tex: `1 + ${f.C}`, at: (x: number) => 1 + cos(2 * x) },
+    oneMinusC: { tex: `1 - ${f.C}`, at: (x: number) => 1 - cos(2 * x) },
+  };
+}
+
+const ratio = ([a, b]: number[]): number => a / b;
+
+/* Lesson 4: double angles, swapped for single ones. */
+const DOUBLE_PROOFS: ((v: string) => DoubleProof)[] = [
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: false,
+      start: [frac(f.S, `1 + ${f.C}`)],
+      end: f.t,
+      moves: [
+        { span: [0, 1], value: frac(sc2, `1 + ${f.C}`), slips: [frac(`2${f.s}`, `1 + ${f.C}`), frac(`${f.s} ${f.c}`, `1 + ${f.C}`), frac(`${f.c2} - ${f.s2}`, `1 + ${f.C}`)], lean: 'double', say: `Use $${f.S} = ${sc2}$ on the top` },
+        { span: [0, 1], value: frac(sc2, `2${f.c2}`), slips: [frac(sc2, `2${f.s2}`), frac(sc2, `1 + 2${f.c2}`), frac(sc2, f.c2)], lean: 'double', say: `Use $${f.C} = 2${f.c2} - 1$, so the $1$s cancel` },
+        { span: [0, 1], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac(`2${f.s}`, f.c), frac(f.s, f.c2)], lean: 'algebra', say: `Cancel $2${f.c}$` },
+        { span: [0, 1], value: f.t, slips: [f.ct, `2${f.t}`, f.se], lean: 'quot', say: `$${frac(f.s, f.c)}$ is $${f.t}$` },
+      ],
+      tree: { left: [P.S, P.onePlusC], right: [P.s, P.c], l: ratio, r: ratio },
+      across: `Multiply both sides by $1 + ${f.C}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: false,
+      start: [frac(`1 - ${f.C}`, f.S)],
+      end: f.t,
+      moves: [
+        { span: [0, 1], value: frac(`2${f.s2}`, f.S), slips: [frac(`2${f.c2}`, f.S), frac(f.s2, f.S), frac(`-2${f.s2}`, f.S)], lean: 'double', say: `Use $${f.C} = 1 - 2${f.s2}$, so the $1$s cancel` },
+        { span: [0, 1], value: frac(`2${f.s2}`, sc2), slips: [frac(`2${f.s2}`, `2${f.s}`), frac(`2${f.s2}`, `${f.s} ${f.c}`), frac(`2${f.s2}`, `${f.c2} - ${f.s2}`)], lean: 'double', say: `Use $${f.S} = ${sc2}$ on the bottom` },
+        { span: [0, 1], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac(f.s2, f.c), frac(`2${f.s}`, f.c)], lean: 'algebra', say: `Cancel $2${f.s}$` },
+        { span: [0, 1], value: f.t, slips: [f.ct, `2${f.t}`, f.t2], lean: 'quot', say: `$${frac(f.s, f.c)}$ is $${f.t}$` },
+      ],
+      tree: { left: [P.oneMinusC, P.S], right: [P.s, P.c], l: ratio, r: ratio },
+      across: `Multiply both sides by $${f.S}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: true,
+      start: [frac(f.S, `1 - ${f.C}`)],
+      end: f.ct,
+      moves: [
+        { span: [0, 1], value: frac(sc2, `1 - ${f.C}`), slips: [frac(`2${f.c}`, `1 - ${f.C}`), frac(`${f.s} ${f.c}`, `1 - ${f.C}`), frac(`${f.c2} - ${f.s2}`, `1 - ${f.C}`)], lean: 'double', say: `Use $${f.S} = ${sc2}$ on the top` },
+        { span: [0, 1], value: frac(sc2, `2${f.s2}`), slips: [frac(sc2, `2${f.c2}`), frac(sc2, `-2${f.s2}`), frac(sc2, `1 - 2${f.s2}`)], lean: 'double', say: `Use $${f.C} = 1 - 2${f.s2}$, so the $1$s cancel` },
+        { span: [0, 1], value: frac(f.c, f.s), slips: [frac(f.s, f.c), frac(`2${f.c}`, f.s), frac(f.c, f.s2)], lean: 'algebra', say: `Cancel $2${f.s}$` },
+        { span: [0, 1], value: f.ct, slips: [f.t, `2${f.ct}`, f.cs], lean: 'quot', say: `$${frac(f.c, f.s)}$ is $${f.ct}$` },
+      ],
+      tree: { left: [P.S, P.oneMinusC], right: [P.c, P.s], l: ratio, r: ratio },
+      across: `Multiply both sides by $1 - ${f.C}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: true,
+      start: [frac(`1 + ${f.C}`, f.S)],
+      end: f.ct,
+      moves: [
+        { span: [0, 1], value: frac(`2${f.c2}`, f.S), slips: [frac(`2${f.s2}`, f.S), frac(f.c2, f.S), frac(`-2${f.c2}`, f.S)], lean: 'double', say: `Use $${f.C} = 2${f.c2} - 1$, so the $1$s cancel` },
+        { span: [0, 1], value: frac(`2${f.c2}`, sc2), slips: [frac(`2${f.c2}`, `2${f.c}`), frac(`2${f.c2}`, `${f.s} ${f.c}`), frac(`2${f.c2}`, `${f.c2} - ${f.s2}`)], lean: 'double', say: `Use $${f.S} = ${sc2}$ on the bottom` },
+        { span: [0, 1], value: frac(f.c, f.s), slips: [frac(f.s, f.c), frac(f.c2, f.s), frac(`2${f.c}`, f.s)], lean: 'algebra', say: `Cancel $2${f.c}$` },
+        { span: [0, 1], value: f.ct, slips: [f.t, `2${f.ct}`, f.ct2], lean: 'quot', say: `$${frac(f.c, f.s)}$ is $${f.ct}$` },
+      ],
+      tree: { left: [P.onePlusC, P.S], right: [P.c, P.s], l: ratio, r: ratio },
+      across: `Multiply both sides by $${f.S}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: false,
+      start: [frac(f.S, f.s)],
+      end: `2${f.c}`,
+      moves: [
+        { span: [0, 1], value: frac(sc2, f.s), slips: [frac(`2${f.s}`, f.s), frac(`${f.s} ${f.c}`, f.s), frac(`2${f.c2}`, f.s)], lean: 'double', say: `Use $${f.S} = ${sc2}$` },
+        { span: [0, 1], value: `2${f.c}`, slips: [f.c, `2${f.s}`, `2${f.c2}`], lean: 'algebra', say: `Cancel the $${f.s}$` },
+      ],
+      tree: { left: [P.S, P.s], right: [P.c], l: ratio, r: ([a]) => 2 * a },
+      across: `Multiply both sides by $${f.s}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: false,
+      start: [frac(f.S, f.c)],
+      end: `2${f.s}`,
+      moves: [
+        { span: [0, 1], value: frac(sc2, f.c), slips: [frac(`2${f.c}`, f.c), frac(`${f.s} ${f.c}`, f.c), frac(`2${f.s2}`, f.c)], lean: 'double', say: `Use $${f.S} = ${sc2}$` },
+        { span: [0, 1], value: `2${f.s}`, slips: [f.s, `2${f.c}`, `2${f.s2}`], lean: 'algebra', say: `Cancel the $${f.c}$` },
+      ],
+      tree: { left: [P.S, P.c], right: [P.s], l: ratio, r: ([a]) => 2 * a },
+      across: `Multiply both sides by $${f.c}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    return {
+      hard: true,
+      start: [frac(`1 - ${f.C}`, `1 + ${f.C}`)],
+      end: f.t2,
+      moves: [
+        { span: [0, 1], value: frac(`2${f.s2}`, `1 + ${f.C}`), slips: [frac(`2${f.c2}`, `1 + ${f.C}`), frac(f.s2, `1 + ${f.C}`), frac(`-2${f.s2}`, `1 + ${f.C}`)], lean: 'double', say: `Use $${f.C} = 1 - 2${f.s2}$ on the top` },
+        { span: [0, 1], value: frac(`2${f.s2}`, `2${f.c2}`), slips: [frac(`2${f.s2}`, f.c2), frac(`2${f.s2}`, `-2${f.c2}`), frac(`2${f.s2}`, `1 + 2${f.c2}`)], lean: 'double', say: `Use $${f.C} = 2${f.c2} - 1$ on the bottom` },
+        { span: [0, 1], value: f.t2, slips: [f.ct2, `2${f.t2}`, f.t], lean: 'quot', say: `Cancel the $2$s: $${frac(f.s2, f.c2)}$ is $${f.t2}$` },
+      ],
+      tree: { left: [P.oneMinusC, P.onePlusC], right: [P.t], l: ratio, r: ([a]) => a * a },
+      across: `Multiply both sides by $1 + ${f.C}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: true,
+      start: [`(${f.s} + ${f.c})^2`],
+      end: `1 + ${f.S}`,
+      moves: [
+        { span: [0, 1], value: `${f.s2} + ${sc2} + ${f.c2}`, slips: [`${f.s2} + ${f.c2}`, `${f.s2} + ${f.s} ${f.c} + ${f.c2}`, `${f.s2} - ${sc2} + ${f.c2}`], lean: 'algebra', say: 'Multiply out the square' },
+        { span: [0, 1], value: `1 + ${sc2}`, slips: [`2 + ${sc2}`, `1 + ${f.s} ${f.c}`, `1 - ${sc2}`], lean: 'pyth', say: `Use $${identity.pyth(v)}$` },
+        { span: [0, 1], value: `1 + ${f.S}`, slips: [`1 + ${f.C}`, `1 + 2${f.S}`, `2${f.S}`], lean: 'double', say: `$${sc2}$ is $${f.S}$` },
+      ],
+      across: `Take the square root of both sides.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: true,
+      start: [f.c4, '-', f.s4],
+      end: f.C,
+      moves: [
+        {
+          span: [0, 3],
+          value: `(${f.c2} - ${f.s2})(${f.c2} + ${f.s2})`,
+          slips: [`(${f.c2} - ${f.s2})^2`, `(${f.c} - ${f.s})^2`, `(${f.c2} + ${f.s2})^2`],
+          lean: 'algebra',
+          say: 'Factorise: a difference of two squares',
+        },
+        { span: [0, 1], value: `${f.c2} - ${f.s2}`, slips: [`${f.c2} + ${f.s2}`, '1', `${f.s2} - ${f.c2}`], lean: 'pyth', say: `The second bracket is $${f.c2} + ${f.s2} = 1$` },
+        { span: [0, 1], value: f.C, slips: [f.S, `-${f.C}`, `1 - ${f.C}`], lean: 'double', say: `$${f.c2} - ${f.s2}$ is $${f.C}$` },
+      ],
+      across: `Divide both sides by $${f.c2} + ${f.s2}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const P = pieces(v);
+    const sc2 = `2${f.s} ${f.c}`;
+    return {
+      hard: false,
+      start: [f.t, f.S],
+      end: `2${f.s2}`,
+      moves: [
+        { span: [0, 1], value: frac(f.s, f.c), slips: [frac(f.c, f.s), frac('1', f.c), `${f.s} ${f.c}`], lean: 'quot', say: `Write $${f.t}$ as $${frac(f.s, f.c)}$` },
+        { span: [1, 2], value: sc2, slips: [`2${f.s}`, `${f.s} ${f.c}`, `(${f.c2} - ${f.s2})`], lean: 'double', say: `Use $${f.S} = ${sc2}$` },
+        { span: [0, 2], value: `2${f.s2}`, slips: [`2${f.c2}`, f.s2, `2${f.s}`], lean: 'algebra', say: `Cancel the $${f.c}$` },
+      ],
+      tree: { left: [P.t, P.S], right: [P.s], l: ([a, b]) => a * b, r: ([a]) => 2 * a * a },
+      across: `Divide both sides by $${f.t}$.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    return {
+      hard: false,
+      start: [f.C, '+', `2${f.s2}`],
+      end: '1',
+      moves: [
+        { span: [0, 1], value: `(1 - 2${f.s2})`, slips: [`(2${f.s2} - 1)`, `(1 - ${f.s2})`, `(2${f.c2} - 2)`], lean: 'double', say: `Use the form $${f.C} = 1 - 2${f.s2}$` },
+        { span: [0, 3], value: '1', slips: ['0', '-1', `1 - 4${f.s2}`], lean: 'algebra', say: `The $${f.s2}$ terms cancel` },
+      ],
+      across: `Take $2${f.s2}$ from both sides.`,
+    };
+  },
+  (v) => {
+    const f = fns(v);
+    const sum = `${f.c} + ${f.s}`;
+    return {
+      hard: true,
+      start: [frac(f.C, sum)],
+      end: `${f.c} - ${f.s}`,
+      moves: [
+        { span: [0, 1], value: frac(`${f.c2} - ${f.s2}`, sum), slips: [frac(`${f.s2} - ${f.c2}`, sum), frac(`${f.c} - ${f.s}`, sum), frac(`1 - 2${f.c2}`, sum)], lean: 'double', say: `Use $${f.C} = ${f.c2} - ${f.s2}$` },
+        {
+          span: [0, 1],
+          value: `${f.c} - ${f.s}`,
+          slips: [sum, `${f.s} - ${f.c}`, `(${f.c} - ${f.s})^2`],
+          lean: 'algebra',
+          say: `Factorise the top as $(${f.c} - ${f.s})(${sum})$, then cancel $${sum}$`,
+        },
+      ],
+      across: `Multiply both sides by $${sum}$.`,
+    };
+  },
+];
+
+const PROOF_VARS = VARS;
+
+/** The forms a difficulty may draw, by index. */
+const formsFor = (forms: ((v: string) => Proof)[], difficulty: number): number[] =>
+  forms.map((make, i) => ({ hard: make('x').hard, i })).filter(({ hard }) => difficulty > 1 || !hard).map(({ i }) => i);
+
+interface ProofParams {
+  form: number;
+  v: number;
+  phrasing: number;
+}
+
+const STEPS_PROMPTS = [
+  'Start from the left side and rewrite it one piece at a time until it is the right side.',
+  'Work from the left side to the right, one identity or one piece of algebra at a time.',
+  'Show the left side equals the right: tap each piece as it is rewritten.',
+];
+
+/** Prove an identity move by move, from the left side to the right. */
+function proofSteps(id: string, forms: ((v: string) => Proof)[]): Generator<ProofParams> {
+  return {
+    id,
+    sample: (rng, difficulty) => ({
+      form: rng.pick(formsFor(forms, difficulty)),
+      v: rng.int(0, PROOF_VARS.length - 1),
+      phrasing: rng.int(0, STEPS_PROMPTS.length - 1),
+    }),
+    render: ({ form, v, phrasing }): Slide => {
+      const p = forms[form](PROOF_VARS[v]);
+      return {
+        kind: 'steps',
+        prompt: [prose(`Prove $${claimOf(p)}$.`), prose(STEPS_PROMPTS[phrasing])],
+        start: p.start,
+        reductions: p.moves.map((m) => ({ span: m.span, value: m.value, bank: scatter([m.value, ...m.slips.slice(0, 3)]) })),
+      };
+    },
+    solution: ({ form, v }) => proofSolution(forms[form](PROOF_VARS[v])),
+  };
+}
+
+/** Why a step is not part of a proof, for the worked solution. */
+interface OrderExtra {
+  text: string;
+  why: string;
+}
+
+function proofOrderParts(p: Proof, v: string): { steps: string[]; pool: OrderExtra[] } {
+  const lines = proofLines(p);
+  const steps = [
+    `Start from the left side, $${lines[0]}$.`,
+    ...p.moves.map((m, i) => `${m.say}: $= ${lines[i + 1]}$.`),
+    'That is the right side, so the identity is proved.',
+  ];
+  const last = p.moves.length - 1;
+  const pool: OrderExtra[] = [
+    {
+      text: `${p.moves[0].say}: $= ${slippedLine(p, 0, p.moves[0].slips[0])}$.`,
+      why: `That line does not equal the one above it: the move gives $${p.moves[0].value}$, not $${p.moves[0].slips[0]}$.`,
+    },
+    {
+      text: `${p.moves[last].say}: $= ${slippedLine(p, last, p.moves[last].slips[0])}$.`,
+      why: `That line does not equal the one above it: the move gives $${p.moves[last].value}$, not $${p.moves[last].slips[0]}$.`,
+    },
+    { text: p.across, why: 'That works on both sides at once, which assumes the very thing being proved. A proof rewrites one side only.' },
+    {
+      text: `Check $${v} = ${deg(45)}$: both sides agree there, so the identity holds.`,
+      why: 'One angle is not a proof. Agreeing at one angle says nothing about the others.',
+    },
+  ];
+  return { steps, pool };
+}
+
+interface ProofOrderParams {
+  form: number;
+  v: number;
+  picks: number[];
+}
+
+/** Put the lines of a proof in order, with one or two lines that do not belong. */
+function proofOrder(id: string, forms: ((v: string) => Proof)[]): Generator<ProofOrderParams> {
+  const parts = ({ form, v }: ProofOrderParams) => {
+    const p = forms[form](PROOF_VARS[v]);
+    return { p, ...proofOrderParts(p, PROOF_VARS[v]) };
+  };
+  return {
+    id,
+    sample: (rng, difficulty) => ({
+      form: rng.pick(formsFor(forms, difficulty)),
+      v: rng.int(0, PROOF_VARS.length - 1),
+      picks: rng.sample([0, 1, 2, 3], difficulty > 1 ? 2 : 1).sort((a, b) => a - b),
+    }),
+    render: (params): Slide => {
+      const { p, steps, pool } = parts(params);
+      const { steps: bank, answer } = orderBank(
+        steps,
+        params.picks.map((i) => pool[i].text),
+      );
+      return {
+        kind: 'order',
+        prompt: [
+          prose(`Prove $${claimOf(p)}$.`),
+          prose(`Tap the steps of the proof in order. ${params.picks.length === 1 ? 'One step does not belong.' : 'Two steps do not belong.'}`),
+        ],
+        steps: bank,
+        answer,
+      };
+    },
+    solution: (params) => {
+      const { steps, pool } = parts(params);
+      return [
+        { text: 'Each line rewrites one piece of the line above, so the proof runs:' },
+        ...steps.map((text, i) => ({ text: `${i + 1}. ${text}` })),
+        ...params.picks.map((i) => ({ text: `Not part of it: “${pool[i].text}” ${pool[i].why}` })),
+      ];
+    },
+  };
+}
+
+interface NextLineParams {
+  form: number;
+  move: number;
+  v: number;
+  phrasing: number;
+}
+
+const NEXT_PROMPTS = ['Which line comes next?', 'What is the next line of the proof?'];
+
+/** The working so far, then four candidates for the next line. */
+function proofNextChoice(id: string, forms: ((v: string) => Proof)[]): Generator<NextLineParams> {
+  return {
+    id,
+    sample: (rng, difficulty) => {
+      const form = rng.pick(formsFor(forms, difficulty));
+      return {
+        form,
+        move: rng.int(0, forms[form]('x').moves.length - 1),
+        v: rng.int(0, PROOF_VARS.length - 1),
+        phrasing: rng.int(0, NEXT_PROMPTS.length - 1),
+      };
+    },
+    render: (params): Slide => {
+      const { form, move, v, phrasing } = params;
+      const p = forms[form](PROOF_VARS[v]);
+      const lines = proofLines(p);
+      const m = p.moves[move];
+      return choiceSlide(
+        [prose(`Proving $${claimOf(p)}$, the working so far is:`), display(workingTex(lines.slice(0, move + 1))), prose(NEXT_PROMPTS[phrasing])],
+        `= ${lines[move + 1]}`,
+        m.slips.map((slip) => `= ${slippedLine(p, move, slip)}`),
+        saltOf(params),
+      );
+    },
+    solution: ({ form, move, v }) => {
+      const p = forms[form](PROOF_VARS[v]);
+      const lines = proofLines(p);
+      return [{ text: `${p.moves[move].say}.` }, { tex: workingTex([lines[move], lines[move + 1]]) }];
+    },
+  };
+}
+
+interface GapParams {
+  gap: number;
+  v: number;
+  phrasing: number;
+}
+
+const GAP_PROMPTS = ['Fill the missing line of the proof.', 'One line of this proof is missing. Build it from the tiles.', 'Complete the proof: what goes in the gap?'];
+
+/** Every gap a set of forms offers, as [form, gap] pairs. */
+const gapsOf = (forms: ((v: string) => Proof)[], difficulty: number): [number, number][] =>
+  forms.flatMap((make, form) =>
+    (make('x').gaps ?? []).map((g, gap): [number, number, boolean] => [form, gap, g.hard]),
+  ).filter(([, , hard]) => difficulty > 1 || !hard).map(([form, gap]) => [form, gap]);
+
+/** A proof with one line missing, built from tiles. */
+function proofTiles(id: string, forms: ((v: string) => Proof)[]): Generator<GapParams> {
+  const all = gapsOf(forms, 2);
+  const parts = ({ gap, v }: GapParams) => {
+    const [form, index] = all[gap];
+    const p = forms[form](PROOF_VARS[v]);
+    const g = (p.gaps as Gap[])[index];
+    const lines = proofLines(p);
+    const shown = [...lines.slice(0, g.at), '\\;?', ...lines.slice(g.replace ? g.at + 1 : g.at)];
+    return { p, g, lines, shown };
+  };
+  return {
+    id,
+    sample: (rng, difficulty) => {
+      const offered = gapsOf(forms, difficulty);
+      const [form, index] = rng.pick(offered);
+      return {
+        gap: all.findIndex(([f, i]) => f === form && i === index),
+        v: rng.int(0, PROOF_VARS.length - 1),
+        phrasing: rng.int(0, GAP_PROMPTS.length - 1),
+      };
+    },
+    render: (params): Slide => {
+      const { p, g, shown } = parts(params);
+      return {
+        kind: 'tiles',
+        prompt: [prose(`Proving $${claimOf(p)}$:`), display(workingTex(shown)), prose(GAP_PROMPTS[params.phrasing])],
+        template: g.template,
+        bank: bankOf(g.answer, g.spares, 3),
+        answer: g.answer,
+        ...(g.unordered ? { unordered: true } : {}),
+      };
+    },
+    solution: (params) => {
+      const { g, lines } = parts(params);
+      // One pass: filling a blank at a time would write the next answer into
+      // the {1} of a \frac{1}{...} the last one put there.
+      const filled = g.template.replace(/\{(\d)\}/g, (_m, i: string) => g.answer[Number(i)]).replace(/^= /, '');
+      const full = [...lines.slice(0, g.at), filled, ...lines.slice(g.replace ? g.at + 1 : g.at)];
+      return [{ text: `The missing line is $${filled}$, equal to the line above it.` }, { tex: workingTex(full) }];
+    },
+  };
+}
+
+const basicProofSteps = proofSteps('tid-proof-basic-steps', BASIC_PROOFS);
+const basicProofOrder = proofOrder('tid-proof-basic-order', BASIC_PROOFS);
+const basicProofChoice = proofNextChoice('tid-proof-basic-choice', BASIC_PROOFS);
+const fractionProofSteps = proofSteps('tid-proof-fraction-steps', FRACTION_PROOFS);
+const fractionProofTiles = proofTiles('tid-proof-fraction-tiles', FRACTION_PROOFS);
+const fractionProofOrder = proofOrder('tid-proof-fraction-order', FRACTION_PROOFS);
+const fractionProofChoice = proofNextChoice('tid-proof-fraction-choice', FRACTION_PROOFS);
+const squareProofSteps = proofSteps('tid-proof-square-steps', SQUARE_PROOFS);
+const squareProofTiles = proofTiles('tid-proof-square-tiles', SQUARE_PROOFS);
+const squareProofOrder = proofOrder('tid-proof-square-order', SQUARE_PROOFS);
+const doubleProofSteps = proofSteps('tid-proof-double-steps', DOUBLE_PROOFS);
+const doubleProofOrder = proofOrder('tid-proof-double-order', DOUBLE_PROOFS);
+const doubleProofChoice = proofNextChoice('tid-proof-double-choice', DOUBLE_PROOFS);
+
+interface StartParams {
+  form: number;
+  v: number;
+  flip: boolean;
+}
+
+/** Which side a proof starts from, and what its first line is. */
+const proofStartFlow: Generator<StartParams> = {
+  id: 'tid-proof-start-flow',
+  sample: (rng, difficulty) => ({
+    form: rng.pick(formsFor(BASIC_PROOFS, difficulty)),
+    v: rng.int(0, PROOF_VARS.length - 1),
+    flip: rng.int(0, 1) === 1,
+  }),
+  render: ({ form, v, flip }): Slide => {
+    const p = BASIC_PROOFS[form](PROOF_VARS[v]);
+    const lines = proofLines(p);
+    const busy = lines[0];
+    const [left, right] = flip ? [p.end, busy] : [busy, p.end];
+    const sides = [`The left side, $${left}$`, `The right side, $${right}$`];
+    const first = `$= ${lines[1]}$`;
+    const offered = scatter([first, ...p.moves[0].slips.slice(0, 2).map((slip) => `$= ${slippedLine(p, 0, slip)}$`), p.across]);
+    return {
+      kind: 'flow',
+      prompt: [prose('Prove this identity. Pick the side to start from, then its first line.')],
+      subject: flip ? `${p.end} = ${busy}` : claimOf(p),
+      steps: [
+        { id: 'side', ask: 'Which side do you start from?', branches: sides.map((label) => ({ label, to: 'first' })) },
+        {
+          id: 'first',
+          ask: 'What is its first line?',
+          branches: offered.map((label) => ({ label, outcome: 'Each line rewrites one piece of the side you started from.' })),
+        },
+      ],
+      answer: [sides[flip ? 1 : 0], first],
+    };
+  },
+  solution: ({ form, v, flip }) => {
+    const p = BASIC_PROOFS[form](PROOF_VARS[v]);
+    const lines = proofLines(p);
+    return [
+      {
+        text: `Start from the busier side, $${lines[0]}$, which is on the ${flip ? 'right' : 'left'}: it has more to rewrite. Never work across the equals sign.`,
+      },
+      { text: `${p.moves[0].say}.` },
+      { tex: workingTex(lines) },
+    ];
+  },
+};
+
+/** What each kind of move leans on, as a branch label in the given letter. */
+function leanLabel(lean: Lean, v: string): string {
+  const f = fns(v);
+  switch (lean) {
+    case 'pyth':
+      return `$${identity.pyth(v)}$`;
+    case 'tan':
+      return `$${identity.tan(v)}$`;
+    case 'cot':
+      return `$${identity.cot(v)}$`;
+    case 'recip':
+      return `$${f.se} = ${frac('1', f.c)}$`;
+    case 'quot':
+      return `$${identity.quot(v)}$`;
+    case 'double':
+      return `$${f.S} = 2${f.s} ${f.c}$`;
+    case 'algebra':
+      return 'No identity: just algebra';
+  }
+}
+
+const SQUARE_LEANS: Lean[] = ['pyth', 'tan', 'cot', 'recip', 'algebra'];
+
+interface LeanParams {
+  form: number;
+  move: number;
+  v: number;
+  phrasing: number;
+}
+
+const LEAN_PROMPTS = [
+  'The working has reached the line below. What does its next line need?',
+  'Here is the latest line. Say what the next move leans on, then what it gives.',
+  'Carry the proof on from this line.',
+];
+
+/** Which identity, if any, the next line of a squares proof needs, and what it gives. */
+const proofIdentityFlow: Generator<LeanParams> = {
+  id: 'tid-proof-identity-flow',
+  sample: (rng, difficulty) => {
+    const form = rng.pick(formsFor(SQUARE_PROOFS, difficulty));
+    return {
+      form,
+      move: rng.int(0, SQUARE_PROOFS[form]('x').moves.length - 1),
+      v: rng.int(0, PROOF_VARS.length - 1),
+      phrasing: rng.int(0, LEAN_PROMPTS.length - 1),
+    };
+  },
+  render: (params): Slide => {
+    const { form, move, v, phrasing } = params;
+    const letter = PROOF_VARS[v];
+    const p = SQUARE_PROOFS[form](letter);
+    const lines = proofLines(p);
+    const m = p.moves[move];
+    const others = SQUARE_LEANS.filter((lean) => lean !== m.lean)
+      .sort((a, b) => hashSeed(`${a}${saltOf(params)}`) - hashSeed(`${b}${saltOf(params)}`))
+      .slice(0, 3);
+    const leans = scatter([m.lean, ...others].map((lean) => leanLabel(lean, letter)));
+    const right = `$= ${lines[move + 1]}$`;
+    const results = scatter([right, ...m.slips.slice(0, 3).map((slip) => `$= ${slippedLine(p, move, slip)}$`)]);
+    return {
+      kind: 'flow',
+      prompt: [prose(`Proving $${claimOf(p)}$.`), prose(LEAN_PROMPTS[phrasing])],
+      subject: lines[move],
+      steps: [
+        { id: 'lean', ask: 'What does the next line need?', branches: leans.map((label) => ({ label, to: 'next' })) },
+        { id: 'next', ask: 'So the next line is', branches: results.map((label) => ({ label, outcome: 'One move, and the line still equals the one above.' })) },
+      ],
+      answer: [leanLabel(m.lean, letter), right],
+    };
+  },
+  solution: ({ form, move, v }) => {
+    const p = SQUARE_PROOFS[form](PROOF_VARS[v]);
+    const lines = proofLines(p);
+    return [{ text: `${p.moves[move].say}.` }, { tex: workingTex([lines[move], lines[move + 1]]) }];
+  },
+};
+
+/** Exact values a side or a piece may take at a table angle, for tree tiles and order steps. */
+const EXACT: { value: number; tex: string }[] = [
+  ...SPECIAL,
+  { value: Math.SQRT2, tex: '\\sqrt{2}' },
+  { value: 1 / 3, tex: '\\frac{1}{3}' },
+  { value: 2 / Math.sqrt(3), tex: '\\frac{2}{\\sqrt{3}}' },
+];
+
+/** A value as the learner reads it, or undefined when it is not on the table. */
+function exactTex(value: number): string | undefined {
+  if (!Number.isFinite(value)) return undefined;
+  const row = EXACT.find((entry) => Math.abs(entry.value - Math.abs(value)) < 1e-9);
+  if (!row) return undefined;
+  return value < 0 && row.value !== 0 ? `-${row.tex}` : row.tex;
+}
+
+const TABLE_ANGLES = [30, 45, 60, 120, 135, 150, 210, 225, 240, 300, 315, 330];
+
+const rad = (degrees: number): number => (degrees * Math.PI) / 180;
+
+/** Every value a sides tree fills in at this angle, or undefined when one is off the table. */
+function treeValues(tree: SidesTree, degrees: number): string[] | undefined {
+  const x = rad(degrees);
+  const lv = tree.left.map((piece) => piece.at(x));
+  const rv = tree.right.map((piece) => piece.at(x));
+  const all = [...lv, ...rv, tree.l(lv), tree.r(rv)];
+  const texs = all.map((value) => (Math.abs(value) > 1e6 ? undefined : exactTex(value)));
+  if (texs.some((tex) => tex === undefined)) return undefined;
+  if (Math.abs(tree.l(lv) - tree.r(rv)) > 1e-9) return undefined;
+  return texs as string[];
+}
+
+const TREE_FORMS = DOUBLE_PROOFS.map((make, i) => ({ i, tree: make('x').tree })).filter((row) => row.tree !== undefined);
+
+/** Per tree form, the angles whose every value is exact, split by difficulty. */
+const TREE_ANGLES = TREE_FORMS.map(({ tree }) => TABLE_ANGLES.filter((d) => treeValues(tree as SidesTree, d) !== undefined));
+
+interface SidesParams {
+  form: number;
+  angle: number;
+  v: number;
+}
+
+/** Both sides of a double-angle identity at a table angle, piece by piece. */
+const proofSidesTree: Generator<SidesParams> = {
+  id: 'tid-proof-sides-tree',
+  sample: (rng, difficulty) => {
+    const rows = TREE_FORMS.map((row, k) => ({ k, hard: DOUBLE_PROOFS[row.i]('x').hard, angles: TREE_ANGLES[k].filter((d) => difficulty > 1 || d < 90) }))
+      .filter((row) => (difficulty > 1 || !row.hard) && row.angles.length > 0);
+    const row = rng.pick(rows);
+    return { form: row.k, angle: rng.pick(row.angles), v: rng.int(0, PROOF_VARS.length - 1) };
+  },
+  render: ({ form, angle, v }): Slide => {
+    const letter = PROOF_VARS[v];
+    const p = DOUBLE_PROOFS[TREE_FORMS[form].i](letter);
+    const tree = p.tree as SidesTree;
+    const answer = treeValues(tree, angle) as string[];
+    const distractors = answer
+      .filter((tex) => tex !== '0')
+      .map((tex) => (tex.startsWith('-') ? tex.slice(1) : `-${tex}`))
+      .concat(['0', '2', '\\frac{1}{2}', '\\sqrt{3}']);
+    const list = (texs: string[]) => texs.map((tex) => `$${tex}$`).join(', ');
+    return {
+      kind: 'tree',
+      prompt: [
+        prose(
+          `Put $${letter} = ${deg(angle)}$ into both sides. Top row: ${list(tree.left.map((q) => q.tex))}, then ${list(tree.right.map((q) => q.tex))}. Bottom row: the left side, then the right side.`,
+        ),
+      ],
+      expression: claimOf(p),
+      nodes: [
+        ...tree.left.map((_, i) => ({ id: `l${i}`, from: [] })),
+        ...tree.right.map((_, i) => ({ id: `r${i}`, from: [] })),
+        { id: 'L', from: tree.left.map((_, i) => `l${i}`) },
+        { id: 'R', from: tree.right.map((_, i) => `r${i}`) },
+      ],
+      bank: bankOf(answer, distractors, 3),
+      answer,
+    };
+  },
+  solution: ({ form, angle, v }) => {
+    const letter = PROOF_VARS[v];
+    const p = DOUBLE_PROOFS[TREE_FORMS[form].i](letter);
+    const tree = p.tree as SidesTree;
+    const values = treeValues(tree, angle) as string[];
+    const nl = tree.left.length;
+    const nr = tree.right.length;
+    return [
+      { text: `At $${letter} = ${deg(angle)}$: ${[...tree.left, ...tree.right].map((q, i) => `$${q.tex} = ${values[i]}$`).join(', ')}.` },
+      { text: `So the left side is $${values[nl + nr]}$ and the right side is $${values[nl + nr + 1]}$: they agree, as an identity must.` },
+      { text: 'Agreeing at one angle is a useful check on the working, but it is not a proof.' },
+    ];
+  },
+};
+
+/* ---------- Lesson 5: identity or not ---------- */
+
+type Verdict = 'identity' | 'equation' | 'never';
+
+interface Claim {
+  hard: boolean;
+  kind: Verdict;
+  lhs: (v: string) => string;
+  rhs: (v: string) => string;
+  L: (x: number) => number;
+  R: (x: number) => number;
+}
+
+const tan = (x: number): number => Math.sin(x) / Math.cos(x);
+const sec = (x: number): number => 1 / Math.cos(x);
+
+const CLAIMS: Claim[] = [
+  { hard: false, kind: 'identity', lhs: (v) => fns(v).S, rhs: (v) => `2${fns(v).s} ${fns(v).c}`, L: (x) => sin(2 * x), R: (x) => 2 * sin(x) * cos(x) },
+  { hard: false, kind: 'identity', lhs: (v) => fns(v).C, rhs: (v) => `1 - 2${fns(v).s2}`, L: (x) => cos(2 * x), R: (x) => 1 - 2 * sin(x) ** 2 },
+  { hard: false, kind: 'identity', lhs: (v) => `${fns(v).t} ${fns(v).c}`, rhs: (v) => fns(v).s, L: (x) => tan(x) * cos(x), R: (x) => sin(x) },
+  { hard: false, kind: 'identity', lhs: (v) => `${fns(v).se2} - ${fns(v).t2}`, rhs: () => '1', L: (x) => sec(x) ** 2 - tan(x) ** 2, R: () => 1 },
+  { hard: false, kind: 'identity', lhs: (v) => `(1 - ${fns(v).s})(1 + ${fns(v).s})`, rhs: (v) => fns(v).c2, L: (x) => (1 - sin(x)) * (1 + sin(x)), R: (x) => cos(x) ** 2 },
+  { hard: true, kind: 'identity', lhs: (v) => fns(v).C, rhs: (v) => `2${fns(v).c2} - 1`, L: (x) => cos(2 * x), R: (x) => 2 * cos(x) ** 2 - 1 },
+  { hard: true, kind: 'identity', lhs: (v) => frac(fns(v).S, fns(v).s), rhs: (v) => `2${fns(v).c}`, L: (x) => sin(2 * x) / sin(x), R: (x) => 2 * cos(x) },
+  { hard: false, kind: 'equation', lhs: (v) => fns(v).S, rhs: (v) => `2${fns(v).s}`, L: (x) => sin(2 * x), R: (x) => 2 * sin(x) },
+  { hard: false, kind: 'equation', lhs: (v) => fns(v).C, rhs: (v) => `2${fns(v).c} - 1`, L: (x) => cos(2 * x), R: (x) => 2 * cos(x) - 1 },
+  { hard: false, kind: 'equation', lhs: (v) => `${fns(v).s} + ${fns(v).c}`, rhs: () => '1', L: (x) => sin(x) + cos(x), R: () => 1 },
+  { hard: false, kind: 'equation', lhs: (v) => fns(v).C, rhs: (v) => fns(v).c2, L: (x) => cos(2 * x), R: (x) => cos(x) ** 2 },
+  { hard: false, kind: 'equation', lhs: (v) => fns(v).S, rhs: (v) => fns(v).s, L: (x) => sin(2 * x), R: (x) => sin(x) },
+  { hard: true, kind: 'equation', lhs: (v) => `\\tan 2${v}`, rhs: (v) => `2${fns(v).t}`, L: (x) => tan(2 * x), R: (x) => 2 * tan(x) },
+  { hard: true, kind: 'equation', lhs: (v) => `(${fns(v).s} + ${fns(v).c})^2`, rhs: () => '1', L: (x) => (sin(x) + cos(x)) ** 2, R: () => 1 },
+  { hard: false, kind: 'never', lhs: (v) => `${fns(v).s2} + ${fns(v).c2}`, rhs: () => '2', L: (x) => sin(x) ** 2 + cos(x) ** 2, R: () => 2 },
+  { hard: false, kind: 'never', lhs: (v) => `${fns(v).se2} - ${fns(v).t2}`, rhs: () => '0', L: (x) => sec(x) ** 2 - tan(x) ** 2, R: () => 0 },
+  { hard: true, kind: 'never', lhs: (v) => `${fns(v).s} + ${fns(v).c}`, rhs: () => '2', L: (x) => sin(x) + cos(x), R: () => 2 },
+  { hard: true, kind: 'never', lhs: (v) => `${fns(v).C} + 2${fns(v).s2}`, rhs: () => '0', L: (x) => cos(2 * x) + 2 * sin(x) ** 2, R: () => 0 },
+  { hard: true, kind: 'never', lhs: (v) => `(1 - ${fns(v).s})(1 + ${fns(v).s})`, rhs: (v) => `1 + ${fns(v).c2}`, L: (x) => (1 - sin(x)) * (1 + sin(x)), R: (x) => 1 + cos(x) ** 2 },
+];
+
+const claimTex = (c: Claim, v: string): string => `${c.lhs(v)} = ${c.rhs(v)}`;
+
+/** Both sides at an angle, or undefined where either has no value. */
+function sidesAt(c: Claim, degrees: number): [number, number] | undefined {
+  const x = rad(degrees);
+  const l = c.L(x);
+  const r = c.R(x);
+  if (!Number.isFinite(l) || !Number.isFinite(r) || Math.abs(l) > 1e6 || Math.abs(r) > 1e6) return undefined;
+  // At a pole two huge terms can cancel to a tidy wrong number: sec^2 - tan^2
+  // comes out 0 at 90 degrees. A side that jumps just beside the angle has no value there.
+  if (Math.abs(c.L(x + 1e-6) - l) > 1e-3 || Math.abs(c.R(x + 1e-6) - r) > 1e-3) return undefined;
+  return [Math.abs(l) < 1e-12 ? 0 : l, Math.abs(r) < 1e-12 ? 0 : r];
+}
+
+const agree = ([l, r]: [number, number]): boolean => Math.abs(l - r) < 1e-9;
+
+/** A value as a fraction with a small bottom, or undefined for a surd. */
+function smallRat(value: number): Rat | undefined {
+  for (let d = 1; d <= 4; d++) {
+    const n = Math.round(value * d);
+    if (Math.abs(value * d - n) < 1e-9 && Math.abs(value) <= 4) return rat(n, d);
+  }
+  return undefined;
+}
+
+const claimsFor = (difficulty: number): number[] => CLAIMS.map((c, i) => ({ c, i })).filter(({ c }) => difficulty > 1 || !c.hard).map(({ i }) => i);
+
+interface SideValueParams {
+  claim: number;
+  angle: number;
+  right: boolean;
+  v: number;
+}
+
+/** Every (angle, side) where a claim's side comes out a plain fraction. */
+function sideValueSlots(claim: number, difficulty: number): { angle: number; right: boolean }[] {
+  const angles = TURN.filter((d) => difficulty > 1 || d <= 90);
+  return angles.flatMap((angle) => {
+    const both = sidesAt(CLAIMS[claim], angle);
+    if (!both) return [];
+    return [false, true].filter((right) => smallRat(both[right ? 1 : 0]) !== undefined && (right ? CLAIMS[claim].rhs('x') : CLAIMS[claim].lhs('x')).includes('\\')).map((right) => ({ angle, right }));
+  });
+}
+
+/** Test a claim at one angle: what does one side come to? */
+const proofSideValue: Generator<SideValueParams> = {
+  id: 'tid-proof-side-value',
+  sample: (rng, difficulty) => {
+    const claims = claimsFor(difficulty).filter((i) => sideValueSlots(i, difficulty).length > 0);
+    const claim = rng.pick(claims);
+    const slot = rng.pick(sideValueSlots(claim, difficulty));
+    return { claim, angle: slot.angle, right: slot.right, v: rng.int(0, PROOF_VARS.length - 1) };
+  },
+  render: ({ claim, angle, right, v }): Slide => {
+    const c = CLAIMS[claim];
+    const letter = PROOF_VARS[v];
+    const value = (sidesAt(c, angle) as [number, number])[right ? 1 : 0];
+    return {
+      kind: 'expression',
+      prompt: [
+        prose(`Test $${claimTex(c, letter)}$ at $${letter} = ${deg(angle)}$.`),
+        prose(`What does the ${right ? 'right' : 'left'} side, $${right ? c.rhs(letter) : c.lhs(letter)}$, come to there?`),
+      ],
+      lead: `\\text{${right ? 'Right' : 'Left'} side} =`,
+      keypad: NUMBER_KEYS,
+      answer: ratAnswer(smallRat(value) as Rat),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: ({ claim, angle, right, v }) => {
+    const c = CLAIMS[claim];
+    const letter = PROOF_VARS[v];
+    const [l, r] = sidesAt(c, angle) as [number, number];
+    const value = right ? r : l;
+    const other = right ? l : r;
+    return [
+      { text: `Put $${letter} = ${deg(angle)}$ into $${right ? c.rhs(letter) : c.lhs(letter)}$ and use the table values.` },
+      { tex: `${right ? c.rhs(letter) : c.lhs(letter)} = ${ratTex(smallRat(value) as Rat)}` },
+      {
+        text: agree([l, r])
+          ? 'The other side comes to the same, so the claim survives this test, though one angle proves nothing.'
+          : `The other side comes to $${exactTex(other) ?? 'something else'}$, so the claim fails here: it is not an identity.`,
+      },
+    ];
+  },
+};
+
+interface VerdictParams {
+  claim: number;
+  angle: number;
+  v: number;
+}
+
+const OUTCOME: Record<Verdict, string> = {
+  identity: 'An identity: true at every angle.',
+  equation: 'An equation: true at some angles only.',
+  never: 'Never true, at any angle.',
+};
+
+/** Test angles for a claim: at difficulty 1 an identity is tested where it agrees and anything else where it fails. */
+function verdictAngles(claim: number, difficulty: number): number[] {
+  const c = CLAIMS[claim];
+  return TURN.filter((d) => {
+    const both = sidesAt(c, d);
+    if (!both) return false;
+    return difficulty > 1 || d <= 90 && (c.kind === 'identity' || !agree(both));
+  });
+}
+
+/** Test at one angle, then decide: identity, equation, or never. */
+const proofVerdictFlow: Generator<VerdictParams> = {
+  id: 'tid-proof-verdict-flow',
+  sample: (rng, difficulty) => {
+    const claim = rng.pick(claimsFor(difficulty));
+    return { claim, angle: rng.pick(verdictAngles(claim, difficulty)), v: rng.int(0, PROOF_VARS.length - 1) };
+  },
+  render: ({ claim, angle, v }): Slide => {
+    const c = CLAIMS[claim];
+    const letter = PROOF_VARS[v];
+    const same = agree(sidesAt(c, angle) as [number, number]);
+    const yesAll = 'Yes, so it is an identity';
+    const noSome = 'No, so it is an equation';
+    const yesSome = 'Yes, so it is an equation';
+    const noNever = 'No, so it is never true';
+    const pick = same ? (c.kind === 'identity' ? yesAll : noSome) : c.kind === 'equation' ? yesSome : noNever;
+    return {
+      kind: 'flow',
+      prompt: [prose(`Is this an identity, an equation true at some angles, or never true? Start by testing $${letter} = ${deg(angle)}$.`)],
+      subject: claimTex(c, letter),
+      steps: [
+        {
+          id: 'test',
+          ask: `At $${letter} = ${deg(angle)}$, do the two sides agree?`,
+          branches: [
+            { label: 'Yes, they agree there', to: 'agree' },
+            { label: 'No, they differ there', to: 'differ' },
+          ],
+        },
+        {
+          id: 'agree',
+          ask: 'So it might be an identity. Does it hold at every angle?',
+          branches: [
+            { label: yesAll, outcome: OUTCOME.identity },
+            { label: noSome, outcome: OUTCOME.equation },
+          ],
+        },
+        {
+          id: 'differ',
+          ask: 'So it is not an identity. Does it hold at any angle at all?',
+          branches: [
+            { label: yesSome, outcome: OUTCOME.equation },
+            { label: noNever, outcome: OUTCOME.never },
+          ],
+        },
+      ],
+      answer: [same ? 'Yes, they agree there' : 'No, they differ there', pick],
+    };
+  },
+  solution: ({ claim, angle, v }) => {
+    const c = CLAIMS[claim];
+    const letter = PROOF_VARS[v];
+    const [l, r] = sidesAt(c, angle) as [number, number];
+    const at = `At $${letter} = ${deg(angle)}$ the left side is $${exactTex(l) ?? l.toFixed(3)}$ and the right side $${exactTex(r) ?? r.toFixed(3)}$.`;
+    const why: Record<Verdict, string> = {
+      identity: 'Rewriting one side with identities turns it into the other, so it holds at every angle.',
+      equation: 'It holds at some angles and fails at others, so it is an equation to solve, not an identity.',
+      never: 'Rewriting shows the two sides can never be equal, so no angle satisfies it.',
+    };
+    return [{ text: at }, { text: why[c.kind] }];
+  },
+};
+
+interface DisproveParams {
+  claim: number;
+  angle: number;
+  v: number;
+  picks: number[];
+}
+
+/** Angles that disprove a claim with exact values on both sides. */
+function disproofAngles(claim: number, difficulty: number): number[] {
+  return TURN.filter((d) => {
+    if (d === 0 || (difficulty === 1 && d > 90)) return false;
+    const both = sidesAt(CLAIMS[claim], d);
+    return both !== undefined && !agree(both) && exactTex(both[0]) !== undefined && exactTex(both[1]) !== undefined;
+  });
+}
+
+function disproofParts({ claim, angle, v }: DisproveParams): { steps: string[]; pool: OrderExtra[] } {
+  const c = CLAIMS[claim];
+  const letter = PROOF_VARS[v];
+  const [l, r] = sidesAt(c, angle) as [number, number];
+  const L = exactTex(l) as string;
+  const R = exactTex(r) as string;
+  const slipValue = [-r, 2 * r, r + 1, 0, 1, 2, -1].find((w) => Math.abs(w - r) > 1e-9 && Math.abs(w - l) > 1e-9 && exactTex(w) !== undefined) as number;
+  const agreeAt = TURN.find((d) => {
+    const both = sidesAt(c, d);
+    return both !== undefined && agree(both);
+  });
+  const pool: OrderExtra[] = [
+    {
+      text: 'To disprove it, the two sides must differ at every angle.',
+      why: 'One angle where they differ is enough to show it is not true for every angle.',
+    },
+    {
+      text: `Next, the right side, $${c.rhs(letter)}$, comes to $${exactTex(slipValue)}$.`,
+      why: `At $${letter} = ${deg(angle)}$ the right side is $${R}$.`,
+    },
+    {
+      text: `$${L} \\ne ${R}$, so the claim is never true.`,
+      why:
+        c.kind === 'never'
+          ? 'It happens to be never true, but one angle cannot show that: it only shows the claim is not an identity.'
+          : `That does not follow, and it is false: the sides agree at $${letter} = ${deg(agreeAt as number)}$.`,
+    },
+    agreeAt !== undefined
+      ? {
+          text: `At $${letter} = ${deg(agreeAt)}$ the two sides agree, so it is an identity after all.`,
+          why: 'Agreeing at one angle proves nothing; one angle where they differ settles it.',
+        }
+      : {
+          text: 'Checking one more angle where the sides differ would prove it is an identity.',
+          why: 'Angles where the sides differ can only ever disprove.',
+        },
+  ];
+  return {
+    steps: [
+      `One angle where the two sides differ is enough, so try $${letter} = ${deg(angle)}$.`,
+      `First, the left side, $${c.lhs(letter)}$, comes to $${L}$.`,
+      `Next, the right side, $${c.rhs(letter)}$, comes to $${R}$.`,
+      `$${L} \\ne ${R}$, so the claim is not an identity.`,
+    ],
+    pool,
+  };
+}
+
+/** Disprove a claim with one angle: the steps in order. */
+const proofDisproveOrder: Generator<DisproveParams> = {
+  id: 'tid-proof-disprove-order',
+  sample: (rng, difficulty) => {
+    const claims = claimsFor(difficulty).filter((i) => CLAIMS[i].kind !== 'identity' && disproofAngles(i, difficulty).length > 0);
+    const claim = rng.pick(claims);
+    return {
+      claim,
+      angle: rng.pick(disproofAngles(claim, difficulty)),
+      v: rng.int(0, PROOF_VARS.length - 1),
+      picks: rng.sample([0, 1, 2, 3], difficulty > 1 ? 2 : 1).sort((a, b) => a - b),
+    };
+  },
+  render: (params): Slide => {
+    const { steps, pool } = disproofParts(params);
+    const { steps: bank, answer } = orderBank(
+      steps,
+      params.picks.map((i) => pool[i].text),
+    );
+    return {
+      kind: 'order',
+      prompt: [
+        prose(`Show that $${claimTex(CLAIMS[params.claim], PROOF_VARS[params.v])}$ is not an identity.`),
+        prose(`Tap the steps in order. ${params.picks.length === 1 ? 'One step does not belong.' : 'Two steps do not belong.'}`),
+      ],
+      steps: bank,
+      answer,
+    };
+  },
+  solution: (params) => {
+    const { steps, pool } = disproofParts(params);
+    return [
+      ...steps.map((text, i) => ({ text: `${i + 1}. ${text}` })),
+      ...params.picks.map((i) => ({ text: `Not part of it: “${pool[i].text}” ${pool[i].why}` })),
+    ];
+  },
+};
+
+/** Every bank of proofs, for the question that finds the wrong line. */
+const PROOF_BANKS: ((v: string) => Proof)[][] = [BASIC_PROOFS, FRACTION_PROOFS, SQUARE_PROOFS, DOUBLE_PROOFS];
+
+interface WrongParams {
+  bank: number;
+  form: number;
+  move: number;
+  slip: number;
+  v: number;
+}
+
+/** The proof with one move slipped, and the lines offered as options. */
+function wrongParts({ bank, form, move, slip, v }: WrongParams) {
+  const p = PROOF_BANKS[bank][form](PROOF_VARS[v]);
+  const lines = proofLines(p);
+  const shown = [...lines];
+  shown[move + 1] = slippedLine(p, move, p.moves[move].slips[slip]);
+  const from = Math.max(1, Math.min(move, shown.length - 4));
+  return { p, lines, shown, offered: shown.slice(from, from + 4), wrong: shown[move + 1] };
+}
+
+/** A slip that is not already a line of the proof, so every option reads differently. */
+function slipsFor(p: Proof, move: number): number[] {
+  const lines = proofLines(p);
+  return p.moves[move].slips
+    .map((slip, i) => ({ i, line: slippedLine(p, move, slip) }))
+    .filter(({ line }) => !lines.includes(line))
+    .map(({ i }) => i);
+}
+
+/** A proof with one wrong line: which is the first that does not equal the line above? */
+const proofWrongChoice: Generator<WrongParams> = {
+  id: 'tid-proof-wrong-choice',
+  sample: (rng, difficulty) => {
+    const bank = rng.int(0, PROOF_BANKS.length - 1);
+    const form = rng.pick(formsFor(PROOF_BANKS[bank], difficulty));
+    const p = PROOF_BANKS[bank][form]('x');
+    const move = rng.int(0, p.moves.length - 1);
+    return { bank, form, move, slip: rng.pick(slipsFor(p, move)), v: rng.int(0, PROOF_VARS.length - 1) };
+  },
+  render: (params): Slide => {
+    const { p, shown, offered, wrong } = wrongParts(params);
+    return {
+      kind: 'choice',
+      prompt: [
+        prose(`This is meant to prove $${claimOf(p)}$, but one line is wrong:`),
+        display(workingTex(shown)),
+        prose('Which is the first line that does not equal the line above it?'),
+      ],
+      options: offered.map((line, i) => ({ id: `opt${i}`, label: `= ${line}`, tex: true })),
+      correctId: `opt${offered.indexOf(wrong)}`,
+    };
+  },
+  solution: (params) => {
+    const { p, lines, wrong } = wrongParts(params);
+    const m = p.moves[params.move];
+    return [
+      { text: `$= ${wrong}$ is the slip. ${m.say} gives $${m.value}$, not $${m.slips[params.slip]}$.` },
+      { text: 'The working should run:' },
+      { tex: workingTex(lines) },
+    ];
+  },
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -6863,4 +8518,24 @@ export const trigIdentityGenerators = [
   fitted(multiEqSlider),
   fitted(multiEqSteps),
   fitted(multiEqAngle),
+  fitted(basicProofSteps),
+  fitted(basicProofOrder),
+  fitted(basicProofChoice),
+  fitted(proofStartFlow),
+  fitted(fractionProofSteps),
+  fitted(fractionProofTiles),
+  fitted(fractionProofOrder),
+  fitted(fractionProofChoice),
+  fitted(squareProofSteps),
+  fitted(squareProofTiles),
+  fitted(squareProofOrder),
+  fitted(proofIdentityFlow),
+  fitted(doubleProofSteps),
+  fitted(doubleProofOrder),
+  fitted(doubleProofChoice),
+  fitted(proofSidesTree),
+  fitted(proofSideValue),
+  fitted(proofVerdictFlow),
+  fitted(proofWrongChoice),
+  fitted(proofDisproveOrder),
 ];

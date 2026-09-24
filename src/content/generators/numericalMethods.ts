@@ -8,7 +8,10 @@
  * it goes wrong) and the trapezium rule (the rule itself, and whether it
  * overestimates or underestimates). Level 3 is bounds and errors: absolute
  * and relative error, the bounds of a calculation on rounded values, and how
- * an error in x_n is carried through g, one step and then k.
+ * an error in x_n is carried through g, one step and then k. Level 4 is
+ * Simpson's rule: a parabola through each pair of strips, why n is even, how
+ * it compares with the trapezium rule on the same heights, why it is exact
+ * for cubics, and using it on a table of readings.
  *
  * Three rules hold everywhere in this file.
  *
@@ -19,7 +22,7 @@
  *   changes any row. `carriedRounded` below is a copy of the private one in
  *   `iterationTable.ts`. The limit comes from iterating to convergence, never
  *   from reading `x_4`.
- * - A trapezium estimate is not the integral, so no `expression` here
+ * - A trapezium or Simpson estimate is not the integral, so no `expression` here
  *   declares `integrand` and `limits`: the quadrature oracle would grade the
  *   estimate against the exact value. Ordinates are whole by choice of `f`,
  *   `a`, `b` and `n` (polynomials at whole numbers, `2^x`, and `k/x` for a
@@ -5332,6 +5335,1362 @@ const errorIterate: Generator<ErrorIterateParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: Simpson's rule, shared helpers
+ * ================================================================ */
+
+type Reduction = Extract<Slide, { kind: 'steps' }>['reductions'][number];
+
+/** Simpson's weights for n strips: 1, 4, 2, 4, ..., 2, 4, 1. */
+function simpsonWeights(n: number): number[] {
+  return Array.from({ length: n + 1 }, (_, i) => (i === 0 || i === n ? 1 : i % 2 === 1 ? 4 : 2));
+}
+
+/**
+ * Simpson's rule on heights at spacing h: the two ends, the odd-numbered
+ * heights (each the middle of a pair of strips), the even-numbered middle ones
+ * (where two pairs meet), the bracket and the estimate.
+ */
+function simpsonOf(ys: number[], h: number) {
+  const n = ys.length - 1;
+  const ends = ys[0] + ys[n];
+  const odds = ys.reduce((s, y, i) => (i % 2 === 1 ? s + y : s), 0);
+  const evens = ys.reduce((s, y, i) => (i > 0 && i < n && i % 2 === 0 ? s + y : s), 0);
+  const total = ends + 4 * odds + 2 * evens;
+  return { ys, ends, odds, evens, total, area: (h * total) / 3 };
+}
+
+const simpsonSums = (params: TrapParams) => simpsonOf(ordinates(params), params.h);
+
+/** The bracket from its three sums, on two lines so it never runs off a phone. */
+function sumLine(ends: number, odds: number, evens: number | undefined, total: number): string {
+  const terms = `${fmt(ends)} + 4 \\times ${fmt(odds)}${evens === undefined ? '' : ` + 2 \\times ${fmt(evens)}`}`;
+  return aligned(`&${terms}`, `&= ${fmt(total)}`);
+}
+
+/** Heights times their weights, three to a line, since seven in a row run off a phone. */
+function weightedTex(ys: number[], total: number): string {
+  const weights = simpsonWeights(ys.length - 1);
+  const terms = ys.map((y, i) => (weights[i] === 1 ? fmt(y) : `${weights[i]}(${fmt(y)})`));
+  if (terms.length <= 3) return `${terms.join(' + ')} = ${fmt(total)}`;
+  const rows: string[] = [];
+  for (let i = 0; i < terms.length; i += 3) rows.push(terms.slice(i, i + 3).join(' + '));
+  return aligned(`&${rows[0]}`, ...rows.slice(1).map((row) => `&\\quad + ${row}`), `&= ${fmt(total)}`);
+}
+
+/** `y_1 + y_3 + ...`. Single-digit indices and no braces, since tiles split on `{digit}`. */
+function oddList(n: number): string {
+  return Array.from({ length: n / 2 }, (_, i) => `y_${2 * i + 1}`).join(' + ');
+}
+
+/** `y_2 + y_4 + ...`, the even-numbered middle heights. Empty for two strips. */
+function evenList(n: number): string {
+  return Array.from({ length: n / 2 - 1 }, (_, i) => `y_${2 * i + 2}`).join(' + ');
+}
+
+/** Simpson's bracket in letters: `y_0 + 4(y_1 + y_3) + 2y_2 + y_4`. */
+function simpsonBracketTex(n: number): string {
+  if (n === 2) return 'y_0 + 4y_1 + y_2';
+  const evens = n === 4 ? '2y_2' : `2(${evenList(n)})`;
+  return `y_0 + 4(${oddList(n)}) + ${evens} + y_${n}`;
+}
+
+/** The trapezium rule's bracket in letters, on the same heights. */
+function trapBracketTex(n: number): string {
+  return n === 2 ? 'y_0 + 2y_1 + y_2' : `y_0 + 2(${heightList(1, n - 1)}) + y_${n}`;
+}
+
+/**
+ * Whole, positive heights whose Simpson estimate is an exact decimal.
+ *
+ * Simpson's rule divides by 3, and on a polynomial of degree 3 or less its
+ * estimate is the integral, whose x^3/3 part is whole only when the x^2
+ * coefficient times the width is a multiple of 3. So a quadratic has x^2
+ * coefficient ±3, or strips of width 3; a cubic has x^2 coefficient a multiple
+ * of 3. `2^x` never passes at h = 1 (its bracket is 13 or 65 times a power of
+ * 2), and `k/x` only on the few `RECIP_ROWS` whose bracket divides. Whatever
+ * is left over is refused rather than rounded. Difficulty 2 has wider strips,
+ * cubics and `k/x`.
+ */
+function sampleSimpson(rng: Rng, difficulty: number, counts: number[]): TrapParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const n = rng.pick(counts);
+    const roll = rng.next();
+    let params: TrapParams;
+    if (hard && roll < 0.2) {
+      params = { fn: 'quad', poly: [rng.pick([1, -1]), 3 * rng.int(-2, 2), rng.int(-6, 6), rng.int(1, 30)], k: 0, a: rng.int(0, 3), h: 1, n };
+    } else if (hard && roll < 0.35) {
+      params = sampleTrap(rng, 2, [n]);
+      if (params.fn !== 'recip') continue;
+    } else if (n === 2 && roll > 0.75) {
+      // Strips of width 3, so h/3 = 1 and any quadratic will do.
+      params = { fn: 'quad', poly: [rng.pick([1, 1, 2, -1]), rng.int(-6, 6), rng.int(1, 40)], k: 0, a: rng.int(0, 2), h: 3, n };
+    } else {
+      const lead = rng.pick([3, 3, -3]);
+      const c = lead > 0 ? rng.int(1, 30) : rng.int(40, 99);
+      params = { fn: 'quad', poly: [lead, rng.int(-8, 8), c], k: 0, a: rng.int(0, hard ? 2 : 3), h: hard ? 2 : 1, n };
+    }
+    const ys = ordinates(params);
+    if (ys.some((y) => y <= 0 || y > 99)) continue;
+    if (!terminates(simpsonSums(params).area)) continue;
+    return params;
+  }
+}
+
+function simpsonSolution(params: TrapParams): SolutionStep[] {
+  const { ys, ends, odds, evens, total, area } = simpsonSums(params);
+  const n = params.n;
+  const sums = [`y_0 + y_{${n}} &= ${fmt(ends)}`, `${oddList(n)} &= ${fmt(odds)}`];
+  if (n > 2) sums.push(`${evenList(n)} &= ${fmt(evens)}`);
+  return [
+    { text: `Strips of width $h = ${fmt(params.h)}$ put the heights at ${heightsText(params)}:` },
+    { tex: ordinateRows(ys) },
+    {
+      text:
+        n === 2
+          ? 'One parabola over the pair of strips: the ends once, the middle height four times.'
+          : 'The ends once, the odd-numbered heights (the middle of each pair) four times, the even-numbered middle ones (where two pairs meet) twice:',
+    },
+    { tex: aligned(...sums) },
+    { tex: sumLine(ends, odds, n > 2 ? evens : undefined, total) },
+    { tex: `\\frac{${fmt(params.h)}}{3} \\times ${fmt(total)} = ${fmt(area)}` },
+  ];
+}
+
+/* ================================================================
+ * Level 4, lesson 1: a parabola through three points
+ * ================================================================ */
+
+interface SimpsonFormulaParams {
+  a: number;
+  h: number;
+  n: number;
+  /** Which function is named, from FORMULA_FUNCTIONS. */
+  f: number;
+}
+
+/** Strip widths whose third is an exact decimal, so h/3 can be a tile. */
+const THIRDABLE = [0.3, 0.6, 0.75, 1.2, 1.5, 3];
+
+/**
+ * The rule's shape as tiles: h/3 as a number, then the heights in their
+ * places. Two strips at difficulty 1; four or six at 2, where the odd- and
+ * even-numbered middles have to be told apart.
+ */
+const simpsonTiles: Generator<SimpsonFormulaParams> = {
+  id: 'numer-simpson-tiles',
+  sample: (rng, difficulty) => ({
+    a: rng.int(1, 4),
+    h: rng.pick(THIRDABLE),
+    n: difficulty > 1 ? rng.pick([4, 6]) : 2,
+    f: rng.int(0, FORMULA_FUNCTIONS.length - 1),
+  }),
+  render: ({ a, h, n, f }): Slide => {
+    const two = n === 2;
+    const answer = two ? [fmt(h / 3), 'y_0 + y_2', 'y_1'] : [fmt(h / 3), `y_0 + y_${n}`, oddList(n), evenList(n)];
+    const slips = two
+      ? [fmt(h), fmt(h / 2), 'y_0 + y_1', 'y_1 + y_2', 'y_0', 'y_2']
+      : [fmt(h), fmt(h / 2), `y_0 + y_${n - 1}`, heightList(1, n - 1), `${evenList(n)} + y_${n}`, `y_0 + ${oddList(n)}`];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `Estimate $\\int_{${a}}^{${fmt(a + n * h)}} ${FORMULA_FUNCTIONS[f]}\\,dx$ with ${n} strips. Complete Simpson's rule, where ${n === 2 ? '$y_0$, $y_1$ and $y_2$' : `$y_0, y_1, \\ldots, y_${n}$`} are the heights at the ends of the strips.`,
+        ),
+      ],
+      template: two ? 'A \\approx {0}[{1} + 4{2}]' : 'A \\approx {0}[{1} + 4({2}) + 2({3})]',
+      bank: fillBank(answer, slips),
+      answer,
+    };
+  },
+  solution: ({ h, n }) => [
+    { text: `${n} strips across a width of $${fmt(n * h)}$ makes $h = ${fmt(h)}$, so $\\frac{h}{3} = ${fmt(h / 3)}$.` },
+    {
+      text:
+        n === 2
+          ? 'One parabola runs through the three heights. The ends count once each and the middle one four times.'
+          : 'The strips go in pairs, one parabola to a pair. The ends count once; the odd-numbered heights, the middle of each pair, four times; the even-numbered ones, where two pairs meet, twice.',
+    },
+    {
+      tex:
+        n === 2
+          ? `A \\approx ${fmt(h / 3)}[y_0 + y_2 + 4y_1]`
+          : aligned(`A &\\approx ${fmt(h / 3)}[y_0 + y_{${n}}`, `&\\quad + 4(${oddList(n)})`, `&\\quad + 2(${evenList(n)})]`),
+    },
+  ],
+};
+
+/**
+ * Two strips as a tree: the three heights, 4y_1, the bracket, the estimate.
+ */
+const parabolaTree: Generator<TrapParams> = {
+  id: 'numer-parabola-tree',
+  sample: (rng, difficulty) => sampleSimpson(rng, difficulty, [2]),
+  render: (params): Slide => {
+    const { ys, total, area } = simpsonSums(params);
+    const h = params.h;
+    const answer = [ys[0], ys[1], ys[2], 4 * ys[1], total, area].map(fmt);
+    const trap = ys[0] + 2 * ys[1] + ys[2];
+    const slips = [2 * ys[1], trap, (h / 2) * trap, h * total, ys[0] + ys[1] + ys[2], (h / 2) * total]
+      .filter((v) => terminates(v))
+      .map(fmt);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Simpson's rule with 2 strips of width $h = ${fmt(h)}$ fits one parabola through three heights. Top row: $y_0$, $y_1$, $y_2$ at ${heightsText(params)}. Then $4y_1$; then $y_0 + 4y_1 + y_2$; last, $\\frac{h}{3}$ times that.`,
+        ),
+      ],
+      expression: integralTex(params),
+      nodes: [
+        { id: 'y0', from: [] },
+        { id: 'y1', from: [] },
+        { id: 'y2', from: [] },
+        { id: 'four', from: ['y1'] },
+        { id: 'total', from: ['y0', 'four', 'y2'] },
+        { id: 'area', from: ['total'] },
+      ],
+      bank: numberBank(answer, slips, around([area, total])),
+      answer,
+    };
+  },
+  solution: (params) => simpsonSolution(params),
+};
+
+/**
+ * The rule worked along a line: the ends, four times the odd-numbered
+ * heights, twice the even-numbered ones, the bracket, then h/3 times it.
+ */
+const simpsonSteps: Generator<TrapParams> = {
+  id: 'numer-simpson-steps',
+  sample: (rng, difficulty) => sampleSimpson(rng, difficulty, [difficulty > 1 ? 4 : 2]),
+  render: (params): Slide => {
+    const { ys, ends, odds, evens, total, area } = simpsonSums(params);
+    const n = params.n;
+    const h = params.h;
+    const oddYs = ys.filter((_, i) => i % 2 === 1).map(fmt);
+    const start = [
+      `\\frac{${fmt(h)}}{3}`,
+      '\\times',
+      '[',
+      `${fmt(ys[0])} + ${fmt(ys[n])}`,
+      '+',
+      n === 2 ? `4 \\times ${oddYs[0]}` : `4(${oddYs.join(' + ')})`,
+    ];
+    const reductions: Reduction[] = [
+      { span: [3, 4], value: fmt(ends), bank: stepBank(fmt(ends), fmt(ends + 1), fmt(ends - 1), fmt(ys[0] * ys[n])) },
+      { span: [5, 6], value: fmt(4 * odds), bank: stepBank(fmt(4 * odds), fmt(odds), fmt(2 * odds), fmt(4 * odds + 4)) },
+    ];
+    if (n > 2) {
+      const evenYs = ys.filter((_, i) => i > 0 && i < n && i % 2 === 0).map(fmt);
+      start.push('+', evenYs.length === 1 ? `2 \\times ${evenYs[0]}` : `2(${evenYs.join(' + ')})`);
+      reductions.push({
+        span: [7, 8],
+        value: fmt(2 * evens),
+        bank: stepBank(fmt(2 * evens), fmt(evens), fmt(4 * evens), fmt(2 * evens + 2)),
+      });
+    }
+    start.push(']');
+    reductions.push({
+      span: [2, start.length],
+      operator: 4,
+      value: fmt(total),
+      bank: stepBank(fmt(total), fmt(ends + odds + evens), fmt(ends + 2 * (odds + evens)), fmt(total + 1)),
+    });
+    reductions.push({
+      span: [0, 3],
+      operator: 1,
+      value: fmt(area),
+      bank: stepBank(fmt(area), ...[h * total, (h / 2) * total, area + 1].filter((v) => terminates(v)).map(fmt)),
+    });
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Simpson's rule for $${integralTex(params)}$ with ${n} strips, $h = ${fmt(h)}$, is set up below from the heights $y_0$ to $y_${n}$. Tap the part you would work out next, then choose what it comes to.`,
+        ),
+      ],
+      start,
+      reductions,
+    };
+  },
+  solution: (params) => simpsonSolution(params),
+};
+
+/** Which bracket, written with the question's own heights. */
+const weightsChoice: Generator<TrapParams> = {
+  id: 'numer-weights-choice',
+  sample: (rng, difficulty) => sampleSimpson(rng, difficulty, [difficulty > 1 ? 4 : 2]),
+  render: (params): Slide => {
+    const y = ordinates(params).map(fmt);
+    const n = params.n;
+    const opts: ChoiceOption[] =
+      n === 2
+        ? [
+            { tex: `${y[0]} + 4(${y[1]}) + ${y[2]}`, correct: true },
+            { tex: `${y[0]} + 2(${y[1]}) + ${y[2]}` },
+            { tex: `4(${y[0]}) + ${y[1]} + 4(${y[2]})` },
+            { tex: `${y[0]} + ${y[1]} + ${y[2]}` },
+          ]
+        : [
+            { tex: `${y[0]} + 4(${y[1]} + ${y[3]}) + 2(${y[2]}) + ${y[4]}`, correct: true },
+            { tex: `${y[0]} + 2(${y[1]} + ${y[3]}) + 4(${y[2]}) + ${y[4]}` },
+            { tex: `${y[0]} + 2(${y[1]} + ${y[2]} + ${y[3]}) + ${y[4]}` },
+            { tex: `${y[0]} + 4(${y[1]} + ${y[2]} + ${y[3]}) + ${y[4]}` },
+          ];
+    return choiceSlide(
+      [
+        say(
+          `Simpson's rule with ${n} strips estimates $${integralTex(params)}$ as $\\frac{h}{3}$ times a bracket of the heights. The heights at ${heightsText(params)} are $${y.join('$, $')}$. Which is the bracket?`,
+        ),
+      ],
+      opts,
+    );
+  },
+  solution: (params) => {
+    const { ys, total } = simpsonSums(params);
+    const n = params.n;
+    const weights = simpsonWeights(n);
+    return [
+      {
+        text:
+          n === 2
+            ? 'The ends count once and the middle height four times: weights $1, 4, 1$.'
+            : `The ends count once, the odd-numbered heights four times and the even-numbered middle one twice: weights $${weights.join(', ')}$.`,
+      },
+      { tex: simpsonBracketTex(n) },
+      { tex: weightedTex(ys, total) },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 2: more strips
+ * ================================================================ */
+
+/** The weights row as tiles, under the question's own heights. */
+const weightsTiles: Generator<TrapParams> = {
+  id: 'numer-weights-tiles',
+  sample: (rng, difficulty) => sampleTrap(rng, 1, [difficulty > 1 ? 6 : 4]),
+  render: (params): Slide => {
+    const ys = ordinates(params);
+    const n = params.n;
+    const answer = simpsonWeights(n).map(String);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          `Simpson's rule with ${n} strips estimates $${integralTex(params)}$ as $\\frac{h}{3}$ times a weighted sum of the heights at ${heightsText(params)}. Fill in each height's weight.`,
+        ),
+      ],
+      template: ys.map((y, i) => `{${i}}(${fmt(y)})`).join(' + '),
+      bank: [...answer, '2', '3', '4'].sort(),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const n = params.n;
+    return [
+      { text: `${n} strips make ${n / 2} pairs, one parabola to a pair, and each pair gives its three heights $1, 4, 1$.` },
+      { text: 'Where two pairs meet, the shared height collects a 1 from each: 2. So the row runs' },
+      { tex: simpsonWeights(n).join(',\\ ') },
+      { text: 'On these heights the bracket is' },
+      { tex: weightedTex(ordinates(params), simpsonSums(params).total) },
+    ];
+  },
+};
+
+/** The estimate itself, typed. Not the integral: no `integrand` or `limits`. */
+const simpsonEstimate: Generator<TrapParams> = {
+  id: 'numer-simpson-estimate',
+  sample: (rng, difficulty) => sampleSimpson(rng, difficulty, [4]),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [say(`Use Simpson's rule with ${params.n} strips to estimate the integral.`), show(integralTex(params))],
+    lead: `${integralTex(params)} \\approx`,
+    keypad: [],
+    answer: fmt(simpsonSums(params).area),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => simpsonSolution(params),
+};
+
+interface OddFlowParams {
+  a: number;
+  h: number;
+  strips: number;
+  /** Difficulty 1 lists the x values; 2 gives the range and the spacing. */
+  listed: boolean;
+}
+
+const MIXED = 'Simpson on all but the last strip, the trapezium rule on that one';
+const ANYWAY = "Simpson's weights on every strip anyway";
+const DROP = 'Leave the last strip out';
+
+/** How many strips, whether they pair up, and what to do when one is left over. */
+const oddFlow: Generator<OddFlowParams> = {
+  id: 'numer-odd-flow',
+  sample: (rng, difficulty) => ({
+    a: rng.int(0, 4),
+    h: rng.pick([0.5, 1, 2, 5, 10]),
+    strips: rng.int(3, 8),
+    listed: difficulty === 1,
+  }),
+  render: ({ a, h, strips, listed }): Slide => {
+    const xs = Array.from({ length: strips + 1 }, (_, i) => fmt(a + i * h));
+    const b = xs[strips];
+    const where = listed ? `at $x = ${xs.join(', ')}$` : `every $${fmt(h)}$ from $x = ${a}$ to $x = ${b}$`;
+    const key = `${a}|${h}|${strips}`;
+    const answer = strips % 2 === 0 ? [String(strips), 'Yes'] : [String(strips), 'No', MIXED];
+    return {
+      kind: 'flow',
+      prompt: [say(`The heights of a curve are known ${where}, and nowhere else. The area under it is wanted by Simpson's rule.`)],
+      subject: `\\int_{${a}}^{${b}} y\\,dx`,
+      steps: [
+        {
+          id: 'count',
+          ask: 'How many strips do those heights make?',
+          branches: turned([strips, strips + 1, strips - 1].map(String), key).map((label) => ({ label, to: 'pairs' })),
+        },
+        {
+          id: 'pairs',
+          ask: "Simpson's rule takes the strips two at a time. Do they pair up exactly?",
+          branches: [
+            { label: 'Yes', outcome: "Then Simpson's rule takes them all at once." },
+            { label: 'No', to: 'odd' },
+          ],
+        },
+        {
+          id: 'odd',
+          ask: 'One strip is left over. What now?',
+          branches: turned(
+            [
+              { label: MIXED, outcome: 'Then every strip is counted, all but one of them under parabolas.' },
+              { label: ANYWAY, outcome: 'Then the weights run $1, 4, 2, \\ldots$ to the end, whatever the last pair looks like.' },
+              { label: DROP, outcome: 'Then the estimate covers a narrower interval than the one asked about.' },
+            ],
+            key,
+          ),
+        },
+      ],
+      answer,
+    };
+  },
+  solution: ({ a, h, strips }) => {
+    const b = a + strips * h;
+    const count = { text: `From $${a}$ to $${fmt(b)}$ in steps of $${fmt(h)}$ is $${strips}$ strips: one fewer than the number of heights.` };
+    return strips % 2 === 0
+      ? [count, { text: `$${strips}$ is even, so the strips make $${strips / 2}$ pairs and Simpson's rule takes them all.` }]
+      : [
+          count,
+          { text: `$${strips}$ is odd, so one strip is left once the rest are paired. Simpson's weights only come from pairs.` },
+          { text: `Use Simpson's rule on the first $${strips - 1}$ strips and the trapezium rule on the last one, and add the two.` },
+        ];
+  },
+};
+
+/**
+ * Four strips as a tree: the five heights, the ends, 4 times the odd-numbered
+ * pair, 2 times the middle, the bracket and the estimate.
+ */
+const stripsTree: Generator<TrapParams> = {
+  id: 'numer-strips-tree',
+  sample: (rng, difficulty) => sampleSimpson(rng, difficulty, [4]),
+  render: (params): Slide => {
+    const { ys, ends, odds, evens, total, area } = simpsonSums(params);
+    const h = params.h;
+    const answer = [...ys, ends, 4 * odds, 2 * evens, total, area].map(fmt);
+    const slips = [odds, 2 * odds, evens, 4 * evens, ends + 2 * (odds + evens), h * total, (h / 2) * total]
+      .filter((v) => terminates(v))
+      .map(fmt);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Simpson's rule with 4 strips, $h = ${fmt(h)}$. Top row: $y_0$ to $y_4$ at ${heightsText(params)}. Then $y_0 + y_4$, $4(y_1 + y_3)$ and $2y_2$; then their total; last, $\\frac{h}{3}$ times that.`,
+        ),
+      ],
+      expression: integralTex(params),
+      nodes: [
+        { id: 'y0', from: [] },
+        { id: 'y1', from: [] },
+        { id: 'y2', from: [] },
+        { id: 'y3', from: [] },
+        { id: 'y4', from: [] },
+        { id: 'ends', from: ['y0', 'y4'] },
+        { id: 'odds', from: ['y1', 'y3'] },
+        { id: 'evens', from: ['y2'] },
+        { id: 'total', from: ['ends', 'odds', 'evens'] },
+        { id: 'area', from: ['total'] },
+      ],
+      bank: numberBank(answer, slips, around([area, total])),
+      answer,
+    };
+  },
+  solution: (params) => simpsonSolution(params),
+};
+
+/* ================================================================
+ * Level 4, lesson 3: Simpson against the trapezium
+ * ================================================================ */
+
+/** Both rules from the same heights, side by side. */
+const bothTree: Generator<TrapParams> = {
+  id: 'numer-both-tree',
+  sample: (rng, difficulty) => sampleSimpson(rng, difficulty, [difficulty > 1 ? 4 : 2]),
+  render: (params): Slide => {
+    const simp = simpsonSums(params);
+    const trap = trapSums(params);
+    const n = params.n;
+    const h = params.h;
+    const leaves = simp.ys.map((_, i) => ({ id: `y${i}`, from: [] as string[] }));
+    const all = leaves.map((leaf) => leaf.id);
+    const answer = [...simp.ys, trap.total, simp.total, trap.area, simp.area].map(fmt);
+    const slips = [(h / 3) * trap.total, (h / 2) * simp.total, trap.ends + trap.mids, h * trap.total]
+      .filter((v) => terminates(v))
+      .map(fmt);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          `Estimate the integral both ways from the same ${n + 1} heights, $h = ${fmt(h)}$. Top row: $y_0$ to $y_${n}$ at ${heightsText(params)}. Then the trapezium bracket $${trapBracketTex(n)}$ and Simpson's bracket $${simpsonBracketTex(n)}$. Last, the estimates: $\\frac{h}{2}$ times the first, $\\frac{h}{3}$ times the second.`,
+        ),
+      ],
+      expression: integralTex(params),
+      nodes: [...leaves, { id: 'tb', from: all }, { id: 'sb', from: all }, { id: 't', from: ['tb'] }, { id: 's', from: ['sb'] }],
+      bank: numberBank(answer, slips, around([simp.area, trap.area]), 4),
+      answer,
+    };
+  },
+  solution: (params) => {
+    const simp = simpsonSums(params);
+    const trap = trapSums(params);
+    const h = fmt(params.h);
+    return [
+      { text: `The heights at ${heightsText(params)}:` },
+      { tex: ordinateRows(simp.ys) },
+      { text: 'Trapezium rule: the ends once, every middle height twice.' },
+      { tex: `T = \\frac{${h}}{2} \\times ${fmt(trap.total)} = ${fmt(trap.area)}` },
+      { text: "Simpson's rule: the ends once, then $4, 2, 4, \\ldots$ across the middle." },
+      { tex: `S = \\frac{${h}}{3} \\times ${fmt(simp.total)} = ${fmt(simp.area)}` },
+    ];
+  },
+};
+
+/** Simpson's estimate minus the trapezium's, on the same heights. */
+const gapValue: Generator<TrapParams> = {
+  id: 'numer-gap-value',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleSimpson(rng, difficulty, [difficulty > 1 ? 4 : 2]);
+      if (Math.abs(simpsonSums(params).area - trapSums(params).area) > 1e-9) return params;
+    }
+  },
+  render: (params): Slide => {
+    const s = simpsonSums(params).area;
+    const t = trapSums(params).area;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `The trapezium rule with ${params.n} strips gives $T = ${fmt(t)}$ for the integral below. Use Simpson's rule on the same heights, $h = ${fmt(params.h)}$, to find $S$, then give $S - T$.`,
+        ),
+        show(integralTex(params)),
+      ],
+      lead: 'S - T =',
+      keypad: [],
+      answer: fmt(s - t),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const s = simpsonSums(params).area;
+    const t = trapSums(params).area;
+    return [
+      ...simpsonSolution(params),
+      { tex: `S - T = ${fmt(s)} - ${paren(t)} = ${fmt(s - t)}` },
+      {
+        text:
+          s < t
+            ? "Simpson's estimate is the smaller: its parabolas follow the curve down where the trapezia's straight tops cut across above it."
+            : "Simpson's estimate is the larger: its parabolas follow the curve up where the trapezia's straight tops cut across below it.",
+      },
+    ];
+  },
+};
+
+interface CloserParams {
+  poly: Poly;
+  a: number;
+  n: number;
+}
+
+type Closer = 'simpson' | 'trap' | 'same';
+
+const CLOSER_LABELS: Record<Closer, string> = {
+  simpson: "Simpson's rule",
+  trap: 'The trapezium rule',
+  same: 'Both are equally close',
+};
+
+function closerFacts({ poly, a, n }: CloserParams) {
+  const params: TrapParams = { fn: 'quad', poly, k: 0, a, h: 1, n };
+  const t = trapSums(params).area;
+  const s = simpsonSums(params).area;
+  const exact = exactIntegral(poly, a, a + n);
+  const dt = Math.abs(t - exact);
+  const ds = Math.abs(s - exact);
+  const winner: Closer = dt < 1e-9 && ds < 1e-9 ? 'same' : ds < dt ? 'simpson' : 'trap';
+  return { params, ys: ordinates(params), t, s, exact, dt, ds, winner };
+}
+
+/**
+ * Which rule lands nearer a known exact value. Difficulty 1 is a line (both
+ * exact) or a quadratic or cubic (Simpson exact); difficulty 2 is a quartic,
+ * where Simpson's rule usually wins but, when the x^2 term all but cancels the
+ * bend, the trapezium rule can. The winner is chosen first and the draw found
+ * to fit, so neither answer is a foregone conclusion; near ties are refused.
+ */
+const closerChoice: Generator<CloserParams> = {
+  id: 'numer-closer-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const want: Closer = hard ? (rng.chance(0.35) ? 'trap' : 'simpson') : rng.chance(0.25) ? 'same' : 'simpson';
+    for (let attempt = 0; ; attempt += 1) {
+      const target = attempt < 5000 ? want : undefined;
+      const n = hard && target !== 'trap' ? rng.pick([2, 4]) : 2;
+      let poly: Poly;
+      if (hard) poly = [rng.pick([1, 2, 3]), rng.int(-3, 3), 3 * rng.int(-6, 4), 2 * rng.int(-6, 6), rng.int(0, 40)];
+      else if (target === 'same') poly = [nonZero(rng, 6), rng.int(1, 20)];
+      else poly = [rng.int(0, 1) * rng.sign(), 3 * nonZero(rng, 2), rng.int(-6, 6), rng.int(1, 20)];
+      const a = rng.int(hard ? -2 : 0, 2);
+      const params = { poly, a, n };
+      const facts = closerFacts(params);
+      if (facts.ys.some((y) => y < 1 || y > 99)) continue;
+      if (!terminates(facts.s) || !terminates(facts.exact)) continue;
+      if (target !== undefined && facts.winner !== target) continue;
+      if (facts.winner !== 'same' && Math.max(facts.dt, facts.ds) < 1.5 * Math.min(facts.dt, facts.ds)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { ys, exact, winner } = closerFacts(params);
+    const b = params.a + params.n;
+    const xs = ys.map((_, i) => fmt(params.a + i));
+    return choiceSlide(
+      [
+        say(
+          `$\\int_{${params.a}}^{${b}} f(x)\\,dx = ${fmt(exact)}$ exactly. The heights of $f$ at $x = ${xs.join(', ')}$ are $${ys.map(fmt).join('$, $')}$. Using all ${params.n} strips, which rule's estimate comes closer to the exact value?`,
+        ),
+      ],
+      (['simpson', 'trap', 'same'] as Closer[]).map((key) => ({ tex: CLOSER_LABELS[key], correct: key === winner })),
+      false,
+    );
+  },
+  solution: (params) => {
+    const { t, s, exact, dt, ds, winner } = closerFacts(params);
+    return [
+      { tex: aligned(`T &= ${fmt(t)}`, `S &= ${fmt(s)}`) },
+      { text: `Against the exact $${fmt(exact)}$, the trapezium rule is out by $${fmt(dt)}$ and Simpson's rule by $${fmt(ds)}$.` },
+      {
+        text:
+          winner === 'same'
+            ? 'Both are exact: on a straight line the chords and the parabolas are the line itself.'
+            : winner === 'simpson'
+              ? "Simpson's rule is closer."
+              : "The trapezium rule is closer this time: the curve's bend all but evens out across the interval, and Simpson's small error is the larger.",
+      },
+    ];
+  },
+};
+
+interface RefineParams {
+  trap: TrapParams;
+  /** Difficulty 1 states S = (4T_2 - T_1)/3; difficulty 2 leaves it to the learner. */
+  told: boolean;
+}
+
+const BEND_UP = 'Upward, so the chords sit above it';
+const BEND_DOWN = 'Downward, so the chords sit below it';
+
+function refineFacts({ trap }: RefineParams) {
+  const ys = ordinates(trap);
+  const h = trap.h;
+  const t1 = h * (ys[0] + ys[2]);
+  const t2 = (h / 2) * (ys[0] + 2 * ys[1] + ys[2]);
+  return { ys, t1, t2, s: simpsonSums(trap).area };
+}
+
+/**
+ * Two trapezium estimates, one strip and two, then Simpson's from the same
+ * three heights: which way the curve bends from which way the estimate moved,
+ * and S = (4T_2 - T_1)/3.
+ */
+const refineFlow: Generator<RefineParams> = {
+  id: 'numer-refine-flow',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const trap = sampleSimpson(rng, difficulty, [2]);
+      // A cubic can change the way it bends mid-interval; these never do.
+      if (trap.fn === 'quad' && trap.poly.length > 3) continue;
+      return { trap, told: difficulty === 1 };
+    }
+  },
+  render: (params): Slide => {
+    const { t1, t2, s } = refineFacts(params);
+    const key = `${t1}|${t2}`;
+    const values = [s, (t1 + t2) / 2, (4 * t1 - t2) / 3, 2 * t2 - t1].filter((v) => terminates(v)).map(fmt);
+    const labels = [...new Set(values)].slice(0, 4);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `The trapezium rule on $${integralTex(params.trap)}$ gives $T_1$ with one strip and $T_2$ with two, both from the heights at ${heightsText(params.trap)}. The curve bends the same way all along.`,
+        ),
+      ],
+      subject: `T_1 = ${fmt(t1)}, \\quad T_2 = ${fmt(t2)}`,
+      steps: [
+        {
+          id: 'bend',
+          ask: 'Halving the strip width moved the estimate from $T_1$ to $T_2$. Which way does the curve bend?',
+          branches: [
+            { label: BEND_UP, to: 'simpson' },
+            { label: BEND_DOWN, to: 'simpson' },
+          ],
+        },
+        {
+          id: 'simpson',
+          ask: params.told
+            ? "Simpson's rule on the same three heights is $S = \\frac{4T_2 - T_1}{3}$. What is $S$?"
+            : "What is Simpson's estimate $S$ from the same three heights?",
+          branches: turned(
+            labels.map((label) => ({ label: `$${label}$`, outcome: `Then $S = ${label}$.` })),
+            key,
+          ),
+        },
+      ],
+      answer: [t1 > t2 ? BEND_UP : BEND_DOWN, `$${fmt(s)}$`],
+    };
+  },
+  solution: (params) => {
+    const { ys, t1, t2, s } = refineFacts(params);
+    const h = fmt(params.trap.h);
+    return [
+      {
+        text:
+          t1 > t2
+            ? 'More strips brought the estimate down, so the chords were sitting above the curve: it bends upward.'
+            : 'More strips brought the estimate up, so the chords were sitting below the curve: it bends downward.',
+      },
+      { text: "Four $T_2$ less one $T_1$ leaves the heights weighted $1, 4, 1$, which is Simpson's rule:" },
+      { tex: `S = \\frac{4 \\times ${fmt(t2)} - ${paren(t1)}}{3} = ${fmt(s)}` },
+      { tex: `\\frac{${h}}{3}(${fmt(ys[0])} + 4 \\times ${fmt(ys[1])} + ${fmt(ys[2])}) = ${fmt(s)}` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 4: exact for cubics
+ * ================================================================ */
+
+/** An antiderivative with fractional coefficients kept as fractions. */
+function antiTex(poly: Poly): string {
+  const n = poly.length - 1;
+  return sumTex(
+    poly.map((c, i) => {
+      const k = n - i + 1;
+      if (c === 0) return '0';
+      if (Number.isInteger(c / k)) return termTex(c / k, k);
+      const g = gcd(Math.abs(c), k);
+      return `${c < 0 ? '-' : ''}\\tfrac{${Math.abs(c) / g}}{${k / g}}${k === 1 ? 'x' : `x^{${k}}`}`;
+    }),
+  );
+}
+
+interface SimpsonErrorParams {
+  poly: Poly;
+  a: number;
+  n: number;
+}
+
+function simpsonErrorFacts({ poly, a, n }: SimpsonErrorParams) {
+  const s = simpsonSums({ fn: 'quad', poly, k: 0, a, h: 1, n }).area;
+  const exact = exactIntegral(poly, a, a + n);
+  return { s, exact, error: s - exact };
+}
+
+/**
+ * The error, estimate minus exact value. A quartic (the x^4 coefficient a
+ * multiple of 3, so the error is an exact decimal) most of the time, and a
+ * cubic otherwise, whose error is nought.
+ */
+const simpsonError: Generator<SimpsonErrorParams> = {
+  id: 'numer-simpson-error',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const n = difficulty > 1 ? 4 : 2;
+      const poly = rng.chance(0.65)
+        ? [rng.pick([3, -3]), rng.int(-4, 4), 3 * rng.int(-3, 3), 2 * rng.int(-4, 4), rng.int(-9, 9)]
+        : [rng.pick([1, 2, 4, -1, -2]), 3 * rng.int(-2, 2), 2 * rng.int(-4, 4), rng.int(-9, 9)];
+      const a = rng.int(-2, 1);
+      const { s, exact } = simpsonErrorFacts({ poly, a, n });
+      if (!terminates(s) || !terminates(exact) || Math.abs(exact) > 400) continue;
+      return { poly, a, n };
+    }
+  },
+  render: (params): Slide => {
+    const { s, error } = simpsonErrorFacts(params);
+    const b = params.a + params.n;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(
+          `Simpson's rule with ${params.n} strips gives $${fmt(s)}$ for the integral below, where $f(x) = ${polyTex(params.poly)}$. Integrate exactly, then find the error: the estimate minus the exact value.`,
+        ),
+        show(`\\int_{${params.a}}^{${b}} f(x)\\,dx`),
+      ],
+      lead: '\\text{error} =',
+      keypad: [],
+      answer: fmt(error),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const { s, exact, error } = simpsonErrorFacts(params);
+    const b = params.a + params.n;
+    const quartic = params.poly.length === 5;
+    return [
+      { text: `Integrate term by term: $F(x) = ${antiTex(params.poly)}$.` },
+      { tex: `F(${b}) - F(${params.a}) = ${fmt(exact)}` },
+      { tex: aligned(`\\text{error} &= ${fmt(s)} - ${paren(exact)}`, `&= ${fmt(error)}`) },
+      {
+        text: quartic
+          ? "Not nought: an $x^{4}$ term is more than any parabola can follow exactly, so Simpson's rule is only close."
+          : "Nought: on a cubic, Simpson's rule is exact.",
+      },
+    ];
+  },
+};
+
+interface Candidate {
+  tex: string;
+  /** The degree of a polynomial; absent for a function that is not one. */
+  degree?: number;
+}
+
+/** A polynomial of a given degree, written out, with small whole coefficients. */
+function expandedCandidate(rng: Rng, degree: number): Candidate {
+  const poly = Array.from({ length: degree + 1 }, (_, i) => (i === 0 ? nonZero(rng, 3) : rng.chance(0.4) ? 0 : nonZero(rng, 9)));
+  return { tex: polyTex(poly), degree };
+}
+
+/** A polynomial of a given degree written as a product, so its degree has to be counted. */
+function factoredCandidate(rng: Rng, degree: number): Candidate {
+  const x = degree > 1 && rng.chance(0.3);
+  const factors: string[] = [];
+  let left = x ? degree - 1 : degree;
+  while (left > 0) {
+    if (left >= 2 && rng.chance(0.4)) {
+      const squared = left >= 4 && rng.chance(0.4);
+      factors.push(`(x^{2} + ${rng.int(1, 5)})${squared ? '^{2}' : ''}`);
+      left -= squared ? 4 : 2;
+    } else {
+      const squared = left >= 2 && rng.chance(0.4);
+      factors.push(`(${linFactor(nonZero(rng, 4))})${squared ? '^{2}' : ''}`);
+      left -= squared ? 2 : 1;
+    }
+  }
+  return { tex: `${x ? 'x' : ''}${factors.join('')}`, degree };
+}
+
+/** A function that is not a polynomial, in the plain form or a disguised one. */
+function otherCandidate(rng: Rng, disguised: boolean): Candidate {
+  const k = rng.int(2, 12);
+  const plain = ['2^{x}', `\\frac{${k}}{x}`, '\\sqrt{x}', 'e^{x}', '\\ln x', '\\sin x'];
+  const hidden = [`\\frac{x^{3} + ${k}}{x}`, 'x^{2}\\sqrt{x}', 'x^{3} + 2^{x}', `\\frac{${k}}{x^{2}}`, 'x\\ln x', `x^{3} + \\frac{${k}}{x}`];
+  return { tex: rng.pick(disguised ? hidden : plain) };
+}
+
+/** A candidate integrand: exact under Simpson (degree 3 or less), a higher polynomial, or not a polynomial. */
+function candidate(rng: Rng, difficulty: number, kind: 'exact' | 'high' | 'other'): Candidate {
+  const hard = difficulty > 1;
+  if (kind === 'other') return otherCandidate(rng, hard);
+  const degree = kind === 'exact' ? rng.int(hard ? 2 : 1, 3) : rng.int(4, 5);
+  return hard ? factoredCandidate(rng, degree) : expandedCandidate(rng, degree);
+}
+
+interface ExactFlowParams {
+  f: Candidate;
+  a: number;
+  n: number;
+}
+
+const EXACT_YES = '3 or less';
+const EXACT_NO = '4 or more';
+
+/** Is Simpson's rule exact here: a polynomial, and of degree at most 3. */
+const exactFlow: Generator<ExactFlowParams> = {
+  id: 'numer-exact-flow',
+  sample: (rng, difficulty) => {
+    const kind = rng.pick<'exact' | 'high' | 'other'>(['exact', 'exact', 'high', 'high', 'other']);
+    return { f: candidate(rng, difficulty, kind), a: rng.int(1, 3), n: rng.pick([2, 4, 6]) };
+  },
+  render: ({ f, a, n }): Slide => ({
+    kind: 'flow',
+    prompt: [say(`Simpson's rule with ${n} strips is used on $\\int_{${a}}^{${a + n}} f(x)\\,dx$. Does it give the integral exactly?`)],
+    subject: `f(x) = ${f.tex}`,
+    steps: [
+      {
+        id: 'poly',
+        ask: 'Is $f$ a polynomial?',
+        branches: [
+          { label: 'Yes', to: 'degree' },
+          { label: 'No', outcome: "Then there is no degree to go by, and Simpson's rule gives only an estimate." },
+        ],
+      },
+      {
+        id: 'degree',
+        ask: 'What is its degree?',
+        branches: [
+          { label: EXACT_YES, outcome: "Then Simpson's rule gives the integral exactly." },
+          { label: EXACT_NO, outcome: "Then Simpson's rule gives an estimate, not the integral." },
+        ],
+      },
+    ],
+    answer: f.degree === undefined ? ['No'] : ['Yes', f.degree <= 3 ? EXACT_YES : EXACT_NO],
+  }),
+  solution: ({ f }) =>
+    f.degree === undefined
+      ? [
+          { text: `$${f.tex}$ is not a polynomial: it has a power of $x$ that is not a whole number, or $x$ in a denominator, an exponent, a log or a sine.` },
+          { text: "Simpson's rule is exact only for polynomials of degree 3 or less, so here it is an estimate." },
+        ]
+      : [
+          { text: `$${f.tex}$ is a polynomial of degree $${f.degree}$${f.tex.includes('(') ? ', counting the powers of $x$ across the brackets' : ''}.` },
+          {
+            text:
+              f.degree <= 3
+                ? "Simpson's rule is exact for every polynomial of degree 3 or less: the parabolas' error from an $x^{3}$ term cancels across each pair of strips."
+                : "Degree 4 or more has a part no parabola follows, and it does not cancel, so Simpson's rule is only an estimate.",
+          },
+        ],
+};
+
+interface ExactChoiceParams {
+  /** The first is the one Simpson's rule integrates exactly. */
+  fs: Candidate[];
+  a: number;
+  n: number;
+}
+
+/** Of four integrands, the one on which Simpson's rule is exact. */
+const exactChoice: Generator<ExactChoiceParams> = {
+  id: 'numer-exact-choice',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const fs = [
+        candidate(rng, difficulty, 'exact'),
+        candidate(rng, difficulty, 'high'),
+        candidate(rng, difficulty, rng.chance(0.5) ? 'high' : 'other'),
+        candidate(rng, difficulty, 'other'),
+      ];
+      if (new Set(fs.map((f) => f.tex)).size < fs.length) continue;
+      return { fs, a: rng.int(1, 3), n: rng.pick([2, 4]) };
+    }
+  },
+  render: ({ fs, a, n }): Slide =>
+    choiceSlide(
+      [say(`Simpson's rule with ${n} strips is used on $\\int_{${a}}^{${a + n}} f(x)\\,dx$. For which $f(x)$ does it give the integral exactly?`)],
+      fs.map((f, i) => ({ tex: f.tex, correct: i === 0 })),
+    ),
+  solution: ({ fs }) => [
+    { text: "Simpson's rule is exact for polynomials of degree 3 or less, and only those." },
+    ...fs.map((f) => ({
+      text:
+        f.degree === undefined
+          ? `$${f.tex}$ is not a polynomial.`
+          : `$${f.tex}$ has degree $${f.degree}$${f.degree <= 3 ? ': exact.' : ': an estimate.'}`,
+    })),
+  ],
+};
+
+interface CubicStepsParams {
+  poly: Poly;
+  a: number;
+  h: number;
+}
+
+function cubicFacts({ poly, a, h }: CubicStepsParams) {
+  const trap: TrapParams = { fn: 'quad', poly, k: 0, a, h, n: 2 };
+  const F = (x: number) => exactIntegral(poly, 0, x);
+  const b = a + 2 * h;
+  return { trap, b, Fa: F(a), Fb: F(b), exact: F(b) - F(a), ...simpsonSums(trap) };
+}
+
+/**
+ * Simpson's rule set against the exact integral of a cubic, worked along one
+ * line, until the difference comes out nought. The coefficients (x^3 a multiple
+ * of 4, x^2 of 3, x of 2) keep every value of the antiderivative whole.
+ */
+const cubicSteps: Generator<CubicStepsParams> = {
+  id: 'numer-cubic-steps',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const h = difficulty > 1 ? 2 : 1;
+      const poly = [rng.pick([4, -4, 4]), 3 * rng.int(-3, 3), 2 * rng.int(-6, 6), rng.int(1, 30)];
+      const a = difficulty > 1 ? rng.int(-2, 0) : rng.int(0, 2);
+      const params = { poly, a, h };
+      const { ys } = cubicFacts(params);
+      if (ys.some((y) => y < 1 || y > 99)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { trap, b, Fa, Fb, exact, ys, ends, total, area } = cubicFacts(params);
+    const h = params.h;
+    const lower = (h / 2) * total;
+    const reductions: Reduction[] = [
+      { span: [3, 4], value: fmt(ends), bank: stepBank(fmt(ends), fmt(ends + 1), fmt(ends - 1), fmt(ys[0] * ys[2])) },
+      { span: [5, 6], value: fmt(4 * ys[1]), bank: stepBank(fmt(4 * ys[1]), fmt(ys[1]), fmt(2 * ys[1]), fmt(4 * ys[1] + 4)) },
+      { span: [2, 7], operator: 4, value: fmt(total), bank: stepBank(fmt(total), fmt(ends + ys[1]), fmt(ends + 2 * ys[1]), fmt(total + 1)) },
+      {
+        span: [0, 3],
+        operator: 1,
+        value: fmt(area),
+        bank: stepBank(fmt(area), ...[h * total, lower, area + 1].filter((v) => terminates(v)).map(fmt)),
+      },
+      { span: [2, 3], value: fmt(exact), bank: stepBank(fmt(exact), fmt(Fb + Fa), fmt(exact + 1), fmt(-exact)) },
+      { span: [0, 3], operator: 1, value: '0', bank: stepBank('0', fmt(area + exact), '1', '-1') },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `Simpson's rule with 2 strips, $h = ${fmt(h)}$, is set against the exact value of $${integralTex(trap)}$. Here $F(x) = ${antiTex(params.poly)}$, so the exact value is $F(${fmt(b)}) - F(${params.a})$. Tap the part you would work out next, then choose what it comes to.`,
+        ),
+      ],
+      start: [
+        `\\frac{${fmt(h)}}{3}`,
+        '\\times',
+        '[',
+        `${fmt(ys[0])} + ${fmt(ys[2])}`,
+        '+',
+        `4 \\times ${fmt(ys[1])}`,
+        ']',
+        '-',
+        `(${fmt(Fb)} - ${paren(Fa)})`,
+      ],
+      reductions,
+    };
+  },
+  solution: (params) => {
+    const { b, Fa, Fb, exact, total, area } = cubicFacts(params);
+    return [
+      ...simpsonSolution(cubicFacts(params).trap).slice(0, 2),
+      { tex: `\\frac{${fmt(params.h)}}{3} \\times ${fmt(total)} = ${fmt(area)}` },
+      { tex: aligned(`F(${fmt(b)}) - F(${params.a}) &= ${fmt(Fb)} - ${paren(Fa)}`, `&= ${fmt(exact)}`) },
+      { text: "The same number: on a cubic, Simpson's rule is exact, so the difference is nought." },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 4, lesson 5: from a table of readings
+ * ================================================================ */
+
+interface Story {
+  /** The opening sentence, given the spacing as written. */
+  setup: (h: string) => string;
+  x: string;
+  y: string;
+  ask: string;
+  lead: string;
+  /** Spacings whose third is an exact decimal. */
+  hs: number[];
+  lo: number;
+  hi: number;
+  /** Readings at the two ends are nought, as at a river's banks. */
+  zeroEnds?: boolean;
+}
+
+const STORIES: Story[] = [
+  {
+    setup: (h) => `A river's depth $d$, in metres, is measured every $${h}$ m across it, from bank to bank.`,
+    x: 'x',
+    y: 'd',
+    ask: 'Estimate the area of its cross-section, in square metres.',
+    lead: 'A \\approx',
+    hs: [0.6, 1.5, 3],
+    lo: 1,
+    hi: 9,
+    zeroEnds: true,
+  },
+  {
+    setup: (h) => `A car's speed $v$, in metres per second, is read every $${h}$ seconds.`,
+    x: 't',
+    y: 'v',
+    ask: 'Estimate how far it travels, in metres.',
+    lead: '\\text{distance} \\approx',
+    hs: [1.5, 3, 6],
+    lo: 4,
+    hi: 30,
+  },
+  {
+    setup: (h) => `A pond's width $w$, in metres, is measured every $${h}$ m along its length.`,
+    x: 'x',
+    y: 'w',
+    ask: "Estimate the pond's area, in square metres.",
+    lead: 'A \\approx',
+    hs: [0.75, 1.5, 3, 6],
+    lo: 2,
+    hi: 20,
+  },
+  {
+    setup: (h) => `Water runs into a tank at $r$ litres a minute, read every $${h}$ minutes.`,
+    x: 't',
+    y: 'r',
+    ask: 'Estimate how much runs in, in litres.',
+    lead: 'V \\approx',
+    hs: [1.5, 3, 6],
+    lo: 5,
+    hi: 40,
+  },
+];
+
+interface ReadingsParams {
+  story: number;
+  h: number;
+  ys: number[];
+}
+
+function sampleReadings(rng: Rng, count: number): ReadingsParams {
+  const story = rng.int(0, STORIES.length - 1);
+  const s = STORIES[story];
+  const ys = Array.from({ length: count }, (_, i) => (s.zeroEnds && (i === 0 || i === count - 1) ? 0 : rng.int(s.lo, s.hi)));
+  return { story, h: rng.pick(s.hs), ys };
+}
+
+const readingsXs = ({ h, ys }: ReadingsParams) => ys.map((_, i) => i * h);
+
+/**
+ * Readings as a two-row table. Six columns of values fit a phone and seven do
+ * not, so a longer table is split in two, one above the other.
+ */
+function readingsTable(x: string, y: string, xs: number[], ys: number[]): string {
+  const part = (from: number, to: number) =>
+    `\\begin{array}{c|${'c'.repeat(to - from)}} ${x} & ${xs.slice(from, to).map(fmt).join(' & ')} \\\\ \\hline ${y} & ${ys.slice(from, to).map(fmt).join(' & ')} \\end{array}`;
+  if (ys.length <= 5) return part(0, ys.length);
+  const half = Math.ceil(ys.length / 2);
+  return `\\begin{gathered} ${part(0, half)} \\\\[6pt] ${part(half, ys.length)} \\end{gathered}`;
+}
+
+function readingsTex(params: ReadingsParams): string {
+  const s = STORIES[params.story];
+  return readingsTable(s.x, s.y, readingsXs(params), params.ys);
+}
+
+function readingsSolution(params: ReadingsParams): SolutionStep[] {
+  const { ends, odds, evens, total, area } = simpsonOf(params.ys, params.h);
+  const n = params.ys.length - 1;
+  return [
+    { text: `${params.ys.length} readings make ${n} strips, an even number, of width $h = ${fmt(params.h)}$.` },
+    { tex: aligned(`\\text{ends} &= ${fmt(ends)}`, `\\text{odd-numbered} &= ${fmt(odds)}`, `\\text{even-numbered} &= ${fmt(evens)}`) },
+    { tex: sumLine(ends, odds, evens, total) },
+    { tex: `\\frac{${fmt(params.h)}}{3} \\times ${fmt(total)} = ${fmt(area)}` },
+  ];
+}
+
+/** One estimate from a table of real readings. */
+const readingsEstimate: Generator<ReadingsParams> = {
+  id: 'numer-readings-estimate',
+  sample: (rng, difficulty) => sampleReadings(rng, difficulty > 1 ? 7 : 5),
+  render: (params): Slide => {
+    const s = STORIES[params.story];
+    return {
+      kind: 'expression',
+      prompt: [say(s.setup(fmt(params.h))), show(readingsTex(params)), say(`${s.ask} Use Simpson's rule.`)],
+      lead: s.lead,
+      keypad: [],
+      answer: fmt(simpsonOf(params.ys, params.h).area),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => readingsSolution(params),
+};
+
+/** The same, as a tree from the grouped sums up. */
+const tableTree: Generator<ReadingsParams> = {
+  id: 'numer-table-tree',
+  sample: (rng, difficulty) => sampleReadings(rng, difficulty > 1 ? 7 : 5),
+  render: (params): Slide => {
+    const s = STORIES[params.story];
+    const { ends, odds, evens, total, area } = simpsonOf(params.ys, params.h);
+    const h = params.h;
+    const answer = [ends, odds, evens, 4 * odds, 2 * evens, total, area].map(fmt);
+    const slips = [2 * odds, 4 * evens, ends + odds + evens, ends + 2 * (odds + evens), h * total, (h / 2) * total]
+      .filter((v) => terminates(v))
+      .map(fmt);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(s.setup(fmt(h))),
+        show(readingsTex(params)),
+        say(
+          `${s.ask} Top row: the two end readings added, then the odd-numbered ones, then the even-numbered middle ones. Then 4 times and 2 times those; the bracket; last, $\\frac{h}{3}$ times it.`,
+        ),
+      ],
+      expression: `\\frac{${fmt(h)}}{3}[\\ldots]`,
+      nodes: [
+        { id: 'ends', from: [] },
+        { id: 'odds', from: [] },
+        { id: 'evens', from: [] },
+        { id: 'four', from: ['odds'] },
+        { id: 'two', from: ['evens'] },
+        { id: 'total', from: ['ends', 'four', 'two'] },
+        { id: 'area', from: ['total'] },
+      ],
+      bank: numberBank(answer, slips, around([area, total])),
+      answer,
+    };
+  },
+  solution: (params) => readingsSolution(params),
+};
+
+/** Simpson's parabolas through the readings, one to each pair of strips, for drawing. */
+function parabolas(xs: number[], ys: number[]): (x: number) => number {
+  const h = xs[1] - xs[0];
+  const pairs = (xs.length - 1) / 2;
+  return (x) => {
+    const pair = Math.min(pairs - 1, Math.max(0, Math.floor((x - xs[0]) / (2 * h))));
+    const [x0, x1, x2] = xs.slice(2 * pair, 2 * pair + 3);
+    const [y0, y1, y2] = ys.slice(2 * pair, 2 * pair + 3);
+    return (
+      (y0 * (x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2)) +
+      (y1 * (x - x0) * (x - x2)) / ((x1 - x0) * (x1 - x2)) +
+      (y2 * (x - x0) * (x - x1)) / ((x2 - x0) * (x2 - x1))
+    );
+  };
+}
+
+interface ReadingsSliderParams {
+  ys: number[];
+  h: number;
+}
+
+/**
+ * The height of the rectangle with Simpson's area over the same width: its
+ * estimate over the width, which is the bracket over 3n whatever h is. Drawn
+ * as the readings with the rule's parabolas through them.
+ */
+const readingsSlider: Generator<ReadingsSliderParams> = {
+  id: 'numer-readings-slider',
+  sample: (rng, difficulty) => {
+    const step = difficulty > 1 ? 0.25 : 0.5;
+    for (;;) {
+      const count = difficulty > 1 ? 7 : 5;
+      const ys = Array.from({ length: count }, () => rng.int(2, 16));
+      const h = rng.pick([0.5, 1, 2]);
+      const mean = simpsonOf(ys, h).total / (3 * (count - 1));
+      if (Math.abs(mean / step - Math.round(mean / step)) > 1e-9) continue;
+      return { ys, h };
+    }
+  },
+  render: ({ ys, h }): Slide => {
+    const n = ys.length - 1;
+    const xs = ys.map((_, i) => i * h);
+    const width = n * h;
+    const mean = simpsonOf(ys, h).total / (3 * n);
+    const curve = parabolas(xs, ys);
+    const top = Math.ceil(Math.max(...ys, ...xs.slice(0, -1).map((x) => curve(x + h / 2))) + 2);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(`A curve's heights at equal steps are below, with Simpson's parabolas drawn through them.`),
+        show(readingsTable('x', 'y', xs, ys)),
+        say(
+          `A rectangle $${fmt(width)}$ wide with the same area as Simpson's estimate has height $\\frac{S}{${fmt(width)}}$. Slide the line to that height.`,
+        ),
+      ],
+      min: 0,
+      max: top,
+      step: ys.length > 5 ? 0.25 : 0.5,
+      answer: mean,
+      readout: '\\text{height} = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -h / 4,
+          xMax: width + h / 4,
+          yMin: 0,
+          yMax: top,
+          curves: [{ f: curve, accent: true }],
+          marks: xs.map((x, i) => ({ x, y: ys[i] })),
+          verticals: [{ x: 0 }, { x: width }],
+          label: "Readings at equal steps with Simpson's parabolas through them",
+        }),
+        ...markerWindow(0, top, 'y'),
+        axis: 'y',
+      },
+    };
+  },
+  solution: ({ ys, h }) => {
+    const n = ys.length - 1;
+    const { total, area } = simpsonOf(ys, h);
+    return [
+      { text: `Weights $${simpsonWeights(n).join(', ')}$ give the bracket:` },
+      { tex: weightedTex(ys, total) },
+      { tex: `S = \\frac{${fmt(h)}}{3} \\times ${fmt(total)} = ${fmt(area)}` },
+      { tex: `\\frac{S}{${fmt(n * h)}} = ${fmt(total / (3 * n))}` },
+    ];
+  },
+};
+
+interface OddChoiceParams extends ReadingsParams {
+  /** Difficulty 1 shows the table; 2 gives only the range, so the strips are counted from it. */
+  listed: boolean;
+}
+
+type OddMethod = 'all' | 'mixed' | 'drop';
+
+const ODD_LABELS: Record<OddMethod, string> = {
+  all: "Simpson's rule on all the strips",
+  mixed: "Simpson's rule on all but the last strip, the trapezium rule on that one",
+  drop: "Leave out the last reading, then Simpson's rule on the rest",
+};
+
+/** Which method covers every reading properly: it turns on whether the strips pair up. */
+const oddChoice: Generator<OddChoiceParams> = {
+  id: 'numer-odd-choice',
+  sample: (rng, difficulty) => ({ ...sampleReadings(rng, rng.int(5, 8)), listed: difficulty === 1 }),
+  render: (params): Slide => {
+    const s = STORIES[params.story];
+    const n = params.ys.length - 1;
+    const right: OddMethod = n % 2 === 0 ? 'all' : 'mixed';
+    const shown: Block[] = params.listed
+      ? [say(s.setup(fmt(params.h))), show(readingsTex(params))]
+      : [say(`${s.setup(fmt(params.h))} The readings run from $${s.x} = 0$ to $${s.x} = ${fmt(n * params.h)}$.`)];
+    return choiceSlide(
+      [...shown, say(`${s.ask} Which of these uses Simpson's rule properly and every reading?`)],
+      (['all', 'mixed', 'drop'] as OddMethod[]).map((key) => ({ tex: ODD_LABELS[key], correct: key === right })),
+      false,
+    );
+  },
+  solution: (params) => {
+    const n = params.ys.length - 1;
+    return [
+      { text: `${n + 1} readings make ${n} strips, one fewer than the readings.` },
+      n % 2 === 0
+        ? { text: `$${n}$ is even: the strips pair up, so Simpson's rule takes them all.` }
+        : { text: `$${n}$ is odd: one strip is left over. Simpson's rule on the first $${n - 1}$, the trapezium rule on the last, and add.` },
+      { text: 'Leaving out a reading throws away part of the area asked about.' },
+    ];
+  },
+};
+
 export const numericalMethodsGenerators = [
   signTree,
   signInterval,
@@ -5390,4 +6749,24 @@ export const numericalMethodsGenerators = [
   kTiles,
   kLogsSteps,
   errorIterate,
+  simpsonTiles,
+  parabolaTree,
+  simpsonSteps,
+  weightsChoice,
+  weightsTiles,
+  simpsonEstimate,
+  oddFlow,
+  stripsTree,
+  bothTree,
+  gapValue,
+  closerChoice,
+  refineFlow,
+  simpsonError,
+  exactFlow,
+  exactChoice,
+  cubicSteps,
+  readingsEstimate,
+  tableTree,
+  readingsSlider,
+  oddChoice,
 ];

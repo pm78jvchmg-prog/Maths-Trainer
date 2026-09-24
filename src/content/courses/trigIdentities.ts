@@ -24,6 +24,11 @@
  * degrees; sin(2x + x) gives the triple-angle formulae; and equations in x/2
  * and 3x are solved for the bracket over its own range.
  *
+ * Level 5 proves identities: start from one side and rewrite it, one move
+ * at a time, until it is the other side, through fractions, squares and double
+ * angles; and it tells an identity from an equation, which one angle can
+ * disprove but never prove.
+ *
  * Each level closes with a level check: twelve to fifteen questions, no
  * teaching slides, one attempt each.
  */
@@ -50,7 +55,7 @@ export const trigIdentities: Course = {
   // Straight after Trigonometric Functions, whose identities it puts to work.
   position: 15,
   title: 'Trigonometric Identities & Equations',
-  blurb: 'Rewriting with identities to solve equations; compound, double, half and triple angles; and the form R sin(x + α).',
+  blurb: 'Rewriting with identities to solve equations; compound, double, half and triple angles; the form R sin(x + α); and proving identities.',
   levels: [
     {
       id: 'ti-l1',
@@ -908,6 +913,207 @@ export const trigIdentities: Course = {
         ask('tid-multi-eq-flow', 2),
         ask('tid-multi-eq-steps', 2),
         ask('tid-multi-eq-angle', 2),
+      ],
+    },
+    {
+      id: 'ti-l5',
+      title: 'Proving Identities',
+      lessons: [
+        {
+          id: 'ti-l5-what',
+          title: 'What a Proof Is',
+          slides: [
+            teach(
+              prose(
+                'An identity is true at every angle. To prove one, start from one side and rewrite it, one step at a time, until it is the other side:',
+              ),
+              maths('\\begin{aligned} &\\tan x \\cos x \\\\ &= \\frac{\\sin x}{\\cos x} \\cos x \\\\ &= \\sin x \\end{aligned}'),
+              prose('Every line equals the one above it, using an identity you already know or plain algebra.'),
+            ),
+            ask('tid-proof-basic-steps'),
+            ask('tid-proof-start-flow'),
+            ask('tid-proof-basic-steps', 2),
+            teach(
+              prose(
+                'Start from the busier side: it has more to rewrite. Writing everything in $\\sin$ and $\\cos$ is usually the first move.',
+              ),
+              prose(
+                'Never work across the equals sign. "Divide both sides by $\\cos x$" treats the identity as already true, which is the very thing being proved.',
+              ),
+            ),
+            ask('tid-proof-start-flow', 2),
+            ask('tid-proof-basic-choice'),
+            ask('tid-proof-basic-order'),
+            teach(
+              prose('Written out, a proof is a chain of lines, each one move on from the last, ending on the other side:'),
+              maths('\\begin{aligned} &\\sec^2 x - \\tan^2 x \\\\ &= (1 + \\tan^2 x) - \\tan^2 x \\\\ &= 1 \\end{aligned}'),
+              prose('Checking one angle is not part of it: agreeing at one angle proves nothing about the rest.'),
+            ),
+            ask('tid-proof-basic-order', 2),
+            ask('tid-proof-basic-choice', 2),
+          ],
+          skillCheck: [
+            ask('tid-proof-basic-steps', 2),
+            ask('tid-proof-start-flow', 2),
+            ask('tid-proof-basic-order', 2),
+          ],
+        },
+        {
+          id: 'ti-l5-fractions',
+          title: 'Fractions in a Proof',
+          slides: [
+            teach(
+              prose('Swap $\\sec$ and $\\operatorname{cosec}$ for fractions, then put everything over one denominator:'),
+              maths(
+                '\\begin{aligned} &\\sec x - \\cos x \\\\ &= \\frac{1}{\\cos x} - \\cos x \\\\ &= \\frac{1 - \\cos^2 x}{\\cos x} \\end{aligned}',
+              ),
+              prose('The top is now a Pythagorean identity in disguise: $1 - \\cos^2 x = \\sin^2 x$.'),
+            ),
+            ask('tid-proof-fraction-steps'),
+            ask('tid-proof-fraction-tiles'),
+            ask('tid-proof-fraction-choice'),
+            teach(
+              prose('To finish, split the fraction into the pieces the other side is made of:'),
+              maths('\\begin{aligned} \\frac{\\sin^2 x}{\\cos x} &= \\sin x \\times \\frac{\\sin x}{\\cos x} \\\\ &= \\sin x \\tan x \\end{aligned}'),
+              prose('Keep the target in view: it tells you which pieces to aim for.'),
+            ),
+            ask('tid-proof-fraction-order'),
+            ask('tid-proof-fraction-steps', 2),
+            ask('tid-proof-fraction-tiles', 2),
+            teach(
+              prose('Two fractions with different bottoms go over their product. For $\\tan x + \\cot x$:'),
+              maths('\\begin{aligned} &\\frac{\\sin x}{\\cos x} + \\frac{\\cos x}{\\sin x} \\\\ &= \\frac{\\sin^2 x + \\cos^2 x}{\\sin x \\cos x} \\\\ &= \\frac{1}{\\sin x \\cos x} \\end{aligned}'),
+              prose('Dividing by a fraction multiplies by it upside down.'),
+            ),
+            ask('tid-proof-fraction-choice', 2),
+            ask('tid-proof-fraction-order', 2),
+          ],
+          skillCheck: [
+            ask('tid-proof-fraction-steps', 2),
+            ask('tid-proof-fraction-tiles', 2),
+            ask('tid-proof-fraction-order', 2),
+          ],
+        },
+        {
+          id: 'ti-l5-squares',
+          title: 'Squares and Brackets',
+          slides: [
+            teach(
+              prose('A bracket times its partner is a difference of two squares, so the middle terms cancel:'),
+              maths('\\begin{aligned} &(1 - \\sin x)(1 + \\sin x) \\\\ &= 1 - \\sin^2 x \\\\ &= \\cos^2 x \\end{aligned}'),
+              prose('Multiplying out is plain algebra; the last line needs $\\sin^2 x + \\cos^2 x = 1$.'),
+            ),
+            ask('tid-proof-square-steps'),
+            ask('tid-proof-square-tiles'),
+            ask('tid-proof-identity-flow'),
+            teach(
+              prose('Each Pythagorean identity rearranges to cover a square minus one:'),
+              maths('\\begin{aligned} 1 - \\sin^2 x &= \\cos^2 x \\\\ \\sec^2 x - 1 &= \\tan^2 x \\\\ \\operatorname{cosec}^2 x - 1 &= \\cot^2 x \\end{aligned}'),
+              prose('So $(\\sec x - 1)(\\sec x + 1) = \\sec^2 x - 1 = \\tan^2 x$.'),
+            ),
+            ask('tid-proof-square-order'),
+            ask('tid-proof-identity-flow', 2),
+            ask('tid-proof-square-steps', 2),
+            teach(
+              prose('A squared sum has a middle term. Collect the squares, and the identity tidies them to $1$:'),
+              maths('\\begin{aligned} &(\\sin x + \\cos x)^2 \\\\ &= \\sin^2 x + 2\\sin x \\cos x \\\\ &\\quad + \\cos^2 x \\\\ &= 1 + 2\\sin x \\cos x \\end{aligned}'),
+            ),
+            ask('tid-proof-square-tiles', 2),
+            ask('tid-proof-square-order', 2),
+          ],
+          skillCheck: [
+            ask('tid-proof-square-steps', 2),
+            ask('tid-proof-square-tiles', 2),
+            ask('tid-proof-identity-flow', 2),
+          ],
+        },
+        {
+          id: 'ti-l5-double',
+          title: 'Double Angles in a Proof',
+          slides: [
+            teach(
+              prose('A double angle on one side and single angles on the other: swap the double ones out first.'),
+              maths('\\begin{aligned} \\sin 2x &= 2\\sin x \\cos x \\\\ \\cos 2x &= 1 - 2\\sin^2 x \\\\ &= 2\\cos^2 x - 1 \\end{aligned}'),
+              prose('Of the forms of $\\cos 2x$, pick the one that cancels the $1$ beside it.'),
+            ),
+            ask('tid-proof-double-steps'),
+            ask('tid-proof-double-choice'),
+            ask('tid-proof-sides-tree'),
+            teach(
+              prose('With $1 + \\cos 2x$, the form $2\\cos^2 x - 1$ cancels the $1$:'),
+              maths(
+                '\\begin{aligned} \\frac{\\sin 2x}{1 + \\cos 2x} &= \\frac{2\\sin x \\cos x}{2\\cos^2 x} \\\\ &= \\frac{\\sin x}{\\cos x} \\\\ &= \\tan x \\end{aligned}',
+              ),
+              prose('With $1 - \\cos 2x$, the form $1 - 2\\sin^2 x$ does the same job.'),
+            ),
+            ask('tid-proof-double-order'),
+            ask('tid-proof-double-steps', 2),
+            ask('tid-proof-sides-tree', 2),
+            teach(
+              prose(
+                'Putting a table angle into both sides is a quick check on your working: if the sides disagree, something is wrong. If they agree, that is reassuring, but it is still not a proof.',
+              ),
+            ),
+            ask('tid-proof-double-choice', 2),
+            ask('tid-proof-double-order', 2),
+          ],
+          skillCheck: [
+            ask('tid-proof-double-steps', 2),
+            ask('tid-proof-double-order', 2),
+            ask('tid-proof-sides-tree', 2),
+          ],
+        },
+        {
+          id: 'ti-l5-check',
+          title: 'Identity or Not',
+          slides: [
+            teach(
+              prose('One angle where the two sides differ disproves a claimed identity. At $x = 90^{\\circ}$:'),
+              maths('\\begin{aligned} \\sin 2x &= \\sin 180^{\\circ} = 0 \\\\ 2\\sin x &= 2\\sin 90^{\\circ} = 2 \\end{aligned}'),
+              prose('So $\\sin 2x = 2\\sin x$ is not an identity. But no number of angles where the sides agree can prove one.'),
+            ),
+            ask('tid-proof-side-value'),
+            ask('tid-proof-verdict-flow'),
+            ask('tid-proof-side-value', 2),
+            teach(
+              prose('A claim is one of three things:'),
+              prose(
+                'An **identity**, true at every angle. An **equation**, true at some angles only: $\\sin 2x = 2\\sin x$ holds at $x = 0^{\\circ}$. Or **never** true: $\\sin^2 x + \\cos^2 x = 2$ holds nowhere.',
+              ),
+            ),
+            ask('tid-proof-disprove-order'),
+            ask('tid-proof-verdict-flow', 2),
+            ask('tid-proof-wrong-choice'),
+            teach(
+              prose('A proof fails at its first line that does not equal the one above. Common slips:'),
+              prose('$1 - \\cos^2 x$ written as $\\cos^2 x$; a fraction turned upside down; a middle term lost when squaring a bracket.'),
+            ),
+            ask('tid-proof-wrong-choice', 2),
+            ask('tid-proof-disprove-order', 2),
+          ],
+          skillCheck: [
+            ask('tid-proof-side-value', 2),
+            ask('tid-proof-verdict-flow', 2),
+            ask('tid-proof-disprove-order', 2),
+          ],
+        },
+      ],
+      levelCheck: [
+        ask('tid-proof-basic-steps', 2),
+        ask('tid-proof-start-flow', 2),
+        ask('tid-proof-basic-order', 2),
+        ask('tid-proof-fraction-steps', 2),
+        ask('tid-proof-fraction-tiles', 2),
+        ask('tid-proof-fraction-order', 2),
+        ask('tid-proof-square-steps', 2),
+        ask('tid-proof-square-tiles', 2),
+        ask('tid-proof-identity-flow', 2),
+        ask('tid-proof-double-steps', 2),
+        ask('tid-proof-double-order', 2),
+        ask('tid-proof-sides-tree', 2),
+        ask('tid-proof-side-value', 2),
+        ask('tid-proof-verdict-flow', 2),
+        ask('tid-proof-wrong-choice', 2),
       ],
     },
   ],

@@ -15,6 +15,7 @@ import { describe, it, expect } from 'vitest';
 import { makeRng } from '../../engine/rng';
 import { reduce, startSession } from '../../engine/session';
 import type { Answer } from '../../engine/session';
+import { math } from '../../engine/expression';
 import { registry } from '../registry';
 import type { Generator, Slide } from '../types';
 
@@ -623,6 +624,311 @@ describe('Numerical Methods level 3: bounds and errors, against independent arit
       for (let n = 0; n < 500; n += 1) root = g(root);
       const tenth = Math.floor(bisect(f, root - 0.01, root + 0.01) * 10);
       expect(slide.answer[4], `seed ${seed}`).toBe(`${(tenth / 10).toFixed(1)} < \\alpha < ${((tenth + 1) / 10).toFixed(1)}`);
+    }
+  });
+});
+
+/* ---------- level 4: Simpson's rule ---------- */
+
+/**
+ * Simpson's rule pair by pair, by fitting each parabola and integrating it:
+ * through (x_1 - h, y_0), (x_1, y_1), (x_1 + h, y_2) the parabola is
+ * y_1 + b u + c u^2 with u = x - x_1 and c = (y_0 - 2y_1 + y_2) / 2h^2, whose
+ * integral over [-h, h] is 2h y_1 + 2c h^3 / 3. No weights 1, 4, 2 anywhere.
+ */
+function parabolaAreas(ys: number[], h: number): number {
+  expect((ys.length - 1) % 2, 'Simpson needs an even number of strips').toBe(0);
+  let area = 0;
+  for (let i = 0; i + 2 < ys.length; i += 2) {
+    const c = (ys[i] - 2 * ys[i + 1] + ys[i + 2]) / (2 * h * h);
+    area += 2 * h * ys[i + 1] + (2 * c * h ** 3) / 3;
+  }
+  return area;
+}
+
+const heightsOf = (f: (x: number) => number, a: number, h: number, n: number) =>
+  Array.from({ length: n + 1 }, (_, i) => f(a + i * h));
+
+/** A polynomial's integral by the power rule, highest power first. */
+function integratePoly(poly: Poly, a: number, b: number): number {
+  const top = poly.length - 1;
+  return poly.reduce((sum, c, i) => sum + (c * (b ** (top - i + 1) - a ** (top - i + 1))) / (top - i + 1), 0);
+}
+
+/** A bracket written with numbers, `5 + 4(7) + 9`, worked out. */
+const bracketValue = (label: string) => Number(math.evaluate(label.replace(/(\d)\(/g, '$1*(')));
+
+/** Every number in a line of TeX, in order. */
+const numbersIn = (tex: string) => [...tex.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+
+/** The two rows of a readings table: the x values, then the readings. */
+function tableRows(slide: Slide): [number[], number[]] {
+  const table = slide.kind === 'teach' ? undefined : slide.prompt.find((b) => b.kind === 'display' && b.tex.includes('\\hline'));
+  if (!table || table.kind !== 'display') throw new Error('no table');
+  // A long table is split into two arrays, one above the other.
+  const parts = table.tex.split('\\end{array}').filter((part) => part.includes('\\hline'));
+  const rows = parts.map((part) => {
+    const [top, bottom] = part.replace(/^[^]*\\begin\{array\}\{[^}]*\}/, '').split('\\hline');
+    return [numbersIn(top.split('\\\\')[0]), numbersIn(bottom)];
+  });
+  return [rows.flatMap((row) => row[0]), rows.flatMap((row) => row[1])];
+}
+
+/**
+ * An integrand as the learner reads it, turned into mathjs, for the checks
+ * that classify it by its values rather than by the generator's label.
+ */
+function integrandOf(tex: string): (x: number) => number {
+  let s = tex;
+  for (let i = 0; i < 3; i += 1) s = s.replace(/\^\{([^{}]*)\}/g, '^($1)');
+  s = s
+    .replace(/\\sqrt\{([^{}]*)\}/g, 'sqrt($1)')
+    .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))')
+    .replace(/\\ln x/g, 'log(x)')
+    .replace(/\\sin x/g, 'sin(x)')
+    .replace(/(x|\)|\d)(?=\(|sqrt|log)/g, '$1*');
+  const node = math.compile(s);
+  return (x) => Number(node.evaluate({ x }));
+}
+
+/** The k-th forward difference at unit spacing: zero for a polynomial of degree below k. */
+function difference(f: (x: number) => number, k: number, from = 1.3): number {
+  let values = Array.from({ length: k + 1 }, (_, i) => f(from + i * 0.7));
+  for (let j = 0; j < k; j += 1) values = values.slice(1).map((v, i) => v - values[i]);
+  return values[0];
+}
+
+/** Degree 3 or less exactly when the fourth difference vanishes; a polynomial when the sixth does (every one here is degree 5 at most). */
+function classify(tex: string): 'exact' | 'high' | 'other' {
+  const f = integrandOf(tex);
+  const scale = Math.max(1, Math.abs(f(2)), Math.abs(f(5)));
+  if (Math.abs(difference(f, 6)) > 1e-7 * scale) return 'other';
+  return Math.abs(difference(f, 4)) > 1e-7 * scale ? 'high' : 'exact';
+}
+
+describe("Numerical Methods level 4: Simpson's rule, parabola by parabola", () => {
+  it('numer-simpson-tiles puts h/3 in front, the ends once, the odd heights by 4 and the even by 2', () => {
+    for (const { params, slide, seed } of draws<{ h: number; n: number }>('numer-simpson-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const { h, n } = params;
+      expect(3 * Number(slide.answer[0]), `seed ${seed}`).toBeCloseTo(h, 9);
+      expect(slide.answer[1], `seed ${seed}`).toBe(`y_0 + y_${n}`);
+      const indices = (token: string) => [...token.matchAll(/y_(\d)/g)].map((m) => Number(m[1]));
+      const odd = indices(slide.answer[2]);
+      const even = n > 2 ? indices(slide.answer[3]) : [];
+      expect(odd.every((i) => i % 2 === 1) && even.every((i) => i % 2 === 0), `seed ${seed}`).toBe(true);
+      expect([...odd, ...even].sort((x, y) => x - y), `seed ${seed}`).toEqual(Array.from({ length: n - 1 }, (_, i) => i + 1));
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+      if (n > 2) {
+        const swapped = [slide.answer[0], slide.answer[1], slide.answer[3], slide.answer[2]];
+        expect(verdict(slide, swapped), `seed ${seed}`).toBe('incorrect');
+      }
+    }
+  });
+
+  it('numer-parabola-tree ends on the area under the parabola through the three heights', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-parabola-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const ys = heightsOf(trapF(params), params.a, params.h, 2);
+      expect(slide.answer.slice(0, 3).map(Number), `seed ${seed}`).toEqual(ys);
+      expect(Number(slide.answer[5]), `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, params.h), 9);
+    }
+  });
+
+  it('numer-simpson-steps works out to the parabolas\' area', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-simpson-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const ys = heightsOf(trapF(params), params.a, params.h, params.n);
+      expect(Number(slide.reductions[slide.reductions.length - 1].value), `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, params.h), 9);
+    }
+  });
+
+  it('numer-weights-choice marks the one bracket that gives the parabolas\' area', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-weights-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const ys = heightsOf(trapF(params), params.a, params.h, params.n);
+      const area = parabolaAreas(ys, params.h);
+      for (const option of slide.options) {
+        const hits = Math.abs((params.h / 3) * bracketValue(option.label) - area) < 1e-9;
+        expect(hits, `seed ${seed}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('numer-weights-tiles weights the heights it shows so that h/3 times the sum is the parabolas\' area', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-weights-tiles')) {
+      if (slide.kind !== 'tiles') throw new Error('not a tiles slide');
+      const shown = [...slide.template.matchAll(/\((\d+)\)/g)].map((m) => Number(m[1]));
+      expect(shown, `seed ${seed}`).toEqual(heightsOf(trapF(params), params.a, params.h, params.n));
+      const sum = shown.reduce((s, y, i) => s + Number(slide.answer[i]) * y, 0);
+      expect((params.h / 3) * sum, `seed ${seed}`).toBeCloseTo(parabolaAreas(shown, params.h), 9);
+    }
+  });
+
+  it('numer-simpson-estimate asks for the estimate, not the integral', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-simpson-estimate')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const ys = heightsOf(trapF(params), params.a, params.h, params.n);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, params.h), 9);
+      expect(slide.integrand).toBeUndefined();
+      expect(slide.limits).toBeUndefined();
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-odd-flow counts the strips from the prompt and pairs them only when even', () => {
+    for (const { slide, seed } of draws<unknown>('numer-odd-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const prose = slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ');
+      const listed = prose.match(/at \$x = ([^$]+)\$/);
+      const ranged = prose.match(/every \$([\d.]+)\$ from \$x = ([\d.]+)\$ to \$x = ([\d.]+)\$/);
+      const strips = listed ? listed[1].split(',').length - 1 : (Number(ranged![3]) - Number(ranged![2])) / Number(ranged![1]);
+      expect(slide.answer[0], `seed ${seed}`).toBe(String(strips));
+      expect(slide.answer.slice(1, 2), `seed ${seed}`).toEqual([strips % 2 === 0 ? 'Yes' : 'No']);
+      expect(slide.answer.length, `seed ${seed}`).toBe(strips % 2 === 0 ? 2 : 3);
+    }
+  });
+
+  it('numer-strips-tree ends on the two parabolas\' area', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-strips-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const ys = heightsOf(trapF(params), params.a, params.h, 4);
+      expect(Number(slide.answer[9]), `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, params.h), 9);
+    }
+  });
+
+  it('numer-both-tree ends on the trapezia\'s area and the parabolas\'', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-both-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const f = trapF(params);
+      const last = slide.answer.length - 1;
+      expect(Number(slide.answer[last - 1]), `seed ${seed}`).toBeCloseTo(trapezia(f, params.a, params.h, params.n), 9);
+      expect(Number(slide.answer[last]), `seed ${seed}`).toBeCloseTo(parabolaAreas(heightsOf(f, params.a, params.h, params.n), params.h), 9);
+    }
+  });
+
+  it('numer-gap-value is the parabolas\' area less the trapezia\'s', () => {
+    for (const { params, slide, seed } of draws<TrapParams>('numer-gap-value')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const f = trapF(params);
+      const gap = parabolaAreas(heightsOf(f, params.a, params.h, params.n), params.h) - trapezia(f, params.a, params.h, params.n);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(gap, 9);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-closer-choice marks the rule nearer the power-rule integral, and asks both ways at difficulty 2', () => {
+    const winners = new Set<string>();
+    for (const { params, slide, seed, difficulty } of draws<{ poly: Poly; a: number; n: number }>('numer-closer-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      const f = (x: number) => valueAt(params.poly, x);
+      const b = params.a + params.n;
+      const exact = integratePoly(params.poly, params.a, b);
+      const dt = Math.abs(trapezia(f, params.a, 1, params.n) - exact);
+      const ds = Math.abs(parabolaAreas(heightsOf(f, params.a, 1, params.n), 1) - exact);
+      const expected = dt < 1e-9 && ds < 1e-9 ? 'Both are equally close' : ds < dt ? "Simpson's rule" : 'The trapezium rule';
+      expect(slide.options.find((o) => o.id === slide.correctId)!.label, `seed ${seed}`).toBe(expected);
+      if (difficulty > 1) winners.add(expected);
+    }
+    expect([...winners].sort()).toEqual(["Simpson's rule", 'The trapezium rule']);
+  });
+
+  it('numer-refine-flow reads the bend from T_1 and T_2, and S as the parabola through the three heights', () => {
+    for (const { params, slide, seed } of draws<{ trap: TrapParams }>('numer-refine-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const { trap } = params;
+      const f = trapF(trap);
+      const b = trap.a + 2 * trap.h;
+      const up = f(trap.a) + f(b) > 2 * f((trap.a + b) / 2);
+      expect(slide.answer[0].startsWith(up ? 'Upward' : 'Downward'), `seed ${seed}`).toBe(true);
+      const t1 = trapezia(f, trap.a, 2 * trap.h, 1);
+      const t2 = trapezia(f, trap.a, trap.h, 2);
+      expect(slide.subject, `seed ${seed}`).toBe(`T_1 = ${Number(t1.toFixed(6))}, \\quad T_2 = ${Number(t2.toFixed(6))}`);
+      expect(Number(slide.answer[1].replace(/\$/g, '')), `seed ${seed}`).toBeCloseTo(parabolaAreas(heightsOf(f, trap.a, trap.h, 2), trap.h), 9);
+    }
+  });
+
+  it('numer-simpson-error is the parabolas\' area less the power-rule integral, and nought on a cubic', () => {
+    for (const { params, slide, seed } of draws<{ poly: Poly; a: number; n: number }>('numer-simpson-error')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const f = (x: number) => valueAt(params.poly, x);
+      const error = parabolaAreas(heightsOf(f, params.a, 1, params.n), 1) - integratePoly(params.poly, params.a, params.a + params.n);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(error, 9);
+      if (params.poly.length <= 4) expect(Number(slide.answer), `seed ${seed}`).toBe(0);
+      else expect(Number(slide.answer), `seed ${seed}`).not.toBe(0);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-exact-flow says exact only for a polynomial whose fourth difference vanishes', () => {
+    for (const { slide, seed } of draws<unknown>('numer-exact-flow')) {
+      if (slide.kind !== 'flow') throw new Error('not a flow slide');
+      const kind = classify(slide.subject.replace(/^f\(x\) = /, ''));
+      const expected = kind === 'other' ? ['No'] : ['Yes', kind === 'exact' ? '3 or less' : '4 or more'];
+      expect(slide.answer, `seed ${seed}: ${slide.subject}`).toEqual(expected);
+    }
+  });
+
+  it('numer-exact-choice marks the one integrand Simpson\'s rule gets exactly', () => {
+    for (const { slide, seed } of draws<unknown>('numer-exact-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      for (const option of slide.options) {
+        expect(classify(option.label) === 'exact', `seed ${seed}: ${option.label}`).toBe(option.id === slide.correctId);
+      }
+    }
+  });
+
+  it('numer-cubic-steps reaches the parabola\'s area, then the power-rule integral, then nought', () => {
+    for (const { params, slide, seed } of draws<{ poly: Poly; a: number; h: number }>('numer-cubic-steps')) {
+      if (slide.kind !== 'steps') throw new Error('not a steps slide');
+      const f = (x: number) => valueAt(params.poly, x);
+      const [, , , estimate, exact, last] = slide.reductions.map((r) => Number(r.value));
+      expect(estimate, `seed ${seed}`).toBeCloseTo(parabolaAreas(heightsOf(f, params.a, params.h, 2), params.h), 9);
+      expect(exact, `seed ${seed}`).toBeCloseTo(integratePoly(params.poly, params.a, params.a + 2 * params.h), 9);
+      expect(last, `seed ${seed}`).toBe(0);
+    }
+  });
+
+  it('numer-readings-estimate is the parabolas\' area under the readings the table shows', () => {
+    for (const { slide, seed } of draws<unknown>('numer-readings-estimate')) {
+      if (slide.kind !== 'expression') throw new Error('not an expression slide');
+      const [xs, ys] = tableRows(slide);
+      expect(Number(slide.answer), `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, xs[1] - xs[0]), 9);
+      expect(verdict(slide, slide.answer), `seed ${seed}`).toBe('correct');
+    }
+  });
+
+  it('numer-table-tree ends on the parabolas\' area under the readings the table shows', () => {
+    for (const { slide, seed } of draws<unknown>('numer-table-tree')) {
+      if (slide.kind !== 'tree') throw new Error('not a tree slide');
+      const [xs, ys] = tableRows(slide);
+      expect(Number(slide.answer[6]), `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, xs[1] - xs[0]), 9);
+    }
+  });
+
+  it('numer-readings-slider asks for the height of the rectangle with the parabolas\' area, on the slider\'s steps', () => {
+    for (const { slide, seed } of draws<unknown>('numer-readings-slider')) {
+      if (slide.kind !== 'slider') throw new Error('not a slider slide');
+      const [xs, ys] = tableRows(slide);
+      const width = xs[xs.length - 1] - xs[0];
+      expect(slide.answer * width, `seed ${seed}`).toBeCloseTo(parabolaAreas(ys, xs[1] - xs[0]), 9);
+      expect(Math.abs(slide.answer / slide.step - Math.round(slide.answer / slide.step)), `seed ${seed}`).toBeLessThan(1e-9);
+    }
+  });
+
+  it('numer-odd-choice picks Simpson throughout exactly when the readings make an even number of strips', () => {
+    for (const { params, slide, seed } of draws<{ ys: number[]; h: number; listed: boolean }>('numer-odd-choice')) {
+      if (slide.kind !== 'choice') throw new Error('not a choice slide');
+      let strips: number;
+      if (params.listed) strips = tableRows(slide)[1].length - 1;
+      else {
+        const prose = slide.prompt.map((b) => (b.kind === 'prose' ? b.text : '')).join(' ');
+        const every = Number(prose.match(/every \$([\d.]+)\$/)![1]);
+        const to = Number(prose.match(/to \$[a-z] = ([\d.]+)\$/)![1]);
+        strips = Math.round(to / every);
+      }
+      const right = slide.options.find((o) => o.id === slide.correctId)!.label;
+      expect(right.startsWith("Simpson's rule on all the strips"), `seed ${seed}`).toBe(strips % 2 === 0);
     }
   });
 });

@@ -20,6 +20,13 @@
  * given reaction), the point of tilting, and a ladder against a smooth wall
  * with friction at the foot.
  *
+ * Level 5 is momentum and impulse: p = mv along a line with a sign and as an
+ * i, j vector, conservation of momentum in a collision along a line, particles
+ * that coalesce or are pushed apart from rest, impulse as the change in
+ * momentum (a ball off a wall, equal and opposite impulses in a collision),
+ * and Ft = mv - mu, with vectors and in stages. Its collisions are drawn before
+ * and after with `collisionSvg`; work and energy come later.
+ *
  * Vectors, right-angled trigonometry and Pythagoras are used here, not taught
  * again: each angle is given through a 3-4-5 or 7-24-25 triangle so the sine
  * and cosine are exact, and a lesson says how to read them off. g = 9.8 is
@@ -32,7 +39,7 @@
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { A34, A43, DROP, FLAT, arrowsSvg, beamSvg, hangingSvg, ladderSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
+import { A34, A43, DROP, FLAT, arrowsSvg, beamSvg, collisionSvg, hangingSvg, ladderSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1009,6 +1016,233 @@ export const forces: Course = {
         ask('force-ladder', 2),
         ask('force-ladder-limit-tree', 2),
         ask('force-ladder-flow', 2),
+      ],
+    },
+    {
+      id: 'fo-l5',
+      title: 'Momentum and Impulse',
+      lessons: [
+        {
+          id: 'fo-l5-momentum',
+          title: 'Momentum',
+          slides: [
+            teach(
+              prose(
+                'The **momentum** of a moving particle is its mass times its velocity, $p = mv$. With mass in kilograms and velocity in $\\text{m s}^{-1}$, momentum is in $\\text{kg m s}^{-1}$.',
+              ),
+              prose(
+                'Velocity has a direction, so momentum does too. Along a line, choose a positive direction and give each velocity a sign. With right positive, a $3\\text{ kg}$ trolley moving left at $4\\text{ m s}^{-1}$ has',
+              ),
+              diagram(collisionSvg([{ title: '', bodies: [{ name: 'A', mass: 3, v: -4 }] }], 'A 3 kg trolley moving left at 4 metres per second')),
+              display('p = 3 \\times (-4) = -12\\text{ kg m s}^{-1}'),
+            ),
+            ask('force-momentum'),
+            ask('force-momentum-table'),
+            ask('force-momentum-slider'),
+            teach(
+              prose(
+                'In two dimensions the velocity is a vector, and so is the momentum: multiply each component by the mass. A $2\\text{ kg}$ particle moving with velocity $(3\\mathbf{i} - 5\\mathbf{j})\\text{ m s}^{-1}$ has',
+              ),
+              working('\\mathbf{p} &= 2(3\\mathbf{i} - 5\\mathbf{j})', '&= (6\\mathbf{i} - 10\\mathbf{j})\\text{ kg m s}^{-1}'),
+              prose(
+                'If you are given a speed and a direction instead, find the velocity first: scale the direction vector to that length, as for a force in Forces as Vectors.',
+              ),
+            ),
+            ask('force-momentum-tiles'),
+            ask('force-momentum+choice', 2),
+            ask('force-momentum-table', 2),
+            teach(
+              prose(
+                'The total momentum of several particles on a line is the sum of their momenta, signs and all. Particles moving opposite ways partly cancel: $2 \\times 5 + 4 \\times (-3) = -2$.',
+              ),
+              prose('Run $p = mv$ backwards for a velocity, $v = \\tfrac{p}{m}$: its sign says which way the particle moves.'),
+            ),
+            ask('force-momentum-slider', 2),
+            ask('force-momentum-tiles', 2),
+          ],
+          skillCheck: [ask('force-momentum', 2), ask('force-momentum-tiles', 2), ask('force-momentum-table', 2)],
+        },
+        {
+          id: 'fo-l5-conservation',
+          title: 'Conservation of Momentum',
+          slides: [
+            teach(
+              prose(
+                'When two particles collide, each pushes on the other. By the third law the two forces are equal and opposite, and they last exactly as long, so whatever momentum one gains the other loses.',
+              ),
+              prose(
+                'So the **total momentum is conserved**: the same after the collision as before. With $u$ for velocities before and $v$ for after:',
+              ),
+              working('& m_{A}u_{A} + m_{B}u_{B}', '&= m_{A}v_{A} + m_{B}v_{B}'),
+              diagram(
+                collisionSvg(
+                  [
+                    { title: 'Before', bodies: [{ name: 'A', mass: 2, v: 6 }, { name: 'B', mass: 4, v: 0 }] },
+                    { title: 'After', bodies: [{ name: 'A', mass: 2, v: -2 }, { name: 'B', mass: 4, v: 4 }] },
+                  ],
+                  'A 2 kg particle moving right at 6 hits a 4 kg particle at rest; afterwards A moves left at 2 and B right at 4',
+                ),
+              ),
+            ),
+            ask('force-collide-tiles'),
+            ask('force-collide'),
+            ask('force-collide-sum-tree'),
+            teach(
+              prose(
+                'Signs do the work. Take right as positive: a particle moving left has a negative velocity, and so a negative momentum.',
+              ),
+              prose(
+                'Draw an unknown velocity the positive way. If the answer comes out negative, the particle is moving the other way. In the first picture, total before is $2 \\times 6 = 12$ and total after is $2 \\times (-2) + 4 \\times 4 = 12$.',
+              ),
+            ),
+            ask('force-collide-flow'),
+            ask('force-collide-tiles', 2),
+            ask('force-collide-sum-tree', 2),
+            teach(
+              prose(
+                'A particle can be stopped dead by a collision, or bounce back. Work out its momentum after from the total, then read its direction from the sign: positive carries on, zero stops, negative reverses.',
+              ),
+            ),
+            ask('force-collide+choice', 2),
+            ask('force-collide-flow', 2),
+          ],
+          skillCheck: [ask('force-collide', 2), ask('force-collide-sum-tree', 2), ask('force-collide-flow', 2)],
+        },
+        {
+          id: 'fo-l5-coalesce',
+          title: 'Coalescing and Separating',
+          slides: [
+            teach(
+              prose(
+                'Particles that **coalesce** stick together and move on as one, with a single velocity $v$. Momentum is still conserved, so',
+              ),
+              working('& m_{A}u_{A} + m_{B}u_{B}', '&= (m_{A} + m_{B})v'),
+              diagram(
+                collisionSvg(
+                  [
+                    { title: 'Before', bodies: [{ name: 'A', mass: 3, v: 5 }, { name: 'B', mass: 2, v: -5 }] },
+                    { title: 'After', bodies: [{ name: 'A+B', mass: 5, v: 1 }] },
+                  ],
+                  'A 3 kg particle moving right at 5 meets a 2 kg particle moving left at 5; stuck together they move right at 1',
+                ),
+              ),
+              prose('Here $3 \\times 5 + 2 \\times (-5) = 5$, shared by $5\\text{ kg}$, so $v = 1\\text{ m s}^{-1}$.'),
+            ),
+            ask('force-coalesce'),
+            ask('force-joint-steps'),
+            ask('force-collide-flow', 2),
+            teach(
+              prose(
+                'Run the other way: two bodies at rest pushed apart by a spring, an explosion or one pushing off the other. The total momentum before is zero, so it is zero after too:',
+              ),
+              display('0 = m_{A}v_{A} + m_{B}v_{B}'),
+              prose(
+                "Their momenta are equal and opposite. They move apart in opposite directions, and the lighter one moves faster: a cannon recoils slowly as its shell flies off.",
+              ),
+            ),
+            ask('force-separate-table'),
+            ask('force-separate-flow'),
+            ask('force-joint-steps', 2),
+            teach(
+              prose(
+                "The same equation finds a missing velocity or mass before the collision, given the common velocity after. Write it out in full, put in every number you know, and solve for what is left.",
+              ),
+            ),
+            ask('force-coalesce', 2),
+            ask('force-separate-table', 2),
+          ],
+          skillCheck: [ask('force-coalesce', 2), ask('force-separate-table', 2), ask('force-separate-flow', 2)],
+        },
+        {
+          id: 'fo-l5-impulse',
+          title: 'Impulse',
+          slides: [
+            teach(
+              prose(
+                'The **impulse** $I$ on a particle is the change in its momentum, after minus before. It is measured in newton seconds, $\\text{N s}$, the same unit as $\\text{kg m s}^{-1}$.',
+              ),
+              display('I = mv - mu'),
+              prose(
+                'A $0.5\\text{ kg}$ ball moving right at $6\\text{ m s}^{-1}$ hits a wall and bounces back at $4\\text{ m s}^{-1}$. With right positive, $I = 0.5 \\times (-4) - 0.5 \\times 6 = -5\\text{ N s}$: size $5\\text{ N s}$, pointing away from the wall. The velocity changes sign, so the speeds add.',
+              ),
+            ),
+            ask('force-impulse'),
+            ask('force-bounce-tree'),
+            ask('force-impulse-slider'),
+            teach(
+              prose(
+                'Given the impulse, add it to the momentum before for the momentum after: $mv = mu + I$. An impulse the way the particle moves speeds it up; one against it slows it down, and a big enough one turns it round.',
+              ),
+            ),
+            ask('force-impulse-slider', 2),
+            ask('force-impulse', 2),
+            ask('force-bounce-tree', 2),
+            teach(
+              prose(
+                "In a collision, $A$ pushes $B$ exactly as hard and for exactly as long as $B$ pushes $A$. So the impulses on the two are **equal and opposite**, which is just why the total momentum does not change.",
+              ),
+              display('I_{B} = -I_{A}'),
+              prose("Work out one particle's impulse from its change in momentum, then turn it round for the other."),
+            ),
+            ask('force-impulse-pair-tiles'),
+            ask('force-impulse-pair-tiles', 2),
+          ],
+          skillCheck: [ask('force-impulse', 2), ask('force-bounce-tree', 2), ask('force-impulse-pair-tiles', 2)],
+        },
+        {
+          // A dropped object's impact speed is Kinematics' kn-l2-more; work and energy come in a later level.
+          id: 'fo-l5-force-time',
+          title: 'Force and Time',
+          slides: [
+            teach(
+              prose(
+                'A constant force $F$ acting for a time $t$ gives an impulse $Ft$. From $F = ma$ with $a = \\tfrac{v - u}{t}$, that is the change in momentum:',
+              ),
+              display('Ft = mv - mu'),
+              prose(
+                'A force of $6\\text{ N}$ for $2\\text{ s}$ on a $3\\text{ kg}$ particle moving at $1\\text{ m s}^{-1}$: $6 \\times 2 = 3v - 3 \\times 1$, so $v = 5\\text{ m s}^{-1}$. Any one of $F$, $t$, $u$ and $v$ can be the unknown.',
+              ),
+            ),
+            ask('force-ft'),
+            ask('force-ft-flow'),
+            ask('force-ft-table'),
+            teach(
+              prose(
+                'With vectors the rule is the same, component by component. A force $\\mathbf{F}$ for $t$ seconds gives the impulse $\\mathbf{I} = \\mathbf{F}t$, and',
+              ),
+              display('\\mathbf{I} = m\\mathbf{v} - m\\mathbf{u}'),
+              prose('So $m\\mathbf{v} = m\\mathbf{u} + \\mathbf{I}$: add the impulse to the momentum, then divide by the mass.'),
+            ),
+            ask('force-impulse-ij-tiles'),
+            ask('force-ft+choice', 2),
+            ask('force-impulse-ij-tiles', 2),
+            teach(
+              prose(
+                'A force against the motion has the opposite sign to the velocity. It slows the particle, can stop it, and given long enough sends it back the other way. When forces act one after another, each stage starts from the velocity the last one left.',
+              ),
+            ),
+            ask('force-ft-table', 2),
+            ask('force-ft-flow', 2),
+          ],
+          skillCheck: [ask('force-ft', 2), ask('force-impulse-ij-tiles', 2), ask('force-ft-flow', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('force-momentum', 2),
+        ask('force-momentum-table', 2),
+        ask('force-collide-tiles', 2),
+        ask('force-collide', 2),
+        ask('force-collide-flow', 2),
+        ask('force-collide-sum-tree', 2),
+        ask('force-coalesce', 2),
+        ask('force-separate-flow', 2),
+        ask('force-joint-steps', 2),
+        ask('force-impulse', 2),
+        ask('force-bounce-tree', 2),
+        ask('force-impulse-pair-tiles', 2),
+        ask('force-ft', 2),
+        ask('force-ft-table', 2),
+        ask('force-impulse-ij-tiles', 2),
       ],
     },
   ],

@@ -37,6 +37,14 @@
  * metres and forces whole newtons (or whole kilograms, where g cancels or is
  * stated), and every reaction or distance found by dividing is drawn again
  * until it is exact. Nothing here is calculus, so no slide declares `source`.
+ *
+ * Level 5 (momentum and impulse) keeps velocities whole and masses whole or
+ * halves, building each velocity after a collision, common velocity or force
+ * from the others and drawing again until it is exact. A collision is drawn
+ * with `collisionSvg`, the particles before and after, since the `forces`
+ * kind shows one box. Nothing in these levels is calculus, so no slide
+ * declares `source` and the derivative oracle has nothing to check here:
+ * `forces.test.ts` is what checks the answers.
  */
 import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
@@ -44,7 +52,7 @@ import { options } from '../choiceVariant';
 import { canonicalForces, type Direction, type ForceArrow, type ForceScene } from '../forces';
 import { markerWindow, plotSvg, vectorSvg } from '../figures';
 import { fmt } from './numericalMethods';
-import { mix, stepBank, steered } from './parametricImplicit';
+import { mix, stepBank, steered, turned } from './parametricImplicit';
 
 /* ================================================================
  * Shared helpers
@@ -5021,6 +5029,1580 @@ const inclineCheck: Generator<InclineCheckParams> = {
 };
 
 /* ================================================================
+ * Level 5: momentum and impulse
+ * ================================================================ */
+
+/*
+ * Along a line a velocity carries a sign: every question says once that right
+ * is positive, and a velocity to the left is negative. Masses are whole
+ * kilograms or halves and velocities whole metres per second; anything found
+ * by dividing (a velocity after a collision, a common velocity, a force from
+ * Ft = mv - mu) is drawn again through `until` until it comes out whole or
+ * exact. A collision cannot be pictured on the `forces` kind, which draws one
+ * box, so `collisionSvg` draws the particles before and after.
+ */
+
+const MS = '\\text{ m s}^{-1}';
+const KGMS = '\\text{ kg m s}^{-1}';
+const NS = '\\text{ N s}';
+const RIGHT = 'Take right as positive.';
+
+/** A mass as the prose quotes it; `forces.test.ts` reads masses back in this form. */
+const kg = (m: number): string => `$${fmt(m)}\\text{ kg}$`;
+
+/**
+ * A velocity along a line in words: the one place its sign becomes a
+ * direction. `forces.test.ts` reads velocities back through this phrasing.
+ */
+function moving(v: number): string {
+  return v === 0 ? 'at rest' : `moving ${v < 0 ? 'left' : 'right'} at $${fmt(Math.abs(v))}${MS}$`;
+}
+
+/** A vector with its unit: `$(3\mathbf{i} - 2\mathbf{j})\text{ m s}^{-1}$`. */
+const vecTex = (a: number, b: number, unit: string): string => `$(${ijTex(a, b)})${unit}$`;
+
+/** A whole mass in kilograms from `lo` to `hi`, or a whole or half one when `hard`. */
+const massOf = (rng: Rng, hard: boolean, lo = 1, hi = 8): number => (hard ? rng.int(2 * lo, 2 * hi) / 2 : rng.int(lo, hi));
+
+/** A tile's value: `12`, `- 4`, `+ 3`. */
+const tileValue = (token: string): number => Number(token.replace(/[\s+]/g, ''));
+
+/**
+ * Whether the answer is the only way to fill the blanks from `bank`. Numbers
+ * that happen to make the statement true are a right answer the grade would
+ * mark wrong, so a bank that allows them is refused. `after` lists the blanks
+ * that follow a term: only a tile with its own sign reads as a term there,
+ * since `12` after `8` is not `8 + 12`.
+ */
+function onlyAnswer(answer: string[], bank: string[], holds: (values: number[]) => boolean, after: number[] = []): boolean {
+  const used = bank.map(() => false);
+  const pick: string[] = [];
+  const walk = (): boolean => {
+    if (pick.length === answer.length) return !(holds(pick.map(tileValue)) && pick.some((t, i) => t !== answer[i]));
+    for (let i = 0; i < bank.length; i += 1) {
+      if (used[i] || (after.includes(pick.length) && !/^[+-]/.test(bank[i]))) continue;
+      used[i] = true;
+      pick.push(bank[i]);
+      const fine = walk();
+      pick.pop();
+      used[i] = false;
+      if (!fine) return false;
+    }
+    return true;
+  };
+  return walk();
+}
+
+/** The extras that keep the answer the only way to fill the blanks, in the order given. */
+function soleExtras(answer: string[], extras: string[], holds: (values: number[]) => boolean, after: number[] = []): string[] {
+  const kept: string[] = [];
+  for (const token of extras) {
+    if (answer.includes(token) || kept.includes(token) || kept.length >= 4) continue;
+    if (onlyAnswer(answer, [...answer, ...kept, token], holds, after)) kept.push(token);
+  }
+  return kept;
+}
+
+const near = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;
+
+/* ---------- Pictures ---------- */
+
+export interface Body {
+  name: string;
+  mass: number;
+  /** Velocity with right positive. A string is an unknown, drawn dashed and labelled with it. */
+  v: number | string;
+  /** Which way an unknown is drawn: the positive way unless the question says otherwise. */
+  dir?: number;
+}
+
+export interface MomentumRow {
+  title: string;
+  bodies: Body[];
+  /** Two bodies drawn touching, as before they push apart. */
+  touching?: boolean;
+}
+
+/**
+ * Particles on a line, a row for before and a row for after, each box with
+ * its velocity arrow above it. Plain SVG text for letters and speeds, since
+ * KaTeX cannot go in an SVG.
+ */
+export function collisionSvg(rows: MomentumRow[], label: string): string {
+  const W = 300;
+  const ROW = 96;
+  const f = (v: number) => v.toFixed(1);
+  const parts = [`<svg viewBox="0 0 ${W} ${ROW * rows.length}" width="100%" role="img" aria-label="${label}">`];
+  rows.forEach((row, r) => {
+    const floor = r * ROW + 86;
+    const top = floor - 30;
+    parts.push(
+      `<text x="4" y="${r * ROW + 13}" fill="currentColor" font-size="12" opacity="0.7">${row.title}</text>`,
+      `<line x1="4" y1="${floor}" x2="${W - 4}" y2="${floor}" stroke="currentColor" stroke-width="1.5" opacity="0.55" />`,
+    );
+    const widths = row.bodies.map((b) => Math.max(60, 7 * (b.name.length + fmt(b.mass).length + 4) + 12));
+    const centres =
+      row.bodies.length === 1 ? [W / 2] : row.touching ? [W / 2 - widths[0] / 2, W / 2 + widths[1] / 2] : [95, 205];
+    row.bodies.forEach((body, i) => {
+      const cx = centres[i];
+      const w = widths[i];
+      parts.push(
+        `<rect x="${f(cx - w / 2)}" y="${top}" width="${w}" height="30" rx="4" fill="none" stroke="currentColor" stroke-width="2" />`,
+        `<text x="${f(cx)}" y="${top + 15}" fill="currentColor" font-size="13" text-anchor="middle" dominant-baseline="central"><tspan font-style="italic">${body.name}</tspan> ${fmt(body.mass)} kg</text>`,
+      );
+      const y = top - 14;
+      if (body.v === 0) {
+        parts.push(`<text x="${f(cx)}" y="${y}" fill="currentColor" font-size="12" text-anchor="middle" opacity="0.7">at rest</text>`);
+        return;
+      }
+      const unknown = typeof body.v === 'string';
+      const dir = typeof body.v === 'string' ? (body.dir ?? 1) : Math.sign(body.v);
+      const x0 = cx - dir * 18;
+      const x1 = cx + dir * 22;
+      const look = `class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"${unknown ? ' stroke-dasharray="5 4"' : ''}`;
+      const head = (turn: number) =>
+        `<line x1="${f(x1)}" y1="${y}" x2="${f(x1 - dir * 9 * Math.cos(turn))}" y2="${f(y - 9 * Math.sin(turn))}" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />`;
+      parts.push(`<line x1="${f(x0)}" y1="${y}" x2="${f(x1)}" y2="${y}" ${look} />`, head(0.45), head(-0.45));
+      const text =
+        typeof body.v === 'string' ? `<tspan font-style="italic">${body.v}</tspan>` : `${fmt(Math.abs(body.v))} m s⁻¹`;
+      parts.push(`<text x="${f(cx + dir * 2)}" y="${y - 10}" fill="currentColor" font-size="12" text-anchor="middle">${text}</text>`);
+    });
+  });
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/* ---------- Momentum ---------- */
+
+const THINGS = ['trolley', 'ball', 'puck', 'block', 'toy car', 'cart', 'box', 'particle'];
+
+interface MomentumParams {
+  thing: string;
+  m: number;
+  v: number;
+  find: 'p' | 'v' | 'm';
+}
+
+/** Expression: p = mv along a line, or run backwards for the velocity or the mass. */
+const momentum: Generator<MomentumParams> = {
+  id: 'force-momentum',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(THINGS),
+      m: hard ? rng.int(2, 17) / 2 : rng.int(1, 12),
+      v: sizeSign(rng, 1, hard ? 15 : 12),
+      find: hard ? rng.pick<MomentumParams['find']>(['p', 'v', 'm']) : 'p',
+    };
+  },
+  render: ({ thing, m, v, find }) => {
+    const p = m * v;
+    if (find === 'v') {
+      return typed(
+        [say(`A ${thing} of mass ${kg(m)} has momentum $${fmt(p)}${KGMS}$. ${RIGHT} Find its velocity, in $\\text{m s}^{-1}$.`)],
+        'v =',
+        v,
+      );
+    }
+    if (find === 'm') {
+      return typed(
+        [say(`A ${thing} is ${moving(v)}, and its momentum has size $${fmt(Math.abs(p))}${KGMS}$. Find its mass, in kilograms.`)],
+        'm =',
+        m,
+      );
+    }
+    return typed(
+      [say(`A ${thing} of mass ${kg(m)} is ${moving(v)}. ${RIGHT} Find its momentum, in $\\text{kg m s}^{-1}$.`)],
+      'p =',
+      p,
+    );
+  },
+  solution: ({ m, v, find }) => {
+    const p = m * v;
+    if (find === 'v') {
+      return [
+        { text: 'Momentum is mass times velocity, so the velocity is the momentum over the mass:' },
+        { tex: `v = \\frac{p}{m} = \\frac{${fmt(p)}}{${fmt(m)}} = ${fmt(v)}` },
+        { text: v < 0 ? 'The minus sign says it is moving left.' : 'It is positive, so it is moving right.' },
+      ];
+    }
+    if (find === 'm') {
+      return [
+        { text: 'The size of the momentum is the mass times the speed, so divide by the speed:' },
+        { tex: `m = \\frac{${fmt(Math.abs(p))}}{${fmt(Math.abs(v))}} = ${fmt(m)}` },
+      ];
+    }
+    return [
+      { text: 'Momentum is mass times velocity, and the velocity keeps its sign:' },
+      { tex: `p = mv = ${fmt(m)} \\times ${paren(v)} = ${fmt(p)}` },
+      ...(v < 0 ? [{ text: 'It moves left, so its momentum is negative too.' }] : []),
+    ];
+  },
+  choices: ({ m, v, find }) => {
+    const p = m * v;
+    const salt = mix(m * 2, v, find.length, find.charCodeAt(0));
+    if (find === 'v') return valueChoices(v, [-v, p - m, p * m], salt);
+    if (find === 'm') return valueChoices(m, [Math.abs(p * v), Math.abs(p) - Math.abs(v), 2 * m], salt);
+    return valueChoices(p, [-p, m + v, m - v], salt);
+  },
+};
+
+interface MomentumIjParams {
+  m: number;
+  v: Pt;
+  /** For the hard form: the direction it was given in, and the speed. */
+  dir: Pt;
+  speed: number;
+}
+
+/** Tiles: momentum as an i, j vector, from a velocity given as a vector or as a speed and a direction. */
+const momentumTiles: Generator<MomentumIjParams> = {
+  id: 'force-momentum-tiles',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) {
+      return { m: rng.int(2, 6), v: [sizeSign(rng, 1, 6), sizeSign(rng, 1, 6)], dir: [0, 0], speed: 0 };
+    }
+    const [p, q, h] = rng.pick(PRIMITIVE.slice(0, 2));
+    const [a, b] = rng.chance(0.5) ? [p, q] : [q, p];
+    const dir: Pt = [a * rng.sign(), b * rng.sign()];
+    const k = rng.int(1, 2);
+    return { m: rng.int(3, 13) / 2, v: [k * dir[0], k * dir[1]], dir, speed: k * h };
+  },
+  render: ({ m, v, dir, speed }) => {
+    const [px, py] = [m * v[0], m * v[1]];
+    const answer = [bare(px), signed(py)];
+    const extras = [bare(v[0]), signed(v[1]), bare(py), signed(px), bare(-px), signed(-py), bare(m + v[0]), signed(m + v[1])];
+    const given =
+      speed > 0
+        ? `moves at $${fmt(speed)}${MS}$ in the direction of $${ijTex(dir[0], dir[1])}$`
+        : `moves with velocity ${vecTex(v[0], v[1], MS)}`;
+    return {
+      kind: 'tiles',
+      prompt: [say(`A particle of mass ${kg(m)} ${given}. Write its momentum in $\\mathbf{i}$, $\\mathbf{j}$ form, in $\\text{kg m s}^{-1}$.`)],
+      template: '\\mathbf{p} = ({0}\\mathbf{i} {1}\\mathbf{j})',
+      bank: tileBank(answer, soleExtras(answer, extras, ([x, y]) => near(x, px) && near(y, py), [1])),
+      answer,
+    };
+  },
+  solution: ({ m, v, dir, speed }) => [
+    ...(speed > 0
+      ? [
+          { text: 'First the velocity: scale the direction to the right speed.' },
+          { tex: `|${ijTex(dir[0], dir[1])}| = \\sqrt{${sq(dir[0])} + ${sq(dir[1])}} = ${fmt(Math.hypot(dir[0], dir[1]))}` },
+          { tex: `\\mathbf{v} = ${fmt(speed / Math.hypot(dir[0], dir[1]))}(${ijTex(dir[0], dir[1])}) = ${ijTex(v[0], v[1])}` },
+        ]
+      : []),
+    { text: 'Momentum is the mass times the velocity, each component in turn:' },
+    { tex: `\\mathbf{p} = m\\mathbf{v} = ${fmt(m)}(${ijTex(v[0], v[1])}) = ${ijTex(m * v[0], m * v[1])}` },
+  ],
+};
+
+interface MomentumRowParams {
+  m: number;
+  v: number;
+  blank: 'm' | 'v' | 'p';
+}
+
+interface MomentumTableParams {
+  rows: MomentumRowParams[];
+}
+
+/** Table: mass, velocity and momentum for three particles, one quantity missing from each. */
+const momentumTable: Generator<MomentumTableParams> = {
+  id: 'force-momentum-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const blanks: MomentumRowParams['blank'][] = hard ? turned(['m', 'v', 'p'], rng.int(0, 2)) : ['p', 'p', 'p'];
+    return until(
+      () => ({
+        rows: blanks.map((blank) => ({ m: hard ? rng.int(2, 17) / 2 : rng.int(1, 10), v: sizeSign(rng, 1, 9), blank })),
+      }),
+      ({ rows }) => new Set(rows.map((r) => `${r.m},${r.v}`)).size === 3 && rows.some((r) => r.v < 0) && rows.some((r) => r.v > 0),
+    );
+  },
+  render: ({ rows }) => {
+    const answer: number[] = [];
+    const cell = (value: number, blank: boolean) => {
+      if (!blank) return fmt(value);
+      answer.push(value);
+      return null;
+    };
+    const slips = rows.flatMap(({ m, v }) => [-m * v, m + v]);
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `Each row is a particle moving along a line. ${RIGHT} Masses are in kilograms, velocities in $\\text{m s}^{-1}$ and momenta in $\\text{kg m s}^{-1}$. Fill in the gaps.`,
+        ),
+      ],
+      columns: ['', 'm', 'v', 'p'],
+      rows: rows.map(({ m, v, blank }, i) => [
+        ['A', 'B', 'C'][i],
+        cell(m, blank === 'm'),
+        cell(v, blank === 'v'),
+        cell(m * v, blank === 'p'),
+      ]),
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ rows }) =>
+    rows.map(({ m, v, blank }, i): SolutionStep => {
+      const name = ['A', 'B', 'C'][i];
+      if (blank === 'v') return { tex: `v_{${name}} = \\frac{p}{m} = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` };
+      if (blank === 'm') return { tex: `m_{${name}} = \\frac{p}{v} = \\frac{${fmt(m * v)}}{${fmt(v)}} = ${fmt(m)}` };
+      return { tex: `p_{${name}} = ${fmt(m)} \\times ${paren(v)} = ${fmt(m * v)}` };
+    }),
+};
+
+interface MomentumSliderParams {
+  m: number;
+  v: number;
+  /** The hard form: another particle, whose momentum shares the total. */
+  other?: { m: number; v: number };
+}
+
+const V_SPAN = 8;
+
+/** Slider: the velocity at which a particle has a given momentum, on the line p = mv. */
+const momentumSlider: Generator<MomentumSliderParams> = {
+  id: 'force-momentum-slider',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { m: rng.int(2, 8), v: sizeSign(rng, 1, V_SPAN - 1) };
+    return until(
+      () => ({ m: rng.int(3, 12) / 2, v: sizeSign(rng, 1, V_SPAN - 1), other: { m: rng.int(1, 6), v: sizeSign(rng, 1, 9) } }),
+      ({ m, v, other }) => m * v + other!.m * other!.v !== 0 && Math.sign(v) !== Math.sign(other!.v),
+    );
+  },
+  render: ({ m, v, other }) => {
+    const total = m * v + (other ? other.m * other.v : 0);
+    const line = `$p = ${fmt(m)}v$`;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          other
+            ? `Particles $A$ and $B$ move along a line with total momentum $${fmt(total)}${KGMS}$. ${RIGHT} $A$ has mass ${kg(other.m)} and is ${moving(other.v)}. $B$ has mass ${kg(m)}. The line is ${line} for $B$. Slide to $B$'s velocity, in $\\text{m s}^{-1}$.`
+            : `A particle of mass ${kg(m)} has momentum $${fmt(total)}${KGMS}$. ${RIGHT} The line is ${line}, with velocity along the bottom. Slide to its velocity, in $\\text{m s}^{-1}$.`,
+        ),
+      ],
+      min: -V_SPAN,
+      max: V_SPAN,
+      step: 0.5,
+      answer: v,
+      readout: 'v = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -V_SPAN,
+          xMax: V_SPAN,
+          yMin: -(V_SPAN + 0.5) * m,
+          yMax: (V_SPAN + 0.5) * m,
+          curves: [{ f: (x) => m * x }],
+          horizontals: other ? [] : [total],
+          label: `The line p = ${fmt(m)}v through the origin, with velocity along the bottom`,
+        }),
+        ...markerWindow(-V_SPAN, V_SPAN),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ m, v, other }) => [
+    ...(other
+      ? [
+          { text: `$A$'s momentum is $${fmt(other.m)} \\times ${paren(other.v)} = ${fmt(other.m * other.v)}$, and $B$ has the rest:` },
+          { tex: `p_{B} = ${fmt(m * v + other.m * other.v)} ${signed(-other.m * other.v)} = ${fmt(m * v)}` },
+        ]
+      : []),
+    { tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` },
+    { text: `${v < 0 ? 'Negative, so it moves left. ' : ''}On the graph, that is where the line reaches a momentum of $${fmt(m * v)}$.` },
+  ],
+};
+
+/* ---------- Conservation along a line ---------- */
+
+/** Two particles on a line, $A$ to the left of $B$, before and after they collide. */
+export interface Collision {
+  mA: number;
+  mB: number;
+  uA: number;
+  uB: number;
+  vA: number;
+  vB: number;
+}
+
+const pBefore = (c: Collision): number => c.mA * c.uA + c.mB * c.uB;
+
+/**
+ * Whether a collision could happen: $A$ catches $B$, they do not pass
+ * through each other, and no kinetic energy appears from nowhere. Nothing
+ * here asks about energy, but a question should not describe the impossible.
+ */
+const possible = (c: Collision): boolean =>
+  c.uA > c.uB && c.vB >= c.vA && c.mA * c.vA ** 2 + c.mB * c.vB ** 2 <= c.mA * c.uA ** 2 + c.mB * c.uB ** 2 + 1e-9;
+
+/**
+ * A collision with every velocity whole. Easy: $B$ starts at rest. Hard: $B$
+ * moves either way, and a mass may be a half. $B$'s velocity after is built
+ * from the rest and the draw repeated until it is whole.
+ */
+function collisionOf(rng: Rng, hard: boolean, ok: (c: Collision) => boolean = () => true): Collision {
+  return until(
+    () => {
+      const mA = massOf(rng, hard);
+      const mB = massOf(rng, hard);
+      const uA = rng.int(2, 12);
+      const uB = hard ? sizeSign(rng, 1, 8) : 0;
+      const vA = rng.int(-8, 10);
+      return { mA, mB, uA, uB, vA, vB: (mA * uA + mB * uB - mA * vA) / mB };
+    },
+    (c) => Number.isInteger(c.vB) && Math.abs(c.vB) <= 12 && c.vA !== c.uA && c.vB > c.vA && possible(c) && ok(c),
+  );
+}
+
+/** The prose setting a collision up, before; `forces.test.ts` reads masses and velocities from it in order. */
+const collisionScene = (c: Collision): string =>
+  `Particle $A$, of mass ${kg(c.mA)}, is ${moving(c.uA)}. It collides with particle $B$, of mass ${kg(c.mB)}, which is ${moving(c.uB)} on the same line. ${RIGHT}`;
+
+function collisionPicture(c: Collision, after: { A: number | string; B: number | string }): Block {
+  return picture(
+    collisionSvg(
+      [
+        { title: 'Before', bodies: [{ name: 'A', mass: c.mA, v: c.uA }, { name: 'B', mass: c.mB, v: c.uB }] },
+        { title: 'After', bodies: [{ name: 'A', mass: c.mA, v: after.A }, { name: 'B', mass: c.mB, v: after.B }] },
+      ],
+      'Particles A and B before and after the collision, with their velocities',
+    ),
+  );
+}
+
+/** The conservation line with one velocity after unknown, then solved. */
+function conservationWorking(c: Collision, find: 'A' | 'B'): SolutionStep[] {
+  const before = pBefore(c);
+  const known = find === 'B' ? c.mA * c.vA : c.mB * c.vB;
+  const mass = find === 'B' ? c.mB : c.mA;
+  const answer = find === 'B' ? c.vB : c.vA;
+  const unknown = `${fmt(mass)}v_{${find}}`;
+  const rhs = find === 'B' ? `${fmt(c.mA)} \\times ${paren(c.vA)} + ${unknown}` : `${unknown} + ${fmt(c.mB)} \\times ${paren(c.vB)}`;
+  return [
+    { text: 'Total momentum before equals total momentum after:' },
+    { tex: aligned(`& ${fmt(c.mA)} \\times ${paren(c.uA)} + ${fmt(c.mB)} \\times ${paren(c.uB)}`, `&= ${rhs}`) },
+    { tex: `${fmt(before)} = ${find === 'B' ? `${fmt(known)} + ${unknown}` : `${unknown} ${signed(known)}`}` },
+    { tex: `v_{${find}} = \\frac{${fmt(before)} ${signed(-known)}}{${fmt(mass)}} = ${fmt(answer)}` },
+    {
+      text:
+        answer < 0
+          ? `Negative: $${find}$ moves left afterwards.`
+          : answer === 0
+            ? `$${find}$ is left at rest.`
+            : `Positive: $${find}$ moves right afterwards.`,
+    },
+  ];
+}
+
+interface CollideParams {
+  c: Collision;
+  find: 'A' | 'B';
+}
+
+/** Expression: the unknown velocity after a collision along a line. */
+const collide: Generator<CollideParams> = {
+  id: 'force-collide',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const find = hard && rng.chance(0.5) ? 'A' : 'B';
+    return { c: collisionOf(rng, hard, (c) => (find === 'B' ? c.vA : c.vB) !== 0), find };
+  },
+  render: ({ c, find }) => {
+    const other = find === 'B' ? 'A' : 'B';
+    return typed(
+      [
+        say(`${collisionScene(c)} After the collision $${other}$ is ${moving(find === 'B' ? c.vA : c.vB)}.`),
+        say(`Find the velocity of $${find}$ after the collision, in $\\text{m s}^{-1}$.`),
+        collisionPicture(c, find === 'B' ? { A: c.vA, B: 'v' } : { A: 'v', B: c.vB }),
+      ],
+      `v_{${find}} =`,
+      find === 'B' ? c.vB : c.vA,
+    );
+  },
+  solution: ({ c, find }) => conservationWorking(c, find),
+  choices: ({ c, find }) => {
+    const answer = find === 'B' ? c.vB : c.vA;
+    const mass = find === 'B' ? c.mB : c.mA;
+    const known = find === 'B' ? c.mA * c.vA : c.mB * c.vB;
+    const unsigned = c.mA * Math.abs(c.uA) + c.mB * Math.abs(c.uB);
+    return valueChoices(answer, [-answer, (unsigned - known) / mass, pBefore(c) / mass, (pBefore(c) + known) / mass], mix(c.mA * 2, c.mB * 2, c.uA, c.uB, c.vA));
+  },
+};
+
+/** The conservation equation as tiles, and the rule it must satisfy. */
+function collideTilesOf({ c, find }: CollideParams): { template: string; answer: string[]; holds: (x: number[]) => boolean; after: number[] } {
+  const [pA, pB, qA, qB] = [c.mA * c.uA, c.mB * c.uB, c.mA * c.vA, c.mB * c.vB];
+  const moving2 = c.uB !== 0;
+  if (find === 'B') {
+    return moving2
+      ? { template: '{0} {1} = {2} {3}v_{B}', answer: [bare(pA), signed(pB), bare(qA), signed(c.mB)], holds: ([a, b, d, m]) => near(a + b, d + m * c.vB), after: [1, 3] }
+      : { template: '{0} = {1} {2}v_{B}', answer: [bare(pA), bare(qA), signed(c.mB)], holds: ([a, d, m]) => near(a, d + m * c.vB), after: [2] };
+  }
+  return moving2
+    ? { template: '{0} {1} = {2}v_{A} {3}', answer: [bare(pA), signed(pB), bare(c.mA), signed(qB)], holds: ([a, b, m, d]) => near(a + b, m * c.vA + d), after: [1, 3] }
+    : { template: '{0} = {1}v_{A} {2}', answer: [bare(pA), bare(c.mA), signed(qB)], holds: ([a, m, d]) => near(a, m * c.vA + d), after: [2] };
+}
+
+function collideExtras({ c, find }: CollideParams): string[] {
+  const [pA, pB, qA, qB] = [c.mA * c.uA, c.mB * c.uB, c.mA * c.vA, c.mB * c.vB];
+  return find === 'B'
+    ? [signed(-pB), bare(-qA), signed(c.mA), bare(c.uA), bare(pA + pB), signed(c.uB), bare(c.vA), signed(qA)]
+    : [signed(-pB), signed(-qB), bare(c.mB), bare(c.uA), bare(pA + pB), signed(c.vB), bare(-pA), bare(qA)];
+}
+
+/** Tiles: the conservation of momentum equation for a collision, with one velocity after unknown. */
+const collideTiles: Generator<CollideParams> = {
+  id: 'force-collide-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return until(
+      () => {
+        const find: CollideParams['find'] = hard && rng.chance(0.5) ? 'A' : 'B';
+        return { c: collisionOf(rng, hard, (c) => (find === 'B' ? c.vA : c.vB) !== 0), find };
+      },
+      (params) => {
+        const { answer, holds, after } = collideTilesOf(params);
+        return onlyAnswer(answer, answer, holds, after);
+      },
+    );
+  },
+  render: (params) => {
+    const { c, find } = params;
+    const { template, answer, holds, after } = collideTilesOf(params);
+    const other = find === 'B' ? 'A' : 'B';
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`${collisionScene(c)} After the collision $${other}$ is ${moving(find === 'B' ? c.vA : c.vB)}.`),
+        say(`Complete the equation for $v_{${find}}$, $${find}$'s velocity after, with each momentum worked out in $\\text{kg m s}^{-1}$: total before on the left, total after on the right.`),
+        collisionPicture(c, find === 'B' ? { A: c.vA, B: 'v' } : { A: 'v', B: c.vB }),
+      ],
+      template,
+      bank: tileBank(answer, soleExtras(answer, collideExtras(params), holds, after)),
+      answer,
+    };
+  },
+  solution: ({ c, find }) => conservationWorking(c, find),
+};
+
+/** Tree: each momentum before, the total, the known momentum after, then $B$'s momentum and velocity. */
+const collideSumTree: Generator<{ c: Collision }> = {
+  id: 'force-collide-sum-tree',
+  sample: (rng, difficulty) => ({ c: collisionOf(rng, difficulty > 1, (c) => c.vA !== 0) }),
+  render: ({ c }) => {
+    const [pA, pB, qA, qB] = [c.mA * c.uA, c.mB * c.uB, c.mA * c.vA, c.mB * c.vB];
+    const answer = [pA, pB, qA, pA + pB, qB, c.vB];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${collisionScene(c)} After the collision $A$ is ${moving(c.vA)}.`),
+        say(
+          "Find $B$'s velocity after, in $\\text{m s}^{-1}$. Top row: $A$'s momentum before, $B$'s before and $A$'s after. Then the total before, $B$'s momentum after, and its velocity.",
+        ),
+        collisionPicture(c, { A: c.vA, B: 'v' }),
+      ],
+      // Two rows: on one line it runs off a phone.
+      expression: '\\begin{aligned} & m_{A}u_{A} + m_{B}u_{B} \\\\ &= m_{A}v_{A} + m_{B}v_{B} \\end{aligned}',
+      nodes: [
+        { id: 'pA', from: [] },
+        { id: 'pB', from: [] },
+        { id: 'qA', from: [] },
+        { id: 'total', from: ['pA', 'pB'] },
+        { id: 'qB', from: ['total', 'qA'] },
+        { id: 'vB', from: ['qB'] },
+      ],
+      bank: valueBank(answer, [-pB, pA - pB, pA + pB + qA, qB * c.mB, -qB], 3),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ c }) => {
+    const [pA, pB, qA, qB] = [c.mA * c.uA, c.mB * c.uB, c.mA * c.vA, c.mB * c.vB];
+    return [
+      { tex: `p_{A} = ${fmt(c.mA)} \\times ${paren(c.uA)} = ${fmt(pA)}, \\quad p_{B} = ${fmt(c.mB)} \\times ${paren(c.uB)} = ${fmt(pB)}` },
+      { tex: `\\text{total} = ${fmt(pA)} ${signed(pB)} = ${fmt(pA + pB)}` },
+      { text: `After, $A$ has $${fmt(c.mA)} \\times ${paren(c.vA)} = ${fmt(qA)}$, and $B$ has the rest of the total:` },
+      { tex: `${fmt(pA + pB)} ${signed(-qA)} = ${fmt(qB)}` },
+      { tex: `v_{B} = \\frac{${fmt(qB)}}{${fmt(c.mB)}} = ${fmt(c.vB)}` },
+    ];
+  },
+};
+
+type Way = 'same' | 'back' | 'stop';
+
+const WAY_LABELS: Record<Way, string> = {
+  same: 'Carries on to the right',
+  back: 'Bounces back to the left',
+  stop: 'It stops',
+};
+
+/** Flow: $A$'s momentum after a collision, and whether it carries on, stops or bounces back. */
+const collideFlow: Generator<{ c: Collision }> = {
+  id: 'force-collide-flow',
+  sample: (rng, difficulty) => {
+    const way = rng.pick<Way>(['same', 'back', 'stop']);
+    return {
+      c: collisionOf(rng, difficulty > 1, (c) => c.vB !== 0 && (way === 'stop' ? c.vA === 0 : way === 'back' ? c.vA < 0 : c.vA > 0)),
+    };
+  },
+  render: ({ c }) => {
+    const total = pBefore(c);
+    const qB = c.mB * c.vB;
+    const qA = total - qB;
+    const values = (right: number, wrong: number[]) =>
+      [...new Set([right, ...wrong].filter((v) => v !== right).map(fmt))]
+        .slice(0, 2)
+        .concat(fmt(right))
+        .sort((x, y) => Number(x) - Number(y));
+    const totals = values(total, [c.mA * c.uA - c.mB * c.uB, c.mA * c.uA, total + 1]);
+    const afters = values(qA, [total + qB, qB - total, qA + 1]);
+    const way: Way = c.vA === 0 ? 'stop' : c.vA < 0 ? 'back' : 'same';
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`${collisionScene(c)} After the collision $B$ is ${moving(c.vB)}. What does $A$ do?`),
+        collisionPicture(c, { A: 'v', B: c.vB }),
+      ],
+      subject: 'm_{A}u_{A} + m_{B}u_{B} = m_{A}v_{A} + m_{B}v_{B}',
+      steps: [
+        {
+          id: 'total',
+          ask: 'What is the total momentum before the collision, in $\\text{kg m s}^{-1}$?',
+          branches: totals.map((v) => ({ label: `$${v}$`, to: 'after' })),
+        },
+        {
+          id: 'after',
+          ask: `$B$ leaves with $${fmt(c.mB)} \\times ${paren(c.vB)} = ${fmt(qB)}$. So what momentum does $A$ have after?`,
+          branches: afters.map((v) => ({ label: `$${v}$`, to: 'way' })),
+        },
+        {
+          id: 'way',
+          ask: 'So which way does $A$ go after the collision?',
+          branches: (['same', 'back', 'stop'] as Way[]).map((w) => ({
+            label: WAY_LABELS[w],
+            outcome:
+              w === 'stop'
+                ? 'Zero momentum after: $A$ is brought to rest.'
+                : w === 'back'
+                  ? "Negative momentum after: $A$ bounces back."
+                  : 'Positive momentum after: $A$ carries on, slower.',
+          })),
+        },
+      ],
+      answer: [`$${fmt(total)}$`, `$${fmt(qA)}$`, WAY_LABELS[way]],
+    };
+  },
+  solution: ({ c }) => [...conservationWorking(c, 'A')],
+};
+
+/* ---------- Coalescing and separating ---------- */
+
+interface CoalesceParams {
+  c: Collision;
+  find: 'v' | 'uB' | 'mB';
+}
+
+/**
+ * Two particles that coalesce: $A$ catches $B$ and they move on as one,
+ * both with velocity `vA = vB`. The common velocity is drawn first and $B$'s
+ * velocity before is built from it, drawn again until whole.
+ */
+function coalescingOf(rng: Rng, hard: boolean, ok: (c: Collision) => boolean = () => true): Collision {
+  return until(
+    () => {
+      const mA = massOf(rng, hard);
+      const mB = massOf(rng, hard);
+      const uA = rng.int(2, 12);
+      const v = rng.int(-6, 9);
+      const uB = ((mA + mB) * v - mA * uA) / mB;
+      return { mA, mB, uA, uB, vA: v, vB: v };
+    },
+    (c) => Number.isInteger(c.uB) && Math.abs(c.uB) <= 12 && c.uA > c.uB && c.vA !== 0 && (hard ? c.uB !== 0 : c.uB >= 0) && ok(c),
+  );
+}
+
+const coalesceScene = (c: Collision, knowB: boolean): string =>
+  `Particle $A$, of mass ${kg(c.mA)}, is ${moving(c.uA)}. It collides with particle $B$, of mass ${kg(c.mB)}${knowB ? `, which is ${moving(c.uB)} on the same line` : ''}. They coalesce, moving on together as one particle. ${RIGHT}`;
+
+function coalescePicture(c: Collision, before: number | string, after: number | string): Block {
+  return picture(
+    collisionSvg(
+      [
+        { title: 'Before', bodies: [{ name: 'A', mass: c.mA, v: c.uA }, { name: 'B', mass: c.mB, v: before }] },
+        { title: 'After', bodies: [{ name: 'A+B', mass: c.mA + c.mB, v: after }] },
+      ],
+      'Particles A and B before they coalesce, then moving on as one',
+    ),
+  );
+}
+
+/** Expression: the common velocity after coalescing, or run backwards for $B$'s velocity or mass. */
+const coalesce: Generator<CoalesceParams> = {
+  id: 'force-coalesce',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const find = hard ? rng.pick<CoalesceParams['find']>(['v', 'uB', 'mB']) : 'v';
+    return { c: coalescingOf(rng, hard, (c) => find !== 'mB' || c.uB !== c.vA), find };
+  },
+  render: ({ c, find }) => {
+    if (find === 'uB') {
+      return typed(
+        [
+          say(`${coalesceScene(c, false)} Afterwards they are ${moving(c.vA)}.`),
+          say(`Find $B$'s velocity before the collision, in $\\text{m s}^{-1}$.`),
+          coalescePicture(c, 'u', c.vA),
+        ],
+        'u_{B} =',
+        c.uB,
+      );
+    }
+    if (find === 'mB') {
+      return typed(
+        [
+          say(
+            `Particle $A$, of mass ${kg(c.mA)}, is ${moving(c.uA)}. It collides with particle $B$, which is ${moving(c.uB)} on the same line, and they coalesce. ${RIGHT} Afterwards they are ${moving(c.vA)}.`,
+          ),
+          say(`Find the mass of $B$, in kilograms.`),
+        ],
+        'm_{B} =',
+        c.mB,
+      );
+    }
+    return typed(
+      [
+        say(`${coalesceScene(c, true)}`),
+        say(`Find their velocity after the collision, in $\\text{m s}^{-1}$.`),
+        coalescePicture(c, c.uB, 'v'),
+      ],
+      'v =',
+      c.vA,
+    );
+  },
+  solution: ({ c, find }) => {
+    const before = `${fmt(c.mA)} \\times ${paren(c.uA)} + ${find === 'mB' ? 'm' : fmt(c.mB)} \\times ${find === 'uB' ? 'u_{B}' : paren(c.uB)}`;
+    const after = `(${fmt(c.mA)} + ${find === 'mB' ? 'm' : fmt(c.mB)}) \\times ${find === 'v' ? 'v' : paren(c.vA)}`;
+    const lines: SolutionStep[] = [
+      { text: 'Stuck together they have one velocity, and momentum is conserved:' },
+      { tex: aligned(`& ${before}`, `&= ${after}`) },
+    ];
+    if (find === 'v') {
+      lines.push({ tex: `${fmt(pBefore(c))} = ${fmt(c.mA + c.mB)}v, \\quad v = ${fmt(c.vA)}` });
+    } else if (find === 'uB') {
+      lines.push(
+        { tex: `${fmt(c.mA * c.uA)} + ${fmt(c.mB)}u_{B} = ${fmt((c.mA + c.mB) * c.vA)}` },
+        { tex: `u_{B} = \\frac{${fmt((c.mA + c.mB) * c.vA)} ${signed(-c.mA * c.uA)}}{${fmt(c.mB)}} = ${fmt(c.uB)}` },
+      );
+    } else {
+      lines.push(
+        { tex: `${fmt(c.mA * c.uA)} ${signed(c.uB)}m = ${fmt(c.mA * c.vA)} ${signed(c.vA)}m` },
+        { tex: `m = \\frac{${fmt(c.mA * c.uA)} ${signed(-c.mA * c.vA)}}{${fmt(c.vA)} ${signed(-c.uB)}} = ${fmt(c.mB)}` },
+      );
+    }
+    const v = find === 'uB' ? c.uB : find === 'v' ? c.vA : 0;
+    if (v < 0) lines.push({ text: 'Negative, so that is to the left.' });
+    return lines;
+  },
+  choices: ({ c, find }) => {
+    const salt = mix(c.mA * 2, c.mB * 2, c.uA, c.uB, find.length);
+    if (find === 'uB') return valueChoices(c.uB, [-c.uB, (c.mB * c.vA - c.mA * c.uA) / c.mB, ((c.mA + c.mB) * c.vA + c.mA * c.uA) / c.mB], salt);
+    if (find === 'mB') return valueChoices(c.mB, [(c.mA * c.uA) / c.vA - c.mA, c.mA, c.mB * 2], salt);
+    return valueChoices(c.vA, [-c.vA, pBefore(c) / c.mB, (c.mA * c.uA - c.mB * c.uB) / (c.mA + c.mB), pBefore(c) / c.mA], salt);
+  },
+};
+
+/** Steps: the common velocity, one product, sum and quotient at a time. */
+const jointSteps: Generator<{ c: Collision }> = {
+  id: 'force-joint-steps',
+  sample: (rng, difficulty) =>
+    ({ c: coalescingOf(rng, difficulty > 1, (c) => (difficulty > 1 ? c.uB < 0 : c.uB > 0)) }),
+  render: ({ c }) => {
+    const [pA, pB] = [c.mA * c.uA, c.mB * c.uB];
+    const M = c.mA + c.mB;
+    const bank = (value: number, ...wrong: number[]) =>
+      stepBank(fmt(value), ...wrong.filter((v) => Number.isFinite(v) && exact(v, 4) && fmt(v) !== fmt(value)).map(fmt));
+    return {
+      kind: 'steps',
+      prompt: [
+        say(`${coalesceScene(c, true)}`),
+        say(
+          'Their velocity after is the total momentum over their total mass. Work it out: tap the part to do next, then choose what it comes to.',
+        ),
+        coalescePicture(c, c.uB, 'v'),
+      ],
+      start: ['(', fmt(c.mA), '\\times', paren(c.uA), '+', fmt(c.mB), '\\times', paren(c.uB), ')', '\\div', fmt(M)],
+      reductions: [
+        { span: [1, 4], operator: 2, value: fmt(pA), bank: bank(pA, c.mA + c.uA, pA + 1, pA - 1) },
+        // Bracketed when negative, so the line never reads `20 + -12`.
+        { span: [3, 6], operator: 4, value: paren(pB), bank: bank(pB, -pB, c.mB + c.uB, pB + 1).map((v) => paren(Number(v))) },
+        { span: [0, 5], operator: 2, value: fmt(pA + pB), bank: bank(pA + pB, pA - pB, pA + pB + 1, pA + pB - 2) },
+        { span: [0, 3], operator: 1, value: fmt(c.vA), bank: bank(c.vA, -c.vA, c.vA + 1, (pA + pB) / c.mA) },
+      ],
+    };
+  },
+  solution: ({ c }) => [
+    { text: 'Momentum before, all of it carried by the joined particle after:' },
+    { tex: `${fmt(c.mA)} \\times ${paren(c.uA)} + ${fmt(c.mB)} \\times ${paren(c.uB)} = ${fmt(c.mA * c.uA)} ${signed(c.mB * c.uB)} = ${fmt(pBefore(c))}` },
+    { tex: `v = \\frac{${fmt(pBefore(c))}}{${fmt(c.mA + c.mB)}} = ${fmt(c.vA)}` },
+    ...(c.vA < 0 ? [{ text: 'Negative: the joined particle moves left.' }] : []),
+  ],
+};
+
+/** Two bodies pushed apart from rest: the first moves left, the second right. */
+interface Separation {
+  m1: number;
+  m2: number;
+  v1: number;
+  v2: number;
+}
+
+/** A pair pushed apart from rest, the second's velocity drawn and the first's built from it until whole. */
+function separationOf(m1: () => number, m2: () => number, v2: () => number): Separation {
+  return until(
+    () => {
+      const [a, b, v] = [m1(), m2(), v2()];
+      return { m1: a, m2: b, v1: (-b * v) / a, v2: v };
+    },
+    (s) => Number.isInteger(s.v1) && s.v1 !== 0 && s.m1 !== s.m2,
+  );
+}
+
+interface SeparateTableParams {
+  s: Separation;
+  /** The hard form asks for the first mass instead of the first velocity. */
+  findMass: boolean;
+}
+
+/** Table: two particles pushed apart from rest, each one's momentum, and the missing velocity or mass. */
+const separateTable: Generator<SeparateTableParams> = {
+  id: 'force-separate-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const s = separationOf(
+      () => massOf(rng, hard, 1, 10),
+      () => massOf(rng, hard, 1, 10),
+      () => rng.int(1, 12),
+    );
+    return { s, findMass: hard && rng.chance(0.5) };
+  },
+  render: ({ s, findMass }) => {
+    const p2 = s.m2 * s.v2;
+    const answer = findMass ? [s.m1, -p2, p2] : [s.v1, -p2, p2];
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `Particles $A$ and $B$ rest against each other on a smooth surface, with a compressed spring between them. The spring is released and they move apart along a line, $A$ to the left and $B$ to the right. ${RIGHT}`,
+        ),
+        say('Masses are in kilograms, velocities in $\\text{m s}^{-1}$ and momenta in $\\text{kg m s}^{-1}$. Fill in the gaps.'),
+        picture(
+          collisionSvg(
+            [
+              { title: 'Before', touching: true, bodies: [{ name: 'A', mass: s.m1, v: 0 }, { name: 'B', mass: s.m2, v: 0 }] },
+              { title: 'After', bodies: [{ name: 'A', mass: s.m1, v: findMass ? s.v1 : 'v', dir: -1 }, { name: 'B', mass: s.m2, v: s.v2 }] },
+            ],
+            'Particles A and B at rest together, then moving apart',
+          ),
+        ),
+      ],
+      columns: ['', 'm', 'v', 'p'],
+      rows: findMass
+        ? [
+            ['A', null, fmt(s.v1), null],
+            ['B', fmt(s.m2), fmt(s.v2), null],
+          ]
+        : [
+            ['A', fmt(s.m1), null, null],
+            ['B', fmt(s.m2), fmt(s.v2), null],
+          ],
+      bank: valueBank(answer, [-s.v1, s.m2, p2 / s.m1 + 1, s.m1 * s.v2]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ s, findMass }) => {
+    const p2 = s.m2 * s.v2;
+    return [
+      { tex: `p_{B} = ${fmt(s.m2)} \\times ${fmt(s.v2)} = ${fmt(p2)}` },
+      { text: 'They start at rest, so the total momentum is zero, before and after. $A$ carries the opposite of $B$\'s momentum:' },
+      { tex: `p_{A} = ${fmt(-p2)}` },
+      findMass
+        ? { tex: `m_{A} = \\frac{${fmt(-p2)}}{${fmt(s.v1)}} = ${fmt(s.m1)}` }
+        : { tex: `v_{A} = \\frac{${fmt(-p2)}}{${fmt(s.m1)}} = ${fmt(s.v1)}` },
+    ];
+  },
+};
+
+interface SeparateScene {
+  /** The first-named body, whose velocity is asked, and the second. */
+  names: [string, string];
+  /** The same two, named again once introduced. */
+  later: [string, string];
+  /** How they are set apart. */
+  how: string;
+}
+
+const SCENES: SeparateScene[] = [
+  { names: ['a skater', 'a second skater'], later: ['the first skater', 'the second skater'], how: 'stand together on smooth ice and push off each other' },
+  { names: ['a cannon', 'its shell'], later: ['the cannon', 'the shell'], how: 'are at rest, and the cannon fires the shell horizontally' },
+  { names: ['a boat', 'a diver'], later: ['the boat', 'the diver'], how: 'are at rest on still water, and the diver jumps horizontally off the back' },
+  { names: ['a trolley', 'a second trolley'], later: ['the first trolley', 'the second trolley'], how: 'rest together on a smooth track, and a spring between them is released' },
+];
+
+interface SeparateFlowParams {
+  scene: number;
+  s: Separation;
+}
+
+const upper = (s: string): string => s[0].toUpperCase() + s.slice(1);
+
+/** Flow: two bodies pushed apart from rest, which way the first goes and how fast. */
+const separateFlow: Generator<SeparateFlowParams> = {
+  id: 'force-separate-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const scene = rng.int(0, SCENES.length - 1);
+    const draw: [() => number, () => number, () => number][] = [
+      [() => 5 * rng.int(8, 18), () => 5 * rng.int(8, 18), () => rng.int(1, hard ? 6 : 4)],
+      [() => 50 * rng.int(2, 8), () => rng.int(2, 10), () => 10 * rng.int(5, 25)],
+      [() => 10 * rng.int(10, 40), () => 5 * rng.int(10, 18), () => rng.int(2, 6)],
+      [() => massOf(rng, hard, 1, 8), () => massOf(rng, hard, 1, 8), () => rng.int(1, 9)],
+    ];
+    const [m1, m2, v2] = draw[scene];
+    return { scene, s: separationOf(m1, m2, v2) };
+  },
+  render: ({ scene, s }) => {
+    const { names, later, how } = SCENES[scene];
+    const [first, second] = later;
+    const p2 = s.m2 * s.v2;
+    const speed = Math.abs(s.v1);
+    const labels = (right: number, wrong: number[]) =>
+      [...new Set(wrong.filter((v) => Number.isFinite(v) && exact(v, 4) && fmt(v) !== fmt(right)).map(fmt))]
+        .slice(0, 2)
+        .concat(fmt(right))
+        .sort((x, y) => Number(x) - Number(y));
+    const speeds = labels(speed, [s.v2, (s.m1 * s.v2) / s.m2, speed + 1, speed * 2]);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `${upper(names[0])}, of mass ${kg(s.m1)}, and ${names[1]}, of mass ${kg(s.m2)}, ${how}. Afterwards ${second} is ${moving(s.v2)}. ${RIGHT} What does ${first} do?`,
+        ),
+      ],
+      subject: `0 = ${fmt(s.m1)}v + ${fmt(s.m2)} \\times ${fmt(s.v2)}`,
+      steps: [
+        {
+          id: 'total',
+          ask: 'What is the total momentum before they separate, in $\\text{kg m s}^{-1}$?',
+          branches: labels(0, [p2, -p2]).map((v) => ({ label: `$${v}$`, to: 'first' })),
+        },
+        {
+          id: 'first',
+          ask: `${upper(second)} has momentum $${fmt(s.m2)} \\times ${fmt(s.v2)} = ${fmt(p2)}$. So what momentum does ${first} have?`,
+          branches: labels(-p2, [p2, 0]).map((v) => ({ label: `$${v}$`, to: 'speed' })),
+        },
+        {
+          id: 'speed',
+          ask: `So how fast does ${first} move, in $\\text{m s}^{-1}$? It goes left, the opposite way.`,
+          branches: speeds.map((v) => ({ label: `$${v}$`, outcome: `${upper(first)} moves left at $${v}${MS}$.` })),
+        },
+      ],
+      answer: ['$0$', `$${fmt(-p2)}$`, `$${fmt(speed)}$`],
+    };
+  },
+  solution: ({ scene, s }) => {
+    const [first] = SCENES[scene].later;
+    const p2 = s.m2 * s.v2;
+    return [
+      { text: 'Everything starts at rest, so the total momentum is zero before and after:' },
+      { tex: `0 = ${fmt(s.m1)}v + ${fmt(p2)}` },
+      { tex: `v = \\frac{${fmt(-p2)}}{${fmt(s.m1)}} = ${fmt(s.v1)}` },
+      { text: `Negative, so ${first} moves left, at $${fmt(Math.abs(s.v1))}${MS}$.` },
+    ];
+  },
+};
+
+/* ---------- Impulse ---------- */
+
+interface ImpulseParams {
+  kind: 'line' | 'wall' | 'rebound' | 'after';
+  m: number;
+  u: number;
+  v: number;
+}
+
+/**
+ * Expression: impulse as the change in momentum. Easy: along a line, or the
+ * size of a wall's impulse on a ball that bounces straight back. Hard: run
+ * backwards, for the speed after from the impulse.
+ */
+const impulse: Generator<ImpulseParams> = {
+  id: 'force-impulse',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = hard ? rng.pick<ImpulseParams['kind']>(['line', 'rebound', 'after']) : rng.pick<ImpulseParams['kind']>(['line', 'wall']);
+    const m = massOf(rng, true, 0.5, hard ? 6 : 4);
+    // A wall gives back no more speed than the ball brings.
+    if (kind === 'wall' || kind === 'rebound') {
+      const u = rng.int(2, 15);
+      return { kind, m, u, v: -rng.int(1, u) };
+    }
+    return until(
+      () => ({ kind, m, u: sizeSign(rng, 1, 12), v: sizeSign(rng, 1, 12) }),
+      ({ u, v }) => u !== v,
+    );
+  },
+  render: ({ kind, m, u, v }) => {
+    const I = m * (v - u);
+    if (kind === 'wall') {
+      return typed(
+        [
+          say(
+            `A ball of mass ${kg(m)}, ${moving(u)}, hits a wall at right angles and bounces straight back, ${moving(v)}. Find the size of the impulse the wall gives the ball, in $\\text{N s}$.`,
+          ),
+        ],
+        '|I| =',
+        Math.abs(I),
+      );
+    }
+    if (kind === 'rebound') {
+      return typed(
+        [
+          say(
+            `A ball of mass ${kg(m)}, ${moving(u)}, hits a wall at right angles and bounces straight back. The wall gives it an impulse of size $${fmt(Math.abs(I))}${NS}$. Find the speed it bounces back at, in $\\text{m s}^{-1}$.`,
+          ),
+        ],
+        'v =',
+        -v,
+      );
+    }
+    if (kind === 'after') {
+      return typed(
+        [
+          say(
+            `A particle of mass ${kg(m)} is ${moving(u)} when it receives an impulse of $${fmt(Math.abs(I))}${NS}$ to the ${I < 0 ? 'left' : 'right'}. ${RIGHT} Find its velocity afterwards, in $\\text{m s}^{-1}$.`,
+          ),
+        ],
+        'v =',
+        v,
+      );
+    }
+    return typed(
+      [
+        say(
+          `A particle of mass ${kg(m)} is ${moving(u)}. A blow leaves it ${moving(v)}. ${RIGHT} Find the impulse of the blow, in $\\text{N s}$.`,
+        ),
+      ],
+      'I =',
+      I,
+    );
+  },
+  solution: ({ kind, m, u, v }) => {
+    const I = m * (v - u);
+    const change = `I = mv - mu = ${fmt(m)} \\times ${paren(v)} - ${fmt(m)} \\times ${paren(u)} = ${fmt(I)}`;
+    if (kind === 'rebound') {
+      return [
+        { text: `With right positive the ball arrives with $${fmt(u)}$ and leaves with $-v$, so the impulse is to the left:` },
+        { tex: `-${fmt(Math.abs(I))} = ${fmt(m)}(-v) - ${fmt(m)} \\times ${fmt(u)}` },
+        { tex: `${fmt(m)}v = ${fmt(Math.abs(I))} - ${fmt(m * u)} = ${fmt(-m * v)}, \\quad v = ${fmt(-v)}` },
+      ];
+    }
+    if (kind === 'after') {
+      return [
+        { text: 'The impulse is the change in momentum, so add it to the momentum before:' },
+        { tex: `${fmt(m)}v = ${fmt(m * u)} ${signed(I)} = ${fmt(m * v)}` },
+        { tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` },
+      ];
+    }
+    return [
+      { text: 'Impulse is the change in momentum, after minus before, with right positive:' },
+      { tex: change },
+      ...(kind === 'wall'
+        ? [{ text: `Its size is $${fmt(Math.abs(I))}\\text{ N s}$, pointing left, away from the wall. The speeds add, since the velocity changes sign.` }]
+        : []),
+    ];
+  },
+  choices: ({ kind, m, u, v }) => {
+    const I = m * (v - u);
+    const salt = mix(m * 2, u, v, kind.length);
+    if (kind === 'wall') return valueChoices(Math.abs(I), [m * Math.abs(u + v), m * u, m * Math.abs(v)], salt);
+    if (kind === 'rebound') return valueChoices(-v, [Math.abs(I) / m + u, v + 2 * u, Math.abs(I) / m], salt);
+    if (kind === 'after') return valueChoices(v, [u - I / m, -v, u + I], salt);
+    return valueChoices(I, [-I, m * (v + u), m * (Math.abs(v) - Math.abs(u))], salt);
+  },
+};
+
+interface BounceParams {
+  thing: 'wall' | 'bat' | 'floor';
+  m: number;
+  u: number;
+  v: number;
+}
+
+const BOUNCE_THINGS: Record<BounceParams['thing'], string> = {
+  wall: 'hits a wall at right angles and bounces straight back',
+  bat: 'is hit straight back along its path by a bat',
+  floor: 'hits a smooth barrier and rebounds along the same line',
+};
+
+/** Tree: momentum before and after a bounce, then the impulse, signs and all. */
+const bounceTree: Generator<BounceParams> = {
+  id: 'force-bounce-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const thing = rng.pick<BounceParams['thing']>(['wall', 'bat', 'floor']);
+    const m = massOf(rng, true, 0.5, hard ? 5 : 3);
+    // Hard: the ball arrives from either side, so the impulse's sign has to be worked out.
+    const side = hard ? rng.sign() : 1;
+    const speed = rng.int(2, 14);
+    // A bat can send the ball back faster; a wall or a barrier cannot.
+    return { thing, m, u: side * speed, v: -side * rng.int(1, thing === 'bat' ? 16 : speed) };
+  },
+  render: ({ thing, m, u, v }) => {
+    const [pu, pv] = [m * u, m * v];
+    const answer = [pu, pv, pv - pu];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A ball of mass ${kg(m)}, ${moving(u)}, ${BOUNCE_THINGS[thing]}. Afterwards it is ${moving(v)}. ${RIGHT}`),
+        say('Find the impulse on the ball, in $\\text{N s}$. Top row: its momentum before and after, in $\\text{kg m s}^{-1}$. Underneath: the impulse.'),
+      ],
+      expression: 'I = mv - mu',
+      nodes: [
+        { id: 'before', from: [] },
+        { id: 'after', from: [] },
+        { id: 'I', from: ['before', 'after'] },
+      ],
+      bank: valueBank(answer, [-pu, -pv, pv + pu, pu - pv]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ m, u, v }) => [
+    { tex: `mu = ${fmt(m)} \\times ${paren(u)} = ${fmt(m * u)}, \\quad mv = ${fmt(m)} \\times ${paren(v)} = ${fmt(m * v)}` },
+    { tex: `I = ${fmt(m * v)} - ${paren(m * u)} = ${fmt(m * (v - u))}` },
+    { text: `The velocity changes sign, so the sizes add: the impulse points ${v < u ? 'left' : 'right'}, the way the ball is sent.` },
+  ],
+};
+
+interface ImpulsePairParams {
+  c: Collision;
+}
+
+/** Tiles: in a collision the impulses on the two particles are equal and opposite, and $B$'s velocity follows. */
+const impulsePairTiles: Generator<ImpulsePairParams> = {
+  id: 'force-impulse-pair-tiles',
+  sample: (rng, difficulty) => ({ c: collisionOf(rng, difficulty > 1, (c) => c.vB !== c.uB) }),
+  render: ({ c }) => {
+    const IA = c.mA * (c.vA - c.uA);
+    const answer = [bare(IA), bare(-IA), bare(c.vB)];
+    const extras = [bare(-c.vB), bare(c.mA * c.vA), bare(-IA / c.mB), bare(c.uB - IA / c.mB), bare(c.mA * (c.uA + c.vA)), bare(IA / c.mB)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`${collisionScene(c)} After the collision $A$ is ${moving(c.vA)}.`),
+        say(
+          "Find the impulse on $A$ and the impulse on $B$, in $\\text{N s}$, then $B$'s velocity after, in $\\text{m s}^{-1}$.",
+        ),
+        collisionPicture(c, { A: c.vA, B: 'v' }),
+      ],
+      template: 'I_{A} = {0}, \\quad I_{B} = {1}, \\quad v_{B} = {2}',
+      bank: tileBank(answer, soleExtras(answer, extras, ([a, b, w]) => near(a, IA) && near(b, -IA) && near(w, c.vB))),
+      answer,
+    };
+  },
+  solution: ({ c }) => {
+    const IA = c.mA * (c.vA - c.uA);
+    return [
+      { tex: `I_{A} = ${fmt(c.mA)} \\times ${paren(c.vA)} - ${fmt(c.mA)} \\times ${paren(c.uA)} = ${fmt(IA)}` },
+      { text: 'By the third law $B$ gets an equal and opposite impulse:' },
+      { tex: `I_{B} = ${fmt(-IA)}` },
+      { text: "That is the change in $B$'s momentum:" },
+      { tex: `${fmt(c.mB)}v_{B} = ${fmt(c.mB)} \\times ${paren(c.uB)} ${signed(-IA)} = ${fmt(c.mB * c.vB)}, \\quad v_{B} = ${fmt(c.vB)}` },
+    ];
+  },
+};
+
+interface ImpulseSliderParams {
+  m: number;
+  u: number;
+  v: number;
+}
+
+/** Slider: the velocity after an impulse, on the line p = mv with the start marked. */
+const impulseSlider: Generator<ImpulseSliderParams> = {
+  id: 'force-impulse-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return until(
+      () => ({ m: hard ? rng.int(3, 8) / 2 : rng.int(2, 5), u: sizeSign(rng, 1, V_SPAN - 1), v: rng.int(-(V_SPAN - 1), V_SPAN - 1) }),
+      ({ u, v }) => u !== v && (hard ? Math.sign(u) !== Math.sign(v) : Math.sign(v) === Math.sign(u)),
+    );
+  },
+  render: ({ m, u, v }) => {
+    const I = m * (v - u);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `A particle of mass ${kg(m)} is ${moving(u)} when it receives an impulse of $${fmt(Math.abs(I))}${NS}$ to the ${I < 0 ? 'left' : 'right'}. ${RIGHT} The line is $p = ${fmt(m)}v$, with the dot where it starts. Slide to its velocity afterwards, in $\\text{m s}^{-1}$.`,
+        ),
+      ],
+      min: -V_SPAN,
+      max: V_SPAN,
+      step: 0.5,
+      answer: v,
+      readout: 'v = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: -V_SPAN,
+          xMax: V_SPAN,
+          yMin: -(V_SPAN + 0.5) * m,
+          yMax: (V_SPAN + 0.5) * m,
+          curves: [{ f: (x) => m * x }],
+          marks: [{ x: u, y: m * u }],
+          label: `The line p = ${fmt(m)}v, with a dot at the starting velocity`,
+        }),
+        ...markerWindow(-V_SPAN, V_SPAN),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ m, u, v }) => {
+    const I = m * (v - u);
+    return [
+      { text: 'The impulse is the change in momentum, so it moves the momentum along the line by that much:' },
+      { tex: `${fmt(m)}v = ${fmt(m)} \\times ${paren(u)} ${signed(I)} = ${fmt(m * v)}` },
+      { tex: `v = \\frac{${fmt(m * v)}}{${fmt(m)}} = ${fmt(v)}` },
+      ...(Math.sign(u) !== Math.sign(v) && v !== 0 ? [{ text: 'The sign has changed: the impulse was big enough to turn the particle round.' }] : []),
+    ];
+  },
+};
+
+/* ---------- Ft = mv - mu ---------- */
+
+interface FtParams {
+  find: 'v' | 'F' | 't';
+  m: number;
+  u: number;
+  v: number;
+  t: number;
+  F: number;
+}
+
+/**
+ * A constant force for a time, drawn with both velocities whole and the
+ * force exact. Easy: along the motion, speeding up. Hard: either way, so it
+ * may slow the particle or turn it round.
+ */
+function ftOf(rng: Rng, hard: boolean, ok: (p: Omit<FtParams, 'find'>) => boolean = () => true): Omit<FtParams, 'find'> {
+  return until(
+    () => {
+      const m = massOf(rng, hard, 1, 10);
+      const u = hard ? sizeSign(rng, 1, 12) : rng.int(0, 10);
+      const v = hard ? rng.int(-12, 15) : rng.int(1, 15);
+      const t = hard ? rng.int(1, 16) / 2 : rng.int(1, 8);
+      return { m, u, v, t, F: (m * (v - u)) / t };
+    },
+    (p) => p.u !== p.v && exact(p.F, 2) && Math.abs(p.F) <= 60 && (hard || p.v > p.u) && ok(p),
+  );
+}
+
+const forceWords = (F: number): string => `a constant force of $${fmt(Math.abs(F))}\\text{ N}$ to the ${F < 0 ? 'left' : 'right'}`;
+
+/** Expression: Ft = mv - mu, for the velocity after, the force or the time. */
+const ft: Generator<FtParams> = {
+  id: 'force-ft',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const find = hard ? rng.pick<FtParams['find']>(['v', 'F', 't']) : rng.pick<FtParams['find']>(['v', 'F']);
+    return { find, ...ftOf(rng, hard) };
+  },
+  render: ({ find, m, u, v, t, F }) => {
+    const start = `A particle of mass ${kg(m)} is ${moving(u)}.`;
+    if (find === 'F') {
+      return typed(
+        [say(`${start} A constant force acts on it for $${fmt(t)}\\text{ s}$, after which it is ${moving(v)}. ${RIGHT} Find the force, in newtons.`)],
+        'F =',
+        F,
+      );
+    }
+    if (find === 't') {
+      return typed(
+        [say(`${start} ${upper(forceWords(F))} acts on it until it is ${moving(v)}. Find how long the force acts, in seconds.`)],
+        't =',
+        t,
+      );
+    }
+    return typed(
+      [say(`${start} ${upper(forceWords(F))} acts on it for $${fmt(t)}\\text{ s}$. ${RIGHT} Find its velocity afterwards, in $\\text{m s}^{-1}$.`)],
+      'v =',
+      v,
+    );
+  },
+  solution: ({ find, m, u, v, t, F }) => {
+    const law: SolutionStep = { text: 'The impulse of the force is the change in momentum, $Ft = mv - mu$, with right positive:' };
+    if (find === 'F') {
+      return [
+        law,
+        { tex: `${fmt(t)}F = ${fmt(m)} \\times ${paren(v)} - ${fmt(m)} \\times ${paren(u)} = ${fmt(m * (v - u))}` },
+        { tex: `F = \\frac{${fmt(m * (v - u))}}{${fmt(t)}} = ${fmt(F)}` },
+        ...(F < 0 ? [{ text: 'Negative: the force acts to the left.' }] : []),
+      ];
+    }
+    if (find === 't') {
+      return [
+        law,
+        { tex: `${paren(F)} \\times t = ${fmt(m)} \\times ${paren(v)} - ${fmt(m)} \\times ${paren(u)} = ${fmt(m * (v - u))}` },
+        { tex: `t = \\frac{${fmt(m * (v - u))}}{${paren(F)}} = ${fmt(t)}` },
+      ];
+    }
+    return [
+      law,
+      { tex: `${paren(F)} \\times ${fmt(t)} = ${fmt(m)}v - ${fmt(m)} \\times ${paren(u)}` },
+      { tex: `${fmt(m)}v = ${fmt(F * t)} ${signed(m * u)} = ${fmt(m * v)}, \\quad v = ${fmt(v)}` },
+    ];
+  },
+  choices: ({ find, m, u, v, t, F }) => {
+    const salt = mix(m * 2, u, v, t * 2, find.length);
+    if (find === 'F') return valueChoices(F, [-F, m * (v - u) * t, (m * (v + u)) / t, (v - u) / t], salt);
+    if (find === 't') return valueChoices(t, [(m * (v + u)) / Math.abs(F), (v - u) / F, t * 2], salt);
+    return valueChoices(v, [u + F * t, (F * t) / m, u - (F * t) / m], salt);
+  },
+};
+
+interface FtFlowParams {
+  m: number;
+  u: number;
+  v: number;
+  t: number;
+  F: number;
+}
+
+const FT_WAYS: Record<Way, string> = {
+  same: 'Still moving right, slower',
+  back: 'Moving left',
+  stop: 'At rest',
+};
+
+/** Flow: a force against the motion, its impulse, the change of velocity, and where that leaves the particle. */
+const ftFlow: Generator<FtFlowParams> = {
+  id: 'force-ft-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const way = rng.pick<Way>(['same', 'back', 'stop']);
+    return until(
+      () => {
+        const m = massOf(rng, hard, 1, 8);
+        const u = rng.int(2, 12);
+        const v = way === 'stop' ? 0 : way === 'back' ? -rng.int(1, 8) : rng.int(1, u - 1);
+        const t = hard ? rng.int(1, 10) / 2 : rng.int(1, 6);
+        return { m, u, v, t, F: (m * (v - u)) / t };
+      },
+      (p) => p.u > 1 && exact(p.F, 2) && p.v < p.u && Math.abs(p.F) <= 60,
+    );
+  },
+  render: ({ m, u, v, t, F }) => {
+    const I = F * t;
+    const dv = v - u;
+    const choose = (right: number, wrong: number[]) =>
+      [...new Set(wrong.filter((x) => Number.isFinite(x) && exact(x, 4) && fmt(x) !== fmt(right)).map(fmt))]
+        .slice(0, 2)
+        .concat(fmt(right))
+        .sort((x, y) => Number(x) - Number(y));
+    const way: Way = v === 0 ? 'stop' : v < 0 ? 'back' : 'same';
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `A particle of mass ${kg(m)} is ${moving(u)}. ${upper(forceWords(F))} acts on it for $${fmt(t)}\\text{ s}$, against its motion. ${RIGHT} Where does that leave it?`,
+        ),
+      ],
+      subject: 'Ft = mv - mu',
+      steps: [
+        {
+          id: 'I',
+          ask: 'What is the impulse of the force, in $\\text{N s}$?',
+          branches: choose(I, [-I, F / t, I - 1]).map((x) => ({ label: `$${x}$`, to: 'dv' })),
+        },
+        {
+          id: 'dv',
+          ask: 'So by how much does its velocity change, in $\\text{m s}^{-1}$?',
+          branches: choose(dv, [-dv, I * m, dv - 1]).map((x) => ({ label: `$${x}$`, to: 'way' })),
+        },
+        {
+          id: 'way',
+          ask: `It started at $${fmt(u)}$. So afterwards it is`,
+          branches: (['same', 'stop', 'back'] as Way[]).map((w) => ({
+            label: FT_WAYS[w],
+            outcome:
+              w === 'same'
+                ? 'The change is smaller than its speed, so it slows but keeps going.'
+                : w === 'stop'
+                  ? 'The change takes away exactly its speed.'
+                  : 'The change is more than its speed, so it is turned round.',
+          })),
+        },
+      ],
+      answer: [`$${fmt(I)}$`, `$${fmt(dv)}$`, FT_WAYS[way]],
+    };
+  },
+  solution: ({ m, u, v, t, F }) => [
+    { tex: `Ft = ${paren(F)} \\times ${fmt(t)} = ${fmt(F * t)}` },
+    { text: 'That is the change in momentum, so divide by the mass for the change in velocity:' },
+    { tex: `v - u = \\frac{${fmt(F * t)}}{${fmt(m)}} = ${fmt(v - u)}` },
+    { tex: `v = ${fmt(u)} ${signed(v - u)} = ${fmt(v)}` },
+  ],
+};
+
+interface ImpulseIjParams {
+  kind: 'impulse' | 'force' | 'find';
+  m: number;
+  u: Pt;
+  v: Pt;
+  /** For a force: how long it acts. */
+  t: number;
+}
+
+/** Tiles: impulse in i, j form, from an impulse or a force for a time, or the impulse from two velocities. */
+const impulseIjTiles: Generator<ImpulseIjParams> = {
+  id: 'force-impulse-ij-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const kind = hard ? rng.pick<ImpulseIjParams['kind']>(['force', 'find']) : 'impulse';
+    const comp = () => sizeSign(rng, 1, 8);
+    return until(
+      () => ({ kind, m: hard ? rng.int(1, 8) / 2 : rng.int(1, 5), u: [comp(), comp()] as Pt, v: [comp(), comp()] as Pt, t: hard ? rng.int(1, 6) / 2 : 1 }),
+      ({ m, u, v, t }) => u[0] !== v[0] && u[1] !== v[1] && [0, 1].every((i) => exact((m * (v[i] - u[i])) / t, 2)),
+    );
+  },
+  render: ({ kind, m, u, v, t }) => {
+    const I: Pt = [m * (v[0] - u[0]), m * (v[1] - u[1])];
+    const start = `A particle of mass ${kg(m)} is moving with velocity ${vecTex(u[0], u[1], MS)}`;
+    if (kind === 'find') {
+      const answer = [bare(I[0]), signed(I[1])];
+      return {
+        kind: 'tiles',
+        prompt: [say(`${start} when it receives an impulse. Afterwards its velocity is ${vecTex(v[0], v[1], MS)}. Find the impulse, in $\\text{N s}$.`)],
+        template: '\\mathbf{I} = ({0}\\mathbf{i} {1}\\mathbf{j})',
+        bank: tileBank(
+          answer,
+          soleExtras(
+            answer,
+            [bare(-I[0]), signed(-I[1]), bare(v[0] - u[0]), signed(v[1] - u[1]), bare(m * (v[0] + u[0])), signed(m * (v[1] + u[1]))],
+            ([x, y]) => near(x, I[0]) && near(y, I[1]),
+            [1],
+          ),
+        ),
+        answer,
+      };
+    }
+    const answer = [bare(v[0]), signed(v[1])];
+    const cause =
+      kind === 'force'
+        ? `A constant force ${vecTex(I[0] / t, I[1] / t, '\\text{ N}')} acts on it for $${fmt(t)}\\text{ s}$.`
+        : `It receives an impulse of ${vecTex(I[0], I[1], NS)}.`;
+    const slip: Pt = kind === 'force' ? [u[0] + I[0] / t / m, u[1] + I[1] / t / m] : [u[0] + I[0], u[1] + I[1]];
+    return {
+      kind: 'tiles',
+      prompt: [say(`${start}. ${cause} Find its velocity afterwards, in $\\text{m s}^{-1}$.`)],
+      template: '\\mathbf{v} = ({0}\\mathbf{i} {1}\\mathbf{j})',
+      bank: tileBank(
+        answer,
+        soleExtras(
+          answer,
+          [bare(slip[0]), signed(slip[1]), bare(u[0] - I[0] / m), signed(u[1] - I[1] / m), bare(v[1]), signed(v[0])].filter((x) => exact(tileValue(x), 4)),
+          ([x, y]) => near(x, v[0]) && near(y, v[1]),
+          [1],
+        ),
+      ),
+      answer,
+    };
+  },
+  solution: ({ kind, m, u, v, t }) => {
+    const I: Pt = [m * (v[0] - u[0]), m * (v[1] - u[1])];
+    const change = { tex: `${fmt(m)}\\mathbf{v} = ${fmt(m)}(${ijTex(u[0], u[1])}) + (${ijTex(I[0], I[1])}) = ${ijTex(m * v[0], m * v[1])}` };
+    if (kind === 'find') {
+      return [
+        { text: 'Impulse is the change in momentum, $m\\mathbf{v} - m\\mathbf{u}$, component by component:' },
+        { tex: `\\mathbf{I} = ${fmt(m)}(${ijTex(v[0], v[1])}) - ${fmt(m)}(${ijTex(u[0], u[1])}) = ${ijTex(I[0], I[1])}` },
+      ];
+    }
+    return [
+      ...(kind === 'force'
+        ? [
+            { text: 'The impulse of a constant force is $\\mathbf{F}t$:' },
+            { tex: `\\mathbf{I} = ${fmt(t)}(${ijTex(I[0] / t, I[1] / t)}) = ${ijTex(I[0], I[1])}` },
+          ]
+        : []),
+      { text: 'The impulse adds to the momentum, $m\\mathbf{v} = m\\mathbf{u} + \\mathbf{I}$:' },
+      change,
+      { tex: `\\mathbf{v} = ${ijTex(v[0], v[1])}` },
+    ];
+  },
+};
+
+interface FtTableParams {
+  m: number;
+  /** The velocity at the start and at the end of each stage. */
+  vs: number[];
+  ts: number[];
+}
+
+/** Table: forces acting one after another, each stage's impulse and the velocity it leaves. */
+const ftTable: Generator<FtTableParams> = {
+  id: 'force-ft-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const stages = hard ? 3 : 2;
+    return until(
+      () => {
+        const m = massOf(rng, hard, 1, 8);
+        const vs = [rng.int(0, 6)];
+        for (let i = 0; i < stages; i += 1) vs.push(rng.int(-6, 12));
+        return { m, vs, ts: Array.from({ length: stages }, () => rng.int(1, hard ? 8 : 5)) };
+      },
+      ({ m, vs, ts }) =>
+        ts.every((t, i) => {
+          const F = (m * (vs[i + 1] - vs[i])) / t;
+          return vs[i + 1] !== vs[i] && exact(F, 2) && Math.abs(F) <= 40;
+        }) && (hard ? vs.some((v) => v < 0) : vs.every((v) => v >= 0)),
+    );
+  },
+  render: ({ m, vs, ts }) => {
+    const answer: number[] = [];
+    const rows = ts.map((t, i) => {
+      const I = m * (vs[i + 1] - vs[i]);
+      answer.push(I, vs[i + 1]);
+      return [`${i + 1}`, fmt(I / t), fmt(t), null, null];
+    });
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `A particle of mass ${kg(m)} starts ${moving(vs[0])}. Constant forces act on it one after another, each for the time shown. ${RIGHT}`,
+        ),
+        say('For each stage fill in the impulse, $Ft$ in $\\text{N s}$, and the velocity at the end of the stage, in $\\text{m s}^{-1}$. Forces are in newtons and times in seconds.'),
+      ],
+      columns: ['', 'F', 't', 'Ft', 'v'],
+      rows,
+      bank: valueBank(answer, ts.flatMap((t, i) => [vs[i] + (m * (vs[i + 1] - vs[i])) / t, -(m * (vs[i + 1] - vs[i]))])),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ m, vs, ts }) =>
+    ts.flatMap((t, i): SolutionStep[] => {
+      const I = m * (vs[i + 1] - vs[i]);
+      return [
+        { text: `Stage ${i + 1}: the impulse ${i === 0 ? 'changes the momentum it starts with' : 'starts from the velocity the last stage left'}.` },
+        { tex: `Ft = ${paren(I / t)} \\times ${fmt(t)} = ${fmt(I)}` },
+        { tex: `${fmt(m)}v = ${fmt(m)} \\times ${paren(vs[i])} ${signed(I)} = ${fmt(m * vs[i + 1])}, \\quad v = ${fmt(vs[i + 1])}` },
+      ];
+    }),
+};
+
+/* ================================================================
  * Registration
  * ================================================================ */
 
@@ -6659,6 +8241,26 @@ export const forcesByName = {
   ladderTable,
   ladderLimitTree,
   ladderFlow,
+  momentum,
+  momentumTiles,
+  momentumTable,
+  momentumSlider,
+  collide,
+  collideTiles,
+  collideSumTree,
+  collideFlow,
+  coalesce,
+  jointSteps,
+  separateTable,
+  separateFlow,
+  impulse,
+  bounceTree,
+  impulsePairTiles,
+  impulseSlider,
+  ft,
+  ftFlow,
+  impulseIjTiles,
+  ftTable,
 };
 
 export const forcesGenerators = Object.values(forcesByName).map((generator) => fitted(generator as Generator<never>));

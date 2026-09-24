@@ -7,12 +7,16 @@
  * velocity-time graph as acceleration, and the area under one as the distance
  * travelled. Level 2 is constant acceleration: the suvat equations, choosing
  * one from what is given, vertical motion under gravity with g = 9.8, and
- * journeys in two stages or with one particle catching another. Level 4 is
+ * journeys in two stages or with one particle catching another. Level 3 is
+ * calculus in t: v = ds/dt and a = dv/dt for polynomial and exponential s,
+ * speeding up from the signs of v and a, integrating back with a known value
+ * fixing the constant, and the definite integral of v over an interval on
+ * which v keeps one sign, as a displacement and as a distance. Level 4 is
  * variable acceleration with polynomial s, v and a in t: at rest and turning
- * round, the greatest velocity and speed, distance against displacement,
- * curved motion graphs, and integrating from a starting value.
+ * round, the greatest velocity and speed, distance against displacement when
+ * v changes sign, curved motion graphs, and integrating from a starting value.
  *
- * Three rules hold everywhere in this file.
+ * These rules hold everywhere in this file.
  *
  * - Every answer is exact: whole, or one decimal place. u, a and t are drawn
  *   whole and paired so s is whole; under gravity u is a multiple of 4.9 and t
@@ -20,25 +24,32 @@
  *   would not is refused at sampling, never rounded.
  * - Units live in the prompt prose only. mathjs reads `m` as a variable, so no
  *   template, tile or answer ever carries one.
- * - Nothing declares `source`, nor `integrand` without `limits`. The
- *   oracles in `generators.test.ts` work in x, and a function of t would be
- *   graded as one (PITFALLS 2.2). The one exception is a definite integral
- *   whose answer is the signed displacement, `kin-disp-integral` and
- *   `kin-curve-area`: they declare `integrand`, the letter renamed to x, with
- *   `limits`, and the quadrature oracle checks them. A distance summed from
- *   pieces declares nothing. `kinematics.test.ts` recomputes every answer by
- *   routes of its own: it parses the function the prompt shows, and
- *   differentiates with mathjs, bisects for roots and integrates by Simpson.
+ * - Nothing declares `source`, and only the definite integrals of levels 3
+ *   and 4 declare `integrand`, always with `limits` and with t renamed to x. The
+ *   oracles in `generators.test.ts` work in x: `source` is differentiated in
+ *   x and an `integrand` without `limits` is compared with d/dx of the answer,
+ *   so neither can check a formula in t (PITFALLS 2.2). With `limits` the
+ *   check is quadrature, which does not care about the letter.
+ *   `kinematics.test.ts` recomputes every answer by routes of its own: level
+ *   3 reads the formula off the slide and differentiates it in t with mathjs;
+ *   level 4 parses the function the prompt shows, and differentiates with
+ *   mathjs, bisects for roots and integrates by Simpson. A level 4 distance
+ *   summed from pieces declares nothing.
+ * - The level 3 answers typed as a formula in t are the one exception to the
+ *   first rule: they carry a keypad with `t` on it, and are checked by value
+ *   like any other typed answer.
  * - Level 4's polynomials in a prompt have whole coefficients, and every root,
  *   turning value and area is whole or a tenth; a draw that is not is refused.
+ *   Level 4 holds its polynomials as `Coeffs`, constant term first, apart from
+ *   level 3's `Poly`, highest power first.
  */
-import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../types';
+import type { Block, ChoiceOption, Generator, KeypadKey, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
 import { hashSeed } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { fmt } from './numericalMethods';
-import { gcd, stepBank, tokenBank } from './parametricImplicit';
+import { OPERATOR_KEYS, gcd, spaced, stepBank, tokenBank } from './parametricImplicit';
 
 /* ================================================================
  * Shared helpers
@@ -3160,29 +3171,1539 @@ const catchTimeGen: Generator<CatchTimeParams> = {
 };
 
 /* ================================================================
+ * Level 3: calculus in kinematics
+ *
+ * s, v and a are formulas in t here: polynomials held as coefficients,
+ * highest power first, and in lesson 3 exponentials B + Ae^{kt}. Every
+ * coefficient a learner reads is whole. A formula that is integrated is drawn
+ * with each coefficient a multiple of the power it will be divided by, so no
+ * third or half ever reaches a formula on screen.
+ * ================================================================ */
+
+/** An answer in t. */
+const T_KEYS: KeypadKey[] = [spaced('t'), ...OPERATOR_KEYS];
+
+/** An answer in t with exponentials in it. */
+const T_EXP_KEYS: KeypadKey[] = [spaced('t'), spaced('e'), ...OPERATOR_KEYS];
+
+/** A polynomial in t: its coefficients, highest power first. */
+export type Poly = number[];
+
+const degreeOf = (p: Poly): number => p.length - 1;
+
+/** p(t), by Horner's rule. */
+export const polyAt = (p: Poly, t: number): number => p.reduce((total, c) => total * t + c, 0);
+
+/** The derivative, term by term. A constant's is zero. */
+export const derived = (p: Poly): Poly => (p.length < 2 ? [0] : p.slice(0, -1).map((c, i) => c * (degreeOf(p) - i)));
+
+/** An antiderivative, with `c` as its constant term. */
+export const integrated = (p: Poly, c: number): Poly => [...p.map((coefficient, i) => coefficient / (p.length - i)), c];
+
+/** The single term c t^n. */
+const single = (c: number, n: number): Poly => [c, ...Array<number>(n).fill(0)];
+
+/** The nonzero terms as [coefficient, power], highest power first or, `rising`, lowest. */
+function termsOf(p: Poly, rising = false): [number, number][] {
+  const terms = p.map((c, i): [number, number] => [c, degreeOf(p) - i]).filter(([c]) => c !== 0);
+  return rising ? terms.reverse() : terms;
+}
+
+/** Terms joined by their signs, each drawn by `draw` from its size and power. */
+function joined(terms: [number, number][], draw: (size: number, power: number) => string): string {
+  if (terms.length === 0) return '0';
+  return terms
+    .map(([c, n], k) => {
+      const body = draw(Math.abs(c), n);
+      if (k === 0) return c < 0 ? `-${body}` : body;
+      return `${c < 0 ? '-' : '+'} ${body}`;
+    })
+    .join(' ');
+}
+
+/** `2t^{3} - 5t + 1`; lowest power first with `rising`, as a question may write it. */
+export function polyTex(p: Poly, rising = false): string {
+  return joined(termsOf(p, rising), (size, n) => {
+    if (n === 0) return fmt(size);
+    const power = n === 1 ? 't' : `t^{${n}}`;
+    return size === 1 ? power : `${fmt(size)}${power}`;
+  });
+}
+
+/** p with the time put in for t, the line before its value: `3(2)^{2} - 4(2) + 1`. */
+function substituted(p: Poly, t: number): string {
+  const x = `(${fmt(t)})`;
+  return joined(termsOf(p), (size, n) => {
+    if (n === 0) return fmt(size);
+    const power = n === 1 ? x : `${x}^{${n}}`;
+    return size === 1 ? power : `${fmt(size)}${power}`;
+  });
+}
+
+/**
+ * p at t as the values of its terms, `-37.5 - 25 + 6`: the line before the
+ * total. Shorter than `substituted`, which for a cubic at a half second runs
+ * off a phone.
+ */
+function termValues(p: Poly, t: number): string {
+  const values = termsOf(p).map(([c, n]) => c * t ** n);
+  if (values.length === 0) return '0';
+  return values.map((value, k) => (k === 0 ? fmt(value) : value < 0 ? `- ${fmt(-value)}` : `+ ${fmt(value)}`)).join(' ');
+}
+
+/**
+ * `lhs = p` as a solution line, through `via` if given (`\frac{ds}{dt}`), and
+ * broken after two terms when p has four or more, so it fits a phone.
+ */
+function polyLine(lhs: string, p: Poly, via?: string): string {
+  const terms = termsOf(p);
+  if (!via && terms.length < 4) return `${lhs} = ${polyTex(p)}`;
+  const rows = via ? [`${lhs} &= ${via}`] : [];
+  const first = via ? '' : lhs;
+  if (terms.length < 4) return aligned(...rows, `${first} &= ${polyTex(p)}`);
+  const keep = (part: [number, number][]): Poly => p.map((c, i) => (part.some(([, n]) => n === degreeOf(p) - i) ? c : 0));
+  const tail = polyTex(keep(terms.slice(2)));
+  return aligned(...rows, `${first} &= ${polyTex(keep(terms.slice(0, 2)))}`, `&\\quad ${tail.startsWith('-') ? `- ${tail.slice(1)}` : `+ ${tail}`}`);
+}
+
+/** The same for mathjs, in `letter`. Never displayed, so bracketed rather than pretty. */
+export function polyMath(p: Poly, letter = 't'): string {
+  const terms = termsOf(p).map(([c, n]) => (n === 0 ? `(${fmt(c)})` : `(${fmt(c)})*${letter}^${n}`));
+  return terms.length === 0 ? '0' : terms.join(' + ');
+}
+
+/** A derivative worked one term to a line. */
+function termByTerm(p: Poly): string {
+  return aligned(
+    ...termsOf(p).map(([c, n]) => `\\frac{d}{dt}(${polyTex(single(c, n))}) &= ${n === 0 ? '0' : polyTex(single(c * n, n - 1))}`),
+  );
+}
+
+/** Whole coefficients, each drawn from its own range. */
+const drawPoly = (rng: Rng, ranges: [number, number][]): Poly => ranges.map(([lo, hi]) => rng.int(lo, hi));
+
+/** Who is moving, where a formula gives the motion. */
+const MOVERS = [
+  'A particle moves along a straight line',
+  'A bead slides along a straight wire',
+  'A toy train runs along a straight track',
+  'A robot moves along a straight rail',
+  'A small boat moves along a straight canal',
+] as const;
+
+/** The opening of a question: who moves, and what the formula shown under it gives. */
+function moving(mover: number, what: 's' | 'v' | 'a'): string {
+  const measured = {
+    s: 'its displacement from $O$ is $s$ metres',
+    v: 'its velocity is $v$ m/s',
+    a: 'its acceleration is $a$ m/s²',
+  }[what];
+  return `${MOVERS[mover]}. After $t$ seconds ${measured}, where`;
+}
+
+const show = (tex: string): Block => ({ kind: 'display', tex });
+
+/** A smooth curve against t on [0, end], its window taken from the curve itself. */
+function curveSvg(f: (t: number) => number, end: number, label: string, shade?: { from: number; to: number }): string {
+  const values = Array.from({ length: 81 }, (_, k) => f((end * k) / 80));
+  const lo = Math.min(0, ...values);
+  const hi = Math.max(0, ...values);
+  const pad = (hi - lo) * 0.08 || 1;
+  return plotSvg({ xMin: 0, xMax: end, yMin: lo - pad, yMax: hi + pad, height: 170, curves: [{ f }], shade: shade && { f, ...shade }, label });
+}
+
+/** The two questions of a speeding-up flow: the sign of v, then of a. */
+function speedFlowSteps(key: string): Extract<Slide, { kind: 'flow' }>['steps'] {
+  const outcome = (vs: number, as: number) =>
+    as === 0 ? 'Zero acceleration: for that moment its speed is not changing.' : vs * as > 0 ? 'The same sign: it is speeding up.' : 'Opposite signs: it is slowing down.';
+  const ends = (vs: number) =>
+    turned(
+      [
+        { label: 'Positive', outcome: outcome(vs, 1) },
+        { label: 'Negative', outcome: outcome(vs, -1) },
+        { label: 'Zero', outcome: outcome(vs, 0) },
+      ],
+      `${key}${vs}`,
+    );
+  return [
+    {
+      id: 'v',
+      ask: 'Is its velocity positive or negative?',
+      branches: turned(
+        [
+          { label: 'Positive', to: 'ap' },
+          { label: 'Negative', to: 'an' },
+        ],
+        key,
+      ),
+    },
+    { id: 'ap', ask: 'Is its acceleration positive, negative or zero?', branches: ends(1) },
+    { id: 'an', ask: 'Is its acceleration positive, negative or zero?', branches: ends(-1) },
+  ];
+}
+
+/** The last word of a speeding-up solution. */
+const speedVerdict = (v: number, a: number): string =>
+  v * a > 0
+    ? `$v$ and $a$ are both ${v > 0 ? 'positive' : 'negative'}: the acceleration acts the way it is moving, so it is speeding up.`
+    : `$v$ is ${v > 0 ? 'positive' : 'negative'} but $a$ is ${a > 0 ? 'positive' : 'negative'}: the acceleration acts against the motion, so it is slowing down.`;
+
+/* ---------- Level 3, lesson 1: velocity from displacement ---------- */
+
+interface FormulaParams {
+  mover: number;
+  /** The formula the question gives. */
+  p: Poly;
+  /** Written lowest power first, as difficulty 2 writes it. */
+  rising: boolean;
+}
+
+/**
+ * v = ds/dt typed as a function of t. Difficulty 1 is a quadratic or a cubic
+ * in the usual order; difficulty 2 a cubic or quartic with any signs, written
+ * lowest power first.
+ */
+const dsDt: Generator<FormulaParams> = {
+  id: 'kin-ds-dt',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard
+        ? rng.chance(0.5)
+          ? [nonZero(rng, 3), ...drawPoly(rng, [[-5, 5], [-6, 6], [-9, 9], [-10, 10]])]
+          : [nonZero(rng, 5), ...drawPoly(rng, [[-6, 6], [-9, 9], [-10, 10]])]
+        : rng.chance(0.5)
+          ? drawPoly(rng, [[1, 5], [-6, 6], [-9, 9], [0, 12]])
+          : drawPoly(rng, [[1, 6], [-9, 9], [0, 12]]);
+      if (termsOf(derived(p)).length < 2) continue;
+      return { mover, p, rising: hard };
+    }
+  },
+  render: ({ mover, p, rising }): Slide => ({
+    kind: 'expression',
+    prompt: [say(moving(mover, 's')), show(`s = ${polyTex(p, rising)}`), say('Find its velocity $v$ in terms of $t$.')],
+    lead: 'v =',
+    keypad: T_KEYS,
+    answer: polyMath(derived(p)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ p, rising }) => [
+    { text: 'Velocity is the rate of change of displacement, $v = \\frac{ds}{dt}$. Differentiate term by term: bring each power down in front and lower it by one. The constant goes.' },
+    ...(rising ? [{ text: `In the usual order, $s = ${polyTex(p)}$.` }] : []),
+    { tex: termByTerm(p) },
+    { tex: polyLine('v', derived(p)) },
+  ],
+};
+
+/**
+ * v = ds/dt for a cubic, placed term by term. Tiles grade the form: the slips
+ * on offer are a power not brought down and the constant kept. Difficulty 2
+ * writes s lowest power first, with negative terms.
+ */
+const dsTiles: Generator<FormulaParams> = {
+  id: 'kin-ds-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      mover: rng.int(0, MOVERS.length - 1),
+      p: [rng.int(1, hard ? 5 : 4), nonZero(rng, hard ? 7 : 5), nonZero(rng, 9), hard ? rng.int(-9, 12) : rng.int(0, 12)],
+      rising: hard,
+    };
+  },
+  render: ({ mover, p, rising }): Slide => {
+    const [a, b, c, d] = p;
+    const answer = [fmt(3 * a), signed(2 * b), signed(c)];
+    return {
+      kind: 'tiles',
+      prompt: [say(moving(mover, 's')), show(`s = ${polyTex(p, rising)}`), say('Complete its velocity, $v = \\frac{ds}{dt}$.')],
+      template: 'v = {0}t^2 {1}t {2}',
+      bank: tokenBank(answer, [fmt(a), signed(b), ...(d === 0 ? [] : [signed(d)]), signed(-2 * b), fmt(3 * a + 1)]),
+      answer,
+    };
+  },
+  solution: ({ p }) => [
+    { text: 'Differentiate term by term: bring each power down in front and lower it by one. The constant goes.' },
+    { tex: termByTerm(p) },
+    { tex: polyLine('v', derived(p)) },
+  ],
+};
+
+interface AtParams extends FormulaParams {
+  at: number;
+}
+
+/**
+ * v at a stated time: differentiate, then put the time in. Difficulty 2 has
+ * negative terms written lowest power first, and half-second times.
+ */
+const vAt: Generator<AtParams> = {
+  id: 'kin-v-at',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard
+        ? [nonZero(rng, 3), ...drawPoly(rng, [[-6, 6], [-9, 9], [-10, 10]])]
+        : rng.chance(0.5)
+          ? drawPoly(rng, [[1, 3], [-5, 5], [-8, 8], [0, 10]])
+          : drawPoly(rng, [[1, 6], [-9, 9], [0, 10]]);
+      const at = hard ? rng.pick([0.5, 1.5, 2, 2.5, 3, 3.5, 4]) : rng.int(1, 5);
+      const v = polyAt(derived(p), at);
+      if (!isTenth(v) || Math.abs(v) > 150 || termsOf(derived(p)).length < 2) continue;
+      return { mover, p, rising: hard, at };
+    }
+  },
+  choices: ({ p, at }) =>
+    // Slips: the displacement instead, the powers lowered but not brought down, the acceleration.
+    numChoices(polyAt(derived(p), at), [polyAt(p, at), polyAt(p.slice(0, -1), at), polyAt(derived(derived(p)), at)]),
+  render: ({ mover, p, rising, at }): Slide => ({
+    kind: 'expression',
+    prompt: [say(moving(mover, 's')), show(`s = ${polyTex(p, rising)}`), say(`Find its velocity when $t = ${fmt(at)}$.`)],
+    lead: 'v =',
+    keypad: [],
+    answer: fmt(polyAt(derived(p), at)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ p, at }) => {
+    const v = derived(p);
+    return [
+      { text: 'Differentiate first, then put the time in.' },
+      { tex: polyLine('v', v, '\\frac{ds}{dt}') },
+      { text: `At $t = ${fmt(at)}$:` },
+      { tex: `v = ${termValues(v, at)} = ${fmt(polyAt(v, at))}` },
+    ];
+  },
+};
+
+interface TableParams {
+  mover: number;
+  p: Poly;
+  /** Difficulty 2 asks for the displacement beside the velocity. */
+  both: boolean;
+}
+
+const tableTimes = (both: boolean): number[] => (both ? [0, 1, 2, 3] : [0, 1, 2, 3, 4]);
+
+/**
+ * v at several times from s, laid out as a table: one derivative, put to
+ * work repeatedly. Difficulty 2 has negative terms and asks for s as well, so
+ * the two columns have to be kept apart.
+ */
+const vTable: Generator<TableParams> = {
+  id: 'kin-v-table',
+  sample: (rng, difficulty) => {
+    const both = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = both
+        ? [nonZero(rng, 2), ...drawPoly(rng, [[-5, 5], [-9, 9], [-9, 9]])]
+        : rng.chance(0.5)
+          ? drawPoly(rng, [[1, 2], [-4, 4], [-6, 6], [0, 9]])
+          : drawPoly(rng, [[1, 4], [-8, 8], [0, 9]]);
+      const values = tableTimes(both).flatMap((t) => [polyAt(p, t), polyAt(derived(p), t)]);
+      if (values.some((value) => Math.abs(value) > 99) || termsOf(derived(p)).length < 2) continue;
+      return { mover, p, both };
+    }
+  },
+  render: ({ mover, p, both }): Slide => {
+    const v = derived(p);
+    const times = tableTimes(both);
+    const rows = times.map((t, k): (string | null)[] => {
+      const cells = both ? [fmt(polyAt(p, t)), fmt(polyAt(v, t))] : [fmt(polyAt(v, t))];
+      return [`${t}`, ...cells.map((cell) => (k === 0 ? cell : null))];
+    });
+    const answer = times.slice(1).flatMap((t) => (both ? [polyAt(p, t), polyAt(v, t)] : [polyAt(v, t)]));
+    // Slips: the displacement for the velocity, the average over the second before, the acceleration.
+    const slips = times.slice(1).flatMap((t) => [polyAt(p, t), polyAt(p, t) - polyAt(p, t - 1), polyAt(derived(v), t)]);
+    return {
+      kind: 'table',
+      prompt: [
+        say(moving(mover, 's')),
+        show(`s = ${polyTex(p)}`),
+        say(both ? 'Fill in its displacement $s$ and its velocity $v$ at each time $t$.' : 'Fill in its velocity $v$ at each time $t$.'),
+      ],
+      columns: both ? ['t', 's', 'v'] : ['t', 'v'],
+      rows,
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ p, both }) => {
+    const v = derived(p);
+    const times = tableTimes(both).slice(1);
+    return [
+      { text: 'Differentiate once, then put each time in.' },
+      { tex: `v = ${polyTex(v)}` },
+      { tex: aligned(...times.map((t) => `v(${t}) &= ${fmt(polyAt(v, t))}`)) },
+      ...(both ? [{ text: 'The displacements come from $s$ itself:' }, { tex: aligned(...times.map((t) => `s(${t}) &= ${fmt(polyAt(p, t))}`)) }] : []),
+    ];
+  },
+};
+
+interface VSliderParams {
+  mover: number;
+  /** s, a quadratic, so that v is a straight line. */
+  p: Poly;
+  /** The velocity asked about. */
+  target: number;
+  answer: number;
+  rising: boolean;
+}
+
+const V_SLIDER_END = 8;
+
+/**
+ * The time a particle reaches a stated velocity, slid to on its
+ * displacement-time curve. Difficulty 2 may be slowing down, and lands on a
+ * half second.
+ */
+const vSlider: Generator<VSliderParams> = {
+  id: 'kin-v-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const a = hard ? nonZero(rng, 3) : rng.int(1, 4);
+      const b = hard ? rng.int(-12, 12) : rng.int(0, 8);
+      const answer = hard ? rng.int(1, 15) / 2 : rng.int(1, 7);
+      if (hard && Number.isInteger(answer)) continue;
+      const target = 2 * a * answer + b;
+      if (target === 0) continue;
+      return { mover: rng.int(0, MOVERS.length - 1), p: [a, b, rng.int(0, 10)], target, answer, rising: hard };
+    }
+  },
+  render: ({ mover, p, target, answer, rising }): Slide => ({
+    kind: 'slider',
+    prompt: [
+      say(moving(mover, 's')),
+      show(`s = ${polyTex(p, rising)}`),
+      say(`The graph shows $s$ against $t$. Slide the line to the time its velocity is $${target}$ m/s.`),
+    ],
+    min: 0,
+    max: V_SLIDER_END,
+    step: 0.5,
+    answer,
+    readout: 't = {v}',
+    figure: {
+      svg: curveSvg((t) => polyAt(p, t), V_SLIDER_END, 'A displacement-time graph: a smooth curve'),
+      ...markerWindow(0, V_SLIDER_END),
+      axis: 'x',
+    },
+  }),
+  solution: ({ p, target, answer }) => {
+    const v = derived(p);
+    return [
+      { text: 'Differentiate to get the velocity, then set it equal to the value asked for.' },
+      { tex: polyLine('v', v, '\\frac{ds}{dt}') },
+      { tex: aligned(`${polyTex(v)} &= ${target}`, ...(v[1] === 0 ? [] : [`${polyTex([v[0], 0])} &= ${fmt(target - v[1])}`]), `t &= ${fmt(answer)}`) },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 2: acceleration ---------- */
+
+interface RateParams extends FormulaParams {
+  /** Which formula is given: v, or s at difficulty 2. */
+  from: 'v' | 's';
+}
+
+/** a as a polynomial: from v once, from s twice. */
+const accelOf = ({ p, from }: Pick<RateParams, 'p' | 'from'>): Poly => (from === 'v' ? derived(p) : derived(derived(p)));
+
+/** The working from the given formula to a, one derivative to a line. */
+function toAccel({ p, from }: Pick<RateParams, 'p' | 'from'>): SolutionStep[] {
+  if (from === 'v') return [{ tex: polyLine('a', derived(p), '\\frac{dv}{dt}') }];
+  return [{ tex: polyLine('v', derived(p), '\\frac{ds}{dt}') }, { tex: polyLine('a', derived(derived(p)), '\\frac{dv}{dt}') }];
+}
+
+/** A formula to differentiate down to a: v at difficulty 1, s at difficulty 2. */
+function sampleRate(rng: Rng, difficulty: number): RateParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const mover = rng.int(0, MOVERS.length - 1);
+    const p = hard
+      ? rng.chance(0.5)
+        ? [nonZero(rng, 3), ...drawPoly(rng, [[-5, 5], [-6, 6], [-9, 9], [-10, 10]])]
+        : [nonZero(rng, 4), ...drawPoly(rng, [[-6, 6], [-9, 9], [-10, 10]])]
+      : rng.chance(0.5)
+        ? drawPoly(rng, [[1, 4], [-6, 6], [-9, 9], [0, 12]])
+        : drawPoly(rng, [[1, 6], [-9, 9], [-12, 12]]);
+    const params: RateParams = { mover, p, from: hard ? 's' : 'v', rising: hard };
+    if (!termsOf(accelOf(params)).some(([, n]) => n > 0)) continue;
+    return params;
+  }
+}
+
+/**
+ * a typed as a function of t: dv/dt at difficulty 1, and at difficulty 2 the
+ * second derivative of s, written lowest power first.
+ */
+const aDt: Generator<RateParams> = {
+  id: 'kin-a-dt',
+  sample: sampleRate,
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [say(moving(params.mover, params.from)), show(`${params.from} = ${polyTex(params.p, params.rising)}`), say('Find its acceleration $a$ in terms of $t$.')],
+    lead: 'a =',
+    keypad: T_KEYS,
+    answer: polyMath(accelOf(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => [
+    {
+      text:
+        params.from === 'v'
+          ? 'Acceleration is the rate of change of velocity: $a = \\frac{dv}{dt}$. Differentiate term by term.'
+          : 'Acceleration is the rate of change of velocity, which is itself the rate of change of displacement: differentiate twice, $a = \\frac{d^{2}s}{dt^{2}}$.',
+    },
+    ...toAccel(params),
+  ],
+};
+
+interface RateAtParams extends RateParams {
+  at: number;
+}
+
+/**
+ * a at a stated time. Difficulty 1 differentiates v once at a whole second;
+ * difficulty 2 differentiates s twice, sometimes at a half second.
+ */
+const aAt: Generator<RateAtParams> = {
+  id: 'kin-a-at',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleRate(rng, difficulty);
+      const at = difficulty > 1 ? rng.pick([0.5, 1, 1.5, 2, 2.5, 3, 4]) : rng.int(1, 5);
+      const a = polyAt(accelOf(params), at);
+      if (!isTenth(a) || Math.abs(a) > 150 || a === 0) continue;
+      return { ...params, at };
+    }
+  },
+  choices: (params) => {
+    const { p, from, at } = params;
+    const a = polyAt(accelOf(params), at);
+    // Slips: the formula given itself, one derivative short (or the powers not brought down), a sign lost.
+    return numChoices(a, [polyAt(p, at), from === 's' ? polyAt(derived(p), at) : polyAt(p.slice(0, -1), at), -a]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(moving(params.mover, params.from)),
+      show(`${params.from} = ${polyTex(params.p, params.rising)}`),
+      say(`Find its acceleration when $t = ${fmt(params.at)}$.`),
+    ],
+    lead: 'a =',
+    keypad: [],
+    answer: fmt(polyAt(accelOf(params), params.at)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const a = accelOf(params);
+    return [
+      { text: params.from === 'v' ? 'Differentiate $v$ once, then put the time in.' : 'Differentiate $s$ twice, then put the time in.' },
+      ...toAccel(params),
+      { text: `At $t = ${fmt(params.at)}$:` },
+      { tex: `a = ${termValues(a, params.at)} = ${fmt(polyAt(a, params.at))}` },
+    ];
+  },
+};
+
+/** v and a at the moment asked, from whichever formula is given. */
+function stateAt({ p, from, at }: RateAtParams): { v: number; a: number } {
+  const v = from === 'v' ? p : derived(p);
+  return { v: polyAt(v, at), a: polyAt(derived(v), at) };
+}
+
+/**
+ * Speeding up or slowing down at a moment, from a formula: work out v and a
+ * there, then compare their signs. Difficulty 1 gives v; difficulty 2 gives s,
+ * so both come from differentiating, sometimes at a half second.
+ */
+const accelFlow: Generator<RateAtParams> = {
+  id: 'kin-accel-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard ? [nonZero(rng, 2), ...drawPoly(rng, [[-6, 6], [-9, 9], [0, 10]])] : [nonZero(rng, 3), ...drawPoly(rng, [[-8, 8], [-10, 10]])];
+      const params: RateAtParams = { mover, p, from: hard ? 's' : 'v', rising: hard, at: hard ? rng.int(1, 10) / 2 : rng.int(1, 6) };
+      const { v, a } = stateAt(params);
+      if (v === 0 || a === 0 || !isTenth(v) || !isTenth(a)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { v, a } = stateAt(params);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(moving(params.mover, params.from)),
+        show(`${params.from} = ${polyTex(params.p, params.rising)}`),
+        say(`At $t = ${fmt(params.at)}$, is it speeding up or slowing down?`),
+      ],
+      subject: `t = ${fmt(params.at)}`,
+      steps: speedFlowSteps(`${polyTex(params.p)}|${params.from}|${fmt(params.at)}`),
+      answer: [signWord(v), signWord(a)],
+    };
+  },
+  solution: (params) => {
+    const { v, a } = stateAt(params);
+    const vPoly = params.from === 'v' ? params.p : derived(params.p);
+    const at = fmt(params.at);
+    return [
+      ...(params.from === 's' ? [{ tex: polyLine('v', vPoly) }] : []),
+      { tex: `v(${at}) = ${termValues(vPoly, params.at)} = ${fmt(v)}` },
+      { tex: polyLine('a', derived(vPoly)) },
+      { tex: `a(${at}) = ${termValues(derived(vPoly), params.at)} = ${fmt(a)}` },
+      { text: speedVerdict(v, a) },
+    ];
+  },
+};
+
+/**
+ * a = d²s/dt² placed term by term, from a cubic at difficulty 1 and a quartic,
+ * written lowest power first, at difficulty 2. The slips on offer are
+ * stopping at v and bringing a power down once only.
+ */
+const aTiles: Generator<FormulaParams> = {
+  id: 'kin-a-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      mover: rng.int(0, MOVERS.length - 1),
+      p: hard
+        ? [rng.int(1, 3), nonZero(rng, 4), nonZero(rng, 6), rng.int(-9, 9), rng.int(-10, 10)]
+        : [rng.int(1, 4), nonZero(rng, 6), rng.int(-9, 9), rng.int(0, 12)],
+      rising: hard,
+    };
+  },
+  render: ({ mover, p, rising }): Slide => {
+    const quartic = p.length === 5;
+    const [a, b, c] = p;
+    const answer = quartic ? [fmt(12 * a), signed(6 * b), signed(2 * c)] : [fmt(6 * a), signed(2 * b)];
+    const slips = quartic
+      ? [fmt(4 * a), signed(3 * b), signed(c), fmt(6 * a), signed(-6 * b)]
+      : [fmt(3 * a), signed(b), ...(c === 0 ? [] : [signed(c)]), signed(-2 * b), fmt(2 * a)];
+    return {
+      kind: 'tiles',
+      prompt: [say(moving(mover, 's')), show(`s = ${polyTex(p, rising)}`), say('Complete its acceleration, $a = \\frac{d^{2}s}{dt^{2}}$.')],
+      template: quartic ? 'a = {0}t^2 {1}t {2}' : 'a = {0}t {1}',
+      bank: tokenBank(answer, slips),
+      answer,
+    };
+  },
+  solution: ({ p }) => [
+    { text: 'Differentiate twice: once for the velocity, again for the acceleration.' },
+    { tex: polyLine('v', derived(p), '\\frac{ds}{dt}') },
+    { tex: polyLine('a', derived(derived(p)), '\\frac{dv}{dt}') },
+  ],
+};
+
+/**
+ * v and a at several times, as a table. Difficulty 1 gives v, so the v column
+ * is substitution and the a column one derivative; difficulty 2 gives s.
+ */
+const vaTable: Generator<RateParams> = {
+  id: 'kin-va-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard ? [nonZero(rng, 2), ...drawPoly(rng, [[-5, 5], [-8, 8], [-9, 9]])] : [nonZero(rng, 3), ...drawPoly(rng, [[-6, 6], [-9, 9]])];
+      const params: RateParams = { mover, p, from: hard ? 's' : 'v', rising: false };
+      const v = hard ? derived(p) : p;
+      const values = [0, 1, 2, 3].flatMap((t) => [polyAt(v, t), polyAt(derived(v), t)]);
+      if (values.some((value) => Math.abs(value) > 99) || termsOf(derived(v)).length < 2) continue;
+      return params;
+    }
+  },
+  render: ({ mover, p, from }): Slide => {
+    const v = from === 'v' ? p : derived(p);
+    const a = derived(v);
+    const times = [0, 1, 2, 3];
+    const rows = times.map((t, k): (string | null)[] => [`${t}`, k === 0 ? fmt(polyAt(v, t)) : null, k === 0 ? fmt(polyAt(a, t)) : null]);
+    const answer = times.slice(1).flatMap((t) => [polyAt(v, t), polyAt(a, t)]);
+    // Slips: the change in v over the second before, the given formula's own value, a sign lost.
+    const slips = times.slice(1).flatMap((t) => [polyAt(v, t) - polyAt(v, t - 1), polyAt(p, t), -polyAt(a, t)]);
+    return {
+      kind: 'table',
+      prompt: [say(moving(mover, from)), show(`${from} = ${polyTex(p)}`), say('Fill in its velocity $v$ and acceleration $a$ at each time $t$.')],
+      columns: ['t', 'v', 'a'],
+      rows,
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ p, from }) => {
+    const v = from === 'v' ? p : derived(p);
+    const a = derived(v);
+    return [
+      ...(from === 's' ? [{ tex: polyLine('v', v, '\\frac{ds}{dt}') }] : []),
+      { tex: polyLine('a', a, '\\frac{dv}{dt}') },
+      { tex: aligned(...[1, 2, 3].map((t) => `v(${t}) &= ${fmt(polyAt(v, t))}`)) },
+      { tex: aligned(...[1, 2, 3].map((t) => `a(${t}) &= ${fmt(polyAt(a, t))}`)) },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 3: exponential motion ---------- */
+
+interface ExpParams {
+  mover: number;
+  /** s = B + A e^{kt}. */
+  A: number;
+  k: number;
+  B: number;
+}
+
+/** A e^{kt} as the learner reads it, `3e^{2t}`, `-e^{-t}`; a zero power leaves the number. */
+function expTex(A: number, k: number): string {
+  if (k === 0) return fmt(A);
+  const coefficient = A === 1 ? '' : A === -1 ? '-' : fmt(A);
+  const power = k === 1 ? 't' : k === -1 ? '-t' : `${k}t`;
+  return `${coefficient}e^{${power}}`;
+}
+
+/** B + A e^{kt}, the constant first. */
+function expSTex(A: number, k: number, B: number): string {
+  if (B === 0) return expTex(A, k);
+  return `${fmt(B)} ${A < 0 ? '-' : '+'} ${expTex(Math.abs(A), k)}`;
+}
+
+/** The same for mathjs. */
+const expMath = (A: number, k: number, B = 0): string => `(${fmt(A)})*e^((${k})*t) + (${fmt(B)})`;
+
+/** Difficulty 1: s = A e^{kt}, growing. Difficulty 2 adds a constant and lets A and k be negative. */
+function sampleExp(rng: Rng, difficulty: number): ExpParams {
+  const mover = rng.int(0, MOVERS.length - 1);
+  if (difficulty < 2) return { mover, A: rng.int(1, 9), k: rng.int(2, 4), B: 0 };
+  return { mover, A: nonZero(rng, 8), k: nonZero(rng, 4), B: nonZero(rng, 10) };
+}
+
+interface ExpAskParams extends ExpParams {
+  ask: 'v' | 'a';
+}
+
+/**
+ * v or a for s = B + A e^{kt}, typed as a function of t. Differentiating
+ * brings k down in front each time, and the constant goes.
+ */
+const expV: Generator<ExpAskParams> = {
+  id: 'kin-exp-v',
+  sample: (rng, difficulty) => ({ ...sampleExp(rng, difficulty), ask: rng.pick(['v', 'a'] as const) }),
+  choices: ({ A, k, B, ask }) => {
+    const c = ask === 'v' ? A * k : A * k * k;
+    const option = (coefficient: number, power: number, constant = 0) => ({
+      tex: expSTex(coefficient, power, constant),
+      answer: expMath(coefficient, power, constant),
+    });
+    // Slips: the other derivative, the constant kept, s unchanged, and the power rule's lowered power.
+    const slips = [option(ask === 'v' ? A * k * k : A * k, k), option(c, k, B), option(A, k, B), option(ask === 'v' ? A * k : 2 * A * k, k - 1)];
+    return options(option(c, k), ...slips).slice(0, 4);
+  },
+  render: ({ mover, A, k, B, ask }): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(moving(mover, 's')),
+      show(`s = ${expSTex(A, k, B)}`),
+      say(ask === 'v' ? 'Find its velocity $v$ in terms of $t$.' : 'Find its acceleration $a$ in terms of $t$.'),
+    ],
+    lead: `${ask} =`,
+    keypad: T_EXP_KEYS,
+    answer: expMath(ask === 'v' ? A * k : A * k * k, k),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: ({ A, k, B, ask }) => [
+    {
+      text: `Differentiating $e^{kt}$ brings $k$ down in front and leaves the power alone: $\\frac{d}{dt}e^{kt} = ke^{kt}$. Here $k = ${k}$${B === 0 ? '' : ', and the constant term goes'}.`,
+    },
+    { tex: `v = \\frac{ds}{dt} = ${expTex(A * k, k)}` },
+    ...(ask === 'a' ? [{ tex: `a = \\frac{dv}{dt} = ${expTex(A * k * k, k)}` }] : []),
+  ],
+};
+
+interface ExpStartParams extends ExpParams {
+  ask: 's' | 'v' | 'a';
+}
+
+const expStartValue = ({ A, k, B, ask }: ExpStartParams): number => (ask === 's' ? A + B : ask === 'v' ? A * k : A * k * k);
+
+/**
+ * Where it starts, and how fast: s, v or a at t = 0, where e^0 = 1 leaves the
+ * coefficient. Difficulty 2 has a constant term, which counts in s but not in
+ * v or a.
+ */
+const expStart: Generator<ExpStartParams> = {
+  id: 'kin-exp-start',
+  sample: (rng, difficulty) => ({ ...sampleExp(rng, difficulty), ask: rng.pick(difficulty > 1 ? (['s', 'v', 'a'] as const) : (['v', 'a'] as const)) }),
+  choices: (params) => {
+    const { A, k, B } = params;
+    // Slips: e^0 read as 0, the coefficient without k, the constant kept, the other derivative.
+    return numChoices(expStartValue(params), [B, A, A * k + B, params.ask === 'a' ? A * k : A * k * k, A + B]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(moving(params.mover, 's')),
+      show(`s = ${expSTex(params.A, params.k, params.B)}`),
+      say(
+        {
+          s: 'Find its displacement from $O$ when $t = 0$.',
+          v: 'Find its initial velocity, when $t = 0$.',
+          a: 'Find its initial acceleration, when $t = 0$.',
+        }[params.ask],
+      ),
+    ],
+    lead: `${params.ask} =`,
+    keypad: [],
+    answer: fmt(expStartValue(params)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const { A, k, B, ask } = params;
+    const steps: SolutionStep[] = [];
+    if (ask !== 's') steps.push({ tex: `v = ${expTex(A * k, k)}` });
+    if (ask === 'a') steps.push({ tex: `a = ${expTex(A * k * k, k)}` });
+    steps.push({ text: 'At $t = 0$ the exponential is $e^{0} = 1$, leaving its coefficient.' });
+    const value = { s: `${fmt(B)} + ${par(A)} \\times 1`, v: `${par(A * k)} \\times 1`, a: `${par(A * k * k)} \\times 1` }[ask];
+    steps.push({ tex: `${ask} = ${B === 0 && ask === 's' ? `${par(A)} \\times 1` : value} = ${fmt(expStartValue(params))}` });
+    return steps;
+  },
+};
+
+interface ExpTreeParams extends ExpParams {
+  /** The displacement at the moment asked about. */
+  S: number;
+}
+
+/**
+ * v = ks read off s = Ae^{kt}, and a = kv, at the moment s takes a stated
+ * value. Difficulty 2 has a constant term, so it is the distance from it that
+ * k multiplies: v = k(s - B).
+ */
+const expTree: Generator<ExpTreeParams> = {
+  id: 'kin-exp-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const A = hard ? nonZero(rng, 8) : rng.int(2, 9);
+      const k = nonZero(rng, 3);
+      const B = hard ? nonZero(rng, 10) : 0;
+      const gap = hard ? nonZero(rng, 40) : rng.int(1, 60);
+      // A moment after t = 0: e^{kt} = gap / A is above 1 growing, between 0 and 1 decaying.
+      const ratio = gap / A;
+      if (k > 0 ? ratio <= 1 : ratio <= 0 || ratio >= 1) continue;
+      return { mover, A, k, B, S: gap + B };
+    }
+  },
+  render: ({ mover, A, k, B, S }): Slide => {
+    const gap = S - B;
+    const answer = B === 0 ? [k, k * S, k * k * S] : [gap, k * gap, k * k * gap];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(moving(mover, 's')),
+        show(`s = ${expSTex(A, k, B)}`),
+        say(
+          B === 0
+            ? `At one moment $s = ${S}$. Fill in $k$, then its velocity, then its acceleration at that moment.`
+            : `At one moment $s = ${S}$. Fill in $s ${signed(-B)}$, then its velocity, then its acceleration at that moment.`,
+        ),
+      ],
+      expression: B === 0 ? 'v = ks, \\quad a = kv' : aligned(`v &= k(s ${signed(-B)})`, 'a &= kv'),
+      nodes:
+        B === 0
+          ? [
+              { id: 'k', from: [] },
+              { id: 'v', from: ['k'] },
+              { id: 'a', from: ['k', 'v'] },
+            ]
+          : [
+              { id: 'gap', from: [] },
+              { id: 'v', from: ['gap'] },
+              { id: 'a', from: ['v'] },
+            ],
+      // Slips: v at t = 0, k times s with the constant left in, a sign lost.
+      bank: valueBank(answer, [A * k, k * S, -answer[1], S + k, -k]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ A, k, B, S }) => {
+    const gap = S - B;
+    if (B === 0) {
+      return [
+        { text: `Differentiating $${expTex(A, k)}$ gives $${expTex(A * k, k)}$, which is $${k}$ times $s$: so $v = ${k}s$, and differentiating again, $a = ${k}v$.` },
+        { tex: aligned(`v &= ${k} \\times ${S} = ${k * S}`, `a &= ${k} \\times ${par(k * S)} = ${k * k * S}`) },
+      ];
+    }
+    return [
+      { text: `The constant differentiates to nothing, so $v = ${expTex(A * k, k)}$, which is $${k}$ times $s ${signed(-B)}$.` },
+      {
+        tex: aligned(
+          `s ${signed(-B)} &= ${gap}`,
+          `v &= ${k} \\times ${par(gap)}`,
+          `&= ${k * gap}`,
+          `a &= ${k} \\times ${par(k * gap)}`,
+          `&= ${k * k * gap}`,
+        ),
+      },
+    ];
+  },
+};
+
+/**
+ * Speeding up or slowing down under s = B + A e^{kt}, for all time: e^{kt} is
+ * always positive, so v takes the sign of Ak and a the sign of A. Growing
+ * motion speeds up; decaying motion slows down.
+ */
+const expFlow: Generator<ExpParams> = {
+  id: 'kin-exp-flow',
+  sample: (rng, difficulty) =>
+    difficulty > 1
+      ? sampleExp(rng, difficulty)
+      : { mover: rng.int(0, MOVERS.length - 1), A: nonZero(rng, 9), k: nonZero(rng, 4), B: 0 },
+  render: ({ mover, A, k, B }): Slide => ({
+    kind: 'flow',
+    prompt: [say(moving(mover, 's')), show(`s = ${expSTex(A, k, B)}`), say('As time goes on, is it speeding up or slowing down?')],
+    subject: `s = ${expSTex(A, k, B)}`,
+    steps: speedFlowSteps(`${A}|${k}|${B}`),
+    answer: [signWord(A * k), signWord(A)],
+  }),
+  solution: ({ A, k }) => [
+    { tex: aligned(`v &= ${expTex(A * k, k)}`, `a &= ${expTex(A * k * k, k)}`) },
+    { text: `$e^{${k === 1 ? '' : k === -1 ? '-' : k}t}$ is positive at every time, so $v$ has the sign of $${fmt(A * k)}$ and $a$ the sign of $${fmt(A * k * k)}$, whatever $t$ is.` },
+    { text: speedVerdict(A * k, A) },
+  ],
+};
+
+/* ---------- Level 3, lesson 4: back by integrating ---------- */
+
+interface IntParams {
+  mover: number;
+  /** The rate given: a, to find v, or v, to find s. */
+  p: Poly;
+  from: 'a' | 'v';
+  /** What is found is `value` at time `at`. */
+  at: number;
+  value: number;
+  rising: boolean;
+}
+
+/** The letter found by integrating what is given. */
+const foundOf = (from: 'a' | 'v'): 'v' | 's' => (from === 'a' ? 'v' : 's');
+
+/** The constant the condition fixes, and the formula with it. */
+function recovered({ p, at, value }: Pick<IntParams, 'p' | 'at' | 'value'>): { c: number; result: Poly } {
+  const c = value - polyAt(integrated(p, 0), at);
+  return { c, result: integrated(p, c) };
+}
+
+/** The statement of the condition, in words. */
+function conditionText({ from, at, value }: Pick<IntParams, 'from' | 'at' | 'value'>): string {
+  if (from === 'a') {
+    if (at === 0) return value === 0 ? 'It starts from rest.' : `It starts with velocity $${value}$ m/s.`;
+    return `When $t = ${at}$ its velocity is $${value}$ m/s.`;
+  }
+  if (at === 0) return value === 0 ? 'It starts at $O$.' : `It starts at $s = ${value}$ m.`;
+  return `When $t = ${at}$ its displacement is $s = ${value}$ m.`;
+}
+
+/** Integrate, then fix c: the working every lesson 4 solution shares. */
+function constantSteps(params: Pick<IntParams, 'p' | 'from' | 'at' | 'value'>): SolutionStep[] {
+  const found = foundOf(params.from);
+  const free = integrated(params.p, 0);
+  const { c, result } = recovered(params);
+  return [
+    { text: 'Integrate term by term: raise each power by one and divide by the new power. Integrating leaves a constant, $c$.' },
+    { tex: `${found} = ${polyTex(free)} + c` },
+    params.at === 0
+      ? { text: `At $t = 0$ every term with $t$ in it is zero, so $c = ${fmt(params.value)}$.` }
+      : { text: `Put $t = ${params.at}$ and $${found} = ${fmt(params.value)}$ in:` },
+    ...(params.at === 0 ? [] : [{ tex: aligned(`${fmt(params.value)} &= ${termValues(free, params.at)} + c`, `c &= ${fmt(c)}`) }]),
+    { tex: polyLine(found, result) },
+  ];
+}
+
+/**
+ * v from a, or s from v, typed as a function of t. Difficulty 1 integrates a
+ * linear a with v known at the start; difficulty 2 integrates a quadratic v,
+ * written lowest power first, with s known at a later time.
+ */
+const intV: Generator<IntParams> = {
+  id: 'kin-int-v',
+  sample: (rng, difficulty) => {
+    const mover = rng.int(0, MOVERS.length - 1);
+    if (difficulty < 2) return { mover, p: [2 * rng.int(1, 4), rng.int(-6, 8)], from: 'a', at: 0, value: rng.int(0, 12), rising: false };
+    for (;;) {
+      const p = [3 * nonZero(rng, 2), 2 * rng.int(-4, 4), rng.int(-9, 9)];
+      if (termsOf(p).length < 2) continue;
+      return { mover, p, from: 'v', at: rng.int(1, 3), value: rng.int(-10, 20), rising: true };
+    }
+  },
+  render: (params): Slide => {
+    const found = foundOf(params.from);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(moving(params.mover, params.from)),
+        show(`${params.from} = ${polyTex(params.p, params.rising)}`),
+        say(`${conditionText(params)} Find ${found === 'v' ? 'its velocity $v$' : 'its displacement $s$'} in terms of $t$.`),
+      ],
+      lead: `${found} =`,
+      keypad: T_KEYS,
+      answer: polyMath(recovered(params).result),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => [
+    ...(params.rising ? [{ text: `In the usual order, $v = ${polyTex(params.p)}$.` }] : []),
+    ...constantSteps(params),
+  ],
+};
+
+/**
+ * Finding c, as a tree: each term of the integral at the stated time, then
+ * what c must be to make the total right. Difficulty 1 integrates a linear a;
+ * difficulty 2 a quadratic v, which has three terms to put the time into.
+ */
+const intCTree: Generator<IntParams> = {
+  id: 'kin-int-c-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard ? [3 * nonZero(rng, 2), 2 * nonZero(rng, 4), nonZero(rng, 8)] : [2 * rng.int(1, 4), nonZero(rng, 6)];
+      const params: IntParams = { mover, p, from: hard ? 'v' : 'a', at: rng.int(1, hard ? 3 : 4), value: rng.int(-10, hard ? 40 : 30), rising: false };
+      const { c } = recovered(params);
+      const terms = termsOf(integrated(p, 0)).map(([coefficient, n]) => coefficient * params.at ** n);
+      if (c === 0 || terms.some((term) => Math.abs(term) > 99)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { p, from, at, value } = params;
+    const found = foundOf(from);
+    const free = integrated(p, 0);
+    const terms = termsOf(free).map(([coefficient, n]) => coefficient * at ** n);
+    const { c } = recovered(params);
+    const total = terms.reduce((sum, term) => sum + term, 0);
+    const answer = [...terms, c];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(moving(params.mover, from)),
+        show(`${from} = ${polyTex(p)}`),
+        say(
+          `Integrating gives $${found} = ${polyTex(free)} + c$. ${conditionText(params)} Fill in each term at $t = ${at}$, sign included, then $c$.`,
+        ),
+      ],
+      expression: aligned(`${found} &= ${polyTex(free)} + c`, `${found}(${at}) &= ${fmt(value)}`),
+      nodes: [...terms.map((_, i) => ({ id: `term${i}`, from: [] })), { id: 'c', from: terms.map((_, i) => `term${i}`) }],
+      // Slips: the total added rather than taken away, the total itself, the value, c's sign lost.
+      bank: valueBank(answer, [value + total, total, value, -c]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const free = integrated(params.p, 0);
+    const { c } = recovered(params);
+    const total = polyAt(free, params.at);
+    return [
+      { tex: aligned(...termsOf(free).map(([coefficient, n]) => `${polyTex(single(coefficient, n))} &\\to ${substituted(single(coefficient, n), params.at)} = ${fmt(coefficient * params.at ** n)}`)) },
+      { tex: aligned(`${fmt(params.value)} &= ${fmt(total)} + c`, `c &= ${fmt(params.value)} - ${par(total)} = ${fmt(c)}`) },
+    ];
+  },
+};
+
+/**
+ * s from a quadratic v, placed term by term. Difficulty 1 knows s at the
+ * start; difficulty 2 at a later time, and writes v lowest power first. The
+ * slips on offer are a coefficient not divided and the known value taken for c.
+ */
+const intSTiles: Generator<IntParams> = {
+  id: 'kin-int-s-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = [3 * rng.int(2, 4), 2 * nonZero(rng, 4), nonZero(rng, 9)];
+      const params: IntParams = hard
+        ? { mover, p, from: 'v', at: rng.int(1, 2), value: rng.int(-10, 30), rising: true }
+        : { mover, p, from: 'v', at: 0, value: nonZero(rng, 12), rising: false };
+      if (recovered(params).c === 0) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const { result, c } = recovered(params);
+    const [alpha, beta, r] = result;
+    const answer = [fmt(alpha), signed(beta), signed(r), signed(c)];
+    return {
+      kind: 'tiles',
+      prompt: [say(moving(params.mover, 'v')), show(`v = ${polyTex(params.p, params.rising)}`), say(`${conditionText(params)} Complete its displacement $s$.`)],
+      template: 's = {0}t^3 {1}t^2 {2}t {3}',
+      bank: tokenBank(answer, [fmt(params.p[0]), signed(params.p[1]), params.at === 0 ? signed(-c) : signed(params.value), signed(-beta), fmt(alpha + 1)]),
+      answer,
+    };
+  },
+  solution: (params) => constantSteps(params),
+};
+
+interface VAtParams {
+  mover: number;
+  /** a, a polynomial. */
+  p: Poly;
+  /** v at t = 0. */
+  u: number;
+  at: number;
+}
+
+const vFromA = ({ p, u }: Pick<VAtParams, 'p' | 'u'>): Poly => integrated(p, u);
+
+/**
+ * v at a stated time from a varying a and the starting velocity. The
+ * distractor that matters is suvat's v = u + at with a read at that time,
+ * which is wrong once a changes. Difficulty 2 has a quadratic a.
+ */
+const intVAt: Generator<VAtParams> = {
+  id: 'kin-int-v-at',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard ? [3 * nonZero(rng, 2), 2 * rng.int(-4, 4), rng.int(-8, 8)] : [2 * rng.int(1, 4), rng.int(-6, 6)];
+      const params = { mover, p, u: hard ? rng.int(-5, 10) : rng.int(0, 10), at: rng.int(1, hard ? 5 : 6) };
+      if (Math.abs(polyAt(vFromA(params), params.at)) > 200) continue;
+      return params;
+    }
+  },
+  choices: (params) => {
+    const { p, u, at } = params;
+    const v = polyAt(vFromA(params), at);
+    // Slips: suvat with a read at that time, the start forgotten, a itself.
+    return numChoices(v, [u + polyAt(p, at) * at, v - u, polyAt(p, at)]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [
+      say(moving(params.mover, 'a')),
+      show(`a = ${polyTex(params.p)}`),
+      say(`${conditionText({ from: 'a', at: 0, value: params.u })} Find its velocity when $t = ${params.at}$.`),
+    ],
+    lead: 'v =',
+    keypad: [],
+    answer: fmt(polyAt(vFromA(params), params.at)),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => {
+    const v = vFromA(params);
+    return [
+      { text: 'The acceleration changes with $t$, so the constant-acceleration equations do not apply: integrate instead.' },
+      ...constantSteps({ p: params.p, from: 'a', at: 0, value: params.u }).slice(1),
+      { text: `At $t = ${params.at}$:` },
+      { tex: `v = ${termValues(v, params.at)} = ${fmt(polyAt(v, params.at))}` },
+    ];
+  },
+};
+
+interface STableParams {
+  mover: number;
+  /** v, a polynomial. */
+  p: Poly;
+  /** s at t = 0. */
+  s0: number;
+}
+
+/**
+ * s at several times from v and where it started: integrate once, fix c,
+ * then fill the table. Difficulty 2 integrates a quadratic v and may start
+ * on the negative side of O.
+ */
+const intSTable: Generator<STableParams> = {
+  id: 'kin-int-s-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const p = hard ? [3 * rng.pick([-1, 1]), 2 * rng.int(-3, 3), rng.int(-6, 6)] : [2 * rng.int(1, 3), rng.int(-5, 6)];
+      const s0 = hard ? rng.int(-8, 8) : rng.int(0, 10);
+      const s = integrated(p, s0);
+      if ([1, 2, 3, 4].some((t) => Math.abs(polyAt(s, t)) > 99)) continue;
+      return { mover, p, s0 };
+    }
+  },
+  render: ({ mover, p, s0 }): Slide => {
+    const s = integrated(p, s0);
+    const times = [0, 1, 2, 3, 4];
+    const answer = times.slice(1).map((t) => polyAt(s, t));
+    // Slips: v for s, the start forgotten, s0 + vt as if v were steady.
+    const slips = times.slice(1).flatMap((t) => [polyAt(p, t), polyAt(s, t) - s0, s0 + polyAt(p, t) * t]);
+    return {
+      kind: 'table',
+      prompt: [say(moving(mover, 'v')), show(`v = ${polyTex(p)}`), say(`${conditionText({ from: 'v', at: 0, value: s0 })} Fill in its displacement $s$ at each time $t$.`)],
+      columns: ['t', 's'],
+      rows: times.map((t, k) => [`${t}`, k === 0 ? fmt(s0) : null]),
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ p, s0 }) => {
+    const s = integrated(p, s0);
+    return [
+      ...constantSteps({ p, from: 'v', at: 0, value: s0 }),
+      { tex: aligned(...[1, 2, 3, 4].map((t) => `s(${t}) &= ${fmt(polyAt(s, t))}`)) },
+    ];
+  },
+};
+
+/* ---------- Level 3, lesson 5: displacement over an interval ---------- */
+
+interface IntervalParams {
+  mover: number;
+  /** v, linear or quadratic, keeping one sign on the interval. */
+  v: Poly;
+  from: number;
+  to: number;
+}
+
+/**
+ * The sign v keeps on [from, to], or 0 if it reaches zero there. v is at most
+ * quadratic, so its ends and its one turning point settle it.
+ */
+export function signOn(v: Poly, from: number, to: number): number {
+  const points = [from, to];
+  if (v.length === 3 && v[0] !== 0) {
+    const turn = -v[1] / (2 * v[0]);
+    if (turn > from && turn < to) points.push(turn);
+  }
+  const values = points.map((t) => polyAt(v, t));
+  if (values.every((value) => value > 0)) return 1;
+  if (values.every((value) => value < 0)) return -1;
+  return 0;
+}
+
+/** The displacement over the interval: the antiderivative at the top minus at the bottom. */
+const displacementOver = ({ v, from, to }: Pick<IntervalParams, 'v' | 'from' | 'to'>): number =>
+  polyAt(integrated(v, 0), to) - polyAt(integrated(v, 0), from);
+
+/** A velocity whose integral has whole coefficients: linear with an even slope, or 3αt² + 2βt + r. */
+function drawVelocity(rng: Rng, quadratic: boolean, sign: number): Poly {
+  if (!quadratic) return [2 * nonZero(rng, 4), sign > 0 ? rng.int(1, 12) : -rng.int(1, 12)];
+  return [3 * nonZero(rng, 2), 2 * rng.int(-4, 4), rng.int(-12, 12)];
+}
+
+/** An interval and a velocity keeping the sign `want` (either, if 0) throughout it. */
+function sampleInterval(rng: Rng, difficulty: number, want: number, quadratic?: boolean): IntervalParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const mover = rng.int(0, MOVERS.length - 1);
+    const from = hard ? rng.int(1, 3) : 0;
+    const to = from + rng.int(hard ? 1 : 2, hard ? 3 : 5);
+    const sign = want === 0 ? rng.pick([1, -1]) : want;
+    const v = drawVelocity(rng, quadratic ?? (hard || rng.chance(0.5)), sign);
+    if (signOn(v, from, to) !== sign) continue;
+    const d = displacementOver({ v, from, to });
+    if (!isTenth(d) || Math.abs(d) > 300) continue;
+    return { mover, v, from, to };
+  }
+}
+
+/** The definite integral worked out, from the bracket to the number. */
+function bracketTex({ v, from, to }: Pick<IntervalParams, 'v' | 'from' | 'to'>): string {
+  const F = integrated(v, 0);
+  return aligned(
+    `&\\int_{${from}}^{${to}} (${polyTex(v)}) \\, dt`,
+    `&= \\Big[ ${polyTex(F)} \\Big]_{${from}}^{${to}}`,
+    `&= ${fmt(polyAt(F, to))} - ${par(polyAt(F, from))}`,
+    `&= ${fmt(displacementOver({ v, from, to }))}`,
+  );
+}
+
+/** Why v keeps its sign on the interval, as a solution line. */
+function signReason({ v, from, to }: Pick<IntervalParams, 'v' | 'from' | 'to'>): string {
+  const word = signOn(v, from, to) > 0 ? 'positive' : 'negative';
+  return `$v(${from}) = ${fmt(polyAt(v, from))}$ and $v(${to}) = ${fmt(polyAt(v, to))}$, and $v$ does not reach zero in between: it is ${word} throughout.`;
+}
+
+/**
+ * The displacement between two times, as the definite integral of v.
+ * Difficulty 1 starts at t = 0 with v positive; difficulty 2 starts later, and
+ * v may be negative throughout, making the displacement negative.
+ */
+const dispInt: Generator<IntervalParams> = {
+  id: 'kin-disp-int',
+  sample: (rng, difficulty) => sampleInterval(rng, difficulty, difficulty > 1 ? 0 : 1),
+  choices: (params) => {
+    const { v, from, to } = params;
+    const F = integrated(v, 0);
+    const d = displacementOver(params);
+    // Slips: the bottom limit forgotten or added, the change in v, the trapezium rule on a curve.
+    return numChoices(d, [polyAt(F, to), polyAt(F, to) + polyAt(F, from), polyAt(v, to) - polyAt(v, from), ((polyAt(v, from) + polyAt(v, to)) / 2) * (to - from), -d]);
+  },
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: [say(moving(params.mover, 'v')), show(`v = ${polyTex(params.v)}`), say(`Find its displacement between $t = ${params.from}$ and $t = ${params.to}$.`)],
+    lead: `\\int_{${params.from}}^{${params.to}} v \\, dt =`,
+    keypad: [],
+    answer: fmt(displacementOver(params)),
+    integrand: polyMath(params.v, 'x'),
+    limits: [params.from, params.to],
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => [
+    { text: 'Displacement is the integral of velocity over the interval: integrate, then take the value at the bottom from the value at the top.' },
+    { tex: bracketTex(params) },
+  ],
+};
+
+/**
+ * The same integral as a tree: the bracket at the top limit, at the bottom
+ * limit, then their difference. Difficulty 2 has v negative throughout and
+ * asks for the distance as well, which is the displacement's size.
+ */
+const intervalTree: Generator<IntervalParams> = {
+  id: 'kin-interval-tree',
+  sample: (rng, difficulty) => sampleInterval(rng, 2, difficulty > 1 ? -1 : 1, difficulty > 1 || rng.chance(0.5)),
+  render: (params): Slide => {
+    const { v, from, to } = params;
+    const F = integrated(v, 0);
+    const top = polyAt(F, to);
+    const bottom = polyAt(F, from);
+    const d = top - bottom;
+    const negative = d < 0;
+    const answer = negative ? [top, bottom, d, -d] : [top, bottom, d];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(moving(params.mover, 'v')),
+        show(`v = ${polyTex(v)}`),
+        say(
+          `Find its displacement between $t = ${from}$ and $t = ${to}$. Fill in the bracket at $t = ${to}$, at $t = ${from}$, then the displacement${negative ? ', then the distance it travels' : ''}.`,
+        ),
+      ],
+      expression: aligned(`&\\int_{${from}}^{${to}} (${polyTex(v)}) \\, dt`, `&= \\Big[ ${polyTex(F)} \\Big]_{${from}}^{${to}}`),
+      nodes: [
+        { id: 'top', from: [] },
+        { id: 'bottom', from: [] },
+        { id: 'd', from: ['top', 'bottom'] },
+        ...(negative ? [{ id: 'distance', from: ['d'] }] : []),
+      ],
+      // Slips: the two ends added, taken the wrong way round, the change in v.
+      bank: valueBank(answer, [top + bottom, bottom - top, polyAt(v, to) - polyAt(v, from)]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const d = displacementOver(params);
+    return [
+      { tex: bracketTex(params) },
+      ...(d < 0 ? [{ text: `It moves the negative way throughout, so the displacement is negative and the distance is its size, $${fmt(-d)}$.` }] : []),
+    ];
+  },
+};
+
+interface DistChoiceParams extends IntervalParams {
+  ask: 'distance' | 'displacement';
+  /** Difficulty 1 shows the graph, shaded over the interval. */
+  picture: boolean;
+}
+
+/**
+ * Which integral gives the distance, or the displacement: the sign v keeps on
+ * the interval decides whether the distance needs a minus. Difficulty 1 shows
+ * the graph with the interval shaded and always asks the distance;
+ * difficulty 2 gives the formula alone, starts later, and asks either.
+ */
+const distChoice: Generator<DistChoiceParams> = {
+  id: 'kin-dist-choice',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const params = sampleInterval(rng, difficulty, 0, true);
+    return { ...params, ask: hard ? rng.pick(['distance', 'displacement'] as const) : 'distance', picture: !hard };
+  },
+  render: (params): Slide => {
+    const { v, from, to, ask } = params;
+    const positive = signOn(v, from, to) > 0;
+    const integral = `\\int_{${from}}^{${to}} v \\, dt`;
+    const right = { label: ask === 'displacement' || positive ? integral : `-${integral}`, correct: true };
+    const wrong = [
+      { label: ask === 'displacement' || positive ? `-${integral}` : integral },
+      { label: `v(${to}) - v(${from})` },
+      { label: from > 0 ? `\\int_{0}^{${to}} v \\, dt` : `\\tfrac{1}{2}\\big(v(${from}) + v(${to})\\big) \\times ${to - from}` },
+    ];
+    const prompt: Block[] = [
+      say(moving(params.mover, 'v')),
+      show(`v = ${polyTex(v)}`),
+      say(
+        ask === 'displacement'
+          ? `Which of these gives its displacement between $t = ${from}$ and $t = ${to}$?`
+          : `Which of these gives the distance it travels between $t = ${from}$ and $t = ${to}$?`,
+      ),
+    ];
+    if (params.picture) prompt.push(figure(curveSvg((t) => polyAt(v, t), to + 1, 'A velocity-time graph, shaded over the interval asked about', { from, to })));
+    return choiceSlide(prompt, [right, ...wrong], true);
+  },
+  solution: (params) => {
+    const { ask } = params;
+    const positive = signOn(params.v, params.from, params.to) > 0;
+    return [
+      { text: signReason(params) },
+      {
+        text:
+          ask === 'displacement'
+            ? 'The displacement is the integral of $v$ over the interval, whatever its sign.'
+            : positive
+              ? 'Moving the positive way throughout, the distance is the same as the displacement: the integral itself.'
+              : 'Moving the negative way throughout, the integral comes out negative. The distance is its size, so it takes a minus sign.',
+      },
+    ];
+  },
+};
+
+/**
+ * A distance when v is negative throughout: the integral is negative and the
+ * distance is its size. Difficulty 1 is linear from t = 0 and says v is
+ * negative; difficulty 2 is quadratic from a later time and leaves the
+ * learner to see it.
+ */
+const distInt: Generator<IntervalParams> = {
+  id: 'kin-dist-int',
+  sample: (rng, difficulty) => sampleInterval(rng, difficulty, -1, difficulty > 1),
+  render: (params): Slide => {
+    const { v, from, to } = params;
+    return {
+      kind: 'expression',
+      prompt: [
+        say(moving(params.mover, 'v')),
+        show(`v = ${polyTex(v)}`),
+        say(
+          from === 0
+            ? `Its velocity is negative from $t = ${from}$ to $t = ${to}$. Find the distance it travels between those times.`
+            : `Find the distance it travels between $t = ${from}$ and $t = ${to}$.`,
+        ),
+      ],
+      lead: '\\text{distance} =',
+      keypad: [],
+      answer: fmt(-displacementOver(params)),
+      integrand: `-(${polyMath(v, 'x')})`,
+      limits: [from, to],
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => [
+    ...(params.from === 0 ? [] : [{ text: signReason(params) }]),
+    { text: 'The integral gives the displacement:' },
+    { tex: bracketTex(params) },
+    { text: `Negative, because it moves the negative way throughout. The distance is its size, $${fmt(-displacementOver(params))}$.` },
+  ],
+};
+
+interface AreaSliderParams {
+  mover: number;
+  /** v, positive over the whole picture. */
+  v: Poly;
+  start: number;
+  answer: number;
+}
+
+const AREA_END = 8;
+
+/** How far it has gone from `start` to `t`. */
+const goneBy = ({ v, start }: Pick<AreaSliderParams, 'v' | 'start'>, t: number): number =>
+  polyAt(integrated(v, 0), t) - polyAt(integrated(v, 0), start);
+
+/**
+ * The time it has travelled a stated distance, slid to on its velocity-time
+ * graph: the integral from the start to that time must come to the distance.
+ * Difficulty 1 is linear from t = 0; difficulty 2 is quadratic from a later
+ * start.
+ */
+const areaSlider: Generator<AreaSliderParams> = {
+  id: 'kin-area-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const mover = rng.int(0, MOVERS.length - 1);
+      const v = hard ? [3 * rng.int(1, 2), 2 * rng.int(-4, 2), rng.int(1, 12)] : [2 * rng.int(1, 3), rng.int(1, 9)];
+      const start = hard ? rng.int(1, 2) : 0;
+      if (signOn(v, 0, AREA_END) <= 0) continue;
+      const answer = rng.int(start + 1, AREA_END - 1);
+      const params = { mover, v, start, answer };
+      const gone = goneBy(params, answer);
+      if (!isTenth(gone) || gone > 500) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => ({
+    kind: 'slider',
+    prompt: [
+      say(moving(params.mover, 'v')),
+      show(`v = ${polyTex(params.v)}`),
+      say(
+        `It moves the positive way throughout. The graph shows $v$ against $t$. Slide the line to the time it has travelled $${fmt(goneBy(params, params.answer))}$ m since $t = ${params.start}$.`,
+      ),
+    ],
+    min: params.start,
+    max: AREA_END,
+    step: 0.5,
+    answer: params.answer,
+    readout: 't = {v}',
+    figure: {
+      svg: curveSvg((t) => polyAt(params.v, t), AREA_END, 'A velocity-time graph above the axis throughout'),
+      ...markerWindow(0, AREA_END),
+      axis: 'x',
+    },
+  }),
+  solution: (params) => {
+    const F = integrated(params.v, 0);
+    const T = params.answer;
+    const gone = goneBy(params, T);
+    const base = polyAt(F, params.start);
+    return [
+      { text: `The distance since $t = ${params.start}$ is the integral of $v$ from $${params.start}$ up to the time $T$ asked for, here the area under the graph.` },
+      { tex: aligned(`&\\int_{${params.start}}^{T} v \\, dt`, `&= \\Big[ ${polyTex(F)} \\Big]_{${params.start}}^{T}`) },
+      { text: `Try whole seconds: at $T = ${T}$,` },
+      { tex: aligned(`&${termValues(F, T)}${params.start === 0 ? '' : ` - ${par(base)}`}`, `&= ${fmt(gone)}`) },
+      { text: `So $T = ${T}$.` },
+    ];
+  },
+};
+
+/* ================================================================
  * Level 4: variable acceleration
  * ================================================================ */
 
 /** A polynomial in t, constant term first: `[2, 9, -6, 1]` is t^3 - 6t^2 + 9t + 2. */
-export type Poly = number[];
+export type Coeffs = number[];
 
 /** Its value at t. */
-export const polyAt = (p: Poly, t: number): number => p.reduce((sum, c, k) => sum + c * t ** k, 0);
+export const evalAt = (p: Coeffs, t: number): number => p.reduce((sum, c, k) => sum + c * t ** k, 0);
 
 /** Its derivative with respect to t. */
-export const rateOf = (p: Poly): Poly => p.slice(1).map((c, k) => c * (k + 1));
+export const rateOf = (p: Coeffs): Coeffs => p.slice(1).map((c, k) => c * (k + 1));
 
 /** The antiderivative worth `start` at t = 0. */
-const growFrom = (p: Poly, start: number): Poly => [start, ...p.map((c, k) => c / (k + 1))];
+const growFrom = (p: Coeffs, start: number): Coeffs => [start, ...p.map((c, k) => c / (k + 1))];
 
 /** The integral from a to b. */
-const integralOf = (p: Poly, a: number, b: number): number => polyAt(growFrom(p, 0), b) - polyAt(growFrom(p, 0), a);
+const integralOf = (p: Coeffs, a: number, b: number): number => evalAt(growFrom(p, 0), b) - evalAt(growFrom(p, 0), a);
 
-const isWhole = (p: Poly): boolean => p.every((c) => Number.isInteger(c));
+const isWhole = (p: Coeffs): boolean => p.every((c) => Number.isInteger(c));
 
 /** c(t - r1)(t - r2)… multiplied out. */
-function fromRoots(c: number, roots: number[]): Poly {
-  let p: Poly = [c];
+function fromRoots(c: number, roots: number[]): Coeffs {
+  let p: Coeffs = [c];
   for (const r of roots) p = [...p, 0].map((coef, k) => (k > 0 ? p[k - 1] : 0) - r * coef);
   return p.map((coef) => coef + 0);
 }
@@ -3205,7 +4726,7 @@ function coefTex(size: number): string {
  * whole coefficients, so mathjs parses what the learner reads; only worked
  * antiderivatives carry a fraction.
  */
-function tPoly(p: Poly): string {
+function tPoly(p: Coeffs): string {
   const terms: string[] = [];
   for (let k = p.length - 1; k >= 0; k -= 1) {
     const c = p[k];
@@ -3219,7 +4740,7 @@ function tPoly(p: Poly): string {
 }
 
 /** The same polynomial in x for mathjs, for an `integrand`. */
-const xPoly = (p: Poly): string => p.map((c, k) => `(${fmt(c)})*x^${k}`).join(' + ');
+const xPoly = (p: Coeffs): string => p.map((c, k) => `(${fmt(c)})*x^${k}`).join(' + ');
 
 /** `3t(t - 2)(t + 1)`, a repeated root squared. */
 function factored(c: number, roots: number[]): string {
@@ -3237,15 +4758,15 @@ function factored(c: number, roots: number[]): string {
  * Values rather than each coefficient times a power, which ran a cubic off
  * a phone's width.
  */
-function subbed(p: Poly, t: number): string {
+function subbed(p: Coeffs, t: number): string {
   const values = p.map((c, k) => c * t ** k).reverse().filter((value) => value !== 0);
   return values.length > 0 ? values.map((value, k) => (k === 0 ? fmt(value) : signed(value))).join(' ') : '0';
 }
 
 /** A value worked out at one time, the time said in words so the line stays narrow. */
-const valueAt = (letter: string, p: Poly, t: number): SolutionStep[] => [
+const valueAt = (letter: string, p: Coeffs, t: number): SolutionStep[] => [
   { text: `At $t = ${fmt(t)}$:` },
-  { tex: `${letter} = ${subbed(p, t)} = ${fmt(polyAt(p, t))}` },
+  { tex: `${letter} = ${subbed(p, t)} = ${fmt(evalAt(p, t))}` },
 ];
 
 const ORDINAL = ['first', 'second', 'third'] as const;
@@ -3276,7 +4797,7 @@ interface CurveExtras {
  * only when there are few enough squares to count; the time is what a
  * learner reads off it, so a slider's readout carries the rest.
  */
-function curveSvg(
+function motionSvg(
   drawn: (t: number) => number,
   T: number,
   label: string,
@@ -3301,8 +4822,8 @@ function curveSvg(
   });
 }
 
-const sLine = (s: Poly): string => `At time $t$ seconds its displacement from $O$ is $s = ${tPoly(s)}$ m.`;
-const vLine = (v: Poly): string => `At time $t$ seconds its velocity is $v = ${tPoly(v)}$ m/s.`;
+const sLine = (s: Coeffs): string => `At time $t$ seconds its displacement from $O$ is $s = ${tPoly(s)}$ m.`;
+const vLine = (v: Coeffs): string => `At time $t$ seconds its velocity is $v = ${tPoly(v)}$ m/s.`;
 
 /* ---------- lesson 1: at rest and turning round ---------- */
 
@@ -3314,8 +4835,8 @@ interface TurnParams {
   s0: number;
 }
 
-const turnV = ({ c, p, q }: TurnParams): Poly => fromRoots(c, [p, q]);
-const turnS = (params: TurnParams): Poly => growFrom(turnV(params), params.s0);
+const turnV = ({ c, p, q }: TurnParams): Coeffs => fromRoots(c, [p, q]);
+const turnS = (params: TurnParams): Coeffs => growFrom(turnV(params), params.s0);
 
 /** A cubic displacement with whole coefficients, turning at whole times 1 <= p < q <= 6. */
 function sampleTurn(rng: Rng): TurnParams {
@@ -3371,9 +4892,9 @@ interface TurnPositionParams extends TurnParams {
 
 function turnPositionOf(params: TurnPositionParams): number {
   const s = turnS(params);
-  if (params.ask === 'first') return polyAt(s, params.p);
-  if (params.ask === 'second') return polyAt(s, params.q);
-  return Math.abs(polyAt(s, params.q) - polyAt(s, params.p));
+  if (params.ask === 'first') return evalAt(s, params.p);
+  if (params.ask === 'second') return evalAt(s, params.q);
+  return Math.abs(evalAt(s, params.q) - evalAt(s, params.p));
 }
 
 /**
@@ -3386,7 +4907,7 @@ const turnPosition: Generator<TurnPositionParams> = {
   sample: (rng, difficulty) => ({ ...sampleTurn(rng), ask: difficulty > 1 ? rng.pick(['second', 'between'] as const) : 'first' }),
   choices: (params) => {
     const s = turnS(params);
-    const [sp, sq] = [polyAt(s, params.p), polyAt(s, params.q)];
+    const [sp, sq] = [evalAt(s, params.p), evalAt(s, params.q)];
     const answer = turnPositionOf(params);
     const slips = params.ask === 'between' ? [sq - sp, sp - sq, sq, sp] : [params.ask === 'first' ? sq : sp, answer - params.s0, -answer];
     return numChoices(answer, slips);
@@ -3419,7 +4940,7 @@ const turnPosition: Generator<TurnPositionParams> = {
     if (params.ask === 'between') {
       steps.push(
         { text: 'Between the two turns it moves one way only, so the distance is the change in $s$, without its sign:' },
-        { tex: `|${fmt(polyAt(s, q))} - ${par(polyAt(s, p))}| = ${fmt(turnPositionOf(params))}` },
+        { tex: `|${fmt(evalAt(s, q))} - ${par(evalAt(s, p))}| = ${fmt(turnPositionOf(params))}` },
       );
     }
     return steps;
@@ -3505,7 +5026,7 @@ const turnFlow: Generator<TurnFlowParams> = {
   },
   solution: (params) => {
     const { c, roots, r } = params;
-    const value = polyAt(fromRoots(c, roots), r);
+    const value = evalAt(fromRoots(c, roots), r);
     const base = `(t ${signed(-r)})`;
     const kind = turnKind(params);
     return [
@@ -3530,7 +5051,7 @@ interface OriginParams {
   T: number;
 }
 
-const originS = ({ k, roots }: OriginParams): Poly => fromRoots(k, roots);
+const originS = ({ k, roots }: OriginParams): Coeffs => fromRoots(k, roots);
 
 /**
  * When the particle is at O, slid to on its displacement-time graph. At
@@ -3567,7 +5088,7 @@ const originSlider: Generator<OriginParams> = {
       answer: roots[ask],
       readout: 't = {v}',
       figure: {
-        svg: curveSvg((t) => polyAt(s, t), T, 'A curved displacement-time graph', { from: three ? roots[0] - 0.5 : 0 }),
+        svg: motionSvg((t) => evalAt(s, t), T, 'A curved displacement-time graph', { from: three ? roots[0] - 0.5 : 0 }),
         ...markerWindow(0, T),
         axis: 'x',
       },
@@ -3602,7 +5123,7 @@ interface PeakParams {
   fromS: boolean;
 }
 
-const peakV = ({ K, h, V }: Pick<PeakParams, 'K' | 'h' | 'V'>): Poly => [V - K * h * h, 2 * K * h, -K];
+const peakV = ({ K, h, V }: Pick<PeakParams, 'K' | 'h' | 'V'>): Coeffs => [V - K * h * h, 2 * K * h, -K];
 
 /**
  * The greatest velocity as a tree: where a = 0, then v there. Difficulty 2
@@ -3663,7 +5184,7 @@ const maxVelocity: Generator<MaxVParams> = {
   choices: (params) => {
     const { K, h, V } = params;
     const v0 = peakV(params)[0];
-    return numChoices(V, [v0, h, V + K * h * h, polyAt(peakV(params), h + 1)]);
+    return numChoices(V, [v0, h, V + K * h * h, evalAt(peakV(params), h + 1)]);
   },
   render: (params): Slide => {
     const v = peakV(params);
@@ -3707,7 +5228,7 @@ interface SpeedParams {
   fromS: boolean;
 }
 
-const speedV = ({ c, h, m }: Pick<SpeedParams, 'c' | 'h' | 'm'>): Poly => [c * h * h + m, -2 * c * h, c];
+const speedV = ({ c, h, m }: Pick<SpeedParams, 'c' | 'h' | 'm'>): Coeffs => [c * h * h + m, -2 * c * h, c];
 
 /** The times worth checking for the greatest speed: the ends, and where a = 0 if that is inside. */
 function speedCandidates({ h, t1, t2 }: Pick<SpeedParams, 'h' | 't1' | 't2'>): number[] {
@@ -3715,7 +5236,7 @@ function speedCandidates({ h, t1, t2 }: Pick<SpeedParams, 'h' | 't1' | 't2'>): n
 }
 
 const greatestSpeed = (params: SpeedParams): number =>
-  Math.max(...speedCandidates(params).map((t) => Math.abs(polyAt(speedV(params), t))));
+  Math.max(...speedCandidates(params).map((t) => Math.abs(evalAt(speedV(params), t))));
 
 /** A velocity that changes sign, so the least velocity has a speed of its own. */
 function sampleSpeed(rng: Rng, fromS: boolean): SpeedParams {
@@ -3734,7 +5255,7 @@ const speedTable: Generator<SpeedParams> = {
   render: (params): Slide => {
     const { h, t2, s0, fromS } = params;
     const v = speedV(params);
-    const [v0, vh, vT] = [0, h, t2].map((t) => polyAt(v, t));
+    const [v0, vh, vT] = [0, h, t2].map((t) => evalAt(v, t));
     const answer = [v0, Math.abs(v0), h, vh, Math.abs(vh), vT, Math.abs(vT)];
     return {
       kind: 'table',
@@ -3759,7 +5280,7 @@ const speedTable: Generator<SpeedParams> = {
     if (params.fromS) steps.push({ tex: `v = \\frac{ds}{dt} = ${tPoly(v)}` });
     steps.push(
       { text: `$a = ${tPoly(rateOf(v))}$, which is zero at $t = ${h}$.` },
-      { tex: aligned(...[0, h, t2].map((t) => `v(${t}) &= ${fmt(polyAt(v, t))}`)) },
+      { tex: aligned(...[0, h, t2].map((t) => `v(${t}) &= ${fmt(evalAt(v, t))}`)) },
       { text: `The greatest speed is the largest size, $${fmt(greatestSpeed(params))}$ m/s.` },
     );
     return steps;
@@ -3783,7 +5304,7 @@ const intervalSpeed: Generator<SpeedParams> = {
         const h = rng.chance(0.5) ? rng.int(t1 + 1, t2 - 1) : rng.pick([rng.int(0, t1 - 1), rng.int(t2 + 1, t2 + 2)]);
         params = { c: nonZero(rng, 3), h, m: nonZero(rng, 12), t1, t2, s0: 0, fromS: false };
       }
-      const speeds = speedCandidates(params).map((t) => Math.abs(polyAt(speedV(params), t)));
+      const speeds = speedCandidates(params).map((t) => Math.abs(evalAt(speedV(params), t)));
       const best = Math.max(...speeds);
       if (speeds.filter((speed) => speed === best).length === 1) return params;
     }
@@ -3791,7 +5312,7 @@ const intervalSpeed: Generator<SpeedParams> = {
   choices: (params) => {
     const v = speedV(params);
     const answer = greatestSpeed(params);
-    const values = speedCandidates(params).map((t) => polyAt(v, t));
+    const values = speedCandidates(params).map((t) => evalAt(v, t));
     return numChoices(answer, [Math.abs(params.m), Math.max(...values), ...values.map(Math.abs), -answer]);
   },
   render: (params): Slide => ({
@@ -3809,7 +5330,7 @@ const intervalSpeed: Generator<SpeedParams> = {
     const inside = h > t1 && h < t2;
     return [
       { text: `$a = ${tPoly(rateOf(v))}$, which is zero at $t = ${h}$${inside ? ', inside the interval.' : `, outside $${t1} \\le t \\le ${t2}$, so only the ends count.`}` },
-      { tex: aligned(...speedCandidates(params).map((t) => `v(${t}) &= ${fmt(polyAt(v, t))}`)) },
+      { tex: aligned(...speedCandidates(params).map((t) => `v(${t}) &= ${fmt(evalAt(v, t))}`)) },
       { text: `Speed is the size of $v$, so the greatest speed is $${fmt(greatestSpeed(params))}$ m/s.` },
     ];
   },
@@ -3827,7 +5348,7 @@ interface DistParams {
   factorised: boolean;
 }
 
-const distV = ({ c, r, n }: DistParams): Poly => fromRoots(c, [r, -n]);
+const distV = ({ c, r, n }: DistParams): Coeffs => fromRoots(c, [r, -n]);
 
 function distPieces(params: DistParams): { A1: number; A2: number; D: number; dist: number } {
   const v = distV(params);
@@ -3935,12 +5456,12 @@ const piecesTree: Generator<DistParams> = {
 };
 
 /** Which calculation gives the distance: split at the root, the negative piece made positive. */
-const distChoice: Generator<DistParams> = {
-  id: 'kin-dist-choice',
+const distOrDisp: Generator<DistParams> = {
+  id: 'kin-dist-or-disp',
   sample: sampleDist,
   render: (params): Slide => {
     const { r, T } = params;
-    const firstNegative = polyAt(distV(params), r / 2) < 0;
+    const firstNegative = evalAt(distV(params), r / 2) < 0;
     const piece = (a: number | string, b: number | string) => `\\int_{${a}}^{${b}} v\\,dt`;
     const opts: Option[] = [
       { label: firstNegative ? `-${piece(0, r)} + ${piece(r, T)}` : `${piece(0, r)} - ${piece(r, T)}`, correct: true },
@@ -3951,7 +5472,7 @@ const distChoice: Generator<DistParams> = {
     return choiceSlide([say(distLine(params)), say(`Which calculation gives the total distance it travels from $t = 0$ to $t = ${T}$?`)], opts, true);
   },
   solution: (params) => {
-    const firstNegative = polyAt(distV(params), params.r / 2) < 0;
+    const firstNegative = evalAt(distV(params), params.r / 2) < 0;
     return [
       rootStep(params),
       {
@@ -4086,7 +5607,7 @@ const splitFlow: Generator<SplitParams> = {
 /* ---------- lesson 4: reading curved motion graphs ---------- */
 
 interface GradParams {
-  s: Poly;
+  s: Coeffs;
   t0: number;
   T: number;
 }
@@ -4102,17 +5623,17 @@ const curveGradient: Generator<GradParams> = {
     return { s, t0: rng.int(1, 4), T: 5 };
   },
   choices: ({ s, t0 }) => {
-    const v0 = polyAt(rateOf(s), t0);
-    return numChoices(v0, [polyAt(s, t0), polyAt(s, t0) / t0, polyAt(rateOf(rateOf(s)), t0), -v0]);
+    const v0 = evalAt(rateOf(s), t0);
+    return numChoices(v0, [evalAt(s, t0), evalAt(s, t0) / t0, evalAt(rateOf(rateOf(s)), t0), -v0]);
   },
   render: ({ s, t0, T }): Slide => {
-    const y0 = polyAt(s, t0);
-    const v0 = polyAt(rateOf(s), t0);
+    const y0 = evalAt(s, t0);
+    const v0 = evalAt(rateOf(s), t0);
     return {
       kind: 'expression',
       prompt: [
         say(`The graph shows a particle's displacement $s = ${tPoly(s)}$ m from $O$ against time $t$ seconds, with the tangent at $t = ${t0}$ dashed.`),
-        figure(curveSvg((t) => polyAt(s, t), T, 'A curved displacement-time graph with a dashed tangent at a marked point', { marks: [{ x: t0, y: y0 }], lines: [(t) => y0 + v0 * (t - t0)] })),
+        figure(motionSvg((t) => evalAt(s, t), T, 'A curved displacement-time graph with a dashed tangent at a marked point', { marks: [{ x: t0, y: y0 }], lines: [(t) => y0 + v0 * (t - t0)] })),
         say(`Find the gradient of the curve at $t = ${t0}$: the particle's velocity then.`),
       ],
       lead: '\\text{gradient} =',
@@ -4134,7 +5655,7 @@ const curveGradient: Generator<GradParams> = {
 
 /** A curve and the whole or half times its gradient is zero. */
 interface StationaryParams {
-  f: Poly;
+  f: Coeffs;
   /** Times the gradient is zero, in order. */
   roots: number[];
   ask: number;
@@ -4175,7 +5696,7 @@ function stationarySlider(id: string, letter: 's' | 'v'): Generator<StationaryPa
       answer: roots[ask],
       readout: 't = {v}',
       figure: {
-        svg: curveSvg((t) => polyAt(f, t), T, `A curved ${what.graph}-time graph`),
+        svg: motionSvg((t) => evalAt(f, t), T, `A curved ${what.graph}-time graph`),
         ...markerWindow(0, T),
         axis: 'x',
       },
@@ -4195,7 +5716,7 @@ const flatSlider = stationarySlider('kin-flat-slider', 's');
 const aZeroSlider = stationarySlider('kin-azero-slider', 'v');
 
 interface AreaParams {
-  v: Poly;
+  v: Coeffs;
   T: number;
 }
 
@@ -4211,20 +5732,20 @@ const curveArea: Generator<AreaParams> = {
       const T = rng.int(1, 4);
       const v = [rng.int(1, 12), difficulty > 1 ? nonZero(rng, 6) : 0, rng.pick([-3, -1, 1, 3])];
       const area = integralOf(v, 0, T);
-      if (!isTenth(area) || spanOf((t) => polyAt(v, t), T).lo < 0 || polyAt(v, T) <= 0) continue;
-      if (Array.from({ length: 41 }, (_, i) => polyAt(v, (T * i) / 40)).some((y) => y <= 0)) continue;
+      if (!isTenth(area) || spanOf((t) => evalAt(v, t), T).lo < 0 || evalAt(v, T) <= 0) continue;
+      if (Array.from({ length: 41 }, (_, i) => evalAt(v, (T * i) / 40)).some((y) => y <= 0)) continue;
       return { v, T };
     }
   },
   choices: ({ v, T }) => {
     const area = integralOf(v, 0, T);
-    return numChoices(area, [polyAt(v, T), polyAt(v, T) * T, (polyAt(v, 0) + polyAt(v, T)) * T / 2, polyAt(rateOf(v), T)]);
+    return numChoices(area, [evalAt(v, T), evalAt(v, T) * T, (evalAt(v, 0) + evalAt(v, T)) * T / 2, evalAt(rateOf(v), T)]);
   },
   render: ({ v, T }): Slide => ({
     kind: 'expression',
     prompt: [
       say(`The graph shows a particle's velocity $v = ${tPoly(v)}$ m/s against time $t$ seconds, with the area under it shaded from $t = 0$ to $t = ${T}$.`),
-      figure(curveSvg((t) => polyAt(v, t), T, 'A curved velocity-time graph with the area under it shaded', { shade: [0, T] })),
+      figure(motionSvg((t) => evalAt(v, t), T, 'A curved velocity-time graph with the area under it shaded', { shade: [0, T] })),
       say('Find the distance it travels in that time.'),
     ],
     lead: '\\text{distance} =',
@@ -4252,7 +5773,7 @@ interface GraphChoiceParams extends TurnParams {
 /** The marked times answering the question; exactly one is wanted. */
 function graphMatches(params: TurnParams & Pick<GraphChoiceParams, 'times' | 'ask'>): number[] {
   const v = turnV(params);
-  const at = params.times.map((t) => polyAt(v, t));
+  const at = params.times.map((t) => evalAt(v, t));
   const speeds = at.map(Math.abs);
   const best = Math.max(...speeds);
   switch (params.ask) {
@@ -4298,8 +5819,8 @@ const graphChoice: Generator<GraphChoiceParams> = {
       [
         say(`The graph shows a particle's displacement $s$ m from $O$ against time $t$ seconds, with three moments marked. ${question}`),
         figure(
-          curveSvg((t) => polyAt(s, t), params.T, 'A curved displacement-time graph with three marked points', {
-            marks: params.times.map((t) => ({ x: t, y: polyAt(s, t) })),
+          motionSvg((t) => evalAt(s, t), params.T, 'A curved displacement-time graph with three marked points', {
+            marks: params.times.map((t) => ({ x: t, y: evalAt(s, t) })),
             squeeze: true,
           }),
         ),
@@ -4320,7 +5841,7 @@ const graphChoice: Generator<GraphChoiceParams> = {
         }[params.ask],
       },
       { text: `The graph is $s = ${tPoly(turnS(params))}$, so $v = ${tPoly(v)}$:` },
-      { tex: aligned(...params.times.map((t) => `v(${t}) &= ${fmt(polyAt(v, t))}`)) },
+      { tex: aligned(...params.times.map((t) => `v(${t}) &= ${fmt(evalAt(v, t))}`)) },
       { text: `So the answer is $t = ${params.answer}$.` },
     ];
   },
@@ -4337,9 +5858,9 @@ interface ChainParams {
   toS: boolean;
 }
 
-const chainV = ({ k, b, u }: ChainParams): Poly => [u, b, k];
+const chainV = ({ k, b, u }: ChainParams): Coeffs => [u, b, k];
 const chainAnswer = (params: ChainParams): number =>
-  params.toS ? polyAt(growFrom(chainV(params), 0), params.T) : polyAt(chainV(params), params.T);
+  params.toS ? evalAt(growFrom(chainV(params), 0), params.T) : evalAt(chainV(params), params.T);
 
 /**
  * From the acceleration and the starting velocity to v at a given time, or at
@@ -4357,7 +5878,7 @@ const chainVelocity: Generator<ChainParams> = {
     const { k, b, u, T } = params;
     const answer = chainAnswer(params);
     const aT = 2 * k * T + b;
-    const slips = params.toS ? [answer - u * T, u * T + b * T * T + k * T ** 3, polyAt(chainV(params), T)] : [answer - u, u + b * T + 2 * k * T * T, aT];
+    const slips = params.toS ? [answer - u * T, u * T + b * T * T + k * T ** 3, evalAt(chainV(params), T)] : [answer - u, u + b * T + 2 * k * T * T, aT];
     return numChoices(answer, [...slips, -answer]);
   },
   render: (params): Slide => {
@@ -4402,7 +5923,7 @@ const chainVelocity: Generator<ChainParams> = {
 
 /** The answer's coefficients, constant first; the constant is the starting value. */
 interface IntegrateParams {
-  coeffs: Poly;
+  coeffs: Coeffs;
 }
 
 /**
@@ -4460,7 +5981,7 @@ interface StopParams {
   s0: number;
 }
 
-const stopV = ({ k, T, n }: StopParams): Poly => fromRoots(-k, [T, -n]);
+const stopV = ({ k, T, n }: StopParams): Coeffs => fromRoots(-k, [T, -n]);
 const stopDisp = (params: StopParams): number => integralOf(stopV(params), 0, params.T);
 
 /**
@@ -4597,6 +6118,30 @@ export const kinematicsGenerators: Generator<never>[] = ([
   catchTree,
   twoStageSteps,
   catchTimeGen,
+  dsDt,
+  dsTiles,
+  vAt,
+  vTable,
+  vSlider,
+  aDt,
+  aAt,
+  accelFlow,
+  aTiles,
+  vaTable,
+  expV,
+  expStart,
+  expTree,
+  expFlow,
+  intV,
+  intCTree,
+  intSTiles,
+  intVAt,
+  intSTable,
+  dispInt,
+  intervalTree,
+  distChoice,
+  distInt,
+  areaSlider,
   restTimes,
   turnPosition,
   turnFlow,
@@ -4607,7 +6152,7 @@ export const kinematicsGenerators: Generator<never>[] = ([
   intervalSpeed,
   dispIntegral,
   piecesTree,
-  distChoice,
+  distOrDisp,
   distTotal,
   splitFlow,
   curveGradient,

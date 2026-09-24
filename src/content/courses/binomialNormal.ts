@@ -13,12 +13,14 @@
  * Level 4 is the normal approximation to the binomial: why a long binomial
  * sum is worth replacing, when np and n(1 - p) are both above 5, the matching
  * N(np, np(1 - p)), the continuity correction, and the whole route to a
- * probability.
+ * probability. Level 5 combines independent normals: aX + b, X + Y and
+ * X - Y, aX + bY in general, a total of n copies against one copy times n,
+ * and a probability from the combination, P(X > Y) among them.
  *
  * nCr belongs to Binomial Expansion (`be-l2-ncr`) and is pointed at, not
- * taught again. Independence belongs to the Probability course and the mean
- * and standard deviation of data to the Data course; neither is on main yet,
- * so both are named in prose. Later levels are in
+ * taught again. Independence belongs to the Probability course
+ * (`pb-l2-independence`) and the mean and standard deviation of data to the
+ * Data course; level 5 points at the first rather than teaching it. Later levels are in
  * `docs/roadmap/levels/binomial-normal.md`.
  *
  * Each level closes with a level check: fifteen questions, no teaching
@@ -742,6 +744,170 @@ export const binomialNormal: Course = {
         ask('dist-approx-prob', 2),
         ask('dist-approx-route-tree', 2),
         ask('dist-approx-standardise-steps', 2),
+      ],
+    },
+    {
+      id: 'bn-l5',
+      title: 'Sums and Differences of Independent Normals',
+      lessons: [
+        {
+          id: 'bn-l5-linear',
+          title: 'Scaling and Shifting: aX + b',
+          slides: [
+            teach(
+              prose('$X \\sim N(\\mu, \\sigma^2)$ and $W = aX + b$: every value of $X$ is multiplied by $a$, then moved by $b$. $W$ is normal too, with'),
+              working('\\mathrm{E}(aX + b) &= a\\mathrm{E}(X) + b', '\\mathrm{Var}(aX + b) &= a^2\\,\\mathrm{Var}(X)'),
+              prose('Adding $b$ slides the curve along and leaves its spread alone. Multiplying by $a$ stretches every distance from the mean by $a$, so $\\sigma$ is multiplied by $|a|$ and the variance by $a^2$.'),
+            ),
+            ask('dist-lin-moment'),
+            ask('dist-lin-normal'),
+            ask('dist-lin-spread-tree'),
+            teach(
+              prose('$X \\sim N(20, 9)$ and $W = 3X + 5$:'),
+              working('\\mathrm{E}(W) &= 3 \\times 20 + 5 = 65', '\\mathrm{Var}(W) &= 3^2 \\times 9 = 81', '\\sigma_W &= \\sqrt{81} = 9'),
+              prose('So $W \\sim N(65, 81)$: $\\sigma$ went from $3$ to $9$, three times as wide, and the $5$ played no part in it.'),
+            ),
+            ask('dist-lin-effect-flow'),
+            ask('dist-lin-moment', 2),
+            ask('dist-lin-normal', 2),
+            teach(
+              prose('A negative $a$ flips the curve over as well as stretching it. The variance still takes $a^2$, which is positive, and $\\sigma$ takes $|a|$: a spread is never negative.'),
+            ),
+            ask('dist-lin-spread-tree', 2),
+            ask('dist-lin-effect-flow', 2),
+          ],
+          skillCheck: [ask('dist-lin-moment', 2), ask('dist-lin-normal', 2), ask('dist-lin-spread-tree', 2)],
+        },
+        {
+          id: 'bn-l5-sum',
+          title: 'X + Y and X − Y',
+          slides: [
+            teach(
+              prose('For **independent** $X$ and $Y$ (Probability level 2, Independent Events), a sum or a difference of normals is normal, with'),
+              working('\\mathrm{E}(X \\pm Y) &= \\mathrm{E}(X)', '&\\quad \\pm \\mathrm{E}(Y)', '\\mathrm{Var}(X \\pm Y) &= \\mathrm{Var}(X)', '&\\quad + \\mathrm{Var}(Y)'),
+              prose('The means follow the sign. The variances **always add**.'),
+            ),
+            ask('dist-sum-moment'),
+            ask('dist-sum-normal'),
+            ask('dist-sum-table'),
+            teach(
+              prose('Why not $\\mathrm{Var}(X) - \\mathrm{Var}(Y)$? Taking $Y$ away does not take its uncertainty away. $X - Y$ is $X + (-1)Y$, and $(-1)^2 = 1$, so $\\mathrm{Var}(Y)$ is added.'),
+              prose('If variances subtracted, two variables with the same spread would leave $X - Y$ with no spread at all, and that cannot be right.'),
+            ),
+            ask('dist-sum-var-tiles'),
+            ask('dist-sum-moment+choice', 2),
+            ask('dist-sum-normal', 2),
+            teach(
+              prose("An apple's mass is $X \\sim N(160, 36)$ and an orange's is $Y \\sim N(190, 64)$, in grams, independently:"),
+              working('\\mathrm{E}(X - Y) &= 160 - 190', '&= -30', '\\mathrm{Var}(X - Y) &= 36 + 64', '&= 100'),
+              prose('So $X - Y \\sim N(-30, 100)$, with $\\sigma = 10$.'),
+            ),
+            ask('dist-sum-table', 2),
+            ask('dist-sum-var-tiles', 2),
+          ],
+          skillCheck: [ask('dist-sum-moment', 2), ask('dist-sum-normal', 2), ask('dist-sum-var-tiles', 2)],
+        },
+        {
+          id: 'bn-l5-combination',
+          title: 'aX + bY in General',
+          slides: [
+            teach(
+              prose('Scale each variable first, then combine. For independent normals $X$ and $Y$:'),
+              working('\\mathrm{E}(aX + bY) &= a\\mathrm{E}(X)', '&\\quad + b\\mathrm{E}(Y)', '\\mathrm{Var}(aX + bY) &= a^2\\,\\mathrm{Var}(X)', '&\\quad + b^2\\,\\mathrm{Var}(Y)'),
+              prose('and $aX + bY$ is normal. A negative $b$ still adds its variance, since $b^2$ is positive, and a constant on the end moves only the mean.'),
+            ),
+            ask('dist-combo-moment'),
+            ask('dist-combo-normal'),
+            ask('dist-combo-var-steps'),
+            teach(
+              prose('$X \\sim N(30, 9)$ and $Y \\sim N(20, 16)$ are independent, and $W = 2X - 2Y + 5$:'),
+              working('\\mathrm{E}(W) &= 2 \\times 30', '&\\quad - 2 \\times 20 + 5', '&= 25', '\\mathrm{Var}(W) &= 2^2 \\times 9', '&\\quad + (-2)^2 \\times 16', '&= 100'),
+              prose('So $W \\sim N(25, 100)$, and $\\sigma_W = 10$.'),
+            ),
+            ask('dist-combo-build'),
+            ask('dist-combo-moment+choice', 2),
+            ask('dist-combo-normal', 2),
+            teach(
+              prose('Check the second number: $N(\\mu, \\sigma^2)$ holds the variance. Writing $\\sigma$ there, or $a\\,\\mathrm{Var}(X)$ without squaring the $a$, are the two usual slips.'),
+            ),
+            ask('dist-combo-var-steps', 2),
+            ask('dist-combo-build', 2),
+          ],
+          skillCheck: [ask('dist-combo-moment', 2), ask('dist-combo-normal', 2), ask('dist-combo-build', 2)],
+        },
+        {
+          id: 'bn-l5-totals',
+          title: 'A Total of n Copies',
+          slides: [
+            teach(
+              prose('A box holds four bags of flour, each $N(1000, 25)$ in grams, independently. Their total is four separate masses:'),
+              maths('T = X_1 + X_2 + X_3 + X_4'),
+              working('\\mathrm{E}(T) &= 4 \\times 1000 = 4000', '\\mathrm{Var}(T) &= 25 + 25 + 25 + 25', '&= 4 \\times 25 = 100'),
+            ),
+            ask('dist-total-moment'),
+            ask('dist-total-normal'),
+            ask('dist-total-table'),
+            teach(
+              prose('One bag weighed once, with the reading multiplied by $4$, is $4X$, and that is different: every error in the one reading is multiplied by $4$ too.'),
+              working('\\mathrm{Var}(4X) &= 4^2 \\times 25 = 400'),
+              prose('Four separate bags have errors that partly cancel, so $4\\sigma^2$ is less than $16\\sigma^2$. The means are both $4\\mu$.'),
+            ),
+            ask('dist-total-flow'),
+            ask('dist-total-moment+choice', 2),
+            ask('dist-total-normal', 2),
+            teach(
+              prose('Ask whether the $n$ values are separate. A total of $n$ copies has variance $n\\sigma^2$ and standard deviation $\\sigma\\sqrt{n}$; one value multiplied by $n$ has $n^2\\sigma^2$ and $n\\sigma$.'),
+            ),
+            ask('dist-total-table', 2),
+            ask('dist-total-flow', 2),
+          ],
+          skillCheck: [ask('dist-total-moment', 2), ask('dist-total-normal', 2), ask('dist-total-flow', 2)],
+        },
+        {
+          id: 'bn-l5-probability',
+          title: 'A Probability from the Combination',
+          slides: [
+            teach(
+              prose('Once a combination has its normal, a probability is found as in level 2: standardise with its own mean and $\\sigma$, then read $\\Phi$.'),
+              prose('$X \\sim N(40, 9)$ and $Y \\sim N(30, 16)$ are independent, so $X + Y \\sim N(70, 25)$ and $\\sigma = 5$. With $\\Phi(1) = 0.8413$:'),
+              working('z &= \\frac{75 - 70}{5} = 1', '& P(X + Y > 75)', '&= 1 - \\Phi(1)', '&= 0.1587'),
+            ),
+            ask('dist-combo-prob'),
+            ask('dist-diff-plan'),
+            ask('dist-bigger-prob'),
+            teach(
+              prose('Which is bigger? $P(X > Y)$ is $P(X - Y > 0)$. Let $D = X - Y$, find its normal, and standardise $0$.'),
+              prose("An apple's mass is $X \\sim N(160, 36)$ and an orange's is $Y \\sim N(170, 64)$. Then $D \\sim N(-10, 100)$ and $\\sigma_D = 10$:"),
+              working('z &= \\frac{0 - (-10)}{10} = 1', 'P(D > 0) &= 1 - \\Phi(1)', '&= 0.1587'),
+            ),
+            ask('dist-diff-route-tree'),
+            ask('dist-combo-prob+choice', 2),
+            ask('dist-bigger-prob', 2),
+            teach(
+              prose('Check the side: when $\\mathrm{E}(D)$ is below $0$, $P(D > 0)$ is under a half, and when it is above $0$, over a half. The mean of a sample, $\\bar{X}$, is a total divided by $n$, and it is the next level.'),
+            ),
+            ask('dist-diff-plan', 2),
+            ask('dist-diff-route-tree', 2),
+          ],
+          skillCheck: [ask('dist-combo-prob', 2), ask('dist-bigger-prob', 2), ask('dist-diff-route-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('dist-lin-moment', 2),
+        ask('dist-lin-normal', 2),
+        ask('dist-lin-effect-flow', 2),
+        ask('dist-sum-moment', 2),
+        ask('dist-sum-var-tiles', 2),
+        ask('dist-sum-table', 2),
+        ask('dist-combo-moment', 2),
+        ask('dist-combo-var-steps', 2),
+        ask('dist-combo-build', 2),
+        ask('dist-total-moment', 2),
+        ask('dist-total-table', 2),
+        ask('dist-total-flow', 2),
+        ask('dist-combo-prob', 2),
+        ask('dist-bigger-prob', 2),
+        ask('dist-diff-route-tree', 2),
       ],
     },
   ],

@@ -30,6 +30,14 @@
  * every rig that comes out tidy, built once on first use, since with g = 9.8
  * the tidy cases are sparse.
  *
+ * Level 4 (moments) cannot use the widget, which draws every arrow from the
+ * centre of one box, so a force part-way along a rod has nowhere to go. Its
+ * rods, planks and ladders are file-local SVG, `beamSvg` and `ladderSvg`, with
+ * each force drawn from the point it acts at. Distances are whole or half
+ * metres and forces whole newtons (or whole kilograms, where g cancels or is
+ * stated), and every reaction or distance found by dividing is drawn again
+ * until it is exact. Nothing here is calculus, so no slide declares `source`.
+ *
  * Level 5 (momentum and impulse) keeps velocities whole and masses whole or
  * halves, building each velocity after a collision, common velocity or force
  * from the others and drawing again until it is exact. A collision is drawn
@@ -6598,6 +6606,1395 @@ const ftTable: Generator<FtTableParams> = {
  * ================================================================ */
 
 /** Every generator by name, typed, for `forces.test.ts`. */
+/* ================================================================
+ * Level 4: Moments
+ * ================================================================ */
+
+/*
+ * A beam here is a rod or plank AB, horizontal, measured in metres from A.
+ * Every distance is a whole or a half metre and every force a whole number of
+ * newtons, so a moment is exact to one place; a reaction or a distance that
+ * comes from dividing by one is drawn again through `until` until it is exact
+ * too. A weight is always drawn down, a support's reaction always up, so which
+ * way a force turns is read from which side of the point it acts on.
+ */
+
+/** Half metres from `lo` to `hi`. */
+const halves = (lo: number, hi: number): number[] => range(lo, hi, 0.5);
+
+/** On the half-metre lattice every distance here sits on. */
+const onHalf = (v: number): boolean => exact(v * 2, 0);
+
+/**
+ * Whether points on a beam of length L sit far enough apart for their labels:
+ * a ninth of the beam is about 25 pixels on the picture, clear of a letter.
+ */
+const spread = (xs: number[], L: number): boolean => {
+  const sorted = [...xs].sort((a, b) => a - b);
+  return sorted.every((x, i) => i === 0 || x - sorted[i - 1] >= L / 9 - 1e-9);
+};
+
+/** A distance in metres, in prose. */
+const metres = (v: number): string => `$${fmt(v)}\\text{ m}$`;
+
+/** A force in newtons, in prose. */
+const newtons = (v: number): string => `$${fmt(v)}\\text{ N}$`;
+
+/** Where a point sits on AB, in prose: at an end, or how far from A. */
+const placed = (x: number, L: number): string => (x === 0 ? 'at $A$' : x === L ? 'at $B$' : `${metres(x)} from $A$`);
+
+/* ---------- Pictures ---------- */
+
+/** A force on a beam, drawn from the point it acts at. */
+export interface BeamArrow {
+  x: number;
+  /** A weight, straight down; a reaction, straight up; or a pull at an angle to the beam, leaning towards B (1) or A (-1). */
+  dir: 'down' | 'up' | { t: Angle; lean: 1 | -1 };
+  /** A letter, with an optional subscript after `_`: `R_C`. */
+  label: string;
+}
+
+const BEAM_W = 300;
+const BEAM_X0 = 36;
+const BEAM_X1 = 264;
+
+/** The span a slider's marker declares over `beamSvg`, so that 0 sits on A and L on B. */
+export function beamWindow(L: number): { xMin: number; xMax: number } {
+  const per = L / (BEAM_X1 - BEAM_X0);
+  return { xMin: -BEAM_X0 * per, xMax: L + (BEAM_W - BEAM_X1) * per };
+}
+
+/** Plain SVG text, italic, with `R_C` drawn as R and a small C. KaTeX cannot go in an SVG. */
+function svgText(x: number, y: number, label: string, anchor: 'start' | 'middle' | 'end' = 'middle'): string {
+  const [main, sub] = label.split('_');
+  const body = sub ? `${main}<tspan dy="3" font-size="9">${sub}</tspan>` : main;
+  return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="currentColor" font-size="13" font-style="italic" text-anchor="${anchor}" dominant-baseline="central">${body}</text>`;
+}
+
+/** A line with a head at `to`, in the accent colour. */
+function svgArrow(from: Pt, to: Pt): string {
+  const f = (v: number) => v.toFixed(1);
+  const angle = Math.atan2(to[1] - from[1], to[0] - from[0]);
+  const head = (turn: number) =>
+    `<line x1="${f(to[0])}" y1="${f(to[1])}" x2="${f(to[0] - 9 * Math.cos(angle + turn))}" y2="${f(to[1] - 9 * Math.sin(angle + turn))}" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />`;
+  return [
+    `<line x1="${f(from[0])}" y1="${f(from[1])}" x2="${f(to[0])}" y2="${f(to[1])}" class="plot-accent" stroke="currentColor" stroke-width="2.5" />`,
+    head(0.4),
+    head(-0.4),
+  ].join('');
+}
+
+/**
+ * A beam AB drawn to scale on knife-edge supports, each force from where it
+ * acts: a weight down from the top of the beam, a reaction up from it, a pull
+ * up at its angle. The letters say which is which; the numbers are in the
+ * prose, since a label per value would collide on a short beam.
+ */
+export function beamSvg(L: number, opts: { supports?: { x: number; name: string }[]; arrows?: BeamArrow[]; label: string }): string {
+  const TOP = 64;
+  const BOTTOM = 72;
+  const LEN = 38;
+  const X = (v: number) => BEAM_X0 + (v / L) * (BEAM_X1 - BEAM_X0);
+  const f = (v: number) => v.toFixed(1);
+  const parts = [
+    `<svg viewBox="0 0 ${BEAM_W} 116" width="100%" role="img" aria-label="${opts.label}">`,
+    `<rect x="${BEAM_X0}" y="${TOP}" width="${BEAM_X1 - BEAM_X0}" height="${BOTTOM - TOP}" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.5" />`,
+    svgText(BEAM_X0 - 9, (TOP + BOTTOM) / 2, 'A', 'end'),
+    svgText(BEAM_X1 + 9, (TOP + BOTTOM) / 2, 'B', 'start'),
+  ];
+  for (const { x, name } of opts.supports ?? []) {
+    const at = X(x);
+    parts.push(
+      `<polygon points="${f(at)},${BOTTOM} ${f(at - 9)},${BOTTOM + 16} ${f(at + 9)},${BOTTOM + 16}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />`,
+    );
+    if (name) parts.push(svgText(at, BOTTOM + 28, name));
+  }
+  for (const { x, dir, label } of opts.arrows ?? []) {
+    const at = X(x);
+    if (dir === 'down') {
+      parts.push(svgArrow([at, TOP - LEN], [at, TOP]), svgText(at, TOP - LEN - 9, label));
+    } else if (dir === 'up') {
+      parts.push(svgArrow([at, TOP], [at, TOP - LEN]), svgText(at, TOP - LEN - 9, label));
+    } else {
+      const { t, lean } = dir;
+      const u: Pt = [lean * cosOf(t), -sinOf(t)];
+      const head: Pt = [at + LEN * u[0], TOP + LEN * u[1]];
+      const r = 15;
+      const half = Math.atan2(t.o, t.a) / 2;
+      parts.push(
+        svgArrow([at, TOP], head),
+        svgText(head[0] + 10 * u[0], head[1] + 10 * u[1] - 2, label),
+        `<path d="M ${f(at + lean * r)} ${TOP} A ${r} ${r} 0 0 ${lean > 0 ? 0 : 1} ${f(at + lean * r * cosOf(t))} ${f(TOP - r * sinOf(t))}" fill="none" stroke="currentColor" stroke-width="1" opacity="0.7" />`,
+        svgText(at + lean * 25 * Math.cos(half), TOP - 25 * Math.sin(half), 'θ'),
+      );
+    }
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/**
+ * A ladder AB at its true angle, its foot A on the ground and its top B
+ * against a wall, with the forces on it: its weight at the middle, a person's
+ * weight part-way up, the wall's push S at right angles to the wall, and at the
+ * foot the ground's reaction R and the friction F towards the wall.
+ */
+export function ladderSvg(t: Angle, opts: { person?: number } = {}): string {
+  const GROUND = 176;
+  const WALL = 206;
+  const LP = 158;
+  const LEN = 34;
+  const f = (v: number) => v.toFixed(1);
+  const foot: Pt = [WALL - LP * cosOf(t), GROUND];
+  const top: Pt = [WALL, GROUND - LP * sinOf(t)];
+  const up = (k: number): Pt => [foot[0] + k * (top[0] - foot[0]), foot[1] + k * (top[1] - foot[1])];
+  const mid = up(0.5);
+  const tilt = Math.atan2(t.o, t.a);
+  const r = 24;
+  const parts = [
+    `<svg viewBox="0 0 240 206" width="100%" role="img" aria-label="A ladder with its foot A on rough ground and its top B against a smooth wall, its weight W at the middle${
+      opts.person === undefined ? '' : ' and a person\'s weight P part-way up'
+    }, the wall's push S, and at the foot the ground's reaction R and friction F towards the wall">`,
+    `<line x1="0" y1="${GROUND}" x2="${WALL}" y2="${GROUND}" stroke="currentColor" stroke-width="1.5" />`,
+    `<line x1="${WALL}" y1="4" x2="${WALL}" y2="${GROUND}" stroke="currentColor" stroke-width="1.5" />`,
+    ...range(0, 7).map((k) => `<line x1="${WALL}" y1="${f(10 + k * 24)}" x2="${WALL + 8}" y2="${f(2 + k * 24)}" stroke="currentColor" stroke-width="1" opacity="0.5" />`),
+    `<line x1="${f(foot[0])}" y1="${f(foot[1])}" x2="${f(top[0])}" y2="${f(top[1])}" stroke="currentColor" stroke-width="4" stroke-linecap="round" />`,
+    `<path d="M ${f(foot[0] + r)} ${GROUND} A ${r} ${r} 0 0 0 ${f(foot[0] + r * cosOf(t))} ${f(GROUND - r * sinOf(t))}" fill="none" stroke="currentColor" stroke-width="1" opacity="0.7" />`,
+    svgText(foot[0] + 34 * Math.cos(tilt / 2), GROUND - 34 * Math.sin(tilt / 2), 'α'),
+    svgArrow(mid, [mid[0], mid[1] + LEN]),
+    svgText(mid[0], mid[1] + LEN + 9, 'W'),
+    svgArrow(top, [top[0] - LEN, top[1]]),
+    svgText(top[0] - LEN - 9, top[1], 'S', 'end'),
+    svgArrow(foot, [foot[0], foot[1] - LEN]),
+    svgText(foot[0], foot[1] - LEN - 9, 'R'),
+    svgArrow([foot[0], GROUND + 14], [foot[0] + LEN, GROUND + 14]),
+    svgText(foot[0] + LEN + 9, GROUND + 14, 'F', 'start'),
+    svgText(foot[0] - 9, GROUND + 14, 'A', 'end'),
+    svgText(top[0] - 8, top[1] - 10, 'B', 'end'),
+  ];
+  if (opts.person !== undefined) {
+    const p = up(opts.person);
+    parts.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="4" fill="currentColor" />`, svgArrow(p, [p[0], p[1] + LEN]), svgText(p[0] + 9, p[1] + LEN, 'P', 'start'));
+  }
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/* ---------- The moment of one force ---------- */
+
+interface MomentParams {
+  F: number;
+  /** How far along the rod from the pivot at A the force acts. */
+  d: number;
+  L: number;
+  /** The angle to the rod, or null at right angles. */
+  t: Angle | null;
+  hard: boolean;
+}
+
+const MOMENT_ANGLES = [A34, A43, A724, A247];
+
+/** Expression: the moment of a force about a pivot, at right angles or at an angle to the rod. */
+const moment: Generator<MomentParams> = {
+  id: 'force-moment',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const d = rng.pick(halves(0.5, hard ? 6 : 4));
+    return {
+      F: hard ? rng.int(1, 20) * 5 : rng.int(4, 60),
+      d,
+      L: d + rng.pick([0, 0, 0.5, 1]),
+      t: hard && rng.chance(0.75) ? rng.pick(MOMENT_ANGLES) : null,
+      hard,
+    };
+  },
+  render: ({ F, d, L, t }) => {
+    const how = t ? `at an angle $\\theta$ to the rod, where ${angleFacts(t, false, '\\theta')}` : 'at right angles to the rod';
+    return typed(
+      [
+        say(
+          `A light rod $AB$, of length ${metres(L)}, is free to turn about a pivot at $A$. A force of ${newtons(F)} acts on it ${d === L ? 'at $B$' : `${metres(d)} from $A$`}, ${how}. Find the moment of the force about $A$, in $\\text{N m}$.`,
+        ),
+        picture(
+          beamSvg(L, {
+            supports: [{ x: 0, name: '' }],
+            arrows: [{ x: d, dir: t ? { t, lean: 1 } : 'up', label: 'F' }],
+            label: `A rod pivoted at its left end A, with a force F pulling ${t ? 'up at an angle' : 'straight up'} partway along it`,
+          }),
+        ),
+      ],
+      'M =',
+      F * (t ? sinOf(t) : 1) * d,
+    );
+  },
+  solution: ({ F, d, t }) =>
+    t
+      ? [
+          { text: 'Only the part of the force at right angles to the rod turns it; the part along the rod pulls straight through the pivot.' },
+          { tex: `F\\sin\\theta = ${fmt(F)} \\times ${fmt(sinOf(t))} = ${fmt(F * sinOf(t))}` },
+          { tex: `M = ${fmt(F * sinOf(t))} \\times ${fmt(d)} = ${fmt(F * sinOf(t) * d)}` },
+        ]
+      : [
+          { text: 'The moment is the force times its perpendicular distance from the pivot:' },
+          { tex: `M = ${fmt(F)} \\times ${fmt(d)} = ${fmt(F * d)}` },
+        ],
+  choices: ({ F, d, L, t }) => {
+    const s = t ? sinOf(t) : 1;
+    const c = t ? cosOf(t) : 0;
+    return valueChoices(F * s * d, [F * d, F * c * d, (F * s) / d, F * s * (d + 0.5), F * s + d], mix(F, d * 2, L * 2, t ? t.o : 0));
+  },
+};
+
+/* ---------- Several forces about one point ---------- */
+
+interface TurnForce {
+  x: number;
+  F: number;
+  up: boolean;
+}
+
+interface TurningParams {
+  L: number;
+  /** The pivot, from A. */
+  p: number;
+  forces: TurnForce[];
+  hard: boolean;
+}
+
+/** The moment of one force about the pivot, clockwise positive. */
+const turnOf = (p: number, { x, F, up }: TurnForce): number => (up ? -1 : 1) * F * (x - p);
+
+/** A light rod on a pivot with two forces (three when hard) at right angles to it, turning either way. */
+function sampleTurning(rng: Rng, hard: boolean): TurningParams {
+  return until(
+    (): TurningParams => {
+      const L = rng.int(hard ? 4 : 2, hard ? 8 : 6);
+      const spots = halves(0, L);
+      const p = rng.pick(spots.filter((x) => x > 0 && x < L));
+      const xs = new Set<number>();
+      const forces: TurnForce[] = [];
+      while (forces.length < (hard ? 3 : 2)) {
+        const x = rng.pick(spots.filter((v) => v !== p && !xs.has(v)));
+        xs.add(x);
+        forces.push({ x, F: rng.int(hard ? 4 : 2, hard ? 40 : 30), up: rng.chance(0.4) });
+      }
+      return { L, p, forces: forces.sort((a, b) => a.x - b.x), hard };
+    },
+    ({ L, p, forces }) => {
+      const turns = forces.map((force) => turnOf(p, force));
+      const net = turns.reduce((s, v) => s + v, 0);
+      // Both senses present, so the sum is a difference, and never nothing.
+      return Math.abs(net) >= 1 && turns.some((v) => v > 0) && turns.some((v) => v < 0) && spread(forces.map((f) => f.x), L);
+    },
+  );
+}
+
+/** In prose: each force's size, which way it pushes, and where. */
+function turningScene({ L, p, forces }: TurningParams): string {
+  const each = forces.map((force, i) => `$F_{${i + 1}} = ${fmt(force.F)}\\text{ N}$ ${force.up ? 'upwards' : 'downwards'} ${placed(force.x, L)}`);
+  const list = `${each.slice(0, -1).join(', ')} and ${each[each.length - 1]}`;
+  return `A light rod $AB$, of length ${metres(L)}, is free to turn about a pivot $P$, ${metres(p)} from $A$, and is held horizontal. Forces act on it at right angles: ${list}.`;
+}
+
+function turningPicture({ L, p, forces }: TurningParams): Block {
+  return picture(
+    beamSvg(L, {
+      supports: [{ x: p, name: 'P' }],
+      arrows: forces.map((force, i) => ({ x: force.x, dir: force.up ? 'up' : 'down', label: `F_${i + 1}` })),
+      label: `A rod on a pivot P, with ${forces.length} forces at right angles to it, up or down`,
+    }),
+  );
+}
+
+/** One line of working per force: its moment and the way it turns. */
+function turningLines({ p, forces }: TurningParams): SolutionStep[] {
+  return forces.map((force, i) => {
+    const m = turnOf(p, force);
+    return {
+      text: `$F_{${i + 1}}$ acts $${fmt(Math.abs(force.x - p))}\\text{ m}$ ${force.x < p ? 'left' : 'right'} of $P$ and pushes ${force.up ? 'up' : 'down'}: $${fmt(force.F)} \\times ${fmt(Math.abs(force.x - p))} = ${fmt(Math.abs(m))}\\text{ N m}$ ${m > 0 ? 'clockwise' : 'anticlockwise'}.`,
+    };
+  });
+}
+
+const senseTex = (m: number): string => `${fmt(Math.abs(m))}\\text{ N m ${m > 0 ? 'clockwise' : 'anticlockwise'}}`;
+
+/** Choice: the resultant moment about the pivot, its size and which way it turns. */
+const momentSense: Generator<TurningParams> = {
+  id: 'force-moment-sense',
+  sample: (rng, difficulty) => sampleTurning(rng, difficulty > 1),
+  render: (params) => {
+    const { p, forces } = params;
+    const net = forces.reduce((s, force) => s + turnOf(p, force), 0);
+    const total = forces.reduce((s, force) => s + Math.abs(turnOf(p, force)), 0);
+    // Distances taken from A rather than from the pivot.
+    const fromA = forces.reduce((s, force) => s + (force.up ? -1 : 1) * force.F * force.x, 0);
+    const wrong = [-net, total * Math.sign(net), -total * Math.sign(net), fromA, -fromA, net + Math.sign(net) * 10, net * 2];
+    const seen = new Set([senseTex(net)]);
+    const picked: number[] = [];
+    for (const v of wrong) {
+      if (picked.length === 3 || v === 0 || seen.has(senseTex(v))) continue;
+      seen.add(senseTex(v));
+      picked.push(v);
+    }
+    return choiceSlide(
+      [say(`${turningScene(params)} Find the resultant moment about $P$.`), turningPicture(params)],
+      options({ tex: senseTex(net) }, ...picked.map((v) => ({ tex: senseTex(v) }))),
+    );
+  },
+  solution: (params) => {
+    const turns = params.forces.map((force) => turnOf(params.p, force));
+    const cw = turns.filter((v) => v > 0).reduce((s, v) => s + v, 0);
+    const acw = -turns.filter((v) => v < 0).reduce((s, v) => s + v, 0);
+    const net = cw - acw;
+    return [
+      ...turningLines(params),
+      { tex: `\\text{clockwise } ${fmt(cw)}, \\quad \\text{anticlockwise } ${fmt(acw)}` },
+      { text: `The ${net > 0 ? 'clockwise' : 'anticlockwise'} total is bigger, so the resultant turns that way:` },
+      { tex: `${fmt(Math.max(cw, acw))} - ${fmt(Math.min(cw, acw))} = ${fmt(Math.abs(net))}` },
+    ];
+  },
+};
+
+/** Table: each force's perpendicular distance from the pivot and its moment. */
+const momentTable: Generator<TurningParams> = {
+  id: 'force-moment-table',
+  sample: (rng, difficulty) => sampleTurning(rng, difficulty > 1),
+  render: (params) => {
+    const { p, forces, hard } = params;
+    const answer: number[] = [];
+    const blank = (v: number) => {
+      answer.push(v);
+      return null;
+    };
+    const rows = forces.map((force, i) => {
+      const d = Math.abs(force.x - p);
+      return [`F_{${i + 1}}`, fmt(force.F), hard ? blank(d) : fmt(d), blank(force.F * d)];
+    });
+    const slips = forces.flatMap((force) => [force.F * force.x, force.x, force.F + Math.abs(force.x - p)]);
+    return {
+      kind: 'table',
+      prompt: [
+        say(turningScene(params)),
+        say(
+          `For each force fill in ${hard ? 'its perpendicular distance $d$ from $P$, in metres, and ' : ''}the size of its moment about $P$, in $\\text{N m}$.${hard ? '' : ' The distances $d$ from $P$ are given.'}`,
+        ),
+        turningPicture(params),
+      ],
+      columns: ['', 'F', 'd', 'Fd'],
+      rows,
+      bank: valueBank(answer, slips.filter((v) => v > 0 && !answer.some((a) => fmt(a) === fmt(v)))),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => [
+    { text: 'Each distance is measured from the pivot, not from $A$: the gap between where the force acts and $P$.' },
+    ...turningLines(params),
+  ],
+};
+
+/** Steps: the resultant moment about the pivot, every product and then the sum, one reduction at a time. */
+const momentSumSteps: Generator<TurningParams> = {
+  id: 'force-moment-sum-steps',
+  sample: (rng, difficulty) => sampleTurning(rng, difficulty > 1),
+  render: (params) => {
+    const { p, forces } = params;
+    const net = forces.reduce((s, force) => s + turnOf(p, force), 0);
+    const sense = net > 0 ? 'clockwise' : 'anticlockwise';
+    // The winning sense first, so the line only ever takes away.
+    const terms = forces
+      .map((force) => ({ F: force.F, d: Math.abs(force.x - p), sign: Math.sign(turnOf(p, force)) * Math.sign(net) }))
+      .sort((a, b) => b.sign - a.sign);
+    const start = terms.flatMap((term, j) => [...(j === 0 ? [] : [term.sign > 0 ? '+' : '-']), fmt(term.F), '\\times', fmt(term.d)]);
+    const moves: Collapse[] = terms.map((term, j) => ({ op: 2 * j + 1, value: term.F * term.d, wrong: [term.F + term.d, term.F * (term.d + 1), term.F * term.d * 2] }));
+    let running = terms[0].F * terms[0].d;
+    for (const term of terms.slice(1)) {
+      const m = term.F * term.d;
+      const next = running + term.sign * m;
+      moves.push({ op: 1, value: next, wrong: [running - term.sign * m, next + 10, Math.abs(next - 1)] });
+      running = next;
+    }
+    return {
+      kind: 'steps',
+      prompt: [
+        say(turningScene(params)),
+        say(
+          `Taking ${sense} as positive, the resultant moment about $P$, in $\\text{N m}$, is the line below: each force times its distance from $P$. Work it out: tap the part to do next, then choose what it comes to.`,
+        ),
+        turningPicture(params),
+      ],
+      start,
+      reductions: collapses(moves),
+    };
+  },
+  solution: (params) => {
+    const net = params.forces.reduce((s, force) => s + turnOf(params.p, force), 0);
+    return [
+      ...turningLines(params),
+      { text: `Moments the same way add, and the other way take away, so the resultant is $${fmt(Math.abs(net))}\\text{ N m}$ ${net > 0 ? 'clockwise' : 'anticlockwise'}.` },
+    ];
+  },
+};
+
+/* ---------- A beam on two supports ---------- */
+
+/** A downward load: a weight in newtons at a distance from A. */
+export interface Load {
+  x: number;
+  w: number;
+  /** Who or what it is, in prose: `a child`. */
+  who: string;
+  /** Its letter on the picture. */
+  name: string;
+}
+
+/** A uniform beam AB of length L and weight W, on supports at C and D (C nearer A), with loads on it. */
+export interface Beam {
+  L: number;
+  W: number;
+  c: number;
+  d: number;
+  loads: Load[];
+}
+
+/** Every downward force on a beam: its own weight at the middle, then each load. */
+const downOf = (b: Beam): Load[] => [{ x: b.L / 2, w: b.W, who: 'weight', name: 'W' }, ...b.loads];
+
+/** The reactions at C and D: moments about C for D's, then resolving for C's. */
+export function reactionsOf(b: Beam): { RC: number; RD: number } {
+  const turn = downOf(b).reduce((s, l) => s + l.w * (l.x - b.c), 0);
+  const RD = turn / (b.d - b.c);
+  const total = downOf(b).reduce((s, l) => s + l.w, 0);
+  return { RC: total - RD, RD };
+}
+
+/** Both reactions positive, with room to spare, and exact to one place. */
+const restsFirmly = (b: Beam): boolean => {
+  const { RC, RD } = reactionsOf(b);
+  return RC >= 5 && RD >= 5 && exact(RC, 1) && exact(RD, 1);
+};
+
+const PEOPLE = ['a child', 'a painter', 'a gymnast', 'a builder', 'a student', 'a window cleaner'];
+const BOXES = ['a box', 'a crate', 'a paint tin', 'a bag of tools', 'a bucket of sand'];
+
+/** The beam in prose: its length, weight and supports, then each load. */
+function beamScene(b: Beam, thing: 'rod' | 'plank'): string {
+  const supports =
+    b.c === 0 && b.d === b.L
+      ? 'rests horizontally on two supports, $C$ at $A$ and $D$ at $B$'
+      : `rests horizontally on two supports, $C$ ${placed(b.c, b.L)} and $D$ ${placed(b.d, b.L)}`;
+  const loads = b.loads.map((l) => ` ${l.who[0].toUpperCase()}${l.who.slice(1)} of weight ${newtons(l.w)} ${l.name === 'P' ? 'stands' : 'rests'} ${placed(l.x, b.L)}.`);
+  return `A uniform ${thing} $AB$, of length ${metres(b.L)} and weight ${newtons(b.W)}, ${supports}.${loads.join('')}`;
+}
+
+/** The beam drawn with its supports, its weight and its loads, and optionally the reactions. */
+function beamPicture(b: Beam, opts: { reactions?: boolean; without?: 'D' } = {}): Block {
+  return picture(
+    beamSvg(b.L, {
+      supports: [{ x: b.c, name: 'C' }, ...(opts.without === 'D' ? [] : [{ x: b.d, name: 'D' }])],
+      arrows: [
+        ...downOf(b).map((l): BeamArrow => ({ x: l.x, dir: 'down', label: l.name })),
+        ...(opts.reactions
+          ? [
+              { x: b.c, dir: 'up', label: 'R_C' } as BeamArrow,
+              ...(opts.without === 'D' ? [] : [{ x: b.d, dir: 'up', label: 'R_D' } as BeamArrow]),
+            ]
+          : []),
+      ],
+      label: `A horizontal beam AB on ${opts.without === 'D' ? 'a support C' : 'supports C and D'}, with its weight W at the middle${b.loads.length ? ` and ${b.loads.map((l) => l.name).join(' and ')} on it` : ''}`,
+    }),
+  );
+}
+
+/** The two supports: one at an end when easy, both in from the ends when hard, either side of the middle. */
+function supportsFor(rng: Rng, L: number, hard: boolean): [number, number] {
+  if (hard) return [rng.pick(halves(0.5, L / 2 - 0.5)), rng.pick(halves(L / 2 + 0.5, L - 0.5))];
+  return rng.chance(0.5) ? [0, rng.pick(halves(L / 2 + 0.5, L))] : [rng.pick(halves(0, L / 2 - 0.5)), L];
+}
+
+/** Moments about C, `R_D x gap = sum`, then resolving, worked out. */
+function beamWorking(b: Beam, find: 'RC' | 'RD'): SolutionStep[] {
+  const { RC, RD } = reactionsOf(b);
+  const terms = downOf(b).map((l) => ({ l, lever: l.x - b.c }));
+  const total = downOf(b).reduce((s, l) => s + l.w, 0);
+  const sum = terms.reduce((s, { l, lever }) => s + l.w * lever, 0);
+  const lhs = terms.map(({ l, lever }) => `${fmt(l.w)} \\times ${fmt(lever)}`).join(' + ');
+  return [
+    { text: `Take moments about $C$: $R_{C}$ acts there, so it has no moment and drops out. Each weight turns the ${b.loads.length ? 'plank' : 'rod'} one way, $R_{D}$ the other.` },
+    { tex: `R_{D} \\times ${fmt(b.d - b.c)} = ${lhs} = ${fmt(sum)}` },
+    { tex: `R_{D} = ${fmt(RD)}` },
+    ...(find === 'RC'
+      ? [
+          { text: 'Then resolve vertically: the two reactions hold up every weight.' },
+          { tex: `R_{C} = ${fmt(total)} - ${fmt(RD)} = ${fmt(RC)}` },
+        ]
+      : [{ text: `Resolving gives the other: $R_{C} = ${fmt(total)} - ${fmt(RD)} = ${fmt(RC)}\\text{ N}$.` }]),
+  ];
+}
+
+interface RodParams {
+  beam: Beam;
+  find: 'RC' | 'RD';
+}
+
+function sampleRod(rng: Rng, hard: boolean): Beam {
+  return until(
+    () => {
+      const L = rng.int(hard ? 3 : 2, hard ? 10 : 8);
+      const [c, d] = supportsFor(rng, L, hard);
+      return { L, W: rng.int(2, hard ? 60 : 40) * 10, c, d, loads: [] };
+    },
+    (b) => restsFirmly(b) && spread([b.c, b.d, b.L / 2], b.L),
+  );
+}
+
+/** Expression: one reaction on a uniform rod resting on two supports. */
+const rod: Generator<RodParams> = {
+  id: 'force-rod',
+  sample: (rng, difficulty) => ({ beam: sampleRod(rng, difficulty > 1), find: rng.chance(0.5) ? 'RC' : 'RD' }),
+  render: ({ beam, find }) =>
+    typed(
+      [say(`${beamScene(beam, 'rod')} Find the reaction at ${find === 'RC' ? '$C$' : '$D$'}, in newtons.`), beamPicture(beam, { reactions: true })],
+      `${find === 'RC' ? 'R_{C}' : 'R_{D}'} =`,
+      reactionsOf(beam)[find],
+    ),
+  solution: ({ beam, find }) => [{ text: `The rod is uniform, so its weight acts at the middle, ${metres(beam.L / 2)} from $A$.` }, ...beamWorking(beam, find)],
+  choices: ({ beam, find }) => {
+    const { RC, RD } = reactionsOf(beam);
+    const { L, W, c, d } = beam;
+    const right = find === 'RC' ? RC : RD;
+    return valueChoices(right, [find === 'RC' ? RD : RC, W / 2, (W * L) / 2 / d, (W * (L / 2 - c)) / L, W - (W * L) / 2 / d], mix(L * 2, W, c * 2, d * 2, find === 'RC' ? 1 : 2));
+  },
+};
+
+/** Tiles: the moments equation about one support, force times distance on each side. */
+const rodTiles: Generator<{ beam: Beam; about: 'C' | 'D' }> = {
+  id: 'force-rod-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const about = hard && rng.chance(0.5) ? 'D' : 'C';
+    const beam = until(
+      () => sampleRod(rng, hard),
+      (b) => new Set([b.d - b.c, b.W, about === 'C' ? b.L / 2 - b.c : b.d - b.L / 2].map(fmt)).size === 3,
+    );
+    return { beam, about };
+  },
+  render: ({ beam, about }) => {
+    const { L, W, c, d } = beam;
+    const gap = d - c;
+    const lever = about === 'C' ? L / 2 - c : d - L / 2;
+    const answer = [gap, W, lever].map(fmt);
+    const extras = [L / 2, L, c, d, W / 2, gap / 2, L - lever, 2 * W, about === 'C' ? d - L / 2 : L / 2 - c].filter((v) => v > 0).map(fmt);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(beamScene(beam, 'rod')),
+        say(`Take moments about $${about}$ to complete the equation for $R_{${about === 'C' ? 'D' : 'C'}}$: each moment written as force $\\times$ distance, forces in newtons and distances in metres.`),
+        beamPicture(beam, { reactions: true }),
+      ],
+      template: `R_{${about === 'C' ? 'D' : 'C'}} \\times {0} = {1} \\times {2}`,
+      bank: tileBank(answer, extras),
+      answer,
+    };
+  },
+  solution: ({ beam, about }) => {
+    const { L, W, c, d } = beam;
+    const other = about === 'C' ? 'D' : 'C';
+    const lever = about === 'C' ? L / 2 - c : d - L / 2;
+    return [
+      { text: `About $${about}$, the reaction at $${about}$ has no moment. The weight acts at the middle, $${fmt(lever)}\\text{ m}$ from $${about}$, and $R_{${other}}$ acts $${fmt(d - c)}\\text{ m}$ from it, turning the other way.` },
+      { tex: `R_{${other}} \\times ${fmt(d - c)} = ${fmt(W)} \\times ${fmt(lever)}` },
+      { tex: `R_{${other}} = ${fmt(reactionsOf(beam)[about === 'C' ? 'RD' : 'RC'])}` },
+    ];
+  },
+};
+
+/** Tree: the moment of the rod's weight about C, then the reaction at D, then the reaction at C. */
+const rodReactionsTree: Generator<{ beam: Beam }> = {
+  id: 'force-rod-reactions-tree',
+  sample: (rng, difficulty) => ({ beam: sampleRod(rng, difficulty > 1) }),
+  render: ({ beam }) => {
+    const { RC, RD } = reactionsOf(beam);
+    const { L, W, c, d } = beam;
+    const turn = W * (L / 2 - c);
+    const answer = [turn, RD, RC];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(beamScene(beam, 'rod')),
+        say('Top row: the moment of the rod\'s weight about $C$, in $\\text{N m}$. Then the reaction at $D$, then the reaction at $C$, in newtons.'),
+        beamPicture(beam, { reactions: true }),
+      ],
+      expression: `R_{D} \\times ${fmt(d - c)} = W \\times ${fmt(L / 2 - c)}`,
+      nodes: [
+        { id: 'm', from: [] },
+        { id: 'd', from: ['m'] },
+        { id: 'c', from: ['d'] },
+      ],
+      bank: valueBank(answer, [W * L / 2, W / 2, (W * L) / 2 / d, turn / L, W + RD].filter((v) => v > 0 && exact(v, 2))),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ beam }) => beamWorking(beam, 'RC'),
+};
+
+interface RodSliderParams {
+  beam: Beam;
+  hard: boolean;
+}
+
+/** Slider: where the second support must go for its reaction to be a given size. */
+const rodSlider: Generator<RodSliderParams> = {
+  id: 'force-rod-slider',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const beam = until(
+      () => {
+        const L = rng.int(hard ? 4 : 3, hard ? 10 : 8);
+        const c = hard ? rng.pick(halves(0.5, L / 2 - 1)) : 0;
+        return { L, W: rng.int(2, hard ? 60 : 40) * 10, c, d: rng.pick(halves(L / 2 + 0.5, L)), loads: [] };
+      },
+      (b) => restsFirmly(b) && b.L / 2 - b.c >= 0.5 && spread([b.c, b.L / 2], b.L),
+    );
+    return { beam, hard };
+  },
+  render: ({ beam }) => {
+    const { L, W, c } = beam;
+    const { RD } = reactionsOf(beam);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `A uniform rod $AB$, of length ${metres(L)} and weight ${newtons(W)}, rests horizontally on a support $C$ ${placed(c, L)} and a second support $D$, somewhere between the middle and $B$. The reaction at $D$ is ${newtons(RD)}.`,
+        ),
+        say('Slide to where $D$ is, measured from $A$ in metres.'),
+      ],
+      min: 0,
+      max: L,
+      step: 0.5,
+      answer: beam.d,
+      readout: 'AD = {v}',
+      figure: { svg: beamSvg(L, { supports: [{ x: c, name: 'C' }], arrows: [{ x: L / 2, dir: 'down', label: 'W' }], label: `A rod AB with its weight W at the middle, on a support C ${c === 0 ? 'at A' : 'near A'}` }), ...beamWindow(L), axis: 'x' },
+    };
+  },
+  solution: ({ beam }) => {
+    const { L, W, c, d } = beam;
+    const { RD } = reactionsOf(beam);
+    return [
+      { text: 'Take moments about $C$, with $x$ the distance $CD$:' },
+      { tex: `${fmt(RD)} \\times x = ${fmt(W)} \\times ${fmt(L / 2 - c)} = ${fmt(W * (L / 2 - c))}` },
+      { tex: `x = ${fmt(d - c)}` },
+      ...(c > 0 ? [{ text: `$C$ is ${metres(c)} from $A$, so $D$ is $${fmt(c)} + ${fmt(d - c)} = ${fmt(d)}\\text{ m}$ from $A$.` }] : [{ text: `$C$ is at $A$, so $D$ is ${metres(d)} from $A$.` }]),
+    ];
+  },
+};
+
+/* ---------- Loads on a plank ---------- */
+
+interface PlankParams {
+  beam: Beam;
+  find: 'RC' | 'RD';
+}
+
+/** A uniform plank with a person on it (and a box when hard), resting firmly on both supports. */
+function samplePlank(rng: Rng, hard: boolean): Beam {
+  return until(
+    () => {
+      const L = rng.int(hard ? 4 : 3, hard ? 10 : 8);
+      const [c, d] = supportsFor(rng, L, hard);
+      const spot = () => rng.pick(halves(c + 0.5, L).filter((x) => x !== d && x !== L / 2));
+      const loads: Load[] = [{ x: spot(), w: rng.int(30, 90) * 10, who: rng.pick(PEOPLE), name: 'P' }];
+      if (hard) loads.push({ x: spot(), w: rng.int(4, 30) * 10, who: rng.pick(BOXES), name: 'Q' });
+      return { L, W: rng.int(6, 30) * 10, c, d, loads: loads.sort((a, b) => a.x - b.x) };
+    },
+    (b) => restsFirmly(b) && spread([b.c, b.d, ...downOf(b).map((l) => l.x)], b.L),
+  );
+}
+
+/** Expression: one reaction on a plank with a person on it. */
+const plank: Generator<PlankParams> = {
+  id: 'force-plank',
+  sample: (rng, difficulty) => ({ beam: samplePlank(rng, difficulty > 1), find: rng.chance(0.5) ? 'RC' : 'RD' }),
+  render: ({ beam, find }) =>
+    typed(
+      [say(`${beamScene(beam, 'plank')} Find the reaction at ${find === 'RC' ? '$C$' : '$D$'}, in newtons.`), beamPicture(beam, { reactions: true })],
+      `${find === 'RC' ? 'R_{C}' : 'R_{D}'} =`,
+      reactionsOf(beam)[find],
+    ),
+  solution: ({ beam, find }) => beamWorking(beam, find),
+  choices: ({ beam, find }) => {
+    const { RC, RD } = reactionsOf(beam);
+    const right = find === 'RC' ? RC : RD;
+    const bare = reactionsOf({ ...beam, loads: [] });
+    const unloaded = reactionsOf({ ...beam, W: 0 });
+    const total = downOf(beam).reduce((s, l) => s + l.w, 0);
+    return valueChoices(
+      right,
+      [find === 'RC' ? RD : RC, bare[find], unloaded[find], total / 2, total - bare[find]],
+      mix(beam.L * 2, beam.W, beam.c * 2, beam.d * 2, beam.loads[0].w, beam.loads[0].x * 2, find === 'RC' ? 1 : 2),
+    );
+  },
+};
+
+/** Table: each force on the plank, its distance from C and its moment about C, then R_D from them. */
+const plankTable: Generator<{ beam: Beam; hard: boolean }> = {
+  id: 'force-plank-table',
+  sample: (rng, difficulty) => ({ beam: samplePlank(rng, difficulty > 1), hard: difficulty > 1 }),
+  render: ({ beam, hard }) => {
+    const { RD } = reactionsOf(beam);
+    const answer: number[] = [];
+    const blank = (v: number) => {
+      answer.push(v);
+      return null;
+    };
+    const rows = downOf(beam).map((l) => {
+      const lever = l.x - beam.c;
+      return [l.name, fmt(l.w), hard ? blank(lever) : fmt(lever), blank(l.w * lever)];
+    });
+    const gap = beam.d - beam.c;
+    rows.push(['R_{D}', blank(RD), fmt(gap), blank(RD * gap)]);
+    const slips = downOf(beam).flatMap((l) => [l.w * l.x, l.x, l.w * (beam.d - l.x)]);
+    return {
+      kind: 'table',
+      prompt: [
+        say(beamScene(beam, 'plank')),
+        say(
+          `Taking moments about $C$, fill in ${hard ? 'each distance from $C$ in metres, ' : ''}each moment in $\\text{N m}$, and the reaction $R_{D}$ in newtons. The weights turn the plank one way and $R_{D}$ the other, so $R_{D}$'s moment balances the rest.`,
+        ),
+        beamPicture(beam, { reactions: true }),
+      ],
+      columns: ['', 'F', 'd_{C}', 'Fd_{C}'],
+      rows,
+      bank: valueBank(answer, slips.filter((v) => v > 0 && !answer.some((a) => fmt(a) === fmt(v)))),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ beam }) => beamWorking(beam, 'RD'),
+};
+
+/** Tiles: the moments equation about C with every weight on the plank, in order from A. */
+const plankTiles: Generator<{ beam: Beam }> = {
+  id: 'force-plank-tiles',
+  sample: (rng, difficulty) => ({
+    beam: until(
+      () => samplePlank(rng, difficulty > 1),
+      (b) => {
+        const tokens = [b.d - b.c, ...downOf(b).flatMap((l) => [l.w, l.x - b.c])].map(fmt);
+        return new Set(tokens).size === tokens.length;
+      },
+    ),
+  }),
+  render: ({ beam }) => {
+    const ordered = [...downOf(beam)].sort((a, b) => a.x - b.x);
+    const answer: string[] = [fmt(beam.d - beam.c)];
+    const terms = ordered.map((l) => {
+      answer.push(fmt(l.w), fmt(l.x - beam.c));
+      return `{${answer.length - 2}} \\times {${answer.length - 1}}`;
+    });
+    const extras = ordered.flatMap((l) => [l.x, beam.d - l.x, l.w / 2]).concat([beam.L, beam.d]).filter((v) => v > 0).map(fmt);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(beamScene(beam, 'plank')),
+        say('Take moments about $C$ to complete the equation for $R_{D}$: each moment as force $\\times$ distance from $C$, the weights in order along the plank from $A$.'),
+        beamPicture(beam, { reactions: true }),
+      ],
+      template: `R_{D} \\times {0} = ${terms.join(' + ')}`,
+      bank: tileBank(answer, extras, 5),
+      answer,
+    };
+  },
+  solution: ({ beam }) => beamWorking(beam, 'RD'),
+};
+
+interface PlankUnknownParams {
+  beam: Beam;
+  /** The reaction the question gives. */
+  known: 'RC' | 'RD';
+  /** The person's distance from A, their weight, or (hard) their mass. */
+  find: 'x' | 'w' | 'm';
+}
+
+/** Expression: where the person stands, or how heavy they are, from one given reaction. */
+const plankUnknown: Generator<PlankUnknownParams> = {
+  id: 'force-plank-unknown',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const find = rng.pick(hard ? (['x', 'm'] as const) : (['x', 'w'] as const));
+    const known = rng.chance(0.5) ? 'RC' : 'RD';
+    const beam = until(
+      () => {
+        const L = rng.int(hard ? 4 : 3, hard ? 10 : 8);
+        const [c, d] = supportsFor(rng, L, hard);
+        const w = find === 'm' ? G * rng.int(25, 90) : rng.int(30, 90) * 10;
+        const x = rng.pick(halves(c + 0.5, L).filter((v) => v !== d && v !== L / 2));
+        return { L, W: rng.int(6, 30) * 10, c, d, loads: [{ x, w, who: rng.pick(PEOPLE), name: 'P' }] };
+      },
+      (b) => {
+        const r = reactionsOf(b);
+        return r.RC >= 5 && r.RD >= 5 && exact(r[known], find === 'm' ? 2 : 1) && spread([b.c, b.d, ...downOf(b).map((l) => l.x)], b.L);
+      },
+    );
+    return { beam, known, find };
+  },
+  render: ({ beam, known, find }) => {
+    const { L, W, c, d } = beam;
+    const load = beam.loads[0];
+    const R = reactionsOf(beam)[known];
+    const person = `${load.who[0].toUpperCase()}${load.who.slice(1)}`;
+    const setup = `A uniform plank $AB$, of length ${metres(L)} and weight ${newtons(W)}, rests horizontally on two supports, $C$ ${placed(c, L)} and $D$ ${placed(d, L)}.`;
+    const given = `The reaction at ${known === 'RC' ? '$C$' : '$D$'} is ${newtons(R)}.`;
+    const prose =
+      find === 'x'
+        ? `${setup} ${person} of weight ${newtons(load.w)} stands on it between $C$ and $B$. ${given} Find how far from $A$ they stand, in metres.`
+        : find === 'w'
+          ? `${setup} ${person} stands on it ${metres(load.x)} from $A$. ${given} Find the weight of the ${load.who.slice(2)}, in newtons.`
+          : `${setup} ${person} stands on it ${metres(load.x)} from $A$. ${given} ${G_NOTE} Find the mass of the ${load.who.slice(2)}, in kilograms.`;
+    return typed(
+      [say(prose), beamPicture(find === 'x' ? { ...beam, loads: [] } : beam, { reactions: true })],
+      find === 'x' ? 'x =' : find === 'w' ? 'P =' : 'm =',
+      find === 'x' ? load.x : find === 'w' ? load.w : load.w / G,
+    );
+  },
+  solution: ({ beam, known, find }) => {
+    const { L, W, c, d } = beam;
+    const load = beam.loads[0];
+    const R = reactionsOf(beam)[known];
+    // Moments about the other support, so the one unknown reaction drops out.
+    const at = known === 'RC' ? d : c;
+    const name = known === 'RC' ? 'D' : 'C';
+    const gap = d - c;
+    const weightTurn = W * Math.abs(L / 2 - at);
+    const loadLever = Math.abs(load.x - at);
+    const sameSide = Math.sign(L / 2 - at) === Math.sign(load.x - at);
+    const unknown = find === 'x' ? `${fmt(load.w)}x_{${name}}` : `${find === 'w' ? 'P' : '9.8m'} \\times ${fmt(loadLever)}`;
+    const rhs = `${fmt(W)} \\times ${fmt(Math.abs(L / 2 - at))}`;
+    const eq = sameSide
+      ? `${fmt(R)} \\times ${fmt(gap)} = ${rhs} + ${unknown}`
+      : `${fmt(R)} \\times ${fmt(gap)} + ${unknown} = ${rhs}`;
+    const loadTurn = load.w * loadLever;
+    const steps: SolutionStep[] = [
+      { text: `Take moments about $${name}$: the reaction there is the unknown one, so it drops out. $R_{${known === 'RC' ? 'C' : 'D'}}$ acts ${metres(gap)} away, the plank's weight ${metres(Math.abs(L / 2 - at))} away.` },
+      { tex: eq },
+      { tex: `${sameSide ? `${fmt(R * gap)} - ${fmt(weightTurn)}` : `${fmt(weightTurn)} - ${fmt(R * gap)}`} = ${fmt(loadTurn)}` },
+    ];
+    if (find === 'x') {
+      const lever = loadLever;
+      steps.push(
+        { tex: `x_{${name}} = ${fmt(loadTurn)} \\div ${fmt(load.w)} = ${fmt(lever)}` },
+        { text: `That is the distance from $${name}$, ${load.x > at ? 'towards $B$' : 'towards $A$'}, so from $A$ it is $${fmt(load.x)}\\text{ m}$.` },
+      );
+    } else if (find === 'w') {
+      steps.push({ tex: `P = ${fmt(loadTurn)} \\div ${fmt(loadLever)} = ${fmt(load.w)}` });
+    } else {
+      steps.push({ tex: `9.8m = ${fmt(loadTurn)} \\div ${fmt(loadLever)} = ${fmt(load.w)}, \\quad m = ${fmt(load.w / G)}` });
+    }
+    return steps;
+  },
+};
+
+/* ---------- The point of tilting ---------- */
+
+interface TiltParams {
+  L: number;
+  W: number;
+  c: number;
+  d: number;
+  /** The end the person walks towards, past the support at that end. */
+  side: 'A' | 'B';
+  /** The person's weight; the plank's mass when the question is the greatest mass at the end. */
+  P: number;
+  who: string;
+  /** A box resting between the supports, hard only. */
+  box: { x: number; w: number } | null;
+  find: 'e' | 'x' | 'm';
+}
+
+/** The support the plank tilts about, and the other one, whose reaction falls to zero. */
+const pivotOf = ({ side, c, d }: Pick<TiltParams, 'side' | 'c' | 'd'>): { at: number; name: 'C' | 'D'; other: 'C' | 'D' } =>
+  side === 'B' ? { at: d, name: 'D', other: 'C' } : { at: c, name: 'C', other: 'D' };
+
+/** What holds the plank down about the tilting support: its weight and any box, in N m. */
+export function holdingTurn(p: Pick<TiltParams, 'L' | 'W' | 'c' | 'd' | 'side' | 'box'>): number {
+  const { at } = pivotOf(p);
+  return p.W * Math.abs(at - p.L / 2) + (p.box ? p.box.w * Math.abs(at - p.box.x) : 0);
+}
+
+/** How far past the support the person stands when the plank is on the point of tilting. */
+export const tiltReach = (p: Pick<TiltParams, 'L' | 'W' | 'c' | 'd' | 'side' | 'box' | 'P'>): number => holdingTurn(p) / p.P;
+
+/** The greatest mass hung at the end, for a plank of mass `W` in kilograms (g cancels). */
+export function endMass(p: Pick<TiltParams, 'L' | 'W' | 'c' | 'd' | 'side'>): number {
+  const { at } = pivotOf(p);
+  const overhang = p.side === 'B' ? p.L - at : at;
+  return (p.W * Math.abs(at - p.L / 2)) / overhang;
+}
+
+function sampleTilt(rng: Rng, hard: boolean, find: TiltParams['find'], side: 'A' | 'B'): TiltParams {
+  return until(
+    (): TiltParams => {
+      const L = rng.int(hard ? 5 : 4, hard ? 12 : 10);
+      const c = rng.pick(halves(side === 'A' ? 1 : 0, L / 2 - 0.5));
+      const d = rng.pick(halves(L / 2 + 0.5, side === 'B' ? L - 1 : L));
+      const inner = halves(c + 0.5, d - 0.5).filter((x) => x !== L / 2);
+      const box = hard && find !== 'm' && inner.length ? { x: rng.pick(inner), w: rng.int(4, 30) * 10 } : null;
+      return {
+        L,
+        W: find === 'm' ? rng.int(5, 40) : rng.int(6, 40) * 10,
+        c,
+        d,
+        side,
+        P: find === 'm' ? 0 : rng.int(30, 90) * 10,
+        who: rng.pick(PEOPLE),
+        box,
+        find,
+      };
+    },
+    (p) => {
+      const { at } = pivotOf(p);
+      const room = p.side === 'B' ? p.L - at : at;
+      if (Math.abs(at - p.L / 2) < 0.5 || (p.box && !spread([p.L / 2, p.box.x], p.L))) return false;
+      if (p.find === 'm') return exact(endMass(p), 1) && endMass(p) >= 1;
+      const e = tiltReach(p);
+      return onHalf(e) && e >= 0.5 && e <= room - 0.5;
+    },
+  );
+}
+
+/** The plank in prose, and who walks which way. */
+function tiltScene(p: TiltParams): string {
+  const { L, W, c, d, side, box, find } = p;
+  const plankWords =
+    find === 'm'
+      ? `A uniform plank $AB$, of length ${metres(L)} and mass $${fmt(W)}\\text{ kg}$,`
+      : `A uniform plank $AB$, of length ${metres(L)} and weight ${newtons(W)},`;
+  const base = `${plankWords} rests horizontally on two supports, $C$ ${placed(c, L)} and $D$ ${placed(d, L)}.`;
+  const boxWords = box ? ` A box of weight ${newtons(box.w)} rests on it ${metres(box.x)} from $A$.` : '';
+  if (find === 'm') return `${base} A load is hung from ${side === 'B' ? '$B$' : '$A$'}.`;
+  const who = `${p.who[0].toUpperCase()}${p.who.slice(1)}`;
+  return `${base}${boxWords} ${who} of weight ${newtons(p.P)} walks slowly along the plank from the middle towards ${side === 'B' ? '$B$' : '$A$'}.`;
+}
+
+function tiltPicture(p: TiltParams): Block {
+  const arrows: BeamArrow[] = [{ x: p.L / 2, dir: 'down', label: 'W' }];
+  if (p.box) arrows.push({ x: p.box.x, dir: 'down', label: 'Q' });
+  if (p.find === 'm') arrows.push({ x: p.side === 'B' ? p.L : 0, dir: 'down', label: 'M' });
+  return picture(
+    beamSvg(p.L, {
+      supports: [
+        { x: p.c, name: 'C' },
+        { x: p.d, name: 'D' },
+      ],
+      arrows,
+      label: `A plank AB on supports C and D, with its weight W at the middle${p.box ? ' and a box Q between the supports' : ''}${p.find === 'm' ? ` and a load M hung from ${p.side}` : ''}`,
+    }),
+  );
+}
+
+function tiltWorking(p: TiltParams): SolutionStep[] {
+  const { at, name, other } = pivotOf(p);
+  const lever = Math.abs(at - p.L / 2);
+  const hold = holdingTurn(p);
+  const steps: SolutionStep[] = [
+    { text: `As the ${p.find === 'm' ? 'load grows' : 'person walks out'}, the plank starts to turn about $${name}$, and on the point of tilting the reaction at $${other}$ is zero. So take moments about $${name}$.` },
+  ];
+  if (p.find === 'm') {
+    const overhang = p.side === 'B' ? p.L - at : at;
+    steps.push(
+      { text: `The plank's weight acts ${metres(lever)} from $${name}$ on one side, the load ${metres(overhang)} away on the other; $g$ is in both, so it cancels.` },
+      { tex: `M \\times ${fmt(overhang)} = ${fmt(p.W)} \\times ${fmt(lever)}` },
+      { tex: `M = ${fmt(endMass(p))}` },
+    );
+    return steps;
+  }
+  const holdTex = `${fmt(p.W)} \\times ${fmt(lever)}${p.box ? ` + ${fmt(p.box.w)} \\times ${fmt(Math.abs(at - p.box.x))}` : ''}`;
+  const e = tiltReach(p);
+  steps.push(
+    { text: `With $e$ how far past $${name}$ they stand:` },
+    { tex: `${fmt(p.P)}e = ${holdTex} = ${fmt(hold)}` },
+    { tex: `e = ${fmt(e)}` },
+  );
+  if (p.find === 'x') {
+    steps.push({ text: `$${name}$ is ${metres(at)} from $A$, so they are $${fmt(at)} ${p.side === 'B' ? '+' : '-'} ${fmt(e)} = ${fmt(p.side === 'B' ? at + e : at - e)}\\text{ m}$ from $A$.` });
+  }
+  return steps;
+}
+
+/** Where the person stands at the point of tilting, measured from A. */
+const tiltSpot = (p: TiltParams): number => (p.side === 'B' ? pivotOf(p).at + tiltReach(p) : pivotOf(p).at - tiltReach(p));
+
+/** Expression: how far the person can go before the plank tilts, or the greatest mass at the end. */
+const tilt: Generator<TiltParams> = {
+  id: 'force-tilt',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return sampleTilt(rng, hard, rng.pick(hard ? (['e', 'x', 'm'] as const) : (['e', 'x'] as const)), hard && rng.chance(0.5) ? 'A' : 'B');
+  },
+  render: (p) => {
+    const { name } = pivotOf(p);
+    const ask =
+      p.find === 'm'
+        ? `Find the greatest mass the load can have, in kilograms, without the plank tilting.`
+        : p.find === 'e'
+          ? `How far past $${name}$ can they walk before the plank tilts? Give the distance in metres.`
+          : `How far from $A$ are they when the plank is on the point of tilting? Give the distance in metres.`;
+    return typed(
+      [say(`${tiltScene(p)} ${ask}`), tiltPicture(p)],
+      p.find === 'm' ? 'M =' : p.find === 'e' ? 'e =' : 'x =',
+      p.find === 'm' ? endMass(p) : p.find === 'e' ? tiltReach(p) : tiltSpot(p),
+    );
+  },
+  solution: tiltWorking,
+  choices: (p) => {
+    const { at } = pivotOf(p);
+    const salt = mix(p.L, p.W, p.c * 2, p.d * 2, p.P, p.find === 'm' ? 1 : p.find === 'e' ? 2 : 3);
+    if (p.find === 'm') {
+      const overhang = p.side === 'B' ? p.L - at : at;
+      const lever = Math.abs(at - p.L / 2);
+      return valueChoices(endMass(p), [(p.W * p.L) / 2 / overhang, (p.W * overhang) / lever, p.W * lever, (p.W * lever) / p.L], salt);
+    }
+    const e = tiltReach(p);
+    const right = p.find === 'e' ? e : tiltSpot(p);
+    const other = p.find === 'e' ? tiltSpot(p) : e;
+    return valueChoices(right, [other, (p.W * p.L) / 2 / p.P, holdingTurn(p) / (p.P + p.W), p.find === 'e' ? e * 2 : p.L - right], salt);
+  },
+};
+
+/** Flow: which support it tilts about, which reaction vanishes, and how far the person gets. */
+const tiltFlow: Generator<TiltParams> = {
+  id: 'force-tilt-flow',
+  sample: (rng, difficulty) => sampleTilt(rng, difficulty > 1, 'e', rng.chance(0.5) ? 'A' : 'B'),
+  render: (p) => {
+    const { name } = pivotOf(p);
+    const e = tiltReach(p);
+    const labels = [...new Set([e, (p.W * p.L) / 2 / p.P, holdingTurn(p) / (p.P + p.W), holdingTurn({ ...p, box: null }) / p.P, e * 2, e + 0.5, e + 1].filter((v) => v > 0 && exact(v, 2)).map(fmt))];
+    const three = [fmt(e), ...labels.filter((v) => v !== fmt(e)).slice(0, 2)].sort((x, y) => Number(x) - Number(y));
+    return {
+      kind: 'flow',
+      prompt: [say(`${tiltScene(p)} How far can they go?`), tiltPicture(p)],
+      subject: 'R_{C} \\ge 0, \\quad R_{D} \\ge 0',
+      steps: [
+        {
+          id: 'about',
+          ask: `As they walk towards $${p.side}$, which support does the plank start to turn about?`,
+          branches: [
+            { label: '$C$', to: 'zero' },
+            { label: '$D$', to: 'zero' },
+          ],
+        },
+        {
+          id: 'zero',
+          ask: 'On the point of tilting, which reaction is zero?',
+          branches: [
+            { label: '$R_{C}$', to: 'far' },
+            { label: '$R_{D}$', to: 'far' },
+          ],
+        },
+        {
+          id: 'far',
+          ask: `Taking moments about that support, how far past $${name}$ can they stand, in metres?`,
+          branches: three.map((v) => ({ label: `$${v}$`, outcome: v === fmt(e) ? 'Any further and the plank tips.' : 'Check which moments balance about the support.' })),
+        },
+      ],
+      answer: [`$${name}$`, `$R_{${pivotOf(p).other}}$`, `$${fmt(e)}$`],
+    };
+  },
+  solution: tiltWorking,
+};
+
+/** Slider: where along the plank the person stands at the point of tilting. */
+const tiltSlider: Generator<TiltParams> = {
+  id: 'force-tilt-slider',
+  sample: (rng, difficulty) => sampleTilt(rng, difficulty > 1, 'x', rng.chance(0.5) ? 'A' : 'B'),
+  render: (p) => ({
+    kind: 'slider',
+    prompt: [say(tiltScene(p)), say('Slide to where they are standing, measured from $A$ in metres, when the plank is on the point of tilting.')],
+    min: 0,
+    max: p.L,
+    step: 0.5,
+    answer: tiltSpot(p),
+    readout: 'x = {v}',
+    figure: { svg: (tiltPicture(p) as Extract<Block, { kind: 'diagram' }>).svg, ...beamWindow(p.L), axis: 'x' },
+  }),
+  solution: (p) => tiltWorking({ ...p, find: 'x' }),
+};
+
+/** Tree: what holds the plank down about the support, how far the person gets, and the reaction then. */
+const tippingTree: Generator<TiltParams> = {
+  id: 'force-tipping-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return sampleTilt(rng, hard, 'e', hard && rng.chance(0.5) ? 'A' : 'B');
+  },
+  render: (p) => {
+    const { name, other } = pivotOf(p);
+    const hold = holdingTurn(p);
+    const e = tiltReach(p);
+    const R = p.W + p.P + (p.box ? p.box.w : 0);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(tiltScene(p)),
+        say(
+          `On the point of tilting, $R_{${other}} = 0$. Top row: the moment about $${name}$ of ${p.box ? 'the plank\'s weight and the box together' : 'the plank\'s weight'}, in $\\text{N m}$, and the reaction at $${name}$ then, in newtons. Underneath: how far past $${name}$ they stand, in metres.`,
+        ),
+        tiltPicture(p),
+      ],
+      expression: `R_{${other}} = 0`,
+      nodes: [
+        { id: 'm', from: [] },
+        { id: 'r', from: [] },
+        { id: 'e', from: ['m'] },
+      ],
+      bank: valueBank([hold, R, e], [(p.W * p.L) / 2, R - p.P, (p.W * p.L) / 2 / p.P, hold / (p.P + p.W), e + 0.5].filter((v) => v > 0 && exact(v, 2))),
+      answer: [hold, R, e].map(fmt),
+    };
+  },
+  solution: (p) => {
+    const { name } = pivotOf(p);
+    return [
+      ...tiltWorking(p),
+      { text: `All the weight then rests on $${name}$: $R_{${name}} = ${[p.W, p.P, ...(p.box ? [p.box.w] : [])].map(fmt).join(' + ')} = ${fmt(p.W + p.P + (p.box ? p.box.w : 0))}\\text{ N}$.` },
+    ];
+  },
+};
+
+/* ---------- A ladder against a wall ---------- */
+
+interface LadderParams {
+  L: number;
+  W: number;
+  t: Angle;
+  /** A person's weight, or 0 for none. */
+  P: number;
+  /** How far up the ladder from the foot they stand. */
+  s: number;
+  find: 'S' | 'F' | 'R' | 'mu' | 's';
+  hard: boolean;
+}
+
+const LADDER_ANGLES = [A43, A247, A34];
+
+/** The wall's push, from moments about the foot. */
+export function wallPush({ L, W, t, P, s }: Pick<LadderParams, 'L' | 'W' | 't' | 'P' | 's'>): number {
+  return ((W * L) / 2 + P * s) * (t.a / t.o) / L;
+}
+
+/** The least coefficient of friction that holds the ladder: F over R, with F = S. */
+export const leastMu = (p: Pick<LadderParams, 'L' | 'W' | 't' | 'P' | 's'>): number => wallPush(p) / (p.W + p.P);
+
+function sampleLadder(rng: Rng, person: boolean, find: LadderParams['find'], hard: boolean): LadderParams {
+  return until(
+    (): LadderParams => {
+      const L = rng.pick([4, 5, 6, 8, 10]);
+      return {
+        L,
+        W: rng.int(person ? 8 : 5, 40) * 10,
+        t: rng.pick(LADDER_ANGLES),
+        P: person ? rng.int(40, 90) * 10 : 0,
+        s: person ? rng.pick(halves(1, L - 0.5).filter((s) => Math.abs(s - L / 2) >= L / 5)) : 0,
+        find,
+        hard,
+      };
+    },
+    (p) => {
+      const S = wallPush(p);
+      const mu = leastMu(p);
+      return exact(S, 1) && S >= 10 && (!person || (exact(mu, 3) && mu >= 0.1 && mu < 1));
+    },
+  );
+}
+
+/** The ladder in prose: its size, the angle, and anyone on it. */
+function ladderScene(p: LadderParams): string {
+  const angle = angleFacts(p.t, p.hard);
+  const on = p.P > 0 ? ` A person of weight ${newtons(p.P)} stands on the ladder ${metres(p.s)} from $A$.` : '';
+  return `A uniform ladder $AB$, of length ${metres(p.L)} and weight ${newtons(p.W)}, rests with its foot $A$ on rough horizontal ground and its top $B$ against a smooth vertical wall. It makes an angle $\\alpha$ with the ground, where ${angle}.${on}`;
+}
+
+const ladderPicture = (p: LadderParams): Block => picture(ladderSvg(p.t, p.P > 0 ? { person: p.s / p.L } : {}));
+
+/** Moments about the foot, then resolving both ways, then the least mu. */
+function ladderWorking(p: LadderParams, upTo: 'S' | 'mu'): SolutionStep[] {
+  const { L, W, t, P, s } = p;
+  const S = wallPush(p);
+  const cos = cosOf(t);
+  const sin = sinOf(t);
+  const rhs = `${fmt(W)} \\times ${fmt(L / 2)}\\cos\\alpha${P > 0 ? ` + ${fmt(P)} \\times ${fmt(s)}\\cos\\alpha` : ''}`;
+  const steps: SolutionStep[] = [
+    ...angleStep(t, p.hard),
+    { text: 'Take moments about the foot $A$: $R$ and $F$ both act there, so neither has a moment. The wall is smooth, so $S$ is horizontal, and its perpendicular distance from $A$ is the height of $B$; each weight\'s is its distance along the ladder times $\\cos\\alpha$.' },
+    { tex: `S \\times ${fmt(L)}\\sin\\alpha = ${rhs}` },
+    { tex: `${fmt(L * sin)}S = ${fmt((W * L) / 2 * cos + P * s * cos)}, \\quad S = ${fmt(S)}` },
+  ];
+  if (upTo === 'mu') {
+    steps.push(
+      { text: 'Resolving horizontally, friction balances the wall\'s push; vertically, the ground holds up every weight.' },
+      { tex: `F = S = ${fmt(S)}, \\quad R = ${P > 0 ? `${fmt(W)} + ${fmt(P)} = ` : ''}${fmt(W + P)}` },
+      { tex: `\\mu \\ge \\frac{F}{R} = \\frac{${fmt(S)}}{${fmt(W + P)}} = ${fmt(leastMu(p))}` },
+    );
+  }
+  return steps;
+}
+
+/** Expression: the wall's push, the friction, the ground's reaction, the least mu, or how far up the person can go. */
+const ladder: Generator<LadderParams> = {
+  id: 'force-ladder',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return sampleLadder(rng, hard, rng.pick(hard ? (['S', 'mu', 's'] as const) : (['S', 'F', 'R'] as const)), hard);
+  },
+  render: (p) => {
+    const mu = leastMu(p);
+    const asks: Record<LadderParams['find'], string> = {
+      S: 'Find the force the wall exerts on the ladder, in newtons.',
+      F: 'Find the friction at the foot of the ladder, in newtons.',
+      R: 'Find the normal reaction of the ground on the ladder, in newtons.',
+      mu: 'Find the least possible value of the coefficient of friction $\\mu$ between the ladder and the ground.',
+      s: '',
+    };
+    const prose =
+      p.find === 's'
+        ? `${ladderScene({ ...p, P: 0 })} A person of weight ${newtons(p.P)} climbs the ladder. The coefficient of friction between the ladder and the ground is $${fmt(mu)}$. How far up the ladder from $A$ can they climb before it slips? Give the distance in metres.`
+        : `${ladderScene(p)} ${asks[p.find]}`;
+    const value = { S: wallPush(p), F: wallPush(p), R: p.W + p.P, mu, s: p.s }[p.find];
+    return typed([say(prose), ladderPicture(p)], `${{ S: 'S', F: 'F', R: 'R', mu: '\\mu', s: 's' }[p.find]} =`, value);
+  },
+  solution: (p) => {
+    if (p.find === 'R') {
+      return [{ text: 'Resolve vertically. The wall is smooth, so its push is horizontal and holds up nothing: the ground carries the whole weight.' }, { tex: `R = ${fmt(p.W)}` }];
+    }
+    if (p.find === 's') {
+      const { L, W, t, P } = p;
+      const S = wallPush(p);
+      return [
+        ...angleStep(t, p.hard),
+        { text: 'On the point of slipping friction is at its limit, and resolving gives $R$ and then $F$:' },
+        { tex: `R = ${fmt(W)} + ${fmt(P)} = ${fmt(W + P)}, \\quad F = \\mu R = ${fmt(leastMu(p))} \\times ${fmt(W + P)} = ${fmt(S)}` },
+        { text: 'Horizontally $S = F$. Then moments about $A$, with the person $s$ metres up:' },
+        { tex: `${fmt(S)} \\times ${fmt(L)}\\sin\\alpha = ${fmt(W)} \\times ${fmt(L / 2)}\\cos\\alpha + ${fmt(P)}s\\cos\\alpha` },
+        { tex: `${fmt(S * L * sinOf(t))} = ${fmt((W * L) / 2 * cosOf(t))} + ${fmt(P * cosOf(t))}s, \\quad s = ${fmt(p.s)}` },
+      ];
+    }
+    return ladderWorking(p, p.find === 'mu' ? 'mu' : 'S').concat(p.find === 'F' ? [{ text: 'Resolving horizontally, the friction at the foot balances the wall\'s push, so $F = S$.' }] : []);
+  },
+  choices: (p) => {
+    const S = wallPush(p);
+    const salt = mix(p.L, p.W, p.t.o, p.P, p.s * 2, ['S', 'F', 'R', 'mu', 's'].indexOf(p.find));
+    const flipped = ((p.W * p.L) / 2 + p.P * p.s) * (p.t.o / p.t.a) / p.L;
+    if (p.find === 'R') return valueChoices(p.W + p.P, [p.W + S, S, p.W / 2, p.W * cosOf(p.t)], salt);
+    if (p.find === 'mu') return valueChoices(leastMu(p), [S / p.W, (p.W + p.P) / S, flipped / (p.W + p.P), S / p.P], salt);
+    if (p.find === 's') return valueChoices(p.s, [p.L - p.s, p.s * 2, p.L / 2, p.s + 1], salt);
+    return valueChoices(S, [flipped, S * 2, p.W * (p.t.a / p.t.o), (p.W + p.P) / 2], salt);
+  },
+};
+
+/** Table: each force's perpendicular distance from the foot and its moment, then the wall's push. */
+const ladderTable: Generator<LadderParams> = {
+  id: 'force-ladder-table',
+  sample: (rng, difficulty) => ({ ...sampleLadder(rng, rng.chance(difficulty > 1 ? 0.8 : 0.5), 'S', difficulty > 1) }),
+  render: (p) => {
+    const { L, W, t, P, s, hard } = p;
+    const S = wallPush(p);
+    const answer: number[] = [];
+    const blank = (v: number) => {
+      answer.push(v);
+      return null;
+    };
+    const row = (name: string, F: number, d: number) => [name, fmt(F), hard ? blank(d) : fmt(d), blank(F * d)];
+    const rows = [row('W', W, (L / 2) * cosOf(t)), ...(P > 0 ? [row('P', P, s * cosOf(t))] : []), ['S', blank(S), hard ? blank(L * sinOf(t)) : fmt(L * sinOf(t)), blank(S * L * sinOf(t))]];
+    const slips = [(L / 2) * sinOf(t), L * cosOf(t), W * (L / 2), ...(P > 0 ? [s * sinOf(t), P * s] : []), S * cosOf(t)];
+    return {
+      kind: 'table',
+      prompt: [
+        say(ladderScene(p)),
+        say(
+          `Taking moments about the foot $A$, fill in ${hard ? 'each perpendicular distance from $A$ in metres, ' : ''}each moment in $\\text{N m}$, and the wall's push $S$ in newtons.`,
+        ),
+        ladderPicture(p),
+      ],
+      columns: ['', 'F', 'd_{\\perp}', 'Fd_{\\perp}'],
+      rows,
+      bank: valueBank(answer, slips.filter((v) => v > 0 && exact(v, 3) && !answer.some((a) => fmt(a) === fmt(v)))),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (p) => [
+    ...ladderWorking(p, 'S'),
+    { text: `The weights act ${p.P > 0 ? 'straight down, so their perpendicular distances' : 'straight down, so its perpendicular distance'} from $A$ ${p.P > 0 ? 'are' : 'is'} horizontal: along the ladder times $\\cos\\alpha$. $S$ is horizontal, so its distance is the height of $B$, $${fmt(p.L)}\\sin\\alpha = ${fmt(p.L * sinOf(p.t))}$.` },
+  ],
+};
+
+/** Tree: the weights' moment about the foot, S, R, then the least mu. */
+const ladderLimitTree: Generator<LadderParams> = {
+  id: 'force-ladder-limit-tree',
+  sample: (rng, difficulty) => sampleLadder(rng, true, 'mu', difficulty > 1),
+  render: (p) => {
+    const S = wallPush(p);
+    const turn = S * p.L * sinOf(p.t);
+    const R = p.W + p.P;
+    const mu = leastMu(p);
+    return {
+      kind: 'tree',
+      prompt: [
+        say(ladderScene(p)),
+        say('Top row: the moment about $A$ of both weights, in $\\text{N m}$, and the ground\'s reaction $R$, in newtons. Then the wall\'s push $S$, in newtons. Last, the least coefficient of friction that stops the ladder slipping.'),
+        ladderPicture(p),
+      ],
+      expression: '\\mu \\ge \\frac{F}{R}, \\quad F = S',
+      nodes: [
+        { id: 'm', from: [] },
+        { id: 'r', from: [] },
+        { id: 's', from: ['m'] },
+        { id: 'mu', from: ['s', 'r'] },
+      ],
+      bank: valueBank([turn, R, S, mu], [p.W, S * 2, R / S, S / p.W, turn / p.L].filter((v) => v > 0 && exact(v, 3))),
+      answer: [turn, R, S, mu].map(fmt),
+    };
+  },
+  solution: (p) => ladderWorking(p, 'mu'),
+};
+
+/** Flow: where to take moments, the friction that follows, and the least mu. */
+const ladderFlow: Generator<LadderParams> = {
+  id: 'force-ladder-flow',
+  sample: (rng, difficulty) => sampleLadder(rng, true, 'mu', difficulty > 1),
+  render: (p) => {
+    const S = wallPush(p);
+    const mu = leastMu(p);
+    const R = p.W + p.P;
+    const nums = (right: number, wrong: number[]) =>
+      [fmt(right), ...[...new Set(wrong.filter((v) => v > 0 && exact(v, 3)).map(fmt))].filter((v) => v !== fmt(right)).slice(0, 2)].sort((x, y) => Number(x) - Number(y));
+    return {
+      kind: 'flow',
+      prompt: [say(`${ladderScene(p)} What is the least coefficient of friction $\\mu$ that stops the ladder slipping?`), ladderPicture(p)],
+      subject: 'F \\le \\mu R',
+      steps: [
+        {
+          id: 'where',
+          ask: 'To find the wall\'s push $S$ from one equation, where do you take moments?',
+          branches: [
+            { label: 'About the foot, $A$', to: 'friction' },
+            { label: 'About the top, $B$', to: 'friction' },
+            { label: 'About the middle', to: 'friction' },
+          ],
+        },
+        {
+          id: 'friction',
+          ask: 'That gives $S$. Resolving horizontally, what is the friction at the foot, in newtons?',
+          branches: nums(S, [R, p.W, S * 2, p.W / 2]).map((v) => ({ label: `$${v}$`, to: 'mu' })),
+        },
+        {
+          id: 'mu',
+          ask: `The ground's reaction is $R = ${fmt(R)}\\text{ N}$. What is the least value of $\\mu$?`,
+          branches: nums(mu, [S / p.W, S / p.P, mu + 0.1, mu * 2]).map((v) => ({ label: `$${v}$`, outcome: v === fmt(mu) ? 'Any less and friction cannot hold the ladder.' : 'Check which force friction must match.' })),
+        },
+      ],
+      answer: ['About the foot, $A$', `$${fmt(S)}$`, `$${fmt(mu)}$`],
+    };
+  },
+  solution: (p) => ladderWorking(p, 'mu'),
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -6823,6 +8220,26 @@ export const forcesByName = {
   inclinePick,
   inclineFill,
   inclineCheck,
+  moment,
+  momentSense,
+  momentTable,
+  momentSumSteps,
+  rod,
+  rodTiles,
+  rodReactionsTree,
+  rodSlider,
+  plank,
+  plankTable,
+  plankTiles,
+  plankUnknown,
+  tilt,
+  tiltFlow,
+  tiltSlider,
+  tippingTree,
+  ladder,
+  ladderTable,
+  ladderLimitTree,
+  ladderFlow,
   momentum,
   momentumTiles,
   momentumTable,

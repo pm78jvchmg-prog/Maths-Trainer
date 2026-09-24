@@ -25,7 +25,16 @@
  * that coalesce or are pushed apart from rest, impulse as the change in
  * momentum (a ball off a wall, equal and opposite impulses in a collision),
  * and Ft = mv - mu, with vectors and in stages. Its collisions are drawn before
- * and after with `collisionSvg`; work and energy come later.
+ * and after with `collisionSvg`.
+ *
+ * Level 6 is work, energy and power: work done by a constant force (W = Fd,
+ * F d cos(alpha) for a pull at an angle, mgh against gravity, none at right
+ * angles), kinetic and potential energy and the one's gain as the other's
+ * loss, the work-energy principle (the speed at the foot of a smooth slope or
+ * after a drop, which Kinematics' kn-l2-more reached by suvat), work against
+ * friction mu R d with the speed left or the stopping distance, and power as
+ * Fv with a top speed and an acceleration up a hill. Its pictures are
+ * `pullSvg`, `dropSvg` and `slopeSvg`; the `forces` kind shows no distance.
  *
  * Vectors, right-angled trigonometry and Pythagoras are used here, not taught
  * again: each angle is given through a 3-4-5 or 7-24-25 triangle so the sine
@@ -39,7 +48,7 @@
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { A34, A43, DROP, FLAT, arrowsSvg, beamSvg, collisionSvg, hangingSvg, ladderSvg, pulleySvg, rigSvg, slopeSvg } from '../generators/forces';
+import { A34, A43, DROP, FLAT, arrowsSvg, beamSvg, collisionSvg, dropSvg, hangingSvg, ladderSvg, pulleySvg, pullSvg, rigSvg, slopeSvg } from '../generators/forces';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -1243,6 +1252,222 @@ export const forces: Course = {
         ask('force-ft', 2),
         ask('force-ft-table', 2),
         ask('force-impulse-ij-tiles', 2),
+      ],
+    },
+    {
+      id: 'fo-l6',
+      title: 'Work, Energy and Power',
+      lessons: [
+        {
+          id: 'fo-l6-work',
+          title: 'Work Done by a Force',
+          slides: [
+            teach(
+              prose(
+                'When a constant force moves an object a distance $d$ in the direction the force acts, the force does **work** $W = Fd$. With force in newtons and distance in metres, work is in **joules**, $\\text{J}$.',
+              ),
+              prose('A horizontal pull of $20\\text{ N}$ drags a crate $3\\text{ m}$ across a floor: $W = 20 \\times 3 = 60\\text{ J}$.'),
+            ),
+            ask('force-work'),
+            ask('force-work-table'),
+            ask('force-lift-work-steps'),
+            teach(
+              prose('A force at an angle $\\alpha$ to the motion does work only through its part along the motion, $F\\cos\\alpha$:'),
+              display('W = Fd\\cos\\alpha'),
+              diagram(pullSvg(A34)),
+              prose(
+                'A force at right angles to the motion does no work at all. On a box sliding along a level floor, the weight and the normal reaction do none.',
+              ),
+            ),
+            ask('force-pull-work-flow'),
+            ask('force-work+choice', 2),
+            ask('force-work-table', 2),
+            teach(
+              prose(
+                'Lifting a mass $m$ through a height $h$ at a steady speed takes a force $mg$ upwards, so the work done against gravity is $mgh$.',
+              ),
+              prose('Up a slope, only the height gained counts. Pulled a distance $d$ up a slope at an angle $\\alpha$, the height is $d\\sin\\alpha$.'),
+              diagram(slopeSvg(A34, { pull: 'along' })),
+            ),
+            ask('force-lift-work-steps', 2),
+            ask('force-pull-work-flow', 2),
+          ],
+          skillCheck: [ask('force-work', 2), ask('force-pull-work-flow', 2), ask('force-lift-work-steps', 2)],
+        },
+        {
+          id: 'fo-l6-energy',
+          title: 'Kinetic and Potential Energy',
+          slides: [
+            teach(
+              prose(
+                'A moving body has **kinetic energy** $\\tfrac{1}{2}mv^{2}$, in joules. The speed is squared, so doubling it makes the energy four times as big.',
+              ),
+              display('\\tfrac{1}{2} \\times 2 \\times 3^{2} = 9\\text{ J}'),
+              prose('That is a $2\\text{ kg}$ trolley at $3\\text{ m s}^{-1}$. Its change in kinetic energy is after minus before, negative when it slows.'),
+            ),
+            ask('force-ke'),
+            ask('force-ke-change-tree'),
+            ask('force-ke+choice', 2),
+            teach(
+              prose(
+                'A body raised through a height $h$ gains **gravitational potential energy** $mgh$: exactly the work done lifting it. Coming back down, it loses the same amount.',
+              ),
+              display('\\text{PE} = mgh'),
+            ),
+            ask('force-pe-slider'),
+            ask('force-energy-swap-flow'),
+            ask('force-ke-change-tree', 2),
+            teach(
+              prose(
+                'With no air resistance, the only force doing work on a falling body is its weight. So the potential energy it loses is exactly the kinetic energy it gains:',
+              ),
+              display('\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + mgh'),
+              diagram(dropSvg()),
+            ),
+            ask('force-pe-slider', 2),
+            ask('force-energy-swap-flow', 2),
+          ],
+          skillCheck: [ask('force-ke', 2), ask('force-ke-change-tree', 2), ask('force-energy-swap-flow', 2)],
+        },
+        {
+          // Impact speeds by suvat are Kinematics' kn-l2-more; energy is the other route to them.
+          id: 'fo-l6-work-energy',
+          title: 'The Work-Energy Principle',
+          slides: [
+            teach(
+              prose('The **work-energy principle**: the total work done on a body by all the forces on it is its change in kinetic energy.'),
+              display('\\text{work done} = \\tfrac{1}{2}mv^{2} - \\tfrac{1}{2}mu^{2}'),
+              prose('On a smooth level floor only a push along it does work, so a push $F$ over a distance $d$ gives $Fd = \\tfrac{1}{2}mv^{2} - \\tfrac{1}{2}mu^{2}$.'),
+            ),
+            ask('force-work-energy'),
+            ask('force-slope-speed-tree'),
+            ask('force-net-work-steps'),
+            teach(
+              prose(
+                'Down a smooth slope the normal reaction is at right angles to the motion and does no work; the weight does $mgh$, with $h$ the height dropped. So the speed at the foot depends on the height, not the angle.',
+              ),
+              prose(
+                'Kinematics found speeds like this with $v^{2} = u^{2} + 2as$. Energy gets there without the acceleration: divide $\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + mgh$ by $m$ and it is the same equation.',
+              ),
+              diagram(slopeSvg(A34)),
+            ),
+            ask('force-work-energy-tiles'),
+            ask('force-slope-speed-tree', 2),
+            ask('force-work-energy+choice', 2),
+            teach(
+              prose(
+                'A resistance acts against the motion, so the work it does is negative. The kinetic energy gained is the work done by the pull less the work done against the resistance.',
+              ),
+              display('\\tfrac{1}{2}mv^{2} - \\tfrac{1}{2}mu^{2} = Pd - Rd'),
+            ),
+            ask('force-net-work-steps', 2),
+            ask('force-work-energy-tiles', 2),
+          ],
+          skillCheck: [ask('force-work-energy', 2), ask('force-slope-speed-tree', 2), ask('force-net-work-steps', 2)],
+        },
+        {
+          // Limiting friction, F = mu R, is fo-l1-friction.
+          id: 'fo-l6-friction',
+          title: 'Work Against Friction',
+          slides: [
+            teach(
+              prose(
+                'A body sliding on a rough surface meets friction at its limit, $F = \\mu R$, acting against the motion the whole way. So the work done against friction over a distance $d$ is',
+              ),
+              display('W = \\mu R d'),
+              prose('On a level floor $R = mg$. On a slope at an angle $\\alpha$, $R = mg\\cos\\alpha$.'),
+            ),
+            ask('force-friction-work'),
+            ask('force-stopping-slider'),
+            ask('force-rough-speed-tree'),
+            teach(
+              prose(
+                'A body that slides to rest has lost all its kinetic energy to friction: $\\mu mg d = \\tfrac{1}{2}mu^{2}$. The mass is on both sides and cancels, so how far it slides does not depend on it.',
+              ),
+            ),
+            ask('force-stopping-flow'),
+            ask('force-friction-work+choice', 2),
+            ask('force-stopping-slider', 2),
+            teach(
+              prose(
+                'With a pull as well, the kinetic energy at the end is the energy at the start, plus the work done by the pull, less the work done against friction:',
+              ),
+              display('\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + Pd - \\mu R d'),
+            ),
+            ask('force-rough-speed-tree', 2),
+            ask('force-stopping-flow', 2),
+          ],
+          skillCheck: [ask('force-friction-work', 2), ask('force-rough-speed-tree', 2), ask('force-stopping-flow', 2)],
+        },
+        {
+          id: 'fo-l6-power',
+          title: 'Power',
+          slides: [
+            teach(
+              prose(
+                '**Power** is the rate of doing work, in watts: $1\\text{ W}$ is $1\\text{ J}$ each second, and $1\\text{ kW} = 1000\\text{ W}$. A driving force $F$ moving at a speed $v$ does $Fv$ joules of work each second, so',
+              ),
+              display('P = Fv'),
+              diagram(
+                arrowsSvg(
+                  [
+                    { to: [3.6, 0], name: 'F' },
+                    { to: [-3, 0], name: 'R', faint: true },
+                  ],
+                  {
+                    span: 5,
+                    axes: false,
+                    lines: [
+                      [
+                        [-4.8, -0.6],
+                        [4.8, -0.6],
+                      ],
+                    ],
+                    dot: [0, 0],
+                    label: 'A vehicle on a level road, the driving force forwards and the resistance backwards',
+                  },
+                ),
+              ),
+            ),
+            ask('force-power'),
+            ask('force-power-table'),
+            ask('force-top-speed-flow'),
+            teach(
+              prose(
+                'At a constant power, the faster a vehicle goes the less driving force it has, $F = \\tfrac{P}{v}$. It speeds up until the driving force just balances the resistance: then it stops accelerating, at its **top speed** $v = \\tfrac{P}{R}$.',
+              ),
+            ),
+            ask('force-power+choice', 2),
+            ask('force-power-accel-tree'),
+            ask('force-power-table', 2),
+            teach(
+              prose(
+                "Below top speed, Newton's second law gives the acceleration: $\\tfrac{P}{v} - R = ma$. Up a hill at an angle $\\alpha$, the part of the weight down the slope, $mg\\sin\\alpha$, has to be beaten as well:",
+              ),
+              display('\\frac{P}{v} - R - mg\\sin\\alpha = ma'),
+            ),
+            ask('force-top-speed-flow', 2),
+            ask('force-power-accel-tree', 2),
+          ],
+          skillCheck: [ask('force-power', 2), ask('force-top-speed-flow', 2), ask('force-power-accel-tree', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('force-work', 2),
+        ask('force-pull-work-flow', 2),
+        ask('force-lift-work-steps', 2),
+        ask('force-ke', 2),
+        ask('force-ke-change-tree', 2),
+        ask('force-energy-swap-flow', 2),
+        ask('force-work-energy', 2),
+        ask('force-slope-speed-tree', 2),
+        ask('force-work-energy-tiles', 2),
+        ask('force-friction-work', 2),
+        ask('force-rough-speed-tree', 2),
+        ask('force-stopping-flow', 2),
+        ask('force-power', 2),
+        ask('force-power-accel-tree', 2),
+        ask('force-top-speed-flow', 2),
       ],
     },
   ],

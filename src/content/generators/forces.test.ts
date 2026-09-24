@@ -1492,3 +1492,294 @@ describe('momentum and impulse', TIME, () => {
     }
   });
 });
+
+/* ---------- Level 6: every energy, speed and power re-formed from the slide ---------- */
+
+/** Every number quoted with a unit, in order: `$12\text{ N}$`, `$3.5\text{ m}$`, `$40\text{ J}$`. */
+const allWith = (slide: Slide, unit: 'N' | 'm' | 'J'): number[] =>
+  [...said(slide).matchAll(new RegExp(`\\$(-?[\\d.]+)\\\\text\\{ ${unit}\\}\\$`, 'g'))].map((m) => Number(m[1]));
+
+/** The speeds quoted, in order, with "at rest" and "from rest" as 0. */
+const speedsIn = (slide: Slide): number[] =>
+  [...said(slide).matchAll(/(?:at|from) rest|\$([\d.]+)\\text\{ m s\}\^\{-1\}\$/g)].map((m) => (m[1] === undefined ? 0 : Number(m[1])));
+
+/** The power quoted, in watts, whether written in watts or kilowatts. */
+function powerIn(slide: Slide): number {
+  const m = /\$([\d.]+)\\text\{ (k?)W\}\$/.exec(said(slide));
+  if (!m) throw new Error(`no power in: ${said(slide)}`);
+  return Number(m[1]) * (m[2] === 'k' ? 1000 : 1);
+}
+
+const muIn = (slide: Slide): number => Number(/\\mu = ([\d.]+)\$/.exec(said(slide))![1]);
+
+/**
+ * The angle's sine and cosine from however the prompt gives it: both as
+ * decimals, as a tangent (the triangle drawn afresh with atan2), or as a sine
+ * of one over a whole number. Null when there is no angle.
+ */
+function angleIn(slide: Slide): { sin: number; cos: number } | null {
+  const text = said(slide);
+  const tan = /\\tan\\alpha = \\tfrac\{(\d+)\}\{(\d+)\}/.exec(text);
+  if (tan) {
+    const a = Math.atan2(Number(tan[1]), Number(tan[2]));
+    return { sin: Math.sin(a), cos: Math.cos(a) };
+  }
+  const over = /\\sin\\alpha = \\tfrac\{1\}\{(\d+)\}/.exec(text);
+  if (over) {
+    const s = 1 / Number(over[1]);
+    return { sin: s, cos: Math.sqrt(1 - s * s) };
+  }
+  const sin = /\\sin\\alpha = ([\d.]+)/.exec(text);
+  if (sin) {
+    const cos = /\\cos\\alpha = ([\d.]+)/.exec(text);
+    return { sin: Number(sin[1]), cos: cos ? Number(cos[1]) : Math.sqrt(1 - Number(sin[1]) ** 2) };
+  }
+  return null;
+}
+
+/** The whole speed with this kinetic energy per kilogram, failing if it is not whole: no root is rounded. */
+function wholeSpeed(ke: number, m: number, where: string): number {
+  const v = Math.sqrt((2 * ke) / m);
+  expect(Math.abs(v - Math.round(v)), `${where}: speed ${v} is not whole`).toBeLessThan(1e-9);
+  return Math.round(v);
+}
+
+/** On the half-metre lattice. */
+const halfMetre = (d: number): boolean => Math.abs(d * 2 - Math.round(d * 2)) < 1e-9;
+
+/** A steps slide keeps its value at every line and ends on it. */
+function stepsHold(slide: Slide, want: number, where: string): void {
+  if (slide.kind !== 'steps') throw new Error(`expected steps, got ${slide.kind}`);
+  let line = slide.start;
+  expect(close(lineValue(line), want), `${where}: ${line.join(' ')} is not ${want}`).toBe(true);
+  for (const step of slide.reductions) {
+    line = [...line.slice(0, step.span[0]), step.value, ...line.slice(step.span[1])];
+    expect(close(lineValue(line), want), `${where}: ${line.join(' ')} is not ${want}`).toBe(true);
+  }
+  expect(line).toHaveLength(1);
+}
+
+describe('work, energy and power', TIME, () => {
+  it('work is the force along the motion times the distance', () => {
+    for (const { slide } of draws(g.work)) {
+      const [T] = allWith(slide, 'N');
+      const [d] = allWith(slide, 'm');
+      const angle = angleIn(slide);
+      expectClose(answerOf(slide), [T * (angle ? angle.cos : 1) * d], 'work');
+    }
+    choicesAgree(g.work);
+    for (const { slide } of draws(g.workTable)) {
+      const rows = filledTable(slide);
+      expect(rows).toHaveLength(3);
+      for (const [F, d, W] of rows) expect(close(F * d, W), `F ${F} d ${d} W ${W}`).toBe(true);
+    }
+  });
+
+  it('an angled pull does work through its cosine part, and the weight does none', () => {
+    for (const { slide } of draws(g.pullWorkFlow)) {
+      const [T] = allWith(slide, 'N');
+      const [d] = allWith(slide, 'm');
+      const { cos } = angleIn(slide)!;
+      const path = pathOf(slide);
+      expectPath(path, ['$T\\cos\\alpha$', T * cos, T * cos * d, ...(path.length === 4 ? [0] : [])], 'pull flow');
+    }
+  });
+
+  it('work against gravity is mg times the height gained', () => {
+    for (const { slide } of draws(g.liftWorkSteps)) {
+      const [m] = massesIn(slide);
+      const [dist] = allWith(slide, 'm');
+      const angle = angleIn(slide);
+      const h = angle ? dist * angle.sin : dist;
+      expect(halfMetre(h), `height ${h}`).toBe(true);
+      stepsHold(slide, m * GRAV * h, 'lift');
+    }
+  });
+
+  it('kinetic energy is half m v squared, run either way', () => {
+    for (const { slide } of draws(g.ke)) {
+      const lead = leadOf(slide);
+      const [E] = allWith(slide, 'J');
+      if (lead === 'v =') expectClose(answerOf(slide), [Math.sqrt((2 * E) / massesIn(slide)[0])], 'v');
+      else if (lead === 'm =') expectClose(answerOf(slide), [(2 * E) / speedsIn(slide)[0] ** 2], 'm');
+      else expectClose(answerOf(slide), [(massesIn(slide)[0] * speedsIn(slide)[0] ** 2) / 2], 'KE');
+      if (lead === 'v =') expect(Number.isInteger(answerOf(slide)[0])).toBe(true);
+    }
+    choicesAgree(g.ke);
+  });
+
+  it('the potential energy slider lands on the height mgh says', () => {
+    for (const { slide } of draws(g.peSlider)) {
+      const [m] = massesIn(slide);
+      const [E] = allWith(slide, 'J');
+      const falls = said(slide).includes('falls from');
+      const h = falls ? allWith(slide, 'm')[0] - E / (m * GRAV) : E / (m * GRAV);
+      expectClose(answerOf(slide), [h], 'pe slider');
+    }
+  });
+
+  it('the change in kinetic energy, each energy or through v squared minus u squared', () => {
+    for (const { slide } of draws(g.keChangeTree)) {
+      const [m] = massesIn(slide);
+      const [u, v] = speedsIn(slide);
+      const [kU, kV] = [(m * u * u) / 2, (m * v * v) / 2];
+      if (v < u) expectClose(answerOf(slide), [u * u, v * v, v * v - u * u, kV - kU], 'slowing');
+      else expectClose(answerOf(slide), [kU, kV, kV - kU], 'speeding up');
+    }
+  });
+
+  it('potential energy lost on a fall is kinetic energy gained', () => {
+    for (const { slide } of draws(g.energySwapFlow)) {
+      const [m] = massesIn(slide);
+      const [u] = speedsIn(slide);
+      const [h] = allWith(slide, 'm');
+      const pe = m * GRAV * h;
+      const ke = (m * u * u) / 2 + pe;
+      expectPath(pathOf(slide), [pe, ke, wholeSpeed(ke, m, 'fall')], 'fall');
+    }
+  });
+
+  it('the work-energy principle on a smooth floor, for the speed, the force or the distance', () => {
+    for (const { slide } of draws(g.workEnergy)) {
+      const [m] = massesIn(slide);
+      const speeds = speedsIn(slide);
+      const lead = leadOf(slide);
+      if (lead === 'v =') {
+        const [P] = allWith(slide, 'N');
+        const [d] = allWith(slide, 'm');
+        const ke = (m * speeds[0] ** 2) / 2 + P * d;
+        expectClose(answerOf(slide), [wholeSpeed(ke, m, 'v')], 'v');
+      } else {
+        const gain = (m * (speeds[1] ** 2 - speeds[0] ** 2)) / 2;
+        if (lead === 'F =') expectClose(answerOf(slide), [gain / allWith(slide, 'm')[0]], 'F');
+        else {
+          const d = gain / allWith(slide, 'N')[0];
+          expect(halfMetre(d)).toBe(true);
+          expectClose(answerOf(slide), [d], 'd');
+        }
+      }
+    }
+    choicesAgree(g.workEnergy);
+  });
+
+  it('the work-energy tiles hold the masses, the speed before and the work done', () => {
+    for (const { slide } of draws(g.workEnergyTiles)) {
+      const [m] = massesIn(slide);
+      const [u] = speedsIn(slide);
+      const push = allWith(slide, 'N');
+      const W = push.length > 0 ? push[0] * allWith(slide, 'm')[0] : m * GRAV * allWith(slide, 'm')[0];
+      expectClose(answerOf(slide), [m, m, u, W], 'work-energy tiles');
+      wholeSpeed((m * u * u) / 2 + W, m, 'tiles');
+    }
+  });
+
+  it('the speed at the foot of a smooth slope, by energy', () => {
+    for (const { slide } of draws(g.slopeSpeedTree)) {
+      const [m] = massesIn(slide);
+      const [u] = speedsIn(slide);
+      const [dist] = allWith(slide, 'm');
+      const angle = angleIn(slide);
+      const h = angle ? dist * angle.sin : dist;
+      const [pe, ke0] = [m * GRAV * h, (m * u * u) / 2];
+      const v = wholeSpeed(ke0 + pe, m, 'slope');
+      expectClose(answerOf(slide), [...(angle ? [h] : []), pe, ke0, ke0 + pe, v], 'slope speed');
+    }
+  });
+
+  it('the kinetic energy gained is the net work: the pull less the resistance', () => {
+    for (const { slide } of draws(g.netWorkSteps)) {
+      const [P, R] = allWith(slide, 'N');
+      const [d] = allWith(slide, 'm');
+      const angle = angleIn(slide);
+      const net = (P * (angle ? angle.cos : 1) - R) * d;
+      expect(net).toBeGreaterThan(0);
+      stepsHold(slide, net, 'net work');
+    }
+  });
+
+  it('work against friction is mu R d, with R = mg cos(alpha) on a slope', () => {
+    for (const { slide } of draws(g.frictionWork)) {
+      const [m] = massesIn(slide);
+      const [d] = allWith(slide, 'm');
+      const angle = angleIn(slide);
+      expectClose(answerOf(slide), [muIn(slide) * m * GRAV * (angle ? angle.cos : 1) * d], 'friction work');
+    }
+    choicesAgree(g.frictionWork);
+  });
+
+  it('friction takes all the kinetic energy by the time it stops', () => {
+    for (const { slide } of draws(g.stoppingFlow)) {
+      const [m] = massesIn(slide);
+      const [u] = speedsIn(slide);
+      const F = muIn(slide) * m * GRAV;
+      const ke = (m * u * u) / 2;
+      const path = pathOf(slide);
+      expect(halfMetre(ke / F)).toBe(true);
+      expectPath(path, [ke, F, ke / F, ...(path.length === 4 ? ['The same distance'] : [])], 'stopping flow');
+    }
+    for (const { slide } of draws(g.stoppingSlider)) {
+      const [m] = massesIn(slide);
+      const [u] = speedsIn(slide);
+      const given = allWith(slide, 'N');
+      const F = given.length > 0 ? given[0] : muIn(slide) * m * GRAV;
+      const d = (m * u * u) / 2 / F;
+      expect(halfMetre(d)).toBe(true);
+      expectClose(answerOf(slide), [d], 'stopping slider');
+    }
+  });
+
+  it('the speed after a rough stretch, slowed by friction or pulled against it', () => {
+    for (const { slide } of draws(g.roughSpeedTree)) {
+      const [m] = massesIn(slide);
+      const [u] = speedsIn(slide);
+      const [d] = allWith(slide, 'm');
+      const pulls = allWith(slide, 'N');
+      const ke0 = (m * u * u) / 2;
+      const fw = muIn(slide) * m * GRAV * d;
+      if (pulls.length > 0) {
+        const pw = pulls[0] * d;
+        expectClose(answerOf(slide), [ke0, pw, fw, ke0 + pw - fw, wholeSpeed(ke0 + pw - fw, m, 'pulled')], 'pulled');
+      } else {
+        expectClose(answerOf(slide), [ke0, fw, ke0 - fw, wholeSpeed(ke0 - fw, m, 'skid')], 'skid');
+      }
+    }
+  });
+
+  it('power is force times speed, run either way', () => {
+    for (const { slide } of draws(g.power)) {
+      const lead = leadOf(slide);
+      if (lead === 'P =') expectClose(answerOf(slide), [allWith(slide, 'N')[0] * speedsIn(slide)[0]], 'P');
+      else if (lead === 'F =') expectClose(answerOf(slide), [powerIn(slide) / speedsIn(slide)[0]], 'F');
+      else expectClose(answerOf(slide), [powerIn(slide) / allWith(slide, 'N')[0]], 'v');
+    }
+    choicesAgree(g.power);
+    for (const { slide } of draws(g.powerTable)) {
+      for (const [F, v, P] of filledTable(slide)) expect(close(F * v, P), `F ${F} v ${v} P ${P}`).toBe(true);
+    }
+  });
+
+  it('at top speed the driving force balances the resistance and the pull down the hill', () => {
+    for (const { slide } of draws(g.topSpeedFlow)) {
+      const [R] = allWith(slide, 'N');
+      const angle = angleIn(slide);
+      const F = R + (angle ? massesIn(slide)[0] * GRAV * angle.sin : 0);
+      const v = powerIn(slide) / F;
+      expect(Number.isInteger(v)).toBe(true);
+      const path = pathOf(slide);
+      expect(path[0]).toMatch(/^Equal to the resistance/);
+      expectPath(path.slice(1), [F, v], 'top speed');
+    }
+  });
+
+  it('the acceleration at a speed: P/v, less the resistance and the pull down the hill, over m', () => {
+    for (const { slide } of draws(g.powerAccelTree)) {
+      const [m] = massesIn(slide);
+      const [R] = allWith(slide, 'N');
+      const [v] = speedsIn(slide);
+      const angle = angleIn(slide);
+      const F = powerIn(slide) / v;
+      const pull = angle ? m * GRAV * angle.sin : 0;
+      expectClose(answerOf(slide), [F, ...(angle ? [pull] : []), F - R - pull, (F - R - pull) / m], 'power accel');
+    }
+  });
+});

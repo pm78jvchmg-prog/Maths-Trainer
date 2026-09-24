@@ -45,6 +45,15 @@
  * kind shows one box. Nothing in these levels is calculus, so no slide
  * declares `source` and the derivative oracle has nothing to check here:
  * `forces.test.ts` is what checks the answers.
+ *
+ * Level 6 (work, energy and power) keeps the same lattice: whole speeds,
+ * whole or half-metre distances, whole given forces. A speed that comes from
+ * energy is never a rounded root: with g = 9.8 the tidy falls, stops and skids
+ * are sparse, so they come from catalogues built once (`FALLS`, `STOPS`,
+ * `SKIDS`, `HAULS`), and elsewhere the speeds are drawn first and the force or
+ * distance built from them through `until`. Pictures are `pullSvg`, `dropSvg`
+ * and `slopeSvg`, since the `forces` kind shows no distance moved. Again
+ * nothing is calculus and no slide declares `source`.
  */
 import type { Block, ChoiceOption, Generator, Slide, SolutionStep } from '../types';
 import type { Rng } from '../../engine/rng';
@@ -7996,6 +8005,1533 @@ const ladderFlow: Generator<LadderParams> = {
   solution: (p) => ladderWorking(p, 'mu'),
 };
 
+/* ================================================================
+ * Level 6: Work, Energy and Power
+ * ================================================================ */
+
+/*
+ * Work and energy in joules, power in watts (or kilowatts, when the number
+ * is whole in them). Masses are whole kilograms or halves, speeds whole
+ * metres per second, distances and heights whole or half metres, given
+ * forces whole newtons, and g = 9.8 is stated wherever it is used.
+ *
+ * A speed found from energy is never a rounded root. With g = 9.8, a fall
+ * through h metres changes v^2 by 19.6h, which is a whole square difference
+ * only when 49 divides it, so those cases are sparse: `FALLS`, `STOPS` and
+ * `SKIDS` are catalogues of every tidy case, built once, and a draw picks
+ * from them. Everywhere else the speeds are drawn first and the force or
+ * distance is built from them and drawn again through `until` until it is
+ * whole or on the half-metre lattice.
+ */
+
+const joules = (v: number): string => `$${fmt(v)}\\text{ J}$`;
+const speedOf = (v: number): string => `$${fmt(v)}${MS}$`;
+
+/** A power in prose: kilowatts when that is whole, watts otherwise. */
+const powerOf = (P: number): string => (P % 1000 === 0 ? `$${fmt(P / 1000)}\\text{ kW}$` : `$${fmt(P)}\\text{ W}$`);
+
+const LOADS = ['crate', 'sledge', 'box', 'trolley', 'suitcase', 'block', 'parcel', 'cart'];
+const DROPPED = ['stone', 'rock', 'brick', 'sandbag', 'log', 'ball', 'bucket', 'melon'];
+const VEHICLES = ['car', 'van', 'lorry', 'bus', 'tractor', 'jeep'];
+
+/**
+ * Three values for a fork of a flow: the right one and two slips, distinct,
+ * positive and exact, topped up with near misses, sorted so the order says
+ * nothing (PITFALLS 3.10).
+ */
+function forkValues(right: number, wrong: number[], unit = 1): string[] {
+  const out = [fmt(right)];
+  const add = (v: number) => {
+    if (out.length < 3 && Number.isFinite(v) && v > 0 && exact(v, 4) && !out.includes(fmt(v))) out.push(fmt(v));
+  };
+  wrong.forEach(add);
+  for (let k = 1; out.length < 3; k += 1) {
+    add(right + k * unit);
+    add(right - k * unit);
+  }
+  return out.sort((x, y) => Number(x) - Number(y)).map((v) => `$${v}$`);
+}
+
+/** A mass from `lo` to `hi` kilograms, whole, or in halves when `hard`. */
+const massIn = (rng: Rng, hard: boolean, lo: number, hi: number): number => (hard ? rng.int(2 * lo, 2 * hi) / 2 : rng.int(lo, hi));
+
+/* ---------- Tidy cases ---------- */
+
+/** Whole speeds before and after a fall through a whole or half-metre height: v^2 = u^2 + 2gh. */
+export interface Fall {
+  u: number;
+  v: number;
+  h: number;
+}
+
+export const FALLS = once((): Fall[] => {
+  const out: Fall[] = [];
+  for (let u = 0; u <= 14; u += 1) {
+    for (let v = u + 1; v <= 28; v += 1) {
+      const h = (v * v - u * u) / (2 * G);
+      if (onHalf(h) && h <= 40) out.push({ u, v, h: Number(fmt(h)) });
+    }
+  }
+  return out;
+});
+
+/** A slide from rest to rest on a rough floor: u^2 = 2 mu g d. */
+export interface Stop {
+  mu: number;
+  u: number;
+  d: number;
+}
+
+export const STOPS = once((): Stop[] => {
+  const out: Stop[] = [];
+  for (const mu of RIG_MUS) {
+    for (let u = 1; u <= 21; u += 1) {
+      const d = (u * u) / (2 * G * mu);
+      if (onHalf(d) && d <= 40) out.push({ mu, u, d: Number(fmt(d)) });
+    }
+  }
+  return out;
+});
+
+/** Slowing on a rough floor from one whole speed to another: u^2 - v^2 = 2 mu g d. */
+export interface Skid {
+  mu: number;
+  u: number;
+  v: number;
+  d: number;
+}
+
+export const SKIDS = once((): Skid[] => {
+  const out: Skid[] = [];
+  for (const mu of RIG_MUS) {
+    for (let u = 2; u <= 21; u += 1) {
+      for (let v = 1; v < u; v += 1) {
+        const d = (u * u - v * v) / (2 * G * mu);
+        if (onHalf(d) && d <= 40) out.push({ mu, u, v, d: Number(fmt(d)) });
+      }
+    }
+  }
+  return out;
+});
+
+/** Pulled along a rough floor from u to v by a whole force P over d: (P - mu m g)d = m(v^2 - u^2)/2. */
+export interface Haul {
+  m: number;
+  mu: number;
+  u: number;
+  v: number;
+  d: number;
+  P: number;
+}
+
+export const HAULS = once((): Haul[] => {
+  const out: Haul[] = [];
+  for (const mu of MUS) {
+    for (let m = 1; m <= 10; m += 1) {
+      for (let u = 0; u <= 8; u += 1) {
+        for (let v = u + 1; v <= 12; v += 1) {
+          for (const d of halves(1, 15)) {
+            const P = ((m * (v * v - u * u)) / 2 + G * mu * m * d) / d;
+            if (exact(P, 0) && P <= 100) out.push({ m, mu, u, v, d, P: Math.round(P) });
+          }
+        }
+      }
+    }
+  }
+  return out;
+});
+
+/* ---------- Pictures ---------- */
+
+/** A box pulled along a level floor by a rope at the angle `t` above the horizontal. */
+export function pullSvg(t: Angle): string {
+  const c = cosOf(t);
+  const s = sinOf(t);
+  return arrowsSvg(
+    [
+      { to: [3.6 * c, 3.6 * s], name: 'T' },
+      { to: [0, -3.2], name: 'W', faint: true },
+      { from: [1, -1.9], to: [4.6, -1.9], name: 'd', faint: true },
+    ],
+    {
+      span: 6,
+      axes: false,
+      lines: [[[-5.6, -0.6], [5.6, -0.6]]],
+      dot: [0, 0],
+      label: 'A box on a level floor pulled by a rope at an angle above the horizontal, moving a distance d along the floor',
+    },
+  );
+}
+
+/**
+ * A particle falling from a ledge to the ground, its path dashed, the height
+ * marked beside it. Plain SVG text for the letter, since KaTeX cannot go in an
+ * SVG; `currentColor` throughout so it reads in either theme.
+ */
+export function dropSvg(label = 'A particle falling from a ledge to the ground, through a height h'): string {
+  return [
+    `<svg viewBox="0 0 220 200" width="100%" role="img" aria-label="${label}">`,
+    '<line x1="8" y1="186" x2="212" y2="186" stroke="currentColor" stroke-width="2" opacity="0.7" />',
+    '<path d="M 8 186 L 8 40 L 82 40 L 82 186" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.45" />',
+    '<circle cx="100" cy="32" r="7" fill="currentColor" />',
+    '<line x1="100" y1="44" x2="100" y2="176" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-dasharray="6 5" />',
+    '<line x1="100" y1="178" x2="93" y2="167" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />',
+    '<line x1="100" y1="178" x2="107" y2="167" class="plot-accent" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />',
+    '<line x1="160" y1="32" x2="160" y2="186" stroke="currentColor" stroke-width="1" opacity="0.6" />',
+    '<line x1="152" y1="32" x2="168" y2="32" stroke="currentColor" stroke-width="1" opacity="0.6" />',
+    '<text x="174" y="112" fill="currentColor" font-size="16" font-style="italic" dominant-baseline="central">h</text>',
+    '</svg>',
+  ].join('');
+}
+
+/* ---------- Work done by a constant force ---------- */
+
+interface WorkParams {
+  thing: string;
+  T: number;
+  d: number;
+  /** The rope's angle above the horizontal, or null for a horizontal pull. */
+  t: Angle | null;
+  hard: boolean;
+}
+
+/** The work a pull does: its part along the floor, times the distance. */
+const workOf = ({ T, d, t }: Pick<WorkParams, 'T' | 'd' | 't'>): number => T * (t ? cosOf(t) : 1) * d;
+
+/** Expression: W = Fd along the floor, or F d cos(alpha) for a rope at an angle. */
+const work: Generator<WorkParams> = {
+  id: 'force-work',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(LOADS),
+      T: hard ? rng.int(5, 60) : rng.int(2, 40),
+      d: hard ? rng.int(2, 40) / 2 : rng.int(1, 15),
+      t: hard ? rng.pick([A34, A43, A724, A247]) : rng.chance(0.5) ? null : rng.pick([A34, A43]),
+      hard,
+    };
+  },
+  render: ({ thing, T, d, t, hard }) => {
+    if (!t) {
+      return typed(
+        [say(`A horizontal force of ${newtons(T)} pulls a ${thing} ${metres(d)} across a level floor. Find the work done by the force, in joules.`)],
+        'W =',
+        workOf({ T, d, t }),
+      );
+    }
+    return typed(
+      [
+        say(
+          `A ${thing} is pulled ${metres(d)} across a level floor by a rope at an angle $\\alpha$ above the horizontal, where ${angleFacts(t, hard)}. The tension in the rope is ${newtons(T)}. Find the work done by the tension, in joules.`,
+        ),
+        picture(pullSvg(t)),
+      ],
+      'W =',
+      workOf({ T, d, t }),
+    );
+  },
+  solution: ({ T, d, t, hard }) => {
+    if (!t) {
+      return [
+        { text: 'The force acts along the motion, so the work done is the force times the distance moved:' },
+        { tex: `W = Fd = ${fmt(T)} \\times ${fmt(d)} = ${fmt(T * d)}` },
+      ];
+    }
+    return [
+      ...angleStep(t, hard),
+      { text: 'Only the part of the tension along the floor does work. That part is $T\\cos\\alpha$:' },
+      { tex: `W = T\\cos\\alpha \\times d = ${fmt(T)} \\times ${fmt(cosOf(t))} \\times ${fmt(d)} = ${fmt(workOf({ T, d, t }))}` },
+    ];
+  },
+  choices: ({ T, d, t }) => {
+    const W = workOf({ T, d, t });
+    const s = t ? sinOf(t) : 0;
+    return valueChoices(W, [T * d, T * s * d, T + d, W / 2, 2 * W], mix(T, d * 2, t ? t.o : 0, t ? t.a : 0));
+  },
+};
+
+interface WorkRow {
+  F: number;
+  d: number;
+  blank: 'F' | 'd' | 'W';
+}
+
+/** Table: force, distance and work for three pulls, one quantity missing from each. */
+const workTable: Generator<{ rows: WorkRow[] }> = {
+  id: 'force-work-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const blanks: WorkRow['blank'][] = hard ? turned(['F', 'd', 'W'], rng.int(0, 2)) : ['W', 'W', 'W'];
+    return until(
+      () => ({ rows: blanks.map((blank) => ({ F: rng.int(2, hard ? 40 : 30), d: hard ? rng.int(2, 24) / 2 : rng.int(1, 12), blank })) }),
+      ({ rows }) => new Set(rows.map((r) => r.F * r.d)).size === 3,
+    );
+  },
+  render: ({ rows }) => {
+    const answer: number[] = [];
+    const cell = (value: number, blank: boolean) => {
+      if (!blank) return fmt(value);
+      answer.push(value);
+      return null;
+    };
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          'Each row is a constant force moving an object a distance in the direction the force acts. Forces are in newtons, distances in metres and work in joules. Fill in the gaps.',
+        ),
+      ],
+      columns: ['', 'F', 'd', 'W'],
+      rows: rows.map(({ F, d, blank }, i) => [['A', 'B', 'C'][i], cell(F, blank === 'F'), cell(d, blank === 'd'), cell(F * d, blank === 'W')]),
+      bank: valueBank(answer, rows.flatMap(({ F, d }) => [F + d, 2 * F * d])),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ rows }) =>
+    rows.map(({ F, d, blank }, i): SolutionStep => {
+      const name = ['A', 'B', 'C'][i];
+      if (blank === 'F') return { tex: `F_{${name}} = \\frac{W}{d} = \\frac{${fmt(F * d)}}{${fmt(d)}} = ${fmt(F)}` };
+      if (blank === 'd') return { tex: `d_{${name}} = \\frac{W}{F} = \\frac{${fmt(F * d)}}{${fmt(F)}} = ${fmt(d)}` };
+      return { tex: `W_{${name}} = ${fmt(F)} \\times ${fmt(d)} = ${fmt(F * d)}` };
+    }),
+};
+
+interface PullFlowParams {
+  thing: string;
+  m: number;
+  T: number;
+  d: number;
+  t: Angle;
+  hard: boolean;
+}
+
+/** Flow: which part of an angled pull does work, what it is, the work, and (hard) the weight's work. */
+const pullWorkFlow: Generator<PullFlowParams> = {
+  id: 'force-pull-work-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(LOADS),
+      m: rng.int(2, 12),
+      T: rng.int(5, 50),
+      d: rng.int(2, 15),
+      t: hard ? rng.pick([A34, A43, A724, A247]) : rng.pick([A34, A43]),
+      hard,
+    };
+  },
+  render: ({ thing, m, T, d, t, hard }) => {
+    const [c, s] = [cosOf(t), sinOf(t)];
+    const W = T * c * d;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `A ${thing} of mass ${kg(m)} is pulled ${metres(d)} along a level floor by a rope at an angle $\\alpha$ above the horizontal, where ${angleFacts(t, hard)}. The tension is ${newtons(T)}.`,
+        ),
+        picture(pullSvg(t)),
+      ],
+      subject: 'W = F \\times d',
+      steps: [
+        {
+          id: 'part',
+          ask: `Which part of the tension does work as the ${thing} moves along the floor?`,
+          branches: ['$T\\cos\\alpha$', '$T\\sin\\alpha$', '$T$'].map((label) => ({ label, to: 'along' })),
+        },
+        {
+          id: 'along',
+          ask: 'So the part of the tension along the floor is, in newtons:',
+          branches: forkValues(T * c, [T * s, T]).map((label) => ({ label, to: 'work' })),
+        },
+        {
+          id: 'work',
+          ask: `Over ${metres(d)}, the work done by the tension is, in joules:`,
+          branches: forkValues(W, [T * s * d, T * d]).map((label) =>
+            hard ? { label, to: 'weight' } : { label, outcome: 'Only the part of a force along the motion does work.' },
+          ),
+        },
+        ...(hard
+          ? [
+              {
+                id: 'weight',
+                ask: `${G_NOTE} How much work does the weight of the ${thing} do as it moves along the floor, in joules?`,
+                branches: ['$0$', ...forkValues(G * m * d, [G * m]).slice(0, 2)].map((label) => ({
+                  label,
+                  outcome: 'The weight acts at right angles to the motion, so it does no work.',
+                })),
+              },
+            ]
+          : []),
+      ],
+      answer: ['$T\\cos\\alpha$', `$${fmt(T * c)}$`, `$${fmt(W)}$`, ...(hard ? ['$0$'] : [])],
+    };
+  },
+  solution: ({ m, T, d, t, hard }) => [
+    ...angleStep(t, hard),
+    { text: 'The floor is level, so only the part of the tension along it moves the load:' },
+    { tex: `T\\cos\\alpha = ${fmt(T)} \\times ${fmt(cosOf(t))} = ${fmt(T * cosOf(t))}` },
+    { tex: `W = ${fmt(T * cosOf(t))} \\times ${fmt(d)} = ${fmt(T * cosOf(t) * d)}` },
+    ...(hard
+      ? [{ text: `The weight, $${fmt(G * m)}\\text{ N}$, acts straight down, at right angles to the motion: it does no work.` }]
+      : []),
+  ],
+};
+
+interface LiftParams6 {
+  thing: string;
+  m: number;
+  /** Height gained, in metres. */
+  h: number;
+  /** Hard: the distance up a smooth slope, and its angle. */
+  d: number;
+  t: Angle | null;
+}
+
+/** Steps: the work done against gravity, mgh, lifting straight up or (hard) up a smooth slope. */
+const liftWorkSteps: Generator<LiftParams6> = {
+  id: 'force-lift-work-steps',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { thing: rng.pick(LOADS), m: rng.int(2, 20), h: rng.int(1, 15), d: 0, t: null };
+    const t = rng.pick([A34, A43, A724, A247]);
+    // A length whose height up the slope lands on a half metre.
+    const d = t.h === 5 ? rng.int(1, 8) * 2.5 : rng.int(1, 3) * 12.5;
+    return { thing: rng.pick(LOADS), m: rng.int(2, 20), h: Number(fmt(d * sinOf(t))), d, t };
+  },
+  render: ({ thing, m, h, d, t }) => {
+    const mg = G * m;
+    const lifted: Collapse[] = [
+      { op: 1, value: mg, wrong: [m + 9.8, m * 10, mg * h] },
+      { op: 1, value: mg * h, wrong: [mg + h, m * h, 2 * mg * h] },
+    ];
+    if (!t) {
+      return {
+        kind: 'steps',
+        prompt: [
+          say(
+            `A crane lifts a ${thing} of mass ${kg(m)} straight up through ${metres(h)} at a steady speed. ${G_NOTE} Find the work done against gravity, in joules: tap the part to do next, then choose what it comes to.`,
+          ),
+        ],
+        start: [fmt(m), '\\times', '9.8', '\\times', fmt(h)],
+        reductions: collapses(lifted),
+      };
+    }
+    const s = sinOf(t);
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          `A ${thing} of mass ${kg(m)} is pulled ${metres(d)} up a smooth slope at a steady speed. The slope is at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = ${fmt(s)}$. ${G_NOTE}`,
+        ),
+        say('Find the work done against gravity, in joules: tap the part to do next, then choose what it comes to.'),
+        picture(slopeSvg(t, { pull: 'along' })),
+      ],
+      start: [fmt(m), '\\times', '9.8', '\\times', fmt(d), '\\times', fmt(s)],
+      reductions: collapses([{ op: 5, value: h, wrong: [d * cosOf(t), d + s, d / s] }, ...lifted]),
+    };
+  },
+  solution: ({ m, h, d, t }) => [
+    ...(t
+      ? [
+          { text: 'Only the height gained counts against gravity. Up the slope that is' },
+          { tex: `h = d\\sin\\alpha = ${fmt(d)} \\times ${fmt(sinOf(t))} = ${fmt(h)}` },
+        ]
+      : [{ text: 'Lifting against gravity takes the weight, $mg$, times the height gained:' }]),
+    { tex: aligned(`W &= mgh = ${fmt(m)} \\times 9.8 \\times ${fmt(h)}`, `&= ${fmt(G * m * h)}`) },
+  ],
+};
+
+/* ---------- Kinetic and potential energy ---------- */
+
+interface KeParams {
+  thing: string;
+  m: number;
+  v: number;
+  find: 'E' | 'v' | 'm';
+}
+
+/** Expression: kinetic energy, half m v squared, or run backwards for the speed or the mass. */
+const ke: Generator<KeParams> = {
+  id: 'force-ke',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(LOADS),
+      m: massIn(rng, hard, 1, hard ? 10 : 12),
+      v: hard ? rng.int(2, 20) : rng.int(1, 15),
+      find: hard ? rng.pick<KeParams['find']>(['E', 'v', 'm']) : 'E',
+    };
+  },
+  render: ({ thing, m, v, find }) => {
+    const E = (m * v * v) / 2;
+    if (find === 'v') {
+      return typed([say(`A ${thing} of mass ${kg(m)} has kinetic energy ${joules(E)}. Find its speed, in $\\text{m s}^{-1}$.`)], 'v =', v);
+    }
+    if (find === 'm') {
+      return typed([say(`A ${thing} moving at ${speedOf(v)} has kinetic energy ${joules(E)}. Find its mass, in kilograms.`)], 'm =', m);
+    }
+    return typed([say(`A ${thing} of mass ${kg(m)} is moving at ${speedOf(v)}. Find its kinetic energy, in joules.`)], '\\text{KE} =', E);
+  },
+  solution: ({ m, v, find }) => {
+    const E = (m * v * v) / 2;
+    if (find === 'v') {
+      return [
+        { text: 'Kinetic energy is $\\tfrac{1}{2}mv^{2}$, so $v^{2}$ is twice the energy over the mass:' },
+        { tex: `v^{2} = \\frac{2 \\times ${fmt(E)}}{${fmt(m)}} = ${fmt(v * v)}` },
+        { tex: `v = \\sqrt{${fmt(v * v)}} = ${fmt(v)}` },
+      ];
+    }
+    if (find === 'm') {
+      return [
+        { text: 'Kinetic energy is $\\tfrac{1}{2}mv^{2}$, so the mass is twice the energy over $v^{2}$:' },
+        { tex: `m = \\frac{2 \\times ${fmt(E)}}{${fmt(v)}^{2}} = \\frac{${fmt(2 * E)}}{${fmt(v * v)}} = ${fmt(m)}` },
+      ];
+    }
+    return [
+      { text: 'Kinetic energy is half the mass times the speed squared. Square the speed first:' },
+      { tex: `\\text{KE} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(v)}^{2} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(v * v)} = ${fmt(E)}` },
+    ];
+  },
+  choices: ({ m, v, find }) => {
+    const E = (m * v * v) / 2;
+    const salt = mix(m * 2, v, find.charCodeAt(0));
+    if (find === 'v') return valueChoices(v, [v * v, 2 * v, E / m], salt);
+    if (find === 'm') return valueChoices(m, [2 * m, m / 2, E / v], salt);
+    return valueChoices(E, [m * v * v, (m * v) / 2, ((m * v) / 2) ** 2], salt);
+  },
+};
+
+interface PeSliderParams {
+  thing: string;
+  m: number;
+  /** Where it ends up, in metres above the ground. */
+  h: number;
+  /** Hard: where it starts, above the ground; it falls from there to `h`. */
+  from: number | null;
+}
+
+const H_SPAN = 12;
+
+/** Slider: the height at which a mass has gained (or, hard, been left after losing) a given potential energy. */
+const peSlider: Generator<PeSliderParams> = {
+  id: 'force-pe-slider',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { thing: rng.pick(LOADS), m: rng.int(1, 10), h: rng.int(1, 10), from: null };
+    return until(
+      () => ({ thing: rng.pick(DROPPED), m: rng.int(1, 12) / 2, h: rng.int(1, 22) / 2, from: rng.int(2, H_SPAN) }),
+      ({ h, from }) => from! - h >= 1,
+    );
+  },
+  render: ({ thing, m, h, from }) => {
+    const mg = G * m;
+    const E = from === null ? mg * h : mg * (from - h);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          from === null
+            ? `A ${thing} of mass ${kg(m)} is lifted from the floor and gains ${joules(E)} of potential energy. ${G_NOTE} The line is its potential energy at each height. Slide to how high it is lifted, in metres.`
+            : `A ${thing} of mass ${kg(m)} falls from ${metres(from)} above the ground and loses ${joules(E)} of potential energy. ${G_NOTE} The line is its potential energy at each height above the ground. Slide to its height now, in metres.`,
+        ),
+      ],
+      min: 0,
+      max: H_SPAN,
+      step: 0.5,
+      answer: h,
+      readout: 'h = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: H_SPAN,
+          yMin: 0,
+          yMax: mg * (H_SPAN + 0.5),
+          curves: [{ f: (x) => mg * x }],
+          horizontals: from === null ? [E] : [],
+          label: `The line of potential energy ${fmt(mg)}h against height h, from the ground up`,
+        }),
+        ...markerWindow(0, H_SPAN),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ m, h, from }) => {
+    const mg = G * m;
+    if (from === null) {
+      return [
+        { text: 'Potential energy gained is $mgh$, so the height is the energy over the weight:' },
+        { tex: `h = \\frac{${fmt(mg * h)}}{${fmt(m)} \\times 9.8} = \\frac{${fmt(mg * h)}}{${fmt(mg)}} = ${fmt(h)}` },
+      ];
+    }
+    return [
+      { text: 'The energy lost over the weight is how far it has fallen:' },
+      { tex: `\\frac{${fmt(mg * (from - h))}}{${fmt(m)} \\times 9.8} = \\frac{${fmt(mg * (from - h))}}{${fmt(mg)}} = ${fmt(from - h)}` },
+      { tex: `h = ${fmt(from)} - ${fmt(from - h)} = ${fmt(h)}` },
+    ];
+  },
+};
+
+interface KeChangeParams {
+  thing: string;
+  m: number;
+  u: number;
+  v: number;
+}
+
+/** Tree: the change in kinetic energy, as each energy (easy) or through v^2 - u^2 as it slows (hard). */
+const keChangeTree: Generator<KeChangeParams> = {
+  id: 'force-ke-change-tree',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return until(
+      () => ({ thing: rng.pick(LOADS), m: massIn(rng, hard, 1, 10), u: hard ? rng.int(5, 20) : rng.int(1, 10), v: hard ? rng.int(1, 19) : rng.int(2, 15) }),
+      ({ u, v }) => (hard ? v < u : v > u),
+    );
+  },
+  render: ({ thing, m, u, v }) => {
+    const slows = v < u;
+    const [kU, kV] = [(m * u * u) / 2, (m * v * v) / 2];
+    const answer = slows ? [u * u, v * v, v * v - u * u, kV - kU] : [kU, kV, kV - kU];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`A ${thing} of mass ${kg(m)} ${slows ? 'slows down' : 'speeds up'} from ${speedOf(u)} to ${speedOf(v)}. Find the change in its kinetic energy, in joules.`),
+        say(
+          slows
+            ? 'Take the short cut: top row $u^{2}$ and $v^{2}$, then $v^{2} - u^{2}$, then the change, which is negative as it slows.'
+            : 'Top row: its kinetic energy before, and after. Then the change, after minus before.',
+        ),
+      ],
+      expression: slows ? '\\Delta E = \\tfrac{1}{2}m(v^{2} - u^{2})' : '\\Delta E = \\tfrac{1}{2}mv^{2} - \\tfrac{1}{2}mu^{2}',
+      nodes: slows
+        ? [
+            { id: 'u2', from: [] },
+            { id: 'v2', from: [] },
+            { id: 'diff', from: ['u2', 'v2'] },
+            { id: 'dE', from: ['diff'] },
+          ]
+        : [
+            { id: 'before', from: [] },
+            { id: 'after', from: [] },
+            { id: 'dE', from: ['before', 'after'] },
+          ],
+      bank: valueBank(answer, slows ? [u * u - v * v, kU - kV, m * (v * v - u * u), (m * (v - u) ** 2) / 2] : [m * u * u, m * v * v, kV + kU, (m * (v - u) ** 2) / 2]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ m, u, v }) => {
+    const [kU, kV] = [(m * u * u) / 2, (m * v * v) / 2];
+    if (v < u) {
+      return [
+        { tex: `v^{2} - u^{2} = ${fmt(v * v)} - ${fmt(u * u)} = ${fmt(v * v - u * u)}` },
+        { tex: `\\Delta E = \\tfrac{1}{2} \\times ${fmt(m)} \\times (${fmt(v * v - u * u)}) = ${fmt(kV - kU)}` },
+        { text: 'Negative: it has lost kinetic energy.' },
+      ];
+    }
+    return [
+      { tex: `\\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2} = ${fmt(kU)}, \\quad \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(v)}^{2} = ${fmt(kV)}` },
+      { tex: `\\Delta E = ${fmt(kV)} - ${fmt(kU)} = ${fmt(kV - kU)}` },
+    ];
+  },
+};
+
+interface FallParams {
+  thing: string;
+  m: number;
+  fall: Fall;
+}
+
+/** Flow: potential energy lost on a fall becomes kinetic energy, and so a speed at the ground. */
+const energySwapFlow: Generator<FallParams> = {
+  id: 'force-energy-swap-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(DROPPED),
+      m: massIn(rng, hard, 1, hard ? 8 : 10),
+      fall: rng.pick(FALLS().filter((f) => (hard ? f.u > 0 : f.u === 0))),
+    };
+  },
+  render: ({ thing, m, fall: { u, v, h } }) => {
+    const pe = G * m * h;
+    const ke0 = (m * u * u) / 2;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          u === 0
+            ? `A ${thing} of mass ${kg(m)} is dropped from rest ${metres(h)} above the ground. Ignore air resistance. ${G_NOTE} How fast is it moving when it hits the ground?`
+            : `A ${thing} of mass ${kg(m)} is thrown straight down at ${speedOf(u)} from ${metres(h)} above the ground. Ignore air resistance. ${G_NOTE} How fast is it moving when it hits the ground?`,
+        ),
+        picture(dropSvg()),
+      ],
+      subject: '\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + mgh',
+      steps: [
+        {
+          id: 'pe',
+          ask: 'How much potential energy does it lose on the way down, in joules?',
+          branches: forkValues(pe, [m * h, pe / 2, G * h]).map((label) => ({ label, to: 'ke' })),
+        },
+        {
+          id: 'ke',
+          ask:
+            u === 0
+              ? 'All of that becomes kinetic energy. So its kinetic energy at the ground is, in joules:'
+              : 'It becomes kinetic energy, on top of what it was thrown with. So its kinetic energy at the ground is, in joules:',
+          branches: forkValues(ke0 + pe, [pe, pe - ke0, 2 * pe, pe / 2]).map((label) => ({ label, to: 'v' })),
+        },
+        {
+          id: 'v',
+          ask: 'So its speed as it hits the ground is, in $\\text{m s}^{-1}$:',
+          branches: forkValues(v, [2 * v, v + 7, v - 7, v / 2]).map((label) => ({
+            label,
+            outcome: 'Energy is conserved: the potential energy lost is the kinetic energy gained.',
+          })),
+        },
+      ],
+      answer: [`$${fmt(pe)}$`, `$${fmt(ke0 + pe)}$`, `$${fmt(v)}$`],
+    };
+  },
+  solution: ({ m, fall: { u, v, h } }) => [
+    { tex: `mgh = ${fmt(m)} \\times 9.8 \\times ${fmt(h)} = ${fmt(G * m * h)}` },
+    ...(u > 0 ? [{ tex: `\\tfrac{1}{2}mu^{2} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2} = ${fmt((m * u * u) / 2)}` }] : []),
+    { tex: `\\tfrac{1}{2} \\times ${fmt(m)} \\times v^{2} = ${fmt((m * u * u) / 2 + G * m * h)}` },
+    { tex: `v^{2} = ${fmt(v * v)}, \\quad v = ${fmt(v)}` },
+  ],
+};
+
+/* ---------- The work-energy principle ---------- */
+
+interface WorkEnergyParams {
+  thing: string;
+  m: number;
+  u: number;
+  v: number;
+  P: number;
+  d: number;
+  find: 'v' | 'P' | 'd';
+}
+
+const pushGain = ({ m, u, v }: Pick<WorkEnergyParams, 'm' | 'u' | 'v'>): number => (m * (v * v - u * u)) / 2;
+
+/** The set-up of a push on a smooth floor; `forces.test.ts` reads the speeds from it in order. */
+function smoothScene({ thing, m, u }: Pick<WorkEnergyParams, 'thing' | 'm' | 'u'>): string {
+  return u === 0
+    ? `A ${thing} of mass ${kg(m)} is at rest on a smooth level floor.`
+    : `A ${thing} of mass ${kg(m)} is moving at ${speedOf(u)} on a smooth level floor.`;
+}
+
+/** Expression: the work-energy principle on a smooth floor, for the speed, the force or the distance. */
+const workEnergy: Generator<WorkEnergyParams> = {
+  id: 'force-work-energy',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const find: WorkEnergyParams['find'] = hard ? rng.pick(['v', 'P', 'd']) : 'v';
+    return until(
+      () => {
+        const m = massIn(rng, hard, 1, 10);
+        const u = rng.int(0, hard ? 10 : 6);
+        const v = rng.int(u + 1, hard ? 16 : 12);
+        const gain = pushGain({ m, u, v });
+        if (find === 'd') {
+          const P = rng.int(2, 100);
+          return { thing: rng.pick(LOADS), m, u, v, P, d: gain / P, find };
+        }
+        const d = hard ? rng.int(2, 40) / 2 : rng.int(1, 20);
+        return { thing: rng.pick(LOADS), m, u, v, P: gain / d, d, find };
+      },
+      ({ P, d }) => exact(P, 0) && P <= 200 && onHalf(d) && d >= 1 && d <= 40,
+    );
+  },
+  render: (params) => {
+    const { v, P, d, find } = params;
+    const scene = smoothScene(params);
+    if (find === 'P') {
+      return typed(
+        [say(`${scene} A constant horizontal force pushes it ${metres(d)} in the direction it is moving, and its speed rises to ${speedOf(v)}. Find the force, in newtons.`)],
+        'F =',
+        P,
+      );
+    }
+    if (find === 'd') {
+      return typed(
+        [say(`${scene} A horizontal force of ${newtons(P)} pushes it in the direction it is moving until its speed is ${speedOf(v)}. How far does it push it, in metres?`)],
+        'd =',
+        d,
+      );
+    }
+    return typed(
+      [say(`${scene} A horizontal force of ${newtons(P)} pushes it ${metres(d)} in the direction it is moving. Find its speed at the end, in $\\text{m s}^{-1}$.`)],
+      'v =',
+      v,
+    );
+  },
+  solution: ({ m, u, v, P, d, find }) => {
+    const gain = pushGain({ m, u, v });
+    const law = { text: 'The floor is smooth, so the push does all the work, and the work done is the gain in kinetic energy:' };
+    const start = u === 0 ? '' : ` - \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2}`;
+    if (find === 'v') {
+      return [
+        law,
+        { tex: `\\tfrac{1}{2} \\times ${fmt(m)} \\times v^{2}${start} = ${fmt(P)} \\times ${fmt(d)}` },
+        { tex: `\\tfrac{1}{2} \\times ${fmt(m)} \\times v^{2} = ${fmt(P * d + (m * u * u) / 2)}` },
+        { tex: `v^{2} = ${fmt(v * v)}, \\quad v = ${fmt(v)}` },
+      ];
+    }
+    return [
+      law,
+      { tex: `\\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(v)}^{2}${start} = ${fmt(gain)}` },
+      find === 'P' ? { tex: `F = \\frac{${fmt(gain)}}{${fmt(d)}} = ${fmt(P)}` } : { tex: `d = \\frac{${fmt(gain)}}{${fmt(P)}} = ${fmt(d)}` },
+    ];
+  },
+  choices: ({ m, u, v, P, d, find }) => {
+    const salt = mix(m * 2, u, v, P, d * 2);
+    if (find === 'P') return valueChoices(P, [(m * v * v) / 2 / d, (m * (v * v - u * u)) / d, (m * (v - u) ** 2) / 2 / d], salt);
+    if (find === 'd') return valueChoices(d, [(m * v * v) / 2 / P, (m * (v * v - u * u)) / P, (m * (v - u) ** 2) / 2 / P], salt);
+    return valueChoices(v, [v * v, u + (P * d) / m, (2 * P * d) / m], salt);
+  },
+};
+
+interface WorkTilesParams {
+  thing: string;
+  m: number;
+  u: number;
+  v: number;
+  /** A push of P newtons over d metres on a smooth floor, or (P = 0) a fall through h metres. */
+  P: number;
+  d: number;
+  h: number;
+}
+
+const workDone = ({ m, P, d, h }: Pick<WorkTilesParams, 'm' | 'P' | 'd' | 'h'>): number => (P > 0 ? P * d : G * m * h);
+
+const WORK_TEMPLATE = '\\tfrac12 \\times {0} \\times v^2 = \\tfrac12 \\times {1} \\times {2}^2 + {3}';
+
+function workTilesOf(p: WorkTilesParams): { answer: string[]; holds: (x: number[]) => boolean } {
+  const W = workDone(p);
+  return {
+    answer: [fmt(p.m), fmt(p.m), fmt(p.u), fmt(W)],
+    holds: ([a, b, c, w]) => near((a * p.v * p.v) / 2, (b * c * c) / 2 + w),
+  };
+}
+
+/** Tiles: the work-energy equation for a push on a smooth floor, or (hard, half the time) a fall. */
+const workEnergyTiles: Generator<WorkTilesParams> = {
+  id: 'force-work-energy-tiles',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    if (hard && rng.chance(0.5)) {
+      const { u, v, h } = rng.pick(FALLS().filter((f) => f.u > 0));
+      return until(
+        () => ({ thing: rng.pick(DROPPED), m: rng.int(1, 12) / 2, u, v, P: 0, d: 0, h }),
+        (p) => onlyAnswer(workTilesOf(p).answer, workTilesOf(p).answer, workTilesOf(p).holds),
+      );
+    }
+    return until(
+      () => {
+        const m = massIn(rng, hard, 1, 8);
+        const u = rng.int(1, 6);
+        const v = rng.int(u + 1, 12);
+        const d = rng.int(1, 15);
+        return { thing: rng.pick(LOADS), m, u, v, P: pushGain({ m, u, v }) / d, d, h: 0 };
+      },
+      (p) => exact(p.P, 0) && p.P <= 200 && onlyAnswer(workTilesOf(p).answer, workTilesOf(p).answer, workTilesOf(p).holds),
+    );
+  },
+  render: (p) => {
+    const { thing, m, u, v, P, d, h } = p;
+    const { answer, holds } = workTilesOf(p);
+    const W = workDone(p);
+    const extras = [fmt(v), fmt(u * u), fmt(W / 2), fmt(2 * W), ...(P > 0 ? [fmt(P), fmt(d)] : [fmt(h), fmt(m * h), fmt(G * h)]), fmt(m + 1)];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(
+          P > 0
+            ? `${smoothScene({ thing, m, u })} A horizontal force of ${newtons(P)} pushes it ${metres(d)} further in the direction it is moving, and its speed becomes $v$.`
+            : `A ${thing} of mass ${kg(m)} is thrown straight down at ${speedOf(u)} from ${metres(h)} above the ground, and hits the ground at speed $v$. Ignore air resistance. ${G_NOTE}`,
+        ),
+        say(
+          `Complete the work-energy equation: kinetic energy after on the left, kinetic energy before plus the work done by ${P > 0 ? 'the force' : 'the weight'}, worked out in joules, on the right.`,
+        ),
+        ...(P > 0 ? [] : [picture(dropSvg())]),
+      ],
+      template: WORK_TEMPLATE,
+      bank: tileBank(answer, soleExtras(answer, extras, holds)),
+      answer,
+    };
+  },
+  solution: (p) => {
+    const { m, u, v, P, d, h } = p;
+    const W = workDone(p);
+    return [
+      { text: 'Kinetic energy after is kinetic energy before plus the work done on it:' },
+      P > 0 ? { tex: `W = Fd = ${fmt(P)} \\times ${fmt(d)} = ${fmt(W)}` } : { tex: `W = mgh = ${fmt(m)} \\times 9.8 \\times ${fmt(h)} = ${fmt(W)}` },
+      { tex: `\\tfrac{1}{2} \\times ${fmt(m)} \\times v^{2} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2} + ${fmt(W)}` },
+      { tex: `v^{2} = ${fmt(v * v)}, \\quad v = ${fmt(v)}` },
+    ];
+  },
+};
+
+interface SlopeSpeedParams {
+  thing: string;
+  m: number;
+  fall: Fall;
+  /** Hard: the slope's angle and length; the height is d sin(alpha). */
+  t: Angle | null;
+  d: number;
+}
+
+/** Every fall that also fits a slope of whole-triangle angle whose length is on the half-metre lattice. */
+const SLOPE_FALLS = once(() =>
+  FALLS().flatMap((fall) =>
+    [A34, A43, A724, A247].flatMap((t) => {
+      const d = fall.h / sinOf(t);
+      return onHalf(d) && d <= 40 ? [{ fall, t, d: Number(fmt(d)) }] : [];
+    }),
+  ),
+);
+
+/** Tree: the speed at the foot of a smooth slope, by energy, from a height (easy) or a length and an angle (hard). */
+const slopeSpeedTree: Generator<SlopeSpeedParams> = {
+  id: 'force-slope-speed-tree',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) return { thing: rng.pick(LOADS), m: rng.int(1, 10), fall: rng.pick(FALLS()), t: null, d: 0 };
+    const { fall, t, d } = rng.pick(SLOPE_FALLS());
+    return { thing: rng.pick(LOADS), m: rng.int(2, 20) / 2, fall, t, d };
+  },
+  render: ({ thing, m, fall: { u, v, h }, t, d }) => {
+    const pe = G * m * h;
+    const ke0 = (m * u * u) / 2;
+    const start = u === 0 ? 'is released from rest' : `is moving down it at ${speedOf(u)}`;
+    const where = t
+      ? `A smooth slope is at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = ${fmt(sinOf(t))}$. A ${thing} of mass ${kg(m)} ${start}, ${metres(d)} from the bottom measured along the slope.`
+      : `A ${thing} of mass ${kg(m)} ${start} at a point on a smooth slope ${metres(h)} above the bottom.`;
+    const answer = [...(t ? [h] : []), pe, ke0, ke0 + pe, v];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`${where} ${G_NOTE} Find its speed at the bottom, in $\\text{m s}^{-1}$.`),
+        say(
+          t
+            ? 'Top row: the height it drops, then its kinetic energy at the start. Then the potential energy it loses, its kinetic energy at the bottom, and its speed.'
+            : 'Top row: the potential energy it loses, and its kinetic energy at the start. Then its kinetic energy at the bottom, and its speed.',
+        ),
+        ...(t ? [picture(slopeSvg(t))] : []),
+      ],
+      expression: '\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + mgh',
+      nodes: t
+        ? [
+            { id: 'h', from: [] },
+            { id: 'pe', from: ['h'] },
+            { id: 'ke0', from: [] },
+            { id: 'ke1', from: ['pe', 'ke0'] },
+            { id: 'v', from: ['ke1'] },
+          ]
+        : [
+            { id: 'pe', from: [] },
+            { id: 'ke0', from: [] },
+            { id: 'ke1', from: ['pe', 'ke0'] },
+            { id: 'v', from: ['ke1'] },
+          ],
+      bank: valueBank(answer, [m * h, pe / 2, v * v, ...(t ? [d * cosOf(t), G * m * d] : [])]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ m, fall: { u, v, h }, t, d }) => [
+    ...(t ? [{ tex: `h = d\\sin\\alpha = ${fmt(d)} \\times ${fmt(sinOf(t))} = ${fmt(h)}` }] : []),
+    { text: 'The slope is smooth, so the potential energy lost all becomes kinetic energy:' },
+    { tex: `mgh = ${fmt(m)} \\times 9.8 \\times ${fmt(h)} = ${fmt(G * m * h)}` },
+    { tex: `\\tfrac{1}{2}mv^{2} = ${fmt((m * u * u) / 2)} + ${fmt(G * m * h)} = ${fmt((m * u * u) / 2 + G * m * h)}` },
+    { tex: `v^{2} = ${fmt(v * v)}, \\quad v = ${fmt(v)}` },
+  ],
+};
+
+interface NetWorkParams {
+  thing: string;
+  P: number;
+  R: number;
+  d: number;
+  t: Angle | null;
+}
+
+/** Steps: the net work, the pull's work less the resistance's, which is the kinetic energy gained. */
+const netWorkSteps: Generator<NetWorkParams> = {
+  id: 'force-net-work-steps',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return until(
+      () => ({
+        thing: rng.pick(LOADS),
+        P: rng.int(10, 80),
+        R: rng.int(2, 40),
+        d: rng.int(2, 15),
+        t: hard ? rng.pick([A34, A43, A724, A247]) : null,
+      }),
+      ({ P, R, t }) => P * (t ? cosOf(t) : 1) - R >= 2,
+    );
+  },
+  render: ({ thing, P, R, d, t }) => {
+    const c = t ? cosOf(t) : 1;
+    const along = P * c;
+    const [pw, rw] = [along * d, R * d];
+    const tail: Collapse[] = [
+      { op: 3, value: rw, wrong: [R + d, pw, rw * 2] },
+      { op: 1, value: pw - rw, wrong: [pw + rw, (along - R) * 2, pw] },
+    ];
+    return {
+      kind: 'steps',
+      prompt: [
+        say(
+          t
+            ? `A ${thing} is pulled ${metres(d)} along a level floor by a rope at an angle $\\alpha$ above the horizontal, where ${angleFacts(t, false)}. The tension is ${newtons(P)}, and a resistance of ${newtons(R)} acts against the motion.`
+            : `A ${thing} is pulled ${metres(d)} along a level floor by a horizontal force of ${newtons(P)}, against a resistance of ${newtons(R)}.`,
+        ),
+        say('Find the kinetic energy it gains, in joules, as the work done by the pull less the work done against the resistance: tap the part to do next, then choose what it comes to.'),
+        ...(t ? [picture(pullSvg(t))] : []),
+      ],
+      start: t
+        ? [fmt(P), '\\times', fmt(c), '\\times', fmt(d), '-', fmt(R), '\\times', fmt(d)]
+        : [fmt(P), '\\times', fmt(d), '-', fmt(R), '\\times', fmt(d)],
+      reductions: collapses(
+        t
+          ? [
+              { op: 1, value: along, wrong: [P * sinOf(t), P + c, along * 2] },
+              { op: 1, value: pw, wrong: [along + d, P * d, pw * 2] },
+              ...tail,
+            ]
+          : [{ op: 1, value: pw, wrong: [P + d, pw * 2, (P - R) * 2] }, ...tail],
+      ),
+    };
+  },
+  solution: ({ P, R, d, t }) => {
+    const along = P * (t ? cosOf(t) : 1);
+    return [
+      { text: 'The kinetic energy gained is the total work done on it: the pull does positive work, the resistance negative.' },
+      ...(t ? [{ tex: `P\\cos\\alpha = ${fmt(P)} \\times ${fmt(cosOf(t))} = ${fmt(along)}` }] : []),
+      { tex: `${fmt(along)} \\times ${fmt(d)} - ${fmt(R)} \\times ${fmt(d)} = ${fmt(along * d)} - ${fmt(R * d)} = ${fmt((along - R) * d)}` },
+    ];
+  },
+};
+
+/* ---------- With friction ---------- */
+
+interface FrictionWorkParams {
+  thing: string;
+  m: number;
+  mu: number;
+  d: number;
+  /** Hard: sliding on a rough slope, where R = mg cos(alpha). */
+  t: Angle | null;
+}
+
+const frictionWorkOf = ({ m, mu, d, t }: Pick<FrictionWorkParams, 'm' | 'mu' | 'd' | 't'>): number =>
+  mu * G * m * (t ? cosOf(t) : 1) * d;
+
+/** Expression: the work done against friction, mu R d, on a rough floor or (hard) a rough slope. */
+const frictionWork: Generator<FrictionWorkParams> = {
+  id: 'force-friction-work',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(LOADS),
+      m: rng.int(1, 12),
+      mu: rng.pick(MUS),
+      d: hard ? rng.int(2, 30) / 2 : rng.int(1, 15),
+      t: hard ? rng.pick([A34, A43, A724, A247]) : null,
+    };
+  },
+  render: ({ thing, m, mu, d, t }) =>
+    typed(
+      [
+        say(
+          t
+            ? `A ${thing} of mass ${kg(m)} slides ${metres(d)} down a rough slope at an angle $\\alpha$ to the horizontal, where ${angleFacts(t, true)}. The coefficient of friction is $\\mu = ${fmt(mu)}$. ${G_NOTE} Find the work done against friction, in joules.`
+            : `A ${thing} of mass ${kg(m)} slides ${metres(d)} across a rough level floor. The coefficient of friction is $\\mu = ${fmt(mu)}$. ${G_NOTE} Find the work done against friction, in joules.`,
+        ),
+        ...(t ? [picture(slopeSvg(t, { friction: true }))] : []),
+      ],
+      'W =',
+      frictionWorkOf({ m, mu, d, t }),
+    ),
+  solution: ({ m, mu, d, t }) => {
+    const R = G * m * (t ? cosOf(t) : 1);
+    return [
+      ...angleStep(t ?? A34, t !== null),
+      t
+        ? { tex: `R = mg\\cos\\alpha = ${fmt(m)} \\times 9.8 \\times ${fmt(cosOf(t))} = ${fmt(R)}` }
+        : { tex: `R = mg = ${fmt(m)} \\times 9.8 = ${fmt(R)}` },
+      { text: 'While it slides, friction is at its limit, $F = \\mu R$, and acts against the motion the whole way:' },
+      { tex: `F = ${fmt(mu)} \\times ${fmt(R)} = ${fmt(mu * R)}` },
+      { tex: `W = Fd = ${fmt(mu * R)} \\times ${fmt(d)} = ${fmt(mu * R * d)}` },
+    ];
+  },
+  choices: ({ m, mu, d, t }) => {
+    const W = frictionWorkOf({ m, mu, d, t });
+    return valueChoices(W, [mu * m * d, G * m * d, mu * G * m * d, t ? mu * G * m * sinOf(t) * d : W * 10], mix(m, mu * 100, d * 2, t ? t.o : 0));
+  },
+};
+
+interface StopParams {
+  thing: string;
+  m: number;
+  stop: Stop;
+  hard: boolean;
+}
+
+/** Flow: a block sliding to rest on a rough floor, its energy, the friction, and how far it goes. */
+const stoppingFlow: Generator<StopParams> = {
+  id: 'force-stopping-flow',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return { thing: rng.pick(LOADS), m: massIn(rng, hard, 1, hard ? 10 : 8), stop: rng.pick(STOPS()), hard };
+  },
+  render: ({ thing, m, stop: { mu, u, d }, hard }) => {
+    const ke0 = (m * u * u) / 2;
+    const F = mu * G * m;
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          `A ${thing} of mass ${kg(m)} is sliding at ${speedOf(u)} across a rough level floor, with coefficient of friction $\\mu = ${fmt(mu)}$. ${G_NOTE} How far does it slide before it stops?`,
+        ),
+      ],
+      subject: '\\mu mg \\times d = \\tfrac{1}{2}mu^{2}',
+      steps: [
+        {
+          id: 'ke',
+          ask: 'What kinetic energy does it start with, in joules?',
+          branches: forkValues(ke0, [m * u * u, (m * u) / 2, m * u]).map((label) => ({ label, to: 'friction' })),
+        },
+        {
+          id: 'friction',
+          ask: 'Friction is $\\mu R$, with $R = mg$ on a level floor. What is the friction force, in newtons?',
+          branches: forkValues(F, [mu * m, G * m, F * 10]).map((label) => ({ label, to: 'distance' })),
+        },
+        {
+          id: 'distance',
+          ask: 'Friction does work against it until all that energy is gone. How far does it slide, in metres?',
+          branches: forkValues(d, [ke0 / (G * m), ke0 / (mu * m), 2 * d, d / 2], 0.5).map((label) =>
+            hard ? { label, to: 'double' } : { label, outcome: 'The work done against friction is the kinetic energy it had.' },
+          ),
+        },
+        ...(hard
+          ? [
+              {
+                id: 'double',
+                ask: 'A second one, twice as heavy, slides at the same speed on the same floor. How far does it go?',
+                branches: ['The same distance', 'Twice as far', 'Half as far'].map((label) => ({
+                  label,
+                  outcome: 'Its energy and the friction both double, so the distance is the same: the mass cancels.',
+                })),
+              },
+            ]
+          : []),
+      ],
+      answer: [`$${fmt(ke0)}$`, `$${fmt(F)}$`, `$${fmt(d)}$`, ...(hard ? ['The same distance'] : [])],
+    };
+  },
+  solution: ({ m, stop: { mu, u, d }, hard }) => [
+    { tex: `\\tfrac{1}{2}mu^{2} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2} = ${fmt((m * u * u) / 2)}` },
+    { tex: `F = \\mu mg = ${fmt(mu)} \\times ${fmt(m)} \\times 9.8 = ${fmt(mu * G * m)}` },
+    { tex: `d = \\frac{${fmt((m * u * u) / 2)}}{${fmt(mu * G * m)}} = ${fmt(d)}` },
+    ...(hard ? [{ text: 'The mass is on both sides, $\\mu mg d = \\tfrac{1}{2}mu^{2}$, so it cancels: any mass slides the same distance.' }] : []),
+  ],
+};
+
+interface RoughSpeedParams {
+  thing: string;
+  m: number;
+  mu: number;
+  u: number;
+  v: number;
+  d: number;
+  /** Hard: a horizontal pull of P newtons along the floor as well. */
+  P: number;
+}
+
+/** Tree: the speed at the end of a stretch of rough floor, slowing by friction alone (easy) or pulled against it (hard). */
+const roughSpeedTree: Generator<RoughSpeedParams> = {
+  id: 'force-rough-speed-tree',
+  sample: (rng, difficulty) => {
+    if (difficulty < 2) {
+      const { mu, u, v, d } = rng.pick(SKIDS());
+      return { thing: rng.pick(LOADS), m: rng.int(1, 10), mu, u, v, d, P: 0 };
+    }
+    const { m, mu, u, v, d, P } = rng.pick(HAULS());
+    return { thing: rng.pick(LOADS), m, mu, u, v, d, P };
+  },
+  render: ({ thing, m, mu, u, v, d, P }) => {
+    const ke0 = (m * u * u) / 2;
+    const fw = mu * G * m * d;
+    const pw = P * d;
+    const ke1 = ke0 + pw - fw;
+    const start = u === 0 ? 'starts from rest' : `is moving at ${speedOf(u)}`;
+    const answer = P > 0 ? [ke0, pw, fw, ke1, v] : [ke0, fw, ke1, v];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          P > 0
+            ? `A ${thing} of mass ${kg(m)} ${start} on a rough level floor, with $\\mu = ${fmt(mu)}$. A horizontal force of ${newtons(P)} pulls it ${metres(d)} along the floor. ${G_NOTE} Find its speed at the end, in $\\text{m s}^{-1}$.`
+            : `A ${thing} of mass ${kg(m)} ${start} and slides ${metres(d)} across a rough level floor, with $\\mu = ${fmt(mu)}$. ${G_NOTE} Find its speed at the end, in $\\text{m s}^{-1}$.`,
+        ),
+        say(
+          P > 0
+            ? 'Top row: its kinetic energy at the start, the work done by the pull, and the work done against friction. Then its kinetic energy at the end, and its speed.'
+            : 'Top row: its kinetic energy at the start, and the work done against friction. Then its kinetic energy at the end, and its speed.',
+        ),
+      ],
+      expression: P > 0 ? '\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} + Pd - \\mu mgd' : '\\tfrac{1}{2}mv^{2} = \\tfrac{1}{2}mu^{2} - \\mu mgd',
+      nodes:
+        P > 0
+          ? [
+              { id: 'ke0', from: [] },
+              { id: 'pw', from: [] },
+              { id: 'fw', from: [] },
+              { id: 'ke1', from: ['ke0', 'pw', 'fw'] },
+              { id: 'v', from: ['ke1'] },
+            ]
+          : [
+              { id: 'ke0', from: [] },
+              { id: 'fw', from: [] },
+              { id: 'ke1', from: ['ke0', 'fw'] },
+              { id: 'v', from: ['ke1'] },
+            ],
+      bank: valueBank(answer, [mu * m * d, ke0 + fw, v * v, G * m * d]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ m, mu, u, v, d, P }) => {
+    const ke0 = (m * u * u) / 2;
+    const fw = mu * G * m * d;
+    return [
+      { tex: `\\tfrac{1}{2}mu^{2} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2} = ${fmt(ke0)}` },
+      ...(P > 0 ? [{ tex: `Pd = ${fmt(P)} \\times ${fmt(d)} = ${fmt(P * d)}` }] : []),
+      { tex: `\\mu mgd = ${fmt(mu)} \\times ${fmt(m)} \\times 9.8 \\times ${fmt(d)} = ${fmt(fw)}` },
+      { tex: `\\tfrac{1}{2}mv^{2} = ${fmt(ke0)}${P > 0 ? ` + ${fmt(P * d)}` : ''} - ${fmt(fw)} = ${fmt(ke0 + P * d - fw)}` },
+      { tex: `v^{2} = ${fmt(v * v)}, \\quad v = ${fmt(v)}` },
+    ];
+  },
+};
+
+interface StopSliderParams {
+  thing: string;
+  m: number;
+  u: number;
+  /** Easy: a braking force in newtons. Hard: none, friction from `mu`. */
+  F: number;
+  mu: number;
+  d: number;
+}
+
+/** Slider: how far a sliding load goes before it stops, reading the work done against the resistance off a line. */
+const stoppingSlider: Generator<StopSliderParams> = {
+  id: 'force-stopping-slider',
+  sample: (rng, difficulty) => {
+    if (difficulty > 1) {
+      const { mu, u, d } = rng.pick(STOPS());
+      return { thing: rng.pick(LOADS), m: rng.int(2, 20) / 2, u, F: 0, mu, d };
+    }
+    return until(
+      () => {
+        const m = rng.int(1, 10);
+        const u = rng.int(2, 12);
+        const F = rng.int(2, 60);
+        return { thing: rng.pick(LOADS), m, u, F, mu: 0, d: (m * u * u) / 2 / F };
+      },
+      ({ d }) => onHalf(d) && d >= 1 && d <= 20,
+    );
+  },
+  render: ({ thing, m, u, F, mu, d }) => {
+    const hard = F === 0;
+    const span = hard ? 40 : 20;
+    const force = hard ? mu * G * m : F;
+    const ke0 = (m * u * u) / 2;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          hard
+            ? `A ${thing} of mass ${kg(m)} slides at ${speedOf(u)} onto a rough level floor, with $\\mu = ${fmt(mu)}$. ${G_NOTE} The line is the work done against friction as it slides. Slide to how far it goes before it stops, in metres.`
+            : `A ${thing} of mass ${kg(m)} moving at ${speedOf(u)} across a level floor is brought to rest by a constant resistance of ${newtons(F)}. The line is the work done against the resistance, and the dashed level its kinetic energy at the start. Slide to how far it goes before it stops, in metres.`,
+        ),
+      ],
+      min: 0,
+      max: span,
+      step: 0.5,
+      answer: d,
+      readout: 'd = {v}',
+      figure: {
+        svg: plotSvg({
+          xMin: 0,
+          xMax: span,
+          yMin: 0,
+          yMax: hard ? force * (span + 1) : Math.max(ke0, force * span) * 1.1,
+          curves: [{ f: (x) => force * x }],
+          horizontals: hard ? [] : [ke0],
+          label: 'The work done against the resistance, rising in a straight line with the distance slid',
+        }),
+        ...markerWindow(0, span),
+        axis: 'x',
+      },
+    };
+  },
+  solution: ({ m, u, F, mu, d }) => {
+    const ke0 = (m * u * u) / 2;
+    return [
+      { tex: `\\tfrac{1}{2}mu^{2} = \\tfrac{1}{2} \\times ${fmt(m)} \\times ${fmt(u)}^{2} = ${fmt(ke0)}` },
+      ...(F === 0 ? [{ tex: `F = \\mu mg = ${fmt(mu)} \\times ${fmt(m)} \\times 9.8 = ${fmt(mu * G * m)}` }] : []),
+      { text: 'It stops when the work done against the resistance has used up all its kinetic energy:' },
+      { tex: `d = \\frac{${fmt(ke0)}}{${fmt(F || mu * G * m)}} = ${fmt(d)}` },
+    ];
+  },
+};
+
+/* ---------- Power ---------- */
+
+interface PowerParams {
+  thing: string;
+  F: number;
+  v: number;
+  find: 'P' | 'F' | 'v';
+}
+
+/** Expression: power as force times speed, P = Fv, or run backwards for the force or the speed. */
+const power: Generator<PowerParams> = {
+  id: 'force-power',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    return {
+      thing: rng.pick(VEHICLES),
+      F: hard ? rng.int(4, 80) * 50 : rng.int(2, 60) * 50,
+      v: hard ? rng.int(4, 40) : rng.int(2, 35),
+      find: hard ? rng.pick<PowerParams['find']>(['F', 'v']) : 'P',
+    };
+  },
+  render: ({ thing, F, v, find }) => {
+    const P = F * v;
+    if (find === 'F') {
+      return typed(
+        [say(`A ${thing}'s engine is working at ${powerOf(P)} while the ${thing} moves at ${speedOf(v)}. Find the driving force, in newtons.`)],
+        'F =',
+        F,
+      );
+    }
+    if (find === 'v') {
+      return typed(
+        [say(`A ${thing}'s engine is working at ${powerOf(P)} with a driving force of ${newtons(F)}. How fast is the ${thing} moving, in $\\text{m s}^{-1}$?`)],
+        'v =',
+        v,
+      );
+    }
+    return typed(
+      [say(`A ${thing}'s engine gives a driving force of ${newtons(F)} while the ${thing} moves at ${speedOf(v)}. Find the power of the engine, in watts.`)],
+      'P =',
+      P,
+    );
+  },
+  solution: ({ F, v, find }) => {
+    const P = F * v;
+    const kw = P % 1000 === 0 ? [{ text: `First in watts: $${fmt(P / 1000)}\\text{ kW} = ${fmt(P)}\\text{ W}$.` }] : [];
+    if (find === 'F') return [...kw, { text: 'Power is force times speed, so the force is the power over the speed:' }, { tex: `F = \\frac{P}{v} = \\frac{${fmt(P)}}{${fmt(v)}} = ${fmt(F)}` }];
+    if (find === 'v') return [...kw, { text: 'Power is force times speed, so the speed is the power over the force:' }, { tex: `v = \\frac{P}{F} = \\frac{${fmt(P)}}{${fmt(F)}} = ${fmt(v)}` }];
+    return [{ text: 'Power is the rate of doing work: force times speed.' }, { tex: aligned(`P &= Fv = ${fmt(F)} \\times ${fmt(v)}`, `&= ${fmt(P)}`) }];
+  },
+  choices: ({ F, v, find }) => {
+    const P = F * v;
+    const salt = mix(F, v, find.charCodeAt(0));
+    if (find === 'F') return valueChoices(F, [P * v, P / 1000 / v, F * 10], salt);
+    if (find === 'v') return valueChoices(v, [F / v, v * 10, P / 1000], salt);
+    return valueChoices(P, [F + v, F / v, P / 10], salt);
+  },
+};
+
+interface PowerRow {
+  F: number;
+  v: number;
+  blank: 'F' | 'v' | 'P';
+}
+
+/** Table: driving force, speed and power for three vehicles, one quantity missing from each. */
+const powerTable: Generator<{ rows: PowerRow[] }> = {
+  id: 'force-power-table',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const blanks: PowerRow['blank'][] = hard ? turned(['F', 'v', 'P'], rng.int(0, 2)) : ['P', 'P', 'P'];
+    return until(
+      () => ({ rows: blanks.map((blank) => ({ F: rng.int(2, hard ? 60 : 40) * 50, v: rng.int(2, 30), blank })) }),
+      ({ rows }) => new Set(rows.map((r) => r.F * r.v)).size === 3,
+    );
+  },
+  render: ({ rows }) => {
+    const answer: number[] = [];
+    const cell = (value: number, blank: boolean) => {
+      if (!blank) return fmt(value);
+      answer.push(value);
+      return null;
+    };
+    return {
+      kind: 'table',
+      prompt: [say('Each row is a vehicle moving at a steady speed. Driving forces are in newtons, speeds in $\\text{m s}^{-1}$ and powers in watts. Fill in the gaps.')],
+      columns: ['', 'F', 'v', 'P'],
+      rows: rows.map(({ F, v, blank }, i) => [['A', 'B', 'C'][i], cell(F, blank === 'F'), cell(v, blank === 'v'), cell(F * v, blank === 'P')]),
+      bank: valueBank(answer, rows.flatMap(({ F, v }) => [F + v, F * v * 10]), 3),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ rows }) =>
+    rows.map(({ F, v, blank }, i): SolutionStep => {
+      const name = ['A', 'B', 'C'][i];
+      if (blank === 'F') return { tex: `F_{${name}} = \\frac{P}{v} = \\frac{${fmt(F * v)}}{${fmt(v)}} = ${fmt(F)}` };
+      if (blank === 'v') return { tex: `v_{${name}} = \\frac{P}{F} = \\frac{${fmt(F * v)}}{${fmt(F)}} = ${fmt(v)}` };
+      return { tex: `P_{${name}} = ${fmt(F)} \\times ${fmt(v)} = ${fmt(F * v)}` };
+    }),
+};
+
+/** A hill as steep as `sin(alpha) = 1/k`: with k from these, mg sin(alpha) is exact. */
+const HILLS = [14, 28, 49];
+
+interface TopSpeedParams {
+  thing: string;
+  m: number;
+  R: number;
+  v: number;
+  /** Hard: up a hill with sin(alpha) = 1/k. Easy: 0, a level road. */
+  k: number;
+}
+
+const hillPull = ({ m, k }: Pick<TopSpeedParams, 'm' | 'k'>): number => (k ? (G * m) / k : 0);
+
+/** Flow: at top speed the driving force balances the resistance (and, hard, the pull down a hill), so v = P/F. */
+const topSpeedFlow: Generator<TopSpeedParams> = {
+  id: 'force-top-speed-flow',
+  sample: (rng, difficulty) => ({
+    thing: rng.pick(VEHICLES),
+    m: rng.int(6, 20) * 100,
+    R: rng.int(4, 30) * 50,
+    v: difficulty > 1 ? rng.int(8, 30) : rng.int(10, 45),
+    k: difficulty > 1 ? rng.pick(HILLS) : 0,
+  }),
+  render: ({ thing, m, R, v, k }) => {
+    const pull = hillPull({ m, k });
+    const F = R + pull;
+    const P = F * v;
+    const rule = k ? 'Equal to the resistance plus the pull down the hill' : 'Equal to the resistance';
+    return {
+      kind: 'flow',
+      prompt: [
+        say(
+          k
+            ? `A ${thing} of mass ${kg(m)} drives up a hill at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = \\tfrac{1}{${k}}$. Its engine works at a constant ${powerOf(P)}, and there is a constant resistance of ${newtons(R)}. ${G_NOTE} Find its top speed up the hill.`
+            : `A ${thing} drives along a level road with its engine working at a constant ${powerOf(P)}, against a constant resistance of ${newtons(R)}. Find its top speed.`,
+        ),
+      ],
+      subject: 'P = Fv',
+      steps: [
+        {
+          id: 'rule',
+          ask: `At its top speed the ${thing} is no longer speeding up. So the driving force is:`,
+          branches: (k
+            ? [rule, 'Equal to the resistance alone', 'Greater than the resistance plus the pull down the hill']
+            : [rule, 'Greater than the resistance', 'Less than the resistance']
+          ).map((label) => ({ label, to: 'force' })),
+        },
+        {
+          id: 'force',
+          ask: 'So the driving force at top speed is, in newtons:',
+          branches: forkValues(F, k ? [R, pull, R + G * m] : [2 * R, R / 2]).map((label) => ({ label, to: 'speed' })),
+        },
+        {
+          id: 'speed',
+          ask: 'And the top speed, from $P = Fv$, is, in $\\text{m s}^{-1}$:',
+          branches: forkValues(v, [P / R, 2 * v, v / 2, v + 5]).map((label) => ({
+            label,
+            outcome: 'At top speed the forces balance, so the power is all spent against them.',
+          })),
+        },
+      ],
+      answer: [rule, `$${fmt(F)}$`, `$${fmt(v)}$`],
+    };
+  },
+  solution: ({ m, R, v, k }) => {
+    const pull = hillPull({ m, k });
+    const F = R + pull;
+    return [
+      { text: 'At top speed the acceleration is zero, so the forces along the motion balance.' },
+      ...(k ? [{ tex: `mg\\sin\\alpha = \\frac{${fmt(m)} \\times 9.8}{${k}} = ${fmt(pull)}` }, { tex: `F = ${fmt(R)} + ${fmt(pull)} = ${fmt(F)}` }] : [{ tex: `F = R = ${fmt(R)}` }]),
+      { tex: `v = \\frac{P}{F} = \\frac{${fmt(F * v)}}{${fmt(F)}} = ${fmt(v)}` },
+    ];
+  },
+};
+
+interface PowerAccelParams {
+  thing: string;
+  m: number;
+  R: number;
+  v: number;
+  a: number;
+  k: number;
+}
+
+const POWER_A = [0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.75, 0.8, 1];
+
+/** Tree: the driving force P/v, the resultant force, and the acceleration, on the level (easy) or up a hill (hard). */
+const powerAccelTree: Generator<PowerAccelParams> = {
+  id: 'force-power-accel-tree',
+  sample: (rng, difficulty) => ({
+    thing: rng.pick(VEHICLES),
+    m: rng.int(5, 20) * 100,
+    R: rng.int(4, 30) * 50,
+    v: rng.int(5, 30),
+    a: rng.pick(POWER_A),
+    k: difficulty > 1 ? rng.pick(HILLS) : 0,
+  }),
+  render: ({ thing, m, R, v, a, k }) => {
+    const pull = hillPull({ m, k });
+    const F = R + pull + m * a;
+    const P = F * v;
+    const answer = k ? [F, pull, F - R - pull, a] : [F, F - R, a];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(
+          k
+            ? `A ${thing} of mass ${kg(m)} drives up a hill at an angle $\\alpha$ to the horizontal, where $\\sin\\alpha = \\tfrac{1}{${k}}$, against a resistance of ${newtons(R)}. ${G_NOTE} Its engine works at ${powerOf(P)}. Find its acceleration at the moment its speed is ${speedOf(v)}, in $\\text{m s}^{-2}$.`
+            : `A ${thing} of mass ${kg(m)} drives along a level road against a resistance of ${newtons(R)}. Its engine works at ${powerOf(P)}. Find its acceleration at the moment its speed is ${speedOf(v)}, in $\\text{m s}^{-2}$.`,
+        ),
+        say(
+          k
+            ? 'Top row: the driving force, and the part of the weight down the hill. Then the resultant force, and the acceleration.'
+            : 'First the driving force, then the resultant force, then the acceleration.',
+        ),
+      ],
+      expression: k ? '\\frac{P}{v} - R - mg\\sin\\alpha = ma' : '\\frac{P}{v} - R = ma',
+      nodes: k
+        ? [
+            { id: 'F', from: [] },
+            { id: 'pull', from: [] },
+            { id: 'net', from: ['F', 'pull'] },
+            { id: 'a', from: ['net'] },
+          ]
+        : [
+            { id: 'F', from: [] },
+            { id: 'net', from: ['F'] },
+            { id: 'a', from: ['net'] },
+          ],
+      bank: valueBank(answer, [P * v, F + R, (F - R) / 10, G * m, ...(k ? [F - R] : [])]),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: ({ m, R, v, a, k }) => {
+    const pull = hillPull({ m, k });
+    const F = R + pull + m * a;
+    return [
+      { tex: `F = \\frac{P}{v} = \\frac{${fmt(F * v)}}{${fmt(v)}} = ${fmt(F)}` },
+      ...(k ? [{ tex: `mg\\sin\\alpha = \\frac{${fmt(m)} \\times 9.8}{${k}} = ${fmt(pull)}` }] : []),
+      { tex: `F - R${k ? ' - mg\\sin\\alpha' : ''} = ${fmt(F)} - ${fmt(R)}${k ? ` - ${fmt(pull)}` : ''} = ${fmt(m * a)}` },
+      { tex: `a = \\frac{${fmt(m * a)}}{${fmt(m)}} = ${fmt(a)}` },
+    ];
+  },
+};
+
 /* ---------- Fitting a phone ---------- */
 
 /**
@@ -8261,6 +9797,26 @@ export const forcesByName = {
   ftFlow,
   impulseIjTiles,
   ftTable,
+  work,
+  workTable,
+  pullWorkFlow,
+  liftWorkSteps,
+  ke,
+  peSlider,
+  keChangeTree,
+  energySwapFlow,
+  workEnergy,
+  workEnergyTiles,
+  slopeSpeedTree,
+  netWorkSteps,
+  frictionWork,
+  stoppingFlow,
+  roughSpeedTree,
+  stoppingSlider,
+  power,
+  powerTable,
+  topSpeedFlow,
+  powerAccelTree,
 };
 
 export const forcesGenerators = Object.values(forcesByName).map((generator) => fitted(generator as Generator<never>));

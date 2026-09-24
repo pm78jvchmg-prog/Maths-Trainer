@@ -8,8 +8,14 @@
  */
 import { useState } from 'react';
 import type { Answer } from '../engine/session';
+import { swapSlots, useSlotDrag } from './slotDrag';
 
-export function useBankFill(answer: Answer, size: number, onAnswer: (answer: Answer) => void) {
+export function useBankFill(
+  answer: Answer,
+  size: number,
+  onAnswer: (answer: Answer) => void,
+  locked = false,
+) {
   const filled = Array.from({ length: size }, (_, i) =>
     Array.isArray(answer) ? (answer[i] ?? '') : '',
   );
@@ -56,5 +62,8 @@ export function useBankFill(answer: Answer, size: number, onAnswer: (answer: Ans
     setChosen(0);
   };
 
-  return { filled, target, used, tapBlank, place, clear };
+  // A filled blank dragged onto another swaps the two; onto an empty one, moves.
+  const { slotProps } = useSlotDrag(!locked, (from, to) => onAnswer(swapSlots(filled, from, to)));
+
+  return { filled, target, used, tapBlank, place, clear, slotProps };
 }

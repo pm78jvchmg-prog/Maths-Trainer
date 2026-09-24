@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { Tex, Blocks } from './Math';
 import type { Slide } from '../content/types';
 import { frameClass, isLocked, type SlideProps } from './slides';
+import { swapSlots, useSlotDrag } from './slotDrag';
 
 type IterateSlideData = Extract<Slide, { kind: 'iterate' }>;
 
@@ -73,8 +74,12 @@ function IterateBody({
     setChosen(after === -1 ? target : (target + 1 + after) % size);
   };
 
+  // A filled blank dragged onto another swaps the two; onto an empty one, moves.
+  const { slotProps } = useSlotDrag(!locked, (from, to) => onAnswer(swapSlots(filled, from, to)));
+
   const cell = (idx: number) => (
     <button
+      {...slotProps(idx, !!filled[idx])}
       type="button"
       className={`answer-slot iterate-slot${filled[idx] ? ' filled' : ''}${
         !locked && idx === target ? ' focus' : ''
@@ -97,7 +102,7 @@ function IterateBody({
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <div className={`${frameClass(feedback)} iterate`}>
+      <div className={`${frameClass(feedback)} iterate`} data-slot-group="">
         <table className="iterate-table">
           <thead>
             <tr>

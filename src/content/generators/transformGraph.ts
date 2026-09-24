@@ -133,9 +133,15 @@ function sample(rng: Rng, difficulty: number): TransformParams {
   return { base: 'square', moves: ['moveY'], t: { ...IDENTITY, k: 2 } };
 }
 
-/** What `f` is, for the prompt. */
+/**
+ * What `f` is, for the prompt.
+ *
+ * Only the function: the widget draws `y = f(x)` dashed, and the lesson says
+ * so once on its teaching slide. Saying it again on every question read as
+ * filler, and at the start it named a curve hidden under the learner's own.
+ */
 function curveIs(base: BaseCurve): string {
-  return `The dashed curve is $y = f(x)$, where $f(x) = ${BASES[base].tex}$.`;
+  return `With $f(x) = ${BASES[base].tex}$,`;
 }
 
 /** One line of working per move, in the learner's numbers. */
@@ -191,13 +197,13 @@ function render(
   const prompt: Block[] =
     direction === 'apply'
       ? [
-          { kind: 'prose', text: `${curveIs(params.base)} Move your curve onto` },
+          { kind: 'prose', text: `${curveIs(params.base)} move your curve onto` },
           { kind: 'display', tex: (targetTex ?? transformTex)(params.t) },
         ]
       : [
           {
             kind: 'prose',
-            text: `${curveIs(params.base)} Move your curve onto the shaded one. Its equation builds as you go.`,
+            text: `${curveIs(params.base)} move your curve onto the shaded one. Its equation builds as you go.`,
           },
         ];
   return {

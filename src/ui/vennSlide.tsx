@@ -47,7 +47,7 @@ function VennBody({
   canEdit,
 }: SlideProps & { slide: VennSlideData }) {
   const locked = isLocked(feedback, canEdit);
-  const bank = useBankFill(answer, slide.answer.length, onAnswer);
+  const bank = useBankFill(answer, slide.answer.length, onAnswer, locked);
   const at = ({ x, y }: { x: number; y: number }) => ({
     left: `${(x / W) * 100}%`,
     top: `${(y / H) * 100}%`,
@@ -62,7 +62,7 @@ function VennBody({
         <Blocks blocks={slide.prompt} />
       </div>
 
-      <div className={`${frameClass(feedback)} venn-frame`}>
+      <div className={`${frameClass(feedback)} venn-frame`} data-slot-group="">
         <div className="venn">
           <svg className="venn-lines" viewBox={`0 0 ${W} ${H}`} role="presentation">
             <rect x={1.5} y={1.5} width={W - 3} height={H - 3} rx={12} />
@@ -94,6 +94,7 @@ function VennBody({
               return (
                 <button
                   key={idx}
+                  {...bank.slotProps(index, !!value)}
                   type="button"
                   className={`answer-slot venn-slot${value ? ' filled' : ''}${
                     !locked && index === bank.target ? ' focus' : ''

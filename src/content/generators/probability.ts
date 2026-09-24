@@ -7,13 +7,16 @@
  * the expected number `nP`. Level 2 combines events: the addition rule for
  * mutually exclusive events, the general addition rule read off a Venn
  * diagram, independence and the multiplication rule, two-stage trees, and
- * conditional probability from a table or without replacement. Level 4 is
- * conditional probability in general: the formula from a two-way table or a
- * table of probabilities, restricting a Venn diagram to one circle or outside
- * it, trees whose second stage depends on the first (drawn with the
- * `probTree` widget where the learner fills or taps branches), testing
- * independence with P(A | B) = P(A), and P(A | B) from a finished tree as
- * one path over the sum of the paths ending in B.
+ * conditional probability from a table or without replacement. Level 3 draws
+ * the diagrams bigger: trees built from words, with a three-way first stage
+ * or three stages, and Venn diagrams of two and three sets filled in from
+ * totals, working outward from the overlap, then read for probabilities.
+ * Level 4 is conditional probability in general: the formula from a two-way
+ * table or a table of probabilities, restricting a Venn diagram to one circle
+ * or outside it, trees whose second stage depends on the first (drawn with
+ * the `probTree` widget where the learner fills or taps branches), testing
+ * independence with P(A | B) = P(A), and P(A | B) from a finished tree as one
+ * path over the sum of the paths ending in B.
  *
  * Three rules hold everywhere in this file.
  *
@@ -3552,6 +3555,1711 @@ const noReplTiles: Generator<NoReplParams> = {
 };
 
 /* ================================================================
+ * Level 3 pictures: a tree of any shape, and three sets
+ * ================================================================ */
+
+/**
+ * A tree of any shape. Every point at stage `k` splits into one branch per
+ * outcome in `stages[k]`, and `labels[k]` holds that stage's branch labels top
+ * to bottom, so it has one entry per branch of the stage. An empty label leaves
+ * a branch for the learner to work out.
+ *
+ * Labels are plain text (`2/5`, `0.35`), since there is no KaTeX inside an
+ * SVG. Each branch label carries `data-branch="k.i"` and each outcome name
+ * `data-name="k.i"`, which is how `probability.test.ts` reads a tree back.
+ */
+export interface StagedTree {
+  stages: string[][];
+  labels: string[][];
+}
+
+export function stagedTreeSvg({ stages, labels }: StagedTree): string {
+  const leaves = stages.reduce((n, outcomes) => n * outcomes.length, 1);
+  const gap = Math.min(50, 208 / leaves);
+  const height = Math.round(gap * leaves + 16);
+  const step = 272 / stages.length;
+  /** Where the branches of stage `k` end, just short of their outcome names. */
+  const xEnd = (k: number) => 8 + (k + 1) * step - 20;
+  // The height of every point: the leaves evenly spaced, each point above them
+  // centred on the branches it splits into.
+  const ys: number[][] = [];
+  ys[stages.length] = Array.from({ length: leaves }, (_, i) => 8 + gap * (i + 0.5));
+  for (let k = stages.length - 1; k >= 0; k -= 1) {
+    const size = stages[k].length;
+    const below = ys[k + 1];
+    ys[k] = Array.from({ length: below.length / size }, (_, i) => below.slice(i * size, (i + 1) * size).reduce((s, y) => s + y, 0) / size);
+  }
+  const font = gap < 30 ? 11 : 13;
+  const parts = [
+    `<svg viewBox="0 0 290 ${height}" width="100%" style="max-width:290px" role="img" aria-label="A tree diagram: ${stages.map((s) => s.join(' or ')).join(', then ')}">`,
+  ];
+  stages.forEach((outcomes, k) => {
+    const x0 = k === 0 ? 8 : xEnd(k - 1) + 20;
+    const x1 = xEnd(k);
+    ys[k + 1].forEach((y1, j) => {
+      const y0 = ys[k][Math.floor(j / outcomes.length)];
+      const mid = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+      // Above a rising branch, below a falling one, and ending short of where
+      // the line would cross it: further left the steeper the branch.
+      const labelY = y1 > y0 + 1 ? mid.y + font + 1 : mid.y - 5;
+      const labelEnd = mid.x + (Math.abs(y1 - y0) / (x1 - x0) < 0.5 ? 8 : -2);
+      parts.push(
+        `<line x1="${f1(x0)}" y1="${f1(y0)}" x2="${f1(x1)}" y2="${f1(y1)}" stroke="currentColor" stroke-width="1.3" />`,
+        `<text data-branch="${k}.${j}" x="${f1(labelEnd)}" y="${f1(labelY)}" font-size="${font}" text-anchor="end" fill="currentColor">${labels[k][j] ?? ''}</text>`,
+        `<text data-name="${k}.${j}" x="${f1(x1 + 9)}" y="${f1(y1 + 4)}" font-size="13" font-style="italic" text-anchor="middle" fill="currentColor">${outcomes[j % outcomes.length]}</text>`,
+      );
+    });
+  });
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/** The sets each region of a three-set Venn diagram lies in, in region order. */
+export const VENN3_REGIONS: number[][] = [[0], [1], [2], [0, 1], [0, 2], [1, 2], [0, 1, 2], []];
+
+/** Where each region's label sits: centres of three circles of radius 55, 60 apart. */
+const VENN3_SPOTS: [number, number][] = [
+  [86, 66],
+  [194, 66],
+  [140, 160],
+  [140, 62],
+  [110, 115],
+  [170, 115],
+  [140, 97],
+  [252, 184],
+];
+
+/**
+ * Three overlapping sets in a box. Regions in the order: only the first, only
+ * the second, only the third, the first two only, the first and third only,
+ * the last two only, all three, none (`VENN3_REGIONS`). Each region label
+ * carries `data-region="i"`.
+ */
+export function venn3Svg(names: [string, string, string], regions: string[]): string {
+  const where = ['only', 'only', 'only', 'only', 'only', 'only', '', ''];
+  const described = regions
+    .map((r, i) => {
+      const sets = VENN3_REGIONS[i];
+      const place = sets.length === 0 ? 'none' : sets.length === 3 ? 'all three' : `${sets.map((s) => names[s]).join(' and ')} ${where[i]}`;
+      return `${r || 'nothing'} in ${place}`;
+    })
+    .join(', ');
+  const circle = (cx: number, cy: number) => `<circle cx="${cx}" cy="${cy}" r="55" fill="none" stroke="currentColor" stroke-width="1.5" />`;
+  const italic = 'font-style="italic" font-size="16"';
+  return [
+    `<svg viewBox="0 0 280 200" width="100%" style="max-width:280px" role="img" aria-label="A Venn diagram of ${names.join(', ')}: ${described}">`,
+    '<rect x="4" y="4" width="272" height="192" rx="6" fill="none" stroke="currentColor" stroke-width="1.2" />',
+    circle(110, 80),
+    circle(170, 80),
+    circle(140, 132),
+    svgText(names[0], 44, 36, italic),
+    svgText(names[1], 236, 36, italic),
+    svgText(names[2], 210, 182, italic),
+    ...regions.map((r, i) => svgText(r, VENN3_SPOTS[i][0], VENN3_SPOTS[i][1] + 5, `data-region="${i}" font-size="13"`)),
+    '</svg>',
+  ].join('');
+}
+
+const sumOf = (xs: number[]): number => xs.reduce((s, x) => s + x, 0);
+
+/** `total` split into `parts` whole numbers, each at least `least`. */
+function splitWhole(rng: Rng, total: number, parts: number, least: number): number[] {
+  const spare = total - parts * least;
+  const cuts = Array.from({ length: parts - 1 }, () => rng.int(0, spare)).sort((a, b) => a - b);
+  const edges = [0, ...cuts, spare];
+  return Array.from({ length: parts }, (_, i) => edges[i + 1] - edges[i] + least);
+}
+
+/** Distinct by value, first come first kept, and none equal to `right`. */
+function otherValues(right: Tok, candidates: Tok[], keep = (t: Tok) => t.v >= 0 && t.v <= 1): Tok[] {
+  const out: Tok[] = [];
+  for (const t of candidates) {
+    if (!Number.isFinite(t.v) || !keep(t) || same(t.v, right.v) || RECURRING.test(t.tex)) continue;
+    if (out.some((o) => same(o.v, t.v) || o.tex === t.tex)) continue;
+    out.push(t);
+  }
+  return out;
+}
+
+/**
+ * The branches of one fork of a flow: the right one on to `to` (or ending with
+ * `done`), the rest ending with `hint`, turned by `salt`.
+ */
+function forkOf(right: string, wrong: string[], salt: number, hint: string, next: { to: string } | { outcome: string }) {
+  return turn([{ label: right, ...next }, ...wrong.map((label) => ({ label, outcome: hint }))], salt);
+}
+
+/* ================================================================
+ * Level 3, lesson 1: a tree from words
+ * ================================================================ */
+
+const WORD_BAGS = [
+  { colours: ['red', 'green'], letters: ['R', 'G'] },
+  { colours: ['blue', 'yellow'], letters: ['B', 'Y'] },
+  { colours: ['white', 'purple'], letters: ['W', 'P'] },
+  { colours: ['orange', 'pink'], letters: ['O', 'P'] },
+  { colours: ['green', 'white'], letters: ['G', 'W'] },
+  { colours: ['red', 'blue'], letters: ['R', 'B'] },
+] as const;
+
+const WORD_EVENTS = [
+  { a: 'Maya passes her theory test', b: 'she passes her driving test', letters: ['T', 'D'] },
+  { a: 'the bus is late on Monday', b: 'it is late on Tuesday', letters: ['M', 'T'] },
+  { a: 'Leo scores his first penalty', b: 'he scores his second', letters: ['F', 'S'] },
+  { a: 'a battery from box 1 works', b: 'a battery from box 2 works', letters: ['A', 'B'] },
+  { a: 'a seed from packet 1 grows', b: 'a seed from packet 2 grows', letters: ['P', 'Q'] },
+  { a: 'Nia wins her first race', b: 'she wins her second race', letters: ['W', 'V'] },
+] as const;
+
+export interface WordTreeParams {
+  /** A bag drawn from twice, or two independent events. */
+  bag: boolean;
+  context: number;
+  holder: string;
+  thing: number;
+  counts: [number, number];
+  replace: boolean;
+  /** For events: P(first) and P(second), in tenths. */
+  p: number;
+  q: number;
+  /** One path, both paths that match, or both mixed paths. */
+  ask: 'path' | 'same' | 'mixed';
+  /** The path: 0 for the first outcome of a stage, 1 for the other. */
+  path: [number, number];
+}
+
+function sampleWords(rng: Rng, difficulty: number, events: boolean): WordTreeParams {
+  const hard = difficulty > 1;
+  const bag = hard || !events || rng.chance(0.5);
+  for (;;) {
+    const counts: [number, number] = [rng.int(2, hard ? 9 : 7), rng.int(2, hard ? 9 : 7)];
+    const p = rng.int(1, 9) / 10;
+    const q = rng.int(1, 9) / 10;
+    if (bag && counts[0] === counts[1]) continue;
+    if (!bag && (p === q || p === 0.5 || q === 0.5)) continue;
+    return {
+      bag,
+      context: rng.int(0, (bag ? WORD_BAGS : WORD_EVENTS).length - 1),
+      holder: rng.pick(HOLDERS),
+      thing: rng.int(0, THINGS.length - 1),
+      counts,
+      replace: bag && !hard,
+      p,
+      q,
+      ask: 'path',
+      path: [rng.int(0, 1), rng.int(0, 1)],
+    };
+  }
+}
+
+/** The branch probabilities: the first stage, then the second under each first branch. */
+export function wordsBranches(w: WordTreeParams): { first: [Prob, Prob]; second: [[Prob, Prob], [Prob, Prob]] } {
+  if (!w.bag) {
+    const p: Prob = { kind: 'dec', v: w.p };
+    const q: Prob = { kind: 'dec', v: w.q };
+    return { first: [p, notP(p)], second: [[q, notP(q)], [q, notP(q)]] };
+  }
+  const [r, b] = w.counts;
+  const n = r + b;
+  const f = (x: number, y: number): Prob => ({ kind: 'frac', f: [x, y] });
+  if (w.replace) {
+    return { first: [f(r, n), f(b, n)], second: [[f(r, n), f(b, n)], [f(r, n), f(b, n)]] };
+  }
+  return { first: [f(r, n), f(b, n)], second: [[f(r - 1, n - 1), f(b, n - 1)], [f(r, n - 1), f(b - 1, n - 1)]] };
+}
+
+function wordsStages(w: WordTreeParams): string[][] {
+  if (w.bag) {
+    const letters = [...WORD_BAGS[w.context].letters];
+    return [letters, letters];
+  }
+  const [a, b] = WORD_EVENTS[w.context].letters;
+  return [
+    [a, `${a}'`],
+    [b, `${b}'`],
+  ];
+}
+
+function wordsSentence(w: WordTreeParams): string {
+  if (w.bag) {
+    const { colours, letters } = WORD_BAGS[w.context];
+    const [one, many] = THINGS[w.thing];
+    return `A ${w.holder} holds ${w.counts[0]} ${colours[0]} and ${w.counts[1]} ${colours[1]} ${many}. One ${one} is taken at random and ${w.replace ? 'put back' : 'not put back'}, then a second is taken. $${letters[0]}$ stands for ${colours[0]} and $${letters[1]}$ for ${colours[1]}.`;
+  }
+  const ctx = WORD_EVENTS[w.context];
+  return `The probability that ${ctx.a} is $${fmt(w.p)}$; call this event $${ctx.letters[0]}$. Independently, the probability that ${ctx.b} is $${fmt(w.q)}$; call this $${ctx.letters[1]}$.`;
+}
+
+function wordsValue(w: WordTreeParams): Prob {
+  const { first, second } = wordsBranches(w);
+  if (w.ask === 'path') return times(first[w.path[0]], second[w.path[0]][w.path[1]]);
+  if (w.ask === 'same') return plus(times(first[0], second[0][0]), times(first[1], second[1][1]));
+  return plus(times(first[0], second[0][1]), times(first[1], second[1][0]));
+}
+
+function wordsAskTex(w: WordTreeParams): string {
+  const [x, y] = w.path;
+  if (w.bag) {
+    const { colours } = WORD_BAGS[w.context];
+    if (w.ask === 'same') return 'P(\\text{same colour})';
+    if (w.ask === 'mixed') return 'P(\\text{one of each})';
+    return `P(\\text{${colours[x]} then ${colours[y]}})`;
+  }
+  const [a, b] = WORD_EVENTS[w.context].letters;
+  return `P(${a}${x ? "'" : ''} \\cap ${b}${y ? "'" : ''})`;
+}
+
+/** Every branch of a two-stage tree as it should be labelled, a to f. */
+const BRANCH_LETTERS = ['a', 'b', 'c', 'd', 'e', 'f'];
+
+/** Fill in every branch of a tree described in words. */
+const treeBranchTable: Generator<WordTreeParams> = {
+  id: 'prob-tree-branches',
+  sample: (rng, difficulty) => sampleWords(rng, difficulty, true),
+  render: (w): Slide => {
+    const { first, second } = wordsBranches(w);
+    const answer = [...first, ...second[0], ...second[1]].map(probTok);
+    const [r, b] = w.counts;
+    const n = r + b;
+    const slips = w.bag
+      ? [fr([r, n - 1]), fr([r - 1, n]), fr([b, n - 1]), fr([b - 1, n]), fr([r - 1, n - 1]), fr([b - 1, n - 1]), fr([Math.min(r, b), Math.max(r, b)])]
+      : [dec(w.p * w.q), dec(1 - w.p * w.q), dec(Math.abs(w.p - w.q)), dec(w.p + w.q)];
+    return {
+      kind: 'table',
+      prompt: [
+        say(wordsSentence(w)),
+        picture(stagedTreeSvg({ stages: wordsStages(w), labels: [BRANCH_LETTERS.slice(0, 2), BRANCH_LETTERS.slice(2)] })),
+        say('Fill in the probability on each branch, $a$ to $f$.'),
+      ],
+      columns: ['\\text{Branch}', '\\text{Probability}'],
+      rows: BRANCH_LETTERS.map((letter) => [letter, null]),
+      bank: bank(
+        answer,
+        slips.filter((t) => t.v <= 1),
+      ),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (w) => {
+    const { first, second } = wordsBranches(w);
+    const t = (x: Prob) => probTok(x).tex;
+    if (!w.bag) {
+      const [a, b] = WORD_EVENTS[w.context].letters;
+      return [
+        { text: `First stage: $a = P(${a}) = ${t(first[0])}$, and $b = 1 - ${t(first[0])} = ${t(first[1])}$.` },
+        { text: `The events are independent, so the second stage is the same after either branch: $c = e = ${t(second[0][0])}$ and $d = f = ${t(second[0][1])}$ for $${b}'$.` },
+        { text: 'Each pair of branches from one point adds up to $1$.' },
+      ];
+    }
+    const { colours } = WORD_BAGS[w.context];
+    const [r, b] = w.counts;
+    const n = r + b;
+    const steps: SolutionStep[] = [{ text: `First pick: ${r} of the ${n} are ${colours[0]}, so $a = ${t(first[0])}$ and $b = ${t(first[1])}$.` }];
+    if (w.replace) {
+      steps.push({ text: `It goes back, so the second pick is the same whatever came first: $c = e = ${t(second[0][0])}$ and $d = f = ${t(second[0][1])}$.` });
+    } else {
+      steps.push(
+        { text: `It is not put back, so the second pick is out of $${n - 1}$. After a ${colours[0]}, $${r - 1}$ ${colours[0]} are left: $c = ${t(second[0][0])}$ and $d = ${t(second[0][1])}$.` },
+        { text: `After a ${colours[1]}, $${b - 1}$ ${colours[1]} are left: $e = ${t(second[1][0])}$ and $f = ${t(second[1][1])}$.` },
+      );
+    }
+    steps.push({ text: 'Each pair of branches from one point adds up to $1$.' });
+    return steps;
+  },
+};
+
+/** A probability from a tree the learner draws for themselves. */
+const treeFromWords: Generator<WordTreeParams> = {
+  id: 'prob-tree-words',
+  sample: (rng, difficulty) => {
+    const w = sampleWords(rng, difficulty, true);
+    return difficulty > 1 ? { ...w, ask: rng.chance(0.5) ? 'same' : 'mixed' } : w;
+  },
+  render: (w): Slide => {
+    const ask =
+      w.ask === 'same'
+        ? 'Find the probability that both are the same colour.'
+        : w.ask === 'mixed'
+          ? 'Find the probability of one of each colour.'
+          : `Find $${wordsAskTex(w)}$.`;
+    return probSlide(
+      [say(wordsSentence(w)), picture(stagedTreeSvg({ stages: wordsStages(w), labels: [['', ''], ['', '', '', '']] })), say(`Label the branches, then: ${ask}`)],
+      `${wordsAskTex(w)} =`,
+      probTok(wordsValue(w)).answer,
+    );
+  },
+  solution: (w) => {
+    const { first, second } = wordsBranches(w);
+    const t = (x: Prob) => probTok(x).tex;
+    const along = (x: number, y: number) => `${t(first[x])} \\times ${t(second[x][y])}`;
+    const steps: SolutionStep[] = [
+      { text: `First stage: $${t(first[0])}$ and $${t(first[1])}$.` },
+      {
+        text: w.bag && !w.replace ? 'The first is not put back, so the second stage is out of one fewer and changes with the first.' : 'The second stage is the same after either first branch.',
+      },
+    ];
+    if (w.ask === 'path') {
+      const [x, y] = w.path;
+      steps.push({ text: 'Multiply along the path:' }, { tex: `${wordsAskTex(w)} = ${along(x, y)} = ${t(wordsValue(w))}` });
+    } else {
+      const [p1, p2]: [[number, number], [number, number]] = w.ask === 'same' ? [[0, 0], [1, 1]] : [[0, 1], [1, 0]];
+      steps.push(
+        { text: 'Two paths give it. Multiply along each, then add:' },
+        { tex: `${along(...p1)} + ${along(...p2)} = ${t(wordsValue(w))}` },
+      );
+    }
+    return steps;
+  },
+  choices: (w) => {
+    const { first, second } = wordsBranches(w);
+    const [x, y] = w.path;
+    const slips: Prob[] = [];
+    if (w.bag) slips.push(wordsValue({ ...w, replace: !w.replace }));
+    if (w.ask === 'path') {
+      slips.push(plus(first[x], second[x][y]), times(first[1 - x], second[1 - x][y]), times(first[x], second[x][1 - y]));
+    } else {
+      slips.push(wordsValue({ ...w, ask: w.ask === 'same' ? 'mixed' : 'same' }), times(first[0], second[0][w.ask === 'same' ? 0 : 1]));
+    }
+    return probChoices(
+      probTok(wordsValue(w)),
+      slips.map(probTok).filter((t) => t.v <= 1),
+      saltOf(w),
+    );
+  },
+};
+
+/** Build a two-draw tree a fork at a time: does the second draw change, its branch, the answer. */
+const replaceFlow: Generator<WordTreeParams> = {
+  id: 'prob-replace-flow',
+  sample: (rng, difficulty) => {
+    const w = sampleWords(rng, difficulty, false);
+    return { ...w, replace: rng.chance(0.5), ask: difficulty > 1 ? 'mixed' : 'path', path: [0, 0] };
+  },
+  render: (w): Slide => {
+    const { colours } = WORD_BAGS[w.context];
+    const [c0, c1] = colours;
+    const [one] = THINGS[w.thing];
+    const [r, b] = w.counts;
+    const n = r + b;
+    const salt = saltOf(w);
+    const mixed = w.ask === 'mixed';
+    const same = `Yes, the ${w.holder} is as it was`;
+    const fewer = `No, there is one ${one} fewer`;
+    const branchRight: Frac = mixed ? (w.replace ? [b, n] : [b, n - 1]) : w.replace ? [r, n] : [r - 1, n - 1];
+    const branchWrong: Frac[] = mixed
+      ? [w.replace ? [b, n - 1] : [b, n], [b - 1, n - 1], [b - 1, n]]
+      : [w.replace ? [r - 1, n - 1] : [r, n], [r - 1, n], [r, n - 1]];
+    const label = (f: Frac) => `$${rawTex(f)}$`;
+    const right = probTok(wordsValue(w));
+    const wrongValues = otherValues(right, [
+      probTok(wordsValue({ ...w, replace: !w.replace })),
+      mixed ? fr(fmul([r, n], branchRight)) : fr(fmul([r, n], [r, n])),
+      mixed ? probTok(wordsValue({ ...w, ask: 'same' })) : fr([2 * r - 1, 2 * n - 1]),
+    ]).slice(0, 2);
+    return {
+      kind: 'flow',
+      prompt: [say(wordsSentence(w)), say('Build the tree one fork at a time.')],
+      subject: mixed ? 'P(\\text{one of each})' : `P(\\text{both ${c0}})`,
+      steps: [
+        {
+          id: 'change',
+          ask: 'Are the chances on the second pick the same as on the first?',
+          branches: forkOf(w.replace ? same : fewer, [w.replace ? fewer : same], salt, `Look again at what happens to the first ${one} before the second is taken.`, { to: 'branch' }),
+        },
+        {
+          id: 'branch',
+          ask: mixed ? `What goes on the ${c1} branch after a ${c0}?` : `What goes on the ${c0} branch after a ${c0}?`,
+          branches: forkOf(label(branchRight), branchWrong.map(label), salt >> 3, `Count what is in the ${w.holder} at the second pick, of each colour and altogether.`, { to: 'answer' }),
+        },
+        {
+          id: 'answer',
+          ask: mixed ? 'So what is the probability of one of each colour?' : `So what is the probability that both are ${c0}?`,
+          branches: forkOf(
+            `$${right.tex}$`,
+            wrongValues.map((t) => `$${t.tex}$`),
+            salt >> 6,
+            mixed ? 'One of each happens two ways round. Multiply along each path, then add.' : 'Multiply along the path, first branch times second.',
+            { outcome: mixed ? 'Right: two paths, each multiplied along, then added.' : 'Right: multiply along the path.' },
+          ),
+        },
+      ],
+      answer: [w.replace ? same : fewer, label(branchRight), `$${right.tex}$`],
+    };
+  },
+  solution: (w) => {
+    const { first, second } = wordsBranches(w);
+    const t = (x: Prob) => probTok(x).tex;
+    const { colours } = WORD_BAGS[w.context];
+    const [r, b] = w.counts;
+    const n = r + b;
+    const steps: SolutionStep[] = [
+      {
+        text: w.replace
+          ? `The first goes back, so the second pick is again out of $${n}$ with $${r}$ ${colours[0]} and $${b}$ ${colours[1]}.`
+          : `The first is kept out, so the second pick is out of $${n - 1}$, with one fewer of whichever colour came first.`,
+      },
+    ];
+    if (w.ask === 'mixed') {
+      steps.push({ tex: `${t(first[0])} \\times ${t(second[0][1])} + ${t(first[1])} \\times ${t(second[1][0])} = ${t(wordsValue(w))}` });
+    } else {
+      steps.push({ tex: `${t(first[0])} \\times ${t(second[0][0])} = ${t(wordsValue(w))}` });
+    }
+    return steps;
+  },
+};
+
+const THREE_WAY = [
+  { intro: 'Jess gets to school by bus, on foot or by bike', who: 'she', names: ['B', 'W', 'C'], ways: ['takes the bus', 'walks', 'cycles'], event: 'is late', yes: 'L' },
+  { intro: 'Every phone a shop sells is made in factory X, Y or Z', who: 'a phone', names: ['X', 'Y', 'Z'], ways: ['comes from factory X', 'comes from factory Y', 'comes from factory Z'], event: 'is faulty', yes: 'F' },
+  { intro: 'Each evening Priya reads, plays a game or watches TV', who: 'she', names: ['R', 'G', 'T'], ways: ['reads', 'plays a game', 'watches TV'], event: 'is asleep by ten', yes: 'S' },
+  { intro: 'A customer at a cafe pays by cash, card or phone', who: 'a customer', names: ['C', 'D', 'P'], ways: ['pays by cash', 'pays by card', 'pays by phone'], event: 'leaves a tip', yes: 'T' },
+] as const;
+
+export interface MissingBranchParams {
+  context: number;
+  /** First-stage probabilities, hundredths, adding to 100. */
+  first: [number, number, number];
+  /** P(yes) after each first outcome, hundredths. */
+  yes: [number, number, number];
+  /** The first outcome asked about, whose branch is missing. */
+  k: number;
+  hard: boolean;
+}
+
+/** A three-way first stage with a branch missing: 1 minus the others, then multiply. */
+const branchMissing: Generator<MissingBranchParams> = {
+  id: 'prob-branch-missing',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const unit = hard ? 5 : 10;
+    for (;;) {
+      const first = splitWhole(rng, 100 / unit, 3, 1).map((x) => x * unit) as [number, number, number];
+      const yes = [0, 1, 2].map(() => unit * rng.int(1, 100 / unit - 1)) as [number, number, number];
+      if (yes.some((y) => y === 50)) continue;
+      return { context: rng.int(0, THREE_WAY.length - 1), first, yes, k: rng.int(0, 2), hard };
+    }
+  },
+  render: (params): Slide => {
+    const { first, yes, k, hard } = params;
+    const ctx = THREE_WAY[params.context];
+    const h = (x: number) => fmt(x / 100);
+    const labels = [
+      first.map((x, i) => (i === k ? '?' : h(x))),
+      yes.flatMap((y, i) => [hard && i === k ? '?' : h(y), h(100 - y)]),
+    ];
+    const answer = [dec(first[k] / 100), dec(yes[k] / 100), dec((first[k] * yes[k]) / 10000)];
+    const others = first.filter((_, i) => i !== k);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`${ctx.intro}. The tree shows the probabilities, where $${ctx.yes}$ means ${ctx.who} ${ctx.event}.`),
+        picture(stagedTreeSvg({ stages: [[...ctx.names], [ctx.yes, `${ctx.yes}'`]], labels })),
+        say(`Find the probability that ${ctx.who} ${ctx.ways[k]} and ${ctx.event}.`),
+      ],
+      template: `P(${ctx.names[k]} \\cap ${ctx.yes}) = {0} \\times {1} = {2}`,
+      answer: answer.map((t) => t.tex),
+      bank: bank(answer, [
+        dec((100 - yes[k]) / 100),
+        dec((first[k] * (100 - yes[k])) / 10000),
+        ...others.map((x) => dec(x / 100)),
+        dec((others[0] * yes[k]) / 10000),
+        dec((first[k] + yes[k]) / 100),
+      ]),
+    };
+  },
+  solution: ({ first, yes, k, hard, context }) => {
+    const ctx = THREE_WAY[context];
+    const h = (x: number) => fmt(x / 100);
+    const others = first.filter((_, i) => i !== k);
+    const steps: SolutionStep[] = [
+      { text: 'The three first branches add up to $1$:' },
+      { tex: `P(${ctx.names[k]}) = 1 - ${h(others[0])} - ${h(others[1])} = ${h(first[k])}` },
+    ];
+    if (hard) steps.push({ text: `The two branches after $${ctx.names[k]}$ add up to $1$ too: $1 - ${h(100 - yes[k])} = ${h(yes[k])}$.` });
+    steps.push({ text: 'Then multiply along the path:' }, { tex: `${h(first[k])} \\times ${h(yes[k])} = ${fmt((first[k] * yes[k]) / 10000)}` });
+    return steps;
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 2: three-stage trees
+ * ================================================================ */
+
+const TRIALS = [
+  { setup: 'Ria plays three games of chess', ones: 'games', yes: 'W', no: 'L', yesMeans: 'she wins a game', noMeans: 'she loses it' },
+  { setup: 'Ben drives through three sets of traffic lights', ones: 'sets of lights', yes: 'G', no: 'R', yesMeans: 'a set is green', noMeans: 'it is red' },
+  { setup: 'Kai takes three penalties', ones: 'penalties', yes: 'S', no: 'M', yesMeans: 'he scores', noMeans: 'he misses' },
+  { setup: 'Three seeds are planted, one from each of three packets', ones: 'seeds', yes: 'G', no: 'N', yesMeans: 'a seed grows', noMeans: 'it does not' },
+  { setup: 'Zoe guesses the answers to three quiz questions', ones: 'guesses', yes: 'C', no: 'X', yesMeans: 'a guess is correct', noMeans: 'it is wrong' },
+  { setup: 'Three trains run on a line one morning', ones: 'trains', yes: 'T', no: 'D', yesMeans: 'a train is on time', noMeans: 'it is delayed' },
+] as const;
+
+export interface ThreeParams {
+  context: number;
+  /** P(yes) at each stage. */
+  p: [Prob, Prob, Prob];
+  /** A path: true for yes at that stage. */
+  path: [boolean, boolean, boolean];
+  /** What the question is about, where a generator asks more than one thing. */
+  ask: 'yes' | 'no';
+}
+
+function sampleThree(rng: Rng, difficulty: number): ThreeParams {
+  const hard = difficulty > 1;
+  const context = rng.int(0, TRIALS.length - 1);
+  const path: [boolean, boolean, boolean] = [rng.chance(0.5), rng.chance(0.5), rng.chance(0.5)];
+  const ask = rng.chance(0.5) ? 'yes' : 'no';
+  if (!hard) {
+    const tenth = (): Prob => ({ kind: 'dec', v: rng.pick([1, 2, 3, 4, 6, 7, 8, 9]) / 10 });
+    const one = tenth();
+    const p: [Prob, Prob, Prob] = rng.chance(0.5) ? [one, one, one] : [one, tenth(), tenth()];
+    return { context, p, path, ask };
+  }
+  for (;;) {
+    const fractions = rng.chance(0.5);
+    // One stage in hundredths and two in tenths keeps every path to four places.
+    const fine = rng.int(0, 2);
+    const pick = (k: number): Prob => {
+      if (!fractions && k === fine) return { kind: 'dec', v: 5 * rng.pick([1, 3, 5, 7, 9, 11, 13, 15, 17, 19]) / 100 };
+      if (!fractions) return { kind: 'dec', v: rng.pick([1, 2, 3, 4, 6, 7, 8, 9]) / 10 };
+      const d = rng.int(3, 8);
+      return { kind: 'frac', f: simplest([rng.int(1, d - 1), d]) };
+    };
+    const p: [Prob, Prob, Prob] = [pick(0), pick(1), pick(2)];
+    if (same(probValue(p[0]), probValue(p[1])) && same(probValue(p[1]), probValue(p[2]))) continue;
+    if (p.some((x) => same(probValue(x), 0.5))) continue;
+    return { context, p, path, ask };
+  }
+}
+
+function threeSentence({ context }: ThreeParams): string {
+  const ctx = TRIALS[context];
+  return `${ctx.setup}. $${ctx.yes}$ means ${ctx.yesMeans} and $${ctx.no}$ means ${ctx.noMeans}. The ${ctx.ones} are independent, with the probabilities on the tree.`;
+}
+
+function threePicture(params: ThreeParams): Block {
+  const ctx = TRIALS[params.context];
+  const outcomes = [ctx.yes, ctx.no];
+  return picture(
+    stagedTreeSvg({
+      stages: [outcomes, outcomes, outcomes],
+      labels: params.p.map((p, k) => Array.from({ length: 2 ** k }, () => [probPlain(p), probPlain(notP(p))]).flat()),
+    }),
+  );
+}
+
+/** The branch taken at each stage of `path`. */
+const branchOf = (params: ThreeParams, path: boolean[]): Prob[] => path.map((yes, k) => (yes ? params.p[k] : notP(params.p[k])));
+
+const productOf = (xs: Prob[]): Prob => xs.reduce((acc, x) => times(acc, x));
+
+const threePathTex = (params: ThreeParams, path: boolean[]): string => {
+  const ctx = TRIALS[params.context];
+  return `P(${path.map((yes) => (yes ? ctx.yes : ctx.no)).join(', ')})`;
+};
+
+/** Multiply along one path of a three-stage tree. */
+const threePath: Generator<ThreeParams> = {
+  id: 'prob-three-path',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleThree(rng, difficulty);
+      if (difficulty > 1 && params.path.every((yes) => yes)) continue;
+      return params;
+    }
+  },
+  render: (params): Slide => {
+    const ctx = TRIALS[params.context];
+    const letters = params.path.map((yes) => (yes ? ctx.yes : ctx.no));
+    return probSlide(
+      [say(threeSentence(params)), threePicture(params), say(`Find $${threePathTex(params, params.path)}$: $${letters[0]}$, then $${letters[1]}$, then $${letters[2]}$.`)],
+      `${threePathTex(params, params.path)} =`,
+      probTok(productOf(branchOf(params, params.path))).answer,
+    );
+  },
+  solution: (params) => {
+    const along = branchOf(params, params.path);
+    const t = (x: Prob) => probTok(x).tex;
+    return [
+      { text: 'Follow the path through all three stages and multiply the three branches on it.' },
+      { tex: `${threePathTex(params, params.path)} = ${along.map(t).join(' \\times ')} = ${t(productOf(along))}` },
+    ];
+  },
+  choices: (params) => {
+    const along = branchOf(params, params.path);
+    const flipped = branchOf(params, params.path.map((yes, k) => (k === 0 ? !yes : yes)));
+    return probChoices(
+      probTok(productOf(along)),
+      [plus(plus(along[0], along[1]), along[2]), times(along[0], along[1]), productOf(flipped), productOf(params.p)].map(probTok).filter((t) => t.v <= 1),
+      saltOf(params),
+    );
+  },
+};
+
+/** "At least one" through the one path where it never happens. */
+const threeAtLeast: Generator<ThreeParams> = {
+  id: 'prob-three-atleast',
+  sample: (rng, difficulty) => {
+    const params = sampleThree(rng, difficulty);
+    return difficulty > 1 ? params : { ...params, ask: 'yes' };
+  },
+  render: (params): Slide => {
+    const ctx = TRIALS[params.context];
+    // At least one of `want` fails only on the path that is all of the other.
+    const want = params.ask === 'yes' ? ctx.yes : ctx.no;
+    const other = params.ask === 'yes' ? ctx.no : ctx.yes;
+    const never = branchOf(params, [params.ask === 'no', params.ask === 'no', params.ask === 'no']);
+    const none = productOf(never);
+    const answer = [...never, none, notP(none)].map(probTok);
+    const slips = [productOf(branchOf(params, [params.ask === 'yes', params.ask === 'yes', params.ask === 'yes'])), plus(plus(never[0], never[1]), never[2]), times(never[0], never[1])];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(threeSentence(params)),
+        threePicture(params),
+        say(`Find the probability of at least one $${want}$ in three steps. Top row: $P(${other})$ for each of the three ${ctx.ones} in turn. Then the probability of $${other}$ every time, then of at least one $${want}$.`),
+      ],
+      expression: `1 - P(${other}, ${other}, ${other})`,
+      nodes: [
+        { id: 'a', from: [] },
+        { id: 'b', from: [] },
+        { id: 'c', from: [] },
+        { id: 'none', from: ['a', 'b', 'c'] },
+        { id: 'one', from: ['none'] },
+      ],
+      bank: bank(answer, [...slips, notP(slips[0])].map(probTok).filter((t) => t.v <= 1)),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const ctx = TRIALS[params.context];
+    const want = params.ask === 'yes' ? ctx.yes : ctx.no;
+    const other = params.ask === 'yes' ? ctx.no : ctx.yes;
+    const never = branchOf(params, [params.ask === 'no', params.ask === 'no', params.ask === 'no']);
+    const t = (x: Prob) => probTok(x).tex;
+    return [
+      { text: `At least one $${want}$ fails only on one path: $${other}$ all three times.` },
+      { tex: `P(${other}, ${other}, ${other}) = ${never.map(t).join(' \\times ')} = ${t(productOf(never))}` },
+      { tex: `P(\\text{at least one } ${want}) = 1 - ${t(productOf(never))} = ${t(notP(productOf(never)))}` },
+    ];
+  },
+};
+
+/** All three the same: two paths, each multiplied along, then added. */
+const threeSameSteps: Generator<ThreeParams> = {
+  id: 'prob-three-same-steps',
+  sample: sampleThree,
+  render: (params): Slide => {
+    const ctx = TRIALS[params.context];
+    const t = (x: Prob) => probTok(x).tex;
+    const [p0, p1, p2] = params.p;
+    const [q0, q1, q2] = params.p.map(notP);
+    const p01 = times(p0, p1);
+    const q01 = times(q0, q1);
+    const all = times(p01, p2);
+    const none = times(q01, q2);
+    const total = plus(all, none);
+    const nudge: Prob = { kind: 'dec', v: 0.1 };
+    return {
+      kind: 'steps',
+      prompt: [
+        say(threeSentence(params)),
+        threePicture(params),
+        say(`Find the probability that all three ${ctx.ones} go the same way: $${ctx.yes}$ every time or $${ctx.no}$ every time. Tap the part you would work out next, then choose what it comes to.`),
+      ],
+      start: [t(p0), '\\times', t(p1), '\\times', t(p2), '+', t(q0), '\\times', t(q1), '\\times', t(q2)],
+      reductions: [
+        { span: [0, 3], operator: 1, value: t(p01), bank: stepBank(t(p01), t(plus(p0, p1)), t(times(p0, q1)), t(times(q0, p1))) },
+        { span: [0, 3], operator: 1, value: t(all), bank: stepBank(t(all), t(times(p01, q2)), t(times(p01, p0)), t(plus(all, nudge))) },
+        { span: [2, 5], operator: 3, value: t(q01), bank: stepBank(t(q01), t(plus(q0, q1)), t(times(q0, p1)), t(times(p0, q1))) },
+        { span: [2, 5], operator: 3, value: t(none), bank: stepBank(t(none), t(times(q01, p2)), t(times(q01, q0)), t(plus(none, nudge))) },
+        { span: [0, 3], operator: 1, value: t(total), bank: stepBank(t(total), t(times(all, none)), t(notP(total)), t(plus(total, nudge))) },
+      ],
+    };
+  },
+  solution: (params) => {
+    const ctx = TRIALS[params.context];
+    const t = (x: Prob) => probTok(x).tex;
+    const yes = params.p;
+    const no = params.p.map(notP);
+    return [
+      { text: `Two paths go the same way all three times: $${ctx.yes}, ${ctx.yes}, ${ctx.yes}$ and $${ctx.no}, ${ctx.no}, ${ctx.no}$. Multiply along each, then add.` },
+      { tex: `${yes.map(t).join(' \\times ')} = ${t(productOf(yes))}` },
+      { tex: `${no.map(t).join(' \\times ')} = ${t(productOf(no))}` },
+      { tex: `${t(productOf(yes))} + ${t(productOf(no))} = ${t(plus(productOf(yes), productOf(no)))}` },
+    ];
+  },
+};
+
+/** The three paths of "exactly one" or "exactly two", in the order the tree lists them. */
+function exactlyPaths(params: ThreeParams): boolean[][] {
+  const two = params.ask === 'no';
+  return [0, 1, 2].map((odd) => [0, 1, 2].map((k) => (k === odd) !== two));
+}
+
+/** Exactly one (or exactly two): three paths written out, then added. */
+const threeExactlyTiles: Generator<ThreeParams> = {
+  id: 'prob-three-exactly-tiles',
+  sample: (rng, difficulty) => {
+    const params = sampleThree(rng, difficulty);
+    return { ...params, ask: difficulty > 1 ? 'no' : 'yes' };
+  },
+  render: (params): Slide => {
+    const ctx = TRIALS[params.context];
+    const paths = exactlyPaths(params);
+    const values = paths.map((path) => productOf(branchOf(params, path)));
+    const total = values.reduce((acc, v) => plus(acc, v));
+    const answer = [...values, total].map(probTok);
+    const how = params.ask === 'no' ? 'exactly two' : 'exactly one';
+    const slips = [productOf(params.p), productOf(params.p.map(notP)), ...exactlyPaths({ ...params, ask: params.ask === 'no' ? 'yes' : 'no' }).map((path) => productOf(branchOf(params, path)))];
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(threeSentence(params)),
+        threePicture(params),
+        say(`Find the probability of ${how} $${ctx.yes}$ from the three paths it happens on:`),
+        show(`\\begin{aligned} & ${threePathTex(params, paths[0])} \\\\ + {} & ${threePathTex(params, paths[1])} \\\\ + {} & ${threePathTex(params, paths[2])} \\end{aligned}`),
+      ],
+      template: '{0} + {1} + {2} = {3}',
+      answer: answer.map((t) => t.tex),
+      bank: bank(answer, [...slips, plus(total, values[0])].map(probTok).filter((t) => t.v <= 1)),
+    };
+  },
+  solution: (params) => {
+    const paths = exactlyPaths(params);
+    const t = (x: Prob) => probTok(x).tex;
+    const values = paths.map((path) => productOf(branchOf(params, path)));
+    return [
+      { text: 'Multiply along each of the three paths:' },
+      ...paths.map((path) => ({ tex: `${threePathTex(params, path)} = ${branchOf(params, path).map(t).join(' \\times ')} = ${t(productOf(branchOf(params, path)))}` })),
+      { text: 'Then add them:' },
+      { tex: `\\begin{aligned} & ${values.map(t).join(' + ')} \\\\ = {} & ${t(values.reduce((acc, v) => plus(acc, v)))} \\end{aligned}` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 3: a two-set Venn diagram from totals
+ * ================================================================ */
+
+export interface TotalsParams {
+  context: number;
+  /** Only A, both, only B, neither, as `VENN` diagrams hold them. */
+  regions: [number, number, number, number];
+  /** The fourth fact the question gives: the overlap, or how many do neither. */
+  given: 'both' | 'neither';
+  /** Which count a question asks for, where it asks for one. */
+  ask: 'neither' | 'onlyA' | 'onlyB' | 'union' | 'both';
+}
+
+function sampleTotals(rng: Rng, difficulty: number): TotalsParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const regions: TotalsParams['regions'] = hard
+      ? [rng.int(3, 25), rng.int(2, 15), rng.int(3, 25), rng.int(1, 15)]
+      : [rng.int(2, 14), rng.int(1, 9), rng.int(2, 14), rng.int(1, 10)];
+    if (regions[0] === regions[2]) continue;
+    const ask = hard ? rng.pick(['both', 'onlyA', 'onlyB'] as const) : rng.pick(['neither', 'onlyB', 'union'] as const);
+    return { context: rng.int(0, VENN.length - 1), regions, given: hard ? 'neither' : 'both', ask };
+  }
+}
+
+/** The totals a question states: n(A), n(B), everyone. */
+export function totalsOf({ regions: [a, b, c, d] }: TotalsParams) {
+  return { nA: a + b, nB: b + c, total: a + b + c + d };
+}
+
+function totalsSentence(params: TotalsParams): string {
+  const ctx = VENN[params.context];
+  const { nA, nB, total } = totalsOf(params);
+  const last = params.given === 'both' ? `${params.regions[1]} do both` : `${params.regions[3]} do neither`;
+  return `Of ${total} ${ctx.who}, ${nA} ${ctx.aText}, ${nB} ${ctx.bText}, and ${last}.`;
+}
+
+const blankVenn = (params: TotalsParams): Block => {
+  const ctx = VENN[params.context];
+  return picture(vennSvg([ctx.A, ctx.B], ['?', '?', '?', '?']));
+};
+
+/** The four regions from the totals, overlap first; at difficulty 2 the overlap comes from the total. */
+const vennRegionsTable: Generator<TotalsParams> = {
+  id: 'prob-venn-regions-table',
+  sample: sampleTotals,
+  render: (params): Slide => {
+    const ctx = VENN[params.context];
+    const [a, b, c, d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    const both = params.given === 'both';
+    const labels = both
+      ? ['\\text{both}', `${ctx.A} \\text{ only}`, `${ctx.B} \\text{ only}`, '\\text{neither}']
+      : ['\\text{at least one}', '\\text{both}', `${ctx.A} \\text{ only}`, `${ctx.B} \\text{ only}`];
+    const answer = (both ? [b, a, c, d] : [a + b + c, b, a, c]).map(dec);
+    return {
+      kind: 'table',
+      prompt: [
+        say(totalsSentence(params)),
+        blankVenn(params),
+        say(both ? 'Fill in the four regions, starting with the overlap.' : 'Work out how many do at least one, then fill in the three regions inside the circles.'),
+      ],
+      columns: ['\\text{Region}', '\\text{Number}'],
+      rows: labels.map((label) => [label, null]),
+      bank: bank(answer, [dec(nA), dec(nB), dec(nA + nB), dec(total - nA - nB), dec(total - b), dec(nA + nB - total)]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const ctx = VENN[params.context];
+    const [a, b, c, d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    const steps: SolutionStep[] = [];
+    if (params.given === 'neither') {
+      steps.push(
+        { text: `Everyone not in neither is in at least one circle: $${total} - ${d} = ${a + b + c}$.` },
+        { text: `Adding the two circles counts the overlap twice, so the overlap is the excess: $${nA} + ${nB} - ${a + b + c} = ${b}$.` },
+      );
+    } else {
+      steps.push({ text: `The overlap is given: $${b}$ do both.` });
+    }
+    steps.push({ tex: `${ctx.A} \\text{ only}: ${nA} - ${b} = ${a}, \\quad ${ctx.B} \\text{ only}: ${nB} - ${b} = ${c}` });
+    if (params.given === 'both') steps.push({ text: `The rest are outside both circles: $${total} - (${a} + ${b} + ${c}) = ${d}$.` });
+    return steps;
+  },
+};
+
+/** Where to start, then each region in turn, as a sequence of forks. */
+const vennStartFlow: Generator<TotalsParams> = {
+  id: 'prob-venn-start-flow',
+  sample: sampleTotals,
+  render: (params): Slide => {
+    const ctx = VENN[params.context];
+    const [a, b, c, d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    const salt = saltOf(params);
+    const num = (n: number) => `$${n}$`;
+    const choices = (right: number, wrong: number[]) => [...new Set(wrong.filter((w) => w > 0 && w !== right))].slice(0, 2).map(num);
+    const inside = a + b + c;
+    const onlyA = { ask: `How many go in $${ctx.A}$ only?`, right: a, wrong: [nA, nA + b, nA - 2 * b, a + 1] };
+    const steps =
+      params.given === 'both'
+        ? [
+            {
+              id: 'first',
+              ask: 'Which region do you fill in first?',
+              branches: forkOf('The overlap', [`$${ctx.A}$ only`, 'Outside both circles'], salt, `Each count you are given includes some other region. Which one is given exactly?`, { to: 'only' }),
+            },
+            { id: 'only', ask: onlyA.ask, branches: forkOf(num(a), choices(a, onlyA.wrong), salt >> 3, `The ${nA} who ${ctx.aText} include the ${b} who do both.`, { to: 'out' }) },
+            {
+              id: 'out',
+              ask: 'How many go outside both circles?',
+              branches: forkOf(num(d), choices(d, [total - nA - nB, total - b, total - a - c, d + 1]), salt >> 6, 'Add the three regions inside the circles, then take them from the total.', {
+                outcome: 'Right: everyone left over once the circles are filled.',
+              }),
+            },
+          ]
+        : [
+            {
+              id: 'inside',
+              ask: 'How many do at least one of the two?',
+              branches: forkOf(num(inside), choices(inside, [total, nA + nB, total - d - b, inside + 1]), salt, 'Everyone except those who do neither.', { to: 'both' }),
+            },
+            {
+              id: 'both',
+              ask: 'So how many do both?',
+              branches: forkOf(num(b), choices(b, [nA + nB - total, total - nA - nB + d, inside - nA, b + 1]), salt >> 3, 'Adding the two circles counts the overlap twice. How far over the at-least-one count is that?', {
+                to: 'only',
+              }),
+            },
+            { id: 'only', ask: onlyA.ask, branches: forkOf(num(a), choices(a, onlyA.wrong), salt >> 6, `The ${nA} who ${ctx.aText} include those who do both.`, { outcome: 'Right: the circle minus its overlap.' }) },
+          ];
+    const answer = params.given === 'both' ? ['The overlap', num(a), num(d)] : [num(inside), num(b), num(a)];
+    return {
+      kind: 'flow',
+      prompt: [say(totalsSentence(params)), blankVenn(params)],
+      subject: `\\text{Filling in the diagram}`,
+      steps,
+      answer,
+    };
+  },
+  solution: (params) => {
+    const [a, b, c, d] = params.regions;
+    const { nA, total } = totalsOf(params);
+    if (params.given === 'both') {
+      return [
+        { text: `Start with the overlap, which is given: $${b}$.` },
+        { text: `Then the rest of each circle: $${nA} - ${b} = ${a}$ in the first only.` },
+        { text: `Outside both is what is left: $${total} - (${a} + ${b} + ${c}) = ${d}$.` },
+      ];
+    }
+    return [
+      { text: `At least one: $${total} - ${d} = ${a + b + c}$.` },
+      { text: `Both: the two circle counts together run over that by the overlap, $${b}$.` },
+      { text: `Then the first circle only: $${nA} - ${b} = ${a}$.` },
+    ];
+  },
+};
+
+const TOTALS_ASK = {
+  neither: { tex: (A: string, B: string) => `n((${A} \\cup ${B})')`, words: () => 'in neither set' },
+  onlyA: { tex: (A: string, B: string) => `n(${A} \\cap ${B}')`, words: (A: string) => `in $${A}$ only` },
+  onlyB: { tex: (A: string, B: string) => `n(${A}' \\cap ${B})`, words: (_A: string, B: string) => `in $${B}$ only` },
+  union: { tex: (A: string, B: string) => `n(${A} \\cup ${B})`, words: () => 'in at least one set' },
+  both: { tex: (A: string, B: string) => `n(${A} \\cap ${B})`, words: () => 'in both sets' },
+} as const;
+
+export function totalsAnswer({ regions: [a, b, c, d], ask }: TotalsParams): number {
+  return { neither: d, onlyA: a, onlyB: c, union: a + b + c, both: b }[ask];
+}
+
+/** One region's count from the totals, typed. */
+const vennCount: Generator<TotalsParams> = {
+  id: 'prob-venn-count',
+  sample: sampleTotals,
+  render: (params): Slide => {
+    const ctx = VENN[params.context];
+    const how = TOTALS_ASK[params.ask];
+    return countSlide(
+      [say(totalsSentence(params)), say(`Find $${how.tex(ctx.A, ctx.B)}$, the number ${how.words(ctx.A, ctx.B)}, where $${ctx.A}$ is the set who ${ctx.aText} and $${ctx.B}$ the set who ${ctx.bText}.`)],
+      `${how.tex(ctx.A, ctx.B)} =`,
+      totalsAnswer(params),
+    );
+  },
+  solution: (params) => {
+    const [a, b, c, d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    const steps: SolutionStep[] = [];
+    if (params.given === 'neither') {
+      steps.push({ text: `At least one: $${total} - ${d} = ${a + b + c}$. The two circles add to $${nA} + ${nB} = ${nA + nB}$, which counts the overlap twice, so the overlap is $${nA + nB} - ${a + b + c} = ${b}$.` });
+    } else {
+      steps.push({ text: `Start from the overlap, $${b}$.` });
+    }
+    steps.push({ tex: `${nA} - ${b} = ${a}, \\quad ${nB} - ${b} = ${c}` });
+    if (params.given === 'both') steps.push({ text: `Inside the circles: $${a} + ${b} + ${c} = ${a + b + c}$, so outside: $${total} - ${a + b + c} = ${d}$.` });
+    steps.push({ text: `So the answer is $${totalsAnswer(params)}$.` });
+    return steps;
+  },
+  choices: (params) => {
+    const [, b, , d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    const right = totalsAnswer(params);
+    const wrong = { neither: [total - nA - nB, total - b, b + d], onlyA: [nA, nA + b, total - nB], onlyB: [nB, nB + b, total - nA], union: [nA + nB, total, nA + nB + b], both: [nA + nB - total, total - nA - nB + d, d] }[
+      params.ask
+    ];
+    return probChoices(
+      dec(right),
+      wrong.filter((w) => w > 0).map(dec),
+      saltOf(params),
+    );
+  },
+};
+
+/** Which list of four region counts matches the words: the overlap-twice slips as distractors. */
+const vennMatch: Generator<TotalsParams> = {
+  id: 'prob-venn-match',
+  sample: sampleTotals,
+  render: (params): Slide => {
+    const ctx = VENN[params.context];
+    const [a, b, c, d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    const list = (xs: number[]) => (xs.every((x) => x >= 0) ? xs.join(', ') : '');
+    const right = list([a, b, c, d]);
+    const guessed = nA + nB - total;
+    const wrong = [
+      list([nA, b, nB, d]),
+      list([a, b, c, total - nA - nB]),
+      list([nA, b, nB, total - nA - nB - b]),
+      list([c, b, a, d]),
+      params.given === 'neither' && guessed > 0 ? list([nA - guessed, guessed, nB - guessed, d]) : '',
+    ].filter((w) => w !== '' && w !== right);
+    return pickSlide(
+      [say(totalsSentence(params)), say(`Which list gives the four regions of the Venn diagram, in the order $${ctx.A}$ only, both, $${ctx.B}$ only, neither?`)],
+      right,
+      params.given === 'neither' ? [wrong[wrong.length - 1], ...wrong.slice(0, -1)] : wrong,
+      saltOf(params),
+      false,
+    );
+  },
+  solution: (params) => {
+    const [a, b, c, d] = params.regions;
+    const { nA, nB, total } = totalsOf(params);
+    return [
+      params.given === 'both'
+        ? { text: `The overlap is $${b}$. Each circle's count includes it, so take it off each.` }
+        : { text: `At least one is $${total} - ${d} = ${a + b + c}$, so the overlap is $${nA} + ${nB} - ${a + b + c} = ${b}$.` },
+      { tex: `${nA} - ${b} = ${a}, \\quad ${nB} - ${b} = ${c}` },
+      { text: `Neither: $${total} - ${a + b + c} = ${d}$. The list is $${a}, ${b}, ${c}, ${d}$.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 4: three-set Venn diagrams
+ * ================================================================ */
+
+export const VENN3 = [
+  { who: 'students', one: 'student', names: ['F', 'G', 'S'], verb: 'study', nouns: ['French', 'German', 'Spanish'] },
+  { who: 'people', one: 'person', names: ['C', 'D', 'R'], verb: 'own', nouns: ['a cat', 'a dog', 'a rabbit'] },
+  { who: 'members', one: 'member', names: ['S', 'C', 'R'], verb: '', nouns: ['swim', 'cycle', 'run'] },
+  { who: 'customers', one: 'customer', names: ['B', 'M', 'E'], verb: 'bought', nouns: ['bread', 'milk', 'eggs'] },
+  { who: 'pupils', one: 'pupil', names: ['A', 'M', 'P'], verb: 'like', nouns: ['art', 'music', 'PE'] },
+  { who: 'guests', one: 'guest', names: ['T', 'C', 'J'], verb: 'drink', nouns: ['tea', 'coffee', 'juice'] },
+] as const;
+
+type Venn3Context = (typeof VENN3)[number];
+
+const setText = (ctx: Venn3Context, i: number): string => `${ctx.verb} ${ctx.nouns[i]}`.trim();
+const bothText = (ctx: Venn3Context, i: number, j: number): string => `${ctx.verb} ${ctx.nouns[i]} and ${ctx.nouns[j]}`.trim();
+const names3 = (ctx: Venn3Context): [string, string, string] => [...ctx.names];
+
+/** "$F$ is the set who study French, $G$ who study German and $S$ who study Spanish." */
+function venn3Key(ctx: Venn3Context): string {
+  return `$${ctx.names[0]}$ is the set who ${setText(ctx, 0)}, $${ctx.names[1]}$ who ${setText(ctx, 1)} and $${ctx.names[2]}$ who ${setText(ctx, 2)}.`;
+}
+
+export interface Venn3Params {
+  context: number;
+  /** In `VENN3_REGIONS` order: three singles, three pairs only, all three, none. */
+  regions: number[];
+  /** A set the question is about, where it is about one. */
+  set: number;
+  /** A region the question is about, where it is about one. */
+  region: number;
+  /** A generator's own switch between two forms of question. */
+  form: number;
+  hard: boolean;
+}
+
+function sampleVenn3(rng: Rng, difficulty: number): Venn3Params {
+  const hard = difficulty > 1;
+  return {
+    context: rng.int(0, VENN3.length - 1),
+    regions: Array.from({ length: 8 }, () => (hard ? rng.int(2, 15) : rng.int(1, 9))),
+    set: rng.int(0, 2),
+    region: rng.int(0, 7),
+    form: rng.int(0, 5),
+    hard,
+  };
+}
+
+/** How many are in every region whose sets include all of `sets`. */
+export function venn3Count(regions: number[], sets: number[]): number {
+  return sumOf(regions.filter((_, i) => sets.every((s) => VENN3_REGIONS[i].includes(s))));
+}
+
+/** The region holding exactly these sets. */
+const regionOf = (sets: number[]): number => VENN3_REGIONS.findIndex((r) => r.length === sets.length && sets.every((s) => r.includes(s)));
+
+/** The regions of a three-set diagram from the set, pair and grand totals. */
+const venn3Fill: Generator<Venn3Params> = {
+  id: 'prob-venn3-fill',
+  sample: sampleVenn3,
+  render: (params): Slide => {
+    const ctx = VENN3[params.context];
+    const r = params.regions;
+    const total = sumOf(r);
+    const [A, B, C] = ctx.names;
+    const n = [0, 1, 2].map((s) => venn3Count(r, [s]));
+    const opening = `Of ${total} ${ctx.who}, ${n[0]} ${setText(ctx, 0)}, ${n[1]} ${setText(ctx, 1)} and ${n[2]} ${setText(ctx, 2)}.`;
+    const pairs = [
+      [0, 1],
+      [0, 2],
+      [1, 2],
+    ];
+    const pairTotals = pairs.map((pair) => venn3Count(r, pair));
+    if (!params.hard) {
+      const shown = r.map((x, i) => (i >= 3 && i <= 6 ? `${x}` : '?'));
+      const answer = [r[0], r[1], r[2], r[7]].map(dec);
+      return {
+        kind: 'table',
+        prompt: [say(`${opening} The diagram already shows those in two or three of the sets.`), picture(venn3Svg(names3(ctx), shown)), say('Fill in the rest.')],
+        columns: ['\\text{Region}', '\\text{Number}'],
+        rows: [`${A} \\text{ only}`, `${B} \\text{ only}`, `${C} \\text{ only}`, '\\text{none}'].map((label) => [label, null]),
+        bank: bank(answer, [...n.map(dec), dec(n[0] - r[3] - r[4]), dec(total - sumOf(n)), dec(r[7] + r[6])]),
+        answer: answer.map((t) => t.tex),
+      };
+    }
+    const shown = r.map((x, i) => (i === 6 ? `${x}` : '?'));
+    const answer = [r[3], r[4], r[5], r[0], r[1], r[2], r[7]].map(dec);
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `${opening} Also ${pairTotals[0]} ${bothText(ctx, 0, 1)}, ${pairTotals[1]} ${bothText(ctx, 0, 2)} and ${pairTotals[2]} ${bothText(ctx, 1, 2)}; each of these counts includes the ${r[6]} in all three.`,
+        ),
+        picture(venn3Svg(names3(ctx), shown)),
+        say('Work outward from the middle and fill in every region.'),
+      ],
+      columns: ['\\text{Region}', '\\text{Number}'],
+      rows: [`${A} \\cap ${B} \\text{ only}`, `${A} \\cap ${C} \\text{ only}`, `${B} \\cap ${C} \\text{ only}`, `${A} \\text{ only}`, `${B} \\text{ only}`, `${C} \\text{ only}`, '\\text{none}'].map((label) => [
+        label,
+        null,
+      ]),
+      bank: bank(answer, [...pairTotals.map(dec), ...n.map(dec), dec(n[0] - pairTotals[0] - pairTotals[1]), dec(total - sumOf(n))]),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const ctx = VENN3[params.context];
+    const r = params.regions;
+    const [A, B, C] = ctx.names;
+    const n = [0, 1, 2].map((s) => venn3Count(r, [s]));
+    const total = sumOf(r);
+    const steps: SolutionStep[] = [];
+    if (params.hard) {
+      const t = r[6];
+      steps.push(
+        { text: `Each pair count includes the ${t} in all three, so take ${t} off each for the two-only regions:` },
+        { tex: `${venn3Count(r, [0, 1])} - ${t} = ${r[3]}, \\quad ${venn3Count(r, [0, 2])} - ${t} = ${r[4]}, \\quad ${venn3Count(r, [1, 2])} - ${t} = ${r[5]}` },
+      );
+    }
+    steps.push(
+      { text: `Each set's total, less everything already written inside that circle, leaves the region for that set only:` },
+      { tex: `${A}: ${n[0]} - ${r[3] + r[4] + r[6]} = ${r[0]}, \\quad ${B}: ${n[1]} - ${r[3] + r[5] + r[6]} = ${r[1]}, \\quad ${C}: ${n[2]} - ${r[4] + r[5] + r[6]} = ${r[2]}` },
+      { text: `None: the total less the seven regions inside, $${total} - ${total - r[7]} = ${r[7]}$.` },
+    );
+    return steps;
+  },
+};
+
+/** For one set: the two-only regions, then the set only, from the counts in words. */
+const venn3Outward: Generator<Venn3Params> = {
+  id: 'prob-venn3-outward',
+  sample: sampleVenn3,
+  render: (params): Slide => {
+    const ctx = VENN3[params.context];
+    const r = params.regions;
+    const total = sumOf(r);
+    const s = params.set;
+    const [t, u] = [0, 1, 2].filter((x) => x !== s);
+    const [S, T, U] = [ctx.names[s], ctx.names[t], ctx.names[u]];
+    const nS = venn3Count(r, [s]);
+    const nST = venn3Count(r, [s, t]);
+    const nSU = venn3Count(r, [s, u]);
+    const st = r[regionOf([s, t])];
+    const su = r[regionOf([s, u])];
+    const only = r[s];
+    const shown = r.map((x, i) => (i === 6 ? `${x}` : ''));
+    const answer = [dec(st), dec(su), dec(only), ...(params.hard ? [fr([only, total])] : [])];
+    const nodes = [
+      { id: 'st', from: [] },
+      { id: 'su', from: [] },
+      { id: 'only', from: ['st', 'su'] },
+      ...(params.hard ? [{ id: 'p', from: ['only'] }] : []),
+    ];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`Of ${total} ${ctx.who}, ${nS} ${setText(ctx, s)}. ${nST} ${bothText(ctx, s, t)} and ${nSU} ${bothText(ctx, s, u)}, counting the ${r[6]} who do all three.`),
+        picture(venn3Svg(names3(ctx), shown)),
+        say(
+          `Top row: how many are in $${S}$ and $${T}$ only, then in $${S}$ and $${U}$ only. Then how many are in $${S}$ only${params.hard ? `, then the probability that one ${ctx.one} chosen at random is in $${S}$ only` : ''}.`,
+        ),
+      ],
+      expression: params.hard ? `P(${S} \\text{ only})` : `n(${S} \\text{ only})`,
+      nodes,
+      bank: bank(answer, [dec(nST), dec(nSU), dec(nS - st - su), dec(nS - nST - nSU), fr([only, nS]), fr([nS, total])]),
+      answer: answer.map((x) => x.tex),
+    };
+  },
+  solution: (params) => {
+    const ctx = VENN3[params.context];
+    const r = params.regions;
+    const s = params.set;
+    const [t, u] = [0, 1, 2].filter((x) => x !== s);
+    const S = ctx.names[s];
+    const nS = venn3Count(r, [s]);
+    const st = r[regionOf([s, t])];
+    const su = r[regionOf([s, u])];
+    const steps: SolutionStep[] = [
+      { text: `Start in the middle: $${r[6]}$ are in all three. Each pair count includes them, so take them off:` },
+      { tex: `${venn3Count(r, [s, t])} - ${r[6]} = ${st}, \\quad ${venn3Count(r, [s, u])} - ${r[6]} = ${su}` },
+      { text: `Then $${S}$ only is what is left of the $${nS}$ in $${S}$:` },
+      { tex: `${nS} - ${st} - ${su} - ${r[6]} = ${r[s]}` },
+    ];
+    if (params.hard) steps.push({ tex: `P(${S} \\text{ only}) = ${rawTex([r[s], sumOf(r)])}${gcd(r[s], sumOf(r)) > 1 ? ` = ${ftex([r[s], sumOf(r)])}` : ''}` });
+    return steps;
+  },
+};
+
+/** A region marked x, from the grand total, a set's total, or how many are in at least one set. */
+const venn3Missing: Generator<Venn3Params> = {
+  id: 'prob-venn3-missing',
+  sample: (rng, difficulty) => {
+    const params = sampleVenn3(rng, difficulty);
+    return params.hard ? { ...params, region: rng.int(0, 6), form: rng.int(0, 1) } : { ...params, region: 7, form: 0 };
+  },
+  render: (params): Slide => {
+    const ctx = VENN3[params.context];
+    const r = params.regions;
+    const shown = r.map((x, i) => (i === params.region ? 'x' : `${x}`));
+    let clue: string;
+    if (!params.hard) {
+      clue = `The Venn diagram shows ${sumOf(r)} ${ctx.who}.`;
+    } else if (params.form === 0) {
+      const holders = VENN3_REGIONS[params.region];
+      const s = holders[params.set % holders.length];
+      clue = `The Venn diagram shows some ${ctx.who}. Altogether ${venn3Count(r, [s])} ${setText(ctx, s)}.`;
+    } else {
+      clue = `The Venn diagram shows some ${ctx.who}. Altogether ${sumOf(r) - r[7]} are in at least one of the sets.`;
+    }
+    return countSlide([say(`${clue} ${venn3Key(ctx)}`), picture(venn3Svg(names3(ctx), shown)), say('Find $x$.')], 'x =', r[params.region]);
+  },
+  solution: (params) => {
+    const ctx = VENN3[params.context];
+    const r = params.regions;
+    const x = r[params.region];
+    if (!params.hard) {
+      return [
+        { text: 'Everyone is in exactly one region, so the eight regions add up to the total.' },
+        { tex: `x = ${sumOf(r)} - ${sumOf(r) - x} = ${x}` },
+      ];
+    }
+    if (params.form === 0) {
+      const holders = VENN3_REGIONS[params.region];
+      const s = holders[params.set % holders.length];
+      const inS = r.filter((_, i) => i !== params.region && VENN3_REGIONS[i].includes(s));
+      return [
+        { text: `The four regions inside $${ctx.names[s]}$ add up to $${venn3Count(r, [s])}$.` },
+        { tex: `x = ${venn3Count(r, [s])} - (${inS.join(' + ')}) = ${x}` },
+      ];
+    }
+    const inside = r.filter((_, i) => i !== params.region && i !== 7);
+    return [
+      { text: `The seven regions inside the circles add up to $${sumOf(r) - r[7]}$; the ${r[7]} outside are not part of it.` },
+      { tex: `x = ${sumOf(r) - r[7]} - ${sumOf(inside)} = ${x}` },
+    ];
+  },
+};
+
+/** Descriptions of groups of regions of a three-set diagram, with their regions. */
+const WHERE3: { words: (n: string[]) => string; set: number[]; hard: boolean }[] = [
+  { words: ([a]) => `in $${a}$ only`, set: [0], hard: false },
+  { words: ([, b]) => `in $${b}$ only`, set: [1], hard: false },
+  { words: ([, , c]) => `in $${c}$ only`, set: [2], hard: false },
+  { words: ([a, b, c]) => `in $${a}$ and $${b}$ but not $${c}$`, set: [3], hard: false },
+  { words: ([a, b, c]) => `in $${a}$ and $${c}$ but not $${b}$`, set: [4], hard: false },
+  { words: ([a, b, c]) => `in $${b}$ and $${c}$ but not $${a}$`, set: [5], hard: false },
+  { words: () => 'in all three sets', set: [6], hard: false },
+  { words: () => 'in none of the sets', set: [7], hard: false },
+  { words: () => 'in exactly one set', set: [0, 1, 2], hard: true },
+  { words: () => 'in exactly two sets', set: [3, 4, 5], hard: true },
+  { words: ([a, b, c]) => `in $${a}$ or $${b}$ but not $${c}$`, set: [0, 1, 3], hard: true },
+  { words: () => 'in at least two sets', set: [3, 4, 5, 6], hard: true },
+  { words: ([a]) => `in $${a}$`, set: [0, 3, 4, 6], hard: true },
+  { words: ([, b]) => `in $${b}$`, set: [1, 3, 5, 6], hard: true },
+  { words: ([a]) => `not in $${a}$`, set: [1, 2, 5, 7], hard: true },
+  { words: ([a, b]) => `in $${a}$ but not $${b}$`, set: [0, 4], hard: true },
+  { words: ([, b, c]) => `in $${b}$ but not $${c}$`, set: [1, 3], hard: true },
+  { words: ([a, , c]) => `in $${c}$ but not $${a}$`, set: [2, 5], hard: true },
+  { words: ([a, b]) => `in both $${a}$ and $${b}$`, set: [3, 6], hard: true },
+  { words: ([a, , c]) => `in both $${a}$ and $${c}$`, set: [4, 6], hard: true },
+];
+
+interface Where3Params {
+  letters: string[];
+  pick: number;
+}
+
+/** Which region, or regions, a description names, on a diagram labelled with letters. */
+const venn3Where: Generator<Where3Params> = {
+  id: 'prob-venn3-where',
+  sample: (rng, difficulty) => {
+    const pool = WHERE3.map((w, i) => ({ w, i })).filter(({ w }) => w.hard === difficulty > 1);
+    return { letters: rng.sample(['p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'k', 'm'], 8), pick: rng.pick(pool).i };
+  },
+  render: ({ letters, pick }): Slide => {
+    const { words, set, hard } = WHERE3[pick];
+    const salt = saltOf(letters, pick);
+    const label = (regions: number[]) => regionLabel(letters, regions);
+    const others = WHERE3.filter((w) => w.hard === hard && label(w.set) !== label(set))
+      .map((w) => ({ text: label(w.set), size: w.set.length, key: hashSeed(`${salt}:${label(w.set)}`) }))
+      .sort((x, y) => Number(x.size !== set.length) - Number(y.size !== set.length) || x.key - y.key);
+    return pickSlide(
+      [
+        say('The eight regions of this Venn diagram are labelled with letters.'),
+        picture(venn3Svg(['A', 'B', 'C'], letters)),
+        say(`Which ${set.length === 1 ? 'region holds' : 'regions hold'} everyone ${words(['A', 'B', 'C'])}?`),
+      ],
+      label(set),
+      others.map((o) => o.text).slice(0, 3),
+      salt,
+      false,
+    );
+  },
+  solution: ({ letters, pick }) => {
+    const { words, set } = WHERE3[pick];
+    const said = ['in $A$ only', 'in $B$ only', 'in $C$ only', 'in $A$ and $B$ only', 'in $A$ and $C$ only', 'in $B$ and $C$ only', 'in all three', 'outside all three circles'];
+    return [
+      { text: `Everyone ${words(['A', 'B', 'C'])}: that is ${listing(set.map((i) => said[i]))}.` },
+      { text: `So ${set.length === 1 ? 'region' : 'regions'} ${regionLabel(letters, set)}.` },
+    ];
+  },
+};
+
+/* ================================================================
+ * Level 3, lesson 5: probabilities from a filled diagram
+ * ================================================================ */
+
+/** Events on a three-set diagram, over the sets `s` and `t` where they name two. */
+const EVENTS3: { key: string; tex: (n: string[], s: number, t: number) => string; words: (n: string[], s: number, t: number) => string; regions: (s: number, t: number) => number[]; hard: boolean }[] = [
+  { key: 'none', tex: () => 'P(\\text{none})', words: () => 'is in none of the sets', regions: () => [7], hard: false },
+  { key: 'in', tex: (n, s) => `P(${n[s]})`, words: (n, s) => `is in $${n[s]}$`, regions: (s) => [0, 1, 2, 3, 4, 5, 6].filter((i) => VENN3_REGIONS[i].includes(s)), hard: false },
+  { key: 'all', tex: (n) => `P(${n[0]} \\cap ${n[1]} \\cap ${n[2]})`, words: () => 'is in all three sets', regions: () => [6], hard: false },
+  { key: 'only', tex: (n, s) => `P(${n[s]} \\text{ only})`, words: (n, s) => `is in $${n[s]}$ only`, regions: (s) => [s], hard: false },
+  { key: 'one', tex: () => 'P(\\text{exactly one})', words: () => 'is in exactly one set', regions: () => [0, 1, 2], hard: true },
+  { key: 'two', tex: () => 'P(\\text{exactly two})', words: () => 'is in exactly two sets', regions: () => [3, 4, 5], hard: true },
+  { key: 'twoPlus', tex: () => 'P(\\text{at least two})', words: () => 'is in at least two sets', regions: () => [3, 4, 5, 6], hard: true },
+  {
+    key: 'or',
+    tex: (n, s, t) => `P(${n[s]} \\cup ${n[t]})`,
+    words: (n, s, t) => `is in $${n[s]}$ or $${n[t]}$ or both`,
+    regions: (s, t) => [0, 1, 2, 3, 4, 5, 6].filter((i) => VENN3_REGIONS[i].includes(s) || VENN3_REGIONS[i].includes(t)),
+    hard: true,
+  },
+  { key: 'any', tex: (n) => `P(${n[0]} \\cup ${n[1]} \\cup ${n[2]})`, words: () => 'is in at least one set', regions: () => [0, 1, 2, 3, 4, 5, 6], hard: true },
+  {
+    key: 'and',
+    tex: (n, s, t) => `P(${n[s]} \\cap ${n[t]})`,
+    words: (n, s, t) => `is in both $${n[s]}$ and $${n[t]}$`,
+    regions: (s, t) => [3, 4, 5, 6].filter((i) => VENN3_REGIONS[i].includes(s) && VENN3_REGIONS[i].includes(t)),
+    hard: true,
+  },
+];
+
+export interface ChanceParams extends Venn3Params {
+  event: number;
+  other: number;
+}
+
+/** The regions an event covers, and how many are in them. */
+export function chanceFavourable(params: ChanceParams): { regions: number[]; fav: number } {
+  const e = EVENTS3[params.event];
+  const regions = e.regions(params.set, params.other);
+  return { regions, fav: sumOf(regions.map((i) => params.regions[i])) };
+}
+
+/** A probability read off a filled three-set diagram. */
+const venn3Chance: Generator<ChanceParams> = {
+  id: 'prob-venn3-chance',
+  sample: (rng, difficulty) => {
+    const params = sampleVenn3(rng, difficulty);
+    const pool = EVENTS3.map((e, i) => ({ e, i })).filter(({ e }) => e.hard === difficulty > 1);
+    return { ...params, event: rng.pick(pool).i, other: (params.set + rng.int(1, 2)) % 3 };
+  },
+  render: (params): Slide => {
+    const ctx = VENN3[params.context];
+    const n = names3(ctx);
+    const e = EVENTS3[params.event];
+    const total = sumOf(params.regions);
+    return probSlide(
+      [
+        say(`The Venn diagram shows ${total} ${ctx.who}. ${venn3Key(ctx)}`),
+        picture(venn3Svg(n, params.regions.map(String))),
+        say(`One ${ctx.one} is chosen at random. Find the probability that the ${ctx.one} ${e.words(n, params.set, params.other)}.`),
+      ],
+      `${e.tex(n, params.set, params.other)} =`,
+      fans([chanceFavourable(params).fav, total]),
+    );
+  },
+  solution: (params) => {
+    const ctx = VENN3[params.context];
+    const n = names3(ctx);
+    const e = EVENTS3[params.event];
+    const total = sumOf(params.regions);
+    const { regions, fav } = chanceFavourable(params);
+    const said = regionWords(true, n);
+    return [
+      { text: `The eight regions add up to $${total}$.` },
+      { text: `The event covers ${listing(regions.map((i) => said[i]))}: $${regions.map((i) => params.regions[i]).join(' + ')} = ${fav}$.` },
+      { tex: `${e.tex(n, params.set, params.other)} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+    ];
+  },
+  choices: (params) => {
+    const r = params.regions;
+    const total = sumOf(r);
+    const { regions, fav } = chanceFavourable(params);
+    const inside = total - r[7];
+    const withMiddle = regions.includes(6) ? fav - r[6] : fav + r[6];
+    return probChoices(fr([fav, total]), [fr([fav, inside]), fr([withMiddle, total]), fr([total - fav, total]), fr([fav + r[7], total])], saltOf(params));
+  },
+};
+
+export interface EventsTableParams {
+  three: boolean;
+  context: number;
+  regions: number[];
+}
+
+/** Rows of an events table: TeX, then the regions (by index) the event covers. */
+function eventRows(params: EventsTableParams): [string, number[]][] {
+  if (!params.three) {
+    const ctx = VENN[params.context];
+    return [
+      [`P(${ctx.A} \\cup ${ctx.B})`, [0, 1, 2]],
+      ['P(\\text{exactly one})', [0, 2]],
+      ['P(\\text{neither})', [3]],
+    ];
+  }
+  return [
+    ['P(\\text{at least one})', [0, 1, 2, 3, 4, 5, 6]],
+    ['P(\\text{exactly one})', [0, 1, 2]],
+    ['P(\\text{exactly two})', [3, 4, 5]],
+    ['P(\\text{none})', [7]],
+  ];
+}
+
+/** Several events' probabilities read off one filled diagram. */
+const vennEventsTable: Generator<EventsTableParams> = {
+  id: 'prob-venn-events-table',
+  sample: (rng, difficulty) => {
+    const three = difficulty > 1;
+    for (;;) {
+      const regions = Array.from({ length: three ? 8 : 4 }, () => (three ? rng.int(1, 12) : rng.int(2, 15)));
+      if (!three && regions[0] === regions[2]) continue;
+      return { three, context: rng.int(0, (three ? VENN3 : VENN).length - 1), regions };
+    }
+  },
+  render: (params): Slide => {
+    const r = params.regions;
+    const total = sumOf(r);
+    const rows = eventRows(params);
+    const answer = rows.map(([, set]) => fr([sumOf(set.map((i) => r[i])), total]));
+    const inside = total - r[r.length - 1];
+    const slips = rows.flatMap(([, set]) => {
+      const fav = sumOf(set.map((i) => r[i]));
+      return [fr([fav, inside]), fr([fav + r[1], total]), fr([total - fav, inside])];
+    });
+    let prompt: Block[];
+    if (params.three) {
+      const ctx = VENN3[params.context];
+      prompt = [say(`The Venn diagram shows ${total} ${ctx.who}. ${venn3Key(ctx)}`), picture(venn3Svg(names3(ctx), r.map(String)))];
+    } else {
+      const ctx = VENN[params.context];
+      prompt = [
+        say(`The Venn diagram shows ${total} ${ctx.who}. $${ctx.A}$ is the set who ${ctx.aText} and $${ctx.B}$ the set who ${ctx.bText}.`),
+        picture(vennSvg([ctx.A, ctx.B], r.map(String) as [string, string, string, string])),
+      ];
+    }
+    prompt.push(say(`One ${params.three ? VENN3[params.context].one : VENN[params.context].one} is chosen at random. Fill in the probability of each event.`));
+    return {
+      kind: 'table',
+      prompt,
+      columns: ['\\text{Event}', '\\text{Probability}'],
+      rows: rows.map(([tex]) => [tex, null]),
+      bank: bank(answer, slips.filter((t) => t.v <= 1)),
+      answer: answer.map((t) => t.tex),
+    };
+  },
+  solution: (params) => {
+    const r = params.regions;
+    const total = sumOf(r);
+    const outside = r[r.length - 1];
+    return [
+      { text: `All the regions together come to $${total}$. Every probability is out of that.` },
+      ...eventRows(params).flatMap(([tex, set]): SolutionStep[] => {
+        const fav = sumOf(set.map((i) => r[i]));
+        // "At least one" is everything but the outside, which is quicker as a subtraction.
+        const count = set.length === r.length - 1 ? `$${total} - ${outside} = ${fav}$` : set.length > 1 ? `$${set.map((i) => r[i]).join(' + ')} = ${fav}$` : `$${fav}$`;
+        return [{ text: `For $${tex}$ the count is ${count}.` }, { tex: `${tex} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` }];
+      }),
+    ];
+  },
+};
+
+/** Region names for a flow's labels: prose with inline TeX. */
+function regionWords(three: boolean, n: string[]): string[] {
+  return three
+    ? [`$${n[0]}$ only`, `$${n[1]}$ only`, `$${n[2]}$ only`, `$${n[0]}$ and $${n[1]}$ only`, `$${n[0]}$ and $${n[2]}$ only`, `$${n[1]}$ and $${n[2]}$ only`, 'all three', 'none']
+    : [`$${n[0]}$ only`, 'both', `$${n[1]}$ only`, 'neither'];
+}
+
+/** Events a flow asks about: TeX, then regions. Two-set diagrams first, then three. */
+const READ_EVENTS = {
+  two: [
+    { tex: (n: string[]) => `P(${n[0]} \\cup ${n[1]})`, regions: [0, 1, 2] },
+    { tex: () => 'P(\\text{exactly one})', regions: [0, 2] },
+    { tex: (n: string[]) => `P(${n[1]}')`, regions: [0, 3] },
+    { tex: (n: string[]) => `P(${n[0]}')`, regions: [2, 3] },
+  ],
+  three: [
+    { tex: () => 'P(\\text{exactly one})', regions: [0, 1, 2] },
+    { tex: () => 'P(\\text{exactly two})', regions: [3, 4, 5] },
+    { tex: () => 'P(\\text{at least two})', regions: [3, 4, 5, 6] },
+    { tex: (n: string[]) => `P(${n[0]}')`, regions: [1, 2, 5, 7] },
+    { tex: (n: string[]) => `P(${n[0]} \\cap ${n[1]}')`, regions: [0, 4] },
+  ],
+};
+
+/** Distractor region-sets for a flow: the other events', then near misses. */
+function nearSets(three: boolean, right: number[]): number[][] {
+  const pool = (three ? READ_EVENTS.three : READ_EVENTS.two).map((e) => e.regions);
+  const extra = three ? [[0, 1, 2, 7], [3, 4, 5, 6, 7], [6], [0, 4, 6]] : [[1], [0, 1, 2, 3], [0], [1, 3]];
+  const key = (s: number[]) => [...s].sort((a, b) => a - b).join(',');
+  const seen = new Set([key(right)]);
+  const out: number[][] = [];
+  for (const s of [...pool, ...extra]) {
+    if (seen.has(key(s))) continue;
+    seen.add(key(s));
+    out.push(s);
+  }
+  return out;
+}
+
+export interface ReadFlowParams extends EventsTableParams {
+  event: number;
+}
+
+/** An event read off a filled diagram in three forks: its regions, their count, the probability. */
+const vennReadFlow: Generator<ReadFlowParams> = {
+  id: 'prob-venn-read-flow',
+  sample: (rng, difficulty) => {
+    const params = vennEventsTable.sample(rng, difficulty);
+    return { ...params, event: rng.int(0, (params.three ? READ_EVENTS.three : READ_EVENTS.two).length - 1) };
+  },
+  render: (params): Slide => {
+    const r = params.regions;
+    const total = sumOf(r);
+    const ctx3 = VENN3[params.context % VENN3.length];
+    const ctx2 = VENN[params.context % VENN.length];
+    const n = params.three ? names3(ctx3) : [ctx2.A, ctx2.B];
+    const words = regionWords(params.three, n);
+    const e = (params.three ? READ_EVENTS.three : READ_EVENTS.two)[params.event];
+    const setLabel = (s: number[]) => listing(s.map((i) => words[i]));
+    const countOf = (s: number[]) => sumOf(s.map((i) => r[i]));
+    const salt = saltOf(params);
+    const fav = countOf(e.regions);
+    const wrongSets = nearSets(params.three, e.regions).filter((s) => setLabel(s) !== setLabel(e.regions));
+    const counts: number[] = [];
+    for (const c of [...wrongSets.map(countOf), fav + 1, fav - 1, fav + 2]) {
+      if (c > 0 && c !== fav && !counts.includes(c) && counts.length < 2) counts.push(c);
+    }
+    const right = fr([fav, total]);
+    const probs = otherValues(right, [fr([fav, total - r[r.length - 1]]), fr([total - fav, total]), fr([fav, total + fav]), fr([fav + 1, total])]).slice(0, 2);
+    const one = params.three ? ctx3.one : ctx2.one;
+    const who = params.three ? ctx3.who : ctx2.who;
+    const prompt: Block[] = params.three
+      ? [say(`The Venn diagram shows ${total} ${who}. ${venn3Key(ctx3)}`), picture(venn3Svg(names3(ctx3), r.map(String)))]
+      : [
+          say(`The Venn diagram shows ${total} ${who}. $${ctx2.A}$ is the set who ${ctx2.aText} and $${ctx2.B}$ the set who ${ctx2.bText}.`),
+          picture(vennSvg([ctx2.A, ctx2.B], r.map(String) as [string, string, string, string])),
+        ];
+    prompt.push(say(`One ${one} is chosen at random. Find $${e.tex(n)}$.`));
+    return {
+      kind: 'flow',
+      prompt,
+      subject: e.tex(n),
+      steps: [
+        {
+          id: 'which',
+          ask: 'Which regions make up the event?',
+          branches: forkOf(setLabel(e.regions), wrongSets.slice(0, 2).map(setLabel), salt, 'Read the event again: which regions are in it, and which are not?', { to: 'count' }),
+        },
+        {
+          id: 'count',
+          ask: `How many ${who} is that?`,
+          branches: forkOf(`$${fav}$`, counts.map((c) => `$${c}$`), salt >> 3, 'Add the numbers in exactly those regions.', { to: 'prob' }),
+        },
+        {
+          id: 'prob',
+          ask: 'So what is the probability?',
+          branches: forkOf(`$${right.tex}$`, probs.map((t) => `$${t.tex}$`), salt >> 6, 'The chance is out of everyone in the diagram, inside the circles and out.', {
+            outcome: 'Right: the favourable count over everyone.',
+          }),
+        },
+      ],
+      answer: [setLabel(e.regions), `$${fav}$`, `$${right.tex}$`],
+    };
+  },
+  solution: (params) => {
+    const r = params.regions;
+    const total = sumOf(r);
+    const n = params.three ? names3(VENN3[params.context % VENN3.length]) : [VENN[params.context % VENN.length].A, VENN[params.context % VENN.length].B];
+    const e = (params.three ? READ_EVENTS.three : READ_EVENTS.two)[params.event];
+    const fav = sumOf(e.regions.map((i) => r[i]));
+    return [
+      { text: `$${e.tex(n)}$ covers ${listing(e.regions.map((i) => regionWords(params.three, n)[i]))}.` },
+      { text: `Those regions hold $${e.regions.map((i) => r[i]).join(' + ')} = ${fav}$, out of $${total}$ altogether.` },
+      { tex: `${e.tex(n)} = ${rawTex([fav, total])}${gcd(fav, total) > 1 ? ` = ${ftex([fav, total])}` : ''}` },
+    ];
+  },
+};
+
+export interface SumTilesParams {
+  three: boolean;
+  context: number;
+  /** Each region's probability, hundredths, adding to 100. */
+  regions: number[];
+  /** Two-set: the union or exactly one. Three-set: exactly one or at least two. */
+  first: boolean;
+}
+
+/** The regions a sum-tiles question adds, in the order its working lists them. */
+function sumRegions({ three, first }: SumTilesParams): number[] {
+  if (three) return first ? [0, 1, 2] : [3, 4, 5, 6];
+  return first ? [0, 1, 2] : [0, 2];
+}
+
+/** `lhs` on a line of its own, then `= a`, `+ b`, ... one term a line, to fit a phone. */
+function stackedSum(lhs: string, terms: string[]): string {
+  const [first, ...rest] = terms;
+  return `\\begin{aligned} & ${lhs} \\\\ = {} & ${first} ${rest.map((t) => `\\\\ & + ${t}`).join(' ')} \\end{aligned}`;
+}
+
+/** A diagram of probabilities: add the regions an event covers. */
+const vennSumTiles: Generator<SumTilesParams> = {
+  id: 'prob-venn-sum-tiles',
+  sample: (rng, difficulty) => {
+    const three = difficulty > 1;
+    const regions = three ? splitWhole(rng, 100, 8, 2) : splitWhole(rng, 20, 4, 1).map((x) => 5 * x);
+    return { three, context: rng.int(0, (three ? VENN3 : VENN).length - 1), regions, first: rng.chance(0.5) };
+  },
+  render: (params): Slide => {
+    const r = params.regions;
+    const h = (x: number) => fmt(x / 100);
+    const picked = sumRegions(params);
+    const answer = [...picked.map((i) => dec(r[i] / 100)), dec(sumOf(picked.map((i) => r[i])) / 100)];
+    const template = `${picked.map((_, i) => `{${i}}`).join(' + ')} = {${picked.length}}`;
+    let lead: Block[];
+    let working: string;
+    if (params.three) {
+      const ctx = VENN3[params.context];
+      const [A, B, C] = ctx.names;
+      lead = [say(`The Venn diagram shows the probabilities for one ${ctx.one} chosen at random. ${venn3Key(ctx)}`), picture(venn3Svg(names3(ctx), r.map(h)))];
+      working = params.first
+        ? stackedSum('P(\\text{exactly one})', [`P(${A} \\text{ only})`, `P(${B} \\text{ only})`, `P(${C} \\text{ only})`])
+        : stackedSum('P(\\text{at least two})', [`P(${A} \\cap ${B} \\text{ only})`, `P(${A} \\cap ${C} \\text{ only})`, `P(${B} \\cap ${C} \\text{ only})`, 'P(\\text{all three})']);
+    } else {
+      const ctx = VENN[params.context];
+      const [A, B] = [ctx.A, ctx.B];
+      lead = [
+        say(`The Venn diagram shows the probabilities for one ${ctx.one} chosen at random. $${A}$ is the set who ${ctx.aText} and $${B}$ the set who ${ctx.bText}.`),
+        picture(vennSvg([A, B], r.map(h) as [string, string, string, string])),
+      ];
+      working = params.first
+        ? stackedSum(`P(${A} \\cup ${B})`, [`P(${A} \\text{ only})`, `P(${A} \\cap ${B})`, `P(${B} \\text{ only})`])
+        : stackedSum('P(\\text{exactly one})', [`P(${A} \\text{ only})`, `P(${B} \\text{ only})`]);
+    }
+    const rest = r.map((_, i) => i).filter((i) => !picked.includes(i));
+    return {
+      kind: 'tiles',
+      prompt: [...lead, say('Fill in the working, in the order it is written:'), show(working)],
+      template,
+      answer: answer.map((t) => t.tex),
+      bank: bank(answer, [...rest.map((i) => dec(r[i] / 100)), dec(1 - sumOf(picked.map((i) => r[i])) / 100)]),
+    };
+  },
+  solution: (params) => {
+    const r = params.regions;
+    const h = (x: number) => fmt(x / 100);
+    const picked = sumRegions(params);
+    return [
+      { text: 'Each region already holds its probability, so add the regions the event covers.' },
+      { tex: `\\begin{aligned} & ${picked.map((i) => h(r[i])).join(' + ')} \\\\ = {} & ${h(sumOf(picked.map((i) => r[i])))} \\end{aligned}` },
+      { text: `A check: all the regions add up to $1$, so the rest come to $${h(100 - sumOf(picked.map((i) => r[i])))}$.` },
+    ];
+  },
+};
+
+/* ================================================================
  * Level 4: conditional probability, shared
  * ================================================================ */
 
@@ -3633,7 +5341,7 @@ function condLeaves({ a, hit, miss }: CondTreeParams): [number, number, number, 
 const leafOf = (params: CondTreeParams, onA: boolean, yes: boolean): number => condLeaves(params)[(onA ? 0 : 2) + (yes ? 0 : 1)];
 
 /** The branch `P(B | A)`, `P(B' | A')` and so on, in hundredths. */
-const branchOf = ({ hit, miss }: CondTreeParams, onA: boolean, yes: boolean): number => {
+const condBranchOf = ({ hit, miss }: CondTreeParams, onA: boolean, yes: boolean): number => {
   const h = onA ? hit : miss;
   return yes ? h : 100 - h;
 };
@@ -4218,8 +5926,8 @@ const condFill: Generator<CondFillParams> = {
     const { a, hit, miss, hard, said } = params;
     const facts = [
       ...(hard ? [`The probability that ${s.a} is $${fmt(a / 100)}$.`] : []),
-      condSentence(s, true, said[0], branchOf(params, true, said[0])),
-      condSentence(s, false, said[1], branchOf(params, false, said[1])),
+      condSentence(s, true, said[0], condBranchOf(params, true, said[0])),
+      condSentence(s, false, said[1], condBranchOf(params, false, said[1])),
     ];
     const answer = [...(hard ? [a, 100 - a] : []), hit, 100 - hit, miss, 100 - miss].map(hun);
     const under = [
@@ -4268,7 +5976,7 @@ const condTotalTree: Generator<CondTotalParams> = {
     const p1 = leafOf(params, true, yes);
     const p2 = leafOf(params, false, yes);
     const answer = [tth(p1), tth(p2), tth(p1 + p2)];
-    const crossed = [params.a * branchOf(params, false, yes), (100 - params.a) * branchOf(params, true, yes)];
+    const crossed = [params.a * condBranchOf(params, false, yes), (100 - params.a) * condBranchOf(params, true, yes)];
     const hide = params.hard ? [false, true, false, true, false, true] : [];
     return {
       kind: 'tree',
@@ -4283,7 +5991,7 @@ const condTotalTree: Generator<CondTotalParams> = {
         { id: 'p2', from: [] },
         { id: 's', from: ['p1', 'p2'] },
       ],
-      bank: bank(answer, [tth(crossed[0]), tth(crossed[1]), tth(crossed[0] + crossed[1]), hun(Math.min(branchOf(params, true, yes) + branchOf(params, false, yes), 99))]),
+      bank: bank(answer, [tth(crossed[0]), tth(crossed[1]), tth(crossed[0] + crossed[1]), hun(Math.min(condBranchOf(params, true, yes) + condBranchOf(params, false, yes), 99))]),
       answer: answer.map((t) => t.tex),
     };
   },
@@ -4297,8 +6005,8 @@ const condTotalTree: Generator<CondTotalParams> = {
     if (params.hard) steps.push({ text: 'The unlabelled branches are the complements: each pair from one point adds up to $1$.' });
     steps.push(
       { text: `Two paths end in $${B}$. Multiply along each, then add.` },
-      { tex: chain(`P(${s.A} \\cap ${B})`, `${fmt(params.a / 100)} \\times ${fmt(branchOf(params, true, yes) / 100)}`, tth(p1).tex) },
-      { tex: chain(`P(${not(s.A)} \\cap ${B})`, `${fmt((100 - params.a) / 100)} \\times ${fmt(branchOf(params, false, yes) / 100)}`, tth(p2).tex) },
+      { tex: chain(`P(${s.A} \\cap ${B})`, `${fmt(params.a / 100)} \\times ${fmt(condBranchOf(params, true, yes) / 100)}`, tth(p1).tex) },
+      { tex: chain(`P(${not(s.A)} \\cap ${B})`, `${fmt((100 - params.a) / 100)} \\times ${fmt(condBranchOf(params, false, yes) / 100)}`, tth(p2).tex) },
       { tex: chain(`P(${B})`, `${tth(p1).tex} + ${tth(p2).tex}`, tth(p1 + p2).tex) },
     );
     return steps;
@@ -4325,7 +6033,7 @@ const condPath: Generator<CondPathParams> = {
       const leaf = leaves.indexOf(best);
       // Not simply the bigger (or smaller) branch twice: the learner has to multiply.
       const first = leaf < 2 ? base.a : 100 - base.a;
-      if (ask === 'most' ? first > 50 && branchOf(base, leaf < 2, leaf % 2 === 0) > 50 : first < 50 && branchOf(base, leaf < 2, leaf % 2 === 0) < 50) continue;
+      if (ask === 'most' ? first > 50 && condBranchOf(base, leaf < 2, leaf % 2 === 0) > 50 : first < 50 && condBranchOf(base, leaf < 2, leaf % 2 === 0) < 50) continue;
       return { ...base, ask, leaf };
     }
   },
@@ -4339,8 +6047,8 @@ const condPath: Generator<CondPathParams> = {
       least: `Which outcome is the least likely? ${tap}`,
     };
     const under = (onA: boolean) => [
-      { label: s.B, p: hun(branchOf(params, onA, true)).tex },
-      { label: not(s.B), p: hun(branchOf(params, onA, false)).tex },
+      { label: s.B, p: hun(condBranchOf(params, onA, true)).tex },
+      { label: not(s.B), p: hun(condBranchOf(params, onA, false)).tex },
     ];
     return {
       kind: 'probTree',
@@ -4361,7 +6069,7 @@ const condPath: Generator<CondPathParams> = {
       const yes = i % 2 === 0;
       const A = onA ? s.A : not(s.A);
       const B = yes ? s.B : not(s.B);
-      return { tex: chain(`P(${A} \\cap ${B})`, `${fmt((onA ? params.a : 100 - params.a) / 100)} \\times ${fmt(branchOf(params, onA, yes) / 100)}`, tth(condLeaves(params)[i]).tex) };
+      return { tex: chain(`P(${A} \\cap ${B})`, `${fmt((onA ? params.a : 100 - params.a) / 100)} \\times ${fmt(condBranchOf(params, onA, yes) / 100)}`, tth(condLeaves(params)[i]).tex) };
     });
     const leafA = params.leaf < 2 ? s.A : not(s.A);
     const leafB = params.leaf % 2 === 0 ? s.B : not(s.B);
@@ -4774,7 +6482,7 @@ const reverseTiles: Generator<ReverseParams> = {
       answer: answer.map((t) => t.tex),
       bank: bank(answer, [
         tth(other),
-        hun(branchOf(params, params.onA, params.yes)),
+        hun(condBranchOf(params, params.onA, params.yes)),
         fr([other, num + other]),
         fr([num, 10000]),
         fr([num, num + leafOf(params, params.onA, !params.yes)]),
@@ -4813,7 +6521,7 @@ const reverseTree: Generator<ReverseParams> = {
         { id: 'r', from: ['p1', 'b'] },
       ],
       bank: bank(answer, [
-        hun(branchOf(params, params.onA, params.yes)),
+        hun(condBranchOf(params, params.onA, params.yes)),
         fr([other, num + other]),
         tth(num + leafOf(params, params.onA, !params.yes)),
         fr([num, 10000 - num - other]),
@@ -4841,8 +6549,8 @@ const reverseWhich: Generator<ReverseParams> = {
       const params = sampleReverse(rng, difficulty, true);
       const { num, other } = reverseParts(params);
       const x = params.onA ? params.a : 100 - params.a;
-      const branch = branchOf(params, params.onA, params.yes);
-      const otherBranch = branchOf(params, !params.onA, params.yes);
+      const branch = condBranchOf(params, params.onA, params.yes);
+      const otherBranch = condBranchOf(params, !params.onA, params.yes);
       // Every option a different value, so none is right by accident.
       const values = [num / (num + other), branch / 100, (x * branch) / 10000, (x * branch) / (100 * (branch + otherBranch))];
       if (new Set(values.map((v) => v.toFixed(9))).size < 4) continue;
@@ -4853,8 +6561,8 @@ const reverseWhich: Generator<ReverseParams> = {
     const { s, tex } = reverseParts(params);
     const x = fmt((params.onA ? params.a : 100 - params.a) / 100);
     const y = fmt((params.onA ? 100 - params.a : params.a) / 100);
-    const bx = fmt(branchOf(params, params.onA, params.yes) / 100);
-    const by = fmt(branchOf(params, !params.onA, params.yes) / 100);
+    const bx = fmt(condBranchOf(params, params.onA, params.yes) / 100);
+    const by = fmt(condBranchOf(params, !params.onA, params.yes) / 100);
     return pickSlide(
       [say(storySentence(s)), picture(condTreeSvg(params)), say(`Which gives $${tex}$?`)],
       `\\frac{${x} \\times ${bx}}{${x} \\times ${bx} + ${y} \\times ${by}}`,
@@ -5062,6 +6770,26 @@ export const probabilityGenerators = [
   condWhich,
   noReplTree,
   noReplTiles,
+  treeBranchTable,
+  treeFromWords,
+  replaceFlow,
+  branchMissing,
+  threePath,
+  threeAtLeast,
+  threeSameSteps,
+  threeExactlyTiles,
+  vennRegionsTable,
+  vennStartFlow,
+  vennCount,
+  vennMatch,
+  venn3Fill,
+  venn3Outward,
+  venn3Missing,
+  venn3Where,
+  venn3Chance,
+  vennEventsTable,
+  vennReadFlow,
+  vennSumTiles,
   condTableTiles,
   condFormula,
   condJointWhich,

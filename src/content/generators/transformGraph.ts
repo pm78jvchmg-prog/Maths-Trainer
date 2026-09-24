@@ -359,6 +359,36 @@ const oddPair = lessonPair(
   { bases: ['cube', 'sin', 'recip'] },
 );
 
+/**
+ * Trigonometric graphs (batch C2-l5): `sin x` stretched parallel to the
+ * y-axis, turned over and lifted, which are the $a$ and $d$ of
+ * $a\sin(bx + c) + d$. This widget's sine runs in radians, so only moves
+ * that carry no unit are asked on it; moves across are in degrees and asked
+ * through other widgets in `functions.ts`. Difficulty 1 is one or two moves,
+ * difficulty 2 two or three.
+ */
+const ampPair = lessonPair(
+  'amp',
+  (rng, difficulty) =>
+    difficulty > 1
+      ? rng.pick<Move[]>([['stretchY', 'moveY'], ['stretchY', 'flipY', 'moveY']])
+      : rng.pick<Move[]>([['stretchY'], ['stretchY', 'moveY'], ['flipY', 'moveY'], ['stretchY', 'flipY']]),
+  { bases: ['sin'] },
+);
+
+/**
+ * The $b$ of $\sin bx$ (batch C2-l5): a stretch parallel to the x-axis, alone
+ * or with a move up or a stretch upwards; difficulty 2 always three moves.
+ */
+const xStretchPair = lessonPair(
+  'xstretch',
+  (rng, difficulty) =>
+    difficulty > 1
+      ? rng.pick<Move[]>([['stretchX', 'stretchY', 'moveY'], ['stretchX', 'flipY', 'moveY']])
+      : rng.pick<Move[]>([['stretchX'], ['stretchX', 'moveY'], ['stretchX', 'stretchY']]),
+  { bases: ['sin'] },
+);
+
 export const transformGraphGenerators = [
   transformApply,
   transformMatch,
@@ -368,4 +398,6 @@ export const transformGraphGenerators = [
   ...combinePair,
   ...sketchPair,
   ...oddPair,
+  ...ampPair,
+  ...xStretchPair,
 ];

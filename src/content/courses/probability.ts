@@ -7,14 +7,16 @@
  * with the expected number. Level 2 combines events: mutually exclusive
  * events and the addition rule, Venn diagrams, independence and the
  * multiplication rule, tree diagrams, and a first look at "given that" and
- * picking without replacement.
+ * picking without replacement. Level 3 builds the diagrams themselves: trees
+ * from words, including a three-way first stage and three stages, Venn
+ * diagrams of two and three sets filled from their totals, and probabilities
+ * read off a filled diagram.
  *
  * Level 4 is conditional probability: the formula P(A | B) = P(A ∩ B) / P(B)
  * and its turned-round form, reading it off a Venn diagram, conditional
  * branches on a tree, testing independence with P(A | B) = P(A), and working
  * back up a tree from the outcome. It follows level 2's "given that" lesson
- * (`pb-l2-conditional`) rather than teaching that again. Level 3, Tree and
- * Venn Diagrams, is built on its own branch and slots in before it.
+ * (`pb-l2-conditional`) rather than teaching that again.
  *
  * Counting selections with nCr belongs to Binomial Expansion (`be-l2-ncr`)
  * and percentages to Exponents & Radicals (`er-l7-percent`); both are pointed
@@ -24,7 +26,7 @@
  * slides, one attempt each.
  */
 import type { Block, Course, SlideRef } from '../types';
-import { scaleSvg, spinnerSvg, treeSvg, vennSvg } from '../generators/probability';
+import { scaleSvg, spinnerSvg, stagedTreeSvg, treeSvg, venn3Svg, vennSvg } from '../generators/probability';
 
 const teach = (...blocks: Block[]): SlideRef => ({
   type: 'literal',
@@ -504,6 +506,258 @@ export const probability: Course = {
         ask('prob-indep-flow', 2),
         ask('prob-tree-exactly-tiles', 2),
         ask('prob-norepl-tiles', 2),
+      ],
+    },
+    {
+      id: 'pb-l3',
+      title: 'Tree and Venn Diagrams',
+      lessons: [
+        {
+          id: 'pb-l3-words',
+          title: 'Trees from Words',
+          slides: [
+            teach(
+              prose(
+                'To draw a tree from words, give each pick or event a **stage**, one branch for each outcome, and write each probability on its branch. A bag holds 3 red and 5 green counters; one is taken and put back, then a second is taken:',
+              ),
+              diagram(
+                stagedTreeSvg({
+                  stages: [
+                    ['R', 'G'],
+                    ['R', 'G'],
+                  ],
+                  labels: [
+                    ['3/8', '5/8'],
+                    ['3/8', '5/8', '3/8', '5/8'],
+                  ],
+                }),
+              ),
+              prose('The branches from any one point add up to $1$. Multiply along a path: $P(\\text{red then green}) = \\frac{3}{8} \\times \\frac{5}{8} = \\frac{15}{64}$.'),
+            ),
+            ask('prob-tree-branches'),
+            ask('prob-tree-words'),
+            ask('prob-replace-flow'),
+            teach(
+              prose(
+                'If the first counter is **not** put back, the second stage changes. After a red there are 7 left, 2 of them red; after a green, 7 left with 4 green:',
+              ),
+              diagram(
+                stagedTreeSvg({
+                  stages: [
+                    ['R', 'G'],
+                    ['R', 'G'],
+                  ],
+                  labels: [
+                    ['3/8', '5/8'],
+                    ['2/7', '5/7', '3/7', '4/7'],
+                  ],
+                }),
+              ),
+              working(
+                '& P(\\text{one of each})',
+                '= {} & \\tfrac{3}{8} \\times \\tfrac{5}{7} + \\tfrac{5}{8} \\times \\tfrac{3}{7}',
+                '= {} & \\tfrac{15}{56} + \\tfrac{15}{56} = \\tfrac{15}{28}',
+              ),
+            ),
+            ask('prob-tree-branches', 2),
+            ask('prob-tree-words+choice', 2),
+            ask('prob-replace-flow', 2),
+            teach(
+              prose(
+                'A stage can have more than two outcomes. Jess takes the bus, walks or cycles, and $L$ is being late. The first-stage branches still add up to $1$, so the missing one is $1 - 0.5 - 0.3 = 0.2$:',
+              ),
+              diagram(
+                stagedTreeSvg({
+                  stages: [
+                    ['B', 'W', 'C'],
+                    ['L', "L'"],
+                  ],
+                  labels: [
+                    ['0.5', '0.3', '?'],
+                    ['0.2', '0.8', '0.1', '0.9', '0.3', '0.7'],
+                  ],
+                }),
+              ),
+              prose('Then multiply along the path as usual: $P(C \\cap L) = 0.2 \\times 0.3 = 0.06$.'),
+            ),
+            ask('prob-branch-missing'),
+            ask('prob-branch-missing', 2),
+          ],
+          skillCheck: [ask('prob-tree-branches', 2), ask('prob-tree-words', 2), ask('prob-branch-missing', 2)],
+        },
+        {
+          id: 'pb-l3-three',
+          title: 'Three-Stage Trees',
+          slides: [
+            teach(
+              prose(
+                'Three events in a row make a tree of three stages and eight paths. Ria wins each game of chess with probability $0.6$, independently; $W$ is a win and $L$ a loss:',
+              ),
+              diagram(
+                stagedTreeSvg({
+                  stages: [
+                    ['W', 'L'],
+                    ['W', 'L'],
+                    ['W', 'L'],
+                  ],
+                  labels: [
+                    ['0.6', '0.4'],
+                    ['0.6', '0.4', '0.6', '0.4'],
+                    ['0.6', '0.4', '0.6', '0.4', '0.6', '0.4', '0.6', '0.4'],
+                  ],
+                }),
+              ),
+              prose(
+                'Multiply along a path: $P(W, L, W) = 0.6 \\times 0.4 \\times 0.6 = 0.144$. Add across paths: all three the same is $0.6^3 + 0.4^3 = 0.216 + 0.064 = 0.28$.',
+              ),
+            ),
+            ask('prob-three-path'),
+            ask('prob-three-same-steps'),
+            ask('prob-three-exactly-tiles'),
+            teach(
+              prose(
+                '"At least one win" covers seven of the eight paths. Only one path has no win at all, $L, L, L$, so work from that one:',
+              ),
+              working('& P(\\text{at least one } W)', '= {} & 1 - P(L, L, L)', '= {} & 1 - 0.4^3 = 0.936'),
+            ),
+            ask('prob-three-atleast'),
+            ask('prob-three-path+choice', 2),
+            ask('prob-three-same-steps', 2),
+            teach(
+              prose(
+                '"Exactly two wins" happens on three paths: $W, W, L$ and $W, L, W$ and $L, W, W$. Here each is $0.6 \\times 0.6 \\times 0.4 = 0.144$, so the answer is $3 \\times 0.144 = 0.432$.',
+              ),
+              prose(
+                'When the stages have different probabilities, such as three sets of lights that are green with $0.3$, $0.5$ and $0.8$, the three paths are no longer equal: work out each one, then add.',
+              ),
+            ),
+            ask('prob-three-exactly-tiles', 2),
+            ask('prob-three-atleast', 2),
+          ],
+          skillCheck: [ask('prob-three-path', 2), ask('prob-three-atleast', 2), ask('prob-three-exactly-tiles', 2)],
+        },
+        {
+          id: 'pb-l3-venn-two',
+          title: 'Venn Diagrams from Totals',
+          slides: [
+            teach(
+              prose(
+                'Of 30 students, 18 play football, 12 play tennis and 5 play both. The 18 **include** the 5 who play both, so fill the overlap first, then the rest of each circle, then the outside:',
+              ),
+              diagram(vennSvg(['F', 'T'], ['13', '5', '7', '5'])),
+              prose(
+                '$18 - 5 = 13$ play football only, $12 - 5 = 7$ tennis only, and $30 - 25 = 5$ play neither. $n(F)$ means the number in $F$: here $n(F) = 18$, $n(F \\cap T) = 5$ and $n((F \\cup T)\') = 5$.',
+              ),
+            ),
+            ask('prob-venn-regions-table'),
+            ask('prob-venn-start-flow'),
+            ask('prob-venn-count'),
+            teach(
+              prose(
+                'Writing 18 and 12 straight into the circles counts the 5 twice: the diagram would hold $18 + 5 + 12 = 35$ students, more than there are.',
+              ),
+              prose(
+                'Sometimes the overlap is what you have to find. With 18 football, 12 tennis and 5 neither, $30 - 5 = 25$ play at least one. But $18 + 12 = 30$, which is 5 too many: those 5 were counted twice, so 5 play both.',
+              ),
+            ),
+            ask('prob-venn-match'),
+            ask('prob-venn-regions-table', 2),
+            ask('prob-venn-count+choice', 2),
+            teach(
+              prose('Two checks catch most slips. The four regions add up to the total, and each circle adds up to its own count:'),
+              working('13 + 5 + 7 + 5 &= 30', '13 + 5 &= 18 = n(F)', '5 + 7 &= 12 = n(T)'),
+            ),
+            ask('prob-venn-start-flow', 2),
+            ask('prob-venn-match', 2),
+          ],
+          skillCheck: [ask('prob-venn-regions-table', 2), ask('prob-venn-count', 2), ask('prob-venn-match', 2)],
+        },
+        {
+          id: 'pb-l3-venn-three',
+          title: 'Three-Set Venn Diagrams',
+          slides: [
+            teach(
+              prose(
+                'Three circles make **eight** regions: one in the middle for all three, three for exactly two, three for one only, and the outside. Here 40 students are sorted by French, German and Spanish:',
+              ),
+              diagram(venn3Svg(['F', 'G', 'S'], ['8', '6', '5', '4', '3', '2', '1', '11'])),
+              prose('Fill a diagram **from the middle outward**: all three first, then the two-only regions, then each set only, then the outside.'),
+            ),
+            ask('prob-venn3-where'),
+            ask('prob-venn3-fill'),
+            ask('prob-venn3-missing'),
+            teach(
+              prose(
+                'A count like "5 study French and German" includes the 1 who study all three, so the region for French and German only holds $5 - 1 = 4$.',
+              ),
+              prose('French only is then what is left of $n(F) = 16$ once the other regions of $F$ are taken off:'),
+              maths('16 - 4 - 3 - 1 = 8'),
+            ),
+            ask('prob-venn3-outward'),
+            ask('prob-venn3-where', 2),
+            ask('prob-venn3-fill', 2),
+            teach(
+              prose(
+                'A missing region comes from a total. The four regions inside $F$ add up to $n(F)$: if French only were unknown, $x + 4 + 3 + 1 = 16$ gives $x = 8$.',
+              ),
+              prose('The seven regions inside the circles add up to how many are in **at least one** set, $40 - 11 = 29$; the outside is not part of that.'),
+            ),
+            ask('prob-venn3-missing', 2),
+            ask('prob-venn3-outward', 2),
+          ],
+          skillCheck: [ask('prob-venn3-fill', 2), ask('prob-venn3-outward', 2), ask('prob-venn3-missing', 2)],
+        },
+        {
+          id: 'pb-l3-reading',
+          title: 'Probabilities from a Diagram',
+          slides: [
+            teach(
+              prose(
+                'Once a diagram is filled, a probability is the count in the regions the event covers over **everyone**, inside the circles and out. With the 30 students:',
+              ),
+              diagram(vennSvg(['F', 'T'], ['13', '5', '7', '5'])),
+              working('P(F \\cup T) &= \\tfrac{13 + 5 + 7}{30} = \\tfrac{5}{6}', 'P(\\text{exactly one}) &= \\tfrac{13 + 7}{30} = \\tfrac{2}{3}', 'P(\\text{neither}) &= \\tfrac{5}{30} = \\tfrac{1}{6}'),
+            ),
+            ask('prob-venn-events-table'),
+            ask('prob-venn-read-flow'),
+            ask('prob-venn3-chance'),
+            teach(
+              prose('Three sets work the same way. For the 40 language students:'),
+              diagram(venn3Svg(['F', 'G', 'S'], ['8', '6', '5', '4', '3', '2', '1', '11'])),
+              working('P(\\text{exactly one}) &= \\tfrac{8 + 6 + 5}{40} = \\tfrac{19}{40}', 'P(\\text{exactly two}) &= \\tfrac{4 + 3 + 2}{40} = \\tfrac{9}{40}', 'P(\\text{at least two}) &= \\tfrac{9 + 1}{40} = \\tfrac{1}{4}'),
+            ),
+            ask('prob-venn3-chance+choice', 2),
+            ask('prob-venn-events-table', 2),
+            ask('prob-venn-read-flow', 2),
+            teach(
+              prose(
+                'A Venn diagram can hold probabilities instead of counts. Then every region is already a probability, and all of them add up to $1$:',
+              ),
+              diagram(vennSvg(['F', 'T'], ['0.35', '0.15', '0.2', '0.3'])),
+              prose('$P(F \\cup T) = 0.35 + 0.15 + 0.2 = 0.7$, which is $1 - 0.3$, one minus the outside.'),
+            ),
+            ask('prob-venn-sum-tiles'),
+            ask('prob-venn-sum-tiles', 2),
+          ],
+          skillCheck: [ask('prob-venn3-chance', 2), ask('prob-venn-events-table', 2), ask('prob-venn-sum-tiles', 2)],
+        },
+      ],
+      levelCheck: [
+        ask('prob-tree-branches', 2),
+        ask('prob-three-path+choice', 2),
+        ask('prob-venn-count', 2),
+        ask('prob-three-atleast', 2),
+        ask('prob-venn3-fill', 2),
+        ask('prob-branch-missing', 2),
+        ask('prob-venn3-chance', 2),
+        ask('prob-venn-match', 2),
+        ask('prob-venn3-outward', 2),
+        ask('prob-three-exactly-tiles', 2),
+        ask('prob-venn-events-table', 2),
+        ask('prob-tree-words+choice', 2),
+        ask('prob-venn3-missing', 2),
+        ask('prob-venn-sum-tiles', 2),
+        ask('prob-venn-regions-table', 2),
       ],
     },
     {

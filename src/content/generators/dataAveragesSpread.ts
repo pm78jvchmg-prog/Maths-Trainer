@@ -10,7 +10,11 @@
  * standard deviation, with two sets compared by mean and spread. Level 3 is
  * representing data: stem-and-leaf diagrams, box plots (one read on its own,
  * then two compared on one scale), and histograms of unequal classes by
- * frequency density, read back as areas.
+ * frequency density, read back as areas. Level 4 is cumulative frequency:
+ * running totals down a grouped table, the curve through the upper
+ * boundaries (drawn by `cumulativeSvg`), readings off it, the median and
+ * quartiles at n/4, n/2 and 3n/4, percentiles at pn/100, and the same
+ * readings by interpolating inside a class.
  *
  * Level 3 draws its own pictures: `boxPlotSvg` and `histogramSvg` below, since
  * `plotSvg` has curves and marks but no boxes or bars. No tappable box or
@@ -23,12 +27,17 @@
  *   land on a short decimal, and a draw that would not is refused at sampling
  *   rather than rounded. Numbers are written through `fmt`, one way only, so
  *   a bank never offers two tiles that look alike.
- * - Quartiles only ever come from lists of length `4k + 3` (7, 11, 15), where
- *   they sit at whole positions `k + 1`, `2k + 2` and `3k + 3`. That is the one
- *   rule the course teaches, so no other length is ever drawn.
+ * - Quartiles of a list only ever come from lists of length `4k + 3` (7, 11,
+ *   15), where they sit at whole positions `k + 1`, `2k + 2` and `3k + 3`.
+ *   That is the one list rule the course teaches, so no other length is ever
+ *   drawn. Level 4 reads quartiles off a curve instead, at n/4, n/2 and 3n/4,
+ *   and every reading there is drawn to land a whole number of tenths through
+ *   its class, so it is exact.
  * - Nothing here is calculus, so no slide declares `source`, `integrand` or
- *   `limits`. `dataAveragesSpread.test.ts` recomputes every statistic from the
- *   drawn data by plain arithmetic instead.
+ *   `limits`, and the generic oracle skips every generator here.
+ *   `dataAveragesSpread.test.ts` recomputes every statistic from the drawn
+ *   data by plain arithmetic instead; for level 4 it reads each curve back off
+ *   its own picture and works every reading from the curve's corners.
  *
  * The checker compares values (PITFALLS 3.4), so a formula with the values
  * dropped in is `tiles`; a typed `expression` is only ever a number.
@@ -38,6 +47,7 @@ import { hashSeed, type Rng } from '../../engine/rng';
 import { options } from '../choiceVariant';
 import { markerWindow, plotSvg } from '../figures';
 import { fmt } from './numericalMethods';
+import { defaultSliderValue } from '../../ui/sliderValue';
 import { mix, steered, stepBank } from './parametricImplicit';
 
 /* ================================================================
@@ -4159,6 +4169,1291 @@ const histScaleGen: Generator<HistScaleParams> = {
   },
 };
 
+/* ================================================================
+ * Level 4: cumulative frequency
+ * ================================================================ */
+
+/**
+ * What a grouped table could hold. Units live here, in prose, and never in a
+ * template or a readout.
+ */
+const CF_CONTEXTS: { of: (n: number) => string; starts: number[]; widths: number[] }[] = [
+  { of: (n) => `the finishing times of ${n} runners in a fun run, in minutes`, starts: [20, 30, 40], widths: [5, 10] },
+  { of: (n) => `the masses of ${n} apples, in grams`, starts: [80, 100, 120], widths: [10, 20] },
+  { of: (n) => `the heights of ${n} seedlings, in millimetres`, starts: [0, 10, 20], widths: [5, 10] },
+  { of: (n) => `the times ${n} pupils took to solve a puzzle, in seconds`, starts: [0, 20, 40], widths: [10, 20] },
+  { of: (n) => `the lengths of ${n} leaves, in millimetres`, starts: [30, 40, 50], widths: [5, 10] },
+  { of: (n) => `the journey times to work of ${n} people, in minutes`, starts: [0, 10], widths: [5, 10] },
+  { of: (n) => `the marks of ${n} students in a test out of 100`, starts: [20, 30], widths: [10] },
+];
+
+interface CfParams {
+  /** Class boundaries, one more than there are classes. */
+  bounds: number[];
+  fs: number[];
+  context: number;
+}
+
+/** The running totals of a list of frequencies: the cumulative frequency column. */
+const running = (fs: readonly number[]): number[] => {
+  let t = 0;
+  return fs.map((f) => (t += f));
+};
+
+const cfN = (p: CfParams): number => total(p.fs);
+const cfIntro = (p: CfParams): string => CF_CONTEXTS[p.context].of(cfN(p));
+
+/**
+ * A grouped table: four or five classes at difficulty 1, five or six at 2.
+ * With `mixed`, one class after the first is twice as wide as the rest, so a
+ * class width cannot be carried from one row to the next without looking.
+ */
+function sampleCf(rng: Rng, difficulty: number, accept: (p: CfParams) => boolean, mixed = false): CfParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const context = rng.int(0, CF_CONTEXTS.length - 1);
+    const { starts, widths } = CF_CONTEXTS[context];
+    const w = rng.pick(widths);
+    const k = hard ? (mixed ? 5 : rng.int(5, 6)) : rng.int(4, 5);
+    const sizes = Array.from({ length: k }, () => w);
+    if (mixed && hard) sizes[rng.int(1, k - 1)] = 2 * w;
+    const bounds = [rng.pick(starts)];
+    for (const size of sizes) bounds.push(bounds[bounds.length - 1] + size);
+    const params = { bounds, fs: ints(rng, k, 2, hard ? 24 : 15), context };
+    if (accept(params)) return params;
+  }
+}
+
+interface Reading {
+  /** The class the position falls in, by running totals. */
+  i: number;
+  /** How many values lie below that class. */
+  before: number;
+  lo: number;
+  width: number;
+  f: number;
+  value: number;
+}
+
+/**
+ * Where position `pos` sits: its class by running totals, then the value
+ * interpolated inside it. The curve is drawn with straight joins, so this is
+ * also exactly what reading across and down the curve gives.
+ */
+function readAt(p: CfParams, pos: number): Reading {
+  const i = classAt(p, pos);
+  const before = i === 0 ? 0 : running(p.fs)[i - 1];
+  const lo = p.bounds[i];
+  const width = p.bounds[i + 1] - lo;
+  const f = p.fs[i];
+  return { i, before, lo, width, f, value: Number(fmt(lo + ((pos - before) * width) / f)) };
+}
+
+/** How far through its class a position is, in tenths: 10 is the class's top. */
+function tenths(p: CfParams, pos: number): number {
+  const r = readAt(p, pos);
+  return (10 * (pos - r.before)) / r.f;
+}
+
+/**
+ * A reading that lands on a grid line: halfway through its class or at its
+ * top, each class being two squares wide. What difficulty 1 asks.
+ */
+function onGrid(p: CfParams, pos: number): boolean {
+  const t = tenths(p, pos);
+  return pos > 0 && whole(t) && t % 5 === 0;
+}
+
+/**
+ * A reading a whole number of tenths through its class, and not on a grid
+ * line, so it has to be judged between the lines. What difficulty 2 asks.
+ */
+function betweenLines(p: CfParams, pos: number): boolean {
+  const t = tenths(p, pos);
+  return pos > 0 && whole(t) && t % 5 !== 0;
+}
+
+/** How many values the curve puts below `x`: the running total, plus a share of the class it falls in. */
+function countBelow(p: CfParams, x: number): number {
+  const totals = running(p.fs);
+  for (let i = 0; i < p.fs.length; i += 1) {
+    const lo = p.bounds[i];
+    const hi = p.bounds[i + 1];
+    if (x <= hi) return Number(fmt((i === 0 ? 0 : totals[i - 1]) + ((x - lo) * p.fs[i]) / (hi - lo)));
+  }
+  return cfN(p);
+}
+
+/**
+ * Values of x inside a class where the curve's height is a whole number:
+ * only halfway along at difficulty 1, any other tenth at 2.
+ */
+function insideReads(p: CfParams, grid: boolean): number[] {
+  const xs: number[] = [];
+  for (let i = 0; i < p.fs.length; i += 1) {
+    const lo = p.bounds[i];
+    const width = p.bounds[i + 1] - lo;
+    for (const t of grid ? [5] : [1, 2, 3, 4, 6, 7, 8, 9]) {
+      const x = Number(fmt(lo + (t * width) / 10));
+      if (whole(countBelow(p, x))) xs.push(x);
+    }
+  }
+  return xs;
+}
+
+/** A grouped table with its running totals beside the frequencies, or without them. */
+function cfTableTex({ bounds, fs }: CfParams, withTotals: boolean): string {
+  const totals = running(fs);
+  const rows = fs
+    .map((f, i) => `${classTex(bounds[i], bounds[i + 1])} & ${f}${withTotals ? ` & ${totals[i]}` : ''}`)
+    .join(' \\\\ ');
+  return `\\begin{array}{c|c${withTotals ? '|c' : ''}} \\text{Class} & f${withTotals ? ' & \\text{cf}' : ''} \\\\ \\hline ${rows} \\end{array}`;
+}
+
+/* ---------- the curve ---------- */
+
+/** plotSvg's own width and inset, repeated so the scale lands where it draws (as `logGraphSvg` does). */
+const CF_WIDTH = 280;
+const CF_PAD = 12;
+export const CF_HEIGHT = 220;
+/** Just short of a whole square below and left of the axes: room for the scale, and no stray grid line. */
+const CF_EDGE = -0.95;
+
+interface CfFrame {
+  /** The lowest boundary, where the vertical axis stands. */
+  x0: number;
+  /** Data units per square across (half the narrowest class) and up. */
+  sx: number;
+  sy: number;
+  /** The window's far edges, in squares. */
+  uMax: number;
+  vMax: number;
+}
+
+function cfFrame({ bounds, fs }: Pick<CfParams, 'bounds' | 'fs'>): CfFrame {
+  const widths = bounds.slice(1).map((b, i) => b - bounds[i]);
+  const sx = Math.min(...widths) / 2;
+  const n = total(fs);
+  const sy = [1, 2, 5, 10, 20].find((s) => n / s <= 12) ?? 25;
+  return {
+    x0: bounds[0],
+    sx,
+    sy,
+    uMax: (bounds[bounds.length - 1] - bounds[0]) / sx + 0.4,
+    vMax: Math.ceil(n / sy) + 0.4,
+  };
+}
+
+/** How a curve was plotted: correctly, or with one of the three usual mistakes. */
+type CfPlot = 'right' | 'frequency' | 'midpoint' | 'nostart';
+
+/**
+ * A cumulative frequency curve on squared paper, with a scale.
+ *
+ * plotSvg draws squares at every whole unit and no numbers, so the data are
+ * drawn in squares (half the narrowest class across, a round count up) and
+ * the scale is laid over it as SVG text, as `logGraphSvg` does. Plain
+ * numbers only: KaTeX cannot render inside SVG. The points are joined by
+ * straight lines, so a reading across and down is exactly the interpolation
+ * lesson 5 does by arithmetic.
+ *
+ * `across` and `down` draw dashed read-off lines at a cumulative frequency
+ * and at a value; `plot` draws one of the usual mistakes, for a question
+ * about whether a curve is right.
+ */
+export function cumulativeSvg(
+  p: Pick<CfParams, 'bounds' | 'fs'>,
+  { across = [], down = [], plot = 'right' }: { across?: number[]; down?: number[]; plot?: CfPlot } = {},
+): string {
+  const frame = cfFrame(p);
+  const { x0, sx, sy, uMax, vMax } = frame;
+  const totals = running(p.fs);
+  const points: Point[] = plot === 'nostart' ? [] : [[p.bounds[0], 0]];
+  p.fs.forEach((f, i) => {
+    const x = plot === 'midpoint' ? (p.bounds[i] + p.bounds[i + 1]) / 2 : p.bounds[i + 1];
+    points.push([x, plot === 'frequency' ? f : totals[i]]);
+  });
+  const squares = points.map(([x, y]): Point => [(x - x0) / sx, y / sy]);
+  const curve = (u: number): number => {
+    for (let j = 0; j + 1 < squares.length; j += 1) {
+      const [ua, va] = squares[j];
+      const [ub, vb] = squares[j + 1];
+      if (u >= ua && u <= ub) return va + ((u - ua) * (vb - va)) / (ub - ua);
+    }
+    return NaN;
+  };
+  const svg = plotSvg({
+    xMin: CF_EDGE,
+    xMax: uMax,
+    yMin: CF_EDGE,
+    yMax: vMax,
+    height: CF_HEIGHT,
+    grid: true,
+    curves: [{ f: curve, accent: true, breaks: true }],
+    marks: squares.map(([x, y]) => ({ x, y })),
+    horizontals: across.map((y) => y / sy),
+    verticals: down.map((x) => ({ x: (x - x0) / sx })),
+    label: `A cumulative frequency curve through ${points.length} points, from ${fmt(p.bounds[0])} to ${fmt(p.bounds[p.bounds.length - 1])}, on a grid`,
+  });
+  const px = (u: number) => CF_PAD + ((u - CF_EDGE) / (uMax - CF_EDGE)) * (CF_WIDTH - 2 * CF_PAD);
+  const py = (v: number) => CF_PAD + ((vMax - v) / (vMax - CF_EDGE)) * (CF_HEIGHT - 2 * CF_PAD);
+  const text = (axis: 'x' | 'y', x: number, y: number, anchor: string, words: string) =>
+    `<text data-axis="${axis}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10" fill="currentColor" text-anchor="${anchor}">${words}</text>`;
+  // The lowest boundary sits in the corner, left of the upright axis, which
+  // would otherwise run through the middle of it.
+  const scale = [
+    ...p.bounds.map((b, j) =>
+      j === 0 ? text('x', px(0) - 3, py(0) + 11, 'end', fmt(b)) : text('x', px((b - x0) / sx), py(0) + 11, 'middle', fmt(b)),
+    ),
+    ...Array.from({ length: Math.floor(vMax / 2) }, (_, j) => 2 * (j + 1)).map((v) =>
+      text('y', px(0) - 4, py(v) + 3.5, 'end', fmt(v * sy)),
+    ),
+  ];
+  return svg.replace('</svg>', `${scale.join('')}</svg>`);
+}
+
+/** The span a slider's marker declares over a curve, along the values or up the counts. */
+function cfMarker(p: CfParams, axis: 'x' | 'y') {
+  const { x0, sx, sy, uMax, vMax } = cfFrame(p);
+  return axis === 'x'
+    ? { ...markerWindow(x0 + CF_EDGE * sx, x0 + uMax * sx) }
+    : { ...markerWindow(CF_EDGE * sy, vMax * sy, 'y', CF_HEIGHT), axis: 'y' as const };
+}
+
+/**
+ * Whether an answer sits clear of where the slider's handle rests before it
+ * is touched. A handle resting on the answer would give it away, and the
+ * middle of the track is often exactly a boundary or a halfway point.
+ */
+const clearOfRest = (answer: number, min: number, max: number, step: number, tolerance: number): boolean =>
+  Math.abs(answer - defaultSliderValue(min, max, step)) > tolerance + 1e-9;
+
+/** The drag step and tolerance of a slider along the values: a tenth of the narrowest class. */
+const cfStep = (p: CfParams): number => cfFrame(p).sx / 5;
+
+/** Whether a reading along the values is clear of the handle's resting place. */
+const acrossClear = (p: CfParams, pos: number): boolean =>
+  clearOfRest(readAt(p, pos).value, p.bounds[0], p.bounds[p.bounds.length - 1], cfStep(p), cfStep(p));
+
+/** How close a count read up the curve must be: a quarter of a square, and never under a half. */
+const upTolerance = (p: CfParams): number => Math.max(0.5, cfFrame(p).sy / 4);
+
+const cfDiagram = (p: CfParams, opts: Parameters<typeof cumulativeSvg>[1] = {}): Block => ({
+  kind: 'diagram',
+  svg: cumulativeSvg(p, opts),
+});
+
+/* ---------- which statistic ---------- */
+
+/** A percentile's name, with the median and quartiles called what they are. */
+function pctName(pct: number): string {
+  if (pct === 50) return 'median';
+  if (pct === 25) return 'lower quartile';
+  if (pct === 75) return 'upper quartile';
+  return `${pct}th percentile`;
+}
+
+function pctSymbol(pct: number): string {
+  if (pct === 50) return '\\text{median}';
+  if (pct === 25) return 'Q_1';
+  if (pct === 75) return 'Q_3';
+  return `P_{${pct}}`;
+}
+
+const pctPosition = (p: CfParams, pct: number): number => Number(fmt((pct * cfN(p)) / 100));
+
+/** The class and interpolation, written out for any position. */
+function interpolationSolution(p: CfParams, pct: number): SolutionStep[] {
+  const pos = pctPosition(p, pct);
+  const r = readAt(p, pos);
+  const totals = running(p.fs);
+  return [
+    { text: `The ${pctName(pct)} is at position $\\frac{${pct}}{100} \\times ${cfN(p)} = ${fmt(pos)}$.` },
+    { text: `Running totals: ${totals.map((t) => `$${t}$`).join(', ')}. So $${r.before}$ values lie below $${fmt(r.lo)}$, and position $${fmt(pos)}$ is in $${classTex(r.lo, r.lo + r.width)}$.` },
+    { text: `It is $${fmt(pos)} - ${r.before} = ${fmt(pos - r.before)}$ of the $${r.f}$ values into that class, which is $${fmt(r.width)}$ wide.` },
+    { tex: `${fmt(r.lo)} + \\frac{${fmt(pos - r.before)}}{${r.f}} \\times ${fmt(r.width)} = ${fmt(r.value)}` },
+  ];
+}
+
+/* ---------- lesson 1: cumulative frequency tables ---------- */
+
+interface CfTableParams extends CfParams {
+  /** At difficulty 2, a row whose frequency is hidden and whose running total is given instead. */
+  hidden: number;
+}
+
+function runningSolution(p: CfParams): SolutionStep[] {
+  const totals = running(p.fs);
+  return [
+    { text: 'Each running total is the one above it plus the next frequency:' },
+    { tex: aligned(`${p.fs[0]} &= ${totals[0]}`, ...totals.slice(1).map((t, i) => `${totals[i]} + ${p.fs[i + 1]} &= ${t}`)) },
+    { text: `The last total, $${cfN(p)}$, is how many values there are altogether.` },
+  ];
+}
+
+/**
+ * The cumulative frequency column filled in down a grouped table. At
+ * difficulty 2 one frequency is missing and its running total is given, so it
+ * has to be found by taking away the total above.
+ */
+const cfTable: Generator<CfTableParams> = {
+  id: 'dat-cf-table',
+  sample: (rng, difficulty) => {
+    const params = sampleCf(rng, difficulty, () => true);
+    return { ...params, hidden: difficulty > 1 ? rng.int(1, params.fs.length - 2) : -1 };
+  },
+  render: (params): Slide => {
+    const { bounds, fs, hidden } = params;
+    const totals = running(fs);
+    const answer = fs.map((f, i) => (i === hidden ? f : totals[i]));
+    const slips = [...fs.slice(1).map((f, i) => f + fs[i]), cfN(params) + fs[0], totals[totals.length - 1] - 1];
+    return {
+      kind: 'table',
+      prompt: [
+        say(
+          `The table shows ${cfIntro(params)}. Fill in the cumulative frequency column: the running total of the frequencies.${hidden >= 0 ? ' One frequency is missing, and its running total is given instead.' : ''}`,
+        ),
+      ],
+      columns: ['\\text{Class}', 'f', '\\text{cf}'],
+      rows: fs.map((f, i) =>
+        i === hidden ? [classTex(bounds[i], bounds[i + 1]), null, `${totals[i]}`] : [classTex(bounds[i], bounds[i + 1]), `${f}`, null],
+      ),
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const steps = runningSolution(params);
+    const h = params.hidden;
+    if (h < 0) return steps;
+    const totals = running(params.fs);
+    return [
+      { text: `The missing frequency is its running total take the one above: $${totals[h]} - ${totals[h - 1]} = ${params.fs[h]}$.` },
+      ...steps,
+    ];
+  },
+};
+
+interface CfPointParams extends CfParams {
+  /** The class asked about; never the first, so its running total is not its frequency. */
+  at: number;
+  /** Whether the running totals are printed in the table (difficulty 1) or left to work out. */
+  given: boolean;
+}
+
+/**
+ * Which point a class puts on the curve: its upper boundary against its
+ * running total. The slips are the midpoint, the lower boundary, and the
+ * frequency in place of the running total. The running totals are given at
+ * difficulty 1 and have to be worked out at 2.
+ */
+const cfPoint: Generator<CfPointParams> = {
+  id: 'dat-cf-point',
+  sample: (rng, difficulty) => {
+    const params = sampleCf(rng, difficulty, () => true);
+    return { ...params, at: rng.int(1, params.fs.length - 1), given: difficulty === 1 };
+  },
+  render: (params): Slide => {
+    const { bounds, fs, at } = params;
+    const c = running(fs)[at];
+    const lo = bounds[at];
+    const hi = bounds[at + 1];
+    const point = (x: number, y: number) => `(${fmt(x)}, ${y})`;
+    const opts = [
+      { tex: point(hi, c), correct: true },
+      { tex: point((lo + hi) / 2, c) },
+      { tex: point(lo, c) },
+      { tex: point(hi, fs[at]) },
+    ];
+    return choiceSlide(
+      [
+        say(`The table shows ${cfIntro(params)}.`),
+        show(cfTableTex(params, params.given)),
+        say(`Which point goes on the cumulative frequency curve for the class $${classTex(lo, hi)}$?`),
+      ],
+      opts,
+      `cfpoint${bounds.join(',')}|${fs.join(',')}|${at}`,
+    );
+  },
+  solution: (params) => {
+    const { bounds, fs, at } = params;
+    const totals = running(fs);
+    return [
+      ...(!params.given
+        ? [{ text: `Running totals first: ${totals.map((t) => `$${t}$`).join(', ')}.` }]
+        : []),
+      { text: `By the end of the class, at its upper boundary $${fmt(bounds[at + 1])}$, $${totals[at]}$ values have been counted.` },
+      { text: `So the point is $(${fmt(bounds[at + 1])}, ${totals[at]})$: the upper boundary, not the midpoint, and the running total, not the frequency.` },
+    ];
+  },
+};
+
+/**
+ * The table run backwards: the running totals are given and the frequencies
+ * are found by taking each total away from the next.
+ */
+const cfBack: Generator<CfParams> = {
+  id: 'dat-cf-back',
+  sample: (rng, difficulty) => sampleCf(rng, difficulty, () => true),
+  render: (params): Slide => {
+    const { bounds, fs } = params;
+    const totals = running(fs);
+    const slips = [...totals.slice(1, 3), ...totals.slice(2).map((t, i) => t - totals[i])];
+    return {
+      kind: 'table',
+      prompt: [
+        say(`The table shows ${cfIntro(params)}, with only the running totals kept. Fill in the frequency of each class.`),
+      ],
+      columns: ['\\text{Class}', 'f', '\\text{cf}'],
+      rows: fs.map((_, i) => [classTex(bounds[i], bounds[i + 1]), null, `${totals[i]}`]),
+      bank: valueBank(fs, slips),
+      answer: fs.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const totals = running(params.fs);
+    return [
+      { text: 'Each frequency is how much its running total grew by. The first class has nothing above it:' },
+      { tex: aligned(`f_1 &= ${totals[0]}`, ...totals.slice(1).map((t, i) => `${t} - ${totals[i]} &= ${params.fs[i + 1]}`)) },
+      { text: `They add back up to $${cfN(params)}$, the last running total.` },
+    ];
+  },
+};
+
+interface CfCountParams extends CfParams {
+  /** The boundary asked about, by index: never the first or the last. */
+  at: number;
+  above: boolean;
+}
+
+/**
+ * How many values lie below an inner class boundary, read as a running total.
+ * At difficulty 2 the question is how many are at least that big, which is
+ * what is left over: n take the running total.
+ */
+const cfCount: Generator<CfCountParams> = {
+  id: 'dat-cf-count',
+  sample: (rng, difficulty) => {
+    const params = sampleCf(rng, difficulty, () => true);
+    return { ...params, at: rng.int(1, params.fs.length - 1), above: difficulty > 1 };
+  },
+  render: (params): Slide => {
+    const below = running(params.fs)[params.at - 1];
+    const b = fmt(params.bounds[params.at]);
+    return {
+      kind: 'expression',
+      prompt: [
+        say(`The table shows ${cfIntro(params)}.`),
+        show(groupedTableTex(params.bounds, params.fs)),
+        say(params.above ? `How many of the values are at least $${b}$?` : `How many of the values are less than $${b}$?`),
+      ],
+      lead: '\\text{count} =',
+      keypad: NUMBER_KEYS,
+      answer: fmt(params.above ? cfN(params) - below : below),
+      domain: 'real',
+      mode: 'exact',
+    };
+  },
+  solution: (params) => {
+    const totals = running(params.fs);
+    const below = totals[params.at - 1];
+    const b = fmt(params.bounds[params.at]);
+    const steps: SolutionStep[] = [
+      { text: `Running totals: ${totals.map((t) => `$${t}$`).join(', ')}.` },
+      { text: `Every class below $${b}$ is counted by the running total at $${b}$: $${below}$ values are less than $${b}$.` },
+    ];
+    if (params.above) steps.push({ tex: `${cfN(params)} - ${below} = ${cfN(params) - below} \\text{ are at least } ${b}` });
+    return steps;
+  },
+};
+
+/* ---------- lesson 2: the curve ---------- */
+
+interface CfAtParams extends CfParams {
+  x: number;
+  /** Difficulty 1 reads halfway along a class, with a guide line; 2 at any other tenth, without. */
+  guided: boolean;
+}
+
+/** Pick an x inside a class where the curve's height is whole, or refuse the draw. */
+function sampleInside(rng: Rng, difficulty: number): CfAtParams {
+  const guided = difficulty === 1;
+  for (;;) {
+    const params = sampleCf(rng, difficulty, () => true);
+    // At least a square clear of the bottom and the top too, where a reading
+    // would be a guess at a sliver of the scale.
+    const { sy } = cfFrame(params);
+    const xs = insideReads(params, guided).filter((x) => {
+      const c = countBelow(params, x);
+      return c >= sy && c <= cfN(params) - sy && clearOfRest(c, 0, cfN(params), 1, upTolerance(params));
+    });
+    if (xs.length === 0) continue;
+    return { ...params, x: rng.pick(xs), guided };
+  }
+}
+
+/**
+ * How many values lie below a given value, read off the curve by sliding a
+ * line up to its height there. Tolerant of a quarter of a square either way,
+ * which is as close as a curve can be read.
+ */
+const cfBelowSlider: Generator<CfAtParams> = {
+  id: 'dat-cf-below-slider',
+  sample: sampleInside,
+  render: (params): Slide => {
+    const x = fmt(params.x);
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The curve shows ${cfIntro(params)}. Slide the line to the curve's height at $${x}$, to read off how many values are less than $${x}$.${params.guided ? ` The dashed line marks $${x}$.` : ''}`,
+        ),
+      ],
+      min: 0,
+      max: cfN(params),
+      step: 1,
+      tolerance: upTolerance(params),
+      answer: countBelow(params, params.x),
+      readout: '\\text{cf} = {v}',
+      figure: { svg: cumulativeSvg(params, { down: params.guided ? [params.x] : [] }), ...cfMarker(params, 'y') },
+    };
+  },
+  solution: (params) => {
+    const r = readAt(params, countBelow(params, params.x));
+    const x = fmt(params.x);
+    return [
+      { text: `Go up from $${x}$ to the curve, then across to the cumulative frequency axis.` },
+      { text: `$${x}$ is $${fmt((params.x - r.lo) / r.width)}$ of the way through $${classTex(r.lo, r.lo + r.width)}$. There are $${r.before}$ values below that class and $${r.f}$ in it, joined by a straight line, so the curve there is` },
+      { tex: `${r.before} + ${fmt((params.x - r.lo) / r.width)} \\times ${r.f} = ${fmt(countBelow(params, params.x))}` },
+    ];
+  },
+};
+
+interface CfPairParams extends CfParams {
+  a: number;
+  b: number;
+}
+
+/**
+ * Two values to read at: inner class boundaries at difficulty 1, points
+ * inside two different classes at 2, always with whole heights.
+ */
+function samplePair(rng: Rng, difficulty: number): CfPairParams {
+  for (;;) {
+    const params = sampleCf(rng, difficulty, () => true);
+    const xs = difficulty > 1 ? insideReads(params, false) : params.bounds.slice(1, -1);
+    if (xs.length < 2) continue;
+    const [a, b] = ordered(rng.sample(xs, 2));
+    if (difficulty > 1 && classAt(params, countBelow(params, a)) === classAt(params, countBelow(params, b))) continue;
+    return { ...params, a, b };
+  }
+}
+
+/**
+ * How many values lie between two values: the reading at the top take the
+ * reading at the bottom, laid out as tiles.
+ */
+const cfBetween: Generator<CfPairParams> = {
+  id: 'dat-cf-between',
+  sample: samplePair,
+  render: (params): Slide => {
+    const ca = countBelow(params, params.a);
+    const cb = countBelow(params, params.b);
+    const n = cfN(params);
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`The curve and table show ${cfIntro(params)}.`),
+        cfDiagram(params),
+        show(cfTableTex(params, true)),
+        say(`How many values lie between $${fmt(params.a)}$ and $${fmt(params.b)}$? Fill in the reading at $${fmt(params.b)}$, the reading at $${fmt(params.a)}$, and the difference.`),
+      ],
+      template: '{0} - {1} = {2}',
+      bank: valueBank([cb, ca, cb - ca], [n - cb, n - ca, cb + ca, n - (cb - ca)]),
+      answer: [fmt(cb), fmt(ca), fmt(cb - ca)],
+    };
+  },
+  solution: (params) => {
+    const ca = countBelow(params, params.a);
+    const cb = countBelow(params, params.b);
+    return [
+      { text: `Up to the curve and across: $${fmt(cb)}$ values are less than $${fmt(params.b)}$, and $${fmt(ca)}$ are less than $${fmt(params.a)}$.` },
+      { text: 'Those below the bottom value are inside the first count too, so take them away:' },
+      { tex: `${fmt(cb)} - ${fmt(ca)} = ${fmt(cb - ca)}` },
+    ];
+  },
+};
+
+interface CfAboveParams extends CfParams {
+  x: number;
+}
+
+/**
+ * How many values are more than a given value: n take the reading. At an
+ * inner boundary at difficulty 1, inside a class at 2.
+ */
+const cfAbove: Generator<CfAboveParams> = {
+  id: 'dat-cf-above',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleCf(rng, difficulty, () => true);
+      const xs = difficulty > 1 ? insideReads(params, false) : params.bounds.slice(1, -1);
+      if (xs.length === 0) continue;
+      return { ...params, x: rng.pick(xs) };
+    }
+  },
+  render: (params): Slide => {
+    const c = countBelow(params, params.x);
+    const n = cfN(params);
+    const r = readAt(params, c);
+    const opts = valueChoices(n - c, [c, n - c + r.f, n - c - r.f, n], mix(...params.fs, params.x));
+    return choiceSlide(
+      [
+        say(`The curve and table show ${cfIntro(params)}.`),
+        cfDiagram(params),
+        show(cfTableTex(params, true)),
+        say(`How many values are more than $${fmt(params.x)}$?`),
+      ],
+      opts,
+      `cfabove${params.bounds.join(',')}|${params.fs.join(',')}|${params.x}`,
+    );
+  },
+  solution: (params) => {
+    const c = countBelow(params, params.x);
+    const n = cfN(params);
+    return [
+      { text: `The curve counts from the bottom: $${fmt(c)}$ values are less than $${fmt(params.x)}$.` },
+      { text: 'The rest are more than it:' },
+      { tex: `${n} - ${fmt(c)} = ${fmt(n - c)}` },
+    ];
+  },
+};
+
+interface CfCheckParams extends CfParams {
+  plot: CfPlot;
+}
+
+/**
+ * Whether a curve is drawn right, one check at a time: it only ever rises,
+ * its points sit at the upper boundaries, and it starts from zero at the
+ * lowest boundary. Difficulty 1 draws it right, with frequencies, or at
+ * midpoints; 2 adds a curve that skips the starting point.
+ */
+const cfCheck: Generator<CfCheckParams> = {
+  id: 'dat-cf-check',
+  sample: (rng, difficulty) => {
+    const plot = rng.pick<CfPlot>(difficulty > 1 ? ['right', 'frequency', 'midpoint', 'nostart'] : ['right', 'frequency', 'midpoint']);
+    // Frequencies that happen to rise would pass the first check honestly.
+    const params = sampleCf(rng, difficulty, (p) => plot !== 'frequency' || p.fs.some((f, i) => i > 0 && f < p.fs[i - 1]));
+    return { ...params, plot };
+  },
+  render: (params): Slide => {
+    const key = `cfcheck${params.bounds.join(',')}|${params.fs.join(',')}|${params.plot}`;
+    const answers: Record<CfPlot, string[]> = {
+      frequency: ['No'],
+      midpoint: ['Yes', 'No'],
+      nostart: ['Yes', 'Yes', 'No'],
+      right: ['Yes', 'Yes', 'Yes'],
+    };
+    const b0 = fmt(params.bounds[0]);
+    return {
+      kind: 'flow',
+      prompt: [
+        say(`Someone drew a cumulative frequency curve for ${cfIntro(params)}, in classes from $${b0}$ to $${fmt(params.bounds[params.bounds.length - 1])}$. Check it.`),
+        cfDiagram(params, { plot: params.plot }),
+      ],
+      subject: '\\text{the curve}',
+      steps: [
+        {
+          id: 'rise',
+          ask: 'Does the curve only ever go up?',
+          branches: rotated(
+            [
+              { label: 'Yes', to: 'upper' },
+              { label: 'No', outcome: 'Wrong: it plots the frequencies. A running total can never go down.' },
+            ],
+            `${key}r`,
+          ),
+        },
+        {
+          id: 'upper',
+          ask: 'Is every point above a class boundary?',
+          branches: rotated(
+            [
+              { label: 'Yes', to: 'start' },
+              { label: 'No', outcome: 'Wrong: the points are at the midpoints. Each belongs at its upper class boundary.' },
+            ],
+            `${key}u`,
+          ),
+        },
+        {
+          id: 'start',
+          ask: `Does it start from zero at $${b0}$?`,
+          branches: rotated(
+            [
+              { label: 'Yes', outcome: 'Drawn right.' },
+              { label: 'No', outcome: `Wrong: nothing lies below $${b0}$, so the curve starts at $(${b0}, 0)$.` },
+            ],
+            `${key}s`,
+          ),
+        },
+      ],
+      answer: answers[params.plot],
+    };
+  },
+  solution: (params) => {
+    const b0 = fmt(params.bounds[0]);
+    const why: Record<CfPlot, string> = {
+      frequency: 'The curve goes down somewhere, so it cannot be a running total: it is the frequencies plotted.',
+      midpoint: 'The points sit halfway between the boundaries. A running total is only complete at the top of its class, so each point belongs at the upper boundary.',
+      nostart: `It begins at the first class's point. No value is less than $${b0}$, so the curve has to start at $(${b0}, 0)$.`,
+      right: `It only rises, every point is above an upper boundary, and it starts at $(${b0}, 0)$ and ends at $${cfN(params)}$: drawn right.`,
+    };
+    return [{ text: why[params.plot] }];
+  },
+};
+
+/* ---------- lesson 3: median and quartiles from the curve ---------- */
+
+interface CfQuartileParams extends CfParams {
+  /** 25, 50 or 75: the percentile that is the quartile asked for. */
+  pct: number;
+  guided: boolean;
+}
+
+/**
+ * The median at difficulty 1, landing on a grid line and with the dashed
+ * line across at n/2; at 2 the median or either quartile, between the lines
+ * and with no guide. Tolerant of a tenth of a class either way.
+ */
+const cfQuartileSlider: Generator<CfQuartileParams> = {
+  id: 'dat-cf-quartile-slider',
+  sample: (rng, difficulty) => {
+    const guided = difficulty === 1;
+    const pct = guided ? 50 : rng.pick([25, 50, 75]);
+    const params = sampleCf(rng, difficulty, (p) => {
+      if (cfN(p) % 4 !== 0) return false;
+      const pos = pctPosition(p, pct);
+      return (guided ? onGrid(p, pos) : betweenLines(p, pos)) && acrossClear(p, pos);
+    });
+    return { ...params, pct, guided };
+  },
+  render: (params): Slide => {
+    const pos = pctPosition(params, params.pct);
+    const b = params.bounds;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The curve shows ${cfIntro(params)}. Slide the marker to the ${pctName(params.pct)}.${params.guided ? ` The dashed line is at a cumulative frequency of $${fmt(pos)}$.` : ''}`,
+        ),
+      ],
+      min: b[0],
+      max: b[b.length - 1],
+      step: cfStep(params),
+      tolerance: cfStep(params),
+      answer: readAt(params, pos).value,
+      readout: `${pctSymbol(params.pct)} = {v}`,
+      figure: { svg: cumulativeSvg(params, { across: params.guided ? [pos] : [] }), ...cfMarker(params, 'x') },
+    };
+  },
+  solution: (params) => {
+    const pos = pctPosition(params, params.pct);
+    const r = readAt(params, pos);
+    return [
+      { text: `With $n = ${cfN(params)}$ on a curve, the ${pctName(params.pct)} is at a cumulative frequency of $${fmt(pos)}$.` },
+      { text: `Across from $${fmt(pos)}$ to the curve, then down: that is inside $${classTex(r.lo, r.lo + r.width)}$, $${fmt(pos - r.before)}$ of its $${r.f}$ values in.` },
+      { tex: `${fmt(r.lo)} + \\frac{${fmt(pos - r.before)}}{${r.f}} \\times ${fmt(r.width)} = ${fmt(r.value)}` },
+    ];
+  },
+};
+
+interface CfQuartilesParams extends CfParams {
+  guided: boolean;
+}
+
+/**
+ * n divisible by four, and every quartile readable: on grid lines at
+ * difficulty 1, and at 2 in tenths with at least `offGrid` of them between
+ * the lines.
+ */
+function sampleQuartileReads(rng: Rng, difficulty: number, pcts: number[], offGrid: number): CfQuartilesParams {
+  const guided = difficulty === 1;
+  const params = sampleCf(rng, difficulty, (p) => {
+    if (cfN(p) % 4 !== 0) return false;
+    const positions = pcts.map((pct) => pctPosition(p, pct));
+    if (guided) return positions.every((pos) => onGrid(p, pos));
+    const read = positions.every((pos) => onGrid(p, pos) || betweenLines(p, pos));
+    return read && positions.filter((pos) => betweenLines(p, pos)).length >= offGrid;
+  });
+  return { ...params, guided };
+}
+
+/**
+ * Where each quartile sits and what it reads as, in a table: positions n/4,
+ * n/2 and 3n/4 rather than the list rule's (n + 1)/4.
+ */
+const cfPositions: Generator<CfQuartilesParams> = {
+  id: 'dat-cf-positions',
+  sample: (rng, difficulty) => sampleQuartileReads(rng, difficulty, [25, 50, 75], 2),
+  render: (params): Slide => {
+    const n = cfN(params);
+    const qs = [25, 50, 75].map((pct) => ({ pos: pctPosition(params, pct), value: readAt(params, pctPosition(params, pct)).value }));
+    const answer = qs.flatMap(({ pos, value }) => [pos, value]);
+    const slips = [(n + 1) / 4, (n + 1) / 2, (3 * (n + 1)) / 4, ...params.bounds.slice(1, -1)];
+    return {
+      kind: 'table',
+      prompt: [
+        say(`The curve and table show ${cfIntro(params)}.`),
+        cfDiagram(params),
+        show(cfTableTex(params, true)),
+        say('Fill in the cumulative frequency where each quartile is read, and its value off the curve.'),
+      ],
+      columns: ['', '\\text{Position}', '\\text{Value}'],
+      rows: [
+        ['Q_1', null, null],
+        ['Q_2', null, null],
+        ['Q_3', null, null],
+      ],
+      bank: valueBank(answer, slips, 4),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const n = cfN(params);
+    return [
+      { text: `On a curve the quartiles are at $\\frac{n}{4}$, $\\frac{n}{2}$ and $\\frac{3n}{4}$: here $${n / 4}$, $${n / 2}$ and $${(3 * n) / 4}$.` },
+      ...[25, 50, 75].map((pct, j) => {
+        const pos = pctPosition(params, pct);
+        const r = readAt(params, pos);
+        return { tex: `Q_${j + 1} = ${fmt(r.lo)} + \\frac{${fmt(pos - r.before)}}{${r.f}} \\times ${fmt(r.width)} = ${fmt(r.value)}` };
+      }),
+    ];
+  },
+};
+
+/**
+ * The interquartile range as a tree: the two positions, the two quartiles
+ * read from them, and their difference.
+ */
+const cfIqr: Generator<CfQuartilesParams> = {
+  id: 'dat-cf-iqr',
+  sample: (rng, difficulty) => sampleQuartileReads(rng, difficulty, [25, 75], 1),
+  render: (params): Slide => {
+    const n = cfN(params);
+    const p1 = pctPosition(params, 25);
+    const p3 = pctPosition(params, 75);
+    const q1 = readAt(params, p1).value;
+    const q3 = readAt(params, p3).value;
+    const answer = [p1, p3, q1, q3, q3 - q1];
+    const slips = [(n + 1) / 4, (3 * (n + 1)) / 4, n / 2, q3 + q1, readAt(params, n / 2).value];
+    return {
+      kind: 'tree',
+      prompt: [
+        say(`The curve and table show ${cfIntro(params)}.`),
+        cfDiagram(params),
+        show(cfTableTex(params, true)),
+        say('Find the interquartile range. Top row: where $Q_1$ and $Q_3$ are read. Then the two quartiles off the curve, then the IQR.'),
+      ],
+      expression: '\\text{IQR} = Q_3 - Q_1',
+      nodes: [
+        { id: 'p1', from: [] },
+        { id: 'p3', from: [] },
+        { id: 'q1', from: ['p1'] },
+        { id: 'q3', from: ['p3'] },
+        { id: 'iqr', from: ['q1', 'q3'] },
+      ],
+      bank: valueBank(answer, slips),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const n = cfN(params);
+    const q1 = readAt(params, n / 4).value;
+    const q3 = readAt(params, (3 * n) / 4).value;
+    return [
+      { text: `$Q_1$ is read at $\\frac{${n}}{4} = ${n / 4}$ and $Q_3$ at $\\frac{3 \\times ${n}}{4} = ${(3 * n) / 4}$.` },
+      { text: `Across and down: $Q_1 = ${fmt(q1)}$ and $Q_3 = ${fmt(q3)}$.` },
+      { tex: `\\text{IQR} = ${fmt(q3)} - ${fmt(q1)} = ${fmt(q3 - q1)}` },
+    ];
+  },
+};
+
+interface CfRuleParams {
+  n: number;
+  pct: number;
+  context: number;
+}
+
+/**
+ * Where on the curve a quartile is read. n is a multiple of four at
+ * difficulty 1; at 2 it is two more than one, so the lower and upper
+ * quartiles fall on a half. The slip is the list rule, (n + 1)/4.
+ */
+const cfRule: Generator<CfRuleParams> = {
+  id: 'dat-cf-rule',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    const n = hard ? 4 * rng.int(6, 40) + 2 : 4 * rng.int(5, 40);
+    return { n, pct: rng.pick(hard ? [25, 75] : [25, 50, 75]), context: rng.int(0, CF_CONTEXTS.length - 1) };
+  },
+  render: ({ n, pct, context }): Slide => {
+    const q = pct / 25;
+    const correct = (q * n) / 4;
+    const opts = valueChoices(correct, [(q * (n + 1)) / 4, correct + 1, q === 2 ? n / 4 : n / 2], mix(n, pct), 0.5);
+    return choiceSlide(
+      [
+        say(`A cumulative frequency curve is drawn for ${CF_CONTEXTS[context].of(n)}.`),
+        say(`At what cumulative frequency is the ${pctName(pct)} read off?`),
+      ],
+      opts,
+      `cfrule${n}|${pct}`,
+    );
+  },
+  solution: ({ n, pct }) => {
+    const q = pct / 25;
+    return [
+      { tex: `\\frac{${q === 1 ? '' : `${q} \\times `}${n}}{4} = ${fmt((q * n) / 4)}` },
+      { text: 'A curve counts continuously, so a quarter of the way up is simply a quarter of $n$.' },
+      { text: 'The $(n + 1)$ rule from Measures of Spread belongs to a list of $4k + 3$ values, where each value has its own place to count to. It is not used on a curve.' },
+    ];
+  },
+};
+
+/* ---------- lesson 4: percentiles ---------- */
+
+interface PctPositionParams {
+  n: number;
+  pct: number;
+  context: number;
+}
+
+/** Tens at difficulty 1; at 2 the fives in between, which can land on a half. */
+const PCT_TENS = [10, 20, 30, 40, 60, 70, 80, 90];
+const PCT_FIVES = [5, 15, 35, 45, 55, 65, 85, 95];
+
+/** Where the pth percentile is read: p hundredths of the way up, as tiles. */
+const pctPositionTiles: Generator<PctPositionParams> = {
+  id: 'dat-pct-position',
+  sample: (rng, difficulty) => {
+    const hard = difficulty > 1;
+    for (;;) {
+      const n = hard ? 2 * rng.int(15, 100) : 10 * rng.int(2, 20);
+      const pct = rng.pick(hard ? PCT_FIVES : PCT_TENS);
+      if (!exact((pct * n) / 100, 1)) continue;
+      return { n, pct, context: rng.int(0, CF_CONTEXTS.length - 1) };
+    }
+  },
+  render: ({ n, pct, context }): Slide => {
+    const pos = (pct * n) / 100;
+    return {
+      kind: 'tiles',
+      prompt: [
+        say(`A cumulative frequency curve is drawn for ${CF_CONTEXTS[context].of(n)}. Fill in the working for the cumulative frequency where the ${pctName(pct)} is read.`),
+      ],
+      template: '\\text{position} = {0} \\div 100 \\times {1} = {2}',
+      bank: valueBank([pct, n, pos], [100 - pct, ((100 - pct) * n) / 100, (pct * (n + 1)) / 100, pos * 10]),
+      answer: [fmt(pct), fmt(n), fmt(pos)],
+    };
+  },
+  solution: ({ n, pct }) => [
+    { text: `The ${pctName(pct)} is the value ${pct}% of the way up the data, so it is read at ${pct} hundredths of $n$.` },
+    { tex: `\\frac{${pct}}{100} \\times ${n} = ${fmt((pct * n) / 100)}` },
+    { text: 'The median is the 50th percentile and the quartiles the 25th and 75th: the same rule.' },
+  ],
+};
+
+interface PctSliderParams extends CfParams {
+  pct: number;
+  guided: boolean;
+}
+
+/**
+ * A percentile read off the curve by sliding a marker to it: a tens
+ * percentile on a grid line with a guide at difficulty 1, and at 2 any five
+ * between the lines with none.
+ */
+const pctSlider: Generator<PctSliderParams> = {
+  id: 'dat-pct-slider',
+  sample: (rng, difficulty) => {
+    const guided = difficulty === 1;
+    const pct = rng.pick(guided ? PCT_TENS : [...PCT_TENS, ...PCT_FIVES]);
+    const params = sampleCf(rng, difficulty, (p) => {
+      const pos = (pct * cfN(p)) / 100;
+      if (!exact(pos, 1)) return false;
+      return (guided ? onGrid(p, pos) : betweenLines(p, pos)) && acrossClear(p, pos);
+    });
+    return { ...params, pct, guided };
+  },
+  render: (params): Slide => {
+    const pos = pctPosition(params, params.pct);
+    const b = params.bounds;
+    return {
+      kind: 'slider',
+      prompt: [
+        say(
+          `The curve shows ${cfIntro(params)}. Slide the marker to the ${pctName(params.pct)}.${params.guided ? ` The dashed line is at a cumulative frequency of $${fmt(pos)}$.` : ''}`,
+        ),
+      ],
+      min: b[0],
+      max: b[b.length - 1],
+      step: cfStep(params),
+      tolerance: cfStep(params),
+      answer: readAt(params, pos).value,
+      readout: `${pctSymbol(params.pct)} = {v}`,
+      figure: { svg: cumulativeSvg(params, { across: params.guided ? [pos] : [] }), ...cfMarker(params, 'x') },
+    };
+  },
+  solution: (params) => interpolationSolution(params, params.pct),
+};
+
+/**
+ * The 10th to 90th interpercentile range in a table: each percentile's
+ * position and value, then the difference. It leaves out the top and bottom
+ * tenths, so one extreme value cannot move it.
+ */
+const pctRange: Generator<CfQuartilesParams> = {
+  id: 'dat-pct-range',
+  sample: (rng, difficulty) => {
+    const guided = difficulty === 1;
+    const params = sampleCf(rng, difficulty, (p) => {
+      if (cfN(p) % 10 !== 0) return false;
+      const positions = [10, 90].map((pct) => pctPosition(p, pct));
+      if (guided) return positions.every((pos) => onGrid(p, pos));
+      return positions.every((pos) => onGrid(p, pos) || betweenLines(p, pos)) && positions.some((pos) => betweenLines(p, pos));
+    });
+    return { ...params, guided };
+  },
+  render: (params): Slide => {
+    const n = cfN(params);
+    const p10 = pctPosition(params, 10);
+    const p90 = pctPosition(params, 90);
+    const v10 = readAt(params, p10).value;
+    const v90 = readAt(params, p90).value;
+    const answer = [p10, v10, p90, v90, v90 - v10];
+    const slips = [(n + 1) / 10, (9 * (n + 1)) / 10, v90 + v10, params.bounds[params.bounds.length - 1] - params.bounds[0]];
+    return {
+      kind: 'table',
+      prompt: [
+        say(`The curve and table show ${cfIntro(params)}.`),
+        cfDiagram(params),
+        show(cfTableTex(params, true)),
+        say('Find the 10th to 90th interpercentile range: where each percentile is read, its value, then the difference.'),
+      ],
+      columns: ['', '\\text{Position}', '\\text{Value}'],
+      rows: [
+        ['P_{10}', null, null],
+        ['P_{90}', null, null],
+        ['\\text{Range}', '', null],
+      ],
+      bank: valueBank(answer, slips, 4),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => {
+    const n = cfN(params);
+    const v10 = readAt(params, n / 10).value;
+    const v90 = readAt(params, (9 * n) / 10).value;
+    return [
+      { text: `$P_{10}$ is read at $\\frac{10}{100} \\times ${n} = ${n / 10}$ and $P_{90}$ at $${(9 * n) / 10}$.` },
+      { text: `Off the curve: $P_{10} = ${fmt(v10)}$ and $P_{90} = ${fmt(v90)}$.` },
+      { tex: `P_{90} - P_{10} = ${fmt(v90)} - ${fmt(v10)} = ${fmt(v90 - v10)}` },
+    ];
+  },
+};
+
+/**
+ * What percentage of the values lie below a given value: the reading as a
+ * share of n. At an inner boundary at difficulty 1, inside a class at 2.
+ */
+const pctRank: Generator<CfAboveParams> = {
+  id: 'dat-pct-rank',
+  sample: (rng, difficulty) => {
+    for (;;) {
+      const params = sampleCf(rng, difficulty, () => true);
+      const xs = (difficulty > 1 ? insideReads(params, false) : params.bounds.slice(1, -1)).filter((x) =>
+        exact((100 * countBelow(params, x)) / cfN(params), 1),
+      );
+      if (xs.length === 0) continue;
+      return { ...params, x: rng.pick(xs) };
+    }
+  },
+  render: (params): Slide => {
+    const c = countBelow(params, params.x);
+    const pct = (100 * c) / cfN(params);
+    const opts = valueChoices(pct, [c, 100 - pct, (100 * c) / (cfN(params) + 1)], mix(...params.fs, params.x), 5);
+    return choiceSlide(
+      [
+        say(`The curve and table show ${cfIntro(params)}.`),
+        cfDiagram(params),
+        show(cfTableTex(params, true)),
+        say(`What percentage of the values are less than $${fmt(params.x)}$?`),
+      ],
+      opts,
+      `pctrank${params.bounds.join(',')}|${params.fs.join(',')}|${params.x}`,
+    );
+  },
+  solution: (params) => {
+    const c = countBelow(params, params.x);
+    const n = cfN(params);
+    return [
+      { text: `Up to the curve and across: $${fmt(c)}$ of the $${n}$ values are less than $${fmt(params.x)}$.` },
+      { tex: `\\frac{${fmt(c)}}{${n}} \\times 100 = ${fmt((100 * c) / n)}\\%` },
+      { text: `So $${fmt(params.x)}$ sits at about the ${fmt((100 * c) / n)}th percentile.` },
+    ];
+  },
+};
+
+/* ---------- lesson 5: interpolating inside a class ---------- */
+
+interface InterpParams extends CfParams {
+  /** The percentile asked for: 50 is the median. */
+  pct: number;
+}
+
+const INTERP_PCTS = [25, 75, 10, 20, 30, 40, 60, 70, 80, 90];
+
+/**
+ * A grouped table and a percentile to estimate from it: the median over
+ * equal classes at difficulty 1, and at 2 a quartile or a tens percentile
+ * over classes where one is twice as wide. The position lands strictly
+ * inside a class, never on its top, and a whole number of tenths through it,
+ * so the estimate is exact.
+ */
+function sampleInterp(rng: Rng, difficulty: number, fits: (p: InterpParams) => boolean = () => true): InterpParams {
+  const hard = difficulty > 1;
+  for (;;) {
+    const pct = hard ? rng.pick(INTERP_PCTS) : 50;
+    const params = sampleCf(
+      rng,
+      difficulty,
+      (p) => {
+        const pos = pctPosition(p, pct);
+        if (!exact(pos, 1) || pos <= 0) return false;
+        const t = tenths(p, pos);
+        return whole(t) && t > 0 && t < 10;
+      },
+      hard,
+    );
+    const drawn = { ...params, pct };
+    if (fits(drawn)) return drawn;
+  }
+}
+
+const interpPrompt = (p: InterpParams, ask: string): Block[] => [
+  say(`The table shows ${cfIntro(p)}.`),
+  show(groupedTableTex(p.bounds, p.fs)),
+  say(ask),
+];
+
+/**
+ * Which class holds a percentile, found by running totals. Never the modal
+ * class nor the middle row, so neither shortcut lands on it.
+ */
+const interpClass: Generator<InterpParams> = {
+  id: 'dat-interp-class',
+  sample: (rng, difficulty) =>
+    sampleInterp(rng, difficulty, (p) => {
+      const top = Math.max(...p.fs);
+      const i = readAt(p, pctPosition(p, p.pct)).i;
+      return p.fs.filter((f) => f === top).length === 1 && i !== p.fs.indexOf(top) && i !== Math.floor(p.fs.length / 2);
+    }),
+  render: (params): Slide => {
+    const right = readAt(params, pctPosition(params, params.pct)).i;
+    const opts = params.fs.map((_, i) => ({
+      tex: classTex(params.bounds[i], params.bounds[i + 1]),
+      correct: i === right ? true : undefined,
+    }));
+    return choiceSlide(
+      interpPrompt(params, `Which class holds the ${pctName(params.pct)}?`),
+      opts,
+      `interpclass${params.bounds.join(',')}|${params.fs.join(',')}|${params.pct}`,
+    );
+  },
+  solution: (params) => {
+    const pos = pctPosition(params, params.pct);
+    const r = readAt(params, pos);
+    return [
+      { text: `The ${pctName(params.pct)} is at position $\\frac{${params.pct}}{100} \\times ${cfN(params)} = ${fmt(pos)}$.` },
+      { text: `Running totals: ${running(params.fs).map((t) => `$${t}$`).join(', ')}.` },
+      { text: `$${r.before}$ values come before $${classTex(r.lo, r.lo + r.width)}$ and $${r.before + r.f}$ by its end, so position $${fmt(pos)}$ is in it.` },
+    ];
+  },
+};
+
+/** The interpolation laid out with its numbers in, as tiles. */
+const interpTiles: Generator<InterpParams> = {
+  id: 'dat-interp-tiles',
+  sample: (rng, difficulty) => sampleInterp(rng, difficulty),
+  render: (params): Slide => {
+    const pos = pctPosition(params, params.pct);
+    const r = readAt(params, pos);
+    const next = r.i + 1 < params.fs.length ? r.i + 1 : r.i - 1;
+    const answer = [r.lo, pos, r.before, r.f, r.width, r.value];
+    const slips = [r.lo + r.width, r.before + r.f, params.fs[next], params.bounds[next + 1] - params.bounds[next], r.lo + r.width / 2];
+    return {
+      kind: 'tiles',
+      prompt: interpPrompt(
+        params,
+        `Estimate the ${pctName(params.pct)} by interpolating inside its class. Fill in the working: the class's lower boundary, plus (position take the values before it) over its frequency, times its width.`,
+      ),
+      template: '{0} + ({1} - {2}) \\div {3} \\times {4} = {5}',
+      bank: valueBank(answer, slips, 4),
+      answer: answer.map(fmt),
+    };
+  },
+  solution: (params) => interpolationSolution(params, params.pct),
+};
+
+/**
+ * The same interpolation worked one operation at a time: how far into the
+ * class, scaled by its width, shared over its frequency, added to its start.
+ */
+const interpSteps: Generator<InterpParams> = {
+  id: 'dat-interp-steps',
+  sample: (rng, difficulty) => sampleInterp(rng, difficulty),
+  render: (params): Slide => {
+    const pos = pctPosition(params, params.pct);
+    const r = readAt(params, pos);
+    const d = pos - r.before;
+    const dw = d * r.width;
+    const share = dw / r.f;
+    const bank = (value: number, ...slips: number[]) =>
+      stepBank(fmt(value), ...tidy(slips).map(fmt).filter((s) => s !== fmt(value)));
+    return {
+      kind: 'steps',
+      prompt: interpPrompt(
+        params,
+        `The ${pctName(params.pct)} is at position $${fmt(pos)}$, inside $${classTex(r.lo, r.lo + r.width)}$ with $${r.before}$ values before it. Estimate it: tap the part you would do next, then choose what it comes to.`,
+      ),
+      start: [fmt(r.lo), '+', '(', fmt(pos), '-', fmt(r.before), ')', '\\times', fmt(r.width), '\\div', fmt(r.f)],
+      reductions: [
+        { span: [2, 7], operator: 4, value: fmt(d), bank: bank(d, pos + r.before, d + 1, d - 1) },
+        { span: [2, 5], operator: 3, value: fmt(dw), bank: bank(dw, d + r.width, dw + r.width, dw - r.width) },
+        { span: [2, 5], operator: 3, value: fmt(share), bank: bank(share, dw * r.f, share + 1, share - 1, r.f / dw) },
+        { span: [0, 3], operator: 1, value: fmt(r.value), bank: bank(r.value, r.value + 1, r.value - 1, r.lo + r.width - share) },
+      ],
+    };
+  },
+  solution: (params) => interpolationSolution(params, params.pct),
+};
+
+/** The whole estimate, typed as one number. */
+const interpValue: Generator<InterpParams> = {
+  id: 'dat-interp-value',
+  sample: (rng, difficulty) => sampleInterp(rng, difficulty),
+  render: (params): Slide => ({
+    kind: 'expression',
+    prompt: interpPrompt(params, `Estimate the ${pctName(params.pct)} by interpolation.`),
+    lead: `${pctSymbol(params.pct)} \\approx`,
+    keypad: NUMBER_KEYS,
+    answer: fmt(readAt(params, pctPosition(params, params.pct)).value),
+    domain: 'real',
+    mode: 'exact',
+  }),
+  solution: (params) => interpolationSolution(params, params.pct),
+};
+
 export const dataAveragesSpreadGenerators = [
   mean,
   medianMode,
@@ -4221,4 +5516,24 @@ export const dataAveragesSpreadGenerators = [
   histTotal,
   histTallest,
   histScaleGen,
+  cfTable,
+  cfPoint,
+  cfBack,
+  cfCount,
+  cfBelowSlider,
+  cfBetween,
+  cfAbove,
+  cfCheck,
+  cfQuartileSlider,
+  cfPositions,
+  cfIqr,
+  cfRule,
+  pctPositionTiles,
+  pctSlider,
+  pctRange,
+  pctRank,
+  interpClass,
+  interpTiles,
+  interpSteps,
+  interpValue,
 ];

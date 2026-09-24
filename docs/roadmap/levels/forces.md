@@ -11,11 +11,12 @@ equilibrium on a rough slope); Newton's Laws (the first law, F = ma along a line
 and with i, j vectors, driving force against resistance, a car towing a trailer,
 two particles over a pulley and one pulled off a table, motion on a rough slope
 released or pulled up it, third-law pairs and the force between two touching
-boxes, lifts in stages and the cable tension).
+boxes, lifts in stages and the cable tension); Connected Particles on Slopes (a
+pulley at the top of a slope, a string over a peg with friction on both sides,
+the particle that hits the ground and what the other does next, reusing
+Kinematics' suvat).
 
-Needs: Connected Particles on Slopes (a pulley at the top of a slope, a string
-over a peg with friction on both sides, the particle that hits the ground and
-what the other does next, reusing Kinematics' suvat); Moments (the moment of a
+Needs: Moments (the moment of a
 force about a point, a uniform rod or plank resting on two supports, the point
 of tilting, a ladder against a smooth wall with friction at the foot); Momentum
 and Impulse (p = mv as a vector, conservation in a collision along a line,

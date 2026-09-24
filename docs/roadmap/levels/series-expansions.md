@@ -8,11 +8,11 @@ ln(1 + x) and 1/(1 - x) with the ranges they hold for, new series by
 substituting and multiplying); Taylor Series and Approximations (series about
 x = a, estimating a value and the error from the first term left out, limits
 of the form 0/0, integrating term by term, the values of x a series is valid
-for).
+for); Error Terms (the Lagrange remainder, bounding the error of a Taylor
+polynomial rather than estimating it, the bound against the first term left
+out, choosing a degree to meet a tolerance, remainders about a centre).
 
-Needs: Error Terms (the Lagrange remainder, bounding the error of a Taylor
-polynomial rather than estimating it, choosing a degree to meet a tolerance);
-Radius of Convergence (the ratio test on a power series, checking the ends,
+Needs: Radius of Convergence (the ratio test on a power series, checking the ends,
 why the radius is the distance to the nearest singularity); The Binomial
 Series (the general (1 + x)^n for rational n derived rather than quoted,
 (a + bx)^n by taking a out, validity; after C7 Binomial level 6 has landed);

@@ -29,7 +29,11 @@ interface Props {
   registry: GeneratorRegistry;
   /** Fixed seed for reproducible runs; omit for a fresh draw each sitting. */
   seed?: number;
-  onExit: () => void;
+  /**
+   * Leaves without finishing. `abandoned` is true when a skill check or level
+   * check was under way, so the attempt can be counted as walked away from.
+   */
+  onExit: (abandoned: boolean) => void;
   onComplete: (score: { correct: number; total: number }) => void;
 }
 
@@ -207,7 +211,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
           type="button"
           className="icon-button"
           aria-label="Exit lesson"
-          onClick={() => (session.phase === 'guided' ? onExit() : setConfirmingExit(true))}
+          onClick={() => (session.phase === 'guided' ? onExit(false) : setConfirmingExit(true))}
         >
           &#215;
         </button>
@@ -302,7 +306,7 @@ export function LessonPlayer({ lesson, registry, seed, onExit, onComplete }: Pro
         <ConfirmLeave
           assessment={session.assessment}
           onStay={() => setConfirmingExit(false)}
-          onLeave={onExit}
+          onLeave={() => onExit(true)}
         />
       )}
     </div>

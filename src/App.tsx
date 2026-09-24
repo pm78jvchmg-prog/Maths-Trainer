@@ -285,6 +285,7 @@ export default function App() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const recordCompletion = useProgress((state) => state.recordCompletion);
+  const recordAbandon = useProgress((state) => state.recordAbandon);
   const recordPlay = useStreak((state) => state.recordPlay);
 
   const openCourse = (next: Course) => {
@@ -308,7 +309,12 @@ export default function App() {
       key={lesson.id}
       lesson={lesson}
       registry={registry}
-      onExit={leaveLesson}
+      onExit={(abandoned) => {
+        // A check left before its summary is counted and nothing more: no
+        // best, no mastery, no streak, and nothing on screen reads it.
+        if (abandoned) recordAbandon(lesson.id);
+        leaveLesson();
+      }}
       onComplete={(score) => {
         recordCompletion(lesson.id, score);
         // Finishing something is what counts as playing; opening a lesson and
